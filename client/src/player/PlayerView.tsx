@@ -9,7 +9,9 @@ import { countExploredCells, forEachExploredRun } from '../lib/exploration'
 import type { Exploration } from '../lib/exploration'
 import { computeAlignedGridLines } from '../lib/gridAlign'
 import { roomHasRoof } from '../lib/roomOps'
-import { visibleDrawings, visibleLights, visibleRegions, visibleStairs } from '../lib/layers'
+import type { PlayerHazard } from '../lib/hazards'
+import { drawHazardAreas } from '../pixi/drawHazards'
+import { visibleDrawings, visibleLights, visibleProps, visibleRegions, visibleStairs } from '../lib/layers'
 import { visionSegments } from '../lib/visibility'
 import { findDoorAt, tokenReachesDoor } from '../lib/doorReach'
 import { findPinAt } from '../lib/pins'
@@ -17,7 +19,9 @@ import { visiblePins } from '../lib/layers'
 import { createPinsRenderer } from '../pixi/drawPins'
 import { fitCamera, panBy, zoomAt } from '../pixi/world'
 import { createDebouncedTask, syncWorldTextResolution } from '../pixi/textResolution'
-import type { Camera } from '../pixi/world'
+import type { Bounds, Camera, Point } from '../pixi/world'
+import { arrivalCamera, centeredCamera, firstOwnToken } from './playerCamera'
+import { drawOwnerPulse, drawOwnerRing, ownerRingOuterPx } from './ownerMarker'
 import { drawGrid } from '../pixi/drawGrid'
 import { currentRendererResolution, watchDevicePixelRatio } from '../pixi/rendererResolution'
 import { drawHexGrid } from '../pixi/drawHexGrid'
@@ -32,20 +36,28 @@ import { createRegionsRenderer } from '../pixi/drawRegions'
 import { createLightsRenderer } from '../pixi/drawLights'
 import { drawDrawings } from '../pixi/drawDrawings'
 import { drawStairs } from '../pixi/drawStairs'
+import { drawPropSilhouettes } from '../pixi/drawPropSilhouettes'
 import { buildFloorMask } from '../pixi/floorMask'
 import { pixelGrid, snapToPhysicalPixel, type PixelGrid } from '../pixi/pixelAlign'
 import { screenLabelSizing } from '../pixi/screenLabel'
-import { TOKEN_FRAME_COLOR, TOKEN_FRAME_WIDTH } from '../pixi/constants'
+import { TOKEN_FRAME_COLOR, TOKEN_FRAME_WIDTH, TOKEN_NAME_FILL_COLOR, TOKEN_NAME_OUTLINE_COLOR, TURN_RING_COLOR, TURN_RING_GAP, TURN_RING_WIDTH } from '../pixi/constants'
 import { parseHexColor } from '../lib/tokenColor'
+import { readTokenHealth } from '../lib/tokenHealth'
+import { drawTokenHealthBar, HEALTH_BAR_LABEL, tokenLabelTop } from '../pixi/drawTokenHealth'
 import { fitPhotoSprite, textureFromDataUrl } from '../pixi/tokenPhotoSprite'
 import { isTokenPhotoData, tokenPhotoRef } from '../lib/tokenPhoto'
-import { createRoomNamesRenderer } from '../pixi/drawRoomNames'
+import { tokenConditionsOf } from '../lib/tokenConditions'
+import { CONDITION_MARKS_LABEL, drawTokenConditions } from '../pixi/drawTokenConditions'
+import { watchAlertOf } from '../lib/npcWatch'
+import { WATCH_ALERT_LABEL, drawWatchAlert } from '../pixi/drawNpcWatch'
+import { createRoomNamesRenderer, findRoomLabelAt } from '../pixi/drawRoomNames'
+import { hasEnterText } from '../lib/roomText'
 import { createTextLabelsRenderer } from '../pixi/drawTextLabels'
 import { isDegenerateRegion } from '../pixi/shapes'
 import { createSignalsRenderer } from '../pixi/drawSignals'
 import { SIGNAL_LONG_PRESS_MS, SIGNAL_LONG_PRESS_TOLERANCE_PX, type SignalMark } from '../lib/signals'
-import { createLaserRenderer } from '../pixi/drawLaser'
-import type { LaserTrail } from '../lib/laser'
+import { createLaserPool, createLaserRenderer } from '../pixi/drawLaser'
+import { appendLaserPoints, pruneLaserTrail, type LaserTrail, type RemoteLaser } from '../lib/laser'
 import type { PlayerViewSettings } from './PlayerPanel'
 import {
   MEASURE_OFF,
@@ -57,7 +69,31 @@ import {
   type PlayerMeasureEvent,
   type PlayerMeasureState,
 } from './playerMeasure'
-import { drawPlayerMeasure } from './drawPlayerMeasure'
+import { drawPlayerMeasure, drawPlayerTokenDrag } from './drawPlayerMeasure'
+import { fireLongPress } from './playerLongPress'
+import { createTokenGlides, stepGlides, syncGlide, type TokenGlides } from './tokenGlide'
+import { applyTokenTouch, prepareTokenLayer } from './tokenTouch'
+import {
+  NO_TOUCH,
+  NO_ZOOM_STEP,
+  fingerDown,
+  fingerMove,
+  fingerUp,
+  rebasePinch,
+  zoomAnimationFrame,
+  zoomLimits,
+  zoomStepAnimation,
+  zoomStepNow,
+  type TouchState,
+  type ZoomAnimation,
+  type ZoomDirection,
+  type ZoomLimits,
+  type ZoomStepRequest,
+} from './playerZoom'
+import { drawFacingNib, facingLabelOffset, tokenFacing } from './facingMarker'
+import { createTokenTurns, stepTurns, syncTurn, type TokenTurns } from './tokenTurn'
+import { previewTokenDrag } from './playerTokenDrag'
+import { reachOutline } from '../lib/movementRules'
 
 interface PlayerViewProps {
   map: MapData
@@ -66,7 +102,11 @@ interface PlayerViewProps {
   explored?: Exploration
   /** Zonas ocultas ativas do mestre: pintadas de preto por cima da planta. */
   concealed?: RegionPoint[][]
+  /** ZONA DE PERIGO: salas tomadas que o jogador enxerga agora (o host já recortou). */
+  hazards?: readonly PlayerHazard[]
   ownTokens: string[]
+  /** INICIATIVA: a ficha da vez (sempre uma de `map.tokens`), que ganha o anel da vez. */
+  turnTokenId?: string | null
   settings: PlayerViewSettings
   /** Token a centralizar. `focusSeq` muda a cada pedido, para repetir o mesmo token. */
   focusTokenId: string | null
@@ -78,6 +118,15 @@ interface PlayerViewProps {
   signalArmed?: boolean
   onSignal?: (x: number, y: number) => void
   /**
+   * AÇÕES NO PONTO: o toque longo venceu em (`x`, `y`) de mundo, com o dedo em
+   * (`screenX`, `screenY`) de tela. Quem monta abre ali o menu
+   * Sinalizar/Procurar/Escutar/Espiar/Revistar e decide o sinal: com isto, o
+   * toque longo NÃO chama `onSignal`; sem isto, chama (o sinal de sempre).
+   */
+  onLongPress?: (x: number, y: number, screenX: number, screenY: number) => void
+  /** Qualquer toque no mapa: o menu do toque longo anterior fecha. */
+  onMapPointerDown?: () => void
+  /**
    * Botão "Medir" ligado: arrastar no mapa mede a distância em vez de mover a
    * câmera. A medida é só desta tela — nada vai pelo socket.
    */
@@ -86,8 +135,38 @@ interface PlayerViewProps {
   onDoorToggle?: (wallId: string) => void
   /** Toque curto num pino: abre o cartão do ponto de interesse. */
   onPinOpen?: (pinId: string) => void
+  /** Toque curto no nome de uma Sala cujo texto já chegou: reabre o texto da sala. */
+  onRoomOpen?: (regionId: string) => void
   /** Rastro do laser do mestre; o ticker esmaece cada ponto pela idade. */
   laser?: LaserTrail
+  /**
+   * Botão "Laser" ligado: segurar e arrastar no mapa aponta (em vez de mover
+   * a câmera). O rastro aparece aqui na hora e sai por `onLaserMove`.
+   */
+  laserArmed?: boolean
+  /** Cor do próprio laser (`#rrggbb`): a da ficha, a mesma que os outros veem. */
+  ownLaserColor?: string
+  /** Ponto do próprio laser, em px de mundo. */
+  onLaserMove?: (x: number, y: number) => void
+  /** Soltou (ou desligou o modo no meio): fim do gesto. */
+  onLaserEnd?: () => void
+  /** Lasers dos outros jogadores da cena. */
+  playerLasers?: readonly RemoteLaser[]
+  /**
+   * Caixas da interface que flutuam sobre o mapa (o painel do jogador), em px
+   * da JANELA, lidas na hora: a câmera põe a própria ficha no centro do que
+   * elas deixam livre, e nunca faz a ficha nascer debaixo delas.
+   */
+  focusObstacles?: () => Bounds[]
+  /** Degrau pedido pelos botões + e − (`PlayerZoomControls`): `seq` novo = um degrau, em volta do centro da tela. */
+  zoomStep?: ZoomStepRequest
+  /** Chegou ao zoom máximo ou mínimo, ou saiu dele: os botões mostram o que ainda dá para fazer. */
+  onZoomLimitsChange?: (limits: ZoomLimits) => void
+  /**
+   * Espelho do "Ver tela" do mestre: ocupa o elemento pai (e não a janela) e
+   * só mostra — nenhum gesto chega ao mapa, então nada anda na tela do jogador.
+   */
+  mirror?: boolean
 }
 
 const RASTER_SAMPLES = 4
@@ -96,10 +175,16 @@ const FIT_MARGIN = 24
 const MEASURE_LABEL_OFFSET_PX = 12
 /** Fundo do mapa, igual ao do canvas do editor. */
 const MAP_BACKGROUND = 0x2b2b2b
+
+/** Movimento reduzido no sistema: a ficha vai direto ao ponto novo, sem deslizar. */
+function prefersReducedMotion(): boolean {
+  return window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false
+}
 const MAP_BACKGROUND_RGB: Rgb = [0x2b, 0x2b, 0x2b]
 /** Fora do retângulo do mapa: mais escuro que o fundo, para a borda do mapa ler. */
 const OUTSIDE_BACKGROUND = 0x111111
 export const OWN_TOKEN_COLOR = 0x3b82f6
+export const OWN_TOKEN_CSS = `#${OWN_TOKEN_COLOR.toString(16).padStart(6, '0')}`
 const OTHER_TOKEN_COLOR = 0x9ca3af
 const TOKEN_OUTLINE = 0xffffff
 const LABEL_FONT_SIZE = 12
@@ -121,12 +206,32 @@ const ROOF_COLOR = 0x52483f
 const ROOF_EDGE_COLOR = 0x6e6055
 const ROOF_EDGE_WIDTH = 3
 
+// `pointerId`: o dedo (ou mouse) dono do gesto. Com dois dedos na tela, o
+// passo e o soltar do OUTRO dedo não mexem neste gesto.
 type Drag =
   // `startX`/`startY`: onde o gesto começou — se ele terminar sem andar, é um toque (porta), não um arrasto de câmera.
-  | { kind: 'pan'; lastX: number; lastY: number; startX: number; startY: number }
-  | { kind: 'token'; tokenId: string; offsetX: number; offsetY: number; x: number; y: number }
+  // `canTap` falso: o dedo que sobrou de uma pinça. Arrasta a câmera, mas soltá-lo não abre porta nem pino.
+  | { kind: 'pan'; pointerId: number; lastX: number; lastY: number; startX: number; startY: number; canTap: boolean }
+  // `origin`: onde a ficha estava ao começar (de onde se contam os quadrados);
+  // `reach`: contorno do alcance em px de mundo, calculado uma vez por gesto
+  // (`null` na cena sem passo máximo); `label`: "N quadrados" ou nada.
+  | {
+      kind: 'token'
+      pointerId: number
+      tokenId: string
+      offsetX: number
+      offsetY: number
+      x: number
+      y: number
+      origin: Point
+      reach: Point[] | null
+      label: string | null
+    }
   // Régua do jogador: o ponto vive em `scene.measure`, aqui só se marca que o gesto é dela.
-  | { kind: 'measure' }
+  // `before`: a medida de antes do toque, que volta se o toque virar pinça.
+  | { kind: 'measure'; pointerId: number; before: PlayerMeasureState }
+  // Laser do jogador: o rastro vive em `scene.ownLaser`.
+  | { kind: 'laser'; pointerId: number }
 
 function safeRgb(hex: string | null, fallback: Rgb): Rgb {
   return hex && HEX_COLOR.test(hex) ? hexToRgb(hex) : fallback
@@ -204,7 +309,29 @@ interface TokenView {
   /** Foto do token, recortada no círculo por `photoMask`; invisível quando o token não tem foto. */
   photo: Sprite
   photoMask: Graphics
+  /** Aro de dono (ownerMarker.ts): só na ficha do próprio jogador, com espessura de TELA. */
+  ring: Graphics
+  /** Raio do disco em px de mundo e se a ficha é do jogador: o aro se refaz no zoom sem o token à mão. */
+  radius: number
+  own: boolean
+  /** Raio e zoom do aro desenhado por último; `null` = sem aro. */
+  ringKey: string | null
+  /** Bico da frente (facingMarker.ts), acima do aro e abaixo do nome; vazio e escondido na ficha sem frente. */
+  facingNib: Graphics
+  /** Para onde a ficha olha, em radianos (`tokenFacing`); `null` = sem frente. O ângulo DESENHADO é `facingNib.rotation`. */
+  facing: number | null
+  /** Raio, dono e zoom do bico desenhado por último; `null` = sem bico. */
+  facingKey: string | null
+  /** Barra de vida sob o disco, o mesmo desenho do mestre (`pixi/drawTokenHealth.ts`).
+   *  Só chega vida que o mestre deixou os jogadores verem (`lib/fogFilter.ts`). */
+  bar: Graphics
+  /** Há barra de vida: o nome desce para baixo dela (`tokenLabelTop`), com ou sem bico. */
+  hasHealth: boolean
   label: Text
+  /** Marcas de condição que o mestre pôs na ficha (mesmo desenho do editor, `pixi/drawTokenConditions.ts`). */
+  marks: Graphics
+  /** Balão do guarda (?, !) — só chega a marca, nunca o cone (`lib/fogFilter.ts`). */
+  alert: Graphics
   key: string
   /** Referência já carregada em `photo`: sem isto, todo snapshot recarregaria a mesma foto. */
   loadedPhoto: string | null
@@ -219,22 +346,26 @@ function tokenRadius(token: Token, grid: number): number {
 /**
  * Atualiza no lugar: nunca destrói `Text`, que em Pixi 8.20 quebra em
  * TexturePool.returnTexture. Só a GEOMETRIA (círculo chapado ou moldura +
- * máscara da foto); a textura chega depois e é assunto de `syncTokenPhoto`.
+ * máscara da foto, e as marcas de condição); a textura chega depois e é
+ * assunto de `syncTokenPhoto`. Exportada para o teste da condição na ficha.
  */
-function paintTokenView(view: TokenView, token: Token, grid: number, own: boolean): void {
+export function paintTokenView(view: TokenView, token: Token, grid: number, own: boolean, turn = false): void {
   const radius = tokenRadius(token, grid)
   // A cor que o MESTRE deu à ficha vale aqui também: a separação entre aliado
   // e inimigo não serve de nada se só o mestre a enxerga. Sem cor escolhida,
   // o azul do dono e o cinza dos outros de sempre — tela idêntica à de antes.
   const chosen = parseHexColor(token.color)
   const color = chosen ?? (own ? OWN_TOKEN_COLOR : OTHER_TOKEN_COLOR)
-  // Com cor escolhida, o preenchimento deixa de dizer "este é o seu": o aro
-  // passa a dizer. Uma regra só, igual nos dois ramos (disco e foto).
-  const ownRing = chosen !== null && own
+  // "Este é o seu" é o aro BRANCO de fora (`syncOwnerRing`), em qualquer cor
+  // de ficha e nos dois ramos (disco e foto): o aro azul de antes sumia numa
+  // ficha azul. A ficha dos outros segue com o contorno branco fino.
+  view.radius = radius
+  view.own = own
   view.body.clear()
   if (tokenPhotoRef(token) === null) {
     view.photo.visible = false
-    view.body.circle(0, 0, radius).fill({ color }).stroke({ width: ownRing ? 3 : 2, color: ownRing ? OWN_TOKEN_COLOR : TOKEN_OUTLINE })
+    view.body.circle(0, 0, radius).fill({ color })
+    if (!own) view.body.stroke({ width: 2, color: TOKEN_OUTLINE })
   } else {
     // Só referência auto-contida chega aqui: lib/fogFilter.ts apaga o caminho
     // do disco do mestre antes de o mapa sair da máquina dele.
@@ -247,10 +378,72 @@ function paintTokenView(view: TokenView, token: Token, grid: number, own: boolea
     view.body
       .circle(0, 0, radius - TOKEN_FRAME_WIDTH / 2)
       .stroke({ width: TOKEN_FRAME_WIDTH, color: chosen ?? (own ? TOKEN_FRAME_COLOR : OTHER_TOKEN_COLOR) })
-    if (ownRing) view.body.circle(0, 0, radius).stroke({ width: 2, color: OWN_TOKEN_COLOR })
   }
+  // A ficha da vez: o mesmo anel solto do mapa do mestre (pixi/tokensRenderer.ts).
+  if (turn) view.body.circle(0, 0, radius + TURN_RING_GAP + TURN_RING_WIDTH / 2).stroke({ width: TURN_RING_WIDTH, color: TURN_RING_COLOR })
+  // Barra de vida: a mesma do mestre, e o nome desce para baixo dela.
+  const health = readTokenHealth(token.health)
+  drawTokenHealthBar(view.bar, radius, health)
+  // A condição que o mestre marcou chega junto com a ficha (o recorte de
+  // lib/fogFilter.ts só deixa passar ficha que este jogador pode ver).
+  drawTokenConditions(view.marks, tokenConditionsOf(token), radius, grid)
+  // OLHOS DO GUARDA: a marca que o recorte pôs no guarda que este jogador vê.
+  drawWatchAlert(view.alert, watchAlertOf(token), radius)
+  view.hasHealth = health !== null
+  // Só o texto: onde o nome fica depende do bico, da barra e do zoom (`syncFacingNib`).
   view.label.text = token.name
-  view.label.position.set(0, radius + 2)
+}
+
+/** Aro de dono no zoom atual; só refaz quando raio, dono ou zoom mudam. */
+function syncOwnerRing(view: TokenView, cameraScale: number): void {
+  const key = view.own ? `${view.radius}@${cameraScale}` : null
+  if (key === view.ringKey) return
+  view.ringKey = key
+  if (key === null) view.ring.clear()
+  else drawOwnerRing(view.ring, view.radius, cameraScale)
+}
+
+/**
+ * Bico da frente e posição do nome no zoom atual. O bico só se redesenha
+ * quando raio, dono ou zoom mudam: virar a ficha mexe só em `rotation`.
+ */
+function syncFacingNib(view: TokenView, cameraScale: number): void {
+  const faced = view.facing !== null
+  view.facingNib.visible = faced
+  // Com frente, o nome desce para fora do alcance do bico, em qualquer direção:
+  // assim o bico virado para baixo nunca entra nas letras, e o nome não pula
+  // quando o mestre vira a ficha.
+  // Com barra de vida, o nome fica abaixo dela também (`tokenLabelTop`).
+  const belowBar = tokenLabelTop(view.radius, view.hasHealth)
+  view.label.position.set(0, faced ? Math.max(facingLabelOffset(view.radius, cameraScale, view.own), belowBar) : belowBar)
+  const key = faced ? `${view.radius}@${cameraScale}@${view.own}` : null
+  if (key === view.facingKey) return
+  view.facingKey = key
+  if (key === null) view.facingNib.clear()
+  else drawFacingNib(view.facingNib, view.radius, cameraScale, view.own)
+}
+
+interface FacingSync {
+  /** Ângulo que o bico tinha na tela antes deste snapshot; `null` = não estava na tela. */
+  shown: number | null
+  now: number
+  /** `false` = vai direto à frente nova (troca de cena, movimento reduzido). */
+  animate: boolean
+  cameraScale: number
+}
+
+/**
+ * Frente da ficha vinda do mapa: o bico gira até ela (`tokenTurn.ts`), ou
+ * some quando a ficha não tem frente. O recorte do mestre já tirou do pacote
+ * toda ficha que este jogador não enxerga, então todo bico desenhado aqui é de
+ * ficha que ele pode ver.
+ */
+function syncFacing(view: TokenView, token: Token, turns: TokenTurns, sync: FacingSync): void {
+  const facing = tokenFacing(token.rotation)
+  view.facing = facing
+  if (facing === null) turns.delete(token.id)
+  else view.facingNib.rotation = syncTurn(turns, token.id, { shown: sync.shown, target: facing, now: sync.now, animate: sync.animate })
+  syncFacingNib(view, sync.cameraScale)
 }
 
 /** Carrega a foto nova, se mudou, e reencaixa no círculo quando a textura chega. */
@@ -280,7 +473,8 @@ function syncTokenPhoto(view: TokenView, token: Token, grid: number): void {
     })
 }
 
-function createTokenView(token: Token, grid: number, own: boolean): TokenView {
+/** Exportada para o teste da condição na ficha (`PlayerView.condicoes.test.ts`). */
+export function createTokenView(token: Token, grid: number, own: boolean, turn = false): TokenView {
   const wrapper = new Container()
   const body = new Graphics()
   const photo = new Sprite(Texture.EMPTY)
@@ -288,13 +482,43 @@ function createTokenView(token: Token, grid: number, own: boolean): TokenView {
   // A máscara precisa estar na árvore de exibição para o Pixi recortá-la; ela não aparece por si.
   const photoMask = new Graphics()
   photo.mask = photoMask
-  const label = new Text({ text: token.name, style: { fontSize: LABEL_FONT_SIZE, fill: 0xffffff, stroke: { color: 0x000000, width: 3 } } })
+  const ring = new Graphics()
+  // Acima do aro, para o branco do bico emendar no branco dele; abaixo do nome, que nunca some sob o bico.
+  const facingNib = new Graphics()
+  facingNib.visible = false
+  const label = new Text({ text: token.name, style: { fontSize: LABEL_FONT_SIZE, fill: TOKEN_NAME_FILL_COLOR, stroke: { color: TOKEN_NAME_OUTLINE_COLOR, width: 3 } } })
   label.anchor.set(0.5, 0)
-  wrapper.addChild(photoMask, photo, body, label)
-  wrapper.eventMode = 'static'
-  wrapper.cursor = 'grab'
-  const view: TokenView = { wrapper, body, photo, photoMask, label, key: tokenViewKey(token, grid, own), loadedPhoto: null, loadSeq: 0 }
-  paintTokenView(view, token, grid, own)
+  const bar = new Graphics()
+  bar.label = HEALTH_BAR_LABEL
+  // Por último: a marca de condição fica por cima do disco e da foto.
+  const marks = new Graphics()
+  marks.label = CONDITION_MARKS_LABEL
+  const alert = new Graphics()
+  alert.label = WATCH_ALERT_LABEL
+  wrapper.addChild(photoMask, photo, body, ring, bar, facingNib, label, marks, alert)
+  applyTokenTouch(wrapper, own)
+  const view: TokenView = {
+    wrapper,
+    body,
+    photo,
+    photoMask,
+    ring,
+    radius: tokenRadius(token, grid),
+    own,
+    ringKey: null,
+    facingNib,
+    facing: null,
+    facingKey: null,
+    bar,
+    hasHealth: false,
+    label,
+    marks,
+    alert,
+    key: tokenViewKey(token, grid, own, turn),
+    loadedPhoto: null,
+    loadSeq: 0,
+  }
+  paintTokenView(view, token, grid, own, turn)
   return view
 }
 
@@ -311,10 +535,17 @@ function sizeTokenLabel(label: Text, cameraScale: number, showNames: boolean): v
  * caracteres e entraria nesta chave a cada quadro — a troca de uma foto por
  * outra é tratada em `syncTokenPhoto`, que compara a referência uma vez só.
  */
-function tokenViewKey(token: Token, grid: number, own: boolean): string {
+export function tokenViewKey(token: Token, grid: number, own: boolean, turn = false): string {
   // `token.color` entra na chave: sem isto, o mestre troca a cor e a tela do
   // jogador continua com a tinta velha até o token mudar de nome ou tamanho.
-  return JSON.stringify([token.name, token.size, grid, own, tokenPhotoRef(token) !== null, token.color ?? null])
+  // A vida também: a barra do jogador acompanha cada golpe que o mestre anota.
+  const health = readTokenHealth(token.health)
+  const healthKey = health === null ? null : [health.current, health.max]
+  // As condições entram pelo mesmo motivo — já limpas, para lixo no campo não
+  // mandar repintar nada. `turn` também: a vez andar repinta só as duas fichas
+  // que ganham/perdem o anel.
+  // A marca do guarda também: sem ela o "!" ficaria na tela depois de ele perder o jogador de vista.
+  return JSON.stringify([token.name, token.size, grid, own, tokenPhotoRef(token) !== null, token.color ?? null, healthKey, tokenConditionsOf(token), turn, watchAlertOf(token)])
 }
 
 interface Scene {
@@ -338,6 +569,14 @@ interface Scene {
   lastDrawingsKey: string | null
   /** Escadas dependem do zoom e da resolução (linha central alinhada ao pixel). */
   lastStairsKey: string | null
+  /**
+   * Móveis e objetos como SILHUETA chapada (`pixi/drawPropSilhouettes.ts`): o
+   * recorte do mestre só manda a geometria do objeto que o jogador enxerga
+   * agora. O contorno tem espessura em px de tela: a chave inclui zoom e resolução.
+   */
+  props: Graphics
+  lastPropsKey: string | null
+  propsCount: number
   walls: Graphics
   /** Portas do mesmo renderer do editor (drawDoors.ts): trancada continua visível. */
   doors: Graphics
@@ -369,6 +608,12 @@ interface Scene {
   pins: Container
   pinsRenderer: ReturnType<typeof createPinsRenderer>
   lastPinsKey: string | null
+  /** ZONA DE PERIGO: cor chapada sob a névoa, recortada pela visão atual (`hazardsMask`). */
+  hazards: Graphics
+  hazardsMask: Graphics
+  lastHazards: readonly PlayerHazard[] | null
+  lastHazardsVision: RegionPoint[][] | null
+  hazardsCount: number
   /** Zonas ocultas: preto opaco acima da névoa e abaixo dos tokens. */
   concealed: Graphics
   lastConcealed: RegionPoint[][] | null
@@ -379,6 +624,10 @@ interface Scene {
   roofsCount: number
   tokens: Container
   tokenViews: Map<string, TokenView>
+  /** Fichas deslizando do ponto antigo ao novo; o ticker as leva até lá. */
+  tokenGlides: TokenGlides
+  /** Bicos girando da frente antiga à nova (o mestre virou a ficha); o ticker os leva até lá. */
+  tokenTurns: TokenTurns
   camera: Camera
   /** Escala para a qual grade, escadas e rótulos foram ajustados por último. */
   zoomScale: number
@@ -391,6 +640,10 @@ interface Scene {
    */
   fittedMapId: string | null
   drag: Drag | null
+  /** Dedos na tela e a pinça (playerZoom.ts). Só toque: mouse e caneta são um ponteiro só. */
+  touch: TouchState
+  /** Degrau dos botões + e − ainda andando; `null` = parado. O ticker o leva até o fim. */
+  zoomAnimation: ZoomAnimation | null
   /** Espaço de tela, acima do `world`: ondas e seta de borda com tamanho fixo. */
   signalsLayer: Container
   signalsRenderer: ReturnType<typeof createSignalsRenderer>
@@ -403,12 +656,32 @@ interface Scene {
   measure: PlayerMeasureState
   /** Última medida desenhada (pontos de tela + rótulo); igual = nada a repintar. */
   lastMeasureKey: string | null
+  /**
+   * Rastro do PRÓPRIO laser, desenhado na hora (sem esperar a volta pela
+   * rede). Mora aqui pela mesma razão da régua: muda a cada passo do dedo.
+   */
+  ownLaser: LaserTrail
+  /**
+   * Arrasto da própria ficha: trajeto, contorno do alcance e "N quadrados".
+   * Camada própria (tela, como a régua), para o gesto nunca apagar a medida.
+   */
+  tokenDragLayer: Graphics
+  /** Último arrasto desenhado; igual = nada a repintar. */
+  lastTokenDragKey: string | null
   /** Resolução dos Text do mundo acompanhando o zoom (pixi/textResolution.ts). */
   textResolution: ReturnType<typeof createDebouncedTask>
+  /** Pulso "você está aqui" (ownerMarker.ts), em espaço de TELA acima do mapa. */
+  pulseLayer: Graphics
+  /** Pulso em curso: qual ficha e desde quando (`performance.now()`); `null` = parado. */
+  pulse: { tokenId: string; startedAt: number } | null
 }
 
 /** Referência estável para o padrão da prop: sem sinais, nada muda entre renders. */
 const NO_SIGNALS: readonly SignalMark[] = []
+const NO_PLAYER_LASERS: readonly RemoteLaser[] = []
+const NO_OWN_LASER: LaserTrail = { points: [], on: false }
+/** Rótulo da ponta do próprio laser: o nome de quem aponta é o dos outros, o seu é "Você". */
+const OWN_LASER_LABEL = 'Você'
 
 function applyCamera(scene: Scene): void {
   const res = scene.app.renderer.resolution
@@ -498,6 +771,24 @@ function redrawFog(scene: Scene, map: MapData, vision: RegionPoint[][], explored
 }
 
 /**
+ * ZONA DE PERIGO na tela do jogador. O host só manda a sala tomada que ele
+ * enxerga agora; a máscara da visão ainda corta o desenho na borda do anel,
+ * para o perigo aparecer SÓ onde ele enxerga — a parte da sala fora do alcance
+ * da lanterna continua sem nada pintado.
+ */
+function redrawHazards(scene: Scene, hazards: readonly PlayerHazard[], vision: RegionPoint[][]): void {
+  if (hazards === scene.lastHazards && vision === scene.lastHazardsVision) return
+  scene.lastHazards = hazards
+  scene.lastHazardsVision = vision
+  drawHazardAreas(scene.hazards, hazards)
+  scene.hazardsMask.clear()
+  const rings = vision.filter((poly) => poly.length >= 3)
+  for (const ring of rings) scene.hazardsMask.poly(ring, true).fill({ color: 0xffffff })
+  scene.hazards.visible = hazards.length > 0 && rings.length > 0
+  scene.hazardsCount = scene.hazards.visible ? hazards.length : 0
+}
+
+/**
  * Preto opaco sobre cada zona oculta ativa. A visão continua passando por ela
  * (a zona esconde conteúdo, não bloqueia), então o recorte do mestre já veio
  * sem nada lá dentro; o preto só tira a planta de fundo (chão, parede de
@@ -538,21 +829,62 @@ function redrawRoofs(scene: Scene, regions: Region[]): void {
   scene.roofsCount = roofs.length
 }
 
-function centerCameraOn(scene: Scene, x: number, y: number): void {
-  const { scale } = scene.camera
-  scene.camera = { scale, x: scene.app.screen.width / 2 - x * scale, y: scene.app.screen.height / 2 - y * scale }
+/**
+ * Liga o pulso "você está aqui" na ficha. Com movimento reduzido fica só o aro
+ * branco, que já está sempre lá: o pulso é reforço, não a única pista.
+ */
+function startOwnerPulse(scene: Scene, tokenId: string): void {
+  if (prefersReducedMotion()) return
+  scene.pulse = { tokenId, startedAt: performance.now() }
+}
+
+/**
+ * A câmera muda por pedido do app (enquadrar mapa novo, centralizar): o degrau
+ * de zoom que andava para, e a pinça em curso segue da câmera nova em vez de
+ * puxá-la de volta no próximo passo do dedo.
+ */
+function setCameraFromApp(scene: Scene, camera: Camera): void {
+  scene.zoomAnimation = null
+  scene.camera = camera
+  scene.touch = rebasePinch(scene.touch, camera)
+  applyCamera(scene)
+}
+
+/**
+ * Um degrau dos botões + e −, em volta do centro da tela. Animado para o
+ * toque e o clique; inteiro de uma vez para o teclado e para quem pediu ao
+ * sistema menos movimento.
+ */
+function stepZoom(scene: Scene, direction: ZoomDirection, animate: boolean): void {
+  // Pinça em andamento manda na câmera: o botão tocado com outro dedo não disputa com ela.
+  if (scene.touch.pinch !== null) return
+  const anchor = { x: scene.app.screen.width / 2, y: scene.app.screen.height / 2 }
+  if (animate && !prefersReducedMotion()) {
+    const animation = zoomStepAnimation(scene.camera, scene.zoomAnimation, anchor, direction, performance.now())
+    // No limite não há degrau; o que já andava termina sozinho.
+    if (animation !== null) scene.zoomAnimation = animation
+    return
+  }
+  const camera = zoomStepNow(scene.camera, scene.zoomAnimation, anchor, direction)
+  if (camera === null) return
+  scene.zoomAnimation = null
+  scene.camera = camera
   applyCamera(scene)
 }
 
 /** Referência estável: sem zonas, o redesenho não repinta a camada a cada snapshot. */
 const NO_CONCEALED: RegionPoint[][] = []
+/** Mesmo motivo, para a zona de perigo. */
+const NO_HAZARDS: readonly PlayerHazard[] = []
 
 export function PlayerView({
   map,
   vision,
   explored,
   concealed = NO_CONCEALED,
+  hazards = NO_HAZARDS,
   ownTokens,
+  turnTokenId = null,
   settings,
   focusTokenId,
   focusSeq,
@@ -560,16 +892,79 @@ export function PlayerView({
   signals = NO_SIGNALS,
   signalArmed = false,
   onSignal,
+  onLongPress,
+  onMapPointerDown,
   measureArmed = false,
   onDoorToggle,
   onPinOpen,
+  onRoomOpen,
   laser,
+  laserArmed = false,
+  ownLaserColor = OWN_TOKEN_CSS,
+  onLaserMove,
+  onLaserEnd,
+  playerLasers = NO_PLAYER_LASERS,
+  focusObstacles,
+  zoomStep = NO_ZOOM_STEP,
+  onZoomLimitsChange,
+  mirror = false,
 }: PlayerViewProps) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const measureLabelRef = useRef<HTMLDivElement | null>(null)
+  const tokenDragLabelRef = useRef<HTMLDivElement | null>(null)
   const sceneRef = useRef<Scene | null>(null)
-  const latestRef = useRef({ map, vision, explored, concealed, ownTokens, settings, onMove, signals, signalArmed, onSignal, measureArmed, onDoorToggle, onPinOpen, laser })
-  latestRef.current = { map, vision, explored, concealed, ownTokens, settings, onMove, signals, signalArmed, onSignal, measureArmed, onDoorToggle, onPinOpen, laser }
+  const latest = {
+    map,
+    vision,
+    explored,
+    concealed,
+    hazards,
+    ownTokens,
+    turnTokenId,
+    settings,
+    onMove,
+    signals,
+    signalArmed,
+    onSignal,
+    onLongPress,
+    onMapPointerDown,
+    measureArmed,
+    onDoorToggle,
+    onPinOpen,
+    onRoomOpen,
+    laser,
+    laserArmed,
+    ownLaserColor,
+    onLaserMove,
+    onLaserEnd,
+    playerLasers,
+    focusObstacles,
+    onZoomLimitsChange,
+  }
+  const latestRef = useRef(latest)
+  latestRef.current = latest
+  /** Último limite avisado aos botões; `null` = nenhum ainda (o primeiro sempre vai, até depois de remontar). */
+  const reportedZoomLimitsRef = useRef<ZoomLimits | null>(null)
+  /** Pedido dos botões já atendido: remontar com o mesmo `seq` não repete o degrau. */
+  const handledZoomSeqRef = useRef(zoomStep.seq)
+
+  /** Avisa os botões só quando o limite muda — a pinça chama isto a cada passo do dedo, e re-render por passo não se paga. */
+  function reportZoomLimits(scale: number): void {
+    const next = zoomLimits(scale)
+    const last = reportedZoomLimitsRef.current
+    if (last !== null && last.canZoomIn === next.canZoomIn && last.canZoomOut === next.canZoomOut) return
+    reportedZoomLimitsRef.current = next
+    latestRef.current.onZoomLimitsChange?.(next)
+  }
+
+  /** O que cobre o mapa agora, em px do CANVAS (a prop fala em px da janela). */
+  function readObstacles(): Bounds[] {
+    const read = latestRef.current.focusObstacles
+    const el = containerRef.current
+    if (!read || !el) return []
+    const base = el.getBoundingClientRect()
+    return read().map((b) => ({ minX: b.minX - base.left, minY: b.minY - base.top, maxX: b.maxX - base.left, maxY: b.maxY - base.top }))
+  }
 
   /**
    * Pinta a régua (linha no canvas + rótulo no DOM) a partir de `scene.measure`.
@@ -601,13 +996,46 @@ export function PlayerView({
     if (key === scene.lastMeasureKey) return
     scene.lastMeasureKey = key
     drawPlayerMeasure(scene.measureLayer, start, end)
-    if (!label) return
+    if (label) showScreenLabel(scene, label, text, end)
+  }
+
+  /** Escreve o rótulo acima e à direita de `end` (pontos de tela), como o do mestre, preso dentro da tela. */
+  function showScreenLabel(scene: Scene, label: HTMLDivElement, text: string, end: Point): void {
     if (label.textContent !== text) label.textContent = text
     label.hidden = false
-    // Acima e à direita da ponta, como o rótulo do mestre, preso dentro da tela.
     const x = Math.min(Math.max(0, end.x + MEASURE_LABEL_OFFSET_PX), scene.app.screen.width - label.offsetWidth)
     const y = Math.min(Math.max(0, end.y - MEASURE_LABEL_OFFSET_PX - label.offsetHeight), scene.app.screen.height - label.offsetHeight)
     label.style.transform = `translate(${Math.round(x)}px, ${Math.round(y)}px)`
+  }
+
+  /**
+   * Pinta o arrasto da própria ficha: trajeto desde onde ela saiu, contorno do
+   * alcance (cena com passo máximo) e "N quadrados" junto ao dedo — o mesmo
+   * rótulo e o mesmo traço da régua Medir. Sem arrasto de ficha, apaga tudo.
+   * Chamada no gesto e no ticker (zoom pela roda no meio do arrasto).
+   */
+  function syncTokenDrag(scene: Scene): void {
+    const drag = scene.drag
+    const label = tokenDragLabelRef.current
+    if (drag?.kind !== 'token' || drag.label === null) {
+      if (scene.lastTokenDragKey === null) return
+      scene.lastTokenDragKey = null
+      scene.tokenDragLayer.clear()
+      if (label) {
+        label.textContent = ''
+        label.hidden = true
+      }
+      return
+    }
+    const start = measureWorldToScreen(scene.camera, drag.origin)
+    const end = measureWorldToScreen(scene.camera, { x: drag.x, y: drag.y })
+    // A câmera entra na chave: o contorno é refeito só quando a tela muda.
+    const key = JSON.stringify([start, end, drag.label, scene.camera.scale, drag.reach === null])
+    if (key === scene.lastTokenDragKey) return
+    scene.lastTokenDragKey = key
+    const reach = drag.reach?.map((p) => measureWorldToScreen(scene.camera, p)) ?? null
+    drawPlayerTokenDrag(scene.tokenDragLayer, start, end, reach)
+    if (label) showScreenLabel(scene, label, drag.label, end)
   }
 
   function applyMeasureEvent(scene: Scene, event: PlayerMeasureEvent): void {
@@ -638,6 +1066,18 @@ export function PlayerView({
     if (key === scene.lastStairsKey) return
     scene.lastStairsKey = key
     drawStairs(scene.stairs, stairs, null, scale, res)
+  }
+
+  /** Cada objeto na visão vira um retângulo chapado com o tamanho e a rotação do mestre. */
+  function redrawPropsLayer(scene: Scene): void {
+    const currentMap = latestRef.current.map
+    const props = visibleProps(currentMap.props, currentMap.hiddenLayers)
+    const { scale } = scene.camera
+    const res = scene.app.renderer.resolution
+    const key = JSON.stringify([props, scale, res])
+    if (key === scene.lastPropsKey) return
+    scene.lastPropsKey = key
+    scene.propsCount = drawPropSilhouettes(scene.props, props, scale, res)
   }
 
   /** Mesmo desenho do editor (linha clara fina, porta retângulo), em px de tela. */
@@ -721,15 +1161,32 @@ export function PlayerView({
     return pin === null ? null : pin.id
   }
 
+  /**
+   * TEXTO DA SALA: Sala cujo NOME está sob o ponto da tela e cujo texto já
+   * chegou ao jogador. A caixa do rótulo é medida com todas as Salas (o rótulo
+   * desvia das filhas); só depois se pergunta se aquela tem texto.
+   */
+  function roomTextAtScreen(scene: Scene, screenX: number, screenY: number): string | null {
+    const map = latestRef.current.map
+    const point = scene.world.toLocal({ x: screenX, y: screenY })
+    const region = findRoomLabelAt(visibleRegions(map.regions, map.hiddenLayers), point, map.grid, scene.camera.scale)
+    return region !== null && hasEnterText(region.room) ? region.id : null
+  }
+
   /** Só o zoom (ou a resolução) mudou: nada de chão ou névoa. */
   function redrawZoomLayers(scene: Scene): void {
     redrawGridLayer(scene)
+    redrawPropsLayer(scene)
     redrawStairsLayer(scene)
     redrawWallsLayer(scene)
     redrawDoorHints(scene)
     scene.roomNamesRenderer.setCameraScale(scene.camera.scale)
     const { showNames } = latestRef.current.settings
-    for (const view of scene.tokenViews.values()) sizeTokenLabel(view.label, scene.camera.scale, showNames)
+    for (const view of scene.tokenViews.values()) {
+      sizeTokenLabel(view.label, scene.camera.scale, showNames)
+      syncOwnerRing(view, scene.camera.scale)
+      syncFacingNib(view, scene.camera.scale)
+    }
   }
 
   function redraw(scene: Scene): void {
@@ -738,7 +1195,9 @@ export function PlayerView({
       vision: currentVision,
       explored: currentExplored,
       concealed: currentConcealed,
+      hazards: currentHazards,
       ownTokens: own,
+      turnTokenId: currentTurn,
       settings: currentSettings,
     } = latestRef.current
     const hidden = currentMap.hiddenLayers
@@ -757,6 +1216,7 @@ export function PlayerView({
       scene.lastDrawingsKey = drawingsKey
       drawDrawings(scene.drawings, drawings)
     }
+    redrawPropsLayer(scene)
     redrawStairsLayer(scene)
 
     redrawWallsLayer(scene)
@@ -784,6 +1244,7 @@ export function PlayerView({
     scene.textLabels.visible = currentSettings.showNames
 
     redrawLights(scene)
+    redrawHazards(scene, currentHazards, currentVision)
     redrawFog(scene, currentMap, currentVision, currentExplored, currentSettings.exploredBrightness)
     redrawConcealed(scene, currentConcealed)
     redrawRoofs(scene, regions)
@@ -806,28 +1267,54 @@ export function PlayerView({
     const ownSet = new Set(own)
     const currentIds = new Set(currentMap.tokens.map((t) => t.id))
     for (const [id, view] of scene.tokenViews) {
-      if (!currentIds.has(id)) view.wrapper.visible = false
+      if (currentIds.has(id)) continue
+      view.wrapper.visible = false
+      scene.tokenGlides.delete(id)
+      scene.tokenTurns.delete(id)
     }
+    // Deslize só dentro da MESMA cena: a ficha que chega a outra cena (ou a
+    // primeira desenhada) aparece no lugar, sem atravessar a tela.
+    const sameScene = scene.fittedMapId === currentMap.id
+    const reducedMotion = prefersReducedMotion()
+    const draggedId = scene.drag?.kind === 'token' ? scene.drag.tokenId : null
+    const now = performance.now()
+    let facingCount = 0
     for (const token of currentMap.tokens) {
       const isOwn = ownSet.has(token.id)
-      const key = tokenViewKey(token, currentMap.grid, isOwn)
+      const isTurn = token.id === currentTurn
+      const key = tokenViewKey(token, currentMap.grid, isOwn, isTurn)
       let view = scene.tokenViews.get(token.id)
+      // Onde a ficha está desenhada agora; `null` = não estava na tela (nova, ou
+      // voltando para a visão): aparece no lugar, sem vir de onde estava escondida.
+      const shown = view?.wrapper.visible === true ? { x: view.wrapper.x, y: view.wrapper.y } : null
+      // Idem para a frente: a ficha que volta à visão já chega virada, sem girar na frente do jogador.
+      const shownFacing = view?.wrapper.visible === true && view.facing !== null ? view.facingNib.rotation : null
       if (!view) {
         const tokenId = token.id
-        view = createTokenView(token, currentMap.grid, isOwn)
+        view = createTokenView(token, currentMap.grid, isOwn, isTurn)
         view.wrapper.on('pointerdown', (event: FederatedPointerEvent) => startTokenDrag(scene, tokenId, event))
         scene.tokens.addChild(view.wrapper)
         scene.tokenViews.set(tokenId, view)
       } else if (view.key !== key) {
         view.key = key
-        paintTokenView(view, token, currentMap.grid, isOwn)
+        paintTokenView(view, token, currentMap.grid, isOwn, isTurn)
       }
       // Fora do `if` de propósito: trocar uma foto por outra não muda a chave.
       syncTokenPhoto(view, token, currentMap.grid)
+      // A posse muda sem a view nascer de novo (o mestre atribui ou tira a ficha).
+      applyTokenTouch(view.wrapper, isOwn)
       sizeTokenLabel(view.label, scene.camera.scale, currentSettings.showNames)
+      syncOwnerRing(view, scene.camera.scale)
+      syncFacing(view, token, scene.tokenTurns, { shown: shownFacing, now, animate: sameScene && !reducedMotion, cameraScale: scene.camera.scale })
+      if (view.facing !== null) facingCount += 1
       view.wrapper.visible = true
-      view.wrapper.position.set(token.x, token.y)
+      // A ficha sob o dedo é do arrasto (abaixo): não desliza atrás dele.
+      const animate = sameScene && !reducedMotion && token.id !== draggedId
+      const at = syncGlide(scene.tokenGlides, token.id, { shown, target: { x: token.x, y: token.y }, now, animate })
+      view.wrapper.position.set(at.x, at.y)
     }
+    // Já, e não no próximo quadro: o toque que chega antes dele acharia a ordem velha.
+    scene.tokens.sortChildren()
     // Snapshot chegou no meio do arrasto: o token arrastado fica sob o dedo.
     const drag = scene.drag
     if (drag?.kind === 'token') scene.tokenViews.get(drag.tokenId)?.wrapper.position.set(drag.x, drag.y)
@@ -837,11 +1324,14 @@ export function PlayerView({
     if (el) {
       el.dataset.wallsCount = String(scene.wallsCount)
       el.dataset.tokensCount = String(currentMap.tokens.length)
+      el.dataset.facingCount = String(facingCount)
       el.dataset.regionsCount = String(regions.filter((r) => !isDegenerateRegion(r.points)).length)
       el.dataset.labelsCount = String(drawings.filter((d) => d.kind === 'text').length)
       el.dataset.exploredCells = String(scene.exploredCells)
       el.dataset.concealedCount = String(scene.concealedCount)
+      el.dataset.hazardsCount = String(scene.hazardsCount)
       el.dataset.pinsCount = String(pins.length)
+      el.dataset.propsCount = String(scene.propsCount)
       el.dataset.ownTokens = own.join(',')
     }
 
@@ -850,23 +1340,58 @@ export function PlayerView({
       // Mapa novo (viagem): a medida era em pontos do mapa de antes e mentiria aqui. O modo continua ligado.
       scene.measure = withMeasureArmed(MEASURE_OFF, scene.measure.armed)
       syncMeasure(scene)
+      // O próprio rastro também era do mapa de antes.
+      scene.ownLaser = { points: [], on: scene.ownLaser.on }
       const bounds = { minX: 0, minY: 0, maxX: worldWidth, maxY: worldHeight }
-      scene.camera = fitCamera(bounds, { width: scene.app.screen.width, height: scene.app.screen.height }, FIT_MARGIN)
-      applyCamera(scene)
+      const viewport = { width: scene.app.screen.width, height: scene.app.screen.height }
+      const fitted = fitCamera(bounds, viewport, FIT_MARGIN)
+      // O mapa inteiro, como sempre — a não ser que ele deixe a própria ficha
+      // debaixo do painel ou fora da tela: aí a câmera chega centrada nela.
+      const mine = firstOwnToken(currentMap.tokens, own)
+      const disc = mine === null ? null : { x: mine.x, y: mine.y, radius: tokenRadius(mine, currentMap.grid) }
+      const arrival = arrivalCamera(fitted, disc, viewport, readObstacles())
+      // Pelo caminho do app: o degrau do + do mapa de antes para aqui, e a pinça recomeça da câmera nova.
+      setCameraFromApp(scene, arrival)
+      // Pulso só quando a câmera foi atrás da ficha: é a resposta a "onde estou?".
+      if (mine !== null && arrival !== fitted) startOwnerPulse(scene, mine.id)
     }
     // Nomes e rótulos novos nascem na resolução do renderer: ajusta ao zoom atual.
     scene.textResolution.flush()
   }
 
+  /** Fim do gesto do laser (soltou, ou desligou o modo no meio): a ponta apaga e o rastro esmaece sozinho. */
+  function endOwnLaser(scene: Scene): void {
+    if (scene.drag?.kind === 'laser') scene.drag = null
+    scene.ownLaser = { points: pruneLaserTrail(scene.ownLaser.points, Date.now()), on: false }
+    latestRef.current.onLaserEnd?.()
+  }
+
   function startTokenDrag(scene: Scene, tokenId: string, event: FederatedPointerEvent): void {
     // Alt+clique ou modo Sinalizar sobre um token: deixa o evento subir para o palco sinalizar.
     // Modo Medir também: medir a partir da própria ficha é o caso mais comum, e ela não pode andar.
-    if (event.altKey || latestRef.current.signalArmed || latestRef.current.measureArmed) return
+    // Modo Laser também: apontar a partir da própria ficha não pode arrastá-la.
+    if (event.altKey || latestRef.current.signalArmed || latestRef.current.measureArmed || latestRef.current.laserArmed) return
     event.stopPropagation()
+    // Outro gesto já em curso (o segundo dedo nem chega aqui: a captura do palco o fez pinça).
+    if (scene.drag !== null) return
     const view = scene.tokenViews.get(tokenId)?.wrapper
     if (!view) return
     const world = scene.world.toLocal(event.global)
-    scene.drag = { kind: 'token', tokenId, offsetX: view.x - world.x, offsetY: view.y - world.y, x: view.x, y: view.y }
+    // Pegou a ficha no meio de um deslize: ela para onde está e passa a seguir o dedo.
+    scene.tokenGlides.delete(tokenId)
+    const origin = { x: view.x, y: view.y }
+    scene.drag = {
+      kind: 'token',
+      pointerId: event.pointerId,
+      tokenId,
+      offsetX: view.x - world.x,
+      offsetY: view.y - world.y,
+      x: view.x,
+      y: view.y,
+      origin,
+      reach: reachOutline(latestRef.current.map, origin),
+      label: null,
+    }
   }
 
   useEffect(() => {
@@ -904,6 +1429,7 @@ export function PlayerView({
       const mapLines = new Graphics()
       const regions = new Container()
       const drawings = new Graphics()
+      const props = new Graphics()
       const stairs = new Graphics()
       const walls = new Graphics()
       const doorHints = new Graphics()
@@ -911,6 +1437,9 @@ export function PlayerView({
       const roomNames = new Container()
       const textLabels = new Container()
       const lights = new Container()
+      const hazards = new Graphics()
+      const hazardsMask = new Graphics()
+      hazards.mask = hazardsMask
       const fogUnknown = new Graphics()
       const knownMask = new Graphics()
       const fogDim = new Graphics()
@@ -919,6 +1448,7 @@ export function PlayerView({
       const roofs = new Graphics()
       const pins = new Container()
       const tokens = new Container()
+      prepareTokenLayer(tokens)
       // Mesma ordem do editor, de baixo para cima; tudo da planta fica sob a
       // névoa, e só os tokens (que já chegam filtrados pela visão) ficam acima.
       // Grade acima do chão e das salas, abaixo de paredes e portas.
@@ -931,6 +1461,11 @@ export function PlayerView({
         gridMask,
         grid,
         drawings,
+        // Móveis sobre o chão e ABAIXO de escada, parede e porta — ao contrário
+        // do editor, que põe a imagem do objeto por cima. Lá a imagem tem fundo
+        // transparente; aqui a silhueta é o retângulo inteiro e, por cima, apagaria
+        // o traço do cômodo onde o móvel encosta (cama, armário, estante).
+        props,
         stairs,
         walls,
         doorHints,
@@ -940,6 +1475,10 @@ export function PlayerView({
         // Luz acima da planta e ABAIXO da névoa: o que o jogador não vê segue
         // escuro mesmo com uma tocha acesa do outro lado.
         lights,
+        // Perigo acima da planta e da luz, ABAIXO da névoa, e ainda recortado
+        // pela visão (`redrawHazards`): o jogador só vê o fogo onde enxerga.
+        hazardsMask,
+        hazards,
         fogUnknown,
         knownMask,
         fogDim,
@@ -959,7 +1498,14 @@ export function PlayerView({
       // Régua do jogador acima do mapa (e da névoa: medir até onde ainda não se vê é legítimo) e abaixo dos sinais.
       const measureLayer = new Graphics()
       measureLayer.eventMode = 'none'
-      app.stage.addChild(world, measureLayer, signalsLayer, laserLayer)
+      // Pulso da própria ficha logo acima do mapa: some sob a régua e os sinais, que são ação em curso.
+      const pulseLayer = new Graphics()
+      pulseLayer.eventMode = 'none'
+      // Arrasto da própria ficha: mesma altura da régua. O contorno do alcance
+      // é só geometria da regra (quadrados a partir da ficha), não revela nada da névoa.
+      const tokenDragLayer = new Graphics()
+      tokenDragLayer.eventMode = 'none'
+      app.stage.addChild(world, pulseLayer, measureLayer, tokenDragLayer, signalsLayer, laserLayer)
       app.stage.eventMode = 'static'
       app.stage.hitArea = app.screen
 
@@ -982,6 +1528,9 @@ export function PlayerView({
         stairs,
         lastDrawingsKey: null,
         lastStairsKey: null,
+        props,
+        lastPropsKey: null,
+        propsCount: 0,
         walls,
         doors,
         doorHints,
@@ -1006,6 +1555,11 @@ export function PlayerView({
         pins,
         pinsRenderer: createPinsRenderer(),
         lastPinsKey: null,
+        hazards,
+        hazardsMask,
+        lastHazards: null,
+        lastHazardsVision: null,
+        hazardsCount: 0,
         concealed,
         lastConcealed: null,
         concealedCount: 0,
@@ -1014,24 +1568,48 @@ export function PlayerView({
         roofsCount: 0,
         tokens,
         tokenViews: new Map(),
+        tokenGlides: createTokenGlides(),
+        tokenTurns: createTokenTurns(),
         camera: { x: 0, y: 0, scale: 1 },
         zoomScale: 1,
         onZoom: () => {},
         fittedMapId: null,
         drag: null,
+        touch: NO_TOUCH,
+        zoomAnimation: null,
         signalsLayer,
         signalsRenderer: createSignalsRenderer(),
         measureLayer,
         measure: withMeasureArmed(MEASURE_OFF, latestRef.current.measureArmed),
         lastMeasureKey: null,
+        ownLaser: NO_OWN_LASER,
+        tokenDragLayer,
+        lastTokenDragKey: null,
         // Texto rasterizado a 1x e esticado pelo zoom sai mole: resolução em degraus.
         textResolution: createDebouncedTask(() => {
           if (destroyed) return
           el.dataset.textResolution = String(syncWorldTextResolution(world, scene.camera.scale, app.renderer.resolution))
         }),
+        pulseLayer,
+        pulse: null,
       }
-      scene.onZoom = () => redrawZoomLayers(scene)
+      scene.onZoom = () => {
+        redrawZoomLayers(scene)
+        reportZoomLimits(scene.camera.scale)
+      }
       sceneRef.current = scene
+
+      // Degrau dos botões + e −. Primeiro ticker de propósito: sinais, laser e
+      // régua do mesmo quadro já se desenham com a câmera nova.
+      const tickZoom = () => {
+        const animation = scene.zoomAnimation
+        if (animation === null) return
+        const frame = zoomAnimationFrame(animation, performance.now())
+        scene.camera = frame.camera
+        if (frame.done) scene.zoomAnimation = null
+        applyCamera(scene)
+      }
+      app.ticker.add(tickZoom)
 
       let signalsDrawn = 0
       const tickSignals = () => {
@@ -1059,37 +1637,162 @@ export function PlayerView({
       }
       app.ticker.add(tickLaser)
 
+      // Laser dos JOGADORES: o dos outros da cena (um rastro por jogador) e o próprio, desenhado na hora.
+      const playerLaserPool = createLaserPool()
+      const ownLaserRenderer = createLaserRenderer({ color: latestRef.current.ownLaserColor, label: OWN_LASER_LABEL })
+      let playerLasersDrawn = 0
+      el.dataset.playerLasersDrawn = '0'
+      const tickPlayerLasers = () => {
+        const others = latestRef.current.playerLasers
+        const own = scene.ownLaser
+        if (others.length === 0 && own.points.length === 0 && playerLasersDrawn === 0) return
+        const now = Date.now()
+        ownLaserRenderer.restyle({ color: latestRef.current.ownLaserColor, label: OWN_LASER_LABEL })
+        const drawn = playerLaserPool.draw(laserLayer, others, scene.camera, now) + ownLaserRenderer.draw(laserLayer, own, scene.camera, now)
+        if (drawn !== playerLasersDrawn) el.dataset.playerLasersDrawn = String(drawn)
+        playerLasersDrawn = drawn
+        // Próprio rastro todo apagado e sem gesto: esvazia para o ticker voltar a pular o quadro.
+        if (!own.on && own.points.length > 0 && pruneLaserTrail(own.points, now).length === 0) scene.ownLaser = NO_OWN_LASER
+      }
+      app.ticker.add(tickPlayerLasers)
+
+      /** Ponto do próprio laser: entra no rastro local e sai pelo socket. */
+      const pointOwnLaser = (screenX: number, screenY: number) => {
+        const point = scene.world.toLocal({ x: screenX, y: screenY })
+        const now = Date.now()
+        scene.ownLaser = { points: appendLaserPoints(pruneLaserTrail(scene.ownLaser.points, now), [{ x: point.x, y: point.y }], now), on: true }
+        latestRef.current.onLaserMove?.(point.x, point.y)
+      }
+
       // Zoom e arrasto de câmera mudam a posição de tela da régua sem mudar a medida.
-      const tickMeasure = () => syncMeasure(scene)
+      const tickMeasure = () => {
+        syncMeasure(scene)
+        syncTokenDrag(scene)
+      }
       app.ticker.add(tickMeasure)
+
+      // Leva cada ficha em deslize um passo adiante; parada, não custa nada.
+      // Mexe só na posição de quem anda: o resto da cena não é refeito.
+      const tickTokenGlides = () => {
+        if (scene.tokenGlides.size === 0) return
+        for (const { id, x, y } of stepGlides(scene.tokenGlides, performance.now())) {
+          scene.tokenViews.get(id)?.wrapper.position.set(x, y)
+        }
+      }
+      app.ticker.add(tickTokenGlides)
+
+      // Gira o bico de cada ficha que o mestre virou; parado, não custa nada.
+      // Mexe só no ângulo do bico: a ficha, o aro e o nome não são refeitos.
+      const tickTokenTurns = () => {
+        if (scene.tokenTurns.size === 0) return
+        for (const { id, angle } of stepTurns(scene.tokenTurns, performance.now())) {
+          const view = scene.tokenViews.get(id)
+          if (view) view.facingNib.rotation = angle
+        }
+      }
+      app.ticker.add(tickTokenTurns)
+
+      // Pulso "você está aqui": segue a ficha na tela (arrasto, zoom) até acabar sozinho.
+      const tickPulse = () => {
+        const pulse = scene.pulse
+        if (pulse === null) return
+        const view = scene.tokenViews.get(pulse.tokenId)
+        if (view === undefined || !view.wrapper.visible) {
+          scene.pulse = null
+          pulseLayer.clear()
+          return
+        }
+        const at = world.toGlobal(view.wrapper.position)
+        const from = ownerRingOuterPx(view.radius, scene.camera.scale)
+        if (!drawOwnerPulse(pulseLayer, at.x, at.y, from, performance.now() - pulse.startedAt)) scene.pulse = null
+      }
+      app.ticker.add(tickPulse)
 
       const sendSignalAt = (screenX: number, screenY: number) => {
         const point = scene.world.toLocal({ x: screenX, y: screenY })
         latestRef.current.onSignal?.(point.x, point.y)
       }
       /** "Segurar parado": dispara depois de `SIGNAL_LONG_PRESS_MS` se o ponteiro não andou. */
-      let longPress: { timer: ReturnType<typeof setTimeout>; x: number; y: number } | null = null
+      let longPress: { timer: ReturnType<typeof setTimeout>; pointerId: number; x: number; y: number } | null = null
       const cancelLongPress = () => {
         if (longPress === null) return
         clearTimeout(longPress.timer)
         longPress = null
       }
 
+      /**
+       * O gesto de um dedo acaba SEM efeito — o toque virou pinça, ou o
+       * sistema cancelou o dedo: a ficha volta ao lugar do mapa, a medida
+       * volta à de antes do toque, o sinal de "segurar parado" não sai, e o
+       * laser apaga a ponta (quem está na cena não fica com ela acesa).
+       */
+      const abandonDrag = () => {
+        cancelLongPress()
+        const drag = scene.drag
+        scene.drag = null
+        if (drag?.kind === 'token') {
+          const token = latestRef.current.map.tokens.find((t) => t.id === drag.tokenId)
+          if (token) scene.tokenViews.get(drag.tokenId)?.wrapper.position.set(token.x, token.y)
+        } else if (drag?.kind === 'measure') {
+          scene.measure = drag.before
+          syncMeasure(scene)
+        } else if (drag?.kind === 'laser') {
+          endOwnLaser(scene)
+        }
+      }
+
+      /** Dedo que sobrou da pinça: arrasta a câmera, e soltá-lo não é toque em porta ou pino. */
+      const carryPan = (carry: { id: number; at: { x: number; y: number } } | null): Drag | null =>
+        carry === null ? null : { kind: 'pan', pointerId: carry.id, lastX: carry.at.x, lastY: carry.at.y, startX: carry.at.x, startY: carry.at.y, canTap: false }
+
+      /**
+       * Todo toque passa aqui ANTES da ficha e do chão (fase de captura do
+       * Pixi). O segundo dedo vira pinça, e o gesto que o primeiro tinha
+       * começado acaba sem efeito. Sem isto o segundo dedo era ignorado e a
+       * pinça virava arrasto do primeiro: a ficha andava, ou a câmera corria.
+       */
+      app.stage.on('pointerdowncapture', (event: FederatedPointerEvent) => {
+        if (event.pointerType !== 'touch') return
+        // Primeiro dedo de um gesto novo com um gesto velho pendurado: é de um toque que o navegador cancelou sem avisar.
+        if (event.isPrimary && scene.drag !== null) abandonDrag()
+        const { state, role } = fingerDown(scene.touch, event.pointerId, { x: event.global.x, y: event.global.y }, event.isPrimary, scene.camera)
+        scene.touch = state
+        if (role === 'single') return
+        // Segundo dedo (pinça) ou terceiro (ignorado): nem a ficha nem o chão recebem este toque.
+        event.stopPropagation()
+        if (role !== 'pinch') return
+        abandonDrag()
+        // A pinça partiu da câmera deste instante: o degrau dos botões para aqui, senão puxaria o mapa de volta.
+        scene.zoomAnimation = null
+      })
+
       app.stage.on('pointerdown', (event: FederatedPointerEvent) => {
+        // Dedo que a captura já fez pinça. Quando o alvo é o próprio palco, parar a propagação
+        // lá não impede este ouvinte (o Pixi avisa captura e alvo na mesma volta).
+        if (event.pointerType === 'touch' && scene.touch.pinch !== null) return
+        latestRef.current.onMapPointerDown?.()
         if (scene.drag) return
         const { x, y } = event.global
+        const pointerId = event.pointerId
         if (latestRef.current.measureArmed) {
           // Com o modo Medir, o arrasto mede: nem câmera, nem sinal, nem cartão de pino.
           cancelLongPress()
-          scene.drag = { kind: 'measure' }
+          scene.drag = { kind: 'measure', pointerId, before: scene.measure }
           applyMeasureEvent(scene, { type: 'press', at: measurePointFromScreen(scene.camera, { x, y }, latestRef.current.map, event.altKey) })
+          return
+        }
+        if (latestRef.current.laserArmed) {
+          // Com o modo Laser, apertar e arrastar aponta: nem câmera, nem sinal, nem cartão de pino.
+          cancelLongPress()
+          scene.drag = { kind: 'laser', pointerId }
+          pointOwnLaser(x, y)
           return
         }
         if (event.altKey || latestRef.current.signalArmed) {
           sendSignalAt(x, y)
           return
         }
-        scene.drag = { kind: 'pan', lastX: x, lastY: y, startX: x, startY: y }
+        scene.drag = { kind: 'pan', pointerId, lastX: x, lastY: y, startX: x, startY: y, canTap: true }
         cancelLongPress()
         // Dedo em cima de um PINO não arma o sinal. O pino é um controle: quem
         // aperta ali quer ler o cartão, e demorar meio segundo para soltar não
@@ -1100,32 +1803,58 @@ export function PlayerView({
           longPress = null
           // Virou sinal: o gesto não continua como arrasto de câmera.
           if (scene.drag?.kind === 'pan') scene.drag = null
-          sendSignalAt(x, y)
+          // Com as ações no ponto, o menu Sinalizar/Procurar/...; sem elas, o sinal.
+          fireLongPress(scene.world.toLocal({ x, y }), { x, y }, latestRef.current)
         }, SIGNAL_LONG_PRESS_MS)
-        longPress = { timer, x, y }
+        longPress = { timer, pointerId, x, y }
       })
       app.stage.on('globalpointermove', (event: FederatedPointerEvent) => {
-        if (longPress !== null && Math.hypot(event.global.x - longPress.x, event.global.y - longPress.y) > SIGNAL_LONG_PRESS_TOLERANCE_PX) {
+        if (event.pointerType === 'touch') {
+          const { state, camera } = fingerMove(scene.touch, event.pointerId, { x: event.global.x, y: event.global.y })
+          scene.touch = state
+          if (camera !== null) {
+            scene.camera = camera
+            // applyCamera chama onZoom → paredes e portas refazem a largura de tela, como na roda.
+            applyCamera(scene)
+          }
+          // Durante a pinça nenhum dedo arrasta nada sozinho.
+          if (state.pinch !== null) return
+        }
+        if (
+          longPress !== null &&
+          event.pointerId === longPress.pointerId &&
+          Math.hypot(event.global.x - longPress.x, event.global.y - longPress.y) > SIGNAL_LONG_PRESS_TOLERANCE_PX
+        ) {
           cancelLongPress()
         }
         const drag = scene.drag
         if (!drag) {
           // Mouse parado sobre porta: cursor de mão (no celular não existe hover).
-          if (latestRef.current.measureArmed) {
+          if (latestRef.current.measureArmed || latestRef.current.laserArmed) {
             app.stage.cursor = 'crosshair'
             return
           }
           const overTappable =
             !latestRef.current.signalArmed &&
-            (pinAtScreen(scene, event.global.x, event.global.y) !== null || doorAtScreen(scene, event.global.x, event.global.y) !== null)
+            (pinAtScreen(scene, event.global.x, event.global.y) !== null ||
+              doorAtScreen(scene, event.global.x, event.global.y) !== null ||
+              roomTextAtScreen(scene, event.global.x, event.global.y) !== null)
           app.stage.cursor = overTappable ? 'pointer' : 'default'
           return
         }
+        // Outro ponteiro (um dedo que ficou de fora do gesto): não é com este.
+        if (event.pointerId !== drag.pointerId) return
         if (drag.kind === 'measure') {
           applyMeasureEvent(scene, { type: 'move', at: measurePointFromScreen(scene.camera, event.global, latestRef.current.map, event.altKey) })
           return
         }
+        if (drag.kind === 'laser') {
+          pointOwnLaser(event.global.x, event.global.y)
+          return
+        }
         if (drag.kind === 'pan') {
+          // Arrastar o mapa assume a câmera: o degrau dos botões para onde está (tocar sem arrastar, não).
+          scene.zoomAnimation = null
           scene.camera = panBy(scene.camera, event.global.x - drag.lastX, event.global.y - drag.lastY)
           drag.lastX = event.global.x
           drag.lastY = event.global.y
@@ -1133,24 +1862,36 @@ export function PlayerView({
           return
         }
         const world = scene.world.toLocal(event.global)
-        drag.x = world.x + drag.offsetX
-        drag.y = world.y + drag.offsetY
+        // Passo máximo: a ficha para no último ponto do alcance e o dedo segue
+        // sozinho; o rótulo conta os quadrados até onde a FICHA está.
+        const preview = previewTokenDrag(latestRef.current.map, drag.origin, { x: world.x + drag.offsetX, y: world.y + drag.offsetY })
+        drag.x = preview.at.x
+        drag.y = preview.at.y
+        drag.label = preview.label
         scene.tokenViews.get(drag.tokenId)?.wrapper.position.set(drag.x, drag.y)
+        syncTokenDrag(scene)
       })
       const endDrag = () => {
         cancelLongPress()
         const drag = scene.drag
         scene.drag = null
+        // Soltou: trajeto, alcance e "N quadrados" somem junto com o gesto.
+        syncTokenDrag(scene)
         if (drag?.kind === 'measure') {
           // Solta: a medida fica na tela até o próximo toque ou Escape.
           applyMeasureEvent(scene, { type: 'release' })
+          return
+        }
+        if (drag?.kind === 'laser') {
+          endOwnLaser(scene)
           return
         }
         if (drag?.kind === 'pan') {
           // Toque curto e parado: primeiro o pino (desenhado por cima de tudo),
           // depois a porta. Segurar mais que `SIGNAL_LONG_PRESS_MS` já virou
           // sinal de mapa lá em cima e nem chega aqui — abrir o cartão é o
-          // toque RÁPIDO, não o demorado.
+          // toque RÁPIDO, não o demorado. O dedo que sobrou de uma pinça nunca é toque.
+          if (!drag.canTap) return
           if (Math.hypot(drag.lastX - drag.startX, drag.lastY - drag.startY) > SIGNAL_LONG_PRESS_TOLERANCE_PX) return
           const pinId = pinAtScreen(scene, drag.startX, drag.startY)
           if (pinId !== null) {
@@ -1158,6 +1899,13 @@ export function PlayerView({
             return
           }
           const door = doorAtScreen(scene, drag.startX, drag.startY)
+          // O nome da Sala fica no MEIO dela, longe das portas: a porta vem
+          // antes só para o toque na parede nunca virar leitura de texto.
+          const roomId = door === null ? roomTextAtScreen(scene, drag.startX, drag.startY) : null
+          if (roomId !== null) {
+            latestRef.current.onRoomOpen?.(roomId)
+            return
+          }
           if (door !== null) latestRef.current.onDoorToggle?.(door.id)
           return
         }
@@ -1171,11 +1919,42 @@ export function PlayerView({
         }
         latestRef.current.onMove(drag.tokenId, x, y)
       }
-      app.stage.on('pointerup', endDrag)
-      app.stage.on('pointerupoutside', endDrag)
+
+      /**
+       * Tira o dedo da conta. `true` = a pinça cuidou dele: ela acabou (e o
+       * dedo que sobrou segue arrastando a câmera) ou continua com outros
+       * dois — nada mais a fazer com este ponteiro.
+       */
+      const releaseFinger = (pointerId: number): boolean => {
+        const up = fingerUp(scene.touch, pointerId, scene.camera)
+        scene.touch = up.state
+        if (up.pinchEnded) {
+          scene.drag = carryPan(up.carry)
+          return true
+        }
+        return up.state.pinch !== null
+      }
+      const onPointerUp = (event: FederatedPointerEvent) => {
+        if (event.pointerType === 'touch' && releaseFinger(event.pointerId)) return
+        // Soltou um dedo que não é o dono do gesto em curso: o gesto continua.
+        if (scene.drag !== null && scene.drag.pointerId !== event.pointerId) return
+        endDrag()
+      }
+      app.stage.on('pointerup', onPointerUp)
+      app.stage.on('pointerupoutside', onPointerUp)
+      // O Pixi não repassa `pointercancel` (o sistema tomou o toque): sem isto o
+      // dedo ficaria na conta e a ficha meio arrastada. Gesto cancelado acaba
+      // sem efeito — nem movimento, nem porta, nem pino.
+      const onPointerCancel = (event: PointerEvent) => {
+        if (event.pointerType !== 'touch' || releaseFinger(event.pointerId)) return
+        if (scene.drag?.pointerId === event.pointerId) abandonDrag()
+      }
+      app.canvas.addEventListener('pointercancel', onPointerCancel)
 
       const onWheel = (event: WheelEvent) => {
         event.preventDefault()
+        // A roda assume a câmera: o degrau dos botões para onde está.
+        scene.zoomAnimation = null
         const rect = app.canvas.getBoundingClientRect()
         scene.camera = zoomAt(scene.camera, { x: event.clientX - rect.left, y: event.clientY - rect.top }, event.deltaY)
         // applyCamera chama onZoom → redrawZoomLayers: paredes e portas refazem a largura de tela.
@@ -1197,10 +1976,16 @@ export function PlayerView({
         stopWatchingResolution()
         scene.textResolution.cancel()
         app.canvas.removeEventListener('wheel', onWheel)
+        app.canvas.removeEventListener('pointercancel', onPointerCancel)
         cancelLongPress()
+        app.ticker.remove(tickZoom)
         app.ticker.remove(tickSignals)
         app.ticker.remove(tickLaser)
+        app.ticker.remove(tickPlayerLasers)
         app.ticker.remove(tickMeasure)
+        app.ticker.remove(tickTokenGlides)
+        app.ticker.remove(tickTokenTurns)
+        app.ticker.remove(tickPulse)
         // Antes do app.destroy: os gradientes de luz não são filhos da cena.
         scene.lightsRenderer.destroy()
       }
@@ -1211,6 +1996,8 @@ export function PlayerView({
       resizeObserver.observe(el)
 
       redraw(scene)
+      // O enquadramento pode cair exatamente em 100% (sem `onZoom`): os botões recebem o limite de qualquer jeito.
+      reportZoomLimits(scene.camera.scale)
     }
     setup().catch((error: unknown) => {
       console.error('Falha ao iniciar o canvas do jogador', error)
@@ -1229,7 +2016,7 @@ export function PlayerView({
   useEffect(() => {
     const scene = sceneRef.current
     if (scene) redraw(scene)
-  }, [map, vision, explored, concealed, ownTokens, settings])
+  }, [map, vision, explored, concealed, hazards, ownTokens, turnTokenId, settings])
 
   useEffect(() => {
     // Contagem para o e2e (o desenho em si é do ticker); muda quando chega ou expira um sinal.
@@ -1250,9 +2037,24 @@ export function PlayerView({
     const scene = sceneRef.current
     if (!scene || focusTokenId === null) return
     const token = latestRef.current.map.tokens.find((t) => t.id === focusTokenId)
-    if (token) centerCameraOn(scene, token.x, token.y)
+    if (!token) return
+    // "Minha ficha" e "Centralizar": no meio do que o painel deixa livre, no
+    // zoom de agora, e a ficha pulsa para o olho achar onde a câmera foi.
+    const viewport = { width: scene.app.screen.width, height: scene.app.screen.height }
+    // Com o degrau dos botões andando, centraliza já na escala em que ele ia parar.
+    const scale = scene.zoomAnimation?.to ?? scene.camera.scale
+    setCameraFromApp(scene, centeredCamera(scale, token, viewport, readObstacles()))
+    startOwnerPulse(scene, token.id)
     // Só um pedido novo (focusSeq) move a câmera; snapshot com o token andando não.
   }, [focusSeq])
+
+  useEffect(() => {
+    // Só um toque novo nos botões (`seq`) dá um degrau; remontar com o mesmo pedido, não.
+    if (zoomStep.seq === handledZoomSeqRef.current) return
+    handledZoomSeqRef.current = zoomStep.seq
+    const scene = sceneRef.current
+    if (scene) stepZoom(scene, zoomStep.direction, zoomStep.animate)
+  }, [zoomStep])
 
   useEffect(() => {
     // Desligar (botão de novo ou Escape) apaga a medida; ligar começa sem nenhuma.
@@ -1264,12 +2066,30 @@ export function PlayerView({
     syncMeasure(scene)
   }, [measureArmed])
 
+  useEffect(() => {
+    // Desligou (botão de novo ou Escape) com o dedo ainda apertado: o gesto termina ali.
+    const scene = sceneRef.current
+    if (!scene || laserArmed || scene.drag?.kind !== 'laser') return
+    endOwnLaser(scene)
+  }, [laserArmed])
+
   return (
     <>
-      <div ref={containerRef} style={{ position: 'fixed', inset: 0, touchAction: 'none', cursor: signalArmed || measureArmed ? 'crosshair' : undefined }} />
+      <div
+        ref={containerRef}
+        style={
+          mirror
+            ? { position: 'absolute', inset: 0, pointerEvents: 'none' }
+            : { position: 'fixed', inset: 0, touchAction: 'none', cursor: signalArmed || measureArmed || laserArmed ? 'crosshair' : undefined }
+        }
+      />
+
       {/* Rótulo da régua: escrito pelo gesto direto no DOM (syncMeasure), sem re-render do React por passo do dedo.
           `aria-live` educado: com o grude na grade o texto só muda a cada quadrado, não a cada pixel. */}
       <div ref={measureLabelRef} className="pp-measure-label" aria-live="polite" aria-atomic="true" hidden />
+      {/* "N quadrados" do arrasto da própria ficha: mesmo rótulo do Medir, escrito por syncTokenDrag.
+          Sem `aria-live`: o arrasto da ficha não gruda na grade, e anunciar cada décimo de quadrado enfileiraria dezenas de falas. */}
+      <div ref={tokenDragLabelRef} className="pp-measure-label" data-testid="token-drag-label" hidden />
     </>
   )
 }

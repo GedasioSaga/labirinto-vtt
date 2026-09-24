@@ -44,6 +44,63 @@ export function panBy(camera: Camera, dx: number, dy: number): Camera {
   return { ...camera, x: camera.x + dx, y: camera.y + dy }
 }
 
+/**
+ * Câmera com a escala `scale` (dentro dos limites) que mantém parado na tela o
+ * ponto do mundo que está sob `pointer`. É o `zoomAt` com alvo em escala, não
+ * em passo de roda: os botões + e − do jogador sabem a escala que querem.
+ */
+export function zoomToScale(camera: Camera, pointer: Point, scale: number): Camera {
+  const next = clampScale(scale)
+  const worldX = (pointer.x - camera.x) / camera.scale
+  const worldY = (pointer.y - camera.y) / camera.scale
+  return { scale: next, x: pointer.x - worldX * next, y: pointer.y - worldY * next }
+}
+
+/**
+ * Começo de uma pinça de dois dedos: o ponto do MUNDO sob o meio dos dedos, a
+ * escala e a distância entre eles naquele instante. Tudo o que a pinça faz
+ * depois é relativo a isto, e não ao quadro anterior — não acumula erro.
+ */
+export interface PinchStart {
+  anchor: Point
+  scale: number
+  distance: number
+}
+
+/**
+ * Distância mínima entre os dedos, em px de tela. Dois dedos que encostam no
+ * mesmo pixel dariam distância 0 e uma divisão por zero (zoom infinito).
+ */
+const MIN_PINCH_DISTANCE = 1
+
+function pinchGeometry(a: Point, b: Point): { middle: Point; distance: number } {
+  return {
+    middle: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 },
+    distance: Math.max(Math.hypot(b.x - a.x, b.y - a.y), MIN_PINCH_DISTANCE),
+  }
+}
+
+export function pinchStart(camera: Camera, a: Point, b: Point): PinchStart {
+  const { middle, distance } = pinchGeometry(a, b)
+  return {
+    anchor: { x: (middle.x - camera.x) / camera.scale, y: (middle.y - camera.y) / camera.scale },
+    scale: camera.scale,
+    distance,
+  }
+}
+
+/**
+ * Câmera da pinça com os dedos em `a` e `b`: a escala segue a razão entre a
+ * distância dos dedos agora e no começo, e o ponto do mundo que estava sob o
+ * meio deles continua sob o meio — que pode ter andado, então os dois dedos
+ * juntos também arrastam o mapa, como em qualquer mapa de celular.
+ */
+export function pinchCamera(start: PinchStart, a: Point, b: Point): Camera {
+  const { middle, distance } = pinchGeometry(a, b)
+  const scale = clampScale(start.scale * (distance / start.distance))
+  return { scale, x: middle.x - start.anchor.x * scale, y: middle.y - start.anchor.y * scale }
+}
+
 // Trava o segmento start->end no múltiplo de `stepDegrees` mais próximo do
 // ângulo livre atual (default 45: produz 0/45/90/135/180/225/270/315).
 // Calcula o ângulo livre via atan2(dy,dx), arredonda pro múltiplo mais
@@ -243,15 +300,14 @@ export function fitCamera(bounds: Bounds, viewport: Viewport, margin: number): C
 const MIN_FREE_FRACTION = 0.25
 
 /**
- * Centro, em px de tela, da parte do canvas que os painéis flutuantes não
- * cobrem. `obstacles` são os retângulos desses painéis, em px relativos ao
- * canvas (como `minX`..`maxY`). Painel mais alto que largo (o rail) come a
- * faixa do lado que ele encosta, esquerda ou direita; mais largo que alto (a
- * barra de ferramentas) come a faixa de cima ou de baixo. É o centro que o
- * mestre enxerga: o ponto posto no meio do canvas inteiro pode cair sob a
- * barra, a 400% de zoom (medido em 22/09 no "Ir lá" do chamado de fundo).
+ * A parte do canvas, em px de tela, que os painéis flutuantes não cobrem.
+ * `obstacles` são os retângulos desses painéis, em px relativos ao canvas
+ * (como `minX`..`maxY`). Painel mais alto que largo (o rail) come a faixa do
+ * lado que ele encosta, esquerda ou direita; mais largo que alto (a barra de
+ * ferramentas) come a faixa de cima ou de baixo. Quando o que sobra é só uma
+ * fresta, devolve o canvas inteiro: centrar ou enquadrar ali seria pior.
  */
-export function freeAreaCenter(viewport: Viewport, obstacles: Bounds[]): Point {
+export function freeArea(viewport: Viewport, obstacles: Bounds[]): Bounds {
   let left = 0
   let top = 0
   let right = viewport.width
@@ -267,7 +323,35 @@ export function freeAreaCenter(viewport: Viewport, obstacles: Bounds[]): Point {
     } else if (o.minY < viewport.height - o.maxY) top = Math.max(top, o.maxY)
     else bottom = Math.min(bottom, o.minY)
   }
-  const whole = { x: viewport.width / 2, y: viewport.height / 2 }
-  if (right - left < viewport.width * MIN_FREE_FRACTION || bottom - top < viewport.height * MIN_FREE_FRACTION) return whole
-  return { x: (left + right) / 2, y: (top + bottom) / 2 }
+  if (right - left < viewport.width * MIN_FREE_FRACTION || bottom - top < viewport.height * MIN_FREE_FRACTION) {
+    return { minX: 0, minY: 0, maxX: viewport.width, maxY: viewport.height }
+  }
+  return { minX: left, minY: top, maxX: right, maxY: bottom }
+}
+
+/**
+ * Centro, em px de tela, da parte do canvas que os painéis flutuantes não
+ * cobrem (`freeArea`). É o centro que o mestre enxerga: o ponto posto no meio
+ * do canvas inteiro pode cair sob a barra, a 400% de zoom (medido em 22/09 no
+ * "Ir lá" do chamado de fundo).
+ */
+export function freeAreaCenter(viewport: Viewport, obstacles: Bounds[]): Point {
+  const area = freeArea(viewport, obstacles)
+  return { x: (area.minX + area.maxX) / 2, y: (area.minY + area.maxY) / 2 }
+}
+
+/**
+ * Zoom do "Ir até lá": o de agora quando `bounds` (px de mundo) já cabe
+ * inteiro em `area` (px de tela) com `margin` de respiro de cada lado; menor,
+ * só o bastante para caber, quando não cabe. Nunca APROXIMA — o mestre que
+ * afastou para ver o mapa todo continua vendo o mapa todo, com o objeto no
+ * meio — e nunca sai do intervalo que a roda do mouse alcança (`clampScale`).
+ */
+export function revealScale(current: number, bounds: Bounds, area: Viewport, margin: number): number {
+  const contentWidth = Math.max(bounds.maxX - bounds.minX, MIN_CONTENT_DIMENSION)
+  const contentHeight = Math.max(bounds.maxY - bounds.minY, MIN_CONTENT_DIMENSION)
+  const availableWidth = Math.max(area.width - margin * 2, 1)
+  const availableHeight = Math.max(area.height - margin * 2, 1)
+  const fit = Math.min(availableWidth / contentWidth, availableHeight / contentHeight)
+  return clampScale(Math.min(current, fit))
 }

@@ -80,7 +80,7 @@ describe('WallDoorControls — rótulos fixos', () => {
     [false, false],
     [true, true],
   ])('open=%s locked=%s: sempre "Aberta" e "Trancada"', (open, locked) => {
-    render(<WallDoorControls door={{ open, locked, kind: 'normal' }} onToggleDoor={vi.fn()} onToggleOpen={vi.fn()} onToggleLocked={vi.fn()} />)
+    render(<WallDoorControls door={{ open, locked, kind: 'normal' }} onToggleDoor={vi.fn()} onToggleOpen={vi.fn()} onToggleLocked={vi.fn()} onToggleSecret={vi.fn()} onRevealPassage={vi.fn()} />)
     const text = container.textContent ?? ''
     expect(text).toContain('Aberta')
     expect(text).toContain('Trancada')

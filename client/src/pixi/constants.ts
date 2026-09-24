@@ -118,3 +118,44 @@ export const SECRET_ITEM_ALPHA = 0.5
 export const TOKEN_FRAME_COLOR = 0xe0a44a
 /** Espessura da moldura, em px de mundo: a foto é recortada no raio do token MENOS isto. */
 export const TOKEN_FRAME_WIDTH = 4
+
+/**
+ * Tinta do nome da ficha no mapa do jogador (`player/PlayerView.tsx`): branco
+ * com um fio de ciano (R = 225), que na tela lê como branco.
+ *
+ * POR QUE NÃO É BRANCO PURO. O serrilhado de cada letra mistura tinta e
+ * contorno; de branco a preto essa rampa passa por todos os cinzas, e o cinza
+ * 141-147 fica a ±20 por canal de #a1887f, a cor de sinal de um dos jogadores
+ * (`lib/signals.ts`). A cor do sinal é do sinal: medido em 23/09/2026 na régua
+ * do zoom no celular (teste 2), a 2,6x de zoom os nomes 'Barril', 'Ana' e
+ * 'Caixa' davam 16 pixels "da cor do sinal" sem ninguém ter sinalizado. Com o
+ * R abaixo de G e B, a rampa até o preto fica a mais de 25 por canal de toda
+ * cor de sinal.
+ *
+ * Por que o desvio mora na TINTA e não no contorno: ver o contorno, abaixo.
+ */
+export const TOKEN_NAME_FILL_COLOR = 0xe1ffff
+/**
+ * Contorno do nome da ficha no mapa do jogador: separa a tinta de qualquer chão.
+ *
+ * POR QUE É PRETO PURO (neutro). A borda de fora do contorno se mistura com o
+ * CHÃO da cena. Preto sobre qualquer chão só escurece aquele chão: o matiz é
+ * o dele, e nenhuma régua de chão por matiz lê ali o chão de OUTRA cena. Um
+ * contorno com matiz fazia isso: o quase-preto azul 0x000030 sobre o chão
+ * vermelho da Torre dava roxo (37,8,43), e a jogadora que chegava à Torre
+ * "via" 43 pixels do chão magenta da Cripta (e2e/task-jornada-encruzilhada,
+ * teste 4); antes dele, o 0x000f28 (0,15,40) já lia como chão verde-água. As
+ * regras estão em `constants.nomeDaFicha.test.ts`.
+ */
+export const TOKEN_NAME_OUTLINE_COLOR = 0x000000
+
+/**
+ * INICIATIVA — o anel da ficha da VEZ, no mapa do mestre e na tela do jogador.
+ * Linha fina clara, SOLTA do disco (o vão diz "isto é marca, não é a ficha"):
+ * a mesma língua da parede do minimapa, sem brigar com o amarelo da seleção
+ * (`SELECTION_COLOR`), que continua dizendo "selecionado". Px de mundo.
+ */
+export const TURN_RING_COLOR = 0xffffff
+export const TURN_RING_WIDTH = 3
+/** Vão entre a borda da ficha e o anel da vez. */
+export const TURN_RING_GAP = 5

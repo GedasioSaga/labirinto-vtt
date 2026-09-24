@@ -1,0 +1,49 @@
+/* "Exportar imagem": as duas opções e as ações ao pé da janela. */
+
+.lb-export-image__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-3);
+  padding: var(--lb-space-4);
+}
+
+.lb-export-image__option {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--lb-space-2);
+  cursor: pointer;
+  line-height: var(--lb-font-leading-normal);
+}
+
+.lb-export-image__option input {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  margin: 2px 0 0;
+  accent-color: var(--lb-color-brass);
+  cursor: pointer;
+}
+
+.lb-export-image__option input:disabled,
+.lb-export-image__option:has(input:disabled) {
+  cursor: not-allowed;
+}
+
+/* A explicação fica alinhada ao texto da opção, não ao quadrado. */
+.lb-export-image__hint {
+  margin: calc(-1 * var(--lb-space-2)) 0 0 calc(16px + var(--lb-space-2));
+}
+
+.lb-export-image__error {
+  margin: 0;
+  color: var(--lb-color-ember);
+  font-size: var(--lb-font-size-sm);
+}
+
+.lb-export-image__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--lb-space-2);
+  justify-content: flex-end;
+  padding: 0 var(--lb-space-4) var(--lb-space-4);
+}

@@ -24,6 +24,7 @@ import { canInteract } from './itemTransform'
 import { isDegenerateRegion } from '../pixi/shapes'
 import { moveWall, moveRegion, moveStair } from './mapFactory'
 import { ancestorsOf, subtreeIds } from './roomNesting'
+import { carryAttachedLights } from './lightAttachment'
 
 // ─────────────────────────────────────────────────────────────
 // Geometria genérica: todo tipo de entidade do mapa se reduz a um destes 5
@@ -584,9 +585,13 @@ export function moveAreaSelection(map: MapData, selection: AreaSelection, dx: nu
 
   if (selection.tokens.length > 0) {
     const tokenIds = new Set(selection.tokens)
+    const movedTokenIds = new Set(next.tokens.filter((t) => tokenIds.has(t.id) && canInteract(t)).map((t) => t.id))
+    // Tocha presa na ficha vai junto; a luz que também estava na seleção já andou acima.
+    const movedLightIds = new Set(next.lights.filter((l) => selection.lights.includes(l.id) && canInteract(l)).map((l) => l.id))
     next = {
       ...next,
-      tokens: next.tokens.map((t) => (tokenIds.has(t.id) && canInteract(t) ? { ...t, x: t.x + dx, y: t.y + dy } : t)),
+      tokens: next.tokens.map((t) => (movedTokenIds.has(t.id) ? { ...t, x: t.x + dx, y: t.y + dy } : t)),
+      lights: carryAttachedLights(next.lights, movedTokenIds, dx, dy, movedLightIds),
     }
   }
 

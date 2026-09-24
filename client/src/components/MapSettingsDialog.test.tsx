@@ -7,6 +7,7 @@ import { MEASUREMENT_MODE_DESCRIPTIONS } from './MapScaleControls'
 
 function makeProps(overrides: { measurementMode?: MeasurementMode; withImage?: boolean } = {}) {
   const onMeasurementModeChange = vi.fn()
+  const onMapSizeApply = vi.fn()
   const props: MapSettingsProps = {
     grid: {
       showGrid: true,
@@ -36,8 +37,9 @@ function makeProps(overrides: { measurementMode?: MeasurementMode; withImage?: b
       gridShape: 'square',
     },
     scenarioLink: { scenarioLink: null, onScenarioLinkChange: vi.fn() },
+    mapSize: { width: 30, height: 10, onApply: onMapSizeApply },
   }
-  return { props, onMeasurementModeChange }
+  return { props, onMeasurementModeChange, onMapSizeApply }
 }
 
 describe('MapSettingsButton / MapSettingsDialog', () => {
@@ -214,5 +216,120 @@ describe('MapSettingsButton / MapSettingsDialog', () => {
     expect(input).not.toBeNull()
     expect(label?.textContent).toBe('Endereço do cenário')
     expect(document.body.querySelector('#lb-scenario-link-hint')?.textContent).toContain('não vai para os jogadores')
+  })
+
+  describe('Tamanho do mapa', () => {
+    const field = (id: 'lb-mapsize-width' | 'lb-mapsize-height') => {
+      const input = document.body.querySelector<HTMLInputElement>(`#${id}`)
+      if (!input) throw new Error(`campo #${id} ausente`)
+      return input
+    }
+    const type = (input: HTMLInputElement, value: string) => {
+      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set
+      act(() => {
+        setter?.call(input, value)
+        input.dispatchEvent(new Event('input', { bubbles: true }))
+      })
+    }
+    const applyButton = () => {
+      const button = document.body.querySelector<HTMLButtonElement>('#lb-mapsize-apply')
+      if (!button) throw new Error('botão Aplicar tamanho ausente')
+      return button
+    }
+    const submit = () => {
+      const form = applyButton().form
+      if (!form) throw new Error('Aplicar tamanho fora de um formulário')
+      // Enter num campo de uma linha envia o formulário; o jsdom não simula a
+      // submissão implícita, então o teste pede a mesma submissão direto.
+      act(() => form.requestSubmit())
+    }
+
+    it('abre com o tamanho atual em quadros, rótulos ligados aos campos e a explicação de onde entra o espaço novo', () => {
+      render(makeProps().props)
+      openDialog()
+      expect(field('lb-mapsize-width').value).toBe('30')
+      expect(field('lb-mapsize-height').value).toBe('10')
+      expect(document.body.querySelector('label[for="lb-mapsize-width"]')?.textContent).toBe('Largura (quadros)')
+      expect(document.body.querySelector('label[for="lb-mapsize-height"]')?.textContent).toBe('Altura (quadros)')
+      expect(dialog()?.textContent).toContain('Tamanho do mapa')
+      expect(document.body.querySelector('#lb-mapsize-hint')?.textContent).toContain('à direita e embaixo')
+      // Nada mudou ainda: não há o que aplicar.
+      expect(applyButton().disabled).toBe(true)
+    })
+
+    it('Mina +20 quadrados: largura 50 e Aplicar chama onApply(50, 10) uma vez', () => {
+      const { props, onMapSizeApply } = makeProps()
+      render(props)
+      openDialog()
+      type(field('lb-mapsize-width'), '50')
+      expect(applyButton().disabled).toBe(false)
+      expect(applyButton().textContent).toBe('Aplicar 50 × 10')
+
+      applyButton().focus()
+      act(() => applyButton().click())
+
+      expect(onMapSizeApply).toHaveBeenCalledTimes(1)
+      expect(onMapSizeApply).toHaveBeenCalledWith(50, 10)
+      // O botão vai desabilitar com o tamanho novo: o foco passa ao campo e não cai fora da janela.
+      expect(document.activeElement).toBe(field('lb-mapsize-width'))
+    })
+
+    it('Enter no campo aplica, sem precisar do botão', () => {
+      const { props, onMapSizeApply } = makeProps()
+      render(props)
+      openDialog()
+      type(field('lb-mapsize-height'), '14')
+      submit()
+      expect(onMapSizeApply).toHaveBeenCalledWith(30, 14)
+      // A janela continua aberta: aplicar o tamanho não é fechar as configurações.
+      expect(dialog()).not.toBeNull()
+    })
+
+    it('valor inválido não aplica, diz o que corrigir junto ao campo, mantém o que foi digitado e foca o campo', () => {
+      const { props, onMapSizeApply } = makeProps()
+      render(props)
+      openDialog()
+      const width = field('lb-mapsize-width')
+      type(width, '0')
+      submit()
+
+      expect(onMapSizeApply).not.toHaveBeenCalled()
+      expect(width.value).toBe('0')
+      expect(width.getAttribute('aria-invalid')).toBe('true')
+      const errorId = width.getAttribute('aria-describedby') ?? ''
+      expect(errorId).toContain('lb-mapsize-width-error')
+      expect(document.getElementById('lb-mapsize-width-error')?.textContent).toBe('Use um número inteiro de 1 para cima.')
+      expect(document.activeElement).toBe(width)
+
+      // O erro some assim que o valor fica válido.
+      type(width, '42')
+      expect(document.getElementById('lb-mapsize-width-error')).toBeNull()
+      expect(width.getAttribute('aria-invalid')).toBe(null)
+      submit()
+      expect(onMapSizeApply).toHaveBeenCalledWith(42, 10)
+    })
+
+    it('campo vazio ou com fração também não aplica', () => {
+      const { props, onMapSizeApply } = makeProps()
+      render(props)
+      openDialog()
+      type(field('lb-mapsize-height'), '')
+      submit()
+      expect(document.getElementById('lb-mapsize-height-error')?.textContent).toBe('Use um número inteiro de 1 para cima.')
+      type(field('lb-mapsize-height'), '2.5')
+      submit()
+      expect(onMapSizeApply).not.toHaveBeenCalled()
+      expect(field('lb-mapsize-height').value).toBe('2.5')
+    })
+
+    it('quando o mapa muda de tamanho por fora, os campos acompanham', () => {
+      const { props } = makeProps()
+      render(props)
+      openDialog()
+      render({ ...props, mapSize: { ...props.mapSize, width: 50, height: 12 } })
+      expect(field('lb-mapsize-width').value).toBe('50')
+      expect(field('lb-mapsize-height').value).toBe('12')
+      expect(applyButton().disabled).toBe(true)
+    })
   })
 })

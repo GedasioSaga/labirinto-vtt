@@ -15,12 +15,24 @@ export type ItemDaPilha =
   | { tipo: 'aviso'; toast: ToastMessage }
   | { tipo: 'caixa'; grupo: string; toasts: ToastMessage[] }
 
-/** A partir de quantos avisos do mesmo grupo eles viram uma caixa. Um só continua o aviso de hoje. */
+/**
+ * A partir de quantos avisos do mesmo grupo eles viram uma caixa. Um só
+ * continua o aviso de hoje — salvo se ele for `sempreEmCaixa` (ver `formaCaixa`).
+ */
 export const MINIMO_PARA_CAIXA = 2
 
 /**
- * Junta os avisos de mesmo `grupo` numa caixa quando há `MINIMO_PARA_CAIXA`
- * ou mais; o resto passa como aviso solto, na ordem de chegada.
+ * O grupo vira caixa com `MINIMO_PARA_CAIXA` avisos, ou com um só quando algum
+ * deles pede a caixa sempre (o pedido da porta trancada: "Pedidos (1)"). Um
+ * pedido de passagem sozinho continua o aviso de hoje, como G4 decidiu.
+ */
+function formaCaixa(membros: readonly ToastMessage[]): boolean {
+  return membros.length >= MINIMO_PARA_CAIXA || membros.some((toast) => toast.sempreEmCaixa === true)
+}
+
+/**
+ * Junta os avisos de mesmo `grupo` numa caixa quando `formaCaixa` diz que sim;
+ * o resto passa como aviso solto, na ordem de chegada.
  *
  * As caixas vão para o TOPO da pilha: são perguntas que alguém espera, e os
  * avisos soltos só relatam. Também é o que impede o texto de um aviso antigo
@@ -40,15 +52,28 @@ export function agruparAvisos(toasts: readonly ToastMessage[]): ItemDaPilha[] {
   const caixaJaPosta = new Set<string>()
   for (const toast of toasts) {
     const membros = toast.grupo === undefined ? undefined : porGrupo.get(toast.grupo)
-    if (toast.grupo === undefined || membros === undefined || membros.length < MINIMO_PARA_CAIXA) {
+    if (toast.grupo === undefined || membros === undefined || !formaCaixa(membros)) {
       soltos.push({ tipo: 'aviso', toast })
       continue
     }
     if (caixaJaPosta.has(toast.grupo)) continue
     caixaJaPosta.add(toast.grupo)
-    caixas.push({ tipo: 'caixa', grupo: toast.grupo, toasts: membros })
+    caixas.push({ tipo: 'caixa', grupo: toast.grupo, toasts: urgentesPrimeiro(membros) })
   }
   return [...caixas, ...soltos]
+}
+
+/**
+ * Dentro da caixa, o aviso `urgente` (o chamado "Urgente") sobe para o topo;
+ * entre iguais vale a ordem de chegada (o `sort` é estável).
+ */
+function urgentesPrimeiro(membros: ToastMessage[]): ToastMessage[] {
+  return [...membros].sort((a, b) => Number(b.urgente === true) - Number(a.urgente === true))
+}
+
+/** A caixa só oferece "Deixar todos" quando algum aviso dela tem resposta em lote. */
+export function temRespostaEmLote(toasts: readonly ToastMessage[]): boolean {
+  return toasts.some((toast) => toast.actions?.some((action) => action.emLote === true) === true)
 }
 
 /** O título da caixa, que é também o nome acessível dela: "Pedidos (3)". */

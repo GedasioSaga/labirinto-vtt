@@ -76,6 +76,28 @@ export function findLightAt(lights: Light[], point: Point, handleRadius = LIGHT_
   return null
 }
 
+/** Luz que o clique não alcança por causa da ficha: presa nela, ou com o centro sob ela. */
+export interface LightOnToken {
+  id: string
+  attached: boolean
+}
+
+/**
+ * As luzes que o painel da ficha oferece. Em `findSelectableAt` a ficha vence
+ * a luz, e o alvo da luz (`LIGHT_HIT_RADIUS`) é menor que o da ficha: a tocha
+ * presa fica no centro da ficha, então nenhum clique a seleciona de novo —
+ * nem depois de soltar, porque soltar a deixa ali. Sem este caminho, Cor,
+ * Intensidade, raio e "Soltar" ficavam fora de alcance. Luz em camada oculta
+ * não entra, como no hit-test.
+ */
+export function lightsOnToken(map: MapData, tokenId: string): LightOnToken[] {
+  const token = map.tokens.find((t) => t.id === tokenId)
+  if (!token) return []
+  return visibleLights(map.lights, map.hiddenLayers)
+    .filter((l) => l.attachedTokenId === tokenId || findTokenAt([token], { x: l.x, y: l.y }, map.grid) !== null)
+    .map((l) => ({ id: l.id, attached: l.attachedTokenId === tokenId }))
+}
+
 export function isPointInPolygon(point: Point, points: RegionPoint[]): boolean {
   let inside = false
   for (let i = 0, j = points.length - 1; i < points.length; j = i, i += 1) {

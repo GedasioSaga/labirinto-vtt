@@ -134,6 +134,20 @@ export function ConcealZoneIcon(props: IconProps) {
 }
 
 /**
+ * Pincel de revelar: o canto tracejado da zona oculta com um traço de pincel
+ * aberto atravessando — o pedaço que deixa de estar escondido.
+ */
+export function RevealBrushIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M4 4h3M10.5 4h3M17 4h3v3M4 7V4M4 10.5v3" />
+      <path d="M6 18c2.5-4 5-6.5 12-8" />
+      <path d="M15.5 16.5l3-3 2 2-3 3z" />
+    </Icon>
+  )
+}
+
+/**
  * Pino de ponto de interesse: a gota cravada no mapa, com o miolo vazado —
  * o glifo ("!" ou "?") é escolha do pino, não do ícone da barra, então aqui
  * fica só a forma que identifica a ferramenta.
@@ -431,6 +445,17 @@ export function ExportIcon(props: IconProps) {
   )
 }
 
+/** "Exportar imagem": o quadro da imagem com a seta saindo pelo canto. */
+export function ExportImageIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M11 6H5a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2v-5" />
+      <path d="M3.5 17.5l4-3.5 3 2.5 2.5-2 5 4" />
+      <path d="M15 3h6v6M21 3l-7 7" />
+    </Icon>
+  )
+}
+
 export function ImportIcon(props: IconProps) {
   return (
     <Icon {...props}>
@@ -506,11 +531,34 @@ export function ChevronDownIcon(props: IconProps) {
   )
 }
 
+/**
+ * "Mover para…" da lista Cenas: a seta desce e entra à direita, o mesmo gesto
+ * do recuo de uma cena que vai para dentro de outra.
+ */
+export function MoveIntoIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M7 4.5v8a3 3 0 0 0 3 3h9" />
+      <path d="M15.5 12l3.5 3.5-3.5 3.5" />
+    </Icon>
+  )
+}
+
 /** X de fechar janela — duas diagonais do mesmo comprimento da divisa acima. */
 export function CloseIcon(props: IconProps) {
   return (
     <Icon {...props}>
       <path d="M6 6l12 12M18 6L6 18" />
+    </Icon>
+  )
+}
+
+/** Lupa do campo de busca: lente com miolo largo (r bem acima de 2.8) e cabo curto. */
+export function SearchIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <circle cx="10.5" cy="10.5" r="6" />
+      <path d="M15 15l5 5" />
     </Icon>
   )
 }
@@ -622,6 +670,22 @@ export function RedoIcon(props: IconProps) {
     <Icon {...props}>
       <path d="M15 15L20 10l-5-5" />
       <path d="M20 10h-9.5a5 5 0 000 10h3.5" />
+    </Icon>
+  )
+}
+
+/**
+ * Teclado — botão da tela de atalhos (ActionBar). Moldura mais larga que alta
+ * com duas fileiras de teclas curtas e a barra de espaço. Distingue de
+ * `ImageIcon` (moldura parecida, com montanha e sol por dentro) pelas teclas
+ * em grade. Cada tecla é um traço curto de ponta redonda — o mesmo traço do resto
+ * da família, sem `fill` e sem círculo pequeno que feche o miolo.
+ */
+export function KeyboardIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <rect x="2.5" y="6" width="19" height="12" rx="2" />
+      <path d="M6.25 9.5h1M9.75 9.5h1M13.25 9.5h1M16.75 9.5h1M6.25 12.25h1M9.75 12.25h1M13.25 12.25h1M16.75 12.25h1M8.5 15h7" />
     </Icon>
   )
 }

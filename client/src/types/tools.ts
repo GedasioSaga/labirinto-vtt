@@ -31,6 +31,12 @@ export type DrawingTool =
    */
   | 'path'
   | 'concealZone'
+  /**
+   * Pincel de revelar: arrastar sobre uma zona oculta revela aos jogadores só
+   * o pedaço pintado; com Alt (ou no modo "Esconder") esconde de volta
+   * (`lib/concealBrush.ts`).
+   */
+  | 'revealBrush'
   | 'pin'
 
 /**

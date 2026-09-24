@@ -3,6 +3,7 @@ import { createExploration, encodeExploration, isPointExplored, markRings } from
 import { createEmptyMap, addToken } from '../lib/mapFactory'
 import type { MapData } from '../types/map'
 import { NAME_MAX_LENGTH } from '../net/protocol'
+import { TRAVEL_REQUEST_MIN_INTERVAL_MS, TRAVEL_REQUEST_PLAYER_MIN_INTERVAL_MS } from '../net/hostSession'
 import { SIGNAL_TTL_MS } from '../lib/signals'
 import { LASER_MAX_POINTS_PER_MESSAGE, LASER_TRAIL_MS } from '../lib/laser'
 import {
@@ -11,6 +12,7 @@ import {
   DOOR_NOTICE_TTL_MS,
   FREE_PASSAGE_BEAT_MS,
   GATHERED_NOTICE_TTL_MS,
+  MOVE_NOTICE_TTL_MS,
   MOVED_NOTICE_TTL_MS,
   PING_INTERVAL_MS,
   RESUME_STORAGE_KEY,
@@ -131,13 +133,17 @@ describe('createPlayerConnection', () => {
     expect(connection.getState()).toMatchObject({ status: 'closed', error: undefined })
   })
 
-  it('queda de rede real (sem room.closed) continua sendo error connection_lost', () => {
+  it('queda de rede real (sem room.closed) não é fim de sessão: o cliente tenta voltar sozinho', () => {
+    // Era `error connection_lost` com botão; a reconexão automática
+    // (playerConnection.reconexao.test.ts) trocou isso por "reconectando".
     const { connection, socket } = setup()
     socket.open()
     socket.receive({ type: 'welcome', playerId: 'p1', resumeToken: 'tok' })
     socket.receive({ type: 'snapshot', rev: 1, map: mapWithToken(10, 10), vision: [] })
     socket.drop()
-    expect(connection.getState()).toMatchObject({ status: 'error', error: 'connection_lost' })
+    expect(connection.getState()).toMatchObject({ status: 'playing', error: undefined })
+    expect(connection.getState().reconnecting).toBeDefined()
+    connection.close()
   })
 
   it('lobby.waiting muda status para waiting', () => {
@@ -230,6 +236,71 @@ describe('createPlayerConnection', () => {
     expect(typeof reqId).toBe('string')
     socket.receive({ type: 'token.move.rejected', reqId, reason: 'not_owner' })
     expect(connection.getState().map?.tokens[0]).toMatchObject({ x: 10, y: 10 })
+  })
+
+  it('recusa do movimento diz o motivo por alguns segundos e some sozinha', () => {
+    vi.useFakeTimers()
+    const { connection, socket } = setup()
+    socket.open()
+    socket.receive({ type: 'snapshot', rev: 1, map: mapWithToken(10, 10), vision: [] })
+    connection.requestMove('t1', 60, 70)
+    socket.receive({ type: 'token.move.rejected', reqId: field(socket.sent.at(-1), 'reqId'), reason: 'wall' })
+    expect(connection.getState().map?.tokens[0]).toMatchObject({ x: 10, y: 10 })
+    expect(connection.getState().moveNotice).toMatchObject({ reason: 'wall' })
+
+    // Recusa nova troca o motivo e reinicia o tempo.
+    const first = connection.getState().moveNotice?.id
+    connection.requestMove('t1', 20, 20)
+    socket.receive({ type: 'token.move.rejected', reqId: field(socket.sent.at(-1), 'reqId'), reason: 'outside_floor' })
+    expect(connection.getState().moveNotice).toMatchObject({ reason: 'outside_floor' })
+    expect(connection.getState().moveNotice?.id).not.toBe(first)
+    vi.advanceTimersByTime(MOVE_NOTICE_TTL_MS - 1)
+    expect(connection.getState().moveNotice).toMatchObject({ reason: 'outside_floor' })
+    vi.advanceTimersByTime(1)
+    expect(connection.getState().moveNotice).toBeUndefined()
+  })
+
+  it('recusa com motivo desconhecido ou de pedido que não é meu desfaz sem aviso', () => {
+    const { connection, socket } = setup()
+    socket.open()
+    socket.receive({ type: 'snapshot', rev: 1, map: mapWithToken(10, 10), vision: [] })
+    socket.receive({ type: 'token.move.rejected', reqId: 'm999', reason: 'wall' })
+    expect(connection.getState().moveNotice).toBeUndefined()
+    connection.requestMove('t1', 60, 70)
+    socket.receive({ type: 'token.move.rejected', reqId: field(socket.sent.at(-1), 'reqId'), reason: 'inventado' })
+    expect(connection.getState().map?.tokens[0]).toMatchObject({ x: 10, y: 10 })
+    expect(connection.getState().moveNotice).toBeUndefined()
+  })
+
+  it('aviso de movimento recusado não sobrevive à troca de cena', () => {
+    const { connection, socket } = setup()
+    socket.open()
+    socket.receive({ type: 'snapshot', rev: 1, map: mapWithToken(10, 10), vision: [] })
+    connection.requestMove('t1', 60, 70)
+    socket.receive({ type: 'token.move.rejected', reqId: field(socket.sent.at(-1), 'reqId'), reason: 'wall' })
+    socket.receive({ type: 'scene.changed' })
+    expect(connection.getState().moveNotice).toBeUndefined()
+  })
+
+  it('tocha presa: o movimento otimista leva a luz junto, e o rejected a traz de volta', () => {
+    const { connection, socket } = setup()
+    socket.open()
+    const comTocha: MapData = {
+      ...mapWithToken(100, 100),
+      lights: [
+        { id: 'tocha', x: 70, y: 100, radius: 80, color: '#f00', intensity: 1, attachedTokenId: 't1' },
+        { id: 'solta', x: 300, y: 300, radius: 80, color: '#f00', intensity: 1 },
+      ],
+    }
+    socket.receive({ type: 'snapshot', rev: 1, map: comTocha, vision: [] })
+    connection.requestMove('t1', 160, 120)
+    expect(connection.getState().map?.lights).toEqual([
+      { id: 'tocha', x: 130, y: 120, radius: 80, color: '#f00', intensity: 1, attachedTokenId: 't1' },
+      { id: 'solta', x: 300, y: 300, radius: 80, color: '#f00', intensity: 1 },
+    ])
+    const reqId = field(socket.sent.at(-1), 'reqId')
+    socket.receive({ type: 'token.move.rejected', reqId, reason: 'not_owner' })
+    expect(connection.getState().map?.lights.find((l) => l.id === 'tocha')).toMatchObject({ x: 70, y: 100 })
   })
 
   it('accepted fixa a posição do servidor', () => {
@@ -542,6 +613,42 @@ describe('playerConnection: pedido de passagem', () => {
     expect(connection.getState().travel).toBeUndefined()
     socket.receive({ type: 'pin.travel.rejected', reason: 'too_soon' })
     expect(connection.getState().travel).toMatchObject({ phase: 'rejected', reason: 'too_soon' })
+  })
+
+  /** Só os pedidos de passagem que saíram (o ping do relógio falso não conta). */
+  const pedidos = (socket: FakeSocket): unknown[] => socket.sent.filter((m) => (m as { type?: string }).type === 'pin.travel.request')
+
+  it('pedir de novo logo depois do "Não": "Aguardando o mestre" na hora, e o pedido só sai quando o limite do host já passou', () => {
+    vi.useFakeTimers()
+    const { connection, socket } = jogando()
+    connection.requestTravel('escada')
+    socket.receive({ type: 'pin.travel.denied' })
+    const antes = pedidos(socket).length
+    expect(connection.requestTravel('escada')).toBe(true)
+    expect(connection.getState().travel).toMatchObject({ phase: 'waiting', direct: false })
+    // Sair agora seria "too_soon" no host: o cliente espera sozinho, sem mostrar "Espere um pouco".
+    expect(pedidos(socket).length).toBe(antes)
+    vi.advanceTimersByTime(TRAVEL_REQUEST_MIN_INTERVAL_MS - 1)
+    expect(pedidos(socket).length).toBe(antes)
+    vi.advanceTimersByTime(TRAVEL_REQUEST_PLAYER_MIN_INTERVAL_MS)
+    expect(pedidos(socket).slice(antes)).toEqual([{ type: 'pin.travel.request', pinId: 'escada' }])
+    expect(connection.getState().travel).toMatchObject({ phase: 'waiting', direct: false })
+  })
+
+  it('outro pino logo depois do "Não" espera só o limite do jogador; passado o intervalo, sai na hora', () => {
+    vi.useFakeTimers()
+    const { connection, socket } = jogando()
+    connection.requestTravel('escada')
+    socket.receive({ type: 'pin.travel.denied' })
+    const antes = pedidos(socket).length
+    connection.requestTravel('porta')
+    expect(pedidos(socket).length).toBe(antes)
+    vi.advanceTimersByTime(TRAVEL_REQUEST_PLAYER_MIN_INTERVAL_MS + 1000)
+    expect(pedidos(socket).slice(antes)).toEqual([{ type: 'pin.travel.request', pinId: 'porta' }])
+    socket.receive({ type: 'pin.travel.denied' })
+    vi.advanceTimersByTime(TRAVEL_REQUEST_MIN_INTERVAL_MS)
+    connection.requestTravel('escada')
+    expect(pedidos(socket).at(-1)).toEqual({ type: 'pin.travel.request', pinId: 'escada' })
   })
 
   describe('pino livre', () => {

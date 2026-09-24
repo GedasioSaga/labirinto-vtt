@@ -37,6 +37,7 @@ export const TOOL_LABELS: Partial<Record<DrawingTool, string>> = {
   floor: 'Chão',
   path: 'Caminho',
   concealZone: 'Zona oculta',
+  revealBrush: 'Pincel de revelar',
   pin: 'Pino',
 }
 
@@ -106,6 +107,8 @@ export const TOOL_HINTS: Partial<Record<DrawingTool, string>> = {
   path: 'Escolha a cor DESTE caminho no painel e clique ponto a ponto. Duplo clique ou Enter termina; Backspace tira o último ponto; Esc cancela. Cada caminho guarda a cor dele.',
   floor: 'Arraste para criar uma peça de chão (forma e Somar/Subtrair na setinha). Corredor: clique ponto a ponto, duplo clique ou Enter termina, Esc cancela.',
   concealZone: 'Arraste para marcar uma área que os jogadores não veem. Clique numa zona para editar o nome ou revelá-la.',
+  revealBrush:
+    'Arraste sobre uma zona oculta para mostrar aos jogadores só o pedaço pintado. Segure Alt (ou escolha Esconder no painel) para esconder de volta.',
   pin: 'Clique no mapa para cravar um ponto de interesse. No painel, escolha o ícone (baú, armadilha, chave...), escreva a descrição e escolha a imagem que o jogador vê ao tocar nele.',
 }
 
@@ -144,7 +147,9 @@ export const TOOLBAR_SLOTS: ToolbarSlot[][] = [
   // Caminho fica colado no Chão, e NÃO dentro do grupo Desenho: quem quer uma
   // trilha de terra procura onde mora o piso, não onde moram linha e polígono
   // — e, ao contrário das formas do grupo, cada caminho carrega a própria cor.
-  ['wall', 'door', 'light', 'region', 'room', 'roomCircle', 'roomPolygon', 'roomFree', 'floor', 'path', 'stair', 'prop', 'concealZone'],
+  // O Pincel de revelar mora colado na Zona oculta: só age dentro de uma, e é
+  // ali que o mestre procura "como mostro só um pedaço".
+  ['wall', 'door', 'light', 'region', 'room', 'roomCircle', 'roomPolygon', 'roomFree', 'floor', 'path', 'stair', 'prop', 'concealZone', 'revealBrush'],
   // Pino fica com Texto/Medir: os três são anotação por cima da planta, não construção.
   ['cluster:drawing', 'text', 'pin', 'measure', 'eraser'],
 ]
@@ -182,6 +187,10 @@ export const BLOCKED_MOVE_TEXT: Record<BlockedMoveReason, string> = {
     'A porta do caminho está fechada e segurou o movimento. Ligue "Aberta" no painel, ou tire o que mais estiver barrando o vão.',
   door_locked:
     'A porta do caminho está trancada: com o cadeado ligado ninguém passa, nem o mestre. Desligue "Trancada" no painel para liberar.',
+  // Porta secreta barra mesmo aberta (`collision.isDoorPassable`): mandar
+  // ligar "Aberta" repetiria o aviso no próximo arrasto.
+  door_secret:
+    'A porta do caminho é secreta: enquanto ela estiver escondida, ninguém passa, nem com ela aberta. Clique em "Revelar passagem" no painel da porta para liberar.',
 }
 
 /**
@@ -207,6 +216,14 @@ export const DOOR_OPENED_BY_MOVE_TEXT = 'A porta estava fechada e abriu na passa
  */
 export const STAIR_CLICK_WITHOUT_DRAG_TEXT =
   'Não deu para criar a escada: um clique parado não tem lance. Segure o botão e arraste até onde a escada termina.'
+
+/**
+ * Pincel de revelar arrastado fora de qualquer zona oculta ativa: não revela
+ * nada, e a tela diz por quê e onde está a saída (o nome citado é o do botão
+ * que resolve, `TOOL_LABELS.concealZone`).
+ */
+export const AVISO_PINCEL_SEM_ZONA =
+  'O Pincel de revelar só age dentro de uma zona oculta. Marque a área com a ferramenta Zona oculta e pinte por dentro dela.'
 
 /**
  * Trocou de forma no menu do Chão com um Corredor de UM ponto só (achado 7 do

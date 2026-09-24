@@ -145,6 +145,15 @@ describe('câmera por cena', () => {
     expect(useAdventureStore.getState().cameraRequest).toEqual({ camera: { x: 10, y: 20, scale: 0.5 } })
   })
 
+  it('"Ir até lá" na cena aberta leva o ponto e a caixa do objeto: o canvas afasta se ela não couber', () => {
+    const caixa = { minX: 1500, minY: 200, maxX: 1850, maxY: 600 }
+    expect(useAdventureStore.getState().goToPoint(null, { x: 1675, y: 400 }, caixa)).toBe(true)
+    expect(useAdventureStore.getState().cameraRequest).toEqual({ camera: null, focus: { x: 1675, y: 400 }, fit: caixa })
+    // Sem caixa, o "Ir lá" de sempre: só o ponto, no zoom de agora.
+    useAdventureStore.getState().goToPoint(null, { x: 10, y: 20 })
+    expect(useAdventureStore.getState().cameraRequest).toStrictEqual({ camera: null, focus: { x: 10, y: 20 } })
+  })
+
   it('cena aberta do disco (depois de reiniciar) não herda câmera: pede enquadrar', () => {
     const vale = createEmptyMap('map_vale', 'Vale', 30, 20, 64)
     const cripta = createEmptyMap('map_cripta', 'Cripta', 30, 20, 64)
@@ -266,6 +275,34 @@ describe('flush', () => {
     const aventura = parseAdventure(arquivos.get('C:/mesa/torre/adventure.json') ?? '')
     expect(aventura.scenes[0].file).toBe('torre.json')
     expect(arquivos.has(`C:/mesa/torre/${aventura.scenes[1].file}`)).toBe(true)
+  })
+
+  it('ficha guardada ("Guardar ficha") sai do editor mas não do arquivo: cada uma na cena de onde saiu', async () => {
+    useMapStore.getState().addToken(token('escudo'))
+    const cripta = useAdventureStore.getState().createScene('Cripta', null)
+    const vale = useAdventureStore.getState().adventure?.scenes[0]?.id
+    if (vale === undefined) throw new Error('a aventura deveria ter nascido com o Vale')
+    useMapStore.getState().addToken(token('machado'))
+    const slotVale = useAdventureStore.getState().cache[vale]
+    const guardadoVale = slotVale?.status === 'ok' ? slotVale.map.tokens.find((t) => t.id === 'escudo') : undefined
+    const guardadoCripta = useMapStore.getState().map.tokens.find((t) => t.id === 'machado')
+    if (guardadoVale === undefined || guardadoCripta === undefined) throw new Error('as duas fichas deveriam estar no mapa')
+    // O mestre guarda as duas: saem do mapa (a do Vale, cena de fundo; a da Cripta, a aberta).
+    useAdventureStore.getState().updateBackgroundScene(vale, (m) => ({ ...m, tokens: m.tokens.filter((t) => t.id !== 'escudo') }))
+    useMapStore.getState().removeToken('machado')
+    const aberto = useMapStore.getState().map
+
+    const caminho = await useAdventureStore.getState().flush([
+      { token: guardadoVale, sceneId: vale },
+      { token: guardadoCripta, sceneId: cripta },
+    ])
+
+    expect(deserializeMap(arquivos.get('C:/appdata/maps/map_raiz/map.json') ?? '').tokens.map((t) => t.id)).toEqual(['escudo'])
+    expect(deserializeMap(arquivos.get(caminho) ?? '').tokens.map((t) => t.id)).toEqual(['machado'])
+    // O editor continua sem elas, e nada fica pendente: fechar a janela agora não perde ficha nenhuma.
+    expect(useMapStore.getState().map).toBe(aberto)
+    expect(useMapStore.getState().map.tokens).toEqual([])
+    expect(hasUnsavedWork()).toBe(false)
   })
 
   it('renomear a cena grava o nome novo e vazio vira "Cena sem nome"', async () => {

@@ -36,6 +36,10 @@ export interface ShortcutEvent {
   /** Há rascunho ponto a ponto aberto (Região, Área poligonal, Chão corredor).
    *  Com ele, Ctrl+Z e Backspace tiram o último ponto do rascunho. */
   hasPointDraft?: boolean
+  /** Há um pino selecionado que o `?` sabe alternar entre "!" e "?" — quem
+   *  confere é o canvas (o id ainda existe no mapa e o tipo tem troca). Sem
+   *  ele, o `?` abre a tela de atalhos em vez de sumir sem efeito. */
+  canTogglePinType?: boolean
 }
 
 export type Action =
@@ -46,6 +50,11 @@ export type Action =
    *  é quem tem o mapa em mãos; esta função não recebe grid nenhum. */
   | { kind: 'nudge'; dx: number; dy: number; fine: boolean }
   | { kind: 'duplicate' }
+  /** Ctrl+C / Ctrl+X / Ctrl+V — área de transferência do editor, que
+   *  sobrevive à troca de cena e de mapa (`stores/mapClipboard.ts`). */
+  | { kind: 'copy' }
+  | { kind: 'cut' }
+  | { kind: 'paste' }
   | { kind: 'save' }
   | { kind: 'open' }
   | { kind: 'zoomReset' }
@@ -57,9 +66,24 @@ export type Action =
   | { kind: 'redo' }
   /** Tira o último ponto do rascunho aberto; sem ponto sobrando, cancela o rascunho. */
   | { kind: 'undoDraftPoint' }
-  /** `?` — alterna o pino selecionado entre "!" e "?". Sem pino selecionado,
-   *  quem executa não faz nada: a tecla fica livre para outro papel. */
+  /** `?` com pino selecionado — alterna o pino entre "!" e "?". */
   | { kind: 'togglePinType' }
+  /** `?` sem pino para alternar — abre a tela de atalhos, com o que cada letra
+   *  e cada combinação faz (`components/ShortcutsDialog.tsx`). */
+  | { kind: 'showShortcuts' }
+  /** Ctrl+G — junta a seleção de vários num grupo (`lib/itemGroups.ts`). */
+  | { kind: 'group' }
+  /** Ctrl+Shift+G — desfaz o grupo de quem está selecionado. */
+  | { kind: 'ungroup' }
+  /** Shift+N — passa a vez da iniciativa (o mesmo que o botão "Próxima vez"). */
+  | { kind: 'nextTurn' }
+
+/**
+ * Tecla do "Próxima vez" da iniciativa, no formato de `aria-keyshortcuts`
+ * (é assim que o botão anuncia o atalho). Todas as letras sem modificador já
+ * são ferramentas (N é a Sala); Shift+letra estava livre, e N é de "next".
+ */
+export const NEXT_TURN_SHORTCUT = 'Shift+N'
 
 /**
  * Tabela ferramenta → letra, para o integrador mostrar no `data-tip` de cada
@@ -114,6 +138,10 @@ export const TOOL_SHORTCUTS: Record<DrawingTool, string> = {
   // Zona oculta: todas as letras mnemônicas já estavam ocupadas; X ("área
   // riscada") era uma das livres. Z segue sem atalho.
   concealZone: 'X',
+  // Pincel de revelar nasce SEM letra, como o Caminho abaixo: não sobrou
+  // nenhuma livre (Z fica reservada ao Ctrl+Z). A barra o alcança, colado na
+  // Zona oculta.
+  revealBrush: '',
   // Pino (ponto de interesse): P é do Pincel e I do Chão; Y era a única letra
   // livre além de Z.
   pin: 'Y',
@@ -234,9 +262,15 @@ export function resolveShortcut(evt: ShortcutEvent): Action | null {
     if (lower === 'z') return evt.hasPointDraft ? { kind: 'undoDraftPoint' } : { kind: 'undo' }
     if (lower === 'y') return { kind: 'redo' }
     if (lower === 'd') return { kind: 'duplicate' }
+    if (lower === 'c') return { kind: 'copy' }
+    if (lower === 'x') return { kind: 'cut' }
+    if (lower === 'v') return { kind: 'paste' }
     if (lower === 's') return { kind: 'save' }
     if (lower === 'o') return { kind: 'open' }
     if (lower === 'a') return { kind: 'selectAll' }
+    // Mesmo par de Figma/Excalidraw/PowerPoint. Com Shift o navegador manda
+    // `G` maiúsculo — `lower` já cobre os dois.
+    if (lower === 'g') return evt.shiftKey ? { kind: 'ungroup' } : { kind: 'group' }
     if (key === '0') return { kind: 'zoomReset' }
     return null
   }
@@ -264,7 +298,13 @@ export function resolveShortcut(evt: ShortcutEvent): Action | null {
   // no teclado americano e no ABNT2), então a trava o engolia sempre. Lê
   // `key`, não a tecla física, para valer em qualquer layout. Alt fica de
   // fora pelo mesmo motivo das letras.
-  if (key === '?' && !evt.altKey) return { kind: 'togglePinType' }
+  //
+  // Duas leituras, a do pino primeiro: com um pino que ele sabe trocar, o `?`
+  // é do pino; sem, abre a tela de atalhos — antes a tecla sumia sem efeito.
+  if (key === '?' && !evt.altKey) return evt.canTogglePinType ? { kind: 'togglePinType' } : { kind: 'showShortcuts' }
+  // Shift+N (`NEXT_TURN_SHORTCUT`): a próxima vez da iniciativa. Também antes
+  // da trava de Shift, pelo mesmo motivo do `?`.
+  if (evt.shiftKey && !evt.altKey && lower === 'n') return { kind: 'nextTurn' }
   if (evt.shiftKey || evt.altKey) return null
 
   if (lower === 'f') return { kind: 'fitAll' }

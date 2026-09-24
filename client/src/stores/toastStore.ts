@@ -22,7 +22,7 @@ import { create } from 'zustand'
  */
 export type ToastKind = 'info' | 'error' | 'instrucao'
 
-/** Botão de um aviso. Clicar roda `run` e dispensa o aviso. */
+/** Botão de um aviso. Clicar roda `run` e dispensa o aviso (salvo `mantem`). */
 export interface ToastAction {
   label: string
   run: () => void
@@ -32,6 +32,29 @@ export interface ToastAction {
    * dos botões é de desenho, e trocar a ordem não pode trocar o que o lote faz.
    */
   emLote?: boolean
+  /**
+   * O botão age SEM tirar o aviso da tela. É o "Ir lá" do chamado e da ação
+   * no ponto: ir ver o lugar não responde nada, e a linha precisa continuar
+   * para o "Visto"/"Responder" ou o "Nada aqui"/"Feito" depois.
+   */
+  mantem?: boolean
+}
+
+/**
+ * Aviso que pede um TEXTO de volta (o "Responder" do chamado do jogador): o
+ * botão `rotulo` abre um campo na própria linha, e enviar roda `enviar` com o
+ * texto aparado e tira o aviso. Texto vazio não envia.
+ */
+export interface ToastResposta {
+  rotulo: string
+  maxLength: number
+  enviar: (texto: string) => void
+  /**
+   * Respostas prontas mostradas com o campo aberto (os motivos recentes do
+   * "Não, porque…"): tocar numa envia ela. Função, e não lista, porque o
+   * aviso nasce antes das respostas dadas enquanto ele espera. Ausente = nenhuma.
+   */
+  recentes?: () => readonly string[]
 }
 
 export interface ToastMessage {
@@ -55,13 +78,27 @@ export interface ToastMessage {
    * avisos soltos (`components/caixaDeAvisos.ts`). Ausente = aviso de sempre.
    */
   grupo?: string
+  /**
+   * Este aviso abre a caixa do `grupo` mesmo sozinho: "Pedidos (1)". É o
+   * pedido da porta trancada — o mestre pode estar noutra cena, e o título
+   * da caixa é o que diz a ele que alguém espera resposta. Ausente = a regra
+   * de sempre (caixa só a partir de dois).
+   */
+  sempreEmCaixa?: boolean
+  /** Campo de resposta do aviso, depois dos botões. Ausente = o aviso não pede texto. */
+  resposta?: ToastResposta
+  /** Dentro da caixa do grupo, sobe para o topo (o chamado "Urgente"). A ordem de chegada vale entre iguais. */
+  urgente?: true
 }
 
-/** Extras de `push`: botões, o que o × faz e o grupo. */
+/** Extras de `push`: botões, o que o × faz, o grupo, se ele abre a caixa sozinho, o campo de resposta e a urgência. */
 export interface ToastExtras {
   actions?: ToastAction[]
   onDismiss?: () => void
   grupo?: string
+  sempreEmCaixa?: boolean
+  resposta?: ToastResposta
+  urgente?: boolean
 }
 
 interface ToastState {
@@ -117,6 +154,9 @@ export const useToastStore = create<ToastState>()((set, get) => ({
     if (extras.actions !== undefined && extras.actions.length > 0) toast.actions = extras.actions
     if (extras.onDismiss !== undefined) toast.onDismiss = extras.onDismiss
     if (extras.grupo !== undefined) toast.grupo = extras.grupo
+    if (extras.sempreEmCaixa === true) toast.sempreEmCaixa = true
+    if (extras.resposta !== undefined) toast.resposta = extras.resposta
+    if (extras.urgente === true) toast.urgente = true
     set((state) => ({ toasts: [...state.toasts, toast] }))
     if (durationMs !== null) {
       timers.set(

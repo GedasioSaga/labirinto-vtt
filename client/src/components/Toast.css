@@ -50,6 +50,30 @@
   gap: var(--lb-space-2);
 }
 
+/* "Responder" aberto: o campo toma a linha inteira dos botões, com Enviar e
+   Cancelar ao lado — a linha cresce para baixo, não empurra o texto. */
+.lb-toast__reply {
+  display: flex;
+  flex-basis: 100%;
+  /* Só os motivos recentes quebram linha: o campo tem base 0 (`flex: 1`) e cabe com os botões. */
+  flex-wrap: wrap;
+  gap: var(--lb-space-2);
+  margin: 0;
+}
+
+/* "Motivos recentes" do "Não, porque…": linha própria embaixo do campo. */
+.lb-toast__recentes {
+  display: flex;
+  flex-basis: 100%;
+  flex-wrap: wrap;
+  gap: var(--lb-space-2);
+}
+
+.lb-toast__reply-input {
+  flex: 1;
+  min-width: 0;
+}
+
 .lb-toast__text {
   flex: 1;
   font-size: var(--lb-font-size-sm);

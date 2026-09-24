@@ -3,7 +3,7 @@ import { subscribeWithSelector } from 'zustand/middleware'
 import type {
   MapData, Wall, Light, Region, Token, Prop, Drawing, DoorState, LayerId, GridSettings,
   Stair, StairDirection, DoorKind, MapScale, MeasurementMode, DrawingCap, DrawingDash, FreehandTexture,
-  FloorPiece, FloorStyle, MapLine, MapMarker, MapFrame, PinIcon, PinKind,
+  FloorPiece, FloorStyle, MapLine, MapMarker, MapFrame, PinIcon, PinKind, RoomMeta, TokenCondition, MovementRules, HazardKind,
 } from '../types/map'
 import type { Camera, Point } from '../pixi/world'
 import type { DoorMode, DrawingTool, Selection } from '../types/tools'
@@ -13,6 +13,7 @@ import type { Corner, ResizeModifiers } from '../lib/objectTransform'
 import type { StairSizePreset } from '../lib/stairs'
 import { FLOOR_LAYER, clampFloorPolygonSides, type FloorShapeKind } from '../lib/floorTool'
 import { clampTamanhoDePincel, type Bloco, type TamanhoDePincel } from '../lib/floorBlocks'
+import { paintRevealBrush as paintRevealBrushOnMap, type RevealBrushMode, type RevealBrushWidth } from '../lib/concealBrush'
 import * as mapFactory from '../lib/mapFactory'
 // Onda 3, item 13 (Frente A) — clonagem pura por tipo de entidade, usada por
 // `duplicateSelected` (Ctrl+D) e `insertClonedEntityLive` (Alt+arrastar, ver
@@ -21,6 +22,8 @@ import { cloneEntity, cloneLinkedWalls, cloneRoomDescendants, type CloneableEnti
 import { ancestorsOf, descendantsOf, subtreeIds } from '../lib/roomNesting'
 import { roomRotationOf, rotationDelta } from '../lib/roomRotation'
 import { canInteract } from '../lib/itemTransform'
+import { toggleTokenCondition as toggleConditionOnMap } from '../lib/tokenConditions'
+import { advanceHazard as advanceHazardOnMap, setRoomHazard as setRoomHazardOnMap } from '../lib/hazards'
 
 /** Ferramentas que criam Sala: mantêm o "Criar sala dentro" armado. */
 const ROOM_TOOLS: ReadonlySet<string> = new Set(['room', 'roomCircle', 'roomPolygon', 'roomFree'])
@@ -30,7 +33,10 @@ const ROOM_TOOLS: ReadonlySet<string> = new Set(['room', 'roomCircle', 'roomPoly
 // tela precisa para explicar a recusa em vez de devolver o token em silêncio.
 import { describeBlockedMove } from '../lib/moveValidation'
 import { DEFAULT_PATH_WIDTH_CELLS, DEFAULT_TEXT_FONT_FAMILY, clampPathWidthCells, convertLineToCurve, convertCurveToLine } from '../lib/drawingFactory'
-import { moveAreaSelection, areaSelectionBounds } from '../lib/areaSelection'
+import { moveAreaSelection, areaSelectionBounds, type AreaBounds } from '../lib/areaSelection'
+import { pieceBounds } from '../lib/floorSdf'
+import { groupItems, NO_GROUPS, ungroupItems, type ItemGroups } from '../lib/itemGroups'
+import { alignableUnitCount, alignSelectionItems, distributeSelectionItems, type AlignEdge, type DistributeAxis } from '../lib/alignDistribute'
 import { BLOCKED_MOVE_TEXT, DOOR_OPENED_BY_MOVE_TEXT, TOOL_CLUSTERS } from '../components/labels'
 import { useToastStore } from './toastStore'
 import { eraseFromDrawing } from '../lib/eraseGeometry'
@@ -317,6 +323,13 @@ interface MapStoreState {
    *  `doorKind`/`eraseMode`. */
   doorMode: DoorMode
   setDoorMode: (mode: DoorMode) => void
+  /** Pincel de revelar: o que o PRÓXIMO arrasto faz (Alt inverte) e a largura
+   *  do traço em quadrados. Preferência de ferramenta, sem histórico e fora do
+   *  map.json, mesma classe de `doorMode`. */
+  revealBrushMode: RevealBrushMode
+  setRevealBrushMode: (mode: RevealBrushMode) => void
+  revealBrushWidth: RevealBrushWidth
+  setRevealBrushWidth: (width: RevealBrushWidth) => void
   /** Ponta do traço (N2/B2, "ponta da linha") da PRÓXIMA forma com traço
    *  (brush/line/curve) — preferência de ferramenta, mesma classe de
    *  `wallKind`/`doorKind`. Não confundir com `setDrawingCap`, que edita uma
@@ -400,6 +413,18 @@ interface MapStoreState {
    *  Shift+clique (`toggleSelectionItem`) ou limpar (`EMPTY_SELECTION`),
    *  sempre decididos no CHAMADOR (pixi/PixiCanvas.tsx); o store só grava. */
   setSelection: (selection: SelectionSet) => void
+  /**
+   * Grupos do editor (Ctrl+G), por id de mapa — cada cena guarda os seus.
+   * Fora de `MapData` de propósito: grupo é gesto do mestre, não conteúdo do
+   * mapa, então não vai para o jogador, não entra no arquivo e não ocupa
+   * Ctrl+Z. Mapa sem grupo não tem chave (ausência = nenhum grupo).
+   */
+  itemGroups: Readonly<Record<string, ItemGroups>>
+  /** Junta a seleção atual num grupo do mapa aberto. `false` = menos de 2
+   *  itens, nada mudou. */
+  groupSelected: () => boolean
+  /** Desfaz o grupo de quem está selecionado. `false` = nenhum grupo tocado. */
+  ungroupSelected: () => boolean
   /** Onda 4, item 24 — apaga TODOS os itens do conjunto (não só um), numa
    *  única entrada de histórico. Sem efeito se a seleção estiver vazia. */
   removeSelected: () => void
@@ -415,6 +440,26 @@ interface MapStoreState {
    * outros.
    */
   duplicateSelected: () => void
+  /**
+   * Área de transferência do editor (Ctrl+C/Ctrl+X/Ctrl+V). Guarda o MAPA de
+   * origem inteiro (referência imutável, custo zero) e os itens copiados: a
+   * colagem clona dali, então ela sobrevive à troca de cena e de mapa —
+   * `loadMap` e a troca de cena de `adventureStore` não tocam neste campo.
+   */
+  clipboard: MapClipboard | null
+  /** Ctrl+C — guarda a seleção sem mudar o mapa. `false` (e a área de
+   *  transferência intacta) sem nada selecionado. */
+  copySelected: () => boolean
+  /** Ctrl+X — guarda a seleção e a tira do mapa (1 entrada de histórico).
+   *  `false`, sem efeito, sem nada selecionado. */
+  cutSelected: () => boolean
+  /**
+   * Ctrl+V — cola a área de transferência com o CENTRO do conjunto no ponto
+   * dado (px de mundo), ajustado à grade do mapa aberto, e seleciona as
+   * cópias. 1 entrada de histórico. `false`, sem efeito, se não há nada
+   * copiado ou se nada do que foi copiado existia no mapa de origem.
+   */
+  pasteClipboardAt: (point: Point) => boolean
   /**
    * Par de `duplicateSelected`, para o Alt+arrastar (`pixi/PixiCanvas.tsx`):
    * insere uma entidade JÁ CLONADA (offset {0,0} — nasce exatamente sobre o
@@ -443,6 +488,8 @@ interface MapStoreState {
   addLight: (light: Light) => void
   removeLight: (id: string) => void
   updateLight: (id: string, patch: Partial<Light>) => void
+  /** Tocha presa na ficha: prende a luz em `tokenId` ou solta (`null`). Com histórico. */
+  setLightAttachment: (id: string, tokenId: string | null) => void
   /**
    * Variante "live" de updateLight, restrita ao raio: aplica no `map` SEM
    * empurrar pra `past` — pensada pro pointermove do arrasto da alça de raio
@@ -553,8 +600,25 @@ interface MapStoreState {
    * `size` aqui é o número ESCOLHIDO no painel, em quadrados. O arrasto pela
    * alça de canto continua em `updateTokenLive` (sem histórico por frame, uma
    * entrada só no `pointerup`) — são dois gestos, não dois campos.
+   *
+   * `health` (barra de vida) entra pelo mesmo caminho: cada número confirmado
+   * no painel é um Ctrl+Z, e `null` tira a barra da ficha. `vigia` (olhos do
+   * guarda), `npc` (marca de NPC) e `publicName` ("Nome para os jogadores")
+   * também: são conteúdo do mapa, Ctrl+Z desfaz.
    */
-  updateToken: (id: string, patch: Partial<Pick<Token, 'rotation' | 'locked' | 'hidden' | 'color' | 'size'>>) => void
+  updateToken: (
+    id: string,
+    patch: Partial<Pick<Token, 'rotation' | 'locked' | 'hidden' | 'color' | 'size' | 'health' | 'vigia' | 'npc' | 'publicName'>>,
+  ) => void
+  /**
+   * CONDIÇÃO NA FICHA: marca a condição se ela não está na ficha, desmarca se
+   * está (`lib/tokenConditions.ts`) — o clique do painel. Com histórico, mesmo
+   * motivo da cor: é conteúdo do mapa, Ctrl+Z desfaz. Ficha que não existe não
+   * gasta entrada de histórico. É ação própria, e não um `updateToken` com a
+   * lista montada no componente, para dois cliques seguidos alternarem sobre o
+   * estado ATUAL da ficha, nunca sobre uma cópia velha da renderização.
+   */
+  toggleTokenCondition: (id: string, condition: TokenCondition) => void
   addProp: (prop: Prop) => void
   removeProp: (id: string) => void
   moveProp: (id: string, x: number, y: number) => void
@@ -575,6 +639,10 @@ interface MapStoreState {
    *  no botão "Aplicar" de `GridAlignControls` (as duas juntas, 2 entradas de
    *  undo). Ver `mapFactory.setGridCellSize`. */
   setGridCellSize: (cellSize: number) => void
+  /** Tamanho do mapa em quadros ("Configurações do mapa > Tamanho do mapa").
+   *  1 entrada de undo; tamanho igual ou inválido não grava nada. Ver
+   *  `mapFactory.setMapSize`. */
+  setMapSize: (width: number, height: number) => void
   setBackground: (background: MapData['background']) => void
   /** Esconde/mostra uma camada inteira (LayerId, 9 valores — types/map.ts).
    *  Se o item hoje selecionado pertence à camada que está sendo OCULTADA
@@ -606,6 +674,11 @@ interface MapStoreState {
   setWallDoorKind: (wallId: string, kind: DoorKind) => void
   /** Alterna `DoorState.locked` de uma porta já criada. Com histórico. */
   setDoorLocked: (wallId: string, locked: boolean) => void
+  /** Liga/desliga `DoorState.secret` (porta secreta; ligar fecha). Com histórico. */
+  setDoorSecret: (wallId: string, secret: boolean) => void
+  /** "Revelar passagem": tira o segredo da porta e o oculto da sala ligada
+   *  (mapFactory.revealSecretPassage). Um passo de histórico só. */
+  revealSecretPassage: (wallId: string) => void
   /** Botão "Virar porta" do painel: porta de `DOOR_LENGTH_BY_KIND[doorKind]`
    *  no MEIO da parede selecionada, partindo a parede como a ferramenta Porta
    *  (mantém o vínculo com a Sala). Antes o painel virava o LADO INTEIRO da
@@ -625,6 +698,12 @@ interface MapStoreState {
   setRoomNameHiddenFromPlayers: (id: string, hidden: boolean) => void
   /** TETO DE CONSTRUÇÃO — liga/desliga `RoomMeta.roof` da Sala, com histórico. */
   setRoomRoof: (id: string, roof: boolean) => void
+  /** TEXTO DA SALA — "Ao entrar, o jogador lê" / "Nota do mestre". Com histórico, como `setRoomName`. */
+  setRoomTexts: (id: string, patch: Partial<Pick<RoomMeta, 'textoAoEntrar' | 'notaDoMestre'>>) => void
+  /** ZONA DE PERIGO — pinta a Sala com um perigo, troca ou limpa (`null`). Com histórico. */
+  setRoomHazard: (roomId: string, kind: HazardKind | null) => void
+  /** ZONA DE PERIGO — "Avançar um passo" pelas portas abertas. Com histórico; nada muda = nada grava. */
+  advanceHazard: (hazardId: string) => void
   /** A5 — "Oculto para jogadores" de Token/Região/Objeto/Escada/Desenho. Com histórico. */
   setItemSecret: (kind: mapFactory.SecretKind, id: string, secret: boolean) => void
   /** A5 — abre a zona no painel e limpa a seleção comum (`null` fecha). */
@@ -637,7 +716,7 @@ interface MapStoreState {
    *  mantido em dia por `stores/adventureStore.ts`, fora deste desfazer. */
   updatePin: (
     id: string,
-    patch: Partial<Pick<MapData['pins'][number], 'kind' | 'icon' | 'description' | 'image' | 'locked' | 'destino' | 'passagem' | 'rotulo' | 'saidas'>>,
+    patch: Partial<Pick<MapData['pins'][number], 'kind' | 'icon' | 'description' | 'image' | 'locked' | 'destino' | 'passagem' | 'rotulo' | 'saidas' | 'item'>>,
   ) => void
   /** Arrasto do pino — SEM histórico, par de `commitDragHistory(before)` no
    *  pointerup, mesmo padrão de `moveTokenLive`/`movePropLive`. */
@@ -647,6 +726,12 @@ interface MapStoreState {
   addConcealZone: (zone: MapData['concealZones'][number]) => void
   updateConcealZone: (id: string, patch: Partial<Pick<MapData['concealZones'][number], 'name' | 'revealed'>>) => void
   removeConcealZone: (id: string) => void
+  /**
+   * Um traço inteiro do Pincel de revelar, num Ctrl+Z só. Devolve se o traço
+   * passou por alguma zona oculta ativa (o chamador avisa quando não passou).
+   * Traço que não muda nada não gasta entrada de histórico.
+   */
+  paintRevealBrush: (stroke: Point[], radius: number, mode: RevealBrushMode) => boolean
   resizeRoomDimensions: (id: string, wPx: number, hPx: number) => void
   /** Variante "live" do resize por canto — SEM histórico, aplica direto no
    *  `map` a cada pointermove do arrasto. Par de `commitDragHistory(before)`
@@ -701,6 +786,8 @@ interface MapStoreState {
   updateTokenLive: (id: string, patch: Partial<Pick<Token, 'size'>>) => void
   setMapScale: (scale: MapScale) => void
   setMeasurementMode: (mode: MeasurementMode) => void
+  /** Passo máximo e ocupação das fichas dos jogadores na cena aberta; `undefined` = livre. */
+  setMovementRules: (movement: MovementRules | undefined) => void
   setScenarioLink: (value: string | null) => void
   setPropLinkedPath: (id: string, path: string | null) => void
   updateCurvePoint: (drawingId: string, index: number, x: number, y: number) => void
@@ -725,8 +812,24 @@ interface MapStoreState {
    * resultado final do arrasto. Não faz nada se `before` for igual (mesma
    * referência) ao `map` atual, ou seja, o gesto não mudou nada de verdade
    * (ex.: clique sem arrasto real).
+   *
+   * Se um jogador mudou o mapa durante o gesto (`applyPlayerChange`), essas
+   * mudanças são reaplicadas em `before` antes de ir pra `past` — desfazer o
+   * arrasto do mestre não pode devolver a ficha do jogador. Gesto em que só o
+   * jogador mexeu não vira passo de desfazer.
    */
   commitDragHistory: (before: MapData) => void
+  /**
+   * Mudança feita por um JOGADOR na cena aberta (chega pela ponte do host,
+   * `net/playerChanges.ts`, já validada). Não cria passo de desfazer: o Ctrl+Z
+   * do mestre desfaz só o que o mestre fez. `transform` também é reaplicado em
+   * cada snapshot de `past`/`future` — o snapshot é o mapa inteiro, e sem isso
+   * desfazer uma parede do mestre devolveria a ficha do jogador para onde
+   * estava antes. `transform` precisa ser pura, valer para qualquer versão do
+   * mapa (ex.: "ficha t1 vai para (x, y)") e devolver o próprio mapa quando
+   * não muda nada.
+   */
+  applyPlayerChange: (transform: (map: MapData) => MapData) => void
   updateLinePoint: (drawingId: string, endpoint: 0 | 1, x: number, y: number) => void
   moveDrawing: (drawingId: string, dx: number, dy: number) => void
   /**
@@ -770,6 +873,14 @@ interface MapStoreState {
    * ou se nada de fato mudar (todo item travado, por exemplo).
    */
   moveSelectionBy: (dx: number, dy: number) => void
+  /**
+   * Alinhar e distribuir os itens selecionados (`lib/alignDistribute.ts`):
+   * UMA entrada de histórico por clique — um Ctrl+Z devolve o conjunto
+   * inteiro. Sem efeito (nem histórico) quando nada precisa andar: menos de 2
+   * itens para alinhar, menos de 3 para distribuir, ou já no lugar.
+   */
+  alignSelection: (edge: AlignEdge) => void
+  distributeSelection: (axis: DistributeAxis) => void
   updateTextLabel: (id: string, patch: Partial<{ text: string; color: string; fontSize: number }>) => void
   setTextFontFamily: (id: string, fontFamily: string) => void
   /**
@@ -839,6 +950,11 @@ interface MapStoreState {
 
 const initialMap = mapFactory.createEmptyMap('map_local', 'Mapa sem título', 30, 20, 64)
 
+export const GROUP_CREATED_TEXT = 'Grupo criado: um clique em qualquer parte pega tudo. Ctrl+Shift+G desfaz'
+export const GROUP_NEEDS_TWO_TEXT = 'Selecione 2 ou mais itens para agrupar'
+export const GROUP_UNDONE_TEXT = 'Grupo desfeito'
+export const UNGROUP_NOTHING_TEXT = 'Nada do que está selecionado faz parte de um grupo'
+
 /**
  * Comprimento padrão (px de mundo) do vão que a ferramenta "Porta" abre ao
  * clicar em cima de uma parede, por `DoorKind` — antes desta fase era um
@@ -888,6 +1004,114 @@ function movedRoomIds(map: MapData, selection: readonly SelectionItem[]): string
   return [...ids]
 }
 
+/** O que Ctrl+C/Ctrl+X guardou (campo `clipboard` do estado). */
+export interface MapClipboard {
+  /** Mapa de onde os itens vieram, como estava no Ctrl+C/Ctrl+X. */
+  readonly source: MapData
+  readonly items: SelectionSet
+  /** Centro do conjunto, em px de mundo do mapa de origem. */
+  readonly center: Point
+  /** Veio de Ctrl+X e ainda não foi colado: a primeira colagem devolve o
+   *  próprio item, então a Sala mantém o nome sem "(cópia)". */
+  readonly cut: boolean
+}
+
+/** Retângulo que envolve os itens da seleção — o chão entra pela própria
+ *  caixa (`pieceBounds`), que `areaSelectionBounds` não cobre. */
+function selectionBounds(map: MapData, selection: SelectionSet): AreaBounds | null {
+  const boxes: AreaBounds[] = []
+  const rest = areaSelectionBounds(map, selectionToAreaSelection(selection))
+  if (rest !== null) boxes.push(rest)
+  for (const item of selection) {
+    if (item.kind !== 'floor') continue
+    const piece = map.floor.find((p) => p.id === item.id)
+    if (piece) boxes.push(pieceBounds(piece))
+  }
+  if (boxes.length === 0) return null
+  return {
+    minX: Math.min(...boxes.map((b) => b.minX)),
+    minY: Math.min(...boxes.map((b) => b.minY)),
+    maxX: Math.max(...boxes.map((b) => b.maxX)),
+    maxY: Math.max(...boxes.map((b) => b.maxY)),
+  }
+}
+
+/** Deslocamento em múltiplos da grade: a cópia colada fica alinhada como o original. */
+function snapOffsetToGrid(delta: number, grid: number): number {
+  return grid > 0 ? Math.round(delta / grid) * grid : delta
+}
+
+/**
+ * Clona os itens `selection` de `source` para dentro de `target`, deslocados
+ * por `offset`. Mesma regra do Ctrl+D: Sala leva paredes e sub-salas; parede
+ * de Sala também selecionada e sub-sala de Sala selecionada não se copiam de
+ * novo; cópia que caiu dentro de outra Sala vira filha dela. `source` e
+ * `target` são o MESMO mapa no Ctrl+D e podem ser mapas diferentes no Ctrl+V
+ * (outra cena, outro mapa). `keepRoomNames`: a Sala clonada mantém o nome do
+ * original (colar o que foi recortado não é cópia).
+ */
+function cloneSelectionInto(
+  target: MapData,
+  source: MapData,
+  selection: SelectionSet,
+  offset: Offset,
+  keepRoomNames: boolean,
+): { map: MapData; items: SelectionItem[] } {
+  const items: SelectionItem[] = []
+  // Cópia de Sala → Sala original, para a cópia herdar as arestas que estavam sobre a mãe.
+  const sources: Record<string, string> = {}
+  const selectedRegionIds = new Set(selection.filter((item) => item.kind === 'region').map((item) => item.id))
+  // Sala selecionada leva as sub-salas: elas e as paredes delas não se copiam de novo.
+  const coveredRegionIds = new Set<string>()
+  for (const id of selectedRegionIds) {
+    for (const d of descendantsOf(source.regions, id)) coveredRegionIds.add(d.id)
+  }
+  let next = target
+  for (const item of selection) {
+    if (item.kind === 'region' && coveredRegionIds.has(item.id)) continue
+    // Parede de uma Sala que também está selecionada já vem junto com a Sala.
+    const wallRegionId = item.kind === 'wall' ? source.walls.find((w) => w.id === item.id)?.regionId ?? '' : ''
+    if (item.kind === 'wall' && (selectedRegionIds.has(wallRegionId) || coveredRegionIds.has(wallRegionId))) continue
+    const cloned = cloneSelectedEntity(source, item, offset)
+    if (!cloned) continue
+    const named = keepRoomNames ? withSourceRoomName(cloned, source, item.id) : cloned
+    next = addClonedEntity(next, withoutMissingParent(named, next))
+    if (cloned.kind === 'region') {
+      sources[cloned.entity.id] = item.id
+      const inner = cloneRoomDescendants(source.regions, source.walls, item.id, cloned.entity.id, offset)
+      next = {
+        ...next,
+        regions: [...next.regions, ...inner.regions],
+        walls: [...next.walls, ...cloneLinkedWalls(source.walls, item.id, cloned.entity.id, offset), ...inner.walls],
+      }
+    }
+    items.push({ kind: cloned.kind, id: cloned.entity.id })
+  }
+  // Cópia de sub-sala que caiu fora da mãe vira sala de topo (ou filha de onde caiu).
+  return { map: reparentRooms(next, movedRoomIds(next, items), source, sources), items }
+}
+
+/** A Sala clonada volta ao nome do original (sem o "(cópia)" de `cloneRegion`). */
+function withSourceRoomName(cloned: CloneableEntity, source: MapData, sourceId: string): CloneableEntity {
+  if (cloned.kind !== 'region' || cloned.entity.room === undefined) return cloned
+  const original = source.regions.find((r) => r.id === sourceId)?.room
+  if (original === undefined) return cloned
+  return { kind: 'region', entity: { ...cloned.entity, room: { ...cloned.entity.room, name: original.name } } }
+}
+
+/**
+ * Sub-sala colada em outro mapa: a mãe ficou no mapa de origem, e o
+ * `parentId` apontaria para um id que não existe aqui (`reparentRoom` só
+ * troca a mãe quando acha outra; sem mãe nova, o id órfão ficava).
+ */
+function withoutMissingParent(cloned: CloneableEntity, target: MapData): CloneableEntity {
+  if (cloned.kind !== 'region' || cloned.entity.parentId === undefined) return cloned
+  const parentId = cloned.entity.parentId
+  if (target.regions.some((r) => r.id === parentId)) return cloned
+  const { parentId: _orphan, ...entity } = cloned.entity
+  return { kind: 'region', entity }
+}
+
 /**
  * Recalcula a mãe (e as arestas que saíram de cima da parede da mãe) de cada
  * Sala movida, redimensionada ou duplicada. `before` é o mapa de antes do
@@ -927,6 +1151,49 @@ function isValidDrawingWidth(width: number): boolean {
   return Number.isFinite(width) && width >= MIN_DRAWING_WIDTH
 }
 
+type MapTransform = (map: MapData) => MapData
+
+/**
+ * Mudanças do jogador em ordem de chegada (`applyPlayerChange`), numeradas —
+ * `commitDragHistory` reaplica em `before` as que chegaram depois do começo do
+ * gesto. O cap só limita memória: um gesto do mestre não dura 200 movimentos.
+ */
+const PLAYER_LOG_CAP = 200
+let playerSeq = 0
+let playerLog: { seq: number; transform: MapTransform }[] = []
+/** Quantas mudanças do jogador já estavam no mapa da última vez que ele virou o `map` atual. */
+const playerSeqOfMap = new WeakMap<MapData, number>()
+/**
+ * Mapa que nasceu só de mudanças do jogador → o último mapa do MESTRE de onde
+ * ele veio. Guarda a base, não o pai imediato: uma cadeia pai→pai prenderia na
+ * memória todo movimento de jogador de uma sessão em que o mestre fica parado.
+ */
+const masterBaseOfMap = new WeakMap<MapData, MapData>()
+
+/** `before` com as mudanças do jogador que chegaram depois dele. */
+function withLaterPlayerChanges(before: MapData): MapData {
+  const since = playerSeqOfMap.get(before) ?? playerSeq
+  return playerLog.reduce((map, entry) => (entry.seq > since ? entry.transform(map) : map), before)
+}
+
+/** `map` saiu de `before` só por mudanças do jogador (ou é o próprio `before`)? */
+function changedOnlyByPlayer(map: MapData, before: MapData): boolean {
+  if (map === before) return true
+  const base = masterBaseOfMap.get(map)
+  return base !== undefined && base === (masterBaseOfMap.get(before) ?? before)
+}
+
+/**
+ * Edição contínua no mesmo campo de texto (rótulo, nome de sala, nome de
+ * ficha) vira UM passo de desfazer: a chave diz qual campo, e `map` é o mapa
+ * que a última letra produziu. Qualquer outra mudança do mestre no meio troca
+ * o `map` atual e encerra a edição; trocar a seleção, desfazer e refazer também.
+ */
+interface TypingEdit {
+  key: string
+  map: MapData
+}
+
 export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, get) => {
   /**
    * Toda action que muda conteúdo do mapa (não estado de UI/ferramenta como
@@ -937,11 +1204,23 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
    * referência antiga em `past` já basta como snapshot, sem precisar de
    * `structuredClone`. `pushPast` (acima) poda a entrada mais antiga quando
    * `past` estoura `HISTORY_CAP`.
+   *
+   * `typingKey` (só campos de texto): letra seguinte no mesmo campo, sem outra
+   * mudança do mestre no meio, atualiza o mapa sem empurrar passo novo — ver
+   * `TypingEdit`.
    */
-  const withHistory = (updater: (map: MapData) => MapData) => {
+  let typingEdit: TypingEdit | null = null
+  const withHistory = (updater: (map: MapData) => MapData, typingKey?: string) => {
     const prevMap = get().map
+    const nextMap = updater(prevMap)
+    const continuesTyping = typingKey !== undefined && typingEdit !== null && typingEdit.key === typingKey && typingEdit.map === prevMap
+    typingEdit = typingKey === undefined ? null : { key: typingKey, map: nextMap }
+    if (continuesTyping) {
+      set({ map: nextMap, future: [] })
+      return
+    }
     set((state) => ({
-      map: updater(prevMap),
+      map: nextMap,
       past: pushPast(state.past, prevMap),
       future: [],
     }))
@@ -975,6 +1254,9 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
     wallLineStyle: undefined,
     doorKind: 'normal',
     doorMode: 'porta',
+    revealBrushMode: 'revelar',
+    // Um quadrado de largura: o corredor recém-andado, que é o pedido.
+    revealBrushWidth: 1,
     drawCap: 'round',
     drawDash: 'solid',
     drawTexture: 'pen',
@@ -996,8 +1278,38 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
     regionStrokeJoin: 'miter',
     setCamera: (camera) => set({ camera }),
     // Selecionar algo no mapa fecha a zona oculta do painel; limpar a seleção não.
-    setSelection: (selection) =>
-      set(isSelectionEmpty(selection) ? { selection } : { selection, selectedConcealZoneId: null, selectedPinId: null }),
+    setSelection: (selection) => {
+      // Outro alvo selecionado: a próxima letra já é outra edição, outro passo.
+      typingEdit = null
+      set(isSelectionEmpty(selection) ? { selection } : { selection, selectedConcealZoneId: null, selectedPinId: null })
+    },
+    itemGroups: {},
+    groupSelected: () => {
+      const { map, selection, itemGroups } = get()
+      const antes = itemGroups[map.id] ?? NO_GROUPS
+      const depois = groupItems(antes, selection, `grupo_${crypto.randomUUID()}`)
+      // Os avisos não dizem "N itens": o painel já conta, e repetir a contagem
+      // num aviso que fica 4 s na tela a faria sobreviver à seleção que descreve.
+      if (depois === antes) {
+        useToastStore.getState().push('info', GROUP_NEEDS_TWO_TEXT)
+        return false
+      }
+      set({ itemGroups: { ...itemGroups, [map.id]: depois } })
+      useToastStore.getState().push('info', GROUP_CREATED_TEXT)
+      return true
+    },
+    ungroupSelected: () => {
+      const { map, selection, itemGroups } = get()
+      const antes = itemGroups[map.id] ?? NO_GROUPS
+      const depois = ungroupItems(antes, selection)
+      if (depois === antes) {
+        useToastStore.getState().push('info', UNGROUP_NOTHING_TEXT)
+        return false
+      }
+      set({ itemGroups: { ...itemGroups, [map.id]: depois } })
+      useToastStore.getState().push('info', GROUP_UNDONE_TEXT)
+      return true
+    },
     removeSelected: () => {
       const { selection } = get()
       if (isSelectionEmpty(selection)) return
@@ -1031,42 +1343,45 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
       const hasRoom = selection.some((item) => item.kind === 'region' && map.regions.find((r) => r.id === item.id)?.room !== undefined)
       const bounds = hasRoom ? areaSelectionBounds(map, selectionToAreaSelection(selection)) : null
       const offset = bounds ? { dx: bounds.maxX - bounds.minX + map.grid, dy: 0 } : { dx: map.grid, dy: map.grid }
-      const clonedItems: SelectionItem[] = []
-      // Cópia de Sala → Sala original, para a cópia herdar as arestas que estavam sobre a mãe.
-      const sources: Record<string, string> = {}
-      const selectedRegionIds = new Set(selection.filter((item) => item.kind === 'region').map((item) => item.id))
-      // Sala selecionada leva as sub-salas: elas e as paredes delas não se copiam de novo.
-      const coveredRegionIds = new Set<string>()
-      for (const id of selectedRegionIds) {
-        for (const d of descendantsOf(map.regions, id)) coveredRegionIds.add(d.id)
-      }
+      let clonedItems: SelectionItem[] = []
       withHistory((m) => {
-        let next = m
-        for (const item of selection) {
-          if (item.kind === 'region' && coveredRegionIds.has(item.id)) continue
-          // Parede de uma Sala que também está selecionada já vem junto com a Sala.
-          const wallRegionId = item.kind === 'wall' ? m.walls.find((w) => w.id === item.id)?.regionId ?? '' : ''
-          if (item.kind === 'wall' && (selectedRegionIds.has(wallRegionId) || coveredRegionIds.has(wallRegionId))) continue
-          const cloned = cloneSelectedEntity(next, item, offset)
-          if (!cloned) continue
-          next = addClonedEntity(next, cloned)
-          if (cloned.kind === 'region') {
-            sources[cloned.entity.id] = item.id
-            const inner = cloneRoomDescendants(m.regions, m.walls, item.id, cloned.entity.id, offset)
-            next = {
-              ...next,
-              regions: [...next.regions, ...inner.regions],
-              walls: [...next.walls, ...cloneLinkedWalls(m.walls, item.id, cloned.entity.id, offset), ...inner.walls],
-            }
-          }
-          clonedItems.push({ kind: cloned.kind, id: cloned.entity.id })
-        }
-        // Cópia de sub-sala que caiu fora da mãe vira sala de topo (ou filha de onde caiu).
-        return reparentRooms(next, movedRoomIds(next, clonedItems), m, sources)
+        const result = cloneSelectionInto(m, m, selection, offset, false)
+        clonedItems = result.items
+        return result.map
       })
       // Nenhum item existia mais no mapa (janela de corrida): mantém a
       // seleção antiga em vez de trocar por um conjunto vazio.
       if (clonedItems.length > 0) set({ selection: clonedItems })
+    },
+    clipboard: null,
+    copySelected: () => {
+      const { map, selection } = get()
+      const bounds = selectionBounds(map, selection)
+      if (bounds === null) return false
+      const center = { x: (bounds.minX + bounds.maxX) / 2, y: (bounds.minY + bounds.maxY) / 2 }
+      set({ clipboard: { source: map, items: selection, center, cut: false } })
+      return true
+    },
+    cutSelected: () => {
+      if (!get().copySelected()) return false
+      const { clipboard } = get()
+      if (clipboard !== null) set({ clipboard: { ...clipboard, cut: true } })
+      get().removeSelected()
+      return true
+    },
+    pasteClipboardAt: (point) => {
+      const { clipboard, map } = get()
+      if (clipboard === null) return false
+      const offset = {
+        dx: snapOffsetToGrid(point.x - clipboard.center.x, map.grid),
+        dy: snapOffsetToGrid(point.y - clipboard.center.y, map.grid),
+      }
+      const result = cloneSelectionInto(map, clipboard.source, clipboard.items, offset, clipboard.cut)
+      if (result.items.length === 0) return false
+      withHistory(() => result.map)
+      // Depois da primeira colagem, o que foi recortado já voltou: as próximas são cópias.
+      set({ selection: result.items, ...(clipboard.cut ? { clipboard: { ...clipboard, cut: false } } : {}) })
+      return true
     },
     insertClonedEntityLive: (cloned, sourceRegionId) => set((state) => {
       const withEntity = addClonedEntity(state.map, cloned)
@@ -1115,6 +1430,8 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
     setWallLineStyle: (lineStyle) => set({ wallLineStyle: lineStyle }),
     setDoorKind: (kind) => set({ doorKind: kind }),
     setDoorMode: (mode) => set({ doorMode: mode }),
+    setRevealBrushMode: (mode) => set({ revealBrushMode: mode }),
+    setRevealBrushWidth: (width) => set({ revealBrushWidth: width }),
     setDrawCap: (cap) => set({ drawCap: cap }),
     setDrawDash: (dash) => set({ drawDash: dash }),
     setDrawTexture: (texture) => set({ drawTexture: texture }),
@@ -1148,6 +1465,7 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
       ...map,
       lights: map.lights.map((l) => (l.id === id ? { ...l, ...patch } : l)),
     })),
+    setLightAttachment: (id, tokenId) => withHistory((map) => mapFactory.setLightAttachment(map, id, tokenId)),
     updateLightRadiusLive: (id, radius) => set((state) => ({
       map: {
         ...state.map,
@@ -1266,11 +1584,15 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
       if (next !== map) withHistory(() => next)
     },
     setTokenImage: (id, image, imageData = null) => withHistory((map) => mapFactory.setTokenImage(map, id, image, imageData)),
-    renameToken: (id, name) => withHistory((map) => mapFactory.renameToken(map, id, name)),
+    renameToken: (id, name) => withHistory((map) => mapFactory.renameToken(map, id, name), `token-name:${id}`),
     updateToken: (id, patch) => withHistory((map) => ({
       ...map,
       tokens: map.tokens.map((t) => (t.id === id ? { ...t, ...patch } : t)),
     })),
+    toggleTokenCondition: (id, condition) => {
+      const next = toggleConditionOnMap(get().map, id, condition)
+      if (next !== get().map) withHistory(() => next)
+    },
     addProp: (prop) => withHistory((map) => mapFactory.addProp(map, prop)),
     removeProp: (id) => withHistory((map) => mapFactory.removeProp(map, id)),
     moveProp: (id, x, y) => withHistory((map) => mapFactory.setPropPosition(map, id, x, y)),
@@ -1285,6 +1607,11 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
     setGridSettings: (patch) => withHistory((map) => mapFactory.setGridSettings(map, patch)),
     setGridOffset: (offset) => withHistory((map) => mapFactory.setGridOffset(map, offset)),
     setGridCellSize: (cellSize) => withHistory((map) => mapFactory.setGridCellSize(map, cellSize)),
+    setMapSize: (width, height) => {
+      const next = mapFactory.setMapSize(get().map, width, height)
+      if (next === get().map) return
+      withHistory(() => next)
+    },
     setBackground: (background) => withHistory((map) => mapFactory.setBackground(map, background)),
     toggleLayerVisibility: (id) => {
       const { map, selection } = get()
@@ -1323,6 +1650,8 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
       mapFactory.setWallDoorKind(map, wallId, kind, DOOR_LENGTH_BY_KIND[kind]),
     ),
     setDoorLocked: (wallId, locked) => withHistory((map) => mapFactory.setDoorLocked(map, wallId, locked)),
+    setDoorSecret: (wallId, secret) => withHistory((map) => mapFactory.setDoorSecret(map, wallId, secret)),
+    revealSecretPassage: (wallId) => withHistory((map) => mapFactory.revealSecretPassage(map, wallId)),
     turnWallIntoDoor: (wallId) => {
       const { map, doorKind } = get()
       const wall = map.walls.find((w) => w.id === wallId)
@@ -1341,7 +1670,7 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
       mapFactory.updateStairPoint(map, stairId, segmentIndex, endpoint, x, y),
     ),
     setStairDirection: (id, direction) => withHistory((map) => mapFactory.setStairDirection(map, id, direction)),
-    setRoomName: (id, name) => withHistory((map) => mapFactory.setRoomName(map, id, name)),
+    setRoomName: (id, name) => withHistory((map) => mapFactory.setRoomName(map, id, name), `room-name:${id}`),
     setRoomLabelOffsetLive: (id, offset) => set((state) => ({ map: mapFactory.setRoomLabelOffset(state.map, id, offset) })),
     // As fábricas abaixo devolvem o mesmo `map` quando nada muda: sem entrada de histórico vazia.
     setRoomNameHiddenFromPlayers: (id, hidden) => {
@@ -1351,6 +1680,20 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
     setRoomRoof: (id, roof) => {
       if (mapFactory.setRoomRoof(get().map, id, roof) === get().map) return
       withHistory((map) => mapFactory.setRoomRoof(map, id, roof))
+    },
+    setRoomTexts: (id, patch) => {
+      if (mapFactory.setRoomTexts(get().map, id, patch) === get().map) return
+      withHistory((map) => mapFactory.setRoomTexts(map, id, patch))
+    },
+    setRoomHazard: (roomId, kind) => {
+      // Um id só para as duas chamadas: a conferência e a gravação criam a MESMA zona.
+      const id = crypto.randomUUID()
+      if (setRoomHazardOnMap(get().map, roomId, kind, () => id) === get().map) return
+      withHistory((map) => setRoomHazardOnMap(map, roomId, kind, () => id))
+    },
+    advanceHazard: (hazardId) => {
+      if (advanceHazardOnMap(get().map, hazardId) === get().map) return
+      withHistory((map) => advanceHazardOnMap(map, hazardId))
     },
     setItemSecret: (kind, id, secret) => {
       if (mapFactory.setItemSecret(get().map, kind, id, secret) === get().map) return
@@ -1382,6 +1725,11 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
       if (mapFactory.removeConcealZone(get().map, id) === get().map) return
       withHistory((map) => mapFactory.removeConcealZone(map, id))
       if (get().selectedConcealZoneId === id) set({ selectedConcealZoneId: null })
+    },
+    paintRevealBrush: (stroke, radius, mode) => {
+      const result = paintRevealBrushOnMap(get().map, stroke, radius, mode)
+      if (result.map !== get().map) withHistory(() => result.map)
+      return result.hitZone
     },
     resizeRoomDimensions: (id, wPx, hPx) => withHistory((map) => reparentRooms(mapFactory.resizeRoomDimensions(map, id, wPx, hPx), [id], map)),
     resizeRoomCornerLive: (id, corner, x, y) => set((state) => ({
@@ -1421,6 +1769,7 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
     })),
     setMapScale: (scale) => withHistory((map) => mapFactory.setMapScale(map, scale)),
     setMeasurementMode: (mode) => withHistory((map) => mapFactory.setMeasurementMode(map, mode)),
+    setMovementRules: (movement) => withHistory((map) => mapFactory.setMovementRules(map, movement)),
     setScenarioLink: (value) => withHistory((map) => mapFactory.setScenarioLink(map, value)),
     setPropLinkedPath: (id, path) => withHistory((map) => ({
       ...map,
@@ -1449,7 +1798,22 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
       },
     })),
     moveCurveLive: (drawingId, dx, dy) => set((state) => ({ map: mapFactory.moveCurve(state.map, drawingId, dx, dy) })),
-    commitDragHistory: (before) => set((state) => (state.map === before ? {} : { past: pushPast(state.past, before), future: [] })),
+    commitDragHistory: (before) => set((state) =>
+      changedOnlyByPlayer(state.map, before) ? {} : { past: pushPast(state.past, withLaterPlayerChanges(before)), future: [] },
+    ),
+    applyPlayerChange: (transform) => {
+      const prevMap = get().map
+      const nextMap = transform(prevMap)
+      if (nextMap === prevMap) return
+      playerSeq += 1
+      playerLog.push({ seq: playerSeq, transform })
+      if (playerLog.length > PLAYER_LOG_CAP) playerLog = playerLog.slice(playerLog.length - PLAYER_LOG_CAP)
+      playerSeqOfMap.set(nextMap, playerSeq)
+      masterBaseOfMap.set(nextMap, masterBaseOfMap.get(prevMap) ?? prevMap)
+      // A letra seguinte do mestre continua o mesmo passo, agora sobre o mapa com a mudança do jogador.
+      if (typingEdit !== null && typingEdit.map === prevMap) typingEdit = { key: typingEdit.key, map: nextMap }
+      set((state) => ({ map: nextMap, past: state.past.map(transform), future: state.future.map(transform) }))
+    },
     updateLinePoint: (drawingId, endpoint, x, y) => {
       const before = get().map
       const after = mapFactory.updateLinePoint(before, drawingId, endpoint, x, y)
@@ -1495,12 +1859,30 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
       const after = reparentRooms(moved, movedRoomIds(moved, selection), map)
       withHistory(() => after)
     },
-    updateTextLabel: (id, patch) => withHistory((map) => ({
-      ...map,
-      drawings: map.drawings.map((d) =>
-        d.id === id && d.kind === 'text' ? { ...d, ...patch } : d,
-      ),
-    })),
+    alignSelection: (edge) => {
+      const { map, selection } = get()
+      const aligned = alignSelectionItems(map, selection, edge)
+      if (aligned === map) return
+      const after = reparentRooms(aligned, movedRoomIds(aligned, selection), map)
+      withHistory(() => after)
+    },
+    distributeSelection: (axis) => {
+      const { map, selection } = get()
+      const distributed = distributeSelectionItems(map, selection, axis)
+      if (distributed === map) return
+      const after = reparentRooms(distributed, movedRoomIds(distributed, selection), map)
+      withHistory(() => after)
+    },
+    updateTextLabel: (id, patch) => withHistory(
+      (map) => ({
+        ...map,
+        drawings: map.drawings.map((d) =>
+          d.id === id && d.kind === 'text' ? { ...d, ...patch } : d,
+        ),
+      }),
+      // Só digitar agrupa; cor e tamanho continuam um passo por mudança.
+      patch.text !== undefined && patch.color === undefined && patch.fontSize === undefined ? `text:${id}` : undefined,
+    ),
     setTextFontFamily: (id, fontFamily) => withHistory((map) => ({
       ...map,
       drawings: map.drawings.map((d) =>
@@ -1553,10 +1935,14 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
       ...map,
       drawings: map.drawings.map((d) => (d.id === id ? convertCurveToLine(d) : d)),
     })),
-    loadMap: (map) => set({ map, selection: EMPTY_SELECTION, selectedConcealZoneId: null, selectedPinId: null, past: [], future: [] }),
+    loadMap: (map) => {
+      typingEdit = null
+      set({ map, selection: EMPTY_SELECTION, selectedConcealZoneId: null, selectedPinId: null, past: [], future: [] })
+    },
     undo: () => {
       const { past, map } = get()
       if (past.length === 0) return
+      typingEdit = null
       const previous = past[past.length - 1]
       set((state) => ({
         map: previous,
@@ -1567,6 +1953,7 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
     redo: () => {
       const { future, map } = get()
       if (future.length === 0) return
+      typingEdit = null
       const next = future[future.length - 1]
       set((state) => ({
         map: next,
@@ -1576,3 +1963,25 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
     },
   }
 }))
+
+// Todo mapa que vira o atual guarda quantas mudanças do jogador ele já tem — é
+// o ponto de partida de `withLaterPlayerChanges` quando ele for o `before` de
+// um gesto. Sempre sobrescreve: um snapshot que volta pelo Ctrl+Z, ou uma cena
+// que volta ao editor, já traz tudo o que o jogador fez até agora (as mudanças
+// dele passaram por `past`/`future`), e o número antigo faria o gesto seguinte
+// reaplicar mudanças velhas — até de outra cena.
+playerSeqOfMap.set(useMapStore.getState().map, playerSeq)
+useMapStore.subscribe((state) => state.map, (map) => {
+  playerSeqOfMap.set(map, playerSeq)
+})
+
+/**
+ * Quantos blocos o painel "Alinhar e distribuir" deve contar: blocos que andam
+ * inteiros, não entradas da seleção. O laço numa Sala sozinha põe 5 entradas
+ * (a região e as 4 paredes), mas é 1 bloco — com `selection.length` o painel
+ * mostraria botões clicáveis que não fazem nada. Seletor de número: o
+ * componente só re-renderiza quando a contagem muda.
+ */
+export function selectAlignableUnitCount(state: Pick<MapStoreState, 'map' | 'selection'>): number {
+  return alignableUnitCount(state.map, state.selection)
+}

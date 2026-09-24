@@ -209,6 +209,12 @@ function traceRegionPath(g: Graphics, points: RegionPoint[]): void {
 export function createRegionsRenderer(options: RegionsRendererOptions = {}): RegionsRenderer {
   const cache = new Map<string, Graphics>()
   const roofMarker = options.roofMarker === true
+  // Redesenho parcial: o que cada Graphics pintou da última vez. A store é
+  // imutável (`moveRegion` só recria a sala movida), então mesma referência +
+  // mesmo destaque = pintura idêntica — arrastar 1 sala repinta só ela. A
+  // largura do contorno entra só na sala selecionada (é a única que a usa):
+  // no zoom, só ela repinta, e o contorno continua com 2 px de tela.
+  const painted = new Map<string, { region: Region; outlineWidth: number | null }>()
 
   function draw(container: Container, regions: Region[], selectedRegionId: string | null = null, cameraScale?: number): void {
     const outlineWidth = selectionOutlineWidth(resolveCameraScale(container, cameraScale))
@@ -220,10 +226,17 @@ export function createRegionsRenderer(options: RegionsRendererOptions = {}): Reg
         container.removeChild(g)
         g.destroy()
         cache.delete(id)
+        painted.delete(id)
       }
     }
 
     for (const region of visibleRegions) {
+      const isSelected = region.id === selectedRegionId
+      const paintedOutline = isSelected ? outlineWidth : null
+      const last = painted.get(region.id)
+      if (last !== undefined && last.region === region && last.outlineWidth === paintedOutline && cache.has(region.id)) continue
+      painted.set(region.id, { region, outlineWidth: paintedOutline })
+
       let g = cache.get(region.id)
       if (!g) {
         g = new Graphics()
@@ -233,7 +246,6 @@ export function createRegionsRenderer(options: RegionsRendererOptions = {}): Reg
       }
       g.clear()
 
-      const isSelected = region.id === selectedRegionId
       g.alpha = region.secret ? SECRET_ITEM_ALPHA : 1
       const color = new Color(region.fillColor).toNumber()
       const strokeWidth = readRegionStrokeWidth(region)

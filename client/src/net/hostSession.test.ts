@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { countExploredCells, decodeExploration, isPointExplored } from '../lib/exploration'
-import { createEmptyMap } from '../lib/mapFactory'
+import { createEmptyMap, setTokenPosition } from '../lib/mapFactory'
 import type { MapData, Pin, Region, Token, Wall } from '../types/map'
 import { SIGNAL_MIN_INTERVAL_MS, signalColor } from '../lib/signals'
 import {
@@ -293,6 +293,33 @@ describe('hostSession', () => {
     expect(r.applyMove).toEqual({ tokenId: 'heroi', x: 240, y: 200 })
   })
 
+  it('tocha presa: o jogador move a própria ficha e o próximo snapshot traz a luz junto; o vínculo alheio não vaza', () => {
+    const s = newSession()
+    const map: MapData = {
+      ...twoRooms(),
+      lights: [
+        { id: 'tocha', x: 250, y: 200, radius: 80, color: '#f00', intensity: 1, attachedTokenId: 'heroi' },
+        { id: 'tocha-do-ladino', x: 450, y: 200, radius: 80, color: '#f00', intensity: 1, attachedTokenId: 'ladino' },
+      ],
+    }
+    const p1 = welcomeOf(s.handleMessage('c1', { type: 'join', code: CODE, name: 'Ana' }, map).outbound)
+    const p2 = welcomeOf(s.handleMessage('c2', { type: 'join', code: CODE, name: 'Bia' }, map).outbound)
+    s.assignToken(p1.playerId, 'heroi')
+    s.assignToken(p2.playerId, 'ladino')
+    const r = s.handleMessage('c1', { type: 'token.move', reqId: 'r9', tokenId: 'heroi', x: 240, y: 260 }, map)
+    if (r.applyMove === undefined) throw new Error('esperava applyMove')
+    // O integrador aplica o movimento com o mesmo setTokenPosition do editor.
+    const moved = setTokenPosition(map, r.applyMove.tokenId, r.applyMove.x, r.applyMove.y)
+
+    const toC1 = s.broadcast(moved).outbound.find((o) => o.clientId === 'c1')?.msg
+    if (toC1?.type !== 'snapshot') throw new Error('esperava snapshot para c1')
+    expect(toC1.map.lights.find((l) => l.id === 'tocha')).toEqual({ id: 'tocha', x: 290, y: 260, radius: 80, color: '#f00', intensity: 1, attachedTokenId: 'heroi' })
+    const alheia = toC1.map.lights.find((l) => l.id === 'tocha-do-ladino')
+    expect(alheia).toMatchObject({ x: 450, y: 200 })
+    expect(alheia !== undefined && 'attachedTokenId' in alheia).toBe(false)
+    expect(JSON.stringify(toC1)).not.toContain('"ladino"')
+  })
+
   it('move atravessando parede é rejeitado com wall', () => {
     const s = newSession()
     const map = twoRooms()
@@ -456,10 +483,21 @@ describe('hostSession', () => {
       expect(msg.map.regions.map((reg) => reg.id)).toEqual(['sala-a'])
     })
 
+    // Redimensionar com a MESMA grade é o mesmo mapa aumentado: o explorado vai junto.
     it.each([
-      ['id', { id: 'outro' }],
       ['width', { width: 1200 }],
       ['height', { height: 1200 }],
+    ])('redimensionar (%s) com a mesma grade mantém o explorado no lugar', (_label, patch) => {
+      const s = smallSession()
+      joinPlaying(s, 'c1', mapAt(200, 200))
+      s.broadcast(mapAt(200, 200))
+      const { explored, msg } = snapshotTo(s.broadcast(mapAt(200, 800, patch)), 'c1')
+      expect(isPointExplored(explored, { x: 200, y: 200 })).toBe(true)
+      expect(msg.map.regions.map((reg) => reg.id)).toEqual(['sala-a'])
+    })
+
+    it.each([
+      ['id', { id: 'outro' }],
       ['grid', { grid: 50 }],
     ])('troca de mapa (%s) reinicia o explorado', (_label, patch) => {
       const s = smallSession()
@@ -591,12 +629,13 @@ describe('hostSession', () => {
       const away = snapshotTo(s.broadcast(at(100, { open: true, locked: true, kind: 'normal' })), 'c1').msg
       expect(doorOf(away)).toEqual(closed)
       expect(JSON.stringify(away)).not.toContain('"open":true')
-      // De volta perto da porta: o estado real aparece.
+      // De volta perto da porta: o estado real aparece — aberta, e sem o
+      // cadeado, que nunca vai ao jogador (porta trancada vira pedido).
       const back = snapshotTo(s.broadcast(at(420, { open: true, locked: true, kind: 'normal' })), 'c1').msg
-      expect(doorOf(back)).toEqual({ open: true, locked: true, kind: 'normal' })
-      // Longe de novo com a porta fechada pelo mestre: fica a lembrança "aberta e trancada".
+      expect(doorOf(back)).toEqual({ open: true, locked: false, kind: 'normal' })
+      // Longe de novo com a porta fechada pelo mestre: fica a lembrança "aberta".
       const awayAgain = snapshotTo(s.broadcast(at(100, closed)), 'c1').msg
-      expect(doorOf(awayAgain)).toEqual({ open: true, locked: true, kind: 'normal' })
+      expect(doorOf(awayAgain)).toEqual({ open: true, locked: false, kind: 'normal' })
     })
   })
 
@@ -730,6 +769,63 @@ describe('hostSession: sinal do jogador', () => {
     s.disconnect('c1')
     s.handleMessage('c9', { type: 'join', code: CODE, name: 'Ana', resume: ana.resumeToken }, map)
     expect(s.listPlayers().map((p) => p.name)).toEqual(['Ana', 'A NA (2)', 'ana (3)'])
+  })
+
+  it('sinal "audience: master" (toque longo) vai ao mestre e ao eco, e nunca aos colegas que veem o ponto', () => {
+    const t = signalSetup()
+    const color = signalColor(t.ana.playerId)
+    // (800,300) é do lado que a Bia vê: sem o campo, ela receberia.
+    const quiet = t.s.handleMessage('c1', { type: 'signal', x: 800, y: 300, audience: 'master' }, t.map)
+    expect(quiet.signal).toEqual({ playerId: t.ana.playerId, name: 'Ana', color, x: 800, y: 300 })
+    expect(toClient(quiet, 'c1')).toEqual([{ clientId: 'c1', msg: { type: 'signal', x: 800, y: 300, from: 'Ana', color } }])
+    expect(JSON.stringify(toClient(quiet, 'c2'))).toBe('[]')
+  })
+
+  it('Sinalizar logo depois do toque longo, no mesmo ponto, estende o sinal aos colegas uma vez, sem novo ping no mestre', () => {
+    const t = signalSetup()
+    const color = signalColor(t.ana.playerId)
+    t.s.handleMessage('c1', { type: 'signal', x: 800, y: 300, audience: 'master' }, t.map)
+    t.advance(SIGNAL_MIN_INTERVAL_MS - 1)
+    const shared = t.s.handleMessage('c1', { type: 'signal', x: 800, y: 300 }, t.map)
+    expect(shared.signal).toBeUndefined()
+    expect(toClient(shared, 'c1')).toEqual([])
+    expect(toClient(shared, 'c2')).toEqual([{ clientId: 'c2', msg: { type: 'signal', x: 800, y: 300, from: 'Ana', color } }])
+    // Uma vez só: repetir dentro do intervalo continua descartado.
+    expect(t.s.handleMessage('c1', { type: 'signal', x: 800, y: 300 }, t.map)).toEqual({ outbound: [] })
+  })
+
+  it('Sinalizar no tempo de quem lê o menu (1,5 s depois do toque longo) ainda só estende: nenhum segundo ping no mestre nem eco', () => {
+    const t = signalSetup()
+    const color = signalColor(t.ana.playerId)
+    const gesture = t.s.handleMessage('c1', { type: 'signal', x: 800, y: 300, audience: 'master' }, t.map)
+    expect(gesture.signal).toEqual({ playerId: t.ana.playerId, name: 'Ana', color, x: 800, y: 300 })
+    t.advance(1500)
+    const shared = t.s.handleMessage('c1', { type: 'signal', x: 800, y: 300 }, t.map)
+    expect(shared.signal).toBeUndefined()
+    expect(toClient(shared, 'c1')).toEqual([])
+    expect(toClient(shared, 'c2')).toEqual([{ clientId: 'c2', msg: { type: 'signal', x: 800, y: 300, from: 'Ana', color } }])
+    // O repasse conta no limite: outro sinal logo depois não chega aos colegas em rajada.
+    t.advance(SIGNAL_MIN_INTERVAL_MS - 1)
+    expect(t.s.handleMessage('c1', { type: 'signal', x: 820, y: 300 }, t.map)).toEqual({ outbound: [] })
+    // Passado o intervalo, um sinal novo volta a ser sinal novo (ping no mestre).
+    t.advance(1)
+    expect(t.s.handleMessage('c1', { type: 'signal', x: 820, y: 300 }, t.map).signal).toEqual({ playerId: t.ana.playerId, name: 'Ana', color, x: 820, y: 300 })
+  })
+
+  it('o sinal discreto não abre brecha no limite: outro ponto, ou outro discreto, dentro do intervalo é descartado', () => {
+    const t = signalSetup()
+    t.s.handleMessage('c1', { type: 'signal', x: 800, y: 300, audience: 'master' }, t.map)
+    t.advance(SIGNAL_MIN_INTERVAL_MS - 1)
+    expect(t.s.handleMessage('c1', { type: 'signal', x: 820, y: 300 }, t.map)).toEqual({ outbound: [] })
+    expect(t.s.handleMessage('c1', { type: 'signal', x: 800, y: 300, audience: 'master' }, t.map)).toEqual({ outbound: [] })
+    // Estender também respeita a zona oculta: o repasse segue a mesma regra do sinal comum.
+    const t2 = signalSetup()
+    const cofre: MapData = {
+      ...t2.map,
+      concealZones: [{ id: 'z', name: 'cofre', revealed: false, points: [{ x: 700, y: 200 }, { x: 900, y: 200 }, { x: 900, y: 400 }, { x: 700, y: 400 }] }],
+    }
+    t2.s.handleMessage('c1', { type: 'signal', x: 800, y: 300, audience: 'master' }, cofre)
+    expect(t2.s.handleMessage('c1', { type: 'signal', x: 800, y: 300 }, cofre)).toEqual({ outbound: [] })
   })
 
   it('limita a 1 sinal por segundo por jogador, sem afetar os outros', () => {
@@ -1054,7 +1150,8 @@ describe('hostSession: cada jogador no seu mapa e o pedido de passagem', () => {
     const r = t.s.approveTravel(pedido.requestId, t.w)
     // Ao dono, só o aviso — sem nome de cena. O mapa novo vem no broadcast.
     expect(r.outbound).toEqual([{ clientId: 'c1', msg: { type: 'scene.changed' } }])
-    // Chega no par (1000, 250), assentado no centro da célula como o snap de token.
+    // Chega junto do par (1000, 250), na casa livre mais perto que não cobre a
+    // cabeça do pino, assentado no centro da célula como o snap de token.
     expect(r.applyTransfer).toEqual({
       tokenId: 'heroi',
       playerId: t.ana.playerId,
@@ -1062,12 +1159,12 @@ describe('hostSession: cada jogador no seu mapa e o pedido de passagem', () => {
       fromSceneId: CENA_A,
       toSceneId: CENA_B,
       toSceneName: NOME_B,
-      x: 1025,
+      x: 975,
       y: 275,
     })
 
     // O integrador aplicou: o herói agora mora na Cripta.
-    const depois = mundo({ heroi: { cena: 'B', x: 1025, y: 275 } })
+    const depois = mundo({ heroi: { cena: 'B', x: 975, y: 275 } })
     const b = t.s.broadcast(depois)
     const daAna = snapshotDe(b, 'c1')
     expect(daAna.map.id).toBe('mapa-cripta')
@@ -1165,12 +1262,12 @@ describe('hostSession: cada jogador no seu mapa e o pedido de passagem', () => {
         fromSceneId: CENA_A,
         toSceneId: CENA_B,
         toSceneName: NOME_B,
-        x: 1025,
+        x: 975,
         y: 275,
       })
       // Nada ficou esperando: um próximo pedido não é recusado como 'pending'.
       t.advance(TRAVEL_REQUEST_MIN_INTERVAL_MS)
-      const naCripta = mundo({ heroi: { cena: 'B', x: 1025, y: 275 } })
+      const naCripta = mundo({ heroi: { cena: 'B', x: 975, y: 275 } })
       t.s.broadcast(naCripta)
       expect(recusa(t.pedir('escada-b', naCripta))).toBeNull()
       // A cena dela já é a Cripta.

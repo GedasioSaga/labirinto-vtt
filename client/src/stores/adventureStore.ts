@@ -1,12 +1,25 @@
 import { create } from 'zustand'
 import type { MapData, Pin, PinDestination, Token } from '../types/map'
-import { singleSceneWorld, type HostScene, type HostWorld } from '../net/hostSession'
-import type { Camera, Point } from '../pixi/world'
+import { singleSceneWorld, type AppliedItems, type HostScene, type HostWorld } from '../net/hostSession'
+import { applyItemChange } from '../lib/items'
+import type { Bounds, Camera, Point } from '../pixi/world'
 import * as mapFactory from '../lib/mapFactory'
-import { ADVENTURE_VERSION, baseName, cleanSceneName, newSceneId, sceneFileFor, type Adventure, type SceneEntry } from '../lib/adventure'
+import {
+  ADVENTURE_VERSION,
+  baseName,
+  cleanSceneName,
+  nestScene,
+  newSceneId,
+  sceneFileFor,
+  sceneTrail,
+  SCENE_TRAIL_SEPARATOR,
+  type Adventure,
+  type SceneEntry,
+} from '../lib/adventure'
 import {
   addExit,
   arrivalPoint,
+  arrivalSpot,
   isArrivalOnly,
   linkBack,
   pinFocusPoint,
@@ -27,7 +40,9 @@ import {
   type TravelSceneOption,
 } from '../lib/pinTravel'
 import { mapDirFor, saveAdventureToDisk, scenePath, type OpenedMapFile } from '../lib/mapFileIO'
+import { storedTokensOfScene, withStoredTokens, type StoredToken } from '../lib/storedTokens'
 import { dirname } from '@tauri-apps/api/path'
+import { removeSelectionItem, selectionHas, type SelectionItem } from '../lib/selectionModel'
 import { useMapStore } from './mapStore'
 import { useSessionStore } from './sessionStore'
 
@@ -63,6 +78,16 @@ export type SceneSlot =
  * a `camera`, ou enquadrar o conteúdo quando `null`. Um objeto novo por troca
  * — o canvas reage à identidade, como ao contador do reset de zoom.
  */
+/** O que `carryToken` levou: o bastante para o aviso "Zumbi foi para Térreo" e o "Ir lá" dele. */
+export interface CarriedToken {
+  tokenName: string
+  sceneId: string
+  sceneName: string
+  /** Onde a ficha assentou na cena de destino. */
+  x: number
+  y: number
+}
+
 export interface CameraRequest {
   camera: Camera | null
   /**
@@ -71,6 +96,12 @@ export interface CameraRequest {
    * na troca comum pela lista de Cenas.
    */
   focus?: Point
+  /**
+   * Com `focus`: a caixa (px de mundo) do objeto que o "Ir até lá" da lista
+   * Objetos do mapa procura. O canvas só AFASTA se ela não couber na área que
+   * os painéis deixam livre (`revealScale`); cabendo, o zoom fica o de agora.
+   */
+  fit?: Bounds
 }
 
 /** Uma linha da lista "Cenas". */
@@ -83,6 +114,8 @@ export interface SceneListItem {
   active: boolean
   /** Mapa solto não tem nome de cena para trocar: o nome dele é o do arquivo. */
   renamable: boolean
+  /** CENAS EM PASTAS: a cena de fora desta. Ausente = primeiro nível (e sempre, no mapa solto). */
+  parentId?: string
 }
 
 interface AdventureState {
@@ -113,6 +146,14 @@ interface AdventureState {
   createScene: (name: string, loosePath: string | null) => string
   renameScene: (sceneId: string, name: string) => void
   /**
+   * CENAS EM PASTAS: põe `sceneId` dentro de `parentId` (`null` = primeiro
+   * nível), com o que estava dentro dela. Muda só a lista de cenas — pede
+   * Salvar como o renomear, fora do desfazer da cena aberta. `false` quando não
+   * dá (dentro dela mesma ou de uma cena que está dentro dela, cena que não
+   * existe) ou quando ela já estava lá.
+   */
+  moveScene: (sceneId: string, parentId: string | null) => boolean
+  /**
    * Troca a cena aberta. `false` quando não há o que trocar (mesma cena, cena
    * indisponível). `focus` centraliza a câmera nesse ponto da cena que entra.
    */
@@ -120,11 +161,19 @@ interface AdventureState {
   /**
    * "Ir lá": o editor mostra `point` da cena `sceneId` no centro da tela. Se a
    * cena já está aberta (ou é o mapa solto, `null`), só a câmera anda — a
-   * troca de cena recusaria "mesma cena" e o clique não faria nada.
+   * troca de cena recusaria "mesma cena" e o clique não faria nada. `fit` (só
+   * na cena aberta) é a caixa do objeto procurado: afasta se ela não couber.
    */
-  goToPoint: (sceneId: string | null, point: Point) => boolean
+  goToPoint: (sceneId: string | null, point: Point, fit?: Bounds) => boolean
   /** Muda uma cena de FUNDO sem passar pelo desfazer da cena aberta. */
   updateBackgroundScene: (sceneId: string, updater: (map: MapData) => MapData) => void
+  /**
+   * Mudança de um JOGADOR numa cena de FUNDO. Além do mapa, `transform` entra
+   * em todo passo do desfazer guardado dela: quando o mestre abrir a cena, o
+   * Ctrl+Z não pode devolver a ficha (ou a porta) do jogador ao estado de
+   * antes. Mesmo contrato de `useMapStore.applyPlayerChange` para `transform`.
+   */
+  applyPlayerChangeToBackgroundScene: (sceneId: string, transform: (map: MapData) => MapData) => void
   /**
    * Liga o pino de viagem `pinId` (da cena aberta) a um pino de chegada NOVO,
    * que nasce no centro de `sceneId`. A volta é gravada pelo guardião da mão
@@ -163,10 +212,22 @@ interface AdventureState {
    * token que já não está lá, mesma cena).
    */
   transferToken: (tokenId: string, fromSceneId: string, toSceneId: string, x: number, y: number) => boolean
+  /**
+   * "Levar para…" da ficha SEM DONO (NPC, monstro): leva o token `tokenId` da
+   * cena aberta para `toSceneId`, na ponta do pino de viagem `pinId` (`null` =
+   * centro livre da cena). A mesma ficha, com id, nome, cor e foto, pela
+   * travessia de `transferToken` — fora do desfazer. `null` quando não deu
+   * (mapa solto, cena fora do ar, pino ou ficha que sumiu, mesma cena).
+   */
+  carryToken: (tokenId: string, toSceneId: string, pinId: string | null) => CarriedToken | null
   /** Há cena de fundo ou lista de cenas esperando gravação? (A cena aberta é o `useSessionStore` que diz.) */
   hasPendingScenes: () => boolean
-  /** Grava a aventura inteira e devolve o caminho da cena aberta. */
-  flush: () => Promise<string>
+  /**
+   * Grava a aventura inteira e devolve o caminho da cena aberta. `stored`:
+   * fichas que o mestre guardou ("Guardar ficha") — fora do mapa do editor,
+   * mas o arquivo as leva, cada uma na cena de onde saiu (`storedTokensOfScene`).
+   */
+  flush: (stored?: readonly StoredToken[]) => Promise<string>
 }
 
 const EMPTY = {
@@ -190,11 +251,35 @@ export function sceneList(state: Pick<AdventureState, 'adventure' | 'activeScene
   return state.adventure.scenes.map((entry) => {
     const active = entry.id === state.activeSceneId
     const slot = state.cache[entry.id]
-    const base = { id: entry.id, name: entry.name, active, renamable: true }
+    // `parentId` só na cena de dentro: a do primeiro nível fica como sempre foi.
+    const base = { id: entry.id, name: entry.name, active, renamable: true, ...(entry.parentId === undefined ? {} : { parentId: entry.parentId }) }
     if (active) return { ...base, tokenCount: liveMap.tokens.length, available: true }
     if (slot === undefined || slot.status !== 'ok') return { ...base, tokenCount: null, available: false }
     return { ...base, tokenCount: slot.map.tokens.length, available: true }
   })
+}
+
+/**
+ * VISÃO GERAL DAS CENAS: o mapa de cada miniatura, pelo mesmo id da lista de
+ * Cenas (`sceneList`). A aberta é o mapa VIVO — o que o mestre acabou de mexer
+ * aparece na miniatura sem salvar —, as de fundo vêm do cache, e a que não
+ * abriu fica de fora (não há mapa para desenhar). Mapa solto: ele mesmo, id ''.
+ */
+export function sceneMaps(state: Pick<AdventureState, 'adventure' | 'activeSceneId' | 'cache'>, liveMap: MapData): Map<string, MapData> {
+  const maps = new Map<string, MapData>()
+  if (state.adventure === null) {
+    maps.set('', liveMap)
+    return maps
+  }
+  for (const entry of state.adventure.scenes) {
+    if (entry.id === state.activeSceneId) {
+      maps.set(entry.id, liveMap)
+      continue
+    }
+    const slot = state.cache[entry.id]
+    if (slot !== undefined && slot.status === 'ok') maps.set(entry.id, slot.map)
+  }
+  return maps
 }
 
 type SceneState = Pick<AdventureState, 'adventure' | 'activeSceneId' | 'cache'>
@@ -256,14 +341,21 @@ function exitPatchFor(pin: Pin, exitId: string | null, destino: PinDestination):
   return setExitDestination(pin, exitId, destino)
 }
 
-/** As cenas para onde um pino da cena aberta pode levar: todas as outras. */
+/**
+ * As cenas para onde um pino da cena aberta pode levar: todas as outras. A
+ * cena de dentro de outra leva o caminho no nome ("Porto Cinza › Taverna"):
+ * duas "Taverna" em cidades diferentes não se confundem na escolha. É lista
+ * do mestre; o nome que o jogador nunca recebe continua sem caminho.
+ */
 export function travelSceneOptions(state: SceneState): TravelSceneOption[] {
-  if (state.adventure === null) return []
-  return state.adventure.scenes
+  const adventure = state.adventure
+  if (adventure === null) return []
+  return adventure.scenes
     .filter((entry) => entry.id !== state.activeSceneId)
     .map((entry) => {
       const slot = state.cache[entry.id]
-      return { id: entry.id, name: entry.name, available: slot !== undefined && slot.status === 'ok' }
+      const name = [...sceneTrail(adventure.scenes, entry.id), entry.name].join(SCENE_TRAIL_SEPARATOR)
+      return { id: entry.id, name, available: slot !== undefined && slot.status === 'ok' }
     })
 }
 
@@ -404,6 +496,15 @@ export const useAdventureStore = create<AdventureState>()((set, get) => ({
     })
   },
 
+  moveScene: (sceneId, parentId) => {
+    const { adventure } = get()
+    if (adventure === null) return false
+    const scenes = nestScene(adventure.scenes, sceneId, parentId)
+    if (scenes === null) return false
+    set({ adventure: { ...adventure, scenes }, structureDirty: true })
+    return true
+  },
+
   switchScene: (sceneId, focus) => {
     const { activeSceneId, cache, dirty } = get()
     if (activeSceneId === null || sceneId === activeSceneId) return false
@@ -431,10 +532,11 @@ export const useAdventureStore = create<AdventureState>()((set, get) => ({
     return true
   },
 
-  goToPoint: (sceneId, point) => {
+  goToPoint: (sceneId, point, fit) => {
     if (sceneId === null || sceneId === get().activeSceneId) {
-      // `camera: null` com `focus`: o canvas centra no ponto com o zoom de agora.
-      set({ cameraRequest: { camera: null, focus: point } })
+      // `camera: null` com `focus`: o canvas centra no ponto com o zoom de agora
+      // (menor só se `fit` não couber).
+      set({ cameraRequest: fit === undefined ? { camera: null, focus: point } : { camera: null, focus: point, fit } })
       return true
     }
     return get().switchScene(sceneId, point)
@@ -447,6 +549,17 @@ export const useAdventureStore = create<AdventureState>()((set, get) => ({
     const map = updater(slot.map)
     if (map === slot.map) return
     set({ cache: { ...cache, [sceneId]: { ...slot, map } }, dirty: { ...dirty, [sceneId]: true } })
+  },
+
+  applyPlayerChangeToBackgroundScene: (sceneId, transform) => {
+    const { cache, dirty } = get()
+    const slot = cache[sceneId]
+    if (slot === undefined || slot.status !== 'ok') return
+    const map = transform(slot.map)
+    if (map === slot.map) return
+    const past = slot.past.map(transform)
+    const future = slot.future.map(transform)
+    set({ cache: { ...cache, [sceneId]: { ...slot, map, past, future } }, dirty: { ...dirty, [sceneId]: true } })
   },
 
   linkPinToNewArrival: (pinId, sceneId, exitId = SAIDA_PRINCIPAL) => {
@@ -574,12 +687,33 @@ export const useAdventureStore = create<AdventureState>()((set, get) => ({
     return true
   },
 
+  carryToken: (tokenId, toSceneId, pinId) => {
+    const { adventure, activeSceneId, cache } = get()
+    if (adventure === null || activeSceneId === null) return null
+    const entry = adventure.scenes.find((scene) => scene.id === toSceneId)
+    const slot = cache[toSceneId]
+    if (entry === undefined || slot === undefined || slot.status !== 'ok') return null
+    const token = useMapStore.getState().map.tokens.find((t) => t.id === tokenId)
+    if (token === undefined) return null
+    const pin = pinId === null ? null : slot.map.pins.find((p) => p.id === pinId && p.kind === 'viagem')
+    // Pino que sumiu entre abrir o painel e confirmar: não chega em outro lugar calado.
+    if (pin === undefined) return null
+    // O mesmo assento de quem atravessa pelo "Mandar para…" (`hostSession.sendPlayer`).
+    const spot = pin === null ? arrivalPoint(slot.map) : arrivalSpot(slot.map, pin, token.size)
+    if (!get().transferToken(tokenId, activeSceneId, toSceneId, spot.x, spot.y)) return null
+    // A ficha já não está no mapa aberto: a seleção não pode apontar para ela.
+    const item: SelectionItem = { kind: 'token', id: tokenId }
+    const { selection, setSelection } = useMapStore.getState()
+    if (selectionHas(selection, item)) setSelection(removeSelectionItem(selection, item))
+    return { tokenName: token.name, sceneId: toSceneId, sceneName: entry.name, x: spot.x, y: spot.y }
+  },
+
   hasPendingScenes: () => {
     const { adventure, dirty, structureDirty } = get()
     return adventure !== null && (structureDirty || Object.keys(dirty).length > 0)
   },
 
-  flush: async () => {
+  flush: async (stored = []) => {
     const state = get()
     const { adventure, activeSceneId } = state
     if (adventure === null || activeSceneId === null) throw new Error('Não há aventura aberta para gravar.')
@@ -593,24 +727,49 @@ export const useAdventureStore = create<AdventureState>()((set, get) => ({
 
     const live = useMapStore.getState().map
     const writes: { file: string; map: MapData }[] = []
+    /** Cena → mapa exato que foi para o disco. */
+    const written = new Map<string, MapData>()
+    const scenes = { ids: new Set(adventure.scenes.map((entry) => entry.id)), activeId: activeSceneId }
+    // A ficha guardada saiu do mapa do editor, mas não do arquivo.
+    const forDisk = (sceneId: string, map: MapData) => withStoredTokens(map, storedTokensOfScene(stored, sceneId, scenes))
     let activeFile: string | null = null
     for (const entry of adventure.scenes) {
       if (entry.id === activeSceneId) {
         activeFile = entry.file
-        writes.push({ file: entry.file, map: live })
+        writes.push({ file: entry.file, map: forDisk(entry.id, live) })
+        written.set(entry.id, live)
         continue
       }
       const slot = state.cache[entry.id]
-      if (slot !== undefined && slot.status === 'ok' && state.dirty[entry.id] === true) writes.push({ file: entry.file, map: slot.map })
+      if (slot !== undefined && slot.status === 'ok' && state.dirty[entry.id] === true) {
+        writes.push({ file: entry.file, map: forDisk(entry.id, slot.map) })
+        written.set(entry.id, slot.map)
+      }
     }
     if (activeFile === null) throw new Error('A cena aberta não está na lista da aventura.')
 
     await saveAdventureToDisk(dir, adventure, writes)
-    // Só o que foi escrito sai de "pendente": mudança feita enquanto o disco
-    // gravava continua pendente na próxima conta (o mapa vivo é comparado de
-    // novo pelo `markSaved` abaixo, que ancora no mapa que acabou de ir).
-    set({ dir, rootPath: null, rootMapId: null, dirty: {}, structureDirty: false })
-    if (useMapStore.getState().map === live) useSessionStore.getState().markSaved()
+
+    // O editor não trava enquanto o disco grava: só sai de "pendente" o que
+    // continua IGUAL (mesma referência) ao que foi escrito. Mudança feita no
+    // meio — cena de fundo, cena aberta, nome ou cena nova — fica pendente.
+    const after = get()
+    // Outra aventura (ou mapa solto) entrou no meio: o estado já não é desta gravação.
+    if (after.adventure === null || after.adventure.id !== adventure.id) return scenePath(dir, activeFile)
+    const nowOf = (sceneId: string): MapData | undefined => {
+      if (sceneId === after.activeSceneId) return useMapStore.getState().map
+      const slot = after.cache[sceneId]
+      return slot !== undefined && slot.status === 'ok' ? slot.map : undefined
+    }
+    const dirty: Record<string, true> = {}
+    for (const sceneId of Object.keys(after.dirty)) {
+      const sent = written.get(sceneId)
+      // Pendente antes e não escrito = não tinha o que escrever (cena fora do ar): sai, como sempre saiu.
+      if (sent === undefined ? state.dirty[sceneId] !== true : nowOf(sceneId) !== sent) dirty[sceneId] = true
+    }
+    set({ dir, rootPath: null, rootMapId: null, dirty, structureDirty: after.structureDirty && after.adventure !== adventure })
+    const activeSent = after.activeSceneId === null ? undefined : written.get(after.activeSceneId)
+    if (activeSent !== undefined) useSessionStore.getState().markSaved(activeSent)
     return scenePath(dir, activeFile)
   },
 }))
@@ -664,4 +823,34 @@ function syncTravelLinks(after: MapData, before: MapData): void {
       }
     }
   }
+}
+
+/**
+ * ITEM PEGÁVEL: grava a troca de lugar de um item (pino que sai ou volta,
+ * mochilas novas) na cena `change.sceneId` — a aberta no editor quando
+ * ausente ou quando é a própria cena aberta (o mestre pode ter trocado de
+ * cena entre a decisão e aqui).
+ *
+ * Vale para TODO passo do desfazer da cena, aberta OU de fundo, como a
+ * travessia do `transferToken`: gravar só o mapa atual deixaria o `past` com a
+ * chave no chão, e um Ctrl+Z do mestre depois a devolveria ao mapa ainda na
+ * mochila de alguém (duplica) ou a tiraria da mochila (some). Também não é um
+ * passo do desfazer: não foi uma edição do mapa. `false` quando a cena não
+ * está disponível.
+ */
+export function applyItemsInScene(change: AppliedItems): boolean {
+  const aplicar = (map: MapData): MapData => applyItemChange(map, change)
+  const { activeSceneId, cache, dirty } = useAdventureStore.getState()
+  if (change.sceneId === undefined || change.sceneId === activeSceneId) {
+    const { map, past, future } = useMapStore.getState()
+    useMapStore.setState({ map: aplicar(map), past: past.map(aplicar), future: future.map(aplicar) })
+    return true
+  }
+  const slot = cache[change.sceneId]
+  if (slot === undefined || slot.status !== 'ok') return false
+  useAdventureStore.setState({
+    cache: { ...cache, [change.sceneId]: { ...slot, map: aplicar(slot.map), past: slot.past.map(aplicar), future: slot.future.map(aplicar) } },
+    dirty: { ...dirty, [change.sceneId]: true },
+  })
+  return true
 }

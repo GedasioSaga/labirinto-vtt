@@ -1,6 +1,6 @@
 /**
- * Regras do laser do mestre, compartilhadas pelo editor e pelo jogador (sem
- * DOM e sem Pixi). Posições em px de mundo, tempos em ms de `Date.now`.
+ * Regras do laser (do mestre e do jogador), compartilhadas pelo editor e pelo
+ * jogador (sem DOM e sem Pixi). Posições em px de mundo, tempos em ms de `Date.now`.
  */
 
 /** Intervalo mínimo entre dois envios `laser {points}` para os jogadores. */
@@ -49,6 +49,75 @@ export function appendLaserPoints(points: readonly LaserPoint[], batch: readonly
   const step = batch.length > 1 ? spanMs / batch.length : 0
   const stamped = batch.map((p, i) => ({ x: p.x, y: p.y, t: now - (batch.length - 1 - i) * step }))
   return pruneLaserTrail([...points, ...stamped], now, true)
+}
+
+/**
+ * LASER DO JOGADOR, visto por OUTRA tela (a do mestre ou a de outro jogador da
+ * mesma cena). `key` separa um laser do outro (o nome do jogador na sala, que o
+ * host já torna único); `label` e `color` são o que a tela escreve e pinta.
+ */
+export interface LaserOrigin {
+  key: string
+  label: string
+  color: string
+}
+
+/** Rastro de um jogador: `lastAt` é quando chegou a última mensagem dele. */
+export interface RemoteLaser extends LaserOrigin {
+  trail: LaserTrail
+  lastAt: number
+}
+
+/**
+ * Sem nenhuma mensagem por este tempo, a ponta de quem aponta se apaga mesmo
+ * sem o `off`: o `off` se perde quando a pessoa cai, troca de cena no meio do
+ * gesto ou sai da visão de quem olha, e uma ponta acesa para sempre mentiria.
+ */
+export const REMOTE_LASER_IDLE_MS = 3000
+
+/** Teto de lasers de jogador guardados ao mesmo tempo: só protege a memória. */
+export const MAX_REMOTE_LASERS = 16
+
+/** Lote de pontos (ou o fim do gesto) de um jogador, já validado. */
+export type RemoteLaserUpdate = { points: readonly { x: number; y: number }[] } | { off: true }
+
+/** Ponta acesa: o jogador ainda está com o botão apertado e falou há pouco. */
+export function isRemoteLaserLit(laser: RemoteLaser, now: number): boolean {
+  return laser.trail.on && now - laser.lastAt < REMOTE_LASER_IDLE_MS
+}
+
+/** O rastro como o desenho o quer: `on` já descontado do silêncio longo. */
+export function remoteLaserTrail(laser: RemoteLaser, now: number): LaserTrail {
+  return { points: laser.trail.points, on: isRemoteLaserLit(laser, now) }
+}
+
+/**
+ * Acrescenta o lote de `origin` (ou o fim do gesto) à lista. `off` de quem não
+ * está na lista não cria nada: não há rastro a terminar. Nome e cor seguem o
+ * mais recente (o mestre pode ter trocado a cor da ficha no meio).
+ */
+export function applyRemoteLaser(lasers: readonly RemoteLaser[], origin: LaserOrigin, update: RemoteLaserUpdate, now: number): RemoteLaser[] {
+  const current = lasers.find((l) => l.key === origin.key)
+  const others = lasers.filter((l) => l.key !== origin.key)
+  if ('off' in update) {
+    if (current === undefined) return [...lasers]
+    return [...others, { ...current, trail: { points: pruneLaserTrail(current.trail.points, now), on: false }, lastAt: now }]
+  }
+  const points = appendLaserPoints(current?.trail.points ?? [], update.points, now, LASER_SEND_INTERVAL_MS)
+  const next = [...others, { key: origin.key, label: origin.label, color: origin.color, trail: { points, on: true }, lastAt: now }]
+  return next.length > MAX_REMOTE_LASERS ? next.slice(next.length - MAX_REMOTE_LASERS) : next
+}
+
+/** Tira o que já sumiu da tela: ponta apagada e nenhum ponto vivo. */
+export function pruneRemoteLasers(lasers: readonly RemoteLaser[], now: number): RemoteLaser[] {
+  const next: RemoteLaser[] = []
+  for (const laser of lasers) {
+    const lit = isRemoteLaserLit(laser, now)
+    const points = pruneLaserTrail(laser.trail.points, now, lit)
+    if (!lit && points.length === 0) continue
+    next.push({ ...laser, trail: { points, on: laser.trail.on && lit } })
+  }
+  return next
 }
 
 /** Forma mínima do evento de teclado, no mesmo espírito de `ShortcutEvent` (lib/keymap.ts). */

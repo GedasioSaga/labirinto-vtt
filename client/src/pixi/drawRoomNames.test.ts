@@ -136,38 +136,71 @@ describe('createRoomNamesRenderer', () => {
     expect(texts[0].style.fontSize).toBeCloseTo(21)
   })
 
-  it('região que some fica invisível, sem destruir o Text; volta reaproveitando o mesmo objeto', () => {
-    const destroySpy = vi.spyOn(Text.prototype, 'destroy')
+  it('região que some tem o Text e a plaquinha destruídos; se voltar, nasce objeto novo', () => {
     const container = new Container()
     const renderer = createRoomNamesRenderer()
 
     renderer.draw(container, [buildRoom('sala', 'Cripta', SQUARE)], 50)
     const first = textChildren(container)[0]
+    const firstPlate = plateChildren(container)[0]
 
     renderer.draw(container, [], 50)
-    expect(destroySpy).not.toHaveBeenCalled()
-    expect(first.destroyed).toBe(false)
-    expect(first.visible).toBe(false)
+    expect(first.destroyed).toBe(true)
+    expect(firstPlate.destroyed).toBe(true)
+    expect(container.children).toHaveLength(0)
 
     renderer.draw(container, [buildRoom('sala', 'Salão', SQUARE)], 50)
     const texts = textChildren(container)
     expect(texts).toHaveLength(1)
-    expect(texts[0]).toBe(first)
-    expect(first.visible).toBe(true)
-    expect(first.text).toBe('Salão')
-    expect(destroySpy).not.toHaveBeenCalled()
+    expect(texts[0]).not.toBe(first)
+    expect(texts[0].visible).toBe(true)
+    expect(texts[0].text).toBe('Salão')
+    expect(plateChildren(container)).toHaveLength(1)
   })
 
-  it('sala que perde o nome também só fica invisível', () => {
-    const destroySpy = vi.spyOn(Text.prototype, 'destroy')
+  it('sala que perde o nome tem o Text e a plaquinha destruídos', () => {
     const container = new Container()
     const renderer = createRoomNamesRenderer()
 
     renderer.draw(container, [buildRoom('sala', 'Cripta', SQUARE)], 50)
+    const text = textChildren(container)[0]
+    const plate = plateChildren(container)[0]
     renderer.draw(container, [buildRoom('sala', '', SQUARE)], 50)
 
-    expect(textChildren(container)[0].visible).toBe(false)
-    expect(destroySpy).not.toHaveBeenCalled()
+    expect(text.destroyed).toBe(true)
+    expect(plate.destroyed).toBe(true)
+    expect(container.children).toHaveLength(0)
+  })
+
+  it('trocar de cena destrói os nomes da cena anterior: 5 trocas não acumulam objetos Pixi', () => {
+    const container = new Container()
+    const renderer = createRoomNamesRenderer()
+    const cenaA = ['a1', 'a2', 'a3'].map((id, i) => buildRoom(id, `Sala A${i}`, SQUARE))
+    const cenaB = ['b1', 'b2'].map((id, i) => buildRoom(id, `Sala B${i}`, SQUARE))
+    const criados: Array<Text | Graphics> = []
+
+    renderer.draw(container, cenaA, 50)
+    for (let troca = 0; troca < 5; troca++) {
+      criados.push(...textChildren(container), ...plateChildren(container))
+      const proxima = troca % 2 === 0 ? cenaB : cenaA
+      renderer.draw(container, proxima, 50)
+      // Só a cena atual mora no container: 1 Text + 1 plaquinha por sala nomeada.
+      expect(container.children).toHaveLength(proxima.length * 2)
+    }
+
+    // Tudo que pertencia a uma cena já deixada foi destruído, não só escondido.
+    expect(criados).toHaveLength(2 * (3 * cenaA.length + 2 * cenaB.length))
+    expect(criados.filter((objeto) => !objeto.destroyed)).toEqual([])
+  })
+
+  it('setCameraScale depois da troca de cena não mexe em objeto destruído', () => {
+    const container = new Container()
+    const renderer = createRoomNamesRenderer()
+    renderer.draw(container, [buildRoom('a', 'Cripta', SQUARE)], 64, 1)
+    renderer.draw(container, [buildRoom('b', 'Torre', SQUARE)], 64, 1)
+
+    expect(() => renderer.setCameraScale(0.5)).not.toThrow()
+    expect(textChildren(container).map((t) => t.text)).toEqual(['Torre'])
   })
 
   it('mudança de grid atualiza o tamanho da fonte', () => {
@@ -209,7 +242,7 @@ describe('createRoomNamesRenderer', () => {
     renderer.draw(container, [buildRoom('sala', 'Cripta', SQUARE)], 64, 1)
     renderer.draw(container, [buildRoom('sala', '', SQUARE)], 64)
     renderer.setCameraScale(0.5)
-    expect(textChildren(container)[0].visible).toBe(false)
+    expect(textChildren(container)).toHaveLength(0)
   })
 
   it('labelOffset desloca o texto a partir do centróide (mesmo renderer do jogador)', () => {
@@ -552,18 +585,19 @@ describe('etiqueta em pílula do nome da sala', () => {
     const plaquinha = plateChildren(container)[0]
 
     renderer.draw(container, [buildRoom('sala', '', SQUARE)], GRID, 1)
-    expect(plaquinha.visible).toBe(false)
-    // Mesmo cuidado do Text: esconder, nunca destruir durante a sessão.
-    expect(plaquinha.destroyed).toBe(false)
+    // Mesmo destino do Text: sai do container e é destruída, não fica escondida.
+    expect(plaquinha.destroyed).toBe(true)
+    expect(plateChildren(container)).toHaveLength(0)
 
     renderer.draw(container, [buildRoom('sala', 'Cripta', SQUARE)], GRID, 1)
     expect(plateChildren(container)).toHaveLength(1)
-    expect(plaquinha.visible).toBe(true)
+    const nova = plateChildren(container)[0]
+    expect(nova.visible).toBe(true)
 
     renderer.setCameraScale(0.25)
-    expect(plaquinha.visible).toBe(false)
+    expect(nova.visible).toBe(false)
     renderer.setCameraScale(1)
-    expect(plaquinha.visible).toBe(true)
+    expect(nova.visible).toBe(true)
   })
 
   it('no zoom afastado a plaquinha cresce na mesma medida do texto, e os dois continuam do mesmo tamanho', () => {

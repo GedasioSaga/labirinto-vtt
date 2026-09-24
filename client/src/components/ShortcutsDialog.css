@@ -1,0 +1,124 @@
+/*
+ * Tela de atalhos (ShortcutsDialog). A casca é a da janela "Configurações do
+ * mapa" (.lb-dialog-backdrop, .lb-panel, .lb-dialog e o cabeçalho, em
+ * main.css); aqui só o que é desta tela: largura, colunas, linhas e a tecla
+ * desenhada. Só `var(--lb-*)` de theme.ts — zero hex.
+ *
+ * Duas classes onde a regra disputa com main.css: ele carrega DEPOIS deste
+ * arquivo (main.tsx importa o App antes dele) e, com a mesma especificidade,
+ * venceria — mesmo cuidado de `.lb-panel.lb-actionbar-menu` (ActionBar.css).
+ */
+
+/* Três colunas de ~245px: construir, desenhar e editar. Mais larga que a
+   janela de configurações porque é tabela de consulta, lida de relance, e não
+   formulário. Em 1280×800 cabe inteira, sem rolar. */
+.lb-dialog.lb-shortcuts {
+  width: min(820px, 100%);
+}
+
+.lb-shortcuts__intro {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-1);
+  min-width: 0;
+}
+
+.lb-shortcuts__lede {
+  margin: 0;
+  font-size: var(--lb-font-size-sm);
+  line-height: var(--lb-font-leading-normal);
+  color: var(--lb-color-parchment-dim);
+}
+
+/* As colunas se acomodam na largura: três na janela do editor, duas numa
+   janela estreita, uma no mínimo. Borda esquerda alinhada com o título. */
+.lb-dialog__body.lb-shortcuts__body {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  align-items: start;
+  gap: var(--lb-space-5) var(--lb-space-6);
+  padding: var(--lb-space-4) var(--lb-space-4) var(--lb-space-5);
+  border-radius: 0 0 var(--lb-radius-lg) var(--lb-radius-lg);
+}
+
+/* A lista recebe o foco ao abrir (é ela que rola nas setas numa janela
+   baixa). O anel de latão por fora vazaria por cima do cabeçalho; aqui ele
+   vira um fio por dentro, e só quando o foco chegou pelo teclado. */
+.lb-dialog__body.lb-shortcuts__body:focus-visible {
+  box-shadow: none;
+  outline: 1px solid var(--lb-color-brass);
+  outline-offset: -1px;
+}
+
+.lb-shortcuts__column,
+.lb-shortcuts__group {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.lb-shortcuts__column {
+  gap: var(--lb-space-5);
+}
+
+.lb-shortcuts__group {
+  gap: var(--lb-space-2);
+}
+
+.lb-shortcuts__list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* O que a tecla faz à esquerda, a tecla à direita — a leitura das telas de
+   atalho do Excalidraw e do GitHub. Linha de base comum: se o texto quebrar em
+   duas linhas, a tecla fica na altura da primeira. */
+.lb-shortcuts__row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--lb-space-3);
+  padding: 2px 0;
+}
+
+.lb-shortcuts__what {
+  min-width: 0;
+  line-height: var(--lb-font-leading-tight);
+  color: var(--lb-color-parchment-dim);
+}
+
+/* "+", "segurar", "arrastar" e "roda do mouse" em legenda miúda: a tecla
+   desenhada é o que o olho procura. */
+.lb-shortcuts__keys {
+  display: inline-flex;
+  flex: none;
+  align-items: baseline;
+  gap: var(--lb-space-1);
+  font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-parchment-faint);
+  white-space: nowrap;
+}
+
+/* A tecla desenhada: pedra no tom dos campos, com a borda de baixo mais
+   grossa, como a lateral de uma tecla de verdade. Letra na fonte das legendas
+   e dos números do mapa, em maiúscula como no balão da barra. */
+.lb-key {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 var(--lb-space-1);
+  border: 1px solid var(--lb-color-line-strong);
+  border-bottom-width: 2px;
+  border-radius: var(--lb-radius-sm);
+  background: var(--lb-color-stone-raised);
+  font-family: var(--lb-font-utility);
+  font-size: var(--lb-font-size-sm);
+  font-weight: var(--lb-font-weight-semibold);
+  line-height: 1;
+  color: var(--lb-color-parchment);
+}

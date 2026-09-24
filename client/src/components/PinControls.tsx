@@ -1,4 +1,6 @@
-import type { PinKind } from '../types/map'
+import { useEffect, useState } from 'react'
+import type { PinItem, PinKind } from '../types/map'
+import { ITEM_NAME_MAX_LENGTH, cleanItemName } from '../lib/items'
 import { PIN_GLYPH, PIN_KIND_LABELS, PIN_KIND_ORDER } from '../lib/pins'
 import { GatherControls, type GatherControlsProps } from './GatherControls'
 import { PinTravelArt } from './PinSymbolArt'
@@ -30,6 +32,61 @@ export interface PinControlsProps {
    * quando o painel passa a mostrar outro pino.
    */
   gather?: (GatherControlsProps & { pinId: string }) | null
+  /**
+   * ITEM PEGÁVEL do pino aberto ("!"/"?"): `value` `null` = pino que só se lê.
+   * `onChange(null)` desliga. `null` no prop = sem pino aberto, ou pino de viagem.
+   */
+  item?: { value: PinItem | null; onChange: (item: PinItem | null) => void } | null
+}
+
+/** Nome que o item ganha ao ligar o interruptor: o mestre troca logo abaixo. */
+export const NEW_ITEM_NAME = 'Item'
+
+/**
+ * "Item pegável": o interruptor diz se o jogador pode pegar; ligado, aparecem
+ * o nome que vai para a mochila e se ele pega sem pedir ao mestre. O nome só
+ * vale ao sair do campo (ou Enter): cada letra não vira um passo do desfazer.
+ */
+function PinItemControls({ value, onChange }: { value: PinItem | null; onChange: (item: PinItem | null) => void }) {
+  const [draft, setDraft] = useState(value?.nome ?? '')
+  const nome = value?.nome ?? ''
+  useEffect(() => setDraft(nome), [nome])
+  const commit = () => {
+    if (value === null) return
+    const limpo = cleanItemName(draft)
+    // Nome apagado volta ao que era: item sem nome não é pegável, e sumiria calado.
+    if (limpo === '' || limpo === value.nome) {
+      setDraft(value.nome)
+      return
+    }
+    onChange({ ...value, nome: limpo })
+  }
+  return (
+    <>
+      <Toggle label="Item pegável" checked={value !== null} onChange={(on) => onChange(on ? { nome: NEW_ITEM_NAME } : null)} />
+      {value !== null && (
+        <>
+          <input
+            className="lb-input"
+            type="text"
+            aria-label="Nome do item"
+            value={draft}
+            maxLength={ITEM_NAME_MAX_LENGTH}
+            onChange={(event) => setDraft(event.target.value)}
+            onBlur={commit}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') commit()
+            }}
+          />
+          <Toggle
+            label="Pega sem pedir ao mestre"
+            checked={value.livre === true}
+            onChange={(livre) => onChange(livre ? { nome: value.nome, livre: true } : { nome: value.nome })}
+          />
+        </>
+      )}
+    </>
+  )
 }
 
 /** A pastilha de cada tipo: a mesma cabeça que o pino tem no mapa. */
@@ -79,6 +136,7 @@ export function PinControls({
   onDelete,
   travel = null,
   gather = null,
+  item = null,
 }: PinControlsProps) {
   const viagem = kind === 'viagem'
   // As cenas onde mora um par que perde a volta se este pino sumir (uma por
@@ -125,6 +183,7 @@ export function PinControls({
               arrastando. O pino não usa aquele componente porque não tem
               rotação nem "oculto no editor" separado do resto do painel. */}
           <Toggle label="Travado" checked={locked} onChange={onLockedChange} />
+          {!viagem && item !== null && <PinItemControls value={item.value} onChange={item.onChange} />}
           {/* Ação de MESA, não de edição do pino: fica logo depois do que o
               pino é, antes da imagem e do excluir. */}
           {gather !== null && <GatherControlsFor gather={gather} />}

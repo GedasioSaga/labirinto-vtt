@@ -61,6 +61,23 @@ describe('PlayerNoteCard (recado do mestre)', () => {
     expect(onClose).not.toHaveBeenCalled()
   })
 
+  it('título próprio (texto da sala) no lugar de "Recado do mestre"', () => {
+    act(() => root.render(<PlayerNoteCard title="Cozinha" text="Pão queimado." onClose={() => {}} />))
+    expect(container.querySelector('.pp-note__title')?.textContent).toBe('Cozinha')
+  })
+
+  it('recado só para ele: a faixa "Só para você" aparece; recado da cena não tem a faixa', () => {
+    act(() => root.render(<PlayerNoteCard text="A carta tem o seu nome." onClose={() => {}} onlyYou />))
+    expect(container.querySelector('.pp-note__only')?.textContent).toBe('Só para você')
+    // O leitor de tela ouve o título e a faixa juntos: "Recado do mestre, só para você".
+    const secao = container.querySelector('section')
+    const rotulo = (secao?.getAttribute('aria-labelledby') ?? '').split(' ').map((id) => document.getElementById(id)?.textContent)
+    expect(rotulo).toEqual(['Recado do mestre', 'Só para você'])
+
+    render('Todos ouvem.', () => {})
+    expect(container.textContent).not.toContain('Só para você')
+  })
+
   it('não rouba o foco ao aparecer', () => {
     const campo = document.createElement('input')
     document.body.appendChild(campo)

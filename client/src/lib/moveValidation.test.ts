@@ -41,6 +41,18 @@ describe('validateTokenMove', () => {
     expect(validateTokenMove(map, { playerId: 'host', tokenId: 't1', x: 120, y: 100 }, {}, { isHost: true })).toEqual({ ok: true, x: 120, y: 100 })
   })
 
+  it('iniciativa na cena: só a ficha da vez move; posse e trava vêm antes; o host ignora a vez', () => {
+    const map = baseMap()
+    const vezDeT2 = { turnTokenId: 't2' }
+    expect(validateTokenMove(map, { playerId: 'p1', tokenId: 't1', x: 150, y: 120 }, ownership, vezDeT2)).toEqual({ ok: false, reason: 'not_your_turn' })
+    expect(validateTokenMove(map, { playerId: 'p2', tokenId: 't2', x: 320, y: 120 }, ownership, vezDeT2)).toEqual({ ok: true, x: 320, y: 120 })
+    expect(validateTokenMove(map, { playerId: 'p1', tokenId: 't2', x: 320, y: 120 }, ownership, vezDeT2)).toEqual({ ok: false, reason: 'not_owner' })
+    expect(validateTokenMove(map, { playerId: 'p1', tokenId: 't1', x: 150, y: 120 }, ownership, { turnTokenId: null })).toEqual({ ok: true, x: 150, y: 120 })
+    const travado = baseMap({ tokens: [token('t1', 100, 100, { locked: true })] })
+    expect(validateTokenMove(travado, { playerId: 'p1', tokenId: 't1', x: 120, y: 100 }, ownership, vezDeT2)).toEqual({ ok: false, reason: 'locked' })
+    expect(validateTokenMove(map, { playerId: 'host', tokenId: 't1', x: 150, y: 120 }, {}, { isHost: true, turnTokenId: 't2' })).toEqual({ ok: true, x: 150, y: 120 })
+  })
+
   it('parede no caminho => wall, inclusive para o host', () => {
     const map = baseMap({ walls: [wall('w', 200, 0, 200, 400)] })
     expect(validateTokenMove(map, { playerId: 'p1', tokenId: 't1', x: 250, y: 100 }, ownership)).toEqual({ ok: false, reason: 'wall' })
@@ -162,6 +174,20 @@ describe('describeBlockedMove', () => {
     // Aberta E trancada é estado de mapa antigo: continua trancada, continua barrando.
     const abertaETrancada = ladoComPorta({ ...fechada, open: true, locked: true })
     expect(describeBlockedMove(FROM, TO, abertaETrancada, SLACK)).toMatchObject({ reason: 'door_locked' })
+  })
+
+  it('porta secreta => door_secret, mesmo destrancada: ligar "Aberta" não resolve, revelar a passagem sim', () => {
+    const secreta = { ...fechada, secret: true }
+    expect(describeBlockedMove(FROM, TO, ladoComPorta(secreta), SLACK)).toEqual({ reason: 'door_secret', wallId: 'vao', opensPath: false })
+    // Aberta e secreta continua barrando (isDoorPassable): o aviso não pode mandar abrir.
+    expect(describeBlockedMove(FROM, TO, ladoComPorta({ ...secreta, open: true }), SLACK)).toEqual({ reason: 'door_secret', wallId: 'vao', opensPath: false })
+    // Trancada e secreta: revelar vem primeiro; o cadeado só aparece para quem já vê a porta.
+    expect(describeBlockedMove(FROM, TO, ladoComPorta({ ...secreta, locked: true }), SLACK)).toMatchObject({ reason: 'door_secret' })
+  })
+
+  it('porta comum fechada ganha da secreta no mesmo traço: abrir ela é o gesto mais curto', () => {
+    const walls = [...ladoComPorta({ ...fechada, secret: true }).map((w) => ({ ...w, id: `s-${w.id}` })), ...ladoComPorta(fechada)]
+    expect(describeBlockedMove(FROM, TO, walls, SLACK)).toMatchObject({ reason: 'door_closed', wallId: 'vao' })
   })
 
   it('com parede e porta cruzando o mesmo traço, a porta é a explicação escolhida', () => {

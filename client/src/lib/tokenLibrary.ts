@@ -320,7 +320,18 @@ export async function salvarNoAcervo(token: Pick<Token, 'name' | 'size' | 'image
   // quem sabe disso. `App.tsx` lê a marca e mostra o aviso sem prazo — ver
   // `lib/erroQueEnsina.ts`.
   if (foto === null) throw new ErroQueEnsina(SEM_FOTO_PARA_SALVAR)
+  return naFilaDoIndice(() => gravarTokenNoAcervo(token, foto))
+}
 
+/**
+ * O miolo de `salvarNoAcervo`, já dentro da fila do índice. A imagem é gravada
+ * ENTRE a leitura e a regravação do índice (a leitura vem antes para recusar o
+ * trabalho sem deixar foto órfã), então a operação inteira ocupa a vez.
+ */
+async function gravarTokenNoAcervo(
+  token: Pick<Token, 'name' | 'size'>,
+  foto: string,
+): Promise<ItemDoAcervo> {
   const acervo = await listarAcervo()
   exigirLeitura(acervo, 'guardar o token no acervo')
 
@@ -374,6 +385,30 @@ export const ACERVO_NAO_LIDO =
 function exigirLeitura(acervo: AcervoCarregado, acao: string): void {
   if (acervo.lido) return
   throw new Error(`${acao}: ${ACERVO_NAO_LIDO}`)
+}
+
+/**
+ * Fim da fila das operações que REGRAVAM o índice (salvar, apagar, renomear).
+ *
+ * As três leem o `acervo.json` inteiro, mexem num item e gravam o índice
+ * inteiro de volta. Com duas em voo ao mesmo tempo — dois cliques rápidos em
+ * "Salvar no acervo", ou um salvar enquanto o apagar anterior ainda grava —
+ * ambas liam a MESMA lista, e a segunda gravação passava por cima da primeira:
+ * a ficha salva antes sumia da estante, com a foto órfã na pasta e nenhum erro
+ * na tela. Na fila, cada uma lê o índice que a anterior já gravou.
+ *
+ * A fila nunca rejeita: o erro de uma operação volta para quem a chamou, e a
+ * seguinte roda do mesmo jeito.
+ */
+let filaDoIndice: Promise<void> = Promise.resolve()
+
+function naFilaDoIndice<T>(operacao: () => Promise<T>): Promise<T> {
+  const resultado = filaDoIndice.then(operacao)
+  filaDoIndice = resultado.then(
+    () => undefined,
+    () => undefined,
+  )
+  return resultado
 }
 
 /** O que é resposta de agora (`imagemNoDisco`, `caminho`) não vira dado gravado. */
@@ -476,11 +511,15 @@ function avisoDeFotoQueSobrou(arquivos: readonly string[], pasta: string, causa:
  * desistir no primeiro erro. Só no fim, com a lista completa, o erro sobe.
  */
 export async function apagarDoAcervo(id: string): Promise<void> {
-  const acervo = await listarAcervo()
-  exigirLeitura(acervo, 'apagar o token do acervo')
-  const alvo = acervo.itens.find((item) => item.id === id)
-  const restantes = acervo.itens.filter((item) => item.id !== id)
-  await gravarIndice(restantes.map(semCampoDeTela), 'apagar o token do acervo', acervo.ignorados)
+  // Só a regravação do índice ocupa a vez na fila; a varredura das fotos mexe
+  // apenas em `token_<id>*`, que nenhuma outra operação toca.
+  const alvo = await naFilaDoIndice(async () => {
+    const acervo = await listarAcervo()
+    exigirLeitura(acervo, 'apagar o token do acervo')
+    const restantes = acervo.itens.filter((item) => item.id !== id)
+    await gravarIndice(restantes.map(semCampoDeTela), 'apagar o token do acervo', acervo.ignorados)
+    return acervo.itens.find((item) => item.id === id)
+  })
 
   const pasta = await pastaDoAcervo()
   const sobraram: string[] = []
@@ -512,6 +551,11 @@ export const ITEM_NAO_ENCONTRADO = 'este token não está mais no acervo'
 
 /** Troca o nome do item. Mesmo sufixo numérico de `salvarNoAcervo` em caso de colisão. */
 export async function renomearNoAcervo(id: string, nome: string): Promise<ItemDoAcervo> {
+  return naFilaDoIndice(() => trocarNomeNoIndice(id, nome))
+}
+
+/** O miolo de `renomearNoAcervo`, já dentro da fila do índice. */
+async function trocarNomeNoIndice(id: string, nome: string): Promise<ItemDoAcervo> {
   const acervo = await listarAcervo()
   exigirLeitura(acervo, 'renomear o token do acervo')
   const alvo = acervo.itens.find((item) => item.id === id)
@@ -560,4 +604,28 @@ export async function trazerDoAcervo(
     // (jogador vê bolinha) por um grande (mestre também vê).
   }
   return { image: importada.destPath, imageData }
+}
+
+/** O que a peça trazida do acervo leva ao nascer no mapa. */
+export interface PecaDoAcervo {
+  id: string
+  size: number
+  image: string | null
+  imageData: string | null
+  npc: true
+}
+
+/**
+ * A peça que sai do acervo nasce marcada como NPC: o acervo É a estante de
+ * NPCs prontos do mestre, e sem a marca o Mordomo recém-colocado virava o
+ * primeiro botão "Atribuir" do card de quem espera personagem (cena aberta
+ * vem antes das outras). Quando o mestre quer entregar a peça a um jogador,
+ * desliga "Ficha de NPC" no painel ou usa a lista completa.
+ */
+export function pecaDoAcervo(
+  item: Pick<ItemDoAcervoNaTela, 'tamanho'>,
+  tokenId: string,
+  foto: { image: string | null; imageData: string | null },
+): PecaDoAcervo {
+  return { id: tokenId, size: item.tamanho, image: foto.image, imageData: foto.imageData, npc: true }
 }

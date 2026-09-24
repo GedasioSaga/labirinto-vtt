@@ -1,14 +1,18 @@
 import { Container, Sprite, Graphics, Text, Assets, Texture } from 'pixi.js'
 import { convertFileSrc } from '@tauri-apps/api/core'
-import type { Token } from '../types/map'
-import { SECRET_ITEM_ALPHA, SELECTION_COLOR, TOKEN_FRAME_COLOR, TOKEN_FRAME_WIDTH } from './constants'
+import type { Token, TokenHealth } from '../types/map'
+import { SECRET_ITEM_ALPHA, SELECTION_COLOR, TOKEN_FRAME_COLOR, TOKEN_FRAME_WIDTH, TURN_RING_COLOR, TURN_RING_GAP, TURN_RING_WIDTH } from './constants'
 import { drawTokenCircle } from './drawTokens'
+import { drawTokenHealthBar, HEALTH_BAR_LABEL, tokenLabelTop } from './drawTokenHealth'
+import { readTokenHealth } from '../lib/tokenHealth'
 import { parseHexColor, tokenFillColor } from '../lib/tokenColor'
 import { isHidden, rotationToRadians } from '../lib/itemTransform'
 import { isTokenPhotoData, tokenPhotoLabel, tokenPhotoRef } from '../lib/tokenPhoto'
 import { fitPhotoSprite, textureFromDataUrl } from './tokenPhotoSprite'
 import { useToastStore } from '../stores/toastStore'
 import { screenLabelSizing } from './screenLabel'
+import { tokenConditionsOf } from '../lib/tokenConditions'
+import { CONDITION_MARKS_LABEL, drawTokenConditions } from './drawTokenConditions'
 
 /** Token "Oculto no editor": fantasma bem transparente, mas ainda clicável. */
 const HIDDEN_TOKEN_GHOST_ALPHA = 0.3
@@ -31,16 +35,20 @@ function strokeDashedCircle(graphics: Graphics, radius: number): void {
 export const TOKEN_LABEL_FONT_SIZE = 12
 
 export interface TokensRenderer {
-  /** `cameraScale` omitido mantém o último zoom informado. */
-  draw: (container: Container, tokens: Token[], gridSize: number, selectedTokenId?: string | null, cameraScale?: number) => void
+  /**
+   * `cameraScale` omitido mantém o último zoom informado. `turnTokenId`: a
+   * ficha da vez na iniciativa, que ganha o anel da vez (`TURN_RING_*`).
+   */
+  draw: (container: Container, tokens: Token[], gridSize: number, selectedTokenId?: string | null, cameraScale?: number, turnTokenId?: string | null) => void
   /** Só o zoom mudou: reescala e mostra/esconde os nomes sem redesenhar os tokens. */
   setCameraScale: (cameraScale: number) => void
 }
 
 interface TokenEntry {
   /** Único filho que este renderer adiciona a `container` por token — carrega
-   *  o visual (sprite OU graphics, nunca os dois), o anel de seleção e o
-   *  rótulo de nome como filhos internos, e é posicionado em (token.x, token.y)
+   *  o visual (sprite OU graphics, nunca os dois), o anel de seleção, o
+   *  rótulo de nome e as marcas de condição como filhos internos, e é
+   *  posicionado em (token.x, token.y)
    *  inteiro. Mantém `container.children.length === tokens.length` sempre,
    *  mesmo quando o token troca de "círculo" pra "imagem" e vice-versa. */
   wrapper: Container
@@ -51,7 +59,16 @@ interface TokenEntry {
   photoMask: Graphics | null
   graphics: Graphics | null
   ring: Graphics
+  /** Barra de vida sob o disco (`pixi/drawTokenHealth.ts`). Nasce só na
+   *  ficha que TEM vida e morre quando a vida sai: ficha sem vida continua
+   *  com os mesmos 4 filhos (visual, anel, nome, marcas) de antes da barra existir. */
+  bar: Graphics | null
   label: Text
+  /** Marcas de condição (envenenado, caído...) em cima da ficha. Existe
+   *  sempre, vazia quando não há condição — é o último slot desenhado, por
+   *  cima do disco, do anel e do nome. Filha do wrapper e não do visual: o
+   *  disco gira com `Token.rotation`, a marca fica em pé. */
+  marks: Graphics
   /** `Token.image` já carregado no `sprite` atual, ou null enquanto nenhuma
    *  imagem foi carregada ainda (token sem imagem, ou sprite recém-criado). */
   loadedSrc: string | null
@@ -142,6 +159,30 @@ export function createTokensRenderer(): TokensRenderer {
     return entry.sprite
   }
 
+  /**
+   * Barra de vida da ficha: cria na primeira vida, redesenha a MESMA quando a
+   * vida muda e destrói quando a vida sai. Entra logo antes do nome, para o
+   * nome continuar por cima de tudo que é da ficha. Destruir Graphics é seguro
+   * aqui — o cuidado de nunca destruir no meio da sessão é do `Text`.
+   */
+  function syncHealthBar(entry: TokenEntry, health: TokenHealth | null, radius: number): void {
+    if (health === null) {
+      if (entry.bar) {
+        entry.wrapper.removeChild(entry.bar)
+        entry.bar.destroy()
+        entry.bar = null
+      }
+      return
+    }
+    if (!entry.bar) {
+      const bar = new Graphics()
+      bar.label = HEALTH_BAR_LABEL
+      entry.wrapper.addChildAt(bar, entry.wrapper.getChildIndex(entry.label))
+      entry.bar = bar
+    }
+    drawTokenHealthBar(entry.bar, radius, health)
+  }
+
   function ensureGraphics(entry: TokenEntry): Graphics {
     if (entry.sprite) {
       entry.wrapper.removeChild(entry.sprite)
@@ -197,7 +238,7 @@ export function createTokensRenderer(): TokensRenderer {
     return Assets.load<Texture>(url)
   }
 
-  function draw(container: Container, tokens: Token[], gridSize: number, selectedTokenId: string | null = null, cameraScale?: number): void {
+  function draw(container: Container, tokens: Token[], gridSize: number, selectedTokenId: string | null = null, cameraScale?: number, turnTokenId: string | null = null): void {
     if (cameraScale !== undefined) lastCameraScale = cameraScale
     const currentIds = new Set(tokens.map((t) => t.id))
 
@@ -216,8 +257,10 @@ export function createTokensRenderer(): TokensRenderer {
         const ring = new Graphics()
         const label = new Text({ text: '', style: { fontSize: TOKEN_LABEL_FONT_SIZE, fill: 0xffffff } })
         label.anchor.set(0.5, 0)
-        wrapper.addChild(ring, label)
-        entry = { wrapper, sprite: null, photoMask: null, graphics: null, ring, label, loadedSrc: null, loadedData: null, loadedUrl: null, loadToken: 0 }
+        const marks = new Graphics()
+        marks.label = CONDITION_MARKS_LABEL
+        wrapper.addChild(ring, label, marks)
+        entry = { wrapper, sprite: null, photoMask: null, graphics: null, ring, bar: null, label, marks, loadedSrc: null, loadedData: null, loadedUrl: null, loadToken: 0 }
         cache.set(token.id, entry)
         container.addChild(wrapper)
       }
@@ -322,7 +365,6 @@ export function createTokensRenderer(): TokensRenderer {
         if (selected) {
           entry.ring.circle(0, 0, radius).stroke({ width: 4, color: SELECTION_COLOR })
         }
-        entry.label.position.set(0, radius + 2)
         outlineRadius = radius
       } else {
         const graphics = ensureGraphics(entry)
@@ -331,14 +373,29 @@ export function createTokensRenderer(): TokensRenderer {
         // Círculo genérico é simétrico hoje, mas gira igual ao sprite pra
         // não haver salto visual quando o token ganha/perde imagem depois.
         graphics.rotation = rotationToRadians(token.rotation)
-        entry.label.position.set(0, radius + 2)
         outlineRadius = radius
       }
+
+      // Barra de vida SOB o disco, e o nome logo abaixo dela. `readTokenHealth`
+      // porque o mapa do disco chega cru: vida com lixo não desenha barra.
+      const health = readTokenHealth(token.health)
+      syncHealthBar(entry, health, outlineRadius)
+      entry.label.position.set(0, tokenLabelTop(outlineRadius, health !== null))
 
       // hidden === "Oculto no editor" (organização de cena do mestre). Antes
       // o token sumia de vez e não havia como clicar nele para desfazer; agora
       // fica como fantasma (alpha baixo acima + contorno tracejado), clicável.
       if (ghost) strokeDashedCircle(entry.ring, outlineRadius)
+      // A ficha da vez: anel solto por fora de tudo (moldura e seleção), para
+      // ler de relance no meio do mapa sem esconder a seleção.
+      if (token.id === turnTokenId) {
+        entry.ring.circle(0, 0, outlineRadius + TURN_RING_GAP + TURN_RING_WIDTH / 2).stroke({ width: TURN_RING_WIDTH, color: TURN_RING_COLOR })
+      }
+
+      // Condição na ficha: pastilhas sentadas na borda de cima do disco que a
+      // pessoa vê (`outlineRadius`), por cima de tudo. Fantasma e "Oculto para
+      // jogadores" esmaecem a marca junto, pelo alpha do wrapper.
+      drawTokenConditions(entry.marks, tokenConditionsOf(token), outlineRadius, gridSize)
 
       entry.label.text = token.name
       applyLabelSizing(entry.label)

@@ -1,38 +1,61 @@
-import { VISION_RADIUS_MAX, VISION_RADIUS_MIN, VISION_RADIUS_STEP, type PlayerInfo } from '../net/hostSession'
+import { useEffect, useId, useRef, useState } from 'react'
+import { VISION_RADIUS_MAX, VISION_RADIUS_MIN, VISION_RADIUS_STEP, type HostWorld, type PlayerInfo } from '../net/hostSession'
 import type { RoomInfo, TunnelState } from '../net/hostBridge'
 import { PartySection, type PartySectionProps } from './PartySection'
+import { InitiativeSection, type InitiativeSectionProps } from './InitiativeSection'
+import { TableScreenSection, type TableScreenSectionProps } from './TableScreenSection'
+import { TravelLogSection, type TravelLogSectionProps } from './TravelLogSection'
 
 export interface RoomPanelToken {
   id: string
   name: string
+  /** Cena de FUNDO onde a ficha está; ausente = a cena aberta no editor. */
+  sceneName?: string
+  /** Ficha de NPC: fica fora dos botões de um clique (continua na lista). */
+  npc?: boolean
 }
 
 export interface RoomPanelProps {
   room: RoomInfo | null
   players: PlayerInfo[]
-  tokens: RoomPanelToken[]
   /**
-   * Fichas de TODAS as cenas da aventura, para dar nome ao "Remover …": o
-   * jogador que viajou tem a ficha numa cena de fundo, fora de `tokens` (que é
-   * só a cena aberta, a lista de atribuir). Ausente = `tokens`.
+   * Fichas de TODAS as cenas da aventura (`roomPanelTokensOf`): é daqui que
+   * saem os botões de atribuir, a lista e o nome do "Remover …" — o jogador
+   * que viajou tem a ficha numa cena de fundo.
    */
-  knownTokens?: RoomPanelToken[]
+  tokens: RoomPanelToken[]
   /** Seção "Grupo" (uma linha por jogador, "Ir lá" e "Mandar para…"). Ausente = sem a seção. */
   party?: PartySectionProps
+  /** Seção "Iniciativa" (ordem e vez). Ausente = sem a seção. Aparece com a sala aberta ou fechada. */
+  initiative?: InitiativeSectionProps
+  /** "Diário de viagens" (G15), logo abaixo do Grupo. Ausente = sem a seção (mapa solto: não há viagem). */
+  travelLog?: TravelLogSectionProps
   tunnel: TunnelState
-  onStart(): void
+  /**
+   * Retomar a mesa: quem tem ficha guardada ("Ana e Bruno"). Com isto, "Abrir
+   * sala" pergunta "Retomar a mesa?" antes de abrir. Ausente ou `null` = abre direto.
+   */
+  savedTableNames?: string | null
+  /** `resume`: "Retomar a mesa" (`true`) ou a sala de hoje (`false`). */
+  onStart(resume: boolean): void
   onStop(): void
   onStartTunnel(): void
   onStopTunnel(): void
   onAssign(playerId: string, tokenId: string): void
   onUnassign(playerId: string, tokenId: string): void
   onKick(clientId: string): void
+  /** "Guardar ficha" de quem está fora: a ficha sai do mapa até ele voltar. Ausente = sem o botão. */
+  onStoreTokens?(playerId: string): void
+  /** "Dispensar" quem está fora: o card sai. Ausente = sem o botão. */
+  onDismiss?(playerId: string): void
   onVisionRadiusChange(playerId: string, radius: number): void
   onRevealPlan(playerId: string): void
   onHidePlan(playerId: string): void
   /** Botão "Laser" ligado: arma o laser (independe de segurar L); o traço sai clicando no mapa. */
   laserOn?: boolean
   onToggleLaser?(): void
+  /** Seção "Tela da mesa" (link da TV e a cena que ela mostra). Ausente = sem a seção. */
+  table?: TableScreenSectionProps
 }
 
 export const PLAN_HINT = 'Revelar planta mostra paredes, salas e portas, sem os tokens. Zonas ocultas continuam escondidas.'
@@ -54,9 +77,59 @@ export function playerStatusLabel(player: PlayerInfo): string {
   return `${status} · ${player.connected ? 'conectado' : 'desconectado'}`
 }
 
+/**
+ * As fichas do painel, de todas as cenas: a cena aberta primeiro (sem nome de
+ * cena, é a que o mestre está vendo), depois as de fundo na ordem da aventura.
+ */
+export function roomPanelTokensOf(world: HostWorld): RoomPanelToken[] {
+  return [world.open, ...world.background].flatMap((scene) =>
+    scene.map.tokens.map((token) => ({
+      id: token.id,
+      name: token.name,
+      ...(scene === world.open ? {} : { sceneName: scene.name }),
+      ...(token.npc === true ? { npc: true } : {}),
+    })),
+  )
+}
+
 /** Tokens que ainda não pertencem a este jogador (candidatos a atribuir). */
 export function assignableTokens(tokens: RoomPanelToken[], player: PlayerInfo): RoomPanelToken[] {
   return tokens.filter((token) => !player.tokenIds.includes(token.id))
+}
+
+/** Dono de cada ficha que já tem dono: id da ficha → nome do jogador. */
+export function tokenOwners(players: PlayerInfo[]): Map<string, string> {
+  const owners = new Map<string, string>()
+  for (const player of players) for (const tokenId of player.tokenIds) owners.set(tokenId, player.name)
+  return owners
+}
+
+/** 0 = cena aberta, 1 = outra cena: a ficha que o mestre está vendo vem antes. */
+function sceneRank(token: RoomPanelToken): number {
+  return token.sceneName === undefined ? 0 : 1
+}
+
+/**
+ * Botões de um clique: só ficha SEM dono e que não é NPC, de qualquer cena.
+ * Ficha de outro jogador nunca vira um clique — o clique errado derrubaria
+ * quem está jogando; ela fica na lista, marcada, com confirmação.
+ */
+export function quickAssignTokens(tokens: RoomPanelToken[], owners: ReadonlyMap<string, string>): RoomPanelToken[] {
+  return tokens
+    .filter((token) => !owners.has(token.id) && token.npc !== true)
+    .sort((a, b) => sceneRank(a) - sceneRank(b))
+    .slice(0, QUICK_ASSIGN_MAX)
+}
+
+/** 0 = livre, 1 = NPC livre, 2 = de outro jogador. */
+function listRank(token: RoomPanelToken, owners: ReadonlyMap<string, string>): number {
+  if (owners.has(token.id)) return 2
+  return token.npc === true ? 1 : 0
+}
+
+/** Lista "Atribuir token": livres primeiro, depois NPC, por último as de outros jogadores. */
+export function assignListTokens(tokens: RoomPanelToken[], player: PlayerInfo, owners: ReadonlyMap<string, string>): RoomPanelToken[] {
+  return assignableTokens(tokens, player).sort((a, b) => listRank(a, owners) - listRank(b, owners) || sceneRank(a) - sceneRank(b))
 }
 
 /** Paleta das bolinhas da lista de atribuir: tons distintos e legíveis no tema escuro. */
@@ -72,9 +145,19 @@ export function tokenDotColor(tokenId: string): string {
   return TOKEN_DOT_COLORS[hash % TOKEN_DOT_COLORS.length]
 }
 
-/** Texto da opção: `<option>` nativo não aceita elemento filho, então a bolinha é um caractere. */
-export function assignOptionLabel(token: RoomPanelToken): string {
-  return `● ${token.name}`
+/** "Biblioteca · " para ficha de outra cena; nada para a da cena aberta. */
+function scenePrefix(token: RoomPanelToken): string {
+  return token.sceneName === undefined ? '' : `${token.sceneName} · `
+}
+
+/**
+ * Texto da opção: `<option>` nativo não aceita elemento filho, então a bolinha
+ * é um caractere. `owner`: quem joga com ela hoje ("Machado — de Bruno").
+ */
+export function assignOptionLabel(token: RoomPanelToken, owner?: string): string {
+  const npc = token.npc === true ? ' (NPC)' : ''
+  const ownedBy = owner === undefined ? '' : ` — de ${owner}`
+  return `● ${scenePrefix(token)}${token.name}${npc}${ownedBy}`
 }
 
 /**
@@ -86,7 +169,7 @@ export const QUICK_ASSIGN_MAX = 6
 
 /** Nome acessível do botão de um clique; é por ele que o mestre e o teste acham o token. */
 export function quickAssignLabel(token: RoomPanelToken): string {
-  return `Atribuir ${token.name}`
+  return `${scenePrefix(token)}Atribuir ${token.name}`
 }
 
 /** Nome da ficha para o botão "Remover …"; o id só quando ela não existe em cena nenhuma. */
@@ -174,13 +257,185 @@ function TunnelSection({ tunnel, onStartTunnel, onStopTunnel }: Pick<RoomPanelPr
   )
 }
 
+interface AssignControlsProps {
+  player: PlayerInfo
+  tokens: RoomPanelToken[]
+  owners: ReadonlyMap<string, string>
+  onAssign(playerId: string, tokenId: string): void
+}
+
+/**
+ * Dar ficha a um jogador: botões de um clique (só fichas livres, de qualquer
+ * cena) para quem espera e a lista com todas. Escolher a ficha de OUTRO
+ * jogador não atribui na hora: abre a confirmação no próprio card, com o
+ * foco em Cancelar — o engano não derruba quem está jogando.
+ */
+function AssignControls({ player, tokens, owners, onAssign }: AssignControlsProps) {
+  const [pendingId, setPendingId] = useState<string | null>(null)
+  const selectRef = useRef<HTMLSelectElement>(null)
+  const selectId = `lb-room-assign-${player.playerId}`
+  const confirmTextId = `lb-room-confirm-${player.playerId}`
+  const waiting = player.status === 'waiting'
+  const quick = waiting ? quickAssignTokens(tokens, owners) : []
+  const list = assignListTokens(tokens, player, owners)
+  const pending = pendingId === null ? undefined : list.find((token) => token.id === pendingId)
+  // A ficha pode ter mudado de mãos enquanto o mestre lia: sem dono agora, não há o que confirmar.
+  const pendingOwner = pending === undefined ? undefined : owners.get(pending.id)
+
+  const closeConfirm = () => {
+    setPendingId(null)
+    selectRef.current?.focus()
+  }
+  const pick = (tokenId: string) => {
+    if (owners.has(tokenId)) setPendingId(tokenId)
+    else onAssign(player.playerId, tokenId)
+  }
+
+  return (
+    <>
+      {waiting && quick.length > 0 && (
+        <>
+          {/* Quem aguarda está numa tela parada: dar personagem é UM clique, sem abrir lista. */}
+          <span className="lb-label">Sem personagem — atribua em um clique</span>
+          {quick.map((token) => (
+            <button key={token.id} type="button" className="lb-btn lb-btn--primary" onClick={() => onAssign(player.playerId, token.id)}>
+              <span aria-hidden="true" style={{ color: tokenDotColor(token.id) }}>
+                ●{' '}
+              </span>
+              {quickAssignLabel(token)}
+            </button>
+          ))}
+        </>
+      )}
+      {waiting && quick.length === 0 && list.length > 0 && <span className="lb-label">Nenhuma ficha livre — escolha na lista abaixo.</span>}
+      <label className="lb-label" htmlFor={selectId}>
+        Atribuir token
+      </label>
+      <select
+        ref={selectRef}
+        id={selectId}
+        className="lb-input"
+        value=""
+        onChange={(event) => {
+          if (event.target.value !== '') pick(event.target.value)
+        }}
+      >
+        <option value="">Escolher…</option>
+        {list.map((token) => (
+          <option key={token.id} value={token.id} style={{ color: tokenDotColor(token.id) }}>
+            {assignOptionLabel(token, owners.get(token.id))}
+          </option>
+        ))}
+      </select>
+      {pending !== undefined && pendingOwner !== undefined && (
+        <div
+          role="alertdialog"
+          aria-modal="false"
+          aria-labelledby={confirmTextId}
+          className="lb-room__confirm"
+          onKeyDown={(event) => {
+            if (event.key !== 'Escape') return
+            // Esc é desta confirmação: não chega aos atalhos do editor.
+            event.stopPropagation()
+            closeConfirm()
+          }}
+        >
+          <p id={confirmTextId}>
+            {pending.name} é de {pendingOwner}. Dar a {player.name} tira a ficha de {pendingOwner}.
+          </p>
+          <button
+            type="button"
+            className="lb-btn lb-btn--danger"
+            onClick={() => {
+              onAssign(player.playerId, pending.id)
+              closeConfirm()
+            }}
+          >
+            Dar a {player.name}
+          </button>
+          {/* Foco começa no botão seguro (convenção de confirmação destrutiva). */}
+          <button type="button" className="lb-btn lb-btn--ghost" autoFocus onClick={closeConfirm}>
+            Cancelar
+          </button>
+        </div>
+      )}
+    </>
+  )
+}
+
+/**
+ * "Abrir sala". Com mesa guardada, o botão vira a pergunta "Retomar a mesa?"
+ * no próprio painel: Retomar devolve as fichas pelo nome, "Mesa nova" é a sala
+ * de hoje, "Voltar" desiste sem abrir nada.
+ */
+function OpenRoom({ savedTableNames, onStart }: Pick<RoomPanelProps, 'savedTableNames' | 'onStart'>) {
+  const [asking, setAsking] = useState(false)
+  const resumeRef = useRef<HTMLButtonElement>(null)
+  const openRef = useRef<HTMLButtonElement>(null)
+  /** "Voltar" devolve o foco ao "Abrir sala"; a primeira montagem não rouba foco de ninguém. */
+  const backRef = useRef(false)
+  const titleId = useId()
+  useEffect(() => {
+    // O foco segue a pergunta: quem abriu pelo teclado responde sem caçar o botão.
+    if (asking) resumeRef.current?.focus()
+    else if (backRef.current) {
+      backRef.current = false
+      openRef.current?.focus()
+    }
+  }, [asking])
+
+  if (!asking || savedTableNames === undefined || savedTableNames === null) {
+    return (
+      <button
+        ref={openRef}
+        type="button"
+        className="lb-btn lb-btn--primary lb-btn--block"
+        onClick={() => {
+          if (savedTableNames === undefined || savedTableNames === null) onStart(false)
+          else setAsking(true)
+        }}
+      >
+        Abrir sala
+      </button>
+    )
+  }
+  const answer = (resume: boolean) => {
+    setAsking(false)
+    onStart(resume)
+  }
+  return (
+    <div className="lb-field" role="group" aria-labelledby={titleId}>
+      <strong id={titleId}>Retomar a mesa?</strong>
+      <p className="lb-label">Quem voltar com o mesmo nome reencontra a própria ficha: {savedTableNames}.</p>
+      <button ref={resumeRef} type="button" className="lb-btn lb-btn--primary lb-btn--block" onClick={() => answer(true)}>
+        Retomar a mesa
+      </button>
+      <button type="button" className="lb-btn lb-btn--block" onClick={() => answer(false)}>
+        Mesa nova
+      </button>
+      <button
+        type="button"
+        className="lb-btn lb-btn--ghost lb-btn--block"
+        onClick={() => {
+          backRef.current = true
+          setAsking(false)
+        }}
+      >
+        Voltar
+      </button>
+    </div>
+  )
+}
+
 export function RoomPanel({
   room,
   players,
   tokens,
-  knownTokens,
   party,
+  initiative,
+  travelLog,
   tunnel,
+  savedTableNames,
   onStart,
   onStop,
   onStartTunnel,
@@ -188,23 +443,27 @@ export function RoomPanel({
   onAssign,
   onUnassign,
   onKick,
+  onStoreTokens,
+  onDismiss,
   onVisionRadiusChange,
   onRevealPlan,
   onHidePlan,
   laserOn = false,
   onToggleLaser,
+  table,
 }: RoomPanelProps) {
   const waitingCount = players.filter((player) => player.status === 'waiting' && player.connected).length
+  const owners = tokenOwners(players)
   return (
     <section className="lb-panel lb-section lb-room lb-scroll">
       <h2 className="lb-eyebrow">Sala</h2>
 
       {room === null ? (
         <>
-          <button type="button" className="lb-btn lb-btn--primary lb-btn--block" onClick={onStart}>
-            Abrir sala
-          </button>
+          <OpenRoom savedTableNames={savedTableNames} onStart={onStart} />
           <FirewallHint />
+          {/* Combate sem jogador na rede também tem ordem: a seção não espera a sala. */}
+          {initiative !== undefined && <InitiativeSection {...initiative} />}
         </>
       ) : (
         <>
@@ -220,6 +479,11 @@ export function RoomPanel({
           {/* O grupo vem antes do resto: é o que o mestre consulta a cada cena, o resto é de montar a sala. */}
           {party !== undefined && party.members.length > 0 && <PartySection {...party} />}
 
+          {/* Iniciativa logo depois do Grupo: no combate é o que o mestre toca a cada vez. */}
+          {initiative !== undefined && <InitiativeSection {...initiative} />}
+
+          {travelLog !== undefined && <TravelLogSection {...travelLog} />}
+
           {onToggleLaser !== undefined && (
             <div className="lb-field">
               <button type="button" className={laserOn ? 'lb-btn lb-btn--primary lb-btn--block' : 'lb-btn lb-btn--block'} aria-pressed={laserOn} onClick={onToggleLaser}>
@@ -228,6 +492,8 @@ export function RoomPanel({
               <p className="lb-label">{LASER_HINT}</p>
             </div>
           )}
+
+          {table !== undefined && <TableScreenSection {...table} />}
 
           <TunnelSection tunnel={tunnel} onStartTunnel={onStartTunnel} onStopTunnel={onStopTunnel} />
 
@@ -246,10 +512,8 @@ export function RoomPanel({
           {players.length === 0 && <p className="lb-label">Nenhum jogador ainda.</p>}
           {waitingCount > 0 && <p className="lb-label">{waitingLabel(waitingCount)}</p>}
           {waitingFirst(players).map((player) => {
-            const selectId = `lb-room-assign-${player.playerId}`
             const radiusId = `lb-room-vision-${player.playerId}`
             const clientId = player.clientId
-            const assignable = assignableTokens(tokens, player)
             return (
               <div key={player.playerId} className="lb-field">
                 <span className="lb-label">
@@ -259,46 +523,10 @@ export function RoomPanel({
                 </span>
                 {player.tokenIds.map((tokenId) => (
                   <button key={tokenId} type="button" className="lb-btn lb-btn--ghost" onClick={() => onUnassign(player.playerId, tokenId)}>
-                    Remover {tokenName(knownTokens ?? tokens, tokenId)}
+                    Remover {tokenName(tokens, tokenId)}
                   </button>
                 ))}
-                {player.status === 'waiting' && assignable.length > 0 && (
-                  <>
-                    {/* Quem aguarda está numa tela parada: dar personagem é UM clique, sem abrir lista. */}
-                    <span className="lb-label">Sem personagem — atribua em um clique</span>
-                    {assignable.slice(0, QUICK_ASSIGN_MAX).map((token) => (
-                      <button
-                        key={token.id}
-                        type="button"
-                        className="lb-btn lb-btn--primary"
-                        onClick={() => onAssign(player.playerId, token.id)}
-                      >
-                        <span aria-hidden="true" style={{ color: tokenDotColor(token.id) }}>
-                          ●{' '}
-                        </span>
-                        {quickAssignLabel(token)}
-                      </button>
-                    ))}
-                  </>
-                )}
-                <label className="lb-label" htmlFor={selectId}>
-                  Atribuir token
-                </label>
-                <select
-                  id={selectId}
-                  className="lb-input"
-                  value=""
-                  onChange={(event) => {
-                    if (event.target.value !== '') onAssign(player.playerId, event.target.value)
-                  }}
-                >
-                  <option value="">Escolher…</option>
-                  {assignable.map((token) => (
-                    <option key={token.id} value={token.id} style={{ color: tokenDotColor(token.id) }}>
-                      {assignOptionLabel(token)}
-                    </option>
-                  ))}
-                </select>
+                <AssignControls player={player} tokens={tokens} owners={owners} onAssign={onAssign} />
                 <div className="lb-section__row">
                   <label className="lb-label" htmlFor={radiusId}>
                     Raio de visão
@@ -325,6 +553,20 @@ export function RoomPanel({
                 {clientId !== null && (
                   <button type="button" className="lb-btn lb-btn--danger" onClick={() => onKick(clientId)}>
                     Expulsar
+                  </button>
+                )}
+                {/* Quem foi embora: a ficha dele não pode ficar no corredor para sempre, nem o card na lista. */}
+                {clientId === null && player.storedTokenNames !== undefined && player.storedTokenNames.length > 0 && (
+                  <p className="lb-label">Ficha guardada: {player.storedTokenNames.join(', ')}. Volta ao mapa quando {player.name} voltar.</p>
+                )}
+                {clientId === null && onStoreTokens !== undefined && player.tokenIds.length > 0 && (
+                  <button type="button" className="lb-btn lb-btn--ghost" onClick={() => onStoreTokens(player.playerId)}>
+                    Guardar ficha
+                  </button>
+                )}
+                {clientId === null && onDismiss !== undefined && (
+                  <button type="button" className="lb-btn lb-btn--danger" onClick={() => onDismiss(player.playerId)}>
+                    Dispensar
                   </button>
                 )}
               </div>

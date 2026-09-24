@@ -12,6 +12,7 @@ import { WallDoorControls, type WallDoorControlsProps } from './WallDoorControls
 import { DoorKindControls, type DoorKindControlsProps } from './DoorKindControls'
 import { DoorModeControls, type DoorModeControlsProps } from './DoorModeControls'
 import type { ScenarioLinkControlsProps } from './ScenarioLinkControls'
+import type { MovementControlsProps } from './MovementControls'
 import { TextLabelControls, type TextLabelControlsProps } from './TextLabelControls'
 import { RegionJoinField, RegionSmoothButton, RegionStyleControls, type RegionStyleControlsProps } from './RegionStyleControls'
 import { AdvancedField, AdvancedSection } from './AdvancedSection'
@@ -23,23 +24,36 @@ import { selectedTokenColor } from '../lib/tokenColor'
 import { TokenNameControls, type TokenNameControlsProps } from './TokenNameControls'
 import { TokenColorControls, type TokenColorControlsProps } from './TokenColorControls'
 import { TokenSizeControls, type TokenSizeControlsProps } from './TokenSizeControls'
+import { TokenNpcControls, type TokenNpcControlsProps } from './TokenNpcControls'
+import { TokenCarryControls } from './TokenCarryControls'
+import type { TokenCarryWiring } from '../lib/party'
+import { TokenHealthControls, type TokenHealthControlsProps } from './TokenHealthControls'
 import { selectedTokenSize } from '../lib/tokenSize'
+import { readTokenHealth } from '../lib/tokenHealth'
+import { TokenConditionControls, type TokenConditionControlsProps } from './TokenConditionControls'
+import { tokenConditionsOf } from '../lib/tokenConditions'
+import { TokenWatchControls, type TokenWatchControlsProps } from './TokenWatchControls'
+import { readTokenWatch } from '../lib/npcWatch'
 import { LightControls, type LightControlsProps } from './LightControls'
+import { TokenLightsControls, type TokenLightsControlsProps } from './TokenLightsControls'
 import { WallLineStyleField, WallStyleControls, type WallStyleControlsProps } from './WallStyleControls'
 import { StairControls, type StairControlsProps } from './StairControls'
 import { RoomControls, type RoomControlsProps } from './RoomControls'
 import type { MapScaleControlsProps } from './MapScaleControls'
 import type { GridAlignControlsProps } from './GridAlignControls'
+import type { MapSizeControlsProps } from './MapSizeControls'
 import { ItemTransformControls, type ItemTransformControlsProps } from './ItemTransformControls'
 import { ToolPropertiesSection } from './ToolPropertiesSection'
 import { LineCapControls, type LineCapControlsProps } from './LineCapControls'
 import { LineShapeControls, type LineShapeControlsProps } from './LineShapeControls'
 import { FillControls, type FillControlsProps } from './FillControls'
-import { AreaSelectionControls } from './AreaSelectionControls'
+import { AreaSelectionControls, type AreaSelectionControlsProps } from './AreaSelectionControls'
+import { AlignDistributeControls, type AlignDistributeControlsProps } from './AlignDistributeControls'
 import { FloorPieceControls, type FloorPieceControlsProps } from './FloorPieceControls'
 import { FloorStyleControls, type FloorStyleControlsProps } from './FloorStyleControls'
 import { PlayerSecretControls, type PlayerSecretControlsProps } from './PlayerSecretControls'
 import { ConcealZoneControls, type ConcealZoneControlsProps } from './ConcealZoneControls'
+import { ConcealBrushControls, type ConcealBrushControlsProps } from './ConcealBrushControls'
 import { PinControls, type PinControlsProps } from './PinControls'
 import { PinIconControls, type PinIconControlsProps } from './PinIconControls'
 import { TokenLibraryPanel, type TokenLibraryPanelProps } from './TokenLibraryPanel'
@@ -48,16 +62,19 @@ import { roomRotationOf } from '../lib/roomRotation'
 import { DEFAULT_TEXT_FONT_FAMILY } from '../lib/drawingFactory'
 import { panelHeadingTool, type PropertyGroupId } from '../lib/toolProperties'
 import { TOOL_LABELS } from './labels'
-import type { AreaSelection } from '../lib/areaSelection'
 import type { ReactNode } from 'react'
 
 interface PropertiesPanelProps {
   /** Seção "Cenas" da aventura, montada por quem sabe da aventura (App). */
   scenes?: ReactNode
+  /** Seção "Objetos do mapa" (busca e "Ir até lá"), montada pelo App, que sabe da câmera e da seleção. */
+  objects?: ReactNode
   mapName: string
   mapWidth: number
   mapHeight: number
   mapGrid: number
+  /** Troca o tamanho do mapa em quadros ("Configurações do mapa > Tamanho do mapa"). */
+  onMapSizeApply: MapSizeControlsProps['onApply']
   activeTool: DrawingTool
   /** F4 (integrador I8) — N2 "painel contextual": saída de
    *  `relevantPropertyGroups` (lib/toolProperties.ts), computada em App.tsx a
@@ -77,7 +94,9 @@ interface PropertiesPanelProps {
   /** F4 — N2 "tirar o fundo" (Região/Sala e forma preenchível selecionada). */
   fill: FillControlsProps
   /** F4 — N3 "ferramenta de seleção de área". */
-  areaSelection: { selection: AreaSelection | null; onClear: () => void }
+  areaSelection: AreaSelectionControlsProps
+  /** Alinhar e distribuir os itens selecionados (aparece com 2+ itens). */
+  alignDistribute: AlignDistributeControlsProps
   drawingStyle: DrawingStyleControlsProps
   /** Cor e largura do PRÓXIMO caminho (ferramenta "Caminho"). */
   pathStyle: PathStyleControlsProps
@@ -87,6 +106,8 @@ interface PropertiesPanelProps {
   layers: LayersPanelProps
   selection: SelectionControlsProps
   scenarioLink: ScenarioLinkControlsProps
+  /** "Movimento dos jogadores" na janela Configurações do mapa; ausente, a seção não aparece. */
+  movement?: MovementControlsProps
   selectedWall: Wall | null
   wallDoor: Omit<WallDoorControlsProps, 'door'>
   doorKind: DoorKindControlsProps
@@ -99,13 +120,29 @@ interface PropertiesPanelProps {
   /** F3, contrato do agente C4 — rotação/travar/ocultar do Objeto selecionado. */
   propTransform: Omit<ItemTransformControlsProps, 'title' | 'rotation' | 'locked' | 'hidden' | 'secret'>
   selectedToken: Token | null
-  tokenName: Omit<TokenNameControlsProps, 'name'>
+  tokenName: Omit<TokenNameControlsProps, 'name' | 'publicName'>
   tokenImage: Omit<TokenImageControlsProps, 'image'>
   /** Cor da ficha selecionada — separa aliado de inimigo no meio da luta. */
   tokenColor: Omit<TokenColorControlsProps, 'color'>
   /** Tamanho da ficha em QUADRADOS da grade — para o dragão não ficar do
    *  tamanho do rato. */
   tokenSize: Omit<TokenSizeControlsProps, 'size'>
+  /** Marca de NPC — tira a ficha dos botões "Atribuir" de um clique do painel da sala. */
+  tokenNpc: Omit<TokenNpcControlsProps, 'npc'>
+  /**
+   * "Levar para…" da ficha sem dono (NPC, monstro) para outra cena. Ausente =
+   * sem o controle (quem monta o painel sem aventura).
+   */
+  tokenCarry?: TokenCarryWiring
+  /** Tocha presa (ou luz solta sob a ficha): o clique no mapa pega a ficha,
+   *  então o caminho para a luz é pelo painel da ficha. */
+  tokenLights: TokenLightsControlsProps
+  /** Vida da ficha selecionada — a barra fina sob ela no mapa. */
+  tokenHealth: Omit<TokenHealthControlsProps, 'health'>
+  /** Condições da ficha selecionada (envenenado, caído...) — marcadas no meio da luta. */
+  tokenCondition: Omit<TokenConditionControlsProps, 'conditions'>
+  /** OLHOS DO GUARDA: liga a vigia da ficha de NPC e diz como ela olha. */
+  tokenWatch: Omit<TokenWatchControlsProps, 'watch'>
   /** F3, contrato do agente C4 — rotação/travar/ocultar do Token selecionado. */
   tokenTransform: Omit<ItemTransformControlsProps, 'title' | 'rotation' | 'locked' | 'hidden' | 'secret'>
   selectedTextLabel: Extract<Drawing, { kind: 'text' }> | null
@@ -119,10 +156,10 @@ interface PropertiesPanelProps {
   regionStyle: RegionStyleControlsProps
   room: Omit<
     RoomControlsProps,
-    'name' | 'shape' | 'axisAligned' | 'width' | 'height' | 'rotation' | 'locked' | 'nameHiddenFromPlayers' | 'roof'
+    'name' | 'shape' | 'axisAligned' | 'width' | 'height' | 'rotation' | 'locked' | 'nameHiddenFromPlayers' | 'roof' | 'textoAoEntrar' | 'notaDoMestre'
   >
   selectedLight: Light | null
-  lightControls: Omit<LightControlsProps, 'color' | 'intensity'>
+  lightControls: Omit<LightControlsProps, 'color' | 'intensity' | 'attachedTokenId'>
   selectedStair: Stair | null
   stairControls: Omit<StairControlsProps, 'direction'>
   polygonSides: PolygonSidesControlsProps
@@ -135,6 +172,8 @@ interface PropertiesPanelProps {
   playerSecret: PlayerSecretControlsProps | null
   /** A5 — zona oculta aberta no painel; `null` = nenhuma. */
   concealZone: ConcealZoneControlsProps | null
+  /** Pincel de revelar: "Revelar | Esconder" e a largura do próximo traço. */
+  concealBrush: ConcealBrushControlsProps
   /** Ponto de interesse: tipo do próximo pino, ou o pino aberto no painel. */
   pin: PinControlsProps
   /** Ícone do ponto de interesse — mesmo par de estados de `pin`. */
@@ -151,16 +190,19 @@ interface PropertiesPanelProps {
  */
 export function PropertiesPanel({
   scenes,
+  objects,
   mapName,
   mapWidth,
   mapHeight,
   mapGrid,
+  onMapSizeApply,
   activeTool,
   groups,
   lineCap,
   lineShape,
   fill,
   areaSelection,
+  alignDistribute,
   drawingStyle,
   pathStyle,
   grid,
@@ -169,6 +211,7 @@ export function PropertiesPanel({
   layers,
   selection,
   scenarioLink,
+  movement,
   selectedWall,
   wallDoor,
   doorKind,
@@ -182,6 +225,12 @@ export function PropertiesPanel({
   tokenImage,
   tokenColor,
   tokenSize,
+  tokenNpc,
+  tokenCarry,
+  tokenLights,
+  tokenHealth,
+  tokenCondition,
+  tokenWatch,
   tokenTransform,
   selectedTextLabel,
   textLabel,
@@ -199,6 +248,7 @@ export function PropertiesPanel({
   floorStyle,
   playerSecret,
   concealZone,
+  concealBrush,
   pin,
   pinIcon,
   pinSelected,
@@ -234,7 +284,14 @@ export function PropertiesPanel({
             {mapName} · {mapWidth}×{mapHeight} · {mapGrid}px
           </span>
         </span>
-        <MapSettingsButton grid={grid} gridAlign={gridAlign} mapScale={mapScale} scenarioLink={scenarioLink} />
+        <MapSettingsButton
+          grid={grid}
+          gridAlign={gridAlign}
+          mapScale={mapScale}
+          scenarioLink={scenarioLink}
+          movement={movement}
+          mapSize={{ width: mapWidth, height: mapHeight, onApply: onMapSizeApply }}
+        />
       </header>
 
       <div className="lb-inspector__body lb-scroll">
@@ -266,6 +323,8 @@ export function PropertiesPanel({
               locked={!!selectedRegion.locked}
               nameHiddenFromPlayers={!!selectedRegion.room.nameHiddenFromPlayers}
               roof={!!selectedRegion.room.roof}
+              textoAoEntrar={selectedRegion.room.textoAoEntrar ?? ''}
+              notaDoMestre={selectedRegion.room.notaDoMestre ?? ''}
               {...room}
             />
           </ToolPropertiesSection>
@@ -275,6 +334,9 @@ export function PropertiesPanel({
             <ConcealZoneControls {...concealZone} />
           </ToolPropertiesSection>
         )}
+        <ToolPropertiesSection group="revealBrush" groups={groups}>
+          <ConcealBrushControls {...concealBrush} />
+        </ToolPropertiesSection>
         {/* Perto do topo pelo mesmo motivo da Sala: descrição e imagem são o
             que o mestre quer mexer logo depois de cravar o pino. */}
         <ToolPropertiesSection group="pin" groups={groups}>
@@ -402,17 +464,46 @@ export function PropertiesPanel({
         )}
         {selectedToken && (
           <ToolPropertiesSection group="tokenImage" groups={groups}>
-            <TokenNameControls name={selectedToken.name} {...tokenName} />
-            {/* Logo depois do nome: quem acabou de criar "Dragão" quer dizer
-                em seguida que ele é grande — e o tamanho manda no que a peça
-                cobre na grade, então vem antes da aparência (cor, foto). */}
+            <TokenNameControls key={selectedToken.id} name={selectedToken.name} publicName={selectedToken.publicName} {...tokenName} />
+            {/* Vida logo abaixo do nome: é o campo que o mestre mexe a cada
+                golpe no meio da luta, e não pode morar embaixo da dobra.
+                `key` pela ficha: número digitado e não confirmado vai para a
+                ficha DO CAMPO, não para a que o clique no mapa acabou de
+                escolher (ver `HealthField`). Prefixada: o nome acima já usa o
+                id puro, e chave repetida entre irmãos deixa o campo anterior. */}
+            <TokenHealthControls key={`vida-${selectedToken.id}`} health={readTokenHealth(selectedToken.health)} {...tokenHealth} />
+            {/* Logo depois do nome e da vida: quem acabou de criar "Dragão"
+                quer dizer em seguida que ele é grande — e o tamanho manda no
+                que a peça cobre na grade, então vem antes da aparência (cor, foto). */}
             <TokenSizeControls size={selectedTokenSize(selectedToken)} {...tokenSize} />
+            {/* Entre quem a ficha é (nome, tamanho) e como ela se parece (cor,
+                foto): a condição é o controle de MESA, mexido a cada rodada, e
+                fica à vista sem rolar. Cor e foto são de preparação. */}
+            <TokenConditionControls conditions={tokenConditionsOf(selectedToken)} {...tokenCondition} />
+            {/* Vigia logo depois da condição: também é controle de MESA (o
+                guarda vira para a porta no meio da cena), não de preparação. */}
+            <TokenWatchControls watch={readTokenWatch(selectedToken.vigia)} {...tokenWatch} />
             {/* Antes da imagem: a cor é o caminho de um clique, a foto é o de
                 abrir o disco. Quem só quer separar aliado de inimigo não
                 precisa passar pelo controle caro para chegar no barato. */}
             <TokenColorControls color={selectedTokenColor(selectedToken)} {...tokenColor} />
             {/* `tokenPhotoRef`: foto escolhida pelo JOGADOR vive em `imageData` — sem isto o painel ofereceria "Escolher imagem..." num token que já tem foto. */}
             <TokenImageControls image={tokenPhotoRef(selectedToken)} {...tokenImage} />
+            <TokenNpcControls npc={selectedToken.npc === true} {...tokenNpc} />
+            {/* `key`: outra ficha selecionada reabre fechado, sem a escolha da anterior.
+                Prefixada: o nome acima já usa o id puro, e chave repetida entre
+                irmãos deixa o campo Nome da ficha anterior no painel. */}
+            {tokenCarry !== undefined && (
+              <TokenCarryControls
+                key={`levar-${selectedToken.id}`}
+                tokenName={selectedToken.name}
+                destinations={tokenCarry.destinations}
+                owned={tokenCarry.ownedTokenIds.has(selectedToken.id)}
+                onCarry={(sceneId, pinId) => tokenCarry.onCarry(selectedToken.id, sceneId, pinId)}
+              />
+            )}
+            <TokenLightsControls {...tokenLights} />
+
           </ToolPropertiesSection>
         )}
         {selectedToken && (
@@ -429,7 +520,12 @@ export function PropertiesPanel({
         )}
         {selectedLight && (
           <ToolPropertiesSection group="lightControls" groups={groups}>
-            <LightControls color={selectedLight.color} intensity={selectedLight.intensity} {...lightControls} />
+            <LightControls
+              color={selectedLight.color}
+              intensity={selectedLight.intensity}
+              attachedTokenId={selectedLight.attachedTokenId ?? null}
+              {...lightControls}
+            />
           </ToolPropertiesSection>
         )}
         {selectedStair && (
@@ -438,7 +534,8 @@ export function PropertiesPanel({
           </ToolPropertiesSection>
         )}
         <ToolPropertiesSection group="selection" groups={groups}>
-          <AreaSelectionControls selection={areaSelection.selection} onClear={areaSelection.onClear} />
+          <AreaSelectionControls {...areaSelection} />
+          <AlignDistributeControls {...alignDistribute} />
           <SelectionControls {...selection} />
         </ToolPropertiesSection>
         {/* Cenas da aventura: depois do bloco da ferramenta e do objeto, junto das
@@ -446,6 +543,11 @@ export function PropertiesPanel({
             que é o nome do que está na mão ou do que acabou de ser desenhado
             (task-jornada-sala-livre.spec.ts, teste 3). */}
         {scenes}
+        {/* Os objetos DA cena aberta, logo abaixo das cenas. Sem grupo de
+            ferramenta: é navegação, como as Cenas, e nasce recolhida — com uma
+            ferramenta de desenho na mão ela é só uma linha de título. Antes de
+            "Chão do mapa": Camadas continua o último título da coluna. */}
+        {objects}
         <ToolPropertiesSection group="floorStyle" groups={groups}>
           {/* "Chão do mapa", não "Chão": o botão da ferramenta na barra já se
               chama "Chão" e dois botões com o mesmo nome confundem leitor de

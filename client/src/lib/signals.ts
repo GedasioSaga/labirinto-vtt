@@ -15,7 +15,7 @@ export const SIGNAL_LONG_PRESS_TOLERANCE_PX = 6
 export const MAX_ACTIVE_SIGNALS = 32
 
 /** Mesmos tons da lista de atribuir (legíveis no tema escuro), aqui por jogador. */
-const SIGNAL_COLORS = ['#e57373', '#64b5f6', '#81c784', '#ffd54f', '#ba68c8', '#4dd0e1', '#ff8a65', '#a1887f']
+export const SIGNAL_COLORS: readonly string[] = ['#e57373', '#64b5f6', '#81c784', '#ffd54f', '#ba68c8', '#4dd0e1', '#ff8a65', '#a1887f']
 
 /** Cor estável por jogador (hash do id): o mesmo jogador sinaliza sempre com a mesma cor. */
 export function signalColor(playerId: string): string {

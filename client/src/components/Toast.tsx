@@ -1,6 +1,7 @@
-import { useLayoutEffect, useRef } from 'react'
-import type { ToastMessage } from '../stores/toastStore'
-import { agruparAvisos, deixarTodos, tituloDaCaixa } from './caixaDeAvisos'
+import { createContext, useContext, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import type { FormEvent } from 'react'
+import type { ToastMessage, ToastResposta } from '../stores/toastStore'
+import { agruparAvisos, deixarTodos, temRespostaEmLote, tituloDaCaixa } from './caixaDeAvisos'
 import './Toast.css'
 
 interface ToastProps {
@@ -36,23 +37,54 @@ interface ToastProps {
  * some sem resposta.
  *
  * Avisos de mesmo `grupo` (os pedidos de passagem), dois ou mais, viram UMA
- * caixa — ver `CaixaDeAvisos` e a regra em `caixaDeAvisos.ts`.
+ * caixa — ver `CaixaDeAvisos` e a regra em `caixaDeAvisos.ts`. O pedido da
+ * porta trancada (`sempreEmCaixa`) abre a caixa mesmo sozinho: "Pedidos (1)".
  */
 export function Toast({ toasts, onDismiss }: ToastProps) {
+  // Mora aqui, e não na linha: a linha é desmontada quando a pilha troca de forma.
+  const [respostasEmCurso] = useState(() => new Map<string, RespostaEmCurso>())
+
+  // Aviso que saiu da pilha (respondido, apagado pelo mestre ou pelo jogador) leva junto o rascunho.
+  useEffect(() => {
+    const presentes = new Set(toasts.map((toast) => toast.id))
+    for (const id of respostasEmCurso.keys()) if (!presentes.has(id)) respostasEmCurso.delete(id)
+  }, [toasts, respostasEmCurso])
+
   if (toasts.length === 0) return null
 
   return (
-    <div className="lb-toaststack">
-      {agruparAvisos(toasts).map((item) =>
-        item.tipo === 'aviso' ? (
-          <AvisoSolto key={item.toast.id} toast={item.toast} onDismiss={onDismiss} />
-        ) : (
-          <CaixaDeAvisos key={`grupo:${item.grupo}`} grupo={item.grupo} toasts={item.toasts} onDismiss={onDismiss} />
-        ),
-      )}
-    </div>
+    <RespostasEmCurso.Provider value={respostasEmCurso}>
+      <div className="lb-toaststack">
+        {agruparAvisos(toasts).map((item) =>
+          item.tipo === 'aviso' ? (
+            <AvisoSolto key={item.toast.id} toast={item.toast} onDismiss={onDismiss} />
+          ) : (
+            <CaixaDeAvisos key={`grupo:${item.grupo}`} grupo={item.grupo} toasts={item.toasts} onDismiss={onDismiss} />
+          ),
+        )}
+      </div>
+    </RespostasEmCurso.Provider>
   )
 }
+
+/**
+ * A resposta que o mestre está escrevendo num aviso, guardada pelo `id` do
+ * aviso. Um chamado sozinho é aviso solto; dois ou mais viram a caixa — e a
+ * troca desmonta a linha inteira (outro componente, outra chave). Sem isto o
+ * campo aberto fechava, o texto se perdia e o foco caía no `body` a cada
+ * chamado que chegava ou saía enquanto o mestre escrevia.
+ */
+interface RespostaEmCurso {
+  rascunho: string
+  /** O campo tinha o foco quando a linha saiu da tela: a linha nova o devolve. */
+  focado: boolean
+}
+
+/**
+ * Valor padrão só para `RespostaNoAviso` fora de um `Toast`, o que não
+ * acontece: o `Toast` sempre fornece o mapa dele.
+ */
+const RespostasEmCurso = createContext(new Map<string, RespostaEmCurso>())
 
 interface AvisoSoltoProps {
   toast: ToastMessage
@@ -64,26 +96,8 @@ function AvisoSolto({ toast, onDismiss }: AvisoSoltoProps) {
     <div role={toast.kind === 'info' ? 'status' : 'alert'} className={`lb-panel lb-toast lb-toast--${toast.kind}`}>
       <div className="lb-toast__body">
         <span className="lb-toast__text">{toast.text}</span>
-        {toast.actions !== undefined && (
-          <div className="lb-toast__actions">
-            {toast.actions.map((action, index) => (
-              <button
-                key={action.label}
-                type="button"
-                // O primeiro botão é a resposta esperada; os outros, a alternativa.
-                className={index === 0 ? 'lb-btn lb-btn--primary' : 'lb-btn lb-btn--ghost'}
-                onClick={() => {
-                  // Tira da tela ANTES de agir: a ação pode empilhar outro
-                  // aviso, e a pergunta respondida não pode ficar clicável.
-                  onDismiss(toast.id)
-                  action.run()
-                }}
-              >
-                {action.label}
-              </button>
-            ))}
-          </div>
-        )}
+        {/* O primeiro botão é a resposta esperada; os outros, a alternativa. */}
+        <BotoesDoAviso toast={toast} classeDoPrimeiro="lb-btn lb-btn--primary" onResponder={() => onDismiss(toast.id)} />
       </div>
       <button
         type="button"
@@ -123,6 +137,9 @@ function CaixaDeAvisos({ grupo, toasts, onDismiss }: CaixaDeAvisosProps) {
   const caixaRef = useRef<HTMLElement>(null)
   const devolverFoco = useRef(false)
   const titulo = tituloDaCaixa(grupo, toasts.length)
+  // Caixa de uma linha só (o pedido da porta, `sempreEmCaixa`): "Deixar todos"
+  // repetiria o botão da linha, e a resposta esperada volta a ser de latão.
+  const variasLinhas = toasts.length > 1
 
   useLayoutEffect(() => {
     if (!devolverFoco.current) return
@@ -146,32 +163,197 @@ function CaixaDeAvisos({ grupo, toasts, onDismiss }: CaixaDeAvisosProps) {
         {toasts.map((toast) => (
           <li key={toast.id} className="lb-toastcaixa__row">
             <span className="lb-toast__text">{toast.text}</span>
-            {toast.actions !== undefined && (
-              <div className="lb-toast__actions">
-                {toast.actions.map((action, index) => (
-                  <button
-                    key={action.label}
-                    type="button"
-                    // Na linha, o botão de latão é o "Deixar todos" da caixa;
-                    // aqui a resposta esperada só ganha o contorno cheio.
-                    className={index === 0 ? 'lb-btn' : 'lb-btn lb-btn--ghost'}
-                    onClick={() => {
-                      lembrarFoco()
-                      onDismiss(toast.id)
-                      action.run()
-                    }}
-                  >
-                    {action.label}
-                  </button>
-                ))}
-              </div>
-            )}
+            {/* Na linha, o botão de latão é o "Deixar todos" da caixa; aqui a
+                resposta esperada só ganha o contorno cheio. Caixa de uma linha
+                só: sem "Deixar todos", o latão volta para a resposta. */}
+            <BotoesDoAviso
+              toast={toast}
+              classeDoPrimeiro={variasLinhas ? 'lb-btn' : 'lb-btn lb-btn--primary'}
+              onResponder={() => {
+                lembrarFoco()
+                onDismiss(toast.id)
+              }}
+            />
           </li>
         ))}
       </ul>
-      <button type="button" className="lb-btn lb-btn--primary lb-toastcaixa__all" onClick={() => deixarTodos(toasts, onDismiss)}>
-        Deixar todos
-      </button>
+      {/* Só com várias linhas e resposta em lote: numa caixa de chamados, ou de
+          uma linha só, "Deixar todos" não quer dizer nada. */}
+      {variasLinhas && temRespostaEmLote(toasts) && (
+        <button type="button" className="lb-btn lb-btn--primary lb-toastcaixa__all" onClick={() => deixarTodos(toasts, onDismiss)}>
+          Deixar todos
+        </button>
+      )}
     </section>
+  )
+}
+
+interface BotoesDoAvisoProps {
+  toast: ToastMessage
+  classeDoPrimeiro: string
+  /** Tira o aviso da tela: a pergunta respondida não pode ficar clicável. */
+  onResponder: () => void
+}
+
+/**
+ * Os botões de um aviso, na ordem, e o campo de resposta quando o aviso pede
+ * texto. O botão que `mantem` age sem tirar o aviso; os outros tiram ANTES de
+ * agir — a ação pode empilhar outro aviso.
+ */
+function BotoesDoAviso({ toast, classeDoPrimeiro, onResponder }: BotoesDoAvisoProps) {
+  if (toast.actions === undefined && toast.resposta === undefined) return null
+  return (
+    <div className="lb-toast__actions">
+      {toast.actions?.map((action, index) => (
+        <button
+          key={action.label}
+          type="button"
+          className={index === 0 ? classeDoPrimeiro : 'lb-btn lb-btn--ghost'}
+          onClick={() => {
+            if (action.mantem !== true) onResponder()
+            action.run()
+          }}
+        >
+          {action.label}
+        </button>
+      ))}
+      {toast.resposta !== undefined && <RespostaNoAviso id={toast.id} texto={toast.text} resposta={toast.resposta} onEnviada={onResponder} />}
+    </div>
+  )
+}
+
+interface RespostaNoAvisoProps {
+  /** O `id` do aviso: chave da resposta em curso, que sobrevive à linha. */
+  id: string
+  /** O texto do aviso: entra no nome do campo ("Resposta para Carla: Pergunta"). */
+  texto: string
+  resposta: ToastResposta
+  onEnviada: () => void
+}
+
+/**
+ * "Responder" dentro do aviso: o botão abre um campo na própria linha, com o
+ * foco nele. Enter (ou "Enviar") manda e tira o aviso; Esc (ou "Cancelar")
+ * fecha só o campo e devolve o foco ao botão — o aviso continua esperando.
+ *
+ * Campo aberto e texto vivem também em `RespostasEmCurso`: quando a pilha
+ * troca de forma (aviso solto ↔ caixa) esta linha é desmontada e a nova
+ * recomeça dali — aberta, com o rascunho, e com o foco se ele estava no campo.
+ */
+function RespostaNoAviso({ id, texto, resposta, onEnviada }: RespostaNoAvisoProps) {
+  const memoria = useContext(RespostasEmCurso)
+  const [aberta, setAberta] = useState(() => memoria.has(id))
+  const [rascunho, setRascunho] = useState(() => memoria.get(id)?.rascunho ?? '')
+  const botaoRef = useRef<HTMLButtonElement>(null)
+  const campoRef = useRef<HTMLInputElement>(null)
+  /** Para onde vai o foco no próximo abrir/fechar. */
+  const focoPendente = useRef<'campo' | 'botao' | null>(null)
+
+  useLayoutEffect(() => {
+    const alvo = focoPendente.current
+    focoPendente.current = null
+    if (alvo === 'campo') campoRef.current?.focus()
+    else if (alvo === 'botao') botaoRef.current?.focus()
+  }, [aberta])
+
+  // Na saída da linha o DOM ainda está montado: dá para saber se o foco estava
+  // no campo. A linha nova lê isso ao montar — no commit, depois da saída da
+  // antiga; no render ainda não daria, a antiga não tinha saído.
+  useLayoutEffect(() => {
+    const campo = campoRef
+    if (memoria.get(id)?.focado === true) campo.current?.focus()
+    return () => {
+      const emCurso = memoria.get(id)
+      if (emCurso === undefined) return
+      memoria.set(id, { ...emCurso, focado: campo.current !== null && campo.current === document.activeElement })
+    }
+  }, [memoria, id])
+
+  const abrir = () => {
+    memoria.set(id, { rascunho, focado: false })
+    focoPendente.current = 'campo'
+    setAberta(true)
+  }
+
+  const fechar = () => {
+    memoria.delete(id)
+    focoPendente.current = 'botao'
+    setAberta(false)
+  }
+
+  const escrever = (valor: string) => {
+    memoria.set(id, { rascunho: valor, focado: false })
+    setRascunho(valor)
+  }
+
+  const responderCom = (texto: string) => {
+    memoria.delete(id)
+    onEnviada()
+    resposta.enviar(texto)
+  }
+
+  const enviar = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    const limpo = rascunho.trim()
+    if (limpo === '') return
+    responderCom(limpo)
+  }
+
+  if (!aberta) {
+    return (
+      <button ref={botaoRef} type="button" className="lb-btn lb-btn--ghost" onClick={abrir}>
+        {resposta.rotulo}
+      </button>
+    )
+  }
+
+  return (
+    <form className="lb-toast__reply" onSubmit={enviar}>
+      <input
+        ref={campoRef}
+        type="text"
+        className="lb-input lb-toast__reply-input"
+        aria-label={`Resposta para ${texto}`}
+        value={rascunho}
+        maxLength={resposta.maxLength}
+        onChange={(event) => escrever(event.target.value)}
+        onKeyDown={(event) => {
+          if (event.key !== 'Escape') return
+          // O Escape é deste campo: não fecha mais nada da tela junto.
+          event.stopPropagation()
+          fechar()
+        }}
+      />
+      <button type="submit" className="lb-btn" disabled={rascunho.trim() === ''}>
+        Enviar
+      </button>
+      <button type="button" className="lb-btn lb-btn--ghost" onClick={fechar}>
+        Cancelar
+      </button>
+      <RespostasProntas recentes={resposta.recentes?.() ?? []} onEscolher={responderCom} />
+    </form>
+  )
+}
+
+interface RespostasProntasProps {
+  recentes: readonly string[]
+  onEscolher: (texto: string) => void
+}
+
+/**
+ * Os motivos recentes do "Não, porque…", um botão cada: o mestre repete o
+ * motivo de agora há pouco num toque, sem redigitar. Sem nenhum, nada — um
+ * grupo vazio só faria o leitor de tela anunciar um nome sem conteúdo.
+ */
+function RespostasProntas({ recentes, onEscolher }: RespostasProntasProps) {
+  if (recentes.length === 0) return null
+  return (
+    <div role="group" aria-label="Motivos recentes" className="lb-toast__recentes">
+      {recentes.map((texto) => (
+        <button key={texto} type="button" className="lb-btn lb-btn--ghost" onClick={() => onEscolher(texto)}>
+          {texto}
+        </button>
+      ))}
+    </div>
   )
 }

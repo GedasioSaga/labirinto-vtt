@@ -1,8 +1,13 @@
-import type { MapData, RegionPoint } from '../types/map'
+import type { HazardKind, MapData, RegionPoint } from '../types/map'
+import type { PlayerHazard } from '../lib/hazards'
 import type { ExploredWire } from '../lib/exploration'
 import type { TokenMoveRejection } from '../lib/moveValidation'
 import { LASER_MAX_POINTS_PER_MESSAGE } from '../lib/laser'
 import { isTokenPhotoData } from '../lib/tokenPhoto'
+import { ROOM_TEXT_MAX_LENGTH } from '../lib/roomText'
+import { isPlayerSafePinImage } from '../lib/pins'
+import { CLUEBOOK_MAX_CLUES, CLUE_TEXT_MAX_LENGTH, CLUE_TITLE_MAX_LENGTH } from '../lib/clues'
+import { isPointActionKind, isPointActionRejection, type PointActionAnswer, type PointActionKind, type PointActionRejection } from '../lib/pointActions'
 
 /**
  * Protocolo mestre <-> jogador. Toda mensagem é um objeto discriminado por
@@ -42,10 +47,86 @@ import { isTokenPhotoData } from '../lib/tokenPhoto'
  * vem logo depois). Nenhuma delas carrega nome nem id de cena: o jogador só
  * descobre para onde foi pelo mapa que chega depois da aprovação. Mestre
  * antigo responde `error invalid_message`; jogador antigo ignora as três.
+ * O `text` opcional do `pin.travel.denied` é o motivo que o MESTRE escreveu
+ * para quem pediu ("Não, porque…"): vai só a ele e não é do mapa.
  *
  * `scene.note` (mestre -> jogador) é o RECADO POR CENA, aditivo pelo mesmo
  * critério: jogador antigo cai no `default` e ignora. Leva só o texto e um id,
  * nunca o id nem o nome da cena — quem recebe já está lá.
+ *
+ * O LASER DO JOGADOR também é aditivo: `laser` (jogador -> mestre, mesma forma
+ * do laser do mestre) e, na volta a quem está na mesma cena, `laser` com
+ * `from` + `color`. Mestre antigo responde `error invalid_message`, que o
+ * jogador ignora durante o jogo.
+ *
+ * `room.text` (mestre -> jogador) é o TEXTO DA SALA, aditivo pelo mesmo
+ * critério: na primeira vez que a ficha do jogador entra numa Sala com texto,
+ * só ele recebe o id da Sala, o nome como ele pode ver ('' quando oculto) e o
+ * texto. A nota do mestre nunca viaja.
+ *
+ * O CADERNO DE RECADOS é aditivo pelo mesmo critério: `scene.note.at` (a hora
+ * do mestre, em ms) e `notes.book` (mestre -> jogador), a lista dos recados
+ * que AQUELE jogador já recebeu, mandada quando ele entra ou volta. Jogador
+ * antigo ignora os dois; mestre antigo não manda `at` e o jogador anota a hora
+ * da chegada.
+ *
+ * MINHAS PISTAS é aditivo pelo mesmo critério. Do jogador: `clue.read` (abriu o
+ * cartão de um pino), `clue.peers` (quem está na cena comigo?) e `clue.show`
+ * (mostrar uma pista a um colega pelo nome). Do mestre: `clue.added`,
+ * `clues.book` (o caderno inteiro, na entrada), `clue.shown` (um colega
+ * mostrou), `clue.peers` (os nomes) e `clue.show.result`. A pista leva título,
+ * texto, foto `data:image/` e hora, com um id que o HOST inventa: nunca a
+ * posição, o id do pino ou o nome/id da cena. Mestre antigo responde
+ * `error invalid_message` (que o jogador ignora durante o jogo); jogador
+ * antigo ignora as cinco.
+ *
+ * `scene.alarm` e `scene.alarm.end` (mestre -> jogador) são o ALARME PARA
+ * VÁRIAS CENAS, aditivos pelo mesmo critério: jogador antigo ignora os dois.
+ * Levam o texto e um id; nunca as cenas escolhidas.
+ *
+ * `turn` no snapshot (INICIATIVA) é aditivo pelo mesmo critério: o id da ficha
+ * da vez, e só quando ela está no recorte do jogador. Jogador antigo ignora o
+ * campo; mestre antigo não o envia e ninguém fica na vez.
+ *
+ * `scene.paused` (mestre -> jogador) é a PAUSA POR CENA, aditiva pelo mesmo
+ * critério: só `paused`, sem nome da cena. Com a cena pausada, o host recusa o
+ * `token.move` com o motivo `paused` — jogador antigo ignora o motivo e desfaz
+ * o movimento como em qualquer recusa.
+ *
+ * `party.update` (mestre -> jogador) é a lista de COMPANHEIROS, aditiva pelo
+ * mesmo critério. É calculada por destinatário: diz só se cada outro jogador
+ * está na mesma cena que ele ('aqui'), em outra ('longe') ou desconectado
+ * ('fora') — nunca o id nem o nome da cena de ninguém.
+ *
+ * `scene.note.onlyYou` é o RECADO PARA UM JOGADOR SÓ (linha dele no Grupo):
+ * a mesma mensagem, que o host manda a uma conexão só, com a marca para a
+ * tela dizer "Só para você". Aditivo: jogador antigo mostra como recado comum.
+ *
+ * O PEDIDO DA PORTA TRANCADA também é aditivo: `door.request` (jogador ->
+ * mestre) e, na volta, `door.request.rejected` e `door.request.answer`. Mestre
+ * antigo responde `error invalid_message`; jogador antigo ignora as duas.
+ *
+ * ITEM PEGÁVEL, aditivo pelo mesmo critério: `pin.take` e `item.give`
+ * (jogador -> mestre) e, na volta, `pin.take.rejected`, `pin.take.answer` e
+ * `item.give.rejected`. A mochila viaja no token do PRÓPRIO jogador, no
+ * snapshot (`Token.mochila`); a de outro nunca sai (`lib/fogFilter.ts`).
+ * `snapshot.partyTokens` também é aditivo: quais das fichas que o jogador já
+ * recebeu são de colegas. Jogador antigo ignora; host antigo não manda, e o
+ * "Dar a…" fica sem colega (em vez de oferecer quem o host recusaria).
+ *
+ * ZONA DE PERIGO, aditiva pelo mesmo critério: `snapshot.hazards` (tipo e
+ * polígono de cada sala tomada que o jogador enxerga) e `hazard.entered`
+ * (mestre -> jogador: a ficha dele entrou no perigo). Jogador antigo ignora os
+ * dois; mestre antigo não manda, e a tela fica sem perigo desenhado.
+ *
+ * CHAMAR O MESTRE é aditivo pelo mesmo critério: `call.raise` / `call.lower`
+ * (jogador -> mestre) e, na volta, `call.state` (esperando, visto, cedo
+ * demais) e `call.reply` (a resposta, só para quem chamou). Mestre antigo
+ * responde `error invalid_message` (a mão não acende); jogador antigo ignora.
+ *
+ * `point.action` (jogador -> mestre) e, na volta, `point.action.answer` e
+ * `point.action.rejected` são as AÇÕES NO PONTO, aditivas pelo mesmo critério.
+ * A volta vai só a quem pediu e nunca leva sala, cena nem ponto.
  */
 export const PROTOCOL_VERSION = 1
 
@@ -54,8 +135,51 @@ export const NAME_MIN_LENGTH = 1
 export const NAME_MAX_LENGTH = 32
 export const REQ_ID_MAX_LENGTH = 64
 export const RESUME_TOKEN_MAX_LENGTH = 128
+/** Teto da chave da tela da mesa no `join` (a gerada pelo mestre é um UUID, 36). */
+export const TABLE_KEY_MAX_LENGTH = 128
 /** Teto do recado por cena, em unidades UTF-16 (o `maxLength` do campo do mestre conta igual). */
 export const NOTE_MAX_LENGTH = 500
+/**
+ * Maior mensagem, em BYTES, que o servidor da mesa aceita de um jogador —
+ * espelho de `MAX_MESSAGE_BYTES` em desktop/src-tauri/src/net/server.rs. Acima
+ * disso o servidor fecha o socket: o jogador cai da mesa. O cliente do jogador
+ * nunca envia nada maior (player/playerConnection.ts).
+ */
+export const PLAYER_MESSAGE_MAX_BYTES = 64 * 1024
+/** Quantos recados o caderno de cada jogador guarda (no host e na tela dele). Passou, sai o mais antigo. */
+export const NOTEBOOK_MAX_NOTES = 50
+/**
+ * Um pedido de passagem pelo MESMO pino, do mesmo jogador, nesta janela. O
+ * mestre recusou e o jogador insiste no toque: sem o intervalo, cada toque
+ * seria um aviso novo empilhado na tela do mestre. Por jogador e por pino, e
+ * não por pino só: o grupo inteiro pedindo a mesma escada é jogo normal. O
+ * host recusa (`too_soon`); o cliente do jogador espera sozinho o que falta.
+ */
+export const TRAVEL_REQUEST_MIN_INTERVAL_MS = 3000
+/**
+ * Um pedido de passagem por jogador nesta janela, de QUALQUER pino. É o
+ * limite que vem antes de tudo: barato, de tamanho fixo por jogador, e segura
+ * quem troca de pino (ou de conexão) a cada toque.
+ */
+export const TRAVEL_REQUEST_PLAYER_MIN_INTERVAL_MS = 1500
+/** Teto do alarme, na mesma conta: é uma faixa urgente no alto da tela, não uma carta. */
+export const ALARM_MAX_LENGTH = 140
+
+/** Por que o jogador chama o mestre. Ordem = ordem na tela do jogador. */
+export const CALL_REASONS = ['ajuda', 'agir', 'pergunta', 'sair', 'urgente'] as const
+export type CallReason = (typeof CALL_REASONS)[number]
+/** Como cada motivo aparece, para o jogador e para o mestre. */
+export const CALL_REASON_LABELS: Record<CallReason, string> = {
+  ajuda: 'Ajuda',
+  agir: 'Quero agir',
+  pergunta: 'Pergunta',
+  sair: 'Vou sair',
+  urgente: 'Urgente',
+}
+/** Teto do texto curto do chamado, em unidades UTF-16 (o `maxLength` do campo conta igual). */
+export const CALL_TEXT_MAX_LENGTH = 140
+/** Teto do motivo do "Não, porque…" do pedido de passagem, em unidades UTF-16 (o `maxLength` do campo conta igual). */
+export const TRAVEL_DENY_TEXT_MAX_LENGTH = 80
 
 const JOIN_CODE_PATTERN = /^[A-Z0-9]{6}$/
 
@@ -65,6 +189,20 @@ export interface JoinMessage {
   code: string
   name: string
   resume?: string
+  /**
+   * TELA DA MESA: a página de espectador (TV, projetor) entra pelo MESMO
+   * `join` — o servidor do app só aceita `join` como primeira mensagem — com
+   * `role: 'table'`. Ela não é jogador: não tem ficha, não retoma sessão
+   * (`resume` junto recusa a mensagem) e só recebe a cena que o mestre escolhe.
+   * Aditivo: mestre antigo ignora o campo e a trata como jogador sem ficha.
+   */
+  role?: 'table'
+  /**
+   * TELA DA MESA: a chave que o mestre gera por sala e põe SÓ no link da TV
+   * (aba Jogo). O código da sala todo jogador tem; sem esta chave, ninguém vira
+   * tela e recebe a cena que o mestre escolheu (que pode ser outra que a dele).
+   */
+  tableKey?: string
 }
 
 export interface TokenMoveMessage {
@@ -77,13 +215,29 @@ export interface TokenMoveMessage {
 
 export interface PingMessage {
   type: 'ping'
+  /**
+   * A aba do jogador está em segundo plano. Com a aba oculta há mais de 5 min
+   * o Chrome e o Edge só deixam o timer rodar 1 vez por minuto, então o ping
+   * chega de minuto em minuto: o host usa um prazo de silêncio mais longo
+   * (`HOST_AWAY_STALE_AFTER_MS`) até um ping sem a marca chegar.
+   */
+  away?: true
 }
+
+/**
+ * Quem vê o sinal além de quem sinalizou. `master`: só o mestre — é o sinal
+ * que sai com o toque longo, antes de o jogador escolher no menu (Espiar e
+ * Revistar ficam discretos para os colegas). Sem o campo: também os colegas
+ * da cena que conhecem o ponto (o sinal de sempre, e o "Sinalizar" do menu).
+ */
+export type SignalAudience = 'master'
 
 /** Sinal (ping de mapa) do jogador. Não confundir com `ping`, que é o heartbeat. */
 export interface SignalMessage {
   type: 'signal'
   x: number
   y: number
+  audience?: SignalAudience
 }
 
 /**
@@ -130,10 +284,141 @@ export interface PinTravelRequestMessage {
   exitId?: string
 }
 
-export type PlayerMessage = JoinMessage | TokenMoveMessage | PingMessage | SignalMessage | DoorToggleMessage | TokenEditMessage | PinTravelRequestMessage
+/**
+ * LASER DO JOGADOR: a mesma forma do laser do mestre (lote de pontos em px de
+ * mundo, ou `off` ao soltar). Nada de nome nem cor: quem é o host sabe pela
+ * conexão, e a cor é a da ficha — o jogador não pode se passar por outro.
+ */
+export type PlayerLaserMessage = LaserMessage
+
+/**
+ * O jogador abriu o cartão do pino `pinId`: guarde a pista no caderno dele. O
+ * host só aceita pino que saiu no último recorte da cena onde ele está, e
+ * monta a pista a partir DESSE recorte — nunca do texto que o jogador mandasse.
+ */
+export interface ClueReadMessage {
+  type: 'clue.read'
+  pinId: string
+}
+
+/** "Mostrar para…": quem joga na mesma cena agora? A resposta é `clue.peers` com os nomes. */
+export interface CluePeersRequestMessage {
+  type: 'clue.peers'
+}
+
+/** Mostrar a pista `clueId` (do caderno de quem pede) ao colega de nome `to`. */
+export interface ClueShowMessage {
+  type: 'clue.show'
+  clueId: string
+  to: string
+}
+
+/** Como o jogador tenta passar pela porta trancada: Bater, Forçar ou Usar chave. */
+export type DoorRequestHow = 'knock' | 'force' | 'key'
+
+const DOOR_REQUEST_HOWS: readonly DoorRequestHow[] = ['knock', 'force', 'key']
+
+/**
+ * PORTA TRANCADA VIRA PEDIDO: o jogador tocou a porta, leu "Trancada" e pede
+ * ao mestre do jeito que escolheu. O host valida (porta visível, trancada,
+ * token perto) e leva ao mestre; a resposta volta em `door.request.answer`.
+ * Aditiva pelo mesmo critério de `door.toggle`.
+ */
+export interface DoorRequestMessage {
+  type: 'door.request'
+  wallId: string
+  how: DoorRequestHow
+}
+
+/**
+ * ITEM PEGÁVEL: o jogador pede para pegar o item do pino `pinId`. O host
+ * valida (pino visível, pegável, ficha encostada) e leva ao mestre — ou, no
+ * pino livre, entrega direto. A resposta volta em `pin.take.answer`.
+ */
+export interface PinTakeMessage {
+  type: 'pin.take'
+  pinId: string
+}
+
+/** O jogador dá o item `itemId` da própria mochila à ficha `toTokenId`, de um colega encostado. */
+export interface ItemGiveMessage {
+  type: 'item.give'
+  itemId: string
+  toTokenId: string
+}
+
+/** O jogador levanta a mão. `text` ausente = só o motivo. */
+export interface CallRaiseMessage {
+  type: 'call.raise'
+  reason: CallReason
+  text?: string
+}
+
+/** O jogador baixa a mão antes de o mestre ver. */
+export interface CallLowerMessage {
+  type: 'call.lower'
+}
+
+/**
+ * AÇÃO NO PONTO: depois do toque longo, o jogador pede ao mestre para
+ * Procurar/Escutar/Espiar/Revistar em (`x`, `y`), px de mundo da cena DELE.
+ * Aditiva pelo critério de sempre: mestre antigo responde `error
+ * invalid_message` (o pedido só não chega) e jogador antigo nunca a envia.
+ */
+export interface PointActionMessage {
+  type: 'point.action'
+  action: PointActionKind
+  x: number
+  y: number
+}
+
+export type PlayerMessage =
+  | JoinMessage
+  | TokenMoveMessage
+  | PingMessage
+  | SignalMessage
+  | DoorToggleMessage
+  | DoorRequestMessage
+  | TokenEditMessage
+  | PinTravelRequestMessage
+  | PinTakeMessage
+  | ItemGiveMessage
+  | PlayerLaserMessage
+  | ClueReadMessage
+  | CluePeersRequestMessage
+  | ClueShowMessage
+  | CallRaiseMessage
+  | CallLowerMessage
+  | PointActionMessage
+
+/**
+ * Por que o host não levou o "Pegar" ao mestre. `unavailable` junta pino
+ * inexistente, no escuro, oculto e que não é item — um motivo por caso diria
+ * o que existe no escuro. `pending`: um pedido de item dele já espera.
+ */
+export type PinTakeRejection = 'unavailable' | 'far' | 'pending'
+
+export const PIN_TAKE_REJECTIONS: readonly PinTakeRejection[] = ['unavailable', 'far', 'pending']
+
+/** Por que o "Dar a…" não valeu: colega longe, ou item/ficha que não servem. */
+export type ItemGiveRejection = 'unavailable' | 'far'
+
+export const ITEM_GIVE_REJECTIONS: readonly ItemGiveRejection[] = ['unavailable', 'far']
 
 /** Por que o host recusou o pedido de porta do jogador. */
 export type DoorToggleRejection = 'locked' | 'far' | 'not_visible'
+
+/**
+ * Por que o host não levou o pedido da porta trancada ao mestre. `pending`: um
+ * pedido de porta dele já espera; `not_locked`: a porta abre com o toque.
+ * Porta inexistente ou no escuro respondem o mesmo `not_visible` do toque.
+ */
+export type DoorRequestRejection = 'pending' | 'far' | 'not_visible' | 'not_locked'
+
+export const DOOR_REQUEST_REJECTIONS: readonly DoorRequestRejection[] = ['pending', 'far', 'not_visible', 'not_locked']
+
+/** A resposta do mestre ao pedido da porta. Sem id de porta nem de cena: quem pediu já sabe qual foi. */
+export type DoorRequestAnswer = 'opened' | 'denied'
 
 /**
  * Por que o host recusou o pedido de passagem SEM levar ao mestre. Genérico de
@@ -148,37 +433,231 @@ export type PinTravelRejection = 'unavailable' | 'pending' | 'too_soon'
 /** Laser do mestre: lote de pontos (px de mundo) desde o último envio, ou `off` ao soltar. */
 export type LaserMessage = { type: 'laser'; points: RegionPoint[] } | { type: 'laser'; off: true }
 
+/**
+ * Laser de um JOGADOR repassado pelo host a quem está na mesma cena: `from` é
+ * o nome dele na sala (único, igual ao `from` do sinal) e `color` a cor da
+ * ficha dele. Aditivo: jogador antigo ignora os dois campos e desenha o rastro
+ * como se fosse o do mestre.
+ */
+export type RelayedLaserMessage = LaserMessage & { from: string; color: string }
+
 /** Recado do mestre a quem está numa cena. `id` novo = recado novo (substitui o que estiver aberto). */
 export interface SceneNoteMessage {
   type: 'scene.note'
   id: string
   text: string
+  /** Hora em que o mestre mandou (ms desde 1970, relógio do mestre). Ausente em mestre antigo. */
+  at?: number
+  /** Recado só para este jogador (ninguém mais na sala recebeu). Ausente = recado da cena. */
+  onlyYou?: true
 }
 
-export type HostErrorReason = 'bad_code' | 'invalid_message' | 'not_joined' | 'already_joined'
+/** Um recado guardado no caderno do jogador. Nada da cena: só o que ele leu e quando. */
+export interface NoteEntry {
+  id: string
+  text: string
+  at: number
+}
+
+/** O caderno inteiro do jogador, do mais antigo ao mais novo, mandado quando ele entra ou volta. */
+export interface NotebookMessage {
+  type: 'notes.book'
+  notes: NoteEntry[]
+}
+
+/** Texto da Sala na primeira entrada: `id` é o da `Region` (já vai no snapshot), `title` o nome que o jogador pode ver. */
+export interface RoomTextMessage {
+  type: 'room.text'
+  id: string
+  title: string
+  text: string
+}
+
+/**
+ * Uma pista no caderno do jogador. `id` é do HOST (não é o do pino nem o da
+ * Sala). `from`: o colega que mostrou; ausente = o próprio jogador leu.
+ */
+export interface ClueEntry {
+  id: string
+  title: string
+  /** Pode vir vazio: cartão só com foto. */
+  text: string
+  /** Só `data:image/...`; `null` = sem foto. */
+  image: string | null
+  at: number
+  from?: string
+}
+
+/** A pista que o host acabou de guardar para este jogador (nova, ou lida de novo). */
+export interface ClueAddedMessage {
+  type: 'clue.added'
+  clue: ClueEntry
+}
+
+/** O caderno de pistas inteiro, da mais antiga à mais nova, mandado quando o jogador entra ou volta. */
+export interface CluebookMessage {
+  type: 'clues.book'
+  clues: ClueEntry[]
+}
+
+/** Um colega da mesma cena mostrou uma pista. Ela já está no caderno de quem recebe. */
+export interface ClueShownMessage {
+  type: 'clue.shown'
+  from: string
+  clue: ClueEntry
+}
+
+/**
+ * Por que o host recusou o movimento: as recusas da validação do mapa, mais
+ * `paused` — a cena do jogador está pausada (o mestre está com outro grupo).
+ */
+export type TokenMoveRejectionReason = TokenMoveRejection | 'paused'
+
+/** A cena do jogador está (ou deixou de estar) pausada pelo mestre. */
+export interface ScenePausedMessage {
+  type: 'scene.paused'
+  paused: boolean
+}
+
+/** Onde um companheiro está, visto por quem recebe: mesma cena, outra cena, ou desconectado. */
+export type PartyWhere = 'aqui' | 'longe' | 'fora'
+
+export interface PartyMember {
+  playerId: string
+  name: string
+  where: PartyWhere
+}
+
+/** Os OUTROS jogadores da mesa, na ordem de chegada. Quem recebe nunca está na lista. */
+export interface PartyUpdateMessage {
+  type: 'party.update'
+  members: PartyMember[]
+}
+
+/** Teto da lista: a mesa tem de 4 a 7 jogadores; acima disto a mensagem é lixo, não mesa. */
+export const PARTY_MAX_MEMBERS = 32
+/** Folga para o " (n)" que o `uniqueName` do host soma a nome repetido. */
+const PARTY_NAME_SUFFIX_MAX = 8
+
+/**
+ * Onde está a mão do jogador, do lado do mestre: `waiting` (na fila, com o
+ * motivo que vale), `seen` (o mestre marcou Visto) ou `too_soon` (baixou e
+ * levantou antes do intervalo: nada entrou na fila).
+ */
+export type CallStateMessage = { type: 'call.state'; state: 'waiting'; reason: CallReason } | { type: 'call.state'; state: 'seen' } | { type: 'call.state'; state: 'too_soon' }
+
+/** Resposta do mestre ao chamado: um recado SÓ para quem chamou. */
+export interface CallReplyMessage {
+  type: 'call.reply'
+  id: string
+  text: string
+}
+
+/** Os colegas que jogam na mesma cena agora, pelo nome na sala. */
+export interface CluePeersMessage {
+  type: 'clue.peers'
+  names: string[]
+}
+
+/**
+ * Por que a pista não saiu, quando o motivo não conta nada sobre onde o colega
+ * está: `too_soon` = outra pista saiu há menos de 1 s (o colega está na cena;
+ * é só tocar de novo). Ausente = "não chegou", sem dizer por quê.
+ */
+export type ClueShowRefusal = 'too_soon'
+
+/** A pista chegou (`ok`) ou não ao colega `to` — ele saiu da cena, da sala, ou a pista não era de quem pediu. */
+export interface ClueShowResultMessage {
+  type: 'clue.show.result'
+  to: string
+  ok: boolean
+  /** Só em `ok: false`, e só com motivo que não revela a cena. Mestre antigo não manda. */
+  reason?: ClueShowRefusal
+}
+
+export type ClueHostMessage = ClueAddedMessage | CluebookMessage | ClueShownMessage | CluePeersMessage | ClueShowResultMessage
+
+/**
+ * ALARME PARA VÁRIAS CENAS: aviso urgente que fica na tela até o mestre
+ * encerrar. `id` novo = alarme novo (substitui o aberto). Nunca leva as cenas
+ * escolhidas: quem recebe já está numa delas, e a lista diria que as outras existem.
+ */
+export interface SceneAlarmMessage {
+  type: 'scene.alarm'
+  id: string
+  text: string
+}
+
+/** Fim do alarme `id`: o jogador tira o aviso SÓ se ainda for este (um fim atrasado não apaga o novo). */
+export interface SceneAlarmEndMessage {
+  type: 'scene.alarm.end'
+  id: string
+}
+
+/**
+ * `table_full`: já há `MAX_TABLE_SCREENS` telas da mesa na sala (`hostSession.ts`).
+ * `bad_table_key`: tela da mesa sem a chave do link da TV, ou com outra.
+ */
+export type HostErrorReason = 'bad_code' | 'invalid_message' | 'not_joined' | 'already_joined' | 'table_full' | 'bad_table_key'
 
 export type HostMessage =
   // `name`: nome EFETIVO na sala, que pode não ser o que o jogador digitou.
   | { type: 'welcome'; playerId: string; resumeToken: string; name: string }
   | { type: 'lobby.waiting' }
-  | { type: 'snapshot'; rev: number; map: MapData; vision: RegionPoint[][]; explored: ExploredWire; ownTokens: string[]; concealed: RegionPoint[][] }
-  | { type: 'delta'; rev: number; map: MapData; vision: RegionPoint[][]; explored: ExploredWire; ownTokens: string[]; concealed: RegionPoint[][] }
+  // `turn`: id da ficha da vez (iniciativa), só quando ela está em `map.tokens`
+  // deste recorte (`turnForPlayer`). Ausente = ninguém que o jogador vê.
+  // `partyTokens` (ITEM PEGÁVEL): das fichas que ele recebeu, as de OUTROS jogadores — o "Dar a…" não oferece NPC.
+  // `hazards` (ZONA DE PERIGO): só o que o jogador enxerga agora, e só quando há algum (`PlayerMapView.hazards`).
+  | { type: 'snapshot'; rev: number; map: MapData; vision: RegionPoint[][]; explored: ExploredWire; ownTokens: string[]; concealed: RegionPoint[][]; turn?: string; partyTokens?: string[]; hazards?: PlayerHazard[] }
+  | { type: 'delta'; rev: number; map: MapData; vision: RegionPoint[][]; explored: ExploredWire; ownTokens: string[]; concealed: RegionPoint[][]; turn?: string; partyTokens?: string[]; hazards?: PlayerHazard[] }
+  // ZONA DE PERIGO: a ficha DESTE jogador entrou num perigo. Só o tipo — nem a sala, nem a zona.
+  | { type: 'hazard.entered'; kind: HazardKind }
   | { type: 'token.move.accepted'; reqId: string; x: number; y: number }
-  | { type: 'token.move.rejected'; reqId: string; reason: TokenMoveRejection }
+  | { type: 'token.move.rejected'; reqId: string; reason: TokenMoveRejectionReason }
   | { type: 'signal'; x: number; y: number; from: string; color: string }
   | { type: 'door.toggle.rejected'; wallId: string; reason: DoorToggleRejection }
+  | { type: 'door.request.rejected'; wallId: string; reason: DoorRequestRejection }
+  | { type: 'door.request.answer'; answer: DoorRequestAnswer }
   | { type: 'pin.travel.rejected'; reason: PinTravelRejection }
-  | { type: 'pin.travel.denied' }
+  // ITEM PEGÁVEL. `nome` só no `taken`: o jogador lê o que agora carrega.
+  | { type: 'pin.take.rejected'; reason: PinTakeRejection }
+  | { type: 'pin.take.answer'; answer: 'taken'; nome: string }
+  | { type: 'pin.take.answer'; answer: 'denied' }
+  | { type: 'item.give.rejected'; reason: ItemGiveRejection }
+  // `text`: o motivo curto do "Não, porque…" (até `TRAVEL_DENY_TEXT_MAX_LENGTH`).
+  // Aditivo: jogador antigo ignora o campo e lê o "não deixou" de sempre.
+  | { type: 'pin.travel.denied'; text?: string }
   // `by: 'master'`: o mestre levou o jogador sem pedido ("Mandar para…" do
   // painel Grupo). Aditivo: jogador antigo ignora o campo e lê "Você chegou".
   // `by: 'gather'`: também sem pedido, mas pelo "Reunir o grupo aqui" de um
   // pino — o aviso diz que o GRUPO foi reunido, e continua sem dizer onde.
   | { type: 'scene.changed'; by?: 'master' | 'gather' }
   | LaserMessage
+  | RelayedLaserMessage
   | SceneNoteMessage
+  | RoomTextMessage
+  | NotebookMessage
+  | ClueHostMessage
+  | SceneAlarmMessage
+  | SceneAlarmEndMessage
+  | ScenePausedMessage
+  | PartyUpdateMessage
+  | CallStateMessage
+  | CallReplyMessage
+  // Resposta do mestre à AÇÃO NO PONTO, só para quem pediu. Leva só a ação e
+  // a resposta: nem o ponto, nem a sala, nem a cena que o mestre leu.
+  | { type: 'point.action.answer'; action: PointActionKind; answer: PointActionAnswer }
+  | { type: 'point.action.rejected'; reason: PointActionRejection }
   | { type: 'kicked' }
   | { type: 'room.closed' }
+  // A mesma pessoa entrou por outra aba (ou aparelho) com o resume desta
+  // conexão: esta aba para, sem voltar sozinha e sem apagar o resume, que é o
+  // da aba nova também. Sem nada dentro: nem quem, nem de onde.
+  | { type: 'session.replaced' }
   | { type: 'error'; reason: HostErrorReason }
+  // Resposta ao `ping` de quem está na sala: só "estou aqui", sem nada dentro.
+  // É o que deixa o jogador notar a conexão morta que nunca fecha.
+  | { type: 'pong' }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -193,12 +672,20 @@ function isFiniteNumber(value: unknown): value is number {
 }
 
 function parseJoin(obj: Record<string, unknown>): JoinMessage | null {
-  const { code, name, resume } = obj
+  const { code, name, resume, role, tableKey } = obj
   if (typeof code !== 'string' || !JOIN_CODE_PATTERN.test(code)) return null
   if (typeof name !== 'string') return null
   const trimmed = name.trim()
   // `length` conta unidades UTF-16 (emoji = 2): é o limite que o jogador vê no input.
   if (trimmed.length < NAME_MIN_LENGTH || trimmed.length > NAME_MAX_LENGTH) return null
+  if (role !== undefined) {
+    // Tela da mesa nunca retoma sessão de jogador: com `resume` junto, a mensagem cai inteira.
+    if (role !== 'table' || resume !== undefined) return null
+    // Sem chave a mensagem passa: quem recusa é a sessão (`bad_table_key`), para a TV dizer o que falta.
+    if (tableKey === undefined) return { type: 'join', code, name: trimmed, role }
+    if (!isBoundedString(tableKey, 1, TABLE_KEY_MAX_LENGTH)) return null
+    return { type: 'join', code, name: trimmed, role, tableKey }
+  }
   if (resume === undefined) return { type: 'join', code, name: trimmed }
   if (!isBoundedString(resume, 1, RESUME_TOKEN_MAX_LENGTH)) return null
   return { type: 'join', code, name: trimmed, resume }
@@ -213,6 +700,19 @@ function parseTokenMove(obj: Record<string, unknown>): TokenMoveMessage | null {
 }
 
 /**
+ * Sinal. `audience` é opcional; presente, só vale `master` — qualquer outra
+ * coisa recusa a mensagem, em vez de cair calada no sinal para todos (o
+ * jogador pediu discrição e o ponto piscaria para os colegas).
+ */
+function parseSignal(obj: Record<string, unknown>): SignalMessage | null {
+  const { x, y, audience } = obj
+  if (!isFiniteNumber(x) || !isFiniteNumber(y)) return null
+  if (audience === undefined) return { type: 'signal', x, y }
+  if (audience !== 'master') return null
+  return { type: 'signal', x, y, audience }
+}
+
+/**
  * Pedido de passagem. `exitId` é opcional; presente, tem de ser texto curto —
  * qualquer outra coisa recusa a mensagem inteira, em vez de cair calada na
  * saída principal (o jogador escolheu uma porta e iria por outra).
@@ -223,6 +723,17 @@ function parseTravelRequest(obj: Record<string, unknown>): PinTravelRequestMessa
   if (exitId === undefined) return { type: 'pin.travel.request', pinId }
   if (!isBoundedString(exitId, 1, REQ_ID_MAX_LENGTH)) return null
   return { type: 'pin.travel.request', pinId, exitId }
+}
+
+export function isDoorRequestHow(value: unknown): value is DoorRequestHow {
+  return DOOR_REQUEST_HOWS.some((how) => how === value)
+}
+
+/** Pedido da porta trancada: id de porta curto e um dos três jeitos; qualquer outra coisa recusa a mensagem. */
+function parseDoorRequest(obj: Record<string, unknown>): DoorRequestMessage | null {
+  const { wallId, how } = obj
+  if (!isBoundedString(wallId, 1, REQ_ID_MAX_LENGTH) || !isDoorRequestHow(how)) return null
+  return { type: 'door.request', wallId, how }
 }
 
 /**
@@ -256,10 +767,55 @@ function parseTokenEdit(obj: Record<string, unknown>): TokenEditMessage | null {
  * meio (surrogate alto sozinho) viraria um losango de erro na tela do jogador.
  */
 export function clampNoteText(text: string): string {
-  if (text.length <= NOTE_MAX_LENGTH) return text
-  const cut = text.slice(0, NOTE_MAX_LENGTH)
+  return clampTextTo(text, NOTE_MAX_LENGTH)
+}
+
+/** O mesmo corte do recado, no teto do alarme (`ALARM_MAX_LENGTH`). */
+export function clampAlarmText(text: string): string {
+  return clampTextTo(text, ALARM_MAX_LENGTH)
+}
+
+/** O motivo do "Não, porque…" cortado no teto dele, pela mesma regra do recado. */
+export function clampTravelDenyText(text: string): string {
+  return clampTextTo(text, TRAVEL_DENY_TEXT_MAX_LENGTH)
+}
+
+function clampTextTo(text: string, max: number): string {
+  if (text.length <= max) return text
+  const cut = text.slice(0, max)
   const last = cut.charCodeAt(cut.length - 1)
   return last >= 0xd800 && last <= 0xdbff ? cut.slice(0, -1) : cut
+}
+
+/**
+ * Valida o `scene.alarm` que o jogador recebe, no molde do `scene.note`: forma
+ * errada, texto vazio ou acima do teto recusam a mensagem inteira. Devolve
+ * cópia só com os campos conhecidos.
+ */
+export function parseSceneAlarm(value: unknown): SceneAlarmMessage | null {
+  if (!isRecord(value) || value.type !== 'scene.alarm') return null
+  const { id, text } = value
+  if (!isBoundedString(id, 1, REQ_ID_MAX_LENGTH)) return null
+  if (!isBoundedString(text, 1, ALARM_MAX_LENGTH)) return null
+  return { type: 'scene.alarm', id, text }
+}
+
+/** Valida o `scene.alarm.end`; `null` para qualquer outra forma. */
+export function parseSceneAlarmEnd(value: unknown): SceneAlarmEndMessage | null {
+  if (!isRecord(value) || value.type !== 'scene.alarm.end') return null
+  const { id } = value
+  if (!isBoundedString(id, 1, REQ_ID_MAX_LENGTH)) return null
+  return { type: 'scene.alarm.end', id }
+}
+
+/**
+ * O motivo do `pin.travel.denied` que o jogador recebe: texto de 1 a
+ * `TRAVEL_DENY_TEXT_MAX_LENGTH`. Qualquer outra coisa vale "sem motivo" — a
+ * recusa continua valendo, só a frase não chega: o jogador precisa saber que
+ * não passou mesmo que o motivo venha estragado.
+ */
+export function parseTravelDenyText(value: unknown): string | undefined {
+  return isBoundedString(value, 1, TRAVEL_DENY_TEXT_MAX_LENGTH) ? value : undefined
 }
 
 /**
@@ -270,19 +826,195 @@ export function clampNoteText(text: string): string {
  */
 export function parseSceneNote(value: unknown): SceneNoteMessage | null {
   if (!isRecord(value) || value.type !== 'scene.note') return null
-  const { id, text } = value
+  const { id, text, at } = value
   if (!isBoundedString(id, 1, REQ_ID_MAX_LENGTH)) return null
   if (!isBoundedString(text, 1, NOTE_MAX_LENGTH)) return null
-  return { type: 'scene.note', id, text }
+  // Só `true` marca: qualquer outro valor é recado comum, sem faixa.
+  const onlyYou = value.onlyYou === true ? { onlyYou: true as const } : {}
+  if (at === undefined) return { type: 'scene.note', id, text, ...onlyYou }
+  // Presente e fora da forma recusa inteiro, como o resto: hora torta no caderno é pior que recado nenhum.
+  if (!isNoteTime(at)) return null
+  return { type: 'scene.note', id, text, at, ...onlyYou }
+}
+
+function isNoteTime(value: unknown): value is number {
+  return isFiniteNumber(value) && value >= 0
+}
+
+function parseNoteEntry(value: unknown): NoteEntry | null {
+  if (!isRecord(value)) return null
+  const { id, text, at } = value
+  if (!isBoundedString(id, 1, REQ_ID_MAX_LENGTH) || !isBoundedString(text, 1, NOTE_MAX_LENGTH) || !isNoteTime(at)) return null
+  return { id, text, at }
 }
 
 /**
- * Valida a mensagem `laser` que o jogador recebe (objeto já desserializado).
- * Aceita `off: true` ou 1 a `LASER_MAX_POINTS_PER_MESSAGE` pontos finitos; devolve
- * cópia só com `x`/`y`, e `null` para qualquer outra forma.
+ * Valida o `party.update` que o jogador recebe. Os nomes vão para a tela:
+ * qualquer membro malformado (nome vazio ou acima do teto, `where` fora dos
+ * três) recusa a lista inteira em vez de mostrar metade do grupo. Devolve
+ * cópia só com os campos conhecidos: um `sceneId` que viesse junto não passa.
  */
-export function parseLaserMessage(value: unknown): LaserMessage | null {
-  if (!isRecord(value) || value.type !== 'laser') return null
+export function parsePartyUpdate(value: unknown): PartyUpdateMessage | null {
+  if (!isRecord(value) || value.type !== 'party.update') return null
+  const { members } = value
+  if (!Array.isArray(members) || members.length > PARTY_MAX_MEMBERS) return null
+  const parsed: PartyMember[] = []
+  for (const member of members) {
+    if (!isRecord(member)) return null
+    const { playerId, name, where } = member
+    if (!isBoundedString(playerId, 1, REQ_ID_MAX_LENGTH)) return null
+    if (!isBoundedString(name, NAME_MIN_LENGTH, NAME_MAX_LENGTH + PARTY_NAME_SUFFIX_MAX)) return null
+    if (where !== 'aqui' && where !== 'longe' && where !== 'fora') return null
+    parsed.push({ playerId, name, where })
+  }
+  return { type: 'party.update', members: parsed }
+}
+
+export type PointActionReply = Extract<HostMessage, { type: 'point.action.answer' } | { type: 'point.action.rejected' }>
+
+/**
+ * Valida a resposta (ou a recusa) da AÇÃO NO PONTO que o jogador recebe.
+ * Qualquer valor fora do conhecido recusa a mensagem inteira: o texto que o
+ * jogador lê sai daqui, e um "talvez" não pode virar "O mestre viu".
+ */
+export function parsePointActionReply(value: unknown): PointActionReply | null {
+  if (!isRecord(value)) return null
+  if (value.type === 'point.action.answer') {
+    const { action, answer } = value
+    if (!isPointActionKind(action) || (answer !== 'nothing' && answer !== 'seen')) return null
+    return { type: 'point.action.answer', action, answer }
+  }
+  if (value.type === 'point.action.rejected') {
+    const { reason } = value
+    if (!isPointActionRejection(reason)) return null
+    return { type: 'point.action.rejected', reason }
+  }
+  return null
+}
+
+/**
+ * Valida o caderno que o jogador recebe. Até `NOTEBOOK_MAX_NOTES` itens, cada
+ * um com id, texto dentro do teto e hora; um item ruim recusa a mensagem
+ * inteira (não mostra caderno pela metade). Devolve cópia só com os campos
+ * conhecidos.
+ */
+export function parseNotebook(value: unknown): NotebookMessage | null {
+  if (!isRecord(value) || value.type !== 'notes.book') return null
+  const { notes } = value
+  if (!Array.isArray(notes) || notes.length > NOTEBOOK_MAX_NOTES) return null
+  const parsed: NoteEntry[] = []
+  for (const item of notes) {
+    const entry = parseNoteEntry(item)
+    if (entry === null) return null
+    parsed.push(entry)
+  }
+  return { type: 'notes.book', notes: parsed }
+}
+
+/** Folga para o sufixo que o host põe em nome repetido ("Ana (2)", ver `uniqueName`). */
+const NAME_SUFFIX_ROOM = 8
+
+/** Nome de jogador como o host o manda (com o sufixo de nome repetido). */
+function isRoomName(value: unknown): value is string {
+  return isBoundedString(value, NAME_MIN_LENGTH, NAME_MAX_LENGTH + NAME_SUFFIX_ROOM)
+}
+
+/** Teto da lista de colegas: bem acima de uma mesa real, abaixo de um host hostil inflando a tela. */
+const CLUE_PEERS_MAX = 64
+
+function parseClueEntry(value: unknown): ClueEntry | null {
+  if (!isRecord(value)) return null
+  const { id, title, text, image, at, from } = value
+  if (!isBoundedString(id, 1, REQ_ID_MAX_LENGTH)) return null
+  if (!isBoundedString(title, 1, CLUE_TITLE_MAX_LENGTH)) return null
+  if (!isBoundedString(text, 0, CLUE_TEXT_MAX_LENGTH)) return null
+  // Fronteira de segurança: só foto embutida. Caminho de disco, `http://` e
+  // `file://` recusam a pista inteira — o `<img>` do jogador não abre nada disso.
+  let photo: string | null = null
+  if (image !== null) {
+    if (typeof image !== 'string' || !isPlayerSafePinImage(image)) return null
+    photo = image
+  }
+  if (!isNoteTime(at)) return null
+  const entry: ClueEntry = { id, title, text, image: photo, at }
+  if (from === undefined) return entry
+  if (!isRoomName(from)) return null
+  return { ...entry, from }
+}
+
+/**
+ * Valida as mensagens de MINHAS PISTAS que o jogador recebe. Mesma regra do
+ * caderno de recados: forma errada, pista ruim ou lista acima do teto recusam
+ * a mensagem inteira. Devolve cópia só com os campos conhecidos — posição, id
+ * de pino ou de cena que viessem juntos ficam para trás.
+ */
+export function parseClueMessage(value: unknown): ClueHostMessage | null {
+  if (!isRecord(value)) return null
+  switch (value.type) {
+    case 'clue.added': {
+      const clue = parseClueEntry(value.clue)
+      return clue === null ? null : { type: 'clue.added', clue }
+    }
+    case 'clues.book': {
+      const { clues } = value
+      if (!Array.isArray(clues) || clues.length > CLUEBOOK_MAX_CLUES) return null
+      const parsed: ClueEntry[] = []
+      for (const item of clues) {
+        const clue = parseClueEntry(item)
+        if (clue === null) return null
+        parsed.push(clue)
+      }
+      return { type: 'clues.book', clues: parsed }
+    }
+    case 'clue.shown': {
+      const { from } = value
+      const clue = parseClueEntry(value.clue)
+      if (clue === null || !isRoomName(from)) return null
+      return { type: 'clue.shown', from, clue }
+    }
+    case 'clue.peers': {
+      const { names } = value
+      if (!Array.isArray(names) || names.length > CLUE_PEERS_MAX) return null
+      const parsed: string[] = []
+      for (const name of names) {
+        if (!isRoomName(name)) return null
+        parsed.push(name)
+      }
+      return { type: 'clue.peers', names: parsed }
+    }
+    case 'clue.show.result': {
+      const { to, ok, reason } = value
+      if (!isRoomName(to) || typeof ok !== 'boolean' || (reason !== undefined && typeof reason !== 'string')) return null
+      // Motivo que este jogador não conhece (mestre mais novo) vira a recusa comum.
+      return !ok && reason === 'too_soon' ? { type: 'clue.show.result', to, ok, reason } : { type: 'clue.show.result', to, ok }
+    }
+    default:
+      return null
+  }
+}
+
+/** Cor do laser repassado: `#rrggbb`, a forma que `Token.color` grava. */
+const LASER_COLOR_PATTERN = /^#[0-9a-f]{6}$/i
+
+/**
+ * Valida o `room.text` que o jogador recebe. Mesma regra do recado: forma
+ * errada, texto vazio ou acima do teto recusam a mensagem inteira. O título
+ * pode vir vazio (nome da Sala oculto do jogador).
+ */
+export function parseRoomText(value: unknown): RoomTextMessage | null {
+  if (!isRecord(value) || value.type !== 'room.text') return null
+  const { id, title, text } = value
+  if (!isBoundedString(id, 1, REQ_ID_MAX_LENGTH)) return null
+  if (!isBoundedString(title, 0, ROOM_TEXT_MAX_LENGTH)) return null
+  if (!isBoundedString(text, 1, ROOM_TEXT_MAX_LENGTH)) return null
+  return { type: 'room.text', id, title, text }
+}
+
+/**
+ * O corpo do laser, nos dois sentidos: `off: true` ou 1 a
+ * `LASER_MAX_POINTS_PER_MESSAGE` pontos finitos. Devolve cópia só com `x`/`y`.
+ */
+function parseLaserBody(value: Record<string, unknown>): LaserMessage | null {
   if (value.off === true) return { type: 'laser', off: true }
   const { points } = value
   if (!Array.isArray(points) || points.length === 0 || points.length > LASER_MAX_POINTS_PER_MESSAGE) return null
@@ -292,6 +1024,23 @@ export function parseLaserMessage(value: unknown): LaserMessage | null {
     parsed.push({ x: point.x, y: point.y })
   }
   return { type: 'laser', points: parsed }
+}
+
+/**
+ * Valida a mensagem `laser` que o jogador recebe (objeto já desserializado).
+ * Sem `from` nem `color` é o laser do mestre; com os dois, o de outro jogador
+ * (`RelayedLaserMessage`). Um só dos dois, nome fora do teto ou cor fora de
+ * `#rrggbb` recusam a mensagem inteira — a cor vai direto para o desenho.
+ */
+export function parseLaserMessage(value: unknown): LaserMessage | RelayedLaserMessage | null {
+  if (!isRecord(value) || value.type !== 'laser') return null
+  const body = parseLaserBody(value)
+  if (body === null) return null
+  const { from, color } = value
+  if (from === undefined && color === undefined) return body
+  if (!isBoundedString(from, NAME_MIN_LENGTH, NAME_MAX_LENGTH + NAME_SUFFIX_ROOM)) return null
+  if (typeof color !== 'string' || !LASER_COLOR_PATTERN.test(color)) return null
+  return { ...body, from, color }
 }
 
 /**
@@ -315,16 +1064,70 @@ export function parsePlayerMessage(raw: unknown): PlayerMessage | null {
     case 'token.move':
       return parseTokenMove(value)
     case 'ping':
-      return { type: 'ping' }
+      return value.away === true ? { type: 'ping', away: true } : { type: 'ping' }
     case 'signal':
-      return isFiniteNumber(value.x) && isFiniteNumber(value.y) ? { type: 'signal', x: value.x, y: value.y } : null
+      return parseSignal(value)
     case 'door.toggle':
       return isBoundedString(value.wallId, 1, REQ_ID_MAX_LENGTH) ? { type: 'door.toggle', wallId: value.wallId } : null
+    case 'door.request':
+      return parseDoorRequest(value)
     case 'token.edit':
       return parseTokenEdit(value)
     case 'pin.travel.request':
       return parseTravelRequest(value)
+    case 'laser':
+      // Só o corpo: `from`/`color` mandados pelo jogador são jogados fora — o
+      // nome e a cor quem põe é o host, pela conexão e pela ficha dele.
+      return parseLaserBody(value)
+    case 'clue.read':
+      return isBoundedString(value.pinId, 1, REQ_ID_MAX_LENGTH) ? { type: 'clue.read', pinId: value.pinId } : null
+    case 'clue.peers':
+      return { type: 'clue.peers' }
+    case 'clue.show':
+      return isBoundedString(value.clueId, 1, REQ_ID_MAX_LENGTH) && isRoomName(value.to) ? { type: 'clue.show', clueId: value.clueId, to: value.to } : null
+    case 'pin.take':
+      return isBoundedString(value.pinId, 1, REQ_ID_MAX_LENGTH) ? { type: 'pin.take', pinId: value.pinId } : null
+    case 'item.give':
+      return isBoundedString(value.itemId, 1, REQ_ID_MAX_LENGTH) && isBoundedString(value.toTokenId, 1, REQ_ID_MAX_LENGTH)
+        ? { type: 'item.give', itemId: value.itemId, toTokenId: value.toTokenId }
+        : null
+    case 'call.raise':
+      return parseCallRaise(value)
+    case 'call.lower':
+      return { type: 'call.lower' }
+    case 'point.action':
+      return isPointActionKind(value.action) && isFiniteNumber(value.x) && isFiniteNumber(value.y)
+        ? { type: 'point.action', action: value.action, x: value.x, y: value.y }
+        : null
     default:
       return null
   }
+}
+
+export function isCallReason(value: unknown): value is CallReason {
+  return typeof value === 'string' && CALL_REASONS.some((reason) => reason === value)
+}
+
+/**
+ * Chamado do jogador. O texto é opcional e sai aparado; em branco vale "sem
+ * texto". Acima do teto recusa a mensagem inteira: cortar mudaria o que o
+ * jogador escreveu sem ele saber.
+ */
+function parseCallRaise(obj: Record<string, unknown>): CallRaiseMessage | null {
+  const { reason, text } = obj
+  if (!isCallReason(reason)) return null
+  if (text === undefined) return { type: 'call.raise', reason }
+  if (typeof text !== 'string') return null
+  const trimmed = text.trim()
+  if (trimmed.length > CALL_TEXT_MAX_LENGTH) return null
+  return trimmed.length === 0 ? { type: 'call.raise', reason } : { type: 'call.raise', reason, text: trimmed }
+}
+
+/** Valida o `call.reply` que o jogador recebe: mesma regra do recado por cena. */
+export function parseCallReply(value: unknown): CallReplyMessage | null {
+  if (!isRecord(value) || value.type !== 'call.reply') return null
+  const { id, text } = value
+  if (!isBoundedString(id, 1, REQ_ID_MAX_LENGTH)) return null
+  if (!isBoundedString(text, 1, NOTE_MAX_LENGTH)) return null
+  return { type: 'call.reply', id, text }
 }

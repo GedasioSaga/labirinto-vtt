@@ -6,50 +6,76 @@ import { Toast } from './components/Toast'
 import { useToastStore, type ToastKind } from './stores/toastStore'
 import { ensinaOQueFazer } from './lib/erroQueEnsina'
 import { motivoDaFalhaDeArquivo, temPonteDoApp } from './lib/foraDoApp'
-import { useSessionStore, subscribeToDirtyFlag } from './stores/sessionStore'
+import { useSessionStore, subscribeToDirtyFlag, saveOpenMap } from './stores/sessionStore'
+import { restoreRecoveryCopy, startRecoveryAutosave, type RecoveryAutosave } from './stores/recoveryAutosave'
+import { clearRecoveryCopy, formatRecoveryTime, readRecoveryCopy, writeRecoveryCopy, type RecoveryCopy } from './lib/recoveryCopy'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { convertFileSrc, invoke, isTauri } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { createHostBridge, type HostBridge, type RoomInfo, type TunnelState } from './net/hostBridge'
+import { hostPlayerChanges } from './net/playerChanges'
 import { useSignalStore } from './stores/signalStore'
+import { goToPointAction } from './stores/pointActionGo'
 import { laserStrokeEnded, useLaserStore } from './stores/laserStore'
+import { usePlayerLaserStore } from './stores/playerLaserStore'
 import { useFollowStore } from './stores/followStore'
+import { advanceTurn, startTurn, useInitiativeStore } from './stores/initiativeStore'
+import { turnTokenIdOn } from './lib/initiative'
 import { useFollowPlayer } from './stores/useFollowPlayer'
 import { playSignalSound } from './lib/signalSound'
 import { createSignalRouter } from './net/chamadoDeFundo'
-import type { PlayerInfo } from './net/hostSession'
-import { RoomPanel } from './components/RoomPanel'
-import { partyDestinations, partyMembers, peopleByScene } from './lib/party'
+import { tableSceneKey, type PlayerInfo } from './net/hostSession'
+import { tableScreenUrl } from './lib/tableScreen'
+import { RoomPanel, roomPanelTokensOf } from './components/RoomPanel'
+import { LivePlayerMirror } from './components/PlayerMirror'
+import { partyDestinations, partyItemChange, partyMembers, peopleByScene } from './lib/party'
+import type { TravelLogEntry } from './lib/travelLog'
+import { withStoredTokens } from './lib/storedTokens'
+import { loadSavedExploration, loadSavedTable, savedTableSummary, storeSavedExploration, storeSavedTable, type TableStorage } from './lib/savedTable'
 import { applyGatherPlan, gatherCandidates, planGather } from './lib/gatherParty'
 import { RailTabs, type RailTab } from './components/RailTabs'
 import { ask } from '@tauri-apps/plugin-dialog'
-import { viewportCenterWorld, type Bounds, type Camera } from './pixi/world'
+import { criarPedidoDeFechar } from './lib/avisoAoFechar'
+import type { Bounds, Camera } from './pixi/world'
 import { MainMenu } from './screens/MainMenu'
 import { MapTypePicker } from './screens/MapTypePicker'
 import { NewDungeonMap } from './screens/NewDungeonMap'
 import { LoadMapScreen } from './screens/LoadMapScreen'
 import { OptionsScreen } from './screens/OptionsScreen'
-import { useMapStore } from './stores/mapStore'
+import { selectAlignableUnitCount, useMapStore } from './stores/mapStore'
+import { roomHazardState } from './lib/hazards'
 import { saveMapToAppData, saveMapToPath, pickMapJsonToOpen, openMapFile, mapDirFor, defaultMapsDir, type OpenedMapFile } from './lib/mapFileIO'
 import {
+  applyItemsInScene,
   hasUnsavedWork,
   hostWorldOf,
   pinExitsTravelOf,
   pinTravelOptions,
   sceneList,
+  sceneMaps,
   subscribeToTravelLinks,
   travelSceneOptions,
   useAdventureStore,
 } from './stores/adventureStore'
 import { ScenesSection } from './components/ScenesSection'
+import { MapObjectsSection } from './components/MapObjectsSection'
+import { currentObjectKey, isFindObjectShortcut } from './lib/mapObjects'
+import { goToMapObject } from './stores/mapObjectNavigation'
+import { ligacaoLevarFicha } from './stores/levarFicha'
+import type { ActiveAlarmView } from './components/SceneAlarmControls'
 import { pickBackgroundImage, importBackgroundImage, pickImageFile, importPinImage, importTokenImage, buildTokenSharedPhoto } from './lib/imageImport'
 import { useTokenLibraryStore } from './stores/tokenLibraryStore'
-import { apagarDoAcervo, fotoSobrouNoDisco, salvarNoAcervo, trazerDoAcervo, IMAGEM_SUMIU_DO_ACERVO, type ItemDoAcervoNaTela } from './lib/tokenLibrary'
+import { apagarDoAcervo, fotoSobrouNoDisco, salvarNoAcervo, trazerDoAcervo, type ItemDoAcervoNaTela } from './lib/tokenLibrary'
+import { colocarPecaDoAcervo, criarToken, marcarFichaNpc, type TamanhoDaVista } from './stores/criarToken'
 import { pickExportFolder, pickImportFolder, exportMapFolder, importMapFolder } from './lib/mapExport'
 import { join } from '@tauri-apps/api/path'
 import { Toolbar } from './components/Toolbar'
 import { PropertiesPanel } from './components/PropertiesPanel'
 import { ActionBar } from './components/ActionBar'
+import { ShortcutsDialog } from './components/ShortcutsDialog'
+import { ExportImageDialog } from './components/ExportImageDialog'
+import { imageExportFileName, type ImageExportOptions, type MapImageExporter } from './lib/mapImageExport'
+import { saveMapImage } from './lib/mapImageSave'
 import type { DoorKind, DrawingCap, DrawingDash, MapData, Pin, PinPassage, Region, Token, Wall } from './types/map'
 import { passageOf } from './lib/pins'
 import { isArrivalOnly } from './lib/pinTravel'
@@ -57,11 +83,12 @@ import type { Screen } from './types/screen'
 import { createMapScreen, parentScreen } from './lib/navigation'
 import * as mapFactory from './lib/mapFactory'
 import { countEntitiesByLayer } from './lib/layers'
-import { findTokenSpawn, tokenRadiusFor, wallClearanceForScale } from './lib/tokenPlacement'
 import { roomDimensions } from './lib/roomOps'
 import type { GridAlignResult } from './lib/gridAlign'
 import { relevantPropertyGroups } from './lib/toolProperties'
 import { EMPTY_SELECTION, selectionOfItem, selectionSingle, selectionToAreaSelection } from './lib/selectionModel'
+import { isSingleGroup, NO_GROUPS } from './lib/itemGroups'
+import { lightsOnToken } from './lib/selectionHitTest'
 import { traceFloorPieces } from './lib/traceImage'
 import { loadImagePixels } from './lib/imagePixels'
 import { traceMapDetails } from './lib/traceDetails'
@@ -103,6 +130,25 @@ function reportFileError(action: string, err: unknown): void {
  * pegue o erro, e a tela inteira cai. Fechar a janela já derruba o listener de
  * qualquer jeito, então falhar aqui não custa nada e não merece aviso.
  */
+/**
+ * "Destrancar e abrir" do MESTRE ao pedido da porta trancada: tira o cadeado e
+ * abre, na cena da porta (de fundo quando o jogador está lá). É decisão do
+ * mestre, então vira passo do Ctrl+Z dele — ao contrário dos retornos do
+ * jogador, que vêm de `hostPlayerChanges` e ficam fora do desfazer.
+ */
+function unlockAndOpenDoorFromRequest(wallId: string, sceneId?: string): void {
+  if (sceneId !== undefined) {
+    useAdventureStore.getState().updateBackgroundScene(sceneId, (m) => {
+      const wall = m.walls.find((w) => w.id === wallId)
+      return wall?.door ? mapFactory.setWallDoor(m, wallId, { ...wall.door, open: true, locked: false }) : m
+    })
+    return
+  }
+  const store = useMapStore.getState()
+  const wall = store.map.walls.find((w) => w.id === wallId)
+  if (wall?.door) store.setWallDoor(wallId, { ...wall.door, open: true, locked: false })
+}
+
 function pararDeOuvir(unlisten: (() => void) | undefined): void {
   if (unlisten === undefined) return
   try {
@@ -116,13 +162,16 @@ function pararDeOuvir(unlisten: (() => void) | undefined): void {
   }
 }
 
+/**
+ * Timeout de segurança do aviso ao fechar: se o diálogo nativo nunca resolver,
+ * fecha mesmo assim — travar a janela do usuário é pior que perguntar de novo.
+ */
+const CLOSE_DIALOG_MAX_WAIT_MS = 10_000
+
 /** Aviso de sucesso de Salvar (botão, Ctrl+S) e de sair por Início. */
 const MAP_SAVED_TEXT = 'Mapa salvo'
-
-/** Toda peça nova nasce ocupando uma célula; o painel muda o tamanho depois. */
-const NEW_TOKEN_SIZE = 1
-/** Diz por que nenhuma peça apareceu, com o que fazer a seguir — silêncio aqui é o defeito que esta mudança conserta. */
-const NO_TOKEN_SPOT_TEXT = 'Sem lugar livre para a peça aqui: as paredes em volta não deixam espaço. Mova a vista para um trecho vazio e tente de novo.'
+/** Cena sem nenhum valor de iniciativa: referência estável, sem render novo à toa. */
+const NO_INITIATIVE_VALUES: Readonly<Record<string, number>> = {}
 
 /** Entrada do aviso de trabalho não salvo: ease-out curto, nunca de escala zero. */
 const UNSAVED_DIALOG_ENTER_MS = 160
@@ -237,6 +286,20 @@ function isRoomTool(tool: string): boolean {
   return tool === 'room' || tool === 'roomCircle' || tool === 'roomPolygon' || tool === 'roomFree'
 }
 
+/** Retomar a mesa: o storage do app do mestre, ou `null` quando o acesso lança (dado bloqueado). */
+function tableStorage(): TableStorage | null {
+  try {
+    return window.localStorage
+  } catch {
+    return null
+  }
+}
+
+/** A mesa é da aventura aberta (ou do mapa solto): outra aventura não herda os donos desta. */
+function currentTableId(): string {
+  return useAdventureStore.getState().adventure?.id ?? useMapStore.getState().map.id
+}
+
 /**
  * Orquestra o estado do editor: liga a store Zustand e o I/O de arquivo aos
  * componentes de interface. Nenhum layout mora aqui além do posicionamento dos
@@ -246,7 +309,6 @@ function App() {
   const [screen, setScreen] = useState<Screen>('menu')
   const showGrid = useMapStore((state) => state.map.showGrid)
   const setShowGrid = useMapStore((state) => state.setShowGrid)
-  const addToken = useMapStore((state) => state.addToken)
   const map = useMapStore((state) => state.map)
   const loadMap = useMapStore((state) => state.loadMap)
   const setBackground = useMapStore((state) => state.setBackground)
@@ -258,7 +320,11 @@ function App() {
   const gridShape = useMapStore((state) => state.map.gridShape)
   const setGridShapeAction = useMapStore((state) => state.setGridShape)
   const selection = useMapStore((state) => state.selection)
+  // Blocos que andam no alinhar (Sala + paredes = 1), não entradas da seleção.
+  const alignableCount = useMapStore(selectAlignableUnitCount)
   const setSelection = useMapStore((state) => state.setSelection)
+  // Agrupar objetos (Ctrl+G): só os grupos do mapa aberto.
+  const mapGroups = useMapStore((state) => state.itemGroups[state.map.id] ?? NO_GROUPS)
   const removeSelected = useMapStore((state) => state.removeSelected)
   // Onda 3, item 20 (Frente D) — histórico deixa de ser invisível: botões
   // de desfazer/refazer na ActionBar, desabilitados com past/future vazio.
@@ -294,11 +360,17 @@ function App() {
   const setRegionPattern = useMapStore((state) => state.setRegionPattern)
   const setWallDoor = useMapStore((state) => state.setWallDoor)
   const setDoorLocked = useMapStore((state) => state.setDoorLocked)
+  const setDoorSecret = useMapStore((state) => state.setDoorSecret)
+  const revealSecretPassage = useMapStore((state) => state.revealSecretPassage)
   const turnWallIntoDoor = useMapStore((state) => state.turnWallIntoDoor)
   const doorKind = useMapStore((state) => state.doorKind)
   const setDoorKind = useMapStore((state) => state.setDoorKind)
   const doorMode = useMapStore((state) => state.doorMode)
   const setDoorMode = useMapStore((state) => state.setDoorMode)
+  const revealBrushMode = useMapStore((state) => state.revealBrushMode)
+  const setRevealBrushMode = useMapStore((state) => state.setRevealBrushMode)
+  const revealBrushWidth = useMapStore((state) => state.revealBrushWidth)
+  const setRevealBrushWidth = useMapStore((state) => state.setRevealBrushWidth)
   const setWallDoorKind = useMapStore((state) => state.setWallDoorKind)
   const wallKind = useMapStore((state) => state.wallKind)
   const setWallKind = useMapStore((state) => state.setWallKind)
@@ -320,16 +392,19 @@ function App() {
   const toggleLayerLock = useMapStore((state) => state.toggleLayerLock)
   const setPropLayer = useMapStore((state) => state.setPropLayer)
   const updateLight = useMapStore((state) => state.updateLight)
+  const setLightAttachment = useMapStore((state) => state.setLightAttachment)
   const setTokenImage = useMapStore((state) => state.setTokenImage)
   const updateToken = useMapStore((state) => state.updateToken)
   const updateProp = useMapStore((state) => state.updateProp)
   const setGridOffset = useMapStore((state) => state.setGridOffset)
   const setGridCellSize = useMapStore((state) => state.setGridCellSize)
+  const setMapSize = useMapStore((state) => state.setMapSize)
   const setStairDirection = useMapStore((state) => state.setStairDirection)
   const setRoomName = useMapStore((state) => state.setRoomName)
   const resizeRoomDimensions = useMapStore((state) => state.resizeRoomDimensions)
   const setMapScale = useMapStore((state) => state.setMapScale)
   const setMeasurementMode = useMapStore((state) => state.setMeasurementMode)
+  const setMovementRules = useMapStore((state) => state.setMovementRules)
   const setScenarioLink = useMapStore((state) => state.setScenarioLink)
   const updateTextLabel = useMapStore((state) => state.updateTextLabel)
   const setTextFontFamily = useMapStore((state) => state.setTextFontFamily)
@@ -400,55 +475,54 @@ function App() {
   // Multiplayer em LAN: ponte do mestre criada sob demanda (só dentro do Tauri, ver RoomPanel abaixo).
   const [room, setRoom] = useState<RoomInfo | null>(null)
   const [roomPlayers, setRoomPlayers] = useState<PlayerInfo[]>([])
+  // "Quem vê" de cada pino com lista. O dono é a sessão do host; isto é só o que o painel desenha.
+  const [pinAudiences, setPinAudiences] = useState<Record<string, string[]>>({})
+  // Tela da mesa: a cena que a TV mostra (`tableSceneKey`) e quantas TVs estão conectadas.
+  const [tableScene, setTableScene] = useState<string | null>(null)
+  const [tableScreens, setTableScreens] = useState(0)
+  // A chave do link da TV, gerada pela sala: sem ela o código sozinho não vira tela.
+  const [tableKey, setTableKey] = useState<string | null>(null)
+  // ALARME PARA VÁRIAS CENAS: o que está soando, para a seção Cenas mostrar e encerrar.
+  const [sceneAlarm, setSceneAlarm] = useState<ActiveAlarmView | null>(null)
+  // Cenas pausadas (G12): espelho do que a sessão da sala guarda; fechar a sala zera as duas.
+  const [pausedScenes, setPausedScenes] = useState<ReadonlySet<string>>(() => new Set())
+  // G15 — diário de viagens da sala (só do mestre; a ponte avisa a cada viagem e "Desfazer").
+  const [travelLog, setTravelLog] = useState<TravelLogEntry[]>([])
   const [tunnel, setTunnel] = useState<TunnelState>({ kind: 'idle' })
   const [railTab, setRailTab] = useState<RailTab>('map')
+  /** Muda a cada Ctrl+K: "Objetos do mapa" abre com o cursor na busca (MapObjectsSection). */
+  const [objectSearchRequest, setObjectSearchRequest] = useState(0)
+  // INICIATIVA (aba Jogo): valores por cena e a vez. Estado da mesa, fora do arquivo do mapa.
+  const initiativeValues = useInitiativeStore((state) => state.values)
+  const initiativeTurn = useInitiativeStore((state) => state.turn)
   const hostBridgeRef = useRef<HostBridge | null>(null)
+  // A mesa da sala aberta é da aventura em que ela abriu: trocar de aventura no
+  // meio não pode gravar os donos desta sala na mesa da outra.
+  const roomTableIdRef = useRef<string | null>(null)
   const hostBridge = (): HostBridge => {
     if (!hostBridgeRef.current) {
       hostBridgeRef.current = createHostBridge({
         invoke,
         listen,
+        loadTable: () => loadSavedTable(tableStorage(), roomTableIdRef.current ?? currentTableId()),
+        saveTable: (table) => storeSavedTable(tableStorage(), roomTableIdRef.current ?? currentTableId(), table),
+        loadExploration: () => loadSavedExploration(tableStorage(), roomTableIdRef.current ?? currentTableId()),
+        saveExploration: (exploration) => storeSavedExploration(tableStorage(), roomTableIdRef.current ?? currentTableId(), exploration),
         getMap: () => useMapStore.getState().map,
         // Cada jogador vê a cena do token dele: a sessão precisa da aventura inteira, não só da cena aberta.
         getWorld: () => hostWorldOf(useAdventureStore.getState(), useMapStore.getState().map),
-        // Movimento já validado pela sessão (dono, paredes, borda do chão). Jogador numa
-        // cena de fundo mexe nela sem passar pelo desfazer da cena aberta.
-        applyMove: (tokenId, x, y, sceneId) => {
-          if (sceneId === undefined) useMapStore.getState().setTokenPosition(tokenId, x, y)
-          else useAdventureStore.getState().updateBackgroundScene(sceneId, (m) => mapFactory.setTokenPosition(m, tokenId, x, y))
-        },
-        // Porta aberta/fechada pelo jogador, já validada pela sessão (visível, destrancada, token perto).
-        applyDoor: (wallId, open, sceneId) => {
-          if (sceneId !== undefined) {
-            useAdventureStore.getState().updateBackgroundScene(sceneId, (m) => {
-              const wall = m.walls.find((w) => w.id === wallId)
-              // Mesma recusa defensiva da cena aberta, logo abaixo.
-              if (!wall?.door || (open && wall.door.locked)) return m
-              return mapFactory.setWallDoor(m, wallId, { ...wall.door, open })
-            })
-            return
-          }
-          const store = useMapStore.getState()
-          const wall = store.map.walls.find((w) => w.id === wallId)
-          // Trancada só o mestre abre: recusa defensiva se o mapa mudou entre a validação e aqui.
-          if (!wall?.door || (open && wall.door.locked)) return
-          store.setWallDoor(wallId, { ...wall.door, open })
-        },
-        // Nome/foto que o jogador trocou no próprio token, já validados pela
-        // sessão (o token é dele, a foto é auto-contida). `image` chega como
-        // referência embutida: ela vira a cópia que viaja, e o caminho do
-        // disco do mestre (se havia um) deixa de valer para este token.
-        applyTokenEdit: ({ tokenId, name, image, sceneId }) => {
-          if (sceneId !== undefined) {
-            useAdventureStore.getState().updateBackgroundScene(sceneId, (m) => {
-              const renamed = name === undefined ? m : mapFactory.renameToken(m, tokenId, name)
-              return image === undefined ? renamed : mapFactory.setTokenImage(renamed, tokenId, null, image)
-            })
-            return
-          }
-          const store = useMapStore.getState()
-          if (name !== undefined) store.renameToken(tokenId, name)
-          if (image !== undefined) store.setTokenImage(tokenId, null, image)
+        // Movimento, porta e nome/foto da ficha que o JOGADOR mudou, já validados
+        // pela sessão: entram no mapa sem virar passo do Ctrl+Z do mestre (ver
+        // `net/playerChanges.ts`), na cena aberta ou numa de fundo.
+        ...hostPlayerChanges,
+        // "Destrancar e abrir" do mestre ao pedido da porta trancada (passo do Ctrl+Z dele).
+        unlockAndOpenDoor: unlockAndOpenDoorFromRequest,
+        // ITEM PEGÁVEL: o pino pego sai e as mochilas mudam, já validados pela
+        // sessão. Vale para TODO passo do desfazer da cena, aberta ou de fundo
+        // (`applyItemsInScene`): um Ctrl+Z do mestre não devolve a chave ao
+        // chão com ela ainda na mochila de alguém.
+        applyItems: (change) => {
+          applyItemsInScene(change)
         },
         // "Deixar ir": o token troca de cena fora do desfazer das duas (ver `transferToken`).
         applyTransfer: ({ tokenId, fromSceneId, toSceneId, x, y }) =>
@@ -458,8 +532,15 @@ function App() {
         onGoToScene: (sceneId, x, y) => {
           useAdventureStore.getState().goToPoint(sceneId, { x, y })
         },
+        // "Ir lá" da ação no ponto: centra no ponto e o marca com o anel do jogador.
+        onPointActionGo: goToPointAction,
         onPlayersChange: setRoomPlayers,
+        onPinAudiencesChange: setPinAudiences,
+        onTravelLogChange: setTravelLog,
         onTunnelChange: setTunnel,
+        // A vez vai no snapshot, recortada por jogador (`turnForPlayer`): ficha que ele não vê não vira vez.
+        getTurn: () => useInitiativeStore.getState().turn,
+        onTableScreensChange: setTableScreens,
         // B1 — sinal do jogador: o canvas desenha pela store e o bipe avisa quem não está olhando.
         // G6 — sinal de cena de FUNDO não vira ping aqui (as coordenadas são de
         // outro mapa): vira o aviso "chamou em", com "Ir lá" (`net/chamadoDeFundo.ts`).
@@ -470,11 +551,41 @@ function App() {
             useAdventureStore.getState().goToPoint(sceneId, { x, y })
           },
         }),
+        // Laser do jogador: o canvas desenha pela store, só o da cena aberta.
+        onPlayerLaser: (laser) => usePlayerLaserStore.getState().receive(laser),
+        // Chamar o mestre: a linha na caixa "Chamados" a ponte já põe; aqui só o bipe.
+        onCall: () => playSignalSound(),
+        // "Ir lá" do chamado: a cena de quem chamou (ou a aberta, no mapa solto) com a ficha no centro.
+        onGoToPoint: (sceneId, x, y) => {
+          useAdventureStore.getState().goToPoint(sceneId, { x, y })
+        },
+        // "Guardar ficha" de quem foi embora: a ficha sai do mapa (na cena aberta, pelo desfazer de sempre).
+        removeToken: (tokenId, sceneId) => {
+          if (sceneId === undefined) useMapStore.getState().removeToken(tokenId)
+          else useAdventureStore.getState().updateBackgroundScene(sceneId, (m) => mapFactory.removeToken(m, tokenId))
+        },
+        // A ficha guardada volta. Já no mapa (o mestre desfez a retirada): não entra de novo, com o mesmo id.
+        restoreToken: (token, sceneId) => {
+          if (sceneId === undefined) {
+            const store = useMapStore.getState()
+            if (!store.map.tokens.some((t) => t.id === token.id)) store.addToken(token)
+            return
+          }
+          useAdventureStore.getState().updateBackgroundScene(sceneId, (m) => (m.tokens.some((t) => t.id === token.id) ? m : mapFactory.addToken(m, token)))
+        },
       })
     }
     return hostBridgeRef.current
   }
   useEffect(() => useMapStore.subscribe((state) => state.map, () => hostBridgeRef.current?.notifyMapChanged()), [])
+  // A vez andou: os jogadores sabem na hora (o "Sua vez" não espera outra edição do mapa).
+  useEffect(
+    () =>
+      useInitiativeStore.subscribe((state, previous) => {
+        if (state.turn !== previous.turn) hostBridgeRef.current?.notifyTurnChanged()
+      }),
+    [],
+  )
   const laserToggled = useLaserStore((state) => state.toggled)
   // B2 — o `off` sai no fim do traço: soltar o botão, sair da janela ou desarmar (L e botão Laser).
   useEffect(
@@ -490,9 +601,12 @@ function App() {
     },
     [],
   )
-  const handleStartRoom = async () => {
+  const handleStartRoom = async (resume: boolean) => {
+    roomTableIdRef.current = currentTableId()
     try {
-      setRoom(await hostBridge().start())
+      const bridge = hostBridge()
+      setRoom(await bridge.start({ resume }))
+      setTableKey(bridge.tableKey())
     } catch {
       // A ponte já mostrou o toast com o motivo; o painel continua com a sala fechada.
     }
@@ -501,7 +615,14 @@ function App() {
     await hostBridgeRef.current?.stop()
     setRoom(null)
     setRoomPlayers([])
+    // Sala nova nasce sem cena na TV: a sessão de agora morreu com a escolha.
+    setTableScene(null)
+    setTableKey(null)
+    // O alarme morreu com a sessão: sala nova começa sem alarme.
+    setSceneAlarm(null)
+    setPausedScenes(new Set())
     useSignalStore.getState().clear()
+    usePlayerLaserStore.getState().clear()
     useLaserStore.getState().setToggled(false)
   }
   /**
@@ -510,6 +631,26 @@ function App() {
    * viajou. Só é montado com a aba Jogo existindo (Tauri).
    */
   const roomPanelWorld = () => hostWorldOf({ adventure, activeSceneId, cache: sceneCache }, map)
+  /** Com a sala fechada, quem tem ficha na mesa guardada: é o que faz o "Abrir sala" perguntar "Retomar a mesa?". */
+  const savedTableNames = (): string | null => {
+    if (room !== null) return null
+    const table = loadSavedTable(tableStorage(), currentTableId())
+    return table === null ? null : savedTableSummary(table)
+  }
+  /** A lista Cenas: as mesmas linhas do Grupo, com a Sala de cada um para o recado a escolhidos. */
+  const scenePeople = () => {
+    if (roomPlayers.length === 0) return undefined
+    const world = roomPanelWorld()
+    return peopleByScene(partyMembers(roomPlayers, world), world)
+  }
+  /** "Desfazer" do diário: a ponte devolve a ficha; o aviso confirma para onde, já que a linha some. */
+  const undoTravel = (entryId: string): boolean => {
+    const entry = travelLog.find((e) => e.id === entryId)
+    const bridge = hostBridgeRef.current
+    if (entry === undefined || bridge === null || !bridge.undoTravel(entryId)) return false
+    useToastStore.getState().push('info', `Viagem desfeita: ${entry.tokenName} voltou para ${entry.fromSceneName}`)
+    return true
+  }
   /** Fora do Tauri o rail segue só com o inspetor; no app ganha as abas Mapa | Jogo. */
   const withRoomTabs = (mapPanel: ReactNode): ReactNode => {
     if (!isTauri()) return mapPanel
@@ -523,8 +664,7 @@ function App() {
           <RoomPanel
             room={room}
             players={roomPlayers}
-            tokens={map.tokens.map((token) => ({ id: token.id, name: token.name }))}
-            knownTokens={[world.open, ...world.background].flatMap((scene) => scene.map.tokens.map((token) => ({ id: token.id, name: token.name })))}
+            tokens={roomPanelTokensOf(world)}
             party={{
               members: partyMembers(roomPlayers, world),
               destinations: partyDestinations(world),
@@ -534,22 +674,60 @@ function App() {
                 if (member.token !== null) useAdventureStore.getState().goToPoint(member.sceneId, { x: member.token.x, y: member.token.y })
               },
               onSend: (playerId, sceneId, pinId) => hostBridgeRef.current?.sendPlayer(playerId, sceneId, pinId) ?? false,
+              // ITEM PEGÁVEL: tirar, devolver ao chão ou dar, gravado na cena
+              // da ficha (fora do desfazer, em todo passo dele). A cena de
+              // fundo não passa pelo `useMapStore`: o snapshot sai por aqui.
+              onItem: (action) => {
+                const change = partyItemChange(world, action, crypto.randomUUID())
+                if (change === null || !applyItemsInScene(change)) return false
+                hostBridgeRef.current?.notifyMapChanged()
+                return true
+              },
               followingId,
               onToggleFollow: (member) => useFollowStore.getState().toggle(member.playerId),
+              // "Ver tela": um espelho por vez; o mesmo botão fecha o que abriu.
+              mirroringId: mirrorId,
+              onToggleMirror: (member) => setMirrorId((current) => (current === member.playerId ? null : member.playerId)),
+              // Recado para um jogador só: sem sala não há quem leia.
+              onNote: room === null ? undefined : (playerId, text) => hostBridgeRef.current?.playerNote(playerId, text) ?? null,
             }}
+            initiative={{
+              tokens: map.tokens.map((token) => ({ id: token.id, name: token.name })),
+              values: initiativeValues[map.id] ?? NO_INITIATIVE_VALUES,
+              turnTokenId: turnTokenIdOn(initiativeTurn, map),
+              onValueChange: (tokenId, value) => useInitiativeStore.getState().setValue(map.id, tokenId, value),
+              onStart: () => startTurn(map.id, map.tokens),
+              onNext: () => advanceTurn(map.id, map.tokens),
+              onStop: () => useInitiativeStore.getState().stop(),
+            }}
+            // Mapa solto não tem para onde viajar: o diário só aparece com aventura aberta.
+            travelLog={adventure === null ? undefined : { entries: travelLog, onUndo: undoTravel }}
             tunnel={tunnel}
-            onStart={() => void handleStartRoom()}
+            savedTableNames={savedTableNames()}
+            onStart={(resume) => void handleStartRoom(resume)}
             onStop={() => void handleStopRoom()}
             onStartTunnel={() => void hostBridgeRef.current?.startTunnel()}
             onStopTunnel={() => void hostBridgeRef.current?.stopTunnel()}
             onAssign={(playerId, tokenId) => hostBridgeRef.current?.assignToken(playerId, tokenId)}
             onUnassign={(playerId, tokenId) => hostBridgeRef.current?.unassignToken(playerId, tokenId)}
             onKick={(clientId) => void hostBridgeRef.current?.kick(clientId)}
+            onStoreTokens={(playerId) => hostBridgeRef.current?.storeTokens(playerId)}
+            onDismiss={(playerId) => hostBridgeRef.current?.dismissPlayer(playerId)}
             onVisionRadiusChange={(playerId, radius) => hostBridgeRef.current?.setVisionRadius(playerId, radius)}
             onRevealPlan={(playerId) => hostBridgeRef.current?.revealPlan(playerId)}
             onHidePlan={(playerId) => hostBridgeRef.current?.hidePlan(playerId)}
             laserOn={laserToggled}
             onToggleLaser={() => useLaserStore.getState().setToggled(!useLaserStore.getState().toggled)}
+            table={{
+              url: room === null || room.urls[0] === undefined || tableKey === null ? null : tableScreenUrl(room.urls[0], room.code, tableKey),
+              scenes: [world.open, ...world.background].map((scene) => ({ key: tableSceneKey(scene), name: scene.name })),
+              sceneKey: tableScene,
+              screens: tableScreens,
+              onSceneChange: (key) => {
+                setTableScene(key)
+                hostBridgeRef.current?.setTableScene(key)
+              },
+            }}
           />
         }
       />
@@ -568,6 +746,13 @@ function App() {
   // G7 — "Seguir" na linha do Grupo: a câmera acompanha a ficha do jogador, inclusive de cena em cena.
   const followingId = useFollowStore((state) => state.playerId)
   useFollowPlayer(roomPlayers, () => hostWorldOf({ adventure, activeSceneId, cache: sceneCache }, map))
+  // "Ver tela" do Grupo: de quem é o espelho aberto. Quem saiu da sala (expulso,
+  // sala fechada) leva o espelho junto — voltar depois não o reabre sozinho.
+  const [mirrorId, setMirrorId] = useState<string | null>(null)
+  const mirroredPlayer = mirrorId === null ? undefined : roomPlayers.find((player) => player.playerId === mirrorId)
+  useEffect(() => {
+    if (mirrorId !== null && mirroredPlayer === undefined) setMirrorId(null)
+  }, [mirrorId, mirroredPlayer])
   /**
    * Caminho de origem do mapa em edição. `null` enquanto o mapa é novo
    * (ainda não salvo); a partir daí toda escrita vai de volta para esse
@@ -575,6 +760,17 @@ function App() {
    * arquivo da cena aberta, e quem grava é `useAdventureStore.flush`.
    */
   const [currentMapPath, setCurrentMapPath] = useState<string | null>(null)
+  /** O salvamento automático lê a origem na hora da cópia, fora do render. */
+  const currentMapPathRef = useRef<string | null>(null)
+  /**
+   * Cópia de recuperação deixada por uma abertura anterior que fechou sem
+   * salvar — vira a oferta "Recuperar" no menu inicial. Só vale até o mestre
+   * entrar no editor: dali em diante o salvamento automático desta abertura
+   * pode gravar por cima dela.
+   */
+  const [recoveryCopy, setRecoveryCopy] = useState<RecoveryCopy | null>(null)
+  const recoveryOfferExpiredRef = useRef(false)
+  const recoveryAutosaveRef = useRef<RecoveryAutosave | null>(null)
   /**
    * Troca de mapa que está esperando o mestre responder sobre o trabalho não
    * salvo. `run` é a abertura que já ia acontecer (seletor de arquivo ou
@@ -613,6 +809,12 @@ function App() {
    * MUDANÇA (mesmo padrão que `gridAlignPreview` já usa como ponte).
    */
   const [resetZoomRequest, setResetZoomRequest] = useState(0)
+  /** Tela de atalhos: abre pela tecla `?` no mapa (PixiCanvas) ou pelo botão da barra de ações. */
+  const [shortcutsOpen, setShortcutsOpen] = useState(false)
+  /** "Exportar imagem": a função do canvas que gera o PNG (`null` sem canvas montado). */
+  const imageExporterRef = useRef<MapImageExporter | null>(null)
+  /** Janela "Exportar imagem" aberta (`null` = fechada), gerando/gravando, e o erro da última tentativa. */
+  const [exportImageState, setExportImageState] = useState<{ busy: boolean; error: string | null } | null>(null)
   /** Container do canvas: o tamanho dele é a "tela" usada para achar o centro visível ao adicionar token. */
   const canvasHostRef = useRef<HTMLDivElement | null>(null)
   /** Barra de ferramentas e rail: flutuam sobre o canvas e tapam o que está embaixo. */
@@ -632,6 +834,11 @@ function App() {
       const r = el.getBoundingClientRect()
       return [{ minX: r.left - base.left, minY: r.top - base.top, maxX: r.right - base.left, maxY: r.bottom - base.top }]
     })
+  }
+  /** Tamanho do canvas agora, para a peça nova nascer no centro da vista; `null` antes de ele montar. */
+  const vistaDoCanvas = (): TamanhoDaVista | null => {
+    const host = canvasHostRef.current
+    return host === null ? null : { width: host.clientWidth, height: host.clientHeight }
   }
 
   /**
@@ -712,9 +919,51 @@ function App() {
   // apagar, Ctrl+Z) é espelhada no par da outra cena.
   useEffect(() => subscribeToTravelLinks(), [])
 
+  useEffect(() => {
+    currentMapPathRef.current = currentMapPath
+  }, [currentMapPath])
+
+  /**
+   * Salvamento automático com recuperação: ao abrir, procura a cópia de
+   * recuperação de uma abertura anterior (oferta no menu); enquanto o mestre
+   * edita, guarda a cópia sozinho. Só no app (Tauri) — no `vite` puro dos
+   * testes e2e sem a ponte não existe disco, mesmo guard do efeito abaixo.
+   * Ler a cópia é melhor esforço: sem cópia legível não há o que oferecer, e
+   * um erro ali não pode virar aviso na tela inicial.
+   */
+  useEffect(() => {
+    if (!isTauri()) return
+    let cancelled = false
+    readRecoveryCopy()
+      .then((copy) => {
+        if (!cancelled && !recoveryOfferExpiredRef.current) setRecoveryCopy(copy)
+      })
+      .catch(() => undefined)
+    const autosave = startRecoveryAutosave({
+      storage: { write: writeRecoveryCopy, clear: clearRecoveryCopy },
+      getLooseMapPath: () => currentMapPathRef.current,
+      onError: (err) => reportFileError('guardar a cópia de recuperação', err),
+    })
+    recoveryAutosaveRef.current = autosave
+    return () => {
+      cancelled = true
+      autosave.stop()
+      recoveryAutosaveRef.current = null
+    }
+  }, [])
+
+  // Entrou no editor (mapa novo, aberto ou recuperado): a oferta do menu
+  // deixa de valer, porque o salvamento automático desta abertura assume a cópia.
+  useEffect(() => {
+    if (screen !== 'editor') return
+    recoveryOfferExpiredRef.current = true
+    setRecoveryCopy(null)
+  }, [screen])
+
   /**
    * Avisa antes de fechar a janela (X, Alt+F4, taskbar) se houver edição não
-   * salva — item 11 (Frente D), com UM desvio deliberado do CONTRATO da
+   * salva ou jogador conectado na sala (`lib/avisoAoFechar.ts`) — item 11
+   * (Frente D), com UM desvio deliberado do CONTRATO da
    * frente (ver relatório do integrador): `getCurrentWindow()` lê
    * `window.__TAURI_INTERNALS__.metadata` de forma SÍNCRONA e lança
    * `TypeError` fora do webview real — e este app roda a suíte inteira de
@@ -731,18 +980,20 @@ function App() {
     let unlisten: (() => void) | undefined
     let cancelled = false
     getCurrentWindow()
-      .onCloseRequested(async (event) => {
-        if (!hasUnsavedWork()) return
-        event.preventDefault()
-        // Timeout de segurança: se o diálogo nativo nunca resolver (ou
-        // `ask` falhar), fecha mesmo assim — travar a janela do usuário é
-        // pior que perguntar de novo na próxima tentativa.
-        const confirmed = await Promise.race([
-          ask('Há alterações não salvas neste mapa. Fechar mesmo assim?', { title: 'Labirinto', kind: 'warning' }).catch(() => true),
-          new Promise<boolean>((resolve) => setTimeout(() => resolve(true), 10_000)),
-        ])
-        if (confirmed) await getCurrentWindow().destroy()
-      })
+      .onCloseRequested(
+        // Pergunta com edição não salva OU com jogador conectado: fechar o app
+        // derruba a sala, e com o mapa salvo o X levava os 7 sem perguntar.
+        // Sem ponte (sala nunca aberta), ninguém está na sala.
+        criarPedidoDeFechar({
+          estado: () => ({
+            alteracoesNaoSalvas: hasUnsavedWork(),
+            jogadoresNaSala: hostBridgeRef.current?.connectedPlayerCount() ?? 0,
+          }),
+          perguntar: (texto) => ask(texto, { title: 'Labirinto', kind: 'warning' }),
+          fechar: () => getCurrentWindow().destroy(),
+          esperaMaximaMs: CLOSE_DIALOG_MAX_WAIT_MS,
+        }),
+      )
       .then((fn) => {
         if (cancelled) pararDeOuvir(fn)
         else unlisten = fn
@@ -773,6 +1024,8 @@ function App() {
   const selectedRegion = singleSelection?.kind === 'region' ? map.regions.find((r) => r.id === singleSelection.id) ?? null : null
   // Sub-sala: a sala de fora (parentId órfão = sala de topo, sem linha "Dentro de").
   const selectedRegionParent = selectedRegion?.parentId !== undefined ? map.regions.find((r) => r.id === selectedRegion.parentId) ?? null : null
+  // ZONA DE PERIGO da Sala selecionada: o perigo dela e se "Avançar um passo" muda algo.
+  const selectedRoomHazard = selectedRegion?.room ? roomHazardState(map, selectedRegion.id) : null
   const selectedLight = singleSelection?.kind === 'light' ? map.lights.find((l) => l.id === singleSelection.id) ?? null : null
   const selectedStair = singleSelection?.kind === 'stair' ? map.stairs.find((s) => s.id === singleSelection.id) ?? null : null
   const selectedFloorIndex = singleSelection?.kind === 'floor' ? map.floor.findIndex((p) => p.id === singleSelection.id) : -1
@@ -783,6 +1036,8 @@ function App() {
   // Pino aberto no painel. Some sozinho se o Ctrl+Z tirar o pino do mapa.
   const selectedPinId = useMapStore((state) => state.selectedPinId)
   const selectedPin = map.pins.find((p) => p.id === selectedPinId) ?? null
+  // "Objetos do mapa": a linha do objeto selecionado fica marcada na lista.
+  const currentMapObjectKey = currentObjectKey(map, selection, selectedPinId)
   const pinKind = useMapStore((state) => state.pinKind)
   const pinIcon = useMapStore((state) => state.pinIcon)
   // A5 — "Oculto para jogadores" do item selecionado que não é Token/Objeto.
@@ -946,6 +1201,16 @@ function App() {
     setDoorLocked(selectedWall.id, !selectedWall.door.locked)
   }
 
+  const handleToggleSecret = () => {
+    if (!selectedWall || !selectedWall.door) return
+    setDoorSecret(selectedWall.id, selectedWall.door.secret !== true)
+  }
+
+  const handleRevealPassage = () => {
+    if (!selectedWall) return
+    revealSecretPassage(selectedWall.id)
+  }
+
   /**
    * Com uma parede-porta selecionada, o seletor de tipo edita ELA (com
    * histórico, via setWallDoorKind). Sem porta selecionada — ferramenta
@@ -1094,13 +1359,8 @@ function App() {
       return
     }
 
-    if (criarToken(item.nome, { at, id: tokenId, size: item.tamanho, image, imageData }) === null) return
-    if (image === null && imageData === null) {
-      // A peça entra assim mesmo, com o nome certo e o círculo genérico: o
-      // arquivo sumiu da pasta do acervo, e não colocar a peça seria punir a
-      // pessoa por um problema do disco.
-      useToastStore.getState().push('error', IMAGEM_SUMIU_DO_ACERVO)
-    }
+    // Nasce com a marca de NPC e, sem foto, com o aviso — `stores/criarToken.ts`.
+    colocarPecaDoAcervo(item, tokenId, { image, imageData }, at, vistaDoCanvas())
   }
 
   /**
@@ -1196,19 +1456,27 @@ function App() {
    * aventura grava todas as cenas pendentes e o `adventure.json`
    * (`useAdventureStore.flush`). Compartilhado por `handleSave`,
    * `handleGoHome` e `saveAndOpen` — só o que acontece depois muda.
+   *
+   * Já marca como salvo SÓ o que foi gravado (`saveOpenMap` e `flush`): a
+   * edição feita enquanto o disco grava continua não salva. Quem chama não
+   * deve chamar `markSaved()` depois — isso marcaria o mapa de agora.
    */
   const persistMap = async (): Promise<string> => {
+    // "Guardar ficha" tira a ficha do mapa, não do arquivo: gravar sem ela e
+    // fechar a janela a apagaria para sempre (a cópia só vive na ponte da sala).
+    const stored = hostBridgeRef.current?.storedTokens() ?? []
     const adventureState = useAdventureStore.getState()
     if (adventureState.adventure !== null) {
-      const path = await adventureState.flush()
+      const path = await adventureState.flush(stored)
       setCurrentMapPath(path)
       return path
     }
     if (currentMapPath) {
-      await saveMapToPath(map, currentMapPath)
-      return currentMapPath
+      const path = currentMapPath
+      await saveOpenMap((saving) => saveMapToPath(withStoredTokens(saving, stored), path))
+      return path
     }
-    const path = await saveMapToAppData(map)
+    const path = await saveOpenMap((saving) => saveMapToAppData(withStoredTokens(saving, stored)))
     setCurrentMapPath(path)
     return path
   }
@@ -1298,74 +1566,15 @@ function App() {
     if (failed.length > 0) useToastStore.getState().push('error', `Não deu para trazer: ${failed.join(', ')}. A cena ou a ficha mudou; tente de novo.`)
   }
 
-  /**
-   * Token nasce no centro da área visível do canvas (câmera da store, que o
-   * PixiCanvas mantém em dia a cada pan/zoom) e já selecionado, para o painel
-   * mostrar o Nome dele. Sem o container montado cai em (0,0), como antes.
-   * `at` (ferramenta Token, clique no mapa) troca o centro pelo ponto clicado.
-   *
-   * O ponto pedido é só o PEDIDO: `findTokenSpawn` (lib/tokenPlacement.ts)
-   * empurra a peça para o lugar livre mais perto quando o disco cairia em
-   * cima da linha de uma parede — antes disto, com a vista enquadrada numa
-   * parede, a peça nascia atravessada nela e o app não dizia nada. Vale
-   * também para o clique da ferramenta Token: o usuário aponta mais ou menos,
-   * o app assenta a peça onde ela cabe. Sem lugar livre por perto ele não
-   * cria peça nenhuma e FALA por quê (toast), em vez de largar na parede.
-   *
-   * Lê mapa e câmera de `getState()` e não da closure de render: este handler
-   * também vai como prop para dentro do PixiCanvas, e lá o valor capturado
-   * pode ser de um render anterior — mesmo motivo de a câmera já ser lida
-   * assim antes desta mudança.
-   */
-  const criarToken = (
-    name: string,
-    opts: { at?: { x: number; y: number }; size?: number; id?: string; image?: string | null; imageData?: string | null } = {},
-  ): string | null => {
-    const host = canvasHostRef.current
-    const { map: currentMap, camera } = useMapStore.getState()
-    const size = opts.size ?? NEW_TOKEN_SIZE
-    const requested = opts.at ?? (host ? viewportCenterWorld(camera, host.clientWidth, host.clientHeight) : { x: 0, y: 0 })
-    const spot = findTokenSpawn(requested, currentMap.walls, {
-      // O raio acompanha o TAMANHO da peça: o NPC de 2 células vindo do acervo
-      // precisa de mais espaço livre que o disco de uma célula, e medir pelo
-      // tamanho fixo o assentaria encostado na parede.
-      radius: tokenRadiusFor(currentMap.grid, size),
-      clearance: wallClearanceForScale(camera.scale),
-    })
-    if (spot === null) {
-      useToastStore.getState().push('error', NO_TOKEN_SPOT_TEXT)
-      return null
-    }
-    // A foto entra JUNTO com a peça, num `addToken` só: criar a peça e depois
-    // chamar `setTokenImage` empilhava DUAS entradas de desfazer para um clique
-    // (o primeiro Ctrl+Z tirava só a foto), e a segunda, chegando depois da
-    // cópia do arquivo, ainda podia rodar sobre um mapa que já não tinha esse
-    // token — um no-op silencioso que mesmo assim zerava o Refazer.
-    const id = opts.id ?? crypto.randomUUID()
-    addToken({
-      id,
-      characterId: null,
-      name,
-      x: spot.x,
-      y: spot.y,
-      size,
-      image: opts.image ?? null,
-      imageData: opts.imageData ?? null,
-    })
-    useMapStore.getState().setSelection(selectionOfItem({ kind: 'token', id }))
-    return id
-  }
-
   /** Assinatura que a barra de ações e o clique da ferramenta Token já usam:
-   *  cria e esquece. Quem precisa do `id` (o acervo) chama `criarToken`. */
+   *  cria e esquece. Onde a peça nasce e por quê: `stores/criarToken.ts`. */
   const handleAddToken = (name: string, at?: { x: number; y: number }) => {
-    criarToken(name, { at })
+    criarToken(name, { at }, vistaDoCanvas())
   }
 
   const handleSave = async () => {
     try {
       await persistMap()
-      useSessionStore.getState().markSaved()
       useToastStore.getState().push('info', MAP_SAVED_TEXT)
     } catch (err) {
       reportFileError('salvar o mapa', err)
@@ -1376,7 +1585,6 @@ function App() {
   const handleGoHome = async () => {
     try {
       await persistMap()
-      useSessionStore.getState().markSaved()
       useToastStore.getState().push('info', MAP_SAVED_TEXT)
       setScreen('menu')
     } catch (err) {
@@ -1452,7 +1660,6 @@ function App() {
     const pending = pendingOpen
     try {
       await persistMap()
-      useSessionStore.getState().markSaved()
       useToastStore.getState().push('info', MAP_SAVED_TEXT)
     } catch (err) {
       // Falhou salvar: a pergunta CONTINUA aberta. Fechar aqui descartaria o
@@ -1499,6 +1706,32 @@ function App() {
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [screen, handleSave, handleOpen])
 
+  // Ctrl+K — "Objetos do mapa" com o cursor na busca, de qualquer ponto do
+  // editor: volta à aba Mapa, abre a seção e foca o campo. Num campo de texto
+  // a tecla fica com o campo (`isFindObjectShortcut`).
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (screen !== 'editor') return
+      const target = event.target instanceof HTMLElement ? event.target : null
+      const pressed = isFindObjectShortcut({
+        key: event.key,
+        ctrlKey: event.ctrlKey,
+        metaKey: event.metaKey,
+        shiftKey: event.shiftKey,
+        altKey: event.altKey,
+        targetTagName: target?.tagName ?? '',
+        targetInputType: target instanceof HTMLInputElement ? target.type : undefined,
+        targetContentEditable: target?.isContentEditable ?? false,
+      })
+      if (!pressed) return
+      event.preventDefault()
+      setRailTab('map')
+      setObjectSearchRequest((request) => request + 1)
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [screen])
+
   const handleCreate = (newMap: MapData) => {
     useAdventureStore.getState().reset()
     loadMap(newMap)
@@ -1507,6 +1740,17 @@ function App() {
     // ainda: não conta como "trabalho não salvo" (decisão de produto
     // documentada no CONTRATO da frente).
     useSessionStore.getState().markSaved()
+    setScreen('editor')
+  }
+
+  /**
+   * "Recuperar" do menu (`restoreRecoveryCopy`): o trabalho não salvo volta
+   * ao editor como NÃO salvo, apontado para o arquivo de onde veio, e a cópia
+   * passa a ser desta abertura — Salvar a apaga.
+   */
+  const handleRecover = async (copy: RecoveryCopy) => {
+    setCurrentMapPath(await restoreRecoveryCopy(copy, openMapFile))
+    recoveryAutosaveRef.current?.adoptExistingCopy()
     setScreen('editor')
   }
 
@@ -1531,6 +1775,32 @@ function App() {
       console.log('Mapa exportado em', destDir)
     } catch (err) {
       reportFileError('exportar o mapa', err)
+    }
+  }
+
+  /**
+   * "Exportar imagem" confirmado: gera o PNG da cena pelo canvas e grava onde
+   * o mestre escolher. Falha fica DENTRO da janela, perto do botão, com as
+   * opções como estavam; cancelar a janela de salvar só volta ao diálogo.
+   */
+  const handleExportImage = async (options: ImageExportOptions) => {
+    const exporter = imageExporterRef.current
+    if (exporter === null) {
+      setExportImageState({ busy: false, error: 'O mapa ainda está carregando. Tente de novo em instantes.' })
+      return
+    }
+    setExportImageState({ busy: true, error: null })
+    try {
+      const bytes = await exporter(options)
+      const saved = await saveMapImage(bytes, imageExportFileName(useMapStore.getState().map.name))
+      if (saved === null) {
+        setExportImageState({ busy: false, error: null })
+        return
+      }
+      setExportImageState(null)
+      useToastStore.getState().push('info', `Imagem exportada: ${saved}`)
+    } catch (err) {
+      setExportImageState({ busy: false, error: `Não foi possível exportar a imagem: ${motivoDaFalhaDeArquivo(err, temPonteDoApp())}` })
     }
   }
 
@@ -1568,6 +1838,14 @@ function App() {
           onCreate={() => setScreen(createMapScreen())}
           onLoad={() => setScreen('load-map')}
           onOptions={() => setScreen('options')}
+          recovery={
+            recoveryCopy && {
+              mapName: recoveryCopy.map.name,
+              savedAtLabel: formatRecoveryTime(recoveryCopy.savedAtMs, Date.now()),
+              onRecover: () => void handleRecover(recoveryCopy),
+              onDismiss: () => setRecoveryCopy(null),
+            }
+          }
         />
         {toastStack}
       </>
@@ -1635,6 +1913,10 @@ function App() {
             setRailTab('map')
           }}
           onPlaceToken={handleAddToken}
+          onShowShortcuts={() => setShortcutsOpen(true)}
+          onImageExporterChange={(exporter) => {
+            imageExporterRef.current = exporter
+          }}
         />
       </div>
 
@@ -1669,16 +1951,62 @@ function App() {
                 onSelect={handleSelectScene}
                 onCreate={handleCreateScene}
                 onRename={(sceneId, name) => useAdventureStore.getState().renameScene(sceneId, name)}
+                // Visão geral: a cena aberta pelo mapa vivo, as de fundo pelo cache (fichas de jogador que andam aparecem na hora).
+                maps={sceneMaps({ adventure, activeSceneId, cache: sceneCache }, map)}
                 // Mesmas linhas do painel Grupo: quem está em cada cena e os pedidos que esperam.
-                people={roomPlayers.length === 0 ? undefined : peopleByScene(partyMembers(roomPlayers, roomPanelWorld()))}
+                people={scenePeople()}
                 // Recado por cena só com a sala aberta: sem sala não há quem leia.
-                onNote={room === null ? undefined : (sceneId, text) => hostBridgeRef.current?.sceneNote(sceneId, text) ?? null}
+                onNote={room === null ? undefined : (sceneId, text, playerIds) => hostBridgeRef.current?.sceneNote(sceneId, text, playerIds) ?? null}
+                // Cenas em pastas: só a lista do mestre muda (pede Salvar); o jogador não recebe nada.
+                onMove={adventure === null ? undefined : (sceneId, parentId) => useAdventureStore.getState().moveScene(sceneId, parentId)}
+                adventureId={adventure?.id ?? null}
+                // Alarme para várias cenas, também só com a sala aberta.
+                alarm={room === null ? null : sceneAlarm}
+                onAlarm={
+                  room === null
+                    ? undefined
+                    : (sceneIds, text) => {
+                        const bridge = hostBridgeRef.current
+                        if (bridge === null) return null
+                        const sent = bridge.sceneAlarm(sceneIds, text)
+                        setSceneAlarm(bridge.activeAlarm())
+                        return sent
+                      }
+                }
+                onEndAlarm={
+                  room === null
+                    ? undefined
+                    : () => {
+                        hostBridgeRef.current?.endAlarm()
+                        setSceneAlarm(null)
+                      }
+                }
+                // Pausa por cena também só com a sala aberta: sem sala não há grupo esperando.
+                paused={pausedScenes}
+                onTogglePause={
+                  room === null
+                    ? undefined
+                    : (sceneId, pause) => {
+                        // O botão só muda depois que a sessão aceitou: o estado que o jogador vê é o dela.
+                        if (hostBridgeRef.current?.setScenePaused(sceneId, pause) !== true) return
+                        setPausedScenes((current) => {
+                          const next = new Set(current)
+                          if (pause) next.add(sceneId)
+                          else next.delete(sceneId)
+                          return next
+                        })
+                      }
+                }
               />
+            }
+            objects={
+              <MapObjectsSection map={map} currentKey={currentMapObjectKey} onGoTo={goToMapObject} searchRequest={objectSearchRequest} />
             }
             mapName={map.name}
             mapWidth={map.width}
             mapHeight={map.height}
             mapGrid={map.grid}
+            onMapSizeApply={setMapSize}
             activeTool={activeTool}
             groups={propertyGroups}
             lineCap={
@@ -1738,6 +2066,14 @@ function App() {
             areaSelection={{
               selection: selection.length > 1 ? selectionToAreaSelection(selection) : null,
               onClear: () => setSelection(EMPTY_SELECTION),
+              grouped: isSingleGroup(mapGroups, selection),
+              onGroup: () => useMapStore.getState().groupSelected(),
+              onUngroup: () => useMapStore.getState().ungroupSelected(),
+            }}
+            alignDistribute={{
+              count: alignableCount,
+              onAlign: (edge) => useMapStore.getState().alignSelection(edge),
+              onDistribute: (axis) => useMapStore.getState().distributeSelection(axis),
             }}
             drawingStyle={selectedDrawing && selectedDrawing.kind !== 'text' ? {
               // Desenho já selecionado: o painel edita ELE, não a preferência do próximo.
@@ -1803,6 +2139,7 @@ function App() {
               onMeasurementModeChange: setMeasurementMode,
               gridShape,
             }}
+            movement={{ movement: map.movement, onMovementChange: setMovementRules }}
             gridAlign={{
               backgroundFilename:
                 map.background.type === 'image' && map.background.src
@@ -1849,6 +2186,8 @@ function App() {
               onToggleDoor: handleToggleDoor,
               onToggleOpen: handleToggleOpen,
               onToggleLocked: handleToggleLocked,
+              onToggleSecret: handleToggleSecret,
+              onRevealPassage: handleRevealPassage,
             }}
             doorKind={{
               kind: selectedWall?.door ? selectedWall.door.kind : doorKind,
@@ -1873,6 +2212,8 @@ function App() {
             selectedToken={selectedToken}
             tokenName={{
               onNameChange: (name) => selectedToken && useMapStore.getState().renameToken(selectedToken.id, name),
+              // Com histórico (`updateToken`): trocar o nome que a mesa lê se desfaz com Ctrl+Z.
+              onPublicNameChange: (publicName) => selectedToken && updateToken(selectedToken.id, { publicName }),
             }}
             tokenImage={{
               onChangeImage: () => selectedToken && handleChangeTokenImage(selectedToken.id),
@@ -1891,6 +2232,31 @@ function App() {
               // mexe em x/y — a ficha cresce em volta de onde já está, e é o
               // próximo arrasto que a assenta na grade (`seatTokenCenter`).
               onSizeChange: (size) => selectedToken && updateToken(selectedToken.id, { size }),
+            }}
+            tokenNpc={{
+              // `updateToken` passa por `withHistory`: marcar errado se desfaz com Ctrl+Z.
+              onNpcChange: (npc) => selectedToken && marcarFichaNpc(selectedToken.id, npc),
+            }}
+            tokenCarry={ligacaoLevarFicha(roomPanelWorld(), roomPlayers)}
+            tokenLights={{
+              lights: selectedToken ? lightsOnToken(map, selectedToken.id) : [],
+              onSelectLight: (lightId) => setSelection(selectionOfItem({ kind: 'light', id: lightId })),
+              onDetach: (lightId) => setLightAttachment(lightId, null),
+            }}
+            tokenHealth={{
+              // Mesmo caminho da cor e do tamanho: cada número confirmado é um
+              // Ctrl+Z. `null` tira a barra da ficha.
+              onHealthChange: (health) => selectedToken && updateToken(selectedToken.id, { health }),
+            }}
+            tokenCondition={{
+              // Alterna sobre o estado ATUAL da ficha no store (não sobre a
+              // cópia desta renderização) e passa pelo histórico: Ctrl+Z desfaz.
+              onToggleCondition: (condition) => selectedToken && useMapStore.getState().toggleTokenCondition(selectedToken.id, condition),
+            }}
+            tokenWatch={{
+              // Mesmo caminho da cor e do tamanho: cada escolha é um Ctrl+Z.
+              // `null` desliga a vigia e a ficha volta a ser comum.
+              onWatchChange: (vigia) => selectedToken && updateToken(selectedToken.id, { vigia }),
             }}
             tokenTransform={{
               onRotationChange: (rotation) => selectedToken && updateToken(selectedToken.id, { rotation }),
@@ -1930,6 +2296,8 @@ function App() {
               onNameHiddenFromPlayersChange: (hidden) =>
                 selectedRegion && useMapStore.getState().setRoomNameHiddenFromPlayers(selectedRegion.id, hidden),
               onRoofChange: (roof) => selectedRegion && useMapStore.getState().setRoomRoof(selectedRegion.id, roof),
+              onTextoAoEntrarChange: (textoAoEntrar) => selectedRegion && useMapStore.getState().setRoomTexts(selectedRegion.id, { textoAoEntrar }),
+              onNotaDoMestreChange: (notaDoMestre) => selectedRegion && useMapStore.getState().setRoomTexts(selectedRegion.id, { notaDoMestre }),
               onWidthChange: (width) =>
                 selectedRegion && resizeRoomDimensions(selectedRegion.id, width, roomDimensions(selectedRegion.points).height),
               onHeightChange: (height) =>
@@ -1944,11 +2312,37 @@ function App() {
                     store.setPendingParentRoom(selectedRegion.id)
                   }
                 : undefined,
+              hazard:
+                selectedRegion && selectedRoomHazard
+                  ? {
+                      kind: selectedRoomHazard.kind,
+                      roomCount: selectedRoomHazard.roomCount,
+                      canAdvance: selectedRoomHazard.canAdvance,
+                      onKindChange: (kind) => useMapStore.getState().setRoomHazard(selectedRegion.id, kind),
+                      onAdvance: () => {
+                        const hazardId = selectedRoomHazard.hazardId
+                        if (hazardId !== null) useMapStore.getState().advanceHazard(hazardId)
+                      },
+                    }
+                  : undefined,
             }}
             playerSecret={
               secretTarget && {
                 secret: secretTarget.secret,
                 onSecretChange: (secret) => useMapStore.getState().setItemSecret(secretTarget.kind, secretTarget.id, secret),
+                // "Quem vê" só no pino e só com a sala aberta: a lista vive na sessão do host.
+                audience:
+                  secretTarget.kind === 'pin' && room !== null
+                    ? {
+                        players: partyMembers(roomPlayers, roomPanelWorld()).map((member) => ({
+                          playerId: member.playerId,
+                          name: member.name,
+                          color: member.token?.color ?? null,
+                        })),
+                        chosen: pinAudiences[secretTarget.id] ?? null,
+                        onChange: (chosen) => hostBridgeRef.current?.setPinAudience(secretTarget.id, chosen),
+                      }
+                    : null,
               }
             }
             concealZone={
@@ -1960,6 +2354,12 @@ function App() {
                 onDelete: () => useMapStore.getState().removeConcealZone(selectedConcealZone.id),
               }
             }
+            concealBrush={{
+              mode: revealBrushMode,
+              onModeChange: setRevealBrushMode,
+              width: revealBrushWidth,
+              onWidthChange: setRevealBrushWidth,
+            }}
             pin={{
               kind: selectedPin?.kind ?? pinKind,
               // Com um pino aberto, o controle edita ESSE pino; sem nenhum, ele
@@ -1990,6 +2390,14 @@ function App() {
               onChooseImage: () => selectedPin && void handleChoosePinImage(selectedPin.id),
               onClearImage: () => selectedPin && useMapStore.getState().updatePin(selectedPin.id, { image: null }),
               onDelete: () => selectedPin && useMapStore.getState().removePin(selectedPin.id),
+              // ITEM PEGÁVEL: só com um pino "!"/"?" aberto (a passagem não vai para a mochila).
+              item:
+                selectedPin && selectedPin.kind !== 'viagem'
+                  ? {
+                      value: selectedPin.item ?? null,
+                      onChange: (item) => useMapStore.getState().updatePin(selectedPin.id, { item: item ?? undefined }),
+                    }
+                  : null,
             }}
             pinIcon={{
               // Mesma ligação dupla do tipo logo acima: com um pino aberto, o
@@ -2019,6 +2427,9 @@ function App() {
                 liveSliderChange(`light-intensity-${selectedLight.id}`, () =>
                   useMapStore.getState().updateLightIntensityLive(selectedLight.id, intensity),
                 ),
+              tokens: map.tokens.map((t) => ({ id: t.id, name: t.name })),
+              onAttach: (tokenId) => selectedLight && setLightAttachment(selectedLight.id, tokenId),
+              onDetach: () => selectedLight && setLightAttachment(selectedLight.id, null),
             }}
             selectedStair={selectedStair}
             stairControls={{
@@ -2057,6 +2468,7 @@ function App() {
           onOpen={handleOpen}
           onImportBackground={handleImportBackground}
           onExportFolder={handleExportFolder}
+          onExportImage={() => setExportImageState({ busy: false, error: null })}
           onImportFolder={handleImportFolder}
           onGoHome={handleGoHome}
           onGoBack={canGoBackToScene ? handleGoBack : undefined}
@@ -2068,10 +2480,37 @@ function App() {
           onFloorFromBackground={() => void handleFloorFromBackground()}
           onDetailsFromBackground={() => void handleDetailsFromBackground()}
           onRecreateMinimapFromBackground={() => void handleMinimapFromBackground()}
+          onShowShortcuts={() => setShortcutsOpen(true)}
+          shortcutsOpen={shortcutsOpen}
         />
       </div>
 
       <ZoomHud scale={cameraScale} onReset={() => setResetZoomRequest((n) => n + 1)} />
+      {shortcutsOpen && <ShortcutsDialog onClose={() => setShortcutsOpen(false)} />}
+      {exportImageState !== null && (
+        <ExportImageDialog
+          defaultGrid={map.showGrid}
+          busy={exportImageState.busy}
+          error={exportImageState.error}
+          onExport={(options) => void handleExportImage(options)}
+          onClose={() => {
+            if (!exportImageState.busy) setExportImageState(null)
+          }}
+        />
+      )}
+      {mirroredPlayer !== undefined &&
+        hostBridgeRef.current !== null &&
+        createPortal(
+          <LivePlayerMirror
+            key={mirroredPlayer.playerId}
+            playerName={mirroredPlayer.name}
+            playerId={mirroredPlayer.playerId}
+            watch={hostBridgeRef.current.watchPlayerScreens}
+            read={hostBridgeRef.current.playerScreen}
+            onClose={() => setMirrorId(null)}
+          />,
+          document.body,
+        )}
     </div>
   )
 }

@@ -51,16 +51,18 @@ describe('resolveShortcut — letras de ferramenta', () => {
     ['pin', 'Y'],
   ]
 
-  it('TOOL_SHORTCUTS cobre exatamente as 25 ferramentas esperadas, sem duplicar letra', () => {
-    // Do laço saem TRÊS: token, que continua na tabela mesmo escondida;
+  it('TOOL_SHORTCUTS cobre exatamente as 26 ferramentas esperadas, sem duplicar letra', () => {
+    // Do laço saem QUATRO: token, que continua na tabela mesmo escondida;
     // roomFree, que ficou SEM letra na integração de 17/09/2026 — ela e o Pino
     // escolheram 'Y' em árvores separadas, e duas ferramentas na mesma letra
-    // fariam o índice perder uma em silêncio; e Caminho, que chegou quando já
-    // não sobrava letra nenhuma (F é "enquadrar tudo", Z fica com o Ctrl+Z).
-    expect(Object.keys(TOOL_SHORTCUTS)).toHaveLength(ALL_TOOLS.length + 3)
+    // fariam o índice perder uma em silêncio; e Caminho e Pincel de revelar,
+    // que chegaram quando já não sobrava letra nenhuma (F é "enquadrar tudo",
+    // Z fica com o Ctrl+Z).
+    expect(Object.keys(TOOL_SHORTCUTS)).toHaveLength(ALL_TOOLS.length + 4)
     expect(TOOL_SHORTCUTS.token).toBe('K')
     expect(TOOL_SHORTCUTS.roomFree).toBe('')
     expect(TOOL_SHORTCUTS.path).toBe('')
+    expect(TOOL_SHORTCUTS.revealBrush).toBe('')
     const letters = Object.values(TOOL_SHORTCUTS).filter((l) => l.length > 0)
     expect(new Set(letters).size).toBe(letters.length)
   })
@@ -193,7 +195,27 @@ describe('resolveShortcut — ações globais (Ctrl/Cmd)', () => {
   })
 
   it('Ctrl+<tecla sem atalho> devolve null', () => {
-    expect(resolveShortcut(evt({ key: 'x', ctrlKey: true }))).toBeNull()
+    expect(resolveShortcut(evt({ key: 'k', ctrlKey: true }))).toBeNull()
+  })
+
+  it('Ctrl+C copia, Ctrl+X recorta e Ctrl+V cola (não selecionam Círculo, Selecionar nem nada)', () => {
+    expect(resolveShortcut(evt({ key: 'c', ctrlKey: true }))).toEqual({ kind: 'copy' })
+    expect(resolveShortcut(evt({ key: 'x', ctrlKey: true }))).toEqual({ kind: 'cut' })
+    expect(resolveShortcut(evt({ key: 'v', ctrlKey: true }))).toEqual({ kind: 'paste' })
+  })
+
+  it('Cmd+C/X/V (mac) e Caps Lock ligado também valem', () => {
+    expect(resolveShortcut(evt({ key: 'c', metaKey: true }))).toEqual({ kind: 'copy' })
+    expect(resolveShortcut(evt({ key: 'X', ctrlKey: true }))).toEqual({ kind: 'cut' })
+    expect(resolveShortcut(evt({ key: 'V', metaKey: true }))).toEqual({ kind: 'paste' })
+  })
+
+  it('Ctrl+C/X/V num campo de texto continuam sendo do campo', () => {
+    for (const key of ['c', 'x', 'v']) {
+      expect(resolveShortcut(evt({ key, ctrlKey: true, targetTagName: 'INPUT' }))).toBeNull()
+      expect(resolveShortcut(evt({ key, ctrlKey: true, targetTagName: 'TEXTAREA' }))).toBeNull()
+      expect(resolveShortcut(evt({ key, ctrlKey: true, targetTagName: 'DIV', targetContentEditable: true }))).toBeNull()
+    }
   })
 })
 
@@ -268,5 +290,28 @@ describe('resolveShortcut — nudge por seta', () => {
       dy: 1,
       fine: true,
     })
+  })
+})
+
+describe('resolveShortcut — agrupar objetos (Ctrl+G / Ctrl+Shift+G)', () => {
+  it('Ctrl+G agrupa a seleção', () => {
+    expect(resolveShortcut(evt({ key: 'g', ctrlKey: true }))).toEqual({ kind: 'group' })
+  })
+
+  it('Cmd+G (Mac) agrupa igual', () => {
+    expect(resolveShortcut(evt({ key: 'g', metaKey: true }))).toEqual({ kind: 'group' })
+  })
+
+  it('Ctrl+Shift+G desagrupa (com Shift o navegador manda a letra maiúscula)', () => {
+    expect(resolveShortcut(evt({ key: 'G', ctrlKey: true, shiftKey: true }))).toEqual({ kind: 'ungroup' })
+  })
+
+  it('G sem Ctrl continua sendo a ferramenta Região', () => {
+    expect(resolveShortcut(evt({ key: 'g' }))).toEqual({ kind: 'selectTool', tool: 'region' })
+  })
+
+  it('com o foco num campo de texto, Ctrl+G não é nosso', () => {
+    expect(resolveShortcut(evt({ key: 'g', ctrlKey: true, targetTagName: 'INPUT' }))).toBeNull()
+    expect(resolveShortcut(evt({ key: 'G', ctrlKey: true, shiftKey: true, targetTagName: 'TEXTAREA' }))).toBeNull()
   })
 })
