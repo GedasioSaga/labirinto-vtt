@@ -90,7 +90,7 @@ export function validateTokenMove(
  * (posse, trava, fora do mapa); este descreve só o OBSTÁCULO no caminho, que é
  * o que a tela do mestre precisa contar.
  */
-export type BlockedMoveReason = 'wall' | 'door_closed' | 'door_locked'
+export type BlockedMoveReason = 'wall' | 'door_closed' | 'door_locked' | 'door_secret'
 
 export interface BlockedMove {
   reason: BlockedMoveReason
@@ -115,7 +115,7 @@ export interface BlockedMove {
  * chegar muda na tela (jornada "não consigo entrar na casa").
  *
  * Ordem de preferência quando várias paredes cruzam o traço: porta fechada,
- * depois porta trancada, depois parede sólida. É a ordem do que o mestre pode
+ * depois porta secreta, depois porta trancada, depois parede sólida. É a ordem do que o mestre pode
  * RESOLVER — uma porta no caminho é a explicação útil, mesmo que a parede
  * sólida ao lado também cruze.
  */
@@ -131,7 +131,7 @@ export function describeBlockedMove(
   // o que sobra aqui é exatamente quem barrou.
   const crossing = walls.filter((wall) => moveCrossesWall(from, to, wall))
 
-  const closed = crossing.find((wall) => wall.door !== null && !wall.door.locked)
+  const closed = crossing.find((wall) => wall.door !== null && !wall.door.locked && wall.door.secret !== true)
   if (closed !== undefined) {
     const opened = walls.map((wall) =>
       wall.id === closed.id && wall.door !== null ? { ...wall, door: { ...wall.door, open: true } } : wall,
@@ -142,6 +142,12 @@ export function describeBlockedMove(
       opensPath: findTokenPath(from, to, opened, doorSlack) !== null,
     }
   }
+
+  // Secreta barra aberta ou fechada (`isDoorPassable`): abrir não resolve, e
+  // não abre sozinha no arrasto. Vem antes da trancada: o cadeado só importa
+  // depois que a passagem é revelada.
+  const secret = crossing.find((wall) => wall.door?.secret === true)
+  if (secret !== undefined) return { reason: 'door_secret', wallId: secret.id, opensPath: false }
 
   const locked = crossing.find((wall) => wall.door !== null)
   if (locked !== undefined) return { reason: 'door_locked', wallId: locked.id, opensPath: false }

@@ -296,6 +296,8 @@ function App() {
   const setRegionPattern = useMapStore((state) => state.setRegionPattern)
   const setWallDoor = useMapStore((state) => state.setWallDoor)
   const setDoorLocked = useMapStore((state) => state.setDoorLocked)
+  const setDoorSecret = useMapStore((state) => state.setDoorSecret)
+  const revealSecretPassage = useMapStore((state) => state.revealSecretPassage)
   const turnWallIntoDoor = useMapStore((state) => state.turnWallIntoDoor)
   const doorKind = useMapStore((state) => state.doorKind)
   const setDoorKind = useMapStore((state) => state.setDoorKind)
@@ -964,6 +966,16 @@ function App() {
   const handleToggleLocked = () => {
     if (!selectedWall || !selectedWall.door) return
     setDoorLocked(selectedWall.id, !selectedWall.door.locked)
+  }
+
+  const handleToggleSecret = () => {
+    if (!selectedWall || !selectedWall.door) return
+    setDoorSecret(selectedWall.id, selectedWall.door.secret !== true)
+  }
+
+  const handleRevealPassage = () => {
+    if (!selectedWall) return
+    revealSecretPassage(selectedWall.id)
   }
 
   /**
@@ -1869,6 +1881,8 @@ function App() {
               onToggleDoor: handleToggleDoor,
               onToggleOpen: handleToggleOpen,
               onToggleLocked: handleToggleLocked,
+              onToggleSecret: handleToggleSecret,
+              onRevealPassage: handleRevealPassage,
             }}
             doorKind={{
               kind: selectedWall?.door ? selectedWall.door.kind : doorKind,

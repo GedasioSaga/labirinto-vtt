@@ -6,7 +6,7 @@ import type {
 import type { Point } from '../pixi/world'
 import { syncLinkedWallsToPoints, remapForInsert, remapForRemove, translateLinkedWalls, previousEdgeIndex } from './roomLink'
 import { simplifyPolygon, chaikinSmooth } from './regionSmoothing'
-import { edgesCoveredByParent, findContainingRoom, insertIndexAfterSubtree, subtreeIds } from './roomNesting'
+import { edgesCoveredByParent, findContainingRoom, insertIndexAfterSubtree, pointOnPolygonBorder, subtreeIds } from './roomNesting'
 import { isAxisAlignedRect, rectCornerShift, resizeRoomCorner, resizeRoomDimensions as resizeRoomDimensionsPoints, type RoomCorner } from './roomOps'
 import {
   normalizeRotation, roomCentroid, roomRotationOf, rotatePointAround, rotateVector, rotationTrig, withoutRotationNoise,
@@ -1070,6 +1070,38 @@ export function setDoorLocked(map: MapData, wallId: string, locked: boolean): Ma
       w.id === wallId && w.door ? { ...w, door: { ...w.door, locked, open: locked ? false : w.door.open } } : w,
     ),
   }
+}
+
+/**
+ * Liga ou desliga `DoorState.secret` (porta secreta). Ligar FECHA a porta: a
+ * secreta é parede para o jogador, e uma porta aberta que não deixa passar
+ * seria um estado que o mestre não consegue ler na tela. Desligar tira o campo
+ * (`undefined` === porta comum). Parede inexistente ou sem porta: mesma referência.
+ */
+export function setDoorSecret(map: MapData, wallId: string, secret: boolean): MapData {
+  const wall = map.walls.find((w) => w.id === wallId)
+  if (!wall || !wall.door) return map
+  const { secret: _anterior, ...plain } = wall.door
+  const door: DoorState = secret ? { ...plain, open: false, secret: true } : plain
+  return { ...map, walls: map.walls.map((w) => (w.id === wallId ? { ...w, door } : w)) }
+}
+
+/**
+ * "Revelar passagem" — um clique desliga o segredo da porta E o oculto
+ * ("Oculto para jogadores", `Region.secret`) da sala ligada a ela: a sala a
+ * que a porta pertence (`regionId`) e toda sala oculta cujo contorno passa
+ * pelo meio da porta (a do outro lado). Sala oculta que não encosta na porta
+ * continua oculta. O estado da porta (fechada, trancada) não muda: é o mestre
+ * mostrando que ali TEM uma porta, não abrindo. Parede inexistente ou porta
+ * que não é secreta: mesma referência.
+ */
+export function revealSecretPassage(map: MapData, wallId: string): MapData {
+  const wall = map.walls.find((w) => w.id === wallId)
+  if (!wall || wall.door?.secret !== true) return map
+  const middle = { x: (wall.x1 + wall.x2) / 2, y: (wall.y1 + wall.y2) / 2 }
+  const linked = (r: Region): boolean => r.secret === true && (r.id === wall.regionId || pointOnPolygonBorder(middle, r.points))
+  const revealed = setDoorSecret(map, wallId, false)
+  return { ...revealed, regions: map.regions.map((r) => (linked(r) ? { ...r, secret: false } : r)) }
 }
 
 /**

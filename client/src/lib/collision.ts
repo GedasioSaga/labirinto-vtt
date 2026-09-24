@@ -34,7 +34,9 @@ export function segmentsIntersect(a: Point, b: Point, c: Point, d: Point): boole
  * não existe", ver `mapFactory.setWallDoor`/`setDoorLocked`).
  */
 export function isDoorPassable(door: DoorState | null): boolean {
-  return door !== null && door.open && !door.locked
+  // Porta secreta é parede até o mestre revelar: nem aberta ela deixa passar
+  // (senão a ficha do jogador atravessaria uma "parede" que ele nem sabe que é porta).
+  return door !== null && door.open && !door.locked && door.secret !== true
 }
 
 export function moveCrossesWall(from: Point, to: Point, wall: Wall): boolean {

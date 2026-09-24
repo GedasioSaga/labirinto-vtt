@@ -36,7 +36,9 @@ export const DOOR_OPEN_OUTLINE_SCREEN_PX = 1.5
  *  - aberta: só contorno laranja.
  *
  * Porta de sala secreta não chega aqui para o jogador (fogFilter.ts corta a
- * parede) e o editor desenha igual às outras, como antes.
+ * parede) e o editor desenha igual às outras, como antes. PORTA SECRETA
+ * (`door.secret`) também não chega ao jogador como porta (vira parede em
+ * fogFilter.ts); no editor sai tracejada (`traceSecretDashes`).
  */
 export function drawDoors(graphics: Graphics, walls: Wall[], selectedWallId: string | null = null, cameraScale = 1, rendererResolution = 1): void {
   graphics.clear()
@@ -71,7 +73,9 @@ export function drawDoors(graphics: Graphics, walls: Wall[], selectedWallId: str
       graphics.stroke({ width: selectionWidth, color: SELECTION_COLOR, join: 'miter' })
     }
 
-    if (filled) {
+    if (door.secret === true) {
+      traceSecretDashes(graphics, cx, cy, ux, uy, halfLength, thickness / 2, color)
+    } else if (filled) {
       traceDoorRect(graphics, cx, cy, ux, uy, halfLength, thickness / 2)
       graphics.fill({ color })
     } else {
@@ -79,6 +83,25 @@ export function drawDoors(graphics: Graphics, walls: Wall[], selectedWallId: str
       traceDoorRect(graphics, cx, cy, ux, uy, halfLength - outlineWidth / 2, thickness / 2 - outlineWidth / 2)
       graphics.stroke({ width: outlineWidth, color, join: 'miter' })
     }
+  }
+}
+
+/**
+ * PORTA SECRETA no editor: o mesmo retângulo, partido em `SECRET_DOOR_DASHES`
+ * pedaços preenchidos com vão igual entre eles — "tracejada", para o mestre
+ * saber que o jogador vê ali só a parede. A cor segue a regra de sempre
+ * (trancada vermelha). Aberta também sai tracejada: enquanto secreta, ela é
+ * parede para o jogador (`lib/collision.ts`), então "aberta" não tem cara própria.
+ */
+export const SECRET_DOOR_DASHES = 3
+
+function traceSecretDashes(graphics: Graphics, cx: number, cy: number, ux: number, uy: number, halfLength: number, halfThickness: number, color: number): void {
+  // n traços e n-1 vãos do mesmo tamanho cobrem o comprimento inteiro da porta.
+  const piece = (2 * halfLength) / (2 * SECRET_DOOR_DASHES - 1)
+  for (let i = 0; i < SECRET_DOOR_DASHES; i += 1) {
+    const offset = -halfLength + piece * (2 * i) + piece / 2
+    traceDoorRect(graphics, cx + ux * offset, cy + uy * offset, ux, uy, piece / 2, halfThickness)
+    graphics.fill({ color })
   }
 }
 

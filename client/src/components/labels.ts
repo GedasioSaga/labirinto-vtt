@@ -187,6 +187,10 @@ export const BLOCKED_MOVE_TEXT: Record<BlockedMoveReason, string> = {
     'A porta do caminho está fechada e segurou o movimento. Ligue "Aberta" no painel, ou tire o que mais estiver barrando o vão.',
   door_locked:
     'A porta do caminho está trancada: com o cadeado ligado ninguém passa, nem o mestre. Desligue "Trancada" no painel para liberar.',
+  // Porta secreta barra mesmo aberta (`collision.isDoorPassable`): mandar
+  // ligar "Aberta" repetiria o aviso no próximo arrasto.
+  door_secret:
+    'A porta do caminho é secreta: enquanto ela estiver escondida, ninguém passa, nem com ela aberta. Clique em "Revelar passagem" no painel da porta para liberar.',
 }
 
 /**
