@@ -237,6 +237,43 @@ describe('hostSession: eco do sinal — o eco não revela o que Ana não sabe', 
     expect(ecoCom).toEqual([{ type: 'signal', x: 150, y: 600, from: 'Ana', color: perigo.color }])
   })
 
+  /**
+   * Os outros jeitos de o mestre esconder o perigo de Ana (`hazardHiddenByMaster`
+   * em lib/fogFilter.ts): a sala tomada escondida por ele e a camada Salas
+   * escondida. Em todos, a visão que Bia RECEBE vem encolhida pela fumaça; o
+   * eco de Ana não pode mudar por isso.
+   */
+  it.each([
+    ['sala do perigo escondida pelo mestre', (sala: MapData['regions'][number]): Partial<MapData> => ({ regions: [{ ...sala, hidden: true }] })],
+    ['camada Salas escondida', (sala: MapData['regions'][number]): Partial<MapData> => ({ regions: [sala], hiddenLayers: ['salas'] })],
+  ])('fumaça escondida de Ana (%s): o eco é o MESMO com e sem a fumaça', (_caso, esconder) => {
+    const sala = buildRoomFromDraft('salao', ['s1', 's2', 's3', 's4'], { x: 300, y: 0 }, { x: 1000, y: 1000 }, undefined, undefined, 'Salao')
+    const base: MapData = {
+      ...mapa({ ana: { x: 100, y: 200 }, bia: { x: 400, y: 200 }, caio: { x: 100, y: 999 }, paredes: [] }),
+      ...esconder(sala.region),
+    }
+    const comFumaca: MapData = { ...base, hazards: [{ id: 'h', kind: 'fumaca', roomIds: ['salao'] }] }
+    const ponto = { x: 150, y: 600 }
+
+    const semPerigo = montar(base)
+    const vistasSem = semPerigo.s.broadcast(base)
+    const ecoSem = para(semPerigo.sinal(ponto), 'c-ana')
+
+    const perigo = montar(comFumaca)
+    const vistasCom = perigo.s.broadcast(comFumaca)
+    const ecoCom = para(perigo.sinal(ponto), 'c-ana')
+
+    // Premissas: Bia está na tela de Ana, a fumaça não chega a Ana por nada e
+    // de fato encolhe a visão que Bia recebe (senão o teste não prova nada).
+    expect(fichasVistas(vistasCom, 'c-ana')).toContain('ladino')
+    expect(JSON.stringify(para(vistasCom, 'c-ana'))).not.toContain('fumaca')
+    expect(fichasVistas(vistasSem, 'c-ana')).toEqual(fichasVistas(vistasCom, 'c-ana'))
+    expect(JSON.stringify(para(vistasCom, 'c-bia'))).not.toEqual(JSON.stringify(para(vistasSem, 'c-bia')))
+    // O eco não pode ser o canal: igual nos dois mapas, e cheio (Bia, sem contar a fumaça, vê o ponto).
+    expect(ecoCom).toEqual(ecoSem)
+    expect(ecoCom).toEqual([{ type: 'signal', x: 150, y: 600, from: 'Ana', color: perigo.color }])
+  })
+
   it('DIVERGE DO PEDIDO — colega fora de vista: Bia recebe e o eco sai tracejado; Bia vê o ponto que Ana vê, mas a ficha dela não está na tela de Ana; o eco não conta que ela está ali', () => {
     // Parede em x=500 só até y=600: Ana e Bia enxergam o vão de baixo, mas não uma à outra.
     const paredes = [wall('meia', 500, 0, 500, 600)]
