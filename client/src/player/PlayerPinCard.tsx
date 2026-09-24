@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { Pin, PinExitLabel } from '../types/map'
-import { PIN_GLYPH, isPlayerSafePinImage, passageOf } from '../lib/pins'
-import { PinTravelArt } from '../components/PinSymbolArt'
+import { PIN_GLYPH, PIN_ICON_LABELS, isPinIcon, isPlayerSafePinImage, passageOf } from '../lib/pins'
+import { PinSymbolArt, PinTravelArt } from '../components/PinSymbolArt'
 
 interface PlayerPinCardProps {
   pin: Pin
@@ -127,6 +127,15 @@ export function PlayerPinCard({ pin, onClose, onRequestTravel, travelWaiting = f
   // a passagem no lugar do glifo — a mesma cabeça que o jogador vê no mapa.
   // O nome da cena de destino nunca chega aqui (`lib/fogFilter.ts`).
   const viagem = pin.kind === 'viagem'
+  // O símbolo que o mestre escolheu (baú, armadilha…) é o que o jogador vê no
+  // mapa: o cartão repete o mesmo desenho e o nome dele, em vez do "!" do
+  // tipo. Nome desconhecido (versão futura) cai no glifo, como no mapa.
+  const icone = !viagem && isPinIcon(pin.icon) ? pin.icon : null
+  const nome = viagem
+    ? 'Passagem'
+    : icone !== null
+      ? `Ponto de interesse — ${PIN_ICON_LABELS[icone]}`
+      : `Ponto de interesse ${PIN_GLYPH[pin.kind]}`
   // O modo vem no recorte (o destino, não). Trancada não oferece botão nenhum:
   // um "Pedir" que o host sempre recusa só ensinaria o jogador a insistir.
   const passagem = passageOf(pin)
@@ -157,7 +166,7 @@ export function PlayerPinCard({ pin, onClose, onRequestTravel, travelWaiting = f
         className="pp-pincard"
         role="dialog"
         aria-modal="true"
-        aria-label={viagem ? 'Passagem' : `Ponto de interesse ${PIN_GLYPH[pin.kind]}`}
+        aria-label={nome}
       >
         <img
           className="pp-pincard__image"
@@ -166,7 +175,7 @@ export function PlayerPinCard({ pin, onClose, onRequestTravel, travelWaiting = f
         />
         <div className="pp-pincard__body">
           <span className={viagem ? 'pp-pincard__glyph pp-pincard__glyph--viagem' : 'pp-pincard__glyph'} aria-hidden="true">
-            {viagem ? <PinTravelArt size={16} /> : PIN_GLYPH[pin.kind]}
+            {viagem ? <PinTravelArt size={16} /> : icone !== null ? <PinSymbolArt icon={icone} size={18} /> : PIN_GLYPH[pin.kind]}
           </span>
           <p className="pp-pincard__text">
             {descricao === '' ? 'O mestre ainda não escreveu nada sobre este ponto.' : descricao}

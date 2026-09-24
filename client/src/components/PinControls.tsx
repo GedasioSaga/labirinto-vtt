@@ -1,6 +1,7 @@
 import type { PinKind } from '../types/map'
 import { PIN_GLYPH, PIN_KIND_LABELS, PIN_KIND_ORDER } from '../lib/pins'
 import { GatherControls, type GatherControlsProps } from './GatherControls'
+import { PinIconControls, type PinIconControlsProps } from './PinIconControls'
 import { PinTravelArt } from './PinSymbolArt'
 import { PinTravelControls, type PinTravelControlsProps } from './PinTravelControls'
 import { Toggle } from './Toggle'
@@ -30,6 +31,12 @@ export interface PinControlsProps {
    * quando o painel passa a mostrar outro pino.
    */
   gather?: (GatherControlsProps & { pinId: string }) | null
+  /**
+   * O ícone do marcador, no MESMO bloco do tipo e logo abaixo dele: os dois
+   * dizem o que aparece na cabeça do pino. `null` = não se aplica (pino de
+   * viagem, que desenha a passagem).
+   */
+  iconChoice: PinIconControlsProps | null
 }
 
 /** A pastilha de cada tipo: a mesma cabeça que o pino tem no mapa. */
@@ -79,6 +86,7 @@ export function PinControls({
   onDelete,
   travel = null,
   gather = null,
+  iconChoice,
 }: PinControlsProps) {
   const viagem = kind === 'viagem'
   // As cenas onde mora um par que perde a volta se este pino sumir (uma por
@@ -102,6 +110,9 @@ export function PinControls({
           </button>
         ))}
       </div>
+      {/* Logo abaixo do tipo e ANTES da descrição: o último botão do bloco
+          continua "Excluir", longe de quem só queria trocar o ícone. */}
+      {!viagem && iconChoice !== null && <PinIconControls {...iconChoice} glyph={PIN_GLYPH[kind]} />}
       {viagem && description === null && (
         <span className="lb-label">Crave o pino; no painel dele você escolhe para onde ele leva.</span>
       )}

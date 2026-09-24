@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import { PlayerMeasureLabel, writeMeasureText } from './PlayerMeasureLabel'
 import { Application, Container, Graphics, Sprite, Text, Texture } from 'pixi.js'
 import type { FederatedPointerEvent } from 'pixi.js'
 import type { MapData, Region, RegionPoint, Token, Wall } from '../types/map'
@@ -600,6 +601,7 @@ export function PlayerView({
 }: PlayerViewProps) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const measureLabelRef = useRef<HTMLDivElement | null>(null)
+  const measureAnnouncerRef = useRef<HTMLDivElement | null>(null)
   const sceneRef = useRef<Scene | null>(null)
   const latest = {
     map,
@@ -637,15 +639,12 @@ export function PlayerView({
   function syncMeasure(scene: Scene): void {
     const measure = scene.measure.measure
     const label = measureLabelRef.current
+    const announcer = measureAnnouncerRef.current
     if (measure === null) {
       if (scene.lastMeasureKey === null) return
       scene.lastMeasureKey = null
       scene.measureLayer.clear()
-      if (label) {
-        // Texto vazio, e não só escondido: a medida apagada não pode continuar legível para ninguém.
-        label.textContent = ''
-        label.hidden = true
-      }
+      if (label && announcer) writeMeasureText({ label, announcer }, null)
       return
     }
     const start = measureWorldToScreen(scene.camera, measure.start)
@@ -655,9 +654,8 @@ export function PlayerView({
     if (key === scene.lastMeasureKey) return
     scene.lastMeasureKey = key
     drawPlayerMeasure(scene.measureLayer, start, end)
-    if (!label) return
-    if (label.textContent !== text) label.textContent = text
-    label.hidden = false
+    if (!label || !announcer) return
+    writeMeasureText({ label, announcer }, text)
     // Acima e à direita da ponta, como o rótulo do mestre, preso dentro da tela.
     const x = Math.min(Math.max(0, end.x + MEASURE_LABEL_OFFSET_PX), scene.app.screen.width - label.offsetWidth)
     const y = Math.min(Math.max(0, end.y - MEASURE_LABEL_OFFSET_PX - label.offsetHeight), scene.app.screen.height - label.offsetHeight)
@@ -1395,8 +1393,8 @@ export function PlayerView({
     <>
       <div ref={containerRef} style={{ position: 'fixed', inset: 0, touchAction: 'none', cursor: signalArmed || measureArmed || laserArmed ? 'crosshair' : undefined }} />
       {/* Rótulo da régua: escrito pelo gesto direto no DOM (syncMeasure), sem re-render do React por passo do dedo.
-          `aria-live` educado: com o grude na grade o texto só muda a cada quadrado, não a cada pixel. */}
-      <div ref={measureLabelRef} className="pp-measure-label" aria-live="polite" aria-atomic="true" hidden />
+          A região viva mora à parte e nasce montada, para a PRIMEIRA medida já ser anunciada. */}
+      <PlayerMeasureLabel labelRef={measureLabelRef} announcerRef={measureAnnouncerRef} />
     </>
   )
 }

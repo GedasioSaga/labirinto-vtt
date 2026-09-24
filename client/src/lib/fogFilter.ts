@@ -4,7 +4,7 @@ import { isPointExplored, isShapeExplored, type Exploration } from './exploratio
 import { pointInRing } from './floorContour'
 import { pieceBounds, pieceDistance, shapeCenter } from './floorSdf'
 import { drawingLayer, regionLayer, stairLayer, visibleLights, visibleProps, visibleRegions, visibleTokens, wallLayer } from './layers'
-import { isPlayerSafePinImage } from './pins'
+import { isPinIcon, isPlayerSafePinImage } from './pins'
 import { exitLabelsOf, isArrivalOnly } from './pinTravel'
 import { computeVisibility, visionSegments } from './visibility'
 import { ancestorsOf, NESTING_TOLERANCE, pointInPolygonInclusive, pointOnPolygonBorder, subtreeIds } from './roomNesting'
@@ -1078,7 +1078,10 @@ function pinForPlayer(pin: Pin): Pin {
     description: pin.description,
     image: isPlayerSafePinImage(pin.image) ? pin.image : null,
   }
-  if (pin.icon !== undefined) forPlayer.icon = pin.icon
+  // Ícone: o cartão e o mapa do jogador desenham o símbolo, então ele vai —
+  // mas só um dos nomes conhecidos (texto livre de arquivo editado à mão não
+  // atravessa) e nunca no pino de viagem, que desenha a passagem.
+  if (pin.kind !== 'viagem' && isPinIcon(pin.icon)) forPlayer.icon = pin.icon
   if (pin.locked !== undefined) forPlayer.locked = pin.locked
   if (pin.hidden !== undefined) forPlayer.hidden = pin.hidden
   if (pin.secret !== undefined) forPlayer.secret = pin.secret
