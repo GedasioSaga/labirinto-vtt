@@ -1,3 +1,4 @@
+import { RevealToControls, type RevealToControlsProps } from './PlayerSecretControls'
 import { Toggle } from './Toggle'
 
 export interface ConcealZoneControlsProps {
@@ -6,13 +7,18 @@ export interface ConcealZoneControlsProps {
   revealed: boolean
   onRevealedChange: (revealed: boolean) => void
   onDelete: () => void
+  /**
+   * Só com a sala aberta: "Revelar para…" quem descobriu o que a zona esconde.
+   * Aparece com a zona ativa — revelada para todos, a lista não diria nada.
+   */
+  reveal?: RevealToControlsProps | null
 }
 
 /**
  * Zona oculta aberta no painel (A5). "Revelar para jogadores" não apaga a
  * zona: o mestre pode esconder de novo sem redesenhar.
  */
-export function ConcealZoneControls({ name, onNameChange, revealed, onRevealedChange, onDelete }: ConcealZoneControlsProps) {
+export function ConcealZoneControls({ name, onNameChange, revealed, onRevealedChange, onDelete, reveal = null }: ConcealZoneControlsProps) {
   return (
     <section className="lb-section">
       <h2 className="lb-eyebrow">Zona oculta</h2>
@@ -23,6 +29,7 @@ export function ConcealZoneControls({ name, onNameChange, revealed, onRevealedCh
         <input id="lb-conceal-zone-name" className="lb-input" value={name} onChange={(event) => onNameChange(event.target.value)} />
       </div>
       <Toggle label="Revelar para jogadores" checked={revealed} onChange={onRevealedChange} />
+      {reveal !== null && !revealed && <RevealToControls {...reveal} />}
       <button type="button" className="lb-btn lb-btn--ghost lb-btn--block" onClick={onDelete}>
         Excluir zona
       </button>

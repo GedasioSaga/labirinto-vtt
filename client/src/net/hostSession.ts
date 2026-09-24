@@ -332,6 +332,18 @@ export interface HostSession {
   pinAudience(pinId: string): string[] | null
   /** Todas as listas, por pino, para o painel do mestre. Pino de "Todos" não aparece. */
   pinAudiences(): Record<string, string[]>
+  /**
+   * "Revelar para…" da ficha secreta, da escada secreta ou da zona oculta
+   * `itemId`: só estes jogadores a recebem (`lib/fogFilter.ts`; a ficha ainda
+   * exige visão). `null` ou lista vazia = segredo de todos de novo. Id que não é
+   * de jogador da sala é ignorado. Não envia: o integrador faz o broadcast. A
+   * lista vive só nesta sessão.
+   */
+  setSecretReveal(itemId: string, playerIds: readonly string[] | null): void
+  /** A lista de `setSecretReveal`, na ordem de entrada na sala; `[]` = ninguém. */
+  secretReveal(itemId: string): string[]
+  /** Todas as listas, por item, para o painel do mestre. Item sem ninguém não aparece. */
+  secretReveals(): Record<string, string[]>
   /** Marca a planta inteira da cena onde o jogador está como explorada, fora de zona oculta ativa. Tokens seguem exigindo visão. */
   revealPlan(playerId: string, source: HostMapSource): void
   /**
@@ -458,6 +470,9 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   // Por pinId: quem vê o pino ("Só estes"). Ausente = Todos. O kick tira o
   // jogador de toda lista; o registro de quem só caiu fica (resume).
   const pinAudiences = new Map<string, Set<string>>()
+  // Por id de ficha secreta, escada secreta ou zona oculta: a quem o mestre
+  // revelou ("Revelar para…"). Ausente = ninguém. O kick tira o jogador.
+  const secretReveals = new Map<string, Set<string>>()
   // Por id de CENA da aventura: quem ganhou a planta pelo "Revelar planta
   // para…". Vale até o jogador chegar lá (e depois); "Esconder de novo" e o
   // kick tiram. Vive só nesta sessão, como o "Quem vê" dos pinos.
@@ -470,11 +485,21 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   /** Raio que corta a visão do jogador NESTE mapa: o alcance da cena (ou o de sempre) vezes o fator dele. */
   const radiusFor = (playerId: string, map: MapData): number => playerVisionRadius(map, baseRadiusFor(playerId), factorFor(playerId))
 
-  /** "Quem vê" do pino na ordem da sala (a do painel Grupo), não na ordem em que o mestre marcou. `null` = Todos. */
+  /** Jogadores do conjunto, na ordem da sala (a do painel Grupo), não na ordem em que o mestre marcou. */
+  const inRoomOrder = (chosen: ReadonlySet<string>): string[] =>
+    [...players.values()].sort((a, b) => a.joinedAt - b.joinedAt).flatMap((p) => (chosen.has(p.playerId) ? [p.playerId] : []))
+
+  /** "Quem vê" do pino na ordem da sala. `null` = Todos. */
   const audienceOf = (pinId: string): string[] | null => {
     const chosen = pinAudiences.get(pinId)
     if (chosen === undefined) return null
-    return [...players.values()].sort((a, b) => a.joinedAt - b.joinedAt).flatMap((p) => (chosen.has(p.playerId) ? [p.playerId] : []))
+    return inRoomOrder(chosen)
+  }
+
+  /** "Revelar para…" do item, na ordem da sala; `[]` = ninguém. */
+  const secretRevealOf = (itemId: string): string[] => {
+    const chosen = secretReveals.get(itemId)
+    return chosen === undefined ? [] : inRoomOrder(chosen)
   }
 
   /** Polígonos das zonas ocultas ativas (`?? []`: mapa montado fora do deserializeMap pode vir sem o campo). */
@@ -586,7 +611,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       markAll(exp, playerBlockedRings(map))
       memory.planMarked = true
     }
-    const view = filterMapForPlayer(map, playerId, ownership, radiusFor(playerId, map), exp, memory.doors, pinAudiences)
+    const view = filterMapForPlayer(map, playerId, ownership, radiusFor(playerId, map), exp, memory.doors, pinAudiences, secretReveals)
     // Zona oculta ativa e sala secreta: célula que toca nelas não vira explorada
     // (senão o jogador guardaria a planta escondida e o formato dela).
     markRings(exp, view.vision, view.blocked)
@@ -749,7 +774,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const wall = map.walls.find((w) => w.id === msg.wallId)
     if (wall === undefined || wall.door === null) return reject('not_visible')
     const memory = memoryFor(playerId, map)
-    const view = filterMapForPlayer(map, playerId, ownership, radiusFor(playerId, map), memory.exp, memory.doors, pinAudiences)
+    const view = filterMapForPlayer(map, playerId, ownership, radiusFor(playerId, map), memory.exp, memory.doors, pinAudiences, secretReveals)
     if (!view.visibleDoorIds.includes(wall.id)) return reject('not_visible')
     // Trancada antes de longe: a cor da porta já diz que está trancada, e "Trancada" é a informação útil.
     if (wall.door.locked) return reject('locked')
@@ -806,7 +831,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const pin = from.map.pins.find((p) => p.id === pinId)
     if (pin === undefined) return null
     const memory = memoryFor(playerId, from.map)
-    const view = filterMapForPlayer(from.map, playerId, ownership, radiusFor(playerId, from.map), memory.exp, memory.doors, pinAudiences)
+    const view = filterMapForPlayer(from.map, playerId, ownership, radiusFor(playerId, from.map), memory.exp, memory.doors, pinAudiences, secretReveals)
     const seen = view.map.pins.find((p) => p.id === pinId)
     if (seen === undefined) return null
     // MARCO visto de longe: o pino chega ao jogador na névoa, mas ele nunca
@@ -1076,6 +1101,10 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       visionOverrides.delete(playerId)
       visionFactors.delete(playerId)
       for (const chosen of pinAudiences.values()) chosen.delete(playerId)
+      for (const [itemId, chosen] of secretReveals) {
+        chosen.delete(playerId)
+        if (chosen.size === 0) secretReveals.delete(itemId)
+      }
       dropPlanGrants(playerId, null)
       return reply(clientId, { type: 'kicked' })
     },
@@ -1121,6 +1150,21 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     pinAudiences() {
       const all: Record<string, string[]> = {}
       for (const pinId of pinAudiences.keys()) all[pinId] = audienceOf(pinId) ?? []
+      return all
+    },
+
+    setSecretReveal(itemId, playerIds) {
+      const chosen = new Set((playerIds ?? []).filter((id) => players.has(id)))
+      // Sem ninguém é o segredo de sempre: a entrada some, e o painel não guarda lista vazia.
+      if (chosen.size === 0) secretReveals.delete(itemId)
+      else secretReveals.set(itemId, chosen)
+    },
+
+    secretReveal: secretRevealOf,
+
+    secretReveals() {
+      const all: Record<string, string[]> = {}
+      for (const itemId of secretReveals.keys()) all[itemId] = secretRevealOf(itemId)
       return all
     },
 
