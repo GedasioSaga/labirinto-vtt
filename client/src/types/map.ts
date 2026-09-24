@@ -331,11 +331,12 @@ export interface PinExit extends PinExitLabel {
 export type PinPassage = 'pede' | 'livre' | 'trancada'
 
 /**
- * CABINE DE TRANSPORTE, como a PARADA a diz ao jogador: a cabine está `aqui`
- * ou `longe` — nunca qual cabine é nem em que parada ela está. A cabine mora
- * na aventura (`lib/cabine.ts`).
+ * CABINE DE TRANSPORTE, como a PARADA a diz ao jogador: a cabine está `aqui`;
+ * está aqui mas `ocupada` (alguém embarcou e espera o mestre); não está e
+ * esta parada já a `chamada`; ou está `longe` — nunca qual cabine é, em que
+ * parada ela está nem quem está dentro. A cabine mora na aventura (`lib/cabine.ts`).
  */
-export type CabineNaParada = 'aqui' | 'longe'
+export type CabineNaParada = 'aqui' | 'ocupada' | 'longe' | 'chamada'
 
 /**
  * Símbolo desenhado DENTRO da cabeça do pino, no lugar do glifo. Os seis que o

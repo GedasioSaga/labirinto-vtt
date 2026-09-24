@@ -51,6 +51,7 @@ import { ScenesSection } from './components/ScenesSection'
 import { WorldStateSection } from './components/WorldStateSection'
 import { EstadoDaLuz, EstadoDaPorta, EstadoDaZona, EstadoDoPino } from './components/DependeDoEstadoControls'
 import { PinCabineControls } from './components/PinCabineControls'
+import { ocupantesDasCabines } from './lib/cabine'
 import { UNNAMED_SCENE } from './lib/adventure'
 import { amarradosPorEstado, type AmarraDeEstado } from './lib/estadoDoMundo'
 import { MapObjectsSection } from './components/MapObjectsSection'
@@ -458,6 +459,8 @@ function App() {
         applyCabine: ({ cabineId, parada }) => {
           useAdventureStore.getState().moverCabine(cabineId, parada)
         },
+        // CABINE DE TRANSPORTE: um jogador chamou a cabine — a chamada entra na fila da aventura.
+        applyChamadaDeCabine: (chamada) => useAdventureStore.getState().chamarCabine(chamada),
         // "Ir lá" do aviso de chegada: o editor vai à cena, com a ficha no centro
         // (mesmo caminho do "Ir lá" do painel Grupo, que também serve à cena já aberta).
         onGoToScene: (sceneId, x, y) => {
@@ -1793,6 +1796,13 @@ function App() {
                       onTrazer={(cabineId) => {
                         useAdventureStore.getState().moverCabine(cabineId, { sceneId: activeSceneId, pinId: selectedPin.id })
                       }}
+                      onAtender={(cabineId) => {
+                        useAdventureStore.getState().atenderChamada(cabineId)
+                      }}
+                      onLimparFila={(cabineId) => {
+                        useAdventureStore.getState().limparFilaDaCabine(cabineId)
+                      }}
+                      ocupantes={ocupantesDasCabines(roomPlayers)}
                     />
                   )}
                 </>

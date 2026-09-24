@@ -15,6 +15,15 @@ export interface PinCabineControlsProps {
   onEscolher: (cabineId: string | null) => void
   /** "Trazer a cabine para cá". */
   onTrazer: (cabineId: string) => void
+  /** "Atender a próxima chamada": a cabine vai à parada da primeira chamada da fila. */
+  onAtender: (cabineId: string) => void
+  /** "Limpar a fila". */
+  onLimparFila: (cabineId: string) => void
+  /**
+   * OCUPANTE: id da cabine → nome de quem embarcou nela e espera o "Deixar
+   * ir" (estado da sessão, do host). Ausente ou sem a cabine = ninguém dentro.
+   */
+  ocupantes?: Readonly<Record<string, string>>
 }
 
 /** Valor da lista que quer dizer "não é parada de cabine nenhuma". */
@@ -33,7 +42,7 @@ function ondeEsta(cabine: CabineDeTransporte, aqui: boolean, nomeDaCena: (sceneI
  * aqui), lê onde a cabine está e a traz. O jogador só passa com a cabine na
  * parada e lê só "aqui/longe" — nunca o nome da cabine (`lib/fogFilter.ts`).
  */
-export function PinCabineControls({ cabines, parada, nomeDaCena, onCriar, onEscolher, onTrazer }: PinCabineControlsProps) {
+export function PinCabineControls({ cabines, parada, nomeDaCena, onCriar, onEscolher, onTrazer, onAtender, onLimparFila, ocupantes }: PinCabineControlsProps) {
   const baseId = useId()
   const listaId = `${baseId}-cabine`
   const nomeId = `${baseId}-nome`
@@ -44,6 +53,8 @@ export function PinCabineControls({ cabines, parada, nomeDaCena, onCriar, onEsco
 
   const cabine = cabineDaParada(cabines, parada.sceneId, parada.pinId)
   const aqui = cabineNaParada(cabines, parada.sceneId, parada.pinId) === 'aqui'
+  const fila = cabine?.fila ?? []
+  const ocupante = cabine === null ? undefined : ocupantes?.[cabine.id]
 
   const criar = (event: FormEvent) => {
     event.preventDefault()
@@ -77,9 +88,33 @@ export function PinCabineControls({ cabines, parada, nomeDaCena, onCriar, onEsco
           <p className="lb-travel__hint" role="status">
             {ondeEsta(cabine, aqui, nomeDaCena)} O jogador só passa com a cabine aqui.
           </p>
+          {ocupante !== undefined && <p className="lb-travel__hint">Na cabine: {ocupante}, esperando você deixar ir.</p>}
           <button type="button" className="lb-btn lb-btn--block" disabled={aqui} onClick={() => onTrazer(cabine.id)}>
             Trazer a cabine para cá
           </button>
+          {fila.length === 0 ? (
+            <p className="lb-travel__hint">Ninguém chamou a cabine.</p>
+          ) : (
+            <>
+              {/* Quem chamou primeiro está no alto: é quem "Atender" atende. */}
+              <p className="lb-label" aria-hidden="true">
+                Fila de chamadas
+              </p>
+              <ol className="lb-travel__hint" aria-label="Fila de chamadas">
+                {fila.map((chamada) => (
+                  <li key={`${chamada.parada.sceneId}|${chamada.parada.pinId}`}>
+                    {nomeDaCena(chamada.parada.sceneId)} · {chamada.nome}
+                  </li>
+                ))}
+              </ol>
+              <button type="button" className="lb-btn lb-btn--block" onClick={() => onAtender(cabine.id)}>
+                Atender a próxima chamada
+              </button>
+              <button type="button" className="lb-btn lb-btn--block" onClick={() => onLimparFila(cabine.id)}>
+                Limpar a fila
+              </button>
+            </>
+          )}
         </>
       ) : (
         <form className="lb-world__form" onSubmit={criar} noValidate>

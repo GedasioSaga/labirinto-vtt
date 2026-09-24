@@ -37,6 +37,8 @@ describe('PinCabineControls', () => {
       onCriar: vi.fn(),
       onEscolher: vi.fn(),
       onTrazer: vi.fn(),
+      onAtender: vi.fn(),
+      onLimparFila: vi.fn(),
       ...extra,
     }
     act(() => root.render(<PinCabineControls {...props} />))

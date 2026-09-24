@@ -14,6 +14,11 @@ interface PlayerPinCardProps {
   onRequestTravel?: (exitId?: string) => void
   /** Já há um pedido esperando o mestre: não dá para pedir de novo. */
   travelWaiting?: boolean
+  /**
+   * CABINE DE TRANSPORTE: "Chamar a cabine" pela parada sem ela. `true` = o
+   * chamado saiu (a conexão estava de pé). Ausente = o cartão não oferece chamar.
+   */
+  onChamarCabine?: () => boolean
 }
 
 /**
@@ -69,8 +74,18 @@ const TEXTOS_LIVRE: TextosDaPassagem = {
  * vendo onde está. O toque de fechar que cai no mapa para ali, antes do canvas:
  * fechar o cartão não arrasta o mapa nem abre outro pino.
  */
-export function PlayerPinCard({ pin, onClose, onRequestTravel, travelWaiting = false }: PlayerPinCardProps) {
+export function PlayerPinCard({ pin, onClose, onRequestTravel, travelWaiting = false, onChamarCabine }: PlayerPinCardProps) {
   const cardRef = useRef<HTMLDivElement | null>(null)
+  /**
+   * CABINE DE TRANSPORTE: o chamado saiu deste cartão. Some o botão (um toque,
+   * um chamado) até o recorte dizer "chamada"; se a parada deixar de dizer
+   * "longe" (a cabine chegou, foi chamada), volta a valer só o recorte.
+   */
+  const [chamou, setChamou] = useState(false)
+  const cabineDoPino = pin.kind === 'viagem' ? pin.cabine : undefined
+  useEffect(() => {
+    if (cabineDoPino !== 'longe') setChamou(false)
+  }, [cabineDoPino])
   const closeRef = useRef<HTMLButtonElement | null>(null)
   const confirmRef = useRef<HTMLButtonElement | null>(null)
   const askRef = useRef<HTMLButtonElement | null>(null)
@@ -131,11 +146,13 @@ export function PlayerPinCard({ pin, onClose, onRequestTravel, travelWaiting = f
   // um "Pedir" que o host sempre recusa só ensinaria o jogador a insistir.
   const passagem = passageOf(pin)
   const trancada = viagem && passagem === 'trancada'
-  // CABINE DE TRANSPORTE: parada sem a cabine não oferece passar — o host
-  // recusaria. A frase não diz onde a cabine está: o recorte nem sabe.
-  const cabine = viagem ? pin.cabine : undefined
-  const semCabine = cabine === 'longe'
+  // CABINE DE TRANSPORTE: só se passa com a cabine AQUI (e livre) — longe,
+  // chamada ou ocupada, o host recusaria. A frase não diz onde a cabine está
+  // nem quem está nela: o recorte nem sabe. Longe, oferece chamá-la.
+  const cabine = cabineDoPino
+  const semCabine = cabine !== undefined && cabine !== 'aqui'
   const podePedir = viagem && !trancada && !semCabine && onRequestTravel !== undefined
+  const podeChamar = !trancada && cabine === 'longe' && !chamou && onChamarCabine !== undefined
   const textos = passagem === 'livre' ? TEXTOS_LIVRE : TEXTOS_PEDE
   // ENCRUZILHADA: com mais de uma saída, um botão por saída, pelo rótulo que o
   // mestre escreveu — o destino e o nome da cena nunca chegam aqui. Com uma
@@ -177,9 +194,29 @@ export function PlayerPinCard({ pin, onClose, onRequestTravel, travelWaiting = f
           </p>
         </div>
         {trancada && <p className="pp-pincard__locked">Está trancada. Não dá para passar por aqui agora.</p>}
-        {!trancada && semCabine && <p className="pp-pincard__locked">A cabine não está aqui. Não dá para passar agora.</p>}
+        {!trancada && cabine === 'longe' && (
+          <p className="pp-pincard__locked" role="status">
+            {chamou ? 'A cabine não está aqui. Você chamou a cabine.' : 'A cabine não está aqui. Não dá para passar agora.'}
+          </p>
+        )}
+        {!trancada && cabine === 'chamada' && <p className="pp-pincard__locked">A cabine foi chamada para cá. Espere ela chegar.</p>}
+        {!trancada && cabine === 'ocupada' && <p className="pp-pincard__locked">A cabine está aqui, mas alguém já embarcou. Espere ela voltar.</p>}
         {/* A mesma moldura de estado: diz onde a cabine está, sem convidar toque. */}
         {!trancada && cabine === 'aqui' && <p className="pp-pincard__locked">A cabine está aqui.</p>}
+        {podeChamar && (
+          <button
+            type="button"
+            className="pp-pincard__travel"
+            onClick={() => {
+              if (onChamarCabine === undefined || !onChamarCabine()) return
+              setChamou(true)
+              // O botão some: o foco não pode cair no nada — vai ao "Fechar".
+              closeRef.current?.focus()
+            }}
+          >
+            Chamar a cabine
+          </button>
+        )}
         {podePedir && confirming === null && !encruzilhada && (
           <button
             ref={askRef}

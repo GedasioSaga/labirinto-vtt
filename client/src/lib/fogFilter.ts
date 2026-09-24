@@ -1599,16 +1599,22 @@ function pinForPlayer(pin: Pin): Pin {
  * CABINE DE TRANSPORTE — a parada diz ao jogador se a cabine está nela.
  * Recebe os pinos que o recorte JÁ mandou (`filterMapForPlayer`): parada que a
  * névoa, a zona oculta, o "Quem vê" ou o segredo esconderam não está na lista,
- * e não ganha nada. Do que a cabine é, sai só `cabine: 'aqui' | 'longe'` —
- * nunca o id, o nome, as outras paradas nem onde ela está (a cena de lá diria
- * que a outra cena existe). `sceneId` é a cena do jogador na aventura (`null`
- * no mapa solto, que não tem cabine).
+ * e não ganha nada. Do que a cabine é, sai só `cabine` (`aqui`, `ocupada`,
+ * `chamada`, `longe`) — nunca o id, o nome, as outras paradas, onde ela está
+ * (a cena de lá diria que a outra cena existe), quem chamou nem quem está
+ * dentro. `sceneId` é a cena do jogador na aventura (`null` no mapa solto, que
+ * não tem cabine). `ocupadas`: as cabines em que OUTRO jogador embarcou.
  */
-export function comCabineParaJogador(pins: readonly Pin[], sceneId: string | null, cabines: readonly CabineDeTransporte[] | undefined): Pin[] {
+export function comCabineParaJogador(
+  pins: readonly Pin[],
+  sceneId: string | null,
+  cabines: readonly CabineDeTransporte[] | undefined,
+  ocupadas: ReadonlySet<string> = new Set(),
+): Pin[] {
   if (cabines === undefined || cabines.length === 0 || sceneId === null) return [...pins]
   return pins.map((pin) => {
     if (pin.kind !== 'viagem') return pin
-    const cabine = cabineNaParada(cabines, sceneId, pin.id)
+    const cabine = cabineNaParada(cabines, sceneId, pin.id, ocupadas)
     return cabine === null ? pin : { ...pin, cabine }
   })
 }

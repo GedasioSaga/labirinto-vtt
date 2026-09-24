@@ -180,6 +180,12 @@ export interface PlayerConnection {
    */
   requestTravel(pinId: string, exitId?: string): boolean
   /**
+   * CABINE DE TRANSPORTE: "Chamar a cabine" pela parada `pinId`. Sem resposta:
+   * a parada diz "chamada" no próximo recorte. `false` se não está jogando ou
+   * o socket não está aberto.
+   */
+  callCabine(pinId: string): boolean
+  /**
    * Ponteiro do LASER do jogador em px de mundo. Sai em lotes: o primeiro
    * ponto na hora, os seguintes juntos a cada `LASER_SEND_INTERVAL_MS`.
    * `false` se não está jogando ou o socket não está aberto.
@@ -943,6 +949,11 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     toggleDoor(wallId) {
       if (state.status !== 'playing' || wallId.length === 0) return false
       return send({ type: 'door.toggle', wallId })
+    },
+
+    callCabine(pinId) {
+      if (state.status !== 'playing' || pinId.length === 0) return false
+      return send({ type: 'cabine.call', pinId })
     },
 
     requestTravel(pinId, exitId) {

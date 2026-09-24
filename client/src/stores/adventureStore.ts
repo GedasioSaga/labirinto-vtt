@@ -23,7 +23,7 @@ import {
   type AmarraDeEstado,
   type ResumoDaTroca,
 } from '../lib/estadoDoMundo'
-import { comCabineEm, comParada, novaCabine } from '../lib/cabine'
+import { comCabineEm, comChamada, comParada, novaCabine, proximaChamada, semFila, type ChamadaAceita } from '../lib/cabine'
 import {
   addExit,
   arrivalPoint,
@@ -266,6 +266,19 @@ interface AdventureState {
    * da ponte). `false` quando não dá ou ela já está lá.
    */
   moverCabine: (cabineId: string, parada: PinDestination) => boolean
+  /**
+   * CABINE DE TRANSPORTE: a chamada que o host aceitou entra no fim da fila
+   * (`chamadaDeCabine` da ponte). `false` quando não entra: a parada já está
+   * na fila, a cabine já está lá, a cabine ou a parada não existem.
+   */
+  chamarCabine: (chamada: ChamadaAceita) => boolean
+  /**
+   * CABINE DE TRANSPORTE: "Atender a próxima chamada" — a cabine vai à parada
+   * da primeira chamada da fila, que sai dela. `false` com a fila vazia.
+   */
+  atenderChamada: (cabineId: string) => boolean
+  /** CABINE DE TRANSPORTE: "Limpar a fila". `false` quando não havia chamada. */
+  limparFilaDaCabine: (cabineId: string) => boolean
   /** Há cena de fundo ou lista de cenas esperando gravação? (A cena aberta é o `useSessionStore` que diz.) */
   hasPendingScenes: () => boolean
   /** Grava a aventura inteira e devolve o caminho da cena aberta. */
@@ -666,6 +679,31 @@ export const useAdventureStore = create<AdventureState>()((set, get) => ({
     const { adventure } = get()
     if (adventure === null) return false
     const cabines = comCabineEm(adventure.cabines ?? [], cabineId, parada)
+    if (cabines === null) return false
+    set({ adventure: { ...adventure, cabines }, structureDirty: true })
+    return true
+  },
+
+  chamarCabine: ({ cabineId, chamada }) => {
+    const { adventure } = get()
+    if (adventure === null) return false
+    const cabines = comChamada(adventure.cabines ?? [], cabineId, chamada)
+    if (cabines === null) return false
+    set({ adventure: { ...adventure, cabines }, structureDirty: true })
+    return true
+  },
+
+  atenderChamada: (cabineId) => {
+    const { adventure } = get()
+    if (adventure === null) return false
+    const proxima = proximaChamada(adventure.cabines ?? [], cabineId)
+    return proxima === null ? false : get().moverCabine(cabineId, proxima.parada)
+  },
+
+  limparFilaDaCabine: (cabineId) => {
+    const { adventure } = get()
+    if (adventure === null) return false
+    const cabines = semFila(adventure.cabines ?? [], cabineId)
     if (cabines === null) return false
     set({ adventure: { ...adventure, cabines }, structureDirty: true })
     return true

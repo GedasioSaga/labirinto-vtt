@@ -3,7 +3,7 @@ import { contractFromTerms, isContractDue, type LoanTerms } from '../lib/tokenLo
 import { tokenAsSeenByPlayer } from '../lib/tokenPublicName'
 import { createExploration, encodeExploration, forgetInside, isPointExplored, markAll, markRings, mergeExploration, type Exploration } from '../lib/exploration'
 import { pointInRing } from '../lib/floorContour'
-import { cabineAposViagem, cabineNaParada, type CabineDeTransporte, type MovimentoDeCabine } from '../lib/cabine'
+import { cabineAposViagem, cabineDaParada, cabineNaParada, type CabineDeTransporte, type ChamadaAceita, type MovimentoDeCabine } from '../lib/cabine'
 import {
   comCabineParaJogador,
   filterMapForPlayer,
@@ -20,12 +20,13 @@ import { confrontoParaJogador, fichaDaVez } from '../lib/confronto'
 import { tokenReachesDoor } from '../lib/doorReach'
 import { SIGNAL_MIN_INTERVAL_MS, signalColor } from '../lib/signals'
 import { selectedTokenColor } from '../lib/tokenColor'
-import { arrivalPoint, arrivalSpot, exitLabelsOf, isArrivalOnly, resolvePinTravel, SAIDA_PRINCIPAL, travelExitOf, type TravelScene } from '../lib/pinTravel'
+import { arrivalPoint, arrivalSpot, exitLabelsOf, isArrivalOnly, resolvePinTravel, SAIDA_PRINCIPAL, sameDestination, travelExitOf, type TravelScene } from '../lib/pinTravel'
 import { passageOf, pinSummary } from '../lib/pins'
 import { gatherSpots } from '../lib/gatherParty'
 import { tokenSizeInSquares } from '../lib/tokenSize'
 import {
   parsePlayerMessage,
+  type CabineCallMessage,
   type ClueEntry,
   type ClueReadMessage,
   type ClueShowMessage,
@@ -158,6 +159,26 @@ export interface TravelRequest {
   pinLabel: string
   toSceneId: string
   toSceneName: string
+  /**
+   * CABINE DE TRANSPORTE: o pedido saiu de uma parada com a cabine ali — quem
+   * pede EMBARCOU e é o ocupante até o mestre responder. O nome da cabine,
+   * para o aviso dizer "(na cabine Espinha)". Ausente = pino sem cabine.
+   */
+  cabine?: string
+}
+
+/**
+ * CABINE DE TRANSPORTE: chamada aceita, para o integrador pôr na fila da
+ * aventura (`chamadaDeCabine` do resultado) e avisar o mestre: quem chamou,
+ * qual cabine e em que cena. Nada disto vai ao jogador.
+ */
+export interface ChamadaParaMestre extends ChamadaAceita {
+  /** Nome do jogador na sala. */
+  jogador: string
+  /** Nome da cabine ("Espinha"). */
+  cabine: string
+  /** Nome da cena da parada que chamou. */
+  cena: string
 }
 
 /**
@@ -244,6 +265,12 @@ export interface HostResult {
    * cena (sem viagem, a cabine não anda). Nunca vai ao jogador.
    */
   applyCabine?: MovimentoDeCabine
+  /**
+   * CABINE DE TRANSPORTE: "Chamar a cabine" que valeu. O integrador põe na
+   * fila (pode recusar: a parada já estava nela) e avisa o mestre. Nunca vai
+   * ao jogador — ele lê "chamada" na parada no próximo recorte.
+   */
+  chamadaDeCabine?: ChamadaParaMestre
 }
 
 export interface PlayerInfo {
@@ -264,6 +291,12 @@ export interface PlayerInfo {
    * resto do tempo: é o que põe o selo "pedido" na cena dele, na lista Cenas.
    */
   travelPending?: true
+  /**
+   * CABINE DE TRANSPORTE: o id da cabine em que ele embarcou (pedido pendente
+   * de uma parada com a cabine ali). É o OCUPANTE que o painel do pino mostra
+   * ao mestre. Ausente = não está em cabine nenhuma.
+   */
+  naCabine?: string
   /**
    * AJUDANTE CONTRATADO: o acordo de cada ficha EMPRESTADA a ele (id da ficha
    * → acordo). Ausente = nenhum empréstimo. As fichas continuam em `tokenIds`.
@@ -318,6 +351,14 @@ export const TRAVEL_REQUEST_MIN_INTERVAL_MS = 3000
  * quem troca de pino (ou de conexão) a cada toque.
  */
 export const TRAVEL_REQUEST_PLAYER_MIN_INTERVAL_MS = 1500
+
+/**
+ * CABINE DE TRANSPORTE: um "Chamar a cabine" por jogador nesta janela, de
+ * qualquer parada. Cada chamada que vale vira um aviso na tela do mestre:
+ * sem o limite, tocar de novo e de novo empilharia avisos (a fila já barra
+ * a mesma parada, mas não quem troca de parada a cada toque).
+ */
+export const CABINE_CALL_MIN_INTERVAL_MS = 1000
 
 /**
  * Quantas cenas cada jogador lembra (exploração e portas vistas). Passou do
@@ -459,6 +500,12 @@ interface PendingTravel {
   /** O destino do aviso que o mestre leu. Religou a saída depois? A aprovação não vale. */
   toSceneId: string
   partnerId: string
+  /**
+   * CABINE DE TRANSPORTE: o pedido saiu de uma parada com a cabine ali — a
+   * cabine e a parada onde ele embarcou. Enquanto a cabine continuar nessa
+   * parada, ele é o OCUPANTE e ninguém mais passa por ela.
+   */
+  embarque?: MovimentoDeCabine
 }
 
 /** Pedido que passou em tudo: de onde, para onde, por qual pino e com qual token. */
@@ -586,6 +633,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   const laserRecipients = new Map<string, { scene: string; clients: Set<string> }>()
   // Por playerId: limite da foto nova do próprio token (só da foto, ver TOKEN_PHOTO_MIN_INTERVAL_MS).
   const lastTokenPhotoAt = new Map<string, number>()
+  // CABINE DE TRANSPORTE — por playerId: o último "Chamar a cabine". Só o kick apaga.
+  const lastCabineCallAt = new Map<string, number>()
   // Por playerId: ajuste do mestre sobre `options.visionRadius`; só o kick apaga.
   const visionOverrides = new Map<string, number>()
   // TEXTO DA SALA — por playerId, por mapa (`MapData.id`): as Salas com texto
@@ -945,7 +994,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const cut = filterMapForPlayer(map, playerId, ownership, radiusFor(playerId), exp, memory.doors, pinAudiences, entered, loansFor(playerId))
     // CABINE DE TRANSPORTE: só as paradas que o recorte JÁ mandou ganham o
     // "aqui/longe" — nada da cabine além disso, nada de parada escondida.
-    const view: PlayerMapView = { ...cut, map: { ...cut.map, pins: comCabineParaJogador(cut.map.pins, scene.sceneId, world.cabines) } }
+    const view: PlayerMapView = { ...cut, map: { ...cut.map, pins: comCabineParaJogador(cut.map.pins, scene.sceneId, world.cabines, ocupadasPorOutros(playerId, world)) } }
     // Zona oculta ativa e sala secreta: célula que toca nelas não vira explorada
     // (senão o jogador guardaria a planta escondida e o formato dela).
     markRings(exp, view.vision, view.blocked)
@@ -1300,10 +1349,12 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     // Chegada oculta (mão única) não leva de volta. O recorte já não a manda,
     // mas a recusa não depende da névoa: mesmo `null`, mesmo motivo genérico.
     if (isArrivalOnly(pin)) return null
-    // CABINE DE TRANSPORTE: parada sem a cabine não leva ninguém. Mesmo `null`,
-    // e também aqui (não só no cartão): o "Deixar ir" de um pedido feito com a
-    // cabine ali recusa se ela saiu antes da resposta.
-    if (cabineNaParada(world.cabines, fromSceneId, pin.id) === 'longe') return null
+    // CABINE DE TRANSPORTE: parada sem a cabine (longe ou só chamada) não leva
+    // ninguém, nem a parada com a cabine OCUPADA por outro jogador (uma cabine,
+    // um embarque). Mesmo `null`, e também aqui (não só no cartão): o "Deixar
+    // ir" de um pedido feito com a cabine ali recusa se ela saiu antes da resposta.
+    const naParada = cabineNaParada(world.cabines, fromSceneId, pin.id, ocupadasPorOutros(playerId, world))
+    if (naParada !== null && naParada !== 'aqui') return null
     const scenes = allScenes(world)
     const lookup = (sceneId: string): TravelScene | null => {
       const scene = scenes.find((s) => s.sceneId === sceneId)
@@ -1364,8 +1415,13 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     // ele só lê o aviso de chegada que o integrador mostra com a transferência.
     if (passageOf(travel.pin) === 'livre') return transferResult(playerId, clientId, record.name, travel)
     const requestId = randomId()
+    // CABINE DE TRANSPORTE: `validTravel` já garantiu a cabine AQUI (e livre).
+    // Quem pede embarca: é o ocupante até o mestre responder.
+    const parada = { sceneId: travel.from.sceneId, pinId: travel.pin.id }
+    const cabine = cabineDaParada(world.cabines, parada.sceneId, parada.pinId)
+    const embarque = cabine === null ? {} : { embarque: { cabineId: cabine.id, parada } }
     // O destino que o mestre LEU vai junto: é com ele que o "Deixar ir" confere.
-    pendingTravels.set(playerId, { requestId, playerId, pinId: msg.pinId, exitId, toSceneId: travel.to.sceneId, partnerId: travel.partner.id })
+    pendingTravels.set(playerId, { requestId, playerId, pinId: msg.pinId, exitId, toSceneId: travel.to.sceneId, partnerId: travel.partner.id, ...embarque })
     const description = travel.pin.description.trim()
     // Encruzilhada: o mestre lê a SAÍDA ("Escada da torre → Torre Alta"), o
     // mesmo rótulo que a jogadora tocou; pino de uma saída continua nomeado
@@ -1381,6 +1437,72 @@ export function createHostSession(options: HostSessionOptions): HostSession {
         pinLabel: saida !== undefined ? saida.rotulo : description === '' ? pinSummary(travel.pin) : description,
         toSceneId: travel.to.sceneId,
         toSceneName: travel.to.name,
+        ...(cabine === null ? {} : { cabine: cabine.nome }),
+      },
+    }
+  }
+
+  /**
+   * CABINE DE TRANSPORTE — as cabines em que OUTRO jogador embarcou: um pedido
+   * pendente que saiu da parada onde a cabine ainda está. Para `playerId`, a
+   * parada dessas cabines diz "ocupada" e não leva. O próprio embarque não
+   * conta (ele é quem está dentro). A cabine que saiu da parada do embarque (o
+   * mestre a levou) não está mais ocupada: o "Deixar ir" dele recusaria.
+   */
+  function ocupadasPorOutros(playerId: string, world: HostWorld): Set<string> {
+    const ocupadas = new Set<string>()
+    if (world.cabines === undefined || world.cabines.length === 0) return ocupadas
+    for (const pending of pendingTravels.values()) {
+      if (pending.playerId === playerId || pending.embarque === undefined) continue
+      const { cabineId, parada } = pending.embarque
+      const cabine = world.cabines.find((c) => c.id === cabineId)
+      if (cabine !== undefined && sameDestination(cabine.atual, parada)) ocupadas.add(cabineId)
+    }
+    return ocupadas
+  }
+
+  /**
+   * CABINE DE TRANSPORTE — "Chamar a cabine". Vale só pela parada de uma
+   * cabine, na cena do jogador, VISÍVEL para ele agora (a mesma regra da névoa
+   * do recorte: id adivinhado não chama nada), não trancada, sem a cabine ali
+   * e que ainda não chamou; e o jogador precisa ter ficha na cena (é ela que
+   * entra na fila). Qualquer falha morre em silêncio, como o sinal: o jogador
+   * não descobre por que, e o recorte continua dizendo "longe".
+   */
+  function handleCabineCall(clientId: string, msg: CabineCallMessage, world: HostWorld): HostResult {
+    const playerId = byClient.get(clientId)
+    if (playerId === undefined) return reply(clientId, { type: 'error', reason: 'not_joined' })
+    const record = players.get(playerId)
+    if (record === undefined || statusOf(playerId) !== 'playing') return { outbound: [] }
+    const at = now()
+    const last = lastCabineCallAt.get(playerId)
+    if (last !== undefined && at - last < CABINE_CALL_MIN_INTERVAL_MS) return { outbound: [] }
+    const scene = sceneFor(playerId, world)
+    if (scene === null || scene.sceneId === null) return { outbound: [] }
+    const pin = scene.map.pins.find((p) => p.id === msg.pinId)
+    const cabine = pin === undefined || pin.kind !== 'viagem' ? null : cabineDaParada(world.cabines, scene.sceneId, pin.id)
+    if (pin === undefined || cabine === null || passageOf(pin) === 'trancada') return { outbound: [] }
+    // O limite conta a partir daqui: só pino que existe e é parada gasta a vez.
+    lastCabineCallAt.set(playerId, at)
+    if (cabineNaParada(world.cabines, scene.sceneId, pin.id) !== 'longe') return { outbound: [] }
+    const memory = memoryFor(playerId, scene.map)
+    const view = filterMapForPlayer(scene.map, playerId, ownership, radiusFor(playerId), memory.exp, memory.doors, pinAudiences, undefined, loansFor(playerId))
+    if (!view.map.pins.some((p) => p.id === pin.id)) return { outbound: [] }
+    const owned = new Set(ownership[playerId] ?? [])
+    let token: Token | null = null
+    for (const t of view.map.tokens) {
+      if (!owned.has(t.id)) continue
+      if (token === null || Math.hypot(t.x - pin.x, t.y - pin.y) < Math.hypot(token.x - pin.x, token.y - pin.y)) token = t
+    }
+    if (token === null) return { outbound: [] }
+    return {
+      outbound: [],
+      chamadaDeCabine: {
+        cabineId: cabine.id,
+        chamada: { parada: { sceneId: scene.sceneId, pinId: pin.id }, tokenId: token.id, nome: token.name },
+        jogador: record.name,
+        cabine: cabine.nome,
+        cena: scene.name,
       },
     }
   }
@@ -1535,6 +1657,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
         return handleTokenEdit(clientId, msg, world)
       case 'pin.travel.request':
         return handleTravelRequest(clientId, msg, world)
+      case 'cabine.call':
+        return handleCabineCall(clientId, msg, world)
       case 'laser':
         return handlePlayerLaser(clientId, msg, world)
       case 'clue.read':
@@ -1704,6 +1828,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       laserWindows.delete(playerId)
       laserRecipients.delete(playerId)
       lastTokenPhotoAt.delete(playerId)
+      lastCabineCallAt.delete(playerId)
       visionOverrides.delete(playerId)
       enteredRooms.delete(playerId)
       notebooks.delete(playerId)
@@ -1850,7 +1975,15 @@ export function createHostSession(options: HostSessionOptions): HostSession {
           }
           // O selo da lista Cenas nasce e morre com o pedido: aprovar, recusar
           // e cair a conexão já tiram o jogador de `pendingTravels`.
-          if (pendingTravels.has(p.playerId)) info.travelPending = true
+          const pending = pendingTravels.get(p.playerId)
+          if (pending !== undefined) info.travelPending = true
+          // CABINE DE TRANSPORTE: o ocupante é quem embarcou E ainda tem a cabine
+          // na parada do embarque (o mestre pode tê-la levado; sem o mundo, vale o embarque).
+          const embarque = pending?.embarque
+          if (embarque !== undefined) {
+            const cabine = world?.cabines?.find((c) => c.id === embarque.cabineId)
+            if (world === null || (cabine !== undefined && sameDestination(cabine.atual, embarque.parada))) info.naCabine = embarque.cabineId
+          }
           const lent = loansFor(p.playerId)
           if (lent.size > 0) info.loans = Object.fromEntries([...lent].map(([tokenId, contrato]) => [tokenId, { ...contrato }]))
           if (withScenes && info.status === 'playing') {

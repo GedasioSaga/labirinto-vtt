@@ -170,6 +170,18 @@ export interface PinTravelRequestMessage {
 }
 
 /**
+ * CABINE DE TRANSPORTE: "Chamar a cabine" pela parada `pinId` da cena em que
+ * o jogador está, que diz "a cabine não está aqui". Só o id do pino: qual
+ * cabine é, o jogador nem sabe. O host valida e, se valer, a chamada entra na
+ * fila e o mestre é avisado. Não tem resposta: a parada passa a dizer
+ * "chamada" no próximo recorte.
+ */
+export interface CabineCallMessage {
+  type: 'cabine.call'
+  pinId: string
+}
+
+/**
  * LASER DO JOGADOR: a mesma forma do laser do mestre (lote de pontos em px de
  * mundo, ou `off` ao soltar). Nada de nome nem cor: quem é o host sabe pela
  * conexão, e a cor é a da ficha — o jogador não pode se passar por outro.
@@ -206,6 +218,7 @@ export type PlayerMessage =
   | DoorToggleMessage
   | TokenEditMessage
   | PinTravelRequestMessage
+  | CabineCallMessage
   | PlayerLaserMessage
   | ClueReadMessage
   | CluePeersRequestMessage
@@ -645,6 +658,8 @@ export function parsePlayerMessage(raw: unknown): PlayerMessage | null {
       return parseTokenEdit(value)
     case 'pin.travel.request':
       return parseTravelRequest(value)
+    case 'cabine.call':
+      return isBoundedString(value.pinId, 1, REQ_ID_MAX_LENGTH) ? { type: 'cabine.call', pinId: value.pinId } : null
     case 'laser':
       // Só o corpo: `from`/`color` mandados pelo jogador são jogados fora — o
       // nome e a cor quem põe é o host, pela conexão e pela ficha dele.
