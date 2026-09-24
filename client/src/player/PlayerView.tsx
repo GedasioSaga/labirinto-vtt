@@ -15,7 +15,7 @@ import { findDoorAt, tokenReachesDoor } from '../lib/doorReach'
 import { findPinAt } from '../lib/pins'
 import { visiblePins } from '../lib/layers'
 import { createPinsRenderer } from '../pixi/drawPins'
-import { fitCamera, panBy, zoomAt } from '../pixi/world'
+import { panBy, zoomAt } from '../pixi/world'
 import { createDebouncedTask, syncWorldTextResolution } from '../pixi/textResolution'
 import type { Camera } from '../pixi/world'
 import { drawGrid } from '../pixi/drawGrid'
@@ -58,6 +58,7 @@ import {
   type PlayerMeasureState,
 } from './playerMeasure'
 import { drawPlayerMeasure } from './drawPlayerMeasure'
+import { arrivalCamera } from './arrivalCamera'
 
 interface PlayerViewProps {
   map: MapData
@@ -903,8 +904,8 @@ export function PlayerView({
       syncMeasure(scene)
       // O próprio rastro também era do mapa de antes.
       scene.ownLaser = { points: [], on: scene.ownLaser.on }
-      const bounds = { minX: 0, minY: 0, maxX: worldWidth, maxY: worldHeight }
-      scene.camera = fitCamera(bounds, { width: scene.app.screen.width, height: scene.app.screen.height }, FIT_MARGIN)
+      // Enquadra o andar, mas nunca deixa a própria ficha fora da tela (andar enorme travava em 10%).
+      scene.camera = arrivalCamera(currentMap, own, { width: scene.app.screen.width, height: scene.app.screen.height }, FIT_MARGIN)
       applyCamera(scene)
     }
     // Nomes e rótulos novos nascem na resolução do renderer: ajusta ao zoom atual.
