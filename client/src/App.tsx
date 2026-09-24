@@ -589,6 +589,11 @@ function App() {
    * viajou. Só é montado com a aba Jogo existindo (Tauri).
    */
   const roomPanelWorld = () => hostWorldOf({ adventure, activeSceneId, cache: sceneCache }, map)
+  /** A lista do "Reunir o grupo aqui" do pino aberto: agrupada por cena, com quem já está em volta dele à parte. */
+  const gatherListFor = (pin: { x: number; y: number }) => {
+    const world = roomPanelWorld()
+    return gatherCandidates(partyMembers(roomPlayers, world), world, pin)
+  }
   /** Com a sala fechada, quem tem ficha na mesa guardada: é o que faz o "Abrir sala" perguntar "Retomar a mesa?". */
   const savedTableNames = (): string | null => {
     if (room !== null) return null
@@ -2113,7 +2118,7 @@ function App() {
                 selectedPin && room !== null
                   ? {
                       pinId: selectedPin.id,
-                      candidates: gatherCandidates(partyMembers(roomPlayers, roomPanelWorld())),
+                      candidates: gatherListFor(selectedPin),
                       onGather: (playerIds) => handleGather(selectedPin.id, playerIds),
                     }
                   : null,

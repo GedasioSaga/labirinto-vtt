@@ -1589,6 +1589,26 @@ body {
   cursor: pointer;
 }
 
+/* Um grupo por cena: a caixa da cena ("PC - Cais (3)") marca o grupo todo, e
+   os nomes ficam recuados embaixo dela, para o olho ler quem é de onde. */
+.lb-gather__group {
+  display: flex;
+  flex-direction: column;
+}
+
+.lb-gather__scene {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: var(--lb-font-weight-semibold);
+  color: var(--lb-color-parchment-dim);
+}
+
+.lb-gather__list--members {
+  padding-left: var(--lb-space-4);
+}
+
 /* Abas Mapa | Sala no topo do rail (só no Tauri). Visual do segmented. */
 .lb-railtabs {
   display: grid;
