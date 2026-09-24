@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { SIGNAL_EDGE_MARGIN, placeSignal } from './drawSignals'
+import { SIGNAL_EDGE_MARGIN, SIGNAL_RING_DASHES, placeSignal, signalRingDashes } from './drawSignals'
 
 const VIEWPORT = { width: 800, height: 600 }
 const CAMERA = { x: 0, y: 0, scale: 1 }
@@ -34,5 +34,23 @@ describe('placeSignal', () => {
     const place = placeSignal({ x: 400, y: 9000 }, CAMERA, VIEWPORT)
     expect(place.y).toBeCloseTo(VIEWPORT.height - SIGNAL_EDGE_MARGIN)
     expect(place.x).toBeCloseTo(400)
+  })
+})
+
+describe('signalRingDashes (eco sem destinatário sai tracejado)', () => {
+  it('parte a volta em traços iguais com vão entre eles, sem passar de uma volta', () => {
+    const dashes = signalRingDashes()
+    expect(dashes).toHaveLength(SIGNAL_RING_DASHES)
+    expect(dashes[0]?.[0]).toBe(0)
+    const size = (dashes[0]?.[1] ?? 0) - (dashes[0]?.[0] ?? 0)
+    for (let i = 0; i < dashes.length; i += 1) {
+      const [start, end] = dashes[i] ?? [0, 0]
+      expect(end - start).toBeCloseTo(size)
+      expect(end).toBeGreaterThan(start)
+      // Vão de verdade: o próximo traço começa depois de este acabar.
+      const next = dashes[i + 1]?.[0] ?? Math.PI * 2
+      expect(next).toBeGreaterThan(end)
+    }
+    expect(dashes[dashes.length - 1]?.[1]).toBeLessThan(Math.PI * 2)
   })
 })

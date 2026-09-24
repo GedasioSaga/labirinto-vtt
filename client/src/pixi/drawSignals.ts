@@ -24,6 +24,24 @@ const OUTLINE = 0x000000
 const LABEL_FONT_SIZE = 13
 const LABEL_GAP = 6
 const FADE_OUT_MS = 800
+/** Traços por onda no eco sem destinatário. */
+export const SIGNAL_RING_DASHES = 8
+/** Fração de cada passo (traço + vão) que é traço. */
+const RING_DASH_FILL = 0.55
+
+/**
+ * Traços de uma onda tracejada, como pares [início, fim] em radianos a partir
+ * de 0: iguais, com vão entre eles e dentro de uma volta. Não depende do raio
+ * — a onda cresce e o vão cresce junto, então segue lendo como tracejado.
+ */
+export function signalRingDashes(): [number, number][] {
+  const step = (Math.PI * 2) / SIGNAL_RING_DASHES
+  const dashes: [number, number][] = []
+  for (let i = 0; i < SIGNAL_RING_DASHES; i += 1) dashes.push([i * step, i * step + step * RING_DASH_FILL])
+  return dashes
+}
+
+const RING_DASH_ARCS = signalRingDashes()
 
 export interface SignalPlacement {
   x: number
@@ -72,7 +90,17 @@ function paintSignal(view: SignalView, signal: SignalMark, place: SignalPlacemen
     for (let k = 0; k < RING_COUNT; k += 1) {
       const phase = (age / RING_PERIOD_MS + k / RING_COUNT) % 1
       const radius = RING_MIN_RADIUS + phase * (RING_MAX_RADIUS - RING_MIN_RADIUS)
-      g.circle(place.x, place.y, radius).stroke({ color: signal.color, width: RING_WIDTH, alpha: (1 - phase) * fade })
+      const ring = { color: signal.color, width: RING_WIDTH, alpha: (1 - phase) * fade }
+      if (signal.unheard !== true) {
+        g.circle(place.x, place.y, radius).stroke(ring)
+        continue
+      }
+      // Eco sem destinatário: a onda sai tracejada (nenhum colega recebeu).
+      for (const [start, end] of RING_DASH_ARCS) {
+        g.moveTo(place.x + Math.cos(start) * radius, place.y + Math.sin(start) * radius)
+          .arc(place.x, place.y, radius, start, end)
+          .stroke(ring)
+      }
     }
     g.circle(place.x, place.y, DOT_RADIUS).fill({ color: signal.color, alpha: fade }).stroke({ color: OUTLINE, width: 1.5, alpha: fade })
     label.position.set(place.x, place.y - RING_MAX_RADIUS / 2 - LABEL_GAP)

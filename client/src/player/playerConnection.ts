@@ -495,12 +495,14 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     signalTimers.clear()
   }
 
-  function addSignal(x: number, y: number, from: string, color: string): void {
+  function addSignal(x: number, y: number, from: string, color: string, unheard: boolean): void {
     const id = `s${nextSignalId++}`
     const current = state.signals ?? []
     // Acima do teto sai o mais antigo; o timer dele vira no-op ao não achar o id.
     const kept = current.length >= MAX_ACTIVE_SIGNALS ? current.slice(current.length - MAX_ACTIVE_SIGNALS + 1) : current
-    setState({ signals: [...kept, { id, x, y, name: from, color, createdAt: Date.now() }] })
+    const mark: SignalMark = { id, x, y, name: from, color, createdAt: Date.now() }
+    if (unheard) mark.unheard = true
+    setState({ signals: [...kept, mark] })
     signalTimers.set(
       id,
       setTimeout(() => {
@@ -1025,7 +1027,8 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         if (!isFiniteNumber(x) || !isFiniteNumber(y)) return
         if (typeof from !== 'string' || from.length > NAME_MAX_LENGTH) return
         if (typeof color !== 'string' || !SIGNAL_COLOR_PATTERN.test(color)) return
-        addSignal(x, y, from, color)
+        // Só o `true` literal vale: o eco do próprio sinal que nenhum colega recebeu.
+        addSignal(x, y, from, color, data.unheard === true)
         return
       }
       case 'door.toggle.rejected': {

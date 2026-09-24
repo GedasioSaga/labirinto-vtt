@@ -566,11 +566,20 @@ interface PlayerMemory {
   doorsSeenAt: Map<string, number>
   /** Visão enviada no último snapshot: é o que o jogador está vendo agora na tela. */
   vision: RegionPoint[][]
+  /** Fichas de OUTROS jogadores no último snapshot (`partyTokens`): os colegas que ele vê agora. */
+  party: string[]
+  /** Zonas ocultas e tetos fechados do último snapshot: o que ele já sabe que está escondido. */
+  covered: RegionPoint[][]
 }
 
 /** Chave de comparação do nome: sem maiúsculas e sem espaços. */
 function normalizeName(name: string): string {
   return name.toLowerCase().replace(/\s+/g, '')
+}
+
+/** O ponto cai dentro de algum anel com área (anel degenerado não conta). */
+function inAnyRing(rings: readonly RegionPoint[][], point: RegionPoint): boolean {
+  return rings.some((ring) => ring.length >= 3 && pointInRing(point, ring))
 }
 
 function memoryKey(map: MapData): string {
@@ -719,6 +728,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       doors: new Map(),
       doorsSeenAt: new Map(),
       vision: [],
+      party: [],
+      covered: [],
     }
     // Apagar e regravar põe a cena no fim da ordem: é a mais recente agora.
     byScene.delete(map.id)
@@ -900,6 +911,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const ownTokens = (ownership[playerId] ?? []).filter((id) => sent.has(id))
     // Só fichas que ele JÁ recebe: a lista não conta quem está no escuro.
     const partyTokens = view.map.tokens.filter((t) => isOtherPlayersToken(playerId, t.id)).map((t) => t.id)
+    memory.party = partyTokens
+    memory.covered = [...view.concealed, ...view.roofs]
     const snapshot: HostMessage = { type: 'snapshot', rev, map: view.map, vision: view.vision, explored: encodeExploration(exp), ownTokens, concealed: view.concealed, partyTokens }
     // A vez sai pelo MESMO recorte do mapa: ficha que não foi ao jogador não vira vez nele.
     const turn = turnForPlayer(view.map, options.getTurn?.() ?? null)
@@ -1155,8 +1168,38 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   }
 
   /**
+   * ECO DO SINAL — o eco sai cheio (sem `unheard`) só quando o ponto está na
+   * visão ATUAL de quem sinalizou, fora do que ele já sabe que está escondido
+   * (zona oculta e teto fechado do recorte dele), e na visão ATUAL de um colega
+   * desta cena cuja ficha ele está vendo agora. Nada disso é segredo para ele.
+   *
+   * Por que não perguntar "alguém recebeu?" (`toOthers`): a resposta diria
+   * - o formato da sala secreta: dentro dela ninguém recebe, logo ao lado sim;
+   * - o que um colega explorou dentro da névoa de quem sinaliza (a planta);
+   * - que há colega na cena mesmo sem a ficha dele à vista.
+   * As visões usadas aqui são as enviadas, montadas SEM as paredes da sala
+   * secreta; então dentro e ao lado da sala o eco é o mesmo, e dentro da sala
+   * ele sai cheio embora ninguém receba (o preço de não desenhar a sala).
+   * Colega que só lembra o ponto (explorado, fora da visão) recebe o sinal,
+   * mas não conta aqui: a exploração dele não passa na borda da sala secreta.
+   */
+  const echoHeard = (playerId: string, scene: HostScene, world: HostWorld, point: RegionPoint): boolean => {
+    const map = scene.map
+    const mine = existingMemory(playerId, map)
+    if (mine === undefined || !inAnyRing(mine.vision, point) || inAnyRing(mine.covered, point)) return false
+    const inSight = new Set(mine.party)
+    for (const otherId of byClient.values()) {
+      if (otherId === playerId || statusOf(otherId) !== 'playing' || sceneFor(otherId, world) !== scene) continue
+      if (!(ownership[otherId] ?? []).some((id) => inSight.has(id))) continue
+      const theirs = existingMemory(otherId, map)
+      if (theirs !== undefined && inAnyRing(theirs.vision, point)) return true
+    }
+    return false
+  }
+
+  /**
    * O mestre sempre recebe o sinal (campo `signal`) e quem sinalizou recebe o
-   * eco. Outro jogador só recebe se já conhece o ponto e o ponto está fora de
+   * eco (ver `echoHeard`). Outro jogador só recebe se já conhece o ponto e o ponto está fora de
    * zona oculta ativa: senão o sinal diria que existe algo naquele lugar.
    * Sinal fora do mapa, de quem não joga ou antes do intervalo mínimo é
    * descartado em silêncio (não é mensagem malformada).
@@ -1178,7 +1221,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const point = { x: msg.x, y: msg.y }
     const color = signalColor(playerId)
     const message: HostMessage = { type: 'signal', x: msg.x, y: msg.y, from: record.name, color }
-    const outbound: Outbound[] = [{ clientId, msg: message }]
+    const toOthers: Outbound[] = []
     // Sala secreta vale como zona oculta: repassar o sinal diria aos outros que ali existe algo.
     const inBlockedArea = playerBlockedRings(map).some((ring) => ring.length >= 3 && pointInRing(point, ring))
     if (!inBlockedArea) {
@@ -1187,9 +1230,13 @@ export function createHostSession(options: HostSessionOptions): HostSession {
         // Quem está em outra cena não recebe: o ponto é deste mapa, e a
         // memória antiga dele desta cena diria que o sinal é para lá.
         if (sceneFor(otherId, world) !== scene) continue
-        if (knowsPoint(otherId, map, point)) outbound.push({ clientId: otherClient, msg: message })
+        if (knowsPoint(otherId, map, point)) toOthers.push({ clientId: otherClient, msg: message })
       }
     }
+    // Eco de quem sinalizou: `unheard` quando nenhum colega À VISTA vê o ponto.
+    // NÃO é `toOthers.length === 0`: isso viraria oráculo (ver `echoHeard`).
+    const echo: HostMessage = echoHeard(playerId, scene, world, point) ? message : { ...message, unheard: true }
+    const outbound: Outbound[] = [{ clientId, msg: echo }, ...toOthers]
     const signal: HostSignal = { playerId, name: record.name, color, x: msg.x, y: msg.y }
     // Mesma regra de `backgroundSceneId`: a cena aberta e o mapa solto não levam o campo.
     if (scene !== world.open && scene.sceneId !== null) signal.background = { sceneId: scene.sceneId, name: scene.name }

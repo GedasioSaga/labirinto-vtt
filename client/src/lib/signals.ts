@@ -34,4 +34,6 @@ export interface SignalMark {
   name: string
   color: string
   createdAt: number
+  /** Eco de quem sinalizou quando nenhum colega recebeu: desenhado tracejado. */
+  unheard?: true
 }

@@ -466,7 +466,8 @@ export type HostMessage =
   | { type: 'hazard.entered'; kind: HazardKind }
   | { type: 'token.move.accepted'; reqId: string; x: number; y: number }
   | { type: 'token.move.rejected'; reqId: string; reason: TokenMoveRejection }
-  | { type: 'signal'; x: number; y: number; from: string; color: string }
+  // `unheard`: só no eco de quem sinalizou, e só quando nenhum outro jogador recebeu (o eco sai tracejado).
+  | { type: 'signal'; x: number; y: number; from: string; color: string; unheard?: true }
   | { type: 'door.toggle.rejected'; wallId: string; reason: DoorToggleRejection }
   | { type: 'door.request.rejected'; wallId: string; reason: DoorRequestRejection }
   | { type: 'door.request.answer'; answer: DoorRequestAnswer }
