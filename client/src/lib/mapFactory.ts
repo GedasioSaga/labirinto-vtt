@@ -6,7 +6,7 @@ import type {
 import type { Point } from '../pixi/world'
 import { syncLinkedWallsToPoints, remapForInsert, remapForRemove, translateLinkedWalls, previousEdgeIndex } from './roomLink'
 import { simplifyPolygon, chaikinSmooth } from './regionSmoothing'
-import { edgesCoveredByParent, findContainingRoom, insertIndexAfterSubtree, subtreeIds } from './roomNesting'
+import { edgesCoveredByParent, findContainingRoom, insertIndexAfterSubtree, pointOnPolygonBorder, subtreeIds } from './roomNesting'
 import { isAxisAlignedRect, rectCornerShift, resizeRoomCorner, resizeRoomDimensions as resizeRoomDimensionsPoints, type RoomCorner } from './roomOps'
 import {
   normalizeRotation, roomCentroid, roomRotationOf, rotatePointAround, rotateVector, rotationTrig, withoutRotationNoise,
@@ -18,6 +18,7 @@ import { apagarBlocosDoChao } from './floorTool'
 import { DEFAULT_FLOOR_STYLE } from './mapFile'
 import { sameDestination, sameExits } from './pinTravel'
 import { passageOf } from './pins'
+import { moveTokenCarryingLights, withoutAttachment } from './lightAttachment'
 import {
   resizeRectDrawing, resizeEllipseDrawing, resizePolygonDrawing, resizePropBox, resizeCircleDrawingRadius,
   type Corner, type ResizeModifiers,
@@ -614,14 +615,39 @@ export function addToken(map: MapData, token: Token): MapData {
   return { ...map, tokens: [...map.tokens, token] }
 }
 
+/** Apagar a ficha solta a tocha que ela carregava: a luz fica onde está. */
 export function removeToken(map: MapData, tokenId: string): MapData {
-  return { ...map, tokens: map.tokens.filter((t) => t.id !== tokenId) }
-}
-
-export function setTokenPosition(map: MapData, tokenId: string, x: number, y: number): MapData {
+  const carried = map.lights.some((l) => l.attachedTokenId === tokenId)
   return {
     ...map,
-    tokens: map.tokens.map((t) => (t.id === tokenId ? { ...t, x, y } : t)),
+    tokens: map.tokens.filter((t) => t.id !== tokenId),
+    lights: carried ? map.lights.map((l) => (l.attachedTokenId === tokenId ? withoutAttachment(l) : l)) : map.lights,
+  }
+}
+
+/** Move a ficha; luz presa nela (tocha) vai junto — ver `lib/lightAttachment.ts`. */
+export function setTokenPosition(map: MapData, tokenId: string, x: number, y: number): MapData {
+  return moveTokenCarryingLights(map, tokenId, x, y)
+}
+
+/**
+ * Prende a luz na ficha (`tokenId`) ou solta (`null`). Ficha ou luz
+ * inexistente devolve o mapa intocado.
+ *
+ * Prender põe a luz no CENTRO da ficha: a tocha vai na mão de quem a carrega.
+ * Presa com o afastamento que tinha, uma luz a 6 casas seguia a ficha como
+ * satélite e, andando para a borda da vista, o halo sumia atrás do painel do
+ * editor enquanto a ficha seguia à vista. Soltar deixa a luz onde está (no
+ * lugar da ficha); o ponto de antes volta pelo desfazer.
+ */
+export function setLightAttachment(map: MapData, lightId: string, tokenId: string | null): MapData {
+  if (!map.lights.some((l) => l.id === lightId)) return map
+  if (tokenId === null) return { ...map, lights: map.lights.map((l) => (l.id === lightId ? withoutAttachment(l) : l)) }
+  const carrier = map.tokens.find((t) => t.id === tokenId)
+  if (carrier === undefined) return map
+  return {
+    ...map,
+    lights: map.lights.map((l) => (l.id === lightId ? { ...l, x: carrier.x, y: carrier.y, attachedTokenId: tokenId } : l)),
   }
 }
 
@@ -1044,6 +1070,38 @@ export function setDoorLocked(map: MapData, wallId: string, locked: boolean): Ma
       w.id === wallId && w.door ? { ...w, door: { ...w.door, locked, open: locked ? false : w.door.open } } : w,
     ),
   }
+}
+
+/**
+ * Liga ou desliga `DoorState.secret` (porta secreta). Ligar FECHA a porta: a
+ * secreta é parede para o jogador, e uma porta aberta que não deixa passar
+ * seria um estado que o mestre não consegue ler na tela. Desligar tira o campo
+ * (`undefined` === porta comum). Parede inexistente ou sem porta: mesma referência.
+ */
+export function setDoorSecret(map: MapData, wallId: string, secret: boolean): MapData {
+  const wall = map.walls.find((w) => w.id === wallId)
+  if (!wall || !wall.door) return map
+  const { secret: _anterior, ...plain } = wall.door
+  const door: DoorState = secret ? { ...plain, open: false, secret: true } : plain
+  return { ...map, walls: map.walls.map((w) => (w.id === wallId ? { ...w, door } : w)) }
+}
+
+/**
+ * "Revelar passagem" — um clique desliga o segredo da porta E o oculto
+ * ("Oculto para jogadores", `Region.secret`) da sala ligada a ela: a sala a
+ * que a porta pertence (`regionId`) e toda sala oculta cujo contorno passa
+ * pelo meio da porta (a do outro lado). Sala oculta que não encosta na porta
+ * continua oculta. O estado da porta (fechada, trancada) não muda: é o mestre
+ * mostrando que ali TEM uma porta, não abrindo. Parede inexistente ou porta
+ * que não é secreta: mesma referência.
+ */
+export function revealSecretPassage(map: MapData, wallId: string): MapData {
+  const wall = map.walls.find((w) => w.id === wallId)
+  if (!wall || wall.door?.secret !== true) return map
+  const middle = { x: (wall.x1 + wall.x2) / 2, y: (wall.y1 + wall.y2) / 2 }
+  const linked = (r: Region): boolean => r.secret === true && (r.id === wall.regionId || pointOnPolygonBorder(middle, r.points))
+  const revealed = setDoorSecret(map, wallId, false)
+  return { ...revealed, regions: map.regions.map((r) => (linked(r) ? { ...r, secret: false } : r)) }
 }
 
 /**

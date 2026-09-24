@@ -28,6 +28,7 @@ import { TokenCarryControls } from './TokenCarryControls'
 import type { TokenCarryWiring } from '../lib/party'
 import { selectedTokenSize } from '../lib/tokenSize'
 import { LightControls, type LightControlsProps } from './LightControls'
+import { TokenLightsControls, type TokenLightsControlsProps } from './TokenLightsControls'
 import { WallLineStyleField, WallStyleControls, type WallStyleControlsProps } from './WallStyleControls'
 import { StairControls, type StairControlsProps } from './StairControls'
 import { RoomControls, type RoomControlsProps } from './RoomControls'
@@ -44,6 +45,7 @@ import { FloorPieceControls, type FloorPieceControlsProps } from './FloorPieceCo
 import { FloorStyleControls, type FloorStyleControlsProps } from './FloorStyleControls'
 import { PlayerSecretControls, type PlayerSecretControlsProps } from './PlayerSecretControls'
 import { ConcealZoneControls, type ConcealZoneControlsProps } from './ConcealZoneControls'
+import { ConcealBrushControls, type ConcealBrushControlsProps } from './ConcealBrushControls'
 import { PinControls, type PinControlsProps } from './PinControls'
 import { PinIconControls, type PinIconControlsProps } from './PinIconControls'
 import { TokenLibraryPanel, type TokenLibraryPanelProps } from './TokenLibraryPanel'
@@ -106,7 +108,7 @@ interface PropertiesPanelProps {
   /** F3, contrato do agente C4 — rotação/travar/ocultar do Objeto selecionado. */
   propTransform: Omit<ItemTransformControlsProps, 'title' | 'rotation' | 'locked' | 'hidden' | 'secret'>
   selectedToken: Token | null
-  tokenName: Omit<TokenNameControlsProps, 'name'>
+  tokenName: Omit<TokenNameControlsProps, 'name' | 'publicName'>
   tokenImage: Omit<TokenImageControlsProps, 'image'>
   /** Cor da ficha selecionada — separa aliado de inimigo no meio da luta. */
   tokenColor: Omit<TokenColorControlsProps, 'color'>
@@ -120,6 +122,9 @@ interface PropertiesPanelProps {
    * sem o controle (quem monta o painel sem aventura).
    */
   tokenCarry?: TokenCarryWiring
+  /** Tocha presa (ou luz solta sob a ficha): o clique no mapa pega a ficha,
+   *  então o caminho para a luz é pelo painel da ficha. */
+  tokenLights: TokenLightsControlsProps
   /** F3, contrato do agente C4 — rotação/travar/ocultar do Token selecionado. */
   tokenTransform: Omit<ItemTransformControlsProps, 'title' | 'rotation' | 'locked' | 'hidden' | 'secret'>
   selectedTextLabel: Extract<Drawing, { kind: 'text' }> | null
@@ -136,7 +141,7 @@ interface PropertiesPanelProps {
     'name' | 'shape' | 'axisAligned' | 'width' | 'height' | 'rotation' | 'locked' | 'nameHiddenFromPlayers' | 'roof' | 'textoAoEntrar' | 'notaDoMestre'
   >
   selectedLight: Light | null
-  lightControls: Omit<LightControlsProps, 'color' | 'intensity'>
+  lightControls: Omit<LightControlsProps, 'color' | 'intensity' | 'attachedTokenId'>
   selectedStair: Stair | null
   stairControls: Omit<StairControlsProps, 'direction'>
   polygonSides: PolygonSidesControlsProps
@@ -149,6 +154,8 @@ interface PropertiesPanelProps {
   playerSecret: PlayerSecretControlsProps | null
   /** A5 — zona oculta aberta no painel; `null` = nenhuma. */
   concealZone: ConcealZoneControlsProps | null
+  /** Pincel de revelar: "Revelar | Esconder" e a largura do próximo traço. */
+  concealBrush: ConcealBrushControlsProps
   /** Ponto de interesse: tipo do próximo pino, ou o pino aberto no painel. */
   pin: PinControlsProps
   /** Ícone do ponto de interesse — mesmo par de estados de `pin`. */
@@ -200,6 +207,7 @@ export function PropertiesPanel({
   tokenSize,
   tokenNpc,
   tokenCarry,
+  tokenLights,
   tokenTransform,
   selectedTextLabel,
   textLabel,
@@ -217,6 +225,7 @@ export function PropertiesPanel({
   floorStyle,
   playerSecret,
   concealZone,
+  concealBrush,
   pin,
   pinIcon,
   pinSelected,
@@ -295,6 +304,9 @@ export function PropertiesPanel({
             <ConcealZoneControls {...concealZone} />
           </ToolPropertiesSection>
         )}
+        <ToolPropertiesSection group="revealBrush" groups={groups}>
+          <ConcealBrushControls {...concealBrush} />
+        </ToolPropertiesSection>
         {/* Perto do topo pelo mesmo motivo da Sala: descrição e imagem são o
             que o mestre quer mexer logo depois de cravar o pino. */}
         <ToolPropertiesSection group="pin" groups={groups}>
@@ -422,7 +434,7 @@ export function PropertiesPanel({
         )}
         {selectedToken && (
           <ToolPropertiesSection group="tokenImage" groups={groups}>
-            <TokenNameControls name={selectedToken.name} {...tokenName} />
+            <TokenNameControls key={selectedToken.id} name={selectedToken.name} publicName={selectedToken.publicName} {...tokenName} />
             {/* Logo depois do nome: quem acabou de criar "Dragão" quer dizer
                 em seguida que ele é grande — e o tamanho manda no que a peça
                 cobre na grade, então vem antes da aparência (cor, foto). */}
@@ -444,6 +456,8 @@ export function PropertiesPanel({
                 onCarry={(sceneId, pinId) => tokenCarry.onCarry(selectedToken.id, sceneId, pinId)}
               />
             )}
+            <TokenLightsControls {...tokenLights} />
+
           </ToolPropertiesSection>
         )}
         {selectedToken && (
@@ -460,7 +474,12 @@ export function PropertiesPanel({
         )}
         {selectedLight && (
           <ToolPropertiesSection group="lightControls" groups={groups}>
-            <LightControls color={selectedLight.color} intensity={selectedLight.intensity} {...lightControls} />
+            <LightControls
+              color={selectedLight.color}
+              intensity={selectedLight.intensity}
+              attachedTokenId={selectedLight.attachedTokenId ?? null}
+              {...lightControls}
+            />
           </ToolPropertiesSection>
         )}
         {selectedStair && (

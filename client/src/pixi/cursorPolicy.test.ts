@@ -54,6 +54,7 @@ const ALL_MODES: GestureMode[] = [
   'painting-floor-blocks',
   'dragging-room-label',
   'drawing-conceal-zone',
+  'painting-reveal-brush',
   'rotating-room',
 ]
 
@@ -83,6 +84,7 @@ const ALL_TOOLS: DrawingTool[] = [
   'eraser',
   'floor',
   'concealZone',
+  'revealBrush',
 ]
 
 const ALL_HOVER_KINDS: HoverKind[] = ['none', 'selectable', 'resize-corner', 'vertex', 'radius', 'area-selection', 'rotate']
@@ -113,16 +115,16 @@ const baseInput = (overrides: Partial<ResolveCursorInput> = {}): ResolveCursorIn
 })
 
 describe('resolveCursor — exaustividade', () => {
-  it('cobre TODOS os 40 modos de PixiCanvas.tsx sem lançar e devolve cursor CSS válido', () => {
-    expect(ALL_MODES).toHaveLength(40)
+  it('cobre TODOS os 41 modos de PixiCanvas.tsx sem lançar e devolve cursor CSS válido', () => {
+    expect(ALL_MODES).toHaveLength(41)
     for (const mode of ALL_MODES) {
       const cursor = resolveCursor(baseInput({ mode, corner: 0 }))
       expect(VALID_CSS_CURSORS.has(cursor), `mode "${mode}" devolveu cursor desconhecido: "${cursor}"`).toBe(true)
     }
   })
 
-  it('cobre TODAS as 24 ferramentas (idle) sem lançar e devolve cursor CSS válido', () => {
-    expect(ALL_TOOLS).toHaveLength(24)
+  it('cobre TODAS as 25 ferramentas (idle) sem lançar e devolve cursor CSS válido', () => {
+    expect(ALL_TOOLS).toHaveLength(25)
     for (const activeTool of ALL_TOOLS) {
       const cursor = resolveCursor(baseInput({ activeTool }))
       expect(VALID_CSS_CURSORS.has(cursor), `tool "${activeTool}" devolveu cursor desconhecido: "${cursor}"`).toBe(true)
@@ -142,14 +144,14 @@ describe('resolveCursor — ferramentas de criação (idle): crosshair', () => {
   const creationTools: DrawingTool[] = [
     'wall', 'door', 'light', 'region', 'room', 'roomCircle', 'roomPolygon', 'roomFree',
     'stair', 'prop', 'brush', 'line', 'circle', 'ellipse', 'rect', 'polygon',
-    'curve', 'text', 'measure', 'floor', 'concealZone',
+    'curve', 'text', 'measure', 'floor', 'concealZone', 'revealBrush',
   ]
 
   it.each(creationTools)('%s ocioso é crosshair — mira de precisão pra colocar algo novo', (activeTool) => {
     expect(resolveCursor(baseInput({ activeTool }))).toBe('crosshair')
   })
 
-  it('as 21 ferramentas de criação são exatamente DrawingTool menos select/token/eraser', () => {
+  it('as 22 ferramentas de criação são exatamente DrawingTool menos select/token/eraser', () => {
     const naoCriacao = new Set(['select', 'token', 'eraser'])
     const criacaoDoModulo = ALL_TOOLS.filter((tool) => !naoCriacao.has(tool))
     expect(criacaoDoModulo.sort()).toEqual([...creationTools].sort())
@@ -293,7 +295,7 @@ describe('resolveCursor — gesto de desenho em andamento: crosshair do início 
   const drawingModes: GestureMode[] = [
     'drawing-wall', 'drawing-freehand', 'drawing-line', 'drawing-circle', 'drawing-rect',
     'drawing-ellipse', 'drawing-polygon', 'drawing-light', 'drawing-curve', 'drawing-room',
-    'drawing-polygon-room', 'drawing-stair', 'painting-floor-blocks',
+    'drawing-polygon-room', 'drawing-stair', 'painting-floor-blocks', 'painting-reveal-brush',
   ]
 
   it.each(drawingModes)('mode "%s" é "crosshair"', (mode) => {

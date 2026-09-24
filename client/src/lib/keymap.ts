@@ -129,6 +129,10 @@ export const TOOL_SHORTCUTS: Record<DrawingTool, string> = {
   // Zona oculta: todas as letras mnemônicas já estavam ocupadas; X ("área
   // riscada") era uma das livres. Z segue sem atalho.
   concealZone: 'X',
+  // Pincel de revelar nasce SEM letra, como o Caminho abaixo: não sobrou
+  // nenhuma livre (Z fica reservada ao Ctrl+Z). A barra o alcança, colado na
+  // Zona oculta.
+  revealBrush: '',
   // Pino (ponto de interesse): P é do Pincel e I do Chão; Y era a única letra
   // livre além de Z.
   pin: 'Y',

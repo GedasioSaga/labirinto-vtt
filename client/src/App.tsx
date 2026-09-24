@@ -21,6 +21,7 @@ import { playSignalSound } from './lib/signalSound'
 import { createSignalRouter } from './net/chamadoDeFundo'
 import type { PlayerInfo } from './net/hostSession'
 import { RoomPanel, roomPanelTokensOf } from './components/RoomPanel'
+import { LivePlayerMirror } from './components/PlayerMirror'
 import { partyDestinations, partyMembers, peopleByScene } from './lib/party'
 import { applyGatherPlan, gatherCandidates, planGather } from './lib/gatherParty'
 import { RailTabs, type RailTab } from './components/RailTabs'
@@ -73,8 +74,9 @@ import { countEntitiesByLayer } from './lib/layers'
 import { roomDimensions } from './lib/roomOps'
 import type { GridAlignResult } from './lib/gridAlign'
 import { relevantPropertyGroups } from './lib/toolProperties'
-import { EMPTY_SELECTION, selectionSingle, selectionToAreaSelection } from './lib/selectionModel'
+import { EMPTY_SELECTION, selectionOfItem, selectionSingle, selectionToAreaSelection } from './lib/selectionModel'
 import { isSingleGroup, NO_GROUPS } from './lib/itemGroups'
+import { lightsOnToken } from './lib/selectionHitTest'
 import { traceFloorPieces } from './lib/traceImage'
 import { loadImagePixels } from './lib/imagePixels'
 import { traceMapDetails } from './lib/traceDetails'
@@ -311,11 +313,17 @@ function App() {
   const setRegionPattern = useMapStore((state) => state.setRegionPattern)
   const setWallDoor = useMapStore((state) => state.setWallDoor)
   const setDoorLocked = useMapStore((state) => state.setDoorLocked)
+  const setDoorSecret = useMapStore((state) => state.setDoorSecret)
+  const revealSecretPassage = useMapStore((state) => state.revealSecretPassage)
   const turnWallIntoDoor = useMapStore((state) => state.turnWallIntoDoor)
   const doorKind = useMapStore((state) => state.doorKind)
   const setDoorKind = useMapStore((state) => state.setDoorKind)
   const doorMode = useMapStore((state) => state.doorMode)
   const setDoorMode = useMapStore((state) => state.setDoorMode)
+  const revealBrushMode = useMapStore((state) => state.revealBrushMode)
+  const setRevealBrushMode = useMapStore((state) => state.setRevealBrushMode)
+  const revealBrushWidth = useMapStore((state) => state.revealBrushWidth)
+  const setRevealBrushWidth = useMapStore((state) => state.setRevealBrushWidth)
   const setWallDoorKind = useMapStore((state) => state.setWallDoorKind)
   const wallKind = useMapStore((state) => state.wallKind)
   const setWallKind = useMapStore((state) => state.setWallKind)
@@ -337,6 +345,7 @@ function App() {
   const toggleLayerLock = useMapStore((state) => state.toggleLayerLock)
   const setPropLayer = useMapStore((state) => state.setPropLayer)
   const updateLight = useMapStore((state) => state.updateLight)
+  const setLightAttachment = useMapStore((state) => state.setLightAttachment)
   const setTokenImage = useMapStore((state) => state.setTokenImage)
   const updateToken = useMapStore((state) => state.updateToken)
   const updateProp = useMapStore((state) => state.updateProp)
@@ -417,6 +426,8 @@ function App() {
   // Multiplayer em LAN: ponte do mestre criada sob demanda (só dentro do Tauri, ver RoomPanel abaixo).
   const [room, setRoom] = useState<RoomInfo | null>(null)
   const [roomPlayers, setRoomPlayers] = useState<PlayerInfo[]>([])
+  // "Quem vê" de cada pino com lista. O dono é a sessão do host; isto é só o que o painel desenha.
+  const [pinAudiences, setPinAudiences] = useState<Record<string, string[]>>({})
   const [tunnel, setTunnel] = useState<TunnelState>({ kind: 'idle' })
   const [railTab, setRailTab] = useState<RailTab>('map')
   /** Muda a cada Ctrl+K: "Objetos do mapa" abre com o cursor na busca (MapObjectsSection). */
@@ -443,6 +454,7 @@ function App() {
           useAdventureStore.getState().goToPoint(sceneId, { x, y })
         },
         onPlayersChange: setRoomPlayers,
+        onPinAudiencesChange: setPinAudiences,
         onTunnelChange: setTunnel,
         // B1 — sinal do jogador: o canvas desenha pela store e o bipe avisa quem não está olhando.
         // G6 — sinal de cena de FUNDO não vira ping aqui (as coordenadas são de
@@ -522,6 +534,9 @@ function App() {
               onSend: (playerId, sceneId, pinId) => hostBridgeRef.current?.sendPlayer(playerId, sceneId, pinId) ?? false,
               followingId,
               onToggleFollow: (member) => useFollowStore.getState().toggle(member.playerId),
+              // "Ver tela": um espelho por vez; o mesmo botão fecha o que abriu.
+              mirroringId: mirrorId,
+              onToggleMirror: (member) => setMirrorId((current) => (current === member.playerId ? null : member.playerId)),
             }}
             tunnel={tunnel}
             onStart={() => void handleStartRoom()}
@@ -554,6 +569,13 @@ function App() {
   // G7 — "Seguir" na linha do Grupo: a câmera acompanha a ficha do jogador, inclusive de cena em cena.
   const followingId = useFollowStore((state) => state.playerId)
   useFollowPlayer(roomPlayers, () => hostWorldOf({ adventure, activeSceneId, cache: sceneCache }, map))
+  // "Ver tela" do Grupo: de quem é o espelho aberto. Quem saiu da sala (expulso,
+  // sala fechada) leva o espelho junto — voltar depois não o reabre sozinho.
+  const [mirrorId, setMirrorId] = useState<string | null>(null)
+  const mirroredPlayer = mirrorId === null ? undefined : roomPlayers.find((player) => player.playerId === mirrorId)
+  useEffect(() => {
+    if (mirrorId !== null && mirroredPlayer === undefined) setMirrorId(null)
+  }, [mirrorId, mirroredPlayer])
   /**
    * Caminho de origem do mapa em edição. `null` enquanto o mapa é novo
    * (ainda não salvo); a partir daí toda escrita vai de volta para esse
@@ -946,6 +968,16 @@ function App() {
   const handleToggleLocked = () => {
     if (!selectedWall || !selectedWall.door) return
     setDoorLocked(selectedWall.id, !selectedWall.door.locked)
+  }
+
+  const handleToggleSecret = () => {
+    if (!selectedWall || !selectedWall.door) return
+    setDoorSecret(selectedWall.id, selectedWall.door.secret !== true)
+  }
+
+  const handleRevealPassage = () => {
+    if (!selectedWall) return
+    revealSecretPassage(selectedWall.id)
   }
 
   /**
@@ -1862,6 +1894,8 @@ function App() {
               onToggleDoor: handleToggleDoor,
               onToggleOpen: handleToggleOpen,
               onToggleLocked: handleToggleLocked,
+              onToggleSecret: handleToggleSecret,
+              onRevealPassage: handleRevealPassage,
             }}
             doorKind={{
               kind: selectedWall?.door ? selectedWall.door.kind : doorKind,
@@ -1886,6 +1920,8 @@ function App() {
             selectedToken={selectedToken}
             tokenName={{
               onNameChange: (name) => selectedToken && useMapStore.getState().renameToken(selectedToken.id, name),
+              // Com histórico (`updateToken`): trocar o nome que a mesa lê se desfaz com Ctrl+Z.
+              onPublicNameChange: (publicName) => selectedToken && updateToken(selectedToken.id, { publicName }),
             }}
             tokenImage={{
               onChangeImage: () => selectedToken && handleChangeTokenImage(selectedToken.id),
@@ -1910,6 +1946,11 @@ function App() {
               onNpcChange: (npc) => selectedToken && marcarFichaNpc(selectedToken.id, npc),
             }}
             tokenCarry={ligacaoLevarFicha(roomPanelWorld(), roomPlayers)}
+            tokenLights={{
+              lights: selectedToken ? lightsOnToken(map, selectedToken.id) : [],
+              onSelectLight: (lightId) => setSelection(selectionOfItem({ kind: 'light', id: lightId })),
+              onDetach: (lightId) => setLightAttachment(lightId, null),
+            }}
             tokenTransform={{
               onRotationChange: (rotation) => selectedToken && updateToken(selectedToken.id, { rotation }),
               onLockedChange: (locked) => selectedToken && updateToken(selectedToken.id, { locked }),
@@ -1969,6 +2010,19 @@ function App() {
               secretTarget && {
                 secret: secretTarget.secret,
                 onSecretChange: (secret) => useMapStore.getState().setItemSecret(secretTarget.kind, secretTarget.id, secret),
+                // "Quem vê" só no pino e só com a sala aberta: a lista vive na sessão do host.
+                audience:
+                  secretTarget.kind === 'pin' && room !== null
+                    ? {
+                        players: partyMembers(roomPlayers, roomPanelWorld()).map((member) => ({
+                          playerId: member.playerId,
+                          name: member.name,
+                          color: member.token?.color ?? null,
+                        })),
+                        chosen: pinAudiences[secretTarget.id] ?? null,
+                        onChange: (chosen) => hostBridgeRef.current?.setPinAudience(secretTarget.id, chosen),
+                      }
+                    : null,
               }
             }
             concealZone={
@@ -1980,6 +2034,12 @@ function App() {
                 onDelete: () => useMapStore.getState().removeConcealZone(selectedConcealZone.id),
               }
             }
+            concealBrush={{
+              mode: revealBrushMode,
+              onModeChange: setRevealBrushMode,
+              width: revealBrushWidth,
+              onWidthChange: setRevealBrushWidth,
+            }}
             pin={{
               kind: selectedPin?.kind ?? pinKind,
               // Com um pino aberto, o controle edita ESSE pino; sem nenhum, ele
@@ -2039,6 +2099,9 @@ function App() {
                 liveSliderChange(`light-intensity-${selectedLight.id}`, () =>
                   useMapStore.getState().updateLightIntensityLive(selectedLight.id, intensity),
                 ),
+              tokens: map.tokens.map((t) => ({ id: t.id, name: t.name })),
+              onAttach: (tokenId) => selectedLight && setLightAttachment(selectedLight.id, tokenId),
+              onDetach: () => selectedLight && setLightAttachment(selectedLight.id, null),
             }}
             selectedStair={selectedStair}
             stairControls={{
@@ -2107,6 +2170,19 @@ function App() {
           }}
         />
       )}
+      {mirroredPlayer !== undefined &&
+        hostBridgeRef.current !== null &&
+        createPortal(
+          <LivePlayerMirror
+            key={mirroredPlayer.playerId}
+            playerName={mirroredPlayer.name}
+            playerId={mirroredPlayer.playerId}
+            watch={hostBridgeRef.current.watchPlayerScreens}
+            read={hostBridgeRef.current.playerScreen}
+            onClose={() => setMirrorId(null)}
+          />,
+          document.body,
+        )}
     </div>
   )
 }

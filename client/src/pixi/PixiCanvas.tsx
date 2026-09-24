@@ -139,6 +139,7 @@ import { createPropsRenderer } from './drawProps'
 import { createConcealZonesRenderer } from './drawConcealZones'
 import { createPinsRenderer } from './drawPins'
 import { findConcealZoneAt } from '../lib/concealZones'
+import { revealBrushRadius, type RevealBrushMode } from '../lib/concealBrush'
 import { findPinAt, pinKindAfterShortcut } from '../lib/pins'
 import { buildConcealZoneFromDraft, buildPin, nextTokenName } from '../lib/mapFactory'
 import { SECRET_ITEM_ALPHA } from './constants'
@@ -163,7 +164,7 @@ import { drawGuides } from './drawGuides'
 import { cloneEntity, type CloneableEntity } from '../lib/entityClone'
 import { placeNewRoom, subtreeIds } from '../lib/roomNesting'
 import { useToastStore } from '../stores/toastStore'
-import { CORRIDOR_DISCARDED_TEXT, STAIR_CLICK_WITHOUT_DRAG_TEXT } from '../components/labels'
+import { AVISO_PINCEL_SEM_ZONA, CORRIDOR_DISCARDED_TEXT, STAIR_CLICK_WITHOUT_DRAG_TEXT } from '../components/labels'
 import {
   visibleWalls, visibleRegions, visibleStairs, visibleLights, visibleDrawings, visibleTokens, visibleProps, visiblePins,
   canInteractInLayer, isLayerLocked, wallLayer, regionLayer, stairLayer, lightLayer, tokenLayer, propLayer, drawingLayer,
@@ -207,6 +208,14 @@ import { expandToGroup, NO_GROUPS } from '../lib/itemGroups'
 // raio, não tem opinião sobre o valor.
 const ERASE_PART_RADIUS_RATIO = 0.25
 
+// Pincel de revelar — rascunho do traço em curso. Claro = o jogador vai ver;
+// escuro = volta a ficar escondido (o mesmo preto translúcido da zona no editor).
+const REVEAL_STROKE_COLOR = 0xffffff
+const REVEAL_STROKE_ALPHA = 0.3
+const HIDE_STROKE_COLOR = 0x000000
+const HIDE_STROKE_ALPHA = 0.55
+/** Passo mínimo entre pontos do traço, em px de mundo: menor que meia célula do pincel. */
+const REVEAL_STROKE_MIN_STEP = 3
 
 // Largura padrão do corredor de chão, como fração do grid: meia célula lê
 // como passagem sem engolir a sala ao lado, e escala com grids diferentes.
@@ -1674,6 +1683,8 @@ export function PixiCanvas({
         | 'dragging-room-label'
         // A5 — arrasto de criação da Zona oculta.
         | 'drawing-conceal-zone'
+        // Pincel de revelar: arrasto que revela (ou, com Alt, esconde) um pedaço da zona oculta.
+        | 'painting-reveal-brush'
         // Mover um pino de ponto de interesse já cravado.
         | 'dragging-pin'
         // Girar sala pela alça (pixi/roomRotateGesture.ts).
@@ -1756,6 +1767,15 @@ export function PixiCanvas({
       // A5 — canto inicial (com snap) e ponto bruto do clique da Zona oculta.
       let concealDraftStart: Point | null = null
       let concealDraftRawStart: Point | null = null
+      /**
+       * Pincel de revelar: o traço em curso fica AQUI, local ao gesto, e só
+       * vira mapa ao soltar (`finishRevealStroke`). Gravar a cada pointermove
+       * mandaria um snapshot por passo do mouse a cada jogador e empilharia o
+       * Ctrl+Z; o que se move durante o arrasto é só o rascunho.
+       */
+      let revealStroke: Point[] = []
+      let revealStrokeMode: RevealBrushMode = 'revelar'
+      let revealStrokeRadius = 0
       let polygonDraftCenter: Point | null = null
       let polygonDraftSides = ROOM_CIRCLE_SIDES
       let stairDraftStart: Point | null = null
@@ -2460,6 +2480,52 @@ export function PixiCanvas({
       }
 
       /**
+       * Rascunho do Pincel de revelar: o traço na largura real, claro para
+       * revelar e escuro para esconder — o mesmo par de cores do que a zona
+       * vira no editor (`drawConcealZones.ts`: escuro = o jogador não vê).
+       */
+      const drawRevealStroke = () => {
+        draftGraphics.clear()
+        const [first, ...rest] = revealStroke
+        if (first === undefined) return
+        const color = revealStrokeMode === 'revelar' ? REVEAL_STROKE_COLOR : HIDE_STROKE_COLOR
+        const alpha = revealStrokeMode === 'revelar' ? REVEAL_STROKE_ALPHA : HIDE_STROKE_ALPHA
+        if (rest.length === 0) {
+          draftGraphics.circle(first.x, first.y, revealStrokeRadius).fill({ color, alpha })
+          return
+        }
+        draftGraphics.moveTo(first.x, first.y)
+        for (const p of rest) draftGraphics.lineTo(p.x, p.y)
+        draftGraphics.stroke({ width: revealStrokeRadius * 2, color, alpha, cap: 'round', join: 'round' })
+      }
+
+      /** Mais um ponto no traço, só quando andou o bastante: arrasto parado não enche a lista. */
+      const extendRevealStroke = (point: Point) => {
+        const last = revealStroke[revealStroke.length - 1]
+        if (last !== undefined && Math.hypot(point.x - last.x, point.y - last.y) < REVEAL_STROKE_MIN_STEP) return
+        revealStroke.push(point)
+        drawRevealStroke()
+      }
+
+      /**
+       * Solta o pincel: o traço inteiro vira UMA mudança no mapa (um Ctrl+Z, um
+       * snapshot por jogador). Revelar fora de qualquer zona ativa não faz nada
+       * — e a tela diz por quê, em vez de o gesto sumir calado.
+       */
+      const finishRevealStroke = (last: Point | null) => {
+        if (last !== null && revealStroke.length > 0) extendRevealStroke(last)
+        const stroke = revealStroke
+        revealStroke = []
+        draftGraphics.clear()
+        if (stroke.length === 0) return
+        const hitZone = useMapStore.getState().paintRevealBrush(stroke, revealStrokeRadius, revealStrokeMode)
+        if (hitZone || revealStrokeMode !== 'revelar') return
+        const toasts = useToastStore.getState()
+        if (toasts.toasts.some((toast) => toast.text === AVISO_PINCEL_SEM_ZONA)) return
+        toasts.push('instrucao', AVISO_PINCEL_SEM_ZONA)
+      }
+
+      /**
        * Chão fica por baixo de tudo: só vira alvo de clique quando nada acima
        * dele (`findSelectableAt`) foi acertado. Camada/hidden/locked já são
        * tratados em `findFloorPieceAt`.
@@ -2487,6 +2553,7 @@ export function PixiCanvas({
         roomDraftStart = null
         concealDraftStart = null
         concealDraftRawStart = null
+        revealStroke = []
         polygonDraftCenter = null
         stairDraftStart = null
         measureDraftStart = null
@@ -3139,6 +3206,19 @@ export function PixiCanvas({
           mode = 'drawing-conceal-zone'
           concealDraftStart = applySnap(worldPoint, map.grid, 'wall', event.altKey)
           concealDraftRawStart = worldPoint
+          return
+        }
+
+        if (activeTool === 'revealBrush') {
+          // Sem snap: o pincel segue a mão, como o Pincel de desenho. Alt
+          // INVERTE o modo do painel só neste traço (revelar ⇄ esconder) e é
+          // lido aqui, no começo: soltar o Alt no meio não troca o traço.
+          const { revealBrushMode, revealBrushWidth } = useMapStore.getState()
+          mode = 'painting-reveal-brush'
+          revealStrokeMode = event.altKey ? (revealBrushMode === 'revelar' ? 'esconder' : 'revelar') : revealBrushMode
+          revealStrokeRadius = revealBrushRadius(map.grid, revealBrushWidth)
+          revealStroke = [worldPoint]
+          drawRevealStroke()
           return
         }
 
@@ -4043,6 +4123,8 @@ export function PixiCanvas({
           draftGraphics.clear()
         }
 
+        if (mode === 'painting-reveal-brush') finishRevealStroke(toWorldPoint(event.global.x, event.global.y))
+
         if (mode === 'drawing-polygon-room' && polygonDraftCenter) {
           const worldPoint = toWorldPoint(event.global.x, event.global.y)
           const { map, roomFillColor, regionFillPattern } = useMapStore.getState()
@@ -4393,6 +4475,9 @@ export function PixiCanvas({
         // foi pintado vira peça, em vez de sumir sem explicação. Precisa vir
         // ANTES do `mode = 'idle'` lá embaixo, como os commits vizinhos.
         if (mode === 'painting-floor-blocks') finishBlocos()
+        // Pincel de revelar solto fora do canvas: o que já foi pintado vale,
+        // como no pincel de blocos acima (o ponto de fora não entra no traço).
+        if (mode === 'painting-reveal-brush') finishRevealStroke(null)
         // Onda 1, item 3 (Frente F) — mesmo padrão de commit acima, ver
         // comentário completo no pointerup.
         if (mode === 'dragging-token' && tokenDragSnapshot) {
@@ -5121,6 +5206,11 @@ export function PixiCanvas({
           const worldPoint = toWorldPoint(event.global.x, event.global.y)
           const { map } = useMapStore.getState()
           drawRoomDraft(draftGraphics, concealDraftStart, applySnap(worldPoint, map.grid, 'wall', event.altKey), '#000000')
+          return
+        }
+
+        if (mode === 'painting-reveal-brush') {
+          extendRevealStroke(toWorldPoint(event.global.x, event.global.y))
           return
         }
 

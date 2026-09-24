@@ -134,6 +134,20 @@ export function ConcealZoneIcon(props: IconProps) {
 }
 
 /**
+ * Pincel de revelar: o canto tracejado da zona oculta com um traço de pincel
+ * aberto atravessando — o pedaço que deixa de estar escondido.
+ */
+export function RevealBrushIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M4 4h3M10.5 4h3M17 4h3v3M4 7V4M4 10.5v3" />
+      <path d="M6 18c2.5-4 5-6.5 12-8" />
+      <path d="M15.5 16.5l3-3 2 2-3 3z" />
+    </Icon>
+  )
+}
+
+/**
  * Pino de ponto de interesse: a gota cravada no mapa, com o miolo vazado —
  * o glifo ("!" ou "?") é escolha do pino, não do ícone da barra, então aqui
  * fica só a forma que identifica a ferramenta.

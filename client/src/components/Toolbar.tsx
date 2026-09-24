@@ -34,6 +34,7 @@ import {
   RectIcon,
   RegionIcon,
   RegularPolygonIcon,
+  RevealBrushIcon,
   RoomCircleIcon,
   RoomFreeIcon,
   RoomIcon,
@@ -87,6 +88,7 @@ const TOOL_ICONS: Partial<Record<DrawingTool, ComponentType<{ size?: number }>>>
   measure: MeasureIcon,
   eraser: EraserIcon,
   concealZone: ConcealZoneIcon,
+  revealBrush: RevealBrushIcon,
   pin: PinIcon,
 }
 

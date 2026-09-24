@@ -164,6 +164,20 @@ describe('describeBlockedMove', () => {
     expect(describeBlockedMove(FROM, TO, abertaETrancada, SLACK)).toMatchObject({ reason: 'door_locked' })
   })
 
+  it('porta secreta => door_secret, mesmo destrancada: ligar "Aberta" não resolve, revelar a passagem sim', () => {
+    const secreta = { ...fechada, secret: true }
+    expect(describeBlockedMove(FROM, TO, ladoComPorta(secreta), SLACK)).toEqual({ reason: 'door_secret', wallId: 'vao', opensPath: false })
+    // Aberta e secreta continua barrando (isDoorPassable): o aviso não pode mandar abrir.
+    expect(describeBlockedMove(FROM, TO, ladoComPorta({ ...secreta, open: true }), SLACK)).toEqual({ reason: 'door_secret', wallId: 'vao', opensPath: false })
+    // Trancada e secreta: revelar vem primeiro; o cadeado só aparece para quem já vê a porta.
+    expect(describeBlockedMove(FROM, TO, ladoComPorta({ ...secreta, locked: true }), SLACK)).toMatchObject({ reason: 'door_secret' })
+  })
+
+  it('porta comum fechada ganha da secreta no mesmo traço: abrir ela é o gesto mais curto', () => {
+    const walls = [...ladoComPorta({ ...fechada, secret: true }).map((w) => ({ ...w, id: `s-${w.id}` })), ...ladoComPorta(fechada)]
+    expect(describeBlockedMove(FROM, TO, walls, SLACK)).toMatchObject({ reason: 'door_closed', wallId: 'vao' })
+  })
+
   it('com parede e porta cruzando o mesmo traço, a porta é a explicação escolhida', () => {
     // A parede sólida vem primeiro na lista de propósito: a escolha é por
     // utilidade para quem lê o aviso, não pela ordem do array.

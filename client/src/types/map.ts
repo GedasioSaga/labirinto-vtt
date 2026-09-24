@@ -139,6 +139,16 @@ export interface DoorState {
   /** OBRIGATÓRIO. Porta de mapa antigo migra para 'normal' (mesma
    *  aparência de hoje). Ver mapFile.ts. */
   kind: DoorKind
+  /**
+   * PORTA SECRETA — parece parede até o mestre revelar. Para o jogador ela sai
+   * como parede comum, sem porta e sem este campo (`lib/fogFilter.ts`): sem
+   * halo, sem toque, e a visão e o movimento não passam nem com ela aberta
+   * (`lib/collision.ts`). O mestre a vê tracejada (`pixi/drawDoors.ts`);
+   * "Revelar passagem" tira o campo desta porta e o oculto da sala ligada
+   * (`mapFactory.revealSecretPassage`). `undefined` === porta comum, sem linha
+   * de migração; do disco só `true` volta (`lib/mapFile.ts`).
+   */
+  secret?: boolean
 }
 
 export interface Light {
@@ -156,6 +166,12 @@ export interface Light {
    *  tela/modo jogador, então essa promessa não existe. `undefined` === false
    *  (visível, comportamento idêntico ao de hoje) — sem linha de migração. */
   hidden?: boolean
+  /** Tocha presa na ficha: id da ficha que carrega esta luz. Prender põe a
+   *  luz no centro da ficha; quando a ficha anda (mestre no editor ou jogador
+   *  na tela dele), a luz anda o MESMO deslocamento. `undefined` === solta
+   *  (comportamento de antes) — sem linha de migração. Para o jogador, só
+   *  chega se ele vê a ficha (`lib/fogFilter.ts`). */
+  attachedTokenId?: string
 }
 
 export interface RegionPoint {
@@ -369,6 +385,16 @@ export interface ConcealZone {
   name: string
   /** `true` = revelada: deixa de esconder, mas continua no mapa do mestre. */
   revealed: boolean
+  /**
+   * PINCEL DE REVELAR — pedaços da zona que o mestre pintou para os jogadores
+   * verem, sem revelar a zona inteira. Cada entrada é a célula `"col,row"` de
+   * `REVEAL_BRUSH_CELL` px de mundo (`lib/concealBrush.ts`) cujo centro está
+   * dentro da zona. Ausente = nada pintado (a zona de sempre) —
+   * sem linha de migração: quem lê é `unveiledCellsOf`, que trata ausência e
+   * lixo vindo do disco como "nada revelado". Nunca sai para o jogador: o recorte
+   * (`lib/fogFilter.ts`) manda só o preto que sobra e o pedaço à vista.
+   */
+  unveiledCells?: string[]
 }
 
 export interface Region extends PlayerSecret {
@@ -457,6 +483,15 @@ export interface Token extends PlayerSecret {
    *  ATRAVESSA para o jogador: não é caminho de disco do mestre, é aparência
    *  da peça, e a mesa inteira precisa enxergar a mesma separação. */
   color?: string | null
+  /** "Nome para os jogadores" — o que a mesa lê embaixo da ficha no lugar de
+   *  `name`, que é o nome de TRABALHO do mestre ("Capataz traidor").
+   *  `undefined` = "O mesmo" (mapa salvo antes deste campo abre idêntico, sem
+   *  linha de migração); texto = "Outro" (pode ser `''` enquanto o mestre não
+   *  digitou: a ficha sai sem rótulo, nunca com o nome de trabalho); `null` =
+   *  "Nenhum" (sem rótulo). O DONO da ficha sempre recebe `name`. NÃO viaja
+   *  para jogador nenhum: o recorte troca o nome e apaga este campo
+   *  (`lib/tokenPublicName.ts`, `lib/fogFilter.ts`). */
+  publicName?: string | null
   /** Token não pode ser movido/editado. `undefined` === false (comportamento
    *  idêntico ao de hoje) — sem linha de migração. */
   locked?: boolean

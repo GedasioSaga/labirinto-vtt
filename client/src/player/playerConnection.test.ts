@@ -277,6 +277,27 @@ describe('createPlayerConnection', () => {
     expect(connection.getState().moveNotice).toBeUndefined()
   })
 
+  it('tocha presa: o movimento otimista leva a luz junto, e o rejected a traz de volta', () => {
+    const { connection, socket } = setup()
+    socket.open()
+    const comTocha: MapData = {
+      ...mapWithToken(100, 100),
+      lights: [
+        { id: 'tocha', x: 70, y: 100, radius: 80, color: '#f00', intensity: 1, attachedTokenId: 't1' },
+        { id: 'solta', x: 300, y: 300, radius: 80, color: '#f00', intensity: 1 },
+      ],
+    }
+    socket.receive({ type: 'snapshot', rev: 1, map: comTocha, vision: [] })
+    connection.requestMove('t1', 160, 120)
+    expect(connection.getState().map?.lights).toEqual([
+      { id: 'tocha', x: 130, y: 120, radius: 80, color: '#f00', intensity: 1, attachedTokenId: 't1' },
+      { id: 'solta', x: 300, y: 300, radius: 80, color: '#f00', intensity: 1 },
+    ])
+    const reqId = field(socket.sent.at(-1), 'reqId')
+    socket.receive({ type: 'token.move.rejected', reqId, reason: 'not_owner' })
+    expect(connection.getState().map?.lights.find((l) => l.id === 'tocha')).toMatchObject({ x: 70, y: 100 })
+  })
+
   it('accepted fixa a posição do servidor', () => {
     const { connection, socket } = setup()
     socket.open()

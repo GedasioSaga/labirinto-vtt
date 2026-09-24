@@ -13,6 +13,7 @@ import type { Corner, ResizeModifiers } from '../lib/objectTransform'
 import type { StairSizePreset } from '../lib/stairs'
 import { FLOOR_LAYER, clampFloorPolygonSides, type FloorShapeKind } from '../lib/floorTool'
 import { clampTamanhoDePincel, type Bloco, type TamanhoDePincel } from '../lib/floorBlocks'
+import { paintRevealBrush as paintRevealBrushOnMap, type RevealBrushMode, type RevealBrushWidth } from '../lib/concealBrush'
 import * as mapFactory from '../lib/mapFactory'
 // Onda 3, item 13 (Frente A) — clonagem pura por tipo de entidade, usada por
 // `duplicateSelected` (Ctrl+D) e `insertClonedEntityLive` (Alt+arrastar, ver
@@ -320,6 +321,13 @@ interface MapStoreState {
    *  `doorKind`/`eraseMode`. */
   doorMode: DoorMode
   setDoorMode: (mode: DoorMode) => void
+  /** Pincel de revelar: o que o PRÓXIMO arrasto faz (Alt inverte) e a largura
+   *  do traço em quadrados. Preferência de ferramenta, sem histórico e fora do
+   *  map.json, mesma classe de `doorMode`. */
+  revealBrushMode: RevealBrushMode
+  setRevealBrushMode: (mode: RevealBrushMode) => void
+  revealBrushWidth: RevealBrushWidth
+  setRevealBrushWidth: (width: RevealBrushWidth) => void
   /** Ponta do traço (N2/B2, "ponta da linha") da PRÓXIMA forma com traço
    *  (brush/line/curve) — preferência de ferramenta, mesma classe de
    *  `wallKind`/`doorKind`. Não confundir com `setDrawingCap`, que edita uma
@@ -478,6 +486,8 @@ interface MapStoreState {
   addLight: (light: Light) => void
   removeLight: (id: string) => void
   updateLight: (id: string, patch: Partial<Light>) => void
+  /** Tocha presa na ficha: prende a luz em `tokenId` ou solta (`null`). Com histórico. */
+  setLightAttachment: (id: string, tokenId: string | null) => void
   /**
    * Variante "live" de updateLight, restrita ao raio: aplica no `map` SEM
    * empurrar pra `past` — pensada pro pointermove do arrasto da alça de raio
@@ -589,7 +599,7 @@ interface MapStoreState {
    * alça de canto continua em `updateTokenLive` (sem histórico por frame, uma
    * entrada só no `pointerup`) — são dois gestos, não dois campos.
    */
-  updateToken: (id: string, patch: Partial<Pick<Token, 'rotation' | 'locked' | 'hidden' | 'color' | 'size' | 'npc'>>) => void
+  updateToken: (id: string, patch: Partial<Pick<Token, 'rotation' | 'locked' | 'hidden' | 'color' | 'size' | 'npc' | 'publicName'>>) => void
   addProp: (prop: Prop) => void
   removeProp: (id: string) => void
   moveProp: (id: string, x: number, y: number) => void
@@ -641,6 +651,11 @@ interface MapStoreState {
   setWallDoorKind: (wallId: string, kind: DoorKind) => void
   /** Alterna `DoorState.locked` de uma porta já criada. Com histórico. */
   setDoorLocked: (wallId: string, locked: boolean) => void
+  /** Liga/desliga `DoorState.secret` (porta secreta; ligar fecha). Com histórico. */
+  setDoorSecret: (wallId: string, secret: boolean) => void
+  /** "Revelar passagem": tira o segredo da porta e o oculto da sala ligada
+   *  (mapFactory.revealSecretPassage). Um passo de histórico só. */
+  revealSecretPassage: (wallId: string) => void
   /** Botão "Virar porta" do painel: porta de `DOOR_LENGTH_BY_KIND[doorKind]`
    *  no MEIO da parede selecionada, partindo a parede como a ferramenta Porta
    *  (mantém o vínculo com a Sala). Antes o painel virava o LADO INTEIRO da
@@ -684,6 +699,12 @@ interface MapStoreState {
   addConcealZone: (zone: MapData['concealZones'][number]) => void
   updateConcealZone: (id: string, patch: Partial<Pick<MapData['concealZones'][number], 'name' | 'revealed'>>) => void
   removeConcealZone: (id: string) => void
+  /**
+   * Um traço inteiro do Pincel de revelar, num Ctrl+Z só. Devolve se o traço
+   * passou por alguma zona oculta ativa (o chamador avisa quando não passou).
+   * Traço que não muda nada não gasta entrada de histórico.
+   */
+  paintRevealBrush: (stroke: Point[], radius: number, mode: RevealBrushMode) => boolean
   resizeRoomDimensions: (id: string, wPx: number, hPx: number) => void
   /** Variante "live" do resize por canto — SEM histórico, aplica direto no
    *  `map` a cada pointermove do arrasto. Par de `commitDragHistory(before)`
@@ -1204,6 +1225,9 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
     wallLineStyle: undefined,
     doorKind: 'normal',
     doorMode: 'porta',
+    revealBrushMode: 'revelar',
+    // Um quadrado de largura: o corredor recém-andado, que é o pedido.
+    revealBrushWidth: 1,
     drawCap: 'round',
     drawDash: 'solid',
     drawTexture: 'pen',
@@ -1377,6 +1401,8 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
     setWallLineStyle: (lineStyle) => set({ wallLineStyle: lineStyle }),
     setDoorKind: (kind) => set({ doorKind: kind }),
     setDoorMode: (mode) => set({ doorMode: mode }),
+    setRevealBrushMode: (mode) => set({ revealBrushMode: mode }),
+    setRevealBrushWidth: (width) => set({ revealBrushWidth: width }),
     setDrawCap: (cap) => set({ drawCap: cap }),
     setDrawDash: (dash) => set({ drawDash: dash }),
     setDrawTexture: (texture) => set({ drawTexture: texture }),
@@ -1410,6 +1436,7 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
       ...map,
       lights: map.lights.map((l) => (l.id === id ? { ...l, ...patch } : l)),
     })),
+    setLightAttachment: (id, tokenId) => withHistory((map) => mapFactory.setLightAttachment(map, id, tokenId)),
     updateLightRadiusLive: (id, radius) => set((state) => ({
       map: {
         ...state.map,
@@ -1585,6 +1612,8 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
       mapFactory.setWallDoorKind(map, wallId, kind, DOOR_LENGTH_BY_KIND[kind]),
     ),
     setDoorLocked: (wallId, locked) => withHistory((map) => mapFactory.setDoorLocked(map, wallId, locked)),
+    setDoorSecret: (wallId, secret) => withHistory((map) => mapFactory.setDoorSecret(map, wallId, secret)),
+    revealSecretPassage: (wallId) => withHistory((map) => mapFactory.revealSecretPassage(map, wallId)),
     turnWallIntoDoor: (wallId) => {
       const { map, doorKind } = get()
       const wall = map.walls.find((w) => w.id === wallId)
@@ -1648,6 +1677,11 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
       if (mapFactory.removeConcealZone(get().map, id) === get().map) return
       withHistory((map) => mapFactory.removeConcealZone(map, id))
       if (get().selectedConcealZoneId === id) set({ selectedConcealZoneId: null })
+    },
+    paintRevealBrush: (stroke, radius, mode) => {
+      const result = paintRevealBrushOnMap(get().map, stroke, radius, mode)
+      if (result.map !== get().map) withHistory(() => result.map)
+      return result.hitZone
     },
     resizeRoomDimensions: (id, wPx, hPx) => withHistory((map) => reparentRooms(mapFactory.resizeRoomDimensions(map, id, wPx, hPx), [id], map)),
     resizeRoomCornerLive: (id, corner, x, y) => set((state) => ({

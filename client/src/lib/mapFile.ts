@@ -1,7 +1,8 @@
-import type { FloorStyle, MapData, Region } from '../types/map'
+import type { DoorState, FloorStyle, MapData, Region } from '../types/map'
 import { linkLooseWallsToRooms } from './roomLink'
 import { isPinIcon, isPinKind, isPinPassage } from './pins'
 import { cleanExitLabel, readPinDestination, readPinExits } from './pinTravel'
+import { tokenPublicNameFromFile } from './tokenPublicName'
 
 /** Chão de mapa NOVO: marrom chapado do minimapa do Resident Evil 4 (15/09/2026). */
 export const DEFAULT_FLOOR_STYLE: FloorStyle = { fillColor: '#a8776a', strokeColor: null, strokeWidth: 1 }
@@ -109,6 +110,17 @@ function roomTextsFromFile(region: Region): Region {
   }
 }
 
+/**
+ * Porta lida do disco. `kind` virou obrigatório (porta antiga migra para
+ * 'normal'). `secret` (porta secreta) é campo NOVO: só `true` volta; qualquer
+ * outro valor sai do objeto, e a porta abre como porta comum — como sempre foi.
+ */
+function doorFromFile(door: DoorState): DoorState {
+  const { secret, ...rest } = door
+  const withKind: DoorState = { ...rest, kind: rest.kind ?? 'normal' }
+  return secret === true ? { ...withKind, secret: true } : withKind
+}
+
 function deserializeMapFields(json: string): MapData {
   let parsed: Partial<MapData>
   try {
@@ -141,7 +153,7 @@ function deserializeMapFields(json: string): MapData {
     // wallKind ausente fica undefined de propósito (=== 'exterior').
     walls: entityList(parsed.walls).map((w) => ({
       ...w,
-      door: w.door ? { ...w.door, kind: w.door.kind ?? 'normal' } : null,
+      door: w.door ? doorFromFile(w.door) : null,
     })),
     lights: entityList(parsed.lights),
     // inalterado — `room` ausente fica undefined (região comum); o ângulo do
@@ -156,7 +168,9 @@ function deserializeMapFields(json: string): MapData {
     // salvo antes do campo existir abre igual, e escrever `?? null` quebraria a
     // promessa que mapFile.test.ts cobra — round-trip que preserva o mapa
     // EXATAMENTE, sem inventar campo que o arquivo não tinha.
-    tokens: entityList(parsed.tokens).map((t) => ({ ...t, image: t.image ?? null })),
+    // `publicName` ("Nome para os jogadores"): mesma mão única de `soChegada`
+    // — texto e null ficam, valor torto some e a ficha volta a "O mesmo".
+    tokens: entityList(parsed.tokens).map((t) => tokenPublicNameFromFile({ ...t, image: t.image ?? null })),
     // inalterado fora o que já existia — Prop.layer ausente fica undefined
     props: entityList(parsed.props).map((p) => ({ ...p, linkedMapPath: p.linkedMapPath ?? null })),
     stairs: entityList(parsed.stairs),

@@ -351,6 +351,17 @@ export interface HostSession {
    * Não envia: o integrador faz o broadcast. Jogador desconhecido ou raio não finito é ignorado.
    */
   setVisionRadius(playerId: string, radius: number | null): void
+  /**
+   * "Quem vê" do pino `pinId`: só estes jogadores o recebem (`lib/fogFilter.ts`).
+   * `null` = Todos (apaga a lista). Id que não é de jogador da sala é ignorado;
+   * lista vazia vale ("Só estes" sem ninguém: ninguém recebe). Não envia: o
+   * integrador faz o broadcast. A lista vive só nesta sessão.
+   */
+  setPinAudience(pinId: string, playerIds: readonly string[] | null): void
+  /** A lista de `setPinAudience`, na ordem de entrada na sala; `null` = Todos. */
+  pinAudience(pinId: string): string[] | null
+  /** Todas as listas, por pino, para o painel do mestre. Pino de "Todos" não aparece. */
+  pinAudiences(): Record<string, string[]>
   /** Marca a planta inteira da cena onde o jogador está como explorada, fora de zona oculta ativa. Tokens seguem exigindo visão. */
   revealPlan(playerId: string, source: HostMapSource): void
   /**
@@ -479,9 +490,19 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   const seenPins = new Map<string, { mapId: string; pins: Pin[] }>()
   // Por playerId: quando a última pista mostrada chegou a um colega.
   const lastClueShowAt = new Map<string, number>()
+  // Por pinId: quem vê o pino ("Só estes"). Ausente = Todos. O kick tira o
+  // jogador de toda lista; o registro de quem só caiu fica (resume).
+  const pinAudiences = new Map<string, Set<string>>()
   let rev = 0
 
   const radiusFor = (playerId: string): number => visionOverrides.get(playerId) ?? options.visionRadius
+
+  /** "Quem vê" do pino na ordem da sala (a do painel Grupo), não na ordem em que o mestre marcou. `null` = Todos. */
+  const audienceOf = (pinId: string): string[] | null => {
+    const chosen = pinAudiences.get(pinId)
+    if (chosen === undefined) return null
+    return [...players.values()].sort((a, b) => a.joinedAt - b.joinedAt).flatMap((p) => (chosen.has(p.playerId) ? [p.playerId] : []))
+  }
 
   /** Polígonos das zonas ocultas ativas (`?? []`: mapa montado fora do deserializeMap pode vir sem o campo). */
   const statusOf = (playerId: string): PlayerStatus => ((ownership[playerId]?.length ?? 0) > 0 ? 'playing' : 'waiting')
@@ -664,7 +685,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const memory = memoryFor(playerId, map)
     const exp = memory.exp
     const entered = enteredRooms.get(playerId)?.get(map.id)
-    const view = filterMapForPlayer(map, playerId, ownership, radiusFor(playerId), exp, memory.doors, entered)
+    const view = filterMapForPlayer(map, playerId, ownership, radiusFor(playerId), exp, memory.doors, pinAudiences, entered)
     // Zona oculta ativa e sala secreta: célula que toca nelas não vira explorada
     // (senão o jogador guardaria a planta escondida e o formato dela).
     markRings(exp, view.vision, view.blocked)
@@ -931,7 +952,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const wall = map.walls.find((w) => w.id === msg.wallId)
     if (wall === undefined || wall.door === null) return reject('not_visible')
     const memory = memoryFor(playerId, map)
-    const view = filterMapForPlayer(map, playerId, ownership, radiusFor(playerId), memory.exp, memory.doors)
+    const view = filterMapForPlayer(map, playerId, ownership, radiusFor(playerId), memory.exp, memory.doors, pinAudiences)
     if (!view.visibleDoorIds.includes(wall.id)) return reject('not_visible')
     // Trancada antes de longe: a cor da porta já diz que está trancada, e "Trancada" é a informação útil.
     if (wall.door.locked) return reject('locked')
@@ -988,7 +1009,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const pin = from.map.pins.find((p) => p.id === pinId)
     if (pin === undefined) return null
     const memory = memoryFor(playerId, from.map)
-    const view = filterMapForPlayer(from.map, playerId, ownership, radiusFor(playerId), memory.exp, memory.doors)
+    const view = filterMapForPlayer(from.map, playerId, ownership, radiusFor(playerId), memory.exp, memory.doors, pinAudiences)
     if (!view.map.pins.some((p) => p.id === pinId)) return null
     // Trancada: ninguém passa. Cai no mesmo `null` de todo o resto, então o
     // jogador lê o motivo genérico de sempre e nada chega ao mestre. Estar aqui,
@@ -1341,6 +1362,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       cluebooks.delete(playerId)
       seenPins.delete(playerId)
       lastClueShowAt.delete(playerId)
+      for (const chosen of pinAudiences.values()) chosen.delete(playerId)
       return reply(clientId, { type: 'kicked' })
     },
 
@@ -1360,6 +1382,22 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       }
       if (!Number.isFinite(radius)) return
       visionOverrides.set(playerId, Math.min(VISION_RADIUS_MAX, Math.max(VISION_RADIUS_MIN, radius)))
+    },
+
+    setPinAudience(pinId, playerIds) {
+      if (playerIds === null) {
+        pinAudiences.delete(pinId)
+        return
+      }
+      pinAudiences.set(pinId, new Set(playerIds.filter((id) => players.has(id))))
+    },
+
+    pinAudience: audienceOf,
+
+    pinAudiences() {
+      const all: Record<string, string[]> = {}
+      for (const pinId of pinAudiences.keys()) all[pinId] = audienceOf(pinId) ?? []
+      return all
     },
 
     revealPlan(playerId, source) {

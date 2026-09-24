@@ -17,6 +17,7 @@ import {
   type TravelRequest,
 } from './hostSession'
 import type { LaserMessage } from './protocol'
+import { createPlayerScreens, type PlayerScreen } from './playerScreens'
 
 /**
  * Costura entre a sessão pura (`hostSession`) e o transporte Rust (comandos
@@ -78,6 +79,8 @@ export interface HostBridgeDeps {
   onGoToScene?: (sceneId: string, x: number, y: number) => void
   visionRadius?: number
   onPlayersChange?: (players: PlayerInfo[]) => void
+  /** "Quem vê" de cada pino com lista (`pinId` -> jogadores); pino de "Todos" não aparece. Sala fechada = `{}`. */
+  onPinAudiencesChange?: (audiences: Record<string, string[]>) => void
   onTunnelChange?: (state: TunnelState) => void
   /** Sinal aceito de um jogador (já validado e dentro do limite por segundo). */
   onSignal?: (signal: HostSignal) => void
@@ -107,6 +110,11 @@ export interface HostBridge {
   laserOff(): void
   /** Raio de visão só deste jogador (`null` = global). Vem de um slider: o snapshot sai pelo throttle do mapa. */
   setVisionRadius(playerId: string, radius: number | null): void
+  /**
+   * "Quem vê" do pino: só `playerIds` o recebem; `null` = Todos. Snapshot na
+   * hora — o jogador marcado vê o pino sem recarregar, e o desmarcado o perde.
+   */
+  setPinAudience(pinId: string, playerIds: readonly string[] | null): void
   /** "Revelar planta": snapshot imediato com a planta inteira explorada (fora de zona oculta ativa). */
   revealPlan(playerId: string): void
   /** "Esconder de novo": snapshot imediato com exploração e portas lembradas zeradas. */
@@ -123,6 +131,15 @@ export interface HostBridge {
    * receberam (0 = ninguém lá), ou `null` com a sala fechada.
    */
   sceneNote(sceneId: string, text: string): number | null
+  /**
+   * "Ver tela" do painel Grupo: o último recorte que SAIU pelo fio para este
+   * jogador (a cena dele, com a névoa e a zona oculta já aplicadas), a espera
+   * (`waiting`) ou `null` quando ele não tem tela (caiu, saiu, sala fechada).
+   * Mesma referência enquanto nada novo sai: serve de `getSnapshot`.
+   */
+  playerScreen(playerId: string): PlayerScreen | null
+  /** Chama `listener` a cada tela de jogador que muda. Devolve o desligar. */
+  watchPlayerScreens(listener: () => void): () => void
 }
 
 export const BROADCAST_THROTTLE_MS = 50
@@ -205,6 +222,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   let pendingBroadcast: ReturnType<typeof setTimeout> | null = null
   let pendingStart: Promise<RoomInfo> | null = null
   let lastPlayersKey = '[]'
+  let lastPinAudiencesKey = '{}'
   let tunnelState: TunnelState = TUNNEL_IDLE
   let lastTunnelKey = JSON.stringify(TUNNEL_IDLE)
   let pendingTunnel: Promise<void> | null = null
@@ -220,6 +238,12 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   const travelToasts = new Map<string, string>()
   /** Último aviso de chegada de cada jogador: `playerId` -> id do toast. */
   const arrivalToasts = new Map<string, string>()
+  /** O que cada conexão está vendo, anotado do que sai em `dispatch` (espelho do "Ver tela"). */
+  const screens = createPlayerScreens()
+  const screenWatchers = new Set<() => void>()
+  const notifyScreens = () => {
+    for (const watcher of screenWatchers) watcher()
+  }
 
   /** O mundo que a sessão serve agora: a aventura, ou só o mapa aberto. */
   const world = (): HostWorld => deps.getWorld?.() ?? singleSceneWorld(deps.getMap())
@@ -317,13 +341,33 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     deps.onPlayersChange?.(list)
   }
 
+  const notifyPinAudiencesIfChanged = () => {
+    const audiences = session?.pinAudiences() ?? {}
+    const key = JSON.stringify(audiences)
+    if (key === lastPinAudiencesKey) return
+    lastPinAudiencesKey = key
+    deps.onPinAudiencesChange?.(audiences)
+  }
+
   /** Envia tudo; a promise nunca rejeita — falha vira toast, nunca silêncio. */
-  const dispatch = (result: HostResult): Promise<void> =>
-    Promise.all(
+  const dispatch = (result: HostResult): Promise<void> => {
+    // O espelho anota o que SAI, na ordem em que sai: é o que o jogador recebe.
+    let screensChanged = false
+    for (const { clientId, msg } of result.outbound) {
+      if (screens.record(clientId, msg)) screensChanged = true
+    }
+    if (screensChanged) notifyScreens()
+    return Promise.all(
       result.outbound.map(({ clientId, msg }) =>
         deps.invoke('net_send', { clientId, msg }).catch((error: unknown) => reportError('Falha ao enviar para jogador', error)),
       ),
     ).then(() => undefined)
+  }
+
+  /** A conexão acabou (caiu ou foi expulsa): a tela dela sai do espelho. */
+  const forgetScreen = (clientId: string) => {
+    if (screens.forget(clientId)) notifyScreens()
+  }
 
   /** Espera o envio (ex.: `kicked`, `error`) sair antes de derrubar a conexão. */
   const sendThenKick = async (result: HostResult, clientId: string): Promise<void> => {
@@ -525,6 +569,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     const clientId = parseClientId(event.payload.clientId)
     if (clientId === null || event.payload.event !== 'disconnected') return
     session.disconnect(clientId)
+    forgetScreen(clientId)
     pruneTravelToasts()
     notifyPlayersIfChanged()
   }
@@ -585,11 +630,14 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       if (session) await dispatch(session.closeRoom())
       removeListeners()
       session = null
+      // Quem aguardava sem tela não recebe `room.closed` com mapa: some junto.
+      if (screens.clear()) notifyScreens()
       pruneTravelToasts()
       currentRoom = null
       // O Rust derruba o túnel junto com a sala.
       resetTunnel()
       notifyPlayersIfChanged()
+      notifyPinAudiencesIfChanged()
       try {
         await deps.invoke('net_stop_room')
       } catch (error) {
@@ -607,6 +655,13 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       // Arrastar o slider dispara dezenas de onChange: um snapshot por janela basta.
       scheduleBroadcast()
       notifyPlayersIfChanged()
+    },
+
+    setPinAudience(pinId, playerIds) {
+      if (session === null) return
+      session.setPinAudience(pinId, playerIds)
+      broadcastNow()
+      notifyPinAudiencesIfChanged()
     },
 
     revealPlan(playerId) {
@@ -667,7 +722,10 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       const result = session.kick(clientId)
       pruneTravelToasts()
       notifyPlayersIfChanged()
+      notifyPinAudiencesIfChanged()
       await sendThenKick(result, clientId)
+      // O `kicked` já apagou a tela; sem ele (jogador já fora da sessão) apaga aqui.
+      forgetScreen(clientId)
     },
 
     players() {
@@ -677,6 +735,20 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     connectedPlayerCount() {
       if (session === null) return 0
       return session.listPlayers(world()).filter((player) => player.connected).length
+    },
+
+    playerScreen(playerId) {
+      if (session === null) return null
+      // Sem mundo: só o `clientId` interessa, e isto roda a cada render do espelho.
+      const clientId = session.listPlayers().find((player) => player.playerId === playerId)?.clientId ?? null
+      return clientId === null ? null : screens.get(clientId)
+    },
+
+    watchPlayerScreens(listener) {
+      screenWatchers.add(listener)
+      return () => {
+        screenWatchers.delete(listener)
+      }
     },
 
     room() {
