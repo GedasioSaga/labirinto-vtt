@@ -6,6 +6,7 @@ import { readPinAttachment } from './pinAttach'
 import { readMovementRules } from './movementRules'
 import { readCarriedItems, readPinItem } from './items'
 import { readHazards } from './hazards'
+import { readAreaTriggers } from './areaTriggers'
 
 /** Chão de mapa NOVO: marrom chapado do minimapa do Resident Evil 4 (15/09/2026). */
 export const DEFAULT_FLOOR_STYLE: FloorStyle = { fillColor: '#a8776a', strokeColor: null, strokeWidth: 1 }
@@ -239,6 +240,8 @@ function deserializeMapFields(json: string): MapData {
     // ZONA DE PERIGO: campo NOVO e OPCIONAL, mesmo padrão de `movement`. Mapa
     // de antes (ou lixo editado à mão) abre sem o campo — ver `readHazards`.
     ...hazardsField(parsed.hazards),
+    // GATILHO DE ÁREA: campo NOVO e OPCIONAL, mesmo padrão de `hazards` — ver `readAreaTriggers`.
+    ...areaTriggersField(parsed.gatilhos),
     // MAPA-MUNDI: campo NOVO e OPCIONAL. Só `true` vale; o resto (arquivo
     // editado à mão) abre como cena comum, sem o campo.
     ...(parsed.worldMap === true ? { worldMap: true } : {}),
@@ -249,4 +252,10 @@ function deserializeMapFields(json: string): MapData {
 function hazardsField(raw: unknown): Pick<MapData, 'hazards'> {
   const hazards = readHazards(raw)
   return hazards === undefined ? {} : { hazards }
+}
+
+/** `gatilhos` só entra no mapa quando o arquivo traz gatilho válido: mapa de antes não ganha campo. */
+function areaTriggersField(raw: unknown): Pick<MapData, 'gatilhos'> {
+  const gatilhos = readAreaTriggers(raw)
+  return gatilhos === undefined ? {} : { gatilhos }
 }

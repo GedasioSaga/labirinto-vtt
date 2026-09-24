@@ -17,6 +17,7 @@ import { ancestorsOf, NESTING_TOLERANCE, pointInPolygonInclusive, pointOnPolygon
 import { roomHasRoof } from './roomOps'
 import { hazardRooms, hazardsOf, visionRadiusAt, type PlayerHazard } from './hazards'
 import { caravanMembers, caravanPoint, caravanTokenFor, isWorldMap } from './caravan'
+import { triggersWithRegions, type PlayerAreaTrigger } from './areaTriggers'
 
 /**
  * Recorte do mapa que um jogador pode receber. Tudo que sai daqui vai pela
@@ -74,6 +75,13 @@ export interface PlayerMapView {
    * fogo" sem contar o tipo de um perigo escondido.
    */
   hazardsHere: { tokenId: string; kind: HazardKind }[]
+  /**
+   * GATILHO DE ÁREA — só o que o mestre REVELOU, e só na área que o jogador
+   * já conhece (a região saiu neste recorte): tipo e polígono. Anotação
+   * estática, então vale o explorado, como a própria região. Nunca o id do
+   * gatilho nem o da região; `map.gatilhos` do recorte não existe.
+   */
+  gatilhos: PlayerAreaTrigger[]
 }
 
 /** Polígonos das zonas ocultas ativas (`?? []`: mapa montado fora do deserializeMap pode vir sem o campo). */
@@ -768,7 +776,9 @@ export function filterMapForGroup(
   // ZONA DE PERIGO: o objeto do mestre (ids de zona e de sala, perigo onde o
   // jogador não está) NUNCA vai no mapa do recorte. O que ele pode ver sai
   // separado, em `hazards`, montado mais abaixo.
-  const { hazards: _masterHazards, ...mapWithoutHazards } = map
+  // GATILHO DE ÁREA: mesma regra — o objeto do mestre fica aqui; o que foi
+  // revelado sai separado, em `gatilhos`.
+  const { hazards: _masterHazards, gatilhos: _masterTriggers, ...mapWithoutHazards } = map
 
   // Token do próprio jogador sai sempre, mesmo secreto ou em zona oculta: é ele quem o move.
   const playerTokens = layerTokens.filter(
@@ -926,7 +936,18 @@ export function filterMapForGroup(
       hazards.push({ kind: hazard.kind, points: room.points.map((p) => ({ x: p.x, y: p.y })) })
     }
   }
-  return { map: filtered, vision, visibleDoorIds, concealed, blocked, roofs, hazards, hazardsHere }
+
+  /**
+   * GATILHO DE ÁREA. Não revelado não sai de jeito nenhum. Revelado sai só
+   * com a MESMA exclusão do perigo (`hazardHiddenByMaster`: sala escondida pelo
+   * mestre ou de camada escondida, silhueta de teto fechado, sala tocada por
+   * zona oculta) e só se a região saiu neste recorte — o jogador já conhece a
+   * área, então a marca não conta nada do que a névoa esconde.
+   */
+  const gatilhos: PlayerAreaTrigger[] = triggersWithRegions(map)
+    .filter(({ trigger, region }) => trigger.revealed && sentRooms.has(region.id) && !hazardHiddenByMaster(region))
+    .map(({ trigger, region }) => ({ kind: trigger.kind, points: region.points.map((p) => ({ x: p.x, y: p.y })) }))
+  return { map: filtered, vision, visibleDoorIds, concealed, blocked, roofs, hazards, hazardsHere, gatilhos }
 }
 
 /**

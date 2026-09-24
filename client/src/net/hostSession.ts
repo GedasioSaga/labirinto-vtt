@@ -1,5 +1,6 @@
-import type { DoorState, HazardKind, MapData, Pin, RegionPoint, Token, Wall } from '../types/map'
+import type { AreaTriggerKind, DoorState, HazardKind, MapData, Pin, RegionPoint, Token, Wall } from '../types/map'
 import { hazardPresence, newHazardEntries, type HazardEntry } from '../lib/hazards'
+import { areaTriggerPresence, newAreaTriggerEntries, regionAreaName, type AreaTriggerPresence } from '../lib/areaTriggers'
 import { createExploration, encodeExploration, forgetInside, isPointExplored, markAll, markRings, mergeExploration, type Exploration } from '../lib/exploration'
 import { pointInRing } from '../lib/floorContour'
 import { alarmForPlayer, allPlayerTokens, filterMapForGroup, filterMapForPlayer, playerBlockedRings, turnForPlayer, type GroupViewer, type SceneAlarm } from '../lib/fogFilter'
@@ -288,6 +289,19 @@ export interface HostResult {
   applyTransfer?: AppliedTransfer
   /** ZONA DE PERIGO: fichas de jogador que entraram num perigo neste broadcast. O integrador avisa o mestre. */
   hazardEntries?: HazardEntryNotice[]
+  /** GATILHO DE ÁREA: fichas de jogador que entraram numa área marcada neste broadcast. O integrador avisa o mestre. */
+  triggerEntries?: AreaTriggerEntryNotice[]
+}
+
+/** GATILHO DE ÁREA: a linha que o mestre lê — quem entrou em qual área, e onde. Nada disto vai ao jogador. */
+export interface AreaTriggerEntryNotice {
+  playerName: string
+  tokenName: string
+  kind: AreaTriggerKind
+  /** Nome da área (Sala ou Região) — `regionAreaName`. */
+  areaName: string
+  /** Nome da cena (o que o mestre lê), só quando ela não é a aberta no editor. */
+  sceneName?: string
 }
 
 /** ZONA DE PERIGO: a linha que o mestre lê — quem entrou em quê, e onde. Nada disto vai ao jogador. */
@@ -635,6 +649,9 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   // broadcast, por cena (chave `sceneKey`). É daqui que sai "entrou agora".
   // Uma entrada por cena da aventura: não cresce além do número de cenas.
   const hazardSeen = new Map<string, Map<string, HazardEntry>>()
+  // GATILHO DE ÁREA: a leitura anterior de cada cena (chave `sceneKey`) — quem
+  // estava dentro de qual gatilho. Mesmo tamanho de `hazardSeen`.
+  const triggerSeen = new Map<string, AreaTriggerPresence>()
   // ALARME PARA VÁRIAS CENAS: o alarme soando (no máximo um) e, por conexão,
   // o id do alarme que aquela tela mostra agora. É por clientId de propósito:
   // quem reconecta chega com tela limpa e precisa receber de novo.
@@ -766,6 +783,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     if (turn !== null) snapshot.turn = turn
     // ZONA DE PERIGO: só o que ele enxerga, e o campo só existe quando há algum.
     if (view.hazards.length > 0) snapshot.hazards = view.hazards
+    // GATILHO DE ÁREA: só o que o mestre revelou, mesma regra do campo.
+    if (view.gatilhos.length > 0) snapshot.gatilhos = view.gatilhos
     return snapshot
   }
 
@@ -866,7 +885,43 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const snapshot: HostMessage = { type: 'snapshot', rev, map: view.map, vision: view.vision, explored: encodeExploration(merged), ownTokens: [], concealed: view.concealed }
     // ZONA DE PERIGO: o que o GRUPO enxerga agora, mesma regra do jogador.
     if (view.hazards.length > 0) snapshot.hazards = view.hazards
+    // GATILHO DE ÁREA: o revelado, mesma regra do jogador.
+    if (view.gatilhos.length > 0) snapshot.gatilhos = view.gatilhos
     return snapshot
+  }
+
+  /**
+   * GATILHO DE ÁREA — quem ENTROU numa área marcada desde o último broadcast
+   * (`newAreaTriggerEntries`). Só ficha de JOGADOR conta. O aviso é SÓ do
+   * mestre: o jogador não recebe mensagem nenhuma — ele só vê a área depois
+   * que o mestre revela, e isso viaja no snapshot (`view.gatilhos`).
+   */
+  const triggerEntriesIn = (world: HostWorld): AreaTriggerEntryNotice[] => {
+    const entries: AreaTriggerEntryNotice[] = []
+    const ownerOf = new Map<string, string>()
+    for (const [playerId, ids] of Object.entries(ownership)) for (const id of ids) ownerOf.set(id, playerId)
+    const playerTokens = [...ownerOf.keys()]
+    for (const scene of allScenes(world)) {
+      const key = sceneKey(scene)
+      const presence = areaTriggerPresence(scene.map, playerTokens)
+      const before = triggerSeen.get(key)
+      triggerSeen.set(key, presence)
+      for (const entry of newAreaTriggerEntries(before, presence)) {
+        const playerId = ownerOf.get(entry.tokenId)
+        const record = playerId === undefined ? undefined : players.get(playerId)
+        const token = scene.map.tokens.find((t) => t.id === entry.tokenId)
+        const region = scene.map.regions.find((r) => r.id === entry.regionId)
+        if (record === undefined || token === undefined || region === undefined) continue
+        entries.push({
+          playerName: record.name,
+          tokenName: token.name,
+          kind: entry.kind,
+          areaName: regionAreaName(region),
+          ...(scene === world.open ? {} : { sceneName: scene.name }),
+        })
+      }
+    }
+    return entries
   }
 
   /**
@@ -1742,7 +1797,13 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       // perigo quando o texto aparece.
       const hazards = hazardEntriesIn(world)
       outbound.push(...hazards.outbound)
-      return hazards.entries.length === 0 ? { outbound } : { outbound, hazardEntries: hazards.entries }
+      // GATILHO DE ÁREA: nada vai para `outbound` — o aviso é só do mestre.
+      const triggerEntries = triggerEntriesIn(world)
+      return {
+        outbound,
+        ...(hazards.entries.length === 0 ? {} : { hazardEntries: hazards.entries }),
+        ...(triggerEntries.length === 0 ? {} : { triggerEntries }),
+      }
     },
 
     setTableScene(key) {

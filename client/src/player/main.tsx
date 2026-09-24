@@ -576,6 +576,7 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
           explored={state.explored}
           concealed={state.concealed}
           hazards={state.hazards}
+          gatilhos={state.gatilhos}
           ownTokens={ownTokens}
           turnTokenId={state.turn ?? null}
           settings={settings}
