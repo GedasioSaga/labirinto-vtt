@@ -253,7 +253,8 @@ export function traceWallChain(graphics: Graphics, chain: readonly Pick<Wall, 'x
  * também quebra (Pixi aceita um width/color/cap/join por stroke).
  */
 function groupWallsForPath(walls: WallWithStyle[], cameraScale: number, rendererResolution: number): { walls: WallWithStyle[]; style: WallVisualStyle }[] {
-  const solid = walls.filter((wall) => wall.door === null)
+  // Janela tem desenho próprio (`drawJanela`): não entra no traço contínuo.
+  const solid = walls.filter((wall) => wall.door === null && !isJanela(wall))
   const styleOf = (wall: WallWithStyle) => resolveWallStyle(wall, cameraScale, rendererResolution)
   const chains = groupWallChains(solid, (previous, next) => !sameStyle(styleOf(previous), styleOf(next)))
   return chains.map((chain) => ({ walls: chain, style: styleOf(chain[0]) }))
@@ -290,6 +291,43 @@ export function drawWalls(
   for (const { walls: run, style } of groupWallsForPath(walls, cameraScale, rendererResolution)) {
     traceWallChain(graphics, alignChain(run, style.pixel))
     graphics.stroke({ width: style.width, color: WALL_COLOR, alpha: style.alpha, cap: style.cap, join: style.join })
+  }
+  for (const wall of walls) {
+    if (isJanela(wall)) drawJanela(graphics, wall, cameraScale, rendererResolution)
+  }
+}
+
+/**
+ * Distância, em px de TELA, entre os dois fios da janela: igual em qualquer
+ * zoom, como o resto da planta. Quatro px separam os fios de 1 px sem virar
+ * uma faixa — lê como "janela", não como parede grossa.
+ */
+export const JANELA_GAP_SCREEN_PX = 4
+
+/** Parede 'Janela' desenhável: sem porta (a porta tem desenho próprio) e com o campo ligado. */
+function isJanela(wall: Pick<Wall, 'door' | 'janela'>): boolean {
+  return wall.door === null && wall.janela === true
+}
+
+/**
+ * JANELA — dois fios FINOS paralelos, um de cada lado da linha da parede, na
+ * mesma cor clara (símbolo de janela de planta). Nunca preenchimento nem
+ * hachura: fica dentro do visual de minimapa.
+ */
+function drawJanela(graphics: Graphics, wall: WallWithStyle, cameraScale: number, rendererResolution: number): void {
+  const length = Math.hypot(wall.x2 - wall.x1, wall.y2 - wall.y1)
+  if (!(length > 0)) return
+  const scale = usableScale(cameraScale)
+  const pixel = pixelGrid(scale, rendererResolution, WALL_SCREEN_PX.thin)
+  const half = JANELA_GAP_SCREEN_PX / 2 / scale
+  const nx = (-(wall.y2 - wall.y1) / length) * half
+  const ny = ((wall.x2 - wall.x1) / length) * half
+  const width = strokeWidthInWorld(pixel)
+  const alpha = wallAlphaFor(wall)
+  for (const side of [1, -1]) {
+    const [line] = alignChain([{ ...wall, x1: wall.x1 + nx * side, y1: wall.y1 + ny * side, x2: wall.x2 + nx * side, y2: wall.y2 + ny * side }], pixel)
+    graphics.moveTo(line.x1, line.y1).lineTo(line.x2, line.y2)
+    graphics.stroke({ width, color: WALL_COLOR, alpha, cap: 'butt' })
   }
 }
 

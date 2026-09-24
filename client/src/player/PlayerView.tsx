@@ -58,6 +58,7 @@ import {
   type PlayerMeasureState,
 } from './playerMeasure'
 import { drawPlayerMeasure } from './drawPlayerMeasure'
+import { applyRoofCut } from './roofCut'
 
 interface PlayerViewProps {
   map: MapData
@@ -66,6 +67,8 @@ interface PlayerViewProps {
   explored?: Exploration
   /** Zonas ocultas ativas do mestre: pintadas de preto por cima da planta. */
   concealed?: RegionPoint[][]
+  /** Cone pelo vão de prédio com teto: o telhado abre só aqui (`roofCut.ts`). */
+  glimpses?: RegionPoint[][]
   ownTokens: string[]
   settings: PlayerViewSettings
   /** Token a centralizar. `focusSeq` muda a cada pedido, para repetir o mesmo token. */
@@ -382,6 +385,9 @@ interface Scene {
   roofs: Graphics
   lastRoofsKey: string | null
   roofsCount: number
+  /** Máscara invertida do telhado: o cone pelo vão (`applyRoofCut`). */
+  roofCut: Graphics
+  lastRoofCut: RegionPoint[][] | null
   tokens: Container
   tokenViews: Map<string, TokenView>
   camera: Camera
@@ -557,6 +563,7 @@ export function PlayerView({
   vision,
   explored,
   concealed = NO_CONCEALED,
+  glimpses = NO_CONCEALED,
   ownTokens,
   settings,
   focusTokenId,
@@ -574,8 +581,8 @@ export function PlayerView({
   const containerRef = useRef<HTMLDivElement | null>(null)
   const measureLabelRef = useRef<HTMLDivElement | null>(null)
   const sceneRef = useRef<Scene | null>(null)
-  const latestRef = useRef({ map, vision, explored, concealed, ownTokens, settings, onMove, signals, signalArmed, onSignal, measureArmed, onDoorToggle, onPinOpen, laser })
-  latestRef.current = { map, vision, explored, concealed, ownTokens, settings, onMove, signals, signalArmed, onSignal, measureArmed, onDoorToggle, onPinOpen, laser }
+  const latestRef = useRef({ map, vision, explored, concealed, glimpses, ownTokens, settings, onMove, signals, signalArmed, onSignal, measureArmed, onDoorToggle, onPinOpen, laser })
+  latestRef.current = { map, vision, explored, concealed, glimpses, ownTokens, settings, onMove, signals, signalArmed, onSignal, measureArmed, onDoorToggle, onPinOpen, laser }
 
   /**
    * Pinta a régua (linha no canvas + rótulo no DOM) a partir de `scene.measure`.
@@ -744,6 +751,7 @@ export function PlayerView({
       vision: currentVision,
       explored: currentExplored,
       concealed: currentConcealed,
+      glimpses: currentGlimpses,
       ownTokens: own,
       settings: currentSettings,
     } = latestRef.current
@@ -793,6 +801,10 @@ export function PlayerView({
     redrawFog(scene, currentMap, currentVision, currentExplored, currentSettings.exploredBrightness)
     redrawConcealed(scene, currentConcealed)
     redrawRoofs(scene, regions)
+    if (currentGlimpses !== scene.lastRoofCut) {
+      scene.lastRoofCut = currentGlimpses
+      applyRoofCut(scene.roofs, scene.roofCut, currentGlimpses)
+    }
 
     // O recorte do mestre já tirou daqui todo pino que este jogador não pode
     // ver (lib/fogFilter.ts): o que chegou é o que ele pode tocar.
@@ -923,6 +935,8 @@ export function PlayerView({
       const visionMask = new Graphics()
       const concealed = new Graphics()
       const roofs = new Graphics()
+      // Máscara do telhado: mora no mundo (acompanha a câmera, como `gridMask`).
+      const roofCut = new Graphics()
       const pins = new Container()
       const tokens = new Container()
       // Mesma ordem do editor, de baixo para cima; tudo da planta fica sob a
@@ -953,6 +967,7 @@ export function PlayerView({
         concealed,
         // Telhado acima da névoa e abaixo dos tokens: o token do jogador está
         // do lado de fora (senão o teto teria aberto) e nunca fica sob o prédio.
+        roofCut,
         roofs,
         pins,
         tokens,
@@ -1018,6 +1033,8 @@ export function PlayerView({
         roofs,
         lastRoofsKey: null,
         roofsCount: 0,
+        roofCut,
+        lastRoofCut: null,
         tokens,
         tokenViews: new Map(),
         camera: { x: 0, y: 0, scale: 1 },
@@ -1235,7 +1252,7 @@ export function PlayerView({
   useEffect(() => {
     const scene = sceneRef.current
     if (scene) redraw(scene)
-  }, [map, vision, explored, concealed, ownTokens, settings])
+  }, [map, vision, explored, concealed, glimpses, ownTokens, settings])
 
   useEffect(() => {
     // Contagem para o e2e (o desenho em si é do ticker); muda quando chega ou expira um sinal.

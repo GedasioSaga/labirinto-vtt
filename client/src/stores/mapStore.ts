@@ -306,6 +306,8 @@ interface MapStoreState {
    *  espelho exato de `setWallKindForWall`. Com histórico. */
   setWallThicknessForWall: (id: string, thickness: Wall['thickness']) => void
   setWallLineStyleForWall: (id: string, lineStyle: Wall['lineStyle']) => void
+  /** Liga/desliga 'Janela' numa parede sem porta (`Wall.janela`). Com histórico. */
+  setWallJanela: (id: string, janela: boolean) => void
   /** Tipo estrutural (`normal | double | gate`) da PRÓXIMA porta a nascer
    *  pela ferramenta "Porta" (`addDoorOnWall`) — preferência de ferramenta,
    *  mesma classe de `wallKind`/`polygonSides`. Não confundir com
@@ -1346,6 +1348,7 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
     setWallKindForWall: (id, kind) => withHistory((map) => mapFactory.setWallKindForWall(map, id, kind)),
     setWallThicknessForWall: (id, thickness) => withHistory((map) => mapFactory.setWallThicknessForWall(map, id, thickness)),
     setWallLineStyleForWall: (id, lineStyle) => withHistory((map) => mapFactory.setWallLineStyleForWall(map, id, lineStyle)),
+    setWallJanela: (id, janela) => withHistory((map) => mapFactory.setWallJanela(map, id, janela)),
     addDoorOnWall: (wallId, point, kind) => withHistory((map) =>
       mapFactory.addDoorOnWall(map, wallId, point, DOOR_LENGTH_BY_KIND[kind], kind),
     ),

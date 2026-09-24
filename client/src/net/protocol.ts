@@ -102,6 +102,19 @@ export interface DoorToggleMessage {
 }
 
 /**
+ * "Espiar": jogador olha pela porta FECHADA encostada no token dele. O host
+ * valida como o `door.toggle` (porta visível para ele, token perto) e, se
+ * valer, a visão DELE atravessa a porta por `PEEK_DURATION_MS`; a porta segue
+ * fechada para todos e o mestre recebe o aviso. Recusa volta no mesmo
+ * `door.toggle.rejected`. Aditiva: mestre antigo responde `error
+ * invalid_message`, que o jogador ignora.
+ */
+export interface DoorPeekMessage {
+  type: 'door.peek'
+  wallId: string
+}
+
+/**
  * Jogador troca o NOME e a FOTO do PRÓPRIO token, da tela dele. Campo ausente
  * = não mexe naquele dado; `image: null` remove a foto.
  *
@@ -150,6 +163,7 @@ export type PlayerMessage =
   | PingMessage
   | SignalMessage
   | DoorToggleMessage
+  | DoorPeekMessage
   | TokenEditMessage
   | PinTravelRequestMessage
   | PinReadMessage
@@ -183,8 +197,10 @@ export type HostMessage =
   // `name`: nome EFETIVO na sala, que pode não ser o que o jogador digitou.
   | { type: 'welcome'; playerId: string; resumeToken: string; name: string }
   | { type: 'lobby.waiting' }
-  | { type: 'snapshot'; rev: number; map: MapData; vision: RegionPoint[][]; explored: ExploredWire; ownTokens: string[]; concealed: RegionPoint[][] }
-  | { type: 'delta'; rev: number; map: MapData; vision: RegionPoint[][]; explored: ExploredWire; ownTokens: string[]; concealed: RegionPoint[][] }
+  // `glimpses`: cone pelo vão de prédio com teto (`PlayerMapView.glimpses`).
+  // Aditivo: ausente = telhado inteiro, que é o que o mestre antigo manda.
+  | { type: 'snapshot'; rev: number; map: MapData; vision: RegionPoint[][]; explored: ExploredWire; ownTokens: string[]; concealed: RegionPoint[][]; glimpses?: RegionPoint[][] }
+  | { type: 'delta'; rev: number; map: MapData; vision: RegionPoint[][]; explored: ExploredWire; ownTokens: string[]; concealed: RegionPoint[][]; glimpses?: RegionPoint[][] }
   | { type: 'token.move.accepted'; reqId: string; x: number; y: number }
   | { type: 'token.move.rejected'; reqId: string; reason: TokenMoveRejection }
   | { type: 'signal'; x: number; y: number; from: string; color: string }
@@ -342,6 +358,8 @@ export function parsePlayerMessage(raw: unknown): PlayerMessage | null {
       return isFiniteNumber(value.x) && isFiniteNumber(value.y) ? { type: 'signal', x: value.x, y: value.y } : null
     case 'door.toggle':
       return isBoundedString(value.wallId, 1, REQ_ID_MAX_LENGTH) ? { type: 'door.toggle', wallId: value.wallId } : null
+    case 'door.peek':
+      return isBoundedString(value.wallId, 1, REQ_ID_MAX_LENGTH) ? { type: 'door.peek', wallId: value.wallId } : null
     case 'token.edit':
       return parseTokenEdit(value)
     case 'pin.travel.request':

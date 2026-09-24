@@ -834,6 +834,26 @@ export function setWallLineStyleForWall(map: MapData, wallId: string, lineStyle:
 }
 
 /**
+ * Liga/desliga 'Janela' (`Wall.janela`): a visão atravessa, a ficha não. Só em
+ * parede sem porta — porta tem as regras dela, e a janela nela seria ignorada.
+ * Desligar TIRA o campo: a parede volta idêntica à comum, sem `janela: false`
+ * sobrando no arquivo.
+ */
+export function setWallJanela(map: MapData, wallId: string, janela: boolean): MapData {
+  const target = map.walls.find((w) => w.id === wallId)
+  if (target === undefined || target.door !== null || (target.janela === true) === janela) return map
+  return {
+    ...map,
+    walls: map.walls.map((w) => {
+      if (w.id !== wallId) return w
+      if (janela) return { ...w, janela: true }
+      const { janela: _janela, ...comum } = w
+      return comum
+    }),
+  }
+}
+
+/**
  * Folga, em px de mundo, para decidir "este pedaço está na MESMA RETA do vão" e
  * "estes dois pedaços se ENCOSTAM". Os pedaços de uma aresta nascem do mesmo
  * vetor unitário (`addDoorOnWall`), então o erro real aqui é de arredondamento

@@ -5,9 +5,12 @@ import type { MapData, RegionPoint } from '../types/map'
 import { LASER_MAX_POINTS_PER_MESSAGE, LASER_SEND_INTERVAL_MS } from '../lib/laser'
 import {
   createHostSession,
+  PEEK_DURATION_MS,
+  peekNoticeText,
   singleSceneWorld,
   type AppliedTokenEdit,
   type AppliedTransfer,
+  type HostPeek,
   type HostResult,
   type HostSession,
   type HostSignal,
@@ -176,6 +179,9 @@ export interface HostBridge {
 }
 
 export const BROADCAST_THROTTLE_MS = 50
+
+/** Folga do timer que fecha o cone do "Espiar": o prazo da sessão já venceu quando ele dispara. */
+const PEEK_CLOSE_SLACK_MS = 50
 /**
  * O aviso de jogador novo fica mais tempo que um info comum (4 s): o mestre
  * costuma estar desenhando no mapa, de olho no canvas e não no rail, e perder
@@ -283,6 +289,8 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   const travelToasts = new Map<string, string>()
   /** Último aviso de chegada de cada jogador: `playerId` -> id do toast. */
   const arrivalToasts = new Map<string, string>()
+  /** Prazo de cada "Espiar" aceito: no fim, o snapshot que fecha o cone. Fechar a sala cancela. */
+  const peekTimers = new Set<ReturnType<typeof setTimeout>>()
   /** O que cada conexão está vendo, anotado do que sai em `dispatch` (espelho do "Ver tela"). */
   const screens = createPlayerScreens()
   const screenWatchers = new Set<() => void>()
@@ -592,6 +600,21 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     travelToasts.set(request.requestId, toastId)
   }
 
+  /**
+   * "Espiar" aceito: o mestre lê quem espiou, quem espiou recebe o cone agora,
+   * e no fim do prazo sai o snapshot que o fecha — a sessão já não conta a
+   * porta espiada depois de `PEEK_DURATION_MS` (a folga cobre o relógio do timer).
+   */
+  const announcePeek = (peek: HostPeek) => {
+    useToastStore.getState().push('info', peekNoticeText(peek), PLAYER_JOINED_TOAST_MS)
+    broadcastNow()
+    const timer = setTimeout(() => {
+      peekTimers.delete(timer)
+      broadcastNow()
+    }, PEEK_DURATION_MS + PEEK_CLOSE_SLACK_MS)
+    peekTimers.add(timer)
+  }
+
   const onMessage = (event: { payload: unknown }) => {
     if (session === null || !isRecord(event.payload)) return
     const clientId = parseClientId(event.payload.clientId)
@@ -624,6 +647,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       else deps.applyDoor(wallId, open, sceneId)
       broadcastNow()
     }
+    if (result.peek !== undefined) announcePeek(result.peek)
     if (result.travelRequest !== undefined) {
       if (deps.applyTransfer === undefined) {
         // Integrador sem transferência: ninguém do lado do mestre saberia atender.
@@ -703,6 +727,8 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       }
       // Snapshot pendente sai antes: não pode chegar ao jogador depois do aviso.
       cancelPendingBroadcast()
+      for (const timer of peekTimers) clearTimeout(timer)
+      peekTimers.clear()
       resetLaser()
       // Avisa antes de derrubar: sem `room.closed` o jogador veria queda de rede,
       // não "O mestre encerrou a sala".
