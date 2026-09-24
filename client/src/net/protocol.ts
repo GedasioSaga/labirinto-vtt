@@ -3,6 +3,7 @@ import type { ExploredWire } from '../lib/exploration'
 import type { TokenMoveRejection } from '../lib/moveValidation'
 import { LASER_MAX_POINTS_PER_MESSAGE } from '../lib/laser'
 import { isTokenPhotoData } from '../lib/tokenPhoto'
+import { isNoiseDirection, type NoiseDirection } from '../lib/noise'
 
 /**
  * Protocolo mestre <-> jogador. Toda mensagem é um objeto discriminado por
@@ -51,6 +52,10 @@ import { isTokenPhotoData } from '../lib/tokenPhoto'
  * critério: o jogador abriu o cartão do pino e o texto estava lá. Acende
  * "leu" no painel Pistas do mestre. Não tem volta: nada sai para o jogador.
  * Mestre antigo responde `error invalid_message`, que o jogador ignora.
+ *
+ * `noise` (mestre -> jogador) é o RUÍDO NO MAPA, aditivo pelo mesmo critério:
+ * jogador antigo cai no `default` e ignora. Leva só um id e a DIREÇÃO já
+ * arredondada (`lib/noise.ts`), nunca a posição do ruído nem o que o fez.
  */
 export const PROTOCOL_VERSION = 1
 
@@ -195,6 +200,16 @@ export interface SceneNoteMessage {
   text: string
 }
 
+/**
+ * Ruído que o jogador ouviu: de que lado veio, visto da ficha dele. Sem
+ * posição, distância nem fonte — o host já decidiu tudo isso (`fogFilter.ts`).
+ */
+export interface NoiseMessage {
+  type: 'noise'
+  id: string
+  dir: NoiseDirection
+}
+
 export type HostErrorReason = 'bad_code' | 'invalid_message' | 'not_joined' | 'already_joined'
 
 export type HostMessage =
@@ -218,6 +233,7 @@ export type HostMessage =
   | { type: 'scene.changed'; by?: 'master' | 'gather' }
   | LaserMessage
   | SceneNoteMessage
+  | NoiseMessage
   | { type: 'kicked' }
   | { type: 'room.closed' }
   | { type: 'error'; reason: HostErrorReason }
@@ -316,6 +332,18 @@ export function parseSceneNote(value: unknown): SceneNoteMessage | null {
   if (!isBoundedString(id, 1, REQ_ID_MAX_LENGTH)) return null
   if (!isBoundedString(text, 1, NOTE_MAX_LENGTH)) return null
   return { type: 'scene.note', id, text }
+}
+
+/**
+ * Valida o `noise` que o jogador recebe. Devolve cópia só com `id` e `dir`:
+ * campo a mais (uma posição, um nome) não chega ao estado da tela.
+ */
+export function parseNoiseMessage(value: unknown): NoiseMessage | null {
+  if (!isRecord(value) || value.type !== 'noise') return null
+  const { id, dir } = value
+  if (!isBoundedString(id, 1, REQ_ID_MAX_LENGTH)) return null
+  if (!isNoiseDirection(dir)) return null
+  return { type: 'noise', id, dir }
 }
 
 /**

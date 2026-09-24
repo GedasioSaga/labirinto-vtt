@@ -14,6 +14,7 @@ import { DOOR_REACH_CELLS, distanceToWall, tokenRadiusOf } from './doorReach'
 import { darkVision, type Darkness } from './darkness'
 import { ancestorsOf, NESTING_TOLERANCE, pointInPolygonInclusive, pointOnPolygonBorder, subtreeIds } from './roomNesting'
 import { roomHasRoof } from './roomOps'
+import { noiseDirection, type NoiseDirection } from './noise'
 
 /**
  * Recorte do mapa que um jogador pode receber. Tudo que sai daqui vai pela
@@ -1833,4 +1834,34 @@ function pinForPlayer(pin: Pin, readable: boolean, known: boolean): Pin {
   const escolhas = exitLabelsOf(pin)
   if (escolhas.length > 1) forPlayer.escolhas = readable ? escolhas : unreadExitLabels(escolhas)
   return forPlayer
+}
+
+/**
+ * RUÍDO NO MAPA, o recorte do jogador: o que ele ouve de um ruído em `point`.
+ * Só a DIREÇÃO (`lib/noise.ts`), a partir da ficha DELE mais perto do ruído,
+ * e só se ela estiver a até `rangePx`. Nunca a posição nem o que o fez — isso
+ * nem entra no valor devolvido. As fichas que ouvem são as mesmas que dão
+ * visão em `filterMapForPlayer`: dele, não escondidas, com a camada de fichas
+ * à mostra. `null` = não ouve (sem ficha, longe, ou ponto/alcance inválido).
+ */
+export function noiseCueForPlayer(
+  map: MapData,
+  playerId: string,
+  ownership: Record<string, string[]>,
+  point: RegionPoint,
+  rangePx: number,
+): NoiseDirection | null {
+  if (!Number.isFinite(point.x) || !Number.isFinite(point.y)) return null
+  if (!Number.isFinite(rangePx) || rangePx <= 0) return null
+  const owned = new Set(ownership[playerId] ?? [])
+  let nearest: Token | null = null
+  let nearestDistance = Number.POSITIVE_INFINITY
+  for (const token of visibleTokens(map.tokens, map.hiddenLayers)) {
+    if (!owned.has(token.id) || token.hidden) continue
+    const distance = Math.hypot(token.x - point.x, token.y - point.y)
+    if (distance > rangePx || distance >= nearestDistance) continue
+    nearest = token
+    nearestDistance = distance
+  }
+  return nearest === null ? null : noiseDirection(nearest, point, map.grid)
 }

@@ -10,6 +10,7 @@ import { OWN_TOKEN_COLOR, PlayerView } from './PlayerView'
 import { PlayerPanel, loadPlayerSettings, savePlayerSettings } from './PlayerPanel'
 import { OpenPinCard } from './OpenPinCard'
 import { PlayerNoteCard } from './PlayerNoteCard'
+import { PlayerNoiseCue } from './PlayerNoiseCue'
 import { PeekDoorButton } from './PeekDoorButton'
 import { escapeDisarmsMeasure } from './playerMeasure'
 import type { PlayerViewSettings } from './PlayerPanel'
@@ -604,6 +605,10 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
         {state.note && (
           // `key` no id: recado novo com outro aberto remonta o cartão (e a entrada anima de novo).
           <PlayerNoteCard key={state.note.id} text={state.note.text} onClose={closeNote} escapeCloses={openPin === null} />
+        )}
+        {state.noise && (
+          // `key` no id: ruído novo remonta o aviso, e a entrada e o prazo da saída recomeçam.
+          <PlayerNoiseCue key={state.noise.id} dir={state.noise.dir} />
         )}
         {state.travel && (
           <p key={state.travel.id} className="pp-notice pp-notice--travel" role="status" aria-live="polite">
