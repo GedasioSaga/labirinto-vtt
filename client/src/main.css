@@ -3324,6 +3324,73 @@ html.lb-arrastando-cena * {
   font-size: var(--lb-font-size-sm);
 }
 
+/* AGENDA DA CAMPANHA (AgendaSection): a hora da mesa, os eventos e o formulário. */
+.lb-agenda,
+.lb-agenda__form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-2);
+}
+
+.lb-agenda__agora {
+  margin: 0;
+  color: var(--lb-color-parchment);
+  font-weight: 600;
+}
+
+.lb-agenda__vazio,
+.lb-agenda__dica {
+  margin: 0;
+  color: var(--lb-color-parchment-faint);
+  font-size: var(--lb-font-size-sm);
+}
+
+.lb-agenda__lista {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.lb-agenda__evento {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  column-gap: var(--lb-space-2);
+  padding: var(--lb-space-2) var(--lb-space-3);
+  border: 1px solid var(--lb-color-line);
+  border-radius: var(--lb-radius-md);
+  background: var(--lb-color-stone-sunken);
+}
+
+.lb-agenda__titulo {
+  overflow-wrap: anywhere;
+}
+
+.lb-agenda__momento {
+  grid-column: 1;
+  color: var(--lb-color-parchment-faint);
+  font-size: var(--lb-font-size-sm);
+}
+
+.lb-agenda__remover {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+}
+
+/* Disparado: fica na lista, apagado, para o mestre ver o que já passou. */
+.lb-agenda__evento[data-disparado='true'] .lb-agenda__titulo {
+  color: var(--lb-color-parchment-faint);
+}
+
+.lb-agenda__quando {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--lb-space-2);
+}
+
 /* Destino do pino de viagem (PinTravelControls): um poço rebaixado logo abaixo
    do tipo, com a régua da esquerda dizendo o estado sem precisar ler — latão
    quando a passagem leva a algum lugar, apagada quando não. É a mesma troca

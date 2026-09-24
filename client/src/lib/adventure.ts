@@ -1,4 +1,5 @@
 import type { MapData } from '../types/map'
+import { lerAgenda, type AgendaDaCampanha } from './agendaDaCampanha'
 
 /**
  * AVENTURA: várias cenas (mapas) numa pasta só. Cada cena continua sendo um
@@ -32,6 +33,12 @@ export interface Adventure {
   name: string
   startSceneId: string
   scenes: SceneEntry[]
+  /**
+   * AGENDA DA CAMPANHA (`lib/agendaDaCampanha.ts`): a hora da mesa e os
+   * eventos datados. Ausente = aventura sem agenda — é assim que toda aventura
+   * antiga abre. Só do mestre: o host não serve nada daqui ao jogador.
+   */
+  agenda?: AgendaDaCampanha
 }
 
 /** Nome de cena vazio vira este, em vez de uma entrada sem nome na lista. */
@@ -151,13 +158,16 @@ export function parseAdventure(json: string): Adventure {
   if (scenes.length === 0) throw new Error('adventure.json inválido: nenhuma cena')
 
   const startSceneId = typeof parsed.startSceneId === 'string' && seen.has(parsed.startSceneId) ? parsed.startSceneId : scenes[0].id
-  return {
+  const adventure: Adventure = {
     version: typeof parsed.version === 'number' ? parsed.version : ADVENTURE_VERSION,
     id: typeof parsed.id === 'string' && parsed.id.length > 0 ? parsed.id : `adv_${crypto.randomUUID()}`,
     name: typeof parsed.name === 'string' ? parsed.name : scenes[0].name,
     startSceneId,
     scenes: sanitizeSceneParents(scenes),
   }
+  // Agenda ausente ou ilegível: a aventura abre sem o campo, igual a uma antiga.
+  const agenda = lerAgenda(parsed.agenda)
+  return agenda === undefined ? adventure : { ...adventure, agenda }
 }
 
 export function serializeAdventure(adventure: Adventure): string {
