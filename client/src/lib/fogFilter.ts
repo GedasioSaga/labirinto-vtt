@@ -919,15 +919,16 @@ export function filterMapForPlayer(
     },
     seenNow: (w) =>
       w.door !== null ? doorSamples(w, DOOR_VISION_PROBE).some(isVisible) : wallSideSamples(w, map.grid, DOOR_VISION_PROBE).some(isVisible),
+    // Parede ou porta que o jogador nunca viu NÃO sai. A névoa cobria a planta
+    // na tela, mas a rede entregava o nível inteiro (12.724 de 15.073 paredes
+    // na a09) para quem abrisse o DevTools. Com memória da planta, só sai o
+    // visto agora ou lembrado (`recallItems`); sem ela, a regra antiga: o
+    // explorado mostra o presente. Sem explorado, só a visão atual conta.
     unseenOk: (w) => {
-      if (explored === undefined) return w.door === null
+      if (memoryMode || explored === undefined) return false
       const probe = explored.cell * DOOR_EXPLORED_PROBE_CELLS
-      // Porta explorada que nunca foi vista: só na regra antiga (com memória, ela é nova para o jogador).
-      if (w.door !== null) return !memoryMode && doorSamples(w, probe).some(isPointExploredOpen)
-      // Parede nunca vista: a planta vai inteira FORA do explorado (a névoa a cobre);
-      // dentro dele, seria a parede que o mestre ergueu longe do jogador.
-      if (!memoryMode) return true
-      return ![...wallSideSamples(w, map.grid, DOOR_VISION_PROBE), ...wallSideSamples(w, map.grid, probe)].some(isPointExploredOpen)
+      if (w.door !== null) return doorSamples(w, probe).some(isPointExploredOpen)
+      return [...wallSideSamples(w, map.grid, DOOR_VISION_PROBE), ...wallSideSamples(w, map.grid, probe)].some(isPointExploredOpen)
     },
   })
 

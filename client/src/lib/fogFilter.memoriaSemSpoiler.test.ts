@@ -136,7 +136,9 @@ describe('filterMapForPlayer: memória da planta sem spoiler', () => {
 
   it('zona oculta ligada e desligada com ele longe devolve a lembrança: chão, sala e muro como ele viu', () => {
     const j = jogador()
-    const visto = { walls: [wall('muro', 100, 100, 300, 100)], floor: [chao('lajota', 200, 160)], regions: [sala('sala', 'Salao')] }
+    // O muro fica na borda de cima da lajota: com chão no mapa a visão para na
+    // borda dele, e o jogador só recebe a parede que viu (paredes-so-as-vistas).
+    const visto = { walls: [wall('muro', 160, 120, 240, 120)], floor: [chao('lajota', 200, 160)], regions: [sala('sala', 'Salao')] }
     j.ver(mapa(PERTO, visto))
     const ids = (view: PlayerMapView) => [view.map.walls.map((w) => w.id), view.map.floor.map((f) => f.id), view.map.regions.map((r) => r.id)]
     expect(ids(j.ver(mapa(LONGE, visto)))).toEqual([['muro'], ['lajota'], ['sala']])

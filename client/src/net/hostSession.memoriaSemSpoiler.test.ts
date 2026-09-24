@@ -135,12 +135,13 @@ describe('hostSession: memória do explorado sem spoiler', () => {
     expect(JSON.stringify(snap.map)).not.toContain('pino-velho')
   })
 
-  it('parede nova em área nunca explorada continua saindo (a planta vai inteira fora da memória)', () => {
+  it('parede nova em área nunca explorada não sai: o jogador só recebe a parede que viu', () => {
     const t = mesa()
     t.s.broadcast(antes(PERTO))
     const comParedeLonge = { ...antes(PERTO), walls: [...antes(PERTO).walls, wall('parede-do-escuro', 900, 50, 950, 50)] }
     const snap = snapshotOf(t.s.broadcast(comParedeLonge).outbound)
-    expect(snap.map.walls.map((w) => w.id).sort()).toEqual(['parede-do-escuro', 'parede-velha'])
+    expect(snap.map.walls.map((w) => w.id)).toEqual(['parede-velha'])
+    expect(JSON.stringify(snap.map)).not.toContain('parede-do-escuro')
   })
 
   it('"Revelar planta" do mestre mostra o que existe agora, mesmo onde o jogador nunca andou', () => {
