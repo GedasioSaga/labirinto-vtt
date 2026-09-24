@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { DoorContextMenu } from '../components/DoorContextMenu'
 import { Application, Container, Graphics, Sprite, Texture, Assets, Rectangle } from 'pixi.js'
 import { dataUrlToBytes, imageExportScale, mapForImageExport, type ImageExportOptions, type MapImageExporter } from '../lib/mapImageExport'
 import { convertFileSrc } from '@tauri-apps/api/core'
@@ -147,6 +148,7 @@ import { pickImageFile, importPropImage } from '../lib/imageImport'
 import { mapDirFor } from '../lib/mapFileIO'
 import {
   findSelectableAt, findCurveControlPointAt, findWallAt, findNearestExistingVertex, findLockedLayerAt,
+  findDoorAt, findConcealZoneForSelect,
   type SelectableHit,
 } from '../lib/selectionHitTest'
 import type { SelectionKind } from '../types/tools'
@@ -547,6 +549,9 @@ export function PixiCanvas({
   }, [onShowShortcuts])
 
   const [nameEditor, setNameEditor] = useState<NameEditorState | null>(null)
+  // Clique direito numa porta: Abrir/Fechar e Trancar/Destrancar ali mesmo.
+  const [doorMenu, setDoorMenu] = useState<{ wallId: string; x: number; y: number } | null>(null)
+  const closeDoorMenu = useCallback(() => setDoorMenu(null), [])
   // Enter e Esc desmontam o campo, e o navegador pode disparar blur depois;
   // sem esta trava o blur gravaria o nome que o Esc acabou de cancelar.
   const nameEditorOpenRef = useRef(false)
@@ -1972,6 +1977,13 @@ export function PixiCanvas({
         y: (globalY - camera.y) / camera.scale,
       })
 
+      /** Com o pincel de blocos o botão direito APAGA (decisão de 15/09/2026):
+       *  ali ele não abre menu de porta nem é engolido por ele. */
+      const direitoApagaBlocos = (): boolean => {
+        const { activeTool, floorShapeKind } = useMapStore.getState()
+        return activeTool === 'floor' && floorShapeKind === 'blocos'
+      }
+
       /**
        * `target` escolhe QUAL toggle de `snapTargets` consultar (Token gruda no
        * centro da célula; Parede/Objeto — e todo o resto sem toggle próprio,
@@ -2949,6 +2961,15 @@ export function PixiCanvas({
         // borda, mesma forma que `selection` tinha antes da migração.
         const single = selectionSingle(selection)
 
+        // Botão direito numa porta: quem age é o menu da porta, aberto pelo
+        // `contextmenu` que vem logo depois. A ferramenta não roda — sem isto
+        // a ferramenta Porta punha outra porta ali e o Selecionar pegava a
+        // parede para arrastar.
+        if (event.button === 2 && !direitoApagaBlocos() && findDoorAt(map, worldPoint) !== null) {
+          mode = 'idle'
+          return
+        }
+
         // DUPLO CLIQUE QUE FECHA A FORMA, no ritmo de quem mira. A dica da
         // tela promete "Duplo clique fecha" (labels.ts) e até 21/09/2026 quem
         // cumpria a promessa era só o evento `dblclick` do navegador, de
@@ -3545,6 +3566,23 @@ export function PixiCanvas({
             // Pino de viagem: soltar sem arrastar atravessa a passagem (no
             // pointerup); arrastar continua movendo o pino, como qualquer pino.
             travelPress = pin.kind === 'viagem' && event.button === 0 ? { pinId: pin.id, x: event.global.x, y: event.global.y, moved: false } : null
+            lastPoint = { x: event.global.x, y: event.global.y }
+            updateCursor()
+            return
+          }
+        }
+
+        // Zona oculta na frente da sala e do chão: o clique no "tapete" abre a
+        // ZONA no painel ("Zona oculta"), sem trocar para a ferramenta Zona.
+        // Ficha, objeto, parede e escada dentro dela seguem ganhando o clique
+        // (`findConcealZoneForSelect`). Antes da camada travada: a zona não
+        // mora em camada, então uma sala travada embaixo não a esconde.
+        // Shift segue construindo o conjunto — a zona fica fora de `selection`.
+        if (activeTool === 'select' && event.button === 0 && !event.shiftKey) {
+          const zona = findConcealZoneForSelect(map, worldPoint)
+          if (zona !== null) {
+            useMapStore.getState().setSelectedConcealZone(zona.id)
+            mode = 'idle'
             lastPoint = { x: event.global.x, y: event.global.y }
             updateCursor()
             return
@@ -4148,6 +4186,9 @@ export function PixiCanvas({
           const store = useMapStore.getState()
           if (gesture === 'click') {
             if (!event.shiftKey && store.selection.length > 0) store.setSelection(EMPTY_SELECTION)
+            // A zona aberta pelo Selecionar (ver `findConcealZoneForSelect` no
+            // pointerdown) fecha no clique no vazio, como fecha na ferramenta Zona.
+            if (!event.shiftKey && store.selectedConcealZoneId !== null) store.setSelectedConcealZone(null)
           } else {
             const encontrados = selectionFromAreaSelection(selectEntitiesInArea(store.map, rect))
             store.setSelection(
@@ -5299,8 +5340,19 @@ export function PixiCanvas({
        * direito continuar normal em toda outra ferramenta.
        */
       const onContextMenu = (event: MouseEvent) => {
-        const { activeTool, floorShapeKind } = useMapStore.getState()
-        if (activeTool === 'floor' && floorShapeKind === 'blocos') event.preventDefault()
+        if (direitoApagaBlocos()) {
+          event.preventDefault()
+          return
+        }
+        // Porta sob o ponteiro, com QUALQUER ferramenta na mão: abre o menu
+        // da porta (DoorContextMenu) no lugar do menu do navegador. O
+        // `pointerdown` do mesmo botão já saiu sem deixar a ferramenta agir.
+        const rect = el.getBoundingClientRect()
+        const local = { x: event.clientX - rect.left, y: event.clientY - rect.top }
+        const porta = findDoorAt(useMapStore.getState().map, toWorldPoint(local.x, local.y))
+        if (porta === null) return
+        event.preventDefault()
+        setDoorMenu({ wallId: porta.id, x: local.x, y: local.y })
       }
       el.addEventListener('contextmenu', onContextMenu)
 
@@ -5726,6 +5778,10 @@ export function PixiCanvas({
     // nome fica num irmão para o React nunca reconciliar filhos do Pixi.
     <div style={{ position: 'relative', width: '100%', height: '100%' }}>
       <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
+      {doorMenu && (
+        // `key`: outra porta (ou a mesma de novo) remonta o menu, e o foco volta ao primeiro item.
+        <DoorContextMenu key={`${doorMenu.wallId}-${doorMenu.x}-${doorMenu.y}`} {...doorMenu} onClose={closeDoorMenu} />
+      )}
       {nameEditor && editorPosition && editorCamera && (
         <input
           // Trocar de alvo remonta o campo, para o autoFocus valer de novo.
