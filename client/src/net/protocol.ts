@@ -6,6 +6,7 @@ import { isTokenPhotoData } from '../lib/tokenPhoto'
 import { ROOM_TEXT_MAX_LENGTH } from '../lib/roomText'
 import { isPlayerSafePinImage } from '../lib/pins'
 import { CLUEBOOK_MAX_CLUES, CLUE_TEXT_MAX_LENGTH, CLUE_TITLE_MAX_LENGTH } from '../lib/clues'
+import { ABALO_SETAS, type AbaloSeta } from '../lib/abalo'
 
 /**
  * Protocolo mestre <-> jogador. Toda mensagem é um objeto discriminado por
@@ -80,6 +81,12 @@ import { CLUEBOOK_MAX_CLUES, CLUE_TEXT_MAX_LENGTH, CLUE_TITLE_MAX_LENGTH } from 
  * do colega da mesma cena; a lista vem do mesmo `clue.peers`). Do mestre:
  * `map.shared` (quem passou) e `map.share.result`. O trecho explorado em si
  * nunca viaja nestas mensagens: vai no `explored` do snapshot de quem recebeu.
+ *
+ * O ABALO POR DISTÂNCIA é aditivo pelo mesmo critério: `abalo` (mestre ->
+ * jogador) leva o texto da FAIXA daquele jogador, um id, a hora, `forte` (está
+ * na cena da origem: o aparelho vibra) e, só nesse caso, `seta` — o rumo de 8
+ * pontas visto da ficha dele. Nunca o ponto de origem, o id ou o nome de cena,
+ * nem o texto de outra faixa. Jogador antigo cai no `default` e ignora.
  */
 export const PROTOCOL_VERSION = 1
 
@@ -259,6 +266,20 @@ export interface SceneNoteMessage {
   at?: number
 }
 
+/**
+ * ABALO: o texto da faixa DESTE jogador. `forte` = ele está na cena da origem
+ * (vibra); `seta` só vem junto de `forte`, e só quando o mestre marcou um ponto
+ * e a ficha dele está no mapa. Entra no caderno como um recado.
+ */
+export interface AbaloMessage {
+  type: 'abalo'
+  id: string
+  text: string
+  at: number
+  forte: boolean
+  seta?: AbaloSeta
+}
+
 /** Um recado guardado no caderno do jogador. Nada da cena: só o que ele leu e quando. */
 export interface NoteEntry {
   id: string
@@ -380,6 +401,7 @@ export type HostMessage =
   | LaserMessage
   | RelayedLaserMessage
   | SceneNoteMessage
+  | AbaloMessage
   | RoomTextMessage
   | NotebookMessage
   | ClueHostMessage
@@ -489,6 +511,27 @@ export function parseSceneNote(value: unknown): SceneNoteMessage | null {
 
 function isNoteTime(value: unknown): value is number {
   return isFiniteNumber(value) && value >= 0
+}
+
+function isAbaloSeta(value: unknown): value is AbaloSeta {
+  return typeof value === 'string' && ABALO_SETAS.some((seta) => seta === value)
+}
+
+/**
+ * Valida o `abalo` que o jogador recebe. Mesma regra do recado: forma errada,
+ * texto vazio ou acima do teto recusam a mensagem inteira. A `seta` que este
+ * jogador não conhece (mestre mais novo) cai sozinha — o texto ainda vale.
+ * Devolve cópia só com os campos conhecidos.
+ */
+export function parseAbalo(value: unknown): AbaloMessage | null {
+  if (!isRecord(value) || value.type !== 'abalo') return null
+  const { id, text, at, forte, seta } = value
+  if (!isBoundedString(id, 1, REQ_ID_MAX_LENGTH)) return null
+  if (!isBoundedString(text, 1, NOTE_MAX_LENGTH)) return null
+  if (!isNoteTime(at) || typeof forte !== 'boolean') return null
+  const parsed: AbaloMessage = { type: 'abalo', id, text, at, forte }
+  if (forte && isAbaloSeta(seta)) parsed.seta = seta
+  return parsed
 }
 
 function parseNoteEntry(value: unknown): NoteEntry | null {
