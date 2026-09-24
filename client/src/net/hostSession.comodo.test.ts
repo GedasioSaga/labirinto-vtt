@@ -231,3 +231,43 @@ describe('hostSession — prédio de teto dentro do cômodo lembrado', () => {
     expect(JSON.stringify(semComodo.map)).not.toContain('nome-quarto')
   })
 })
+
+/**
+ * SALA COMUM DENTRO DO CÔMODO LEMBRADO, na memória do host. Mesmo pátio; a
+ * casa agora é Sala comum (sem teto, sem Cômodo) de porta TRANCADA, com o pino
+ * em (650, 400). O Bruno fica no pátio: a lembrança do pátio não pode marcar
+ * explorado lá dentro — a grade viaja para o jogador e desenharia a casa.
+ */
+function patioComCasaComum(): MapData {
+  const base = patioComCasa(true, { x: 200, y: 300 })
+  const trancada: Wall['door'] = { open: false, locked: true, kind: 'normal' }
+  return {
+    ...base,
+    regions: [
+      salaDe('patio', retangulo(100, 100, 800, 500), { shape: 'rect', name: 'nome-patio', comodo: true }),
+      salaDe('casa', retangulo(400, 200, 700, 450), { shape: 'rect', name: 'nome-casa' }),
+    ],
+    walls: base.walls
+      .filter((w) => !w.id.startsWith('divisoria') && w.id !== 'porta-do-quarto')
+      .map((w) => (w.id === 'porta-da-casa' ? { ...w, door: trancada } : w)),
+    pins: [{ ...pino('pino-na-casa', 650, 400), description: 'segredo-da-casa' }],
+  }
+}
+
+describe('hostSession — Sala comum dentro do cômodo lembrado', () => {
+  it('SEGURANÇA: a lembrança do pátio não marca explorado dentro da casa trancada nem a entrega', () => {
+    const { s } = mesa(patioComCasaComum())
+    const snap = snapshotPara(s.broadcast(patioComCasaComum()), 'c1')
+    expect(regioes(snap)).toEqual(['patio'])
+    expect(snap.map.pins).toEqual([])
+    expect(JSON.stringify(snap.map)).not.toContain('segredo-da-casa')
+    const explorado = decodeExploration(snap.explored)
+    expect(explorado).not.toBeNull()
+    if (explorado === null) return
+    // Controle: o pátio lembrado levantou a névoa longe da casa...
+    expect(isPointExplored(explorado, { x: 780, y: 480 })).toBe(true)
+    // ...e nada dentro da casa.
+    expect(isPointExplored(explorado, { x: 650, y: 400 })).toBe(false)
+    expect(isPointExplored(explorado, { x: 550, y: 320 })).toBe(false)
+  })
+})

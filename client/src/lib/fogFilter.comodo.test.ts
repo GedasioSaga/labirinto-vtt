@@ -366,12 +366,12 @@ describe('filterMapForPlayer — prédio de teto dentro de cômodo lembrado', ()
   it('o pátio lembrado leva o polígono da casa para o host não marcar explorado lá dentro (aberta ou fechada)', () => {
     const aberta = filterMapForPlayer(patioComCasa('comodo'), 'bruno', OWNERSHIP, RADIUS, undefined, undefined, undefined, lembraPatio)
     expect(aberta.rememberedRooms.map((r) => r.id)).toEqual(['patio'])
-    expect(aberta.rememberedRooms[0]?.roofsInside).toEqual([CASA_DE_TETO])
+    expect(aberta.rememberedRooms[0]?.roomsInside).toEqual([CASA_DE_TETO, QUARTO_DA_CASA])
 
     const naRua = { ...patioComCasa('comodo'), tokens: [ficha('ficha-bruno', { x: 200, y: 300 })] }
     const fechada = filterMapForPlayer(naRua, 'bruno', OWNERSHIP, RADIUS, undefined, undefined, undefined, lembraPatio)
     expect(fechada.rememberedRooms.map((r) => r.id)).toEqual(['patio'])
-    expect(fechada.rememberedRooms[0]?.roofsInside).toEqual([CASA_DE_TETO])
+    expect(fechada.rememberedRooms[0]?.roomsInside).toEqual([CASA_DE_TETO, QUARTO_DA_CASA])
   })
 
   it('controle: o cômodo lembrado DENTRO da casa aberta continua saindo inteiro, com o pino', () => {
@@ -387,6 +387,173 @@ describe('filterMapForPlayer — prédio de teto dentro de cômodo lembrado', ()
     )
     expect(ids(view.map.regions)).toEqual(['casa', 'patio', 'quarto'])
     expect(view.map.pins.map((p) => p.id)).toEqual(['pino-do-quarto'])
-    expect(view.rememberedRooms.find((r) => r.id === 'quarto')?.roofsInside).toEqual([])
+    expect(view.rememberedRooms.find((r) => r.id === 'quarto')?.roomsInside).toEqual([])
+  })
+})
+
+/**
+ * SALA COMUM DENTRO DE CÔMODO LEMBRADO — o padrão Casa > Quarto da vila. A
+ * Sala de dentro não é Cômodo nem tem teto: segue a regra de SEMPRE (sai
+ * quando o interior dela é visto ou explorado). A lembrança do cômodo de fora
+ * não pode entregá-la, nem o pino lá dentro, atrás de porta TRANCADA.
+ *
+ * Pátio (cômodo) 100..800 x 100..500; a casa (Sala comum) 400..700 x 200..450
+ * com porta TRANCADA na parede oeste; pino da casa em (650, 400) e pino do
+ * pátio no canto (150, 150).
+ */
+function trancada(id: string, x1: number, y1: number, x2: number, y2: number): Wall {
+  return parede(id, x1, y1, x2, y2, { open: false, locked: true, kind: 'normal' })
+}
+
+function patioComCasaComum(bruno: { x: number; y: number }, patio: Modo = 'comodo'): MapData {
+  return {
+    ...createEmptyMap('m-patio-comum', 'Patio do prefeito', 25, 25, 40),
+    regions: [sala('patio', PATIO, patio), sala('casa', CASA_DE_TETO, 'nenhum')],
+    walls: [
+      parede('patio-n', 100, 100, 800, 100),
+      parede('patio-l', 800, 100, 800, 500),
+      parede('patio-s', 100, 500, 800, 500),
+      parede('patio-o', 100, 100, 100, 500),
+      parede('casa-n', 400, 200, 700, 200),
+      parede('casa-l', 700, 200, 700, 450),
+      parede('casa-s', 400, 450, 700, 450),
+      parede('casa-o-1', 400, 200, 400, 300),
+      trancada('porta-da-casa', 400, 300, 400, 340),
+      parede('casa-o-2', 400, 340, 400, 450),
+    ],
+    pins: [pino('pino-na-casa', 650, 400, { description: 'segredo-da-casa' }), pino('pino-no-patio', 150, 150)],
+    tokens: [ficha('ficha-bruno', bruno)],
+  }
+}
+
+/** Casa (cômodo) 400..700 x 200..450; o quarto (Sala comum) 550..700 atrás de divisória com porta TRANCADA. */
+function casaComQuartoComum(bruno: { x: number; y: number }, portaDoQuarto: Wall = trancada('porta-do-quarto', 550, 300, 550, 340)): MapData {
+  return {
+    ...createEmptyMap('m-casa-quarto', 'Casa do prefeito', 25, 25, 40),
+    regions: [sala('casa', CASA_DE_TETO, 'comodo'), sala('quarto', QUARTO_DA_CASA, 'nenhum')],
+    walls: [
+      parede('casa-n', 400, 200, 700, 200),
+      parede('casa-l', 700, 200, 700, 450),
+      parede('casa-s', 400, 450, 700, 450),
+      parede('casa-o', 400, 200, 400, 450),
+      parede('divisoria-1', 550, 200, 550, 300),
+      portaDoQuarto,
+      parede('divisoria-2', 550, 340, 550, 450),
+    ],
+    pins: [pino('pino-do-quarto', 650, 400, { description: 'a-carta' }), pino('pino-da-frente', 450, 250)],
+    tokens: [ficha('ficha-bruno', bruno)],
+  }
+}
+
+describe('filterMapForPlayer — Sala comum dentro de cômodo lembrado', () => {
+  const NO_PATIO = { x: 200, y: 300 }
+
+  it('SEGURANÇA: o pátio lembrado não entrega a casa de porta trancada, nem o pino dela', () => {
+    // A régua: com o pátio Sala comum, a casa e o pino dela nunca saíram.
+    const comum = filterMapForPlayer(patioComCasaComum(NO_PATIO, 'nenhum'), 'bruno', OWNERSHIP, RADIUS).map
+    expect(ids(comum.regions)).toEqual(['patio'])
+    expect(ids(comum.pins)).toEqual(['pino-no-patio'])
+
+    const view = filterMapForPlayer(patioComCasaComum(NO_PATIO), 'bruno', OWNERSHIP, RADIUS)
+    expect(ids(view.map.regions)).toEqual(['patio'])
+    expect(ids(view.map.pins)).toEqual(['pino-no-patio'])
+    const json = JSON.stringify(view.map)
+    expect(json).not.toContain('nome-casa')
+    expect(json).not.toContain('pino-na-casa')
+    expect(json).not.toContain('segredo-da-casa')
+  })
+
+  it('o pátio lembrado leva o polígono da casa para o host não marcar explorado lá dentro', () => {
+    const view = filterMapForPlayer(patioComCasaComum(NO_PATIO), 'bruno', OWNERSHIP, RADIUS)
+    expect(view.rememberedRooms.map((r) => r.id)).toEqual(['patio'])
+    expect(view.rememberedRooms[0]?.roomsInside).toEqual([CASA_DE_TETO])
+  })
+
+  it('controle: de FORA do pátio, só pela lembrança, o pino do pátio sai e o da casa não', () => {
+    const lembrado = filterMapForPlayer(patioComCasaComum({ x: 950, y: 950 }), 'bruno', OWNERSHIP, RADIUS, undefined, undefined, undefined, new Set(['patio']))
+    expect(ids(lembrado.map.regions)).toEqual(['patio'])
+    expect(ids(lembrado.map.pins)).toEqual(['pino-no-patio'])
+  })
+
+  it('SEGURANÇA: Casa > Quarto — quem está na sala da frente não recebe o quarto trancado nem a carta', () => {
+    const view = filterMapForPlayer(casaComQuartoComum(DENTRO_DA_CASA), 'bruno', OWNERSHIP, RADIUS)
+    expect(ids(view.map.regions)).toEqual(['casa'])
+    expect(ids(view.map.pins)).toEqual(['pino-da-frente'])
+    const json = JSON.stringify(view.map)
+    expect(json).not.toContain('nome-quarto')
+    expect(json).not.toContain('a-carta')
+    expect(view.rememberedRooms[0]?.roomsInside).toEqual([QUARTO_DA_CASA])
+  })
+
+  it('controle: com a porta do quarto aberta, o quarto sai pela VISÃO, como Sala comum sempre saiu', () => {
+    const view = filterMapForPlayer(casaComQuartoComum(DENTRO_DA_CASA, porta('porta-do-quarto', 550, 300, 550, 340, true)), 'bruno', OWNERSHIP, RADIUS)
+    expect(ids(view.map.regions)).toEqual(['casa', 'quarto'])
+  })
+
+  it('controle: o Bruno dentro do quarto recebe o quarto e a carta', () => {
+    const view = filterMapForPlayer(casaComQuartoComum({ x: 650, y: 300 }), 'bruno', OWNERSHIP, RADIUS)
+    expect(ids(view.map.regions)).toEqual(['casa', 'quarto'])
+    expect(ids(view.map.pins)).toEqual(['pino-da-frente', 'pino-do-quarto'])
+  })
+})
+
+/**
+ * Sala de dentro GRANDE, que divide parede com o cômodo: a pergunta "quem
+ * contém quem" é pela ÁREA, e não pela maioria das amostras do cômodo — que
+ * caem, em boa parte, dentro da Sala de dentro quando ela ocupa mais da
+ * metade dele. Pátio 100..800 x 100..500; o galpão 350..800 (64% do pátio)
+ * encostado no canto leste, com o depósito 600..800 atrás de porta trancada.
+ */
+const GALPAO: Region['points'] = [
+  { x: 350, y: 100 },
+  { x: 800, y: 100 },
+  { x: 800, y: 500 },
+  { x: 350, y: 500 },
+]
+const DEPOSITO: Region['points'] = [
+  { x: 600, y: 100 },
+  { x: 800, y: 100 },
+  { x: 800, y: 500 },
+  { x: 600, y: 500 },
+]
+
+function patioComGalpao(galpao: Modo, bruno: { x: number; y: number }): MapData {
+  return {
+    ...createEmptyMap('m-galpao', 'Patio do prefeito', 25, 25, 40),
+    regions: [sala('patio', PATIO, 'comodo'), sala('galpao', GALPAO, galpao), sala('deposito', DEPOSITO, 'nenhum')],
+    walls: [
+      parede('patio-n', 100, 100, 800, 100),
+      parede('patio-l', 800, 100, 800, 500),
+      parede('patio-s', 100, 500, 800, 500),
+      parede('patio-o', 100, 100, 100, 500),
+      parede('galpao-o-1', 350, 100, 350, 280),
+      porta('porta-do-galpao', 350, 280, 350, 320, true),
+      parede('galpao-o-2', 350, 320, 350, 500),
+      parede('deposito-o-1', 600, 100, 600, 280),
+      trancada('porta-do-deposito', 600, 280, 600, 320),
+      parede('deposito-o-2', 600, 320, 600, 500),
+    ],
+    pins: [pino('pino-do-deposito', 700, 400, { description: 'o-cofre' })],
+    tokens: [ficha('ficha-bruno', bruno)],
+  }
+}
+
+describe('filterMapForPlayer — Sala grande dentro de cômodo lembrado', () => {
+  const NO_GALPAO = { x: 450, y: 400 }
+
+  it('SEGURANÇA: galpão de teto aberto com 64% do pátio não entrega o depósito trancado pela lembrança do pátio', () => {
+    const view = filterMapForPlayer(patioComGalpao('teto', NO_GALPAO), 'bruno', OWNERSHIP, RADIUS, undefined, undefined, undefined, new Set(['patio']))
+    expect(ids(view.map.regions)).toEqual(['galpao', 'patio'])
+    expect(view.map.pins).toEqual([])
+    expect(JSON.stringify(view.map)).not.toContain('o-cofre')
+    expect(view.rememberedRooms[0]?.roomsInside).toEqual([GALPAO, DEPOSITO])
+  })
+
+  it('SEGURANÇA: galpão Sala comum com 64% do pátio também não', () => {
+    const view = filterMapForPlayer(patioComGalpao('nenhum', NO_GALPAO), 'bruno', OWNERSHIP, RADIUS, undefined, undefined, undefined, new Set(['patio']))
+    expect(ids(view.map.regions)).toEqual(['galpao', 'patio'])
+    expect(view.map.pins).toEqual([])
+    expect(JSON.stringify(view.map)).not.toContain('o-cofre')
+    expect(view.rememberedRooms[0]?.roomsInside).toEqual([GALPAO, DEPOSITO])
   })
 })

@@ -680,13 +680,13 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     // não visto — a despensa dentro da sala lembrada continua escura. Remarca
     // a cada snapshot, antes do `forgetInside` abaixo: o prédio de teto que
     // fecha apaga o de dentro, e quem volta a entrar recebe os cômodos de volta.
-    // Prédio de teto dentro do cômodo (aberto ou fechado) também bloqueia: o
-    // contorno do pátio guardado cobriria a casa no meio dele, e o
-    // `forgetInside` abaixo só apaga célula — o contorno, de vértices fora da
-    // casa, sobreviveria e entregaria o interior quando o teto abrisse.
+    // Sala dentro do cômodo também bloqueia (`roomsInside`): o prédio de teto
+    // (aberto ou fechado) — o contorno do pátio guardado cobriria a casa no
+    // meio dele, e o `forgetInside` abaixo só apaga célula — e a Sala comum
+    // aninhada (o quarto de porta trancada), que só vira explorada pela visão.
     for (const room of view.rememberedRooms) {
       memory.seenRooms.add(room.id)
-      markRings(exp, [room.points], [...view.blocked, ...view.unseenInsideRemembered, ...room.roofsInside])
+      markRings(exp, [room.points], [...view.blocked, ...view.unseenInsideRemembered, ...room.roomsInside])
     }
     // TETO DE CONSTRUÇÃO: o teto não entra em `view.blocked` (o contorno do
     // prédio não é segredo, e o veto de lá joga fora o anel de visão inteiro,
