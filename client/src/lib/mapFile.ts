@@ -88,6 +88,18 @@ function roomRotationFromFile(region: Region): Region {
 }
 
 /**
+ * SALA ESCURA (`RoomMeta.dark`) é campo NOVO. Ausente continua ausente (sala
+ * clara, como sempre); só `true` volta. O resto (texto, número, arquivo editado
+ * à mão) SAI: a sala abre clara em vez de carregar um valor que o tipo não tem.
+ */
+function roomDarkFromFile(region: Region): Region {
+  const room = region.room
+  if (!room || typeof room !== 'object' || !('dark' in room) || room.dark === true) return region
+  const { dark: _descartado, ...semEscuro } = room
+  return { ...region, room: semEscuro }
+}
+
+/**
  * Porta lida do disco. `kind` virou obrigatório (porta antiga migra para
  * 'normal'). `secret` (porta secreta) é campo NOVO: só `true` volta; qualquer
  * outro valor sai do objeto, e a porta abre como porta comum — como sempre foi.
@@ -136,7 +148,7 @@ function deserializeMapFields(json: string): MapData {
     // inalterado — `room` ausente fica undefined (região comum); o ângulo do
     // giro da sala passa como veio, desde que seja número (`roomRotationFromFile`)
     regions: entityList(parsed.regions).map((r) =>
-      roomRotationFromFile({ ...r, fillColor: r.fillColor ?? '#3a7ad0', fillPattern: r.fillPattern ?? 'solid' }),
+      roomDarkFromFile(roomRotationFromFile({ ...r, fillColor: r.fillColor ?? '#3a7ad0', fillPattern: r.fillPattern ?? 'solid' })),
     ),
     // MUDA de cru para .map(): Token.image é obrigatório.
     // `imageData` (a cópia embutida que viaja até o jogador) NÃO ganha linha
@@ -234,6 +246,8 @@ function deserializeMapFields(json: string): MapData {
     // NOVO — "Visão nesta cena". Ausente continua ausente (o raio de sempre);
     // valor torto volta ausente em vez de virar raio zero (`lib/sceneVision.ts`).
     visionCells: readSceneVisionCells(parsed.visionCells),
+    // NOVO — "Cena escura". Só `true` escurece; ausente ou torto volta ausente (cena clara).
+    dark: parsed.dark === true ? true : undefined,
     ownerId: parsed.ownerId ?? null,
     scenarioLink: parsed.scenarioLink ?? null,
   }

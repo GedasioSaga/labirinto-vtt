@@ -165,7 +165,8 @@ export function computeVisibility(origin: RegionPoint, segments: Segment[], radi
   return polygon
 }
 
-function ringToSegments(ring: RegionPoint[]): Segment[] {
+/** Arestas de um anel fechado (o último vértice liga ao primeiro). */
+export function ringToSegments(ring: readonly RegionPoint[]): Segment[] {
   const out: Segment[] = []
   for (let i = 0; i < ring.length; i += 1) {
     const a = ring[i]

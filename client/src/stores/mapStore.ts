@@ -642,6 +642,8 @@ interface MapStoreState {
   setRoomNameHiddenFromPlayers: (id: string, hidden: boolean) => void
   /** TETO DE CONSTRUÇÃO — liga/desliga `RoomMeta.roof` da Sala, com histórico. */
   setRoomRoof: (id: string, roof: boolean) => void
+  /** SALA ESCURA — liga/desliga `RoomMeta.dark` da Sala, com histórico. */
+  setRoomDark: (id: string, dark: boolean) => void
   /** A5 — "Oculto para jogadores" de Token/Região/Objeto/Escada/Desenho. Com histórico. */
   setItemSecret: (kind: mapFactory.SecretKind, id: string, secret: boolean) => void
   /** A5 — abre a zona no painel e limpa a seleção comum (`null` fecha). */
@@ -726,6 +728,8 @@ interface MapStoreState {
   setMeasurementMode: (mode: MeasurementMode) => void
   /** "Visão nesta cena" em quadrados; `undefined` = sem valor. Com histórico. */
   setSceneVisionCells: (cells: number | undefined) => void
+  /** "Cena escura" (`MapData.dark`). Com histórico. */
+  setSceneDark: (dark: boolean) => void
   setScenarioLink: (value: string | null) => void
   setPropLinkedPath: (id: string, path: string | null) => void
   updateCurvePoint: (drawingId: string, index: number, x: number, y: number) => void
@@ -1386,6 +1390,10 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
       if (mapFactory.setRoomRoof(get().map, id, roof) === get().map) return
       withHistory((map) => mapFactory.setRoomRoof(map, id, roof))
     },
+    setRoomDark: (id, dark) => {
+      if (mapFactory.setRoomDark(get().map, id, dark) === get().map) return
+      withHistory((map) => mapFactory.setRoomDark(map, id, dark))
+    },
     setItemSecret: (kind, id, secret) => {
       if (mapFactory.setItemSecret(get().map, kind, id, secret) === get().map) return
       withHistory((map) => mapFactory.setItemSecret(map, kind, id, secret))
@@ -1461,6 +1469,10 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
     setMapScale: (scale) => withHistory((map) => mapFactory.setMapScale(map, scale)),
     setMeasurementMode: (mode) => withHistory((map) => mapFactory.setMeasurementMode(map, mode)),
     setSceneVisionCells: (cells) => withHistory((map) => mapFactory.setSceneVisionCells(map, cells)),
+    setSceneDark: (dark) => {
+      if (mapFactory.setSceneDark(get().map, dark) === get().map) return
+      withHistory((map) => mapFactory.setSceneDark(map, dark))
+    },
     setScenarioLink: (value) => withHistory((map) => mapFactory.setScenarioLink(map, value)),
     setPropLinkedPath: (id, path) => withHistory((map) => ({
       ...map,

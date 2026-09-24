@@ -1568,6 +1568,22 @@ export function setRoomRoof(map: MapData, id: string, roof: boolean): MapData {
   }
 }
 
+/** SALA ESCURA — "Sala escura" (`RoomMeta.dark`). Mesmo contrato de
+ * `setRoomRoof`: região comum, id inexistente ou valor igual devolve o mesmo
+ * `map`. Desligar TIRA o campo: sala clara fica igual à de antes dele. */
+export function setRoomDark(map: MapData, id: string, dark: boolean): MapData {
+  const region = map.regions.find((r) => r.id === id)
+  if (!region || !region.room || (region.room.dark === true) === dark) return map
+  return {
+    ...map,
+    regions: map.regions.map((r) => {
+      if (r.id !== id || !r.room) return r
+      const { dark: _antes, ...room } = r.room
+      return { ...r, room: dark ? { ...room, dark: true } : room }
+    }),
+  }
+}
+
 /** Entidades que aceitam "Oculto para jogadores" (`PlayerSecret` em types/map.ts). */
 export type SecretKind = 'token' | 'region' | 'prop' | 'stair' | 'drawing' | 'pin'
 
@@ -1786,4 +1802,15 @@ export function setSceneVisionCells(map: MapData, visionCells: number | undefine
     return rest
   }
   return { ...map, visionCells }
+}
+
+/**
+ * "Cena escura" (`MapData.dark`, `lib/darkness.ts`). Desligar TIRA o campo,
+ * como `setSceneVisionCells`; valor igual devolve o mesmo `map`.
+ */
+export function setSceneDark(map: MapData, dark: boolean): MapData {
+  if ((map.dark === true) === dark) return map
+  if (dark) return { ...map, dark: true }
+  const { dark: _antes, ...rest } = map
+  return rest
 }

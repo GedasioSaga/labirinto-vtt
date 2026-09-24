@@ -32,6 +32,10 @@ export interface RoomControlsProps {
    *  interruptor com o nome negado sem motivo. Ausente omite o toggle. */
   roof?: boolean
   onRoofChange?: (roof: boolean) => void
+  /** SALA ESCURA — `RoomMeta.dark`. Toggle direto ("Sala escura", desligado
+   *  por padrão), como o do teto. Ausente omite o toggle. */
+  dark?: boolean
+  onDarkChange?: (dark: boolean) => void
   /** 'polygon' (Sala Circular/Polígono Regular) esconde os campos de
    *  largura/altura — resize numérico só vale pra 'rect' (ver
    *  RoomMeta.shape em types/map.ts e lib/roomOps.ts). O nome continua
@@ -221,6 +225,8 @@ export function RoomControls({
   onNameHiddenFromPlayersChange,
   roof,
   onRoofChange,
+  dark,
+  onDarkChange,
   shape,
   axisAligned,
   width,
@@ -234,7 +240,9 @@ export function RoomControls({
   parentName,
   onCreateRoomInside,
 }: RoomControlsProps) {
-  const roofHintId = `${useId()}-roof-hint`
+  const hintBaseId = useId()
+  const roofHintId = `${hintBaseId}-roof-hint`
+  const darkHintId = `${hintBaseId}-dark-hint`
   return (
     <section className="lb-section">
       <h2 className="lb-eyebrow">Sala</h2>
@@ -265,6 +273,15 @@ export function RoomControls({
           <Toggle label="Teto fechado para jogadores" checked={roof} onChange={onRoofChange} describedBy={roofHintId} />
           <p className="lb-field__hint" id={roofHintId}>
             De fora o jogador vê só a silhueta do prédio; ele entra e o teto abre. Você continua vendo tudo.
+          </p>
+        </>
+      )}
+
+      {dark !== undefined && onDarkChange !== undefined && (
+        <>
+          <Toggle label="Sala escura" checked={dark} onChange={onDarkChange} describedBy={darkHintId} />
+          <p className="lb-field__hint" id={darkHintId}>
+            Aqui dentro o jogador só vê a casa em volta da ficha e o que uma Luz ilumina. Você continua vendo tudo.
           </p>
         </>
       )}

@@ -230,6 +230,12 @@ export interface RoomMeta {
    *  `undefined` === false (sem teto, comportamento idêntico ao de hoje) —
    *  sem linha de migração: a Sala de todo mapa já salvo continua aberta. */
   roof?: boolean
+  /** SALA ESCURA — dentro do polígono o jogador só vê a casa em volta da
+   *  ficha e o que uma Luz ilumina (`lib/darkness.ts`, aplicado em
+   *  `lib/fogFilter.ts`). Regra do mestre: não sai no recorte do jogador.
+   *  `undefined` === false (sala clara, como sempre) — sem linha de migração;
+   *  só `true` escurece, valor torto vindo do disco não. */
+  dark?: boolean
 }
 
 /**
@@ -886,6 +892,11 @@ export interface MapData {
    *  jogador de sempre — sem linha de migração, mesmo padrão de gridOffset. É
    *  do mestre: não sai no recorte do jogador (lib/fogFilter.ts). */
   visionCells?: number
+  /** CENA ESCURA — o jogador só vê a casa em volta da ficha e o que uma Luz
+   *  ilumina na linha de visão dele, mesmo além do raio (`lib/darkness.ts`).
+   *  É do mestre: não sai no recorte do jogador (`lib/fogFilter.ts`).
+   *  `undefined` === false (cena clara, como sempre) — sem linha de migração. */
+  dark?: boolean
   ownerId: string | null
   scenarioLink: string | null
 }
