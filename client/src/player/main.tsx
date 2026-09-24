@@ -551,6 +551,19 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
 
   const ownTokens = state.ownTokens ?? NO_TOKENS
   const map = state.map
+
+  // ATALHO NA MESMA CENA: o mapa não mudou, então a câmera não reenquadra
+  // sozinha. Cada chegada assim centra a ficha que atravessou (não a primeira
+  // dele: com duas fichas, o host diz qual foi), pelo mesmo caminho do
+  // "Minha ficha" (o pulso mostra onde ela foi parar). Um objeto novo por
+  // chegada: a ficha andando depois não move a câmera.
+  const arrivalFocus = state.arrivalFocus
+  useEffect(() => {
+    const arrivedTokenId = arrivalFocus?.tokenId ?? null
+    if (arrivedTokenId === null) return
+    setFocus((current) => ({ tokenId: arrivedTokenId, seq: current.seq + 1 }))
+  }, [arrivalFocus])
+
   const characters = useMemo(() => {
     if (!map) return []
     const byId = new Map(map.tokens.map((t) => [t.id, t]))

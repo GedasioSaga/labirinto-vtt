@@ -499,11 +499,25 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   }
 
   /**
+   * ATALHO NA MESMA CENA: a ficha só anda dentro do mapa, pelo mesmo caminho
+   * do movimento do jogador (fora do desfazer do mestre). A troca de cena da
+   * store recusa origem e destino iguais, e está certa: não há o que trocar.
+   * A cena aberta vai sem `sceneId`, como o movimento de sempre.
+   */
+  const moveWithinScene = (transfer: AppliedTransfer): boolean => {
+    const { tokenId, x, y, toSceneId } = transfer
+    if (world().open.sceneId === toSceneId) deps.applyMove(tokenId, x, y)
+    else deps.applyMove(tokenId, x, y, toSceneId)
+    return true
+  }
+
+  /**
    * A ficha troca de cena: "Deixar ir" do mestre ou pino livre. Move pela
    * store ANTES de mandar o `scene.changed`, e só avisa a chegada se moveu.
+   * No atalho na mesma cena ela só anda (`moveWithinScene`).
    */
   const completeTransfer = (result: HostResult, transfer: AppliedTransfer) => {
-    const moved = deps.applyTransfer?.(transfer) ?? false
+    const moved = transfer.fromSceneId === transfer.toSceneId ? moveWithinScene(transfer) : (deps.applyTransfer?.(transfer) ?? false)
     if (!moved) {
       // O "Você chegou" não pode sair: a ficha não saiu do lugar.
       void dispatch({ outbound: result.outbound.map(({ clientId }) => ({ clientId, msg: { type: 'pin.travel.rejected', reason: 'unavailable' } })) })
@@ -530,9 +544,13 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     const previous = arrivalToasts.get(transfer.playerId)
     if (previous !== undefined) useToastStore.getState().dismiss(previous)
     const goTo = deps.onGoToScene
+    const texto =
+      transfer.fromSceneId === transfer.toSceneId
+        ? `${transfer.playerName} atravessou para outro ponto de ${transfer.toSceneName}`
+        : `${transfer.playerName} entrou em ${transfer.toSceneName}`
     const toastId = useToastStore.getState().push(
       'info',
-      `${transfer.playerName} entrou em ${transfer.toSceneName}`,
+      texto,
       null,
       goTo === undefined ? {} : { actions: [{ label: 'Ir lá', run: () => goTo(transfer.toSceneId, transfer.x, transfer.y) }] },
     )

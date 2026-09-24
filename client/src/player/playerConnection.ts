@@ -56,6 +56,15 @@ export interface PlayerState {
   /** Pedido de passagem: esperando o mestre, ou a resposta dele. */
   travel?: TravelNotice
   /**
+   * ATALHO NA MESMA CENA: um objeto novo a cada chegada em que o mapa NÃO
+   * mudou de id (`scene.changed` e, logo atrás, um snapshot do mesmo mapa).
+   * `seq` sobe a cada chegada; `tokenId` é a ficha que atravessou (a que o
+   * host disse), que a tela centra — mapa novo não precisa, porque já chega
+   * enquadrado. `tokenId: null` = nenhuma ficha dele no mapa. Ausente =
+   * nenhuma chegada assim ainda.
+   */
+  arrivalFocus?: { seq: number; tokenId: string | null }
+  /**
    * Recado do mestre para a cena do jogador. Fica até ele fechar
    * (`dismissNote`); um recado novo toma o lugar do aberto. É texto puro: a
    * tela o mostra como texto, nunca como HTML.
@@ -402,6 +411,13 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
 
   let doorNoticeTimer: ReturnType<typeof setTimeout> | null = null
   let nextNoticeId = 1
+  /**
+   * O id do mapa em que o jogador estava quando chegou o `scene.changed`, até
+   * o snapshot seguinte. `null` = nenhuma chegada à espera. Ver `arrivalFocus`.
+   */
+  let arrivalFromMapId: string | null = null
+  /** A ficha que o `scene.changed` disse que atravessou (só no atalho), até o snapshot seguinte. */
+  let arrivalTokenId: string | null = null
 
   function clearDoorNotice(): void {
     if (doorNoticeTimer !== null) clearTimeout(doorNoticeTimer)
@@ -617,7 +633,23 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       move.prevY = token.y
       next = withTokenAt(next, move.tokenId, move.x, move.y)
     }
-    setState({ status: 'playing', rev, map: next, vision, explored, ownTokens, concealed, error: undefined })
+    // Chegada pelo atalho na MESMA cena: o mapa é o mesmo, então a câmera não
+    // reenquadra sozinha — a tela centra a ficha quando chega um pedido novo.
+    const atalho = arrivalFromMapId !== null && arrivalFromMapId === map.id
+    arrivalFromMapId = null
+    const arrivalFocus = atalho ? { seq: (state.arrivalFocus?.seq ?? 0) + 1, tokenId: arrivedToken(next, ownTokens) } : state.arrivalFocus
+    arrivalTokenId = null
+    setState({ status: 'playing', rev, map: next, vision, explored, ownTokens, concealed, error: undefined, arrivalFocus })
+  }
+
+  /**
+   * A ficha que atravessou o atalho: a que o host disse, se for dele e estiver
+   * no mapa; senão (host antigo, sem `tokenId`) a primeira dele no mapa.
+   */
+  function arrivedToken(map: MapData, ownTokens: readonly string[]): string | null {
+    const noMapa = (id: string) => ownTokens.includes(id) && map.tokens.some((t) => t.id === id)
+    if (arrivalTokenId !== null && noMapa(arrivalTokenId)) return arrivalTokenId
+    return ownTokens.find(noMapa) ?? null
   }
 
   function handleRejected(reqId: string, reason: unknown): void {
@@ -715,6 +747,8 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         setState({ playerId: data.playerId, status: state.status === 'playing' ? 'playing' : 'waiting' })
         return
       case 'lobby.waiting':
+        arrivalFromMapId = null
+        arrivalTokenId = null
         clearSignalTimers()
         clearLaserTimer()
         clearPlayerLasers()
@@ -731,6 +765,8 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         // mapa e seria reaplicado em cima do novo), sinais e laser. O mapa
         // novo vem no snapshot logo atrás.
         if (state.status !== 'playing') return
+        arrivalFromMapId = state.map?.id ?? null
+        arrivalTokenId = typeof data.tokenId === 'string' ? data.tokenId : null
         pending.clear()
         clearSignalTimers()
         clearLaserTimer()
