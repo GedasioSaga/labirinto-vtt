@@ -33,6 +33,7 @@ import { WallLineStyleField, WallStyleControls, type WallStyleControlsProps } fr
 import { StairControls, type StairControlsProps } from './StairControls'
 import { RoomControls, type RoomControlsProps } from './RoomControls'
 import type { MapScaleControlsProps } from './MapScaleControls'
+import type { FaceRangeControlsProps } from './FaceRangeControls'
 import type { GridAlignControlsProps } from './GridAlignControls'
 import { ItemTransformControls, type ItemTransformControlsProps } from './ItemTransformControls'
 import { ToolPropertiesSection } from './ToolPropertiesSection'
@@ -92,6 +93,8 @@ interface PropertiesPanelProps {
   pathStyle: PathStyleControlsProps
   grid: GridControlsProps
   mapScale: MapScaleControlsProps
+  /** "Rostos só de perto" da cena, na janela Configurações do mapa. */
+  faceRange: FaceRangeControlsProps
   gridAlign: GridAlignControlsProps
   layers: LayersPanelProps
   selection: SelectionControlsProps
@@ -188,6 +191,7 @@ export function PropertiesPanel({
   pathStyle,
   grid,
   mapScale,
+  faceRange,
   gridAlign,
   layers,
   selection,
@@ -261,7 +265,7 @@ export function PropertiesPanel({
             {mapName} · {mapWidth}×{mapHeight} · {mapGrid}px
           </span>
         </span>
-        <MapSettingsButton grid={grid} gridAlign={gridAlign} mapScale={mapScale} scenarioLink={scenarioLink} />
+        <MapSettingsButton grid={grid} gridAlign={gridAlign} mapScale={mapScale} faceRange={faceRange} scenarioLink={scenarioLink} />
       </header>
 
       <div className="lb-inspector__body lb-scroll">
