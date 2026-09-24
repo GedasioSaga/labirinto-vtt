@@ -83,7 +83,34 @@ export function drawDoors(graphics: Graphics, walls: Wall[], selectedWallId: str
       traceDoorRect(graphics, cx, cy, ux, uy, halfLength - outlineWidth / 2, thickness / 2 - outlineWidth / 2)
       graphics.stroke({ width: outlineWidth, color, join: 'miter' })
     }
+
+    if (door.opensFrom !== undefined) {
+      const arrowLength = strokeWidthInWorld(pixelGrid(cameraScale, rendererResolution, ONE_SIDE_ARROW_SCREEN_PX))
+      const gap = strokeWidthInWorld(pixelGrid(cameraScale, rendererResolution, ONE_SIDE_ARROW_GAP_SCREEN_PX))
+      // Normal (-uy, ux) aponta para o lado 'right' (`lib/doorReach.ts:sideOfWall`).
+      const sign = door.opensFrom === 'right' ? 1 : -1
+      traceOneSideArrow(graphics, cx, cy, ux, uy, sign, thickness / 2 + gap, arrowLength, Math.min(halfLength, arrowLength * 0.7))
+      graphics.fill({ color })
+    }
   }
+}
+
+/**
+ * PORTA DE UM LADO (`door.opensFrom`), só no editor — o jogador nunca recebe o
+ * campo (`lib/fogFilter.ts`): um triângulo chapado no lado que abre, com a
+ * ponta virada para a porta, na cor dela. Tamanho fixo na tela, como a espessura.
+ */
+export const ONE_SIDE_ARROW_SCREEN_PX = 8
+export const ONE_SIDE_ARROW_GAP_SCREEN_PX = 3
+
+function traceOneSideArrow(graphics: Graphics, cx: number, cy: number, ux: number, uy: number, sign: number, tipDistance: number, arrowLength: number, halfBase: number): void {
+  const nx = -uy * sign
+  const ny = ux * sign
+  const tipX = cx + nx * tipDistance
+  const tipY = cy + ny * tipDistance
+  const baseX = cx + nx * (tipDistance + arrowLength)
+  const baseY = cy + ny * (tipDistance + arrowLength)
+  graphics.poly([tipX, tipY, baseX + ux * halfBase, baseY + uy * halfBase, baseX - ux * halfBase, baseY - uy * halfBase], true)
 }
 
 /**

@@ -997,6 +997,16 @@ function unseenDoor(door: DoorState): DoorState {
 }
 
 /**
+ * A porta como o jogador a recebe: sem `opensFrom` (porta de um lado). O lado
+ * que abre é regra do mestre — o jogador descobre tentando, e quem decide é o
+ * host (`net/hostSession.ts`), com a porta do mapa do mestre.
+ */
+function doorForPlayer(door: DoorState): DoorState {
+  const { opensFrom: _regraDoMestre, ...rest } = door
+  return rest
+}
+
+/**
  * `explored`: memória do jogador ANTES desta visão (quem marca é o chamador).
  * Só a planta estática (regiões, desenhos e textos, escadas, portas, linhas,
  * marcadores) entra por estar explorada; token, prop e luz mudam de lugar e
@@ -1527,12 +1537,13 @@ export function filterMapForPlayer(
     if (inConcealZone(wallMidpoint(w))) return []
     if (doorSamples(w, DOOR_VISION_PROBE).some(isVisible)) {
       visibleDoorIds.push(w.id)
-      return [w]
+      return [{ ...w, door: doorForPlayer(door) }]
     }
     if (explored === undefined) return []
     const probe = explored.cell * DOOR_EXPLORED_PROBE_CELLS
     if (!doorSamples(w, probe).some(isPointExploredOpen)) return []
-    return [{ ...w, door: seenDoors?.get(w.id) ?? unseenDoor(door) }]
+    // A lembrada vem do mapa do mestre (`hostSession` guarda a porta vista inteira): passa pelo mesmo corte.
+    return [{ ...w, door: doorForPlayer(seenDoors?.get(w.id) ?? unseenDoor(door)) }]
   }
 
   /**

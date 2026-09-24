@@ -532,7 +532,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         // Aviso sem mapa na tela não tem onde aparecer.
         if (state.status !== 'playing') return
         const { reason } = data
-        if (reason !== 'locked' && reason !== 'far' && reason !== 'not_visible') return
+        if (reason !== 'locked' && reason !== 'far' && reason !== 'not_visible' && reason !== 'wrong_side') return
         showDoorNotice(reason)
         return
       }

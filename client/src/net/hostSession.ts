@@ -3,7 +3,7 @@ import { createExploration, encodeExploration, forgetInside, isPointExplored, ma
 import { pointInRing } from '../lib/floorContour'
 import { filterMapForPlayer, playerBlockedRings } from '../lib/fogFilter'
 import { validateTokenMove } from '../lib/moveValidation'
-import { tokenReachesDoor } from '../lib/doorReach'
+import { doorOpensFrom, tokenReachesDoor } from '../lib/doorReach'
 import { SIGNAL_MIN_INTERVAL_MS, signalColor } from '../lib/signals'
 import { arrivalPoint, arrivalSpot, exitLabelsOf, isArrivalOnly, resolvePinTravel, SAIDA_PRINCIPAL, travelExitOf, type TravelScene } from '../lib/pinTravel'
 import { passageOf, pinSummary } from '../lib/pins'
@@ -12,6 +12,7 @@ import {
   parsePlayerMessage,
   type DoorPeekMessage,
   type DoorToggleMessage,
+  type DoorToggleRejection,
   type HostMessage,
   type JoinMessage,
   type LaserMessage,
@@ -825,7 +826,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
    * Jogador abre ou fecha porta. Autoridade é aqui: a porta precisa existir,
    * estar VISÍVEL para ele agora (não só lembrada — senão abriria porta do
    * outro lado do mapa), estar DESTRANCADA (trancada é só do mestre) e ter um
-   * token dele encostado (`tokenReachesDoor`). Recusa vira aviso curto na tela
+   * token dele encostado (`tokenReachesDoor`) — e, para ABRIR porta de um lado
+   * (`DoorState.opensFrom`), encostado do lado certo. Recusa vira aviso curto na tela
    * do jogador; porta inexistente ou invisível responde o mesmo
    * `not_visible`, para não dizer o que existe no escuro.
    */
@@ -841,7 +843,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     if (last !== undefined && at - last < DOOR_TOGGLE_MIN_INTERVAL_MS) return { outbound: [] }
     lastDoorToggleAt.set(playerId, at)
 
-    const reject = (reason: 'locked' | 'far' | 'not_visible'): HostResult =>
+    const reject = (reason: DoorToggleRejection): HostResult =>
       reply(clientId, { type: 'door.toggle.rejected', wallId: msg.wallId, reason })
 
     const wall = map.walls.find((w) => w.id === msg.wallId)
@@ -853,8 +855,11 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     if (wall.door.locked) return reject('locked')
     const owned = new Set(ownership[playerId] ?? [])
     // Tokens do recorte do jogador: respeita camada oculta e token escondido pelo mestre.
-    const near = view.map.tokens.some((t) => owned.has(t.id) && tokenReachesDoor(t, wall, map.grid))
-    if (!near) return reject('far')
+    const near = view.map.tokens.filter((t) => owned.has(t.id) && tokenReachesDoor(t, wall, map.grid))
+    if (near.length === 0) return reject('far')
+    // PORTA DE UM LADO: para ABRIR, uma ficha dele encostada precisa estar do
+    // lado que abre (`wall` é a do mestre: o lado nunca sai no recorte). Fechar vale dos dois.
+    if (!wall.door.open && !near.some((t) => doorOpensFrom(wall, t))) return reject('wrong_side')
 
     return { outbound: [], applyDoor: { wallId: wall.id, open: !wall.door.open, ...backgroundSceneId(scene, world) } }
   }

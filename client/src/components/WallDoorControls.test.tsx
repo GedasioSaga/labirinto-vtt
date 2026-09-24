@@ -20,7 +20,7 @@ afterEach(() => {
 })
 
 function renderDoor(door: DoorState | null) {
-  const handlers = { onToggleDoor: vi.fn(), onToggleOpen: vi.fn(), onToggleLocked: vi.fn(), onToggleSecret: vi.fn(), onRevealPassage: vi.fn() }
+  const handlers = { onToggleDoor: vi.fn(), onToggleOpen: vi.fn(), onToggleLocked: vi.fn(), onToggleSecret: vi.fn(), onRevealPassage: vi.fn(), onOpensFromChange: vi.fn() }
   act(() => root.render(<WallDoorControls door={door} {...handlers} />))
   return handlers
 }
@@ -60,5 +60,38 @@ describe('WallDoorControls: porta secreta', () => {
     renderDoor(null)
     expect(checkboxLabeled('Secreta')).toBeNull()
     expect(buttonByText('Revelar passagem')).toBeUndefined()
+  })
+})
+
+function radioByText(text: string): HTMLButtonElement | undefined {
+  return [...container.querySelectorAll<HTMLButtonElement>('[role="radio"]')].find((b) => b.textContent === text)
+}
+
+describe('WallDoorControls: porta de um lado', () => {
+  it("'Abre por' mostra 'Os dois lados' marcado na porta comum e troca para 'Só deste lado'", () => {
+    const handlers = renderDoor({ open: false, locked: false, kind: 'normal' })
+    const grupo = container.querySelector('[role="radiogroup"][aria-label="Abre por"]')
+    expect(grupo).not.toBeNull()
+    expect(radioByText('Os dois lados')?.getAttribute('aria-checked')).toBe('true')
+    expect(radioByText('Só deste lado')?.getAttribute('aria-checked')).toBe('false')
+    // Sem lado escolhido, não há o que trocar.
+    expect(buttonByText('Trocar o lado')).toBeUndefined()
+    act(() => radioByText('Só deste lado')?.click())
+    expect(handlers.onOpensFromChange).toHaveBeenCalledWith('right')
+  })
+
+  it("com um lado só: 'Só deste lado' marcado, 'Trocar o lado' inverte, 'Os dois lados' desliga", () => {
+    const handlers = renderDoor({ open: false, locked: false, kind: 'normal', opensFrom: 'right' })
+    expect(radioByText('Só deste lado')?.getAttribute('aria-checked')).toBe('true')
+    expect(container.textContent).toContain('A seta no mapa mostra o lado que abre')
+    act(() => buttonByText('Trocar o lado')?.click())
+    expect(handlers.onOpensFromChange).toHaveBeenLastCalledWith('left')
+    act(() => radioByText('Os dois lados')?.click())
+    expect(handlers.onOpensFromChange).toHaveBeenLastCalledWith(null)
+  })
+
+  it('parede sem porta não mostra o controle', () => {
+    renderDoor(null)
+    expect(container.querySelector('[aria-label="Abre por"]')).toBeNull()
   })
 })
