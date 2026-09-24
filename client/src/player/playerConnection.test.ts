@@ -94,7 +94,7 @@ describe('createPlayerConnection', () => {
     const { connection, socket } = setup()
     expect(connection.getState().status).toBe('connecting')
     socket.open()
-    expect(socket.sent).toEqual([{ type: 'join', code: 'ABC123', name: 'Ana' }])
+    expect(socket.sent).toEqual([{ type: 'join', code: 'ABC123', name: 'Ana', patch: true }])
   })
 
   it('guarda resumeToken no welcome e o reenvia no próximo join da mesma sala', () => {
@@ -107,14 +107,14 @@ describe('createPlayerConnection', () => {
 
     const second = setup(storage)
     second.socket.open()
-    expect(second.socket.sent[0]).toEqual({ type: 'join', code: 'ABC123', name: 'Ana', resume: 'tok' })
+    expect(second.socket.sent[0]).toEqual({ type: 'join', code: 'ABC123', name: 'Ana', resume: 'tok', patch: true })
   })
 
   it('funciona sem storage (join sem resume)', () => {
     const { connection, socket } = setup(null)
     socket.open()
     socket.receive({ type: 'welcome', playerId: 'p1', resumeToken: 'tok' })
-    expect(socket.sent[0]).toEqual({ type: 'join', code: 'ABC123', name: 'Ana' })
+    expect(socket.sent[0]).toEqual({ type: 'join', code: 'ABC123', name: 'Ana', patch: true })
     expect(connection.getState().status).toBe('waiting')
   })
 

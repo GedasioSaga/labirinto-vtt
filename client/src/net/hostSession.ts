@@ -22,7 +22,8 @@ import {
   type TokenEditMessage,
   type TokenMoveMessage,
 } from './protocol'
-import { clampNoteText } from './protocol'
+import { clampNoteText, VIEW_RESYNC_MIN_INTERVAL_MS } from './protocol'
+import { diffView, isEmptyViewPatch, type PlayerViewContent } from './viewPatch'
 
 /**
  * Sessão do mestre, lógica pura: não envia nada. Cada método devolve as
@@ -297,8 +298,9 @@ export interface HostSession {
   closeRoom(): HostResult
   /**
    * Snapshot para todo jogador conectado e jogando, cada um da cena ONDE ELE
-   * ESTÁ — mas só para quem a tela mudou desde o último que recebeu. `rev`
-   * sobe a cada chamada, mande ou não.
+   * ESTÁ — mas só para quem a tela mudou desde o último que recebeu, e a quem
+   * sabe aplicar só o que mudou nela (`patch`). `rev` sobe a cada chamada,
+   * mande ou não.
    */
   broadcast(source: HostMapSource): HostResult
   /**
@@ -349,6 +351,11 @@ export interface HostSession {
    * de todas.
    */
   hidePlan(playerId: string, source?: HostMapSource): void
+  /**
+   * O envio para esta conexão falhou (fila cheia, socket caindo): ela não tem
+   * a tela que o host acha que tem. O próximo broadcast manda a inteira.
+   */
+  forgetView(clientId: string): void
   /** Com `source` de uma aventura, cada jogador que joga vem com o nome da cena onde está. */
   listPlayers(source?: HostMapSource): PlayerInfo[]
   /**
@@ -426,8 +433,10 @@ interface SentView {
   radius: number
   ownershipRev: number
   memory: PlayerMemory | undefined
-  /** A tela sem o `rev`: duas iguais aqui são a mesma coisa na tela do jogador. */
-  wire: string
+  /** O que a conexão tem na tela; `null` = a espera. É de onde sai o próximo `patch`. */
+  view: PlayerViewContent | null
+  /** `rev` da última tela que a conexão recebeu: a `base` do próximo `patch`. */
+  rev: number
   /**
    * O último recálculo, com estas MESMAS entradas, repetiu a tela e deixou a
    * memória como estava: recalcular de novo daria o mesmo, e o recorte pode
@@ -437,10 +446,11 @@ interface SentView {
   stable: boolean
 }
 
+type SnapshotMessage = Extract<HostMessage, { type: 'snapshot' }>
+
 /** O que sai na tela do jogador, sem o `rev` (que muda a cada broadcast). */
-function wireOf(msg: HostMessage): string {
-  if (msg.type !== 'snapshot') return msg.type
-  return JSON.stringify([msg.map, msg.vision, msg.explored, msg.ownTokens, msg.concealed])
+function contentOf(msg: SnapshotMessage): PlayerViewContent {
+  return { map: msg.map, vision: msg.vision, explored: msg.explored, ownTokens: msg.ownTokens, concealed: msg.concealed }
 }
 
 /** Mesmas entradas, item a item (a planta lembrada guarda o objeto do mapa, não cópia). */
@@ -499,6 +509,10 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   const visionOverrides = new Map<string, number>()
   // Por clientId: a última tela que a conexão recebeu (ver `SentView`).
   const sentViews = new Map<string, SentView>()
+  // Por clientId: conexões que disseram no `join` que sabem aplicar `patch`.
+  const patchClients = new Set<string>()
+  // Por playerId: limite do `view.resync` (VIEW_RESYNC_MIN_INTERVAL_MS).
+  const lastResyncAt = new Map<string, number>()
   // Sobe a cada troca de posse: ela entra no recorte de todo jogador.
   let ownershipRev = 0
   let rev = 0
@@ -588,7 +602,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
    * atual já entra por si); a marcação vem depois e segue junto para o jogador
    * desenhar a névoa.
    */
-  const snapshotFor = (playerId: string, map: MapData): HostMessage => {
+  const snapshotFor = (playerId: string, map: MapData): SnapshotMessage => {
     const memory = memoryFor(playerId, map)
     const exp = memory.exp
     const view = filterMapForPlayer(map, playerId, ownership, radiusFor(playerId), exp, memory.doors, memory.plan)
@@ -622,8 +636,17 @@ export function createHostSession(options: HostSessionOptions): HostSession {
    *
    * O que NÃO sai também protege a névoa: um snapshot de `rev` novo e tela
    * igual diria ao jogador que algo se mexeu onde ele não vê.
+   *
+   * Quem sabe aplicar (`patchClients`) e já tem uma tela recebe só o que
+   * mudou nela (`patch`): o passo de um jogador vira as coordenadas de uma
+   * ficha, e não o mapa com a foto de todas. Quem não sabe, ou está saindo da
+   * espera, recebe o snapshot inteiro.
+   *
+   * `force`: manda mesmo com a tela igual — a do jogador pode não ser a que o
+   * host mandou (ele aplicou algo otimista que o host recusou calado). O
+   * `patch` vazio basta: o jogador volta para a última tela recebida.
    */
-  const viewIfChanged = (clientId: string, playerId: string, world: HostWorld): HostMessage | null => {
+  const viewIfChanged = (clientId: string, playerId: string, world: HostWorld, force = false): HostMessage | null => {
     const scene = sceneFor(playerId, world)
     const map = scene === null ? null : scene.map
     const radius = radiusFor(playerId)
@@ -636,17 +659,48 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       last.radius === radius &&
       last.ownershipRev === ownershipRev &&
       last.memory === before
-    if (sameInputs && last.stable) return null
+    if (!force && sameInputs && last.stable) return null
     const planBefore = before === undefined ? null : before.plan
     const doorsBefore = before === undefined ? null : doorsKey(before.doors)
-    const msg: HostMessage = map === null ? { type: 'lobby.waiting' } : snapshotFor(playerId, map)
+    const snapshot = map === null ? null : snapshotFor(playerId, map)
     const after = map === null ? undefined : existingMemory(playerId, map)
-    const wire = wireOf(msg)
-    const repeated = last !== undefined && last.wire === wire
+    const view = snapshot === null ? null : contentOf(snapshot)
+    const out = messageFor(clientId, last, snapshot, view, force)
     const memorySettled =
       after === before && (after === undefined || (planBefore !== null && samePlan(planBefore, after.plan) && doorsKey(after.doors) === doorsBefore))
-    sentViews.set(clientId, { playerId, map, radius, ownershipRev, memory: after, wire, stable: sameInputs && repeated && memorySettled })
-    return repeated ? null : msg
+    // Nada saiu: a conexão continua com a tela (e o `rev`) de antes.
+    const sentRev = out === null && last !== undefined ? last.rev : rev
+    sentViews.set(clientId, { playerId, map, radius, ownershipRev, memory: after, view, rev: sentRev, stable: sameInputs && out === null && memorySettled })
+    return out
+  }
+
+  /** O que sai para a conexão, dada a última tela dela (`last`) e a de agora. `null` = nada. */
+  const messageFor = (
+    clientId: string,
+    last: SentView | undefined,
+    snapshot: SnapshotMessage | null,
+    view: PlayerViewContent | null,
+    force: boolean,
+  ): HostMessage | null => {
+    const had = last === undefined ? undefined : last.view
+    if (snapshot === null || view === null) return had === null ? null : { type: 'lobby.waiting' }
+    // Sem tela anterior (primeira vez, ou saindo da espera): só o snapshot serve.
+    if (last === undefined || had === undefined || had === null) return snapshot
+    const patch = diffView(had, view)
+    // Campo que sumiu do mapa não cabe num patch: vai inteiro.
+    if (patch === null) return snapshot
+    if (isEmptyViewPatch(patch) && !force) return null
+    return patchClients.has(clientId) ? { type: 'patch', rev, base: last.rev, ...patch } : snapshot
+  }
+
+  /**
+   * Manda de novo a tela desta conexão, com `rev` novo: a do jogador não é a
+   * que o host acha que ela é. Sem tela guardada sai o snapshot inteiro.
+   */
+  const resendView = (clientId: string, playerId: string, world: HostWorld): HostResult => {
+    rev += 1
+    const msg = viewIfChanged(clientId, playerId, world, true)
+    return msg === null ? { outbound: [] } : reply(clientId, msg)
   }
 
   /**
@@ -658,7 +712,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     for (const [clientId, sent] of sentViews) if (sent.playerId === playerId) sentViews.delete(clientId)
   }
 
-  const reply =(clientId: string, msg: HostMessage): HostResult => ({ outbound: [{ clientId, msg }] })
+  const reply = (clientId: string, msg: HostMessage): HostResult => ({ outbound: [{ clientId, msg }] })
 
   /** Jogador que jogava e ficou sem token volta ao lobby; desconectado recebe o estado no resume. */
   const waitingIfLostLast = (playerId: string, wasPlaying: boolean): Outbound[] => {
@@ -695,7 +749,12 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       joinedAt: now(),
     }
     // Reassumir derruba o vínculo com a conexão antiga, se ainda existir.
-    if (record.clientId !== null) byClient.delete(record.clientId)
+    if (record.clientId !== null) {
+      byClient.delete(record.clientId)
+      patchClients.delete(record.clientId)
+    }
+    if (msg.patch === true) patchClients.add(clientId)
+    else patchClients.delete(clientId)
     record.clientId = clientId
     record.name = uniqueName(msg.name, record.playerId)
     players.set(record.playerId, record)
@@ -933,10 +992,31 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     if (msg.image !== undefined) {
       const at = now()
       const last = lastTokenPhotoAt.get(playerId)
-      if (last !== undefined && at - last < TOKEN_PHOTO_MIN_INTERVAL_MS) return { outbound: [] }
+      // Descartada: a tela do jogador já mostra a foto nova (edição otimista) e
+      // nenhum broadcast a desfaria — para o host a tela dele não mudou. Volta
+      // a tela recebida por último, com a foto que vale.
+      if (last !== undefined && at - last < TOKEN_PHOTO_MIN_INTERVAL_MS) return resendView(clientId, playerId, world)
       lastTokenPhotoAt.set(playerId, at)
     }
     return { outbound: [], applyTokenEdit: { tokenId: msg.tokenId, name: msg.name, image: msg.image, ...backgroundSceneId(scene, world) } }
+  }
+
+  /**
+   * O jogador descartou um `patch` cuja `base` não era a tela dele (mensagem
+   * perdida na fila do transporte) e pede a inteira. Mais de um pedido por
+   * `VIEW_RESYNC_MIN_INTERVAL_MS` morre em silêncio: a tela inteira é o
+   * recorte mais caro do host.
+   */
+  function handleResync(clientId: string, world: HostWorld): HostResult {
+    const playerId = byClient.get(clientId)
+    if (playerId === undefined) return reply(clientId, { type: 'error', reason: 'not_joined' })
+    if (statusOf(playerId) !== 'playing') return { outbound: [] }
+    const at = now()
+    const last = lastResyncAt.get(playerId)
+    if (last !== undefined && at - last < VIEW_RESYNC_MIN_INTERVAL_MS) return { outbound: [] }
+    lastResyncAt.set(playerId, at)
+    sentViews.delete(clientId)
+    return resendView(clientId, playerId, world)
   }
 
   /**
@@ -1094,6 +1174,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
           return handleMove(clientId, msg, world)
         case 'ping':
           return { outbound: [] }
+        case 'view.resync':
+          return handleResync(clientId, world)
         case 'signal':
           return handleSignal(clientId, msg, world)
         case 'door.toggle':
@@ -1207,6 +1289,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       if (playerId === undefined) return
       byClient.delete(clientId)
       sentViews.delete(clientId)
+      patchClients.delete(clientId)
       const record = players.get(playerId)
       if (record !== undefined) record.clientId = null // mantém o registro para permitir resume
       // O pedido pendente morre com a conexão: quem voltar não tem mais o
@@ -1224,6 +1307,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       delete ownership[playerId]
       ownershipRev += 1
       forgetSentView(playerId)
+      patchClients.delete(clientId)
+      lastResyncAt.delete(playerId)
       memories.delete(playerId)
       currentScene.delete(playerId)
       forgetTravelsOf(playerId)
@@ -1267,6 +1352,10 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       // menos o que está sob zona, sala secreta ou teto (lá o explorado também
       // não foi marcado): desfeito o esconderijo depois, nada disso volta como lembrado.
       memory.plan = planOfWholeMap(map)
+    },
+
+    forgetView(clientId) {
+      sentViews.delete(clientId)
     },
 
     hidePlan(playerId, source) {

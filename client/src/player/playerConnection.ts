@@ -16,7 +16,8 @@ import {
   type RemoteLaser,
   type RemoteLaserUpdate,
 } from '../lib/laser'
-import { parseLaserMessage, parseSceneNote } from '../net/protocol'
+import { parseLaserMessage, parseSceneNote, VIEW_RESYNC_MIN_INTERVAL_MS } from '../net/protocol'
+import { applyMapPatch, type MapPatch, type TokenChange } from '../net/viewPatch'
 
 /**
  * Cliente WebSocket do jogador, sem React e sem DOM: o socket e o storage são
@@ -189,6 +190,20 @@ interface PendingMove {
   prevY: number
 }
 
+/**
+ * A última tela que o MESTRE mandou, sem nada otimista por cima (movimento
+ * pendente, nome ou foto ainda sem resposta). É a base do próximo `patch`, e
+ * é para ela que a tela volta quando o mestre não confirma.
+ */
+interface ReceivedView {
+  rev: number
+  map: MapData
+  vision: RegionPoint[][]
+  explored: Exploration | undefined
+  ownTokens: string[]
+  concealed: RegionPoint[][]
+}
+
 interface StoredResume {
   code: string
   token: string
@@ -236,6 +251,25 @@ function isMapShape(value: unknown): value is MapData {
   )
 }
 
+function isTokenChange(value: unknown): value is TokenChange {
+  if (!isRecord(value) || typeof value.id !== 'string') return false
+  if ('token' in value) return isRecord(value.token) && value.token.id === value.id && isFiniteNumber(value.token.x) && isFiniteNumber(value.token.y)
+  return isRecord(value.set)
+}
+
+/**
+ * Checagem estrutural rasa do `patch` do mapa, no mesmo critério de
+ * `isMapShape`: o mestre é a fonte. O mapa que sai da aplicação passa por
+ * `isMapShape` de novo antes de ir para a tela.
+ */
+function isMapPatchShape(value: unknown): value is MapPatch {
+  if (!isRecord(value) || !isRecord(value.set)) return false
+  const { tokens } = value
+  if (tokens === undefined) return true
+  if (!isRecord(tokens) || !Array.isArray(tokens.change) || !tokens.change.every(isTokenChange)) return false
+  return isStringList(tokens.remove) && (tokens.order === undefined || isStringList(tokens.order))
+}
+
 function readResume(storage: StorageLike | null, code: string): string | undefined {
   if (!storage) return undefined
   try {
@@ -272,6 +306,9 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
   const listeners = new Set<() => void>()
   const pending = new Map<string, PendingMove>()
   let state: PlayerState = { status: 'connecting', rev: -1 }
+  // A última tela do mestre, sem o otimista (ver `ReceivedView`); `null` = nenhuma.
+  let received: ReceivedView | null = null
+  let lastResyncAt = Number.NEGATIVE_INFINITY
   let socket: SocketLike | null = null
   let pingTimer: ReturnType<typeof setInterval> | null = null
   let nextReqId = 1
@@ -453,6 +490,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     concealed: RegionPoint[][],
   ): void {
     if (rev <= state.rev) return
+    received = { rev, map, vision, explored, ownTokens, concealed }
     let next = map
     // Reaplica, em ordem, só os movimentos ainda não confirmados pelo mestre.
     for (const [reqId, move] of pending) {
@@ -466,6 +504,43 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       next = withTokenAt(next, move.tokenId, move.x, move.y)
     }
     setState({ status: 'playing', rev, map: next, vision, explored, ownTokens, concealed, error: undefined })
+  }
+
+  /** Pede a tela inteira ao mestre, no máximo uma vez por `VIEW_RESYNC_MIN_INTERVAL_MS` (o limite dele). */
+  function askResync(): void {
+    const at = Date.now()
+    if (at - lastResyncAt < VIEW_RESYNC_MIN_INTERVAL_MS) return
+    if (send({ type: 'view.resync' })) lastResyncAt = at
+  }
+
+  /**
+   * Só o que mudou, em cima da última tela do mestre (`received`). Base que
+   * não é a nossa (mensagem perdida no caminho) ou patch que não encaixa: a
+   * tela fica como está e pede a inteira.
+   */
+  function applyPatch(data: Record<string, unknown>): void {
+    const { rev, base } = data
+    if (!isFiniteNumber(rev) || !isFiniteNumber(base) || rev <= state.rev) return
+    if (received === null || received.rev !== base) {
+      askResync()
+      return
+    }
+    const map = data.map === undefined ? received.map : isMapPatchShape(data.map) ? applyMapPatch(received.map, data.map) : null
+    if (map === null || !isMapShape(map)) {
+      askResync()
+      return
+    }
+    let explored = received.explored
+    if (data.explored !== undefined) {
+      const decoded = decodeExploration(data.explored)
+      if (decoded === null) return askResync()
+      explored = decoded
+    }
+    const vision = data.vision === undefined ? received.vision : isVision(data.vision) ? data.vision : null
+    const ownTokens = data.ownTokens === undefined ? received.ownTokens : isStringList(data.ownTokens) ? data.ownTokens : null
+    const concealed = data.concealed === undefined ? received.concealed : isVision(data.concealed) ? data.concealed : null
+    if (vision === null || ownTokens === null || concealed === null) return askResync()
+    applySnapshot(rev, map, vision, explored, ownTokens, concealed)
   }
 
   function handleRejected(reqId: string): void {
@@ -535,6 +610,8 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         resetOwnLaser()
         clearDoorNotice()
         clearTravelTimer()
+        // Da espera só se sai por snapshot inteiro: patch nenhum parte dela.
+        received = null
         setState({ status: 'waiting', map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, concealed: undefined, signals: undefined, laser: undefined, playerLasers: undefined, doorNotice: undefined, travel: undefined })
         return
       case 'scene.changed':
@@ -629,6 +706,9 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         applySnapshot(data.rev, data.map, data.vision, explored, data.ownTokens ?? [], data.concealed ?? [])
         return
       }
+      case 'patch':
+        applyPatch(data)
+        return
       case 'token.move.accepted':
         if (typeof data.reqId !== 'string' || !isFiniteNumber(data.x) || !isFiniteNumber(data.y)) return
         handleAccepted(data.reqId, data.x, data.y)
@@ -678,7 +758,8 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     current.onopen = () => {
       if (socket !== current) return
       const resume = readResume(storage, code)
-      const join: JoinMessage = resume ? { type: 'join', code, name, resume } : { type: 'join', code, name }
+      // `patch: true`: este jogador aplica só o que mudou (`net/viewPatch.ts`).
+      const join: JoinMessage = resume ? { type: 'join', code, name, resume, patch: true } : { type: 'join', code, name, patch: true }
       send(join)
       stopPing()
       pingTimer = setInterval(() => send({ type: 'ping' }), PING_INTERVAL_MS)
@@ -824,6 +905,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     },
     reconnect() {
       detach()
+      received = null
       setState({ status: 'connecting', error: undefined, rev: -1, map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, concealed: undefined, signals: undefined, laser: undefined, playerLasers: undefined, doorNotice: undefined, travel: undefined, note: undefined })
       open()
     },

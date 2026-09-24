@@ -3,6 +3,7 @@ import type { ExploredWire } from '../lib/exploration'
 import type { TokenMoveRejection } from '../lib/moveValidation'
 import { LASER_MAX_POINTS_PER_MESSAGE } from '../lib/laser'
 import { isTokenPhotoData } from '../lib/tokenPhoto'
+import type { ViewPatch } from './viewPatch'
 
 /**
  * Protocolo mestre <-> jogador. Toda mensagem é um objeto discriminado por
@@ -51,6 +52,16 @@ import { isTokenPhotoData } from '../lib/tokenPhoto'
  * do laser do mestre) e, na volta a quem está na mesma cena, `laser` com
  * `from` + `color`. Mestre antigo responde `error invalid_message`, que o
  * jogador ignora durante o jogo.
+ *
+ * SÓ O QUE MUDOU (`patch`, mestre -> jogador) é aditivo e COMBINADO: o jogador
+ * que sabe aplicar diz no `join` (`patch: true`), e só ele recebe. O `patch`
+ * leva só o que mudou desde a última tela que AQUELA conexão recebeu
+ * (`net/viewPatch.ts`), com `base` = o `rev` dela. O jogador cuja tela não é
+ * a `base` (mensagem perdida na fila) descarta o patch e pede a tela inteira
+ * com `view.resync` (jogador -> mestre), no máximo um por
+ * `VIEW_RESYNC_MIN_INTERVAL_MS`. Jogador antigo não manda `patch: true` e
+ * segue recebendo `snapshot`; mestre antigo ignora o campo do `join` e
+ * responde `error invalid_message` ao `view.resync`.
  */
 export const PROTOCOL_VERSION = 1
 
@@ -69,6 +80,13 @@ export const NOTE_MAX_LENGTH = 500
  */
 export const PLAYER_MESSAGE_MAX_BYTES = 64 * 1024
 
+/**
+ * Um `view.resync` por jogador nesta janela. O host responde com a tela
+ * inteira, que é o recorte mais caro que ele faz: sem o limite, um jogador
+ * pedindo em laço ocuparia o host.
+ */
+export const VIEW_RESYNC_MIN_INTERVAL_MS = 1000
+
 const JOIN_CODE_PATTERN = /^[A-Z0-9]{6}$/
 
 // Jogador -> mestre
@@ -77,6 +95,13 @@ export interface JoinMessage {
   code: string
   name: string
   resume?: string
+  /** O jogador sabe aplicar `patch` (ver o topo do arquivo). Ausente = só `snapshot`. */
+  patch?: true
+}
+
+/** A tela do jogador não é a `base` do `patch` que chegou: ele pede a inteira. */
+export interface ViewResyncMessage {
+  type: 'view.resync'
 }
 
 export interface TokenMoveMessage {
@@ -158,6 +183,7 @@ export type PlayerMessage =
   | TokenEditMessage
   | PinTravelRequestMessage
   | PlayerLaserMessage
+  | ViewResyncMessage
 
 /**
  * Por que o host recusou o pedido de porta do jogador. `blocked`: fechar com
@@ -202,6 +228,8 @@ export type HostMessage =
   | { type: 'lobby.waiting' }
   | { type: 'snapshot'; rev: number; map: MapData; vision: RegionPoint[][]; explored: ExploredWire; ownTokens: string[]; concealed: RegionPoint[][] }
   | { type: 'delta'; rev: number; map: MapData; vision: RegionPoint[][]; explored: ExploredWire; ownTokens: string[]; concealed: RegionPoint[][] }
+  // Só o que mudou desde a tela `base` desta conexão (ver o topo do arquivo).
+  | ({ type: 'patch'; rev: number; base: number } & ViewPatch)
   | { type: 'token.move.accepted'; reqId: string; x: number; y: number }
   | { type: 'token.move.rejected'; reqId: string; reason: TokenMoveRejection }
   | { type: 'signal'; x: number; y: number; from: string; color: string }
@@ -233,15 +261,18 @@ function isFiniteNumber(value: unknown): value is number {
 }
 
 function parseJoin(obj: Record<string, unknown>): JoinMessage | null {
-  const { code, name, resume } = obj
+  const { code, name, resume, patch } = obj
   if (typeof code !== 'string' || !JOIN_CODE_PATTERN.test(code)) return null
   if (typeof name !== 'string') return null
   const trimmed = name.trim()
   // `length` conta unidades UTF-16 (emoji = 2): é o limite que o jogador vê no input.
   if (trimmed.length < NAME_MIN_LENGTH || trimmed.length > NAME_MAX_LENGTH) return null
-  if (resume === undefined) return { type: 'join', code, name: trimmed }
+  // Presente, só `true`: outro valor é mensagem malformada, não "sem patch".
+  if (patch !== undefined && patch !== true) return null
+  const join: JoinMessage = patch === true ? { type: 'join', code, name: trimmed, patch } : { type: 'join', code, name: trimmed }
+  if (resume === undefined) return join
   if (!isBoundedString(resume, 1, RESUME_TOKEN_MAX_LENGTH)) return null
-  return { type: 'join', code, name: trimmed, resume }
+  return { ...join, resume }
 }
 
 function parseTokenMove(obj: Record<string, unknown>): TokenMoveMessage | null {
@@ -377,6 +408,8 @@ export function parsePlayerMessage(raw: unknown): PlayerMessage | null {
       return parseTokenMove(value)
     case 'ping':
       return { type: 'ping' }
+    case 'view.resync':
+      return { type: 'view.resync' }
     case 'signal':
       return isFiniteNumber(value.x) && isFiniteNumber(value.y) ? { type: 'signal', x: value.x, y: value.y } : null
     case 'door.toggle':

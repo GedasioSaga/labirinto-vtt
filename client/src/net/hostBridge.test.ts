@@ -174,6 +174,32 @@ describe('hostBridge', () => {
     expect(t.sent().slice(before)).toEqual([expect.objectContaining({ clientId: 'c1', msg: expect.objectContaining({ type: 'snapshot' }) })])
   })
 
+  it('tela que não chegou (net_send falhou): o broadcast seguinte manda a tela inteira de novo, mesmo sem mudança', async () => {
+    vi.useFakeTimers()
+    const t = setup()
+    await t.bridge.start()
+    t.emit('net:message', { clientId: 'c1', msg: { type: 'join', code: ROOM.code, name: 'Ana' } })
+    t.bridge.assignToken(joinedPlayerId(t.sent()), 'heroi')
+    let falhar = true
+    const ehSnapshot = (args: unknown): boolean =>
+      typeof args === 'object' && args !== null && 'msg' in args && typeof args.msg === 'object' && args.msg !== null && 'type' in args.msg && args.msg.type === 'snapshot'
+    t.invoke.mockImplementation(async (cmd: string, args?: unknown) => {
+      if (cmd === 'net_send' && falhar && ehSnapshot(args)) {
+        falhar = false
+        throw new Error('fila do cliente cheia')
+      }
+      return cmd === 'net_start_room' ? ROOM : undefined
+    })
+    t.emit('net:message', { clientId: 'c1', msg: { type: 'token.move', reqId: 'r1', tokenId: 'heroi', x: 240, y: 200 } })
+    await vi.advanceTimersByTimeAsync(0)
+    expect(falhar).toBe(false)
+
+    const before = t.sent().length
+    t.bridge.notifyMapChanged()
+    await vi.advanceTimersByTimeAsync(BROADCAST_THROTTLE_MS)
+    expect(t.sent().slice(before)).toEqual([{ clientId: 'c1', msg: expect.objectContaining({ type: 'snapshot' }) }])
+  })
+
   it('stop desregistra listeners e chama net_stop_room', async () => {
     const t = setup()
     await t.bridge.start()
