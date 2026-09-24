@@ -1,6 +1,6 @@
 import { useLayoutEffect, useRef } from 'react'
 import type { ToastMessage } from '../stores/toastStore'
-import { agruparAvisos, deixarTodos, tituloDaCaixa } from './caixaDeAvisos'
+import { agruparAvisos, deixarTodos, temRespostaEmLote, tituloDaCaixa } from './caixaDeAvisos'
 import './Toast.css'
 
 interface ToastProps {
@@ -169,9 +169,12 @@ function CaixaDeAvisos({ grupo, toasts, onDismiss }: CaixaDeAvisosProps) {
           </li>
         ))}
       </ul>
-      <button type="button" className="lb-btn lb-btn--primary lb-toastcaixa__all" onClick={() => deixarTodos(toasts, onDismiss)}>
-        Deixar todos
-      </button>
+      {/* Só com o que fazer: sem ação em lote, o botão não responderia ninguém. */}
+      {temRespostaEmLote(toasts) && (
+        <button type="button" className="lb-btn lb-btn--primary lb-toastcaixa__all" onClick={() => deixarTodos(toasts, onDismiss)}>
+          Deixar todos
+        </button>
+      )}
     </section>
   )
 }
