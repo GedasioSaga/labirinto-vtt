@@ -126,6 +126,20 @@ export interface TokenCarryWiring {
   onCarry(tokenId: string, sceneId: string, pinId: string | null): boolean
 }
 
+/**
+ * VOLTO JÁ no mapa do mestre: as fichas que levam o selo de ausente. São as
+ * de quem avisou que saiu da mesa, conectado ou não (a queda durante a
+ * ausência não tira o selo: a ficha continua travada esperando a volta).
+ */
+export function awayTokenIds(players: readonly PlayerInfo[]): ReadonlySet<string> {
+  const ids = new Set<string>()
+  for (const player of players) {
+    if (player.away !== true) continue
+    for (const tokenId of player.tokenIds) ids.add(tokenId)
+  }
+  return ids
+}
+
 /** Status da linha em uma palavra: é o que o mestre lê de relance. */
 export function partyPresenceLabel(member: PartyMember): string {
   // Volto já vem antes da conexão: é o que diz ao mestre que ele saiu de propósito, e não caiu.

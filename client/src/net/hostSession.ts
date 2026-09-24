@@ -144,6 +144,11 @@ export interface TravelRequest {
   pinLabel: string
   toSceneId: string
   toSceneName: string
+  /**
+   * VOLTO JÁ: a pergunta voltou porque o "Deixar ir" que o mestre deu com o
+   * jogador fora esperou a volta dele. Ausente no pedido de sempre.
+   */
+  heldWhileAway?: true
 }
 
 /**
@@ -205,6 +210,11 @@ export interface HostResult {
   playerLaser?: HostPlayerLaser
   /** Pedido de passagem válido: o integrador pergunta ao mestre. */
   travelRequest?: TravelRequest
+  /**
+   * VOLTO JÁ: o "Deixar ir" não levou ninguém porque o jogador está fora da
+   * mesa. O pedido segue esperando, e o integrador diz isso ao mestre.
+   */
+  travelHeld?: TravelRequest
   /**
    * O mestre deixou ir, ou o pino é livre (aí vem de `handleMessage`): o
    * integrador move o token entre as cenas ANTES de despachar `outbound`.
@@ -1151,7 +1161,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const pending = pendingTravels.get(playerId)
     if (pending === undefined || pending.heldApproval !== true) return result
     delete pending.heldApproval
-    return { ...result, travelRequest: { ...pending.request } }
+    return { ...result, travelRequest: { ...pending.request, heldWhileAway: true } }
   }
 
   /**
@@ -1306,7 +1316,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       // pergunta volta ao mestre quando o jogador voltar (`handleAway`).
       if (awayPlayers.has(pending.playerId)) {
         pending.heldApproval = true
-        return { outbound: [] }
+        return { outbound: [], travelHeld: { ...pending.request } }
       }
       pendingTravels.delete(pending.playerId)
       const record = players.get(pending.playerId)

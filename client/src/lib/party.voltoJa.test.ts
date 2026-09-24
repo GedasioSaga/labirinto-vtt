@@ -7,7 +7,7 @@
 import { describe, expect, it } from 'vitest'
 import { createEmptyMap } from './mapFactory'
 import type { HostWorld, PlayerInfo } from '../net/hostSession'
-import { partyMembers, partyPresenceLabel, peopleByScene, type PartyMember } from './party'
+import { awayTokenIds, partyMembers, partyPresenceLabel, peopleByScene, type PartyMember } from './party'
 import { playerStatusLabel } from '../components/RoomPanel'
 
 const mundo: HostWorld = {
@@ -56,5 +56,21 @@ describe('Volto já no painel do mestre', () => {
     expect(cena?.pendingRequests).toBe(1)
     // Controle: quem só caiu continua saindo da lista, como sempre.
     expect(peopleByScene([membro({ connected: false, travelPending: true })]).size).toBe(0)
+  })
+})
+
+describe('Volto já no mapa do mestre: quais fichas levam o selo', () => {
+  it('só as fichas de quem está no Volto já, conectado ou não', () => {
+    const ids = awayTokenIds([
+      jogador({ playerId: 'ana', tokenIds: ['t1', 't2'], away: true }),
+      jogador({ playerId: 'bruno', name: 'Bruno', tokenIds: ['t3'] }),
+      jogador({ playerId: 'caio', name: 'Caio', tokenIds: ['t4'], away: true, connected: false, clientId: null }),
+    ])
+    expect([...ids].sort()).toEqual(['t1', 't2', 't4'])
+  })
+
+  it('controle: ninguém fora, nenhuma ficha com selo', () => {
+    expect(awayTokenIds([jogador({})]).size).toBe(0)
+    expect(awayTokenIds([]).size).toBe(0)
   })
 })

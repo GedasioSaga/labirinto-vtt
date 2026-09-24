@@ -84,6 +84,7 @@ import { useSignalStore } from '../stores/signalStore'
 import { createLaserPool, createLaserRenderer } from './drawLaser'
 import { isLaserArmed, useLaserStore } from '../stores/laserStore'
 import { usePlayerLaserStore } from '../stores/playerLaserStore'
+import { useAwayTokensStore } from '../stores/awayTokensStore'
 import { createLaserGesture } from './laserGesture'
 import { LASER_KEY_TAP_MS, isLaserKey } from '../lib/laser'
 import { createMeasurementIndicatorRenderer } from './drawMeasurementIndicator'
@@ -1308,7 +1309,17 @@ export function PixiCanvas({
       const redrawTokens = () => {
         const { map, selection } = sceneState()
         const single = selectionSingle(selection)
-        tokensRenderer.draw(tokensContainer, visibleTokens(map.tokens, map.hiddenLayers), map.grid, single?.kind === 'token' ? single.id : null, camera.scale)
+        // VOLTO JÁ: selo de ausente na ficha de quem saiu da mesa. A imagem
+        // exportada é do mapa, não da sessão: sai sem selo.
+        const awayTokenIds = exportScene === null ? useAwayTokensStore.getState().tokenIds : undefined
+        tokensRenderer.draw(
+          tokensContainer,
+          visibleTokens(map.tokens, map.hiddenLayers),
+          map.grid,
+          single?.kind === 'token' ? single.id : null,
+          camera.scale,
+          awayTokenIds,
+        )
         // As alças do token acompanham o token: `moveTokenLive` (arrasto) e
         // `moveSelectionBy` (setas) só acordam ESTE redraw, nunca o de formas.
         redrawEditHandles()
@@ -1587,6 +1598,10 @@ export function PixiCanvas({
         }
       })
       const unsubscribeTokens = subscribeToTokensRedraw(redrawTokens)
+      // A store só troca de referência quando o conjunto de fichas fora da mesa muda.
+      const unsubscribeAwayTokens = useAwayTokensStore.subscribe((state, previous) => {
+        if (state.tokenIds !== previous.tokenIds) redrawTokens()
+      })
       const unsubscribeProps = subscribeToPropsRedraw(redrawProps)
       const unsubscribeBackground = subscribeToBackgroundRedraw(() => {
         void redrawBackground()
@@ -5851,6 +5866,7 @@ export function PixiCanvas({
         unsubscribeShapes()
         unsubscribeTravelLinks()
         unsubscribeTokens()
+        unsubscribeAwayTokens()
         unsubscribeProps()
         unsubscribeBackground()
         unsubscribeHiddenLayersForTokensAndProps()

@@ -141,6 +141,15 @@ describe('hostSession: Volto já', () => {
     const aprovado = m.s.approveTravel(pedido, m.w)
     expect(aprovado.applyTransfer).toBeUndefined()
     expect(aprovado.outbound).toEqual([])
+    // O mestre precisa saber que o "Deixar ir" ficou esperando: a sessão diz qual pedido segurou.
+    expect(aprovado.travelHeld).toEqual({
+      requestId: pedido,
+      playerId: m.playerId,
+      playerName: 'Ana',
+      pinLabel: 'escada',
+      toSceneId: TORRE,
+      toSceneName: 'Torre Alta',
+    })
     expect(m.s.isTravelPending(pedido)).toBe(true)
 
     const volta = m.s.handleMessage('c1', { type: 'away', away: false }, m.w)
@@ -153,6 +162,8 @@ describe('hostSession: Volto já', () => {
       pinLabel: 'escada',
       toSceneId: TORRE,
       toSceneName: 'Torre Alta',
+      // É a MESMA pergunta, e o mestre lê por quê: o "Deixar ir" dele esperou a volta.
+      heldWhileAway: true,
     })
     const agora = m.s.approveTravel(pedido, m.w)
     expect(agora.applyTransfer?.toSceneId).toBe(TORRE)
@@ -166,6 +177,14 @@ describe('hostSession: Volto já', () => {
     const volta = m.s.handleMessage('c1', { type: 'away', away: false }, m.w)
     expect(volta.travelRequest).toBeUndefined()
     expect(msgs(volta, 'c1')).toEqual([{ type: 'away', away: false, travelPending: true }])
+  })
+
+  it('controle: "Deixar ir" com ela presente não segura nada', () => {
+    const m = mesa()
+    const pedido = pedeEscada(m)
+    const r = m.s.approveTravel(pedido, m.w)
+    expect(r.travelHeld).toBeUndefined()
+    expect(r.applyTransfer?.toSceneId).toBe(TORRE)
   })
 
   it('retomar a sessão durante o Volto já avisa a tela ANTES do mapa, com o pedido que espera', () => {
