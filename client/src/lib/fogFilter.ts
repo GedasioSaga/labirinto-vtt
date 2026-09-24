@@ -1498,7 +1498,8 @@ function pinForPlayer(pin: Pin): Pin {
   // arquivo trouxer e o app não conhece (versão futura, edição à mão) não
   // chega ao jogador por descuido (revisão de segurança, 22/09). `destino`,
   // `rotulo` e `saidas` ficam de fora — o destino de cada saída diria que a
-  // outra cena existe.
+  // outra cena existe. `colecao` também: a frase inteira é do mestre; o
+  // jogador recebe o progresso DELE pela mensagem `colecoes` do host.
   const forPlayer: Pin = {
     id: pin.id,
     x: pin.x,

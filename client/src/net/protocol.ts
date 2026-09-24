@@ -8,6 +8,7 @@ import { isPlayerSafePinImage } from '../lib/pins'
 import { CLUEBOOK_MAX_CLUES, CLUE_TEXT_MAX_LENGTH, CLUE_TITLE_MAX_LENGTH } from '../lib/clues'
 import { ABALO_SETAS, type AbaloSeta } from '../lib/abalo'
 import { LOCK_ANSWER_MAX_LENGTH } from '../lib/pinLock'
+import { COLECAO_MAX_PARTES, COLECAO_NOME_MAX_LENGTH, COLECOES_MAX, type ColecaoPeca, type ColecaoProgresso } from '../lib/colecao'
 
 /**
  * Protocolo mestre <-> jogador. Toda mensagem é um objeto discriminado por
@@ -96,6 +97,12 @@ import { LOCK_ANSWER_MAX_LENGTH } from '../lib/pinLock'
  * não). A resposta certa nunca viaja: o recorte leva `Pin.fechadura` (forma e,
  * nos volantes, casas), nunca `Pin.segredo`. Mestre antigo responde `error invalid_message`;
  * jogador antigo ignora o resultado.
+ *
+ * A COLEÇÃO DE PISTAS é aditiva pelo mesmo critério: `colecoes` (mestre ->
+ * jogador) leva, por coleção, o nome, o total e as peças que AQUELE jogador
+ * tem (o número e o id da pista do caderno). Nunca a cena, o pino ou a posição
+ * de peça nenhuma, e `inteira` (a frase) só com todas juntas. O recorte nunca
+ * leva `Pin.colecao`. Jogador antigo cai no `default` e ignora.
  */
 export const PROTOCOL_VERSION = 1
 
@@ -394,6 +401,15 @@ export interface ClueShowResultMessage {
 export type ClueHostMessage = ClueAddedMessage | CluebookMessage | ClueShownMessage | CluePeersMessage | ClueShowResultMessage
 
 /**
+ * COLEÇÃO DE PISTAS: todas as coleções deste jogador, mandadas na entrada e a
+ * cada peça nova. Substitui a lista inteira (é pequena e idempotente).
+ */
+export interface ColecoesMessage {
+  type: 'colecoes'
+  colecoes: ColecaoProgresso[]
+}
+
+/**
  * Um colega (ou o mestre por ele) passou o mapa: o trecho que `from` explorou
  * já está na memória de quem recebe e vem no snapshot seguinte. Só o nome de
  * quem passou — nem cena, nem posição.
@@ -449,6 +465,7 @@ export type HostMessage =
   | RoomTextMessage
   | NotebookMessage
   | ClueHostMessage
+  | ColecoesMessage
   | MapShareHostMessage
   | { type: 'kicked' }
   | { type: 'room.closed' }
@@ -684,6 +701,48 @@ export function parseClueMessage(value: unknown): ClueHostMessage | null {
     default:
       return null
   }
+}
+
+function isWholeNumberIn(value: unknown, min: number, max: number): value is number {
+  return typeof value === 'number' && Number.isInteger(value) && value >= min && value <= max
+}
+
+function parseColecaoProgresso(value: unknown): ColecaoProgresso | null {
+  if (!isRecord(value)) return null
+  const { nome, total, partes, completa, inteira } = value
+  if (!isBoundedString(nome, 1, COLECAO_NOME_MAX_LENGTH)) return null
+  if (!isWholeNumberIn(total, 1, COLECAO_MAX_PARTES) || typeof completa !== 'boolean') return null
+  if (!Array.isArray(partes) || partes.length > total) return null
+  const pecas: ColecaoPeca[] = []
+  for (const item of partes) {
+    if (!isRecord(item)) return null
+    const { parte, clueId } = item
+    if (!isWholeNumberIn(parte, 1, total) || !isBoundedString(clueId, 1, REQ_ID_MAX_LENGTH)) return null
+    pecas.push({ parte, clueId })
+  }
+  const progresso: ColecaoProgresso = { nome, total, partes: pecas, completa }
+  // A frase só vale na coleção completa: numa incompleta ela nem entra no estado da tela.
+  if (!completa || inteira === undefined) return progresso
+  if (!isBoundedString(inteira, 1, CLUE_TEXT_MAX_LENGTH)) return null
+  return { ...progresso, inteira }
+}
+
+/**
+ * Valida `colecoes` que o jogador recebe. Forma errada, peça fora do total ou
+ * lista acima do teto recusam a mensagem inteira; campo a mais (cena, pino,
+ * posição) fica para trás.
+ */
+export function parseColecoesMessage(value: unknown): ColecoesMessage | null {
+  if (!isRecord(value) || value.type !== 'colecoes') return null
+  const { colecoes } = value
+  if (!Array.isArray(colecoes) || colecoes.length > COLECOES_MAX) return null
+  const parsed: ColecaoProgresso[] = []
+  for (const item of colecoes) {
+    const colecao = parseColecaoProgresso(item)
+    if (colecao === null) return null
+    parsed.push(colecao)
+  }
+  return { type: 'colecoes', colecoes: parsed }
 }
 
 /** PASSAR O MAPA: valida `map.shared`, `map.share.result` e `map.given` que o jogador recebe. Campo a mais sai. */

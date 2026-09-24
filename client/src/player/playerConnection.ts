@@ -17,7 +17,8 @@ import {
   type RemoteLaser,
   type RemoteLaserUpdate,
 } from '../lib/laser'
-import { NOTEBOOK_MAX_NOTES, parseAbalo, parseClueMessage, parseLaserMessage, parseMapShareMessage, parseNotebook, parseRoomText, parseSceneNote, type ClueEntry, type NoteEntry } from '../net/protocol'
+import { NOTEBOOK_MAX_NOTES, parseAbalo, parseClueMessage, parseColecoesMessage, parseLaserMessage, parseMapShareMessage, parseNotebook, parseRoomText, parseSceneNote, type ClueEntry, type NoteEntry } from '../net/protocol'
+import type { ColecaoProgresso } from '../lib/colecao'
 import type { AbaloSeta } from '../lib/abalo'
 import { CLUEBOOK_MAX_CLUES } from '../lib/clues'
 import type { TokenMoveRejection } from '../lib/moveValidation'
@@ -86,6 +87,11 @@ export interface PlayerState {
    * (`clue.added`, `clue.shown`); o `clues.book` da entrada substitui tudo.
    */
   clues?: ClueEntry[]
+  /**
+   * COLEÇÃO DE PISTAS: as coleções deste jogador ("Letreiro 5 de 12"), como o
+   * host mandou por último — a lista inteira, a cada peça nova e na entrada.
+   */
+  colecoes?: ColecaoProgresso[]
   /** Pista que um colega acabou de mostrar: o cartão "Gabi mostrou: Bilhete". `id` novo reabre. */
   shownClue?: { id: number; from: string; clue: ClueEntry }
   /** "Mostrar para…": esperando a lista, ou os colegas da mesma cena. */
@@ -864,6 +870,12 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       case 'clue.show.result':
         handleClueMessage(data)
         return
+      case 'colecoes': {
+        // Vale também aguardando, como o caderno: a coleção é do jogador, não da cena.
+        const msg = parseColecoesMessage(data)
+        if (msg !== null) setState({ colecoes: msg.colecoes })
+        return
+      }
       case 'map.shared':
       case 'map.share.result':
       case 'map.given':
@@ -1217,7 +1229,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     },
     reconnect() {
       detach()
-      setState({ status: 'connecting', error: undefined, rev: -1, map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, concealed: undefined, signals: undefined, laser: undefined, playerLasers: undefined, doorNotice: undefined, moveNotice: undefined, travel: undefined, note: undefined, roomText: undefined, notebook: undefined, unreadNotes: undefined, clues: undefined, shownClue: undefined, cluePeers: undefined, clueShow: undefined, mapPeers: undefined, mapShare: undefined, mapShared: undefined })
+      setState({ status: 'connecting', error: undefined, rev: -1, map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, concealed: undefined, signals: undefined, laser: undefined, playerLasers: undefined, doorNotice: undefined, moveNotice: undefined, travel: undefined, note: undefined, roomText: undefined, notebook: undefined, unreadNotes: undefined, clues: undefined, colecoes: undefined, shownClue: undefined, cluePeers: undefined, clueShow: undefined, mapPeers: undefined, mapShare: undefined, mapShared: undefined })
       open()
     },
     close: detach,

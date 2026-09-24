@@ -333,6 +333,26 @@ export interface PinLock {
 export type PinLockPublic = { forma: 'teclado' } | { forma: 'volantes'; casas: number }
 
 /**
+ * COLEÇÃO DE PISTAS — o pino é a peça `parte` de `total` da coleção `nome`
+ * ("Letreiro", peça 5 de 12). Mora só no mapa do mestre: o recorte do jogador
+ * (`lib/fogFilter.ts`) nunca a copia. Quem lê o cartão ganha a peça, e o host
+ * (`net/hostSession.ts`) manda ao jogador só o nome, o total e as peças que
+ * ELE tem; `inteira` só vai com todas juntas. Ver `lib/colecao.ts`.
+ */
+export interface PinColecao {
+  nome: string
+  /** Número desta peça, de 1 a `total`. */
+  parte: number
+  total: number
+  /**
+   * A frase ou o item inteiro, lido por quem juntar todas. Ausente = só a
+   * contagem, sem linha de migração: quem confere a forma do disco é
+   * `readPinColecao` (`lib/colecao.ts`), chamada por `lib/mapFile.ts`.
+   */
+  inteira?: string
+}
+
+/**
  * Ponto de interesse cravado pelo mestre. O jogador toca o pino no mapa e lê o
  * cartão: imagem em cima, descrição embaixo.
  *
@@ -413,6 +433,11 @@ export interface Pin extends PlayerSecret {
    * `lib/fogFilter.ts` o monta a partir de `segredo`; o mestre nunca o grava.
    */
   fechadura?: PinLockPublic
+  /**
+   * COLEÇÃO DE PISTAS, de qualquer tipo de pino: esta é uma peça. NUNCA sai no
+   * recorte do jogador. Ausente = pino avulso, sem migração.
+   */
+  colecao?: PinColecao
 }
 
 /**

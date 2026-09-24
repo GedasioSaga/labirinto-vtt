@@ -678,6 +678,7 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
           notebookUnread={hasUnreadNotes(state)}
           onReadNotebook={readNotebook}
           clues={state.clues ?? NO_CLUES}
+          colecoes={state.colecoes}
           onOpenClue={(clueId) => {
             // Outra pista aberta: a lista de colegas e o resultado eram dela.
             connection.resetClueShare()
