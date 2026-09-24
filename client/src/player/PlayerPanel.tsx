@@ -4,10 +4,14 @@ import type { StorageLike } from './playerConnection'
 import { NAME_MAX_LENGTH, type ClueEntry, type NoteEntry } from '../net/protocol'
 import { PlayerNotebook } from './PlayerNotebook'
 import { PlayerClueList } from './PlayerClues'
+import { PersonalNoteList } from './PlayerPersonalNotes'
+import type { PersonalNote } from './personalNotes'
 
 /** Caderno sem pistas passadas (tela antiga, teste): a mesma lista vazia, sem objeto novo a cada render. */
 const NO_CLUES: readonly ClueEntry[] = []
 const IGNORE_CLUE = (): void => {}
+const NO_PERSONAL_NOTES: readonly PersonalNote[] = []
+const IGNORE_NOTE = (): void => {}
 
 // Painel do jogador: meus personagens, ajustes de visão e centralizar a câmera.
 // Fica sobre o canvas (não ao lado) para o enquadramento do mapa não depender
@@ -136,6 +140,13 @@ interface PlayerPanelProps {
   clues?: readonly ClueEntry[]
   /** Tocou numa pista do Caderno: reabre o cartão dela. */
   onOpenClue?: (clueId: string) => void
+  /** Modo "Anotar" ligado: o próximo toque no mapa marca onde vai a anotação pessoal. Sem o callback, não há botão. */
+  noteArmed?: boolean
+  onToggleNote?: () => void
+  /** MINHAS NOTAS desta cena, só deste aparelho. Sem `onFocusNote`, a seção não aparece no Caderno. */
+  personalNotes?: readonly PersonalNote[]
+  onFocusNote?: (noteId: string) => void
+  onRemoveNote?: (noteId: string) => void
 }
 
 export function PlayerPanel({
@@ -163,6 +174,11 @@ export function PlayerPanel({
   onReadNotebook,
   clues = NO_CLUES,
   onOpenClue = IGNORE_CLUE,
+  noteArmed = false,
+  onToggleNote,
+  personalNotes = NO_PERSONAL_NOTES,
+  onFocusNote,
+  onRemoveNote = IGNORE_NOTE,
 }: PlayerPanelProps) {
   const drawerScreen = useSyncExternalStore(subscribeDrawerScreen, isDrawerScreen, () => false)
   // Um estado por forma: a coluna do notebook nasce aberta e a gaveta do
@@ -277,6 +293,18 @@ export function PlayerPanel({
     // Mesma razão do Sinalizar: no celular a gaveta cobre o mapa onde o dedo vai marcar.
     if (!destinationArmed) closeDrawer()
     onToggleDestination?.()
+  }
+
+  function toggleNote() {
+    // Mesma razão do Sinalizar: no celular a gaveta cobre o mapa onde o dedo vai anotar.
+    if (!noteArmed) closeDrawer()
+    onToggleNote?.()
+  }
+
+  function focusNote(noteId: string) {
+    onFocusNote?.(noteId)
+    // Como "Minha ficha": na gaveta o painel cobre o mapa, e a nota está lá.
+    closeDrawer()
   }
 
   function toggleMeasure() {
@@ -436,6 +464,14 @@ export function PlayerPanel({
                   Tirar marca
                 </button>
               )}
+              {onToggleNote !== undefined && (
+                <>
+                  <button type="button" className="pp-button" aria-pressed={noteArmed} onClick={toggleNote}>
+                    {noteArmed ? 'Toque onde anotar…' : 'Anotar'}
+                  </button>
+                  {noteArmed && <p className="pp-empty">Só você vê: a nota fica neste aparelho. Esc sai.</p>}
+                </>
+              )}
               <button type="button" className="pp-button pp-button--toggle" aria-pressed={measureArmed} onClick={toggleMeasure}>
                 Medir
               </button>
@@ -535,6 +571,14 @@ export function PlayerPanel({
                   </h2>
                   <PlayerNotebook notes={notebook} />
                 </section>
+                {onFocusNote !== undefined && (
+                  <section className="pp-section" aria-labelledby={`${panelId}-personal`}>
+                    <h2 id={`${panelId}-personal`} className="pp-heading">
+                      Minhas notas
+                    </h2>
+                    <PersonalNoteList notes={personalNotes} onFocus={focusNote} onRemove={onRemoveNote} />
+                  </section>
+                )}
               </>
             )}
           </div>
