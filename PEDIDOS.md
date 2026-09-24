@@ -692,3 +692,17 @@ gauntlet.
 Nenhuma feature nova ficou pronta no app. Ficaram prontos o portão com vagas, 17 réguas vermelhas juntadas
 (+ 8 numa branch), a lista de 101 features, 10 defeitos confirmados e a cidade-torre de 12 andares gerada
 (99 cenas, 25.805 locais). Tudo, workflow por workflow, está em `HANDOFF.md`.
+
+### 23/09/2026, tarde — pedidos durante a fábrica de features
+
+> "Pronto, agora você fará o seguinte em paralelo, você vai fazer todas essas features de uma vez, ou
+> seja vai colocar em paralelo vários workflows contudo uma coisa que eu tô percebendo é o chrome sem
+> tela, que tá destruindo a minha CPU, então se tiver outra forma que não gaste extremamente a minha cpu e
+> minha memória ram. E volte o workflow dos 11 andares de onde parou."
+
+> "Então você vai adicionar no programa essas 244 sugestões?" — resposta à pergunta de escopo (tirar as
+> repetidas; grandes por último?): **"Tudo, faça em paralelo igual as outras."**
+
+Fila: quando a etapa Consolidar da torre (`wf_c998d8d5-b3c`) entregar o backlog único, cada item
+(defeitos, features pequenas e médias e também as grandes: estados da torre, relógio com rotina de NPC,
+veículos, corte vertical, correio) vira peça da fábrica em workflows paralelos, como as ondas 1 e 2.
