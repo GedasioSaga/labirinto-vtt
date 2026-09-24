@@ -643,14 +643,32 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   }
 
   /**
+   * LEVAR FICHA JUNTO: move a ficha de quem atravessa e, SÓ se ela passou, cada
+   * ficha que ela leva (`transfer.junto`), para a mesma cena. Ficha levada que
+   * não passou (sumiu entre a validação e aqui) não desfaz a de quem leva: ela
+   * chegou, e é isso que o aviso diz. `false` = a de quem leva não passou.
+   */
+  const applyTransferAlong = (transfer: AppliedTransfer): boolean => {
+    const apply = deps.applyTransfer
+    if (apply === undefined) return false
+    const { junto, ...alone } = transfer
+    if (!apply(alone)) return false
+    // Ausente é o caso comum (ninguém levado), não falha.
+    for (const carried of junto ?? []) apply({ ...alone, tokenId: carried.tokenId, x: carried.x, y: carried.y })
+    return true
+  }
+
+  /**
    * A ficha troca de cena: "Deixar ir" do mestre ou pino livre. Move pela
    * store ANTES de mandar o `scene.changed`, e só avisa a chegada se moveu.
    */
   const completeTransfer = (result: HostResult, transfer: AppliedTransfer) => {
-    const moved = deps.applyTransfer?.(transfer) ?? false
+    const moved = applyTransferAlong(transfer)
     if (!moved) {
       // O "Você chegou" não pode sair: a ficha não saiu do lugar.
-      void dispatch({ outbound: result.outbound.map(({ clientId }) => ({ clientId, msg: { type: 'pin.travel.rejected', reason: 'unavailable' } })) })
+      // Só a quem PEDIU: o dono de uma ficha levada junto (`by: 'master'`) não pediu nada.
+      const askers = result.outbound.filter(({ msg }) => !(msg.type === 'scene.changed' && msg.by !== undefined))
+      void dispatch({ outbound: askers.map(({ clientId }) => ({ clientId, msg: { type: 'pin.travel.rejected', reason: 'unavailable' } })) })
       // O pedido já saiu da sessão ao ser aprovado: o selo da lista Cenas não pode ficar.
       notifyPlayersIfChanged()
       return
@@ -883,7 +901,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       const transfer = result.applyTransfer
       // Mesmo caminho do "Deixar ir" (`answerTravel`): a ficha muda de cena
       // antes do `scene.changed` sair, e o snapshot da cena nova vem atrás.
-      const moved = transfer !== undefined && (deps.applyTransfer?.(transfer) ?? false)
+      const moved = transfer !== undefined && applyTransferAlong(transfer)
       // O pedido de passagem que ele tinha morreu na sessão: o aviso do mestre sai junto.
       pruneTravelToasts()
       if (!moved) {

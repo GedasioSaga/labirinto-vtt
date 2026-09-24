@@ -11,6 +11,8 @@ import { SIGNAL_MIN_INTERVAL_MS, signalColor } from '../lib/signals'
 import { arrivalPoint, arrivalSpot, exitLabelsOf, isArrivalOnly, resolvePinTravel, SAIDA_PRINCIPAL, travelExitOf, type TravelScene } from '../lib/pinTravel'
 import { passageOf, pinSummary } from '../lib/pins'
 import { carriedItemsOf, itemOfPin, tokenReachesPin, tokensTouch, type ItemChange } from '../lib/items'
+import { carriedBy } from '../lib/carry'
+import { companionArrivals, type CarriedArrival } from '../lib/carryArrival'
 import {
   parsePlayerMessage,
   type DoorRequestHow,
@@ -209,6 +211,13 @@ export interface AppliedTransfer {
   toSceneName: string
   x: number
   y: number
+  /**
+   * LEVAR FICHA JUNTO: as fichas que `tokenId` leva (`lib/carry.ts`) e onde
+   * cada uma assenta na cena de destino. O integrador as move DEPOIS da ficha
+   * de quem leva, e só se ela passou. Ausente = ninguém levado. Nada disto vai
+   * ao jogador.
+   */
+  junto?: CarriedArrival[]
 }
 
 /** Sinal aceito de um jogador, para a UI do mestre desenhar. */
@@ -870,8 +879,13 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     // ficha que o jogador não vê. A recusa só diz "não é a sua vez", nunca de quem é.
     // Vez de ficha que saiu da cena (apagada, viajou) não prende ninguém (`turnTokenIdOn`).
     const turnTokenId = turnTokenIdOn(options.getTurn?.() ?? null, scene.map)
+    // LEVAR FICHA JUNTO: o ferido que ela leva sai do caminho junto com ela, então
+    // não ocupa a casa para onde ela vai. O vínculo vem do mapa do MESTRE: o
+    // recorte do jogador não o carrega.
+    const carriedIds = new Set(carriedBy(scene.map, msg.tokenId).map((t) => t.id))
+    const occupants = occupantsSeenBy(playerId, scene.map)?.filter((t) => !carriedIds.has(t.id))
     const result = validateTokenMove(scene.map, { playerId, tokenId: msg.tokenId, x: msg.x, y: msg.y }, ownership, {
-      occupants: occupantsSeenBy(playerId, scene.map),
+      occupants,
       turnTokenId,
     })
     if (!result.ok) return reply(clientId, { type: 'token.move.rejected', reqId: msg.reqId, reason: result.reason })
@@ -1247,6 +1261,37 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   }
 
   /**
+   * LEVAR FICHA JUNTO na travessia: as fichas que `carrierId` leva na cena de
+   * origem vão junto, assentadas em volta de `spot` (`companionArrivals`). O
+   * vínculo é lido do mapa do MESTRE (`from.map`), nunca do recorte do jogador,
+   * que não o carrega. Ficha levada que é de OUTRO jogador leva a cena dele
+   * junto: ele recebe o mesmo aviso do "Mandar para…" (`by: 'master'`), porque
+   * não foi ele quem pediu — e o pedido de passagem que ele tinha perde o pino.
+   * Ninguém levado: `transfer` vazio, e o `applyTransfer` fica como sempre foi.
+   */
+  function carriedAlong(
+    carrierPlayerId: string,
+    carrierId: string,
+    from: HostScene,
+    to: HostScene,
+    spot: { x: number; y: number },
+  ): { transfer: Pick<AppliedTransfer, 'junto'>; outbound: Outbound[] } {
+    const carrier = from.map.tokens.find((t) => t.id === carrierId)
+    const carried = carriedBy(from.map, carrierId)
+    if (carrier === undefined || carried.length === 0) return { transfer: {}, outbound: [] }
+    const outbound: Outbound[] = []
+    for (const token of carried) {
+      const owner = Object.entries(ownership).find(([, ids]) => ids.includes(token.id))?.[0]
+      if (owner === undefined || owner === carrierPlayerId || statusOf(owner) !== 'playing') continue
+      currentScene.set(owner, sceneKey(to))
+      pendingTravels.delete(owner)
+      const clientId = players.get(owner)?.clientId ?? null // null = caiu: reconecta já na cena nova
+      if (clientId !== null) outbound.push({ clientId, msg: { type: 'scene.changed', by: 'master' } })
+    }
+    return { transfer: { junto: companionArrivals(to.map, carrier, spot, carried) }, outbound }
+  }
+
+  /**
    * A passagem acontece: `scene.changed` ao dono e `applyTransfer` para o
    * integrador mover a ficha. Vale para o "Deixar ir" e para o pino livre.
    */
@@ -1255,9 +1300,11 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     // A cena dele passa a ser a de destino a partir daqui: é ela que o
     // próximo broadcast manda, com a memória que ele tem DELA.
     currentScene.set(playerId, sceneKey(travel.to))
+    const along = carriedAlong(playerId, travel.token.id, travel.from, travel.to, spot)
     return {
-      outbound: [{ clientId, msg: { type: 'scene.changed' } }],
+      outbound: [{ clientId, msg: { type: 'scene.changed' } }, ...along.outbound],
       applyTransfer: {
+        ...along.transfer,
         tokenId: travel.token.id,
         playerId,
         playerName,
@@ -1431,9 +1478,11 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       // O pedido que ele tinha na cena de antes perde o sentido: o pino ficou lá.
       pendingTravels.delete(playerId)
       const by = gatherAt === undefined ? 'master' : 'gather'
+      const along = carriedAlong(playerId, token.id, from, to, spot)
       return {
-        outbound: record.clientId === null ? [] : [{ clientId: record.clientId, msg: { type: 'scene.changed', by } }],
+        outbound: [...(record.clientId === null ? [] : [{ clientId: record.clientId, msg: { type: 'scene.changed', by } } satisfies Outbound]), ...along.outbound],
         applyTransfer: {
+          ...along.transfer,
           tokenId: token.id,
           playerId,
           playerName: record.name,

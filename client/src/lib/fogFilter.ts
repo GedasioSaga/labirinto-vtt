@@ -2,6 +2,7 @@ import type { DoorState, Drawing, FloorPiece, HazardKind, MapData, Pin, Region, 
 import { isTokenPhotoData } from './tokenPhoto'
 import { healthForPlayer } from './tokenHealth'
 import { tokenConditionsForPlayer } from './tokenConditions'
+import { withoutCarrier } from './carry'
 import { guardAlerts, tokenWatchForPlayer, tokenWatchOf } from './npcWatch'
 import type { TurnRef } from './initiative'
 import { isPointExplored, isShapeExplored, type Exploration } from './exploration'
@@ -423,9 +424,13 @@ function tokenHealthForPlayer(token: Token): Token {
  * (`tokenConditionsForPlayer`) — texto que o mestre ou o arquivo enfiar no
  * campo não sai da máquina dele. Quem decide SE a ficha vai é o filtro de
  * `filterMapForPlayer`; a condição só atravessa junto com ela.
+ *
+ * LEVAR FICHA JUNTO: o vínculo (`levadoPor`) nunca sai. É arrumação do mestre,
+ * e o id de quem leva apontaria para uma ficha que o recorte pode ter
+ * escondido (colega na névoa, ficha secreta).
  */
 function tokenForPlayer(token: Token): Token {
-  return tokenConditionsForPlayer(sanitizeTokenPhoto(token))
+  return tokenConditionsForPlayer(sanitizeTokenPhoto(withoutCarrier(token)))
 }
 
 /** A ficha sem a mochila: é como o jogador recebe a ficha de outro. Sem mochila, o mesmo objeto. */

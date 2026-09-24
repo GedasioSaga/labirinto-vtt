@@ -579,6 +579,14 @@ export interface Token extends PlayerSecret {
    *  viaja com a ficha. `undefined` === vazia, sem migração. O jogador só
    *  recebe a mochila da PRÓPRIA ficha (`lib/fogFilter.ts`). */
   mochila?: CarriedItem[]
+  /**
+   * LEVAR FICHA JUNTO: id da ficha que LEVA esta (o ferido carregado, o NPC
+   * escoltado). Ela anda junto no arrasto e atravessa o pino de viagem junto.
+   * Ausente/`null` = ficha solta, sem linha de migração. Quem leva não pode
+   * ser levado (sem cadeia). O mapa do disco chega CRU: quem lê passa por
+   * `lib/carry.ts`. NÃO atravessa para o jogador (`lib/fogFilter.ts`).
+   */
+  levadoPor?: string | null
 }
 
 export interface Prop extends PlayerSecret {

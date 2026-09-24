@@ -18,6 +18,7 @@ import { laserStrokeEnded, useLaserStore } from './stores/laserStore'
 import { useFollowStore } from './stores/followStore'
 import { advanceTurn, startTurn, useInitiativeStore } from './stores/initiativeStore'
 import { turnTokenIdOn } from './lib/initiative'
+import { carryRefsOf } from './lib/carry'
 import { useFollowPlayer } from './stores/useFollowPlayer'
 import { playSignalSound } from './lib/signalSound'
 import { createSignalRouter } from './net/chamadoDeFundo'
@@ -903,6 +904,8 @@ function App() {
   const selectedWall = singleSelection?.kind === 'wall' ? map.walls.find((w) => w.id === singleSelection.id) ?? null : null
   const selectedProp = singleSelection?.kind === 'prop' ? map.props.find((p) => p.id === singleSelection.id) ?? null : null
   const selectedToken = singleSelection?.kind === 'token' ? map.tokens.find((t) => t.id === singleSelection.id) ?? null : null
+  // LEVAR FICHA JUNTO: quem leva a ficha selecionada, quem ela leva e a quem pode ser presa (a mais perto primeiro).
+  const selectedTokenCarry = carryRefsOf(map, selectedToken)
   const selectedDrawing = singleSelection?.kind === 'drawing' ? map.drawings.find((d) => d.id === singleSelection.id) ?? null : null
   const selectedTextLabel = selectedDrawing && selectedDrawing.kind === 'text' ? selectedDrawing : null
   const selectedRegion = singleSelection?.kind === 'region' ? map.regions.find((r) => r.id === singleSelection.id) ?? null : null
@@ -2063,6 +2066,12 @@ function App() {
               // Mesmo caminho da cor e do tamanho: cada escolha é um Ctrl+Z.
               // `null` desliga a vigia e a ficha volta a ser comum.
               onWatchChange: (vigia) => selectedToken && updateToken(selectedToken.id, { vigia }),
+            }}
+            tokenCarry={{
+              ...selectedTokenCarry,
+              // Prender e soltar passam pelo histórico: Ctrl+Z desfaz.
+              onCarry: (carrierId) => selectedToken && useMapStore.getState().carryToken(selectedToken.id, carrierId),
+              onRelease: (carriedId) => useMapStore.getState().releaseCarriedToken(carriedId),
             }}
             tokenTransform={{
               onRotationChange: (rotation) => selectedToken && updateToken(selectedToken.id, { rotation }),
