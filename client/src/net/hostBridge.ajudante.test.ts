@@ -16,6 +16,8 @@ const ROOM = { code: 'AJ12CD', urls: ['http://192.168.0.2:7777'], qrSvg: '<svg/>
 const MINUTO = 60_000
 const PRAZO_MINUTOS = 30
 const RECADO = 'Menino voltou ao mestre: o acordo acabou.'
+/** Intervalo do ping do aparelho vivo no teste (bem abaixo de `HOST_STALE_AFTER_MS`). */
+const PING_MS = 1_000
 
 function ficha(id: string, name: string, x: number, extra: Partial<Token> = {}): Token {
   return { id, characterId: null, name, x, y: 100, size: 1, image: null, ...extra }
@@ -66,7 +68,21 @@ function setup() {
       return typeof text === 'string' ? [text] : []
     })
   const fichasDe = (name: string): string[] | undefined => jogadores.at(-1)?.find((p) => p.name === name)?.tokenIds
-  return { bridge, entrar, recadosPara, fichasDe, jogadores, enviados }
+  /**
+   * O aparelho da Duda segue vivo: o ping de fundo a cada segundo, como o
+   * cliente real. Sem ele, a varredura de conexão muda (`HOST_STALE_AFTER_MS`)
+   * a daria por caída muito antes do prazo, e o recado ficaria guardado para a volta.
+   * O ping sai ANTES de cada passo: no instante do prazo quem age é o despertador.
+   */
+  const passarComAparelhoVivo = async (clientId: string, ms: number) => {
+    const handler = handlers.get('net:message')
+    if (handler === undefined) throw new Error('sem listener para net:message')
+    for (let falta = ms; falta > 0; falta -= PING_MS) {
+      handler({ payload: { clientId, msg: { type: 'ping' } } })
+      await vi.advanceTimersByTimeAsync(Math.min(PING_MS, falta))
+    }
+  }
+  return { bridge, entrar, recadosPara, fichasDe, jogadores, enviados, passarComAparelhoVivo }
 }
 
 describe('hostBridge: o ajudante volta sozinho no fim do prazo', () => {
@@ -92,7 +108,7 @@ describe('hostBridge: o ajudante volta sozinho no fim do prazo', () => {
     const avisosAntes = t.jogadores.length
 
     // Um milissegundo antes do prazo: nada volta.
-    await vi.advanceTimersByTimeAsync(PRAZO_MINUTOS * MINUTO - 1)
+    await t.passarComAparelhoVivo('c1', PRAZO_MINUTOS * MINUTO - 1)
     expect(t.recadosPara('c1')).toEqual([])
     expect(t.fichasDe('Duda')).toEqual(['arco', 'tiziu'])
 

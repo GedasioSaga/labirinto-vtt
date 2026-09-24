@@ -18,8 +18,11 @@ const CRIPTA = 'cena-cripta'
 const GRID = 50
 const PRAZO_MINUTOS = 30
 const TAREFA = 'carregar a lanterna'
-/** Onde o Arco assenta na Cripta: a ponta do pino `fundo` (1000, 250) no centro da casa. */
-const CHEGADA = { x: 1025, y: 275 }
+/**
+ * Onde o Arco assenta na Cripta: a casa livre ao lado do pino `fundo` (1000, 250).
+ * A chegada em casa livre (`arrivalSpot`) não cobre a cabeça do pino, na casa (1025, 275).
+ */
+const CHEGADA = { x: 975, y: 275 }
 /** Casa já escolhida por `planGather` (centro de casa, como ele sempre entrega). */
 const PONTO_DO_GRUPO = { x: 625, y: 275 }
 

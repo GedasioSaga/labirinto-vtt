@@ -85,7 +85,10 @@ describe('hostSession: o jogador recebe o efeito do estado do mundo, nunca o est
     const map = andarZero()
     const s = gabiNaMesa(map)
     const snap = snapshotDe(s.broadcast(map).outbound)
-    expect(snap.map.walls.find((w) => w.id === 'comporta')?.door).toEqual({ open: false, locked: true, kind: 'normal' })
+    // O efeito (trancada) mora no host; o CADEADO nunca sai no recorte (`withoutLock`, fogFilter):
+    // o jogador vê a comporta fechada comum e descobre a tranca tentando abrir.
+    expect(snap.map.walls.find((w) => w.id === 'comporta')?.door).toEqual({ open: false, locked: false, kind: 'normal' })
+    expect(map.walls.find((w) => w.id === 'comporta')?.door?.locked).toBe(true)
     expect(snap.map.pins.find((p) => p.id === 'alcapao')?.passagem).toBe('trancada')
     semRegra(snap)
   })
