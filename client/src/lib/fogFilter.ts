@@ -1,7 +1,7 @@
 import type { ConcealZone, DoorState, Drawing, FloorPiece, MapData, Pin, Region, RegionPoint, Token, TokenCompanion, Wall } from '../types/map'
 import { cellCenter, cellKeyAt, cellRunRects, concealedPieces, REVEAL_BRUSH_CELL, unveiledCellsOf } from './concealBrush'
 import { isTokenPhotoData } from './tokenPhoto'
-import { tokenAsSeenByPlayer } from './tokenPublicName'
+import { tokenAsSeenByPlayer, tokenPublicNameMode } from './tokenPublicName'
 import { isPointExplored, isShapeExplored, type Exploration } from './exploration'
 import { pointInRing } from './floorContour'
 import { pieceBounds, pieceDistance, shapeCenter } from './floorSdf'
@@ -1349,10 +1349,14 @@ export function filterMapForPlayer(
   // Token do próprio jogador sai sempre, mesmo secreto ou em zona oculta: é ele quem o move.
   // Nome: o dono lê o real; os outros, o "Nome para os jogadores" (o de trabalho do mestre não sai).
   // Marca de companheiro DEPOIS do filtro: ficha que não sai não leva o nome do dono a lugar nenhum.
+  // Ficha disfarçada pelo mestre (outro nome ou nenhum) também não: a marca diria quem está por trás.
   const companionOf = companionsByToken(ownership, playerId, owned, companions)
   const tokens = layerTokens
     .filter((t) => !t.hidden && (owned.has(t.id) || (!t.secret && !inClosedRoof({ x: t.x, y: t.y }) && isVisible({ x: t.x, y: t.y }))))
-    .map((t) => withCompanionMark(withoutNpcMark(sanitizeTokenPhoto(tokenAsSeenByPlayer(t, owned.has(t.id)))), companionOf.get(t.id)))
+    .map((t) => {
+      const mark = tokenPublicNameMode(t.publicName) === 'same' ? companionOf.get(t.id) : undefined
+      return withCompanionMark(withoutNpcMark(sanitizeTokenPhoto(tokenAsSeenByPlayer(t, owned.has(t.id)))), mark)
+    })
   const sentTokenIds = new Set(tokens.map((t) => t.id))
   // Ficha que o MESTRE esconde deste jogador (oculta, secreta ou na camada
   // Fichas escondida). A tocha presa nela fica no centro dela e anda com ela:

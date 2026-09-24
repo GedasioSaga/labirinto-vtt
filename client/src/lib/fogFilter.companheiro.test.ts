@@ -63,10 +63,37 @@ describe('filterMapForPlayer: marca de companheiro', () => {
     expect(guarda !== undefined && 'companion' in guarda).toBe(false)
   })
 
-  it('nome disfarçado ("Nome para os jogadores"): a ficha sai com o disfarce e a marca continua dizendo que é o Caio', () => {
-    const caio = fichaNoRecorte([ficha('duda', 'Duda', 100, 100), ficha('caio', 'Ladino', 300, 100, { publicName: 'Mensageiro' })], 'caio')
+  it('nome disfarçado ("Nome para os jogadores" = outro): a ficha sai com o disfarce e SEM a marca — o dono por trás não vaza', () => {
+    const view = recorte([ficha('duda', 'Duda', 100, 100), ficha('caio', 'Ladino', 300, 100, { publicName: 'Mensageiro' })])
+    const caio = view.map.tokens.find((t) => t.id === 'caio')
     expect(caio?.name).toBe('Mensageiro')
-    expect(caio?.companion?.name).toBe('Caio')
+    expect(caio !== undefined && 'companion' in caio).toBe(false)
+    expect(JSON.stringify(view)).not.toContain('Caio')
+    expect(JSON.stringify(view)).not.toContain(signalColor('p2'))
+  })
+
+  it('nome apagado ("Nome para os jogadores" = nenhum): a ficha sai sem nome e SEM a marca no lugar dele', () => {
+    const view = recorte([ficha('duda', 'Duda', 100, 100), ficha('caio', 'Ladino', 300, 100, { publicName: null })])
+    const caio = view.map.tokens.find((t) => t.id === 'caio')
+    expect(caio?.name).toBe('')
+    expect(caio !== undefined && 'companion' in caio).toBe(false)
+    expect(JSON.stringify(view)).not.toContain('Caio')
+  })
+
+  it('"Nome para os jogadores" = o mesmo (campo ausente): a marca continua saindo', () => {
+    const caio = fichaNoRecorte([ficha('duda', 'Duda', 100, 100), ficha('caio', 'Ladino', 300, 100)], 'caio')
+    expect(caio?.name).toBe('Ladino')
+    expect(caio?.companion).toEqual({ name: 'Caio', color: signalColor('p2') })
+  })
+
+  it('disfarce numa ficha só: a outra ficha do Caio, sem disfarce, continua com a marca', () => {
+    const posse = { ...POSSE, p2: ['caio', 'caio-2'] }
+    const mapa = salao([ficha('duda', 'Duda', 100, 100), ficha('caio', 'Ladino', 300, 100), ficha('caio-2', 'Corvo', 400, 100, { publicName: 'Pássaro' })])
+    const view = filterMapForPlayer(mapa, 'p1', posse, 700, undefined, undefined, undefined, undefined, undefined, MARCAS)
+    const tokens = new Map(view.map.tokens.map((t) => [t.id, t]))
+    expect(tokens.get('caio')?.companion).toEqual({ name: 'Caio', color: signalColor('p2') })
+    expect(tokens.get('caio-2')?.name).toBe('Pássaro')
+    expect(tokens.get('caio-2')?.companion).toBeUndefined()
   })
 
   it('sem a lista de companheiros (quem chama não é o fio), nenhuma ficha ganha marca', () => {
