@@ -16,7 +16,7 @@ import { ChevronDownIcon, CloseIcon, MoveIntoIcon, SearchIcon } from './icons'
 import { useSceneDrag, type SceneDrag } from './sceneDrag'
 import { NOTE_MAX_LENGTH } from '../net/protocol'
 import { sceneTree, SCENE_TRAIL_SEPARATOR, type SceneTreeRow } from '../lib/adventure'
-import { normalizeForSearch } from '../lib/mapObjects'
+import { matchesSceneSearch, SCENE_FILTER_MIN, sceneSearchWords } from '../lib/sceneSearch'
 import { pendingRequestsLabel, type ScenePeople, type ScenePerson } from '../lib/party'
 import type { SceneDeletionInfo, SceneListItem } from '../stores/adventureStore'
 import type { MapData } from '../types/map'
@@ -66,9 +66,6 @@ export interface ScenesSectionProps {
 
 /** Quanto tempo o aviso "Recado enviado…" fica na linha da cena. */
 export const NOTE_FEEDBACK_MS = 4000
-
-/** Com menos cenas que isto a lista inteira cabe no olho, e a seção fica sem "Filtrar cenas". */
-export const SCENE_FILTER_MIN = 6
 
 /** Recuo desenhado até este nível; mais fundo a cena continua na árvore, só não anda mais para a direita (o painel é estreito). */
 const MAX_VISUAL_DEPTH = 5
@@ -505,24 +502,6 @@ function useCollapsedScenes(adventureId: string | null) {
   return { collapsed: current.ids, toggle, expand }
 }
 
-/** As palavras do filtro, sem maiúscula nem acento (a mesma régua do "Buscar objeto"). */
-function filterWords(query: string): string[] {
-  return normalizeForSearch(query)
-    .split(/\s+/)
-    .filter((word) => word !== '')
-}
-
-/**
- * A cena entra no filtro quando toda palavra aparece no caminho ou no nome, e
- * pelo menos uma no nome: "tav" acha as duas Tavernas, "porto tav" só a de
- * Porto Cinza, e "vila" acha a Vila do Vau sem trazer junto tudo o que ela tem.
- */
-function matchesFilter(words: readonly string[], name: string, trail: readonly string[]): boolean {
-  const own = normalizeForSearch(name)
-  const whole = normalizeForSearch([...trail, name].join(' '))
-  return words.every((word) => whole.includes(word)) && words.some((word) => own.includes(word))
-}
-
 /** O nível da linha para o CSS: o recuo e os fios da pasta saem de `--lb-cena-nivel`. */
 function levelStyle(depth: number): CSSProperties {
   return { '--lb-cena-nivel': String(depth) } as CSSProperties
@@ -644,11 +623,11 @@ export function ScenesSection({
   }
 
   const showFilter = scenes.length >= SCENE_FILTER_MIN
-  const words = showFilter ? filterWords(query) : []
+  const words = showFilter ? sceneSearchWords(query) : []
   const filtering = words.length > 0
   const visibleRows: SceneTreeRow<SceneListItem>[] = []
   if (filtering) {
-    for (const row of tree) if (matchesFilter(words, row.entry.name, trailOf(row.entry.id))) visibleRows.push(row)
+    for (const row of tree) if (matchesSceneSearch(words, row.entry.name, trailOf(row.entry.id))) visibleRows.push(row)
   } else {
     // Dentro de uma pasta recolhida, pula até a próxima linha do mesmo nível.
     let hiddenBelow: number | null = null

@@ -32,9 +32,18 @@ export const PARTY_SEND_FAILED = 'Não deu para mandar: a cena ou a ficha mudou.
 /** O rótulo do botão que abre o envio: o teste e o leitor de tela acham a linha por ele. */
 export const SEND_TO_LABEL = 'Mandar para…'
 
-/** As cenas para onde ESTE jogador pode ir: todas menos a dele. */
-export function sendDestinationsFor(member: PartyMember, destinations: PartyDestination[]): PartyDestination[] {
-  return destinations.filter((destination) => destination.sceneId !== member.sceneId)
+/**
+ * As cenas para onde ESTE jogador pode ir: todas menos a dele. As que têm
+ * gente (outro jogador conectado lá) vêm primeiro — é para junto do grupo
+ * que o mestre manda quem se perdeu —, e cada parte segue a ordem da lista.
+ */
+export function sendDestinationsFor(member: PartyMember, destinations: PartyDestination[], members: readonly PartyMember[] = []): PartyDestination[] {
+  const occupied = new Set<string>()
+  for (const other of members) {
+    if (other.playerId !== member.playerId && other.connected && other.sceneId !== null) occupied.add(other.sceneId)
+  }
+  const targets = destinations.filter((destination) => destination.sceneId !== member.sceneId)
+  return [...targets.filter((destination) => occupied.has(destination.sceneId)), ...targets.filter((destination) => !occupied.has(destination.sceneId))]
 }
 
 /** Os formulários de uma linha do Grupo, abaixo da lista: "Mandar para…" ou "Dar item…". */
@@ -155,7 +164,7 @@ export function PartySendForm({ member, party, formId, onClose }: PartySendFormP
         ariaLabel={`Mandar ${member.name} para outra cena`}
         submitLabel="Mandar"
         failedText={PARTY_SEND_FAILED}
-        destinations={sendDestinationsFor(member, party.destinations)}
+        destinations={sendDestinationsFor(member, party.destinations, party.members)}
         onSend={(sceneId, pinId) => party.onSend(member.playerId, sceneId, pinId)}
         onClose={onClose}
       />
