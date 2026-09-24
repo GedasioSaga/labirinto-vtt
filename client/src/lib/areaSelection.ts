@@ -24,6 +24,7 @@ import { canInteract } from './itemTransform'
 import { isDegenerateRegion } from '../pixi/shapes'
 import { moveWall, moveRegion, moveStair } from './mapFactory'
 import { ancestorsOf, subtreeIds } from './roomNesting'
+import { stairSpiralCircle } from './stairs'
 
 // ─────────────────────────────────────────────────────────────
 // Geometria genérica: todo tipo de entidade do mapa se reduz a um destes 5
@@ -206,6 +207,9 @@ function wallEntity(wall: Wall): AreaGeometryEntity {
 }
 
 function stairEntity(stair: Stair): AreaGeometryEntity {
+  // Espiral: a área cerca ou toca o círculo desenhado, não o diâmetro arrastado.
+  const circle = stairSpiralCircle(stair)
+  if (circle !== null) return { kind: 'circle', cx: circle.center.x, cy: circle.center.y, radius: circle.radius }
   return {
     kind: 'segments',
     segments: stair.segments.map((seg) => ({ a: { x: seg.x1, y: seg.y1 }, b: { x: seg.x2, y: seg.y2 } })),

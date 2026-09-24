@@ -10,6 +10,10 @@ import { describe, expect, it } from 'vitest'
 import { Graphics } from 'pixi.js'
 import { computeSpiralPlan, SPIRAL_SPOKE_COUNT } from './stairs'
 import { findStairAt } from './selectionHitTest'
+import { eraseDecisionForStair } from './eraseGeometry'
+import { selectEntitiesInArea } from './areaSelection'
+import { addStair, createEmptyMap } from './mapFactory'
+import { resolveHoverGeometry } from '../pixi/drawHover'
 import { drawStairs, STAIR_RAIL_ALPHA, STAIR_TREAD_ALPHA_AT_FOOT } from '../pixi/drawStairs'
 import { SELECTION_COLOR, STAIR_COLOR } from '../pixi/constants'
 import type { Stair } from '../types/map'
@@ -97,5 +101,46 @@ describe('findStairAt — espiral', () => {
     expect(findStairAt([ESPIRAL], { x: 200, y: 330 })).toBeNull()
     // A mesma escada reta não responde tão longe do lance.
     expect(findStairAt([{ ...ESPIRAL, shape: 'straight' }], { x: 200, y: 290 })).toBeNull()
+  })
+})
+
+// A espiral é o círculo desenhado em TODO lugar que pergunta "onde está a escada":
+// borracha, contorno de hover e seleção por área concordam com o clique acima.
+describe('borracha — espiral', () => {
+  it('passar em cima do círculo, longe do diâmetro, apaga a escada; fora dele, não', () => {
+    expect(eraseDecisionForStair(ESPIRAL, { x: 200, y: 290 }, 10)).toBe('remove')
+    expect(eraseDecisionForStair(ESPIRAL, { x: 200, y: 105 }, 10)).toBe('remove')
+    expect(eraseDecisionForStair(ESPIRAL, { x: 200, y: 330 }, 10)).toBe('keep')
+    // A mesma escada reta continua sendo só o lance.
+    expect(eraseDecisionForStair({ ...ESPIRAL, shape: 'straight' }, { x: 200, y: 290 }, 10)).toBe('keep')
+    // Espiral sem lance nenhum (dado velho ou corrompido) não quebra: não há o que apagar.
+    expect(eraseDecisionForStair({ ...ESPIRAL, segments: [] }, { x: 200, y: 200 }, 10)).toBe('keep')
+  })
+})
+
+describe('contorno de hover — espiral', () => {
+  it('o contorno é o círculo desenhado, não o diâmetro', () => {
+    const map = addStair(createEmptyMap('m1', 'Mapa', 1000, 1000, 50), ESPIRAL)
+    expect(resolveHoverGeometry(map, { kind: 'stair', id: 'torre' })).toEqual({ shape: 'circle', cx: 200, cy: 200, radius: 100 })
+    const reta = addStair(createEmptyMap('m1', 'Mapa', 1000, 1000, 50), { ...ESPIRAL, shape: 'straight' })
+    expect(resolveHoverGeometry(reta, { kind: 'stair', id: 'torre' })).toEqual({
+      shape: 'segments',
+      segments: [{ a: { x: 100, y: 200 }, b: { x: 300, y: 200 } }],
+    })
+  })
+})
+
+describe('seleção por área — espiral', () => {
+  const map = addStair(createEmptyMap('m1', 'Mapa', 1000, 1000, 50), ESPIRAL)
+
+  it('interseção: retângulo que só toca o círculo, longe do diâmetro, pega a escada', () => {
+    // Arrasto da direita para a esquerda = interseção.
+    expect(selectEntitiesInArea(map, { x1: 210, y1: 280, x2: 190, y2: 295 }).stairs).toEqual(['torre'])
+    expect(selectEntitiesInArea(map, { x1: 210, y1: 310, x2: 190, y2: 330 }).stairs).toEqual([])
+  })
+
+  it('contenção: cercar só o diâmetro não basta, é preciso cercar o círculo', () => {
+    expect(selectEntitiesInArea(map, { x1: 90, y1: 190, x2: 310, y2: 210 }).stairs).toEqual([])
+    expect(selectEntitiesInArea(map, { x1: 90, y1: 90, x2: 310, y2: 310 }).stairs).toEqual(['torre'])
   })
 })

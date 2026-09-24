@@ -8,7 +8,7 @@ import {
   isLayerLocked, wallLayer, regionLayer, stairLayer, lightLayer, tokenLayer, propLayer, drawingLayer,
 } from './layers'
 import { findPinAt } from './pins'
-import { spiralCircle } from './stairs'
+import { stairSpiralCircle } from './stairs'
 
 export interface Point {
   x: number
@@ -60,7 +60,7 @@ export function findStairAt(stairs: Stair[], point: Point, tolerance = STAIR_HIT
   for (let i = stairs.length - 1; i >= 0; i -= 1) {
     const stair = stairs[i]
     // Espiral: o que está desenhado é o círculo inteiro (`lib/stairs.ts`), não a faixa do lance.
-    const circle = stair.shape === 'spiral' && stair.segments[0] !== undefined ? spiralCircle(stair.segments[0]) : null
+    const circle = stairSpiralCircle(stair)
     if (circle !== null) {
       if (Math.hypot(point.x - circle.center.x, point.y - circle.center.y) <= circle.radius + tolerance) return stair
       continue

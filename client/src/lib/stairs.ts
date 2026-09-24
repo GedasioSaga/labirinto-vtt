@@ -306,6 +306,18 @@ export function spiralCircle(segment: StairSegment): { center: Point; radius: nu
   return { center: { x: (segment.x1 + segment.x2) / 2, y: (segment.y1 + segment.y2) / 2 }, radius }
 }
 
+/**
+ * O círculo que a escada OCUPA quando é espiral; `null` para qualquer outra
+ * forma (ou espiral sem lance). Fonte única para clique, borracha, hover e
+ * seleção por área: todos tratam a espiral como o círculo desenhado, nunca
+ * como o diâmetro arrastado.
+ */
+export function stairSpiralCircle(stair: Stair): { center: Point; radius: number } | null {
+  if (stair.shape !== 'spiral') return null
+  const first = stair.segments[0]
+  return first === undefined ? null : spiralCircle(first)
+}
+
 /** Geometria da espiral em px de mundo — pura, sem Pixi. Lance de comprimento zero devolve `null`. */
 export function computeSpiralPlan(segment: StairSegment, direction: StairDirection): SpiralPlan | null {
   const circle = spiralCircle(segment)

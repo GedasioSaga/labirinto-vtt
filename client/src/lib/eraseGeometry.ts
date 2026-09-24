@@ -1,4 +1,5 @@
 import type { Drawing, DrawingPoint, Prop, Region, Stair, Token, Wall } from '../types/map'
+import { stairSpiralCircle } from './stairs'
 
 /**
  * Geometria PURA da borracha (Agente D, Fase 4, N1 — "apagar só uma parte ou
@@ -401,8 +402,11 @@ export function eraseDecisionForRegion(region: Region, center: Point, radius: nu
  *  'straight' — ver comentário de `Stair.shape` em types/map.ts; 'l'/'double'
  *  do futuro já funcionam de graça aqui, um `.some` sobre o array). Encostar
  *  em QUALQUER segmento do lance remove a escada inteira — não existe
- *  "escada pela metade" no schema atual. */
+ *  "escada pela metade" no schema atual. Espiral: o que se apaga é o círculo
+ *  desenhado (`stairSpiralCircle`), o mesmo que o clique seleciona. */
 export function eraseDecisionForStair(stair: Stair, center: Point, radius: number): EraseWholeDecision {
+  const circle = stairSpiralCircle(stair)
+  if (circle !== null) return circleOverlapsCircle(center, radius, circle.center, circle.radius) ? 'remove' : 'keep'
   const touchesAnySegment = stair.segments.some((segment) =>
     circleOverlapsSegment(center, radius, { x: segment.x1, y: segment.y1 }, { x: segment.x2, y: segment.y2 }),
   )
