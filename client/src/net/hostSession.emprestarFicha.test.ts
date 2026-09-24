@@ -12,6 +12,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import { decodeExploration, isPointExplored } from '../lib/exploration'
+import { pointInRing } from '../lib/floorContour'
 import { createEmptyMap } from '../lib/mapFactory'
 import type { MapData, Token } from '../types/map'
 import { createHostSession, type HostResult, type HostScene, type HostWorld } from './hostSession'
@@ -225,6 +226,27 @@ describe('hostSession: o empréstimo não entrega o que está escondido', () => 
     const volta = m.entra('c9', 'Ana', m.ana.resumeToken)
     expect(wireFor(volta.result, 'c9')).toContain('a chave esta no poco')
     expect(wireFor(volta.result, 'c3')).not.toContain('a chave esta no poco')
+  })
+
+  it('o Lírio emprestado enxerga com o raio da Ana (300), não com o da Carla (700), e o explorado da Ana bate com isso', () => {
+    const m = mesa()
+    m.s.disconnect('c1')
+    m.s.lendTokens(m.ana.playerId, m.carla.playerId, m.mundo())
+    // O Lírio no fundo do Hall, longe do Escudo da Carla (300, 100).
+    m.mover('lirio', 1400, 250)
+    const carla = snapshotOf(m.s.broadcast(m.mundo()), 'c3')
+    const carlaVe = (x: number, y: number): boolean => carla.vision.some((ring) => pointInRing({ x, y }, ring))
+    // Perto do Lírio (150 px): dentro do raio da Ana, a Carla vê.
+    expect(carlaVe(1250, 250)).toBe(true)
+    // A 353 px do Lírio e a 776 px do Escudo: fora do raio da Ana. Com o raio
+    // da Carla o Lírio veria aqui, e a célula iria pela rede para ela.
+    expect(carlaVe(1050, 300)).toBe(false)
+    // O que a ficha registra no explorado da Ana é o mesmo recorte.
+    m.mover('lirio', 100, 100)
+    m.s.broadcast(m.mundo())
+    const ana = snapshotOf(m.entra('c9', 'Ana', m.ana.resumeToken).result, 'c9')
+    expect(explorado(ana, 1250, 250)).toBe(true)
+    expect(explorado(ana, 1050, 300)).toBe(false)
   })
 
   it('ficha de outra cena não é emprestada a quem já está numa cena: nada da Cripta chega à Carla', () => {

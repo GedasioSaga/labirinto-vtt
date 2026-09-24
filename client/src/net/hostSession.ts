@@ -890,6 +890,13 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   let rev = 0
 
   const radiusFor = (playerId: string): number => visionOverrides.get(playerId) ?? options.visionRadius
+  /**
+   * O raio de cada ficha que `playerId` vê: a emprestada enxerga com o raio do
+   * DONO (personagem sem visão no escuro continua sem ela nas mãos de outro),
+   * senão a névoa em volta dela mudaria conforme quem a joga e o explorado do
+   * dono gravaria um recorte que ninguém viu.
+   */
+  const tokenRadiusFor = (playerId: string) => (tokenId: string): number => radiusFor(loans.get(tokenId)?.ownerId ?? playerId)
 
   /** Polígonos das zonas ocultas ativas (`?? []`: mapa montado fora do deserializeMap pode vir sem o campo). */
   const statusOf = (playerId: string): PlayerStatus => ((ownership[playerId]?.length ?? 0) > 0 ? 'playing' : 'waiting')
@@ -1029,7 +1036,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   const snapshotFor = (playerId: string, map: MapData, world: HostWorld): HostMessage => {
     const memory = memoryFor(playerId, map, world)
     const exp = memory.exp
-    const view = filterMapForPlayer(map, playerId, ownership, radiusFor(playerId), exp, memory.doors)
+    const view = filterMapForPlayer(map, playerId, ownership, tokenRadiusFor(playerId), exp, memory.doors)
     // Zona oculta ativa e sala secreta: célula que toca nelas não vira explorada
     // (senão o jogador guardaria a planta escondida e o formato dela).
     markRings(exp, view.vision, view.blocked)
@@ -1505,7 +1512,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const wall = map.walls.find((w) => w.id === wallId)
     if (wall === undefined || wall.door === null) return null
     const memory = memoryFor(playerId, map, world)
-    const view = filterMapForPlayer(map, playerId, ownership, radiusFor(playerId), memory.exp, memory.doors)
+    const view = filterMapForPlayer(map, playerId, ownership, tokenRadiusFor(playerId), memory.exp, memory.doors)
     if (!view.visibleDoorIds.includes(wall.id)) return null
     const owned = new Set(ownership[playerId] ?? [])
     const near = view.map.tokens.some((t) => owned.has(t.id) && tokenReachesDoor(t, wall, map.grid))
@@ -1624,7 +1631,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const pin = from.map.pins.find((p) => p.id === pinId)
     if (pin === undefined) return null
     const memory = memoryFor(playerId, from.map, world)
-    const view = filterMapForPlayer(from.map, playerId, ownership, radiusFor(playerId), memory.exp, memory.doors)
+    const view = filterMapForPlayer(from.map, playerId, ownership, tokenRadiusFor(playerId), memory.exp, memory.doors)
     if (!view.map.pins.some((p) => p.id === pinId)) return null
     // Trancada: ninguém passa sozinho. Cai no mesmo `null` de todo o resto,
     // então o jogador lê o motivo genérico de sempre e nada chega ao mestre.
