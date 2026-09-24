@@ -1756,4 +1756,60 @@
     transition: none;
     animation: none;
   }
+/* ======================================== anotação pessoal (só deste aparelho) */
+
+/* Salvar e Cancelar lado a lado, no pé do cartão da anotação. */
+.pp-note-draft__actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+/* Minhas notas: a linha centraliza; "Apagar" fica à direita, discreto. */
+.pp-personal-notes__item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.pp-personal-notes__item > .pp-character {
+  flex: 1;
+  min-width: 0;
+}
+
+/* O mesmo quadradinho claro da nota no mapa: retângulo pequeno, chapado, como no minimapa. */
+.pp-personal-notes__mark {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  background: #f2d479;
+  box-shadow: 0 0 0 1px #000000;
+}
+
+.pp-personal-notes__remove {
+  flex: none;
+  min-height: 32px;
+  padding: 4px 8px;
+  font: inherit;
+  font-size: 12px;
+  color: var(--lb-color-parchment-dim, #a2a09a);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--lb-radius-md, 6px);
+  cursor: pointer;
+}
+
+.pp-personal-notes__remove:hover {
+  color: var(--lb-color-parchment, #eceae4);
+  border-color: var(--lb-color-line-panel, rgba(255, 255, 255, 0.18));
+}
+
+.pp-personal-notes__remove:focus-visible {
+  outline: 2px solid var(--lb-color-brass, #e0a44a);
+  outline-offset: 2px;
+}
+
+/* O cartão da anotação foi o jogador que pediu: fica por cima de um recado que chegue enquanto ele digita. */
+.pp-note-draft {
+  z-index: 26;
 }

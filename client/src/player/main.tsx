@@ -25,8 +25,19 @@ import { selectedTokenColor } from '../lib/tokenColor'
 import { buildTokenPhotoData } from '../lib/tokenPhoto'
 import { findKnownPath } from '../lib/knownPath'
 import { PlayerPointMenu } from './PlayerPointMenu'
-import type { Pin, RegionPoint } from '../types/map'
+import type { Pin } from '../types/map'
 import { loadPlaceNames, savePlaceName, withPlaceName, type VisitedPlace } from './playerPlaces'
+import { PersonalNoteDraft } from './PlayerPersonalNotes'
+import {
+  addPersonalNote,
+  loadPersonalNotes,
+  newPersonalNoteId,
+  notesOnMap,
+  removePersonalNote,
+  savePersonalNotes,
+  type PersonalNote,
+} from './personalNotes'
+import type { FocusPointRequest } from './PlayerView'
 import './player.css'
 
 // Página do jogador: entra com código + nome, espera o mestre e mostra o mapa.
@@ -512,8 +523,7 @@ const HANDSHAKE_DEADLINE_MS = 8_000
 function Session({ connection, code, typedName, hostName, onLeave, onQuit }: SessionProps) {
   const state: PlayerState = useSyncExternalStore(connection.subscribe, connection.getState)
   const [settings, setSettings] = useState<PlayerViewSettings>(() => loadPlayerSettings(localStorageOrNull()))
-  /** Pedido de câmera: a ficha (`tokenId`) ou, sem ficha, um ponto conhecido da aba Lugares. */
-  const [focus, setFocus] = useState<{ tokenId: string | null; point: RegionPoint | null; seq: number }>({ tokenId: null, point: null, seq: 0 })
+  const [focus, setFocus] = useState<{ tokenId: string | null; seq: number }>({ tokenId: null, seq: 0 })
   /** LUGARES: os nomes que o jogador deu, por lugar. Só nesta tela (nunca vão ao mestre). */
   const [placeNames, setPlaceNames] = useState<Record<string, string>>({})
   const playerId = state.playerId
@@ -545,11 +555,41 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
   /** ANDAR ATÉ AQUI: o menu do toque longo; `null` = fechado. */
   const [pointMenu, setPointMenu] = useState<PointMenuState | null>(null)
   const closePointMenu = useCallback(() => setPointMenu(null), [])
-  // Outra cena: o ponto e o caminho do menu eram do mapa de antes.
+  /**
+   * ANOTAÇÕES PESSOAIS de todas as cenas, lidas do aparelho ao entrar. Nunca
+   * vão pelo socket: nem o mestre nem os colegas sabem delas.
+   */
+  const [personalNotes, setPersonalNotes] = useState<readonly PersonalNote[]>(() => loadPersonalNotes(localStorageOrNull()))
+  /** "Anotar" ligado: o próximo toque no mapa marca onde vai a nota. */
+  const [noteArmed, setNoteArmed] = useState(false)
+  /** Ponto já tocado, esperando o texto no cartão; `null` = cartão fechado. */
+  const [noteDraft, setNoteDraft] = useState<{ mapId: string; x: number; y: number } | null>(null)
+  /**
+   * Pedido de câmera para um PONTO: uma nota de "Minhas notas" ou um ponto conhecido da aba Lugares.
+   * Um só estado para os dois: a PlayerView tem um `focusPoint` só, e o `seq` que cresce junto garante
+   * que o toque mais novo, de qualquer um dos dois, é o que move a câmera.
+   */
+  const [pointFocus, setPointFocus] = useState<FocusPointRequest | null>(null)
+  const focusOnPoint = useCallback((x: number, y: number) => {
+    setPointFocus((current) => ({ x, y, seq: (current?.seq ?? 0) + 1 }))
+  }, [])
+  const changePersonalNotes = useCallback((change: (notes: readonly PersonalNote[]) => readonly PersonalNote[]) => {
+    setPersonalNotes((current) => {
+      const next = change(current)
+      if (next !== current) savePersonalNotes(localStorageOrNull(), next)
+      return next
+    })
+  }, [])
+  const removeNote = useCallback((noteId: string) => changePersonalNotes((notes) => removePersonalNote(notes, noteId)), [changePersonalNotes])
+  const cancelNoteDraft = useCallback(() => setNoteDraft(null), [])
+  // Outra cena: o ponto e o caminho do menu eram do mapa de antes (e o ponto da nota por escrever também).
   const sceneMapId = state.map?.id
   useEffect(() => {
     setPointMenu(null)
+    setNoteDraft(null)
   }, [sceneMapId])
+  // Referência estável por cena: a camada do mapa não recebe lista nova a cada snapshot.
+  const sceneNotes = useMemo(() => (sceneMapId === undefined ? [] : notesOnMap(personalNotes, sceneMapId)), [personalNotes, sceneMapId])
   /**
    * Trechos até o ponto do menu a partir de onde a ficha ESTÁ agora, só com o
    * que esta tela conhece; `null` = não conhece o caminho. Recalculados a cada
@@ -595,17 +635,18 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
   // Escape apaga a medida e desliga o modo. Só escuta com o modo ligado, e
   // nunca dentro de campo de texto (lá o Escape é da edição).
   useEffect(() => {
-    if (!measureArmed && !laserArmed && !destinationArmed) return
+    if (!measureArmed && !laserArmed && !destinationArmed && !noteArmed) return
     const onKey = (event: KeyboardEvent) => {
       if (!escapeDisarmsMeasure(event.key, event.target)) return
       // Os modos não ficam ligados juntos: o Escape desliga o que estiver.
       setMeasureArmed(false)
       setLaserArmed(false)
       setDestinationArmed(false)
+      setNoteArmed(false)
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [measureArmed, laserArmed, destinationArmed])
+  }, [measureArmed, laserArmed, destinationArmed, noteArmed])
 
   const ownTokens = state.ownTokens ?? NO_TOKENS
   const map = state.map
@@ -685,7 +726,6 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
           ownTokens={ownTokens}
           settings={settings}
           focusTokenId={focus.tokenId}
-          focusPoint={focus.point}
           focusSeq={focus.seq}
           onMove={(id, x, y) => connection.requestMove(id, x, y)}
           signals={state.signals ?? NO_SIGNALS}
@@ -718,6 +758,15 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
           onPinOpen={openPinCard}
           onRoomOpen={(regionId) => connection.openRoomText(regionId)}
           focusObstacles={mapObstacles}
+          personalNotes={sceneNotes}
+          onNoteLongPress={removeNote}
+          noteArmed={noteArmed}
+          onNotePlace={(x, y) => {
+            // Modo de um toque, como o Marcar destino: marcou o ponto, desliga e pede o texto. Nada vai ao mestre.
+            setNoteArmed(false)
+            setNoteDraft({ mapId: playingMap.id, x, y })
+          }}
+          focusPoint={pointFocus}
           zoomStep={zoomStep}
           onZoomLimitsChange={setZoomLimits}
         />
@@ -728,8 +777,8 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
           characterColor={OWN_TOKEN_CSS}
           settings={settings}
           onSettingsChange={changeSettings}
-          onFocusToken={(tokenId) => setFocus((current) => ({ tokenId, point: null, seq: current.seq + 1 }))}
-          onFocusPoint={(point) => setFocus((current) => ({ tokenId: null, point, seq: current.seq + 1 }))}
+          onFocusToken={(tokenId) => setFocus((current) => ({ tokenId, seq: current.seq + 1 }))}
+          onFocusPoint={(point) => focusOnPoint(point.x, point.y)}
           pins={state.map.pins ?? NO_PINS}
           places={state.places ?? NO_PLACES}
           currentPlace={state.place}
@@ -742,6 +791,7 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
             setMeasureArmed(false)
             setLaserArmed(false)
             setDestinationArmed(false)
+            setNoteArmed(false)
           }}
           measureArmed={measureArmed}
           onToggleMeasure={() => {
@@ -749,6 +799,7 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
             setSignalArmed(false)
             setLaserArmed(false)
             setDestinationArmed(false)
+            setNoteArmed(false)
           }}
           laserArmed={laserArmed}
           onToggleLaser={() => {
@@ -756,6 +807,7 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
             setSignalArmed(false)
             setMeasureArmed(false)
             setDestinationArmed(false)
+            setNoteArmed(false)
           }}
           destinationArmed={destinationArmed}
           onToggleDestination={() => {
@@ -763,7 +815,22 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
             setSignalArmed(false)
             setMeasureArmed(false)
             setLaserArmed(false)
+            setNoteArmed(false)
           }}
+          noteArmed={noteArmed}
+          onToggleNote={() => {
+            setNoteArmed((armed) => !armed)
+            setSignalArmed(false)
+            setMeasureArmed(false)
+            setLaserArmed(false)
+            setDestinationArmed(false)
+          }}
+          personalNotes={sceneNotes}
+          onFocusNote={(noteId) => {
+            const note = sceneNotes.find((n) => n.id === noteId)
+            if (note !== undefined) focusOnPoint(note.x, note.y)
+          }}
+          onRemoveNote={removeNote}
           hasDestination={(state.destinations ?? NO_DESTINATIONS).some((mark) => mark.mine)}
           onClearDestination={() => connection.clearDestination()}
           onRenameToken={(tokenId, name) => connection.setOwnTokenName(tokenId, name)}
@@ -795,6 +862,16 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
               if (pointMenuLegs !== null) connection.requestWalk(pointMenu.tokenId, pointMenuLegs)
             }}
             onClose={closePointMenu}
+          />
+        )}
+        {noteDraft && (
+          <PersonalNoteDraft
+            onSave={(text) => {
+              const { mapId, x, y } = noteDraft
+              changePersonalNotes((notes) => addPersonalNote(notes, { id: newPersonalNoteId(), mapId, x, y, text }))
+              setNoteDraft(null)
+            }}
+            onCancel={cancelNoteDraft}
           />
         )}
         {/* O pino pode sumir do recorte enquanto o cartão está aberto (o token

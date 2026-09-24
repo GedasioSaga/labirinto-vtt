@@ -6,12 +6,12 @@ import { createEmptyMap } from '../lib/mapFactory'
 import { freeAreaCenter, type Bounds } from '../pixi/world'
 import type { MapData, RegionPoint } from '../types/map'
 import { DEFAULT_PLAYER_SETTINGS } from './PlayerPanel'
-import { PlayerView } from './PlayerView'
+import { PlayerView, type FocusPointRequest } from './PlayerView'
 
 /**
  * PONTO CONHECIDO (aba Lugares) na TELA do jogador: `focusPoint` com um
- * `focusSeq` novo e sem ficha leva o pino ao meio do que o painel deixa livre,
- * no zoom de agora. `main.lugares.test.tsx` prova que o toque no painel vira
+ * `seq` novo leva o pino ao meio do que o painel deixa livre, no zoom de agora —
+ * o mesmo pedido de câmera de "Minhas notas" (anotacao-pessoal). `main.lugares.test.tsx` prova que o toque no painel vira
  * esse pedido; aqui a prova é que a PlayerView de verdade move a câmera.
  *
  * Sem navegador, como em `PlayerView.frente.test.tsx`: só o `Application`
@@ -104,7 +104,7 @@ describe('PlayerView — tocar num ponto conhecido centra a câmera nele', () =>
 
   interface Foco {
     focusTokenId?: string | null
-    focusPoint?: RegionPoint | null
+    focusPoint?: FocusPointRequest | null
     focusSeq: number
     obstaculos?: Bounds[]
   }
@@ -143,7 +143,7 @@ describe('PlayerView — tocar num ponto conhecido centra a câmera nele', () =>
     const antes = naTela(PORTAS)
     expect(Math.hypot(antes.x - TELA.width / 2, antes.y - TELA.height / 2)).toBeGreaterThan(100)
 
-    await mostra({ focusPoint: PORTAS, focusSeq: 1 })
+    await mostra({ focusPoint: { ...PORTAS, seq: 1 }, focusSeq: 0 })
     const depois = naTela(PORTAS)
     // Pixel físico inteiro (applyCamera): meio pixel de folga.
     expect(depois.x).toBeCloseTo(TELA.width / 2, 0)
@@ -154,7 +154,7 @@ describe('PlayerView — tocar num ponto conhecido centra a câmera nele', () =>
   it('com o painel cobrindo a direita, o pino vai ao meio do que sobra livre', async () => {
     const painel: Bounds = { minX: 500, minY: 0, maxX: 800, maxY: 600 }
     await monta({ focusSeq: 0, obstaculos: [painel] })
-    await mostra({ focusPoint: PORTAS, focusSeq: 1, obstaculos: [painel] })
+    await mostra({ focusPoint: { ...PORTAS, seq: 1 }, focusSeq: 0, obstaculos: [painel] })
     const livre = freeAreaCenter(TELA, [painel])
     const depois = naTela(PORTAS)
     expect(livre.x).toBeLessThan(painel.minX)
@@ -163,23 +163,35 @@ describe('PlayerView — tocar num ponto conhecido centra a câmera nele', () =>
     expect(depois.x).toBeGreaterThanOrEqual(0)
   })
 
-  it('o ponto só vale com pedido novo: o mesmo focusSeq não puxa a câmera de volta', async () => {
+  it('o ponto só vale com pedido novo: o mesmo seq não puxa a câmera de volta', async () => {
     await monta({ focusSeq: 0 })
-    await mostra({ focusPoint: PORTAS, focusSeq: 1 })
+    await mostra({ focusPoint: { ...PORTAS, seq: 1 }, focusSeq: 0 })
     const centrada = { x: mundo().x, y: mundo().y }
     // O jogador arrasta o mapa para longe; um snapshot qualquer re-renderiza com o mesmo pedido.
     mundo().position.set(centrada.x - 250, centrada.y + 120)
-    await mostra({ focusPoint: PORTAS, focusSeq: 1 })
+    await mostra({ focusPoint: { ...PORTAS, seq: 1 }, focusSeq: 0 })
     expect(mundo().x).toBe(centrada.x - 250)
     expect(mundo().y).toBe(centrada.y + 120)
   })
 
-  it('ficha e ponto juntos: a ficha manda (o ponto é para quando não há ficha)', async () => {
+  it('o pedido mais novo manda: ponto depois da ficha vai ao ponto, ficha depois do ponto volta à ficha', async () => {
     await monta({ focusSeq: 0 })
-    await mostra({ focusTokenId: EVA, focusPoint: PORTAS, focusSeq: 1 })
+    // "Minha ficha": a Eva no meio.
+    await mostra({ focusTokenId: EVA, focusSeq: 1 })
+    expect(naTela({ x: 500, y: 500 }).x).toBeCloseTo(TELA.width / 2, 0)
+
+    // Ponto conhecido com a ficha ainda "pedida" (mesmo focusSeq): o pedido de ficha antigo não refaz nada.
+    await mostra({ focusTokenId: EVA, focusSeq: 1, focusPoint: { ...PORTAS, seq: 1 } })
+    const portas = naTela(PORTAS)
+    expect(portas.x).toBeCloseTo(TELA.width / 2, 0)
+    expect(portas.y).toBeCloseTo(TELA.height / 2, 0)
+    expect(Math.hypot(naTela({ x: 500, y: 500 }).x - TELA.width / 2, naTela({ x: 500, y: 500 }).y - TELA.height / 2)).toBeGreaterThan(100)
+
+    // Ficha de novo (focusSeq novo, o ponto parado): a câmera volta à Eva.
+    await mostra({ focusTokenId: EVA, focusSeq: 2, focusPoint: { ...PORTAS, seq: 1 } })
     const eva = naTela({ x: 500, y: 500 })
     expect(eva.x).toBeCloseTo(TELA.width / 2, 0)
     expect(eva.y).toBeCloseTo(TELA.height / 2, 0)
-    expect(Math.hypot(naTela(PORTAS).x - TELA.width / 2, naTela(PORTAS).y - TELA.height / 2)).toBeGreaterThan(100)
+    expect(mundo().scale.x).toBeGreaterThan(0)
   })
 })
