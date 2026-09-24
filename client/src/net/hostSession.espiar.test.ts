@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
+import { pointInRing } from '../lib/floorContour'
+import { baldeNoPonto } from '../lib/floorTool'
 import { createEmptyMap } from '../lib/mapFactory'
-import type { DoorState, MapData, Region, Token, Wall } from '../types/map'
+import type { DoorState, FloorPiece, MapData, Region, RegionPoint, Token, Wall } from '../types/map'
 import { createHostSession, PEEK_DURATION_MS, peekNoticeText } from './hostSession'
 import { parsePlayerMessage, type HostMessage } from './protocol'
 
@@ -78,6 +80,19 @@ function snapshotDe(saida: { clientId: string; msg: HostMessage }[], clientId: s
 
 const fichasDe = (snap: Extract<HostMessage, { type: 'snapshot' }>): string[] => snap.map.tokens.map((t) => t.id).sort()
 
+const cobre = (vision: readonly RegionPoint[][], p: RegionPoint): boolean => vision.some((ring) => ring.length >= 3 && pointInRing(p, ring))
+
+/** Células do mapa (colunas × linhas) fora do retângulo de células c0..c1 × r0..r1. */
+function blocosFora(colunas: number, linhas: number, c0: number, c1: number, r0: number, r1: number): { col: number; row: number }[] {
+  const out: { col: number; row: number }[] = []
+  for (let col = 0; col < colunas; col += 1) {
+    for (let row = 0; row < linhas; row += 1) {
+      if (col < c0 || col > c1 || row < r0 || row > r1) out.push({ col, row })
+    }
+  }
+  return out
+}
+
 describe("hostSession: 'Espiar' pela porta fechada", () => {
   it('o protocolo aceita door.peek com o id da parede e recusa lixo', () => {
     expect(parsePlayerMessage({ type: 'door.peek', wallId: 'porta' })).toEqual({ type: 'door.peek', wallId: 'porta' })
@@ -115,6 +130,33 @@ describe("hostSession: 'Espiar' pela porta fechada", () => {
     const depois = snapshotDe(s.broadcast(map).outbound, 'c-ana')
     expect(fichasDe(depois)).toEqual(['ana', 'bia', 'caio'])
     expect(JSON.stringify(depois)).not.toContain('escrivao')
+  })
+
+  it('escritório com o chão que o balde enche: o cone sai e a visão enviada cobre o escrivão', () => {
+    // Rua em blocos no mapa inteiro, menos o vão do escritório; o balde enche o vão.
+    const rua: FloorPiece = { id: 'rua', shape: { kind: 'blocos', cell: 50, cells: blocosFora(20, 12, 10, 17, 2, 9) }, op: 'add', modifiers: {} }
+    const semChao = { ...escritorio(), floor: [rua] }
+    const balde = baldeNoPonto(semChao, { x: 700, y: 300 }, () => 'chao-escritorio')
+    expect(balde?.id).toBe('chao-escritorio')
+    const map: MapData = { ...semChao, floor: balde === null ? [rua] : [rua, balde] }
+    const relogio = { agora: 1_000 }
+    const { s } = mesa(map, relogio)
+    s.broadcast(map)
+    s.handleMessage('c-ana', { type: 'door.peek', wallId: 'porta' }, map)
+    relogio.agora += 100
+    const daAna = snapshotDe(s.broadcast(map).outbound, 'c-ana')
+    expect(fichasDe(daAna)).toEqual(['ana', 'bia', 'caio', 'escrivao'])
+    expect(daAna.glimpses?.length ?? 0).toBeGreaterThan(0)
+    // Sem isto a névoa preta tampava o buraco do telhado na tela dela.
+    expect(cobre(daAna.vision, { x: 600, y: 300 })).toBe(true)
+    // O chão do escritório só vai recortado no cone, nunca a peça inteira.
+    expect(daAna.map.floor.map((f) => f.id)).toEqual(['rua', 'chao-escritorio~pincel'])
+
+    relogio.agora += PEEK_DURATION_MS
+    const depois = snapshotDe(s.broadcast(map).outbound, 'c-ana')
+    expect(fichasDe(depois)).toEqual(['ana', 'bia', 'caio'])
+    expect(cobre(depois.vision, { x: 600, y: 300 })).toBe(false)
+    expect(depois.map.floor.map((f) => f.id)).toEqual(['rua'])
   })
 
   it('SEGURANÇA: longe da porta não espia, e a recusa diz para chegar perto', () => {

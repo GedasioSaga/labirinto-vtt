@@ -179,15 +179,40 @@ export function sampleFloorGrid(
   }
 
   const values = new Float32Array(cols * rows)
+  const probe = step * SEAM_PROBE_FRACTION
   for (let j = 0; j < rows; j += 1) {
     const cj = Math.min(Math.floor(j / COARSE_FACTOR), coarseRows - 2)
     for (let i = 0; i < cols; i += 1) {
       const ci = Math.min(Math.floor(i / COARSE_FACTOR), coarseCols - 2)
       const sign = uniformSign[cj * (coarseCols - 1) + ci]
-      values[j * cols + i] = sign !== 0 ? sign * coarseStep : sample(originX + i * step, originY + j * step)
+      values[j * cols + i] = sign !== 0 ? sign * coarseStep : sampleAcrossSeam(sample, originX + i * step, originY + j * step, probe)
     }
   }
   return values
+}
+
+/** Módulo abaixo do qual a amostra está EM CIMA de uma borda (e pode ser costura). */
+const SEAM_ZERO = 1e-6
+/** Distância das amostras de prova da costura, em fração do passo da grade. */
+const SEAM_PROBE_FRACTION = 0.25
+
+/**
+ * COSTURA entre peças que se tocam. Na divisa de duas peças encostadas (o
+ * balde enche exatamente o vão que o chão em volta deixa) a distância das duas
+ * é 0, e 0 conta como fora: saía uma linha de contorno no meio do chão, que o
+ * render desenha e a visão (`lib/visibility.ts`) usa como parede. Amostra em
+ * cima de borda vira "dentro" quando há chão dos DOIS lados dela, na
+ * horizontal ou na vertical, ou nas QUATRO diagonais (o canto onde duas
+ * divisas se cruzam, em que as provas em cruz caem de novo em borda). Na borda
+ * de verdade um dos lados é vazio, e ela fica como estava.
+ */
+function sampleAcrossSeam(sample: CompiledFloor['sample'], x: number, y: number, probe: number): number {
+  const value = sample(x, y)
+  if (Math.abs(value) > SEAM_ZERO || value < 0) return value
+  const inside = (dx: number, dy: number): boolean => sample(x + dx * probe, y + dy * probe) < 0
+  const across =
+    (inside(-1, 0) && inside(1, 0)) || (inside(0, -1) && inside(0, 1)) || (inside(-1, -1) && inside(1, -1) && inside(1, 1) && inside(-1, 1))
+  return across ? -SEAM_ZERO : value
 }
 
 function boundingDiagonal(ring: RegionPoint[]): number {

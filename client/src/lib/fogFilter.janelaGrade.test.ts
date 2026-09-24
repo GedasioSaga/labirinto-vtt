@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import type { DoorState, MapData, Prop, Region, Token, Wall } from '../types/map'
+import type { DoorState, FloorPiece, MapData, Prop, Region, RegionPoint, Token, Wall } from '../types/map'
 import { filterMapForPlayer } from './fogFilter'
+import { pointInRing } from './floorContour'
 import { createEmptyMap } from './mapFactory'
 
 /**
@@ -149,6 +150,65 @@ describe('janela de prédio com teto: só o que o olhar alcança, para quem est�
     const { tokenIds, view } = recebidos(armazem({ door: porta({ open: true }) }, [ANA]), 'pAna')
     expect(tokenIds).toEqual(['ana', 'guarda'])
     expect(view.glimpses.length).toBeGreaterThan(0)
+  })
+})
+
+/**
+ * PRÉDIO COM CHÃO PRÓPRIO — o que o balde cria ao encher o interior fechado por
+ * paredes (`floorTool.baldeNoPonto`). A rua é uma peça (0..500) e o armazém
+ * outra (500..900 x 100..500). O chão do prédio sai da conta do jogador
+ * (teto fechado), e sem ele a borda do chão da rua passava bem na janela.
+ */
+function retangulo(id: string, x1: number, y1: number, x2: number, y2: number): FloorPiece {
+  return { id, shape: { kind: 'rect', cx: (x1 + x2) / 2, cy: (y1 + y2) / 2, w: x2 - x1, h: y2 - y1 }, op: 'add', modifiers: {} }
+}
+
+function comChao(map: MapData): MapData {
+  return { ...map, floor: [retangulo('rua', 0, 0, 500, 600), retangulo('chao-armazem', 500, 100, 900, 500)] }
+}
+
+const cobre = (vision: readonly RegionPoint[][], p: RegionPoint): boolean => vision.some((ring) => ring.length >= 3 && pointInRing(p, ring))
+
+describe('prédio com chão próprio (o do balde): o cone pelo vão continua saindo', () => {
+  it('Ana junto da janela recebe o guarda, o cone e a visão sobre ele; o ladrão e o chão inteiro não', () => {
+    const { view, json, tokenIds } = recebidos(comChao(armazem(OESTE_JANELA, [ANA])), 'pAna')
+    expect(tokenIds).toEqual(['ana', 'guarda'])
+    expect(json).not.toContain('ladrao')
+    expect(view.glimpses.length).toBeGreaterThan(0)
+    // Nada do cone passa da divisória.
+    expect(Math.max(...view.glimpses.flat().map((p) => p.x))).toBeLessThanOrEqual(710)
+    // A visão enviada cobre o guarda: sem isso a névoa preta tampava o buraco do telhado.
+    expect(cobre(view.vision, { x: 600, y: 300 })).toBe(true)
+    // E não cobre o ladrão, atrás da divisória.
+    expect(cobre(view.vision, { x: 800, y: 300 })).toBe(false)
+    // O chão do prédio sai só recortado nas células do cone, nunca como a peça inteira.
+    expect(view.map.floor.map((f) => f.id)).toEqual(['rua', 'chao-armazem~pincel'])
+    const doPredio = view.map.floor.find((f) => f.id === 'chao-armazem~pincel')
+    expect(doPredio?.shape.kind).toBe('blocos')
+    // Só as células do cone: nada passa da divisória.
+    const celulas = doPredio?.shape.kind === 'blocos' ? doPredio.shape : null
+    expect(celulas?.cells.length).toBeGreaterThan(0)
+    for (const c of celulas?.cells ?? []) expect((c.col + 1) * (celulas?.cell ?? 0)).toBeLessThanOrEqual(710)
+  })
+
+  it('porta espiada no escritório com chão próprio: guarda e visão sobre ele', () => {
+    const map = comChao(armazem({ door: porta({ locked: true }) }, [ANA]))
+    const { view, tokenIds } = recebidos(map, 'pAna', new Set(['vao']))
+    expect(tokenIds).toEqual(['ana', 'guarda'])
+    expect(view.glimpses.length).toBeGreaterThan(0)
+    expect(cobre(view.vision, { x: 600, y: 300 })).toBe(true)
+  })
+
+  it('SEGURANÇA: com chão próprio, Bia longe e Ana sem espiar continuam sem nada de dentro', () => {
+    const bia = recebidos(comChao(armazem(OESTE_JANELA, [ANA, BIA])), 'pBia')
+    expect(bia.tokenIds).toEqual(['ana', 'bia'])
+    expect(bia.view.glimpses).toEqual([])
+    expect(cobre(bia.view.vision, { x: 600, y: 300 })).toBe(false)
+    expect(bia.view.map.floor.map((f) => f.id)).toEqual(['rua'])
+    const semEspiar = recebidos(comChao(armazem({ door: porta({ locked: true }) }, [ANA])), 'pAna')
+    expect(semEspiar.tokenIds).toEqual(['ana'])
+    expect(semEspiar.view.glimpses).toEqual([])
+    expect(cobre(semEspiar.view.vision, { x: 600, y: 300 })).toBe(false)
   })
 })
 

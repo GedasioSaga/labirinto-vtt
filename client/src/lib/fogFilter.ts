@@ -758,16 +758,29 @@ function mostly(samples: readonly RegionPoint[], test: (p: RegionPoint) => boole
   return samples.length > 0 && samples.filter(test).length * 2 > samples.length
 }
 
-/** Chão sem as peças escondidas, cacheado pelo array imutável `map.floor`: o contorno do chão (visão) é cacheado pela referência. */
-const playerFloorCache = new WeakMap<FloorPiece[], { key: string; floor: FloorPiece[] }>()
+/**
+ * Chão sem as peças escondidas, cacheado pelo array imutável `map.floor`: o
+ * contorno do chão (visão) é cacheado pela referência. Mais de uma chave por
+ * chão: a visão do jogador e o cone de cada prédio pedem recortes diferentes
+ * no mesmo snapshot, e com uma chave só um apagava o outro (contorno refeito
+ * a cada passo).
+ */
+const playerFloorCache = new WeakMap<FloorPiece[], Map<string, FloorPiece[]>>()
+/** Recortes guardados por chão; passou disso, recomeça (chão novo a cada edição, então é raro). */
+const MAX_FLOOR_CUTS = 8
 
 function floorWithout(floor: FloorPiece[], hiddenIds: ReadonlySet<string>): FloorPiece[] {
   if (hiddenIds.size === 0) return floor
-  const key = [...hiddenIds].join('|')
-  const cached = playerFloorCache.get(floor)
-  if (cached !== undefined && cached.key === key) return cached.floor
+  const key = [...hiddenIds].sort().join('|')
+  let cuts = playerFloorCache.get(floor)
+  const cached = cuts?.get(key)
+  if (cached !== undefined) return cached
   const out = floor.filter((f) => !hiddenIds.has(f.id))
-  playerFloorCache.set(floor, { key, floor: out })
+  if (cuts === undefined || cuts.size >= MAX_FLOOR_CUTS) {
+    cuts = new Map()
+    playerFloorCache.set(floor, cuts)
+  }
+  cuts.set(key, out)
   return out
 }
 
@@ -1287,6 +1300,24 @@ export function filterMapForPlayer(
   }
   const isSecretRoomWall = (w: Wall): boolean => w.regionId !== undefined && secretRoomIds.has(w.regionId)
   const playerFloorForVision = floorWithout(map.floor, hiddenFloorIds)
+  /**
+   * Chão da conta do cone DESTE prédio: o do jogador mais as peças que só o
+   * teto dele escondia (o chão que o balde cria ao encher o interior). Sem
+   * elas, a borda do chão da rua passava exatamente na janela e barrava o
+   * olhar: prédio com chão próprio nunca tinha cone. Peça em zona oculta ou
+   * sala secreta continua fora — a borda dela segue barrando o cone. O olhar
+   * daqui nunca sai no fio: vira só as células do cone, e o cone nunca passa
+   * da conta da autoridade.
+   */
+  const floorForGlimpse = (roof: ClosedRoof): FloorPiece[] => {
+    const own = new Set(
+      map.floor
+        .filter((f) => hiddenFloorIds.has(f.id) && mostly(floorPieceSamples(f), (p) => inRoof(roof, p) && !inAnyRing(hiddenAreas, p)))
+        .map((f) => f.id),
+    )
+    if (own.size === 0) return playerFloorForVision
+    return floorWithout(map.floor, new Set([...hiddenFloorIds].filter((id) => !own.has(id))))
+  }
   glimpses.push(
     ...glimpsesThroughOpenings({
       map,
@@ -1304,7 +1335,7 @@ export function filterMapForPlayer(
           {
             ...map,
             walls: knownWalls.filter((w) => !isSecretRoomWall(w) && (interiorRoofOf(w) ?? roof) === roof).flatMap(zoneCutWall),
-            floor: playerFloorForVision,
+            floor: floorForGlimpse(roof),
           },
           peekDoorIds,
         ),
@@ -1596,8 +1627,17 @@ export function filterMapForPlayer(
    * estiver pintado, e some quando o mestre esconde de volta.
    */
   const sightRects = cellRunRects(new Set(shownCells))
-  const sentVision = sightRects.length > 0 ? [...vision, ...sightRects] : vision
-  return { map: filtered, vision: sentVision, visibleDoorIds, concealed, blocked, roofs, glimpses: cellRunRects(new Set(glimpseCells)) }
+  /**
+   * O cone pelo vão também entra na visão enviada, pelo mesmo motivo: ela é
+   * calculada sem o chão do prédio (a sombra dele desenharia o prédio), e a
+   * borda do chão da rua corta a visão bem na janela. Sem isto a névoa preta
+   * tampava o buraco que a tela do jogador abre no telhado. Não vira memória:
+   * `forgetInside(view.roofs)` apaga o que fica dentro do prédio.
+   */
+  const glimpseRects = cellRunRects(new Set(glimpseCells))
+  const extraSight = [...sightRects, ...glimpseRects]
+  const sentVision = extraSight.length > 0 ? [...vision, ...extraSight] : vision
+  return { map: filtered, vision: sentVision, visibleDoorIds, concealed, blocked, roofs, glimpses: glimpseRects }
 }
 
 /** O host vê o mapa inteiro, inclusive itens ocultos. */
