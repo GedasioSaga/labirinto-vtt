@@ -1,5 +1,7 @@
-import type { MapData } from '../types/map'
-import { moveCrossesWall } from './collision'
+import type { MapData, Token } from '../types/map'
+import { gatherSpots } from './gatherParty'
+import { visibleTokens } from './layers'
+import { tokenSizeInSquares } from './tokenSize'
 
 /**
  * ESCOLHER FICHAS NO PINO — compartilhado pelo host (validar a lista que o
@@ -36,45 +38,31 @@ export function travelCandidates<T extends Point>(tokens: readonly T[], pin: Poi
   return withDistance.filter((entry) => entry.distance <= limit).map((entry) => entry.token)
 }
 
-/** Anéis de casas vizinhas percorridos em volta da chegada; passou disso, a companheira divide a casa. */
-const COMPANION_MAX_RINGS = 3
-
-/** As casas do anel `ring` (distância de Chebyshev) em volta da origem: lados antes das diagonais. */
-function ringOffsets(ring: number): Point[] {
-  const offsets: Point[] = []
-  for (let dx = -ring; dx <= ring; dx += 1) {
-    for (let dy = -ring; dy <= ring; dy += 1) {
-      if (Math.max(Math.abs(dx), Math.abs(dy)) === ring) offsets.push({ x: dx, y: dy })
-    }
-  }
-  // Mais perto em linha reta primeiro: leste/oeste/sul/norte antes das quinas.
-  return offsets.sort((a, b) => Math.hypot(a.x, a.y) - Math.hypot(b.x, b.y))
-}
-
 /**
- * Onde as `count` companheiras chegam, em volta de `lead` (onde a primeira
- * ficha chegou): uma casa vizinha livre para cada, sem atravessar parede
- * fechada a partir da chegada, dentro do mapa e fora de cima de ficha que já
- * está lá. Sem casa livre nos anéis de busca, a companheira divide a casa da
- * chegada — chegar empilhada é melhor que não chegar.
+ * Onde as `companions` chegam, em volta de `at` (onde `lead`, a primeira
+ * ficha, assentou). A procura é a do "Reunir o grupo aqui" (`gatherSpots`):
+ * casa por casa em volta da chegada, na forma da grade (hexágono na hexagonal)
+ * e com o assentamento de cada tamanho (ficha de 2 casas na quina), sem
+ * atravessar parede fechada, dentro do mapa e do chão, sem cobrir a primeira
+ * ficha nem outra que já está lá. Sem casa livre, a companheira divide a casa
+ * da chegada — chegar empilhada é melhor que não chegar.
+ *
+ * Só ocupa casa a ficha que o jogador pode ver na cena de destino: a que o
+ * mestre esconde (oculta, secreta ou na camada Fichas escondida) é tratada
+ * como casa livre. Se ela empurrasse a companheira, a casa pulada — sem
+ * parede, sem ficha à vista — contaria ao jogador que tem algo ali (a mesma
+ * regra do `travelLeftBehind` do host). A primeira ficha (`arrivalSpot`)
+ * também não olha fichas.
+ *
+ * As viajantes que já estão no mapa de destino (pino par na mesma cena) saem
+ * do lugar: a casa de onde saem não conta como ocupada.
  */
-export function companionSpots(map: MapData, lead: Point, count: number): Point[] {
-  const width = map.width * map.grid
-  const height = map.height * map.grid
-  const taken: Point[] = [lead, ...map.tokens.map((t) => ({ x: t.x, y: t.y }))]
-  const isTaken = (p: Point) => taken.some((q) => Math.hypot(q.x - p.x, q.y - p.y) < map.grid / 2)
-  const spots: Point[] = []
-  for (let ring = 1; ring <= COMPANION_MAX_RINGS && spots.length < count; ring += 1) {
-    for (const offset of ringOffsets(ring)) {
-      if (spots.length >= count) break
-      const spot = { x: lead.x + offset.x * map.grid, y: lead.y + offset.y * map.grid }
-      if (spot.x < 0 || spot.y < 0 || spot.x > width || spot.y > height) continue
-      if (isTaken(spot)) continue
-      if (map.walls.some((wall) => moveCrossesWall(lead, spot, wall))) continue
-      spots.push(spot)
-      taken.push(spot)
-    }
-  }
-  while (spots.length < count) spots.push({ x: lead.x, y: lead.y })
-  return spots
+export function companionSpots(map: MapData, lead: Token, at: Point, companions: readonly Token[]): Point[] {
+  if (companions.length === 0) return []
+  const travelers = new Set([lead.id, ...companions.map((t) => t.id)])
+  const seen = visibleTokens(map.tokens, map.hiddenLayers).filter((t) => t.hidden !== true && t.secret !== true && !travelers.has(t.id))
+  // A primeira ficha já assentada na chegada ocupa a casa (e, com 2 casas, as vizinhas que o disco cobre).
+  const arrivalMap: MapData = { ...map, tokens: [...seen, { ...lead, x: at.x, y: at.y }] }
+  const spots = gatherSpots(arrivalMap, at, companions.map(tokenSizeInSquares))
+  return spots.map((spot) => spot ?? { x: at.x, y: at.y })
 }
