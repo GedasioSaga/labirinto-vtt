@@ -198,6 +198,18 @@ export interface ClueShowMessage {
   to: string
 }
 
+/**
+ * PISOS NA MESMA CENA — o jogador toca "Subir"/"Descer" com a ficha `tokenId`
+ * encostada na escada `stairId`. Só os dois ids: o piso de destino quem diz é
+ * a escada no mapa do mestre (`net/hostSession.ts`), nunca o jogador. Aditiva
+ * pelo critério de `door.toggle`: mestre antigo responde `invalid_message`.
+ */
+export interface TokenPisoMessage {
+  type: 'token.piso'
+  tokenId: string
+  stairId: string
+}
+
 export type PlayerMessage =
   | JoinMessage
   | TokenMoveMessage
@@ -210,6 +222,7 @@ export type PlayerMessage =
   | ClueReadMessage
   | CluePeersRequestMessage
   | ClueShowMessage
+  | TokenPisoMessage
 
 /** Por que o host recusou o pedido de porta do jogador. */
 export type DoorToggleRejection = 'locked' | 'far' | 'not_visible'
@@ -655,6 +668,10 @@ export function parsePlayerMessage(raw: unknown): PlayerMessage | null {
       return { type: 'clue.peers' }
     case 'clue.show':
       return isBoundedString(value.clueId, 1, REQ_ID_MAX_LENGTH) && isRoomName(value.to) ? { type: 'clue.show', clueId: value.clueId, to: value.to } : null
+    case 'token.piso':
+      return isBoundedString(value.tokenId, 1, REQ_ID_MAX_LENGTH) && isBoundedString(value.stairId, 1, REQ_ID_MAX_LENGTH)
+        ? { type: 'token.piso', tokenId: value.tokenId, stairId: value.stairId }
+        : null
     default:
       return null
   }

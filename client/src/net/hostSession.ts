@@ -7,6 +7,7 @@ import {
   filterMapForPlayer,
   pinClueForPlayer,
   playerBlockedRings,
+  pisoDoJogador,
   playerEyeTokens,
   roomClueForPlayer,
   type PlayerClueContent,
@@ -14,6 +15,7 @@ import {
 } from '../lib/fogFilter'
 import { CLUEBOOK_MAX_CLUES } from '../lib/clues'
 import { validateTokenMove } from '../lib/moveValidation'
+import { escadaDaFicha, mapaDoPiso, pisoDe } from '../lib/pisos'
 import { confrontoParaJogador, fichaDaVez } from '../lib/confronto'
 import { tokenReachesDoor } from '../lib/doorReach'
 import { SIGNAL_MIN_INTERVAL_MS, signalColor } from '../lib/signals'
@@ -38,6 +40,7 @@ import {
   type SignalMessage,
   type TokenEditMessage,
   type TokenMoveMessage,
+  type TokenPisoMessage,
 } from './protocol'
 import { clampNoteText, NOTEBOOK_MAX_NOTES, type NoteEntry } from './protocol'
 
@@ -131,6 +134,18 @@ export interface AppliedDoor {
  * Nome/foto novos do token, já validados: o token existe e é DO jogador que
  * pediu. Campo ausente = não mexe naquele dado.
  */
+/**
+ * PISOS NA MESMA CENA — a ficha do jogador subiu ou desceu pela escada, já
+ * validada (a ficha é dele, está encostada na escada que liga o piso dela a
+ * `piso`). O integrador troca o piso da ficha no mapa do mestre, no mesmo
+ * ponto, sem trocar de cena. `sceneId` como nos outros "Applied".
+ */
+export interface AppliedPiso {
+  tokenId: string
+  piso: number
+  sceneId?: string
+}
+
 export interface AppliedTokenEdit {
   tokenId: string
   name?: string
@@ -166,6 +181,12 @@ export interface AppliedTransfer {
   toSceneName: string
   x: number
   y: number
+  /**
+   * PISOS NA MESMA CENA: o piso da cena de destino onde a ficha chega (o do
+   * pino par). Ausente = o térreo. O ajudante que atravessa junto chega no
+   * mesmo piso.
+   */
+  piso?: number
   /**
    * AJUDANTE CONTRATADO: as fichas EMPRESTADAS a este jogador que estavam na
    * mesma cena de partida e atravessam junto, cada uma já com a casa livre ao
@@ -221,6 +242,8 @@ export interface HostResult {
   applyMove?: AppliedMove
   applyDoor?: AppliedDoor
   applyTokenEdit?: AppliedTokenEdit
+  /** PISOS NA MESMA CENA: a ficha trocou de piso pela escada. */
+  applyPiso?: AppliedPiso
   signal?: HostSignal
   playerLaser?: HostPlayerLaser
   /** Pedido de passagem válido: o integrador pergunta ao mestre. */
@@ -271,6 +294,9 @@ export const VISION_RADIUS_STEP = 50
  */
 export const PLAYER_LASER_MAX_PER_WINDOW = 40
 export const PLAYER_LASER_WINDOW_MS = 1000
+
+/** PISOS NA MESMA CENA: uma troca de piso por jogador nesta janela; o excesso morre em silêncio. */
+export const PISO_CHANGE_MIN_INTERVAL_MS = 500
 
 /** Um pedido de porta por jogador nesta janela; o excesso morre em silêncio (igual ao sinal). */
 export const DOOR_TOGGLE_MIN_INTERVAL_MS = 250
@@ -519,6 +545,27 @@ function memoryKey(map: MapData): string {
   return `${map.id}|${map.width}|${map.height}|${map.grid}`
 }
 
+/** Separa o id do mapa do piso na chave de memória: não aparece em id gerado pelo app. */
+const PISO_NA_CHAVE = '#piso:'
+
+/**
+ * PISOS NA MESMA CENA — a memória de cada piso é outra (explorado e portas
+ * lembradas): o térreo explorado não pode abrir o 1º piso, que ocupa o mesmo
+ * lugar do plano. O térreo usa a chave de sempre (`map.id`), então a memória de
+ * quem já jogava num mapa sem pisos continua valendo.
+ */
+function sceneMemoryId(map: MapData, piso: number): string {
+  return piso === 0 ? map.id : `${map.id}${PISO_NA_CHAVE}${piso}`
+}
+
+/** "Esconder planta" da cena: a memória de TODOS os pisos dela. */
+function forgetSceneMemories(byScene: Map<string, unknown> | undefined, mapId: string): void {
+  if (byScene === undefined) return
+  for (const key of [...byScene.keys()]) {
+    if (key === mapId || key.startsWith(`${mapId}${PISO_NA_CHAVE}`)) byScene.delete(key)
+  }
+}
+
 interface PlayerRecord {
   playerId: string
   name: string
@@ -561,6 +608,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   const lastSignalAt = new Map<string, number>()
   // Por playerId: mesmo limite para o pedido de abrir/fechar porta.
   const lastDoorToggleAt = new Map<string, number>()
+  // Por playerId: PISOS NA MESMA CENA — o limite da troca de piso pela escada.
+  const lastPisoChangeAt = new Map<string, number>()
   // Por playerId: janela corrente do teto de lotes de laser (PLAYER_LASER_MAX_PER_WINDOW).
   const laserWindows = new Map<string, { start: number; count: number }>()
   // Por playerId: conexões que receberam algum ponto do gesto em curso, e a
@@ -698,9 +747,21 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   /** Polígonos das zonas ocultas ativas (`?? []`: mapa montado fora do deserializeMap pode vir sem o campo). */
   const statusOf = (playerId: string): PlayerStatus => ((ownership[playerId]?.length ?? 0) > 0 ? 'playing' : 'waiting')
 
+  /** PISOS NA MESMA CENA: o piso que o jogador vê neste mapa — o mesmo número que o recorte usa. */
+  const pisoOf = (playerId: string, map: MapData): number => pisoDoJogador(map, playerId, ownership, loansFor(playerId))
+
+  /** O piso da ficha neste mapa; ficha que não está nele, térreo. */
+  const tokenPisoOf = (tokenId: string, map: MapData): number => {
+    const token = map.tokens.find((t) => t.id === tokenId)
+    return token === undefined ? 0 : pisoDe(token)
+  }
+
+  /** O mapa como o jogador o vê: só o piso dele (mapa de um piso só volta ele mesmo). */
+  const floorMapOf = (playerId: string, map: MapData): MapData => mapaDoPiso(map, pisoOf(playerId, map))
+
   /** Memória que o jogador já tem deste mapa, sem criar. Mesmo id redimensionado não conta: é outro mapa. */
   const existingMemory = (playerId: string, map: MapData): PlayerMemory | undefined => {
-    const memory = memories.get(playerId)?.get(map.id)
+    const memory = memories.get(playerId)?.get(sceneMemoryId(map, pisoOf(playerId, map)))
     return memory !== undefined && memory.key === memoryKey(map) ? memory : undefined
   }
 
@@ -717,7 +778,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       memories.set(playerId, byScene)
     }
     const memory: PlayerMemory = existingMemory(playerId, map) ?? { ...emptySceneMemory(map), vision: [] }
-    touchScene(byScene, map.id, memory, MAX_SCENE_MEMORIES_PER_PLAYER)
+    touchScene(byScene, sceneMemoryId(map, pisoOf(playerId, map)), memory, MAX_SCENE_MEMORIES_PER_PLAYER)
     return memory
   }
 
@@ -732,7 +793,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
 
   /** MEMÓRIA POR FICHA: o que a ficha já lembra deste mapa, sem criar (mapa redimensionado é outro). */
   const existingTokenMemory = (tokenId: string, map: MapData): SceneMemory | undefined => {
-    const memory = tokenMemories.get(tokenId)?.get(map.id)
+    const memory = tokenMemories.get(tokenId)?.get(sceneMemoryId(map, tokenPisoOf(tokenId, map)))
     return memory !== undefined && memory.key === memoryKey(map) ? memory : undefined
   }
 
@@ -744,7 +805,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       tokenMemories.set(tokenId, byScene)
     }
     const memory = existingTokenMemory(tokenId, map) ?? emptySceneMemory(map)
-    touchScene(byScene, map.id, memory, MAX_SCENE_MEMORIES_PER_TOKEN)
+    touchScene(byScene, sceneMemoryId(map, tokenPisoOf(tokenId, map)), memory, MAX_SCENE_MEMORIES_PER_TOKEN)
     return memory
   }
 
@@ -756,10 +817,12 @@ export function createHostSession(options: HostSessionOptions): HostSession {
    */
   const inheritFromTokens = (playerId: string, map: MapData, memory: PlayerMemory): void => {
     let forbidden: RegionPoint[][] | null = null
-    for (const t of playerEyeTokens(map, playerId, ownership, loansFor(playerId))) {
+    // PISOS: só a ficha que está no piso que o jogador vê — a do outro piso lembra OUTRO piso.
+    const floorMap = floorMapOf(playerId, map)
+    for (const t of playerEyeTokens(floorMap, playerId, ownership, loansFor(playerId))) {
       const source = existingTokenMemory(t.id, map)
       if (source === undefined) continue
-      forbidden ??= playerBlockedRings(map)
+      forbidden ??= playerBlockedRings(floorMap)
       inheritMemory(memory, source, forbidden)
     }
   }
@@ -1037,7 +1100,9 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     // Sem cena (aventura aberta, ficha em lugar nenhum): não há onde mover.
     if (scene === null) return reply(clientId, { type: 'token.move.rejected', reqId: msg.reqId, reason: 'unknown_token' })
     // CONFRONTO: a vez e o passo são os da cena DELE — a de outra cena não pesa aqui.
-    const result = validateTokenMove(scene.map, { playerId, tokenId: msg.tokenId, x: msg.x, y: msg.y }, ownership, { gastoNaVez: gastoNaVez(scene.map) })
+    // PISOS: só as paredes (e as fichas) do piso da ficha seguram o passo — o piso de cima não é teto aqui.
+    const floorMap = mapaDoPiso(scene.map, tokenPisoOf(msg.tokenId, scene.map))
+    const result = validateTokenMove(floorMap, { playerId, tokenId: msg.tokenId, x: msg.x, y: msg.y }, ownership, { gastoNaVez: gastoNaVez(scene.map) })
     if (!result.ok) return reply(clientId, { type: 'token.move.rejected', reqId: msg.reqId, reason: result.reason })
     if (result.casas !== undefined) gastarNaVez(scene.map, msg.tokenId, result.casas)
     return {
@@ -1079,13 +1144,16 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const message: HostMessage = { type: 'signal', x: msg.x, y: msg.y, from: record.name, color }
     const outbound: Outbound[] = [{ clientId, msg: message }]
     // Sala secreta vale como zona oculta: repassar o sinal diria aos outros que ali existe algo.
-    const inBlockedArea = playerBlockedRings(map).some((ring) => ring.length >= 3 && pointInRing(point, ring))
+    const inBlockedArea = playerBlockedRings(floorMapOf(playerId, map)).some((ring) => ring.length >= 3 && pointInRing(point, ring))
+    const piso = pisoOf(playerId, map)
     if (!inBlockedArea) {
       for (const [otherClient, otherId] of byClient) {
         if (otherId === playerId || statusOf(otherId) !== 'playing') continue
         // Quem está em outra cena não recebe: o ponto é deste mapa, e a
         // memória antiga dele desta cena diria que o sinal é para lá.
         if (sceneFor(otherId, world) !== scene) continue
+        // PISOS: nem quem está em outro piso — o sinal diria que alguém anda lá.
+        if (pisoOf(otherId, map) !== piso) continue
         if (knowsPoint(otherId, map, point)) outbound.push({ clientId: otherClient, msg: message })
       }
     }
@@ -1159,8 +1227,9 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     else quota.count += 1
 
     const color = laserColorOf(playerId, map)
-    const blocked = playerBlockedRings(map)
+    const blocked = playerBlockedRings(floorMapOf(playerId, map))
     const shareable = inside.filter((p) => !blocked.some((ring) => ring.length >= 3 && pointInRing(p, ring)))
+    const piso = pisoOf(playerId, map)
     const outbound: Outbound[] = []
     const here = sceneKey(scene)
     let recipients = laserRecipients.get(playerId)
@@ -1173,6 +1242,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       if (otherId === playerId || statusOf(otherId) !== 'playing') continue
       // Outra cena: o ponto é deste mapa, e nem o nome de quem aponta vai para lá.
       if (sceneFor(otherId, world) !== scene) continue
+      // PISOS: outro piso também não — o rastro diria onde alguém anda lá.
+      if (pisoOf(otherId, map) !== piso) continue
       const visible = shareable.filter((p) => knowsPoint(otherId, map, p))
       if (visible.length === 0) continue
       outbound.push({ clientId: otherClient, msg: { type: 'laser', points: visible, from: record.name, color } })
@@ -1221,6 +1292,41 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     if (!near) return reject('far')
 
     return { outbound: [], applyDoor: { wallId: wall.id, open: !wall.door.open, ...backgroundSceneId(scene, world) } }
+  }
+
+  /**
+   * PISOS NA MESMA CENA — o jogador toca "Subir"/"Descer" com a ficha na
+   * escada. A autoridade é aqui, no molde da porta: a ficha é DELE e está no
+   * recorte que ele tem agora, a escada também (secreta, no escuro ou de outro
+   * piso não está) e a ficha está encostada nela (`escadaDaFicha`). O piso de
+   * destino sai da ESCADA, nunca do jogador: a mensagem só traz os dois ids.
+   * Pedido que não vale morre em silêncio, como o `token.edit` de quem não é
+   * dono: responder "recusado" ensinaria quais escadas existem.
+   */
+  function handleTokenPiso(clientId: string, msg: TokenPisoMessage, world: HostWorld): HostResult {
+    const playerId = byClient.get(clientId)
+    if (playerId === undefined) return reply(clientId, { type: 'error', reason: 'not_joined' })
+    if (statusOf(playerId) !== 'playing') return { outbound: [] }
+    if (!(ownership[playerId] ?? []).includes(msg.tokenId)) return { outbound: [] }
+    const scene = sceneFor(playerId, world)
+    if (scene === null) return { outbound: [] }
+    // O limite vem ANTES do recorte, que é a parte cara (mesma ordem da porta).
+    const at = now()
+    const last = lastPisoChangeAt.get(playerId)
+    if (last !== undefined && at - last < PISO_CHANGE_MIN_INTERVAL_MS) return { outbound: [] }
+    lastPisoChangeAt.set(playerId, at)
+
+    const map = scene.map
+    const memory = memoryFor(playerId, map)
+    const view = filterMapForPlayer(map, playerId, ownership, radiusFor(playerId), memory.exp, memory.doors, pinAudiences, undefined, loansFor(playerId))
+    if (!view.map.tokens.some((t) => t.id === msg.tokenId) || !view.map.stairs.some((s) => s.id === msg.stairId)) return { outbound: [] }
+    // Posição, piso e escada do mapa do MESTRE: o recorte só disse que o jogador pode vê-los.
+    const token = map.tokens.find((t) => t.id === msg.tokenId)
+    const stair = map.stairs.find((s) => s.id === msg.stairId)
+    if (token === undefined || stair === undefined) return { outbound: [] }
+    const escada = escadaDaFicha({ stairs: [stair], grid: map.grid }, token)
+    if (escada === null) return { outbound: [] }
+    return { outbound: [], applyPiso: { tokenId: token.id, piso: escada.destino, ...backgroundSceneId(scene, world) } }
   }
 
   /**
@@ -1381,6 +1487,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
         toSceneName: travel.to.name,
         x: spot.x,
         y: spot.y,
+        // PISOS: chega no piso do pino par; térreo não leva o campo.
+        ...(pisoDe(travel.partner) === 0 ? {} : { piso: pisoDe(travel.partner) }),
         ...(companions.length > 0 ? { companions } : {}),
       },
     }
@@ -1517,6 +1625,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
         return handleCluePeers(clientId, world)
       case 'clue.show':
         return handleClueShow(clientId, msg, world)
+      case 'token.piso':
+        return handleTokenPiso(clientId, msg, world)
     }
   }
 
@@ -1609,6 +1719,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
           toSceneName: to.name,
           x: spot.x,
           y: spot.y,
+          // PISOS: no piso do pino escolhido; centro da cena e "Reunir", térreo.
+          ...(pin === null || pisoDe(pin) === 0 ? {} : { piso: pisoDe(pin) }),
           ...(companions.length > 0 ? { companions } : {}),
         },
       }
@@ -1675,6 +1787,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       forgetTravelsOf(playerId)
       lastSignalAt.delete(playerId)
       lastDoorToggleAt.delete(playerId)
+      lastPisoChangeAt.delete(playerId)
       laserWindows.delete(playerId)
       laserRecipients.delete(playerId)
       lastTokenPhotoAt.delete(playerId)
@@ -1728,7 +1841,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       const scene = sceneFor(playerId, toWorld(source))
       if (scene === null) return
       const map = scene.map
-      markAll(memoryFor(playerId, map).exp, playerBlockedRings(map))
+      markAll(memoryFor(playerId, map).exp, playerBlockedRings(floorMapOf(playerId, map)))
     },
 
     hidePlan(playerId, source) {
@@ -1743,8 +1856,9 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       }
       const scene = sceneFor(playerId, toWorld(source))
       if (scene === null) return
-      memories.get(playerId)?.delete(scene.map.id)
-      for (const tokenId of owned) tokenMemories.get(tokenId)?.delete(scene.map.id)
+      // PISOS: todos os pisos da cena — o piso onde ele não está agora também é planta desta cena.
+      forgetSceneMemories(memories.get(playerId), scene.map.id)
+      for (const tokenId of owned) forgetSceneMemories(tokenMemories.get(tokenId), scene.map.id)
     },
 
     broadcast(source) {

@@ -51,7 +51,7 @@ export type WallThicknessPreset = 'thin' | 'medium' | 'thick'
  */
 export type WallThickness = WallThicknessPreset | number
 
-export interface Wall {
+export interface Wall extends NoPiso {
   id: string
   x1: number
   y1: number
@@ -178,7 +178,7 @@ export type EfeitoNaPorta = 'aberta' | 'fechada' | 'trancada'
 export type EfeitoNaZona = 'oculta' | 'revelada'
 export type EfeitoNaLuz = 'acesa' | 'apagada'
 
-export interface Light {
+export interface Light extends NoPiso {
   id: string
   x: number
   y: number
@@ -283,6 +283,17 @@ export interface PlayerSecret {
 }
 
 /**
+ * PISOS NA MESMA CENA — o piso em que a entidade está (inteiro). `undefined`
+ * === 0, o térreo: mapa salvo antes deste campo abre com um piso só, idêntico,
+ * sem linha de migração. O jogador recebe só o piso da ficha dele
+ * (`lib/pisos.ts`, `lib/fogFilter.ts`); valor torto do arquivo sai na leitura
+ * (`pisosDoArquivo`). Plano em `docs/planos/pisos-na-mesma-cena.md`.
+ */
+export interface NoPiso {
+  piso?: number
+}
+
+/**
  * "!" (aqui tem algo), "?" (investigue aqui) e o pino de VIAGEM: a passagem
  * que leva de uma cena da aventura para outra. O terceiro valor é aditivo —
  * pino gravado antes dele continua sendo "!" ou "?".
@@ -351,7 +362,7 @@ export type PinIcon = 'bau' | 'armadilha' | 'chave' | 'perigo' | 'escada' | 'agu
  * que não comece em `data:image/`). `null` = cartão sem foto, que o jogador vê
  * como área vazia rotulada.
  */
-export interface Pin extends PlayerSecret {
+export interface Pin extends PlayerSecret, NoPiso {
   id: string
   x: number
   y: number
@@ -424,7 +435,7 @@ export interface Pin extends PlayerSecret {
  * amostrado dentro dela fica fora do recorte e o jogador pinta preto por cima.
  * Não bloqueia a visão (a zona esconde conteúdo, não é parede).
  */
-export interface ConcealZone {
+export interface ConcealZone extends NoPiso {
   id: string
   points: RegionPoint[]
   name: string
@@ -448,7 +459,7 @@ export interface ConcealZone {
   porEstado?: RegraDeEstado<EfeitoNaZona>
 }
 
-export interface Region extends PlayerSecret {
+export interface Region extends PlayerSecret, NoPiso {
   id: string
   points: RegionPoint[]
   tag: string
@@ -501,7 +512,7 @@ export interface Region extends PlayerSecret {
   hidden?: boolean
 }
 
-export interface Token extends PlayerSecret {
+export interface Token extends PlayerSecret, NoPiso {
   id: string
   characterId: string | null
   name: string
@@ -574,7 +585,7 @@ export interface TokenContract {
   visao: boolean
 }
 
-export interface Prop extends PlayerSecret {
+export interface Prop extends PlayerSecret, NoPiso {
   id: string
   src: string
   x: number
@@ -637,7 +648,7 @@ export type FreehandTexture = 'pen' | 'pencil' | 'marker'
 export type DrawingDash = 'solid' | 'dashed' | 'dotted'
 
 // `& PlayerSecret` distribui sobre a união: cada variante ganha `secret?`.
-export type Drawing = PlayerSecret & (
+export type Drawing = PlayerSecret & NoPiso & (
   | { id: string; kind: 'freehand'; points: DrawingPoint[]; color: string; width: number; cap?: DrawingCap; texture?: FreehandTexture; dash?: DrawingDash }
   | { id: string; kind: 'line'; x1: number; y1: number; x2: number; y2: number; color: string; width: number; cap?: DrawingCap; dash?: DrawingDash }
   | { id: string; kind: 'circle'; cx: number; cy: number; radius: number; color: string; width: number; filled: boolean; fillAlpha: number }
@@ -675,13 +686,20 @@ export interface StairSegment {
   y2: number
 }
 
-export interface Stair extends PlayerSecret {
+export interface Stair extends PlayerSecret, NoPiso {
   id: string
   shape: StairShape
   direction: StairDirection
   segments: StairSegment[]
   /** Largura do lance em px de mundo. Default na criação = map.grid. */
   stepWidth: number
+  /**
+   * PISOS NA MESMA CENA — o outro piso a que esta escada leva. Ela liga
+   * `piso` (o dela) a este, aparece nos dois e é por ela que a ficha troca de
+   * piso no mesmo ponto (`lib/pisos.ts`). `undefined` = escada de enfeite,
+   * como sempre foi.
+   */
+  levaAoPiso?: number
   /** Rotação em graus, sentido horário. `undefined` === 0 (aparência
    *  idêntica à de hoje) — sem linha de migração, mesmo padrão de wallKind
    *  (Wall, acima). */
@@ -743,7 +761,7 @@ export interface FloorModifiers {
  * Uma peça do chão. A ordem em `MapData.floor` importa: cada peça se aplica
  * sobre o resultado das anteriores — 'add' soma chão, 'subtract' abre buraco.
  */
-export interface FloorPiece {
+export interface FloorPiece extends NoPiso {
   id: string
   shape: FloorShape
   op: 'add' | 'subtract'
@@ -787,7 +805,7 @@ export interface FloorStyle {
  * pontilhado. Só visual — não bloqueia movimento nem luz (isso é `Wall`).
  * Vértices em px de mundo; vértice em (x + 0.5, y + 0.5) cai no centro do pixel.
  */
-export interface MapLine {
+export interface MapLine extends NoPiso {
   id: string
   points: { x: number; y: number }[]
   closed: boolean
@@ -809,7 +827,7 @@ export interface MapLine {
 }
 
 /** Marcador sólido girado (porta de minimapa). Só visual. */
-export interface MapMarker {
+export interface MapMarker extends NoPiso {
   id: string
   cx: number
   cy: number

@@ -1,0 +1,61 @@
+/*
+ * Piso em edição — no canto inferior direito do canvas, logo acima do HUD de
+ * zoom (`ZoomHud.css`), com a mesma chrome de `.lb-panel`. Só `var(--lb-*)`.
+ * Monta como filho direto de `.lb-editor` (`position: relative`), como o zoom.
+ */
+
+.lb-pisohud {
+  position: absolute;
+  right: var(--lb-layout-edge-gap);
+  /* A altura do zoom (uma linha de texto pequeno + o respiro dele) mais um vão. */
+  bottom: calc(var(--lb-layout-edge-gap) + 2.75rem);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--lb-space-1);
+  padding: var(--lb-space-1);
+  color: var(--lb-color-parchment);
+}
+
+.lb-pisohud__value {
+  min-width: 5.5rem;
+  text-align: center;
+  font-size: var(--lb-font-size-sm);
+  font-weight: var(--lb-font-weight-medium);
+}
+
+.lb-pisohud__step {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border: none;
+  border-radius: var(--lb-radius-sm);
+  background: transparent;
+  font-family: inherit;
+  font-size: var(--lb-font-size-xs);
+  color: var(--lb-color-parchment-dim);
+  cursor: pointer;
+  transition:
+    color var(--lb-motion-fast) var(--lb-motion-ease),
+    background var(--lb-motion-fast) var(--lb-motion-ease);
+}
+
+.lb-pisohud__step:hover:not(:disabled) {
+  color: var(--lb-color-parchment);
+  background: var(--lb-color-stone-sunken);
+}
+
+.lb-pisohud__step:active:not(:disabled) {
+  transform: scale(0.94);
+}
+
+.lb-pisohud__step:focus-visible {
+  outline: none;
+  box-shadow: var(--lb-shadow-focus);
+}
+
+.lb-pisohud__step:disabled {
+  opacity: 0.4;
+  cursor: default;
+}

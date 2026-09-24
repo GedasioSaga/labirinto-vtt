@@ -14,6 +14,7 @@ import { PlayerNoteCard } from './PlayerNoteCard'
 import { PlayerClueCard } from './PlayerClues'
 import { coverBounds } from './playerCamera'
 import { PlayerZoomControls } from './PlayerZoomControls'
+import { PlayerEscada } from './PlayerEscada'
 import { NO_ZOOM_STEP, type ZoomDirection, type ZoomLimits, type ZoomStepRequest } from './playerZoom'
 import { escapeDisarmsMeasure } from './playerMeasure'
 import type { PlayerViewSettings } from './PlayerPanel'
@@ -686,6 +687,8 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
         />
         {/* Depois do painel no DOM: o Tab segue a leitura (painel no alto à esquerda, zoom embaixo à direita). */}
         <PlayerZoomControls canZoomIn={zoomLimits.canZoomIn} canZoomOut={zoomLimits.canZoomOut} onZoom={requestZoomStep} />
+        {/* PISOS NA MESMA CENA: só com a ficha dele encostada numa escada que liga pisos. */}
+        <PlayerEscada map={state.map} ownTokens={ownTokens} onTrocar={(tokenId, stairId) => connection.changeFloor(tokenId, stairId)} />
         {/* CONFRONTO na cena dele: de quem é a vez e o que resta do passo. */}
         {state.confronto && <ConfrontoFaixa confronto={state.confronto} tokens={state.map.tokens} />}
         {/* O pino pode sumir do recorte enquanto o cartão está aberto (o token

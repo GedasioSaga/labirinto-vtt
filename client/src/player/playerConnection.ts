@@ -161,6 +161,12 @@ export interface PlayerConnection {
   /** Pede ao mestre para abrir/fechar a porta. `false` se não está jogando ou o socket não está aberto. */
   toggleDoor(wallId: string): boolean
   /**
+   * PISOS NA MESMA CENA: pede para subir/descer pela escada `stairId` com a
+   * ficha `tokenId`. Só os ids — o piso de destino quem decide é o host. `false`
+   * se não está jogando ou o socket não está aberto.
+   */
+  changeFloor(tokenId: string, stairId: string): boolean
+  /**
    * Nome novo do PRÓPRIO token: aplica na hora e envia. `false` quando o token
    * não é dele, não está no mapa, o nome não cabe ou o socket não está aberto.
    */
@@ -943,6 +949,10 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     toggleDoor(wallId) {
       if (state.status !== 'playing' || wallId.length === 0) return false
       return send({ type: 'door.toggle', wallId })
+    },
+    changeFloor(tokenId, stairId) {
+      if (state.status !== 'playing' || tokenId.length === 0 || stairId.length === 0) return false
+      return send({ type: 'token.piso', tokenId, stairId })
     },
 
     requestTravel(pinId, exitId) {

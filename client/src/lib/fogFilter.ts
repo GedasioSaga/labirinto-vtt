@@ -14,6 +14,7 @@ import { withoutAttachment } from './lightAttachment'
 import { computeVisibility, visionSegments } from './visibility'
 import { ancestorsOf, NESTING_TOLERANCE, pointInPolygonInclusive, pointOnPolygonBorder, subtreeIds } from './roomNesting'
 import { roomHasRoof } from './roomOps'
+import { mapaDoPiso, pisoDe } from './pisos'
 import { rotatePointAround, rotationTrig } from './roomRotation'
 import { clampRoomText, hasEnterText } from './roomText'
 
@@ -944,6 +945,31 @@ export function playerEyeTokens(
 }
 
 /**
+ * PISOS NA MESMA CENA — o piso que o jogador vê nesta cena: o da primeira
+ * ficha que é OLHO dele; sem olho (só ajudante sem visão), o da primeira ficha
+ * dele; sem ficha nenhuma, o térreo. O recorte e a memória do host usam este
+ * mesmo número (`net/hostSession.ts`), então nunca discordam.
+ */
+export function pisoDoJogador(
+  map: MapData,
+  playerId: string,
+  ownership: Record<string, string[]>,
+  loans?: ReadonlyMap<string, TokenContract>,
+): number {
+  // "Primeira" na ordem da posse (a ordem em que o mestre deu as fichas), não na do mapa.
+  const ids = ownership[playerId] ?? []
+  const olhos = new Map(playerEyeTokens(map, playerId, ownership, loans).map((t) => [t.id, t]))
+  const fichas = new Map(map.tokens.map((t) => [t.id, t]))
+  for (const porOrdem of [olhos, fichas]) {
+    for (const id of ids) {
+      const ficha = porOrdem.get(id)
+      if (ficha !== undefined) return pisoDe(ficha)
+    }
+  }
+  return 0
+}
+
+/**
  * `explored`: memória do jogador ANTES desta visão (quem marca é o chamador).
  * Só a planta estática (regiões, desenhos e textos, escadas, portas, linhas,
  * marcadores) entra por estar explorada; token, prop e luz mudam de lugar e
@@ -962,7 +988,7 @@ export function playerEyeTokens(
  * `contrato` que vier do mapa do mestre é apagado de toda ficha.
  */
 export function filterMapForPlayer(
-  map: MapData,
+  mapaInteiro: MapData,
   playerId: string,
   ownership: Record<string, string[]>,
   visionRadius: number,
@@ -972,6 +998,14 @@ export function filterMapForPlayer(
   enteredRooms?: ReadonlySet<string>,
   loans?: ReadonlyMap<string, TokenContract>,
 ): PlayerMapView {
+  /**
+   * PISOS NA MESMA CENA — ANTES de qualquer outra regra: tudo daqui para baixo
+   * (visão, raycast, teto, zona, sala secreta, memória) roda só sobre o piso
+   * do jogador. O que é de outro piso nem entra na conta, então não há regra
+   * abaixo que possa deixá-lo vazar. Mapa de um piso só passa ELE MESMO.
+   * `explored` e `seenDoors` já vêm do piso certo (a memória do host é por piso).
+   */
+  const map = mapaDoPiso(mapaInteiro, pisoDoJogador(mapaInteiro, playerId, ownership, loans))
   const hiddenLayers = map.hiddenLayers
   const owned = new Set(ownership[playerId] ?? []) // jogador sem entrada de posse não tem token nem visão
   // Acordo só vale para ficha que ESTE jogador segura: acordo de outro nunca entra no recorte dele.

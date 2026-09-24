@@ -3,6 +3,7 @@ import type { MapData, Pin, PinDestination, Token } from '../types/map'
 import { singleSceneWorld, type HostScene, type HostWorld } from '../net/hostSession'
 import type { Bounds, Camera, Point } from '../pixi/world'
 import * as mapFactory from '../lib/mapFactory'
+import { comPiso } from '../lib/pisos'
 import {
   ADVENTURE_VERSION,
   baseName,
@@ -215,9 +216,11 @@ interface AdventureState {
    * O jogador atravessou: tira o token `tokenId` da cena `fromSceneId` e o
    * põe em (`x`, `y`) da cena `toSceneId`. FORA DO DESFAZER nas duas pontas —
    * ver `transferToken` abaixo. `false` quando não deu (cena fora do ar,
-   * token que já não está lá, mesma cena).
+   * token que já não está lá, mesma cena). PISOS NA MESMA CENA: `piso` é o
+   * piso da cena de destino onde ele chega; ausente = o térreo — o piso da
+   * cena de partida não vale na outra cena.
    */
-  transferToken: (tokenId: string, fromSceneId: string, toSceneId: string, x: number, y: number) => boolean
+  transferToken: (tokenId: string, fromSceneId: string, toSceneId: string, x: number, y: number, piso?: number) => boolean
   /**
    * "Levar para…" da ficha SEM DONO (NPC, monstro): leva o token `tokenId` da
    * cena aberta para `toSceneId`, na ponta do pino de viagem `pinId` (`null` =
@@ -700,7 +703,7 @@ export const useAdventureStore = create<AdventureState>()((set, get) => ({
     return true
   },
 
-  transferToken: (tokenId, fromSceneId, toSceneId, x, y) => {
+  transferToken: (tokenId, fromSceneId, toSceneId, x, y, piso) => {
     const { activeSceneId, cache, dirty } = get()
     if (activeSceneId === null || fromSceneId === toSceneId) return false
     const read = (sceneId: string): SceneHistory | null => {
@@ -717,7 +720,7 @@ export const useAdventureStore = create<AdventureState>()((set, get) => ({
     if (from === null || to === null || token === undefined) return false
 
     const leaving = withoutToken(from, tokenId)
-    const arriving = withToken(to, { ...token, x, y })
+    const arriving = withToken(to, comPiso({ ...token, x, y }, piso))
     const nextCache: Record<string, SceneSlot> = { ...cache }
     const nextDirty: Record<string, true> = { ...dirty }
     let openScene: SceneHistory | null = null
@@ -754,7 +757,7 @@ export const useAdventureStore = create<AdventureState>()((set, get) => ({
     if (pin === undefined) return null
     // O mesmo assento de quem atravessa pelo "Mandar para…" (`hostSession.sendPlayer`).
     const spot = pin === null ? arrivalPoint(slot.map) : arrivalSpot(slot.map, pin, token.size)
-    if (!get().transferToken(tokenId, activeSceneId, toSceneId, spot.x, spot.y)) return null
+    if (!get().transferToken(tokenId, activeSceneId, toSceneId, spot.x, spot.y, pin?.piso)) return null
     // A ficha já não está no mapa aberto: a seleção não pode apontar para ela.
     const item: SelectionItem = { kind: 'token', id: tokenId }
     const { selection, setSelection } = useMapStore.getState()
