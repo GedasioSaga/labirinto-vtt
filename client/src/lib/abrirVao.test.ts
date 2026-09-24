@@ -96,6 +96,30 @@ describe('abrirVaoDosDoisLados — um clique abre a passagem entre dois prédios
     expect(map.walls.find((w) => w.id === 'longe')).toBe(longe)
   })
 
+  it('clique perto da quina: o vão para na ponta da parede clicada e não fura a parede colinear do vizinho', () => {
+    // Faces norte em y=0: a0 (Armazém, 0..512) e o0 (Oficina, 512..1024) na
+    // mesma reta. o0 NÃO é o outro lado de a0 — é a parede externa do vizinho.
+    const map = abrirVaoDosDoisLados(doisPredios(), 'a0', { x: 500, y: 0 }, GRADE).map
+    const norte = map.walls
+      .filter((w) => Math.abs(w.y1) < 0.01 && Math.abs(w.y2) < 0.01)
+      .map((w): [string | undefined, number, number] => [w.regionId, Math.round(Math.min(w.x1, w.x2)), Math.round(Math.max(w.x1, w.x2))])
+      .sort((a, b) => a[1] - b[1])
+    expect(norte).toEqual([
+      ['armazem', 0, 468],
+      ['oficina', 512, 1024],
+    ])
+    expect(map.walls.find((w) => w.id === 'o0')).toEqual(doisPredios().walls.find((w) => w.id === 'o0'))
+  })
+
+  it('clique perto da quina com a face norte do vizinho TRAVADA: o gesto não é recusado', () => {
+    const map = doisPredios()
+    const antes = { ...map, walls: map.walls.map((w) => (w.id === 'o0' ? { ...w, locked: true } : w)) }
+    const corte = abrirVaoDosDoisLados(antes, 'a0', { x: 500, y: 0 }, GRADE)
+    expect(corte.travadaNoCaminho).toBe(false)
+    expect(corte.map.walls.some((w) => w.id === 'a0')).toBe(false)
+    expect(corte.map.walls.find((w) => w.id === 'o0')).toBe(antes.walls.find((w) => w.id === 'o0'))
+  })
+
   it('parede inexistente devolve o MESMO mapa', () => {
     const map = doisPredios()
     expect(abrirVaoDosDoisLados(map, 'nao-existe', { x: 0, y: 0 }, GRADE)).toEqual({ map, salaSecretaPoupada: false, travadaNoCaminho: false })

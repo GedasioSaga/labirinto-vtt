@@ -167,7 +167,10 @@ export function abrirVaoDosDoisLados(map: MapData, wallId: string, ponto: { x: n
   if (eixo === null) return { map, ...NADA_MUDOU }
   const centro = Math.max(0, Math.min(eixo.comprimento, aoLongo(eixo, ponto)))
   const metade = comprimento / 2
-  return cortarNaLinha(map, eixo, centro - metade, centro + metade)
+  // O vão não passa da ponta da parede clicada (mesma regra de `splitWallAround`,
+  // mapFactory.ts). Sem isso, clique perto da quina cortaria a parede colinear
+  // do prédio vizinho — que é a face externa dele, não o outro lado desta.
+  return cortarNaLinha(map, eixo, Math.max(0, centro - metade), Math.min(eixo.comprimento, centro + metade))
 }
 
 /**

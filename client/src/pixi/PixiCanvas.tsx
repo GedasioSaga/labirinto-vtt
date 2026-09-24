@@ -170,8 +170,8 @@ import { cloneEntity, type CloneableEntity } from '../lib/entityClone'
 import { placeNewRoom, subtreeIds } from '../lib/roomNesting'
 import { useToastStore } from '../stores/toastStore'
 import { AVISO_PINCEL_SEM_ZONA, CORRIDOR_DISCARDED_TEXT, STAIR_CLICK_WITHOUT_DRAG_TEXT } from '../components/labels'
-import { WallGestureMenu } from '../components/WallGestureMenu'
-import { paredeDoGesto } from '../lib/abrirVao'
+import { WallGestureMenuHost } from '../components/WallGestureMenuHost'
+import { botaoDireitoEhDaParede, ligarMenuDaParede, type MenuDaParede } from './wallGesture'
 import {
   visibleWalls, visibleRegions, visibleStairs, visibleLights, visibleDrawings, visibleTokens, visibleProps, visiblePins,
   canInteractInLayer, isLayerLocked, wallLayer, regionLayer, stairLayer, lightLayer, tokenLayer, propLayer, drawingLayer,
@@ -348,10 +348,6 @@ function describeDeletion(map: MapData, selection: readonly { kind: SelectionKin
 // explícito sobre qual tolerância está em jogo.
 const VERTEX_MAGNET_TOLERANCE = 12
 
-/** Folga do clique direito sobre a parede (menu Abrir vão / Desabar), em px de
- *  TELA: a linha é fina e o alvo não pode encolher com o zoom. */
-const WALL_GESTURE_HIT_TOLERANCE = 12
-
 /** Folga de clique do pino, em px de TELA — o alvo do dedo não encolhe com o zoom. */
 const PIN_TAP_TOLERANCE_PX = 6
 
@@ -511,14 +507,6 @@ interface PixiCanvasProps {
  * rótulo, ou Sala recém-desenhada) ou nome de um token novo (ferramenta Token).
  */
 type NameEditorState = { kind: 'room'; regionId: string; value: string } | { kind: 'token'; at: Point; value: string }
-
-interface MenuDaParede {
-  wallId: string
-  ponto: Point
-  x: number
-  y: number
-  limite: { width: number; height: number }
-}
 
 const MIN_ROOM_NAME_EDITOR_FONT = 12
 
@@ -3138,12 +3126,7 @@ export function PixiCanvas({
         // (`onContextMenu`): não pode começar, por baixo, um traço de parede,
         // uma seleção ou um arrasto. O pincel de blocos fica de fora — nele o
         // botão direito apaga.
-        if (event.button === 2) {
-          const estado = useMapStore.getState()
-          const pincelDeBlocos = estado.activeTool === 'floor' && estado.floorShapeKind === 'blocos'
-          const sobParede = paredeDoGesto(estado.map, toWorldPoint(event.global.x, event.global.y), WALL_GESTURE_HIT_TOLERANCE / camera.scale)
-          if (!pincelDeBlocos && sobParede !== null) return
-        }
+        if (botaoDireitoEhDaParede(useMapStore.getState(), event.button, toWorldPoint(event.global.x, event.global.y), camera.scale)) return
 
         const worldPoint = toWorldPoint(event.global.x, event.global.y)
         const { map, activeTool, selection, setSelection } = useMapStore.getState()
@@ -5519,31 +5502,15 @@ export function PixiCanvas({
       }
       el.addEventListener('dblclick', onDblClick)
 
-      /**
-       * O botão DIREITO apaga com o pincel de blocos (decisão do usuário,
-       * 15/09/2026). O menu de contexto do navegador nasce do mesmo botão e
-       * abriria por cima do gesto — some só onde o gesto existe, para o clique
-       * direito continuar normal em toda outra ferramenta.
-       */
-      const onContextMenu = (event: MouseEvent) => {
-        const { activeTool, floorShapeKind, map } = useMapStore.getState()
-        if (activeTool === 'floor' && floorShapeKind === 'blocos') {
-          event.preventDefault()
-          return
-        }
-        // ABRIR VÃO / DESABAR no meio da sessão: clique direito EM CIMA de uma
-        // parede abre o menu da parede, em qualquer outra ferramenta — o
-        // mestre não troca de ferramenta nem vai ao painel. Fora de parede o
-        // clique direito continua sendo o do navegador.
-        const caixa = el.getBoundingClientRect()
-        const naTela = { x: event.clientX - caixa.left, y: event.clientY - caixa.top }
-        const ponto = toWorldPoint(naTela.x, naTela.y)
-        const parede = paredeDoGesto(map, ponto, WALL_GESTURE_HIT_TOLERANCE / camera.scale)
-        if (parede === null) return
-        event.preventDefault()
-        setMenuDaParede({ wallId: parede.id, ponto, x: naTela.x, y: naTela.y, limite: { width: caixa.width, height: caixa.height } })
-      }
-      el.addEventListener('contextmenu', onContextMenu)
+      // Clique direito: no pincel de blocos ele APAGA e o menu do navegador
+      // some; em cima de parede, em qualquer outra ferramenta, abre o menu
+      // Abrir vão / Desabar; fora disso é o do navegador (wallGesture.ts).
+      const desligarMenuDaParede = ligarMenuDaParede(el, {
+        estado: useMapStore.getState,
+        paraMundo: toWorldPoint,
+        escala: () => camera.scale,
+        abrir: setMenuDaParede,
+      })
 
       /**
        * Onda 1, item 7 (nudge por seta) — move TODO o conjunto selecionado
@@ -5939,7 +5906,7 @@ export function PixiCanvas({
         lightsRenderer.destroy()
         el.removeEventListener('wheel', onWheel)
         el.removeEventListener('dblclick', onDblClick)
-        el.removeEventListener('contextmenu', onContextMenu)
+        desligarMenuDaParede()
         window.removeEventListener('keydown', onKeyDown)
         window.removeEventListener('keydown', onDraftKeyDown, true)
         window.removeEventListener('keyup', onKeyUp)
@@ -6035,16 +6002,7 @@ export function PixiCanvas({
           }}
         />
       )}
-      {menuDaParede && (
-        <WallGestureMenu
-          x={menuDaParede.x}
-          y={menuDaParede.y}
-          limite={menuDaParede.limite}
-          onClose={fecharMenuDaParede}
-          onAbrirVao={() => useMapStore.getState().abrirVaoAqui(menuDaParede.wallId, menuDaParede.ponto)}
-          onDesabar={() => useMapStore.getState().desabarParede(menuDaParede.wallId)}
-        />
-      )}
+      {menuDaParede && <WallGestureMenuHost menu={menuDaParede} onClose={fecharMenuDaParede} />}
     </div>
   )
 }
