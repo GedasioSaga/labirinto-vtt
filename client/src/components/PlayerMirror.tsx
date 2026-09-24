@@ -43,6 +43,7 @@ function MirrorScreen({ screen }: { screen: Extract<PlayerScreen, { kind: 'map' 
         vision={screen.vision}
         explored={explored}
         concealed={screen.concealed}
+        peek={screen.peek}
         ownTokens={screen.ownTokens.length === 0 ? NO_OWN_TOKENS : screen.ownTokens}
         settings={DEFAULT_PLAYER_SETTINGS}
         focusTokenId={null}

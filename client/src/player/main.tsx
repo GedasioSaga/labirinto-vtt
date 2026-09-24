@@ -616,6 +616,7 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
           vision={state.vision}
           explored={state.explored}
           concealed={state.concealed}
+          peek={state.peek}
           ownTokens={ownTokens}
           settings={settings}
           focusTokenId={focus.tokenId}

@@ -1,4 +1,5 @@
 import type { ExploredWire } from '../lib/exploration'
+import type { RoofPeek } from '../lib/fogFilter'
 import type { MapData, RegionPoint } from '../types/map'
 import type { HostMessage } from './protocol'
 
@@ -25,6 +26,8 @@ export type PlayerScreen =
       explored: ExploredWire
       ownTokens: string[]
       concealed: RegionPoint[][]
+      /** A espiada pela porta aberta, como saiu no fio; ausente = nenhuma. */
+      peek?: RoofPeek
     }
 
 export interface PlayerScreens {
@@ -66,6 +69,7 @@ export function createPlayerScreens(): PlayerScreens {
             explored: msg.explored,
             ownTokens: msg.ownTokens,
             concealed: msg.concealed,
+            ...(msg.peek === undefined ? {} : { peek: msg.peek }),
           })
           return true
         }

@@ -33,6 +33,7 @@ import {
 } from '../net/protocol'
 import { CLUEBOOK_MAX_CLUES } from '../lib/clues'
 import type { TokenMoveRejection } from '../lib/moveValidation'
+import type { RoofPeek } from '../lib/fogFilter'
 import { hasEnterText } from '../lib/roomText'
 
 /**
@@ -60,6 +61,12 @@ export interface PlayerState {
   elsewhere?: OwnTokenElsewhere[]
   /** Polígonos das zonas ocultas ativas: o jogador pinta preto por cima. */
   concealed?: RegionPoint[][]
+  /**
+   * VER PELA PORTA ABERTA: prédios de teto fechado que uma ficha dele espia do
+   * vão da porta, e a visão de quem espia (o recorte do telhado). Cada
+   * snapshot substitui; sem o campo, não há espiada.
+   */
+  peek?: RoofPeek
   /** Sinais recebidos ainda vivos (somem sozinhos depois de `SIGNAL_TTL_MS`). */
   signals?: SignalMark[]
   /** Rastro do laser do mestre; some sozinho `LASER_TRAIL_MS` depois da última mensagem com o laser desligado. */
@@ -333,6 +340,10 @@ function isVision(value: unknown): value is RegionPoint[][] {
 
 function isStringList(value: unknown): value is string[] {
   return Array.isArray(value) && value.every((item) => typeof item === 'string')
+}
+
+function isRoofPeek(value: unknown): value is RoofPeek {
+  return isRecord(value) && isStringList(value.roofIds) && isVision(value.vision)
 }
 
 /**
@@ -631,6 +642,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     ownTokens: string[],
     concealed: RegionPoint[][],
     elsewhere: OwnTokenElsewhere[],
+    peek: RoofPeek | undefined,
   ): void {
     if (rev <= state.rev) return
     let next = map
@@ -645,7 +657,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       move.prevY = token.y
       next = withTokenAt(next, move.tokenId, move.x, move.y)
     }
-    setState({ status: 'playing', rev, map: next, vision, explored, ownTokens, concealed, elsewhere, error: undefined })
+    setState({ status: 'playing', rev, map: next, vision, explored, ownTokens, concealed, elsewhere, peek, error: undefined })
   }
 
   function handleRejected(reqId: string, reason: unknown): void {
@@ -750,7 +762,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         clearDoorNotice()
         clearMoveNotice()
         clearTravelTimer()
-        setState({ status: 'waiting', map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, elsewhere: undefined, concealed: undefined, signals: undefined, laser: undefined, playerLasers: undefined, doorNotice: undefined, moveNotice: undefined, travel: undefined, shownClue: undefined, cluePeers: undefined, clueShow: undefined })
+        setState({ status: 'waiting', map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, elsewhere: undefined, concealed: undefined, peek: undefined, signals: undefined, laser: undefined, playerLasers: undefined, doorNotice: undefined, moveNotice: undefined, travel: undefined, shownClue: undefined, cluePeers: undefined, clueShow: undefined })
         return
       case 'scene.changed':
         // O mestre deixou passar. Tudo o que era da cena de antes perde o
@@ -892,13 +904,14 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         }
         if (data.ownTokens !== undefined && !isStringList(data.ownTokens)) return
         if (data.concealed !== undefined && !isVision(data.concealed)) return
+        if (data.peek !== undefined && !isRoofPeek(data.peek)) return
         let elsewhere: OwnTokenElsewhere[] = []
         if (data.elsewhere !== undefined) {
           const parsed = parseElsewhere(data.elsewhere)
           if (parsed === null) return
           elsewhere = parsed
         }
-        applySnapshot(data.rev, data.map, data.vision, explored, data.ownTokens ?? [], data.concealed ?? [], elsewhere)
+        applySnapshot(data.rev, data.map, data.vision, explored, data.ownTokens ?? [], data.concealed ?? [], elsewhere, data.peek)
         return
       }
       case 'token.move.accepted':
@@ -1176,7 +1189,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     },
     reconnect() {
       detach()
-      setState({ status: 'connecting', error: undefined, rev: -1, map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, elsewhere: undefined, concealed: undefined, signals: undefined, laser: undefined, playerLasers: undefined, doorNotice: undefined, moveNotice: undefined, travel: undefined, note: undefined, roomText: undefined, notebook: undefined, unreadNotes: undefined, clues: undefined, shownClue: undefined, cluePeers: undefined, clueShow: undefined })
+      setState({ status: 'connecting', error: undefined, rev: -1, map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, elsewhere: undefined, concealed: undefined, peek: undefined, signals: undefined, laser: undefined, playerLasers: undefined, doorNotice: undefined, moveNotice: undefined, travel: undefined, note: undefined, roomText: undefined, notebook: undefined, unreadNotes: undefined, clues: undefined, shownClue: undefined, cluePeers: undefined, clueShow: undefined })
       open()
     },
     close: detach,

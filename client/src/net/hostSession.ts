@@ -875,7 +875,17 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     // Sala secreta descoberta agora também muda o recorte seguinte.
     const settled = previous !== null && previous.bits === explored.bits && previous.rings === explored.rings && memory.secretRooms.size === discoveredBefore
     memory.sentExplored = { bits: explored.bits, rings: explored.rings }
-    const base: Extract<HostMessage, { type: 'snapshot' }> = { type: 'snapshot', rev, map: view.map, vision: view.vision, explored, ownTokens, concealed: view.concealed }
+    // VER PELA PORTA ABERTA: sem ficha no vão o campo nem sai.
+    const base: Extract<HostMessage, { type: 'snapshot' }> = {
+      type: 'snapshot',
+      rev,
+      map: view.map,
+      vision: view.vision,
+      explored,
+      ownTokens,
+      concealed: view.concealed,
+      ...(view.peek === null ? {} : { peek: view.peek }),
+    }
     // Sem ficha em outra cena o campo nem sai: o snapshot fica igual ao de sempre.
     const snapshot: HostMessage = elsewhere.length > 0 ? { ...base, elsewhere } : base
     return { messages: [snapshot, ...roomTextCardsFor(playerId, map.id, view)], settled }
