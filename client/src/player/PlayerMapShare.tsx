@@ -17,8 +17,13 @@ export interface PlayerMapShareProps {
   onClose: () => void
 }
 
-/** O aviso de quem recebe: quem mostrou, e nada de lugar (o nome da cena é do mestre). */
-export function mapSharedNoticeText(from: string): string {
+/**
+ * O aviso de quem recebe: quem mostrou, e nada de lugar (o nome da cena é do
+ * mestre). `null` = MAPA DE PAPEL do mestre, que pode ser de outra cena: o
+ * aviso não promete que já aparece aqui.
+ */
+export function mapSharedNoticeText(from: string | null): string {
+  if (from === null) return 'O mestre te deu um mapa. As salas dele aparecem no seu quando você estiver lá.'
   return `${from} mostrou o próprio mapa a você. O trecho explorado já aparece no seu.`
 }
 

@@ -1,6 +1,16 @@
-import { useRef, useState } from 'react'
-import { VISION_RADIUS_MAX, VISION_RADIUS_MIN, VISION_RADIUS_STEP, type HostWorld, type PlayerInfo } from '../net/hostSession'
+import { useRef, useState, type FormEvent, type KeyboardEvent } from 'react'
+import {
+  MAX_SCENE_MEMORIES_PER_PLAYER,
+  VISION_RADIUS_MAX,
+  VISION_RADIUS_MIN,
+  VISION_RADIUS_STEP,
+  type GiveMapOutcome,
+  type HostWorld,
+  type PlayerInfo,
+} from '../net/hostSession'
 import type { RoomInfo, TunnelState } from '../net/hostBridge'
+import { giftableRoomsOf } from '../lib/fogFilter'
+import { normalizeForSearch } from '../lib/mapObjects'
 import { PartySection, type PartySectionProps } from './PartySection'
 
 export interface RoomPanelToken {
@@ -40,6 +50,13 @@ export interface RoomPanelProps {
    * explorou a cena, ou a sala fechou). Ausente = o painel não oferece.
    */
   onShareMap?(fromPlayerId: string, toPlayerId: string): boolean
+  /** MAPA DE PAPEL: as cenas com Salas que podem ir num mapa (`giftScenesOf`). Vazio ou ausente = o card não oferece. */
+  giftScenes?: GiftScene[]
+  /**
+   * "Dar um mapa a…": grava as Salas `roomIds` da cena `sceneId` na memória de
+   * `playerId`. Devolve quantas entraram (0 = nada foi) ou `memoria-cheia`.
+   */
+  onGiveMap?(playerId: string, sceneId: string | null, roomIds: string[]): GiveMapOutcome
   /** Botão "Laser" ligado: arma o laser (independe de segurar L); o traço sai clicando no mapa. */
   laserOn?: boolean
   onToggleLaser?(): void
@@ -47,6 +64,7 @@ export interface RoomPanelProps {
 
 export const PLAN_HINT = 'Revelar planta mostra paredes, salas e portas, sem os tokens. Zonas ocultas continuam escondidas.'
 export const SHARE_MAP_HINT = 'Passa o que ele já explorou na cena onde está. Só quem recebe passa a conhecer; zonas ocultas continuam escondidas.'
+export const GIVE_MAP_HINT = 'Só quem recebe passa a conhecer essas salas, de qualquer cena, como um mapa achado. Salas ocultas, com teto ou em zona oculta ficam de fora.'
 export const LASER_HINT ='Ligado (ou segurando L), clique e arraste com o botão esquerdo sobre o mapa. Todos os jogadores veem o laser.'
 export const FIREWALL_HINT = 'Se o celular não abrir o link, libere o app no Firewall do Windows (rede Privada)'
 export const TUNNEL_WARNING = 'Quem tiver o link e o código entra na sala. Encerre ao terminar o jogo.'
@@ -78,6 +96,26 @@ export function roomPanelTokensOf(world: HostWorld): RoomPanelToken[] {
       ...(token.npc === true ? { npc: true } : {}),
     })),
   )
+}
+
+/** Uma cena no "Dar um mapa a…": o nome que o MESTRE lê e as Salas que podem ir no papel. */
+export interface GiftScene {
+  sceneId: string | null
+  name: string
+  rooms: { id: string; name: string }[]
+}
+
+const UNNAMED_ROOM = 'Sala sem nome'
+
+/**
+ * MAPA DE PAPEL: cada cena do mundo com as Salas que o jogador pode ver
+ * (`giftableRoomsOf`), a aberta primeiro. Cena sem nenhuma fica de fora.
+ */
+export function giftScenesOf(world: HostWorld): GiftScene[] {
+  return [world.open, ...world.background].flatMap((scene) => {
+    const rooms = giftableRoomsOf(scene.map).map((region) => ({ id: region.id, name: region.room?.name.trim() || UNNAMED_ROOM }))
+    return rooms.length === 0 ? [] : [{ sceneId: scene.sceneId, name: scene.name, rooms }]
+  })
 }
 
 /** Tokens que ainda não pertencem a este jogador (candidatos a atribuir). */
@@ -412,6 +450,162 @@ function ShareMapControls({ player, players, onShareMap }: ShareMapControlsProps
   )
 }
 
+interface GiveMapControlsProps {
+  player: PlayerInfo
+  scenes: GiftScene[]
+  onGiveMap(playerId: string, sceneId: string | null, roomIds: string[]): GiveMapOutcome
+}
+
+/** `<select>` só leva texto: a cena do mapa solto (`null`) vira ''. */
+const sceneValue = (sceneId: string | null): string => sceneId ?? ''
+
+const roomsLabel = (count: number): string => (count === 1 ? '1 sala' : `${count} salas`)
+
+/** Linha de status do "Entregar": o que entrou, ou por que nada entrou. */
+function giveMapStatus(playerName: string, outcome: GiveMapOutcome): string {
+  if (outcome === 'memoria-cheia') {
+    return `Nada foi: a memória de ${playerName} já guarda ${MAX_SCENE_MEMORIES_PER_PLAYER} cenas, e o mapa de uma cena nova apagaria a mais antiga explorada.`
+  }
+  return outcome > 0
+    ? `Mapa entregue a ${playerName}: ${roomsLabel(outcome)}.`
+    : 'Nada foi: essas salas estão ocultas para jogadores agora, ou a sala da mesa fechou.'
+}
+
+/**
+ * MAPA DE PAPEL — "Dar um mapa a…" no card do jogador: o mestre escolhe a
+ * cena (a do jogador vem escolhida), marca as Salas — com filtro por nome,
+ * sem acento nem maiúscula, porque uma cena grande tem centenas — e entrega.
+ * Só quem recebe passa a conhecer; a linha de status conta quantas foram.
+ * Esc fecha e devolve o foco ao botão que abre.
+ */
+function GiveMapControls({ player, scenes, onGiveMap }: GiveMapControlsProps) {
+  const [open, setOpen] = useState(false)
+  const [chosenScene, setChosenScene] = useState<string | null>(null)
+  const [checked, setChecked] = useState<ReadonlySet<string>>(new Set())
+  const [filter, setFilter] = useState('')
+  const [status, setStatus] = useState<string | null>(null)
+  const openButtonRef = useRef<HTMLButtonElement | null>(null)
+  const baseId = `lb-room-give-${player.playerId}`
+
+  // A cena escolhida, a do jogador ou a primeira; cena que sumiu do mundo cai na primeira.
+  const wanted = chosenScene ?? sceneValue(player.sceneId ?? null)
+  const scene = scenes.find((s) => sceneValue(s.sceneId) === wanted) ?? scenes[0]
+  if (scene === undefined) return null
+  const needle = normalizeForSearch(filter.trim())
+  const shown = needle === '' ? scene.rooms : scene.rooms.filter((room) => normalizeForSearch(room.name).includes(needle))
+  // Só conta o que é desta cena: marcado noutra não vai junto.
+  const picked = scene.rooms.filter((room) => checked.has(room.id)).map((room) => room.id)
+
+  const close = () => {
+    setOpen(false)
+    openButtonRef.current?.focus()
+  }
+
+  const toggle = (roomId: string, on: boolean) => {
+    setChecked((current) => {
+      const next = new Set(current)
+      if (on) next.add(roomId)
+      else next.delete(roomId)
+      return next
+    })
+  }
+
+  const submit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    if (picked.length === 0) return
+    const given = onGiveMap(player.playerId, scene.sceneId, picked)
+    setStatus(giveMapStatus(player.name, given))
+    if (typeof given === 'number' && given > 0) setChecked(new Set())
+  }
+
+  const onKeyDown = (event: KeyboardEvent<HTMLFormElement>) => {
+    if (event.key !== 'Escape') return
+    // Esc fecha sem entregar; não pode chegar ao canvas (Esc lá troca a ferramenta).
+    event.preventDefault()
+    event.stopPropagation()
+    close()
+  }
+
+  return (
+    <>
+      <button
+        ref={openButtonRef}
+        type="button"
+        className="lb-btn lb-btn--ghost"
+        aria-expanded={open}
+        aria-controls={open ? `${baseId}-form` : undefined}
+        onClick={() => (open ? close() : setOpen(true))}
+      >
+        Dar um mapa a {player.name}
+      </button>
+      {open && (
+        <form id={`${baseId}-form`} className="lb-party__send" aria-label={`Mapa de papel para ${player.name}`} onSubmit={submit} onKeyDown={onKeyDown}>
+          <label className="lb-label" htmlFor={`${baseId}-scene`}>
+            Cena do mapa
+          </label>
+          <select
+            id={`${baseId}-scene`}
+            className="lb-input"
+            value={sceneValue(scene.sceneId)}
+            onChange={(event) => {
+              setChosenScene(event.target.value)
+              setChecked(new Set())
+              setStatus(null)
+            }}
+          >
+            {scenes.map((s) => (
+              <option key={sceneValue(s.sceneId)} value={sceneValue(s.sceneId)}>
+                {s.name}
+              </option>
+            ))}
+          </select>
+          <label className="lb-label" htmlFor={`${baseId}-filter`}>
+            Filtrar salas
+          </label>
+          <input id={`${baseId}-filter`} className="lb-input" type="search" value={filter} onChange={(event) => setFilter(event.target.value)} />
+          {shown.length === 0 ? (
+            <p className="lb-label">Nenhuma sala com esse nome.</p>
+          ) : (
+            <ul className="lb-gather__list lb-papel__list" aria-label="Salas do mapa">
+              {shown.map((room) => {
+                const checkId = `${baseId}-room-${room.id}`
+                return (
+                  <li key={room.id}>
+                    <label className="lb-gather__item" htmlFor={checkId}>
+                      <input
+                        id={checkId}
+                        type="checkbox"
+                        className="lb-gather__check"
+                        checked={checked.has(room.id)}
+                        onChange={(event) => toggle(room.id, event.target.checked)}
+                      />
+                      <span className="lb-party__name">{room.name}</span>
+                    </label>
+                  </li>
+                )
+              })}
+            </ul>
+          )}
+          <button type="submit" className="lb-btn lb-btn--primary" disabled={picked.length === 0} aria-describedby={picked.length === 0 ? `${baseId}-hint` : undefined}>
+            {picked.length === 0 ? 'Entregar' : `Entregar ${roomsLabel(picked.length)}`}
+          </button>
+          {picked.length === 0 && (
+            <p className="lb-label" id={`${baseId}-hint`}>
+              Marque ao menos uma sala.
+            </p>
+          )}
+          {status !== null && (
+            <p className="lb-label" role="status">
+              {status}
+            </p>
+          )}
+          <p className="lb-label">{GIVE_MAP_HINT}</p>
+        </form>
+      )}
+    </>
+  )
+}
+
 export function RoomPanel({
   room,
   players,
@@ -429,6 +623,8 @@ export function RoomPanel({
   onRevealPlan,
   onHidePlan,
   onShareMap,
+  giftScenes = [],
+  onGiveMap,
   laserOn = false,
   onToggleLaser,
 }: RoomPanelProps) {
@@ -524,6 +720,7 @@ export function RoomPanel({
                 </button>
                 <p className="lb-label">{PLAN_HINT}</p>
                 {onShareMap !== undefined && <ShareMapControls player={player} players={players} onShareMap={onShareMap} />}
+                {onGiveMap !== undefined && giftScenes.length > 0 && <GiveMapControls player={player} scenes={giftScenes} onGiveMap={onGiveMap} />}
                 {clientId !== null && (
                   <button type="button" className="lb-btn lb-btn--danger" onClick={() => onKick(clientId)}>
                     Expulsar
