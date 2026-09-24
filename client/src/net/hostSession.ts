@@ -1424,7 +1424,12 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       // A primeira ficha dele NESTA cena, na ordem em que o mestre as deu:
       // quem tem duas fichas espalhadas não arrasta a outra cena junto.
       const owned = ownership[playerId] ?? []
-      const token = owned.map((id) => from.map.tokens.find((t) => t.id === id)).find((t): t is Token => t !== undefined)
+      const here = owned.map((id) => from.map.tokens.find((t) => t.id === id)).filter((t): t is Token => t !== undefined)
+      // AJUDANTE CONTRATADO: vai o personagem, não o ajudante emprestado (a mesma
+      // regra do pino em `validTravel`) — o ajudante emprestado antes do personagem
+      // fica primeiro na lista de posse. Só com o ajudante na mão é ele que vai.
+      const loaned = loansFor(playerId)
+      const token = here.find((t) => !loaned.has(t.id)) ?? here[0]
       if (token === undefined) return { outbound: [] }
       const pin = gatherAt !== undefined || pinId === null ? null : to.map.pins.find((p) => p.id === pinId && p.kind === 'viagem')
       // Pino que sumiu entre abrir o painel e confirmar: não chega em outro lugar calado.

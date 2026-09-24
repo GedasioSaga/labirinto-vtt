@@ -105,3 +105,50 @@ describe('ajudante contratado: quem atravessa o pino', () => {
     expect(atravessa(s, w).applyTransfer?.tokenId).toBe('tiziu')
   })
 })
+
+/**
+ * O "Levar para…" e o "Juntar o grupo" do mestre (`sendPlayer`) seguem a mesma
+ * regra do pino: vai o personagem, não o ajudante — mesmo quando o ajudante foi
+ * emprestado ANTES do personagem ser dado (e está primeiro na lista de posse).
+ */
+describe('ajudante contratado: quem o mestre leva para outra cena', () => {
+  const PONTO_DO_GRUPO = { x: 600, y: 250 }
+
+  it('"Levar para…": vai o herói, mesmo com o ajudante emprestado antes dele', () => {
+    const w = mundo()
+    const { s, ana } = mesa(w)
+    s.lendToken(ana, 'tiziu', { tarefa: 'vigiar a porta', minutos: MINUTO_PRAZO, visao: false })
+    s.assignToken(ana, 'heroi')
+    const r = s.sendPlayer(ana, CRIPTA, null, w)
+    expect(r.applyTransfer?.tokenId).toBe('heroi')
+    expect(r.applyTransfer?.toSceneId).toBe(CRIPTA)
+  })
+
+  it('"Juntar o grupo": vai o herói ao ponto do grupo, não o ajudante', () => {
+    const w = mundo()
+    const { s, ana } = mesa(w)
+    s.lendToken(ana, 'tiziu', { tarefa: 'vigiar a porta', minutos: MINUTO_PRAZO, visao: true })
+    s.assignToken(ana, 'heroi')
+    const r = s.sendPlayer(ana, CRIPTA, null, w, PONTO_DO_GRUPO)
+    expect(r.applyTransfer?.tokenId).toBe('heroi')
+    expect(r.applyTransfer?.x).toBe(PONTO_DO_GRUPO.x)
+    expect(r.applyTransfer?.y).toBe(PONTO_DO_GRUPO.y)
+  })
+
+  it('só com o ajudante na mão, é ele que o mestre leva', () => {
+    const w = mundo()
+    const { s, ana } = mesa(w)
+    s.lendToken(ana, 'tiziu', { tarefa: 'descer sozinho', minutos: MINUTO_PRAZO, visao: true })
+    const r = s.sendPlayer(ana, CRIPTA, null, w)
+    expect(r.applyTransfer?.tokenId).toBe('tiziu')
+    expect(r.applyTransfer?.toSceneId).toBe(CRIPTA)
+  })
+
+  it('controle: sem empréstimo, vai a primeira ficha que o mestre deu', () => {
+    const w = mundo()
+    const { s, ana } = mesa(w)
+    s.assignToken(ana, 'tiziu')
+    s.assignToken(ana, 'heroi')
+    expect(s.sendPlayer(ana, CRIPTA, null, w).applyTransfer?.tokenId).toBe('tiziu')
+  })
+})
