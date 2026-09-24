@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { acaoDeFerrolho } from '../lib/ferrolho'
 import { createEmptyMap } from '../lib/mapFactory'
 import type { DoorState, MapData, Pin, Token, Wall } from '../types/map'
 import { createHostSession, type HostResult, type HostSession, type HostWorld } from './hostSession'
@@ -147,6 +148,8 @@ describe('hostSession: ferrolho na porta', () => {
     const { s } = anaTrancou(map)
     const doBruno = s.handleMessage('c2', { type: 'door.bar', wallId: 'porta', on: false }, map)
     expect(doBruno.trancaAviso).toBeUndefined()
+    // Recusa com resposta ("Trancada"), nunca silêncio: o botão de quem pediu não fica preso esperando.
+    expect(doBruno.outbound).toEqual([{ clientId: 'c2', msg: { type: 'door.toggle.rejected', wallId: 'porta', reason: 'locked' } }])
     expect(portaNoRecorte(snapshotPara(s, 'c1', map))?.ferrolhoDoMeuLado).toBe(true)
     const daAna = s.handleMessage('c1', { type: 'door.bar', wallId: 'porta', on: false }, map)
     expect(daAna.trancaAviso).toEqual({ playerName: 'Ana', alvo: 'porta', acao: 'destrancou' })
@@ -172,6 +175,24 @@ describe('hostSession: ferrolho na porta', () => {
     const r = l.s.handleMessage('c1', { type: 'door.bar', wallId: 'porta', on: true }, longe)
     expect(r.outbound).toEqual([{ clientId: 'c1', msg: { type: 'door.toggle.rejected', wallId: 'porta', reason: 'far' } }])
     expect(r.trancaAviso).toBeUndefined()
+  })
+
+  it('ficha de Ana do lado do ferrolho mas LONGE, outra encostada do lado oposto: a marca e o host concordam, e o botão nunca fica sem resposta', () => {
+    // Ana corre o ferrolho com a ficha 1 encostada do lado oeste; a ficha 2 está longe, a leste.
+    const antes: MapData = { ...corredor(), tokens: [ficha('ficha-ana', 'Heroina', 450, 250), ficha('ficha-ana2', 'Escudeira', 900, 250), ficha('ficha-bruno', 'Guarda', 950, 400)] }
+    const m = mesa(antes)
+    m.s.assignToken(m.ana, 'ficha-ana2')
+    expect(m.s.handleMessage('c1', { type: 'door.bar', wallId: 'porta', on: true }, antes).trancaAviso?.acao).toBe('trancou')
+    // Depois: a ficha 1 recua para longe (mesmo lado do ferrolho) e a 2 encosta na porta do lado oposto.
+    const depois: MapData = { ...antes, tokens: [ficha('ficha-ana', 'Heroina', 200, 250), ficha('ficha-ana2', 'Escudeira', 550, 250), ficha('ficha-bruno', 'Guarda', 950, 400)] }
+    const snap = snapshotPara(m.s, 'c1', depois)
+    // Nenhuma ficha que ALCANÇA a porta está do lado do ferrolho: sem marca, como o host decide.
+    expect(portaNoRecorte(snap)).toEqual({ open: false, locked: false, kind: 'normal' })
+    const acao = acaoDeFerrolho(snap.map, snap.ownTokens)
+    expect(acao).toEqual({ wallId: 'porta', acao: 'passar', aberta: false })
+    // O que o botão manda agora tem resposta do host ("Trancada"), em vez de silêncio.
+    const r = m.s.handleMessage('c1', { type: 'door.bar', wallId: 'porta', on: true }, depois)
+    expect(r.outbound).toEqual([{ clientId: 'c1', msg: { type: 'door.toggle.rejected', wallId: 'porta', reason: 'locked' } }])
   })
 
   it('o mestre abre a porta pelo editor: o ferrolho não vale mais, nem depois que ela fecha', () => {
@@ -240,7 +261,26 @@ describe('hostSession: barrar a passagem por onde chegou', () => {
     expect(r.applyTransfer).toBeUndefined()
     expect(r.travelRequest?.playerName).toBe('Bruno')
     expect(r.travelRequest?.barradaPor).toBe('Ana')
-    expect(r.outbound).toEqual([])
+  })
+
+  it('Bruno fica sabendo que o pedido espera o mestre (não fica em "Passando…"); SEGURANÇA: sem nome de quem barrou nem da cena', () => {
+    const w = mundo()
+    const { s } = anaBarrou(w)
+    const r = s.handleMessage('c2', { type: 'pin.travel.request', pinId: 'alcapao' }, w)
+    expect(r.outbound).toEqual([{ clientId: 'c2', msg: { type: 'pin.travel.pending' } }])
+    const json = JSON.stringify(r.outbound)
+    expect(json).not.toContain('Ana')
+    expect(json).not.toContain('Cripta')
+    expect(json).not.toContain('barra')
+  })
+
+  it('passagem livre sem barra continua indo direto, sem aviso de espera', () => {
+    const w = mundo()
+    const { s } = mesa(w)
+    s.broadcast(w)
+    const r = s.handleMessage('c2', { type: 'pin.travel.request', pinId: 'alcapao' }, w)
+    expect(r.applyTransfer?.toSceneId).toBe(CRIPTA)
+    expect(r.outbound.some((o) => o.msg.type === 'pin.travel.pending')).toBe(false)
   })
 
   it('o mestre diz "Não": Bruno fica, e a barra continua', () => {

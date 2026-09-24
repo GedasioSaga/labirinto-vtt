@@ -67,6 +67,21 @@ describe('marcarTrancasParaJogador', () => {
     expect(JSON.stringify(livre)).not.toContain('barrada')
   })
 
+  it('só conta ficha que ALCANÇA a porta: uma do lado do ferrolho mas longe não marca, mesmo com outra encostada do lado oposto', () => {
+    if (LADO_DA_ANA === null) throw new Error('a Ana tem lado')
+    // Ana tem duas fichas: uma recuada do lado do ferrolho (x=200), outra encostada do lado oposto (x=550).
+    const map: MapData = { ...corredor(), tokens: [ficha('ficha-ana', 200, 250), ficha('ficha-ana2', 550, 250), ficha('ficha-bruno', 900, 400)] }
+    const donos = { ana: ['ficha-ana', 'ficha-ana2'], bruno: ['ficha-bruno'] }
+    const view = filterMapForPlayer(map, 'ana', donos, 700)
+    const marcado = marcarTrancasParaJogador(view, new Set(donos.ana), { ferrolhos: new Map([['porta', LADO_DA_ANA]]), pinosBarrados: new Set() })
+    expect(marcado.walls.find((w) => w.id === 'porta')?.door).toEqual({ open: false, locked: false, kind: 'normal' })
+    // A ficha recuada volta a encostar do lado do ferrolho: aí sim a marca vem.
+    const encostada: MapData = { ...map, tokens: [ficha('ficha-ana', 450, 250), ficha('ficha-ana2', 550, 250), ficha('ficha-bruno', 900, 400)] }
+    const viewEncostada = filterMapForPlayer(encostada, 'ana', donos, 700)
+    const comMarca = marcarTrancasParaJogador(viewEncostada, new Set(donos.ana), { ferrolhos: new Map([['porta', LADO_DA_ANA]]), pinosBarrados: new Set() })
+    expect(comMarca.walls.find((w) => w.id === 'porta')?.door?.ferrolhoDoMeuLado).toBe(true)
+  })
+
   it('porta aberta pelo mestre não leva marca: o ferrolho só vale com a porta fechada', () => {
     if (LADO_DA_ANA === null) throw new Error('a Ana tem lado')
     const map: MapData = { ...corredor(), walls: corredor().walls.map((w) => (w.id === 'porta' && w.door !== null ? { ...w, door: { ...w.door, open: true } } : w)) }

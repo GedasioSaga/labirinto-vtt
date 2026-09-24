@@ -15,7 +15,7 @@ import { ancestorsOf, NESTING_TOLERANCE, pointInPolygonInclusive, pointOnPolygon
 import { roomHasRoof } from './roomOps'
 import { rotatePointAround, rotationTrig } from './roomRotation'
 import { clampRoomText, hasEnterText } from './roomText'
-import { ladoDaPorta, type LadoDaPorta } from './ferrolho'
+import { fichaDoLadoAlcanca, type LadoDaPorta } from './ferrolho'
 
 /**
  * Recorte do mapa que um jogador pode receber. Tudo que sai daqui vai pela
@@ -1590,7 +1590,8 @@ export interface TrancasDaCena {
  *
  * - Porta: `ferrolhoDoMeuLado` só se a porta está na visão AGORA, fechada e
  *   destrancada pelo mestre, e uma ficha dele (do recorte: camada oculta e
- *   ficha escondida já saíram) está do lado do ferrolho. Do outro lado a porta
+ *   ficha escondida já saíram) ALCANÇA a porta do lado do ferrolho — o mesmo
+ *   critério com que o host aceita tirá-lo ou abrir. Do outro lado a porta
  *   sai como sempre — a tentativa de abrir é que conta a ele que está trancada.
  * - Pino: `barradaDaqui` em pino que já saiu no recorte. A barra é desta cena;
  *   quem está na cena do outro lado recebe outro mapa e nunca a vê.
@@ -1607,7 +1608,8 @@ export function marcarTrancasParaJogador(view: PlayerMapView, ownTokenIds: Reado
     const lado = trancas.ferrolhos.get(wall.id)
     const door = wall.door
     if (lado === undefined || door === null || door.open || door.locked || !visiveis.has(wall.id)) return wall
-    if (!fichas.some((ficha) => ladoDaPorta(wall, ficha) === lado)) return wall
+    // O mesmo critério do host (`fichaDoLadoAlcanca`): só ficha que ALCANÇA a porta conta.
+    if (!fichaDoLadoAlcanca(fichas, wall, lado, map.grid)) return wall
     mudouParede = true
     const marcada: DoorState = { ...door, ferrolhoDoMeuLado: true }
     return { ...wall, door: marcada }

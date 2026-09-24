@@ -86,10 +86,13 @@ import { isTokenAction, isTokenActionRejection, TOKEN_ACTION_REPLY_MAX_LENGTH, T
  * `error invalid_message`; jogador antigo ignora as duas (e o `reply`).
  *
  * TRANCAR PORTA OU PASSAGEM é aditivo pelo mesmo critério: `door.bar` e
- * `pin.bar` (jogador -> mestre). Na volta não há mensagem nova: a recusa da
- * porta é o `door.toggle.rejected` de sempre, e o resultado chega no recorte
+ * `pin.bar` (jogador -> mestre). Na volta, a recusa da porta é o
+ * `door.toggle.rejected` de sempre, e o resultado chega no recorte
  * (`DoorState.ferrolhoDoMeuLado`, `Pin.barradaDaqui`), só a quem está do lado
- * de quem trancou. Mestre antigo responde `error invalid_message`.
+ * de quem trancou. A única mensagem nova de volta é `pin.travel.pending`: a
+ * passagem livre barrada do outro lado virou pedido ao mestre, e quem tentou
+ * passar lê "Aguardando o mestre…" (sem nome nem motivo). Jogador antigo a
+ * ignora. Mestre antigo responde `error invalid_message`.
  */
 export const PROTOCOL_VERSION = 1
 
@@ -406,6 +409,10 @@ export type HostMessage =
   | { type: 'door.toggle.rejected'; wallId: string; reason: DoorToggleRejection }
   | { type: 'pin.travel.rejected'; reason: PinTravelRejection }
   | { type: 'pin.travel.denied' }
+  // A passagem livre caiu em pedido ao mestre (barrada do outro lado): o
+  // jogador troca "Passando…" por "Aguardando o mestre…". Não diz por quê nem
+  // quem barrou. Aditivo: jogador antigo ignora e continua lendo "Passando…".
+  | { type: 'pin.travel.pending' }
   // `by: 'master'`: o mestre levou o jogador sem pedido ("Mandar para…" do
   // painel Grupo). Aditivo: jogador antigo ignora o campo e lê "Você chegou".
   // `by: 'gather'`: também sem pedido, mas pelo "Reunir o grupo aqui" de um

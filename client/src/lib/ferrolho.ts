@@ -30,6 +30,17 @@ export function ladoDaPorta(wall: Pick<Wall, 'x1' | 'y1' | 'x2' | 'y2'>, ponto: 
 }
 
 /**
+ * Alguma destas fichas ALCANÇA a porta (`tokenReachesDoor`) e está do `lado`
+ * dado? É o critério único do "do lado do ferrolho": o host decide com ele se
+ * tirar/abrir vale, e o recorte põe a marca `ferrolhoDoMeuLado` com ele. Ficha
+ * do lado certo mas longe da porta não conta — senão a tela oferecia "tirar"
+ * que o host recusaria.
+ */
+export function fichaDoLadoAlcanca(fichas: readonly Pick<Token, 'x' | 'y' | 'size'>[], wall: Wall, lado: LadoDaPorta, grid: number): boolean {
+  return fichas.some((ficha) => tokenReachesDoor(ficha, wall, grid) && ladoDaPorta(wall, ficha) === lado)
+}
+
+/**
  * A ficha alcança o pino: o centro dele até `DOOR_REACH_CELLS` casa além da
  * borda da ficha — o mesmo "encostado" da porta, para o botão da tela e a
  * checagem do host baterem.

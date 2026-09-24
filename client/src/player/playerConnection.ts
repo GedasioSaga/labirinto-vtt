@@ -110,7 +110,10 @@ export interface PlayerState {
  * Nenhum deles sabe para onde o pino leva: o host nunca conta.
  */
 export type TravelNotice =
-  /** `direct`: o pino é livre, ninguém decide — só falta a resposta do host. */
+  /**
+   * `direct`: o pino é livre, ninguém decide — só falta a resposta do host.
+   * Vira `false` com `pin.travel.pending`: a passagem estava barrada e o pedido espera o mestre.
+   */
   | { id: number; phase: 'waiting'; direct: boolean }
   | { id: number; phase: 'arrived' }
   /** O mestre levou o jogador para outra cena sem ele pedir. */
@@ -786,6 +789,15 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         // Levado pelo mestre, "Você chegou" mentiria: ele não pediu para ir.
         // Reunido pelo mestre: outro aviso, porque ele não foi levado sozinho.
         showTravelAnswer({ id: nextNoticeId++, phase: data.by === 'gather' ? 'gathered' : data.by === 'master' ? 'moved' : 'arrived' })
+        return
+      case 'pin.travel.pending':
+        // A passagem livre virou pedido ao mestre (barrada do outro lado):
+        // "Passando…" mentiria. Só vale com o pedido no ar — aviso atrasado,
+        // depois da resposta, não reabre a espera.
+        if (state.status !== 'playing' || state.travel?.phase !== 'waiting') return
+        // Sem `clearTravelTimer`: a espera não tem prazo, e o único timer possível
+        // aqui seria o da batida da passagem livre, que já disparou (é ele que manda o pedido).
+        setState({ travel: { id: nextNoticeId++, phase: 'waiting', direct: false } })
         return
       case 'pin.travel.denied':
         if (state.status !== 'playing') return

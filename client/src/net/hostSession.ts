@@ -14,7 +14,7 @@ import {
 import { CLUEBOOK_MAX_CLUES } from '../lib/clues'
 import { validateTokenMove } from '../lib/moveValidation'
 import { distanceToWall, tokenReachesDoor } from '../lib/doorReach'
-import { ladoDaPorta, tokenAlcancaPino, type LadoDaPorta } from '../lib/ferrolho'
+import { fichaDoLadoAlcanca, ladoDaPorta, tokenAlcancaPino, type LadoDaPorta } from '../lib/ferrolho'
 import { SIGNAL_MIN_INTERVAL_MS, signalColor } from '../lib/signals'
 import { selectedTokenColor } from '../lib/tokenColor'
 import { arrivalPoint, arrivalSpot, exitLabelsOf, isArrivalOnly, resolvePinTravel, SAIDA_PRINCIPAL, travelExitOf, type TravelScene } from '../lib/pinTravel'
@@ -1164,7 +1164,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     // Do outro lado, "Trancada" — e a tentativa vira disputa na Caixa.
     const ferrolho = ferrolhoAtivo(scene.map, wall)
     if (ferrolho !== undefined) {
-      if (!reaching.some((t) => ladoDaPorta(wall, t) === ferrolho.lado)) return barDisputeFor(clientId, playerId, scene, world, wall.id, ferrolho)
+      if (!fichaDoLadoAlcanca(reaching, wall, ferrolho.lado, scene.map.grid)) return barDisputeFor(clientId, playerId, scene, world, wall.id, ferrolho)
       tirarFerrolho(scene.map.id, wall.id)
     }
     return { outbound: [], applyDoor: { wallId: wall.id, open: !door.open, ...backgroundSceneId(scene, world) } }
@@ -1251,10 +1251,13 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     if (!target.ok) return rejectDoor(clientId, msg.wallId, target.reason)
     const { wall, door, reaching } = target
     const ferrolho = ferrolhoAtivo(scene.map, wall)
-    const onMySide = (lado: LadoDaPorta): boolean => reaching.some((t) => ladoDaPorta(wall, t) === lado)
+    const onMySide = (lado: LadoDaPorta): boolean => fichaDoLadoAlcanca(reaching, wall, lado, scene.map.grid)
     const aviso = (acao: TrancaAviso['acao']): TrancaAviso => ({ playerName: record.name, alvo: 'porta', acao, ...backgroundSceneName(scene, world) })
     if (!msg.on) {
-      if (ferrolho === undefined || !onMySide(ferrolho.lado)) return { outbound: [] }
+      if (ferrolho === undefined) return { outbound: [] }
+      // Do outro lado: responde "Trancada" em vez de calar — um botão que
+      // esperasse resposta não ficaria preso em "Tirando o ferrolho…".
+      if (!onMySide(ferrolho.lado)) return rejectDoor(clientId, wall.id, 'locked')
       tirarFerrolho(scene.map.id, wall.id)
       return { outbound: [], trancaAviso: aviso('destrancou') }
     }
@@ -1440,8 +1443,13 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     // pela descrição, como sempre.
     const saidas = exitLabelsOf(travel.pin)
     const saida = saidas.length > 1 ? saidas.find((s) => s.id === exitId) : undefined
+    // Passagem LIVRE que caiu em pedido por causa da barra: o jogador leu
+    // "Passando…" (ninguém decide) e agora espera o mestre. Avisa só isso —
+    // nem quem barrou, nem que há barra — para a tela trocar para "Aguardando
+    // o mestre…". Pino que já pede passagem não precisa: o jogador já lê a espera.
+    const pending: HostResult['outbound'] = passageOf(travel.pin) === 'livre' ? [{ clientId, msg: { type: 'pin.travel.pending' } }] : []
     return {
-      outbound: [],
+      outbound: pending,
       travelRequest: {
         requestId,
         playerId,
