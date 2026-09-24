@@ -68,6 +68,14 @@ export interface PlayerMapView {
    * visitou para mandar o cartão só na primeira entrada. Não sai pela rede.
    */
   occupiedRooms: string[]
+  /**
+   * DENTRO DA SALA SECRETA — ids das salas secretas que uma ficha do jogador
+   * ocupa agora, estritamente dentro, e que por isso abriram para ELE. O
+   * chamador as guarda como descobertas por este jogador e as devolve em
+   * `discoveredSecretRooms`: a sala continua no mapa lembrado dele depois que
+   * ele sai. Não sai pela rede.
+   */
+  occupiedSecretRooms: string[]
 }
 
 /** Zonas ocultas ativas (`?? []`: mapa montado fora do deserializeMap pode vir sem o campo). */
@@ -906,6 +914,19 @@ function pinReachesPlayer(audiences: PinAudiences | undefined, pinId: string, pl
   return chosen === undefined || chosen.has(playerId)
 }
 
+/** O marcador de "Oculta para jogadores" é do editor do mestre: a sala aberta sai sem ele. */
+function withoutSecretMark(region: Region): Region {
+  if (region.secret !== true) return region
+  const copy = { ...region }
+  delete copy.secret
+  return copy
+}
+
+/** Ponto estritamente dentro do polígono: em cima do muro conta como fora (mesma regra do teto). */
+function strictlyInside(points: readonly RegionPoint[], p: RegionPoint): boolean {
+  return pointInPolygonInclusive(p, points) && !pointOnPolygonBorder(p, points)
+}
+
 /** Porta explorada que o jogador nunca viu: aparece fechada e destrancada. */
 function unseenDoor(door: DoorState): DoorState {
   return { open: false, locked: false, kind: door.kind }
@@ -923,6 +944,10 @@ function unseenDoor(door: DoorState): DoorState {
  * `enteredRooms`: Salas deste mapa em que o jogador JÁ entrou (texto da sala).
  * O texto de entrada dela continua no recorte depois que ele sai, para tocar
  * no rótulo e reler; de Sala onde ele nunca entrou o texto não sai.
+ * `discoveredSecretRooms`: salas secretas deste mapa que ESTE jogador já
+ * descobriu (esteve com a ficha dentro, `occupiedSecretRooms`). Abrem só para
+ * ele, como se a ficha ainda estivesse lá; o resto da regra (névoa, explorado)
+ * continua valendo.
  */
 export function filterMapForPlayer(
   map: MapData,
@@ -933,6 +958,7 @@ export function filterMapForPlayer(
   seenDoors?: ReadonlyMap<string, DoorState>,
   pinAudiences?: PinAudiences,
   enteredRooms?: ReadonlySet<string>,
+  discoveredSecretRooms?: ReadonlySet<string>,
 ): PlayerMapView {
   const hiddenLayers = map.hiddenLayers
   const owned = new Set(ownership[playerId] ?? []) // jogador sem entrada de posse não tem token nem visão
@@ -957,19 +983,39 @@ export function filterMapForPlayer(
   const inConcealZone = (point: RegionPoint): boolean => zones.length > 0 && zones.some((zone) => hidesPoint(zone, point))
 
   // Sala "Oculta para jogadores" leva junto as paredes dela e o que está dentro dela.
-  const secretRooms = secretRoomsOf(map)
+  const allSecretRooms = secretRoomsOf(map)
+  /**
+   * DENTRO DA SALA SECRETA — a sala abre PARA ESTE JOGADOR quando uma ficha
+   * dele está estritamente dentro (em cima do muro ainda é fora: na dúvida,
+   * fecha) ou quando ele já a descobriu (`discoveredSecretRooms`). Aberta, ela é
+   * uma Sala comum para ele: paredes, portas, nome, chão e pinos NÃO secretos.
+   * Geometria indecidível nunca abre. Os outros jogadores continuam sem ela.
+   */
+  const occupiedSecretIds = allSecretRooms
+    .filter((r) => isUsablePolygon(r.points) && ownTokens.some((t) => strictlyInside(r.points, { x: t.x, y: t.y })))
+    .map((r) => r.id)
+  const openSecretIds = new Set([
+    ...occupiedSecretIds,
+    ...allSecretRooms.filter((r) => discoveredSecretRooms?.has(r.id) === true && isUsablePolygon(r.points)).map((r) => r.id),
+  ])
+  const secretRooms = allSecretRooms.filter((r) => !openSecretIds.has(r.id))
+  /** Secreta e ainda FECHADA para este jogador. */
+  const isClosedSecret = (r: Region): boolean => r.secret === true && !openSecretIds.has(r.id)
   // Sub-sala de sala secreta ou oculta some junto, com as paredes dela. O nome
-  // oculto da sala de fora NÃO passa para a de dentro.
+  // oculto da sala de fora NÃO passa para a de dentro. Sala secreta aberta para
+  // o jogador leva junto as sub-salas comuns; sub-sala secreta continua fechada.
   const hiddenByAncestorIds = new Set(
-    map.regions.filter((r) => r.parentId !== undefined && ancestorsOf(map.regions, r.id).some((a) => a.secret || a.hidden)).map((r) => r.id),
+    map.regions.filter((r) => r.parentId !== undefined && ancestorsOf(map.regions, r.id).some((a) => isClosedSecret(a) || a.hidden)).map((r) => r.id),
   )
   const secretRoomIds = new Set([...secretRooms.flatMap((r) => [...subtreeIds(map.regions, r.id)]), ...hiddenByAncestorIds])
+  // Aberta dentro de uma sala que continua fechada (sub-sala de secreta) não conta: segue sumida.
+  const occupiedSecretRooms = occupiedSecretIds.filter((id) => !secretRoomIds.has(id))
   const secretRoomRings = boxRings(secretRooms.map((r) => r.points))
   const inSecretRoom = (point: RegionPoint): boolean => secretRoomRings.length > 0 && inAnyRing(secretRoomRings, point)
   // Sala do jogador = toda região que não some por ser secreta ou oculta. Não
   // passa por `hiddenLayers`: com a camada Salas escondida a Biblioteca não sai,
   // mas a parede dela continua saindo — e o vão também saía.
-  const playerRegions = map.regions.filter((r) => !r.hidden && !r.secret && !secretRoomIds.has(r.id) && isUsablePolygon(r.points))
+  const playerRegions = map.regions.filter((r) => !r.hidden && !isClosedSecret(r) && !secretRoomIds.has(r.id) && isUsablePolygon(r.points))
   /**
    * PORTA SECRETA vira parede comum ANTES de qualquer outra regra: segura a
    * visão da autoridade (nada do outro lado entra no pacote, nem com ela
@@ -1140,6 +1186,7 @@ export function filterMapForPlayer(
    * `forgetInside` (`net/hostSession.ts`).
    */
   const roofs = closedRoofs.map((roof) => roof.points)
+  // Só a sala secreta FECHADA para este jogador: a que abriu vira memória dele como qualquer cômodo.
   const blocked = [...concealRings, ...secretRooms.map((r) => r.points)]
 
   // Peça de chão com a maioria das amostras em área escondida não sai. Limitação
@@ -1363,7 +1410,7 @@ export function filterMapForPlayer(
     }),
     regions: visibleRegions(map.regions, hiddenLayers)
       .filter((r) => {
-        if (r.hidden || r.secret || hiddenByAncestorIds.has(r.id) || underRoofIds.has(r.id)) return false
+        if (r.hidden || isClosedSecret(r) || hiddenByAncestorIds.has(r.id) || underRoofIds.has(r.id)) return false
         // Sala de teto que a geometria não sabe julgar não vira silhueta: some.
         if (brokenRoofIds.has(r.id)) return false
         // Cômodo órfão dentro do prédio, Área sem `parentId`, prédio de teto
@@ -1379,6 +1426,7 @@ export function filterMapForPlayer(
         }
         return isShapeKnown(interiorSamples(r.points, r.points), { points: r.points, closed: true })
       })
+      .map(withoutSecretMark)
       .map((r) => {
         if (r.room === undefined) return r
         const roofClosed = closedRoofIds.has(r.id)
@@ -1459,7 +1507,7 @@ export function filterMapForPlayer(
    */
   const sightRects = cellRunRects(new Set(shownCells))
   const sentVision = sightRects.length > 0 ? [...vision, ...sightRects] : vision
-  return { map: filtered, vision: sentVision, visibleDoorIds, concealed, blocked, roofs, occupiedRooms }
+  return { map: filtered, vision: sentVision, visibleDoorIds, concealed, blocked, roofs, occupiedRooms, occupiedSecretRooms }
 }
 
 /**

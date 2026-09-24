@@ -117,7 +117,7 @@ describe('o snapshot lista as minhas fichas em outras cenas', () => {
     expect(snap?.elsewhere).toBeUndefined()
   })
 
-  it('Sala com nome escondido do jogador, ou ficha dentro de sala secreta: a Sala vem vazia', () => {
+  it('Sala com nome escondido do jogador vem vazia; sala secreta com a ficha dele dentro abriu para ele e vem com o nome', () => {
     const base = mundoPadrao()
     const [cripta, torre] = base.background
     if (cripta === undefined || torre === undefined) throw new Error('mundo sem cenas de fundo')
@@ -132,11 +132,12 @@ describe('o snapshot lista as minhas fichas em outras cenas', () => {
     const r = s.broadcast(escondido)
     expect(snapshotPara(r, 'c1')?.elsewhere).toEqual([
       { tokenId: 'batedor', name: 'ficha-batedor', room: '' },
-      { tokenId: 'sombra', name: 'ficha-sombra', room: '' },
+      // DENTRO DA SALA SECRETA: a ficha dele está no Cofre, então o Cofre é dele
+      // (é o que ele veria olhando por ela). Nome de cena continua sem sair.
+      { tokenId: 'sombra', name: 'ficha-sombra', room: 'Cofre Secreto' },
     ])
     const texto = textoPara(r, 'c1')
     expect(texto).not.toContain('Poço de corda')
-    expect(texto).not.toContain('Cofre Secreto')
   })
 
   it('mapa solto: sem aventura, sem lista', () => {
