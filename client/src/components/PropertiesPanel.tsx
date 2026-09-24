@@ -22,6 +22,7 @@ import { tokenPhotoRef } from '../lib/tokenPhoto'
 import { selectedTokenColor } from '../lib/tokenColor'
 import { TokenNameControls, type TokenNameControlsProps } from './TokenNameControls'
 import { TokenColorControls, type TokenColorControlsProps } from './TokenColorControls'
+import { TokenPlayerCharacterControls, type TokenPlayerCharacterControlsProps } from './TokenPlayerCharacterControls'
 import { TokenSizeControls, type TokenSizeControlsProps } from './TokenSizeControls'
 import { selectedTokenSize } from '../lib/tokenSize'
 import { LightControls, type LightControlsProps } from './LightControls'
@@ -111,6 +112,8 @@ interface PropertiesPanelProps {
   tokenSize: Omit<TokenSizeControlsProps, 'size'>
   /** F3, contrato do agente C4 — rotação/travar/ocultar do Token selecionado. */
   tokenTransform: Omit<ItemTransformControlsProps, 'title' | 'rotation' | 'locked' | 'hidden' | 'secret'>
+  /** "Ficha de jogador" do Token selecionado: entra na lista de quem chega sem personagem. */
+  tokenPlayerCharacter: Omit<TokenPlayerCharacterControlsProps, 'playerCharacter'>
   selectedTextLabel: Extract<Drawing, { kind: 'text' }> | null
   textLabel: Omit<TextLabelControlsProps, 'text' | 'color' | 'fontSize' | 'fontFamily'>
   /** "Travar movimentação" da Região/Sala selecionada (pedido de 18/09/2026:
@@ -187,6 +190,7 @@ export function PropertiesPanel({
   tokenColor,
   tokenSize,
   tokenTransform,
+  tokenPlayerCharacter,
   selectedTextLabel,
   textLabel,
   regionTransform,
@@ -435,6 +439,7 @@ export function PropertiesPanel({
               secret={!!selectedToken.secret}
               {...tokenTransform}
             />
+            <TokenPlayerCharacterControls playerCharacter={selectedToken.playerCharacter === true} {...tokenPlayerCharacter} />
           </ToolPropertiesSection>
         )}
         {selectedLight && (

@@ -459,6 +459,13 @@ export interface Token extends PlayerSecret {
    *  tela/modo jogador, então essa promessa não existe. `undefined` === false
    *  (visível, comportamento idêntico ao de hoje) — sem linha de migração. */
   hidden?: boolean
+  /** "Ficha de jogador": quem entra na sala sem personagem pode pedir esta
+   *  ficha enquanto ela não tiver dono. `undefined` === false (ficha de NPC,
+   *  fora da lista) — sem linha de migração. Marca opt-in de propósito: a
+   *  lista vai a quem ainda não tem visão nenhuma, então só o que o mestre
+   *  oferece entra nela (`claimableTokensForPlayer`, `lib/fogFilter.ts`).
+   *  NÃO viaja no mapa do jogador: é metadado do mestre. */
+  playerCharacter?: boolean
 }
 
 export interface Prop extends PlayerSecret {

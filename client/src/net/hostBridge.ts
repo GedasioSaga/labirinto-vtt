@@ -35,6 +35,7 @@ import {
   type PointActionRequest,
   type ReclaimedSeat,
   type ReturnCandidate,
+  type SeatClaim,
   type TravelRequest,
 } from './hostSession'
 import {
@@ -430,6 +431,8 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   const callToasts = new Map<string, string>()
   /** Linha da Caixa de cada ação no ponto ainda sem resposta: `requestId` -> id do toast. */
   const pointActionToasts = new Map<string, string>()
+  /** Linha da Caixa de cada pedido de ficha de quem chegou: `requestId` -> id do toast. */
+  const seatClaimToasts = new Map<string, string>()
   /** Diário de viagens desta sala, a mais nova em cima. Nunca sai pelo `net_send`. */
   let travelLog: TravelLogEntry[] = []
   let travelSeq = 0
@@ -584,6 +587,9 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   const sendPartyIfChanged = () => {
     if (session === null) return
     void dispatch(session.partyUpdates(world()))
+    // Os mesmos eventos mudam as fichas livres de quem está sem personagem
+    // (alguém ganhou ficha, o mestre marcou "Ficha de jogador"): mesma regra do "só se mudou".
+    void dispatch(session.seatOptionsUpdates(world()))
   }
 
   /** A lista da sessão com o que só a ponte sabe: as fichas guardadas de cada um. */
@@ -815,6 +821,52 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       pointActionToasts.delete(requestId)
       useToastStore.getState().dismiss(toastId)
     }
+    // Mesma regra para o pedido de ficha: quem pediu caiu, ganhou ficha pelo
+    // painel, ou a ficha foi para outro — o "Aceitar" não daria nada a ninguém.
+    for (const [requestId, toastId] of seatClaimToasts) {
+      if (session !== null && session.isSeatClaimPending(requestId)) continue
+      seatClaimToasts.delete(requestId)
+      useToastStore.getState().dismiss(toastId)
+    }
+  }
+
+  /**
+   * "Aceitar" ou "Não" do pedido de ficha. Aceitar revalida na sessão e dá a
+   * ficha; o mapa sai na hora para quem pediu, e quem pedia a mesma ficha lê
+   * que ela não está mais livre (a linha dele sai da caixa junto).
+   */
+  const answerSeatClaim = (requestId: string, allow: boolean) => {
+    const toastId = seatClaimToasts.get(requestId)
+    seatClaimToasts.delete(requestId)
+    if (toastId !== undefined) useToastStore.getState().dismiss(toastId)
+    if (session === null) return
+    if (!allow) {
+      void dispatch(session.denySeatClaim(requestId))
+      return
+    }
+    void dispatch(session.approveSeatClaim(requestId, world()))
+    broadcastNow()
+    notifyPlayersIfChanged()
+    pruneTravelToasts()
+  }
+
+  /**
+   * Quem chegou sem personagem pediu uma ficha: "Hugo quer jogar com Kael" na
+   * caixa "Pedidos", sozinho já em caixa (o mestre pode estar noutra cena, e
+   * o jogador está parado esperando). O × vale "Não": a pergunta nunca some
+   * sem resposta.
+   */
+  const askSeatClaim = (claim: SeatClaim) => {
+    const toastId = useToastStore.getState().push('instrucao', `${claim.playerName} quer jogar com ${claim.tokenName}`, null, {
+      actions: [
+        { label: 'Aceitar', run: () => answerSeatClaim(claim.requestId, true) },
+        { label: 'Não', run: () => answerSeatClaim(claim.requestId, false) },
+      ],
+      onDismiss: () => answerSeatClaim(claim.requestId, false),
+      grupo: 'Pedidos',
+      sempreEmCaixa: true,
+    })
+    seatClaimToasts.set(claim.requestId, toastId)
   }
 
   /**
@@ -1247,6 +1299,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     // Mão baixada: a linha do chamado sai da caixa.
     pruneCallToasts()
     if (result.pointAction !== undefined) askPointAction(result.pointAction)
+    if (result.seatClaim !== undefined) askSeatClaim(result.seatClaim)
     if (result.applyMove !== undefined) {
       const { tokenId, x, y, sceneId } = result.applyMove
       // Cena aberta: a mesma chamada de sempre, sem o quarto argumento.
@@ -1550,6 +1603,8 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       void dispatch(session.assignToken(playerId, tokenId))
       broadcastNow()
       notifyPlayersIfChanged()
+      // Ficha dada pelo painel: o pedido de ficha de quem a ganhou (ou de quem pedia esta) sai da caixa.
+      pruneTravelToasts()
     },
 
     unassignToken(playerId, tokenId) {

@@ -1,7 +1,7 @@
 import type { DoorState, MapData, Pin, PinPassage, RegionPoint, Token, Wall } from '../types/map'
 import { createExploration, decodeExploration, encodeExploration, forgetBlocked, forgetInside, isPointExplored, markAll, markRings, resizeExploration, type Exploration } from '../lib/exploration'
 import { pointInRing } from '../lib/floorContour'
-import { filterMapForPlayer, memoryBlockedRings, playerBlockedRings } from '../lib/fogFilter'
+import { claimableTokensForPlayer, filterMapForPlayer, memoryBlockedRings, playerBlockedRings } from '../lib/fogFilter'
 import { validateTokenMove } from '../lib/moveValidation'
 import { tokenReachesDoor } from '../lib/doorReach'
 import { SIGNAL_MIN_INTERVAL_MS, signalColor } from '../lib/signals'
@@ -36,11 +36,19 @@ import {
   type PinTravelRejection,
   type PinTravelRequestMessage,
   type PointActionMessage,
+  type SeatClaimMessage,
+  type SeatClaimState,
+  type SeatOption,
   type SignalMessage,
   type TokenEditMessage,
   type TokenMoveMessage,
 } from './protocol'
-import { clampNoteText, clampTravelDenyText } from './protocol'
+import { clampNoteText, clampSeatOptionName, clampTravelDenyText, REQ_ID_MAX_LENGTH, SEAT_OPTIONS_MAX } from './protocol'
+
+/** Como a ficha livre de nome em branco aparece na lista de quem chega. */
+const SEAT_OPTION_UNNAMED = 'Ficha sem nome'
+/** A chave da lista vazia: é o que a conexão tem antes do primeiro `seat.options` (e logo depois de um `welcome`, que a apaga no jogador). */
+const NO_SEAT_OPTIONS_KEY = '[]'
 
 /**
  * Sessão do mestre, lógica pura: não envia nada. Cada método devolve as
@@ -290,6 +298,8 @@ export interface HostResult {
   signal?: HostSignal
   /** Ação no ponto aceita: o integrador põe a linha na Caixa do mestre. */
   pointAction?: PointActionRequest
+  /** Pedido de ficha de quem chegou sem personagem: o integrador pergunta ao mestre. */
+  seatClaim?: SeatClaim
   /** Pedido de passagem válido: o integrador pergunta ao mestre. */
   travelRequest?: TravelRequest
   /** Pedido da porta trancada válido: o integrador pergunta ao mestre. */
@@ -320,6 +330,19 @@ export interface HostResult {
    * a jogava deixa de vê-la como dele. Dado do mestre — nunca vai pela rede.
    */
   loansReturned?: LoanReturn[]
+}
+
+/**
+ * QUEM CHEGA ESCOLHE A FICHA: o pedido, já validado, à espera do mestre. É o
+ * que a linha da caixa de Pedidos mostra ("Hugo quer jogar com Kael"); nada
+ * disto vai a outro jogador.
+ */
+export interface SeatClaim {
+  requestId: string
+  playerId: string
+  playerName: string
+  tokenId: string
+  tokenName: string
 }
 
 /** Uma ficha emprestada que voltou ao dono: de quem, com quem estava, qual. */
@@ -449,6 +472,12 @@ export const MAX_SCENE_MEMORIES_PER_PLAYER = 32
  * levanta a mão em série — cada chamado novo é um bipe na mesa do mestre.
  */
 export const CALL_MIN_INTERVAL_MS = 3000
+
+/**
+ * Depois de um "Não" do mestre, quem pediu a ficha espera isto antes de pedir
+ * de novo: cada pedido é uma linha nova na caixa do mestre.
+ */
+export const SEAT_CLAIM_MIN_INTERVAL_MS = 3000
 
 export interface HostSessionOptions {
   code: string
@@ -622,6 +651,24 @@ export interface HostSession {
   answerPointAction(requestId: string, answer: PointActionAnswer): HostResult
   /** A ação no ponto ainda espera o mestre? `false` depois de respondida ou com o jogador expulso. */
   isPointActionPending(requestId: string): boolean
+  /**
+   * QUEM CHEGA ESCOLHE A FICHA: `seat.options` para cada jogador conectado e
+   * sem personagem cuja lista de fichas livres MUDOU desde o último envio
+   * àquela conexão (o `join` já manda a primeira). Seguro chamar a cada
+   * evento: sem mudança, `outbound` sai vazio.
+   */
+  seatOptionsUpdates(source: HostMapSource): HostResult
+  /**
+   * "Aceitar" do pedido de ficha: revalida contra o mundo de AGORA (a ficha
+   * continua livre e marcada, quem pediu continua sem personagem) e dá a
+   * ficha (`assignToken`). Não valendo mais: `seat.claim.state unavailable` a
+   * quem pediu. Pedido que já não existe: nada.
+   */
+  approveSeatClaim(requestId: string, source: HostMapSource): HostResult
+  /** "Não": `seat.claim.state denied` a quem pediu. Pedido que já não existe: nada. */
+  denySeatClaim(requestId: string): HostResult
+  /** O pedido de ficha ainda espera o mestre? `false` depois de respondido, ou quando quem pediu caiu ou ganhou ficha. */
+  isSeatClaimPending(requestId: string): boolean
   /**
    * "Mandar para…" do painel Grupo: o MESTRE leva o jogador, sem pedido, para
    * `toSceneId` — no pino de viagem `pinId` daquela cena ou, com `null`, no
@@ -922,6 +969,14 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   // `exploration`: o que o assento trouxe, para o "Desfazer" devolvê-lo intacto;
   // `restoredMapIds`: as cenas cuja memória veio dele.
   const claimedSeats = new Map<string, { seat: SavedSeat; given: string[]; exploration: SavedSeatExploration | undefined; restoredMapIds: string[] }>()
+  // Por playerId: o pedido de ficha de quem chegou sem personagem, à espera do
+  // mestre (no máximo um). Morre com a queda, a resposta, ou a ficha que chega.
+  const pendingSeatClaims = new Map<string, { requestId: string; tokenId: string }>()
+  // Por playerId: quando o mestre disse "Não" ao último pedido de ficha dele.
+  const lastSeatClaimDeniedAt = new Map<string, number>()
+  // Por clientId: a última lista de fichas livres enviada àquela conexão (JSON).
+  // Por conexão, e não por jogador: quem reconecta tem tela nova.
+  const lastSeatOptionsSent = new Map<string, string>()
   let rev = 0
 
   const radiusFor = (playerId: string): number => visionOverrides.get(playerId) ?? options.visionRadius
@@ -1127,6 +1182,50 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   }
 
   /**
+   * QUEM CHEGA ESCOLHE A FICHA: as fichas livres, iguais para todo jogador sem
+   * personagem. Entram as que o mestre marcou "Ficha de jogador" em qualquer
+   * cena servida; saem as que já são de alguém — conectado ou fora — e as do
+   * assento guardado de quem ainda não voltou. O que pode ir pela rede é o
+   * recorte de `claimableTokensForPlayer`: id e nome, nada mais.
+   */
+  const seatOptionsFor = (world: HostWorld): SeatOption[] => {
+    const taken = new Set<string>()
+    for (const tokens of Object.values(ownership)) for (const tokenId of tokens) taken.add(tokenId)
+    for (const seat of pendingSeats) for (const tokenId of seat.tokenIds) taken.add(tokenId)
+    return claimableTokensForPlayer(
+      allScenes(world).map((scene) => scene.map),
+      taken,
+    )
+      // Id que o pedido não conseguiria devolver (`seat.claim` tem o teto de id) não é oferecido.
+      .filter(({ tokenId }) => tokenId.length <= REQ_ID_MAX_LENGTH)
+      .slice(0, SEAT_OPTIONS_MAX)
+      // Nome em branco derrubaria a lista inteira no jogador (`parseSeatOptions`).
+      .map(({ tokenId, name }) => ({ tokenId, name: name.trim() === '' ? SEAT_OPTION_UNNAMED : clampSeatOptionName(name) }))
+  }
+
+  /**
+   * `seat.options` para esta conexão, só se a lista mudou desde o último envio
+   * a ela. Nada enviado vale lista vazia (o jogador sem lista vê a espera de
+   * sempre): mesa sem ficha de jogador marcada não manda nada a ninguém.
+   */
+  const seatOptionsIfChanged = (clientId: string, world: HostWorld): Outbound[] => {
+    const tokens = seatOptionsFor(world)
+    const key = JSON.stringify(tokens)
+    if ((lastSeatOptionsSent.get(clientId) ?? NO_SEAT_OPTIONS_KEY) === key) return []
+    lastSeatOptionsSent.set(clientId, key)
+    return [{ clientId, msg: { type: 'seat.options', tokens } }]
+  }
+
+  const seatClaimReply = (clientId: string, state: SeatClaimState): HostResult => reply(clientId, { type: 'seat.claim.state', state })
+
+  const findSeatClaim = (requestId: string): { playerId: string; tokenId: string } | undefined => {
+    for (const [playerId, claim] of pendingSeatClaims) {
+      if (claim.requestId === requestId) return { playerId, tokenId: claim.tokenId }
+    }
+    return undefined
+  }
+
+  /**
    * As fichas do assento de `playerId`: as do mapa e as que a ponte guardou
    * para ele. A emprestada não entra: é do assento do dono.
    */
@@ -1279,6 +1378,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       byClient.delete(replaced)
       pausedSent.delete(replaced)
       lastPartySent.delete(replaced)
+      lastSeatOptionsSent.delete(replaced)
       replacedOut.push({ clientId: replaced, msg: { type: 'session.replaced' } })
     }
     record.clientId = clientId
@@ -1304,13 +1404,16 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     // `name` é o nome já passado por `uniqueName`: é assim que o jogador
     // descobre que entrou como "Ana (2)" em vez da "Ana" que digitou.
     const welcome: HostMessage = { type: 'welcome', playerId: record.playerId, resumeToken: record.resumeToken, name: record.name }
-    const next: HostMessage = statusOf(record.playerId) === 'playing' ? viewFor(record.playerId, world) : { type: 'lobby.waiting' }
+    const waiting = statusOf(record.playerId) === 'waiting'
+    const next: HostMessage = waiting ? { type: 'lobby.waiting' } : viewFor(record.playerId, world)
     // Quem volta de uma queda recebe o recado que o mestre mandou enquanto ele estava fora.
     // Depois do mapa: quem entra (ou volta) numa cena pausada já chega lendo o aviso.
+    // Sem personagem: as fichas livres logo atrás da espera, para escolher uma.
     return {
       outbound: [
         { clientId, msg: welcome },
         ...viewWithPendingNote(clientId, record.playerId, next),
+        ...(waiting ? seatOptionsIfChanged(clientId, world) : []),
         ...pausedUpdate(clientId, record.playerId, world),
         ...replacedOut,
         ...loanBack.outbound,
@@ -1339,6 +1442,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     pendingNotes.delete(playerId)
     openCalls.delete(playerId)
     lastCallAt.delete(playerId)
+    pendingSeatClaims.delete(playerId)
+    lastSeatClaimDeniedAt.delete(playerId)
     // Esquecido não tem mais o que desfazer. O assento não volta: quem foi
     // expulso entraria de novo com o mesmo nome e levaria a ficha.
     claimedSeats.delete(playerId)
@@ -1929,6 +2034,30 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     return { outbound: [] }
   }
 
+  /**
+   * QUEM CHEGA ESCOLHE A FICHA: o pedido vale só de quem está sem personagem e
+   * só por ficha da lista de AGORA (`seatOptionsFor`) — ficha de outro, de
+   * NPC, secreta ou inventada responde `unavailable`, igual para todas, sem
+   * dizer qual é o caso. Um pedido por vez; depois de um "Não", um intervalo.
+   */
+  function handleSeatClaim(clientId: string, msg: SeatClaimMessage, world: HostWorld): HostResult {
+    const playerId = byClient.get(clientId)
+    if (playerId === undefined) return reply(clientId, { type: 'error', reason: 'not_joined' })
+    const record = players.get(playerId)
+    if (record === undefined || statusOf(playerId) !== 'waiting') return seatClaimReply(clientId, 'unavailable')
+    if (pendingSeatClaims.has(playerId)) return seatClaimReply(clientId, 'pending')
+    const deniedAt = lastSeatClaimDeniedAt.get(playerId)
+    if (deniedAt !== undefined && now() - deniedAt < SEAT_CLAIM_MIN_INTERVAL_MS) return seatClaimReply(clientId, 'too_soon')
+    const option = seatOptionsFor(world).find((candidate) => candidate.tokenId === msg.tokenId)
+    if (option === undefined) return seatClaimReply(clientId, 'unavailable')
+    const requestId = randomId()
+    pendingSeatClaims.set(playerId, { requestId, tokenId: option.tokenId })
+    return {
+      ...seatClaimReply(clientId, 'pending'),
+      seatClaim: { requestId, playerId, playerName: record.name, tokenId: option.tokenId, tokenName: option.name },
+    }
+  }
+
   const api: HostSession = {
     get rev() {
       return rev
@@ -1963,7 +2092,51 @@ export function createHostSession(options: HostSessionOptions): HostSession {
           return handleCallLower(clientId)
         case 'point.action':
           return handlePointAction(clientId, msg, world)
+        case 'seat.claim':
+          return handleSeatClaim(clientId, msg, world)
       }
+    },
+
+    seatOptionsUpdates(source) {
+      const world = toWorld(source)
+      // Conexão que já caiu não recebe mais nada: a chave dela só ocuparia memória.
+      for (const clientId of lastSeatOptionsSent.keys()) {
+        if (!byClient.has(clientId)) lastSeatOptionsSent.delete(clientId)
+      }
+      const outbound: Outbound[] = []
+      // Jogando, a lista não vale, mas a chave FICA: o jogador guarda a última
+      // lista, e é contra ela que a volta à espera compara. Esquecer a chave
+      // valia "ele tem a vazia", e quem voltava com a lista vazia ficava com a
+      // velha na tela, fichas já de outros inclusive.
+      for (const [clientId, playerId] of byClient) {
+        if (statusOf(playerId) === 'waiting') outbound.push(...seatOptionsIfChanged(clientId, world))
+      }
+      return { outbound }
+    },
+
+    approveSeatClaim(requestId, source) {
+      const claim = findSeatClaim(requestId)
+      if (claim === undefined) return { outbound: [] }
+      pendingSeatClaims.delete(claim.playerId)
+      const clientId = players.get(claim.playerId)?.clientId ?? null // null = saiu: não há a quem dar
+      if (clientId === null) return { outbound: [] }
+      // Revalida contra AGORA: o mestre pode ter desmarcado a ficha, dado a outro ou apagado.
+      const stillFree = statusOf(claim.playerId) === 'waiting' && seatOptionsFor(toWorld(source)).some((option) => option.tokenId === claim.tokenId)
+      if (!stillFree) return seatClaimReply(clientId, 'unavailable')
+      return api.assignToken(claim.playerId, claim.tokenId)
+    },
+
+    denySeatClaim(requestId) {
+      const claim = findSeatClaim(requestId)
+      if (claim === undefined) return { outbound: [] }
+      pendingSeatClaims.delete(claim.playerId)
+      lastSeatClaimDeniedAt.set(claim.playerId, now())
+      const clientId = players.get(claim.playerId)?.clientId ?? null // null = saiu: não há a quem avisar
+      return clientId === null ? { outbound: [] } : seatClaimReply(clientId, 'denied')
+    },
+
+    isSeatClaimPending(requestId) {
+      return findSeatClaim(requestId) !== undefined
     },
 
     listCalls() {
@@ -2268,6 +2441,15 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       }
       const current = ownership[playerId] ?? []
       if (!current.includes(tokenId)) ownership[playerId] = [...current, tokenId]
+      // Pedidos de ficha: quem ganhou ficha já não pede; quem pedia ESTA ficha
+      // lê que ela não está mais livre, e o pedido dele sai da caixa do mestre.
+      for (const [claimant, claim] of pendingSeatClaims) {
+        if (claimant !== playerId && claim.tokenId !== tokenId) continue
+        pendingSeatClaims.delete(claimant)
+        if (claimant === playerId) continue
+        const claimantClient = players.get(claimant)?.clientId ?? null // null = caiu: o pedido morre calado
+        if (claimantClient !== null) outbound.push({ clientId: claimantClient, msg: { type: 'seat.claim.state', state: 'unavailable' } })
+      }
       return { outbound }
     },
 
@@ -2327,6 +2509,9 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       openCalls.delete(playerId)
       // Quem provocou a pergunta "voltou?" e caiu antes da resposta: a pergunta morre.
       pendingReturns.delete(playerId)
+      // O pedido de ficha também: "Aceitar" daria ficha a quem não está olhando a tela.
+      pendingSeatClaims.delete(playerId)
+      lastSeatOptionsSent.delete(clientId)
     },
 
     kick(clientId) {
@@ -2334,6 +2519,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       if (playerId === undefined) return { outbound: [] }
       byClient.delete(clientId)
       pausedSent.delete(clientId)
+      lastSeatOptionsSent.delete(clientId)
       forgetPlayer(playerId)
       return reply(clientId, { type: 'kicked' })
     },
@@ -2361,9 +2547,18 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       // O `welcome` de novo: é por ele que o aparelho passa a guardar o resume
       // da Ana e a mostrar o nome dela, sem o "(2)".
       const welcome: HostMessage = { type: 'welcome', playerId: previousId, resumeToken: previous.resumeToken, name: previous.name }
-      const next: HostMessage = statusOf(previousId) === 'playing' ? viewFor(previousId, world) : { type: 'lobby.waiting' }
+      const waiting = statusOf(previousId) !== 'playing'
+      const next: HostMessage = waiting ? { type: 'lobby.waiting' } : viewFor(previousId, world)
+      // O `welcome` apaga a lista no jogador: a chave volta a "nada enviado", e quem segue na espera a recebe de novo.
+      lastSeatOptionsSent.delete(clientId)
       return {
-        outbound: [{ clientId, msg: welcome }, ...viewWithPendingNote(clientId, previousId, next), ...pausedUpdate(clientId, previousId, world), ...loanBack.outbound],
+        outbound: [
+          { clientId, msg: welcome },
+          ...viewWithPendingNote(clientId, previousId, next),
+          ...(waiting ? seatOptionsIfChanged(clientId, world) : []),
+          ...pausedUpdate(clientId, previousId, world),
+          ...loanBack.outbound,
+        ],
         ...loansReturnedField(loanBack.returned),
       }
     },

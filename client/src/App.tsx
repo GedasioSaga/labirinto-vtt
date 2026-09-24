@@ -2044,6 +2044,11 @@ function App() {
               onHiddenChange: (hidden) => selectedToken && updateToken(selectedToken.id, { hidden }),
               onSecretChange: (secret) => selectedToken && useMapStore.getState().setItemSecret('token', selectedToken.id, secret),
             }}
+            tokenPlayerCharacter={{
+              // Mesmo caminho da cor: `updateToken` passa por `withHistory` (Ctrl+Z
+              // desfaz), e a lista de quem chega muda no broadcast do mapa.
+              onPlayerCharacterChange: (playerCharacter) => selectedToken && updateToken(selectedToken.id, { playerCharacter }),
+            }}
             selectedTextLabel={selectedTextLabel}
             textLabel={{
               onTextChange: handleTextChange,

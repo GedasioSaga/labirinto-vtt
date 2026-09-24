@@ -4,7 +4,9 @@ import { createRoot } from 'react-dom/client'
 import { JOIN_CODE_LENGTH, NAME_MAX_LENGTH } from '../net/protocol'
 import { themeCss } from '../theme'
 import { createPlayerConnection, RESUME_STORAGE_KEY } from './playerConnection'
-import type { PlayerConnection, PlayerState, SocketLike, StorageLike } from './playerConnection'
+import type { PlayerConnection, PlayerState, SeatClaimNotice, SocketLike, StorageLike } from './playerConnection'
+import type { SeatOption } from '../net/protocol'
+import { SeatPicker } from './SeatPicker'
 import { travelNoticeText } from './travelNoticeText'
 import { OWN_TOKEN_COLOR, PlayerView } from './PlayerView'
 import { PlayerPanel, loadPlayerSettings, savePlayerSettings } from './PlayerPanel'
@@ -406,16 +408,22 @@ interface WaitingScreenProps {
   code: string
   typedName: string
   hostName: string | null
+  /** Fichas livres que o mestre oferece (vazio = nenhuma) e o pedido de uma delas. */
+  seatOptions: readonly SeatOption[]
+  seatClaim: SeatClaimNotice | undefined
+  onClaimSeat: (tokenId: string) => void
   onRename: () => void
   onLeave: () => void
 }
+
+const NO_SEAT_OPTIONS: readonly SeatOption[] = []
 
 /**
  * Tela de espera. Dois passeios cegos travaram aqui por 2 min 45 s e 15 min
  * diante de uma frase solta: nada dizia quem ele era, em que sala estava, se a
  * conexão vivia, nem dava o que fazer. Agora diz as três coisas e tem saída.
  */
-function WaitingScreen({ code, typedName, hostName, onRename, onLeave }: WaitingScreenProps) {
+function WaitingScreen({ code, typedName, hostName, seatOptions, seatClaim, onClaimSeat, onRename, onLeave }: WaitingScreenProps) {
   const shownName = hostName ?? typedName
   const renamed = hostName !== null && hostName !== typedName
   const seconds = useElapsedSeconds()
@@ -448,6 +456,7 @@ function WaitingScreen({ code, typedName, hostName, onRename, onLeave }: Waiting
         // "avisa lá" sem endereço devolve o jogador para a mesma espera.
         <p className="pe-hint">Demorou? Peça ao mestre para abrir a aba Jogo e escolher um personagem para {shownName}.</p>
       )}
+      <SeatPicker options={seatOptions} claim={seatClaim} onClaim={onClaimSeat} />
       <div className="pe-actions">
         <button type="button" className="pe-btn" onClick={onRename}>
           Trocar de nome
@@ -718,6 +727,9 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
           code={code}
           typedName={typedName}
           hostName={hostName}
+          seatOptions={state.seatOptions ?? NO_SEAT_OPTIONS}
+          seatClaim={state.seatClaim}
+          onClaimSeat={(tokenId) => connection.claimSeat(tokenId)}
           // Trocar de nome NÃO esquece o resume: o mestre reaproveita o mesmo
           // registro e só troca o nome, sem virar um segundo jogador na lista.
           onRename={() => onLeave({ text: 'Escolha outro nome e entre de novo.', tone: 'info' })}
