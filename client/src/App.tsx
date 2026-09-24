@@ -17,8 +17,9 @@ import { useFollowStore } from './stores/followStore'
 import { useFollowPlayer } from './stores/useFollowPlayer'
 import { playSignalSound } from './lib/signalSound'
 import { createSignalRouter } from './net/chamadoDeFundo'
-import type { PlayerInfo } from './net/hostSession'
+import type { PinClueState, PlayerInfo } from './net/hostSession'
 import { RoomPanel } from './components/RoomPanel'
+import { hostCluesProps } from './components/CluesSection'
 import { LivePlayerMirror } from './components/PlayerMirror'
 import { partyDestinations, partyMembers, peopleByScene } from './lib/party'
 import { applyGatherPlan, gatherCandidates, planGather } from './lib/gatherParty'
@@ -417,6 +418,8 @@ function App() {
   const [roomPlayers, setRoomPlayers] = useState<PlayerInfo[]>([])
   // "Quem vê" de cada pino com lista. O dono é a sessão do host; isto é só o que o painel desenha.
   const [pinAudiences, setPinAudiences] = useState<Record<string, string[]>>({})
+  // Painel Pistas: quem recebeu e quem leu cada pino. O dono também é a sessão do host.
+  const [pinClues, setPinClues] = useState<Record<string, PinClueState>>({})
   // "Revelar para…" de ficha/escada/zona secreta. Mesma regra: o dono é a sessão do host.
   const [secretReveals, setSecretReveals] = useState<Record<string, string[]>>({})
   const [tunnel, setTunnel] = useState<TunnelState>({ kind: 'idle' })
@@ -479,6 +482,7 @@ function App() {
         },
         onPlayersChange: setRoomPlayers,
         onPinAudiencesChange: setPinAudiences,
+        onPinCluesChange: setPinClues,
         onSecretRevealsChange: setSecretReveals,
         onTunnelChange: setTunnel,
         // B1 — sinal do jogador: o canvas desenha pela store e o bipe avisa quem não está olhando.
@@ -551,6 +555,7 @@ function App() {
   const withRoomTabs = (mapPanel: ReactNode): ReactNode => {
     if (!isTauri()) return mapPanel
     const world = roomPanelWorld()
+    const members = partyMembers(roomPlayers, world)
     return (
       <RailTabs
         active={railTab}
@@ -563,7 +568,7 @@ function App() {
             tokens={map.tokens.map((token) => ({ id: token.id, name: token.name }))}
             knownTokens={[world.open, ...world.background].flatMap((scene) => scene.map.tokens.map((token) => ({ id: token.id, name: token.name })))}
             party={{
-              members: partyMembers(roomPlayers, world),
+              members,
               destinations: partyDestinations(world),
               onGoTo: (member) => {
                 // "Ir lá" em OUTRO jogador é o mestre escolhendo a vista: desliga o seguir.
@@ -577,6 +582,15 @@ function App() {
               mirroringId: mirrorId,
               onToggleMirror: (member) => setMirrorId((current) => (current === member.playerId ? null : member.playerId)),
             }}
+            clues={hostCluesProps({
+              world,
+              members,
+              clues: pinClues,
+              audiences: pinAudiences,
+              stopFollow: () => useFollowStore.getState().stop(),
+              goToPoint: (sceneId, point) => useAdventureStore.getState().goToPoint(sceneId, point),
+              setPinAudience: (pinId, playerIds) => hostBridgeRef.current?.setPinAudience(pinId, playerIds),
+            })}
             tunnel={tunnel}
             onStart={() => void handleStartRoom()}
             onStop={() => void handleStopRoom()}

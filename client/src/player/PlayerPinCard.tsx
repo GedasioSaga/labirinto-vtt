@@ -15,6 +15,12 @@ interface PlayerPinCardProps {
   onRequestTravel?: (exitId?: string) => void
   /** Já há um pedido esperando o mestre: não dá para pedir de novo. */
   travelWaiting?: boolean
+  /**
+   * LEITURA DA PISTA: o cartão abriu com o texto à mostra. Sai uma vez por
+   * pino aberto — pacote novo do mesmo pino não repete — e nunca com o pino
+   * "só de perto" visto de longe: sai quando o texto chega.
+   */
+  onRead?: (pinId: string) => void
 }
 
 /**
@@ -70,7 +76,7 @@ const TEXTOS_LIVRE: TextosDaPassagem = {
  * vendo onde está. O toque de fechar que cai no mapa para ali, antes do canvas:
  * fechar o cartão não arrasta o mapa nem abre outro pino.
  */
-export function PlayerPinCard({ pin, onClose, onRequestTravel, travelWaiting = false }: PlayerPinCardProps) {
+export function PlayerPinCard({ pin, onClose, onRequestTravel, travelWaiting = false, onRead }: PlayerPinCardProps) {
   const cardRef = useRef<HTMLDivElement | null>(null)
   const closeRef = useRef<HTMLButtonElement | null>(null)
   const confirmRef = useRef<HTMLButtonElement | null>(null)
@@ -126,6 +132,15 @@ export function PlayerPinCard({ pin, onClose, onRequestTravel, travelWaiting = f
   // mestre não escreveu nada. Chegando perto, o próximo pacote traz o texto e
   // este cartão, se estiver aberto, troca sozinho.
   const longe = pin.longe === true
+
+  // O último pino que este cartão já contou como lido: o pacote seguinte do
+  // mesmo pino (a cada passo de alguém) não pode virar leitura de novo.
+  const lidoRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (longe || lidoRef.current === pin.id) return
+    lidoRef.current = pin.id
+    onRead?.(pin.id)
+  }, [pin.id, longe, onRead])
   // Só data URL vira foto: se um caminho de disco escapasse até aqui, o
   // `<img>` tentaria abrir o computador do mestre pelo navegador do jogador.
   const foto = isPlayerSafePinImage(pin.image) ? pin.image : null

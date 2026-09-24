@@ -115,6 +115,12 @@ export interface PlayerConnection {
    * ausente, o pedido sai sem ele e vale a saída principal, como sempre.
    */
   requestTravel(pinId: string, exitId?: string): boolean
+  /**
+   * Avisa o mestre que o jogador leu o cartão do pino `pinId` (painel Pistas).
+   * `false` se não está jogando, se o pino não está no mapa dele ou se o
+   * socket não está aberto.
+   */
+  markPinRead(pinId: string): boolean
   /** Fecha o recado aberto (botão "Fechar" ou Escape do cartão). */
   dismissNote(): void
   /** Abre um socket novo (reconectar), reaproveitando o resumeToken guardado. */
@@ -683,6 +689,13 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         if (!send(pedido)) setState({ travel: undefined })
       }, FREE_PASSAGE_BEAT_MS)
       return true
+    },
+
+    markPinRead(pinId) {
+      if (state.status !== 'playing') return false
+      const pins = state.map?.pins
+      if (pins === undefined || !pins.some((p) => p.id === pinId)) return false
+      return send({ type: 'pin.read', pinId })
     },
 
     dismissNote() {
