@@ -483,11 +483,15 @@ interface ScreenAction {
   run: () => void
 }
 
-/** Menu do toque longo aberto: onde (px da janela), quem anda e os trechos até lá (`null` = não conhece o caminho). */
+/**
+ * Menu do toque longo aberto: onde abre (`at`, px da janela), o ponto
+ * segurado (`point`, px de mundo) e quem anda. O caminho NÃO fica guardado
+ * aqui: sai de onde a ficha está a cada momento (`pointMenuLegs`).
+ */
 interface PointMenuState {
   at: { x: number; y: number }
+  point: { x: number; y: number }
   tokenId: string
-  legs: { x: number; y: number }[] | null
 }
 
 /**
@@ -521,6 +525,20 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
   useEffect(() => {
     setPointMenu(null)
   }, [sceneMapId])
+  /**
+   * Trechos até o ponto do menu a partir de onde a ficha ESTÁ agora, só com o
+   * que esta tela conhece; `null` = não conhece o caminho. Recalculados a cada
+   * mudança do mapa: a caminhada anterior segue com o menu aberto, e um
+   * caminho gravado na abertura sairia da esquina de antes — o host recusaria
+   * o primeiro trecho com 'wall'.
+   */
+  const pointMenuLegs = useMemo(() => {
+    const map = state.map
+    if (pointMenu === null || map === undefined || state.vision === undefined) return null
+    const walker = map.tokens.find((t) => t.id === pointMenu.tokenId)
+    if (walker === undefined) return null
+    return findKnownPath(map, walker, pointMenu.point, { explored: state.explored, vision: state.vision, concealed: state.concealed ?? [] })
+  }, [pointMenu, state.map, state.explored, state.vision, state.concealed])
   /** Último toque nos botões + e − (o `PlayerView` aplica o degrau) e o que eles ainda podem fazer. */
   const [zoomStep, setZoomStep] = useState<ZoomStepRequest>(NO_ZOOM_STEP)
   const [zoomLimits, setZoomLimits] = useState<ZoomLimits>({ canZoomIn: true, canZoomOut: true })
@@ -620,16 +638,14 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
   if (state.status === 'playing' && state.map && state.vision) {
     const actionNotice = latestActionNotice(state.doorNotice, state.moveNotice)
     const playingMap = state.map
-    const knownArea = { explored: state.explored, vision: state.vision, concealed: state.concealed ?? [] }
     /**
-     * Segurou no chão: o menu do ponto abre com o caminho da própria ficha
-     * até lá, calculado SÓ com o que esta tela já conhece. Sem ficha própria
-     * nesta cena não há quem ande, e nada abre (o sinal já saiu).
+     * Segurou no chão: o menu do ponto abre para a própria ficha ir até lá.
+     * Sem ficha própria nesta cena não há quem ande, e nada abre (o sinal já saiu).
      */
     const openPointMenu = (point: { x: number; y: number }, screen: { x: number; y: number }) => {
       const walker = ownTokens.flatMap((id) => playingMap.tokens.filter((t) => t.id === id)).at(0)
       if (walker === undefined) return
-      setPointMenu({ at: screen, tokenId: walker.id, legs: findKnownPath(playingMap, walker, point, knownArea) })
+      setPointMenu({ at: screen, point, tokenId: walker.id })
     }
     // Cartão de pista na tela: o Escape é dele, e um toque não pode fechar também o recado.
     const clueCardOpen = openClue !== null || (state.shownClue !== undefined && openPin === null)
@@ -653,7 +669,11 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
             // Modo de um toque: sinalizou, desliga.
             setSignalArmed(false)
           }}
-          onPointHold={openPointMenu}
+          onLongPress={(x, y, screenX, screenY) => {
+            // O toque longo continua sendo o sinal de sempre, e abre o menu do ponto ali.
+            connection.sendSignal(x, y)
+            openPointMenu({ x, y }, { x: screenX, y: screenY })
+          }}
           measureArmed={measureArmed}
           laserArmed={laserArmed}
           ownLaserColor={ownLaserColor}
@@ -717,10 +737,10 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
         {pointMenu && (
           <PlayerPointMenu
             at={pointMenu.at}
-            canWalk={pointMenu.legs !== null}
+            canWalk={pointMenuLegs !== null}
             onWalk={() => {
               // Cada trecho vai ao mestre como um movimento comum, validado lá; a recusa aparece no aviso de baixo.
-              if (pointMenu.legs !== null) connection.requestWalk(pointMenu.tokenId, pointMenu.legs)
+              if (pointMenuLegs !== null) connection.requestWalk(pointMenu.tokenId, pointMenuLegs)
             }}
             onClose={closePointMenu}
           />

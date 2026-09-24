@@ -19,6 +19,7 @@ import { fitCamera, panBy, zoomAt } from '../pixi/world'
 import { createDebouncedTask, syncWorldTextResolution } from '../pixi/textResolution'
 import type { Bounds, Camera } from '../pixi/world'
 import { arrivalCamera, centeredCamera, firstOwnToken } from './playerCamera'
+import { fireLongPress } from './playerLongPress'
 import { drawOwnerPulse, drawOwnerRing, ownerRingOuterPx } from './ownerMarker'
 import { drawGrid } from '../pixi/drawGrid'
 import { currentRendererResolution, watchDevicePixelRatio } from '../pixi/rendererResolution'
@@ -103,11 +104,13 @@ interface PlayerViewProps {
   signalArmed?: boolean
   onSignal?: (x: number, y: number) => void
   /**
-   * Segurou parado no chão (o mesmo gesto do sinal, que continua saindo):
-   * `point` em px de mundo, `screen` em px da janela — onde o menu do ponto
-   * ("Andar até aqui") abre.
+   * TOQUE LONGO no chão: venceu em (`x`, `y`) de mundo, com o dedo em
+   * (`screenX`, `screenY`) de tela. Quem monta abre ali o menu do ponto
+   * ("Andar até aqui") e decide o sinal: com isto, o toque longo NÃO chama
+   * `onSignal`; sem isto, chama (o sinal de sempre). É o mesmo gancho das
+   * ações no ponto — um gesto, um menu.
    */
-  onPointHold?: (point: { x: number; y: number }, screen: { x: number; y: number }) => void
+  onLongPress?: (x: number, y: number, screenX: number, screenY: number) => void
   /**
    * Botão "Medir" ligado: arrastar no mapa mede a distância em vez de mover a
    * câmera. A medida é só desta tela — nada vai pelo socket.
@@ -780,7 +783,7 @@ export function PlayerView({
   signals = NO_SIGNALS,
   signalArmed = false,
   onSignal,
-  onPointHold,
+  onLongPress,
   measureArmed = false,
   onDoorToggle,
   onPinOpen,
@@ -809,7 +812,7 @@ export function PlayerView({
     signals,
     signalArmed,
     onSignal,
-    onPointHold,
+    onLongPress,
     measureArmed,
     onDoorToggle,
     onPinOpen,
@@ -1613,11 +1616,10 @@ export function PlayerView({
           longPress = null
           // Virou sinal: o gesto não continua como arrasto de câmera.
           if (scene.drag?.kind === 'pan') scene.drag = null
-          sendSignalAt(x, y)
-          // E abre o menu do ponto ("Andar até aqui") onde o dedo está.
+          // Com o menu do ponto montado, o gesto é dele (sinal e menu); sem ele, o sinal.
+          // A tela vai em px da janela: é onde o menu abre.
           const rect = app.canvas.getBoundingClientRect()
-          const point = scene.world.toLocal({ x, y })
-          latestRef.current.onPointHold?.({ x: point.x, y: point.y }, { x: rect.left + x, y: rect.top + y })
+          fireLongPress(scene.world.toLocal({ x, y }), { x: rect.left + x, y: rect.top + y }, latestRef.current)
         }, SIGNAL_LONG_PRESS_MS)
         longPress = { timer, pointerId, x, y }
       })

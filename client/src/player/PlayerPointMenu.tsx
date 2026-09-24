@@ -31,12 +31,11 @@ const SCREEN_MARGIN_PX = 8
  */
 export function PlayerPointMenu({ at, canWalk, onWalk, onClose }: PlayerPointMenuProps) {
   const menuRef = useRef<HTMLDivElement | null>(null)
-  const itemRef = useRef<HTMLButtonElement | null>(null)
 
-  // Foco no item ao abrir; ao fechar, volta para quem tinha antes (o mapa).
+  // Foco no primeiro item ao abrir; ao fechar, volta para quem tinha antes (o mapa).
   useEffect(() => {
     const before = document.activeElement
-    itemRef.current?.focus({ preventScroll: true })
+    menuRef.current?.querySelector<HTMLButtonElement>('[role="menuitem"]')?.focus({ preventScroll: true })
     return () => {
       if (before instanceof HTMLElement && document.contains(before)) before.focus({ preventScroll: true })
     }
@@ -75,21 +74,41 @@ export function PlayerPointMenu({ at, canWalk, onWalk, onClose }: PlayerPointMen
       aria-label="Ações no ponto"
       style={{ left, top: below ? at.y + FINGER_CLEARANCE_PX : at.y - FINGER_CLEARANCE_PX }}
     >
-      <button
-        ref={itemRef}
-        type="button"
-        role="menuitem"
-        className="pp-point-menu__item"
-        aria-disabled={canWalk ? undefined : true}
-        onClick={() => {
-          if (!canWalk) return
+      <WalkHereItem
+        canWalk={canWalk}
+        onWalk={() => {
           onWalk()
           onClose()
         }}
-      >
-        Andar até aqui
-        {!canWalk && <span className="pp-point-menu__why">Você não conhece o caminho</span>}
-      </button>
+      />
     </div>
+  )
+}
+
+export interface WalkHereItemProps {
+  /** Há caminho pelas ruas que o jogador conhece; `false` = esmaecido, com o motivo, e não anda. */
+  canWalk: boolean
+  onWalk(): void
+}
+
+/**
+ * O item "Andar até aqui" sozinho, para morar em QUALQUER menu do toque longo
+ * (`role="menu"`): hoje no `PlayerPointMenu`; com as ações no ponto, entra no
+ * menu delas em vez de abrir um segundo menu no mesmo ponto.
+ */
+export function WalkHereItem({ canWalk, onWalk }: WalkHereItemProps) {
+  return (
+    <button
+      type="button"
+      role="menuitem"
+      className="pp-point-menu__item"
+      aria-disabled={canWalk ? undefined : true}
+      onClick={() => {
+        if (canWalk) onWalk()
+      }}
+    >
+      Andar até aqui
+      {!canWalk && <span className="pp-point-menu__why">Você não conhece o caminho</span>}
+    </button>
   )
 }

@@ -5,26 +5,28 @@
  * na área preta o item fica esmaecido e nada sai pelo fio.
  *
  * Só o que o jsdom não tem é trocado: a `PlayerView` (Pixi pede WebGL) vira
- * um botão por ponto que chama o mesmo `onPointHold`; e o `WebSocket` vira um
- * falso que faz o papel do mestre.
+ * um botão por ponto que chama o mesmo `onLongPress` (o gancho único do toque
+ * longo, o mesmo que as ações no ponto usam); e o `WebSocket` vira um falso
+ * que faz o papel do mestre.
  */
 import { act } from 'react'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { createEmptyMap } from '../lib/mapFactory'
 import { createExploration, encodeExploration, markRings } from '../lib/exploration'
 import type { MapData, Wall } from '../types/map'
+import { WALK_LEG_PAUSE_MS } from './playerConnection'
 
 type PlayerViewProps = Parameters<(typeof import('./PlayerView'))['PlayerView']>[0]
 
 /** Onde o dedo segura, em px de mundo; a tela usa o mesmo número (a câmera não importa aqui). */
-const PONTOS = { beco: { x: 700, y: 300 }, escuro: { x: 900, y: 550 } }
+const PONTOS = { beco: { x: 700, y: 300 }, escuro: { x: 900, y: 550 }, praca: { x: 300, y: 300 } }
 
 vi.mock('./PlayerView', () => ({
   OWN_TOKEN_CSS: '#4ea1ff',
-  PlayerView: ({ onPointHold }: PlayerViewProps) => (
+  PlayerView: ({ onLongPress }: PlayerViewProps) => (
     <div data-testid="mapa">
       {Object.entries(PONTOS).map(([nome, p]) => (
-        <button key={nome} type="button" onClick={() => onPointHold?.(p, p)}>
+        <button key={nome} type="button" onClick={() => onLongPress?.(p.x, p.y, p.x, p.y)}>
           {`segurar ${nome}`}
         </button>
       ))}
@@ -60,6 +62,31 @@ class MestreFalso {
   }
   movimentos(): unknown[] {
     return this.sent.filter((m) => typeof m === 'object' && m !== null && 'type' in m && m.type === 'token.move')
+  }
+  sinais(): unknown[] {
+    return this.sent.filter((m) => typeof m === 'object' && m !== null && 'type' in m && m.type === 'signal')
+  }
+  trechos(): { reqId: string; x: number; y: number }[] {
+    return this.movimentos().flatMap((m) => {
+      if (typeof m !== 'object' || m === null || !('reqId' in m) || !('x' in m) || !('y' in m)) return []
+      const { reqId, x, y } = m
+      return typeof reqId === 'string' && typeof x === 'number' && typeof y === 'number' ? [{ reqId, x, y }] : []
+    })
+  }
+}
+
+/** Pedidos de movimento que o mestre falso já respondeu. */
+const respondidos = new Set<string>()
+
+/** O mestre responde, em ordem, a todo trecho ainda sem resposta. */
+function respondeTrechos(resposta: 'aceita' | 'recusa'): void {
+  for (const { reqId, x, y } of mestre().trechos()) {
+    if (respondidos.has(reqId)) continue
+    respondidos.add(reqId)
+    act(() => {
+      if (resposta === 'aceita') mestre().manda({ type: 'token.move.accepted', reqId, x, y })
+      else mestre().manda({ type: 'token.move.rejected', reqId, reason: 'wall' })
+    })
   }
 }
 
@@ -129,6 +156,21 @@ afterAll(() => {
 })
 
 describe('main.tsx: andar até aqui de ponta a ponta', () => {
+  it('segurar no chão é UM gesto: sai um sinal só e abre um menu só, com "Andar até aqui"', () => {
+    const sinaisAntes = mestre().sinais().length
+    act(() => botao('segurar praca').click())
+    // O sinal do toque longo continua saindo, uma vez, no ponto segurado.
+    expect(mestre().sinais()).toHaveLength(sinaisAntes + 1)
+    expect(mestre().sinais().at(-1)).toEqual({ type: 'signal', x: PONTOS.praca.x, y: PONTOS.praca.y })
+    // Um menu só no ponto: o item mora no menu do toque longo, não num segundo menu.
+    expect(document.querySelectorAll('[role="menu"]')).toHaveLength(1)
+    expect(itemDoMenu().textContent).toBe('Andar até aqui')
+    act(() => {
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+    })
+    expect(document.querySelector('[role="menu"]')).toBeNull()
+  })
+
   it('área preta: o item aparece esmaecido com "Você não conhece o caminho" e nada vai ao mestre', () => {
     act(() => botao('segurar escuro').click())
     expect(itemDoMenu().getAttribute('aria-disabled')).toBe('true')
@@ -154,5 +196,42 @@ describe('main.tsx: andar até aqui de ponta a ponta', () => {
     expect(primeiro).not.toMatchObject({ x: PONTOS.beco.x, y: PONTOS.beco.y })
     const y = typeof primeiro === 'object' && primeiro !== null && 'y' in primeiro ? primeiro.y : Number.NaN
     expect(typeof y === 'number' && (y < 150 || y > 450)).toBe(true)
+  })
+
+  it('menu aberto enquanto a ficha anda: o caminho sai de onde a ficha ESTÁ ao tocar no item, não de onde estava ao abrir', () => {
+    vi.useFakeTimers()
+    try {
+      // O que ficou sem resposta no teste de cima volta: Enzo em (300,300), sem caminhada.
+      respondeTrechos('recusa')
+      act(() => botao('segurar beco').click())
+      act(() => itemDoMenu().click())
+      respondeTrechos('aceita')
+      // Parado na esquina de cima, a oeste do prédio: dali a praça é linha reta.
+      const esquina = mestre().trechos().at(-1)
+      expect(esquina?.x).toBeLessThanOrEqual(400)
+      expect(esquina?.y).toBeLessThan(150)
+      expect(esquina).toBeDefined()
+
+      act(() => botao('segurar praca').click())
+      expect(itemDoMenu().getAttribute('aria-disabled')).toBeNull()
+      // Com o menu aberto a caminhada segue, trecho a trecho, até o beco.
+      for (let volta = 0; volta < 5; volta++) {
+        act(() => vi.advanceTimersByTime(WALK_LEG_PAUSE_MS))
+        respondeTrechos('aceita')
+      }
+      expect(mestre().trechos().at(-1)).toMatchObject(PONTOS.beco)
+      expect(document.querySelectorAll('[role="menu"]')).toHaveLength(1)
+
+      const antes = mestre().trechos().length
+      act(() => itemDoMenu().click())
+      const trechos = mestre().trechos()
+      expect(trechos).toHaveLength(antes + 1)
+      const primeiro = trechos.at(-1)
+      // Do beco à praça a reta atravessa o prédio (o host recusaria com 'wall'): sai a esquina de uma rua.
+      expect(primeiro).not.toMatchObject(PONTOS.praca)
+      expect(primeiro !== undefined && (primeiro.y < 150 || primeiro.y > 450)).toBe(true)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })
