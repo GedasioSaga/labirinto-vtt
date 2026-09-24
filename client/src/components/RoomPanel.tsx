@@ -2,6 +2,7 @@ import { useRef, useState } from 'react'
 import { VISION_RADIUS_MAX, VISION_RADIUS_MIN, VISION_RADIUS_STEP, type HostWorld, type PlayerInfo } from '../net/hostSession'
 import type { RoomInfo, TunnelState } from '../net/hostBridge'
 import { PartySection, type PartySectionProps } from './PartySection'
+import { textoDaEsperaParaOMestre } from '../lib/encontroMarcado'
 
 export interface RoomPanelToken {
   id: string
@@ -425,6 +426,8 @@ export function RoomPanel({
                   {/* Com aventura, o grupo pode estar espalhado: o mestre lê onde cada um está. */}
                   {player.sceneName !== undefined && ` · em ${player.sceneName}`}
                 </span>
+                {/* ENCONTRO MARCADO: o mestre não guarda de cabeça quem espera quem, onde e até quando. */}
+                {player.waiting !== undefined && <span className="lb-label">{textoDaEsperaParaOMestre(player.waiting)}</span>}
                 {player.tokenIds.map((tokenId) => (
                   <button key={tokenId} type="button" className="lb-btn lb-btn--ghost" onClick={() => onUnassign(player.playerId, tokenId)}>
                     Remover {tokenName(tokens, tokenId)}

@@ -26,6 +26,7 @@ import type { SignalMark } from '../lib/signals'
 import type { RemoteLaser } from '../lib/laser'
 import { selectedTokenColor } from '../lib/tokenColor'
 import { buildTokenPhotoData } from '../lib/tokenPhoto'
+import { textoDoFimDaEspera } from '../lib/encontroMarcado'
 import './player.css'
 
 // Página do jogador: entra com código + nome, espera o mestre e mostra o mapa.
@@ -552,6 +553,8 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
   }, [measureArmed, laserArmed])
 
   const ownTokens = state.ownTokens ?? NO_TOKENS
+  // ENCONTRO MARCADO: a marca "esperando". Mesma referência estável dos tokens: sem ninguém esperando, nada a redesenhar.
+  const waitingTokens = state.waitingTokens ?? NO_TOKENS
   const map = state.map
 
   // ATALHO NA MESMA CENA: o mapa não mudou, então a câmera não reenquadra
@@ -632,6 +635,9 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
   }, [connection])
   const closeShownClue = useCallback(() => connection.dismissShownClue(), [connection])
   const askCluePeers = useCallback(() => connection.askCluePeers(), [connection])
+  const startWait = useCallback((minutes: number, who: string, where: string) => connection.startWait(minutes, who, where), [connection])
+  const stopWait = useCallback(() => connection.stopWait(), [connection])
+  const closeWaitEnded = useCallback(() => connection.dismissWaitEnded(), [connection])
   /** Painel e barra do jogador: a câmera lê, na hora, o que eles cobrem do mapa. */
   const panelRef = useRef<HTMLElement | null>(null)
   const barRef = useRef<HTMLDivElement | null>(null)
@@ -653,6 +659,7 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
           explored={state.explored}
           concealed={state.concealed}
           ownTokens={ownTokens}
+          waitingTokens={waitingTokens}
           settings={settings}
           focusTokenId={focus.tokenId}
           focusSeq={focus.seq}
@@ -721,6 +728,9 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
             connection.resetClueShare()
             setOpenClueId(clueId)
           }}
+          wait={state.wait}
+          onStartWait={startWait}
+          onStopWait={stopWait}
         />
         {/* Depois do painel no DOM: o Tab segue a leitura (painel no alto à esquerda, faixa no alto à direita, zoom embaixo à direita). */}
         <PlayerWhereAmI where={where} showTokenName={ownTokens.length > 1} onFocus={focusToken} />
@@ -824,6 +834,15 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
           <p key={actionNotice.id} className="pp-notice" role="status" aria-live="polite">
             {actionNotice.text}
           </p>
+        )}
+        {/* ENCONTRO MARCADO: "Bia chegou" / "O prazo acabou". Quem espera costuma olhar a mesa: fica até fechar ou 1 min. */}
+        {state.waitEnded && (
+          <div key={state.waitEnded.id} className="pp-notice pp-notice--wait" role="status" aria-live="polite">
+            <span>{textoDoFimDaEspera(state.waitEnded.end)}</span>
+            <button type="button" className="pp-notice__close" onClick={closeWaitEnded}>
+              Fechar
+            </button>
+          </div>
         )}
       </PlayerErrorBoundary>
     )

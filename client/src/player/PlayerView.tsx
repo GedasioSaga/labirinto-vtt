@@ -84,6 +84,7 @@ import {
 } from './playerZoom'
 import { drawFacingNib, facingLabelOffset, tokenFacing } from './facingMarker'
 import { createTokenTurns, stepTurns, syncTurn, type TokenTurns } from './tokenTurn'
+import { rotuloDaFicha } from '../lib/encontroMarcado'
 
 interface PlayerViewProps {
   map: MapData
@@ -93,6 +94,11 @@ interface PlayerViewProps {
   /** Zonas ocultas ativas do mestre: pintadas de preto por cima da planta. */
   concealed?: RegionPoint[][]
   ownTokens: string[]
+  /**
+   * ENCONTRO MARCADO: fichas com a marca "esperando" (o nome ganha
+   * "· esperando"). Já vem do recorte do mestre: só ficha que o jogador vê.
+   */
+  waitingTokens?: readonly string[]
   settings: PlayerViewSettings
   /** Token a centralizar. `focusSeq` muda a cada pedido, para repetir o mesmo token. */
   focusTokenId: string | null
@@ -306,7 +312,7 @@ function tokenRadius(token: Token, grid: number): number {
  * TexturePool.returnTexture. Só a GEOMETRIA (círculo chapado ou moldura +
  * máscara da foto); a textura chega depois e é assunto de `syncTokenPhoto`.
  */
-function paintTokenView(view: TokenView, token: Token, grid: number, own: boolean): void {
+function paintTokenView(view: TokenView, token: Token, grid: number, own: boolean, waiting: boolean): void {
   const radius = tokenRadius(token, grid)
   // A cor que o MESTRE deu à ficha vale aqui também: a separação entre aliado
   // e inimigo não serve de nada se só o mestre a enxerga. Sem cor escolhida,
@@ -337,7 +343,9 @@ function paintTokenView(view: TokenView, token: Token, grid: number, own: boolea
       .stroke({ width: TOKEN_FRAME_WIDTH, color: chosen ?? (own ? TOKEN_FRAME_COLOR : OTHER_TOKEN_COLOR) })
   }
   // Só o texto: onde o nome fica depende do bico e do zoom (`syncFacingNib`).
-  view.label.text = token.name
+  // ENCONTRO MARCADO: a marca "esperando" vai no próprio nome — o mapa fica o
+  // minimapa limpo de sempre, sem ícone novo por cima da ficha.
+  view.label.text = rotuloDaFicha(token.name, waiting)
 }
 
 /** Aro de dono no zoom atual; só refaz quando raio, dono ou zoom mudam. */
@@ -417,7 +425,7 @@ function syncTokenPhoto(view: TokenView, token: Token, grid: number): void {
     })
 }
 
-function createTokenView(token: Token, grid: number, own: boolean): TokenView {
+function createTokenView(token: Token, grid: number, own: boolean, waiting: boolean): TokenView {
   const wrapper = new Container()
   const body = new Graphics()
   const photo = new Sprite(Texture.EMPTY)
@@ -446,11 +454,11 @@ function createTokenView(token: Token, grid: number, own: boolean): TokenView {
     facing: null,
     facingKey: null,
     label,
-    key: tokenViewKey(token, grid, own),
+    key: tokenViewKey(token, grid, own, waiting),
     loadedPhoto: null,
     loadSeq: 0,
   }
-  paintTokenView(view, token, grid, own)
+  paintTokenView(view, token, grid, own, waiting)
   return view
 }
 
@@ -467,10 +475,11 @@ function sizeTokenLabel(label: Text, cameraScale: number, showNames: boolean): v
  * caracteres e entraria nesta chave a cada quadro — a troca de uma foto por
  * outra é tratada em `syncTokenPhoto`, que compara a referência uma vez só.
  */
-function tokenViewKey(token: Token, grid: number, own: boolean): string {
+function tokenViewKey(token: Token, grid: number, own: boolean, waiting: boolean): string {
   // `token.color` entra na chave: sem isto, o mestre troca a cor e a tela do
   // jogador continua com a tinta velha até o token mudar de nome ou tamanho.
-  return JSON.stringify([token.name, token.size, grid, own, tokenPhotoRef(token) !== null, token.color ?? null])
+  // `waiting` idem: a marca "esperando" entra e sai sem o nome mudar.
+  return JSON.stringify([token.name, token.size, grid, own, tokenPhotoRef(token) !== null, token.color ?? null, waiting])
 }
 
 interface Scene {
@@ -768,6 +777,8 @@ function stepZoom(scene: Scene, direction: ZoomDirection, animate: boolean): voi
 
 /** Referência estável: sem zonas, o redesenho não repinta a camada a cada snapshot. */
 const NO_CONCEALED: RegionPoint[][] = []
+/** Referência estável: sem ninguém esperando, o redesenho não dispara à toa. */
+const NO_WAITING: readonly string[] = []
 
 export function PlayerView({
   map,
@@ -775,6 +786,7 @@ export function PlayerView({
   explored,
   concealed = NO_CONCEALED,
   ownTokens,
+  waitingTokens = NO_WAITING,
   settings,
   focusTokenId,
   focusSeq,
@@ -807,6 +819,7 @@ export function PlayerView({
     explored,
     concealed,
     ownTokens,
+    waitingTokens,
     settings,
     onMove,
     signals,
@@ -1063,6 +1076,7 @@ export function PlayerView({
       explored: currentExplored,
       concealed: currentConcealed,
       ownTokens: own,
+      waitingTokens: waiting,
       settings: currentSettings,
     } = latestRef.current
     const hidden = currentMap.hiddenLayers
@@ -1129,6 +1143,7 @@ export function PlayerView({
     // sai da visão só fica invisível; se voltar, a mesma view é reusada. A
     // memória fica limitada ao número de tokens já vistos; tudo morre no app.destroy.
     const ownSet = new Set(own)
+    const waitingSet = new Set(waiting)
     const currentIds = new Set(currentMap.tokens.map((t) => t.id))
     for (const [id, view] of scene.tokenViews) {
       if (currentIds.has(id)) continue
@@ -1145,7 +1160,8 @@ export function PlayerView({
     let facingCount = 0
     for (const token of currentMap.tokens) {
       const isOwn = ownSet.has(token.id)
-      const key = tokenViewKey(token, currentMap.grid, isOwn)
+      const isWaiting = waitingSet.has(token.id)
+      const key = tokenViewKey(token, currentMap.grid, isOwn, isWaiting)
       let view = scene.tokenViews.get(token.id)
       // Onde a ficha está desenhada agora; `null` = não estava na tela (nova, ou
       // voltando para a visão): aparece no lugar, sem vir de onde estava escondida.
@@ -1154,13 +1170,13 @@ export function PlayerView({
       const shownFacing = view?.wrapper.visible === true && view.facing !== null ? view.facingNib.rotation : null
       if (!view) {
         const tokenId = token.id
-        view = createTokenView(token, currentMap.grid, isOwn)
+        view = createTokenView(token, currentMap.grid, isOwn, isWaiting)
         view.wrapper.on('pointerdown', (event: FederatedPointerEvent) => startTokenDrag(scene, tokenId, event))
         scene.tokens.addChild(view.wrapper)
         scene.tokenViews.set(tokenId, view)
       } else if (view.key !== key) {
         view.key = key
-        paintTokenView(view, token, currentMap.grid, isOwn)
+        paintTokenView(view, token, currentMap.grid, isOwn, isWaiting)
       }
       // Fora do `if` de propósito: trocar uma foto por outra não muda a chave.
       syncTokenPhoto(view, token, currentMap.grid)
@@ -1195,6 +1211,7 @@ export function PlayerView({
       el.dataset.pinsCount = String(pins.length)
       el.dataset.propsCount = String(scene.propsCount)
       el.dataset.ownTokens = own.join(',')
+      el.dataset.waitingTokens = currentMap.tokens.filter((t) => waitingSet.has(t.id)).map((t) => t.id).join(',')
     }
 
     if (scene.fittedMapId !== currentMap.id) {
@@ -1845,7 +1862,7 @@ export function PlayerView({
   useEffect(() => {
     const scene = sceneRef.current
     if (scene) redraw(scene)
-  }, [map, vision, explored, concealed, ownTokens, settings])
+  }, [map, vision, explored, concealed, ownTokens, waitingTokens, settings])
 
   useEffect(() => {
     // Contagem para o e2e (o desenho em si é do ticker); muda quando chega ou expira um sinal.
