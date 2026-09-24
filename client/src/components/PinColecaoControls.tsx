@@ -11,6 +11,11 @@ export interface PinColecaoControlsProps {
   onChange: (colecao: PinColecao | undefined) => void
   /** Nomes de coleção que outros pinos desta cena já usam: sugestões do campo, para a peça cair na mesma coleção. */
   nomes: readonly string[]
+  /**
+   * O pino tem texto ou foto que o jogador lê? Sem isso ninguém lê o cartão,
+   * o host não guarda a pista e a peça nunca soma — o painel avisa.
+   */
+  temCartao: boolean
 }
 
 const NOME_ID = 'lb-pin-colecao-nome'
@@ -25,9 +30,10 @@ function withoutInteira(colecao: PinColecao): PinColecao {
 }
 
 /** O que a peça faz para o jogador, ou por que ela não conta. */
-function resumo(colecao: PinColecao): string {
+function resumo(colecao: PinColecao, temCartao: boolean): string {
   if (colecao.nome.trim() === '') return 'Sem nome, a peça não conta.'
   if (colecao.parte > colecao.total) return `A peça ${colecao.parte} não cabe numa coleção de ${colecao.total}.`
+  if (!temCartao) return 'Sem texto nem imagem, ninguém lê este pino: a peça não conta.'
   return `Quem lê esta peça ganha a casa ${colecao.parte} de “${colecao.nome.trim()}” no Caderno.`
 }
 
@@ -69,7 +75,7 @@ function NumeroDaPeca({ id, label, value, onCommit }: { id: string; label: strin
  * inteiro — que só o jogador que juntar todas as peças lê. Nada disso vai no
  * recorte: o jogador recebe só o progresso dele, do host.
  */
-export function PinColecaoControls({ colecao, onChange, nomes }: PinColecaoControlsProps) {
+export function PinColecaoControls({ colecao, onChange, nomes, temCartao }: PinColecaoControlsProps) {
   return (
     <div className="lb-field">
       <Toggle label="Peça de coleção" checked={colecao !== null} onChange={(on) => onChange(on ? { nome: '', parte: 1, total: 2 } : undefined)} />
@@ -95,7 +101,7 @@ export function PinColecaoControls({ colecao, onChange, nomes }: PinColecaoContr
           </datalist>
           <NumeroDaPeca id={PARTE_ID} label="Peça nº" value={colecao.parte} onCommit={(parte) => onChange({ ...colecao, parte })} />
           <NumeroDaPeca id={TOTAL_ID} label="De quantas" value={colecao.total} onCommit={(total) => onChange({ ...colecao, total })} />
-          <p className="lb-travel__hint">{resumo(colecao)}</p>
+          <p className="lb-travel__hint">{resumo(colecao, temCartao)}</p>
           <label className="lb-label" htmlFor={INTEIRA_ID}>
             Frase ou item inteiro
           </label>

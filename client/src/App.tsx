@@ -69,7 +69,7 @@ import type { DoorKind, DrawingCap, DrawingDash, MapData, Pin, PinPassage, Regio
 import { passageOf } from './lib/pins'
 import { isArrivalOnly } from './lib/pinTravel'
 import { lockDoorOptions } from './lib/pinLock'
-import { colecaoNomesDaCena } from './lib/colecao'
+import { pinColecaoPanel } from './components/pinColecaoPanel'
 import type { Screen } from './types/screen'
 import { createMapScreen, parentScreen } from './lib/navigation'
 import * as mapFactory from './lib/mapFactory'
@@ -2089,13 +2089,7 @@ function App() {
                   }
                 : null,
               // COLEÇÃO DE PISTAS: a peça e a frase inteira ficam neste mapa; o host manda ao jogador só o progresso dele.
-              colecao: selectedPin
-                ? {
-                    colecao: selectedPin.colecao ?? null,
-                    onChange: (colecao) => useMapStore.getState().updatePin(selectedPin.id, { colecao }),
-                    nomes: colecaoNomesDaCena(map.pins),
-                  }
-                : null,
+              colecao: selectedPin ? pinColecaoPanel(selectedPin, map.pins) : null,
               image: selectedPin?.image ?? null,
               onChooseImage: () => selectedPin && void handleChoosePinImage(selectedPin.id),
               onClearImage: () => selectedPin && useMapStore.getState().updatePin(selectedPin.id, { image: null }),

@@ -25,8 +25,8 @@ describe('PinColecaoControls', () => {
     container.remove()
   })
 
-  function render(colecao: PinColecao | null, onChange: (colecao: PinColecao | undefined) => void, nomes: string[] = []): void {
-    act(() => root.render(<PinColecaoControls colecao={colecao} onChange={onChange} nomes={nomes} />))
+  function render(colecao: PinColecao | null, onChange: (colecao: PinColecao | undefined) => void, nomes: string[] = [], temCartao = true): void {
+    act(() => root.render(<PinColecaoControls colecao={colecao} onChange={onChange} nomes={nomes} temCartao={temCartao} />))
   }
 
   function mudar(el: HTMLInputElement | HTMLTextAreaElement, valor: string): void {
@@ -98,5 +98,11 @@ describe('PinColecaoControls', () => {
     expect(container.textContent).toContain('A peça 5 não cabe numa coleção de 3.')
     render({ nome: 'Letreiro', parte: 2, total: 3 }, vi.fn())
     expect(container.textContent).toContain('Quem lê esta peça ganha a casa 2 de “Letreiro” no Caderno.')
+  })
+
+  it('pino sem texto nem imagem: avisa que ninguém lê a peça, em vez de prometer a casa', () => {
+    render({ nome: 'Letreiro', parte: 2, total: 3 }, vi.fn(), [], false)
+    expect(container.querySelector('.lb-travel__hint')?.textContent).toBe('Sem texto nem imagem, ninguém lê este pino: a peça não conta.')
+    expect(container.textContent).not.toContain('Quem lê esta peça ganha')
   })
 })
