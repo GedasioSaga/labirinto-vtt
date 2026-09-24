@@ -7,12 +7,14 @@ import { pointInRing } from './floorContour'
 import { pieceBounds, pieceDistance, shapeCenter } from './floorSdf'
 import { visibleDrawings, visibleLights, visibleProps, visibleRegions, visibleStairs, visibleTokens, visibleWalls } from './layers'
 import { isPlayerSafePinImage } from './pins'
+import { propPlayerImage, propPlayerLabel } from './propPlayerLook'
 import { exitLabelsOf, isArrivalOnly, travelExitsOf } from './pinTravel'
 import { itemOfPin, tokenReachesPin } from './items'
 import { keyForPin } from './doorKey'
 import { computeVisibility, visionSegments } from './visibility'
 import { ancestorsOf, NESTING_TOLERANCE, pointInPolygonInclusive, pointOnPolygonBorder, subtreeIds } from './roomNesting'
 import { roomHasRoof } from './roomOps'
+import { rotatePointAround, rotationTrig } from './roomRotation'
 
 /**
  * Recorte do mapa que um jogador pode receber. Tudo que sai daqui vai pela
@@ -323,6 +325,36 @@ function wallSamples(wall: Wall): RegionPoint[] {
 /** Pontas e meio de cada lance da escada. */
 function stairSamples(stair: MapData['stairs'][number]): RegionPoint[] {
   return stair.segments.flatMap((s) => [{ x: s.x1, y: s.y1 }, { x: (s.x1 + s.x2) / 2, y: (s.y1 + s.y2) / 2 }, { x: s.x2, y: s.y2 }])
+}
+
+/**
+ * Amostras da SILHUETA do objeto, o retângulo que a tela do jogador pinta
+ * (`pixi/drawPropSilhouettes.ts`): o centro e os quatro cantos girados em
+ * volta dele, puxados para dentro como os de um desenho retângulo
+ * (`interiorSamples`).
+ *
+ * Desde que o jogador vê a silhueta, o objeto deixou de ser um ponto: o
+ * armário com o centro no corredor e a ponta dentro da sala secreta pintava a
+ * ponta no vazio onde a sala não existe para ele. O recuo dos cantos é o que
+ * deixa a estante ENCOSTADA por fora na parede dessa sala (a que esconde a
+ * passagem) continuar na tela de quem está no cômodo dela: sem ele, o canto em
+ * cima da parede oeste cairia DENTRO pelo `pointInRing`.
+ *
+ * O centro exato entra além do centróide dos cantos: com largura não-finita
+ * (arquivo estragado) os cantos viram NaN, e é ele que sobra para decidir.
+ */
+function propSamplePoints(prop: MapData['props'][number]): RegionPoint[] {
+  const center = { x: prop.x, y: prop.y }
+  const trig = rotationTrig(prop.rotation ?? 0)
+  const hw = prop.width / 2
+  const hh = prop.height / 2
+  const corners = [
+    { x: prop.x - hw, y: prop.y - hh },
+    { x: prop.x + hw, y: prop.y - hh },
+    { x: prop.x + hw, y: prop.y + hh },
+    { x: prop.x - hw, y: prop.y + hh },
+  ].map((corner) => rotatePointAround(corner, center, trig))
+  return [center, ...interiorSamples(corners)]
 }
 
 /** Desenho de traço (sem área): basta uma ponta escondida para não sair. */
@@ -734,9 +766,12 @@ export function filterMapForPlayer(
       (l) => !l.hidden && !inClosedRoof({ x: l.x, y: l.y }) && isVisible({ x: l.x, y: l.y }),
     ),
     stairs: playerStairs,
+    // A silhueta inteira responde à sala, não só o centro: sala secreta ou teto
+    // fechado leva junto o objeto com qualquer amostra dela lá dentro
+    // (`propSamplePoints`), como já leva escada, desenho e linha.
     props: visibleProps(map.props, hiddenLayers)
-      .filter((p) => !p.hidden && !p.secret && !inClosedRoof({ x: p.x, y: p.y }) && isVisible({ x: p.x, y: p.y }))
-      .map((p) => ({ ...p, src: '', linkedMapPath: null })),
+      .filter((p) => !p.hidden && !p.secret && !propSamplePoints(p).some(inRoomHiddenFromPlayer) && isVisible({ x: p.x, y: p.y }))
+      .map(propForPlayer),
     drawings: visibleDrawings(map.drawings, hiddenLayers).filter((d) => {
       if (d.secret) return false
       const samples = drawingSamplePoints(d)
@@ -860,5 +895,43 @@ function pinForPlayer(pin: Pin, ownTokens: readonly Token[], grid: number): Pin 
   if (item !== null) forPlayer.item = item
   const key = keyForPin(pin, ownTokens.filter((t) => tokenReachesPin(t, pin, grid)))
   if (key !== null) forPlayer.chave = key.item.nome
+  return forPlayer
+}
+
+/**
+ * O objeto (cama, baú, mesa) como o jogador pode recebê-lo: a SILHUETA e mais
+ * nada. A tela dele pinta o retângulo chapado no lugar do móvel, com o tamanho
+ * e a rotação que o mestre deu (`pixi/drawPropSilhouettes.ts`).
+ *
+ * LISTA DO QUE VAI, no molde de `pinForPlayer`: a versão anterior copiava o
+ * objeto inteiro e só apagava a imagem, e com isso a trava de edição do mestre
+ * (`locked`) e qualquer campo que o arquivo trouxesse sem o app conhecer
+ * chegavam ao jogador. Ficam de fora:
+ * - `src`: caminho no disco do mestre — o jogador não tem a imagem;
+ * - `linkedMapPath`: diria que existe outro mapa ligado ao objeto;
+ * - `locked`, `hidden`, `secret`: estado de edição do mestre (o que está
+ *   oculto nem chega aqui: o filtro acima já tirou).
+ * `layer` vai porque a tela do jogador também filtra por camada (`visibleProps`).
+ */
+function propForPlayer(prop: MapData['props'][number]): MapData['props'][number] {
+  const forPlayer: MapData['props'][number] = {
+    id: prop.id,
+    x: prop.x,
+    y: prop.y,
+    width: prop.width,
+    height: prop.height,
+    src: '',
+    linkedMapPath: null,
+  }
+  if (prop.rotation !== undefined) forPlayer.rotation = prop.rotation
+  if (prop.layer !== undefined) forPlayer.layer = prop.layer
+  // OBJETO COM RÓTULO OU IMAGEM: só chega aqui objeto que o jogador enxerga
+  // (oculto, secreto, sob teto fechado e fora da visão já saíram acima), então
+  // o nome e a cópia pequena vão junto dele e de mais nenhum. Passam pela regra
+  // de `propPlayerLook.ts`: rótulo aparado e curto, imagem só em data URL.
+  const label = propPlayerLabel(prop.playerLabel)
+  if (label !== undefined) forPlayer.playerLabel = label
+  const image = propPlayerImage(prop.playerImage)
+  if (image !== undefined) forPlayer.playerImage = image
   return forPlayer
 }

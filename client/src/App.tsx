@@ -57,6 +57,7 @@ import { pickBackgroundImage, importBackgroundImage, pickImageFile, importPinIma
 import { useTokenLibraryStore } from './stores/tokenLibraryStore'
 import { apagarDoAcervo, fotoSobrouNoDisco, salvarNoAcervo, trazerDoAcervo, type ItemDoAcervoNaTela } from './lib/tokenLibrary'
 import { colocarPecaDoAcervo, criarToken, marcarFichaNpc, type TamanhoDaVista } from './stores/criarToken'
+import { setPropImageShownToPlayers, setPropLabelForPlayers } from './stores/propPlayerLook'
 import { pickExportFolder, pickImportFolder, exportMapFolder, importMapFolder } from './lib/mapExport'
 import { join } from '@tauri-apps/api/path'
 import { Toolbar } from './components/Toolbar'
@@ -2073,6 +2074,18 @@ function App() {
               onLockedChange: (locked) => selectedProp && updateProp(selectedProp.id, { locked }),
               onHiddenChange: (hidden) => selectedProp && updateProp(selectedProp.id, { hidden }),
               onSecretChange: (secret) => selectedProp && useMapStore.getState().setItemSecret('prop', selectedProp.id, secret),
+            }}
+            propPlayer={{
+              onLabelChange: (label) => selectedProp && setPropLabelForPlayers(selectedProp.id, label),
+              onShowImageChange: (show) => {
+                if (!selectedProp) return
+                // Ler o arquivo e reduzir a imagem é assíncrono: o erro vira o
+                // mesmo aviso de "trocar a imagem do token", e o interruptor fica
+                // desligado (nada foi gravado).
+                setPropImageShownToPlayers(selectedProp.id, show).catch((err: unknown) =>
+                  reportFileError('preparar a imagem do objeto para os jogadores', err),
+                )
+              },
             }}
             selectedToken={selectedToken}
             tokenName={{
