@@ -30,6 +30,10 @@ export interface RoomPanelProps {
   onAssign(playerId: string, tokenId: string): void
   onUnassign(playerId: string, tokenId: string): void
   onKick(clientId: string): void
+  /** "Guardar ficha" de quem está fora: a ficha sai do mapa até ele voltar. Ausente = sem o botão. */
+  onStoreTokens?(playerId: string): void
+  /** "Dispensar" quem está fora: o card sai. Ausente = sem o botão. */
+  onDismiss?(playerId: string): void
   onVisionRadiusChange(playerId: string, radius: number): void
   onRevealPlan(playerId: string): void
   onHidePlan(playerId: string): void
@@ -192,6 +196,8 @@ export function RoomPanel({
   onAssign,
   onUnassign,
   onKick,
+  onStoreTokens,
+  onDismiss,
   onVisionRadiusChange,
   onRevealPlan,
   onHidePlan,
@@ -331,6 +337,20 @@ export function RoomPanel({
                 {clientId !== null && (
                   <button type="button" className="lb-btn lb-btn--danger" onClick={() => onKick(clientId)}>
                     Expulsar
+                  </button>
+                )}
+                {/* Quem foi embora: a ficha dele não pode ficar no corredor para sempre, nem o card na lista. */}
+                {clientId === null && player.storedTokenNames !== undefined && player.storedTokenNames.length > 0 && (
+                  <p className="lb-label">Ficha guardada: {player.storedTokenNames.join(', ')}. Volta ao mapa quando {player.name} voltar.</p>
+                )}
+                {clientId === null && onStoreTokens !== undefined && player.tokenIds.length > 0 && (
+                  <button type="button" className="lb-btn lb-btn--ghost" onClick={() => onStoreTokens(player.playerId)}>
+                    Guardar ficha
+                  </button>
+                )}
+                {clientId === null && onDismiss !== undefined && (
+                  <button type="button" className="lb-btn lb-btn--danger" onClick={() => onDismiss(player.playerId)}>
+                    Dispensar
                   </button>
                 )}
               </div>

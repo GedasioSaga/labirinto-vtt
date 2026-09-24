@@ -27,6 +27,7 @@ import {
   type TravelSceneOption,
 } from '../lib/pinTravel'
 import { mapDirFor, saveAdventureToDisk, scenePath, type OpenedMapFile } from '../lib/mapFileIO'
+import { storedTokensOfScene, withStoredTokens, type StoredToken } from '../lib/storedTokens'
 import { dirname } from '@tauri-apps/api/path'
 import { useMapStore } from './mapStore'
 import { useSessionStore } from './sessionStore'
@@ -165,8 +166,12 @@ interface AdventureState {
   transferToken: (tokenId: string, fromSceneId: string, toSceneId: string, x: number, y: number) => boolean
   /** Há cena de fundo ou lista de cenas esperando gravação? (A cena aberta é o `useSessionStore` que diz.) */
   hasPendingScenes: () => boolean
-  /** Grava a aventura inteira e devolve o caminho da cena aberta. */
-  flush: () => Promise<string>
+  /**
+   * Grava a aventura inteira e devolve o caminho da cena aberta. `stored`:
+   * fichas que o mestre guardou ("Guardar ficha") — fora do mapa do editor,
+   * mas o arquivo as leva, cada uma na cena de onde saiu (`storedTokensOfScene`).
+   */
+  flush: (stored?: readonly StoredToken[]) => Promise<string>
 }
 
 const EMPTY = {
@@ -579,7 +584,7 @@ export const useAdventureStore = create<AdventureState>()((set, get) => ({
     return adventure !== null && (structureDirty || Object.keys(dirty).length > 0)
   },
 
-  flush: async () => {
+  flush: async (stored = []) => {
     const state = get()
     const { adventure, activeSceneId } = state
     if (adventure === null || activeSceneId === null) throw new Error('Não há aventura aberta para gravar.')
@@ -593,15 +598,18 @@ export const useAdventureStore = create<AdventureState>()((set, get) => ({
 
     const live = useMapStore.getState().map
     const writes: { file: string; map: MapData }[] = []
+    const scenes = { ids: new Set(adventure.scenes.map((entry) => entry.id)), activeId: activeSceneId }
+    // A ficha guardada saiu do mapa do editor, mas não do arquivo.
+    const forDisk = (sceneId: string, map: MapData) => withStoredTokens(map, storedTokensOfScene(stored, sceneId, scenes))
     let activeFile: string | null = null
     for (const entry of adventure.scenes) {
       if (entry.id === activeSceneId) {
         activeFile = entry.file
-        writes.push({ file: entry.file, map: live })
+        writes.push({ file: entry.file, map: forDisk(entry.id, live) })
         continue
       }
       const slot = state.cache[entry.id]
-      if (slot !== undefined && slot.status === 'ok' && state.dirty[entry.id] === true) writes.push({ file: entry.file, map: slot.map })
+      if (slot !== undefined && slot.status === 'ok' && state.dirty[entry.id] === true) writes.push({ file: entry.file, map: forDisk(entry.id, slot.map) })
     }
     if (activeFile === null) throw new Error('A cena aberta não está na lista da aventura.')
 

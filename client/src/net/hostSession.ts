@@ -258,6 +258,27 @@ export interface HostResult {
    * integrador move o token entre as cenas ANTES de despachar `outbound`.
    */
   applyTransfer?: AppliedTransfer
+  /**
+   * Alguém entrou SEM resume com o nome de quem está fora: o integrador
+   * pergunta ao mestre "Ana voltou?". Dado do mestre — nunca vai pela rede.
+   */
+  returnCandidate?: ReturnCandidate
+  /**
+   * A conexão antiga de quem voltou pelo resume (aba nova do mesmo aparelho):
+   * já recebeu `session.replaced` no `outbound`; o integrador a derruba depois
+   * do envio.
+   */
+  replacedClientId?: string
+}
+
+/**
+ * "Ana voltou?": `playerId` é quem acabou de entrar (a "Ana (2)"),
+ * `previousId` é a Ana que está fora e `name` é o nome dela, como o mestre o lê.
+ */
+export interface ReturnCandidate {
+  playerId: string
+  previousId: string
+  name: string
 }
 
 export interface PlayerInfo {
@@ -283,6 +304,12 @@ export interface PlayerInfo {
    * "fora há 0:10" do Grupo. Dado do painel do mestre — nunca vai pela rede.
    */
   disconnectedAt?: number
+  /**
+   * Nomes das fichas que o mestre guardou ("Guardar ficha") enquanto ele está
+   * fora. Quem preenche é a ponte, que guarda as fichas; a sessão não sabe
+   * delas. Dado do painel do mestre — nunca vai pela rede.
+   */
+  storedTokenNames?: string[]
 }
 
 /** O que foi feito do recado para um jogador: saiu agora, ficou guardado para a volta dele, ou nada (`null`). */
@@ -352,6 +379,25 @@ export interface HostSession {
    */
   disconnect(clientId: string, at?: number): void
   kick(clientId: string): HostResult
+  /**
+   * "É ela" da pergunta "Ana voltou?": a conexão de `playerId` (quem entrou
+   * agora) passa a ser a Ana `previousId` — fichas, memórias e raio dela, e o
+   * resume dela. `playerId` some da lista; o que ele tinha (ficha que o mestre
+   * deu nesse meio-tempo, cena que ele viu) passa à Ana. Devolve o `welcome`
+   * da Ana e o que ela vê agora, só para essa conexão. Pergunta que já não
+   * vale (respondida, a Ana voltou pelo resume, um dos dois saiu): nada.
+   */
+  confirmReturn(playerId: string, previousId: string, source: HostMapSource): HostResult
+  /** "Outra pessoa": a pergunta sai e nada muda. */
+  denyReturn(playerId: string): void
+  /** A pergunta "voltou?" sobre quem entrou como `playerId` ainda espera o mestre? */
+  isReturnPending(playerId: string): boolean
+  /**
+   * "Dispensar": esquece quem está FORA (o card sai e o resume dele deixa de
+   * valer). `false` para quem está conectado — esse é o "Expulsar" — ou
+   * desconhecido.
+   */
+  dismissPlayer(playerId: string): boolean
   /**
    * `room.closed` para todo jogador conectado (jogando ou aguardando). O
    * integrador envia isto ANTES de derrubar a sala, para o jogador ler "O
@@ -627,6 +673,9 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   const openCalls = new Map<string, OpenCall>()
   // Por playerId: quando o último chamado NOVO dele entrou. Sobrevive ao disconnect; só o kick apaga.
   const lastCallAt = new Map<string, number>()
+  // Por playerId de quem entrou agora: a Ana (fora) que ele talvez seja, até o
+  // mestre responder "voltou?". Só do mestre; nada disto vai pela rede.
+  const pendingReturns = new Map<string, string>()
   let callSeq = 0
   // Por requestId: ações no ponto à espera do mestre. Sobrevivem à queda da
   // conexão (o mestre ainda quer ler "procuro armadilha aqui"); só a resposta
@@ -801,6 +850,10 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     if (msg.code !== options.code) return reply(clientId, { type: 'error', reason: 'bad_code' })
 
     const resumed = msg.resume === undefined ? undefined : [...players.values()].find((p) => p.resumeToken === msg.resume)
+    // Quem está FORA com o mesmo nome (sem maiúsculas nem espaços): talvez
+    // seja a mesma pessoa, noutro aparelho. Só o mestre decide; até lá entra
+    // como pessoa nova ("Ana (2)"), sem nada da Ana.
+    const lookalike = resumed === undefined ? [...players.values()].find((p) => p.clientId === null && normalizeName(p.name) === normalizeName(msg.name)) : undefined
     const record: PlayerRecord = resumed ?? {
       playerId: randomId(),
       name: msg.name,
@@ -809,13 +862,27 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       joinedAt: now(),
       disconnectedAt: null,
     }
-    // Reassumir derruba o vínculo com a conexão antiga, se ainda existir.
-    if (record.clientId !== null) byClient.delete(record.clientId)
+    // Reassumir derruba o vínculo com a conexão antiga, se ainda existir: é a
+    // aba velha do mesmo aparelho. Ela fica sabendo e para, em vez de voltar
+    // pelo resume e tomar a sessão de volta (cabo de guerra entre as abas).
+    const replaced = record.clientId
+    const replacedOut: Outbound[] = []
+    if (replaced !== null) {
+      byClient.delete(replaced)
+      pausedSent.delete(replaced)
+      lastPartySent.delete(replaced)
+      replacedOut.push({ clientId: replaced, msg: { type: 'session.replaced' } })
+    }
     record.clientId = clientId
     record.disconnectedAt = null
     record.name = uniqueName(msg.name, record.playerId)
     players.set(record.playerId, record)
     byClient.set(clientId, record.playerId)
+    // Voltou pelo resume: a pergunta "voltou?" que alguém provocou com o nome dele já não vale.
+    for (const [candidate, previous] of pendingReturns) {
+      if (previous === record.playerId) pendingReturns.delete(candidate)
+    }
+    if (lookalike !== undefined) pendingReturns.set(record.playerId, lookalike.playerId)
 
     // `name` é o nome já passado por `uniqueName`: é assim que o jogador
     // descobre que entrou como "Ana (2)" em vez da "Ana" que digitou.
@@ -828,8 +895,58 @@ export function createHostSession(options: HostSessionOptions): HostSession {
         { clientId, msg: welcome },
         ...viewWithPendingNote(clientId, record.playerId, next),
         ...pausedUpdate(clientId, record.playerId, world),
+        ...replacedOut,
       ],
+      ...(replaced === null ? {} : { replacedClientId: replaced }),
+      ...(lookalike === undefined ? {} : { returnCandidate: { playerId: record.playerId, previousId: lookalike.playerId, name: lookalike.name } }),
     }
+  }
+
+  /** Esquece tudo do jogador (kick, Dispensar, a "Ana (2)" que virou Ana). Não mexe em conexão: quem chama cuida de `byClient`. */
+  function forgetPlayer(playerId: string): void {
+    players.delete(playerId) // invalida o resumeToken
+    delete ownership[playerId]
+    memories.delete(playerId)
+    currentScene.delete(playerId)
+    forgetTravelsOf(playerId)
+    forgetPointActionsOf(playerId)
+    lastSignal.delete(playerId)
+    lastDoorToggleAt.delete(playerId)
+    pendingDoors.delete(playerId)
+    lastDoorRequestAt.delete(playerId)
+    lastTokenPhotoAt.delete(playerId)
+    visionOverrides.delete(playerId)
+    pendingNotes.delete(playerId)
+    openCalls.delete(playerId)
+    lastCallAt.delete(playerId)
+    pendingReturns.delete(playerId)
+    for (const [candidate, previous] of pendingReturns) {
+      if (previous === playerId) pendingReturns.delete(candidate)
+    }
+  }
+
+  /** A pergunta "voltou?" ainda faz sentido: os dois existem, quem entrou está conectado e a Ana continua fora. */
+  function returnStillValid(playerId: string, previousId: string): boolean {
+    if (pendingReturns.get(playerId) !== previousId) return false
+    const current = players.get(playerId)
+    const previous = players.get(previousId)
+    return current !== undefined && current.clientId !== null && previous !== undefined && previous.clientId === null
+  }
+
+  /**
+   * Junta `from` (quem entrou agora) na Ana `into`: a Ana fica com as fichas
+   * dos dois, as cenas que só `from` tinha visto e, sem raio próprio, o dele.
+   */
+  function mergeInto(into: string, from: string): void {
+    const owned = ownership[into] ?? []
+    ownership[into] = [...owned, ...(ownership[from] ?? []).filter((id) => !owned.includes(id))]
+    const target = memories.get(into) ?? new Map<string, PlayerMemory>()
+    for (const [key, memory] of memories.get(from) ?? []) {
+      if (!target.has(key)) target.set(key, memory)
+    }
+    if (target.size > 0) memories.set(into, target)
+    const radius = visionOverrides.get(from)
+    if (!visionOverrides.has(into) && radius !== undefined) visionOverrides.set(into, radius)
   }
 
   function handleMove(clientId: string, msg: TokenMoveMessage, world: HostWorld): HostResult {
@@ -1608,6 +1725,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       pendingDoors.delete(playerId)
       // A mão também: quem volta chega com a tela zerada, sem mão acesa.
       openCalls.delete(playerId)
+      // Quem provocou a pergunta "voltou?" e caiu antes da resposta: a pergunta morre.
+      pendingReturns.delete(playerId)
     },
 
     kick(clientId) {
@@ -1615,22 +1734,51 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       if (playerId === undefined) return { outbound: [] }
       byClient.delete(clientId)
       pausedSent.delete(clientId)
-      players.delete(playerId) // invalida o resumeToken
-      delete ownership[playerId]
-      memories.delete(playerId)
-      currentScene.delete(playerId)
-      forgetTravelsOf(playerId)
-      forgetPointActionsOf(playerId)
-      lastSignal.delete(playerId)
-      lastDoorToggleAt.delete(playerId)
-      pendingDoors.delete(playerId)
-      lastDoorRequestAt.delete(playerId)
-      lastTokenPhotoAt.delete(playerId)
-      visionOverrides.delete(playerId)
-      pendingNotes.delete(playerId)
-      openCalls.delete(playerId)
-      lastCallAt.delete(playerId)
+      forgetPlayer(playerId)
       return reply(clientId, { type: 'kicked' })
+    },
+
+    confirmReturn(playerId, previousId, source) {
+      if (!returnStillValid(playerId, previousId)) {
+        pendingReturns.delete(playerId)
+        return { outbound: [] }
+      }
+      const current = players.get(playerId)
+      const previous = players.get(previousId)
+      // `returnStillValid` já garantiu os dois registros e a conexão de quem entrou.
+      if (current === undefined || previous === undefined || current.clientId === null) return { outbound: [] }
+      const clientId = current.clientId
+      mergeInto(previousId, playerId)
+      // A conexão passa para a Ana; quem entrou agora deixa de existir.
+      byClient.set(clientId, previousId)
+      current.clientId = null
+      forgetPlayer(playerId)
+      previous.clientId = clientId
+      previous.disconnectedAt = null
+      const world = toWorld(source)
+      // O `welcome` de novo: é por ele que o aparelho passa a guardar o resume
+      // da Ana e a mostrar o nome dela, sem o "(2)".
+      const welcome: HostMessage = { type: 'welcome', playerId: previousId, resumeToken: previous.resumeToken, name: previous.name }
+      const next: HostMessage = statusOf(previousId) === 'playing' ? viewFor(previousId, world) : { type: 'lobby.waiting' }
+      return {
+        outbound: [{ clientId, msg: welcome }, ...viewWithPendingNote(clientId, previousId, next), ...pausedUpdate(clientId, previousId, world)],
+      }
+    },
+
+    denyReturn(playerId) {
+      pendingReturns.delete(playerId)
+    },
+
+    isReturnPending(playerId) {
+      const previousId = pendingReturns.get(playerId)
+      return previousId !== undefined && returnStillValid(playerId, previousId)
+    },
+
+    dismissPlayer(playerId) {
+      const record = players.get(playerId)
+      if (record === undefined || record.clientId !== null) return false
+      forgetPlayer(playerId)
+      return true
     },
 
     closeRoom() {

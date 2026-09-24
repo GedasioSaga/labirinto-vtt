@@ -22,6 +22,7 @@ import type { PlayerInfo } from './net/hostSession'
 import { RoomPanel } from './components/RoomPanel'
 import { partyDestinations, partyMembers, peopleByScene } from './lib/party'
 import type { TravelLogEntry } from './lib/travelLog'
+import { withStoredTokens } from './lib/storedTokens'
 import { applyGatherPlan, gatherCandidates, planGather } from './lib/gatherParty'
 import { RailTabs, type RailTab } from './components/RailTabs'
 import { ask } from '@tauri-apps/plugin-dialog'
@@ -499,6 +500,20 @@ function App() {
         onGoToPoint: (sceneId, x, y) => {
           useAdventureStore.getState().goToPoint(sceneId, { x, y })
         },
+        // "Guardar ficha" de quem foi embora: a ficha sai do mapa (na cena aberta, pelo desfazer de sempre).
+        removeToken: (tokenId, sceneId) => {
+          if (sceneId === undefined) useMapStore.getState().removeToken(tokenId)
+          else useAdventureStore.getState().updateBackgroundScene(sceneId, (m) => mapFactory.removeToken(m, tokenId))
+        },
+        // A ficha guardada volta. Já no mapa (o mestre desfez a retirada): não entra de novo, com o mesmo id.
+        restoreToken: (token, sceneId) => {
+          if (sceneId === undefined) {
+            const store = useMapStore.getState()
+            if (!store.map.tokens.some((t) => t.id === token.id)) store.addToken(token)
+            return
+          }
+          useAdventureStore.getState().updateBackgroundScene(sceneId, (m) => (m.tokens.some((t) => t.id === token.id) ? m : mapFactory.addToken(m, token)))
+        },
       })
     }
     return hostBridgeRef.current
@@ -593,6 +608,8 @@ function App() {
             onAssign={(playerId, tokenId) => hostBridgeRef.current?.assignToken(playerId, tokenId)}
             onUnassign={(playerId, tokenId) => hostBridgeRef.current?.unassignToken(playerId, tokenId)}
             onKick={(clientId) => void hostBridgeRef.current?.kick(clientId)}
+            onStoreTokens={(playerId) => hostBridgeRef.current?.storeTokens(playerId)}
+            onDismiss={(playerId) => hostBridgeRef.current?.dismissPlayer(playerId)}
             onVisionRadiusChange={(playerId, radius) => hostBridgeRef.current?.setVisionRadius(playerId, radius)}
             onRevealPlan={(playerId) => hostBridgeRef.current?.revealPlan(playerId)}
             onHidePlan={(playerId) => hostBridgeRef.current?.hidePlan(playerId)}
@@ -1246,17 +1263,21 @@ function App() {
    * `handleGoHome` e `saveAndOpen` — só o que acontece depois muda.
    */
   const persistMap = async (): Promise<string> => {
+    // "Guardar ficha" tira a ficha do mapa, não do arquivo: gravar sem ela e
+    // fechar a janela a apagaria para sempre (a cópia só vive na ponte da sala).
+    const stored = hostBridgeRef.current?.storedTokens() ?? []
     const adventureState = useAdventureStore.getState()
     if (adventureState.adventure !== null) {
-      const path = await adventureState.flush()
+      const path = await adventureState.flush(stored)
       setCurrentMapPath(path)
       return path
     }
+    const forDisk = withStoredTokens(map, stored)
     if (currentMapPath) {
-      await saveMapToPath(map, currentMapPath)
+      await saveMapToPath(forDisk, currentMapPath)
       return currentMapPath
     }
-    const path = await saveMapToAppData(map)
+    const path = await saveMapToAppData(forDisk)
     setCurrentMapPath(path)
     return path
   }

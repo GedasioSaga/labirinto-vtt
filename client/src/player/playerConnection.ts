@@ -40,8 +40,11 @@ import { isPointInsideMap, POINT_NOTICE_TTL_MS, type PointActionKind, type Point
  * e avisa os ouvintes (encaixa em `useSyncExternalStore`).
  */
 
-/** `closed`: o mestre avisou que encerrou a sala (`room.closed`) — fim de sessão, não falha de rede. */
-export type PlayerStatus = 'connecting' | 'waiting' | 'playing' | 'kicked' | 'closed' | 'error'
+/**
+ * `closed`: o mestre avisou que encerrou a sala (`room.closed`) — fim de sessão, não falha de rede.
+ * `replaced`: a mesma pessoa entrou por outra aba ou aparelho (`session.replaced`) — esta aba para.
+ */
+export type PlayerStatus = 'connecting' | 'waiting' | 'playing' | 'kicked' | 'closed' | 'error' | 'replaced'
 
 export interface PlayerState {
   status: PlayerStatus
@@ -569,6 +572,27 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     waitingPointActions = []
   }
 
+  /**
+   * Tira da tela a espera de todo pedido ainda sem resposta (passagem, porta,
+   * ação no ponto, mão). Respostas já na tela ficam: elas somem sozinhas.
+   */
+  function forgetWaitingRequests(): void {
+    const travelWaiting = state.travel?.phase === 'waiting'
+    if (travelWaiting) clearTravelTimer()
+    const doorSent = state.doorRequest?.phase === 'sent'
+    if (doorSent) clearDoorNotice()
+    const callWaiting = state.call?.phase === 'waiting'
+    if (callWaiting) clearCallTimer()
+    const pointWaiting = state.pointNotice?.phase === 'waiting'
+    waitingPointActions = []
+    setState({
+      ...(travelWaiting ? { travel: undefined } : {}),
+      ...(doorSent ? { doorRequest: undefined } : {}),
+      ...(callWaiting ? { call: undefined } : {}),
+      ...(pointWaiting ? { pointNotice: undefined } : {}),
+    })
+  }
+
   /** A espera de tudo o que sobrou, ou nada quando não sobrou pedido. */
   function waitingPointNotice(): PointNotice | undefined {
     const [first, ...rest] = waitingPointActions
@@ -764,7 +788,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
 
   /** Depois de kicked/closed/error a queda é esperada: o mestre derrubou de propósito. */
   function sessionOver(): boolean {
-    return state.status === 'kicked' || state.status === 'closed' || state.status === 'error'
+    return state.status === 'kicked' || state.status === 'closed' || state.status === 'error' || state.status === 'replaced'
   }
 
   /** O socket atual morreu (com ou sem `close`): volta sozinho, ou explica na tela. */
@@ -891,6 +915,9 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         writeResume(storage, { code, token: data.resumeToken })
         // O mestre aceitou (de novo): fim da volta automática, se havia uma.
         clearReconnectTimers()
+        // Outro playerId: o mestre disse "É ela" e a "Ana (2)" virou a Ana. O
+        // host esqueceu os pedidos da "Ana (2)"; a espera deles mentiria para sempre.
+        if (state.playerId !== undefined && state.playerId !== data.playerId) forgetWaitingRequests()
         setState({ playerId: data.playerId, status: state.status === 'playing' ? 'playing' : 'waiting', reconnecting: undefined })
         return
       case 'lobby.waiting':
@@ -1080,6 +1107,21 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         clearReconnectTimers()
         forgetPointActions()
         setState({ status: 'closed', doorNotice: undefined, doorRequest: undefined, travel: undefined, call: undefined, reconnecting: undefined, pointNotice: undefined })
+        return
+      case 'session.replaced':
+        // A sessão foi para outra aba (ou aparelho). O resume FICA: é o mesmo
+        // da aba nova, e apagar aqui tiraria a volta das duas. Sem reconexão
+        // automática — voltar sozinha tomaria a sessão de volta, e a outra aba
+        // faria o mesmo. Só o "Usar aqui" (`reconnect`) traz de volta.
+        pending.clear()
+        clearSignalTimers()
+        clearLaserTimer()
+        clearDoorNotice()
+        clearTravelTimer()
+        clearCallTimer()
+        clearReconnectTimers()
+        stopPing()
+        setState({ status: 'replaced', doorNotice: undefined, doorRequest: undefined, travel: undefined, call: undefined, reconnecting: undefined })
         return
       case 'error': {
         const reason = typeof data.reason === 'string' ? data.reason : 'unknown'
