@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { countExploredCells, decodeExploration, isPointExplored } from '../lib/exploration'
 import { createEmptyMap, setTokenPosition } from '../lib/mapFactory'
 import type { MapData, Pin, Region, Token, Wall } from '../types/map'
-import { SIGNAL_MIN_INTERVAL_MS, signalColor } from '../lib/signals'
+import { SIGNAL_MIN_INTERVAL_MS, SIGNAL_NEUTRAL_COLOR, signalColor } from '../lib/signals'
 import {
   createHostSession,
   DOOR_TOGGLE_MIN_INTERVAL_MS,
@@ -695,8 +695,10 @@ describe('hostSession: sinal do jogador', () => {
     const color = signalColor(t.ana.playerId)
     // Ana sinaliza no lado dela; a Bia está atrás da parede e nunca viu esse lado.
     const hidden = t.s.handleMessage('c1', { type: 'signal', x: 300, y: 300 }, t.map)
-    expect(hidden.signal).toEqual({ playerId: t.ana.playerId, name: 'Ana', color, x: 300, y: 300 })
-    expect(toClient(hidden, 'c1')).toEqual([{ clientId: 'c1', msg: { type: 'signal', x: 300, y: 300, from: 'Ana', color } }])
+    expect(hidden.signal).toEqual({ playerId: t.ana.playerId, name: 'Ana', tokenName: 'nome-heroi', color, x: 300, y: 300 })
+    // Ficha sem cor: o sinal sai no cinza neutro, o mesmo em que a mesa vê a ficha.
+    const fromToken = { from: 'nome-heroi', color: SIGNAL_NEUTRAL_COLOR }
+    expect(toClient(hidden, 'c1')).toEqual([{ clientId: 'c1', msg: { type: 'signal', x: 300, y: 300, ...fromToken } }])
     expect(JSON.stringify(toClient(hidden, 'c2'))).toBe('[]')
     expect(JSON.stringify(hidden.outbound)).not.toContain('"c2"')
     expect(toClient(hidden, 'c3')).toEqual([])
@@ -704,8 +706,75 @@ describe('hostSession: sinal do jogador', () => {
     // Controle positivo: no lado que a Bia vê, ela recebe (e o Caio, aguardando, não).
     t.advance(SIGNAL_MIN_INTERVAL_MS)
     const seen = t.s.handleMessage('c1', { type: 'signal', x: 800, y: 300 }, t.map)
-    expect(toClient(seen, 'c2')).toEqual([{ clientId: 'c2', msg: { type: 'signal', x: 800, y: 300, from: 'Ana', color } }])
+    expect(toClient(seen, 'c2')).toEqual([{ clientId: 'c2', msg: { type: 'signal', x: 800, y: 300, ...fromToken } }])
     expect(toClient(seen, 'c3')).toEqual([])
+  })
+
+  describe('disfarce: o sinal sai com o nome e a cor da ficha, nunca com os da jogadora', () => {
+    /** O mesmo setup, com as fichas da Ana trocadas por `heroi`. */
+    function disguisedSetup(heroi: Partial<Token>, extra: Token[] = []) {
+      const t = signalSetup()
+      const map: MapData = {
+        ...t.map,
+        tokens: [...t.map.tokens.map((tk) => (tk.id === 'heroi' ? { ...tk, ...heroi } : tk)), ...extra],
+      }
+      t.s.broadcast(map)
+      return { ...t, map }
+    }
+
+    it('a Bia lê "Contínua do 9" na cor da ficha; nem "Ana" nem a cor fixa da Ana chegam a ela', () => {
+      const t = disguisedSetup({ name: 'Contínua do 9', color: '#aa3322' })
+      const r = t.s.handleMessage('c1', { type: 'signal', x: 800, y: 300 }, t.map)
+      expect(toClient(r, 'c2')).toEqual([{ clientId: 'c2', msg: { type: 'signal', x: 800, y: 300, from: 'Contínua do 9', color: '#aa3322' } }])
+      const toBia = JSON.stringify(toClient(r, 'c2'))
+      expect(toBia).not.toContain('Ana')
+      expect(toBia).not.toContain(signalColor(t.ana.playerId))
+      // O mestre continua vendo a jogadora real, na cor fixa dela, e a ficha junto.
+      expect(r.signal).toEqual({ playerId: t.ana.playerId, name: 'Ana', tokenName: 'Contínua do 9', color: signalColor(t.ana.playerId), x: 800, y: 300 })
+    })
+
+    it('com "Nome para os jogadores", a Bia lê a máscara; a Ana (dona) lê o nome real da ficha', () => {
+      const t = disguisedSetup({ name: 'Duda de verdade', publicName: 'Mensageiro' })
+      const r = t.s.handleMessage('c1', { type: 'signal', x: 800, y: 300 }, t.map)
+      expect(toClient(r, 'c2')[0]?.msg).toMatchObject({ type: 'signal', from: 'Mensageiro' })
+      expect(JSON.stringify(toClient(r, 'c2'))).not.toContain('verdade')
+      expect(toClient(r, 'c1')[0]?.msg).toMatchObject({ type: 'signal', from: 'Duda de verdade' })
+      expect(r.signal?.tokenName).toBe('Duda de verdade')
+    })
+
+    it('com duas fichas, vale a mais perto do ponto do sinal', () => {
+      const cao: Token = { id: 'cao', characterId: null, name: 'Cão de caça', x: 450, y: 300, size: 1, image: null, color: '#22aa33' }
+      const t = disguisedSetup({ name: 'Contínua do 9', color: '#aa3322' }, [cao])
+      t.s.assignToken(t.ana.playerId, 'cao')
+      t.s.broadcast(t.map)
+      const r = t.s.handleMessage('c1', { type: 'signal', x: 800, y: 300 }, t.map)
+      expect(toClient(r, 'c2')[0]?.msg).toMatchObject({ type: 'signal', from: 'Cão de caça', color: '#22aa33' })
+      expect(JSON.stringify(toClient(r, 'c2'))).not.toContain('Contínua')
+    })
+
+    it('segurança: ficha dela que o mestre ocultou, mais perto do ponto, não dá nome nem cor ao eco da própria Ana', () => {
+      // 'gemeo' é da Ana, mas o mestre a guarda (hidden) para uma revelação: o recorte nunca a manda nem à dona.
+      const gemeo: Token = { id: 'gemeo', characterId: null, name: 'Lobisomem', x: 450, y: 300, size: 1, image: null, color: '#7a1f1f', hidden: true }
+      const t = disguisedSetup({ name: 'Contínua do 9', color: '#aa3322' }, [gemeo])
+      t.s.assignToken(t.ana.playerId, 'gemeo')
+      t.s.broadcast(t.map)
+      const r = t.s.handleMessage('c1', { type: 'signal', x: 450, y: 300 }, t.map)
+      expect(toClient(r, 'c1')).toEqual([{ clientId: 'c1', msg: { type: 'signal', x: 450, y: 300, from: 'Contínua do 9', color: '#aa3322' } }])
+      expect(JSON.stringify(r.outbound)).not.toContain('Lobisomem')
+      expect(JSON.stringify(r.outbound)).not.toContain('#7a1f1f')
+      // O mestre lê a ficha que a mesa conhece, não a que ele mesmo escondeu.
+      expect(r.signal?.tokenName).toBe('Contínua do 9')
+    })
+
+    it('segurança: com a camada Fichas escondida, o eco da Ana sai sem nome de ficha nenhuma', () => {
+      const t = disguisedSetup({ name: 'Contínua do 9', color: '#aa3322' })
+      const map: MapData = { ...t.map, hiddenLayers: ['tokens'] }
+      const r = t.s.handleMessage('c1', { type: 'signal', x: 300, y: 300 }, map)
+      expect(toClient(r, 'c1')).toEqual([{ clientId: 'c1', msg: { type: 'signal', x: 300, y: 300, from: '', color: SIGNAL_NEUTRAL_COLOR } }])
+      expect(JSON.stringify(r.outbound)).not.toContain('Contínua')
+      expect(r.signal?.tokenName).toBeUndefined()
+      expect(r.signal?.name).toBe('Ana')
+    })
   })
 
   it('ponto explorado fora da visão atual também é repassado', () => {
@@ -754,7 +823,9 @@ describe('hostSession: sinal do jogador', () => {
     expect(s.listPlayers().map((p) => p.name)).toEqual(['Ana', 'A NA (2)', 'ana (3)'])
     s.assignToken(impostor.playerId, 'heroi')
     const signal = s.handleMessage('c2', { type: 'signal', x: 200, y: 200 }, map)
-    expect(signal.outbound[0]?.msg).toMatchObject({ type: 'signal', from: 'A NA (2)' })
+    // A mesa lê a ficha; o mestre lê o nome de entrada, já com o sufixo.
+    expect(signal.outbound[0]?.msg).toMatchObject({ type: 'signal', from: 'nome-heroi' })
+    expect(signal.signal?.name).toBe('A NA (2)')
 
     s.disconnect('c1')
     s.handleMessage('c9', { type: 'join', code: CODE, name: 'Ana', resume: ana.resumeToken }, map)

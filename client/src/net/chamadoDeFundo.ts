@@ -1,3 +1,4 @@
+import { signalLabelForMaster } from '../lib/signals'
 import { useToastStore } from '../stores/toastStore'
 import type { HostSignal } from './hostSession'
 
@@ -31,7 +32,7 @@ export function createSignalRouter(deps: SignalRouterDeps): (signal: HostSignal)
     const previous = callToasts.get(signal.playerId)
     // `dismiss` de aviso que o mestre já fechou é no-op: não precisa checar.
     if (previous !== undefined) useToastStore.getState().dismiss(previous)
-    const toastId = useToastStore.getState().push('info', `${signal.name} chamou em ${scene.name}`, null, {
+    const toastId = useToastStore.getState().push('info', `${signalLabelForMaster(signal.name, signal.tokenName)} chamou em ${scene.name}`, null, {
       actions: [{ label: 'Ir lá', run: () => deps.goTo(scene.sceneId, signal.x, signal.y) }],
     })
     callToasts.set(signal.playerId, toastId)

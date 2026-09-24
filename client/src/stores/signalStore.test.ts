@@ -23,6 +23,11 @@ describe('signalStore', () => {
     expect(useSignalStore.getState().signals).toEqual([])
   })
 
+  it('disfarce: o ping do mestre leva a jogadora e a ficha, e a cor fixa da jogadora', () => {
+    useSignalStore.getState().push({ ...SIGNAL, tokenName: 'Contínua do 9' }, 1000)
+    expect(useSignalStore.getState().signals[0]).toMatchObject({ name: 'Ana (Contínua do 9)', color: '#64b5f6' })
+  })
+
   it('clear remove tudo e cancela os timers', () => {
     useSignalStore.getState().push(SIGNAL)
     useSignalStore.getState().push({ ...SIGNAL, playerId: 'p2' })
