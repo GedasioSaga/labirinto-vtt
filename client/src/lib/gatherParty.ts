@@ -1,9 +1,10 @@
-import type { HostScene, HostWorld } from '../net/hostSession'
+import type { EntourageSeat, GatherArrival, HostScene, HostWorld } from '../net/hostSession'
 import type { MapData, Token, Wall } from '../types/map'
 import { snapPointForTarget } from '../pixi/tokenInteraction'
 import { findTokenPath } from './collision'
 import { compileFloor } from './floorSdf'
 import type { PartyMember } from './party'
+import { PIN_HEAD_OFFSET, PIN_HEAD_RADIUS } from './pins'
 import { seatTokenCenter, tokenSizeInSquares, type Point } from './tokenSize'
 
 /**
@@ -67,6 +68,18 @@ export interface KeepClear {
   x: number
   y: number
   radius: number
+}
+
+/**
+ * O que o séquito que chega por um pino não pode cobrir: a cabeça, para o pino
+ * continuar tocável, e a ponta cravada (a casa do próprio pino). O séquito
+ * senta em volta do DONO, e a casa do pino, colada à dele, entraria no anel.
+ */
+export function pinClearance(pin: Point): KeepClear[] {
+  return [
+    { x: pin.x, y: pin.y - PIN_HEAD_OFFSET, radius: PIN_HEAD_RADIUS },
+    { x: pin.x, y: pin.y, radius: 0 },
+  ]
 }
 
 /** As fichas do mapa que ocupam casa, menos as de `movingTokenIds` (vão sair do lugar). */
@@ -161,6 +174,12 @@ export interface GatherMove {
   travels: boolean
   x: number
   y: number
+  /**
+   * MONTARIA E FAMILIAR: as outras fichas do dono que vêm junto, cada uma numa
+   * casa colada à dele. Ausente = só a ficha dele. Séquito que não coube fica
+   * onde estava.
+   */
+  entourage?: EntourageSeat[]
 }
 
 export interface GatherPlan {
@@ -251,29 +270,67 @@ function sceneOf(member: PartyMember, world: HostWorld): HostScene | undefined {
   return [world.open, ...world.background].find((scene) => scene.sceneId === member.sceneId)
 }
 
+/** `map` com `taken` ocupando casa, como fichas de mentira: casas já dadas nesta reunião cujas fichas ainda não chegaram. */
+function withTakenSeats(map: MapData, taken: readonly Seated[]): MapData {
+  const pseudo = taken.map((seat, index): Token => ({ id: `reunir:casa-${index}`, characterId: null, name: '', x: seat.point.x, y: seat.point.y, size: seat.size, image: null }))
+  return { ...map, tokens: [...map.tokens, ...pseudo] }
+}
+
+/**
+ * As casas do séquito em volta de `center` (a casa do dono), na ordem de
+ * `tokens`. `taken` são as casas já dadas nesta reunião; cada casa dada aqui
+ * entra nela, para o séquito do próximo dono não cair em cima. `pin` é o pino
+ * da reunião: o séquito não senta nele nem cobre a cabeça (`pinClearance`).
+ */
+function entourageSpots(map: MapData, center: Point, pin: Point, tokens: readonly Token[], moving: ReadonlySet<string>, taken: Seated[]): EntourageSeat[] {
+  if (tokens.length === 0) return []
+  const seats = gatherSpots(withTakenSeats(map, taken), center, tokens.map(tokenSizeInSquares), moving, pinClearance(pin))
+  const placed: EntourageSeat[] = []
+  tokens.forEach((token, index) => {
+    const seat = seats[index] ?? null
+    if (seat === null) return
+    placed.push({ tokenId: token.id, x: seat.x, y: seat.y })
+    taken.push({ point: seat, size: tokenSizeInSquares(token) })
+  })
+  return placed
+}
+
 /**
  * Plano da reunião dos `members` marcados em volta de `pin`, que mora na cena
  * ABERTA (é nela que o mestre clicou no pino). Quem já está na cena só anda;
  * quem está em outra viaja. Ficha que não coube fica de fora do plano.
+ *
+ * MONTARIA E FAMILIAR (`PartyMember.entourageIds`) vêm junto, numa casa
+ * colada à do dono. Os donos sentam PRIMEIRO, todos em volta do pino; o
+ * séquito depois, em volta de cada dono — o pônei não toma de um jogador a
+ * casa perto do pino.
  */
 export function planGather(members: readonly PartyMember[], world: HostWorld, pin: Point): GatherPlan {
   const openMap = world.open.map
-  const joining: { member: PartyMember; token: Token; travels: boolean }[] = []
+  const joining: { member: PartyMember; token: Token; entourage: Token[]; travels: boolean }[] = []
   for (const member of members) {
     if (member.token === null) continue
     const tokenId = member.token.id
-    const token = sceneOf(member, world)?.map.tokens.find((t) => t.id === tokenId)
-    if (token === undefined) continue
-    joining.push({ member, token, travels: member.sceneId !== world.open.sceneId })
+    const sceneMap = sceneOf(member, world)?.map
+    const token = sceneMap?.tokens.find((t) => t.id === tokenId)
+    if (sceneMap === undefined || token === undefined) continue
+    const wanted = new Set(member.entourageIds ?? [])
+    const entourage = sceneMap.tokens.filter((t) => t.id !== tokenId && wanted.has(t.id))
+    joining.push({ member, token, entourage, travels: member.sceneId !== world.open.sceneId })
   }
-  // Quem já está na cena vai sair do lugar: a casa de onde ele sai não conta como ocupada.
-  const moving = new Set(joining.filter((j) => !j.travels).map((j) => j.token.id))
+  // Quem já está na cena vai sair do lugar, com o séquito: as casas de onde saem não contam como ocupadas.
+  const moving = new Set(joining.filter((j) => !j.travels).flatMap((j) => [j.token, ...j.entourage].map((t) => t.id)))
   const spots = gatherSpots(
     openMap,
     pin,
     joining.map((j) => tokenSizeInSquares(j.token)),
     moving,
   )
+  const taken: Seated[] = []
+  joining.forEach((j, index) => {
+    const spot = spots[index] ?? null
+    if (spot !== null) taken.push({ point: spot, size: tokenSizeInSquares(j.token) })
+  })
   const moves: GatherMove[] = []
   const leftOut: string[] = []
   joining.forEach((j, index) => {
@@ -282,7 +339,10 @@ export function planGather(members: readonly PartyMember[], world: HostWorld, pi
       leftOut.push(j.member.name)
       return
     }
-    moves.push({ playerId: j.member.playerId, name: j.member.name, tokenId: j.token.id, travels: j.travels, x: spot.x, y: spot.y })
+    const move: GatherMove = { playerId: j.member.playerId, name: j.member.name, tokenId: j.token.id, travels: j.travels, x: spot.x, y: spot.y }
+    const entourage = entourageSpots(openMap, spot, pin, j.entourage, moving, taken)
+    if (entourage.length > 0) move.entourage = entourage
+    moves.push(move)
   })
   return { moves, leftOut }
 }
@@ -291,8 +351,8 @@ export function planGather(members: readonly PartyMember[], world: HostWorld, pi
 export interface GatherEffects {
   /** A cena do pino (a aberta). `null` no mapa solto: aí ninguém viaja. */
   sceneId: string | null
-  /** A travessia do "Mandar para…" com a casa já escolhida. `false` = não deu (sala fechada, ficha sumiu). */
-  bringFromOtherScene(playerId: string, sceneId: string, at: Point): boolean
+  /** A travessia do "Mandar para…" com a casa já escolhida (e a do séquito). `false` = não deu (sala fechada, ficha sumiu). */
+  bringFromOtherScene(playerId: string, sceneId: string, at: GatherArrival): boolean
   /** As fichas que já estão na cena andam juntas, num passo só do desfazer. */
   placeInScene(positions: { id: string; x: number; y: number }[]): void
 }
@@ -309,10 +369,14 @@ export function applyGatherPlan(plan: GatherPlan, effects: GatherEffects): strin
   const failed: string[] = []
   for (const move of plan.moves) {
     if (!move.travels) continue
-    const arrived = effects.sceneId !== null && effects.bringFromOtherScene(move.playerId, effects.sceneId, { x: move.x, y: move.y })
+    const at: GatherArrival = move.entourage === undefined ? { x: move.x, y: move.y } : { x: move.x, y: move.y, entourage: move.entourage }
+    const arrived = effects.sceneId !== null && effects.bringFromOtherScene(move.playerId, effects.sceneId, at)
     if (!arrived) failed.push(move.name)
   }
-  const local = plan.moves.filter((move) => !move.travels).map((move) => ({ id: move.tokenId, x: move.x, y: move.y }))
+  // O séquito de quem já estava aqui anda no MESMO passo do desfazer.
+  const local = plan.moves
+    .filter((move) => !move.travels)
+    .flatMap((move) => [{ id: move.tokenId, x: move.x, y: move.y }, ...(move.entourage ?? []).map((seat) => ({ id: seat.tokenId, x: seat.x, y: seat.y }))])
   if (local.length > 0) effects.placeInScene(local)
   return failed
 }

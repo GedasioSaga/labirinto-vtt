@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState, type FormEvent, type KeyboardEvent } from 'react'
-import { PARTY_CENTER_LABEL, partyPresenceLabel, type PartyDestination, type PartyMember } from '../lib/party'
+import { awayTokenLabel, awayTokenName, PARTY_CENTER_LABEL, partyPresenceLabel, type PartyDestination, type PartyMember } from '../lib/party'
 import type { PlayerNoteDelivery } from '../net/hostSession'
 import { NOTE_FEEDBACK_MS, NoteForm } from './ScenesSection'
 
@@ -21,7 +21,16 @@ export interface PartySectionProps {
    * fechada: a linha fica sem o botão.
    */
   onNote?(playerId: string, text: string): PlayerNoteDelivery
+  /**
+   * "Trazer" do aviso "Faísca ficou em outra cena": põe a ficha `tokenId` ao
+   * lado do dono, na cena dele. `false` = não deu (a linha avisa). Ausente =
+   * sala fechada: o aviso aparece sem o botão.
+   */
+  onBring?(playerId: string, tokenId: string): boolean
 }
+
+/** O aviso na linha quando o "Trazer" não deu. */
+export const BRING_FAILED = 'Não deu para trazer: a ficha ou a cena mudou.'
 
 /** Nome FIXO do botão: o estado vai em `aria-pressed`, e o leitor de tela lê "Seguir, pressionado". */
 export const FOLLOW_LABEL = 'Seguir'
@@ -172,7 +181,7 @@ function SendForm({ member, destinations, onSend, onClose }: SendFormProps) {
  * levar alguém ("Mandar para…") — e o "Recado" que só aquele jogador lê. A
  * bolinha é a cor do disco da ficha: é a mesma peça que o mestre procura no mapa.
  */
-export function PartySection({ members, destinations, onGoTo, onSend, followingId = null, onToggleFollow, onNote }: PartySectionProps) {
+export function PartySection({ members, destinations, onGoTo, onSend, followingId = null, onToggleFollow, onNote, onBring }: PartySectionProps) {
   const headingId = useId()
   const formId = useId()
   const noteFormId = useId()
@@ -181,6 +190,8 @@ export function PartySection({ members, destinations, onGoTo, onSend, followingI
   const [notingId, setNotingId] = useState<string | null>(null)
   /** Aviso do último recado, na linha do jogador; some sozinho. */
   const [noteFeedback, setNoteFeedback] = useState<{ playerId: string; text: string } | null>(null)
+  /** A ficha cujo "Trazer" não deu; `null` = nenhuma. */
+  const [bringFailedId, setBringFailedId] = useState<string | null>(null)
   /** Quem abriu o envio ou o recado: o foco volta para ele ao fechar. */
   const openerRef = useRef<HTMLElement | null>(null)
   const sending = members.find((member) => member.playerId === sendingId)
@@ -302,6 +313,32 @@ export function PartySection({ members, destinations, onGoTo, onSend, followingI
                   )}
                 </div>
               )}
+              {(member.awayTokens ?? []).map((away) => (
+                <p key={away.tokenId} className="lb-party__where" title={`Em ${away.sceneName}`}>
+                  {awayTokenLabel(away.name)}
+                  {onBring !== undefined && (
+                    <>
+                      {' '}
+                      <button
+                        type="button"
+                        className="lb-btn"
+                        aria-label={`Trazer ${awayTokenName(away.name)} para perto de ${member.name}`}
+                        onClick={() => setBringFailedId(onBring(member.playerId, away.tokenId) ? null : away.tokenId)}
+                      >
+                        Trazer
+                      </button>
+                    </>
+                  )}
+                  {bringFailedId === away.tokenId && (
+                    <>
+                      {' '}
+                      <span className="lb-room__error" role="alert">
+                        {BRING_FAILED}
+                      </span>
+                    </>
+                  )}
+                </p>
+              ))}
               {onNote !== undefined && noting && (
                 <div id={noteFormId}>
                   <NoteForm label={`Recado só para ${member.name}`} onSend={(text) => sendNote(member, text)} onCancel={closeNote} />
