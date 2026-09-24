@@ -146,12 +146,20 @@ describe('hostSession: memória do explorado sem spoiler', () => {
     expect(JSON.stringify(snap.map)).not.toContain('pino-velho')
   })
 
-  it('parede nova em área nunca explorada continua saindo (a planta vai inteira fora da memória)', () => {
+  it('parede nova em área nunca explorada não sai: o jogador só recebe a parede que viu', () => {
     const t = mesa()
     t.s.broadcast(antes(PERTO))
-    const comParedeLonge = { ...antes(PERTO), walls: [...antes(PERTO).walls, wall('parede-do-escuro', 900, 50, 950, 50)] }
-    const snap = snapshotOf(t.s.broadcast(comParedeLonge).outbound)
-    expect(snap.map.walls.map((w) => w.id).sort()).toEqual(['parede-do-escuro', 'parede-velha'])
+    const comParede = (heroi: { x: number; y: number }): MapData => ({
+      ...antes(heroi),
+      walls: [...antes(heroi).walls, wall('parede-do-escuro', 900, 50, 950, 50)],
+    })
+    // A parede no escuro não muda a tela dela: o broadcast não manda nada.
+    const enviado = t.s.broadcast(comParede(PERTO)).outbound.filter((o) => o.clientId === 'c1')
+    expect(enviado).toEqual([])
+    // Um passo ao lado, ainda longe da parede: o recorte feito depois dela.
+    const snap = snapshotOf(t.s.broadcast(comParede({ x: PERTO.x + 40, y: PERTO.y })).outbound)
+    expect(snap.map.walls.map((w) => w.id)).toEqual(['parede-velha'])
+    expect(JSON.stringify(snap.map)).not.toContain('parede-do-escuro')
   })
 
   it('"Revelar planta" do mestre mostra o que existe agora, mesmo onde o jogador nunca andou', () => {

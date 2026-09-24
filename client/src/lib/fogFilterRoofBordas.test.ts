@@ -110,9 +110,11 @@ describe('teto de construção — o que encosta no muro', () => {
   it('SEGURANÇA: divisória interna que ENCOSTA no muro não sai no pacote (achado 1)', () => {
     const view = filterMapForPlayer(mapaDaCasa(RUA, { walls: divisorias }), 'p1', OWNERSHIP, RADIUS)
     expect(idsDe(view, 'walls')).toEqual([])
-    // Controle: sem teto, as quatro são planta comum e saem inteiras.
+    // Controle: sem teto, são planta comum e saem as que a rua vê. A do NORTE
+    // fica atrás da linha que LESTE + OESTE fazem em y = 250: nunca vista, não
+    // sai (paredes-so-as-vistas) — e o teto não tem nada com isso.
     const semTeto = filterMapForPlayer(mapaDaCasa(RUA, { walls: divisorias }, SEM_TETO), 'p1', OWNERSHIP, RADIUS)
-    expect(idsDe(semTeto, 'walls').sort()).toEqual(divisorias.map((w) => w.id).sort())
+    expect(idsDe(semTeto, 'walls').sort()).toEqual(['divisoria-toca-LESTE', 'divisoria-toca-OESTE', 'divisoria-toca-SUL'])
   })
 
   it('a parede SOLTA sobre o muro — e a porta da frente nela — continua saindo (achado 8)', () => {
