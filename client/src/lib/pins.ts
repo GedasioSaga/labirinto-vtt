@@ -105,6 +105,14 @@ export function passageOf(pin: Pin): PinPassage {
   return isPinPassage(pin.passagem) ? pin.passagem : 'pede'
 }
 
+/**
+ * Pino trancado que aceita "Pedir ao mestre": trancado e sem a marca `mudo`.
+ * Qualquer outro modo responde `false` — livre e pede não são "tentativas".
+ */
+export function acceptsLockedRequest(pin: Pin): boolean {
+  return passageOf(pin) === 'trancada' && pin.mudo !== true
+}
+
 /** Ponto do desenho do símbolo, no quadrado normalizado -1..1 com a origem no centro da cabeça. */
 export interface PinSymbolPoint {
   x: number

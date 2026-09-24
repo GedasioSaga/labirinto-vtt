@@ -1,9 +1,10 @@
 import { useEffect, useId, useRef, useState, type KeyboardEvent, type RefObject } from 'react'
 import { partyPresenceLabel, type PartyMember } from '../lib/party'
-import { VISION_RADIUS_MAX, VISION_RADIUS_MIN, VISION_RADIUS_STEP, type HostWorld, type PlayerInfo } from '../net/hostSession'
+import { ownTokenIdsOf, VISION_RADIUS_MAX, VISION_RADIUS_MIN, VISION_RADIUS_STEP, type HostWorld, type PlayerInfo } from '../net/hostSession'
 import type { RoomInfo, TunnelState } from '../net/hostBridge'
 import {
   PartyActions,
+  PartyAwayTokens,
   PartyBackpack,
   PartyDestinationMark,
   PartyGiveForm,
@@ -68,6 +69,13 @@ export interface RoomPanelProps {
   onStoreTokens?(playerId: string): void
   /** "Dispensar" quem está fora: o card sai. Ausente = sem o botão. */
   onDismiss?(playerId: string): void
+  /**
+   * "Emprestar ficha a" de quem está fora: as fichas dele passam a ser jogadas
+   * por `borrowerId` até ele voltar. Ausente (ou sem `onEndLoans`) = sem a lista.
+   */
+  onLendTokens?(ownerId: string, borrowerId: string): void
+  /** "Tomar de volta" da ficha emprestada: ela sai de quem a jogava e fica só com o dono. */
+  onEndLoans?(ownerId: string): void
   onVisionRadiusChange(playerId: string, radius: number): void
   onRevealPlan(playerId: string): void
   onHidePlan(playerId: string): void
@@ -467,19 +475,88 @@ interface PlayerAdminProps {
   onStoreTokens?(playerId: string): void
   /** "Dispensar" quem está fora. Ausente = sem o botão. */
   onDismiss?(playerId: string): void
+  /** "Emprestar ficha a" de quem está fora. Ausente (ou sem `onEndLoans`) = sem a lista. */
+  onLendTokens?(ownerId: string, borrowerId: string): void
+  /** "Tomar de volta" da ficha emprestada. */
+  onEndLoans?(ownerId: string): void
+}
+
+interface LoanControlsProps {
+  /** Quem está fora: o dono da ficha. */
+  player: PlayerInfo
+  players: PlayerInfo[]
+  onLendTokens(ownerId: string, borrowerId: string): void
+  onEndLoans(ownerId: string): void
+}
+
+/**
+ * EMPRESTAR A FICHA de quem saiu: a lista "Emprestar ficha a" (só quem está
+ * conectado pode jogar por ele) ou, já emprestada, com quem ela está e o
+ * "Tomar de volta".
+ */
+function LoanControls({ player, players, onLendTokens, onEndLoans }: LoanControlsProps) {
+  if (player.lentTo !== undefined) {
+    return (
+      <>
+        <p className="lb-player__note">
+          Ficha emprestada a {player.lentTo.join(', ')}. Volta sozinha quando {player.name} voltar.
+        </p>
+        <button type="button" className="lb-btn lb-btn--compact" onClick={() => onEndLoans(player.playerId)}>
+          Tomar de volta
+        </button>
+      </>
+    )
+  }
+  const borrowers = players.filter((other) => other.connected && other.playerId !== player.playerId)
+  // Só a ficha DELE se empresta: a que ele joga emprestada é do dono, e a sessão recusaria reemprestá-la.
+  if (ownTokenIdsOf(player).length === 0 || borrowers.length === 0) return null
+  const selectId = `lb-room-lend-${player.playerId}`
+  return (
+    <>
+      <label className="lb-label" htmlFor={selectId}>
+        Emprestar ficha a
+      </label>
+      <select
+        id={selectId}
+        className="lb-input"
+        value=""
+        onChange={(event) => {
+          if (event.target.value !== '') onLendTokens(player.playerId, event.target.value)
+        }}
+      >
+        <option value="">Escolher…</option>
+        {borrowers.map((borrower) => (
+          <option key={borrower.playerId} value={borrower.playerId}>
+            {borrower.name}
+          </option>
+        ))}
+      </select>
+    </>
+  )
 }
 
 /**
  * Quem foi embora: a ficha dele não pode ficar no corredor para sempre, nem a
  * linha na lista. "Ficha guardada" diz o que volta com ele; "Guardar ficha"
- * tira a ficha do mapa até ele voltar; "Dispensar" tira a linha. Conectado
- * não tem nada disso: o "Expulsar" dele fica no "Mais".
+ * tira a ficha do mapa até ele voltar; "Emprestar ficha a" põe outro jogador
+ * para jogá-la até ele voltar; "Dispensar" tira a linha. Conectado não tem
+ * nada disso: o "Expulsar" dele fica no "Mais".
  */
-function AwayControls({ player, onStoreTokens, onDismiss }: { player: PlayerInfo } & Pick<PlayerAdminProps, 'onStoreTokens' | 'onDismiss'>) {
+function AwayControls({
+  player,
+  players,
+  onStoreTokens,
+  onDismiss,
+  onLendTokens,
+  onEndLoans,
+}: { player: PlayerInfo; players: PlayerInfo[] } & Pick<PlayerAdminProps, 'onStoreTokens' | 'onDismiss' | 'onLendTokens' | 'onEndLoans'>) {
   if (player.clientId !== null) return null
   const stored = player.storedTokenNames ?? []
-  const canStore = onStoreTokens !== undefined && player.tokenIds.length > 0
-  if (stored.length === 0 && !canStore && onDismiss === undefined) return null
+  // Emprestada, a ficha está em jogo com outro: guardar a tiraria do mapa debaixo dele.
+  // E a que ele joga emprestada é do dono: só conta a dele.
+  const canStore = onStoreTokens !== undefined && ownTokenIdsOf(player).length > 0 && player.lentTo === undefined
+  const canLend = onLendTokens !== undefined && onEndLoans !== undefined
+  if (stored.length === 0 && !canStore && !canLend && onDismiss === undefined) return null
   return (
     <div className="lb-player__line lb-player__line--acoes">
       {stored.length > 0 && (
@@ -487,6 +564,7 @@ function AwayControls({ player, onStoreTokens, onDismiss }: { player: PlayerInfo
           Ficha guardada: {stored.join(', ')}. Volta ao mapa quando {player.name} voltar.
         </p>
       )}
+      {canLend && <LoanControls player={player} players={players} onLendTokens={onLendTokens} onEndLoans={onEndLoans} />}
       {canStore && (
         <button type="button" className="lb-btn lb-btn--compact" onClick={() => onStoreTokens(player.playerId)}>
           Guardar ficha
@@ -730,6 +808,8 @@ interface PlayerRowProps extends PlayerCardProps {
   noteFeedback: string | null
   /** Relógio do "fora há…" (`useOfflineClock`). */
   now: number
+  /** A mesa inteira: "Emprestar ficha a" oferece quem está conectado. */
+  players: PlayerInfo[]
 }
 
 /**
@@ -754,6 +834,7 @@ function PlayerRow({
   onCancelNote,
   noteFeedback,
   now,
+  players,
   moreOpen,
   onToggleMore,
   onCloseMore,
@@ -787,6 +868,7 @@ function PlayerRow({
         </div>
         {member !== undefined && <PartyBackpack member={member} onItem={party?.onItem} />}
         {member !== undefined && <PartyDestinationMark member={member} onViewDestination={party?.onViewDestination} />}
+        {member !== undefined && <PartyAwayTokens member={member} onBring={party?.onBring} />}
         <div className="lb-player__line lb-player__line--acoes">
           {member !== undefined && party !== undefined && (
             <PartyActions
@@ -822,7 +904,15 @@ function PlayerRow({
             {noteFeedback}
           </p>
         )}
-        <AwayControls player={player} onStoreTokens={admin.onStoreTokens} onDismiss={admin.onDismiss} />
+        {player.borrowedFrom !== undefined && <p className="lb-player__note">Jogando também a ficha de {player.borrowedFrom.join(', ')}.</p>}
+        <AwayControls
+          player={player}
+          players={players}
+          onStoreTokens={admin.onStoreTokens}
+          onDismiss={admin.onDismiss}
+          onLendTokens={admin.onLendTokens}
+          onEndLoans={admin.onEndLoans}
+        />
         {moreOpen && <MorePanel {...admin} player={player} id={more.panelId} withSetup onClose={more.close} />}
       </div>
     </li>
@@ -906,6 +996,7 @@ function GroupRoster({ players, party, ...rest }: GroupRosterProps) {
               onCancelNote={send.close}
               noteFeedback={note.feedback?.playerId === player.playerId ? note.feedback.text : null}
               now={now}
+              players={players}
             />
           ))}
         </ul>
@@ -935,6 +1026,8 @@ export function RoomPanel({
   onKick,
   onStoreTokens,
   onDismiss,
+  onLendTokens,
+  onEndLoans,
   onVisionRadiusChange,
   onRevealPlan,
   onHidePlan,
@@ -989,6 +1082,8 @@ export function RoomPanel({
         onHidePlan={onHidePlan}
         onStoreTokens={onStoreTokens}
         onDismiss={onDismiss}
+        onLendTokens={onLendTokens}
+        onEndLoans={onEndLoans}
       />
 
       {/* Iniciativa logo depois do Grupo: no combate é o que o mestre toca a cada vez. */}

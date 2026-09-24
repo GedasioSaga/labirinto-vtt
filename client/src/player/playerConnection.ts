@@ -69,6 +69,10 @@ import {
   type NoteEntry,
   type PartyMember,
   type PointActionReply,
+  isSeatClaimState,
+  parseSeatOptions,
+  type SeatClaimState,
+  type SeatOption,
 } from '../net/protocol'
 import { DICE_FEED_MAX, parseDiceRequest, type DiceRequest, type DiceRollEntry } from '../lib/dice'
 import { CLUEBOOK_MAX_CLUES } from '../lib/clues'
@@ -196,6 +200,15 @@ export interface PlayerState {
   call?: CallNotice
   /** Ação no ponto: esperando o mestre, a resposta dele ou a recusa do host. */
   pointNotice?: PointNotice
+  /**
+   * QUEM CHEGA ESCOLHE A FICHA: as fichas livres que o mestre oferece a quem
+   * está sem personagem (só id e nome). Ausente = nenhuma lista chegou nesta
+   * conexão (o `welcome` a apaga). O host só reenvia quando muda ou quando o
+   * jogador volta à espera, então o `lobby.waiting` não a apaga.
+   */
+  seatOptions?: SeatOption[]
+  /** O pedido de ficha: enviado, esperando o mestre, ou a resposta. O mapa com a ficha o encerra. */
+  seatClaim?: SeatClaimNotice
   /**
    * Sobe toda vez que o mapa em tela deixa de ser o da cena em que o jogador
    * estava: troca de cena (`scene.changed`) ou saída do jogo (lobby,
@@ -349,6 +362,17 @@ export type CallNotice = { id: number; phase: 'waiting'; reason: CallReason } | 
 
 /** A resposta do host ao "Puxar a alavanca": puxou, ou por que nada se moveu. */
 export type LeverPhase = 'pulled' | PinLeverRejection
+/**
+ * Onde está o pedido de ficha: `sent` (saiu, o host ainda não respondeu) ou o
+ * estado que o host mandou. `name` é o nome da ficha na hora do pedido: a
+ * lista pode mudar (ela sai quando outro a leva) e a tela ainda precisa dizer qual.
+ */
+export interface SeatClaimNotice {
+  id: number
+  phase: 'sent' | SeatClaimState
+  tokenId: string
+  name: string
+}
 
 /** Subconjunto do WebSocket do browser que este cliente usa. */
 export interface SocketLike {
@@ -528,6 +552,12 @@ export interface PlayerConnection {
   rollDice(request: DiceRequest): boolean
   /** Fecha o cartão do texto de chegada. */
   dismissArrival(): void
+  /**
+   * Sem personagem: pede ao mestre a ficha `tokenId` da lista `seatOptions`.
+   * `false` (nada sai) jogando, fora da lista, com um pedido já esperando ou
+   * com o socket fechado.
+   */
+  claimSeat(tokenId: string): boolean
   /** Abre um socket novo (reconectar), reaproveitando o resumeToken guardado. */
   reconnect(): void
   /**
@@ -1492,7 +1522,8 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     const { place, places: remembered } = where
     const places = place === undefined ? state.places : rememberPlace(state.places ?? [], place, map, explored, concealed, remembered)
     // `sceneName` entra SEMPRE, inclusive `undefined`: snapshot sem nome apaga o selo da cena anterior.
-    setState({ status: 'playing', rev, map: next, vision, explored, ownTokens, partyTokens, concealed, hazards, gatilhos, andares, relogio, turn: turnOnMap, sceneName, place, places, error: undefined })
+    // O mapa chegou: quem pedia ficha já tem uma, e o pedido termina aqui.
+    setState({ status: 'playing', rev, map: next, vision, explored, ownTokens, partyTokens, concealed, hazards, gatilhos, andares, relogio, turn: turnOnMap, sceneName, place, places, error: undefined, seatClaim: undefined })
   }
 
   /** Desfaz o movimento recusado. `false` = pedido desconhecido (já resolvido, ou de antes de trocar de cena). */
@@ -1600,7 +1631,10 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         // Outro playerId: o mestre disse "É ela" e a "Ana (2)" virou a Ana. O
         // host esqueceu os pedidos da "Ana (2)"; a espera deles mentiria para sempre.
         if (state.playerId !== undefined && state.playerId !== data.playerId) forgetWaitingRequests()
-        setState({ playerId: data.playerId, status: state.status === 'playing' ? 'playing' : 'waiting', reconnecting: undefined })
+        // O pedido de ficha morre no host com a queda: a espera dele mentiria para sempre.
+        // A lista de fichas livres também: o host conta o que mandou POR CONEXÃO,
+        // e a desta começa vazia; a velha mostraria como livre a ficha de outro.
+        setState({ playerId: data.playerId, status: state.status === 'playing' ? 'playing' : 'waiting', reconnecting: undefined, seatClaim: undefined, seatOptions: undefined })
         return
       case 'lobby.waiting':
         clearSignalTimers()
@@ -1779,6 +1813,20 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         const party = parsePartyUpdate(data)
         if (party === null) return
         setState({ party: party.members })
+        return
+      }
+      case 'seat.options': {
+        // Vale na espera; jogando, fica guardada: o host compara a volta à espera com ela e reenvia se mudou (vazia também).
+        const options = parseSeatOptions(data)
+        if (options === null) return
+        setState({ seatOptions: options.tokens })
+        return
+      }
+      case 'seat.claim.state': {
+        // Só responde a um pedido que esta tela fez: sem pedido, nada a mostrar.
+        const claim = state.seatClaim
+        if (claim === undefined || state.status !== 'waiting' || !isSeatClaimState(data.state)) return
+        setState({ seatClaim: { ...claim, phase: data.state } })
         return
       }
       case 'call.state':
@@ -2323,6 +2371,17 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
 
     dismissArrival() {
       if (state.arrival !== undefined) setState({ arrival: undefined })
+    },
+
+    claimSeat(tokenId) {
+      if (state.status !== 'waiting') return false
+      // Um pedido por vez: o mestre ainda não respondeu o anterior.
+      const phase = state.seatClaim?.phase
+      if (phase === 'sent' || phase === 'pending') return false
+      const option = (state.seatOptions ?? []).find((candidate) => candidate.tokenId === tokenId)
+      if (option === undefined || !send({ type: 'seat.claim', tokenId })) return false
+      setState({ seatClaim: { id: nextNoticeId++, phase: 'sent', tokenId, name: option.name } })
+      return true
     },
 
     setOwnTokenName(tokenId, name) {

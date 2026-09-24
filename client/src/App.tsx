@@ -35,6 +35,7 @@ import { RoomPanel, roomPanelTokensOf } from './components/RoomPanel'
 import { LivePlayerMirror } from './components/PlayerMirror'
 import { masterDestinationMarks, partyDestinations, partyItemChange, partyMembers, peopleByScene } from './lib/party'
 import { useDestinationStore } from './stores/destinationStore'
+import { useCenaQueEspera } from './stores/useCenaQueEspera'
 import type { TravelLogEntry } from './lib/travelLog'
 import { withStoredTokens } from './lib/storedTokens'
 import { loadSavedExploration, loadSavedTable, savedTableSummary, storeSavedExploration, storeSavedTable, type TableStorage } from './lib/savedTable'
@@ -554,6 +555,15 @@ function App() {
         applyCaravanMoves,
         // "Destrancar e abrir" do mestre ao pedido da porta trancada (passo do Ctrl+Z dele).
         unlockAndOpenDoor: unlockAndOpenDoorFromRequest,
+        // "Passar para pede" do pedido pelo pino trancado: o pino muda de modo
+        // na cena dele (de fundo quando o jogador estava lá), como o painel faria.
+        setPinPassage: (pinId, passagem, sceneId) => {
+          if (sceneId !== undefined) {
+            useAdventureStore.getState().updateBackgroundScene(sceneId, (m) => mapFactory.updatePin(m, pinId, { passagem }))
+            return
+          }
+          useMapStore.getState().updatePin(pinId, { passagem })
+        },
         // ITEM PEGÁVEL: o pino pego sai e as mochilas mudam, já validados pela
         // sessão. Vale para TODO passo do desfazer da cena, aberta ou de fundo
         // (`applyItemsInScene`): um Ctrl+Z do mestre não devolve a chave ao
@@ -698,6 +708,11 @@ function App() {
    * viajou. Só é montado com a aba Jogo existindo (Tauri).
    */
   const roomPanelWorld = () => hostWorldOf({ adventure, activeSceneId, cache: sceneCache }, map)
+  /** A lista do "Reunir o grupo aqui" do pino aberto: agrupada por cena, com quem já está em volta dele à parte. */
+  const gatherListFor = (pin: { x: number; y: number }) => {
+    const world = roomPanelWorld()
+    return gatherCandidates(partyMembers(roomPlayers, world), world, pin)
+  }
   /** Com a sala fechada, quem tem ficha na mesa guardada: é o que faz o "Abrir sala" perguntar "Retomar a mesa?". */
   const savedTableNames = (): string | null => {
     if (room !== null) return null
@@ -762,6 +777,8 @@ function App() {
                 if (member.playerId !== followingId) useFollowStore.getState().stop()
                 if (member.destination !== undefined) useAdventureStore.getState().goToPoint(member.sceneId, member.destination)
               },
+              // "Trazer" a ficha que ficou em outra cena: sem sala não há sessão que saiba do dono.
+              onBring: room === null ? undefined : (playerId, tokenId) => hostBridgeRef.current?.bringToken(playerId, tokenId) ?? false,
             }}
             initiative={{
               tokens: map.tokens.map((token) => ({ id: token.id, name: token.name })),
@@ -792,6 +809,8 @@ function App() {
             onKick={(clientId) => void hostBridgeRef.current?.kick(clientId)}
             onStoreTokens={(playerId) => hostBridgeRef.current?.storeTokens(playerId)}
             onDismiss={(playerId) => hostBridgeRef.current?.dismissPlayer(playerId)}
+            onLendTokens={(ownerId, borrowerId) => hostBridgeRef.current?.lendTokens(ownerId, borrowerId)}
+            onEndLoans={(ownerId) => hostBridgeRef.current?.endLoans(ownerId)}
             onVisionRadiusChange={(playerId, radius) => hostBridgeRef.current?.setVisionRadius(playerId, radius)}
             onRevealPlan={(playerId) => hostBridgeRef.current?.revealPlan(playerId)}
             onHidePlan={(playerId) => hostBridgeRef.current?.hidePlan(playerId)}
@@ -837,6 +856,11 @@ function App() {
   useEffect(() => {
     if (mirrorId !== null && mirroredPlayer === undefined) setMirrorId(null)
   }, [mirrorId, mirroredPlayer])
+  // atencao-do-mestre — a cena que espera (`lib/cenaQueEspera.ts`): cada cena
+  // com gente que o editor NÃO mostra guarda desde quando espera; a lista
+  // Cenas mostra 'há N min' e o Ctrl+J abre a que espera há mais tempo.
+  const tableMembers = roomPlayers.length === 0 ? [] : partyMembers(roomPlayers, roomPanelWorld())
+  const waitingSince = useCenaQueEspera(tableMembers, activeSceneId, screen === 'editor')
   /**
    * Caminho de origem do mapa em edição. `null` enquanto o mapa é novo
    * (ainda não salvo); a partir daí toda escrita vai de volta para esse
@@ -1678,6 +1702,9 @@ function App() {
       // CHAVE ABRE PORTA: "Abre com" do pino trancado, com desfazer; "" tira a chave.
       keyName: pin.abreCom ?? '',
       onKeyChange: (nome: string) => useMapStore.getState().updatePin(pin.id, { abreCom: readDoorKey(nome) }),
+      // "Aceita tentativas" do trancado: desligar grava `mudo`; ligar tira a marca.
+      acceptsAttempts: pin.mudo !== true,
+      onAcceptsAttemptsChange: (on: boolean) => useMapStore.getState().updatePin(pin.id, { mudo: on ? undefined : true }),
       // Mão única mora no PAR (cena de fundo): marcar e desmarcar vão pela
       // aventura, fora do desfazer desta cena.
       onOneWayChange: (exitId: string, on: boolean) => {
@@ -2105,6 +2132,8 @@ function App() {
                 maps={sceneMaps({ adventure, activeSceneId, cache: sceneCache }, map)}
                 // Mesmas linhas do painel Grupo: quem está em cada cena e os pedidos que esperam.
                 people={scenePeople()}
+                // Há quanto tempo cada cena com gente espera o mestre ('há N min').
+                waitingSince={waitingSince}
                 // Recado por cena só com a sala aberta: sem sala não há quem leia.
                 onNote={room === null ? undefined : (sceneId, text, playerIds) => hostBridgeRef.current?.sceneNote(sceneId, text, playerIds) ?? null}
                 // Menu "…" da cena: só com aventura (o mapa solto não tem lista de cenas para mexer).
@@ -2450,6 +2479,11 @@ function App() {
               onHiddenChange: (hidden) => selectedToken && updateToken(selectedToken.id, { hidden }),
               onSecretChange: (secret) => selectedToken && useMapStore.getState().setItemSecret('token', selectedToken.id, secret),
             }}
+            tokenPlayerCharacter={{
+              // Mesmo caminho da cor: `updateToken` passa por `withHistory` (Ctrl+Z
+              // desfaz), e a lista de quem chega muda no broadcast do mapa.
+              onPlayerCharacterChange: (playerCharacter) => selectedToken && updateToken(selectedToken.id, { playerCharacter }),
+            }}
             selectedTextLabel={selectedTextLabel}
             textLabel={{
               onTextChange: handleTextChange,
@@ -2581,7 +2615,7 @@ function App() {
                 selectedPin && room !== null
                   ? {
                       pinId: selectedPin.id,
-                      candidates: gatherCandidates(partyMembers(roomPlayers, roomPanelWorld())),
+                      candidates: gatherListFor(selectedPin),
                       onGather: (playerIds) => handleGather(selectedPin.id, playerIds),
                     }
                   : null,

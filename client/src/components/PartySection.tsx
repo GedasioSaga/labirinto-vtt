@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState, type FormEvent, type KeyboardEvent } from 'react'
 import { ITEM_NAME_MAX_LENGTH } from '../lib/items'
-import type { PartyDestination, PartyItemAction, PartyMember } from '../lib/party'
+import { awayTokenLabel, awayTokenName, type PartyDestination, type PartyItemAction, type PartyMember } from '../lib/party'
 import { SceneSendForm } from './SceneSendForm'
 import type { PlayerNoteDelivery } from '../net/hostSession'
 import { NOTE_FEEDBACK_MS, NoteForm } from './ScenesSection'
@@ -34,12 +34,20 @@ export interface PartySectionProps {
   onNote?(playerId: string, text: string): PlayerNoteDelivery
   /** "Ver" da marca "vamos para cá": a câmera vai até a marca, na cena dele. Sem ele, não há botão. */
   onViewDestination?(member: PartyMember): void
+  /**
+   * "Trazer" do aviso "Faísca ficou em outra cena": põe a ficha `tokenId` ao
+   * lado do dono, na cena dele. `false` = não deu (a linha avisa). Ausente =
+   * sala fechada: o aviso aparece sem o botão.
+   */
+  onBring?(playerId: string, tokenId: string): boolean
 }
 
 export const PARTY_ITEM_FAILED = 'Não deu: a ficha ou o item mudou. Tente de novo.'
 /** O que a linha diz quando o jogador pôs a marca "vamos para cá". */
 export const DESTINATION_MARKED_LABEL = 'destino marcado'
 export const VIEW_DESTINATION_LABEL = 'Ver'
+/** O aviso na linha quando o "Trazer" não deu. */
+export const BRING_FAILED = 'Não deu para trazer: a ficha ou a cena mudou.'
 
 /** Nome FIXO do botão: o estado vai em `aria-pressed`, e o leitor de tela lê "Seguir, pressionado". */
 export const FOLLOW_LABEL = 'Seguir'
@@ -406,6 +414,53 @@ export function PartyGiveForm({ member, party, formId, onClose }: PartySendFormP
       {/* `key`: trocar de jogador reabre o campo vazio, sem o texto do anterior. */}
       <GiveForm key={member.playerId} member={member} onGive={(target, nome) => onItem({ kind: 'dar', member: target, nome })} onClose={onClose} />
     </div>
+  )
+}
+
+interface PartyAwayTokensProps {
+  member: PartyMember
+  onBring: PartySectionProps['onBring']
+}
+
+/**
+ * MONTARIA E FAMILIAR: a ficha do jogador que ficou em OUTRA cena (a Faísca
+ * esquecida na Vila) avisa na linha dele, com "Trazer", que a põe ao lado
+ * dele. Sem `onBring` (sala fechada), o aviso sem o botão. Sem ficha longe, nada.
+ */
+export function PartyAwayTokens({ member, onBring }: PartyAwayTokensProps) {
+  /** A ficha cujo "Trazer" não deu; `null` = nenhuma. */
+  const [bringFailedId, setBringFailedId] = useState<string | null>(null)
+  const away = member.awayTokens ?? []
+  if (away.length === 0) return null
+  return (
+    <>
+      {away.map((token) => (
+        <p key={token.tokenId} className="lb-player__note" title={`Em ${token.sceneName}`}>
+          {awayTokenLabel(token.name)}
+          {onBring !== undefined && (
+            <>
+              {' '}
+              <button
+                type="button"
+                className="lb-btn lb-btn--compact"
+                aria-label={`Trazer ${awayTokenName(token.name)} para perto de ${member.name}`}
+                onClick={() => setBringFailedId(onBring(member.playerId, token.tokenId) ? null : token.tokenId)}
+              >
+                Trazer
+              </button>
+            </>
+          )}
+          {bringFailedId === token.tokenId && (
+            <>
+              {' '}
+              <span className="lb-room__error" role="alert">
+                {BRING_FAILED}
+              </span>
+            </>
+          )}
+        </p>
+      ))}
+    </>
   )
 }
 

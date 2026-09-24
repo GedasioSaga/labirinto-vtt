@@ -1699,7 +1699,7 @@ export function addPin(map: MapData, pin: Pin): MapData {
 export function updatePin(
   map: MapData,
   id: string,
-  patch: Partial<Pick<Pin, 'kind' | 'icon' | 'description' | 'image' | 'locked' | 'destino' | 'passagem' | 'rotulo' | 'saidas' | 'item' | 'abreCom' | 'presoA' | 'portaLigada'>>,
+  patch: Partial<Pick<Pin, 'kind' | 'icon' | 'description' | 'image' | 'locked' | 'destino' | 'passagem' | 'mudo' | 'rotulo' | 'saidas' | 'item' | 'abreCom' | 'presoA' | 'portaLigada'>>,
 ): MapData {
   const pin = map.pins.find((p) => p.id === id)
   if (!pin) return map
@@ -1732,7 +1732,9 @@ export function updatePin(
     next.portaLigada === pin.portaLigada &&
     sameItem &&
     // CHAVE ABRE PORTA: `undefined` === sem chave; apagar um campo vazio não é mudança.
-    next.abreCom === pin.abreCom
+    next.abreCom === pin.abreCom &&
+    // "Aceita tentativas" do trancado: só `true` é mudo, ausente é aceita.
+    (next.mudo === true) === (pin.mudo === true)
   ) {
     return map
   }

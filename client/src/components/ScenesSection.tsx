@@ -19,6 +19,7 @@ import { NOTE_MAX_LENGTH } from '../net/protocol'
 import { sceneTree, SCENE_PUBLIC_NAME_MAX_LENGTH, SCENE_TRAIL_SEPARATOR, type SceneTreeRow } from '../lib/adventure'
 import { matchesSceneSearch, SCENE_FILTER_MIN, sceneSearchWords } from '../lib/sceneSearch'
 import { pendingRequestsLabel, type ScenePeople, type ScenePerson, type SceneRoom } from '../lib/party'
+import { esperaLonga, minutosDeEspera, rotuloDeEspera, type EsperaPorCena } from '../lib/cenaQueEspera'
 import type { SceneDeletionInfo, SceneListItem } from '../stores/adventureStore'
 import type { MapData } from '../types/map'
 
@@ -82,7 +83,35 @@ export interface ScenesSectionProps {
    * botão "Pausar" (sem sala, não há grupo esperando).
    */
   onTogglePause?: (sceneId: string, paused: boolean) => void
+  /**
+   * Desde quando (ms, relógio do mestre) cada cena espera o mestre: gente lá
+   * e o editor noutra cena (`lib/cenaQueEspera.ts`). A linha mostra 'há N
+   * min' a partir de 1 min. Ausente ou vazio = nenhuma linha mostra espera.
+   */
+  waitingSince?: EsperaPorCena
 }
+
+/** De quanto em quanto tempo o 'há N min' se atualiza sozinho. */
+const WAITING_TICK_MS = 15_000
+
+/**
+ * O relógio do 'há N min', vivo só enquanto alguma cena espera. Mora aqui, e
+ * não no `App`: o tique re-renderiza só a lista Cenas, não o editor inteiro.
+ */
+function useWaitingMinutes(waitingSince: EsperaPorCena | undefined): ReadonlyMap<string, number> {
+  const [now, setNow] = useState(() => Date.now())
+  const waiting = waitingSince !== undefined && waitingSince.size > 0
+  useEffect(() => {
+    if (!waiting) return
+    // O relógio pode ter parado enquanto ninguém esperava: acerta antes do primeiro tique.
+    setNow(Date.now())
+    const timer = setInterval(() => setNow(Date.now()), WAITING_TICK_MS)
+    return () => clearInterval(timer)
+  }, [waiting, waitingSince])
+  return waitingSince === undefined ? NO_WAITING : minutosDeEspera(waitingSince, now)
+}
+
+const NO_WAITING: ReadonlyMap<string, number> = new Map()
 
 /** Quanto tempo o aviso "Recado enviado…" fica na linha da cena. */
 export const NOTE_FEEDBACK_MS = 4000
@@ -636,6 +665,20 @@ function insideCountLabel(count: number): string {
 }
 
 /**
+ * 'há 11 min' na linha da cena que espera o mestre; âmbar a partir de
+ * `ESPERA_LONGA_MIN`. O título diz o que é e ensina o Ctrl+J (atalho
+ * invisível é atalho inexistente).
+ */
+function SceneEspera({ minutes }: { minutes: number }) {
+  const label = rotuloDeEspera(minutes)
+  return (
+    <span className={`lb-cenas__espera${esperaLonga(minutes) ? ' lb-cenas__espera--longa' : ''}`} title={`Esperando você ${label} · Ctrl+J abre a que espera mais`}>
+      {label}
+    </span>
+  )
+}
+
+/**
  * "Cenas", no topo da aba Mapa: as cenas da aventura, a aberta destacada
  * (`aria-current`), "+ Nova cena", renomear e a "Visão geral" (miniaturas de
  * todas as cenas com as fichas, `SceneOverview.tsx`). O nome da cena é o botão
@@ -667,7 +710,9 @@ export function ScenesSection({
   alarm,
   paused,
   onTogglePause,
+  waitingSince,
 }: ScenesSectionProps) {
+  const waiting = useWaitingMinutes(waitingSince)
   const [editing, setEditing] = useState<Editing>(null)
   /** Cena com o menu "…" aberto; `null` = nenhuma. */
   const [menuFor, setMenuFor] = useState<string | null>(null)
@@ -1172,6 +1217,7 @@ export function ScenesSection({
             .filter((name) => name !== '')
             .join(' ')
           const isPaused = paused?.has(scene.id) === true
+          const minutesWaiting = waiting.get(scene.id)
           return (
             <li
               key={scene.id || 'cena-solta'}
@@ -1219,6 +1265,7 @@ export function ScenesSection({
                 {scene.name}
               </button>
               <span className="lb-cenas__conta">{tokenCountLabel(scene.tokenCount)}</span>
+              {minutesWaiting !== undefined && <SceneEspera minutes={minutesWaiting} />}
               {scene.active && scene.renamable && editing === null && (
                 <button
                   type="button"

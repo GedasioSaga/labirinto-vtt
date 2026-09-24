@@ -630,7 +630,7 @@ interface MapStoreState {
    */
   updateToken: (
     id: string,
-    patch: Partial<Pick<Token, 'rotation' | 'locked' | 'hidden' | 'color' | 'size' | 'health' | 'vigia' | 'npc' | 'publicName'>>,
+    patch: Partial<Pick<Token, 'rotation' | 'locked' | 'hidden' | 'color' | 'size' | 'health' | 'vigia' | 'npc' | 'publicName' | 'playerCharacter'>>,
   ) => void
   /**
    * CONDIÇÃO NA FICHA: marca a condição se ela não está na ficha, desmarca se
@@ -759,7 +759,7 @@ interface MapStoreState {
    *  mantido em dia por `stores/adventureStore.ts`, fora deste desfazer. */
   updatePin: (
     id: string,
-    patch: Partial<Pick<MapData['pins'][number], 'kind' | 'icon' | 'description' | 'image' | 'locked' | 'destino' | 'passagem' | 'rotulo' | 'saidas' | 'item' | 'abreCom' | 'presoA' | 'portaLigada'>>,
+    patch: Partial<Pick<MapData['pins'][number], 'kind' | 'icon' | 'description' | 'image' | 'locked' | 'destino' | 'passagem' | 'mudo' | 'rotulo' | 'saidas' | 'item' | 'abreCom' | 'presoA' | 'portaLigada'>>,
   ) => void
   /**
    * ALAVANCA: o mestre aciona pelo painel — a porta ligada abre ou fecha, com

@@ -173,6 +173,12 @@ import { MASTER_ROLLER_NAME, parseDiceRequest, type DiceRequest, type DiceRollEn
  * do andar dele e, de cada OUTRO andar do mesmo prédio onde ele já esteve, o
  * rótulo, a planta recortada pela memória dele e o explorado). Nunca nome de
  * cena nem de prédio. Jogador antigo ignora; mestre antigo não manda.
+ *
+ * QUEM CHEGA ESCOLHE A FICHA é aditivo pelo mesmo critério: `seat.options`
+ * (mestre -> jogador sem personagem: as fichas que ele pode pedir, só id e
+ * nome), `seat.claim` (jogador -> mestre) e, na volta, `seat.claim.state`.
+ * Mestre antigo responde `error invalid_message` ao pedido e nunca manda a
+ * lista (o jogador fica na espera de sempre); jogador antigo ignora as duas.
  */
 export const PROTOCOL_VERSION = 1
 
@@ -479,8 +485,15 @@ export interface DiceRolledMessage {
   roll: DiceRollEntry
 }
 
+/** Quem está sem personagem pede a ficha `tokenId` da lista `seat.options`. O mestre confirma. */
+export interface SeatClaimMessage {
+  type: 'seat.claim'
+  tokenId: string
+}
+
 export type PlayerMessage =
   | JoinMessage
+  | SeatClaimMessage
   | TokenMoveMessage
   | PingMessage
   | SignalMessage
@@ -715,6 +728,41 @@ export interface SceneAlarmEndMessage {
   id: string
 }
 
+/** Uma ficha que quem está sem personagem pode pedir: só o id e o nome — nem cena, nem posição. */
+export interface SeatOption {
+  tokenId: string
+  name: string
+}
+
+/** As fichas livres, para quem está sem personagem. Lista vazia = nenhuma a escolher. */
+export interface SeatOptionsMessage {
+  type: 'seat.options'
+  tokens: SeatOption[]
+}
+
+/** Teto da lista de fichas livres: acima disto a mensagem é lixo, não mesa. */
+export const SEAT_OPTIONS_MAX = 64
+/** Teto do nome de ficha na lista, em unidades UTF-16 (o host corta antes de mandar). */
+export const SEAT_OPTION_NAME_MAX_LENGTH = 64
+
+/**
+ * Onde está o pedido de ficha: `pending` (o mestre vai responder), `denied`
+ * (o mestre disse não), `unavailable` (a ficha já não está livre, ou quem
+ * pediu já joga) e `too_soon` (pediu de novo logo depois de um não).
+ */
+export type SeatClaimState = 'pending' | 'denied' | 'unavailable' | 'too_soon'
+
+const SEAT_CLAIM_STATES: readonly SeatClaimState[] = ['pending', 'denied', 'unavailable', 'too_soon']
+
+export function isSeatClaimState(value: unknown): value is SeatClaimState {
+  return SEAT_CLAIM_STATES.some((state) => state === value)
+}
+
+/** O nome da ficha cortado no teto da lista, pela mesma regra do recado. */
+export function clampSeatOptionName(name: string): string {
+  return clampTextTo(name, SEAT_OPTION_NAME_MAX_LENGTH)
+}
+
 /**
  * `table_full`: já há `MAX_TABLE_SCREENS` telas da mesa na sala (`hostSession.ts`).
  * `bad_table_key`: tela da mesa sem a chave do link da TV, ou com outra.
@@ -787,6 +835,9 @@ export type HostMessage =
   | { type: 'point.action.answer'; action: PointActionKind; answer: PointActionAnswer }
   | { type: 'point.action.rejected'; reason: PointActionRejection }
   | DiceRolledMessage
+  | SeatOptionsMessage
+  // Só a quem pediu a ficha; a aceitação chega como o mapa, com a ficha dele.
+  | { type: 'seat.claim.state'; state: SeatClaimState }
   | { type: 'kicked' }
   | { type: 'room.closed' }
   // A mesma pessoa entrou por outra aba (ou aparelho) com o resume desta
@@ -1007,6 +1058,26 @@ export function parsePartyUpdate(value: unknown): PartyUpdateMessage | null {
     parsed.push({ playerId, name, where })
   }
   return { type: 'party.update', members: parsed }
+}
+
+/**
+ * Valida o `seat.options` que o jogador recebe. Os nomes vão para a tela: item
+ * malformado (id ou nome vazio, nome acima do teto) ou lista acima do teto
+ * recusam a lista inteira. Devolve cópia só com id e nome.
+ */
+export function parseSeatOptions(value: unknown): SeatOptionsMessage | null {
+  if (!isRecord(value) || value.type !== 'seat.options') return null
+  const { tokens } = value
+  if (!Array.isArray(tokens) || tokens.length > SEAT_OPTIONS_MAX) return null
+  const parsed: SeatOption[] = []
+  for (const item of tokens) {
+    if (!isRecord(item)) return null
+    const { tokenId, name } = item
+    if (!isBoundedString(tokenId, 1, REQ_ID_MAX_LENGTH)) return null
+    if (!isBoundedString(name, 1, SEAT_OPTION_NAME_MAX_LENGTH)) return null
+    parsed.push({ tokenId, name })
+  }
+  return { type: 'seat.options', tokens: parsed }
 }
 
 export type PointActionReply = Extract<HostMessage, { type: 'point.action.answer' } | { type: 'point.action.rejected' }>
@@ -1349,6 +1420,8 @@ export function parsePlayerMessage(raw: unknown): PlayerMessage | null {
     }
     case 'pin.lever':
       return isBoundedString(value.pinId, 1, REQ_ID_MAX_LENGTH) ? { type: 'pin.lever', pinId: value.pinId } : null
+    case 'seat.claim':
+      return isBoundedString(value.tokenId, 1, REQ_ID_MAX_LENGTH) ? { type: 'seat.claim', tokenId: value.tokenId } : null
     default:
       return null
   }

@@ -1,11 +1,12 @@
 import type { InvokeArgs } from '@tauri-apps/api/core'
 import type { UnlistenFn } from '@tauri-apps/api/event'
-import { useToastStore } from '../stores/toastStore'
-import type { MapData, RegionPoint, Token } from '../types/map'
+import { useToastStore, type ToastAction, type ToastResposta } from '../stores/toastStore'
+import type { MapData, PinPassage, RegionPoint, Token } from '../types/map'
 import { LASER_MAX_POINTS_PER_MESSAGE, LASER_SEND_INTERVAL_MS } from '../lib/laser'
 import { pointActionMasterText, type PointActionAnswer } from '../lib/pointActions'
 import type { StoredToken } from '../lib/storedTokens'
 import { addTravel, travelLogEntry, undoableTravelIds, withoutTravel, type TravelLogEntry } from '../lib/travelLog'
+import { createArrivalAnnouncer } from './avisoDeChegada'
 import {
   preferredRoomCode,
   reclaimText,
@@ -17,6 +18,7 @@ import {
 } from '../lib/savedTable'
 import {
   createHostSession,
+  ownTokenIdsOf,
   singleSceneWorld,
   type AppliedItems,
   type AppliedMove,
@@ -27,6 +29,7 @@ import {
   type AppliedTransfer,
   type CaravanStop,
   type HazardEntryNotice,
+  type GatherArrival,
   type HeldTokens,
   type HostDiceRoll,
   type AreaTriggerEntryNotice,
@@ -44,6 +47,7 @@ import {
   type PointActionRequest,
   type ReclaimedSeat,
   type ReturnCandidate,
+  type SeatClaim,
   type TravelRequest,
 } from './hostSession'
 import {
@@ -139,6 +143,12 @@ export interface HostBridgeDeps {
    * mestre: ninguém saberia atender.
    */
   applyTransfer?: (transfer: AppliedTransfer) => boolean
+  /**
+   * "Passar para pede" do pedido pelo pino trancado: trocar o modo do pino
+   * `pinId` (na cena de fundo `sceneId`, quando vier; ausente = a aberta).
+   * Sem este retorno a linha do pedido trancado não oferece "Passar para pede".
+   */
+  setPinPassage?: (pinId: string, passagem: PinPassage, sceneId?: string) => void
   /** "Ir lá" do aviso de chegada: abrir `sceneId` no editor com (`x`, `y`) no centro. */
   onGoToScene?: (sceneId: string, x: number, y: number) => void
   visionRadius?: number
@@ -239,9 +249,16 @@ export interface HostBridge {
    * "Mandar para…" do painel Grupo: leva a ficha do jogador para `toSceneId`,
    * no pino `pinId` ou no centro (`null`), sem pedido. `false` quando não deu
    * (sala fechada, destino ou ficha sumiram): o painel avisa e fica aberto.
-   * `gatherAt`: "Reunir o grupo aqui" — chega nessa casa, com o aviso de reunião.
+   * `gatherAt`: "Reunir o grupo aqui" — chega nessa casa, com o aviso de
+   * reunião; a montaria e o familiar, nas casas que o plano deu a eles.
    */
-  sendPlayer(playerId: string, toSceneId: string, pinId: string | null, gatherAt?: { x: number; y: number }): boolean
+  sendPlayer(playerId: string, toSceneId: string, pinId: string | null, gatherAt?: GatherArrival): boolean
+  /**
+   * "Trazer" do painel Grupo: a ficha `tokenId` do jogador, que ficou em
+   * outra cena, vem para o lado dele. Não é viagem: sem "Você chegou" e fora
+   * do diário. `false` quando não deu (sala fechada, ficha já na cena dele).
+   */
+  bringToken(playerId: string, tokenId: string): boolean
   /**
    * CARAVANA: "Desembarcar" a caravana do mapa-mundi `sceneId` na cidade sob
    * ela (o mesmo botão do aviso "A caravana chegou a…"). `false` quando
@@ -281,6 +298,15 @@ export interface HostBridge {
    * desconhecido, ou nada a guardar.
    */
   storeTokens(playerId: string): boolean
+  /**
+   * "Emprestar ficha a" do card de quem foi embora: as fichas dele passam a ser
+   * jogadas por `borrowerId` até ele voltar (`HostSession.lendTokens`). `false`
+   * (com aviso ao mestre) quando nada foi emprestado: sala fechada, dono
+   * conectado, quem recebe fora, ou ficha de outra cena.
+   */
+  lendTokens(ownerId: string, borrowerId: string): boolean
+  /** "Tomar de volta" da ficha emprestada. `false` com a sala fechada ou nada emprestado. */
+  endLoans(ownerId: string): boolean
   /**
    * Cópia das fichas guardadas agora, com a cena de onde cada uma saiu. Quem
    * grava o mapa as põe de volta no arquivo (`withStoredTokens`): senão
@@ -524,8 +550,8 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   const doorToasts = new Map<string, string>()
   /** Linha de cada pedido de item ainda na tela: `requestId` -> id do toast. */
   const itemToasts = new Map<string, string>()
-  /** Último aviso de chegada de cada jogador: `playerId` -> id do toast. */
-  const arrivalToasts = new Map<string, string>()
+  /** "Fulano entrou em X": um cartão por cena de destino (`net/avisoDeChegada.ts`). */
+  const announceArrival = createArrivalAnnouncer(deps.onGoToScene)
   /** O que cada conexão está vendo, anotado do que sai em `dispatch` (espelho do "Ver tela"). */
   const screens = createPlayerScreens()
   const screenWatchers = new Set<() => void>()
@@ -540,6 +566,8 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   const callToasts = new Map<string, string>()
   /** Linha da Caixa de cada ação no ponto ainda sem resposta: `requestId` -> id do toast. */
   const pointActionToasts = new Map<string, string>()
+  /** Linha da Caixa de cada pedido de ficha de quem chegou: `requestId` -> id do toast. */
+  const seatClaimToasts = new Map<string, string>()
   /** Diário de viagens desta sala, a mais nova em cima. Nunca sai pelo `net_send`. */
   let travelLog: TravelLogEntry[] = []
   let travelSeq = 0
@@ -680,6 +708,9 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   const sendPartyIfChanged = () => {
     if (session === null) return
     void dispatch(session.partyUpdates(world()))
+    // Os mesmos eventos mudam as fichas livres de quem está sem personagem
+    // (alguém ganhou ficha, o mestre marcou "Ficha de jogador"): mesma regra do "só se mudou".
+    void dispatch(session.seatOptionsUpdates(world()))
   }
 
   /** A lista da sessão com o que só a ponte sabe: as fichas guardadas de cada um. */
@@ -1052,6 +1083,52 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       pointActionToasts.delete(requestId)
       useToastStore.getState().dismiss(toastId)
     }
+    // Mesma regra para o pedido de ficha: quem pediu caiu, ganhou ficha pelo
+    // painel, ou a ficha foi para outro — o "Aceitar" não daria nada a ninguém.
+    for (const [requestId, toastId] of seatClaimToasts) {
+      if (session !== null && session.isSeatClaimPending(requestId)) continue
+      seatClaimToasts.delete(requestId)
+      useToastStore.getState().dismiss(toastId)
+    }
+  }
+
+  /**
+   * "Aceitar" ou "Não" do pedido de ficha. Aceitar revalida na sessão e dá a
+   * ficha; o mapa sai na hora para quem pediu, e quem pedia a mesma ficha lê
+   * que ela não está mais livre (a linha dele sai da caixa junto).
+   */
+  const answerSeatClaim = (requestId: string, allow: boolean) => {
+    const toastId = seatClaimToasts.get(requestId)
+    seatClaimToasts.delete(requestId)
+    if (toastId !== undefined) useToastStore.getState().dismiss(toastId)
+    if (session === null) return
+    if (!allow) {
+      void dispatch(session.denySeatClaim(requestId))
+      return
+    }
+    void dispatch(session.approveSeatClaim(requestId, world()))
+    broadcastNow()
+    notifyPlayersIfChanged()
+    pruneTravelToasts()
+  }
+
+  /**
+   * Quem chegou sem personagem pediu uma ficha: "Hugo quer jogar com Kael" na
+   * caixa "Pedidos", sozinho já em caixa (o mestre pode estar noutra cena, e
+   * o jogador está parado esperando). O × vale "Não": a pergunta nunca some
+   * sem resposta.
+   */
+  const askSeatClaim = (claim: SeatClaim) => {
+    const toastId = useToastStore.getState().push('instrucao', `${claim.playerName} quer jogar com ${claim.tokenName}`, null, {
+      actions: [
+        { label: 'Aceitar', run: () => answerSeatClaim(claim.requestId, true) },
+        { label: 'Não', run: () => answerSeatClaim(claim.requestId, false) },
+      ],
+      onDismiss: () => answerSeatClaim(claim.requestId, false),
+      grupo: 'Pedidos',
+      sempreEmCaixa: true,
+    })
+    seatClaimToasts.set(claim.requestId, toastId)
   }
 
   /**
@@ -1235,13 +1312,18 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     travelDenyRecents = [motivo, ...travelDenyRecents.filter((texto) => texto !== motivo)].slice(0, TRAVEL_DENY_RECENTS_MAX)
   }
 
-  /** `motivo`: o texto do "Não, porque…" (só com `allow` falso). */
-  const answerTravel = (requestId: string, allow: boolean, motivo?: string) => {
+  /**
+   * Resposta ao pedido de passagem. `allow`: "Deixar ir" (ou "Liberar uma
+   * vez", no pino trancado); `'pede'`: "Passar para pede" — o jogador passa e
+   * o pino trancado vira "pede" na cena dele. `motivo`: o texto do "Não,
+   * porque…" (só com `allow` falso).
+   */
+  const answerTravel = (requestId: string, allow: boolean | 'pede', motivo?: string) => {
     const toastId = travelToasts.get(requestId)
     travelToasts.delete(requestId)
     if (toastId !== undefined) useToastStore.getState().dismiss(toastId)
     if (session === null) return
-    if (!allow) {
+    if (allow === false) {
       const pendente = session.isTravelPending(requestId)
       void dispatch(session.denyTravel(requestId, motivo))
       // Só o motivo que chegou a ser dito entra nos recentes: pedido que já tinha morrido não conta.
@@ -1250,7 +1332,11 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       notifyPlayersIfChanged()
       return
     }
-    const result = session.approveTravel(requestId, world())
+    const result = allow === 'pede' ? session.approveLockedTravelAsAsk(requestId, world()) : session.approveTravel(requestId, world())
+    if (result.applyPinPassage !== undefined) {
+      const { pinId, passagem, sceneId } = result.applyPinPassage
+      deps.setPinPassage?.(pinId, passagem, sceneId)
+    }
     if (result.applyTransfer === undefined) {
       // Recusa da revalidação (o token andou, o pino sumiu, a porta foi
       // trancada) ou pedido que já morreu.
@@ -1292,14 +1378,19 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
    * ficha que ela leva (`transfer.junto`), para a mesma cena. Ficha levada que
    * não passou (sumiu entre a validação e aqui) não desfaz a de quem leva: ela
    * chegou, e é isso que o aviso diz. `false` = a de quem leva não passou.
+   *
+   * MONTARIA E FAMILIAR: o séquito (`transfer.entourage`) vai pelo mesmo
+   * caminho, cada um na casa que a sessão escolheu. O diário e o "Você
+   * chegou" são da ficha principal: o pônei não é viagem à parte.
    */
   const applyTransferAlong = (transfer: AppliedTransfer): boolean => {
     const apply = deps.applyTransfer
     if (apply === undefined) return false
-    const { junto, ...alone } = transfer
+    const { junto, entourage, ...alone } = transfer
     if (!apply(alone)) return false
-    // Ausente é o caso comum (ninguém levado), não falha.
+    // Ausente é o caso comum (ninguém levado, sem séquito), não falha.
     for (const carried of junto ?? []) apply({ ...alone, tokenId: carried.tokenId, x: carried.x, y: carried.y })
+    for (const seat of entourage ?? []) apply({ ...alone, tokenId: seat.tokenId, x: seat.x, y: seat.y })
     return true
   }
 
@@ -1338,26 +1429,6 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   }
 
   /**
-   * "Fulano entrou em X", com "Ir lá". Fica até o mestre dispensar ou ir: é
-   * uma oferta de ação, e o mestre está de olho no canvas — um aviso que some
-   * sozinho em segundos se perdia no meio da cena (medido na jornada da
-   * viagem: o mestre ainda olhava os jogadores quando ele sumiu). Para não
-   * empilhar, a chegada nova de um jogador substitui a anterior DELE.
-   */
-  const announceArrival = (transfer: AppliedTransfer) => {
-    const previous = arrivalToasts.get(transfer.playerId)
-    if (previous !== undefined) useToastStore.getState().dismiss(previous)
-    const goTo = deps.onGoToScene
-    const toastId = useToastStore.getState().push(
-      'info',
-      `${transfer.playerName} entrou em ${transfer.toSceneName}`,
-      null,
-      goTo === undefined ? {} : { actions: [{ label: 'Ir lá', run: () => goTo(transfer.toSceneId, transfer.x, transfer.y) }] },
-    )
-    arrivalToasts.set(transfer.playerId, toastId)
-  }
-
-  /**
    * Pedido de passagem válido: vira um aviso que ESPERA o mestre (não some
    * sozinho — o jogador está parado olhando "Aguardando o mestre…"). O × vale
    * "Não": a pergunta nunca some sem resposta. Grupo "Pedidos": com dois ou
@@ -1365,42 +1436,78 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
    * "Deixar ir" (`emLote`) de cada um — a mesma revalidação, pedido a pedido.
    */
   const askTravel = (request: TravelRequest) => {
+    if (request.trancada === true) {
+      askLockedTravel(request)
+      return
+    }
     // Quem está perto AGORA, só para oferecer o botão e dizer quantos; o
     // clique conta de novo (`answerTravelTogether`), porque o grupo anda.
     const nearby = session === null ? 0 : session.travelCompanions(request.requestId, world()).length
     const together = nearby === 0 ? [] : [{ label: `Deixar ir com quem está perto (${nearby})`, run: () => answerTravelTogether(request.requestId) }]
-    // "Ver": o editor vai à ficha de quem pediu, e a linha fica (`mantem`) —
-    // olhar não responde. A ficha é lida no clique: ela pode ter andado.
-    const goTo = deps.onGoToPoint
-    const ver =
-      goTo === undefined
-        ? []
-        : [
-            {
-              label: 'Ver',
-              mantem: true,
-              run: () => {
-                const target = session?.travelTarget(request.requestId, world()) ?? null // null = sala fechada, pedido decidido ou ficha fora de cena
-                if (target !== null) goTo(target.sceneId, target.x, target.y)
-              },
-            },
-          ]
     const toastId = useToastStore.getState().push('instrucao', `${request.playerName} quer passar por ${request.pinLabel} → ${request.toSceneName}`, null, {
       actions: [
         { label: 'Deixar ir', run: () => answerTravel(request.requestId, true), emLote: true },
         ...together,
-        ...ver,
+        ...travelVerAction(request.requestId),
         { label: 'Não', run: () => answerTravel(request.requestId, false) },
       ],
       onDismiss: () => answerTravel(request.requestId, false),
       grupo: 'Pedidos',
-      // "Não, porque…": o motivo curto chega só a quem pediu.
-      resposta: {
-        rotulo: 'Não, porque…',
-        maxLength: TRAVEL_DENY_TEXT_MAX_LENGTH,
-        enviar: (texto) => answerTravel(request.requestId, false, texto),
-        recentes: () => travelDenyRecents,
+      resposta: travelDenyResposta(request.requestId),
+    })
+    travelToasts.set(request.requestId, toastId)
+  }
+
+  /**
+   * "Ver" de uma linha de pedido de passagem (comum ou pelo pino trancado): o
+   * editor vai à ficha de quem pediu, e a linha fica (`mantem`) — olhar não
+   * responde. A ficha é lida no clique: ela pode ter andado. Sem quem leve o
+   * editor, nenhum "Ver".
+   */
+  const travelVerAction = (requestId: string): ToastAction[] => {
+    const goTo = deps.onGoToPoint
+    if (goTo === undefined) return []
+    return [
+      {
+        label: 'Ver',
+        mantem: true,
+        run: () => {
+          const target = session?.travelTarget(requestId, world()) ?? null // null = sala fechada, pedido decidido ou ficha fora de cena
+          if (target !== null) goTo(target.sceneId, target.x, target.y)
+        },
       },
+    ]
+  }
+
+  /** "Não, porque…" de uma linha de pedido de passagem: o motivo curto chega só a quem pediu. */
+  const travelDenyResposta = (requestId: string): ToastResposta => ({
+    rotulo: 'Não, porque…',
+    maxLength: TRAVEL_DENY_TEXT_MAX_LENGTH,
+    enviar: (texto) => answerTravel(requestId, false, texto),
+    recentes: () => travelDenyRecents,
+  })
+
+  /**
+   * Pedido pelo pino TRANCADO que aceita tentativas: a mesma linha em
+   * "Pedidos", com as respostas do cadeado. "Liberar uma vez" leva o jogador e
+   * deixa o pino trancado (é ela que o "Deixar todos" roda, `emLote`); "Passar
+   * para pede" leva e troca o modo, para a próxima passagem perguntar; "Não"
+   * (e o ×) recusa, e "Não, porque…" recusa com o motivo, como na linha comum.
+   * "Ver" leva o editor à ficha de quem pediu sem responder. Sem quem troque o
+   * modo, a linha fica sem "Passar para pede".
+   */
+  const askLockedTravel = (request: TravelRequest) => {
+    const paraPede = deps.setPinPassage === undefined ? [] : [{ label: 'Passar para pede', run: () => answerTravel(request.requestId, 'pede') }]
+    const toastId = useToastStore.getState().push('instrucao', `${request.playerName} quer passar por ${request.pinLabel} (trancada) → ${request.toSceneName}`, null, {
+      actions: [
+        { label: 'Liberar uma vez', run: () => answerTravel(request.requestId, true), emLote: true },
+        ...paraPede,
+        ...travelVerAction(request.requestId),
+        { label: 'Não', run: () => answerTravel(request.requestId, false) },
+      ],
+      onDismiss: () => answerTravel(request.requestId, false),
+      grupo: 'Pedidos',
+      resposta: travelDenyResposta(request.requestId),
     })
     travelToasts.set(request.requestId, toastId)
   }
@@ -1532,7 +1639,9 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     if (!wasJoined) {
       // Voltou (resume) quem teve a ficha guardada: ela volta ao mapa, de novo dele.
       const joined = session.listPlayers().find((p) => p.clientId === clientId)
-      if (joined !== undefined && restoreStoredOf(joined.playerId, true).length > 0) broadcastNow()
+      const restored = joined !== undefined && restoreStoredOf(joined.playerId, true).length > 0
+      // Voltou quem teve a ficha emprestada: quem a jogava precisa do mapa sem ela.
+      if (restored || result.loansReturned !== undefined) broadcastNow()
     }
     // A Ana voltou pelo resume: a pergunta "Ana voltou?" que outro aparelho provocou já não vale.
     pruneReturnToasts()
@@ -1543,6 +1652,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     pruneCallToasts()
     if (result.pointAction !== undefined) askPointAction(result.pointAction)
     if (result.diceRoll !== undefined) deps.onDiceRoll?.(result.diceRoll)
+    if (result.seatClaim !== undefined) askSeatClaim(result.seatClaim)
     if (result.applyMove !== undefined) {
       const { tokenId, x, y, sceneId } = result.applyMove
       // Cena aberta: a mesma chamada de sempre, sem o quarto argumento.
@@ -1835,6 +1945,18 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       return true
     },
 
+    bringToken(playerId, tokenId) {
+      if (session === null) return false
+      const transfer = session.bringToken(playerId, tokenId, world()).applyTransfer
+      // Não é viagem: nem diário nem "Você chegou". A ficha muda de cena pela
+      // store, e o próximo snapshot a mostra ao dono.
+      const moved = transfer !== undefined && (deps.applyTransfer?.(transfer) ?? false)
+      if (!moved) return false
+      broadcastNow()
+      notifyPlayersIfChanged()
+      return true
+    },
+
     undoTravel(entryId) {
       if (session === null) return false
       const entry = travelLog.find((e) => e.id === entryId)
@@ -1843,7 +1965,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       const result = session.returnPlayer(entry.playerId, entry.tokenId, back, world())
       const transfer = result.applyTransfer
       // A volta é a correção de um engano, não viagem nova: não entra no diário.
-      const moved = transfer !== undefined && (deps.applyTransfer?.(transfer) ?? false)
+      const moved = transfer !== undefined && applyTransferAlong(transfer)
       // O pedido de passagem que ele tinha morreu na sessão: o aviso do mestre sai junto.
       pruneTravelToasts()
       if (!moved) {
@@ -1926,6 +2048,8 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       void dispatch(session.assignToken(playerId, tokenId))
       broadcastNow()
       notifyPlayersIfChanged()
+      // Ficha dada pelo painel: o pedido de ficha de quem a ganhou (ou de quem pedia esta) sai da caixa.
+      pruneTravelToasts()
     },
 
     unassignToken(playerId, tokenId) {
@@ -1951,7 +2075,11 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     storeTokens(playerId) {
       if (session === null || deps.removeToken === undefined || deps.restoreToken === undefined) return false
       const player = session.listPlayers().find((p) => p.playerId === playerId)
-      if (player === undefined || player.connected || player.tokenIds.length === 0) return false
+      // Emprestada, a ficha está em jogo com outro: guardar a tiraria do mapa debaixo dele.
+      if (player === undefined || player.connected || player.lentTo !== undefined) return false
+      // A emprestada fica: é do dono, e guardá-la no nome de quem a joga a tiraria do dono para sempre.
+      const own = ownTokenIdsOf(player)
+      if (own.length === 0) return false
       const current = world()
       const stored = [...(storedTokens.get(playerId) ?? [])]
       for (const scene of [current.open, ...current.background]) {
@@ -1959,7 +2087,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
         const where = scene === current.open ? undefined : scene.sceneId
         if (where === null) continue
         for (const token of scene.map.tokens) {
-          if (!player.tokenIds.includes(token.id)) continue
+          if (!own.includes(token.id)) continue
           stored.push({ token, sceneId: scene.sceneId })
           // Sem dono enquanto guardada: a ficha não está em mapa nenhum. Ele está fora: não há a quem avisar.
           session.unassignToken(playerId, token.id)
@@ -1970,6 +2098,29 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       storedTokens.set(playerId, stored)
       const names = stored.map(({ token }) => token.name).join(', ')
       useToastStore.getState().push('info', `Ficha guardada: ${names}. Volta ao mapa quando ${player.name} voltar.`)
+      broadcastNow()
+      notifyPlayersIfChanged()
+      return true
+    },
+
+    lendTokens(ownerId, borrowerId) {
+      if (session === null) return false
+      const result = session.lendTokens(ownerId, borrowerId, world())
+      if (result.lent.length === 0) {
+        useToastStore.getState().push('error', 'Não deu para emprestar: só a ficha de quem está fora, para quem está conectado e na mesma cena dela.')
+        return false
+      }
+      void dispatch(result)
+      broadcastNow()
+      notifyPlayersIfChanged()
+      return true
+    },
+
+    endLoans(ownerId) {
+      if (session === null) return false
+      const result = session.endLoans(ownerId)
+      if (result.loansReturned === undefined) return false
+      void dispatch(result)
       broadcastNow()
       notifyPlayersIfChanged()
       return true

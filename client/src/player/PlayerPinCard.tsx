@@ -78,6 +78,14 @@ const TEXTOS_PEDE: TextosDaPassagem = {
   confirmar: 'Pedir',
 }
 
+/** Trancada que aceita tentativas: não é "passar", é pedir que o mestre abra. */
+const TEXTOS_TRANCADA: TextosDaPassagem = {
+  botao: 'Pedir ao mestre',
+  esperando: 'Pedido enviado ao mestre',
+  pergunta: 'Pedir ao mestre para abrir a passagem?',
+  confirmar: 'Pedir',
+}
+
 /** Livre: ninguém é interrompido, então o cartão não fala em mestre. */
 const TEXTOS_LIVRE: TextosDaPassagem = {
   botao: 'Passar',
@@ -203,29 +211,35 @@ export function PlayerPinCard({
   // ALAVANCA: qual porta ela move nunca chega aqui (`lib/fogFilter.ts`); o
   // cartão só oferece puxar, e o que mudou o jogador vê no mapa.
   const alavanca = pin.kind === 'alavanca'
-  // O modo vem no recorte (o destino, não). Trancada não oferece botão nenhum:
-  // um "Pedir" que o host sempre recusa só ensinaria o jogador a insistir.
+  // O modo vem no recorte (o destino, não). Trancada MUDA não oferece botão
+  // nenhum: um "Pedir" que o host sempre recusa só ensinaria o jogador a
+  // insistir. Trancada que aceita tentativas oferece "Pedir ao mestre".
   const passagem = passageOf(pin)
   const trancada = viagem && passagem === 'trancada'
   // CHAVE ABRE PORTA: o host só manda `chave` a quem encosta no pino com o
   // item. O mapa chega da rede sem conferência campo a campo: só texto vale.
   const chave = trancada && typeof pin.chave === 'string' && pin.chave !== '' ? pin.chave : null
-  const podePedir = viagem && (!trancada || chave !== null) && onRequestTravel !== undefined
+  const muda = trancada && pin.mudo === true
+  // Muda só abre com a chave; a que aceita tentativas vira pedido ao mestre.
+  const podePedir = viagem && (!muda || chave !== null) && onRequestTravel !== undefined
   // Escada: o sentido vem da escada do recorte (`lib/fogFilter.ts` só manda o pino junto com ela).
   const stairDirection: StairDirection | undefined =
     viagem && pin.escadaId !== undefined ? stairs.find((s) => s.id === pin.escadaId)?.direction : undefined
   const escada = stairDirection !== undefined ? stairTravelLabel(stairDirection) : null
   // A chave vence o modo: escada trancada com a chave na mochila também vira
   // "Usar <chave>" — o host deixa passar (`hostSession`), então o cartão não
-  // pode esconder o gesto. Sem chave, a escada trancada lê "Está trancada".
+  // pode esconder o gesto. Sem chave, a trancada que aceita tentativas pede ao
+  // mestre para abrir (escada ou não).
   const textos =
     chave !== null
       ? textosDaChave(chave, stairDirection)
-      : stairDirection !== undefined
-        ? textosDaEscada(stairDirection, passagem === 'livre')
-        : passagem === 'livre'
-          ? TEXTOS_LIVRE
-          : TEXTOS_PEDE
+      : trancada
+        ? TEXTOS_TRANCADA
+        : stairDirection !== undefined
+          ? textosDaEscada(stairDirection, passagem === 'livre')
+          : passagem === 'livre'
+            ? TEXTOS_LIVRE
+            : TEXTOS_PEDE
   // ENCRUZILHADA: com mais de uma saída, um botão por saída, pelo rótulo que o
   // mestre escreveu — o destino e o nome da cena nunca chegam aqui. Com uma
   // saída só (ou sem o campo), o cartão é o de sempre.
@@ -284,7 +298,8 @@ export function PlayerPinCard({
             Puxar a alavanca
           </button>
         )}
-        {trancada && chave === null && <p className="pp-pincard__locked">Está trancada. Não dá para passar por aqui agora.</p>}
+        {muda && chave === null && <p className="pp-pincard__locked">Está trancada. Não dá para passar por aqui agora.</p>}
+        {trancada && !muda && chave === null && <p className="pp-pincard__locked">Está trancada. Só o mestre pode abrir.</p>}
         {podePedir && confirming === null && !encruzilhada && (
           <button
             ref={askRef}

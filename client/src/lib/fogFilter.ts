@@ -12,7 +12,7 @@ import { isPointExplored, isShapeExplored, type Exploration } from './exploratio
 import { pointInRing, signedArea } from './floorContour'
 import { pieceBounds, pieceDistance, shapeCenter } from './floorSdf'
 import { visibleDrawings, visibleLights, visibleProps, visibleRegions, visibleStairs, visibleTokens, visibleWalls } from './layers'
-import { isPlayerSafePinImage } from './pins'
+import { isPlayerSafePinImage, passageOf } from './pins'
 import { CLUE_TITLE_ONLY_IMAGE, clampClueText, clueTitleFrom } from './clues'
 import { propPlayerImage, propPlayerLabel } from './propPlayerLook'
 import { exitLabelsOf, isArrivalOnly, travelExitsOf } from './pinTravel'
@@ -43,6 +43,13 @@ import { isDarkAt, periodOfHour, type PlayerClock } from './campaignClock'
 
 /** Folga da caixa envolvente do anel de visão, em px de mundo; muito acima do erro de arredondamento. */
 const BBOX_SLACK = 1e-3
+
+/**
+ * Raio de visão do jogador: um número vale para todas as fichas dele; a
+ * função dá o raio de CADA ficha (a emprestada enxerga com o raio do dono,
+ * não com o de quem a joga).
+ */
+export type VisionRadius = number | ((tokenId: string) => number)
 
 export interface PlayerMapView {
   map: MapData
@@ -1081,6 +1088,44 @@ function withoutBackpack(token: Token): Token {
   return semMochila
 }
 
+/**
+ * A marca "Ficha de jogador" é do mestre (quem ele oferece a quem chega): no
+ * mapa do jogador ela diria quais fichas em volta dele estão sem dono.
+ */
+function withoutMasterMarks(token: Token): Token {
+  if (token.playerCharacter === undefined) return token
+  const { playerCharacter: _masterOnly, ...rest } = token
+  return rest
+}
+
+/** Uma ficha que quem chega sem personagem pode pedir: só o id e o nome. */
+export interface ClaimableToken {
+  tokenId: string
+  name: string
+}
+
+/**
+ * A LISTA DE FICHAS LIVRES de quem entra sem personagem. Vai a quem ainda não
+ * tem visão nenhuma, então não passa pelo recorte da névoa: entra só o que o
+ * MESTRE oferece — ficha marcada "Ficha de jogador" —, e nunca a que ele
+ * esconde (secreta, oculta no editor, em camada oculta) nem a que já é de
+ * alguém (`taken`: dono conectado ou não, assento guardado). Sai só id e nome:
+ * nem cena, nem posição. Em ordem de nome; ficha repetida entre cenas, uma vez.
+ */
+export function claimableTokensForPlayer(maps: readonly MapData[], taken: ReadonlySet<string>): ClaimableToken[] {
+  const seen = new Set<string>()
+  const out: ClaimableToken[] = []
+  for (const map of maps) {
+    for (const token of visibleTokens(map.tokens, map.hiddenLayers)) {
+      if (token.playerCharacter !== true || token.secret === true || token.hidden === true) continue
+      if (taken.has(token.id) || seen.has(token.id)) continue
+      seen.add(token.id)
+      out.push({ tokenId: token.id, name: token.name })
+    }
+  }
+  return out.sort((a, b) => a.name.localeCompare(b.name, 'pt-BR') || a.tokenId.localeCompare(b.tokenId))
+}
+
 /** Porta explorada que o jogador nunca viu: aparece fechada e destrancada. */
 function unseenDoor(door: DoorState): DoorState {
   return { open: false, locked: false, kind: door.kind }
@@ -1115,7 +1160,7 @@ export function filterMapForPlayer(
   map: MapData,
   playerId: string,
   ownership: Record<string, string[]>,
-  visionRadius: number,
+  visionRadius: VisionRadius,
   explored?: Exploration,
   seenDoors?: ReadonlyMap<string, DoorState>,
   pinAudiences?: PinAudiences,
@@ -1151,10 +1196,14 @@ export function allPlayerTokens(ownership: Readonly<Record<string, readonly stri
   return new Set(Object.values(ownership).flat())
 }
 
-/** Um membro do grupo que a tela da mesa acompanha: as fichas dele e o raio de visão DELE. */
+/**
+ * Um membro do grupo que a tela da mesa acompanha: as fichas dele e o raio de
+ * visão DELE. RAIO POR FICHA: como função, cada ficha enxerga com o raio que
+ * ela devolve (a emprestada, com o do dono).
+ */
 export interface GroupViewer {
   tokenIds: readonly string[]
-  visionRadius: number
+  visionRadius: VisionRadius
 }
 
 /**
@@ -1185,7 +1234,11 @@ export function filterMapForGroup(
   // Posse é exclusiva (um token, um dono); se viesse repetido, vale o primeiro raio.
   const radiusByToken = new Map<string, number>()
   for (const viewer of viewers) {
-    for (const id of viewer.tokenIds) if (!radiusByToken.has(id)) radiusByToken.set(id, viewer.visionRadius)
+    for (const id of viewer.tokenIds) {
+      if (radiusByToken.has(id)) continue
+      const radius = viewer.visionRadius
+      radiusByToken.set(id, typeof radius === 'number' ? radius : radius(id))
+    }
   }
   const owned: ReadonlySet<string> = new Set(radiusByToken.keys())
   const layerTokens = visibleTokens(map.tokens, hiddenLayers)
@@ -1756,7 +1809,7 @@ export function filterMapForGroup(
   // MOCHILA: só a da PRÓPRIA ficha sai. O que o colega carrega é dele e do
   // mestre — ver a ficha dele no mapa não conta o que tem no bolso.
   const tokens = playerTokens
-    .map((t) => withoutNpcMark(tokenForPlayer(tokenAsSeenByPlayer(owned.has(t.id) ? t : withoutBackpack(t), owned.has(t.id)))))
+    .map((t) => withoutMasterMarks(withoutNpcMark(tokenForPlayer(tokenAsSeenByPlayer(owned.has(t.id) ? t : withoutBackpack(t), owned.has(t.id))))))
     .map(tokenHealthForPlayer)
     .map((t) => tokenWatchForPlayer(t, alerts.get(t.id) ?? null))
     // ROTA DE PATRULHA: os pontos dizem por onde o NPC vai passar — é do
@@ -2106,7 +2159,8 @@ export function alarmForPlayer(alarm: SceneAlarm | null, sceneId: string | null)
  *   diriam ao jogador que a outra cena existe, antes de o mestre deixar passar.
  * - `passagem` VAI, de propósito: o cartão do jogador precisa saber se oferece
  *   "Passar", "Pedir para passar" ou "Está trancada". O modo diz como a porta
- *   se comporta, não para onde ela leva.
+ *   se comporta, não para onde ela leva. O `mudo` do trancado vai pelo mesmo
+ *   motivo (oferecer ou não "Pedir ao mestre").
  * - `abreCom` NUNCA (CHAVE ABRE PORTA): o jogador não descobre que pinos uma
  *   chave abre. Em troca, `chave` — o nome do item que ELE já carrega — sai só
  *   no pino trancado que uma ficha dele, encostada, abre (`ownTokens`: as
@@ -2140,6 +2194,10 @@ function pinForPlayer(pin: Pin, ownTokens: readonly Token[], grid: number): Pin 
   // Escada: o id da ESCADA desta cena, que o jogador já recebe — é por ele que
   // o toque na escada acha o pino. Só chega aqui pino de escada que saiu.
   if (pin.escadaId !== undefined) forPlayer.escadaId = pin.escadaId
+  // Pino trancado MUDO: a marca vai, para o cartão não oferecer "Pedir ao
+  // mestre" que o host recusaria. Em qualquer outro modo ela não diz nada e
+  // fica de fora (sobra de quando o pino era trancado).
+  if (pin.mudo === true && passageOf(pin) === 'trancada') forPlayer.mudo = true
   // ENCRUZILHADA: o jogador recebe `escolhas`, montado AQUI (nunca copiado do
   // mestre): por saída, só o id e o rótulo. Pino de uma saída não ganha o
   // campo: o cartão dele é o de sempre, e o recorte também.

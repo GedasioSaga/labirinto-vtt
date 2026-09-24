@@ -334,6 +334,44 @@
   font-size: 18px;
 }
 
+/* Quem chega escolhe a ficha: a lista de fichas livres na tela de espera.
+   Botão por ficha, em coluna: no celular cada alvo tem a largura toda. */
+.pe-seats {
+  display: grid;
+  gap: 10px;
+  padding-top: 14px;
+  border-top: 1px solid var(--lb-color-line-strong, rgba(255, 255, 255, 0.16));
+}
+
+.pe-seats__title {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--lb-color-parchment-dim, #a2a09a);
+}
+
+.pe-seats__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 8px;
+}
+
+.pe-seats__option {
+  width: 100%;
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+
+.pe-seat-status {
+  margin: 0;
+  font-size: 16px;
+  color: var(--lb-color-parchment, #eceae4);
+}
+
 .pe-dot {
   flex: none;
   width: 9px;

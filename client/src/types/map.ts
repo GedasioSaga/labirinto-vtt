@@ -310,7 +310,8 @@ export interface PinExit extends PinExitLabel {
  * espalhados por várias cenas, aprovar cada passagem vira gargalo do mestre:
  * - `pede`: o jogador pede e o mestre decide ("Deixar ir"). É o de sempre;
  * - `livre`: o jogador passa sozinho, e o mestre só lê que ele chegou;
- * - `trancada`: ninguém passa, e nenhum pedido chega ao mestre.
+ * - `trancada`: ninguém passa sozinho; o jogador pode pedir ao mestre, que
+ *   libera ou não (a menos que o pino seja `mudo`: aí nada chega).
  * Cada pino do par tem o seu: a porta pode ser livre para ir e trancada para
  * voltar.
  */
@@ -390,6 +391,15 @@ export interface Pin extends PlayerSecret {
    * passar" ou "Está trancada", e o modo não diz nada da outra cena.
    */
   passagem?: PinPassage
+  /**
+   * Só do pino de viagem TRANCADO: o mestre desligou "Aceita tentativas". Mudo,
+   * o jogador lê "Está trancada" sem botão e nenhum pedido chega ao mestre.
+   * Ausente = aceita: o jogador pode "Pedir ao mestre" e o mestre responde
+   * "Liberar uma vez", "Passar para pede" ou "Não". Sai no recorte do jogador
+   * só no pino trancado (o cartão precisa saber se oferece o botão). O disco
+   * só aceita `true` (`lib/mapFile.ts`).
+   */
+  mudo?: true
   /**
    * Só do pino de viagem com VÁRIAS saídas: como o mestre chama a saída
    * principal (a de `destino`) — "Porta da cripta". Ausente = sem nome; o
@@ -753,6 +763,13 @@ export interface Token extends PlayerSecret {
    * `lib/carry.ts`. NÃO atravessa para o jogador (`lib/fogFilter.ts`).
    */
   levadoPor?: string | null
+  /** "Ficha de jogador": quem entra na sala sem personagem pode pedir esta
+   *  ficha enquanto ela não tiver dono. `undefined` === false (ficha de NPC,
+   *  fora da lista) — sem linha de migração. Marca opt-in de propósito: a
+   *  lista vai a quem ainda não tem visão nenhuma, então só o que o mestre
+   *  oferece entra nela (`claimableTokensForPlayer`, `lib/fogFilter.ts`).
+   *  NÃO viaja no mapa do jogador: é metadado do mestre. */
+  playerCharacter?: boolean
 }
 
 export interface Prop extends PlayerSecret {

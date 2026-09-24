@@ -11,7 +11,7 @@
 import { describe, expect, it } from 'vitest'
 import type { HostWorld } from '../net/hostSession'
 import type { MapData, Token, Wall } from '../types/map'
-import { applyGatherPlan, gatherCandidates, gatherSpots, planGather, type GatherPlan } from './gatherParty'
+import { applyGatherPlan, gatherCandidates, gatherGroups, gatherSpots, planGather, type GatherPlan } from './gatherParty'
 import { createEmptyMap } from './mapFactory'
 import type { PartyMember } from './party'
 
@@ -146,7 +146,7 @@ describe('planGather e applyGatherPlan', () => {
 
   it('jogador sem ficha não entra na lista nem no plano', () => {
     const semFicha: PartyMember = { ...ana, playerId: 'p9', name: 'Zé', token: null }
-    expect(gatherCandidates([ana, semFicha]).map((c) => c.name)).toEqual(['Ana'])
+    expect(gatherCandidates([ana, semFicha], mundo, PINO).map((c) => c.name)).toEqual(['Ana'])
     expect(planGather([semFicha], mundo, PINO).moves).toEqual([])
   })
 
@@ -163,5 +163,65 @@ describe('planGather e applyGatherPlan', () => {
     })
     expect(ordem).toEqual(['viaja p3 -> salao', 'anda lanterna'])
     expect(falhou).toEqual(['Carla'])
+  })
+})
+
+describe('gatherCandidates e gatherGroups: a lista agrupada por cena', () => {
+  const PORTO = 'porto'
+  const mundo: HostWorld = {
+    open: { sceneId: PORTO, name: 'Porto Cinza', map: mapa() },
+    background: [
+      { sceneId: 'cais', name: 'PC - Cais', map: mapa() },
+      { sceneId: 'sobrado', name: 'Sobrado', map: mapa() },
+    ],
+  }
+  const membro = (name: string, sceneId: string, p: { x: number; y: number }): PartyMember => ({
+    playerId: `p-${name}`,
+    name,
+    connected: true,
+    sceneId,
+    sceneName: null,
+    travelPending: false,
+    token: { id: `t-${name}`, color: '#3cff00', x: p.x, y: p.y },
+  })
+  // Ordem de chegada embaralhada de propósito: Hugo, colado no pino, chega primeiro.
+  const SETE = [
+    membro('Hugo', PORTO, casa(11, 5)),
+    membro('Bruno', 'cais', casa(1, 1)),
+    membro('Elisa', 'sobrado', casa(2, 1)),
+    membro('Carla', 'cais', casa(3, 1)),
+    membro('Fabio', 'sobrado', casa(4, 1)),
+    membro('Duda', 'cais', casa(5, 1)),
+    membro('Gabi', 'sobrado', casa(6, 1)),
+  ]
+
+  it('7 jogadores: um grupo por cena com a contagem, na ordem de chegada, e quem já está no pino por último', () => {
+    const grupos = gatherGroups(gatherCandidates(SETE, mundo, PINO))
+    expect(grupos.map((g) => [g.label, g.alreadyHere, g.candidates.map((c) => c.name)])).toEqual([
+      ['PC - Cais (3)', false, ['Bruno', 'Carla', 'Duda']],
+      ['Sobrado (3)', false, ['Elisa', 'Fabio', 'Gabi']],
+      ['Já aqui (1)', true, ['Hugo']],
+    ])
+  })
+
+  it('"já aqui" = na cena do pino a até 3 casas dele; mais longe, na mesma cena, é um grupo com o nome da cena', () => {
+    const tresCasas = membro('Ivo', PORTO, casa(13, 5))
+    const quatroCasas = membro('Joana', PORTO, casa(14, 5))
+    const candidatos = gatherCandidates([quatroCasas, tresCasas], mundo, PINO)
+    expect(candidatos.map((c) => [c.name, c.alreadyHere])).toEqual([
+      ['Joana', false],
+      ['Ivo', true],
+    ])
+    expect(gatherGroups(candidatos).map((g) => g.label)).toEqual(['Porto Cinza (1)', 'Já aqui (1)'])
+  })
+
+  it('mesma casa do pino, mas em OUTRA cena: não está aqui', () => {
+    const [candidato] = gatherCandidates([membro('Lia', 'cais', casa(11, 5))], mundo, PINO)
+    expect(candidato).toMatchObject({ name: 'Lia', alreadyHere: false, sceneLabel: 'PC - Cais' })
+  })
+
+  it('cena que o host não abriu e sem nome na ponte: aparece em "Outra cena", marcada, fora do "Já aqui"', () => {
+    const [candidato] = gatherCandidates([membro('Mia', 'porao', casa(11, 5))], mundo, PINO)
+    expect(candidato).toMatchObject({ name: 'Mia', sceneId: 'porao', sceneLabel: 'Outra cena', alreadyHere: false })
   })
 })
