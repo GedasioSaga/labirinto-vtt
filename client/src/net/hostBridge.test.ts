@@ -539,8 +539,9 @@ describe('hostBridge', () => {
     t.bridge.assignToken(playerId, 'heroi')
     const before = t.sent().length
     t.emit('net:message', { clientId: 'c1', msg: { type: 'signal', x: 210, y: 190 } })
-    expect(onSignal).toHaveBeenCalledWith({ playerId, name: 'Ana', color: expect.stringMatching(/^#[0-9a-f]{6}$/i), x: 210, y: 190 })
-    expect(t.sent().slice(before)).toEqual([{ clientId: 'c1', msg: expect.objectContaining({ type: 'signal', x: 210, y: 190, from: 'Ana' }) }])
+    // O mestre lê a jogadora e a ficha; o eco sai com o nome da ficha.
+    expect(onSignal).toHaveBeenCalledWith({ playerId, name: 'Ana', tokenName: 'Herói', color: expect.stringMatching(/^#[0-9a-f]{6}$/i), x: 210, y: 190 })
+    expect(t.sent().slice(before)).toEqual([{ clientId: 'c1', msg: expect.objectContaining({ type: 'signal', x: 210, y: 190, from: 'Herói' }) }])
     t.emit('net:message', { clientId: 'c1', msg: { type: 'signal', x: 210, y: 190 } })
     expect(onSignal).toHaveBeenCalledTimes(1)
   })

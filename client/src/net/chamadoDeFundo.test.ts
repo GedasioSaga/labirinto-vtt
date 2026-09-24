@@ -109,6 +109,13 @@ describe('createSignalRouter: ping só da cena aberta, aviso da de fundo', () =>
     expect(useToastStore.getState().toasts.map((t) => t.text)).toEqual(['Bruno chamou em Cripta Rubra', 'Caio chamou em Cripta Rubra'])
   })
 
+  it('disfarce: o aviso do mestre traz a jogadora e a ficha ("Bruno (Contínua do 9)"); ficha de mesmo nome não repete', () => {
+    const { rotear } = roteador()
+    rotear({ ...daCripta(700, 270), tokenName: 'Contínua do 9' })
+    rotear({ ...daCripta(10, 10), playerId: 'p-caio', name: 'Caio', tokenName: 'Caio' })
+    expect(useToastStore.getState().toasts.map((t) => t.text)).toEqual(['Bruno (Contínua do 9) chamou em Cripta Rubra', 'Caio chamou em Cripta Rubra'])
+  })
+
   it('"Ir lá" chama goTo com a cena e o ponto do sinal', () => {
     const { deps, rotear } = roteador()
     rotear(daCripta(700, 270))

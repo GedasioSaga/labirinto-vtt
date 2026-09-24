@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { MAX_ACTIVE_SIGNALS, SIGNAL_TTL_MS, type SignalMark } from '../lib/signals'
+import { MAX_ACTIVE_SIGNALS, SIGNAL_TTL_MS, signalLabelForMaster, type SignalMark } from '../lib/signals'
 import type { HostSignal } from '../net/hostSession'
 
 /**
@@ -29,7 +29,8 @@ export const useSignalStore = create<SignalState>()((set, get) => ({
 
   push: (signal, now = Date.now()) => {
     const id = `sinal-${nextId++}`
-    const active: ActiveSignal = { id, playerId: signal.playerId, name: signal.name, color: signal.color, x: signal.x, y: signal.y, createdAt: now }
+    const name = signalLabelForMaster(signal.name, signal.tokenName)
+    const active: ActiveSignal = { id, playerId: signal.playerId, name, color: signal.color, x: signal.x, y: signal.y, createdAt: now }
     const kept = get().signals
     // Acima do teto sai o mais antigo, junto com o timer dele.
     const overflow = kept.length + 1 - MAX_ACTIVE_SIGNALS

@@ -276,12 +276,15 @@ export type PinTravelCancelReason = 'player' | 'far'
 export type LaserMessage = { type: 'laser'; points: RegionPoint[] } | { type: 'laser'; off: true }
 
 /**
- * Laser de um JOGADOR repassado pelo host a quem está na mesma cena: `from` é
- * o nome dele na sala (único, igual ao `from` do sinal) e `color` a cor da
- * ficha dele. Aditivo: jogador antigo ignora os dois campos e desenha o rastro
- * como se fosse o do mestre.
+ * Laser de um JOGADOR repassado pelo host a quem está na mesma cena. Como o
+ * sinal, a mesa lê a FICHA, nunca a jogadora (o nome de entrada e a cor fixa
+ * dela denunciavam o disfarce): `from` é o nome da ficha como os outros a veem
+ * ('' = ficha sem nome para eles) e `color` a cor dela (sem cor, o cinza
+ * neutro). `key` separa um rastro do outro: opaca, nova a cada gesto, nem nome
+ * nem id de jogador — duas fichas de mesmo nome não se misturam. Sem `key`
+ * (host antigo), o rastro se separa por `from`, que aí não pode vir vazio.
  */
-export type RelayedLaserMessage = LaserMessage & { from: string; color: string }
+export type RelayedLaserMessage = LaserMessage & { from: string; color: string; key?: string }
 
 /** Recado do mestre a quem está numa cena. `id` novo = recado novo (substitui o que estiver aberto). */
 export interface SceneNoteMessage {
@@ -691,18 +694,21 @@ function parseLaserBody(value: Record<string, unknown>): LaserMessage | null {
 /**
  * Valida a mensagem `laser` que o jogador recebe (objeto já desserializado).
  * Sem `from` nem `color` é o laser do mestre; com os dois, o de outro jogador
- * (`RelayedLaserMessage`). Um só dos dois, nome fora do teto ou cor fora de
- * `#rrggbb` recusam a mensagem inteira — a cor vai direto para o desenho.
+ * (`RelayedLaserMessage`). Um só dos dois, nome fora do teto, cor fora de
+ * `#rrggbb` ou `key` torta recusam a mensagem inteira — a cor vai direto para
+ * o desenho. Nome vazio só vale com `key`: sem ela, é o nome que separa o rastro.
  */
 export function parseLaserMessage(value: unknown): LaserMessage | RelayedLaserMessage | null {
   if (!isRecord(value) || value.type !== 'laser') return null
   const body = parseLaserBody(value)
   if (body === null) return null
-  const { from, color } = value
+  const { from, color, key } = value
   if (from === undefined && color === undefined) return body
-  if (!isBoundedString(from, NAME_MIN_LENGTH, NAME_MAX_LENGTH + NAME_SUFFIX_ROOM)) return null
+  if (key !== undefined && !isBoundedString(key, 1, REQ_ID_MAX_LENGTH)) return null
+  const minFrom = key === undefined ? NAME_MIN_LENGTH : 0
+  if (!isBoundedString(from, minFrom, NAME_MAX_LENGTH + NAME_SUFFIX_ROOM)) return null
   if (typeof color !== 'string' || !LASER_COLOR_PATTERN.test(color)) return null
-  return { ...body, from, color }
+  return key === undefined ? { ...body, from, color } : { ...body, from, color, key }
 }
 
 /**

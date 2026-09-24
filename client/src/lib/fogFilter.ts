@@ -1,4 +1,4 @@
-import type { ConcealZone, DoorState, Drawing, FloorPiece, MapData, Pin, Region, RegionPoint, Token, Wall } from '../types/map'
+import type { ConcealZone, DoorState, Drawing, FloorPiece, Light, MapData, Pin, Region, RegionPoint, Token, Wall } from '../types/map'
 import { cellCenter, cellKeyAt, cellRunRects, concealedPieces, REVEAL_BRUSH_CELL, unveiledCellsOf } from './concealBrush'
 import { isTokenPhotoData } from './tokenPhoto'
 import { tokenAsSeenByPlayer } from './tokenPublicName'
@@ -892,6 +892,41 @@ function withoutNpcMark(token: Token): Token {
 }
 
 /**
+ * VULTO NO ESCURO: além desta fração do raio de visão de quem olha, a ficha de
+ * outro jogador fora de toda luz chega sem rótulo. Metade do raio: perto o
+ * bastante para ler o rosto, longe o bastante para o rótulo não entregar o
+ * disfarce do outro lado da sala (a 700 px, na rodada 10).
+ */
+const SHADOW_DISTANCE_FRACTION = 0.5
+
+/**
+ * Quais fichas este jogador recebe como VULTO: as de OUTRO jogador (NPC não
+ * muda; a própria nunca) mais longe que `SHADOW_DISTANCE_FRACTION` do raio de
+ * TODA ficha dele e fora do raio de toda luz que ele recebe.
+ */
+function shadowOfOtherPlayer(
+  playerId: string,
+  ownership: Record<string, string[]>,
+  ownTokens: readonly Token[],
+  lights: readonly Light[],
+  visionRadius: number,
+): (token: Token) => boolean {
+  const othersTokenIds = new Set(Object.entries(ownership).flatMap(([id, ids]) => (id === playerId ? [] : ids)))
+  const mine = new Set(ownership[playerId] ?? [])
+  const limit = visionRadius * SHADOW_DISTANCE_FRACTION
+  return (token) => {
+    if (!othersTokenIds.has(token.id) || mine.has(token.id)) return false
+    if (ownTokens.some((own) => Math.hypot(own.x - token.x, own.y - token.y) <= limit)) return false
+    return !lights.some((l) => Math.hypot(l.x - token.x, l.y - token.y) <= l.radius)
+  }
+}
+
+/** O vulto: a peça no lugar, sem nome, sem cor (cinza da mesa) e sem foto. */
+function asShadow(token: Token): Token {
+  return { ...token, name: '', color: null, image: null, imageData: null }
+}
+
+/**
  * "QUEM VÊ" de cada pino, por id: os jogadores escolhidos pelo mestre. Pino
  * AUSENTE do mapa = "Todos" (o pino de sempre); presente com o conjunto vazio =
  * "Só estes" sem ninguém marcado, e ninguém recebe. A lista vive na sessão do
@@ -1307,10 +1342,10 @@ export function filterMapForPlayer(
 
   // Token do próprio jogador sai sempre, mesmo secreto ou em zona oculta: é ele quem o move.
   // Nome: o dono lê o real; os outros, o "Nome para os jogadores" (o de trabalho do mestre não sai).
-  const tokens = layerTokens
-    .filter((t) => !t.hidden && (owned.has(t.id) || (!t.secret && !inClosedRoof({ x: t.x, y: t.y }) && isVisible({ x: t.x, y: t.y }))))
-    .map((t) => withoutNpcMark(sanitizeTokenPhoto(tokenAsSeenByPlayer(t, owned.has(t.id)))))
-  const sentTokenIds = new Set(tokens.map((t) => t.id))
+  const sentTokens = layerTokens.filter(
+    (t) => !t.hidden && (owned.has(t.id) || (!t.secret && !inClosedRoof({ x: t.x, y: t.y }) && isVisible({ x: t.x, y: t.y }))),
+  )
+  const sentTokenIds = new Set(sentTokens.map((t) => t.id))
   // Ficha que o MESTRE esconde deste jogador (oculta, secreta ou na camada
   // Fichas escondida). A tocha presa nela fica no centro dela e anda com ela:
   // enviar a luz, mesmo sem o vínculo, entregaria a posição e o trajeto do NPC.
@@ -1318,6 +1353,20 @@ export function filterMapForPlayer(
   const masterHiddenTokenIds = new Set(
     map.tokens.filter((t) => !sentTokenIds.has(t.id) && (t.hidden || t.secret || !layerTokenIds.has(t.id))).map((t) => t.id),
   )
+  // Tocha acesa dentro do prédio de teto fechado não sai: o halo dela
+  // desenharia o interior na tela do jogador que está lá fora.
+  // Tocha presa na ficha: o vínculo só vai se a ficha também vai; senão o
+  // id de ficha que a névoa, a zona oculta ou o mestre escondem sairia pela rede.
+  // Presa numa ficha que o mestre esconde, a luz nem sai (`masterHiddenTokenIds`).
+  const playerLights = visibleLights(map.lights, hiddenLayers)
+    .filter((l) => !l.hidden && !inClosedRoof({ x: l.x, y: l.y }) && isVisible({ x: l.x, y: l.y }))
+    .filter((l) => l.attachedTokenId === undefined || !masterHiddenTokenIds.has(l.attachedTokenId))
+    .map((l) => (l.attachedTokenId === undefined || sentTokenIds.has(l.attachedTokenId) ? l : withoutAttachment(l)))
+  const isShadow = shadowOfOtherPlayer(playerId, ownership, ownTokens, playerLights, visionRadius)
+  const tokens = sentTokens.map((t) => {
+    const seen = withoutNpcMark(sanitizeTokenPhoto(tokenAsSeenByPlayer(t, owned.has(t.id))))
+    return isShadow(t) ? asShadow(seen) : seen
+  })
 
   const filtered: MapData = {
     ...map,
@@ -1333,15 +1382,7 @@ export function filterMapForPlayer(
     tokens,
     markers: map.markers.filter((m) => !inRoomHiddenFromPlayer({ x: m.cx, y: m.cy }) && isPointKnown({ x: m.cx, y: m.cy })),
     lines: map.lines.filter((l) => !l.points.some(inRoomHiddenFromPlayer) && !l.points.some(inConcealZone) && isShapeKnown(l.points, { points: l.points, closed: l.closed })),
-    // Tocha acesa dentro do prédio de teto fechado não sai: o halo dela
-    // desenharia o interior na tela do jogador que está lá fora.
-    // Tocha presa na ficha: o vínculo só vai se a ficha também vai; senão o
-    // id de ficha que a névoa, a zona oculta ou o mestre escondem sairia pela rede.
-    // Presa numa ficha que o mestre esconde, a luz nem sai (`masterHiddenTokenIds`).
-    lights: visibleLights(map.lights, hiddenLayers)
-      .filter((l) => !l.hidden && !inClosedRoof({ x: l.x, y: l.y }) && isVisible({ x: l.x, y: l.y }))
-      .filter((l) => l.attachedTokenId === undefined || !masterHiddenTokenIds.has(l.attachedTokenId))
-      .map((l) => (l.attachedTokenId === undefined || sentTokenIds.has(l.attachedTokenId) ? l : withoutAttachment(l))),
+    lights: playerLights,
     stairs: visibleStairs(map.stairs, hiddenLayers).filter((s) => {
       const first = s.segments[0]
       if (s.hidden || s.secret || first === undefined || stairSamples(s).some(inRoomHiddenFromPlayer)) return false

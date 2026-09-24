@@ -123,6 +123,18 @@ describe('laser do jogador: recebido de outro jogador', () => {
     expect(connection.getState().laser).toBeUndefined()
   })
 
+  it('duas fichas de mesmo nome (ou sem nome) viram dois rastros: quem separa é a key, não o nome', () => {
+    const { connection, socket } = jogando()
+    socket.receive({ type: 'laser', points: [{ x: 100, y: 100 }], from: 'Guarda', key: 'laser-1', color: '#9ca3af' })
+    socket.receive({ type: 'laser', points: [{ x: 900, y: 100 }], from: 'Guarda', key: 'laser-2', color: '#9ca3af' })
+    socket.receive({ type: 'laser', points: [{ x: 500, y: 500 }], from: '', key: 'laser-3', color: '#9ca3af' })
+    const lasers = connection.getState().playerLasers ?? []
+    expect(lasers.map((l) => [l.key, l.label])).toEqual([['laser-1', 'Guarda'], ['laser-2', 'Guarda'], ['laser-3', '']])
+    expect(lasers[0]?.trail.points.map((p) => [p.x, p.y])).toEqual([[100, 100]])
+    socket.receive({ type: 'laser', off: true, from: 'Guarda', key: 'laser-1', color: '#9ca3af' })
+    expect(connection.getState().playerLasers?.map((l) => l.trail.on)).toEqual([true, true, false])
+  })
+
   it('mudou de cena: os lasers da cena de antes saem da tela', () => {
     const { connection, socket } = jogando()
     socket.receive({ type: 'laser', points: [{ x: 100, y: 100 }], from: 'Ana', color: '#3cff00' })

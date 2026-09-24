@@ -847,7 +847,8 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         const now = Date.now()
         if ('from' in laser) {
           // Laser de OUTRO jogador: rastro próprio, na cor da ficha dele — nunca se mistura ao do mestre.
-          const origin = { key: laser.from, label: laser.from, color: laser.color }
+          // A `key` opaca separa os rastros; host antigo, sem ela, separa pelo nome.
+          const origin = { key: laser.key ?? laser.from, label: laser.from, color: laser.color }
           const update: RemoteLaserUpdate = 'off' in laser ? { off: true } : { points: laser.points }
           updatePlayerLasers(applyRemoteLaser(pruneRemoteLasers(state.playerLasers ?? [], now), origin, update, now))
           return
