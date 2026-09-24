@@ -36,6 +36,12 @@ export interface PinTravelControlsProps {
   /** Como o jogador passa por ESTE pino (o par tem o seu). Vale para todas as saídas. */
   passage: PinPassage
   onPassageChange: (passage: PinPassage) => void
+  /**
+   * Só vale com "Trancada": o jogador pode "Pedir ao mestre" (ligada, o
+   * padrão) ou a passagem é muda (desligada) — nenhum pedido chega.
+   */
+  acceptsAttempts: boolean
+  onAcceptsAttemptsChange: (on: boolean) => void
   /** MÃO ÚNICA da saída `exitId`: marca (ou desmarca) o par dela como chegada oculta. */
   onOneWayChange: (exitId: string, on: boolean) => void
   /**
@@ -70,6 +76,11 @@ const EFEITO_DA_PASSAGEM: Record<PinPassage, string> = {
   livre: 'O jogador passa sozinho; você só lê que ele chegou.',
   trancada: 'Ninguém passa por aqui, e nenhum pedido chega a você.',
 }
+
+/** Trancada que aceita tentativas: o jogador ainda pode pedir. */
+const EFEITO_TRANCADA_COM_PEDIDO = 'Ninguém passa sozinho; o jogador pode pedir e você decide.'
+
+const TENTATIVAS_ID = 'lb-pin-travel-attempts'
 
 /** Foco depois do render: quem o recebe pode ter acabado de nascer (ou de trocar de pino). */
 function focarDepois(achar: () => HTMLElement | null | undefined): void {
@@ -129,6 +140,8 @@ export function PinTravelControls({
   onGo,
   passage,
   onPassageChange,
+  acceptsAttempts,
+  onAcceptsAttemptsChange,
   onOneWayChange,
   arrivalOnly,
 }: PinTravelControlsProps) {
@@ -331,7 +344,22 @@ export function PinTravelControls({
           </button>
         ))}
       </div>
-      <p className="lb-travel__hint">{EFEITO_DA_PASSAGEM[passage]}</p>
+      {passage === 'trancada' && (
+        // O mesmo botão de alternar da "Mão única" (`aria-pressed`), logo
+        // abaixo do modo que ele qualifica.
+        <button
+          type="button"
+          className="lb-btn lb-btn--ghost lb-btn--block"
+          aria-pressed={acceptsAttempts}
+          aria-describedby={TENTATIVAS_ID}
+          onClick={() => onAcceptsAttemptsChange(!acceptsAttempts)}
+        >
+          Aceita tentativas
+        </button>
+      )}
+      <p id={passage === 'trancada' ? TENTATIVAS_ID : undefined} className="lb-travel__hint">
+        {passage === 'trancada' && acceptsAttempts ? EFEITO_TRANCADA_COM_PEDIDO : EFEITO_DA_PASSAGEM[passage]}
+      </p>
 
       {escolha !== null && (
         <div id={SELETOR_ID} ref={seletorRef} className="lb-travel__picker">

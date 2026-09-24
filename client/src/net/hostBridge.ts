@@ -1,7 +1,7 @@
 import type { InvokeArgs } from '@tauri-apps/api/core'
 import type { UnlistenFn } from '@tauri-apps/api/event'
-import { useToastStore } from '../stores/toastStore'
-import type { MapData, RegionPoint, Token } from '../types/map'
+import { useToastStore, type ToastAction, type ToastResposta } from '../stores/toastStore'
+import type { MapData, PinPassage, RegionPoint, Token } from '../types/map'
 import { LASER_MAX_POINTS_PER_MESSAGE, LASER_SEND_INTERVAL_MS } from '../lib/laser'
 import { pointActionMasterText, type PointActionAnswer } from '../lib/pointActions'
 import type { StoredToken } from '../lib/storedTokens'
@@ -107,6 +107,12 @@ export interface HostBridgeDeps {
    * mestre: ninguém saberia atender.
    */
   applyTransfer?: (transfer: AppliedTransfer) => boolean
+  /**
+   * "Passar para pede" do pedido pelo pino trancado: trocar o modo do pino
+   * `pinId` (na cena de fundo `sceneId`, quando vier; ausente = a aberta).
+   * Sem este retorno a linha do pedido trancado não oferece "Passar para pede".
+   */
+  setPinPassage?: (pinId: string, passagem: PinPassage, sceneId?: string) => void
   /** "Ir lá" do aviso de chegada: abrir `sceneId` no editor com (`x`, `y`) no centro. */
   onGoToScene?: (sceneId: string, x: number, y: number) => void
   visionRadius?: number
@@ -910,13 +916,18 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     travelDenyRecents = [motivo, ...travelDenyRecents.filter((texto) => texto !== motivo)].slice(0, TRAVEL_DENY_RECENTS_MAX)
   }
 
-  /** `motivo`: o texto do "Não, porque…" (só com `allow` falso). */
-  const answerTravel = (requestId: string, allow: boolean, motivo?: string) => {
+  /**
+   * Resposta ao pedido de passagem. `allow`: "Deixar ir" (ou "Liberar uma
+   * vez", no pino trancado); `'pede'`: "Passar para pede" — o jogador passa e
+   * o pino trancado vira "pede" na cena dele. `motivo`: o texto do "Não,
+   * porque…" (só com `allow` falso).
+   */
+  const answerTravel = (requestId: string, allow: boolean | 'pede', motivo?: string) => {
     const toastId = travelToasts.get(requestId)
     travelToasts.delete(requestId)
     if (toastId !== undefined) useToastStore.getState().dismiss(toastId)
     if (session === null) return
-    if (!allow) {
+    if (allow === false) {
       const pendente = session.isTravelPending(requestId)
       void dispatch(session.denyTravel(requestId, motivo))
       // Só o motivo que chegou a ser dito entra nos recentes: pedido que já tinha morrido não conta.
@@ -925,7 +936,11 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       notifyPlayersIfChanged()
       return
     }
-    const result = session.approveTravel(requestId, world())
+    const result = allow === 'pede' ? session.approveLockedTravelAsAsk(requestId, world()) : session.approveTravel(requestId, world())
+    if (result.applyPinPassage !== undefined) {
+      const { pinId, passagem, sceneId } = result.applyPinPassage
+      deps.setPinPassage?.(pinId, passagem, sceneId)
+    }
     if (result.applyTransfer === undefined) {
       // Recusa da revalidação (o token andou, o pino sumiu, a porta foi
       // trancada) ou pedido que já morreu.
@@ -1011,42 +1026,74 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
    * "Deixar ir" (`emLote`) de cada um — a mesma revalidação, pedido a pedido.
    */
   const askTravel = (request: TravelRequest) => {
+    if (request.trancada === true) {
+      askLockedTravel(request)
+      return
+    }
     // Quem está perto AGORA, só para oferecer o botão e dizer quantos; o
     // clique conta de novo (`answerTravelTogether`), porque o grupo anda.
     const nearby = session === null ? 0 : session.travelCompanions(request.requestId, world()).length
     const together = nearby === 0 ? [] : [{ label: `Deixar ir com quem está perto (${nearby})`, run: () => answerTravelTogether(request.requestId) }]
-    // "Ver": o editor vai à ficha de quem pediu, e a linha fica (`mantem`) —
-    // olhar não responde. A ficha é lida no clique: ela pode ter andado.
-    const goTo = deps.onGoToPoint
-    const ver =
-      goTo === undefined
-        ? []
-        : [
-            {
-              label: 'Ver',
-              mantem: true,
-              run: () => {
-                const target = session?.travelTarget(request.requestId, world()) ?? null // null = sala fechada, pedido decidido ou ficha fora de cena
-                if (target !== null) goTo(target.sceneId, target.x, target.y)
-              },
-            },
-          ]
     const toastId = useToastStore.getState().push('instrucao', `${request.playerName} quer passar por ${request.pinLabel} → ${request.toSceneName}`, null, {
       actions: [
         { label: 'Deixar ir', run: () => answerTravel(request.requestId, true), emLote: true },
         ...together,
-        ...ver,
+        ...travelVerAction(request.requestId),
         { label: 'Não', run: () => answerTravel(request.requestId, false) },
       ],
       onDismiss: () => answerTravel(request.requestId, false),
       grupo: 'Pedidos',
-      // "Não, porque…": o motivo curto chega só a quem pediu.
-      resposta: {
-        rotulo: 'Não, porque…',
-        maxLength: TRAVEL_DENY_TEXT_MAX_LENGTH,
-        enviar: (texto) => answerTravel(request.requestId, false, texto),
-        recentes: () => travelDenyRecents,
+      resposta: travelDenyResposta(request.requestId),
+    })
+    travelToasts.set(request.requestId, toastId)
+  }
+
+  /**
+   * "Ver" de uma linha de pedido de passagem (comum ou pelo pino trancado): o
+   * editor vai à ficha de quem pediu, e a linha fica (`mantem`) — olhar não
+   * responde. A ficha é lida no clique: ela pode ter andado. Sem quem leve o
+   * editor, nenhum "Ver".
+   */
+  const travelVerAction = (requestId: string): ToastAction[] => {
+    const goTo = deps.onGoToPoint
+    if (goTo === undefined) return []
+    return [
+      {
+        label: 'Ver',
+        mantem: true,
+        run: () => {
+          const target = session?.travelTarget(requestId, world()) ?? null // null = sala fechada, pedido decidido ou ficha fora de cena
+          if (target !== null) goTo(target.sceneId, target.x, target.y)
+        },
       },
+    ]
+  }
+
+  /** "Não, porque…" de uma linha de pedido de passagem: o motivo curto chega só a quem pediu. */
+  const travelDenyResposta = (requestId: string): ToastResposta => ({
+    rotulo: 'Não, porque…',
+    maxLength: TRAVEL_DENY_TEXT_MAX_LENGTH,
+    enviar: (texto) => answerTravel(requestId, false, texto),
+    recentes: () => travelDenyRecents,
+  })
+
+  /**
+   * Pedido pelo pino TRANCADO que aceita tentativas: a mesma linha em
+   * "Pedidos", com as respostas do cadeado. "Liberar uma vez" leva o jogador e
+   * deixa o pino trancado (é ela que o "Deixar todos" roda, `emLote`); "Passar
+   * para pede" leva e troca o modo, para a próxima passagem perguntar; "Não"
+   * (e o ×) recusa. Sem quem troque o modo, a linha fica sem "Passar para pede".
+   */
+  const askLockedTravel = (request: TravelRequest) => {
+    const paraPede = deps.setPinPassage === undefined ? [] : [{ label: 'Passar para pede', run: () => answerTravel(request.requestId, 'pede') }]
+    const toastId = useToastStore.getState().push('instrucao', `${request.playerName} quer passar por ${request.pinLabel} (trancada) → ${request.toSceneName}`, null, {
+      actions: [
+        { label: 'Liberar uma vez', run: () => answerTravel(request.requestId, true), emLote: true },
+        ...paraPede,
+        { label: 'Não', run: () => answerTravel(request.requestId, false) },
+      ],
+      onDismiss: () => answerTravel(request.requestId, false),
+      grupo: 'Pedidos',
     })
     travelToasts.set(request.requestId, toastId)
   }

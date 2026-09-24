@@ -4,7 +4,7 @@ import { isPointExplored, isShapeExplored, type Exploration } from './exploratio
 import { pointInRing } from './floorContour'
 import { pieceBounds, pieceDistance, shapeCenter } from './floorSdf'
 import { visibleDrawings, visibleLights, visibleProps, visibleRegions, visibleStairs, visibleTokens, visibleWalls } from './layers'
-import { isPlayerSafePinImage } from './pins'
+import { isPlayerSafePinImage, passageOf } from './pins'
 import { exitLabelsOf, isArrivalOnly } from './pinTravel'
 import { computeVisibility, visionSegments } from './visibility'
 import { ancestorsOf, NESTING_TOLERANCE, pointInPolygonInclusive, pointOnPolygonBorder, subtreeIds } from './roomNesting'
@@ -767,7 +767,8 @@ export function filterMapForHost(map: MapData): MapData {
  *   diriam ao jogador que a outra cena existe, antes de o mestre deixar passar.
  * - `passagem` VAI, de propósito: o cartão do jogador precisa saber se oferece
  *   "Passar", "Pedir para passar" ou "Está trancada". O modo diz como a porta
- *   se comporta, não para onde ela leva.
+ *   se comporta, não para onde ela leva. O `mudo` do trancado vai pelo mesmo
+ *   motivo (oferecer ou não "Pedir ao mestre").
  */
 function pinForPlayer(pin: Pin): Pin {
   // LISTA DO QUE VAI, e não "copia tudo e apaga o que não pode": campo que o
@@ -788,6 +789,10 @@ function pinForPlayer(pin: Pin): Pin {
   if (pin.hidden !== undefined) forPlayer.hidden = pin.hidden
   if (pin.secret !== undefined) forPlayer.secret = pin.secret
   if (pin.passagem !== undefined) forPlayer.passagem = pin.passagem
+  // Pino trancado MUDO: a marca vai, para o cartão não oferecer "Pedir ao
+  // mestre" que o host recusaria. Em qualquer outro modo ela não diz nada e
+  // fica de fora (sobra de quando o pino era trancado).
+  if (pin.mudo === true && passageOf(pin) === 'trancada') forPlayer.mudo = true
   // ENCRUZILHADA: o jogador recebe `escolhas`, montado AQUI (nunca copiado do
   // mestre): por saída, só o id e o rótulo. Pino de uma saída não ganha o
   // campo: o cartão dele é o de sempre, e o recorte também.

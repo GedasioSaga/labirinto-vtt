@@ -478,6 +478,15 @@ function App() {
           const wall = store.map.walls.find((w) => w.id === wallId)
           if (wall?.door) store.setWallDoor(wallId, { ...wall.door, open: true, locked: false })
         },
+        // "Passar para pede" do pedido pelo pino trancado: o pino muda de modo
+        // na cena dele (de fundo quando o jogador estava lá), como o painel faria.
+        setPinPassage: (pinId, passagem, sceneId) => {
+          if (sceneId !== undefined) {
+            useAdventureStore.getState().updateBackgroundScene(sceneId, (m) => mapFactory.updatePin(m, pinId, { passagem }))
+            return
+          }
+          useMapStore.getState().updatePin(pinId, { passagem })
+        },
         // Nome/foto que o jogador trocou no próprio token, já validados pela
         // sessão (o token é dele, a foto é auto-contida). `image` chega como
         // referência embutida: ela vira a cópia que viaja, e o caminho do
@@ -1364,6 +1373,9 @@ function App() {
       // par da outra cena fica como está.
       passage: passageOf(pin),
       onPassageChange: (passagem: PinPassage) => useMapStore.getState().updatePin(pin.id, { passagem }),
+      // "Aceita tentativas" do trancado: desligar grava `mudo`; ligar tira a marca.
+      acceptsAttempts: pin.mudo !== true,
+      onAcceptsAttemptsChange: (on: boolean) => useMapStore.getState().updatePin(pin.id, { mudo: on ? undefined : true }),
       // Mão única mora no PAR (cena de fundo): marcar e desmarcar vão pela
       // aventura, fora do desfazer desta cena.
       onOneWayChange: (exitId: string, on: boolean) => {

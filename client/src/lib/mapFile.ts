@@ -181,6 +181,9 @@ function deserializeMapFields(json: string): MapData {
       // versão futura) volta AUSENTE, e não como "livre": na dúvida, a porta
       // pergunta ao mestre em vez de deixar o grupo passar sem ninguém ver.
       passagem: isPinPassage(p.passagem) ? p.passagem : undefined,
+      // PINO TRANCADO VIRA PEDIDO: `mudo` é campo NOVO e OPCIONAL. Só `true`
+      // vale; o resto volta AUSENTE — o trancado que aceita "Pedir ao mestre".
+      mudo: p.mudo === true ? true : undefined,
       // ENCRUZILHADA: `rotulo` e `saidas` são campos NOVOS e OPCIONAIS. Mapa
       // de antes não tem nenhum dos dois e abre como sempre, com a saída de
       // `destino`. Saída extra fora da forma é descartada sozinha (ver
