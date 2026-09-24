@@ -12,6 +12,8 @@ import {
 import { createPortal } from 'react-dom'
 import { CollapsibleSection } from './CollapsibleSection'
 import { SceneOverviewDialog, tokenCountLabel } from './SceneOverview'
+import { CorteDaTorreDialog } from './CorteDaTorre'
+import type { CorteJogador } from '../lib/corteDaTorre'
 import { ChevronDownIcon, CloseIcon, MoveIntoIcon, SearchIcon } from './icons'
 import { useSceneDrag, type SceneDrag } from './sceneDrag'
 import { NOTE_MAX_LENGTH } from '../net/protocol'
@@ -60,7 +62,18 @@ export interface ScenesSectionProps {
   onMove?: (sceneId: string, parentId: string | null) => boolean
   /** A aventura aberta: as pastas recolhidas são lembradas por aventura, neste computador. */
   adventureId?: string | null
+  /**
+   * CORTE DA TORRE: leva o editor à cena `sceneId` com o ponto no centro (o
+   * "Ir lá" do Grupo). Com ele e a "Visão geral" possível, a seção ganha o
+   * botão "Corte da torre". Ausente = sem o botão.
+   */
+  onGoToPoint?: (sceneId: string, x: number, y: number) => void
+  /** Jogadores da sala, para o corte pintar os pontos deles. Ausente = sala fechada: só fichas sem dono. */
+  towerPlayers?: readonly CorteJogador[]
 }
+
+/** Sala fechada: nenhum jogador. Constante para o corte não recalcular a cada render. */
+const NO_TOWER_PLAYERS: readonly CorteJogador[] = []
 
 /** Quanto tempo o aviso "Recado enviado…" fica na linha da cena. */
 export const NOTE_FEEDBACK_MS = 4000
@@ -386,7 +399,20 @@ function insideCountLabel(count: number): string {
  * dentro, "Mover para…" na cena aberta, e "Filtrar cenas" com o caminho em
  * cinza. Tudo isso é da lista do mestre: o jogador não recebe nada.
  */
-export function ScenesSection({ scenes, onSelect, onCreate, onRename, people, onNote, onQuake, maps, onMove, adventureId = null }: ScenesSectionProps) {
+export function ScenesSection({
+  scenes,
+  onSelect,
+  onCreate,
+  onRename,
+  people,
+  onNote,
+  onQuake,
+  maps,
+  onMove,
+  adventureId = null,
+  onGoToPoint,
+  towerPlayers = NO_TOWER_PLAYERS,
+}: ScenesSectionProps) {
   const [editing, setEditing] = useState<Editing>(null)
   const [draft, setDraft] = useState('')
   /** Janela "Visão geral das cenas" aberta. */
@@ -395,6 +421,10 @@ export function ScenesSection({ scenes, onSelect, onCreate, onRename, people, on
   const overviewButtonRef = useRef<HTMLButtonElement | null>(null)
   // Com uma cena só (mapa solto) não há o que comparar: a vista dela já é o editor.
   const canOverview = maps !== undefined && scenes.length > 1
+  /** Janela "Corte da torre" aberta. */
+  const [towerOpen, setTowerOpen] = useState(false)
+  const towerButtonRef = useRef<HTMLButtonElement | null>(null)
+  const canTower = canOverview && onGoToPoint !== undefined
   /** Cena com o recado aberto; `null` = nenhum. */
   const [noting, setNoting] = useState<string | null>(null)
   /** Cena de origem com o "Abalo" aberto; `null` = nenhuma. O aviso sai no mesmo lugar do recado. */
@@ -646,6 +676,18 @@ export function ScenesSection({ scenes, onSelect, onCreate, onRename, people, on
   const pickFromOverview = (sceneId: string) => {
     const picked = scenes.find((scene) => scene.id === sceneId)
     closeOverview()
+    if (picked !== undefined && !picked.active) onSelect(sceneId)
+  }
+
+  const closeTower = () => {
+    setTowerOpen(false)
+    towerButtonRef.current?.focus()
+  }
+
+  /** Nome de cena no corte: a mesma regra da miniatura — a já aberta só fecha. */
+  const pickSceneFromTower = (sceneId: string) => {
+    const picked = scenes.find((scene) => scene.id === sceneId)
+    closeTower()
     if (picked !== undefined && !picked.active) onSelect(sceneId)
   }
 
@@ -1013,9 +1055,35 @@ export function ScenesSection({ scenes, onSelect, onCreate, onRename, people, on
             Visão geral
           </button>
         )}
+        {canTower && (
+          <button
+            ref={towerButtonRef}
+            type="button"
+            className="lb-btn"
+            aria-haspopup="dialog"
+            aria-expanded={towerOpen}
+            title="Os andares empilhados, com os poços e quem está em cada um"
+            onClick={() => setTowerOpen(true)}
+          >
+            Corte da torre
+          </button>
+        )}
       </div>
       {overviewOpen && canOverview && maps !== undefined && (
         <SceneOverviewDialog scenes={tree.map((row) => row.entry)} maps={maps} onPick={pickFromOverview} onClose={closeOverview} />
+      )}
+      {towerOpen && maps !== undefined && onGoToPoint !== undefined && canTower && (
+        <CorteDaTorreDialog
+          scenes={scenes}
+          maps={maps}
+          players={towerPlayers}
+          onPickScene={pickSceneFromTower}
+          onPickPoint={(ponto) => {
+            closeTower()
+            onGoToPoint(ponto.sceneId, ponto.x, ponto.y)
+          }}
+          onClose={closeTower}
+        />
       )}
       {editing !== null && (
         <form className="lb-cenas__form" onSubmit={submit}>
