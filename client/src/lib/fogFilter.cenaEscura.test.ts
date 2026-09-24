@@ -190,6 +190,30 @@ describe('sala escura numa cena clara', () => {
     expect(escura.vision).toEqual(filterMapForPlayer(clara, 'p1', DUDA, RADIUS).vision)
     expect(escura.vision.length).toBe(1)
   })
+
+  it('camada Salas escondida pelo mestre: a sala escura em L não recorta a visão, e o formato dela não sai', () => {
+    // L sem paredes: o quarto 400..700 sem o canto 550..700 x 550..700.
+    const emL: RegionPoint[] = [
+      { x: 400, y: 400 },
+      { x: 700, y: 400 },
+      { x: 700, y: 550 },
+      { x: 550, y: 550 },
+      { x: 550, y: 700 },
+      { x: 400, y: 700 },
+    ]
+    const base = quartoEscuro({ x: 300, y: 300 }, { hiddenLayers: ['salas'], tokens: [token('duda', 300, 300)] })
+    const escuraMap: MapData = { ...base, regions: base.regions.map((r) => ({ ...r, points: emL })) }
+    const claraMap: MapData = { ...escuraMap, regions: escuraMap.regions.map((r) => (r.room ? { ...r, room: { ...r.room, dark: undefined } } : r)) }
+    const escura = filterMapForPlayer(escuraMap, 'p1', DUDA, 800)
+    const clara = filterMapForPlayer(claraMap, 'p1', DUDA, 800)
+    expect(escura.map.regions).toEqual([])
+    expect(escura.vision).toEqual(clara.vision)
+    // Os três braços do L continuam visíveis, como o canto fora dele.
+    expect(inVision(escura.vision, { x: 450, y: 450 })).toBe(true)
+    expect(inVision(escura.vision, { x: 600, y: 450 })).toBe(true)
+    expect(inVision(escura.vision, { x: 450, y: 600 })).toBe(true)
+    expect(inVision(escura.vision, { x: 600, y: 600 })).toBe(true)
+  })
 })
 
 function square(x1: number, y1: number, x2: number, y2: number): RegionPoint[] {

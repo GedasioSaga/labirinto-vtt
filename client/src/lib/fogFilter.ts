@@ -1144,8 +1144,8 @@ export function filterMapForPlayer(
    *
    * O escuro recorta a VISÃO, e a visão também sai pela rede (`vision`). Por
    * isso só entra aqui o que o jogador pode saber:
-   * - sala escura que ele não recebe (secreta, oculta, dentro de sala secreta,
-   *   engolida por teto fechado) NÃO escurece nada — senão o corte na visão
+   * - sala escura que ele não recebe (camada Salas escondida, secreta, oculta,
+   *   dentro de sala secreta, engolida por teto fechado) NÃO escurece nada — senão o corte na visão
    *   desenharia o formato dela;
    * - sala escura que toca zona oculta continua escura, e o preto da zona
    *   (`concealed`, que o jogador já recebe) entra junto como véu (`veils`):
@@ -1157,7 +1157,7 @@ export function filterMapForPlayer(
    *   numa ficha que o mestre esconde (o claro andando entregaria o NPC).
    */
   const darknessForPlayer = (): Darkness | null => {
-    const darkRooms = map.regions.filter(
+    const darkRooms = visibleRegions(map.regions, hiddenLayers).filter(
       (r) =>
         r.room?.dark === true &&
         !r.hidden &&
