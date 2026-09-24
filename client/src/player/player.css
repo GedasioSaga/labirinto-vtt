@@ -863,7 +863,7 @@
   animation: pp-pincard-fade 140ms ease-out;
 }
 
-/* Imagem em cima, texto embaixo — a ordem do pedido, e a mesma no DOM. */
+/* Imagem em cima (quando o mestre pôs uma), texto embaixo — a ordem do pedido, e a mesma no DOM. */
 .pp-pincard {
   display: flex;
   flex-direction: column;
@@ -920,7 +920,20 @@
   padding: 14px 16px 4px;
 }
 
-/* O mesmo "!" ou "?" do pino no mapa: liga o cartão ao que foi tocado. */
+/*
+ * SEM IMAGEM, CARTÃO COMPACTO: nada de área reservada para a foto que não
+ * existe. A cabeça do pino — a mesma que o jogador acabou de tocar no mapa —
+ * sobe para o lugar da imagem, e o texto vem logo embaixo, na largura toda.
+ * Com foto, o corpo segue em linha (cabeça ao lado do texto), como sempre.
+ */
+.pp-pincard--compacto .pp-pincard__body {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  padding-top: 16px;
+}
+
+/* A mesma cabeça do pino no mapa ("!", "?" ou o símbolo escolhido): liga o cartão ao que foi tocado. */
 .pp-pincard__glyph {
   flex: none;
   width: 26px;

@@ -43,7 +43,7 @@ import { TOKEN_FRAME_COLOR, TOKEN_FRAME_WIDTH, TOKEN_NAME_FILL_COLOR, TOKEN_NAME
 import { parseHexColor } from '../lib/tokenColor'
 import { fitPhotoSprite, textureFromDataUrl } from '../pixi/tokenPhotoSprite'
 import { isTokenPhotoData, tokenPhotoRef } from '../lib/tokenPhoto'
-import { createRoomNamesRenderer, findRoomLabelAt } from '../pixi/drawRoomNames'
+import { createRoomNamesRenderer, findRoomLabelAt, tokenLabelObstacles, type LabelObstacle } from '../pixi/drawRoomNames'
 import { hasEnterText } from '../lib/roomText'
 import { createTextLabelsRenderer } from '../pixi/drawTextLabels'
 import { isDegenerateRegion } from '../pixi/shapes'
@@ -326,6 +326,32 @@ interface TokenView {
 
 function tokenRadius(token: Token, grid: number): number {
   return Math.max((grid / 2) * token.size, 4)
+}
+
+/** Altura da linha do nome da ficha, em múltiplos da fonte: as letras e o contorno escuro em volta delas. */
+const TOKEN_LABEL_LINE_PER_FONT = 1.5
+
+/**
+ * O que cada ficha à vista ocupa no mapa — o disco e a faixa do nome embaixo
+ * dele —, para o nome da sala sair de baixo dela (`pixi/drawRoomNames.ts`). A
+ * faixa do nome vai de onde ele começa sem frente até onde termina com frente
+ * (o bico empurra o nome para baixo), medida no zoom 1: é a régua sem
+ * compensação de zoom que escolhe o lugar do nome, que assim não anda enquanto
+ * o jogador dá zoom. Desenho e toque usam esta mesma lista.
+ */
+function roomLabelObstacles(map: MapData): LabelObstacle[] {
+  return map.tokens.flatMap((token) => {
+    const radius = tokenRadius(token, map.grid)
+    return tokenLabelObstacles({
+      x: token.x,
+      y: token.y,
+      radius,
+      name: token.name,
+      nameFontSize: LABEL_FONT_SIZE,
+      nameTop: radius + TOKEN_LABEL_GAP,
+      nameBottom: facingLabelOffset(radius, 1, true) + LABEL_FONT_SIZE * TOKEN_LABEL_LINE_PER_FONT,
+    })
+  })
 }
 
 /**
@@ -1062,12 +1088,13 @@ export function PlayerView({
   /**
    * TEXTO DA SALA: Sala cujo NOME está sob o ponto da tela e cujo texto já
    * chegou ao jogador. A caixa do rótulo é medida com todas as Salas (o rótulo
-   * desvia das filhas); só depois se pergunta se aquela tem texto.
+   * desvia das filhas) e com as fichas (o rótulo sai de baixo delas), como no
+   * desenho; só depois se pergunta se aquela tem texto.
    */
   function roomTextAtScreen(scene: Scene, screenX: number, screenY: number): string | null {
     const map = latestRef.current.map
     const point = scene.world.toLocal({ x: screenX, y: screenY })
-    const region = findRoomLabelAt(visibleRegions(map.regions, map.hiddenLayers), point, map.grid, scene.camera.scale)
+    const region = findRoomLabelAt(visibleRegions(map.regions, map.hiddenLayers), point, map.grid, scene.camera.scale, roomLabelObstacles(map))
     return region !== null && hasEnterText(region.room) ? region.id : null
   }
 
@@ -1134,7 +1161,7 @@ export function PlayerView({
       scene.grid.visible = hasFloor
     }
 
-    scene.roomNamesRenderer.draw(scene.roomNames, regions, currentMap.grid, scene.camera.scale)
+    scene.roomNamesRenderer.draw(scene.roomNames, regions, currentMap.grid, scene.camera.scale, roomLabelObstacles(currentMap))
     scene.textLabelsRenderer.draw(scene.textLabels, drawings)
     scene.roomNames.visible = currentSettings.showNames
     scene.textLabels.visible = currentSettings.showNames

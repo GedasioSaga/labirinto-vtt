@@ -5,8 +5,12 @@ import { roomCentroid } from '../lib/roomRotation'
 import { screenLabelSizing } from './screenLabel'
 
 export interface RoomNamesRenderer {
-  /** `cameraScale` omitido mantém o último zoom informado. */
-  draw: (container: Container, regions: Region[], grid: number, cameraScale?: number) => void
+  /**
+   * `cameraScale` omitido mantém o último zoom informado. `tokens`: o que as
+   * fichas ocupam no mapa (`tokenLabelObstacles`) — o nome sai de baixo delas.
+   * Omitido = nenhuma ficha, que é o editor do mestre.
+   */
+  draw: (container: Container, regions: Region[], grid: number, cameraScale?: number, tokens?: readonly LabelObstacle[]) => void
   /** Só o zoom mudou: reescala e mostra/esconde os nomes sem re-rasterizar. */
   setCameraScale: (cameraScale: number) => void
 }
@@ -55,6 +59,14 @@ const PLATE_MIN_WIDTH_PER_FONT = 5.5
 /** A5 — nome que os jogadores não veem: esmaecido e itálico só no editor
  *  (o jogador recebe `name = ''` e nem chega a desenhar). */
 const HIDDEN_NAME_ALPHA = 0.5
+/** Altura das LETRAS do nome, sem a folga da pílula, em múltiplos da fonte. */
+const LABEL_TEXT_HEIGHT_PER_FONT = 1.2
+/**
+ * Folga entre o nome que subiu e a parede de cima (e entre ele e a ficha), em
+ * múltiplos da fonte: a mesma dos lados da pílula. O traço da parede e a porta
+ * desenhada nele continuam inteiros, sem a plaquinha encostar.
+ */
+const LABEL_EDGE_GAP_PER_FONT = PLATE_PAD_X_PER_FONT
 
 /** Centróide por área (fórmula do shoelace). Para polígono côncavo (sala em L)
  * a média dos vértices puxa o rótulo para o lado com mais cantos; o centróide
@@ -122,11 +134,52 @@ function labelHalfExtents(name: string, fontSize: number): LabelHalfExtents {
   return { halfWidth: plate.width / 2, halfHeight: plate.height / 2 }
 }
 
+/** Só as letras do nome, sem a folga da pílula: é ficha em cima DELAS que tira o nome do lugar. */
+function labelTextHalfExtents(name: string, fontSize: number): LabelHalfExtents {
+  return { halfWidth: estimateRoomLabelTextWidth(name, fontSize) / 2, halfHeight: (fontSize * LABEL_TEXT_HEIGHT_PER_FONT) / 2 }
+}
+
+function grown(half: LabelHalfExtents, by: number): LabelHalfExtents {
+  return { halfWidth: half.halfWidth + by, halfHeight: half.halfHeight + by }
+}
+
 interface Box {
   minX: number
   minY: number
   maxX: number
   maxY: number
+}
+
+/**
+ * O que o nome de uma sala não pode ficar embaixo, em px de mundo: hoje, o que
+ * uma ficha ocupa no mapa (`tokenLabelObstacles`).
+ */
+export type LabelObstacle = Box
+
+/** Uma ficha como ela aparece no mapa, na régua de que o nome da sala precisa. */
+export interface TokenOnMap {
+  x: number
+  y: number
+  /** Raio do disco desenhado, em px de mundo. */
+  radius: number
+  name: string
+  /** Fonte do nome da ficha, em px de mundo (sem a compensação de zoom). */
+  nameFontSize: number
+  /** Faixa vertical do nome, contada do centro da ficha para baixo, em px de mundo. */
+  nameTop: number
+  nameBottom: number
+}
+
+/**
+ * O que uma ficha ocupa no mapa: o disco e a faixa do nome embaixo dele. A
+ * largura do nome é a mesma estimativa por caractere do nome da sala, que erra
+ * sobrando — o lado certo de errar num obstáculo. Ficha sem nome é só o disco.
+ */
+export function tokenLabelObstacles(token: TokenOnMap): LabelObstacle[] {
+  const disc = { minX: token.x - token.radius, minY: token.y - token.radius, maxX: token.x + token.radius, maxY: token.y + token.radius }
+  if (token.name.trim() === '') return [disc]
+  const halfName = estimateRoomLabelTextWidth(token.name, token.nameFontSize) / 2
+  return [disc, { minX: token.x - halfName, minY: token.y + token.nameTop, maxX: token.x + halfName, maxY: token.y + token.nameBottom }]
 }
 
 function boundsOfPoints(points: readonly RegionPoint[]): Box | null {
@@ -171,13 +224,7 @@ function overlapsBox(x: number, y: number, half: LabelHalfExtents, box: Box): bo
  * nenhuma sala filha. Devolve o próprio centróide quando ele já está livre (o
  * caso de toda sala sem filha) ou quando a sala está tão tomada pelas filhas
  * que não sobra lugar nenhum — preferível a jogar o nome para fora da sala.
- *
- * A busca varre uma grade de candidatos dentro da caixa da sala e prefere, em
- * ordem: (1) o rótulo INTEIRO dentro do polígono e fora das filhas; (2) só o
- * centro dentro do polígono e o rótulo fora das filhas — é o que salva um nome
- * comprido numa faixa estreita, onde nenhuma posição comporta a caixa toda.
- * Empate de distância fica com o primeiro da varredura, que é sempre a mesma:
- * o resultado é determinístico.
+ * A busca é a de `nearestFreeLabelPoint`, com as filhas como obstáculo.
  *
  * Obstáculo é a CAIXA da filha, não o polígono dela: para uma filha redonda a
  * caixa é maior que a sala, e errar sobrando é o lado certo de errar aqui.
@@ -188,16 +235,49 @@ function freeRoomLabelAnchor(
   half: LabelHalfExtents,
 ): { x: number; y: number } {
   const anchor = roomLabelAnchor(points)
-  const blocked: Box[] = []
-  for (const child of children) {
-    const box = boundsOfPoints(child.points)
-    if (box) blocked.push(box)
-  }
-  const hitsChild = (x: number, y: number) => blocked.some((box) => overlapsBox(x, y, half, box))
-  if (blocked.length === 0 || !hitsChild(anchor.x, anchor.y)) return anchor
+  const blocked = boxesOf(children)
+  if (blocked.length === 0 || !blocked.some((box) => overlapsBox(anchor.x, anchor.y, half, box))) return anchor
+  return nearestFreeLabelPoint(points, blocked, half, anchor) ?? anchor
+}
 
+function boxesOf(regions: readonly Region[]): Box[] {
+  const boxes: Box[] = []
+  for (const region of regions) {
+    const box = boundsOfPoints(region.points)
+    if (box) boxes.push(box)
+  }
+  return boxes
+}
+
+/** A plaquinha inteira em (`x`, `y`) cabe no polígono (os quatro cantos dentro, borda inclusive). */
+function wholeLabelInside(x: number, y: number, half: LabelHalfExtents, points: readonly RegionPoint[]): boolean {
+  return (
+    pointInPolygonInclusive({ x: x - half.halfWidth, y: y - half.halfHeight }, points) &&
+    pointInPolygonInclusive({ x: x + half.halfWidth, y: y - half.halfHeight }, points) &&
+    pointInPolygonInclusive({ x: x + half.halfWidth, y: y + half.halfHeight }, points) &&
+    pointInPolygonInclusive({ x: x - half.halfWidth, y: y + half.halfHeight }, points)
+  )
+}
+
+/**
+ * O candidato mais perto de `target`, numa grade dentro da caixa da sala, em
+ * que a plaquinha (mais `clearance` de cada lado) não cai sobre nada de
+ * `blocked`. Prefere, em ordem: (1) a plaquinha INTEIRA dentro do polígono;
+ * (2) só o centro dentro — é o que salva um nome comprido numa faixa estreita,
+ * onde nenhuma posição comporta a caixa toda. Empate de distância fica com o
+ * primeiro da varredura, que é sempre a mesma: o resultado é determinístico.
+ * `null` = nenhum lugar livre.
+ */
+function nearestFreeLabelPoint(
+  points: readonly RegionPoint[],
+  blocked: readonly Box[],
+  half: LabelHalfExtents,
+  target: { x: number; y: number },
+  clearance = 0,
+): { x: number; y: number } | null {
   const area = boundsOfPoints(points)
-  if (!area || points.length < 3) return anchor
+  if (!area || points.length < 3) return null
+  const reach = grown(half, clearance)
 
   let best: { x: number; y: number } | null = null
   let bestDistance = Infinity
@@ -208,15 +288,10 @@ function freeRoomLabelAnchor(
     const y = area.minY + ((area.maxY - area.minY) * iy) / LABEL_SEARCH_STEPS
     for (let ix = 0; ix <= LABEL_SEARCH_STEPS; ix++) {
       const x = area.minX + ((area.maxX - area.minX) * ix) / LABEL_SEARCH_STEPS
-      if (hitsChild(x, y)) continue
+      if (blocked.some((box) => overlapsBox(x, y, reach, box))) continue
       if (!pointInPolygonInclusive({ x, y }, points)) continue
-      const distance = (x - anchor.x) ** 2 + (y - anchor.y) ** 2
-      const wholeLabelInside =
-        pointInPolygonInclusive({ x: x - half.halfWidth, y: y - half.halfHeight }, points) &&
-        pointInPolygonInclusive({ x: x + half.halfWidth, y: y - half.halfHeight }, points) &&
-        pointInPolygonInclusive({ x: x + half.halfWidth, y: y + half.halfHeight }, points) &&
-        pointInPolygonInclusive({ x: x - half.halfWidth, y: y + half.halfHeight }, points)
-      if (wholeLabelInside) {
+      const distance = (x - target.x) ** 2 + (y - target.y) ** 2
+      if (wholeLabelInside(x, y, half, points)) {
         if (distance < bestDistance) {
           best = { x, y }
           bestDistance = distance
@@ -228,7 +303,43 @@ function freeRoomLabelAnchor(
     }
   }
 
-  return best ?? fallback ?? anchor
+  return best ?? fallback
+}
+
+/**
+ * Onde o nome fica encostado na parede de CIMA, na coluna `x`: o topo do
+ * trecho de chão que a vertical por `x` atravessa na altura `nearY` (numa sala
+ * em U a vertical cruza dois trechos), mais a folga e meia plaquinha. `null`
+ * quando a vertical não entra na sala ou o trecho é baixo demais para a
+ * plaquinha.
+ */
+function topEdgeLabelPoint(
+  points: readonly RegionPoint[],
+  x: number,
+  nearY: number,
+  half: LabelHalfExtents,
+  gap: number,
+): { x: number; y: number } | null {
+  const crossings: number[] = []
+  for (let i = 0; i < points.length; i++) {
+    const a = points[i]
+    const b = points[(i + 1) % points.length]
+    // Meio-aberto: o vértice que cai bem na vertical conta uma vez só, e a aresta em pé não conta.
+    if ((a.x <= x && x < b.x) || (b.x <= x && x < a.x)) crossings.push(a.y + ((x - a.x) * (b.y - a.y)) / (b.x - a.x))
+  }
+  crossings.sort((p, q) => p - q)
+  let span: { top: number; bottom: number } | null = null
+  for (let i = 0; i + 1 < crossings.length; i += 2) {
+    const segment = { top: crossings[i], bottom: crossings[i + 1] }
+    if (span === null) span = segment
+    if (segment.top <= nearY && nearY <= segment.bottom) {
+      span = segment
+      break
+    }
+  }
+  if (span === null) return null
+  const y = span.top + gap + half.halfHeight
+  return y + half.halfHeight <= span.bottom ? { x, y } : null
 }
 
 /**
@@ -257,32 +368,81 @@ export function roomLabelPositionAvoidingChildren(
   return freeRoomLabelAnchor(region.points, children, labelHalfExtents(name, roomLabelFontSize(grid)))
 }
 
+/**
+ * FICHA EM CIMA DO NOME (simulação de 7 jogadores, cenário vila*). A camada
+ * das fichas é desenhada por cima da dos nomes: o Ladino parado no meio do
+ * Quarto do Prefeito tapava "Quarto do Prefeito", que sobrava como um borrão
+ * dos dois lados do disco. Quando uma ficha cai sobre as LETRAS do nome, ele
+ * sobe para a borda de cima da sala, por dentro da parede e na mesma coluna;
+ * se lá também houver ficha (ou uma sala filha), vai para o lugar livre mais
+ * perto dessa borda. Ficha só encostada na folga da pílula não mexe no nome:
+ * ele pular por um pixel de sobra incomodaria mais do que o pixel.
+ *
+ * O nome arrastado pelo mestre (`labelOffset`) fica onde ele soltou. Sem
+ * fichas é exatamente `roomLabelPositionAvoidingChildren` — o editor do mestre
+ * não passa fichas, e lá nada muda. A régua é a do grid, sem a compensação de
+ * zoom, pelo mesmo motivo de lá: o nome não anda enquanto se dá zoom.
+ */
+export function roomLabelPositionAvoidingTokens(
+  region: Region,
+  regions: readonly Region[],
+  grid: number,
+  tokens: readonly LabelObstacle[],
+): { x: number; y: number } {
+  const base = roomLabelPositionAvoidingChildren(region, regions, grid)
+  if (tokens.length === 0 || region.room?.labelOffset) return base
+  const name = region.room?.name.trim() ?? ''
+  if (name === '' || region.points.length < 3) return base
+  const fontSize = roomLabelFontSize(grid)
+  const letters = labelTextHalfExtents(name, fontSize)
+  if (!tokens.some((box) => overlapsBox(base.x, base.y, letters, box))) return base
+
+  const half = labelHalfExtents(name, fontSize)
+  const gap = fontSize * LABEL_EDGE_GAP_PER_FONT
+  const blocked = [...boxesOf(childRoomsOf(regions, region.id)), ...tokens]
+  const top = topEdgeLabelPoint(region.points, base.x, base.y, half, gap)
+  const reach = grown(half, gap)
+  if (top !== null && wholeLabelInside(top.x, top.y, half, region.points) && !blocked.some((box) => overlapsBox(top.x, top.y, reach, box))) {
+    return top
+  }
+  return nearestFreeLabelPoint(region.points, blocked, half, top ?? base, gap) ?? top ?? base
+}
+
 /** Retângulo (mundo) aproximado do rótulo de uma Sala; `null` sem nome ou
  *  com o nome escondido pelo zoom. `cameraScale` acompanha a escala de tela
  *  mínima do rótulo (screenLabel.ts). `regions` (a cena inteira) faz a caixa
- *  acompanhar o desvio das salas filhas — sem ela, o clique cairia no
- *  centróide cru e não no rótulo que está na tela. */
+ *  acompanhar o desvio das salas filhas, e `tokens` o desvio das fichas —
+ *  sem eles, o toque cairia onde o nome estaria, e não no rótulo que está na
+ *  tela. */
 export function roomLabelBounds(
   region: Region,
   grid: number,
   cameraScale = 1,
   regions: readonly Region[] = [],
+  tokens: readonly LabelObstacle[] = [],
 ): { minX: number; minY: number; maxX: number; maxY: number } | null {
   const name = region.room?.name.trim() ?? ''
   if (name === '') return null
   const sizing = screenLabelSizing(roomLabelFontSize(grid), cameraScale)
   if (!sizing.visible) return null
   const fontSize = roomLabelFontSize(grid) * sizing.scale
-  const center = roomLabelPositionAvoidingChildren(region, regions, grid)
+  const center = roomLabelPositionAvoidingTokens(region, regions, grid, tokens)
   const { halfWidth, halfHeight } = labelHalfExtents(name, fontSize)
   return { minX: center.x - halfWidth, minY: center.y - halfHeight, maxX: center.x + halfWidth, maxY: center.y + halfHeight }
 }
 
 /** Sala cujo rótulo contém o ponto. Percorre de trás para a frente porque a
- * região desenhada por último fica por cima. */
-export function findRoomLabelAt(regions: Region[], point: { x: number; y: number }, grid: number, cameraScale = 1): Region | null {
+ * região desenhada por último fica por cima. `tokens`: as mesmas fichas que o
+ * desenho recebeu — o toque acha o nome onde ele está na tela. */
+export function findRoomLabelAt(
+  regions: Region[],
+  point: { x: number; y: number },
+  grid: number,
+  cameraScale = 1,
+  tokens: readonly LabelObstacle[] = [],
+): Region | null {
   for (let i = regions.length - 1; i >= 0; i--) {
-    const bounds = roomLabelBounds(regions[i], grid, cameraScale, regions)
+    const bounds = roomLabelBounds(regions[i], grid, cameraScale, regions, tokens)
     if (bounds && point.x >= bounds.minX && point.x <= bounds.maxX && point.y >= bounds.minY && point.y <= bounds.maxY) {
       return regions[i]
     }
@@ -338,7 +498,7 @@ export function createRoomNamesRenderer(): RoomNamesRenderer {
     for (const id of namedIds) applySizing(id, lastFontSize)
   }
 
-  function draw(container: Container, regions: Region[], grid: number, cameraScale?: number): void {
+  function draw(container: Container, regions: Region[], grid: number, cameraScale?: number, tokens: readonly LabelObstacle[] = []): void {
     if (cameraScale !== undefined) lastCameraScale = cameraScale
     const named = regions.filter((r) => r.room !== undefined && r.room.name.trim() !== '')
     namedIds = new Set(named.map((r) => r.id))
@@ -368,7 +528,7 @@ export function createRoomNamesRenderer(): RoomNamesRenderer {
       if (textObj.parent !== container) container.addChild(textObj)
       // `regions` (a cena toda, não só as nomeadas): o desvio precisa enxergar
       // a sala filha mesmo quando ela ainda não tem nome.
-      const position = roomLabelPositionAvoidingChildren(region, regions, grid)
+      const position = roomLabelPositionAvoidingTokens(region, regions, grid, tokens)
       textObj.text = region.room?.name ?? ''
       textObj.position.set(position.x, position.y)
       // redrawShapes dispara a cada mudança do mapa; recriar o estilo toda vez
