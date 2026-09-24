@@ -141,6 +141,8 @@ import { createPropsRenderer } from './drawProps'
 import { createConcealZonesRenderer } from './drawConcealZones'
 import { drawHazardAreas } from './drawHazards'
 import { hazardAreas } from '../lib/hazards'
+import { drawConveyorMarks } from './drawConveyors'
+import { conveyorMarks, NO_CONVEYOR_MARKS } from '../lib/conveyorMarks'
 import { drawWatchCones } from './drawNpcWatch'
 import { createPinsRenderer } from './drawPins'
 import { findConcealZoneAt } from '../lib/concealZones'
@@ -705,6 +707,10 @@ export function PixiCanvas({
       // ZONA DE PERIGO: cor chapada sobre o chão e as salas, sob paredes e fichas.
       const hazardsGraphics = new Graphics()
       hazardsGraphics.eventMode = 'none'
+      // ESTEIRA e CABINE: setas finas no chão da sala-esteira e a ligação das
+      // cabines, sobre o perigo e sob as paredes (só o mestre desenha isto).
+      const conveyorsGraphics = new Graphics()
+      conveyorsGraphics.eventMode = 'none'
       // Pinos acima das zonas ocultas: o pino é o chamariz da cena e o mestre
       // precisa achá-lo mesmo sobre uma área que ele mesmo escondeu.
       const pinsContainer = new Container()
@@ -738,6 +744,7 @@ export function PixiCanvas({
         gridGraphics,
         gridAlignOverlayGraphics,
         hazardsGraphics,
+        conveyorsGraphics,
         wallsGraphics,
         doorsGraphics,
         stairsGraphics,
@@ -1288,6 +1295,11 @@ export function PixiCanvas({
         hazards: () => {
           const { map } = sceneState()
           drawHazardAreas(hazardsGraphics, map.hiddenLayers.includes('salas') ? [] : hazardAreas(map))
+        },
+        // ESTEIRA: a camada Salas escondida esconde a sala e a esteira dela junto.
+        conveyors: () => {
+          const { map } = sceneState()
+          drawConveyorMarks(conveyorsGraphics, map.hiddenLayers.includes('salas') ? NO_CONVEYOR_MARKS : conveyorMarks(map), camera.scale, app.renderer.resolution)
         },
         roomNames: () => {
           const { map } = sceneState()

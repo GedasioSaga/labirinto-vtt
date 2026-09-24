@@ -73,12 +73,31 @@ jogador vê só o próprio movimento.
   botão "Avançar esteiras". `mapStore.setPinCabin`, com histórico.
 - O jogador nunca recebe `cabine` (`pinForPlayer` copia por lista do que vai).
 
+## Cabine ao PAR (troca de cena)
+
+- O pino de VIAGEM também tem cabine: `Pin.cabine` = id do PAR (o pino da
+  outra cena para onde uma das saídas leva). Painel: "Par em <cena>" por saída
+  ligada. Chegada oculta (mão única) não tem cabine: não leva de volta.
+- `imposedMovement(map)` devolve o mapa desta cena e `transfers` (ficha, cena,
+  par). `stores/avancarMovimentoImposto.ts` executa: ficha de jogador pela
+  sessão (`hostBridge.sendPlayer(..., tokenId)`, o jogador recebe só
+  `scene.changed`), ficha sem dono por `levarFichaPara`. Fora do desfazer, como
+  toda travessia. Par que sumiu: aviso de erro ao mestre, ninguém se mexe.
+
+## Apito e desenho
+
+- "Próximo apito" da Agenda chama o mesmo Avançar do botão (`onApito`).
+  "Próximo dia" não: pular à Aurora não é um apito.
+- Canvas do mestre (camada `conveyors`, `pixi/drawConveyors.ts`): setas finas
+  na sala-esteira, linha fina de pino a pino da cabine, anel fino no pino com
+  cabine ao par. Cor clara da parede, apagada, traço de 1 px de tela.
+
 ## Fica para depois (pendências)
 
-- Cabine entre CENAS (o par em outra cena): hoje a cabine liga pinos da mesma cena.
-- Disparo automático pelo "Passar a vez" da iniciativa (hoje é só o botão).
-- Desenho da esteira no canvas (setas finas no chão, estilo minimapa) para o
-  mestre e, quando visível, para o jogador — com recorte próprio.
+- O apito move só a cena ABERTA: esteira de cena de fundo não anda (mexer no
+  desfazer de outra cena pede decisão própria).
+- Disparo automático pelo "Passar a vez" da iniciativa.
+- Desenho da esteira para o JOGADOR, quando visível — com recorte próprio.
 - Aviso ao dono ("A esteira te levou 3 casas"), no molde de `hazard.entered`.
 - Esteira que despeja em outra esteira (encadear no mesmo Avançar).
 - Tipo "corrente" (água) com rótulo próprio; a mecânica é a mesma.

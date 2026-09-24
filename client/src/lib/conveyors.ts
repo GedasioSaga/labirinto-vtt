@@ -1,5 +1,5 @@
 import type { Conveyor, ConveyorDirection, MapData, Region, RegionPoint, Token } from '../types/map'
-import { cabinDestinations } from './cabins'
+import { cabinDestinations, cabinTransfers, type CabinTransfer } from './cabins'
 import { moveCrossesWall } from './collision'
 import { pointInRing, signedArea } from './floorContour'
 import { NO_OWNER_RADII, seenOccupant, type OwnerVisionRadii } from './imposedOccupancy'
@@ -232,17 +232,42 @@ function runConveyors(map: MapData, live: readonly LiveConveyor[], radii: OwnerV
  * `radii` é o raio de visão do dono de cada ficha na sala (`ownerVisionRadii`
  * sobre os jogadores do host): com "Fichas ocupam espaço", só segura quem esse
  * raio alcança. Sem sala aberta, ninguém tem dono e o raio cobre o mapa.
+ *
+ * Só o que fica NESTA cena. Quem a cabine do pino de viagem leva ao par (outra
+ * cena) sai em `imposedMovement(...).transfers`.
  */
 export function advanceConveyors(map: MapData, radii: OwnerVisionRadii = NO_OWNER_RADII): MapData {
+  return imposedMovement(map, radii).map
+}
+
+/** Um Avançar inteiro: o mapa desta cena depois dele e quem a cabine leva ao par, em outra cena. */
+export interface ImposedMovement {
+  map: MapData
+  transfers: CabinTransfer[]
+}
+
+/**
+ * O Avançar de `advanceConveyors` mais as cabines que levam ao PAR
+ * (`cabinTransfers`): a ficha parada no pino de viagem com cabine sai desta
+ * cena. Quem a esteira moveu, ou já pegou cabine nesta cena, não vai.
+ */
+export function imposedMovement(map: MapData, radii: OwnerVisionRadii = NO_OWNER_RADII): ImposedMovement {
   const live = liveConveyors(map)
   const belts = live.length === 0 ? { tokens: map.tokens, moved: new Set<string>() } : runConveyors(map, live, radii)
   const rides = cabinDestinations(map, belts.tokens, belts.moved, occupyBlockers(map, belts.tokens), radii)
-  if (belts.moved.size === 0 && rides.size === 0) return map
+  const transfers = cabinTransfers(map, belts.tokens, new Set([...belts.moved, ...rides.keys()]))
+  if (belts.moved.size === 0 && rides.size === 0) return { map, transfers }
   const tokens = belts.tokens.map((token) => {
     const to = rides.get(token.id)
     return to === undefined ? token : { ...token, x: to.x, y: to.y }
   })
-  return { ...map, tokens }
+  return { map: { ...map, tokens }, transfers }
+}
+
+/** O Avançar leva alguém: nesta cena (esteira, cabine) ou para o par, em outra. */
+export function canAdvanceImposed(map: MapData, radii: OwnerVisionRadii = NO_OWNER_RADII): boolean {
+  const next = imposedMovement(map, radii)
+  return next.map !== map || next.transfers.length > 0
 }
 
 /** O que o painel da Sala mostra: a esteira dela e se o Avançar (de TODAS as esteiras) muda algo. */
@@ -257,6 +282,6 @@ export function roomConveyorState(map: MapData, roomId: string, radii: OwnerVisi
   return {
     direction: conveyor?.direction ?? null,
     stepCells: conveyor?.stepCells ?? DEFAULT_CONVEYOR_STEP,
-    canAdvance: advanceConveyors(map, radii) !== map,
+    canAdvance: canAdvanceImposed(map, radii),
   }
 }

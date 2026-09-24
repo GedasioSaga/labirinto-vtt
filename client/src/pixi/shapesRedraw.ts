@@ -3,6 +3,7 @@ import type { DrawingTool } from '../types/tools'
 import { selectionSingle, type SelectionSet } from '../lib/selectionModel'
 import { resolveHighlightedRegionId } from './drawRegions'
 import { hazardsOf } from '../lib/hazards'
+import { conveyorsOf } from '../lib/conveyors'
 import { tokenWatchOf } from '../lib/npcWatch'
 
 /**
@@ -19,6 +20,7 @@ export const SHAPES_LAYERS = [
   'regions',
   'drawings',
   'hazards',
+  'conveyors',
   'roomNames',
   'walls',
   'stairs',
@@ -117,6 +119,12 @@ export function shapesLayerDeps(layer: ShapesLayer, snapshot: ShapesSnapshot): r
     case 'hazards':
       // ZONA DE PERIGO: a cor pinta a sala tomada. Sem perigo no mapa, nada a repintar.
       return hazardsOf(map).length === 0 ? ['sem perigo'] : [map.hazards, map.regions, hidden]
+    case 'conveyors':
+      // ESTEIRA e CABINE: setas na sala, linha de pino a pino e anel no pino
+      // de viagem. Traço de 1 px de tela, então o zoom também repinta.
+      return conveyorsOf(map).length === 0 && !map.pins.some((p) => p.cabine !== undefined)
+        ? ['sem esteira']
+        : [map.conveyors, map.regions, map.pins, hidden, map.grid, cameraScale, rendererResolution]
     case 'roomNames':
       return [map.regions, hidden, map.grid]
     case 'walls':

@@ -474,8 +474,19 @@ export interface HostSession {
    * `gatherAt` é o "Reunir o grupo aqui": a ficha chega nessa casa (já
    * escolhida livre por `lib/gatherParty.ts`), `pinId` é ignorado e o aviso
    * sai como `by: 'gather'`.
+   *
+   * `tokenId` é a CABINE CONTÍNUA ao par (`lib/cabins.ts`): leva ESTA ficha
+   * dele, na cena onde ela está, e não a primeira da cena dele. Ficha que não
+   * é dele: nada.
    */
-  sendPlayer(playerId: string, toSceneId: string, pinId: string | null, source: HostMapSource, gatherAt?: { x: number; y: number }): HostResult
+  sendPlayer(
+    playerId: string,
+    toSceneId: string,
+    pinId: string | null,
+    source: HostMapSource,
+    gatherAt?: { x: number; y: number },
+    tokenId?: string,
+  ): HostResult
   /**
    * Raio de visão só deste jogador (limitado à faixa); `null` volta ao global.
    * Não envia: o integrador faz o broadcast. Jogador desconhecido ou raio não finito é ignorado.
@@ -1929,18 +1940,23 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       return findPendingDoor(requestId) !== undefined
     },
 
-    sendPlayer(playerId, toSceneId, pinId, source, gatherAt) {
+    sendPlayer(playerId, toSceneId, pinId, source, gatherAt, tokenId) {
       const record = players.get(playerId)
       if (record === undefined || statusOf(playerId) !== 'playing') return { outbound: [] }
+      const owned = ownership[playerId] ?? []
+      // A ficha exata (a cabine leva quem está nela): só se for dele.
+      if (tokenId !== undefined && !owned.includes(tokenId)) return { outbound: [] }
       const world = toWorld(source)
-      const from = sceneFor(playerId, world)
+      const from =
+        tokenId === undefined ? sceneFor(playerId, world) : (allScenes(world).find((scene) => scene.map.tokens.some((t) => t.id === tokenId)) ?? null)
       if (from === null || from.sceneId === null || from.sceneId === toSceneId) return { outbound: [] }
       const to = allScenes(world).find((scene) => scene.sceneId === toSceneId)
       if (to === undefined || to.sceneId === null) return { outbound: [] }
-      // A primeira ficha dele NESTA cena, na ordem em que o mestre as deu:
-      // quem tem duas fichas espalhadas não arrasta a outra cena junto.
-      const owned = ownership[playerId] ?? []
-      const token = owned.map((id) => from.map.tokens.find((t) => t.id === id)).find((t): t is Token => t !== undefined)
+      // Sem `tokenId`, a primeira ficha dele NESTA cena, na ordem em que o
+      // mestre as deu: quem tem duas fichas espalhadas não arrasta a outra cena junto.
+      const token = (tokenId === undefined ? owned : [tokenId])
+        .map((id) => from.map.tokens.find((t) => t.id === id))
+        .find((t): t is Token => t !== undefined)
       if (token === undefined) return { outbound: [] }
       const pin = gatherAt !== undefined || pinId === null ? null : to.map.pins.find((p) => p.id === pinId && p.kind === 'viagem')
       // Pino que sumiu entre abrir o painel e confirmar: não chega em outro lugar calado.

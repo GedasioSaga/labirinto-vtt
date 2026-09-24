@@ -4,8 +4,10 @@ import type { CabinTarget } from '../lib/cabins'
 export interface PinCabinControlsProps {
   /** Id da próxima parada deste pino; `null` = pino sem cabine. */
   target: string | null
-  /** As paradas possíveis: os outros pinos "!"/"?" da cena. */
+  /** As paradas possíveis: os outros pinos "!"/"?" da cena ou, no pino de viagem, o par de cada saída. */
   targets: readonly CabinTarget[]
+  /** O que dizer quando não há parada. Ausente = o texto do pino "!"/"?". */
+  emptyHint?: string
   /** Alguém, em cabine ou esteira da cena, anda no próximo Avançar. */
   canAdvance: boolean
   /** Liga à parada, troca, ou desliga (`null`). */
@@ -23,7 +25,7 @@ const NONE = ''
  * move as esteiras e as cabines juntas. O botão diz por que fica parado
  * quando ninguém tem para onde ir.
  */
-export function PinCabinControls({ target, targets, canAdvance, onChange, onAdvance }: PinCabinControlsProps) {
+export function PinCabinControls({ target, targets, emptyHint, canAdvance, onChange, onAdvance }: PinCabinControlsProps) {
   const baseId = useId()
   const selectId = `${baseId}-parada`
   const hintId = `${baseId}-cabine`
@@ -50,7 +52,7 @@ export function PinCabinControls({ target, targets, canAdvance, onChange, onAdva
       </select>
       {semParada && target === null && (
         <p className="lb-field__hint" id={hintId}>
-          Crave outro pino nesta cena para ser a próxima parada.
+          {emptyHint ?? 'Crave outro pino nesta cena para ser a próxima parada.'}
         </p>
       )}
       {target !== null && (

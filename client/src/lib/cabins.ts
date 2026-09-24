@@ -1,5 +1,6 @@
-import type { MapData, Pin, RegionPoint, Token } from '../types/map'
+import type { MapData, Pin, PinDestination, RegionPoint, Token } from '../types/map'
 import { seenOccupant, type OwnerVisionRadii } from './imposedOccupancy'
+import { isArrivalOnly, travelExitsOf, type PinTravel } from './pinTravel'
 
 /**
  * MOVIMENTO IMPOSTO — a CABINE CONTÍNUA (paternoster). Regra pura, sem DOM,
@@ -11,6 +12,12 @@ import { seenOccupant, type OwnerVisionRadii } from './imposedOccupancy'
  * A cabine anda no poço, não no chão: parede e porta fechada não a seguram.
  * Com "Fichas ocupam espaço", a parada ocupada por quem NÃO sai segura a
  * ficha; as cabines andam juntas, então quem sai da parada abre a vaga.
+ *
+ * O pino de VIAGEM também pode ser cabine, e a próxima parada dele é o PAR (o
+ * pino de viagem da outra cena para onde uma das saídas leva): é o
+ * paternoster que muda de andar. `Pin.cabine` guarda o id do par. Aqui só se
+ * diz quem vai e para onde (`cabinTransfers`); quem troca a ficha de cena é a
+ * aventura (`stores/avancarMovimentoImposto.ts`).
  */
 
 /** Nome da parada sem descrição: a casa do pino, contada a partir de 1. */
@@ -22,9 +29,21 @@ function cellLabel(pin: Pin, grid: number): string {
 /** Teto do rótulo da parada no painel: a coluna do rail não comporta mais. */
 const CABIN_LABEL_MAX = 40
 
-/** A cabine é do pino "!"/"?": o de viagem já tem o seu destino. */
+/** Parada DESTA cena: pino "!"/"?". O de viagem leva ao par dele, nunca a outro pino da cena. */
 function canBeCabin(pin: Pin): boolean {
   return pin.kind !== 'viagem'
+}
+
+/** As pontas das saídas do pino de viagem que pode ser cabine. Chegada oculta não leva de volta (mão única). */
+function parDestinations(pin: Pin): PinDestination[] {
+  if (pin.kind !== 'viagem' || isArrivalOnly(pin)) return []
+  return travelExitsOf(pin).map((saida) => saida.destino)
+}
+
+/** O par para onde a cabine do pino de viagem leva, ou `null` (sem cabine, ou par que não é de nenhuma saída). */
+function parStop(pin: Pin): PinDestination | null {
+  if (pin.cabine === undefined) return null
+  return parDestinations(pin).find((destino) => destino.pinId === pin.cabine) ?? null
 }
 
 /** `Pin.cabine` como veio do disco (cru): só texto não vazio; o resto é ausência. */
@@ -48,7 +67,9 @@ function nextStop(map: MapData, pin: Pin): Pin | null {
 /** Id da próxima parada do pino, ou `null` (sem cabine, ou ligada a pino que sumiu). */
 export function cabinOf(map: MapData, pinId: string): string | null {
   const pin = map.pins.find((p) => p.id === pinId)
-  return pin === undefined ? null : nextStop(map, pin)?.id ?? null
+  if (pin === undefined) return null
+  if (pin.kind === 'viagem') return parStop(pin)?.pinId ?? null
+  return nextStop(map, pin)?.id ?? null
 }
 
 /** Uma parada que o painel oferece. */
@@ -67,6 +88,24 @@ export function cabinTargets(map: MapData, pinId: string): CabinTarget[] {
     })
 }
 
+/** Teto do nome da cena no rótulo do par. */
+const PAR_SCENE_LABEL_MAX = 28
+
+/**
+ * As paradas do pino de VIAGEM: o par de cada saída ligada, pelo nome da cena
+ * (o painel é do mestre; o jogador nunca lê isto). `exits` é o que
+ * `pinExitsTravelOf` resolve; saída sem par ou com a cena fora do ar não entra.
+ */
+export function cabinTargetsOfPar(exits: readonly { rotulo: string; travel: PinTravel }[]): CabinTarget[] {
+  return exits.flatMap((exit): CabinTarget[] => {
+    if (exit.travel.status !== 'ligado') return []
+    const rotulo = exit.rotulo.trim()
+    const cena = exit.travel.sceneName.slice(0, PAR_SCENE_LABEL_MAX)
+    const label = rotulo === '' ? `Par em ${cena}` : `Par em ${cena} (${rotulo.slice(0, CABIN_LABEL_MAX)})`
+    return [{ id: exit.travel.partner.id, label }]
+  })
+}
+
 /**
  * O mestre liga o pino à próxima parada, troca, ou desliga (`null`). Pino que
  * não existe, parada inválida (o próprio pino, pino que não existe, pino de
@@ -74,13 +113,17 @@ export function cabinTargets(map: MapData, pinId: string): CabinTarget[] {
  */
 export function setPinCabin(map: MapData, pinId: string, targetId: string | null): MapData {
   const pin = map.pins.find((p) => p.id === pinId)
-  if (pin === undefined || !canBeCabin(pin)) return map
+  if (pin === undefined) return map
+  const viagem = pin.kind === 'viagem'
+  if (viagem && isArrivalOnly(pin)) return map
   if (targetId === null) {
     return pin.cabine === undefined ? map : { ...map, pins: map.pins.map((p) => (p === pin ? pinWithCabin(p, undefined) : p)) }
   }
   if (targetId === pinId || targetId === pin.cabine) return map
-  const target = map.pins.find((p) => p.id === targetId)
-  if (target === undefined || !canBeCabin(target)) return map
+  const valid = viagem
+    ? parDestinations(pin).some((destino) => destino.pinId === targetId)
+    : map.pins.some((p) => p.id === targetId && canBeCabin(p))
+  if (!valid) return map
   return { ...map, pins: map.pins.map((p) => (p === pin ? pinWithCabin(p, targetId) : p)) }
 }
 
@@ -106,6 +149,31 @@ function cabinRides(map: MapData, tokens: readonly Token[], moved: ReadonlySet<s
     if (moved.has(token.id)) return []
     const stop = stops.find((s) => standsOn(token, s.pin, map.grid))
     return stop === undefined ? [] : [{ token, to: { x: stop.next.x, y: stop.next.y } }]
+  })
+}
+
+/** Uma viagem de cabine ao PAR: a ficha sai desta cena para o pino `pinId` da cena `sceneId`. */
+export interface CabinTransfer {
+  tokenId: string
+  sceneId: string
+  pinId: string
+}
+
+/**
+ * Quem a cabine do pino de viagem leva ao par neste Avançar: fora de `skip`
+ * (quem a esteira moveu ou já pegou cabine nesta cena), parado na casa de um
+ * pino de viagem com cabine ligada ao par. `tokens` é o chão DEPOIS das esteiras.
+ */
+export function cabinTransfers(map: MapData, tokens: readonly Token[], skip: ReadonlySet<string>): CabinTransfer[] {
+  const stops = map.pins.flatMap((pin): { pin: Pin; par: PinDestination }[] => {
+    const par = parStop(pin)
+    return par === null ? [] : [{ pin, par }]
+  })
+  if (stops.length === 0) return []
+  return tokens.flatMap((token): CabinTransfer[] => {
+    if (skip.has(token.id)) return []
+    const stop = stops.find((s) => standsOn(token, s.pin, map.grid))
+    return stop === undefined ? [] : [{ tokenId: token.id, sceneId: stop.par.sceneId, pinId: stop.par.pinId }]
   })
 }
 

@@ -39,8 +39,8 @@ export interface PinControlsProps {
    */
   item?: { value: PinItem | null; onChange: (item: PinItem | null) => void } | null
   /**
-   * CABINE CONTÍNUA do pino aberto ("!"/"?"): a próxima parada e o apito.
-   * `null` = sem pino aberto, ou pino de viagem (que já tem destino próprio).
+   * CABINE CONTÍNUA do pino aberto: a próxima parada ("!"/"?") ou o par em
+   * outra cena (viagem), e o apito. `null` = sem pino aberto, ou chegada oculta.
    */
   cabin?: PinCabinControlsProps | null
 }
@@ -191,7 +191,7 @@ export function PinControls({
               rotação nem "oculto no editor" separado do resto do painel. */}
           <Toggle label="Travado" checked={locked} onChange={onLockedChange} />
           {!viagem && item !== null && <PinItemControls value={item.value} onChange={item.onChange} />}
-          {!viagem && cabin !== null && <PinCabinControls {...cabin} />}
+          {cabin !== null && <PinCabinControls {...cabin} />}
           {/* Ação de MESA, não de edição do pino: fica logo depois do que o
               pino é, antes da imagem e do excluir. */}
           {gather !== null && <GatherControlsFor gather={gather} />}

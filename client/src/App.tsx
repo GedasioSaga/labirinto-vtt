@@ -40,8 +40,9 @@ import { LoadMapScreen } from './screens/LoadMapScreen'
 import { OptionsScreen } from './screens/OptionsScreen'
 import { selectAlignableUnitCount, useMapStore } from './stores/mapStore'
 import { roomHazardState } from './lib/hazards'
-import { advanceConveyors, roomConveyorState } from './lib/conveyors'
-import { cabinOf, cabinTargets } from './lib/cabins'
+import { canAdvanceImposed, roomConveyorState } from './lib/conveyors'
+import { cabinOf, cabinTargets, cabinTargetsOfPar } from './lib/cabins'
+import { avancarMovimentoImposto, ownerFromPlayers } from './stores/avancarMovimentoImposto'
 import { ownerVisionRadii } from './lib/imposedOccupancy'
 import { saveMapToAppData, saveMapToPath, pickMapJsonToOpen, openMapFile, mapDirFor, defaultMapsDir, type OpenedMapFile } from './lib/mapFileIO'
 import {
@@ -953,6 +954,15 @@ function App() {
   // ESTEIRA e CABINE: com "Fichas ocupam espaço", só segura a ficha quem o
   // dono dela enxerga com o raio que o host aplica a ele (`radiusFor`).
   const conveyorRadii = ownerVisionRadii(roomPlayers)
+  // UM AVANÇAR (botão "Avançar esteiras" e "Próximo apito" da Agenda): esteiras
+  // e cabines desta cena, e a cabine que leva ao par — a ficha de jogador pela
+  // sessão ("Mandar para…" com a ficha exata), a sem dono pelo "Levar para…".
+  const avancarEsteiras = () => {
+    avancarMovimentoImposto(conveyorRadii, {
+      ownerOf: ownerFromPlayers(roomPlayers),
+      sendPlayer: (playerId, sceneId, pinId, tokenId) => hostBridgeRef.current?.sendPlayer(playerId, sceneId, pinId, undefined, tokenId) ?? false,
+    })
+  }
   // ESTEIRA da Sala selecionada: direção, passo e se "Avançar esteiras" move alguém.
   const selectedRoomConveyor = selectedRegion?.room ? roomConveyorState(map, selectedRegion.id, conveyorRadii) : null
   const selectedLight = singleSelection?.kind === 'light' ? map.lights.find((l) => l.id === singleSelection.id) ?? null : null
@@ -1932,6 +1942,7 @@ function App() {
                     onChange={(agenda) => useAdventureStore.getState().setAgenda(agenda)}
                     cenas={scenesPanel}
                     onAlarm={soarAlarme}
+                    onApito={avancarEsteiras}
                   />
                 )}
               </>
@@ -2271,7 +2282,7 @@ function App() {
                       stepCells: selectedRoomConveyor.stepCells,
                       canAdvance: selectedRoomConveyor.canAdvance,
                       onChange: (setting) => useMapStore.getState().setRoomConveyor(selectedRegion.id, setting),
-                      onAdvance: () => useMapStore.getState().advanceConveyors(conveyorRadii),
+                      onAdvance: avancarEsteiras,
                     }
                   : undefined,
             }}
@@ -2347,15 +2358,20 @@ function App() {
                       onChange: (item) => useMapStore.getState().updatePin(selectedPin.id, { item: item ?? undefined }),
                     }
                   : null,
-              // CABINE CONTÍNUA: só com um pino "!"/"?" aberto (o de viagem já tem destino).
+              // CABINE CONTÍNUA: o "!"/"?" leva ao próximo pino da cena; o de
+              // viagem leva ao PAR (outra cena). A chegada oculta não leva de volta.
               cabin:
-                selectedPin && selectedPin.kind !== 'viagem'
+                selectedPin && selectedPin.soChegada !== true
                   ? {
                       target: cabinOf(map, selectedPin.id),
-                      targets: cabinTargets(map, selectedPin.id),
-                      canAdvance: advanceConveyors(map, conveyorRadii) !== map,
+                      targets:
+                        selectedPin.kind === 'viagem'
+                          ? cabinTargetsOfPar(pinExitsTravelOf({ adventure, activeSceneId, cache: sceneCache }, map, selectedPin))
+                          : cabinTargets(map, selectedPin.id),
+                      emptyHint: selectedPin.kind === 'viagem' ? 'Ligue este pino a um par em outra cena para a cabine levar até lá.' : undefined,
+                      canAdvance: canAdvanceImposed(map, conveyorRadii),
                       onChange: (targetId) => useMapStore.getState().setPinCabin(selectedPin.id, targetId),
-                      onAdvance: () => useMapStore.getState().advanceConveyors(conveyorRadii),
+                      onAdvance: avancarEsteiras,
                     }
                   : null,
             }}
