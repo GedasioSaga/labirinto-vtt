@@ -211,8 +211,9 @@ function deserializeMapFields(json: string): MapData {
       // névoa) e `lerDePerto` só com inteiro de casas na faixa do painel.
       marco: p.marco === true ? true : undefined,
       lerDePerto: isPinReadDistance(p.lerDePerto) ? p.lerDePerto : undefined,
-      // `longe` é só do recorte do jogador, como `escolhas`.
+      // `longe` e `soMarco` são só do recorte do jogador, como `escolhas`.
       longe: undefined,
+      soMarco: undefined,
       escolhas: undefined,
     })),
     frame: parsed.frame ?? null,

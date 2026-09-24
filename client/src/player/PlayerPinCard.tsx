@@ -148,7 +148,10 @@ export function PlayerPinCard({ pin, onClose, onRequestTravel, travelWaiting = f
   // um "Pedir" que o host sempre recusa só ensinaria o jogador a insistir.
   const passagem = passageOf(pin)
   const trancada = viagem && passagem === 'trancada'
-  const podePedir = viagem && !trancada && onRequestTravel !== undefined
+  // MARCO visto de longe (`soMarco`): o jogador enxerga o Templo, mas nunca
+  // esteve lá — o host recusa a passagem, então o cartão nem oferece.
+  const naoChegou = viagem && !trancada && pin.soMarco === true
+  const podePedir = viagem && !trancada && !naoChegou && onRequestTravel !== undefined
   const textos = passagem === 'livre' ? TEXTOS_LIVRE : TEXTOS_PEDE
   // ENCRUZILHADA: com mais de uma saída, um botão por saída, pelo rótulo que o
   // mestre escreveu — o destino e o nome da cena nunca chegam aqui. Com uma
@@ -191,6 +194,7 @@ export function PlayerPinCard({ pin, onClose, onRequestTravel, travelWaiting = f
           <p className="pp-pincard__text">{textoDoCartao}</p>
         </div>
         {trancada && <p className="pp-pincard__locked">Está trancada. Não dá para passar por aqui agora.</p>}
+        {naoChegou && <p className="pp-pincard__locked">Dá para ver daqui, mas para passar é preciso chegar até lá.</p>}
         {podePedir && confirming === null && !encruzilhada && (
           <button
             ref={askRef}

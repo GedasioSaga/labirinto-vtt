@@ -377,6 +377,13 @@ export interface Pin extends PlayerSecret {
    */
   longe?: true
   /**
+   * SÓ NO RECORTE DO JOGADOR: o pino chegou SÓ por ser marco — não está à
+   * vista nem explorado. Ver o Templo de longe não é estar lá: a passagem não
+   * vale daqui (o host recusa em `validTravel`) e o cartão não oferece o
+   * botão. O mestre nunca grava este campo.
+   */
+  soMarco?: true
+  /**
    * SÓ NO RECORTE DO JOGADOR, e só quando o pino tem mais de uma saída: o id e
    * o rótulo de cada uma, na ordem (a principal primeiro). O mestre nunca grava
    * este campo; `lib/fogFilter.ts` o monta a partir de `rotulo` e `saidas`.

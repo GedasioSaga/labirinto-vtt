@@ -1360,17 +1360,20 @@ export function filterMapForPlayer(
     // enxergando o pino (`canReadPin`); longe, o pino sai marcado `longe` e
     // vazio. É o que segura a carta até contra o "Revelar planta", que marca
     // o mapa inteiro como explorado.
-    pins: (map.pins ?? [])
-      .filter((p) => {
-        if (isArrivalOnly(p)) return false
-        if (!pinReachesPlayer(pinAudiences, p.id, playerId)) return false
-        if (p.hidden || p.secret || hiddenLayers.includes('anotacoes')) return false
-        const point = { x: p.x, y: p.y }
-        if (inRoomHiddenFromPlayer(point)) return false
-        if (p.marco === true) return !hiddenByZone(point)
-        return isPointKnown(point)
-      })
-      .map((p) => pinForPlayer(p, canReadPin(p, pinReaders, map.grid, hiddenByZone))),
+    // Marco que chegou SÓ por ser marco (nem à vista, nem explorado) sai com
+    // `soMarco`: ver de longe não é estar lá, e a passagem por ele não vale
+    // (`validTravel` lê a marca neste mesmo recorte).
+    pins: (map.pins ?? []).flatMap((p) => {
+      if (isArrivalOnly(p)) return []
+      if (!pinReachesPlayer(pinAudiences, p.id, playerId)) return []
+      if (p.hidden || p.secret || hiddenLayers.includes('anotacoes')) return []
+      const point = { x: p.x, y: p.y }
+      if (inRoomHiddenFromPlayer(point)) return []
+      const known = isPointKnown(point)
+      const reached = p.marco === true ? !hiddenByZone(point) : known
+      if (!reached) return []
+      return [pinForPlayer(p, canReadPin(p, pinReaders, map.grid, hiddenByZone), known)]
+    }),
     // Metadado do mestre: nome, estado e células do pincel das zonas não saem; só `concealed` (geometria).
     concealZones: [],
   }
@@ -1437,8 +1440,10 @@ function canReadPin(pin: Pin, readers: readonly PinReader[], grid: number, hidde
  * - `passagem` VAI, de propósito: o cartão do jogador precisa saber se oferece
  *   "Passar", "Pedir para passar" ou "Está trancada". O modo diz como a porta
  *   se comporta, não para onde ela leva.
+ * - `soMarco` quando `known` é falso: o pino só chegou por ser marco, e a
+ *   passagem por ele não vale daqui.
  */
-function pinForPlayer(pin: Pin, readable: boolean): Pin {
+function pinForPlayer(pin: Pin, readable: boolean, known: boolean): Pin {
   // LISTA DO QUE VAI, e não "copia tudo e apaga o que não pode": campo que o
   // arquivo trouxer e o app não conhece (versão futura, edição à mão) não
   // chega ao jogador por descuido (revisão de segurança, 22/09). `destino`,
@@ -1454,6 +1459,7 @@ function pinForPlayer(pin: Pin, readable: boolean): Pin {
     image: readable && isPlayerSafePinImage(pin.image) ? pin.image : null,
   }
   if (!readable) forPlayer.longe = true
+  if (!known) forPlayer.soMarco = true
   if (pin.icon !== undefined) forPlayer.icon = pin.icon
   if (pin.locked !== undefined) forPlayer.locked = pin.locked
   if (pin.hidden !== undefined) forPlayer.hidden = pin.hidden
