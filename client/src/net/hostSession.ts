@@ -497,6 +497,12 @@ interface PlayerMemory {
   vision: RegionPoint[][]
   /** O explorado que seguiu no último snapshot desta cena. `null` = nenhum ainda. */
   sentExplored: Pick<ExploredWire, 'bits' | 'rings'> | null
+  /**
+   * As fichas do último snapshot desta cena, COMO ELE AS RECEBEU (máscara do
+   * nome, vulto sem nome). É daqui que sai o nome da ficha no sinal e no laser
+   * de outro jogador: o que não está aqui, ele não pode ler.
+   */
+  tokens: readonly Token[]
 }
 
 /**
@@ -579,9 +585,10 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   // nada viu, nem o aviso de que o gesto acabou. Lote vindo de outra cena
   // (off perdido na viagem) recomeça a lista: ela nunca atravessa cena.
   const laserRecipients = new Map<string, { scene: string; clients: Set<string> }>()
-  // Por playerId: como a MESA lê o gesto em curso (`key` opaca do rastro, nome
-  // e cor da ficha). O `off` repete o mesmo; some quando o gesto acaba.
-  const laserTableOrigins = new Map<string, { key: string; from: string; color: string }>()
+  // Por playerId: como a MESA lê o gesto em curso — `key` opaca do rastro e,
+  // por conexão que recebeu ponto, o nome e a cor da ficha COMO AQUELE jogador
+  // a vê (`signalOriginFor`). O `off` repete o mesmo; some quando o gesto acaba.
+  const laserTableOrigins = new Map<string, { key: string; byClient: Map<string, { from: string; color: string }> }>()
   // Contador das chaves de rastro: nova a cada gesto, nunca derivada do jogador.
   let laserGestureCount = 0
   // Por playerId: limite da foto nova do próprio token (só da foto, ver TOKEN_PHOTO_MIN_INTERVAL_MS).
@@ -667,6 +674,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       doors: new Map(),
       vision: [],
       sentExplored: null,
+      tokens: [],
     }
     // Apagar e regravar põe a cena no fim da ordem: é a mais recente agora.
     byScene.delete(map.id)
@@ -895,6 +903,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     // dentro depois que ele sai.
     forgetInside(exp, view.roofs)
     memory.vision = view.vision
+    memory.tokens = view.map.tokens
     seenPins.set(playerId, { mapId: map.id, pins: view.map.pins })
     const seenNow = new Set(view.visibleDoorIds)
     for (const w of view.map.walls) {
@@ -1061,6 +1070,21 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   }
 
   /**
+   * Como a ficha de quem sinaliza ou aponta chega a OUTRO jogador
+   * (`receiverId`): a mais perto do ponto entre as que a mesa pode ver
+   * (`tableTokens`) E que saíram no último recorte dele, com o nome e a cor da
+   * cópia que ele recebeu — vulto sai sem nome, no cinza neutro. Nenhuma, sem
+   * nome: escolher entre todas diria o nome da ficha que a zona oculta, a sala
+   * secreta, o teto fechado ou a névoa escondem dele.
+   */
+  const signalOriginFor = (receiverId: string, tableTokens: readonly Token[], map: MapData, point: RegionPoint): { from: string; color: string } => {
+    const tableIds = new Set(tableTokens.map((t) => t.id))
+    // Sem memória desta cena ele não recebeu ficha nenhuma dela.
+    const received = (existingMemory(receiverId, map)?.tokens ?? []).filter((t) => tableIds.has(t.id))
+    return signalAsToken(nearestTokenTo(received, point), false)
+  }
+
+  /**
    * O mestre sempre recebe o sinal (campo `signal`) e quem sinalizou recebe o
    * eco. Outro jogador só recebe se já conhece o ponto e o ponto está fora de
    * zona oculta ativa: senão o sinal diria que existe algo naquele lugar.
@@ -1083,11 +1107,11 @@ export function createHostSession(options: HostSessionOptions): HostSession {
 
     const point = { x: msg.x, y: msg.y }
     const ownTokens = tokensTheOwnerSees(playerId, map)
-    // Quem sinaliza lê a ficha dele como ele a vê (nome real); a mesa, como ela a vê.
+    // Quem sinaliza lê a ficha dele como ele a vê (nome real); cada outro, como
+    // ela chegou a ele (`signalOriginFor`).
     const echoToken = nearestTokenTo(ownTokens, point)
-    const tableToken = nearestTokenTo(tokensTheTableSees(ownTokens, map), point)
+    const tableTokens = tokensTheTableSees(ownTokens, map)
     const message: HostMessage = { type: 'signal', x: msg.x, y: msg.y, ...signalAsToken(echoToken, true) }
-    const tableMessage: HostMessage = { type: 'signal', x: msg.x, y: msg.y, ...signalAsToken(tableToken, false) }
     const outbound: Outbound[] = [{ clientId, msg: message }]
     // Sala secreta vale como zona oculta: repassar o sinal diria aos outros que ali existe algo.
     const inBlockedArea = playerBlockedRings(map).some((ring) => ring.length >= 3 && pointInRing(point, ring))
@@ -1097,7 +1121,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
         // Quem está em outra cena não recebe: o ponto é deste mapa, e a
         // memória antiga dele desta cena diria que o sinal é para lá.
         if (sceneFor(otherId, world) !== scene) continue
-        if (knowsPoint(otherId, map, point)) outbound.push({ clientId: otherClient, msg: tableMessage })
+        if (!knowsPoint(otherId, map, point)) continue
+        outbound.push({ clientId: otherClient, msg: { type: 'signal', x: msg.x, y: msg.y, ...signalOriginFor(otherId, tableTokens, map, point) } })
       }
     }
     // O mestre vê a jogadora real, na cor fixa dela, e o nome real da ficha junto.
@@ -1142,14 +1167,17 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const outbound: Outbound[] = []
     const gesture = laserRecipients.get(playerId)
     // Quem recebeu ponto do gesto recebeu também a origem dele (o lote grava as duas juntas).
-    const tableOrigin = laserTableOrigins.get(playerId)
-    if (scene !== null && gesture !== undefined && tableOrigin !== undefined && gesture.scene === sceneKey(scene)) {
+    const origins = laserTableOrigins.get(playerId)
+    if (scene !== null && gesture !== undefined && origins !== undefined && gesture.scene === sceneKey(scene)) {
       for (const otherClient of gesture.clients) {
         // Quem caiu no meio do gesto não tem mais socket para o aviso.
         const otherId = byClient.get(otherClient)
         if (otherId === undefined || statusOf(otherId) !== 'playing') continue
         if (sceneFor(otherId, world) !== scene) continue
-        outbound.push({ clientId: otherClient, msg: { type: 'laser', off: true, ...tableOrigin } })
+        // Quem recebeu ponto recebeu a origem junto (o lote grava as duas); sem ela, nada a repetir.
+        const origin = origins.byClient.get(otherClient)
+        if (origin === undefined) continue
+        outbound.push({ clientId: otherClient, msg: { type: 'laser', off: true, key: origins.key, ...origin } })
       }
     }
     laserRecipients.delete(playerId)
@@ -1185,12 +1213,12 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     else if (quota.count >= PLAYER_LASER_MAX_PER_WINDOW) return { outbound: [] }
     else quota.count += 1
 
-    // O mestre vê a jogadora na cor dela; a mesa lê a ficha mais perto do
-    // começo do lote, como a mesa a vê (mesma regra do sinal).
+    // O mestre vê a jogadora na cor dela; cada outro lê a ficha mais perto do
+    // começo do lote, como ela chegou a ele (mesma regra do sinal).
     const color = laserColorOf(playerId, map)
-    const tableToken = nearestTokenTo(tokensTheTableSees(tokensTheOwnerSees(playerId, map), map), firstInside)
-    const tableOrigin = { key: laserTableOrigins.get(playerId)?.key ?? `laser-${(laserGestureCount += 1)}`, ...signalAsToken(tableToken, false) }
-    laserTableOrigins.set(playerId, tableOrigin)
+    const tableTokens = tokensTheTableSees(tokensTheOwnerSees(playerId, map), map)
+    const origins = laserTableOrigins.get(playerId) ?? { key: `laser-${(laserGestureCount += 1)}`, byClient: new Map() }
+    laserTableOrigins.set(playerId, origins)
     const blocked = playerBlockedRings(map)
     const shareable = inside.filter((p) => !blocked.some((ring) => ring.length >= 3 && pointInRing(p, ring)))
     const outbound: Outbound[] = []
@@ -1207,7 +1235,9 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       if (sceneFor(otherId, world) !== scene) continue
       const visible = shareable.filter((p) => knowsPoint(otherId, map, p))
       if (visible.length === 0) continue
-      outbound.push({ clientId: otherClient, msg: { type: 'laser', points: visible, ...tableOrigin } })
+      const origin = signalOriginFor(otherId, tableTokens, map, firstInside)
+      origins.byClient.set(otherClient, origin)
+      outbound.push({ clientId: otherClient, msg: { type: 'laser', points: visible, key: origins.key, ...origin } })
       if (recipients === undefined) {
         recipients = { scene: here, clients: new Set() }
         laserRecipients.set(playerId, recipients)

@@ -157,6 +157,8 @@ describe('hostSession: laser do jogador', () => {
     t.s.handleMessage('c1', { type: 'laser', points: [{ x: 120, y: 300 }] }, t.mundo)
     // O off do gesto do Salão não chega; Ana já aponta na Cripta, para Bruno.
     const depois = redistribuido(t.mundo, [ficha('adaga', 300, 100)], [ficha('machado', 200, 100), ficha('lanterna', 100, 100, COR_ANA)])
+    // A chegada dela à Cripta sai no broadcast: é ele que entrega a ficha dela ao Bruno.
+    t.s.broadcast(depois)
     const lote = t.s.handleMessage('c1', { type: 'laser', points: [{ x: 120, y: 300 }] }, depois)
     expect(para(lote, 'c2')).toHaveLength(1)
     const fim = t.s.handleMessage('c1', { type: 'laser', off: true }, depois)
@@ -238,6 +240,27 @@ describe('hostSession: o laser do jogador não entrega o disfarce', () => {
     expect(para(r, 'c3')[0]?.msg).toMatchObject({ type: 'laser', from: 'Contínua do 9', color: SIGNAL_NEUTRAL_COLOR })
     expect(JSON.stringify(r.outbound)).not.toContain('Lobisomem')
     expect(JSON.stringify(r.outbound)).not.toContain('#7a1f1f')
+  })
+
+  it('segurança: ficha da Ana dentro de zona oculta, mais perto do começo do rastro, não dá nome nem cor ao laser que o Caio vê', () => {
+    // 'corvo' é da Ana e não está oculta: só a zona a esconde do recorte do Caio.
+    const corvo: Token = { ...ficha('corvo', 1200, 300, '#123456'), name: 'Corvo' }
+    const cofre = [{ x: 1150, y: 250 }, { x: 1250, y: 250 }, { x: 1250, y: 350 }, { x: 1150, y: 350 }]
+    const mundo = disfarcada({}, [corvo])
+    const comZona: HostWorld = { ...mundo, open: { ...mundo.open, map: { ...mundo.open.map, concealZones: [{ id: 'z', name: 'cofre', revealed: false, points: cofre }] } } }
+    const t = mesa(comZona)
+    t.s.assignToken(t.ana, 'corvo')
+    t.s.broadcast(t.mundo)
+    const r = t.s.handleMessage('c1', { type: 'laser', points: [{ x: 1200, y: 450 }] }, t.mundo)
+    const fim = t.s.handleMessage('c1', { type: 'laser', off: true }, t.mundo)
+    // Vale a mais perto entre as que CHEGARAM ao Caio: a lanterna, não o Corvo escondido.
+    expect(para(r, 'c3')).toEqual([{ clientId: 'c3', msg: { type: 'laser', points: [{ x: 1200, y: 450 }], from: 'ficha-lanterna', key: expect.any(String), color: COR_ANA } }])
+    expect(para(fim, 'c3')).toEqual([{ clientId: 'c3', msg: { type: 'laser', off: true, from: 'ficha-lanterna', key: expect.any(String), color: COR_ANA } }])
+    const aoCaio = JSON.stringify([...para(r, 'c3'), ...para(fim, 'c3')])
+    expect(aoCaio).not.toContain('Corvo')
+    expect(aoCaio).not.toContain('#123456')
+    // Controle: o mestre continua vendo o rastro inteiro, da jogadora real.
+    expect(r.playerLaser).toMatchObject({ playerId: t.ana, name: 'Ana', update: { points: [{ x: 1200, y: 450 }] } })
   })
 
   it('a chave do rastro não é o nome nem o id da jogadora; fica a mesma no gesto inteiro e separa duas fichas de mesmo nome', () => {

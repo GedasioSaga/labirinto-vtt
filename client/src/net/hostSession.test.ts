@@ -704,19 +704,57 @@ describe('hostSession: sinal do jogador', () => {
     expect(toClient(hidden, 'c3')).toEqual([])
 
     // Controle positivo: no lado que a Bia vê, ela recebe (e o Caio, aguardando, não).
+    // A ficha da Ana está atrás da parede, fora do recorte da Bia: o sinal chega sem nome.
     t.advance(SIGNAL_MIN_INTERVAL_MS)
     const seen = t.s.handleMessage('c1', { type: 'signal', x: 800, y: 300 }, t.map)
-    expect(toClient(seen, 'c2')).toEqual([{ clientId: 'c2', msg: { type: 'signal', x: 800, y: 300, ...fromToken } }])
+    expect(toClient(seen, 'c2')).toEqual([{ clientId: 'c2', msg: { type: 'signal', x: 800, y: 300, from: '', color: SIGNAL_NEUTRAL_COLOR } }])
     expect(toClient(seen, 'c3')).toEqual([])
   })
 
-  describe('disfarce: o sinal sai com o nome e a cor da ficha, nunca com os da jogadora', () => {
-    /** O mesmo setup, com as fichas da Ana trocadas por `heroi`. */
-    function disguisedSetup(heroi: Partial<Token>, extra: Token[] = []) {
+  describe('segurança: o sinal só leva o nome da ficha que chega a quem recebe', () => {
+    it('ficha da Ana dentro de zona oculta, mais perto do ponto: a Bia recebe o sinal sem nome, nunca "Corvo"', () => {
       const t = signalSetup()
+      // 'Corvo' é da Ana e não está oculta: só a zona a esconde do recorte da Bia.
+      const corvo: Token = { id: 'corvo', characterId: null, name: 'Corvo', x: 860, y: 500, size: 1, image: null, color: '#123456' }
       const map: MapData = {
         ...t.map,
-        tokens: [...t.map.tokens.map((tk) => (tk.id === 'heroi' ? { ...tk, ...heroi } : tk)), ...extra],
+        tokens: [...t.map.tokens, corvo],
+        concealZones: [{ id: 'z', name: 'cofre', revealed: false, points: [{ x: 820, y: 450 }, { x: 900, y: 450 }, { x: 900, y: 550 }, { x: 820, y: 550 }] }],
+      }
+      t.s.assignToken(t.ana.playerId, 'corvo')
+      t.s.broadcast(map)
+      const r = t.s.handleMessage('c1', { type: 'signal', x: 800, y: 400 }, map)
+      expect(toClient(r, 'c2')).toEqual([{ clientId: 'c2', msg: { type: 'signal', x: 800, y: 400, from: '', color: SIGNAL_NEUTRAL_COLOR } }])
+      expect(JSON.stringify(toClient(r, 'c2'))).not.toContain('Corvo')
+      expect(JSON.stringify(toClient(r, 'c2'))).not.toContain('#123456')
+      // A dona lê a própria ficha; o mestre também.
+      expect(toClient(r, 'c1')[0]?.msg).toMatchObject({ type: 'signal', from: 'Corvo', color: '#123456' })
+      expect(r.signal?.tokenName).toBe('Corvo')
+    })
+
+    it('ficha da Ana que chega à Bia como vulto (longe dela): o sinal sai sem nome e no cinza neutro', () => {
+      const t = signalSetup()
+      // Sem a parede, a Bia vê a ficha da Ana a 600 px: dentro da visão, longe demais para o nome.
+      const map: MapData = { ...t.map, walls: [], tokens: t.map.tokens.map((tk) => (tk.id === 'heroi' ? { ...tk, name: 'Contínua do 9', color: '#aa3322' } : tk)) }
+      t.s.broadcast(map)
+      const r = t.s.handleMessage('c1', { type: 'signal', x: 800, y: 300 }, map)
+      expect(toClient(r, 'c2')).toEqual([{ clientId: 'c2', msg: { type: 'signal', x: 800, y: 300, from: '', color: SIGNAL_NEUTRAL_COLOR } }])
+      expect(JSON.stringify(toClient(r, 'c2'))).not.toContain('Contínua')
+    })
+  })
+
+  describe('disfarce: o sinal sai com o nome e a cor da ficha, nunca com os da jogadora', () => {
+    /**
+     * O mesmo setup, com as fichas da Ana trocadas por `heroi`, sem a parede e
+     * com a Bia perto da ficha da Ana: ela a vê de perto, com nome e cor.
+     */
+    function disguisedSetup(heroi: Partial<Token>, extra: Token[] = []) {
+      const t = signalSetup()
+      const withHeroi = t.map.tokens.map((tk) => (tk.id === 'heroi' ? { ...tk, ...heroi } : tk))
+      const map: MapData = {
+        ...t.map,
+        walls: [],
+        tokens: [...withHeroi.map((tk) => (tk.id === 'ladino' ? { ...tk, x: 400, y: 200 } : tk)), ...extra],
       }
       t.s.broadcast(map)
       return { ...t, map }
