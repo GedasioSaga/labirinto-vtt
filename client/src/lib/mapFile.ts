@@ -1,4 +1,5 @@
-import type { DoorState, FloorStyle, MapData, Region } from '../types/map'
+import type { ConcealZone, DoorState, FloorStyle, Light, MapData, Region } from '../types/map'
+import { isEfeitoNaLuz, isEfeitoNaPorta, isEfeitoNaZona, regraDePinoDoArquivo, regraDoArquivo } from './estadoDoMundo'
 import { linkLooseWallsToRooms } from './roomLink'
 import { isPinIcon, isPinKind, isPinPassage } from './pins'
 import { cleanExitLabel, readPinDestination, readPinExits } from './pinTravel'
@@ -6,6 +7,8 @@ import { tokenPublicNameFromFile } from './tokenPublicName'
 import { readMovementRules } from './movementRules'
 import { readCarriedItems, readPinItem } from './items'
 import { readHazards } from './hazards'
+import { withoutContract } from './tokenLoan'
+import { confrontoFromFile } from './confronto'
 
 /** Chão de mapa NOVO: marrom chapado do minimapa do Resident Evil 4 (15/09/2026). */
 export const DEFAULT_FLOOR_STYLE: FloorStyle = { fillColor: '#a8776a', strokeColor: null, strokeWidth: 1 }
@@ -119,9 +122,32 @@ function roomTextsFromFile(region: Region): Region {
  * outro valor sai do objeto, e a porta abre como porta comum — como sempre foi.
  */
 function doorFromFile(door: DoorState): DoorState {
-  const { secret, ...rest } = door
+  const { secret, porEstado, ...rest } = door
   const withKind: DoorState = { ...rest, kind: rest.kind ?? 'normal' }
-  return secret === true ? { ...withKind, secret: true } : withKind
+  // ESTADO DO MUNDO: regra torta some e a porta volta a ser a de sempre; ausente continua ausente.
+  const regra = regraDoArquivo(porEstado, isEfeitoNaPorta)
+  const withRule: DoorState = regra === undefined ? withKind : { ...withKind, porEstado: regra }
+  return secret === true ? { ...withRule, secret: true } : withRule
+}
+
+/** Zona oculta lida do disco: só a regra do ESTADO DO MUNDO passa por conferência; ausente continua ausente. */
+function concealZoneFromFile(zone: ConcealZone): ConcealZone {
+  if (!('porEstado' in zone)) return zone
+  const { porEstado, ...rest } = zone
+  const regra = regraDoArquivo(porEstado, isEfeitoNaZona)
+  return regra === undefined ? rest : { ...rest, porEstado: regra }
+}
+
+/**
+ * Luz lida do disco: os dois campos do ESTADO DO MUNDO passam por conferência.
+ * `apagada` só volta `true`; regra torta some. Ausentes continuam ausentes.
+ */
+function lightFromFile(light: Light): Light {
+  if (!('porEstado' in light) && !('apagada' in light)) return light
+  const { porEstado, apagada, ...rest } = light
+  const regra = regraDoArquivo(porEstado, isEfeitoNaLuz)
+  const withRule: Light = regra === undefined ? rest : { ...rest, porEstado: regra }
+  return apagada === true ? { ...withRule, apagada: true } : withRule
 }
 
 /** `movement` só entra no mapa quando o arquivo traz regra válida: mapa de antes não ganha campo. */
@@ -142,7 +168,12 @@ function deserializeMapFields(json: string): MapData {
     throw new Error('map.json inválido: campo "id" ausente ou não é string')
   }
 
+  // CONFRONTO é campo NOVO e OPCIONAL: ausente continua ausente (mapa velho
+  // abre sem confronto e sem ganhar chave), torto some (`confrontoFromFile`).
+  const confronto = confrontoFromFile(parsed.confronto)
+
   return {
+    ...(confronto === undefined ? {} : { confronto }),
     id: parsed.id,
     name: typeof parsed.name === 'string' ? parsed.name : 'Mapa sem título',
     width: positiveNumberOr(parsed.width, 30),
@@ -164,7 +195,7 @@ function deserializeMapFields(json: string): MapData {
       ...w,
       door: w.door ? doorFromFile(w.door) : null,
     })),
-    lights: entityList(parsed.lights),
+    lights: entityList(parsed.lights).map(lightFromFile),
     // inalterado — `room` ausente fica undefined (região comum); o ângulo do
     // giro da sala passa como veio, desde que seja número (`roomRotationFromFile`)
     regions: entityList(parsed.regions).map((r) =>
@@ -182,8 +213,10 @@ function deserializeMapFields(json: string): MapData {
     // some — o `...t` copiaria o valor cru, por isso a linha.
     // `publicName` ("Nome para os jogadores"): mesma mão única de `soChegada`
     // — texto e null ficam, valor torto some e a ficha volta a "O mesmo".
+    // `contrato` (ajudante contratado) é campo de FIO: o acordo mora na sessão
+    // do host. Arquivo que o traga (editado à mão) perde o campo na leitura.
     tokens: entityList(parsed.tokens).map((t) => {
-      const lido = tokenPublicNameFromFile({ ...t, image: t.image ?? null })
+      const lido = withoutContract(tokenPublicNameFromFile({ ...t, image: t.image ?? null }))
       if (!('mochila' in t)) return lido
       const mochila = readCarriedItems(t.mochila)
       if (mochila !== undefined) return { ...lido, mochila }
@@ -210,7 +243,7 @@ function deserializeMapFields(json: string): MapData {
     floorStyle: parsed.floorStyle ?? { ...LEGACY_FLOOR_STYLE },
     lines: entityList(parsed.lines),
     markers: entityList(parsed.markers),
-    concealZones: entityList(parsed.concealZones),
+    concealZones: entityList(parsed.concealZones).map(concealZoneFromFile),
     // NOVO — pinos de ponto de interesse. Mapa salvo antes deste campo existir
     // abre sem nenhum pino; pino gravado por uma versão futura sem `kind` ou
     // sem `description` volta como "!" mudo em vez de derrubar o desenho.
@@ -253,6 +286,8 @@ function deserializeMapFields(json: string): MapData {
       // ITEM PEGÁVEL: campo NOVO e OPCIONAL. Forma errada volta ausente (o
       // pino só deixa de ser pegável); `livre` só vale `true` (`readPinItem`).
       item: readPinItem(p.item),
+      // ESTADO DO MUNDO: regra torta volta AUSENTE (o pino de sempre); o `...p` copiaria o valor cru.
+      porEstado: regraDePinoDoArquivo(p.porEstado),
     })),
     frame: parsed.frame ?? null,
     fog: parsed.fog ?? { mode: 'none', revealed: [] },

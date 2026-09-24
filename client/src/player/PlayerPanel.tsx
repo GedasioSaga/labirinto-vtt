@@ -3,7 +3,9 @@ import type { ChangeEvent, ComponentProps, FormEvent, KeyboardEvent as ReactKeyb
 import type { StorageLike } from './playerConnection'
 import { PlayerBackpack } from './PlayerBackpack'
 import { NAME_MAX_LENGTH, type ClueEntry, type NoteEntry, type PartyMember, type PartyWhere } from '../net/protocol'
-import { PlayerNotebook } from './PlayerNotebook'
+import { formatNoteTime, PlayerNotebook } from './PlayerNotebook'
+import type { TokenContract } from '../types/map'
+import { loanLabel } from '../lib/tokenLoan'
 import { PlayerClueList } from './PlayerClues'
 
 /** Caderno sem pistas passadas (tela antiga, teste): a mesma lista vazia, sem objeto novo a cada render. */
@@ -52,6 +54,8 @@ const PARTY_WHERE_LABEL: Record<PartyWhere, string> = { aqui: 'aqui', longe: 'em
 export interface PlayerCharacter {
   id: string
   name: string
+  /** AJUDANTE CONTRATADO: o acordo da ficha emprestada pelo mestre. Ausente = personagem do jogador. */
+  contrato?: TokenContract
 }
 
 type PanelTab = 'jogo' | 'caderno'
@@ -289,11 +293,14 @@ export function PlayerPanel({
     onToggleLaser()
   }
 
-  const first = characters[0]
-  // O personagem editável é o primeiro da lista: é quase sempre o único, e
-  // "qual dos meus" só faria sentido com uma escolha na tela que ninguém pediu.
-  const myTokenId = first?.id ?? null
-  const myTokenName = first?.name ?? ''
+  // O personagem editável é o primeiro PRÓPRIO da lista: é quase sempre o
+  // único, e "qual dos meus" só faria sentido com uma escolha na tela que
+  // ninguém pediu. Ajudante emprestado nunca é editável (o NPC é do mestre).
+  const mine = characters.find((character) => character.contrato === undefined)
+  // Centralizar e "Minha ficha": o personagem próprio; só com o ajudante, ele.
+  const first = mine ?? characters[0]
+  const myTokenId = mine?.id ?? null
+  const myTokenName = mine?.name ?? ''
   const [nameDraft, setNameDraft] = useState(myTokenName)
   const [photoError, setPhotoError] = useState<string | null>(null)
   const [photoBusy, setPhotoBusy] = useState(false)
@@ -413,6 +420,8 @@ export function PlayerPanel({
                         <span className="pp-dot" style={{ background: characterColor }} aria-hidden="true" />
                         <span className="pp-character__name">{character.name}</span>
                       </button>
+                      {/* Fora do botão: o aria-label dele cobriria o texto do acordo. */}
+                      {character.contrato !== undefined && <p className="pp-character__deal">{loanLabel(character.contrato, formatNoteTime)}</p>}
                     </li>
                   ))}
                 </ul>
@@ -460,7 +469,7 @@ export function PlayerPanel({
               </section>
             )}
 
-            {first !== undefined && (
+            {mine !== undefined && (
               <section className="pp-section" aria-labelledby={`${panelId}-me`}>
                 <h2 id={`${panelId}-me`} className="pp-heading">
                   Meu personagem

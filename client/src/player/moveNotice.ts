@@ -21,9 +21,10 @@ const MOVE_NOTICE_TEXT: Record<TokenMoveRejection, string> = {
   unknown_token: 'Essa ficha não está mais aqui',
   // "Fichas ocupam espaço": não diz QUEM está lá.
   occupied: 'Lugar ocupado',
-  // A vez tem aviso próprio (`turnNotice`, "Espere sua vez"); este texto só
-  // existe porque o registro cobre todo motivo.
+  // A vez da iniciativa tem aviso próprio (`turnNotice`, "Espere sua vez"); o
+  // CONFRONTO na cena (`lib/confronto.ts`) usa este mesmo texto.
   not_your_turn: 'Espere sua vez',
+  too_far: 'Além do seu passo',
 }
 
 export function moveNoticeText(reason: TokenMoveRejection): string {

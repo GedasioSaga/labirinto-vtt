@@ -65,6 +65,7 @@ import {
 } from '../net/protocol'
 import { CLUEBOOK_MAX_CLUES } from '../lib/clues'
 import type { TokenMoveRejection } from '../lib/moveValidation'
+import { parsePlayerConfronto, type PlayerConfronto } from '../lib/confronto'
 import { hasEnterText } from '../lib/roomText'
 import { isPointInsideMap, POINT_NOTICE_TTL_MS, type PointActionKind, type PointNotice } from '../lib/pointActions'
 
@@ -102,6 +103,11 @@ export interface PlayerState {
    * está no recorte dele).
    */
   turn?: string
+  /**
+   * CONFRONTO da cena onde ele está: fila, de quem é a vez e o que resta do
+   * passo. Cada snapshot substitui; snapshot sem o campo apaga a faixa.
+   */
+  confronto?: PlayerConfronto
   /** Sinais recebidos ainda vivos (somem sozinhos depois de `SIGNAL_TTL_MS`). */
   signals?: SignalMark[]
   /** Rastro do laser do mestre; some sozinho `LASER_TRAIL_MS` depois da última mensagem com o laser desligado. */
@@ -461,7 +467,7 @@ export const WAKE_PROBE_MS = 800
 export const DOOR_NOTICE_TTL_MS = 2500
 /** Quanto tempo a recusa do movimento ("Parede no caminho") fica na tela: 2-3 s, como a da porta. */
 export const MOVE_NOTICE_TTL_MS = 2500
-const MOVE_REJECTIONS: readonly TokenMoveRejection[] = ['unknown_token', 'not_owner', 'locked', 'outside_map', 'wall', 'outside_floor', 'occupied']
+const MOVE_REJECTIONS: readonly TokenMoveRejection[] = ['unknown_token', 'not_owner', 'locked', 'outside_map', 'wall', 'outside_floor', 'occupied', 'too_far']
 
 function isMoveRejection(value: unknown): value is TokenMoveRejection {
   return MOVE_REJECTIONS.some((reason) => reason === value)
@@ -1206,6 +1212,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     turn: string | undefined,
     partyTokens: string[],
     hazards: PlayerHazard[],
+    confronto: PlayerConfronto | undefined,
   ): void {
     if (rev <= state.rev) return
     let next = map
@@ -1222,7 +1229,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     }
     // Vez de ficha que não veio no mapa não tem o que destacar: vale como ninguém.
     const turnOnMap = turn !== undefined && next.tokens.some((t) => t.id === turn) ? turn : undefined
-    setState({ status: 'playing', rev, map: next, vision, explored, ownTokens, partyTokens, concealed, hazards, turn: turnOnMap, error: undefined })
+    setState({ status: 'playing', rev, map: next, vision, explored, ownTokens, partyTokens, concealed, hazards, turn: turnOnMap, confronto, error: undefined })
   }
 
   /** Desfaz o movimento recusado. `false` = pedido desconhecido (já resolvido, ou de antes de trocar de cena). */
@@ -1268,7 +1275,8 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     const map = state.map
     if (state.status !== 'playing' || !map) return false
     if (!(state.ownTokens ?? []).includes(tokenId)) return false
-    if (!map.tokens.some((t) => t.id === tokenId)) return false
+    // Ficha emprestada (ajudante contratado, com `contrato`) é do mestre: o host recusa, e a tela nem tenta.
+    if (!map.tokens.some((t) => t.id === tokenId && t.contrato === undefined)) return false
     if (!send(message)) return false
     setState({ map: withTokenPatch(map, tokenId, patch) })
     return true
@@ -1369,6 +1377,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
           clueShow: undefined,
           call: undefined,
           pointNotice: undefined,
+          confronto: undefined,
         })
         return
       case 'scene.changed':
@@ -1609,7 +1618,14 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         // ZONA DE PERIGO: ausente = nenhum perigo à vista; malformado derruba a mensagem.
         const hazards = data.hazards === undefined ? [] : parsePlayerHazards(data.hazards)
         if (hazards === null) return
-        applySnapshot(data.rev, data.map, data.vision, explored, data.ownTokens ?? [], data.concealed ?? [], data.turn, data.partyTokens ?? [], hazards)
+        // CONFRONTO: ausente = sem confronto nesta cena; malformado derruba a mensagem.
+        let confronto: PlayerConfronto | undefined
+        if (data.confronto !== undefined) {
+          const parsed = parsePlayerConfronto(data.confronto)
+          if (parsed === null) return
+          confronto = parsed
+        }
+        applySnapshot(data.rev, data.map, data.vision, explored, data.ownTokens ?? [], data.concealed ?? [], data.turn, data.partyTokens ?? [], hazards, confronto)
         return
       }
       case 'hazard.entered': {

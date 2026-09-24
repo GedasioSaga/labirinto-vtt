@@ -3,6 +3,7 @@ import type { FormEvent, ReactNode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { JOIN_CODE_LENGTH, NAME_MAX_LENGTH, type ClueEntry, type NoteEntry } from '../net/protocol'
 import { latestActionNotice } from './moveNotice'
+import { ConfrontoFaixa } from './ConfrontoFaixa'
 import { themeCss } from '../theme'
 import { createPlayerConnection, hasUnreadNotes, RESUME_STORAGE_KEY } from './playerConnection'
 import type { PlayerConnection, PlayerState, SocketLike, StorageLike } from './playerConnection'
@@ -35,6 +36,7 @@ import { itemNoticeText } from './itemNotice'
 import { hazardNoticeText } from '../lib/hazards'
 import { tableCodeFromSearch, tableKeyFromSearch } from '../lib/tableScreen'
 import { TableApp } from './TableScreen'
+import { readContract } from '../lib/tokenLoan'
 import './player.css'
 
 // Página do jogador: entra com código + nome, espera o mestre e mostra o mapa.
@@ -588,7 +590,10 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
     const byId = new Map(map.tokens.map((t) => [t.id, t]))
     return ownTokens.flatMap((id) => {
       const token = byId.get(id)
-      return token ? [{ id, name: token.name }] : []
+      if (!token) return []
+      // AJUDANTE CONTRATADO: o host só manda `contrato` na ficha emprestada a este jogador.
+      const contrato = readContract(token.contrato)
+      return [contrato === undefined ? { id, name: token.name } : { id, name: token.name, contrato }]
     })
   }, [map, ownTokens])
   const partyTokens = state.partyTokens ?? NO_TOKENS
@@ -749,6 +754,8 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
         {/* Depois do painel no DOM: o Tab segue a leitura (painel no alto à esquerda, zoom embaixo à direita). */}
         <PlayerZoomControls canZoomIn={zoomLimits.canZoomIn} canZoomOut={zoomLimits.canZoomOut} onZoom={requestZoomStep} />
         <PlayerTurnBanner turn={state.turn} ownTokens={ownTokens} tokens={state.map.tokens} />
+        {/* CONFRONTO na cena dele: de quem é a vez e o que resta do passo. */}
+        {state.confronto && <ConfrontoFaixa confronto={state.confronto} tokens={state.map.tokens} />}
         {/* O pino pode sumir do recorte enquanto o cartão está aberto (o token
             andou, o mestre escondeu): sem pino no mapa novo, o cartão fecha
             sozinho em vez de mostrar um texto que o jogador não pode mais ver. */}

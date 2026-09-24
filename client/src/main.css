@@ -1833,6 +1833,30 @@ body {
   cursor: pointer;
 }
 
+/* CONFRONTO (aba Jogo): a ordem da vez, com Subir/Descer em cada linha, e a
+   ficha da vez marcada em latão quando o confronto está ligado. */
+.lb-confronto__linha {
+  display: flex;
+  align-items: center;
+  gap: var(--lb-space-1);
+  min-height: 30px;
+}
+
+.lb-confronto__linha > .lb-party__name {
+  flex: 1;
+  min-width: 0;
+}
+
+.lb-confronto__linha > .lb-btn {
+  min-width: 30px;
+  padding: 0 var(--lb-space-2);
+}
+
+.lb-confronto__vez {
+  color: var(--lb-color-brass);
+  font-weight: 600;
+}
+
 /* Abas Mapa | Sala no topo do rail (só no Tauri). Visual do segmented. */
 .lb-railtabs {
   display: grid;
@@ -2862,6 +2886,121 @@ body {
 
 .lb-cenas__recado-aviso {
   flex-basis: 100%;
+  margin: 0;
+  color: var(--lb-color-parchment-faint);
+  font-size: var(--lb-font-size-sm);
+}
+
+/* ---- Estado do mundo ("Maré: alta | baixa"): um toque troca várias cenas */
+
+.lb-world {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-3);
+}
+
+.lb-world__estado {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-2);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+
+/* Muitos valores (Giro 1 a 12) quebram em linhas em vez de espremer a pastilha. */
+.lb-world__valores {
+  grid-auto-flow: row;
+  grid-template-columns: repeat(auto-fill, minmax(56px, 1fr));
+}
+
+/* O rádio nativo fica (teclado e leitor de tela de graça), fora da vista: a
+   pastilha inteira é o alvo do clique, e o anel de foco vai para ela. */
+.lb-world__radio {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.lb-world__valor {
+  position: relative;
+}
+
+.lb-world__valor:has(.lb-world__radio:checked) {
+  background: var(--lb-color-brass-soft);
+  border-color: rgba(224, 164, 74, 0.28);
+  color: var(--lb-color-brass);
+}
+
+.lb-world__valor:has(.lb-world__radio:focus-visible) {
+  outline: 2px solid var(--lb-color-brass);
+  outline-offset: 1px;
+}
+
+.lb-world__conta,
+.lb-world__vazio,
+.lb-world__aviso {
+  margin: 0;
+  color: var(--lb-color-parchment-faint);
+  font-size: var(--lb-font-size-sm);
+}
+
+.lb-world__form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-3);
+}
+
+.lb-world__erro {
+  margin: 0;
+  color: var(--lb-color-ember);
+  font-size: var(--lb-font-size-sm);
+}
+
+.lb-world__acoes {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--lb-space-2);
+}
+
+/* "Depende do estado" da porta, do pino, da zona e da luz: uma lista por valor. */
+.lb-world-amarra {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-2);
+}
+
+.lb-world-amarra__valores {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-2);
+  margin: 0;
+  padding: 0 0 0 var(--lb-space-3);
+  list-style: none;
+  /* O fio fino do minimapa liga os valores ao estado de que dependem. */
+  border-left: 1px solid var(--lb-color-line-panel);
+}
+
+.lb-world-amarra__valor {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr);
+  align-items: center;
+  gap: var(--lb-space-2);
+}
+
+.lb-world-amarra__valor .lb-label {
+  overflow-wrap: anywhere;
+}
+
+.lb-world-amarra__agora {
+  color: var(--lb-color-brass);
+}
+
+.lb-world-amarra__vazio {
   margin: 0;
   color: var(--lb-color-parchment-faint);
   font-size: var(--lb-font-size-sm);

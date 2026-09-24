@@ -2,6 +2,7 @@ import type { HazardKind, MapData, RegionPoint } from '../types/map'
 import type { PlayerHazard } from '../lib/hazards'
 import type { ExploredWire } from '../lib/exploration'
 import type { TokenMoveRejection } from '../lib/moveValidation'
+import type { PlayerConfronto } from '../lib/confronto'
 import { LASER_MAX_POINTS_PER_MESSAGE } from '../lib/laser'
 import { isTokenPhotoData } from '../lib/tokenPhoto'
 import { ROOM_TEXT_MAX_LENGTH } from '../lib/roomText'
@@ -608,7 +609,9 @@ export type HostMessage =
   // deste recorte (`turnForPlayer`). Ausente = ninguém que o jogador vê.
   // `partyTokens` (ITEM PEGÁVEL): das fichas que ele recebeu, as de OUTROS jogadores — o "Dar a…" não oferece NPC.
   // `hazards` (ZONA DE PERIGO): só o que o jogador enxerga agora, e só quando há algum (`PlayerMapView.hazards`).
-  | { type: 'snapshot'; rev: number; map: MapData; vision: RegionPoint[][]; explored: ExploredWire; ownTokens: string[]; concealed: RegionPoint[][]; turn?: string; partyTokens?: string[]; hazards?: PlayerHazard[] }
+  // `confronto`: a faixa do confronto da cena DELE, já recortada (`lib/confronto.ts`).
+  // Ausente = sem confronto nesta cena.
+  | { type: 'snapshot'; rev: number; map: MapData; vision: RegionPoint[][]; explored: ExploredWire; ownTokens: string[]; concealed: RegionPoint[][]; turn?: string; partyTokens?: string[]; hazards?: PlayerHazard[]; confronto?: PlayerConfronto }
   | { type: 'delta'; rev: number; map: MapData; vision: RegionPoint[][]; explored: ExploredWire; ownTokens: string[]; concealed: RegionPoint[][]; turn?: string; partyTokens?: string[]; hazards?: PlayerHazard[] }
   // ZONA DE PERIGO: a ficha DESTE jogador entrou num perigo. Só o tipo — nem a sala, nem a zona.
   | { type: 'hazard.entered'; kind: HazardKind }
