@@ -468,18 +468,38 @@ export function uniqueMapName(baseName: string, existingNames: readonly string[]
 export async function renameMap(id: string, newName: string): Promise<string> {
   const mapDir = await mapDirFor(id)
   const mapJsonPath = await join(mapDir, 'map.json')
+  const otherNames = async () => (await listSavedMaps()).filter((entry) => entry.id !== id).map((entry) => entry.name)
+
   if (!(await exists(mapJsonPath))) {
-    throw new Error(`Mapa "${id}" não encontrado em "${mapJsonPath}".`)
+    const adventurePath = await rootlessAdventurePath(id, mapDir, mapJsonPath)
+    const adventure = parseAdventure(await readTextFile(adventurePath))
+    const finalName = uniqueMapName(sanitizeMapName(newName), await otherNames())
+    await writeTextFileSafely(adventurePath, serializeAdventure({ ...adventure, name: finalName }))
+    return finalName
   }
 
   const content = await readTextFile(mapJsonPath)
   const map = deserializeMap(content)
 
-  const otherNames = (await listSavedMaps()).filter((entry) => entry.id !== id).map((entry) => entry.name)
-  const finalName = uniqueMapName(sanitizeMapName(newName), otherNames)
+  const finalName = uniqueMapName(sanitizeMapName(newName), await otherNames())
 
   await writeTextFileSafely(mapJsonPath, serializeMap({ ...map, name: finalName }))
   return finalName
+}
+
+/**
+ * Pasta de `id` sem `map.json` na raiz: é uma aventura com todas as cenas em
+ * `scenes/` (o card de `listedAdventure`)? Devolve o caminho do
+ * `adventure.json`; sem ele, lança o mesmo "não encontrado" de antes, com o
+ * caminho do `map.json` que faltou. Renomear e duplicar esse card mexem na
+ * aventura — não há `map.json` na raiz para mexer.
+ */
+async function rootlessAdventurePath(id: string, mapDir: string, mapJsonPath: string): Promise<string> {
+  const adventurePath = await join(mapDir, ADVENTURE_FILE)
+  if (!(await exists(adventurePath))) {
+    throw new Error(`Mapa "${id}" não encontrado em "${mapJsonPath}".`)
+  }
+  return adventurePath
 }
 
 /**
@@ -517,7 +537,7 @@ export async function duplicateMap(id: string): Promise<SavedMapEntry> {
   const sourceDir = await mapDirFor(id)
   const sourceMapJsonPath = await join(sourceDir, 'map.json')
   if (!(await exists(sourceMapJsonPath))) {
-    throw new Error(`Mapa "${id}" não encontrado em "${sourceMapJsonPath}".`)
+    return duplicateAdventure(sourceDir, await rootlessAdventurePath(id, sourceDir, sourceMapJsonPath))
   }
 
   const sourceContent = await readTextFile(sourceMapJsonPath)
@@ -549,6 +569,44 @@ export async function duplicateMap(id: string): Promise<SavedMapEntry> {
     grid: duplicated.grid,
     mtimeMs: info.mtime ? info.mtime.getTime() : 0,
   }
+}
+
+/**
+ * Duplica a aventura sem `map.json` na raiz (o card de `listedAdventure`):
+ * copia a pasta inteira para `adv_<uuid>` — que vira também o `id` da
+ * aventura copiada, para as duas não se confundirem — reaponta as imagens de
+ * cada cena que moravam na pasta de origem e grava o `adventure.json` com o
+ * nome "<nome> (cópia)" POR ÚLTIMO, como `saveAdventureToDisk`. Os `id` das
+ * cenas e dos mapas ficam: são relativos à aventura, e a cópia é outra pasta.
+ * Cena ilegível (ou com caminho recusado por `scenePath`) fica como a cópia
+ * crua trouxe, sem derrubar a duplicação.
+ */
+async function duplicateAdventure(sourceDir: string, adventurePath: string): Promise<SavedMapEntry> {
+  const adventure = parseAdventure(await readTextFile(adventurePath))
+  const existingNames = (await listSavedMaps()).map((entry) => entry.name)
+
+  const newId = `adv_${crypto.randomUUID()}`
+  const destDir = await mapDirFor(newId)
+  await copyDirRecursive(sourceDir, destDir)
+
+  for (const scene of adventure.scenes) {
+    try {
+      const path = await scenePath(destDir, scene.file)
+      const map = deserializeMap(await readTextFile(path))
+      const rebased = rebaseMapImagePaths(map, sourceDir, destDir)
+      if (rebased !== map) await writeTextFileSafely(path, serializeMap(rebased))
+    } catch {
+      // Cena que não abre: a cópia leva o arquivo como estava, igual à origem.
+    }
+  }
+
+  const finalName = uniqueMapName(sanitizeMapName(`${adventure.name} (cópia)`), existingNames)
+  const destAdventurePath = await join(destDir, ADVENTURE_FILE)
+  await writeTextFileSafely(destAdventurePath, serializeAdventure({ ...adventure, id: newId, name: finalName }))
+
+  // A entrada da cópia sai do mesmo lugar que a lista usa: cena inicial que
+  // não abre volta marcada, como voltaria no card da origem.
+  return listedAdventure(destAdventurePath, destDir, newId)
 }
 
 /**
