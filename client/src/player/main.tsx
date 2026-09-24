@@ -21,6 +21,8 @@ import { escapeDisarmsMeasure } from './playerMeasure'
 import type { PlayerViewSettings } from './PlayerPanel'
 import { PlayerErrorBoundary } from './ErrorBoundary'
 import { LabyrinthMark } from '../components/icons'
+import { DiceFeed } from '../components/DiceControls'
+import type { DiceRollEntry } from '../lib/dice'
 import type { DestinationMark, SignalMark } from '../lib/signals'
 import type { RemoteLaser } from '../lib/laser'
 import { selectedTokenColor } from '../lib/tokenColor'
@@ -55,6 +57,7 @@ const NO_DESTINATIONS: DestinationMark[] = []
 const NO_PLAYER_LASERS: RemoteLaser[] = []
 const NO_NOTES: NoteEntry[] = []
 const NO_CLUES: ClueEntry[] = []
+const NO_DICE_ROLLS: DiceRollEntry[] = []
 /** Fechar o recado não perde nada: quem fecha sabe onde reler. */
 const NOTE_KEPT_HINT = 'Fica guardado no Caderno do Painel.'
 
@@ -818,7 +821,10 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
             connection.resetClueShare()
             setOpenClueId(clueId)
           }}
+          onRollDice={(request) => connection.rollDice(request)}
         />
+        {/* DADO ROLADO NA SALA: as últimas rolagens da mesa, sobre o mapa, acima do zoom. Não é controle: fora da ordem do Tab. */}
+        <DiceFeed rolls={state.diceRolls ?? NO_DICE_ROLLS} className="pp-dice-feed" />
         {/* "Onde estou": só com nome público na cena; não é controle, fica fora da ordem do Tab. */}
         <PlayerSceneName name={state.sceneName} />
         <PlayerScreenAwake active={screenAwake} />

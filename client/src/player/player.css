@@ -1708,3 +1708,18 @@
 .pp-note-draft {
   z-index: 26;
 }
+
+/*
+ * DADO ROLADO NA SALA: as últimas rolagens da mesa no canto de baixo à
+ * direita, empilhadas acima do zoom (44 px × 2 + borda, a 24 px do rodapé).
+ * Acima da gaveta do painel (z 10): no celular, quem rola pela gaveta vê o
+ * resultado chegar sem fechá-la. Só texto: o toque atravessa para o mapa.
+ */
+.pp-dice-feed {
+  position: fixed;
+  right: 12px;
+  bottom: calc(24px + 90px + 10px + env(safe-area-inset-bottom, 0px));
+  z-index: 12;
+  width: min(260px, calc(100% - 24px));
+  pointer-events: none;
+}

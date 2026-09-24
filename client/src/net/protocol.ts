@@ -7,6 +7,7 @@ import { ROOM_TEXT_MAX_LENGTH } from '../lib/roomText'
 import { isPlayerSafePinImage } from '../lib/pins'
 import { CLUEBOOK_MAX_CLUES, CLUE_TEXT_MAX_LENGTH, CLUE_TITLE_MAX_LENGTH } from '../lib/clues'
 import { MAX_DESTINATION_MARKS, SIGNAL_COLOR_PATTERN, type DestinationMark } from '../lib/signals'
+import { MASTER_ROLLER_NAME, parseDiceRequest, type DiceRequest, type DiceRollEntry } from '../lib/dice'
 
 /**
  * Protocolo mestre <-> jogador. Toda mensagem é um objeto discriminado por
@@ -89,6 +90,13 @@ import { MAX_DESTINATION_MARKS, SIGNAL_COLOR_PATTERN, type DestinationMark } fro
  * da cena dele, só em ponto que ele já conhece e fora de zona oculta. Nunca a
  * cena, nunca marca de quem está em outra cena. Mestre antigo responde
  * `error invalid_message`; jogador antigo ignora a lista.
+ *
+ * O DADO ROLADO NA SALA é aditivo pelo mesmo critério: `dice.roll` (jogador ->
+ * mestre) só PEDE quantidade, dado e modificador — quem rola é o host — e
+ * `dice.rolled` (mestre -> jogador) leva a rolagem pronta a toda a mesa. A
+ * rolagem escondida do mestre nunca vira `dice.rolled` (`diceRollForPlayer`,
+ * em `lib/fogFilter.ts`). Mestre antigo responde `error invalid_message`;
+ * jogador antigo ignora a rolagem.
  */
 export const PROTOCOL_VERSION = 1
 
@@ -217,6 +225,17 @@ export interface DestinationsMessage {
   marks: DestinationMark[]
 }
 
+/** DADO ROLADO NA SALA: o pedido. Resultado e total quem põe é o host. */
+export interface DiceRollMessage extends DiceRequest {
+  type: 'dice.roll'
+}
+
+/** A rolagem pronta, para toda a mesa. Nunca a escondida do mestre. */
+export interface DiceRolledMessage {
+  type: 'dice.rolled'
+  roll: DiceRollEntry
+}
+
 export type PlayerMessage =
   | JoinMessage
   | TokenMoveMessage
@@ -230,6 +249,7 @@ export type PlayerMessage =
   | ClueReadMessage
   | CluePeersRequestMessage
   | ClueShowMessage
+  | DiceRollMessage
 
 /** Por que o host recusou o pedido de porta do jogador. */
 export type DoorToggleRejection = 'locked' | 'far' | 'not_visible'
@@ -371,6 +391,7 @@ export type HostMessage =
   | RoomTextMessage
   | NotebookMessage
   | ClueHostMessage
+  | DiceRolledMessage
   | { type: 'kicked' }
   | { type: 'room.closed' }
   | { type: 'error'; reason: HostErrorReason }
@@ -669,6 +690,36 @@ function parseDestination(value: Record<string, unknown>): DestinationMessage | 
   return isFiniteNumber(value.x) && isFiniteNumber(value.y) ? { type: 'destination', x: value.x, y: value.y } : null
 }
 
+function parseDiceRollEntry(value: unknown): DiceRollEntry | null {
+  if (!isRecord(value)) return null
+  const request = parseDiceRequest(value)
+  if (request === null) return null
+  const { id, from, master, results, total, at } = value
+  if (!isBoundedString(id, 1, REQ_ID_MAX_LENGTH) || !isRoomName(from) || !isNoteTime(at)) return null
+  if (master !== undefined && (master !== true || from !== MASTER_ROLLER_NAME)) return null
+  // Uma face por dado, cada uma de 1 a `sides`, e o total que elas dão: rolagem incoerente não vai à tela.
+  if (!Array.isArray(results) || results.length !== request.count) return null
+  const faces: number[] = []
+  for (const face of results) {
+    if (typeof face !== 'number' || !Number.isInteger(face) || face < 1 || face > request.sides) return null
+    faces.push(face)
+  }
+  if (typeof total !== 'number' || total !== faces.reduce((sum, face) => sum + face, request.modifier)) return null
+  const entry: DiceRollEntry = { id, from, ...request, results: faces, total, at }
+  return master === true ? { ...entry, master } : entry
+}
+
+/**
+ * Valida a rolagem que o jogador recebe. Forma errada, face fora do dado ou
+ * total que não bate recusam a mensagem inteira. Devolve cópia só com os
+ * campos conhecidos — marca de escondida, cena ou id de jogador ficam para trás.
+ */
+export function parseDiceRolled(value: unknown): DiceRolledMessage | null {
+  if (!isRecord(value) || value.type !== 'dice.rolled') return null
+  const roll = parseDiceRollEntry(value.roll)
+  return roll === null ? null : { type: 'dice.rolled', roll }
+}
+
 /**
  * Valida mensagem vinda do jogador. Aceita o objeto já desserializado ou a
  * string JSON crua do transporte. Devolve um objeto novo só com os campos
@@ -711,6 +762,11 @@ export function parsePlayerMessage(raw: unknown): PlayerMessage | null {
       return { type: 'clue.peers' }
     case 'clue.show':
       return isBoundedString(value.clueId, 1, REQ_ID_MAX_LENGTH) && isRoomName(value.to) ? { type: 'clue.show', clueId: value.clueId, to: value.to } : null
+    case 'dice.roll': {
+      // Só o pedido: resultado, total e nome mandados pelo jogador são jogados fora.
+      const request = parseDiceRequest(value)
+      return request === null ? null : { type: 'dice.roll', ...request }
+    }
     default:
       return null
   }
