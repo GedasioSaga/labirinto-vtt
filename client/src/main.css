@@ -2413,6 +2413,108 @@ body {
   opacity: 0.5;
 }
 
+/* Menu "…" da cena (Duplicar, Subir, Descer, Apagar): mesmo botão do recado. */
+.lb-cenas__mais {
+  flex: none;
+  padding: 0 var(--lb-space-2);
+  border: 1px solid var(--lb-color-line);
+  border-radius: var(--lb-radius-md);
+  background: none;
+  color: var(--lb-color-parchment-faint);
+  font-family: inherit;
+  font-size: var(--lb-font-size-sm);
+  line-height: 1.4;
+  cursor: pointer;
+}
+
+.lb-cenas__mais:hover,
+.lb-cenas__mais[aria-expanded='true'] {
+  border-color: var(--lb-color-brass);
+  color: var(--lb-color-brass);
+}
+
+/* O menu abre sob o "…", por cima das linhas de baixo: a linha é a âncora. */
+.lb-cenas__item {
+  position: relative;
+}
+
+.lb-panel.lb-cenas__menu {
+  position: absolute;
+  top: calc(100% - var(--lb-space-1));
+  right: var(--lb-space-2);
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 10rem;
+  padding: var(--lb-space-1);
+  /* Opaco, como o menu de fundo do ActionBar: as linhas de baixo não vazam entre os itens. */
+  background: var(--lb-color-stone-solid);
+  transform-origin: top right;
+  animation: lb-cenas-menu-entra 120ms ease-out;
+}
+
+@keyframes lb-cenas-menu-entra {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lb-panel.lb-cenas__menu {
+    animation: none;
+  }
+}
+
+.lb-cenas__menu-item {
+  width: 100%;
+  padding: 6px var(--lb-space-2);
+  border: 1px solid transparent;
+  border-radius: var(--lb-radius-sm);
+  background: transparent;
+  color: var(--lb-color-parchment-dim);
+  font-family: inherit;
+  font-size: var(--lb-font-size-sm);
+  text-align: left;
+  cursor: pointer;
+}
+
+.lb-cenas__menu-item:hover:not([aria-disabled='true']),
+.lb-cenas__menu-item:focus-visible {
+  background: var(--lb-color-stone-hover);
+  color: var(--lb-color-parchment);
+}
+
+.lb-cenas__menu-item[aria-disabled='true'] {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+/* Confirmação de apagar: a linha inteira, no molde da de "Dar a…" do painel Sala. */
+.lb-cenas__apagar {
+  display: flex;
+  flex-direction: column;
+  flex-basis: 100%;
+  gap: var(--lb-space-2);
+  padding: var(--lb-space-2) var(--lb-space-3);
+  border-left: 2px solid var(--lb-color-ember);
+}
+
+.lb-cenas__apagar p {
+  margin: 0;
+  color: var(--lb-color-parchment-dim);
+  font-size: var(--lb-font-size-sm);
+}
+
+.lb-cenas__apagar .lb-cenas__apagar-titulo {
+  color: var(--lb-color-parchment);
+}
+
+.lb-cenas__apagar .lb-cenas__apagar-bloqueio {
+  color: var(--lb-color-ember);
+}
+
 /* O campo do recado ocupa a linha inteira do item, abaixo do nome e de quem está lá. */
 .lb-cenas__recado {
   display: flex;

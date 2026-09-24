@@ -353,6 +353,39 @@ export function unlinkBack(map: MapData, partnerId: string, back: PinDestination
   return setArrivalOnly(desligado, partnerId, false)
 }
 
+/** Alguma saída do pino de viagem leva à cena `sceneId`. É o pino que fica órfão se ela for apagada. */
+export function leadsToScene(pin: Pin, sceneId: string): boolean {
+  return travelExitsOf(pin).some((saida) => saida.destino.sceneId === sceneId)
+}
+
+/**
+ * CENA APAGADA: desliga toda saída desta cena que levava a `goneSceneId`, e a
+ * chegada oculta que vinha de lá volta a ser pino comum (mesmo motivo de
+ * `unlinkBack`). As outras saídas de uma encruzilhada ficam. Devolve o MESMO
+ * mapa quando nenhum pino levava à cena apagada.
+ */
+export function unlinkFromScene(map: MapData, goneSceneId: string): MapData {
+  const exitToGone = (pin: Pin) => rawLinks(pin).find((link) => link.destino?.sceneId === goneSceneId)
+  if (!map.pins.some((pin) => exitToGone(pin) !== undefined)) return map
+  return {
+    ...map,
+    pins: map.pins.map((pin) => {
+      let saida = exitToGone(pin)
+      if (saida === undefined) return pin
+      let solto = pin
+      // Uma saída por volta: desligar a principal sobe a primeira extra para o
+      // lugar dela, e cada volta tira uma ligação — o laço sempre termina.
+      while (saida !== undefined) {
+        solto = { ...solto, ...setExitDestination(solto, saida.id, null) }
+        saida = exitToGone(solto)
+      }
+      if (solto.soChegada === undefined) return solto
+      const { soChegada: _tirada, ...semMarca } = solto
+      return semMarca
+    }),
+  }
+}
+
 /** Direções em que o pino de chegada procura lugar quando o centro já tem pino. */
 const DIRECOES: readonly (readonly [number, number])[] = [
   [1, 0],

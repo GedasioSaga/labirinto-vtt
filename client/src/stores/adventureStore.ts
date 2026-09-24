@@ -10,8 +10,12 @@ import {
   cleanSceneName,
   nestScene,
   newSceneId,
+  removeSceneKeepingInside,
+  sceneChildCount,
   sceneFileFor,
   sceneTrail,
+  sceneTree,
+  shiftSceneAmongSiblings,
   SCENE_TRAIL_SEPARATOR,
   type Adventure,
   type SceneEntry,
@@ -21,6 +25,7 @@ import {
   arrivalPoint,
   arrivalSpot,
   isArrivalOnly,
+  leadsToScene,
   linkBack,
   pinFocusPoint,
   renameExit,
@@ -33,12 +38,14 @@ import {
   travelLinkChanges,
   travelPinOptions,
   unlinkBack,
+  unlinkFromScene,
   type ExitPatch,
   type PinTravel,
   type TravelPinOption,
   type TravelScene,
   type TravelSceneOption,
 } from '../lib/pinTravel'
+import { cloneSceneMap } from '../lib/entityClone'
 import { mapDirFor, saveAdventureToDisk, scenePath, type OpenedMapFile } from '../lib/mapFileIO'
 import { dirname } from '@tauri-apps/api/path'
 import { removeSelectionItem, selectionHas, type SelectionItem } from '../lib/selectionModel'
@@ -144,6 +151,31 @@ interface AdventureState {
   /** Cria a cena, já aberta. `loosePath` é o arquivo do mapa solto, quando a aventura nasce agora. */
   createScene: (name: string, loosePath: string | null) => string
   renameScene: (sceneId: string, name: string) => void
+  /**
+   * "Duplicar" do menu da cena: a cópia entra LOGO ABAIXO da original, na
+   * mesma pasta (herda o `parentId`, e só ela: as cenas de dentro não são
+   * copiadas), com ids novos, sem as fichas cujo id está em `playerTokenIds` e
+   * com os pinos de viagem soltos (`cloneSceneMap`). Não troca a cena aberta.
+   * Devolve o id da cópia, ou `null` quando não há o que copiar (mapa solto,
+   * cena que não abriu).
+   */
+  duplicateScene: (sceneId: string, playerTokenIds?: ReadonlySet<string>) => string | null
+  /**
+   * "Apagar cena…": tira a cena da aventura e desliga, em todas as outras (no
+   * desfazer delas também), os pinos que levavam para lá. As cenas de dentro
+   * dela sobem um nível e ficam no lugar dela (`removeSceneKeepingInside`).
+   * Recusa (`false`) a última cena e a cena onde está alguma ficha de
+   * `playerTokenIds`. Cena aberta: outra abre antes. O arquivo dela fica no
+   * disco; só sai da lista.
+   */
+  deleteScene: (sceneId: string, playerTokenIds?: ReadonlySet<string>) => boolean
+  /**
+   * "Subir" (`-1`) e "Descer" (`1`) do menu da cena: ela troca de lugar com a
+   * irmã de cima ou de baixo (mesma cena de fora), na ordem que a lista mostra.
+   * A pasta anda com o que tem dentro. `false` na ponta. Não confundir com
+   * `moveScene`, que muda a PASTA da cena.
+   */
+  shiftScene: (sceneId: string, delta: -1 | 1) => boolean
   /**
    * CENAS EM PASTAS: põe `sceneId` dentro de `parentId` (`null` = primeiro
    * nível), com o que estava dentro dela. Muda só a lista de cenas — pede
@@ -285,6 +317,52 @@ export function sceneMaps(state: Pick<AdventureState, 'adventure' | 'activeScene
 
 type SceneState = Pick<AdventureState, 'adventure' | 'activeSceneId' | 'cache'>
 
+/** O mapa de uma cena de fundo, ou `null` quando ela não abriu. */
+function slotMap(slot: SceneSlot | undefined): MapData | null {
+  return slot !== undefined && slot.status === 'ok' ? slot.map : null
+}
+
+/** O mapa da cena `sceneId`: a aberta pelo mapa vivo, as de fundo pelo cache. */
+function mapOfScene(state: SceneState, liveMap: MapData, sceneId: string): MapData | null {
+  return sceneId === state.activeSceneId ? liveMap : slotMap(state.cache[sceneId])
+}
+
+/** Quem está à mesa, como a confirmação de apagar precisa: o nome e as fichas dele (`PlayerInfo` serve). */
+export interface ScenePlayer {
+  name: string
+  tokenIds: readonly string[]
+}
+
+/** O que a confirmação de "Apagar cena…" diz antes de apagar. */
+export interface SceneDeletionInfo {
+  /** Pinos de viagem de OUTRAS cenas que levam a esta e ficam sem destino. */
+  orphanPins: number
+  /** Jogadores com ficha nesta cena: com alguém aqui, apagar fica desligado. */
+  blockers: string[]
+  /** Cenas direto dentro desta: sobem um nível quando ela é apagada. */
+  inside: number
+}
+
+/**
+ * Antes de apagar `sceneId`: quantos pinos de outras cenas ficam órfãos,
+ * quantas cenas de dentro sobem um nível e quem ainda está lá. Cena que não
+ * abriu não tem fichas para contar.
+ */
+export function sceneDeletionInfo(state: SceneState, liveMap: MapData, sceneId: string, players: readonly ScenePlayer[]): SceneDeletionInfo {
+  let orphanPins = 0
+  for (const entry of state.adventure?.scenes ?? []) {
+    if (entry.id === sceneId) continue
+    const map = mapOfScene(state, liveMap, entry.id)
+    if (map !== null) orphanPins += map.pins.filter((pin) => leadsToScene(pin, sceneId)).length
+  }
+  const here = new Set((mapOfScene(state, liveMap, sceneId)?.tokens ?? []).map((token) => token.id))
+  const blockers = players.filter((player) => player.tokenIds.some((id) => here.has(id))).map((player) => player.name)
+  return { orphanPins, blockers, inside: sceneChildCount(state.adventure?.scenes ?? [], sceneId) }
+}
+
+/** Sufixo do nome da cena duplicada, o mesmo da cópia de mapa e de sala. */
+const SCENE_COPY_SUFFIX = ' (cópia)'
+
 /**
  * As cenas da aventura como a ligação dos pinos de viagem as enxerga: a
  * aberta pelo mapa vivo, as de fundo pelo cache. Cena fora da aventura é `null`.
@@ -418,6 +496,33 @@ function withToken(history: SceneHistory, token: Token): SceneHistory {
 }
 
 /**
+ * CENA APAGADA, no histórico inteiro: a ligação para ela sai do mapa e de cada
+ * passo do desfazer e do refazer — senão um Ctrl+Z religaria o pino a uma cena
+ * que não existe mais. `null` quando nenhum passo levava à cena apagada.
+ */
+function withoutLinksTo(history: SceneHistory, goneSceneId: string): SceneHistory | null {
+  const unlink = (map: MapData) => unlinkFromScene(map, goneSceneId)
+  const next = { map: unlink(history.map), past: history.past.map(unlink), future: history.future.map(unlink) }
+  const same = (a: readonly MapData[], b: readonly MapData[]) => a.every((map, i) => map === b[i])
+  if (next.map === history.map && same(next.past, history.past) && same(next.future, history.future)) return null
+  return next
+}
+
+/**
+ * Para onde o editor vai quando a cena ABERTA é apagada: a de onde se veio,
+ * senão a primeira que abre abaixo dela, senão acima — abaixo e acima na
+ * lista que o mestre vê (a árvore), não na ordem crua. `null` = nenhuma abre.
+ */
+function sceneToOpenInstead(state: Pick<AdventureState, 'adventure' | 'cache' | 'previousSceneId'>, goneSceneId: string): string | null {
+  const scenes = sceneTree(state.adventure?.scenes ?? []).map((row) => row.entry)
+  const opens = (id: string) => id !== goneSceneId && slotMap(state.cache[id]) !== null
+  if (state.previousSceneId !== null && opens(state.previousSceneId)) return state.previousSceneId
+  const index = scenes.findIndex((entry) => entry.id === goneSceneId)
+  const ordered = [...scenes.slice(index + 1), ...scenes.slice(0, Math.max(index, 0)).reverse()]
+  return ordered.find((entry) => opens(entry.id))?.id ?? null
+}
+
+/**
  * `true` enquanto uma cena ENTRA no editor. `loadMap` troca o mapa inteiro, e
  * isso não é edição: sem esta trava o guardião da mão dupla leria os pinos da
  * cena que saiu como "apagados" e desligaria todos os pares deles.
@@ -501,6 +606,83 @@ export const useAdventureStore = create<AdventureState>()((set, get) => ({
       adventure: { ...adventure, scenes: adventure.scenes.map((entry) => (entry.id === sceneId ? { ...entry, name: sceneName } : entry)) },
       structureDirty: true,
     })
+  },
+
+  duplicateScene: (sceneId, playerTokenIds = new Set()) => {
+    const state = get()
+    const { adventure, cache, dirty } = state
+    if (adventure === null || state.activeSceneId === null) return null
+    const index = adventure.scenes.findIndex((entry) => entry.id === sceneId)
+    const entry = adventure.scenes[index]
+    const source = mapOfScene(state, useMapStore.getState().map, sceneId)
+    if (entry === undefined || source === null) return null
+    const id = newSceneId()
+    const name = cleanSceneName(`${entry.name}${SCENE_COPY_SUFFIX}`)
+    const map = cloneSceneMap(source, `map_${crypto.randomUUID()}`, name, playerTokenIds)
+    const scenes = [...adventure.scenes]
+    // Mesma pasta da original, e logo depois dela na lista: entre as irmãs, a
+    // árvore segue a lista, então a cópia aparece logo abaixo da original (e
+    // do que ela tem dentro). Só a cena é copiada, não as de dentro dela.
+    scenes.splice(index + 1, 0, { id, name, file: sceneFileFor(id), ...(entry.parentId === undefined ? {} : { parentId: entry.parentId }) })
+    set({
+      adventure: { ...adventure, scenes },
+      cache: { ...cache, [id]: { status: 'ok', map, past: [], future: [], camera: null } },
+      dirty: { ...dirty, [id]: true },
+      structureDirty: true,
+    })
+    return id
+  },
+
+  deleteScene: (sceneId, playerTokenIds = new Set()) => {
+    const before = get()
+    if (before.adventure === null || before.activeSceneId === null) return false
+    if (before.adventure.scenes.length <= 1 || !before.adventure.scenes.some((entry) => entry.id === sceneId)) return false
+    const goneMap = mapOfScene(before, useMapStore.getState().map, sceneId)
+    // Ficha de jogador não some junto com a cena: ele teria que ser mandado a outra antes.
+    if (goneMap !== null && goneMap.tokens.some((token) => playerTokenIds.has(token.id))) return false
+    if (sceneId === before.activeSceneId) {
+      const next = sceneToOpenInstead(before, sceneId)
+      if (next === null || !get().switchScene(next)) return false
+    }
+
+    const { adventure, cache, dirty, previousSceneId } = get()
+    if (adventure === null) return false
+    const nextCache: Record<string, SceneSlot> = {}
+    const nextDirty: Record<string, true> = { ...dirty }
+    delete nextDirty[sceneId]
+    for (const [id, slot] of Object.entries(cache)) {
+      if (id === sceneId) continue
+      const unlinked = slot.status === 'ok' ? withoutLinksTo(slot, sceneId) : null
+      if (slot.status !== 'ok' || unlinked === null) {
+        nextCache[id] = slot
+        continue
+      }
+      nextCache[id] = { ...slot, ...unlinked }
+      if (unlinked.map !== slot.map) nextDirty[id] = true
+    }
+    const scenes = removeSceneKeepingInside(adventure.scenes, sceneId)
+    set({
+      adventure: { ...adventure, scenes, startSceneId: adventure.startSceneId === sceneId ? scenes[0].id : adventure.startSceneId },
+      cache: nextCache,
+      dirty: nextDirty,
+      previousSceneId: previousSceneId === sceneId ? null : previousSceneId,
+      structureDirty: true,
+    })
+    // A cena aberta perde a ligação no mapa e no desfazer juntos, sem
+    // `withHistory`: apagar a cena não é um passo para o Ctrl+Z desta.
+    const { map, past, future } = useMapStore.getState()
+    const openUnlinked = withoutLinksTo({ map, past, future }, sceneId)
+    if (openUnlinked !== null) useMapStore.setState(openUnlinked)
+    return true
+  },
+
+  shiftScene: (sceneId, delta) => {
+    const { adventure } = get()
+    if (adventure === null) return false
+    const scenes = shiftSceneAmongSiblings(adventure.scenes, sceneId, delta)
+    if (scenes === null) return false
+    set({ adventure: { ...adventure, scenes }, structureDirty: true })
+    return true
   },
 
   moveScene: (sceneId, parentId) => {
