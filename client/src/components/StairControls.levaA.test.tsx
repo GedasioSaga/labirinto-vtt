@@ -20,6 +20,7 @@ function travel(extra: Partial<StairTravelProps> = {}): StairTravelProps {
     onLink: vi.fn(),
     onUnlink: vi.fn(),
     onPassageChange: vi.fn(),
+    onCreateFloor: vi.fn(),
     ...extra,
   }
 }
@@ -42,7 +43,7 @@ describe('StairControls: Leva a…', () => {
 
   function render(t: StairTravelProps | null): void {
     act(() =>
-      root.render(<StairControls direction="up" onDirectionChange={() => {}} stepWidth={64} onStepWidthChange={() => {}} grid={64} travel={t} />),
+      root.render(<StairControls direction="up" onDirectionChange={() => {}} shape="straight" onShapeChange={() => {}} stepWidth={64} onStepWidthChange={() => {}} grid={64} travel={t} />),
     )
   }
 

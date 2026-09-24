@@ -1,5 +1,6 @@
-import type { MapData, Pin, PinPassage, Stair, StairDirection } from '../types/map'
+import type { MapData, Pin, PinPassage, Region, Stair, StairDirection, Wall } from '../types/map'
 import type { TravelSceneOption } from './pinTravel'
+import { ancestorsOf, findContainingRoom, pointOnPolygonBorder } from './roomNesting'
 
 /**
  * O "Leva a…" da escada no painel do mestre: para qual andar (cena da
@@ -20,6 +21,11 @@ export interface StairTravelProps {
   onUnlink: () => void
   /** Troca o modo da escada já ligada. */
   onPassageChange: (passage: PinPassage) => void
+  /**
+   * "Criar andar de cima/de baixo": uma cena nova com o contorno do prédio da
+   * escada e a escada par no mesmo ponto, já ligada com o modo `passage`.
+   */
+  onCreateFloor: (passage: PinPassage) => void
 }
 
 /**
@@ -114,4 +120,71 @@ export function buildPartnerStair(id: string, source: Stair, mouth: { x: number;
     segments: source.segments.map((seg) => ({ x1: seg.x1 + dx, y1: seg.y1 + dy, x2: seg.x2 + dx, y2: seg.y2 + dy })),
     stepWidth: source.stepWidth,
   }
+}
+
+/*
+ * CRIAR ANDAR DE CIMA (OU DE BAIXO) A PARTIR DO PRÉDIO. Torre de 3 andares era
+ * redesenhar o contorno em cada andar e ligar 6 pinos à mão. Agora o andar novo
+ * nasce com o contorno do PRÉDIO da escada — a Sala de fora de todas que tem a
+ * boca dela, e a parede externa dessa Sala — e a escada par no mesmo ponto:
+ * quem sobe chega onde estava, um andar acima.
+ */
+
+/** "de cima" para a escada que sobe, "de baixo" para a que desce. */
+export type FloorSide = 'cima' | 'baixo'
+
+export function floorSideOf(direction: StairDirection): FloorSide {
+  return direction === 'up' ? 'cima' : 'baixo'
+}
+
+/** "Casa do prefeito – andar de cima". */
+export function newFloorName(base: string, side: FloorSide): string {
+  return `${base.trim()} – andar de ${side}`
+}
+
+/**
+ * O prédio da escada: a Sala de FORA de todas (a casa, não o quarto) que tem a
+ * boca dela dentro. `null` = escada solta, fora de qualquer Sala.
+ */
+export function buildingOfStair(map: MapData, stair: Stair): Region | null {
+  const mouth = stairMouth(stair)
+  if (mouth === null) return null
+  const room = findContainingRoom(map.regions, [mouth])
+  if (room === null) return null
+  const ancestors = ancestorsOf(map.regions, room.id)
+  return ancestors[ancestors.length - 1] ?? room
+}
+
+/**
+ * A parede externa do prédio: as paredes da própria Sala e as soltas que correm
+ * sobre o contorno dela (prédio desenhado parede por parede). Parede de cômodo
+ * de dentro fica de fora, mesmo encostada no muro: ela é daquele andar.
+ */
+function outerWallsOf(map: MapData, building: Region): Wall[] {
+  return map.walls.filter(
+    (wall) =>
+      wall.regionId === building.id ||
+      (wall.regionId === undefined &&
+        pointOnPolygonBorder({ x: wall.x1, y: wall.y1 }, building.points) &&
+        pointOnPolygonBorder({ x: wall.x2, y: wall.y2 }, building.points)),
+  )
+}
+
+/**
+ * `target` (o andar novo, vazio) com o contorno do prédio de `source`: a Sala,
+ * sem as de dentro, e a parede externa no mesmo lugar. A porta vira parede — a
+ * porta da rua é do térreo; o mestre abre a do andar novo onde quiser. Tudo com
+ * id novo (`newId`) e sem trava nem "oculto no editor": é desenho novo. O
+ * "Oculto para jogadores" da Sala segue junto: prédio escondido embaixo não
+ * aparece em cima por descuido.
+ */
+export function withBuildingContour(target: MapData, source: MapData, building: Region, newId: () => string): MapData {
+  const regionId = newId()
+  const { parentId: _parentId, locked: _locked, hidden: _hidden, ...kept } = building
+  const region: Region = { ...kept, id: regionId, points: building.points.map((p) => ({ ...p })) }
+  const walls = outerWallsOf(source, building).map((wall): Wall => {
+    const { locked: _wallLocked, hidden: _wallHidden, ...rest } = wall
+    return { ...rest, id: newId(), door: null, ...(wall.regionId === undefined ? {} : { regionId }) }
+  })
+  return { ...target, regions: [...target.regions, region], walls: [...target.walls, ...walls] }
 }

@@ -647,8 +647,12 @@ export type Drawing = PlayerSecret & (
 
 export type StairDirection = 'up' | 'down'
 /** 'l' e 'double' existem no schema e no render desde já; a UI desta
- *  rodada só produz 'straight'. */
-export type StairShape = 'straight' | 'l' | 'double'
+ *  rodada só produz 'straight'. 'spiral' (escada em espiral) usa o PRIMEIRO
+ *  lance como diâmetro de um círculo — a boca continua em `x1, y1`, agora na
+ *  borda — e se desenha como círculo com raios finos (`lib/stairs.ts`,
+ *  `computeSpiralPlan`). Valor novo, nunca escrito por versão anterior: mapa
+ *  salvo antes abre igual, sem migração. */
+export type StairShape = 'straight' | 'l' | 'double' | 'spiral'
 
 export interface StairSegment {
   x1: number

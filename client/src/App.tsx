@@ -348,6 +348,7 @@ function App() {
   const setGridOffset = useMapStore((state) => state.setGridOffset)
   const setGridCellSize = useMapStore((state) => state.setGridCellSize)
   const setStairDirection = useMapStore((state) => state.setStairDirection)
+  const setStairShape = useMapStore((state) => state.setStairShape)
   const setRoomName = useMapStore((state) => state.setRoomName)
   const resizeRoomDimensions = useMapStore((state) => state.resizeRoomDimensions)
   const setMapScale = useMapStore((state) => state.setMapScale)
@@ -2250,6 +2251,7 @@ function App() {
             selectedStair={selectedStair}
             stairControls={{
               onDirectionChange: (direction) => selectedStair && setStairDirection(selectedStair.id, direction),
+              onShapeChange: (shape) => selectedStair && setStairShape(selectedStair.id, shape),
               stepWidth: selectedStair?.stepWidth ?? map.grid,
               onStepWidthChange: (stepWidth) => selectedStair && setStairStepWidthForStair(selectedStair.id, stepWidth),
               grid: map.grid,
