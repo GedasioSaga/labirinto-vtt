@@ -67,15 +67,35 @@ describe('fogFilter: bilhete no lugar', () => {
     expect(rede).not.toContain('segredo do fundo')
   })
 
-  it('quem passar depois vê: longe dela não recebe; já explorado, recebe', () => {
+  it('quem passar depois vê: longe dela não recebe; no explorado, só a marca que ele JÁ VIU', () => {
     const map = corredor([bilhete('b1', 260, 200)])
     // Bruno está longe e nunca passou ali.
     expect(idsDasMarcas(map, 'bruno')).toEqual([])
-    // Bruno já passou pelo corredor (explorado), mesmo sem ver agora: é planta que ele conhece.
+    // Bruno já passou pelo corredor (explorado) e VIU o bilhete lá: é o que ele lembra.
     const explorado = createExploration({ width: 60 * 40, height: 60 * 40, grid: 40 })
     markRings(explorado, [[{ x: 100, y: 100 }, { x: 400, y: 100 }, { x: 400, y: 300 }, { x: 100, y: 300 }]], [])
-    const view = filterMapForPlayer(map, 'bruno', POSSE, RAIO, explorado)
+    const view = filterMapForPlayer(map, 'bruno', POSSE, RAIO, explorado, undefined, undefined, undefined, new Set(['b1']))
     expect((view.map.marcas ?? []).map((m) => m.id)).toEqual(['b1'])
+  })
+
+  it('marca cravada DEPOIS que ele saiu dali não aparece no escuro lembrado: seria a posição de quem a deixou agora', () => {
+    // Bruno explorou o canto de Ana antes; o bilhete nasceu depois, no centro da ficha dela.
+    const map = corredor([bilhete('b-novo', 200, 200, { texto: 'estou aqui agora' })])
+    const explorado = createExploration({ width: 60 * 40, height: 60 * 40, grid: 40 })
+    markRings(explorado, [[{ x: 100, y: 100 }, { x: 400, y: 100 }, { x: 400, y: 300 }, { x: 100, y: 300 }]], [])
+    const semVer = filterMapForPlayer(map, 'bruno', POSSE, RAIO, explorado, undefined, undefined, undefined, new Set())
+    expect(semVer.map.marcas ?? []).toEqual([])
+    expect(JSON.stringify(semVer)).not.toContain('estou aqui agora')
+    expect(JSON.stringify(semVer)).not.toContain('b-novo')
+    // Sem lista nenhuma de marcas vistas vale o mesmo: nada vem só por estar explorado.
+    expect((filterMapForPlayer(map, 'bruno', POSSE, RAIO, explorado).map.marcas ?? []).map((m) => m.id)).toEqual([])
+    // A ficha de Ana também não sai (a névoa a esconde): a marca não pode contar o que a ficha não conta.
+    expect(semVer.map.tokens.map((t) => t.id)).toEqual(['ficha-bruno'])
+  })
+
+  it('marca já vista, mas fora do explorado e da visão: não sai (ver uma vez não dá o mapa)', () => {
+    const map = corredor([bilhete('b1', 260, 200)])
+    expect((filterMapForPlayer(map, 'bruno', POSSE, RAIO, undefined, undefined, undefined, undefined, new Set(['b1'])).map.marcas ?? []).map((m) => m.id)).toEqual([])
   })
 
   it('nunca leva quem deixou nem a hora: só o mestre lê o autor', () => {

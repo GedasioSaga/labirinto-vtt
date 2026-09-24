@@ -548,6 +548,8 @@ interface PlayerMemory {
   key: string
   exp: Exploration
   doors: Map<string, DoorState>
+  /** Ids das marcas de jogador (bilhete no lugar) que ele já recebeu: só estas voltam pelo explorado. */
+  marcas: Set<string>
   /** Visão enviada no último snapshot: é o que o jogador está vendo agora na tela. */
   vision: RegionPoint[][]
 }
@@ -665,6 +667,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     key: memoryKey(map),
     exp: createExploration({ width: map.width * map.grid, height: map.height * map.grid, grid: map.grid }),
     doors: new Map(),
+    marcas: new Set(),
     vision: [],
   })
 
@@ -851,7 +854,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const memory = memoryFor(playerId, map)
     const exp = memory.exp
     const entered = enteredRooms.get(playerId)?.get(map.id)
-    const view = filterMapForPlayer(map, playerId, ownership, radiusFor(playerId), exp, memory.doors, pinAudiences, entered)
+    const view = filterMapForPlayer(map, playerId, ownership, radiusFor(playerId), exp, memory.doors, pinAudiences, entered, memory.marcas)
     // Zona oculta ativa e sala secreta: célula que toca nelas não vira explorada
     // (senão o jogador guardaria a planta escondida e o formato dela).
     markRings(exp, view.vision, view.blocked)
@@ -869,6 +872,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     for (const w of view.map.walls) {
       if (w.door !== null && seenNow.has(w.id)) memory.doors.set(w.id, { ...w.door })
     }
+    // Marca que saiu agora foi vista agora (ou já estava lembrada): passa a valer no explorado.
+    for (const m of view.map.marcas ?? []) memory.marcas.add(m.id)
     const sent = new Set(view.map.tokens.map((t) => t.id))
     const ownTokens = (ownership[playerId] ?? []).filter((id) => sent.has(id))
     const snapshot: HostMessage = { type: 'snapshot', rev, map: view.map, vision: view.vision, explored: encodeExploration(exp), ownTokens, concealed: view.concealed }
@@ -1361,7 +1366,10 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const view = filterMapForPlayer({ ...map, marcas: [prova] }, playerId, ownership, radiusFor(playerId), memory.exp, memory.doors, pinAudiences)
     const owned = new Set(ownership[playerId] ?? [])
     // Fichas do recorte: ficha escondida pelo mestre (ou na camada oculta) não crava nada.
-    const alcanca = view.map.tokens.some((t) => owned.has(t.id) && fichaAlcancaPonto(t, point, map.grid))
+    // Ficha SECRETA também não: o dono a recebe, mas os outros não — a marca
+    // nascendo ali contaria a eles onde está a ficha que o mestre esconde.
+    const secretas = new Set(map.tokens.filter((t) => t.secret === true).map((t) => t.id))
+    const alcanca = view.map.tokens.some((t) => owned.has(t.id) && !secretas.has(t.id) && fichaAlcancaPonto(t, point, map.grid))
     if (!alcanca || !(view.map.marcas ?? []).some((m) => m.id === prova.id)) return recusa('unavailable')
     const marcas = map.marcas ?? []
     const minhas = marcas.filter((m) => m.autor === record.name).length
@@ -1460,6 +1468,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     for (const [wallId, door] of given.doors) {
       if (!memory.doors.has(wallId)) memory.doors.set(wallId, { ...door })
     }
+    // Marcas: as que o doador viu, como ele as lembra (o recorte ainda pede o explorado e a regra de agora).
+    for (const marcaId of given.marcas) memory.marcas.add(marcaId)
     return true
   }
 

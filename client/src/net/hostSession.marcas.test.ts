@@ -181,6 +181,56 @@ describe('hostSession: bilhete no lugar', () => {
     expect(JSON.stringify(para(depois, 'c3'))).not.toContain('autor')
   })
 
+  it('bilhete cravado DEPOIS que Caio saiu do canto: o escuro lembrado dele não mostra onde Ana está agora', () => {
+    const { s, deixar, aplicar, estado, mundo, relogio } = mesa()
+    const moverCaio = (x: number, y: number) => {
+      estado.salao = { ...estado.salao, tokens: estado.salao.tokens.map((t) => (t.id === 'capa' ? { ...t, x, y } : t)) }
+    }
+    // Caio passa pelo canto de Ana (explora) e vai embora.
+    moverCaio(400, 260)
+    s.broadcast(mundo())
+    moverCaio(2800, 800)
+    s.broadcast(mundo())
+    // Ana crava o bilhete no centro da própria ficha.
+    aplicar(deixar('c1', { x: 200, y: 200, tipo: 'bilhete', texto: 'estou aqui agora' }))
+    const depois = s.broadcast(mundo())
+    const snapCaio = para(depois, 'c3').find((m) => m.type === 'snapshot')
+    if (snapCaio?.type !== 'snapshot') throw new Error('sem snapshot para Caio')
+    // A névoa esconde a ficha de Ana, e esconde a marca que diria onde ela está.
+    expect(snapCaio.map.tokens.map((t) => t.id)).toEqual(['capa'])
+    expect(snapCaio.map.marcas ?? []).toEqual([])
+    expect(JSON.stringify(para(depois, 'c3'))).not.toContain('estou aqui agora')
+    // Caio volta e VÊ o bilhete; ao sair de novo, o escuro lembrado guarda o que ele viu.
+    moverCaio(400, 260)
+    expect(marcasNoSnapshot(s.broadcast(mundo()), 'c3').map((m) => m.texto)).toEqual(['estou aqui agora'])
+    moverCaio(2800, 800)
+    expect(marcasNoSnapshot(s.broadcast(mundo()), 'c3').map((m) => m.texto)).toEqual(['estou aqui agora'])
+    // Um segundo bilhete cravado depois dessa volta continua fora do escuro lembrado dele.
+    relogio.t += 5000
+    aplicar(deixar('c1', { x: 210, y: 200, tipo: 'bilhete', texto: 'ainda aqui' }))
+    const ultimo = marcasNoSnapshot(s.broadcast(mundo()), 'c3')
+    expect(ultimo.map((m) => m.texto)).toEqual(['estou aqui agora'])
+  })
+
+  it('"Mostrar meu mapa a…" passa também as marcas que quem mostra já viu', () => {
+    const { s, deixar, aplicar, estado, mundo } = mesa()
+    aplicar(deixar('c1', { x: 200, y: 200, tipo: 'bilhete', texto: 'vi e mostro' }))
+    s.broadcast(mundo())
+    // Caio, longe, recebe o mapa de Ana: o explorado dela e o bilhete que ela viu.
+    const r = s.handleMessage('c1', { type: 'map.share', to: 'Caio' }, mundo())
+    expect(para(r, 'c1')).toEqual([{ type: 'map.share.result', to: 'Caio', ok: true }])
+    expect(estado.salao.tokens.find((t) => t.id === 'capa')?.x).toBe(2800)
+    expect(marcasNoSnapshot(s.broadcast(mundo()), 'c3').map((m) => m.texto)).toEqual(['vi e mostro'])
+  })
+
+  it('ficha SECRETA (que o mestre esconde dos outros) não crava marca: a marca contaria onde ela está', () => {
+    const { deixar, estado } = mesa()
+    estado.salao = { ...estado.salao, tokens: estado.salao.tokens.map((t) => (t.id === 'lanterna' ? { ...t, secret: true } : t)) }
+    const r = deixar('c1', { x: 200, y: 200, tipo: 'bilhete', texto: 'invisivel' })
+    expect(r.applyMark).toBeUndefined()
+    expect(para(r, 'c1')).toEqual([{ type: 'mark.place.result', ok: false, reason: 'unavailable' }])
+  })
+
   it('ponto numa zona oculta ativa, mesmo encostado na ficha: recusa (o jogador não sabe o que há ali)', () => {
     const { deixar, estado } = mesa()
     estado.salao = {
