@@ -428,6 +428,8 @@ export interface HostSession {
    * "Deixar ir": revalida o pedido contra o mundo de AGORA (o token pode ter
    * andado, o pino sumido) e devolve `applyTransfer` + `scene.changed` ao
    * dono. Pedido que já não existe (jogador saiu, já decidido) não faz nada.
+   * Passagem barrada do outro lado por quem o aviso não nomeava: não passa —
+   * devolve `travelRequest` novo (a disputa), que o integrador põe na Caixa.
    */
   approveTravel(requestId: string, source: HostMapSource): HostResult
   /** "Não": `pin.travel.denied` ao jogador. Pedido que já não existe não faz nada. */
@@ -519,6 +521,12 @@ interface PendingTravel {
   fromSceneId: string
   /** Quando o pedido chegou (`now`), para a idade na Caixa de Pedidos. */
   requestedAt: number
+  /**
+   * Quem barrava o par do outro lado no aviso que o mestre LEU (`null` = o
+   * aviso não falava de barra). Barra de outra pessoa na hora do "Deixar ir"
+   * é disputa que o mestre não viu: o consentimento não cobre quebrá-la.
+   */
+  barradaPorId: string | null
 }
 
 /** Pedido de ação sobre ficha à espera do mestre. Um por jogador; `reqId` é o do jogador. */
@@ -1439,7 +1447,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     if (passageOf(travel.pin) === 'livre' && barra === undefined) return transferResult(playerId, clientId, record.name, travel)
     const requestId = randomId()
     // O destino que o mestre LEU vai junto: é com ele que o "Deixar ir" confere.
-    pendingTravels.set(playerId, {
+    const pendente: PendingTravel = {
       requestId,
       playerId,
       pinId: msg.pinId,
@@ -1448,29 +1456,33 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       partnerId: travel.partner.id,
       fromSceneId: travel.from.sceneId,
       requestedAt: at,
-    })
-    const description = travel.pin.description.trim()
-    // Encruzilhada: o mestre lê a SAÍDA ("Escada da torre → Torre Alta"), o
-    // mesmo rótulo que a jogadora tocou; pino de uma saída continua nomeado
-    // pela descrição, como sempre.
-    const saidas = exitLabelsOf(travel.pin)
-    const saida = saidas.length > 1 ? saidas.find((s) => s.id === exitId) : undefined
+      barradaPorId: barra === undefined ? null : barra.playerId,
+    }
+    pendingTravels.set(playerId, pendente)
     // Passagem LIVRE que caiu em pedido por causa da barra: o jogador leu
     // "Passando…" (ninguém decide) e agora espera o mestre. Avisa só isso —
     // nem quem barrou, nem que há barra — para a tela trocar para "Aguardando
     // o mestre…". Pino que já pede passagem não precisa: o jogador já lê a espera.
     const pending: HostResult['outbound'] = passageOf(travel.pin) === 'livre' ? [{ clientId, msg: { type: 'pin.travel.pending' } }] : []
+    return { outbound: pending, travelRequest: travelRequestOf(pendente, record.name, travel, barra) }
+  }
+
+  /** O aviso do mestre para um pedido pendente: quem, por qual pino, para onde e, se houver, quem barrou. */
+  function travelRequestOf(pendente: PendingTravel, playerName: string, travel: ValidTravel, barra: Barra | undefined): TravelRequest {
+    const description = travel.pin.description.trim()
+    // Encruzilhada: o mestre lê a SAÍDA ("Escada da torre → Torre Alta"), o
+    // mesmo rótulo que a jogadora tocou; pino de uma saída continua nomeado
+    // pela descrição, como sempre.
+    const saidas = exitLabelsOf(travel.pin)
+    const saida = saidas.length > 1 ? saidas.find((s) => s.id === pendente.exitId) : undefined
     return {
-      outbound: pending,
-      travelRequest: {
-        requestId,
-        playerId,
-        playerName: record.name,
-        pinLabel: saida !== undefined ? saida.rotulo : description === '' ? pinSummary(travel.pin) : description,
-        toSceneId: travel.to.sceneId,
-        toSceneName: travel.to.name,
-        ...(barra === undefined ? {} : { barradaPor: barra.playerName }),
-      },
+      requestId: pendente.requestId,
+      playerId: pendente.playerId,
+      playerName,
+      pinLabel: saida !== undefined ? saida.rotulo : description === '' ? pinSummary(travel.pin) : description,
+      toSceneId: travel.to.sceneId,
+      toSceneName: travel.to.name,
+      ...(barra === undefined ? {} : { barradaPor: barra.playerName }),
     }
   }
 
@@ -1764,6 +1776,17 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       // jogador pede de novo.
       const sameDestination = travel !== null && travel.to.sceneId === pending.toSceneId && travel.partner.id === pending.partnerId
       if (travel === null || !sameDestination) return reply(record.clientId, { type: 'pin.travel.rejected', reason: 'unavailable' })
+      // Barrada do outro lado por alguém que o aviso NÃO nomeava (a barra veio
+      // depois do pedido, ou quem barrou trocou): o "Deixar ir" não cobre
+      // quebrá-la. O pedido volta à Caixa como disputa, com id novo — o
+      // consentimento velho morre — e a idade de antes. O jogador segue
+      // esperando, sem ler barra nem nome.
+      const barra = barraAtiva(travel.to.map, travel.partner.id)
+      if (barra !== undefined && barra.playerId !== pending.barradaPorId) {
+        const disputa: PendingTravel = { ...pending, requestId: randomId(), barradaPorId: barra.playerId }
+        pendingTravels.set(pending.playerId, disputa)
+        return { outbound: [], travelRequest: travelRequestOf(disputa, record.name, travel, barra) }
+      }
       return transferResult(pending.playerId, record.clientId, record.name, travel)
     },
 

@@ -302,6 +302,64 @@ describe('hostSession: barrar a passagem por onde chegou', () => {
     expect(pinoNoRecorte(snapshotPara(s, 'c1', w), 'fundo')?.barradaDaqui).toBeUndefined()
   })
 
+  it('barra posta DEPOIS do pedido: o "Deixar ir" comum não quebra a barra, o pedido volta à Caixa como disputa dizendo quem barrou', () => {
+    // O alçapão pede passagem: o pedido de Bruno sai sem barra, com "Deixar ir" comum.
+    const base = mundo()
+    const w: HostWorld = { ...base, open: { ...base.open, map: { ...base.open.map, pins: base.open.map.pins.map((p) => ({ ...p, passagem: undefined })) } } }
+    const { s } = mesa(w)
+    s.broadcast(w)
+    const pedido = s.handleMessage('c2', { type: 'pin.travel.request', pinId: 'alcapao' }, w).travelRequest
+    if (pedido === undefined) throw new Error('esperava o pedido')
+    expect(pedido.barradaPor).toBeUndefined()
+    // Com o pedido na Caixa, Ana barra o fundo do poço.
+    expect(s.handleMessage('c1', { type: 'pin.bar', pinId: 'fundo', on: true }, w).trancaAviso?.acao).toBe('trancou')
+    const r = s.approveTravel(pedido.requestId, w)
+    expect(r.applyTransfer).toBeUndefined()
+    expect(r.travelRequest?.barradaPor).toBe('Ana')
+    expect(r.travelRequest?.playerName).toBe('Bruno')
+    // SEGURANÇA: Bruno segue esperando, sem ler barra nem nome.
+    expect(r.outbound).toEqual([])
+    expect(pinoNoRecorte(snapshotPara(s, 'c1', w), 'fundo')?.barradaDaqui).toBe(true)
+    // O consentimento velho morreu; o aviso novo é o que vale.
+    const novo = r.travelRequest?.requestId ?? ''
+    expect(novo).not.toBe(pedido.requestId)
+    expect(s.isTravelPending(pedido.requestId)).toBe(false)
+    expect(s.isTravelPending(novo)).toBe(true)
+    // "Passa (quebra a barra)" sobre o aviso que disse quem barrou: agora sim.
+    expect(s.approveTravel(novo, w).applyTransfer?.toSceneId).toBe(CRIPTA)
+    expect(pinoNoRecorte(snapshotPara(s, 'c1', w), 'fundo')?.barradaDaqui).toBeUndefined()
+  })
+
+  it('o aviso disse "barrada por Ana", mas Ana tirou e Carla barrou: o "Passa" não quebra a barra de Carla sem o mestre ler', () => {
+    const base = mundo()
+    const w: HostWorld = {
+      ...base,
+      background: base.background.map((c) => ({ ...c, map: { ...c.map, tokens: [...c.map.tokens, ficha('ficha-carla', 'Batedora', 1050, 250)] } })),
+    }
+    const { s } = anaBarrou(w)
+    const carla = welcome(s.handleMessage('c3', { type: 'join', code: CODE, name: 'Carla' }, w))
+    s.assignToken(carla, 'ficha-carla')
+    s.broadcast(w)
+    const pedido = s.handleMessage('c2', { type: 'pin.travel.request', pinId: 'alcapao' }, w).travelRequest
+    expect(pedido?.barradaPor).toBe('Ana')
+    expect(s.handleMessage('c1', { type: 'pin.bar', pinId: 'fundo', on: false }, w).trancaAviso?.acao).toBe('destrancou')
+    expect(s.handleMessage('c3', { type: 'pin.bar', pinId: 'fundo', on: true }, w).trancaAviso?.playerName).toBe('Carla')
+    const r = s.approveTravel(pedido?.requestId ?? '', w)
+    expect(r.applyTransfer).toBeUndefined()
+    expect(r.travelRequest?.barradaPor).toBe('Carla')
+    expect(pinoNoRecorte(snapshotPara(s, 'c3', w), 'fundo')?.barradaDaqui).toBe(true)
+  })
+
+  it('o aviso disse "barrada por Ana" e a barra de Ana ainda está lá: o "Passa" leva direto, sem reabrir', () => {
+    const w = mundo()
+    const { s } = anaBarrou(w)
+    const pedido = s.handleMessage('c2', { type: 'pin.travel.request', pinId: 'alcapao' }, w).travelRequest
+    if (pedido === undefined) throw new Error('esperava o pedido')
+    const r = s.approveTravel(pedido.requestId, w)
+    expect(r.travelRequest).toBeUndefined()
+    expect(r.applyTransfer?.toSceneId).toBe(CRIPTA)
+  })
+
   it('Ana tira a barra: a marca some e a passagem livre volta a passar direto', () => {
     const w = mundo()
     const { s } = anaBarrou(w)

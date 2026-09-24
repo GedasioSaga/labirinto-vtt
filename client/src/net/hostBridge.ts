@@ -564,6 +564,9 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       // Recusa da revalidação (o token andou, o pino sumiu, a porta foi
       // trancada) ou pedido que já morreu.
       void dispatch(result)
+      // Barrada do outro lado depois do aviso: o pedido volta como disputa,
+      // e o mestre decide lendo quem barrou.
+      if (result.travelRequest !== undefined) askTravel(result.travelRequest)
       notifyPlayersIfChanged()
       return
     }

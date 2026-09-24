@@ -162,6 +162,83 @@ describe('hostBridge: ferrolho do jogador', () => {
     expect(applyTransfer).toHaveBeenCalledWith(expect.objectContaining({ tokenId: 'ficha-bruno', toSceneId: 'cena-b' }))
   })
 
+  it('barra posta com o pedido já na Caixa: "Deixar ir" não leva a ficha e o pedido volta como disputa dizendo quem barrou', async () => {
+    const naCripta = new Set<string>(['ficha-ana'])
+    // Pino que PEDE passagem: o pedido de Bruno sai com o "Deixar ir" comum, do "Deixar todos".
+    const escada = (id: string, x: number, description: string, sceneId: string, pinId: string): Pin => ({
+      id,
+      x,
+      y: 200,
+      kind: 'viagem',
+      description,
+      image: null,
+      destino: { sceneId, pinId },
+    })
+    const world = (): HostWorld => ({
+      open: {
+        sceneId: 'cena-a',
+        name: 'Salão',
+        map: {
+          ...createEmptyMap('mapa-a', 'A', 40, 10, 50),
+          tokens: naCripta.has('ficha-bruno') ? [] : [ficha('ficha-bruno', 'Guarda', 250, 200)],
+          pins: [escada('escada-a', 300, 'Escada que desce', 'cena-b', 'escada-b')],
+        },
+      },
+      background: [
+        {
+          sceneId: 'cena-b',
+          name: 'Cripta',
+          map: {
+            ...createEmptyMap('mapa-b', 'B', 40, 10, 50),
+            tokens: [...naCripta].map((id) => ficha(id, id, id === 'ficha-ana' ? 950 : 1050, 200)),
+            pins: [escada('escada-b', 1000, 'Escada que sobe', 'cena-a', 'escada-a')],
+          },
+        },
+      ],
+    })
+    const handlers = new Map<string, (event: { payload: unknown }) => void>()
+    const invoke = vi.fn(async (cmd: string, _args?: unknown) => (cmd === 'net_start_room' ? ROOM : undefined))
+    const listen = vi.fn(async (name: string, handler: (event: { payload: unknown }) => void) => {
+      handlers.set(name, handler)
+      return vi.fn()
+    })
+    const applyTransfer = vi.fn((transfer: AppliedTransfer) => {
+      naCripta.add(transfer.tokenId)
+      return true
+    })
+    let t = 0
+    const bridge = createHostBridge({ invoke, listen, getMap: () => world().open.map, getWorld: world, applyMove: vi.fn(), applyDoor: vi.fn(), applyTransfer, now: () => (t += 1000) })
+    await bridge.start()
+    const emit = (payload: unknown) => handlers.get('net:message')?.({ payload })
+    for (const { clientId, name, tokenId } of [
+      { clientId: 'c1', name: 'Ana', tokenId: 'ficha-ana' },
+      { clientId: 'c2', name: 'Bruno', tokenId: 'ficha-bruno' },
+    ]) {
+      emit({ clientId, msg: { type: 'join', code: ROOM.code, name } })
+      const player = bridge.players().find((p) => p.name === name)
+      if (player === undefined) throw new Error(`${name} deveria ter entrado`)
+      bridge.assignToken(player.playerId, tokenId)
+    }
+    bridge.notifyMapChanged()
+    vi.runAllTimers()
+
+    emit({ clientId: 'c2', msg: { type: 'pin.travel.request', pinId: 'escada-a' } })
+    const [pedido] = pedidos()
+    if (pedido === undefined) throw new Error('esperava o pedido na caixa')
+    expect(pedido.text).toBe('Bruno quer passar por Escada que desce → Cripta')
+    emit({ clientId: 'c1', msg: { type: 'pin.bar', pinId: 'escada-b', on: true } })
+    pedido.actions?.find((a) => a.label === 'Deixar ir')?.run()
+    expect(applyTransfer).not.toHaveBeenCalled()
+    const [disputa] = pedidos()
+    if (disputa === undefined) throw new Error('esperava a disputa na caixa')
+    expect(disputa.id).not.toBe(pedido.id)
+    expect(disputa.text).toBe('Bruno quer passar por Escada que desce → Cripta (barrada do outro lado por Ana)')
+    expect(disputa.actions?.map((a) => a.label)).toEqual(['Passa (quebra a barra)', 'A barra aguenta'])
+    expect(disputa.actions?.some((a) => a.emLote === true)).toBe(false)
+    disputa.actions?.find((a) => a.label === 'Passa (quebra a barra)')?.run()
+    expect(applyTransfer).toHaveBeenCalledWith(expect.objectContaining({ tokenId: 'ficha-bruno', toSceneId: 'cena-b' }))
+  })
+
   it('o × vale "Aguenta": a porta fica fechada', async () => {
     const { emit, applyDoor } = await mesa()
     emit('net:message', { clientId: 'c1', msg: { type: 'door.bar', wallId: 'porta', on: true } })
