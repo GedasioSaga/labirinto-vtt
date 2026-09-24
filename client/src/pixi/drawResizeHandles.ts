@@ -1,7 +1,7 @@
 import type { Graphics } from 'pixi.js'
 import type { Box } from '../lib/objectTransform'
 import { boxCorners } from '../lib/objectTransform'
-import { drawCornerHandle, cornerHandleRadius } from './drawRoomHandles'
+import { drawCornerHandlesOnScreen } from './drawRoomHandles'
 
 /**
  * Alças de resize por canto de um `Box` — generalização de
@@ -16,11 +16,9 @@ import { drawCornerHandle, cornerHandleRadius } from './drawRoomHandles'
  * `Corner` 0..3).
  *
  * O chip encolhe com o objeto (`cornerHandleRadius`): num Prop de 20 px de
- * lado, quatro chips de 12 px cobririam o Prop inteiro.
+ * lado, quatro chips de 12 px cobririam o Prop inteiro. E tem tamanho fixo na
+ * tela em qualquer zoom (`drawCornerHandlesOnScreen`); sem `cameraScale`, zoom 1.
  */
-export function drawBoxResizeHandles(graphics: Graphics, box: Box): void {
-  const radius = cornerHandleRadius(box.maxX - box.minX, box.maxY - box.minY)
-  for (const corner of boxCorners(box)) {
-    drawCornerHandle(graphics, corner.x, corner.y, radius)
-  }
+export function drawBoxResizeHandles(graphics: Graphics, box: Box, cameraScale = 1): void {
+  drawCornerHandlesOnScreen(graphics, boxCorners(box), box.maxX - box.minX, box.maxY - box.minY, cameraScale)
 }

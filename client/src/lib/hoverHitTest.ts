@@ -142,10 +142,12 @@ export function resolveHoverHit(input: HoverHitInput): HoverHit {
     }
     if (editRegionId !== null) {
       const region = map.regions.find((r) => r.id === editRegionId)
-      if (region) {
+      // Travada não tem alça nenhuma (`pixi/drawEditHandles.ts`) e o pointerdown
+      // não deixa pegar canto, vértice nem girar: o cursor também não promete.
+      if (region && canInteract(region)) {
         // Alça de girar: mesma condição do pointerdown (`pixi/roomRotateGesture.ts`)
         // — Sala destravada. Travada não tem alça, então não tem cursor de girar.
-        if (region.room && canInteract(region) && isOnRoomRotateHandle(region.points, roomRotationOf(region.room), worldPoint, input.cameraScale ?? 1)) {
+        if (region.room && isOnRoomRotateHandle(region.points, roomRotationOf(region.room), worldPoint, input.cameraScale ?? 1)) {
           return { kind: 'rotate', corner: null, target: null }
         }
         if (region.room?.shape === 'rect') {

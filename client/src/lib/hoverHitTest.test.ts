@@ -220,6 +220,19 @@ describe('resolveHoverHit — alça de girar sala', () => {
     expect(pairar({ ...sala, locked: true }, bolinha).kind).not.toBe('rotate')
   })
 
+  it('Sala travada não tem chip de canto, então o canto não promete redimensionar', () => {
+    const canto = { x: 100, y: 100 }
+    // Controle: destravada, o mesmo ponto é canto de verdade.
+    expect(pairar(sala, canto)).toEqual({ kind: 'resize-corner', corner: 2, target: null })
+    expect(pairar({ ...sala, locked: true }, canto).kind).not.toBe('resize-corner')
+  })
+
+  it('região comum travada: o vértice não promete arrastar', () => {
+    const comum = buildSquareRegion('r1')
+    expect(pairar(comum, { x: 0, y: 0 })).toEqual({ kind: 'vertex', corner: null, target: null })
+    expect(pairar({ ...comum, locked: true }, { x: 0, y: 0 }).kind).not.toBe('vertex')
+  })
+
   it('região comum não é Sala e não gira', () => {
     expect(pairar(buildSquareRegion('r1'), bolinha).kind).not.toBe('rotate')
   })
