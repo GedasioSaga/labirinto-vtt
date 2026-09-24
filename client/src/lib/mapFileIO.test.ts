@@ -110,6 +110,7 @@ const {
   renameMap,
   duplicateMap,
   deleteMap,
+  openMapFileFirst,
 } = await import('./mapFileIO')
 
 function makeMap(overrides: Partial<MapData> = {}): MapData {
@@ -423,6 +424,131 @@ describe('listSavedMaps', () => {
         damaged: true,
       },
     ])
+  })
+
+  describe('aventura sem map.json na raiz (como a cidade-torre gerada)', () => {
+    const TORRE = `${MAPS_DIR}\\cidade-torre`
+    const TORRE_ADVENTURE = `${TORRE}\\adventure.json`
+    const ESGOTO = `${TORRE}\\scenes\\scene_esgoto\\map.json`
+    const PICO = `${TORRE}\\scenes\\scene_pico\\map.json`
+    const adventureJson = JSON.stringify({
+      version: 1,
+      id: 'adv_torre',
+      name: 'Cidade-Torre',
+      startSceneId: 'scene_esgoto',
+      scenes: [
+        { id: 'scene_pico', name: 'Pico', file: 'scenes/scene_pico/map.json' },
+        { id: 'scene_esgoto', name: 'Esgoto', file: 'scenes/scene_esgoto/map.json' },
+      ],
+    })
+
+    it('aparece na lista com o nome da aventura, abrindo pela cena inicial', async () => {
+      existsMock.mockImplementation(async (path: string) => [MAPS_DIR, TORRE_ADVENTURE, ESGOTO, PICO].includes(path))
+      readDirMock.mockResolvedValue([dirEntry('cidade-torre')])
+      readTextFileMock.mockImplementation(async (path: string) => {
+        if (path === TORRE_ADVENTURE) return adventureJson
+        if (path === ESGOTO) return JSON.stringify(makeMap({ id: 'map_esgoto', name: 'Esgoto', width: 120, height: 80, grid: 32 }))
+        return JSON.stringify(makeMap({ id: 'map_pico', name: 'Pico' }))
+      })
+      statMock.mockResolvedValue(fakeFileInfo(new Date('2026-09-22T09:00:00.000Z')))
+
+      const maps = await listSavedMaps()
+
+      // `id` é o nome da pasta: é o que `mapDirFor` resolve de volta para a
+      // pasta da aventura (Excluir apaga a aventura inteira, não uma cena).
+      expect(maps).toEqual([
+        { path: ESGOTO, id: 'cidade-torre', name: 'Cidade-Torre', width: 120, height: 80, grid: 32, mtimeMs: Date.parse('2026-09-22T09:00:00.000Z') },
+      ])
+    })
+
+    it('o caminho listado abre como a aventura inteira, na cena inicial', async () => {
+      existsMock.mockImplementation(async (path: string) => [MAPS_DIR, TORRE_ADVENTURE, ESGOTO, PICO].includes(path))
+      readDirMock.mockResolvedValue([dirEntry('cidade-torre')])
+      readTextFileMock.mockImplementation(async (path: string) => {
+        if (path === TORRE_ADVENTURE) return adventureJson
+        if (path === ESGOTO) return JSON.stringify(makeMap({ id: 'map_esgoto', name: 'Esgoto' }))
+        return JSON.stringify(makeMap({ id: 'map_pico', name: 'Pico' }))
+      })
+
+      const [entrada] = await listSavedMaps()
+      expect(entrada).toBeDefined()
+      const aberto = await openMapFileFirst(entrada.path)
+
+      expect(aberto.adventureDir).toBe(TORRE)
+      expect(aberto.activeSceneId).toBe('scene_esgoto')
+      expect(aberto.map.id).toBe('map_esgoto')
+      expect(aberto.scenes.map((load) => load.entry.id)).toEqual(['scene_pico', 'scene_esgoto'])
+    })
+
+    it('adventure.json mínimo (sem nome, sem startSceneId) entra pela primeira cena, com o nome dela', async () => {
+      const minimo = JSON.stringify({ scenes: [{ id: 'scene_pico', name: 'Pico', file: 'scenes/scene_pico/map.json' }] })
+      existsMock.mockImplementation(async (path: string) => [MAPS_DIR, TORRE_ADVENTURE, PICO].includes(path))
+      readDirMock.mockResolvedValue([dirEntry('cidade-torre')])
+      readTextFileMock.mockImplementation(async (path: string) => {
+        if (path === TORRE_ADVENTURE) return minimo
+        return JSON.stringify(makeMap({ id: 'map_pico', name: 'Pico', width: 10, height: 8, grid: 50 }))
+      })
+      statMock.mockResolvedValue(fakeFileInfo(null))
+
+      const maps = await listSavedMaps()
+
+      expect(maps).toEqual([{ path: PICO, id: 'cidade-torre', name: 'Pico', width: 10, height: 8, grid: 50, mtimeMs: 0 }])
+    })
+
+    it('adventure.json corrompido entra marcado como danificado, com o caminho dele', async () => {
+      existsMock.mockImplementation(async (path: string) => path === MAPS_DIR || path === TORRE_ADVENTURE)
+      readDirMock.mockResolvedValue([dirEntry('cidade-torre')])
+      readTextFileMock.mockResolvedValue('{ isso não é json')
+
+      const maps = await listSavedMaps()
+
+      expect(maps).toEqual([
+        {
+          path: TORRE_ADVENTURE,
+          id: 'cidade-torre',
+          name: 'cidade-torre (arquivo danificado)',
+          width: 0,
+          height: 0,
+          grid: 0,
+          mtimeMs: Date.parse('2026-01-01T00:00:00.000Z'),
+          damaged: true,
+        },
+      ])
+    })
+
+    it('cena inicial ausente no disco entra marcada como danificada, sem derrubar a lista', async () => {
+      existsMock.mockImplementation(async (path: string) => [MAPS_DIR, TORRE_ADVENTURE, `${MAPS_DIR}\\map_bom\\map.json`].includes(path))
+      readDirMock.mockResolvedValue([dirEntry('map_bom'), dirEntry('cidade-torre')])
+      readTextFileMock.mockImplementation(async (path: string) => {
+        if (path === TORRE_ADVENTURE) return adventureJson
+        return JSON.stringify(makeMap({ id: 'map_bom', name: 'Torre' }))
+      })
+
+      const maps = await listSavedMaps()
+
+      expect(maps.map((m) => [m.id, m.damaged ?? false])).toEqual([
+        ['map_bom', false],
+        ['cidade-torre', true],
+      ])
+      expect(maps[1].path).toBe(TORRE_ADVENTURE)
+    })
+
+    it('cena inicial com caminho fora da pasta da aventura não é lida: entra danificada', async () => {
+      existsMock.mockImplementation(async (path: string) => path === MAPS_DIR || path === TORRE_ADVENTURE)
+      readDirMock.mockResolvedValue([dirEntry('cidade-torre')])
+      readTextFileMock.mockImplementation(async (path: string) => {
+        if (path === TORRE_ADVENTURE) {
+          return JSON.stringify({ version: 1, id: 'adv_x', name: 'X', startSceneId: 's1', scenes: [{ id: 's1', name: 'S', file: '../outra/map.json' }] })
+        }
+        throw new Error(`leitura inesperada: ${path}`)
+      })
+
+      const maps = await listSavedMaps()
+
+      expect(maps).toHaveLength(1)
+      expect(maps[0].damaged).toBe(true)
+      expect(readTextFileMock).toHaveBeenCalledTimes(1)
+    })
   })
 })
 
