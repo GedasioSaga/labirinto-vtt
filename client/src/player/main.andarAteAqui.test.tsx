@@ -122,10 +122,22 @@ function botao(nome: string | RegExp): HTMLButtonElement {
   return achado
 }
 
+/** O "Andar até aqui" dentro do menu do toque longo (o das ações no ponto, onde ele mora). */
 function itemDoMenu(): HTMLButtonElement {
-  const item = document.querySelector<HTMLButtonElement>('[role="menu"] [role="menuitem"]')
+  const item = Array.from(document.querySelectorAll<HTMLButtonElement>('[role="menu"] [role="menuitem"]')).find((b) =>
+    (b.textContent ?? '').startsWith('Andar até aqui'),
+  )
   if (!item) throw new Error('menu do ponto fechado')
   return item
+}
+
+/** Escape no menu (o foco entra nele ao abrir): fecha. */
+function fechaMenu(): void {
+  const menu = document.querySelector('[role="menu"]')
+  if (!menu) throw new Error('menu do ponto fechado')
+  act(() => {
+    menu.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+  })
 }
 
 beforeAll(async () => {
@@ -166,15 +178,14 @@ describe('main.tsx: andar até aqui de ponta a ponta', () => {
   it('segurar no chão é UM gesto: sai um sinal só e abre um menu só, com "Andar até aqui"', () => {
     const sinaisAntes = mestre().sinais().length
     act(() => botao('segurar praca').click())
-    // O sinal do toque longo continua saindo, uma vez, no ponto segurado.
+    // O sinal do toque longo continua saindo, uma vez, no ponto segurado — só
+    // para o mestre (AÇÕES NO PONTO: aos colegas, só pelo "Sinalizar" do menu).
     expect(mestre().sinais()).toHaveLength(sinaisAntes + 1)
-    expect(mestre().sinais().at(-1)).toEqual({ type: 'signal', x: PONTOS.praca.x, y: PONTOS.praca.y })
+    expect(mestre().sinais().at(-1)).toEqual({ type: 'signal', x: PONTOS.praca.x, y: PONTOS.praca.y, audience: 'master' })
     // Um menu só no ponto: o item mora no menu do toque longo, não num segundo menu.
     expect(document.querySelectorAll('[role="menu"]')).toHaveLength(1)
     expect(itemDoMenu().textContent).toBe('Andar até aqui')
-    act(() => {
-      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
-    })
+    fechaMenu()
     expect(document.querySelector('[role="menu"]')).toBeNull()
   })
 
@@ -191,9 +202,7 @@ describe('main.tsx: andar até aqui de ponta a ponta', () => {
     expect(itemDoMenu().textContent).toBe('Andar até aqui')
     expect(mestre().sinais()).toHaveLength(sinaisAntes + 1)
     expect(mestre().destinos()).toHaveLength(1)
-    act(() => {
-      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
-    })
+    fechaMenu()
     expect(document.querySelector('[role="menu"]')).toBeNull()
   })
 
@@ -203,9 +212,7 @@ describe('main.tsx: andar até aqui de ponta a ponta', () => {
     expect(itemDoMenu().textContent).toContain('Você não conhece o caminho')
     act(() => itemDoMenu().click())
     expect(mestre().movimentos()).toEqual([])
-    act(() => {
-      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
-    })
+    fechaMenu()
     expect(document.querySelector('[role="menu"]')).toBeNull()
   })
 
