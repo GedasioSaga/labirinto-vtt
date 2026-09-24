@@ -61,6 +61,20 @@ const TEXTOS_LIVRE: TextosDaPassagem = {
 }
 
 /**
+ * CHAVE ABRE PORTA: o pino trancado que a chave da mochila abre. O cartão diz
+ * o nome do item que o jogador já carrega — nunca o que o pino pede — e passa
+ * sem falar em mestre, como o livre.
+ */
+function textosDaChave(chave: string): TextosDaPassagem {
+  return {
+    botao: `Usar ${chave}`,
+    esperando: 'Passando…',
+    pergunta: `Usar ${chave} e passar por aqui?`,
+    confirmar: 'Usar',
+  }
+}
+
+/**
  * O cartão do ponto de interesse, do jeito que o usuário descreveu: "abrir a
  * imagem de um cenário ou um item e embaixo a descrição".
  *
@@ -136,8 +150,11 @@ export function PlayerPinCard({ pin, onClose, onRequestTravel, travelWaiting = f
   // um "Pedir" que o host sempre recusa só ensinaria o jogador a insistir.
   const passagem = passageOf(pin)
   const trancada = viagem && passagem === 'trancada'
-  const podePedir = viagem && !trancada && onRequestTravel !== undefined
-  const textos = passagem === 'livre' ? TEXTOS_LIVRE : TEXTOS_PEDE
+  // CHAVE ABRE PORTA: o host só manda `chave` a quem encosta no pino com o
+  // item. O mapa chega da rede sem conferência campo a campo: só texto vale.
+  const chave = trancada && typeof pin.chave === 'string' && pin.chave !== '' ? pin.chave : null
+  const podePedir = viagem && (!trancada || chave !== null) && onRequestTravel !== undefined
+  const textos = chave !== null ? textosDaChave(chave) : passagem === 'livre' ? TEXTOS_LIVRE : TEXTOS_PEDE
   // ENCRUZILHADA: com mais de uma saída, um botão por saída, pelo rótulo que o
   // mestre escreveu — o destino e o nome da cena nunca chegam aqui. Com uma
   // saída só (ou sem o campo), o cartão é o de sempre.
@@ -153,9 +170,11 @@ export function PlayerPinCard({ pin, onClose, onRequestTravel, travelWaiting = f
   const pergunta =
     confirming === null || confirming.saida === null
       ? textos.pergunta
-      : passagem === 'livre'
-        ? `Passar por ${confirming.saida.rotulo}?`
-        : `Pedir ao mestre para passar por ${confirming.saida.rotulo}?`
+      : chave !== null
+        ? `Usar ${chave} e passar por ${confirming.saida.rotulo}?`
+        : passagem === 'livre'
+          ? `Passar por ${confirming.saida.rotulo}?`
+          : `Pedir ao mestre para passar por ${confirming.saida.rotulo}?`
 
   return (
     <div className="pp-pincard__backdrop">
@@ -191,7 +210,7 @@ export function PlayerPinCard({ pin, onClose, onRequestTravel, travelWaiting = f
             )}
           </div>
         )}
-        {trancada && <p className="pp-pincard__locked">Está trancada. Não dá para passar por aqui agora.</p>}
+        {trancada && chave === null && <p className="pp-pincard__locked">Está trancada. Não dá para passar por aqui agora.</p>}
         {podePedir && confirming === null && !encruzilhada && (
           <button
             ref={askRef}

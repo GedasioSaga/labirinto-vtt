@@ -887,7 +887,8 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     requestTravel(pinId, exitId) {
       if (state.status !== 'playing' || pinId.length === 0 || state.travel?.phase === 'waiting') return false
       const pin = state.map?.pins.find((p) => p.id === pinId)
-      const direct = pin !== undefined && passageOf(pin) === 'livre'
+      // Livre, ou trancado que a chave da mochila abre (CHAVE ABRE PORTA): ninguém decide, a passagem é direta.
+      const direct = pin !== undefined && (passageOf(pin) === 'livre' || (passageOf(pin) === 'trancada' && typeof pin.chave === 'string' && pin.chave !== ''))
       // Sem saída escolhida, a mensagem sai idêntica à de antes: o mestre
       // antigo, que não conhece `exitId`, continua entendendo o pedido.
       const pedido: PinTravelRequestMessage = exitId === undefined ? { type: 'pin.travel.request', pinId } : { type: 'pin.travel.request', pinId, exitId }

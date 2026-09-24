@@ -227,6 +227,11 @@ function deserializeMapFields(json: string): MapData {
       // ITEM PEGÁVEL: campo NOVO e OPCIONAL. Forma errada volta ausente (o
       // pino só deixa de ser pegável); `livre` só vale `true` (`readPinItem`).
       item: readPinItem(p.item),
+      // CHAVE ABRE PORTA no pino trancado: campo NOVO e OPCIONAL, com a mesma
+      // leitura do "Abre com" da porta. `chave` é só do recorte do jogador:
+      // arquivo que o traga não o põe no mapa do mestre.
+      abreCom: p.abreCom === undefined ? undefined : readDoorKey(p.abreCom),
+      chave: undefined,
     })),
     frame: parsed.frame ?? null,
     fog: parsed.fog ?? { mode: 'none', revealed: [] },

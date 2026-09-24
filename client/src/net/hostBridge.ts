@@ -16,6 +16,7 @@ import {
   type HostSession,
   type HostSignal,
   type HostWorld,
+  type PinKeyUse,
   type PlayerInfo,
   type TravelRequest,
 } from './hostSession'
@@ -176,6 +177,12 @@ export function doorRequestLine(request: DoorRequest): string {
 export function doorKeyLine(used: DoorKeyUse): string {
   const where = used.sceneName === undefined ? '' : ` em ${used.sceneName}`
   return `${used.playerName} abriu uma porta com ${used.itemName}${where}`
+}
+
+/** "Diego abriu Portão do cemitério com Chave do Escudo", mais " em Mansão" quando o pino está numa cena de fundo. */
+export function pinKeyLine(used: PinKeyUse): string {
+  const where = used.sceneName === undefined ? '' : ` em ${used.sceneName}`
+  return `${used.playerName} abriu ${used.pinLabel} com ${used.itemName}${where}`
 }
 
 const DEFAULT_VISION_RADIUS = 700
@@ -594,6 +601,9 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     broadcastNow()
     notifyPlayersIfChanged()
     announceArrival(transfer)
+    // CHAVE ABRE PORTA no pino trancado: só depois de a ficha mudar de cena —
+    // se não moveu, ninguém abriu nada.
+    if (result.pinKeyUsed !== undefined) useToastStore.getState().push('info', pinKeyLine(result.pinKeyUsed))
   }
 
   /**

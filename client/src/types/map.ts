@@ -373,6 +373,19 @@ export interface Pin extends PlayerSecret {
    * do nome e de saber se pede ao mestre), sempre numa cópia limpa.
    */
   item?: PinItem
+  /**
+   * CHAVE ABRE PORTA, no pino de viagem TRANCADO: o nome do item da mochila
+   * que deixa quem o carrega passar sem pedir ao mestre (`lib/doorKey.ts`).
+   * Só do mestre: NUNCA sai no recorte do jogador (`lib/fogFilter.ts`).
+   * Ausente = trancado para todos, como sempre. Só vale com `passagem: 'trancada'`.
+   */
+  abreCom?: string
+  /**
+   * SÓ NO RECORTE DO JOGADOR: o nome da chave que ELE carrega numa ficha
+   * encostada neste pino trancado — o cartão oferece "Usar <chave>". O mestre
+   * nunca grava este campo; `lib/fogFilter.ts` o monta, e só para quem tem.
+   */
+  chave?: string
 }
 
 /**

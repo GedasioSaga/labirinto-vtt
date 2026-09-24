@@ -1550,7 +1550,7 @@ export function addPin(map: MapData, pin: Pin): MapData {
 export function updatePin(
   map: MapData,
   id: string,
-  patch: Partial<Pick<Pin, 'kind' | 'icon' | 'description' | 'image' | 'locked' | 'destino' | 'passagem' | 'rotulo' | 'saidas' | 'item'>>,
+  patch: Partial<Pick<Pin, 'kind' | 'icon' | 'description' | 'image' | 'locked' | 'destino' | 'passagem' | 'rotulo' | 'saidas' | 'item' | 'abreCom'>>,
 ): MapData {
   const pin = map.pins.find((p) => p.id === id)
   if (!pin) return map
@@ -1577,7 +1577,9 @@ export function updatePin(
     // E aqui também: `undefined` === 'pede'. Escolher "Pede ao mestre" num
     // pino que nunca teve modo não empurra entrada vazia no histórico.
     passageOf(next) === passageOf(pin) &&
-    sameItem
+    sameItem &&
+    // CHAVE ABRE PORTA: `undefined` === sem chave; apagar um campo vazio não é mudança.
+    next.abreCom === pin.abreCom
   ) {
     return map
   }

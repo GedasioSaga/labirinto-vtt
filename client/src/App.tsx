@@ -71,7 +71,7 @@ import { isArrivalOnly } from './lib/pinTravel'
 import type { Screen } from './types/screen'
 import { createMapScreen, parentScreen } from './lib/navigation'
 import * as mapFactory from './lib/mapFactory'
-import { setDoorKey } from './lib/doorKey'
+import { readDoorKey, setDoorKey } from './lib/doorKey'
 import { countEntitiesByLayer } from './lib/layers'
 import { roomDimensions } from './lib/roomOps'
 import type { GridAlignResult } from './lib/gridAlign'
@@ -1407,6 +1407,9 @@ function App() {
       // par da outra cena fica como está.
       passage: passageOf(pin),
       onPassageChange: (passagem: PinPassage) => useMapStore.getState().updatePin(pin.id, { passagem }),
+      // CHAVE ABRE PORTA: "Abre com" do pino trancado, com desfazer; "" tira a chave.
+      keyName: pin.abreCom ?? '',
+      onKeyChange: (nome: string) => useMapStore.getState().updatePin(pin.id, { abreCom: readDoorKey(nome) }),
       // Mão única mora no PAR (cena de fundo): marcar e desmarcar vão pela
       // aventura, fora do desfazer desta cena.
       onOneWayChange: (exitId: string, on: boolean) => {

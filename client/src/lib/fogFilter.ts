@@ -8,7 +8,8 @@ import { pieceBounds, pieceDistance, shapeCenter } from './floorSdf'
 import { visibleDrawings, visibleLights, visibleProps, visibleRegions, visibleStairs, visibleTokens, visibleWalls } from './layers'
 import { isPlayerSafePinImage } from './pins'
 import { exitLabelsOf, isArrivalOnly } from './pinTravel'
-import { itemOfPin } from './items'
+import { itemOfPin, tokenReachesPin } from './items'
+import { keyForPin } from './doorKey'
 import { computeVisibility, visionSegments } from './visibility'
 import { ancestorsOf, NESTING_TOLERANCE, pointInPolygonInclusive, pointOnPolygonBorder, subtreeIds } from './roomNesting'
 import { roomHasRoof } from './roomOps'
@@ -787,7 +788,7 @@ export function filterMapForPlayer(
         const point = { x: p.x, y: p.y }
         return !inRoomHiddenFromPlayer(point) && isPointKnown(point)
       })
-      .map(pinForPlayer),
+      .map((p) => pinForPlayer(p, ownTokens, map.grid)),
     // Metadado do mestre: nome e estado das zonas não saem; só `concealed` (geometria).
     concealZones: [],
   }
@@ -808,8 +809,12 @@ export function filterMapForHost(map: MapData): MapData {
  * - `passagem` VAI, de propósito: o cartão do jogador precisa saber se oferece
  *   "Passar", "Pedir para passar" ou "Está trancada". O modo diz como a porta
  *   se comporta, não para onde ela leva.
+ * - `abreCom` NUNCA (CHAVE ABRE PORTA): o jogador não descobre que pinos uma
+ *   chave abre. Em troca, `chave` — o nome do item que ELE já carrega — sai só
+ *   no pino trancado que uma ficha dele, encostada, abre (`ownTokens`: as
+ *   fichas dele, com a mochila do mapa do mestre).
  */
-function pinForPlayer(pin: Pin): Pin {
+function pinForPlayer(pin: Pin, ownTokens: readonly Token[], grid: number): Pin {
   // LISTA DO QUE VAI, e não "copia tudo e apaga o que não pode": campo que o
   // arquivo trouxer e o app não conhece (versão futura, edição à mão) não
   // chega ao jogador por descuido (revisão de segurança, 22/09). `destino`,
@@ -837,5 +842,7 @@ function pinForPlayer(pin: Pin): Pin {
   // Cópia limpa (`itemOfPin`), nunca o objeto do mestre.
   const item = itemOfPin(pin)
   if (item !== null) forPlayer.item = item
+  const key = keyForPin(pin, ownTokens.filter((t) => tokenReachesPin(t, pin, grid)))
+  if (key !== null) forPlayer.chave = key.item.nome
   return forPlayer
 }

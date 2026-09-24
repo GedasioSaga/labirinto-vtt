@@ -18,11 +18,20 @@ export interface WallDoorControlsProps {
 }
 
 /**
- * "Abre com": o item da mochila que destranca a porta sem pedir ao mestre.
- * O nome só vale ao sair do campo (ou Enter): cada letra não vira um passo do
- * desfazer — o mesmo molde do nome do item pegável no pino.
+ * "Abre com": o item da mochila que destranca a porta (ou o pino de viagem
+ * trancado, `PinTravelControls`) sem pedir ao mestre. O nome só vale ao sair
+ * do campo (ou Enter): cada letra não vira um passo do desfazer — o mesmo
+ * molde do nome do item pegável no pino.
  */
-function DoorKeyField({ value, onChange }: { value: string; onChange: (nome: string) => void }) {
+export function DoorKeyField({
+  value,
+  onChange,
+  placeholder = 'Nome do item (vazio: só o mestre abre)',
+}: {
+  value: string
+  onChange: (nome: string) => void
+  placeholder?: string
+}) {
   const [draft, setDraft] = useState(value)
   useEffect(() => setDraft(value), [value])
   const commit = () => {
@@ -36,7 +45,7 @@ function DoorKeyField({ value, onChange }: { value: string; onChange: (nome: str
         className="lb-input"
         type="text"
         aria-label="Abre com"
-        placeholder="Nome do item (vazio: só o mestre abre)"
+        placeholder={placeholder}
         value={draft}
         maxLength={ITEM_NAME_MAX_LENGTH}
         onChange={(event) => setDraft(event.target.value)}

@@ -4,6 +4,7 @@ import { EXIT_EXTRA_MAX_COUNT, EXIT_LABEL_MAX_LENGTH, isArrivalOnly, travelExits
 import { PIN_PASSAGE_LABELS, PIN_PASSAGE_ORDER } from '../lib/pins'
 import type { PinPassage } from '../types/map'
 import { ChevronDownIcon } from './icons'
+import { DoorKeyField } from './WallDoorControls'
 
 /** Uma saída do pino, como o painel a mostra. */
 export interface PinTravelExitView {
@@ -36,6 +37,13 @@ export interface PinTravelControlsProps {
   /** Como o jogador passa por ESTE pino (o par tem o seu). Vale para todas as saídas. */
   passage: PinPassage
   onPassageChange: (passage: PinPassage) => void
+  /** CHAVE ABRE PORTA: o "Abre com" do pino trancado ("" = sem chave). */
+  keyName?: string
+  /**
+   * Grava o "Abre com" ("" tira), ao sair do campo ou no Enter. Sem ele, o
+   * campo não aparece; com ele, só aparece com a passagem "Trancada".
+   */
+  onKeyChange?: (nome: string) => void
   /** MÃO ÚNICA da saída `exitId`: marca (ou desmarca) o par dela como chegada oculta. */
   onOneWayChange: (exitId: string, on: boolean) => void
   /**
@@ -129,6 +137,8 @@ export function PinTravelControls({
   onGo,
   passage,
   onPassageChange,
+  keyName = '',
+  onKeyChange,
   onOneWayChange,
   arrivalOnly,
 }: PinTravelControlsProps) {
@@ -332,6 +342,10 @@ export function PinTravelControls({
         ))}
       </div>
       <p className="lb-travel__hint">{EFEITO_DA_PASSAGEM[passage]}</p>
+      {/* CHAVE ABRE PORTA: quem carrega o item passa sem pedir, e você lê o aviso. */}
+      {passage === 'trancada' && onKeyChange !== undefined && (
+        <DoorKeyField value={keyName} onChange={onKeyChange} placeholder="Nome do item (vazio: ninguém passa)" />
+      )}
 
       {escolha !== null && (
         <div id={SELETOR_ID} ref={seletorRef} className="lb-travel__picker">
