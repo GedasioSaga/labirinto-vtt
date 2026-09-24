@@ -84,6 +84,22 @@ describe('esteira — o jogador vê só o próprio movimento', () => {
     expect(JSON.stringify(r.outbound)).not.toContain('"cabine"')
   })
 
+  it('"Fichas ocupam espaço": o NPC oculto não segura Ana — ela chega às 3 casas e não recebe nada que explique parada', () => {
+    const antes: MapData = {
+      ...torre({ tokens: [ficha('ana', 325, 75), ficha('npc-oculto', 475, 75, { hidden: true }), ficha('bia', 1375, 200)] }),
+      conveyors: [ESTEIRAS[0]],
+      movement: { tokensOccupy: true },
+    }
+    const s = mesa(antes)
+    s.broadcast(antes)
+
+    const r = s.broadcast(advanceConveyors(antes))
+
+    // Sem o conserto, Ana parava em (425, 75): uma casa antes do chão que ela vê vazio.
+    expect(posicoes(mapaRecebido(r, 'c1'))).toEqual({ ana: { x: 475, y: 75 } })
+    expect(JSON.stringify(r.outbound)).not.toContain('npc-oculto')
+  })
+
   it('esteira em OUTRA cena da aventura: quem está nesta não recebe nada dela', () => {
     const salao = torre({ tokens: [ficha('ana', 250, 200), ficha('bia', 300, 200)] }, 'm-salao')
     const cripta: MapData = { ...torre({ tokens: [ficha('lich', 125, 75)] }, 'm-cripta'), conveyors: ESTEIRAS }

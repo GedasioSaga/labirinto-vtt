@@ -7,7 +7,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import type { Conveyor, MapData, Token } from '../types/map'
-import { ficha, torre, zona } from './__fixtures__/hazardTower'
+import { ficha, sala, torre, zona } from './__fixtures__/hazardTower'
 import { advanceHazard } from './hazards'
 import {
   advanceConveyors,
@@ -129,6 +129,59 @@ describe('advanceConveyors — "Fichas ocupam espaço" vale para a esteira', () 
   it('ficha que o mestre esconde do jogador (secreta) não segura a esteira — parar ali diria que existe alguém', () => {
     const depois = advanceConveyors(ocupada([ficha('ana', 325, 75), ficha('espiao', 475, 75, { secret: true })]))
     expect(posicao(depois, 'ana')).toEqual({ x: 475, y: 75 })
+  })
+
+  it('ficha que o mestre OCULTOU (hidden) não segura: Ana vai à casa dela, no chão que o jogador vê vazio', () => {
+    const depois = advanceConveyors(ocupada([ficha('ana', 325, 75), ficha('npc', 475, 75, { hidden: true })]))
+    expect(posicao(depois, 'ana')).toEqual({ x: 475, y: 75 })
+    expect(posicao(depois, 'npc')).toEqual({ x: 475, y: 75 })
+  })
+
+  it('ficha em zona oculta ativa não segura; com a zona revelada, segura', () => {
+    const zonaOculta = (revealed: boolean) => ({
+      id: 'zo',
+      name: 'Nicho',
+      revealed,
+      points: [
+        { x: 450, y: 50 },
+        { x: 500, y: 50 },
+        { x: 500, y: 100 },
+        { x: 450, y: 100 },
+      ],
+    })
+    const comZona = (revealed: boolean): MapData => ({
+      ...ocupada([ficha('ana', 325, 75), ficha('npc', 475, 75)]),
+      concealZones: [zonaOculta(revealed)],
+    })
+    expect(posicao(advanceConveyors(comZona(false)), 'ana')).toEqual({ x: 475, y: 75 })
+    expect(posicao(advanceConveyors(comZona(true)), 'ana')).toEqual({ x: 425, y: 75 })
+  })
+
+  it('ficha na névoa (o centro dela atrás da parede) não segura, mesmo encostando na casa', () => {
+    // O ogro grande (3 casas) está na sala B; a borda dele invade a casa (475, 75) da sala A,
+    // mas a parede x = 500 esconde o centro dele de Ana: o jogador não o recebe.
+    const depois = advanceConveyors(ocupada([ficha('ana', 325, 75), ficha('ogro', 560, 75, { size: 3 })]))
+    expect(posicao(depois, 'ana')).toEqual({ x: 475, y: 75 })
+    expect(posicao(depois, 'ogro')).toEqual({ x: 560, y: 75 })
+  })
+
+  it('ficha sob teto fechado (galpão onde Ana ainda não entrou) não segura', () => {
+    const galpao = sala('galpao', 450, 500, { room: { shape: 'rect', name: 'Galpão', roof: true } })
+    const comTeto: MapData = {
+      ...ocupada([ficha('ana', 325, 75), ficha('npc', 475, 75)]),
+      regions: [sala('sala-a', 0, 500), galpao, sala('sala-b', 500, 1000), sala('sala-c', 1000, 1500)],
+    }
+    expect(posicao(advanceConveyors(comTeto), 'ana')).toEqual({ x: 475, y: 75 })
+  })
+
+  it('com a camada Fichas escondida dos jogadores, nenhuma ficha segura a esteira', () => {
+    const escondida: MapData = { ...ocupada([ficha('ana', 325, 75), ficha('bia', 475, 75)]), hiddenLayers: ['tokens'] }
+    expect(posicao(advanceConveyors(escondida), 'ana')).toEqual({ x: 475, y: 75 })
+  })
+
+  it('ficha visível continua segurando: Bia, na mesma sala e à vista, para Ana na casa antes', () => {
+    const depois = advanceConveyors(ocupada([ficha('ana', 325, 75), ficha('bia', 475, 75)]))
+    expect(posicao(depois, 'ana')).toEqual({ x: 425, y: 75 })
   })
 
   it('bloqueada logo na primeira casa, a ficha fica e o mapa é o MESMO (sem histórico à toa)', () => {

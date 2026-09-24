@@ -101,6 +101,28 @@ describe('advanceConveyors — a cabine contínua leva quem ficou parado no pino
     expect(posicao(depois, 'bia')).toEqual({ x: 375, y: 75 })
   })
 
+  it('com "Fichas ocupam espaço", só segura a cabine quem Ana enxerga do pino onde está', () => {
+    const ocupa = { movement: { tokensOccupy: true } }
+    const comGuarda = (guarda: Token): MapData => ({
+      ...torre({ tokens: [ficha('ana', 75, 75), guarda] }),
+      pins: [pino('p1', 75, 75, { cabine: 'p2' }), pino('p2', 375, 325)],
+      ...ocupa,
+    })
+    // O guarda à vista, na mesma sala, segura (a regra de sempre).
+    const aVista = comGuarda(ficha('guarda', 375, 325))
+    expect(advanceConveyors(aVista)).toBe(aVista)
+    // O guarda que o mestre ocultou não segura: ficar no pino contaria que existe alguém lá.
+    const oculto = advanceConveyors(comGuarda(ficha('guarda', 375, 325, { hidden: true })))
+    expect(posicao(oculto, 'ana')).toEqual({ x: 375, y: 325 })
+    // A parada atrás da porta fechada: quem está lá, Ana não vê do pino, então não segura.
+    const longe: MapData = {
+      ...torre({ tokens: [ficha('ana', 75, 75), ficha('guarda', 1275, 75)] }),
+      pins: [pino('p1', 75, 75, { cabine: 'p2' }), pino('p2', 1275, 75)],
+      ...ocupa,
+    }
+    expect(posicao(advanceConveyors(longe), 'ana')).toEqual({ x: 1275, y: 75 })
+  })
+
   it('o painel sabe que o Avançar move alguém só pela cabine, mesmo sem esteira na cena', () => {
     expect(roomConveyorState(elevador([ficha('ana', 75, 75)]), 'sala-a').canAdvance).toBe(true)
     expect(roomConveyorState(elevador([ficha('ana', 225, 225)]), 'sala-a').canAdvance).toBe(false)

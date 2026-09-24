@@ -2,7 +2,8 @@ import type { Conveyor, ConveyorDirection, MapData, Region, RegionPoint, Token }
 import { cabinDestinations } from './cabins'
 import { moveCrossesWall } from './collision'
 import { pointInRing, signedArea } from './floorContour'
-import { findOccupant, tokensOccupy } from './movementRules'
+import { seenOccupant } from './imposedOccupancy'
+import { tokensOccupy } from './movementRules'
 
 /**
  * MOVIMENTO IMPOSTO — esteira e corrente. Regra pura, sem DOM, sem Pixi, sem
@@ -155,7 +156,8 @@ function insideMap(map: MapData, point: RegionPoint): boolean {
  * Onde a esteira larga a ficha: casa por casa, até o passo. Para ANTES de
  * cruzar parede que barra movimento (porta fechada, trancada ou secreta
  * inclusive — `moveCrossesWall`), antes de sair do mapa e, com "Fichas ocupam
- * espaço", antes da casa de outra ficha (`blockers`, `null` sem a regra); e
+ * espaço", antes da casa de outra ficha que o dono dela enxerga dali
+ * (`seenOccupant`; `blockers` é `null` sem a regra); e
  * para DEPOIS da casa que a tirou da sala da esteira (foi largada na ponta).
  */
 function conveyedPosition(map: MapData, token: Token, belt: LiveConveyor, blockers: readonly Token[] | null): RegionPoint {
@@ -164,8 +166,7 @@ function conveyedPosition(map: MapData, token: Token, belt: LiveConveyor, blocke
   for (let step = 0; step < belt.conveyor.stepCells; step += 1) {
     const next = { x: at.x + dx * map.grid, y: at.y + dy * map.grid }
     if (!insideMap(map, next) || map.walls.some((wall) => moveCrossesWall(at, next, wall))) break
-    // A própria ficha vai na lista só para `findOccupant` saber o tamanho dela.
-    if (blockers !== null && findOccupant([token, ...blockers], token.id, next, map.grid) !== undefined) break
+    if (blockers !== null && seenOccupant(map, { ...token, x: at.x, y: at.y }, next, blockers) !== undefined) break
     at = next
     if (!pointInRing(at, belt.ring)) break
   }
@@ -173,13 +174,13 @@ function conveyedPosition(map: MapData, token: Token, belt: LiveConveyor, blocke
 }
 
 /**
- * As fichas que seguram a esteira e a cabine com "Fichas ocupam espaço", ou
- * `null` com a regra desligada. É a mesma regra que o host aplica ao jogador
- * (`lib/moveValidation.ts`), com uma diferença: a ficha SECRETA (que o mestre
- * esconde dos jogadores) não segura — parar antes dela diria que existe alguém.
+ * As fichas que PODEM segurar a esteira e a cabine com "Fichas ocupam espaço",
+ * ou `null` com a regra desligada. Quem segura de fato é só a que o dono da
+ * ficha que anda enxerga (`lib/imposedOccupancy.ts`): a oculta, a secreta, a
+ * da névoa, da zona oculta ou do teto fechado não seguram.
  */
-function occupyBlockers(map: MapData, tokens: readonly Token[]): Token[] | null {
-  return tokensOccupy(map) ? tokens.filter((t) => t.secret !== true) : null
+function occupyBlockers(map: MapData, tokens: readonly Token[]): readonly Token[] | null {
+  return tokensOccupy(map) ? tokens : null
 }
 
 /**

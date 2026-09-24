@@ -1,5 +1,5 @@
 import type { MapData, Pin, RegionPoint, Token } from '../types/map'
-import { findOccupant } from './movementRules'
+import { seenOccupant } from './imposedOccupancy'
 
 /**
  * MOVIMENTO IMPOSTO — a CABINE CONTÍNUA (paternoster). Regra pura, sem DOM,
@@ -115,9 +115,11 @@ function cabinRides(map: MapData, tokens: readonly Token[], moved: ReadonlySet<s
  * supondo que todas saem; quem achar a parada tomada fica, e a conta recomeça
  * até ninguém mais ficar (cada volta só aumenta quem fica, então termina).
  * Duas fichas para a mesma parada: vai a primeira da lista.
- * `blockers` são as fichas que seguram (a secreta não segura: ver `conveyors.ts`).
+ * `blockers` são as fichas que podem segurar; segura só a que o dono da ficha
+ * que vai enxerga do pino onde ela está (`seenOccupant`): ficar no pino por
+ * causa de quem ele não vê contaria que existe alguém na parada.
  */
-function resolveRides(rides: readonly CabinRide[], blockers: readonly Token[], grid: number): CabinRide[] {
+function resolveRides(map: MapData, rides: readonly CabinRide[], blockers: readonly Token[]): CabinRide[] {
   const riding = new Set(rides.map((r) => r.token.id))
   const blocks = new Set(blockers.map((t) => t.id))
   const staying = blockers.filter((t) => !riding.has(t.id))
@@ -129,9 +131,7 @@ function resolveRides(rides: readonly CabinRide[], blockers: readonly Token[], g
     let changed = false
     for (const ride of rides) {
       if (held.has(ride.token.id)) continue
-      // A própria ficha entra na lista só para `findOccupant` saber o tamanho dela.
-      const around = [ride.token, ...staying, ...heldTokens, ...arrived]
-      if (findOccupant(around, ride.token.id, ride.to, grid) !== undefined) {
+      if (seenOccupant(map, ride.token, ride.to, [...staying, ...heldTokens, ...arrived]) !== undefined) {
         held.add(ride.token.id)
         changed = true
         break
@@ -155,6 +155,6 @@ export function cabinDestinations(
   blockers: readonly Token[] | null,
 ): Map<string, RegionPoint> {
   const rides = cabinRides(map, tokens, moved)
-  const done = blockers === null ? rides : resolveRides(rides, blockers, map.grid)
+  const done = blockers === null ? rides : resolveRides(map, rides, blockers)
   return new Map(done.filter((r) => r.to.x !== r.token.x || r.to.y !== r.token.y).map((r) => [r.token.id, r.to]))
 }
