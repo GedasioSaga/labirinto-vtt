@@ -289,6 +289,19 @@ export interface HostResult {
   replacedClientId?: string
   /** Quem entrou reencontrou a ficha da mesa guardada: o integrador avisa o mestre, com "Desfazer". */
   reclaimed?: ReclaimedSeat
+  /**
+   * Empréstimos encerrados (o dono voltou, ou o mestre tomou de volta): a
+   * ficha saiu de quem a jogava. O integrador manda o mapa novo a todos — quem
+   * a jogava deixa de vê-la como dele. Dado do mestre — nunca vai pela rede.
+   */
+  loansReturned?: LoanReturn[]
+}
+
+/** Uma ficha emprestada que voltou ao dono: de quem, com quem estava, qual. */
+export interface LoanReturn {
+  ownerId: string
+  borrowerId: string
+  tokenId: string
 }
 
 /**
@@ -340,6 +353,26 @@ export interface PlayerInfo {
    * delas. Dado do painel do mestre — nunca vai pela rede.
    */
   storedTokenNames?: string[]
+  /**
+   * Nomes de quem joga agora as fichas DELE, emprestadas pelo mestre enquanto
+   * ele está fora. Ausente = nada emprestado. Dado do painel do mestre — nunca
+   * vai pela rede.
+   */
+  lentTo?: string[]
+  /** Nomes dos donos das fichas que ele joga emprestadas. Ausente = nenhuma. Só do mestre. */
+  borrowedFrom?: string[]
+  /**
+   * Ids das fichas que ele joga emprestadas (estão em `tokenIds`, mas são do
+   * dono). "Guardar ficha" não as leva: tirá-las do mapa tiraria a ficha do
+   * dono. Ausente = nenhuma. Só do mestre.
+   */
+  borrowedTokenIds?: string[]
+}
+
+/** As fichas do próprio jogador: as dele no mapa, sem as que ele joga emprestadas. */
+export function ownTokenIdsOf(player: Pick<PlayerInfo, 'tokenIds' | 'borrowedTokenIds'>): string[] {
+  const borrowed = player.borrowedTokenIds ?? []
+  return player.tokenIds.filter((tokenId) => !borrowed.includes(tokenId))
 }
 
 /** O que foi feito do recado para um jogador: saiu agora, ficou guardado para a volta dele, ou nada (`null`). */
@@ -417,6 +450,24 @@ export interface HostSession {
   assignToken(playerId: string, tokenId: string): HostResult
   /** Devolve `lobby.waiting` se o jogador ficou sem token. */
   unassignToken(playerId: string, tokenId: string): HostResult
+  /**
+   * EMPRESTAR A FICHA de quem saiu: as fichas de `ownerId` (fora) passam a ser
+   * movidas também por `borrowerId` (conectado), até o dono voltar. O dono não
+   * muda: a mesa grava a ficha no assento dele, e o que ela vê entra no
+   * explorado dele. Só fichas de UMA cena — a de quem recebe, se ele já está
+   * numa; senão, a do dono —: ninguém passa a ver duas cenas. Quem joga
+   * emprestado não troca o nome nem a foto da ficha. `lent`: as fichas
+   * emprestadas agora; vazio = nada mudou (dono conectado ou desconhecido,
+   * quem recebe fora, o mesmo jogador, ficha já emprestada ou de outra cena).
+   * Não envia: o integrador faz o broadcast.
+   */
+  lendTokens(ownerId: string, borrowerId: string, source: HostMapSource): HostResult & { lent: string[] }
+  /**
+   * "Tomar de volta": encerra os empréstimos das fichas de `ownerId`. Quem as
+   * jogava e ficou sem ficha volta à espera. A volta do dono (resume ou "É
+   * ela") faz o mesmo sozinha.
+   */
+  endLoans(ownerId: string): HostResult
   /**
    * A conexão caiu. `at` = quando se ouviu dela por último (a varredura de
    * conexão muda sabe que ela sumiu ANTES de notar); ausente, agora.
@@ -812,6 +863,10 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   // Por playerId de quem entrou agora: a Ana (fora) que ele talvez seja, até o
   // mestre responder "voltou?". Só do mestre; nada disto vai pela rede.
   const pendingReturns = new Map<string, string>()
+  // Por tokenId: a ficha de quem está fora que outro jogador joga agora. A
+  // ficha fica em `ownership` dos DOIS (o dono continua dono; quem a joga a
+  // move e vê por ela); a volta do dono a tira de quem a jogava.
+  const loans = new Map<string, { ownerId: string; borrowerId: string }>()
   let callSeq = 0
   // Por requestId: ações no ponto à espera do mestre. Sobrevivem à queda da
   // conexão (o mestre ainda quer ler "procuro armadilha aqui"); só a resposta
@@ -835,6 +890,13 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   let rev = 0
 
   const radiusFor = (playerId: string): number => visionOverrides.get(playerId) ?? options.visionRadius
+  /**
+   * O raio de cada ficha que `playerId` vê: a emprestada enxerga com o raio do
+   * DONO (personagem sem visão no escuro continua sem ela nas mãos de outro),
+   * senão a névoa em volta dela mudaria conforme quem a joga e o explorado do
+   * dono gravaria um recorte que ninguém viu.
+   */
+  const tokenRadiusFor = (playerId: string) => (tokenId: string): number => radiusFor(loans.get(tokenId)?.ownerId ?? playerId)
 
   /** Polígonos das zonas ocultas ativas (`?? []`: mapa montado fora do deserializeMap pode vir sem o campo). */
   const statusOf = (playerId: string): PlayerStatus => ((ownership[playerId]?.length ?? 0) > 0 ? 'playing' : 'waiting')
@@ -974,7 +1036,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   const snapshotFor = (playerId: string, map: MapData, world: HostWorld): HostMessage => {
     const memory = memoryFor(playerId, map, world)
     const exp = memory.exp
-    const view = filterMapForPlayer(map, playerId, ownership, radiusFor(playerId), exp, memory.doors)
+    const view = filterMapForPlayer(map, playerId, ownership, tokenRadiusFor(playerId), exp, memory.doors)
     // Zona oculta ativa e sala secreta: célula que toca nelas não vira explorada
     // (senão o jogador guardaria a planta escondida e o formato dela).
     markRings(exp, view.vision, view.blocked)
@@ -1029,9 +1091,44 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     return taken
   }
 
-  /** As fichas do assento de `playerId`: as do mapa e as que a ponte guardou para ele. */
+  /**
+   * As fichas do assento de `playerId`: as do mapa e as que a ponte guardou
+   * para ele. A emprestada não entra: é do assento do dono.
+   */
   const seatTokensOf = (playerId: string, held: HeldTokens | undefined): string[] => [
-    ...new Set([...(ownership[playerId] ?? []), ...(held?.get(playerId) ?? [])]),
+    ...new Set([...(ownership[playerId] ?? []).filter((tokenId) => loans.get(tokenId)?.borrowerId !== playerId), ...(held?.get(playerId) ?? [])]),
+  ]
+
+  /**
+   * Encerra os empréstimos das fichas de `ownerId`: cada uma sai de quem a
+   * jogava e fica só com o dono. Quem ficou sem ficha nenhuma volta à espera.
+   */
+  const endLoansOf = (ownerId: string): { outbound: Outbound[]; returned: LoanReturn[] } => {
+    const returned: LoanReturn[] = []
+    // Por quem jogava: se jogava antes de perder a ficha (para o "volta à espera").
+    const wasPlaying = new Map<string, boolean>()
+    for (const [tokenId, loan] of loans) {
+      if (loan.ownerId !== ownerId) continue
+      loans.delete(tokenId)
+      const held = ownership[loan.borrowerId]
+      if (held === undefined) continue
+      if (!wasPlaying.has(loan.borrowerId)) wasPlaying.set(loan.borrowerId, held.length > 0)
+      ownership[loan.borrowerId] = held.filter((t) => t !== tokenId)
+      returned.push({ ownerId, borrowerId: loan.borrowerId, tokenId })
+    }
+    const outbound = [...wasPlaying].flatMap(([borrowerId, playing]) => waitingIfLostLast(borrowerId, playing))
+    return { outbound, returned }
+  }
+
+  /** `loansReturned` só quando algo voltou: o integrador só refaz o mapa de todos quando precisa. */
+  const loansReturnedField = (returned: LoanReturn[]): { loansReturned?: LoanReturn[] } => (returned.length === 0 ? {} : { loansReturned: returned })
+
+  /** Nomes (sem repetir) de `playerIds`, na ordem; quem já saiu da lista não conta. */
+  const namesOf = (playerIds: readonly string[]): string[] => [
+    ...new Set(playerIds.flatMap((playerId) => {
+      const name = players.get(playerId)?.name
+      return name === undefined ? [] : [name]
+    })),
   ]
 
   /** Quem ocupa assento na mesa gravada: os jogadores com ficha, na ordem em que entraram. */
@@ -1158,6 +1255,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     for (const [candidate, previous] of pendingReturns) {
       if (previous === record.playerId) pendingReturns.delete(candidate)
     }
+    // Voltou pelo resume: a ficha que o mestre emprestou enquanto ele estava fora volta para ele.
+    const loanBack = resumed === undefined ? { outbound: [], returned: [] } : endLoansOf(record.playerId)
     // Antes do `next`: quem reencontra a ficha já entra jogando, sem passar pela espera.
     const reclaimed = resumed === undefined ? reclaimSeat(record, msg.name, world) : undefined
     // Quem reencontrou o assento da mesa guardada já é a Ana daquela mesa: a
@@ -1179,7 +1278,9 @@ export function createHostSession(options: HostSessionOptions): HostSession {
         ...viewWithPendingNote(clientId, record.playerId, next),
         ...pausedUpdate(clientId, record.playerId, world),
         ...replacedOut,
+        ...loanBack.outbound,
       ],
+      ...loansReturnedField(loanBack.returned),
       ...(replaced === null ? {} : { replacedClientId: replaced }),
       ...(returnOf === undefined ? {} : { returnCandidate: { playerId: record.playerId, previousId: returnOf.playerId, name: returnOf.name } }),
       ...(reclaimed === undefined ? {} : { reclaimed }),
@@ -1210,6 +1311,11 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     for (const [candidate, previous] of pendingReturns) {
       if (previous === playerId) pendingReturns.delete(candidate)
     }
+    // Dono esquecido: a ficha fica com quem a joga, sem empréstimo. Quem a
+    // jogava esquecido: a posse dele já saiu acima, e a ficha fica com o dono.
+    for (const [tokenId, loan] of loans) {
+      if (loan.ownerId === playerId || loan.borrowerId === playerId) loans.delete(tokenId)
+    }
   }
 
   /** A pergunta "voltou?" ainda faz sentido: os dois existem, quem entrou está conectado e a Ana continua fora. */
@@ -1227,6 +1333,12 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   function mergeInto(into: string, from: string): void {
     const owned = ownership[into] ?? []
     ownership[into] = [...owned, ...(ownership[from] ?? []).filter((id) => !owned.includes(id))]
+    // A ficha que `from` jogava emprestada passa a ser jogada pela Ana; se era da própria Ana, deixa de ser empréstimo.
+    for (const [tokenId, loan] of loans) {
+      if (loan.borrowerId !== from) continue
+      if (loan.ownerId === into) loans.delete(tokenId)
+      else loan.borrowerId = into
+    }
     const target = memories.get(into) ?? new Map<string, PlayerMemory>()
     for (const [key, memory] of memories.get(from) ?? []) {
       if (!target.has(key)) target.set(key, memory)
@@ -1400,7 +1512,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const wall = map.walls.find((w) => w.id === wallId)
     if (wall === undefined || wall.door === null) return null
     const memory = memoryFor(playerId, map, world)
-    const view = filterMapForPlayer(map, playerId, ownership, radiusFor(playerId), memory.exp, memory.doors)
+    const view = filterMapForPlayer(map, playerId, ownership, tokenRadiusFor(playerId), memory.exp, memory.doors)
     if (!view.visibleDoorIds.includes(wall.id)) return null
     const owned = new Set(ownership[playerId] ?? [])
     const near = view.map.tokens.some((t) => owned.has(t.id) && tokenReachesDoor(t, wall, map.grid))
@@ -1487,6 +1599,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     if (playerId === undefined) return reply(clientId, { type: 'error', reason: 'not_joined' })
     if (statusOf(playerId) !== 'playing') return { outbound: [] }
     if (!(ownership[playerId] ?? []).includes(msg.tokenId)) return { outbound: [] }
+    // Ficha emprestada: quem a joga move, mas o nome e a cara são do dono.
+    if (loans.get(msg.tokenId)?.borrowerId === playerId) return { outbound: [] }
     // O token pode estar em qualquer cena: a ficha é do jogador, não do mapa aberto.
     const scene = allScenes(world).find((s) => s.map.tokens.some((t) => t.id === msg.tokenId))
     if (scene === undefined) return { outbound: [] }
@@ -1517,7 +1631,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const pin = from.map.pins.find((p) => p.id === pinId)
     if (pin === undefined) return null
     const memory = memoryFor(playerId, from.map, world)
-    const view = filterMapForPlayer(from.map, playerId, ownership, radiusFor(playerId), memory.exp, memory.doors)
+    const view = filterMapForPlayer(from.map, playerId, ownership, tokenRadiusFor(playerId), memory.exp, memory.doors)
     if (!view.map.pins.some((p) => p.id === pinId)) return null
     // Trancada: ninguém passa sozinho. Cai no mesmo `null` de todo o resto,
     // então o jogador lê o motivo genérico de sempre e nada chega ao mestre.
@@ -2012,6 +2126,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     },
 
     assignToken(playerId, tokenId) {
+      // Dono novo pelo mestre: o empréstimo daquela ficha acabou.
+      loans.delete(tokenId)
       const outbound: Outbound[] = []
       // Um token tem no máximo um dono: tira de quem tinha antes.
       for (const [owner, tokens] of Object.entries(ownership)) {
@@ -2028,8 +2144,37 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     unassignToken(playerId, tokenId) {
       const current = ownership[playerId]
       if (current === undefined) return { outbound: [] }
+      // Tirada do dono ou de quem a jogava: deixa de ser empréstimo, e fica com o outro.
+      const loan = loans.get(tokenId)
+      if (loan !== undefined && (loan.ownerId === playerId || loan.borrowerId === playerId)) loans.delete(tokenId)
       ownership[playerId] = current.filter((t) => t !== tokenId)
       return { outbound: waitingIfLostLast(playerId, current.length > 0) }
+    },
+
+    lendTokens(ownerId, borrowerId, source) {
+      const owner = players.get(ownerId)
+      const borrower = players.get(borrowerId)
+      // Só de quem está FORA (ficha de quem joga não se empresta), para quem
+      // está na mesa agora (quem caiu não a moveria).
+      if (owner === undefined || borrower === undefined || ownerId === borrowerId || owner.clientId !== null || borrower.clientId === null) {
+        return { outbound: [], lent: [] }
+      }
+      const world = toWorld(source)
+      // UMA cena: a de quem recebe, se ele já está numa (a ficha de outra cena
+      // ficaria parada, e ele não pode ver duas); senão, a do dono.
+      const scene = (statusOf(borrowerId) === 'playing' ? sceneFor(borrowerId, world) : null) ?? sceneFor(ownerId, world)
+      if (scene === null) return { outbound: [], lent: [] }
+      const inScene = new Set(scene.map.tokens.map((t) => t.id))
+      const lent = (ownership[ownerId] ?? []).filter((tokenId) => inScene.has(tokenId) && !loans.has(tokenId))
+      const held = ownership[borrowerId] ?? []
+      ownership[borrowerId] = [...held, ...lent.filter((tokenId) => !held.includes(tokenId))]
+      for (const tokenId of lent) loans.set(tokenId, { ownerId, borrowerId })
+      return { outbound: [], lent }
+    },
+
+    endLoans(ownerId) {
+      const { outbound, returned } = endLoansOf(ownerId)
+      return { outbound, ...loansReturnedField(returned) }
     },
 
     disconnect(clientId, at) {
@@ -2073,6 +2218,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       // `returnStillValid` já garantiu os dois registros e a conexão de quem entrou.
       if (current === undefined || previous === undefined || current.clientId === null) return { outbound: [] }
       const clientId = current.clientId
+      // A Ana voltou: a ficha dela que outro jogava volta antes de juntar as duas.
+      const loanBack = endLoansOf(previousId)
       mergeInto(previousId, playerId)
       // A conexão passa para a Ana; quem entrou agora deixa de existir.
       byClient.set(clientId, previousId)
@@ -2086,7 +2233,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       const welcome: HostMessage = { type: 'welcome', playerId: previousId, resumeToken: previous.resumeToken, name: previous.name }
       const next: HostMessage = statusOf(previousId) === 'playing' ? viewFor(previousId, world) : { type: 'lobby.waiting' }
       return {
-        outbound: [{ clientId, msg: welcome }, ...viewWithPendingNote(clientId, previousId, next), ...pausedUpdate(clientId, previousId, world)],
+        outbound: [{ clientId, msg: welcome }, ...viewWithPendingNote(clientId, previousId, next), ...pausedUpdate(clientId, previousId, world), ...loanBack.outbound],
+        ...loansReturnedField(loanBack.returned),
       }
     },
 
@@ -2198,6 +2346,13 @@ export function createHostSession(options: HostSessionOptions): HostSession {
         // Trocou de cena (pedido, "Mandar para…", reunir): a pausa é a da cena NOVA.
         outbound.push(...pausedUpdate(clientId, playerId, world))
       }
+      // Empréstimo: o dono está fora, mas a ficha dele anda. O que ela vê entra
+      // no explorado DELE — para ele voltar sabendo onde a ficha esteve —, e o
+      // recorte montado para isso não sai pela rede.
+      for (const ownerId of new Set([...loans.values()].map((loan) => loan.ownerId))) {
+        const scene = sceneFor(ownerId, world)
+        if (scene !== null) snapshotFor(ownerId, scene.map, world)
+      }
       return { outbound }
     },
 
@@ -2284,6 +2439,12 @@ export function createHostSession(options: HostSessionOptions): HostSession {
           // e cair a conexão já tiram o jogador de `pendingTravels`.
           if (pendingTravels.has(p.playerId)) info.travelPending = true
           if (p.disconnectedAt !== null) info.disconnectedAt = p.disconnectedAt
+          const lentTo = namesOf([...loans.values()].filter((loan) => loan.ownerId === p.playerId).map((loan) => loan.borrowerId))
+          if (lentTo.length > 0) info.lentTo = lentTo
+          const borrowedFrom = namesOf([...loans.values()].filter((loan) => loan.borrowerId === p.playerId).map((loan) => loan.ownerId))
+          if (borrowedFrom.length > 0) info.borrowedFrom = borrowedFrom
+          const borrowedTokenIds = info.tokenIds.filter((tokenId) => loans.get(tokenId)?.borrowerId === p.playerId)
+          if (borrowedTokenIds.length > 0) info.borrowedTokenIds = borrowedTokenIds
           if (withScenes && info.status === 'playing') {
             const scene = sceneFor(p.playerId, world)
             // Sem cena, o painel o mostra aguardando: é o que a tela dele diz, e

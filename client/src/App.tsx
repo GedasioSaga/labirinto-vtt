@@ -656,6 +656,8 @@ function App() {
             onKick={(clientId) => void hostBridgeRef.current?.kick(clientId)}
             onStoreTokens={(playerId) => hostBridgeRef.current?.storeTokens(playerId)}
             onDismiss={(playerId) => hostBridgeRef.current?.dismissPlayer(playerId)}
+            onLendTokens={(ownerId, borrowerId) => hostBridgeRef.current?.lendTokens(ownerId, borrowerId)}
+            onEndLoans={(ownerId) => hostBridgeRef.current?.endLoans(ownerId)}
             onVisionRadiusChange={(playerId, radius) => hostBridgeRef.current?.setVisionRadius(playerId, radius)}
             onRevealPlan={(playerId) => hostBridgeRef.current?.revealPlan(playerId)}
             onHidePlan={(playerId) => hostBridgeRef.current?.hidePlan(playerId)}

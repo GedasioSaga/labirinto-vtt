@@ -23,6 +23,13 @@ import { roomHasRoof } from './roomOps'
 /** Folga da caixa envolvente do anel de visão, em px de mundo; muito acima do erro de arredondamento. */
 const BBOX_SLACK = 1e-3
 
+/**
+ * Raio de visão do jogador: um número vale para todas as fichas dele; a
+ * função dá o raio de CADA ficha (a emprestada enxerga com o raio do dono,
+ * não com o de quem a joga).
+ */
+export type VisionRadius = number | ((tokenId: string) => number)
+
 export interface PlayerMapView {
   map: MapData
   vision: RegionPoint[][]
@@ -418,7 +425,7 @@ export function filterMapForPlayer(
   map: MapData,
   playerId: string,
   ownership: Record<string, string[]>,
-  visionRadius: number,
+  visionRadius: VisionRadius,
   explored?: Exploration,
   seenDoors?: ReadonlyMap<string, DoorState>,
 ): PlayerMapView {
@@ -594,7 +601,8 @@ export function filterMapForPlayer(
    * deixaria o jogador ver através dela fora da zona. Colisão não usa isto.
    */
   const authoritySegments = ownTokens.length > 0 ? visionSegments(map) : []
-  const authorityVision = ownTokens.map((t) => computeVisibility({ x: t.x, y: t.y }, authoritySegments, visionRadius))
+  const radiusOf = (t: Token): number => (typeof visionRadius === 'number' ? visionRadius : visionRadius(t.id))
+  const authorityVision = ownTokens.map((t) => computeVisibility({ x: t.x, y: t.y }, authoritySegments, radiusOf(t)))
   const rings = boxRings(authorityVision)
   const playerWalls = map.walls.filter(
     (w) =>
@@ -605,7 +613,7 @@ export function filterMapForPlayer(
   let vision = authorityVision
   if (ownTokens.length > 0 && (playerWalls.length !== map.walls.length || hiddenFloorIds.size > 0)) {
     const playerSegments = visionSegments({ ...map, walls: playerWalls, floor: floorWithout(map.floor, hiddenFloorIds) })
-    vision = ownTokens.map((t) => computeVisibility({ x: t.x, y: t.y }, playerSegments, visionRadius))
+    vision = ownTokens.map((t) => computeVisibility({ x: t.x, y: t.y }, playerSegments, radiusOf(t)))
   }
 
   const isVisible = (point: RegionPoint): boolean => !inConcealZone(point) && inAnyRing(rings, point)

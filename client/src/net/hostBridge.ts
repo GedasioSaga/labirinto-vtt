@@ -18,6 +18,7 @@ import {
 } from '../lib/savedTable'
 import {
   createHostSession,
+  ownTokenIdsOf,
   singleSceneWorld,
   type AppliedTokenEdit,
   type DoorRequest,
@@ -227,6 +228,15 @@ export interface HostBridge {
    * desconhecido, ou nada a guardar.
    */
   storeTokens(playerId: string): boolean
+  /**
+   * "Emprestar ficha a" do card de quem foi embora: as fichas dele passam a ser
+   * jogadas por `borrowerId` até ele voltar (`HostSession.lendTokens`). `false`
+   * (com aviso ao mestre) quando nada foi emprestado: sala fechada, dono
+   * conectado, quem recebe fora, ou ficha de outra cena.
+   */
+  lendTokens(ownerId: string, borrowerId: string): boolean
+  /** "Tomar de volta" da ficha emprestada. `false` com a sala fechada ou nada emprestado. */
+  endLoans(ownerId: string): boolean
   /**
    * Cópia das fichas guardadas agora, com a cena de onde cada uma saiu. Quem
    * grava o mapa as põe de volta no arquivo (`withStoredTokens`): senão
@@ -1204,7 +1214,9 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     if (!wasJoined) {
       // Voltou (resume) quem teve a ficha guardada: ela volta ao mapa, de novo dele.
       const joined = session.listPlayers().find((p) => p.clientId === clientId)
-      if (joined !== undefined && restoreStoredOf(joined.playerId, true).length > 0) broadcastNow()
+      const restored = joined !== undefined && restoreStoredOf(joined.playerId, true).length > 0
+      // Voltou quem teve a ficha emprestada: quem a jogava precisa do mapa sem ela.
+      if (restored || result.loansReturned !== undefined) broadcastNow()
     }
     // A Ana voltou pelo resume: a pergunta "Ana voltou?" que outro aparelho provocou já não vale.
     pruneReturnToasts()
@@ -1526,7 +1538,11 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     storeTokens(playerId) {
       if (session === null || deps.removeToken === undefined || deps.restoreToken === undefined) return false
       const player = session.listPlayers().find((p) => p.playerId === playerId)
-      if (player === undefined || player.connected || player.tokenIds.length === 0) return false
+      // Emprestada, a ficha está em jogo com outro: guardar a tiraria do mapa debaixo dele.
+      if (player === undefined || player.connected || player.lentTo !== undefined) return false
+      // A emprestada fica: é do dono, e guardá-la no nome de quem a joga a tiraria do dono para sempre.
+      const own = ownTokenIdsOf(player)
+      if (own.length === 0) return false
       const current = world()
       const stored = [...(storedTokens.get(playerId) ?? [])]
       for (const scene of [current.open, ...current.background]) {
@@ -1534,7 +1550,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
         const where = scene === current.open ? undefined : scene.sceneId
         if (where === null) continue
         for (const token of scene.map.tokens) {
-          if (!player.tokenIds.includes(token.id)) continue
+          if (!own.includes(token.id)) continue
           stored.push({ token, sceneId: scene.sceneId })
           // Sem dono enquanto guardada: a ficha não está em mapa nenhum. Ele está fora: não há a quem avisar.
           session.unassignToken(playerId, token.id)
@@ -1545,6 +1561,29 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       storedTokens.set(playerId, stored)
       const names = stored.map(({ token }) => token.name).join(', ')
       useToastStore.getState().push('info', `Ficha guardada: ${names}. Volta ao mapa quando ${player.name} voltar.`)
+      broadcastNow()
+      notifyPlayersIfChanged()
+      return true
+    },
+
+    lendTokens(ownerId, borrowerId) {
+      if (session === null) return false
+      const result = session.lendTokens(ownerId, borrowerId, world())
+      if (result.lent.length === 0) {
+        useToastStore.getState().push('error', 'Não deu para emprestar: só a ficha de quem está fora, para quem está conectado e na mesma cena dela.')
+        return false
+      }
+      void dispatch(result)
+      broadcastNow()
+      notifyPlayersIfChanged()
+      return true
+    },
+
+    endLoans(ownerId) {
+      if (session === null) return false
+      const result = session.endLoans(ownerId)
+      if (result.loansReturned === undefined) return false
+      void dispatch(result)
       broadcastNow()
       notifyPlayersIfChanged()
       return true
