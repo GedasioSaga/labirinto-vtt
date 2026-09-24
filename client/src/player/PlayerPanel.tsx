@@ -6,6 +6,8 @@ import { PlayerNotebook } from './PlayerNotebook'
 import { PlayerClueList } from './PlayerClues'
 import { PersonalNoteList } from './PlayerPersonalNotes'
 import type { PersonalNote } from './personalNotes'
+import { DiceForm } from '../components/DiceControls'
+import type { DiceRequest } from '../lib/dice'
 
 /** Caderno sem pistas passadas (tela antiga, teste): a mesma lista vazia, sem objeto novo a cada render. */
 const NO_CLUES: readonly ClueEntry[] = []
@@ -54,12 +56,15 @@ export interface PlayerCharacter {
   name: string
 }
 
-type PanelTab = 'jogo' | 'caderno'
+type PanelTab = 'jogo' | 'caderno' | 'dados'
 
 const PANEL_TABS: { id: PanelTab; label: string }[] = [
   { id: 'jogo', label: 'Jogo' },
   { id: 'caderno', label: 'Caderno' },
+  { id: 'dados', label: 'Dados' },
 ]
+/** Tela sem quem role (teste, integrador antigo): as abas de antes. */
+const PANEL_TABS_NO_DICE = PANEL_TABS.filter((item) => item.id !== 'dados')
 
 function clampBrightness(value: number): number {
   return Math.min(EXPLORED_BRIGHTNESS_MAX, Math.max(EXPLORED_BRIGHTNESS_MIN, value))
@@ -147,6 +152,8 @@ interface PlayerPanelProps {
   personalNotes?: readonly PersonalNote[]
   onFocusNote?: (noteId: string) => void
   onRemoveNote?: (noteId: string) => void
+  /** DADO ROLADO NA SALA: pede a rolagem ao host. Sem o callback, não há aba Dados. */
+  onRollDice?: (request: DiceRequest) => void
 }
 
 export function PlayerPanel({
@@ -179,7 +186,9 @@ export function PlayerPanel({
   personalNotes = NO_PERSONAL_NOTES,
   onFocusNote,
   onRemoveNote = IGNORE_NOTE,
+  onRollDice,
 }: PlayerPanelProps) {
+  const tabs = onRollDice === undefined ? PANEL_TABS_NO_DICE : PANEL_TABS
   const drawerScreen = useSyncExternalStore(subscribeDrawerScreen, isDrawerScreen, () => false)
   // Um estado por forma: a coluna do notebook nasce aberta e a gaveta do
   // celular nasce fechada. Atravessar o corte (girar o celular, estreitar a
@@ -260,13 +269,13 @@ export function PlayerPanel({
 
   // Setas trocam de aba (e o foco vai junto); Home e End vão às pontas. A fileira é uma parada só do Tab.
   function onTabKeyDown(event: ReactKeyboardEvent<HTMLDivElement>) {
-    const index = PANEL_TABS.findIndex((item) => item.id === tab)
+    const index = tabs.findIndex((item) => item.id === tab)
     let next: number | null = null
-    if (event.key === 'ArrowRight') next = (index + 1) % PANEL_TABS.length
-    else if (event.key === 'ArrowLeft') next = (index - 1 + PANEL_TABS.length) % PANEL_TABS.length
+    if (event.key === 'ArrowRight') next = (index + 1) % tabs.length
+    else if (event.key === 'ArrowLeft') next = (index - 1 + tabs.length) % tabs.length
     else if (event.key === 'Home') next = 0
-    else if (event.key === 'End') next = PANEL_TABS.length - 1
-    const target = next === null ? undefined : PANEL_TABS[next]
+    else if (event.key === 'End') next = tabs.length - 1
+    const target = next === null ? undefined : tabs[next]
     if (target === undefined) return
     event.preventDefault()
     selectTab(target.id)
@@ -401,7 +410,7 @@ export function PlayerPanel({
       <aside id={panelId} ref={asideRef} className="pp-panel" hidden={!open} aria-label="Painel do jogador">
         <div className="pp-panel__body">
           <div className="pp-tabs" role="tablist" aria-label="Painel do jogador" onKeyDown={onTabKeyDown}>
-            {PANEL_TABS.map((item) => (
+            {tabs.map((item) => (
               <button
                 key={item.id}
                 ref={(el) => {
@@ -582,6 +591,16 @@ export function PlayerPanel({
               </>
             )}
           </div>
+
+          {/* Montada mesmo escondida, como a aba Jogo: o dado e a quantidade escolhidos ficam para a próxima rolagem.
+              O resultado não aparece aqui: vem do host, na lista de rolagens sobre o mapa, igual para a mesa inteira. */}
+          {onRollDice !== undefined && (
+            <div role="tabpanel" id={`${panelId}-panel-dados`} aria-labelledby={`${panelId}-tab-dados`} className="pp-tabpanel" hidden={tab !== 'dados'}>
+              <section className="pp-section">
+                <DiceForm onRoll={(request) => onRollDice(request)} />
+              </section>
+            </div>
+          )}
         </div>
       </aside>
     </>

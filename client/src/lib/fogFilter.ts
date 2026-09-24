@@ -13,6 +13,7 @@ import { roomHasRoof } from './roomOps'
 import { rotatePointAround, rotationTrig } from './roomRotation'
 import { clampRoomText, hasEnterText } from './roomText'
 import { cleanPublicSceneName } from './adventure'
+import type { DiceRollEntry, HostDiceRoll } from './dice'
 
 /**
  * Recorte do mapa que um jogador pode receber. Tudo que sai daqui vai pela
@@ -885,6 +886,27 @@ export function pinClueForPlayer(pin: Pin): PlayerClueContent | null {
  */
 export function sceneNameForPlayer(scene: { readonly publicName?: string }): string | undefined {
   return scene.publicName === undefined ? undefined : cleanPublicSceneName(scene.publicName)
+}
+
+/**
+ * DADO ROLADO NA SALA: o que da rolagem o jogador recebe. A rolagem ESCONDIDA
+ * do mestre não existe para ele (`null`). A aberta vai inteira, mas só com os
+ * campos que a mesa lê: montada campo a campo, e não por cópia, para que nada
+ * que o host viesse a pendurar nela (cena, id de jogador) vá junto ao fio.
+ */
+export function diceRollForPlayer(roll: HostDiceRoll): DiceRollEntry | null {
+  if (roll.hidden === true) return null
+  const entry: DiceRollEntry = {
+    id: roll.id,
+    from: roll.from,
+    count: roll.count,
+    sides: roll.sides,
+    modifier: roll.modifier,
+    results: [...roll.results],
+    total: roll.total,
+    at: roll.at,
+  }
+  return roll.master === true ? { ...entry, master: true } : entry
 }
 
 /**

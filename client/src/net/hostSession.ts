@@ -1,7 +1,8 @@
 import type { DoorState, MapData, Pin, RegionPoint, Token } from '../types/map'
 import { createExploration, encodeExploration, forgetInside, isPointExplored, markAll, markRings, type Exploration } from '../lib/exploration'
 import { pointInRing } from '../lib/floorContour'
-import { filterMapForPlayer, pinClueForPlayer, playerBlockedRings, roomClueForPlayer, sceneNameForPlayer, type PlayerClueContent, type PlayerMapView } from '../lib/fogFilter'
+import { diceRollForPlayer, filterMapForPlayer, pinClueForPlayer, playerBlockedRings, roomClueForPlayer, sceneNameForPlayer, type PlayerClueContent, type PlayerMapView } from '../lib/fogFilter'
+import { MASTER_ROLLER_NAME, rollDice, secureRollDie, type DiceRequest, type HostDiceRoll, type RollDie } from '../lib/dice'
 import { CLUEBOOK_MAX_CLUES } from '../lib/clues'
 import { validateTokenMove } from '../lib/moveValidation'
 import { tokenReachesDoor } from '../lib/doorReach'
@@ -15,6 +16,7 @@ import {
   type ClueReadMessage,
   type ClueShowMessage,
   type DestinationMessage,
+  type DiceRollMessage,
   type DoorToggleMessage,
   type HostMessage,
   type JoinMessage,
@@ -204,7 +206,11 @@ export interface HostResult {
    * integrador move o token entre as cenas ANTES de despachar `outbound`.
    */
   applyTransfer?: AppliedTransfer
+  /** DADO ROLADO NA SALA: a rolagem que a tela do mestre mostra (a escondida dele, marcada). */
+  diceRoll?: HostDiceRoll
 }
+
+export type { HostDiceRoll }
 
 export interface PlayerInfo {
   clientId: string | null
@@ -294,11 +300,20 @@ export const MAX_SCENE_MEMORIES_PER_PLAYER = 8
  */
 export const MAX_SCENE_NOTES = 100
 
+/**
+ * Uma rolagem de dado por jogador nesta janela; o excesso morre em silêncio
+ * (igual ao sinal). Cada rolagem acende uma linha na tela de TODA a mesa: um
+ * jogador em laço não pode enterrar a lista dos outros.
+ */
+export const DICE_ROLL_MIN_INTERVAL_MS = 400
+
 export interface HostSessionOptions {
   code: string
   visionRadius: number
   now?: () => number
   randomId?: () => string
+  /** O dado do host. Ausente = o gerador do sistema (`secureRollDie`); o teste injeta faces fixas. */
+  rollDie?: RollDie
 }
 
 export interface HostSession {
@@ -334,6 +349,12 @@ export interface HostSession {
    * ficha nova) recebe o último recado dela no broadcast, se ainda não o tem.
    */
   sceneNote(sceneId: string, text: string, source: HostMapSource): HostResult
+  /**
+   * DADO ROLADO NA SALA pelo mestre: o host rola e devolve a rolagem em
+   * `diceRoll`. Aberta, `dice.rolled` vai a todo jogador conectado, como
+   * "Mestre"; `hidden`, não sai para ninguém — só a tela do mestre a mostra.
+   */
+  masterRoll(request: DiceRequest, hidden: boolean): HostResult
   /**
    * "Deixar ir": revalida o pedido contra o mundo de AGORA (o token pode ter
    * andado, o pino sumido) e devolve `applyTransfer` + `scene.changed` ao
@@ -454,6 +475,9 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   const lastSignalAt = new Map<string, number>()
   // Por playerId: mesmo limite para o pedido de abrir/fechar porta.
   const lastDoorToggleAt = new Map<string, number>()
+  // Por playerId: a última rolagem de dado (DICE_ROLL_MIN_INTERVAL_MS). Reconectar não zera.
+  const lastDiceRollAt = new Map<string, number>()
+  const rollDie = options.rollDie ?? secureRollDie
   // Por playerId: janela corrente do teto de lotes de laser (PLAYER_LASER_MAX_PER_WINDOW).
   const laserWindows = new Map<string, { start: number; count: number }>()
   // Por playerId: conexões que receberam algum ponto do gesto em curso, e a
@@ -842,6 +866,43 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     // Mesma regra de `backgroundSceneId`: a cena aberta e o mapa solto não levam o campo.
     if (scene !== world.open && scene.sceneId !== null) signal.background = { sceneId: scene.sceneId, name: scene.name }
     return { outbound, signal }
+  }
+
+  /**
+   * DADO ROLADO NA SALA: quem recebe a rolagem é a MESA INTEIRA — todo jogador
+   * conectado, em qualquer cena, jogando ou aguardando a ficha. A rolagem não
+   * diz nada de onde ninguém está (`diceRollForPlayer` só deixa passar quem
+   * rolou, o dado e o resultado), então não há o que recortar por cena. A
+   * escondida do mestre o recorte devolve `null`, e ela não sai para ninguém.
+   */
+  const diceOutbound = (roll: HostDiceRoll): Outbound[] => {
+    const forPlayers = diceRollForPlayer(roll)
+    if (forPlayers === null) return []
+    // Um objeto por destinatário: quem despacha pode mexer num sem tocar o dos outros.
+    return [...byClient.keys()].map((clientId): Outbound => ({ clientId, msg: { type: 'dice.rolled', roll: { ...forPlayers, results: [...forPlayers.results] } } }))
+  }
+
+  const newDiceRoll = (request: DiceRequest, from: string): HostDiceRoll => {
+    const { results, total } = rollDice(request, rollDie)
+    return { id: randomId(), from, count: request.count, sides: request.sides, modifier: request.modifier, results, total, at: now() }
+  }
+
+  /**
+   * O jogador PEDE a rolagem; quem rola é o host. Rolagem de quem não entrou
+   * recusa; a de dentro do intervalo mínimo morre em silêncio (não é mensagem
+   * malformada, é dedo apressado ou laço).
+   */
+  function handleDiceRoll(clientId: string, msg: DiceRollMessage): HostResult {
+    const playerId = byClient.get(clientId)
+    if (playerId === undefined) return reply(clientId, { type: 'error', reason: 'not_joined' })
+    const record = players.get(playerId)
+    if (record === undefined) return { outbound: [] }
+    const at = now()
+    const last = lastDiceRollAt.get(playerId)
+    if (last !== undefined && at - last < DICE_ROLL_MIN_INTERVAL_MS) return { outbound: [] }
+    lastDiceRollAt.set(playerId, at)
+    const roll = newDiceRoll(msg, record.name)
+    return { outbound: diceOutbound(roll), diceRoll: roll }
   }
 
   /** A cor do laser do jogador: a da ficha DELE nesta cena; ficha sem cor, a da paleta de sinais. */
@@ -1329,7 +1390,15 @@ export function createHostSession(options: HostSessionOptions): HostSession {
           return handleCluePeers(clientId, world)
         case 'clue.show':
           return handleClueShow(clientId, msg, world)
+        case 'dice.roll':
+          return handleDiceRoll(clientId, msg)
       }
+    },
+
+    masterRoll(request, hidden) {
+      const rolled = newDiceRoll(request, MASTER_ROLLER_NAME)
+      const roll: HostDiceRoll = hidden ? { ...rolled, master: true, hidden: true } : { ...rolled, master: true }
+      return { outbound: diceOutbound(roll), diceRoll: roll }
     },
 
     approveTravel(requestId, source) {
@@ -1450,6 +1519,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       forgetTravelsOf(playerId)
       lastSignalAt.delete(playerId)
       lastDoorToggleAt.delete(playerId)
+      lastDiceRollAt.delete(playerId)
       laserWindows.delete(playerId)
       laserRecipients.delete(playerId)
       lastTokenPhotoAt.delete(playerId)

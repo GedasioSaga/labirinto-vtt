@@ -2,6 +2,8 @@ import { useEffect, useId, useRef, useState, type KeyboardEvent as ReactKeyboard
 import { createPortal } from 'react-dom'
 import { PixiCanvas } from './pixi/PixiCanvas'
 import { ZoomHud } from './components/ZoomHud'
+import { DiceDock } from './components/DiceDock'
+import { useDiceStore } from './stores/diceStore'
 import { Toast } from './components/Toast'
 import { useToastStore, type ToastKind } from './stores/toastStore'
 import { ensinaOQueFazer } from './lib/erroQueEnsina'
@@ -474,6 +476,8 @@ function App() {
         }),
         // Laser do jogador: o canvas desenha pela store, só o da cena aberta.
         onPlayerLaser: (laser) => usePlayerLaserStore.getState().receive(laser),
+        // Dado rolado na sala: toda rolagem da mesa (e a do mestre, escondida ou não) entra na lista dele.
+        onDiceRoll: (roll) => useDiceStore.getState().push(roll),
       })
     }
     return hostBridgeRef.current
@@ -488,6 +492,7 @@ function App() {
     [],
   )
   const laserToggled = useLaserStore((state) => state.toggled)
+  const diceRolls = useDiceStore((state) => state.rolls)
   // B2 — o `off` sai no fim do traço: soltar o botão, sair da janela ou desarmar (L e botão Laser).
   useEffect(
     () =>
@@ -516,6 +521,7 @@ function App() {
     useSignalStore.getState().clear()
     usePlayerLaserStore.getState().clear()
     useLaserStore.getState().setToggled(false)
+    useDiceStore.getState().clear()
   }
   /**
    * O mundo que o host serve (cena aberta + as de fundo), para o painel Jogo:
@@ -2101,6 +2107,8 @@ function App() {
       </div>
 
       <ZoomHud scale={cameraScale} onReset={() => setResetZoomRequest((n) => n + 1)} />
+      {/* Dado rolado na sala: só com a sala aberta — sem mesa, não há quem veja a rolagem. */}
+      {room !== null && <DiceDock rolls={diceRolls} onRoll={(request, hidden) => hostBridgeRef.current?.rollDice(request, hidden)} />}
     </div>
   )
 }

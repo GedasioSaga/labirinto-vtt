@@ -16,7 +16,8 @@ import {
   type RemoteLaser,
   type RemoteLaserUpdate,
 } from '../lib/laser'
-import { NOTEBOOK_MAX_NOTES, parseClueMessage, parseDestinationsMessage, parseLaserMessage, parseNotebook, parseRoomText, parseSceneNote, type ClueEntry, type NoteEntry } from '../net/protocol'
+import { NOTEBOOK_MAX_NOTES, parseClueMessage, parseDestinationsMessage, parseDiceRolled, parseLaserMessage, parseNotebook, parseRoomText, parseSceneNote, type ClueEntry, type NoteEntry } from '../net/protocol'
+import { DICE_FEED_MAX, parseDiceRequest, type DiceRequest, type DiceRollEntry } from '../lib/dice'
 import { CLUEBOOK_MAX_CLUES } from '../lib/clues'
 import type { TokenMoveRejection } from '../lib/moveValidation'
 import { hasEnterText } from '../lib/roomText'
@@ -96,6 +97,12 @@ export interface PlayerState {
    * snapshot. Ausente = a cena não tem nome público, e o selo não aparece.
    */
   sceneName?: string
+  /**
+   * DADO ROLADO NA SALA: as rolagens da mesa que chegaram (a dele também só
+   * aparece quando o host devolve), da mais antiga à mais nova, até
+   * `DICE_FEED_MAX`. É do jogador, não da cena: trocar de cena não apaga.
+   */
+  diceRolls?: DiceRollEntry[]
   rev: number
   playerId?: string
   /** Motivo quando `status === 'error'`: razão do mestre ou 'connection_lost'. */
@@ -232,6 +239,12 @@ export interface PlayerConnection {
   resetClueShare(): void
   /** Fecha o cartão da pista que um colega mostrou (a pista continua no caderno). */
   dismissShownClue(): void
+  /**
+   * DADO ROLADO NA SALA: pede a rolagem ao host (quem rola é ele; o resultado
+   * volta em `diceRolls`, igual para a mesa). `false` (e nada sai) com pedido
+   * fora da faixa ou socket fechado.
+   */
+  rollDice(request: DiceRequest): boolean
   /** Abre um socket novo (reconectar), reaproveitando o resumeToken guardado. */
   reconnect(): void
   close(): void
@@ -857,6 +870,13 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       case 'clue.show.result':
         handleClueMessage(data)
         return
+      case 'dice.rolled': {
+        // Vale também aguardando, como o caderno: a rolagem é da mesa, não da cena.
+        const rolled = parseDiceRolled(data)
+        if (rolled === null) return
+        setState({ diceRolls: [...(state.diceRolls ?? []), rolled.roll].slice(-DICE_FEED_MAX) })
+        return
+      }
       case 'room.text': {
         // Mesma regra do recado: só quem joga tem tela de cartão.
         if (state.status !== 'playing') return
@@ -1162,6 +1182,13 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
 
     dismissShownClue() {
       if (state.shownClue !== undefined) setState({ shownClue: undefined })
+    },
+
+    rollDice(request) {
+      // O mesmo filtro do host: pedido fora da faixa nem sai (ele recusaria a mensagem inteira).
+      const valid = parseDiceRequest(request)
+      if (valid === null) return false
+      return send({ type: 'dice.roll', ...valid })
     },
 
     setOwnTokenName(tokenId, name) {

@@ -8,6 +8,7 @@ import {
   singleSceneWorld,
   type AppliedTokenEdit,
   type AppliedTransfer,
+  type HostDiceRoll,
   type HostResult,
   type HostPlayerLaser,
   type HostSession,
@@ -17,6 +18,7 @@ import {
   type TravelRequest,
 } from './hostSession'
 import type { LaserMessage } from './protocol'
+import type { DiceRequest } from '../lib/dice'
 
 /**
  * Costura entre a sessão pura (`hostSession`) e o transporte Rust (comandos
@@ -83,6 +85,8 @@ export interface HostBridgeDeps {
   onSignal?: (signal: HostSignal) => void
   /** Laser de um jogador (lote ou fim do gesto), já validado e dentro do limite. */
   onPlayerLaser?: (laser: HostPlayerLaser) => void
+  /** DADO ROLADO NA SALA: toda rolagem da mesa (a de um jogador e a do mestre, a escondida marcada). */
+  onDiceRoll?: (roll: HostDiceRoll) => void
   now?: () => number
 }
 
@@ -121,6 +125,11 @@ export interface HostBridge {
    * receberam (0 = ninguém lá), ou `null` com a sala fechada.
    */
   sceneNote(sceneId: string, text: string): number | null
+  /**
+   * DADO ROLADO NA SALA pelo mestre: o host rola; aberta, a mesa inteira
+   * recebe; `hidden`, só a tela do mestre (`onDiceRoll`). `null` com a sala fechada.
+   */
+  rollDice(request: DiceRequest, hidden: boolean): HostDiceRoll | null
 }
 
 export const BROADCAST_THROTTLE_MS = 50
@@ -508,6 +517,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     else void dispatch(result)
     if (result.signal !== undefined) deps.onSignal?.(result.signal)
     if (result.playerLaser !== undefined) deps.onPlayerLaser?.(result.playerLaser)
+    if (result.diceRoll !== undefined) deps.onDiceRoll?.(result.diceRoll)
     if (result.applyMove !== undefined) {
       const { tokenId, x, y, sceneId } = result.applyMove
       // Cena aberta: a mesma chamada de sempre, sem o quarto argumento.
@@ -667,6 +677,15 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       const result = session.sceneNote(sceneId, text, world())
       void dispatch(result)
       return result.outbound.length
+    },
+
+    rollDice(request, hidden) {
+      if (session === null) return null
+      const result = session.masterRoll(request, hidden)
+      void dispatch(result)
+      // A tela do mestre mostra pelo mesmo caminho da rolagem de um jogador.
+      if (result.diceRoll !== undefined) deps.onDiceRoll?.(result.diceRoll)
+      return result.diceRoll ?? null
     },
 
     assignToken(playerId, tokenId) {
