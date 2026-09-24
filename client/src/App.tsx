@@ -54,6 +54,7 @@ import { PinCabineControls } from './components/PinCabineControls'
 import { ocupantesDasCabines } from './lib/cabine'
 import { UNNAMED_SCENE } from './lib/adventure'
 import { PerigoDaSalaControls } from './components/PerigoDaSalaControls'
+import { RotinaDaFichaControls } from './components/RotinaDaFichaControls'
 import { amarradosPorEstado, type AmarraDeEstado } from './lib/estadoDoMundo'
 import { MapObjectsSection } from './components/MapObjectsSection'
 import { currentObjectKey, isFindObjectShortcut } from './lib/mapObjects'
@@ -1767,7 +1768,10 @@ function App() {
                   // Conta só quando há estado: sem estado, nenhuma passada pelas cenas.
                   amarrados={(adventure.estados ?? []).length === 0 ? new Map() : amarradosPorEstado(sceneMaps({ adventure, activeSceneId, cache: sceneCache }, map).values())}
                   onCriar={(nome, valores) => useAdventureStore.getState().criarEstadoDoMundo(nome, valores)}
-                  onTrocar={(estadoId, valor) => useAdventureStore.getState().trocarEstadoDoMundo(estadoId, valor)}
+                  // ROTINA DO NPC: a troca é também o apito. Ficha na mão de um jogador (a dele ou o ajudante) não é arrancada.
+                  onTrocar={(estadoId, valor) =>
+                    useAdventureStore.getState().trocarEstadoDoMundo(estadoId, valor, new Set(roomPlayers.flatMap((player) => player.tokenIds)))
+                  }
                 />
               )
             }
@@ -1829,6 +1833,18 @@ function App() {
             estadoDaLuz={
               adventure === null || selectedLight === null ? undefined : (
                 <EstadoDaLuz light={selectedLight} estados={adventure.estados ?? []} onAmarrar={amarrarAoEstado} />
+              )
+            }
+            // ROTINA DO NPC: o posto da ficha em cada valor do estado; gravar entra no Ctrl+Z.
+            rotinaDaFicha={
+              adventure === null || activeSceneId === null || selectedToken === null ? undefined : (
+                <RotinaDaFichaControls
+                  token={selectedToken}
+                  estados={adventure.estados ?? []}
+                  cenas={adventure.scenes}
+                  cenaAberta={activeSceneId}
+                  onChange={(rotina) => useMapStore.getState().setTokenRotina(selectedToken.id, rotina)}
+                />
               )
             }
             objects={

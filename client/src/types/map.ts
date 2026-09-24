@@ -578,6 +578,28 @@ export interface Token extends PlayerSecret {
    *  na ficha emprestada que vai a quem a segura (`lib/fogFilter.ts`) e
    *  `deserializeMap` o descarta se um arquivo trouxer. */
   contrato?: TokenContract
+  /** ROTINA DO NPC: onde a ficha fica em cada valor de um ESTADO DO MUNDO
+   *  ("Apito: Aurora, Meio, Brasa"). Trocar o estado leva a ficha ao posto,
+   *  inclusive para outra cena (`lib/rotinaDoNpc.ts`). Do mestre: NÃO atravessa
+   *  para jogador nenhum, nem para quem segura a ficha (`lib/fogFilter.ts`).
+   *  `undefined` = sem rotina — mapa salvo antes deste campo abre igual. */
+  rotina?: RotinaDoNpc
+}
+
+/** A rotina de uma ficha (`Token.rotina`): um posto por valor do estado, no máximo. */
+export interface RotinaDoNpc {
+  /** O estado do mundo que manda nesta rotina (`Adventure.estados`). */
+  estadoId: string
+  /** Valor sem posto = a ficha fica onde está quando o estado vira para ele. */
+  postos: PostoDaRotina[]
+}
+
+/** Onde a ficha vai quando o estado vira para `valor`: cena da aventura e ponto em px de mundo. */
+export interface PostoDaRotina {
+  valor: string
+  sceneId: string
+  x: number
+  y: number
 }
 
 /** O acordo do ajudante contratado (`Token.contrato`). */

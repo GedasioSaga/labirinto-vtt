@@ -16,10 +16,14 @@ export interface WorldStateSectionProps {
 
 /** "Maré: baixa. 4 elementos mudaram em 2 cenas." — o aviso depois de um toque. */
 export function trocaText(nome: string, valor: string, resumo: ResumoDaTroca): string {
-  if (resumo.elementos === 0) return `${nome}: ${valor}. Nenhum elemento mudou.`
-  const elementos = resumo.elementos === 1 ? '1 elemento mudou' : `${resumo.elementos} elementos mudaram`
+  // ROTINA DO NPC: ausente = nenhuma ficha foi ao posto (`ResumoDaTroca.fichas`).
+  const fichas = resumo.fichas ?? 0
+  if (resumo.elementos === 0 && fichas === 0) return `${nome}: ${valor}. Nenhum elemento mudou.`
+  const partes: string[] = []
+  if (resumo.elementos > 0) partes.push(resumo.elementos === 1 ? '1 elemento mudou' : `${resumo.elementos} elementos mudaram`)
+  if (fichas > 0) partes.push(fichas === 1 ? '1 ficha foi ao posto' : `${fichas} fichas foram ao posto`)
   const cenas = resumo.cenas === 1 ? '1 cena' : `${resumo.cenas} cenas`
-  return `${nome}: ${valor}. ${elementos} em ${cenas}.`
+  return `${nome}: ${valor}. ${partes.join(' e ')} em ${cenas}.`
 }
 
 function amarradosText(n: number): string {

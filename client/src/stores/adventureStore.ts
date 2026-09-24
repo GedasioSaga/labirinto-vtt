@@ -3,6 +3,7 @@ import type { MapData, Pin, PinDestination, Token } from '../types/map'
 import { singleSceneWorld, type HostScene, type HostWorld } from '../net/hostSession'
 import type { Bounds, Camera, Point } from '../pixi/world'
 import * as mapFactory from '../lib/mapFactory'
+import { moverNaCena, planejarRotina, type CenaDaRotina } from '../lib/rotinaDoNpc'
 import {
   ADVENTURE_VERSION,
   baseName,
@@ -239,8 +240,11 @@ interface AdventureState {
    * Mudança de MESA: fora do Ctrl+Z do mestre nas duas pontas. Devolve quantos
    * elementos mudaram e em quantas cenas; `null` quando o estado não existe ou
    * o valor não é dele (nada muda).
+   * ROTINA DO NPC: é também o APITO — cada ficha com posto em `valor` vai para
+   * ele, dentro da cena ou para outra (`transferToken`), também fora do Ctrl+Z.
+   * `fixas`: fichas que um jogador segura; ficam onde estão.
    */
-  trocarEstadoDoMundo: (estadoId: string, valor: string) => ResumoDaTroca | null
+  trocarEstadoDoMundo: (estadoId: string, valor: string, fixas?: ReadonlySet<string>) => ResumoDaTroca | null
   /**
    * ESTADO DO MUNDO: "Depende do estado" de um elemento da cena ABERTA (o
    * painel de propriedades só mostra ela). Grava a regra e já põe o elemento
@@ -442,6 +446,12 @@ export function hostWorldOf(state: SceneState, liveMap: MapData): HostWorld {
   return cabines === undefined ? { open, background } : { open, background, cabines }
 }
 
+/** A cena aberta (mapa vivo) e as de fundo que abriram, cada uma com o id dela na aventura. */
+function cenasCarregadas(activeSceneId: string, live: MapData, cache: Record<string, SceneSlot>): CenaDaRotina[] {
+  const fundo = Object.entries(cache).flatMap(([sceneId, slot]) => (slot.status === 'ok' ? [{ sceneId, map: slot.map }] : []))
+  return [{ sceneId: activeSceneId, map: live }, ...fundo]
+}
+
 /** Um mapa com o desfazer dele: a cena aberta (no `useMapStore`) ou uma de fundo (no cache). */
 interface SceneHistory {
   map: MapData
@@ -629,18 +639,34 @@ export const useAdventureStore = create<AdventureState>()((set, get) => ({
     return estado.id
   },
 
-  trocarEstadoDoMundo: (estadoId, valor) => {
-    const { adventure, cache } = get()
-    if (adventure === null) return null
+  trocarEstadoDoMundo: (estadoId, valor, fixas) => {
+    const { adventure, activeSceneId, cache } = get()
+    // Aventura aberta sempre tem cena aberta (`open`, `createScene`): sem ela não há onde tocar.
+    if (adventure === null || activeSceneId === null) return null
     const estados = comValorAtual(adventure.estados ?? [], estadoId, valor)
     if (estados === null) return null
-    // Conta ANTES de aplicar: depois, cada elemento já está no efeito e a conta daria zero.
-    const mapas = [useMapStore.getState().map, ...Object.values(cache).flatMap((slot) => (slot.status === 'ok' ? [slot.map] : []))]
-    const porCena = mapas.map((map) => contarMudancas(map, estadoId, valor))
-    const resumo: ResumoDaTroca = { elementos: porCena.reduce((soma, n) => soma + n, 0), cenas: porCena.filter((n) => n > 0).length }
-    const transform = (map: MapData) => aplicarEstadoNoMapa(map, estadoId, valor)
+    // Conta e planeja ANTES de aplicar: depois, cada elemento já está no efeito e a conta daria zero.
+    const cenas = cenasCarregadas(activeSceneId, useMapStore.getState().map, cache)
+    const movimentos = planejarRotina(cenas, estadoId, valor, fixas)
+    const mexidas = new Set(movimentos.flatMap((m) => [m.de, m.para]))
+    const porCena = cenas.map((cena) => contarMudancas(cena.map, estadoId, valor))
+    const cenasMudadas = cenas.filter((cena, i) => porCena[i] > 0 || mexidas.has(cena.sceneId)).length
+    const resumo: ResumoDaTroca = {
+      elementos: porCena.reduce((soma, n) => soma + n, 0),
+      cenas: cenasMudadas,
+      ...(movimentos.length === 0 ? {} : { fichas: movimentos.length }),
+    }
+    // Id de ficha é único na aventura: o mesmo `transform` serve a toda cena.
+    const transform = (map: MapData) => moverNaCena(aplicarEstadoNoMapa(map, estadoId, valor), movimentos)
     useMapStore.getState().applyPlayerChange(transform)
     for (const sceneId of Object.keys(cache)) get().applyPlayerChangeToBackgroundScene(sceneId, transform)
+    for (const m of movimentos) {
+      if (m.de === m.para || !get().transferToken(m.tokenId, m.de, m.para, m.x, m.y) || m.de !== activeSceneId) continue
+      // Saiu da cena aberta: a seleção não pode apontar para ela (o mesmo cuidado de `carryToken`).
+      const item: SelectionItem = { kind: 'token', id: m.tokenId }
+      const { selection, setSelection } = useMapStore.getState()
+      if (selectionHas(selection, item)) setSelection(removeSelectionItem(selection, item))
+    }
     set({ adventure: { ...adventure, estados }, structureDirty: true })
     return resumo
   },

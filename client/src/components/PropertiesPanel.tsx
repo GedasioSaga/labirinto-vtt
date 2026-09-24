@@ -73,6 +73,8 @@ interface PropertiesPanelProps {
   estadoDaLuz?: ReactNode
   /** PERIGO QUE SE ALASTRA — bloco "Perigo" da Sala selecionada (`PerigoDaSalaControls.tsx`), montado pelo App. */
   perigoDaSala?: ReactNode
+  /** ROTINA DO NPC da ficha selecionada (`RotinaDaFichaControls.tsx`), montada pelo App; ausente no mapa solto. */
+  rotinaDaFicha?: ReactNode
   /** Seção "Objetos do mapa" (busca e "Ir até lá"), montada pelo App, que sabe da câmera e da seleção. */
   objects?: ReactNode
   mapName: string
@@ -192,6 +194,7 @@ export function PropertiesPanel({
   estadoDaZona,
   estadoDaLuz,
   perigoDaSala,
+  rotinaDaFicha,
   objects,
   mapName,
   mapWidth,
@@ -470,6 +473,7 @@ export function PropertiesPanel({
             {/* `tokenPhotoRef`: foto escolhida pelo JOGADOR vive em `imageData` — sem isto o painel ofereceria "Escolher imagem..." num token que já tem foto. */}
             <TokenImageControls image={tokenPhotoRef(selectedToken)} {...tokenImage} />
             <TokenNpcControls npc={selectedToken.npc === true} {...tokenNpc} />
+            {rotinaDaFicha}
             {/* `key`: outra ficha selecionada reabre fechado, sem a escolha da anterior.
                 Prefixada: o nome acima já usa o id puro, e chave repetida entre
                 irmãos deixa o campo Nome da ficha anterior no painel. */}

@@ -5,6 +5,7 @@ import { isPinIcon, isPinKind, isPinPassage } from './pins'
 import { cleanExitLabel, readPinDestination, readPinExits } from './pinTravel'
 import { tokenPublicNameFromFile } from './tokenPublicName'
 import { withoutContract } from './tokenLoan'
+import { fichaComRotinaDoArquivo } from './rotinaDoNpc'
 import { confrontoFromFile } from './confronto'
 import { perigosFromFile } from './perigo'
 import { propMobiliaFromFile } from './mobilia'
@@ -208,7 +209,8 @@ function deserializeMapFields(json: string): MapData {
     // — texto e null ficam, valor torto some e a ficha volta a "O mesmo".
     // `contrato` (ajudante contratado) é campo de FIO: o acordo mora na sessão
     // do host. Arquivo que o traga (editado à mão) perde o campo na leitura.
-    tokens: entityList(parsed.tokens).map((t) => withoutContract(tokenPublicNameFromFile({ ...t, image: t.image ?? null }))),
+    // `rotina` (ROTINA DO NPC): rotina torta some e a ficha volta a ser a de sempre; ausente continua ausente.
+    tokens: entityList(parsed.tokens).map((t) => fichaComRotinaDoArquivo(withoutContract(tokenPublicNameFromFile({ ...t, image: t.image ?? null })))),
     // Prop.layer ausente fica undefined. MOBÍLIA: `mobilia` ausente continua
     // ausente; tipo fora do catálogo some e o objeto fica (`propMobiliaFromFile`).
     props: entityList(parsed.props).map((p) => propMobiliaFromFile({ ...p, linkedMapPath: p.linkedMapPath ?? null })),
