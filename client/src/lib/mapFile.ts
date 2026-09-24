@@ -239,6 +239,9 @@ function deserializeMapFields(json: string): MapData {
     // ZONA DE PERIGO: campo NOVO e OPCIONAL, mesmo padrão de `movement`. Mapa
     // de antes (ou lixo editado à mão) abre sem o campo — ver `readHazards`.
     ...hazardsField(parsed.hazards),
+    // MAPA-MUNDI: campo NOVO e OPCIONAL. Só `true` vale; o resto (arquivo
+    // editado à mão) abre como cena comum, sem o campo.
+    ...(parsed.worldMap === true ? { worldMap: true } : {}),
   }
 }
 

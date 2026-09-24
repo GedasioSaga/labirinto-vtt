@@ -8,6 +8,9 @@ export interface MovementControlsProps {
   movement: MovementRules | undefined
   /** Recebe as regras já limpas (`undefined` quando nada limita). */
   onMovementChange: (next: MovementRules | undefined) => void
+  /** MAPA-MUNDI da cena aberta (`lib/caravan.ts`). Sem `onWorldMapChange`, o interruptor não aparece. */
+  worldMap?: boolean
+  onWorldMapChange?: (next: boolean) => void
 }
 
 /**
@@ -16,10 +19,11 @@ export interface MovementControlsProps {
  * Toda mudança passa por `readMovementRules`, então o que chega à store é o
  * mesmo que o arquivo e o host aceitam (zero, negativo ou vazio = livre).
  */
-export function MovementControls({ movement, onMovementChange }: MovementControlsProps) {
+export function MovementControls({ movement, onMovementChange, worldMap, onWorldMapChange }: MovementControlsProps) {
   const stepId = useId()
   const stepHintId = useId()
   const occupyHintId = useId()
+  const worldHintId = useId()
 
   function change(patch: MovementRules) {
     onMovementChange(readMovementRules({ ...movement, ...patch }))
@@ -68,6 +72,15 @@ export function MovementControls({ movement, onMovementChange }: MovementControl
           Soltar a ficha sobre outra que o jogador vê volta com &quot;Lugar ocupado&quot;.
         </p>
       </div>
+
+      {onWorldMapChange && (
+        <div className="lb-field">
+          <Toggle label="Mapa-mundi (caravana)" checked={worldMap === true} describedBy={worldHintId} onChange={onWorldMapChange} />
+          <p id={worldHintId} className="lb-field__hint">
+            O grupo vira uma ficha só, que você arrasta. Parada sobre um pino de viagem, a caravana pode desembarcar na cena dele.
+          </p>
+        </div>
+      )}
     </section>
   )
 }

@@ -34,7 +34,7 @@ import { MapTypePicker } from './screens/MapTypePicker'
 import { NewDungeonMap } from './screens/NewDungeonMap'
 import { LoadMapScreen } from './screens/LoadMapScreen'
 import { OptionsScreen } from './screens/OptionsScreen'
-import { useMapStore } from './stores/mapStore'
+import { mapChangeCause, useMapStore } from './stores/mapStore'
 import { roomHazardState } from './lib/hazards'
 import { saveMapToAppData, saveMapToPath, pickMapJsonToOpen, openMapFile, mapDirFor, defaultMapsDir, type OpenedMapFile } from './lib/mapFileIO'
 import {
@@ -342,6 +342,7 @@ function App() {
   const setMapScale = useMapStore((state) => state.setMapScale)
   const setMeasurementMode = useMapStore((state) => state.setMeasurementMode)
   const setMovementRules = useMapStore((state) => state.setMovementRules)
+  const setWorldMap = useMapStore((state) => state.setWorldMap)
   const setScenarioLink = useMapStore((state) => state.setScenarioLink)
   const updateTextLabel = useMapStore((state) => state.updateTextLabel)
   const setTextFontFamily = useMapStore((state) => state.setTextFontFamily)
@@ -439,6 +440,17 @@ function App() {
           if (sceneId === undefined) useMapStore.getState().setTokenPosition(tokenId, x, y)
           else useAdventureStore.getState().updateBackgroundScene(sceneId, (m) => mapFactory.setTokenPosition(m, tokenId, x, y))
         },
+        // CARAVANA: quem acompanha a caravana anda SEM desfazer. O passo é o do
+        // arrasto do mestre; com histórico, o Ctrl+Z desfaria um seguidor por vez
+        // e o seguidor refeito apagaria o refazer.
+        applyCaravanMoves: (moves) => {
+          const open = moves.filter((move) => move.sceneId === undefined)
+          if (open.length > 0) useMapStore.getState().setTokenPositionsLive(open.map(({ tokenId, x, y }) => ({ id: tokenId, x, y })))
+          for (const { tokenId, x, y, sceneId } of moves) {
+            if (sceneId === undefined) continue
+            useAdventureStore.getState().updateBackgroundScene(sceneId, (m) => mapFactory.setTokenPosition(m, tokenId, x, y))
+          }
+        },
         // Porta aberta/fechada pelo jogador, já validada pela sessão (visível, destrancada, token perto).
         applyDoor: (wallId, open, sceneId) => {
           if (sceneId !== undefined) {
@@ -520,7 +532,15 @@ function App() {
     }
     return hostBridgeRef.current
   }
-  useEffect(() => useMapStore.subscribe((state) => state.map, () => hostBridgeRef.current?.notifyMapChanged()), [])
+  // Desfazer/refazer avisa como tal: a caravana do mapa-mundi não o lê como arrasto.
+  useEffect(
+    () =>
+      useMapStore.subscribe((state, previous) => {
+        const cause = mapChangeCause(state, previous)
+        if (cause !== null) hostBridgeRef.current?.notifyMapChanged(cause)
+      }),
+    [],
+  )
   // A vez andou: os jogadores sabem na hora (o "Sua vez" não espera outra edição do mapa).
   useEffect(
     () =>
@@ -1986,7 +2006,7 @@ function App() {
               onMeasurementModeChange: setMeasurementMode,
               gridShape,
             }}
-            movement={{ movement: map.movement, onMovementChange: setMovementRules }}
+            movement={{ movement: map.movement, onMovementChange: setMovementRules, worldMap: map.worldMap === true, onWorldMapChange: setWorldMap }}
             gridAlign={{
               backgroundFilename:
                 map.background.type === 'image' && map.background.src

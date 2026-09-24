@@ -962,4 +962,10 @@ export interface MapData {
    * em `lib/hazards.ts` → `readHazards`. NUNCA sai no recorte do jogador.
    */
   hazards?: Hazard[]
+  /**
+   * MAPA-MUNDI: nesta cena o grupo anda como UMA ficha só, a caravana, que o
+   * mestre move (`lib/caravan.ts`). Só `true` vale; ausente = cena comum, sem
+   * linha de migração (mesmo padrão de `movement`/`hazards`).
+   */
+  worldMap?: true
 }
