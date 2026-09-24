@@ -61,6 +61,7 @@ import { ActionBar } from './components/ActionBar'
 import type { DoorKind, DrawingCap, DrawingDash, MapData, Pin, PinPassage, Region, Token, Wall } from './types/map'
 import { passageOf } from './lib/pins'
 import { isArrivalOnly } from './lib/pinTravel'
+import { pinAttachOptions } from './lib/pinAttach'
 import type { Screen } from './types/screen'
 import { createMapScreen, parentScreen } from './lib/navigation'
 import * as mapFactory from './lib/mapFactory'
@@ -2179,7 +2180,10 @@ function App() {
               // do desfazer; o par da outra cena é desligado pelo adventureStore.
               onKindChange: (kind) =>
                 selectedPin
-                  ? useMapStore.getState().updatePin(selectedPin.id, kind === 'viagem' ? { kind } : { kind, destino: null })
+                  ? useMapStore
+                      .getState()
+                      // Deixar de ser de viagem também solta o pino da ficha: só a passagem anda com o navio.
+                      .updatePin(selectedPin.id, kind === 'viagem' ? { kind } : { kind, destino: null, presoA: undefined })
                   : useMapStore.getState().setPinKind(kind),
               travel: selectedPin?.kind === 'viagem' ? pinTravelPanel(selectedPin) : null,
               // Só com a sala aberta: sem sala não há jogador para reunir.
@@ -2207,6 +2211,15 @@ function App() {
                   ? {
                       value: selectedPin.item ?? null,
                       onChange: (item) => useMapStore.getState().updatePin(selectedPin.id, { item: item ?? undefined }),
+                    }
+                  : null,
+              // PRESO À FICHA: só o pino de viagem (a prancha do navio, a porta da carroça).
+              attachment:
+                selectedPin && selectedPin.kind === 'viagem'
+                  ? {
+                      value: selectedPin.presoA ?? null,
+                      options: pinAttachOptions(map.tokens),
+                      onChange: (tokenId) => useMapStore.getState().updatePin(selectedPin.id, { presoA: tokenId ?? undefined }),
                     }
                   : null,
             }}

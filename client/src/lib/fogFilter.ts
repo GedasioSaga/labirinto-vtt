@@ -780,6 +780,10 @@ export function filterMapForGroup(
    * quem foi visto, e o cone (`vigia`), ficam no mestre (`tokenWatchForPlayer`).
    * Sem guarda no recorte, nada é calculado.
    */
+  // Para o pino PRESO a uma ficha (ver `pins`, abaixo): as fichas da cena e as
+  // que este recorte entrega.
+  const mapTokenIds = new Set(map.tokens.map((t) => t.id))
+  const deliveredTokenIds = new Set(playerTokens.map((t) => t.id))
   const watchable = watchTargets ?? owned
   const seenTargets = new Set(playerTokens.filter((t) => watchable.has(t.id)).map((t) => t.id))
   const alerts =
@@ -864,10 +868,16 @@ export function filterMapForGroup(
     // CHEGADA OCULTA (mão única) sai ANTES de qualquer outra regra: não é
     // questão de névoa nem de explorado — o jogador nunca recebe o pino, nem o
     // id dele, estando ou não em cima dele. Ver `isArrivalOnly`.
+    // PRESO À FICHA: o pino preso anda com a ficha, então conta onde ela está
+    // agora. Ele só sai quando a ficha dele sai neste recorte (a visão dela,
+    // não a memória do explorado) — senão o navio na névoa se revelaria pela
+    // prancha. Ficha que não está mais na cena deixa o pino parado, e aí
+    // vale a regra de sempre. `presoA` em si nunca sai (`pinForPlayer`).
     pins: (map.pins ?? [])
       .filter((p) => {
         if (isArrivalOnly(p)) return false
         if (p.hidden || p.secret || hiddenLayers.includes('anotacoes')) return false
+        if (p.presoA !== undefined && mapTokenIds.has(p.presoA) && !deliveredTokenIds.has(p.presoA)) return false
         const point = { x: p.x, y: p.y }
         return !inRoomHiddenFromPlayer(point) && isPointKnown(point)
       })
@@ -957,6 +967,8 @@ export function alarmForPlayer(alarm: SceneAlarm | null, sceneId: string | null)
  * - `passagem` VAI, de propósito: o cartão do jogador precisa saber se oferece
  *   "Passar", "Pedir para passar" ou "Está trancada". O modo diz como a porta
  *   se comporta, não para onde ela leva.
+ * - `presoA` NUNCA: o id da ficha que o pino acompanha é do mestre. O jogador
+ *   vê o pino andar (x/y já chegam no lugar novo), não a ligação.
  */
 function pinForPlayer(pin: Pin): Pin {
   // LISTA DO QUE VAI, e não "copia tudo e apaga o que não pode": campo que o

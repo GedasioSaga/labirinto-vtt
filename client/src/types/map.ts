@@ -357,6 +357,18 @@ export interface Pin extends PlayerSecret {
    */
   soChegada?: true
   /**
+   * PINO PRESO A UMA FICHA (navio, carroça, elevador): o id da ficha DESTA
+   * cena que o pino acompanha. Quando a ficha anda, o pino anda o mesmo tanto
+   * (`lib/pinAttach.ts`, chamado de `setTokenPosition` e `moveAreaSelection`),
+   * e a viagem por ele segue valendo, do lugar novo. Ausente = pino parado, o
+   * de sempre — sem migração. Ficha que saiu da cena deixa o pino onde está.
+   *
+   * NUNCA sai no recorte do jogador (`lib/fogFilter.ts`), e o pino preso só
+   * sai quando a ficha dele também sai: preso, o pino conta onde a ficha está,
+   * então segue a visão da ficha, não a memória do explorado.
+   */
+  presoA?: string
+  /**
    * SÓ NO RECORTE DO JOGADOR, e só quando o pino tem mais de uma saída: o id e
    * o rótulo de cada uma, na ordem (a principal primeiro). O mestre nunca grava
    * este campo; `lib/fogFilter.ts` o monta a partir de `rotulo` e `saidas`.

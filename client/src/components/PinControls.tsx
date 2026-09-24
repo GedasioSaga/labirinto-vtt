@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { PinItem, PinKind } from '../types/map'
 import { ITEM_NAME_MAX_LENGTH, cleanItemName } from '../lib/items'
+import type { PinAttachOption } from '../lib/pinAttach'
 import { PIN_GLYPH, PIN_KIND_LABELS, PIN_KIND_ORDER } from '../lib/pins'
 import { GatherControls, type GatherControlsProps } from './GatherControls'
 import { PinTravelArt } from './PinSymbolArt'
@@ -37,6 +38,53 @@ export interface PinControlsProps {
    * `onChange(null)` desliga. `null` no prop = sem pino aberto, ou pino de viagem.
    */
   item?: { value: PinItem | null; onChange: (item: PinItem | null) => void } | null
+  /**
+   * PRESO À FICHA do pino de viagem aberto: `value` é o id da ficha que ele
+   * acompanha (`null` = parado); `options`, as fichas desta cena.
+   * `onChange(null)` solta. `null` no prop = sem pino aberto, ou pino "!"/"?".
+   */
+  attachment?: { value: string | null; options: readonly PinAttachOption[]; onChange: (tokenId: string | null) => void } | null
+}
+
+/** Id fixo: só existe um pino aberto no painel por vez (o mesmo molde de `lb-pin-description`). */
+const PRESO_ID = 'lb-pin-attach'
+
+/**
+ * "Preso à ficha": a lista nativa (setas, Enter, Esc e a letra inicial já vêm
+ * do navegador). A ficha que saiu da cena não vira opção fantasma: a lista
+ * mostra "Nenhuma", que é o que o pino faz — fica parado.
+ */
+function PinAttachControls({ value, options, onChange }: NonNullable<PinControlsProps['attachment']>) {
+  const atual = value !== null && options.some((o) => o.id === value) ? value : ''
+  const semFicha = options.length === 0
+  const efeito = `${PRESO_ID}-efeito`
+  return (
+    <div className="lb-field">
+      <label className="lb-label" htmlFor={PRESO_ID}>
+        Preso à ficha
+      </label>
+      <select
+        id={PRESO_ID}
+        className="lb-input"
+        value={atual}
+        disabled={semFicha}
+        aria-describedby={efeito}
+        onChange={(event) => onChange(event.target.value === '' ? null : event.target.value)}
+      >
+        <option value="">Nenhuma (fica parado)</option>
+        {options.map((option) => (
+          <option key={option.id} value={option.id}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+      <span id={efeito} className="lb-label">
+        {semFicha
+          ? 'Ponha uma ficha no mapa para prender o pino nela.'
+          : 'O pino anda junto quando a ficha anda: navio, carroça, elevador.'}
+      </span>
+    </div>
+  )
 }
 
 /** Nome que o item ganha ao ligar o interruptor: o mestre troca logo abaixo. */
@@ -137,6 +185,7 @@ export function PinControls({
   travel = null,
   gather = null,
   item = null,
+  attachment = null,
 }: PinControlsProps) {
   const viagem = kind === 'viagem'
   // As cenas onde mora um par que perde a volta se este pino sumir (uma por
@@ -183,6 +232,7 @@ export function PinControls({
               arrastando. O pino não usa aquele componente porque não tem
               rotação nem "oculto no editor" separado do resto do painel. */}
           <Toggle label="Travado" checked={locked} onChange={onLockedChange} />
+          {viagem && attachment !== null && <PinAttachControls {...attachment} />}
           {!viagem && item !== null && <PinItemControls value={item.value} onChange={item.onChange} />}
           {/* Ação de MESA, não de edição do pino: fica logo depois do que o
               pino é, antes da imagem e do excluir. */}
