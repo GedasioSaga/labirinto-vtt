@@ -328,6 +328,7 @@ function App() {
   const updateProp = useMapStore((state) => state.updateProp)
   const setGridOffset = useMapStore((state) => state.setGridOffset)
   const setGridCellSize = useMapStore((state) => state.setGridCellSize)
+  const setMapSize = useMapStore((state) => state.setMapSize)
   const setStairDirection = useMapStore((state) => state.setStairDirection)
   const setRoomName = useMapStore((state) => state.setRoomName)
   const resizeRoomDimensions = useMapStore((state) => state.resizeRoomDimensions)
@@ -1764,6 +1765,7 @@ function App() {
             mapWidth={map.width}
             mapHeight={map.height}
             mapGrid={map.grid}
+            onMapSizeApply={setMapSize}
             activeTool={activeTool}
             groups={propertyGroups}
             lineCap={

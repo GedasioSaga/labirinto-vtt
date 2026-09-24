@@ -575,6 +575,10 @@ interface MapStoreState {
    *  no botão "Aplicar" de `GridAlignControls` (as duas juntas, 2 entradas de
    *  undo). Ver `mapFactory.setGridCellSize`. */
   setGridCellSize: (cellSize: number) => void
+  /** Tamanho do mapa em quadros ("Configurações do mapa > Tamanho do mapa").
+   *  1 entrada de undo; tamanho igual ou inválido não grava nada. Ver
+   *  `mapFactory.setMapSize`. */
+  setMapSize: (width: number, height: number) => void
   setBackground: (background: MapData['background']) => void
   /** Esconde/mostra uma camada inteira (LayerId, 9 valores — types/map.ts).
    *  Se o item hoje selecionado pertence à camada que está sendo OCULTADA
@@ -1285,6 +1289,11 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
     setGridSettings: (patch) => withHistory((map) => mapFactory.setGridSettings(map, patch)),
     setGridOffset: (offset) => withHistory((map) => mapFactory.setGridOffset(map, offset)),
     setGridCellSize: (cellSize) => withHistory((map) => mapFactory.setGridCellSize(map, cellSize)),
+    setMapSize: (width, height) => {
+      const next = mapFactory.setMapSize(get().map, width, height)
+      if (next === get().map) return
+      withHistory(() => next)
+    },
     setBackground: (background) => withHistory((map) => mapFactory.setBackground(map, background)),
     toggleLayerVisibility: (id) => {
       const { map, selection } = get()
