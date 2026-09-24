@@ -677,6 +677,8 @@ interface MapStoreState {
   setRoomRoof: (id: string, roof: boolean) => void
   /** TEXTO DA SALA — "Ao entrar, o jogador lê" / "Nota do mestre". Com histórico, como `setRoomName`. */
   setRoomTexts: (id: string, patch: Partial<Pick<RoomMeta, 'textoAoEntrar' | 'notaDoMestre'>>) => void
+  /** "Raio de visão aqui" da Sala; `null` volta ao raio do jogador. Com histórico. */
+  setRoomVisionRadius: (id: string, raio: number | null) => void
   /** A5 — "Oculto para jogadores" de Token/Região/Objeto/Escada/Desenho. Com histórico. */
   setItemSecret: (kind: mapFactory.SecretKind, id: string, secret: boolean) => void
   /** A5 — abre a zona no painel e limpa a seleção comum (`null` fecha). */
@@ -1646,6 +1648,10 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
     setRoomTexts: (id, patch) => {
       if (mapFactory.setRoomTexts(get().map, id, patch) === get().map) return
       withHistory((map) => mapFactory.setRoomTexts(map, id, patch))
+    },
+    setRoomVisionRadius: (id, raio) => {
+      if (mapFactory.setRoomVisionRadius(get().map, id, raio) === get().map) return
+      withHistory((map) => mapFactory.setRoomVisionRadius(map, id, raio))
     },
     setItemSecret: (kind, id, secret) => {
       if (mapFactory.setItemSecret(get().map, kind, id, secret) === get().map) return

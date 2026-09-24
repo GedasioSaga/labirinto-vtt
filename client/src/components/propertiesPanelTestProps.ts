@@ -25,8 +25,8 @@ const CONTAGEM_ZERO: Record<LayerId, number> = {
   anotacoes: 0,
 }
 
-/** Painel com UMA ficha selecionada e o resto do mapa vazio; `extra` troca as ligações que o teste prova. */
-export function propsDoPainel(ficha: Token, extra: Partial<PainelProps> = {}): PainelProps {
+/** Painel com UMA ficha selecionada (ou nenhuma) e o resto do mapa vazio; `extra` troca as ligações que o teste prova. */
+export function propsDoPainel(ficha: Token | null, extra: Partial<PainelProps> = {}): PainelProps {
   const map = useMapStore.getState().map
   return {
     mapName: map.name,
@@ -104,9 +104,9 @@ export function propsDoPainel(ficha: Token, extra: Partial<PainelProps> = {}): P
     regionTransform: { onLockedChange: nada },
     selectedRegion: null,
     regionStyle: { color: '#ffffff', onColorChange: nada, pattern: 'solid', onPatternChange: nada },
-    room: { onNameChange: nada, onWidthChange: nada, onHeightChange: nada, onRotationChange: nada, onRotateBy: nada },
+    room: { onNameChange: nada, onWidthChange: nada, onHeightChange: nada, onRotationChange: nada, onRotateBy: nada, onRaioDeVisaoChange: nada },
     selectedLight: null,
-    lightControls: { onColorChange: nada, onIntensityChange: nada, tokens: [], onAttach: nada, onDetach: nada },
+    lightControls: { onColorChange: nada, onIntensityChange: nada, tokens: [], onAttach: nada, onDetach: nada, onVistaDeLongeChange: nada },
     selectedStair: null,
     stairControls: { onDirectionChange: nada, stepWidth: 1, onStepWidthChange: nada, grid: map.grid },
     polygonSides: { sides: 6, onSidesChange: nada },

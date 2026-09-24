@@ -56,6 +56,7 @@ import { pickBackgroundImage, importBackgroundImage, pickImageFile, importPinIma
 import { useTokenLibraryStore } from './stores/tokenLibraryStore'
 import { apagarDoAcervo, fotoSobrouNoDisco, salvarNoAcervo, trazerDoAcervo, type ItemDoAcervoNaTela } from './lib/tokenLibrary'
 import { colocarPecaDoAcervo, criarToken, marcarFichaNpc, type TamanhoDaVista } from './stores/criarToken'
+import { mudarRaioDeVisaoDaSala, mudarVistaDeLonge } from './stores/visaoDeLonge'
 import { pickExportFolder, pickImportFolder, exportMapFolder, importMapFolder } from './lib/mapExport'
 import { join } from '@tauri-apps/api/path'
 import { Toolbar } from './components/Toolbar'
@@ -2005,6 +2006,7 @@ function App() {
               onRoofChange: (roof) => selectedRegion && useMapStore.getState().setRoomRoof(selectedRegion.id, roof),
               onTextoAoEntrarChange: (textoAoEntrar) => selectedRegion && useMapStore.getState().setRoomTexts(selectedRegion.id, { textoAoEntrar }),
               onNotaDoMestreChange: (notaDoMestre) => selectedRegion && useMapStore.getState().setRoomTexts(selectedRegion.id, { notaDoMestre }),
+              onRaioDeVisaoChange: (raio) => selectedRegion && mudarRaioDeVisaoDaSala(selectedRegion.id, raio),
               onWidthChange: (width) =>
                 selectedRegion && resizeRoomDimensions(selectedRegion.id, width, roomDimensions(selectedRegion.points).height),
               onHeightChange: (height) =>
@@ -2126,6 +2128,7 @@ function App() {
               tokens: map.tokens.map((t) => ({ id: t.id, name: t.name })),
               onAttach: (tokenId) => selectedLight && setLightAttachment(selectedLight.id, tokenId),
               onDetach: () => selectedLight && setLightAttachment(selectedLight.id, null),
+              onVistaDeLongeChange: (vistaDeLonge) => selectedLight && mudarVistaDeLonge(selectedLight.id, vistaDeLonge),
             }}
             selectedStair={selectedStair}
             stairControls={{

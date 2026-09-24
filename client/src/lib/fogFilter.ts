@@ -1,9 +1,9 @@
-import type { ConcealZone, DoorState, Drawing, FloorPiece, MapData, Pin, Region, RegionPoint, Token, Wall } from '../types/map'
+import type { ConcealZone, DoorState, Drawing, FloorPiece, Light, MapData, Pin, Region, RegionPoint, Token, Wall } from '../types/map'
 import { cellCenter, cellKeyAt, cellRunRects, concealedPieces, REVEAL_BRUSH_CELL, unveiledCellsOf } from './concealBrush'
 import { isTokenPhotoData } from './tokenPhoto'
 import { tokenAsSeenByPlayer } from './tokenPublicName'
 import { isPointExplored, isShapeExplored, type Exploration } from './exploration'
-import { pointInRing } from './floorContour'
+import { pointInRing, signedArea } from './floorContour'
 import { pieceBounds, pieceDistance, shapeCenter } from './floorSdf'
 import { visibleDrawings, visibleLights, visibleProps, visibleRegions, visibleStairs, visibleTokens, visibleWalls } from './layers'
 import { isPlayerSafePinImage } from './pins'
@@ -11,7 +11,7 @@ import { CLUE_TITLE_ONLY_IMAGE, clampClueText, clueTitleFrom } from './clues'
 import { exitLabelsOf, isArrivalOnly } from './pinTravel'
 import { publicLockOf } from './pinLock'
 import { withoutAttachment } from './lightAttachment'
-import { computeVisibility, visionSegments } from './visibility'
+import { computeVisibility, hasLineOfSight, visionSegments } from './visibility'
 import { ancestorsOf, NESTING_TOLERANCE, pointInPolygonInclusive, pointOnPolygonBorder, subtreeIds } from './roomNesting'
 import { roomHasRoof } from './roomOps'
 import { rotatePointAround, rotationTrig } from './roomRotation'
@@ -922,6 +922,41 @@ function pinReachesPlayer(audiences: PinAudiences | undefined, pinId: string, pl
   return chosen === undefined || chosen.has(playerId)
 }
 
+/**
+ * LUZ VISTA DE LONGE: o que o jogador recebe de uma luz fora da visão dele.
+ * Montada campo a campo para nada além do ponto atravessar: raio 0 (sem halo,
+ * então nada do que a luz ilumina aparece), sem a ficha que a carrega e sem
+ * as marcas de editor do mestre.
+ */
+function farLightPoint(light: Light): Light {
+  return { id: light.id, x: light.x, y: light.y, radius: 0, color: light.color, intensity: light.intensity, vistaDeLonge: true }
+}
+
+/** "Raio de visão aqui" que vale: número finito e positivo; o resto é ignorado. */
+function roomVisionRadiusOf(region: Region): number | null {
+  const raio = region.room?.raioDeVisao
+  return typeof raio === 'number' && Number.isFinite(raio) && raio > 0 ? raio : null
+}
+
+interface RadiusRoom {
+  points: RegionPoint[]
+  radius: number
+  area: number
+}
+
+/**
+ * Raio de visão da ficha: o da Sala MAIS DE DENTRO (menor área) com "Raio de
+ * visão aqui" que contém a ficha; sem nenhuma, o do jogador.
+ */
+function visionRadiusAt(point: RegionPoint, rooms: readonly RadiusRoom[], playerRadius: number): number {
+  let best: RadiusRoom | null = null
+  for (const room of rooms) {
+    if (!pointInPolygonInclusive(point, room.points)) continue
+    if (best === null || room.area < best.area) best = room
+  }
+  return best === null ? playerRadius : best.radius
+}
+
 /** Porta explorada que o jogador nunca viu: aparece fechada e destrancada. */
 function unseenDoor(door: DoorState): DoorState {
   return { open: false, locked: false, kind: door.kind }
@@ -1185,7 +1220,14 @@ export function filterMapForPlayer(
    * escondidas saíam no fio — com a sombra delas desenhada fora da zona.
    */
   const authoritySegments = ownTokens.length > 0 ? visionSegments(knownWalls === map.walls ? map : { ...map, walls: knownWalls }) : []
-  const authorityVision = ownTokens.map((t) => computeVisibility({ x: t.x, y: t.y }, authoritySegments, visionRadius))
+  // RAIO DE VISÃO DA SALA: só Sala que o jogador pode conhecer (`playerRegions`)
+  // — secreta ou oculta não muda o raio, senão a visão denunciaria a sala.
+  const radiusRooms: RadiusRoom[] = playerRegions.flatMap((r) => {
+    const radius = roomVisionRadiusOf(r)
+    return radius === null ? [] : [{ points: r.points, radius, area: Math.abs(signedArea(r.points)) }]
+  })
+  const tokenRadii = ownTokens.map((t) => visionRadiusAt({ x: t.x, y: t.y }, radiusRooms, visionRadius))
+  const authorityVision = ownTokens.map((t, i) => computeVisibility({ x: t.x, y: t.y }, authoritySegments, tokenRadii[i]))
   const rings = boxRings(authorityVision)
   // `knownWalls` (e não `map.walls`): a porta/estante da sala secreta chega ao
   // jogador disfarçada de parede, e a sombra dela precisa sair igual.
@@ -1199,10 +1241,23 @@ export function filterMapForPlayer(
   let vision = authorityVision
   if (ownTokens.length > 0 && (wallsChanged || hiddenFloorIds.size > 0)) {
     const playerSegments = visionSegments({ ...map, walls: playerWalls, floor: floorWithout(map.floor, hiddenFloorIds) })
-    vision = ownTokens.map((t) => computeVisibility({ x: t.x, y: t.y }, playerSegments, visionRadius))
+    vision = ownTokens.map((t, i) => computeVisibility({ x: t.x, y: t.y }, playerSegments, tokenRadii[i]))
   }
 
   const isVisible = (point: RegionPoint): boolean => !hiddenByZone(point) && (inAnyRing(rings, point) || inBrushReveal(point))
+
+  /**
+   * LUZ VISTA DE LONGE, fora da visão: marcada pelo mestre, fora de zona
+   * oculta, de sala secreta e de teto fechado, e com LINHA DE VISÃO livre de
+   * uma ficha do jogador até ela sobre os obstáculos da autoridade (porta
+   * secreta é parede; porta fechada segura). O raio do jogador não conta.
+   */
+  const isSeenFromAfar = (light: Light): boolean => {
+    if (light.vistaDeLonge !== true) return false
+    const point = { x: light.x, y: light.y }
+    if (hiddenByZone(point) || inRoomHiddenFromPlayer(point)) return false
+    return ownTokens.some((t) => hasLineOfSight({ x: t.x, y: t.y }, point, authoritySegments))
+  }
 
   /**
    * Forma com extensão: a caixa da forma precisa cruzar a caixa de algum anel
@@ -1355,9 +1410,12 @@ export function filterMapForPlayer(
     // id de ficha que a névoa, a zona oculta ou o mestre escondem sairia pela rede.
     // Presa numa ficha que o mestre esconde, a luz nem sai (`masterHiddenTokenIds`).
     lights: visibleLights(map.lights, hiddenLayers)
-      .filter((l) => !l.hidden && !inClosedRoof({ x: l.x, y: l.y }) && isVisible({ x: l.x, y: l.y }))
+      .filter((l) => !l.hidden && !inClosedRoof({ x: l.x, y: l.y }))
       .filter((l) => l.attachedTokenId === undefined || !masterHiddenTokenIds.has(l.attachedTokenId))
-      .map((l) => (l.attachedTokenId === undefined || sentTokenIds.has(l.attachedTokenId) ? l : withoutAttachment(l))),
+      .flatMap((l): Light[] => {
+        if (isVisible({ x: l.x, y: l.y })) return [l.attachedTokenId === undefined || sentTokenIds.has(l.attachedTokenId) ? l : withoutAttachment(l)]
+        return isSeenFromAfar(l) ? [farLightPoint(l)] : []
+      }),
     stairs: visibleStairs(map.stairs, hiddenLayers).filter((s) => {
       const first = s.segments[0]
       if (s.hidden || s.secret || first === undefined || stairSamples(s).some(inRoomHiddenFromPlayer)) return false
@@ -1404,11 +1462,12 @@ export function filterMapForPlayer(
         // polígono e é anotação do mestre sobre o que tem lá dentro.
         const nameHidden = r.room.nameHiddenFromPlayers || roofClosed || inZone
         const hasTexts = r.room.textoAoEntrar !== undefined || r.room.notaDoMestre !== undefined
-        if (!nameHidden && !roofClosed && r.room.roof === undefined && !hasTexts) return r
+        if (!nameHidden && !roofClosed && r.room.roof === undefined && !hasTexts && r.room.raioDeVisao === undefined) return r
         // TEXTO DA SALA: a nota do mestre NUNCA sai. O texto de entrada só sai
         // para quem está dentro agora ou já esteve (`enteredRooms`), e nunca de
         // Sala sob teto fechado ou em zona oculta — o texto fala do que tem lá dentro.
-        const { textoAoEntrar, notaDoMestre: _nota, ...room } = r.room
+        // O "Raio de visão aqui" também fica: já está aplicado na visão enviada.
+        const { textoAoEntrar, notaDoMestre: _nota, raioDeVisao: _raio, ...room } = r.room
         const readable = !roofClosed && !inZone && hasEnterText(r.room)
         const occupied = readable && ownTokens.some((t) => isStrictlyInsideReadableRoom(r.points, { x: t.x, y: t.y }))
         if (occupied) occupiedRooms.push(r.id)

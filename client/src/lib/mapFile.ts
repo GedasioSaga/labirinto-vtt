@@ -113,6 +113,21 @@ function roomTextsFromFile(region: Region): Region {
 }
 
 /**
+ * "Raio de visão aqui" (`RoomMeta.raioDeVisao`) é campo NOVO e OPCIONAL.
+ * Ausente continua ausente (vale o raio do jogador). Número finito e positivo
+ * passa como veio; o resto (texto, `null`, zero, negativo) SAI em vez de virar
+ * o raio de visão que o recorte do jogador usa (`lib/fogFilter.ts`).
+ */
+function roomVisionRadiusFromFile(region: Region): Region {
+  const room = region.room
+  if (!room || typeof room !== 'object' || !('raioDeVisao' in room)) return region
+  const raio = room.raioDeVisao
+  if (typeof raio === 'number' && Number.isFinite(raio) && raio > 0) return region
+  const { raioDeVisao: _descartado, ...semRaio } = room
+  return { ...region, room: semRaio }
+}
+
+/**
  * Porta lida do disco. `kind` virou obrigatório (porta antiga migra para
  * 'normal'). `secret` (porta secreta) é campo NOVO: só `true` volta; qualquer
  * outro valor sai do objeto, e a porta abre como porta comum — como sempre foi.
@@ -161,7 +176,7 @@ function deserializeMapFields(json: string): MapData {
     // inalterado — `room` ausente fica undefined (região comum); o ângulo do
     // giro da sala passa como veio, desde que seja número (`roomRotationFromFile`)
     regions: entityList(parsed.regions).map((r) =>
-      roomTextsFromFile(roomRotationFromFile({ ...r, fillColor: r.fillColor ?? '#3a7ad0', fillPattern: r.fillPattern ?? 'solid' })),
+      roomVisionRadiusFromFile(roomTextsFromFile(roomRotationFromFile({ ...r, fillColor: r.fillColor ?? '#3a7ad0', fillPattern: r.fillPattern ?? 'solid' }))),
     ),
     // MUDA de cru para .map(): Token.image é obrigatório.
     // `imageData` (a cópia embutida que viaja até o jogador) NÃO ganha linha
