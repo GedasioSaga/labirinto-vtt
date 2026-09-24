@@ -3,7 +3,7 @@ import { subscribeWithSelector } from 'zustand/middleware'
 import type {
   MapData, Wall, Light, Region, Token, Prop, Drawing, DoorState, LayerId, GridSettings,
   Stair, StairDirection, DoorKind, MapScale, MeasurementMode, DrawingCap, DrawingDash, FreehandTexture,
-  FloorPiece, FloorStyle, MapLine, MapMarker, MapFrame, PinIcon, PinKind, TokenCondition, MovementRules, HazardKind,
+  FloorPiece, FloorStyle, MapLine, MapMarker, MapFrame, PinIcon, PinKind, TokenCondition, MovementRules, HazardKind, AreaTriggerKind,
 } from '../types/map'
 import type { Camera, Point } from '../pixi/world'
 import type { DoorMode, DrawingTool, Selection } from '../types/tools'
@@ -25,6 +25,7 @@ import { pullLever } from '../lib/lever'
 import { applyPatrolOp, type PatrolOp } from '../lib/npcPatrol'
 import { toggleTokenCondition as toggleConditionOnMap } from '../lib/tokenConditions'
 import { advanceHazard as advanceHazardOnMap, setRoomHazard as setRoomHazardOnMap } from '../lib/hazards'
+import { setRegionTrigger as setRegionTriggerOnMap, setRegionTriggerRevealed as setRegionTriggerRevealedOnMap } from '../lib/areaTriggers'
 
 /** Ferramentas que criam Sala: mantêm o "Criar sala dentro" armado. */
 const ROOM_TOOLS: ReadonlySet<string> = new Set(['room', 'roomCircle', 'roomPolygon', 'roomFree'])
@@ -660,6 +661,10 @@ interface MapStoreState {
   setRoomHazard: (roomId: string, kind: HazardKind | null) => void
   /** ZONA DE PERIGO — "Avançar um passo" pelas portas abertas. Com histórico; nada muda = nada grava. */
   advanceHazard: (hazardId: string) => void
+  /** GATILHO DE ÁREA — marca a Região/Sala como armadilha/alarme, troca ou limpa (`null`). Com histórico. */
+  setRegionTrigger: (regionId: string, kind: AreaTriggerKind | null) => void
+  /** GATILHO DE ÁREA — "Mostrar aos jogadores". Com histórico; nada muda = nada grava. */
+  setRegionTriggerRevealed: (regionId: string, revealed: boolean) => void
   /** A5 — "Oculto para jogadores" de Token/Região/Objeto/Escada/Desenho. Com histórico. */
   setItemSecret: (kind: mapFactory.SecretKind, id: string, secret: boolean) => void
   /** A5 — abre a zona no painel e limpa a seleção comum (`null` fecha). */
@@ -1419,6 +1424,16 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
     advanceHazard: (hazardId) => {
       if (advanceHazardOnMap(get().map, hazardId) === get().map) return
       withHistory((map) => advanceHazardOnMap(map, hazardId))
+    },
+    setRegionTrigger: (regionId, kind) => {
+      // Um id só para as duas chamadas: a conferência e a gravação criam o MESMO gatilho.
+      const id = crypto.randomUUID()
+      if (setRegionTriggerOnMap(get().map, regionId, kind, () => id) === get().map) return
+      withHistory((map) => setRegionTriggerOnMap(map, regionId, kind, () => id))
+    },
+    setRegionTriggerRevealed: (regionId, revealed) => {
+      if (setRegionTriggerRevealedOnMap(get().map, regionId, revealed) === get().map) return
+      withHistory((map) => setRegionTriggerRevealedOnMap(map, regionId, revealed))
     },
     setItemSecret: (kind, id, secret) => {
       if (mapFactory.setItemSecret(get().map, kind, id, secret) === get().map) return

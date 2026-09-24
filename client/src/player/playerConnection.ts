@@ -1,5 +1,6 @@
 import type { HazardKind, MapData, RegionPoint, Token } from '../types/map'
 import { HAZARD_NOTICE_TTL_MS, isHazardKind, parsePlayerHazards, type PlayerHazard } from '../lib/hazards'
+import { parsePlayerAreaTriggers, type PlayerAreaTrigger } from '../lib/areaTriggers'
 import { decodeExploration, type Exploration } from '../lib/exploration'
 import {
   DOOR_REQUEST_REJECTIONS,
@@ -54,6 +55,8 @@ export interface PlayerState {
   hazards?: PlayerHazard[]
   /** ZONA DE PERIGO: a ficha dele acabou de entrar num perigo. Some sozinho; `id` novo repete o aviso. */
   hazardNotice?: { id: number; kind: HazardKind }
+  /** GATILHO DE ÁREA: tipo e polígono de cada armadilha/alarme que o mestre revelou. */
+  gatilhos?: PlayerAreaTrigger[]
   /**
    * INICIATIVA: id da ficha da vez, sempre uma ficha de `map.tokens`. Ausente
    * = ninguém que este jogador enxerga está na vez (o mestre só manda o que
@@ -618,6 +621,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     turn: string | undefined,
     partyTokens: string[],
     hazards: PlayerHazard[],
+    gatilhos: PlayerAreaTrigger[],
   ): void {
     if (rev <= state.rev) return
     let next = map
@@ -634,7 +638,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     }
     // Vez de ficha que não veio no mapa não tem o que destacar: vale como ninguém.
     const turnOnMap = turn !== undefined && next.tokens.some((t) => t.id === turn) ? turn : undefined
-    setState({ status: 'playing', rev, map: next, vision, explored, ownTokens, partyTokens, concealed, hazards, turn: turnOnMap, error: undefined })
+    setState({ status: 'playing', rev, map: next, vision, explored, ownTokens, partyTokens, concealed, hazards, gatilhos, turn: turnOnMap, error: undefined })
   }
 
   /** Desfaz o movimento recusado. `false` = pedido desconhecido (já resolvido, ou de antes de trocar de cena). */
@@ -726,6 +730,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
           concealed: undefined,
           hazards: undefined,
           hazardNotice: undefined,
+          gatilhos: undefined,
           turn: undefined,
           signals: undefined,
           laser: undefined,
@@ -895,7 +900,10 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         // ZONA DE PERIGO: ausente = nenhum perigo à vista; malformado derruba a mensagem.
         const hazards = data.hazards === undefined ? [] : parsePlayerHazards(data.hazards)
         if (hazards === null) return
-        applySnapshot(data.rev, data.map, data.vision, explored, data.ownTokens ?? [], data.concealed ?? [], data.turn, data.partyTokens ?? [], hazards)
+        // GATILHO DE ÁREA: ausente = nada revelado; malformado derruba a mensagem.
+        const gatilhos = data.gatilhos === undefined ? [] : parsePlayerAreaTriggers(data.gatilhos)
+        if (gatilhos === null) return
+        applySnapshot(data.rev, data.map, data.vision, explored, data.ownTokens ?? [], data.concealed ?? [], data.turn, data.partyTokens ?? [], hazards, gatilhos)
         return
       }
       case 'hazard.entered': {
@@ -1122,7 +1130,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     },
     reconnect() {
       detach()
-      setState({ status: 'connecting', error: undefined, rev: -1, map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, partyTokens: undefined, concealed: undefined, hazards: undefined, hazardNotice: undefined, turn: undefined, signals: undefined, laser: undefined, doorNotice: undefined, doorRequest: undefined, moveNotice: undefined, turnNotice: undefined, travel: undefined, note: undefined, alarm: undefined, item: undefined, lever: undefined })
+      setState({ status: 'connecting', error: undefined, rev: -1, map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, partyTokens: undefined, concealed: undefined, hazards: undefined, hazardNotice: undefined, gatilhos: undefined, turn: undefined, signals: undefined, laser: undefined, doorNotice: undefined, doorRequest: undefined, moveNotice: undefined, turnNotice: undefined, travel: undefined, note: undefined, alarm: undefined, item: undefined, lever: undefined })
       open()
     },
     close: detach,

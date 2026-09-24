@@ -48,6 +48,16 @@ export function pinKindAfterShortcut(kind: PinKind): PinKind | null {
   return null
 }
 
+/**
+ * O tipo desenha o ícone escolhido (`Pin.icon`)? A viagem desenha a passagem
+ * e a alavanca desenha a própria alavanca (`drawPins.ts`, `PlayerPinCard`,
+ * `pinSummary`) — neles a grade "Ícone no mapa" gravaria o campo e abriria um
+ * passo no desfazer sem mudar nada na tela, então o painel não a mostra.
+ */
+export function pinKindShowsIcon(kind: PinKind): boolean {
+  return kind === 'exclamacao' || kind === 'interrogacao'
+}
+
 /** Guarda de leitura: tipo desconhecido (arquivo editado à mão, versão futura) não entra no desenho. */
 export function isPinKind(value: unknown): value is PinKind {
   return typeof value === 'string' && (PIN_KIND_ORDER as readonly string[]).includes(value)
