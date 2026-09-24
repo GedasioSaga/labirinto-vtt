@@ -857,6 +857,16 @@ function pinReachesPlayer(audiences: PinAudiences | undefined, pinId: string, pl
   return chosen === undefined || chosen.has(playerId)
 }
 
+/**
+ * "REVELAR PARA…" de ficha secreta, escada secreta e zona oculta, por id do
+ * item: os jogadores que DESCOBRIRAM. O contrário de `PinAudiences`: item
+ * AUSENTE (ou com o conjunto vazio) = escondido de todos, como sempre; quem
+ * está no conjunto recebe o item como se ele não fosse secreto — a ficha ainda
+ * exige visão, e a zona deixa de esconder só para ele. Vive na sessão do host,
+ * pelo mesmo motivo do "Quem vê": id de jogador só existe com a sala aberta.
+ */
+export type SecretReveals = ReadonlyMap<string, ReadonlySet<string>>
+
 /** Porta explorada que o jogador nunca viu: aparece fechada e destrancada. */
 function unseenDoor(door: DoorState): DoorState {
   return { open: false, locked: false, kind: door.kind }
@@ -871,6 +881,8 @@ function unseenDoor(door: DoorState): DoorState {
  * explorada fora da visão sai com esse estado, nunca com o atual: senão o
  * jogador longe veria o mestre abrir ou destrancar a porta.
  * `pinAudiences`: quem vê cada pino (`PinAudiences`); ausente = todo pino é de todos.
+ * `secretReveals`: a quem o mestre revelou cada ficha secreta, escada secreta
+ * e zona oculta (`SecretReveals`); ausente = segredo de todos.
  */
 export function filterMapForPlayer(
   map: MapData,
@@ -880,18 +892,26 @@ export function filterMapForPlayer(
   explored?: Exploration,
   seenDoors?: ReadonlyMap<string, DoorState>,
   pinAudiences?: PinAudiences,
+  secretReveals?: SecretReveals,
 ): PlayerMapView {
   const hiddenLayers = map.hiddenLayers
   const owned = new Set(ownership[playerId] ?? []) // jogador sem entrada de posse não tem token nem visão
   const layerTokens = visibleTokens(map.tokens, hiddenLayers)
   const ownTokens = layerTokens.filter((t) => owned.has(t.id) && !t.hidden)
+  /** O mestre revelou este item a este jogador ("Revelar para…")? */
+  const revealedToPlayer = (itemId: string): boolean => secretReveals?.get(itemId)?.has(playerId) === true
+  /** "Oculto para jogadores" PARA ESTE jogador: secreto e não revelado a ele. */
+  const secretFromPlayer = (item: { id: string; secret?: boolean }): boolean => item.secret === true && !revealedToPlayer(item.id)
 
   // Zona oculta ativa: ponto dentro dela não conta como visível nem explorado.
   // A visão continua passando (a zona esconde conteúdo, não é parede).
   // PINCEL DE REVELAR: ponto numa célula que o mestre pintou deixa de ser
   // escondido POR ESTA zona — outra zona ativa por cima continua valendo.
-  const concealRings = activeConcealRings(map)
-  const zones: ActiveZone[] = activeConcealZones(map).flatMap((zone, i) =>
+  // Zona revelada SÓ a este jogador ("Revelar para…") não esconde nada dele:
+  // sai daqui, e com ela o preto, o veto de memória e o veto de visão.
+  const playerConcealZones = activeConcealZones(map).filter((zone) => !revealedToPlayer(zone.id))
+  const concealRings = playerConcealZones.map((z) => z.points.map((p) => ({ x: p.x, y: p.y })))
+  const zones: ActiveZone[] = playerConcealZones.flatMap((zone, i) =>
     boxRings([concealRings[i]]).map((boxed) => ({ ...boxed, unveiled: unveiledCellsOf(zone) })),
   )
   const hidesPoint = (zone: ActiveZone, point: RegionPoint): boolean =>
@@ -1246,8 +1266,10 @@ export function filterMapForPlayer(
 
   // Token do próprio jogador sai sempre, mesmo secreto ou em zona oculta: é ele quem o move.
   // Nome: o dono lê o real; os outros, o "Nome para os jogadores" (o de trabalho do mestre não sai).
+  // Ficha secreta revelada a este jogador ("Revelar para…") segue a regra da
+  // ficha comum: só com visão, e nunca dentro de teto fechado ou zona.
   const tokens = layerTokens
-    .filter((t) => !t.hidden && (owned.has(t.id) || (!t.secret && !inClosedRoof({ x: t.x, y: t.y }) && isVisible({ x: t.x, y: t.y }))))
+    .filter((t) => !t.hidden && (owned.has(t.id) || (!secretFromPlayer(t) && !inClosedRoof({ x: t.x, y: t.y }) && isVisible({ x: t.x, y: t.y }))))
     .map((t) => sanitizeTokenPhoto(tokenAsSeenByPlayer(t, owned.has(t.id))))
   const sentTokenIds = new Set(tokens.map((t) => t.id))
   // Ficha que o MESTRE esconde deste jogador (oculta, secreta ou na camada
@@ -1255,7 +1277,7 @@ export function filterMapForPlayer(
   // enviar a luz, mesmo sem o vínculo, entregaria a posição e o trajeto do NPC.
   const layerTokenIds = new Set(layerTokens.map((t) => t.id))
   const masterHiddenTokenIds = new Set(
-    map.tokens.filter((t) => !sentTokenIds.has(t.id) && (t.hidden || t.secret || !layerTokenIds.has(t.id))).map((t) => t.id),
+    map.tokens.filter((t) => !sentTokenIds.has(t.id) && (t.hidden || secretFromPlayer(t) || !layerTokenIds.has(t.id))).map((t) => t.id),
   )
 
   const filtered: MapData = {
@@ -1286,7 +1308,7 @@ export function filterMapForPlayer(
       .map((l) => (l.attachedTokenId === undefined || sentTokenIds.has(l.attachedTokenId) ? l : withoutAttachment(l))),
     stairs: visibleStairs(map.stairs, hiddenLayers).filter((s) => {
       const first = s.segments[0]
-      if (s.hidden || s.secret || first === undefined || stairSamples(s).some(inRoomHiddenFromPlayer)) return false
+      if (s.hidden || secretFromPlayer(s) || first === undefined || stairSamples(s).some(inRoomHiddenFromPlayer)) return false
       return isPointKnown({ x: (first.x1 + first.x2) / 2, y: (first.y1 + first.y2) / 2 })
     }),
     props: visibleProps(map.props, hiddenLayers)

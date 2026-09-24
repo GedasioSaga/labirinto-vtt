@@ -50,6 +50,7 @@ import { pickExportFolder, pickImportFolder, exportMapFolder, importMapFolder } 
 import { join } from '@tauri-apps/api/path'
 import { Toolbar } from './components/Toolbar'
 import { PropertiesPanel } from './components/PropertiesPanel'
+import type { RevealToControlsProps } from './components/PlayerSecretControls'
 import { ActionBar } from './components/ActionBar'
 import type { DoorKind, DrawingCap, DrawingDash, MapData, Pin, PinPassage, Region, Token, Wall } from './types/map'
 import { passageOf } from './lib/pins'
@@ -412,6 +413,8 @@ function App() {
   const [roomPlayers, setRoomPlayers] = useState<PlayerInfo[]>([])
   // "Quem vê" de cada pino com lista. O dono é a sessão do host; isto é só o que o painel desenha.
   const [pinAudiences, setPinAudiences] = useState<Record<string, string[]>>({})
+  // "Revelar para…" de ficha/escada/zona secreta. Mesma regra: o dono é a sessão do host.
+  const [secretReveals, setSecretReveals] = useState<Record<string, string[]>>({})
   const [tunnel, setTunnel] = useState<TunnelState>({ kind: 'idle' })
   const [railTab, setRailTab] = useState<RailTab>('map')
   const hostBridgeRef = useRef<HostBridge | null>(null)
@@ -472,6 +475,7 @@ function App() {
         },
         onPlayersChange: setRoomPlayers,
         onPinAudiencesChange: setPinAudiences,
+        onSecretRevealsChange: setSecretReveals,
         onTunnelChange: setTunnel,
         // B1 — sinal do jogador: o canvas desenha pela store e o bipe avisa quem não está olhando.
         // G6 — sinal de cena de FUNDO não vira ping aqui (as coordenadas são de
@@ -523,6 +527,22 @@ function App() {
    * viajou. Só é montado com a aba Jogo existindo (Tauri).
    */
   const roomPanelWorld = () => hostWorldOf({ adventure, activeSceneId, cache: sceneCache }, map)
+  /**
+   * "Revelar para…" de ficha secreta, escada secreta ou zona oculta `itemId`.
+   * Só com a sala aberta: a lista vive na sessão do host (`setSecretReveal`).
+   */
+  const secretRevealFor = (itemId: string): RevealToControlsProps | null =>
+    room === null
+      ? null
+      : {
+          players: partyMembers(roomPlayers, roomPanelWorld()).map((member) => ({
+            playerId: member.playerId,
+            name: member.name,
+            color: member.token?.color ?? null,
+          })),
+          chosen: secretReveals[itemId] ?? [],
+          onChange: (chosen) => hostBridgeRef.current?.setSecretReveal(itemId, chosen),
+        }
   /** Fora do Tauri o rail segue só com o inspetor; no app ganha as abas Mapa | Jogo. */
   const withRoomTabs = (mapPanel: ReactNode): ReactNode => {
     if (!isTauri()) return mapPanel
@@ -1959,6 +1979,7 @@ function App() {
               onLockedChange: (locked) => selectedToken && updateToken(selectedToken.id, { locked }),
               onHiddenChange: (hidden) => selectedToken && updateToken(selectedToken.id, { hidden }),
               onSecretChange: (secret) => selectedToken && useMapStore.getState().setItemSecret('token', selectedToken.id, secret),
+              reveal: selectedToken ? secretRevealFor(selectedToken.id) : null,
             }}
             selectedTextLabel={selectedTextLabel}
             textLabel={{
@@ -2024,6 +2045,8 @@ function App() {
                         onChange: (chosen) => hostBridgeRef.current?.setPinAudience(secretTarget.id, chosen),
                       }
                     : null,
+                // "Revelar para…" só na escada: é o outro item que o recorte sabe revelar a um só.
+                reveal: secretTarget.kind === 'stair' ? secretRevealFor(secretTarget.id) : null,
               }
             }
             concealZone={
@@ -2033,6 +2056,7 @@ function App() {
                 revealed: selectedConcealZone.revealed,
                 onRevealedChange: (revealed) => useMapStore.getState().updateConcealZone(selectedConcealZone.id, { revealed }),
                 onDelete: () => useMapStore.getState().removeConcealZone(selectedConcealZone.id),
+                reveal: secretRevealFor(selectedConcealZone.id),
               }
             }
             concealBrush={{

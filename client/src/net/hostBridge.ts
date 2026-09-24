@@ -80,6 +80,8 @@ export interface HostBridgeDeps {
   onPlayersChange?: (players: PlayerInfo[]) => void
   /** "Quem vê" de cada pino com lista (`pinId` -> jogadores); pino de "Todos" não aparece. Sala fechada = `{}`. */
   onPinAudiencesChange?: (audiences: Record<string, string[]>) => void
+  /** "Revelar para…" de cada ficha/escada/zona revelada a alguém (`itemId` -> jogadores). Sala fechada = `{}`. */
+  onSecretRevealsChange?: (reveals: Record<string, string[]>) => void
   onTunnelChange?: (state: TunnelState) => void
   /** Sinal aceito de um jogador (já validado e dentro do limite por segundo). */
   onSignal?: (signal: HostSignal) => void
@@ -112,6 +114,12 @@ export interface HostBridge {
    * hora — o jogador marcado vê o pino sem recarregar, e o desmarcado o perde.
    */
   setPinAudience(pinId: string, playerIds: readonly string[] | null): void
+  /**
+   * "Revelar para…" da ficha secreta, escada secreta ou zona oculta: só
+   * `playerIds` a recebem; `null` ou `[]` = segredo de todos. Snapshot na hora —
+   * quem descobriu vê sem recarregar, e o desmarcado perde no mesmo pacote.
+   */
+  setSecretReveal(itemId: string, playerIds: readonly string[] | null): void
   /** "Revelar planta": snapshot imediato com a planta inteira explorada (fora de zona oculta ativa). */
   revealPlan(playerId: string): void
   /** "Esconder de novo": snapshot imediato com exploração e portas lembradas zeradas. */
@@ -251,6 +259,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   let pendingStart: Promise<RoomInfo> | null = null
   let lastPlayersKey = '[]'
   let lastPinAudiencesKey = '{}'
+  let lastSecretRevealsKey = '{}'
   let tunnelState: TunnelState = TUNNEL_IDLE
   let lastTunnelKey = JSON.stringify(TUNNEL_IDLE)
   let pendingTunnel: Promise<void> | null = null
@@ -375,6 +384,14 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     if (key === lastPinAudiencesKey) return
     lastPinAudiencesKey = key
     deps.onPinAudiencesChange?.(audiences)
+  }
+
+  const notifySecretRevealsIfChanged = () => {
+    const reveals = session?.secretReveals() ?? {}
+    const key = JSON.stringify(reveals)
+    if (key === lastSecretRevealsKey) return
+    lastSecretRevealsKey = key
+    deps.onSecretRevealsChange?.(reveals)
   }
 
   /** Envia tudo; a promise nunca rejeita — falha vira toast, nunca silêncio. */
@@ -681,6 +698,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       resetTunnel()
       notifyPlayersIfChanged()
       notifyPinAudiencesIfChanged()
+      notifySecretRevealsIfChanged()
       try {
         await deps.invoke('net_stop_room')
       } catch (error) {
@@ -712,6 +730,13 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       session.setPinAudience(pinId, playerIds)
       broadcastNow()
       notifyPinAudiencesIfChanged()
+    },
+
+    setSecretReveal(itemId, playerIds) {
+      if (session === null) return
+      session.setSecretReveal(itemId, playerIds)
+      broadcastNow()
+      notifySecretRevealsIfChanged()
     },
 
     revealPlan(playerId) {
@@ -787,6 +812,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       pruneTravelToasts()
       notifyPlayersIfChanged()
       notifyPinAudiencesIfChanged()
+      notifySecretRevealsIfChanged()
       await sendThenKick(result, clientId)
       // O `kicked` já apagou a tela; sem ele (jogador já fora da sessão) apaga aqui.
       forgetScreen(clientId)
