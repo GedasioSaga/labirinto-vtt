@@ -859,6 +859,11 @@ export interface MapData {
   lockedLayers: LayerId[]
   scale: MapScale
   measurementMode: MeasurementMode
+  /** "Visão nesta cena", em quadrados: o jogador enxerga isto vezes o fator
+   *  dele (lib/sceneVision.ts). `undefined` = sem valor, o raio em px de cada
+   *  jogador de sempre — sem linha de migração, mesmo padrão de gridOffset. É
+   *  do mestre: não sai no recorte do jogador (lib/fogFilter.ts). */
+  visionCells?: number
   ownerId: string | null
   scenarioLink: string | null
 }

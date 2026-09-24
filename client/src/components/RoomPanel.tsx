@@ -1,4 +1,5 @@
 import { VISION_RADIUS_MAX, VISION_RADIUS_MIN, VISION_RADIUS_STEP, type PlayerInfo } from '../net/hostSession'
+import { VISION_FACTOR_MAX, VISION_FACTOR_MIN, VISION_FACTOR_STEP, formatVisionFactor } from '../lib/sceneVision'
 import type { RoomInfo, TunnelState } from '../net/hostBridge'
 import { PartySection, type PartySectionProps } from './PartySection'
 
@@ -28,6 +29,8 @@ export interface RoomPanelProps {
   onUnassign(playerId: string, tokenId: string): void
   onKick(clientId: string): void
   onVisionRadiusChange(playerId: string, radius: number): void
+  /** "Fator de visão" do jogador, que multiplica o alcance de toda cena. */
+  onVisionFactorChange(playerId: string, factor: number): void
   onRevealPlan(playerId: string): void
   onHidePlan(playerId: string): void
   /** Botão "Laser" ligado: arma o laser (independe de segurar L); o traço sai clicando no mapa. */
@@ -52,6 +55,12 @@ export function downloadLabel(progress: number): string {
 export function playerStatusLabel(player: PlayerInfo): string {
   const status = player.status === 'playing' ? 'jogando' : 'aguardando'
   return `${status} · ${player.connected ? 'conectado' : 'desconectado'}`
+}
+
+/** "9 quadrados", "7,8 quadrados": quanto este jogador enxerga na cena dele (cena x fator). */
+export function sceneCellsLabel(cells: number, factor: number): string {
+  const seen = Math.round(cells * factor * 10) / 10
+  return `${String(seen).replace('.', ',')} ${seen === 1 ? 'quadrado' : 'quadrados'}`
 }
 
 /** Tokens que ainda não pertencem a este jogador (candidatos a atribuir). */
@@ -189,6 +198,7 @@ export function RoomPanel({
   onUnassign,
   onKick,
   onVisionRadiusChange,
+  onVisionFactorChange,
   onRevealPlan,
   onHidePlan,
   laserOn = false,
@@ -248,6 +258,7 @@ export function RoomPanel({
           {waitingFirst(players).map((player) => {
             const selectId = `lb-room-assign-${player.playerId}`
             const radiusId = `lb-room-vision-${player.playerId}`
+            const factorId = `lb-room-vision-factor-${player.playerId}`
             const clientId = player.clientId
             const assignable = assignableTokens(tokens, player)
             return (
@@ -300,21 +311,44 @@ export function RoomPanel({
                   ))}
                 </select>
                 <div className="lb-section__row">
-                  <label className="lb-label" htmlFor={radiusId}>
-                    Raio de visão
+                  <label className="lb-label" htmlFor={factorId}>
+                    Fator de visão
                   </label>
-                  <span className="lb-num">{player.visionRadius} px</span>
+                  <span className="lb-num">{formatVisionFactor(player.visionFactor)}</span>
                 </div>
                 <input
-                  id={radiusId}
+                  id={factorId}
                   className="lb-range"
                   type="range"
-                  min={VISION_RADIUS_MIN}
-                  max={VISION_RADIUS_MAX}
-                  step={VISION_RADIUS_STEP}
-                  value={player.visionRadius}
-                  onChange={(event) => onVisionRadiusChange(player.playerId, Number(event.target.value))}
+                  min={VISION_FACTOR_MIN}
+                  max={VISION_FACTOR_MAX}
+                  step={VISION_FACTOR_STEP}
+                  value={player.visionFactor}
+                  onChange={(event) => onVisionFactorChange(player.playerId, Number(event.target.value))}
                 />
+                {player.sceneVisionCells !== undefined ? (
+                  // A cena diz o alcance: o raio em px não conta aqui, e sai da frente.
+                  <p className="lb-field__hint">Nesta cena: {sceneCellsLabel(player.sceneVisionCells, player.visionFactor)}</p>
+                ) : (
+                  <>
+                    <div className="lb-section__row">
+                      <label className="lb-label" htmlFor={radiusId}>
+                        Raio de visão
+                      </label>
+                      <span className="lb-num">{player.visionRadius} px</span>
+                    </div>
+                    <input
+                      id={radiusId}
+                      className="lb-range"
+                      type="range"
+                      min={VISION_RADIUS_MIN}
+                      max={VISION_RADIUS_MAX}
+                      step={VISION_RADIUS_STEP}
+                      value={player.visionRadius}
+                      onChange={(event) => onVisionRadiusChange(player.playerId, Number(event.target.value))}
+                    />
+                  </>
+                )}
                 <button type="button" className="lb-btn lb-btn--ghost" onClick={() => onRevealPlan(player.playerId)}>
                   Revelar planta
                 </button>

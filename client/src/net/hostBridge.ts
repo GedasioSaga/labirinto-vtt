@@ -105,6 +105,8 @@ export interface HostBridge {
   laserOff(): void
   /** Raio de visão só deste jogador (`null` = global). Vem de um slider: o snapshot sai pelo throttle do mapa. */
   setVisionRadius(playerId: string, radius: number | null): void
+  /** "Fator de visão" deste jogador (`null` = x1,0). Vem de um slider: mesmo throttle do raio. */
+  setVisionFactor(playerId: string, factor: number | null): void
   /**
    * "Quem vê" do pino: só `playerIds` o recebem; `null` = Todos. Snapshot na
    * hora — o jogador marcado vê o pino sem recarregar, e o desmarcado o perde.
@@ -403,6 +405,9 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     pendingBroadcast = setTimeout(() => {
       pendingBroadcast = null
       broadcastNow()
+      // O mestre mexeu no "Visão nesta cena": o painel Sala relê quantos
+      // quadrados cada um enxerga ali. Sem mudança, a lista não sai (chave JSON).
+      notifyPlayersIfChanged()
     }, BROADCAST_THROTTLE_MS)
   }
 
@@ -679,6 +684,13 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       if (session === null) return
       session.setVisionRadius(playerId, radius)
       // Arrastar o slider dispara dezenas de onChange: um snapshot por janela basta.
+      scheduleBroadcast()
+      notifyPlayersIfChanged()
+    },
+
+    setVisionFactor(playerId, factor) {
+      if (session === null) return
+      session.setVisionFactor(playerId, factor)
       scheduleBroadcast()
       notifyPlayersIfChanged()
     },

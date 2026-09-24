@@ -5,7 +5,7 @@ import type { PlayerInfo } from '../net/hostSession'
 import { FIREWALL_HINT, LASER_HINT, PLAN_HINT, RoomPanel, TUNNEL_WARNING, assignOptionLabel, assignableTokens, downloadLabel, playerStatusLabel, qrDataUrl, tokenDotColor } from './RoomPanel'
 
 const noop = vi.fn()
-const handlers = { onStart: noop, onStop: noop, onStartTunnel: noop, onStopTunnel: noop, onAssign: noop, onUnassign: noop, onKick: noop, onVisionRadiusChange: noop, onRevealPlan: noop, onHidePlan: noop }
+const handlers = { onStart: noop, onStop: noop, onStartTunnel: noop, onStopTunnel: noop, onAssign: noop, onUnassign: noop, onKick: noop, onVisionRadiusChange: noop, onVisionFactorChange: noop, onRevealPlan: noop, onHidePlan: noop }
 const TOKENS = [
   { id: 't1', name: 'Herói' },
   { id: 't2', name: 'Ladino' },
@@ -14,7 +14,7 @@ const ROOM = { code: 'AB12CD', urls: ['http://10.0.0.2:7777'], qrSvg: '<svg/>' }
 const IDLE: TunnelState = { kind: 'idle' }
 
 function player(overrides: Partial<PlayerInfo> = {}): PlayerInfo {
-  return { clientId: 'c1', playerId: 'p1', name: 'Ana', status: 'waiting', connected: true, tokenIds: [], visionRadius: 700, ...overrides }
+  return { clientId: 'c1', playerId: 'p1', name: 'Ana', status: 'waiting', connected: true, tokenIds: [], visionRadius: 700, visionFactor: 1, ...overrides }
 }
 
 function renderWithTunnel(tunnel: TunnelState): string {

@@ -2,6 +2,7 @@ import type { DoorState, FloorStyle, MapData, Region } from '../types/map'
 import { linkLooseWallsToRooms } from './roomLink'
 import { isPinIcon, isPinKind, isPinPassage, isPinReadDistance } from './pins'
 import { cleanExitLabel, readPinDestination, readPinExits } from './pinTravel'
+import { readSceneVisionCells } from './sceneVision'
 import { tokenPublicNameFromFile } from './tokenPublicName'
 
 /** Chão de mapa NOVO: marrom chapado do minimapa do Resident Evil 4 (15/09/2026). */
@@ -227,6 +228,9 @@ function deserializeMapFields(json: string): MapData {
     // antigo sem gridShape salvo cairia em 'chessboard' por engano
     measurementMode:
       parsed.measurementMode ?? ((parsed.gridShape ?? 'square') === 'hex' ? 'hex' : 'chessboard'),
+    // NOVO — "Visão nesta cena". Ausente continua ausente (o raio de sempre);
+    // valor torto volta ausente em vez de virar raio zero (`lib/sceneVision.ts`).
+    visionCells: readSceneVisionCells(parsed.visionCells),
     ownerId: parsed.ownerId ?? null,
     scenarioLink: parsed.scenarioLink ?? null,
   }

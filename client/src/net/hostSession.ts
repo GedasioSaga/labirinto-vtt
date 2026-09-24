@@ -7,6 +7,7 @@ import { tokenReachesDoor } from '../lib/doorReach'
 import { SIGNAL_MIN_INTERVAL_MS, signalColor } from '../lib/signals'
 import { arrivalPoint, arrivalSpot, exitLabelsOf, isArrivalOnly, resolvePinTravel, SAIDA_PRINCIPAL, travelExitOf, type TravelScene } from '../lib/pinTravel'
 import { passageOf, pinSummary } from '../lib/pins'
+import { VISION_FACTOR_DEFAULT, clampVisionFactor, playerVisionRadius, readSceneVisionCells } from '../lib/sceneVision'
 import {
   parsePlayerMessage,
   type DoorToggleMessage,
@@ -184,8 +185,18 @@ export interface PlayerInfo {
   status: PlayerStatus
   connected: boolean
   tokenIds: string[]
-  /** Raio efetivo: o do mestre para este jogador ou, sem ajuste, o global. */
+  /**
+   * Raio em px para cena SEM "Visão nesta cena": o do mestre para este jogador
+   * ou, sem ajuste, o global. O corte de verdade ainda multiplica pelo fator.
+   */
   visionRadius: number
+  /** "Fator de visão" deste jogador, em toda cena (x1,0 de fábrica). */
+  visionFactor: number
+  /**
+   * "Visão nesta cena" da cena onde ele está, em quadrados. Ausente = a cena
+   * não tem valor (ou ele não está em cena): vale o `visionRadius`.
+   */
+  sceneVisionCells?: number
   /** Cena em que o jogador está, para o painel do mestre. Só com aventura aberta e jogador jogando. */
   sceneName?: string
   /** Id da mesma cena de `sceneName`: é por ele que o "Ir lá" do painel Grupo abre a cena. */
@@ -299,6 +310,12 @@ export interface HostSession {
    */
   setVisionRadius(playerId: string, radius: number | null): void
   /**
+   * "Fator de visão" deste jogador (limitado à faixa de `lib/sceneVision.ts`),
+   * que multiplica o alcance de toda cena; `null` volta a x1,0. Não envia: o
+   * integrador faz o broadcast. Jogador desconhecido ou fator não finito é ignorado.
+   */
+  setVisionFactor(playerId: string, factor: number | null): void
+  /**
    * "Quem vê" do pino `pinId`: só estes jogadores o recebem (`lib/fogFilter.ts`).
    * `null` = Todos (apaga a lista). Id que não é de jogador da sala é ignorado;
    * lista vazia vale ("Só estes" sem ninguém: ninguém recebe). Não envia: o
@@ -406,12 +423,18 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   const lastTokenPhotoAt = new Map<string, number>()
   // Por playerId: ajuste do mestre sobre `options.visionRadius`; só o kick apaga.
   const visionOverrides = new Map<string, number>()
+  // Por playerId: "Fator de visão" (vale em toda cena); ausente = x1,0. Só o kick apaga.
+  const visionFactors = new Map<string, number>()
   // Por pinId: quem vê o pino ("Só estes"). Ausente = Todos. O kick tira o
   // jogador de toda lista; o registro de quem só caiu fica (resume).
   const pinAudiences = new Map<string, Set<string>>()
   let rev = 0
 
-  const radiusFor = (playerId: string): number => visionOverrides.get(playerId) ?? options.visionRadius
+  /** Raio em px do jogador para cena SEM "Visão nesta cena": o do mestre ou o global (o de sempre). */
+  const baseRadiusFor = (playerId: string): number => visionOverrides.get(playerId) ?? options.visionRadius
+  const factorFor = (playerId: string): number => visionFactors.get(playerId) ?? VISION_FACTOR_DEFAULT
+  /** Raio que corta a visão do jogador NESTE mapa: o alcance da cena (ou o de sempre) vezes o fator dele. */
+  const radiusFor = (playerId: string, map: MapData): number => playerVisionRadius(map, baseRadiusFor(playerId), factorFor(playerId))
 
   /** "Quem vê" do pino na ordem da sala (a do painel Grupo), não na ordem em que o mestre marcou. `null` = Todos. */
   const audienceOf = (pinId: string): string[] | null => {
@@ -505,7 +528,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   const snapshotFor = (playerId: string, map: MapData): HostMessage => {
     const memory = memoryFor(playerId, map)
     const exp = memory.exp
-    const view = filterMapForPlayer(map, playerId, ownership, radiusFor(playerId), exp, memory.doors, pinAudiences)
+    const view = filterMapForPlayer(map, playerId, ownership, radiusFor(playerId, map), exp, memory.doors, pinAudiences)
     // Zona oculta ativa e sala secreta: célula que toca nelas não vira explorada
     // (senão o jogador guardaria a planta escondida e o formato dela).
     markRings(exp, view.vision, view.blocked)
@@ -665,7 +688,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const wall = map.walls.find((w) => w.id === msg.wallId)
     if (wall === undefined || wall.door === null) return reject('not_visible')
     const memory = memoryFor(playerId, map)
-    const view = filterMapForPlayer(map, playerId, ownership, radiusFor(playerId), memory.exp, memory.doors, pinAudiences)
+    const view = filterMapForPlayer(map, playerId, ownership, radiusFor(playerId, map), memory.exp, memory.doors, pinAudiences)
     if (!view.visibleDoorIds.includes(wall.id)) return reject('not_visible')
     // Trancada antes de longe: a cor da porta já diz que está trancada, e "Trancada" é a informação útil.
     if (wall.door.locked) return reject('locked')
@@ -722,7 +745,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const pin = from.map.pins.find((p) => p.id === pinId)
     if (pin === undefined) return null
     const memory = memoryFor(playerId, from.map)
-    const view = filterMapForPlayer(from.map, playerId, ownership, radiusFor(playerId), memory.exp, memory.doors, pinAudiences)
+    const view = filterMapForPlayer(from.map, playerId, ownership, radiusFor(playerId, from.map), memory.exp, memory.doors, pinAudiences)
     const seen = view.map.pins.find((p) => p.id === pinId)
     if (seen === undefined) return null
     // MARCO visto de longe: o pino chega ao jogador na névoa, mas ele nunca
@@ -990,6 +1013,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       lastDoorToggleAt.delete(playerId)
       lastTokenPhotoAt.delete(playerId)
       visionOverrides.delete(playerId)
+      visionFactors.delete(playerId)
       for (const chosen of pinAudiences.values()) chosen.delete(playerId)
       return reply(clientId, { type: 'kicked' })
     },
@@ -1010,6 +1034,16 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       }
       if (!Number.isFinite(radius)) return
       visionOverrides.set(playerId, Math.min(VISION_RADIUS_MAX, Math.max(VISION_RADIUS_MIN, radius)))
+    },
+
+    setVisionFactor(playerId, factor) {
+      if (!players.has(playerId)) return
+      if (factor === null) {
+        visionFactors.delete(playerId)
+        return
+      }
+      if (!Number.isFinite(factor)) return
+      visionFactors.set(playerId, clampVisionFactor(factor))
     },
 
     setPinAudience(pinId, playerIds) {
@@ -1103,8 +1137,11 @@ export function createHostSession(options: HostSessionOptions): HostSession {
             status: statusOf(p.playerId),
             connected: p.clientId !== null,
             tokenIds: [...(ownership[p.playerId] ?? [])],
-            visionRadius: radiusFor(p.playerId),
+            visionRadius: baseRadiusFor(p.playerId),
+            visionFactor: factorFor(p.playerId),
           }
+          // No mapa solto todo mundo está (ou vai estar) no mapa aberto.
+          let visionScene: HostScene | null = world !== null && !withScenes ? world.open : null
           // O selo da lista Cenas nasce e morre com o pedido: aprovar, recusar
           // e cair a conexão já tiram o jogador de `pendingTravels`.
           if (pendingTravels.has(p.playerId)) info.travelPending = true
@@ -1116,8 +1153,11 @@ export function createHostSession(options: HostSessionOptions): HostSession {
             else {
               info.sceneName = scene.name
               if (scene.sceneId !== null) info.sceneId = scene.sceneId
+              visionScene = scene
             }
           }
+          const cells = visionScene === null ? undefined : readSceneVisionCells(visionScene.map.visionCells)
+          if (cells !== undefined) info.sceneVisionCells = cells
           return info
         })
     },

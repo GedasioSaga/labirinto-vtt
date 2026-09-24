@@ -1267,6 +1267,9 @@ export function filterMapForPlayer(
     // Metadado do mestre: vínculo de cenário, dono e áreas reveladas não são do jogador.
     scenarioLink: null,
     ownerId: null,
+    // "Visão nesta cena" é regra do mestre: o jogador recebe o círculo já
+    // cortado (`vision`), nunca o número que o desenhou.
+    visionCells: undefined,
     fog: { mode: map.fog.mode, revealed: [] },
     background: map.background.type === 'image' ? { type: 'image', src: '' } : map.background,
     tokens,

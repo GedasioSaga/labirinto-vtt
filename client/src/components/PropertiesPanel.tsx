@@ -12,6 +12,7 @@ import { WallDoorControls, type WallDoorControlsProps } from './WallDoorControls
 import { DoorKindControls, type DoorKindControlsProps } from './DoorKindControls'
 import { DoorModeControls, type DoorModeControlsProps } from './DoorModeControls'
 import type { ScenarioLinkControlsProps } from './ScenarioLinkControls'
+import type { SceneVisionControlsProps } from './SceneVisionControls'
 import { TextLabelControls, type TextLabelControlsProps } from './TextLabelControls'
 import { RegionJoinField, RegionSmoothButton, RegionStyleControls, type RegionStyleControlsProps } from './RegionStyleControls'
 import { AdvancedField, AdvancedSection } from './AdvancedSection'
@@ -86,6 +87,8 @@ interface PropertiesPanelProps {
   pathStyle: PathStyleControlsProps
   grid: GridControlsProps
   mapScale: MapScaleControlsProps
+  /** "Visão nesta cena", na janela Configurações do mapa. */
+  sceneVision: SceneVisionControlsProps
   gridAlign: GridAlignControlsProps
   layers: LayersPanelProps
   selection: SelectionControlsProps
@@ -175,6 +178,7 @@ export function PropertiesPanel({
   pathStyle,
   grid,
   mapScale,
+  sceneVision,
   gridAlign,
   layers,
   selection,
@@ -247,7 +251,7 @@ export function PropertiesPanel({
             {mapName} · {mapWidth}×{mapHeight} · {mapGrid}px
           </span>
         </span>
-        <MapSettingsButton grid={grid} gridAlign={gridAlign} mapScale={mapScale} scenarioLink={scenarioLink} />
+        <MapSettingsButton grid={grid} gridAlign={gridAlign} mapScale={mapScale} sceneVision={sceneVision} scenarioLink={scenarioLink} />
       </header>
 
       <div className="lb-inspector__body lb-scroll">

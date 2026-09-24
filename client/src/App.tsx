@@ -339,6 +339,7 @@ function App() {
   const resizeRoomDimensions = useMapStore((state) => state.resizeRoomDimensions)
   const setMapScale = useMapStore((state) => state.setMapScale)
   const setMeasurementMode = useMapStore((state) => state.setMeasurementMode)
+  const setSceneVisionCells = useMapStore((state) => state.setSceneVisionCells)
   const setScenarioLink = useMapStore((state) => state.setScenarioLink)
   const updateTextLabel = useMapStore((state) => state.updateTextLabel)
   const setTextFontFamily = useMapStore((state) => state.setTextFontFamily)
@@ -561,6 +562,7 @@ function App() {
             onUnassign={(playerId, tokenId) => hostBridgeRef.current?.unassignToken(playerId, tokenId)}
             onKick={(clientId) => void hostBridgeRef.current?.kick(clientId)}
             onVisionRadiusChange={(playerId, radius) => hostBridgeRef.current?.setVisionRadius(playerId, radius)}
+            onVisionFactorChange={(playerId, factor) => hostBridgeRef.current?.setVisionFactor(playerId, factor)}
             onRevealPlan={(playerId) => hostBridgeRef.current?.revealPlan(playerId)}
             onHidePlan={(playerId) => hostBridgeRef.current?.hidePlan(playerId)}
             laserOn={laserToggled}
@@ -1834,6 +1836,10 @@ function App() {
               measurementMode: map.measurementMode,
               onMeasurementModeChange: setMeasurementMode,
               gridShape,
+            }}
+            sceneVision={{
+              visionCells: map.visionCells,
+              onVisionCellsChange: setSceneVisionCells,
             }}
             gridAlign={{
               backgroundFilename:

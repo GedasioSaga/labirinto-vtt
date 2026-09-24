@@ -722,6 +722,8 @@ interface MapStoreState {
   updateTokenLive: (id: string, patch: Partial<Pick<Token, 'size'>>) => void
   setMapScale: (scale: MapScale) => void
   setMeasurementMode: (mode: MeasurementMode) => void
+  /** "Visão nesta cena" em quadrados; `undefined` = sem valor. Com histórico. */
+  setSceneVisionCells: (cells: number | undefined) => void
   setScenarioLink: (value: string | null) => void
   setPropLinkedPath: (id: string, path: string | null) => void
   updateCurvePoint: (drawingId: string, index: number, x: number, y: number) => void
@@ -1455,6 +1457,7 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
     })),
     setMapScale: (scale) => withHistory((map) => mapFactory.setMapScale(map, scale)),
     setMeasurementMode: (mode) => withHistory((map) => mapFactory.setMeasurementMode(map, mode)),
+    setSceneVisionCells: (cells) => withHistory((map) => mapFactory.setSceneVisionCells(map, cells)),
     setScenarioLink: (value) => withHistory((map) => mapFactory.setScenarioLink(map, value)),
     setPropLinkedPath: (id, path) => withHistory((map) => ({
       ...map,
