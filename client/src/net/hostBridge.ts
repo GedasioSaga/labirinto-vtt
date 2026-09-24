@@ -120,6 +120,12 @@ export interface HostBridge {
   /** "Esconder de novo": snapshot imediato com exploração e portas lembradas zeradas. */
   hidePlan(playerId: string): void
   /**
+   * "Passar o mapa de Ana a…": o que `fromPlayerId` explorou na cena onde está
+   * vai à memória de `toPlayerId`; o aviso sai a ele e o snapshot na hora.
+   * `false` quando nada passou (sala fechada, doador sem mapa da cena).
+   */
+  shareMap(fromPlayerId: string, toPlayerId: string): boolean
+  /**
    * "Mandar para…" do painel Grupo: leva a ficha do jogador para `toSceneId`,
    * no pino `pinId` ou no centro (`null`), sem pedido. `false` quando não deu
    * (sala fechada, destino ou ficha sumiram): o painel avisa e fica aberto.
@@ -555,6 +561,8 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
         void dispatch(session.denyTravel(result.travelRequest.requestId))
       } else askTravel(result.travelRequest)
     }
+    // "Mostrar meu mapa a…" aceito: o colega recebe o trecho no snapshot de agora.
+    if (result.mapShared !== undefined) broadcastNow()
     if (result.applyTokenEdit !== undefined && deps.applyTokenEdit !== undefined) {
       // Mesma regra da porta: o mestre vê pela store, os outros jogadores pelo snapshot imediato.
       deps.applyTokenEdit(result.applyTokenEdit)
@@ -674,6 +682,16 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       if (session === null) return
       session.hidePlan(playerId, world())
       broadcastNow()
+    },
+
+    shareMap(fromPlayerId, toPlayerId) {
+      if (session === null) return false
+      const result = session.shareMap(fromPlayerId, toPlayerId, world())
+      if (result.mapShared === undefined) return false
+      // O aviso primeiro, o trecho novo no snapshot logo atrás.
+      void dispatch(result)
+      broadcastNow()
+      return true
     },
 
     sendPlayer(playerId, toSceneId, pinId, gatherAt) {

@@ -11,6 +11,7 @@ import { PlayerPanel, loadPlayerSettings, savePlayerSettings } from './PlayerPan
 import { PlayerPinCard } from './PlayerPinCard'
 import { PlayerNoteCard } from './PlayerNoteCard'
 import { PlayerClueCard } from './PlayerClues'
+import { mapSharedNoticeText } from './PlayerMapShare'
 import { coverBounds } from './playerCamera'
 import { PlayerZoomControls } from './PlayerZoomControls'
 import { NO_ZOOM_STEP, type ZoomDirection, type ZoomLimits, type ZoomStepRequest } from './playerZoom'
@@ -678,6 +679,12 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
             connection.resetClueShare()
             setOpenClueId(clueId)
           }}
+          mapShare={{
+            peers: state.mapPeers,
+            result: state.mapShare,
+            onAskPeers: () => connection.askMapPeers(),
+            onShare: (name) => connection.shareMap(name),
+          }}
         />
         {/* Depois do painel no DOM: o Tab segue a leitura (painel no alto à esquerda, zoom embaixo à direita). */}
         <PlayerZoomControls canZoomIn={zoomLimits.canZoomIn} canZoomOut={zoomLimits.canZoomOut} onZoom={requestZoomStep} />
@@ -749,6 +756,12 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
           // `key` no id: o mesmo aviso repetido reinicia a animação de entrada.
           <p key={actionNotice.id} className="pp-notice" role="status" aria-live="polite">
             {actionNotice.text}
+          </p>
+        )}
+        {/* Mesmo lugar do aviso de ação: com uma recusa na tela, ela vale mais (é do gesto de agora). */}
+        {state.mapShared && !actionNotice && (
+          <p key={state.mapShared.id} className="pp-notice" role="status" aria-live="polite">
+            {mapSharedNoticeText(state.mapShared.from)}
           </p>
         )}
       </PlayerErrorBoundary>
