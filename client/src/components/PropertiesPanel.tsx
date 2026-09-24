@@ -18,6 +18,7 @@ import { RegionJoinField, RegionSmoothButton, RegionStyleControls, type RegionSt
 import { AdvancedField, AdvancedSection } from './AdvancedSection'
 import { PolygonSidesControls, type PolygonSidesControlsProps } from './PolygonSidesControls'
 import { LayersPanel, type LayersPanelProps } from './LayersPanel'
+import { TerritorioControls, type TerritorioControlsProps } from './TerritorioControls'
 import { TokenImageControls, type TokenImageControlsProps } from './TokenImageControls'
 import { tokenPhotoRef } from '../lib/tokenPhoto'
 import { selectedTokenColor } from '../lib/tokenColor'
@@ -153,7 +154,7 @@ interface PropertiesPanelProps {
   regionStyle: RegionStyleControlsProps
   room: Omit<
     RoomControlsProps,
-    'name' | 'shape' | 'axisAligned' | 'width' | 'height' | 'rotation' | 'locked' | 'nameHiddenFromPlayers' | 'roof' | 'textoAoEntrar' | 'notaDoMestre'
+    'name' | 'shape' | 'axisAligned' | 'width' | 'height' | 'rotation' | 'locked' | 'nameHiddenFromPlayers' | 'roof' | 'textoAoEntrar' | 'notaDoMestre' | 'faccao'
   >
   selectedLight: Light | null
   lightControls: Omit<LightControlsProps, 'color' | 'intensity' | 'attachedTokenId'>
@@ -179,6 +180,8 @@ interface PropertiesPanelProps {
   pinSelected: boolean
   /** Estante de NPCs prontos, global do app (pedido de 18/09/2026). */
   tokenLibrary: TokenLibraryPanelProps
+  /** FACÇÃO E ALERTA do mapa inteiro ("Território"). Ausente = sem a seção. */
+  territorio?: TerritorioControlsProps
 }
 
 /**
@@ -249,6 +252,7 @@ export function PropertiesPanel({
   pinIcon,
   pinSelected,
   tokenLibrary,
+  territorio,
 }: PropertiesPanelProps) {
   // "Só o que importa agora": as seções de mapa inteiro só abrem sozinhas
   // quando o usuário não está mexendo em nada (Selecionar, sem seleção).
@@ -314,6 +318,7 @@ export function PropertiesPanel({
               roof={!!selectedRegion.room.roof}
               textoAoEntrar={selectedRegion.room.textoAoEntrar ?? ''}
               notaDoMestre={selectedRegion.room.notaDoMestre ?? ''}
+              faccao={selectedRegion.room.faccao ?? ''}
               {...room}
             />
           </ToolPropertiesSection>
@@ -537,6 +542,16 @@ export function PropertiesPanel({
             ferramenta de desenho na mão ela é só uma linha de título. Antes de
             "Chão do mapa": Camadas continua o último título da coluna. */}
         {objects}
+        {/* FACÇÃO E ALERTA do mapa inteiro. Mesmo grupo das Camadas (é filtro
+            de vista e estado da cena, não ferramenta), antes de "Chão do mapa"
+            para Camadas continuar o último título da coluna. */}
+        {territorio !== undefined && (
+          <ToolPropertiesSection group="layers" groups={groups}>
+            <CollapsibleSection id="territorio" title="Território" defaultOpen={mapSectionsOpenByDefault}>
+              <TerritorioControls {...territorio} />
+            </CollapsibleSection>
+          </ToolPropertiesSection>
+        )}
         <ToolPropertiesSection group="floorStyle" groups={groups}>
           {/* "Chão do mapa", não "Chão": o botão da ferramenta na barra já se
               chama "Chão" e dois botões com o mesmo nome confundem leitor de

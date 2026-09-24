@@ -231,6 +231,13 @@ export interface RoomMeta {
    * jogador (`lib/fogFilter.ts`). `undefined` === sem nota, sem migração.
    */
   notaDoMestre?: string
+  /**
+   * FACÇÃO — quem manda nesta sala ou distrito (`lib/faccoes.ts`). Sala sem
+   * facção dentro de outra (`Region.parentId`) herda a da sala de fora. Pinta
+   * o filtro "Quem manda aqui" do editor. NUNCA sai no recorte do jogador
+   * (`lib/fogFilter.ts`). `undefined` === ninguém manda, sem migração.
+   */
+  faccao?: string
 }
 
 /**
@@ -1032,4 +1039,13 @@ export interface MapData {
    * em `lib/hazards.ts` → `readHazards`. NUNCA sai no recorte do jogador.
    */
   hazards?: Hazard[]
+  /**
+   * NÍVEL DE ALERTA da cena, que o mestre sobe conforme o grupo faz barulho
+   * (`lib/faccoes.ts`). `undefined` === 'calmo' — sem linha de migração, e
+   * voltar a calmo tira o campo. NUNCA sai no recorte do jogador.
+   */
+  alerta?: NivelAlerta
 }
+
+/** Calmo → atento → caçada: o quanto a cena já sabe que o grupo está lá. */
+export type NivelAlerta = 'calmo' | 'atento' | 'cacada'
