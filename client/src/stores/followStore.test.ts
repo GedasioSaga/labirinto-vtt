@@ -22,6 +22,16 @@ describe('followStore', () => {
     expect(useFollowStore.getState().playerId).toBe('ana')
   })
 
+  it('"Ir lá" em outro jogador desliga o seguir; no seguido, ou sem ninguém seguido, não muda nada', () => {
+    useFollowStore.getState().toggle('ana')
+    useFollowStore.getState().irAteJogador('ana')
+    expect(useFollowStore.getState().playerId).toBe('ana')
+    useFollowStore.getState().irAteJogador('bruno')
+    expect(useFollowStore.getState().playerId).toBeNull()
+    useFollowStore.getState().irAteJogador('bruno')
+    expect(useFollowStore.getState().playerId).toBeNull()
+  })
+
   it('o gesto do mestre na vista desliga o seguir', () => {
     useFollowStore.getState().toggle('ana')
     useFollowStore.getState().cameraApplied('gesto')
