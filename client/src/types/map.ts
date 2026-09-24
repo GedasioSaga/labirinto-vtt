@@ -172,6 +172,11 @@ export interface Light {
    *  (comportamento de antes) — sem linha de migração. Para o jogador, só
    *  chega se ele vê a ficha (`lib/fogFilter.ts`). */
   attachedTokenId?: string
+  /** "Vista de longe" (lampião, janela acesa, farol): com linha de visão livre
+   *  até ela, o jogador recebe a luz mesmo FORA do raio — só como ponto aceso,
+   *  com raio 0 e sem a ficha que a carrega (`lib/fogFilter.ts`), nunca o que
+   *  ela ilumina. `undefined` === false (comportamento de antes), sem migração. */
+  vistaDeLonge?: boolean
 }
 
 export interface RegionPoint {
@@ -231,6 +236,14 @@ export interface RoomMeta {
    * jogador (`lib/fogFilter.ts`). `undefined` === sem nota, sem migração.
    */
   notaDoMestre?: string
+  /**
+   * "Raio de visão aqui", em px de mundo: enquanto a ficha de um jogador está
+   * dentro desta Sala, ele vence o raio do jogador — maior num mirante, menor
+   * num caracol. Vale a Sala mais de dentro que tiver o campo; Sala secreta ou
+   * oculta não conta. O número não sai para o jogador (`lib/fogFilter.ts`).
+   * `undefined` (ou valor que não é número positivo) === raio do jogador.
+   */
+  raioDeVisao?: number
 }
 
 /**

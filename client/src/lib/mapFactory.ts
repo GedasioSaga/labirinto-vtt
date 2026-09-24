@@ -1566,6 +1566,17 @@ export function setRoomTexts(map: MapData, id: string, patch: Partial<Pick<RoomM
   }
 }
 
+/** "Raio de visão aqui" da Sala (`RoomMeta.raioDeVisao`); `null` tira o campo
+ * e a Sala volta ao raio do jogador. Mesmo contrato de `setRoomRoof`: região
+ * comum, id inexistente ou nada diferente devolve o mesmo `map`. */
+export function setRoomVisionRadius(map: MapData, id: string, raio: number | null): MapData {
+  const region = map.regions.find((r) => r.id === id)
+  if (!region || !region.room || (region.room.raioDeVisao ?? null) === raio) return map
+  const { raioDeVisao: _antigo, ...room } = region.room
+  const next: RoomMeta = raio === null ? room : { ...room, raioDeVisao: raio }
+  return { ...map, regions: map.regions.map((r) => (r.id === id ? { ...r, room: next } : r)) }
+}
+
 /** Entidades que aceitam "Oculto para jogadores" (`PlayerSecret` em types/map.ts). */
 export type SecretKind = 'token' | 'region' | 'prop' | 'stair' | 'drawing' | 'pin'
 

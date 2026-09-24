@@ -1,3 +1,6 @@
+import { useId } from 'react'
+import { Toggle } from './Toggle'
+
 /** Ficha da cena que pode carregar a luz (tocha presa na ficha). */
 export interface LightCarrierOption {
   id: string
@@ -15,6 +18,9 @@ export interface LightControlsProps {
   attachedTokenId: string | null
   onAttach: (tokenId: string) => void
   onDetach: () => void
+  /** `Light.vistaDeLonge`. Sem `onVistaDeLongeChange` o interruptor não aparece. */
+  vistaDeLonge?: boolean
+  onVistaDeLongeChange?: (vistaDeLonge: boolean) => void
 }
 
 const FICHA_SEM_NOME = 'Ficha sem nome'
@@ -38,7 +44,10 @@ export function LightControls({
   attachedTokenId,
   onAttach,
   onDetach,
+  vistaDeLonge,
+  onVistaDeLongeChange,
 }: LightControlsProps) {
+  const farHintId = `${useId()}-vista-de-longe`
   // Vínculo com ficha que não está mais na cena conta como solta.
   const carrier = attachedTokenId === null ? undefined : tokens.find((t) => t.id === attachedTokenId)
   return (
@@ -105,6 +114,14 @@ export function LightControls({
           </div>
         )}
       </div>
+      {onVistaDeLongeChange !== undefined && (
+        <>
+          <Toggle label="Vista de longe" checked={vistaDeLonge === true} onChange={onVistaDeLongeChange} describedBy={farHintId} />
+          <p className="lb-field__hint" id={farHintId}>
+            Quem tem linha de visão até ela vê um ponto aceso, mesmo longe. O que ela ilumina continua escondido.
+          </p>
+        </>
+      )}
     </section>
   )
 }

@@ -138,10 +138,21 @@ interface PropertiesPanelProps {
   regionStyle: RegionStyleControlsProps
   room: Omit<
     RoomControlsProps,
-    'name' | 'shape' | 'axisAligned' | 'width' | 'height' | 'rotation' | 'locked' | 'nameHiddenFromPlayers' | 'roof' | 'textoAoEntrar' | 'notaDoMestre'
+    | 'name'
+    | 'shape'
+    | 'axisAligned'
+    | 'width'
+    | 'height'
+    | 'rotation'
+    | 'locked'
+    | 'nameHiddenFromPlayers'
+    | 'roof'
+    | 'textoAoEntrar'
+    | 'notaDoMestre'
+    | 'raioDeVisao'
   >
   selectedLight: Light | null
-  lightControls: Omit<LightControlsProps, 'color' | 'intensity' | 'attachedTokenId'>
+  lightControls: Omit<LightControlsProps, 'color' | 'intensity' | 'attachedTokenId' | 'vistaDeLonge'>
   selectedStair: Stair | null
   stairControls: Omit<StairControlsProps, 'direction'>
   polygonSides: PolygonSidesControlsProps
@@ -295,6 +306,7 @@ export function PropertiesPanel({
               roof={!!selectedRegion.room.roof}
               textoAoEntrar={selectedRegion.room.textoAoEntrar ?? ''}
               notaDoMestre={selectedRegion.room.notaDoMestre ?? ''}
+              raioDeVisao={selectedRegion.room.raioDeVisao ?? null}
               {...room}
             />
           </ToolPropertiesSection>
@@ -480,6 +492,7 @@ export function PropertiesPanel({
               color={selectedLight.color}
               intensity={selectedLight.intensity}
               attachedTokenId={selectedLight.attachedTokenId ?? null}
+              vistaDeLonge={selectedLight.vistaDeLonge === true}
               {...lightControls}
             />
           </ToolPropertiesSection>
