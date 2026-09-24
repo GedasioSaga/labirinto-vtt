@@ -18,6 +18,7 @@ import { apagarBlocosDoChao } from './floorTool'
 import { DEFAULT_FLOOR_STYLE } from './mapFile'
 import { sameDestination, sameExits } from './pinTravel'
 import { passageOf } from './pins'
+import { carryAttachedPins } from './pinAttach'
 import {
   resizeRectDrawing, resizeEllipseDrawing, resizePolygonDrawing, resizePropBox, resizeCircleDrawingRadius,
   type Corner, type ResizeModifiers,
@@ -618,11 +619,18 @@ export function removeToken(map: MapData, tokenId: string): MapData {
   return { ...map, tokens: map.tokens.filter((t) => t.id !== tokenId) }
 }
 
+/**
+ * Posição da ficha. Todo caminho que move UMA ficha passa por aqui (arrasto,
+ * seta, pedido do jogador, cena de fundo, reunir o grupo), e por isso é aqui
+ * que o pino PRESO a ela anda junto (`lib/pinAttach.ts`).
+ */
 export function setTokenPosition(map: MapData, tokenId: string, x: number, y: number): MapData {
-  return {
+  const token = map.tokens.find((t) => t.id === tokenId)
+  const moved: MapData = {
     ...map,
     tokens: map.tokens.map((t) => (t.id === tokenId ? { ...t, x, y } : t)),
   }
+  return token === undefined ? moved : carryAttachedPins(moved, tokenId, x - token.x, y - token.y)
 }
 
 /** Renomeia só o token alvo. Id inexistente devolve o mapa pela mesma referência. */
@@ -1550,7 +1558,7 @@ export function addPin(map: MapData, pin: Pin): MapData {
 export function updatePin(
   map: MapData,
   id: string,
-  patch: Partial<Pick<Pin, 'kind' | 'icon' | 'description' | 'image' | 'locked' | 'destino' | 'passagem' | 'rotulo' | 'saidas' | 'item'>>,
+  patch: Partial<Pick<Pin, 'kind' | 'icon' | 'description' | 'image' | 'locked' | 'destino' | 'passagem' | 'rotulo' | 'saidas' | 'item' | 'presoA'>>,
 ): MapData {
   const pin = map.pins.find((p) => p.id === id)
   if (!pin) return map
@@ -1577,6 +1585,8 @@ export function updatePin(
     // E aqui também: `undefined` === 'pede'. Escolher "Pede ao mestre" num
     // pino que nunca teve modo não empurra entrada vazia no histórico.
     passageOf(next) === passageOf(pin) &&
+    // Preso à ficha: soltar um pino que nunca foi preso não é mudança.
+    next.presoA === pin.presoA &&
     sameItem
   ) {
     return map

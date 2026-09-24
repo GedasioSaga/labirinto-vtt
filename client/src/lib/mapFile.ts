@@ -2,6 +2,7 @@ import type { FloorStyle, MapData, Region } from '../types/map'
 import { linkLooseWallsToRooms } from './roomLink'
 import { isPinIcon, isPinKind, isPinPassage } from './pins'
 import { cleanExitLabel, readPinDestination, readPinExits } from './pinTravel'
+import { readPinAttachment } from './pinAttach'
 import { readMovementRules } from './movementRules'
 import { readCarriedItems, readPinItem } from './items'
 import { readHazards } from './hazards'
@@ -211,6 +212,9 @@ function deserializeMapFields(json: string): MapData {
       // (`false`, texto, número, arquivo editado à mão) volta AUSENTE — o par de
       // sempre, visível. O `...p` acima copiaria o valor cru, por isso a linha.
       soChegada: p.soChegada === true ? true : undefined,
+      // PRESO À FICHA: campo NOVO e OPCIONAL. Só texto não vazio vale; o resto
+      // volta AUSENTE (pino parado, o de sempre) — ver `readPinAttachment`.
+      presoA: readPinAttachment(p.presoA),
       escolhas: undefined,
       // ITEM PEGÁVEL: campo NOVO e OPCIONAL. Forma errada volta ausente (o
       // pino só deixa de ser pegável); `livre` só vale `true` (`readPinItem`).
