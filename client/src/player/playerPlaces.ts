@@ -51,6 +51,13 @@ export interface VisitedPlace {
   sketch: PlaceSketch
   /** O que ele já explorou lá, do último snapshot daquele lugar. `null` = mestre antigo, sem memória. */
   explored: Exploration | null
+  /**
+   * Zonas ocultas ativas no último snapshot daquele lugar (`snapshot.concealed`).
+   * A tela principal as cobre de preto; a miniatura também precisa cobrir, porque
+   * a célula explorada antes de a zona ligar continua no `explored` e a Sala que
+   * cruza a borda da zona chega inteira no recorte.
+   */
+  concealed: RegionPoint[][]
 }
 
 /** Chave do `localStorage` com os nomes dados pelo jogador, por jogador e por lugar. */
@@ -83,6 +90,9 @@ export function placeSketch(map: MapData): PlaceSketch {
  * "Lugar 3" continua sendo o mesmo lugar depois que outro sai da lista. Lugar
  * conhecido fica no mesmo lugar da lista, com o mesmo número.
  *
+ * `concealed`: as zonas ocultas ativas do mesmo snapshot; a miniatura as pinta
+ * de preto por cima de tudo, como a tela principal.
+ *
  * `remembered`: os ids que o host ainda guarda (`snapshot.places`). Presente,
  * o que não está nela sai — o mestre mandou esquecer. Ausente, nada sai.
  */
@@ -91,11 +101,16 @@ export function rememberPlace(
   id: string,
   map: MapData,
   explored: Exploration | undefined,
+  concealed: readonly (readonly RegionPoint[])[],
   remembered: readonly string[] | undefined,
 ): VisitedPlace[] {
   const keep = remembered === undefined ? null : new Set([...remembered, id])
   const kept = keep === null ? [...places] : places.filter((place) => keep.has(place.id))
-  const fresh = { sketch: placeSketch(map), explored: explored ?? null }
+  const fresh = {
+    sketch: placeSketch(map),
+    explored: explored ?? null,
+    concealed: concealed.filter((ring) => ring.length >= 3).map((ring) => ring.map((p) => ({ x: p.x, y: p.y }))),
+  }
   const index = kept.findIndex((place) => place.id === id)
   const previous = index < 0 ? undefined : kept[index]
   if (previous !== undefined) {

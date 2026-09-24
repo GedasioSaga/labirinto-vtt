@@ -100,6 +100,11 @@ export function PlaceMiniature({ place, label }: PlaceMiniatureProps) {
           <DoorMark key={index} x1={wall.x1} y1={wall.y1} x2={wall.x2} y2={wall.y2} />
         ))}
       </g>
+      {/* Zona oculta por cima de tudo, como `redrawConcealed` na tela principal. Um polígono por zona:
+          num caminho só, duas zonas sobrepostas de sentidos opostos abririam um buraco na interseção. */}
+      {place.concealed.map((ring, index) => (
+        <polygon key={index} className="pp-place__concealed" points={ring.map((p) => `${p.x},${p.y}`).join(' ')} fill={UNSEEN} />
+      ))}
     </svg>
   )
 }

@@ -6,8 +6,9 @@
  */
 import { describe, expect, it } from 'vitest'
 import { createEmptyMap } from '../lib/mapFactory'
-import { createExploration, markRings, type Exploration } from '../lib/exploration'
-import type { MapData, Pin, Region } from '../types/map'
+import { createExploration, isPointExplored, markRings, type Exploration } from '../lib/exploration'
+import { filterMapForPlayer } from '../lib/fogFilter'
+import type { MapData, Pin, Region, RegionPoint } from '../types/map'
 import type { StorageLike } from './playerConnection'
 import {
   PLACE_NAMES_KEY,
@@ -91,14 +92,14 @@ describe('placeSketch: o desenho guardado do lugar', () => {
 
 describe('rememberPlace: a lista de lugares visitados', () => {
   it('numera na ordem da primeira visita e, na volta, atualiza sem trocar o número', () => {
-    const um = rememberPlace([], 'l1', mapa('m1'), explorado(100), undefined)
-    const dois = rememberPlace(um, 'l2', mapa('m2'), explorado(100), ['l1', 'l2'])
+    const um = rememberPlace([], 'l1', mapa('m1'), explorado(100), [], undefined)
+    const dois = rememberPlace(um, 'l2', mapa('m2'), explorado(100), [], ['l1', 'l2'])
     expect(dois.map((p) => [p.id, p.number])).toEqual([
       ['l1', 1],
       ['l2', 2],
     ])
     const maisExplorado = explorado(400)
-    const volta = rememberPlace(dois, 'l1', mapa('m1'), maisExplorado, ['l2', 'l1'])
+    const volta = rememberPlace(dois, 'l1', mapa('m1'), maisExplorado, [], ['l2', 'l1'])
     expect(volta.map((p) => [p.id, p.number])).toEqual([
       ['l1', 1],
       ['l2', 2],
@@ -109,9 +110,9 @@ describe('rememberPlace: a lista de lugares visitados', () => {
   })
 
   it('o que o host já não lembra (Esconder planta) sai; o número novo nunca repete um antigo', () => {
-    const tres = ['l1', 'l2', 'l3'].reduce((lista, id) => rememberPlace(lista, id, mapa(id), explorado(100), undefined), rememberPlace([], 'l0', mapa('l0'), explorado(100), undefined))
+    const tres = ['l1', 'l2', 'l3'].reduce((lista, id) => rememberPlace(lista, id, mapa(id), explorado(100), [], undefined), rememberPlace([], 'l0', mapa('l0'), explorado(100), [], undefined))
     expect(tres).toHaveLength(4)
-    const semL1 = rememberPlace(tres, 'l4', mapa('m4'), explorado(100), ['l0', 'l2', 'l3', 'l4'])
+    const semL1 = rememberPlace(tres, 'l4', mapa('m4'), explorado(100), [], ['l0', 'l2', 'l3', 'l4'])
     expect(semL1.map((p) => [p.id, p.number])).toEqual([
       ['l0', 1],
       ['l2', 3],
@@ -121,10 +122,71 @@ describe('rememberPlace: a lista de lugares visitados', () => {
   })
 })
 
+describe('rememberPlace: zona oculta do mestre', () => {
+  const ZONA: RegionPoint[] = [
+    { x: 400, y: 0 },
+    { x: 1000, y: 0 },
+    { x: 1000, y: 1000 },
+    { x: 400, y: 1000 },
+  ]
+
+  function cripta(zonaAtiva: boolean): MapData {
+    const base = createEmptyMap('m1', 'Cripta Rubra', 20, 20, 50)
+    const sala: Region = {
+      id: 'r1',
+      points: [
+        { x: 300, y: 300 },
+        { x: 500, y: 300 },
+        { x: 500, y: 500 },
+        { x: 300, y: 500 },
+      ],
+      tag: '',
+      fillColor: '#445566',
+      fillPattern: 'solid',
+      data: {},
+      room: { shape: 'rect', name: 'Sala do Trono', nameHiddenFromPlayers: false },
+    }
+    return {
+      ...base,
+      regions: [sala],
+      tokens: [{ id: 't', characterId: null, name: 'Eva', x: 250, y: 250, size: 1, image: null }],
+      concealZones: zonaAtiva ? [{ id: 'z', points: ZONA, name: 'Cofre', revealed: false }] : [],
+    }
+  }
+
+  it('explorou, o mestre ligou a zona por cima: o lugar guarda a zona do snapshot, porque o explorado e a Sala não esquecem', () => {
+    const exp = createExploration({ width: 1000, height: 1000, grid: 50 })
+    const antes = filterMapForPlayer(cripta(false), 'p1', { p1: ['t'] }, 400, exp)
+    markRings(exp, antes.vision)
+    const depois = filterMapForPlayer(cripta(true), 'p1', { p1: ['t'] }, 400, exp)
+    markRings(exp, depois.vision)
+    // Por que a miniatura precisa da zona: a célula de dentro continua explorada e a Sala sai inteira.
+    expect(isPointExplored(exp, { x: 420, y: 420 })).toBe(true)
+    expect(placeSketch(depois.map).rooms[0]?.points.map((p) => p.x)).toContain(500)
+
+    const [lugar] = rememberPlace([], 'l1', depois.map, exp, depois.concealed, undefined)
+    if (lugar === undefined) throw new Error('sem lugar')
+    expect(lugar.concealed).toEqual([ZONA])
+    // Cópia: o snapshot seguinte não mexe no que ficou guardado.
+    expect(lugar.concealed[0]).not.toBe(depois.concealed[0])
+    // Nem o nome da zona nem o da Sala entram no que o lugar guarda.
+    expect(JSON.stringify(lugar)).not.toContain('Cofre')
+  })
+
+  it('o mestre revelou a zona e ele voltou: a cobertura sai; anel sem área nunca entra', () => {
+    const [comZona] = rememberPlace([], 'l1', cripta(true), undefined, [ZONA, [{ x: 0, y: 0 }, { x: 10, y: 10 }]], undefined)
+    if (comZona === undefined) throw new Error('sem lugar')
+    expect(comZona.concealed).toEqual([ZONA])
+    const [revelado] = rememberPlace([comZona], 'l1', cripta(false), undefined, [], undefined)
+    expect(revelado?.number).toBe(1)
+    expect(revelado?.concealed).toEqual([])
+  })
+})
+
 describe('nome do lugar dado pelo jogador', () => {
   it('sem nome é "Lugar N"; o nome dele vale por jogador e sobrevive a reabrir a página', () => {
     const storage = new MemoryStorage()
-    const [lugar] = rememberPlace([], 'l2', mapa('m2'), explorado(100), undefined)
+    const [lugar] = rememberPlace([], 'l2', mapa('m2'), explorado(100), [], undefined)
     if (lugar === undefined) throw new Error('sem lugar')
     expect(placeLabel({ ...lugar, number: 2 }, {})).toBe('Lugar 2')
     savePlaceName(storage, 'p1', 'l2', '  Mercado  ')

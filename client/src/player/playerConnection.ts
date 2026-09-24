@@ -694,7 +694,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     // LUGARES: o desenho sai do recorte do MESTRE (`map`), não do `next` com os
     // movimentos otimistas — e nem leva ficha nenhuma (`placeSketch`).
     const { place, places: remembered } = where
-    const places = place === undefined ? state.places : rememberPlace(state.places ?? [], place, map, explored, remembered)
+    const places = place === undefined ? state.places : rememberPlace(state.places ?? [], place, map, explored, concealed, remembered)
     // `sceneName` entra SEMPRE, inclusive `undefined`: snapshot sem nome apaga o selo da cena anterior.
     setState({ status: 'playing', rev, map: next, vision, explored, ownTokens, concealed, sceneName, place, places, error: undefined })
   }

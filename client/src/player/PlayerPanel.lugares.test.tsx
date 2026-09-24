@@ -9,7 +9,7 @@ import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createEmptyMap } from '../lib/mapFactory'
 import { createExploration, markRings } from '../lib/exploration'
-import type { Pin } from '../types/map'
+import type { Pin, Region, RegionPoint } from '../types/map'
 import { DEFAULT_PLAYER_SETTINGS, PlayerPanel } from './PlayerPanel'
 import { rememberPlace, type VisitedPlace } from './playerPlaces'
 
@@ -27,7 +27,7 @@ function explorado() {
 }
 
 function quatroLugares(): VisitedPlace[] {
-  return ['l1', 'l2', 'l3', 'l4'].reduce<VisitedPlace[]>((lista, id) => rememberPlace(lista, id, createEmptyMap(`m-${id}`, '', 10, 10, 50), explorado(), undefined), [])
+  return ['l1', 'l2', 'l3', 'l4'].reduce<VisitedPlace[]>((lista, id) => rememberPlace(lista, id, createEmptyMap(`m-${id}`, '', 10, 10, 50), explorado(), [], undefined), [])
 }
 
 const TEMPLO: Pin = { id: 'pt', x: 300, y: 150, kind: 'exclamacao', description: 'Portas do Templo\nGrandes, de bronze.', image: null }
@@ -185,7 +185,7 @@ describe('PlayerPanel: aba Lugares', () => {
   })
 
   it('lugar sem nada explorado (mestre sem memória) mostra o quadro escuro, sem desenho nenhum', () => {
-    const [vazio] = rememberPlace([], 'l1', createEmptyMap('m-l1', '', 10, 10, 50), undefined, undefined)
+    const [vazio] = rememberPlace([], 'l1', createEmptyMap('m-l1', '', 10, 10, 50), undefined, [], undefined)
     if (vazio === undefined) throw new Error('sem lugar')
     render({ places: [vazio] })
     abaLugares()
@@ -193,6 +193,53 @@ describe('PlayerPanel: aba Lugares', () => {
     expect(arte?.getAttribute('aria-label')).toBe('Lugar 1: nada explorado ainda')
     expect(arte?.getElementsByTagName('clipPath')).toHaveLength(0)
     expect(arte?.getElementsByTagName('rect')).toHaveLength(1)
+  })
+
+  it('zona oculta ligada depois de explorar: a miniatura e a vista grande cobrem a zona de preto por cima da Sala', () => {
+    const zona: RegionPoint[] = [
+      { x: 100, y: 0 },
+      { x: 500, y: 0 },
+      { x: 500, y: 500 },
+      { x: 100, y: 500 },
+    ]
+    const base = createEmptyMap('m-l1', '', 10, 10, 50)
+    const sala: Region = {
+      id: 'r1',
+      points: [
+        { x: 0, y: 0 },
+        { x: 200, y: 0 },
+        { x: 200, y: 200 },
+        { x: 0, y: 200 },
+      ],
+      tag: '',
+      fillColor: '#445566',
+      fillPattern: 'solid',
+      data: {},
+      room: { shape: 'rect', name: '', nameHiddenFromPlayers: false },
+    }
+    // A Sala cruza a borda da zona: o recorte a entrega inteira, e o explorado (0..200) entra na zona.
+    const [lugar] = rememberPlace([], 'l1', { ...base, regions: [sala] }, explorado(), [zona], undefined)
+    if (lugar === undefined) throw new Error('sem lugar')
+    render({ places: [lugar] })
+    abaLugares()
+
+    function cobertura(svg: Element | null | undefined): { pontos: string[]; cor: string[]; depoisDaSala: boolean } {
+      if (!svg) throw new Error('sem miniatura')
+      const cobre = Array.from(svg.querySelectorAll('.pp-place__concealed'))
+      const salaDesenhada = Array.from(svg.getElementsByTagName('polygon')).find((p) => p.getAttribute('fill') === '#445566')
+      if (!salaDesenhada) throw new Error('sem a Sala')
+      return {
+        pontos: cobre.map((c) => c.getAttribute('points') ?? ''),
+        cor: cobre.map((c) => c.getAttribute('fill') ?? ''),
+        // Pintado DEPOIS da Sala = por cima dela.
+        depoisDaSala: cobre.every((c) => (salaDesenhada.compareDocumentPosition(c) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0),
+      }
+    }
+
+    const esperado = { pontos: ['100,0 500,0 500,500 100,500'], cor: ['#0b0b0d'], depoisDaSala: true }
+    expect(cobertura(container.querySelector('.pp-place svg'))).toEqual(esperado)
+    act(() => botao('Abrir Lugar 1 em tamanho grande').click())
+    expect(cobertura(document.querySelector('[role="dialog"] svg'))).toEqual(esperado)
   })
 
   it('apagar o nome inteiro devolve "Lugar N" (nome vazio não existe)', () => {

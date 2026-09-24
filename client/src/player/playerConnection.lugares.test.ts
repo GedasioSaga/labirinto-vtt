@@ -96,6 +96,24 @@ describe('Lugares no cliente do jogador', () => {
     expect(JSON.stringify(places.map((p) => p.sketch))).not.toContain('Bruno')
   })
 
+  it('a zona oculta do snapshot fica no lugar (a miniatura cobre de preto) e segue lá depois que ele sai; sem o campo, nada cobre', () => {
+    const zona = [
+      { x: 100, y: 0 },
+      { x: 300, y: 0 },
+      { x: 300, y: 300 },
+      { x: 100, y: 300 },
+    ]
+    const { connection, socket } = conectado()
+    socket.receive(snapshot(1, mapa('m-a'), { place: 'l1', places: ['l1'], concealed: [zona] }))
+    const { concealed: _semCampo, ...semZona } = snapshot(2, mapa('m-b'), { place: 'l2', places: ['l1', 'l2'] })
+    socket.receive(semZona)
+    const places = connection.getState().places ?? []
+    expect(places.map((p) => [p.id, p.concealed])).toEqual([
+      ['l1', [zona]],
+      ['l2', []],
+    ])
+  })
+
   it('lugar que o host esqueceu (fora de `places`) sai da lista', () => {
     const { connection, socket } = conectado()
     socket.receive(snapshot(1, mapa('m-a'), { place: 'l1', places: ['l1'] }))
