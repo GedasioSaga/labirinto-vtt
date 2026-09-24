@@ -55,6 +55,7 @@ import { PinIconControls, type PinIconControlsProps } from './PinIconControls'
 import { TokenLibraryPanel, type TokenLibraryPanelProps } from './TokenLibraryPanel'
 import { isAxisAlignedRect, roomDimensions } from '../lib/roomOps'
 import { roomRotationOf } from '../lib/roomRotation'
+import { pinKindShowsIcon } from '../lib/pins'
 import { DEFAULT_TEXT_FONT_FAMILY } from '../lib/drawingFactory'
 import { panelHeadingTool, type PropertyGroupId } from '../lib/toolProperties'
 import { TOOL_LABELS } from './labels'
@@ -310,9 +311,9 @@ export function PropertiesPanel({
               `LineShapeControls` logo abaixo usa a mesma composição): o último
               botão daquela seção é "Excluir ponto de interesse", e ação
               destrutiva não pode ficar no meio da coluna. */}
-          {/* O pino de viagem tem símbolo próprio (a passagem): a grade de
-              ícones não faria nada nele, então não aparece. */}
-          {pin.kind !== 'viagem' && <PinIconControls {...pinIcon} pinSelected={pinSelected} />}
+          {/* Viagem e alavanca têm símbolo próprio (a passagem, a alavanca):
+              a grade de ícones não faria nada nelas, então não aparece. */}
+          {pinKindShowsIcon(pin.kind) && <PinIconControls {...pinIcon} pinSelected={pinSelected} />}
           <PinControls {...pin} />
         </ToolPropertiesSection>
         {playerSecret && (

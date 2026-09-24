@@ -206,6 +206,17 @@ export interface PinTakeMessage {
   pinId: string
 }
 
+/**
+ * ALAVANCA: o jogador puxa a alavanca `pinId`. Só o id do pino — qual porta
+ * ela move o jogador nem conhece (`lib/fogFilter.ts`). O host valida (pino
+ * visível, é alavanca, ficha encostada, porta ligada destrancada) e aplica.
+ * Aditiva pelo mesmo critério de `door.toggle`.
+ */
+export interface PinLeverMessage {
+  type: 'pin.lever'
+  pinId: string
+}
+
 /** O jogador dá o item `itemId` da própria mochila à ficha `toTokenId`, de um colega encostado. */
 export interface ItemGiveMessage {
   type: 'item.give'
@@ -224,6 +235,17 @@ export type PlayerMessage =
   | PinTravelRequestMessage
   | PinTakeMessage
   | ItemGiveMessage
+  | PinLeverMessage
+
+/**
+ * Por que a alavanca não moveu nada. `unavailable` junta pino inexistente, no
+ * escuro, oculto e que não é alavanca. `stuck` junta porta ligada trancada,
+ * alavanca solta e porta apagada: um motivo por caso diria ao jogador o
+ * estado de uma porta que ele talvez nem veja.
+ */
+export type PinLeverRejection = 'unavailable' | 'far' | 'stuck'
+
+export const PIN_LEVER_REJECTIONS: readonly PinLeverRejection[] = ['unavailable', 'far', 'stuck']
 
 /**
  * Por que o host não levou o "Pegar" ao mestre. `unavailable` junta pino
@@ -322,6 +344,10 @@ export type HostMessage =
   | { type: 'pin.take.answer'; answer: 'taken'; nome: string }
   | { type: 'pin.take.answer'; answer: 'denied' }
   | { type: 'item.give.rejected'; reason: ItemGiveRejection }
+  // ALAVANCA. `pulled` não diz qual porta nem se abriu ou fechou: a porta
+  // ligada pode estar fora da vista, e o jogador só vê o que o recorte mostra.
+  | { type: 'pin.lever.answer'; answer: 'pulled' }
+  | { type: 'pin.lever.rejected'; reason: PinLeverRejection }
   | { type: 'pin.travel.denied' }
   // `by: 'master'`: o mestre levou o jogador sem pedido ("Mandar para…" do
   // painel Grupo). Aditivo: jogador antigo ignora o campo e lê "Você chegou".
@@ -537,6 +563,8 @@ export function parsePlayerMessage(raw: unknown): PlayerMessage | null {
       return isBoundedString(value.itemId, 1, REQ_ID_MAX_LENGTH) && isBoundedString(value.toTokenId, 1, REQ_ID_MAX_LENGTH)
         ? { type: 'item.give', itemId: value.itemId, toTokenId: value.toTokenId }
         : null
+    case 'pin.lever':
+      return isBoundedString(value.pinId, 1, REQ_ID_MAX_LENGTH) ? { type: 'pin.lever', pinId: value.pinId } : null
     default:
       return null
   }

@@ -214,11 +214,12 @@ export interface PlayerSecret {
 }
 
 /**
- * "!" (aqui tem algo), "?" (investigue aqui) e o pino de VIAGEM: a passagem
- * que leva de uma cena da aventura para outra. O terceiro valor é aditivo —
- * pino gravado antes dele continua sendo "!" ou "?".
+ * "!" (aqui tem algo), "?" (investigue aqui), o pino de VIAGEM (a passagem
+ * que leva de uma cena da aventura para outra) e a ALAVANCA (abre ou fecha a
+ * porta ligada em `Pin.portaLigada`). Os dois últimos são aditivos — pino
+ * gravado antes deles continua sendo "!" ou "?".
  */
-export type PinKind = 'exclamacao' | 'interrogacao' | 'viagem'
+export type PinKind = 'exclamacao' | 'interrogacao' | 'viagem' | 'alavanca'
 
 /**
  * Para onde um pino de viagem leva: a cena de destino e o pino PAR dela, que é
@@ -381,6 +382,14 @@ export interface Pin extends PlayerSecret {
    * do nome e de saber se pede ao mestre), sempre numa cópia limpa.
    */
   item?: PinItem
+  /**
+   * Só da ALAVANCA: o id da parede-porta DESTE mapa que ela abre ou fecha —
+   * pode ser de outra sala (`lib/lever.ts`). Ausente = alavanca solta, que não
+   * move nada; porta apagada depois vale o mesmo. NUNCA sai no recorte do
+   * jogador (`lib/fogFilter.ts`): a porta pode estar atrás da névoa, e o id
+   * dela diria que ela existe. Sem migração: mapa antigo não tem alavanca.
+   */
+  portaLigada?: string
 }
 
 /**

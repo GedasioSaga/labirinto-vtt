@@ -21,6 +21,7 @@ import { cloneEntity, cloneLinkedWalls, cloneRoomDescendants, type CloneableEnti
 import { ancestorsOf, descendantsOf, subtreeIds } from '../lib/roomNesting'
 import { roomRotationOf, rotationDelta } from '../lib/roomRotation'
 import { canInteract } from '../lib/itemTransform'
+import { pullLever } from '../lib/lever'
 import { applyPatrolOp, type PatrolOp } from '../lib/npcPatrol'
 import { toggleTokenCondition as toggleConditionOnMap } from '../lib/tokenConditions'
 import { advanceHazard as advanceHazardOnMap, setRoomHazard as setRoomHazardOnMap } from '../lib/hazards'
@@ -676,8 +677,13 @@ interface MapStoreState {
    *  mantido em dia por `stores/adventureStore.ts`, fora deste desfazer. */
   updatePin: (
     id: string,
-    patch: Partial<Pick<MapData['pins'][number], 'kind' | 'icon' | 'description' | 'image' | 'locked' | 'destino' | 'passagem' | 'rotulo' | 'saidas' | 'item' | 'presoA'>>,
+    patch: Partial<Pick<MapData['pins'][number], 'kind' | 'icon' | 'description' | 'image' | 'locked' | 'destino' | 'passagem' | 'rotulo' | 'saidas' | 'item' | 'presoA' | 'portaLigada'>>,
   ) => void
+  /**
+   * ALAVANCA: o mestre aciona pelo painel — a porta ligada abre ou fecha, com
+   * histórico. Porta trancada ou alavanca solta: nada, nem entrada no desfazer.
+   */
+  pullLever: (pinId: string) => void
   /** Arrasto do pino — SEM histórico, par de `commitDragHistory(before)` no
    *  pointerup, mesmo padrão de `moveTokenLive`/`movePropLive`. */
   movePinLive: (id: string, x: number, y: number) => void
@@ -1441,6 +1447,10 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
     updatePin: (id, patch) => {
       if (mapFactory.updatePin(get().map, id, patch) === get().map) return
       withHistory((map) => mapFactory.updatePin(map, id, patch))
+    },
+    pullLever: (pinId) => {
+      if (pullLever(get().map, pinId) === get().map) return
+      withHistory((map) => pullLever(map, pinId))
     },
     movePinLive: (id, x, y) => set((state) => ({ map: mapFactory.setPinPosition(state.map, id, x, y) })),
     removePin: (id) => {

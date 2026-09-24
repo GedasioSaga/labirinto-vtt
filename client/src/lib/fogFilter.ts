@@ -1029,6 +1029,10 @@ export function alarmForPlayer(alarm: SceneAlarm | null, sceneId: string | null)
  *   se comporta, não para onde ela leva.
  * - `presoA` NUNCA: o id da ficha que o pino acompanha é do mestre. O jogador
  *   vê o pino andar (x/y já chegam no lugar novo), não a ligação.
+ * - `portaLigada` (alavanca) NUNCA: a porta ligada pode estar em outra sala,
+ *   atrás da névoa, e o id dela diria que ela existe. O jogador recebe o tipo
+ *   `alavanca` (o cartão oferece "Puxar") e vê a porta mexer só se ela estiver
+ *   no recorte dele.
  */
 function pinForPlayer(pin: Pin): Pin {
   // LISTA DO QUE VAI, e não "copia tudo e apaga o que não pode": campo que o
