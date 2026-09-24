@@ -457,6 +457,13 @@ interface PlayerMemory {
   vision: RegionPoint[][]
   /** O explorado que seguiu no último snapshot desta cena. `null` = nenhum ainda. */
   sentExplored: Pick<ExploredWire, 'bits' | 'rings'> | null
+  /**
+   * DENTRO DA SALA SECRETA — salas secretas deste mapa em que a ficha dele já
+   * esteve (`occupiedSecretRooms` do recorte). Abrem só para ele, também depois
+   * que ele sai. Vive na memória da cena: "Esconder planta", mapa novo e o kick
+   * esquecem junto com o explorado.
+   */
+  secretRooms: Set<string>
 }
 
 /**
@@ -622,6 +629,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       doors: new Map(),
       vision: [],
       sentExplored: null,
+      secretRooms: new Set(),
     }
     // Apagar e regravar põe a cena no fim da ordem: é a mais recente agora.
     byScene.delete(map.id)
@@ -672,7 +680,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     return allScenes(world).flatMap((scene) => {
       if (sceneKey(scene) === sceneKey(here) || !ownsTokenIn(playerId, scene)) return []
       const memory = existingMemory(playerId, scene.map)
-      const view = filterMapForPlayer(scene.map, playerId, ownership, radiusFor(playerId), memory?.exp, memory?.doors, pinAudiences)
+      const view = filterMapForPlayer(scene.map, playerId, ownership, radiusFor(playerId), memory?.exp, memory?.doors, pinAudiences, undefined, memory?.secretRooms)
       return ownTokensInView(view, owned)
     })
   }
@@ -837,7 +845,12 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const memory = memoryFor(playerId, map)
     const exp = memory.exp
     const entered = enteredRooms.get(playerId)?.get(map.id)
-    const view = filterMapForPlayer(map, playerId, ownership, radiusFor(playerId), exp, memory.doors, pinAudiences, entered)
+    const view = filterMapForPlayer(map, playerId, ownership, radiusFor(playerId), exp, memory.doors, pinAudiences, entered, memory.secretRooms)
+    // DENTRO DA SALA SECRETA: a sala onde a ficha dele está fica descoberta por
+    // ele — continua no mapa lembrado depois que ele sai. Só dele: é a memória
+    // desta cena, deste jogador.
+    const discoveredBefore = memory.secretRooms.size
+    for (const id of view.occupiedSecretRooms) memory.secretRooms.add(id)
     // Zona oculta ativa e sala secreta: célula que toca nelas não vira explorada
     // (senão o jogador guardaria a planta escondida e o formato dela).
     markRings(exp, view.vision, view.blocked)
@@ -859,7 +872,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const ownTokens = (ownership[playerId] ?? []).filter((id) => sent.has(id))
     const explored = encodeExploration(exp)
     const previous = memory.sentExplored
-    const settled = previous !== null && previous.bits === explored.bits && previous.rings === explored.rings
+    // Sala secreta descoberta agora também muda o recorte seguinte.
+    const settled = previous !== null && previous.bits === explored.bits && previous.rings === explored.rings && memory.secretRooms.size === discoveredBefore
     memory.sentExplored = { bits: explored.bits, rings: explored.rings }
     const base: Extract<HostMessage, { type: 'snapshot' }> = { type: 'snapshot', rev, map: view.map, vision: view.vision, explored, ownTokens, concealed: view.concealed }
     // Sem ficha em outra cena o campo nem sai: o snapshot fica igual ao de sempre.
@@ -1173,7 +1187,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const wall = map.walls.find((w) => w.id === msg.wallId)
     if (wall === undefined || wall.door === null) return reject('not_visible')
     const memory = memoryFor(playerId, map)
-    const view = filterMapForPlayer(map, playerId, ownership, radiusFor(playerId), memory.exp, memory.doors, pinAudiences)
+    const view = filterMapForPlayer(map, playerId, ownership, radiusFor(playerId), memory.exp, memory.doors, pinAudiences, undefined, memory.secretRooms)
     if (!view.visibleDoorIds.includes(wall.id)) return reject('not_visible')
     // Trancada antes de longe: a cor da porta já diz que está trancada, e "Trancada" é a informação útil.
     if (wall.door.locked) return reject('locked')
@@ -1236,7 +1250,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const pin = from.map.pins.find((p) => p.id === pinId)
     if (pin === undefined) return null
     const memory = memoryFor(playerId, from.map)
-    const view = filterMapForPlayer(from.map, playerId, ownership, radiusFor(playerId), memory.exp, memory.doors, pinAudiences)
+    const view = filterMapForPlayer(from.map, playerId, ownership, radiusFor(playerId), memory.exp, memory.doors, pinAudiences, undefined, memory.secretRooms)
     if (!view.map.pins.some((p) => p.id === pinId)) return null
     // Trancada: ninguém passa. Cai no mesmo `null` de todo o resto, então o
     // jogador lê o motivo genérico de sempre e nada chega ao mestre. Estar aqui,

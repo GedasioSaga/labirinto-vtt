@@ -141,8 +141,19 @@ describe('texto da sala ao entrar', () => {
     expect(volta.outbound.some((o) => o.msg.type === 'room.text')).toBe(false)
   })
 
-  it('sala secreta não dispara nem manda o texto', () => {
+  it('sala secreta: só quem está dentro (a sala abriu para ela) lê o texto; quem está fora não recebe nada dele', () => {
     const map = mapa(LA_FORA, [sala('cozinha', 100, 100, 300, 300, { textoAoEntrar: TEXTO, notaDoMestre: NOTA }, { secret: true })])
+    const r = mesa(map).broadcast(map)
+    expect(cartoes(r, 'c-carla')).toEqual([{ type: 'room.text', id: 'cozinha', title: 'Cozinha', text: TEXTO }])
+    expect(cartoes(r, 'c-enzo')).toEqual([])
+    expect(JSON.stringify(para(r, 'c-enzo'))).not.toContain('pão queimado')
+    expect(JSON.stringify(para(r, 'c-bruno'))).not.toContain('pão queimado')
+    expect(JSON.stringify(r.outbound)).not.toContain('SEGREDO-DO-MESTRE')
+  })
+
+  it('sala secreta com ninguém dentro não dispara nem manda o texto', () => {
+    const fora = [ficha('carla', 700, 350), ficha('enzo', 700, 250), ficha('bruno', 1400, 250)]
+    const map = mapa(fora, [sala('cozinha', 100, 100, 300, 300, { textoAoEntrar: TEXTO, notaDoMestre: NOTA }, { secret: true })])
     const r = mesa(map).broadcast(map)
     expect(cartoes(r, 'c-carla')).toEqual([])
     expect(JSON.stringify(r.outbound)).not.toContain('pão queimado')
