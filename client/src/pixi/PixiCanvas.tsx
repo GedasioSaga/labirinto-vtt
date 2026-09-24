@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Application, Container, Graphics, Sprite, Texture, Assets, Rectangle } from 'pixi.js'
 import { dataUrlToBytes, imageExportScale, mapForImageExport, type ImageExportOptions, type MapImageExporter } from '../lib/mapImageExport'
 import { convertFileSrc } from '@tauri-apps/api/core'
@@ -170,6 +170,8 @@ import { cloneEntity, type CloneableEntity } from '../lib/entityClone'
 import { placeNewRoom, subtreeIds } from '../lib/roomNesting'
 import { useToastStore } from '../stores/toastStore'
 import { AVISO_PINCEL_SEM_ZONA, CORRIDOR_DISCARDED_TEXT, STAIR_CLICK_WITHOUT_DRAG_TEXT } from '../components/labels'
+import { WallGestureMenu } from '../components/WallGestureMenu'
+import { paredeDoGesto } from '../lib/abrirVao'
 import {
   visibleWalls, visibleRegions, visibleStairs, visibleLights, visibleDrawings, visibleTokens, visibleProps, visiblePins,
   canInteractInLayer, isLayerLocked, wallLayer, regionLayer, stairLayer, lightLayer, tokenLayer, propLayer, drawingLayer,
@@ -346,6 +348,10 @@ function describeDeletion(map: MapData, selection: readonly { kind: SelectionKin
 // explícito sobre qual tolerância está em jogo.
 const VERTEX_MAGNET_TOLERANCE = 12
 
+/** Folga do clique direito sobre a parede (menu Abrir vão / Desabar), em px de
+ *  TELA: a linha é fina e o alvo não pode encolher com o zoom. */
+const WALL_GESTURE_HIT_TOLERANCE = 12
+
 /** Folga de clique do pino, em px de TELA — o alvo do dedo não encolhe com o zoom. */
 const PIN_TAP_TOLERANCE_PX = 6
 
@@ -506,6 +512,14 @@ interface PixiCanvasProps {
  */
 type NameEditorState = { kind: 'room'; regionId: string; value: string } | { kind: 'token'; at: Point; value: string }
 
+interface MenuDaParede {
+  wallId: string
+  ponto: Point
+  x: number
+  y: number
+  limite: { width: number; height: number }
+}
+
 const MIN_ROOM_NAME_EDITOR_FONT = 12
 
 /** Fundo do canvas do editor; é também o fundo da imagem exportada (fora do chão). */
@@ -563,6 +577,11 @@ export function PixiCanvas({
   }, [onShowShortcuts])
 
   const [nameEditor, setNameEditor] = useState<NameEditorState | null>(null)
+  // Clique direito numa parede: o menu "Abrir vão aqui / Desabar parede"
+  // (WallGestureMenu). `ponto` é o clique em px de MUNDO, para o vão abrir
+  // onde o mestre apontou; `x`/`y` e `limite` são px do contêiner.
+  const [menuDaParede, setMenuDaParede] = useState<MenuDaParede | null>(null)
+  const fecharMenuDaParede = useCallback(() => setMenuDaParede(null), [])
   // Enter e Esc desmontam o campo, e o navegador pode disparar blur depois;
   // sem esta trava o blur gravaria o nome que o Esc acabou de cancelar.
   const nameEditorOpenRef = useRef(false)
@@ -3115,6 +3134,17 @@ export function PixiCanvas({
           return
         }
 
+        // Botão direito em cima de parede é o gesto do menu da parede
+        // (`onContextMenu`): não pode começar, por baixo, um traço de parede,
+        // uma seleção ou um arrasto. O pincel de blocos fica de fora — nele o
+        // botão direito apaga.
+        if (event.button === 2) {
+          const estado = useMapStore.getState()
+          const pincelDeBlocos = estado.activeTool === 'floor' && estado.floorShapeKind === 'blocos'
+          const sobParede = paredeDoGesto(estado.map, toWorldPoint(event.global.x, event.global.y), WALL_GESTURE_HIT_TOLERANCE / camera.scale)
+          if (!pincelDeBlocos && sobParede !== null) return
+        }
+
         const worldPoint = toWorldPoint(event.global.x, event.global.y)
         const { map, activeTool, selection, setSelection } = useMapStore.getState()
         // Onda 4, item 24 — os blocos de alça/edição abaixo (resize de
@@ -5496,8 +5526,22 @@ export function PixiCanvas({
        * direito continuar normal em toda outra ferramenta.
        */
       const onContextMenu = (event: MouseEvent) => {
-        const { activeTool, floorShapeKind } = useMapStore.getState()
-        if (activeTool === 'floor' && floorShapeKind === 'blocos') event.preventDefault()
+        const { activeTool, floorShapeKind, map } = useMapStore.getState()
+        if (activeTool === 'floor' && floorShapeKind === 'blocos') {
+          event.preventDefault()
+          return
+        }
+        // ABRIR VÃO / DESABAR no meio da sessão: clique direito EM CIMA de uma
+        // parede abre o menu da parede, em qualquer outra ferramenta — o
+        // mestre não troca de ferramenta nem vai ao painel. Fora de parede o
+        // clique direito continua sendo o do navegador.
+        const caixa = el.getBoundingClientRect()
+        const naTela = { x: event.clientX - caixa.left, y: event.clientY - caixa.top }
+        const ponto = toWorldPoint(naTela.x, naTela.y)
+        const parede = paredeDoGesto(map, ponto, WALL_GESTURE_HIT_TOLERANCE / camera.scale)
+        if (parede === null) return
+        event.preventDefault()
+        setMenuDaParede({ wallId: parede.id, ponto, x: naTela.x, y: naTela.y, limite: { width: caixa.width, height: caixa.height } })
       }
       el.addEventListener('contextmenu', onContextMenu)
 
@@ -5989,6 +6033,16 @@ export function PixiCanvas({
             fontSize: Math.max(MIN_ROOM_NAME_EDITOR_FONT, roomLabelFontSize(editorGrid) * editorCamera.scale),
             zIndex: 2,
           }}
+        />
+      )}
+      {menuDaParede && (
+        <WallGestureMenu
+          x={menuDaParede.x}
+          y={menuDaParede.y}
+          limite={menuDaParede.limite}
+          onClose={fecharMenuDaParede}
+          onAbrirVao={() => useMapStore.getState().abrirVaoAqui(menuDaParede.wallId, menuDaParede.ponto)}
+          onDesabar={() => useMapStore.getState().desabarParede(menuDaParede.wallId)}
         />
       )}
     </div>
