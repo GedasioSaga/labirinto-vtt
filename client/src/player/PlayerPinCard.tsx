@@ -3,6 +3,7 @@ import type { Pin, PinExitLabel, PinPassage } from '../types/map'
 import { PIN_GLYPH, isPlayerSafePinImage, passageOf } from '../lib/pins'
 import { itemOfPin } from '../lib/items'
 import { PinTravelArt } from '../components/PinSymbolArt'
+import { PASS_CHECK_TEXT } from './travelNotice'
 
 interface PlayerPinCardProps {
   pin: Pin
@@ -67,7 +68,7 @@ const TEXTOS_LIVRE: TextosDaPassagem = {
  */
 const TEXTOS_PASSE: TextosDaPassagem = {
   botao: 'Passar',
-  esperando: 'Conferindo o passe…',
+  esperando: PASS_CHECK_TEXT,
   pergunta: 'Passar por aqui? Sem o passe, o pedido vai ao mestre.',
   confirmar: 'Passar',
 }
