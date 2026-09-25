@@ -22,6 +22,7 @@ import { moveTokenCarryingLights, withoutAttachment } from './lightAttachment'
 import { seatStairPins, withoutStairPins } from './stairTravel'
 import { carryAttachedPins, carryPinsByTokenSteps } from './pinAttach'
 import { carrierIdOf, followStep } from './carry'
+import { mapaDoPiso, pisoDe } from './pisos'
 import {
   resizeRectDrawing, resizeEllipseDrawing, resizePolygonDrawing, resizePropBox, resizeCircleDrawingRadius,
   type Corner, type ResizeModifiers,
@@ -638,7 +639,8 @@ export function removeToken(map: MapData, tokenId: string): MapData {
  * deslocamento, então o ferido acompanha em todos esses caminhos sem cada um
  * lembrar dele. Cada ficha levada tem o PRÓPRIO trajeto checado
  * (`followStep`): parede no caminho dela a deixa para trás, mesmo que quem
- * leva tenha passado. Ficha inexistente: mapa intocado.
+ * leva tenha passado. PISOS: só a planta do piso DELA (`mapaDoPiso`) barra —
+ * no 1º piso, a parede do térreo não é parede. Ficha inexistente: mapa intocado.
  */
 export function setTokenPosition(map: MapData, tokenId: string, x: number, y: number): MapData {
   const moving = map.tokens.find((t) => t.id === tokenId)
@@ -649,7 +651,7 @@ export function setTokenPosition(map: MapData, tokenId: string, x: number, y: nu
   const withLights = moveTokenCarryingLights(map, tokenId, x, y)
   const moved: MapData = {
     ...withLights,
-    tokens: withLights.tokens.map((t) => (follows(t) ? followStep(map, t, dx, dy) : t)),
+    tokens: withLights.tokens.map((t) => (follows(t) ? followStep(mapaDoPiso(map, pisoDe(t)), t, dx, dy) : t)),
   }
   // O pino preso à ficha LEVADA anda o passo real dela (zero se a parede a barrou).
   const followerIds = new Set(map.tokens.filter(follows).map((t) => t.id))
