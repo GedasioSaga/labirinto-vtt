@@ -168,6 +168,23 @@ describe('fogFilter — pisos: o que anda com a ficha não entrega quem subiu', 
     expect(doDono.map.tokens.map((t) => t.id)).toEqual(['lia', 'ferido'])
   })
 
+  it('a ficha levada por quem está em outro piso não sai nem pela borda; a do mesmo piso, pela borda, sai', () => {
+    // Planta de `fogFilter.fichaPelaBorda.test.ts`: parede em x = 1000 com vão em y 450-550.
+    // Do outro lado, logo abaixo do canto, o centro da ficha fica na sombra e só a borda de cima pega a luz do vão.
+    const corredor = (ferido: Token, carregador: Token): MapData => ({
+      ...createEmptyMap('m-corredor', 'Corredor', 40, 20, 50),
+      walls: [wall('norte', 1000, 0, 1000, 450), wall('sul', 1000, 550, 1000, 1000)],
+      tokens: [token('lia', 700, 250), carregador, ferido],
+    })
+    const noVao = token('ferido', 1035, 600, { levadoPor: 'caio' })
+    // Pré-condição: o Caio no mesmo piso — o ferido que ele leva aparece pela borda.
+    const mesmoPiso = filterMapForPlayer(corredor(noVao, token('caio', 1800, 900)), 'A', DONOS, RADIUS)
+    expect(mesmoPiso.map.tokens.map((t) => t.id)).toEqual(['lia', 'ferido'])
+    // O Caio subiu e o ferido ficou no térreo (arquivo feito à mão): a borda à vista não o entrega.
+    const outroPiso = filterMapForPlayer(corredor(noVao, token('caio', 1800, 900, { piso: 1 })), 'A', DONOS, RADIUS)
+    expect(outroPiso.map.tokens.map((t) => t.id)).toEqual(['lia'])
+  })
+
   it('sem piso nenhum, o pino preso e a ficha levada à vista continuam saindo (nada muda no mapa de um piso)', () => {
     const view = filterMapForPlayer(terreoComCaio(), 'A', DONOS, RADIUS)
     expect(view.map.tokens.map((t) => t.id)).toEqual(['lia', 'caio', 'ferido'])
