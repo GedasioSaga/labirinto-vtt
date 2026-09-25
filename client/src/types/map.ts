@@ -738,6 +738,10 @@ export interface TokenPatrol {
   atual: number
 }
 
+/**
+ * Ficha no mapa. Sai para o jogador por LISTA BRANCA (`tokenForPlayer` em
+ * `lib/fogFilter.ts`): campo novo aqui fica com o mestre até entrar lá.
+ */
 export interface Token extends PlayerSecret, NoPiso {
   id: string
   characterId: string | null
@@ -806,7 +810,7 @@ export interface Token extends PlayerSecret, NoPiso {
   vigia?: TokenWatch | null
   /**
    * Só no RECORTE do jogador: a marca do guarda que ele enxerga
-   * (`tokenWatchForPlayer`). O que estiver gravado aqui no mapa do mestre é
+   * (`tokenForPlayer` em `lib/fogFilter.ts`). O que estiver gravado aqui no mapa do mestre é
    * jogado fora pelo recorte.
    */
   alerta?: WatchAlert
@@ -839,6 +843,12 @@ export interface Token extends PlayerSecret, NoPiso {
    *  na ficha emprestada que vai a quem a segura (`lib/fogFilter.ts`) e
    *  `deserializeMap` o descarta se um arquivo trouxer. */
   contrato?: TokenContract
+  /** NPC EMPRESTADO — a ficha de NPC do mestre (`npc`) que o jogador segura
+   *  sem acordo (dada pelo "Atribuir"): anda e dá visão, mas nome e foto são
+   *  do mestre. Campo de FIO, nunca do arquivo: o recorte põe `true` só na
+   *  ficha que vai a quem a segura (`lib/fogFilter.ts`), apaga o que vier do
+   *  mapa do mestre, e `deserializeMap` o descarta se um arquivo trouxer. */
+  emprestada?: boolean
   /** ROTINA DO NPC: onde a ficha fica em cada valor de um ESTADO DO MUNDO
    *  ("Apito: Aurora, Meio, Brasa"). Trocar o estado leva a ficha ao posto,
    *  inclusive para outra cena (`lib/rotinaDoNpc.ts`). Do mestre: NÃO atravessa

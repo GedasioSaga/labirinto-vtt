@@ -1,6 +1,7 @@
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { filterMapForPlayer } from '../lib/fogFilter'
 import { createEmptyMap } from '../lib/mapFactory'
 import type { MapData, Stair, Token } from '../types/map'
 import { PISO_PENDENTE_MAX_MS, PlayerEscada } from './PlayerEscada'
@@ -41,6 +42,12 @@ describe('PlayerEscada — subir e descer na tela do jogador', () => {
   const render = (map: MapData, own: string[], onTrocar: (tokenId: string, stairId: string) => void = () => {}) =>
     act(() => root.render(<PlayerEscada map={map} ownTokens={own} onTrocar={onTrocar} />))
   const botao = (): HTMLButtonElement | null => container.querySelector('button')
+
+  it('ficha dele no 1º piso, no mapa que o RECORTE entrega: "Descer ao térreo", nunca "Subir ao 1º piso"', () => {
+    const recorte = filterMapForPlayer(mapa([ficha('lia', 200, 220, 1)]), 'p1', { p1: ['lia'] }, 400).map
+    render(recorte, ['lia'])
+    expect(botao()?.textContent).toBe('Descer ao térreo')
+  })
 
   it('ficha dele na escada: "Subir ao 1º piso", e o toque manda os dois ids', () => {
     const onTrocar = vi.fn()

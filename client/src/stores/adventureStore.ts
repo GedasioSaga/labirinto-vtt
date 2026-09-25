@@ -74,6 +74,7 @@ import { mapDirFor, saveAdventureToDisk, scenePath, type OpenedMapFile } from '.
 import { storedTokensOfScene, withStoredTokens, type StoredToken } from '../lib/storedTokens'
 import { dirname } from '@tauri-apps/api/path'
 import { removeSelectionItem, selectionHas, type SelectionItem } from '../lib/selectionModel'
+import { useInitiativeStore } from './initiativeStore'
 import { useMapStore } from './mapStore'
 import { useSessionStore } from './sessionStore'
 
@@ -656,10 +657,53 @@ function withoutToken(history: SceneHistory, tokenId: string): SceneHistory {
   return { map: drop(history.map), past: history.past.map(drop), future: history.future.map(drop) }
 }
 
-function withToken(history: SceneHistory, token: Token): SceneHistory {
-  const put = (map: MapData): MapData =>
-    map.tokens.some((t) => t.id === token.id) ? { ...map, tokens: map.tokens.map((t) => (t.id === token.id ? token : t)) } : mapFactory.addToken(map, token)
-  return { map: put(history.map), past: history.past.map(put), future: history.future.map(put) }
+/**
+ * A ficha `fromId` passa a se chamar `toId`, e o que o mapa guarda pelo id
+ * dela vai junto: a tocha presa nela e as fichas que ela leva.
+ */
+function renameToken(map: MapData, fromId: string, toId: string): MapData {
+  return {
+    ...map,
+    tokens: map.tokens.map((t) => {
+      const renamed = t.id === fromId ? { ...t, id: toId } : t
+      return renamed.levadoPor === fromId ? { ...renamed, levadoPor: toId } : renamed
+    }),
+    lights: map.lights.map((l) => (l.attachedTokenId === fromId ? { ...l, attachedTokenId: toId } : l)),
+  }
+}
+
+/*
+ * FICHA COM ID REPETIDO. Duas cenas podem ter uma ficha de mesmo id (cena
+ * copiada, mapa importado duas vezes). Quem chega não substitui quem já
+ * estava: a de DESTINO ganha id novo, em todo passo do histórico dela (senão
+ * um Ctrl+Z traria de volta a ficha com o id repetido). A que viaja guarda o
+ * id porque é por ele que a sessão sabe de qual jogador ela é, e o que chamou
+ * a travessia (`carryToken`, "Deixar ir", "Reunir o grupo") segue apontando
+ * para ela. O que é guardado FORA do mapa pelo id da de destino (a seleção e
+ * a iniciativa) vai para o id novo em `transferToken`, com `residentId`.
+ */
+function withToken(history: SceneHistory, token: Token): { history: SceneHistory; residentId: string | null } {
+  const steps = [history.map, ...history.past, ...history.future]
+  const clash = steps.some((map) => map.tokens.some((t) => t.id === token.id))
+  const residentId = clash ? crypto.randomUUID() : null
+  const put = (map: MapData): MapData => mapFactory.addToken(residentId === null ? map : renameToken(map, token.id, residentId), token)
+  return { history: { map: put(history.map), past: history.past.map(put), future: history.future.map(put) }, residentId }
+}
+
+/**
+ * A ficha que já estava no mapa `mapId` trocou `fromId` por `toId` (ver
+ * `withToken`). A iniciativa é guardada por mapa + id: o valor e a vez dela
+ * vão com ela, e a que chegou entra sem nenhum dos dois. Se o mapa é o que
+ * está aberto (`inEditor`), a seleção dela também segue a ficha.
+ */
+function renameResidentOutsideMap(mapId: string, fromId: string, toId: string, inEditor: boolean): void {
+  useInitiativeStore.getState().renameToken(mapId, fromId, toId)
+  if (!inEditor) return
+  const { selection } = useMapStore.getState()
+  if (!selectionHas(selection, { kind: 'token', id: fromId })) return
+  // `setState`, não `setSelection`: é a MESMA seleção com o id novo, e não
+  // pode soltar o pino ou a zona que estão abertos no painel.
+  useMapStore.setState({ selection: selection.map((item) => (item.kind === 'token' && item.id === fromId ? { kind: 'token', id: toId } : item)) })
 }
 
 /**
@@ -1255,7 +1299,7 @@ export const useAdventureStore = create<AdventureState>()((set, get) => ({
     if (from === null || to === null || token === undefined) return false
 
     const leaving = withoutToken(from, tokenId)
-    const arriving = withToken(to, comPiso({ ...arrivingLink(token, to.map), x, y }, piso))
+    const { history: arriving, residentId } = withToken(to, comPiso({ ...arrivingLink(token, to.map), x, y }, piso))
     const nextCache: Record<string, SceneSlot> = { ...cache }
     const nextDirty: Record<string, true> = { ...dirty }
     let openScene: SceneHistory | null = null
@@ -1276,6 +1320,7 @@ export const useAdventureStore = create<AdventureState>()((set, get) => ({
     // A cena aberta troca mapa E histórico juntos, sem `withHistory`: a
     // travessia não é um passo do mestre para o Ctrl+Z desfazer.
     if (openScene !== null) useMapStore.setState({ map: openScene.map, past: openScene.past, future: openScene.future })
+    if (residentId !== null) renameResidentOutsideMap(to.map.id, tokenId, residentId, toSceneId === activeSceneId)
     return true
   },
 

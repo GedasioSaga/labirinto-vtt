@@ -7,7 +7,7 @@ import {
   visibleWalls, visibleRegions, visibleStairs, visibleLights, visibleDrawings, visibleTokens, visibleProps, visiblePins,
   isLayerLocked, wallLayer, regionLayer, stairLayer, lightLayer, tokenLayer, propLayer, drawingLayer,
 } from './layers'
-import { findPinAt } from './pins'
+import { findPinAt, findPinsAt } from './pins'
 import { stairSpiralCircle } from './stairs'
 
 export interface Point {
@@ -97,6 +97,19 @@ export function findStairPinAt(map: Pick<MapData, 'stairs' | 'pins' | 'hiddenLay
  */
 export function findPlayerPinAt(map: Pick<MapData, 'stairs' | 'pins' | 'hiddenLayers'>, point: Point, tolerance: number): Pin | null {
   return findPinAt(visiblePins(map.pins, map.hiddenLayers), point, tolerance) ?? findStairPinAt(map, point, tolerance)
+}
+
+/**
+ * TUDO o que o toque do JOGADOR alcança no mapa do recorte: os pinos à vista
+ * sob o dedo, do mais perto ao mais longe, e depois o pino da escada cujo
+ * lance está ali. Com mais de um, o jogador escolhe ("Aqui há 2 coisas").
+ * Só lê o recorte: pino secreto, oculto ou sob a névoa não chega aqui, então
+ * nem conta na lista.
+ */
+export function findPlayerPinsAt(map: Pick<MapData, 'stairs' | 'pins' | 'hiddenLayers'>, point: Point, tolerance: number): Pin[] {
+  const pins = findPinsAt(visiblePins(map.pins, map.hiddenLayers), point, tolerance)
+  const stairPin = findStairPinAt(map, point, tolerance)
+  return stairPin === null || pins.includes(stairPin) ? pins : [...pins, stairPin]
 }
 
 export function findLightAt(lights: Light[], point: Point, handleRadius = LIGHT_HIT_RADIUS): Light | null {

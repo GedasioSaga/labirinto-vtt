@@ -3,7 +3,7 @@ import type { MapData, Pin, Region, Stair, Token, Wall } from '../types/map'
 import { createExploration, markAll } from './exploration'
 import { filterMapForPlayer, pisoDoJogador } from './fogFilter'
 import { createEmptyMap, setTokenPosition } from './mapFactory'
-import { comFichaNoPiso } from './pisos'
+import { comFichaNoPiso, escadaDaFicha } from './pisos'
 
 /**
  * PISOS NA MESMA CENA no recorte: o jogador recebe só o piso da ficha dele.
@@ -100,6 +100,22 @@ describe('fogFilter — pisos na mesma cena', () => {
     const semVisao = new Map([['caio', { tarefa: '', ate: null, visao: false }]])
     expect(pisoDoJogador(map, 'p2', { p2: ['caio'] }, semVisao)).toBe(1)
     expect(pisoDoJogador(map, 'p3', {})).toBe(0)
+  })
+
+  it('a ficha chega com o piso dela: no 1º piso com piso 1, no térreo sem o campo (a lista branca leva o piso)', () => {
+    const lá = filterMapForPlayer(predio(), 'p2', { p1: ['lia'], p2: ['caio'] }, RADIUS)
+    expect(lá.map.tokens.map((t) => [t.id, t.piso])).toEqual([['caio', 1]])
+    const embaixo = filterMapForPlayer(predio(), 'p1', { p1: ['lia'], p2: ['caio'] }, RADIUS)
+    expect(embaixo.map.tokens.map((t) => t.id)).toEqual(['lia'])
+    expect('piso' in embaixo.map.tokens[0]).toBe(false)
+  })
+
+  it('no 1º piso, encostado na escada, o recorte faz a escada levar de volta ao térreo, não ao 1º piso', () => {
+    const map: MapData = { ...predio(), tokens: [token('caio', 500, 500, { piso: 1 })] }
+    const view = filterMapForPlayer(map, 'p2', { p2: ['caio'] }, RADIUS)
+    const caio = view.map.tokens.find((t) => t.id === 'caio')
+    if (caio === undefined) throw new Error('a ficha do Caio não chegou ao recorte')
+    expect(escadaDaFicha(view.map, caio)).toEqual({ stairId: 'escada', destino: 0 })
   })
 
   it('ficha do mesmo jogador em outro piso não sai no recorte', () => {

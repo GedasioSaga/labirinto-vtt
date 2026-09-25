@@ -3,12 +3,11 @@ import { cellCenter, cellKeyAt, cellRunRects, concealedPieces, REVEAL_BRUSH_CELL
 import { isTokenPhotoData } from './tokenPhoto'
 import { tokenAsSeenByPlayer } from './tokenPublicName'
 import { healthForPlayer } from './tokenHealth'
-import { tokenConditionsForPlayer } from './tokenConditions'
-import { carrierIdOf, withoutCarrier } from './carry'
-import { guardAlerts, tokenWatchForPlayer, tokenWatchOf } from './npcWatch'
-import { tokenPatrolForPlayer } from './npcPatrol'
+import { tokenConditionsOf } from './tokenConditions'
+import { parseHexColor } from './tokenColor'
+import { carrierIdOf } from './carry'
+import { guardAlerts, tokenWatchOf } from './npcWatch'
 import type { TurnRef } from './initiative'
-import { withoutContract } from './tokenLoan'
 import { isPointExplored, isShapeExplored, type Exploration } from './exploration'
 import { pointInRing, signedArea } from './floorContour'
 import { pieceBounds, pieceDistance, shapeCenter } from './floorSdf'
@@ -19,12 +18,12 @@ import { propPlayerImage, propPlayerLabel } from './propPlayerLook'
 import { exitLabelsOf, isArrivalOnly, travelExitsOf } from './pinTravel'
 import { cabineNaParada, type CabineDeTransporte } from './cabine'
 import { withoutAttachment } from './lightAttachment'
-import { itemOfPin, tokenReachesPin } from './items'
+import { itemOfPin, readCarriedItems, tokenReachesPin } from './items'
 import { keyForPin } from './doorKey'
 import { computeVisibility, visionSegments } from './visibility'
 import { ancestorsOf, NESTING_TOLERANCE, pointInPolygonInclusive, pointOnPolygonBorder, subtreeIds } from './roomNesting'
 import { roomHasRoof, roomIsComodo } from './roomOps'
-import { mapaDoPiso, pisoDe } from './pisos'
+import { ehPiso, mapaDoPiso, pisoDe } from './pisos'
 import { rotatePointAround, rotationTrig } from './roomRotation'
 import { clampRoomText, hasEnterText } from './roomText'
 import { hazardRooms, hazardsOf, visionRadiusAt, type PlayerHazard } from './hazards'
@@ -1028,35 +1027,6 @@ function drawingOutline(drawing: Drawing): ShapeOutline {
 }
 
 /**
- * Foto do token como o jogador pode recebê-la: só referência AUTO-CONTIDA
- * (`data:image/...;base64,...`) atravessa; qualquer outra coisa vira `null`.
- *
- * O filtro é por FORMA e não por nome de campo: `Token.image` costuma ser
- * caminho no disco do mestre e some, mas some porque não é auto-contido — se
- * um dia guardar uma foto embutida, ela passa pelo mesmo critério. É o que
- * leva a foto até a tela do jogador sem abrir a pasta do mestre.
- */
-function sanitizeTokenPhoto(token: Token): Token {
-  const image = isTokenPhotoData(token.image) ? token.image : null
-  const imageData = isTokenPhotoData(token.imageData) ? token.imageData : null
-  if (token.image === image && (token.imageData ?? null) === imageData) return token
-  return { ...token, image, imageData }
-}
-
-/**
- * A marca de NPC e a ROTINA DO NPC (`Token.rotina`: o posto de cada turno, com
- * a cena de cada posto) são do mestre: a ficha sai para o jogador sem elas —
- * também para quem a segura como ajudante.
- */
-function withoutNpcMark(token: Token): Token {
-  if (token.npc === undefined && !('rotina' in token)) return token
-  const copy = { ...token }
-  delete copy.npc
-  delete copy.rotina
-  return copy
-}
-
-/**
  * "QUEM VÊ" de cada pino, por id: os jogadores escolhidos pelo mestre. Pino
  * AUSENTE do mapa = "Todos" (o pino de sempre); presente com o conjunto vazio =
  * "Só estes" sem ninguém marcado, e ninguém recebe. A lista vive na sessão do
@@ -1074,51 +1044,85 @@ function pinReachesPlayer(audiences: PinAudiences | undefined, pinId: string, pl
   return chosen === undefined || (playerId !== undefined && chosen.has(playerId))
 }
 
-/**
- * Barra de vida como o jogador pode recebê-la (`healthForPlayer`): a que o
- * mestre deixou só para si SOME do token — o campo inteiro, não só os
- * números —, e a que os jogadores veem vai como proporção. Vale também para o
- * token do próprio jogador: quem decide a barra é o mestre, ficha por ficha.
- */
-function tokenHealthForPlayer(token: Token): Token {
-  if (token.health === undefined) return token
-  const health = healthForPlayer(token.health)
-  const copy: Token = { ...token }
-  if (health === null) delete copy.health
-  else copy.health = health
-  return copy
+/** O que o recorte já decidiu sobre UMA ficha antes de montá-la (`tokenForPlayer`). */
+interface TokenCut {
+  /** A ficha é de quem recebe o recorte (própria ou emprestada): a mochila vai. */
+  isOwner: boolean
+  /** O dono lê o nome de trabalho; o resto — a emprestada inclusive — lê o "Nome para os jogadores". */
+  readsRealName: boolean
+  /** A marca do guarda que ESTE recorte decidiu; `null` = nenhuma. */
+  alert: WatchAlert | null
+  /** AJUDANTE CONTRATADO: o acordo da SESSÃO, só na emprestada que vai a quem a segura. */
+  contract: TokenContract | undefined
+  /** NPC EMPRESTADO: a ficha de NPC na posse de quem recebe, sem acordo — a tela dele não oferece nome nem foto. */
+  lentNpc: boolean
 }
 
 /**
- * A ficha como o jogador pode recebê-la: a foto só auto-contida
- * (`sanitizeTokenPhoto`) e a CONDIÇÃO só com os ids da lista
- * (`tokenConditionsForPlayer`) — texto que o mestre ou o arquivo enfiar no
- * campo não sai da máquina dele. Quem decide SE a ficha vai é o filtro de
- * `filterMapForPlayer`; a condição só atravessa junto com ela.
+ * A ficha como o jogador pode recebê-la. Quem decide SE ela vai é o filtro de
+ * `filterMapForGroup`; aqui se decide O QUE vai, e sai SEMPRE numa cópia.
  *
- * LEVAR FICHA JUNTO: o vínculo (`levadoPor`) nunca sai. É arrumação do mestre,
- * e o id de quem leva apontaria para uma ficha que o recorte pode ter
- * escondido (colega na névoa, ficha secreta).
+ * LISTA DO QUE VAI, no molde de `lightForPlayer`, e não "copia tudo e apaga o
+ * que não pode": campo que o arquivo trouxer e o recorte não conhece (versão
+ * futura, edição à mão, a agenda de um NPC) fica na máquina do mestre por
+ * padrão. Campo novo na ficha só chega ao jogador entrando aqui.
+ * - `name`: quem lê o real, o real; os outros, o "Nome para os jogadores"
+ *   (`tokenAsSeenByPlayer`). `publicName` em si nunca vai.
+ * - `image`/`imageData`: só foto AUTO-CONTIDA (`data:image/...`); caminho no
+ *   disco do mestre vira `null`. Filtro por FORMA, não por nome.
+ * - `rotation`: presente (0 inclusive) é a frente da ficha — nunca vira ausente.
+ * - `color`: só `#rrggbb`; texto torto no campo não sai.
+ * - `conditions`: só os ids da lista (`tokenConditionsOf`).
+ * - `health`: só a que o mestre mostra, e em proporção (`healthForPlayer`).
+ * - `alerta`: só a marca deste recorte; a gravada no mapa e o cone (`vigia`) ficam.
+ * - `secret`: a tela do dono pinta a própria ficha secreta mais apagada.
+ * - `mochila`: só a do DONO, item a item com id e nome (`readCarriedItems`).
+ * - `contrato`: só o da sessão (`cut.contract`); o gravado no mapa nunca.
+ * - `emprestada`: só a deste recorte (`cut.lentNpc`); a gravada no mapa nunca.
+ * - `locked`: só na ficha do DONO, e só travada (o cadeado da tela dele); na
+ *   de outro diria quem o mestre está segurando.
+ * - `piso`: o da ficha (só as do piso do recorte chegam aqui, então não conta
+ *   nada de outro piso); a escada da tela dele decide subir ou descer por ele.
+ * Ficam de fora, entre outros: `vigia`, `patrulha` (por onde o NPC vai passar),
+ * `rotina` (os postos, com a cena de cada um), `levadoPor` (aponta para ficha
+ * que o recorte pode ter escondido), `npc`, `playerCharacter` (diria quais
+ * fichas estão sem dono), `hidden` (ficha oculta nem chega aqui) e
+ * `characterId` (vínculo do mestre; o jogador recebe `null`).
  */
-function tokenForPlayer(token: Token): Token {
-  return tokenConditionsForPlayer(sanitizeTokenPhoto(withoutCarrier(token)))
-}
-
-/** A ficha sem a mochila: é como o jogador recebe a ficha de outro. Sem mochila, o mesmo objeto. */
-function withoutBackpack(token: Token): Token {
-  if (!('mochila' in token)) return token
-  const { mochila: _dele, ...semMochila } = token
-  return semMochila
-}
-
-/**
- * A marca "Ficha de jogador" é do mestre (quem ele oferece a quem chega): no
- * mapa do jogador ela diria quais fichas em volta dele estão sem dono.
- */
-function withoutMasterMarks(token: Token): Token {
-  if (token.playerCharacter === undefined) return token
-  const { playerCharacter: _masterOnly, ...rest } = token
-  return rest
+function tokenForPlayer(token: Token, cut: TokenCut): Token {
+  const forPlayer: Token = {
+    id: token.id,
+    characterId: null,
+    name: tokenAsSeenByPlayer(token, cut.readsRealName).name,
+    x: token.x,
+    y: token.y,
+    size: token.size,
+    image: isTokenPhotoData(token.image) ? token.image : null,
+  }
+  if (token.imageData !== undefined) forPlayer.imageData = isTokenPhotoData(token.imageData) ? token.imageData : null
+  if (token.rotation !== undefined) forPlayer.rotation = token.rotation
+  if (parseHexColor(token.color) !== null) forPlayer.color = token.color
+  const conditions = tokenConditionsOf(token)
+  if (conditions.length > 0) forPlayer.conditions = conditions
+  const health = healthForPlayer(token.health)
+  if (health !== null) forPlayer.health = health
+  if (cut.alert !== null) forPlayer.alerta = cut.alert
+  if (token.secret !== undefined) forPlayer.secret = token.secret
+  if (cut.isOwner) {
+    const mochila = readCarriedItems(token.mochila)
+    if (mochila !== undefined) forPlayer.mochila = mochila
+  }
+  if (cut.contract !== undefined) forPlayer.contrato = { ...cut.contract }
+  if (cut.lentNpc) forPlayer.emprestada = true
+  // FICHA SEGURADA PELO MESTRE: a trava só atravessa na ficha do próprio
+  // jogador, onde vira o cadeado da tela dele. Na de outro (colega, NPC que o
+  // mestre segura) ela diria quem o mestre está segurando.
+  if (cut.isOwner && token.locked === true) forPlayer.locked = true
+  // PISOS NA MESMA CENA: a escada da tela dele (`escadaDaFicha`) lê o piso da
+  // ficha para saber se sobe ou desce. Só vai piso válido e fora do térreo
+  // (térreo é o campo ausente, como no arquivo — `comPiso`).
+  if (ehPiso(token.piso) && token.piso !== 0) forPlayer.piso = token.piso
+  return forPlayer
 }
 
 /** Uma ficha que quem chega sem personagem pode pedir: só o id e o nome. */
@@ -1922,7 +1926,7 @@ export function filterMapForGroup(
    * para jogadores", em zona oculta ou sob teto fechado não acende marca — a
    * marca contaria que há alguém ali, e é exatamente isso que a névoa e o mestre
    * esconderam. Só a marca sai, e só na ficha do guarda que já está no recorte:
-   * quem foi visto, e o cone (`vigia`), ficam no mestre (`tokenWatchForPlayer`).
+   * quem foi visto, e o cone (`vigia`), ficam no mestre (`tokenForPlayer`).
    * Sem guarda no recorte, nada é calculado.
    */
   // Para o pino PRESO a uma ficha (ver `pins`, abaixo): as fichas da cena e as
@@ -1941,28 +1945,36 @@ export function filterMapForGroup(
   // mestre — ver a ficha dele no mapa não conta o que tem no bolso.
   // AJUDANTE CONTRATADO: o `contrato` do mapa do mestre sai de toda ficha; a
   // emprestada leva o acordo só para quem a segura (nunca à tela da mesa).
-  const tokens = playerTokens
-    .map((t) => {
-      const own = owned.has(t.id)
-      const contrato = loanOf(t.id)
+  // Tudo o mais que a ficha carrega no mapa do mestre (a ROTA DE PATRULHA, a
+  // rotina, o vínculo de quem a leva...) fica com ele: `tokenForPlayer`.
+  // NPC EMPRESTADO: a marca `emprestada` do mapa do mestre não sai de ficha
+  // nenhuma; a ficha de NPC na posse deste jogador, sem acordo, leva a marca só
+  // para ele — a tela dele não oferece nome nem foto (o host recusa).
+  const tokens = playerTokens.map((t) => {
+    const own = owned.has(t.id)
+    const contrato = loanOf(t.id)
+    return tokenForPlayer(t, {
+      isOwner: own,
       // Emprestada: o jogador lê o nome que a MESA lê. O de trabalho é do mestre.
-      const seen = withoutMasterMarks(
-        withoutNpcMark(tokenForPlayer(tokenAsSeenByPlayer(withoutContract(own ? t : withoutBackpack(t)), own && contrato === undefined))),
-      )
-      return contrato === undefined || playerId === undefined ? seen : { ...seen, contrato: { ...contrato } }
+      readsRealName: own && contrato === undefined,
+      alert: alerts.get(t.id) ?? null,
+      contract: playerId === undefined ? undefined : contrato,
+      lentNpc: playerId !== undefined && contrato === undefined && own && t.npc === true,
     })
-    .map(tokenHealthForPlayer)
-    .map((t) => tokenWatchForPlayer(t, alerts.get(t.id) ?? null))
-    // ROTA DE PATRULHA: os pontos dizem por onde o NPC vai passar — é do
-    // mestre. O jogador vê o NPC andar só porque a ficha está na visão dele.
-    .map(tokenPatrolForPlayer)
+  })
   const sentTokenIds = new Set(tokens.map((t) => t.id))
-  // Ficha que o MESTRE esconde deste jogador (oculta, secreta ou na camada
-  // Fichas escondida). A tocha presa nela fica no centro dela e anda com ela:
-  // enviar a luz, mesmo sem o vínculo, entregaria a posição e o trajeto do NPC.
+  // Ficha que o MESTRE esconde deste jogador: pela marca (oculta, secreta ou
+  // na camada Fichas escondida) ou pelo LUGAR (sala oculta, prédio de teto
+  // fechado, zona oculta). A tocha presa nela anda com ela — mesmo afastada
+  // (mapa antigo, ou a luz empurrada pelas setas) e do lado de fora, à vista:
+  // enviar a luz, mesmo sem o vínculo, entregaria o trajeto do NPC. A névoa
+  // (distância, parede comum) não entra: tocha no escuro se vê de longe.
   const layerTokenIds = new Set(layerTokens.map((t) => t.id))
+  const inPlaceHiddenByMaster = (t: Token): boolean => inRoomHiddenFromPlayer({ x: t.x, y: t.y }) || hiddenByZone({ x: t.x, y: t.y })
   const masterHiddenTokenIds = new Set(
-    map.tokens.filter((t) => !sentTokenIds.has(t.id) && (t.hidden || t.secret || !layerTokenIds.has(t.id))).map((t) => t.id),
+    map.tokens
+      .filter((t) => !sentTokenIds.has(t.id) && (t.hidden || t.secret || !layerTokenIds.has(t.id) || inPlaceHiddenByMaster(t)))
+      .map((t) => t.id),
   )
   const playerStairs = visibleStairs(map.stairs, hiddenLayers).filter((s) => {
     const first = s.segments[0]

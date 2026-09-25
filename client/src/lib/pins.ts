@@ -380,15 +380,35 @@ export function isPlayerSafePinImage(image: string | null): image is string {
  */
 export function findPinAt(pins: readonly Pin[], point: RegionPoint, tolerance = 0): Pin | null {
   for (let i = pins.length - 1; i >= 0; i--) {
-    const pin = pins[i]
-    const dx = point.x - pin.x
-    const dy = point.y - pin.y
-    // Cabeça: círculo em torno do centro dela.
-    if (Math.hypot(dx, dy + PIN_HEAD_OFFSET) <= PIN_HEAD_RADIUS + tolerance) return pin
-    // Haste: faixa vertical entre a ponta e a base da cabeça.
-    if (Math.abs(dx) <= PIN_HEAD_RADIUS / 2 + tolerance && dy <= tolerance && dy >= -PIN_HEIGHT - tolerance) return pin
+    if (pinHit(pins[i], point, tolerance)) return pins[i]
   }
   return null
+}
+
+/** O ponto cai na cabeça ou na haste do pino, com a folga `tolerance`. */
+function pinHit(pin: Pin, point: RegionPoint, tolerance: number): boolean {
+  const dx = point.x - pin.x
+  const dy = point.y - pin.y
+  // Cabeça: círculo em torno do centro dela.
+  if (Math.hypot(dx, dy + PIN_HEAD_OFFSET) <= PIN_HEAD_RADIUS + tolerance) return true
+  // Haste: faixa vertical entre a ponta e a base da cabeça.
+  return Math.abs(dx) <= PIN_HEAD_RADIUS / 2 + tolerance && dy <= tolerance && dy >= -PIN_HEIGHT - tolerance
+}
+
+/**
+ * TODOS os pinos sob o ponto, do mais perto ao mais longe (distância até o
+ * centro da cabeça); no empate — dois pinos cravados no mesmo ponto — o de
+ * cima primeiro, como em `findPinAt`. É o que deixa o toque do jogador
+ * alcançar o pino de baixo: com um só, `findPinAt` escondia o outro para sempre.
+ */
+export function findPinsAt(pins: readonly Pin[], point: RegionPoint, tolerance = 0): Pin[] {
+  const hits: { pin: Pin; distance: number }[] = []
+  for (let i = pins.length - 1; i >= 0; i--) {
+    const pin = pins[i]
+    if (pinHit(pin, point, tolerance)) hits.push({ pin, distance: Math.hypot(point.x - pin.x, point.y - pin.y + PIN_HEAD_OFFSET) })
+  }
+  // `sort` é estável: no empate fica a ordem de cima para baixo montada acima.
+  return hits.sort((a, b) => a.distance - b.distance).map((hit) => hit.pin)
 }
 
 /**

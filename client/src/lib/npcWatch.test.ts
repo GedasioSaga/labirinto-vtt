@@ -15,7 +15,6 @@ import {
   guardSeesPoint,
   guardSightings,
   readTokenWatch,
-  tokenWatchForPlayer,
   watchAlertOf,
   watchConePolygon,
 } from './npcWatch'
@@ -152,27 +151,9 @@ describe('watchConePolygon — o que o mestre vê no editor', () => {
   })
 })
 
-describe('tokenWatchForPlayer — a ficha do guarda como o jogador a recebe', () => {
-  it('o cone nunca vai; a marca vai só quando o recorte manda', () => {
-    const guarda = ficha('guarda', 1, 1, { vigia: LESTE })
-    const sem = tokenWatchForPlayer(guarda, null)
-    expect('vigia' in sem).toBe(false)
-    expect('alerta' in sem).toBe(false)
-    const com = tokenWatchForPlayer(guarda, '!')
-    expect('vigia' in com).toBe(false)
-    expect(com.alerta).toBe('!')
-  })
-
-  it('marca escrita à mão na ficha pelo mestre (ou pelo arquivo) não atravessa', () => {
-    const suja = ficha('rato', 1, 1, { alerta: '!' })
-    expect('alerta' in tokenWatchForPlayer(suja, null)).toBe(false)
-  })
-
-  it('ficha sem nada disso sai na mesma instância', () => {
-    const limpa = ficha('rato', 1, 1)
-    expect(tokenWatchForPlayer(limpa, null)).toBe(limpa)
-  })
-
+// A ficha do guarda como o jogador a recebe (sem cone, marca só a do recorte)
+// é provada no recorte inteiro: `fogFilter.vigia.test.ts`.
+describe('watchAlertOf — a marca lida da ficha', () => {
   it('watchAlertOf só aceita "?" e "!"', () => {
     expect(watchAlertOf({ alerta: '?' })).toBe('?')
     expect(watchAlertOf({ alerta: '!' })).toBe('!')
