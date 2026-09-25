@@ -320,6 +320,29 @@ describe('hostSession', () => {
     expect(JSON.stringify(toC1)).not.toContain('"ladino"')
   })
 
+  it('SEGURANÇA: o guarda na zona oculta anda com a tocha afastada dele à vista — nenhum snapshot leva a tocha', () => {
+    const s = newSession()
+    // Zona 260..360 x 220..300 com o guarda dentro; a tocha presa nele ficou
+    // 100 px abaixo, fora da zona e na sala do herói.
+    const zona = { id: 'zona', name: 'nome-zona', revealed: false, points: [{ x: 260, y: 220 }, { x: 360, y: 220 }, { x: 360, y: 300 }, { x: 260, y: 300 }] }
+    const map: MapData = {
+      ...twoRooms(),
+      tokens: [...twoRooms().tokens, token('guarda', 300, 250)],
+      concealZones: [zona],
+      lights: [{ id: 'tocha-do-guarda', x: 300, y: 350, radius: 80, color: '#f00', intensity: 1, attachedTokenId: 'guarda' }],
+    }
+    const p1 = welcomeOf(s.handleMessage('c1', { type: 'join', code: CODE, name: 'Ana' }, map).outbound)
+    s.assignToken(p1.playerId, 'heroi')
+    const andou = setTokenPosition(map, 'guarda', 330, 260)
+    expect(andou.lights[0]).toMatchObject({ x: 330, y: 360 })
+    for (const mapa of [map, andou]) {
+      const toC1 = s.broadcast(mapa).outbound.find((o) => o.clientId === 'c1')?.msg
+      if (toC1?.type !== 'snapshot') throw new Error('esperava snapshot para c1')
+      expect(toC1.map.lights).toEqual([])
+      expect(JSON.stringify(toC1)).not.toContain('guarda')
+    }
+  })
+
   it('move atravessando parede é rejeitado com wall', () => {
     const s = newSession()
     const map = twoRooms()
