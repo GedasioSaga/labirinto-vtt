@@ -45,18 +45,41 @@ const MEMORY_QUANTUM = 0.5
  * limite numa sessão longa.
  */
 export const MAX_MEMORY_VERTICES = 4000
-/** Coordenada máxima em px de mundo que cabe no inteiro de meio pixel do fio (Int16). */
+/** Coordenada máxima em px de mundo que cabe no inteiro de meio pixel do campo `rings` (Int16). */
 const MEMORY_COORD_LIMIT = 16_383
+/**
+ * Coordenada máxima em px de mundo do campo `ringsFar`: a origem do anel vai
+ * como inteiro de meio pixel de 32 bits. Nenhum mapa chega perto; o teto só
+ * barra coordenada absurda.
+ */
+const MEMORY_FAR_COORD_LIMIT = 1_000_000_000
+/**
+ * Maior largura (e altura) de um anel do campo `ringsFar`, em px de mundo: os
+ * vértices vão como deslocamento de meio pixel de 16 bits SEM sinal a partir
+ * do canto da caixa do anel (0..65535 meios pixels). Anel de visão maior que
+ * isso não é guardado — fica só o bitset, como antes.
+ */
+const MEMORY_FAR_SPAN_LIMIT = 32_767
 /** Bytes do maior `rings` possível: cada anel tem 1 inteiro de cabeçalho e no mínimo 3 vértices. */
 const MAX_MEMORY_BYTES = (MAX_MEMORY_VERTICES * 2 + Math.ceil(MAX_MEMORY_VERTICES / 3)) * 2
+/** Cabeçalho de um anel em `ringsFar`: nVértices (Int16) + origem x, y (Int32 cada). */
+const FAR_RING_HEADER_BYTES = 10
+/** Bytes do maior `ringsFar` possível: 4 bytes por vértice e um cabeçalho a cada 3 vértices, no mínimo. */
+const MAX_FAR_MEMORY_BYTES = MAX_MEMORY_VERTICES * 4 + Math.floor(MAX_MEMORY_VERTICES / 3) * FAR_RING_HEADER_BYTES
 
 export interface ExploredWire {
   cell: number
   cols: number
   rows: number
   bits: string
-  /** Contornos lembrados, em base64 (ver `encodeRings`). Ausente = fio antigo, só bitset. */
+  /** Contornos lembrados que cabem no Int16, em base64 (ver `encodeRings`). Ausente = fio antigo, só bitset. */
   rings: string
+  /**
+   * Contornos lembrados além de 16.383 px (mapa muito grande), em base64 (ver
+   * `encodeFarRings`). Ausente = nenhum anel longe — é o fio de sempre, byte a
+   * byte, para todo mapa até 16.383 px.
+   */
+  ringsFar?: string
 }
 
 /** Contorno lembrado com a caixa envolvente pronta: o teste de ponto descarta a maioria sem varrer os vértices. */
@@ -261,16 +284,26 @@ function boxOf(points: readonly RegionPoint[]): { minX: number; minY: number; ma
   return { minX, minY, maxX, maxY }
 }
 
+/** O anel inteiro cabe no Int16 de meio pixel do campo antigo `rings`. */
+function fitsNearField(ring: MemoryRing): boolean {
+  return Math.max(Math.abs(ring.minX), Math.abs(ring.maxX), Math.abs(ring.minY), Math.abs(ring.maxY)) <= MEMORY_COORD_LIMIT
+}
+
+/** O anel cabe no campo `ringsFar`: origem no Int32 e caixa no deslocamento de 16 bits. */
+function fitsFarField(box: { minX: number; minY: number; maxX: number; maxY: number }): boolean {
+  if (Math.max(Math.abs(box.minX), Math.abs(box.maxX), Math.abs(box.minY), Math.abs(box.maxY)) > MEMORY_FAR_COORD_LIMIT) return false
+  return box.maxX - box.minX <= MEMORY_FAR_SPAN_LIMIT && box.maxY - box.minY <= MEMORY_FAR_SPAN_LIMIT
+}
+
 /**
  * Anel simplificado e encaixado na malha de meio pixel, sem vértice repetido e
  * sem repetir o primeiro ponto no fim. Devolve `null` quando sobra menos de um
- * triângulo ou quando alguma coordenada não cabe no inteiro do fio.
+ * triângulo ou quando o anel não cabe em nenhum dos dois campos do fio.
  */
 function memoryRingOf(ring: readonly RegionPoint[]): MemoryRing | null {
   if (ring.length < 3) return null
   const box = boxOf(ring)
-  if (box === null) return null
-  if (Math.max(Math.abs(box.minX), Math.abs(box.maxX), Math.abs(box.minY), Math.abs(box.maxY)) > MEMORY_COORD_LIMIT) return null
+  if (box === null || !fitsFarField(box)) return null
   const simplified = simplifyRing(ring.map((p) => ({ x: p.x, y: p.y })), MEMORY_SIMPLIFY_TOLERANCE)
   const points: RegionPoint[] = []
   for (const p of simplified) {
@@ -284,7 +317,8 @@ function memoryRingOf(ring: readonly RegionPoint[]): MemoryRing | null {
   if (points.length > 3 && first !== undefined && last !== undefined && first.x === last.x && first.y === last.y) points.pop()
   if (points.length < 3) return null
   const quantized = boxOf(points)
-  return quantized === null ? null : { points, ...quantized }
+  // A quantização pode alargar a caixa em meio pixel: confere de novo o que vai no fio.
+  return quantized === null || !fitsFarField(quantized) ? null : { points, ...quantized }
 }
 
 /**
@@ -628,7 +662,8 @@ function base64ToBytes(value: string, maxBytes: number): Uint8Array | null {
 }
 
 /**
- * Contornos lembrados em base64. Cada anel é `[nVértices, x0, y0, x1, y1, ...]`
+ * Contornos lembrados que cabem no Int16 (até 16.383 px), em base64 — o campo
+ * `rings`, no formato de sempre. Cada anel é `[nVértices, x0, y0, x1, y1, ...]`
  * em inteiros de 16 bits little-endian, na unidade de meio pixel de mundo
  * (`MEMORY_QUANTUM`) — little-endian explícito porque as duas pontas podem ser
  * máquinas diferentes.
@@ -651,36 +686,106 @@ function encodeRings(rings: readonly MemoryRing[]): string {
   return bytesToBase64(bytes)
 }
 
+/**
+ * Contornos lembrados além de 16.383 px, em base64. Cada anel é
+ * `[nVértices Int16][origem x Int32][origem y Int32][dx0 dy0 dx1 dy1 ... Uint16]`,
+ * little-endian, na unidade de meio pixel de mundo: a origem é o canto
+ * mínimo da caixa do anel e cada vértice é o deslocamento a partir dele. Custa
+ * os mesmos 4 bytes por vértice do campo antigo.
+ */
+function encodeFarRings(rings: readonly MemoryRing[]): string {
+  let total = 0
+  for (const ring of rings) total += FAR_RING_HEADER_BYTES + ring.points.length * 4
+  const bytes = new Uint8Array(total)
+  const view = new DataView(bytes.buffer)
+  let at = 0
+  for (const ring of rings) {
+    const ox = Math.round(ring.minX / MEMORY_QUANTUM)
+    const oy = Math.round(ring.minY / MEMORY_QUANTUM)
+    view.setInt16(at, ring.points.length, true)
+    view.setInt32(at + 2, ox, true)
+    view.setInt32(at + 6, oy, true)
+    at += FAR_RING_HEADER_BYTES
+    for (const p of ring.points) {
+      view.setUint16(at, Math.round(p.x / MEMORY_QUANTUM) - ox, true)
+      view.setUint16(at + 2, Math.round(p.y / MEMORY_QUANTUM) - oy, true)
+      at += 4
+    }
+  }
+  return bytesToBase64(bytes)
+}
+
+/** Anéis lidos do fio e a soma dos vértices, que vale para os DOIS campos juntos. */
+interface DecodedRings {
+  rings: MemoryRing[]
+  vertices: number
+}
+
 /** Campo ausente = fio antigo, que só tinha bitset: memória sem contorno, nunca erro. */
-function decodeRings(value: unknown): { rings: MemoryRing[]; vertices: number } | null {
-  if (value === undefined) return { rings: [], vertices: 0 }
-  if (typeof value !== 'string') return null
+function decodeRings(value: unknown, into: DecodedRings): boolean {
+  if (value === undefined) return true
+  if (typeof value !== 'string') return false
   const bytes = base64ToBytes(value, MAX_MEMORY_BYTES)
-  if (bytes === null || bytes.length % 2 !== 0) return null
+  if (bytes === null || bytes.length % 2 !== 0) return false
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength)
-  const rings: MemoryRing[] = []
-  let vertices = 0
   let at = 0
   while (at < bytes.length) {
     const count = view.getInt16(at, true)
     at += 2
-    if (count < 3 || at + count * 4 > bytes.length) return null
-    vertices += count
-    if (vertices > MAX_MEMORY_VERTICES) return null
+    if (count < 3 || at + count * 4 > bytes.length) return false
+    into.vertices += count
+    if (into.vertices > MAX_MEMORY_VERTICES) return false
     const points: RegionPoint[] = []
     for (let i = 0; i < count; i += 1) {
       points.push({ x: view.getInt16(at, true) * MEMORY_QUANTUM, y: view.getInt16(at + 2, true) * MEMORY_QUANTUM })
       at += 4
     }
     const box = boxOf(points)
-    if (box === null) return null
-    rings.push({ points, ...box })
+    if (box === null) return false
+    into.rings.push({ points, ...box })
   }
-  return { rings, vertices }
+  return true
 }
 
+/** Lê `ringsFar` (ver `encodeFarRings`). Ausente = nenhum anel longe. */
+function decodeFarRings(value: unknown, into: DecodedRings): boolean {
+  if (value === undefined) return true
+  if (typeof value !== 'string') return false
+  const bytes = base64ToBytes(value, MAX_FAR_MEMORY_BYTES)
+  if (bytes === null) return false
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength)
+  let at = 0
+  while (at < bytes.length) {
+    if (at + FAR_RING_HEADER_BYTES > bytes.length) return false
+    const count = view.getInt16(at, true)
+    const ox = view.getInt32(at + 2, true)
+    const oy = view.getInt32(at + 6, true)
+    at += FAR_RING_HEADER_BYTES
+    if (count < 3 || at + count * 4 > bytes.length) return false
+    into.vertices += count
+    if (into.vertices > MAX_MEMORY_VERTICES) return false
+    const points: RegionPoint[] = []
+    for (let i = 0; i < count; i += 1) {
+      points.push({ x: (ox + view.getUint16(at, true)) * MEMORY_QUANTUM, y: (oy + view.getUint16(at + 2, true)) * MEMORY_QUANTUM })
+      at += 4
+    }
+    const box = boxOf(points)
+    if (box === null) return false
+    into.rings.push({ points, ...box })
+  }
+  return true
+}
+
+/**
+ * Anel que cabe no Int16 vai no campo antigo `rings`, idêntico ao de sempre;
+ * só o que passa de 16.383 px vai em `ringsFar`, que nem aparece quando vazio.
+ */
 export function encodeExploration(exp: Exploration): ExploredWire {
-  return { cell: exp.cell, cols: exp.cols, rows: exp.rows, bits: bytesToBase64(exp.bits), rings: encodeRings(exp.rings) }
+  const near = exp.rings.filter(fitsNearField)
+  const far = exp.rings.filter((ring) => !fitsNearField(ring))
+  const wire: ExploredWire = { cell: exp.cell, cols: exp.cols, rows: exp.rows, bits: bytesToBase64(exp.bits), rings: encodeRings(near) }
+  if (far.length > 0) wire.ringsFar = encodeFarRings(far)
+  return wire
 }
 
 function isPositiveInteger(value: unknown): value is number {
@@ -690,7 +795,7 @@ function isPositiveInteger(value: unknown): value is number {
 /** Vem pela rede: qualquer campo fora do formato devolve `null`, nunca lança. */
 export function decodeExploration(wire: unknown): Exploration | null {
   if (typeof wire !== 'object' || wire === null || Array.isArray(wire)) return null
-  const { cell, cols, rows, bits, rings } = wire as Record<string, unknown>
+  const { cell, cols, rows, bits, rings, ringsFar } = wire as Record<string, unknown>
   if (typeof cell !== 'number' || !Number.isFinite(cell) || cell <= 0) return null
   if (!isPositiveInteger(cols) || !isPositiveInteger(rows)) return null
   if (cols * rows > MAX_EXPLORED_CELLS) return null
@@ -699,8 +804,8 @@ export function decodeExploration(wire: unknown): Exploration | null {
   if (bits.length !== Math.ceil(bytes / 3) * 4) return null
   const out = base64ToBytes(bits, bytes)
   if (out === null || out.length !== bytes) return null
-  const memory = decodeRings(rings)
-  if (memory === null) return null
+  const memory: DecodedRings = { rings: [], vertices: 0 }
+  if (!decodeRings(rings, memory) || !decodeFarRings(ringsFar, memory)) return null
   return { cell, cols, rows, bits: out, rings: memory.rings, ringVertices: memory.vertices }
 }
 
