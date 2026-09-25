@@ -28,7 +28,7 @@ import { roomHasRoof, roomIsComodo } from './roomOps'
 import { ehPiso, mapaDoPiso, pisoDe } from './pisos'
 import { rotatePointAround, rotationTrig } from './roomRotation'
 import { clampRoomText, hasEnterText } from './roomText'
-import { hazardRooms, hazardsOf, visionRadiusAt, type PlayerHazard } from './hazards'
+import { hazardRooms, hazardsOf, obscuringRoomRings, visionRadiusAt, type PlayerHazard } from './hazards'
 import { perigosParaJogador } from './perigo'
 import { cleanPublicSceneName } from './adventure'
 import type { DiceRollEntry, HostDiceRoll } from './dice'
@@ -1386,7 +1386,7 @@ export function filterMapForGroup(
   // `playerEyeTokens`). O ajudante sem visão fica de fora.
   const ownTokens = layerTokens.filter((t) => owned.has(t.id) && !t.hidden && loanOf(t.id)?.visao !== false)
   // `ownTokens` só tem id que está em `radiusByToken`; o 0 nunca é usado.
-  // ZONA DE PERIGO: dentro da fumaça o raio cai para o teto dela (`visionRadiusAt`).
+  // ZONA DE PERIGO: dentro da fumaça ou do vapor o raio cai para o teto dela (`visionRadiusAt`).
   const radiusOf = (token: Token): number => visionRadiusAt(map, { x: token.x, y: token.y }, radiusByToken.get(token.id) ?? 0)
 
   // Zona oculta ativa: ponto dentro dela não conta como visível nem explorado.
@@ -1950,9 +1950,32 @@ export function filterMapForGroup(
    * fora à vista (a borda contaria que há alguém lá dentro). O ponto da borda
    * também só vale fora desses lugares.
    */
+  /**
+   * FUMAÇA E VAPOR ESCONDEM QUEM ESTÁ DENTRO. Ficha com o centro numa sala
+   * tomada por perigo que tapa a vista (`obscuringRoomRings`) só é vista por
+   * um OLHO que está dentro dessa mesma sala e a alcança com o raio curto
+   * dele. A união dos anéis (`isVisible`) não serve aqui: o raio longo de quem
+   * olha de fora não pode emprestar vista a quem está lá dentro. Borda e
+   * pincel do mestre também não furam o véu. O polígono do perigo continua
+   * saindo pela regra da sala: o jogador vê a mancha, não quem está nela.
+   */
+  const veils = obscuringRoomRings(map)
+  const veilsAt = (p: RegionPoint): RegionPoint[][] => (veils.length === 0 ? [] : veils.filter((ring) => pointInRing(p, ring)))
+  const seenInsideVeil = (t: Token, veilsOfToken: readonly RegionPoint[][]): boolean => {
+    const center = { x: t.x, y: t.y }
+    if (inRoomHiddenFromPlayer(center) || hiddenByZone(center)) return false
+    const samples = [center, ...tokenRimSamples(t, map.grid).filter((p) => !inRoomHiddenFromPlayer(p) && !hiddenByZone(p))]
+    return ownTokens.some((eye, i) => {
+      const ring = authorityVision[i]
+      if (ring === undefined || !veilsOfToken.some((veil) => pointInRing({ x: eye.x, y: eye.y }, veil))) return false
+      return samples.some((p) => pointInRing(p, ring))
+    })
+  }
   const isTokenSeen = (t: Token): boolean => {
     const center = { x: t.x, y: t.y }
     if (inClosedRoof(center)) return false
+    const veilsOfToken = veilsAt(center)
+    if (veilsOfToken.length > 0) return seenInsideVeil(t, veilsOfToken)
     if (isVisible(center)) return true
     if (inRoomHiddenFromPlayer(center) || hiddenByZone(center)) return false
     return tokenRimSamples(t, map.grid).some((p) => !inRoomHiddenFromPlayer(p) && isVisible(p))
@@ -2018,7 +2041,11 @@ export function filterMapForGroup(
       .filter((t) => !sentTokenIds.has(t.id) && (t.hidden || t.secret || !layerTokenIds.has(t.id) || inPlaceHiddenByMaster(t)))
       .map((t) => t.id),
   )
-  const playerStairs = visibleStairs(map.stairs, hiddenLayers).filter((s) => {
+  // FUMAÇA E VAPOR: a tocha presa em quem está no véu e não saiu também não sai — o halo andando contaria o trajeto.
+  const veiledTokenIds = new Set(
+    veils.length === 0 ? [] : map.tokens.filter((t) => !sentTokenIds.has(t.id) && veilsAt({ x: t.x, y: t.y }).length > 0).map((t) => t.id),
+  )
+  const playerStairs =visibleStairs(map.stairs, hiddenLayers).filter((s) => {
     const first = s.segments[0]
     if (s.hidden || s.secret || first === undefined || stairSamples(s).some(inHiddenPlace)) return false
     return isPointKnown({ x: (first.x1 + first.x2) / 2, y: (first.y1 + first.y2) / 2 })
@@ -2057,7 +2084,7 @@ export function filterMapForGroup(
     // `lightForPlayer` (lista do que vai) — a regra nunca atravessa.
     lights: visibleLights(map.lights, hiddenLayers)
       .filter((l) => !l.hidden && l.apagada !== true && !inClosedRoof({ x: l.x, y: l.y }) && isVisible({ x: l.x, y: l.y }))
-      .filter((l) => l.attachedTokenId === undefined || (!masterHiddenTokenIds.has(l.attachedTokenId) && !outroPisoTokenIds.has(l.attachedTokenId)))
+      .filter((l) => l.attachedTokenId === undefined || (!masterHiddenTokenIds.has(l.attachedTokenId) && !outroPisoTokenIds.has(l.attachedTokenId) && !veiledTokenIds.has(l.attachedTokenId)))
       .map((l) => lightForPlayer(l.attachedTokenId === undefined || sentTokenIds.has(l.attachedTokenId) ? l : withoutAttachment(l))),
     stairs: playerStairs,
     // A silhueta inteira responde à sala, não só o centro: sala secreta ou teto

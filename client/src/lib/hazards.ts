@@ -39,8 +39,29 @@ export const HAZARD_COLORS: Record<HazardKind, number> = {
 /** Opacidade do preenchimento: lê-se o perigo e ainda se lê o chão embaixo. */
 export const HAZARD_FILL_ALPHA = 0.35
 
-/** Até onde enxerga quem está dentro da fumaça, em QUADRADOS da grade. */
+/** Até onde enxerga quem está dentro da fumaça (ou do vapor), em QUADRADOS da grade. */
 export const SMOKE_VISION_CELLS = 2
+
+/**
+ * Os perigos que TAPAM A VISTA: quem está dentro enxerga só
+ * `SMOKE_VISION_CELLS` quadrados, e quem está fora não vê quem está lá dentro
+ * (`lib/fogFilter.ts`). Fogo e água se veem de longe.
+ */
+const OBSCURING: Record<HazardKind, boolean> = {
+  fogo: false,
+  fumaca: true,
+  vapor: true,
+  agua: false,
+}
+
+export function obscuresVision(kind: HazardKind): boolean {
+  return OBSCURING[kind]
+}
+
+/** O que o painel do mestre explica sobre o perigo, quando ele faz algo além de marcar a sala. */
+export function hazardEffectHint(kind: HazardKind): string | null {
+  return obscuresVision(kind) ? `Quem está dentro enxerga só ${SMOKE_VISION_CELLS} casas e some para quem está fora.` : null
+}
 
 /** Quanto tempo o aviso "Você entrou no fogo" fica na tela do jogador. */
 export const HAZARD_NOTICE_TTL_MS = 5000
@@ -57,7 +78,7 @@ const ENTRY_PHRASE: Record<HazardKind, string> = {
 const PLAYER_NOTICE: Record<HazardKind, string> = {
   fogo: 'Você entrou no fogo!',
   fumaca: 'Você entrou na fumaça: mal dá para enxergar.',
-  vapor: 'Você entrou no vapor!',
+  vapor: 'Você entrou no vapor: mal dá para enxergar.',
   agua: 'Você entrou na água!',
 }
 
@@ -258,13 +279,23 @@ export function hazardsAt(map: MapData, point: RegionPoint): Hazard[] {
 }
 
 /**
- * Raio de visão de quem está no ponto: dentro da fumaça, no máximo
+ * Raio de visão de quem está no ponto: dentro da fumaça ou do vapor, no máximo
  * `SMOKE_VISION_CELLS` quadrados; fora, o raio de sempre. Nunca aumenta.
  */
 export function visionRadiusAt(map: MapData, point: RegionPoint, radius: number): number {
   if (hazardsOf(map).length === 0) return radius
-  const inSmoke = hazardsAt(map, point).some((h) => h.kind === 'fumaca')
+  const inSmoke = hazardsAt(map, point).some((h) => obscuresVision(h.kind))
   return inSmoke ? Math.min(radius, map.grid * SMOKE_VISION_CELLS) : radius
+}
+
+/**
+ * Os polígonos das salas tomadas por fumaça ou vapor (`obscuresVision`): o
+ * VÉU. Quem está dentro de um só é visto por quem está dentro do mesmo.
+ */
+export function obscuringRoomRings(map: MapData): RegionPoint[][] {
+  return hazardsOf(map)
+    .filter((h) => obscuresVision(h.kind))
+    .flatMap((h) => hazardRooms(map, h).map((r) => r.points))
 }
 
 /** Ficha dentro de zona: quem, em qual zona, de que perigo. */

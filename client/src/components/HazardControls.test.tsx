@@ -33,6 +33,22 @@ function botao(nome: string): HTMLButtonElement {
   return achado
 }
 
+describe('HazardControls — o que a fumaça e o vapor fazem', () => {
+  it.each(['fumaca', 'vapor'] as const)('%s: o painel conta ao mestre que encurta a visão e esconde quem está dentro', (kind) => {
+    render(<HazardControls kind={kind} roomCount={1} canAdvance={false} onKindChange={() => {}} onAdvance={() => {}} />)
+    const dica = container.querySelector('.lb-field__hint')?.textContent ?? ''
+    expect(dica).toContain('Quem está dentro enxerga só 2 casas')
+    expect(dica).toContain('some para quem está fora')
+  })
+
+  it('fogo não promete esconder ninguém', () => {
+    render(<HazardControls kind="fogo" roomCount={1} canAdvance={false} onKindChange={() => {}} onAdvance={() => {}} />)
+    const dica = container.querySelector('.lb-field__hint')?.textContent ?? ''
+    expect(dica).toContain('Fogo em 1 sala')
+    expect(dica).not.toContain('enxerga')
+  })
+})
+
 describe('HazardControls', () => {
   it('mostra os cinco estados num grupo de escolha única, com o atual marcado', () => {
     render(<HazardControls kind="fumaca" roomCount={2} canAdvance onKindChange={() => {}} onAdvance={() => {}} />)

@@ -116,6 +116,12 @@ describe('visionRadiusAt — fumaça encurta a visão', () => {
   it('raio já menor que o da fumaça não cresce', () => {
     expect(visionRadiusAt(map, { x: 250, y: 200 }, 30)).toBe(30)
   })
+
+  it('o vapor encurta igual à fumaça; a água, não', () => {
+    const molhado = torre({ hazards: [zona('vapor', 'vapor', ['sala-a']), zona('agua', 'agua', ['sala-b'])] })
+    expect(visionRadiusAt(molhado, { x: 250, y: 200 }, 700)).toBe(SMOKE_VISION_CELLS * GRADE)
+    expect(visionRadiusAt(molhado, { x: 750, y: 200 }, 700)).toBe(700)
+  })
 })
 
 describe('hazardPresence + newHazardEntries — quem entrou agora', () => {
