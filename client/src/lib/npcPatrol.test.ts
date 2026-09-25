@@ -7,7 +7,7 @@
 import { describe, expect, it } from 'vitest'
 import type { MapData, Token, TokenPatrol } from '../types/map'
 import { createEmptyMap } from './mapFactory'
-import { applyPatrolOp, PATROL_MAX_POINTS, readTokenPatrol, tokenPatrolForPlayer, tokenPatrolOf } from './npcPatrol'
+import { applyPatrolOp, PATROL_MAX_POINTS, readTokenPatrol, tokenPatrolOf } from './npcPatrol'
 
 function ficha(id: string, x: number, y: number, extra: Partial<Token> = {}): Token {
   return { id, characterId: null, name: `nome-${id}`, x, y, size: 1, image: null, ...extra }
@@ -131,16 +131,4 @@ describe('applyPatrolOp — Avançar patrulha', () => {
   })
 })
 
-describe('tokenPatrolForPlayer — a rota nunca sai do mestre', () => {
-  it('tira o campo "patrulha" e mantém o resto da ficha', () => {
-    const guarda = ficha('guarda', 300, 400, { patrulha: RONDA, color: '#ff5a00' })
-    const paraJogador = tokenPatrolForPlayer(guarda)
-    expect('patrulha' in paraJogador).toBe(false)
-    expect(paraJogador).toEqual(ficha('guarda', 300, 400, { color: '#ff5a00' }))
-  })
-
-  it('ficha sem rota sai na mesma instância', () => {
-    const comum = ficha('heroi', 1, 2)
-    expect(tokenPatrolForPlayer(comum)).toBe(comum)
-  })
-})
+// A rota nunca sai do mestre: provado no recorte inteiro, `fogFilter.patrulha.test.ts`.
