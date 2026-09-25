@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState, type ComponentType, type CSSProperties, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ComponentType, type CSSProperties, type ReactNode } from 'react'
 import type { DrawingTool } from '../types/tools'
 import { theme } from '../theme'
 import { TOOLBAR_SLOTS, TOOL_CLUSTERS, TOOL_HINTS, TOOL_LABELS, clusterIdOf, type ToolbarSlot } from './labels'
@@ -332,7 +332,13 @@ export function Toolbar({ activeTool, onSelectTool, lastDrawingTool, variantBind
    *  animação de entrada. */
   const echoRef = useRef<HTMLSpanElement>(null)
   const markRef = useRef<HTMLSpanElement>(null)
-  const [placement, setPlacement] = useState<HintPlacement | null>(null)
+  /**
+   * Tudo o que muda a posição do balão. A medida guardada só vale para a chave
+   * com que foi tirada: trocar de ferramenta ou de texto esconde o balão até a
+   * medida nova, em vez de mostrá-lo um quadro na posição da anterior.
+   */
+  const placementKey = hint || echo ? [activeTool, hint ?? '', echo?.subject ?? '', echo?.value ?? ''].join('|') : null
+  const [placement, setPlacement] = useState<{ key: string; value: HintPlacement } | null>(null)
 
   /**
    * Posição da barra cuja setinha está aberta agora (no máximo uma, mesmo
@@ -379,13 +385,10 @@ export function Toolbar({ activeTool, onSelectTool, lastDrawingTool, variantBind
     return () => document.removeEventListener('pointerdown', handleCanvasPointerDown, true)
   }, [hintDismissed])
 
-  useLayoutEffect(() => {
+  useEffect(() => {
     // O balão existe com dica, com eco, ou com os dois — e precisa ser medido
     // em qualquer um dos casos, porque a largura muda quando o eco entra.
-    if (!hint && !echo) {
-      setPlacement(null)
-      return
-    }
+    if (placementKey === null) return
 
     const measure = () => {
       const dock = dockRef.current
@@ -394,8 +397,9 @@ export function Toolbar({ activeTool, onSelectTool, lastDrawingTool, variantBind
       if (!dock || !balloon || !button) return
 
       const buttonBox = button.getBoundingClientRect()
-      setPlacement(
-        placeHint({
+      setPlacement({
+        key: placementKey,
+        value: placeHint({
           anchorCenter: buttonBox.left + buttonBox.width / 2,
           originLeft: dock.getBoundingClientRect().left,
           hintWidth: balloon.offsetWidth,
@@ -403,15 +407,38 @@ export function Toolbar({ activeTool, onSelectTool, lastDrawingTool, variantBind
           minLeft: HINT_MIN_LEFT,
           edgeGap: EDGE_GAP,
         }),
-      )
+      })
     }
 
-    // Em `useLayoutEffect` a medida entra antes do paint, então o balão nunca
-    // aparece na posição provisória.
-    measure()
-    window.addEventListener('resize', measure)
-    return () => window.removeEventListener('resize', measure)
-  }, [activeTool, hint, echo?.subject, echo?.value])
+    // Nunca mede dentro do commit: na abertura, com o canvas recém-montado, ler
+    // o layout aqui forçava um recálculo síncrono de 198 a 241 ms (perfil da
+    // torre). O ResizeObserver entrega a primeira observação logo depois do
+    // layout que o navegador já ia fazer, com a medida limpa; sem ele, o
+    // próximo quadro. Até lá o balão fica escondido (`hintStyle`), nunca na
+    // posição da ferramenta anterior.
+    let frame = 0
+    const measureNextFrame = () => {
+      if (frame) return
+      frame = requestAnimationFrame(() => {
+        frame = 0
+        measure()
+      })
+    }
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(measure)
+    if (observer) {
+      for (const el of [dockRef.current, hintRef.current, activeButtonRef.current]) if (el) observer.observe(el)
+    } else {
+      measureNextFrame()
+    }
+    // A janela pode mudar sem nenhum dos três mudar de tamanho (a barra só
+    // desliza), e a conta depende da largura da janela.
+    window.addEventListener('resize', measureNextFrame)
+    return () => {
+      observer?.disconnect()
+      if (frame) cancelAnimationFrame(frame)
+      window.removeEventListener('resize', measureNextFrame)
+    }
+  }, [placementKey])
 
   // Entrada do eco — ver ECHO_LINE_MOTION. Roda por escolha, não por render: a
   // dependência é o objeto `variantChoice`, que só nasce de novo num clique de
@@ -426,8 +453,9 @@ export function Toolbar({ activeTool, onSelectTool, lastDrawingTool, variantBind
     markRef.current?.animate?.([{ opacity: 0, transform: 'scale(0.92)' }, { opacity: 1, transform: 'none' }], ECHO_MARK_MOTION)
   }, [variantChoice])
 
-  const hintStyle: CSSProperties = placement
-    ? ({ left: placement.left, '--lb-hint-arrow': `${placement.arrow}px` } as CSSProperties)
+  const current = placement?.key === placementKey ? placement.value : null
+  const hintStyle: CSSProperties = current
+    ? ({ left: current.left, '--lb-hint-arrow': `${current.arrow}px` } as CSSProperties)
     : // Ainda sem medida: some, mas continua ocupando layout para poder ser medido.
       { visibility: 'hidden' }
 
