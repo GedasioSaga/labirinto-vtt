@@ -3,6 +3,7 @@ import { hazardPresence, newHazardEntries, type HazardEntry } from '../lib/hazar
 import { areaTriggerPresence, newAreaTriggerEntries, regionAreaName, type AreaTriggerPresence } from '../lib/areaTriggers'
 import { contractFromTerms, isContractDue, type LoanTerms } from '../lib/tokenLoan'
 import { tokenAsSeenByPlayer } from '../lib/tokenPublicName'
+import { idDePortaCabeNoFio, MAX_PORTAS_POR_ATRAVESSAR } from '../lib/portasPorAtravessar'
 import { createExploration, decodeExploration, encodeExploration, forgetBlocked, forgetInside, isPointExplored, markAll, markRings, mergeExploration, resizeExploration, type Exploration } from '../lib/exploration'
 import { pointInRing } from '../lib/floorContour'
 import { cabineAposViagem, cabineDaParada, cabineNaParada, type CabineDeTransporte, type ChamadaAceita, type MovimentoDeCabine } from '../lib/cabine'
@@ -19,6 +20,8 @@ import {
   memoryBlockedRings,
   pinClueForPlayer,
   playerBlockedRings,
+  pisoDoGrupo,
+  pisoDoJogador,
   playerEyeTokens,
   roomClueForPlayer,
   sceneNameForPlayer,
@@ -33,20 +36,23 @@ import { CLUEBOOK_MAX_CLUES } from '../lib/clues'
 import { visionRadiusAtHour } from '../lib/campaignClock'
 import { sameBuilding, sortFloorLabels } from '../lib/buildingFloors'
 import { turnTokenIdOn, type TurnRef } from '../lib/initiative'
-import { validateTokenMove } from '../lib/moveValidation'
+import { travaDaFichaDoJogador, validateTokenMove } from '../lib/moveValidation'
 import { tokensOccupy } from '../lib/movementRules'
+import { escadaDaFicha, mapaDoPiso, pisoDe } from '../lib/pisos'
 import { confrontoParaJogador, fichaDaVez } from '../lib/confronto'
 import { tokenReachesDoor } from '../lib/doorReach'
 import { keyForDoor, keyForPin } from '../lib/doorKey'
 import { DESTINATION_MIN_INTERVAL_MS, SIGNAL_MIN_INTERVAL_MS, signalColor, type DestinationMark } from '../lib/signals'
 import { acceptsLockedRequest, passageOf, pinSummary } from '../lib/pins'
-import { carriedItemsOf, itemOfPin, tokenReachesPin, tokensTouch, type ItemChange } from '../lib/items'
+import { carriedItemsOf, cleanItemName, itemOfPin, tokenReachesPin, tokensTouch, type ItemChange } from '../lib/items'
+import { itemAVenda } from '../lib/loja'
 import { selectedTokenColor } from '../lib/tokenColor'
 import { arrivalSpot, arrivalSpotWithoutPin, exitLabelsOf, freeSeatNear, isArrivalOnly, resolvePinTravel, SAIDA_PRINCIPAL, sameDestination, travelExitOf, type TravelScene } from '../lib/pinTravel'
 import { gatherSpots, pinClearance, type KeepClear } from '../lib/gatherParty'
 import { visibleTokens } from '../lib/layers'
 import type { SavedSceneMemory, SavedSeat, SavedSeatExploration } from '../lib/savedTable'
 import { companionSpots, companionsNear, entourageNear, entourageSeats, type Companion, type Seat } from '../lib/travelTogether'
+import { pinTravelGroupOf } from '../lib/pinTravelers'
 import {
   MAX_PENDING_POINT_ACTIONS_PER_PLAYER,
   POINT_ACTION_MIN_INTERVAL_MS,
@@ -86,6 +92,8 @@ import {
   type PinLeverRejection,
   type PinTakeMessage,
   type PinTakeRejection,
+  type PinBuyMessage,
+  type PinBuyRejection,
   type PartyMember,
   type PartyWhere,
   type LetterSendMessage,
@@ -102,6 +110,7 @@ import {
   type TokenHideRejection,
   type TokenHideRequestMessage,
   type TokenMoveMessage,
+  type TokenPisoMessage,
 } from './protocol'
 import {
   clampAlarmText,
@@ -331,6 +340,24 @@ export interface ItemRequest {
 }
 
 /**
+ * LOJA COM PREÇOS: o "Quero" de um jogador que passou na conferência, para o
+ * mestre ler e responder ("Vender" / "Não"). Nome, preço e banca saem do mapa
+ * do MESTRE, nunca do que o jogador mandou. Nada disto vai ao jogador.
+ */
+export interface PurchaseRequest {
+  requestId: string
+  playerId: string
+  playerName: string
+  /** Como o mestre chama a banca: a descrição do pino ou, sem descrição, o resumo (`pinSummary`). */
+  pinLabel: string
+  itemName: string
+  /** Texto livre do mestre ("1 moeda"); vazio = sem preço escrito. */
+  preco: string
+  /** Nome da cena (o que o mestre lê), só quando a banca está numa cena de FUNDO. */
+  sceneName?: string
+}
+
+/**
  * Item que trocou de lugar (pego, ou dado a um colega): o integrador aplica
  * com `lib/items.ts` → `applyItemChange` na cena `sceneId` (ausente = a
  * aberta no editor), fora do desfazer — foi o jogador, não o mestre.
@@ -343,6 +370,18 @@ export interface AppliedItems extends ItemChange {
  * Nome/foto novos do token, já validados: o token existe e é DO jogador que
  * pediu. Campo ausente = não mexe naquele dado.
  */
+/**
+ * PISOS NA MESMA CENA — a ficha do jogador subiu ou desceu pela escada, já
+ * validada (a ficha é dele, está encostada na escada que liga o piso dela a
+ * `piso`). O integrador troca o piso da ficha no mapa do mestre, no mesmo
+ * ponto, sem trocar de cena. `sceneId` como nos outros "Applied".
+ */
+export interface AppliedPiso {
+  tokenId: string
+  piso: number
+  sceneId?: string
+}
+
 export interface AppliedTokenEdit {
   tokenId: string
   name?: string
@@ -373,6 +412,11 @@ export interface TravelRequest {
    * "Liberar uma vez", "Passar para pede" ou "Não", e não "Deixar ir".
    */
   trancada?: true
+  /**
+   * ESCOLHER FICHAS NO PINO: o nome de cada ficha que o jogador escolheu, a da
+   * frente primeiro — o mestre lê quais vão. Ausente = pedido sem escolha.
+   */
+  tokenNames?: string[]
 }
 
 /**
@@ -413,6 +457,12 @@ export interface AppliedTransfer {
   toSceneName: string
   x: number
   y: number
+  /**
+   * PISOS NA MESMA CENA: o piso da cena de destino onde a ficha chega (o do
+   * pino par). Ausente = o térreo. O ajudante que atravessa junto chega no
+   * mesmo piso.
+   */
+  piso?: number
   /**
    * AJUDANTE CONTRATADO: as fichas EMPRESTADAS a este jogador que estavam na
    * mesma cena de partida e atravessam junto, cada uma já com a casa livre ao
@@ -588,6 +638,8 @@ export interface HostResult {
   applyMove?: AppliedMove
   applyDoor?: AppliedDoor
   applyTokenEdit?: AppliedTokenEdit
+  /** PISOS NA MESMA CENA: a ficha trocou de piso pela escada. */
+  applyPiso?: AppliedPiso
   signal?: HostSignal
   playerLaser?: HostPlayerLaser
   /** Ação no ponto aceita: o integrador põe a linha na Caixa do mestre. */
@@ -608,7 +660,9 @@ export interface HostResult {
   pinKeyUsed?: PinKeyUse
   /** "Pegar" válido de pino que pede ao mestre: o integrador pergunta. */
   itemRequest?: ItemRequest
-  /** Item pego (pino livre ou "Deixar") ou dado: o integrador grava na cena. */
+  /** LOJA: "Quero" conferido — o integrador pergunta ao mestre ("Vender" / "Não"). */
+  purchaseRequest?: PurchaseRequest
+  /** Item pego (pino livre ou "Deixar"), dado ou vendido (com `venda`): o integrador grava na cena. */
   applyItems?: AppliedItems
   /** CORREIO: bilhete aceito, à espera do mestre. O integrador pergunta "Entregar" ou "Interceptar". */
   letter?: LetterRequest
@@ -812,8 +866,18 @@ export const VISION_RADIUS_STEP = 50
 export const PLAYER_LASER_MAX_PER_WINDOW = 40
 export const PLAYER_LASER_WINDOW_MS = 1000
 
+/** PISOS NA MESMA CENA: uma troca de piso por jogador nesta janela; o excesso morre em silêncio. */
+export const PISO_CHANGE_MIN_INTERVAL_MS = 500
+
 /** Um pedido de porta por jogador nesta janela; o excesso morre em silêncio (igual ao sinal). */
 export const DOOR_TOGGLE_MIN_INTERVAL_MS = 250
+
+/**
+ * LOJA COM PREÇOS: um "Quero" por jogador nesta janela, de qualquer banca. O
+ * recorte da névoa que confere o pedido é a parte cara, e o pedido interrompe
+ * o mestre: quem toca em laço lê `too_soon`, e nada chega ao mestre.
+ */
+export const PEDIDO_LOJA_MIN_INTERVAL_MS = 1500
 
 /**
  * Uma FOTO nova por jogador nesta janela. Só a foto: ela é o único campo caro
@@ -988,6 +1052,16 @@ export interface HostSession {
    */
   dismissPlayer(playerId: string): boolean
   /**
+   * "Passar fichas e mapa a…": esquece quem está FORA, como o Dispensar, e
+   * antes entrega a `heirId` as fichas DELE (a que ele jogava emprestada fica
+   * com o dono; a que ele tinha emprestado a outro passa, e o empréstimo
+   * acaba), o ajudante contratado com o acordo, e o explorado de cada cena,
+   * somado ao de quem recebe. `null` sem mudar nada: dono conectado (esse é o
+   * Expulsar), desconhecido, ou `heirId` desconhecido ou o próprio. Não envia
+   * snapshot: o integrador faz o broadcast.
+   */
+  handOverPlayer(playerId: string, heirId: string): (HostResult & { handedTokens: string[] }) | null
+  /**
    * `room.closed` para todo jogador conectado (jogando ou aguardando) e toda tela da mesa. O
    * integrador envia isto ANTES de derrubar a sala, para o jogador ler "O
    * mestre encerrou a sala" e não "A conexão caiu". Não mexe no estado.
@@ -1128,6 +1202,18 @@ export interface HostSession {
   denyItemRequest(requestId: string): HostResult
   /** O pedido de item ainda espera o mestre? `false` depois de decidido, ou quando o jogador saiu. */
   isItemRequestPending(requestId: string): boolean
+  /**
+   * LOJA — "Vender": revalida contra o mundo de AGORA (a banca pode ter sumido,
+   * a mercadoria acabado, a ficha saído da cena ou mudado de dono) e devolve
+   * `applyItems` com `venda` (o estoque cai um e a mercadoria entra na mochila
+   * da ficha que estava na banca) + `pin.buy.answer sold` ao jogador. Pedido
+   * que já não existe não faz nada.
+   */
+  approvePurchase(requestId: string, source: HostMapSource): HostResult
+  /** LOJA — "Não": `pin.buy.answer denied` ao jogador. Pedido que já não existe não faz nada. */
+  denyPurchase(requestId: string): HostResult
+  /** O pedido de compra ainda espera o mestre? `false` depois de decidido, ou quando o jogador saiu. */
+  isPurchasePending(requestId: string): boolean
   /**
    * "Nada aqui" (`nothing`) ou "Feito" (`seen`) da ação no ponto: a resposta
    * vai SÓ à conexão atual de quem pediu. Pedido já respondido, de jogador
@@ -1340,6 +1426,8 @@ interface PendingTravel {
   embarque?: MovimentoDeCabine
   /** Veio de um pino trancado que aceita tentativas: a aprovação do mestre passa pelo cadeado. */
   trancada?: true
+  /** ESCOLHER FICHAS NO PINO: as fichas que o jogador escolheu. O "Deixar ir" confere todas de novo. */
+  tokenIds?: string[]
 }
 
 /** Pedido da porta trancada à espera do mestre. Um por jogador. `mapId`: a `sceneKey` da cena da porta. */
@@ -1366,6 +1454,16 @@ interface PendingItem {
   mapId: string
 }
 
+/** LOJA: o "Quero" que espera o mestre — a banca, a mercadoria, a ficha que estava nela e a cena. */
+interface PendingPurchase {
+  requestId: string
+  playerId: string
+  pinId: string
+  itemId: string
+  tokenId: string
+  mapId: string
+}
+
 /** Pedido que passou em tudo: de onde, para onde, por qual pino e com qual token. */
 interface ValidTravel {
   from: HostScene & { sceneId: string }
@@ -1377,6 +1475,12 @@ interface ValidTravel {
   cabine: MovimentoDeCabine | null
   /** CHAVE ABRE PORTA: o pino é trancado e `token` passa com este item da mochila. */
   key?: string
+  /**
+   * ESCOLHER FICHAS NO PINO: as fichas escolhidas no pedido, na ordem do grupo
+   * do pino (`token` é a primeira). Ausente = pedido sem escolha: vai o séquito
+   * de sempre.
+   */
+  chosen?: readonly Token[]
 }
 
 /**
@@ -1513,6 +1617,46 @@ function restoredMemoryOf(scene: SavedSceneMemory): Omit<PlayerMemory, 'place'> 
   return { key: memoryKey(dims), dims, exp, doors, doorSeen: new Map(), vision: [], restored: true, seenRooms: new Set() }
 }
 
+/** Separa o id do mapa do piso na chave de memória: não aparece em id gerado pelo app. */
+const PISO_NA_CHAVE = '#piso:'
+
+/**
+ * PISOS NA MESMA CENA — a memória de cada piso é outra (explorado e portas
+ * lembradas): o térreo explorado não pode abrir o 1º piso, que ocupa o mesmo
+ * lugar do plano. O térreo usa a chave de sempre (`map.id`), então a memória de
+ * quem já jogava num mapa sem pisos continua valendo.
+ */
+function sceneMemoryId(map: MapData, piso: number): string {
+  return piso === 0 ? map.id : `${map.id}${PISO_NA_CHAVE}${piso}`
+}
+
+/** O id do mapa de uma chave de memória (`sceneMemoryId`): a de qualquer piso volta ao mesmo mapa. */
+function mapIdOfMemory(memoryId: string): string {
+  const cut = memoryId.indexOf(PISO_NA_CHAVE)
+  return cut === -1 ? memoryId : memoryId.slice(0, cut)
+}
+
+/** A chave é de um piso fora do térreo? (a mesa guardada só grava o térreo). */
+function isUpperFloorMemory(memoryId: string): boolean {
+  return memoryId.includes(PISO_NA_CHAVE)
+}
+
+/** "Esconder planta" da cena: a memória de TODOS os pisos dela. */
+function forgetSceneMemories(byScene: Map<string, unknown> | undefined, mapId: string): void {
+  if (byScene === undefined) return
+  for (const key of [...byScene.keys()]) {
+    if (key === mapId || key.startsWith(`${mapId}${PISO_NA_CHAVE}`)) byScene.delete(key)
+  }
+}
+
+/**
+ * PORTAS POR ATRAVESSAR como vão no fio: as do recorte, sem id que o jogador
+ * recusaria (e com ele o snapshot inteiro) e no teto de ids por mensagem.
+ */
+function porAtravessarNoFio(view: Pick<PlayerMapView, 'portasPorAtravessar'>): string[] {
+  return view.portasPorAtravessar.filter(idDePortaCabeNoFio).slice(0, MAX_PORTAS_POR_ATRAVESSAR)
+}
+
 interface PlayerRecord {
   playerId: string
   name: string
@@ -1567,6 +1711,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   // Por playerId: a última rolagem de dado (DICE_ROLL_MIN_INTERVAL_MS). Reconectar não zera.
   const lastDiceRollAt = new Map<string, number>()
   const rollDie = options.rollDie ?? secureRollDie
+  // Por playerId: PISOS NA MESMA CENA — o limite da troca de piso pela escada.
+  const lastPisoChangeAt = new Map<string, number>()
   // Por playerId: janela corrente do teto de lotes de laser (PLAYER_LASER_MAX_PER_WINDOW).
   const laserWindows = new Map<string, { start: number; count: number }>()
   // Por playerId: conexões que receberam algum ponto do gesto em curso, e a
@@ -1587,6 +1733,10 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   // Por playerId: o mesmo limite do toque na porta, para "Pegar" e para "Dar a…".
   const lastItemTakeAt = new Map<string, number>()
   const lastItemGiveAt = new Map<string, number>()
+  // LOJA — por playerId: o "Quero" que espera o mestre (no máximo um) e o
+  // último "Quero" tentado (`PEDIDO_LOJA_MIN_INTERVAL_MS`). Só o kick apaga o limite.
+  const pendingPurchases = new Map<string, PendingPurchase>()
+  const lastPurchaseAt = new Map<string, number>()
   // Por playerId: o mesmo limite do toque na porta, para puxar a alavanca.
   const lastLeverAt = new Map<string, number>()
   // Por playerId: limite da foto nova do próprio token (só da foto, ver TOKEN_PHOTO_MIN_INTERVAL_MS).
@@ -1697,9 +1847,10 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   // sem isso o bilhete chegava mudo.
   const unseenLetters = new Map<string, Set<string>>()
   // MARCA "VAMOS PARA CÁ" — por playerId: a marca dele e a cena (`sceneKey`)
-  // onde a pôs. Uma por jogador; fica até ele tirar, perder a ficha ou sair
-  // daquela cena (`pruneDestinations`). Sobrevive a disconnect; só o kick apaga.
-  const destinations = new Map<string, { scene: string; x: number; y: number }>()
+  // e o piso onde a pôs. Uma por jogador; fica até ele tirar, perder a ficha
+  // ou sair daquela cena ou piso (`pruneDestinations`). Sobrevive a
+  // disconnect; só o kick apaga.
+  const destinations = new Map<string, { scene: string; piso: number; x: number; y: number }>()
   // Por playerId: quando pôs a última marca (DESTINATION_MIN_INTERVAL_MS).
   const lastDestinationAt = new Map<string, number>()
   // Por playerId: a última lista de marcas mandada a ele (JSON). Só sai lista
@@ -1846,9 +1997,24 @@ export function createHostSession(options: HostSessionOptions): HostSession {
    * memória acompanha, no mesmo lugar do mundo (`resizeExploration`), e fica
    * na mesma posição da ordem de uso. Outra grade é outro mapa: não conta.
    */
-  const existingMemory = (playerId: string, map: MapData): PlayerMemory | undefined => {
+  /** PISOS NA MESMA CENA: o piso que o jogador vê neste mapa — o mesmo número que o recorte usa. */
+  const pisoOf = (playerId: string, map: MapData): number => pisoDoJogador(map, playerId, ownership, loansFor(playerId))
+
+  /** O piso da ficha neste mapa; ficha que não está nele, térreo. */
+  const tokenPisoOf = (tokenId: string, map: MapData): number => {
+    const token = map.tokens.find((t) => t.id === tokenId)
+    return token === undefined ? 0 : pisoDe(token)
+  }
+
+  /** O mapa como o jogador o vê: só o piso dele (mapa de um piso só volta ele mesmo). */
+  const floorMapOf = (playerId: string, map: MapData): MapData => mapaDoPiso(map, pisoOf(playerId, map))
+
+  const existingMemory = (playerId: string, map: MapData, piso: number = pisoOf(playerId, map)): PlayerMemory | undefined => {
     const byScene = memories.get(playerId)
-    const stored = byScene?.get(map.id)
+    // PISOS: cada piso da cena tem a sua memória (`sceneMemoryId`); o térreo usa a chave de sempre.
+    // `piso` ausente = o piso em que o jogador está; a TV pede o piso DELA.
+    const memoryId = sceneMemoryId(map, piso)
+    const stored = byScene?.get(memoryId)
     if (byScene === undefined || stored === undefined) return undefined
     const dims = dimsOf(map)
     const key = memoryKey(dims)
@@ -1859,13 +2025,13 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       // `restored` passa adiante: a memória da mesa retomada ainda precisa da conferência abaixo.
       // A visão da planta velha não vale na nova: o próximo snapshot manda a de agora.
       memory = { ...stored, key, dims, exp: resizeExploration(stored.exp, worldSizeOf(dims)), vision: [] }
-      byScene.set(map.id, memory)
+      byScene.set(memoryId, memory)
     }
     // Memória da mesa retomada: toda leitura passa por aqui, então é aqui que
     // o que o mestre escondeu desde a gravação (zona oculta, sala secreta) sai
     // dela — antes de qualquer recorte ou teste de ponto usá-la.
     if (memory.restored) {
-      forgetBlocked(memory.exp, memoryBlockedRings(map))
+      forgetBlocked(memory.exp, memoryBlockedRings(mapaDoPiso(map, piso)))
       memory.restored = false
     }
     return memory
@@ -1901,13 +2067,15 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       place: nextPlaceId(playerId),
     }
     // Apagar e regravar põe a cena no fim da ordem: é a mais recente agora.
-    byScene.delete(map.id)
-    byScene.set(map.id, memory)
+    const memoryId = sceneMemoryId(map, pisoOf(playerId, map))
+    byScene.delete(memoryId)
+    byScene.set(memoryId, memory)
     if (byScene.size <= MAX_SCENE_MEMORIES_PER_PLAYER) return memory
     const withOwnToken = new Set(allScenes(world).filter((scene) => ownsTokenIn(playerId, scene)).map(sceneKey))
     for (const oldest of byScene.keys()) {
       if (byScene.size <= MAX_SCENE_MEMORIES_PER_PLAYER) break
-      if (oldest === map.id || withOwnToken.has(oldest)) continue
+      // PISOS: a memória de outro piso da cena onde ele tem ficha também fica (é a mesma cena).
+      if (oldest === memoryId || withOwnToken.has(mapIdOfMemory(oldest))) continue
       byScene.delete(oldest)
     }
     return memory
@@ -1926,14 +2094,16 @@ export function createHostSession(options: HostSessionOptions): HostSession {
    */
   const existingTokenMemory = (tokenId: string, map: MapData): SceneMemory | undefined => {
     const byScene = tokenMemories.get(tokenId)
-    const stored = byScene?.get(map.id)
+    // PISOS: a ficha lembra o piso em que está (`sceneMemoryId`).
+    const memoryId = sceneMemoryId(map, tokenPisoOf(tokenId, map))
+    const stored = byScene?.get(memoryId)
     if (byScene === undefined || stored === undefined) return undefined
     const dims = dimsOf(map)
     const key = memoryKey(dims)
     if (stored.key === key) return stored
     if (stored.dims.grid !== map.grid) return undefined
     const memory: SceneMemory = { key, dims, exp: resizeExploration(stored.exp, worldSizeOf(dims)), doors: stored.doors, doorSeen: stored.doorSeen }
-    byScene.set(map.id, memory)
+    byScene.set(memoryId, memory)
     return memory
   }
 
@@ -1945,7 +2115,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       tokenMemories.set(tokenId, byScene)
     }
     const memory = existingTokenMemory(tokenId, map) ?? emptySceneMemory(map)
-    touchScene(byScene, map.id, memory, MAX_SCENE_MEMORIES_PER_TOKEN)
+    touchScene(byScene, sceneMemoryId(map, tokenPisoOf(tokenId, map)), memory, MAX_SCENE_MEMORIES_PER_TOKEN)
     return memory
   }
 
@@ -1957,10 +2127,12 @@ export function createHostSession(options: HostSessionOptions): HostSession {
    */
   const inheritFromTokens = (playerId: string, map: MapData, memory: PlayerMemory): void => {
     let forbidden: RegionPoint[][] | null = null
-    for (const t of playerEyeTokens(map, playerId, ownership, loansFor(playerId))) {
+    // PISOS: só a ficha que está no piso que o jogador vê — a do outro piso lembra OUTRO piso.
+    const floorMap = floorMapOf(playerId, map)
+    for (const t of playerEyeTokens(floorMap, playerId, ownership, loansFor(playerId))) {
       const source = existingTokenMemory(t.id, map)
       if (source === undefined) continue
-      forbidden ??= playerBlockedRings(map)
+      forbidden ??= playerBlockedRings(floorMap)
       inheritMemory(memory, source, forbidden)
     }
   }
@@ -2191,7 +2363,9 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       if (floor === undefined || other.map.id === scene.map.id || !sameBuilding(here, floor)) continue
       // Dois andares com o mesmo rótulo seriam duas abas iguais: vale o primeiro, e nunca o do andar dele.
       if (floor.rotulo === here.rotulo || outros.some((o) => o.rotulo === floor.rotulo)) continue
-      const memory = existingMemory(playerId, other.map)
+      // PISOS: a aba mostra o TÉRREO do andar (`filterFloorMemory` recorta o térreo), então a
+      // memória é a do térreo — a do piso da ficha dele lá recortaria o térreo pelo que ele viu em cima.
+      const memory = existingMemory(playerId, other.map, 0)
       if (memory === undefined) continue
       // "QUEM VÊ": pino escolhido só para outro jogador não sai nem pela memória do andar.
       const view = filterFloorMemory(other.map, memory.exp, memory.doors, { pinAudiences, playerId, seenRooms: memory.seenRooms })
@@ -2301,6 +2475,9 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     if (confronto !== undefined) snapshot.confronto = confronto
     // GATILHO DE ÁREA: só o que o mestre revelou, mesma regra do campo.
     if (view.gatilhos.length > 0) snapshot.gatilhos = view.gatilhos
+    // PORTAS POR ATRAVESSAR: só porta que já foi no recorte dele; o campo só existe quando há alguma.
+    const porAtravessar = porAtravessarNoFio(view)
+    if (porAtravessar.length > 0) snapshot.porAtravessar = porAtravessar
     // MAPA POR ANDARES: o campo só existe quando há outro andar conhecido.
     if (andares !== undefined) snapshot.andares = andares
     // RELÓGIO DA CAMPANHA: o período e, desta cena, se está escuro. Sem relógio, o campo nem sai.
@@ -2386,20 +2563,25 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     // AJUDANTE CONTRATADO: o emprestado sem visão não enxerga pela TV, e sai com o nome público do NPC.
     const loaned = new Map<string, TokenContract>()
     for (const playerId of players.keys()) {
-      const memory = existingMemory(playerId, map)
-      if (memory !== undefined) {
-        mergeExploration(merged, memory.exp)
-        for (const [wallId, door] of memory.doors) {
-          const seenAt = memory.doorSeen.get(wallId) ?? 0
-          if (seenAt < (doorsSeenAt.get(wallId) ?? -1)) continue
-          doors.set(wallId, door)
-          doorsSeenAt.set(wallId, seenAt)
-        }
-      }
       // Só quem está NESTA cena enxerga por ela; a ficha dele em outra cena não conta.
       if (statusOf(playerId) === 'playing' && sceneFor(playerId, world) === scene) {
         viewers.push({ tokenIds: ownership[playerId] ?? [], visionRadius: tokenRadiusIn(playerId, map) })
         for (const [tokenId, contrato] of loansFor(playerId)) loaned.set(tokenId, contrato)
+      }
+    }
+    // PISOS NA MESMA CENA: a TV mostra um piso só (o do grupo, `pisoDoGrupo`),
+    // e junta só a memória DESSE piso — o explorado do 1º piso abriria no
+    // térreo, no mesmo lugar do plano, o que ninguém viu lá.
+    const pisoDaMesa = pisoDoGrupo(map, viewers, loaned)
+    for (const playerId of players.keys()) {
+      const memory = existingMemory(playerId, map, pisoDaMesa)
+      if (memory === undefined) continue
+      mergeExploration(merged, memory.exp)
+      for (const [wallId, door] of memory.doors) {
+        const seenAt = memory.doorSeen.get(wallId) ?? 0
+        if (seenAt < (doorsSeenAt.get(wallId) ?? -1)) continue
+        doors.set(wallId, door)
+        doorsSeenAt.set(wallId, seenAt)
       }
     }
     // A marca do guarda (?, !) conta a ficha de qualquer jogador, não só a de quem está no grupo da TV —
@@ -2415,6 +2597,9 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     if (view.hazards.length > 0) snapshot.hazards = view.hazards
     // GATILHO DE ÁREA: o revelado, mesma regra do jogador.
     if (view.gatilhos.length > 0) snapshot.gatilhos = view.gatilhos
+    // PORTAS POR ATRAVESSAR: as do GRUPO (o outro lado na névoa para a memória juntada da mesa).
+    const porAtravessar = porAtravessarNoFio(view)
+    if (porAtravessar.length > 0) snapshot.porAtravessar = porAtravessar
     return snapshot
   }
 
@@ -2801,6 +2986,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     forgetPointActionsOf(playerId)
     lastSignal.delete(playerId)
     lastDoorToggleAt.delete(playerId)
+    lastPisoChangeAt.delete(playerId)
     pendingDoors.delete(playerId)
     lastDoorRequestAt.delete(playerId)
     pendingHides.delete(playerId)
@@ -2816,6 +3002,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     pendingItems.delete(playerId)
     lastItemTakeAt.delete(playerId)
     lastItemGiveAt.delete(playerId)
+    pendingPurchases.delete(playerId)
+    lastPurchaseAt.delete(playerId)
     lastLeverAt.delete(playerId)
     enteredRooms.delete(playerId)
     notebooks.delete(playerId)
@@ -2882,6 +3070,35 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   }
 
   /**
+   * "Passar fichas e mapa a…": `heirId` soma o que `fromId` lembra de cada
+   * cena. Cena que só `fromId` conhecia chega com lugar novo DE `heirId`
+   * (`place` é contador de cada jogador) e antes das de `heirId` na ordem de
+   * uso, para o teto esquecer primeiro o que ele nunca viu. Cena dos dois com
+   * a mesma planta soma células, portas e cômodos; planta diferente fica a de
+   * `heirId`. `restored` faz o primeiro uso tirar o que hoje é zona oculta ou
+   * sala secreta, como na mesa retomada.
+   */
+  function inheritPlayerMemories(heirId: string, fromId: string): void {
+    const inherited = memories.get(fromId)
+    if (inherited === undefined) return
+    const own = memories.get(heirId) ?? new Map<string, PlayerMemory>()
+    const merged = new Map<string, PlayerMemory>()
+    for (const [mapId, memory] of inherited) {
+      const mine = own.get(mapId)
+      if (mine === undefined) {
+        merged.set(mapId, { ...memory, vision: [], seenRooms: new Set(memory.seenRooms), restored: true, place: nextPlaceId(heirId) })
+        continue
+      }
+      if (mine.key !== memory.key) continue
+      inheritMemory(mine, memory, [])
+      for (const room of memory.seenRooms) mine.seenRooms.add(room)
+      mine.restored = true
+    }
+    for (const [mapId, memory] of own) merged.set(mapId, memory)
+    memories.set(heirId, merged)
+  }
+
+  /**
    * "Fichas ocupam espaço" só conta ficha que o jogador ENXERGA agora: o
    * recorte dele (`filterMapForPlayer`), o mesmo que o snapshot manda. Ficha
    * oculta, secreta, em zona oculta ou na névoa não recusa — "Lugar ocupado"
@@ -2916,7 +3133,9 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     // recorte do jogador não o carrega.
     const carriedIds = new Set(carriedBy(scene.map, msg.tokenId).map((t) => t.id))
     const occupants = occupantsSeenBy(playerId, scene.map)?.filter((t) => !carriedIds.has(t.id))
-    const result = validateTokenMove(scene.map, { playerId, tokenId: msg.tokenId, x: msg.x, y: msg.y }, ownership, {
+    // PISOS: só as paredes (e as fichas) do piso da ficha seguram o passo — o piso de cima não é teto aqui.
+    const floorMap = mapaDoPiso(scene.map, tokenPisoOf(msg.tokenId, scene.map))
+    const result = validateTokenMove(floorMap, { playerId, tokenId: msg.tokenId, x: msg.x, y: msg.y }, ownership, {
       occupants,
       turnTokenId,
       gastoNaVez: gastoNaVez(scene.map),
@@ -2944,13 +3163,16 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   function relaySignalToColleagues(playerId: string, scene: HostScene, message: HostMessage, point: RegionPoint, world: HostWorld): Outbound[] {
     const map = scene.map
     // Sala secreta vale como zona oculta: repassar o sinal diria aos outros que ali existe algo.
-    if (playerBlockedRings(map).some((ring) => ring.length >= 3 && pointInRing(point, ring))) return []
+    if (playerBlockedRings(floorMapOf(playerId, map)).some((ring) => ring.length >= 3 && pointInRing(point, ring))) return []
     const outbound: Outbound[] = []
+    const piso = pisoOf(playerId, map)
     for (const [otherClient, otherId] of byClient) {
       if (otherId === playerId || statusOf(otherId) !== 'playing') continue
       // Quem está em outra cena não recebe: o ponto é deste mapa, e a
       // memória antiga dele desta cena diria que o sinal é para lá.
       if (sceneFor(otherId, world) !== scene) continue
+      // PISOS: nem quem está em outro piso — o sinal diria que alguém anda lá.
+      if (pisoOf(otherId, map) !== piso) continue
       if (knowsPoint(otherId, map, point)) outbound.push({ clientId: otherClient, msg: message })
     }
     return outbound
@@ -3055,13 +3277,14 @@ export function createHostSession(options: HostSessionOptions): HostSession {
 
   /**
    * Tira a marca de quem não está mais onde a pôs: perdeu a última ficha, ou
-   * a ficha dele está em outra cena. Uma marca "vamos para cá" de quem já foi
-   * embora mandaria o grupo a lugar nenhum — e diria onde ele esteve.
+   * a ficha dele está em outra cena ou em outro piso. Uma marca "vamos para
+   * cá" de quem já foi embora mandaria o grupo a lugar nenhum — e diria onde
+   * ele esteve.
    */
   const pruneDestinations = (world: HostWorld): void => {
     for (const [ownerId, mark] of destinations) {
       const scene = statusOf(ownerId) === 'playing' ? sceneFor(ownerId, world) : null
-      if (scene === null || sceneKey(scene) !== mark.scene) destinations.delete(ownerId)
+      if (scene === null || sceneKey(scene) !== mark.scene || pisoOf(ownerId, scene.map) !== mark.piso) destinations.delete(ownerId)
     }
   }
 
@@ -3077,10 +3300,12 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const scene = sceneFor(playerId, world)
     if (scene === null) return []
     const key = sceneKey(scene)
-    const blocked = playerBlockedRings(scene.map)
+    const blocked = playerBlockedRings(floorMapOf(playerId, scene.map))
+    const piso = pisoOf(playerId, scene.map)
     const marks: DestinationMark[] = []
     for (const [ownerId, mark] of destinations) {
-      if (mark.scene !== key) continue
+      // PISOS: a marca de quem está em outro piso diria onde ele quer ir lá — e apontaria o lugar errado aqui.
+      if (mark.scene !== key || mark.piso !== piso) continue
       const owner = players.get(ownerId)
       if (owner === undefined) continue
       const mine = ownerId === playerId
@@ -3135,7 +3360,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const last = lastDestinationAt.get(playerId)
     if (last !== undefined && at - last < DESTINATION_MIN_INTERVAL_MS) return { outbound: [] }
     lastDestinationAt.set(playerId, at)
-    destinations.set(playerId, { scene: sceneKey(scene), x: msg.x, y: msg.y })
+    destinations.set(playerId, { scene: sceneKey(scene), piso: pisoOf(playerId, map), x: msg.x, y: msg.y })
     return { outbound: destinationUpdates(world) }
   }
 
@@ -3192,8 +3417,9 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     else quota.count += 1
 
     const color = laserColorOf(playerId, map)
-    const blocked = playerBlockedRings(map)
+    const blocked = playerBlockedRings(floorMapOf(playerId, map))
     const shareable = inside.filter((p) => !blocked.some((ring) => ring.length >= 3 && pointInRing(p, ring)))
+    const piso = pisoOf(playerId, map)
     const outbound: Outbound[] = []
     const here = sceneKey(scene)
     let recipients = laserRecipients.get(playerId)
@@ -3206,6 +3432,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       if (otherId === playerId || statusOf(otherId) !== 'playing') continue
       // Outra cena: o ponto é deste mapa, e nem o nome de quem aponta vai para lá.
       if (sceneFor(otherId, world) !== scene) continue
+      // PISOS: outro piso também não — o rastro diria onde alguém anda lá.
+      if (pisoOf(otherId, map) !== piso) continue
       const visible = shareable.filter((p) => knowsPoint(otherId, map, p))
       if (visible.length === 0) continue
       outbound.push({ clientId: otherClient, msg: { type: 'laser', points: visible, from: record.name, color } })
@@ -3257,7 +3485,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
         action: msg.action,
         x: point.x,
         y: point.y,
-        roomName: roomNameAt(map, point),
+        // PISOS: a sala do piso de quem pediu; o mapa inteiro daria a menor sala de outro piso no mesmo x/y.
+        roomName: roomNameAt(floorMapOf(playerId, map), point),
         sceneId: scene.sceneId,
         sceneName: scene.name,
         background: scene !== world.open && scene.sceneId !== null,
@@ -3506,6 +3735,58 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   const findPendingItem = (requestId: string): PendingItem | undefined => [...pendingItems.values()].find((pending) => pending.requestId === requestId)
 
   /**
+   * LOJA COM PREÇOS: a mercadoria que o jogador pode pedir AGORA. Autoridade
+   * no molde do "Pegar": a banca existe na cena dele e saiu no recorte dele
+   * (névoa, zona oculta, "Quem vê" e o oculto do mestre valem); a mercadoria
+   * está no que ele recebe dessa banca e não acabou; e uma ficha dele, no
+   * recorte dele, está na banca. Banca que não existe, que ele não vê e
+   * mercadoria inventada respondem o mesmo `unavailable`.
+   */
+  const buyCheck = (playerId: string, map: MapData, msg: PinBuyMessage, world: HostWorld): { pin: Pin; nome: string; preco: string; token: Token } | PinBuyRejection => {
+    const pin = map.pins.find((p) => p.id === msg.pinId)
+    if (pin === undefined) return 'unavailable'
+    const memory = memoryFor(playerId, map, world)
+    const view = filterMapForPlayer(map, playerId, ownership, tokenRadiusIn(playerId, map), memory.exp, memory.doors, pinAudiences, undefined, loansFor(playerId), memory.seenRooms)
+    const noRecorte = view.map.pins.find((p) => p.id === pin.id)
+    // A mercadoria vem do pino COMO O JOGADOR O RECEBE: o que o recorte não leva não se pede.
+    const item = noRecorte === undefined ? null : itemAVenda(noRecorte, msg.itemId)
+    if (item === null) return 'unavailable'
+    const owned = new Set(ownership[playerId] ?? [])
+    const reaching = view.map.tokens.filter((t) => owned.has(t.id) && tokenReachesPin(t, pin, map.grid))
+    // A ficha do MAPA DO MESTRE, não a do recorte: é a mochila dela que cresce.
+    const token = reaching.map((t) => map.tokens.find((m) => m.id === t.id)).find((t): t is Token => t !== undefined)
+    if (token === undefined) return 'far'
+    return { pin, nome: item.nome, preco: item.preco, token }
+  }
+
+  function handlePinBuy(clientId: string, msg: PinBuyMessage, world: HostWorld): HostResult {
+    const playerId = byClient.get(clientId)
+    if (playerId === undefined) return reply(clientId, { type: 'error', reason: 'not_joined' })
+    const record = players.get(playerId)
+    const reject = (reason: PinBuyRejection): HostResult => reply(clientId, { type: 'pin.buy.rejected', reason })
+    if (record === undefined || statusOf(playerId) !== 'playing') return reject('unavailable')
+    if (pendingPurchases.has(playerId)) return reject('pending')
+    // O limite vem antes do recorte, que é a parte cara: barato e de tamanho fixo por jogador.
+    const at = now()
+    const last = lastPurchaseAt.get(playerId)
+    if (last !== undefined && at - last < PEDIDO_LOJA_MIN_INTERVAL_MS) return reject('too_soon')
+    lastPurchaseAt.set(playerId, at)
+    const scene = sceneFor(playerId, world)
+    if (scene === null) return reject('unavailable')
+    const found = buyCheck(playerId, scene.map, msg, world)
+    if (typeof found === 'string') return reject(found)
+
+    const requestId = randomId()
+    pendingPurchases.set(playerId, { requestId, playerId, pinId: found.pin.id, itemId: msg.itemId, tokenId: found.token.id, mapId: sceneKey(scene) })
+    const request: PurchaseRequest = { requestId, playerId, playerName: record.name, pinLabel: pinSummary(found.pin), itemName: found.nome, preco: found.preco }
+    // Cena de fundo: o mestre lê onde é, porque está olhando outra.
+    if (backgroundSceneId(scene, world).sceneId !== undefined) request.sceneName = scene.name
+    return { outbound: [], purchaseRequest: request }
+  }
+
+  const findPendingPurchase = (requestId: string): PendingPurchase | undefined => [...pendingPurchases.values()].find((pending) => pending.requestId === requestId)
+
+  /**
    * ALAVANCA. Autoridade no molde do "Pegar": o pino existe na cena dele, é
    * alavanca, está no recorte dele (oculto, no escuro ou sob teto não vale) e
    * uma ficha dele, no recorte dele, está ao alcance. A porta ligada NÃO
@@ -3584,6 +3865,45 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   }
 
   /**
+   * PISOS NA MESMA CENA — o jogador toca "Subir"/"Descer" com a ficha na
+   * escada. A autoridade é aqui, no molde da porta: a ficha é DELE e está no
+   * recorte que ele tem agora, a escada também (secreta, no escuro ou de outro
+   * piso não está) e a ficha está encostada nela (`escadaDaFicha`). O piso de
+   * destino sai da ESCADA, nunca do jogador: a mensagem só traz os dois ids.
+   * Pedido que não vale morre em silêncio, como o `token.edit` de quem não é
+   * dono: responder "recusado" ensinaria quais escadas existem.
+   */
+  function handleTokenPiso(clientId: string, msg: TokenPisoMessage, world: HostWorld): HostResult {
+    const playerId = byClient.get(clientId)
+    if (playerId === undefined) return reply(clientId, { type: 'error', reason: 'not_joined' })
+    if (statusOf(playerId) !== 'playing') return { outbound: [] }
+    if (!(ownership[playerId] ?? []).includes(msg.tokenId)) return { outbound: [] }
+    const scene = sceneFor(playerId, world)
+    // Cena pausada: nada anda, nem de piso (mesma regra da porta).
+    if (scene === null || inPausedScene(scene)) return { outbound: [] }
+    // O limite vem ANTES do recorte, que é a parte cara (mesma ordem da porta).
+    const at = now()
+    const last = lastPisoChangeAt.get(playerId)
+    if (last !== undefined && at - last < PISO_CHANGE_MIN_INTERVAL_MS) return { outbound: [] }
+    lastPisoChangeAt.set(playerId, at)
+
+    const map = scene.map
+    const memory = memoryFor(playerId, map, world)
+    const view = filterMapForPlayer(map, playerId, ownership, tokenRadiusIn(playerId, map), memory.exp, memory.doors, pinAudiences, undefined, loansFor(playerId), memory.seenRooms)
+    if (!view.map.tokens.some((t) => t.id === msg.tokenId) || !view.map.stairs.some((s) => s.id === msg.stairId)) return { outbound: [] }
+    // Posição, piso e escada do mapa do MESTRE: o recorte só disse que o jogador pode vê-los.
+    const token = map.tokens.find((t) => t.id === msg.tokenId)
+    const stair = map.stairs.find((s) => s.id === msg.stairId)
+    if (token === undefined || stair === undefined) return { outbound: [] }
+    // As travas do passo seguram a escada também: cadeado do mestre, vez da
+    // iniciativa e vez do confronto (senão a ficha "foge" de piso sem gastar passo).
+    if (travaDaFichaDoJogador(map, token, turnTokenIdOn(options.getTurn?.() ?? null, map)) !== null) return { outbound: [] }
+    const escada = escadaDaFicha({ stairs: [stair], grid: map.grid }, token)
+    if (escada === null) return { outbound: [] }
+    return { outbound: [], applyPiso: { tokenId: token.id, piso: escada.destino, ...backgroundSceneId(scene, world) } }
+  }
+
+  /**
    * Jogador troca o nome e a foto do PRÓPRIO token. A autoridade é aqui: o
    * token precisa existir no mapa do mestre E estar na posse DELE
    * (`ownership`) — sem essa checagem qualquer jogador renomearia o dragão do
@@ -3625,8 +3945,20 @@ export function createHostSession(options: HostSessionOptions): HostSession {
    * pino. Qualquer falha é `null`: quem chama responde o mesmo motivo
    * genérico para todas — inclusive `exitId` que não é saída DESTE pino
    * (inventado, ou de outro pino): o jogador não descobre que ela existe.
+   *
+   * ESCOLHER FICHAS NO PINO: com `tokenIds`, passam só as fichas escolhidas, e
+   * cada uma tem de estar no grupo do pino (`chosenTravelers`). Uma que não
+   * esteja — escondida, de outro jogador, longe, inventada — é o mesmo `null`.
    */
-  function validTravel(playerId: string, pinId: string, exitId: string, world: HostWorld, withKey = false, passaCadeado = false): ValidTravel | null {
+  function validTravel(
+    playerId: string,
+    pinId: string,
+    exitId: string,
+    world: HostWorld,
+    withKey = false,
+    passaCadeado = false,
+    tokenIds?: readonly string[],
+  ): ValidTravel | null {
     const from = sceneFor(playerId, world)
     if (from === null || from.sceneId === null) return null
     const fromSceneId = from.sceneId
@@ -3639,6 +3971,9 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const view = filterMapForPlayer(from.map, playerId, ownership, tokenRadiusIn(playerId, from.map), memory.exp, memory.doors, pinAudiences, undefined, loansFor(playerId), memory.seenRooms)
     if (!view.map.pins.some((p) => p.id === pinId)) return null
     const owned = new Set(ownership[playerId] ?? [])
+    const chosen = tokenIds === undefined ? undefined : chosenTravelers(playerId, view.map.tokens, pin, from.map.grid, tokenIds)
+    if (chosen === null) return null
+    const chosenIds = new Set((chosen ?? []).map((t) => t.id))
     // Trancada: ninguém passa sozinho. Cai no mesmo `null` de todo o resto,
     // então o jogador lê o motivo genérico de sempre e nada chega ao mestre.
     // Estar aqui, e não só no pedido, faz o "Deixar ir" de um pedido feito
@@ -3652,7 +3987,10 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     let keyHolder: { token: Token; nome: string } | null = null
     if (passageOf(pin) === 'trancada') {
       if (withKey) {
-        const nearIds = new Set(view.map.tokens.filter((t) => owned.has(t.id) && tokenReachesPin(t, pin, from.map.grid)).map((t) => t.id))
+        // Com escolha, só uma das escolhidas abre: a chave de quem fica não leva ninguém.
+        const nearIds = new Set(
+          view.map.tokens.filter((t) => owned.has(t.id) && (chosen === undefined || chosenIds.has(t.id)) && tokenReachesPin(t, pin, from.map.grid)).map((t) => t.id),
+        )
         const found = keyForPin(pin, from.map.tokens.filter((t) => nearIds.has(t.id)))
         if (found !== null) keyHolder = { token: found.token, nome: found.item.nome }
       }
@@ -3679,21 +4017,51 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     if (to === undefined || to.sceneId === null) return null
     const base = { from: { ...from, sceneId: fromSceneId }, to: { ...to, sceneId: to.sceneId }, pin, partner: travel.partner }
     const cabine = cabineAposViagem(world.cabines, { sceneId: fromSceneId, pinId: pin.id }, { sceneId: to.sceneId, pinId: travel.partner.id })
-    if (keyHolder !== null) return { ...base, token: keyHolder.token, key: keyHolder.nome, cabine }
-    // Tokens do recorte do jogador: respeita camada oculta e token escondido pelo mestre.
-    const mine = view.map.tokens.filter((t) => owned.has(t.id))
-    // AJUDANTE CONTRATADO: quem atravessa é o personagem do jogador, mesmo com
-    // o ajudante mais perto do pino — senão o personagem fica para trás e a
-    // cena do jogador vira a do ajudante. Só com o ajudante na mão é ele que vai.
-    const loaned = loansFor(playerId)
-    const own = mine.filter((t) => !loaned.has(t.id))
-    const candidates = own.length > 0 ? own : mine
+    const escolha = chosen === undefined ? {} : { chosen }
+    if (keyHolder !== null) return { ...base, token: keyHolder.token, key: keyHolder.nome, cabine, ...escolha }
+    // Com escolha, vai à frente a escolhida mais perto do pino (o grupo já vem nessa ordem).
+    const first = chosen?.[0]
+    if (first !== undefined) return { ...base, token: first, cabine, ...escolha }
     let token: Token | null = null
-    for (const t of candidates) {
+    for (const t of travelCandidates(playerId, view.map.tokens)) {
       if (token === null || Math.hypot(t.x - pin.x, t.y - pin.y) < Math.hypot(token.x - pin.x, token.y - pin.y)) token = t
     }
     if (token === null) return null
     return { ...base, token, cabine }
+  }
+
+  /**
+   * As fichas de `playerId` que podem viajar por um pino, entre as do recorte
+   * dele (`seen`: respeita camada oculta e ficha escondida pelo mestre).
+   * AJUDANTE CONTRATADO: quem atravessa é o personagem do jogador, mesmo com
+   * o ajudante mais perto do pino — senão o personagem fica para trás e a
+   * cena do jogador vira a do ajudante. Só com o ajudante na mão é ele que vai.
+   */
+  function travelCandidates(playerId: string, seen: readonly Token[]): Token[] {
+    const owned = new Set(ownership[playerId] ?? [])
+    const mine = seen.filter((t) => owned.has(t.id))
+    const loaned = loansFor(playerId)
+    const own = mine.filter((t) => !loaned.has(t.id))
+    return own.length > 0 ? own : mine
+  }
+
+  /**
+   * ESCOLHER FICHAS NO PINO: as fichas de `tokenIds`, na ordem do grupo do
+   * pino (`pinTravelGroupOf` — a mesma conta das caixas do cartão do jogador).
+   * `null` quando alguma não está no grupo: o pedido inteiro não vale, em vez
+   * de passar sem ela — o jogador pediu aquelas, e levar outra conta seria
+   * decidir por ele. A lista já chega sem repetição (`protocol.ts`).
+   * Só com ajudantes na mão o grupo é só o mais perto: os outros seguem por
+   * `loanedFollowers` de qualquer jeito, então pedir para deixar um deles
+   * (ou pôr outro à frente) é recusado em vez de ser ignorado em silêncio.
+   */
+  function chosenTravelers(playerId: string, seen: readonly Token[], pin: Pin, grid: number, tokenIds: readonly string[]): Token[] | null {
+    const wanted = new Set(tokenIds)
+    const owned = new Set(ownership[playerId] ?? [])
+    const loaned = loansFor(playerId)
+    const mine = seen.filter((t) => owned.has(t.id))
+    const picked = pinTravelGroupOf(mine, (t) => loaned.has(t.id), pin, grid).filter((t) => wanted.has(t.id))
+    return picked.length === wanted.size ? picked : null
   }
 
   function handleTravelRequest(clientId: string, msg: PinTravelRequestMessage, world: HostWorld): HostResult {
@@ -3730,7 +4098,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     // MUDO segue recusado no `validTravel`, com o motivo genérico — salvo com
     // a chave na mochila (`withKey`), que passa sem pedir.
     const trancada = acceptsLockedRequest(pinHere)
-    const travel = validTravel(playerId, msg.pinId, exitId, world, true, trancada)
+    const travel = validTravel(playerId, msg.pinId, exitId, world, true, trancada, msg.tokenIds)
     if (travel === null) return reject('unavailable')
     // Livre: passou em tudo que o pedido passaria (névoa, token na cena, pino
     // ligado, limites, nenhum pendente) e vai direto, sem esperar o mestre —
@@ -3760,6 +4128,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     // O destino que o mestre LEU vai junto: é com ele que o "Deixar ir" confere.
     const pending: PendingTravel = { requestId, playerId, pinId: msg.pinId, exitId, toSceneId: travel.to.sceneId, partnerId: travel.partner.id, ...embarque }
     if (trancada) pending.trancada = true
+    if (msg.tokenIds !== undefined) pending.tokenIds = [...msg.tokenIds]
     pendingTravels.set(playerId, pending)
     // Pedido do mestre: nada disto vai ao jogador (`outbound` vazio).
     const travelRequest: TravelRequest = {
@@ -3772,6 +4141,10 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       ...(cabine === null ? {} : { cabine: cabine.nome }),
     }
     if (trancada) travelRequest.trancada = true
+    // ESCOLHER FICHAS NO PINO: o mestre lê o nome de verdade (o do mapa dele), não o do recorte.
+    if (travel.chosen !== undefined) {
+      travelRequest.tokenNames = travel.chosen.map((t) => travel.from.map.tokens.find((own) => own.id === t.id)?.name ?? t.name)
+    }
     return { outbound: [], travelRequest }
   }
 
@@ -3930,9 +4303,11 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       toSceneName: travel.to.name,
       x: spot.x,
       y: spot.y,
+      // PISOS: chega no piso do pino par; térreo não leva o campo.
+      ...(pisoDe(travel.partner) === 0 ? {} : { piso: pisoDe(travel.partner) }),
       ...(companions.length > 0 ? { companions } : {}),
     }
-    withEntourage(applyTransfer, travel.from.map, travel.token, travel.to.map, carriedSeats(applyTransfer, travel.from.map), travel.partner)
+    withEntourage(applyTransfer, travel.from.map, travel.token, travel.to.map, carriedSeats(applyTransfer, travel.from.map), travel.partner, travel.chosen)
     withoutCarriedInEntourage(applyTransfer)
     return {
       outbound: [{ clientId, msg: sceneChangedFor(travel.to.map) }, ...along.outbound],
@@ -3956,6 +4331,16 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   const onBoardTokens = (map: MapData): Token[] => visibleTokens(map.tokens, map.hiddenLayers).filter((t) => t.hidden !== true)
 
   /**
+   * PISOS NA MESMA CENA: das `tokens`, só as do piso de `lead` em `map`. Os
+   * pisos estão empilhados no mesmo x/y: a ficha "colada" no andar de cima
+   * está em outro lugar, e não viaja junto (séquito nem companheiro).
+   */
+  const doPisoDe = (lead: Token, map: MapData, tokens: readonly Token[]): Token[] => {
+    const piso = tokenPisoOf(lead.id, map)
+    return tokens.filter((t) => pisoDe(t) === piso)
+  }
+
+  /**
    * MONTARIA E FAMILIAR: põe em `transfer.entourage` as outras fichas do dono
    * a até 2 casas de `lead` no mapa de partida, cada uma numa casa livre em
    * volta da chegada. A regra de quem conta é a do "viajar junto": ficha que
@@ -3964,14 +4349,21 @@ export function createHostSession(options: HostSessionOptions): HostSession {
    * sem pino): o séquito não senta nele nem cobre a cabeça, que o jogador
    * precisa tocar para voltar. Ficha que não coube fica onde estava.
    * Devolve as casas que o séquito ocupou.
+   *
+   * ESCOLHER FICHAS NO PINO: com `chosen` (as fichas que o jogador escolheu,
+   * já conferidas pelo `validTravel`), o séquito é só as escolhidas — sem
+   * olhar a distância até `lead`, que o grupo do pino já conferiu — e as não
+   * escolhidas ficam, mesmo coladas.
    */
-  function withEntourage(transfer: AppliedTransfer, from: MapData, lead: Token, to: MapData, taken: readonly Seat[], pin: Pin | null): Seat[] {
+  function withEntourage(transfer: AppliedTransfer, from: MapData, lead: Token, to: MapData, taken: readonly Seat[], pin: Pin | null, chosen?: readonly Token[]): Seat[] {
     // AJUDANTE CONTRATADO: quem já vai por `transfer.companions` (emprestado a
     // este jogador) não entra de novo como séquito — senão a mesma ficha
     // atravessaria duas vezes (`applyTransferAlong` aplicaria os dois laços).
     const companionIds = new Set((transfer.companions ?? []).map((c) => c.tokenId))
     const owned = new Set((ownership[transfer.playerId] ?? []).filter((id) => !companionIds.has(id)))
-    const near = entourageNear(lead, onBoardTokens(from).filter((t) => owned.has(t.id)), from.grid)
+    const mine = doPisoDe(lead, from, onBoardTokens(from)).filter((t) => owned.has(t.id))
+    const chosenIds = chosen === undefined ? null : new Set(chosen.map((t) => t.id))
+    const near = chosenIds === null ? entourageNear(lead, mine, from.grid) : mine.filter((t) => t.id !== lead.id && chosenIds.has(t.id))
     const keepClear = pin === null ? [] : pinClearance(pin)
     const seats = entourageSeats(to, transfer, [{ x: transfer.x, y: transfer.y, size: lead.size }, ...taken], near.map((t) => t.size), keepClear)
     const entourage: EntourageSeat[] = []
@@ -4185,13 +4577,14 @@ export function createHostSession(options: HostSessionOptions): HostSession {
    * de agora. `null` quando o pedido em si não passa mais.
    */
   const companionsOf = (pending: PendingTravel, world: HostWorld): { travel: ValidTravel; near: Companion[] } | null => {
-    const travel = validTravel(pending.playerId, pending.pinId, pending.exitId, world, false, pending.trancada === true)
+    const travel = validTravel(pending.playerId, pending.pinId, pending.exitId, world, false, pending.trancada === true, pending.tokenIds)
     if (travel === null) return null
     const fromMap = travel.from.map
     // A mesma regra da ficha de quem pediu (`validTravel`, pelo recorte): ficha
     // que o mestre escondeu, ou de camada oculta, não está no tabuleiro para
     // ninguém — não conta no "(N)" e não é levada para a outra cena.
-    const onBoard = visibleTokens(fromMap.tokens, fromMap.hiddenLayers).filter((t) => t.hidden !== true)
+    // PISOS: só quem está no piso de quem pediu; a colada no andar de cima fica.
+    const onBoard = doPisoDe(travel.token, fromMap, visibleTokens(fromMap.tokens, fromMap.hiddenLayers).filter((t) => t.hidden !== true))
     const candidates = [...players.values()].flatMap((record) => {
       if (record.playerId === pending.playerId || record.clientId === null || statusOf(record.playerId) !== 'playing') return []
       // A cena DELE, pela mesma regra do broadcast: ficha esquecida no Salão
@@ -4310,6 +4703,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
         return handleClueShow(clientId, msg, world)
       case 'pin.take':
         return handlePinTake(clientId, msg, world)
+      case 'pin.buy':
+        return handlePinBuy(clientId, msg, world)
       case 'item.give':
         return handleItemGive(clientId, msg, world)
       case 'call.raise':
@@ -4328,6 +4723,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
         return handleLetterPeers(clientId)
       case 'letter.send':
         return handleLetterSend(clientId, msg)
+      case 'token.piso':
+        return handleTokenPiso(clientId, msg, world)
     }
   }
 
@@ -4420,6 +4817,48 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       return findPendingItem(requestId) !== undefined
     },
 
+    approvePurchase(requestId, source) {
+      const pending = findPendingPurchase(requestId)
+      if (pending === undefined) return { outbound: [] }
+      pendingPurchases.delete(pending.playerId)
+      const record = players.get(pending.playerId)
+      // Saiu da sala enquanto o mestre decidia: nada é vendido.
+      if (record === undefined || record.clientId === null) return { outbound: [] }
+      const world = toWorld(source)
+      const scene = allScenes(world).find((s) => sceneKey(s) === pending.mapId)
+      const pin = scene?.map.pins.find((p) => p.id === pending.pinId)
+      // O que o MESTRE tem agora: ele pode ter mexido no estoque ou tirado a mercadoria.
+      const item = pin === undefined ? null : itemAVenda(pin, pending.itemId)
+      const token = scene?.map.tokens.find((t) => t.id === pending.tokenId)
+      // A ficha tem de continuar sendo dele: o mestre pode tê-la dado a outro.
+      const stillHis = (ownership[pending.playerId] ?? []).includes(pending.tokenId)
+      if (scene === undefined || pin === undefined || item === null || token === undefined || !stillHis) {
+        return reply(record.clientId, { type: 'pin.buy.rejected', reason: 'unavailable' })
+      }
+      const nome = cleanItemName(item.nome)
+      return {
+        outbound: [{ clientId: record.clientId, msg: { type: 'pin.buy.answer', answer: 'sold', nome } }],
+        applyItems: {
+          ...backgroundSceneId(scene, world),
+          venda: { pinId: pin.id, itemId: item.id },
+          // Id NOVO na mochila: a mesma mercadoria pode ser comprada de novo, e cada uma é um item.
+          mochilas: [{ tokenId: token.id, mochila: [...carriedItemsOf(token), { id: randomId(), nome }] }],
+        },
+      }
+    },
+
+    denyPurchase(requestId) {
+      const pending = findPendingPurchase(requestId)
+      if (pending === undefined) return { outbound: [] }
+      pendingPurchases.delete(pending.playerId)
+      const clientId = players.get(pending.playerId)?.clientId ?? null // null = saiu: não há a quem avisar
+      return clientId === null ? { outbound: [] } : reply(clientId, { type: 'pin.buy.answer', answer: 'denied' })
+    },
+
+    isPurchasePending(requestId) {
+      return findPendingPurchase(requestId) !== undefined
+    },
+
     listCalls() {
       // Urgente no topo; dentro de cada faixa, quem chamou primeiro vem primeiro.
       const ordered = [...openCalls.values()].sort((a, b) => Number(b.reason === 'urgente') - Number(a.reason === 'urgente') || a.seq - b.seq)
@@ -4483,7 +4922,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       const world = toWorld(source)
       // Pedido pelo pino trancado: o "Liberar uma vez" do mestre passa pelo
       // cadeado; o pedido comum de um pino trancado depois continua recusado.
-      const travel = validTravel(pending.playerId, pending.pinId, pending.exitId, world, false, pending.trancada === true)
+      const travel = validTravel(pending.playerId, pending.pinId, pending.exitId, world, false, pending.trancada === true, pending.tokenIds)
       // O mestre deixou ir para o lugar que o aviso DIZIA. Se a saída foi
       // religada depois (Torre no lugar da Cripta), ou desligada e outra subiu
       // no lugar dela, o consentimento não cobre o destino novo: recusa, e o
@@ -4715,6 +5154,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
         toSceneName: to.name,
         x: spot.x,
         y: spot.y,
+        // PISOS: no piso do pino escolhido; centro da cena e "Reunir", térreo.
+        ...(pin === null || pisoDe(pin) === 0 ? {} : { piso: pisoDe(pin) }),
         ...(companions.length > 0 ? { companions } : {}),
       }
       // "Reunir o grupo aqui" já escolheu a casa de cada ficha do grupo inteiro,
@@ -4787,6 +5228,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
           toSceneName: here.name,
           x: seat.x,
           y: seat.y,
+          // PISOS: ao lado do dono, no piso dele.
+          ...(pisoDe(owner) === 0 ? {} : { piso: pisoDe(owner) }),
         },
       }
     },
@@ -4977,6 +5420,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       pendingHides.delete(playerId)
       // E para o item: "Deixar" depois da queda não entrega nada.
       pendingItems.delete(playerId)
+      // E para a loja: "Vender" depois da queda não vende nada.
+      pendingPurchases.delete(playerId)
       // A mão também: quem volta chega com a tela zerada, sem mão acesa.
       openCalls.delete(playerId)
       // Quem provocou a pergunta "voltou?" e caiu antes da resposta: a pergunta morre.
@@ -5045,6 +5490,28 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       return true
     },
 
+    handOverPlayer(playerId, heirId) {
+      const record = players.get(playerId)
+      if (record === undefined || record.clientId !== null || heirId === playerId || !players.has(heirId)) return null
+      // A ficha que ele jogava emprestada é do dono: o `forgetPlayer` a devolve.
+      const borrowed = new Set([...loans].filter(([, loan]) => loan.borrowerId === playerId).map(([tokenId]) => tokenId))
+      const handedTokens = (ownership[playerId] ?? []).filter((tokenId) => !borrowed.has(tokenId))
+      // Emprestada a quem recebe, ela já está na mão dele: só deixa de ser
+      // empréstimo, sem ele passar pela espera.
+      for (const [tokenId, loan] of [...loans]) if (loan.ownerId === playerId && loan.borrowerId === heirId) loans.delete(tokenId)
+      // Emprestada a outro, volta antes de passar: quem recebe joga como dono.
+      const loanBack = endLoansOf(playerId)
+      const held = ownership[heirId] ?? []
+      ownership[heirId] = [...held, ...handedTokens.filter((tokenId) => !held.includes(tokenId))]
+      // AJUDANTE CONTRATADO: o acordo acompanha a ficha.
+      for (const loan of helperLoans.values()) if (loan.playerId === playerId) loan.playerId = heirId
+      // Quem ganhou ficha já não pede uma.
+      if (handedTokens.length > 0) pendingSeatClaims.delete(heirId)
+      inheritPlayerMemories(heirId, playerId)
+      forgetPlayer(playerId)
+      return { outbound: loanBack.outbound, ...loansReturnedField(loanBack.returned), handedTokens }
+    },
+
     closeRoom() {
       const outbound: Outbound[] = []
       for (const clientId of [...byClient.keys(), ...tableClients]) {
@@ -5095,7 +5562,12 @@ export function createHostSession(options: HostSessionOptions): HostSession {
         if (byScene === undefined || byScene.size === 0) continue
         const name = seatNameOf(p)
         written.add(normalizeName(name))
-        saved.push({ name, scenes: [...byScene.values()].map(savedSceneOf) })
+        // PISOS: a mesa guardada grava só o térreo de cada cena. O arquivo tem
+        // uma memória por mapa (`mapId`); a do 1º piso gravada ali voltaria como
+        // o térreo e abriria no térreo o que o jogador só viu lá em cima.
+        const scenes = [...byScene].filter(([memoryId]) => !isUpperFloorMemory(memoryId)).map(([, memory]) => savedSceneOf(memory))
+        if (scenes.length === 0) continue
+        saved.push({ name, scenes })
       }
       // Quem ainda não voltou guarda a memória de ontem, se o assento dele continua na mesa.
       const seated = new Set(buildSavedSeats(held).map((seat) => normalizeName(seat.name)))
@@ -5127,7 +5599,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       const scene = sceneFor(playerId, world)
       if (scene === null) return
       const map = scene.map
-      markAll(memoryFor(playerId, map, world).exp, playerBlockedRings(map))
+      markAll(memoryFor(playerId, map, world).exp, playerBlockedRings(floorMapOf(playerId, map)))
     },
 
     hidePlan(playerId, source) {
@@ -5142,8 +5614,9 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       }
       const scene = sceneFor(playerId, toWorld(source))
       if (scene === null) return
-      memories.get(playerId)?.delete(scene.map.id)
-      for (const tokenId of owned) tokenMemories.get(tokenId)?.delete(scene.map.id)
+      // PISOS: todos os pisos da cena — o piso onde ele não está agora também é planta desta cena.
+      forgetSceneMemories(memories.get(playerId), scene.map.id)
+      for (const tokenId of owned) forgetSceneMemories(tokenMemories.get(tokenId), scene.map.id)
     },
 
     broadcast(source) {

@@ -22,6 +22,7 @@ import { PlayerZoomControls } from './PlayerZoomControls'
 import { PlayerSceneName } from './PlayerSceneName'
 import { PlayerScreenAwake } from './PlayerScreenAwake'
 import { useScreenWakeLock } from './screenWakeLock'
+import { PlayerEscada } from './PlayerEscada'
 import { NO_ZOOM_STEP, type ZoomDirection, type ZoomLimits, type ZoomStepRequest } from './playerZoom'
 import { PlayerAlarmBanner } from './PlayerAlarmBanner'
 import { PlayerTurnBanner, TurnWaitNotice } from './PlayerTurnBanner'
@@ -43,12 +44,14 @@ import { selectedTokenColor } from '../lib/tokenColor'
 import { buildTokenPhotoData } from '../lib/tokenPhoto'
 import { carriedItemsOf, giveTargets } from '../lib/items'
 import { itemNoticeText } from './itemNotice'
+import { compraNoticeText } from './compraNotice'
 import { HIDE_NOTICE_TEXT } from './hideNotice'
 import { leverNoticeText } from './leverNotice'
 import { hazardNoticeText } from '../lib/hazards'
 import { tableCodeFromSearch, tableKeyFromSearch } from '../lib/tableScreen'
 import { TableApp } from './TableScreen'
 import { readContract } from '../lib/tokenLoan'
+import { pinTravelChoices, type PinTravelChoice } from '../lib/pinTravelers'
 import { letterTitle, type LetterVia } from '../lib/correio'
 import { findKnownPath } from '../lib/knownPath'
 import type { Pin } from '../types/map'
@@ -86,6 +89,7 @@ const NO_CLUES: ClueEntry[] = []
 const NO_DICE_ROLLS: DiceRollEntry[] = []
 const NO_PINS: Pin[] = []
 const NO_PLACES: VisitedPlace[] = []
+const NO_TRAVELERS: PinTravelChoice[] = []
 /** Fechar o recado não perde nada: quem fecha sabe onde reler. */
 const NOTE_KEPT_HINT = 'Fica guardado no Caderno do Painel.'
 /** MAPA POR ANDARES: outro andar não tem visão agora — só a memória. */
@@ -766,6 +770,11 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
   }
 
   const openPin = openPinId === null ? null : (map?.pins ?? []).find((p) => p.id === openPinId) ?? null
+  // ESCOLHER FICHAS NO PINO: as caixas do "Quem passa?", pela mesma conta que o host confere.
+  const pinTravelers = useMemo(
+    () => (!map || openPin === null || openPin.kind !== 'viagem' ? NO_TRAVELERS : pinTravelChoices(map.tokens, ownTokens, openPin, map.grid)),
+    [map, openPin, ownTokens],
+  )
   // Estável: o cartão devolve o foco ao "Fechar" sempre que `onClose` muda, e
   // um snapshot novo a cada passo do mapa tiraria o foco do "Pedir" no meio da pergunta.
   const closePin = useCallback(() => setOpenPinId(null), [])
@@ -860,6 +869,7 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
             concealed={state.concealed}
             hazards={state.hazards}
             gatilhos={state.gatilhos}
+            porAtravessar={state.porAtravessar}
             ownTokens={ownTokens}
             turnTokenId={state.turn ?? null}
             settings={settings}
@@ -1006,6 +1016,15 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
         {/* Depois do painel no DOM: o Tab segue a leitura (painel no alto à esquerda, zoom embaixo à direita). */}
         <PlayerZoomControls canZoomIn={zoomLimits.canZoomIn} canZoomOut={zoomLimits.canZoomOut} onZoom={requestZoomStep} />
         <PlayerTurnBanner turn={state.turn} ownTokens={ownTokens} tokens={state.map.tokens} />
+        {/* PISOS NA MESMA CENA: só com a ficha dele encostada numa escada que liga pisos, e fora das travas do passo. */}
+        <PlayerEscada
+          map={state.map}
+          ownTokens={ownTokens}
+          turn={state.turn}
+          confronto={state.confronto}
+          paused={state.paused === true}
+          onTrocar={(tokenId, stairId) => connection.changeFloor(tokenId, stairId)}
+        />
         {/* CONFRONTO na cena dele: de quem é a vez e o que resta do passo. */}
         {state.confronto && <ConfrontoFaixa confronto={state.confronto} tokens={state.map.tokens} />}
         {noteDraft && (
@@ -1032,10 +1051,11 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
             stairs={state.map.stairs}
             onClose={closePin}
             travelWaiting={state.travel?.phase === 'waiting'}
-            onRequestTravel={(exitId) => {
+            travelers={pinTravelers}
+            onRequestTravel={(exitId, tokenIds) => {
               // Pedido enviado, o cartão sai: a espera fica no aviso de baixo,
               // e o mapa volta inteiro à vista enquanto o mestre decide.
-              if (connection.requestTravel(openPin.id, exitId)) setOpenPinId(null)
+              if (connection.requestTravel(openPin.id, exitId, tokenIds)) setOpenPinId(null)
             }}
             takeWaiting={state.item?.phase === 'sent' && !state.item.direct}
             onTakeItem={() => {
@@ -1048,6 +1068,9 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
               // Puxou, o cartão sai: o mapa volta inteiro à vista para o jogador ver a porta mexer.
               if (connection.pullLever(openPin.id)) setOpenPinId(null)
             }}
+            // LOJA COM PREÇOS: o cartão fica aberto — quem compra continua olhando a banca, e o pedido aparece nela.
+            onBuy={(itemId) => connection.buy(openPin.id, itemId)}
+            compra={state.compra?.pinId === openPin.id ? state.compra : undefined}
           />
         )}
         {/* MINHAS PISTAS: a pista reaberta do Caderno, com "Mostrar para…".
@@ -1086,6 +1109,12 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
         {state.item && (
           <p key={state.item.id} className="pp-notice" role="status" aria-live="polite">
             {itemNoticeText(state.item)}
+          </p>
+        )}
+        {/* LOJA: com o cartão da banca aberto, o pedido aparece nele; fechado, aqui. */}
+        {state.compra && openPin?.id !== state.compra.pinId && (
+          <p key={state.compra.id} className="pp-notice" role="status" aria-live="polite">
+            {compraNoticeText(state.compra)}
           </p>
         )}
         {state.alarm && (

@@ -72,7 +72,7 @@ describe('hostSession + pincel de revelar', () => {
     const antes = snapshotDe(s.broadcast(cena()).outbound)
     expect(JSON.stringify(antes)).not.toContain('Sentinela')
 
-    const pintado = paintRevealBrush(cena(), TRACO, 25, 'revelar').map
+    const pintado = paintRevealBrush(cena(), TRACO, 25, 'revelar', 0).map
     const depois = snapshotDe(s.broadcast(pintado).outbound)
     const fio = JSON.stringify(depois)
     expect(fio).toContain('Sentinela')
@@ -94,9 +94,9 @@ describe('hostSession + pincel de revelar', () => {
 
   it('esconder de volta tira a Sentinela do fio no snapshot seguinte', () => {
     const s = mesa()
-    const pintado = paintRevealBrush(cena(), TRACO, 25, 'revelar').map
+    const pintado = paintRevealBrush(cena(), TRACO, 25, 'revelar', 0).map
     expect(JSON.stringify(snapshotDe(s.broadcast(pintado).outbound))).toContain('Sentinela')
-    const escondido = paintRevealBrush(pintado, TRACO, 25, 'esconder').map
+    const escondido = paintRevealBrush(pintado, TRACO, 25, 'esconder', 0).map
     const fio = JSON.stringify(snapshotDe(s.broadcast(escondido).outbound))
     expect(fio).not.toContain('Sentinela')
     expect(fio).not.toContain('Espiao')

@@ -23,11 +23,13 @@ import {
   singleSceneWorld,
   type AppliedItems,
   type AppliedMove,
+  type AppliedPiso,
   type AppliedTokenEdit,
   type DoorKeyUse,
   type DoorRequest,
   type HideRequest,
   type ItemRequest,
+  type PurchaseRequest,
   type AppliedTransfer,
   type CaravanStop,
   type HazardEntryNotice,
@@ -150,6 +152,12 @@ export interface HostBridgeDeps {
    */
   applyTokenEdit?: (edit: AppliedTokenEdit) => void
   /**
+   * PISOS NA MESMA CENA: a ficha do jogador subiu/desceu pela escada, já
+   * validada pela sessão. Opcional como `applyTokenEdit`: sem ele, o pedido do
+   * jogador simplesmente não muda nada.
+   */
+  applyPiso?: (change: AppliedPiso) => void
+  /**
    * O mestre deixou o jogador passar: mover o token entre as cenas. `false`
    * quando não deu (cena sumiu, token sumiu) — o jogador recebe a recusa em
    * vez de "Você chegou". Sem este retorno, pedido de passagem nem chega ao
@@ -175,8 +183,8 @@ export interface HostBridgeDeps {
    * Sem este retorno a linha do pedido trancado não oferece "Passar para pede".
    */
   setPinPassage?: (pinId: string, passagem: PinPassage, sceneId?: string) => void
-  /** "Ir lá" do aviso de chegada: abrir `sceneId` no editor com (`x`, `y`) no centro. */
-  onGoToScene?: (sceneId: string, x: number, y: number) => void
+  /** "Ir lá" do aviso de chegada: abrir `sceneId` no editor com (`x`, `y`) no centro, no `piso` onde a ficha chegou. */
+  onGoToScene?: (sceneId: string, x: number, y: number, piso: number) => void
   visionRadius?: number
   onPlayersChange?: (players: PlayerInfo[]) => void
   /** "Quem vê" de cada pino com lista (`pinId` -> jogadores); pino de "Todos" não aparece. Sala fechada = `{}`. */
@@ -378,6 +386,14 @@ export interface HostBridge {
    */
   dismissPlayer(playerId: string): boolean
   /**
+   * "Passar fichas e mapa a…" do card de quem foi embora: o card sai, como no
+   * Dispensar, e as fichas dele (a guardada inclusive, de volta ao mapa) e o
+   * que ele explorou passam a `heirId` (`HostSession.handOverPlayer`). Aviso
+   * ao mestre com o que passou. `false` com a sala fechada, jogador conectado
+   * (esse é o Expulsar), desconhecido, ou `heirId` inválido.
+   */
+  handOverPlayer(playerId: string, heirId: string): boolean
+  /**
    * DADO ROLADO NA SALA pelo mestre: o host rola; aberta, a mesa inteira
    * recebe; `hidden`, só a tela do mestre (`onDiceRoll`). `null` com a sala fechada.
    */
@@ -417,6 +433,16 @@ const DOOR_REQUEST_VERB: Record<DoorRequestHow, string> = {
   knock: 'bate na porta',
   force: 'tenta forçar a porta',
   key: 'tenta usar uma chave na porta',
+}
+
+/**
+ * LOJA: "Ana quer Xarope (1 moeda) em Botica", mais ", Mercado" quando a banca
+ * está numa cena de fundo. Sem preço escrito, sem parênteses.
+ */
+export function purchaseRequestLine(request: PurchaseRequest): string {
+  const preco = request.preco.trim() === '' ? '' : ` (${request.preco.trim()})`
+  const where = request.sceneName === undefined ? '' : `, ${request.sceneName}`
+  return `${request.playerName} quer ${request.itemName}${preco} em ${request.pinLabel}${where}`
 }
 
 /** "Diego quer pegar Chave do Escudo", mais " em Mansão" quando o item está numa cena de fundo. */
@@ -548,6 +574,19 @@ function dropText(names: string[]): string {
   return `${names.slice(0, -1).join(', ')} e ${last} caíram`
 }
 
+/**
+ * ESCOLHER FICHAS NO PINO: " com Rufo" / " com Enzo e Rufo" quando o jogador
+ * escolheu quais fichas passam — o mestre lê quem vai. Sem escolha, nada: a
+ * linha do pedido fica a de sempre.
+ */
+function travelWithText(request: TravelRequest): string {
+  const names = request.tokenNames ?? []
+  const last = names.at(-1)
+  if (last === undefined) return ''
+  if (names.length === 1) return ` com ${last}`
+  return ` com ${names.slice(0, -1).join(', ')} e ${last}`
+}
+
 function errorText(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
 }
@@ -593,6 +632,8 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   const hideToasts = new Map<string, string>()
   /** Linha de cada pedido de item ainda na tela: `requestId` -> id do toast. */
   const itemToasts = new Map<string, string>()
+  /** LOJA: linha de cada "Quero" ainda na tela: `requestId` -> id do toast. */
+  const purchaseToasts = new Map<string, string>()
   /** CORREIO: aviso do mestre de cada bilhete que ainda espera: `letterId` -> id do toast. */
   const letterToasts = new Map<string, string>()
   /**
@@ -1181,6 +1222,12 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       itemToasts.delete(requestId)
       useToastStore.getState().dismiss(toastId)
     }
+    // E para a loja: "Vender" de quem saiu não vende nada.
+    for (const [requestId, toastId] of purchaseToasts) {
+      if (session !== null && session.isPurchasePending(requestId)) continue
+      purchaseToasts.delete(requestId)
+      useToastStore.getState().dismiss(toastId)
+    }
     // Mesma regra para a ação no ponto: jogador expulso ou sala fechada não
     // deixa um "Nada aqui" que não chega a ninguém.
     for (const [requestId, toastId] of pointActionToasts) {
@@ -1283,6 +1330,49 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       sempreEmCaixa: true,
     })
     itemToasts.set(request.requestId, toastId)
+  }
+
+  /**
+   * LOJA — resposta ao "Quero": "Vender" revalida na sessão e grava pela
+   * store (o estoque cai e a mercadoria vai à mochila, na cena da banca) ANTES
+   * de mandar o "está com você", e o snapshot sai na hora: quem vê a banca lê
+   * o estoque novo. "Não" só avisa o jogador.
+   */
+  const answerPurchase = (requestId: string, vender: boolean) => {
+    const toastId = purchaseToasts.get(requestId)
+    purchaseToasts.delete(requestId)
+    if (toastId !== undefined) useToastStore.getState().dismiss(toastId)
+    if (session === null) return
+    if (!vender || deps.applyItems === undefined) {
+      void dispatch(session.denyPurchase(requestId))
+      return
+    }
+    const result = session.approvePurchase(requestId, world())
+    if (result.applyItems === undefined) {
+      void dispatch(result)
+      return
+    }
+    deps.applyItems(result.applyItems)
+    void dispatch(result)
+    broadcastNow()
+  }
+
+  /**
+   * LOJA: o "Quero" vira uma linha no grupo "Pedidos", a mesma caixa do
+   * "Pegar" e da passagem. Espera o mestre (o × vale "Não"). Sem `emLote`:
+   * vender é decisão de uma mercadoria por vez, e "Deixar todos" não vende.
+   */
+  const askPurchase = (request: PurchaseRequest) => {
+    const toastId = useToastStore.getState().push('instrucao', purchaseRequestLine(request), null, {
+      actions: [
+        { label: 'Vender', run: () => answerPurchase(request.requestId, true) },
+        { label: 'Não', run: () => answerPurchase(request.requestId, false) },
+      ],
+      onDismiss: () => answerPurchase(request.requestId, false),
+      grupo: 'Pedidos',
+      sempreEmCaixa: true,
+    })
+    purchaseToasts.set(request.requestId, toastId)
   }
 
   /**
@@ -1641,7 +1731,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       travelsComCabine.add(request.requestId)
       scheduleBroadcast()
     }
-    const toastId = useToastStore.getState().push('instrucao', `${request.playerName} quer passar por ${request.pinLabel} → ${request.toSceneName}${naCabine}`, null, {
+    const toastId = useToastStore.getState().push('instrucao', `${request.playerName} quer passar${travelWithText(request)} por ${request.pinLabel} → ${request.toSceneName}${naCabine}`, null, {
       actions: [
         { label: 'Deixar ir', run: () => answerTravel(request.requestId, true), emLote: true },
         ...together,
@@ -1695,7 +1785,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
    */
   const askLockedTravel = (request: TravelRequest) => {
     const paraPede = deps.setPinPassage === undefined ? [] : [{ label: 'Passar para pede', run: () => answerTravel(request.requestId, 'pede') }]
-    const toastId = useToastStore.getState().push('instrucao', `${request.playerName} quer passar por ${request.pinLabel} (trancada) → ${request.toSceneName}`, null, {
+    const toastId = useToastStore.getState().push('instrucao', `${request.playerName} quer passar${travelWithText(request)} por ${request.pinLabel} (trancada) → ${request.toSceneName}`, null, {
       actions: [
         { label: 'Liberar uma vez', run: () => answerTravel(request.requestId, true), emLote: true },
         ...paraPede,
@@ -1720,11 +1810,12 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
 
   /**
    * Devolve ao mapa as fichas que o mestre guardou de `playerId`, cada uma na
-   * cena de onde saiu (sumida a cena, na aberta). `reassign`: de novo dele —
-   * ele voltou; senão ficam sem dono (Dispensar, sala fechando). Devolve os
-   * nomes, para o aviso.
+   * cena de onde saiu (sumida a cena, na aberta). `newOwner`: de quem ficam —
+   * dele de novo (ele voltou) ou de quem recebeu as fichas dele ("Passar
+   * fichas e mapa a…"); `null`, sem dono (Dispensar, sala fechando). Devolve
+   * os nomes, para o aviso.
    */
-  const restoreStoredOf = (playerId: string, reassign: boolean): string[] => {
+  const restoreStoredOf = (playerId: string, newOwner: string | null): string[] => {
     const stored = storedTokens.get(playerId)
     if (stored === undefined) return []
     storedTokens.delete(playerId)
@@ -1734,7 +1825,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       // Ausente = a cena aberta: a de onde saiu, se é ela agora, ou a cena que sumiu.
       const where = sceneId !== null && sceneId !== current.open.sceneId && backgroundIds.has(sceneId) ? sceneId : undefined
       deps.restoreToken?.(token, where)
-      if (reassign && session !== null) void dispatch(session.assignToken(playerId, token.id))
+      if (newOwner !== null && session !== null) void dispatch(session.assignToken(newOwner, token.id))
     }
     return stored.map(({ token }) => token.name)
   }
@@ -1756,7 +1847,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       return
     }
     void dispatch(result)
-    restoreStoredOf(candidate.previousId, true)
+    restoreStoredOf(candidate.previousId, candidate.previousId)
     // Voltou: o "Ana caiu" dela sai da tela, como na volta pelo resume.
     announceReturn(candidate.previousId, candidate.name)
     // Uma segunda "ana" que esperava a mesma pergunta: a Ana já voltou, e a pergunta dela sai.
@@ -1866,7 +1957,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     if (!wasJoined) {
       // Voltou (resume) quem teve a ficha guardada: ela volta ao mapa, de novo dele.
       const joined = session.listPlayers().find((p) => p.clientId === clientId)
-      const restored = joined !== undefined && restoreStoredOf(joined.playerId, true).length > 0
+      const restored = joined !== undefined && restoreStoredOf(joined.playerId, joined.playerId).length > 0
       // Voltou quem teve a ficha emprestada: quem a jogava precisa do mapa sem ela.
       if (restored || result.loansReturned !== undefined) broadcastNow()
     }
@@ -1920,11 +2011,21 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       if (deps.applyItems === undefined) void dispatch(session.denyItemRequest(result.itemRequest.requestId))
       else askItem(result.itemRequest)
     }
+    if (result.purchaseRequest !== undefined) {
+      // Integrador sem quem grave a mochila: "Vender" não teria como entregar.
+      if (deps.applyItems === undefined) void dispatch(session.denyPurchase(result.purchaseRequest.requestId))
+      else askPurchase(result.purchaseRequest)
+    }
     if (result.chamadaDeCabine !== undefined) announceCabineCall(result.chamadaDeCabine)
     if (result.letter !== undefined) askLetter(result.letter)
     if (result.applyTokenEdit !== undefined && deps.applyTokenEdit !== undefined) {
       // Mesma regra da porta: o mestre vê pela store, os outros jogadores pelo snapshot imediato.
       deps.applyTokenEdit(result.applyTokenEdit)
+      broadcastNow()
+    }
+    if (result.applyPiso !== undefined && deps.applyPiso !== undefined) {
+      // O jogador que subiu recebe o piso novo, e quem ficou deixa de vê-lo, no snapshot imediato.
+      deps.applyPiso(result.applyPiso)
       broadcastNow()
     }
     notifyPlayersIfChanged()
@@ -2087,7 +2188,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       removeListeners()
       stopLivenessSweep()
       // Guardar nunca apaga ficha: fechar a sala devolve ao mapa, sem dono, o que estava guardado.
-      for (const playerId of [...storedTokens.keys()]) restoreStoredOf(playerId, false)
+      for (const playerId of [...storedTokens.keys()]) restoreStoredOf(playerId, null)
       session = null
       // Quem aguardava sem tela não recebe `room.closed` com mapa: some junto.
       if (screens.clear()) notifyScreens()
@@ -2385,11 +2486,36 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       const player = session.listPlayers().find((p) => p.playerId === playerId)
       if (player === undefined || player.connected) return false
       // Guardar nunca apaga ficha: quem é dispensado deixa a ficha no mapa, sem dono.
-      const restored = restoreStoredOf(playerId, false)
+      const restored = restoreStoredOf(playerId, null)
       session.dismissPlayer(playerId)
       if (restored.length > 0) useToastStore.getState().push('info', `De volta ao mapa, sem dono: ${restored.join(', ')}.`)
       // A sessão esqueceu tudo dele, pedidos incluídos (a ação no ponto sobrevive à
       // queda): a linha que sobrasse na Caixa seria um "Nada aqui" que não chega a ninguém.
+      pruneTravelToasts()
+      pruneCallToasts()
+      pruneReturnToasts()
+      broadcastNow()
+      notifyPlayersIfChanged()
+      return true
+    },
+
+    handOverPlayer(playerId, heirId) {
+      if (session === null) return false
+      const list = session.listPlayers()
+      const player = list.find((p) => p.playerId === playerId)
+      const heir = list.find((p) => p.playerId === heirId)
+      if (player === undefined || heir === undefined || player.connected) return false
+      const result = session.handOverPlayer(playerId, heirId)
+      if (result === null) return false
+      void dispatch(result)
+      // A ficha guardada volta ao mapa já de quem recebeu: guardar nunca apaga ficha.
+      const restored = restoreStoredOf(playerId, heirId)
+      const current = world()
+      const tokensById = new Map([current.open, ...current.background].flatMap((scene) => scene.map.tokens).map((token) => [token.id, token.name]))
+      const names = [...result.handedTokens.flatMap((tokenId) => tokensById.get(tokenId) ?? []), ...restored]
+      const text = names.length > 0 ? `Fichas e mapa de ${player.name} passaram a ${heir.name}: ${names.join(', ')}.` : `O mapa de ${player.name} passou a ${heir.name}.`
+      useToastStore.getState().push('info', text)
+      // Como no Dispensar: o que sobrasse dele na Caixa não chegaria a ninguém.
       pruneTravelToasts()
       pruneCallToasts()
       pruneReturnToasts()

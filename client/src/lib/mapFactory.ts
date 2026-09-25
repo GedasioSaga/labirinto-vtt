@@ -18,10 +18,12 @@ import { apagarBlocosDoChao } from './floorTool'
 import { DEFAULT_FLOOR_STYLE } from './mapFile'
 import { sameDestination, sameExits } from './pinTravel'
 import { passageOf } from './pins'
+import { sameLoja } from './loja'
 import { moveTokenCarryingLights, withoutAttachment } from './lightAttachment'
 import { seatStairPins, withoutStairPins } from './stairTravel'
 import { carryAttachedPins, carryPinsByTokenSteps } from './pinAttach'
 import { carrierIdOf, followStep } from './carry'
+import { mapaDoPiso, pisoDe } from './pisos'
 import {
   resizeRectDrawing, resizeEllipseDrawing, resizePolygonDrawing, resizePropBox, resizeCircleDrawingRadius,
   type Corner, type ResizeModifiers,
@@ -638,7 +640,8 @@ export function removeToken(map: MapData, tokenId: string): MapData {
  * deslocamento, então o ferido acompanha em todos esses caminhos sem cada um
  * lembrar dele. Cada ficha levada tem o PRÓPRIO trajeto checado
  * (`followStep`): parede no caminho dela a deixa para trás, mesmo que quem
- * leva tenha passado. Ficha inexistente: mapa intocado.
+ * leva tenha passado. PISOS: só a planta do piso DELA (`mapaDoPiso`) barra —
+ * no 1º piso, a parede do térreo não é parede. Ficha inexistente: mapa intocado.
  */
 export function setTokenPosition(map: MapData, tokenId: string, x: number, y: number): MapData {
   const moving = map.tokens.find((t) => t.id === tokenId)
@@ -649,7 +652,7 @@ export function setTokenPosition(map: MapData, tokenId: string, x: number, y: nu
   const withLights = moveTokenCarryingLights(map, tokenId, x, y)
   const moved: MapData = {
     ...withLights,
-    tokens: withLights.tokens.map((t) => (follows(t) ? followStep(map, t, dx, dy) : t)),
+    tokens: withLights.tokens.map((t) => (follows(t) ? followStep(mapaDoPiso(map, pisoDe(t)), t, dx, dy) : t)),
   }
   // O pino preso à ficha LEVADA anda o passo real dela (zero se a parede a barrou).
   const followerIds = new Set(map.tokens.filter(follows).map((t) => t.id))
@@ -1699,7 +1702,7 @@ export function addPin(map: MapData, pin: Pin): MapData {
 export function updatePin(
   map: MapData,
   id: string,
-  patch: Partial<Pick<Pin, 'kind' | 'icon' | 'description' | 'image' | 'locked' | 'destino' | 'passagem' | 'mudo' | 'rotulo' | 'saidas' | 'item' | 'abreCom' | 'presoA' | 'portaLigada'>>,
+  patch: Partial<Pick<Pin, 'kind' | 'icon' | 'description' | 'image' | 'locked' | 'destino' | 'passagem' | 'mudo' | 'rotulo' | 'saidas' | 'item' | 'abreCom' | 'presoA' | 'portaLigada' | 'loja'>>,
 ): MapData {
   const pin = map.pins.find((p) => p.id === id)
   if (!pin) return map
@@ -1734,7 +1737,10 @@ export function updatePin(
     // CHAVE ABRE PORTA: `undefined` === sem chave; apagar um campo vazio não é mudança.
     next.abreCom === pin.abreCom &&
     // "Aceita tentativas" do trancado: só `true` é mudo, ausente é aceita.
-    (next.mudo === true) === (pin.mudo === true)
+    (next.mudo === true) === (pin.mudo === true) &&
+    // LOJA COM PREÇOS: gravar a mesma lista de novo, ou tirar a loja de um
+    // pino que nunca teve, não é mudança.
+    sameLoja(next.loja, pin.loja)
   ) {
     return map
   }

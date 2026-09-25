@@ -543,6 +543,23 @@ describe('transferToken (o jogador atravessou o pino de viagem)', () => {
     expect(tokensAbertos()).toEqual([])
   })
 
+  it('PISOS: chega no piso pedido; sem piso, no térreo — o piso da cena de partida não atravessa', () => {
+    const { vale, cripta } = montar()
+    useMapStore.getState().setTokenPiso('grog', 3)
+    expect(useAdventureStore.getState().transferToken('grog', vale, cripta, 900, 700, 2)).toBe(true)
+    const noFundo = (): Token | undefined => {
+      const slot = useAdventureStore.getState().cache[cripta]
+      return slot?.status === 'ok' ? slot.map.tokens.find((t) => t.id === 'grog') : undefined
+    }
+    expect(noFundo()?.piso).toBe(2)
+    useAdventureStore.getState().switchScene(cripta)
+    expect(useAdventureStore.getState().transferToken('grog', cripta, vale, 100, 100)).toBe(true)
+    const slotVale = useAdventureStore.getState().cache[vale]
+    const grogNoVale = slotVale?.status === 'ok' ? slotVale.map.tokens.find((t) => t.id === 'grog') : undefined
+    expect(grogNoVale?.id).toBe('grog')
+    expect(grogNoVale !== undefined && 'piso' in grogNoVale).toBe(false)
+  })
+
   it('recusa o que não dá para fazer: mesma cena, token que não está lá, cena que não existe', () => {
     const { vale, cripta } = montar()
     expect(useAdventureStore.getState().transferToken('grog', vale, vale, 0, 0)).toBe(false)

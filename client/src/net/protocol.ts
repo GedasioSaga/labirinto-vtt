@@ -55,6 +55,8 @@ import { MASTER_ROLLER_NAME, parseDiceRequest, type DiceRequest, type DiceRollEn
  * antigo responde `error invalid_message`; jogador antigo ignora as três.
  * O `text` opcional do `pin.travel.denied` é o motivo que o MESTRE escreveu
  * para quem pediu ("Não, porque…"): vai só a ele e não é do mapa.
+ * `tokenIds` no pedido (quais fichas dele passam) segue a mesma regra: mestre
+ * antigo descarta o campo e leva o grupo de sempre.
  *
  * `scene.note` (mestre -> jogador) é o RECADO POR CENA, aditivo pelo mesmo
  * critério: jogador antigo cai no `default` e ignora. Leva só o texto e um id,
@@ -191,6 +193,13 @@ import { MASTER_ROLLER_NAME, parseDiceRequest, type DiceRequest, type DiceRollEn
  * nome), `seat.claim` (jogador -> mestre) e, na volta, `seat.claim.state`.
  * Mestre antigo responde `error invalid_message` ao pedido e nunca manda a
  * lista (o jogador fica na espera de sempre); jogador antigo ignora as duas.
+ *
+ * A LOJA COM PREÇOS é aditiva pelo mesmo critério: `pin.buy` (jogador ->
+ * mestre, o id do pino e o da mercadoria) e, na volta, `pin.buy.rejected` e
+ * `pin.buy.answer` (vendido, com o nome; ou não). A mercadoria viaja no
+ * `Pin.loja` do snapshot, já recortada pela névoa. Nem o pedido nem a
+ * resposta levam nome ou id de cena. Mestre antigo responde `error
+ * invalid_message`; jogador antigo ignora a resposta e o campo novo.
  */
 export const PROTOCOL_VERSION = 1
 
@@ -372,7 +381,18 @@ export interface PinTravelRequestMessage {
    * Aditivo: ausente vale a saída principal, e é o que o cliente antigo manda.
    */
   exitId?: string
+  /**
+   * ESCOLHER FICHAS NO PINO: quais fichas DELE passam (1 a
+   * `PIN_TRAVEL_MAX_TOKENS` ids, sem repetir). O host confere cada uma: dele,
+   * no recorte dele e no grupo do pino (`lib/pinTravelers.ts`). Aditivo:
+   * ausente vale o grupo de sempre (a mais perto do pino e as dele a até 2
+   * casas dela), e é o que o cliente antigo manda.
+   */
+  tokenIds?: string[]
 }
+
+/** Teto da lista `tokenIds` do pedido de passagem: fichas de um jogador que passam juntas. */
+export const PIN_TRAVEL_MAX_TOKENS = 8
 
 /**
  * CABINE DE TRANSPORTE: "Chamar a cabine" pela parada `pinId` da cena em que
@@ -440,6 +460,18 @@ export interface DoorRequestMessage {
 export interface PinTakeMessage {
   type: 'pin.take'
   pinId: string
+}
+
+/**
+ * LOJA COM PREÇOS: "Quero" a mercadoria `itemId` da banca `pinId`, na cena
+ * onde o jogador está. Só os ids: o nome e o preço que o mestre lê saem do
+ * mapa DELE, nunca do que o jogador mandasse. A volta é `pin.buy.rejected`
+ * (o host recusou antes de perguntar) ou `pin.buy.answer` (o mestre decidiu).
+ */
+export interface PinBuyMessage {
+  type: 'pin.buy'
+  pinId: string
+  itemId: string
 }
 
 /**
@@ -539,6 +571,18 @@ export interface SeatClaimMessage {
 }
 
 /**
+ * PISOS NA MESMA CENA — o jogador toca "Subir"/"Descer" com a ficha `tokenId`
+ * encostada na escada `stairId`. Só os dois ids: o piso de destino quem diz é
+ * a escada no mapa do mestre (`net/hostSession.ts`), nunca o jogador. Aditiva
+ * pelo critério de `door.toggle`: mestre antigo responde `invalid_message`.
+ */
+export interface TokenPisoMessage {
+  type: 'token.piso'
+  tokenId: string
+  stairId: string
+}
+
+/**
  * ESCONDER-SE: o jogador pede ao mestre para a PRÓPRIA ficha sumir dos outros
  * jogadores. Só o id: quem decide é o mestre ("Deixar"/"Não"), e aceito o
  * mestre liga "Oculto para jogadores" na ficha. Recusa volta em
@@ -564,12 +608,14 @@ export type PlayerMessage =
   | TokenEditMessage
   | PinTravelRequestMessage
   | PinTakeMessage
+  | PinBuyMessage
   | ItemGiveMessage
   | CabineCallMessage
   | PlayerLaserMessage
   | ClueReadMessage
   | CluePeersRequestMessage
   | ClueShowMessage
+  | TokenPisoMessage
   | CallRaiseMessage
   | CallLowerMessage
   | PointActionMessage
@@ -608,6 +654,17 @@ export const PIN_LEVER_REJECTIONS: readonly PinLeverRejection[] = ['unavailable'
 export type PinTakeRejection = 'unavailable' | 'far' | 'pending'
 
 export const PIN_TAKE_REJECTIONS: readonly PinTakeRejection[] = ['unavailable', 'far', 'pending']
+
+/**
+ * Por que o host não levou o "Quero" ao mestre. `unavailable` junta banca
+ * inexistente, no escuro, oculta, em outra cena, mercadoria inventada e que
+ * acabou — um motivo por caso diria o que existe no escuro. `far`: nenhuma
+ * ficha dele na banca. `pending`: um pedido de compra dele já espera.
+ * `too_soon`: pediu de novo antes do intervalo mínimo.
+ */
+export type PinBuyRejection = 'unavailable' | 'far' | 'pending' | 'too_soon'
+
+export const PIN_BUY_REJECTIONS: readonly PinBuyRejection[] = ['unavailable', 'far', 'pending', 'too_soon']
 
 /** Por que o "Dar a…" não valeu: colega longe, ou item/ficha que não servem. */
 export type ItemGiveRejection = 'unavailable' | 'far'
@@ -899,8 +956,10 @@ export type HostMessage =
   // `gatilhos` (GATILHO DE ÁREA): só o revelado pelo mestre, e só quando há algum (`PlayerMapView.gatilhos`).
   // `andares` (MAPA POR ANDARES): só quando a cena dele é andar de um prédio e ele já esteve em outro andar dele.
   // `relogio` (RELÓGIO DA CAMPANHA): só o período e, da cena dele, se está escuro — nunca a hora (`clockForPlayer`).
-  | { type: 'snapshot'; rev: number; map: MapData; vision: RegionPoint[][]; explored: ExploredWire; ownTokens: string[]; concealed: RegionPoint[][]; turn?: string; partyTokens?: string[]; hazards?: PlayerHazard[]; confronto?: PlayerConfronto; sceneName?: string; place?: string; places?: string[]; gatilhos?: PlayerAreaTrigger[]; andares?: FloorsWire; relogio?: PlayerClock }
-  | { type: 'delta'; rev: number; map: MapData; vision: RegionPoint[][]; explored: ExploredWire; ownTokens: string[]; concealed: RegionPoint[][]; turn?: string; partyTokens?: string[]; hazards?: PlayerHazard[]; sceneName?: string; place?: string; places?: string[]; gatilhos?: PlayerAreaTrigger[]; andares?: FloorsWire; relogio?: PlayerClock }
+  // `porAtravessar` (PORTAS POR ATRAVESSAR): ids de portas que JÁ vão em `map.walls` com um lado ainda na névoa
+  // para ele (`PlayerMapView.portasPorAtravessar`), só quando há alguma. Jogador antigo ignora; mestre antigo não manda.
+  | { type: 'snapshot'; rev: number; map: MapData; vision: RegionPoint[][]; explored: ExploredWire; ownTokens: string[]; concealed: RegionPoint[][]; turn?: string; partyTokens?: string[]; hazards?: PlayerHazard[]; confronto?: PlayerConfronto; sceneName?: string; place?: string; places?: string[]; gatilhos?: PlayerAreaTrigger[]; andares?: FloorsWire; relogio?: PlayerClock; porAtravessar?: string[] }
+  | { type: 'delta'; rev: number; map: MapData; vision: RegionPoint[][]; explored: ExploredWire; ownTokens: string[]; concealed: RegionPoint[][]; turn?: string; partyTokens?: string[]; hazards?: PlayerHazard[]; sceneName?: string; place?: string; places?: string[]; gatilhos?: PlayerAreaTrigger[]; andares?: FloorsWire; relogio?: PlayerClock; porAtravessar?: string[] }
   // ZONA DE PERIGO: a ficha DESTE jogador entrou num perigo. Só o tipo — nem a sala, nem a zona.
   | { type: 'hazard.entered'; kind: HazardKind }
   | { type: 'token.move.accepted'; reqId: string; x: number; y: number }
@@ -920,6 +979,10 @@ export type HostMessage =
   | { type: 'pin.take.rejected'; reason: PinTakeRejection }
   | { type: 'pin.take.answer'; answer: 'taken'; nome: string }
   | { type: 'pin.take.answer'; answer: 'denied' }
+  // LOJA COM PREÇOS, só a quem pediu. `nome` só no `sold`: o que agora está na mochila dele.
+  | { type: 'pin.buy.rejected'; reason: PinBuyRejection }
+  | { type: 'pin.buy.answer'; answer: 'sold'; nome: string }
+  | { type: 'pin.buy.answer'; answer: 'denied' }
   | { type: 'item.give.rejected'; reason: ItemGiveRejection }
   // ALAVANCA. `pulled` não diz qual porta nem se abriu ou fechou: a porta
   // ligada pode estar fora da vista, e o jogador só vê o que o recorte mostra.
@@ -1037,11 +1100,34 @@ function parseSignal(obj: Record<string, unknown>): SignalMessage | null {
  * saída principal (o jogador escolheu uma porta e iria por outra).
  */
 function parseTravelRequest(obj: Record<string, unknown>): PinTravelRequestMessage | null {
-  const { pinId, exitId } = obj
+  const { pinId, exitId, tokenIds } = obj
   if (!isBoundedString(pinId, 1, REQ_ID_MAX_LENGTH)) return null
-  if (exitId === undefined) return { type: 'pin.travel.request', pinId }
-  if (!isBoundedString(exitId, 1, REQ_ID_MAX_LENGTH)) return null
-  return { type: 'pin.travel.request', pinId, exitId }
+  const message: PinTravelRequestMessage = { type: 'pin.travel.request', pinId }
+  if (exitId !== undefined) {
+    if (!isBoundedString(exitId, 1, REQ_ID_MAX_LENGTH)) return null
+    message.exitId = exitId
+  }
+  if (tokenIds !== undefined) {
+    const ids = parseTravelTokenIds(tokenIds)
+    if (ids === null) return null
+    message.tokenIds = ids
+  }
+  return message
+}
+
+/**
+ * A lista de fichas do pedido: 1 a `PIN_TRAVEL_MAX_TOKENS` ids curtos, sem
+ * repetir. Fora disso a mensagem inteira é recusada — cair calado no grupo de
+ * sempre levaria justamente quem o jogador NÃO escolheu.
+ */
+function parseTravelTokenIds(value: unknown): string[] | null {
+  if (!Array.isArray(value) || value.length === 0 || value.length > PIN_TRAVEL_MAX_TOKENS) return null
+  const ids: string[] = []
+  for (const id of value) {
+    if (!isBoundedString(id, 1, REQ_ID_MAX_LENGTH) || ids.includes(id)) return null
+    ids.push(id)
+  }
+  return ids
 }
 
 export function isDoorRequestHow(value: unknown): value is DoorRequestHow {
@@ -1609,6 +1695,10 @@ export function parsePlayerMessage(raw: unknown): PlayerMessage | null {
       return isBoundedString(value.clueId, 1, REQ_ID_MAX_LENGTH) && isRoomName(value.to) ? { type: 'clue.show', clueId: value.clueId, to: value.to } : null
     case 'pin.take':
       return isBoundedString(value.pinId, 1, REQ_ID_MAX_LENGTH) ? { type: 'pin.take', pinId: value.pinId } : null
+    case 'pin.buy':
+      return isBoundedString(value.pinId, 1, REQ_ID_MAX_LENGTH) && isBoundedString(value.itemId, 1, REQ_ID_MAX_LENGTH)
+        ? { type: 'pin.buy', pinId: value.pinId, itemId: value.itemId }
+        : null
     case 'item.give':
       return isBoundedString(value.itemId, 1, REQ_ID_MAX_LENGTH) && isBoundedString(value.toTokenId, 1, REQ_ID_MAX_LENGTH)
         ? { type: 'item.give', itemId: value.itemId, toTokenId: value.toTokenId }
@@ -1634,6 +1724,10 @@ export function parsePlayerMessage(raw: unknown): PlayerMessage | null {
       return isBoundedString(value.pinId, 1, REQ_ID_MAX_LENGTH) ? { type: 'pin.lever', pinId: value.pinId } : null
     case 'seat.claim':
       return isBoundedString(value.tokenId, 1, REQ_ID_MAX_LENGTH) ? { type: 'seat.claim', tokenId: value.tokenId } : null
+    case 'token.piso':
+      return isBoundedString(value.tokenId, 1, REQ_ID_MAX_LENGTH) && isBoundedString(value.stairId, 1, REQ_ID_MAX_LENGTH)
+        ? { type: 'token.piso', tokenId: value.tokenId, stairId: value.stairId }
+        : null
     case 'token.hide.request':
       return isBoundedString(value.tokenId, 1, REQ_ID_MAX_LENGTH) ? { type: 'token.hide.request', tokenId: value.tokenId } : null
     default:

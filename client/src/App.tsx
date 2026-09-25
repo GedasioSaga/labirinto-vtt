@@ -1,9 +1,11 @@
-import { useEffect, useId, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react'
+import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { PixiCanvas } from './pixi/PixiCanvas'
 import { ZoomHud } from './components/ZoomHud'
 import { DiceDock } from './components/DiceDock'
 import { useDiceStore } from './stores/diceStore'
+import { PisoHud } from './components/PisoHud'
+import { temPisos } from './lib/pisos'
 import { Toast } from './components/Toast'
 import { useToastStore, type ToastKind } from './stores/toastStore'
 import { ensinaOQueFazer } from './lib/erroQueEnsina'
@@ -363,6 +365,8 @@ function App() {
   const showGrid = useMapStore((state) => state.map.showGrid)
   const setShowGrid = useMapStore((state) => state.setShowGrid)
   const map = useMapStore((state) => state.map)
+  const pisoAtivo = useMapStore((state) => state.pisoAtivo)
+  const mapaTemPisos = useMemo(() => temPisos(map), [map])
   const loadMap = useMapStore((state) => state.loadMap)
   const setBackground = useMapStore((state) => state.setBackground)
   const activeTool = useMapStore((state) => state.activeTool)
@@ -597,8 +601,8 @@ function App() {
           applyItemsInScene(change)
         },
         // "Deixar ir": o token troca de cena fora do desfazer das duas (ver `transferToken`).
-        applyTransfer: ({ tokenId, fromSceneId, toSceneId, x, y }) =>
-          useAdventureStore.getState().transferToken(tokenId, fromSceneId, toSceneId, x, y),
+        applyTransfer: ({ tokenId, fromSceneId, toSceneId, x, y, piso }) =>
+          useAdventureStore.getState().transferToken(tokenId, fromSceneId, toSceneId, x, y, piso),
         // CABINE DE TRANSPORTE: quem passou pela parada levou a cabine junto.
         applyCabine: ({ cabineId, parada }) => {
           useAdventureStore.getState().moverCabine(cabineId, parada)
@@ -607,8 +611,9 @@ function App() {
         applyChamadaDeCabine: (chamada) => useAdventureStore.getState().chamarCabine(chamada),
         // "Ir lá" do aviso de chegada: o editor vai à cena, com a ficha no centro
         // (mesmo caminho do "Ir lá" do painel Grupo, que também serve à cena já aberta).
-        onGoToScene: (sceneId, x, y) => {
-          useAdventureStore.getState().goToPoint(sceneId, { x, y })
+        // PISOS: no piso onde ela chegou (o do pino par).
+        onGoToScene: (sceneId, x, y, piso) => {
+          useAdventureStore.getState().goToPointNoPiso(sceneId, { x, y }, piso)
         },
         // "Ir lá" da ação no ponto: centra no ponto e o marca com o anel do jogador.
         onPointActionGo: goToPointAction,
@@ -787,7 +792,8 @@ function App() {
               onGoTo: (member) => {
                 // "Ir lá" em OUTRO jogador é o mestre escolhendo a vista: desliga o seguir.
                 if (member.playerId !== followingId) useFollowStore.getState().stop()
-                if (member.token !== null) useAdventureStore.getState().goToPoint(member.sceneId, { x: member.token.x, y: member.token.y })
+                // PISOS: e o editor no piso da ficha (ausente = térreo).
+                if (member.token !== null) useAdventureStore.getState().goToPointNoPiso(member.sceneId, { x: member.token.x, y: member.token.y }, member.token.piso ?? 0)
               },
               onSend: (playerId, sceneId, pinId) => hostBridgeRef.current?.sendPlayer(playerId, sceneId, pinId) ?? false,
               // ITEM PEGÁVEL: tirar, devolver ao chão ou dar, gravado na cena
@@ -862,6 +868,7 @@ function App() {
             onKick={(clientId) => void hostBridgeRef.current?.kick(clientId)}
             onStoreTokens={(playerId) => hostBridgeRef.current?.storeTokens(playerId)}
             onDismiss={(playerId) => hostBridgeRef.current?.dismissPlayer(playerId)}
+            onHandOver={(playerId, heirId) => hostBridgeRef.current?.handOverPlayer(playerId, heirId)}
             onLendTokens={(ownerId, borrowerId) => hostBridgeRef.current?.lendTokens(ownerId, borrowerId)}
             onEndLoans={(ownerId) => hostBridgeRef.current?.endLoans(ownerId)}
             onVisionRadiusChange={(playerId, radius) => hostBridgeRef.current?.setVisionRadius(playerId, radius)}
@@ -2781,6 +2788,15 @@ function App() {
                       onChange: (item) => useMapStore.getState().updatePin(selectedPin.id, { item: item ?? undefined }),
                     }
                   : null,
+              // LOJA COM PREÇOS: só com um pino "!"/"?" aberto. O "Quero" do jogador chega na caixa Pedidos.
+              loja:
+                selectedPin && selectedPin.kind !== 'viagem' && selectedPin.kind !== 'alavanca'
+                  ? {
+                      pinId: selectedPin.id,
+                      loja: selectedPin.loja ?? null,
+                      onChange: (loja) => useMapStore.getState().updatePin(selectedPin.id, { loja }),
+                    }
+                  : null,
               // PRESO À FICHA: só o pino de viagem (a prancha do navio, a porta da carroça).
               attachment:
                 selectedPin && selectedPin.kind === 'viagem'
@@ -2835,6 +2851,14 @@ function App() {
               // "Leva a…": `null` sem escada selecionada ou fora de uma aventura (a seção some).
               travel: selectedStair === null ? null : stairTravelPanel({ adventure, activeSceneId, cache: sceneCache }, map, selectedStair),
             }}
+            pisos={{
+              // PISOS NA MESMA CENA: as duas passam por `withHistory` — piso errado se desfaz com Ctrl+Z.
+              onTokenPisoChange: (tokenId, piso) => useMapStore.getState().setTokenPiso(tokenId, piso),
+              onStairPisosChange: (stairId, mudanca) => useMapStore.getState().setStairPisos(stairId, mudanca),
+              pisoAtivo,
+              onEditarPiso: (piso) => useMapStore.getState().setPisoAtivo(piso),
+              onLevarSelecaoAoPiso: (piso) => useMapStore.getState().moverSelecaoAoPiso(piso),
+            }}
             polygonSides={{
               sides: polygonSides,
               onSidesChange: setPolygonSides,
@@ -2883,6 +2907,8 @@ function App() {
       </div>
 
       <ZoomHud scale={cameraScale} onReset={() => setResetZoomRequest((n) => n + 1)} />
+      {/* PISOS NA MESMA CENA: só aparece quando a cena tem pisos (ou o mestre já saiu do térreo) — mapa de um piso não ganha controle à toa. */}
+      {(pisoAtivo !== 0 || mapaTemPisos) && <PisoHud piso={pisoAtivo} onPisoChange={(piso) => useMapStore.getState().setPisoAtivo(piso)} />}
       {shortcutsOpen && <ShortcutsDialog onClose={() => setShortcutsOpen(false)} />}
       {exportImageState !== null && (
         <ExportImageDialog

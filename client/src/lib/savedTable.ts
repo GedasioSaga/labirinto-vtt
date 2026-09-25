@@ -167,9 +167,12 @@ function parseDoor(value: unknown): SavedDoor | null {
 /** Só a FORMA do fio; o conteúdo (base64, tamanho do bitset) quem confere é `decodeExploration`, na sessão. */
 function parseExploredWire(value: unknown): ExploredWire | null {
   if (!isRecord(value)) return null
-  const { cell, cols, rows, bits, rings } = value
+  const { cell, cols, rows, bits, rings, ringsFar } = value
   if (!isPositiveNumber(cell) || !isPositiveNumber(cols) || !isPositiveNumber(rows) || typeof bits !== 'string' || typeof rings !== 'string') return null
-  return { cell, cols, rows, bits, rings }
+  // Contornos além de 16.383 px (mapa muito grande): ausente é o fio de sempre.
+  if (ringsFar === undefined) return { cell, cols, rows, bits, rings }
+  if (typeof ringsFar !== 'string') return null
+  return { cell, cols, rows, bits, rings, ringsFar }
 }
 
 function parseSceneMemory(value: unknown): SavedSceneMemory | null {

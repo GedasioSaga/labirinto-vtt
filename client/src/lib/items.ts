@@ -1,5 +1,7 @@
 import type { CarriedItem, MapData, Pin, PinItem, Token } from '../types/map'
 import { tokenRadiusOf } from './doorReach'
+import { venderItem } from './loja'
+import { comPiso, pisoDe } from './pisos'
 
 /**
  * ITEM PEGÁVEL — regras puras, compartilhadas pelo host (validar o "Pegar" e
@@ -99,6 +101,13 @@ export interface ItemChange {
   removePinId?: string
   addPin?: Pin
   mochilas: BackpackUpdate[]
+  /**
+   * LOJA COM PREÇOS — "Vender": a mercadoria `itemId` da banca `pinId` perde
+   * um do estoque (`venderItem`, `lib/loja.ts`), na MESMA mudança que põe a
+   * mercadoria na mochila de quem comprou — um Ctrl+Z do mestre não desfaz um
+   * lado sem o outro. A banca continua no mapa.
+   */
+  venda?: { pinId: string; itemId: string }
 }
 
 /** "Tirar" do mestre: o item sai da mochila da ficha e some (a chave usada). `null` = a ficha não o tem. */
@@ -110,7 +119,7 @@ export function removeItemChange(token: Token, itemId: string): ItemChange | nul
 
 /**
  * "Devolver ao chão" do mestre: o item sai da mochila e volta a ser pino
- * pegável ("!") onde a ficha está, pedindo ao mestre de novo. O pino usa o id
+ * pegável ("!") onde a ficha está — no MESMO piso dela —, pedindo ao mestre de novo. O pino usa o id
  * do item (o do pino de onde ele saiu); se já há um pino com esse id no mapa,
  * usa `freshPinId` — nunca sobrescreve outro pino.
  */
@@ -119,8 +128,10 @@ export function dropItemChange(map: MapData, token: Token, itemId: string, fresh
   const removed = removeItemChange(token, itemId)
   if (item === undefined || removed === null) return null
   const pinId = map.pins.some((pin) => pin.id === item.id) ? freshPinId : item.id
-  const addPin: Pin = { id: pinId, x: token.x, y: token.y, kind: 'exclamacao', description: '', image: null, item: { nome: item.nome } }
-  return { ...removed, addPin }
+  const pino: Pin = { id: pinId, x: token.x, y: token.y, kind: 'exclamacao', description: '', image: null, item: { nome: item.nome } }
+  // O host grava o pino direto (fora do desfazer que carimba o piso em edição):
+  // sem o piso da ficha ele cairia no térreo, longe de quem o largou.
+  return { ...removed, addPin: comPiso(pino, pisoDe(token)) }
 }
 
 /** "Dar" do mestre: um item NOVO, com o nome aparado, no fim da mochila da ficha. `null` = nome vazio. */
@@ -155,6 +166,13 @@ export function giveTargets(map: MapData, ownTokenIds: readonly string[], partyT
  * nada mudando devolve o MESMO mapa.
  */
 export function applyItemChange(map: MapData, change: ItemChange): MapData {
+  const venda = change.venda
+  const vendido = venda === undefined ? map : venderItem(map, venda.pinId, venda.itemId)
+  return applyBackpacksAndPins(vendido, change)
+}
+
+/** As mochilas e o pino que sai ou volta; nada mudando, o MESMO mapa. */
+function applyBackpacksAndPins(map: MapData, change: ItemChange): MapData {
   const byToken = new Map(change.mochilas.map((update) => [update.tokenId, update.mochila]))
   let tokensChanged = false
   const tokens = map.tokens.map((token) => {

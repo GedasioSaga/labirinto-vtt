@@ -9,6 +9,7 @@ import { tokenPublicNameFromFile } from './tokenPublicName'
 import { readPinAttachment } from './pinAttach'
 import { readMovementRules } from './movementRules'
 import { readCarriedItems, readPinItem } from './items'
+import { lerLojaDoArquivo } from './loja'
 import { readHazards } from './hazards'
 import { withoutContract, withoutLentMark } from './tokenLoan'
 import { fichaComRotinaDoArquivo } from './rotinaDoNpc'
@@ -19,6 +20,7 @@ import { readPinLeverDoor } from './lever'
 import { readAreaTriggers } from './areaTriggers'
 import { readArrivalText } from './arrivalText'
 import { readSceneFloor } from './buildingFloors'
+import { pisosDoArquivo } from './pisos'
 
 /** Chão de mapa NOVO: marrom chapado do minimapa do Resident Evil 4 (15/09/2026). */
 export const DEFAULT_FLOOR_STYLE: FloorStyle = { fillColor: '#a8776a', strokeColor: null, strokeWidth: 1 }
@@ -35,7 +37,8 @@ export function serializeMap(map: MapData): string {
 }
 
 export function deserializeMap(json: string): MapData {
-  const map = deserializeMapFields(json)
+  // PISOS NA MESMA CENA: `piso`/`levaAoPiso` tortos saem aqui (`lib/pisos.ts`); ausentes continuam ausentes.
+  const map = pisosDoArquivo(deserializeMapFields(json))
   // Mapa salvo antes de a porta manter o vínculo com a Sala: pedaços de parede
   // soltos sobre a aresta de uma Sala voltam a ser dela (`lib/roomLink.ts`).
   const walls = linkLooseWallsToRooms(map.regions, map.walls)
@@ -359,6 +362,10 @@ function deserializeMapFields(json: string): MapData {
       // ALAVANCA: campo NOVO e OPCIONAL. Só texto não vazio vale; o resto
       // volta AUSENTE (alavanca solta, que não move nada) — ver `readPinLeverDoor`.
       portaLigada: readPinLeverDoor(p.portaLigada),
+      // LOJA COM PREÇOS: campo NOVO e OPCIONAL, conferido item a item por
+      // `lerLojaDoArquivo` — o torto cai, o bom fica, campo desconhecido não
+      // entra. Nada que preste volta ausente (o `...p` acima copiaria o cru).
+      loja: lerLojaDoArquivo(p.loja),
     })),
     frame: parsed.frame ?? null,
     fog: parsed.fog ?? { mode: 'none', revealed: [] },

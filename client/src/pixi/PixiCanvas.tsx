@@ -7,6 +7,8 @@ import { currentRendererResolution, watchDevicePixelRatio } from './rendererReso
 import type { MapData, Pin, Region, Wall } from '../types/map'
 import type { DrawingTool } from '../types/tools'
 import { useMapStore } from '../stores/mapStore'
+import { mapaDoPiso } from '../lib/pisos'
+import { baldeNoPiso, camadaTravadaNoPiso, hoverNoPiso, pecaDeChaoNoPiso, selecaoDoLacoNoPiso } from '../lib/pisoEmEdicao'
 import { runClipboardShortcut } from '../stores/mapClipboard'
 import { pinTravelOf, unlinkedTravelPinIds, useAdventureStore } from '../stores/adventureStore'
 import { subscribeToGridRedraw } from '../stores/gridSubscription'
@@ -22,7 +24,7 @@ import { resolveMapWheel } from './wheelGesture'
 import { resolveShortcut, type ShortcutEvent } from '../lib/keymap'
 import { ROOM_CIRCLE_SIDES } from '../lib/roomCircle'
 // Onda 2, item 15 (Frente B) — hit-test + desenho do anel de hover.
-import { resolveHoverHit, type HoverHit, type HoverTarget } from '../lib/hoverHitTest'
+import type { HoverHit, HoverTarget } from '../lib/hoverHitTest'
 import { drawHover } from './drawHover'
 // Onda 2, item 16 (Frente C) — número ao vivo durante o arrasto de forma.
 import { dimensionLabel, type DimensionDraft } from '../lib/dimensionText'
@@ -45,11 +47,13 @@ import { createLightsRenderer } from './drawLights'
 import { visionSegments, type Segment } from '../lib/visibility'
 import { createRegionsRenderer, resolveHighlightedRegionId } from './drawRegions'
 import { createShapesRedrawer, paintedTextLayer, type ShapesLayer, type ShapesSnapshot } from './shapesRedraw'
+import { createMontadorEmFatias } from './montagemEmFatias'
 import { createRoomNamesRenderer, findRoomLabelAt, roomLabelAnchor, roomLabelFontSize, roomLabelPosition } from './drawRoomNames'
 import { createFloorRenderer, drawBlocosDraft, drawFloorDraft } from './drawFloor'
 import { drawMapLines, drawMapMarkers } from './drawMapLines'
 import { drawMapFrame } from './drawMapFrame'
 import { createDebouncedTask, syncWorldTextResolution } from './textResolution'
+import { createZoomDaRoda } from './zoomDaRoda'
 import { pixelGrid, snapToPhysicalPixel } from './pixelAlign'
 import { buildFloorMask } from './floorMask'
 import { layoutMapFrame } from '../lib/mapFrame'
@@ -61,13 +65,11 @@ const MINIMAP_RASTER_SAMPLES = 4
 import type { FloorPiece, MapFrame } from '../types/map'
 import {
   AVISO_BORRACHA_NAO_APAGA_CHAO,
-  baldeNoPonto,
   buildCorridorShape,
   buildFloorPiece,
   buildFloorShapeFromDrag,
   clampFloorPolygonSides,
   corridorDraftOnShapeChange,
-  findFloorPieceAt,
   isFloorDragShape,
   pincelDeBlocosApaga,
 } from '../lib/floorTool'
@@ -160,7 +162,7 @@ import { subscribeToPropsRedraw } from '../stores/propsSubscription'
 import { pickImageFile, importPropImage } from '../lib/imageImport'
 import { mapDirFor } from '../lib/mapFileIO'
 import {
-  findSelectableAt, findCurveControlPointAt, findWallAt, findNearestExistingVertex, findLockedLayerAt,
+  findSelectableAt, findCurveControlPointAt, findWallAt, findNearestExistingVertex,
   findDoorAt, findConcealZoneForSelect,
   type SelectableHit,
 } from '../lib/selectionHitTest'
@@ -1017,9 +1019,21 @@ export function PixiCanvas({
        * tela do mestre chega a ser pintado com ela.
        */
       let exportScene: { map: MapData; viewport: { left: number; top: number; right: number; bottom: number } } | null = null
+      /**
+       * PISOS NA MESMA CENA — o editor desenha e MIRA só o piso em edição
+       * (`pisoAtivo`): seleção, clique, laço, ímã de vértice e encaixe não
+       * pegam o que está no piso de cima. Cacheado por mapa (`mapaDoPiso`),
+       * então pedir a cada quadro não varre nada. Quem GRAVA continua
+       * passando pela store com o mapa inteiro.
+       */
+      const doPisoEmEdicao = (map: MapData): MapData => mapaDoPiso(map, useMapStore.getState().pisoAtivo)
+
       const sceneState = () => {
         const state = useMapStore.getState()
-        if (exportScene === null) return state
+        if (exportScene === null) {
+          const map = doPisoEmEdicao(state.map)
+          return map === state.map ? state : { ...state, map }
+        }
         return { ...state, map: exportScene.map, selection: EMPTY_SELECTION, selectedPinId: null, selectedConcealZoneId: null }
       }
 
@@ -1361,9 +1375,55 @@ export function PixiCanvas({
         },
       })
 
+      /**
+       * TROCA DE CENA RÁPIDA: o que cada camada adiada desenha. Enquanto a
+       * camada espera o quadro dela, fica escondida — senão os nomes e pinos
+       * da cena anterior apareceriam por cima das paredes da nova. As camadas
+       * da primeira fatia (chão, salas, paredes, escadas) nunca se escondem.
+       */
+      const objetosDaCamada: Partial<Record<ShapesLayer, readonly Container[]>> = {
+        floorSelection: [floorSelectionGraphics],
+        perigos: [perigosGraphics],
+        drawings: [drawingsGraphics, secretDrawingsGraphics],
+        hazards: [hazardsGraphics],
+        areaTriggers: [areaTriggersGraphics],
+        roomNames: [roomNamesContainer],
+        lights: [lightsContainer],
+        watchCones: [watchConesGraphics],
+        patrolRoutes: [patrolRoutesGraphics],
+        concealZones: [concealZonesContainer],
+        pins: [pinsContainer],
+        textLabels: [textLabelsContainer],
+        handles: [handlesGraphics],
+        areaOutline: [areaSelectionOutlineGraphics],
+      }
+      // Andar denso: o clique pinta paredes e salas, o resto chega uma fatia
+      // por quadro (montagemEmFatias.ts). `aria-busy` no editor enquanto monta.
+      const montagemDaCena = createMontadorEmFatias(redrawLayers, {
+        ler: shapesSnapshot,
+        agendar: (tarefa) => {
+          const pedido = requestAnimationFrame(() => {
+            // O componente pode ter desmontado entre o agendamento e o quadro.
+            if (!destroyed) tarefa()
+          })
+          return () => cancelAnimationFrame(pedido)
+        },
+        esconder: (camada, oculta) => {
+          // Só as camadas adiadas estão no mapa; a primeira fatia não tem o que esconder.
+          for (const objeto of objetosDaCamada[camada] ?? []) objeto.visible = !oculta
+        },
+        aoPintar: (pintadas) => {
+          if (paintedTextLayer(pintadas)) syncTextResolution()
+        },
+        aoMudarMontagem: (montando) => {
+          if (montando) el.setAttribute('aria-busy', 'true')
+          else el.removeAttribute('aria-busy')
+        },
+      })
+
       /** Pinta as camadas pedidas (todas, sem `only`) que mudaram; Text novo nasce na resolução do renderer e é ajustado ao zoom atual. */
       const redrawShapeLayers = (only?: readonly ShapesLayer[]) => {
-        if (paintedTextLayer(redrawLayers(shapesSnapshot(), only))) syncTextResolution()
+        if (paintedTextLayer(montagemDaCena.redesenhar(shapesSnapshot(), only))) syncTextResolution()
       }
 
       const redrawShapes = () => redrawShapeLayers()
@@ -1566,7 +1626,10 @@ export function PixiCanvas({
        * seleção, prévia de desenho, guias, sombra fora do mapa, sinais e laser.
        */
       const exportImage = async (options: ImageExportOptions): Promise<Uint8Array> => {
-        const source = useMapStore.getState().map
+        // Exportar logo depois de trocar de andar: a cena precisa estar inteira nesta chamada.
+        if (paintedTextLayer(montagemDaCena.concluir())) syncTextResolution()
+        // O piso em edição, como o mestre o vê: os pisos empilhados sairiam um por cima do outro.
+        const source = doPisoEmEdicao(useMapStore.getState().map)
         const width = source.width * source.grid
         const height = source.height * source.grid
         const scale = imageExportScale(width, height)
@@ -1699,18 +1762,34 @@ export function PixiCanvas({
       // marcador das luzes (o halo fica), e, com algo selecionado, o contorno
       // da sala ou do desenho selecionado e as alças. Chão, salas não
       // selecionadas, nomes, zonas, pinos e rótulos ficam parados.
+      //
+      // Durante o giro da roda nem esse portão roda: o `world` só escala e a
+      // geometria é refeita uma vez quando a roda para (zoomDaRoda.ts). Os
+      // nomes seguem por quadro: só mudam a escala do próprio texto.
+      const redrawScaleDependentLayers = () => {
+        redrawShapes()
+        // Móvel desenhado tem fio em px de tela, como a parede. Objeto de
+        // imagem não muda com o zoom: mapa sem móvel não redesenha nada aqui.
+        if (hasDrawnFurniture()) redrawProps()
+      }
+      const zoomDaRoda = createZoomDaRoda({
+        redesenhar: () => {
+          if (!destroyed) redrawScaleDependentLayers()
+        },
+        redesenharNoQuadro: umaVezPorQuadro(redrawScaleDependentLayers),
+      })
+      const syncLabelsToScale = umaVezPorQuadro(() => {
+        const { scale } = useMapStore.getState().camera
+        // Nomes de sala/token: tamanho mínimo na tela e somem abaixo de 30% (screenLabel.ts).
+        roomNamesRenderer.setCameraScale(scale)
+        tokensRenderer.setCameraScale(scale)
+      })
       const unsubscribeCameraScaleForWalls = useMapStore.subscribe(
         (state) => state.camera.scale,
-        umaVezPorQuadro(() => {
-          const { scale } = useMapStore.getState().camera
-          // Nomes de sala/token: tamanho mínimo na tela e somem abaixo de 30% (screenLabel.ts).
-          roomNamesRenderer.setCameraScale(scale)
-          tokensRenderer.setCameraScale(scale)
-          redrawShapes()
-          // Móvel desenhado tem fio em px de tela, como a parede. Objeto de
-          // imagem não muda com o zoom: mapa sem móvel não redesenha nada aqui.
-          if (hasDrawnFurniture()) redrawProps()
-        }),
+        () => {
+          syncLabelsToScale()
+          zoomDaRoda.escalaMudou()
+        },
       )
       // tokensSubscription.ts/propsSubscription.ts (fora do escopo deste
       // integrador) só assinam [map.tokens/map.props, selection] — nenhum dos
@@ -1724,6 +1803,8 @@ export function PixiCanvas({
           redrawProps()
         },
       )
+      // PISOS NA MESMA CENA: outro piso em edição é outra planta inteira na tela.
+      const unsubscribePisoAtivo = useMapStore.subscribe((state) => state.pisoAtivo, () => redrawScene())
 
       let mode:
         | 'idle'
@@ -2235,7 +2316,9 @@ export function PixiCanvas({
        */
       const addRoomWithNesting = (draft: { region: Region; walls: Wall[] }) => {
         const store = useMapStore.getState()
-        const placed = placeNewRoom(store.map.regions, store.map.walls, draft, store.pendingParentRoomId)
+        // Só as salas do piso em edição acolhem a sala nova: a do térreo, logo abaixo, não vira mãe da do 1º piso.
+        const doPiso = doPisoEmEdicao(store.map)
+        const placed = placeNewRoom(doPiso.regions, doPiso.walls, draft, store.pendingParentRoomId)
         store.addRoom(placed.region, placed.walls)
         store.setPendingParentRoom(null)
         if (placed.missedParent) {
@@ -2257,7 +2340,7 @@ export function PixiCanvas({
        * pelo mesmo `canInteractInLayer` que `lib/areaSelection.ts` já usa
        * pro marquee — mesma regra, dois caminhos de seleção.
        */
-      const hitTestMap = (map: MapData): MapData => ({
+      const interagiveis = (map: MapData): MapData => ({
         ...map,
         walls: map.walls.filter((wall) => canInteractInLayer(wall, wallLayer(wall), map.lockedLayers)),
         lights: map.lights.filter((light) => canInteractInLayer(light, lightLayer(light), map.lockedLayers)),
@@ -2271,6 +2354,8 @@ export function PixiCanvas({
         tokens: map.tokens.filter((token) => !isHidden(token) && canInteractInLayer(token, tokenLayer(token), map.lockedLayers)),
         props: map.props.filter((prop) => !isHidden(prop) && canInteractInLayer(prop, propLayer(prop), map.lockedLayers)),
       })
+      /** O mesmo filtro, só no piso em edição: o que está em outro piso não se vê e não se pega. */
+      const hitTestMap = (map: MapData): MapData => interagiveis(doPisoEmEdicao(map))
 
       /**
        * Clique de seleção: igual a `hitTestMap`, mas token TRAVADO e token
@@ -2289,7 +2374,7 @@ export function PixiCanvas({
        */
       const pinAt = (map: MapData, point: Point) => {
         if (isLayerLocked(map.lockedLayers, 'anotacoes')) return null
-        const clickable = visiblePins(map.pins, map.hiddenLayers).filter((pin) => !pin.hidden)
+        const clickable = visiblePins(doPisoEmEdicao(map).pins, map.hiddenLayers).filter((pin) => !pin.hidden)
         return findPinAt(clickable, point, PIN_TAP_TOLERANCE_PX / camera.scale)
       }
 
@@ -2319,8 +2404,9 @@ export function PixiCanvas({
         pinDragOffset = { x: pin.x - worldPoint.x, y: pin.y - worldPoint.y }
       }
 
-      const clickSelectMap = (map: MapData): MapData => ({
-        ...hitTestMap(map),
+      const clickSelectMap = (inteiro: MapData): MapData => clickSelectDoPiso(doPisoEmEdicao(inteiro))
+      const clickSelectDoPiso = (map: MapData): MapData => ({
+        ...interagiveis(map),
         tokens: map.tokens.filter((token) => !isLayerLocked(map.lockedLayers, tokenLayer(token))),
         props: map.props.filter((prop) => canInteractInLayer(prop, propLayer(prop), map.lockedLayers)),
         // Região/Sala TRAVADA continua clicável, pelo mesmo motivo do token
@@ -2628,7 +2714,8 @@ export function PixiCanvas({
        * tratados em `findFloorPieceAt`.
        */
       const floorHitAt = (map: MapData, point: Point): SelectableHit | null => {
-        const piece = findFloorPieceAt(map, point)
+        // Só o chão do piso em edição: a peça do térreo não se vê do 1º piso.
+        const piece = pecaDeChaoNoPiso(map, useMapStore.getState().pisoAtivo, point)
         return piece ? { kind: 'floor', id: piece.id, draggable: true } : null
       }
 
@@ -2733,8 +2820,8 @@ export function PixiCanvas({
        * repetir o defeito da porta sem parede, então a tela responde.
        */
       const encherAreaFechada = (point: Point) => {
-        const { map, addFloorPiece } = useMapStore.getState()
-        const piece = baldeNoPonto(map, point, () => crypto.randomUUID())
+        const { map, pisoAtivo, addFloorPiece } = useMapStore.getState()
+        const piece = baldeNoPiso(map, pisoAtivo, point, () => crypto.randomUUID())
         if (!piece) {
           useToastStore
             .getState()
@@ -3099,19 +3186,23 @@ export function PixiCanvas({
       // usado por `drawHover` pra desenhar o anel). Este wrapper só junta o
       // estado da store com o `worldPoint` do gesto.
       const resolveHoverAtIdle = (worldPoint: Point): HoverHit => {
-        const { map, selection, activeTool: tool } = useMapStore.getState()
+        const { map, pisoAtivo, selection, activeTool: tool } = useMapStore.getState()
         // Onda 4, item 24 — `resolveHoverHit` (fora da minha lista) só
         // entende "um item" (alça de resize/vértice) e "grupo por campo
         // plural" (bbox do grupo pra cursor de arrastar-tudo); os dois vêm
         // do mesmo `selection` agora, convertidos na borda.
-        return resolveHoverHit({
-          map,
-          selection: selectionSingle(selection),
-          areaSelection: selection.length > 1 ? selectionToAreaSelection(selection) : null,
-          activeTool: tool,
-          worldPoint,
-          cameraScale: camera.scale,
-        })
+        // Só o piso em edição: o item de outro piso não se vê e o clique não o pega.
+        return hoverNoPiso(
+          {
+            map,
+            selection: selectionSingle(selection),
+            areaSelection: selection.length > 1 ? selectionToAreaSelection(selection) : null,
+            activeTool: tool,
+            worldPoint,
+            cameraScale: camera.scale,
+          },
+          pisoAtivo,
+        )
       }
 
       const unsubscribeActiveTool = useMapStore.subscribe((state) => state.activeTool, () => {
@@ -3195,7 +3286,7 @@ export function PixiCanvas({
         // `contextmenu` que vem logo depois. A ferramenta não roda — sem isto
         // a ferramenta Porta punha outra porta ali e o Selecionar pegava a
         // parede para arrastar.
-        if (event.button === 2 && !direitoApagaBlocos() && findDoorAt(map, worldPoint) !== null) {
+        if (event.button === 2 && !direitoApagaBlocos() && findDoorAt(doPisoEmEdicao(map), worldPoint) !== null) {
           mode = 'idle'
           return
         }
@@ -3228,14 +3319,14 @@ export function PixiCanvas({
           // existente, usa ele direto (sem grid-snap por cima — o vértice
           // pode não estar exatamente numa célula da grade). Só cai no
           // applySnap normal quando não há vértice perto o bastante.
-          wallDraftStart = findNearestExistingVertex(map, worldPoint, VERTEX_MAGNET_TOLERANCE) ?? applySnap(worldPoint, map.grid, 'wall', event.altKey)
+          wallDraftStart = findNearestExistingVertex(doPisoEmEdicao(map), worldPoint, VERTEX_MAGNET_TOLERANCE) ?? applySnap(worldPoint, map.grid, 'wall', event.altKey)
           return
         }
 
         if (activeTool === 'stair') {
           mode = 'drawing-stair'
           // Mesmo ímã dos blocos de Parede/Linha acima — ver comentário lá.
-          stairDraftStart = findNearestExistingVertex(map, worldPoint, VERTEX_MAGNET_TOLERANCE) ?? applySnap(worldPoint, map.grid, 'wall', event.altKey)
+          stairDraftStart = findNearestExistingVertex(doPisoEmEdicao(map), worldPoint, VERTEX_MAGNET_TOLERANCE) ?? applySnap(worldPoint, map.grid, 'wall', event.altKey)
           return
         }
 
@@ -3245,7 +3336,7 @@ export function PixiCanvas({
           // difícil, e aqui não há preview de arrasto pra corrigir a mira.
           // Filtrado por camada visível (mesmo filtro do render/hit-test de
           // seleção) — não cria porta em cima de parede que o LayersPanel escondeu.
-          const wall = findWallAt(visibleWalls(map.walls, map.hiddenLayers), worldPoint, 16)
+          const wall = findWallAt(visibleWalls(doPisoEmEdicao(map).walls, map.hiddenLayers), worldPoint, 16)
           // Sem parede sob o clique: não cria porta flutuando no vazio. `kind`
           // vem da preferência de ferramenta (doorKind/setDoorKind no store,
           // ver DoorKindControls) — antes desta fase era um comprimento fixo
@@ -3407,7 +3498,7 @@ export function PixiCanvas({
         if (activeTool === 'line') {
           mode = 'drawing-line'
           // Mesmo ímã do bloco de Parede acima — ver comentário lá.
-          lineDraftStart = findNearestExistingVertex(map, worldPoint, VERTEX_MAGNET_TOLERANCE) ?? applySnap(worldPoint, map.grid, 'wall', event.altKey)
+          lineDraftStart = findNearestExistingVertex(doPisoEmEdicao(map), worldPoint, VERTEX_MAGNET_TOLERANCE) ?? applySnap(worldPoint, map.grid, 'wall', event.altKey)
           return
         }
 
@@ -3748,7 +3839,7 @@ export function PixiCanvas({
         // Com grupo (2+) o arrasto do grupo continua valendo, e Shift
         // continua sendo "somar à seleção".
         if (activeTool === 'select' && !event.shiftKey && single?.kind === 'region') {
-          const labelRegion = findRoomLabelAt(visibleRegions(map.regions, map.hiddenLayers), worldPoint, map.grid, camera.scale)
+          const labelRegion = findRoomLabelAt(visibleRegions(doPisoEmEdicao(map).regions, map.hiddenLayers), worldPoint, map.grid, camera.scale)
           if (labelRegion?.room && labelRegion.id === single.id) {
             setSelection(selectionOfItem({ kind: 'region', id: labelRegion.id }))
             if (canInteract(labelRegion)) {
@@ -3822,7 +3913,7 @@ export function PixiCanvas({
         // mora em camada, então uma sala travada embaixo não a esconde.
         // Shift segue construindo o conjunto — a zona fica fora de `selection`.
         if (activeTool === 'select' && event.button === 0 && !event.shiftKey) {
-          const zona = findConcealZoneForSelect(map, worldPoint)
+          const zona = findConcealZoneForSelect(doPisoEmEdicao(map), worldPoint)
           if (zona !== null) {
             useMapStore.getState().setSelectedConcealZone(zona.id)
             mode = 'idle'
@@ -3840,8 +3931,8 @@ export function PixiCanvas({
         // Quem travava a camada Tokens justamente para não esbarrar num token
         // arrastava a SALA inteira por baixo dele: luz, escada e rótulo iam
         // junto, sem aviso nenhum (jornada e2e/task-jornada-camada-travada).
-        // `findLockedLayerAt` pergunta, no mapa CRU, quem está por cima neste
-        // ponto; se a camada desse item estiver travada, o gesto para aqui:
+        // `findLockedLayerAt` pergunta, no mapa CRU do piso em edição, quem
+        // está por cima neste ponto (item de outro piso não se vê e não barra); se a camada desse item estiver travada, o gesto para aqui:
         // `mode` fica 'idle' (nenhum branch de pointermove reage), a seleção
         // de antes continua de pé e o aviso diz POR QUE nada aconteceu.
         //
@@ -3849,7 +3940,7 @@ export function PixiCanvas({
         // vértice de sala e arrasto de grupo, acima, trabalham sobre itens JÁ
         // selecionados — e travar uma camada remove os itens dela da seleção
         // (mapStore.toggleLayerLock), então nenhum deles alcança item travado.
-        const lockedLayer = findLockedLayerAt(map, worldPoint)
+        const lockedLayer = camadaTravadaNoPiso(map, useMapStore.getState().pisoAtivo, worldPoint)
         if (lockedLayer !== null) {
           mode = 'idle'
           useToastStore.getState().push('info', `A camada ${LAYER_LABELS[lockedLayer]} está travada`)
@@ -4081,7 +4172,7 @@ export function PixiCanvas({
           // Ímã primeiro (mesma lógica do preview em pointermove, ver lá): se a
           // ponta final cai perto de um vértice já existente, gruda nele direto,
           // ignorando trava de ângulo e grid-snap — senão cai na lógica normal.
-          const magnet = findNearestExistingVertex(map, worldPoint, VERTEX_MAGNET_TOLERANCE)
+          const magnet = findNearestExistingVertex(doPisoEmEdicao(map), worldPoint, VERTEX_MAGNET_TOLERANCE)
           let end: Point
           if (magnet) {
             end = magnet
@@ -4111,7 +4202,7 @@ export function PixiCanvas({
           const worldPoint = toWorldPoint(event.global.x, event.global.y)
           const { map, addDrawing, drawColor, drawWidth, drawCap, drawDash } = useMapStore.getState()
           // Ímã primeiro — mesma lógica do bloco de Parede acima, ver lá.
-          const magnet = findNearestExistingVertex(map, worldPoint, VERTEX_MAGNET_TOLERANCE)
+          const magnet = findNearestExistingVertex(doPisoEmEdicao(map), worldPoint, VERTEX_MAGNET_TOLERANCE)
           let end: Point
           if (magnet) {
             end = magnet
@@ -4238,7 +4329,7 @@ export function PixiCanvas({
             store.setSelectedConcealZone(zone.id)
           } else {
             // Clique sem arrasto abre no painel a zona sob o cursor (ou fecha, no vazio).
-            const hit = findConcealZoneAt(store.map.concealZones, concealDraftRawStart ?? worldPoint)
+            const hit = findConcealZoneAt(doPisoEmEdicao(store.map).concealZones, concealDraftRawStart ?? worldPoint)
             store.setSelectedConcealZone(hit?.id ?? null)
           }
           concealDraftStart = null
@@ -4276,7 +4367,7 @@ export function PixiCanvas({
           const worldPoint = toWorldPoint(event.global.x, event.global.y)
           const { map, addStair, stairSizePreset } = useMapStore.getState()
           // Ímã primeiro — mesma lógica do bloco de Parede acima, ver lá.
-          const magnet = findNearestExistingVertex(map, worldPoint, VERTEX_MAGNET_TOLERANCE)
+          const magnet = findNearestExistingVertex(doPisoEmEdicao(map), worldPoint, VERTEX_MAGNET_TOLERANCE)
           let end: Point
           if (magnet) {
             end = magnet
@@ -4435,7 +4526,8 @@ export function PixiCanvas({
             // pointerdown) fecha no clique no vazio, como fecha na ferramenta Zona.
             if (!event.shiftKey && store.selectedConcealZoneId !== null) store.setSelectedConcealZone(null)
           } else {
-            const encontrados = selectionFromAreaSelection(selectEntitiesInArea(store.map, rect))
+            // Só o piso em edição: o laço não leva o que está no mesmo lugar em outro piso.
+            const encontrados = selecaoDoLacoNoPiso(store.map, store.pisoAtivo, rect)
             store.setSelection(
               gesture === 'add' ? selectionFromItems([...store.selection, ...encontrados]) : selectionFromItems(encontrados),
             )
@@ -4791,7 +4883,7 @@ export function PixiCanvas({
           updateCursor()
           // Onda 2, item 15 (Frente B) — anel de hover, mesmo custo marginal
           // ~0 do resolveHoverHit (ver docstring do módulo).
-          drawHover(hoverGraphics, useMapStore.getState().map, hoverTarget)
+          drawHover(hoverGraphics, doPisoEmEdicao(useMapStore.getState().map), hoverTarget)
           // Corredor em construção não tem `mode` (cliques soltos), então a
           // prévia até o cursor mora aqui, no pointermove ocioso.
           if (corridorDraftPoints.length > 0 && useMapStore.getState().activeTool === 'floor') {
@@ -4835,7 +4927,7 @@ export function PixiCanvas({
           // par gruda na linha da grade, a de lado ímpar no centro da célula.
           const cells = tokenSizeInSquares(map.tokens.find((token) => token.id === draggingTokenId))
           const snapped = applySnap(worldPoint, map.grid, 'token', event.altKey, cells)
-          const candidates = map.tokens
+          const candidates = doPisoEmEdicao(map).tokens
             .filter((token) => token.id !== draggingTokenId)
             .map((token) => ({ x: token.x, y: token.y }))
           const result = computeAlignment(snapped, candidates)
@@ -4899,7 +4991,7 @@ export function PixiCanvas({
           const worldPoint = toWorldPoint(event.global.x, event.global.y)
           const { map } = useMapStore.getState()
           const snapped = applySnap(worldPoint, map.grid, 'prop', event.altKey)
-          const candidates = map.props
+          const candidates = doPisoEmEdicao(map).props
             .filter((prop) => prop.id !== draggingPropId)
             .flatMap((prop) => [
               { x: prop.x, y: prop.y },
@@ -4941,14 +5033,14 @@ export function PixiCanvas({
           // visualmente (Dossiê F4, "bug1 canto-aberto"/"não-fecha").
           // `excludeWallId` (selectionHitTest.ts) evita que a própria parede em
           // arrasto (inclusive a OUTRA ponta dela) vire candidata espúria.
-          const magnet = findNearestExistingVertex(map, worldPoint, VERTEX_MAGNET_TOLERANCE, draggingWallPointId)
+          const magnet = findNearestExistingVertex(doPisoEmEdicao(map), worldPoint, VERTEX_MAGNET_TOLERANCE, draggingWallPointId)
           if (magnet) {
             drawGuides(guidesGraphics, [], computeViewport())
             useMapStore.getState().updateWallPoint(draggingWallPointId, draggingWallPointIndex, magnet.x, magnet.y)
             return
           }
           const snapped = applySnap(worldPoint, map.grid, 'wall', event.altKey)
-          const candidates = map.walls
+          const candidates = doPisoEmEdicao(map).walls
             .filter((wall) => wall.id !== draggingWallPointId)
             .flatMap((wall) => [{ x: wall.x1, y: wall.y1 }, { x: wall.x2, y: wall.y2 }])
           const result = computeAlignment(snapped, candidates)
@@ -4961,7 +5053,7 @@ export function PixiCanvas({
           const worldPoint = toWorldPoint(event.global.x, event.global.y)
           const { map } = useMapStore.getState()
           const snapped = applySnap(worldPoint, map.grid, 'wall', event.altKey)
-          const candidates = map.regions
+          const candidates = doPisoEmEdicao(map).regions
             .filter((region) => region.id !== draggingRegionId)
             .flatMap((region) => region.points)
           const result = computeAlignment(snapped, candidates)
@@ -5007,7 +5099,7 @@ export function PixiCanvas({
               // elas, nao so a clicada, senao o canto compartilhado com a parede
               // vizinha da mesma sala vira candidato e "gruda" a arrasto na propria
               // posicao original (distancia 0 do canto adjacente da mesma sala).
-              const candidates = map.walls
+              const candidates = doPisoEmEdicao(map).walls
                 .filter((w) => w.id !== draggingWallBodyId && (wall.regionId === undefined || w.regionId !== wall.regionId))
                 .flatMap((w) => [{ x: w.x1, y: w.y1 }, { x: w.x2, y: w.y2 }])
               const result = computeAlignment(tentativeAnchor, candidates)
@@ -5048,7 +5140,7 @@ export function PixiCanvas({
               const tentativeAnchor = { x: anchor.x + dx, y: anchor.y + dy }
               // Sub-salas andam junto: alinhar com elas seria alinhar consigo mesma.
               const moving = subtreeIds(map.regions, draggingRegionBodyId)
-              const candidates = map.regions
+              const candidates = doPisoEmEdicao(map).regions
                 .filter((r) => !moving.has(r.id))
                 .flatMap((r) => r.points)
               const result = computeAlignment(tentativeAnchor, candidates)
@@ -5080,7 +5172,7 @@ export function PixiCanvas({
               const anchor = stair.segments[0]
               const tentativeAnchor = { x: anchor.x1 + dx, y: anchor.y1 + dy }
               const candidates = [
-                ...map.walls.flatMap((w) => [{ x: w.x1, y: w.y1 }, { x: w.x2, y: w.y2 }]),
+                ...doPisoEmEdicao(map).walls.flatMap((w) => [{ x: w.x1, y: w.y1 }, { x: w.x2, y: w.y2 }]),
                 ...mapBoundsCandidates(map),
               ]
               const result = computeAlignment(tentativeAnchor, candidates)
@@ -5158,7 +5250,7 @@ export function PixiCanvas({
             if (drawing && drawing.kind === 'line') {
               const tentativeAnchor = { x: drawing.x1 + dx, y: drawing.y1 + dy }
               const candidates = [
-                ...map.walls.flatMap((w) => [{ x: w.x1, y: w.y1 }, { x: w.x2, y: w.y2 }]),
+                ...doPisoEmEdicao(map).walls.flatMap((w) => [{ x: w.x1, y: w.y1 }, { x: w.x2, y: w.y2 }]),
                 ...mapBoundsCandidates(map),
               ]
               const result = computeAlignment(tentativeAnchor, candidates)
@@ -5267,7 +5359,7 @@ export function PixiCanvas({
           // o vértice já É a posição final desejada. Preview e commit (pointerup
           // acima) usam a MESMA checagem, então o que se vê arrastando é
           // exatamente o que fica ao soltar.
-          const magnet = findNearestExistingVertex(map, worldPoint, VERTEX_MAGNET_TOLERANCE)
+          const magnet = findNearestExistingVertex(doPisoEmEdicao(map), worldPoint, VERTEX_MAGNET_TOLERANCE)
           let end: Point
           let angleReference: Point
           if (magnet) {
@@ -5345,7 +5437,7 @@ export function PixiCanvas({
           const { map, stairSizePreset } = useMapStore.getState()
           // Ímã primeiro — mesma lógica do preview de Parede acima, ver lá.
           // Preview e commit (pointerup acima) usam a MESMA checagem.
-          const magnet = findNearestExistingVertex(map, worldPoint, VERTEX_MAGNET_TOLERANCE)
+          const magnet = findNearestExistingVertex(doPisoEmEdicao(map), worldPoint, VERTEX_MAGNET_TOLERANCE)
           let end: Point
           if (magnet) {
             end = magnet
@@ -5435,7 +5527,7 @@ export function PixiCanvas({
           const { map, drawColor, drawWidth, drawDash } = useMapStore.getState()
           // Ímã primeiro — mesma lógica do bloco de preview de Parede acima, ver
           // lá. Preview e commit (pointerup acima) usam a MESMA checagem.
-          const magnet = findNearestExistingVertex(map, worldPoint, VERTEX_MAGNET_TOLERANCE)
+          const magnet = findNearestExistingVertex(doPisoEmEdicao(map), worldPoint, VERTEX_MAGNET_TOLERANCE)
           let end: Point
           let angleReference: Point
           if (magnet) {
@@ -5556,7 +5648,7 @@ export function PixiCanvas({
           // ponto acima: duplo clique em vértice continua removendo o vértice.
           const rect = el.getBoundingClientRect()
           const worldPoint = toWorldPoint(event.clientX - rect.left, event.clientY - rect.top)
-          let roomRegion = findRoomLabelAt(visibleRegions(map.regions, map.hiddenLayers), worldPoint, map.grid, camera.scale)
+          let roomRegion = findRoomLabelAt(visibleRegions(doPisoEmEdicao(map).regions, map.hiddenLayers), worldPoint, map.grid, camera.scale)
           if (!roomRegion) {
             const hit = findSelectableAt(hitTestMap(map), worldPoint)
             const regionId =
@@ -5602,7 +5694,7 @@ export function PixiCanvas({
         // `pointerdown` do mesmo botão já saiu sem deixar a ferramenta agir.
         const rect = el.getBoundingClientRect()
         const local = { x: event.clientX - rect.left, y: event.clientY - rect.top }
-        const porta = findDoorAt(useMapStore.getState().map, toWorldPoint(local.x, local.y))
+        const porta = findDoorAt(doPisoEmEdicao(useMapStore.getState().map), toWorldPoint(local.x, local.y))
         if (porta === null) return
         event.preventDefault()
         setDoorMenu({ wallId: porta.id, x: local.x, y: local.y })
@@ -5817,8 +5909,10 @@ export function PixiCanvas({
             // não existe mais. Sem conferir o mapa, o atalho engolia o
             // `removeSelected` e ainda prometia "Ctrl+Z desfaz" para uma ação que
             // não aconteceu — e o Ctrl+Z do mestre desfaria outra coisa.
-            const { map: mapaDoPino, selectedPinId: pinoSelecionado } = useMapStore.getState()
-            const pinoApagado = pinoSelecionado === null ? undefined : mapaDoPino.pins.find((pino) => pino.id === pinoSelecionado)
+            // PISOS: só o pino do piso em edição — o de outro piso não está na tela.
+            const { map: mapaDoPino, selectedPinId: pinoSelecionado, pisoAtivo: pisoDoPino } = useMapStore.getState()
+            const pinoApagado =
+              pinoSelecionado === null ? undefined : mapaDoPiso(mapaDoPino, pisoDoPino).pins.find((pino) => pino.id === pinoSelecionado)
             if (pinoApagado !== undefined) {
               // O par de um pino de viagem mora em OUTRA cena: o aviso diz o
               // que mudou lá, porque daqui não dá para ver.
@@ -5971,7 +6065,13 @@ export function PixiCanvas({
           ctrlKey: event.ctrlKey,
           shiftKey: event.shiftKey,
         })
-        applyCamera(gesture.kind === 'zoom' ? zoomAt(camera, pointer, gesture.deltaY) : panBy(camera, -gesture.dx, -gesture.dy), 'gesto')
+        if (gesture.kind === 'zoom') {
+          // Antes de mover a câmera: a assinatura de escala dispara dentro do applyCamera.
+          zoomDaRoda.rodaGirou()
+          applyCamera(zoomAt(camera, pointer, gesture.deltaY), 'gesto')
+          return
+        }
+        applyCamera(panBy(camera, -gesture.dx, -gesture.dy), 'gesto')
       }
       el.addEventListener('wheel', onWheel, { passive: false })
 
@@ -5988,9 +6088,12 @@ export function PixiCanvas({
         containerResizeObserver.disconnect()
         stopWatchingResolution()
         textResolutionTask.cancel()
+        montagemDaCena.cancelar()
+        el.removeAttribute('aria-busy')
         unsubscribeGrid()
         unsubscribeGridOffset()
         unsubscribeCameraScaleForWalls()
+        zoomDaRoda.cancelar()
         unsubscribeShapes()
         unsubscribeTravelLinks()
         unsubscribeTokens()
@@ -5998,6 +6101,7 @@ export function PixiCanvas({
         unsubscribeProps()
         unsubscribeBackground()
         unsubscribeHiddenLayersForTokensAndProps()
+        unsubscribePisoAtivo()
         unsubscribeActiveTool()
         unsubscribeFloorShape()
         // Antes do app.destroy: os gradientes de luz não são filhos da cena.

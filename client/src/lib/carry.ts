@@ -33,7 +33,9 @@ export function carriedBy(map: MapData, carrierId: string): Token[] {
 
 /**
  * O passo da ficha levada quando quem a leva anda (`dx`, `dy`) em `map` (o
- * mapa ANTES do passo: as paredes e o lugar dela de onde ela sai). Anda o
+ * mapa ANTES do passo: as paredes e o lugar dela de onde ela sai). Em mapa
+ * com pisos, quem chama passa o recorte do piso DELA (`mapaDoPiso`): o mapa
+ * inteiro poria a parede do térreo no caminho de quem está no 1º piso. Anda o
  * mesmo deslocamento SÓ se o trajeto DELA é livre — parede, porta fechada,
  * fora do chão e fora do mapa barram, pela mesma regra do passo do jogador
  * (`validateTokenMove`, sem posse, vez nem ocupação, que são do pedido e não
