@@ -1,4 +1,6 @@
-import type { HazardKind, MapData, RegionPoint } from '../types/map'
+import type { CarriedItem, HazardKind, MapData, RegionPoint } from '../types/map'
+import { cleanItemName } from '../lib/items'
+import { isCoinAmount, TRADE_FROM_MAX_LENGTH, TRADE_ITEMS_MAX } from '../lib/troca'
 import type { PlayerHazard } from '../lib/hazards'
 import type { PlayerAreaTrigger } from '../lib/areaTriggers'
 import type { PlayerClock } from '../lib/campaignClock'
@@ -200,6 +202,13 @@ import { MASTER_ROLLER_NAME, parseDiceRequest, type DiceRequest, type DiceRollEn
  * `Pin.loja` do snapshot, já recortada pela névoa. Nem o pedido nem a
  * resposta levam nome ou id de cena. Mestre antigo responde `error
  * invalid_message`; jogador antigo ignora a resposta e o campo novo.
+ *
+ * MOEDAS E TROCA ENTRE FICHAS, aditivas pelo mesmo critério: `coins.give`,
+ * `trade.answer` e `trade.counter` (jogador -> mestre) e, na volta,
+ * `coins.give.rejected`, `trade.offer` e `trade.closed`, sempre só à conexão
+ * do jogador envolvido. A bolsa viaja no token do PRÓPRIO jogador
+ * (`Token.moedas`); a de outro nunca sai (`lib/fogFilter.ts`). A oferta leva
+ * o nome que o mestre escreveu e o que ESTE jogador carrega — nunca cena.
  */
 export const PROTOCOL_VERSION = 1
 
@@ -502,6 +511,57 @@ export interface ItemGiveMessage {
   toTokenId: string
 }
 
+/**
+ * MOEDAS E TROCA — "Pagar a…": `moedas` da bolsa de uma ficha dele à ficha
+ * `toTokenId`, de um colega encostado. Qual ficha dele paga o host escolhe
+ * (a encostada que tem o bastante): o jogador só diz a quem e quanto.
+ */
+export interface CoinsGiveMessage {
+  type: 'coins.give'
+  toTokenId: string
+  moedas: number
+}
+
+/** A resposta à oferta `offerId` do mestre: aceita ou recusa. */
+export interface TradeAnswerMessage {
+  type: 'trade.answer'
+  offerId: string
+  answer: 'accept' | 'refuse'
+}
+
+/**
+ * A contraproposta à oferta `offerId`: em vez do que o mestre pediu, o
+ * jogador dá os itens `itemIds` da mochila da ficha da oferta e `moedas`.
+ * Quem decide é o mestre.
+ */
+export interface TradeCounterMessage {
+  type: 'trade.counter'
+  offerId: string
+  itemIds: string[]
+  moedas: number
+}
+
+/**
+ * A OFERTA do mestre, só à conexão de quem é a ficha. `de` é o texto que o
+ * mestre escreveu (quem oferece); `dou` são nomes de itens novos e moedas;
+ * `peco` são itens que ESTE jogador já carrega (id e nome) e moedas. Nunca
+ * leva cena, ficha de outro nem id de NPC.
+ */
+export interface TradeOfferMessage {
+  type: 'trade.offer'
+  offerId: string
+  de: string
+  dou: { itens: string[]; moedas: number }
+  peco: { itens: CarriedItem[]; moedas: number }
+}
+
+/** A troca `offerId` acabou, e como. Só a quem ela foi oferecida. */
+export interface TradeClosedMessage {
+  type: 'trade.closed'
+  offerId: string
+  result: TradeClosedResult
+}
+
 /** O jogador levanta a mão. `text` ausente = só o motivo. */
 export interface CallRaiseMessage {
   type: 'call.raise'
@@ -610,6 +670,9 @@ export type PlayerMessage =
   | PinTakeMessage
   | PinBuyMessage
   | ItemGiveMessage
+  | CoinsGiveMessage
+  | TradeAnswerMessage
+  | TradeCounterMessage
   | CabineCallMessage
   | PlayerLaserMessage
   | ClueReadMessage
@@ -670,6 +733,25 @@ export const PIN_BUY_REJECTIONS: readonly PinBuyRejection[] = ['unavailable', 'f
 export type ItemGiveRejection = 'unavailable' | 'far'
 
 export const ITEM_GIVE_REJECTIONS: readonly ItemGiveRejection[] = ['unavailable', 'far']
+
+/**
+ * Por que o "Pagar a…" não valeu: `short` = a bolsa das fichas dele encostadas
+ * não tem o bastante; `far` = colega longe; `unavailable` = ficha que não é de
+ * colega, que ele não vê ou a própria — o mesmo motivo para os três.
+ */
+export type CoinsGiveRejection = 'unavailable' | 'far' | 'short'
+
+export const COINS_GIVE_REJECTIONS: readonly CoinsGiveRejection[] = ['unavailable', 'far', 'short']
+
+/**
+ * Como a troca acabou, para quem a recebeu: `done` (itens e moedas já
+ * trocaram de lado), `refused` (ele recusou, ou o mestre recusou a
+ * contraproposta), `cancelled` (o mestre desistiu) e `unavailable` (ele não
+ * tem mais o que pagar, ou a ficha mudou).
+ */
+export type TradeClosedResult = 'done' | 'refused' | 'cancelled' | 'unavailable'
+
+export const TRADE_CLOSED_RESULTS: readonly TradeClosedResult[] = ['done', 'refused', 'cancelled', 'unavailable']
 
 /** Por que o host recusou o pedido de porta do jogador. */
 export type DoorToggleRejection = 'locked' | 'far' | 'not_visible'
@@ -982,6 +1064,10 @@ export type HostMessage =
   | { type: 'pin.buy.answer'; answer: 'sold'; nome: string }
   | { type: 'pin.buy.answer'; answer: 'denied' }
   | { type: 'item.give.rejected'; reason: ItemGiveRejection }
+  // MOEDAS E TROCA, só a quem pagou ou a quem a oferta foi feita.
+  | { type: 'coins.give.rejected'; reason: CoinsGiveRejection }
+  | TradeOfferMessage
+  | TradeClosedMessage
   // ALAVANCA. `pulled` não diz qual porta nem se abriu ou fechou: a porta
   // ligada pode estar fora da vista, e o jogador só vê o que o recorte mostra.
   | { type: 'pin.lever.answer'; answer: 'pulled' }
@@ -1701,6 +1787,16 @@ export function parsePlayerMessage(raw: unknown): PlayerMessage | null {
       return isBoundedString(value.itemId, 1, REQ_ID_MAX_LENGTH) && isBoundedString(value.toTokenId, 1, REQ_ID_MAX_LENGTH)
         ? { type: 'item.give', itemId: value.itemId, toTokenId: value.toTokenId }
         : null
+    case 'coins.give':
+      return isBoundedString(value.toTokenId, 1, REQ_ID_MAX_LENGTH) && isCoinAmount(value.moedas) && value.moedas > 0
+        ? { type: 'coins.give', toTokenId: value.toTokenId, moedas: value.moedas }
+        : null
+    case 'trade.answer':
+      return isBoundedString(value.offerId, 1, REQ_ID_MAX_LENGTH) && (value.answer === 'accept' || value.answer === 'refuse')
+        ? { type: 'trade.answer', offerId: value.offerId, answer: value.answer }
+        : null
+    case 'trade.counter':
+      return parseTradeCounter(value)
     case 'call.raise':
       return parseCallRaise(value)
     case 'call.lower':
@@ -1731,6 +1827,64 @@ export function parsePlayerMessage(raw: unknown): PlayerMessage | null {
     default:
       return null
   }
+}
+
+/** Lista de ids de item: até `TRADE_ITEMS_MAX`, cada um id válido. `null` = forma torta. */
+function parseItemIds(value: unknown): string[] | null {
+  if (!Array.isArray(value) || value.length > TRADE_ITEMS_MAX) return null
+  const ids: string[] = []
+  for (const id of value) {
+    if (!isBoundedString(id, 1, REQ_ID_MAX_LENGTH)) return null
+    ids.push(id)
+  }
+  return ids
+}
+
+/** Contraproposta: a oferta, os ids dos itens e as moedas. Quem confere se ele os tem é o host. */
+function parseTradeCounter(obj: Record<string, unknown>): TradeCounterMessage | null {
+  const itemIds = parseItemIds(obj.itemIds)
+  if (!isBoundedString(obj.offerId, 1, REQ_ID_MAX_LENGTH) || itemIds === null || !isCoinAmount(obj.moedas)) return null
+  return { type: 'trade.counter', offerId: obj.offerId, itemIds, moedas: obj.moedas }
+}
+
+/** Um lado "dou" da oferta, como o jogador o recebe: nomes limpos e moedas. */
+function parseTradeGive(value: unknown): TradeOfferMessage['dou'] | null {
+  if (!isRecord(value) || !Array.isArray(value.itens) || value.itens.length > TRADE_ITEMS_MAX || !isCoinAmount(value.moedas)) return null
+  const itens: string[] = []
+  for (const nome of value.itens) {
+    if (typeof nome !== 'string' || cleanItemName(nome) === '') return null
+    itens.push(cleanItemName(nome))
+  }
+  return { itens, moedas: value.moedas }
+}
+
+/** O lado "peço": itens da mochila dele (id e nome) e moedas. */
+function parseTradeAsk(value: unknown): TradeOfferMessage['peco'] | null {
+  if (!isRecord(value) || !Array.isArray(value.itens) || value.itens.length > TRADE_ITEMS_MAX || !isCoinAmount(value.moedas)) return null
+  const itens: CarriedItem[] = []
+  for (const item of value.itens) {
+    if (!isRecord(item) || !isBoundedString(item.id, 1, REQ_ID_MAX_LENGTH) || typeof item.nome !== 'string' || cleanItemName(item.nome) === '') return null
+    itens.push({ id: item.id, nome: cleanItemName(item.nome) })
+  }
+  return { itens, moedas: value.moedas }
+}
+
+/**
+ * MOEDAS E TROCA: valida a oferta e o fim da troca que o jogador recebe.
+ * Forma errada recusa a mensagem inteira; a cópia leva só os campos
+ * conhecidos — cena, ficha ou id de NPC que viessem juntos ficam para trás.
+ */
+export function parseHostTradeMessage(value: unknown): TradeOfferMessage | TradeClosedMessage | null {
+  if (!isRecord(value) || !isBoundedString(value.offerId, 1, REQ_ID_MAX_LENGTH)) return null
+  if (value.type === 'trade.closed') {
+    const result = TRADE_CLOSED_RESULTS.find((known) => known === value.result)
+    return result === undefined ? null : { type: 'trade.closed', offerId: value.offerId, result }
+  }
+  if (value.type !== 'trade.offer' || !isBoundedString(value.de, 1, TRADE_FROM_MAX_LENGTH)) return null
+  const dou = parseTradeGive(value.dou)
+  const peco = parseTradeAsk(value.peco)
+  if (dou === null || peco === null) return null
+  return { type: 'trade.offer', offerId: value.offerId, de: value.de, dou, peco }
 }
 
 export function isCallReason(value: unknown): value is CallReason {

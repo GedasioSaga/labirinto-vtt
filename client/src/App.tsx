@@ -812,6 +812,11 @@ function App() {
               onToggleMirror: (member) => setMirrorId((current) => (current === member.playerId ? null : member.playerId)),
               // Recado para um jogador só: sem sala não há quem leia.
               onNote: room === null ? undefined : (playerId, text) => hostBridgeRef.current?.playerNote(playerId, text) ?? null,
+              // MOEDAS E TROCA: a oferta vai pela sessão, só ao jogador da linha; sem sala não há quem responda.
+              onTrade:
+                room === null
+                  ? undefined
+                  : (member, proposta) => (member.token === null ? 'unavailable' : (hostBridgeRef.current?.proposeTrade(member.playerId, member.token.id, proposta) ?? 'unavailable')),
               // "Ver" da marca "vamos para cá": a mesma ida do "Ir lá", até a marca e não até a ficha.
               onViewDestination: (member) => {
                 if (member.playerId !== followingId) useFollowStore.getState().stop()

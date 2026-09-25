@@ -19,6 +19,7 @@ import { exitLabelsOf, isArrivalOnly, travelExitsOf } from './pinTravel'
 import { cabineNaParada, type CabineDeTransporte } from './cabine'
 import { withoutAttachment } from './lightAttachment'
 import { itemOfPin, readCarriedItems, tokenReachesPin } from './items'
+import { readMoedas } from './troca'
 import { lojaParaJogador } from './loja'
 import { keyForPin } from './doorKey'
 import { computeVisibility, visionSegments } from './visibility'
@@ -1096,6 +1097,7 @@ interface TokenCut {
  * - `alerta`: só a marca deste recorte; a gravada no mapa e o cone (`vigia`) ficam.
  * - `secret`: a tela do dono pinta a própria ficha secreta mais apagada.
  * - `mochila`: só a do DONO, item a item com id e nome (`readCarriedItems`).
+ * - `moedas`: só a bolsa do DONO, e só inteiro positivo (`readMoedas`).
  * - `contrato`: só o da sessão (`cut.contract`); o gravado no mapa nunca.
  * - `emprestada`: só a deste recorte (`cut.lentNpc`); a gravada no mapa nunca.
  * - `locked`: só na ficha do DONO, e só travada (o cadeado da tela dele); na
@@ -1130,6 +1132,9 @@ function tokenForPlayer(token: Token, cut: TokenCut): Token {
   if (cut.isOwner) {
     const mochila = readCarriedItems(token.mochila)
     if (mochila !== undefined) forPlayer.mochila = mochila
+    // BOLSA: mesma regra da mochila — só o dono lê quanto a ficha carrega.
+    const moedas = readMoedas(token.moedas)
+    if (moedas !== undefined) forPlayer.moedas = moedas
   }
   if (cut.contract !== undefined) forPlayer.contrato = { ...cut.contract }
   if (cut.lentNpc) forPlayer.emprestada = true

@@ -110,7 +110,13 @@ import {
   type TokenHideRequestMessage,
   type TokenMoveMessage,
   type TokenPisoMessage,
+  type CoinsGiveMessage,
+  type CoinsGiveRejection,
+  type TradeAnswerMessage,
+  type TradeClosedResult,
+  type TradeCounterMessage,
 } from './protocol'
+import { canPay, cleanTradeTerms, payCoinsChange, tradeChange, tradeSideText, type TradeAsk, type TradeProposal } from '../lib/troca'
 import {
   clampAlarmText,
   clampNoteText,
@@ -663,6 +669,12 @@ export interface HostResult {
   purchaseRequest?: PurchaseRequest
   /** Item pego (pino livre ou "Deixar"), dado ou vendido (com `venda`): o integrador grava na cena. */
   applyItems?: AppliedItems
+  /**
+   * MOEDAS E TROCA: o jogador respondeu à oferta do mestre (aceitou, recusou,
+   * contrapropôs) ou a troca aceita não deu. O integrador põe a linha na
+   * Caixa; a contraproposta espera "Aceitar"/"Recusar". Nunca vai pela rede.
+   */
+  tradeUpdate?: TradeUpdate
   /** CORREIO: bilhete aceito, à espera do mestre. O integrador pergunta "Entregar" ou "Interceptar". */
   letter?: LetterRequest
   /**
@@ -717,6 +729,32 @@ export interface HostResult {
    */
   loansReturned?: LoanReturn[]
 }
+
+/**
+ * MOEDAS E TROCA — a linha que o mestre lê: quem (`playerName`), com quem ele
+ * trocava (`de`, o que o mestre escreveu), o que o mestre dava (`oferta`) e o
+ * que o jogador dá (`pedido`: o pedido do mestre, ou a contraproposta).
+ * `failed`: ele aceitou, mas já não tinha o que pagar. Só do mestre.
+ */
+export interface TradeUpdate {
+  offerId: string
+  playerName: string
+  de: string
+  kind: 'accepted' | 'refused' | 'countered' | 'failed'
+  oferta: string
+  pedido: string
+}
+
+/**
+ * Por que a oferta do mestre não saiu: `pending` = já há uma oferta
+ * esperando este jogador; `short` = a ficha não tem o que se pede;
+ * `offline` = o jogador está fora do ar ou sem mapa; `unavailable` = oferta
+ * vazia, ficha que não é dele ou que sumiu.
+ */
+export type TradeProposeRefusal = 'pending' | 'short' | 'offline' | 'unavailable'
+
+/** O que a tela do mestre lê da oferta: saiu, ou o motivo de não sair. */
+export type TradeProposeResult = 'sent' | TradeProposeRefusal
 
 /**
  * QUEM CHEGA ESCOLHE A FICHA: o pedido, já validado, à espera do mestre. É o
@@ -1211,6 +1249,26 @@ export interface HostSession {
   approvePurchase(requestId: string, source: HostMapSource): HostResult
   /** LOJA — "Não": `pin.buy.answer denied` ao jogador. Pedido que já não existe não faz nada. */
   denyPurchase(requestId: string): HostResult
+  /**
+   * MOEDAS E TROCA — a oferta do mestre à ficha `tokenId` do jogador
+   * `playerId`: `trade.offer` SÓ à conexão dele. Uma oferta por jogador; a
+   * ficha precisa ter o que se pede e ele precisa estar jogando. Não saiu:
+   * `offerId: null` e o motivo em `refusal`.
+   */
+  proposeTrade(playerId: string, tokenId: string, proposal: TradeProposal, source: HostMapSource): HostResult & { offerId: string | null; refusal?: TradeProposeRefusal }
+  /**
+   * "Aceitar" a contraproposta: revalida contra o mundo de AGORA (a ficha
+   * ainda é dele e tem o que ofereceu) e devolve `applyItems` + `trade.closed
+   * done`; não dá mais, `trade.closed unavailable`. Oferta sem contraproposta
+   * ou que já acabou: nada.
+   */
+  acceptTradeCounter(offerId: string, source: HostMapSource): HostResult
+  /** "Recusar" a contraproposta: `trade.closed refused` ao jogador. */
+  refuseTradeCounter(offerId: string): HostResult
+  /** O mestre desiste da oferta: `trade.closed cancelled` ao jogador. */
+  cancelTrade(offerId: string): HostResult
+  /** A oferta ainda está aberta? `false` depois de fechada, ou quando o jogador caiu ou saiu. */
+  isTradePending(offerId: string): boolean
   /** O pedido de compra ainda espera o mestre? `false` depois de decidido, ou quando o jogador saiu. */
   isPurchasePending(requestId: string): boolean
   /**
@@ -1461,6 +1519,20 @@ interface PendingPurchase {
   itemId: string
   tokenId: string
   mapId: string
+}
+
+/**
+ * MOEDAS E TROCA: a oferta do mestre que espera o jogador — a ficha e a cena
+ * dela, os termos já limpos e, depois da contraproposta, o que ele ofereceu
+ * no lugar do pedido (aí espera o mestre).
+ */
+interface PendingTrade {
+  offerId: string
+  playerId: string
+  tokenId: string
+  mapId: string
+  terms: TradeProposal
+  counter?: TradeAsk
 }
 
 /** Pedido que passou em tudo: de onde, para onde, por qual pino e com qual token. */
@@ -1728,6 +1800,10 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   // último "Quero" tentado (`PEDIDO_LOJA_MIN_INTERVAL_MS`). Só o kick apaga o limite.
   const pendingPurchases = new Map<string, PendingPurchase>()
   const lastPurchaseAt = new Map<string, number>()
+  // MOEDAS E TROCA — por offerId: a oferta do mestre aberta (no máximo uma
+  // por jogador); por playerId: o mesmo limite da porta para o "Pagar a…".
+  const pendingTrades = new Map<string, PendingTrade>()
+  const lastCoinsGiveAt = new Map<string, number>()
   // Por playerId: o mesmo limite do toque na porta, para puxar a alavanca.
   const lastLeverAt = new Map<string, number>()
   // Por playerId: limite da foto nova do próprio token (só da foto, ver TOKEN_PHOTO_MIN_INTERVAL_MS).
@@ -2989,6 +3065,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     lastItemGiveAt.delete(playerId)
     pendingPurchases.delete(playerId)
     lastPurchaseAt.delete(playerId)
+    forgetTradesOf(playerId)
+    lastCoinsGiveAt.delete(playerId)
     lastLeverAt.delete(playerId)
     enteredRooms.delete(playerId)
     notebooks.delete(playerId)
@@ -3850,6 +3928,130 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   }
 
   /**
+   * MOEDAS E TROCA — "Pagar a…": no molde do "Dar a…". O alvo é ficha de um
+   * COLEGA que ele vê agora; paga a primeira ficha DELE encostada nela que
+   * tem o bastante, com a bolsa do mapa do mestre (a do recorte não conta).
+   * NPC, a própria e a que ele não vê respondem o mesmo `unavailable`.
+   */
+  function handleCoinsGive(clientId: string, msg: CoinsGiveMessage, world: HostWorld): HostResult {
+    const playerId = byClient.get(clientId)
+    if (playerId === undefined) return reply(clientId, { type: 'error', reason: 'not_joined' })
+    if (statusOf(playerId) !== 'playing') return { outbound: [] }
+    const scene = sceneFor(playerId, world)
+    if (scene === null) return { outbound: [] }
+    if (!withinDoorLimit(lastCoinsGiveAt, playerId)) return { outbound: [] }
+
+    const reject = (reason: CoinsGiveRejection): HostResult => reply(clientId, { type: 'coins.give.rejected', reason })
+    const map = scene.map
+    const owned = new Set(ownership[playerId] ?? [])
+    const memory = memoryFor(playerId, map, world)
+    const view = filterMapForPlayer(map, playerId, ownership, tokenRadiusIn(playerId, map), memory.exp, memory.doors, undefined, undefined, loansFor(playerId))
+    const masterToken = (id: string): Token | undefined => map.tokens.find((t) => t.id === id)
+    const targetSeen = view.map.tokens.find((t) => t.id === msg.toTokenId && !owned.has(t.id))
+    const target = targetSeen === undefined ? undefined : masterToken(targetSeen.id)
+    if (targetSeen === undefined || target === undefined || !isOtherPlayersToken(playerId, msg.toTokenId)) return reject('unavailable')
+    const touching = view.map.tokens.filter((t) => owned.has(t.id) && tokensTouch(t, targetSeen, map.grid))
+    if (touching.length === 0) return reject('far')
+    for (const seen of touching) {
+      const giver = masterToken(seen.id)
+      const change = giver === undefined ? null : payCoinsChange(giver, target, msg.moedas)
+      if (change !== null) return { outbound: [], applyItems: { ...backgroundSceneId(scene, world), ...change } }
+    }
+    return reject('short')
+  }
+
+  /** Esquece as ofertas abertas do jogador (queda, kick, "Dispensar"). */
+  function forgetTradesOf(playerId: string): void {
+    for (const [offerId, trade] of [...pendingTrades]) if (trade.playerId === playerId) pendingTrades.delete(offerId)
+  }
+
+  /** A ficha da oferta no mundo de AGORA, só se continua sendo do jogador. */
+  function tradeTokenNow(trade: PendingTrade, world: HostWorld): { token: Token; scene: HostScene } | null {
+    if (!(ownership[trade.playerId] ?? []).includes(trade.tokenId)) return null
+    const scene = allScenes(world).find((s) => sceneKey(s) === trade.mapId)
+    const token = scene?.map.tokens.find((t) => t.id === trade.tokenId)
+    return scene === undefined || token === undefined ? null : { token, scene }
+  }
+
+  /** O nome do que se pede, lido na mochila da ficha (o jogador lê o que já tem). */
+  function askText(token: Token | undefined, ask: TradeAsk): string {
+    const mochila = token === undefined ? [] : carriedItemsOf(token)
+    const nomes = ask.itemIds.map((id) => mochila.find((item) => item.id === id)?.nome ?? id)
+    return tradeSideText(nomes, ask.moedas)
+  }
+
+  /** A linha da Caixa do mestre sobre a oferta. */
+  function tradeUpdateOf(trade: PendingTrade, kind: TradeUpdate['kind'], pedido: string): TradeUpdate {
+    return {
+      offerId: trade.offerId,
+      playerName: players.get(trade.playerId)?.name ?? '',
+      de: trade.terms.de,
+      kind,
+      oferta: tradeSideText(trade.terms.dou.itens, trade.terms.dou.moedas),
+      pedido,
+    }
+  }
+
+  /**
+   * Fecha a oferta trocando o que `ask` diz pelo que o mestre dá. Revalida no
+   * mundo de agora: a ficha ainda é dele, está na cena e tem o que paga.
+   * Não deu: `trade.closed unavailable`. `clientId` é a conexão de agora.
+   */
+  function closeTradeWith(trade: PendingTrade, ask: TradeAsk, clientId: string, world: HostWorld): HostResult & { failed: boolean } {
+    pendingTrades.delete(trade.offerId)
+    const found = tradeTokenNow(trade, world)
+    const change = found === null ? null : tradeChange(found.token, trade.terms.dou, ask, randomId)
+    const closed = (result: TradeClosedResult): Outbound[] => [{ clientId, msg: { type: 'trade.closed', offerId: trade.offerId, result } }]
+    if (found === null || change === null) return { outbound: closed('unavailable'), failed: true }
+    return { outbound: closed('done'), applyItems: { ...backgroundSceneId(found.scene, world), ...change }, failed: false }
+  }
+
+  /** A oferta aberta `offerId`, só se é DESTE jogador. */
+  const ownTrade = (playerId: string, offerId: string): PendingTrade | undefined => {
+    const trade = pendingTrades.get(offerId)
+    return trade?.playerId === playerId ? trade : undefined
+  }
+
+  /**
+   * A resposta do jogador à oferta. Oferta de outro, já fechada ou com
+   * contraproposta esperando o mestre morre em silêncio.
+   */
+  function handleTradeAnswer(clientId: string, msg: TradeAnswerMessage, world: HostWorld): HostResult {
+    const playerId = byClient.get(clientId)
+    if (playerId === undefined) return reply(clientId, { type: 'error', reason: 'not_joined' })
+    const trade = ownTrade(playerId, msg.offerId)
+    if (trade === undefined || trade.counter !== undefined) return { outbound: [] }
+    if (msg.answer === 'refuse') {
+      pendingTrades.delete(trade.offerId)
+      return {
+        outbound: [{ clientId, msg: { type: 'trade.closed', offerId: trade.offerId, result: 'refused' } }],
+        tradeUpdate: tradeUpdateOf(trade, 'refused', askText(tradeTokenNow(trade, world)?.token, trade.terms.peco)),
+      }
+    }
+    const pedido = askText(tradeTokenNow(trade, world)?.token, trade.terms.peco)
+    const { failed, ...result } = closeTradeWith(trade, trade.terms.peco, clientId, world)
+    return { ...result, tradeUpdate: tradeUpdateOf(trade, failed ? 'failed' : 'accepted', pedido) }
+  }
+
+  /**
+   * A contraproposta: o que ele dá no lugar do pedido, conferido na ficha da
+   * oferta (itens da mochila dela, moedas da bolsa dela). Vazia, ou com o que
+   * ele não tem, morre em silêncio; boa, espera o mestre.
+   */
+  function handleTradeCounter(clientId: string, msg: TradeCounterMessage, world: HostWorld): HostResult {
+    const playerId = byClient.get(clientId)
+    if (playerId === undefined) return reply(clientId, { type: 'error', reason: 'not_joined' })
+    const trade = ownTrade(playerId, msg.offerId)
+    if (trade === undefined || trade.counter !== undefined) return { outbound: [] }
+    const counter: TradeAsk = { itemIds: [...new Set(msg.itemIds)], moedas: msg.moedas }
+    if (counter.itemIds.length === 0 && counter.moedas === 0) return { outbound: [] }
+    const found = tradeTokenNow(trade, world)
+    if (found === null || !canPay(found.token, counter)) return { outbound: [] }
+    trade.counter = counter
+    return { outbound: [], tradeUpdate: tradeUpdateOf(trade, 'countered', askText(found.token, counter)) }
+  }
+
+  /**
    * PISOS NA MESMA CENA — o jogador toca "Subir"/"Descer" com a ficha na
    * escada. A autoridade é aqui, no molde da porta: a ficha é DELE e está no
    * recorte que ele tem agora, a escada também (secreta, no escuro ou de outro
@@ -4692,6 +4894,12 @@ export function createHostSession(options: HostSessionOptions): HostSession {
         return handlePinBuy(clientId, msg, world)
       case 'item.give':
         return handleItemGive(clientId, msg, world)
+      case 'coins.give':
+        return handleCoinsGive(clientId, msg, world)
+      case 'trade.answer':
+        return handleTradeAnswer(clientId, msg, world)
+      case 'trade.counter':
+        return handleTradeCounter(clientId, msg, world)
       case 'call.raise':
         return handleCallRaise(clientId, msg)
       case 'call.lower':
@@ -4842,6 +5050,70 @@ export function createHostSession(options: HostSessionOptions): HostSession {
 
     isPurchasePending(requestId) {
       return findPendingPurchase(requestId) !== undefined
+    },
+
+    proposeTrade(playerId, tokenId, proposal, source) {
+      const refuse = (refusal: TradeProposeRefusal): HostResult & { offerId: null; refusal: TradeProposeRefusal } => ({ outbound: [], offerId: null, refusal })
+      const terms = cleanTradeTerms(proposal)
+      if (terms === null || !(ownership[playerId] ?? []).includes(tokenId)) return refuse('unavailable')
+      const record = players.get(playerId)
+      const world = toWorld(source)
+      // Fora do ar ou sem mapa, a tela dele não teria onde abrir o cartão.
+      if (record === undefined || record.clientId === null || statusOf(playerId) !== 'playing' || sceneFor(playerId, world) === null) return refuse('offline')
+      if ([...pendingTrades.values()].some((trade) => trade.playerId === playerId)) return refuse('pending')
+      const scene = allScenes(world).find((s) => s.map.tokens.some((t) => t.id === tokenId))
+      const token = scene?.map.tokens.find((t) => t.id === tokenId)
+      if (scene === undefined || token === undefined) return refuse('unavailable')
+      if (!canPay(token, terms.peco)) return refuse('short')
+      const offerId = randomId()
+      pendingTrades.set(offerId, { offerId, playerId, tokenId, mapId: sceneKey(scene), terms })
+      // O que se pede vai com o NOME que ele lê na própria mochila; o resto da mochila, não.
+      const mochila = carriedItemsOf(token)
+      const itens = terms.peco.itemIds.flatMap((id) => mochila.filter((item) => item.id === id).map((item) => ({ id: item.id, nome: item.nome })))
+      return {
+        outbound: [
+          {
+            clientId: record.clientId,
+            msg: { type: 'trade.offer', offerId, de: terms.de, dou: { itens: [...terms.dou.itens], moedas: terms.dou.moedas }, peco: { itens, moedas: terms.peco.moedas } },
+          },
+        ],
+        offerId,
+      }
+    },
+
+    acceptTradeCounter(offerId, source) {
+      const trade = pendingTrades.get(offerId)
+      if (trade === undefined || trade.counter === undefined) return { outbound: [] }
+      const clientId = players.get(trade.playerId)?.clientId ?? null
+      // Caiu enquanto o mestre decidia: a oferta morre, nada troca de mão.
+      if (clientId === null) {
+        pendingTrades.delete(offerId)
+        return { outbound: [] }
+      }
+      const world = toWorld(source)
+      const pedido = askText(tradeTokenNow(trade, world)?.token, trade.counter)
+      const { failed, ...result } = closeTradeWith(trade, trade.counter, clientId, world)
+      return failed ? { ...result, tradeUpdate: tradeUpdateOf(trade, 'failed', pedido) } : result
+    },
+
+    refuseTradeCounter(offerId) {
+      const trade = pendingTrades.get(offerId)
+      if (trade === undefined || trade.counter === undefined) return { outbound: [] }
+      pendingTrades.delete(offerId)
+      const clientId = players.get(trade.playerId)?.clientId ?? null
+      return clientId === null ? { outbound: [] } : reply(clientId, { type: 'trade.closed', offerId, result: 'refused' })
+    },
+
+    cancelTrade(offerId) {
+      const trade = pendingTrades.get(offerId)
+      if (trade === undefined) return { outbound: [] }
+      pendingTrades.delete(offerId)
+      const clientId = players.get(trade.playerId)?.clientId ?? null
+      return clientId === null ? { outbound: [] } : reply(clientId, { type: 'trade.closed', offerId, result: 'cancelled' })
+    },
+
+    isTradePending(offerId) {
+      return pendingTrades.has(offerId)
     },
 
     listCalls() {
@@ -5407,6 +5679,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       pendingItems.delete(playerId)
       // E para a loja: "Vender" depois da queda não vende nada.
       pendingPurchases.delete(playerId)
+      // E para a troca: o cartão da oferta morre com a tela; "Aceitar" do mestre não troca nada.
+      forgetTradesOf(playerId)
       // A mão também: quem volta chega com a tela zerada, sem mão acesa.
       openCalls.delete(playerId)
       // Quem provocou a pergunta "voltou?" e caiu antes da resposta: a pergunta morre.

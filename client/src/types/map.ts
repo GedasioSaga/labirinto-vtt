@@ -861,6 +861,10 @@ export interface Token extends PlayerSecret, NoPiso {
    *  viaja com a ficha. `undefined` === vazia, sem migração. O jogador só
    *  recebe a mochila da PRÓPRIA ficha (`lib/fogFilter.ts`). */
   mochila?: CarriedItem[]
+  /** BOLSA: moedas que a ficha carrega (MOEDAS E TROCA, `lib/troca.ts`).
+   *  Inteiro positivo; `undefined` === zero, sem migração. Viaja com a ficha,
+   *  e o jogador só recebe a bolsa da PRÓPRIA ficha (`lib/fogFilter.ts`). */
+  moedas?: number
   /** AJUDANTE CONTRATADO — o acordo como o jogador que SEGURA a ficha
    *  emprestada o lê. Campo de FIO, nunca do arquivo: o acordo mora na sessão
    *  do host junto da posse (`net/hostSession.ts`), o recorte põe este campo só
