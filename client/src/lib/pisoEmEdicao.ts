@@ -6,6 +6,7 @@ import { resolveHoverHit, type HoverHit, type HoverHitInput } from './hoverHitTe
 import { comPiso, mapaDoPiso, pisoDe } from './pisos'
 import { findLockedLayerAt, type Point } from './selectionHitTest'
 import { selectionFromAreaSelection, type SelectionSet } from './selectionModel'
+import type { SelectionKind } from '../types/tools'
 
 /**
  * PISOS NA MESMA CENA — as ferramentas do editor que MIRAM o mapa agem só no
@@ -13,6 +14,29 @@ import { selectionFromAreaSelection, type SelectionSet } from './selectionModel'
  * outro piso no mesmo lugar não aparece, então não pode ser pego pelo laço,
  * furado pela borracha de blocos, nem contar como "já tem chão" para o balde.
  */
+
+/**
+ * A seleção do mestre só com o que está no piso em edição. Item que saiu dele
+ * — a ficha que o jogador levou pela escada — sai da seleção: continuaria
+ * escolhido e invisível, e o Delete apagaria o que o mestre não vê. Nada
+ * saiu: a PRÓPRIA seleção (quem assina a store não redesenha à toa).
+ */
+export function selecaoNoPiso(map: MapData, piso: number, selection: SelectionSet): SelectionSet {
+  if (selection.length === 0) return selection
+  const doPiso = mapaDoPiso(map, piso)
+  const listas: Record<SelectionKind, readonly { id: string }[]> = {
+    token: doPiso.tokens,
+    wall: doPiso.walls,
+    light: doPiso.lights,
+    region: doPiso.regions,
+    stair: doPiso.stairs,
+    prop: doPiso.props,
+    drawing: doPiso.drawings,
+    floor: doPiso.floor,
+  }
+  const fica = selection.filter((item) => listas[item.kind].some((entidade) => entidade.id === item.id))
+  return fica.length === selection.length ? selection : fica
+}
 
 /** Laço (arrasto no vazio com Selecionar): só o que está no piso em edição. */
 export function selecaoDoLacoNoPiso(map: MapData, piso: number, rect: AreaRect): SelectionSet {

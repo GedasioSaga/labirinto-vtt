@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { createEmptyMap } from '../lib/mapFactory'
+import { selectionOfItem } from '../lib/selectionModel'
 import { useAdventureStore } from '../stores/adventureStore'
 import { useMapStore } from '../stores/mapStore'
 import type { MapData, Token } from '../types/map'
@@ -51,6 +52,40 @@ describe('troca de piso no mapa do mestre', () => {
     useMapStore.getState().undo()
     expect(useMapStore.getState().map.lights).toHaveLength(0)
     expect(tokenIn(useMapStore.getState().map).piso).toBe(2)
+  })
+
+  it('cenário do revisor: a ficha selecionada sobe a escada e sai da seleção; o Delete do mestre não apaga a ficha que ele não vê', () => {
+    useMapStore.getState().setSelection(selectionOfItem({ kind: 'token', id: 'heroi' }))
+    hostPlayerChanges.applyPiso({ tokenId: 'heroi', piso: 1 })
+    // O editor continua no térreo: a ficha foi para um piso que ele não mostra.
+    expect(useMapStore.getState().pisoAtivo).toBe(0)
+    expect(useMapStore.getState().selection).toEqual([])
+    useMapStore.getState().removeSelected()
+    expect(tokenIn(useMapStore.getState().map)).toMatchObject({ id: 'heroi', piso: 1 })
+  })
+
+  it('só sai quem deixou o piso em edição: o resto da seleção fica, e a ficha que chega não vira seleção', () => {
+    useMapStore.getState().setPisoAtivo(1)
+    useMapStore.getState().addWall({ id: 'parede-de-cima', x1: 0, y1: 0, x2: 400, y2: 0, blocksLight: true, blocksMove: true, door: null })
+    hostPlayerChanges.applyPiso({ tokenId: 'heroi', piso: 1 })
+    useMapStore.getState().setSelection([
+      { kind: 'token', id: 'heroi' },
+      { kind: 'wall', id: 'parede-de-cima' },
+    ])
+    // Desce ao térreo: sai a ficha, a parede do 1º piso continua escolhida.
+    hostPlayerChanges.applyPiso({ tokenId: 'heroi', piso: 0 })
+    expect(useMapStore.getState().selection).toEqual([{ kind: 'wall', id: 'parede-de-cima' }])
+    // Sobe de novo: chega ao piso em edição, mas o mestre não a escolheu.
+    hostPlayerChanges.applyPiso({ tokenId: 'heroi', piso: 1 })
+    expect(useMapStore.getState().selection).toEqual([{ kind: 'wall', id: 'parede-de-cima' }])
+  })
+
+  it('movimento do jogador no mesmo piso não mexe na seleção', () => {
+    const selecao = selectionOfItem({ kind: 'token', id: 'heroi' })
+    useMapStore.getState().setSelection(selecao)
+    hostPlayerChanges.applyMove('heroi', 240, 200)
+    expect(tokenIn(useMapStore.getState().map)).toMatchObject({ x: 240, y: 200 })
+    expect(useMapStore.getState().selection).toBe(selecao)
   })
 
   it('voltar ao térreo tira o campo, e ficha que não existe não muda nada', () => {
