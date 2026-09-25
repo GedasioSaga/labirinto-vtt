@@ -5,6 +5,7 @@ import { parsePlayerAreaTriggers, type PlayerAreaTrigger } from '../lib/areaTrig
 import { decodeExploration, type Exploration } from '../lib/exploration'
 import { cleanFloorLabel } from '../lib/buildingFloors'
 import { readPlayerClock, type PlayerClock } from '../lib/campaignClock'
+import { lerPortasPorAtravessar } from '../lib/portasPorAtravessar'
 import {
   DOOR_REQUEST_REJECTIONS,
   ITEM_GIVE_REJECTIONS,
@@ -142,6 +143,12 @@ export interface PlayerState {
   andares?: PlayerFloors
   /** RELÓGIO DA CAMPANHA: o período do dia e se a cena dele está escura. Ausente = mestre sem relógio. */
   relogio?: PlayerClock
+  /**
+   * PORTAS POR ATRAVESSAR: ids das portas do mapa recebido cujo outro lado ainda
+   * está na névoa para ele (a tela desenha um ponto claro nelas). Só id de porta
+   * de `map.walls`: o que não for porta do mapa recebido é descartado.
+   */
+  porAtravessar?: string[]
   /**
    * INICIATIVA: id da ficha da vez, sempre uma ficha de `map.tokens`. Ausente
    * = ninguém que este jogador enxerga está na vez (o mestre só manda o que
@@ -1666,6 +1673,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     gatilhos: PlayerAreaTrigger[],
     andares: PlayerFloors | undefined,
     relogio: PlayerClock | undefined,
+    porAtravessar: readonly string[],
   ): void {
     if (rev <= state.rev) return
     // Outra cena: o resto do caminho era do mapa de antes.
@@ -1698,6 +1706,11 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     // A ficha pedida mudou de dono: o pedido não tem mais a quem valer, e a espera travaria o botão.
     const hideLost = hide?.phase === 'waiting' && !ownTokens.includes(hide.tokenId)
     if (hideDone || hideLost) clearHideTimer()
+    // PORTAS POR ATRAVESSAR: só id de porta do mapa que chegou (mestre com bug ou mensagem forjada não marca parede).
+    // `isMapShape` não confere `walls`: recorte sem o campo chega aqui sem ele, e aí não há porta a marcar.
+    const walls: readonly unknown[] = Array.isArray(map.walls) ? map.walls : []
+    const doorIds = new Set(walls.flatMap((w) => (isRecord(w) && w.door !== null && w.door !== undefined && typeof w.id === 'string' ? [w.id] : [])))
+    const doorsToCross = porAtravessar.filter((id) => doorIds.has(id))
     // O mapa chegou: quem pedia ficha já tem uma, e o pedido termina aqui.
     setState({
       status: 'playing',
@@ -1712,6 +1725,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       gatilhos,
       andares,
       relogio,
+      porAtravessar: doorsToCross,
       turn: turnOnMap,
       confronto,
       sceneName,
@@ -1896,6 +1910,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
           gatilhos: undefined,
           andares: undefined,
           relogio: undefined,
+          porAtravessar: undefined,
           turn: undefined,
           signals: undefined,
           laser: undefined,
@@ -2261,7 +2276,10 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         // RELÓGIO DA CAMPANHA: ausente = sem relógio; malformado derruba a mensagem.
         const relogio = data.relogio === undefined ? undefined : readPlayerClock(data.relogio)
         if (relogio === null) return
-        applySnapshot(data.rev, data.map, data.vision, explored, data.ownTokens ?? [], data.concealed ?? [], data.turn, data.partyTokens ?? [], hazards, confronto, data.sceneName, where, gatilhos, andares, relogio)
+        // PORTAS POR ATRAVESSAR: ausente = nenhuma marca; malformado derruba a mensagem.
+        const porAtravessar = data.porAtravessar === undefined ? [] : lerPortasPorAtravessar(data.porAtravessar)
+        if (porAtravessar === null) return
+        applySnapshot(data.rev, data.map, data.vision, explored, data.ownTokens ?? [], data.concealed ?? [], data.turn, data.partyTokens ?? [], hazards, confronto, data.sceneName, where, gatilhos, andares, relogio, porAtravessar)
         return
       }
       case 'hazard.entered': {
@@ -2739,7 +2757,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       detach()
       // `places` fica: o host não reenvia o desenho dos lugares de antes, e o
       // primeiro snapshot da volta solta o que ele não lembrar mais.
-      setState({ status: 'connecting', hide: undefined, compra: undefined, error: undefined, rev: -1, map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, partyTokens: undefined, concealed: undefined, sceneName: undefined, place: undefined, destinations: undefined, hazards: undefined, hazardNotice: undefined, gatilhos: undefined, andares: undefined, relogio: undefined, turn: undefined, signals: undefined, laser: undefined, playerLasers: undefined, doorNotice: undefined, doorRequest: undefined, moveNotice: undefined, turnNotice: undefined, travel: undefined, note: undefined, arrival: undefined, alarm: undefined, item: undefined, lever: undefined, roomText: undefined, notebook: undefined, unreadNotes: undefined, clues: undefined, shownClue: undefined, cluePeers: undefined, clueShow: undefined, paused: undefined, call: undefined, reconnecting: undefined, pointNotice: undefined, letterPeers: undefined, letterSend: undefined })
+      setState({ status: 'connecting', hide: undefined, compra: undefined, error: undefined, rev: -1, map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, partyTokens: undefined, concealed: undefined, sceneName: undefined, place: undefined, destinations: undefined, hazards: undefined, hazardNotice: undefined, gatilhos: undefined, andares: undefined, relogio: undefined, porAtravessar: undefined, turn: undefined, signals: undefined, laser: undefined, playerLasers: undefined, doorNotice: undefined, doorRequest: undefined, moveNotice: undefined, turnNotice: undefined, travel: undefined, note: undefined, arrival: undefined, alarm: undefined, item: undefined, lever: undefined, roomText: undefined, notebook: undefined, unreadNotes: undefined, clues: undefined, shownClue: undefined, cluePeers: undefined, clueShow: undefined, paused: undefined, call: undefined, reconnecting: undefined, pointNotice: undefined, letterPeers: undefined, letterSend: undefined })
       open()
     },
     wake() {

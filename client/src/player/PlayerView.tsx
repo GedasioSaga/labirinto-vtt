@@ -61,6 +61,7 @@ import { WATCH_ALERT_LABEL, drawWatchAlert } from '../pixi/drawNpcWatch'
 import { TOKEN_LOCK_LABEL, drawTokenLock } from '../pixi/drawTokenLock'
 import { createRoomNamesRenderer, findRoomLabelAt, tokenLabelObstacles, type LabelObstacle } from '../pixi/drawRoomNames'
 import { hasEnterText } from '../lib/roomText'
+import { regioesComContagem } from '../lib/portasPorAtravessar'
 import { createTextLabelsRenderer } from '../pixi/drawTextLabels'
 import { isDegenerateRegion } from '../pixi/shapes'
 import { createDestinationsRenderer, createSignalsRenderer } from '../pixi/drawSignals'
@@ -123,6 +124,8 @@ interface PlayerViewProps {
   hazards?: readonly PlayerHazard[]
   /** GATILHO DE ÁREA: armadilhas/alarmes que o mestre revelou (o host já recortou). */
   gatilhos?: readonly PlayerAreaTrigger[]
+  /** PORTAS POR ATRAVESSAR: portas com o outro lado ainda na névoa (o host já recortou); ganham um ponto claro. */
+  porAtravessar?: readonly string[]
   ownTokens: string[]
   /** INICIATIVA: a ficha da vez (sempre uma de `map.tokens`), que ganha o anel da vez. */
   turnTokenId?: string | null
@@ -1013,6 +1016,8 @@ const NO_CONCEALED: RegionPoint[][] = []
 const NO_HAZARDS: readonly PlayerHazard[] = []
 /** Mesmo motivo, para o gatilho de área. */
 const NO_TRIGGERS: readonly PlayerAreaTrigger[] = []
+/** Mesmo motivo, para as portas por atravessar. */
+const NO_DOORS_TO_CROSS: readonly string[] = []
 
 export function PlayerView({
   map,
@@ -1021,6 +1026,7 @@ export function PlayerView({
   concealed = NO_CONCEALED,
   hazards = NO_HAZARDS,
   gatilhos = NO_TRIGGERS,
+  porAtravessar = NO_DOORS_TO_CROSS,
   ownTokens,
   turnTokenId = null,
   settings,
@@ -1067,6 +1073,7 @@ export function PlayerView({
     concealed,
     hazards,
     gatilhos,
+    porAtravessar,
     ownTokens,
     turnTokenId,
     settings,
@@ -1239,19 +1246,20 @@ export function PlayerView({
 
   /** Mesmo desenho do editor (linha clara fina, porta retângulo), em px de tela. */
   function redrawWallsLayer(scene: Scene): void {
-    const { map: currentMap, vision: currentVision, explored: currentExplored } = latestRef.current
+    const { map: currentMap, vision: currentVision, explored: currentExplored, porAtravessar: toCross } = latestRef.current
     // Só a planta perto da ficha e a já vista: o resto está debaixo do preto
     // (`playerCulling.ts`). Mesma entrada devolve o mesmo recorte: o zoom não refaz.
     const drawn = scene.culler.cull(currentMap, currentVision, currentExplored).walls
     const walls = wallsOnVisibleLayers(drawn, currentMap.hiddenLayers)
     const { scale } = scene.camera
     const res = scene.app.renderer.resolution
-    const key = JSON.stringify([walls, scale, res])
+    const key = JSON.stringify([walls, scale, res, toCross])
     if (key === scene.lastWallsKey) return
     scene.lastWallsKey = key
     scene.wallsDrawn = walls.length
     drawWalls(scene.walls, walls, null, scale, res)
-    drawDoors(scene.doors, walls, null, scale, res)
+    // PORTAS POR ATRAVESSAR: o ponto claro na porta com o outro lado na névoa.
+    drawDoors(scene.doors, walls, null, scale, res, new Set(toCross))
   }
 
   /**
@@ -1355,7 +1363,8 @@ export function PlayerView({
   function roomTextAtScreen(scene: Scene, screenX: number, screenY: number): string | null {
     const map = latestRef.current.map
     const point = scene.world.toLocal({ x: screenX, y: screenY })
-    const region = findRoomLabelAt(visibleRegions(map.regions, map.hiddenLayers), point, map.grid, scene.camera.scale, roomLabelObstacles(map))
+    // Mesmos rótulos do desenho (o prédio com a contagem de cômodos): a caixa do toque é a do nome desenhado.
+    const region = findRoomLabelAt(regioesComContagem(visibleRegions(map.regions, map.hiddenLayers)), point, map.grid, scene.camera.scale, roomLabelObstacles(map))
     return region !== null && hasEnterText(region.room) ? region.id : null
   }
 
@@ -1441,7 +1450,8 @@ export function PlayerView({
       scene.grid.visible = hasFloor
     }
 
-    scene.roomNamesRenderer.draw(scene.roomNames, regions, currentMap.grid, scene.camera.scale, roomLabelObstacles(currentMap))
+    // PORTAS POR ATRAVESSAR: o prédio mostra quantos cômodos dele o jogador já viu (contados do próprio recorte).
+    scene.roomNamesRenderer.draw(scene.roomNames, regioesComContagem(regions), currentMap.grid, scene.camera.scale, roomLabelObstacles(currentMap))
     scene.textLabelsRenderer.draw(scene.textLabels, drawings)
     scene.roomNames.visible = currentSettings.showNames
     scene.textLabels.visible = currentSettings.showNames
@@ -2317,7 +2327,7 @@ export function PlayerView({
   useEffect(() => {
     const scene = sceneRef.current
     if (scene) redraw(scene)
-  }, [map, vision, explored, concealed, hazards, gatilhos, ownTokens, turnTokenId, settings])
+  }, [map, vision, explored, concealed, hazards, gatilhos, porAtravessar, ownTokens, turnTokenId, settings])
 
   useEffect(() => {
     // Contagem para o e2e (o desenho em si é do ticker); muda quando chega ou expira um sinal.

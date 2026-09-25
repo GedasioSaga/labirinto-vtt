@@ -148,6 +148,15 @@ export interface PlayerMapView {
    * faixa colada na parede comum. Não sai pela rede.
    */
   unseenInsideRemembered: RegionPoint[][]
+  /**
+   * PORTAS POR ATRAVESSAR — ids das portas que SAÍRAM neste recorte (como
+   * porta) com um dos lados ainda na névoa para este jogador: nem visto agora,
+   * nem explorado, nem dentro de cômodo lembrado. Lugar que o mestre esconde
+   * (sala secreta, zona oculta, teto fechado, cômodo não visto) conta como
+   * névoa, então a marca só repete o que a tela dele já mostra. SAI pela rede
+   * (`snapshot.porAtravessar`, `net/hostSession.ts`).
+   */
+  portasPorAtravessar: string[]
 }
 
 /** O que uma ficha vê agora: anel de visão e portas dentro dele. */
@@ -2269,6 +2278,36 @@ export function filterMapForGroup(
     .map((room) => room.points)
 
   /**
+   * PORTAS POR ATRAVESSAR. Só porta que saiu no recorte (a secreta já virou
+   * parede lá em cima). As amostras são as do explorado da porta (1,5 célula
+   * de cada lado, `DOOR_EXPLORED_PROBE_CELLS`): caem numa célula que não cruza
+   * a parede, a mesma régua que decide se a porta sai.
+   *
+   * Um lado conta como conhecido pelo que a TELA DELE mostra, e só por isso:
+   * a visão ENVIADA (`sentVision`, sem as paredes da sala secreta, com o
+   * pincel), o explorado e o cômodo lembrado; fora do preto da zona e fora do
+   * teto fechado (os dois chegam desenhados: `concealed` e a silhueta).
+   * Nada de `inHiddenPlace`/`inSecretRoom`/`inUnseenComodo`, nem da visão da
+   * autoridade: são do host, e a sala secreta atrás da porta aberta — que a
+   * visão enviada mostra como vista — viraria o único sinal, no fio e na
+   * tela, de que o mestre esconde algo ali.
+   */
+  const doorSideProbe = (explored?.cell ?? map.grid) * DOOR_EXPLORED_PROBE_CELLS
+  const sentRings = vision === authorityVision ? rings : boxRings(vision)
+  const doorSideKnown = (p: RegionPoint): boolean =>
+    !hiddenByZone(p) &&
+    !inClosedRoof(p) &&
+    (inAnyRing(sentRings, p) || inBrushReveal(p) || isPointExploredOpen(p) || inKnownComodo(p))
+  const portasPorAtravessar = filtered.walls
+    .filter((w) => {
+      if (w.door === null || w.door.secret === true) return false
+      const sides = doorSamples(w, doorSideProbe).slice(1)
+      // Porta sem comprimento não tem lados: nada a marcar.
+      return sides.length === 2 && !sides.every(doorSideKnown)
+    })
+    .map((w) => w.id)
+
+  /**
    * GATILHO DE ÁREA. Não revelado não sai de jeito nenhum. Revelado sai só
    * com a MESMA exclusão do perigo (`hazardHiddenByMaster`: sala escondida pelo
    * mestre ou de camada escondida, silhueta de teto fechado, sala tocada por
@@ -2292,6 +2331,7 @@ export function filterMapForGroup(
     gatilhos,
     rememberedRooms,
     unseenInsideRemembered,
+    portasPorAtravessar,
   }
 }
 
