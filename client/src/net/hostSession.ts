@@ -3604,6 +3604,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     // O token pode estar em qualquer cena: a ficha é do jogador, não do mapa aberto.
     const scene = allScenes(world).find((s) => s.map.tokens.some((t) => t.id === msg.tokenId))
     if (scene === undefined) return { outbound: [] }
+    // NPC EMPRESTADO: NPC do mestre dado pelo "Atribuir" anda e vê, mas o nome e a foto são do mestre.
+    if (scene.map.tokens.some((t) => t.id === msg.tokenId && t.npc === true)) return { outbound: [] }
     if (msg.image !== undefined) {
       const at = now()
       const last = lastTokenPhotoAt.get(playerId)

@@ -1052,6 +1052,8 @@ interface TokenCut {
   alert: WatchAlert | null
   /** AJUDANTE CONTRATADO: o acordo da SESSÃO, só na emprestada que vai a quem a segura. */
   contract: TokenContract | undefined
+  /** NPC EMPRESTADO: a ficha de NPC na posse de quem recebe, sem acordo — a tela dele não oferece nome nem foto. */
+  lentNpc: boolean
 }
 
 /**
@@ -1074,6 +1076,7 @@ interface TokenCut {
  * - `secret`: a tela do dono pinta a própria ficha secreta mais apagada.
  * - `mochila`: só a do DONO, item a item com id e nome (`readCarriedItems`).
  * - `contrato`: só o da sessão (`cut.contract`); o gravado no mapa nunca.
+ * - `emprestada`: só a deste recorte (`cut.lentNpc`); a gravada no mapa nunca.
  * Ficam de fora, entre outros: `vigia`, `patrulha` (por onde o NPC vai passar),
  * `rotina` (os postos, com a cena de cada um), `levadoPor` (aponta para ficha
  * que o recorte pode ter escondido), `npc`, `playerCharacter` (diria quais
@@ -1105,6 +1108,7 @@ function tokenForPlayer(token: Token, cut: TokenCut): Token {
     if (mochila !== undefined) forPlayer.mochila = mochila
   }
   if (cut.contract !== undefined) forPlayer.contrato = { ...cut.contract }
+  if (cut.lentNpc) forPlayer.emprestada = true
   return forPlayer
 }
 
@@ -1865,6 +1869,9 @@ export function filterMapForGroup(
   // emprestada leva o acordo só para quem a segura (nunca à tela da mesa).
   // Tudo o mais que a ficha carrega no mapa do mestre (a ROTA DE PATRULHA, a
   // rotina, o vínculo de quem a leva...) fica com ele: `tokenForPlayer`.
+  // NPC EMPRESTADO: a marca `emprestada` do mapa do mestre não sai de ficha
+  // nenhuma; a ficha de NPC na posse deste jogador, sem acordo, leva a marca só
+  // para ele — a tela dele não oferece nome nem foto (o host recusa).
   const tokens = playerTokens.map((t) => {
     const own = owned.has(t.id)
     const contrato = loanOf(t.id)
@@ -1874,6 +1881,7 @@ export function filterMapForGroup(
       readsRealName: own && contrato === undefined,
       alert: alerts.get(t.id) ?? null,
       contract: playerId === undefined ? undefined : contrato,
+      lentNpc: playerId !== undefined && contrato === undefined && own && t.npc === true,
     })
   })
   const sentTokenIds = new Set(tokens.map((t) => t.id))

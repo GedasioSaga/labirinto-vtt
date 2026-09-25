@@ -10,7 +10,7 @@ import { readPinAttachment } from './pinAttach'
 import { readMovementRules } from './movementRules'
 import { readCarriedItems, readPinItem } from './items'
 import { readHazards } from './hazards'
-import { withoutContract } from './tokenLoan'
+import { withoutContract, withoutLentMark } from './tokenLoan'
 import { fichaComRotinaDoArquivo } from './rotinaDoNpc'
 import { confrontoFromFile } from './confronto'
 import { perigosFromFile } from './perigo'
@@ -256,9 +256,10 @@ function deserializeMapFields(json: string): MapData {
     // — texto e null ficam, valor torto some e a ficha volta a "O mesmo".
     // `contrato` (ajudante contratado) é campo de FIO: o acordo mora na sessão
     // do host. Arquivo que o traga (editado à mão) perde o campo na leitura.
+    // `emprestada` (NPC emprestado) também é marca de FIO: mesma limpeza.
     // `rotina` (ROTINA DO NPC): rotina torta some e a ficha volta a ser a de sempre; ausente continua ausente.
     tokens: entityList(parsed.tokens).map((t) => {
-      const lido = fichaComRotinaDoArquivo(withoutContract(tokenPublicNameFromFile({ ...t, image: t.image ?? null })))
+      const lido = fichaComRotinaDoArquivo(withoutLentMark(withoutContract(tokenPublicNameFromFile({ ...t, image: t.image ?? null }))))
       if (!('mochila' in t)) return lido
       const mochila = readCarriedItems(t.mochila)
       if (mochila !== undefined) return { ...lido, mochila }
