@@ -1077,11 +1077,12 @@ interface TokenCut {
  * - `mochila`: só a do DONO, item a item com id e nome (`readCarriedItems`).
  * - `contrato`: só o da sessão (`cut.contract`); o gravado no mapa nunca.
  * - `emprestada`: só a deste recorte (`cut.lentNpc`); a gravada no mapa nunca.
+ * - `locked`: só na ficha do DONO, e só travada (o cadeado da tela dele); na
+ *   de outro diria quem o mestre está segurando.
  * Ficam de fora, entre outros: `vigia`, `patrulha` (por onde o NPC vai passar),
  * `rotina` (os postos, com a cena de cada um), `levadoPor` (aponta para ficha
  * que o recorte pode ter escondido), `npc`, `playerCharacter` (diria quais
- * fichas estão sem dono), `locked` (trava do editor; o host recusa o movimento
- * travado com o motivo), `hidden` (ficha oculta nem chega aqui) e
+ * fichas estão sem dono), `hidden` (ficha oculta nem chega aqui) e
  * `characterId` (vínculo do mestre; o jogador recebe `null`).
  */
 function tokenForPlayer(token: Token, cut: TokenCut): Token {
@@ -1109,6 +1110,10 @@ function tokenForPlayer(token: Token, cut: TokenCut): Token {
   }
   if (cut.contract !== undefined) forPlayer.contrato = { ...cut.contract }
   if (cut.lentNpc) forPlayer.emprestada = true
+  // FICHA SEGURADA PELO MESTRE: a trava só atravessa na ficha do próprio
+  // jogador, onde vira o cadeado da tela dele. Na de outro (colega, NPC que o
+  // mestre segura) ela diria quem o mestre está segurando.
+  if (cut.isOwner && token.locked === true) forPlayer.locked = true
   return forPlayer
 }
 

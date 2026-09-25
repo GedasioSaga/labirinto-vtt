@@ -22,7 +22,7 @@ const FOTO = 'data:image/png;base64,iVBORw0KGgo='
  * segura sem acordo — aqui, "arco" —, nunca a gravada no mapa do mestre (ver
  * `fogFilter.npcEmprestado.test.ts`).
  */
-const CAMPOS_DO_JOGADOR = new Set(['id', 'characterId', 'name', 'x', 'y', 'size', 'image', 'imageData', 'rotation', 'color', 'conditions', 'health', 'alerta', 'secret', 'mochila', 'emprestada'])
+const CAMPOS_DO_JOGADOR = new Set(['id', 'characterId', 'name', 'x', 'y', 'size', 'image', 'imageData', 'rotation', 'color', 'conditions', 'health', 'alerta', 'secret', 'mochila', 'emprestada', 'locked'])
 
 function ficha(id: string, name: string, x: number, extra: Partial<Token> = {}): Token {
   return { id, characterId: null, name, x, y: 100, size: 1, image: null, ...extra }
