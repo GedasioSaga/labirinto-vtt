@@ -6,7 +6,7 @@ import { LASER_MAX_POINTS_PER_MESSAGE, LASER_SEND_INTERVAL_MS } from '../lib/las
 import { pointActionMasterText, type PointActionAnswer } from '../lib/pointActions'
 import type { StoredToken } from '../lib/storedTokens'
 import { addTravel, travelLogEntry, undoableTravelIds, withoutTravel, type TravelLogEntry } from '../lib/travelLog'
-import { createArrivalAnnouncer } from './avisoDeChegada'
+import { CHEGADA_TOAST_MS, createArrivalAnnouncer } from './avisoDeChegada'
 import {
   preferredRoomCode,
   reclaimText,
@@ -58,9 +58,12 @@ import {
   type ReturnCandidate,
   type SeatClaim,
   type SecretCheckState,
+  type TokenActionRequest,
   type TravelCancelled,
   type TravelRequest,
 } from './hostSession'
+import { distanceLabel, TOKEN_ACTION_LABELS, TOKEN_ACTION_REPLY_MAX_LENGTH } from '../lib/tokenActions'
+import { linhaDoPedidoVivo } from '../lib/pedidoVivo'
 import {
   CALL_REASON_LABELS,
   clampTravelDenyText,
@@ -671,6 +674,8 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   const announceArrival = createArrivalAnnouncer(deps.onGoToScene)
   /** Prazo de cada "Espiar" aceito: no fim, o snapshot que fecha o cone. Fechar a sala cancela. */
   const peekTimers = new Set<ReturnType<typeof setTimeout>>()
+  /** Aviso de cada pedido de ação sobre ficha ainda na Caixa: `requestId` -> id do toast. */
+  const actionToasts = new Map<string, string>()
   /** O que cada conexão está vendo, anotado do que sai em `dispatch` (espelho do "Ver tela"). */
   const screens = createPlayerScreens()
   const screenWatchers = new Set<() => void>()
@@ -716,6 +721,8 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
 
   /** O mundo que a sessão serve agora: a aventura, ou só o mapa aberto. */
   const world = (): HostWorld => deps.getWorld?.() ?? singleSceneWorld(deps.getMap())
+  /** O mesmo relógio da sessão (que ganha `deps.now` também): a idade do pedido é a diferença entre os dois. */
+  const clock = deps.now ?? Date.now
 
   const setTravelLog = (next: TravelLogEntry[]) => {
     if (next === travelLog || (next.length === 0 && travelLog.length === 0)) return
@@ -1076,6 +1083,9 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     sendPartyIfChanged()
     // Cada snapshot marca o que cada jogador viu: o explorado da mesa muda.
     scheduleExplorationSave()
+    // ENCONTRO MARCADO: uma espera acabou no meio deste broadcast (o colega
+    // chegou): quem recebeu antes ainda vê a marca, então vai mais um.
+    if (result.waitsChanged === true) onWaitsChanged()
   }
 
   /**
@@ -1100,6 +1110,45 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     for (const entry of entries) {
       useToastStore.getState().push('info', hazardEntryLine(entry.playerName, entry.kind, entry.sceneName), PLAYER_JOINED_TOAST_MS)
     }
+  }
+
+  /** ENCONTRO MARCADO: o relógio do próximo prazo. `null` = ninguém espera. */
+  let waitTimer: ReturnType<typeof setTimeout> | null = null
+
+  const clearWaitTimer = () => {
+    if (waitTimer !== null) clearTimeout(waitTimer)
+    waitTimer = null
+  }
+
+  /**
+   * Acorda na hora do prazo mais próximo. É daqui que sai o "o prazo acabou":
+   * a mesa pode estar parada, sem movimento nem broadcast para descobrir.
+   */
+  const armWaitTimer = () => {
+    clearWaitTimer()
+    const deadline = session === null ? null : session.nextWaitDeadline()
+    if (deadline === null) return
+    waitTimer = setTimeout(expireWaitsNow, Math.max(0, deadline - clock()))
+  }
+
+  function expireWaitsNow() {
+    waitTimer = null
+    if (session === null) return
+    const result = session.expireWaits()
+    void dispatch(result)
+    if (result.waitsChanged === true) {
+      // A marca sai da ficha agora, e não no próximo movimento de alguém.
+      broadcastNow()
+      notifyPlayersIfChanged()
+    }
+    armWaitTimer()
+  }
+
+  /** Uma espera começou ou acabou: os colegas veem a marca mudar, o painel Grupo relê, o relógio se refaz. */
+  function onWaitsChanged() {
+    scheduleBroadcast()
+    notifyPlayersIfChanged()
+    armWaitTimer()
   }
 
   const scheduleBroadcast = () => {
@@ -1391,6 +1440,15 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     }
   }
 
+  /** Mesma faxina de `pruneTravelToasts`, para os pedidos de ação sobre ficha. */
+  const pruneActionToasts = () => {
+    for (const [requestId, toastId] of actionToasts) {
+      if (session !== null && session.isTokenActionPending(requestId)) continue
+      actionToasts.delete(requestId)
+      useToastStore.getState().dismiss(toastId)
+    }
+  }
+
   /** "Visto" ou "Responder": a linha sai e a resposta vai só a quem chamou. */
   const answerCall = (callId: string, answer: (s: HostSession) => HostResult) => {
     const toastId = callToasts.get(callId)
@@ -1474,6 +1532,49 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     travelDenyRecents = [motivo, ...travelDenyRecents.filter((texto) => texto !== motivo)].slice(0, TRAVEL_DENY_RECENTS_MAX)
   }
 
+  const answerAction = (requestId: string, accepted: boolean, reply = '') => {
+    const toastId = actionToasts.get(requestId)
+    actionToasts.delete(requestId)
+    if (toastId !== undefined) useToastStore.getState().dismiss(toastId)
+    if (session === null) return
+    void dispatch(session.answerTokenAction(requestId, accepted, reply))
+  }
+
+  /**
+   * AGIR SOBRE UMA FICHA: o pedido entra na Caixa de Pedidos ("Pedidos"), e
+   * espera o mestre como o pedido de passagem — o jogador olha "Aguardando…".
+   * O × vale "Recusar". Sem "emLote": o "Deixar todos" da caixa é da passagem,
+   * e aceitar de uma vez "Empurrar", "Agarrar" e "Oferecer" não é uma decisão só.
+   * O campo "Resposta só para Ana" leva junto o que o NPC responde: o texto
+   * vai só a quem pediu, e não à cena (o recado de cena chega a todos).
+   */
+  const askAction = (request: TokenActionRequest) => {
+    const where = request.sceneName === undefined ? '' : ` em ${request.sceneName}`
+    const said = request.text === undefined ? '' : ` — "${request.text}"`
+    const text = `${request.playerName} → ${request.targetName}${where}: ${TOKEN_ACTION_LABELS[request.action]} (${distanceLabel(request.distanceCells)})${said}`
+    const toastId = useToastStore.getState().push('instrucao', text, null, {
+      actions: [
+        { label: 'Aceitar', run: (resposta) => answerAction(request.requestId, true, resposta) },
+        { label: 'Recusar', run: (resposta) => answerAction(request.requestId, false, resposta) },
+      ],
+      onDismiss: () => answerAction(request.requestId, false),
+      grupo: 'Pedidos',
+      resposta: { rotulo: `Resposta só para ${request.playerName} (opcional)`, maxLength: TOKEN_ACTION_REPLY_MAX_LENGTH },
+    })
+    actionToasts.set(request.requestId, toastId)
+  }
+
+  /**
+   * "há 3 min · agora a 20 casas do pino", lido do mundo de AGORA a cada
+   * chamada (a tela relê sozinha). `''` quando o pedido já não espera: a
+   * linha não inventa idade para pergunta respondida. Não envia nada.
+   */
+  const travelDetail = (requestId: string): string => {
+    const status = session === null ? null : session.travelRequestStatus(requestId, world())
+    if (status === null) return ''
+    return linhaDoPedidoVivo(clock() - status.requestedAt, status.distanceCells)
+  }
+
   /**
    * Resposta ao pedido de passagem. `allow`: "Deixar ir" (ou "Liberar uma
    * vez", no pino trancado); `'pede'`: "Passar para pede" — o jogador passa e
@@ -1546,7 +1647,9 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
    * chegou" são da ficha principal: o pônei não é viagem à parte.
    */
   const applyTransferAlong = (transfer: AppliedTransfer): boolean => {
-    const apply = deps.applyTransfer
+    // ATALHO NA MESMA CENA (`fromSceneId === toSceneId`): cada ficha só anda
+    // (`moveWithinScene`); a troca de cena da store recusaria origem e destino iguais.
+    const apply = transfer.fromSceneId === transfer.toSceneId ? moveWithinScene : deps.applyTransfer
     if (apply === undefined) return false
     const { junto, entourage, ...alone } = transfer
     if (!apply(alone)) return false
@@ -1557,11 +1660,43 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   }
 
   /**
+   * ATALHO NA MESMA CENA: a ficha só anda dentro do mapa, pelo mesmo caminho
+   * do movimento do jogador (fora do desfazer do mestre). A troca de cena da
+   * store recusa origem e destino iguais, e está certa: não há o que trocar.
+   * A cena aberta vai sem `sceneId`, como o movimento de sempre.
+   */
+  const moveWithinScene = (transfer: AppliedTransfer): boolean => {
+    const { tokenId, x, y, toSceneId } = transfer
+    if (world().open.sceneId === toSceneId) deps.applyMove(tokenId, x, y)
+    else deps.applyMove(tokenId, x, y, toSceneId)
+    return true
+  }
+
+  /**
+   * ATALHO NA MESMA CENA: "Ana atravessou para outro ponto de Torre". Não
+   * entra no cartão "entrou em" da cena (`announceArrival`): ela não chegou,
+   * só andou dentro dela. Some sozinho como o cartão de chegada.
+   */
+  const announceShortcut = (transfer: AppliedTransfer) => {
+    const goTo = deps.onGoToScene
+    useToastStore
+      .getState()
+      .push(
+        'info',
+        `${transfer.playerName} atravessou para outro ponto de ${transfer.toSceneName}`,
+        CHEGADA_TOAST_MS,
+        goTo === undefined ? {} : { actions: [{ label: 'Ir lá', run: () => goTo(transfer.toSceneId, transfer.x, transfer.y) }] },
+      )
+  }
+
+  /**
    * A ficha troca de cena: "Deixar ir" do mestre ou pino livre. Move pela
    * store ANTES de mandar o `scene.changed`, e só avisa a chegada se moveu.
+   * No atalho na mesma cena ela só anda (`moveWithinScene`).
    */
   const completeTransfer = (result: HostResult, transfer: AppliedTransfer) => {
-    // `moveAndLog` passa por `applyTransferAlong`: quem ela leva vai junto.
+    // `moveAndLog` passa por `applyTransferAlong`: quem ela leva vai junto, e
+    // no atalho na mesma cena ela só anda (`moveWithinScene`).
     const moved = moveAndLog(transfer)
     // LEVAR FICHA JUNTO: o pedido de passagem de quem foi levado morreu na
     // sessão (`carriedAlong`); o aviso "Fulano quer passar por…" sai junto,
@@ -1584,7 +1719,8 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     void dispatch(result)
     broadcastNow()
     notifyPlayersIfChanged()
-    announceArrival(transfer)
+    if (transfer.fromSceneId === transfer.toSceneId) announceShortcut(transfer)
+    else announceArrival(transfer)
     // CHAVE ABRE PORTA no pino trancado: só depois de a ficha mudar de cena —
     // se não moveu, ninguém abriu nada.
     if (result.pinKeyUsed !== undefined) useToastStore.getState().push('info', pinKeyLine(result.pinKeyUsed))
@@ -1609,6 +1745,10 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
    * "Não": a pergunta nunca some sem resposta. Grupo "Pedidos": com dois ou
    * mais esperando, viram uma caixa só, e o "Deixar todos" dela roda o
    * "Deixar ir" (`emLote`) de cada um — a mesma revalidação, pedido a pedido.
+   *
+   * Embaixo da frase, a linha viva "há 3 min · agora a 20 casas do pino"
+   * (`travelDetail`): o mestre vê quem espera há mais tempo e se a ficha
+   * ainda está no pino antes de deixar ir.
    */
   const askTravel = (request: TravelRequest) => {
     if (request.trancada === true) {
@@ -1629,6 +1769,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       onDismiss: () => answerTravel(request.requestId, false),
       grupo: 'Pedidos',
       resposta: travelDenyResposta(request.requestId),
+      detalhe: () => travelDetail(request.requestId),
     })
     travelToasts.set(request.requestId, toastId)
   }
@@ -1937,6 +2078,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     }
     // "Mostrar meu mapa a…" aceito: o colega recebe o trecho no snapshot de agora.
     if (result.mapShared !== undefined) broadcastNow()
+    if (result.actionRequest !== undefined) askAction(result.actionRequest)
     if (result.applyTokenEdit !== undefined && deps.applyTokenEdit !== undefined) {
       // Mesma regra da porta: o mestre vê pela store, os outros jogadores pelo snapshot imediato.
       deps.applyTokenEdit(result.applyTokenEdit)
@@ -1960,6 +2102,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       useToastStore.getState().push('info', secretCheckAnswerText(answer.playerName, answer.label, answer.result), PLAYER_JOINED_TOAST_MS)
       notifySecretChecksIfChanged()
     }
+    if (result.waitsChanged === true) onWaitsChanged()
     notifyPlayersIfChanged()
     if (wasJoined) return
     if (session.isTable(clientId)) announceTable()
@@ -1987,6 +2130,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     pruneTravelToasts()
     pruneCallToasts()
     pruneReturnToasts()
+    pruneActionToasts()
     notifyPlayersIfChanged()
   }
 
@@ -2113,6 +2257,8 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       for (const timer of peekTimers) clearTimeout(timer)
       peekTimers.clear()
       resetLaser()
+      // A sala fecha com as esperas dentro: nenhum prazo acorda depois.
+      clearWaitTimer()
       // Avisa antes de derrubar: sem `room.closed` o jogador veria queda de rede,
       // não "O mestre encerrou a sala".
       if (session) await dispatch(session.closeRoom())
@@ -2133,6 +2279,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       resetDrops()
       // Sem sala, "Desembarcar" não teria a quem mandar.
       syncCaravanToasts([])
+      pruneActionToasts()
       currentRoom = null
       // O Rust derruba o túnel junto com a sala.
       resetTunnel()
@@ -2416,6 +2563,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       pruneTravelToasts()
       pruneCallToasts()
       pruneReturnToasts()
+      pruneActionToasts()
       notifyPlayersIfChanged()
       notifyPinAudiencesIfChanged()
       notifyPinCluesIfChanged()

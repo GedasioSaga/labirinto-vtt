@@ -135,7 +135,8 @@ function doorRooms(map: MapData, wall: Wall): string {
   return [...names].sort(COLLATOR.compare).join(' e ')
 }
 
-function roomEntry(map: MapData, region: Region): MapObjectEntry | null {
+/** A linha de uma Sala (`null` para região comum ou sem ponto). Exportada para a busca em todas as cenas (`lib/buscaNaAventura.ts`). */
+export function roomEntry(map: MapData, region: Region): MapObjectEntry | null {
   if (region.room === undefined) return null
   const box = pointsBoundingBox(region.points)
   if (box === null) return null

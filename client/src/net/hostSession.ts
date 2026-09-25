@@ -4,9 +4,10 @@ import { areaTriggerPresence, newAreaTriggerEntries, regionAreaName, type AreaTr
 import { fichaAlcancaPonto, MARCA_INTERVALO_MS, MARCAS_POR_CENA, MARCAS_POR_JOGADOR_POR_CENA } from '../lib/marcas'
 import { createExploration, decodeExploration, encodeExploration, forgetBlocked, forgetInside, isPointExplored, markAll, markRings, mergeExploration, mergeExplored, resizeExploration, type Exploration, type ExploredWire } from '../lib/exploration'
 import { pointInRing } from '../lib/floorContour'
-import { abaloSetaForPlayer, alarmForPlayer, allPlayerTokens, claimableTokensForPlayer, clockForPlayer, diceRollForPlayer, emptyPlanMemory, filterFloorMemory, filterMapForGroup, filterMapForPlayer, giftableRoomsOf, memoryBlockedRings, noiseCueForPlayer, ownTokensInView, pinClueForPlayer, planOfWholeMap, playerBlockedRings, roomClueForPlayer, sceneNameForPlayer, turnForPlayer, type GroupViewer, type OwnTokenElsewhere, type PlanMemory, type PlayerClueContent, type PlayerMapView, type SceneAlarm } from '../lib/fogFilter'
+import { abaloSetaForPlayer, alarmForPlayer, allPlayerTokens, claimableTokensForPlayer, clockForPlayer, diceRollForPlayer, emptyPlanMemory, filterFloorMemory, filterMapForGroup, filterMapForPlayer, giftableRoomsOf, memoryBlockedRings, noiseCueForPlayer, ownTokensInView, pinClueForPlayer, planOfWholeMap, playerBlockedRings, roomClueForPlayer, sceneNameForPlayer, turnForPlayer, waitingTokensForPlayer, type GroupViewer, type OwnTokenElsewhere, type PlanMemory, type PlayerClueContent, type PlayerMapView, type SceneAlarm } from '../lib/fogFilter'
 import { faixaDoAbalo, type AbaloContagem, type AbaloFaixa, type AbaloOrigem, type AbaloTextos } from '../lib/abalo'
 import { MASTER_ROLLER_NAME, rollDice, secureRollDie, type DiceRequest, type HostDiceRoll, type RollDie } from '../lib/dice'
+import { MS_POR_MINUTO, type FimDaEspera, type MinhaEspera } from '../lib/encontroMarcado'
 import { CLUEBOOK_MAX_CLUES } from '../lib/clues'
 import { visionRadiusAtHour } from '../lib/campaignClock'
 import { sameBuilding, sortFloorLabels } from '../lib/buildingFloors'
@@ -82,9 +83,11 @@ import {
   type SeatOption,
   type SecretCheckAnswerMessage,
   type SignalMessage,
+  type TokenActionRequestMessage,
   type TokenEditMessage,
   type TokenMoveMessage,
   type ViewSwitchMessage,
+  type WaitSetMessage,
 } from './protocol'
 import {
   AWAY_NOTES_MAX,
@@ -101,6 +104,7 @@ import {
   VIEW_RESYNC_MIN_INTERVAL_MS,
   type NoteEntry,
 } from './protocol'
+import { clampTokenActionReply, distanceInCells, type TokenAction, type TokenActionRejection } from '../lib/tokenActions'
 import { diffView, isEmptyViewPatch, type PlayerViewContent } from './viewPatch'
 import { readArrivalText } from '../lib/arrivalText'
 import { caravanCity, caravanMembers, caravanRegroup, caravanSize, caravanStep, isWorldMap, landingSpots, type CaravanMemory } from '../lib/caravan'
@@ -182,7 +186,7 @@ function allScenes(world: HostWorld): HostScene[] {
  * dela (`lib/arrivalText.ts`) quando há: é o único caminho do texto até o
  * jogador — o recorte nunca o manda — e só quem chega recebe este aviso.
  */
-function sceneChangedFor(to: MapData, by?: 'master' | 'gather'): HostMessage {
+function sceneChangedFor(to: MapData, by?: 'master' | 'gather'): Extract<HostMessage, { type: 'scene.changed' }> {
   const chegada = readArrivalText(to.textoChegada)
   return { type: 'scene.changed', ...(by === undefined ? {} : { by }), ...(chegada === undefined ? {} : { chegada }) }
 }
@@ -357,6 +361,42 @@ export interface TravelCancelled {
   playerId: string
   playerName: string
   reason: PinTravelCancelReason
+}
+
+/**
+ * Como está AGORA um pedido de passagem que espera o mestre: a linha "há 3
+ * min · agora a 20 casas do pino" da Caixa de Pedidos. Só o mestre lê.
+ */
+export interface TravelRequestStatus {
+  /** Quando o pedido chegou, no relógio da sessão (`now`). */
+  requestedAt: number
+  /**
+   * Casas entre a ficha dele mais perto e o pino, medidas agora. `null` = já
+   * não há ficha dele na cena do pedido (o mestre a levou, ou a tirou do mapa)
+   * ou o pino sumiu: a distância a um pino de outro mapa não diria nada.
+   */
+  distanceCells: number | null
+}
+
+/**
+ * AGIR SOBRE UMA FICHA: pedido já validado, à espera do mestre. É o que a
+ * Caixa de Pedidos mostra. Nada disto vai ao jogador: a resposta leva só o
+ * `reqId` que ele mesmo mandou.
+ */
+export interface TokenActionRequest {
+  requestId: string
+  playerId: string
+  playerName: string
+  tokenId: string
+  /** Como o MESTRE chama a ficha (o nome dele, não o "Nome para os jogadores"). */
+  targetName: string
+  action: TokenAction
+  /** O texto do jogador, já aparado; ausente = sem texto. */
+  text?: string
+  /** Casas entre a ficha dele mais perto e o alvo. */
+  distanceCells: number
+  /** Só quando o pedido vem de uma cena de FUNDO: o nome que o mestre lê. */
+  sceneName?: string
 }
 
 /**
@@ -592,6 +632,8 @@ export interface HostResult {
   seatClaim?: SeatClaim
   /** Pedido de passagem válido: o integrador pergunta ao mestre. */
   travelRequest?: TravelRequest
+  /** Pedido de ação sobre ficha válido: o integrador põe na Caixa de Pedidos. */
+  actionRequest?: TokenActionRequest
   /** Pedido da porta trancada válido: o integrador pergunta ao mestre. */
   doorRequest?: DoorRequest
   /** A chave da mochila abriu a porta (o `applyDoor` vem junto, com `unlock`): o integrador avisa o mestre. */
@@ -664,6 +706,19 @@ export interface HostResult {
    * tem na memória e ela já guarda `MAX_SCENE_MEMORIES_PER_PLAYER` cenas.
    */
   mapRefused?: { playerId: string; reason: MapGiftRefusal }
+  /**
+   * ENCONTRO MARCADO: uma espera começou ou acabou. A marca "esperando" mudou
+   * nas fichas que os colegas veem: o integrador refaz o broadcast (e relê o
+   * painel Grupo e o relógio do próximo prazo).
+   */
+  waitsChanged?: true
+}
+
+/** ENCONTRO MARCADO, como o MESTRE lê no painel Grupo: quem, onde e até quando (relógio da sessão). */
+export interface PlayerWaitInfo {
+  who?: string
+  where?: string
+  until: number
 }
 
 /** Por que o mapa de papel não entrou, quando o motivo não é "nada a dar". */
@@ -795,6 +850,8 @@ export interface PlayerInfo {
    * resto do tempo: é o que põe o selo "pedido" na cena dele, na lista Cenas.
    */
   travelPending?: true
+  /** ENCONTRO MARCADO: a espera dele. Ausente = não espera ninguém. */
+  waiting?: PlayerWaitInfo
   /**
    * Quando a conexão dele caiu (relógio do mestre). Só enquanto está fora: é o
    * "fora há 0:10" do Grupo. Dado do painel do mestre — nunca vai pela rede.
@@ -914,6 +971,13 @@ export const MAP_SHARE_MIN_INTERVAL_MS = 3000
  * anda 3 casas para longe desistiu na prática.
  */
 export const TRAVEL_CANCEL_SLACK_CELLS = 2
+
+/**
+ * Um pedido de ação sobre ficha por jogador nesta janela, de qualquer ficha.
+ * Conta a partir do último pedido, mesmo já respondido: o jogador que insiste
+ * no toque não enche a Caixa do mestre. Um pendente por vez já segura o resto.
+ */
+export const TOKEN_ACTION_MIN_INTERVAL_MS = 1500
 
 /**
  * Quantas cenas cada jogador lembra (exploração e portas vistas). Passou do
@@ -1201,6 +1265,21 @@ export interface HostSession {
   /** O pedido ainda espera o mestre? `false` depois de decidido, ou quando o jogador saiu. */
   isTravelPending(requestId: string): boolean
   /**
+   * Idade e distância AGORA do pedido que espera (a Caixa de Pedidos relê a
+   * cada segundo). `null` quando ele já não espera. Não envia nada.
+   */
+  travelRequestStatus(requestId: string, source: HostMapSource): TravelRequestStatus | null
+  /**
+   * AGIR SOBRE UMA FICHA: o mestre aceitou ou recusou, e `reply` é o que ele
+   * escreveu para AQUELE jogador (o que o NPC responde; aparado e cortado em
+   * `TOKEN_ACTION_REPLY_MAX_LENGTH`; vazio = sem texto). Devolve
+   * `token.action.answer` só a quem pediu, com o `reqId` dele. Pedido que já
+   * não existe (respondido, jogador caiu ou saiu) não manda nada.
+   */
+  answerTokenAction(requestId: string, accepted: boolean, reply?: string): HostResult
+  /** O pedido de ação ainda espera o mestre? */
+  isTokenActionPending(requestId: string): boolean
+  /**
    * Quem iria junto se o mestre deixasse AGORA (`playerId`s): jogadores
    * jogando e conectados, na mesma cena, com ficha a até `NEAR_SQUARES` casas
    * da ficha de quem pediu (`lib/travelTogether.ts`). Pedido que já não vale: nenhum.
@@ -1424,6 +1503,15 @@ export interface HostSession {
    */
   travelLimitEntries(): number
   /**
+   * ENCONTRO MARCADO: encerra toda espera cujo prazo já passou (relógio da
+   * sessão) e avisa quem esperava (`wait.ended`, `expired`). O integrador
+   * chama na hora de `nextWaitDeadline`: a mesa pode estar parada, sem
+   * broadcast nenhum para descobrir o prazo vencido.
+   */
+  expireWaits(): HostResult
+  /** O prazo mais próximo entre as esperas ativas; `null` = ninguém espera. */
+  nextWaitDeadline(): number | null
+  /**
    * TELA DA MESA: a cena que a TV mostra (`tableSceneKey`), ou `null` = a tela
    * espera. Não envia: o integrador faz o broadcast. Cena que não está aberta
    * (nem na aventura, nem no cache) também deixa a tela esperando.
@@ -1497,6 +1585,20 @@ function isSecretCheckSettled(check: SecretCheckRecord): boolean {
   return !check.open || [...check.asked].every((playerId) => check.answers.has(playerId))
 }
 
+/**
+ * ENCONTRO MARCADO: a espera de um jogador. `mapId` é a cena onde ele combinou
+ * (saiu dela, a espera acaba). `present`: os colegas que o recorte dele
+ * mostrava no último snapshot — só conta como CHEGADA quem não estava lá
+ * antes; `null` = ainda não houve snapshot desde que ele começou a esperar.
+ */
+interface PlayerWait {
+  who?: string
+  where?: string
+  until: number
+  mapId: string
+  present: Set<string> | null
+}
+
 /** Pedido de passagem à espera do mestre. Um por jogador. */
 interface PendingTravel {
   requestId: string
@@ -1511,6 +1613,10 @@ interface PendingTravel {
   trancada?: true
   /** Distância (px) da ficha mais perto ao pino quando pediu: é dela que conta a folga de `TRAVEL_CANCEL_SLACK_CELLS`. */
   distance: number
+  /** A cena onde o jogador pediu: é o pino DELA que a distância mede. */
+  fromSceneId: string
+  /** Quando o pedido chegou (`now`), para a idade na Caixa de Pedidos. */
+  requestedAt: number
 }
 
 /** Pedido da porta trancada à espera do mestre. Um por jogador. `mapId`: a `sceneKey` da cena da porta. */
@@ -1528,6 +1634,13 @@ interface PendingItem {
   pinId: string
   tokenId: string
   mapId: string
+}
+
+/** Pedido de ação sobre ficha à espera do mestre. Um por jogador; `reqId` é o do jogador. */
+interface PendingTokenAction {
+  requestId: string
+  playerId: string
+  reqId: string
 }
 
 /** Pedido que passou em tudo: de onde, para onde, por qual pino e com qual token. */
@@ -1979,6 +2092,18 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   const lastViews = new Map<string, ViewInputs>()
   // Sobe quando muda algo que entra no recorte de TODOS ("Quem vê" dos pinos).
   let viewEpoch = 0
+  // AGIR SOBRE UMA FICHA — por playerId: o pedido que espera o mestre (no
+  // máximo um; morre com a conexão) e a hora do último pedido (sobrevive ao
+  // disconnect, como o limite do sinal; só o kick apaga).
+  const pendingTokenActions = new Map<string, PendingTokenAction>()
+  const lastTokenActionAt = new Map<string, number>()
+  // ENCONTRO MARCADO — por playerId: a espera ativa (no máximo uma). Sobrevive
+  // ao disconnect (a ficha continua lá, esperando); o kick e ficar sem ficha apagam.
+  const waits = new Map<string, PlayerWait>()
+  // Alguma espera acabou DENTRO dos recortes em curso (broadcast ou volta à
+  // sala: colega chegou, saiu da cena, prazo passou): quem já tinha recebido o
+  // recorte ainda vê a marca, e o integrador manda outro.
+  let waitsEndedInViews = false
   let rev = 0
   // ZONA DE PERIGO: em que zona estava cada ficha de JOGADOR no último
   // broadcast, por cena (chave `sceneKey`). É daqui que sai "entrou agora".
@@ -2532,6 +2657,9 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     for (const m of view.map.marcas ?? []) memory.marcas.add(m.id)
     const sent = new Set(view.map.tokens.map((t) => t.id))
     const ownTokens = (ownership[playerId] ?? []).filter((id) => sent.has(id))
+    // ENCONTRO MARCADO: a espera DESTE jogador se resolve antes da marca: a que acabou agora não sai marcada.
+    const waitEnded = settleWait(playerId, map.id, view)
+    const waiting = waitingTokensForPlayer(view, waitingTokenIds())
     // Só fichas que ele JÁ recebe: a lista não conta quem está no escuro.
     const partyTokens = view.map.tokens.filter((t) => isOtherPlayersToken(playerId, t.id)).map((t) => t.id)
     // Sem nome público o campo nem existe: `sceneName: undefined` no JSON sumiria, mas no objeto não.
@@ -2572,9 +2700,11 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     if (relogio !== null) base.relogio = relogio
     // CONE PELO VÃO: campo aditivo, só vai quando há cone.
     if (view.glimpses.length > 0) base.glimpses = view.glimpses
+    // ENCONTRO MARCADO: sem ficha esperando, o campo nem vai: o snapshot sai idêntico ao de antes da feature.
+    if (waiting.length > 0) base.waiting = waiting
     // Sem ficha em outra cena o campo nem sai: o snapshot fica igual ao de sempre.
     const snapshot: HostMessage = elsewhere.length > 0 ? { ...base, elsewhere } : base
-    return { messages: [snapshot, ...roomTextCardsFor(playerId, map.id, view)], settled }
+    return { messages: [snapshot, ...waitEnded, ...roomTextCardsFor(playerId, map.id, view)], settled }
   }
 
   /** A porta que o jogador espia AGORA nesta cena, ou nada. Prazo vencido apaga o registro. */
@@ -2703,6 +2833,77 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     for (const [clientId, sent] of sentViews) if (sent.playerId === playerId) sentViews.delete(clientId)
   }
 
+  /** O dono da ficha, se ela é de algum jogador da sala (NPC não tem). */
+  const ownerOf = (tokenId: string): string | undefined => Object.keys(ownership).find((playerId) => (ownership[playerId] ?? []).includes(tokenId))
+
+  /** Fichas de quem espera alguém agora. O recorte de cada jogador decide quais delas ele recebe. */
+  const waitingTokenIds = (): Set<string> => {
+    const ids = new Set<string>()
+    for (const playerId of waits.keys()) {
+      for (const id of ownership[playerId] ?? []) ids.add(id)
+    }
+    return ids
+  }
+
+  /**
+   * Os colegas (playerId -> nome na sala) com ficha no RECORTE do jogador. Lê
+   * o recorte, nunca o mapa do mestre: colega no escuro, em zona oculta ou em
+   * outra cena não está aqui, e por isso nunca vira "chegou".
+   */
+  const colleaguesInView = (playerId: string, view: PlayerMapView): Map<string, string> => {
+    const found = new Map<string, string>()
+    for (const t of view.map.tokens) {
+      const owner = ownerOf(t.id)
+      if (owner === undefined || owner === playerId) continue
+      const record = players.get(owner)
+      if (record !== undefined) found.set(owner, record.name)
+    }
+    return found
+  }
+
+  /**
+   * Por que a espera de `playerId` acaba neste recorte, ou `null` se ela
+   * continua. Saiu da cena onde combinou: `left`. Colega esperado (ou,
+   * sem nome, qualquer um) que NÃO estava no recorte anterior e está agora:
+   * `met`. Prazo passado: `expired`.
+   */
+  const waitEndFor = (playerId: string, wait: PlayerWait, mapId: string, view: PlayerMapView): FimDaEspera | null => {
+    const withWho = (reason: 'expired' | 'left'): FimDaEspera => (wait.who === undefined ? { reason } : { reason, who: wait.who })
+    if (wait.mapId !== mapId) return withWho('left')
+    const present = colleaguesInView(playerId, view)
+    const before = wait.present
+    wait.present = new Set(present.keys())
+    if (before !== null) {
+      for (const [otherId, name] of present) {
+        if (before.has(otherId)) continue
+        if (wait.who === undefined || normalizeName(name) === normalizeName(wait.who)) return { reason: 'met', who: name }
+      }
+    }
+    return now() >= wait.until ? withWho('expired') : null
+  }
+
+  /** Resolve a espera do jogador contra o recorte que vai sair agora; acabou, o aviso vai logo depois do mapa. */
+  const settleWait = (playerId: string, mapId: string, view: PlayerMapView): HostMessage[] => {
+    const wait = waits.get(playerId)
+    if (wait === undefined) return []
+    const ended = waitEndFor(playerId, wait, mapId, view)
+    if (ended === null) return []
+    waits.delete(playerId)
+    waitsEndedInViews = true
+    // A marca entra no recorte de TODOS: quem já saiu neste broadcast refaz no próximo.
+    viewEpoch += 1
+    return [{ type: 'wait.ended', ...ended }]
+  }
+
+  /** O que o dono lê da própria espera: o que falta, e não a hora do relógio do host. */
+  const waitStateOf = (wait: PlayerWait | undefined): HostMessage => {
+    if (wait === undefined) return { type: 'wait.state', wait: null }
+    const own: MinhaEspera = { remainingMs: Math.max(0, wait.until - now()) }
+    if (wait.who !== undefined) own.who = wait.who
+    if (wait.where !== undefined) own.where = wait.where
+    return { type: 'wait.state', wait: own }
+  }
+
   const reply = (clientId: string, msg: HostMessage): HostResult => ({ outbound: [{ clientId, msg }] })
 
   /** Jogador que jogava e ficou sem token volta ao lobby; desconectado recebe o estado no resume. */
@@ -2714,6 +2915,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     // A tela dele virou a espera: o recorte que ele tinha não está mais nela.
     // A ficha que volta (mesmo a mesma, na mesma cena) refaz o recorte.
     lastViews.delete(playerId)
+    // Sem ficha não há quem espere: a tela dele volta à espera do lobby, sem a marca.
+    if (waits.delete(playerId)) viewEpoch += 1
     const clientId = players.get(playerId)?.clientId ?? null // registro ausente = jogador expulso: não há a quem avisar
     if (!wasPlaying || clientId === null) return []
     lostSecretCheckCard.add(playerId)
@@ -3150,6 +3353,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
    * ficou guardado, a pausa da cena e o alarme.
    */
   const entryOutbound = (clientId: string, playerId: string, world: HostWorld): Outbound[] => {
+    // ENCONTRO MARCADO: quem chama lê `waitsEndedInViews` depois (a espera acabou no recorte da volta).
+    waitsEndedInViews = false
     const waiting: HostMessage[] = [{ type: 'lobby.waiting' }]
     // `next`: o snapshot (ou a espera); `cards`: os cartões que vêm atrás dele (texto da Sala, recado da cena).
     const [next, ...cards] = statusOf(playerId) === 'playing' ? viewFor(playerId, world, 'always') : waiting
@@ -3171,6 +3376,9 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       outbound.push({ clientId, msg })
     }
     if (away.length > 0) outbound.push({ clientId, msg: { type: 'notes.away', notes: away.map((entry) => ({ ...entry })) } })
+    // ENCONTRO MARCADO: recarregou a página esperando — a espera volta com o que falta.
+    const wait = waits.get(playerId)
+    if (wait !== undefined) outbound.push({ clientId, msg: waitStateOf(wait) })
     // Conexão nova começa sem marca nenhuma na tela: a lista dele sai de novo, depois do mapa.
     sentDestinations.delete(playerId)
     pruneDestinations(world)
@@ -3248,8 +3456,11 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     // A aba que (re)entra não tem cartão nenhum: com mapa na tela, o teste
     // secreto que ainda espera a resposta DELE chega de novo, depois do mapa.
     lostSecretCheckCard.add(record.playerId)
+    const entry = entryOutbound(clientId, record.playerId, world)
     return {
-      outbound: [{ clientId, msg: welcome }, ...entryOutbound(clientId, record.playerId, world), ...replacedOut, ...loanBack.outbound],
+      outbound: [{ clientId, msg: welcome }, ...entry, ...replacedOut, ...loanBack.outbound],
+      // ENCONTRO MARCADO: a espera acabou no recorte da volta (o prazo passou enquanto ele estava fora): a marca sai dos colegas também.
+      ...(waitsEndedInViews ? { waitsChanged: true as const } : {}),
       ...loansReturnedField(loanBack.returned),
       ...(replaced === null ? {} : { replacedClientId: replaced }),
       ...(returnOf === undefined ? {} : { returnCandidate: { playerId: record.playerId, previousId: returnOf.playerId, name: returnOf.name } }),
@@ -3294,6 +3505,9 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     sentDestinations.delete(playerId)
     peeks.delete(playerId)
     visionFactors.delete(playerId)
+    pendingTokenActions.delete(playerId)
+    lastTokenActionAt.delete(playerId)
+    if (waits.delete(playerId)) viewEpoch += 1
     for (const chosen of pinAudiences.values()) chosen.delete(playerId)
     for (const sets of [pinReceived, pinRead]) {
       for (const [pinId, who] of sets) {
@@ -3385,6 +3599,37 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     if (!check.asked.has(playerId) || check.answers.has(playerId)) return { outbound: [] }
     check.answers.set(playerId, msg.result)
     return { outbound: [], secretCheckAnswer: { checkId: msg.id, playerId, playerName: record.name, label: check.label, result: msg.result } }
+  }
+
+  /**
+   * ENCONTRO MARCADO: "espero aqui". Só quem está numa cena (a espera é DELA:
+   * sair de lá a encerra). Uma por jogador: a nova substitui a de antes. A
+   * resposta é só para ele; os colegas veem a marca no broadcast que o
+   * integrador refaz (`waitsChanged`).
+   */
+  function handleWaitSet(clientId: string, msg: WaitSetMessage, world: HostWorld): HostResult {
+    const playerId = byClient.get(clientId)
+    if (playerId === undefined) return reply(clientId, { type: 'error', reason: 'not_joined' })
+    const scene = statusOf(playerId) === 'playing' ? sceneFor(playerId, world) : null
+    if (scene === null) return reply(clientId, waitStateOf(undefined))
+    const wait: PlayerWait = { until: now() + msg.minutes * MS_POR_MINUTO, mapId: scene.map.id, present: null }
+    if (msg.who !== undefined) wait.who = msg.who
+    if (msg.where !== undefined) wait.where = msg.where
+    waits.set(playerId, wait)
+    // A marca entra no recorte de TODOS: o broadcast que o integrador refaz não pode pular ninguém.
+    viewEpoch += 1
+    return { outbound: [{ clientId, msg: waitStateOf(wait) }], waitsChanged: true }
+  }
+
+  /** "Parar de esperar". Sem espera, só confirma (a tela dele pode estar atrasada). */
+  function handleWaitClear(clientId: string): HostResult {
+    const playerId = byClient.get(clientId)
+    if (playerId === undefined) return reply(clientId, { type: 'error', reason: 'not_joined' })
+    const had = waits.delete(playerId)
+    const result = reply(clientId, waitStateOf(undefined))
+    if (!had) return result
+    viewEpoch += 1
+    return { ...result, waitsChanged: true }
   }
 
   function handleMove(clientId: string, msg: TokenMoveMessage, world: HostWorld): HostResult {
@@ -4358,7 +4603,18 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     // DESISTIR DO PEDIDO: guarda a distância da ficha ao pino agora, para o
     // pedido cair sozinho se ela andar para longe antes do mestre responder.
     const distance = Math.hypot(travel.token.x - travel.pin.x, travel.token.y - travel.pin.y)
-    const pending: PendingTravel = { requestId, playerId, pinId: msg.pinId, exitId, toSceneId: travel.to.sceneId, partnerId: travel.partner.id, distance }
+    // `fromSceneId` e `requestedAt`: a idade e a distância AGORA que a Caixa de Pedidos relê.
+    const pending: PendingTravel = {
+      requestId,
+      playerId,
+      pinId: msg.pinId,
+      exitId,
+      toSceneId: travel.to.sceneId,
+      partnerId: travel.partner.id,
+      distance,
+      fromSceneId: travel.from.sceneId,
+      requestedAt: at,
+    }
     if (trancada) pending.trancada = true
     pendingTravels.set(playerId, pending)
     // Pedido do mestre: nada disto vai ao jogador (`outbound` vazio).
@@ -4440,6 +4696,12 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   /**
    * A passagem acontece: `scene.changed` ao dono e `applyTransfer` para o
    * integrador mover a ficha. Vale para o "Deixar ir" e para o pino livre.
+   *
+   * ATALHO NA MESMA CENA: `fromSceneId === toSceneId`. A chave de cena não
+   * muda (a memória do jogador é a mesma), e o integrador move a ficha dentro
+   * do mapa em vez de trocá-la de cena. O `scene.changed` vai igual: é o
+   * "Você chegou", e ele descarta movimento ainda sem resposta, que partiria
+   * do ponto de antes do atalho.
    */
   function transferResult(playerId: string, clientId: string, playerName: string, travel: ValidTravel, world: HostWorld): HostResult {
     // Casa livre junto do par: quem passou antes pelo mesmo pino já está no
@@ -4451,6 +4713,10 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     currentScene.set(playerId, sceneKey(travel.to))
     forgetSentView(playerId)
     lastViews.delete(playerId)
+    // No atalho o mapa do jogador é o mesmo: ele só sabe qual das fichas dele
+    // centrar se o aviso disser. A ficha é dele (`validTravel`): nada vaza.
+    const atalho = travel.from.sceneId === travel.to.sceneId
+    const changed = sceneChangedFor(travel.to.map)
     const along = carriedAlong(playerId, travel.token.id, travel.from, travel.to, spot, world, 'master')
     const applyTransfer: AppliedTransfer = {
       ...along.transfer,
@@ -4465,7 +4731,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     }
     withEntourage(applyTransfer, travel.from.map, travel.token, travel.to.map, carriedSeats(applyTransfer, travel.from.map), travel.partner)
     withoutCarriedInEntourage(applyTransfer)
-    return { outbound: [{ clientId, msg: sceneChangedFor(travel.to.map) }, ...along.outbound], ...along.lost, applyTransfer }
+    return { outbound: [{ clientId, msg: atalho ? { ...changed, tokenId: travel.token.id } : changed }, ...along.outbound], ...along.lost, applyTransfer }
   }
 
   /**
@@ -4798,6 +5064,81 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     return token === undefined ? null : { sceneId: scene.sceneId, x: token.x, y: token.y }
   }
 
+  /**
+   * AGIR SOBRE UMA FICHA. Autoridade é aqui, no molde do pedido de passagem:
+   * a ficha precisa estar no recorte que o jogador vê AGORA na cena dele
+   * (`filterMapForPlayer`: névoa, parede, zona oculta, ficha escondida pelo
+   * mestre, outra cena) e não ser dele, e ele precisa ter ficha nesta cena.
+   * Qualquer falha responde o mesmo `unavailable` — um id adivinhado não
+   * descobre o que existe no escuro. O limite de tempo vem ANTES da validação
+   * (o recorte é a parte cara) e conta todo toque, até o recusado.
+   */
+  function handleTokenAction(clientId: string, msg: TokenActionRequestMessage, world: HostWorld): HostResult {
+    const playerId = byClient.get(clientId)
+    if (playerId === undefined) return reply(clientId, { type: 'error', reason: 'not_joined' })
+    const reject = (reason: TokenActionRejection): HostResult => reply(clientId, { type: 'token.action.rejected', reqId: msg.reqId, reason })
+    const record = players.get(playerId)
+    if (record === undefined || statusOf(playerId) !== 'playing') return reject('unavailable')
+    const at = now()
+    const last = lastTokenActionAt.get(playerId)
+    if (last !== undefined && at - last < TOKEN_ACTION_MIN_INTERVAL_MS) return reject('too_soon')
+    lastTokenActionAt.set(playerId, at)
+    if (pendingTokenActions.has(playerId)) return reject('pending')
+    const scene = sceneFor(playerId, world)
+    const owned = new Set(ownership[playerId] ?? [])
+    if (scene === null || owned.has(msg.tokenId)) return reject('unavailable')
+    const memory = memoryFor(playerId, scene.map, world)
+    const view = filterMapForPlayer(scene.map, playerId, ownership, radiusFor(playerId), memory.exp, memory.doors, pinAudiences)
+    const seen = view.map.tokens.find((t) => t.id === msg.tokenId)
+    const target = scene.map.tokens.find((t) => t.id === msg.tokenId)
+    if (seen === undefined || target === undefined) return reject('unavailable')
+    let nearest: number | null = null
+    for (const t of view.map.tokens) {
+      if (!owned.has(t.id)) continue
+      const cells = distanceInCells(t, seen, scene.map.grid)
+      if (nearest === null || cells < nearest) nearest = cells
+    }
+    if (nearest === null) return reject('unavailable')
+    const requestId = randomId()
+    pendingTokenActions.set(playerId, { requestId, playerId, reqId: msg.reqId })
+    const request: TokenActionRequest = {
+      requestId,
+      playerId,
+      playerName: record.name,
+      tokenId: target.id,
+      targetName: target.name,
+      action: msg.action,
+      distanceCells: nearest,
+    }
+    if (msg.text !== undefined) request.text = msg.text
+    // Mesma regra de `backgroundSceneId`: a cena aberta e o mapa solto não levam o nome.
+    if (scene !== world.open && scene.sceneId !== null) request.sceneName = scene.name
+    return { outbound: [], actionRequest: request }
+  }
+
+  const findPendingTokenAction = (requestId: string): PendingTokenAction | undefined =>
+    [...pendingTokenActions.values()].find((pending) => pending.requestId === requestId)
+
+  /**
+   * Casas entre a ficha do jogador mais perto e o pino do pedido, no mapa de
+   * AGORA da cena onde ele pediu. Lê o mapa do mestre (não o recorte da
+   * névoa): quem lê é o mestre, que vê tudo. `null` sem ficha dele ou sem o
+   * pino nessa cena.
+   */
+  const distanceToPinNow = (pending: PendingTravel, world: HostWorld): number | null => {
+    const scene = allScenes(world).find((s) => s.sceneId === pending.fromSceneId)
+    const pin = scene?.map.pins.find((p) => p.id === pending.pinId)
+    if (scene === undefined || pin === undefined) return null
+    const owned = new Set(ownership[pending.playerId] ?? [])
+    let nearest: number | null = null
+    for (const t of scene.map.tokens) {
+      if (!owned.has(t.id)) continue
+      const cells = distanceInCells(t, pin, scene.map.grid)
+      if (nearest === null || cells < nearest) nearest = cells
+    }
+    return nearest
+  }
+
   /** Apaga o que só vale enquanto o jogador está na sala: pedido pendente e limites do pedido. */
   const forgetTravelsOf = (playerId: string): void => {
     pendingTravels.delete(playerId)
@@ -4977,6 +5318,12 @@ export function createHostSession(options: HostSessionOptions): HostSession {
           return handlePinAnswer(clientId, msg, world)
         case 'mark.place':
           return handleMarkPlace(clientId, msg, world)
+        case 'token.action':
+          return handleTokenAction(clientId, msg, world)
+        case 'wait.set':
+          return handleWaitSet(clientId, msg, world)
+        case 'wait.clear':
+          return handleWaitClear(clientId)
       }
     },
 
@@ -5104,6 +5451,48 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       const rolled = newDiceRoll(request, MASTER_ROLLER_NAME)
       const roll: HostDiceRoll = hidden ? { ...rolled, master: true, hidden: true } : { ...rolled, master: true }
       return { outbound: diceOutbound(roll), diceRoll: roll }
+    },
+
+    expireWaits() {
+      const at = now()
+      const outbound: Outbound[] = []
+      let ended = false
+      for (const [playerId, wait] of waits) {
+        if (at < wait.until) continue
+        waits.delete(playerId)
+        ended = true
+        const clientId = players.get(playerId)?.clientId ?? null // null = caiu: ao voltar, a espera já não está lá
+        const fim: FimDaEspera = wait.who === undefined ? { reason: 'expired' } : { reason: 'expired', who: wait.who }
+        if (clientId !== null) outbound.push({ clientId, msg: { type: 'wait.ended', ...fim } })
+      }
+      if (!ended) return { outbound }
+      // A marca sai do recorte de TODOS: o broadcast que o integrador refaz não pode pular ninguém.
+      viewEpoch += 1
+      return { outbound, waitsChanged: true }
+    },
+
+    nextWaitDeadline() {
+      let next: number | null = null
+      for (const wait of waits.values()) {
+        if (next === null || wait.until < next) next = wait.until
+      }
+      return next
+    },
+
+    answerTokenAction(requestId, accepted, text = '') {
+      const pending = findPendingTokenAction(requestId)
+      if (pending === undefined) return { outbound: [] }
+      pendingTokenActions.delete(pending.playerId)
+      const clientId = players.get(pending.playerId)?.clientId ?? null // null = saiu: não há a quem responder
+      if (clientId === null) return { outbound: [] }
+      const said = clampTokenActionReply(text)
+      const answer: HostMessage =
+        said === '' ? { type: 'token.action.answer', reqId: pending.reqId, accepted } : { type: 'token.action.answer', reqId: pending.reqId, accepted, reply: said }
+      return reply(clientId, answer)
+    },
+
+    isTokenActionPending(requestId) {
+      return findPendingTokenAction(requestId) !== undefined
     },
 
     approveTravel(requestId, source) {
@@ -5248,6 +5637,12 @@ export function createHostSession(options: HostSessionOptions): HostSession {
 
     isDoorRequestPending(requestId) {
       return findPendingDoor(requestId) !== undefined
+    },
+
+    travelRequestStatus(requestId, source) {
+      const pending = findPendingTravel(requestId)
+      if (pending === undefined) return null
+      return { requestedAt: pending.requestedAt, distanceCells: distanceToPinNow(pending, toWorld(source)) }
     },
 
     sendPlayer(playerId, toSceneId, pinId, source, gatherAt) {
@@ -5532,6 +5927,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       // O pedido pendente morre com a conexão: quem voltar não tem mais o
       // "Aguardando o mestre…" na tela, e o aviso do mestre fica inofensivo.
       pendingTravels.delete(playerId)
+      // Idem o pedido de ação: a tela de quem volta não tem mais o "Aguardando".
+      pendingTokenActions.delete(playerId)
       // O gesto morre com a conexão; quem o via apaga a ponta sozinho (REMOTE_LASER_IDLE_MS).
       laserRecipients.delete(playerId)
       // Mesmo para a porta: "Destrancar e abrir" depois da queda não abre nada.
@@ -5845,6 +6242,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     broadcast(source) {
       const world = toWorld(source)
       rev += 1
+      waitsEndedInViews = false
       const outbound: Outbound[] = []
       for (const [clientId, playerId] of byClient) {
         if (statusOf(playerId) !== 'playing') {
@@ -5903,6 +6301,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
         outbound,
         ...(hazards.entries.length === 0 ? {} : { hazardEntries: hazards.entries }),
         ...(triggerEntries.length === 0 ? {} : { triggerEntries }),
+        // ENCONTRO MARCADO: a espera de alguém acabou no recorte (voltou ao lugar).
+        ...(waitsEndedInViews ? { waitsChanged: true as const } : {}),
       }
     },
 
@@ -6156,6 +6556,12 @@ export function createHostSession(options: HostSessionOptions): HostSession {
           if (borrowedFrom.length > 0) info.borrowedFrom = borrowedFrom
           const borrowedTokenIds = info.tokenIds.filter((tokenId) => loans.get(tokenId)?.borrowerId === p.playerId)
           if (borrowedTokenIds.length > 0) info.borrowedTokenIds = borrowedTokenIds
+          const wait = waits.get(p.playerId)
+          if (wait !== undefined) {
+            info.waiting = { until: wait.until }
+            if (wait.who !== undefined) info.waiting.who = wait.who
+            if (wait.where !== undefined) info.waiting.where = wait.where
+          }
           if (withScenes && info.status === 'playing') {
             const scene = sceneFor(p.playerId, world)
             // Sem cena, o painel o mostra aguardando: é o que a tela dele diz, e

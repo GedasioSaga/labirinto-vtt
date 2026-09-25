@@ -74,11 +74,33 @@
   min-width: 0;
 }
 
+/* Campo de resposta do aviso (o que o NPC responde, só a quem pediu): rótulo
+   pequeno em cima, o campo na largura do aviso, logo acima dos botões. */
+.lb-toast__resposta {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-1);
+}
+
+.lb-toast__rotulo {
+  font-size: var(--lb-font-size-xs);
+  color: var(--lb-color-parchment-dim);
+}
+
 .lb-toast__text {
   flex: 1;
   font-size: var(--lb-font-size-sm);
   line-height: var(--lb-font-leading-normal);
   color: var(--lb-color-parchment);
+}
+
+/* Linha viva do pedido ("há 3 min · agora a 20 casas do pino"): pequena e
+   apagada, embaixo da frase — contexto para decidir, não a pergunta. */
+.lb-toast__detalhe {
+  font-size: var(--lb-font-size-xs);
+  line-height: var(--lb-font-leading-normal);
+  color: var(--lb-color-parchment-dim);
+  font-variant-numeric: tabular-nums;
 }
 
 .lb-toast--error {

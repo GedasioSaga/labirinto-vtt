@@ -25,7 +25,11 @@ export type ToastKind = 'info' | 'error' | 'instrucao'
 /** Botão de um aviso. Clicar roda `run` e dispensa o aviso (salvo `mantem`). */
 export interface ToastAction {
   label: string
-  run: () => void
+  /**
+   * `resposta`: o que a pessoa escreveu no campo do aviso (`ToastMessage.resposta`),
+   * já aparado; `''` com o campo vazio. Aviso sem campo, e o "Deixar todos", não passam nada.
+   */
+  run: (resposta?: string) => void
   /**
    * A ação que o "Deixar todos" da caixa roda por este aviso
    * (`components/caixaDeAvisos.ts`). Marcada, e não "a primeira": a ordem
@@ -57,6 +61,16 @@ export interface ToastResposta {
   recentes?: () => readonly string[]
 }
 
+/**
+ * Campo de texto do aviso, acima dos botões: quem responde a pergunta escreve
+ * junto ("o que Severa diz"). O texto vai para a `run` do botão apertado.
+ */
+export interface ToastReplyField {
+  /** O rótulo visível do campo ("Resposta só para Ana (opcional)"). */
+  rotulo: string
+  maxLength: number
+}
+
 export interface ToastMessage {
   id: string
   kind: ToastKind
@@ -85,20 +99,34 @@ export interface ToastMessage {
    * de sempre (caixa só a partir de dois).
    */
   sempreEmCaixa?: boolean
-  /** Campo de resposta do aviso, depois dos botões. Ausente = o aviso não pede texto. */
-  resposta?: ToastResposta
+  /**
+   * Campo de resposta do aviso, de um de dois jeitos: `ToastResposta` (com
+   * `enviar`: o "Responder" do chamado, depois dos botões, manda o texto
+   * sozinho) ou `ToastReplyField` (sem `enviar`: campo acima dos botões, o
+   * texto vai com o botão apertado). Ausente = o aviso não pede texto.
+   */
+  resposta?: ToastResposta | ToastReplyField
   /** Dentro da caixa do grupo, sobe para o topo (o chamado "Urgente"). A ordem de chegada vale entre iguais. */
   urgente?: true
+  /**
+   * Linha pequena embaixo do texto que muda sozinha enquanto o aviso espera
+   * ("há 3 min · agora a 20 casas do pino"): a tela relê de tempos em tempos
+   * (`DETALHE_RELEITURA_MS` em `Toast.tsx`). `''` = nada a mostrar agora.
+   * Função, e não texto: a idade anda com o relógio, sem ninguém empurrar
+   * aviso novo.
+   */
+  detalhe?: () => string
 }
 
-/** Extras de `push`: botões, o que o × faz, o grupo, se ele abre a caixa sozinho, o campo de resposta e a urgência. */
+/** Extras de `push`: botões, o que o × faz, o grupo, se ele abre a caixa sozinho, o campo de resposta, a urgência e a linha viva. */
 export interface ToastExtras {
   actions?: ToastAction[]
   onDismiss?: () => void
   grupo?: string
   sempreEmCaixa?: boolean
-  resposta?: ToastResposta
+  resposta?: ToastResposta | ToastReplyField
   urgente?: boolean
+  detalhe?: () => string
 }
 
 interface ToastState {
@@ -157,6 +185,7 @@ export const useToastStore = create<ToastState>()((set, get) => ({
     if (extras.sempreEmCaixa === true) toast.sempreEmCaixa = true
     if (extras.resposta !== undefined) toast.resposta = extras.resposta
     if (extras.urgente === true) toast.urgente = true
+    if (extras.detalhe !== undefined) toast.detalhe = extras.detalhe
     set((state) => ({ toasts: [...state.toasts, toast] }))
     if (durationMs !== null) {
       timers.set(

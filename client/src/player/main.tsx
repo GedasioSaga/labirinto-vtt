@@ -15,6 +15,8 @@ import { PlayerPinCard } from './PlayerPinCard'
 import { ARRIVAL_CARD_TITLE, PlayerNoteCard } from './PlayerNoteCard'
 import { formatNoteTime } from './PlayerNotebook'
 import { PlayerMarkCard } from './PlayerMarkCard'
+import { PlayerTokenCard } from './PlayerTokenCard'
+import { tokenActionNoticeText, tokenActionReply } from './tokenCard'
 import { PlayerClueCard } from './PlayerClues'
 import { mapSharedNoticeText } from './PlayerMapShare'
 import { coverBounds } from './playerCamera'
@@ -22,6 +24,8 @@ import { PlayerZoomControls } from './PlayerZoomControls'
 import { PlayerSceneName } from './PlayerSceneName'
 import { PlayerScreenAwake } from './PlayerScreenAwake'
 import { useScreenWakeLock } from './screenWakeLock'
+import { PlayerWhereAmI } from './PlayerWhereAmI'
+import { whereAmI } from './whereAmI'
 import { NO_ZOOM_STEP, type ZoomDirection, type ZoomLimits, type ZoomStepRequest } from './playerZoom'
 import { PlayerAlarmBanner } from './PlayerAlarmBanner'
 import { PlayerTurnBanner, TurnWaitNotice } from './PlayerTurnBanner'
@@ -66,6 +70,7 @@ import {
 import type { FocusPointRequest } from './PlayerView'
 import { floorShown, PlayerFloorTabs } from './PlayerFloorTabs'
 import type { RegionPoint } from '../types/map'
+import { textoDoFimDaEspera } from '../lib/encontroMarcado'
 import './player.css'
 
 // Página do jogador: entra com código + nome, espera o mestre e mostra o mapa.
@@ -656,6 +661,8 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
     if (walker === undefined) return null
     return findKnownPath(map, walker, { x: pointMenu.x, y: pointMenu.y }, { explored: state.explored, vision: state.vision, concealed: state.concealed ?? [] })
   }, [pointMenu, state.map, state.explored, state.vision, state.concealed])
+  /** Ficha ALHEIA aberta no cartão de ações; `null` = fechado. */
+  const [openTokenId, setOpenTokenId] = useState<string | null>(null)
   /** Último toque nos botões + e − (o `PlayerView` aplica o degrau) e o que eles ainda podem fazer. */
   const [zoomStep, setZoomStep] = useState<ZoomStepRequest>(NO_ZOOM_STEP)
   const [zoomLimits, setZoomLimits] = useState<ZoomLimits>({ canZoomIn: true, canZoomOut: true })
@@ -724,7 +731,22 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
   }, [measureArmed, laserArmed, destinationArmed, noteArmed])
 
   const ownTokens = state.ownTokens ?? NO_TOKENS
+  // ENCONTRO MARCADO: a marca "esperando". Mesma referência estável dos tokens: sem ninguém esperando, nada a redesenhar.
+  const waitingTokens = state.waitingTokens ?? NO_TOKENS
   const map = state.map
+
+  // ATALHO NA MESMA CENA: o mapa não mudou, então a câmera não reenquadra
+  // sozinha. Cada chegada assim centra a ficha que atravessou (não a primeira
+  // dele: com duas fichas, o host diz qual foi), pelo mesmo caminho do
+  // "Minha ficha" (o pulso mostra onde ela foi parar). Um objeto novo por
+  // chegada: a ficha andando depois não move a câmera.
+  const arrivalFocus = state.arrivalFocus
+  useEffect(() => {
+    const arrivedTokenId = arrivalFocus?.tokenId ?? null
+    if (arrivedTokenId === null) return
+    setFocus((current) => ({ tokenId: arrivedTokenId, seq: current.seq + 1 }))
+  }, [arrivalFocus])
+
   const characters = useMemo(() => {
     if (!map) return []
     const byId = new Map(map.tokens.map((t) => [t.id, t]))
@@ -752,6 +774,12 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
     return (token === undefined ? null : selectedTokenColor(token)) ?? OWN_TOKEN_CSS
   }, [map, ownTokens])
 
+  // FAIXA "ONDE ESTOU": o caminho da Sala da ficha em foco, lido do mapa que
+  // já chegou (o recorte decide o que ela pode dizer). Recalcula a cada
+  // snapshot, não a cada quadro do arrasto: o arrasto é local ao `PlayerView`.
+  const where = useMemo(() => (map ? whereAmI(map, ownTokens, focus.tokenId) : null), [map, ownTokens, focus.tokenId])
+  const focusToken = useCallback((tokenId: string) => setFocus((current) => ({ tokenId, seq: current.seq + 1 })), [])
+
   function changeSettings(next: PlayerViewSettings) {
     setSettings(next)
     savePlayerSettings(localStorageOrNull(), next)
@@ -770,16 +798,29 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
   const closeRoomText = useCallback(() => connection.dismissRoomText(), [connection])
   const closeAwayNotes = useCallback(() => connection.dismissAwayNotes(), [connection])
   const awayNotes = state.awayNotes ?? NO_NOTES
+  const closeActionReply = useCallback(() => connection.dismissTokenAction(), [connection])
   // Estável: o painel marca o Caderno como lido num efeito que depende dela.
   const readNotebook = useCallback(() => connection.markNotebookRead(), [connection])
   // MINHAS PISTAS: abrir o cartão do pino é ler — o host guarda a pista no Caderno.
   const openPinCard = useCallback(
     (pinId: string) => {
+      setOpenTokenId(null)
       setOpenPinId(pinId)
       connection.readClue(pinId)
     },
     [connection],
   )
+  // A ficha pode sumir do recorte (andou para o escuro, o mestre a escondeu)
+  // ou virar do jogador com o cartão aberto: aí o cartão fecha sozinho.
+  const openToken =
+    openTokenId === null || ownTokens.includes(openTokenId) ? null : (map?.tokens ?? []).find((t) => t.id === openTokenId) ?? null
+  // Estável pelo mesmo motivo do cartão do pino: o Escape e o "tocar fora" religam quando `onClose` muda.
+  const closeTokenCard = useCallback(() => setOpenTokenId(null), [])
+  const openTokenCard = useCallback((tokenId: string) => {
+    // Um cartão por vez no mesmo lugar: a ficha toma o lugar do pino aberto.
+    setOpenPinId(null)
+    setOpenTokenId(tokenId)
+  }, [])
   const openClue = openClueId === null ? null : (state.clues ?? []).find((clue) => clue.id === openClueId) ?? null
   // Estável pelo mesmo motivo dos outros cartões: o Escape e o "tocar fora" religam quando `onClose` muda.
   const closeClue = useCallback(() => {
@@ -789,6 +830,9 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
   const closeShownClue = useCallback(() => connection.dismissShownClue(), [connection])
   const closeMark = useCallback(() => setOpenMarkId(null), [])
   const askCluePeers = useCallback(() => connection.askCluePeers(), [connection])
+  const startWait = useCallback((minutes: number, who: string, where: string) => connection.startWait(minutes, who, where), [connection])
+  const stopWait = useCallback(() => connection.stopWait(), [connection])
+  const closeWaitEnded = useCallback(() => connection.dismissWaitEnded(), [connection])
   /** Painel e barra do jogador: a câmera lê, na hora, o que eles cobrem do mapa. */
   const panelRef = useRef<HTMLElement | null>(null)
   const barRef = useRef<HTMLDivElement | null>(null)
@@ -811,6 +855,10 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
     const walkerId = ownTokens.flatMap((id) => playingMap.tokens.filter((t) => t.id === id)).at(0)?.id ?? null
     // Cartão de pista na tela: o Escape é dele, e um toque não pode fechar também o recado.
     const clueCardOpen = openClue !== null || (state.shownClue !== undefined && openPin === null)
+    // Cartão do pino ou da ficha aberto: o Escape é dele, e não fecha junto os cartões de baixo.
+    const noCardOnTop = openPin === null && openToken === null
+    // Resposta do mestre com texto: vira cartão, no lugar do aviso curto.
+    const actionReply = state.tokenAction === undefined ? null : tokenActionReply(state.tokenAction)
     // Outro andar: a memória dele de lá, sem visão, sem ficha e sem toque que peça algo ao mestre.
     const otherFloor = floorTab === null ? null : floorShown(state.andares, floorTab)
     return (
@@ -839,6 +887,7 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
             hazards={state.hazards}
             gatilhos={state.gatilhos}
             ownTokens={ownTokens}
+            waitingTokens={waitingTokens}
             turnTokenId={state.turn ?? null}
             settings={settings}
             focusTokenId={focus.tokenId}
@@ -875,6 +924,7 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
             playerLasers={state.playerLasers ?? NO_PLAYER_LASERS}
             onDoorToggle={(wallId) => connection.toggleDoor(wallId)}
             onPinOpen={openPinCard}
+            onTokenOpen={openTokenCard}
             onRoomOpen={(regionId) => connection.openRoomText(regionId)}
             onMarkOpen={setOpenMarkId}
             focusObstacles={mapObstacles}
@@ -899,7 +949,7 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
           characterColor={OWN_TOKEN_CSS}
           settings={settings}
           onSettingsChange={changeSettings}
-          onFocusToken={(tokenId) => setFocus((current) => ({ tokenId, seq: current.seq + 1 }))}
+          onFocusToken={focusToken}
           onFocusPoint={(point) => focusOnPoint(point.x, point.y)}
           pins={state.map.pins ?? NO_PINS}
           places={state.places ?? NO_PLACES}
@@ -988,13 +1038,17 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
             onPlace: (intent) => connection.placeMark(intent),
             onClose: () => connection.resetMarkPlace(),
           }}
+          wait={state.wait}
+          onStartWait={startWait}
+          onStopWait={stopWait}
         />
         {/* DADO ROLADO NA SALA: as últimas rolagens da mesa, sobre o mapa, acima do zoom. Não é controle: fora da ordem do Tab. */}
         <DiceFeed rolls={state.diceRolls ?? NO_DICE_ROLLS} className="pp-dice-feed" />
         {/* "Onde estou": só com nome público na cena; não é controle, fica fora da ordem do Tab. */}
         <PlayerSceneName name={state.sceneName} />
         <PlayerScreenAwake active={screenAwake} />
-        {/* Depois do painel no DOM: o Tab segue a leitura (painel no alto à esquerda, zoom embaixo à direita). */}
+        {/* Depois do painel no DOM: o Tab segue a leitura (painel no alto à esquerda, faixa no alto à direita, zoom embaixo à direita). */}
+        <PlayerWhereAmI where={where} showTokenName={ownTokens.length > 1} onFocus={focusToken} />
         <PlayerZoomControls canZoomIn={zoomLimits.canZoomIn} canZoomOut={zoomLimits.canZoomOut} onZoom={requestZoomStep} />
         <PlayerTurnBanner turn={state.turn} ownTokens={ownTokens} tokens={state.map.tokens} />
         {noteDraft && (
@@ -1037,6 +1091,19 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
             lockPhase={state.lockAnswer?.pinId === openPin.id ? state.lockAnswer.phase : undefined}
           />
         )}
+        {/* AGIR SOBRE UMA FICHA: o cartão da ficha alheia. Enviado, ele sai: a
+            espera e a resposta ficam no aviso de baixo, e o mapa volta à vista. */}
+        {openToken && (
+          <PlayerTokenCard
+            key={openToken.id}
+            token={openToken}
+            onClose={closeTokenCard}
+            waiting={state.tokenAction?.phase === 'waiting'}
+            onSend={(action, text) => {
+              if (connection.requestTokenAction(openToken.id, action, text)) setOpenTokenId(null)
+            }}
+          />
+        )}
         {/* MINHAS PISTAS: a pista reaberta do Caderno, com "Mostrar para…".
             Some sozinha se sair do caderno (o `clues.book` da volta não a tem). */}
         {openClue && (
@@ -1045,7 +1112,7 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
             clue={openClue}
             title={openClue.title}
             onClose={closeClue}
-            escapeCloses={openPin === null}
+            escapeCloses={noCardOnTop}
             share={{
               peers: state.cluePeers,
               result: state.clueShow,
@@ -1061,7 +1128,7 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
             clue={state.shownClue.clue}
             title={`${state.shownClue.from} mostrou: ${state.shownClue.clue.title}`}
             onClose={closeShownClue}
-            escapeCloses={openPin === null}
+            escapeCloses={noCardOnTop}
             arrivedUnasked
           />
         )}
@@ -1087,7 +1154,7 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
             title={ARRIVAL_CARD_TITLE}
             text={state.arrival.text}
             onClose={closeArrival}
-            escapeCloses={openPin === null && !clueCardOpen}
+            escapeCloses={noCardOnTop && !clueCardOpen}
           />
         ) : awayNotes.length > 0 ? (
           // ENQUANTO VOCÊ ESTEVE FORA: os recados que chegaram com ele fora do
@@ -1097,7 +1164,7 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
             title={`Enquanto você esteve fora (${awayNotes.length})`}
             hint={AWAY_KEPT_HINT}
             onClose={closeAwayNotes}
-            escapeCloses={openPin === null && !clueCardOpen}
+            escapeCloses={noCardOnTop && !clueCardOpen}
           >
             <ol className="pp-notebook">
               {awayNotes.map((note) => (
@@ -1116,23 +1183,36 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
               text={state.note.text}
               hint={NOTE_KEPT_HINT}
               onClose={closeNote}
-              escapeCloses={openPin === null && !clueCardOpen}
+              escapeCloses={noCardOnTop && !clueCardOpen}
               onlyYou={state.note.onlyYou === true}
               seta={state.note.seta}
               forte={state.note.forte === true}
             />
           )
         )}
+        {/* AGIR SOBRE UMA FICHA: a resposta do mestre em TEXTO (o que o NPC
+            responde), só a quem pediu. O mesmo cartão do recado, e a mesma
+            fila: espera a chegada, os recados de fora e o recado fecharem, e o
+            texto da sala espera por ela. */}
+        {actionReply !== null && state.tokenAction && !state.note && !state.arrival && awayNotes.length === 0 && (
+          <PlayerNoteCard
+            key={state.tokenAction.id}
+            title={tokenActionNoticeText(state.tokenAction)}
+            text={actionReply}
+            onClose={closeActionReply}
+            escapeCloses={noCardOnTop && !clueCardOpen}
+          />
+        )}
         {/* TEXTO DA SALA: o mesmo cartão, com o nome da Sala no alto. Um
             cartão de cada vez no mesmo lugar: com recado aberto, o texto da
             sala espera o recado fechar em vez de ficar por baixo dele. */}
-        {state.roomText && !state.note && !state.arrival && awayNotes.length === 0 && (
+        {state.roomText && !state.note && !state.arrival && awayNotes.length === 0 && actionReply === null && (
           <PlayerNoteCard
             key={state.roomText.id}
             title={state.roomText.title || 'Ao entrar'}
             text={state.roomText.text}
             onClose={closeRoomText}
-            escapeCloses={openPin === null && !clueCardOpen}
+            escapeCloses={noCardOnTop && !clueCardOpen}
           />
         )}
         {state.paused && (
@@ -1161,9 +1241,9 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
         <PlayerMarkCard
           marcas={state.map.marcas}
           openMarkId={openMarkId}
-          aguardando={Boolean(state.arrival) || awayNotes.length > 0 || Boolean(state.note) || Boolean(state.roomText)}
+          aguardando={Boolean(state.arrival) || awayNotes.length > 0 || Boolean(state.note) || actionReply !== null || Boolean(state.roomText)}
           onClose={closeMark}
-          escapeCloses={openPin === null && !clueCardOpen}
+          escapeCloses={noCardOnTop && !clueCardOpen}
         />
         {state.travel && (
           <p key={state.travel.id} className="pp-notice pp-notice--travel" role="status" aria-live="polite">
@@ -1226,6 +1306,11 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
           </p>
         )}
         <PeekDoorButton map={state.map} ownTokens={ownTokens} onPeek={(wallId) => connection.peekDoor(wallId)} />
+        {state.tokenAction && actionReply === null && (
+          <p key={state.tokenAction.id} className="pp-notice pp-notice--action" role="status" aria-live="polite">
+            {tokenActionNoticeText(state.tokenAction)}
+          </p>
+        )}
         {actionNotice && moveNoticeShown && (
           // `key` no id: o mesmo aviso repetido reinicia a animação de entrada.
           <p key={actionNotice.id} className="pp-notice" role="status" aria-live="polite">
@@ -1244,6 +1329,15 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
           <p key={state.hazardNotice.id} className="pp-notice" role="alert">
             {hazardNoticeText(state.hazardNotice.kind)}
           </p>
+        )}
+        {/* ENCONTRO MARCADO: "Bia chegou" / "O prazo acabou". Quem espera costuma olhar a mesa: fica até fechar ou 1 min. */}
+        {state.waitEnded && (
+          <div key={state.waitEnded.id} className="pp-notice pp-notice--wait" role="status" aria-live="polite">
+            <span>{textoDoFimDaEspera(state.waitEnded.end)}</span>
+            <button type="button" className="pp-notice__close" onClick={closeWaitEnded}>
+              Fechar
+            </button>
+          </div>
         )}
         {reconnecting}
       </PlayerErrorBoundary>

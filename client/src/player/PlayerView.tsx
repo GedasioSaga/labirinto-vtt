@@ -84,6 +84,7 @@ import { resolveTokenRelease } from './tokenRelease'
 import { findTapTarget, holdBecomesSignal, type TapTarget } from './tapTarget'
 import { createTokenGlides, stepGlides, syncGlide, type TokenGlides } from './tokenGlide'
 import { applyTokenTouch, prepareTokenLayer } from './tokenTouch'
+import { findTappedOtherToken } from './tokenCard'
 import {
   NO_TOUCH,
   NO_ZOOM_STEP,
@@ -108,6 +109,7 @@ import { reachOutline } from '../lib/movementRules'
 import { personalNoteAtScreen, type PersonalNote } from './personalNotes'
 import { createPersonalNotesRenderer } from './drawPersonalNotes'
 import { applyRoofCut } from './roofCut'
+import { rotuloDaFicha } from '../lib/encontroMarcado'
 
 /** Pedido de "leve a câmera até este ponto" (Minhas notas e os pontos conhecidos da aba Lugares). */
 export interface FocusPointRequest {
@@ -134,6 +136,11 @@ interface PlayerViewProps {
   ownTokens: string[]
   /** INICIATIVA: a ficha da vez (sempre uma de `map.tokens`), que ganha o anel da vez. */
   turnTokenId?: string | null
+  /**
+   * ENCONTRO MARCADO: fichas com a marca "esperando" (o nome ganha
+   * "· esperando"). Já vem do recorte do mestre: só ficha que o jogador vê.
+   */
+  waitingTokens?: readonly string[]
   settings: PlayerViewSettings
   /** Token a centralizar. `focusSeq` muda a cada pedido, para repetir o mesmo token. */
   focusTokenId: string | null
@@ -168,6 +175,8 @@ interface PlayerViewProps {
   onDoorToggle?: (wallId: string) => void
   /** Toque curto num pino: abre o cartão do ponto de interesse. */
   onPinOpen?: (pinId: string) => void
+  /** Toque curto numa ficha ALHEIA: abre o cartão dela, com as ações que viram pedido ao mestre. */
+  onTokenOpen?: (tokenId: string) => void
   /** Toque curto no nome de uma Sala cujo texto já chegou: reabre o texto da sala. */
   onRoomOpen?: (regionId: string) => void
   /** BILHETE NO LUGAR: toque curto num bilhete deixado no chão abre o cartão dele. */
@@ -430,7 +439,7 @@ function roomLabelObstacles(map: MapData): LabelObstacle[] {
  * máscara da foto, e as marcas de condição); a textura chega depois e é
  * assunto de `syncTokenPhoto`. Exportada para o teste da condição na ficha.
  */
-export function paintTokenView(view: TokenView, token: Token, grid: number, own: boolean, turn = false): void {
+export function paintTokenView(view: TokenView, token: Token, grid: number, own: boolean, turn = false, waiting = false): void {
   const radius = tokenRadius(token, grid)
   // A cor que o MESTRE deu à ficha vale aqui também: a separação entre aliado
   // e inimigo não serve de nada se só o mestre a enxerga. Sem cor escolhida,
@@ -472,7 +481,9 @@ export function paintTokenView(view: TokenView, token: Token, grid: number, own:
   drawWatchAlert(view.alert, watchAlertOf(token), radius)
   view.hasHealth = health !== null
   // Só o texto: onde o nome fica depende do bico, da barra e do zoom (`syncFacingNib`).
-  view.label.text = token.name
+  // ENCONTRO MARCADO: a marca "esperando" vai no próprio nome — o mapa fica o
+  // minimapa limpo de sempre, sem ícone novo por cima da ficha.
+  view.label.text = rotuloDaFicha(token.name, waiting)
 }
 
 /** Aro de dono no zoom atual; só refaz quando raio, dono ou zoom mudam. */
@@ -555,7 +566,7 @@ function syncTokenPhoto(view: TokenView, token: Token, grid: number): void {
 }
 
 /** Exportada para o teste da condição na ficha (`PlayerView.condicoes.test.ts`). */
-export function createTokenView(token: Token, grid: number, own: boolean, turn = false): TokenView {
+export function createTokenView(token: Token, grid: number, own: boolean, turn = false, waiting = false): TokenView {
   const wrapper = new Container()
   const body = new Graphics()
   const photo = new Sprite(Texture.EMPTY)
@@ -595,11 +606,11 @@ export function createTokenView(token: Token, grid: number, own: boolean, turn =
     label,
     marks,
     alert,
-    key: tokenViewKey(token, grid, own, turn),
+    key: tokenViewKey(token, grid, own, turn, waiting),
     loadedPhoto: null,
     loadSeq: 0,
   }
-  paintTokenView(view, token, grid, own, turn)
+  paintTokenView(view, token, grid, own, turn, waiting)
   return view
 }
 
@@ -616,7 +627,7 @@ function sizeTokenLabel(label: Text, cameraScale: number, showNames: boolean): v
  * caracteres e entraria nesta chave a cada quadro — a troca de uma foto por
  * outra é tratada em `syncTokenPhoto`, que compara a referência uma vez só.
  */
-export function tokenViewKey(token: Token, grid: number, own: boolean, turn = false): string {
+export function tokenViewKey(token: Token, grid: number, own: boolean, turn = false, waiting = false): string {
   // `token.color` entra na chave: sem isto, o mestre troca a cor e a tela do
   // jogador continua com a tinta velha até o token mudar de nome ou tamanho.
   // A vida também: a barra do jogador acompanha cada golpe que o mestre anota.
@@ -626,7 +637,8 @@ export function tokenViewKey(token: Token, grid: number, own: boolean, turn = fa
   // mandar repintar nada. `turn` também: a vez andar repinta só as duas fichas
   // que ganham/perdem o anel.
   // A marca do guarda também: sem ela o "!" ficaria na tela depois de ele perder o jogador de vista.
-  return JSON.stringify([token.name, token.size, grid, own, tokenPhotoRef(token) !== null, token.color ?? null, healthKey, tokenConditionsOf(token), turn, watchAlertOf(token)])
+  // `waiting` idem: a marca "esperando" (ENCONTRO MARCADO) entra e sai sem o nome mudar.
+  return JSON.stringify([token.name, token.size, grid, own, tokenPhotoRef(token) !== null, token.color ?? null, healthKey, tokenConditionsOf(token), turn, watchAlertOf(token), waiting])
 }
 
 interface Scene {
@@ -1030,6 +1042,8 @@ const NO_CONCEALED: RegionPoint[][] = []
 const NO_HAZARDS: readonly PlayerHazard[] = []
 /** Mesmo motivo, para o gatilho de área. */
 const NO_TRIGGERS: readonly PlayerAreaTrigger[] = []
+/** Referência estável: sem ninguém esperando, o redesenho não dispara à toa. */
+const NO_WAITING: readonly string[] = []
 
 export function PlayerView({
   map,
@@ -1042,6 +1056,7 @@ export function PlayerView({
   peek,
   ownTokens,
   turnTokenId = null,
+  waitingTokens = NO_WAITING,
   settings,
   focusTokenId,
   focusSeq,
@@ -1057,6 +1072,7 @@ export function PlayerView({
   measureArmed = false,
   onDoorToggle,
   onPinOpen,
+  onTokenOpen,
   onRoomOpen,
   onMarkOpen,
   laser,
@@ -1091,6 +1107,7 @@ export function PlayerView({
     peek,
     ownTokens,
     turnTokenId,
+    waitingTokens,
     settings,
     onMove,
     signals,
@@ -1104,6 +1121,7 @@ export function PlayerView({
     measureArmed,
     onDoorToggle,
     onPinOpen,
+    onTokenOpen,
     onRoomOpen,
     onMarkOpen,
     laser,
@@ -1362,6 +1380,21 @@ export function PlayerView({
   }
 
   /**
+   * Ficha ALHEIA sob o ponto da TELA, com a mesma folga de dedo do pino. Só
+   * quando alguém ouve o toque: no espelho do mestre ("Ver tela") não há
+   * cartão, e a ficha não pode virar alvo de cursor à toa. Porta sob o mesmo
+   * dedo: a ficha só ganha no miolo dela (`findTappedOtherToken`) — senão a
+   * porta ao lado de um NPC nunca mais abria pelo toque.
+   */
+  function otherTokenAtScreen(scene: Scene, screenX: number, screenY: number): string | null {
+    const { map, ownTokens: own, onTokenOpen: open } = latestRef.current
+    if (open === undefined) return null
+    const point = scene.world.toLocal({ x: screenX, y: screenY })
+    const token = findTappedOtherToken(map.tokens, own, visibleWalls(map), point, map.grid, DOOR_TAP_TOLERANCE_PX / scene.camera.scale)
+    return token === null ? null : token.id
+  }
+
+  /**
    * TEXTO DA SALA: Sala cujo NOME está sob o ponto da tela e cujo texto já
    * chegou ao jogador. A caixa do rótulo é medida com todas as Salas (o rótulo
    * desvia das filhas) e com as fichas (o rótulo sai de baixo delas), como no
@@ -1402,6 +1435,7 @@ export function PlayerView({
       peek: currentPeek,
       ownTokens: own,
       turnTokenId: currentTurn,
+      waitingTokens: waiting,
       settings: currentSettings,
     } = latestRef.current
     const hidden = currentMap.hiddenLayers
@@ -1492,6 +1526,7 @@ export function PlayerView({
     // sai da visão só fica invisível; se voltar, a mesma view é reusada. A
     // memória fica limitada ao número de tokens já vistos; tudo morre no app.destroy.
     const ownSet = new Set(own)
+    const waitingSet = new Set(waiting)
     const currentIds = new Set(currentMap.tokens.map((t) => t.id))
     for (const [id, view] of scene.tokenViews) {
       if (currentIds.has(id)) continue
@@ -1509,7 +1544,8 @@ export function PlayerView({
     for (const token of currentMap.tokens) {
       const isOwn = ownSet.has(token.id)
       const isTurn = token.id === currentTurn
-      const key = tokenViewKey(token, currentMap.grid, isOwn, isTurn)
+      const isWaiting = waitingSet.has(token.id)
+      const key = tokenViewKey(token, currentMap.grid, isOwn, isTurn, isWaiting)
       let view = scene.tokenViews.get(token.id)
       // Onde a ficha está desenhada agora; `null` = não estava na tela (nova, ou
       // voltando para a visão): aparece no lugar, sem vir de onde estava escondida.
@@ -1518,13 +1554,13 @@ export function PlayerView({
       const shownFacing = view?.wrapper.visible === true && view.facing !== null ? view.facingNib.rotation : null
       if (!view) {
         const tokenId = token.id
-        view = createTokenView(token, currentMap.grid, isOwn, isTurn)
+        view = createTokenView(token, currentMap.grid, isOwn, isTurn, isWaiting)
         view.wrapper.on('pointerdown', (event: FederatedPointerEvent) => startTokenDrag(scene, tokenId, event))
         scene.tokens.addChild(view.wrapper)
         scene.tokenViews.set(tokenId, view)
       } else if (view.key !== key) {
         view.key = key
-        paintTokenView(view, token, currentMap.grid, isOwn, isTurn)
+        paintTokenView(view, token, currentMap.grid, isOwn, isTurn, isWaiting)
       }
       // Fora do `if` de propósito: trocar uma foto por outra não muda a chave.
       syncTokenPhoto(view, token, currentMap.grid)
@@ -1566,6 +1602,7 @@ export function PlayerView({
       el.dataset.propLabelsCount = String(scene.propLooksCount.labels)
       el.dataset.propImagesCount = String(scene.propLooksCount.images)
       el.dataset.ownTokens = own.join(',')
+      el.dataset.waitingTokens = currentMap.tokens.filter((t) => waitingSet.has(t.id)).map((t) => t.id).join(',')
     }
 
     if (scene.fittedMapId !== currentMap.id) {
@@ -2125,6 +2162,8 @@ export function PlayerView({
         if (!holdBecomesSignal(tapTargetAtScreen(scene, x, y))) return
         // O bilhete no chão é controle do mesmo jeito: segurar em cima dele é querer ler.
         if (markAtScreen(scene, x, y) !== null) return
+        // Idem a ficha alheia: o toque nela é para abrir o cartão.
+        if (otherTokenAtScreen(scene, x, y) !== null) return
         const timer = setTimeout(() => {
           longPress = null
           // Virou sinal: o gesto não continua como arrasto de câmera.
@@ -2172,6 +2211,7 @@ export function PlayerView({
             !latestRef.current.signalArmed &&
             (tapTargetAtScreen(scene, event.global.x, event.global.y).kind !== 'map' ||
               markAtScreen(scene, event.global.x, event.global.y) !== null ||
+              otherTokenAtScreen(scene, event.global.x, event.global.y) !== null ||
               roomTextAtScreen(scene, event.global.x, event.global.y) !== null)
           app.stage.cursor = overTappable ? 'pointer' : 'default'
           return
@@ -2237,6 +2277,13 @@ export function PlayerView({
           const markId = latestRef.current.onMarkOpen === undefined ? null : markAtScreen(scene, drag.startX, drag.startY)
           if (markId !== null) {
             latestRef.current.onMarkOpen?.(markId)
+            return
+          }
+          // A ficha é desenhada por cima da porta e do nome da Sala: vem antes
+          // deles — mas com porta sob o dedo, só o miolo da ficha abre o cartão.
+          const tokenId = otherTokenAtScreen(scene, drag.startX, drag.startY)
+          if (tokenId !== null) {
+            latestRef.current.onTokenOpen?.(tokenId)
             return
           }
           if (target.kind === 'door') {
@@ -2364,7 +2411,7 @@ export function PlayerView({
   useEffect(() => {
     const scene = sceneRef.current
     if (scene) redraw(scene)
-  }, [map, vision, explored, concealed, glimpses, hazards, gatilhos, peek, ownTokens, turnTokenId, settings])
+  }, [map, vision, explored, concealed, glimpses, hazards, gatilhos, peek, ownTokens, waitingTokens, turnTokenId, settings])
 
   useEffect(() => {
     // Contagem para o e2e (o desenho em si é do ticker); muda quando chega ou expira um sinal.

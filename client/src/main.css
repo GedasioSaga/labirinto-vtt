@@ -4474,6 +4474,50 @@ html.lb-arrastando-cena * {
   color: var(--lb-color-parchment-dim);
 }
 
+/* A linha com o "Mandar ficha" ao lado: o botão grande continua sendo a
+   linha inteira, e o pequeno fica na ponta, como o Limpar do campo. */
+.lb-objetos__linha-acoes {
+  display: flex;
+  align-items: center;
+  gap: var(--lb-space-1);
+}
+
+.lb-objetos__linha-acoes > .lb-objetos__item {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.lb-objetos__mandar {
+  flex: none;
+}
+
+/* Achado de OUTRA cena: o nome em cima e, embaixo, o caminho de onde mora —
+   numa torre de 99 cenas o caminho é o que separa as duas "Cozinha". */
+.lb-objetos__item--fora {
+  min-height: 40px;
+  padding-top: var(--lb-space-1);
+  padding-bottom: var(--lb-space-1);
+}
+
+.lb-objetos__texto {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.lb-objetos__caminho {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-parchment-faint);
+}
+
+.lb-objetos__pergunta {
+  margin: var(--lb-space-1) 0 var(--lb-space-2);
+}
+
 .lb-objetos__vazio {
   margin: 0;
   font-size: var(--lb-font-size-sm);

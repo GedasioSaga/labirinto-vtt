@@ -69,7 +69,9 @@ import {
   parseSceneAlarm,
   parseSceneAlarmEnd,
   parseSceneNote,
+  parseTokenActionHostMessage,
   parseTravelDenyText,
+  parseWaitHostMessage,
   type CallRaiseMessage,
   type CallReason,
   type ClueEntry,
@@ -78,6 +80,7 @@ import {
   type OwnTokenElsewhere,
   type PartyMember,
   type PointActionReply,
+  type WaitSetMessage,
   isSeatClaimState,
   isSecretCheckResult,
   parseNoiseMessage,
@@ -103,6 +106,9 @@ import { parseArrivalText } from '../lib/arrivalText'
 import { NOISE_CUE_TTL_MS, type NoiseDirection } from '../lib/noise'
 import { applyMapPatch, type MapPatch, type TokenChange } from '../net/viewPatch'
 import { LOCK_ANSWER_MAX_LENGTH } from '../lib/pinLock'
+import { TOKEN_ACTION_TEXT_MAX_LENGTH, type TokenAction } from '../lib/tokenActions'
+import { tokenCardName, type TokenActionNotice } from './tokenCard'
+import { ESPERA_ONDE_MAX_LENGTH, isWaitMinutes, type FimDaEspera } from '../lib/encontroMarcado'
 
 /**
  * Cliente WebSocket do jogador, sem React e sem DOM: o socket e o storage são
@@ -214,6 +220,15 @@ export interface PlayerState {
   lever?: { id: number; phase: LeverPhase }
   /** FECHADURA COM SEGREDO: a última tentativa, no pino `pinId`, e a resposta do host. */
   lockAnswer?: { pinId: string; phase: LockAnswerPhase }
+  /**
+   * ATALHO NA MESMA CENA: um objeto novo a cada chegada em que o mapa NÃO
+   * mudou de id (`scene.changed` e, logo atrás, um snapshot do mesmo mapa).
+   * `seq` sobe a cada chegada; `tokenId` é a ficha que atravessou (a que o
+   * host disse), que a tela centra — mapa novo não precisa, porque já chega
+   * enquadrado. `tokenId: null` = nenhuma ficha dele no mapa. Ausente =
+   * nenhuma chegada assim ainda.
+   */
+  arrivalFocus?: { seq: number; tokenId: string | null }
   /**
    * Recado do mestre para a cena do jogador. Fica até ele fechar
    * (`dismissNote`); um recado novo toma o lugar do aberto. É texto puro: a
@@ -351,6 +366,18 @@ export interface PlayerState {
   mapShared?: { id: number; from: string | null }
   /** BILHETE NO LUGAR: a última marca que ele tentou deixar e o que o host respondeu. */
   markPlace?: MarkPlace
+  /** AGIR SOBRE UMA FICHA: o pedido esperando o mestre, ou a resposta dele. */
+  tokenAction?: TokenActionNotice
+  /**
+   * ENCONTRO MARCADO: a espera do jogador, como o mestre a confirmou. `until`
+   * é o prazo no relógio DESTA tela (a chegada do `wait.state` mais o que
+   * faltava): o relógio do mestre é outro.
+   */
+  wait?: OwnWait
+  /** ENCONTRO MARCADO: o aviso de que a espera acabou ("Bia chegou"); `id` novo repete o aviso. */
+  waitEnded?: { id: number; end: FimDaEspera }
+  /** ENCONTRO MARCADO: ids das fichas do mapa recebido com a marca "esperando". */
+  waitingTokens?: string[]
   rev: number
   playerId?: string
   /** Motivo quando `status === 'error'`: razão do mestre ou 'connection_lost'. */
@@ -433,6 +460,13 @@ export type MarkPlaceIntent = { tipo: 'bilhete'; texto: string } | { tipo: 'seta
 export const MARK_PLACE_TIMEOUT_MS = 5000
 
 export type CluePeers = { phase: 'loading' } | { phase: 'ready'; names: string[] }
+
+/** A espera do próprio jogador: quem ele espera, onde, e o prazo no relógio desta tela (ms). */
+export interface OwnWait {
+  who?: string
+  where?: string
+  until: number
+}
 
 export interface ClueShow {
   to: string
@@ -720,6 +754,30 @@ export interface PlayerConnection {
    * (e nada sai) quando a ficha não está na lista de fora ou o socket caiu.
    */
   switchView(tokenId: string): boolean
+  /**
+   * AGIR SOBRE UMA FICHA: pede ao mestre `action` sobre a ficha ALHEIA
+   * `tokenId`, com o texto opcional (aparado; só espaço = sem texto). `false`
+   * (e nada sai) quando não joga, a ficha não está no mapa dele ou é dele, o
+   * texto passa do teto, já há um pedido esperando ou o socket não está aberto.
+   */
+  requestTokenAction(tokenId: string, action: TokenAction, text?: string): boolean
+  /**
+   * Fecha a resposta do mestre ao pedido de ação (o cartão com o texto dele).
+   * O pedido que ainda espera o mestre não se fecha: ele some com a resposta.
+   */
+  dismissTokenAction(): void
+  /**
+   * ENCONTRO MARCADO: "Esperar aqui" por `minutes`, esperando `who` (o nome do
+   * colega; vazio = qualquer um) em `where` (texto livre). Tudo aparado; vazio
+   * não vai. `false` (e nada sai) quando não joga, o prazo não vale, algum
+   * texto passa do teto ou o socket não está aberto. A espera só aparece na
+   * tela quando o mestre confirma (`wait.state`).
+   */
+  startWait(minutes: number, who?: string, where?: string): boolean
+  /** "Parar de esperar": sai na hora da tela e avisa o mestre. `false` se o socket não está aberto. */
+  stopWait(): boolean
+  /** Fecha o aviso do fim da espera antes do tempo. */
+  dismissWaitEnded(): void
   /** Abre um socket novo (reconectar), reaproveitando o resumeToken guardado. */
   reconnect(): void
   /**
@@ -827,6 +885,13 @@ export const MANUAL_RECONNECT_AFTER_MS = 30_000
  * é abandonada depois disto: sem o prazo, ela prenderia a reconexão para sempre.
  */
 export const RECONNECT_ATTEMPT_TIMEOUT_MS = 8_000
+/** Quanto tempo a resposta do mestre ao pedido de ação ("O mestre aceitou: Empurrar Severa") fica na tela. */
+export const TOKEN_ACTION_NOTICE_TTL_MS = 5000
+/**
+ * "Bia chegou" / "O prazo acabou": quem espera costuma estar olhando a mesa, e
+ * não a tela — mesmo teto do "Você chegou". Some antes se ele fechar.
+ */
+export const WAIT_ENDED_NOTICE_TTL_MS = 60_000
 const SOCKET_OPEN = 1
 /** Mede o tamanho em bytes do que vai pelo socket (o servidor conta bytes, não caracteres). */
 const utf8 = new TextEncoder()
@@ -1136,6 +1201,14 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     if (state.mapShare?.phase !== 'sending' || state.mapShare.to !== msg.to) return
     setState({ mapShare: { to: msg.to, phase: msg.ok ? 'ok' : msg.reason === 'too_soon' ? 'too_soon' : 'failed' } })
   }
+
+  /**
+   * O id do mapa em que o jogador estava quando chegou o `scene.changed`, até
+   * o snapshot seguinte. `null` = nenhuma chegada à espera. Ver `arrivalFocus`.
+   */
+  let arrivalFromMapId: string | null = null
+  /** A ficha que o `scene.changed` disse que atravessou (só no atalho), até o snapshot seguinte. */
+  let arrivalTokenId: string | null = null
 
   function clearDoorNotice(): void {
     if (doorNoticeTimer !== null) clearTimeout(doorNoticeTimer)
@@ -1479,6 +1552,76 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
   function clearMarkTimer(): void {
     if (markTimer !== null) clearTimeout(markTimer)
     markTimer = null
+  }
+
+  let tokenActionTimer: ReturnType<typeof setTimeout> | null = null
+  /** `reqId` do pedido de ação que espera o mestre; `null` = nenhum. Só a resposta com ele vale. */
+  let pendingActionReqId: string | null = null
+
+  function clearTokenAction(): void {
+    if (tokenActionTimer !== null) clearTimeout(tokenActionTimer)
+    tokenActionTimer = null
+    pendingActionReqId = null
+  }
+
+  /**
+   * A volta do pedido de ação. Só a do pedido que ESTÁ esperando: resposta
+   * atrasada de um pedido antigo, ou de outro `reqId`, não mexe na tela.
+   */
+  function handleTokenActionMessage(data: unknown): void {
+    const msg = parseTokenActionHostMessage(data)
+    const waiting = state.tokenAction
+    if (msg === null || waiting === undefined || waiting.phase !== 'waiting' || msg.reqId !== pendingActionReqId) return
+    clearTokenAction()
+    const base = { id: nextNoticeId++, action: waiting.action, targetName: waiting.targetName }
+    if (msg.type === 'token.action.answer' && msg.reply !== undefined) {
+      // Com o texto do mestre, a resposta se lê no tempo de quem lê: fica até ele fechar (`dismissTokenAction`).
+      setState({ tokenAction: { ...base, phase: msg.accepted ? 'accepted' : 'refused', reply: msg.reply } })
+      return
+    }
+    const notice: TokenActionNotice =
+      msg.type === 'token.action.answer' ? { ...base, phase: msg.accepted ? 'accepted' : 'refused' } : { ...base, phase: 'rejected', reason: msg.reason }
+    setState({ tokenAction: notice })
+    tokenActionTimer = setTimeout(() => {
+      tokenActionTimer = null
+      setState({ tokenAction: undefined })
+    }, TOKEN_ACTION_NOTICE_TTL_MS)
+  }
+
+  let waitEndedTimer: ReturnType<typeof setTimeout> | null = null
+
+  function clearWaitEndedTimer(): void {
+    if (waitEndedTimer !== null) clearTimeout(waitEndedTimer)
+    waitEndedTimer = null
+  }
+
+  /**
+   * ENCONTRO MARCADO, na volta. `wait.state` troca a espera (o prazo passa
+   * para o relógio desta tela); `wait.ended` tira a espera e mostra o aviso,
+   * que some sozinho. Mensagem malformada não mexe em nada.
+   */
+  function handleWaitMessage(data: unknown): void {
+    const msg = parseWaitHostMessage(data)
+    if (msg === null) return
+    if (msg.type === 'wait.state') {
+      if (msg.wait === null) {
+        setState({ wait: undefined })
+        return
+      }
+      const own: OwnWait = { until: Date.now() + msg.wait.remainingMs }
+      if (msg.wait.who !== undefined) own.who = msg.wait.who
+      if (msg.wait.where !== undefined) own.where = msg.wait.where
+      setState({ wait: own })
+      return
+    }
+    const end: FimDaEspera =
+      msg.reason === 'met' ? { reason: 'met', who: msg.who } : msg.who === undefined ? { reason: msg.reason } : { reason: msg.reason, who: msg.who }
+    clearWaitEndedTimer()
+    setState({ wait: undefined, waitEnded: { id: nextNoticeId++, end } })
+    waitEndedTimer = setTimeout(() => {
+      waitEndedTimer = null
+      setState({ waitEnded: undefined })
+    }, WAIT_ENDED_NOTICE_TTL_MS)
   }
 
   let laserTimer: ReturnType<typeof setTimeout> | null = null
@@ -1849,6 +1992,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     glimpses: RegionPoint[][],
     elsewhere: OwnTokenElsewhere[],
     peek: RoofPeek | undefined,
+    waitingTokens: string[],
   ): void {
     if (rev <= state.rev) return
     // Outra cena: o resto do caminho era do mapa de antes.
@@ -1874,9 +2018,25 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     // movimentos otimistas — e nem leva ficha nenhuma (`placeSketch`).
     const { place, places: remembered } = where
     const places = place === undefined ? state.places : rememberPlace(state.places ?? [], place, map, explored, concealed, remembered)
+    // Chegada pelo atalho na MESMA cena: o mapa é o mesmo, então a câmera não
+    // reenquadra sozinha — a tela centra a ficha quando chega um pedido novo.
+    const atalho = arrivalFromMapId !== null && arrivalFromMapId === map.id
+    arrivalFromMapId = null
+    const arrivalFocus = atalho ? { seq: (state.arrivalFocus?.seq ?? 0) + 1, tokenId: arrivedToken(next, ownTokens) } : state.arrivalFocus
+    arrivalTokenId = null
     // `sceneName` entra SEMPRE, inclusive `undefined`: snapshot sem nome apaga o selo da cena anterior.
     // O mapa chegou: quem pedia ficha já tem uma, e o pedido termina aqui.
-    setState({ status: 'playing', rev, map: next, vision, explored, ownTokens, partyTokens, concealed, glimpses, hazards, gatilhos, andares, relogio, turn: turnOnMap, sceneName, place, places, elsewhere, peek, error: undefined, seatClaim: undefined })
+    setState({ status: 'playing', rev, map: next, vision, explored, ownTokens, partyTokens, concealed, glimpses, hazards, gatilhos, andares, relogio, turn: turnOnMap, sceneName, place, places, elsewhere, peek, waitingTokens, error: undefined, seatClaim: undefined, arrivalFocus })
+  }
+
+  /**
+   * A ficha que atravessou o atalho: a que o host disse, se for dele e estiver
+   * no mapa; senão (host antigo, sem `tokenId`) a primeira dele no mapa.
+   */
+  function arrivedToken(map: MapData, ownTokens: readonly string[]): string | null {
+    const noMapa = (id: string) => ownTokens.includes(id) && map.tokens.some((t) => t.id === id)
+    if (arrivalTokenId !== null && noMapa(arrivalTokenId)) return arrivalTokenId
+    return ownTokens.find(noMapa) ?? null
   }
 
   /** Pede a tela inteira ao mestre, no máximo uma vez por `VIEW_RESYNC_MIN_INTERVAL_MS` (o limite dele). */
@@ -2052,6 +2212,8 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         setState({ playerId: data.playerId, status: state.status === 'playing' ? 'playing' : 'waiting', reconnecting: undefined, seatClaim: undefined, seatOptions: undefined })
         return
       case 'lobby.waiting':
+        arrivalFromMapId = null
+        arrivalTokenId = null
         clearSignalTimers()
         clearLaserTimer()
         clearPlayerLasers()
@@ -2071,6 +2233,8 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         clearMapSharedTimer()
         clearLockTimer()
         clearMarkTimer()
+        clearTokenAction()
+        clearWaitEndedTimer()
         // O teste secreto sai junto: sem mapa não há cartão; o host manda de novo, logo depois do próximo mapa, o que ele ainda não respondeu.
         // Da espera só se sai por snapshot inteiro: patch nenhum parte dela.
         received = null
@@ -2122,6 +2286,10 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
           mapShared: undefined,
           lockAnswer: undefined,
           markPlace: undefined,
+          tokenAction: undefined,
+          wait: undefined,
+          waitEnded: undefined,
+          waitingTokens: undefined,
         })
         return
       case 'scene.changed':
@@ -2130,6 +2298,8 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         // mapa e seria reaplicado em cima do novo), sinais e laser. O mapa
         // novo vem no snapshot logo atrás.
         if (state.status !== 'playing') return
+        arrivalFromMapId = state.map?.id ?? null
+        arrivalTokenId = typeof data.tokenId === 'string' ? data.tokenId : null
         forgetSceneLocals()
         stopWalk()
         clearTurnNotice()
@@ -2276,6 +2446,11 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       case 'map.share.result':
       case 'map.given':
         handleMapShareMessage(data)
+        return
+      case 'token.action.answer':
+      case 'token.action.rejected':
+        // Sem mapa na tela não há pedido esperando (a espera do lobby já o apagou).
+        if (state.status === 'playing') handleTokenActionMessage(data)
         return
       case 'room.text': {
         // Mesma regra do recado: só quem joga tem tela de cartão.
@@ -2525,9 +2700,16 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
           if (parsed === null) return
           elsewhere = parsed
         }
-        applySnapshot(data.rev, data.map, data.vision, explored, data.ownTokens ?? [], data.concealed ?? [], data.turn, data.partyTokens ?? [], hazards, data.sceneName, where, gatilhos, andares, relogio, data.glimpses ?? [], elsewhere, data.peek)
+        // Ausente = nenhuma ficha esperando (o host só manda com alguma).
+        if (data.waiting !== undefined && !isStringList(data.waiting)) return
+        applySnapshot(data.rev, data.map, data.vision, explored, data.ownTokens ?? [], data.concealed ?? [], data.turn, data.partyTokens ?? [], hazards, data.sceneName, where, gatilhos, andares, relogio, data.glimpses ?? [], elsewhere, data.peek, data.waiting ?? [])
         return
       }
+      case 'wait.state':
+      case 'wait.ended':
+        // Só quem joga tem ficha esperando; a espera do lobby já apagou a dele.
+        if (state.status === 'playing') handleWaitMessage(data)
+        return
       case 'hazard.entered': {
         // Aviso sem mapa na tela não tem onde aparecer.
         if (state.status !== 'playing') return
@@ -2581,7 +2763,9 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         clearSecretCheckNotice()
         dropQueuedSecretChecks()
         clearMapSharedTimer()
-        setState({ status: 'closed', playerLasers: undefined, doorNotice: undefined, doorRequest: undefined, moveNotice: undefined, turnNotice: undefined, travel: undefined, item: undefined, lever: undefined, hazardNotice: undefined, call: undefined, reconnecting: undefined, pointNotice: undefined, noise: undefined, secretCheck: undefined, secretCheckNotice: undefined, mapShared: undefined })
+        clearTokenAction()
+        clearWaitEndedTimer()
+        setState({ status: 'closed', playerLasers: undefined, doorNotice: undefined, doorRequest: undefined, moveNotice: undefined, turnNotice: undefined, travel: undefined, item: undefined, lever: undefined, hazardNotice: undefined, call: undefined, reconnecting: undefined, pointNotice: undefined, noise: undefined, secretCheck: undefined, secretCheckNotice: undefined, mapShared: undefined, tokenAction: undefined, wait: undefined, waitEnded: undefined })
         return
       case 'session.replaced':
         // A sessão foi para outra aba (ou aparelho). O resume FICA: é o mesmo
@@ -2682,6 +2866,8 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     clearNoiseTimer()
     clearSecretCheckNotice()
     clearMapSharedTimer()
+    clearTokenAction()
+    clearWaitEndedTimer()
     const current = socket
     socket = null
     current?.close()
@@ -3056,6 +3242,56 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       return true
     },
 
+    requestTokenAction(tokenId, action, text) {
+      if (state.status !== 'playing' || state.tokenAction?.phase === 'waiting') return false
+      // A própria ficha se arrasta; o cartão de ação é só da alheia (o host recusaria igual).
+      if ((state.ownTokens ?? []).includes(tokenId)) return false
+      const token = state.map?.tokens.find((t) => t.id === tokenId)
+      if (token === undefined) return false
+      const said = (text ?? '').trim()
+      if (said.length > TOKEN_ACTION_TEXT_MAX_LENGTH) return false
+      const reqId = `a${nextReqId++}`
+      const message: PlayerMessage = said === '' ? { type: 'token.action', reqId, tokenId, action } : { type: 'token.action', reqId, tokenId, action, text: said }
+      if (!send(message)) return false
+      clearTokenAction()
+      pendingActionReqId = reqId
+      // O nome que ELE viu no cartão: é com ele que o aviso fala, e o host nunca manda nome de volta.
+      setState({ tokenAction: { id: nextNoticeId++, phase: 'waiting', action, targetName: tokenCardName(token) } })
+      return true
+    },
+
+    dismissTokenAction() {
+      const notice = state.tokenAction
+      if (notice === undefined || notice.phase === 'waiting') return
+      clearTokenAction()
+      setState({ tokenAction: undefined })
+    },
+
+    startWait(minutes, who = '', where = '') {
+      if (state.status !== 'playing' || !isWaitMinutes(minutes)) return false
+      const colega = who.trim()
+      const lugar = where.trim()
+      // Mesmo teto do host: acima dele a mensagem inteira cairia lá.
+      if (colega.length > NAME_MAX_LENGTH || lugar.length > ESPERA_ONDE_MAX_LENGTH) return false
+      const message: WaitSetMessage = { type: 'wait.set', minutes }
+      if (colega !== '') message.who = colega
+      if (lugar !== '') message.where = lugar
+      return send(message)
+    },
+
+    stopWait() {
+      if (!send({ type: 'wait.clear' })) return false
+      // Na hora, sem esperar a volta: quem desiste não quer ver "Esperando…" mais um instante.
+      if (state.wait !== undefined) setState({ wait: undefined })
+      return true
+    },
+
+    dismissWaitEnded() {
+      if (state.waitEnded === undefined) return
+      clearWaitEndedTimer()
+      setState({ waitEnded: undefined })
+    },
+
     setOwnTokenName(tokenId, name) {
       const limpo = name.trim()
       if (limpo.length < NAME_MIN_LENGTH || limpo.length > NAME_MAX_LENGTH) return false
@@ -3077,7 +3313,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       // primeiro snapshot da volta solta o que ele não lembrar mais.
       dropQueuedSecretChecks()
       received = null
-      setState({ status: 'connecting', error: undefined, rev: -1, map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, partyTokens: undefined, concealed: undefined, glimpses: undefined, elsewhere: undefined, peek: undefined, sceneName: undefined, place: undefined, destinations: undefined, hazards: undefined, hazardNotice: undefined, gatilhos: undefined, andares: undefined, relogio: undefined, turn: undefined, signals: undefined, laser: undefined, playerLasers: undefined, doorNotice: undefined, doorRequest: undefined, moveNotice: undefined, turnNotice: undefined, travel: undefined, note: undefined, arrival: undefined, alarm: undefined, item: undefined, lever: undefined, roomText: undefined, notebook: undefined, unreadNotes: undefined, clues: undefined, shownClue: undefined, cluePeers: undefined, clueShow: undefined, paused: undefined, call: undefined, reconnecting: undefined, pointNotice: undefined, noise: undefined, secretCheck: undefined, secretCheckNotice: undefined, mapPeers: undefined, mapShare: undefined, mapShared: undefined })
+      setState({ status: 'connecting', error: undefined, rev: -1, map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, partyTokens: undefined, concealed: undefined, glimpses: undefined, elsewhere: undefined, peek: undefined, sceneName: undefined, place: undefined, destinations: undefined, hazards: undefined, hazardNotice: undefined, gatilhos: undefined, andares: undefined, relogio: undefined, turn: undefined, signals: undefined, laser: undefined, playerLasers: undefined, doorNotice: undefined, doorRequest: undefined, moveNotice: undefined, turnNotice: undefined, travel: undefined, note: undefined, arrival: undefined, alarm: undefined, item: undefined, lever: undefined, roomText: undefined, notebook: undefined, unreadNotes: undefined, clues: undefined, shownClue: undefined, cluePeers: undefined, clueShow: undefined, paused: undefined, call: undefined, reconnecting: undefined, pointNotice: undefined, noise: undefined, secretCheck: undefined, secretCheckNotice: undefined, mapPeers: undefined, mapShare: undefined, mapShared: undefined, tokenAction: undefined, wait: undefined, waitEnded: undefined, waitingTokens: undefined })
       open()
     },
     wake() {

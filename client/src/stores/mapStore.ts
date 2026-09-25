@@ -761,6 +761,22 @@ interface MapStoreState {
   setPinKind: (kind: PinKind) => void
   setPinIcon: (icon: PinIcon | null) => void
   addPin: (pin: MapData['pins'][number]) => void
+  /**
+   * Troca a lista de pinos inteira num passo só do desfazer. É a ligação do
+   * ATALHO NA MESMA CENA (`lib/pinTravel.ts`, `linkWithinScene`): os dois
+   * lados da mão dupla moram neste mapa e entram e saem juntos no Ctrl+Z.
+   * A mesma lista (mesma referência) não empilha nada.
+   */
+  replacePins: (pins: MapData['pins']) => void
+  /**
+   * Troca a lista de pinos SEM passo novo do desfazer: o acerto entra no passo
+   * que acabou de ser empilhado. É o guardião da mão dupla
+   * (`stores/adventureStore.ts`, `syncTravelLinks`) acertando o par de um
+   * ATALHO NA MESMA CENA quando a origem é apagada, deixa de ser de viagem ou
+   * é religada a outra cena: o Ctrl+Z desse gesto devolve os dois pinos
+   * juntos, ligados como estavam. A mesma lista não muda nada.
+   */
+  settlePins: (pins: MapData['pins']) => void
   /** Com histórico. `destino` só muda o lado DESTA cena: o par da outra cena é
    *  mantido em dia por `stores/adventureStore.ts`, fora deste desfazer. */
   updatePin: (
@@ -1824,6 +1840,14 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
     setPinKind: (kind) => set({ pinKind: kind }),
     setPinIcon: (icon) => set({ pinIcon: icon }),
     addPin: (pin) => withHistory((map) => mapFactory.addPin(map, pin)),
+    replacePins: (pins) => {
+      if (get().map.pins === pins) return
+      withHistory((map) => ({ ...map, pins }))
+    },
+    settlePins: (pins) => {
+      if (get().map.pins === pins) return
+      set((state) => ({ map: { ...state.map, pins } }))
+    },
     updatePin: (id, patch) => {
       if (mapFactory.updatePin(get().map, id, patch) === get().map) return
       withHistory((map) => mapFactory.updatePin(map, id, patch))

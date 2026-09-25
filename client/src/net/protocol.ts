@@ -19,6 +19,9 @@ import type { OwnTokenElsewhere, RoofPeek } from '../lib/fogFilter'
 import { ABALO_SETAS, type AbaloSeta } from '../lib/abalo'
 import { LOCK_ANSWER_MAX_LENGTH } from '../lib/pinLock'
 
+import { isTokenAction, isTokenActionRejection, TOKEN_ACTION_REPLY_MAX_LENGTH, TOKEN_ACTION_TEXT_MAX_LENGTH, type TokenAction, type TokenActionRejection } from '../lib/tokenActions'
+import { ESPERA_ONDE_MAX_LENGTH, isFimDaEsperaMotivo, isWaitMinutes, type FimDaEspera, type MinhaEspera } from '../lib/encontroMarcado'
+
 export type { OwnTokenElsewhere }
 
 /**
@@ -257,6 +260,23 @@ export type { OwnTokenElsewhere }
  * A marca em si viaja no `map.marcas` do snapshot, já recortada pela névoa e
  * sem autor nem hora. Mestre antigo responde `error invalid_message`; jogador
  * antigo ignora o resultado e o campo novo do mapa.
+ *
+ * AGIR SOBRE UMA FICHA é aditivo pelo mesmo critério: `token.action` (jogador
+ * -> mestre) e, na volta e só a quem pediu, `token.action.rejected` (o host
+ * recusou antes de perguntar ao mestre) e `token.action.answer` (o mestre
+ * aceitou ou recusou, com o texto opcional que ele escreveu só para aquele
+ * jogador em `reply`). A volta leva só o `reqId` do jogador e esse texto:
+ * nunca nome de ficha, de cena ou posição. Mestre antigo responde
+ * `error invalid_message`; jogador antigo ignora as duas (e o `reply`).
+ *
+ * ENCONTRO MARCADO é aditivo pelo mesmo critério. Do jogador: `wait.set`
+ * (quantos minutos, e o colega e o lugar que ele digitou) e `wait.clear`. Do
+ * mestre, SÓ a quem espera: `wait.state` (a espera dele, ou `null`) e
+ * `wait.ended` (o colega apareceu no recorte dele, o prazo venceu, ou ele saiu
+ * da cena — nunca o nome da cena nem onde o colega estava). E `waiting` no
+ * snapshot: ids das fichas DO RECORTE cujo dono espera — a marca, sem o "quem"
+ * nem o "onde". Mestre antigo responde `error invalid_message`; jogador antigo
+ * ignora as três.
  */
 export const PROTOCOL_VERSION = 1
 
@@ -656,6 +676,38 @@ export type MarkPlaceMessage =
   | { type: 'mark.place'; x: number; y: number; tipo: 'bilhete'; texto: string }
   | { type: 'mark.place'; x: number; y: number; tipo: 'seta'; rumo: MarcaRumo }
 
+/**
+ * AGIR SOBRE UMA FICHA: o jogador pede ao mestre `action` sobre a ficha
+ * `tokenId` (que ele vê agora e não é dele). `reqId` é do jogador, como no
+ * movimento: é por ele que a resposta volta. `text`: o que ele diz, oferece ou
+ * pede, até `TOKEN_ACTION_TEXT_MAX_LENGTH`; ausente = sem texto.
+ */
+export interface TokenActionRequestMessage {
+  type: 'token.action'
+  reqId: string
+  tokenId: string
+  action: TokenAction
+  text?: string
+}
+
+/**
+ * ENCONTRO MARCADO: "espero aqui". `minutes` é o prazo a partir de AGORA no
+ * relógio do host (nunca uma hora absoluta: o relógio do celular não manda);
+ * `who` é o colega pelo nome, como o jogador digitou; `where` é o lugar em
+ * texto livre. Os dois opcionais, já aparados.
+ */
+export interface WaitSetMessage {
+  type: 'wait.set'
+  minutes: number
+  who?: string
+  where?: string
+}
+
+/** "Parar de esperar". */
+export interface WaitClearMessage {
+  type: 'wait.clear'
+}
+
 export type PlayerMessage =
   | MarkPlaceMessage
   | PinAnswerMessage
@@ -689,6 +741,9 @@ export type PlayerMessage =
   | ViewResyncMessage
   | ViewPatchesMessage
   | ViewSwitchMessage
+  | TokenActionRequestMessage
+  | WaitSetMessage
+  | WaitClearMessage
 
 /**
  * Por que a alavanca não moveu nada. `unavailable` junta pino inexistente, no
@@ -1071,6 +1126,32 @@ export interface MapGivenMessage {
 
 export type MapShareHostMessage = MapSharedMessage | MapShareResultMessage | MapGivenMessage
 
+/**
+ * AGIR SOBRE UMA FICHA, na volta. Só `reqId`, o veredito e, no `answer`, o
+ * texto que o mestre escreveu para ESTE jogador (`reply`, até
+ * `TOKEN_ACTION_REPLY_MAX_LENGTH`; ausente = sem texto): nem o nome da ficha
+ * (o jogador já sabe qual tocou, pelo nome que ELE vê), nem a cena, nem o que o
+ * mestre chama aquela ficha. Vai só a quem pediu.
+ */
+export type TokenActionHostMessage =
+  | { type: 'token.action.rejected'; reqId: string; reason: TokenActionRejection }
+  | { type: 'token.action.answer'; reqId: string; accepted: boolean; reply?: string }
+
+/** ENCONTRO MARCADO: a espera de quem recebe (`null` = não espera). Só vai ao próprio jogador. */
+export interface WaitStateMessage {
+  type: 'wait.state'
+  wait: MinhaEspera | null
+}
+
+/** ENCONTRO MARCADO: a espera acabou, e por quê. Só vai a quem esperava. */
+export type WaitEndedMessage = { type: 'wait.ended' } & FimDaEspera
+
+export type WaitHostMessage = WaitStateMessage | WaitEndedMessage
+
+/**
+ * `waiting` (ENCONTRO MARCADO): ids das fichas DESTE recorte cujo dono espera
+ * alguém. Aditivo e só quando há alguma: ausente = nenhuma ficha esperando.
+ */
 export type HostMessage =
   // `name`: nome EFETIVO na sala, que pode não ser o que o jogador digitou.
   | { type: 'welcome'; playerId: string; resumeToken: string; name: string }
@@ -1089,8 +1170,9 @@ export type HostMessage =
   // Aditivo: ausente = telhado inteiro, que é o que o mestre antigo manda.
   // `elsewhere` (MINHAS FICHAS EM OUTRAS CENAS): as fichas dele em outra cena.
   // `peek`: aditivo — só sai com uma ficha do jogador no vão de porta aberta de prédio de teto fechado.
-  | { type: 'snapshot'; rev: number; map: MapData; vision: RegionPoint[][]; explored: ExploredWire; ownTokens: string[]; concealed: RegionPoint[][]; turn?: string; partyTokens?: string[]; hazards?: PlayerHazard[]; sceneName?: string; place?: string; places?: string[]; gatilhos?: PlayerAreaTrigger[]; andares?: FloorsWire; relogio?: PlayerClock; glimpses?: RegionPoint[][]; elsewhere?: OwnTokenElsewhere[]; peek?: RoofPeek }
-  | { type: 'delta'; rev: number; map: MapData; vision: RegionPoint[][]; explored: ExploredWire; ownTokens: string[]; concealed: RegionPoint[][]; turn?: string; partyTokens?: string[]; hazards?: PlayerHazard[]; sceneName?: string; place?: string; places?: string[]; gatilhos?: PlayerAreaTrigger[]; andares?: FloorsWire; relogio?: PlayerClock; glimpses?: RegionPoint[][]; elsewhere?: OwnTokenElsewhere[]; peek?: RoofPeek }
+  // `waiting` (ENCONTRO MARCADO): ver o comentário acima de `HostMessage`.
+  | { type: 'snapshot'; rev: number; map: MapData; vision: RegionPoint[][]; explored: ExploredWire; ownTokens: string[]; concealed: RegionPoint[][]; turn?: string; partyTokens?: string[]; hazards?: PlayerHazard[]; sceneName?: string; place?: string; places?: string[]; gatilhos?: PlayerAreaTrigger[]; andares?: FloorsWire; relogio?: PlayerClock; glimpses?: RegionPoint[][]; elsewhere?: OwnTokenElsewhere[]; peek?: RoofPeek; waiting?: string[] }
+  | { type: 'delta'; rev: number; map: MapData; vision: RegionPoint[][]; explored: ExploredWire; ownTokens: string[]; concealed: RegionPoint[][]; turn?: string; partyTokens?: string[]; hazards?: PlayerHazard[]; sceneName?: string; place?: string; places?: string[]; gatilhos?: PlayerAreaTrigger[]; andares?: FloorsWire; relogio?: PlayerClock; glimpses?: RegionPoint[][]; elsewhere?: OwnTokenElsewhere[]; peek?: RoofPeek; waiting?: string[] }
   // Só o que mudou desde a tela `base` desta conexão (ver o topo do arquivo).
   | ({ type: 'patch'; rev: number; base: number } & ViewPatch)
   // ZONA DE PERIGO: a ficha DESTE jogador entrou num perigo. Só o tipo — nem a sala, nem a zona.
@@ -1129,7 +1211,9 @@ export type HostMessage =
   // `chegada` (TEXTO DE CHEGADA DA CENA): o texto que o mestre escreveu na cena
   // de destino, só quando há. Vai SÓ a quem chega, uma vez — o snapshot nunca
   // o leva (`lib/fogFilter.ts`). Aditivo: jogador antigo ignora o campo.
-  | { type: 'scene.changed'; by?: 'master' | 'gather'; chegada?: string }
+  // `tokenId`: só no ATALHO NA MESMA CENA, a ficha DELE que atravessou — o
+  // mapa não muda, e a tela precisa saber qual ficha centrar. Aditivo.
+  | { type: 'scene.changed'; by?: 'master' | 'gather'; chegada?: string; tokenId?: string }
   | LaserMessage
   | RelayedLaserMessage
   | SceneNoteMessage
@@ -1156,6 +1240,8 @@ export type HostMessage =
   | SecretCheckMessage
   | SecretCheckClosedMessage
   | MapShareHostMessage
+  | TokenActionHostMessage
+  | WaitHostMessage
   | { type: 'kicked' }
   | { type: 'room.closed' }
   // A mesma pessoa entrou por outra aba (ou aparelho) com o resume desta
@@ -1626,6 +1712,115 @@ export function parseMapShareMessage(value: unknown): MapShareHostMessage | null
   }
 }
 
+/**
+ * Pedido de ação sobre uma ficha. Ação fora da lista, texto que não é texto ou
+ * acima do teto recusam a mensagem inteira. Texto só de espaço vale como sem
+ * texto (o campo some), e o que sobra sai aparado.
+ */
+function parseTokenActionRequest(obj: Record<string, unknown>): TokenActionRequestMessage | null {
+  const { reqId, tokenId, action, text } = obj
+  if (!isBoundedString(reqId, 1, REQ_ID_MAX_LENGTH)) return null
+  if (!isBoundedString(tokenId, 1, REQ_ID_MAX_LENGTH)) return null
+  if (!isTokenAction(action)) return null
+  const parsed: TokenActionRequestMessage = { type: 'token.action', reqId, tokenId, action }
+  if (text === undefined) return parsed
+  if (!isBoundedString(text, 0, TOKEN_ACTION_TEXT_MAX_LENGTH)) return null
+  const trimmed = text.trim()
+  return trimmed === '' ? parsed : { ...parsed, text: trimmed }
+}
+
+/**
+ * Valida a volta do pedido de ação que o jogador recebe. Devolve cópia só com
+ * os campos conhecidos: nome, cena ou posição que viessem juntos ficam para
+ * trás. Motivo de recusa que esta versão não conhece vira `unavailable`.
+ * O `reply` sai aparado; fora de forma, só espaço ou acima do teto, ele cai
+ * sozinho e o veredito fica: sem o veredito o jogador esperaria para sempre.
+ */
+export function parseTokenActionHostMessage(value: unknown): TokenActionHostMessage | null {
+  if (!isRecord(value)) return null
+  const { reqId, reply } = value
+  if (!isBoundedString(reqId, 1, REQ_ID_MAX_LENGTH)) return null
+  if (value.type === 'token.action.answer') {
+    if (typeof value.accepted !== 'boolean') return null
+    const said = isBoundedString(reply, 1, TOKEN_ACTION_REPLY_MAX_LENGTH) ? reply.trim() : ''
+    return said === '' ? { type: 'token.action.answer', reqId, accepted: value.accepted } : { type: 'token.action.answer', reqId, accepted: value.accepted, reply: said }
+  }
+  if (value.type === 'token.action.rejected') {
+    const reason = isTokenActionRejection(value.reason) ? value.reason : 'unavailable'
+    return { type: 'token.action.rejected', reqId, reason }
+  }
+  return null
+}
+
+/**
+ * Texto opcional do jogador: ausente vale ausente; presente tem de ser texto
+ * até `max` DEPOIS de aparado. `''` = sem texto (o campo some); `null` =
+ * malformado (a mensagem inteira cai).
+ */
+function optionalTrimmed(value: unknown, max: number): string | null {
+  if (value === undefined) return ''
+  if (typeof value !== 'string') return null
+  const trimmed = value.trim()
+  return trimmed.length <= max ? trimmed : null
+}
+
+/**
+ * "Espero aqui". Prazo fora da faixa, colega ou lugar que não são texto ou
+ * passam do teto recusam a mensagem inteira. Só espaço vale como vazio.
+ * Devolve só os campos conhecidos: um "até" em hora absoluta ou um id de cena
+ * que viessem juntos ficam para trás.
+ */
+function parseWaitSet(obj: Record<string, unknown>): WaitSetMessage | null {
+  if (!isWaitMinutes(obj.minutes)) return null
+  const who = optionalTrimmed(obj.who, NAME_MAX_LENGTH + NAME_SUFFIX_ROOM)
+  const where = optionalTrimmed(obj.where, ESPERA_ONDE_MAX_LENGTH)
+  if (who === null || where === null) return null
+  const parsed: WaitSetMessage = { type: 'wait.set', minutes: obj.minutes }
+  if (who !== '') parsed.who = who
+  if (where !== '') parsed.where = where
+  return parsed
+}
+
+function parseOwnWait(value: unknown): MinhaEspera | null {
+  if (!isRecord(value)) return null
+  const { who, where, remainingMs } = value
+  if (!isFiniteNumber(remainingMs) || remainingMs < 0) return null
+  const wait: MinhaEspera = { remainingMs }
+  if (who !== undefined) {
+    if (!isRoomName(who)) return null
+    wait.who = who
+  }
+  if (where !== undefined) {
+    if (!isBoundedString(where, 1, ESPERA_ONDE_MAX_LENGTH)) return null
+    wait.where = where
+  }
+  return wait
+}
+
+/**
+ * Valida o que o jogador recebe do ENCONTRO MARCADO. Mesma regra do caderno:
+ * forma errada cai inteira; devolve só os campos conhecidos. No "chegou" o
+ * nome do colega é obrigatório (é o aviso); nos outros, opcional.
+ */
+export function parseWaitHostMessage(value: unknown): WaitHostMessage | null {
+  if (!isRecord(value)) return null
+  if (value.type === 'wait.state') {
+    if (value.wait === null) return { type: 'wait.state', wait: null }
+    const wait = parseOwnWait(value.wait)
+    return wait === null ? null : { type: 'wait.state', wait }
+  }
+  const reason = value.reason
+  if (value.type !== 'wait.ended' || !isFimDaEsperaMotivo(reason)) return null
+  const who = value.who
+  let colega: string | undefined
+  if (who !== undefined) {
+    if (!isRoomName(who)) return null
+    colega = who
+  }
+  if (reason === 'met') return colega === undefined ? null : { type: 'wait.ended', reason, who: colega }
+  return colega === undefined ? { type: 'wait.ended', reason } : { type: 'wait.ended', reason, who: colega }
+}
+
 /** Cor do laser repassado: `#rrggbb`, a forma que `Token.color` grava. */
 const LASER_COLOR_PATTERN = /^#[0-9a-f]{6}$/i
 
@@ -1918,6 +2113,12 @@ export function parsePlayerMessage(raw: unknown): PlayerMessage | null {
         : null
     case 'mark.place':
       return parseMarkPlace(value)
+    case 'token.action':
+      return parseTokenActionRequest(value)
+    case 'wait.set':
+      return parseWaitSet(value)
+    case 'wait.clear':
+      return { type: 'wait.clear' }
     default:
       return null
   }

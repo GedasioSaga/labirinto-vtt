@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState, useSyncExternalStore } from 'react'
 import type { ChangeEvent, ComponentProps, FormEvent, KeyboardEvent as ReactKeyboardEvent, MouseEvent, RefObject } from 'react'
-import type { StorageLike } from './playerConnection'
+import type { OwnWait, StorageLike } from './playerConnection'
 import { PlayerBackpack } from './PlayerBackpack'
 import { NAME_MAX_LENGTH, type ClueEntry, type NoteEntry, type PartyMember, type PartyWhere, type OwnTokenElsewhere } from '../net/protocol'
 import type { Pin, RegionPoint } from '../types/map'
@@ -15,6 +15,7 @@ import { DiceForm } from '../components/DiceControls'
 import type { DiceRequest } from '../lib/dice'
 import { PlayerMapShare, type PlayerMapShareProps } from './PlayerMapShare'
 import { PlayerMarkForm, type PlayerMarkFormProps } from './PlayerMarkForm'
+import { PlayerWaitSection } from './PlayerWaitSection'
 
 /** Caderno sem pistas passadas (tela antiga, teste): a mesma lista vazia, sem objeto novo a cada render. */
 const NO_CLUES: readonly ClueEntry[] = []
@@ -203,6 +204,11 @@ interface PlayerPanelProps {
   mapShare?: PlayerMapShareProps
   /** BILHETE NO LUGAR — "Deixar marca aqui…": ausente = a tela não oferece (teste, tela antiga). */
   markForm?: PlayerMarkFormProps
+  /** ENCONTRO MARCADO: a espera confirmada pelo mestre; `undefined` = não espera. */
+  wait?: OwnWait
+  /** "Esperar aqui". Sem ele (tela antiga, teste), a seção não aparece. */
+  onStartWait?: (minutes: number, who: string, where: string) => void
+  onStopWait?: () => void
 }
 
 export function PlayerPanel({
@@ -248,6 +254,9 @@ export function PlayerPanel({
   onSwitchView = IGNORE_SWITCH,
   mapShare,
   markForm,
+  wait,
+  onStartWait,
+  onStopWait,
 }: PlayerPanelProps) {
   const tabs = onRollDice === undefined ? PANEL_TABS_NO_DICE : PANEL_TABS
   const drawerScreen = useSyncExternalStore(subscribeDrawerScreen, isDrawerScreen, () => false)
@@ -642,6 +651,16 @@ export function PlayerPanel({
                     {photoError}
                   </p>
                 )}
+              </section>
+            )}
+
+            {/* ENCONTRO MARCADO: só com ficha no mapa — é ela que espera, e é nela que a marca aparece. */}
+            {first !== undefined && onStartWait !== undefined && onStopWait !== undefined && (
+              <section className="pp-section" aria-labelledby={`${panelId}-wait`}>
+                <h2 id={`${panelId}-wait`} className="pp-heading">
+                  Encontro
+                </h2>
+                <PlayerWaitSection wait={wait} onStart={onStartWait} onStop={onStopWait} />
               </section>
             )}
 

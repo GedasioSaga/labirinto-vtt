@@ -35,6 +35,7 @@ import { InitiativeSection, type InitiativeSectionProps } from './InitiativeSect
 import { CampaignClockSection, type CampaignClockSectionProps } from './CampaignClockSection'
 import { TableScreenSection, type TableScreenSectionProps } from './TableScreenSection'
 import { TravelLogSection, type TravelLogSectionProps } from './TravelLogSection'
+import { textoDaEsperaParaOMestre } from '../lib/encontroMarcado'
 
 export interface RoomPanelToken {
   id: string
@@ -1310,6 +1311,8 @@ function PlayerRow({
           </p>
         )}
         {player.borrowedFrom !== undefined && <p className="lb-player__note">Jogando também a ficha de {player.borrowedFrom.join(', ')}.</p>}
+        {/* ENCONTRO MARCADO: o mestre não guarda de cabeça quem espera quem, onde e até quando. */}
+        {player.waiting !== undefined && <p className="lb-player__note">{textoDaEsperaParaOMestre(player.waiting)}</p>}
         <AwayControls
           player={player}
           players={players}

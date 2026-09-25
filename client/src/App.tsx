@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react'
+import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { PixiCanvas } from './pixi/PixiCanvas'
 import { ZoomHud } from './components/ZoomHud'
@@ -72,7 +72,7 @@ import {
   stairTravelPanel,
   subscribeToServedScenes,
   subscribeToTravelLinks,
-  travelSceneOptions,
+  travelDestinationOptions,
   useAdventureStore,
 } from './stores/adventureStore'
 import { ScenesSection } from './components/ScenesSection'
@@ -80,6 +80,7 @@ import { MapObjectsSection } from './components/MapObjectsSection'
 import { MarcasDaCena } from './components/MarcasDaCena'
 import { currentObjectKey, isFindObjectShortcut } from './lib/mapObjects'
 import { goToMapObject } from './stores/mapObjectNavigation'
+import { fontesDaBusca, irAoAchado, mandarFichaPara } from './stores/buscaDoMestre'
 import { ligacaoLevarFicha } from './stores/levarFicha'
 import type { ActiveAlarmView } from './components/SceneAlarmControls'
 import { PinsSection } from './components/PinsSection'
@@ -934,6 +935,9 @@ function App() {
   // Cada cena lembra a própria câmera; a troca pede ao canvas que volte a ela (ou enquadre).
   const sceneCameraRequest = useAdventureStore((state) => state.cameraRequest)
   const canGoBackToScene = previousSceneId !== null && sceneCache[previousSceneId]?.status === 'ok'
+  // Busca do mestre (Ctrl+K): as OUTRAS cenas, onde "Objetos do mapa" também procura.
+  // Não depende do mapa aberto: editar a cena aberta não refaz a lista das outras.
+  const otherSceneSources = useMemo(() => fontesDaBusca({ adventure, activeSceneId, cache: sceneCache }), [adventure, activeSceneId, sceneCache])
   // G7 — "Seguir" na linha do Grupo: a câmera acompanha a ficha do jogador, inclusive de cena em cena.
   const followingId = useFollowStore((state) => state.playerId)
   // Marcas "vamos para cá" no canvas do mestre: só as da cena aberta (as de fundo têm coordenadas de outro mapa).
@@ -1772,7 +1776,8 @@ function App() {
       pinId: pin.id,
       // Encruzilhada: uma linha por saída, a principal primeiro.
       exits: pinExitsTravelOf(scenes, map, pin),
-      scenes: travelSceneOptions(scenes),
+      // "Esta cena" primeiro: o atalho para outro ponto do mesmo mapa.
+      scenes: travelDestinationOptions(scenes),
       pinsIn: (sceneId: string) => pinTravelOptions(scenes, map, sceneId, pin.id),
       onLinkNew: (sceneId: string, exitId: string | null) => {
         useAdventureStore.getState().linkPinToNewArrival(pin.id, sceneId, exitId)
@@ -2319,7 +2324,21 @@ function App() {
             }
             objects={
               <>
-                <MapObjectsSection map={map} currentKey={currentMapObjectKey} onGoTo={goToMapObject} searchRequest={objectSearchRequest} />
+                <MapObjectsSection
+                  map={map}
+                  currentKey={currentMapObjectKey}
+                  onGoTo={goToMapObject}
+                  searchRequest={objectSearchRequest}
+                  otherScenes={otherSceneSources}
+                  onGoToOther={(hit) => void irAoAchado(hit)}
+                  // "Mandar ficha para cá" só com a sala aberta: sem sala não há jogador para mandar.
+                  senders={room === null ? undefined : gatherCandidates(partyMembers(roomPlayers, roomPanelWorld()))}
+                  onSendHere={(playerId, target) => {
+                    const bridge = hostBridgeRef.current
+                    if (bridge === null) return { ok: false, mensagem: 'A sala não está aberta.' }
+                    return mandarFichaPara(playerId, target, bridge)
+                  }}
+                />
                 {/* BILHETE NO LUGAR: reler e apagar a marca de um jogador depois que o aviso some. */}
                 <MarcasDaCena marcas={map.marcas ?? []} onApagar={hostPlayerChanges.removeMark} />
               </>
