@@ -123,6 +123,28 @@ describe('criarEntradaEmOrdem (lado do jogador)', () => {
     receber('{"type":"c"}')
     expect(entregues).toEqual(['{"type":"b"}', '{"type":"c"}'])
   })
+
+  it('o fechamento espera o que chegou antes dele: a última mensagem não se perde', async () => {
+    const grande = mapaGrande(800)
+    const a = await comprimirPacote(grande)
+    if (a === null) throw new Error('deveria ir comprimido')
+    const vistos: unknown[] = []
+    const receber = criarEntradaEmOrdem((dado) => vistos.push(dado))
+    receber(JSON.stringify(a))
+    receber('{"type":"kicked"}')
+    receber.quandoEsvaziar(() => vistos.push('fechou'))
+    expect(vistos).toEqual([])
+    await vi.waitFor(() => expect(vistos).toHaveLength(3))
+    expect(vistos).toEqual([grande, '{"type":"kicked"}', 'fechou'])
+  })
+
+  it('sem nada na fila, o fechamento roda na hora (síncrono)', () => {
+    const vistos: unknown[] = []
+    const receber = criarEntradaEmOrdem((dado) => vistos.push(dado))
+    receber('{"type":"pong"}')
+    receber.quandoEsvaziar(() => vistos.push('fechou'))
+    expect(vistos).toEqual(['{"type":"pong"}', 'fechou'])
+  })
 })
 
 describe('criarSaidaEmOrdem (lado do mestre)', () => {

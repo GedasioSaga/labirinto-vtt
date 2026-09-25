@@ -144,15 +144,21 @@ export function lerPacote(dado: unknown): string | null {
  * e chama `entregar` com o texto da mensagem, na ORDEM em que chegou. O
  * envelope é aberto antes; o que chega atrás dele espera. Pacote estragado é
  * descartado, como hoje o JSON inválido.
+ *
+ * `quandoEsvaziar(fim)` põe o fechamento do socket na MESMA fila: roda depois
+ * de tudo que chegou antes dele. Sem isso, o `kicked` que o mestre manda logo
+ * antes de derrubar o socket, parado atrás de um mapa ainda abrindo, seria lido
+ * depois da queda (tarde demais: o jogador já voltaria sozinho). Fila vazia, o
+ * `fim` roda na hora, como antes do pacote comprimido.
  */
-export function criarEntradaEmOrdem(entregar: (dado: unknown) => void): (dado: unknown) => void {
+export type EntradaEmOrdem = ((dado: unknown) => void) & { quandoEsvaziar(fim: () => void): void }
+
+export function criarEntradaEmOrdem(entregar: (dado: unknown) => void): EntradaEmOrdem {
   let fila: Promise<void> = Promise.resolve()
   let naFila = 0
-  const entregarNaFila = (aberto: { dado: unknown } | null) => {
-    naFila--
-    if (aberto === null) return
+  const rodarNaFila = (passo: () => void) => {
     try {
-      entregar(aberto.dado)
+      passo()
     } catch (erro) {
       // O erro de quem trata a mensagem sobe como no caminho síncrono, sem parar a fila.
       setTimeout(() => {
@@ -160,7 +166,11 @@ export function criarEntradaEmOrdem(entregar: (dado: unknown) => void): (dado: u
       })
     }
   }
-  return (dado) => {
+  const entregarNaFila = (aberto: { dado: unknown } | null) => {
+    naFila--
+    if (aberto !== null) rodarNaFila(() => entregar(aberto.dado))
+  }
+  const receber = (dado: unknown): void => {
     const gz = lerPacote(dado)
     if (gz === null && naFila === 0) {
       entregar(dado)
@@ -172,6 +182,18 @@ export function criarEntradaEmOrdem(entregar: (dado: unknown) => void): (dado: u
       gz === null ? Promise.resolve({ dado }) : abrirPacote(gz).then((texto) => (texto === null ? null : { dado: texto }))
     fila = fila.then(() => pronto).then(entregarNaFila)
   }
+  const quandoEsvaziar = (fim: () => void): void => {
+    if (naFila === 0) {
+      fim()
+      return
+    }
+    naFila++
+    fila = fila.then(() => {
+      naFila--
+      rodarNaFila(fim)
+    })
+  }
+  return Object.assign(receber, { quandoEsvaziar })
 }
 
 /**

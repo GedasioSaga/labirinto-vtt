@@ -2202,9 +2202,15 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     }
     current.onclose = () => {
       if (socket !== current) return
-      socket = null
+      // Ninguém mais escuta este socket: o ping para já.
       stopPing()
-      handleSocketLost()
+      // A queda só é tratada depois do que chegou antes dela: o `kicked` ou o
+      // `session.replaced` atrás de um pacote ainda abrindo decide que não há volta.
+      receive.quandoEsvaziar(() => {
+        if (socket !== current) return
+        socket = null
+        handleSocketLost()
+      })
     }
   }
 
