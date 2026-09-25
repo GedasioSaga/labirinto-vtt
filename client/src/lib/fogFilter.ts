@@ -4,7 +4,7 @@ import { isTokenPhotoData } from './tokenPhoto'
 import { tokenAsSeenByPlayer } from './tokenPublicName'
 import { healthForPlayer } from './tokenHealth'
 import { tokenConditionsForPlayer } from './tokenConditions'
-import { withoutCarrier } from './carry'
+import { carrierIdOf, withoutCarrier } from './carry'
 import { guardAlerts, tokenWatchForPlayer, tokenWatchOf } from './npcWatch'
 import { tokenPatrolForPlayer } from './npcPatrol'
 import type { TurnRef } from './initiative'
@@ -1899,9 +1899,22 @@ export function filterMapForGroup(
     ...mapWithoutHazards
   } = map
 
+  // PISOS: ficha de OUTRO piso. O que anda com ela e ficou neste piso (arquivo
+  // antigo, algo levado sozinho) segue o x/y dela lá em cima — a luz presa, o
+  // pino preso (`presoA`) e a ficha que ela leva (`levadoPor`): sair aqui
+  // desenharia o caminho de quem está no outro piso.
+  const destePiso = new Set(map.tokens.map((t) => t.id))
+  const outroPisoTokenIds = new Set(map === mapaInteiro ? [] : mapaInteiro.tokens.filter((t) => !destePiso.has(t.id)).map((t) => t.id))
+  const levadaPorOutroPiso = (t: Token): boolean => {
+    const quemLeva = carrierIdOf(t)
+    return quemLeva !== null && outroPisoTokenIds.has(quemLeva)
+  }
+
   // Token do próprio jogador sai sempre, mesmo secreto ou em zona oculta: é ele quem o move.
   const playerTokens = layerTokens.filter(
-    (t) => !t.hidden && (owned.has(t.id) || (!t.secret && !inClosedRoof({ x: t.x, y: t.y }) && isVisible({ x: t.x, y: t.y }))),
+    (t) =>
+      !t.hidden &&
+      (owned.has(t.id) || (!t.secret && !levadaPorOutroPiso(t) && !inClosedRoof({ x: t.x, y: t.y }) && isVisible({ x: t.x, y: t.y }))),
   )
   /**
    * OLHOS DO GUARDA. A marca (?, !) conta só as fichas de jogador (`watchTargets`,
@@ -1951,11 +1964,6 @@ export function filterMapForGroup(
   const masterHiddenTokenIds = new Set(
     map.tokens.filter((t) => !sentTokenIds.has(t.id) && (t.hidden || t.secret || !layerTokenIds.has(t.id))).map((t) => t.id),
   )
-  // PISOS: ficha de OUTRO piso. A luz presa nela que ficou neste piso (arquivo
-  // antigo, luz levada sozinha) anda com a ficha lá em cima: sair como luz
-  // solta desenharia aqui o caminho de quem está no outro piso.
-  const destePiso = new Set(map.tokens.map((t) => t.id))
-  const outroPisoTokenIds = new Set(map === mapaInteiro ? [] : mapaInteiro.tokens.filter((t) => !destePiso.has(t.id)).map((t) => t.id))
   const playerStairs = visibleStairs(map.stairs, hiddenLayers).filter((s) => {
     const first = s.segments[0]
     if (s.hidden || s.secret || first === undefined || stairSamples(s).some(inHiddenPlace)) return false
@@ -2104,6 +2112,8 @@ export function filterMapForGroup(
         }
         if (p.hidden || p.secret || hiddenLayers.includes('anotacoes')) return false
         if (p.presoA !== undefined && mapTokenIds.has(p.presoA) && !deliveredTokenIds.has(p.presoA)) return false
+        // Preso a ficha de OUTRO piso: anda com ela lá, então conta onde ela está (ver `outroPisoTokenIds`).
+        if (p.presoA !== undefined && outroPisoTokenIds.has(p.presoA)) return false
         const point = { x: p.x, y: p.y }
         return !inHiddenPlace(point) && isPointKnown(point)
       })

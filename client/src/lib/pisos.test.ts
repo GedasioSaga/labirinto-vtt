@@ -248,3 +248,93 @@ describe('pisos — o editor constrói no piso em edição', () => {
     expect(comSelecaoNoPiso(next, [{ kind: 'token', id: 'lia' }], 1)).toBe(next)
   })
 })
+
+/**
+ * O que anda com a ficha troca de piso com ela: o pino PRESO a ela
+ * (`Pin.presoA`) e a ficha que ela LEVA (`levadoPor`), com a tocha e o pino
+ * dessa. Ficando embaixo, os dois seguiriam o x/y da ficha lá em cima
+ * (`setTokenPosition`) e contariam, a quem ficou, o caminho de quem subiu.
+ */
+describe('pisos — o que anda com a ficha sobe com ela', () => {
+  const pino = (id: string, presoA?: string) => ({ id, x: 200, y: 240, kind: 'exclamacao' as const, description: '', image: null, ...(presoA === undefined ? {} : { presoA }) })
+  const luz = (id: string, attachedTokenId: string) => ({ id, x: 220, y: 260, radius: 100, color: '#fff', intensity: 1, attachedTokenId })
+
+  function grupo(): MapData {
+    return {
+      ...torre(),
+      tokens: [token('lia', 200, 260), { ...token('ferido', 220, 260), levadoPor: 'lia' }, token('outro', 300, 300)],
+      pins: [pino('balao', 'lia'), pino('maca', 'ferido'), pino('placa'), pino('alheio', 'outro')],
+      lights: [luz('lampiao', 'ferido')],
+    }
+  }
+
+  it('comFichaNoPiso: o pino preso e a ficha levada (com a luz e o pino dela) vão ao piso; o resto fica', () => {
+    const emCima = comFichaNoPiso(grupo(), 'lia', 1)
+    expect(emCima.tokens.map((t) => [t.id, pisoDe(t)])).toEqual([
+      ['lia', 1],
+      ['ferido', 1],
+      ['outro', 0],
+    ])
+    expect(emCima.tokens[1].levadoPor).toBe('lia')
+    expect(emCima.pins.map((p) => [p.id, pisoDe(p)])).toEqual([
+      ['balao', 1],
+      ['maca', 1],
+      ['placa', 0],
+      ['alheio', 0],
+    ])
+    expect(emCima.lights.map((l) => [l.id, pisoDe(l)])).toEqual([['lampiao', 1]])
+    // Desce de volta: todos voltam ao térreo, sem o campo.
+    const deVolta = comFichaNoPiso(emCima, 'lia', 0)
+    expect([...deVolta.tokens, ...deVolta.pins, ...deVolta.lights].some((item) => 'piso' in item)).toBe(false)
+  })
+
+  it('comFichaNoPiso: sem pino preso a ela, a MESMA lista de pinos', () => {
+    const map: MapData = { ...grupo(), pins: [pino('placa')] }
+    expect(comFichaNoPiso(map, 'lia', 1).pins).toBe(map.pins)
+  })
+
+  it('comFichaNoPiso: a ficha levada que sobe SOZINHA solta de quem a leva (senão andaria com ele no outro piso)', () => {
+    const map = comFichaNoPiso(grupo(), 'ferido', 1)
+    expect(map.tokens.map((t) => [t.id, pisoDe(t)])).toEqual([
+      ['lia', 0],
+      ['ferido', 1],
+      ['outro', 0],
+    ])
+    expect('levadoPor' in map.tokens[1]).toBe(false)
+    expect(map.pins.map((p) => [p.id, pisoDe(p)])).toEqual([
+      ['balao', 0],
+      ['maca', 1],
+      ['placa', 0],
+      ['alheio', 0],
+    ])
+  })
+
+  it('comSelecaoNoPiso ("Levar ao piso"): a ficha leva o pino preso e a ficha levada; a levada escolhida sozinha solta', () => {
+    const next = comSelecaoNoPiso(grupo(), [{ kind: 'token', id: 'lia' }], 1)
+    expect(next.tokens.map((t) => [t.id, pisoDe(t)])).toEqual([
+      ['lia', 1],
+      ['ferido', 1],
+      ['outro', 0],
+    ])
+    expect(next.pins.map((p) => [p.id, pisoDe(p)])).toEqual([
+      ['balao', 1],
+      ['maca', 1],
+      ['placa', 0],
+      ['alheio', 0],
+    ])
+    expect(next.lights.map((l) => [l.id, pisoDe(l)])).toEqual([['lampiao', 1]])
+    expect(comSelecaoNoPiso(next, [{ kind: 'token', id: 'lia' }], 1)).toBe(next)
+
+    const soOFerido = comSelecaoNoPiso(grupo(), [{ kind: 'token', id: 'ferido' }], 1)
+    expect(soOFerido.tokens.map((t) => [t.id, pisoDe(t)])).toEqual([
+      ['lia', 0],
+      ['ferido', 1],
+      ['outro', 0],
+    ])
+    expect('levadoPor' in soOFerido.tokens[1]).toBe(false)
+    // Os dois escolhidos juntos: sobem juntos e o vínculo fica.
+    const juntos = comSelecaoNoPiso(grupo(), [{ kind: 'token', id: 'ferido' }, { kind: 'token', id: 'lia' }], 1)
+    expect(juntos.tokens[1].levadoPor).toBe('lia')
+    expect(pisoDe(juntos.tokens[1])).toBe(1)
+  })
+})

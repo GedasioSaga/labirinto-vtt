@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest'
 import type { MapData, Pin, Region, Stair, Token, Wall } from '../types/map'
 import { createExploration, markAll } from './exploration'
 import { filterMapForPlayer, pisoDoJogador } from './fogFilter'
-import { createEmptyMap } from './mapFactory'
+import { createEmptyMap, setTokenPosition } from './mapFactory'
+import { comFichaNoPiso } from './pisos'
 
 /**
  * PISOS NA MESMA CENA no recorte: o jogador recebe só o piso da ficha dele.
@@ -105,5 +106,55 @@ describe('fogFilter — pisos na mesma cena', () => {
     const view = filterMapForPlayer(predio(), 'p1', { p1: ['lia', 'caio'] }, RADIUS)
     expect(view.map.tokens.map((t) => t.id)).toEqual(['lia'])
     expect(view.eyes.map((e) => e.tokenId)).toEqual(['lia'])
+  })
+})
+
+/**
+ * VAZAMENTO ENTRE PISOS pelo que anda com a ficha: o pino PRESO a ela
+ * (`presoA`) e a ficha que ela LEVA (`levadoPor`) seguem o x/y dela
+ * (`setTokenPosition`). Se ficassem no térreo quando ela sobe, quem ficou
+ * embaixo veria os dois andando pelo caminho de quem está no 1º piso.
+ */
+describe('fogFilter — pisos: o que anda com a ficha não entrega quem subiu', () => {
+  function terreoComCaio(): MapData {
+    return {
+      ...createEmptyMap('predio', 'Prédio', 25, 25, 40),
+      tokens: [token('lia', 500, 500), token('caio', 500, 500), token('ferido', 520, 500, { levadoPor: 'caio' })],
+      pins: [pino('balao', 500, 480, { presoA: 'caio' })],
+      stairs: [ESCADA],
+    }
+  }
+  const DONOS = { A: ['lia'], B: ['caio'] }
+
+  it('o Caio sobe a escada e anda lá em cima: a Lia, no térreo, não recebe o pino preso nem a ficha levada', () => {
+    // O caminho do host: `token.piso` → `comFichaNoPiso` → `token.move` → `setTokenPosition`.
+    const map = setTokenPosition(comFichaNoPiso(terreoComCaio(), 'caio', 1), 'caio', 800, 700)
+    const view = filterMapForPlayer(map, 'A', DONOS, RADIUS)
+    expect(view.map.tokens.map((t) => t.id)).toEqual(['lia'])
+    expect(view.map.pins.map((p) => p.id)).toEqual([])
+    // Quem subiu recebe os dois, lá em cima, onde ele está.
+    const lá = filterMapForPlayer(map, 'B', DONOS, RADIUS)
+    expect(lá.map.tokens.map((t) => [t.id, t.x, t.y])).toEqual([
+      ['caio', 800, 700],
+      ['ferido', 820, 700],
+    ])
+    expect(lá.map.pins.map((p) => [p.id, p.x, p.y])).toEqual([['balao', 800, 680]])
+  })
+
+  it('pino preso e ficha levada que ficaram num piso sem a ficha (arquivo feito à mão) não saem no recorte deste piso', () => {
+    const base = terreoComCaio()
+    const map: MapData = { ...base, tokens: base.tokens.map((t) => (t.id === 'caio' ? { ...t, piso: 1 } : t)) }
+    const view = filterMapForPlayer(map, 'A', DONOS, RADIUS)
+    expect(view.map.tokens.map((t) => t.id)).toEqual(['lia'])
+    expect(view.map.pins.map((p) => p.id)).toEqual([])
+    // A ficha levada que é do PRÓPRIO jogador continua saindo para ele: é ele quem a move.
+    const doDono = filterMapForPlayer(map, 'A', { A: ['lia', 'ferido'], B: ['caio'] }, RADIUS)
+    expect(doDono.map.tokens.map((t) => t.id)).toEqual(['lia', 'ferido'])
+  })
+
+  it('sem piso nenhum, o pino preso e a ficha levada à vista continuam saindo (nada muda no mapa de um piso)', () => {
+    const view = filterMapForPlayer(terreoComCaio(), 'A', DONOS, RADIUS)
+    expect(view.map.tokens.map((t) => t.id)).toEqual(['lia', 'caio', 'ferido'])
+    expect(view.map.pins.map((p) => p.id)).toEqual(['balao'])
   })
 })

@@ -1,5 +1,6 @@
-import type { Light, MapData, NoPiso, Stair, Token } from '../types/map'
+import type { Light, MapData, NoPiso, Pin, Stair, Token } from '../types/map'
 import type { SelectionKind } from '../types/tools'
+import { carriedBy, carrierIdOf, withoutCarrier } from './carry'
 import { subtreeIds } from './roomNesting'
 
 /**
@@ -215,8 +216,8 @@ export interface ItemParaPiso {
  * "Levar ao piso" da seleção: cada item escolhido vai ao piso `piso`. A sala
  * leva as sub-salas e as paredes dela (parede de sala escolhida sozinha leva
  * a sala inteira: sala com metade das paredes em outro piso não fecha); a
- * ficha leva as luzes presas a ela (a tocha sobe com quem a carrega). Nada
- * muda: o próprio mapa.
+ * ficha leva o que anda com ela — a ficha que ela leva, a tocha e o pino
+ * preso (`comFichasNoPiso`). Nada muda: o próprio mapa.
  */
 export function comSelecaoNoPiso(map: MapData, itens: readonly ItemParaPiso[], piso: number): MapData {
   const ids = (kind: ItemParaPiso['kind']): Set<string> => new Set(itens.filter((i) => i.kind === kind).map((i) => i.id))
@@ -227,7 +228,6 @@ export function comSelecaoNoPiso(map: MapData, itens: readonly ItemParaPiso[], p
     ...map.walls.flatMap((w) => (w.regionId !== undefined && paredes.has(w.id) ? [w.regionId] : [])),
   ]
   for (const regionId of salasEscolhidas) for (const id of subtreeIds(map.regions, regionId)) salas.add(id)
-  const fichas = ids('token')
   const luzes = ids('light')
   const leva = <T extends ComPisoEId>(list: T[], vai: (item: T) => boolean): T[] => {
     let mudou = false
@@ -242,19 +242,21 @@ export function comSelecaoNoPiso(map: MapData, itens: readonly ItemParaPiso[], p
   const objetos = ids('prop')
   const desenhos = ids('drawing')
   const pecas = ids('floor')
+  // A ficha leva o que anda com ela (a ficha levada, a tocha, o pino preso): `comFichasNoPiso`.
+  const comFichas = comFichasNoPiso(map, ids('token'), piso)
   const next: MapData = {
     ...map,
+    ...comFichas,
     regions: leva(map.regions, (r) => salas.has(r.id)),
     walls: leva(map.walls, (w) => paredes.has(w.id) || (w.regionId !== undefined && salas.has(w.regionId))),
-    tokens: leva(map.tokens, (t) => fichas.has(t.id)),
-    lights: leva(map.lights, (l) => luzes.has(l.id) || (l.attachedTokenId !== undefined && fichas.has(l.attachedTokenId))),
+    lights: leva(comFichas.lights, (l) => luzes.has(l.id)),
     stairs: leva(map.stairs, (s) => escadas.has(s.id)),
     props: leva(map.props, (p) => objetos.has(p.id)),
     drawings: leva(map.drawings, (d) => desenhos.has(d.id)),
     floor: leva(map.floor, (p) => pecas.has(p.id)),
   }
   const mudou = next.regions !== map.regions || next.walls !== map.walls || next.tokens !== map.tokens || next.lights !== map.lights ||
-    next.stairs !== map.stairs || next.props !== map.props || next.drawings !== map.drawings || next.floor !== map.floor
+    next.pins !== map.pins || next.stairs !== map.stairs || next.props !== map.props || next.drawings !== map.drawings || next.floor !== map.floor
   return mudou ? next : map
 }
 
@@ -300,19 +302,55 @@ export function pisoDigitado(value: number): number | null {
 
 /**
  * A ficha vai a outro piso — pelo painel do mestre ou pela escada do jogador —
- * e a luz presa nela vai junto, como em "Levar ao piso" (`comSelecaoNoPiso`):
- * a tocha que ficasse embaixo seguiria o x/y da ficha lá em cima e desenharia,
- * no recorte de quem está embaixo, o caminho de quem subiu. Ficha inexistente
- * ou já lá: o próprio mapa.
+ * e o que anda com ela vai junto, como em "Levar ao piso" (`comSelecaoNoPiso`):
+ * a tocha, o pino preso ou a ficha levada que ficasse embaixo seguiria o x/y
+ * da ficha lá em cima e desenharia, no recorte de quem está embaixo, o caminho
+ * de quem subiu (`comFichasNoPiso`). Ficha inexistente ou já lá: o próprio mapa.
  */
 export function comFichaNoPiso(map: MapData, tokenId: string, piso: number): MapData {
   const token = map.tokens.find((t) => t.id === tokenId)
   if (token === undefined || pisoDe(token) === piso) return map
-  const levaLuz = (l: Light): boolean => l.attachedTokenId === tokenId && pisoDe(l) !== piso
+  return { ...map, ...comFichasNoPiso(map, new Set([tokenId]), piso) }
+}
+
+/** As listas que mudam quando fichas trocam de piso. */
+type ListasDaFicha = Pick<MapData, 'tokens' | 'lights' | 'pins'>
+
+/**
+ * As fichas `escolhidas` vão ao piso `piso` com TUDO que anda com elas — o
+ * que segue o x/y delas em `setTokenPosition` (`lib/mapFactory.ts`) e, ficando
+ * embaixo, desenharia no recorte de quem ficou o caminho de quem subiu:
+ * - as fichas que elas LEVAM (`levadoPor`, um nível só: `lib/carry.ts`);
+ * - a luz presa a qualquer uma delas (a tocha);
+ * - o pino PRESO a qualquer uma delas (`Pin.presoA`: navio, maca, balão).
+ * A ficha LEVADA que vai sem quem a leva solta do vínculo: presa, andaria com
+ * ele no outro piso e contaria, a quem está com ela, onde ele anda.
+ * Lista em que nada muda volta a MESMA (o editor redesenha pela referência).
+ */
+function comFichasNoPiso(map: MapData, escolhidas: ReadonlySet<string>, piso: number): ListasDaFicha {
+  const vao = new Set(escolhidas)
+  for (const id of escolhidas) for (const levada of carriedBy(map, id)) vao.add(levada.id)
+  const pisoPorFicha = new Map(map.tokens.map((t) => [t.id, pisoDe(t)]))
+  const soltaDeQuemFica = (t: Token): boolean => {
+    const quemLeva = carrierIdOf(t)
+    if (quemLeva === null || vao.has(quemLeva)) return false
+    const pisoDeQuemLeva = pisoPorFicha.get(quemLeva)
+    return pisoDeQuemLeva !== undefined && pisoDeQuemLeva !== piso
+  }
+  let fichasMudaram = false
+  const tokens = map.tokens.map((t) => {
+    if (!vao.has(t.id)) return t
+    const noPiso = pisoDe(t) === piso ? t : comPiso(t, piso)
+    const pronta = soltaDeQuemFica(t) ? withoutCarrier(noPiso) : noPiso
+    if (pronta !== t) fichasMudaram = true
+    return pronta
+  })
+  const levaLuz = (l: Light): boolean => l.attachedTokenId !== undefined && vao.has(l.attachedTokenId) && pisoDe(l) !== piso
+  const levaPino = (p: Pin): boolean => p.presoA !== undefined && vao.has(p.presoA) && pisoDe(p) !== piso
   return {
-    ...map,
-    tokens: map.tokens.map((t) => (t.id === tokenId ? comPiso(t, piso) : t)),
+    tokens: fichasMudaram ? tokens : map.tokens,
     lights: map.lights.some(levaLuz) ? map.lights.map((l) => (levaLuz(l) ? comPiso(l, piso) : l)) : map.lights,
+    pins: map.pins.some(levaPino) ? map.pins.map((p) => (levaPino(p) ? comPiso(p, piso) : p)) : map.pins,
   }
 }
 
