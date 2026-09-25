@@ -55,6 +55,8 @@ import { MASTER_ROLLER_NAME, parseDiceRequest, type DiceRequest, type DiceRollEn
  * antigo responde `error invalid_message`; jogador antigo ignora as três.
  * O `text` opcional do `pin.travel.denied` é o motivo que o MESTRE escreveu
  * para quem pediu ("Não, porque…"): vai só a ele e não é do mapa.
+ * `tokenIds` no pedido (quais fichas dele passam) segue a mesma regra: mestre
+ * antigo descarta o campo e leva o grupo de sempre.
  *
  * `scene.note` (mestre -> jogador) é o RECADO POR CENA, aditivo pelo mesmo
  * critério: jogador antigo cai no `default` e ignora. Leva só o texto e um id,
@@ -362,7 +364,18 @@ export interface PinTravelRequestMessage {
    * Aditivo: ausente vale a saída principal, e é o que o cliente antigo manda.
    */
   exitId?: string
+  /**
+   * ESCOLHER FICHAS NO PINO: quais fichas DELE passam (1 a
+   * `PIN_TRAVEL_MAX_TOKENS` ids, sem repetir). O host confere cada uma: dele,
+   * no recorte dele e no grupo do pino (`lib/pinTravelers.ts`). Aditivo:
+   * ausente vale o grupo de sempre (a mais perto do pino e as dele a até 2
+   * casas dela), e é o que o cliente antigo manda.
+   */
+  tokenIds?: string[]
 }
+
+/** Teto da lista `tokenIds` do pedido de passagem: fichas de um jogador que passam juntas. */
+export const PIN_TRAVEL_MAX_TOKENS = 8
 
 /**
  * CABINE DE TRANSPORTE: "Chamar a cabine" pela parada `pinId` da cena em que
@@ -990,11 +1003,34 @@ function parseSignal(obj: Record<string, unknown>): SignalMessage | null {
  * saída principal (o jogador escolheu uma porta e iria por outra).
  */
 function parseTravelRequest(obj: Record<string, unknown>): PinTravelRequestMessage | null {
-  const { pinId, exitId } = obj
+  const { pinId, exitId, tokenIds } = obj
   if (!isBoundedString(pinId, 1, REQ_ID_MAX_LENGTH)) return null
-  if (exitId === undefined) return { type: 'pin.travel.request', pinId }
-  if (!isBoundedString(exitId, 1, REQ_ID_MAX_LENGTH)) return null
-  return { type: 'pin.travel.request', pinId, exitId }
+  const message: PinTravelRequestMessage = { type: 'pin.travel.request', pinId }
+  if (exitId !== undefined) {
+    if (!isBoundedString(exitId, 1, REQ_ID_MAX_LENGTH)) return null
+    message.exitId = exitId
+  }
+  if (tokenIds !== undefined) {
+    const ids = parseTravelTokenIds(tokenIds)
+    if (ids === null) return null
+    message.tokenIds = ids
+  }
+  return message
+}
+
+/**
+ * A lista de fichas do pedido: 1 a `PIN_TRAVEL_MAX_TOKENS` ids curtos, sem
+ * repetir. Fora disso a mensagem inteira é recusada — cair calado no grupo de
+ * sempre levaria justamente quem o jogador NÃO escolheu.
+ */
+function parseTravelTokenIds(value: unknown): string[] | null {
+  if (!Array.isArray(value) || value.length === 0 || value.length > PIN_TRAVEL_MAX_TOKENS) return null
+  const ids: string[] = []
+  for (const id of value) {
+    if (!isBoundedString(id, 1, REQ_ID_MAX_LENGTH) || ids.includes(id)) return null
+    ids.push(id)
+  }
+  return ids
 }
 
 export function isDoorRequestHow(value: unknown): value is DoorRequestHow {
