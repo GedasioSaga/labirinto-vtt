@@ -528,6 +528,19 @@ export interface SeatClaimMessage {
   tokenId: string
 }
 
+/**
+ * ESCONDER-SE: o jogador pede ao mestre para a PRÓPRIA ficha sumir dos outros
+ * jogadores. Só o id: quem decide é o mestre ("Deixar"/"Não"), e aceito o
+ * mestre liga "Oculto para jogadores" na ficha. Recusa volta em
+ * `token.hide.rejected`; aceito não tem resposta — a ficha chega com `secret`
+ * no snapshot do dono. Aditiva pelo critério de sempre: mestre antigo
+ * responde `error invalid_message`, que o jogador ignora.
+ */
+export interface TokenHideRequestMessage {
+  type: 'token.hide.request'
+  tokenId: string
+}
+
 export type PlayerMessage =
   | JoinMessage
   | SeatClaimMessage
@@ -554,6 +567,18 @@ export type PlayerMessage =
   | LetterSendMessage
   | DiceRollMessage
   | PinLeverMessage
+  | TokenHideRequestMessage
+
+/**
+ * Por que o pedido de esconder-se não virou ficha escondida. `denied`: o
+ * mestre disse "Não". Os outros são do host, antes de perguntar: `pending`
+ * (já há um esperando), `too_soon` (insistiu antes do intervalo) e
+ * `unavailable` — genérico de propósito, para ficha que não é dele, que não
+ * existe, que já está escondida ou cena pausada: um motivo por caso ensinaria ids.
+ */
+export type TokenHideRejection = 'denied' | 'pending' | 'too_soon' | 'unavailable'
+
+export const TOKEN_HIDE_REJECTIONS: readonly TokenHideRejection[] = ['denied', 'pending', 'too_soon', 'unavailable']
 
 /**
  * Por que a alavanca não moveu nada. `unavailable` junta pino inexistente, no
@@ -878,6 +903,8 @@ export type HostMessage =
   | { type: 'door.toggle.rejected'; wallId: string; reason: DoorToggleRejection; key?: string }
   | { type: 'door.request.rejected'; wallId: string; reason: DoorRequestRejection }
   | { type: 'door.request.answer'; answer: DoorRequestAnswer }
+  // ESCONDER-SE: só a quem pediu. Aceito não tem mensagem: a ficha chega com `secret` no snapshot dele.
+  | { type: 'token.hide.rejected'; reason: TokenHideRejection }
   | { type: 'pin.travel.rejected'; reason: PinTravelRejection }
   // ITEM PEGÁVEL. `nome` só no `taken`: o jogador lê o que agora carrega.
   | { type: 'pin.take.rejected'; reason: PinTakeRejection }
@@ -1587,6 +1614,8 @@ export function parsePlayerMessage(raw: unknown): PlayerMessage | null {
       return isBoundedString(value.pinId, 1, REQ_ID_MAX_LENGTH) ? { type: 'pin.lever', pinId: value.pinId } : null
     case 'seat.claim':
       return isBoundedString(value.tokenId, 1, REQ_ID_MAX_LENGTH) ? { type: 'seat.claim', tokenId: value.tokenId } : null
+    case 'token.hide.request':
+      return isBoundedString(value.tokenId, 1, REQ_ID_MAX_LENGTH) ? { type: 'token.hide.request', tokenId: value.tokenId } : null
     default:
       return null
   }

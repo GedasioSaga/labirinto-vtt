@@ -42,6 +42,7 @@ import { selectedTokenColor } from '../lib/tokenColor'
 import { buildTokenPhotoData } from '../lib/tokenPhoto'
 import { carriedItemsOf, giveTargets } from '../lib/items'
 import { itemNoticeText } from './itemNotice'
+import { HIDE_NOTICE_TEXT } from './hideNotice'
 import { leverNoticeText } from './leverNotice'
 import { hazardNoticeText } from '../lib/hazards'
 import { tableCodeFromSearch, tableKeyFromSearch } from '../lib/tableScreen'
@@ -733,6 +734,10 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
       return [contrato === undefined ? { id, name: token.name } : { id, name: token.name, contrato }]
     })
   }, [map, ownTokens])
+  // ESCONDER-SE: o personagem próprio do painel (o primeiro sem acordo de
+  // ajudante) chega marcado quando o mestre deixou ele se esconder.
+  const mineId = characters.find((c) => !('contrato' in c))?.id
+  const ownHidden = mineId !== undefined && map?.tokens.find((t) => t.id === mineId)?.secret === true
   const partyTokens = state.partyTokens ?? NO_TOKENS
   // ITEM PEGÁVEL: "Comigo" é a mochila das fichas dele; "Dar a…" oferece só
   // fichas de COLEGAS encostadas numa delas — NPC do mestre o host recusaria.
@@ -976,6 +981,7 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
             // quem escolhe que paga o custo, e o que viaja já cabe no teto.
             connection.setOwnTokenPhoto(tokenId, await buildTokenPhotoData(file))
           }}
+          hide={{ hidden: ownHidden, waiting: state.hide?.phase === 'waiting', onRequest: (tokenId) => connection.requestHide(tokenId) }}
           notebook={state.notebook ?? NO_NOTES}
           notebookUnread={hasUnreadNotes(state)}
           onReadNotebook={readNotebook}
@@ -1179,6 +1185,11 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
         {state.doorRequest && (
           <p key={state.doorRequest.id} className="pp-notice" role="status" aria-live="polite">
             {doorRequestText(state.doorRequest.phase)}
+          </p>
+        )}
+        {state.hide?.phase === 'rejected' && (
+          <p key={state.hide.id} className="pp-notice" role="status" aria-live="polite">
+            {HIDE_NOTICE_TEXT[state.hide.reason]}
           </p>
         )}
         {actionNotice && moveNoticeShown && (

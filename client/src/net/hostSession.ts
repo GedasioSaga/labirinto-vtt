@@ -99,6 +99,8 @@ import {
   type SeatOption,
   type SignalMessage,
   type TokenEditMessage,
+  type TokenHideRejection,
+  type TokenHideRequestMessage,
   type TokenMoveMessage,
 } from './protocol'
 import {
@@ -263,6 +265,30 @@ export interface DoorRequest {
   how: DoorRequestHow
   /** Nome da cena (o que o mestre lê), só quando a porta está numa cena de FUNDO. */
   sceneName?: string
+}
+
+/**
+ * ESCONDER-SE: pedido já validado, à espera do mestre. É o que a linha da
+ * caixa de Pedidos mostra (quem e o nome da ficha que o MESTRE lê); nada
+ * disto vai a jogador nenhum.
+ */
+export interface HideRequest {
+  requestId: string
+  playerId: string
+  playerName: string
+  tokenName: string
+  /** Nome da cena (o que o mestre lê), só quando a ficha está numa cena de FUNDO. */
+  sceneName?: string
+}
+
+/**
+ * "Deixar" do esconder-se: o integrador liga "Oculto para jogadores" na ficha
+ * `tokenId`, na cena `sceneId` (ausente = a aberta no editor). É decisão do
+ * mestre: vira passo do Ctrl+Z dele, como "Destrancar e abrir".
+ */
+export interface AppliedHide {
+  tokenId: string
+  sceneId?: string
 }
 
 /**
@@ -572,6 +598,10 @@ export interface HostResult {
   travelRequest?: TravelRequest
   /** Pedido da porta trancada válido: o integrador pergunta ao mestre. */
   doorRequest?: DoorRequest
+  /** Pedido de esconder-se válido: o integrador pergunta ao mestre. */
+  hideRequest?: HideRequest
+  /** "Deixar" do esconder-se: o integrador esconde a ficha ANTES do broadcast. */
+  applyHide?: AppliedHide
   /** A chave da mochila abriu a porta (o `applyDoor` vem junto, com `unlock`): o integrador avisa o mestre. */
   doorKeyUsed?: DoorKeyUse
   /** A chave da mochila abriu o pino trancado (o `applyTransfer` vem junto): o integrador avisa o mestre. */
@@ -792,6 +822,13 @@ export const DOOR_TOGGLE_MIN_INTERVAL_MS = 250
  * foto no mesmo gesto perder um dos dois em silêncio.
  */
 export const TOKEN_PHOTO_MIN_INTERVAL_MS = 500
+
+/**
+ * Um pedido de esconder-se por jogador nesta janela. O mestre disse "Não" e o
+ * jogador insiste no toque: sem o intervalo, cada toque seria uma linha nova
+ * na caixa de Pedidos do mestre.
+ */
+export const HIDE_REQUEST_MIN_INTERVAL_MS = 1500
 
 /**
  * "Mostrar para…": uma pista mostrada por jogador nesta janela. Só conta o que
@@ -1070,6 +1107,17 @@ export interface HostSession {
   /** O pedido da porta ainda espera o mestre? `false` depois de decidido, ou quando o jogador saiu. */
   isDoorRequestPending(requestId: string): boolean
   /**
+   * "Deixar" do esconder-se: revalida contra o mundo de AGORA (a ficha ainda
+   * existe e ainda é de quem pediu) e devolve `applyHide`. Quem esconde a
+   * ficha e faz o broadcast é o integrador. Ficha que sumiu: `unavailable` a
+   * quem pediu. Pedido que já não existe, ou ficha que mudou de dono: nada.
+   */
+  approveHide(requestId: string, source: HostMapSource): HostResult
+  /** "Não": `token.hide.rejected denied` a quem pediu. Pedido que já não existe não faz nada. */
+  denyHide(requestId: string): HostResult
+  /** O pedido de esconder-se ainda espera o mestre? `false` depois de decidido, ou quando o jogador saiu. */
+  isHidePending(requestId: string): boolean
+  /**
    * "Deixar" do pedido de item: revalida contra o mundo de AGORA (o pino pode
    * ter sido pego por outro, a ficha pode ter saído) e devolve `applyItems` +
    * `pin.take.answer taken` ao jogador. Não exige mais a ficha encostada: é
@@ -1302,6 +1350,13 @@ interface PendingDoor {
   mapId: string
 }
 
+/** Pedido de esconder-se à espera do mestre. Um por jogador. */
+interface PendingHide {
+  requestId: string
+  playerId: string
+  tokenId: string
+}
+
 /** Pedido de item à espera do mestre. Um por jogador. `tokenId`: a ficha que pega; `mapId`: a `sceneKey` da cena. */
 interface PendingItem {
   requestId: string
@@ -1523,6 +1578,10 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   const pendingDoors = new Map<string, PendingDoor>()
   // Por playerId: o mesmo limite do toque, para o pedido da porta trancada.
   const lastDoorRequestAt = new Map<string, number>()
+  // Por playerId: o pedido de esconder-se que espera o mestre (no máximo um).
+  const pendingHides = new Map<string, PendingHide>()
+  // Por playerId: o último pedido de esconder-se. Sobrevive ao disconnect; só o kick apaga.
+  const lastHideRequestAt = new Map<string, number>()
   // Por playerId: o pedido de item que espera o mestre (no máximo um).
   const pendingItems = new Map<string, PendingItem>()
   // Por playerId: o mesmo limite do toque na porta, para "Pegar" e para "Dar a…".
@@ -2744,6 +2803,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     lastDoorToggleAt.delete(playerId)
     pendingDoors.delete(playerId)
     lastDoorRequestAt.delete(playerId)
+    pendingHides.delete(playerId)
+    lastHideRequestAt.delete(playerId)
     lastTokenPhotoAt.delete(playerId)
     lastCabineCallAt.delete(playerId)
     visionOverrides.delete(playerId)
@@ -3338,6 +3399,52 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   }
 
   const findPendingDoor = (requestId: string): PendingDoor | undefined => [...pendingDoors.values()].find((pending) => pending.requestId === requestId)
+
+  /**
+   * A ficha `tokenId` que ESTE jogador pode esconder: é dele de verdade (nem
+   * ajudante do mestre, nem a emprestada de um colega que caiu — como no
+   * `token.edit`) e existe em alguma cena. A cena vai junto (fundo ou aberta).
+   */
+  function hideableTokenOf(playerId: string, tokenId: string, world: HostWorld): { scene: HostScene; token: Token } | null {
+    if (!(ownership[playerId] ?? []).includes(tokenId)) return null
+    if (helperLoans.has(tokenId) || loans.get(tokenId)?.borrowerId === playerId) return null
+    for (const scene of allScenes(world)) {
+      const token = scene.map.tokens.find((t) => t.id === tokenId)
+      if (token !== undefined) return { scene, token }
+    }
+    return null
+  }
+
+  /**
+   * ESCONDER-SE: o jogador pede, o mestre decide. Autoridade é aqui, no molde
+   * do `token.edit`: a ficha existe no mapa do mestre e é DELE. Ficha de outro,
+   * inexistente, já escondida ou em cena pausada respondem o mesmo
+   * `unavailable` — um motivo por caso ensinaria quais ids existem. O limite
+   * vem antes de tudo (barato e de tamanho fixo por jogador), e só depois o
+   * "já há um esperando".
+   */
+  function handleHideRequest(clientId: string, msg: TokenHideRequestMessage, world: HostWorld): HostResult {
+    const playerId = byClient.get(clientId)
+    if (playerId === undefined) return reply(clientId, { type: 'error', reason: 'not_joined' })
+    const record = players.get(playerId)
+    const reject = (reason: TokenHideRejection): HostResult => reply(clientId, { type: 'token.hide.rejected', reason })
+    if (record === undefined || statusOf(playerId) !== 'playing') return reject('unavailable')
+    const at = now()
+    const last = lastHideRequestAt.get(playerId)
+    if (last !== undefined && at - last < HIDE_REQUEST_MIN_INTERVAL_MS) return reject('too_soon')
+    lastHideRequestAt.set(playerId, at)
+    if (pendingHides.has(playerId)) return reject('pending')
+    const found = hideableTokenOf(playerId, msg.tokenId, world)
+    if (found === null || found.token.secret === true || inPausedScene(found.scene)) return reject('unavailable')
+    const requestId = randomId()
+    pendingHides.set(playerId, { requestId, playerId, tokenId: msg.tokenId })
+    const request: HideRequest = { requestId, playerId, playerName: record.name, tokenName: found.token.name }
+    // Cena de fundo: o mestre lê onde é, porque está olhando outra.
+    if (backgroundSceneId(found.scene, world).sceneId !== undefined) request.sceneName = found.scene.name
+    return { outbound: [], hideRequest: request }
+  }
+
+  const findPendingHide = (requestId: string): PendingHide | undefined => [...pendingHides.values()].find((pending) => pending.requestId === requestId)
 
   /**
    * ITEM PEGÁVEL: o que o jogador pode pegar AGORA. Autoridade no molde da
@@ -4181,6 +4288,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
         return handleDoorToggle(clientId, msg, world)
       case 'door.request':
         return handleDoorRequest(clientId, msg, world)
+      case 'token.hide.request':
+        return handleHideRequest(clientId, msg, world)
       case 'door.useKey':
         return handleDoorUseKey(clientId, msg, world)
       case 'token.edit':
@@ -4502,6 +4611,37 @@ export function createHostSession(options: HostSessionOptions): HostSession {
 
     isDoorRequestPending(requestId) {
       return findPendingDoor(requestId) !== undefined
+    },
+
+    approveHide(requestId, source) {
+      const pending = findPendingHide(requestId)
+      if (pending === undefined) return { outbound: [] }
+      pendingHides.delete(pending.playerId)
+      const clientId = players.get(pending.playerId)?.clientId ?? null
+      // Caiu enquanto o mestre decidia (o disconnect já apaga; defesa): não há a quem esconder.
+      if (clientId === null) return { outbound: [] }
+      const world = toWorld(source)
+      // Mudou de dono entre o pedido e o "Deixar": a ficha é de outro agora, e ninguém pediu por ela.
+      // Quem pediu ainda espera a resposta; a recusa genérica não vaza nada, porque o `ownTokens`
+      // dela já contou que perdeu a ficha. Sem a recusa, o "Aguardando o mestre…" nunca sairia.
+      if (!(ownership[pending.playerId] ?? []).includes(pending.tokenId)) {
+        return reply(clientId, { type: 'token.hide.rejected', reason: 'unavailable' })
+      }
+      const found = hideableTokenOf(pending.playerId, pending.tokenId, world)
+      if (found === null) return reply(clientId, { type: 'token.hide.rejected', reason: 'unavailable' })
+      return { outbound: [], applyHide: { tokenId: pending.tokenId, ...backgroundSceneId(found.scene, world) } }
+    },
+
+    denyHide(requestId) {
+      const pending = findPendingHide(requestId)
+      if (pending === undefined) return { outbound: [] }
+      pendingHides.delete(pending.playerId)
+      const clientId = players.get(pending.playerId)?.clientId ?? null // null = saiu: não há a quem avisar
+      return clientId === null ? { outbound: [] } : reply(clientId, { type: 'token.hide.rejected', reason: 'denied' })
+    },
+
+    isHidePending(requestId) {
+      return findPendingHide(requestId) !== undefined
     },
 
     deliverLetter(letterId) {
@@ -4831,6 +4971,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       laserRecipients.delete(playerId)
       // Mesmo para a porta: "Destrancar e abrir" depois da queda não abre nada.
       pendingDoors.delete(playerId)
+      // E para o esconder-se: "Deixar" depois da queda não esconde nada.
+      pendingHides.delete(playerId)
       // E para o item: "Deixar" depois da queda não entrega nada.
       pendingItems.delete(playerId)
       // A mão também: quem volta chega com a tela zerada, sem mão acesa.
