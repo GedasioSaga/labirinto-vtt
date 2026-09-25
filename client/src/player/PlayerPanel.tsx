@@ -66,7 +66,12 @@ export interface PlayerCharacter {
   name: string
   /** AJUDANTE CONTRATADO: o acordo da ficha emprestada pelo mestre. Ausente = personagem do jogador. */
   contrato?: TokenContract
+  /** NPC EMPRESTADO: NPC do mestre dado a este jogador sem acordo. Anda com ele, mas nome e foto não são dele. */
+  emprestada?: boolean
 }
+
+/** O que o jogador lê embaixo do NPC que o mestre lhe deu, no lugar do formulário de nome e foto. */
+const LENT_NPC_LABEL = 'Emprestado pelo mestre'
 
 type PanelTab = 'jogo' | 'caderno' | 'lugares' | 'dados'
 
@@ -387,8 +392,8 @@ export function PlayerPanel({
 
   // O personagem editável é o primeiro PRÓPRIO da lista: é quase sempre o
   // único, e "qual dos meus" só faria sentido com uma escolha na tela que
-  // ninguém pediu. Ajudante emprestado nunca é editável (o NPC é do mestre).
-  const mine = characters.find((character) => character.contrato === undefined)
+  // ninguém pediu. Ajudante e NPC emprestados nunca são editáveis (o NPC é do mestre).
+  const mine = characters.find((character) => character.contrato === undefined && character.emprestada !== true)
   // Centralizar e "Minha ficha": o personagem próprio; só com o ajudante, ele.
   const first = mine ?? characters[0]
   const myTokenId = mine?.id ?? null
@@ -514,6 +519,7 @@ export function PlayerPanel({
                       </button>
                       {/* Fora do botão: o aria-label dele cobriria o texto do acordo. */}
                       {character.contrato !== undefined && <p className="pp-character__deal">{loanLabel(character.contrato, formatNoteTime)}</p>}
+                      {character.emprestada === true && <p className="pp-character__deal">{LENT_NPC_LABEL}</p>}
                     </li>
                   ))}
                 </ul>

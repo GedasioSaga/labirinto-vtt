@@ -828,6 +828,12 @@ export interface Token extends PlayerSecret {
    *  na ficha emprestada que vai a quem a segura (`lib/fogFilter.ts`) e
    *  `deserializeMap` o descarta se um arquivo trouxer. */
   contrato?: TokenContract
+  /** NPC EMPRESTADO — a ficha de NPC do mestre (`npc`) que o jogador segura
+   *  sem acordo (dada pelo "Atribuir"): anda e dá visão, mas nome e foto são
+   *  do mestre. Campo de FIO, nunca do arquivo: o recorte põe `true` só na
+   *  ficha que vai a quem a segura (`lib/fogFilter.ts`), apaga o que vier do
+   *  mapa do mestre, e `deserializeMap` o descarta se um arquivo trouxer. */
+  emprestada?: boolean
   /** ROTINA DO NPC: onde a ficha fica em cada valor de um ESTADO DO MUNDO
    *  ("Apito: Aurora, Meio, Brasa"). Trocar o estado leva a ficha ao posto,
    *  inclusive para outra cena (`lib/rotinaDoNpc.ts`). Do mestre: NÃO atravessa

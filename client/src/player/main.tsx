@@ -30,7 +30,7 @@ import { ReconnectingOverlay } from './ReconnectingOverlay'
 import { PointActionMenu } from './PointActionMenu'
 import { isPointInsideMap, pointNoticeText } from '../lib/pointActions'
 import { escapeDisarmsMeasure } from './playerMeasure'
-import type { PlayerViewSettings } from './PlayerPanel'
+import type { PlayerCharacter, PlayerViewSettings } from './PlayerPanel'
 import { PlayerErrorBoundary } from './ErrorBoundary'
 import { LabyrinthMark } from '../components/icons'
 import { DiceFeed } from '../components/DiceControls'
@@ -719,15 +719,17 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
 
   const ownTokens = state.ownTokens ?? NO_TOKENS
   const map = state.map
-  const characters = useMemo(() => {
+  const characters = useMemo((): PlayerCharacter[] => {
     if (!map) return []
     const byId = new Map(map.tokens.map((t) => [t.id, t]))
-    return ownTokens.flatMap((id) => {
+    return ownTokens.flatMap((id): PlayerCharacter[] => {
       const token = byId.get(id)
       if (!token) return []
       // AJUDANTE CONTRATADO: o host só manda `contrato` na ficha emprestada a este jogador.
       const contrato = readContract(token.contrato)
-      return [contrato === undefined ? { id, name: token.name } : { id, name: token.name, contrato }]
+      if (contrato !== undefined) return [{ id, name: token.name, contrato }]
+      // NPC EMPRESTADO: o host só manda `emprestada` no NPC dado a este jogador sem acordo.
+      return [token.emprestada === true ? { id, name: token.name, emprestada: true } : { id, name: token.name }]
     })
   }, [map, ownTokens])
   const partyTokens = state.partyTokens ?? NO_TOKENS

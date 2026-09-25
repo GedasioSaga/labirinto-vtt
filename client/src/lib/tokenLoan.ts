@@ -68,3 +68,10 @@ export function withoutContract(token: Token): Token {
   const { contrato: _descartado, ...rest } = token
   return rest
 }
+
+/** A ficha sem a marca de fio `emprestada` (NPC emprestado). Sem a marca, volta pela mesma referência. */
+export function withoutLentMark(token: Token): Token {
+  if (!('emprestada' in token)) return token
+  const { emprestada: _descartada, ...rest } = token
+  return rest
+}

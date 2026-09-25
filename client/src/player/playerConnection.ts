@@ -1622,8 +1622,9 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     const map = state.map
     if (state.status !== 'playing' || !map) return false
     if (!(state.ownTokens ?? []).includes(tokenId)) return false
-    // Ficha emprestada (ajudante contratado, com `contrato`) é do mestre: o host recusa, e a tela nem tenta.
-    if (!map.tokens.some((t) => t.id === tokenId && t.contrato === undefined)) return false
+    // Ficha emprestada (ajudante contratado, com `contrato`, ou NPC emprestado,
+    // com `emprestada`) é do mestre: o host recusa, e a tela nem tenta.
+    if (!map.tokens.some((t) => t.id === tokenId && t.contrato === undefined && t.emprestada !== true)) return false
     if (!send(message)) return false
     setState({ map: withTokenPatch(map, tokenId, patch) })
     return true

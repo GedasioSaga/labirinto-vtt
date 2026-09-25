@@ -8,7 +8,7 @@ import { withoutCarrier } from './carry'
 import { guardAlerts, tokenWatchForPlayer, tokenWatchOf } from './npcWatch'
 import { tokenPatrolForPlayer } from './npcPatrol'
 import type { TurnRef } from './initiative'
-import { withoutContract } from './tokenLoan'
+import { withoutContract, withoutLentMark } from './tokenLoan'
 import { isPointExplored, isShapeExplored, type Exploration } from './exploration'
 import { pointInRing, signedArea } from './floorContour'
 import { pieceBounds, pieceDistance, shapeCenter } from './floorSdf'
@@ -1875,15 +1875,20 @@ export function filterMapForGroup(
   // mestre — ver a ficha dele no mapa não conta o que tem no bolso.
   // AJUDANTE CONTRATADO: o `contrato` do mapa do mestre sai de toda ficha; a
   // emprestada leva o acordo só para quem a segura (nunca à tela da mesa).
+  // NPC EMPRESTADO: a marca `emprestada` do mapa do mestre também sai de toda
+  // ficha; a ficha de NPC na posse deste jogador, sem acordo, leva a marca só
+  // para ele — a tela dele não oferece nome nem foto (o host recusa).
   const tokens = playerTokens
     .map((t) => {
       const own = owned.has(t.id)
       const contrato = loanOf(t.id)
       // Emprestada: o jogador lê o nome que a MESA lê. O de trabalho é do mestre.
       const seen = withoutMasterMarks(
-        withoutNpcMark(tokenForPlayer(tokenAsSeenByPlayer(withoutContract(own ? t : withoutBackpack(t)), own && contrato === undefined))),
+        withoutNpcMark(tokenForPlayer(tokenAsSeenByPlayer(withoutLentMark(withoutContract(own ? t : withoutBackpack(t))), own && contrato === undefined))),
       )
-      return contrato === undefined || playerId === undefined ? seen : { ...seen, contrato: { ...contrato } }
+      if (playerId === undefined) return seen
+      if (contrato !== undefined) return { ...seen, contrato: { ...contrato } }
+      return own && t.npc === true ? { ...seen, emprestada: true } : seen
     })
     .map(tokenHealthForPlayer)
     .map((t) => tokenWatchForPlayer(t, alerts.get(t.id) ?? null))
