@@ -1,5 +1,6 @@
 import type { CarriedItem, MapData, Pin, PinItem, Token } from '../types/map'
 import { tokenRadiusOf } from './doorReach'
+import { comPiso, pisoDe } from './pisos'
 
 /**
  * ITEM PEGÁVEL — regras puras, compartilhadas pelo host (validar o "Pegar" e
@@ -110,7 +111,7 @@ export function removeItemChange(token: Token, itemId: string): ItemChange | nul
 
 /**
  * "Devolver ao chão" do mestre: o item sai da mochila e volta a ser pino
- * pegável ("!") onde a ficha está, pedindo ao mestre de novo. O pino usa o id
+ * pegável ("!") onde a ficha está — no MESMO piso dela —, pedindo ao mestre de novo. O pino usa o id
  * do item (o do pino de onde ele saiu); se já há um pino com esse id no mapa,
  * usa `freshPinId` — nunca sobrescreve outro pino.
  */
@@ -119,8 +120,10 @@ export function dropItemChange(map: MapData, token: Token, itemId: string, fresh
   const removed = removeItemChange(token, itemId)
   if (item === undefined || removed === null) return null
   const pinId = map.pins.some((pin) => pin.id === item.id) ? freshPinId : item.id
-  const addPin: Pin = { id: pinId, x: token.x, y: token.y, kind: 'exclamacao', description: '', image: null, item: { nome: item.nome } }
-  return { ...removed, addPin }
+  const pino: Pin = { id: pinId, x: token.x, y: token.y, kind: 'exclamacao', description: '', image: null, item: { nome: item.nome } }
+  // O host grava o pino direto (fora do desfazer que carimba o piso em edição):
+  // sem o piso da ficha ele cairia no térreo, longe de quem o largou.
+  return { ...removed, addPin: comPiso(pino, pisoDe(token)) }
 }
 
 /** "Dar" do mestre: um item NOVO, com o nome aparado, no fim da mochila da ficha. `null` = nome vazio. */

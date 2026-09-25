@@ -46,4 +46,25 @@ describe('mapStore.paintRevealBrush', () => {
     expect(acertou).toBe(false)
     expect(useMapStore.getState().past).toHaveLength(0)
   })
+
+  it('no 1º piso o traço pinta a zona do 1º piso e deixa a do térreo embaixo como estava', () => {
+    const doPiso1: ConcealZone = { ...zona, id: 'y1', name: 'Sótão', piso: 1 }
+    useMapStore.getState().loadMap({ ...mapFactory.createEmptyMap('m', 'M', 20, 12, 50), concealZones: [zona, doPiso1] })
+    useMapStore.getState().setPisoAtivo(1)
+    expect(useMapStore.getState().pisoAtivo).toBe(1)
+
+    const acertou = useMapStore.getState().paintRevealBrush(traco, 25, 'revelar')
+    expect(acertou).toBe(true)
+    const zonas = useMapStore.getState().map.concealZones
+    expect(unveiledCellsOf(zonas[1]).has(cellKeyAt({ x: 800, y: 450 }))).toBe(true)
+    expect(zonas[0].unveiledCells).toBeUndefined()
+  })
+
+  it('no 1º piso sem zona ali o traço avisa que não pegou zona, mesmo com zona do térreo embaixo', () => {
+    useMapStore.getState().setPisoAtivo(1)
+    const acertou = useMapStore.getState().paintRevealBrush(traco, 25, 'revelar')
+    expect(acertou).toBe(false)
+    expect(useMapStore.getState().map.concealZones[0].unveiledCells).toBeUndefined()
+    expect(useMapStore.getState().past).toHaveLength(0)
+  })
 })

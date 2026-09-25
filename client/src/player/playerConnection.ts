@@ -521,6 +521,12 @@ export interface PlayerConnection {
   /** Fecha o aviso da porta (o × do "Trancada"). */
   dismissDoorNotice(): void
   /**
+   * PISOS NA MESMA CENA: pede para subir/descer pela escada `stairId` com a
+   * ficha `tokenId`. Só os ids — o piso de destino quem decide é o host. `false`
+   * se não está jogando ou o socket não está aberto.
+   */
+  changeFloor(tokenId: string, stairId: string): boolean
+  /**
    * Nome novo do PRÓPRIO token: aplica na hora e envia. `false` quando o token
    * não é dele, não está no mapa, o nome não cabe ou o socket não está aberto.
    */
@@ -2413,6 +2419,11 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     callCabine(pinId) {
       if (state.status !== 'playing' || pinId.length === 0) return false
       return send({ type: 'cabine.call', pinId })
+    },
+
+    changeFloor(tokenId, stairId) {
+      if (state.status !== 'playing' || tokenId.length === 0 || stairId.length === 0) return false
+      return send({ type: 'token.piso', tokenId, stairId })
     },
 
     requestTravel(pinId, exitId, tokenIds) {

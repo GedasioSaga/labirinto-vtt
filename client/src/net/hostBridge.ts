@@ -23,6 +23,7 @@ import {
   singleSceneWorld,
   type AppliedItems,
   type AppliedMove,
+  type AppliedPiso,
   type AppliedTokenEdit,
   type DoorKeyUse,
   type DoorRequest,
@@ -150,6 +151,12 @@ export interface HostBridgeDeps {
    */
   applyTokenEdit?: (edit: AppliedTokenEdit) => void
   /**
+   * PISOS NA MESMA CENA: a ficha do jogador subiu/desceu pela escada, já
+   * validada pela sessão. Opcional como `applyTokenEdit`: sem ele, o pedido do
+   * jogador simplesmente não muda nada.
+   */
+  applyPiso?: (change: AppliedPiso) => void
+  /**
    * O mestre deixou o jogador passar: mover o token entre as cenas. `false`
    * quando não deu (cena sumiu, token sumiu) — o jogador recebe a recusa em
    * vez de "Você chegou". Sem este retorno, pedido de passagem nem chega ao
@@ -175,8 +182,8 @@ export interface HostBridgeDeps {
    * Sem este retorno a linha do pedido trancado não oferece "Passar para pede".
    */
   setPinPassage?: (pinId: string, passagem: PinPassage, sceneId?: string) => void
-  /** "Ir lá" do aviso de chegada: abrir `sceneId` no editor com (`x`, `y`) no centro. */
-  onGoToScene?: (sceneId: string, x: number, y: number) => void
+  /** "Ir lá" do aviso de chegada: abrir `sceneId` no editor com (`x`, `y`) no centro, no `piso` onde a ficha chegou. */
+  onGoToScene?: (sceneId: string, x: number, y: number, piso: number) => void
   visionRadius?: number
   onPlayersChange?: (players: PlayerInfo[]) => void
   /** "Quem vê" de cada pino com lista (`pinId` -> jogadores); pino de "Todos" não aparece. Sala fechada = `{}`. */
@@ -1947,6 +1954,11 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     if (result.applyTokenEdit !== undefined && deps.applyTokenEdit !== undefined) {
       // Mesma regra da porta: o mestre vê pela store, os outros jogadores pelo snapshot imediato.
       deps.applyTokenEdit(result.applyTokenEdit)
+      broadcastNow()
+    }
+    if (result.applyPiso !== undefined && deps.applyPiso !== undefined) {
+      // O jogador que subiu recebe o piso novo, e quem ficou deixa de vê-lo, no snapshot imediato.
+      deps.applyPiso(result.applyPiso)
       broadcastNow()
     }
     notifyPlayersIfChanged()

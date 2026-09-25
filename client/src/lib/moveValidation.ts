@@ -84,6 +84,26 @@ function pathStaysOnFloor(map: MapData, fromX: number, fromY: number, toX: numbe
   return true
 }
 
+/**
+ * As travas que seguram a ficha de um JOGADOR, qualquer que seja o jeito de
+ * andar: o passo (`validateTokenMove`) e a troca de piso pela escada
+ * (`handleTokenPiso` no host). Cadeado do mestre, vez da iniciativa
+ * (`turnTokenId` ausente ou `null` = sem iniciativa aqui) e vez do CONFRONTO
+ * (só prende ficha que está na fila). O mestre não passa por aqui.
+ */
+export function travaDaFichaDoJogador(
+  map: Pick<MapData, 'confronto'>,
+  token: Pick<Token, 'id' | 'locked'>,
+  turnTokenId: string | null | undefined,
+): 'locked' | 'not_your_turn' | null {
+  if (token.locked) return 'locked'
+  const turn = turnTokenId ?? null
+  if (turn !== null && turn !== token.id) return 'not_your_turn'
+  const confronto = map.confronto
+  if (confronto !== undefined && confronto.fila.includes(token.id) && fichaDaVez(confronto) !== token.id) return 'not_your_turn'
+  return null
+}
+
 export function validateTokenMove(
   map: MapData,
   request: TokenMoveRequest,
@@ -96,16 +116,14 @@ export function validateTokenMove(
   if (!options.isHost) {
     const owned = ownership[request.playerId] ?? [] // jogador sem entrada no mapa de posse não possui nada
     if (!owned.includes(token.id)) return { ok: false, reason: 'not_owner' }
-    if (token.locked) return { ok: false, reason: 'locked' }
-    const turn = options.turnTokenId ?? null // ausente = sem iniciativa nesta cena
-    if (turn !== null && turn !== token.id) return { ok: false, reason: 'not_your_turn' }
+    const trava = travaDaFichaDoJogador(map, token, options.turnTokenId)
+    if (trava !== null) return { ok: false, reason: trava }
   }
 
-  // CONFRONTO: vale só para pedido de jogador e só para ficha da fila; o
-  // mestre e quem está fora da fila andam livres.
+  // CONFRONTO: o passo conta só para pedido de jogador e só para ficha da
+  // fila (a vez já foi checada acima); o mestre e quem está fora da fila andam livres.
   const confronto = options.isHost ? undefined : map.confronto
   const naFila = confronto !== undefined && confronto.fila.includes(token.id)
-  if (confronto !== undefined && naFila && fichaDaVez(confronto) !== token.id) return { ok: false, reason: 'not_your_turn' }
 
   if (!isInsideMap(map, request.x, request.y)) return { ok: false, reason: 'outside_map' }
 

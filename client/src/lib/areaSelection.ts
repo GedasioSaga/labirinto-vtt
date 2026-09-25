@@ -28,6 +28,7 @@ import { carryAttachedLights } from './lightAttachment'
 import { stairSpiralCircle } from './stairs'
 import { carryAttachedPins, carryPinsByTokenSteps } from './pinAttach'
 import { carrierIdOf, followStep } from './carry'
+import { mapaDoPiso, pisoDe } from './pisos'
 
 // ─────────────────────────────────────────────────────────────
 // Geometria genérica: todo tipo de entidade do mapa se reduz a um destes 5
@@ -597,7 +598,8 @@ export function moveAreaSelection(map: MapData, selection: AreaSelection, dx: nu
     const movedLightIds = new Set(next.lights.filter((l) => selection.lights.includes(l.id) && canInteract(l)).map((l) => l.id))
     // LEVAR FICHA JUNTO: a ficha levada que NÃO está na seleção acompanha quem
     // a leva, com o trajeto dela checado nas paredes de ANTES (`map`) — a seta
-    // e o arrasto da seleção não passam por `setTokenPosition`.
+    // e o arrasto da seleção não passam por `setTokenPosition`. PISOS: só a
+    // planta do piso da levada barra (`mapaDoPiso`).
     const follows = (t: Token): boolean => {
       const carrierId = carrierIdOf(t)
       return carrierId !== null && movedIds.has(carrierId) && !movedIds.has(t.id)
@@ -606,7 +608,7 @@ export function moveAreaSelection(map: MapData, selection: AreaSelection, dx: nu
     const followerIds = new Set(tokensBefore.filter(follows).map((t) => t.id))
     next = {
       ...next,
-      tokens: tokensBefore.map((t) => (movedIds.has(t.id) ? { ...t, x: t.x + dx, y: t.y + dy } : follows(t) ? followStep(map, t, dx, dy) : t)),
+      tokens: tokensBefore.map((t) => (movedIds.has(t.id) ? { ...t, x: t.x + dx, y: t.y + dy } : follows(t) ? followStep(mapaDoPiso(map, pisoDe(t)), t, dx, dy) : t)),
       lights: carryAttachedLights(next.lights, movedIds, dx, dy, movedLightIds),
     }
     // Pino PRESO a uma ficha que andou anda junto. O pino não entra na seleção

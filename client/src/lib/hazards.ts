@@ -1,6 +1,7 @@
 import type { Hazard, HazardKind, MapData, Region, RegionPoint, Wall } from '../types/map'
 import { isDoorPassable } from './collision'
 import { pointInRing, signedArea } from './floorContour'
+import { mapaDoPiso, pisoDe } from './pisos'
 
 /**
  * ZONA DE PERIGO — regra pura, sem DOM, sem Pixi, sem store. O mestre pinta
@@ -284,7 +285,8 @@ export function hazardPresence(map: MapData, tokenIds: readonly string[]): Map<s
   const wanted = new Set(tokenIds)
   for (const token of map.tokens) {
     if (!wanted.has(token.id)) continue
-    for (const hazard of hazardsAt(map, { x: token.x, y: token.y })) {
+    // PISOS: só a sala do piso da ficha conta — a sala em chamas do andar de cima não queima quem passa embaixo.
+    for (const hazard of hazardsAt(mapaDoPiso(map, pisoDe(token)), { x: token.x, y: token.y })) {
       presence.set(`${token.id}\n${hazard.id}`, { tokenId: token.id, hazardId: hazard.id, kind: hazard.kind })
     }
   }

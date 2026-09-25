@@ -1,5 +1,6 @@
 import type { AreaTrigger, AreaTriggerKind, MapData, Region, RegionPoint } from '../types/map'
 import { pointInRing } from './floorContour'
+import { pisoDe } from './pisos'
 
 /**
  * GATILHO DE ÁREA — regra pura, sem DOM, sem Pixi, sem store. O mestre marca
@@ -180,7 +181,8 @@ export function areaTriggerPresence(map: Pick<MapData, 'gatilhos' | 'regions' | 
     if (!wanted.has(token.id)) continue
     playerTokenIds.add(token.id)
     for (const { trigger, region } of triggers) {
-      if (!pointInRing({ x: token.x, y: token.y }, region.points)) continue
+      // PISOS: passar por baixo da armadilha do andar de cima não é entrar nela.
+      if (pisoDe(region) !== pisoDe(token) || !pointInRing({ x: token.x, y: token.y }, region.points)) continue
       inside.set(`${token.id}\n${trigger.id}`, { tokenId: token.id, triggerId: trigger.id, kind: trigger.kind, regionId: region.id })
     }
   }

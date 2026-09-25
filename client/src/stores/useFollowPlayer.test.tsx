@@ -6,6 +6,7 @@ import type { HostWorld, PlayerInfo } from '../net/hostSession'
 import type { Point } from '../pixi/world'
 import { useAdventureStore } from './adventureStore'
 import { useFollowStore } from './followStore'
+import { useMapStore } from './mapStore'
 import { useFollowPlayer } from './useFollowPlayer'
 
 function mundo(onde: 's-a' | 's-b', x: number, y: number): HostWorld {
@@ -96,5 +97,17 @@ describe('useFollowPlayer', () => {
     act(() => useFollowStore.getState().toggle('ana'))
     render([{ ...ANA, connected: false }], mundo('s-a', 100, 100))
     expect(useFollowStore.getState().playerId).toBeNull()
+  })
+
+  it('PISOS: a ficha sobe a escada no mesmo ponto — o seguir centra de novo e o editor vai ao piso dela', () => {
+    useMapStore.getState().loadMap(createEmptyMap('m-a', 'Salao', 30, 10, 50))
+    render([ANA], mundo('s-a', 100, 100))
+    act(() => useFollowStore.getState().toggle('ana'))
+    expect(useMapStore.getState().pisoAtivo).toBe(0)
+    const embaixo = mundo('s-a', 100, 100)
+    const subiu: HostWorld = { ...embaixo, open: { ...embaixo.open, map: { ...embaixo.open.map, tokens: embaixo.open.map.tokens.map((t) => ({ ...t, piso: 1 })) } } }
+    render([ANA], subiu)
+    expect(goToPoint).toHaveBeenCalledTimes(2)
+    expect(useMapStore.getState().pisoAtivo).toBe(1)
   })
 })

@@ -5,6 +5,7 @@ import { tokenAsSeenByPlayer } from './tokenPublicName'
 import { healthForPlayer } from './tokenHealth'
 import { tokenConditionsOf } from './tokenConditions'
 import { parseHexColor } from './tokenColor'
+import { carrierIdOf } from './carry'
 import { guardAlerts, tokenWatchOf } from './npcWatch'
 import type { TurnRef } from './initiative'
 import { isPointExplored, isShapeExplored, type Exploration } from './exploration'
@@ -23,6 +24,7 @@ import { computeVisibility, visionSegments } from './visibility'
 import { tokenRadiusOf } from './doorReach'
 import { ancestorsOf, NESTING_TOLERANCE, pointInPolygonInclusive, pointOnPolygonBorder, subtreeIds } from './roomNesting'
 import { roomHasRoof, roomIsComodo } from './roomOps'
+import { ehPiso, mapaDoPiso, pisoDe } from './pisos'
 import { rotatePointAround, rotationTrig } from './roomRotation'
 import { clampRoomText, hasEnterText } from './roomText'
 import { hazardRooms, hazardsOf, visionRadiusAt, type PlayerHazard } from './hazards'
@@ -1097,6 +1099,8 @@ interface TokenCut {
  * - `emprestada`: só a deste recorte (`cut.lentNpc`); a gravada no mapa nunca.
  * - `locked`: só na ficha do DONO, e só travada (o cadeado da tela dele); na
  *   de outro diria quem o mestre está segurando.
+ * - `piso`: o da ficha (só as do piso do recorte chegam aqui, então não conta
+ *   nada de outro piso); a escada da tela dele decide subir ou descer por ele.
  * Ficam de fora, entre outros: `vigia`, `patrulha` (por onde o NPC vai passar),
  * `rotina` (os postos, com a cena de cada um), `levadoPor` (aponta para ficha
  * que o recorte pode ter escondido), `npc`, `playerCharacter` (diria quais
@@ -1132,6 +1136,10 @@ function tokenForPlayer(token: Token, cut: TokenCut): Token {
   // jogador, onde vira o cadeado da tela dele. Na de outro (colega, NPC que o
   // mestre segura) ela diria quem o mestre está segurando.
   if (cut.isOwner && token.locked === true) forPlayer.locked = true
+  // PISOS NA MESMA CENA: a escada da tela dele (`escadaDaFicha`) lê o piso da
+  // ficha para saber se sobe ou desce. Só vai piso válido e fora do térreo
+  // (térreo é o campo ausente, como no arquivo — `comPiso`).
+  if (ehPiso(token.piso) && token.piso !== 0) forPlayer.piso = token.piso
   return forPlayer
 }
 
@@ -1196,6 +1204,49 @@ export function playerEyeTokens(
 }
 
 /**
+ * PISOS NA MESMA CENA — o piso que o jogador vê nesta cena: o da primeira
+ * ficha que é OLHO dele; sem olho (só ajudante sem visão), o da primeira ficha
+ * dele; sem ficha nenhuma, o térreo. O recorte e a memória do host usam este
+ * mesmo número (`net/hostSession.ts`), então nunca discordam.
+ */
+export function pisoDoJogador(
+  map: MapData,
+  playerId: string,
+  ownership: Record<string, string[]>,
+  loans?: ReadonlyMap<string, TokenContract>,
+): number {
+  return pisoDoGrupo(map, [{ tokenIds: ownership[playerId] ?? [] }], loans)
+}
+
+/**
+ * TELA DA MESA com pisos: o piso do grupo é o do PRIMEIRO membro que tem
+ * ficha (na ordem dos membros e, dentro dele, na ordem da posse), pela mesma
+ * regra de `pisoDoJogador`. Um piso só por recorte: a TV nunca mistura dois
+ * pisos, então nada de um piso vaza pelo recorte do outro.
+ */
+export function pisoDoGrupo(
+  map: MapData,
+  viewers: readonly Pick<GroupViewer, 'tokenIds'>[],
+  loans?: ReadonlyMap<string, TokenContract>,
+): number {
+  // "Primeira" na ordem da posse (a ordem em que o mestre deu as fichas), não na do mapa.
+  const ids = viewers.flatMap((viewer) => viewer.tokenIds)
+  const olhos = new Map(
+    visibleTokens(map.tokens, map.hiddenLayers)
+      .filter((t) => !t.hidden && loans?.get(t.id)?.visao !== false)
+      .map((t) => [t.id, t]),
+  )
+  const fichas = new Map(map.tokens.map((t) => [t.id, t]))
+  for (const porOrdem of [olhos, fichas]) {
+    for (const id of ids) {
+      const ficha = porOrdem.get(id)
+      if (ficha !== undefined) return pisoDe(ficha)
+    }
+  }
+  return 0
+}
+
+/**
  * `explored`: memória do jogador ANTES desta visão (quem marca é o chamador).
  * Só a planta estática (regiões, desenhos e textos, escadas, portas, linhas,
  * marcadores) entra por estar explorada; token, prop e luz mudam de lugar e
@@ -1216,7 +1267,7 @@ export function playerEyeTokens(
  * já viu — o que o chamador guardou de `rememberedRooms` nos recortes de antes.
  */
 export function filterMapForPlayer(
-  map: MapData,
+  mapaInteiro: MapData,
   playerId: string,
   ownership: Record<string, string[]>,
   visionRadius: VisionRadius,
@@ -1229,7 +1280,8 @@ export function filterMapForPlayer(
 ): PlayerMapView {
   // Jogador sem entrada de posse não tem token nem visão. A marca do guarda
   // (?, !) mede as fichas de TODOS os jogadores que ele recebe, não só as dele.
-  return filterMapForGroup(map, [{ tokenIds: ownership[playerId] ?? [], visionRadius }], explored, seenDoors, allPlayerTokens(ownership), {
+  // PISOS NA MESMA CENA: o piso do grupo de um é o `pisoDoJogador` (mesma regra, `pisoDoGrupo`).
+  return filterMapForGroup(mapaInteiro, [{ tokenIds: ownership[playerId] ?? [], visionRadius }], explored, seenDoors, allPlayerTokens(ownership), {
     pinAudiences,
     enteredRooms,
     playerId,
@@ -1290,13 +1342,21 @@ export interface GroupViewer {
  * oculta ou sob teto fechado).
  */
 export function filterMapForGroup(
-  map: MapData,
+  mapaInteiro: MapData,
   viewers: readonly GroupViewer[],
   explored?: Exploration,
   seenDoors?: ReadonlyMap<string, DoorState>,
   watchTargets?: ReadonlySet<string>,
   { pinAudiences, enteredRooms, playerId, loans, seenRooms }: PlayerOnlyView = {},
 ): PlayerMapView {
+  /**
+   * PISOS NA MESMA CENA — ANTES de qualquer outra regra: tudo daqui para baixo
+   * (visão, raycast, teto, zona, sala secreta, memória) roda só sobre o piso
+   * do grupo (`pisoDoGrupo`). O que é de outro piso nem entra na conta, então
+   * não há regra abaixo que possa deixá-lo vazar. Mapa de um piso só passa ELE
+   * MESMO. `explored` e `seenDoors` já vêm do piso certo (a memória do host é por piso).
+   */
+  const map = mapaDoPiso(mapaInteiro, pisoDoGrupo(mapaInteiro, viewers, loans))
   if (isWorldMap(map)) return filterWorldMapForGroup(map, viewers, explored, seenDoors, watchTargets, { pinAudiences, enteredRooms, playerId, seenRooms })
   const hiddenLayers = map.hiddenLayers
   // Posse é exclusiva (um token, um dono); se viesse repetido, vale o primeiro raio.
@@ -1861,6 +1921,17 @@ export function filterMapForGroup(
     ...mapWithoutHazards
   } = map
 
+  // PISOS: ficha de OUTRO piso. O que anda com ela e ficou neste piso (arquivo
+  // antigo, algo levado sozinho) segue o x/y dela lá em cima — a luz presa, o
+  // pino preso (`presoA`) e a ficha que ela leva (`levadoPor`): sair aqui
+  // desenharia o caminho de quem está no outro piso.
+  const destePiso = new Set(map.tokens.map((t) => t.id))
+  const outroPisoTokenIds = new Set(map === mapaInteiro ? [] : mapaInteiro.tokens.filter((t) => !destePiso.has(t.id)).map((t) => t.id))
+  const levadaPorOutroPiso = (t: Token): boolean => {
+    const quemLeva = carrierIdOf(t)
+    return quemLeva !== null && outroPisoTokenIds.has(quemLeva)
+  }
+
   /**
    * FICHA VISTA PELA BORDA: a ficha dos outros sai se o centro OU um ponto da
    * borda dela (`tokenRimSamples`) está na visão — o guarda com meio corpo no
@@ -1877,7 +1948,10 @@ export function filterMapForGroup(
     return tokenRimSamples(t, map.grid).some((p) => !inRoomHiddenFromPlayer(p) && isVisible(p))
   }
   // Token do próprio jogador sai sempre, mesmo secreto ou em zona oculta: é ele quem o move.
-  const playerTokens = layerTokens.filter((t) => !t.hidden && (owned.has(t.id) || (!t.secret && isTokenSeen(t))))
+  // A levada por alguém de outro piso sai nunca, nem pela borda: o x/y dela é o de lá.
+  const playerTokens = layerTokens.filter(
+    (t) => !t.hidden && (owned.has(t.id) || (!t.secret && !levadaPorOutroPiso(t) && isTokenSeen(t))),
+  )
   /**
    * OLHOS DO GUARDA. A marca (?, !) conta só as fichas de jogador (`watchTargets`,
    * ou as do próprio grupo) que ESTE recorte entrega: colega na névoa, "Oculto
@@ -1973,7 +2047,7 @@ export function filterMapForGroup(
     // `lightForPlayer` (lista do que vai) — a regra nunca atravessa.
     lights: visibleLights(map.lights, hiddenLayers)
       .filter((l) => !l.hidden && l.apagada !== true && !inClosedRoof({ x: l.x, y: l.y }) && isVisible({ x: l.x, y: l.y }))
-      .filter((l) => l.attachedTokenId === undefined || !masterHiddenTokenIds.has(l.attachedTokenId))
+      .filter((l) => l.attachedTokenId === undefined || (!masterHiddenTokenIds.has(l.attachedTokenId) && !outroPisoTokenIds.has(l.attachedTokenId)))
       .map((l) => lightForPlayer(l.attachedTokenId === undefined || sentTokenIds.has(l.attachedTokenId) ? l : withoutAttachment(l))),
     stairs: playerStairs,
     // A silhueta inteira responde à sala, não só o centro: sala secreta ou teto
@@ -2083,6 +2157,8 @@ export function filterMapForGroup(
         }
         if (p.hidden || p.secret || hiddenLayers.includes('anotacoes')) return false
         if (p.presoA !== undefined && mapTokenIds.has(p.presoA) && !deliveredTokenIds.has(p.presoA)) return false
+        // Preso a ficha de OUTRO piso: anda com ela lá, então conta onde ela está (ver `outroPisoTokenIds`).
+        if (p.presoA !== undefined && outroPisoTokenIds.has(p.presoA)) return false
         const point = { x: p.x, y: p.y }
         return !inHiddenPlace(point) && isPointKnown(point)
       })
@@ -2283,6 +2359,10 @@ export interface FloorMemoryView {
  * fechado, zona oculta e sala secreta continuam escondidas. `only` leva o
  * "QUEM VÊ" dos pinos (`pinAudiences` + `playerId`): pino escolhido só para
  * outro jogador não sai nem pela memória do andar.
+ *
+ * PISOS NA MESMA CENA: sem ninguém olhando, o recorte é sempre o TÉRREO
+ * (`pisoDoGrupo` de grupo vazio). `explored` e `seenDoors` têm de ser a memória
+ * do térreo: a de outro piso recortaria o térreo pelo que ele viu em cima.
  */
 export function filterFloorMemory(
   map: MapData,

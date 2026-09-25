@@ -552,6 +552,18 @@ export interface SeatClaimMessage {
 }
 
 /**
+ * PISOS NA MESMA CENA — o jogador toca "Subir"/"Descer" com a ficha `tokenId`
+ * encostada na escada `stairId`. Só os dois ids: o piso de destino quem diz é
+ * a escada no mapa do mestre (`net/hostSession.ts`), nunca o jogador. Aditiva
+ * pelo critério de `door.toggle`: mestre antigo responde `invalid_message`.
+ */
+export interface TokenPisoMessage {
+  type: 'token.piso'
+  tokenId: string
+  stairId: string
+}
+
+/**
  * ESCONDER-SE: o jogador pede ao mestre para a PRÓPRIA ficha sumir dos outros
  * jogadores. Só o id: quem decide é o mestre ("Deixar"/"Não"), e aceito o
  * mestre liga "Oculto para jogadores" na ficha. Recusa volta em
@@ -583,6 +595,7 @@ export type PlayerMessage =
   | ClueReadMessage
   | CluePeersRequestMessage
   | ClueShowMessage
+  | TokenPisoMessage
   | CallRaiseMessage
   | CallLowerMessage
   | PointActionMessage
@@ -1670,6 +1683,10 @@ export function parsePlayerMessage(raw: unknown): PlayerMessage | null {
       return isBoundedString(value.pinId, 1, REQ_ID_MAX_LENGTH) ? { type: 'pin.lever', pinId: value.pinId } : null
     case 'seat.claim':
       return isBoundedString(value.tokenId, 1, REQ_ID_MAX_LENGTH) ? { type: 'seat.claim', tokenId: value.tokenId } : null
+    case 'token.piso':
+      return isBoundedString(value.tokenId, 1, REQ_ID_MAX_LENGTH) && isBoundedString(value.stairId, 1, REQ_ID_MAX_LENGTH)
+        ? { type: 'token.piso', tokenId: value.tokenId, stairId: value.stairId }
+        : null
     case 'token.hide.request':
       return isBoundedString(value.tokenId, 1, REQ_ID_MAX_LENGTH) ? { type: 'token.hide.request', tokenId: value.tokenId } : null
     default:
