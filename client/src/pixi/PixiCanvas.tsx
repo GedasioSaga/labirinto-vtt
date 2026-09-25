@@ -45,6 +45,7 @@ import { createLightsRenderer } from './drawLights'
 import { visionSegments, type Segment } from '../lib/visibility'
 import { createRegionsRenderer, resolveHighlightedRegionId } from './drawRegions'
 import { createShapesRedrawer, paintedTextLayer, type ShapesLayer, type ShapesSnapshot } from './shapesRedraw'
+import { createMontadorEmFatias } from './montagemEmFatias'
 import { createRoomNamesRenderer, findRoomLabelAt, roomLabelAnchor, roomLabelFontSize, roomLabelPosition } from './drawRoomNames'
 import { createFloorRenderer, drawBlocosDraft, drawFloorDraft } from './drawFloor'
 import { drawMapLines, drawMapMarkers } from './drawMapLines'
@@ -1361,9 +1362,55 @@ export function PixiCanvas({
         },
       })
 
+      /**
+       * TROCA DE CENA RÁPIDA: o que cada camada adiada desenha. Enquanto a
+       * camada espera o quadro dela, fica escondida — senão os nomes e pinos
+       * da cena anterior apareceriam por cima das paredes da nova. As camadas
+       * da primeira fatia (chão, salas, paredes, escadas) nunca se escondem.
+       */
+      const objetosDaCamada: Partial<Record<ShapesLayer, readonly Container[]>> = {
+        floorSelection: [floorSelectionGraphics],
+        perigos: [perigosGraphics],
+        drawings: [drawingsGraphics, secretDrawingsGraphics],
+        hazards: [hazardsGraphics],
+        areaTriggers: [areaTriggersGraphics],
+        roomNames: [roomNamesContainer],
+        lights: [lightsContainer],
+        watchCones: [watchConesGraphics],
+        patrolRoutes: [patrolRoutesGraphics],
+        concealZones: [concealZonesContainer],
+        pins: [pinsContainer],
+        textLabels: [textLabelsContainer],
+        handles: [handlesGraphics],
+        areaOutline: [areaSelectionOutlineGraphics],
+      }
+      // Andar denso: o clique pinta paredes e salas, o resto chega uma fatia
+      // por quadro (montagemEmFatias.ts). `aria-busy` no editor enquanto monta.
+      const montagemDaCena = createMontadorEmFatias(redrawLayers, {
+        ler: shapesSnapshot,
+        agendar: (tarefa) => {
+          const pedido = requestAnimationFrame(() => {
+            // O componente pode ter desmontado entre o agendamento e o quadro.
+            if (!destroyed) tarefa()
+          })
+          return () => cancelAnimationFrame(pedido)
+        },
+        esconder: (camada, oculta) => {
+          // Só as camadas adiadas estão no mapa; a primeira fatia não tem o que esconder.
+          for (const objeto of objetosDaCamada[camada] ?? []) objeto.visible = !oculta
+        },
+        aoPintar: (pintadas) => {
+          if (paintedTextLayer(pintadas)) syncTextResolution()
+        },
+        aoMudarMontagem: (montando) => {
+          if (montando) el.setAttribute('aria-busy', 'true')
+          else el.removeAttribute('aria-busy')
+        },
+      })
+
       /** Pinta as camadas pedidas (todas, sem `only`) que mudaram; Text novo nasce na resolução do renderer e é ajustado ao zoom atual. */
       const redrawShapeLayers = (only?: readonly ShapesLayer[]) => {
-        if (paintedTextLayer(redrawLayers(shapesSnapshot(), only))) syncTextResolution()
+        if (paintedTextLayer(montagemDaCena.redesenhar(shapesSnapshot(), only))) syncTextResolution()
       }
 
       const redrawShapes = () => redrawShapeLayers()
@@ -1566,6 +1613,8 @@ export function PixiCanvas({
        * seleção, prévia de desenho, guias, sombra fora do mapa, sinais e laser.
        */
       const exportImage = async (options: ImageExportOptions): Promise<Uint8Array> => {
+        // Exportar logo depois de trocar de andar: a cena precisa estar inteira nesta chamada.
+        if (paintedTextLayer(montagemDaCena.concluir())) syncTextResolution()
         const source = useMapStore.getState().map
         const width = source.width * source.grid
         const height = source.height * source.grid
@@ -5988,6 +6037,8 @@ export function PixiCanvas({
         containerResizeObserver.disconnect()
         stopWatchingResolution()
         textResolutionTask.cancel()
+        montagemDaCena.cancelar()
+        el.removeAttribute('aria-busy')
         unsubscribeGrid()
         unsubscribeGridOffset()
         unsubscribeCameraScaleForWalls()
