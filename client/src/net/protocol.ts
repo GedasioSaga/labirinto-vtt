@@ -925,8 +925,10 @@ export type HostMessage =
   // `gatilhos` (GATILHO DE ÁREA): só o revelado pelo mestre, e só quando há algum (`PlayerMapView.gatilhos`).
   // `andares` (MAPA POR ANDARES): só quando a cena dele é andar de um prédio e ele já esteve em outro andar dele.
   // `relogio` (RELÓGIO DA CAMPANHA): só o período e, da cena dele, se está escuro — nunca a hora (`clockForPlayer`).
-  | { type: 'snapshot'; rev: number; map: MapData; vision: RegionPoint[][]; explored: ExploredWire; ownTokens: string[]; concealed: RegionPoint[][]; turn?: string; partyTokens?: string[]; hazards?: PlayerHazard[]; confronto?: PlayerConfronto; sceneName?: string; place?: string; places?: string[]; gatilhos?: PlayerAreaTrigger[]; andares?: FloorsWire; relogio?: PlayerClock }
-  | { type: 'delta'; rev: number; map: MapData; vision: RegionPoint[][]; explored: ExploredWire; ownTokens: string[]; concealed: RegionPoint[][]; turn?: string; partyTokens?: string[]; hazards?: PlayerHazard[]; sceneName?: string; place?: string; places?: string[]; gatilhos?: PlayerAreaTrigger[]; andares?: FloorsWire; relogio?: PlayerClock }
+  // `porAtravessar` (PORTAS POR ATRAVESSAR): ids de portas que JÁ vão em `map.walls` com um lado ainda na névoa
+  // para ele (`PlayerMapView.portasPorAtravessar`), só quando há alguma. Jogador antigo ignora; mestre antigo não manda.
+  | { type: 'snapshot'; rev: number; map: MapData; vision: RegionPoint[][]; explored: ExploredWire; ownTokens: string[]; concealed: RegionPoint[][]; turn?: string; partyTokens?: string[]; hazards?: PlayerHazard[]; confronto?: PlayerConfronto; sceneName?: string; place?: string; places?: string[]; gatilhos?: PlayerAreaTrigger[]; andares?: FloorsWire; relogio?: PlayerClock; porAtravessar?: string[] }
+  | { type: 'delta'; rev: number; map: MapData; vision: RegionPoint[][]; explored: ExploredWire; ownTokens: string[]; concealed: RegionPoint[][]; turn?: string; partyTokens?: string[]; hazards?: PlayerHazard[]; sceneName?: string; place?: string; places?: string[]; gatilhos?: PlayerAreaTrigger[]; andares?: FloorsWire; relogio?: PlayerClock; porAtravessar?: string[] }
   // ZONA DE PERIGO: a ficha DESTE jogador entrou num perigo. Só o tipo — nem a sala, nem a zona.
   | { type: 'hazard.entered'; kind: HazardKind }
   | { type: 'token.move.accepted'; reqId: string; x: number; y: number }

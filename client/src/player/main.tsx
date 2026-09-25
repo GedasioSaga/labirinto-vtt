@@ -868,6 +868,7 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
             concealed={state.concealed}
             hazards={state.hazards}
             gatilhos={state.gatilhos}
+            porAtravessar={state.porAtravessar}
             ownTokens={ownTokens}
             turnTokenId={state.turn ?? null}
             settings={settings}

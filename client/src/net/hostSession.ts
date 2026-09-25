@@ -3,6 +3,7 @@ import { hazardPresence, newHazardEntries, type HazardEntry } from '../lib/hazar
 import { areaTriggerPresence, newAreaTriggerEntries, regionAreaName, type AreaTriggerPresence } from '../lib/areaTriggers'
 import { contractFromTerms, isContractDue, type LoanTerms } from '../lib/tokenLoan'
 import { tokenAsSeenByPlayer } from '../lib/tokenPublicName'
+import { idDePortaCabeNoFio, MAX_PORTAS_POR_ATRAVESSAR } from '../lib/portasPorAtravessar'
 import { createExploration, decodeExploration, encodeExploration, forgetBlocked, forgetInside, isPointExplored, markAll, markRings, mergeExploration, resizeExploration, type Exploration } from '../lib/exploration'
 import { pointInRing } from '../lib/floorContour'
 import { cabineAposViagem, cabineDaParada, cabineNaParada, type CabineDeTransporte, type ChamadaAceita, type MovimentoDeCabine } from '../lib/cabine'
@@ -1596,6 +1597,14 @@ function forgetSceneMemories(byScene: Map<string, unknown> | undefined, mapId: s
   }
 }
 
+/**
+ * PORTAS POR ATRAVESSAR como vão no fio: as do recorte, sem id que o jogador
+ * recusaria (e com ele o snapshot inteiro) e no teto de ids por mensagem.
+ */
+function porAtravessarNoFio(view: Pick<PlayerMapView, 'portasPorAtravessar'>): string[] {
+  return view.portasPorAtravessar.filter(idDePortaCabeNoFio).slice(0, MAX_PORTAS_POR_ATRAVESSAR)
+}
+
 interface PlayerRecord {
   playerId: string
   name: string
@@ -2410,6 +2419,9 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     if (confronto !== undefined) snapshot.confronto = confronto
     // GATILHO DE ÁREA: só o que o mestre revelou, mesma regra do campo.
     if (view.gatilhos.length > 0) snapshot.gatilhos = view.gatilhos
+    // PORTAS POR ATRAVESSAR: só porta que já foi no recorte dele; o campo só existe quando há alguma.
+    const porAtravessar = porAtravessarNoFio(view)
+    if (porAtravessar.length > 0) snapshot.porAtravessar = porAtravessar
     // MAPA POR ANDARES: o campo só existe quando há outro andar conhecido.
     if (andares !== undefined) snapshot.andares = andares
     // RELÓGIO DA CAMPANHA: o período e, desta cena, se está escuro. Sem relógio, o campo nem sai.
@@ -2529,6 +2541,9 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     if (view.hazards.length > 0) snapshot.hazards = view.hazards
     // GATILHO DE ÁREA: o revelado, mesma regra do jogador.
     if (view.gatilhos.length > 0) snapshot.gatilhos = view.gatilhos
+    // PORTAS POR ATRAVESSAR: as do GRUPO (o outro lado na névoa para a memória juntada da mesa).
+    const porAtravessar = porAtravessarNoFio(view)
+    if (porAtravessar.length > 0) snapshot.porAtravessar = porAtravessar
     return snapshot
   }
 
