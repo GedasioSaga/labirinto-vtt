@@ -108,18 +108,52 @@ describe('fogFilter: portas por atravessar', () => {
     soPortasDoRecorte(view)
   })
 
-  it('SEGURANÇA: sala secreta atrás da porta aberta conta como névoa, mesmo com o explorado antigo de lá', () => {
-    const base = corredor(porta({ open: true }))
+  /**
+   * SALA SECRETA atrás da porta aberta. A visão enviada é montada sem a sala
+   * (a tela dele mostra o lado de lá como visto), então a marca tem de sair
+   * IGUAL à da mesma planta sem sala nenhuma: senão o ponto claro seria o
+   * único sinal, no fio e na tela, de que o mestre esconde algo ali.
+   */
+  it('SEGURANÇA: sala secreta atrás da porta aberta não muda a marca (mesmo recorte de quando não há sala)', () => {
     const cofre = sala('cofre', retangulo(0, 0, 1000, 500), { secret: true }, { name: 'Cofre do Barão' })
-    const map: MapData = { ...base, regions: [cofre] }
-    // O jogador tinha visto o norte antes de o mestre esconder a sala: a memória não vence o segredo.
-    const exp = memoria(map)
-    markRings(exp, [retangulo(0, 0, 1000, 490)])
-    const view = filterMapForPlayer(map, 'p', { p: ['t'] }, 400, exp)
-    expect(view.portasPorAtravessar).toEqual(['pa'])
-    expect(JSON.stringify(view)).not.toContain('Cofre do Barão')
-    // Mesma marca de quando não há sala nenhuma lá e a porta está fechada: nada muda por causa do segredo.
-    expect(view.portasPorAtravessar).toEqual(filterMapForPlayer(corredor(porta()), 'p', { p: ['t'] }, 400).portasPorAtravessar)
+    const semNada = filterMapForPlayer(corredor(porta({ open: true })), 'p', { p: ['t'] }, 400)
+    const comSecreta = filterMapForPlayer({ ...corredor(porta({ open: true })), regions: [cofre] }, 'p', { p: ['t'] }, 400)
+    // O cenário é o do vazamento: o resto do que ele recebe é idêntico nos dois casos.
+    expect(comSecreta.map).toEqual(semNada.map)
+    expect(comSecreta.vision).toEqual(semNada.vision)
+    expect(comSecreta.concealed).toEqual(semNada.concealed)
+    expect(comSecreta.portasPorAtravessar).toEqual(semNada.portasPorAtravessar)
+    expect(comSecreta.portasPorAtravessar).toEqual([])
+    expect(JSON.stringify(comSecreta)).not.toContain('Cofre do Barão')
+  })
+
+  it('SEGURANÇA: sala secreta COM paredes atrás da porta aberta: a marca segue a visão enviada, não a do host', () => {
+    const cofre = sala('cofre', retangulo(0, 0, 1000, 500), { secret: true }, { name: 'Cofre do Barão' })
+    // Parede interna da sala secreta: bloqueia a visão do host, mas não vai ao jogador.
+    const paredeDoCofre = parede('cofre-w', 300, 400, 700, 400, { regionId: 'cofre' })
+    const base = corredor(porta({ open: true }))
+    const comSecreta = filterMapForPlayer({ ...base, regions: [cofre], walls: [...base.walls, paredeDoCofre] }, 'p', { p: ['t'] }, 400)
+    const semNada = filterMapForPlayer(corredor(porta({ open: true })), 'p', { p: ['t'] }, 400)
+    expect(comSecreta.map.walls.some((w) => w.id === 'cofre-w')).toBe(false)
+    expect(comSecreta.vision).toEqual(semNada.vision)
+    expect(comSecreta.portasPorAtravessar).toEqual(semNada.portasPorAtravessar)
+  })
+
+  it('SEGURANÇA: sala secreta com o explorado antigo de lá, ficha longe: mesma marca de quando não há sala', () => {
+    const cofre = sala('cofre', retangulo(0, 0, 1000, 500), { secret: true }, { name: 'Cofre do Barão' })
+    const longe = { x: 950, y: 950 }
+    const semNadaMap = corredor(porta({ open: true }), longe)
+    const comSecretaMap: MapData = { ...corredor(porta({ open: true }), longe), regions: [cofre] }
+    // Os dois viram o corredor inteiro antes (o explorado é o mesmo e vai igual no fio).
+    const expSem = memoria(semNadaMap)
+    markRings(expSem, [retangulo(0, 0, 1000, 1000)])
+    const expCom = memoria(comSecretaMap)
+    markRings(expCom, [retangulo(0, 0, 1000, 1000)])
+    const semNada = filterMapForPlayer(semNadaMap, 'p', { p: ['t'] }, 400, expSem)
+    const comSecreta = filterMapForPlayer(comSecretaMap, 'p', { p: ['t'] }, 400, expCom)
+    expect(comSecreta.map).toEqual(semNada.map)
+    expect(comSecreta.portasPorAtravessar).toEqual(semNada.portasPorAtravessar)
+    expect(comSecreta.portasPorAtravessar).toEqual([])
   })
 
   it('SEGURANÇA: zona oculta sobre a PORTA tira a porta e a marca', () => {

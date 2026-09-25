@@ -5,7 +5,7 @@
  * porta secreta e porta de outro jogador que ele não conhece não aparecem.
  */
 import { describe, expect, it } from 'vitest'
-import { ficha, torre } from '../lib/__fixtures__/hazardTower'
+import { ficha, sala, torre } from '../lib/__fixtures__/hazardTower'
 import type { MapData, Wall } from '../types/map'
 import { createHostSession, type HostResult } from './hostSession'
 import type { HostMessage } from './protocol'
@@ -65,6 +65,20 @@ describe('portas por atravessar — snapshot do jogador', () => {
     const r = mesa(map).broadcast(map)
     expect(JSON.stringify(r.outbound)).not.toContain('porta-bc')
     expect(snapshotDe(r, 'c1').porAtravessar ?? []).toEqual([])
+  })
+
+  it('SEGURANÇA: sala C secreta atrás da porta B|C aberta: o campo sai igual ao de quando não há sala C', () => {
+    const abrirBC = (w: Wall): Wall => (w.id === 'porta-bc' && w.door !== null ? { ...w, door: { ...w.door, open: true } } : w)
+    const semSalaC: MapData = { ...andar(abrirBC), regions: [sala('sala-a', 0, 500), sala('sala-b', 500, 1000)] }
+    const comSecreta: MapData = { ...semSalaC, regions: [...semSalaC.regions, sala('sala-c', 1000, 1500, { secret: true })] }
+    const deAnaSem = snapshotDe(mesa(semSalaC).broadcast(semSalaC), 'c1')
+    const deAnaCom = snapshotDe(mesa(comSecreta).broadcast(comSecreta), 'c1')
+    // O cenário é o do vazamento: mapa, visão e preto idênticos nos dois casos.
+    expect(deAnaCom.map).toEqual(deAnaSem.map)
+    expect(deAnaCom.vision).toEqual(deAnaSem.vision)
+    expect(deAnaCom.concealed).toEqual(deAnaSem.concealed)
+    expect(deAnaCom.porAtravessar).toEqual(deAnaSem.porAtravessar)
+    expect('porAtravessar' in deAnaCom).toBe(false)
   })
 
   it('o mestre abre a porta B|C: a sala C entra na visão e a marca some (o campo nem sai)', () => {

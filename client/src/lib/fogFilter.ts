@@ -2254,12 +2254,23 @@ export function filterMapForGroup(
    * PORTAS POR ATRAVESSAR. Só porta que saiu no recorte (a secreta já virou
    * parede lá em cima). As amostras são as do explorado da porta (1,5 célula
    * de cada lado, `DOOR_EXPLORED_PROBE_CELLS`): caem numa célula que não cruza
-   * a parede, a mesma régua que decide se a porta sai. Um lado conta como
-   * conhecido pela mesma regra do pino (`!inHiddenPlace && isPointKnown`):
-   * o explorado antigo de uma sala que o mestre escondeu depois não vale.
+   * a parede, a mesma régua que decide se a porta sai.
+   *
+   * Um lado conta como conhecido pelo que a TELA DELE mostra, e só por isso:
+   * a visão ENVIADA (`sentVision`, sem as paredes da sala secreta, com o
+   * pincel), o explorado e o cômodo lembrado; fora do preto da zona e fora do
+   * teto fechado (os dois chegam desenhados: `concealed` e a silhueta).
+   * Nada de `inHiddenPlace`/`inSecretRoom`/`inUnseenComodo`, nem da visão da
+   * autoridade: são do host, e a sala secreta atrás da porta aberta — que a
+   * visão enviada mostra como vista — viraria o único sinal, no fio e na
+   * tela, de que o mestre esconde algo ali.
    */
   const doorSideProbe = (explored?.cell ?? map.grid) * DOOR_EXPLORED_PROBE_CELLS
-  const doorSideKnown = (p: RegionPoint): boolean => !inHiddenPlace(p) && isPointKnown(p)
+  const sentRings = vision === authorityVision ? rings : boxRings(vision)
+  const doorSideKnown = (p: RegionPoint): boolean =>
+    !hiddenByZone(p) &&
+    !inClosedRoof(p) &&
+    (inAnyRing(sentRings, p) || inBrushReveal(p) || isPointExploredOpen(p) || inKnownComodo(p))
   const portasPorAtravessar = filtered.walls
     .filter((w) => {
       if (w.door === null || w.door.secret === true) return false
