@@ -837,7 +837,8 @@ describe('hostBridge: pedido de passagem pelo pino de viagem', () => {
     const chegada = toasts.find((toast) => toast.text === 'Ana entrou em Cripta')
     expect(chegada?.actions?.map((action) => action.label)).toEqual(['Ir lá'])
     chegada?.actions?.[0]?.run()
-    expect(onGoToScene).toHaveBeenCalledWith('cena-b', 975, 275)
+    // PISOS: o quarto argumento é o piso de chegada (o par está no térreo).
+    expect(onGoToScene).toHaveBeenCalledWith('cena-b', 975, 275, 0)
     expect(t.bridge.players()[0]?.sceneName).toBe('Cripta')
   })
 

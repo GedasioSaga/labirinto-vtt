@@ -52,7 +52,16 @@ describe('createArrivalAnnouncer: um cartão por cena', () => {
     expect(cartao?.actions?.map((a) => a.label)).toEqual(['Ir lá'])
     // "Ir lá" leva à cena, na última chegada.
     cartao?.actions?.[0]?.run()
-    expect(goTo).toHaveBeenCalledWith('s-porao', 180, 100)
+    // PISOS: e no piso de chegada (aqui, o térreo).
+    expect(goTo).toHaveBeenCalledWith('s-porao', 180, 100, 0)
+  })
+
+  it('PISOS: o "Ir lá" leva ao piso onde a ficha chegou (o do pino par), não ao térreo', () => {
+    const goTo = vi.fn()
+    const anunciar = createArrivalAnnouncer(goTo)
+    anunciar({ ...chegada('p-ana', 'Ana', 's-torre', 'Torre', 900, 600), piso: 2 })
+    avisos()[0]?.actions?.[0]?.run()
+    expect(goTo).toHaveBeenCalledWith('s-torre', 900, 600, 2)
   })
 
   it('cenas diferentes, cartões diferentes', () => {

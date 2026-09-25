@@ -174,8 +174,8 @@ export interface HostBridgeDeps {
    * Sem este retorno a linha do pedido trancado não oferece "Passar para pede".
    */
   setPinPassage?: (pinId: string, passagem: PinPassage, sceneId?: string) => void
-  /** "Ir lá" do aviso de chegada: abrir `sceneId` no editor com (`x`, `y`) no centro. */
-  onGoToScene?: (sceneId: string, x: number, y: number) => void
+  /** "Ir lá" do aviso de chegada: abrir `sceneId` no editor com (`x`, `y`) no centro, no `piso` onde a ficha chegou. */
+  onGoToScene?: (sceneId: string, x: number, y: number, piso: number) => void
   visionRadius?: number
   onPlayersChange?: (players: PlayerInfo[]) => void
   /** "Quem vê" de cada pino com lista (`pinId` -> jogadores); pino de "Todos" não aparece. Sala fechada = `{}`. */

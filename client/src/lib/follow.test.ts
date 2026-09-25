@@ -36,6 +36,15 @@ describe('followDecision', () => {
     expect(decisao).toEqual({ kind: 'target', target: { sceneId: 's-b', x: 2, y: 2 } })
   })
 
+  it('PISOS: a ficha no 1º piso leva o piso junto (o editor vai a ele); no térreo, sem o campo', () => {
+    expect(followDecision('ana', [ana()], mundo([{ ...ficha('lanterna', 120, 80), piso: 1 }], []))).toEqual({
+      kind: 'target',
+      target: { sceneId: 's-a', x: 120, y: 80, piso: 1 },
+    })
+    const terreo = followDecision('ana', [ana()], mundo([ficha('lanterna', 120, 80)], []))
+    expect(terreo.kind === 'target' && 'piso' in terreo.target).toBe(false)
+  })
+
   it('ficha em trânsito (sumiu de toda cena) espera, sem desligar', () => {
     expect(followDecision('ana', [ana()], mundo([], []))).toEqual({ kind: 'wait' })
   })
@@ -64,5 +73,12 @@ describe('shouldRecenter', () => {
     expect(shouldRecenter(aqui, { ...aqui, x: 150 })).toBe(true)
     expect(shouldRecenter(aqui, { ...aqui, y: 150 })).toBe(true)
     expect(shouldRecenter(aqui, { ...aqui, sceneId: 's-b' })).toBe(true)
+  })
+
+  it('PISOS: subir a escada (mesmo ponto, outro piso) centra de novo — senão o editor ficava no piso de baixo', () => {
+    expect(shouldRecenter(aqui, { ...aqui, piso: 1 })).toBe(true)
+    expect(shouldRecenter({ ...aqui, piso: 1 }, aqui)).toBe(true)
+    // Térreo sem o campo e térreo com 0 são o mesmo lugar.
+    expect(shouldRecenter(aqui, { ...aqui, piso: 0 })).toBe(false)
   })
 })

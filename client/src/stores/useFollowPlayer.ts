@@ -26,6 +26,8 @@ export function useFollowPlayer(players: PlayerInfo[], world: () => HostWorld): 
   const sceneId = target?.sceneId ?? null
   const x = target?.x ?? null
   const y = target?.y ?? null
+  // PISOS NA MESMA CENA: ausente = térreo; o editor vai ao piso da ficha seguida.
+  const piso = target?.piso ?? 0
 
   useEffect(() => {
     if (playerId === null) {
@@ -37,11 +39,12 @@ export function useFollowPlayer(players: PlayerInfo[], world: () => HostWorld): 
       return
     }
     if (x === null || y === null) return
-    const next: FollowTarget = { sceneId, x, y }
+    const next: FollowTarget = { sceneId, x, y, piso }
     const previous = lastRef.current?.playerId === playerId ? lastRef.current.target : null
     if (!shouldRecenter(previous, next)) return
     lastRef.current = { playerId, target: next }
     // O foco vai ao centro da área que os painéis não cobrem (G6, `freeAreaCenter`): a ficha seguida nunca some sob o painel.
-    useAdventureStore.getState().goToPoint(sceneId, { x, y })
-  }, [playerId, kind, sceneId, x, y])
+    // PISOS: e o editor no piso dela — a escada muda o piso sem mudar o ponto.
+    useAdventureStore.getState().goToPointNoPiso(sceneId, { x, y }, piso)
+  }, [playerId, kind, sceneId, x, y, piso])
 }

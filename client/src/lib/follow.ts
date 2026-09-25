@@ -1,4 +1,6 @@
 import type { HostScene, HostWorld, PlayerInfo } from '../net/hostSession'
+import type { Token } from '../types/map'
+import { pisoDe } from './pisos'
 
 /**
  * SEGUIR JOGADOR (G7): a câmera do editor acompanha a ficha de UM jogador.
@@ -11,6 +13,8 @@ export interface FollowTarget {
   sceneId: string | null
   x: number
   y: number
+  /** PISOS NA MESMA CENA: o piso da ficha. Ausente = o térreo (como no arquivo). */
+  piso?: number
 }
 
 /**
@@ -25,7 +29,7 @@ function allScenes(world: HostWorld): HostScene[] {
   return [world.open, ...world.background]
 }
 
-function tokenIn(scene: HostScene, tokenIds: string[]): { x: number; y: number } | null {
+function tokenIn(scene: HostScene, tokenIds: string[]): Token | null {
   for (const id of tokenIds) {
     const token = scene.map.tokens.find((t) => t.id === id)
     if (token !== undefined) return token
@@ -48,7 +52,9 @@ export function followDecision(playerId: string, players: PlayerInfo[], world: H
   const ordered = own === undefined ? scenes : [own, ...scenes.filter((s) => s !== own)]
   for (const scene of ordered) {
     const token = tokenIn(scene, player.tokenIds)
-    if (token !== null) return { kind: 'target', target: { sceneId: scene.sceneId, x: token.x, y: token.y } }
+    if (token === null) continue
+    const piso = pisoDe(token)
+    return { kind: 'target', target: { sceneId: scene.sceneId, x: token.x, y: token.y, ...(piso === 0 ? {} : { piso }) } }
   }
   return { kind: 'wait' }
 }
@@ -61,5 +67,6 @@ export function followDecision(playerId: string, players: PlayerInfo[], world: H
  */
 export function shouldRecenter(previous: FollowTarget | null, next: FollowTarget): boolean {
   if (previous === null) return true
-  return previous.sceneId !== next.sceneId || previous.x !== next.x || previous.y !== next.y
+  // PISOS: subir a escada não muda o ponto, mas muda o piso que o editor tem de mostrar.
+  return previous.sceneId !== next.sceneId || previous.x !== next.x || previous.y !== next.y || (previous.piso ?? 0) !== (next.piso ?? 0)
 }

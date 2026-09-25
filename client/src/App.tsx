@@ -596,8 +596,9 @@ function App() {
         applyChamadaDeCabine: (chamada) => useAdventureStore.getState().chamarCabine(chamada),
         // "Ir lá" do aviso de chegada: o editor vai à cena, com a ficha no centro
         // (mesmo caminho do "Ir lá" do painel Grupo, que também serve à cena já aberta).
-        onGoToScene: (sceneId, x, y) => {
-          useAdventureStore.getState().goToPoint(sceneId, { x, y })
+        // PISOS: no piso onde ela chegou (o do pino par).
+        onGoToScene: (sceneId, x, y, piso) => {
+          useAdventureStore.getState().goToPointNoPiso(sceneId, { x, y }, piso)
         },
         // "Ir lá" da ação no ponto: centra no ponto e o marca com o anel do jogador.
         onPointActionGo: goToPointAction,
@@ -776,7 +777,8 @@ function App() {
               onGoTo: (member) => {
                 // "Ir lá" em OUTRO jogador é o mestre escolhendo a vista: desliga o seguir.
                 if (member.playerId !== followingId) useFollowStore.getState().stop()
-                if (member.token !== null) useAdventureStore.getState().goToPoint(member.sceneId, { x: member.token.x, y: member.token.y })
+                // PISOS: e o editor no piso da ficha (ausente = térreo).
+                if (member.token !== null) useAdventureStore.getState().goToPointNoPiso(member.sceneId, { x: member.token.x, y: member.token.y }, member.token.piso ?? 0)
               },
               onSend: (playerId, sceneId, pinId) => hostBridgeRef.current?.sendPlayer(playerId, sceneId, pinId) ?? false,
               // ITEM PEGÁVEL: tirar, devolver ao chão ou dar, gravado na cena

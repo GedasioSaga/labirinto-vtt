@@ -22,7 +22,8 @@ export function levarFichaPara(tokenId: string, toSceneId: string, pinId: string
   const carried = useAdventureStore.getState().carryToken(tokenId, toSceneId, pinId)
   if (carried === null) return false
   useToastStore.getState().push('info', carriedTokenText(carried), undefined, {
-    actions: [{ label: 'Ir lá', run: () => void useAdventureStore.getState().goToPoint(carried.sceneId, { x: carried.x, y: carried.y }) }],
+    // PISOS: e no piso onde ela chegou — só a câmera deixaria o editor no piso de antes.
+    actions: [{ label: 'Ir lá', run: () => void useAdventureStore.getState().goToPointNoPiso(carried.sceneId, { x: carried.x, y: carried.y }, carried.piso ?? 0) }],
   })
   return true
 }

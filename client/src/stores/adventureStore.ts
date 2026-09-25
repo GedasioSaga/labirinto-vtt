@@ -18,7 +18,7 @@ import { carrierIdOf, withoutCarrier } from '../lib/carry'
 import type { Bounds, Camera, Point } from '../pixi/world'
 import * as mapFactory from '../lib/mapFactory'
 import { moverNaCena, planejarRotina, type CenaDaRotina } from '../lib/rotinaDoNpc'
-import { comPiso } from '../lib/pisos'
+import { comPiso, pisoDe } from '../lib/pisos'
 import {
   ADVENTURE_VERSION,
   baseName,
@@ -117,6 +117,8 @@ export interface CarriedToken {
   /** Onde a ficha assentou na cena de destino. */
   x: number
   y: number
+  /** PISOS NA MESMA CENA: o piso onde ela chegou (o do pino). Ausente = o térreo. O "Ir lá" vai a ele. */
+  piso?: number
 }
 
 export interface CameraRequest {
@@ -243,6 +245,13 @@ interface AdventureState {
    * na cena aberta) é a caixa do objeto procurado: afasta se ela não couber.
    */
   goToPoint: (sceneId: string | null, point: Point, fit?: Bounds) => boolean
+  /**
+   * PISOS NA MESMA CENA — "Ir lá" até uma FICHA: o `goToPoint` de sempre e o
+   * editor no `piso` dela. Só a câmera deixava o editor no piso de antes (ou
+   * no térreo, que `loadMap` põe ao trocar de cena), com a ficha invisível
+   * no centro da tela. `false` (e o piso intacto) quando o `goToPoint` não foi.
+   */
+  goToPointNoPiso: (sceneId: string | null, point: Point, piso: number) => boolean
   /** Muda uma cena de FUNDO sem passar pelo desfazer da cena aberta. */
   updateBackgroundScene: (sceneId: string, updater: (map: MapData) => MapData) => void
   /**
@@ -981,6 +990,13 @@ export const useAdventureStore = create<AdventureState>()((set, get) => ({
     return get().switchScene(sceneId, point)
   },
 
+  goToPointNoPiso: (sceneId, point, piso) => {
+    if (!get().goToPoint(sceneId, point)) return false
+    // Depois da troca de cena: `loadMap` acabou de pôr o térreo.
+    useMapStore.getState().setPisoAtivo(piso)
+    return true
+  },
+
   updateBackgroundScene: (sceneId, updater) => {
     const { cache, dirty } = get()
     const slot = cache[sceneId]
@@ -1281,7 +1297,7 @@ export const useAdventureStore = create<AdventureState>()((set, get) => ({
     const item: SelectionItem = { kind: 'token', id: tokenId }
     const { selection, setSelection } = useMapStore.getState()
     if (selectionHas(selection, item)) setSelection(removeSelectionItem(selection, item))
-    return { tokenName: token.name, sceneId: toSceneId, sceneName: entry.name, x: spot.x, y: spot.y }
+    return { tokenName: token.name, sceneId: toSceneId, sceneName: entry.name, x: spot.x, y: spot.y, ...(pin === null || pisoDe(pin) === 0 ? {} : { piso: pisoDe(pin) }) }
   },
 
   hasPendingScenes: () => {
