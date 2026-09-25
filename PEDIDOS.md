@@ -792,3 +792,16 @@ com runs novos só das peças que faltam, publicando em `main` a cada 10 feature
 Feito: `auto/f2-link-publico` (`c76b664`, provado: cargo test, clippy, tipos e unidade verdes) entra em
 `auto/acervo` agora, antes do push e do instalador. Defeito só do modo dev (o `dev_fallback` do servidor da sala
 recusava pelo túnel os módulos que a página do jogador pede); o release serve a página embutida.
+
+### 25/09/2026, 00h10 — noite automática, push a cada 10 features
+
+> "Tá então depois de publicar essa versão e fazer o instalador, volte ao automatico de features, fazendo cos
+> concertos, ideias da torre e o que tiver para fazer, eu vou dormir agora, lembre-se de dar commit e push no
+> programa a cada 10 features novas feitas, ou seja cada 10 você adiciona eles no programa, e depois continua
+> com mais 10, pelo menos eu vou ter evoluções constantes. Lembre-se usar paralelismo e tudo mais."
+
+Plano: (1) terminar a publicação dos grupos prontos (`wf_3c4bb722-2b5`, um push por grupo); (2) instalador 0.3.0
+dessa versão (tag + Release, como a 0.2.0); (3) fábrica contínua numa branch única `auto/int-noite` que sai de
+`auto/acervo`: consertos pendentes (visão e ideias da torre), pisos na mesma cena e as peças da onda 3 que
+faltam, 3 peças em paralelo (mais que isso trava a fila do modelo, medido em 24/09); a cada 10 peças integradas,
+merge em `auto/acervo`, testes, checagem de segredo e push em `main`.
