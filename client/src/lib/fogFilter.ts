@@ -2006,6 +2006,7 @@ export function filterMapForGroup(
         if (knownComodoIds.has(r.id)) return true
         return isShapeKnown(interiorSamples(r.points, r.points), { points: r.points, closed: true })
       })
+      .map(regionForPlayer)
       .map((r) => {
         if (r.room === undefined) return r
         const roofClosed = closedRoofIds.has(r.id)
@@ -2211,6 +2212,19 @@ function lightForPlayer(light: Light): Light {
   const forPlayer: Light = { id: light.id, x: light.x, y: light.y, radius: light.radius, color: light.color, intensity: light.intensity }
   if (light.attachedTokenId !== undefined) forPlayer.attachedTokenId = light.attachedTokenId
   return forPlayer
+}
+
+/**
+ * A região como o jogador pode recebê-la: só o que a tela dele desenha.
+ * `data` (dado livre do mestre, ex.: o `endereco` de cada cômodo), `tag` (o
+ * rótulo que o mestre dá à região, que nomeia a área no aviso de gatilho) e
+ * `locked` (trava do editor) ficam no mestre — nada em `player/` nem em
+ * `pixi/` os lê. `tag` e `data` são obrigatórios no tipo, então saem vazios.
+ * A `room` segue para a regra dela logo em seguida no recorte.
+ */
+function regionForPlayer(region: Region): Region {
+  const { data: _data, tag: _tag, locked: _locked, ...drawn } = region
+  return { ...drawn, tag: '', data: {} }
 }
 
 function wallWithPlayerDoor(wall: Wall): Wall {
