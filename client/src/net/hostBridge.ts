@@ -29,6 +29,7 @@ import {
   type DoorRequest,
   type HideRequest,
   type ItemRequest,
+  type PurchaseRequest,
   type AppliedTransfer,
   type CaravanStop,
   type HazardEntryNotice,
@@ -434,6 +435,16 @@ const DOOR_REQUEST_VERB: Record<DoorRequestHow, string> = {
   key: 'tenta usar uma chave na porta',
 }
 
+/**
+ * LOJA: "Ana quer Xarope (1 moeda) em Botica", mais ", Mercado" quando a banca
+ * está numa cena de fundo. Sem preço escrito, sem parênteses.
+ */
+export function purchaseRequestLine(request: PurchaseRequest): string {
+  const preco = request.preco.trim() === '' ? '' : ` (${request.preco.trim()})`
+  const where = request.sceneName === undefined ? '' : `, ${request.sceneName}`
+  return `${request.playerName} quer ${request.itemName}${preco} em ${request.pinLabel}${where}`
+}
+
 /** "Diego quer pegar Chave do Escudo", mais " em Mansão" quando o item está numa cena de fundo. */
 export function itemRequestLine(request: ItemRequest): string {
   const where = request.sceneName === undefined ? '' : ` em ${request.sceneName}`
@@ -621,6 +632,8 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   const hideToasts = new Map<string, string>()
   /** Linha de cada pedido de item ainda na tela: `requestId` -> id do toast. */
   const itemToasts = new Map<string, string>()
+  /** LOJA: linha de cada "Quero" ainda na tela: `requestId` -> id do toast. */
+  const purchaseToasts = new Map<string, string>()
   /** CORREIO: aviso do mestre de cada bilhete que ainda espera: `letterId` -> id do toast. */
   const letterToasts = new Map<string, string>()
   /**
@@ -1209,6 +1222,12 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       itemToasts.delete(requestId)
       useToastStore.getState().dismiss(toastId)
     }
+    // E para a loja: "Vender" de quem saiu não vende nada.
+    for (const [requestId, toastId] of purchaseToasts) {
+      if (session !== null && session.isPurchasePending(requestId)) continue
+      purchaseToasts.delete(requestId)
+      useToastStore.getState().dismiss(toastId)
+    }
     // Mesma regra para a ação no ponto: jogador expulso ou sala fechada não
     // deixa um "Nada aqui" que não chega a ninguém.
     for (const [requestId, toastId] of pointActionToasts) {
@@ -1311,6 +1330,49 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       sempreEmCaixa: true,
     })
     itemToasts.set(request.requestId, toastId)
+  }
+
+  /**
+   * LOJA — resposta ao "Quero": "Vender" revalida na sessão e grava pela
+   * store (o estoque cai e a mercadoria vai à mochila, na cena da banca) ANTES
+   * de mandar o "está com você", e o snapshot sai na hora: quem vê a banca lê
+   * o estoque novo. "Não" só avisa o jogador.
+   */
+  const answerPurchase = (requestId: string, vender: boolean) => {
+    const toastId = purchaseToasts.get(requestId)
+    purchaseToasts.delete(requestId)
+    if (toastId !== undefined) useToastStore.getState().dismiss(toastId)
+    if (session === null) return
+    if (!vender || deps.applyItems === undefined) {
+      void dispatch(session.denyPurchase(requestId))
+      return
+    }
+    const result = session.approvePurchase(requestId, world())
+    if (result.applyItems === undefined) {
+      void dispatch(result)
+      return
+    }
+    deps.applyItems(result.applyItems)
+    void dispatch(result)
+    broadcastNow()
+  }
+
+  /**
+   * LOJA: o "Quero" vira uma linha no grupo "Pedidos", a mesma caixa do
+   * "Pegar" e da passagem. Espera o mestre (o × vale "Não"). Sem `emLote`:
+   * vender é decisão de uma mercadoria por vez, e "Deixar todos" não vende.
+   */
+  const askPurchase = (request: PurchaseRequest) => {
+    const toastId = useToastStore.getState().push('instrucao', purchaseRequestLine(request), null, {
+      actions: [
+        { label: 'Vender', run: () => answerPurchase(request.requestId, true) },
+        { label: 'Não', run: () => answerPurchase(request.requestId, false) },
+      ],
+      onDismiss: () => answerPurchase(request.requestId, false),
+      grupo: 'Pedidos',
+      sempreEmCaixa: true,
+    })
+    purchaseToasts.set(request.requestId, toastId)
   }
 
   /**
@@ -1948,6 +2010,11 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       // Integrador sem quem grave a mochila: "Deixar" não teria como entregar.
       if (deps.applyItems === undefined) void dispatch(session.denyItemRequest(result.itemRequest.requestId))
       else askItem(result.itemRequest)
+    }
+    if (result.purchaseRequest !== undefined) {
+      // Integrador sem quem grave a mochila: "Vender" não teria como entregar.
+      if (deps.applyItems === undefined) void dispatch(session.denyPurchase(result.purchaseRequest.requestId))
+      else askPurchase(result.purchaseRequest)
     }
     if (result.chamadaDeCabine !== undefined) announceCabineCall(result.chamadaDeCabine)
     if (result.letter !== undefined) askLetter(result.letter)

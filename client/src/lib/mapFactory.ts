@@ -18,6 +18,7 @@ import { apagarBlocosDoChao } from './floorTool'
 import { DEFAULT_FLOOR_STYLE } from './mapFile'
 import { sameDestination, sameExits } from './pinTravel'
 import { passageOf } from './pins'
+import { sameLoja } from './loja'
 import { moveTokenCarryingLights, withoutAttachment } from './lightAttachment'
 import { seatStairPins, withoutStairPins } from './stairTravel'
 import { carryAttachedPins, carryPinsByTokenSteps } from './pinAttach'
@@ -1701,7 +1702,7 @@ export function addPin(map: MapData, pin: Pin): MapData {
 export function updatePin(
   map: MapData,
   id: string,
-  patch: Partial<Pick<Pin, 'kind' | 'icon' | 'description' | 'image' | 'locked' | 'destino' | 'passagem' | 'mudo' | 'rotulo' | 'saidas' | 'item' | 'abreCom' | 'presoA' | 'portaLigada'>>,
+  patch: Partial<Pick<Pin, 'kind' | 'icon' | 'description' | 'image' | 'locked' | 'destino' | 'passagem' | 'mudo' | 'rotulo' | 'saidas' | 'item' | 'abreCom' | 'presoA' | 'portaLigada' | 'loja'>>,
 ): MapData {
   const pin = map.pins.find((p) => p.id === id)
   if (!pin) return map
@@ -1736,7 +1737,10 @@ export function updatePin(
     // CHAVE ABRE PORTA: `undefined` === sem chave; apagar um campo vazio não é mudança.
     next.abreCom === pin.abreCom &&
     // "Aceita tentativas" do trancado: só `true` é mudo, ausente é aceita.
-    (next.mudo === true) === (pin.mudo === true)
+    (next.mudo === true) === (pin.mudo === true) &&
+    // LOJA COM PREÇOS: gravar a mesma lista de novo, ou tirar a loja de um
+    // pino que nunca teve, não é mudança.
+    sameLoja(next.loja, pin.loja)
   ) {
     return map
   }

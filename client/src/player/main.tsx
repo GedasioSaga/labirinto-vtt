@@ -44,6 +44,7 @@ import { selectedTokenColor } from '../lib/tokenColor'
 import { buildTokenPhotoData } from '../lib/tokenPhoto'
 import { carriedItemsOf, giveTargets } from '../lib/items'
 import { itemNoticeText } from './itemNotice'
+import { compraNoticeText } from './compraNotice'
 import { HIDE_NOTICE_TEXT } from './hideNotice'
 import { leverNoticeText } from './leverNotice'
 import { hazardNoticeText } from '../lib/hazards'
@@ -1066,6 +1067,9 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
               // Puxou, o cartão sai: o mapa volta inteiro à vista para o jogador ver a porta mexer.
               if (connection.pullLever(openPin.id)) setOpenPinId(null)
             }}
+            // LOJA COM PREÇOS: o cartão fica aberto — quem compra continua olhando a banca, e o pedido aparece nela.
+            onBuy={(itemId) => connection.buy(openPin.id, itemId)}
+            compra={state.compra?.pinId === openPin.id ? state.compra : undefined}
           />
         )}
         {/* MINHAS PISTAS: a pista reaberta do Caderno, com "Mostrar para…".
@@ -1104,6 +1108,12 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
         {state.item && (
           <p key={state.item.id} className="pp-notice" role="status" aria-live="polite">
             {itemNoticeText(state.item)}
+          </p>
+        )}
+        {/* LOJA: com o cartão da banca aberto, o pedido aparece nele; fechado, aqui. */}
+        {state.compra && openPin?.id !== state.compra.pinId && (
+          <p key={state.compra.id} className="pp-notice" role="status" aria-live="polite">
+            {compraNoticeText(state.compra)}
           </p>
         )}
         {state.alarm && (

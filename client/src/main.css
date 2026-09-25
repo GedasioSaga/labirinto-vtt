@@ -4339,6 +4339,40 @@ html.lb-arrastando-cena * {
   gap: var(--lb-space-2);
 }
 
+/* LOJA COM PREÇOS no painel do pino: uma mercadoria por bloco, separadas por
+   um fio, como as saídas da encruzilhada. Preço e estoque lado a lado. */
+.lb-loja {
+  display: grid;
+  gap: var(--lb-space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.lb-loja__item {
+  display: grid;
+  gap: var(--lb-space-1);
+  padding-top: var(--lb-space-2);
+  border-top: 1px solid var(--lb-color-line-panel);
+}
+
+.lb-loja__item:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.lb-loja__linha {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 7.5rem;
+  gap: var(--lb-space-2);
+}
+
+.lb-loja__campo {
+  display: grid;
+  gap: var(--lb-space-1);
+  min-width: 0;
+}
+
 /* ENCRUZILHADA: uma saída por bloco, separadas por um fio. A régua de cada
    uma repete a do poço em miniatura: latão ligada, apagada sem destino. */
 .lb-travel__exits {

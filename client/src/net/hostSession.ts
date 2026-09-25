@@ -43,7 +43,8 @@ import { tokenReachesDoor } from '../lib/doorReach'
 import { keyForDoor, keyForPin } from '../lib/doorKey'
 import { DESTINATION_MIN_INTERVAL_MS, SIGNAL_MIN_INTERVAL_MS, signalColor, type DestinationMark } from '../lib/signals'
 import { acceptsLockedRequest, passageOf, pinSummary } from '../lib/pins'
-import { carriedItemsOf, itemOfPin, tokenReachesPin, tokensTouch, type ItemChange } from '../lib/items'
+import { carriedItemsOf, cleanItemName, itemOfPin, tokenReachesPin, tokensTouch, type ItemChange } from '../lib/items'
+import { itemAVenda } from '../lib/loja'
 import { selectedTokenColor } from '../lib/tokenColor'
 import { arrivalSpot, arrivalSpotWithoutPin, exitLabelsOf, freeSeatNear, isArrivalOnly, resolvePinTravel, SAIDA_PRINCIPAL, sameDestination, travelExitOf, type TravelScene } from '../lib/pinTravel'
 import { gatherSpots, pinClearance, type KeepClear } from '../lib/gatherParty'
@@ -90,6 +91,8 @@ import {
   type PinLeverRejection,
   type PinTakeMessage,
   type PinTakeRejection,
+  type PinBuyMessage,
+  type PinBuyRejection,
   type PartyMember,
   type PartyWhere,
   type LetterSendMessage,
@@ -332,6 +335,24 @@ export interface ItemRequest {
   playerName: string
   itemName: string
   /** Nome da cena (o que o mestre lê), só quando o item está numa cena de FUNDO. */
+  sceneName?: string
+}
+
+/**
+ * LOJA COM PREÇOS: o "Quero" de um jogador que passou na conferência, para o
+ * mestre ler e responder ("Vender" / "Não"). Nome, preço e banca saem do mapa
+ * do MESTRE, nunca do que o jogador mandou. Nada disto vai ao jogador.
+ */
+export interface PurchaseRequest {
+  requestId: string
+  playerId: string
+  playerName: string
+  /** Como o mestre chama a banca: a descrição do pino ou, sem descrição, o resumo (`pinSummary`). */
+  pinLabel: string
+  itemName: string
+  /** Texto livre do mestre ("1 moeda"); vazio = sem preço escrito. */
+  preco: string
+  /** Nome da cena (o que o mestre lê), só quando a banca está numa cena de FUNDO. */
   sceneName?: string
 }
 
@@ -638,7 +659,9 @@ export interface HostResult {
   pinKeyUsed?: PinKeyUse
   /** "Pegar" válido de pino que pede ao mestre: o integrador pergunta. */
   itemRequest?: ItemRequest
-  /** Item pego (pino livre ou "Deixar") ou dado: o integrador grava na cena. */
+  /** LOJA: "Quero" conferido — o integrador pergunta ao mestre ("Vender" / "Não"). */
+  purchaseRequest?: PurchaseRequest
+  /** Item pego (pino livre ou "Deixar"), dado ou vendido (com `venda`): o integrador grava na cena. */
   applyItems?: AppliedItems
   /** CORREIO: bilhete aceito, à espera do mestre. O integrador pergunta "Entregar" ou "Interceptar". */
   letter?: LetterRequest
@@ -847,6 +870,13 @@ export const PISO_CHANGE_MIN_INTERVAL_MS = 500
 
 /** Um pedido de porta por jogador nesta janela; o excesso morre em silêncio (igual ao sinal). */
 export const DOOR_TOGGLE_MIN_INTERVAL_MS = 250
+
+/**
+ * LOJA COM PREÇOS: um "Quero" por jogador nesta janela, de qualquer banca. O
+ * recorte da névoa que confere o pedido é a parte cara, e o pedido interrompe
+ * o mestre: quem toca em laço lê `too_soon`, e nada chega ao mestre.
+ */
+export const PEDIDO_LOJA_MIN_INTERVAL_MS = 1500
 
 /**
  * Uma FOTO nova por jogador nesta janela. Só a foto: ela é o único campo caro
@@ -1172,6 +1202,18 @@ export interface HostSession {
   /** O pedido de item ainda espera o mestre? `false` depois de decidido, ou quando o jogador saiu. */
   isItemRequestPending(requestId: string): boolean
   /**
+   * LOJA — "Vender": revalida contra o mundo de AGORA (a banca pode ter sumido,
+   * a mercadoria acabado, a ficha saído da cena ou mudado de dono) e devolve
+   * `applyItems` com `venda` (o estoque cai um e a mercadoria entra na mochila
+   * da ficha que estava na banca) + `pin.buy.answer sold` ao jogador. Pedido
+   * que já não existe não faz nada.
+   */
+  approvePurchase(requestId: string, source: HostMapSource): HostResult
+  /** LOJA — "Não": `pin.buy.answer denied` ao jogador. Pedido que já não existe não faz nada. */
+  denyPurchase(requestId: string): HostResult
+  /** O pedido de compra ainda espera o mestre? `false` depois de decidido, ou quando o jogador saiu. */
+  isPurchasePending(requestId: string): boolean
+  /**
    * "Nada aqui" (`nothing`) ou "Feito" (`seen`) da ação no ponto: a resposta
    * vai SÓ à conexão atual de quem pediu. Pedido já respondido, de jogador
    * expulso, ou jogador sem conexão agora: nada sai.
@@ -1407,6 +1449,16 @@ interface PendingItem {
   requestId: string
   playerId: string
   pinId: string
+  tokenId: string
+  mapId: string
+}
+
+/** LOJA: o "Quero" que espera o mestre — a banca, a mercadoria, a ficha que estava nela e a cena. */
+interface PendingPurchase {
+  requestId: string
+  playerId: string
+  pinId: string
+  itemId: string
   tokenId: string
   mapId: string
 }
@@ -1672,6 +1724,10 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   // Por playerId: o mesmo limite do toque na porta, para "Pegar" e para "Dar a…".
   const lastItemTakeAt = new Map<string, number>()
   const lastItemGiveAt = new Map<string, number>()
+  // LOJA — por playerId: o "Quero" que espera o mestre (no máximo um) e o
+  // último "Quero" tentado (`PEDIDO_LOJA_MIN_INTERVAL_MS`). Só o kick apaga o limite.
+  const pendingPurchases = new Map<string, PendingPurchase>()
+  const lastPurchaseAt = new Map<string, number>()
   // Por playerId: o mesmo limite do toque na porta, para puxar a alavanca.
   const lastLeverAt = new Map<string, number>()
   // Por playerId: limite da foto nova do próprio token (só da foto, ver TOKEN_PHOTO_MIN_INTERVAL_MS).
@@ -2931,6 +2987,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     pendingItems.delete(playerId)
     lastItemTakeAt.delete(playerId)
     lastItemGiveAt.delete(playerId)
+    pendingPurchases.delete(playerId)
+    lastPurchaseAt.delete(playerId)
     lastLeverAt.delete(playerId)
     enteredRooms.delete(playerId)
     notebooks.delete(playerId)
@@ -3660,6 +3718,58 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   }
 
   const findPendingItem = (requestId: string): PendingItem | undefined => [...pendingItems.values()].find((pending) => pending.requestId === requestId)
+
+  /**
+   * LOJA COM PREÇOS: a mercadoria que o jogador pode pedir AGORA. Autoridade
+   * no molde do "Pegar": a banca existe na cena dele e saiu no recorte dele
+   * (névoa, zona oculta, "Quem vê" e o oculto do mestre valem); a mercadoria
+   * está no que ele recebe dessa banca e não acabou; e uma ficha dele, no
+   * recorte dele, está na banca. Banca que não existe, que ele não vê e
+   * mercadoria inventada respondem o mesmo `unavailable`.
+   */
+  const buyCheck = (playerId: string, map: MapData, msg: PinBuyMessage, world: HostWorld): { pin: Pin; nome: string; preco: string; token: Token } | PinBuyRejection => {
+    const pin = map.pins.find((p) => p.id === msg.pinId)
+    if (pin === undefined) return 'unavailable'
+    const memory = memoryFor(playerId, map, world)
+    const view = filterMapForPlayer(map, playerId, ownership, tokenRadiusIn(playerId, map), memory.exp, memory.doors, pinAudiences, undefined, loansFor(playerId), memory.seenRooms)
+    const noRecorte = view.map.pins.find((p) => p.id === pin.id)
+    // A mercadoria vem do pino COMO O JOGADOR O RECEBE: o que o recorte não leva não se pede.
+    const item = noRecorte === undefined ? null : itemAVenda(noRecorte, msg.itemId)
+    if (item === null) return 'unavailable'
+    const owned = new Set(ownership[playerId] ?? [])
+    const reaching = view.map.tokens.filter((t) => owned.has(t.id) && tokenReachesPin(t, pin, map.grid))
+    // A ficha do MAPA DO MESTRE, não a do recorte: é a mochila dela que cresce.
+    const token = reaching.map((t) => map.tokens.find((m) => m.id === t.id)).find((t): t is Token => t !== undefined)
+    if (token === undefined) return 'far'
+    return { pin, nome: item.nome, preco: item.preco, token }
+  }
+
+  function handlePinBuy(clientId: string, msg: PinBuyMessage, world: HostWorld): HostResult {
+    const playerId = byClient.get(clientId)
+    if (playerId === undefined) return reply(clientId, { type: 'error', reason: 'not_joined' })
+    const record = players.get(playerId)
+    const reject = (reason: PinBuyRejection): HostResult => reply(clientId, { type: 'pin.buy.rejected', reason })
+    if (record === undefined || statusOf(playerId) !== 'playing') return reject('unavailable')
+    if (pendingPurchases.has(playerId)) return reject('pending')
+    // O limite vem antes do recorte, que é a parte cara: barato e de tamanho fixo por jogador.
+    const at = now()
+    const last = lastPurchaseAt.get(playerId)
+    if (last !== undefined && at - last < PEDIDO_LOJA_MIN_INTERVAL_MS) return reject('too_soon')
+    lastPurchaseAt.set(playerId, at)
+    const scene = sceneFor(playerId, world)
+    if (scene === null) return reject('unavailable')
+    const found = buyCheck(playerId, scene.map, msg, world)
+    if (typeof found === 'string') return reject(found)
+
+    const requestId = randomId()
+    pendingPurchases.set(playerId, { requestId, playerId, pinId: found.pin.id, itemId: msg.itemId, tokenId: found.token.id, mapId: sceneKey(scene) })
+    const request: PurchaseRequest = { requestId, playerId, playerName: record.name, pinLabel: pinSummary(found.pin), itemName: found.nome, preco: found.preco }
+    // Cena de fundo: o mestre lê onde é, porque está olhando outra.
+    if (backgroundSceneId(scene, world).sceneId !== undefined) request.sceneName = scene.name
+    return { outbound: [], purchaseRequest: request }
+  }
+
+  const findPendingPurchase = (requestId: string): PendingPurchase | undefined => [...pendingPurchases.values()].find((pending) => pending.requestId === requestId)
 
   /**
    * ALAVANCA. Autoridade no molde do "Pegar": o pino existe na cena dele, é
@@ -4578,6 +4688,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
         return handleClueShow(clientId, msg, world)
       case 'pin.take':
         return handlePinTake(clientId, msg, world)
+      case 'pin.buy':
+        return handlePinBuy(clientId, msg, world)
       case 'item.give':
         return handleItemGive(clientId, msg, world)
       case 'call.raise':
@@ -4688,6 +4800,48 @@ export function createHostSession(options: HostSessionOptions): HostSession {
 
     isItemRequestPending(requestId) {
       return findPendingItem(requestId) !== undefined
+    },
+
+    approvePurchase(requestId, source) {
+      const pending = findPendingPurchase(requestId)
+      if (pending === undefined) return { outbound: [] }
+      pendingPurchases.delete(pending.playerId)
+      const record = players.get(pending.playerId)
+      // Saiu da sala enquanto o mestre decidia: nada é vendido.
+      if (record === undefined || record.clientId === null) return { outbound: [] }
+      const world = toWorld(source)
+      const scene = allScenes(world).find((s) => sceneKey(s) === pending.mapId)
+      const pin = scene?.map.pins.find((p) => p.id === pending.pinId)
+      // O que o MESTRE tem agora: ele pode ter mexido no estoque ou tirado a mercadoria.
+      const item = pin === undefined ? null : itemAVenda(pin, pending.itemId)
+      const token = scene?.map.tokens.find((t) => t.id === pending.tokenId)
+      // A ficha tem de continuar sendo dele: o mestre pode tê-la dado a outro.
+      const stillHis = (ownership[pending.playerId] ?? []).includes(pending.tokenId)
+      if (scene === undefined || pin === undefined || item === null || token === undefined || !stillHis) {
+        return reply(record.clientId, { type: 'pin.buy.rejected', reason: 'unavailable' })
+      }
+      const nome = cleanItemName(item.nome)
+      return {
+        outbound: [{ clientId: record.clientId, msg: { type: 'pin.buy.answer', answer: 'sold', nome } }],
+        applyItems: {
+          ...backgroundSceneId(scene, world),
+          venda: { pinId: pin.id, itemId: item.id },
+          // Id NOVO na mochila: a mesma mercadoria pode ser comprada de novo, e cada uma é um item.
+          mochilas: [{ tokenId: token.id, mochila: [...carriedItemsOf(token), { id: randomId(), nome }] }],
+        },
+      }
+    },
+
+    denyPurchase(requestId) {
+      const pending = findPendingPurchase(requestId)
+      if (pending === undefined) return { outbound: [] }
+      pendingPurchases.delete(pending.playerId)
+      const clientId = players.get(pending.playerId)?.clientId ?? null // null = saiu: não há a quem avisar
+      return clientId === null ? { outbound: [] } : reply(clientId, { type: 'pin.buy.answer', answer: 'denied' })
+    },
+
+    isPurchasePending(requestId) {
+      return findPendingPurchase(requestId) !== undefined
     },
 
     listCalls() {
@@ -5251,6 +5405,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       pendingHides.delete(playerId)
       // E para o item: "Deixar" depois da queda não entrega nada.
       pendingItems.delete(playerId)
+      // E para a loja: "Vender" depois da queda não vende nada.
+      pendingPurchases.delete(playerId)
       // A mão também: quem volta chega com a tela zerada, sem mão acesa.
       openCalls.delete(playerId)
       // Quem provocou a pergunta "voltou?" e caiu antes da resposta: a pergunta morre.
