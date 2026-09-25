@@ -815,3 +815,25 @@ Feito na hora: os três scripts dos workflows (`fabrica-v3.js`, `publicar-grupos
 pelo agent). Os três runs foram parados e relançados em Opus: publicação de visão + defeitos (`wf_b6ab019e-855`),
 junção dos grupos t-* (`wf_6f9b4b28-6a5`) e a fábrica com as 11 peças prontas (`wf_c2bcab30-9ea`). Regra que vale
 daqui para frente: nenhuma etapa em Sonnet; Fable continua proibido.
+
+### 25/09/2026, 13h50 — publicar já e fazer o instalador
+
+> "Publica logo e faz o instalador."
+
+Feito: fábrica parada; `wf_e57da219-37b` publica as 10 peças de `auto/int-noite` em `main` (trava, testes, segredo,
+push) e gera a 0.3.0 (versão, `tauri:build`, tag `v0.3.0`, Release com `.exe` e `.msi`). As 3 peças perdidas na
+queda de internet (escolher fichas no pino, zoom da roda, troca de cena rápida) voltam na próxima fábrica.
+
+### 25/09/2026, 14h00 — versão 0.3.1: aba Jogo espremida
+
+> "Eu quero que voÊ faça só um ajuste criando a versão 0.3.1 só para ajustar em downloads, existe a o foto captira
+> de tela 2026-09-2025 135346.png, que é uma foto da aba jogo onde está tudo espremido, eu quero que vocÊ ajeita
+> ui/ux dessa parte rápido e deixe mais bonito e jogavel."
+
+Foto: `Downloads/Captura de tela 2026-09-25 135346.png` (painel lateral do mestre, aba Jogo: linha do jogador
+cortada, botões amontoados, rolagem horizontal). `wf_8cc61d20-52f`: designer-opus redesenha só layout e estilo
+(nomes acessíveis intactos), fotos antes x depois em 340 e 400 px, 2 juízes cegos com ordem invertida, e depois da
+0.3.0 publica a 0.3.1 com instalador.
+
+Resultado (25/09, 14h40): 10 features em `main` (`4cc5042`) e a 0.3.0 publicada: https://github.com/GedasioSaga/labirinto-vtt/releases/tag/v0.3.0
+(`Labirinto_0.3.0_x64-setup.exe` e `Labirinto_0.3.0_x64_en-US.msi`, state uploaded; tag em `76b6a3a`).
