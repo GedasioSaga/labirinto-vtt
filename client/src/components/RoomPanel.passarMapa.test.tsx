@@ -11,7 +11,7 @@ import type { PlayerInfo } from '../net/hostSession'
 import { RoomPanel, SHARE_MAP_HINT } from './RoomPanel'
 
 function jogador(overrides: Partial<PlayerInfo>): PlayerInfo {
-  return { clientId: 'c', playerId: 'p', name: '?', status: 'waiting', connected: true, tokenIds: [], visionRadius: 700, ...overrides }
+  return { clientId: 'c', playerId: 'p', name: '?', status: 'waiting', connected: true, tokenIds: [], visionRadius: 700, visionFactor: 1, ...overrides }
 }
 
 const SALAO = { sceneId: 's-salao', sceneName: 'Salao Nobre' }
@@ -61,8 +61,10 @@ describe('RoomPanel: passar o mapa de um jogador a outro', () => {
           onUnassign={noop}
           onKick={noop}
           onVisionRadiusChange={noop}
+          onVisionFactorChange={noop}
           onRevealPlan={noop}
           onHidePlan={noop}
+          clues={{ rows: [], onCenter: noop, onToggle: noop }}
           onShareMap={onShareMap}
         />,
       ),

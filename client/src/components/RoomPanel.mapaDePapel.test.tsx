@@ -14,7 +14,7 @@ import type { Region } from '../types/map'
 import { giftScenesOf, RoomPanel, type GiftScene } from './RoomPanel'
 
 function jogador(overrides: Partial<PlayerInfo>): PlayerInfo {
-  return { clientId: 'c', playerId: 'p', name: '?', status: 'waiting', connected: true, tokenIds: [], visionRadius: 700, ...overrides }
+  return { clientId: 'c', playerId: 'p', name: '?', status: 'waiting', connected: true, tokenIds: [], visionRadius: 700, visionFactor: 1, ...overrides }
 }
 
 function sala(id: string, nome: string, extra: Partial<Region> = {}): Region {
@@ -121,8 +121,10 @@ describe('RoomPanel: dar um mapa de papel', () => {
           onUnassign={noop}
           onKick={noop}
           onVisionRadiusChange={noop}
+          onVisionFactorChange={noop}
           onRevealPlan={noop}
           onHidePlan={noop}
+          clues={{ rows: [], onCenter: noop, onToggle: noop }}
           giftScenes={cenas}
           onGiveMap={onGiveMap}
         />,

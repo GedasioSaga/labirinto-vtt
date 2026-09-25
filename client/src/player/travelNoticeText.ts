@@ -20,6 +20,8 @@ export function travelNoticeText(notice: TravelNotice): string {
       return 'O mestre reuniu o grupo'
     case 'denied':
       return notice.text === undefined ? 'O mestre não deixou passar agora' : `O mestre não deixou: ${notice.text}`
+    case 'cancelled':
+      return notice.reason === 'far' ? 'Você se afastou da passagem. Pedido retirado' : 'Pedido retirado'
     case 'rejected':
       if (notice.reason === 'pending') return 'Seu pedido anterior ainda espera o mestre'
       if (notice.reason === 'too_soon') return 'Espere um pouco antes de pedir de novo'

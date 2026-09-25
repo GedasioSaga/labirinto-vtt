@@ -1696,6 +1696,8 @@ function restoredMemoryOf(scene: SavedSceneMemory): Omit<PlayerMemory, 'place'> 
     restored: true,
     seenRooms: new Set(),
     plan: emptyPlanMemory(),
+    sentExplored: null,
+    secretRooms: new Set(),
   }
 }
 
@@ -2195,7 +2197,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     return allScenes(world).flatMap((scene) => {
       if (sceneKey(scene) === sceneKey(here) || !ownsTokenIn(playerId, scene)) return []
       const memory = existingMemory(playerId, scene.map)
-      const view = filterMapForPlayer(scene.map, playerId, ownership, radiusFor(playerId), memory?.exp, memory?.doors, pinAudiences, undefined, memory?.secretRooms)
+      const view = filterMapForPlayer(scene.map, playerId, ownership, radiusFor(playerId), memory?.exp, memory?.doors, pinAudiences, undefined, undefined, undefined, memory?.secretRooms)
       return ownTokensInView(view, owned)
     })
   }
@@ -2476,9 +2478,9 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       entered,
       memory.seenRooms,
       secretReveals,
+      memory.secretRooms,
       peekingFor(playerId, scene),
       undefined,
-      memory.secretRooms,
       memory.marcas,
     )
     // DENTRO DA SALA SECRETA: a sala onde a ficha dele está fica descoberta por
@@ -2621,7 +2623,10 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     if (!force && sameInputs && last.stable) return []
     const planBefore = before === undefined ? null : before.plan
     const doorsBefore = before === undefined ? null : doorsKey(before.doors)
-    const snapshotMsgs = scene === null ? null : snapshotFor(playerId, scene.map, world, sceneNameForPlayer(scene), floorsFor(playerId, scene, world))
+    const snapshotMsgs =
+      scene === null
+        ? null
+        : snapshotFor(playerId, scene.map, world, sceneNameForPlayer(scene), floorsFor(playerId, scene, world), elsewhereFor(playerId, world, scene)).messages
     // `snapshotFor` sempre devolve o snapshot como primeiro item (`[snapshot, ...cards]`).
     const snapshot = snapshotMsgs === null ? null : (snapshotMsgs[0] as SnapshotMessage)
     const cards = snapshotMsgs === null ? [] : snapshotMsgs.slice(1)
@@ -4235,6 +4240,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       undefined,
       memory.seenRooms,
       secretReveals,
+      undefined,
       undefined,
       memory.plan,
     )
@@ -5885,7 +5891,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       // recorte montado para isso não sai pela rede.
       for (const ownerId of new Set([...loans.values()].map((loan) => loan.ownerId))) {
         const scene = sceneFor(ownerId, world)
-        if (scene !== null) snapshotFor(ownerId, scene.map, world, sceneNameForPlayer(scene), floorsFor(ownerId, scene, world))
+        if (scene !== null) snapshotFor(ownerId, scene.map, world, sceneNameForPlayer(scene), floorsFor(ownerId, scene, world), elsewhereFor(ownerId, world, scene))
       }
       // ZONA DE PERIGO: o aviso vai DEPOIS do snapshot — a tela já desenha o
       // perigo quando o texto aparece.

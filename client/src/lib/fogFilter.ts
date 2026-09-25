@@ -1432,7 +1432,7 @@ export function planOfWholeMap(map: MapData): PlanMemory {
     stairs: byId(map.stairs),
     pins: byId(map.pins ?? []),
   }
-  const { map: shown } = filterMapForPlayer({ ...map, hiddenLayers: [] }, '', {}, 0, undefined, undefined, undefined, undefined, undefined, undefined, undefined, everything)
+  const { map: shown } = filterMapForPlayer({ ...map, hiddenLayers: [] }, '', {}, 0, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, everything)
   return {
     walls: keepSent(everything.walls, shown.walls),
     floor: keepSent(everything.floor, shown.floor),
@@ -1693,10 +1693,10 @@ export function filterMapForGroup(
   explored?: Exploration,
   seenDoors?: ReadonlyMap<string, DoorState>,
   watchTargets?: ReadonlySet<string>,
-  { pinAudiences, enteredRooms, playerId, seenRooms, secretReveals, peekDoorIds, remembered, seenMarks }: PlayerOnlyView = {},
+  { pinAudiences, enteredRooms, playerId, seenRooms, secretReveals, discoveredSecretRooms, peekDoorIds, remembered, seenMarks }: PlayerOnlyView = {},
 ): PlayerMapView {
   if (isWorldMap(map))
-    return filterWorldMapForGroup(map, viewers, explored, seenDoors, watchTargets, { pinAudiences, enteredRooms, playerId, seenRooms, secretReveals, peekDoorIds, remembered, seenMarks })
+    return filterWorldMapForGroup(map, viewers, explored, seenDoors, watchTargets, { pinAudiences, enteredRooms, playerId, seenRooms, secretReveals, discoveredSecretRooms, peekDoorIds, remembered, seenMarks })
   const hiddenLayers = map.hiddenLayers
   // Posse é exclusiva (um token, um dono); se viesse repetido, vale o primeiro raio.
   const radiusByToken = new Map<string, number>()
@@ -1975,6 +1975,12 @@ export function filterMapForGroup(
   const underIdsOf = (roofs: readonly ClosedRoof[]): Set<string> =>
     new Set(roofs.flatMap((roof) => [...subtreeIds(map.regions, roof.id)].filter((id) => id !== roof.id)))
   const underRoofIds = underIdsOf(closedRoofs)
+  /** Prédio que o jogador vê MESMO: teto fechado que não está dentro de outro prédio de teto fechado. */
+  const visibleRoofIds = new Set(
+    closedRoofs
+      .filter((roof) => !closedRoofs.some((outer) => outer.id !== roof.id && mostly(roof.points, (p) => inRoof(outer, p))))
+      .map((roof) => roof.id),
+  )
 
   /**
    * Parede que é MOBÍLIA de dentro de um dos tetos `roofs`.
@@ -2736,7 +2742,6 @@ export function filterMapForGroup(
     return [...keys]
   }
   const peekCells = peekFloorCells()
-  const floorCells = peekCells.length === 0 ? shownCells : [...new Set([...shownCells, ...peekCells])]
 
   /**
    * Chão que o jogador recebe. Peça escondida (`hiddenFloorIds`) continua sem
@@ -2746,8 +2751,8 @@ export function filterMapForGroup(
    * mantém, então 'subtract' continua abrindo buraco no que vem antes. O chão
    * do prédio espiado sai do mesmo jeito, nas células que o cone mostra.
    */
-  // O cone pelo vão devolve o chão do prédio do mesmo jeito: só nas células dele.
-  const floorCells = glimpseCells.length === 0 ? shownCells : [...shownCells, ...glimpseCells]
+  // O cone pelo vão e a espiada devolvem o chão do prédio do mesmo jeito: só nas células deles.
+  const floorCells = peekCells.length === 0 && glimpseCells.length === 0 ? shownCells : [...new Set([...shownCells, ...peekCells, ...glimpseCells])]
   const playerFloor = map.floor.flatMap((f): FloorPiece[] => {
     if (f.hidden) return []
     if (!hiddenFloorIds.has(f.id)) return [f]

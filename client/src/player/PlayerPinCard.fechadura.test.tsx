@@ -32,7 +32,7 @@ describe('PlayerPinCard: fechadura com segredo', () => {
   })
 
   function render(pin: Pin, onTryLock: (tentativa: string) => void, lockPhase?: LockAnswerPhase, onRequestTravel?: () => void): void {
-    act(() => root.render(<PlayerPinCard pin={pin} onClose={() => {}} onTryLock={onTryLock} lockPhase={lockPhase} onRequestTravel={onRequestTravel} />))
+    act(() => root.render(<PlayerPinCard pin={pin} stairs={[]} onClose={() => {}} onTryLock={onTryLock} lockPhase={lockPhase} onRequestTravel={onRequestTravel} />))
   }
 
   function botao(nome: string): HTMLButtonElement {

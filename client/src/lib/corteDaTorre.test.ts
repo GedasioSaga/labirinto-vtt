@@ -183,9 +183,9 @@ describe('corteDaTorre', () => {
 
   it('da sala só entra quem está jogando; sem cena e sem pedido (campos ausentes) viram null e false', () => {
     const jogadores = jogadoresDoCorte([
-      { clientId: 'c1', playerId: 'p1', name: 'Ana', status: 'playing', connected: true, tokenIds: ['t1'], visionRadius: 300 },
-      { clientId: 'c2', playerId: 'p2', name: 'Bia', status: 'waiting', connected: true, tokenIds: [], visionRadius: 300 },
-      { clientId: null, playerId: 'p3', name: 'Caio', status: 'playing', connected: false, tokenIds: ['t3'], visionRadius: 300, sceneId: 's', travelPending: true },
+      { clientId: 'c1', playerId: 'p1', name: 'Ana', status: 'playing', connected: true, tokenIds: ['t1'], visionRadius: 300, visionFactor: 1 },
+      { clientId: 'c2', playerId: 'p2', name: 'Bia', status: 'waiting', connected: true, tokenIds: [], visionRadius: 300, visionFactor: 1 },
+      { clientId: null, playerId: 'p3', name: 'Caio', status: 'playing', connected: false, tokenIds: ['t3'], visionRadius: 300, visionFactor: 1, sceneId: 's', travelPending: true },
     ])
     expect(jogadores).toEqual([
       { playerId: 'p1', name: 'Ana', connected: true, tokenIds: ['t1'], sceneId: null, travelPending: false },

@@ -74,7 +74,7 @@ describe('fogFilter: bilhete no lugar', () => {
     // Bruno já passou pelo corredor (explorado) e VIU o bilhete lá: é o que ele lembra.
     const explorado = createExploration({ width: 60 * 40, height: 60 * 40, grid: 40 })
     markRings(explorado, [[{ x: 100, y: 100 }, { x: 400, y: 100 }, { x: 400, y: 300 }, { x: 100, y: 300 }]], [])
-    const view = filterMapForPlayer(map, 'bruno', POSSE, RAIO, explorado, undefined, undefined, undefined, new Set(['b1']))
+    const view = filterMapForPlayer(map, 'bruno', POSSE, RAIO, explorado, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, new Set(['b1']))
     expect((view.map.marcas ?? []).map((m) => m.id)).toEqual(['b1'])
   })
 
@@ -83,7 +83,7 @@ describe('fogFilter: bilhete no lugar', () => {
     const map = corredor([bilhete('b-novo', 200, 200, { texto: 'estou aqui agora' })])
     const explorado = createExploration({ width: 60 * 40, height: 60 * 40, grid: 40 })
     markRings(explorado, [[{ x: 100, y: 100 }, { x: 400, y: 100 }, { x: 400, y: 300 }, { x: 100, y: 300 }]], [])
-    const semVer = filterMapForPlayer(map, 'bruno', POSSE, RAIO, explorado, undefined, undefined, undefined, new Set())
+    const semVer = filterMapForPlayer(map, 'bruno', POSSE, RAIO, explorado, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, new Set())
     expect(semVer.map.marcas ?? []).toEqual([])
     expect(JSON.stringify(semVer)).not.toContain('estou aqui agora')
     expect(JSON.stringify(semVer)).not.toContain('b-novo')
@@ -95,7 +95,7 @@ describe('fogFilter: bilhete no lugar', () => {
 
   it('marca já vista, mas fora do explorado e da visão: não sai (ver uma vez não dá o mapa)', () => {
     const map = corredor([bilhete('b1', 260, 200)])
-    expect((filterMapForPlayer(map, 'bruno', POSSE, RAIO, undefined, undefined, undefined, undefined, new Set(['b1'])).map.marcas ?? []).map((m) => m.id)).toEqual([])
+    expect((filterMapForPlayer(map, 'bruno', POSSE, RAIO, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, new Set(['b1'])).map.marcas ?? []).map((m) => m.id)).toEqual([])
   })
 
   it('nunca leva quem deixou nem a hora: só o mestre lê o autor', () => {

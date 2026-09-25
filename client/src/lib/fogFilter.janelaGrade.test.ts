@@ -82,7 +82,7 @@ const BIA = ficha('bia', 150, 300)
 const POSSE = { pAna: ['ana'], pBia: ['bia'] }
 
 function recebidos(map: MapData, playerId: string, peek?: ReadonlySet<string>) {
-  const view = filterMapForPlayer(map, playerId, POSSE, RADIUS, undefined, undefined, undefined, undefined, peek)
+  const view = filterMapForPlayer(map, playerId, POSSE, RADIUS, undefined, undefined, undefined, undefined, undefined, undefined, undefined, peek)
   return { view, json: JSON.stringify(view.map), tokenIds: view.map.tokens.map((t) => t.id).sort() }
 }
 
@@ -231,7 +231,7 @@ describe("'Espiar' em porta fechada: cone só para quem espiou, porta segue fech
 
   it('porta espiada em sala SEM teto também só mostra a quem espiou', () => {
     const map = adega(porta())
-    const espiando = filterMapForPlayer(map, 'pC', { pC: ['carla'] }, RADIUS, undefined, undefined, undefined, undefined, new Set(['grade']))
+    const espiando = filterMapForPlayer(map, 'pC', { pC: ['carla'] }, RADIUS, undefined, undefined, undefined, undefined, undefined, undefined, undefined, new Set(['grade']))
     expect(espiando.map.tokens.map((t) => t.id).sort()).toEqual(['carla', 'rato'])
     expect(espiando.map.walls.find((w) => w.id === 'grade')?.door).toEqual(porta())
   })
