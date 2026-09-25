@@ -100,8 +100,3 @@ export function applyPatrolOp(map: MapData, tokenId: string, op: PatrolOp): MapD
   tokens[index] = next
   return { ...map, tokens }
 }
-
-/** A ficha como o jogador pode recebê-la: a rota NUNCA vai. Sem rota, a mesma instância. */
-export function tokenPatrolForPlayer(token: Token): Token {
-  return 'patrulha' in token ? withPatrol(token, null) : token
-}

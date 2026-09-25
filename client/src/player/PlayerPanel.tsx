@@ -66,7 +66,12 @@ export interface PlayerCharacter {
   name: string
   /** AJUDANTE CONTRATADO: o acordo da ficha emprestada pelo mestre. Ausente = personagem do jogador. */
   contrato?: TokenContract
+  /** NPC EMPRESTADO: NPC do mestre dado a este jogador sem acordo. Anda com ele, mas nome e foto não são dele. */
+  emprestada?: boolean
 }
+
+/** O que o jogador lê embaixo do NPC que o mestre lhe deu, no lugar do formulário de nome e foto. */
+const LENT_NPC_LABEL = 'Emprestado pelo mestre'
 
 type PanelTab = 'jogo' | 'caderno' | 'lugares' | 'dados'
 
@@ -126,6 +131,16 @@ export function savePlayerSettings(storage: StorageLike | null, settings: Player
   }
 }
 
+/** ESCONDER-SE: o "Esconder" do personagem próprio. Quem decide é o mestre. */
+export interface PlayerHideControls {
+  /** A ficha dele está oculta para os outros jogadores (o mestre deixou). */
+  hidden: boolean
+  /** O pedido espera o mestre. */
+  waiting: boolean
+  /** "Esconder": pede ao mestre, pelo socket, que a ficha suma dos outros. */
+  onRequest: (tokenId: string) => void
+}
+
 interface PlayerPanelProps {
   characters: PlayerCharacter[]
   /** Cor CSS da bolinha: a mesma do token do jogador no canvas. */
@@ -152,6 +167,8 @@ interface PlayerPanelProps {
   onRenameToken: (tokenId: string, name: string) => void
   /** Foto nova do próprio token. Rejeita (lança) quando a imagem não serve, e o aviso vai para a tela. */
   onChangeTokenPhoto: (tokenId: string, file: File) => Promise<void>
+  /** ESCONDER-SE. Ausente (tela antiga, teste) = sem o botão. */
+  hide?: PlayerHideControls
   /** O painel e a barra de cima: a câmera mede o que eles cobrem para centrar a ficha no que sobra. */
   panelRef?: RefObject<HTMLElement | null>
   barRef?: RefObject<HTMLDivElement | null>
@@ -216,6 +233,7 @@ export function PlayerPanel({
   onClearDestination,
   onRenameToken,
   onChangeTokenPhoto,
+  hide,
   panelRef,
   barRef,
   notebook,
@@ -387,8 +405,8 @@ export function PlayerPanel({
 
   // O personagem editável é o primeiro PRÓPRIO da lista: é quase sempre o
   // único, e "qual dos meus" só faria sentido com uma escolha na tela que
-  // ninguém pediu. Ajudante emprestado nunca é editável (o NPC é do mestre).
-  const mine = characters.find((character) => character.contrato === undefined)
+  // ninguém pediu. Ajudante e NPC emprestados nunca são editáveis (o NPC é do mestre).
+  const mine = characters.find((character) => character.contrato === undefined && character.emprestada !== true)
   // Centralizar e "Minha ficha": o personagem próprio; só com o ajudante, ele.
   const first = mine ?? characters[0]
   const myTokenId = mine?.id ?? null
@@ -514,6 +532,7 @@ export function PlayerPanel({
                       </button>
                       {/* Fora do botão: o aria-label dele cobriria o texto do acordo. */}
                       {character.contrato !== undefined && <p className="pp-character__deal">{loanLabel(character.contrato, formatNoteTime)}</p>}
+                      {character.emprestada === true && <p className="pp-character__deal">{LENT_NPC_LABEL}</p>}
                     </li>
                   ))}
                 </ul>
@@ -611,6 +630,15 @@ export function PlayerPanel({
                     {photoError}
                   </p>
                 )}
+                {/* Esconder é pedido: quem decide é o mestre, e só ele revela de novo. */}
+                {hide !== undefined &&
+                  (hide.hidden ? (
+                    <p className="pp-empty">Escondida: os outros jogadores não veem sua ficha. Só o mestre revela.</p>
+                  ) : (
+                    <button type="button" className="pp-button" disabled={hide.waiting} onClick={() => hide.onRequest(mine.id)}>
+                      {hide.waiting ? 'Aguardando o mestre…' : 'Esconder'}
+                    </button>
+                  ))}
               </section>
             )}
 

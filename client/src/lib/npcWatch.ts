@@ -1,4 +1,4 @@
-import type { MapData, RegionPoint, Token, TokenWatch, WatchAlert } from '../types/map'
+import type { MapData, RegionPoint, TokenWatch, WatchAlert } from '../types/map'
 import { visibleTokens } from './layers'
 import { visionSegments, type Segment } from './visibility'
 
@@ -177,17 +177,6 @@ export function guardAlerts(map: MapData, targetIds: ReadonlySet<string>, segmen
     if (alerts.get(s.guardId) !== '!') alerts.set(s.guardId, s.alert)
   }
   return alerts
-}
-
-/**
- * A ficha como o jogador pode recebê-la: `vigia` NUNCA vai (o cone é do
- * mestre), e `alerta` só com o valor que o recorte decidiu — o que estiver
- * gravado no campo não passa. Ficha sem nada disso sai na mesma instância.
- */
-export function tokenWatchForPlayer(token: Token, alert: WatchAlert | null): Token {
-  if (!('vigia' in token) && !('alerta' in token) && alert === null) return token
-  const { vigia: _cone, alerta: _gravado, ...rest } = token
-  return alert === null ? rest : { ...rest, alerta: alert }
 }
 
 /**

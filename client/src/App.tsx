@@ -174,6 +174,19 @@ function unlockAndOpenDoorFromRequest(wallId: string, sceneId?: string): void {
   if (wall?.door) store.setWallDoor(wallId, { ...wall.door, open: true, locked: false })
 }
 
+/**
+ * "Deixar" do MESTRE ao pedido de esconder-se: liga "Oculto para jogadores"
+ * na ficha, na cena dela (de fundo quando o jogador está lá). Decisão do
+ * mestre, passo do Ctrl+Z dele — o mesmo toggle que o painel da ficha liga.
+ */
+function hideTokenFromRequest(tokenId: string, sceneId?: string): void {
+  if (sceneId !== undefined) {
+    useAdventureStore.getState().updateBackgroundScene(sceneId, (m) => mapFactory.setItemSecret(m, 'token', tokenId, true))
+    return
+  }
+  useMapStore.getState().setItemSecret('token', tokenId, true)
+}
+
 function pararDeOuvir(unlisten: (() => void) | undefined): void {
   if (unlisten === undefined) return
   try {
@@ -565,6 +578,8 @@ function App() {
         applyCaravanMoves,
         // "Destrancar e abrir" do mestre ao pedido da porta trancada (passo do Ctrl+Z dele).
         unlockAndOpenDoor: unlockAndOpenDoorFromRequest,
+        // "Deixar" do mestre ao pedido de esconder-se (passo do Ctrl+Z dele).
+        hideToken: hideTokenFromRequest,
         // "Passar para pede" do pedido pelo pino trancado: o pino muda de modo
         // na cena dele (de fundo quando o jogador estava lá), como o painel faria.
         setPinPassage: (pinId, passagem, sceneId) => {

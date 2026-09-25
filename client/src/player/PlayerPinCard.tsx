@@ -52,7 +52,7 @@ function nomeDaCabeca(pin: Pin): string {
  * cartão sem foto, é ela a imagem do cartão. Tem nome para o leitor de tela:
  * o símbolo diz algo ("baú", "armadilha") que o rótulo do cartão não diz.
  */
-function CabecaDoPino({ pin }: { pin: Pin }) {
+export function CabecaDoPino({ pin }: { pin: Pin }) {
   const viagem = pin.kind === 'viagem'
   // A alavanca, como a passagem, desenha o próprio símbolo, nunca o escolhido.
   const alavanca = pin.kind === 'alavanca'

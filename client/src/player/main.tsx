@@ -6,6 +6,7 @@ import { latestActionNotice } from './moveNotice'
 import { ConfrontoFaixa } from './ConfrontoFaixa'
 import { themeCss } from '../theme'
 import { createPlayerConnection, hasUnreadNotes, RESUME_STORAGE_KEY } from './playerConnection'
+import { pedeGzip } from '../net/pacoteComprimido'
 import type { PlayerConnection, PlayerState, SeatClaimNotice, SocketLike, StorageLike } from './playerConnection'
 import type { SeatOption } from '../net/protocol'
 import { SeatPicker } from './SeatPicker'
@@ -13,6 +14,7 @@ import { travelNoticeText } from './travelNoticeText'
 import { OWN_TOKEN_CSS, PlayerView } from './PlayerView'
 import { PlayerPanel, loadPlayerSettings, savePlayerSettings } from './PlayerPanel'
 import { PlayerPinCard } from './PlayerPinCard'
+import { PlayerPinChooser } from './PlayerPinChooser'
 import { ARRIVAL_CARD_TITLE, PlayerNoteCard } from './PlayerNoteCard'
 import { PlayerClueCard } from './PlayerClues'
 import { coverBounds } from './playerCamera'
@@ -30,7 +32,7 @@ import { ReconnectingOverlay } from './ReconnectingOverlay'
 import { PointActionMenu } from './PointActionMenu'
 import { isPointInsideMap, pointNoticeText } from '../lib/pointActions'
 import { escapeDisarmsMeasure } from './playerMeasure'
-import type { PlayerViewSettings } from './PlayerPanel'
+import type { PlayerCharacter, PlayerViewSettings } from './PlayerPanel'
 import { PlayerErrorBoundary } from './ErrorBoundary'
 import { LabyrinthMark } from '../components/icons'
 import { DiceFeed } from '../components/DiceControls'
@@ -41,6 +43,7 @@ import { selectedTokenColor } from '../lib/tokenColor'
 import { buildTokenPhotoData } from '../lib/tokenPhoto'
 import { carriedItemsOf, giveTargets } from '../lib/items'
 import { itemNoticeText } from './itemNotice'
+import { HIDE_NOTICE_TEXT } from './hideNotice'
 import { leverNoticeText } from './leverNotice'
 import { hazardNoticeText } from '../lib/hazards'
 import { tableCodeFromSearch, tableKeyFromSearch } from '../lib/tableScreen'
@@ -596,6 +599,8 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
   const [laserArmed, setLaserArmed] = useState(false)
   /** Pino aberto no cartão; `null` = cartão fechado. */
   const [openPinId, setOpenPinId] = useState<string | null>(null)
+  /** DOIS PINOS NO MESMO PONTO: os pinos da escolha "Aqui há N coisas"; `null` = fechada. */
+  const [pinChoiceIds, setPinChoiceIds] = useState<string[] | null>(null)
   /** Pista do Caderno aberta no cartão (MINHAS PISTAS); `null` = fechado. */
   const [openClueId, setOpenClueId] = useState<string | null>(null)
   /** Menu do toque longo (ações no ponto e "Andar até aqui"); `null` = fechado. */
@@ -719,17 +724,23 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
 
   const ownTokens = state.ownTokens ?? NO_TOKENS
   const map = state.map
-  const characters = useMemo(() => {
+  const characters = useMemo((): PlayerCharacter[] => {
     if (!map) return []
     const byId = new Map(map.tokens.map((t) => [t.id, t]))
-    return ownTokens.flatMap((id) => {
+    return ownTokens.flatMap((id): PlayerCharacter[] => {
       const token = byId.get(id)
       if (!token) return []
       // AJUDANTE CONTRATADO: o host só manda `contrato` na ficha emprestada a este jogador.
       const contrato = readContract(token.contrato)
-      return [contrato === undefined ? { id, name: token.name } : { id, name: token.name, contrato }]
+      if (contrato !== undefined) return [{ id, name: token.name, contrato }]
+      // NPC EMPRESTADO: o host só manda `emprestada` no NPC dado a este jogador sem acordo.
+      return [token.emprestada === true ? { id, name: token.name, emprestada: true } : { id, name: token.name }]
     })
   }, [map, ownTokens])
+  // ESCONDER-SE: o personagem próprio do painel (o primeiro sem acordo de
+  // ajudante) chega marcado quando o mestre deixou ele se esconder.
+  const mineId = characters.find((c) => !('contrato' in c))?.id
+  const ownHidden = mineId !== undefined && map?.tokens.find((t) => t.id === mineId)?.secret === true
   const partyTokens = state.partyTokens ?? NO_TOKENS
   // ITEM PEGÁVEL: "Comigo" é a mochila das fichas dele; "Dar a…" oferece só
   // fichas de COLEGAS encostadas numa delas — NPC do mestre o host recusaria.
@@ -771,6 +782,24 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
     },
     [connection],
   )
+  // Só os pinos que ainda estão no recorte: o que saiu (a ficha andou, o mestre
+  // escondeu) some da lista; sem nenhum, a escolha fecha sozinha, como o cartão.
+  const pinChoice = pinChoiceIds === null ? [] : pinChoiceIds.flatMap((id) => (map?.pins ?? []).filter((p) => p.id === id))
+  const closePinChoice = useCallback(() => setPinChoiceIds(null), [])
+  const pinChoiceVazia = pinChoiceIds !== null && pinChoice.length === 0
+  useEffect(() => {
+    // Todos saíram do recorte: a escolha acaba de vez, e não volta sozinha se um deles reaparecer.
+    if (pinChoiceVazia) setPinChoiceIds(null)
+  }, [pinChoiceVazia])
+  const choosePin = useCallback(
+    (pinId: string) => {
+      setPinChoiceIds(null)
+      openPinCard(pinId)
+    },
+    [openPinCard],
+  )
+  /** Nem cartão de pino nem escolha na tela: o Escape e o lugar do cartão ficam livres para os outros. */
+  const semPinoNaTela = openPin === null && pinChoice.length === 0
   const openClue = openClueId === null ? null : (state.clues ?? []).find((clue) => clue.id === openClueId) ?? null
   // Estável pelo mesmo motivo dos outros cartões: o Escape e o "tocar fora" religam quando `onClose` muda.
   const closeClue = useCallback(() => {
@@ -805,7 +834,7 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
     const playingMap = state.map
     const walkerId = ownTokens.flatMap((id) => playingMap.tokens.filter((t) => t.id === id)).at(0)?.id ?? null
     // Cartão de pista na tela: o Escape é dele, e um toque não pode fechar também o recado.
-    const clueCardOpen = openClue !== null || (state.shownClue !== undefined && openPin === null)
+    const clueCardOpen = openClue !== null || (state.shownClue !== undefined && semPinoNaTela)
     // Outro andar: a memória dele de lá, sem visão, sem ficha e sem toque que peça algo ao mestre.
     const otherFloor = floorTab === null ? null : floorShown(state.andares, floorTab)
     return (
@@ -868,6 +897,7 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
             playerLasers={state.playerLasers ?? NO_PLAYER_LASERS}
             onDoorToggle={(wallId) => connection.toggleDoor(wallId)}
             onPinOpen={openPinCard}
+            onPinsChoose={setPinChoiceIds}
             onRoomOpen={(regionId) => connection.openRoomText(regionId)}
             focusObstacles={mapObstacles}
             personalNotes={sceneNotes}
@@ -954,6 +984,7 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
             // quem escolhe que paga o custo, e o que viaja já cabe no teto.
             connection.setOwnTokenPhoto(tokenId, await buildTokenPhotoData(file))
           }}
+          hide={{ hidden: ownHidden, waiting: state.hide?.phase === 'waiting', onRequest: (tokenId) => connection.requestHide(tokenId) }}
           notebook={state.notebook ?? NO_NOTES}
           notebookUnread={hasUnreadNotes(state)}
           onReadNotebook={readNotebook}
@@ -991,6 +1022,10 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
         {/* O pino pode sumir do recorte enquanto o cartão está aberto (o token
             andou, o mestre escondeu): sem pino no mapa novo, o cartão fecha
             sozinho em vez de mostrar um texto que o jogador não pode mais ver. */}
+        {/* DOIS PINOS NO MESMO PONTO: a escolha sai do recorte, a mesma fonte que desenha. */}
+        {openPin === null && pinChoice.length > 0 && (
+          <PlayerPinChooser pins={pinChoice} stairs={state.map.stairs} onChoose={choosePin} onClose={closePinChoice} />
+        )}
         {openPin && (
           <PlayerPinCard
             pin={openPin}
@@ -1023,7 +1058,7 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
             clue={openClue}
             title={openClue.title}
             onClose={closeClue}
-            escapeCloses={openPin === null}
+            escapeCloses={semPinoNaTela}
             share={{
               peers: state.cluePeers,
               result: state.clueShow,
@@ -1033,13 +1068,13 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
           />
         )}
         {/* O que um colega mostrou: espera a pista aberta fechar, um cartão por vez no mesmo lugar. */}
-        {state.shownClue && !openClue && openPin === null && (
+        {state.shownClue && !openClue && semPinoNaTela && (
           <PlayerClueCard
             key={state.shownClue.id}
             clue={state.shownClue.clue}
             title={`${state.shownClue.from} mostrou: ${state.shownClue.clue.title}`}
             onClose={closeShownClue}
-            escapeCloses={openPin === null}
+            escapeCloses={semPinoNaTela}
             arrivedUnasked
           />
         )}
@@ -1065,7 +1100,7 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
             title={ARRIVAL_CARD_TITLE}
             text={state.arrival.text}
             onClose={closeArrival}
-            escapeCloses={openPin === null && !clueCardOpen}
+            escapeCloses={semPinoNaTela && !clueCardOpen}
           />
         ) : (
           state.note && (
@@ -1077,7 +1112,7 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
               text={state.note.text}
               hint={NOTE_KEPT_HINT}
               onClose={closeNote}
-              escapeCloses={openPin === null && !clueCardOpen}
+              escapeCloses={semPinoNaTela && !clueCardOpen}
               onlyYou={state.note.onlyYou === true}
             />
           )
@@ -1091,7 +1126,7 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
             title={state.roomText.title || 'Ao entrar'}
             text={state.roomText.text}
             onClose={closeRoomText}
-            escapeCloses={openPin === null && !clueCardOpen}
+            escapeCloses={semPinoNaTela && !clueCardOpen}
           />
         )}
         {state.paused && (
@@ -1153,6 +1188,11 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
         {state.doorRequest && (
           <p key={state.doorRequest.id} className="pp-notice" role="status" aria-live="polite">
             {doorRequestText(state.doorRequest.phase)}
+          </p>
+        )}
+        {state.hide?.phase === 'rejected' && (
+          <p key={state.hide.id} className="pp-notice" role="status" aria-live="polite">
+            {HIDE_NOTICE_TEXT[state.hide.reason]}
           </p>
         )}
         {actionNotice && moveNoticeShown && (
@@ -1369,6 +1409,8 @@ function PlayerApp() {
         }),
       storage: resumeStorageOrNull(),
       isHidden: () => document.visibilityState === 'hidden',
+      // Pelo link público (4G), o mapa chega comprimido; na rede local, texto como sempre.
+      aceitaGzip: pedeGzip(window.location.hostname),
     })
     setSession({ connection, code, typedName: name })
   }
