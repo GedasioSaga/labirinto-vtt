@@ -20,6 +20,7 @@ import { withoutAttachment } from './lightAttachment'
 import { itemOfPin, readCarriedItems, tokenReachesPin } from './items'
 import { keyForPin } from './doorKey'
 import { computeVisibility, visionSegments } from './visibility'
+import { tokenRadiusOf } from './doorReach'
 import { ancestorsOf, NESTING_TOLERANCE, pointInPolygonInclusive, pointOnPolygonBorder, subtreeIds } from './roomNesting'
 import { roomHasRoof, roomIsComodo } from './roomOps'
 import { rotatePointAround, rotationTrig } from './roomRotation'
@@ -346,6 +347,23 @@ function inAnyRing(boxed: readonly BoxedRing[], point: RegionPoint): boolean {
 
 function wallMidpoint(wall: Wall): RegionPoint {
   return { x: (wall.x1 + wall.x2) / 2, y: (wall.y1 + wall.y2) / 2 }
+}
+
+/** Pontos da borda da ficha testados contra a visão (um a cada 45°). */
+const TOKEN_RIM_SAMPLES = 8
+/**
+ * Fração do raio onde ficam os pontos da borda: um pouco para dentro do disco,
+ * para um fio de pixel encostado na quina não bastar para a ficha aparecer.
+ */
+const TOKEN_RIM_FRACTION = 0.9
+
+/** FICHA VISTA PELA BORDA: os pontos da borda do disco da ficha (mesmo raio de `tokenRadiusOf`). */
+function tokenRimSamples(token: Pick<Token, 'x' | 'y' | 'size'>, grid: number): RegionPoint[] {
+  const reach = tokenRadiusOf(token, grid) * TOKEN_RIM_FRACTION
+  return Array.from({ length: TOKEN_RIM_SAMPLES }, (_, i) => {
+    const angle = (i * 2 * Math.PI) / TOKEN_RIM_SAMPLES
+    return { x: token.x + reach * Math.cos(angle), y: token.y + reach * Math.sin(angle) }
+  })
 }
 
 /** Fração da distância vértice-centróide que a amostra de área anda para dentro. */
@@ -1843,10 +1861,23 @@ export function filterMapForGroup(
     ...mapWithoutHazards
   } = map
 
+  /**
+   * FICHA VISTA PELA BORDA: a ficha dos outros sai se o centro OU um ponto da
+   * borda dela (`tokenRimSamples`) está na visão — o guarda com meio corpo no
+   * vão da porta aparece. Pela borda, o LUGAR do centro manda: centro em sala
+   * secreta, sob teto fechado ou em zona oculta não sai, mesmo com a borda de
+   * fora à vista (a borda contaria que há alguém lá dentro). O ponto da borda
+   * também só vale fora desses lugares.
+   */
+  const isTokenSeen = (t: Token): boolean => {
+    const center = { x: t.x, y: t.y }
+    if (inClosedRoof(center)) return false
+    if (isVisible(center)) return true
+    if (inRoomHiddenFromPlayer(center) || hiddenByZone(center)) return false
+    return tokenRimSamples(t, map.grid).some((p) => !inRoomHiddenFromPlayer(p) && isVisible(p))
+  }
   // Token do próprio jogador sai sempre, mesmo secreto ou em zona oculta: é ele quem o move.
-  const playerTokens = layerTokens.filter(
-    (t) => !t.hidden && (owned.has(t.id) || (!t.secret && !inClosedRoof({ x: t.x, y: t.y }) && isVisible({ x: t.x, y: t.y }))),
-  )
+  const playerTokens = layerTokens.filter((t) => !t.hidden && (owned.has(t.id) || (!t.secret && isTokenSeen(t))))
   /**
    * OLHOS DO GUARDA. A marca (?, !) conta só as fichas de jogador (`watchTargets`,
    * ou as do próprio grupo) que ESTE recorte entrega: colega na névoa, "Oculto
