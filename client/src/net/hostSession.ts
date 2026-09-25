@@ -2171,10 +2171,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const exp = memory.exp
     inheritFromTokens(playerId, map, memory)
     const entered = enteredRooms.get(playerId)?.get(map.id)
-    // FIXME(merge): esta chamada usa o recorte da feature CÔMODO LEMBRADO
-    // (seenRooms); a visão através de ficha AJUDANTE CONTRATADO (`loansFor`)
-    // ainda não entra aqui — falta unificar com o `helperLoans` acima.
-    const cut = filterMapForPlayer(map, playerId, ownership, tokenRadiusIn(playerId, map), exp, memory.doors, pinAudiences, entered, memory.seenRooms)
+    const cut = filterMapForPlayer(map, playerId, ownership, tokenRadiusIn(playerId, map), exp, memory.doors, pinAudiences, entered, loansFor(playerId), memory.seenRooms)
     // CABINE DE TRANSPORTE: só as paradas que o recorte JÁ mandou ganham o
     // "aqui/longe" — nada da cabine além disso, nada de parada escondida.
     const view: PlayerMapView = { ...cut, map: { ...cut.map, pins: comCabineParaJogador(cut.map.pins, scene.sceneId, world.cabines, ocupadasPorOutros(playerId, world)) } }
@@ -3424,7 +3421,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     if (pin === undefined || pin.kind !== 'alavanca') return reject('unavailable')
     const memory = memoryFor(playerId, map, world)
     // "Quem vê" entra no recorte: alavanca que não chega a este jogador não se puxa.
-    const view = filterMapForPlayer(map, playerId, ownership, tokenRadiusIn(playerId, map), memory.exp, memory.doors, pinAudiences, undefined, memory.seenRooms)
+    const view = filterMapForPlayer(map, playerId, ownership, tokenRadiusIn(playerId, map), memory.exp, memory.doors, pinAudiences, undefined, loansFor(playerId), memory.seenRooms)
     if (!view.map.pins.some((p) => p.id === pin.id)) return reject('unavailable')
     const owned = new Set(ownership[playerId] ?? [])
     if (!view.map.tokens.some((t) => owned.has(t.id) && tokenReachesPin(t, pin, map.grid))) return reject('far')
@@ -3572,7 +3569,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const to = scenes.find((s) => s.sceneId === travel.sceneId)
     if (to === undefined || to.sceneId === null) return null
     const base = { from: { ...from, sceneId: fromSceneId }, to: { ...to, sceneId: to.sceneId }, pin, partner: travel.partner }
-    if (keyHolder !== null) return { ...base, token: keyHolder.token, key: keyHolder.nome }
+    const cabine = cabineAposViagem(world.cabines, { sceneId: fromSceneId, pinId: pin.id }, { sceneId: to.sceneId, pinId: travel.partner.id })
+    if (keyHolder !== null) return { ...base, token: keyHolder.token, key: keyHolder.nome, cabine }
     // Tokens do recorte do jogador: respeita camada oculta e token escondido pelo mestre.
     const mine = view.map.tokens.filter((t) => owned.has(t.id))
     // AJUDANTE CONTRATADO: quem atravessa é o personagem do jogador, mesmo com
@@ -3586,7 +3584,6 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       if (token === null || Math.hypot(t.x - pin.x, t.y - pin.y) < Math.hypot(token.x - pin.x, token.y - pin.y)) token = t
     }
     if (token === null) return null
-    const cabine = cabineAposViagem(world.cabines, { sceneId: fromSceneId, pinId: pin.id }, { sceneId: to.sceneId, pinId: travel.partner.id })
     return { ...base, token, cabine }
   }
 
@@ -3710,7 +3707,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const cabine = pin === undefined || pin.kind !== 'viagem' ? null : cabineDaParada(world.cabines, scene.sceneId, pin.id)
     if (pin === undefined || cabine === null || passageOf(pin) === 'trancada') return { outbound: [] }
     const memory = memoryFor(playerId, scene.map, world)
-    const view = filterMapForPlayer(scene.map, playerId, ownership, tokenRadiusIn(playerId, scene.map), memory.exp, memory.doors, pinAudiences, undefined, memory.seenRooms)
+    const view = filterMapForPlayer(scene.map, playerId, ownership, tokenRadiusIn(playerId, scene.map), memory.exp, memory.doors, pinAudiences, undefined, loansFor(playerId), memory.seenRooms)
     if (!view.map.pins.some((p) => p.id === pin.id)) return { outbound: [] }
     // O limite conta a partir daqui: só a parada que o jogador VÊ gasta a vez.
     // Antes do recorte, um id adivinhado de parada escondida (névoa, "Quem vê")
@@ -3860,7 +3857,11 @@ export function createHostSession(options: HostSessionOptions): HostSession {
    * Devolve as casas que o séquito ocupou.
    */
   function withEntourage(transfer: AppliedTransfer, from: MapData, lead: Token, to: MapData, taken: readonly Seat[], pin: Pin | null): Seat[] {
-    const owned = new Set(ownership[transfer.playerId] ?? [])
+    // AJUDANTE CONTRATADO: quem já vai por `transfer.companions` (emprestado a
+    // este jogador) não entra de novo como séquito — senão a mesma ficha
+    // atravessaria duas vezes (`applyTransferAlong` aplicaria os dois laços).
+    const companionIds = new Set((transfer.companions ?? []).map((c) => c.tokenId))
+    const owned = new Set((ownership[transfer.playerId] ?? []).filter((id) => !companionIds.has(id)))
     const near = entourageNear(lead, onBoardTokens(from).filter((t) => owned.has(t.id)), from.grid)
     const keepClear = pin === null ? [] : pinClearance(pin)
     const seats = entourageSeats(to, transfer, [{ x: transfer.x, y: transfer.y, size: lead.size }, ...taken], near.map((t) => t.size), keepClear)
@@ -3883,7 +3884,10 @@ export function createHostSession(options: HostSessionOptions): HostSession {
    * `lead` no mapa de partida. Ficha de outro jogador ou escondida não vai de carona.
    */
   function withPlannedEntourage(transfer: AppliedTransfer, from: MapData, lead: Token, planned: readonly EntourageSeat[]): void {
-    const owned = new Set(ownership[transfer.playerId] ?? [])
+    // AJUDANTE CONTRATADO: mesma exclusão do `withEntourage` — quem já vai por
+    // `transfer.companions` não entra de novo pelo plano do séquito.
+    const companionIds = new Set((transfer.companions ?? []).map((c) => c.tokenId))
+    const owned = new Set((ownership[transfer.playerId] ?? []).filter((id) => !companionIds.has(id)))
     const near = new Set(entourageNear(lead, onBoardTokens(from).filter((t) => owned.has(t.id)), from.grid).map((t) => t.id))
     const entourage = planned.filter((seat) => near.delete(seat.tokenId)).map((seat) => ({ tokenId: seat.tokenId, x: seat.x, y: seat.y }))
     if (entourage.length > 0) transfer.entourage = entourage

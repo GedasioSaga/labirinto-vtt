@@ -228,8 +228,8 @@ describe('memória por ficha', () => {
     const ana = t.entra('c1', 'Ana', tresSalas())
     t.s.assignToken(ana, 'lia')
     const snap = t.snapshotPara('c1', tresSalas())
-    // `partyTokens` (ITEM PEGÁVEL) já existia antes; o que não pode entrar é a visão por ficha.
-    expect(Object.keys(snap).sort()).toEqual(['concealed', 'explored', 'map', 'ownTokens', 'partyTokens', 'rev', 'type', 'vision'])
+    // `partyTokens` (ITEM PEGÁVEL) e `place`/`places` (LUGARES) já existiam antes; o que não pode entrar é a visão por ficha.
+    expect(Object.keys(snap).sort()).toEqual(['concealed', 'explored', 'map', 'ownTokens', 'partyTokens', 'place', 'places', 'rev', 'type', 'vision'])
     expect(JSON.stringify(snap)).not.toContain('eyes')
   })
 })

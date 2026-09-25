@@ -574,8 +574,6 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   const itemToasts = new Map<string, string>()
   /** CORREIO: aviso do mestre de cada bilhete que ainda espera: `letterId` -> id do toast. */
   const letterToasts = new Map<string, string>()
-  /** Último aviso de chegada de cada jogador: `playerId` -> id do toast. */
-  const arrivalToasts = new Map<string, string>()
   /**
    * CABINE DE TRANSPORTE: pedidos de quem embarcou numa cabine. Quando o
    * pedido morre (Não, revalidação recusada, jogador saiu), a parada deixa de

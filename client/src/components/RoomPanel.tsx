@@ -790,7 +790,12 @@ function TokenChips({ player, tokens, onUnassign }: { player: PlayerInfo } & Pic
         return (
           <Fragment key={tokenId}>
             {contrato !== undefined && <span className="lb-player__note">{loanBadge(name, contrato)}</span>}
-            <button type="button" className="lb-btn lb-btn--ghost lb-btn--compact" onClick={() => onUnassign(player.playerId, tokenId)}>
+            <button
+              type="button"
+              className="lb-btn lb-btn--ghost lb-btn--compact"
+              aria-label={`Remover ${name}`}
+              onClick={() => onUnassign(player.playerId, tokenId)}
+            >
               Remover {name}
             </button>
           </Fragment>
