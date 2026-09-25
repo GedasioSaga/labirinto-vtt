@@ -206,6 +206,11 @@ export interface Light {
    *  (comportamento de antes) — sem linha de migração. Para o jogador, só
    *  chega se ele vê a ficha (`lib/fogFilter.ts`). */
   attachedTokenId?: string
+  /** "Vista de longe" (lampião, janela acesa, farol): com linha de visão livre
+   *  até ela, o jogador recebe a luz mesmo FORA do raio — só como ponto aceso,
+   *  com raio 0 e sem a ficha que a carrega (`lib/fogFilter.ts`), nunca o que
+   *  ela ilumina. `undefined` === false (comportamento de antes), sem migração. */
+  vistaDeLonge?: boolean
 }
 
 export interface RegionPoint {
@@ -298,6 +303,14 @@ export interface RoomMeta {
    * (`lib/fogFilter.ts`). `undefined` === ninguém manda, sem migração.
    */
   faccao?: string
+  /**
+   * "Raio de visão aqui", em px de mundo: enquanto a ficha de um jogador está
+   * dentro desta Sala, ele vence o raio do jogador — maior num mirante, menor
+   * num caracol. Vale a Sala mais de dentro que tiver o campo; Sala secreta ou
+   * oculta não conta. O número não sai para o jogador (`lib/fogFilter.ts`).
+   * `undefined` (ou valor que não é número positivo) === raio do jogador.
+   */
+  raioDeVisao?: number
 }
 
 /**
@@ -455,6 +468,26 @@ export interface PinLock {
  * resposta nem a porta ligada. Montado por `lib/fogFilter.ts`; o mestre nunca grava.
  */
 export type PinLockPublic = { forma: 'teclado' } | { forma: 'volantes'; casas: number }
+
+/**
+ * COLEÇÃO DE PISTAS — o pino é a peça `parte` de `total` da coleção `nome`
+ * ("Letreiro", peça 5 de 12). Mora só no mapa do mestre: o recorte do jogador
+ * (`lib/fogFilter.ts`) nunca a copia. Quem lê o cartão ganha a peça, e o host
+ * (`net/hostSession.ts`) manda ao jogador só o nome, o total e as peças que
+ * ELE tem; `inteira` só vai com todas juntas. Ver `lib/colecao.ts`.
+ */
+export interface PinColecao {
+  nome: string
+  /** Número desta peça, de 1 a `total`. */
+  parte: number
+  total: number
+  /**
+   * A frase ou o item inteiro, lido por quem juntar todas. Ausente = só a
+   * contagem, sem linha de migração: quem confere a forma do disco é
+   * `readPinColecao` (`lib/colecao.ts`), chamada por `lib/mapFile.ts`.
+   */
+  inteira?: string
+}
 
 /**
  * Ponto de interesse cravado pelo mestre. O jogador toca o pino no mapa e lê o
@@ -667,6 +700,11 @@ export interface Pin extends PlayerSecret {
    * Numa encruzilhada o aviso vai por saída, em `escolhas[].soIda`.
    */
   semVolta?: true
+  /**
+   * COLEÇÃO DE PISTAS, de qualquer tipo de pino: esta é uma peça. NUNCA sai no
+   * recorte do jogador. Ausente = pino avulso, sem migração.
+   */
+  colecao?: PinColecao
 }
 
 /**

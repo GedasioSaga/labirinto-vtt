@@ -184,10 +184,29 @@ interface PropertiesPanelProps {
   regionStyle: RegionStyleControlsProps
   room: Omit<
     RoomControlsProps,
-    'name' | 'shape' | 'axisAligned' | 'width' | 'height' | 'rotation' | 'locked' | 'nameHiddenFromPlayers' | 'roof' | 'comodo' | 'textoAoEntrar' | 'notaDoMestre' | 'dark' | 'faccao'
-  >
+    | 'name'
+    | 'shape'
+    | 'axisAligned'
+    | 'width'
+    | 'height'
+    | 'rotation'
+    | 'locked'
+    | 'nameHiddenFromPlayers'
+    | 'roof'
+    | 'comodo'
+    | 'textoAoEntrar'
+    | 'notaDoMestre'
+    | 'dark'
+    | 'faccao'
+    | 'raioDeVisao'
+  > &
+    // Obrigatória aqui (opcional no RoomControls): sem ela o campo "Raio de
+    // visão aqui" some do painel, e esquecê-la no App tem de quebrar o tipo.
+    Required<Pick<RoomControlsProps, 'onRaioDeVisaoChange'>>
   selectedLight: Light | null
-  lightControls: Omit<LightControlsProps, 'color' | 'intensity' | 'attachedTokenId'>
+  /** `onVistaDeLongeChange` obrigatória pelo mesmo motivo de `room.onRaioDeVisaoChange`. */
+  lightControls: Omit<LightControlsProps, 'color' | 'intensity' | 'attachedTokenId' | 'vistaDeLonge'> &
+    Required<Pick<LightControlsProps, 'onVistaDeLongeChange'>>
   selectedStair: Stair | null
   stairControls: Omit<StairControlsProps, 'direction' | 'shape'>
   polygonSides: PolygonSidesControlsProps
@@ -373,6 +392,7 @@ export function PropertiesPanel({
               notaDoMestre={selectedRegion.room.notaDoMestre ?? ''}
               dark={selectedRegion.room.dark === true}
               faccao={selectedRegion.room.faccao ?? ''}
+              raioDeVisao={selectedRegion.room.raioDeVisao ?? null}
               {...room}
             />
           </ToolPropertiesSection>
@@ -587,6 +607,7 @@ export function PropertiesPanel({
               color={selectedLight.color}
               intensity={selectedLight.intensity}
               attachedTokenId={selectedLight.attachedTokenId ?? null}
+              vistaDeLonge={selectedLight.vistaDeLonge === true}
               {...lightControls}
             />
           </ToolPropertiesSection>

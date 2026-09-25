@@ -21,7 +21,7 @@ import { withoutAttachment } from './lightAttachment'
 import { marcaParaJogador } from './marcas'
 import { itemOfPin, tokenReachesPin } from './items'
 import { keyForPin } from './doorKey'
-import { computeVisibility, visionSegments, wallLetsSightThrough, type Segment } from './visibility'
+import { computeVisibility, hasLineOfSight, visionSegments, wallLetsSightThrough, type Segment } from './visibility'
 import { isDoorPassable } from './collision'
 import { DOOR_REACH_CELLS, distanceToWall, tokenRadiusOf, tokenReachesDoor } from './doorReach'
 import { darkVision, type Darkness } from './darkness'
@@ -1413,6 +1413,42 @@ function strictlyInside(points: readonly RegionPoint[], p: RegionPoint): boolean
   return pointInPolygonInclusive(p, points) && !pointOnPolygonBorder(p, points)
 }
 
+/**
+ * LUZ VISTA DE LONGE: o que o jogador recebe de uma luz fora da visão dele.
+ * Montada campo a campo para nada além do ponto atravessar: raio 0 (sem halo,
+ * então nada do que a luz ilumina aparece), sem a ficha que a carrega e sem
+ * as marcas de editor do mestre.
+ */
+function farLightPoint(light: Light): Light {
+  return { id: light.id, x: light.x, y: light.y, radius: 0, color: light.color, intensity: light.intensity, vistaDeLonge: true }
+}
+
+/** "Raio de visão aqui" que vale: número finito e positivo; o resto é ignorado. */
+function roomVisionRadiusOf(region: Region): number | null {
+  const raio = region.room?.raioDeVisao
+  return typeof raio === 'number' && Number.isFinite(raio) && raio > 0 ? raio : null
+}
+
+interface RadiusRoom {
+  points: RegionPoint[]
+  radius: number
+  area: number
+}
+
+/**
+ * Raio de visão da ficha: o da Sala MAIS DE DENTRO (menor área) com "Raio de
+ * visão aqui" que contém a ficha; sem nenhuma, o do jogador. Nome distinto do
+ * `visionRadiusAt` de `./hazards` (a fumaça), que é aplicado por cima deste.
+ */
+function roomVisionRadiusAt(point: RegionPoint, rooms: readonly RadiusRoom[], playerRadius: number): number {
+  let best: RadiusRoom | null = null
+  for (const room of rooms) {
+    if (!pointInPolygonInclusive(point, room.points)) continue
+    if (best === null || room.area < best.area) best = room
+  }
+  return best === null ? playerRadius : best.radius
+}
+
 /** Porta explorada que o jogador nunca viu: aparece fechada e destrancada. */
 function unseenDoor(door: DoorState): DoorState {
   return { open: false, locked: false, kind: door.kind }
@@ -1791,9 +1827,6 @@ export function filterMapForGroup(
   const owned: ReadonlySet<string> = new Set(radiusByToken.keys())
   const layerTokens = visibleTokens(map.tokens, hiddenLayers)
   const ownTokens = layerTokens.filter((t) => owned.has(t.id) && !t.hidden)
-  // `ownTokens` só tem id que está em `radiusByToken`; o 0 nunca é usado.
-  // ZONA DE PERIGO: dentro da fumaça o raio cai para o teto dela (`visionRadiusAt`).
-  const radiusOf = (token: Token): number => visionRadiusAt(map, { x: token.x, y: token.y }, radiusByToken.get(token.id) ?? 0)
   /** O mestre revelou este item a este jogador ("Revelar para…")? */
   const revealedToPlayer = (itemId: string): boolean => playerId !== undefined && secretReveals?.get(itemId)?.has(playerId) === true
   /** "Oculto para jogadores" PARA ESTE jogador: secreto e não revelado a ele. */
@@ -1853,6 +1886,20 @@ export function filterMapForGroup(
   // passa por `hiddenLayers`: com a camada Salas escondida a Biblioteca não sai,
   // mas a parede dela continua saindo — e o vão também saía.
   const playerRegions = map.regions.filter((r) => !r.hidden && !isClosedSecret(r) && !secretRoomIds.has(r.id) && isUsablePolygon(r.points))
+  // RAIO DE VISÃO DA SALA: só Sala que o jogador pode conhecer (`playerRegions`)
+  // — secreta ou oculta não muda o raio, senão a visão denunciaria a sala.
+  const radiusRooms: RadiusRoom[] = playerRegions.flatMap((r) => {
+    const radius = roomVisionRadiusOf(r)
+    return radius === null ? [] : [{ points: r.points, radius, area: Math.abs(signedArea(r.points)) }]
+  })
+  // Raio de cada ficha: o do dono (`radiusByToken`; `ownTokens` só tem id que
+  // está lá, o 0 nunca é usado), trocado pelo da Sala mais de dentro com "Raio
+  // de visão aqui" (`roomVisionRadiusAt`) e, por cima, a ZONA DE PERIGO: dentro
+  // da fumaça o raio cai para o teto dela (`visionRadiusAt`, nunca aumenta).
+  const radiusOf = (token: Token): number => {
+    const at = { x: token.x, y: token.y }
+    return visionRadiusAt(map, at, roomVisionRadiusAt(at, radiusRooms, radiusByToken.get(token.id) ?? 0))
+  }
   /**
    * PORTA SECRETA vira parede comum ANTES de qualquer outra regra: segura a
    * visão da autoridade (nada do outro lado entra no pacote, nem com ela
@@ -2536,6 +2583,20 @@ export function filterMapForGroup(
   const inHiddenPlace = (p: RegionPoint): boolean => inRoomHiddenFromPlayer(p) || inUnseenComodo(p)
 
   /**
+   * LUZ VISTA DE LONGE, fora da visão: marcada pelo mestre, fora de zona
+   * oculta, de sala secreta, de teto fechado e de cômodo ainda não visto
+   * (`inHiddenPlace`), e com LINHA DE VISÃO livre de uma ficha do jogador até
+   * ela sobre os obstáculos da autoridade (porta secreta é parede; porta
+   * fechada segura). O raio do jogador não conta.
+   */
+  const isSeenFromAfar = (light: Light): boolean => {
+    if (light.vistaDeLonge !== true) return false
+    const point = { x: light.x, y: light.y }
+    if (hiddenByZone(point) || inHiddenPlace(point)) return false
+    return ownTokens.some((t) => hasLineOfSight({ x: t.x, y: t.y }, point, authoritySegments))
+  }
+
+  /**
    * Forma com extensão: a caixa da forma precisa cruzar a caixa de algum anel
    * e algum ponto amostrado (fora de zona oculta) precisa estar dentro dele.
    * Forma que só atravessa a visão sem nenhum ponto amostrado dentro fica de
@@ -2945,10 +3006,17 @@ export function filterMapForGroup(
   // Tocha presa na ficha: o vínculo só vai se a ficha também vai; senão o
   // id de ficha que a névoa, a zona oculta ou o mestre escondem sairia pela rede.
   // Presa numa ficha que o mestre esconde, a luz nem sai (`masterHiddenTokenIds`).
-  const playerLights = visibleLights(map.lights, hiddenLayers)
-    .filter((l) => !l.hidden && !inClosedRoof({ x: l.x, y: l.y }) && isVisible({ x: l.x, y: l.y }))
+  const lightsInPlay = visibleLights(map.lights, hiddenLayers)
+    .filter((l) => !l.hidden && !inClosedRoof({ x: l.x, y: l.y }))
     .filter((l) => l.attachedTokenId === undefined || !masterHiddenTokenIds.has(l.attachedTokenId))
-    .map((l) => (l.attachedTokenId === undefined || sentTokenIds.has(l.attachedTokenId) ? l : withoutAttachment(l)))
+  const lightForPlayer = (l: Light): Light => (l.attachedTokenId === undefined || sentTokenIds.has(l.attachedTokenId) ? l : withoutAttachment(l))
+  const playerLights = lightsInPlay.filter((l) => isVisible({ x: l.x, y: l.y })).map(lightForPlayer)
+  // LUZ VISTA DE LONGE: fora da visão, sai só o ponto (`farLightPoint`) — e
+  // só no pacote; o vulto (`isShadow`) continua medido pelas luzes da visão.
+  const sentLights = lightsInPlay.flatMap((l): Light[] => {
+    if (isVisible({ x: l.x, y: l.y })) return [lightForPlayer(l)]
+    return isSeenFromAfar(l) ? [farLightPoint(l)] : []
+  })
   // VULTO NO ESCURO: só no recorte de UM jogador (a tela da mesa não passa
   // `playerId`). "Outro jogador" = as fichas de jogador (`watchTargets`) que
   // não são deste recorte.
@@ -2994,8 +3062,8 @@ export function filterMapForGroup(
     tokens,
     markers: map.markers.filter((m) => !inHiddenPlace({ x: m.cx, y: m.cy }) && isPointKnown({ x: m.cx, y: m.cy })),
     lines: map.lines.filter((l) => !l.points.some(inHiddenPlace) && !l.points.some(inConcealZone) && isShapeKnown(l.points, { points: l.points, closed: l.closed })),
-    // Luz: ver `playerLights` (teto fechado, tocha presa na ficha).
-    lights: playerLights,
+    // Luz: ver `playerLights`/`sentLights` (teto fechado, tocha presa na ficha, vista de longe).
+    lights: sentLights,
     stairs: playerStairs,
     // A silhueta inteira responde à sala, não só o centro: sala secreta ou teto
     // fechado leva junto o objeto com qualquer amostra dela lá dentro
@@ -3046,7 +3114,8 @@ export function filterMapForGroup(
           r.room.comodo === undefined &&
           !hasTexts &&
           r.room.dark === undefined &&
-          r.room.faccao === undefined
+          r.room.faccao === undefined &&
+          r.room.raioDeVisao === undefined
         )
           return r
         // TEXTO DA SALA: a nota do mestre NUNCA sai. O texto de entrada só sai
@@ -3054,7 +3123,8 @@ export function filterMapForGroup(
         // Sala sob teto fechado ou em zona oculta — o texto fala do que tem lá dentro.
         // `comodo` é configuração do mestre: a tela do jogador não precisa dele.
         // FACÇÃO: quem manda aqui é anotação do mestre e nunca sai, nem para quem está dentro.
-        const { textoAoEntrar, notaDoMestre: _nota, comodo: _comodo, faccao: _faccao, ...room } = r.room
+        // O "Raio de visão aqui" também fica: já está aplicado na visão enviada.
+        const { textoAoEntrar, notaDoMestre: _nota, comodo: _comodo, faccao: _faccao, raioDeVisao: _raio, ...room } = r.room
         const readable = !roofClosed && !inZone && hasEnterText(r.room)
         const occupied = readable && ownTokens.some((t) => isStrictlyInsideReadableRoom(r.points, { x: t.x, y: t.y }))
         if (occupied) occupiedRooms.push(r.id)
@@ -3510,6 +3580,8 @@ function pinForPlayer(pin: Pin, ownTokens: readonly Token[], grid: number, reada
   // jogador lê a descrição (teste em `fogFilter.pinoNome.test.ts`).
   // `notaDoMestre` ("só eu leio") fica de fora SEMPRE: o jogador lê
   // `description` e mais nada do texto do pino.
+  // `colecao` também: a frase inteira é do mestre; o jogador recebe o
+  // progresso DELE pela mensagem `colecoes` do host.
   // Pino "só de perto" com a ficha longe sai vazio e marcado `longe`.
   const forPlayer: Pin = {
     id: pin.id,

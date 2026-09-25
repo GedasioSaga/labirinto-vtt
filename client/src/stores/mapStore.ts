@@ -762,6 +762,8 @@ interface MapStoreState {
   setRegionTriggerRevealed: (regionId: string, revealed: boolean) => void
   /** SALA ESCURA — liga/desliga `RoomMeta.dark` da Sala, com histórico. */
   setRoomDark: (id: string, dark: boolean) => void
+  /** "Raio de visão aqui" da Sala; `null` volta ao raio do jogador. Com histórico. */
+  setRoomVisionRadius: (id: string, raio: number | null) => void
   /** A5 — "Oculto para jogadores" de Token/Região/Objeto/Escada/Desenho. Com histórico. */
   setItemSecret: (kind: mapFactory.SecretKind, id: string, secret: boolean) => void
   /** "Oculto para jogadores" EM LOTE: todos os itens da seleção que aceitam
@@ -794,7 +796,7 @@ interface MapStoreState {
    *  mantido em dia por `stores/adventureStore.ts`, fora deste desfazer. */
   updatePin: (
     id: string,
-    patch: Partial<Pick<MapData['pins'][number], 'kind' | 'icon' | 'description' | 'nome' | 'notaDoMestre' | 'image' | 'locked' | 'destino' | 'passagem' | 'passe' | 'mudo' | 'motivo' | 'rotulo' | 'saidas' | 'item' | 'abreCom' | 'presoA' | 'portaLigada' | 'marco' | 'lerDePerto' | 'segredo'>>,
+    patch: Partial<Pick<MapData['pins'][number], 'kind' | 'icon' | 'description' | 'nome' | 'notaDoMestre' | 'image' | 'locked' | 'destino' | 'passagem' | 'passe' | 'mudo' | 'motivo' | 'rotulo' | 'saidas' | 'item' | 'abreCom' | 'presoA' | 'portaLigada' | 'marco' | 'lerDePerto' | 'segredo' | 'colecao'>>,
   ) => void
   /**
    * ALAVANCA: o mestre aciona pelo painel — a porta ligada abre ou fecha, com
@@ -1863,6 +1865,10 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
     setRoomDark: (id, dark) => {
       if (mapFactory.setRoomDark(get().map, id, dark) === get().map) return
       withHistory((map) => mapFactory.setRoomDark(map, id, dark))
+    },
+    setRoomVisionRadius: (id, raio) => {
+      if (mapFactory.setRoomVisionRadius(get().map, id, raio) === get().map) return
+      withHistory((map) => mapFactory.setRoomVisionRadius(map, id, raio))
     },
     setItemSecret: (kind, id, secret) => {
       if (mapFactory.setItemSecret(get().map, kind, id, secret) === get().map) return

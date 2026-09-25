@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef } from 'react'
 import type { ClueEntry } from '../net/protocol'
+import type { ColecaoProgresso } from '../lib/colecao'
 import { isPlayerSafePinImage } from '../lib/pins'
 import { isEditableTarget } from '../lib/keymap'
 import { formatNoteTime } from './PlayerNotebook'
@@ -28,6 +29,70 @@ export function PlayerClueList({ clues, onOpen }: { clues: readonly ClueEntry[];
         </li>
       ))}
     </ol>
+  )
+}
+
+/**
+ * COLEÇÃO DE PISTAS no Caderno: por coleção, o nome, "5 de 12" e uma fileira
+ * de casas — cheias as peças que o jogador tem (tocar reabre o cartão da
+ * pista, se ela ainda está no caderno), vazias as que faltam, sem dizer onde
+ * estão. Completa, a frase inteira aparece embaixo, como texto.
+ */
+export function PlayerColecaoList({
+  colecoes,
+  clues,
+  onOpen,
+}: {
+  colecoes: readonly ColecaoProgresso[]
+  clues: readonly ClueEntry[]
+  onOpen: (clueId: string) => void
+}) {
+  if (colecoes.length === 0) return null
+  const noCaderno = new Set(clues.map((clue) => clue.id))
+  return (
+    <ul className="pp-colecoes">
+      {colecoes.map((colecao) => {
+        const pecas = new Map(colecao.partes.map((peca) => [peca.parte, peca.clueId]))
+        const casas = Array.from({ length: colecao.total }, (_, index) => index + 1)
+        return (
+          <li key={colecao.nome} className={colecao.completa ? 'pp-colecao pp-colecao--completa' : 'pp-colecao'}>
+            <p className="pp-colecao__head">
+              <span className="pp-colecao__nome">{colecao.nome}</span>
+              <span className="pp-colecao__conta">
+                {colecao.partes.length} de {colecao.total}
+              </span>
+            </p>
+            <ol className="pp-colecao__casas" aria-label={`${colecao.nome}: ${colecao.partes.length} de ${colecao.total}`}>
+              {casas.map((parte) => {
+                const clueId = pecas.get(parte)
+                if (clueId === undefined) {
+                  return (
+                    <li key={parte}>
+                      <span className="pp-colecao__casa" role="img" aria-label={`Peça ${parte} de ${colecao.total}: falta`} />
+                    </li>
+                  )
+                }
+                const rotulo = `Peça ${parte} de ${colecao.total}`
+                return (
+                  <li key={parte}>
+                    {noCaderno.has(clueId) ? (
+                      <button type="button" className="pp-colecao__casa pp-colecao__casa--cheia" aria-label={rotulo} onClick={() => onOpen(clueId)}>
+                        {parte}
+                      </button>
+                    ) : (
+                      <span className="pp-colecao__casa pp-colecao__casa--cheia" role="img" aria-label={rotulo}>
+                        {parte}
+                      </span>
+                    )}
+                  </li>
+                )
+              })}
+            </ol>
+            {colecao.completa && <p className="pp-colecao__inteira">{colecao.inteira ?? 'Você juntou todas as peças.'}</p>}
+          </li>
+        )
+      })}
+    </ul>
   )
 }
 

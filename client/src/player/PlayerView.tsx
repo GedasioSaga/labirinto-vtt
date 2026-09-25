@@ -46,6 +46,7 @@ import { drawDoors } from '../pixi/drawDoors'
 import { drawMapLines, drawMapMarkers } from '../pixi/drawMapLines'
 import { createRegionsRenderer } from '../pixi/drawRegions'
 import { createLightsRenderer } from '../pixi/drawLights'
+import { drawFarLights, farLightPoints } from '../pixi/drawFarLights'
 import { drawDrawings } from '../pixi/drawDrawings'
 import { drawStairs } from '../pixi/drawStairs'
 import { drawPropSilhouettes } from '../pixi/drawPropSilhouettes'
@@ -785,6 +786,9 @@ interface Scene {
   concealed: Graphics
   lastConcealed: RegionPoint[][] | null
   concealedCount: number
+  /** Luz vista de longe (`pixi/drawFarLights.ts`): ponto aceso ACIMA da névoa; tamanho em px de tela. */
+  farLights: Graphics
+  lastFarLightsKey: string | null
   /** Silhueta dos prédios de teto fechado: chapada acima da névoa. */
   roofs: Graphics
   /** Telhado dos prédios espiados pela porta aberta, recortado por `peekMask` (máscara inversa). */
@@ -1433,6 +1437,16 @@ export function PlayerView({
     })
   }
 
+  /** Pontos acesos das luzes vistas de longe; depende do zoom (tamanho em px de tela). */
+  function redrawFarLights(scene: Scene): void {
+    const currentMap = latestRef.current.map
+    const points = farLightPoints(visibleLights(currentMap.lights, currentMap.hiddenLayers))
+    const key = JSON.stringify([points, scene.camera.scale])
+    if (key === scene.lastFarLightsKey) return
+    scene.lastFarLightsKey = key
+    drawFarLights(scene.farLights, points, scene.camera.scale)
+  }
+
   /**
    * Halo nas portas que o token do jogador alcança (mesmo alcance que o mestre
    * valida, `lib/doorReach.ts`). Trancada não ganha halo: ela não abre com
@@ -1546,6 +1560,7 @@ export function PlayerView({
     redrawWallsLayer(scene)
     redrawDoorHints(scene)
     redrawPinsForZoom(scene)
+    redrawFarLights(scene)
     scene.roomNamesRenderer.setCameraScale(scene.camera.scale)
     const { showNames } = latestRef.current.settings
     for (const view of scene.tokenViews.values()) {
@@ -1630,6 +1645,7 @@ export function PlayerView({
     redrawTriggers(scene, currentTriggers)
     redrawFog(scene, currentMap, currentVision, currentExplored, currentSettings.exploredBrightness)
     redrawConcealed(scene, currentConcealed)
+    redrawFarLights(scene)
     redrawRoofs(scene, regions, currentPeek)
     if (currentGlimpses !== scene.lastRoofCut) {
       scene.lastRoofCut = currentGlimpses
@@ -1898,6 +1914,7 @@ export function PlayerView({
       const fogDim = new Graphics()
       const visionMask = new Graphics()
       const concealed = new Graphics()
+      const farLights = new Graphics()
       const roofs = new Graphics()
       // Máscara do telhado: mora no mundo (acompanha a câmera, como `gridMask`).
       const roofCut = new Graphics()
@@ -1946,6 +1963,9 @@ export function PlayerView({
         fogDim,
         visionMask,
         concealed,
+        // Luz vista de longe ACIMA da névoa: é o ponto aceso no escuro. O
+        // recorte do mestre só manda o ponto (raio 0), nunca o que ele ilumina.
+        farLights,
         // Telhado acima da névoa e abaixo dos tokens: o token do jogador está
         // do lado de fora (senão o teto teria aberto) e nunca fica sob o prédio.
         roofCut,
@@ -2054,6 +2074,8 @@ export function PlayerView({
         concealed,
         lastConcealed: null,
         concealedCount: 0,
+        farLights,
+        lastFarLightsKey: null,
         roofs,
         peekedRoofs,
         peekMask,

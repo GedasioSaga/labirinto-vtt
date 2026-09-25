@@ -96,6 +96,7 @@ import { useTokenLibraryStore } from './stores/tokenLibraryStore'
 import { apagarDoAcervo, fotoSobrouNoDisco, salvarNoAcervo, trazerDoAcervo, type ItemDoAcervoNaTela } from './lib/tokenLibrary'
 import { colocarPecaDoAcervo, criarToken, marcarFichaNpc, type TamanhoDaVista } from './stores/criarToken'
 import { setPropImageShownToPlayers, setPropLabelForPlayers } from './stores/propPlayerLook'
+import { mudarRaioDeVisaoDaSala, mudarVistaDeLonge } from './stores/visaoDeLonge'
 import { pickExportFolder, pickImportFolder, exportMapFolder, importMapFolder } from './lib/mapExport'
 import { join } from '@tauri-apps/api/path'
 import { Toolbar } from './components/Toolbar'
@@ -113,6 +114,7 @@ import { isArrivalOnly } from './lib/pinTravel'
 import { pinAttachOptions } from './lib/pinAttach'
 import { leverDoorOptions, linkedDoorOf } from './lib/lever'
 import { lockDoorOptions } from './lib/pinLock'
+import { pinColecaoPanel } from './components/pinColecaoPanel'
 import type { Screen } from './types/screen'
 import { createMapScreen, parentScreen } from './lib/navigation'
 import * as mapFactory from './lib/mapFactory'
@@ -2747,6 +2749,7 @@ function App() {
               // Só a herdada vira dica: com facção própria o campo já diz quem manda.
               faccaoHerdada: selectedRegion ? faccaoHerdada(map.regions, selectedRegion.id) : undefined,
               faccoesConhecidas: legendaFaccoes.map((item) => item.faccao),
+              onRaioDeVisaoChange: (raio) => selectedRegion && mudarRaioDeVisaoDaSala(selectedRegion.id, raio),
               onWidthChange: (width) =>
                 selectedRegion && resizeRoomDimensions(selectedRegion.id, width, roomDimensions(selectedRegion.points).height),
               onHeightChange: (height) =>
@@ -2877,6 +2880,8 @@ function App() {
                     doors: lockDoorOptions(map, selectedPin),
                   }
                 : null,
+              // COLEÇÃO DE PISTAS: a peça e a frase inteira ficam neste mapa; o host manda ao jogador só o progresso dele.
+              colecao: selectedPin ? pinColecaoPanel(selectedPin, map.pins) : null,
               image: selectedPin?.image ?? null,
               onChooseImage: () => selectedPin && void handleChoosePinImage(selectedPin.id),
               onClearImage: () => selectedPin && useMapStore.getState().updatePin(selectedPin.id, { image: null }),
@@ -2939,6 +2944,7 @@ function App() {
               tokens: map.tokens.map((t) => ({ id: t.id, name: t.name })),
               onAttach: (tokenId) => selectedLight && setLightAttachment(selectedLight.id, tokenId),
               onDetach: () => selectedLight && setLightAttachment(selectedLight.id, null),
+              onVistaDeLongeChange: (vistaDeLonge) => selectedLight && mudarVistaDeLonge(selectedLight.id, vistaDeLonge),
             }}
             selectedStair={selectedStair}
             stairControls={{

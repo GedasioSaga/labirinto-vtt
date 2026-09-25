@@ -55,6 +55,7 @@ import {
   parseAbalo,
   parseCallReply,
   parseClueMessage,
+  parseColecoesMessage,
   parseDestinationsMessage,
   parseDiceRolled,
   parseElsewhere,
@@ -92,6 +93,7 @@ import {
 } from '../net/protocol'
 import { DICE_FEED_MAX, parseDiceRequest, type DiceRequest, type DiceRollEntry } from '../lib/dice'
 import { MARCA_TEXTO_MAX, normalizarTextoDaMarca } from '../lib/marcas'
+import type { ColecaoProgresso } from '../lib/colecao'
 import type { AbaloSeta } from '../lib/abalo'
 import { CLUEBOOK_MAX_CLUES } from '../lib/clues'
 import type { TokenMoveLanding, TokenMoveRejection } from '../lib/moveValidation'
@@ -306,6 +308,11 @@ export interface PlayerState {
    * (`clue.added`, `clue.shown`); o `clues.book` da entrada substitui tudo.
    */
   clues?: ClueEntry[]
+  /**
+   * COLEÇÃO DE PISTAS: as coleções deste jogador ("Letreiro 5 de 12"), como o
+   * host mandou por último — a lista inteira, a cada peça nova e na entrada.
+   */
+  colecoes?: ColecaoProgresso[]
   /** Pista que um colega acabou de mostrar: o cartão "Gabi mostrou: Bilhete". `id` novo reabre. */
   shownClue?: { id: number; from: string; clue: ClueEntry }
   /** "Mostrar para…": esperando a lista, ou os colegas da mesma cena. */
@@ -2547,6 +2554,12 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         setState({ diceRolls: [...(state.diceRolls ?? []), rolled.roll].slice(-DICE_FEED_MAX) })
         return
       }
+      case 'colecoes': {
+        // Vale também aguardando, como o caderno: a coleção é do jogador, não da cena.
+        const msg = parseColecoesMessage(data)
+        if (msg !== null) setState({ colecoes: msg.colecoes })
+        return
+      }
       case 'map.shared':
       case 'map.share.result':
       case 'map.given':
@@ -2996,7 +3009,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     received = null
     // As marcas de "me avise" saem: a volta pode cair em outra cena. O Volto
     // já também: quem diz se ele segue fora é o host, na retomada.
-    setState({ status: 'connecting', error: undefined, rev: -1, map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, partyTokens: undefined, concealed: undefined, glimpses: undefined, elsewhere: undefined, peek: undefined, sceneName: undefined, place: undefined, destinations: undefined, hazards: undefined, hazardNotice: undefined, gatilhos: undefined, andares: undefined, relogio: undefined, turn: undefined, signals: undefined, laser: undefined, playerLasers: undefined, doorNotice: undefined, doorRequest: undefined, moveNotice: undefined, turnNotice: undefined, travel: undefined, note: undefined, arrival: undefined, alarm: undefined, item: undefined, lever: undefined, roomText: undefined, notebook: undefined, unreadNotes: undefined, clues: undefined, shownClue: undefined, cluePeers: undefined, clueShow: undefined, paused: undefined, call: undefined, reconnecting: undefined, pointNotice: undefined, noise: undefined, secretCheck: undefined, secretCheckNotice: undefined, mapPeers: undefined, mapShare: undefined, mapShared: undefined, tokenAction: undefined, wait: undefined, waitEnded: undefined, waitingTokens: undefined, away: undefined, ...NO_PASSAGE_WATCH })
+    setState({ status: 'connecting', error: undefined, rev: -1, map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, partyTokens: undefined, concealed: undefined, glimpses: undefined, elsewhere: undefined, peek: undefined, sceneName: undefined, place: undefined, destinations: undefined, hazards: undefined, hazardNotice: undefined, gatilhos: undefined, andares: undefined, relogio: undefined, turn: undefined, signals: undefined, laser: undefined, playerLasers: undefined, doorNotice: undefined, doorRequest: undefined, moveNotice: undefined, turnNotice: undefined, travel: undefined, note: undefined, arrival: undefined, alarm: undefined, item: undefined, lever: undefined, roomText: undefined, notebook: undefined, unreadNotes: undefined, clues: undefined, colecoes: undefined, shownClue: undefined, cluePeers: undefined, clueShow: undefined, paused: undefined, call: undefined, reconnecting: undefined, pointNotice: undefined, noise: undefined, secretCheck: undefined, secretCheckNotice: undefined, mapPeers: undefined, mapShare: undefined, mapShared: undefined, tokenAction: undefined, wait: undefined, waitEnded: undefined, waitingTokens: undefined, away: undefined, ...NO_PASSAGE_WATCH })
     open()
   }
 

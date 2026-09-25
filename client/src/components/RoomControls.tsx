@@ -4,6 +4,7 @@ import { MIN_ROOM_DIMENSION } from '../lib/roomOps'
 import { ROTATION_SHIFT_STEP } from '../lib/roomRotation'
 import { ROOM_TEXT_MAX_LENGTH } from '../lib/roomText'
 import { FACCAO_MAX_LENGTH } from '../lib/faccoes'
+import { VISION_RADIUS_MAX, VISION_RADIUS_MIN, VISION_RADIUS_STEP } from '../net/hostSession'
 import { Toggle } from './Toggle'
 import { HazardControls, type HazardControlsProps } from './HazardControls'
 
@@ -58,6 +59,10 @@ export interface RoomControlsProps {
   faccaoHerdada?: string
   /** Facções que já existem no mapa: viram sugestões do campo, para "Guarda" não virar "guarda". */
   faccoesConhecidas?: readonly string[]
+  /** "Raio de visão aqui" — `RoomMeta.raioDeVisao`; `null` = vale o raio do
+   *  jogador. Sem `onRaioDeVisaoChange` o campo não aparece. */
+  raioDeVisao?: number | null
+  onRaioDeVisaoChange?: (raio: number | null) => void
   /** 'polygon' (Sala Circular/Polígono Regular) esconde os campos de
    *  largura/altura — resize numérico só vale pra 'rect' (ver
    *  RoomMeta.shape em types/map.ts e lib/roomOps.ts). O nome continua
@@ -219,6 +224,95 @@ function RoomRotationField({ rotation, onRotationChange, onRotateBy, locked, not
   )
 }
 
+/** O raio que está digitado: vazio = volta ao do jogador; lixo = nada a confirmar; número = dentro dos limites do raio. */
+function parseVisionRadiusText(text: string): number | null | undefined {
+  if (text.trim() === '') return null
+  const typed = Number(text.replace(',', '.'))
+  if (!Number.isFinite(typed)) return undefined
+  return Math.min(VISION_RADIUS_MAX, Math.max(VISION_RADIUS_MIN, Math.round(typed)))
+}
+
+interface RoomVisionRadiusFieldProps {
+  raioDeVisao: number | null
+  onRaioDeVisaoChange: (raio: number | null) => void
+}
+
+/**
+ * "Raio de visão aqui": enquanto a ficha do jogador está na Sala, este raio
+ * vence o dele (`lib/fogFilter.ts`). Como a Rotação, grava só no Enter ou ao
+ * sair do campo — digitar "700" passaria por 7, que o limite viraria 50 — e
+ * Esc desiste. O painel remonta a cada sala, então o número digitado e não
+ * confirmado vai para a sala DESTE campo ao desmontar.
+ */
+function RoomVisionRadiusField({ raioDeVisao, onRaioDeVisaoChange }: RoomVisionRadiusFieldProps) {
+  const inputId = useId()
+  const hintId = `${inputId}-dica`
+  const [draft, setDraftState] = useState<string | null>(null)
+  const draftRef = useRef<string | null>(null)
+  const setDraft = (text: string | null) => {
+    draftRef.current = text
+    setDraftState(text)
+  }
+  const onChangeRef = useRef(onRaioDeVisaoChange)
+  useEffect(() => {
+    onChangeRef.current = onRaioDeVisaoChange
+  })
+  useEffect(
+    () => () => {
+      if (draftRef.current === null) return
+      const typed = parseVisionRadiusText(draftRef.current)
+      if (typed !== undefined) onChangeRef.current(typed)
+    },
+    [],
+  )
+
+  const commit = () => {
+    if (draft === null) return
+    const typed = parseVisionRadiusText(draft)
+    setDraft(null)
+    if (typed !== undefined && typed !== raioDeVisao) onRaioDeVisaoChange(typed)
+  }
+
+  const onKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === 'Enter') {
+      event.preventDefault()
+      commit()
+    } else if (event.key === 'Escape' && draft !== null) {
+      event.preventDefault()
+      event.stopPropagation()
+      setDraft(null)
+    }
+  }
+
+  return (
+    <div className="lb-field">
+      <label className="lb-label" htmlFor={inputId}>
+        Raio de visão aqui
+      </label>
+      <div className="lb-inputgroup">
+        <input
+          id={inputId}
+          className="lb-input"
+          type="number"
+          min={VISION_RADIUS_MIN}
+          max={VISION_RADIUS_MAX}
+          step={VISION_RADIUS_STEP}
+          placeholder="o do jogador"
+          value={draft ?? (raioDeVisao === null ? '' : String(raioDeVisao))}
+          aria-describedby={hintId}
+          onChange={(event) => setDraft(event.target.value)}
+          onKeyDown={onKeyDown}
+          onBlur={commit}
+        />
+        <span className="lb-inputgroup__suffix">px</span>
+      </div>
+      <p className="lb-field__hint" id={hintId}>
+        Com a ficha aqui dentro, o jogador enxerga até esta distância: maior num mirante, menor num caracol. Vazio usa o raio do jogador.
+      </p>
+    </div>
+  )
+}
+
 /** Por que a Sala retangular torta está sem largura/altura, e como tê-las de volta. */
 const NOTA_SALA_TORTA = 'Largura e altura voltam quando a sala fica reta: 0°, 90°, 180° ou −90°.'
 
@@ -261,6 +355,8 @@ export function RoomControls({
   onFaccaoChange,
   faccaoHerdada,
   faccoesConhecidas,
+  raioDeVisao,
+  onRaioDeVisaoChange,
   shape,
   axisAligned,
   width,
@@ -407,6 +503,8 @@ export function RoomControls({
           </p>
         </>
       )}
+
+      {onRaioDeVisaoChange !== undefined && <RoomVisionRadiusField raioDeVisao={raioDeVisao ?? null} onRaioDeVisaoChange={onRaioDeVisaoChange} />}
 
       {shape === 'rect' && axisAligned && (
         <>

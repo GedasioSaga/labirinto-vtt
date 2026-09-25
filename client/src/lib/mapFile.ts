@@ -12,6 +12,7 @@ import {
   isPinReadDistance,
 } from './pins'
 import { readPinLock } from './pinLock'
+import { readPinColecao } from './colecao'
 import { cleanExitLabel, readPinDestination, readPinExits } from './pinTravel'
 import { readSceneVisionCells } from './sceneVision'
 import { tokenPublicNameFromFile } from './tokenPublicName'
@@ -199,6 +200,21 @@ function alertaField(raw: unknown): Pick<MapData, 'alerta'> {
 }
 
 /**
+ * "Raio de visão aqui" (`RoomMeta.raioDeVisao`) é campo NOVO e OPCIONAL.
+ * Ausente continua ausente (vale o raio do jogador). Número finito e positivo
+ * passa como veio; o resto (texto, `null`, zero, negativo) SAI em vez de virar
+ * o raio de visão que o recorte do jogador usa (`lib/fogFilter.ts`).
+ */
+function roomVisionRadiusFromFile(region: Region): Region {
+  const room = region.room
+  if (!room || typeof room !== 'object' || !('raioDeVisao' in room)) return region
+  const raio = room.raioDeVisao
+  if (typeof raio === 'number' && Number.isFinite(raio) && raio > 0) return region
+  const { raioDeVisao: _descartado, ...semRaio } = room
+  return { ...region, room: semRaio }
+}
+
+/**
  * Porta lida do disco. `kind` virou obrigatório (porta antiga migra para
  * 'normal'). `secret` (porta secreta) é campo NOVO: só `true` volta; qualquer
  * outro valor sai do objeto, e a porta abre como porta comum — como sempre foi.
@@ -258,7 +274,7 @@ function deserializeMapFields(json: string): MapData {
     // inalterado — `room` ausente fica undefined (região comum); o ângulo do
     // giro da sala passa como veio, desde que seja número (`roomRotationFromFile`)
     regions: entityList(parsed.regions).map((r) =>
-      roomFaccaoFromFile(roomDarkFromFile(roomTextsFromFile(roomRotationFromFile({ ...r, fillColor: r.fillColor ?? '#3a7ad0', fillPattern: r.fillPattern ?? 'solid' })))),
+      roomVisionRadiusFromFile(roomFaccaoFromFile(roomDarkFromFile(roomTextsFromFile(roomRotationFromFile({ ...r, fillColor: r.fillColor ?? '#3a7ad0', fillPattern: r.fillPattern ?? 'solid' }))))),
     ),
     // MUDA de cru para .map(): Token.image é obrigatório.
     // `imageData` (a cópia embutida que viaja até o jogador) NÃO ganha linha
@@ -398,6 +414,9 @@ function deserializeMapFields(json: string): MapData {
       // SÓ IDA: `semVolta` é só do recorte do jogador, como `escolhas` (que
       // leva o `soIda` de cada saída e já sai inteiro na linha de cima).
       semVolta: undefined,
+      // COLEÇÃO DE PISTAS: campo NOVO e OPCIONAL, conferido por `readPinColecao`
+      // — forma errada volta ausente (pino avulso) em vez de derrubar o mapa.
+      colecao: readPinColecao(p.colecao),
     })),
     // BILHETE NO LUGAR: campo NOVO e OPCIONAL. Ausente continua ausente (sem a
     // chave, nem `undefined`): o round-trip de mapa antigo sai idêntico. Marca

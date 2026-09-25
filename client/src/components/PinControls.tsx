@@ -5,6 +5,7 @@ import type { LeverDoorOption } from '../lib/lever'
 import type { PinAttachOption } from '../lib/pinAttach'
 import { PIN_GLYPH, PIN_KIND_LABELS, PIN_KIND_ORDER, PIN_LER_DE_PERTO_MAX, PIN_LER_DE_PERTO_MIN, PIN_NOME_MAX_LENGTH, isPinReadDistance } from '../lib/pins'
 import { GatherControls, type GatherControlsProps } from './GatherControls'
+import { PinColecaoControls, type PinColecaoControlsProps } from './PinColecaoControls'
 import { PinIconControls, type PinIconControlsProps } from './PinIconControls'
 import { PinLockControls, type PinLockControlsProps } from './PinLockControls'
 import { PinLeverArt, PinTravelArt } from './PinSymbolArt'
@@ -90,6 +91,11 @@ export interface PinControlsProps {
    * nenhum pino aberto: não há fechadura para editar.
    */
   lock?: PinLockControlsProps | null
+  /**
+   * COLEÇÃO DE PISTAS do pino aberto no painel (qualquer tipo). `null` =
+   * nenhum pino aberto: não há peça para editar.
+   */
+  colecao?: PinColecaoControlsProps | null
 }
 
 /** Id fixo: só existe um pino aberto no painel por vez (o mesmo molde de `lb-pin-description`). */
@@ -297,6 +303,7 @@ export function PinControls({
   lever = null,
   iconChoice,
   lock = null,
+  colecao = null,
 }: PinControlsProps) {
   const viagem = kind === 'viagem'
   const alavanca = kind === 'alavanca'
@@ -405,6 +412,8 @@ export function PinControls({
           />
           {/* O que o pino É para o jogador (tranca), antes da ação de mesa. */}
           {lock !== null && <PinLockControls {...lock} />}
+          {/* Também é o que o pino É para o jogador: uma peça de coleção. */}
+          {colecao !== null && <PinColecaoControls {...colecao} />}
           {/* Ação de MESA, não de edição do pino: fica logo depois do que o
               pino é, antes da imagem e do excluir. */}
           {gather !== null && <GatherControlsFor gather={gather} />}

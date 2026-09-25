@@ -5,7 +5,8 @@ import { PlayerBackpack } from './PlayerBackpack'
 import { NAME_MAX_LENGTH, type ClueEntry, type NoteEntry, type PartyMember, type PartyWhere, type OwnTokenElsewhere } from '../net/protocol'
 import type { Pin, RegionPoint } from '../types/map'
 import { PlayerNotebook } from './PlayerNotebook'
-import { PlayerClueList } from './PlayerClues'
+import { PlayerClueList, PlayerColecaoList } from './PlayerClues'
+import type { ColecaoProgresso } from '../lib/colecao'
 // `PlayerPlacesTab` e não `PlayerPlaces`: no Windows o nome colidiria com `playerPlaces.ts` (a parte pura).
 import { PlayerPlacesTab } from './PlayerPlacesTab'
 import type { VisitedPlace } from './playerPlaces'
@@ -20,6 +21,7 @@ import { PlayerWaitSection } from './PlayerWaitSection'
 /** Caderno sem pistas passadas (tela antiga, teste): a mesma lista vazia, sem objeto novo a cada render. */
 const NO_CLUES: readonly ClueEntry[] = []
 const IGNORE_CLUE = (): void => {}
+const NO_COLECOES: readonly ColecaoProgresso[] = []
 const NO_PERSONAL_NOTES: readonly PersonalNote[] = []
 const IGNORE_NOTE = (): void => {}
 /** Sem fichas em outra cena (mestre antigo, teste): a mesma lista vazia a cada render. */
@@ -190,6 +192,8 @@ interface PlayerPanelProps {
   clues?: readonly ClueEntry[]
   /** Tocou numa pista do Caderno: reabre o cartão dela. */
   onOpenClue?: (clueId: string) => void
+  /** COLEÇÃO DE PISTAS: "Letreiro 5 de 12", acima da lista. Tocar numa peça reabre a pista dela (`onOpenClue`). */
+  colecoes?: readonly ColecaoProgresso[]
   /** ITEM PEGÁVEL: a seção "Comigo". Ausente = o painel de sempre. */
   backpack?: ComponentProps<typeof PlayerBackpack>
   /**
@@ -261,6 +265,7 @@ export function PlayerPanel({
   onReadNotebook,
   clues = NO_CLUES,
   onOpenClue = IGNORE_CLUE,
+  colecoes = NO_COLECOES,
   backpack,
   party,
   pins = NO_PINS,
@@ -752,6 +757,7 @@ export function PlayerPanel({
                   <h2 id={`${panelId}-clues`} className="pp-heading">
                     Minhas pistas
                   </h2>
+                  <PlayerColecaoList colecoes={colecoes} clues={clues} onOpen={onOpenClue} />
                   <PlayerClueList clues={clues} onOpen={onOpenClue} />
                 </section>
                 <section className="pp-section" aria-labelledby={`${panelId}-notes`}>

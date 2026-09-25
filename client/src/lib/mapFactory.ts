@@ -21,6 +21,7 @@ import { sameDestination, sameExits } from './pinTravel'
 import { passageOf } from './pins'
 import { sameLock } from './pinLock'
 import { samePinPass } from './pinPass'
+import { sameColecao } from './colecao'
 import { moveTokenCarryingLights, withoutAttachment } from './lightAttachment'
 import { seatStairPins, withoutStairPins } from './stairTravel'
 import { carryAttachedPins, carryPinsByTokenSteps } from './pinAttach'
@@ -1752,6 +1753,17 @@ export function setSceneAlerta(map: MapData, nivel: NivelAlerta): MapData {
   return nivel === 'calmo' ? semAlerta : { ...semAlerta, alerta: nivel }
 }
 
+/** "Raio de visão aqui" da Sala (`RoomMeta.raioDeVisao`); `null` tira o campo
+ * e a Sala volta ao raio do jogador. Mesmo contrato de `setRoomRoof`: região
+ * comum, id inexistente ou nada diferente devolve o mesmo `map`. */
+export function setRoomVisionRadius(map: MapData, id: string, raio: number | null): MapData {
+  const region = map.regions.find((r) => r.id === id)
+  if (!region || !region.room || (region.room.raioDeVisao ?? null) === raio) return map
+  const { raioDeVisao: _antigo, ...room } = region.room
+  const next: RoomMeta = raio === null ? room : { ...room, raioDeVisao: raio }
+  return { ...map, regions: map.regions.map((r) => (r.id === id ? { ...r, room: next } : r)) }
+}
+
 /** Entidades que aceitam "Oculto para jogadores" (`PlayerSecret` em types/map.ts). */
 export type SecretKind = 'token' | 'region' | 'prop' | 'stair' | 'drawing' | 'pin'
 
@@ -1812,7 +1824,7 @@ export function addPin(map: MapData, pin: Pin): MapData {
 export function updatePin(
   map: MapData,
   id: string,
-  patch: Partial<Pick<Pin, 'kind' | 'icon' | 'description' | 'nome' | 'notaDoMestre' | 'image' | 'locked' | 'destino' | 'passagem' | 'passe' | 'mudo' | 'motivo' | 'rotulo' | 'saidas' | 'item' | 'abreCom' | 'presoA' | 'portaLigada' | 'marco' | 'lerDePerto' | 'segredo'>>,
+  patch: Partial<Pick<Pin, 'kind' | 'icon' | 'description' | 'nome' | 'notaDoMestre' | 'image' | 'locked' | 'destino' | 'passagem' | 'passe' | 'mudo' | 'motivo' | 'rotulo' | 'saidas' | 'item' | 'abreCom' | 'presoA' | 'portaLigada' | 'marco' | 'lerDePerto' | 'segredo' | 'colecao'>>,
 ): MapData {
   const pin = map.pins.find((p) => p.id === id)
   if (!pin) return map
@@ -1864,7 +1876,9 @@ export function updatePin(
     next.motivo === pin.motivo &&
     // PASSE: trocar o item ou marcar/desmarcar uma ficha é mudança; gravar o
     // mesmo passe (ou apagar um que nunca existiu) não é.
-    samePinPass(next.passe, pin.passe)
+    samePinPass(next.passe, pin.passe) &&
+    // Coleção de pistas: gravar a mesma peça de novo não é mudança.
+    sameColecao(next.colecao, pin.colecao)
   ) {
     return map
   }
