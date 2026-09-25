@@ -727,6 +727,10 @@ export interface TokenPatrol {
   atual: number
 }
 
+/**
+ * Ficha no mapa. Sai para o jogador por LISTA BRANCA (`tokenForPlayer` em
+ * `lib/fogFilter.ts`): campo novo aqui fica com o mestre até entrar lá.
+ */
 export interface Token extends PlayerSecret {
   id: string
   characterId: string | null
@@ -795,7 +799,7 @@ export interface Token extends PlayerSecret {
   vigia?: TokenWatch | null
   /**
    * Só no RECORTE do jogador: a marca do guarda que ele enxerga
-   * (`tokenWatchForPlayer`). O que estiver gravado aqui no mapa do mestre é
+   * (`tokenForPlayer` em `lib/fogFilter.ts`). O que estiver gravado aqui no mapa do mestre é
    * jogado fora pelo recorte.
    */
   alerta?: WatchAlert

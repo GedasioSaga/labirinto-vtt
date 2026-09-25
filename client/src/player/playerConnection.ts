@@ -14,6 +14,7 @@ import {
   PIN_LEVER_REJECTIONS,
   PIN_TAKE_REJECTIONS,
   REQ_ID_MAX_LENGTH,
+  TOKEN_HIDE_REJECTIONS,
   TRAVEL_REQUEST_MIN_INTERVAL_MS,
   TRAVEL_REQUEST_PLAYER_MIN_INTERVAL_MS,
   isDoorRequestHow,
@@ -29,6 +30,7 @@ import {
   type PinTravelRequestMessage,
   type PlayerMessage,
   type SignalAudience,
+  type TokenHideRejection,
 } from '../net/protocol'
 import { ACEITA_GZIP, criarEntradaEmOrdem } from '../net/pacoteComprimido'
 import { carriedItemsOf, cleanItemName, itemOfPin } from '../lib/items'
@@ -180,6 +182,11 @@ export interface PlayerState {
   doorNotice?: DoorNotice
   /** O pedido da porta trancada: enviado, a resposta do mestre ou a recusa do host. Some sozinho. */
   doorRequest?: { id: number; phase: DoorRequestPhase }
+  /**
+   * ESCONDER-SE: `waiting` até o mestre decidir; a recusa some sozinha.
+   * Aceito não tem aviso: a própria ficha chega com `secret` e a espera acaba.
+   */
+  hide?: HideNotice
   /** Pedido de passagem: esperando o mestre, ou a resposta dele. */
   travel?: TravelNotice
   /** ITEM PEGÁVEL: "Pegar" ou "Dar a…" — enviado, a resposta do mestre ou a recusa do host. Some sozinho. */
@@ -322,6 +329,9 @@ export interface DoorNotice {
 
 /** `sent`: saiu para o mestre; `opened`/`denied`: a resposta dele; o resto: o host nem levou ao mestre. */
 export type DoorRequestPhase = 'sent' | DoorRequestAnswer | DoorRequestRejection
+
+/** Onde está o pedido de esconder-se. `id` novo repete o aviso; `tokenId` é a ficha pedida — só ela encerra a espera. */
+export type HideNotice = { id: number; phase: 'waiting'; tokenId: string } | { id: number; phase: 'rejected'; reason: TokenHideRejection }
 
 /**
  * Onde está o pedido de passagem pelo pino de viagem. `waiting` fica até o
@@ -497,6 +507,12 @@ export interface PlayerConnection {
    */
   requestDoor(wallId: string, how: DoorRequestHow): boolean
   /**
+   * "Esconder": pede ao mestre para a PRÓPRIA ficha `tokenId` sumir dos outros
+   * jogadores. `false` se não está jogando, se a ficha não é dele (ou já está
+   * escondida), se já há um pedido esperando ou se o socket não está aberto.
+   */
+  requestHide(tokenId: string): boolean
+  /**
    * CHAVE ABRE PORTA: "Usar <chave>" na porta trancada `wallId`. Manda só a
    * porta (o host acha a chave) e fecha o aviso. `false` se não está jogando
    * ou o socket não está aberto.
@@ -660,6 +676,8 @@ function isMoveRejection(value: unknown): value is TokenMoveRejection {
 }
 /** Quanto tempo o aviso do pedido da porta ("Pedido enviado", "O mestre abriu") fica na tela. */
 export const DOOR_REQUEST_NOTICE_TTL_MS = 4000
+/** Quanto tempo a recusa do pedido de esconder-se fica na tela: o mesmo do pedido da porta. */
+export const HIDE_NOTICE_TTL_MS = DOOR_REQUEST_NOTICE_TTL_MS
 /** Quanto tempo o aviso do item ("está com você", "O mestre disse não") fica na tela. */
 export const ITEM_NOTICE_TTL_MS = 4000
 /** Quanto tempo o aviso da alavanca ("Você puxou a alavanca") fica na tela: recado curto, como o da porta. */
@@ -1003,6 +1021,30 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     }, DOOR_NOTICE_TTL_MS)
   }
 
+  let hideTimer: ReturnType<typeof setTimeout> | null = null
+
+  function clearHideTimer(): void {
+    if (hideTimer !== null) clearTimeout(hideTimer)
+    hideTimer = null
+  }
+
+  /** Recusa do pedido de esconder-se: aparece e some sozinha. */
+  function showHideRejection(reason: TokenHideRejection): void {
+    clearHideTimer()
+    setState({ hide: { id: nextNoticeId++, phase: 'rejected', reason } })
+    hideTimer = setTimeout(() => {
+      hideTimer = null
+      setState({ hide: undefined })
+    }, HIDE_NOTICE_TTL_MS)
+  }
+
+  /** O host esqueceu o pedido (caiu, virou outro jogador, sala fechou): "Aguardando o mestre…" mentiria. */
+  function forgetHideWaiting(): Partial<PlayerState> {
+    if (state.hide?.phase !== 'waiting') return {}
+    clearHideTimer()
+    return { hide: undefined }
+  }
+
   function showDoorRequest(phase: DoorRequestPhase): void {
     clearDoorNotice()
     setState({ doorRequest: { id: nextNoticeId++, phase }, doorNotice: undefined })
@@ -1151,6 +1193,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     const pointWaiting = state.pointNotice?.phase === 'waiting'
     waitingPointActions = []
     setState({
+      ...forgetHideWaiting(),
       ...(travelWaiting ? { travel: undefined } : {}),
       ...(doorSent ? { doorRequest: undefined } : {}),
       ...(callWaiting ? { call: undefined } : {}),
@@ -1317,7 +1360,8 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     // O host esquece o pedido de passagem de quem cai: "Aguardando o mestre…" mentiria.
     const travelWaiting = state.travel?.phase === 'waiting'
     if (travelWaiting) clearTravelTimer()
-    setState({ rev: -1, reconnecting: { since: Date.now(), attempt: 0, manual: false }, ...(travelWaiting ? { travel: undefined } : {}) })
+    // Mesmo para o esconder-se: o disconnect apaga o pedido no host.
+    setState({ rev: -1, reconnecting: { since: Date.now(), attempt: 0, manual: false }, ...(travelWaiting ? { travel: undefined } : {}), ...forgetHideWaiting() })
     manualTimer = setTimeout(() => {
       manualTimer = null
       const info = state.reconnecting
@@ -1579,8 +1623,37 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     const { place, places: remembered } = where
     const places = place === undefined ? state.places : rememberPlace(state.places ?? [], place, map, explored, concealed, remembered)
     // `sceneName` entra SEMPRE, inclusive `undefined`: snapshot sem nome apaga o selo da cena anterior.
+    // ESCONDER-SE: o mestre deixou — a ficha PEDIDA chega oculta para jogadores, e a espera acaba.
+    // Só ela conta: outra ficha própria que o mestre já ocultou chega com `secret` em todo snapshot.
+    const hide = state.hide
+    const hideDone =
+      hide?.phase === 'waiting' && ownTokens.includes(hide.tokenId) && next.tokens.some((t) => t.id === hide.tokenId && t.secret === true)
+    // A ficha pedida mudou de dono: o pedido não tem mais a quem valer, e a espera travaria o botão.
+    const hideLost = hide?.phase === 'waiting' && !ownTokens.includes(hide.tokenId)
+    if (hideDone || hideLost) clearHideTimer()
     // O mapa chegou: quem pedia ficha já tem uma, e o pedido termina aqui.
-    setState({ status: 'playing', rev, map: next, vision, explored, ownTokens, partyTokens, concealed, hazards, gatilhos, andares, relogio, turn: turnOnMap, confronto, sceneName, place, places, error: undefined, seatClaim: undefined })
+    setState({
+      status: 'playing',
+      rev,
+      map: next,
+      vision,
+      explored,
+      ownTokens,
+      partyTokens,
+      concealed,
+      hazards,
+      gatilhos,
+      andares,
+      relogio,
+      turn: turnOnMap,
+      confronto,
+      sceneName,
+      place,
+      places,
+      error: undefined,
+      seatClaim: undefined,
+      ...(hideDone || hideLost ? { hide: undefined } : {}),
+    })
   }
 
   /** Desfaz o movimento recusado. `false` = pedido desconhecido (já resolvido, ou de antes de trocar de cena). */
@@ -1720,10 +1793,13 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         clearLeverTimer()
         clearHazardNotice()
         clearCallTimer()
+        clearHideTimer()
         forgetPointActions()
         setState({
           item: undefined,
           lever: undefined,
+          // Sem ficha, não há o que esconder: a espera e a recusa saem.
+          hide: undefined,
           // Sem cena, nenhum alarme de cena vale; o host manda de novo se ele voltar a uma.
           alarm: undefined,
           // Idem o texto de chegada: é da cena que ele deixou.
@@ -1997,6 +2073,14 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         showDoorRequest(known)
         return
       }
+      case 'token.hide.rejected': {
+        if (state.status !== 'playing') return
+        const { reason } = data
+        const known = TOKEN_HIDE_REJECTIONS.find((r) => r === reason)
+        if (known === undefined) return
+        showHideRejection(known)
+        return
+      }
       case 'door.request.answer': {
         if (state.status !== 'playing') return
         const { answer } = data
@@ -2124,8 +2208,9 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         clearHazardNotice()
         clearCallTimer()
         clearReconnectTimers()
+        clearHideTimer()
         forgetPointActions()
-        setState({ status: 'closed', playerLasers: undefined, doorNotice: undefined, doorRequest: undefined, moveNotice: undefined, turnNotice: undefined, travel: undefined, item: undefined, lever: undefined, hazardNotice: undefined, call: undefined, reconnecting: undefined, pointNotice: undefined })
+        setState({ status: 'closed', hide: undefined, playerLasers: undefined, doorNotice: undefined, doorRequest: undefined, moveNotice: undefined, turnNotice: undefined, travel: undefined, item: undefined, lever: undefined, hazardNotice: undefined, call: undefined, reconnecting: undefined, pointNotice: undefined })
         return
       case 'session.replaced':
         // A sessão foi para outra aba (ou aparelho). O resume FICA: é o mesmo
@@ -2138,9 +2223,10 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         clearDoorNotice()
         clearTravelTimer()
         clearCallTimer()
+        clearHideTimer()
         clearReconnectTimers()
         stopPing()
-        setState({ status: 'replaced', doorNotice: undefined, doorRequest: undefined, travel: undefined, call: undefined, reconnecting: undefined })
+        setState({ status: 'replaced', hide: undefined, doorNotice: undefined, doorRequest: undefined, travel: undefined, call: undefined, reconnecting: undefined })
         return
       case 'error': {
         const reason = typeof data.reason === 'string' ? data.reason : 'unknown'
@@ -2230,6 +2316,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     clearLeverTimer()
     clearHazardNotice()
     clearCallTimer()
+    clearHideTimer()
     forgetPointActions()
     const current = socket
     socket = null
@@ -2290,6 +2377,18 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       if (state.status !== 'playing' || wallId.length === 0 || !isDoorRequestHow(how)) return false
       if (!send({ type: 'door.request', wallId, how })) return false
       showDoorRequest('sent')
+      return true
+    },
+
+    requestHide(tokenId) {
+      if (state.status !== 'playing' || state.hide?.phase === 'waiting') return false
+      if (!(state.ownTokens ?? []).includes(tokenId)) return false
+      const token = state.map?.tokens.find((t) => t.id === tokenId)
+      // Já escondida: não há o que pedir (só o mestre revela).
+      if (token === undefined || token.secret === true) return false
+      if (!send({ type: 'token.hide.request', tokenId })) return false
+      clearHideTimer()
+      setState({ hide: { id: nextNoticeId++, phase: 'waiting', tokenId } })
       return true
     },
 
@@ -2524,7 +2623,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       detach()
       // `places` fica: o host não reenvia o desenho dos lugares de antes, e o
       // primeiro snapshot da volta solta o que ele não lembrar mais.
-      setState({ status: 'connecting', error: undefined, rev: -1, map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, partyTokens: undefined, concealed: undefined, sceneName: undefined, place: undefined, destinations: undefined, hazards: undefined, hazardNotice: undefined, gatilhos: undefined, andares: undefined, relogio: undefined, turn: undefined, signals: undefined, laser: undefined, playerLasers: undefined, doorNotice: undefined, doorRequest: undefined, moveNotice: undefined, turnNotice: undefined, travel: undefined, note: undefined, arrival: undefined, alarm: undefined, item: undefined, lever: undefined, roomText: undefined, notebook: undefined, unreadNotes: undefined, clues: undefined, shownClue: undefined, cluePeers: undefined, clueShow: undefined, paused: undefined, call: undefined, reconnecting: undefined, pointNotice: undefined, letterPeers: undefined, letterSend: undefined })
+      setState({ status: 'connecting', hide: undefined, error: undefined, rev: -1, map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, partyTokens: undefined, concealed: undefined, sceneName: undefined, place: undefined, destinations: undefined, hazards: undefined, hazardNotice: undefined, gatilhos: undefined, andares: undefined, relogio: undefined, turn: undefined, signals: undefined, laser: undefined, playerLasers: undefined, doorNotice: undefined, doorRequest: undefined, moveNotice: undefined, turnNotice: undefined, travel: undefined, note: undefined, arrival: undefined, alarm: undefined, item: undefined, lever: undefined, roomText: undefined, notebook: undefined, unreadNotes: undefined, clues: undefined, shownClue: undefined, cluePeers: undefined, clueShow: undefined, paused: undefined, call: undefined, reconnecting: undefined, pointNotice: undefined, letterPeers: undefined, letterSend: undefined })
       open()
     },
     wake() {
