@@ -2093,6 +2093,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       state.glimpses ?? [],
       state.elsewhere ?? [],
       state.peek,
+      state.waitingTokens ?? [],
     )
   }
 

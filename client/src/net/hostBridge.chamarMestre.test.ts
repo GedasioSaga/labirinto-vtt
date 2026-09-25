@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { agruparAvisos } from '../components/caixaDeAvisos'
 import { createEmptyMap } from '../lib/mapFactory'
-import { useToastStore, type ToastMessage } from '../stores/toastStore'
+import { useToastStore, type ToastMessage, type ToastResposta } from '../stores/toastStore'
 import type { Token } from '../types/map'
 import type { HostWorld, MasterCall } from './hostSession'
 import { createHostBridge } from './hostBridge'
@@ -12,6 +12,11 @@ import { createHostBridge } from './hostBridge'
  */
 
 const ROOM = { code: 'AB12CD', urls: ['http://192.168.0.2:7777'], qrSvg: '<svg/>' }
+
+/** O campo que envia sozinho (`ToastResposta`); o `ToastReplyField` não tem `enviar`. */
+function queEnvia(resposta: ToastMessage['resposta']): ToastResposta | undefined {
+  return resposta !== undefined && 'enviar' in resposta ? resposta : undefined
+}
 
 function ficha(id: string, name: string, x: number, y: number): Token {
   return { id, characterId: null, name, x, y, size: 1, image: null }
@@ -140,7 +145,7 @@ describe('hostBridge: chamar o mestre', () => {
     chama('c-carla', 'pergunta')
     const antes = sent().length
     const linha = chamados().find((t) => t.text.startsWith('Carla'))
-    linha?.resposta?.enviar('Pode usar.')
+    queEnvia(linha?.resposta)?.enviar('Pode usar.')
     expect(sent().slice(antes)).toEqual([{ clientId: 'c-carla', msg: { type: 'call.reply', id: expect.any(String), text: 'Pode usar.' } }])
     expect(chamados().map((t) => t.text)).toEqual(['Duda: Quero agir'])
   })

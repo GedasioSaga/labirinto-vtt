@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createEmptyMap } from '../lib/mapFactory'
-import { useToastStore } from '../stores/toastStore'
+import { useToastStore, type ToastMessage, type ToastResposta } from '../stores/toastStore'
 import type { MapData, Pin, Token } from '../types/map'
 import { TRAVEL_REQUEST_MIN_INTERVAL_MS, type HostWorld } from './hostSession'
 import { createHostBridge } from './hostBridge'
@@ -14,6 +14,11 @@ import { TRAVEL_DENY_TEXT_MAX_LENGTH } from './protocol'
  */
 
 const ROOM = { code: 'AB12CD', urls: ['http://192.168.0.2:7777'], qrSvg: '<svg/>' }
+
+/** O campo que envia sozinho (`ToastResposta`); o `ToastReplyField` não tem `enviar`. */
+function queEnvia(resposta: ToastMessage['resposta']): ToastResposta | undefined {
+  return resposta !== undefined && 'enviar' in resposta ? resposta : undefined
+}
 const GRID = 50
 const CENA_LAB = 'cena-laboratorio'
 const CENA_PATIO = 'cena-patio'
@@ -148,7 +153,7 @@ describe('hostBridge: pino de viagem trancado vira pedido', () => {
   it('"Não, porque…": o motivo chega ao Diego no pin.travel.denied, ninguém passa, e volta pronto no próximo pedido trancado', async () => {
     const m = await mesa()
     m.pedir()
-    const resposta = m.pedidos()[0]?.resposta
+    const resposta = queEnvia(m.pedidos()[0]?.resposta)
     expect(resposta?.rotulo).toBe('Não, porque…')
     expect(resposta?.maxLength).toBe(TRAVEL_DENY_TEXT_MAX_LENGTH)
     resposta?.enviar('A porta está soldada')
@@ -158,7 +163,7 @@ describe('hostBridge: pino de viagem trancado vira pedido', () => {
     expect(m.pedidos()).toHaveLength(0)
     m.pedir()
     expect(m.pedidos()).toHaveLength(1)
-    expect(m.pedidos()[0]?.resposta?.recentes?.()).toEqual(['A porta está soldada'])
+    expect(queEnvia(m.pedidos()[0]?.resposta)?.recentes?.()).toEqual(['A porta está soldada'])
   })
 
   it('opção desligada (mudo): nenhuma linha, e o Diego lê a recusa genérica', async () => {

@@ -56,7 +56,7 @@ function montarAventura(): { vale: string; cripta: string } {
 }
 
 function jogadora(sceneId: string, tokenIds: string[] = ['grog']): PlayerInfo {
-  return { clientId: 'c1', playerId: 'ana', name: 'Ana', status: 'playing', connected: true, tokenIds, visionRadius: 300, sceneId, sceneName: 'Vale' }
+  return { clientId: 'c1', playerId: 'ana', name: 'Ana', status: 'playing', connected: true, tokenIds, visionRadius: 300, visionFactor: 1, sceneId, sceneName: 'Vale' }
 }
 
 /** A ponte de mentira: a travessia é a de verdade da aventura (`transferToken`), sem rede. */

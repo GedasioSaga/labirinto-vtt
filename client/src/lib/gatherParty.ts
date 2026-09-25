@@ -237,6 +237,14 @@ export function gatherCandidates(members: readonly PartyMember[], world: HostWor
   })
 }
 
+/** Quem o mestre pode mandar a um achado da busca: só quem tem ficha em alguma cena; sem pino, sem cena. */
+export type SendCandidate = Pick<GatherCandidate, 'playerId' | 'name' | 'color'>
+
+/** A lista do "Mandar ficha para cá", em ordem de chegada. */
+export function sendCandidates(members: readonly PartyMember[]): SendCandidate[] {
+  return members.flatMap((member) => (member.token === null ? [] : [{ playerId: member.playerId, name: member.name, color: member.token.color }]))
+}
+
 /** O grupo de quem já está no pino: sempre o último da lista. */
 export const GATHER_HERE_LABEL = 'Já aqui'
 

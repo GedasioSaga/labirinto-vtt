@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { agruparAvisos } from '../components/caixaDeAvisos'
 import { createEmptyMap } from '../lib/mapFactory'
-import { useToastStore, type ToastMessage } from '../stores/toastStore'
+import { useToastStore, type ToastMessage, type ToastResposta } from '../stores/toastStore'
 import type { Pin, Token } from '../types/map'
 import type { AppliedTransfer, HostWorld } from './hostSession'
 import { createHostBridge } from './hostBridge'
@@ -15,6 +15,11 @@ import { TRAVEL_DENY_TEXT_MAX_LENGTH } from './protocol'
  */
 
 const ROOM = { code: 'AB12CD', urls: ['http://192.168.0.2:7777'], qrSvg: '<svg/>' }
+
+/** O campo que envia sozinho (`ToastResposta`); o `ToastReplyField` não tem `enviar`. */
+function queEnvia(resposta: ToastMessage['resposta']): ToastResposta | undefined {
+  return resposta !== undefined && 'enviar' in resposta ? resposta : undefined
+}
 
 /** Espalhados a mais de 2 casas uns dos outros: ninguém vira "quem está perto" de ninguém. */
 const FICHAS: Record<string, { x: number; y: number }> = {
@@ -142,7 +147,7 @@ describe('hostBridge: "Ver" e "Não, porque…" no pedido de passagem', () => {
 
     expect(felipe.resposta?.rotulo).toBe('Não, porque…')
     expect(felipe.resposta?.maxLength).toBe(TRAVEL_DENY_TEXT_MAX_LENGTH)
-    felipe.resposta?.enviar('o portão fecha à noite')
+    queEnvia(felipe.resposta)?.enviar('o portão fecha à noite')
     expect(linhasDaCaixa()).toHaveLength(3)
     expect(linhasDaCaixa().map((toast) => toast.text).some((texto) => texto.startsWith('Felipe'))).toBe(false)
     const depois = t.sent().slice(antes)
@@ -153,16 +158,16 @@ describe('hostBridge: "Ver" e "Não, porque…" no pedido de passagem', () => {
   it('os três últimos motivos voltam prontos, o mais novo primeiro e sem repetir', async () => {
     const t = await mesaComPedidos(QUATRO)
     t.pedir('c1')
-    expect(avisoDe('Felipe').resposta?.recentes?.()).toEqual([])
-    avisoDe('Felipe').resposta?.enviar('o portão fecha à noite')
+    expect(queEnvia(avisoDe('Felipe').resposta)?.recentes?.()).toEqual([])
+    queEnvia(avisoDe('Felipe').resposta)?.enviar('o portão fecha à noite')
     t.pedir('c2')
-    avisoDe('Gabi').resposta?.enviar('a ponte caiu')
+    queEnvia(avisoDe('Gabi').resposta)?.enviar('a ponte caiu')
     t.pedir('c3')
-    avisoDe('Hugo').resposta?.enviar('o portão fecha à noite')
+    queEnvia(avisoDe('Hugo').resposta)?.enviar('o portão fecha à noite')
     t.pedir('c4')
-    avisoDe('Iara').resposta?.enviar('ainda não')
+    queEnvia(avisoDe('Iara').resposta)?.enviar('ainda não')
     t.pedir('c1')
-    expect(avisoDe('Felipe').resposta?.recentes?.()).toEqual(['ainda não', 'o portão fecha à noite', 'a ponte caiu'])
+    expect(queEnvia(avisoDe('Felipe').resposta)?.recentes?.()).toEqual(['ainda não', 'o portão fecha à noite', 'a ponte caiu'])
   })
 
   it('"Não" sem motivo continua o de sempre, e sem quem leve o editor não há "Ver"', async () => {

@@ -2,7 +2,7 @@ import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type R
 import { CollapsibleSection } from './CollapsibleSection'
 import { CloseIcon, SearchIcon, TokenIcon } from './icons'
 import { searchAdventure, type AdventureHit, type SceneSearchSource } from '../lib/buscaNaAventura'
-import type { GatherCandidate } from '../lib/gatherParty'
+import type { SendCandidate } from '../lib/gatherParty'
 import { filterMapObjects, mapObjectsOf, MAP_OBJECT_GROUPS, type MapObjectEntry } from '../lib/mapObjects'
 import type { AlvoDeMandar, ResultadoDeMandar } from '../stores/buscaDoMestre'
 import type { MapData } from '../types/map'
@@ -25,7 +25,7 @@ export interface MapObjectsSectionProps {
   /** Clique (ou Enter) num achado de outra cena: abre a cena e vai até ele (`irAoAchado`). */
   onGoToOther?: (hit: AdventureHit) => void
   /** Jogadores com ficha que o mestre pode mandar a um achado. Vazio ou ausente = sem "Mandar ficha". */
-  senders?: readonly GatherCandidate[]
+  senders?: readonly SendCandidate[]
   /** "Mandar ficha para cá" confirmado: quem vai e para onde. A resposta vira o aviso da seção. */
   onSendHere?: (playerId: string, target: AlvoDeMandar) => ResultadoDeMandar
 }

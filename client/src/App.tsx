@@ -45,7 +45,7 @@ import { useCenaQueEspera } from './stores/useCenaQueEspera'
 import type { TravelLogEntry } from './lib/travelLog'
 import { withStoredTokens } from './lib/storedTokens'
 import { loadSavedExploration, loadSavedTable, savedTableSummary, storeSavedExploration, storeSavedTable, type TableStorage } from './lib/savedTable'
-import { applyGatherPlan, gatherCandidates, planGather } from './lib/gatherParty'
+import { applyGatherPlan, gatherCandidates, planGather, sendCandidates } from './lib/gatherParty'
 import { RailTabs, type RailTab } from './components/RailTabs'
 import { ask } from '@tauri-apps/plugin-dialog'
 import { criarPedidoDeFechar } from './lib/avisoAoFechar'
@@ -2332,7 +2332,7 @@ function App() {
                   otherScenes={otherSceneSources}
                   onGoToOther={(hit) => void irAoAchado(hit)}
                   // "Mandar ficha para cá" só com a sala aberta: sem sala não há jogador para mandar.
-                  senders={room === null ? undefined : gatherCandidates(partyMembers(roomPlayers, roomPanelWorld()))}
+                  senders={room === null ? undefined : sendCandidates(partyMembers(roomPlayers, roomPanelWorld()))}
                   onSendHere={(playerId, target) => {
                     const bridge = hostBridgeRef.current
                     if (bridge === null) return { ok: false, mensagem: 'A sala não está aberta.' }
