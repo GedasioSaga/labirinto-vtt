@@ -129,6 +129,29 @@ describe('esconder-se no cliente do jogador', () => {
     expect(connection.getState().hide).toBeUndefined()
   })
 
+  it('a ficha pedida muda de dono: a espera acaba e o Cavalo, que ficou, pode pedir', () => {
+    const { connection, socket } = conectado()
+    const cavalo: Token = { id: 'ficha-cavalo', characterId: null, name: 'Cavalo', x: 200, y: 100, size: 1, image: null }
+    socket.receive(snapshotCom(1, [minha(), cavalo]))
+    expect(connection.requestHide('ficha-duda')).toBe(true)
+    // O mestre passa a ficha-duda para o Enzo: ela some do ownTokens (e do mapa) da Duda.
+    socket.receive(snapshotCom(2, [cavalo]))
+    expect(connection.getState().ownTokens).toEqual(['ficha-cavalo'])
+    expect(connection.getState().hide).toBeUndefined()
+    expect(connection.requestHide('ficha-cavalo')).toBe(true)
+    expect(socket.sent.at(-1)).toEqual({ type: 'token.hide.request', tokenId: 'ficha-cavalo' })
+  })
+
+  it('a recusa "unavailable" do host também encerra a espera, antes mesmo do snapshot', () => {
+    const { connection, socket } = conectado()
+    socket.receive(snapshot(1, minha()))
+    connection.requestHide('ficha-duda')
+    socket.receive({ type: 'token.hide.rejected', reason: 'unavailable' })
+    expect(connection.getState().hide).toMatchObject({ phase: 'rejected', reason: 'unavailable' })
+    vi.advanceTimersByTime(HIDE_NOTICE_TTL_MS)
+    expect(connection.getState().hide).toBeUndefined()
+  })
+
   it('reconectar esquece a espera: o host já esqueceu o pedido', () => {
     const { connection, socket } = conectado()
     socket.receive(snapshot(1, minha()))

@@ -4622,7 +4622,11 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       if (clientId === null) return { outbound: [] }
       const world = toWorld(source)
       // Mudou de dono entre o pedido e o "Deixar": a ficha é de outro agora, e ninguém pediu por ela.
-      if (!(ownership[pending.playerId] ?? []).includes(pending.tokenId)) return { outbound: [] }
+      // Quem pediu ainda espera a resposta; a recusa genérica não vaza nada, porque o `ownTokens`
+      // dela já contou que perdeu a ficha. Sem a recusa, o "Aguardando o mestre…" nunca sairia.
+      if (!(ownership[pending.playerId] ?? []).includes(pending.tokenId)) {
+        return reply(clientId, { type: 'token.hide.rejected', reason: 'unavailable' })
+      }
       const found = hideableTokenOf(pending.playerId, pending.tokenId, world)
       if (found === null) return reply(clientId, { type: 'token.hide.rejected', reason: 'unavailable' })
       return { outbound: [], applyHide: { tokenId: pending.tokenId, ...backgroundSceneId(found.scene, world) } }

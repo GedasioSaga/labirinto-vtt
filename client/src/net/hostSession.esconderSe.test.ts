@@ -217,6 +217,20 @@ describe('hostSession: esconder-se é pedido ao mestre', () => {
     const r = m.s.approveHide(id, m.world())
     expect(r.applyHide).toBeUndefined()
     expect(m.s.isHidePending(id)).toBe(false)
+    // Duda ainda espera a resposta: sem ela, o "Aguardando o mestre…" ficaria para sempre.
+    expect(r.outbound).toEqual([{ clientId: 'c-duda', msg: { type: 'token.hide.rejected', reason: 'unavailable' } }])
+  })
+
+  it('com outra ficha ainda dela, perder a pedida antes do "Deixar" encerra a espera e libera novo pedido', () => {
+    const m = mesa()
+    m.assignSegunda()
+    const id = pedir(m).hideRequest?.requestId ?? ''
+    m.s.assignToken(m.enzo, 'ficha-duda')
+    const r = m.s.approveHide(id, m.world())
+    expect(r.applyHide).toBeUndefined()
+    expect(r.outbound).toEqual([{ clientId: 'c-duda', msg: { type: 'token.hide.rejected', reason: 'unavailable' } }])
+    // A recusa não conta nada que o snapshot da Duda já não conte: a ficha-duda saiu do ownTokens dela.
+    expect(snapshotDe(m.s.broadcast(m.world()), 'c-duda').ownTokens).toEqual(['cavalo-duda'])
   })
 
   it('a ficha sumiu do mapa antes do "Deixar": Duda lê a recusa genérica', () => {

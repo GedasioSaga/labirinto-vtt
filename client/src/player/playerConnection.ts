@@ -1621,7 +1621,9 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     const hide = state.hide
     const hideDone =
       hide?.phase === 'waiting' && ownTokens.includes(hide.tokenId) && next.tokens.some((t) => t.id === hide.tokenId && t.secret === true)
-    if (hideDone) clearHideTimer()
+    // A ficha pedida mudou de dono: o pedido não tem mais a quem valer, e a espera travaria o botão.
+    const hideLost = hide?.phase === 'waiting' && !ownTokens.includes(hide.tokenId)
+    if (hideDone || hideLost) clearHideTimer()
     // O mapa chegou: quem pedia ficha já tem uma, e o pedido termina aqui.
     setState({
       status: 'playing',
@@ -1643,7 +1645,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       places,
       error: undefined,
       seatClaim: undefined,
-      ...(hideDone ? { hide: undefined } : {}),
+      ...(hideDone || hideLost ? { hide: undefined } : {}),
     })
   }
 
