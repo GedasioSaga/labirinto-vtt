@@ -236,6 +236,24 @@ auto/juntar-grandes` em `auto/acervo`. O que entrar depois nos dois ramos (as 3 
 mesma cena, do run antigo `wf_e3f23fdf-79d`) vai numa 2ª junção curta, perto das 15h15. A 2ª passada geral
 (`auto/juntar`) vai precisar juntar `auto/acervo` antes de voltar para ele, porque as grandes terão entrado por fora.
 
+**25/09, 00h30 — noite automática (usuário dormindo): o que roda e o que fazer a cada volta.**
+
+1. `wf_3c4bb722-2b5` (`scratchpad/publicar-grupos.js`): publica em `main` um grupo por vez, com push por grupo:
+   visão (termina o merge pela metade + consertos do grupo), defeitos, t-defeitos, t-medias-a, t-medias-b,
+   t-pequenas, t-ideias e as metades `-b`. Para no primeiro que falhar.
+2. `wf_319c925b-2b1` (`scratchpad/fabrica-v3.js`, args `scratchpad/noite-1.json`, 56 peças, 2 por vez): fábrica
+   contínua na branch única `auto/int-noite` (`C:/dev/labirinto-int-noite`, saiu de `auto/acervo` `767424e`):
+   16 consertos pendentes (tocha, zona oculta, testes secretos, esconder-se, mostrar pista, painel de pistas,
+   janela no escuro, eco do sinal, id repetido, passe, agenda, facção, lista branca, veículo, esteira, pisos) e 40
+   peças da onda 3. A cada 10 integradas: absorve `auto/acervo`, merge em `auto/acervo`, fase0 + tipos + unidade,
+   checagem de segredo, fast-forward de `main` e push (espera o `main` ficar livre se o outro workflow estiver
+   publicando).
+3. Quando (1) terminar: instalador 0.3.0 (mesmo formato da 0.2.0: versão, `npm run tauri:build`, tag, Release).
+4. Quando (2) terminar: lançar `scratchpad/fabrica-v3.js` com `scratchpad/noite-2.json` (71 peças, 3 por vez).
+   Os args vêm de `node scratchpad/gerar-noite.cjs` (rodar de novo recalcula o que falta).
+Regra da noite: no máximo ~5 agentes ao mesmo tempo no total; acima disso os pedidos ao modelo travam 3 min e o
+agente recomeça.
+
 **25/09, 00h00 — grandes em `main` e instalador 0.2.0 publicado.**
 
 - `git push origin main` b060f54..350cf4d: merge `350cf4d` de `auto/juntar-grandes` (confronto por cena, ajudante
