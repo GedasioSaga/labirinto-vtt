@@ -4,7 +4,7 @@ import { sceneTrail, type SceneEntry } from './adventure'
 import { carriedItemsOf, dropItemChange, giveNewItemChange, removeItemChange, type ItemChange } from './items'
 import { visibleTokens } from './layers'
 import { pinSummary } from './pins'
-import { pisoDe } from './pisos'
+import { mapaDoPiso, pisoDe } from './pisos'
 import { roomsAt } from './roomNesting'
 import type { DestinationMark } from './signals'
 import { tokenFillColor } from './tokenColor'
@@ -341,11 +341,13 @@ export interface SceneRoom {
 /** Sala sem nome ainda vira atalho: o mestre precisa conseguir escolher quem está lá. */
 export const UNNAMED_ROOM_LABEL = 'Sala sem nome'
 
-/** As Salas da ficha do membro, no mapa da cena dele. */
+/** As Salas da ficha do membro, no mapa da cena dele — só as do PISO da ficha. */
 function roomsOfMember(member: PartyMember, world: HostWorld): SceneRoom[] {
   const scene = allScenes(world).find((s) => s.sceneId === member.sceneId)
   if (scene === undefined || member.token === null) return []
-  return roomsAt(scene.map.regions, member.token).map((region) => {
+  // PISOS: a Adega do térreo embaixo da ficha no 1º piso não é onde ela está.
+  const regions = mapaDoPiso(scene.map, pisoDe(member.token)).regions
+  return roomsAt(regions, member.token).map((region) => {
     // `roomsAt` só devolve Sala; o `?? ''` é para o tipo, que não sabe disso.
     const name = (region.room?.name ?? '').trim()
     return { id: region.id, name: name === '' ? UNNAMED_ROOM_LABEL : name }

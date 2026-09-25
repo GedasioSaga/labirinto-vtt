@@ -2345,6 +2345,10 @@ export interface FloorMemoryView {
  * fechado, zona oculta e sala secreta continuam escondidas. `only` leva o
  * "QUEM VÊ" dos pinos (`pinAudiences` + `playerId`): pino escolhido só para
  * outro jogador não sai nem pela memória do andar.
+ *
+ * PISOS NA MESMA CENA: sem ninguém olhando, o recorte é sempre o TÉRREO
+ * (`pisoDoGrupo` de grupo vazio). `explored` e `seenDoors` têm de ser a memória
+ * do térreo: a de outro piso recortaria o térreo pelo que ele viu em cima.
  */
 export function filterFloorMemory(
   map: MapData,

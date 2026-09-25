@@ -2274,7 +2274,9 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       if (floor === undefined || other.map.id === scene.map.id || !sameBuilding(here, floor)) continue
       // Dois andares com o mesmo rótulo seriam duas abas iguais: vale o primeiro, e nunca o do andar dele.
       if (floor.rotulo === here.rotulo || outros.some((o) => o.rotulo === floor.rotulo)) continue
-      const memory = existingMemory(playerId, other.map)
+      // PISOS: a aba mostra o TÉRREO do andar (`filterFloorMemory` recorta o térreo), então a
+      // memória é a do térreo — a do piso da ficha dele lá recortaria o térreo pelo que ele viu em cima.
+      const memory = existingMemory(playerId, other.map, 0)
       if (memory === undefined) continue
       // "QUEM VÊ": pino escolhido só para outro jogador não sai nem pela memória do andar.
       const view = filterFloorMemory(other.map, memory.exp, memory.doors, { pinAudiences, playerId, seenRooms: memory.seenRooms })
