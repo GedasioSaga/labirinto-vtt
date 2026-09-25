@@ -97,6 +97,7 @@ function TableSession({ connection, code, onChangeCode }: { connection: PlayerCo
           concealed={state.concealed}
           hazards={state.hazards}
           gatilhos={state.gatilhos}
+          porAtravessar={state.porAtravessar}
           ownTokens={NO_TOKENS}
           settings={settings}
           focusTokenId={null}
