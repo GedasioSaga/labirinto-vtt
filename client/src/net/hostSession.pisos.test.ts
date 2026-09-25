@@ -277,4 +277,26 @@ describe('hostSession — pisos na mesma cena', () => {
     expect(result.triggerEntries?.map((e) => e.tokenName)).toEqual(['nome-caio'])
     expect(result.hazardEntries?.map((e) => e.tokenName)).toEqual(['nome-caio'])
   })
+
+  it('ação no ponto: o mestre lê o nome da sala do piso de quem pediu, não a menor sala de outro piso', () => {
+    const t = mesa()
+    // A Adega é do térreo e fica exatamente debaixo de (300, 300), onde o Caio está no 1º piso.
+    const adega = sala('adega', 'Adega', {
+      points: [
+        { x: 250, y: 250 },
+        { x: 350, y: 250 },
+        { x: 350, y: 350 },
+        { x: 250, y: 350 },
+      ],
+    })
+    const map = predio({ regions: [sala('hall', 'Hall de entrada'), adega, sala('biblioteca', 'Biblioteca proibida', { piso: 1 })] })
+    t.s.assignToken(t.entra('c1', 'Ana', map), 'lia')
+    t.s.assignToken(t.entra('c2', 'Bia', map), 'caio')
+    t.s.broadcast(map)
+    const laEmCima = t.s.handleMessage('c2', { type: 'point.action', action: 'procurar', x: 300, y: 300 }, map)
+    expect(laEmCima.pointAction?.roomName).toBe('Biblioteca proibida')
+    // Pré-condição: no térreo, o mesmo ponto é a Adega (a menor sala ali).
+    const embaixo = t.s.handleMessage('c1', { type: 'point.action', action: 'procurar', x: 300, y: 300 }, map)
+    expect(embaixo.pointAction?.roomName).toBe('Adega')
+  })
 })

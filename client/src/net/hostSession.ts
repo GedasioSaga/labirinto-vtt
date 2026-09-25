@@ -3357,7 +3357,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
         action: msg.action,
         x: point.x,
         y: point.y,
-        roomName: roomNameAt(map, point),
+        // PISOS: a sala do piso de quem pediu; o mapa inteiro daria a menor sala de outro piso no mesmo x/y.
+        roomName: roomNameAt(floorMapOf(playerId, map), point),
         sceneId: scene.sceneId,
         sceneName: scene.name,
         background: scene !== world.open && scene.sceneId !== null,
