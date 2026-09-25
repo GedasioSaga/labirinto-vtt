@@ -1014,8 +1014,15 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
         {/* Depois do painel no DOM: o Tab segue a leitura (painel no alto à esquerda, zoom embaixo à direita). */}
         <PlayerZoomControls canZoomIn={zoomLimits.canZoomIn} canZoomOut={zoomLimits.canZoomOut} onZoom={requestZoomStep} />
         <PlayerTurnBanner turn={state.turn} ownTokens={ownTokens} tokens={state.map.tokens} />
-        {/* PISOS NA MESMA CENA: só com a ficha dele encostada numa escada que liga pisos. */}
-        <PlayerEscada map={state.map} ownTokens={ownTokens} onTrocar={(tokenId, stairId) => connection.changeFloor(tokenId, stairId)} />
+        {/* PISOS NA MESMA CENA: só com a ficha dele encostada numa escada que liga pisos, e fora das travas do passo. */}
+        <PlayerEscada
+          map={state.map}
+          ownTokens={ownTokens}
+          turn={state.turn}
+          confronto={state.confronto}
+          paused={state.paused === true}
+          onTrocar={(tokenId, stairId) => connection.changeFloor(tokenId, stairId)}
+        />
         {/* CONFRONTO na cena dele: de quem é a vez e o que resta do passo. */}
         {state.confronto && <ConfrontoFaixa confronto={state.confronto} tokens={state.map.tokens} />}
         {noteDraft && (

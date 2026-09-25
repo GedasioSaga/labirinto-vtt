@@ -191,6 +191,30 @@ describe('hostSession — pisos na mesma cena', () => {
     expect(JSON.stringify(snap)).toContain('Hall de entrada')
   })
 
+  it('passar fichas e mapa: quem recebe herda a memória de cada piso no piso dela, sem o 1º piso vazar para o térreo', () => {
+    const t = mesa()
+    // A Lia (Ana) está no 1º piso, em (850, 500): de lá o CANTO fica além do raio, em qualquer piso.
+    const emCima = comFicha(predio(), 'lia', { piso: 1, x: 850, y: 500 })
+    const ana = t.entra('c1', 'Ana', emCima)
+    const carla = t.entra('c3', 'Carla', emCima)
+    t.s.assignToken(ana, 'lia')
+    t.snapshotPara('c1', emCima)
+    // "Revelar planta" à Ana marca só o piso onde ela está: o CANTO do 1º piso fica lembrado.
+    t.s.revealPlan(ana, emCima)
+    expect(isPointExplored(exploradoDe(t.snapshotPara('c1', emCima)), CANTO)).toBe(true)
+    t.s.disconnect('c1')
+    expect(t.s.handOverPlayer(ana, carla)?.handedTokens).toEqual(['lia'])
+    // A Carla, no 1º piso, lembra o que a Ana lembrava de lá (a ficha nunca viu o CANTO: só a planta).
+    const carlaEmCima = t.snapshotPara('c3', emCima)
+    expect(carlaEmCima.ownTokens).toEqual(['lia'])
+    expect(isPointExplored(exploradoDe(carlaEmCima), CANTO)).toBe(true)
+    // A Lia desce no mesmo ponto: o térreo da Carla não ganhou a planta do 1º piso.
+    const embaixo = comFicha(emCima, 'lia', { piso: undefined })
+    expect(isPointExplored(exploradoDe(t.snapshotPara('c3', embaixo)), CANTO)).toBe(false)
+    // E ao subir de novo, a memória herdada do 1º piso continua lá.
+    expect(isPointExplored(exploradoDe(t.snapshotPara('c3', emCima)), CANTO)).toBe(true)
+  })
+
   it('mover: só a parede do piso da ficha segura o passo', () => {
     const t = mesa()
     const map = predio()
