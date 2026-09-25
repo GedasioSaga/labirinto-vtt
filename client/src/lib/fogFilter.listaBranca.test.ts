@@ -18,8 +18,11 @@ const FOTO = 'data:image/png;base64,iVBORw0KGgo='
  * Tudo o que a ficha PODE levar até a tela do jogador; qualquer outra chave é
  * vazamento. `contrato` só vai na ficha EMPRESTADA a quem a segura — neste
  * recorte não há empréstimo, então ele não pode aparecer (ver o teste dele).
+ * `emprestada` (NPC EMPRESTADO) vai só na ficha de NPC que o próprio jogador
+ * segura sem acordo — aqui, "arco" —, nunca a gravada no mapa do mestre (ver
+ * `fogFilter.npcEmprestado.test.ts`).
  */
-const CAMPOS_DO_JOGADOR = new Set(['id', 'characterId', 'name', 'x', 'y', 'size', 'image', 'imageData', 'rotation', 'color', 'conditions', 'health', 'alerta', 'secret', 'mochila'])
+const CAMPOS_DO_JOGADOR = new Set(['id', 'characterId', 'name', 'x', 'y', 'size', 'image', 'imageData', 'rotation', 'color', 'conditions', 'health', 'alerta', 'secret', 'mochila', 'emprestada'])
 
 function ficha(id: string, name: string, x: number, extra: Partial<Token> = {}): Token {
   return { id, characterId: null, name, x, y: 100, size: 1, image: null, ...extra }
