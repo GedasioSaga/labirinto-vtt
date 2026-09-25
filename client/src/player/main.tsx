@@ -20,6 +20,7 @@ import { PlayerZoomControls } from './PlayerZoomControls'
 import { PlayerSceneName } from './PlayerSceneName'
 import { PlayerScreenAwake } from './PlayerScreenAwake'
 import { useScreenWakeLock } from './screenWakeLock'
+import { PlayerEscada } from './PlayerEscada'
 import { NO_ZOOM_STEP, type ZoomDirection, type ZoomLimits, type ZoomStepRequest } from './playerZoom'
 import { PlayerAlarmBanner } from './PlayerAlarmBanner'
 import { PlayerTurnBanner, TurnWaitNotice } from './PlayerTurnBanner'
@@ -975,6 +976,8 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
         {/* Depois do painel no DOM: o Tab segue a leitura (painel no alto à esquerda, zoom embaixo à direita). */}
         <PlayerZoomControls canZoomIn={zoomLimits.canZoomIn} canZoomOut={zoomLimits.canZoomOut} onZoom={requestZoomStep} />
         <PlayerTurnBanner turn={state.turn} ownTokens={ownTokens} tokens={state.map.tokens} />
+        {/* PISOS NA MESMA CENA: só com a ficha dele encostada numa escada que liga pisos. */}
+        <PlayerEscada map={state.map} ownTokens={ownTokens} onTrocar={(tokenId, stairId) => connection.changeFloor(tokenId, stairId)} />
         {/* CONFRONTO na cena dele: de quem é a vez e o que resta do passo. */}
         {state.confronto && <ConfrontoFaixa confronto={state.confronto} tokens={state.map.tokens} />}
         {noteDraft && (

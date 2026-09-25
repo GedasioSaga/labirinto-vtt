@@ -23,6 +23,7 @@ import {
   singleSceneWorld,
   type AppliedItems,
   type AppliedMove,
+  type AppliedPiso,
   type AppliedTokenEdit,
   type DoorKeyUse,
   type DoorRequest,
@@ -141,6 +142,12 @@ export interface HostBridgeDeps {
    * ponte sem este retorno simplesmente não oferece a edição ao jogador.
    */
   applyTokenEdit?: (edit: AppliedTokenEdit) => void
+  /**
+   * PISOS NA MESMA CENA: a ficha do jogador subiu/desceu pela escada, já
+   * validada pela sessão. Opcional como `applyTokenEdit`: sem ele, o pedido do
+   * jogador simplesmente não muda nada.
+   */
+  applyPiso?: (change: AppliedPiso) => void
   /**
    * O mestre deixou o jogador passar: mover o token entre as cenas. `false`
    * quando não deu (cena sumiu, token sumiu) — o jogador recebe a recusa em
@@ -1838,6 +1845,11 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     if (result.applyTokenEdit !== undefined && deps.applyTokenEdit !== undefined) {
       // Mesma regra da porta: o mestre vê pela store, os outros jogadores pelo snapshot imediato.
       deps.applyTokenEdit(result.applyTokenEdit)
+      broadcastNow()
+    }
+    if (result.applyPiso !== undefined && deps.applyPiso !== undefined) {
+      // O jogador que subiu recebe o piso novo, e quem ficou deixa de vê-lo, no snapshot imediato.
+      deps.applyPiso(result.applyPiso)
       broadcastNow()
     }
     notifyPlayersIfChanged()

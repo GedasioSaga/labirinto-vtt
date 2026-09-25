@@ -45,6 +45,8 @@ import { LightControls, type LightControlsProps } from './LightControls'
 import { TokenLightsControls, type TokenLightsControlsProps } from './TokenLightsControls'
 import { WallLineStyleField, WallStyleControls, type WallStyleControlsProps } from './WallStyleControls'
 import { StairControls, type StairControlsProps } from './StairControls'
+import { LevarAoPisoControls, PisoControls } from './PisoControls'
+import { pisoDe } from '../lib/pisos'
 import { RoomControls, type RoomControlsProps } from './RoomControls'
 import type { MapScaleControlsProps } from './MapScaleControls'
 import type { GridAlignControlsProps } from './GridAlignControls'
@@ -199,6 +201,11 @@ interface PropertiesPanelProps {
   lightControls: Omit<LightControlsProps, 'color' | 'intensity' | 'attachedTokenId'>
   selectedStair: Stair | null
   stairControls: Omit<StairControlsProps, 'direction' | 'shape'>
+  /**
+   * PISOS NA MESMA CENA: "Piso" da ficha e da escada, e "Leva ao piso" da
+   * escada. Ausente = sem os campos (quem monta o painel sem essa ligação).
+   */
+  pisos?: PisosWiring
   polygonSides: PolygonSidesControlsProps
   /** Chão por peças — peça selecionada (`null` = nenhuma) e seus controles. */
   selectedFloorPiece: FloorPiece | null
@@ -221,6 +228,18 @@ interface PropertiesPanelProps {
   pinSelected: boolean
   /** Estante de NPCs prontos, global do app (pedido de 18/09/2026). */
   tokenLibrary: TokenLibraryPanelProps
+}
+
+/** PISOS NA MESMA CENA — as gravações do painel, por id (a seleção quem sabe é o painel). */
+export interface PisosWiring {
+  onTokenPisoChange: (tokenId: string, piso: number) => void
+  onStairPisosChange: (stairId: string, mudanca: { piso?: number; levaAoPiso?: number | null }) => void
+  /** O piso em edição no editor (o que o canvas mostra e onde o mestre constrói). */
+  pisoAtivo: number
+  /** "Editar o 1º piso" da escada: leva o editor ao outro lado dela. */
+  onEditarPiso: (piso: number) => void
+  /** "Levar ao piso" da seleção inteira; o editor vai junto. */
+  onLevarSelecaoAoPiso: (piso: number) => void
 }
 
 /**
@@ -294,6 +313,7 @@ export function PropertiesPanel({
   lightControls,
   selectedStair,
   stairControls,
+  pisos,
   polygonSides,
   selectedFloorPiece,
   floorPieceControls,
@@ -566,6 +586,9 @@ export function PropertiesPanel({
             <TokenImageControls image={tokenPhotoRef(selectedToken)} {...tokenImage} />
             <TokenNpcControls npc={selectedToken.npc === true} {...tokenNpc} />
             {rotinaDaFicha}
+            {pisos !== undefined && (
+              <PisoControls key={`piso-${selectedToken.id}`} piso={pisoDe(selectedToken)} onPisoChange={(piso) => pisos.onTokenPisoChange(selectedToken.id, piso)} />
+            )}
             {/* `key`: outra ficha selecionada reabre fechado, sem a escolha da anterior.
                 Prefixada: o nome acima já usa o id puro, e chave repetida entre
                 irmãos deixa o campo Nome da ficha anterior no painel. */}
@@ -609,11 +632,26 @@ export function PropertiesPanel({
         {selectedStair && (
           <ToolPropertiesSection group="stairControls" groups={groups}>
             <StairControls direction={selectedStair.direction} shape={selectedStair.shape} {...stairControls} />
+            {pisos !== undefined && (
+              <PisoControls
+                key={`piso-${selectedStair.id}`}
+                piso={pisoDe(selectedStair)}
+                onPisoChange={(piso) => pisos.onStairPisosChange(selectedStair.id, { piso })}
+                levaAoPiso={selectedStair.levaAoPiso ?? null}
+                onLevaAoPisoChange={(levaAoPiso) => pisos.onStairPisosChange(selectedStair.id, { levaAoPiso })}
+                pisoAtivo={pisos.pisoAtivo}
+                onEditarPiso={pisos.onEditarPiso}
+              />
+            )}
           </ToolPropertiesSection>
         )}
         <ToolPropertiesSection group="selection" groups={groups}>
           <AreaSelectionControls {...areaSelection} />
           <AlignDistributeControls {...alignDistribute} />
+          {/* PISOS NA MESMA CENA: parede, sala, chão, luz, objeto, desenho — tudo sobe ou desce um piso por aqui. */}
+          {pisos !== undefined && selection.selection !== null && (
+            <LevarAoPisoControls pisoAtivo={pisos.pisoAtivo} onLevar={pisos.onLevarSelecaoAoPiso} />
+          )}
           <SelectionControls {...selection} />
         </ToolPropertiesSection>
         {/* Cenas da aventura: depois do bloco da ferramenta e do objeto, junto das

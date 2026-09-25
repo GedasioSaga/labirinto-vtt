@@ -528,6 +528,18 @@ export interface SeatClaimMessage {
   tokenId: string
 }
 
+/**
+ * PISOS NA MESMA CENA — o jogador toca "Subir"/"Descer" com a ficha `tokenId`
+ * encostada na escada `stairId`. Só os dois ids: o piso de destino quem diz é
+ * a escada no mapa do mestre (`net/hostSession.ts`), nunca o jogador. Aditiva
+ * pelo critério de `door.toggle`: mestre antigo responde `invalid_message`.
+ */
+export interface TokenPisoMessage {
+  type: 'token.piso'
+  tokenId: string
+  stairId: string
+}
+
 export type PlayerMessage =
   | JoinMessage
   | SeatClaimMessage
@@ -547,6 +559,7 @@ export type PlayerMessage =
   | ClueReadMessage
   | CluePeersRequestMessage
   | ClueShowMessage
+  | TokenPisoMessage
   | CallRaiseMessage
   | CallLowerMessage
   | PointActionMessage
@@ -1587,6 +1600,10 @@ export function parsePlayerMessage(raw: unknown): PlayerMessage | null {
       return isBoundedString(value.pinId, 1, REQ_ID_MAX_LENGTH) ? { type: 'pin.lever', pinId: value.pinId } : null
     case 'seat.claim':
       return isBoundedString(value.tokenId, 1, REQ_ID_MAX_LENGTH) ? { type: 'seat.claim', tokenId: value.tokenId } : null
+    case 'token.piso':
+      return isBoundedString(value.tokenId, 1, REQ_ID_MAX_LENGTH) && isBoundedString(value.stairId, 1, REQ_ID_MAX_LENGTH)
+        ? { type: 'token.piso', tokenId: value.tokenId, stairId: value.stairId }
+        : null
     default:
       return null
   }
