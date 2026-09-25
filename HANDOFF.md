@@ -236,6 +236,28 @@ auto/juntar-grandes` em `auto/acervo`. O que entrar depois nos dois ramos (as 3 
 mesma cena, do run antigo `wf_e3f23fdf-79d`) vai numa 2ª junção curta, perto das 15h15. A 2ª passada geral
 (`auto/juntar`) vai precisar juntar `auto/acervo` antes de voltar para ele, porque as grandes terão entrado por fora.
 
+**25/09, 02h10 — INCIDENTE: `node_modules` principal danificado (causado pelo orquestrador). Precisa do usuário.**
+
+- Causa: às ~01h o orquestrador rodou `git worktree remove` na árvore parada `.claude/worktrees/wf_319c925b-2b1-3`
+  sem antes remover as junctions de `node_modules`. O git entrou pela junction e apagou, em
+  `C:/dev/labirinto/node_modules`, a pasta `.bin` e os pacotes `@asamuzakjp/*`, `@babel/*`, `@bramus/*` e
+  `@csstools/*` (30 pacotes de dev), até travar no `@esbuild` em uso ("Invalid argument").
+- Efeito: `--so=unidade` cai nos testes com jsdom ("Cannot find module '@asamuzakjp/css-color'") e as jornadas
+  não sobem o vite ("'vite' não é reconhecido"). `tipos-src` continua verde. Toda prova sai `PROVA_AMBIENTE`.
+- Conserto (pedido ao usuário; o `npm install` foi negado pela permissão automática e não foi contornado):
+  `npm install --no-save --prefer-offline --no-audit --no-fund` em `C:/dev/labirinto` (só restaura o que o
+  lockfile já tem; `--no-save` não grava o lockfile). Conferir depois: `ls node_modules/.bin/vite` e
+  `node -e` comparando `package-lock.json` com o disco (0 faltando, fora os opcionais de outra plataforma).
+- Depois do conserto: re-provar as peças que saíram `PROVA_AMBIENTE` da fábrica `wf_f7c100fc-85d` (branches
+  `auto/f2-<id>` com os worktrees em `.claude/worktrees/wf_f7c100fc-85d-*`) e retomar `publicar-grupos`.
+- Regra nova (memória `fabrica-de-features`): `cmd //c rmdir` nas junctions ANTES de qualquer `git worktree remove`.
+
+**25/09, 01h05 — fábrica relançada como `wf_f7c100fc-85d`.** O builder isolado em worktree não conseguia
+`git status/add/commit` (o hook do rtk reescreve para `rtk git` e a guarda de isolamento recusa) e a ferramenta
+PowerShell travou na máquina (6 `powershell.exe` presos; o `taskkill` foi negado pela permissão automática).
+Regra nova no `fabrica-v3.js`: `git.exe` nesses subcomandos, um comando por chamada. A tocha continuou do commit
+`b192c4d` como `tocha-presa-na-ficha-4`.
+
 **25/09, 00h30 — noite automática (usuário dormindo): o que roda e o que fazer a cada volta.**
 
 1. `wf_3c4bb722-2b5` (`scratchpad/publicar-grupos.js`): publica em `main` um grupo por vez, com push por grupo:
