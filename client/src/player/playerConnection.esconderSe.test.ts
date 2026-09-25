@@ -54,8 +54,12 @@ function conectado() {
 
 const minha = (extra: Partial<Token> = {}): Token => ({ id: 'ficha-duda', characterId: null, name: 'Duda', x: 100, y: 100, size: 1, image: null, ...extra })
 
+function snapshotCom(rev: number, tokens: Token[]) {
+  return { type: 'snapshot', rev, map: { ...createEmptyMap('m1', '', 10, 10, 50), tokens }, vision: [], ownTokens: tokens.map((t) => t.id), concealed: [] }
+}
+
 function snapshot(rev: number, token: Token) {
-  return { type: 'snapshot', rev, map: { ...createEmptyMap('m1', '', 10, 10, 50), tokens: [token] }, vision: [], ownTokens: [token.id], concealed: [] }
+  return snapshotCom(rev, [token])
 }
 
 describe('esconder-se no cliente do jogador', () => {
@@ -108,6 +112,20 @@ describe('esconder-se no cliente do jogador', () => {
     socket.receive(snapshot(2, minha()))
     expect(connection.getState().hide?.phase).toBe('waiting')
     socket.receive(snapshot(3, minha({ secret: true })))
+    expect(connection.getState().hide).toBeUndefined()
+  })
+
+  it('só a ficha pedida encerra a espera: outra ficha própria já oculta não conta', () => {
+    const { connection, socket } = conectado()
+    // Duda tem duas fichas; o Cavalo o mestre já tinha deixado oculto.
+    const cavalo: Token = { id: 'ficha-cavalo', characterId: null, name: 'Cavalo', x: 200, y: 100, size: 1, image: null, secret: true }
+    socket.receive(snapshotCom(1, [minha(), cavalo]))
+    expect(connection.requestHide('ficha-duda')).toBe(true)
+    // Qualquer movimento na mesa: o snapshot comum ainda traz o Cavalo oculto.
+    socket.receive(snapshotCom(2, [minha({ x: 150 }), cavalo]))
+    expect(connection.getState().hide?.phase).toBe('waiting')
+    // O mestre deixou: agora é a ficha pedida que chega oculta.
+    socket.receive(snapshotCom(3, [minha({ x: 150, secret: true }), cavalo]))
     expect(connection.getState().hide).toBeUndefined()
   })
 

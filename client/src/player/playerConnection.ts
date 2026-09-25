@@ -329,8 +329,8 @@ export interface DoorNotice {
 /** `sent`: saiu para o mestre; `opened`/`denied`: a resposta dele; o resto: o host nem levou ao mestre. */
 export type DoorRequestPhase = 'sent' | DoorRequestAnswer | DoorRequestRejection
 
-/** Onde está o pedido de esconder-se. `id` novo repete o aviso. */
-export type HideNotice = { id: number; phase: 'waiting' } | { id: number; phase: 'rejected'; reason: TokenHideRejection }
+/** Onde está o pedido de esconder-se. `id` novo repete o aviso; `tokenId` é a ficha pedida — só ela encerra a espera. */
+export type HideNotice = { id: number; phase: 'waiting'; tokenId: string } | { id: number; phase: 'rejected'; reason: TokenHideRejection }
 
 /**
  * Onde está o pedido de passagem pelo pino de viagem. `waiting` fica até o
@@ -1616,9 +1616,11 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     const { place, places: remembered } = where
     const places = place === undefined ? state.places : rememberPlace(state.places ?? [], place, map, explored, concealed, remembered)
     // `sceneName` entra SEMPRE, inclusive `undefined`: snapshot sem nome apaga o selo da cena anterior.
-    // ESCONDER-SE: o mestre deixou — a própria ficha chega oculta para jogadores, e a espera acaba.
-    const ownSet = new Set(ownTokens)
-    const hideDone = state.hide?.phase === 'waiting' && next.tokens.some((t) => ownSet.has(t.id) && t.secret === true)
+    // ESCONDER-SE: o mestre deixou — a ficha PEDIDA chega oculta para jogadores, e a espera acaba.
+    // Só ela conta: outra ficha própria que o mestre já ocultou chega com `secret` em todo snapshot.
+    const hide = state.hide
+    const hideDone =
+      hide?.phase === 'waiting' && ownTokens.includes(hide.tokenId) && next.tokens.some((t) => t.id === hide.tokenId && t.secret === true)
     if (hideDone) clearHideTimer()
     // O mapa chegou: quem pedia ficha já tem uma, e o pedido termina aqui.
     setState({
@@ -2366,7 +2368,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       if (token === undefined || token.secret === true) return false
       if (!send({ type: 'token.hide.request', tokenId })) return false
       clearHideTimer()
-      setState({ hide: { id: nextNoticeId++, phase: 'waiting' } })
+      setState({ hide: { id: nextNoticeId++, phase: 'waiting', tokenId } })
       return true
     },
 
