@@ -71,6 +71,15 @@ describe('PlayerEscada — subir e descer na tela do jogador', () => {
     expect(botao()).toBeNull()
   })
 
+  it('ficha travada pelo mestre (cadeado) na escada, no mapa que o RECORTE entrega: nenhum botão', () => {
+    const recorte = filterMapForPlayer(mapa([{ ...ficha('lia', 200, 220), locked: true }]), 'p1', { p1: ['lia'] }, 400).map
+    render(recorte, ['lia'])
+    expect(botao()).toBeNull()
+    // Pré-condição: sem o cadeado, o mesmo recorte oferece o botão.
+    render(filterMapForPlayer(mapa([ficha('lia', 200, 220)]), 'p1', { p1: ['lia'] }, 400).map, ['lia'])
+    expect(botao()?.textContent).toBe('Subir ao 1º piso')
+  })
+
   it('depois do toque espera o host ("Subindo…", indisponível) e não manda de novo; sem resposta, volta a valer', () => {
     vi.useFakeTimers()
     const onTrocar = vi.fn()

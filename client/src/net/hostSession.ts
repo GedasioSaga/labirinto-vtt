@@ -35,7 +35,7 @@ import { CLUEBOOK_MAX_CLUES } from '../lib/clues'
 import { visionRadiusAtHour } from '../lib/campaignClock'
 import { sameBuilding, sortFloorLabels } from '../lib/buildingFloors'
 import { turnTokenIdOn, type TurnRef } from '../lib/initiative'
-import { validateTokenMove } from '../lib/moveValidation'
+import { travaDaFichaDoJogador, validateTokenMove } from '../lib/moveValidation'
 import { tokensOccupy } from '../lib/movementRules'
 import { escadaDaFicha, mapaDoPiso, pisoDe } from '../lib/pisos'
 import { confrontoParaJogador, fichaDaVez } from '../lib/confronto'
@@ -3731,6 +3731,9 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const token = map.tokens.find((t) => t.id === msg.tokenId)
     const stair = map.stairs.find((s) => s.id === msg.stairId)
     if (token === undefined || stair === undefined) return { outbound: [] }
+    // As travas do passo seguram a escada também: cadeado do mestre, vez da
+    // iniciativa e vez do confronto (senão a ficha "foge" de piso sem gastar passo).
+    if (travaDaFichaDoJogador(map, token, turnTokenIdOn(options.getTurn?.() ?? null, map)) !== null) return { outbound: [] }
     const escada = escadaDaFicha({ stairs: [stair], grid: map.grid }, token)
     if (escada === null) return { outbound: [] }
     return { outbound: [], applyPiso: { tokenId: token.id, piso: escada.destino, ...backgroundSceneId(scene, world) } }

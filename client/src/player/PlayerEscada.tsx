@@ -24,11 +24,13 @@ interface Alvo {
   destino: number
 }
 
-/** A primeira ficha do jogador encostada numa escada que liga pisos. */
+/** A primeira ficha do jogador, sem cadeado, encostada numa escada que liga pisos. */
 function alvoDoMapa(map: MapData, ownTokens: readonly string[]): Alvo | null {
   const own = new Set(ownTokens)
   for (const token of map.tokens) {
     if (!own.has(token.id)) continue
+    // Cadeado do mestre: o host recusa a escada como recusa o passo, então nem oferece.
+    if (token.locked === true) continue
     const escada = escadaDaFicha(map, token)
     if (escada !== null) return { tokenId: token.id, stairId: escada.stairId, piso: pisoDe(token), destino: escada.destino }
   }
