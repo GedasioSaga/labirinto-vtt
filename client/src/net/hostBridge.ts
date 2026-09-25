@@ -1,11 +1,12 @@
 import type { InvokeArgs } from '@tauri-apps/api/core'
 import type { UnlistenFn } from '@tauri-apps/api/event'
-import { useToastStore } from '../stores/toastStore'
-import type { MapData, RegionPoint, Token } from '../types/map'
+import { useToastStore, type ToastAction, type ToastResposta } from '../stores/toastStore'
+import type { MapData, PinPassage, RegionPoint, Token } from '../types/map'
 import { LASER_MAX_POINTS_PER_MESSAGE, LASER_SEND_INTERVAL_MS } from '../lib/laser'
 import { pointActionMasterText, type PointActionAnswer } from '../lib/pointActions'
 import type { StoredToken } from '../lib/storedTokens'
 import { addTravel, travelLogEntry, undoableTravelIds, withoutTravel, type TravelLogEntry } from '../lib/travelLog'
+import { createArrivalAnnouncer } from './avisoDeChegada'
 import {
   preferredRoomCode,
   reclaimText,
@@ -18,15 +19,22 @@ import {
 import type { ChamadaAceita, MovimentoDeCabine } from '../lib/cabine'
 import {
   createHostSession,
+  ownTokenIdsOf,
   singleSceneWorld,
   type AppliedItems,
+  type AppliedMove,
   type AppliedTokenEdit,
+  type DoorKeyUse,
   type DoorRequest,
   type ItemRequest,
   type AppliedTransfer,
+  type CaravanStop,
   type HazardEntryNotice,
+  type GatherArrival,
   type HeldTokens,
   type ChamadaParaMestre,
+  type HostDiceRoll,
+  type AreaTriggerEntryNotice,
   type HostResult,
   type HostPlayerLaser,
   type HostSession,
@@ -35,11 +43,15 @@ import {
   type MasterCall,
   type LetterRequest,
   type LoanTerms,
+  type PinKeyUse,
+  type MapChangeCause,
+  type Outbound,
   type PlayerInfo,
   type PlayerNoteDelivery,
   type PointActionRequest,
   type ReclaimedSeat,
   type ReturnCandidate,
+  type SeatClaim,
   type TravelRequest,
 } from './hostSession'
 import {
@@ -57,6 +69,8 @@ import { createPlayerScreens, type PlayerScreen } from './playerScreens'
 import { guardSightingNotices } from './guardNotices'
 import type { TurnRef } from '../lib/initiative'
 import { hazardEntryLine } from '../lib/hazards'
+import type { DiceRequest } from '../lib/dice'
+import { areaTriggerEntryLine } from '../lib/areaTriggers'
 
 /**
  * Costura entre a sessão pura (`hostSession`) e o transporte Rust (comandos
@@ -99,6 +113,13 @@ export interface HostBridgeDeps {
   getWorld?: () => HostWorld
   /** `sceneId`: cena de FUNDO onde o token está; ausente = a cena aberta no editor. */
   applyMove: (tokenId: string, x: number, y: number, sceneId?: string) => void
+  /**
+   * CARAVANA: fichas do grupo que acompanham a caravana, SEM passar pelo
+   * desfazer. Elas são consequência da edição que as disparou (o arrasto do
+   * mestre, que já tem o seu passo): com histórico, cada Ctrl+Z desfaria um
+   * seguidor só, e o seguidor refeito apagaria o refazer. Ausente = `applyMove`.
+   */
+  applyCaravanMoves?: (moves: readonly AppliedMove[]) => void
   /** Porta que o jogador abriu/fechou, já validada pela sessão (visível, destrancada, token perto). `sceneId` como em `applyMove`. */
   applyDoor: (wallId: string, open: boolean, sceneId?: string) => void
   /**
@@ -140,6 +161,12 @@ export interface HostBridgeDeps {
    * chamada não chega a lugar nenhum (e o mestre não é avisado).
    */
   applyChamadaDeCabine?: (chamada: ChamadaAceita) => boolean
+  /**
+   * "Passar para pede" do pedido pelo pino trancado: trocar o modo do pino
+   * `pinId` (na cena de fundo `sceneId`, quando vier; ausente = a aberta).
+   * Sem este retorno a linha do pedido trancado não oferece "Passar para pede".
+   */
+  setPinPassage?: (pinId: string, passagem: PinPassage, sceneId?: string) => void
   /** "Ir lá" do aviso de chegada: abrir `sceneId` no editor com (`x`, `y`) no centro. */
   onGoToScene?: (sceneId: string, x: number, y: number) => void
   visionRadius?: number
@@ -158,6 +185,8 @@ export interface HostBridgeDeps {
   onPlayerLaser?: (laser: HostPlayerLaser) => void
   /** INICIATIVA: de quem é a vez no mestre. O jogador só recebe o recorte (`turnForPlayer`). */
   getTurn?: () => TurnRef | null
+  /** RELÓGIO DA CAMPANHA: a hora do dia no mestre. O jogador só recebe o recorte (`clockForPlayer`). */
+  getClock?: () => number | null
   /** TELA DA MESA: quantas telas estão conectadas mudou (entrou, caiu, sala fechou). */
   onTableScreensChange?: (screens: number) => void
   /** Chamado NOVO de um jogador: o bipe. A linha na caixa "Chamados" a ponte já põe. */
@@ -190,6 +219,8 @@ export interface HostBridgeDeps {
   loadExploration?: () => SavedExploration | null
   /** Grava o mapa explorado pouco depois de mudar e ao fechar a sala. Ausente = nada é gravado. */
   saveExploration?: (exploration: SavedExploration) => void
+  /** DADO ROLADO NA SALA: toda rolagem da mesa (a de um jogador e a do mestre, a escondida marcada). */
+  onDiceRoll?: (roll: HostDiceRoll) => void
   now?: () => number
 }
 
@@ -201,7 +232,11 @@ export interface StartOptions {
 export interface HostBridge {
   start(options?: StartOptions): Promise<RoomInfo>
   stop(): Promise<void>
-  notifyMapChanged(): void
+  /**
+   * O mapa da cena aberta mudou. `'history'` = foi desfazer/refazer: a
+   * caravana não lê isso como arrasto (`HostSession.followCaravans`).
+   */
+  notifyMapChanged(cause?: MapChangeCause): void
   assignToken(playerId: string, tokenId: string): void
   unassignToken(playerId: string, tokenId: string): void
   /** AJUDANTE CONTRATADO: empresta e arma o despertador do prazo (a ficha volta sozinha). */
@@ -234,9 +269,22 @@ export interface HostBridge {
    * "Mandar para…" do painel Grupo: leva a ficha do jogador para `toSceneId`,
    * no pino `pinId` ou no centro (`null`), sem pedido. `false` quando não deu
    * (sala fechada, destino ou ficha sumiram): o painel avisa e fica aberto.
-   * `gatherAt`: "Reunir o grupo aqui" — chega nessa casa, com o aviso de reunião.
+   * `gatherAt`: "Reunir o grupo aqui" — chega nessa casa, com o aviso de
+   * reunião; a montaria e o familiar, nas casas que o plano deu a eles.
    */
-  sendPlayer(playerId: string, toSceneId: string, pinId: string | null, gatherAt?: { x: number; y: number }): boolean
+  sendPlayer(playerId: string, toSceneId: string, pinId: string | null, gatherAt?: GatherArrival): boolean
+  /**
+   * "Trazer" do painel Grupo: a ficha `tokenId` do jogador, que ficou em
+   * outra cena, vem para o lado dele. Não é viagem: sem "Você chegou" e fora
+   * do diário. `false` quando não deu (sala fechada, ficha já na cena dele).
+   */
+  bringToken(playerId: string, tokenId: string): boolean
+  /**
+   * CARAVANA: "Desembarcar" a caravana do mapa-mundi `sceneId` na cidade sob
+   * ela (o mesmo botão do aviso "A caravana chegou a…"). `false` quando
+   * ninguém chegou (sala fechada, caravana fora da cidade, cena sumiu).
+   */
+  disembarkCaravan(sceneId: string): boolean
   /**
    * Recado do mestre a quem está na cena `sceneId`. Devolve quantos jogadores
    * receberam (0 = ninguém lá), ou `null` com a sala fechada. `playerIds`:
@@ -271,6 +319,15 @@ export interface HostBridge {
    */
   storeTokens(playerId: string): boolean
   /**
+   * "Emprestar ficha a" do card de quem foi embora: as fichas dele passam a ser
+   * jogadas por `borrowerId` até ele voltar (`HostSession.lendTokens`). `false`
+   * (com aviso ao mestre) quando nada foi emprestado: sala fechada, dono
+   * conectado, quem recebe fora, ou ficha de outra cena.
+   */
+  lendTokens(ownerId: string, borrowerId: string): boolean
+  /** "Tomar de volta" da ficha emprestada. `false` com a sala fechada ou nada emprestado. */
+  endLoans(ownerId: string): boolean
+  /**
    * Cópia das fichas guardadas agora, com a cena de onde cada uma saiu. Quem
    * grava o mapa as põe de volta no arquivo (`withStoredTokens`): senão
    * Guardar + Salvar + fechar a janela apagava a ficha, que só existia aqui.
@@ -298,6 +355,8 @@ export interface HostBridge {
   activeAlarm(): { id: string; text: string; sceneIds: string[] } | null
   /** A vez mudou (começar, próxima, encerrar): snapshot na hora, para o "sua vez" não esperar outra edição. */
   notifyTurnChanged(): void
+  /** O relógio da campanha andou: snapshot na hora, com o período (e a visão da noite) novos. */
+  notifyClockChanged(): void
   /**
    * TELA DA MESA: a cena que a TV mostra (`tableSceneKey`), ou `null` para ela
    * esperar. Snapshot imediato. Sala fechada: nada.
@@ -310,6 +369,11 @@ export interface HostBridge {
    * fechada, jogador conectado (esse é o Expulsar) ou desconhecido.
    */
   dismissPlayer(playerId: string): boolean
+  /**
+   * DADO ROLADO NA SALA pelo mestre: o host rola; aberta, a mesa inteira
+   * recebe; `hidden`, só a tela do mestre (`onDiceRoll`). `null` com a sala fechada.
+   */
+  rollDice(request: DiceRequest, hidden: boolean): HostDiceRoll | null
 }
 
 export const BROADCAST_THROTTLE_MS = 50
@@ -385,6 +449,18 @@ export const HOST_STALE_AFTER_MS = 6_000
 export const HOST_AWAY_STALE_AFTER_MS = 150_000
 /** De quanto em quanto tempo o host confere quem ficou mudo. */
 export const LIVENESS_SWEEP_MS = 1_000
+/** "Diego abriu uma porta com Chave do Escudo", mais " em Mansão" quando a porta está numa cena de fundo. */
+export function doorKeyLine(used: DoorKeyUse): string {
+  const where = used.sceneName === undefined ? '' : ` em ${used.sceneName}`
+  return `${used.playerName} abriu uma porta com ${used.itemName}${where}`
+}
+
+/** "Diego abriu Portão do cemitério com Chave do Escudo", mais " em Mansão" quando o pino está numa cena de fundo. */
+export function pinKeyLine(used: PinKeyUse): string {
+  const where = used.sceneName === undefined ? '' : ` em ${used.sceneName}`
+  return `${used.playerName} abriu ${used.pinLabel} com ${used.itemName}${where}`
+}
+
 const DEFAULT_VISION_RADIUS = 700
 /** Quantos motivos do "Não, porque…" voltam prontos no próximo pedido. */
 export const TRAVEL_DENY_RECENTS_MAX = 3
@@ -510,18 +586,24 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   const releaseCabine = (requestId: string) => {
     if (travelsComCabine.delete(requestId)) scheduleBroadcast()
   }
+  /** "Fulano entrou em X": um cartão por cena de destino (`net/avisoDeChegada.ts`). */
+  const announceArrival = createArrivalAnnouncer(deps.onGoToScene)
   /** O que cada conexão está vendo, anotado do que sai em `dispatch` (espelho do "Ver tela"). */
   const screens = createPlayerScreens()
   const screenWatchers = new Set<() => void>()
   const notifyScreens = () => {
     for (const watcher of screenWatchers) watcher()
   }
+  /** CARAVANA: oferta "Desembarcar" na tela, por cena de mapa-mundi: o pino onde ela parou e o id do toast. */
+  const caravanToasts = new Map<string, { pinId: string; toastId: string }>()
   /** OLHOS DO GUARDA: pares (cena, guarda, ficha) no olhar no último snapshot — aviso só na entrada. */
   let guardSeen: ReadonlySet<string> = new Set()
   /** Linha de cada chamado aberto na caixa "Chamados": `callId` -> id do toast. */
   const callToasts = new Map<string, string>()
   /** Linha da Caixa de cada ação no ponto ainda sem resposta: `requestId` -> id do toast. */
   const pointActionToasts = new Map<string, string>()
+  /** Linha da Caixa de cada pedido de ficha de quem chegou: `requestId` -> id do toast. */
+  const seatClaimToasts = new Map<string, string>()
   /** Diário de viagens desta sala, a mais nova em cima. Nunca sai pelo `net_send`. */
   let travelLog: TravelLogEntry[] = []
   let travelSeq = 0
@@ -563,8 +645,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   const moveAndLog = (transfer: AppliedTransfer): boolean => {
     travelSeq += 1
     const entry = travelLogEntry(transfer, world(), now(), `viagem-${travelSeq}`)
-    // AJUDANTE CONTRATADO: o ajudante emprestado atravessa junto (`moveAcross`).
-    const moved = moveAcross(transfer)
+    const moved = applyTransferAlong(transfer)
     if (moved && entry !== null) setTravelLog(addTravel(travelLog, entry))
     return moved
   }
@@ -663,6 +744,9 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   const sendPartyIfChanged = () => {
     if (session === null) return
     void dispatch(session.partyUpdates(world()))
+    // Os mesmos eventos mudam as fichas livres de quem está sem personagem
+    // (alguém ganhou ficha, o mestre marcou "Ficha de jogador"): mesma regra do "só se mudou".
+    void dispatch(session.seatOptionsUpdates(world()))
   }
 
   /** A lista da sessão com o que só a ponte sabe: as fichas guardadas de cada um. */
@@ -779,18 +863,109 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     for (const line of notices.lines) useToastStore.getState().push('info', line, GUARD_SIGHTING_TOAST_MS, { grupo: 'Vigias' })
   }
 
+  /**
+   * CARAVANA NO MAPA-MUNDI: antes de cada snapshot, as fichas do grupo seguem a
+   * que o mestre arrastou (pela store, como o movimento do jogador), e a
+   * caravana parada numa cidade vira a oferta "Desembarcar". Mover pela store
+   * agenda outro broadcast, que já não acha nada a mover.
+   */
+  const followCaravans = (cause: MapChangeCause = 'edit') => {
+    if (session === null) return
+    const follow = session.followCaravans(world(), cause)
+    if (follow.moves.length > 0) applyCaravanMoves(follow.moves)
+    syncCaravanToasts(follow.stops)
+  }
+
+  const applyCaravanMoves = (moves: readonly AppliedMove[]) => {
+    if (deps.applyCaravanMoves !== undefined) {
+      deps.applyCaravanMoves(moves)
+      return
+    }
+    for (const { tokenId, x, y, sceneId } of moves) {
+      if (sceneId === undefined) deps.applyMove(tokenId, x, y)
+      else deps.applyMove(tokenId, x, y, sceneId)
+    }
+  }
+
+  /** Uma oferta por mapa-mundi: some quando a caravana sai da cidade, troca quando para em outra. */
+  const syncCaravanToasts = (stops: readonly CaravanStop[]) => {
+    const toasts = useToastStore.getState()
+    for (const [sceneId, shown] of [...caravanToasts]) {
+      if (stops.some((stop) => stop.sceneId === sceneId && stop.pinId === shown.pinId)) continue
+      toasts.dismiss(shown.toastId)
+      caravanToasts.delete(sceneId)
+    }
+    for (const stop of stops) {
+      if (caravanToasts.has(stop.sceneId)) continue
+      const toastId = toasts.push('instrucao', `A caravana chegou a ${stop.toSceneName}`, null, {
+        actions: [{ label: 'Desembarcar', run: () => disembark(stop.sceneId) }],
+      })
+      caravanToasts.set(stop.sceneId, { pinId: stop.pinId, toastId })
+    }
+  }
+
+  /** "Desembarcar": cada ficha vai para a cidade pela store, e só quem chegou recebe o `scene.changed`. */
+  const disembark = (sceneId: string): boolean => {
+    if (session === null) return false
+    const arrivals = session.disembarkCaravan(sceneId, world())
+    const shown = caravanToasts.get(sceneId)
+    if (shown !== undefined) useToastStore.getState().dismiss(shown.toastId)
+    caravanToasts.delete(sceneId)
+    const arrived = new Set<string>()
+    for (const arrival of arrivals) {
+      // Pela mesma porta da travessia: quem ela leva (`transfer.junto`) desce junto.
+      if (!applyTransferAlong(arrival.transfer)) continue
+      arrived.add(arrival.transfer.playerId)
+      announceArrival(arrival.transfer)
+    }
+    // Primeiro `scene.changed`, depois o snapshot da cidade (mesma ordem do "Deixar ir").
+    void dispatch({ outbound: arrivals.filter((a) => arrived.has(a.transfer.playerId)).flatMap((a) => a.outbound) })
+    broadcastNow()
+    notifyPlayersIfChanged()
+    return arrived.size > 0
+  }
+
+  const cancelPendingBroadcast = () => {
+    if (pendingBroadcast === null) return
+    clearTimeout(pendingBroadcast)
+    pendingBroadcast = null
+  }
+
+  /**
+   * O envio imediato leva o mundo de AGORA, que já contém toda mudança que
+   * agendou o broadcast pendente: o agendado seria a mesma cena de novo. Sem
+   * cancelar, cada passo de jogador (applyMove → assinatura do mapa →
+   * `notifyMapChanged`) saía duas vezes — com 7 na mesa, 14 recortes da névoa
+   * e 14 envios por passo na thread do mestre.
+   */
   const broadcastNow = () => {
     if (session === null) return
+    followCaravans()
+    cancelPendingBroadcast()
     const current = world()
     const result = session.broadcast(current)
     void dispatch(result)
     announceHazardEntries(result.hazardEntries ?? [])
+    announceTriggerEntries(result.triggerEntries ?? [])
     announceGuardSightings(current)
     // O mestre pode ter apagado ou trocado uma ficha de cena pelo editor: é
     // mudança de mapa, que só passa por aqui.
     sendPartyIfChanged()
     // Cada snapshot marca o que cada jogador viu: o explorado da mesa muda.
     scheduleExplorationSave()
+  }
+
+  /**
+   * GATILHO DE ÁREA: "Armadilha: Ana entrou em Corredor". Grupo próprio, como
+   * o do guarda: várias entradas de uma vez viram uma caixa, sem soterrar os
+   * pedidos. Fica o tempo do aviso do guarda — é gancho de narração.
+   */
+  const announceTriggerEntries = (entries: readonly AreaTriggerEntryNotice[]) => {
+    for (const entry of entries) {
+      useToastStore
+        .getState()
+        .push('info', areaTriggerEntryLine(entry.playerName, entry.kind, entry.areaName, entry.sceneName), GUARD_SIGHTING_TOAST_MS, { grupo: 'Gatilhos' })
+    }
   }
 
   /**
@@ -813,12 +988,6 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       // mestre recalcula o que depende dele, como o ocupante da cabine.
       notifyPlayersIfChanged()
     }, BROADCAST_THROTTLE_MS)
-  }
-
-  const cancelPendingBroadcast = () => {
-    if (pendingBroadcast === null) return
-    clearTimeout(pendingBroadcast)
-    pendingBroadcast = null
   }
 
   /** A TV entrou: sem cena escolhida ela fica esperando, e o aviso diz onde escolher. */
@@ -984,6 +1153,52 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       pointActionToasts.delete(requestId)
       useToastStore.getState().dismiss(toastId)
     }
+    // Mesma regra para o pedido de ficha: quem pediu caiu, ganhou ficha pelo
+    // painel, ou a ficha foi para outro — o "Aceitar" não daria nada a ninguém.
+    for (const [requestId, toastId] of seatClaimToasts) {
+      if (session !== null && session.isSeatClaimPending(requestId)) continue
+      seatClaimToasts.delete(requestId)
+      useToastStore.getState().dismiss(toastId)
+    }
+  }
+
+  /**
+   * "Aceitar" ou "Não" do pedido de ficha. Aceitar revalida na sessão e dá a
+   * ficha; o mapa sai na hora para quem pediu, e quem pedia a mesma ficha lê
+   * que ela não está mais livre (a linha dele sai da caixa junto).
+   */
+  const answerSeatClaim = (requestId: string, allow: boolean) => {
+    const toastId = seatClaimToasts.get(requestId)
+    seatClaimToasts.delete(requestId)
+    if (toastId !== undefined) useToastStore.getState().dismiss(toastId)
+    if (session === null) return
+    if (!allow) {
+      void dispatch(session.denySeatClaim(requestId))
+      return
+    }
+    void dispatch(session.approveSeatClaim(requestId, world()))
+    broadcastNow()
+    notifyPlayersIfChanged()
+    pruneTravelToasts()
+  }
+
+  /**
+   * Quem chegou sem personagem pediu uma ficha: "Hugo quer jogar com Kael" na
+   * caixa "Pedidos", sozinho já em caixa (o mestre pode estar noutra cena, e
+   * o jogador está parado esperando). O × vale "Não": a pergunta nunca some
+   * sem resposta.
+   */
+  const askSeatClaim = (claim: SeatClaim) => {
+    const toastId = useToastStore.getState().push('instrucao', `${claim.playerName} quer jogar com ${claim.tokenName}`, null, {
+      actions: [
+        { label: 'Aceitar', run: () => answerSeatClaim(claim.requestId, true) },
+        { label: 'Não', run: () => answerSeatClaim(claim.requestId, false) },
+      ],
+      onDismiss: () => answerSeatClaim(claim.requestId, false),
+      grupo: 'Pedidos',
+      sempreEmCaixa: true,
+    })
+    seatClaimToasts.set(claim.requestId, toastId)
   }
 
   /**
@@ -1197,8 +1412,13 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     letterToasts.set(letter.letterId, toastId)
   }
 
-  /** `motivo`: o texto do "Não, porque…" (só com `allow` falso). */
-  const answerTravel = (requestId: string, allow: boolean, motivo?: string) => {
+  /**
+   * Resposta ao pedido de passagem. `allow`: "Deixar ir" (ou "Liberar uma
+   * vez", no pino trancado); `'pede'`: "Passar para pede" — o jogador passa e
+   * o pino trancado vira "pede" na cena dele. `motivo`: o texto do "Não,
+   * porque…" (só com `allow` falso).
+   */
+  const answerTravel = (requestId: string, allow: boolean | 'pede', motivo?: string) => {
     const toastId = travelToasts.get(requestId)
     travelToasts.delete(requestId)
     if (toastId !== undefined) useToastStore.getState().dismiss(toastId)
@@ -1206,7 +1426,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     // parada, livre; "Deixar ir" a leva (e o broadcast da chegada já sai).
     releaseCabine(requestId)
     if (session === null) return
-    if (!allow) {
+    if (allow === false) {
       const pendente = session.isTravelPending(requestId)
       void dispatch(session.denyTravel(requestId, motivo))
       // Só o motivo que chegou a ser dito entra nos recentes: pedido que já tinha morrido não conta.
@@ -1215,7 +1435,11 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       notifyPlayersIfChanged()
       return
     }
-    const result = session.approveTravel(requestId, world())
+    const result = allow === 'pede' ? session.approveLockedTravelAsAsk(requestId, world()) : session.approveTravel(requestId, world())
+    if (result.applyPinPassage !== undefined) {
+      const { pinId, passagem, sceneId } = result.applyPinPassage
+      deps.setPinPassage?.(pinId, passagem, sceneId)
+    }
     if (result.applyTransfer === undefined) {
       // Recusa da revalidação (o token andou, o pino sumiu, a porta foi
       // trancada) ou pedido que já morreu.
@@ -1253,16 +1477,33 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   }
 
   /**
-   * Move a ficha de quem viaja e, SÓ se ela foi, cada ajudante emprestado que
-   * atravessa junto (`companions`), pela mesma travessia da store. O ajudante
-   * que não der para mover (sumiu da cena) fica onde estava: a viagem do dono
-   * não desanda por causa dele. Devolve se a ficha PRINCIPAL mudou de cena.
+   * Move a ficha de quem viaja e, SÓ se ela passou, cada ficha que atravessa
+   * junto pela mesma travessia da store:
+   *
+   * AJUDANTE CONTRATADO: as fichas emprestadas a este jogador que estavam na
+   * mesma cena de partida (`transfer.companions`). O ajudante que não der para
+   * mover (sumiu da cena) fica onde estava: a viagem do dono não desanda por
+   * causa dele.
+   *
+   * LEVAR FICHA JUNTO: as fichas que `tokenId` leva (`transfer.junto`). Ficha
+   * levada que não passou (sumiu entre a validação e aqui) não desfaz a de
+   * quem leva: ela chegou, e é isso que o aviso diz.
+   *
+   * MONTARIA E FAMILIAR: o séquito (`transfer.entourage`), cada um na casa que
+   * a sessão escolheu. O diário e o "Você chegou" são da ficha principal: o
+   * pônei não é viagem à parte.
+   *
+   * Devolve se a ficha PRINCIPAL mudou de cena.
    */
-  const moveAcross = (transfer: AppliedTransfer): boolean => {
+  const applyTransferAlong = (transfer: AppliedTransfer): boolean => {
     const apply = deps.applyTransfer
-    if (apply === undefined || !apply(transfer)) return false
-    const { companions = [], ...trip } = transfer
-    for (const companion of companions) apply({ ...trip, tokenId: companion.tokenId, x: companion.x, y: companion.y })
+    if (apply === undefined) return false
+    const { companions = [], junto, entourage, ...alone } = transfer
+    if (!apply(alone)) return false
+    // Ausente é o caso comum (ninguém acompanha), não falha.
+    for (const companion of companions) apply({ ...alone, tokenId: companion.tokenId, x: companion.x, y: companion.y })
+    for (const carried of junto ?? []) apply({ ...alone, tokenId: carried.tokenId, x: carried.x, y: carried.y })
+    for (const seat of entourage ?? []) apply({ ...alone, tokenId: seat.tokenId, x: seat.x, y: seat.y })
     return true
   }
 
@@ -1271,10 +1512,20 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
    * store ANTES de mandar o `scene.changed`, e só avisa a chegada se moveu.
    */
   const completeTransfer = (result: HostResult, transfer: AppliedTransfer) => {
+    // `moveAndLog` passa por `applyTransferAlong`: quem ela leva vai junto.
     const moved = moveAndLog(transfer)
+    // LEVAR FICHA JUNTO: o pedido de passagem de quem foi levado morreu na
+    // sessão (`carriedAlong`); o aviso "Fulano quer passar por…" sai junto,
+    // senão o "Deixar ir" dele ficaria na tela sem fazer nada.
+    pruneTravelToasts()
     if (!moved) {
       // O "Você chegou" não pode sair: a ficha não saiu do lugar.
-      void dispatch({ outbound: result.outbound.map(({ clientId }) => ({ clientId, msg: { type: 'pin.travel.rejected', reason: 'unavailable' } })) })
+      // Só a quem PEDIU: o dono de uma ficha levada junto (`by: 'master'`) não pediu nada.
+      const askers = result.outbound.filter(({ msg }) => !(msg.type === 'scene.changed' && msg.by !== undefined))
+      // Quem foi levado e perdeu o pedido que esperava o mestre lê a recusa dele (`lostTravels`).
+      void dispatch({
+        outbound: [...askers.map(({ clientId }) => ({ clientId, msg: { type: 'pin.travel.rejected', reason: 'unavailable' } }) satisfies Outbound), ...(result.lostTravels ?? [])],
+      })
       // O pedido já saiu da sessão ao ser aprovado: o selo da lista Cenas não pode ficar.
       notifyPlayersIfChanged()
       return
@@ -1288,26 +1539,9 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     broadcastNow()
     notifyPlayersIfChanged()
     announceArrival(transfer)
-  }
-
-  /**
-   * "Fulano entrou em X", com "Ir lá". Fica até o mestre dispensar ou ir: é
-   * uma oferta de ação, e o mestre está de olho no canvas — um aviso que some
-   * sozinho em segundos se perdia no meio da cena (medido na jornada da
-   * viagem: o mestre ainda olhava os jogadores quando ele sumiu). Para não
-   * empilhar, a chegada nova de um jogador substitui a anterior DELE.
-   */
-  const announceArrival = (transfer: AppliedTransfer) => {
-    const previous = arrivalToasts.get(transfer.playerId)
-    if (previous !== undefined) useToastStore.getState().dismiss(previous)
-    const goTo = deps.onGoToScene
-    const toastId = useToastStore.getState().push(
-      'info',
-      `${transfer.playerName} entrou em ${transfer.toSceneName}`,
-      null,
-      goTo === undefined ? {} : { actions: [{ label: 'Ir lá', run: () => goTo(transfer.toSceneId, transfer.x, transfer.y) }] },
-    )
-    arrivalToasts.set(transfer.playerId, toastId)
+    // CHAVE ABRE PORTA no pino trancado: só depois de a ficha mudar de cena —
+    // se não moveu, ninguém abriu nada.
+    if (result.pinKeyUsed !== undefined) useToastStore.getState().push('info', pinKeyLine(result.pinKeyUsed))
   }
 
   /**
@@ -1318,26 +1552,14 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
    * "Deixar ir" (`emLote`) de cada um — a mesma revalidação, pedido a pedido.
    */
   const askTravel = (request: TravelRequest) => {
+    if (request.trancada === true) {
+      askLockedTravel(request)
+      return
+    }
     // Quem está perto AGORA, só para oferecer o botão e dizer quantos; o
     // clique conta de novo (`answerTravelTogether`), porque o grupo anda.
     const nearby = session === null ? 0 : session.travelCompanions(request.requestId, world()).length
     const together = nearby === 0 ? [] : [{ label: `Deixar ir com quem está perto (${nearby})`, run: () => answerTravelTogether(request.requestId) }]
-    // "Ver": o editor vai à ficha de quem pediu, e a linha fica (`mantem`) —
-    // olhar não responde. A ficha é lida no clique: ela pode ter andado.
-    const goTo = deps.onGoToPoint
-    const ver =
-      goTo === undefined
-        ? []
-        : [
-            {
-              label: 'Ver',
-              mantem: true,
-              run: () => {
-                const target = session?.travelTarget(request.requestId, world()) ?? null // null = sala fechada, pedido decidido ou ficha fora de cena
-                if (target !== null) goTo(target.sceneId, target.x, target.y)
-              },
-            },
-          ]
     // CABINE DE TRANSPORTE: quem pede com a cabine ali embarcou — o aviso diz
     // em qual cabine ele está, e a parada passa a dizer "ocupada" aos outros.
     const naCabine = request.cabine === undefined ? '' : ` (na cabine ${request.cabine})`
@@ -1349,18 +1571,66 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       actions: [
         { label: 'Deixar ir', run: () => answerTravel(request.requestId, true), emLote: true },
         ...together,
-        ...ver,
+        ...travelVerAction(request.requestId),
         { label: 'Não', run: () => answerTravel(request.requestId, false) },
       ],
       onDismiss: () => answerTravel(request.requestId, false),
       grupo: 'Pedidos',
-      // "Não, porque…": o motivo curto chega só a quem pediu.
-      resposta: {
-        rotulo: 'Não, porque…',
-        maxLength: TRAVEL_DENY_TEXT_MAX_LENGTH,
-        enviar: (texto) => answerTravel(request.requestId, false, texto),
-        recentes: () => travelDenyRecents,
+      resposta: travelDenyResposta(request.requestId),
+    })
+    travelToasts.set(request.requestId, toastId)
+  }
+
+  /**
+   * "Ver" de uma linha de pedido de passagem (comum ou pelo pino trancado): o
+   * editor vai à ficha de quem pediu, e a linha fica (`mantem`) — olhar não
+   * responde. A ficha é lida no clique: ela pode ter andado. Sem quem leve o
+   * editor, nenhum "Ver".
+   */
+  const travelVerAction = (requestId: string): ToastAction[] => {
+    const goTo = deps.onGoToPoint
+    if (goTo === undefined) return []
+    return [
+      {
+        label: 'Ver',
+        mantem: true,
+        run: () => {
+          const target = session?.travelTarget(requestId, world()) ?? null // null = sala fechada, pedido decidido ou ficha fora de cena
+          if (target !== null) goTo(target.sceneId, target.x, target.y)
+        },
       },
+    ]
+  }
+
+  /** "Não, porque…" de uma linha de pedido de passagem: o motivo curto chega só a quem pediu. */
+  const travelDenyResposta = (requestId: string): ToastResposta => ({
+    rotulo: 'Não, porque…',
+    maxLength: TRAVEL_DENY_TEXT_MAX_LENGTH,
+    enviar: (texto) => answerTravel(requestId, false, texto),
+    recentes: () => travelDenyRecents,
+  })
+
+  /**
+   * Pedido pelo pino TRANCADO que aceita tentativas: a mesma linha em
+   * "Pedidos", com as respostas do cadeado. "Liberar uma vez" leva o jogador e
+   * deixa o pino trancado (é ela que o "Deixar todos" roda, `emLote`); "Passar
+   * para pede" leva e troca o modo, para a próxima passagem perguntar; "Não"
+   * (e o ×) recusa, e "Não, porque…" recusa com o motivo, como na linha comum.
+   * "Ver" leva o editor à ficha de quem pediu sem responder. Sem quem troque o
+   * modo, a linha fica sem "Passar para pede".
+   */
+  const askLockedTravel = (request: TravelRequest) => {
+    const paraPede = deps.setPinPassage === undefined ? [] : [{ label: 'Passar para pede', run: () => answerTravel(request.requestId, 'pede') }]
+    const toastId = useToastStore.getState().push('instrucao', `${request.playerName} quer passar por ${request.pinLabel} (trancada) → ${request.toSceneName}`, null, {
+      actions: [
+        { label: 'Liberar uma vez', run: () => answerTravel(request.requestId, true), emLote: true },
+        ...paraPede,
+        ...travelVerAction(request.requestId),
+        { label: 'Não', run: () => answerTravel(request.requestId, false) },
+      ],
+      onDismiss: () => answerTravel(request.requestId, false),
+      grupo: 'Pedidos',
+      resposta: travelDenyResposta(request.requestId),
     })
     travelToasts.set(request.requestId, toastId)
   }
@@ -1516,7 +1786,9 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     if (!wasJoined) {
       // Voltou (resume) quem teve a ficha guardada: ela volta ao mapa, de novo dele.
       const joined = session.listPlayers().find((p) => p.clientId === clientId)
-      if (joined !== undefined && restoreStoredOf(joined.playerId, true).length > 0) broadcastNow()
+      const restored = joined !== undefined && restoreStoredOf(joined.playerId, true).length > 0
+      // Voltou quem teve a ficha emprestada: quem a jogava precisa do mapa sem ela.
+      if (restored || result.loansReturned !== undefined) broadcastNow()
     }
     // A Ana voltou pelo resume: a pergunta "Ana voltou?" que outro aparelho provocou já não vale.
     pruneReturnToasts()
@@ -1526,6 +1798,8 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     // Mão baixada: a linha do chamado sai da caixa.
     pruneCallToasts()
     if (result.pointAction !== undefined) askPointAction(result.pointAction)
+    if (result.diceRoll !== undefined) deps.onDiceRoll?.(result.diceRoll)
+    if (result.seatClaim !== undefined) askSeatClaim(result.seatClaim)
     if (result.applyMove !== undefined) {
       const { tokenId, x, y, sceneId } = result.applyMove
       // Cena aberta: a mesma chamada de sempre, sem o quarto argumento.
@@ -1535,11 +1809,16 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     }
     if (result.applyDoor !== undefined) {
       // Todos veem a porta nova: o mestre pela store, os jogadores pelo snapshot imediato.
-      const { wallId, open, sceneId } = result.applyDoor
-      if (sceneId === undefined) deps.applyDoor(wallId, open)
+      const { wallId, open, sceneId, unlock } = result.applyDoor
+      // CHAVE ABRE PORTA: a chave da mochila tira o cadeado antes de abrir,
+      // pelo mesmo caminho do "Destrancar e abrir" do mestre.
+      if (unlock === true) deps.unlockAndOpenDoor?.(wallId, sceneId)
+      else if (sceneId === undefined) deps.applyDoor(wallId, open)
       else deps.applyDoor(wallId, open, sceneId)
       broadcastNow()
     }
+    // Sem quem destranque, a porta não abriu: o aviso não pode dizer que abriu.
+    if (result.doorKeyUsed !== undefined && deps.unlockAndOpenDoor !== undefined) useToastStore.getState().push('info', doorKeyLine(result.doorKeyUsed))
     if (result.travelRequest !== undefined) {
       if (deps.applyTransfer === undefined) {
         // Integrador sem transferência: ninguém do lado do mestre saberia atender.
@@ -1657,7 +1936,15 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
         // Sem prazo: o mestre precisa do texto na tela enquanto repassa o código novo à mesa.
         useToastStore.getState().push('instrucao', roomCodeChangedText(saved.code, room.code))
       }
-      session = createHostSession({ code: room.code, visionRadius: deps.visionRadius ?? DEFAULT_VISION_RADIUS, now: deps.now, getTurn: deps.getTurn, restoreSeats, restoreExploration })
+      session = createHostSession({
+        code: room.code,
+        visionRadius: deps.visionRadius ?? DEFAULT_VISION_RADIUS,
+        now: deps.now,
+        getTurn: deps.getTurn,
+        getClock: deps.getClock,
+        restoreSeats,
+        restoreExploration,
+      })
       // O diário é desta sala: os jogadores da anterior já não estão aqui para desfazer.
       setTravelLog([])
       unlisteners = [
@@ -1726,6 +2013,8 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       setTravelLog([])
       // Sala fechada: quem "caiu" agora é o fim da sala, não uma queda.
       resetDrops()
+      // Sem sala, "Desembarcar" não teria a quem mandar.
+      syncCaravanToasts([])
       currentRoom = null
       // O Rust derruba o túnel junto com a sala.
       resetTunnel()
@@ -1738,12 +2027,22 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       }
     },
 
-    notifyMapChanged() {
+    notifyMapChanged(cause = 'edit') {
+      // Desfazer/refazer: a caravana se reconhece no retrato AGORA, antes que
+      // uma edição seguinte (no mesmo intervalo do broadcast) seja comparada
+      // com a memória de antes do Ctrl+Z.
+      if (cause === 'history') followCaravans('history')
       scheduleBroadcast()
     },
 
     notifyTurnChanged() {
       // Um snapshot que já estava na fila sai agora, com a vez nova dentro.
+      cancelPendingBroadcast()
+      broadcastNow()
+    },
+
+    notifyClockChanged() {
+      // Mesmo caminho da vez: o período e o raio da noite saem no snapshot de agora.
       cancelPendingBroadcast()
       broadcastNow()
     },
@@ -1785,11 +2084,25 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       // O pedido de passagem que ele tinha morreu na sessão: o aviso do mestre sai junto.
       pruneTravelToasts()
       if (!moved) {
+        // Quem seria levado junto e perdeu o pedido que esperava o mestre lê a recusa dele.
+        if (result.lostTravels !== undefined) void dispatch({ outbound: result.lostTravels })
         // Mesmo sem mover, o pedido que ele tinha pode ter morrido: o selo acompanha.
         notifyPlayersIfChanged()
         return false
       }
       void dispatch(result)
+      broadcastNow()
+      notifyPlayersIfChanged()
+      return true
+    },
+
+    bringToken(playerId, tokenId) {
+      if (session === null) return false
+      const transfer = session.bringToken(playerId, tokenId, world()).applyTransfer
+      // Não é viagem: nem diário nem "Você chegou". A ficha muda de cena pela
+      // store, e o próximo snapshot a mostra ao dono.
+      const moved = transfer !== undefined && (deps.applyTransfer?.(transfer) ?? false)
+      if (!moved) return false
       broadcastNow()
       notifyPlayersIfChanged()
       return true
@@ -1803,7 +2116,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       const result = session.returnPlayer(entry.playerId, entry.tokenId, back, world())
       const transfer = result.applyTransfer
       // A volta é a correção de um engano, não viagem nova: não entra no diário.
-      const moved = transfer !== undefined && (deps.applyTransfer?.(transfer) ?? false)
+      const moved = transfer !== undefined && applyTransferAlong(transfer)
       // O pedido de passagem que ele tinha morreu na sessão: o aviso do mestre sai junto.
       pruneTravelToasts()
       if (!moved) {
@@ -1816,6 +2129,10 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       broadcastNow()
       notifyPlayersIfChanged()
       return true
+    },
+
+    disembarkCaravan(sceneId) {
+      return disembark(sceneId)
     },
 
     sceneNote(sceneId, text, playerIds) {
@@ -1868,6 +2185,15 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       return result.delivery
     },
 
+    rollDice(request, hidden) {
+      if (session === null) return null
+      const result = session.masterRoll(request, hidden)
+      void dispatch(result)
+      // A tela do mestre mostra pelo mesmo caminho da rolagem de um jogador.
+      if (result.diceRoll !== undefined) deps.onDiceRoll?.(result.diceRoll)
+      return result.diceRoll ?? null
+    },
+
     assignToken(playerId, tokenId) {
       if (session === null) return
       void dispatch(session.assignToken(playerId, tokenId))
@@ -1875,6 +2201,8 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       notifyPlayersIfChanged()
       // Atribuir por cima de um empréstimo desfaz o acordo: o despertador muda junto.
       armLoanTimer()
+      // Ficha dada pelo painel: o pedido de ficha de quem a ganhou (ou de quem pedia esta) sai da caixa.
+      pruneTravelToasts()
     },
 
     unassignToken(playerId, tokenId) {
@@ -1911,7 +2239,11 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     storeTokens(playerId) {
       if (session === null || deps.removeToken === undefined || deps.restoreToken === undefined) return false
       const player = session.listPlayers().find((p) => p.playerId === playerId)
-      if (player === undefined || player.connected || player.tokenIds.length === 0) return false
+      // Emprestada, a ficha está em jogo com outro: guardar a tiraria do mapa debaixo dele.
+      if (player === undefined || player.connected || player.lentTo !== undefined) return false
+      // A emprestada fica: é do dono, e guardá-la no nome de quem a joga a tiraria do dono para sempre.
+      const own = ownTokenIdsOf(player)
+      if (own.length === 0) return false
       const current = world()
       const stored = [...(storedTokens.get(playerId) ?? [])]
       for (const scene of [current.open, ...current.background]) {
@@ -1919,7 +2251,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
         const where = scene === current.open ? undefined : scene.sceneId
         if (where === null) continue
         for (const token of scene.map.tokens) {
-          if (!player.tokenIds.includes(token.id)) continue
+          if (!own.includes(token.id)) continue
           stored.push({ token, sceneId: scene.sceneId })
           // Sem dono enquanto guardada: a ficha não está em mapa nenhum. Ele está fora: não há a quem avisar.
           session.unassignToken(playerId, token.id)
@@ -1930,6 +2262,29 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       storedTokens.set(playerId, stored)
       const names = stored.map(({ token }) => token.name).join(', ')
       useToastStore.getState().push('info', `Ficha guardada: ${names}. Volta ao mapa quando ${player.name} voltar.`)
+      broadcastNow()
+      notifyPlayersIfChanged()
+      return true
+    },
+
+    lendTokens(ownerId, borrowerId) {
+      if (session === null) return false
+      const result = session.lendTokens(ownerId, borrowerId, world())
+      if (result.lent.length === 0) {
+        useToastStore.getState().push('error', 'Não deu para emprestar: só a ficha de quem está fora, para quem está conectado e na mesma cena dela.')
+        return false
+      }
+      void dispatch(result)
+      broadcastNow()
+      notifyPlayersIfChanged()
+      return true
+    },
+
+    endLoans(ownerId) {
+      if (session === null) return false
+      const result = session.endLoans(ownerId)
+      if (result.loansReturned === undefined) return false
+      void dispatch(result)
       broadcastNow()
       notifyPlayersIfChanged()
       return true

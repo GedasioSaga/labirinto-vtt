@@ -334,6 +334,44 @@
   font-size: 18px;
 }
 
+/* Quem chega escolhe a ficha: a lista de fichas livres na tela de espera.
+   Botão por ficha, em coluna: no celular cada alvo tem a largura toda. */
+.pe-seats {
+  display: grid;
+  gap: 10px;
+  padding-top: 14px;
+  border-top: 1px solid var(--lb-color-line-strong, rgba(255, 255, 255, 0.16));
+}
+
+.pe-seats__title {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--lb-color-parchment-dim, #a2a09a);
+}
+
+.pe-seats__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 8px;
+}
+
+.pe-seats__option {
+  width: 100%;
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+
+.pe-seat-status {
+  margin: 0;
+  font-size: 16px;
+  color: var(--lb-color-parchment, #eceae4);
+}
+
 .pe-dot {
   flex: none;
   width: 9px;
@@ -583,6 +621,125 @@
   }
 }
 
+/*
+ * RELÓGIO DA CAMPANHA: a hora aproximada num selo pequeno no canto de baixo à
+ * direita, longe do painel, da vez, das abas de andar e dos avisos (centro).
+ * Não recebe toque: o mapa por baixo continua arrastável. "Pouca luz" troca o
+ * contorno por um azul frio e apagado, sem cor nova no mapa.
+ */
+.pp-clock {
+  position: fixed;
+  right: 12px;
+  bottom: 12px;
+  z-index: 10;
+  margin: 0;
+  padding: 4px 12px;
+  font-family: var(--lb-font-sans, system-ui, sans-serif);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--lb-color-parchment, #eceae4);
+  background: var(--lb-color-stone, rgba(19, 19, 23, 0.94));
+  border: 1px solid var(--lb-color-line-panel, rgba(255, 255, 255, 0.12));
+  border-radius: 999px;
+  pointer-events: none;
+}
+
+.pp-clock--escuro {
+  color: rgba(236, 234, 228, 0.78);
+  border-color: rgba(120, 150, 200, 0.55);
+}
+
+/*
+ * MAPA POR ANDARES: abas 1F/2F/B1 no canto de cima à direita, longe do painel
+ * (esquerda) e da faixa da vez (centro). Retângulos pequenos, como o seletor
+ * de andar do minimapa: a aba do andar onde a ficha está leva a marca azul.
+ */
+.pp-floors {
+  position: fixed;
+  top: calc(12px + var(--pp-alarm-space, 0px));
+  right: 12px;
+  z-index: 10;
+  display: grid;
+  justify-items: end;
+  gap: 6px;
+  font-family: var(--lb-font-sans, system-ui, sans-serif);
+}
+
+.pp-floors__list {
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  background: var(--lb-color-stone, rgba(19, 19, 23, 0.94));
+  border: 1px solid var(--lb-color-line-panel, rgba(255, 255, 255, 0.12));
+  border-radius: 6px;
+  box-shadow: var(--lb-shadow-float, 0 8px 24px rgba(0, 0, 0, 0.45));
+}
+
+.pp-floors__tab {
+  position: relative;
+  min-width: 44px;
+  min-height: 36px;
+  padding: 0 10px;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: rgba(236, 234, 228, 0.72);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 150ms ease-in-out, color 150ms ease-in-out;
+}
+
+.pp-floors__tab:hover {
+  color: var(--lb-color-parchment, #eceae4);
+}
+
+.pp-floors__tab[aria-selected='true'] {
+  color: var(--lb-color-parchment, #eceae4);
+  background: rgba(236, 234, 228, 0.12);
+  border-color: var(--lb-color-brass, #e0a44a);
+}
+
+.pp-floors__tab:focus-visible {
+  outline: 2px solid var(--lb-color-brass, #e0a44a);
+  outline-offset: 2px;
+}
+
+/* O andar onde a ficha dele está: o mesmo azul da ficha própria no mapa. */
+.pp-floors__tab--here::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: 3px;
+  width: 6px;
+  height: 6px;
+  margin-left: -3px;
+  border-radius: 50%;
+  background: #3b82f6;
+}
+
+.pp-floors__hint {
+  margin: 0;
+  padding: 2px 8px;
+  font-size: 13px;
+  color: var(--lb-color-parchment, #eceae4);
+  background: var(--lb-color-stone, rgba(19, 19, 23, 0.94));
+  border-radius: 4px;
+}
+
+.pp-floors__hint:empty {
+  display: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pp-floors__tab {
+    transition: none;
+  }
+}
+
 /* "Trancada" com os três pedidos ao mestre: a mesma pílula, com botões em linha. */
 .pp-notice--door {
   display: flex;
@@ -620,6 +777,12 @@
 .pp-notice__action:hover,
 .pp-notice__close:hover {
   background: rgba(255, 255, 255, 0.06);
+}
+
+/* CHAVE ABRE PORTA: "Usar <chave>" é a ação que resolve sem esperar o mestre. */
+.pp-notice__action--primary {
+  border-color: var(--lb-color-brass, #e0a44a);
+  color: var(--lb-color-brass, #e0a44a);
 }
 
 .pp-notice__action:focus-visible,
@@ -1104,7 +1267,7 @@
   animation: pp-pincard-fade 140ms ease-out;
 }
 
-/* Imagem em cima, texto embaixo — a ordem do pedido, e a mesma no DOM. */
+/* Imagem em cima (quando o mestre pôs uma), texto embaixo — a ordem do pedido, e a mesma no DOM. */
 .pp-pincard {
   display: flex;
   flex-direction: column;
@@ -1161,7 +1324,20 @@
   padding: 14px 16px 4px;
 }
 
-/* O mesmo "!" ou "?" do pino no mapa: liga o cartão ao que foi tocado. */
+/*
+ * SEM IMAGEM, CARTÃO COMPACTO: nada de área reservada para a foto que não
+ * existe. A cabeça do pino — a mesma que o jogador acabou de tocar no mapa —
+ * sobe para o lugar da imagem, e o texto vem logo embaixo, na largura toda.
+ * Com foto, o corpo segue em linha (cabeça ao lado do texto), como sempre.
+ */
+.pp-pincard--compacto .pp-pincard__body {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  padding-top: 16px;
+}
+
+/* A mesma cabeça do pino no mapa ("!", "?" ou o símbolo escolhido): liga o cartão ao que foi tocado. */
 .pp-pincard__glyph {
   flex: none;
   width: 26px;
@@ -1359,6 +1535,17 @@
   cursor: pointer;
 }
 
+/* Com "Andar até aqui" (item do menu do toque longo que mora em PlayerPointMenu): cresce o item a mais. */
+.pp-pointmenu--walk {
+  max-height: 284px;
+}
+
+.pp-pointmenu--walk .pp-point-menu__item {
+  min-height: 40px;
+  padding: 8px 12px;
+  border-radius: 6px;
+}
+
 .pp-pointmenu__item:hover,
 .pp-pointmenu__item:focus-visible {
   background: rgba(255, 255, 255, 0.08);
@@ -1411,6 +1598,85 @@
   .pp-pincard {
     animation: none;
   }
+}
+
+/*
+ * "Onde estou": o nome público da cena, no canto de cima à DIREITA (o painel
+ * mora à esquerda, o recado no meio, o zoom embaixo). Placa de minimapa:
+ * fundo escuro chapado, linha fina clara, texto curto. Abaixo do painel e do
+ * cartão de pino (que cobrem o selo quando abertos) e sem pegar toque: o
+ * arrasto que começa em cima dele continua sendo arrasto do mapa. Nome longo
+ * termina em reticências, sem empurrar nada.
+ */
+.pp-scene-name {
+  position: fixed;
+  top: 12px;
+  right: 12px;
+  z-index: 9;
+  pointer-events: none;
+  box-sizing: border-box;
+  max-width: min(240px, calc(100% - 24px - 190px));
+  margin: 0;
+  padding: 6px 12px;
+  font-family: var(--lb-font-sans, system-ui, sans-serif);
+  line-height: 1.25;
+  text-align: right;
+  color: var(--lb-color-parchment, #eceae4);
+  background: var(--lb-color-stone, rgba(19, 19, 23, 0.94));
+  border: 1px solid var(--lb-color-line-panel, rgba(255, 255, 255, 0.12));
+  border-radius: 6px;
+}
+
+.pp-scene-name__label {
+  display: block;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--lb-color-parchment-faint, #858480);
+}
+
+.pp-scene-name__value {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+/*
+ * "Tela acesa": o celular não apaga a tela durante a sessão. Selo discreto no
+ * canto de baixo à ESQUERDA (o zoom mora embaixo à direita, os avisos no
+ * meio): texto pequeno e apagado, ponto fixo sem pulsar — é estado, não
+ * chamada. Sem pegar toque, para não roubar o arrasto do mapa.
+ */
+.pp-awake {
+  position: fixed;
+  left: 12px;
+  bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+  z-index: 9;
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  padding: 3px 8px;
+  font-family: var(--lb-font-sans, system-ui, sans-serif);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  line-height: 1.25;
+  color: var(--lb-color-parchment-faint, #858480);
+  background: var(--lb-color-stone, rgba(19, 19, 23, 0.94));
+  border: 1px solid var(--lb-color-line-panel, rgba(255, 255, 255, 0.12));
+  border-radius: 6px;
+}
+
+.pp-awake__dot {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--lb-color-brass, #e0a44a);
 }
 
 /*
@@ -2005,6 +2271,326 @@
   .pp-call__lower {
     transition: none;
   }
+}
+
+/*
+ * MENU DO TOQUE LONGO ("Andar até aqui"). Nasce acima do ponto segurado (o
+ * dedo não cobre), ou abaixo quando o ponto está no alto da tela. Abre do
+ * próprio ponto, rápido e com ease-out; sem animação com movimento reduzido.
+ */
+.pp-point-menu {
+  position: fixed;
+  z-index: 30;
+  transform: translate(-50%, -100%);
+  transform-origin: 50% 100%;
+  display: flex;
+  flex-direction: column;
+  min-width: 200px;
+  padding: 4px;
+  font-family: var(--lb-font-sans, system-ui, sans-serif);
+  color: var(--lb-color-parchment, #eceae4);
+  background: var(--lb-color-stone, #131317);
+  border: 1px solid var(--lb-color-line-panel, rgba(255, 255, 255, 0.18));
+  border-radius: 8px;
+  box-shadow: var(--lb-shadow-float, 0 8px 24px rgba(0, 0, 0, 0.45));
+  animation: pp-point-menu-in 140ms ease-out;
+}
+
+.pp-point-menu--below {
+  transform: translate(-50%, 0);
+  transform-origin: 50% 0;
+  animation-name: pp-point-menu-in-below;
+}
+
+@keyframes pp-point-menu-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -100%) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -100%) scale(1);
+  }
+}
+
+@keyframes pp-point-menu-in-below {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 0) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0) scale(1);
+  }
+}
+
+/* Alvo de dedo: 44 px de altura. */
+.pp-point-menu__item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  min-height: 44px;
+  padding: 8px 12px;
+  font: inherit;
+  font-size: 15px;
+  text-align: left;
+  color: inherit;
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.pp-point-menu__item:hover:not([aria-disabled='true']) {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.pp-point-menu__item:focus-visible {
+  outline: 2px solid var(--lb-color-brass, #e0a44a);
+  outline-offset: 2px;
+}
+
+/* Indisponível: esmaecido no mesmo lugar, com o motivo embaixo. */
+.pp-point-menu__item[aria-disabled='true'] {
+  color: var(--lb-color-parchment-dim, #a9a7a0);
+  cursor: default;
+}
+
+.pp-point-menu__why {
+  font-size: 12px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pp-point-menu {
+    animation: none;
+  }
+}
+
+/* ======================================================= aba Lugares */
+
+/* Pontos conhecidos: a mesma linha de "Meus personagens", com o glifo do pino no lugar da bolinha. */
+.pp-place-pin__glyph {
+  flex: none;
+  width: 16px;
+  text-align: center;
+  font-weight: 700;
+  color: var(--lb-color-brass-bright, #f3ba66);
+}
+
+/* Onde já estive: miniaturas em duas colunas, cada uma com o nome embaixo. */
+.pp-places {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.pp-place {
+  display: grid;
+  gap: 4px;
+  align-content: start;
+}
+
+.pp-place__open {
+  display: block;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  padding: 0;
+  overflow: hidden;
+  cursor: pointer;
+  background: #0b0b0d;
+  border: 1px solid var(--lb-color-line-panel, rgba(255, 255, 255, 0.12));
+  border-radius: var(--lb-radius-sm, 6px);
+  transition: border-color var(--lb-motion-fast, 110ms) var(--lb-motion-ease, ease);
+}
+
+.pp-place__open:hover {
+  border-color: var(--lb-color-brass, #e0a44a);
+}
+
+.pp-place__open:focus-visible {
+  outline: 2px solid var(--lb-color-brass-bright, #f3ba66);
+  outline-offset: 2px;
+}
+
+/* O lugar de agora: o filete de latão fica aceso. */
+.pp-place--here .pp-place__open {
+  border-color: var(--lb-color-brass, #e0a44a);
+}
+
+.pp-place__art {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.pp-place__name {
+  margin: 0;
+}
+
+.pp-place__input {
+  padding: 4px 6px;
+  font-size: 13px;
+}
+
+.pp-place__here {
+  font-size: 11px;
+  color: var(--lb-color-brass-bright, #f3ba66);
+}
+
+/* O lugar em tamanho grande: véu escuro, caixa no meio, "Fechar" embaixo. */
+.pp-place-viewer__backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: rgba(0, 0, 0, 0.6);
+  animation: pp-viewer-fade var(--lb-motion-base, 170ms) ease-out;
+}
+
+.pp-place-viewer {
+  box-sizing: border-box;
+  display: grid;
+  gap: 12px;
+  width: min(720px, 100%);
+  max-height: 100%;
+  padding: 14px;
+  font-family: var(--lb-font-sans, system-ui, sans-serif);
+  font-size: 14px;
+  color: var(--lb-color-parchment, #eceae4);
+  background: var(--lb-color-stone, rgba(19, 19, 23, 0.97));
+  border: 1px solid var(--lb-color-line-panel, rgba(255, 255, 255, 0.12));
+  border-radius: var(--lb-radius-lg, 10px);
+  box-shadow: var(--lb-shadow-float, 0 8px 24px rgba(0, 0, 0, 0.45));
+  animation: pp-viewer-in var(--lb-motion-base, 170ms) cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.pp-place-viewer__title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pp-place-viewer__art {
+  min-height: 0;
+  height: min(64vh, 520px);
+  background: #0b0b0d;
+  border-radius: var(--lb-radius-sm, 6px);
+  overflow: hidden;
+}
+
+.pp-place-viewer__close {
+  justify-self: end;
+  min-height: 44px;
+  padding: 0 18px;
+}
+
+@keyframes pp-viewer-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes pp-viewer-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pp-place__open,
+  .pp-place-viewer__backdrop,
+  .pp-place-viewer {
+    transition: none;
+    animation: none;
+  }
+/* ======================================== anotação pessoal (só deste aparelho) */
+
+/* Salvar e Cancelar lado a lado, no pé do cartão da anotação. */
+.pp-note-draft__actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+/* Minhas notas: a linha centraliza; "Apagar" fica à direita, discreto. */
+.pp-personal-notes__item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.pp-personal-notes__item > .pp-character {
+  flex: 1;
+  min-width: 0;
+}
+
+/* O mesmo quadradinho claro da nota no mapa: retângulo pequeno, chapado, como no minimapa. */
+.pp-personal-notes__mark {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  background: #f2d479;
+  box-shadow: 0 0 0 1px #000000;
+}
+
+.pp-personal-notes__remove {
+  flex: none;
+  min-height: 32px;
+  padding: 4px 8px;
+  font: inherit;
+  font-size: 12px;
+  color: var(--lb-color-parchment-dim, #a2a09a);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--lb-radius-md, 6px);
+  cursor: pointer;
+}
+
+.pp-personal-notes__remove:hover {
+  color: var(--lb-color-parchment, #eceae4);
+  border-color: var(--lb-color-line-panel, rgba(255, 255, 255, 0.18));
+}
+
+.pp-personal-notes__remove:focus-visible {
+  outline: 2px solid var(--lb-color-brass, #e0a44a);
+  outline-offset: 2px;
+}
+
+/* O cartão da anotação foi o jogador que pediu: fica por cima de um recado que chegue enquanto ele digita. */
+.pp-note-draft {
+  z-index: 26;
+}
+
+/*
+ * DADO ROLADO NA SALA: as últimas rolagens da mesa no canto de baixo à
+ * direita, empilhadas acima do zoom (44 px × 2 + borda, a 24 px do rodapé).
+ * Acima da gaveta do painel (z 10): no celular, quem rola pela gaveta vê o
+ * resultado chegar sem fechá-la. Só texto: o toque atravessa para o mapa.
+ */
+.pp-dice-feed {
+  position: fixed;
+  right: 12px;
+  bottom: calc(24px + 90px + 10px + env(safe-area-inset-bottom, 0px));
+  z-index: 12;
+  width: min(260px, calc(100% - 24px));
+  pointer-events: none;
 }
 
 /*

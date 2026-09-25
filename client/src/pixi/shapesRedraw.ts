@@ -4,6 +4,7 @@ import { selectionSingle, type SelectionSet } from '../lib/selectionModel'
 import { resolveHighlightedRegionId } from './drawRegions'
 import { hazardsOf } from '../lib/hazards'
 import { tokenWatchOf } from '../lib/npcWatch'
+import { tokenPatrolOf } from '../lib/npcPatrol'
 
 /**
  * Camadas vetoriais do mapa no editor, NA ORDEM de pintura do PixiCanvas.
@@ -20,11 +21,13 @@ export const SHAPES_LAYERS = [
   'perigos',
   'drawings',
   'hazards',
+  'areaTriggers',
   'roomNames',
   'walls',
   'stairs',
   'lights',
   'watchCones',
+  'patrolRoutes',
   'concealZones',
   'pins',
   'textLabels',
@@ -122,6 +125,9 @@ export function shapesLayerDeps(layer: ShapesLayer, snapshot: ShapesSnapshot): r
     case 'hazards':
       // ZONA DE PERIGO: a cor pinta a sala tomada. Sem perigo no mapa, nada a repintar.
       return hazardsOf(map).length === 0 ? ['sem perigo'] : [map.hazards, map.regions, hidden]
+    case 'areaTriggers':
+      // GATILHO DE ÁREA: pinta a região marcada. Sem gatilho no mapa, nada a repintar.
+      return (map.gatilhos ?? []).length === 0 ? ['sem gatilho'] : [map.gatilhos, map.regions, hidden]
     case 'roomNames':
       return [map.regions, hidden, map.grid]
     case 'walls':
@@ -134,6 +140,9 @@ export function shapesLayerDeps(layer: ShapesLayer, snapshot: ShapesSnapshot): r
     case 'watchCones':
       // OLHOS DO GUARDA: o cone segue o guarda (fichas) e é cortado por paredes e chão.
       return map.tokens.some((t) => tokenWatchOf(t) !== null) ? [map.tokens, map.walls, map.floor, hidden, map.grid] : ['sem guarda']
+    case 'patrolRoutes':
+      // ROTA DE PATRULHA: a rota mora na ficha (marcar ponto, avançar), e a camada Fichas esconde junto.
+      return map.tokens.some((t) => tokenPatrolOf(t) !== null) ? [map.tokens, hidden, map.grid] : ['sem patrulha']
     case 'concealZones':
       return [map.concealZones, map.grid, snapshot.selectedConcealZoneId]
     case 'pins':

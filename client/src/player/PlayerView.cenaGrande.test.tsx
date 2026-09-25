@@ -1,0 +1,244 @@
+import { act } from 'react'
+import { createRoot, type Root } from 'react-dom/client'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { Container } from 'pixi.js'
+import { createEmptyMap } from '../lib/mapFactory'
+import type { FloorPiece, MapData, RegionPoint, Wall } from '../types/map'
+import { DEFAULT_PLAYER_SETTINGS } from './PlayerPanel'
+import { PlayerView } from './PlayerView'
+
+/**
+ * CENA GRANDE NO CELULAR, na TELA. `playerCulling.test.ts` prova o recorte
+ * isolado; aqui a prova é a COSTURA: a PlayerView de verdade recebe a planta
+ * inteira de uma cena enorme e desenha só as paredes perto da ficha e as que o
+ * jogador já viu. `data-walls-count` continua contando o que chegou (os e2e
+ * leem assim); `data-walls-drawn` conta o que virou traço no Pixi.
+ *
+ * Sem navegador: só o `Application` (WebGL) é trocado, como em
+ * `PlayerView.silhueta.test.tsx`.
+ */
+
+const tela = vi.hoisted(() => ({ palcos: [] as Container[], rasterizacoes: 0, sombras: 0 }))
+
+// Sombra das luzes: conta quantas vezes a tela pede os obstáculos da cena
+// INTEIRA (contorno de todo o chão, o cálculo que trava o celular).
+vi.mock('../lib/visibility', async (importOriginal) => {
+  const visibility = await importOriginal<typeof import('../lib/visibility')>()
+  return {
+    ...visibility,
+    visionSegments: (...args: Parameters<typeof visibility.visionSegments>): ReturnType<typeof visibility.visionSegments> => {
+      tela.sombras += 1
+      return visibility.visionSegments(...args)
+    },
+  }
+})
+
+// Render fiel: conta as rasterizações do mapa inteiro (o custo caro) e devolve
+// pixels vazios do tamanho pedido, sem varrer nada.
+vi.mock('../lib/minimapRaster', async (importOriginal) => {
+  const raster = await importOriginal<typeof import('../lib/minimapRaster')>()
+  return {
+    ...raster,
+    rasterizeMinimap: (input: { width: number; height: number }): Uint8ClampedArray => {
+      tela.rasterizacoes += 1
+      return new Uint8ClampedArray(input.width * input.height * 4)
+    },
+  }
+})
+
+vi.mock('pixi.js', async (importOriginal) => {
+  const pixi = await importOriginal<typeof import('pixi.js')>()
+  class ApplicationSemGpu {
+    readonly stage = new pixi.Container()
+    readonly screen = new pixi.Rectangle(0, 0, 800, 600)
+    readonly renderer = { resolution: 1 }
+    readonly ticker = { add: () => undefined, remove: () => undefined }
+    readonly canvas = document.createElement('canvas')
+    constructor() {
+      tela.palcos.push(this.stage)
+    }
+    async init(): Promise<void> {}
+    resize(): void {}
+    destroy(): void {
+      this.canvas.remove()
+    }
+  }
+  return { ...pixi, Application: ApplicationSemGpu }
+})
+
+// O halo usa gradiente de canvas 2D, que o jsdom não tem: aqui só importa
+// o que a tela pede de obstáculos (`visionSegments`), não o desenho da luz.
+vi.mock('../pixi/drawLights', async (importOriginal) => {
+  const lights = await importOriginal<typeof import('../pixi/drawLights')>()
+  return {
+    ...lights,
+    createLightsRenderer: (): ReturnType<typeof lights.createLightsRenderer> => ({
+      draw: () => undefined,
+      liveGradients: () => 0,
+      destroy: () => undefined,
+    }),
+  }
+})
+
+const GRID = 40
+const SALA = 5 * GRID
+const SEM_FICHAS: string[] = []
+
+function parede(id: string, x1: number, y1: number, x2: number, y2: number): Wall {
+  return { id, x1, y1, x2, y2, blocksLight: true, blocksMove: true, door: null }
+}
+
+/** Quarteirão de `lado` x `lado` salas de 4 paredes e 1 peça de chão: a planta como o jogador a recebe. */
+function quarteirao(lado: number): MapData {
+  const walls: Wall[] = []
+  const floor: FloorPiece[] = []
+  for (let linha = 0; linha < lado; linha += 1) {
+    for (let coluna = 0; coluna < lado; coluna += 1) {
+      const x = coluna * SALA
+      const y = linha * SALA
+      const id = `s${coluna}-${linha}`
+      walls.push(
+        parede(`${id}-n`, x, y, x + SALA, y),
+        parede(`${id}-l`, x + SALA, y, x + SALA, y + SALA),
+        parede(`${id}-s`, x, y + SALA, x + SALA, y + SALA),
+        parede(`${id}-o`, x, y, x, y + SALA),
+      )
+      floor.push({ id: `${id}-chao`, shape: { kind: 'rect', cx: x + SALA / 2, cy: y + SALA / 2, w: SALA, h: SALA }, op: 'add', modifiers: {} })
+    }
+  }
+  return { ...createEmptyMap('m-blocos', '', lado * 5, lado * 5, GRID), walls, floor }
+}
+
+function sala(coluna: number, linha: number): RegionPoint[] {
+  const x = coluna * SALA
+  const y = linha * SALA
+  return [
+    { x: x + 1, y: y + 1 },
+    { x: x + SALA - 1, y: y + 1 },
+    { x: x + SALA - 1, y: y + SALA - 1 },
+    { x: x + 1, y: y + SALA - 1 },
+  ]
+}
+
+describe('PlayerView — cena grande não desenha a cidade inteira', () => {
+  let raiz: HTMLDivElement
+  let root: Root
+
+  beforeEach(() => {
+    Reflect.set(globalThis, 'IS_REACT_ACT_ENVIRONMENT', true)
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        observe(): void {}
+        unobserve(): void {}
+        disconnect(): void {}
+      },
+    )
+    tela.palcos.length = 0
+    tela.rasterizacoes = 0
+    tela.sombras = 0
+    raiz = document.createElement('div')
+    document.body.appendChild(raiz)
+    root = createRoot(raiz)
+  })
+
+  afterEach(() => {
+    act(() => root.unmount())
+    raiz.remove()
+    vi.unstubAllGlobals()
+  })
+
+  function conteiner(): HTMLElement {
+    const el = raiz.firstElementChild
+    if (!(el instanceof HTMLElement)) throw new Error('a PlayerView não renderizou o contêiner')
+    return el
+  }
+
+  async function mostra(map: MapData, vision: RegionPoint[][]): Promise<void> {
+    await act(async () => {
+      root.render(
+        <PlayerView map={map} vision={vision} ownTokens={SEM_FICHAS} settings={DEFAULT_PLAYER_SETTINGS} focusTokenId={null} focusSeq={0} onMove={() => {}} />,
+      )
+    })
+  }
+
+  async function paredesDesenhadas(map: MapData, vision: RegionPoint[][]): Promise<{ recebidas: string; desenhadas: string }> {
+    await mostra(map, vision)
+    await vi.waitFor(() => expect(conteiner().dataset.wallsDrawn).toBeDefined())
+    return { recebidas: conteiner().dataset.wallsCount ?? '', desenhadas: conteiner().dataset.wallsDrawn ?? '' }
+  }
+
+  it('900 salas recebidas, e a tela desenha só as paredes da vizinhança da ficha — as mesmas de uma cena de 9 salas', async () => {
+    const grande = await paredesDesenhadas(quarteirao(30), [sala(0, 0)])
+    expect(grande.recebidas).toBe('3600')
+
+    act(() => root.unmount())
+    root = createRoot(raiz)
+    const pequena = await paredesDesenhadas(quarteirao(3), [sala(0, 0)])
+    expect(pequena.recebidas).toBe('36')
+
+    // Mesmo desenho na cidade de 900 salas e na vila de 9: o resto está debaixo do preto.
+    expect(grande.desenhadas).toBe(pequena.desenhadas)
+    expect(Number(grande.desenhadas)).toBeGreaterThanOrEqual(4)
+    expect(Number(grande.desenhadas) * 20).toBeLessThan(3600)
+  })
+
+  it('900 peças de chão recebidas, e a tela contorna só o chão da vizinhança da ficha — o mesmo de uma cena de 9 salas', async () => {
+    await paredesDesenhadas(quarteirao(30), [sala(0, 0)])
+    const grande = conteiner().dataset.floorDrawn ?? ''
+
+    act(() => root.unmount())
+    root = createRoot(raiz)
+    await paredesDesenhadas(quarteirao(3), [sala(0, 0)])
+    const pequena = conteiner().dataset.floorDrawn ?? ''
+
+    expect(grande).toBe(pequena)
+    expect(Number(grande)).toBeGreaterThanOrEqual(1)
+    expect(Number(grande) * 20).toBeLessThan(900)
+  })
+
+  it('Render fiel (raster): explorar um pedaço novo NÃO rasteriza o mapa inteiro de novo', async () => {
+    const base = quarteirao(6)
+    const map: MapData = { ...base, floorStyle: { ...base.floorStyle, renderMode: 'raster' } }
+    const aqui = await paredesDesenhadas(map, [sala(0, 0)])
+    const rasterizacoes = tela.rasterizacoes
+    expect(rasterizacoes).toBe(1)
+    // O raster leva o chão inteiro: o mapa todo é pintado de uma vez.
+    expect(conteiner().dataset.floorDrawn).toBe('36')
+
+    // A ficha abre a visão até o outro canto: as paredes de lá entram no desenho...
+    await mostra(map, [sala(0, 0), sala(5, 5)])
+    await vi.waitFor(() => expect(conteiner().dataset.wallsDrawn).not.toBe(aqui.desenhadas))
+    // ...e o mapa rasterizado continua o mesmo, sem refazer pixel por pixel.
+    expect(tela.rasterizacoes).toBe(rasterizacoes)
+    expect(conteiner().dataset.floorDrawn).toBe('36')
+  })
+
+  it('sem luz na cena, a tela não contorna o chão da cidade inteira para fazer sombra', async () => {
+    await paredesDesenhadas(quarteirao(30), [sala(0, 0)])
+    expect(tela.sombras).toBe(0)
+  })
+
+  it('com luz, explorar um pedaço novo não refaz a sombra da cena inteira (o chão da cena não mudou)', async () => {
+    const base = quarteirao(6)
+    const map: MapData = { ...base, lights: [{ id: 'tocha', x: SALA / 2, y: SALA / 2, radius: SALA, color: '#ffcc66', intensity: 1 }] }
+    const aqui = await paredesDesenhadas(map, [sala(0, 0)])
+    const chaoAntes = conteiner().dataset.floorDrawn
+    expect(tela.sombras).toBe(1)
+
+    await mostra(map, [sala(0, 0), sala(5, 5)])
+    await vi.waitFor(() => expect(conteiner().dataset.floorDrawn).not.toBe(chaoAntes))
+    await vi.waitFor(() => expect(conteiner().dataset.wallsDrawn).not.toBe(aqui.desenhadas))
+    expect(tela.sombras).toBe(1)
+  })
+
+  it('snapshot novo com a ficha do outro lado da cidade: as paredes de lá passam a ser desenhadas', async () => {
+    const map = quarteirao(30)
+    const aqui = await paredesDesenhadas(map, [sala(0, 0)])
+    await mostra(map, [sala(0, 0), sala(29, 29)])
+    await vi.waitFor(() => expect(conteiner().dataset.wallsDrawn).not.toBe(aqui.desenhadas))
+    // A vizinhança de cá continua (a ficha ainda vê a sala 0,0) e a de lá entra.
+    expect(Number(conteiner().dataset.wallsDrawn)).toBeGreaterThan(Number(aqui.desenhadas))
+    expect(conteiner().dataset.wallsCount).toBe('3600')
+  })
+})

@@ -2,7 +2,7 @@ import type { Graphics } from 'pixi.js'
 import type { Stair, StairSegment } from '../types/map'
 import { SELECTION_COLOR, STAIR_COLOR, STROKE_WEIGHT } from './constants'
 import { alignToPixel, pixelGrid, strokeWidthInWorld, type PixelGrid } from './pixelAlign'
-import { computeStairPlan, type StairPlan, type StairTread } from '../lib/stairs'
+import { computeSpiralPlan, computeStairPlan, type SpiralPlan, type StairPlan, type StairTread } from '../lib/stairs'
 import type { Point } from './world'
 import { selectionOutlineWidth } from './drawWalls'
 
@@ -52,7 +52,15 @@ export function drawStairs(
   const pixel = pixelGrid(cameraScale, rendererResolution, STROKE_WEIGHT.hairline)
   const scale = cameraScale > 0 ? cameraScale : 1
 
-  const planned = stairs.map((stair) => ({
+  const hairline = strokeWidthInWorld(pixel)
+  const sobra = 2 * selectionOutlineWidth(cameraScale)
+  const spirals = planSpirals(stairs)
+
+  // O realce vai por baixo de TODA escada, espiral ou reta.
+  const selectedSpiral = spirals.find((entry) => entry.stair.id === selectedStairId)
+  if (selectedSpiral) strokeSpiral(graphics, selectedSpiral.plan, hairline + sobra, 'realce')
+
+  const planned = stairs.filter((stair) => stair.shape !== 'spiral').map((stair) => ({
     stair,
     plans: stair.segments
       .map((segment) => {
@@ -66,7 +74,6 @@ export function drawStairs(
   if (selected) {
     // Cada traço ganha a MESMA sobra (drawWalls.ts: `style.width + 2 * outline`),
     // então o realce acompanha o lance em vez de engrossar tudo até virar bloco.
-    const sobra = 2 * selectionOutlineWidth(cameraScale)
     for (const { plan, rails } of selected.plans) {
       for (const rail of rails) tracePath(graphics, rail)
       graphics.stroke({ width: strokeWidthInWorld(pixel) + sobra, color: SELECTION_COLOR, cap: 'round' })
@@ -85,6 +92,38 @@ export function drawStairs(
       tracePath(graphics, tread.points)
       graphics.stroke({ width: treadWidth(tread, scale), color: STAIR_COLOR, alpha: treadAlpha(tread.climb), join: 'round', cap: 'round' })
     }
+  }
+
+  for (const { plan } of spirals) strokeSpiral(graphics, plan, hairline, 'escada')
+}
+
+/** As espirais que têm lance para desenhar, com a geometria de cada uma. */
+function planSpirals(stairs: readonly Stair[]): { stair: Stair; plan: SpiralPlan }[] {
+  return stairs.flatMap((stair) => {
+    if (stair.shape !== 'spiral') return []
+    const first = stair.segments[0]
+    const plan = first === undefined ? null : computeSpiralPlan(first, stair.direction)
+    return plan === null ? [] : [{ stair, plan }]
+  })
+}
+
+/**
+ * ESCADA EM ESPIRAL (`computeSpiralPlan`): o círculo e o poste num traço só,
+ * e um raio por degrau. Todo traço tem a MESMA espessura (`width`) —
+ * "raios finos", sem galão que engorda. Na cor da escada, o contorno leva o
+ * tom da viga e o raio clareia rumo ao alto; no realce, tudo sai na cor dele.
+ */
+function strokeSpiral(graphics: Graphics, plan: SpiralPlan, width: number, pen: 'escada' | 'realce'): void {
+  graphics.circle(plan.center.x, plan.center.y, plan.radius)
+  graphics.circle(plan.center.x, plan.center.y, plan.postRadius)
+  graphics.stroke(pen === 'escada' ? { width, color: STAIR_COLOR, alpha: STAIR_RAIL_ALPHA } : { width, color: SELECTION_COLOR })
+  for (const spoke of plan.spokes) {
+    tracePath(graphics, [spoke.from, spoke.to])
+    graphics.stroke(
+      pen === 'escada'
+        ? { width, color: STAIR_COLOR, alpha: treadAlpha(spoke.climb), cap: 'butt' }
+        : { width, color: SELECTION_COLOR, cap: 'round' },
+    )
   }
 }
 

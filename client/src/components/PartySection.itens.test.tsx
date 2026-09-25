@@ -3,12 +3,25 @@ import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ITEM_NAME_MAX_LENGTH } from '../lib/items'
 import type { PartyItemAction, PartyMember } from '../lib/party'
-import { PARTY_ITEM_FAILED, PartySection } from './PartySection'
+import type { TunnelState } from '../net/hostBridge'
+import type { PlayerInfo } from '../net/hostSession'
+import { PARTY_ITEM_FAILED } from './PartySection'
+import { RoomPanel } from './RoomPanel'
 
 /**
  * ITEM PEGÁVEL no Grupo: o mestre vê a mochila de cada jogador e, na própria
- * linha dele, TIRA um item, DEVOLVE ao chão ou DÁ um item novo.
+ * linha dele, TIRA um item, DEVOLVE ao chão ou DÁ um item novo. O Grupo é a
+ * lista única da aba Jogo (RoomPanel): é por ela que o mestre chega à linha.
  */
+
+const IDLE: TunnelState = { kind: 'idle' }
+const noop = (): void => {}
+const handlers = { onStart: noop, onStop: noop, onStartTunnel: noop, onStopTunnel: noop, onAssign: noop, onUnassign: noop, onKick: noop, onVisionRadiusChange: noop, onRevealPlan: noop, onHidePlan: noop }
+
+function jogadorDe(member: PartyMember): PlayerInfo {
+  const tokenIds = member.token === null ? [] : [member.token.id]
+  return { clientId: 'c-' + member.playerId, playerId: member.playerId, name: member.name, status: 'playing', connected: member.connected, tokenIds, visionRadius: 700 }
+}
 
 const DIEGO: PartyMember = {
   playerId: 'p-diego',
@@ -21,7 +34,7 @@ const DIEGO: PartyMember = {
   mochila: [{ id: 'pino-chave', nome: 'Chave do Escudo', tokenId: 'diego', sceneId: 'cena-mansao' }],
 }
 
-describe('PartySection: ações de mochila do mestre', () => {
+describe('Grupo: ações de mochila do mestre', () => {
   let container: HTMLDivElement
   let root: Root
 
@@ -38,7 +51,11 @@ describe('PartySection: ações de mochila do mestre', () => {
   })
 
   function render(onItem?: (action: PartyItemAction) => boolean, members: PartyMember[] = [DIEGO]): void {
-    act(() => root.render(<PartySection members={members} destinations={[]} onGoTo={() => {}} onSend={() => true} onItem={onItem} />))
+    const party = { members, destinations: [], onGoTo: noop, onSend: () => true, onItem }
+    const tokens = members.flatMap((member) => (member.token === null ? [] : [{ id: member.token.id, name: member.name }]))
+    act(() =>
+      root.render(<RoomPanel room={{ code: 'MOCHI1', urls: [], qrSvg: '<svg/>' }} players={members.map(jogadorDe)} tokens={tokens} party={party} tunnel={IDLE} {...handlers} />),
+    )
   }
 
   function botao(nome: string): HTMLButtonElement | undefined {
@@ -46,7 +63,7 @@ describe('PartySection: ações de mochila do mestre', () => {
   }
 
   function campo(): HTMLInputElement | null {
-    return container.querySelector('input[type="text"]')
+    return container.querySelector('form[aria-label^="Item novo"] input[type="text"]')
   }
 
   function digita(texto: string): void {

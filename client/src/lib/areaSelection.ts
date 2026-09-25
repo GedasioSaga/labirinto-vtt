@@ -25,6 +25,9 @@ import { isDegenerateRegion } from '../pixi/shapes'
 import { moveWall, moveRegion, moveStair } from './mapFactory'
 import { ancestorsOf, subtreeIds } from './roomNesting'
 import { carryAttachedLights } from './lightAttachment'
+import { stairSpiralCircle } from './stairs'
+import { carryAttachedPins, carryPinsByTokenSteps } from './pinAttach'
+import { carrierIdOf, followStep } from './carry'
 
 // ─────────────────────────────────────────────────────────────
 // Geometria genérica: todo tipo de entidade do mapa se reduz a um destes 5
@@ -207,6 +210,9 @@ function wallEntity(wall: Wall): AreaGeometryEntity {
 }
 
 function stairEntity(stair: Stair): AreaGeometryEntity {
+  // Espiral: a área cerca ou toca o círculo desenhado, não o diâmetro arrastado.
+  const circle = stairSpiralCircle(stair)
+  if (circle !== null) return { kind: 'circle', cx: circle.center.x, cy: circle.center.y, radius: circle.radius }
   return {
     kind: 'segments',
     segments: stair.segments.map((seg) => ({ a: { x: seg.x1, y: seg.y1 }, b: { x: seg.x2, y: seg.y2 } })),
@@ -585,14 +591,30 @@ export function moveAreaSelection(map: MapData, selection: AreaSelection, dx: nu
 
   if (selection.tokens.length > 0) {
     const tokenIds = new Set(selection.tokens)
-    const movedTokenIds = new Set(next.tokens.filter((t) => tokenIds.has(t.id) && canInteract(t)).map((t) => t.id))
+    const movedTokenIds = next.tokens.filter((t) => tokenIds.has(t.id) && canInteract(t)).map((t) => t.id)
+    const movedIds = new Set(movedTokenIds)
     // Tocha presa na ficha vai junto; a luz que também estava na seleção já andou acima.
     const movedLightIds = new Set(next.lights.filter((l) => selection.lights.includes(l.id) && canInteract(l)).map((l) => l.id))
+    // LEVAR FICHA JUNTO: a ficha levada que NÃO está na seleção acompanha quem
+    // a leva, com o trajeto dela checado nas paredes de ANTES (`map`) — a seta
+    // e o arrasto da seleção não passam por `setTokenPosition`.
+    const follows = (t: Token): boolean => {
+      const carrierId = carrierIdOf(t)
+      return carrierId !== null && movedIds.has(carrierId) && !movedIds.has(t.id)
+    }
+    const tokensBefore = next.tokens
+    const followerIds = new Set(tokensBefore.filter(follows).map((t) => t.id))
     next = {
       ...next,
-      tokens: next.tokens.map((t) => (movedTokenIds.has(t.id) ? { ...t, x: t.x + dx, y: t.y + dy } : t)),
-      lights: carryAttachedLights(next.lights, movedTokenIds, dx, dy, movedLightIds),
+      tokens: tokensBefore.map((t) => (movedIds.has(t.id) ? { ...t, x: t.x + dx, y: t.y + dy } : follows(t) ? followStep(map, t, dx, dy) : t)),
+      lights: carryAttachedLights(next.lights, movedIds, dx, dy, movedLightIds),
     }
+    // Pino PRESO a uma ficha que andou anda junto. O pino não entra na seleção
+    // em área, então não há risco de somar o delta duas vezes. A ficha levada
+    // não está em `movedIds` (`follows` a exclui), então o pino dela anda uma
+    // vez só, pelo passo real dela.
+    for (const tokenId of movedTokenIds) next = carryAttachedPins(next, tokenId, dx, dy)
+    next = carryPinsByTokenSteps(next, tokensBefore, followerIds)
   }
 
   if (selection.props.length > 0) {

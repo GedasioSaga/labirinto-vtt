@@ -26,6 +26,25 @@ export function signalColor(playerId: string): string {
 
 export const SIGNAL_COLOR_PATTERN = /^#[0-9a-f]{6}$/i
 
+/**
+ * MARCA "VAMOS PARA CÁ": uma por jogador, SEM prazo — fica até o dono tirar
+ * (ou sair da cena onde a pôs). `from` é o nome dele na sala e `color` a cor
+ * da ficha; `mine` diz a quem recebe que a marca é a dele (o mestre recebe
+ * sempre `false`). Posição em px de mundo da cena de quem recebe.
+ */
+export interface DestinationMark {
+  x: number
+  y: number
+  from: string
+  color: string
+  mine: boolean
+}
+
+/** Intervalo mínimo entre duas marcas postas pelo mesmo jogador: segura quem martela, e cada marca recalcula a lista de todos. */
+export const DESTINATION_MIN_INTERVAL_MS = 500
+/** Teto da lista de marcas que o jogador aceita: bem acima de uma mesa real, abaixo de um host hostil inflando a tela. */
+export const MAX_DESTINATION_MARKS = 64
+
 /** Sinal pronto para desenhar: posição em px de mundo e instante em que chegou (`Date.now`). */
 export interface SignalMark {
   id: string

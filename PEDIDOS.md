@@ -729,3 +729,66 @@ Feito: as 5 grandes que ainda não tinham começado (cabine, correio, rotina de 
 foram para um run paralelo, as 5 ao mesmo tempo (`wf_d1c06cc2-0db`, `auto/int-t-grandes-b`); a segunda metade
 das listas de defeitos, médias A/B e pequenas da onda 3 ganhou runs paralelos `-b`. Nada em construção parou:
 um vigia só para o run antigo quando ele chega na primeira peça que foi para o `-b`.
+
+### 24/09/2026, 14h00 — abrir o programa para testar
+
+> "Pode abrir o programa com as atuais mudanças? só para eu testar? sem atrabalhar os workflows é claro."
+
+Feito: cópia separada `C:/dev/labirinto-ver` (worktree solta em `03cc777`, o último estado provado da 2ª
+passada da junção: `auto/acervo` + os grupos jogador e editor), aberta com `npm run tauri:dev` na porta 1420
+(`LAB_PORTA=1420`, Rust reaproveitado do `target` da árvore principal). Os workflows não usam essa pasta. As
+grandes ainda não estão nela: entram quando a junção só das grandes (`wf_e1417c8d-d57`) sair verde.
+
+### 24/09/2026, 15h10 — link público fica carregando
+
+> "Cria um workflow rápido para resolver isso, link publico fican infinitamente carrendo e não abre."
+
+Em andamento: workflow `wf_933d952b-cd2`. Dois diagnósticos em paralelo (um reproduz ao vivo por um túnel
+próprio do cloudflared contra a sala aberta em `C:/dev/labirinto-ver`, outro rastreia o caminho no código),
+depois conserto com teste vermelho numa branch `auto/f2-link-publico` saída de `03cc777` e prova
+independente (cargo test, clippy, tipos, unidade). Verde ⇒ a cópia de teste passa para o commit do conserto.
+
+### 24/09/2026, 15h30 — abrir já com todas as grandes
+
+> "Ok, então abre o programa agora com todas as features novas, e a que não entrou no programa faça entrar
+> logo nessa abertura do programa."
+
+Em andamento: prévia de teste em `C:/dev/labirinto-previa` (branch `auto/previa-grandes`, saiu de `e443364` =
+acervo + jogador + editor + mundo provados), com merge de `9b818e0` (4 grandes provadas), `auto/int-t-grandes-b`
+(cabine, correio, rotina do NPC, perigo que alastra, mobília) e `auto/f2-pisos-na-mesma-cena` (ainda em
+revisão). Workflow `wf_4df0cddf-2ac`. Tipos verdes ⇒ o app de teste reabre dessa árvore. A prévia não vai para
+`auto/acervo`: as grandes entram no programa oficial pela junção `wf_e1417c8d-d57`.
+
+### 24/09/2026, 18h00 — juntar as grandes e publicar de 10 em 10
+
+> "Uma coisa sobre junto a branch e ao programa principal eu quero que você já vá juntando todas as features
+> grande ao programa principal e a cada 10 e 10 features vocÊ coloque no programa principal, fazendo commits,
+> testes e o push"
+
+Autorização explícita de push. "Programa principal" = branch `main` do GitHub (`GedasioSaga/labirinto-vtt`),
+que é ancestral de `auto/acervo` (avança por fast-forward, sem force). Plano: publicar já os 4 grupos provados
+da 2ª passada (`auto/juntar` `d37de87`: jogador, editor, mundo, rede); depois, em duas pistas paralelas, as
+grandes (`auto/juntar-grandes` + correio-2) e os grupos restantes um a um (visão, defeitos, t-*), cada unidade
+com merge, tipos, unidade e prova, e publicação serial: `auto/acervo` absorvido na pista, merge `--no-ff` em
+`auto/acervo`, fast-forward de `main` e `git push origin main`. Nunca force-push.
+
+
+### 24/09/2026, 18h40 — publicar o feito + grandes, criar o instalador, depois seguir de 10 em 10
+
+> "Pronto o que eu quero é que vocÊ coloque a features já feitas mas as features grandes, faça o push e essa
+> versão você cria o instalador, e então volta a fazer as outras, commitando e fazendo push de 10 em 10
+> features adicionadas, e a cada 10 começasse a intregar no programa."
+
+Plano: `wf_ef4eb784-1f6` publica em `main` os grupos já feitos (jogador, editor, mundo, rede, visão, defeitos,
+t-*) e as grandes, cada unidade com testes e push. Quando terminar: versão nova, `npm run tauri build`,
+instalador `.exe` e `.msi` como tag + GitHub Release (mesmo formato da v0.1.0). Depois: retomar a onda 3 (pausada)
+com runs novos só das peças que faltam, publicando em `main` a cada 10 features integradas. A prévia de teste
+(`wf_4d2b1c13-1d8`) foi parada: a versão publicada já leva as grandes.
+
+### 24/09/2026, 18h50 — conserto do link público no programa principal
+
+> "pronto, então já coloca no programa principal junto ao instalador"
+
+Feito: `auto/f2-link-publico` (`c76b664`, provado: cargo test, clippy, tipos e unidade verdes) entra em
+`auto/acervo` agora, antes do push e do instalador. Defeito só do modo dev (o `dev_fallback` do servidor da sala
+recusava pelo túnel os módulos que a página do jogador pede); o release serve a página embutida.

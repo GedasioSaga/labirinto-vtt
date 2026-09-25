@@ -6,6 +6,7 @@ import { isEditableTarget, type ShortcutEvent } from './keymap'
 import { pointsBoundingBox, tokenBoundingBox } from './objectTransform'
 import { PIN_HEAD_RADIUS, PIN_HEIGHT, pinSummary } from './pins'
 import { pinFocusPoint } from './pinTravel'
+import { isStairPin } from './stairTravel'
 import { isPointInPolygon } from './selectionHitTest'
 import { selectionSingle, type SelectionSet } from './selectionModel'
 import { parseHexColor, tokenFillColor } from './tokenColor'
@@ -243,7 +244,8 @@ export function mapObjectsOf(map: MapData): MapObjectEntry[] {
     const entry = doorEntry(map, wall)
     if (entry !== null) entries.push(entry)
   }
-  for (const pin of map.pins) entries.push(pinEntry(map, pin))
+  // O pino da escada que leva a outro andar não é objeto da lista: a escada é.
+  for (const pin of map.pins) if (!isStairPin(pin)) entries.push(pinEntry(map, pin))
   for (const token of map.tokens) entries.push(tokenEntry(map, token))
   for (const drawing of map.drawings) {
     const entry = textEntry(map, drawing)

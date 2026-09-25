@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { DoorContextMenu } from '../components/DoorContextMenu'
 import { Application, Container, Graphics, Sprite, Texture, Assets, Rectangle } from 'pixi.js'
 import { dataUrlToBytes, imageExportScale, mapForImageExport, type ImageExportOptions, type MapImageExporter } from '../lib/mapImageExport'
 import { convertFileSrc } from '@tauri-apps/api/core'
@@ -81,8 +82,9 @@ const OUTSIDE_FLOOR_GRID_ALPHA = 0.08
 // Onda 3, item 21 (Frente E) — moldura do mapa (contorno + sombra fora dela).
 import { drawMapBounds } from './drawMapBounds'
 import { createTokensRenderer } from './tokensRenderer'
-import { createSignalsRenderer } from './drawSignals'
+import { createDestinationsRenderer, createSignalsRenderer } from './drawSignals'
 import { useSignalStore } from '../stores/signalStore'
+import { useDestinationStore } from '../stores/destinationStore'
 import { createLaserPool, createLaserRenderer } from './drawLaser'
 import { isLaserArmed, useLaserStore } from '../stores/laserStore'
 import { usePlayerLaserStore } from '../stores/playerLaserStore'
@@ -141,8 +143,11 @@ import { createPropsRenderer } from './drawProps'
 import { createConcealZonesRenderer } from './drawConcealZones'
 import { drawHazardAreas } from './drawHazards'
 import { hazardAreas } from '../lib/hazards'
+import { drawAreaTriggers } from './drawAreaTriggers'
+import { areaTriggerAreas } from '../lib/areaTriggers'
 import { drawWatchCones } from './drawNpcWatch'
 import { drawPerigos } from './drawPerigos'
+import { drawPatrolRoutes } from './drawNpcPatrol'
 import { createPinsRenderer } from './drawPins'
 import { findConcealZoneAt } from '../lib/concealZones'
 import { revealBrushRadius, type RevealBrushMode } from '../lib/concealBrush'
@@ -156,6 +161,7 @@ import { pickImageFile, importPropImage } from '../lib/imageImport'
 import { mapDirFor } from '../lib/mapFileIO'
 import {
   findSelectableAt, findCurveControlPointAt, findWallAt, findNearestExistingVertex, findLockedLayerAt,
+  findDoorAt, findConcealZoneForSelect,
   type SelectableHit,
 } from '../lib/selectionHitTest'
 import type { SelectionKind } from '../types/tools'
@@ -564,6 +570,9 @@ export function PixiCanvas({
   }, [onShowShortcuts])
 
   const [nameEditor, setNameEditor] = useState<NameEditorState | null>(null)
+  // Clique direito numa porta: Abrir/Fechar e Trancar/Destrancar ali mesmo.
+  const [doorMenu, setDoorMenu] = useState<{ wallId: string; x: number; y: number } | null>(null)
+  const closeDoorMenu = useCallback(() => setDoorMenu(null), [])
   // Enter e Esc desmontam o campo, e o navegador pode disparar blur depois;
   // sem esta trava o blur gravaria o nome que o Esc acabou de cancelar.
   const nameEditorOpenRef = useRef(false)
@@ -695,12 +704,18 @@ export function PixiCanvas({
       // OLHOS DO GUARDA: o cone de cada NPC vigia, embaixo das fichas para não
       // cobrir quem está dentro dele. Só o mestre desenha isto.
       const watchConesGraphics = new Graphics()
+      // ROTA DE PATRULHA: a ronda de cada NPC, também embaixo das fichas e só do mestre.
+      const patrolRoutesGraphics = new Graphics()
+      patrolRoutesGraphics.eventMode = 'none'
       const tokensContainer = new Container()
       // A5 — zonas ocultas por cima do conteúdo: o mestre precisa ver o que cobre.
       const concealZonesContainer = new Container()
       // ZONA DE PERIGO: cor chapada sobre o chão e as salas, sob paredes e fichas.
       const hazardsGraphics = new Graphics()
       hazardsGraphics.eventMode = 'none'
+      // GATILHO DE ÁREA: o mestre vê toda área marcada, revelada ou não, na mesma altura do perigo.
+      const areaTriggersGraphics = new Graphics()
+      areaTriggersGraphics.eventMode = 'none'
       // Pinos acima das zonas ocultas: o pino é o chamariz da cena e o mestre
       // precisa achá-lo mesmo sobre uma área que ele mesmo escondeu.
       const pinsContainer = new Container()
@@ -735,6 +750,7 @@ export function PixiCanvas({
         gridGraphics,
         gridAlignOverlayGraphics,
         hazardsGraphics,
+        areaTriggersGraphics,
         wallsGraphics,
         doorsGraphics,
         stairsGraphics,
@@ -746,6 +762,7 @@ export function PixiCanvas({
         propsContainer,
         lightsContainer,
         watchConesGraphics,
+        patrolRoutesGraphics,
         tokensContainer,
         concealZonesContainer,
         pinsContainer,
@@ -902,6 +919,22 @@ export function PixiCanvas({
         signalsDrawn = drawn
       }
       app.ticker.add(tickSignals)
+
+      // Marcas "vamos para cá" dos jogadores da cena aberta: sem animação, mas
+      // presas à tela (tamanho fixo e seta na borda), então seguem a câmera a
+      // cada quadro. Abaixo dos sinais: a camada nasce antes das ondas.
+      const destinationsLayer = new Container()
+      signalsLayer.addChild(destinationsLayer)
+      const destinationsRenderer = createDestinationsRenderer()
+      let destinationsDrawn = 0
+      const tickDestinations = () => {
+        const { marks } = useDestinationStore.getState()
+        if (marks.length === 0 && destinationsDrawn === 0) return
+        const drawn = destinationsRenderer.draw(destinationsLayer, marks, camera, { width: app.screen.width, height: app.screen.height })
+        if (drawn !== destinationsDrawn) el.dataset.destinationsCount = String(drawn)
+        destinationsDrawn = drawn
+      }
+      app.ticker.add(tickDestinations)
 
       // B2 — laser do mestre: o próprio rastro em espaço de tela, acima dos sinais.
       const laserLayer = new Container()
@@ -1290,6 +1323,11 @@ export function PixiCanvas({
           const { map } = sceneState()
           drawHazardAreas(hazardsGraphics, map.hiddenLayers.includes('salas') ? [] : hazardAreas(map))
         },
+        // GATILHO DE ÁREA: gatilho de região em camada escondida sai junto com ela.
+        areaTriggers: () => {
+          const { map } = sceneState()
+          drawAreaTriggers(areaTriggersGraphics, areaTriggerAreas({ gatilhos: map.gatilhos, regions: visibleRegions(map.regions, map.hiddenLayers) }))
+        },
         roomNames: () => {
           const { map } = sceneState()
           roomNamesRenderer.draw(roomNamesContainer, visibleRegions(map.regions, map.hiddenLayers), map.grid, camera.scale)
@@ -1299,6 +1337,8 @@ export function PixiCanvas({
         lights: paintLights,
         // OLHOS DO GUARDA: parede nova, porta aberta ou guarda andando mudam o cone.
         watchCones: () => drawWatchCones(watchConesGraphics, sceneState().map),
+        // ROTA DE PATRULHA: a rota muda junto com a ficha (marcar ponto, avançar patrulha).
+        patrolRoutes: () => drawPatrolRoutes(patrolRoutesGraphics, sceneState().map),
         concealZones: () => {
           const { map, selectedConcealZoneId } = sceneState()
           concealZonesRenderer.draw(concealZonesContainer, map.concealZones, map.grid, selectedConcealZoneId)
@@ -1338,9 +1378,10 @@ export function PixiCanvas({
         // A vez da iniciativa só acende NESTA cena: a de outra cena é outra ficha.
         const turnTokenId = turnTokenIdOn(useInitiativeStore.getState().turn, map)
         tokensRenderer.draw(tokensContainer, visibleTokens(map.tokens, map.hiddenLayers), map.grid, single?.kind === 'token' ? single.id : null, camera.scale, turnTokenId)
-        // O cone acompanha o guarda no arrasto e a direção escolhida no painel
-        // (pelo portão do redesenho: sem guarda ou sem ficha mudada, nada repinta).
-        redrawShapeLayers(['watchCones'])
+        // O cone acompanha o guarda no arrasto e a direção escolhida no painel, e
+        // a rota acompanha a patrulha (pelo portão do redesenho: sem guarda, sem
+        // patrulha ou sem ficha mudada, nada repinta).
+        redrawShapeLayers(['watchCones', 'patrolRoutes'])
         // As alças do token acompanham o token: `moveTokenLive` (arrasto) e
         // `moveSelectionBy` (setas) só acordam ESTE redraw, nunca o de formas.
         redrawEditHandles()
@@ -2118,6 +2159,13 @@ export function PixiCanvas({
         x: (globalX - camera.x) / camera.scale,
         y: (globalY - camera.y) / camera.scale,
       })
+
+      /** Com o pincel de blocos o botão direito APAGA (decisão de 15/09/2026):
+       *  ali ele não abre menu de porta nem é engolido por ele. */
+      const direitoApagaBlocos = (): boolean => {
+        const { activeTool, floorShapeKind } = useMapStore.getState()
+        return activeTool === 'floor' && floorShapeKind === 'blocos'
+      }
 
       /**
        * `target` escolhe QUAL toggle de `snapTargets` consultar (Token gruda no
@@ -3143,6 +3191,15 @@ export function PixiCanvas({
         // borda, mesma forma que `selection` tinha antes da migração.
         const single = selectionSingle(selection)
 
+        // Botão direito numa porta: quem age é o menu da porta, aberto pelo
+        // `contextmenu` que vem logo depois. A ferramenta não roda — sem isto
+        // a ferramenta Porta punha outra porta ali e o Selecionar pegava a
+        // parede para arrastar.
+        if (event.button === 2 && !direitoApagaBlocos() && findDoorAt(map, worldPoint) !== null) {
+          mode = 'idle'
+          return
+        }
+
         // DUPLO CLIQUE QUE FECHA A FORMA, no ritmo de quem mira. A dica da
         // tela promete "Duplo clique fecha" (labels.ts) e até 21/09/2026 quem
         // cumpria a promessa era só o evento `dblclick` do navegador, de
@@ -3758,6 +3815,23 @@ export function PixiCanvas({
           }
         }
 
+        // Zona oculta na frente da sala e do chão: o clique no "tapete" abre a
+        // ZONA no painel ("Zona oculta"), sem trocar para a ferramenta Zona.
+        // Ficha, objeto, parede e escada dentro dela seguem ganhando o clique
+        // (`findConcealZoneForSelect`). Antes da camada travada: a zona não
+        // mora em camada, então uma sala travada embaixo não a esconde.
+        // Shift segue construindo o conjunto — a zona fica fora de `selection`.
+        if (activeTool === 'select' && event.button === 0 && !event.shiftKey) {
+          const zona = findConcealZoneForSelect(map, worldPoint)
+          if (zona !== null) {
+            useMapStore.getState().setSelectedConcealZone(zona.id)
+            mode = 'idle'
+            lastPoint = { x: event.global.x, y: event.global.y }
+            updateCursor()
+            return
+          }
+        }
+
         // Camada travada barra o GESTO, não só a seleção.
         //
         // `clickSelectMap`/`hitTestMap` tiram do mapa os itens de camada
@@ -4357,6 +4431,9 @@ export function PixiCanvas({
           const store = useMapStore.getState()
           if (gesture === 'click') {
             if (!event.shiftKey && store.selection.length > 0) store.setSelection(EMPTY_SELECTION)
+            // A zona aberta pelo Selecionar (ver `findConcealZoneForSelect` no
+            // pointerdown) fecha no clique no vazio, como fecha na ferramenta Zona.
+            if (!event.shiftKey && store.selectedConcealZoneId !== null) store.setSelectedConcealZone(null)
           } else {
             const encontrados = selectionFromAreaSelection(selectEntitiesInArea(store.map, rect))
             store.setSelection(
@@ -5516,8 +5593,19 @@ export function PixiCanvas({
        * direito continuar normal em toda outra ferramenta.
        */
       const onContextMenu = (event: MouseEvent) => {
-        const { activeTool, floorShapeKind } = useMapStore.getState()
-        if (activeTool === 'floor' && floorShapeKind === 'blocos') event.preventDefault()
+        if (direitoApagaBlocos()) {
+          event.preventDefault()
+          return
+        }
+        // Porta sob o ponteiro, com QUALQUER ferramenta na mão: abre o menu
+        // da porta (DoorContextMenu) no lugar do menu do navegador. O
+        // `pointerdown` do mesmo botão já saiu sem deixar a ferramenta agir.
+        const rect = el.getBoundingClientRect()
+        const local = { x: event.clientX - rect.left, y: event.clientY - rect.top }
+        const porta = findDoorAt(useMapStore.getState().map, toWorldPoint(local.x, local.y))
+        if (porta === null) return
+        event.preventDefault()
+        setDoorMenu({ wallId: porta.id, x: local.x, y: local.y })
       }
       el.addEventListener('contextmenu', onContextMenu)
 
@@ -5889,6 +5977,7 @@ export function PixiCanvas({
 
       return () => {
         app.ticker.remove(tickSignals)
+        app.ticker.remove(tickDestinations)
         app.ticker.remove(tickLaser)
         app.ticker.remove(tickPlayerLasers)
         unsubscribeLaserCursor()
@@ -5952,6 +6041,10 @@ export function PixiCanvas({
     // nome fica num irmão para o React nunca reconciliar filhos do Pixi.
     <div style={{ position: 'relative', width: '100%', height: '100%' }}>
       <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
+      {doorMenu && (
+        // `key`: outra porta (ou a mesma de novo) remonta o menu, e o foco volta ao primeiro item.
+        <DoorContextMenu key={`${doorMenu.wallId}-${doorMenu.x}-${doorMenu.y}`} {...doorMenu} onClose={closeDoorMenu} />
+      )}
       {nameEditor && editorPosition && editorCamera && (
         <input
           // Trocar de alvo remonta o campo, para o autoFocus valer de novo.

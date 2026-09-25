@@ -11,7 +11,8 @@ import { partyMembers } from '../lib/party'
 import type { HostWorld, PlayerInfo, PlayerNoteDelivery } from '../net/hostSession'
 import { NOTE_MAX_LENGTH } from '../net/protocol'
 import type { Token } from '../types/map'
-import { PartySection, playerNoteFeedbackText } from './PartySection'
+import { playerNoteFeedbackText } from './PartySection'
+import { RoomPanel, roomPanelTokensOf } from './RoomPanel'
 
 function ficha(id: string): Token {
   return { id, characterId: null, name: `ficha-${id}`, x: 100, y: 100, size: 1, image: null }
@@ -49,8 +50,16 @@ describe('PartySection: "Recado" para um jogador só', () => {
     container.remove()
   })
 
+  const noop = (): void => {}
+  const handlers = { onStart: noop, onStop: noop, onStartTunnel: noop, onStopTunnel: noop, onAssign: noop, onUnassign: noop, onKick: noop, onVisionRadiusChange: noop, onRevealPlan: noop, onHidePlan: noop }
+
+  /** O Grupo é a lista única da aba Jogo (RoomPanel): a linha de cada jogador leva o "Recado". */
   function render(onNote?: (playerId: string, text: string) => PlayerNoteDelivery): void {
-    act(() => root.render(<PartySection members={partyMembers(JOGADORES, mundo())} destinations={[]} onGoTo={() => {}} onSend={() => true} onNote={onNote} />))
+    const world = mundo()
+    const party = { members: partyMembers(JOGADORES, world), destinations: [], onGoTo: noop, onSend: () => true, onNote }
+    act(() =>
+      root.render(<RoomPanel room={{ code: 'GRUPO1', urls: [], qrSvg: '<svg/>' }} players={JOGADORES} tokens={roomPanelTokensOf(world)} party={party} tunnel={{ kind: 'idle' }} {...handlers} />),
+    )
   }
 
   function botao(nome: string): HTMLButtonElement | undefined {
@@ -58,7 +67,7 @@ describe('PartySection: "Recado" para um jogador só', () => {
   }
 
   function linha(nome: string): HTMLLIElement | undefined {
-    return Array.from(container.querySelectorAll('li')).find((li) => li.querySelector('.lb-party__name')?.textContent === nome)
+    return Array.from(container.querySelectorAll('li')).find((li) => li.querySelector('.lb-player__name')?.textContent === nome)
   }
 
   function campo(): HTMLTextAreaElement | null {

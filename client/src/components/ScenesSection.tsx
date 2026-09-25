@@ -16,10 +16,11 @@ import { ChevronDownIcon, CloseIcon, MoveIntoIcon, SearchIcon } from './icons'
 import { useSceneDrag, type SceneDrag } from './sceneDrag'
 import { SceneAlarmControls, type ActiveAlarmView } from './SceneAlarmControls'
 import { NOTE_MAX_LENGTH } from '../net/protocol'
-import { sceneTree, SCENE_TRAIL_SEPARATOR, type SceneTreeRow } from '../lib/adventure'
-import { normalizeForSearch } from '../lib/mapObjects'
+import { sceneTree, SCENE_PUBLIC_NAME_MAX_LENGTH, SCENE_TRAIL_SEPARATOR, type SceneTreeRow } from '../lib/adventure'
+import { matchesSceneSearch, SCENE_FILTER_MIN, sceneSearchWords } from '../lib/sceneSearch'
 import { pendingRequestsLabel, type ScenePeople, type ScenePerson, type SceneRoom } from '../lib/party'
-import type { SceneListItem } from '../stores/adventureStore'
+import { esperaLonga, minutosDeEspera, rotuloDeEspera, type EsperaPorCena } from '../lib/cenaQueEspera'
+import type { SceneDeletionInfo, SceneListItem } from '../stores/adventureStore'
 import type { MapData } from '../types/map'
 
 export interface ScenesSectionProps {
@@ -27,7 +28,8 @@ export interface ScenesSectionProps {
   /** Um clique troca a cena aberta. */
   onSelect: (sceneId: string) => void
   onCreate: (name: string) => void
-  onRename: (sceneId: string, name: string) => void
+  /** Renomear devolve os dois nomes: o do mestre e o NOME PARA OS JOGADORES (vazio = sem). */
+  onRename: (sceneId: string, name: string, publicName: string) => void
   /**
    * VISÃO GERAL DAS CENAS: o mapa de cada cena, pelo id da lista (`sceneMaps`).
    * Com duas cenas ou mais, a seção ganha o botão "Visão geral", que abre as
@@ -46,6 +48,16 @@ export interface ScenesSectionProps {
    * mestre escolheu quem recebe entre os presentes (só esses); ausente = todos.
    */
   onNote?: (sceneId: string, text: string, playerIds?: readonly string[]) => number | null
+  // MENU "…" DA CENA. Ausentes os quatro (mapa solto) = a linha fica sem o
+  // "…". Um só ausente = o item dele aparece esmaecido.
+  /** "Duplicar": a cópia entra logo abaixo, na mesma pasta, sem as fichas dos jogadores. */
+  onDuplicate?: (sceneId: string) => void
+  /** "Subir" (`-1`) e "Descer" (`1`): a cena troca de lugar com a irmã de cima ou de baixo, na mesma pasta. */
+  onShift?: (sceneId: string, delta: -1 | 1) => void
+  /** Chamado só depois da confirmação, e nunca com jogador na cena. */
+  onDelete?: (sceneId: string) => void
+  /** O que a confirmação de "Apagar cena…" mostra: pinos que ficam soltos, cenas de dentro que sobem e quem ainda está lá. */
+  deletionInfo?: (sceneId: string) => SceneDeletionInfo
   /**
    * CENAS EM PASTAS: põe `sceneId` dentro de `parentId` (`null` = primeiro
    * nível). `false` = não deu. Ausente = mapa solto: sem arrastar e sem
@@ -71,13 +83,38 @@ export interface ScenesSectionProps {
    * botão "Pausar" (sem sala, não há grupo esperando).
    */
   onTogglePause?: (sceneId: string, paused: boolean) => void
+  /**
+   * Desde quando (ms, relógio do mestre) cada cena espera o mestre: gente lá
+   * e o editor noutra cena (`lib/cenaQueEspera.ts`). A linha mostra 'há N
+   * min' a partir de 1 min. Ausente ou vazio = nenhuma linha mostra espera.
+   */
+  waitingSince?: EsperaPorCena
 }
+
+/** De quanto em quanto tempo o 'há N min' se atualiza sozinho. */
+const WAITING_TICK_MS = 15_000
+
+/**
+ * O relógio do 'há N min', vivo só enquanto alguma cena espera. Mora aqui, e
+ * não no `App`: o tique re-renderiza só a lista Cenas, não o editor inteiro.
+ */
+function useWaitingMinutes(waitingSince: EsperaPorCena | undefined): ReadonlyMap<string, number> {
+  const [now, setNow] = useState(() => Date.now())
+  const waiting = waitingSince !== undefined && waitingSince.size > 0
+  useEffect(() => {
+    if (!waiting) return
+    // O relógio pode ter parado enquanto ninguém esperava: acerta antes do primeiro tique.
+    setNow(Date.now())
+    const timer = setInterval(() => setNow(Date.now()), WAITING_TICK_MS)
+    return () => clearInterval(timer)
+  }, [waiting, waitingSince])
+  return waitingSince === undefined ? NO_WAITING : minutosDeEspera(waitingSince, now)
+}
+
+const NO_WAITING: ReadonlyMap<string, number> = new Map()
 
 /** Quanto tempo o aviso "Recado enviado…" fica na linha da cena. */
 export const NOTE_FEEDBACK_MS = 4000
-
-/** Com menos cenas que isto a lista inteira cabe no olho, e a seção fica sem "Filtrar cenas". */
-export const SCENE_FILTER_MIN = 6
 
 /** Recuo desenhado até este nível; mais fundo a cena continua na árvore, só não anda mais para a direita (o painel é estreito). */
 const MAX_VISUAL_DEPTH = 5
@@ -259,6 +296,147 @@ export function NoteForm({ label, people = NO_PEOPLE, onSend, onCancel }: NoteFo
   )
 }
 
+/** "Ana", "Ana e Bruno", "Ana, Bruno e Carla". */
+function joinNames(names: readonly string[]): string {
+  if (names.length <= 1) return names.join('')
+  return `${names.slice(0, -1).join(', ')} e ${names[names.length - 1]}`
+}
+
+/** O que a confirmação diz dos pinos de outras cenas que levavam à apagada. */
+export function orphanPinsText(count: number): string {
+  if (count === 0) return 'Nenhum pino de outra cena leva para cá.'
+  if (count === 1) return '1 pino de viagem de outra cena vai ficar sem destino.'
+  return `${count} pinos de viagem de outras cenas vão ficar sem destino.`
+}
+
+/** O que a confirmação diz das cenas de dentro da apagada. Sem nenhuma, não diz nada. */
+export function insideScenesText(count: number): string {
+  if (count === 0) return ''
+  if (count === 1) return 'A cena de dentro dela sobe um nível.'
+  return `As ${count} cenas de dentro dela sobem um nível.`
+}
+
+/** Por que o Apagar está desligado: quem ainda está na cena. */
+export function deleteBlockedText(blockers: readonly string[]): string {
+  return `Não dá para apagar: ${joinNames(blockers)} ${blockers.length === 1 ? 'está' : 'estão'} nesta cena.`
+}
+
+interface SceneMenuItem {
+  label: string
+  disabled: boolean
+  onSelect(): void
+}
+
+interface SceneMenuProps {
+  id: string
+  label: string
+  items: SceneMenuItem[]
+  /** O "…" que abriu: o clique nele alterna o menu, então fica fora do "clique fora". */
+  trigger: HTMLElement | null
+  /** `focusTrigger`: Esc e escolha devolvem o foco ao "…"; Tab e clique fora, não. */
+  onClose(focusTrigger: boolean): void
+}
+
+/**
+ * O menu "…" de uma cena, no molde do menu de imagem de fundo (`ActionBar`):
+ * o foco entra no primeiro item que age, setas andam pulando o esmaecido,
+ * Home/End vão às pontas, Esc fecha e devolve o foco ao "…". O item que não se
+ * aplica agora (Subir na primeira cena) fica no lugar, esmaecido, para o
+ * mestre aprender onde ele mora.
+ */
+function SceneMenu({ id, label, items, trigger, onClose }: SceneMenuProps) {
+  const menuRef = useRef<HTMLDivElement | null>(null)
+  const itemRefs = useRef<(HTMLButtonElement | null)[]>([])
+
+  /** Os itens que agem, na ordem: é por eles que as setas andam. */
+  const enabled = (): HTMLButtonElement[] => {
+    const out: HTMLButtonElement[] = []
+    items.forEach((item, index) => {
+      const el = itemRefs.current[index]
+      if (!item.disabled && el !== null && el !== undefined) out.push(el)
+    })
+    return out
+  }
+
+  // Só ao abrir (o menu monta a cada abertura): o foco não volta ao primeiro a cada render.
+  useEffect(() => {
+    enabled()[0]?.focus()
+  }, [])
+
+  useEffect(() => {
+    // `pointerdown`, como no ActionBar: fecha antes de o clique acertar o que está por baixo.
+    const handlePointerDown = (event: PointerEvent) => {
+      if (!(event.target instanceof Node)) return
+      if (menuRef.current?.contains(event.target) || trigger?.contains(event.target)) return
+      onClose(false)
+    }
+    document.addEventListener('pointerdown', handlePointerDown)
+    return () => document.removeEventListener('pointerdown', handlePointerDown)
+  }, [trigger, onClose])
+
+  const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    // Nenhuma tecla do menu vale como atalho do editor (Esc, setas movendo o selecionado).
+    event.stopPropagation()
+    const list = enabled()
+    const current = list.findIndex((el) => el === document.activeElement)
+    const focusAt = (index: number) => {
+      event.preventDefault()
+      list[(index + list.length) % list.length]?.focus()
+    }
+    switch (event.key) {
+      case 'Escape':
+        event.preventDefault()
+        onClose(true)
+        return
+      case 'Tab':
+        onClose(false)
+        return
+      case 'ArrowDown':
+        focusAt(current + 1)
+        return
+      case 'ArrowUp':
+        focusAt(current < 0 ? list.length - 1 : current - 1)
+        return
+      case 'Home':
+        focusAt(0)
+        return
+      case 'End':
+        focusAt(list.length - 1)
+        return
+    }
+  }
+
+  return (
+    <div ref={menuRef} id={id} className="lb-panel lb-cenas__menu" role="menu" aria-label={label} onKeyDown={onKeyDown}>
+      {items.map((item, index) => (
+        <button
+          key={item.label}
+          ref={(node) => {
+            itemRefs.current[index] = node
+          }}
+          type="button"
+          role="menuitem"
+          tabIndex={-1}
+          className="lb-cenas__menu-item"
+          aria-disabled={item.disabled ? 'true' : undefined}
+          onClick={() => {
+            if (!item.disabled) item.onSelect()
+          }}
+        >
+          {item.label}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+interface DeleteConfirmProps {
+  sceneName: string
+  info: SceneDeletionInfo
+  onConfirm(): void
+  onCancel(): void
+}
+
 /** Uma cena para onde a do "Mover para…" pode ir, com o caminho no nome (duas "Taverna" não se confundem). */
 interface MoveOption {
   id: string
@@ -272,6 +450,47 @@ interface MoveFormProps {
   currentParentId: string | null
   onMove(parentId: string | null): void
   onCancel(): void
+}
+
+/**
+ * "Apagar cena…": confirmação na própria linha, no molde da de "Dar a…" do
+ * painel Sala. Começa no botão seguro; com alguém na cena, diz quem e o
+ * Apagar fica desligado — mandar o grupo para outra cena vem antes.
+ */
+function DeleteConfirm({ sceneName, info, onConfirm, onCancel }: DeleteConfirmProps) {
+  const titleId = useId()
+  const blocked = info.blockers.length > 0
+  return (
+    <div
+      role="alertdialog"
+      aria-modal="false"
+      aria-labelledby={titleId}
+      className="lb-cenas__apagar"
+      onKeyDown={(event) => {
+        if (event.key !== 'Escape') return
+        // Esc é desta confirmação: não chega aos atalhos do editor.
+        event.preventDefault()
+        event.stopPropagation()
+        onCancel()
+      }}
+    >
+      <p id={titleId} className="lb-cenas__apagar-titulo">
+        Apagar {sceneName}?
+      </p>
+      <p>{orphanPinsText(info.orphanPins)}</p>
+      {info.inside > 0 && <p>{insideScenesText(info.inside)}</p>}
+      {blocked && <p className="lb-cenas__apagar-bloqueio">{deleteBlockedText(info.blockers)}</p>}
+      <div className="lb-cenas__acoes">
+        <button type="button" className="lb-btn lb-btn--danger" disabled={blocked} onClick={onConfirm}>
+          Apagar
+        </button>
+        {/* Foco começa no botão seguro (convenção de confirmação destrutiva). */}
+        <button type="button" className="lb-btn lb-btn--ghost" autoFocus onClick={onCancel}>
+          Cancelar
+        </button>
+      </div>
+    </div>
+  )
 }
 
 /**
@@ -426,24 +645,6 @@ function useCollapsedScenes(adventureId: string | null) {
   return { collapsed: current.ids, toggle, expand }
 }
 
-/** As palavras do filtro, sem maiúscula nem acento (a mesma régua do "Buscar objeto"). */
-function filterWords(query: string): string[] {
-  return normalizeForSearch(query)
-    .split(/\s+/)
-    .filter((word) => word !== '')
-}
-
-/**
- * A cena entra no filtro quando toda palavra aparece no caminho ou no nome, e
- * pelo menos uma no nome: "tav" acha as duas Tavernas, "porto tav" só a de
- * Porto Cinza, e "vila" acha a Vila do Vau sem trazer junto tudo o que ela tem.
- */
-function matchesFilter(words: readonly string[], name: string, trail: readonly string[]): boolean {
-  const own = normalizeForSearch(name)
-  const whole = normalizeForSearch([...trail, name].join(' '))
-  return words.every((word) => whole.includes(word)) && words.some((word) => own.includes(word))
-}
-
 /** O nível da linha para o CSS: o recuo e os fios da pasta saem de `--lb-cena-nivel`. */
 function levelStyle(depth: number): CSSProperties {
   return { '--lb-cena-nivel': String(depth) } as CSSProperties
@@ -464,6 +665,20 @@ function insideCountLabel(count: number): string {
 }
 
 /**
+ * 'há 11 min' na linha da cena que espera o mestre; âmbar a partir de
+ * `ESPERA_LONGA_MIN`. O título diz o que é e ensina o Ctrl+J (atalho
+ * invisível é atalho inexistente).
+ */
+function SceneEspera({ minutes }: { minutes: number }) {
+  const label = rotuloDeEspera(minutes)
+  return (
+    <span className={`lb-cenas__espera${esperaLonga(minutes) ? ' lb-cenas__espera--longa' : ''}`} title={`Esperando você ${label} · Ctrl+J abre a que espera mais`}>
+      {label}
+    </span>
+  )
+}
+
+/**
  * "Cenas", no topo da aba Mapa: as cenas da aventura, a aberta destacada
  * (`aria-current`), "+ Nova cena", renomear e a "Visão geral" (miniaturas de
  * todas as cenas com as fichas, `SceneOverview.tsx`). O nome da cena é o botão
@@ -476,8 +691,39 @@ function insideCountLabel(count: number): string {
  * dentro, "Mover para…" na cena aberta, e "Filtrar cenas" com o caminho em
  * cinza. Tudo isso é da lista do mestre: o jogador não recebe nada.
  */
-export function ScenesSection({ scenes, onSelect, onCreate, onRename, people, onNote, maps, onMove, adventureId = null, onAlarm, onEndAlarm, alarm, paused, onTogglePause }: ScenesSectionProps) {
+export function ScenesSection({
+  scenes,
+  onSelect,
+  onCreate,
+  onRename,
+  people,
+  onNote,
+  maps,
+  onDuplicate,
+  onShift,
+  onDelete,
+  deletionInfo,
+  onMove,
+  adventureId = null,
+  onAlarm,
+  onEndAlarm,
+  alarm,
+  paused,
+  onTogglePause,
+  waitingSince,
+}: ScenesSectionProps) {
+  const waiting = useWaitingMinutes(waitingSince)
   const [editing, setEditing] = useState<Editing>(null)
+  /** Cena com o menu "…" aberto; `null` = nenhuma. */
+  const [menuFor, setMenuFor] = useState<string | null>(null)
+  /** Cena com a confirmação de apagar aberta; `null` = nenhuma. */
+  const [deleting, setDeleting] = useState<string | null>(null)
+  /** O "…" de cada cena, pelo id: é para ele que o foco volta. */
+  const menuTriggers = useRef(new Map<string, HTMLButtonElement>())
+  /** "+ Nova cena": o foco cai nele quando a linha da cena apagada some. */
+  const createButtonRef = useRef<HTMLButtonElement | null>(null)
+  const menuIdBase = useId()
+  const hasSceneMenu = onDuplicate !== undefined || onShift !== undefined || onDelete !== undefined || deletionInfo !== undefined
   const [draft, setDraft] = useState('')
   /** Janela "Visão geral das cenas" aberta. */
   const [overviewOpen, setOverviewOpen] = useState(false)
@@ -485,6 +731,8 @@ export function ScenesSection({ scenes, onSelect, onCreate, onRename, people, on
   const overviewButtonRef = useRef<HTMLButtonElement | null>(null)
   // Com uma cena só (mapa solto) não há o que comparar: a vista dela já é o editor.
   const canOverview = maps !== undefined && scenes.length > 1
+  /** Nome para os jogadores no renomear; o criar não pergunta (a cena nasce sem). */
+  const [publicDraft, setPublicDraft] = useState('')
   /** Cena com o recado aberto; `null` = nenhum. */
   const [noting, setNoting] = useState<string | null>(null)
   /** Aviso do último recado, na linha da cena dele; some sozinho. */
@@ -541,11 +789,11 @@ export function ScenesSection({ scenes, onSelect, onCreate, onRename, people, on
   }
 
   const showFilter = scenes.length >= SCENE_FILTER_MIN
-  const words = showFilter ? filterWords(query) : []
+  const words = showFilter ? sceneSearchWords(query) : []
   const filtering = words.length > 0
   const visibleRows: SceneTreeRow<SceneListItem>[] = []
   if (filtering) {
-    for (const row of tree) if (matchesFilter(words, row.entry.name, trailOf(row.entry.id))) visibleRows.push(row)
+    for (const row of tree) if (matchesSceneSearch(words, row.entry.name, trailOf(row.entry.id))) visibleRows.push(row)
   } else {
     // Dentro de uma pasta recolhida, pula até a próxima linha do mesmo nível.
     let hiddenBelow: number | null = null
@@ -650,11 +898,12 @@ export function ScenesSection({ scenes, onSelect, onCreate, onRename, people, on
     })
   }
 
-  const startEditing = (next: NonNullable<Editing>, initial: string) => {
+  const startEditing = (next: NonNullable<Editing>, initial: string, initialPublic = '') => {
     rememberOpener()
     setNoting(null)
     setMoving(null)
     setDraft(initial)
+    setPublicDraft(initialPublic)
     setEditing(next)
   }
 
@@ -696,6 +945,66 @@ export function ScenesSection({ scenes, onSelect, onCreate, onRename, people, on
     refocusOpener()
   }
 
+  const focusTrigger = (sceneId: string) => {
+    const focus = () => {
+      const trigger = menuTriggers.current.get(sceneId)
+      if (trigger?.isConnected) trigger.focus()
+      else createButtonRef.current?.focus()
+    }
+    focus()
+    // De novo depois do render: Subir/Descer mudam a linha de lugar, e o
+    // navegador tira o foco de um nó que é movido.
+    requestAnimationFrame(focus)
+  }
+
+  const closeMenu = (focus: boolean) => {
+    const sceneId = menuFor
+    setMenuFor(null)
+    if (focus && sceneId !== null) focusTrigger(sceneId)
+  }
+
+  const cancelDelete = () => {
+    const sceneId = deleting
+    setDeleting(null)
+    if (sceneId !== null) focusTrigger(sceneId)
+  }
+
+  const confirmDelete = (sceneId: string) => {
+    setDeleting(null)
+    onDelete?.(sceneId)
+    // A linha some: o foco vai para "+ Nova cena", que fica sempre montado.
+    createButtonRef.current?.focus()
+  }
+
+  const menuItems = (row: SceneTreeRow<SceneListItem>): SceneMenuItem[] => {
+    const scene = row.entry
+    // Subir/Descer andam entre as irmãs (mesma pasta): a ponta que esmaece é a da pasta.
+    const siblings = tree.filter((candidate) => candidate.parentId === row.parentId)
+    const first = siblings[0]?.entry.id === scene.id
+    const last = siblings[siblings.length - 1]?.entry.id === scene.id
+    const andClose = (run: () => void) => () => {
+      closeMenu(true)
+      run()
+    }
+    return [
+      { label: 'Duplicar', disabled: onDuplicate === undefined || !scene.available, onSelect: andClose(() => onDuplicate?.(scene.id)) },
+      { label: 'Subir', disabled: onShift === undefined || first, onSelect: andClose(() => onShift?.(scene.id, -1)) },
+      { label: 'Descer', disabled: onShift === undefined || last, onSelect: andClose(() => onShift?.(scene.id, 1)) },
+      {
+        label: 'Apagar cena…',
+        // A última cena não se apaga: a aventura sem cena nenhuma não abre.
+        disabled: onDelete === undefined || deletionInfo === undefined || scenes.length <= 1,
+        onSelect: () => {
+          setMenuFor(null)
+          setEditing(null)
+          setNoting(null)
+          setMoving(null)
+          setDeleting(scene.id)
+        },
+      },
+    ]
+  }
+
   const closeOverview = () => {
     setOverviewOpen(false)
     overviewButtonRef.current?.focus()
@@ -712,10 +1021,11 @@ export function ScenesSection({ scenes, onSelect, onCreate, onRename, people, on
     event.preventDefault()
     if (editing === null) return
     if (editing.kind === 'create') onCreate(draft)
-    else onRename(editing.sceneId, draft)
+    else onRename(editing.sceneId, draft, publicDraft)
     close()
   }
 
+  // Esc em QUALQUER dos dois campos fecha o formulário.
   const onInputKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
     if (event.key !== 'Escape') return
     // Esc fecha o campo sem criar nem renomear; não pode chegar ao canvas (Esc lá troca a ferramenta).
@@ -891,6 +1201,8 @@ export function ScenesSection({ scenes, onSelect, onCreate, onRename, people, on
           const here = peopleOf(index, collapsedFolder)
           const trail = filtering ? trailOf(scene.id) : []
           const pathId = `${baseId}-caminho-${index}`
+          const menuId = `${menuIdBase}-menu-${index}`
+          const menuOpen = menuFor === scene.id
           const depth = filtering ? 0 : Math.min(row.depth, MAX_VISUAL_DEPTH)
           const targeted = dragging?.target?.kind === 'cena' && dragging.target.sceneId === scene.id
           const alvo = targeted && verdict !== null ? (verdict.tone === 'ok' ? 'dentro' : verdict.tone === 'erro' ? 'invalido' : undefined) : undefined
@@ -905,6 +1217,7 @@ export function ScenesSection({ scenes, onSelect, onCreate, onRename, people, on
             .filter((name) => name !== '')
             .join(' ')
           const isPaused = paused?.has(scene.id) === true
+          const minutesWaiting = waiting.get(scene.id)
           return (
             <li
               key={scene.id || 'cena-solta'}
@@ -952,13 +1265,14 @@ export function ScenesSection({ scenes, onSelect, onCreate, onRename, people, on
                 {scene.name}
               </button>
               <span className="lb-cenas__conta">{tokenCountLabel(scene.tokenCount)}</span>
+              {minutesWaiting !== undefined && <SceneEspera minutes={minutesWaiting} />}
               {scene.active && scene.renamable && editing === null && (
                 <button
                   type="button"
                   className="lb-cenas__renomear"
                   aria-label={`Renomear ${scene.name}`}
                   title="Renomear"
-                  onClick={() => startEditing({ kind: 'rename', sceneId: scene.id }, scene.name)}
+                  onClick={() => startEditing({ kind: 'rename', sceneId: scene.id }, scene.name, scene.publicName)}
                 >
                   ✎
                 </button>
@@ -1008,12 +1322,55 @@ export function ScenesSection({ scenes, onSelect, onCreate, onRename, people, on
                   <span aria-hidden="true">⏸</span>
                 </button>
               )}
+              {hasSceneMenu && scene.id !== '' && (
+                <button
+                  ref={(node) => {
+                    if (node === null) menuTriggers.current.delete(scene.id)
+                    else menuTriggers.current.set(scene.id, node)
+                  }}
+                  type="button"
+                  className="lb-cenas__mais"
+                  aria-label={`Mais ações de ${scene.name}`}
+                  title="Duplicar, mover ou apagar"
+                  aria-haspopup="menu"
+                  aria-expanded={menuOpen}
+                  aria-controls={menuOpen ? menuId : undefined}
+                  onClick={() => {
+                    if (menuOpen) {
+                      setMenuFor(null)
+                      return
+                    }
+                    setDeleting(null)
+                    setMenuFor(scene.id)
+                  }}
+                >
+                  <span aria-hidden="true">…</span>
+                </button>
+              )}
+              {menuOpen && (
+                <SceneMenu
+                  id={menuId}
+                  label={`Ações de ${scene.name}`}
+                  items={menuItems(row)}
+                  trigger={menuTriggers.current.get(scene.id) ?? null}
+                  onClose={closeMenu}
+                />
+              )}
               {trail.length > 0 && (
                 <span id={pathId} className="lb-cenas__caminho">
                   {trail.join(SCENE_TRAIL_SEPARATOR)}
                 </span>
               )}
+              {scene.publicName !== undefined && (
+                // O mestre vê, sem abrir o renomear, que nome o selo "Onde estou" mostra.
+                <p className="lb-cenas__publico" title='O selo "Onde estou" de quem está nesta cena'>
+                  Jogadores leem: {scene.publicName}
+                </p>
+              )}
               {here !== null && <SceneGente people={here} />}
+              {deleting === scene.id && deletionInfo !== undefined && (
+                <DeleteConfirm sceneName={scene.name} info={deletionInfo(scene.id)} onConfirm={() => confirmDelete(scene.id)} onCancel={cancelDelete} />
+              )}
               {onNote !== undefined && noting === scene.id && (
                 <NoteForm
                   label={`Recado para quem está em ${scene.name}`}
@@ -1055,7 +1412,7 @@ export function ScenesSection({ scenes, onSelect, onCreate, onRename, people, on
       )}
       <div className="lb-cenas__rodape">
         {/* Sempre montado: é para ele que o foco volta depois de criar ou cancelar. */}
-        <button type="button" className="lb-btn" onClick={() => startEditing({ kind: 'create' }, `Cena ${scenes.length + 1}`)}>
+        <button ref={createButtonRef} type="button" className="lb-btn" onClick={() => startEditing({ kind: 'create' }, `Cena ${scenes.length + 1}`)}>
           + Nova cena
         </button>
         {canOverview && (
@@ -1091,6 +1448,26 @@ export function ScenesSection({ scenes, onSelect, onCreate, onRename, people, on
               onKeyDown={onInputKeyDown}
             />
           </div>
+          {editing.kind === 'rename' && (
+            <div className="lb-field">
+              <label className="lb-label" htmlFor="lb-cena-publico">
+                Nome para os jogadores (opcional)
+              </label>
+              <input
+                id="lb-cena-publico"
+                className="lb-input"
+                value={publicDraft}
+                maxLength={SCENE_PUBLIC_NAME_MAX_LENGTH}
+                placeholder="Ex.: 1º andar"
+                aria-describedby="lb-cena-publico-dica"
+                onChange={(event) => setPublicDraft(event.target.value)}
+                onKeyDown={onInputKeyDown}
+              />
+              <p id="lb-cena-publico-dica" className="lb-cenas__dica">
+                Aparece no canto da tela de quem está nesta cena. Vazio: os jogadores não veem nome nenhum.
+              </p>
+            </div>
+          )}
           <div className="lb-cenas__acoes">
             <button type="button" className="lb-btn lb-btn--ghost" onClick={close}>
               Cancelar

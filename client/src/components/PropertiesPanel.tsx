@@ -7,12 +7,15 @@ import { GridQuickToggles, type GridControlsProps } from './GridControls'
 import { MapSettingsButton } from './MapSettingsDialog'
 import { CollapsibleSection } from './CollapsibleSection'
 import { PropLayerControls, type PropLayerControlsProps } from './PropLayerControls'
+import { PropPlayerControls, type PropPlayerControlsProps } from './PropPlayerControls'
 import { SelectionControls, type SelectionControlsProps } from './SelectionControls'
 import { WallDoorControls, type WallDoorControlsProps } from './WallDoorControls'
 import { DoorKindControls, type DoorKindControlsProps } from './DoorKindControls'
 import { DoorModeControls, type DoorModeControlsProps } from './DoorModeControls'
 import type { ScenarioLinkControlsProps } from './ScenarioLinkControls'
 import type { MovementControlsProps } from './MovementControls'
+import type { ArrivalTextControlsProps } from './ArrivalTextControls'
+import type { SceneFloorControlsProps } from './SceneFloorControls'
 import { TextLabelControls, type TextLabelControlsProps } from './TextLabelControls'
 import { RegionJoinField, RegionSmoothButton, RegionStyleControls, type RegionStyleControlsProps } from './RegionStyleControls'
 import { AdvancedField, AdvancedSection } from './AdvancedSection'
@@ -23,9 +26,10 @@ import { tokenPhotoRef } from '../lib/tokenPhoto'
 import { selectedTokenColor } from '../lib/tokenColor'
 import { TokenNameControls, type TokenNameControlsProps } from './TokenNameControls'
 import { TokenColorControls, type TokenColorControlsProps } from './TokenColorControls'
+import { TokenPlayerCharacterControls, type TokenPlayerCharacterControlsProps } from './TokenPlayerCharacterControls'
 import { TokenSizeControls, type TokenSizeControlsProps } from './TokenSizeControls'
 import { TokenNpcControls, type TokenNpcControlsProps } from './TokenNpcControls'
-import { TokenCarryControls } from './TokenCarryControls'
+import { TokenSceneCarryControls } from './TokenSceneCarryControls'
 import type { TokenCarryWiring } from '../lib/party'
 import { TokenHealthControls, type TokenHealthControlsProps } from './TokenHealthControls'
 import { selectedTokenSize } from '../lib/tokenSize'
@@ -34,6 +38,9 @@ import { TokenConditionControls, type TokenConditionControlsProps } from './Toke
 import { tokenConditionsOf } from '../lib/tokenConditions'
 import { TokenWatchControls, type TokenWatchControlsProps } from './TokenWatchControls'
 import { readTokenWatch } from '../lib/npcWatch'
+import { TokenPatrolControls, type TokenPatrolControlsProps } from './TokenPatrolControls'
+import { readTokenPatrol } from '../lib/npcPatrol'
+import { TokenCarryControls, type TokenCarryControlsProps } from './TokenCarryControls'
 import { LightControls, type LightControlsProps } from './LightControls'
 import { TokenLightsControls, type TokenLightsControlsProps } from './TokenLightsControls'
 import { WallLineStyleField, WallStyleControls, type WallStyleControlsProps } from './WallStyleControls'
@@ -52,6 +59,7 @@ import { AlignDistributeControls, type AlignDistributeControlsProps } from './Al
 import { FloorPieceControls, type FloorPieceControlsProps } from './FloorPieceControls'
 import { FloorStyleControls, type FloorStyleControlsProps } from './FloorStyleControls'
 import { PlayerSecretControls, type PlayerSecretControlsProps } from './PlayerSecretControls'
+import { AreaTriggerControls, type AreaTriggerControlsProps } from './AreaTriggerControls'
 import { ConcealZoneControls, type ConcealZoneControlsProps } from './ConcealZoneControls'
 import { ConcealBrushControls, type ConcealBrushControlsProps } from './ConcealBrushControls'
 import { PinControls, type PinControlsProps } from './PinControls'
@@ -59,6 +67,7 @@ import { PinIconControls, type PinIconControlsProps } from './PinIconControls'
 import { TokenLibraryPanel, type TokenLibraryPanelProps } from './TokenLibraryPanel'
 import { isAxisAlignedRect, roomDimensions } from '../lib/roomOps'
 import { roomRotationOf } from '../lib/roomRotation'
+import { pinKindShowsIcon } from '../lib/pins'
 import { DEFAULT_TEXT_FONT_FAMILY } from '../lib/drawingFactory'
 import { panelHeadingTool, type PropertyGroupId } from '../lib/toolProperties'
 import { TOOL_LABELS } from './labels'
@@ -124,6 +133,10 @@ interface PropertiesPanelProps {
   scenarioLink: ScenarioLinkControlsProps
   /** "Movimento dos jogadores" na janela Configurações do mapa; ausente, a seção não aparece. */
   movement?: MovementControlsProps
+  /** "Texto de chegada" na janela Configurações do mapa; ausente, a seção não aparece. */
+  arrivalText?: ArrivalTextControlsProps
+  /** MAPA POR ANDARES: "Andar do prédio" na janela Configurações do mapa; ausente, a seção não aparece. */
+  sceneFloor?: SceneFloorControlsProps
   selectedWall: Wall | null
   wallDoor: Omit<WallDoorControlsProps, 'door'>
   doorKind: DoorKindControlsProps
@@ -135,6 +148,8 @@ interface PropertiesPanelProps {
   onSetPropLayer: PropLayerControlsProps['onSetPropLayer']
   /** F3, contrato do agente C4 — rotação/travar/ocultar do Objeto selecionado. */
   propTransform: Omit<ItemTransformControlsProps, 'title' | 'rotation' | 'locked' | 'hidden' | 'secret'>
+  /** "Rótulo para jogadores" e "Mostrar imagem ao jogador" do Objeto selecionado. */
+  propPlayer: Omit<PropPlayerControlsProps, 'label' | 'showImage'>
   selectedToken: Token | null
   tokenName: Omit<TokenNameControlsProps, 'name' | 'publicName'>
   tokenImage: Omit<TokenImageControlsProps, 'image'>
@@ -149,7 +164,7 @@ interface PropertiesPanelProps {
    * "Levar para…" da ficha sem dono (NPC, monstro) para outra cena. Ausente =
    * sem o controle (quem monta o painel sem aventura).
    */
-  tokenCarry?: TokenCarryWiring
+  tokenSceneCarry?: TokenCarryWiring
   /** Tocha presa (ou luz solta sob a ficha): o clique no mapa pega a ficha,
    *  então o caminho para a luz é pelo painel da ficha. */
   tokenLights: TokenLightsControlsProps
@@ -159,8 +174,14 @@ interface PropertiesPanelProps {
   tokenCondition: Omit<TokenConditionControlsProps, 'conditions'>
   /** OLHOS DO GUARDA: liga a vigia da ficha de NPC e diz como ela olha. */
   tokenWatch: Omit<TokenWatchControlsProps, 'watch'>
+  /** ROTA DE PATRULHA: marca a ronda do NPC e o faz andar um passo. */
+  tokenPatrol: Omit<TokenPatrolControlsProps, 'patrol'>
+  /** LEVAR FICHA JUNTO: quem leva a ficha selecionada, quem ela leva, a quem pode ser presa, e as ações. */
+  tokenCarry: Omit<TokenCarryControlsProps, 'tokenId'>
   /** F3, contrato do agente C4 — rotação/travar/ocultar do Token selecionado. */
   tokenTransform: Omit<ItemTransformControlsProps, 'title' | 'rotation' | 'locked' | 'hidden' | 'secret'>
+  /** "Ficha de jogador" do Token selecionado: entra na lista de quem chega sem personagem. */
+  tokenPlayerCharacter: Omit<TokenPlayerCharacterControlsProps, 'playerCharacter'>
   selectedTextLabel: Extract<Drawing, { kind: 'text' }> | null
   textLabel: Omit<TextLabelControlsProps, 'text' | 'color' | 'fontSize' | 'fontFamily'>
   /** "Travar movimentação" da Região/Sala selecionada (pedido de 18/09/2026:
@@ -172,12 +193,12 @@ interface PropertiesPanelProps {
   regionStyle: RegionStyleControlsProps
   room: Omit<
     RoomControlsProps,
-    'name' | 'shape' | 'axisAligned' | 'width' | 'height' | 'rotation' | 'locked' | 'nameHiddenFromPlayers' | 'roof' | 'textoAoEntrar' | 'notaDoMestre'
+    'name' | 'shape' | 'axisAligned' | 'width' | 'height' | 'rotation' | 'locked' | 'nameHiddenFromPlayers' | 'roof' | 'comodo' | 'textoAoEntrar' | 'notaDoMestre'
   >
   selectedLight: Light | null
   lightControls: Omit<LightControlsProps, 'color' | 'intensity' | 'attachedTokenId'>
   selectedStair: Stair | null
-  stairControls: Omit<StairControlsProps, 'direction'>
+  stairControls: Omit<StairControlsProps, 'direction' | 'shape'>
   polygonSides: PolygonSidesControlsProps
   /** Chão por peças — peça selecionada (`null` = nenhuma) e seus controles. */
   selectedFloorPiece: FloorPiece | null
@@ -186,6 +207,8 @@ interface PropertiesPanelProps {
   floorStyle: FloorStyleControlsProps
   /** A5 — "Oculto para jogadores" da Região/Escada/Desenho selecionado; `null` = nenhum. */
   playerSecret: PlayerSecretControlsProps | null
+  /** GATILHO DE ÁREA da Região/Sala selecionada; `null` = nenhuma região selecionada. */
+  areaTrigger: AreaTriggerControlsProps | null
   /** A5 — zona oculta aberta no painel; `null` = nenhuma. */
   concealZone: ConcealZoneControlsProps | null
   /** Pincel de revelar: "Revelar | Esconder" e a largura do próximo traço. */
@@ -235,6 +258,8 @@ export function PropertiesPanel({
   selection,
   scenarioLink,
   movement,
+  arrivalText,
+  sceneFloor,
   selectedWall,
   wallDoor,
   doorKind,
@@ -243,18 +268,22 @@ export function PropertiesPanel({
   selectedProp,
   onSetPropLayer,
   propTransform,
+  propPlayer,
   selectedToken,
   tokenName,
   tokenImage,
   tokenColor,
   tokenSize,
   tokenNpc,
-  tokenCarry,
+  tokenSceneCarry,
   tokenLights,
   tokenHealth,
   tokenCondition,
   tokenWatch,
+  tokenPatrol,
+  tokenCarry,
   tokenTransform,
+  tokenPlayerCharacter,
   selectedTextLabel,
   textLabel,
   regionTransform,
@@ -270,6 +299,7 @@ export function PropertiesPanel({
   floorPieceControls,
   floorStyle,
   playerSecret,
+  areaTrigger,
   concealZone,
   concealBrush,
   pin,
@@ -314,6 +344,8 @@ export function PropertiesPanel({
           scenarioLink={scenarioLink}
           movement={movement}
           mapSize={{ width: mapWidth, height: mapHeight, onApply: onMapSizeApply }}
+          sceneFloor={sceneFloor}
+          arrivalText={arrivalText}
         />
       </header>
 
@@ -346,6 +378,7 @@ export function PropertiesPanel({
               locked={!!selectedRegion.locked}
               nameHiddenFromPlayers={!!selectedRegion.room.nameHiddenFromPlayers}
               roof={!!selectedRegion.room.roof}
+              comodo={selectedRegion.room.comodo === true}
               textoAoEntrar={selectedRegion.room.textoAoEntrar ?? ''}
               notaDoMestre={selectedRegion.room.notaDoMestre ?? ''}
               {...room}
@@ -369,15 +402,24 @@ export function PropertiesPanel({
               `LineShapeControls` logo abaixo usa a mesma composição): o último
               botão daquela seção é "Excluir ponto de interesse", e ação
               destrutiva não pode ficar no meio da coluna. */}
-          {/* O pino de viagem tem símbolo próprio (a passagem): a grade de
-              ícones não faria nada nele, então não aparece. */}
-          {pin.kind !== 'viagem' && <PinIconControls {...pinIcon} pinSelected={pinSelected} />}
+          {/* Viagem e alavanca têm símbolo próprio (a passagem, a alavanca):
+              a grade de ícones não faria nada nelas, então não aparece. */}
+          {pinKindShowsIcon(pin.kind) && <PinIconControls {...pinIcon} pinSelected={pinSelected} />}
           <PinControls {...pin} />
           {estadoDoPino}
         </ToolPropertiesSection>
         {playerSecret && (
           <ToolPropertiesSection group="playerVisibility" groups={groups}>
             <PlayerSecretControls {...playerSecret} />
+          </ToolPropertiesSection>
+        )}
+        {/* GATILHO DE ÁREA logo abaixo de "Jogadores": as duas decidem o que o
+            jogador recebe desta área. Região e Sala, não só Sala. */}
+        {selectedRegion && areaTrigger && (
+          <ToolPropertiesSection group="playerVisibility" groups={groups}>
+            <section className="lb-section">
+              <AreaTriggerControls key={selectedRegion.id} {...areaTrigger} />
+            </section>
           </ToolPropertiesSection>
         )}
         {/* ANTES do Estilo de desenho: com a ferramenta Caminho na mão esta é
@@ -487,6 +529,7 @@ export function PropertiesPanel({
               {...propTransform}
             />
             <PropLayerControls prop={selectedProp} onSetPropLayer={onSetPropLayer} />
+            <PropPlayerControls label={selectedProp.playerLabel ?? ''} showImage={selectedProp.playerImage !== undefined} {...propPlayer} />
           </ToolPropertiesSection>
         )}
         {selectedToken && (
@@ -510,6 +553,11 @@ export function PropertiesPanel({
             {/* Vigia logo depois da condição: também é controle de MESA (o
                 guarda vira para a porta no meio da cena), não de preparação. */}
             <TokenWatchControls watch={readTokenWatch(selectedToken.vigia)} {...tokenWatch} />
+            {/* Patrulha junto da vigia: as duas dizem o que o NPC faz na cena. */}
+            <TokenPatrolControls patrol={readTokenPatrol(selectedToken.patrulha)} {...tokenPatrol} />
+            {/* Levar junto também é controle de MESA: o aliado cai no meio da
+                cena e alguém o carrega até a saída. */}
+            <TokenCarryControls tokenId={selectedToken.id} {...tokenCarry} />
             {/* Antes da imagem: a cor é o caminho de um clique, a foto é o de
                 abrir o disco. Quem só quer separar aliado de inimigo não
                 precisa passar pelo controle caro para chegar no barato. */}
@@ -521,13 +569,13 @@ export function PropertiesPanel({
             {/* `key`: outra ficha selecionada reabre fechado, sem a escolha da anterior.
                 Prefixada: o nome acima já usa o id puro, e chave repetida entre
                 irmãos deixa o campo Nome da ficha anterior no painel. */}
-            {tokenCarry !== undefined && (
-              <TokenCarryControls
+            {tokenSceneCarry !== undefined && (
+              <TokenSceneCarryControls
                 key={`levar-${selectedToken.id}`}
                 tokenName={selectedToken.name}
-                destinations={tokenCarry.destinations}
-                owned={tokenCarry.ownedTokenIds.has(selectedToken.id)}
-                onCarry={(sceneId, pinId) => tokenCarry.onCarry(selectedToken.id, sceneId, pinId)}
+                destinations={tokenSceneCarry.destinations}
+                owned={tokenSceneCarry.ownedTokenIds.has(selectedToken.id)}
+                onCarry={(sceneId, pinId) => tokenSceneCarry.onCarry(selectedToken.id, sceneId, pinId)}
               />
             )}
             <TokenLightsControls {...tokenLights} />
@@ -544,6 +592,7 @@ export function PropertiesPanel({
               secret={!!selectedToken.secret}
               {...tokenTransform}
             />
+            <TokenPlayerCharacterControls playerCharacter={selectedToken.playerCharacter === true} {...tokenPlayerCharacter} />
           </ToolPropertiesSection>
         )}
         {selectedLight && (
@@ -559,7 +608,7 @@ export function PropertiesPanel({
         )}
         {selectedStair && (
           <ToolPropertiesSection group="stairControls" groups={groups}>
-            <StairControls direction={selectedStair.direction} {...stairControls} />
+            <StairControls direction={selectedStair.direction} shape={selectedStair.shape} {...stairControls} />
           </ToolPropertiesSection>
         )}
         <ToolPropertiesSection group="selection" groups={groups}>

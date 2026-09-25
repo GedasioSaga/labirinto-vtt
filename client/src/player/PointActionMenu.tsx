@@ -1,5 +1,6 @@
 import { useEffect, useRef, type KeyboardEvent } from 'react'
 import { POINT_ACTION_KINDS, pointActionLabel, type PointActionKind } from '../lib/pointActions'
+import { WalkHereItem, type WalkHereItemProps } from './PlayerPointMenu'
 
 /**
  * Distância, em px de tela, entre o ponto do toque longo e o canto do menu.
@@ -11,6 +12,8 @@ export const POINT_MENU_OFFSET_PX = 16
 export const POINT_MENU_WIDTH_PX = 148
 /** 5 itens de 40 px, 4 vãos de 2 px, 4 px de respiro em cima e embaixo e 1 px de borda de cada lado. */
 export const POINT_MENU_HEIGHT_PX = 218
+/** O "Andar até aqui" a mais: 44 px de item com o motivo em até duas linhas embaixo, e o vão. */
+export const POINT_MENU_WALK_HEIGHT_PX = 66
 const EDGE_MARGIN_PX = 8
 
 /** Abre à direita/abaixo do dedo; sem espaço, vira para o outro lado — sem nunca cobrir o ponto. */
@@ -27,6 +30,11 @@ interface PointActionMenuProps {
   /** "Sinalizar": o ponto pisca também para os colegas. Não vira pedido. */
   onSignal: () => void
   onChoose: (action: PointActionKind) => void
+  /**
+   * ANDAR ATÉ AQUI, o último item: o mesmo toque longo, sem um segundo menu no
+   * mesmo ponto. Ausente = sem ficha dele na cena, não há quem ande.
+   */
+  walk?: WalkHereItemProps
   onClose: () => void
 }
 
@@ -40,7 +48,7 @@ interface PointActionMenuProps {
  * setas andam com volta, Home/End vão às pontas e Escape fecha. Não é modal:
  * tocar no mapa fecha (quem fecha é o dono, pelo `onClose`).
  */
-export function PointActionMenu({ screenX, screenY, onSignal, onChoose, onClose }: PointActionMenuProps) {
+export function PointActionMenu({ screenX, screenY, onSignal, onChoose, walk, onClose }: PointActionMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -72,8 +80,11 @@ export function PointActionMenu({ screenX, screenY, onSignal, onChoose, onClose 
       ref={menuRef}
       role="menu"
       aria-label="Ações no ponto"
-      className="pp-pointmenu"
-      style={{ left: `${menuStart(screenX, POINT_MENU_WIDTH_PX, window.innerWidth)}px`, top: `${menuStart(screenY, POINT_MENU_HEIGHT_PX, window.innerHeight)}px` }}
+      className={walk === undefined ? 'pp-pointmenu' : 'pp-pointmenu pp-pointmenu--walk'}
+      style={{
+        left: `${menuStart(screenX, POINT_MENU_WIDTH_PX, window.innerWidth)}px`,
+        top: `${menuStart(screenY, walk === undefined ? POINT_MENU_HEIGHT_PX : POINT_MENU_HEIGHT_PX + POINT_MENU_WALK_HEIGHT_PX, window.innerHeight)}px`,
+      }}
       onKeyDown={moveFocus}
     >
       <button type="button" role="menuitem" className="pp-pointmenu__item" onClick={onSignal}>
@@ -84,6 +95,7 @@ export function PointActionMenu({ screenX, screenY, onSignal, onChoose, onClose 
           {pointActionLabel(action)}
         </button>
       ))}
+      {walk !== undefined && <WalkHereItem canWalk={walk.canWalk} onWalk={walk.onWalk} />}
     </div>
   )
 }

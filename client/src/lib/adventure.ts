@@ -17,6 +17,7 @@ export const ADVENTURE_VERSION = 1
 
 export interface SceneEntry {
   id: string
+  /** Nome do MESTRE: nunca vai ao jogador. */
   name: string
   /** Caminho do `map.json` da cena, relativo à pasta da aventura, sempre com `/`. */
   file: string
@@ -26,6 +27,12 @@ export interface SceneEntry {
    * organiza a lista do mestre: nada disto vai para o jogador.
    */
   parentId?: string
+  /**
+   * NOME PARA OS JOGADORES ("1º andar"), opcional. Presente, é o selo "Onde
+   * estou" de quem está nesta cena; ausente, o jogador não recebe nome nenhum.
+   * Nunca fica vazio: vazio sai do objeto (`cleanPublicSceneName`).
+   */
+  publicName?: string
 }
 
 export interface Adventure {
@@ -67,6 +74,31 @@ export function cleanSceneName(raw: string): string {
   return trimmed.length > 0 ? trimmed : UNNAMED_SCENE
 }
 
+/** Teto do nome para os jogadores, em unidades UTF-16 (o `maxLength` do campo do mestre conta igual). */
+export const SCENE_PUBLIC_NAME_MAX_LENGTH = 60
+
+/**
+ * O nome para os jogadores como ele é guardado e enviado: sem espaço nas
+ * pontas e cortado no teto sem deixar meia letra (um emoji partido viraria um
+ * losango de erro no selo). Vazio = a cena não tem nome para o jogador.
+ */
+export function cleanPublicSceneName(raw: string): string | undefined {
+  const trimmed = raw.trim()
+  if (trimmed.length === 0) return undefined
+  if (trimmed.length <= SCENE_PUBLIC_NAME_MAX_LENGTH) return trimmed
+  const cut = trimmed.slice(0, SCENE_PUBLIC_NAME_MAX_LENGTH)
+  const last = cut.charCodeAt(cut.length - 1)
+  const whole = last >= 0xd800 && last <= 0xdbff ? cut.slice(0, -1) : cut
+  return whole.trimEnd()
+}
+
+/** A entrada com o nome público trocado; `undefined` tira o campo (não guarda `publicName: ''`). */
+export function withPublicSceneName(entry: SceneEntry, raw: string): SceneEntry {
+  const { publicName: _old, ...rest } = entry
+  const publicName = cleanPublicSceneName(raw)
+  return publicName === undefined ? rest : { ...rest, publicName }
+}
+
 /**
  * `file` vem de um `adventure.json` que pode ter sido editado à mão ou vindo
  * de outra máquina: só caminho relativo, sem `..`, sem letra de unidade e sem
@@ -98,15 +130,21 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function sceneEntryOrNull(value: unknown): SceneEntry | null {
   if (!isRecord(value)) return null
-  const { id, name, file, parentId } = value
+  const { id, name, file, parentId, publicName } = value
   if (typeof id !== 'string' || id.length === 0) return null
   if (typeof file !== 'string') return null
-  return withParent({ id, name: typeof name === 'string' ? name : UNNAMED_SCENE, file }, typeof parentId === 'string' && parentId.length > 0 ? parentId : null)
+  const entry: SceneEntry = { id, name: typeof name === 'string' ? name : UNNAMED_SCENE, file }
+  // Nome público de outro tipo (arquivo editado à mão) cai calado: a cena só fica sem ele.
+  const named = typeof publicName === 'string' ? withPublicSceneName(entry, publicName) : entry
+  return withParent(named, typeof parentId === 'string' && parentId.length > 0 ? parentId : null)
 }
 
-/** A mesma cena dentro de `parentId`; `null` tira o campo (primeiro nível grava como cena de aventura antiga). */
+/**
+ * A mesma cena dentro de `parentId`; `null` tira o campo (primeiro nível grava
+ * como cena de aventura antiga). O resto da entrada (o nome público) fica.
+ */
 function withParent(entry: SceneEntry, parentId: string | null): SceneEntry {
-  const bare: SceneEntry = { id: entry.id, name: entry.name, file: entry.file }
+  const { parentId: _old, ...bare } = entry
   return parentId === null ? bare : { ...bare, parentId }
 }
 
@@ -299,6 +337,58 @@ export function nestScene(scenes: readonly SceneEntry[], sceneId: string, parent
   if (entry === undefined || !canNestScene(scenes, sceneId, parentId)) return null
   if ((entry.parentId ?? null) === parentId) return null
   return [...scenes.filter((scene) => scene.id !== sceneId), withParent(entry, parentId)]
+}
+
+/**
+ * As irmãs de `sceneId` — as cenas com a mesma cena de fora, ela inclusa —
+ * na ordem em que a lista Cenas as mostra. Vazio quando ela não está na lista.
+ */
+export function sceneSiblingIds<T extends SceneNest>(entries: readonly T[], sceneId: string): string[] {
+  const rows = sceneTree(entries)
+  const row = rows.find((candidate) => candidate.entry.id === sceneId)
+  if (row === undefined) return []
+  return rows.filter((candidate) => candidate.parentId === row.parentId).map((candidate) => candidate.entry.id)
+}
+
+/**
+ * "Subir" (`-1`) e "Descer" (`1`): `sceneId` troca de lugar com a irmã de cima
+ * ou de baixo (`sceneSiblingIds`). Entre irmãs a árvore segue a ordem da
+ * lista, então trocar as duas de posição na lista troca as duas na árvore — e
+ * o que cada uma tem dentro vai junto, porque a árvore pendura as de dentro
+ * pelo `parentId`, não pela posição. `null` na ponta da pasta.
+ */
+export function shiftSceneAmongSiblings(scenes: readonly SceneEntry[], sceneId: string, delta: -1 | 1): SceneEntry[] | null {
+  const siblings = sceneSiblingIds(scenes, sceneId)
+  const at = siblings.indexOf(sceneId)
+  const neighborAt = at + delta
+  if (at < 0 || neighborAt < 0 || neighborAt >= siblings.length) return null
+  const from = scenes.findIndex((scene) => scene.id === sceneId)
+  const to = scenes.findIndex((scene) => scene.id === siblings[neighborAt])
+  const next = [...scenes]
+  next[from] = scenes[to]
+  next[to] = scenes[from]
+  return next
+}
+
+/** Quantas cenas estão DIRETO dentro de `sceneId`: as que sobem um nível se ela for apagada. */
+export function sceneChildCount<T extends SceneNest>(entries: readonly T[], sceneId: string): number {
+  return sceneTree(entries).find((row) => row.entry.id === sceneId)?.childIds.length ?? 0
+}
+
+/**
+ * A lista sem `sceneId`. As cenas de dentro dela não somem nem ficam com pai
+ * pendurado: sobem um nível (vão para a cena de fora dela, ou para o primeiro
+ * nível) e entram no LUGAR dela, na ordem em que estavam. As de dentro delas
+ * continuam onde estavam. Cena que não está na lista: a mesma lista.
+ */
+export function removeSceneKeepingInside(scenes: readonly SceneEntry[], sceneId: string): SceneEntry[] {
+  const row = sceneTree(scenes).find((candidate) => candidate.entry.id === sceneId)
+  if (row === undefined) return [...scenes]
+  const inside = new Set(row.childIds)
+  const lifted = scenes.filter((scene) => inside.has(scene.id)).map((scene) => withParent(scene, row.parentId))
+  const at = scenes.slice(0, scenes.findIndex((scene) => scene.id === sceneId)).filter((scene) => !inside.has(scene.id)).length
+  const rest = scenes.filter((scene) => scene.id !== sceneId && !inside.has(scene.id))
+  return [...rest.slice(0, at), ...lifted, ...rest.slice(at)]
 }
 
 /** Caminhos de portal antigo (`Prop.linkedMapPath`) que o mapa ainda carrega, sem repetição. */

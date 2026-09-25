@@ -33,19 +33,23 @@ export function doorRequestText(phase: DoorRequestPhase): string {
 export interface PlayerDoorNoticeProps {
   notice: DoorNotice
   onRequest(wallId: string, how: DoorRequestHow): void
+  /** CHAVE ABRE PORTA: "Usar <chave>". Sem ele, o botão não aparece nem com a chave na mochila. */
+  onUseKey?(wallId: string): void
   onClose(): void
 }
 
 /**
  * O aviso da porta na tela do jogador. As recusas de sempre continuam uma
- * linha que some sozinha. "Trancada" vira a pergunta "e agora?": Bater,
- * Forçar ou Usar chave levam o pedido ao mestre, e o × fecha sem pedir.
+ * linha que some sozinha. "Trancada" vira a pergunta "e agora?": com a chave
+ * na mochila, "Usar <chave>" abre na hora; Bater, Forçar ou Usar chave levam
+ * o pedido ao mestre, e o × fecha sem pedir.
  *
  * `role="group"` com nome, e não `status`: tem botões dentro, e o leitor de
  * tela anuncia o grupo "Porta trancada" ao chegar nele. O texto e os botões
  * são texto do React (sem HTML).
  */
-export function PlayerDoorNotice({ notice, onRequest, onClose }: PlayerDoorNoticeProps) {
+export function PlayerDoorNotice({ notice, onRequest, onUseKey, onClose }: PlayerDoorNoticeProps) {
+  const key = notice.key
   if (notice.reason !== 'locked') {
     return (
       <p className="pp-notice" role="status" aria-live="polite">
@@ -58,6 +62,12 @@ export function PlayerDoorNotice({ notice, onRequest, onClose }: PlayerDoorNotic
       <span className="pp-notice__text" role="status" aria-live="polite">
         {DOOR_NOTICE_TEXT.locked}
       </span>
+      {/* Quem tem a chave abre sem pedir: é a ação primeira, antes dos pedidos ao mestre. */}
+      {key !== undefined && onUseKey !== undefined && (
+        <button type="button" className="pp-notice__action pp-notice__action--primary" onClick={() => onUseKey(notice.wallId)}>
+          {`Usar ${key}`}
+        </button>
+      )}
       {DOOR_REQUEST_CHOICES.map((choice) => (
         <button key={choice.how} type="button" className="pp-notice__action" onClick={() => onRequest(notice.wallId, choice.how)}>
           {choice.label}

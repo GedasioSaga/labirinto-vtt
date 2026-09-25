@@ -1,0 +1,269 @@
+/*
+ * DADO ROLADO NA SALA — formulário, lista de rolagens e o canto do mestre.
+ * Serve às duas telas (editor e player.html): só `var(--lb-*)` de theme.ts,
+ * com o valor de reserva que player.css também usa. Linguagem de minimapa:
+ * fundo chapado escuro, linha fina clara, latão no que importa (o total).
+ */
+
+.lb-dice-form {
+  display: grid;
+  gap: 10px;
+  font-family: var(--lb-font-sans, system-ui, sans-serif);
+  font-size: 14px;
+  color: var(--lb-color-parchment, #eceae4);
+}
+
+.lb-dice-form__dice {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 4px;
+}
+
+.lb-dice-form__die {
+  min-height: 36px;
+  padding: 0;
+  font: inherit;
+  font-family: var(--lb-font-utility, ui-monospace, monospace);
+  font-size: 13px;
+  color: var(--lb-color-parchment, #eceae4);
+  background: var(--lb-color-stone-raised, #232328);
+  border: 1px solid var(--lb-color-line-panel, rgba(255, 255, 255, 0.12));
+  border-radius: var(--lb-radius-sm, 5px);
+  cursor: pointer;
+  transition:
+    background var(--lb-motion-fast, 120ms) var(--lb-motion-ease, ease),
+    transform var(--lb-motion-fast, 120ms) var(--lb-motion-ease, ease);
+}
+
+.lb-dice-form__die:hover {
+  background: var(--lb-color-stone-hover, #2c2c32);
+}
+
+.lb-dice-form__die[aria-pressed='true'] {
+  color: var(--lb-color-brass-bright, #f3ba66);
+  background: var(--lb-color-brass-soft, rgba(224, 164, 74, 0.16));
+  border-color: var(--lb-color-brass, #e0a44a);
+}
+
+.lb-dice-form__fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.lb-dice-form__field {
+  display: grid;
+  gap: 4px;
+}
+
+.lb-dice-form__label {
+  font-size: 12px;
+  color: var(--lb-color-parchment-dim, #b8b6b0);
+}
+
+.lb-dice-form__input {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 36px;
+  padding: 6px 8px;
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+  color: var(--lb-color-parchment, #eceae4);
+  background: var(--lb-color-stone-deep, #0f0f12);
+  border: 1px solid var(--lb-color-line-panel, rgba(255, 255, 255, 0.12));
+  border-radius: var(--lb-radius-sm, 5px);
+}
+
+.lb-dice-form__input[aria-invalid='true'] {
+  border-color: var(--lb-color-danger, #e5484d);
+}
+
+.lb-dice-form__hidden {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+}
+
+.lb-dice-form__hidden input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--lb-color-brass, #e0a44a);
+}
+
+.lb-dice-form__hidden label {
+  cursor: pointer;
+}
+
+.lb-dice-form__error {
+  margin: 0;
+  font-size: 12px;
+  color: var(--lb-color-danger, #e5484d);
+}
+
+.lb-dice-form__roll {
+  min-height: 40px;
+  font: inherit;
+  font-weight: 600;
+  color: var(--lb-color-brass-contrast, #1a1206);
+  background: var(--lb-color-brass, #e0a44a);
+  border: 1px solid var(--lb-color-brass, #e0a44a);
+  border-radius: var(--lb-radius-md, 9px);
+  cursor: pointer;
+  transition:
+    background var(--lb-motion-fast, 120ms) var(--lb-motion-ease, ease),
+    transform var(--lb-motion-fast, 120ms) var(--lb-motion-ease, ease);
+}
+
+.lb-dice-form__roll:hover {
+  background: var(--lb-color-brass-bright, #f3ba66);
+}
+
+.lb-dice-form__die:active,
+.lb-dice-form__roll:active {
+  transform: scale(0.97);
+}
+
+.lb-dice-form__die:focus-visible,
+.lb-dice-form__roll:focus-visible,
+.lb-dice-form__input:focus-visible,
+.lb-dice-form__hidden input:focus-visible {
+  outline: 2px solid var(--lb-color-brass-bright, #f3ba66);
+  outline-offset: 2px;
+}
+
+/* ── Lista de rolagens ─────────────────────────────────────────────── */
+
+.lb-dice-feed {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-family: var(--lb-font-sans, system-ui, sans-serif);
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.lb-dice-feed__item {
+  justify-self: end;
+  max-width: 100%;
+  box-sizing: border-box;
+  padding: 4px 10px;
+  color: var(--lb-color-parchment, #eceae4);
+  background: var(--lb-color-stone, rgba(19, 19, 23, 0.94));
+  border: 1px solid var(--lb-color-line-panel, rgba(255, 255, 255, 0.12));
+  border-radius: var(--lb-radius-md, 9px);
+  overflow-wrap: anywhere;
+  animation: lb-dice-in var(--lb-motion-base, 170ms) var(--lb-motion-ease, ease-out);
+}
+
+.lb-dice-feed__who {
+  color: var(--lb-color-parchment-dim, #b8b6b0);
+}
+
+.lb-dice-feed__item--master .lb-dice-feed__who {
+  color: var(--lb-color-brass, #e0a44a);
+}
+
+.lb-dice-feed__expr {
+  font-family: var(--lb-font-utility, ui-monospace, monospace);
+}
+
+.lb-dice-feed__total {
+  font-size: 15px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--lb-color-brass-bright, #f3ba66);
+}
+
+.lb-dice-feed__faces {
+  color: var(--lb-color-parchment-faint, #858480);
+}
+
+.lb-dice-feed__hidden {
+  padding: 0 5px;
+  font-size: 11px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--lb-color-parchment-faint, #858480);
+  border: 1px solid var(--lb-color-line-panel, rgba(255, 255, 255, 0.12));
+  border-radius: var(--lb-radius-sm, 5px);
+}
+
+@keyframes lb-dice-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lb-dice-feed__item {
+    animation: none;
+  }
+  .lb-dice-form__die,
+  .lb-dice-form__roll {
+    transition: none;
+  }
+}
+
+/* ── Canto do mestre: acima do zoom, no canto de baixo à direita ──── */
+
+.lb-dice-dock {
+  position: absolute;
+  right: var(--lb-layout-edge-gap, 12px);
+  /* O zoom (ZoomHud) mora no mesmo canto: a pilha começa acima dele. */
+  bottom: calc(var(--lb-layout-edge-gap, 12px) * 2 + 36px);
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+  width: min(280px, calc(100vw - 2 * var(--lb-layout-edge-gap, 12px)));
+  /* O vão entre as peças continua sendo mapa. */
+  pointer-events: none;
+}
+
+.lb-dice-dock__feed {
+  width: 100%;
+}
+
+.lb-dice-dock__panel,
+.lb-dice-dock__toggle {
+  pointer-events: auto;
+}
+
+.lb-dice-dock__panel {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 12px;
+}
+
+/* `.lb-panel` põe `display`: o atributo `hidden` sozinho perderia. */
+.lb-dice-dock__panel[hidden] {
+  display: none;
+}
+
+.lb-dice-dock__toggle {
+  padding: 6px 16px;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--lb-color-parchment, #eceae4);
+  cursor: pointer;
+}
+
+.lb-dice-dock__toggle[aria-expanded='true'] {
+  color: var(--lb-color-brass-bright, #f3ba66);
+}
+
+.lb-dice-dock__toggle:focus-visible {
+  outline: 2px solid var(--lb-color-brass-bright, #f3ba66);
+  outline-offset: 2px;
+}

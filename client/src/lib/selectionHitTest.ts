@@ -1,11 +1,14 @@
-import type { Wall, Light, Region, RegionPoint, Drawing, DrawingPoint, Stair, MapData, LayerId } from '../types/map'
+import type { Wall, Light, Region, RegionPoint, Drawing, DrawingPoint, Stair, MapData, LayerId, Pin, ConcealZone } from '../types/map'
+import { findConcealZoneAt } from './concealZones'
 import type { Selection } from '../types/tools'
 import { findTokenAt } from '../pixi/tokenInteraction'
 import { findPropAt } from '../pixi/propInteraction'
 import {
-  visibleWalls, visibleRegions, visibleStairs, visibleLights, visibleDrawings, visibleTokens, visibleProps,
+  visibleWalls, visibleRegions, visibleStairs, visibleLights, visibleDrawings, visibleTokens, visibleProps, visiblePins,
   isLayerLocked, wallLayer, regionLayer, stairLayer, lightLayer, tokenLayer, propLayer, drawingLayer,
 } from './layers'
+import { findPinAt } from './pins'
+import { stairSpiralCircle } from './stairs'
 
 export interface Point {
   x: number
@@ -56,6 +59,12 @@ const STAIR_HIT_TOLERANCE = 8 // mesma tolerância de WALL_HIT_TOLERANCE — lan
 export function findStairAt(stairs: Stair[], point: Point, tolerance = STAIR_HIT_TOLERANCE): Stair | null {
   for (let i = stairs.length - 1; i >= 0; i -= 1) {
     const stair = stairs[i]
+    // Espiral: o que está desenhado é o círculo inteiro (`lib/stairs.ts`), não a faixa do lance.
+    const circle = stairSpiralCircle(stair)
+    if (circle !== null) {
+      if (Math.hypot(point.x - circle.center.x, point.y - circle.center.y) <= circle.radius + tolerance) return stair
+      continue
+    }
     const reach = Math.max(tolerance, stair.stepWidth / 2)
     for (const segment of stair.segments) {
       if (distanceToSegment(point, { x: segment.x1, y: segment.y1 }, { x: segment.x2, y: segment.y2 }) <= reach) {
@@ -64,6 +73,30 @@ export function findStairAt(stairs: Stair[], point: Point, tolerance = STAIR_HIT
     }
   }
   return null
+}
+
+/**
+ * Toque do JOGADOR numa escada que leva a outro andar: o pino invisível dela
+ * (`Pin.escadaId`, `lib/stairTravel.ts`), ou `null` se ali não tem escada ou a
+ * escada não leva a lugar nenhum. O lance inteiro responde, com a mesma folga
+ * de `findStairAt` — a escada é o alvo, não um ponto escondido na boca dela.
+ * Só olha escada em camada visível: a que o jogador não enxerga não se toca.
+ */
+export function findStairPinAt(map: Pick<MapData, 'stairs' | 'pins' | 'hiddenLayers'>, point: Point, tolerance = STAIR_HIT_TOLERANCE): Pin | null {
+  const linked = visibleStairs(map.stairs, map.hiddenLayers).filter((stair) => map.pins.some((p) => p.escadaId === stair.id))
+  const stair = findStairAt(linked, point, tolerance)
+  if (stair === null) return null
+  return map.pins.find((p) => p.escadaId === stair.id) ?? null
+}
+
+/**
+ * O que o toque do JOGADOR abre no mapa do recorte: o pino que se desenha ali
+ * (ele fica por cima) ou, no lance de uma escada que leva a outro andar, o pino
+ * invisível dela. É a única chamada do `PlayerView` para "tocou em quê?" — a
+ * escada não depende de alguém lembrar de perguntar por ela à parte.
+ */
+export function findPlayerPinAt(map: Pick<MapData, 'stairs' | 'pins' | 'hiddenLayers'>, point: Point, tolerance: number): Pin | null {
+  return findPinAt(visiblePins(map.pins, map.hiddenLayers), point, tolerance) ?? findStairPinAt(map, point, tolerance)
 }
 
 export function findLightAt(lights: Light[], point: Point, handleRadius = LIGHT_HIT_RADIUS): Light | null {
@@ -345,6 +378,33 @@ export function findSelectableAt(map: MapData, point: Point): SelectableHit | nu
   if (region) return { kind: 'region', id: region.id, draggable: false }
 
   return null
+}
+
+/**
+ * A porta sob o ponteiro, para o clique direito (Abrir/Fechar,
+ * Trancar/Destrancar sem trocar de ferramenta). Só parede que É porta: a
+ * parede lisa ao lado do vão nunca abre o menu. Porta em camada oculta não
+ * responde — o que não se vê não se clica. Camada TRAVADA não barra: travar
+ * impede mover a porta, não abri-la no meio da sessão.
+ */
+export function findDoorAt(map: Pick<MapData, 'walls' | 'hiddenLayers'>, point: Point): Wall | null {
+  const doors = visibleWalls(map.walls, map.hiddenLayers).filter((wall) => wall.door !== null)
+  return findWallAt(doors, point)
+}
+
+/**
+ * Selecionar dentro de uma zona oculta abre a ZONA, não a sala embaixo dela.
+ * A zona é o "tapete" por cima do chão da sala: antes o clique pegava a sala e
+ * a zona só se editava trocando para a ferramenta Zona oculta. Só passa na
+ * frente de sala e de chão (o fim da cadeia de `findSelectableAt`): ficha,
+ * objeto, luz, desenho, parede e escada dentro da zona continuam ganhando o
+ * clique, porque são menores e estão por cima.
+ */
+export function findConcealZoneForSelect(map: MapData, point: Point): ConcealZone | null {
+  const zone = findConcealZoneAt(map.concealZones, point)
+  if (zone === null) return null
+  const hit = findSelectableAt(map, point)
+  return hit === null || hit.kind === 'region' ? zone : null
 }
 
 /**

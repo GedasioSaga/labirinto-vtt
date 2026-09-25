@@ -28,7 +28,7 @@ export function levarFichaPara(tokenId: string, toSceneId: string, pinId: string
 }
 
 /**
- * O que o App passa ao painel da ficha (`tokenCarry`): as mesmas cenas e
+ * O que o App passa ao painel da ficha (`tokenSceneCarry`): as mesmas cenas e
  * chegadas do "Mandar para…" do Grupo, menos a aberta (onde a ficha já está);
  * as fichas com dono na sala, que trocam de cena pelo "Mandar para…" (só ele
  * avisa o jogador e a sessão); e o gesto de levar.
@@ -36,7 +36,7 @@ export function levarFichaPara(tokenId: string, toSceneId: string, pinId: string
 export function ligacaoLevarFicha(world: HostWorld, players: readonly PlayerInfo[]): TokenCarryWiring {
   const aberta = world.open.sceneId
   return {
-    destinations: partyDestinations(world).filter((destination) => destination.sceneId !== aberta),
+    destinations: partyDestinations(world, useAdventureStore.getState().adventure?.scenes).filter((destination) => destination.sceneId !== aberta),
     ownedTokenIds: new Set(players.flatMap((player) => player.tokenIds)),
     onCarry: levarFichaPara,
   }

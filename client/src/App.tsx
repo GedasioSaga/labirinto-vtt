@@ -2,6 +2,8 @@ import { useEffect, useId, useRef, useState, type KeyboardEvent as ReactKeyboard
 import { createPortal } from 'react-dom'
 import { PixiCanvas } from './pixi/PixiCanvas'
 import { ZoomHud } from './components/ZoomHud'
+import { DiceDock } from './components/DiceDock'
+import { useDiceStore } from './stores/diceStore'
 import { Toast } from './components/Toast'
 import { useToastStore, type ToastKind } from './stores/toastStore'
 import { ensinaOQueFazer } from './lib/erroQueEnsina'
@@ -20,15 +22,20 @@ import { laserStrokeEnded, useLaserStore } from './stores/laserStore'
 import { usePlayerLaserStore } from './stores/playerLaserStore'
 import { useFollowStore } from './stores/followStore'
 import { advanceTurn, startTurn, useInitiativeStore } from './stores/initiativeStore'
+import { useClockStore } from './stores/clockStore'
 import { turnTokenIdOn } from './lib/initiative'
+import { carryRefsOf } from './lib/carry'
 import { useFollowPlayer } from './stores/useFollowPlayer'
+import { useArrivalTextSettings } from './stores/useArrivalTextSettings'
 import { playSignalSound } from './lib/signalSound'
 import { createSignalRouter } from './net/chamadoDeFundo'
-import { tableSceneKey, type PlayerInfo } from './net/hostSession'
+import { tableSceneKey, type AppliedMove, type PlayerInfo } from './net/hostSession'
 import { tableScreenUrl } from './lib/tableScreen'
 import { RoomPanel, roomPanelTokensOf } from './components/RoomPanel'
 import { LivePlayerMirror } from './components/PlayerMirror'
-import { partyDestinations, partyItemChange, partyMembers, peopleByScene } from './lib/party'
+import { masterDestinationMarks, partyDestinations, partyItemChange, partyMembers, peopleByScene } from './lib/party'
+import { useDestinationStore } from './stores/destinationStore'
+import { useCenaQueEspera } from './stores/useCenaQueEspera'
 import type { TravelLogEntry } from './lib/travelLog'
 import { withStoredTokens } from './lib/storedTokens'
 import { loadSavedExploration, loadSavedTable, savedTableSummary, storeSavedExploration, storeSavedTable, type TableStorage } from './lib/savedTable'
@@ -43,8 +50,9 @@ import { MapTypePicker } from './screens/MapTypePicker'
 import { NewDungeonMap } from './screens/NewDungeonMap'
 import { LoadMapScreen } from './screens/LoadMapScreen'
 import { OptionsScreen } from './screens/OptionsScreen'
-import { selectAlignableUnitCount, useMapStore } from './stores/mapStore'
+import { mapChangeCause, selectAlignableUnitCount, useMapStore } from './stores/mapStore'
 import { roomHazardState } from './lib/hazards'
+import { areaTriggerOfRegion } from './lib/areaTriggers'
 import { saveMapToAppData, saveMapToPath, pickMapJsonToOpen, openMapFile, mapDirFor, defaultMapsDir, type OpenedMapFile } from './lib/mapFileIO'
 import {
   applyItemsInScene,
@@ -52,8 +60,10 @@ import {
   hostWorldOf,
   pinExitsTravelOf,
   pinTravelOptions,
+  sceneDeletionInfo,
   sceneList,
   sceneMaps,
+  stairTravelPanel,
   subscribeToTravelLinks,
   travelSceneOptions,
   useAdventureStore,
@@ -76,6 +86,7 @@ import { pickBackgroundImage, importBackgroundImage, pickImageFile, importPinIma
 import { useTokenLibraryStore } from './stores/tokenLibraryStore'
 import { apagarDoAcervo, fotoSobrouNoDisco, salvarNoAcervo, trazerDoAcervo, type ItemDoAcervoNaTela } from './lib/tokenLibrary'
 import { colocarPecaDoAcervo, criarToken, marcarFichaNpc, type TamanhoDaVista } from './stores/criarToken'
+import { setPropImageShownToPlayers, setPropLabelForPlayers } from './stores/propPlayerLook'
 import { pickExportFolder, pickImportFolder, exportMapFolder, importMapFolder } from './lib/mapExport'
 import { join } from '@tauri-apps/api/path'
 import { Toolbar } from './components/Toolbar'
@@ -88,15 +99,19 @@ import { saveMapImage } from './lib/mapImageSave'
 import type { DoorKind, DrawingCap, DrawingDash, MapData, Pin, PinPassage, Region, Token, Wall } from './types/map'
 import { passageOf } from './lib/pins'
 import { isArrivalOnly } from './lib/pinTravel'
+import { pinAttachOptions } from './lib/pinAttach'
+import { leverDoorOptions, linkedDoorOf } from './lib/lever'
 import type { Screen } from './types/screen'
 import { createMapScreen, parentScreen } from './lib/navigation'
 import * as mapFactory from './lib/mapFactory'
+import { readDoorKey, setDoorKey } from './lib/doorKey'
 import { countEntitiesByLayer } from './lib/layers'
 import { roomDimensions } from './lib/roomOps'
 import { porMobiliaNaSala } from './stores/mobiliaNaSala'
 import type { GridAlignResult } from './lib/gridAlign'
 import { relevantPropertyGroups } from './lib/toolProperties'
 import { EMPTY_SELECTION, selectionOfItem, selectionSingle, selectionToAreaSelection } from './lib/selectionModel'
+import { selectionSecretState } from './lib/batchSecret'
 import { isSingleGroup, NO_GROUPS } from './lib/itemGroups'
 import { lightsOnToken } from './lib/selectionHitTest'
 import { traceFloorPieces } from './lib/traceImage'
@@ -311,6 +326,21 @@ function currentTableId(): string {
 }
 
 /**
+ * CARAVANA: quem acompanha a caravana anda SEM desfazer. O passo é o do
+ * arrasto do mestre; com histórico, o Ctrl+Z desfaria um seguidor por vez e o
+ * seguidor refeito apagaria o refazer. Fora da ligação da ponte do host: lá só
+ * entram os retornos do JOGADOR (`hostPlayerChanges`, `net/playerChanges.test.ts`).
+ */
+function applyCaravanMoves(moves: readonly AppliedMove[]): void {
+  const open = moves.filter((move) => move.sceneId === undefined)
+  if (open.length > 0) useMapStore.getState().setTokenPositionsLive(open.map(({ tokenId, x, y }) => ({ id: tokenId, x, y })))
+  for (const { tokenId, x, y, sceneId } of moves) {
+    if (sceneId === undefined) continue
+    useAdventureStore.getState().updateBackgroundScene(sceneId, (m) => mapFactory.setTokenPosition(m, tokenId, x, y))
+  }
+}
+
+/**
  * Orquestra o estado do editor: liga a store Zustand e o I/O de arquivo aos
  * componentes de interface. Nenhum layout mora aqui além do posicionamento dos
  * painéis sobre o canvas.
@@ -410,11 +440,16 @@ function App() {
   const setGridCellSize = useMapStore((state) => state.setGridCellSize)
   const setMapSize = useMapStore((state) => state.setMapSize)
   const setStairDirection = useMapStore((state) => state.setStairDirection)
+  const setStairShape = useMapStore((state) => state.setStairShape)
   const setRoomName = useMapStore((state) => state.setRoomName)
   const resizeRoomDimensions = useMapStore((state) => state.resizeRoomDimensions)
   const setMapScale = useMapStore((state) => state.setMapScale)
   const setMeasurementMode = useMapStore((state) => state.setMeasurementMode)
   const setMovementRules = useMapStore((state) => state.setMovementRules)
+  const setWorldMap = useMapStore((state) => state.setWorldMap)
+  const arrivalTextSettings = useArrivalTextSettings()
+  const setOutdoor = useMapStore((state) => state.setOutdoor)
+  const setSceneFloor = useMapStore((state) => state.setSceneFloor)
   const setScenarioLink = useMapStore((state) => state.setScenarioLink)
   const updateTextLabel = useMapStore((state) => state.updateTextLabel)
   const setTextFontFamily = useMapStore((state) => state.setTextFontFamily)
@@ -505,6 +540,7 @@ function App() {
   // INICIATIVA (aba Jogo): valores por cena e a vez. Estado da mesa, fora do arquivo do mapa.
   const initiativeValues = useInitiativeStore((state) => state.values)
   const initiativeTurn = useInitiativeStore((state) => state.turn)
+  const clockHour = useClockStore((state) => state.hour)
   const hostBridgeRef = useRef<HostBridge | null>(null)
   // A mesa da sala aberta é da aventura em que ela abriu: trocar de aventura no
   // meio não pode gravar os donos desta sala na mesa da outra.
@@ -525,8 +561,19 @@ function App() {
         // pela sessão: entram no mapa sem virar passo do Ctrl+Z do mestre (ver
         // `net/playerChanges.ts`), na cena aberta ou numa de fundo.
         ...hostPlayerChanges,
+        // CARAVANA: os seguidores andam sem desfazer (`applyCaravanMoves`, acima do App).
+        applyCaravanMoves,
         // "Destrancar e abrir" do mestre ao pedido da porta trancada (passo do Ctrl+Z dele).
         unlockAndOpenDoor: unlockAndOpenDoorFromRequest,
+        // "Passar para pede" do pedido pelo pino trancado: o pino muda de modo
+        // na cena dele (de fundo quando o jogador estava lá), como o painel faria.
+        setPinPassage: (pinId, passagem, sceneId) => {
+          if (sceneId !== undefined) {
+            useAdventureStore.getState().updateBackgroundScene(sceneId, (m) => mapFactory.updatePin(m, pinId, { passagem }))
+            return
+          }
+          useMapStore.getState().updatePin(pinId, { passagem })
+        },
         // ITEM PEGÁVEL: o pino pego sai e as mochilas mudam, já validados pela
         // sessão. Vale para TODO passo do desfazer da cena, aberta ou de fundo
         // (`applyItemsInScene`): um Ctrl+Z do mestre não devolve a chave ao
@@ -556,6 +603,8 @@ function App() {
         onTunnelChange: setTunnel,
         // A vez vai no snapshot, recortada por jogador (`turnForPlayer`): ficha que ele não vê não vira vez.
         getTurn: () => useInitiativeStore.getState().turn,
+        // O relógio vai no snapshot recortado (`clockForPlayer`): só o período, nunca a hora.
+        getClock: () => useClockStore.getState().hour,
         onTableScreensChange: setTableScreens,
         // B1 — sinal do jogador: o canvas desenha pela store e o bipe avisa quem não está olhando.
         // G6 — sinal de cena de FUNDO não vira ping aqui (as coordenadas são de
@@ -589,11 +638,21 @@ function App() {
           }
           useAdventureStore.getState().updateBackgroundScene(sceneId, (m) => (m.tokens.some((t) => t.id === token.id) ? m : mapFactory.addToken(m, token)))
         },
+        // Dado rolado na sala: toda rolagem da mesa (e a do mestre, escondida ou não) entra na lista dele.
+        onDiceRoll: (roll) => useDiceStore.getState().push(roll),
       })
     }
     return hostBridgeRef.current
   }
-  useEffect(() => useMapStore.subscribe((state) => state.map, () => hostBridgeRef.current?.notifyMapChanged()), [])
+  // Desfazer/refazer avisa como tal: a caravana do mapa-mundi não o lê como arrasto.
+  useEffect(
+    () =>
+      useMapStore.subscribe((state, previous) => {
+        const cause = mapChangeCause(state, previous)
+        if (cause !== null) hostBridgeRef.current?.notifyMapChanged(cause)
+      }),
+    [],
+  )
   // A vez andou: os jogadores sabem na hora (o "Sua vez" não espera outra edição do mapa).
   useEffect(
     () =>
@@ -602,21 +661,27 @@ function App() {
       }),
     [],
   )
-  // ESTADO DO MUNDO: a troca pode mudar SÓ cenas de fundo (a aberta não tem nada
-  // amarrado). Sem esta linha, quem está nelas só veria a comporta abrir quando
-  // alguém mexesse na mesa.
+  // ESTADO DO MUNDO: qualquer troca na aventura reenvia o recorte — nome ("onde
+  // estou"), CABINE DE TRANSPORTE (mestre ou viagem: quem está numa parada lê
+  // "aqui/longe" de novo) e comporta (estados) inclusos, sem esperar outra
+  // edição do mapa.
   useEffect(
     () =>
       useAdventureStore.subscribe((state, previous) => {
-        // CABINE DE TRANSPORTE: a cabine andou (mestre ou viagem) — quem está
-        // numa parada dela lê "aqui/longe" de novo.
-        if (state.adventure?.estados !== previous.adventure?.estados || state.adventure?.cabines !== previous.adventure?.cabines) {
-          hostBridgeRef.current?.notifyMapChanged()
-        }
+        if (state.adventure !== previous.adventure) hostBridgeRef.current?.notifyMapChanged()
+      }),
+    [],
+  )
+  // O relógio andou: o período e a visão da noite chegam na hora, sem esperar outra edição.
+  useEffect(
+    () =>
+      useClockStore.subscribe((state, previous) => {
+        if (state.hour !== previous.hour) hostBridgeRef.current?.notifyClockChanged()
       }),
     [],
   )
   const laserToggled = useLaserStore((state) => state.toggled)
+  const diceRolls = useDiceStore((state) => state.rolls)
   // B2 — o `off` sai no fim do traço: soltar o botão, sair da janela ou desarmar (L e botão Laser).
   useEffect(
     () =>
@@ -654,6 +719,7 @@ function App() {
     useSignalStore.getState().clear()
     usePlayerLaserStore.getState().clear()
     useLaserStore.getState().setToggled(false)
+    useDiceStore.getState().clear()
   }
   /**
    * O mundo que o host serve (cena aberta + as de fundo), para o painel Jogo:
@@ -661,6 +727,11 @@ function App() {
    * viajou. Só é montado com a aba Jogo existindo (Tauri).
    */
   const roomPanelWorld = () => hostWorldOf({ adventure, activeSceneId, cache: sceneCache }, map)
+  /** A lista do "Reunir o grupo aqui" do pino aberto: agrupada por cena, com quem já está em volta dele à parte. */
+  const gatherListFor = (pin: { x: number; y: number }) => {
+    const world = roomPanelWorld()
+    return gatherCandidates(partyMembers(roomPlayers, world), world, pin)
+  }
   /** Com a sala fechada, quem tem ficha na mesa guardada: é o que faz o "Abrir sala" perguntar "Retomar a mesa?". */
   const savedTableNames = (): string | null => {
     if (room !== null) return null
@@ -697,7 +768,7 @@ function App() {
             tokens={roomPanelTokensOf(world)}
             party={{
               members: partyMembers(roomPlayers, world),
-              destinations: partyDestinations(world),
+              destinations: partyDestinations(world, adventure?.scenes),
               onGoTo: (member) => {
                 // "Ir lá" em OUTRO jogador é o mestre escolhendo a vista: desliga o seguir.
                 if (member.playerId !== followingId) useFollowStore.getState().stop()
@@ -720,6 +791,13 @@ function App() {
               onToggleMirror: (member) => setMirrorId((current) => (current === member.playerId ? null : member.playerId)),
               // Recado para um jogador só: sem sala não há quem leia.
               onNote: room === null ? undefined : (playerId, text) => hostBridgeRef.current?.playerNote(playerId, text) ?? null,
+              // "Ver" da marca "vamos para cá": a mesma ida do "Ir lá", até a marca e não até a ficha.
+              onViewDestination: (member) => {
+                if (member.playerId !== followingId) useFollowStore.getState().stop()
+                if (member.destination !== undefined) useAdventureStore.getState().goToPoint(member.sceneId, member.destination)
+              },
+              // "Trazer" a ficha que ficou em outra cena: sem sala não há sessão que saiba do dono.
+              onBring: room === null ? undefined : (playerId, tokenId) => hostBridgeRef.current?.bringToken(playerId, tokenId) ?? false,
             }}
             initiative={{
               tokens: map.tokens.map((token) => ({ id: token.id, name: token.name })),
@@ -750,6 +828,13 @@ function App() {
               },
               onEncerrar: () => useMapStore.getState().applyPlayerChange((m) => comConfronto(m, undefined)),
             }}
+            clock={{
+              hour: clockHour,
+              outdoor: map.externa === true,
+              onAdvanceHour: () => useClockStore.getState().advanceHour(),
+              onNextPeriod: () => useClockStore.getState().nextPeriod(),
+              onOutdoorChange: setOutdoor,
+            }}
             tunnel={tunnel}
             savedTableNames={savedTableNames()}
             onStart={(resume) => void handleStartRoom(resume)}
@@ -762,6 +847,8 @@ function App() {
             onKick={(clientId) => void hostBridgeRef.current?.kick(clientId)}
             onStoreTokens={(playerId) => hostBridgeRef.current?.storeTokens(playerId)}
             onDismiss={(playerId) => hostBridgeRef.current?.dismissPlayer(playerId)}
+            onLendTokens={(ownerId, borrowerId) => hostBridgeRef.current?.lendTokens(ownerId, borrowerId)}
+            onEndLoans={(ownerId) => hostBridgeRef.current?.endLoans(ownerId)}
             onVisionRadiusChange={(playerId, radius) => hostBridgeRef.current?.setVisionRadius(playerId, radius)}
             onRevealPlan={(playerId) => hostBridgeRef.current?.revealPlan(playerId)}
             onHidePlan={(playerId) => hostBridgeRef.current?.hidePlan(playerId)}
@@ -794,6 +881,11 @@ function App() {
   const canGoBackToScene = previousSceneId !== null && sceneCache[previousSceneId]?.status === 'ok'
   // G7 — "Seguir" na linha do Grupo: a câmera acompanha a ficha do jogador, inclusive de cena em cena.
   const followingId = useFollowStore((state) => state.playerId)
+  // Marcas "vamos para cá" no canvas do mestre: só as da cena aberta (as de fundo têm coordenadas de outro mapa).
+  const openSceneId = adventure === null ? null : activeSceneId
+  useEffect(() => {
+    useDestinationStore.getState().setMarks(masterDestinationMarks(roomPlayers, openSceneId))
+  }, [roomPlayers, openSceneId])
   useFollowPlayer(roomPlayers, () => hostWorldOf({ adventure, activeSceneId, cache: sceneCache }, map))
   // "Ver tela" do Grupo: de quem é o espelho aberto. Quem saiu da sala (expulso,
   // sala fechada) leva o espelho junto — voltar depois não o reabre sozinho.
@@ -802,6 +894,11 @@ function App() {
   useEffect(() => {
     if (mirrorId !== null && mirroredPlayer === undefined) setMirrorId(null)
   }, [mirrorId, mirroredPlayer])
+  // atencao-do-mestre — a cena que espera (`lib/cenaQueEspera.ts`): cada cena
+  // com gente que o editor NÃO mostra guarda desde quando espera; a lista
+  // Cenas mostra 'há N min' e o Ctrl+J abre a que espera há mais tempo.
+  const tableMembers = roomPlayers.length === 0 ? [] : partyMembers(roomPlayers, roomPanelWorld())
+  const waitingSince = useCenaQueEspera(tableMembers, activeSceneId, screen === 'editor')
   /**
    * Caminho de origem do mapa em edição. `null` enquanto o mapa é novo
    * (ainda não salvo); a partir daí toda escrita vai de volta para esse
@@ -1068,6 +1165,8 @@ function App() {
   const selectedWall = singleSelection?.kind === 'wall' ? map.walls.find((w) => w.id === singleSelection.id) ?? null : null
   const selectedProp = singleSelection?.kind === 'prop' ? map.props.find((p) => p.id === singleSelection.id) ?? null : null
   const selectedToken = singleSelection?.kind === 'token' ? map.tokens.find((t) => t.id === singleSelection.id) ?? null : null
+  // LEVAR FICHA JUNTO: quem leva a ficha selecionada, quem ela leva e a quem pode ser presa (a mais perto primeiro).
+  const selectedTokenCarry = carryRefsOf(map, selectedToken)
   const selectedDrawing = singleSelection?.kind === 'drawing' ? map.drawings.find((d) => d.id === singleSelection.id) ?? null : null
   const selectedTextLabel = selectedDrawing && selectedDrawing.kind === 'text' ? selectedDrawing : null
   const selectedRegion = singleSelection?.kind === 'region' ? map.regions.find((r) => r.id === singleSelection.id) ?? null : null
@@ -1075,6 +1174,8 @@ function App() {
   const selectedRegionParent = selectedRegion?.parentId !== undefined ? map.regions.find((r) => r.id === selectedRegion.parentId) ?? null : null
   // ZONA DE PERIGO da Sala selecionada: o perigo dela e se "Avançar um passo" muda algo.
   const selectedRoomHazard = selectedRegion?.room ? roomHazardState(map, selectedRegion.id) : null
+  // GATILHO DE ÁREA da Região/Sala selecionada (`null` = sem gatilho).
+  const selectedRegionTrigger = selectedRegion ? areaTriggerOfRegion(map, selectedRegion.id) : null
   const selectedLight = singleSelection?.kind === 'light' ? map.lights.find((l) => l.id === singleSelection.id) ?? null : null
   const selectedStair = singleSelection?.kind === 'stair' ? map.stairs.find((s) => s.id === singleSelection.id) ?? null : null
   const selectedFloorIndex = singleSelection?.kind === 'floor' ? map.floor.findIndex((p) => p.id === singleSelection.id) : -1
@@ -1091,6 +1192,9 @@ function App() {
   const currentMapObjectKey = currentObjectKey(map, selection, selectedPinId)
   const pinKind = useMapStore((state) => state.pinKind)
   const pinIcon = useMapStore((state) => state.pinIcon)
+  // "Oculto para jogadores" EM LOTE (2+ itens selecionados): nenhum, todos ou misturado.
+  const selectionSecret = selection.length > 1 ? selectionSecretState(map, selection) : null
+  const setSelectionSecret = useMapStore((state) => state.setSelectionSecret)
   // A5 — "Oculto para jogadores" do item selecionado que não é Token/Objeto.
   const secretTarget: { kind: 'region' | 'stair' | 'drawing' | 'pin'; id: string; secret: boolean } | null = selectedRegion
     ? { kind: 'region', id: selectedRegion.id, secret: !!selectedRegion.secret }
@@ -1260,6 +1364,12 @@ function App() {
   const handleRevealPassage = () => {
     if (!selectedWall) return
     revealSecretPassage(selectedWall.id)
+  }
+
+  /** CHAVE ABRE PORTA: "Abre com" da porta selecionada, com histórico (Ctrl+Z desfaz). "" tira a chave. */
+  const handleDoorKeyChange = (nome: string) => {
+    if (!selectedWall || !selectedWall.door) return
+    setWallDoor(selectedWall.id, setDoorKey(selectedWall.door, nome))
   }
 
   /**
@@ -1545,6 +1655,28 @@ function App() {
     useAdventureStore.getState().createScene(name, currentMapPath)
   }
 
+  /** As fichas dos jogadores da sala: não entram na cópia e travam o apagar. Sala fechada = nenhuma conhecida. */
+  const playerTokenIds = () => new Set(roomPlayers.flatMap((player) => player.tokenIds))
+
+  /** "Duplicar" do menu "…" da cena: a cópia aparece logo abaixo, e a cena aberta continua a mesma. */
+  const handleDuplicateScene = (sceneId: string) => {
+    if (useAdventureStore.getState().duplicateScene(sceneId, playerTokenIds()) === null) {
+      useToastStore.getState().push('error', 'Não deu para duplicar: o arquivo desta cena não abriu.')
+    }
+  }
+
+  /** "Apagar cena…", já confirmado. Recusa com jogador na cena e com a última cena. */
+  const handleDeleteScene = (sceneId: string) => {
+    const name = adventure?.scenes.find((entry) => entry.id === sceneId)?.name ?? 'a cena'
+    // Apagar a cena aberta troca a vista: o "Seguir" desliga, como em qualquer troca à mão.
+    if (sceneId === activeSceneId) useFollowStore.getState().stop()
+    if (useAdventureStore.getState().deleteScene(sceneId, playerTokenIds())) {
+      useToastStore.getState().push('info', `${name} foi apagada.`)
+      return
+    }
+    useToastStore.getState().push('error', `Não deu para apagar ${name}: alguém ainda está lá, ou é a única cena.`)
+  }
+
   const handleGoBack = () => {
     useFollowStore.getState().stop()
     if (previousSceneId !== null) useAdventureStore.getState().switchScene(previousSceneId)
@@ -1553,6 +1685,22 @@ function App() {
   const handleTravelPin = (pinId: string, exitId?: string) => {
     useFollowStore.getState().stop()
     useAdventureStore.getState().travelThroughPin(pinId, exitId)
+  }
+
+  /**
+   * ALAVANCA aberta no painel: a porta ligada, as portas desta cena e o
+   * "Acionar agora". Acionar entra no desfazer (é o mestre mexendo), e porta
+   * trancada não se move — o painel diz por quê em vez de um clique mudo.
+   */
+  const leverPanel = (pin: Pin) => {
+    const door = linkedDoorOf(map, pin)
+    return {
+      value: pin.portaLigada ?? null,
+      options: leverDoorOptions(map),
+      onChange: (wallId: string | null) => useMapStore.getState().updatePin(pin.id, { portaLigada: wallId ?? undefined }),
+      onPull: () => useMapStore.getState().pullLever(pin.id),
+      pullBlocked: door !== null && door.door.locked ? 'A porta ligada está trancada: a alavanca não a move.' : null,
+    }
   }
 
   /**
@@ -1574,6 +1722,14 @@ function App() {
       onLinkExisting: (sceneId: string, partnerId: string, exitId: string | null) => {
         useAdventureStore.getState().linkPinToExisting(pin.id, sceneId, partnerId, exitId)
       },
+      // "+ Cena nova…": a cena nasce já ligada e o mestre continua nesta — sem
+      // troca de vista, o "Seguir" fica como está. No mapa solto, a aventura
+      // nasce aqui, como no "+ Nova cena" de Cenas.
+      onCreateScene: (nome: string, exitId: string | null) => {
+        if (useAdventureStore.getState().createSceneForPin(pin.id, nome, currentMapPath, exitId) === null) {
+          useToastStore.getState().push('error', 'Não deu para criar a cena: o pino não está mais aqui.')
+        }
+      },
       onUnlink: (exitId: string) => useAdventureStore.getState().unlinkPin(pin.id, exitId),
       onRename: (exitId: string, rotulo: string) => useAdventureStore.getState().renamePinExit(pin.id, exitId, rotulo),
       // Pelo mesmo caminho do clique no pino: ir por uma saída é mexer na
@@ -1583,6 +1739,12 @@ function App() {
       // par da outra cena fica como está.
       passage: passageOf(pin),
       onPassageChange: (passagem: PinPassage) => useMapStore.getState().updatePin(pin.id, { passagem }),
+      // CHAVE ABRE PORTA: "Abre com" do pino trancado, com desfazer; "" tira a chave.
+      keyName: pin.abreCom ?? '',
+      onKeyChange: (nome: string) => useMapStore.getState().updatePin(pin.id, { abreCom: readDoorKey(nome) }),
+      // "Aceita tentativas" do trancado: desligar grava `mudo`; ligar tira a marca.
+      acceptsAttempts: pin.mudo !== true,
+      onAcceptsAttemptsChange: (on: boolean) => useMapStore.getState().updatePin(pin.id, { mudo: on ? undefined : true }),
       // Mão única mora no PAR (cena de fundo): marcar e desmarcar vão pela
       // aventura, fora do desfazer desta cena.
       onOneWayChange: (exitId: string, on: boolean) => {
@@ -2001,13 +2163,26 @@ function App() {
                 scenes={sceneList({ adventure, activeSceneId, cache: sceneCache }, map)}
                 onSelect={handleSelectScene}
                 onCreate={handleCreateScene}
-                onRename={(sceneId, name) => useAdventureStore.getState().renameScene(sceneId, name)}
+                onRename={(sceneId, name, publicName) => {
+                  const adventureStore = useAdventureStore.getState()
+                  adventureStore.renameScene(sceneId, name)
+                  adventureStore.setScenePublicName(sceneId, publicName)
+                }}
                 // Visão geral: a cena aberta pelo mapa vivo, as de fundo pelo cache (fichas de jogador que andam aparecem na hora).
                 maps={sceneMaps({ adventure, activeSceneId, cache: sceneCache }, map)}
                 // Mesmas linhas do painel Grupo: quem está em cada cena e os pedidos que esperam.
                 people={scenePeople()}
+                // Há quanto tempo cada cena com gente espera o mestre ('há N min').
+                waitingSince={waitingSince}
                 // Recado por cena só com a sala aberta: sem sala não há quem leia.
                 onNote={room === null ? undefined : (sceneId, text, playerIds) => hostBridgeRef.current?.sceneNote(sceneId, text, playerIds) ?? null}
+                // Menu "…" da cena: só com aventura (o mapa solto não tem lista de cenas para mexer).
+                onDuplicate={adventure === null ? undefined : handleDuplicateScene}
+                onShift={adventure === null ? undefined : (sceneId, delta) => useAdventureStore.getState().shiftScene(sceneId, delta)}
+                onDelete={adventure === null ? undefined : handleDeleteScene}
+                deletionInfo={
+                  adventure === null ? undefined : (sceneId) => sceneDeletionInfo({ adventure, activeSceneId, cache: sceneCache }, map, sceneId, roomPlayers)
+                }
                 // Cenas em pastas: só a lista do mestre muda (pede Salvar); o jogador não recebe nada.
                 onMove={adventure === null ? undefined : (sceneId, parentId) => useAdventureStore.getState().moveScene(sceneId, parentId)}
                 adventureId={adventure?.id ?? null}
@@ -2277,7 +2452,9 @@ function App() {
               onMeasurementModeChange: setMeasurementMode,
               gridShape,
             }}
-            movement={{ movement: map.movement, onMovementChange: setMovementRules }}
+            movement={{ movement: map.movement, onMovementChange: setMovementRules, worldMap: map.worldMap === true, onWorldMapChange: setWorldMap }}
+            arrivalText={arrivalTextSettings}
+            sceneFloor={{ andar: map.andar, onChange: setSceneFloor }}
             gridAlign={{
               backgroundFilename:
                 map.background.type === 'image' && map.background.src
@@ -2311,6 +2488,9 @@ function App() {
               // `kind` do primeiro item (só importa quando count === 1) +
               // quantos itens no total. `null` = seleção vazia (botão desabilita).
               selection: selection.length > 0 ? { kind: selection[0].kind, count: selection.length } : null,
+              // "Oculto para jogadores" em lote: só com 2+ itens (um item só
+              // tem o próprio toggle no painel dele).
+              secret: selectionSecret === null ? undefined : { ...selectionSecret, onChange: setSelectionSecret },
               defaultTokenName: mapFactory.nextTokenName(map.tokens),
               onAddToken: handleAddToken,
               onRemoveSelected: removeSelected,
@@ -2326,6 +2506,7 @@ function App() {
               onToggleLocked: handleToggleLocked,
               onToggleSecret: handleToggleSecret,
               onRevealPassage: handleRevealPassage,
+              onKeyChange: handleDoorKeyChange,
             }}
             doorKind={{
               kind: selectedWall?.door ? selectedWall.door.kind : doorKind,
@@ -2346,6 +2527,18 @@ function App() {
               onLockedChange: (locked) => selectedProp && updateProp(selectedProp.id, { locked }),
               onHiddenChange: (hidden) => selectedProp && updateProp(selectedProp.id, { hidden }),
               onSecretChange: (secret) => selectedProp && useMapStore.getState().setItemSecret('prop', selectedProp.id, secret),
+            }}
+            propPlayer={{
+              onLabelChange: (label) => selectedProp && setPropLabelForPlayers(selectedProp.id, label),
+              onShowImageChange: (show) => {
+                if (!selectedProp) return
+                // Ler o arquivo e reduzir a imagem é assíncrono: o erro vira o
+                // mesmo aviso de "trocar a imagem do token", e o interruptor fica
+                // desligado (nada foi gravado).
+                setPropImageShownToPlayers(selectedProp.id, show).catch((err: unknown) =>
+                  reportFileError('preparar a imagem do objeto para os jogadores', err),
+                )
+              },
             }}
             selectedToken={selectedToken}
             tokenName={{
@@ -2375,7 +2568,7 @@ function App() {
               // `updateToken` passa por `withHistory`: marcar errado se desfaz com Ctrl+Z.
               onNpcChange: (npc) => selectedToken && marcarFichaNpc(selectedToken.id, npc),
             }}
-            tokenCarry={ligacaoLevarFicha(roomPanelWorld(), roomPlayers)}
+            tokenSceneCarry={ligacaoLevarFicha(roomPanelWorld(), roomPlayers)}
             tokenLights={{
               lights: selectedToken ? lightsOnToken(map, selectedToken.id) : [],
               onSelectLight: (lightId) => setSelection(selectionOfItem({ kind: 'light', id: lightId })),
@@ -2396,11 +2589,27 @@ function App() {
               // `null` desliga a vigia e a ficha volta a ser comum.
               onWatchChange: (vigia) => selectedToken && updateToken(selectedToken.id, { vigia }),
             }}
+            tokenPatrol={{
+              // Opera sobre a ficha ATUAL do store: o "marcar" grava onde ela
+              // está agora. Cada clique que muda o mapa é um Ctrl+Z.
+              onPatrolOp: (op) => selectedToken && useMapStore.getState().patrolAction(selectedToken.id, op),
+            }}
+            tokenCarry={{
+              ...selectedTokenCarry,
+              // Prender e soltar passam pelo histórico: Ctrl+Z desfaz.
+              onCarry: (carrierId) => selectedToken && useMapStore.getState().carryToken(selectedToken.id, carrierId),
+              onRelease: (carriedId) => useMapStore.getState().releaseCarriedToken(carriedId),
+            }}
             tokenTransform={{
               onRotationChange: (rotation) => selectedToken && updateToken(selectedToken.id, { rotation }),
               onLockedChange: (locked) => selectedToken && updateToken(selectedToken.id, { locked }),
               onHiddenChange: (hidden) => selectedToken && updateToken(selectedToken.id, { hidden }),
               onSecretChange: (secret) => selectedToken && useMapStore.getState().setItemSecret('token', selectedToken.id, secret),
+            }}
+            tokenPlayerCharacter={{
+              // Mesmo caminho da cor: `updateToken` passa por `withHistory` (Ctrl+Z
+              // desfaz), e a lista de quem chega muda no broadcast do mapa.
+              onPlayerCharacterChange: (playerCharacter) => selectedToken && updateToken(selectedToken.id, { playerCharacter }),
             }}
             selectedTextLabel={selectedTextLabel}
             textLabel={{
@@ -2434,6 +2643,7 @@ function App() {
               onNameHiddenFromPlayersChange: (hidden) =>
                 selectedRegion && useMapStore.getState().setRoomNameHiddenFromPlayers(selectedRegion.id, hidden),
               onRoofChange: (roof) => selectedRegion && useMapStore.getState().setRoomRoof(selectedRegion.id, roof),
+              onComodoChange: (comodo) => selectedRegion && useMapStore.getState().setRoomComodo(selectedRegion.id, comodo),
               onTextoAoEntrarChange: (textoAoEntrar) => selectedRegion && useMapStore.getState().setRoomTexts(selectedRegion.id, { textoAoEntrar }),
               onNotaDoMestreChange: (notaDoMestre) => selectedRegion && useMapStore.getState().setRoomTexts(selectedRegion.id, { notaDoMestre }),
               onWidthChange: (width) =>
@@ -2485,6 +2695,15 @@ function App() {
                     : null,
               }
             }
+            areaTrigger={
+              selectedRegion && {
+                kind: selectedRegionTrigger?.kind ?? null,
+                revealed: selectedRegionTrigger?.revealed ?? false,
+                // Cada escolha é um Ctrl+Z (`mapStore.setRegionTrigger`).
+                onKindChange: (kind) => useMapStore.getState().setRegionTrigger(selectedRegion.id, kind),
+                onRevealedChange: (revealed) => useMapStore.getState().setRegionTriggerRevealed(selectedRegion.id, revealed),
+              }
+            }
             concealZone={
               selectedConcealZone && {
                 name: selectedConcealZone.name,
@@ -2508,7 +2727,16 @@ function App() {
               // do desfazer; o par da outra cena é desligado pelo adventureStore.
               onKindChange: (kind) =>
                 selectedPin
-                  ? useMapStore.getState().updatePin(selectedPin.id, kind === 'viagem' ? { kind } : { kind, destino: null })
+                  ? useMapStore
+                      .getState()
+                      // Deixar de ser de viagem também solta o pino da ficha: só a passagem anda com o navio.
+                      // Deixar de ser alavanca solta a porta ligada no mesmo passo do desfazer.
+                      .updatePin(
+                        selectedPin.id,
+                        kind === 'viagem'
+                          ? { kind, portaLigada: undefined }
+                          : { kind, destino: null, presoA: undefined, ...(kind === 'alavanca' ? {} : { portaLigada: undefined }) },
+                      )
                   : useMapStore.getState().setPinKind(kind),
               travel: selectedPin?.kind === 'viagem' ? pinTravelPanel(selectedPin) : null,
               // Só com a sala aberta: sem sala não há jogador para reunir.
@@ -2516,7 +2744,7 @@ function App() {
                 selectedPin && room !== null
                   ? {
                       pinId: selectedPin.id,
-                      candidates: gatherCandidates(partyMembers(roomPlayers, roomPanelWorld())),
+                      candidates: gatherListFor(selectedPin),
                       onGather: (playerIds) => handleGather(selectedPin.id, playerIds),
                     }
                   : null,
@@ -2532,12 +2760,23 @@ function App() {
               onDelete: () => selectedPin && useMapStore.getState().removePin(selectedPin.id),
               // ITEM PEGÁVEL: só com um pino "!"/"?" aberto (a passagem não vai para a mochila).
               item:
-                selectedPin && selectedPin.kind !== 'viagem'
+                selectedPin && selectedPin.kind !== 'viagem' && selectedPin.kind !== 'alavanca'
                   ? {
                       value: selectedPin.item ?? null,
                       onChange: (item) => useMapStore.getState().updatePin(selectedPin.id, { item: item ?? undefined }),
                     }
                   : null,
+              // PRESO À FICHA: só o pino de viagem (a prancha do navio, a porta da carroça).
+              attachment:
+                selectedPin && selectedPin.kind === 'viagem'
+                  ? {
+                      value: selectedPin.presoA ?? null,
+                      options: pinAttachOptions(map.tokens),
+                      onChange: (tokenId) => useMapStore.getState().updatePin(selectedPin.id, { presoA: tokenId ?? undefined }),
+                    }
+                  : null,
+              // ALAVANCA: a porta que ela abre (desta cena, de qualquer sala) e o "Acionar agora" do mestre.
+              lever: selectedPin && selectedPin.kind === 'alavanca' ? leverPanel(selectedPin) : null,
             }}
             pinIcon={{
               // Mesma ligação dupla do tipo logo acima: com um pino aberto, o
@@ -2574,9 +2813,12 @@ function App() {
             selectedStair={selectedStair}
             stairControls={{
               onDirectionChange: (direction) => selectedStair && setStairDirection(selectedStair.id, direction),
+              onShapeChange: (shape) => selectedStair && setStairShape(selectedStair.id, shape),
               stepWidth: selectedStair?.stepWidth ?? map.grid,
               onStepWidthChange: (stepWidth) => selectedStair && setStairStepWidthForStair(selectedStair.id, stepWidth),
               grid: map.grid,
+              // "Leva a…": `null` sem escada selecionada ou fora de uma aventura (a seção some).
+              travel: selectedStair === null ? null : stairTravelPanel({ adventure, activeSceneId, cache: sceneCache }, map, selectedStair),
             }}
             polygonSides={{
               sides: polygonSides,
@@ -2651,6 +2893,8 @@ function App() {
           />,
           document.body,
         )}
+      {/* Dado rolado na sala: só com a sala aberta — sem mesa, não há quem veja a rolagem. */}
+      {room !== null && <DiceDock rolls={diceRolls} onRoll={(request, hidden) => hostBridgeRef.current?.rollDice(request, hidden)} />}
     </div>
   )
 }
