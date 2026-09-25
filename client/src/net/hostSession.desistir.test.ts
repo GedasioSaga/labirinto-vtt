@@ -16,8 +16,10 @@ const RADIUS = 700
 const SALAO = 'cena-salao'
 const CRIPTA = 'cena-cripta'
 const GRID = 50
-/** O pino do Salão. A ficha pede de 4 casas (200 px) dele. */
+/** O pino do Salão. */
 const ALCAPAO = { x: 400, y: 200 }
+/** De onde a ficha pede: encostada no alçapão, 1 casa (50 px) — pino só atravessa de perto. */
+const PERTO = { x: 350, y: 200 }
 
 function token(id: string, x: number, y: number): Token {
   return { id, characterId: null, name: `nome-${id}`, x, y, size: 1, image: null }
@@ -96,7 +98,7 @@ describe('protocolo: pin.travel.cancel', () => {
 
 describe('hostSession: desistir do pedido de passagem', () => {
   it('"Desistir" tira o pedido da sessão, avisa o mestre com o nome e responde ao jogador só o motivo', () => {
-    const w = mundo({ x: 200, y: 200 })
+    const w = mundo(PERTO)
     const t = mesa(w)
     const requestId = pedidoDe(t.pedir())
     expect(t.s.isTravelPending(requestId)).toBe(true)
@@ -115,7 +117,7 @@ describe('hostSession: desistir do pedido de passagem', () => {
   })
 
   it('depois de desistir, o "Deixar ir" atrasado do mestre não leva ninguém, e o jogador pode pedir de novo', () => {
-    const w = mundo({ x: 200, y: 200 })
+    const w = mundo(PERTO)
     const t = mesa(w)
     const requestId = pedidoDe(t.pedir())
     t.desistir()
@@ -129,7 +131,7 @@ describe('hostSession: desistir do pedido de passagem', () => {
   })
 
   it('desistir sem pedido esperando (o mestre respondeu antes) não manda nada a ninguém', () => {
-    const w = mundo({ x: 200, y: 200 })
+    const w = mundo(PERTO)
     const t = mesa(w)
     const requestId = pedidoDe(t.pedir())
     t.s.denyTravel(requestId)
@@ -139,7 +141,7 @@ describe('hostSession: desistir do pedido de passagem', () => {
   })
 
   it('a desistência de Ana não chega a Bia, nem o pedido de Bia cai quando Ana desiste', () => {
-    const w = mundo({ x: 200, y: 200 }, [token('ficha-bia', 250, 200)])
+    const w = mundo(PERTO, [token('ficha-bia', 450, 200)])
     const t = mesa(w)
     pedidoDe(t.pedir())
     const daBia = pedidoDe(t.s.handleMessage('c2', { type: 'pin.travel.request', pinId: 'alcapao' }, w))
@@ -149,13 +151,13 @@ describe('hostSession: desistir do pedido de passagem', () => {
     expect(t.s.isTravelPending(daBia)).toBe(true)
   })
 
-  it('a ficha se afasta 3 casas além de onde pediu: o pedido cai sozinho, com o motivo "far"', () => {
-    const w = mundo({ x: 200, y: 200 })
+  it('a ficha se afasta do pino para fora do alcance: o pedido cai sozinho, com o motivo "far"', () => {
+    const w = mundo(PERTO)
     const t = mesa(w)
     const requestId = pedidoDe(t.pedir())
-    // Pediu a 4 casas do pino; vai para 7.
-    const r = t.mover(50, 200)
-    expect(r.applyMove).toMatchObject({ tokenId: 'heroi', x: 50, y: 200 })
+    // Pediu a 1 casa do pino; vai para 4.
+    const r = t.mover(200, 200)
+    expect(r.applyMove).toMatchObject({ tokenId: 'heroi', x: 200, y: 200 })
     expect(t.s.isTravelPending(requestId)).toBe(false)
     expect(retirado(r)).toEqual({ type: 'pin.travel.cancelled', reason: 'far' })
     expect(r.travelCancelled).toEqual({ requestId, playerId: t.ana.playerId, playerName: 'Ana', reason: 'far' })
@@ -163,17 +165,17 @@ describe('hostSession: desistir do pedido de passagem', () => {
     expect(r.outbound[0]?.msg.type).toBe('token.move.accepted')
   })
 
-  it('andar perto do pino, ou chegar mais perto, não derruba o pedido', () => {
-    const w = mundo({ x: 200, y: 200 })
+  it('andar em volta do pino sem sair do alcance, ou chegar mais perto, não derruba o pedido', () => {
+    const w = mundo(PERTO)
     const t = mesa(w)
     const requestId = pedidoDe(t.pedir())
-    // Duas casas mais longe que ao pedir: ainda dentro da folga.
-    const perto = t.mover(100, 200)
-    expect(perto.applyMove).toMatchObject({ x: 100, y: 200 })
+    // Na diagonal do pino (~71 px): ainda encostada.
+    const perto = t.mover(350, 250)
+    expect(perto.applyMove).toMatchObject({ x: 350, y: 250 })
     expect(retirado(perto)).toBeUndefined()
     expect(perto.travelCancelled).toBeUndefined()
     // Do lado do pino.
-    const encostou = t.mover(350, 200, mundo({ x: 100, y: 200 }))
+    const encostou = t.mover(350, 200, mundo({ x: 350, y: 250 }))
     expect(retirado(encostou)).toBeUndefined()
     expect(t.s.isTravelPending(requestId)).toBe(true)
   })
@@ -182,11 +184,11 @@ describe('hostSession: desistir do pedido de passagem', () => {
     // O familiar de Ana está em cima do alçapão, mas escondido: nem o pedido
     // nem o "Deixar ir" o enxergam, então também não pode contar como "perto".
     const familiar: Token = { ...token('familiar', ALCAPAO.x, ALCAPAO.y), hidden: true }
-    const w = mundo({ x: 200, y: 200 }, [familiar])
+    const w = mundo(PERTO, [familiar])
     const t = mesa(w)
     t.s.assignToken(t.ana.playerId, 'familiar')
     const requestId = pedidoDe(t.pedir())
-    // O pedido saiu com a ficha visível, a 4 casas.
+    // O pedido saiu com a ficha visível, a 1 casa.
     expect(t.s.isTravelPending(requestId)).toBe(true)
     const r = t.mover(0, 200)
     expect(r.applyMove).toMatchObject({ tokenId: 'heroi', x: 0, y: 200 })
@@ -206,11 +208,11 @@ describe('hostSession: desistir do pedido de passagem', () => {
     expect(t.s.isTravelPending(requestId)).toBe(true)
   })
 
-  it('a folga conta da posição do pedido: quem pediu colado no pino e anda 3 casas perde o pedido', () => {
+  it('quem pediu colado no pino e dá uma casa para trás (100 px, fora do alcance de 75) perde o pedido', () => {
     const w = mundo({ x: 350, y: 200 })
     const t = mesa(w)
     const requestId = pedidoDe(t.pedir())
-    const r = t.mover(350 - 3 * GRID, 200)
+    const r = t.mover(350 - GRID, 200)
     expect(retirado(r)).toEqual({ type: 'pin.travel.cancelled', reason: 'far' })
     expect(t.s.isTravelPending(requestId)).toBe(false)
   })

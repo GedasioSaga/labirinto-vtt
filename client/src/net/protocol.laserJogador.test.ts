@@ -45,4 +45,16 @@ describe('parseLaserMessage: laser de outro jogador', () => {
     expect(parseLaserMessage({ type: 'laser', points: [{ x: 1, y: 2 }], from: 'Ana', color: 'red' })).toBeNull()
     expect(parseLaserMessage({ type: 'laser', points: [{ x: 1, y: 2 }], from: 'Ana', color: 'url(javascript:1)' })).toBeNull()
   })
+
+  it('com key, a chave opaca do rastro passa; aí o nome da ficha pode vir vazio', () => {
+    expect(parseLaserMessage({ type: 'laser', points: [{ x: 1, y: 2 }], from: 'Guarda', key: 'laser-1', color: '#9ca3af' })).toEqual({ type: 'laser', points: [{ x: 1, y: 2 }], from: 'Guarda', key: 'laser-1', color: '#9ca3af' })
+    expect(parseLaserMessage({ type: 'laser', off: true, from: '', key: 'laser-2', color: '#9ca3af' })).toEqual({ type: 'laser', off: true, from: '', key: 'laser-2', color: '#9ca3af' })
+  })
+
+  it('key vazia, longa demais ou que não é texto: recusa inteira', () => {
+    expect(parseLaserMessage({ type: 'laser', points: [{ x: 1, y: 2 }], from: 'Guarda', key: '', color: '#9ca3af' })).toBeNull()
+    expect(parseLaserMessage({ type: 'laser', points: [{ x: 1, y: 2 }], from: 'Guarda', key: 'k'.repeat(200), color: '#9ca3af' })).toBeNull()
+    expect(parseLaserMessage({ type: 'laser', points: [{ x: 1, y: 2 }], from: 'Guarda', key: 7, color: '#9ca3af' })).toBeNull()
+    expect(parseLaserMessage({ type: 'laser', points: [{ x: 1, y: 2 }], from: 'Guarda', key: 'laser-1', color: '#9ca3af' })).not.toBeNull()
+  })
 })

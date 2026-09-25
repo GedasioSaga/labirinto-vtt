@@ -636,8 +636,9 @@ describe('hostBridge', () => {
     t.bridge.assignToken(playerId, 'heroi')
     const before = t.sent().length
     t.emit('net:message', { clientId: 'c1', msg: { type: 'signal', x: 210, y: 190 } })
-    expect(onSignal).toHaveBeenCalledWith({ playerId, name: 'Ana', color: expect.stringMatching(/^#[0-9a-f]{6}$/i), x: 210, y: 190 })
-    expect(t.sent().slice(before)).toEqual([{ clientId: 'c1', msg: expect.objectContaining({ type: 'signal', x: 210, y: 190, from: 'Ana' }) }])
+    // O mestre lê a jogadora e a ficha; o eco sai com o nome da ficha.
+    expect(onSignal).toHaveBeenCalledWith({ playerId, name: 'Ana', tokenName: 'Herói', color: expect.stringMatching(/^#[0-9a-f]{6}$/i), x: 210, y: 190 })
+    expect(t.sent().slice(before)).toEqual([{ clientId: 'c1', msg: expect.objectContaining({ type: 'signal', x: 210, y: 190, from: 'Herói' }) }])
     t.emit('net:message', { clientId: 'c1', msg: { type: 'signal', x: 210, y: 190 } })
     expect(onSignal).toHaveBeenCalledTimes(1)
   })
@@ -889,7 +890,8 @@ describe('hostBridge: pedido de passagem pelo pino de viagem', () => {
       open: {
         sceneId: 'cena-a',
         name: 'Salão',
-        map: { ...createEmptyMap('mapa-a', 'A', 40, 10, 50), tokens: estado.naCripta ? [] : [heroi(200, 200)], pins: [escada('escada-a', 300, 200, 'Escada que desce', 'cena-b', 'escada-b')] },
+        // O herói encostado na escada: pino só atravessa de perto.
+        map: { ...createEmptyMap('mapa-a', 'A', 40, 10, 50), tokens: estado.naCripta ? [] : [heroi(250, 200)], pins: [escada('escada-a', 300, 200, 'Escada que desce', 'cena-b', 'escada-b')] },
       },
       background: [
         {

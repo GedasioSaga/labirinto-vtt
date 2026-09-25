@@ -17,11 +17,12 @@ import { validateTokenMove } from '../lib/moveValidation'
 import { tokensOccupy } from '../lib/movementRules'
 import { doorOpensFrom, tokenInDoorway, tokenReachesDoor } from '../lib/doorReach'
 import { keyForDoor, keyForPin } from '../lib/doorKey'
-import { DESTINATION_MIN_INTERVAL_MS, SIGNAL_MIN_INTERVAL_MS, signalColor, type DestinationMark } from '../lib/signals'
+import { DESTINATION_MIN_INTERVAL_MS, SIGNAL_MIN_INTERVAL_MS, SIGNAL_NEUTRAL_COLOR, signalColor, type DestinationMark } from '../lib/signals'
 import { acceptsLockedRequest, passageOf, pinSummary } from '../lib/pins'
 import { tokenHasPass } from '../lib/pinPass'
 import { carriedItemsOf, itemOfPin, tokenReachesPin, tokensTouch, type ItemChange } from '../lib/items'
 import { selectedTokenColor } from '../lib/tokenColor'
+import { tokenAsSeenByPlayer } from '../lib/tokenPublicName'
 import { arrivalSpot, arrivalSpotWithoutPin, exitLabelsOf, freeSeatNear, isArrivalOnly, oneWayExitsOf, resolvePinTravel, SAIDA_PRINCIPAL, travelExitOf, type TravelScene } from '../lib/pinTravel'
 import { pinClearance, type KeepClear } from '../lib/gatherParty'
 import { visibleTokens } from '../lib/layers'
@@ -98,6 +99,7 @@ import {
   clampSeatOptionName,
   clampSecretCheckLabel,
   clampTravelDenyText,
+  NAME_MAX_LENGTH,
   NOTEBOOK_MAX_NOTES,
   REQ_ID_MAX_LENGTH,
   SEAT_OPTIONS_MAX,
@@ -539,6 +541,49 @@ export interface HostSignal {
    * recebe mostra o aviso "chamou em" no lugar do ping.
    */
   background?: { sceneId: string; name: string }
+  /**
+   * Nome REAL da ficha dele mais perto do ponto, nesta cena. Ausente = sem
+   * ficha ali. A mesa lê a ficha (e, com disfarce, a máscara); o mestre lê os
+   * dois ("Fabi (Contínua do 9)", `signalLabelForMaster`).
+   */
+  tokenName?: string
+}
+
+/**
+ * DISFARCE NO SINAL. A mesa lê o sinal pela FICHA, nunca pela jogadora: o
+ * nome de entrada e a cor fixa por jogador (`signalColor`) denunciavam a
+ * ficha disfarçada. Ficha como `isOwner` a vê (o dono lê o nome real; os
+ * outros, o "Nome para os jogadores") e na cor dela; sem cor, o cinza neutro
+ * em que a mesa já desenha a ficha. Sem ficha, sem nome. Vale também para o
+ * laser do jogador. Nome de ficha não tem teto no editor; o do sinal e o do
+ * laser têm (`NAME_MAX_LENGTH`), e acima dele o jogador descartaria a mensagem.
+ */
+function signalAsToken(token: Token | null, isOwner: boolean): { from: string; color: string } {
+  if (token === null) return { from: '', color: SIGNAL_NEUTRAL_COLOR }
+  const from = tokenAsSeenByPlayer(token, isOwner).name.slice(0, NAME_MAX_LENGTH)
+  return { from, color: selectedTokenColor(token) ?? SIGNAL_NEUTRAL_COLOR }
+}
+
+/** A ficha mais perto do ponto; lista vazia, nenhuma. */
+function nearestTokenTo(tokens: readonly Token[], point: RegionPoint): Token | null {
+  let best: Token | null = null
+  let bestDistance = Infinity
+  for (const t of tokens) {
+    const distance = Math.hypot(t.x - point.x, t.y - point.y)
+    if (distance < bestDistance) {
+      best = t
+      bestDistance = distance
+    }
+  }
+  return best
+}
+
+/**
+ * As fichas que a mesa pode enxergar: nem oculta, nem secreta, nem na camada
+ * Fichas escondida. Nome de ficha que o mestre esconde não sai pelo sinal.
+ */
+function tokensTheTableSees(tokens: readonly Token[], map: MapData): Token[] {
+  return visibleTokens([...tokens], map.hiddenLayers).filter((t) => !t.hidden && !t.secret)
 }
 
 /**
@@ -985,15 +1030,6 @@ export { TRAVEL_REQUEST_MIN_INTERVAL_MS, TRAVEL_REQUEST_PLAYER_MIN_INTERVAL_MS }
  * não pode fazer o host remontar o recorte de todos sem parar.
  */
 export const MAP_SHARE_MIN_INTERVAL_MS = 3000
-
-/**
- * DESISTIR DO PEDIDO: quantas casas a ficha pode se afastar do pino, além da
- * distância em que pediu, antes de o pedido cair sozinho. Conta da posição
- * do pedido (e não do pino) porque o pedido não exige estar colado nele:
- * quem pediu de 4 casas e dá um passo para trás continua esperando; quem
- * anda 3 casas para longe desistiu na prática.
- */
-export const TRAVEL_CANCEL_SLACK_CELLS = 2
 
 /**
  * Um pedido de ação sobre ficha por jogador nesta janela, de qualquer ficha.
@@ -1634,9 +1670,7 @@ interface PendingTravel {
   partnerId: string
   /** Veio de um pino trancado que aceita tentativas: a aprovação do mestre passa pelo cadeado. */
   trancada?: true
-  /** Distância (px) da ficha mais perto ao pino quando pediu: é dela que conta a folga de `TRAVEL_CANCEL_SLACK_CELLS`. */
-  distance: number
-  /** A cena onde o jogador pediu: é o pino DELA que a distância mede. */
+  /** A cena onde o jogador pediu: é o pino DELA que a Caixa de Pedidos e o "desistir" medem. */
   fromSceneId: string
   /** Quando o pedido chegou (`now`), para a idade na Caixa de Pedidos. */
   requestedAt: number
@@ -1680,6 +1714,13 @@ interface ValidTravel {
   /** CHAVE ABRE PORTA: o pino é trancado e `token` passa com este item da mochila. */
   key?: string
 }
+
+/**
+ * Resposta de `validTravel`. `far`: o pino está no recorte do jogador, mas
+ * nenhuma ficha dele encosta; `unavailable`: qualquer outra falha, com o
+ * mesmo motivo genérico de sempre.
+ */
+type TravelCheck = { ok: true; travel: ValidTravel } | { ok: false; reason: 'far' | 'unavailable' }
 
 /** O que um jogador lembra de um mapa: células exploradas, último estado visto de cada porta e a planta como ele a viu. */
 interface PlayerMemory {
@@ -1735,6 +1776,12 @@ interface PlayerMemory {
   plan: PlanMemory
   /** O explorado que seguiu no último snapshot desta cena. `null` = nenhum ainda. */
   sentExplored: Pick<ExploredWire, 'bits' | 'rings'> | null
+  /**
+   * As fichas do último snapshot desta cena, COMO ELE AS RECEBEU (máscara do
+   * nome, vulto sem nome). É daqui que sai o nome da ficha no sinal e no laser
+   * de outro jogador: o que não está aqui, ele não pode ler.
+   */
+  tokens: readonly Token[]
   /**
    * DENTRO DA SALA SECRETA — salas secretas deste mapa em que a ficha dele já
    * esteve (`occupiedSecretRooms` do recorte). Abrem só para ele, também depois
@@ -1848,6 +1895,7 @@ function restoredMemoryOf(scene: SavedSceneMemory): Omit<PlayerMemory, 'place'> 
     seenRooms: new Set(),
     plan: emptyPlanMemory(),
     sentExplored: null,
+    tokens: [],
     secretRooms: new Set(),
   }
 }
@@ -1973,6 +2021,12 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   // nada viu, nem o aviso de que o gesto acabou. Lote vindo de outra cena
   // (off perdido na viagem) recomeça a lista: ela nunca atravessa cena.
   const laserRecipients = new Map<string, { scene: string; clients: Set<string> }>()
+  // Por playerId: como a MESA lê o gesto em curso — `key` opaca do rastro e,
+  // por conexão que recebeu ponto, o nome e a cor da ficha COMO AQUELE jogador
+  // a vê (`signalOriginFor`). O `off` repete o mesmo; some quando o gesto acaba.
+  const laserTableOrigins = new Map<string, { key: string; byClient: Map<string, { from: string; color: string }> }>()
+  // Contador das chaves de rastro: nova a cada gesto, nunca derivada do jogador.
+  let laserGestureCount = 0
   // Por playerId: o pedido da porta trancada que espera o mestre (no máximo um).
   const pendingDoors = new Map<string, PendingDoor>()
   // Por playerId: o mesmo limite do toque, para o pedido da porta trancada.
@@ -2280,6 +2334,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       place: nextPlaceId(playerId),
       plan: emptyPlanMemory(),
       sentExplored: null,
+      tokens: [],
       secretRooms: new Set(),
     }
   }
@@ -2698,6 +2753,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     // dentro depois que ele sai.
     forgetInside(exp, view.roofs)
     memory.vision = view.vision
+    memory.tokens = view.map.tokens
     seenPins.set(playerId, { mapId: map.id, pins: view.map.pins })
     const seenNow = new Set(view.visibleDoorIds)
     for (const w of view.map.walls) {
@@ -3744,11 +3800,12 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   }
 
   /**
-   * DESISTIR DO PEDIDO — o pedido cai sozinho quando a ficha anda para longe
-   * do pino: a ficha dele mais perto do pino (a que andou, já no lugar novo)
-   * ficou mais de `TRAVEL_CANCEL_SLACK_CELLS` casas além da distância em que
-   * pediu. Chegar mais perto nunca derruba. Pino que não está nesta cena (ou
-   * sumiu) não conta aqui: é a revalidação do "Deixar ir" que recusa.
+   * DESISTIR DO PEDIDO — o pedido cai sozinho quando nenhuma ficha dele (a que
+   * andou, já no lugar novo) alcança mais o pino (`tokenReachesPin`, a mesma
+   * conta do pedido e do "Deixar ir"): esperar o mestre seria esperar uma
+   * recusa. Andar em volta do pino sem sair do alcance não derruba. Pino que
+   * não está nesta cena (ou sumiu) não conta aqui: é a revalidação do
+   * "Deixar ir" que recusa.
    */
   function travelLeftBehind(playerId: string, scene: HostScene, movedTokenId: string, x: number, y: number): TravelCancelled | null {
     const pending = pendingTravels.get(playerId)
@@ -3756,16 +3813,15 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const pin = scene.map.pins.find((p) => p.id === pending.pinId)
     if (pin === undefined) return null
     const owned = new Set(ownership[playerId] ?? [])
-    let nearest = Number.POSITIVE_INFINITY
     // Só as fichas que o jogador enxerga, igual ao pedido e ao "Deixar ir"
     // (filterMapForPlayer): ficha escondida pelo mestre não segura o pedido
     // nem vaza, por andar, que está perto do pino.
-    for (const t of visibleTokens(scene.map.tokens, scene.map.hiddenLayers)) {
-      if (!owned.has(t.id) || t.hidden === true) continue
-      const at = t.id === movedTokenId ? { x, y } : t
-      nearest = Math.min(nearest, Math.hypot(at.x - pin.x, at.y - pin.y))
-    }
-    if (nearest <= pending.distance + TRAVEL_CANCEL_SLACK_CELLS * scene.map.grid) return null
+    const stillReaches = visibleTokens(scene.map.tokens, scene.map.hiddenLayers).some((t) => {
+      if (!owned.has(t.id) || t.hidden === true) return false
+      const at = t.id === movedTokenId ? { ...t, x, y } : t
+      return tokenReachesPin(at, pin, scene.map.grid)
+    })
+    if (stillReaches) return null
     return dropPendingTravel(playerId, 'far')
   }
 
@@ -3799,11 +3855,27 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   }
 
   /**
+   * Como a ficha de quem sinaliza ou aponta chega a OUTRO jogador
+   * (`receiverId`): a mais perto do ponto entre as que a mesa pode ver
+   * (`tableTokens`) E que saíram no último recorte dele, com o nome e a cor da
+   * cópia que ele recebeu — vulto sai sem nome, no cinza neutro. Nenhuma, sem
+   * nome: escolher entre todas diria o nome da ficha que a zona oculta, a sala
+   * secreta, o teto fechado ou a névoa escondem dele.
+   */
+  const signalOriginFor = (receiverId: string, tableTokens: readonly Token[], map: MapData, point: RegionPoint): { from: string; color: string } => {
+    const tableIds = new Set(tableTokens.map((t) => t.id))
+    // Sem memória desta cena ele não recebeu ficha nenhuma dela.
+    const received = (existingMemory(receiverId, map)?.tokens ?? []).filter((t) => tableIds.has(t.id))
+    return signalAsToken(nearestTokenTo(received, point), false)
+  }
+
+  /**
    * O repasse do sinal aos colegas: só quem joga na mesma cena e já conhece o
    * ponto, e nunca ponto em zona oculta ativa ou sala secreta — senão o sinal
-   * diria que existe algo naquele lugar.
+   * diria que existe algo naquele lugar. Cada colega lê a ficha como ela
+   * chegou a ele (`signalOriginFor`), nunca o nome da jogadora.
    */
-  function relaySignalToColleagues(playerId: string, scene: HostScene, message: HostMessage, point: RegionPoint, world: HostWorld): Outbound[] {
+  function relaySignalToColleagues(playerId: string, scene: HostScene, point: RegionPoint, tableTokens: readonly Token[], world: HostWorld): Outbound[] {
     const map = scene.map
     // Sala secreta vale como zona oculta: repassar o sinal diria aos outros que ali existe algo.
     if (playerBlockedRings(map).some((ring) => ring.length >= 3 && pointInRing(point, ring))) return []
@@ -3813,7 +3885,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       // Quem está em outra cena não recebe: o ponto é deste mapa, e a
       // memória antiga dele desta cena diria que o sinal é para lá.
       if (sceneFor(otherId, world) !== scene) continue
-      if (knowsPoint(otherId, map, point)) outbound.push({ clientId: otherClient, msg: message })
+      if (!knowsPoint(otherId, map, point)) continue
+      outbound.push({ clientId: otherClient, msg: { type: 'signal', x: point.x, y: point.y, ...signalOriginFor(otherId, tableTokens, map, point) } })
     }
     return outbound
   }
@@ -3887,9 +3960,12 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const map = scene.map
     if (msg.x < 0 || msg.y < 0 || msg.x > map.width * map.grid || msg.y > map.height * map.grid) return { outbound: [] }
     const point = { x: msg.x, y: msg.y }
-    // A cor da FICHA (a do laser): é a peça que os outros procuram no mapa.
-    const color = laserColorOf(playerId, map)
-    const message: HostMessage = { type: 'signal', x: msg.x, y: msg.y, from: record.name, color }
+    const ownTokens = tokensTheOwnerSees(playerId, map)
+    // Quem sinaliza lê a ficha dele como ele a vê (nome real); cada outro, como
+    // ela chegou a ele (`signalOriginFor`).
+    const echoToken = nearestTokenTo(ownTokens, point)
+    const tableTokens = tokensTheTableSees(ownTokens, map)
+    const message: HostMessage = { type: 'signal', x: msg.x, y: msg.y, ...signalAsToken(echoToken, true) }
     const toColleagues = msg.audience !== 'master'
     const at = now()
     const last = lastSignal.get(playerId)
@@ -3901,7 +3977,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       last.relayed = true
       // O repasse conta no limite de 1 por segundo, para os colegas não receberem em rajada.
       last.at = at
-      return { outbound: relaySignalToColleagues(playerId, scene, message, point, world) }
+      return { outbound: relaySignalToColleagues(playerId, scene, point, tableTokens, world) }
     }
     if (last !== undefined && at - last.at < SIGNAL_MIN_INTERVAL_MS) return { outbound: [] }
     lastSignal.set(playerId, { at, x: msg.x, y: msg.y, relayed: toColleagues })
@@ -3911,8 +3987,11 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     // NÃO é "nenhum repasse saiu": isso viraria oráculo (ver `echoHeard`).
     const echo: HostMessage = echoHeard(playerId, scene, world, point) ? message : { ...message, unheard: true }
     const outbound: Outbound[] = [{ clientId, msg: echo }]
-    if (toColleagues) outbound.push(...relaySignalToColleagues(playerId, scene, message, point, world))
-    const signal: HostSignal = { playerId, name: record.name, color, x: msg.x, y: msg.y }
+    if (toColleagues) outbound.push(...relaySignalToColleagues(playerId, scene, point, tableTokens, world))
+    // O mestre vê a jogadora real, na cor da FICHA dela (a do laser e da marca;
+    // sem cor, a fixa dela), e o nome real da ficha junto.
+    const signal: HostSignal = { playerId, name: record.name, color: laserColorOf(playerId, map), x: msg.x, y: msg.y }
+    if (echoToken !== null) signal.tokenName = echoToken.name
     // Mesma regra de `backgroundSceneId`: a cena aberta e o mapa solto não levam o campo.
     if (scene !== world.open && scene.sceneId !== null) signal.background = { sceneId: scene.sceneId, name: scene.name }
     return { outbound, signal }
@@ -3992,7 +4071,17 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     return { outbound: diceOutbound(roll), diceRoll: roll }
   }
 
-  /** A cor do laser do jogador: a da ficha DELE nesta cena; ficha sem cor, a da paleta de sinais. */
+  /**
+   * As fichas DELE que o recorte manda ao próprio dono (`ownTokens` de
+   * `filterMapForPlayer`): fora da camada Fichas escondida e não ocultas. A
+   * ficha que o mestre guarda (hidden) não dá nome nem cor nem ao dono.
+   */
+  const tokensTheOwnerSees = (playerId: string, map: MapData): Token[] => {
+    const owned = ownership[playerId] ?? []
+    return visibleTokens(map.tokens, map.hiddenLayers).filter((t) => owned.includes(t.id) && !t.hidden)
+  }
+
+  /** A cor do laser do jogador NA TELA DO MESTRE: a da ficha DELE nesta cena; sem cor, a fixa dele (`signalColor`). O sinal e o laser da mesa leem a ficha (`signalAsToken`). */
   const laserColorOf = (playerId: string, map: MapData): string => {
     const owned = ownership[playerId] ?? []
     for (const t of map.tokens) {
@@ -4101,16 +4190,22 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const color = scene === null ? signalColor(playerId) : laserColorOf(playerId, scene.map)
     const outbound: Outbound[] = []
     const gesture = laserRecipients.get(playerId)
-    if (scene !== null && gesture !== undefined && gesture.scene === sceneKey(scene)) {
+    // Quem recebeu ponto do gesto recebeu também a origem dele (o lote grava as duas juntas).
+    const origins = laserTableOrigins.get(playerId)
+    if (scene !== null && gesture !== undefined && origins !== undefined && gesture.scene === sceneKey(scene)) {
       for (const otherClient of gesture.clients) {
         // Quem caiu no meio do gesto não tem mais socket para o aviso.
         const otherId = byClient.get(otherClient)
         if (otherId === undefined || statusOf(otherId) !== 'playing') continue
         if (sceneFor(otherId, world) !== scene) continue
-        outbound.push({ clientId: otherClient, msg: { type: 'laser', off: true, from: record.name, color } })
+        // Quem recebeu ponto recebeu a origem junto (o lote grava as duas); sem ela, nada a repetir.
+        const origin = origins.byClient.get(otherClient)
+        if (origin === undefined) continue
+        outbound.push({ clientId: otherClient, msg: { type: 'laser', off: true, key: origins.key, ...origin } })
       }
     }
     laserRecipients.delete(playerId)
+    laserTableOrigins.delete(playerId)
     return { outbound, playerLaser: { playerId, name: record.name, color, update: { off: true }, onOpenScene: scene === world.open } }
   }
 
@@ -4134,14 +4229,20 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     if (scene === null) return { outbound: [] }
     const map = scene.map
     const inside = msg.points.filter((p) => p.x >= 0 && p.y >= 0 && p.x <= map.width * map.grid && p.y <= map.grid * map.height)
-    if (inside.length === 0) return { outbound: [] }
+    const firstInside = inside[0]
+    if (firstInside === undefined) return { outbound: [] }
     const at = now()
     const quota = laserWindows.get(playerId)
     if (quota === undefined || at - quota.start >= PLAYER_LASER_WINDOW_MS) laserWindows.set(playerId, { start: at, count: 1 })
     else if (quota.count >= PLAYER_LASER_MAX_PER_WINDOW) return { outbound: [] }
     else quota.count += 1
 
+    // O mestre vê a jogadora na cor dela; cada outro lê a ficha mais perto do
+    // começo do lote, como ela chegou a ele (mesma regra do sinal).
     const color = laserColorOf(playerId, map)
+    const tableTokens = tokensTheTableSees(tokensTheOwnerSees(playerId, map), map)
+    const origins = laserTableOrigins.get(playerId) ?? { key: `laser-${(laserGestureCount += 1)}`, byClient: new Map() }
+    laserTableOrigins.set(playerId, origins)
     const blocked = playerBlockedRings(map)
     const shareable = inside.filter((p) => !blocked.some((ring) => ring.length >= 3 && pointInRing(p, ring)))
     const outbound: Outbound[] = []
@@ -4158,7 +4259,9 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       if (sceneFor(otherId, world) !== scene) continue
       const visible = shareable.filter((p) => knowsPoint(otherId, map, p))
       if (visible.length === 0) continue
-      outbound.push({ clientId: otherClient, msg: { type: 'laser', points: visible, from: record.name, color } })
+      const origin = signalOriginFor(otherId, tableTokens, map, firstInside)
+      origins.byClient.set(otherClient, origin)
+      outbound.push({ clientId: otherClient, msg: { type: 'laser', points: visible, key: origins.key, ...origin } })
       if (recipients === undefined) {
         recipients = { scene: here, clients: new Set() }
         laserRecipients.set(playerId, recipients)
@@ -4582,19 +4685,25 @@ export function createHostSession(options: HostSessionOptions): HostSession {
    * sem isto, um id de pino adivinhado atravessaria o escuro), é de viagem e
    * está ligado em mão dupla a um par que existe numa cena aberta, e o
    * jogador tem token nesta cena. O token que viaja é o dele mais perto do
-   * pino. Qualquer falha é `null`: quem chama responde o mesmo motivo
+   * pino. Qualquer falha é `unavailable`: quem chama responde o mesmo motivo
    * genérico para todas — inclusive `exitId` que não é saída DESTE pino
    * (inventado, ou de outro pino): o jogador não descobre que ela existe.
+   *
+   * SÓ DE PERTO: a ficha precisa encostar no pino (`tokenReachesPin`, a mesma
+   * folga da porta). A distância é conferida logo depois do recorte e ANTES de
+   * olhar modo, saída ou destino: o `far` só sai para pino que o jogador já
+   * vê, e de longe todo pino responde igual — ligado, sem par ou trancado.
    */
-  function validTravel(playerId: string, pinId: string, exitId: string, world: HostWorld, withKey = false, passaCadeado = false): ValidTravel | null {
+  function validTravel(playerId: string, pinId: string, exitId: string, world: HostWorld, withKey = false, passaCadeado = false): TravelCheck {
+    const unavailable: TravelCheck = { ok: false, reason: 'unavailable' }
     const from = sceneFor(playerId, world)
-    if (from === null || from.sceneId === null) return null
+    if (from === null || from.sceneId === null) return unavailable
     const fromSceneId = from.sceneId
     // MAPA-MUNDI: a caravana viaja inteira, e quem a leva é o mestre
     // (`disembarkCaravan`). Um jogador sozinho não sai dela por um pino.
-    if (isWorldMap(from.map)) return null
+    if (isWorldMap(from.map)) return unavailable
     const pin = from.map.pins.find((p) => p.id === pinId)
-    if (pin === undefined) return null
+    if (pin === undefined) return unavailable
     const memory = memoryFor(playerId, from.map, world)
     const view = filterMapForPlayer(
       from.map,
@@ -4612,16 +4721,29 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       memory.plan,
     )
     const seen = view.map.pins.find((p) => p.id === pinId)
-    if (seen === undefined) return null
+    if (seen === undefined) return unavailable
     // MARCO visto de longe: o pino chega ao jogador na névoa, mas ele nunca
     // esteve lá. Sem isto, marco + viagem seria teletransporte de qualquer
     // ponto do mapa (e, "livre", sem o mestre saber).
-    if (seen.soMarco === true) return null
+    if (seen.soMarco === true) return unavailable
     const owned = new Set(ownership[playerId] ?? [])
-    // Trancada: ninguém passa sozinho. Cai no mesmo `null` de todo o resto,
-    // então o jogador lê o motivo genérico de sempre e nada chega ao mestre.
-    // Estar aqui, e não só no pedido, faz o "Deixar ir" de um pedido feito
-    // antes de trancar recusar também (ele chama sem `withKey`).
+    // Tokens do recorte do jogador: respeita camada oculta e token escondido pelo mestre.
+    const mine = view.map.tokens.filter((t) => owned.has(t.id))
+    if (mine.length === 0) return unavailable
+    // A mesma conta do cartão do jogador: vale QUALQUER ficha que alcança (o
+    // alcance cresce com o tamanho, então a de centro mais perto pode não
+    // alcançar enquanto uma maior, mais longe, alcança). Entre as que alcançam,
+    // atravessa a de centro mais perto.
+    const near = mine.filter((t) => tokenReachesPin(t, pin, from.map.grid))
+    let token: Token | null = null
+    for (const t of near) {
+      if (token === null || Math.hypot(t.x - pin.x, t.y - pin.y) < Math.hypot(token.x - pin.x, token.y - pin.y)) token = t
+    }
+    if (token === null) return { ok: false, reason: 'far' }
+    // Trancada: ninguém passa sozinho. Cai no mesmo `unavailable` de todo o
+    // resto, então o jogador lê o motivo genérico de sempre e nada chega ao
+    // mestre. Estar aqui, e não só no pedido, faz o "Deixar ir" de um pedido
+    // feito antes de trancar recusar também (ele chama sem `withKey`).
     // CHAVE ABRE PORTA: a exceção é o pedido do próprio jogador (`withKey`)
     // com uma ficha DELE encostada no pino carregando o "Abre com" — a
     // mochila é a do MAPA DO MESTRE, e é essa ficha que passa.
@@ -4631,34 +4753,27 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     let keyHolder: { token: Token; nome: string } | null = null
     if (passageOf(pin) === 'trancada') {
       if (withKey) {
-        const nearIds = new Set(view.map.tokens.filter((t) => owned.has(t.id) && tokenReachesPin(t, pin, from.map.grid)).map((t) => t.id))
+        const nearIds = new Set(near.map((t) => t.id))
         const found = keyForPin(pin, from.map.tokens.filter((t) => nearIds.has(t.id)))
         if (found !== null) keyHolder = { token: found.token, nome: found.item.nome }
       }
-      if (keyHolder === null && !passaCadeado) return null
+      if (keyHolder === null && !passaCadeado) return unavailable
     }
-    // Fechadura com segredo ainda fechada: ninguém passa, pelo mesmo `null`.
+    // Fechadura com segredo ainda fechada: ninguém passa, pelo mesmo `unavailable`.
     // Quem abre é a combinação certa (`handlePinAnswer`), não o pedido.
-    if (isLockClosed(pin)) return null
+    if (isLockClosed(pin)) return unavailable
     // Chegada oculta (mão única) não leva de volta. O recorte já não a manda,
-    // mas a recusa não depende da névoa: mesmo `null`, mesmo motivo genérico.
-    if (isArrivalOnly(pin)) return null
+    // mas a recusa não depende da névoa: mesmo motivo genérico.
+    if (isArrivalOnly(pin)) return unavailable
     const scenes = allScenes(world)
-    if (travelExitOf(pin, exitId) === null) return null
+    if (travelExitOf(pin, exitId) === null) return unavailable
     const travel = resolvePinTravel(pin, fromSceneId, travelLookup(scenes), exitId)
-    if (travel.status !== 'ligado') return null
+    if (travel.status !== 'ligado') return unavailable
     const to = scenes.find((s) => s.sceneId === travel.sceneId)
-    if (to === undefined || to.sceneId === null) return null
+    if (to === undefined || to.sceneId === null) return unavailable
     const base = { from: { ...from, sceneId: fromSceneId }, to: { ...to, sceneId: to.sceneId }, pin, partner: travel.partner }
-    if (keyHolder !== null) return { ...base, token: keyHolder.token, key: keyHolder.nome }
-    // Tokens do recorte do jogador: respeita camada oculta e token escondido pelo mestre.
-    const mine = view.map.tokens.filter((t) => owned.has(t.id))
-    let token: Token | null = null
-    for (const t of mine) {
-      if (token === null || Math.hypot(t.x - pin.x, t.y - pin.y) < Math.hypot(token.x - pin.x, token.y - pin.y)) token = t
-    }
-    if (token === null) return null
-    return { ...base, token }
+    if (keyHolder !== null) return { ok: true, travel: { ...base, token: keyHolder.token, key: keyHolder.nome } }
+    return { ok: true, travel: { ...base, token } }
   }
 
   function handleTravelRequest(clientId: string, msg: PinTravelRequestMessage, world: HostWorld): HostResult {
@@ -4692,12 +4807,13 @@ export function createHostSession(options: HostSessionOptions): HostSession {
 
     const exitId = msg.exitId ?? SAIDA_PRINCIPAL
     // Pino trancado que aceita tentativas: o pedido passa por todas as outras
-    // regras (névoa, ligação, ficha na cena) e vai ao mestre marcado. Trancado
+    // regras (névoa, ficha de perto, ligação) e vai ao mestre marcado. Trancado
     // MUDO segue recusado no `validTravel`, com o motivo genérico — salvo com
     // a chave na mochila (`withKey`), que passa sem pedir.
     const trancada = acceptsLockedRequest(pinHere)
-    const travel = validTravel(playerId, msg.pinId, exitId, world, true, trancada)
-    if (travel === null) return reject('unavailable')
+    const check = validTravel(playerId, msg.pinId, exitId, world, true, trancada)
+    if (!check.ok) return reject(check.reason)
+    const { travel } = check
     // Livre: passou em tudo que o pedido passaria (névoa, token na cena, pino
     // ligado, limites, nenhum pendente) e vai direto, sem esperar o mestre —
     // ele só lê o aviso de chegada que o integrador mostra com a transferência.
@@ -4726,9 +4842,6 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     }
     const requestId = randomId()
     // O destino que o mestre LEU vai junto: é com ele que o "Deixar ir" confere.
-    // DESISTIR DO PEDIDO: guarda a distância da ficha ao pino agora, para o
-    // pedido cair sozinho se ela andar para longe antes do mestre responder.
-    const distance = Math.hypot(travel.token.x - travel.pin.x, travel.token.y - travel.pin.y)
     // Pedido do mestre: nada disto vai ao jogador (`outbound` vazio).
     const travelRequest: TravelRequest = {
       requestId,
@@ -4750,7 +4863,6 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       exitId,
       toSceneId: travel.to.sceneId,
       partnerId: travel.partner.id,
-      distance,
       fromSceneId: travel.from.sceneId,
       requestedAt: at,
       request: travelRequest,
@@ -5309,8 +5421,9 @@ export function createHostSession(options: HostSessionOptions): HostSession {
    * de agora. `null` quando o pedido em si não passa mais.
    */
   const companionsOf = (pending: PendingTravel, world: HostWorld): { travel: ValidTravel; near: Companion[] } | null => {
-    const travel = validTravel(pending.playerId, pending.pinId, pending.exitId, world, false, pending.trancada === true)
-    if (travel === null) return null
+    const check = validTravel(pending.playerId, pending.pinId, pending.exitId, world, false, pending.trancada === true)
+    if (!check.ok) return null
+    const { travel } = check
     const fromMap = travel.from.map
     // A mesma regra da ficha de quem pediu (`validTravel`, pelo recorte): ficha
     // que o mestre escondeu, ou de camada oculta, não está no tabuleiro para
@@ -5670,13 +5783,17 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       const world = toWorld(source)
       // Pedido pelo pino trancado: o "Liberar uma vez" do mestre passa pelo
       // cadeado; o pedido comum de um pino trancado depois continua recusado.
-      const travel = validTravel(pending.playerId, pending.pinId, pending.exitId, world, false, pending.trancada === true)
+      const check = validTravel(pending.playerId, pending.pinId, pending.exitId, world, false, pending.trancada === true)
+      // A ficha saiu de perto do pino enquanto o mestre decidia: ninguém é
+      // levado de longe; o jogador lê que precisa chegar mais perto.
+      if (!check.ok) return reply(record.clientId, { type: 'pin.travel.rejected', reason: check.reason })
+      const { travel } = check
       // O mestre deixou ir para o lugar que o aviso DIZIA. Se a saída foi
       // religada depois (Torre no lugar da Cripta), ou desligada e outra subiu
       // no lugar dela, o consentimento não cobre o destino novo: recusa, e o
       // jogador pede de novo.
-      const sameDestination = travel !== null && travel.to.sceneId === pending.toSceneId && travel.partner.id === pending.partnerId
-      if (travel === null || !sameDestination) return reply(record.clientId, { type: 'pin.travel.rejected', reason: 'unavailable' })
+      const sameDestination = travel.to.sceneId === pending.toSceneId && travel.partner.id === pending.partnerId
+      if (!sameDestination) return reply(record.clientId, { type: 'pin.travel.rejected', reason: 'unavailable' })
       return transferResult(pending.playerId, record.clientId, record.name, travel, world)
     },
 

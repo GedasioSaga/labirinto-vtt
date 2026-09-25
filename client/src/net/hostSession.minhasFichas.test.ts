@@ -211,14 +211,19 @@ describe('view.switch com pedido de passagem esperando o mestre', () => {
     return { id, x, y, kind: 'viagem', description: `pino-${id}`, image: null, destino }
   }
 
-  /** O mundo padrão com um par de escadas (pede aprovação) entre o Salão e a Cripta, perto das fichas de Ana. */
+  /**
+   * O mundo padrão com um par de escadas (pede aprovação) entre o Salão e a
+   * Cripta, encostadas nas fichas de Ana. O 'rival' de Bruno chega junto da
+   * escada da Cripta: pino só atravessa de perto.
+   */
   function mundoComEscada(): HostWorld {
     const base = mundoPadrao()
     const [cripta, torre] = base.background
     if (cripta === undefined || torre === undefined) throw new Error('mundo sem cenas de fundo')
+    const tokens = cripta.map.tokens.map((t) => (t.id === 'rival' ? { ...t, x: 350, y: 250 } : t))
     return {
       open: { ...base.open, map: { ...base.open.map, pins: [viagem('escada-a', 150, 100, { sceneId: 's-b', pinId: 'escada-b' })] } },
-      background: [{ ...cripta, map: { ...cripta.map, pins: [viagem('escada-b', 300, 250, { sceneId: 's-a', pinId: 'escada-a' })] } }, torre],
+      background: [{ ...cripta, map: { ...cripta.map, tokens, pins: [viagem('escada-b', 300, 250, { sceneId: 's-a', pinId: 'escada-a' })] } }, torre],
     }
   }
 
@@ -263,7 +268,7 @@ describe('view.switch com pedido de passagem esperando o mestre', () => {
     const mundo = mundoComEscada()
     const { s } = mesa(mundo, () => relogio)
     s.broadcast(mundo)
-    // Bruno está na Cripta: a escada de lá fica a 600 px do 'rival', dentro do raio.
+    // Bruno está na Cripta: o 'rival' está encostado na escada de lá.
     const deBruno = s.handleMessage('c2', { type: 'pin.travel.request', pinId: 'escada-b' }, mundo).travelRequest
     if (deBruno === undefined) throw new Error('esperava o pedido de Bruno ir ao mestre')
     relogio += 10_000

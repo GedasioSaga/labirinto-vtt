@@ -40,7 +40,8 @@ const SAIDA_TORRE: PinExit = { id: 'saida_torre', rotulo: 'Escada da torre', des
 function mundo(torre: { pinoPar: string } = { pinoPar: 'chegada-torre' }): HostWorld {
   const salao: MapData = {
     ...createEmptyMap('mapa-salao', 'Aventura', 40, 10, 50),
-    tokens: [token('heroi', 200, 200)],
+    // Encostado na encruzilhada e no alçapão: pino só atravessa de perto.
+    tokens: [token('heroi', 425, 225)],
     pins: [
       viagem('cruz', 400, 200, 'Encruzilhada', { sceneId: CRIPTA, pinId: 'escada-b' }, {
         rotulo: 'Porta da cripta',

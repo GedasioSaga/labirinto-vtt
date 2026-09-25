@@ -62,7 +62,15 @@ interface PlayerPinCardProps {
    * Ausente = o cartão trancado só lê, sem botão.
    */
   onWatch?: (on: boolean) => void
+  /**
+   * Nenhuma ficha do jogador encosta no pino (`tokenReachesPin`, a regra do
+   * host). O cartão abre para leitura, mas a passagem fica apagada com
+   * "Chegue mais perto para passar" até a ficha chegar.
+   */
+  longe?: boolean
 }
+
+const TEXTO_LONGE = 'Chegue mais perto para passar'
 
 /** Nome da cabeça do pino para quem não vê o desenho: o que ela mostra no mapa. */
 function nomeDaCabeca(pin: Pin): string {
@@ -224,6 +232,7 @@ export function PlayerPinCard({
   lockPhase,
   watching = false,
   onWatch,
+  longe = false,
 }: PlayerPinCardProps) {
   const cardRef = useRef<HTMLDivElement | null>(null)
   const closeRef = useRef<HTMLButtonElement | null>(null)
@@ -282,21 +291,22 @@ export function PlayerPinCard({
   // Pino "só de perto" com a ficha longe: o host não mandou texto nem imagem
   // (`lib/fogFilter.ts`). O cartão diz o que fazer, em vez de fingir que o
   // mestre não escreveu nada. Chegando perto, o próximo pacote traz o texto e
-  // este cartão, se estiver aberto, troca sozinho.
-  const longe = pin.longe === true
+  // este cartão, se estiver aberto, troca sozinho. (Não é a prop `longe`: essa
+  // apaga só a passagem; esta esconde o texto do pino "só de perto".)
+  const longeParaLer = pin.longe === true
 
   // O último pino que este cartão já contou como lido: o pacote seguinte do
   // mesmo pino (a cada passo de alguém) não pode virar leitura de novo.
   const lidoRef = useRef<string | null>(null)
   useEffect(() => {
-    if (longe || lidoRef.current === pin.id) return
+    if (longeParaLer || lidoRef.current === pin.id) return
     lidoRef.current = pin.id
     onRead?.(pin.id)
-  }, [pin.id, longe, onRead])
+  }, [pin.id, longeParaLer, onRead])
   // Só data URL vira foto: se um caminho de disco escapasse até aqui, o
   // `<img>` tentaria abrir o computador do mestre pelo navegador do jogador.
   const foto = isPlayerSafePinImage(pin.image) ? pin.image : null
-  const textoDoCartao = longe
+  const textoDoCartao = longeParaLer
     ? 'Chegue mais perto para ler.'
     : descricao === ''
       ? 'O mestre ainda não escreveu nada sobre este ponto.'
@@ -304,7 +314,7 @@ export function PlayerPinCard({
   const altDaImagem =
     foto !== null
       ? 'Imagem deixada pelo mestre neste ponto de interesse'
-      : longe
+      : longeParaLer
         ? 'Chegue mais perto para ver a imagem'
         : 'Este ponto de interesse ainda não tem imagem'
   // Pino de viagem: o cartão é o de sempre (imagem e descrição do mestre), com
@@ -371,7 +381,7 @@ export function PlayerPinCard({
   // de perto", o recorte já manda "Saída N"; o cartão repete a regra para que
   // nenhum nome escrito na placa apareça ao lado de "Chegue mais perto".
   const recebidas = viagem ? (pin.escolhas ?? []) : []
-  const escolhas = longe ? unreadExitLabels(recebidas) : recebidas
+  const escolhas = longeParaLer ? unreadExitLabels(recebidas) : recebidas
   const encruzilhada = escolhas.length > 1
   // ITEM PEGÁVEL: o nome vem no recorte, numa cópia limpa (`lib/fogFilter.ts`).
   const item = itemOfPin(pin)
@@ -477,11 +487,15 @@ export function PlayerPinCard({
             ref={askRef}
             type="button"
             className="pp-pincard__travel"
-            disabled={travelWaiting}
+            disabled={travelWaiting || longe}
             onClick={() => perguntar(null)}
           >
-            {travelWaiting ? textos.esperando : textos.botao}
+            {travelWaiting ? textos.esperando : longe ? TEXTO_LONGE : textos.botao}
           </button>
+        )}
+        {/* Encruzilhada ou pergunta aberta: o botão não tem onde dizer, então a moldura de estado diz. */}
+        {podePedir && longe && !travelWaiting && (encruzilhada || confirming !== null) && (
+          <p className="pp-pincard__locked">{TEXTO_LONGE}</p>
         )}
         {podePedir && confirming === null && encruzilhada && (
           // Uma saída por botão, na ordem do mestre. Esperando o mestre, todas
@@ -496,7 +510,7 @@ export function PlayerPinCard({
                     ref={saida.id === ultimaSaida || (ultimaSaida === null && index === 0) ? askRef : undefined}
                     type="button"
                     className="pp-pincard__travel"
-                    disabled={travelWaiting}
+                    disabled={travelWaiting || longe}
                     onClick={() => perguntar(saida)}
                   >
                     {saida.rotulo}
@@ -525,6 +539,7 @@ export function PlayerPinCard({
                 ref={confirmRef}
                 type="button"
                 className="pp-pincard__travel"
+                disabled={longe}
                 onClick={() => {
                   const saida = confirming.saida
                   setConfirming(null)

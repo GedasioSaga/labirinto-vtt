@@ -47,6 +47,7 @@ import type { DiceRollEntry } from '../lib/dice'
 import type { DestinationMark, SignalMark } from '../lib/signals'
 import type { RemoteLaser } from '../lib/laser'
 import { selectedTokenColor } from '../lib/tokenColor'
+import { tokenReachesPin } from '../lib/doorReach'
 import { buildTokenPhotoData } from '../lib/tokenPhoto'
 import { carriedItemsOf, giveTargets } from '../lib/items'
 import { itemNoticeText } from './itemNotice'
@@ -788,6 +789,13 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
   }
 
   const openPin = openPinId === null ? null : (map?.pins ?? []).find((p) => p.id === openPinId) ?? null
+  // SÓ DE PERTO: a mesma conta do host (`tokenReachesPin`). Recalculada a cada
+  // snapshot: quando a ficha encosta, o botão do cartão aberto acende sozinho.
+  const openPinFar = useMemo(() => {
+    if (!map || openPin === null) return false
+    const owned = new Set(ownTokens)
+    return !map.tokens.some((t) => owned.has(t.id) && tokenReachesPin(t, openPin, map.grid))
+  }, [map, openPin, ownTokens])
   // Estável: o cartão devolve o foco ao "Fechar" sempre que `onClose` muda, e
   // um snapshot novo a cada passo do mapa tiraria o foco do "Pedir" no meio da pergunta.
   // Fechar o cartão esquece a resposta da fechadura: reabrir começa limpo.
@@ -1089,6 +1097,7 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
             travelWaiting={state.travel?.phase === 'waiting'}
             watching={(state.passageWatch ?? []).includes(openPin.id)}
             onWatch={(on) => connection.watchPassage(openPin.id, on)}
+            longe={openPinFar}
             onRequestTravel={(exitId) => {
               // Pedido enviado, o cartão sai: a espera fica no aviso de baixo,
               // e o mapa volta inteiro à vista enquanto o mestre decide.

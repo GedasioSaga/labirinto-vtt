@@ -24,6 +24,24 @@ export function signalColor(playerId: string): string {
   return SIGNAL_COLORS[hash % SIGNAL_COLORS.length]
 }
 
+/**
+ * Cor do sinal que a MESA vê quando a ficha de quem sinaliza não tem cor: o
+ * mesmo cinza em que a tela do jogador desenha a ficha dos outros
+ * (`OTHER_TOKEN_COLOR`, `player/PlayerView.tsx`). A cor fixa por jogador
+ * (`signalColor`) fica só na tela do mestre: na mesa ela denunciava o disfarce.
+ */
+export const SIGNAL_NEUTRAL_COLOR = '#9ca3af'
+
+/**
+ * O que o MESTRE lê no sinal: a jogadora e, se o nome da ficha for outro, a
+ * ficha entre parênteses ("Fabi (Contínua do 9)"). Sem ficha ou com o mesmo
+ * nome, só a jogadora.
+ */
+export function signalLabelForMaster(playerName: string, tokenName: string | undefined): string {
+  if (tokenName === undefined || tokenName === '' || tokenName === playerName) return playerName
+  return `${playerName} (${tokenName})`
+}
+
 export const SIGNAL_COLOR_PATTERN = /^#[0-9a-f]{6}$/i
 
 /**

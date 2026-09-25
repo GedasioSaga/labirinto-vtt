@@ -48,7 +48,8 @@ function cripta(soChegada: boolean, comHeroi: boolean): MapData {
 function salao(comHeroi: boolean): MapData {
   return {
     ...createEmptyMap('mapa-salao', 'Aventura', 40, 10, 50),
-    tokens: comHeroi ? [token('heroi', 200, 200)] : [],
+    // Encostado no alçapão: pino só atravessa de perto.
+    tokens: comHeroi ? [token('heroi', 350, 200)] : [],
     pins: [viagem('alcapao', 400, 200, { sceneId: CRIPTA, pinId: 'fundo' })],
   }
 }
