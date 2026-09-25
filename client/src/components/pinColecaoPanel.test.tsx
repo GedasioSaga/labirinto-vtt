@@ -59,6 +59,11 @@ function renderPainel(pinId: string): void {
         onDescriptionChange={vi.fn()}
         locked={false}
         onLockedChange={vi.fn()}
+        marco={false}
+        onMarcoChange={vi.fn()}
+        lerDePerto={null}
+        onLerDePertoChange={vi.fn()}
+        iconChoice={null}
         image={pin.image}
         onChooseImage={vi.fn()}
         onClearImage={vi.fn()}
