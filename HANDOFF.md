@@ -236,6 +236,25 @@ auto/juntar-grandes` em `auto/acervo`. O que entrar depois nos dois ramos (as 3 
 mesma cena, do run antigo `wf_e3f23fdf-79d`) vai numa 2ª junção curta, perto das 15h15. A 2ª passada geral
 (`auto/juntar`) vai precisar juntar `auto/acervo` antes de voltar para ele, porque as grandes terão entrado por fora.
 
+**25/09, 00h00 — grandes em `main` e instalador 0.2.0 publicado.**
+
+- `git push origin main` b060f54..350cf4d: merge `350cf4d` de `auto/juntar-grandes` (confronto por cena, ajudante
+  contratado, estado do mundo, memória por ficha, cabine, correio + correio-2, rotina do NPC, perigo que alastra,
+  mobília; cabine-2 junto). Antes: merge de `auto/acervo` na pista das grandes (`fe508a6`, conflitos resolvidos em
+  blocos de até 8 por agente, 2 agentes por vez), conserto de 27 erros de tipo/teste da junção (`f61e76c`), prova
+  independente VERDE em `f61e76c` (fase0 ÍNTEGRO, tipos-src, tipos-e2e, unidade com 691 arquivos), em `350cf4d`
+  fase0 + tipos-src VERDES e checagem de segredo sem achado. Run `wf_19adebaa-ec9`.
+- Versão 0.2.0 (`20cba0b`, `com.labirinto.app` mantido), `npm run tauri:build`, tag `v0.2.0` e GitHub Release
+  https://github.com/GedasioSaga/labirinto-vtt/releases/tag/v0.2.0 com `Labirinto_0.2.0_x64-setup.exe` (2.124.682 B)
+  e `Labirinto_0.2.0_x64_en-US.msi` (2.813.952 B), conferidos por `gh release view` (assets "uploaded"). `main` =
+  `20cba0b`.
+- Lição da tarde: com mais de ~5 agentes ao mesmo tempo, os pedidos ao modelo passavam de 3 min sem resposta e o
+  agente era cancelado e recomeçava (até 75% dos agentes). Rodando sozinho, com 2 agentes, zero cancelamentos.
+  Merge grande: dividir em blocos de até 8 conflitos por chamada.
+- Pausado até agora (retomar um run por vez, publicando a cada ~10 features): grupo visão (merge pela metade em
+  `C:/dev/labirinto-juntar`), consertos da visão (`wf_d613a259-429`) e das ideias (`wf_911a6eb9-d16`), pisos na
+  mesma cena (relançar em pedaços), onda 3 (runs novos só com as peças que faltam; ver `scratchpad/pausa-onda3.md`).
+
 **24/09, 19h10 — primeiro push em `main` e o que segue.**
 
 - Pedido do usuário (18h00 e 18h40, com autorização explícita de push): publicar em `main` o que já está pronto
