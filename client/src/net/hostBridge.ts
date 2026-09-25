@@ -16,6 +16,7 @@ import {
   type SavedExploration,
   type SavedTable,
 } from '../lib/savedTable'
+import type { ChamadaAceita, MovimentoDeCabine } from '../lib/cabine'
 import {
   createHostSession,
   ownTokenIdsOf,
@@ -31,6 +32,7 @@ import {
   type HazardEntryNotice,
   type GatherArrival,
   type HeldTokens,
+  type ChamadaParaMestre,
   type HostDiceRoll,
   type AreaTriggerEntryNotice,
   type HostResult,
@@ -39,6 +41,8 @@ import {
   type HostSignal,
   type HostWorld,
   type MasterCall,
+  type LetterRequest,
+  type LoanTerms,
   type PinKeyUse,
   type MapChangeCause,
   type Outbound,
@@ -60,6 +64,7 @@ import {
   type HostErrorReason,
   type LaserMessage,
 } from './protocol'
+import { letterViaPhrase } from '../lib/correio'
 import { createPlayerScreens, type PlayerScreen } from './playerScreens'
 import { guardSightingNotices } from './guardNotices'
 import type { TurnRef } from '../lib/initiative'
@@ -144,6 +149,19 @@ export interface HostBridgeDeps {
    */
   applyTransfer?: (transfer: AppliedTransfer) => boolean
   /**
+   * CABINE DE TRANSPORTE: quem passou pela parada levou a cabine — gravar a
+   * posição nova na aventura. Só é chamado depois de `applyTransfer` mover a
+   * ficha. Ausente = a cabine fica onde estava (o mestre a traz pelo painel).
+   */
+  applyCabine?: (movimento: MovimentoDeCabine) => void
+  /**
+   * CABINE DE TRANSPORTE: um jogador chamou a cabine — pôr a chamada na fila
+   * da aventura. `false` quando não entrou (a parada já estava na fila, a
+   * cabine chegou lá): aí o mestre não é avisado de novo. Ausente = a
+   * chamada não chega a lugar nenhum (e o mestre não é avisado).
+   */
+  applyChamadaDeCabine?: (chamada: ChamadaAceita) => boolean
+  /**
    * "Passar para pede" do pedido pelo pino trancado: trocar o modo do pino
    * `pinId` (na cena de fundo `sceneId`, quando vier; ausente = a aberta).
    * Sem este retorno a linha do pedido trancado não oferece "Passar para pede".
@@ -221,6 +239,8 @@ export interface HostBridge {
   notifyMapChanged(cause?: MapChangeCause): void
   assignToken(playerId: string, tokenId: string): void
   unassignToken(playerId: string, tokenId: string): void
+  /** AJUDANTE CONTRATADO: empresta e arma o despertador do prazo (a ficha volta sozinha). */
+  lendToken(playerId: string, tokenId: string, terms: LoanTerms): void
   kick(clientId: string): Promise<void>
   players(): PlayerInfo[]
   /** Jogadores com conexão viva agora (0 com a sala fechada): quem cai se o mestre fechar o app. */
@@ -524,6 +544,8 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   let unlisteners: UnlistenFn[] = []
   let pendingBroadcast: ReturnType<typeof setTimeout> | null = null
   let pendingExplorationSave: ReturnType<typeof setTimeout> | null = null
+  /** Despertador do prazo do ajudante contratado mais próximo (`armLoanTimer`). */
+  let loanTimer: ReturnType<typeof setTimeout> | null = null
   let pendingStart: Promise<RoomInfo> | null = null
   let lastPlayersKey = '[]'
   let lastPinAudiencesKey = '{}'
@@ -550,6 +572,18 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   const doorToasts = new Map<string, string>()
   /** Linha de cada pedido de item ainda na tela: `requestId` -> id do toast. */
   const itemToasts = new Map<string, string>()
+  /** CORREIO: aviso do mestre de cada bilhete que ainda espera: `letterId` -> id do toast. */
+  const letterToasts = new Map<string, string>()
+  /**
+   * CABINE DE TRANSPORTE: pedidos de quem embarcou numa cabine. Quando o
+   * pedido morre (Não, revalidação recusada, jogador saiu), a parada deixa de
+   * estar "ocupada": quem está nela precisa de um recorte novo.
+   */
+  const travelsComCabine = new Set<string>()
+  /** Libera a cabine do pedido `requestId`, se era de embarque: novo recorte para quem está na parada. */
+  const releaseCabine = (requestId: string) => {
+    if (travelsComCabine.delete(requestId)) scheduleBroadcast()
+  }
   /** "Fulano entrou em X": um cartão por cena de destino (`net/avisoDeChegada.ts`). */
   const announceArrival = createArrivalAnnouncer(deps.onGoToScene)
   /** O que cada conexão está vendo, anotado do que sai em `dispatch` (espelho do "Ver tela"). */
@@ -948,6 +982,9 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     pendingBroadcast = setTimeout(() => {
       pendingBroadcast = null
       broadcastNow()
+      // O mundo mudou (ex.: a cabine saiu da parada do embarque): a lista do
+      // mestre recalcula o que depende dele, como o ocupante da cabine.
+      notifyPlayersIfChanged()
     }, BROADCAST_THROTTLE_MS)
   }
 
@@ -958,6 +995,30 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
         ? 'A tela da mesa conectou. Escolha a cena dela na aba Jogo.'
         : 'A tela da mesa conectou.'
     useToastStore.getState().push('info', text, PLAYER_JOINED_TOAST_MS)
+  }
+
+  const clearLoanTimer = () => {
+    if (loanTimer === null) return
+    clearTimeout(loanTimer)
+    loanTimer = null
+  }
+
+  /**
+   * AJUDANTE CONTRATADO: despertador no fim de acordo mais próximo. O
+   * broadcast devolve ao mestre o que venceu (`expireDue` da sessão) e manda
+   * o recado; sem isto a ficha só voltaria quando alguém mexesse na mesa.
+   */
+  const armLoanTimer = () => {
+    clearLoanTimer()
+    const next = session?.nextLoanDeadline() ?? null
+    if (next === null) return
+    const clock = deps.now ?? Date.now
+    loanTimer = setTimeout(() => {
+      loanTimer = null
+      broadcastNow()
+      notifyPlayersIfChanged()
+      armLoanTimer()
+    }, Math.max(0, next - clock()))
   }
 
   /**
@@ -1062,6 +1123,13 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     for (const [requestId, toastId] of travelToasts) {
       if (session !== null && session.isTravelPending(requestId)) continue
       travelToasts.delete(requestId)
+      useToastStore.getState().dismiss(toastId)
+      releaseCabine(requestId)
+    }
+    // CORREIO: mesma regra para o bilhete cujo destinatário foi expulso, ou com a sala fechada.
+    for (const [letterId, toastId] of letterToasts) {
+      if (session !== null && session.isLetterPending(letterId)) continue
+      letterToasts.delete(letterId)
       useToastStore.getState().dismiss(toastId)
     }
     // Mesma regra para a porta: "Destrancar e abrir" de quem saiu não abre nada.
@@ -1312,6 +1380,36 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     travelDenyRecents = [motivo, ...travelDenyRecents.filter((texto) => texto !== motivo)].slice(0, TRAVEL_DENY_RECENTS_MAX)
   }
 
+  /** CORREIO: "Entregar" leva o bilhete a quem ia receber; "Interceptar" (e o ×) some com ele. */
+  const answerLetter = (letterId: string, deliver: boolean) => {
+    const toastId = letterToasts.get(letterId)
+    letterToasts.delete(letterId)
+    if (toastId !== undefined) useToastStore.getState().dismiss(toastId)
+    if (session === null) return
+    void dispatch(deliver ? session.deliverLetter(letterId) : session.interceptLetter(letterId))
+  }
+
+  /**
+   * CORREIO: o bilhete vira um aviso que ESPERA o mestre, com o texto inteiro
+   * (ler é só olhar). Atrasar é não responder ainda: o aviso fica. O × vale
+   * "Interceptar", como o "Não" do pedido de passagem: o aviso nunca some
+   * deixando o bilhete preso no correio. Grupo próprio, fora de "Pedidos": o
+   * "Deixar todos" de lá não pode entregar bilhete. O da caixa "Bilhetes (N)"
+   * entrega todos: "Entregar" é a resposta em lote (sem ela o botão não fazia nada).
+   */
+  const askLetter = (letter: LetterRequest) => {
+    const text = `${letter.fromName} → ${letter.toName}, ${letterViaPhrase(letter.via)}: "${letter.text}"`
+    const toastId = useToastStore.getState().push('instrucao', text, null, {
+      actions: [
+        { label: 'Entregar', run: () => answerLetter(letter.letterId, true), emLote: true },
+        { label: 'Interceptar', run: () => answerLetter(letter.letterId, false) },
+      ],
+      onDismiss: () => answerLetter(letter.letterId, false),
+      grupo: 'Bilhetes',
+    })
+    letterToasts.set(letter.letterId, toastId)
+  }
+
   /**
    * Resposta ao pedido de passagem. `allow`: "Deixar ir" (ou "Liberar uma
    * vez", no pino trancado); `'pede'`: "Passar para pede" — o jogador passa e
@@ -1322,6 +1420,9 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     const toastId = travelToasts.get(requestId)
     travelToasts.delete(requestId)
     if (toastId !== undefined) useToastStore.getState().dismiss(toastId)
+    // Qualquer resposta tira o ocupante da cabine: "Não" e recusa a deixam na
+    // parada, livre; "Deixar ir" a leva (e o broadcast da chegada já sai).
+    releaseCabine(requestId)
     if (session === null) return
     if (allow === false) {
       const pendente = session.isTravelPending(requestId)
@@ -1374,21 +1475,31 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   }
 
   /**
-   * LEVAR FICHA JUNTO: move a ficha de quem atravessa e, SÓ se ela passou, cada
-   * ficha que ela leva (`transfer.junto`), para a mesma cena. Ficha levada que
-   * não passou (sumiu entre a validação e aqui) não desfaz a de quem leva: ela
-   * chegou, e é isso que o aviso diz. `false` = a de quem leva não passou.
+   * Move a ficha de quem viaja e, SÓ se ela passou, cada ficha que atravessa
+   * junto pela mesma travessia da store:
    *
-   * MONTARIA E FAMILIAR: o séquito (`transfer.entourage`) vai pelo mesmo
-   * caminho, cada um na casa que a sessão escolheu. O diário e o "Você
-   * chegou" são da ficha principal: o pônei não é viagem à parte.
+   * AJUDANTE CONTRATADO: as fichas emprestadas a este jogador que estavam na
+   * mesma cena de partida (`transfer.companions`). O ajudante que não der para
+   * mover (sumiu da cena) fica onde estava: a viagem do dono não desanda por
+   * causa dele.
+   *
+   * LEVAR FICHA JUNTO: as fichas que `tokenId` leva (`transfer.junto`). Ficha
+   * levada que não passou (sumiu entre a validação e aqui) não desfaz a de
+   * quem leva: ela chegou, e é isso que o aviso diz.
+   *
+   * MONTARIA E FAMILIAR: o séquito (`transfer.entourage`), cada um na casa que
+   * a sessão escolheu. O diário e o "Você chegou" são da ficha principal: o
+   * pônei não é viagem à parte.
+   *
+   * Devolve se a ficha PRINCIPAL mudou de cena.
    */
   const applyTransferAlong = (transfer: AppliedTransfer): boolean => {
     const apply = deps.applyTransfer
     if (apply === undefined) return false
-    const { junto, entourage, ...alone } = transfer
+    const { companions = [], junto, entourage, ...alone } = transfer
     if (!apply(alone)) return false
-    // Ausente é o caso comum (ninguém levado, sem séquito), não falha.
+    // Ausente é o caso comum (ninguém acompanha), não falha.
+    for (const companion of companions) apply({ ...alone, tokenId: companion.tokenId, x: companion.x, y: companion.y })
     for (const carried of junto ?? []) apply({ ...alone, tokenId: carried.tokenId, x: carried.x, y: carried.y })
     for (const seat of entourage ?? []) apply({ ...alone, tokenId: seat.tokenId, x: seat.x, y: seat.y })
     return true
@@ -1417,6 +1528,9 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       notifyPlayersIfChanged()
       return
     }
+    // A cabine anda ANTES do broadcast: quem ficou na parada de partida já
+    // recebe "longe" no mesmo envio em que o viajante chega.
+    if (result.applyCabine !== undefined) deps.applyCabine?.(result.applyCabine)
     // Primeiro `scene.changed`, depois o snapshot da cena nova: a ordem dos
     // `net_send` é a ordem em que o jogador recebe.
     void dispatch(result)
@@ -1444,7 +1558,14 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     // clique conta de novo (`answerTravelTogether`), porque o grupo anda.
     const nearby = session === null ? 0 : session.travelCompanions(request.requestId, world()).length
     const together = nearby === 0 ? [] : [{ label: `Deixar ir com quem está perto (${nearby})`, run: () => answerTravelTogether(request.requestId) }]
-    const toastId = useToastStore.getState().push('instrucao', `${request.playerName} quer passar por ${request.pinLabel} → ${request.toSceneName}`, null, {
+    // CABINE DE TRANSPORTE: quem pede com a cabine ali embarcou — o aviso diz
+    // em qual cabine ele está, e a parada passa a dizer "ocupada" aos outros.
+    const naCabine = request.cabine === undefined ? '' : ` (na cabine ${request.cabine})`
+    if (request.cabine !== undefined) {
+      travelsComCabine.add(request.requestId)
+      scheduleBroadcast()
+    }
+    const toastId = useToastStore.getState().push('instrucao', `${request.playerName} quer passar por ${request.pinLabel} → ${request.toSceneName}${naCabine}`, null, {
       actions: [
         { label: 'Deixar ir', run: () => answerTravel(request.requestId, true), emLote: true },
         ...together,
@@ -1600,6 +1721,30 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     })
   }
 
+  /**
+   * CABINE DE TRANSPORTE: "Chamar a cabine" que valeu. A chamada entra na fila
+   * pelo integrador; só se entrou, o mestre lê o aviso, que fica até ele
+   * dispensar (alguém está parado esperando), com "Mandar a cabine", que a
+   * leva até a parada — o mesmo caminho do "Trazer a cabine para cá" do
+   * painel, que atende a chamada. O recorte do "aqui" depois de mandar sai
+   * pela aventura que mudou (`notifyMapChanged` do App).
+   */
+  const announceCabineCall = (chamada: ChamadaParaMestre) => {
+    const { cabineId, chamada: pedido } = chamada
+    if (deps.applyChamadaDeCabine === undefined || !deps.applyChamadaDeCabine({ cabineId, chamada: pedido })) return
+    // Quem chamou lê "chamada" logo, mesmo com um integrador que não avisa a mudança.
+    scheduleBroadcast()
+    const mandar = deps.applyCabine
+    useToastStore
+      .getState()
+      .push(
+        'instrucao',
+        `${chamada.jogador} chamou a cabine ${chamada.cabine} em ${chamada.cena}`,
+        null,
+        mandar === undefined ? {} : { actions: [{ label: 'Mandar a cabine', run: () => mandar({ cabineId, parada: pedido.parada }) }] },
+      )
+  }
+
   const onMessage = (event: { payload: unknown }) => {
     if (session === null || !isRecord(event.payload)) return
     const clientId = parseClientId(event.payload.clientId)
@@ -1688,6 +1833,8 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       if (deps.applyItems === undefined) void dispatch(session.denyItemRequest(result.itemRequest.requestId))
       else askItem(result.itemRequest)
     }
+    if (result.chamadaDeCabine !== undefined) announceCabineCall(result.chamadaDeCabine)
+    if (result.letter !== undefined) askLetter(result.letter)
     if (result.applyTokenEdit !== undefined && deps.applyTokenEdit !== undefined) {
       // Mesma regra da porta: o mestre vê pela store, os outros jogadores pelo snapshot imediato.
       deps.applyTokenEdit(result.applyTokenEdit)
@@ -1843,6 +1990,8 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       cancelPendingBroadcast()
       // Com a sessão ainda viva: depois dela não há de onde ler o explorado.
       flushExplorationSave()
+      // Sala fechada leva os empréstimos junto (a sessão morre): nada de despertador órfão.
+      clearLoanTimer()
       resetLaser()
       // Avisa antes de derrubar: sem `room.closed` o jogador veria queda de rede,
       // não "O mestre encerrou a sala".
@@ -2048,6 +2197,8 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       void dispatch(session.assignToken(playerId, tokenId))
       broadcastNow()
       notifyPlayersIfChanged()
+      // Atribuir por cima de um empréstimo desfaz o acordo: o despertador muda junto.
+      armLoanTimer()
       // Ficha dada pelo painel: o pedido de ficha de quem a ganhou (ou de quem pedia esta) sai da caixa.
       pruneTravelToasts()
     },
@@ -2057,11 +2208,22 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       void dispatch(session.unassignToken(playerId, tokenId))
       broadcastNow()
       notifyPlayersIfChanged()
+      armLoanTimer()
+    },
+
+    lendToken(playerId, tokenId, terms) {
+      if (session === null) return
+      void dispatch(session.lendToken(playerId, tokenId, terms))
+      broadcastNow()
+      notifyPlayersIfChanged()
+      armLoanTimer()
     },
 
     async kick(clientId) {
       if (session === null) return
       const result = session.kick(clientId)
+      // O expulso devolve o ajudante: o prazo dele não acorda mais ninguém.
+      armLoanTimer()
       pruneTravelToasts()
       pruneCallToasts()
       pruneReturnToasts()

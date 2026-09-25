@@ -3,6 +3,7 @@ import type { FormEvent, ReactNode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { JOIN_CODE_LENGTH, NAME_MAX_LENGTH, type ClueEntry, type NoteEntry } from '../net/protocol'
 import { latestActionNotice } from './moveNotice'
+import { ConfrontoFaixa } from './ConfrontoFaixa'
 import { themeCss } from '../theme'
 import { createPlayerConnection, hasUnreadNotes, RESUME_STORAGE_KEY } from './playerConnection'
 import type { PlayerConnection, PlayerState, SeatClaimNotice, SocketLike, StorageLike } from './playerConnection'
@@ -44,6 +45,8 @@ import { leverNoticeText } from './leverNotice'
 import { hazardNoticeText } from '../lib/hazards'
 import { tableCodeFromSearch, tableKeyFromSearch } from '../lib/tableScreen'
 import { TableApp } from './TableScreen'
+import { readContract } from '../lib/tokenLoan'
+import { letterTitle, type LetterVia } from '../lib/correio'
 import { findKnownPath } from '../lib/knownPath'
 import type { Pin } from '../types/map'
 import { loadPlaceNames, savePlaceName, withPlaceName, type VisitedPlace } from './playerPlaces'
@@ -721,7 +724,10 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
     const byId = new Map(map.tokens.map((t) => [t.id, t]))
     return ownTokens.flatMap((id) => {
       const token = byId.get(id)
-      return token ? [{ id, name: token.name }] : []
+      if (!token) return []
+      // AJUDANTE CONTRATADO: o host só manda `contrato` na ficha emprestada a este jogador.
+      const contrato = readContract(token.contrato)
+      return [contrato === undefined ? { id, name: token.name } : { id, name: token.name, contrato }]
     })
   }, [map, ownTokens])
   const partyTokens = state.partyTokens ?? NO_TOKENS
@@ -773,6 +779,11 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
   }, [connection])
   const closeShownClue = useCallback(() => connection.dismissShownClue(), [connection])
   const askCluePeers = useCallback(() => connection.askCluePeers(), [connection])
+  // CORREIO: o formulário "Bilhete" do Painel.
+  const askLetterPeers = useCallback(() => {
+    connection.askLetterPeers()
+  }, [connection])
+  const sendLetter = useCallback((to: string, via: LetterVia, text: string) => connection.sendLetter(to, via, text), [connection])
   /** Painel e barra do jogador: a câmera lê, na hora, o que eles cobrem do mapa. */
   const panelRef = useRef<HTMLElement | null>(null)
   const barRef = useRef<HTMLDivElement | null>(null)
@@ -953,6 +964,7 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
             setOpenClueId(clueId)
           }}
           backpack={{ ...backpack, onGive: (itemId, toTokenId) => void connection.giveItem(itemId, toTokenId) }}
+          letter={{ peers: state.letterPeers, status: state.letterSend, onAskPeers: askLetterPeers, onSend: sendLetter }}
           onRollDice={(request) => connection.rollDice(request)}
         />
         {/* DADO ROLADO NA SALA: as últimas rolagens da mesa, sobre o mapa, acima do zoom. Não é controle: fora da ordem do Tab. */}
@@ -963,6 +975,8 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
         {/* Depois do painel no DOM: o Tab segue a leitura (painel no alto à esquerda, zoom embaixo à direita). */}
         <PlayerZoomControls canZoomIn={zoomLimits.canZoomIn} canZoomOut={zoomLimits.canZoomOut} onZoom={requestZoomStep} />
         <PlayerTurnBanner turn={state.turn} ownTokens={ownTokens} tokens={state.map.tokens} />
+        {/* CONFRONTO na cena dele: de quem é a vez e o que resta do passo. */}
+        {state.confronto && <ConfrontoFaixa confronto={state.confronto} tokens={state.map.tokens} />}
         {noteDraft && (
           <PersonalNoteDraft
             onSave={(text) => {
@@ -993,6 +1007,8 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
               // Mesma regra do pedido de passagem: enviado, o cartão sai e a espera fica no aviso.
               if (connection.takePin(openPin.id)) setOpenPinId(null)
             }}
+            // CABINE DE TRANSPORTE: o cartão fica aberto — ele diz que a cabine foi chamada.
+            onChamarCabine={() => connection.callCabine(openPin.id)}
             onPullLever={() => {
               // Puxou, o cartão sai: o mapa volta inteiro à vista para o jogador ver a porta mexer.
               if (connection.pullLever(openPin.id)) setOpenPinId(null)
@@ -1054,8 +1070,10 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
         ) : (
           state.note && (
             // `key` no id: recado novo com outro aberto remonta o cartão (e a entrada anima de novo).
+            // CORREIO: o bilhete de um colega diz de quem é e por onde veio, no lugar de "Recado do mestre".
             <PlayerNoteCard
               key={state.note.id}
+              title={state.note.from !== undefined && state.note.via !== undefined ? letterTitle(state.note.from, state.note.via) : undefined}
               text={state.note.text}
               hint={NOTE_KEPT_HINT}
               onClose={closeNote}

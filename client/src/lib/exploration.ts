@@ -526,24 +526,6 @@ export function forgetInside(exp: Exploration, rings: readonly (readonly RegionP
 }
 
 /**
- * TELA DA MESA — junta em `target` o que `source` lembra: célula marcada em
- * qualquer uma fica marcada, e cada contorno lembrado entra pela mesma regra de
- * `rememberRing` (teto de vértices, sem repetir anel já coberto). Os contornos
- * de `source` já passaram pelo veto de área proibida quando foram guardados.
- * Grades diferentes (outro mapa, ou o mesmo redimensionado) não se juntam.
- */
-export function mergeExploration(target: Exploration, source: Exploration): void {
-  if (target.cell !== source.cell || target.cols !== source.cols || target.rows !== source.rows) return
-  for (let i = 0; i < target.bits.length; i += 1) target.bits[i] |= source.bits[i]
-  for (const ring of source.rings) {
-    if (target.ringVertices + ring.points.length > MAX_MEMORY_VERTICES) continue
-    if (target.rings.some((stored) => sameRing(stored, ring) || ringCovers(stored, ring))) continue
-    target.rings.push(ring)
-    target.ringVertices += ring.points.length
-  }
-}
-
-/**
  * "Revelar planta" do mestre: marca o mapa inteiro, menos as células que tocam
  * zona oculta ativa (mesma regra de `markRings`, senão a planta escondida
  * vazaria pela memória).
@@ -551,6 +533,57 @@ export function mergeExploration(target: Exploration, source: Exploration): void
 export function markAll(exp: Exploration, concealed: readonly RegionPoint[][] = []): void {
   const zones = zoneBoxes(concealed)
   for (let row = 0; row < exp.rows; row += 1) setRunOutsideZones(exp, row, 0, exp.cols, zones)
+}
+
+/** A célula `(col, row)` toca alguma das áreas (caixa primeiro, anel depois). */
+function cellTouchesZones(exp: Exploration, col: number, row: number, zones: readonly ZoneBox[]): boolean {
+  const x0 = col * exp.cell
+  const y0 = row * exp.cell
+  const x1 = x0 + exp.cell
+  const y1 = y0 + exp.cell
+  return zones.some((z) => z.maxX >= x0 && z.minX <= x1 && z.maxY >= y0 && z.minY <= y1 && ringTouchesRect(z.ring, x0, y0, x1, y1))
+}
+
+/**
+ * Soma em `target` o que `source` lembra: célula marcada em qualquer uma fica
+ * marcada, e cada contorno lembrado entra pela mesma regra de `rememberRing`
+ * (teto de vértices, sem repetir anel já coberto). Usos: MEMÓRIA POR FICHA (o
+ * jogador herda o que a ficha dele viu) e TELA DA MESA (a memória do grupo).
+ * Memórias de grades diferentes (outro mapa, mapa redimensionado) não se somam.
+ *
+ * SEGURANÇA: `forbidden` é o que o jogador não pode ter na memória AGORA (zona
+ * oculta ativa, sala secreta, teto). A ficha pode ter visto antes de o mestre
+ * esconder: célula que toca essas áreas não passa, e contorno lembrado que
+ * encosta nelas também não (a mesma regra de `rememberRing`). Só soma: nunca
+ * apaga o que `target` já tinha.
+ */
+export function mergeExploration(target: Exploration, source: Exploration, forbidden: readonly RegionPoint[][] = []): void {
+  if (target.cell !== source.cell || target.cols !== source.cols || target.rows !== source.rows) return
+  const zones = zoneBoxes(forbidden)
+  const total = target.cols * target.rows
+  for (let byte = 0; byte < source.bits.length; byte += 1) {
+    const novos = source.bits[byte] & ~target.bits[byte]
+    if (novos === 0) continue
+    for (let bit = 0; bit < 8; bit += 1) {
+      if ((novos & (1 << bit)) === 0) continue
+      const index = byte * 8 + bit
+      if (index >= total) break
+      const col = index % target.cols
+      const row = Math.floor(index / target.cols)
+      if (zones.length > 0 && cellTouchesZones(target, col, row, zones)) continue
+      target.bits[byte] |= 1 << bit
+    }
+  }
+  for (const ring of source.rings) {
+    if (target.ringVertices + ring.points.length > MAX_MEMORY_VERTICES) continue
+    const touches = zones.some(
+      (z) => !(ring.maxX < z.minX || ring.minX > z.maxX || ring.maxY < z.minY || ring.minY > z.maxY) && ringTouchesRect(ring.points, z.minX, z.minY, z.maxX, z.maxY),
+    )
+    if (touches) continue
+    if (target.rings.some((stored) => sameRing(stored, ring) || ringCovers(stored, ring))) continue
+    target.rings.push({ ...ring, points: ring.points.map((p) => ({ x: p.x, y: p.y })) })
+    target.ringVertices += ring.points.length
+  }
 }
 
 /**

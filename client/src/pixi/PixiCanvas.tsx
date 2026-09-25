@@ -146,6 +146,7 @@ import { hazardAreas } from '../lib/hazards'
 import { drawAreaTriggers } from './drawAreaTriggers'
 import { areaTriggerAreas } from '../lib/areaTriggers'
 import { drawWatchCones } from './drawNpcWatch'
+import { drawPerigos } from './drawPerigos'
 import { drawPatrolRoutes } from './drawNpcPatrol'
 import { createPinsRenderer } from './drawPins'
 import { findConcealZoneAt } from '../lib/concealZones'
@@ -680,6 +681,8 @@ export function PixiCanvas({
       // Render fiel (FloorStyle.renderMode === 'raster'): conteúdo do mapa rasterizado por software.
       const mapRasterSprite = new Sprite(Texture.EMPTY)
       const regionsContainer = new Container()
+      // PERIGO QUE SE ALASTRA: logo acima das salas, abaixo de paredes e nomes.
+      const perigosGraphics = new Graphics()
       // Nomes das salas acima de paredes, portas e escadas: abaixo delas a
       // parede interna cortava o nome ao meio (medido 15/09/2026).
       const roomNamesContainer = new Container()
@@ -740,6 +743,7 @@ export function PixiCanvas({
         floorGraphics,
         mapLinesGraphics,
         regionsContainer,
+        perigosGraphics,
         gridFloorMask,
         gridOutsideMask,
         gridOutsideGraphics,
@@ -1309,6 +1313,10 @@ export function PixiCanvas({
         mapLines: paintMapLines,
         mapFrame: () => redrawMapFrame(sceneState().map.frame),
         regions: paintRegions,
+        perigos: () => {
+          const { map } = sceneState()
+          drawPerigos(perigosGraphics, visibleRegions(map.regions, map.hiddenLayers), map.perigos ?? [])
+        },
         drawings: paintDrawings,
         // ZONA DE PERIGO: camada Salas escondida esconde a sala; o perigo dela vai junto.
         hazards: () => {
@@ -1481,10 +1489,18 @@ export function PixiCanvas({
       // Onda 2, item 16 (Frente C) — número ao vivo durante o arrasto de forma.
       const dimensionLabelRenderer = createDimensionLabelRenderer()
 
+      /** Algum objeto é móvel desenhado (o único cujo desenho depende do zoom)? */
+      const hasDrawnFurniture = () => sceneState().map.props.some((prop) => prop.mobilia !== undefined)
+
       const redrawProps = () => {
         const { map, selection } = sceneState()
         const single = selectionSingle(selection)
-        propsRenderer.draw(propsContainer, visibleProps(map.props, map.hiddenLayers), single?.kind === 'prop' ? single.id : null)
+        // O fio do móvel desenhado é em px de tela: sem zoom e resolução ele
+        // cairia em 1 px de mundo e engrossaria com o zoom (4 px no máximo).
+        propsRenderer.draw(propsContainer, visibleProps(map.props, map.hiddenLayers), single?.kind === 'prop' ? single.id : null, {
+          cameraScale: camera.scale,
+          rendererResolution: app.renderer.resolution,
+        })
         // Mesmo motivo do redraw de tokens: `movePropLive` não acorda o redraw
         // de formas, e sem isto as alças ficam na posição de onde o prop saiu.
         redrawEditHandles()
@@ -1639,6 +1655,7 @@ export function PixiCanvas({
         // (grade e moldura já redesenham no 'resize' acima).
         positionWorld()
         redrawShapes()
+        if (hasDrawnFurniture()) redrawProps()
         // Text com resolução fixa não segue o runner resolutionChange do Pixi.
         textResolutionTask.flush()
       })
@@ -1690,6 +1707,9 @@ export function PixiCanvas({
           roomNamesRenderer.setCameraScale(scale)
           tokensRenderer.setCameraScale(scale)
           redrawShapes()
+          // Móvel desenhado tem fio em px de tela, como a parede. Objeto de
+          // imagem não muda com o zoom: mapa sem móvel não redesenha nada aqui.
+          if (hasDrawnFurniture()) redrawProps()
         }),
       )
       // tokensSubscription.ts/propsSubscription.ts (fora do escopo deste

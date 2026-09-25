@@ -76,6 +76,22 @@ import type { ReactNode } from 'react'
 interface PropertiesPanelProps {
   /** Seção "Cenas" da aventura, montada por quem sabe da aventura (App). */
   scenes?: ReactNode
+  /** Seção "Estado do mundo" da aventura (Maré, Giro…), logo abaixo das Cenas. Ausente no mapa solto. */
+  worldState?: ReactNode
+  /**
+   * ESTADO DO MUNDO — "Depende do estado" da porta, do pino de viagem, da zona
+   * oculta e da luz selecionados, cada um dentro da seção do seu elemento.
+   * Montados pelo App (`DependeDoEstadoControls.tsx`), que sabe da aventura;
+   * ausentes no mapa solto.
+   */
+  estadoDaPorta?: ReactNode
+  estadoDoPino?: ReactNode
+  estadoDaZona?: ReactNode
+  estadoDaLuz?: ReactNode
+  /** PERIGO QUE SE ALASTRA — bloco "Perigo" da Sala selecionada (`PerigoDaSalaControls.tsx`), montado pelo App. */
+  perigoDaSala?: ReactNode
+  /** ROTINA DO NPC da ficha selecionada (`RotinaDaFichaControls.tsx`), montada pelo App; ausente no mapa solto. */
+  rotinaDaFicha?: ReactNode
   /** Seção "Objetos do mapa" (busca e "Ir até lá"), montada pelo App, que sabe da câmera e da seleção. */
   objects?: ReactNode
   mapName: string
@@ -213,6 +229,13 @@ interface PropertiesPanelProps {
  */
 export function PropertiesPanel({
   scenes,
+  worldState,
+  estadoDaPorta,
+  estadoDoPino,
+  estadoDaZona,
+  estadoDaLuz,
+  perigoDaSala,
+  rotinaDaFicha,
   objects,
   mapName,
   mapWidth,
@@ -360,11 +383,13 @@ export function PropertiesPanel({
               notaDoMestre={selectedRegion.room.notaDoMestre ?? ''}
               {...room}
             />
+            {perigoDaSala}
           </ToolPropertiesSection>
         )}
         {concealZone && (
           <ToolPropertiesSection group="concealZone" groups={groups}>
             <ConcealZoneControls {...concealZone} />
+            {estadoDaZona}
           </ToolPropertiesSection>
         )}
         <ToolPropertiesSection group="revealBrush" groups={groups}>
@@ -381,6 +406,7 @@ export function PropertiesPanel({
               a grade de ícones não faria nada nelas, então não aparece. */}
           {pinKindShowsIcon(pin.kind) && <PinIconControls {...pinIcon} pinSelected={pinSelected} />}
           <PinControls {...pin} />
+          {estadoDoPino}
         </ToolPropertiesSection>
         {playerSecret && (
           <ToolPropertiesSection group="playerVisibility" groups={groups}>
@@ -478,6 +504,7 @@ export function PropertiesPanel({
         {selectedWall && (
           <ToolPropertiesSection group="wallDoor" groups={groups}>
             <WallDoorControls door={selectedWall.door} {...wallDoor} />
+            {selectedWall.door !== null && estadoDaPorta}
           </ToolPropertiesSection>
         )}
         <ToolPropertiesSection group="doorKind" groups={groups}>
@@ -538,6 +565,7 @@ export function PropertiesPanel({
             {/* `tokenPhotoRef`: foto escolhida pelo JOGADOR vive em `imageData` — sem isto o painel ofereceria "Escolher imagem..." num token que já tem foto. */}
             <TokenImageControls image={tokenPhotoRef(selectedToken)} {...tokenImage} />
             <TokenNpcControls npc={selectedToken.npc === true} {...tokenNpc} />
+            {rotinaDaFicha}
             {/* `key`: outra ficha selecionada reabre fechado, sem a escolha da anterior.
                 Prefixada: o nome acima já usa o id puro, e chave repetida entre
                 irmãos deixa o campo Nome da ficha anterior no painel. */}
@@ -575,6 +603,7 @@ export function PropertiesPanel({
               attachedTokenId={selectedLight.attachedTokenId ?? null}
               {...lightControls}
             />
+            {estadoDaLuz}
           </ToolPropertiesSection>
         )}
         {selectedStair && (
@@ -592,6 +621,7 @@ export function PropertiesPanel({
             que é o nome do que está na mão ou do que acabou de ser desenhado
             (task-jornada-sala-livre.spec.ts, teste 3). */}
         {scenes}
+        {worldState}
         {/* Os objetos DA cena aberta, logo abaixo das cenas. Sem grupo de
             ferramenta: é navegação, como as Cenas, e nasce recolhida — com uma
             ferramenta de desenho na mão ela é só uma linha de título. Antes de

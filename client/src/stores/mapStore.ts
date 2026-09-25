@@ -4,7 +4,9 @@ import type {
   MapData, Wall, Light, Region, Token, Prop, Drawing, DoorState, LayerId, GridSettings,
   Stair, StairDirection, StairShape, DoorKind, MapScale, MeasurementMode, DrawingCap, DrawingDash, FreehandTexture,
   FloorPiece, FloorStyle, MapLine, MapMarker, MapFrame, PinIcon, PinKind, RoomMeta, TokenCondition, MovementRules, HazardKind, AreaTriggerKind, SceneFloor,
+  TipoDePerigo, RotinaDoNpc,
 } from '../types/map'
+import * as perigo from '../lib/perigo'
 import type { Camera, Point } from '../pixi/world'
 import type { DoorMode, DrawingTool, Selection } from '../types/tools'
 import type { SnapTargetKind, SnapTargets } from '../pixi/grid'
@@ -15,6 +17,8 @@ import { FLOOR_LAYER, clampFloorPolygonSides, type FloorShapeKind } from '../lib
 import { clampTamanhoDePincel, type Bloco, type TamanhoDePincel } from '../lib/floorBlocks'
 import { paintRevealBrush as paintRevealBrushOnMap, type RevealBrushMode, type RevealBrushWidth } from '../lib/concealBrush'
 import * as mapFactory from '../lib/mapFactory'
+import { amarrarAoEstado as amarrarNoMapa, type AmarraDeEstado } from '../lib/estadoDoMundo'
+import { comRotina } from '../lib/rotinaDoNpc'
 // Onda 3, item 13 (Frente A) — clonagem pura por tipo de entidade, usada por
 // `duplicateSelected` (Ctrl+D) e `insertClonedEntityLive` (Alt+arrastar, ver
 // pixi/PixiCanvas.tsx).
@@ -642,6 +646,12 @@ interface MapStoreState {
    */
   toggleTokenCondition: (id: string, condition: TokenCondition) => void
   /**
+   * ROTINA DO NPC gravada pelo painel da ficha (`components/RotinaDaFichaControls.tsx`).
+   * Edição do mestre: com histórico, o Ctrl+Z desfaz. `undefined` tira a chave
+   * (a ficha grava como a de antes do campo existir).
+   */
+  setTokenRotina: (id: string, rotina: RotinaDoNpc | undefined) => void
+  /**
    * ROTA DE PATRULHA: marcar ponto, tirar o último, apagar a rota ou avançar o
    * NPC um passo (`lib/npcPatrol.ts`). Mesmo contrato de `toggleTokenCondition`:
    * opera sobre a ficha ATUAL do store (o "marcar" grava onde ela está agora),
@@ -739,6 +749,11 @@ interface MapStoreState {
   setRoomHazard: (roomId: string, kind: HazardKind | null) => void
   /** ZONA DE PERIGO — "Avançar um passo" pelas portas abertas. Com histórico; nada muda = nada grava. */
   advanceHazard: (hazardId: string) => void
+  /** PERIGO QUE SE ALASTRA — fogo ou água novos presos à Sala (`lib/perigo.ts`). Com histórico. */
+  porPerigoNaSala: (salaId: string, tipo: TipoDePerigo) => void
+  /** Um passo do perigo pelas portas abertas. Com histórico: apertou sem querer, Ctrl+Z desfaz. */
+  avancarPerigo: (perigoId: string) => void
+  apagarPerigo: (perigoId: string) => void
   /** GATILHO DE ÁREA — marca a Região/Sala como armadilha/alarme, troca ou limpa (`null`). Com histórico. */
   setRegionTrigger: (regionId: string, kind: AreaTriggerKind | null) => void
   /** GATILHO DE ÁREA — "Mostrar aos jogadores". Com histórico; nada muda = nada grava. */
@@ -774,6 +789,14 @@ interface MapStoreState {
   addConcealZone: (zone: MapData['concealZones'][number]) => void
   updateConcealZone: (id: string, patch: Partial<Pick<MapData['concealZones'][number], 'name' | 'revealed'>>) => void
   removeConcealZone: (id: string) => void
+  /**
+   * ESTADO DO MUNDO — "Depende do estado" do painel: grava a regra na porta,
+   * no pino, na zona ou na luz e já põe o elemento no efeito de `valorAtual`
+   * (`null` = estado sem valor conhecido, só grava a regra). Com histórico:
+   * amarrar é edição do mestre, desfaz com Ctrl+Z. Quem sabe o valor atual é
+   * `useAdventureStore.amarrarAoEstado`, que chama esta.
+   */
+  amarrarAoEstado: (amarra: AmarraDeEstado, valorAtual: string | null) => void
   /**
    * Um traço inteiro do Pincel de revelar, num Ctrl+Z só. Devolve se o traço
    * passou por alguma zona oculta ativa (o chamador avisa quando não passou).
@@ -1673,6 +1696,10 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
       const next = toggleConditionOnMap(get().map, id, condition)
       if (next !== get().map) withHistory(() => next)
     },
+    setTokenRotina: (id, rotina) => withHistory((map) => ({
+      ...map,
+      tokens: map.tokens.map((t) => (t.id === id ? comRotina(t, rotina) : t)),
+    })),
     patrolAction: (id, op) => {
       const next = applyPatrolOp(get().map, id, op)
       if (next !== get().map) withHistory(() => next)
@@ -1784,6 +1811,19 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
       if (advanceHazardOnMap(get().map, hazardId) === get().map) return
       withHistory((map) => advanceHazardOnMap(map, hazardId))
     },
+    porPerigoNaSala: (salaId, tipo) => {
+      const id = `perigo_${crypto.randomUUID()}`
+      if (perigo.porPerigoNaSala(get().map, salaId, tipo, id) === get().map) return
+      withHistory((map) => perigo.porPerigoNaSala(map, salaId, tipo, id))
+    },
+    avancarPerigo: (perigoId) => {
+      if (perigo.avancarPerigo(get().map, perigoId) === get().map) return
+      withHistory((map) => perigo.avancarPerigo(map, perigoId))
+    },
+    apagarPerigo: (perigoId) => {
+      if (perigo.apagarPerigo(get().map, perigoId) === get().map) return
+      withHistory((map) => perigo.apagarPerigo(map, perigoId))
+    },
     setRegionTrigger: (regionId, kind) => {
       // Um id só para as duas chamadas: a conferência e a gravação criam o MESMO gatilho.
       const id = crypto.randomUUID()
@@ -1833,6 +1873,10 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
       if (mapFactory.removeConcealZone(get().map, id) === get().map) return
       withHistory((map) => mapFactory.removeConcealZone(map, id))
       if (get().selectedConcealZoneId === id) set({ selectedConcealZoneId: null })
+    },
+    amarrarAoEstado: (amarra, valorAtual) => {
+      if (amarrarNoMapa(get().map, amarra, valorAtual) === get().map) return
+      withHistory((map) => amarrarNoMapa(map, amarra, valorAtual))
     },
     paintRevealBrush: (stroke, radius, mode) => {
       const result = paintRevealBrushOnMap(get().map, stroke, radius, mode)

@@ -3,6 +3,7 @@ import type { Point } from '../pixi/world'
 import { DEFAULT_DOOR_SLACK, findTokenPath, moveCrossesWall } from './collision'
 import { compileFloor } from './floorSdf'
 import { clampToMaxStep, findOccupant, tokensOccupy } from './movementRules'
+import { cabeNoPasso, casasDoTrajeto, fichaDaVez } from './confronto'
 
 /**
  * Validação autoritativa de movimento de token (modo jogador). O servidor/host
@@ -19,7 +20,9 @@ export interface TokenMoveRequest {
 
 /**
  * `occupied`: a cena liga "Fichas ocupam espaço" e o destino cai sobre outra ficha ('Lugar ocupado').
- * `not_your_turn`: a cena tem iniciativa e a ficha pedida não é a da vez.
+ * `not_your_turn`: a cena tem iniciativa e a ficha pedida não é a da vez, ou
+ * há CONFRONTO na cena (`lib/confronto.ts`) e a ficha está na fila fora da vez.
+ * `too_far`: CONFRONTO — o trajeto passa do que resta do passo.
  */
 export type TokenMoveRejection =
   | 'unknown_token'
@@ -30,8 +33,10 @@ export type TokenMoveRejection =
   | 'wall'
   | 'outside_floor'
   | 'occupied'
+  | 'too_far'
 
-export type TokenMoveResult = { ok: true; x: number; y: number } | { ok: false; reason: TokenMoveRejection }
+/** `casas`: só quando o movimento conta no passo do confronto — é o que o host soma ao gasto da vez. */
+export type TokenMoveResult = { ok: true; x: number; y: number; casas?: number } | { ok: false; reason: TokenMoveRejection }
 
 export interface TokenMoveOptions {
   /** Mestre: sem passo máximo e sem ocupação. */
@@ -48,6 +53,8 @@ export interface TokenMoveOptions {
    * host (mestre) nunca espera a vez.
    */
   turnTokenId?: string | null
+  /** Casas que a ficha da vez já andou nesta vez (confronto). Ausente = 0. */
+  gastoNaVez?: number
 }
 
 /** Fração da célula entre amostras do trajeto: garante corredor de 1/4 de célula detectado. */
@@ -94,6 +101,12 @@ export function validateTokenMove(
     if (turn !== null && turn !== token.id) return { ok: false, reason: 'not_your_turn' }
   }
 
+  // CONFRONTO: vale só para pedido de jogador e só para ficha da fila; o
+  // mestre e quem está fora da fila andam livres.
+  const confronto = options.isHost ? undefined : map.confronto
+  const naFila = confronto !== undefined && confronto.fila.includes(token.id)
+  if (confronto !== undefined && naFila && fichaDaVez(confronto) !== token.id) return { ok: false, reason: 'not_your_turn' }
+
   if (!isInsideMap(map, request.x, request.y)) return { ok: false, reason: 'outside_map' }
 
   const from = { x: token.x, y: token.y }
@@ -112,13 +125,18 @@ export function validateTokenMove(
     if (!pathStaysOnFloor(map, a.x, a.y, b.x, b.y)) return { ok: false, reason: 'outside_floor' }
   }
 
-  // Por último: "Lugar ocupado" só depois de saber que o caminho existe, senão
+  // "Lugar ocupado" só depois de saber que o caminho existe, senão
   // a recusa diria que há alguém atrás de uma parede.
   if (!options.isHost && tokensOccupy(map) && findOccupant(options.occupants ?? map.tokens, token.id, to, map.grid) !== undefined) {
     return { ok: false, reason: 'occupied' }
   }
 
-  return { ok: true, x: to.x, y: to.y }
+  if (confronto === undefined || !naFila) return { ok: true, x: to.x, y: to.y }
+  // O passo é medido no MESMO trajeto que acabou de passar (o vão da porta
+  // aberta conta), na régua do mapa.
+  const casas = casasDoTrajeto(map, path)
+  if (!cabeNoPasso(confronto.passo, options.gastoNaVez ?? 0, casas)) return { ok: false, reason: 'too_far' }
+  return { ok: true, x: to.x, y: to.y, casas }
 }
 
 /**

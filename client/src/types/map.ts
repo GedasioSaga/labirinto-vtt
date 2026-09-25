@@ -149,11 +149,38 @@ export interface DoorState {
    * de migração; do disco só `true` volta (`lib/mapFile.ts`).
    */
   secret?: boolean
+  /**
+   * ESTADO DO MUNDO — a porta obedece a um estado da aventura ("Maré"). Trocar
+   * o valor grava o efeito em `open`/`locked` (`lib/estadoDoMundo.ts`); o resto
+   * do app lê só esses dois. NUNCA sai no recorte do jogador (`lib/fogFilter.ts`).
+   * Ausente = porta de sempre, sem migração.
+   */
+  porEstado?: RegraDeEstado<EfeitoNaPorta>
   /** CHAVE ABRE PORTA: nome do item da mochila que destranca e abre esta
    *  porta sem pedir ao mestre (`lib/doorKey.ts`). Só do mestre: o jogador
    *  nunca o recebe (`lib/fogFilter.ts`). `undefined` = só o mestre abre. */
   abreCom?: string
 }
+
+/**
+ * ESTADO DO MUNDO — "depende de": o efeito deste elemento para cada valor de um
+ * estado da aventura (`Adventure.estados`). Valor sem entrada = o elemento não
+ * muda. Lista, e não objeto: o valor é texto do mestre, e `efeitos["constructor"]`
+ * num objeto leria o protótipo.
+ */
+export interface RegraDeEstado<E extends string> {
+  estadoId: string
+  efeitos: EfeitoDeEstado<E>[]
+}
+
+export interface EfeitoDeEstado<E extends string> {
+  valor: string
+  efeito: E
+}
+
+export type EfeitoNaPorta = 'aberta' | 'fechada' | 'trancada'
+export type EfeitoNaZona = 'oculta' | 'revelada'
+export type EfeitoNaLuz = 'acesa' | 'apagada'
 
 export interface Light {
   id: string
@@ -176,6 +203,18 @@ export interface Light {
    *  (comportamento de antes) — sem linha de migração. Para o jogador, só
    *  chega se ele vê a ficha (`lib/fogFilter.ts`). */
   attachedTokenId?: string
+  /**
+   * ESTADO DO MUNDO — luz apagada ("energia desligada", apagão): o mestre vê
+   * só o marcador vazado, sem halo, e o jogador não recebe a luz. `undefined`
+   * === acesa (comportamento de antes) — sem linha de migração.
+   */
+  apagada?: boolean
+  /**
+   * ESTADO DO MUNDO — `apagada` obedece a um estado da aventura. Trocar o
+   * valor grava o efeito em `apagada`. NUNCA sai no recorte do jogador
+   * (`lib/fogFilter.ts`, lista do que vai). Ausente = luz de sempre.
+   */
+  porEstado?: RegraDeEstado<EfeitoNaLuz>
 }
 
 export interface RegionPoint {
@@ -318,6 +357,14 @@ export interface PinExit extends PinExitLabel {
 export type PinPassage = 'pede' | 'livre' | 'trancada'
 
 /**
+ * CABINE DE TRANSPORTE, como a PARADA a diz ao jogador: a cabine está `aqui`;
+ * está aqui mas `ocupada` (alguém embarcou e espera o mestre); não está e
+ * esta parada já a `chamada`; ou está `longe` — nunca qual cabine é, em que
+ * parada ela está nem quem está dentro. A cabine mora na aventura (`lib/cabine.ts`).
+ */
+export type CabineNaParada = 'aqui' | 'ocupada' | 'longe' | 'chamada'
+
+/**
  * Símbolo desenhado DENTRO da cabeça do pino, no lugar do glifo. Os seis que o
  * usuário pediu: o mestre crava "aqui tem um baú" e "aqui tem uma armadilha" e
  * enxerga a diferença no mapa, sem abrir os dois para lembrar qual é qual.
@@ -457,6 +504,20 @@ export interface Pin extends PlayerSecret {
    */
   item?: PinItem
   /**
+   * SÓ NO RECORTE DO JOGADOR, e só no pino de viagem que é parada de uma
+   * cabine (elevador, cesto): se a cabine está nele. O mestre nunca grava este
+   * campo (a cabine mora na aventura); o host o monta a cada envio
+   * (`comCabineParaJogador`, `lib/fogFilter.ts`) e `lib/mapFile.ts` o apaga
+   * de um arquivo que o traga.
+   */
+  cabine?: CabineNaParada
+  /**
+   * ESTADO DO MUNDO — a `passagem` do pino obedece a um estado da aventura.
+   * Trocar o valor grava o efeito em `passagem`. NUNCA sai no recorte do
+   * jogador (`pinForPlayer` é lista do que vai). Ausente = pino de sempre.
+   */
+  porEstado?: RegraDeEstado<PinPassage>
+  /**
    * CHAVE ABRE PORTA, no pino de viagem TRANCADO: o nome do item da mochila
    * que deixa quem o carrega passar sem pedir ao mestre (`lib/doorKey.ts`).
    * Só do mestre: NUNCA sai no recorte do jogador (`lib/fogFilter.ts`).
@@ -500,6 +561,12 @@ export interface ConcealZone {
    * (`lib/fogFilter.ts`) manda só o preto que sobra e o pedaço à vista.
    */
   unveiledCells?: string[]
+  /**
+   * ESTADO DO MUNDO — `revealed` obedece a um estado da aventura ("a galeria
+   * alagada só esconde na maré alta"). A zona inteira não sai para o jogador;
+   * ele recebe só o preto que sobra. Ausente = zona de sempre.
+   */
+  porEstado?: RegraDeEstado<EfeitoNaZona>
 }
 
 /**
@@ -755,6 +822,18 @@ export interface Token extends PlayerSecret {
    *  viaja com a ficha. `undefined` === vazia, sem migração. O jogador só
    *  recebe a mochila da PRÓPRIA ficha (`lib/fogFilter.ts`). */
   mochila?: CarriedItem[]
+  /** AJUDANTE CONTRATADO — o acordo como o jogador que SEGURA a ficha
+   *  emprestada o lê. Campo de FIO, nunca do arquivo: o acordo mora na sessão
+   *  do host junto da posse (`net/hostSession.ts`), o recorte põe este campo só
+   *  na ficha emprestada que vai a quem a segura (`lib/fogFilter.ts`) e
+   *  `deserializeMap` o descarta se um arquivo trouxer. */
+  contrato?: TokenContract
+  /** ROTINA DO NPC: onde a ficha fica em cada valor de um ESTADO DO MUNDO
+   *  ("Apito: Aurora, Meio, Brasa"). Trocar o estado leva a ficha ao posto,
+   *  inclusive para outra cena (`lib/rotinaDoNpc.ts`). Do mestre: NÃO atravessa
+   *  para jogador nenhum, nem para quem segura a ficha (`lib/fogFilter.ts`).
+   *  `undefined` = sem rotina — mapa salvo antes deste campo abre igual. */
+  rotina?: RotinaDoNpc
   /**
    * LEVAR FICHA JUNTO: id da ficha que LEVA esta (o ferido carregado, o NPC
    * escoltado). Ela anda junto no arrasto e atravessa o pino de viagem junto.
@@ -770,6 +849,32 @@ export interface Token extends PlayerSecret {
    *  oferece entra nela (`claimableTokensForPlayer`, `lib/fogFilter.ts`).
    *  NÃO viaja no mapa do jogador: é metadado do mestre. */
   playerCharacter?: boolean
+}
+
+/** A rotina de uma ficha (`Token.rotina`): um posto por valor do estado, no máximo. */
+export interface RotinaDoNpc {
+  /** O estado do mundo que manda nesta rotina (`Adventure.estados`). */
+  estadoId: string
+  /** Valor sem posto = a ficha fica onde está quando o estado vira para ele. */
+  postos: PostoDaRotina[]
+}
+
+/** Onde a ficha vai quando o estado vira para `valor`: cena da aventura e ponto em px de mundo. */
+export interface PostoDaRotina {
+  valor: string
+  sceneId: string
+  x: number
+  y: number
+}
+
+/** O acordo do ajudante contratado (`Token.contrato`). */
+export interface TokenContract {
+  /** O que o ajudante faz, como o mestre escreveu ("levar o recado"). `''` = sem tarefa escrita. */
+  tarefa: string
+  /** Fim do acordo, em ms desde 1970 no relógio do MESTRE. `null` = até o mestre retomar. */
+  ate: number | null
+  /** `true` = o jogador vê pelos olhos do ajudante; `false` = a ficha anda, mas não enxerga por ele. */
+  visao: boolean
 }
 
 export interface Prop extends PlayerSecret {
@@ -796,6 +901,13 @@ export interface Prop extends PlayerSecret {
    *  tela/modo jogador, então essa promessa não existe. `undefined` === false
    *  (visível, comportamento idêntico ao de hoje) — sem linha de migração. */
   hidden?: boolean
+  /** MOBÍLIA DESENHADA: o objeto é um móvel do catálogo (`lib/mobilia.ts`),
+   *  sem imagem (`src: ''`), desenhado como silhueta chapada com o glifo do
+   *  tipo por cima, no editor e na tela do jogador. `undefined` = objeto
+   *  comum de imagem (comportamento de sempre) — sem linha de migração; tipo
+   *  fora do catálogo vindo do disco some na leitura (`deserializeMap`).
+   *  Vai ao jogador junto do móvel que ele enxerga: o tipo É o desenho. */
+  mobilia?: TipoMobilia
   /** "Rótulo para jogadores": nome curto escrito na silhueta que o jogador vê
    *  ("Guarda-roupa"). Ausente = só a silhueta, como antes deste campo — sem
    *  linha de migração. ATRAVESSA para o jogador só junto com o objeto, aparado
@@ -808,6 +920,9 @@ export interface Prop extends PlayerSecret {
    *  Ausente = interruptor desligado (só a silhueta). */
   playerImage?: string
 }
+
+/** Móveis do catálogo da mobília desenhada (`lib/mobilia.ts`). */
+export type TipoMobilia = 'catre' | 'mesa' | 'bau'
 
 export interface DrawingPoint {
   x: number
@@ -1157,6 +1272,21 @@ export interface MapData {
    */
   hazards?: Hazard[]
   /**
+   * CONFRONTO desta cena (`lib/confronto.ts`): fila de vez e passo por vez.
+   * `undefined` = sem confronto — mapa salvo antes deste campo abre igual, sem
+   * linha de migração. Cada cena guarda o seu: a vez de uma nunca mexe na de
+   * outra. NÃO viaja para o jogador: o recorte tira o campo, e o host manda só
+   * a faixa (`PlayerConfronto`) montada com as fichas que ele pode ver.
+   */
+  confronto?: Confronto
+  /**
+   * PERIGO QUE SE ALASTRA (`lib/perigo.ts`): fogo ou água presos a Salas, que o
+   * mestre faz avançar pelas portas abertas. `undefined` = sem perigo — mapa
+   * salvo antes deste campo abre igual. O jogador recebe só as salas tomadas
+   * que ele vê agora, um item por tipo, sem o id do mestre (`lib/fogFilter.ts`).
+   */
+  perigos?: Perigo[]
+  /**
    * GATILHOS DE ÁREA (armadilha, alarme). `undefined` === nenhum — sem linha
    * de migração, mesmo padrão de `hazards`: o último gatilho apagado tira o
    * campo. Leitura segura do disco em `lib/areaTriggers.ts` →
@@ -1190,6 +1320,35 @@ export interface MapData {
    * de migração. NUNCA sai dentro do mapa do jogador: o rótulo viaja à parte.
    */
   andar?: SceneFloor
+}
+
+export type TipoDePerigo = 'fogo' | 'agua'
+
+/**
+ * Um perigo que se alastra sala a sala. `salas`: ids das Salas (`Region`)
+ * tomadas agora. `cinzas`: só no fogo, as Salas que já queimaram — não queimam
+ * de novo. O id é do mestre e nunca sai para o jogador.
+ */
+export interface Perigo {
+  id: string
+  tipo: TipoDePerigo
+  salas: string[]
+  /** `undefined` === nenhuma sala em cinza (água, ou fogo que ainda não avançou): sem linha de migração — quem confere o campo é `perigosFromFile`. */
+  cinzas?: string[]
+}
+
+/**
+ * Confronto numa cena. `fila`: ids das fichas na ordem da vez (jogadores e
+ * NPCs). `vez`: índice em `fila` de quem joga agora. `passo`: casas por vez,
+ * inteiro >= 1, medido na régua do mapa (`measurementMode`). `turno`: conta as
+ * vezes passadas desde o começo — muda a cada "Próxima vez", e é o que zera o
+ * gasto da vez no host, mesmo quando a vez volta à mesma ficha.
+ */
+export interface Confronto {
+  fila: string[]
+  vez: number
+  passo: number
+  turno: number
 }
 
 /** MAPA POR ANDARES: de que prédio a cena é andar, e o rótulo curto que o jogador lê na aba. */

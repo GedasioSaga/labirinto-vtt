@@ -4,12 +4,14 @@ import type { PlayerAreaTrigger } from '../lib/areaTriggers'
 import type { PlayerClock } from '../lib/campaignClock'
 import type { ExploredWire } from '../lib/exploration'
 import type { TokenMoveRejection } from '../lib/moveValidation'
+import type { PlayerConfronto } from '../lib/confronto'
 import { LASER_MAX_POINTS_PER_MESSAGE } from '../lib/laser'
 import { isTokenPhotoData } from '../lib/tokenPhoto'
 import { ROOM_TEXT_MAX_LENGTH } from '../lib/roomText'
 import { isPlayerSafePinImage } from '../lib/pins'
 import { CLUEBOOK_MAX_CLUES, CLUE_TEXT_MAX_LENGTH, CLUE_TITLE_MAX_LENGTH } from '../lib/clues'
 import { isPointActionKind, isPointActionRejection, type PointActionAnswer, type PointActionKind, type PointActionRejection } from '../lib/pointActions'
+import { isLetterVia, LETTER_TEXT_MAX_LENGTH, type LetterVia } from '../lib/correio'
 import { MAX_DESTINATION_MARKS, SIGNAL_COLOR_PATTERN, type DestinationMark } from '../lib/signals'
 import { MASTER_ROLLER_NAME, parseDiceRequest, type DiceRequest, type DiceRollEntry } from '../lib/dice'
 
@@ -135,6 +137,16 @@ import { MASTER_ROLLER_NAME, parseDiceRequest, type DiceRequest, type DiceRollEn
  * `point.action` (jogador -> mestre) e, na volta, `point.action.answer` e
  * `point.action.rejected` são as AÇÕES NO PONTO, aditivas pelo mesmo critério.
  * A volta vai só a quem pediu e nunca leva sala, cena nem ponto.
+ * O CORREIO DE BILHETES é aditivo pelo mesmo critério. Do jogador:
+ * `letter.peers` (a quem posso escrever?) e `letter.send` (o bilhete, para um
+ * colega pelo nome na sala). Do mestre: `letter.peers` (os nomes) e
+ * `letter.send.result` (saiu para o mestre ou não). O bilhete ENTREGUE chega
+ * como `scene.note` com `from` e `via` a mais, e fica no caderno de recados:
+ * jogador antigo lê o texto como recado do mestre. Entregue com ele fora do
+ * ar ou aguardando sem ficha, chega pelo `notes.book` com o id em `unread`,
+ * que o jogador antigo ignora. Nenhuma delas leva cena,
+ * posição ou o destino do bilhete que ainda espera o mestre.
+ *
  * `snapshot.sceneName` (e `delta.sceneName`) é o "ONDE ESTOU", aditivo pelo
  * mesmo critério: o NOME PARA OS JOGADORES da cena onde o jogador está, só
  * quando o mestre escreveu um. Nunca o nome interno da cena, nunca o de outra
@@ -353,6 +365,18 @@ export interface PinTravelRequestMessage {
 }
 
 /**
+ * CABINE DE TRANSPORTE: "Chamar a cabine" pela parada `pinId` da cena em que
+ * o jogador está, que diz "a cabine não está aqui". Só o id do pino: qual
+ * cabine é, o jogador nem sabe. O host valida e, se valer, a chamada entra na
+ * fila e o mestre é avisado. Não tem resposta: a parada passa a dizer
+ * "chamada" no próximo recorte.
+ */
+export interface CabineCallMessage {
+  type: 'cabine.call'
+  pinId: string
+}
+
+/**
  * LASER DO JOGADOR: a mesma forma do laser do mestre (lote de pontos em px de
  * mundo, ou `off` ao soltar). Nada de nome nem cor: quem é o host sabe pela
  * conexão, e a cor é a da ficha — o jogador não pode se passar por outro.
@@ -461,6 +485,19 @@ export interface PointActionMessage {
   y: number
 }
 
+/** CORREIO: a quem posso escrever? A resposta é `letter.peers` com os nomes na sala. */
+export interface LetterPeersRequestMessage {
+  type: 'letter.peers'
+}
+
+/** CORREIO: o bilhete para o colega de nome `to`, pelo meio `via`. Vai ao mestre, não direto ao colega. */
+export interface LetterSendMessage {
+  type: 'letter.send'
+  to: string
+  via: LetterVia
+  text: string
+}
+
 /**
  * MARCA "VAMOS PARA CÁ": põe (ou move) a marca do jogador no ponto, em px de
  * mundo da cena dele; `clear` tira. Sem nome nem cor: quem é e de que cor o
@@ -505,6 +542,7 @@ export type PlayerMessage =
   | PinTravelRequestMessage
   | PinTakeMessage
   | ItemGiveMessage
+  | CabineCallMessage
   | PlayerLaserMessage
   | ClueReadMessage
   | CluePeersRequestMessage
@@ -512,6 +550,8 @@ export type PlayerMessage =
   | CallRaiseMessage
   | CallLowerMessage
   | PointActionMessage
+  | LetterPeersRequestMessage
+  | LetterSendMessage
   | DiceRollMessage
   | PinLeverMessage
 
@@ -584,6 +624,9 @@ export interface SceneNoteMessage {
   at?: number
   /** Recado só para este jogador (ninguém mais na sala recebeu). Ausente = recado da cena. */
   onlyYou?: true
+  /** CORREIO: bilhete de um colega (nome na sala). Vem sempre junto de `via`; os dois ausentes = recado do mestre. */
+  from?: string
+  via?: LetterVia
 }
 
 /** Um recado guardado no caderno do jogador. Nada da cena: só o que ele leu e quando. */
@@ -591,12 +634,21 @@ export interface NoteEntry {
   id: string
   text: string
   at: number
+  /** CORREIO: quem escreveu o bilhete e por onde veio. Ausentes = recado do mestre. */
+  from?: string
+  via?: LetterVia
 }
 
 /** O caderno inteiro do jogador, do mais antigo ao mais novo, mandado quando ele entra ou volta. */
 export interface NotebookMessage {
   type: 'notes.book'
   notes: NoteEntry[]
+  /**
+   * CORREIO: ids (entre os de `notes`) do que chegou sem o jogador ver —
+   * bilhete entregue com ele fora do ar ou aguardando sem ficha. O cliente
+   * acende o não lido deles. Ausente = o caderno é só história.
+   */
+  unread?: string[]
 }
 
 /** Texto da Sala na primeira entrada: `id` é o da `Region` (já vai no snapshot), `title` o nome que o jogador pode ver. */
@@ -767,6 +819,33 @@ export function clampSeatOptionName(name: string): string {
  * `table_full`: já há `MAX_TABLE_SCREENS` telas da mesa na sala (`hostSession.ts`).
  * `bad_table_key`: tela da mesa sem a chave do link da TV, ou com outra.
  */
+/** CORREIO: os colegas da sala, pelo nome. Nada de cena nem de status: só o nome. */
+export interface LetterPeersMessage {
+  type: 'letter.peers'
+  names: string[]
+}
+
+/**
+ * Por que o bilhete não saiu, quando o motivo não conta nada de ninguém:
+ * `too_soon` = outro bilhete saiu há pouco; `full` = o mestre ainda não
+ * respondeu aos bilhetes que esperam. Ausente = "não saiu", sem dizer por quê.
+ */
+export type LetterSendRefusal = 'too_soon' | 'full'
+
+/** O bilhete chegou ao MESTRE (`ok`) ou não. Se ele entrega ou intercepta, o remetente não fica sabendo. */
+export interface LetterSendResultMessage {
+  type: 'letter.send.result'
+  to: string
+  ok: boolean
+  reason?: LetterSendRefusal
+}
+
+export type LetterHostMessage = LetterPeersMessage | LetterSendResultMessage
+
+/**
+ * `table_full`: já há `MAX_TABLE_SCREENS` telas da mesa na sala (`hostSession.ts`).
+ * `bad_table_key`: tela da mesa sem a chave do link da TV, ou com outra.
+ */
 export type HostErrorReason = 'bad_code' | 'invalid_message' | 'not_joined' | 'already_joined' | 'table_full' | 'bad_table_key'
 
 export type HostMessage =
@@ -777,13 +856,15 @@ export type HostMessage =
   // deste recorte (`turnForPlayer`). Ausente = ninguém que o jogador vê.
   // `partyTokens` (ITEM PEGÁVEL): das fichas que ele recebeu, as de OUTROS jogadores — o "Dar a…" não oferece NPC.
   // `hazards` (ZONA DE PERIGO): só o que o jogador enxerga agora, e só quando há algum (`PlayerMapView.hazards`).
+  // `confronto`: a faixa do confronto da cena DELE, já recortada (`lib/confronto.ts`).
+  // Ausente = sem confronto nesta cena.
   // `sceneName`: o NOME PARA OS JOGADORES da cena onde ele está ("Onde estou").
   // Ausente = a cena não tem nome público (ou mapa solto, ou mestre antigo).
   // `place`/`places`: LUGARES, ids do host para as memórias dele (ver o topo).
   // `gatilhos` (GATILHO DE ÁREA): só o revelado pelo mestre, e só quando há algum (`PlayerMapView.gatilhos`).
   // `andares` (MAPA POR ANDARES): só quando a cena dele é andar de um prédio e ele já esteve em outro andar dele.
   // `relogio` (RELÓGIO DA CAMPANHA): só o período e, da cena dele, se está escuro — nunca a hora (`clockForPlayer`).
-  | { type: 'snapshot'; rev: number; map: MapData; vision: RegionPoint[][]; explored: ExploredWire; ownTokens: string[]; concealed: RegionPoint[][]; turn?: string; partyTokens?: string[]; hazards?: PlayerHazard[]; sceneName?: string; place?: string; places?: string[]; gatilhos?: PlayerAreaTrigger[]; andares?: FloorsWire; relogio?: PlayerClock }
+  | { type: 'snapshot'; rev: number; map: MapData; vision: RegionPoint[][]; explored: ExploredWire; ownTokens: string[]; concealed: RegionPoint[][]; turn?: string; partyTokens?: string[]; hazards?: PlayerHazard[]; confronto?: PlayerConfronto; sceneName?: string; place?: string; places?: string[]; gatilhos?: PlayerAreaTrigger[]; andares?: FloorsWire; relogio?: PlayerClock }
   | { type: 'delta'; rev: number; map: MapData; vision: RegionPoint[][]; explored: ExploredWire; ownTokens: string[]; concealed: RegionPoint[][]; turn?: string; partyTokens?: string[]; hazards?: PlayerHazard[]; sceneName?: string; place?: string; places?: string[]; gatilhos?: PlayerAreaTrigger[]; andares?: FloorsWire; relogio?: PlayerClock }
   // ZONA DE PERIGO: a ficha DESTE jogador entrou num perigo. Só o tipo — nem a sala, nem a zona.
   | { type: 'hazard.entered'; kind: HazardKind }
@@ -834,6 +915,7 @@ export type HostMessage =
   // a resposta: nem o ponto, nem a sala, nem a cena que o mestre leu.
   | { type: 'point.action.answer'; action: PointActionKind; answer: PointActionAnswer }
   | { type: 'point.action.rejected'; reason: PointActionRejection }
+  | LetterHostMessage
   | DiceRolledMessage
   | SeatOptionsMessage
   // Só a quem pediu a ficha; a aceitação chega como o mapa, com a ficha dele.
@@ -1019,23 +1101,42 @@ export function parseSceneNote(value: unknown): SceneNoteMessage | null {
   const { id, text, at } = value
   if (!isBoundedString(id, 1, REQ_ID_MAX_LENGTH)) return null
   if (!isBoundedString(text, 1, NOTE_MAX_LENGTH)) return null
+  const sender = parseLetterSender(value)
+  if (sender === null) return null
+  const note: SceneNoteMessage = { type: 'scene.note', id, text }
+  if (at !== undefined) {
+    // Presente e fora da forma recusa inteiro, como o resto: hora torta no caderno é pior que recado nenhum.
+    if (!isNoteTime(at)) return null
+    note.at = at
+  }
   // Só `true` marca: qualquer outro valor é recado comum, sem faixa.
-  const onlyYou = value.onlyYou === true ? { onlyYou: true as const } : {}
-  if (at === undefined) return { type: 'scene.note', id, text, ...onlyYou }
-  // Presente e fora da forma recusa inteiro, como o resto: hora torta no caderno é pior que recado nenhum.
-  if (!isNoteTime(at)) return null
-  return { type: 'scene.note', id, text, at, ...onlyYou }
+  if (value.onlyYou === true) note.onlyYou = true
+  return sender === undefined ? note : { ...note, ...sender }
 }
 
 function isNoteTime(value: unknown): value is number {
   return isFiniteNumber(value) && value >= 0
 }
 
+/**
+ * CORREIO: `from` e `via` do bilhete entregue. `undefined` = nenhum dos dois
+ * (recado do mestre); `null` = um só, nome fora da forma ou meio desconhecido —
+ * recusa o recado inteiro, como a cor do laser: remetente pela metade mentiria.
+ */
+function parseLetterSender(value: Record<string, unknown>): { from: string; via: LetterVia } | null | undefined {
+  const { from, via } = value
+  if (from === undefined && via === undefined) return undefined
+  if (!isRoomName(from) || !isLetterVia(via)) return null
+  return { from, via }
+}
+
 function parseNoteEntry(value: unknown): NoteEntry | null {
   if (!isRecord(value)) return null
   const { id, text, at } = value
   if (!isBoundedString(id, 1, REQ_ID_MAX_LENGTH) || !isBoundedString(text, 1, NOTE_MAX_LENGTH) || !isNoteTime(at)) return null
-  return { id, text, at }
+  const sender = parseLetterSender(value)
+  if (sender === null) return null
+  return sender === undefined ? { id, text, at } : { id, text, at, ...sender }
 }
 
 /**
@@ -1118,7 +1219,17 @@ export function parseNotebook(value: unknown): NotebookMessage | null {
     if (entry === null) return null
     parsed.push(entry)
   }
-  return { type: 'notes.book', notes: parsed }
+  const { unread } = value
+  if (unread === undefined) return { type: 'notes.book', notes: parsed }
+  if (!Array.isArray(unread) || unread.length > NOTEBOOK_MAX_NOTES) return null
+  // Só vale marcar o que está no caderno: id solto não acende ponto de nada.
+  const known = new Set(parsed.map((entry) => entry.id))
+  const marked: string[] = []
+  for (const id of unread) {
+    if (!isBoundedString(id, 1, REQ_ID_MAX_LENGTH)) return null
+    if (known.has(id)) marked.push(id)
+  }
+  return { type: 'notes.book', notes: parsed, unread: marked }
 }
 
 /** Folga para o sufixo que o host põe em nome repetido ("Ana (2)", ver `uniqueName`). */
@@ -1201,6 +1312,54 @@ export function parseClueMessage(value: unknown): ClueHostMessage | null {
     default:
       return null
   }
+}
+
+/** Lista de nomes na sala, até `CLUE_PEERS_MAX`; um nome ruim recusa a lista inteira. */
+function parseRoomNames(value: unknown): string[] | null {
+  if (!Array.isArray(value) || value.length > CLUE_PEERS_MAX) return null
+  const parsed: string[] = []
+  for (const name of value) {
+    if (!isRoomName(name)) return null
+    parsed.push(name)
+  }
+  return parsed
+}
+
+/**
+ * Valida as mensagens do CORREIO que o jogador recebe (a entrega vem por
+ * `parseSceneNote`). Mesma regra de MINHAS PISTAS: forma errada recusa a
+ * mensagem inteira, e sai só com os campos conhecidos.
+ */
+export function parseLetterMessage(value: unknown): LetterHostMessage | null {
+  if (!isRecord(value)) return null
+  switch (value.type) {
+    case 'letter.peers': {
+      const names = parseRoomNames(value.names)
+      return names === null ? null : { type: 'letter.peers', names }
+    }
+    case 'letter.send.result': {
+      const { to, ok, reason } = value
+      if (!isRoomName(to) || typeof ok !== 'boolean' || (reason !== undefined && typeof reason !== 'string')) return null
+      // Motivo que este jogador não conhece (mestre mais novo) vira a recusa comum.
+      if (ok || (reason !== 'too_soon' && reason !== 'full')) return { type: 'letter.send.result', to, ok }
+      return { type: 'letter.send.result', to, ok, reason }
+    }
+    default:
+      return null
+  }
+}
+
+/**
+ * CORREIO: o bilhete do jogador. Texto aparado entre 1 e
+ * `LETTER_TEXT_MAX_LENGTH`, meio conhecido e nome na forma da sala; qualquer
+ * outra coisa recusa a mensagem inteira.
+ */
+function parseLetterSend(obj: Record<string, unknown>): LetterSendMessage | null {
+  const { to, via, text } = obj
+  if (!isRoomName(to) || !isLetterVia(via) || typeof text !== 'string') return null
+  const trimmed = text.trim()
+  if (trimmed.length < 1 || trimmed.length > LETTER_TEXT_MAX_LENGTH) return null
+  return { type: 'letter.send', to, via, text: trimmed }
 }
 
 /** Cor do laser repassado: `#rrggbb`, a forma que `Token.color` grava. */
@@ -1389,6 +1548,8 @@ export function parsePlayerMessage(raw: unknown): PlayerMessage | null {
       return parseTokenEdit(value)
     case 'pin.travel.request':
       return parseTravelRequest(value)
+    case 'cabine.call':
+      return isBoundedString(value.pinId, 1, REQ_ID_MAX_LENGTH) ? { type: 'cabine.call', pinId: value.pinId } : null
     case 'laser':
       // Só o corpo: `from`/`color` mandados pelo jogador são jogados fora — o
       // nome e a cor quem põe é o host, pela conexão e pela ficha dele.
@@ -1413,6 +1574,10 @@ export function parsePlayerMessage(raw: unknown): PlayerMessage | null {
       return isPointActionKind(value.action) && isFiniteNumber(value.x) && isFiniteNumber(value.y)
         ? { type: 'point.action', action: value.action, x: value.x, y: value.y }
         : null
+    case 'letter.peers':
+      return { type: 'letter.peers' }
+    case 'letter.send':
+      return parseLetterSend(value)
     case 'dice.roll': {
       // Só o pedido: resultado, total e nome mandados pelo jogador são jogados fora.
       const request = parseDiceRequest(value)
