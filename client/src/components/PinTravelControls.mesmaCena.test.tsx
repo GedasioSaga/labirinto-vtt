@@ -103,6 +103,10 @@ describe('PinTravelControls: atalho na mesma cena, com a ligação do App', () =
           onPassageChange={(passagem) => useMapStore.getState().updatePin(pin.id, { passagem })}
           motivo={undefined}
           onMotivoChange={() => {}}
+          passItem=""
+          onPassItemChange={() => {}}
+          passTokens={[]}
+          onPassTokenToggle={() => {}}
           onOneWayChange={(exitId, on) => aventura().setPinOneWay(pin.id, exitId, on)}
           onBothSidesChange={() => {}}
           arrivalOnly={isArrivalOnly(pin)}

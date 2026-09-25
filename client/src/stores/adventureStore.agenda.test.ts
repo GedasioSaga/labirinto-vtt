@@ -68,6 +68,7 @@ function abrirTorre(): void {
     scenes: cenas.map((entry) => ({ entry, status: 'ok' as const, map: entry.id === 'salao' ? salao : mapa(entry.id, entry.name) })),
     changedSceneIds: [],
     adventureChanged: false,
+    legacySources: [],
   })
 }
 

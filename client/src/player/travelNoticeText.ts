@@ -1,6 +1,13 @@
 import type { TravelNotice } from './playerConnection'
 
 /**
+ * Enquanto o host confere o passe (pino no modo `passe`). O mesmo texto no
+ * cartão do pino e no aviso da tela: o jogador não lê duas coisas diferentes
+ * sobre o mesmo pedido.
+ */
+export const PASS_CHECK_TEXT = 'Conferindo o passe…'
+
+/**
  * O pedido de passagem, em uma linha. Nunca diz para onde o pino leva: o
  * jogador só descobre ao chegar. As recusas do host são genéricas de
  * propósito (`PinTravelRejection`), e a frase também. O motivo do "Não,
@@ -9,6 +16,7 @@ import type { TravelNotice } from './playerConnection'
 export function travelNoticeText(notice: TravelNotice): string {
   switch (notice.phase) {
     case 'waiting':
+      if (notice.passe) return PASS_CHECK_TEXT
       return notice.direct ? 'Passando…' : 'Aguardando o mestre…'
     case 'arrived':
       return 'Você chegou'

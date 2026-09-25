@@ -47,7 +47,10 @@ function renderPainel(passage: PinPassage) {
         passage={passage}
         passItem="Crachá"
         passTokens={FICHAS}
+        motivo={undefined}
+        onMotivoChange={vi.fn()}
         onOneWayChange={vi.fn()}
+        onBothSidesChange={vi.fn()}
         arrivalOnly={false}
         {...handlers}
       />,
@@ -105,6 +108,7 @@ describe('cartão do jogador: pino com passe', () => {
       root.render(
         <PlayerPinCard
           pin={{ id: 'catraca', x: 0, y: 0, kind: 'viagem', description: 'Catraca', image: null, passagem: 'passe' }}
+          stairs={[]}
           onClose={vi.fn()}
           onRequestTravel={onRequestTravel}
         />,

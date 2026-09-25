@@ -25,6 +25,10 @@ function html(travel: PinTravel, scenes: readonly TravelSceneOption[]): string {
       onPassageChange={nada}
       motivo={undefined}
       onMotivoChange={nada}
+      passItem=""
+      onPassItemChange={() => {}}
+      passTokens={[]}
+      onPassTokenToggle={() => {}}
       onOneWayChange={nada}
       onBothSidesChange={nada}
       arrivalOnly={false}
