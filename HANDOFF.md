@@ -252,6 +252,16 @@ mesma cena, do run antigo `wf_e3f23fdf-79d`) vai numa 2ª junção curta, perto 
   `auto/f2-<id>` com os worktrees em `.claude/worktrees/wf_f7c100fc-85d-*`) e retomar `publicar-grupos`.
 - Regra nova (memória `fabrica-de-features`): `cmd //c rmdir` nas junctions ANTES de qualquer `git worktree remove`.
 
+**25/09, 08h45 — `node_modules` restaurado pelo usuário** (`npm install --no-save`: 30 pacotes; 0 faltando do lockfile,
+lockfile intacto). Retomada:
+- `wf_9b232d09-dce` (`publicar-grupos.js`, árvore `C:/dev/labirinto-pub`, branch `auto/pub-1` em `9eb13ed` = visão +
+  defeitos juntados): unidade, prova, absorve `auto/acervo` e publica em `main`.
+- `wf_3aed54cc-7f7` (`fabrica-v3.js`, `scratchpad/manha.json`): 11 peças `pronta` (revisor já aprovou; vão direto à
+  prova), pisos como `construida` (revisão de novo) e as 104 restantes. Publica a cada 10 integradas.
+- `wf_8cc51539-dc2` segue juntando os grupos t-* em `auto/juntar` (modo `so_juntar`).
+- Publicação agora usa trava: `mkdir .git/publicando.lock` (atômico), `rmdir` ao terminar. Se sobrar trava de um
+  agente morto, conferir o `dono` dentro dela antes de apagar.
+
 **25/09, 03h20 — grupo visão juntado em `auto/juntar` (`7da1931` + `ffda9b1`), tipos-src e tipos-e2e VERDES;
 unidade VERMELHA só pelo `node_modules` incompleto.** `publicar-grupos` (`wf_3c4bb722-2b5`) parou ali, como
 previsto. Relançado em modo `so_juntar` (`wf_8cc51539-dc2`): junta os grupos seguintes em `auto/juntar`, resolve
