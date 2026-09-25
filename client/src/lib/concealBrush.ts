@@ -1,5 +1,6 @@
 import type { ConcealZone, MapData, RegionPoint } from '../types/map'
 import { pointInRing } from './floorContour'
+import { pisoDe } from './pisos'
 
 /**
  * PINCEL DE REVELAR E ESCONDER (item 11 de docs/features-candidatas-2026-09-21.md).
@@ -118,9 +119,14 @@ export function strokeCells(stroke: readonly RegionPoint[], radius: number): str
   return [...out]
 }
 
-/** Zona que o pincel pode pintar: ativa (ainda esconde) e com área. */
-function isPaintable(zone: ConcealZone): boolean {
-  return !zone.revealed && zone.points.length >= 3
+/**
+ * Zona que o pincel pode pintar: do piso em que o mestre pinta, ativa (ainda
+ * esconde) e com área. A zona de outro piso no mesmo lugar do plano o mestre
+ * nem vê nessa hora (o canvas desenha só o piso em edição), e é o jogador
+ * DAQUELE piso que passaria a ver o que ela esconde.
+ */
+function isPaintable(zone: ConcealZone, piso: number): boolean {
+  return pisoDe(zone) === piso && !zone.revealed && zone.points.length >= 3
 }
 
 /** Zona com as células novas; lista vazia tira o campo (zona volta a ser a de sempre). */
@@ -134,7 +140,7 @@ function withCells(zone: ConcealZone, cells: ReadonlySet<string>): ConcealZone {
 export interface RevealBrushResult {
   /** O mapa depois do traço; o MESMO objeto quando nada mudou (sem entrada vazia no Ctrl+Z). */
   map: MapData
-  /** O traço passou por dentro de pelo menos uma zona oculta ativa. */
+  /** O traço passou por dentro de pelo menos uma zona oculta ativa do piso pintado. */
   hitZone: boolean
 }
 
@@ -143,15 +149,16 @@ export interface RevealBrushResult {
  * cada zona ativa que o traço cruza; esconder tira do conjunto as células do
  * traço. Zona já revelada inteira não recebe pincel: o traço não teria efeito
  * nenhum na tela do jogador e voltaria a valer, sem aviso, quando o mestre
- * escondesse a zona de novo.
+ * escondesse a zona de novo. Só as zonas do piso `piso` (o piso em edição)
+ * recebem o traço; as dos outros pisos voltam como estavam.
  */
-export function paintRevealBrush(map: MapData, stroke: readonly RegionPoint[], radius: number, mode: RevealBrushMode): RevealBrushResult {
+export function paintRevealBrush(map: MapData, stroke: readonly RegionPoint[], radius: number, mode: RevealBrushMode, piso: number): RevealBrushResult {
   const cells = strokeCells(stroke, radius)
   if (cells.length === 0) return { map, hitZone: false }
   let hitZone = false
   let changed = false
   const zones = (map.concealZones ?? []).map((zone) => {
-    if (!isPaintable(zone)) return zone
+    if (!isPaintable(zone, piso)) return zone
     const inside = cells.filter((key) => {
       const center = cellCenter(key)
       return center !== null && pointInRing(center, zone.points)

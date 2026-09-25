@@ -65,7 +65,7 @@ describe('pincel de revelar: células do traço', () => {
 describe('pincel de revelar: gravar no mapa', () => {
   it('revelar grava as células DENTRO da zona e devolve mapa novo', () => {
     const antes = mapaComZona()
-    const r = paintRevealBrush(antes, [{ x: 400, y: 450 }, ...TRACO], 25, 'revelar')
+    const r = paintRevealBrush(antes, [{ x: 400, y: 450 }, ...TRACO], 25, 'revelar', 0)
     expect(r.map).not.toBe(antes)
     expect(r.hitZone).toBe(true)
     const celulas = unveiledCellsOf(r.map.concealZones[0])
@@ -75,15 +75,15 @@ describe('pincel de revelar: gravar no mapa', () => {
   })
 
   it('esconder apaga o que foi pintado; o mapa volta sem células', () => {
-    const revelado = paintRevealBrush(mapaComZona(), TRACO, 25, 'revelar').map
-    const escondido = paintRevealBrush(revelado, TRACO, 25, 'esconder').map
+    const revelado = paintRevealBrush(mapaComZona(), TRACO, 25, 'revelar', 0).map
+    const escondido = paintRevealBrush(revelado, TRACO, 25, 'esconder', 0).map
     expect(unveiledCellsOf(escondido.concealZones[0]).size).toBe(0)
     expect(escondido.concealZones[0].unveiledCells).toBeUndefined()
   })
 
   it('esconder só um pedaço deixa o resto revelado', () => {
-    const revelado = paintRevealBrush(mapaComZona(), TRACO, 25, 'revelar').map
-    const parcial = paintRevealBrush(revelado, [{ x: 900, y: 450 }], 25, 'esconder').map
+    const revelado = paintRevealBrush(mapaComZona(), TRACO, 25, 'revelar', 0).map
+    const parcial = paintRevealBrush(revelado, [{ x: 900, y: 450 }], 25, 'esconder', 0).map
     const celulas = unveiledCellsOf(parcial.concealZones[0])
     expect(celulas.has(cellKeyAt({ x: 900, y: 450 }))).toBe(false)
     expect(celulas.has(cellKeyAt({ x: 640, y: 450 }))).toBe(true)
@@ -91,21 +91,21 @@ describe('pincel de revelar: gravar no mapa', () => {
 
   it('traço fora de zona ativa não muda nada e avisa que não pegou zona', () => {
     const antes = mapaComZona()
-    const r = paintRevealBrush(antes, [{ x: 100, y: 100 }, { x: 300, y: 100 }], 25, 'revelar')
+    const r = paintRevealBrush(antes, [{ x: 100, y: 100 }, { x: 300, y: 100 }], 25, 'revelar', 0)
     expect(r.map).toBe(antes)
     expect(r.hitZone).toBe(false)
   })
 
   it('zona já revelada inteira não recebe pincel', () => {
     const antes = mapaComZona({ revealed: true })
-    const r = paintRevealBrush(antes, TRACO, 25, 'revelar')
+    const r = paintRevealBrush(antes, TRACO, 25, 'revelar', 0)
     expect(r.map).toBe(antes)
     expect(r.hitZone).toBe(false)
   })
 
   it('repintar o mesmo pedaço não gera mapa novo (sem entrada vazia no Ctrl+Z)', () => {
-    const uma = paintRevealBrush(mapaComZona(), TRACO, 25, 'revelar').map
-    expect(paintRevealBrush(uma, TRACO, 25, 'revelar').map).toBe(uma)
+    const uma = paintRevealBrush(mapaComZona(), TRACO, 25, 'revelar', 0).map
+    expect(paintRevealBrush(uma, TRACO, 25, 'revelar', 0).map).toBe(uma)
   })
 
   it('campo corrompido no arquivo conta como nada revelado (erro para o lado de esconder)', () => {

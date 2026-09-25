@@ -1926,8 +1926,9 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
       withHistory((map) => amarrarNoMapa(map, amarra, valorAtual))
     },
     paintRevealBrush: (stroke, radius, mode) => {
-      const result = paintRevealBrushOnMap(get().map, stroke, radius, mode)
-      if (result.map !== get().map) withHistory(() => result.map)
+      const { map, pisoAtivo } = get()
+      const result = paintRevealBrushOnMap(map, stroke, radius, mode, pisoAtivo)
+      if (result.map !== map) withHistory(() => result.map)
       return result.hitZone
     },
     resizeRoomDimensions: (id, wPx, hPx) => withHistory((map) => reparentRooms(mapFactory.resizeRoomDimensions(map, id, wPx, hPx), [id], map)),
