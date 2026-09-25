@@ -21,7 +21,7 @@ const ROOM = { code: 'LIVR01', urls: ['http://10.0.0.2:7777'], qrSvg: '<svg/>' }
 const IDLE: TunnelState = { kind: 'idle' }
 
 function jogador(overrides: Partial<PlayerInfo>): PlayerInfo {
-  return { clientId: 'c', playerId: 'p', name: '?', status: 'waiting', connected: true, tokenIds: [], visionRadius: 700, ...overrides }
+  return { clientId: 'c', playerId: 'p', name: '?', status: 'waiting', connected: true, tokenIds: [], visionRadius: 700, visionFactor: 1, ...overrides }
 }
 
 const JOGANDO: PlayerInfo[] = ['Lanterna', 'Machado', 'Cajado', 'Arco', 'Adaga', 'Escudo'].map((ficha, i) =>
@@ -75,8 +75,10 @@ describe('marca de NPC gravada pelo app', () => {
           onUnassign={noop}
           onKick={noop}
           onVisionRadiusChange={noop}
+          onVisionFactorChange={noop}
           onRevealPlan={noop}
           onHidePlan={noop}
+          clues={{ rows: [], onCenter: noop, onToggle: noop }}
         />,
       ),
     )

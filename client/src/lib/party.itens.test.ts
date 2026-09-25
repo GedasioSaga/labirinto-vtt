@@ -37,6 +37,7 @@ const DIEGO: PlayerInfo = {
   connected: true,
   tokenIds: ['diego'],
   visionRadius: 700,
+  visionFactor: 1,
   sceneId: 'cena-mansao',
   sceneName: 'Mansão',
 }

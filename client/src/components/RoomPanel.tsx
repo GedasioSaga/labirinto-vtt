@@ -120,6 +120,16 @@ export const NOISE_BUTTON_LABEL = 'Ruído'
 export const NOISE_HINT = 'Ligado, clique no mapa onde algo fez barulho. Quem estiver perto ouve só a direção, nunca o lugar nem o que foi.'
 
 export const PLAN_HINT = 'Revelar planta mostra paredes, salas e portas, sem os tokens. Zonas ocultas continuam escondidas.'
+export const GROUP_VIEW_LABEL = 'Dar o que o grupo viu'
+/** Quanto tempo o aviso do "Dar o que o grupo viu" fica no card. */
+export const GROUP_VIEW_FEEDBACK_MS = 4000
+
+/** O aviso depois de "Dar o que o grupo viu": de quantos colegas veio, ou por que não veio nada. */
+export function groupViewFeedbackText(name: string, colleagues: number | null): string {
+  if (colleagues === null) return 'Não deu: a sala não está aberta.'
+  if (colleagues === 0) return `Ninguém mais explorou a cena de ${name}`
+  return colleagues === 1 ? `${name} recebeu o que 1 colega viu` : `${name} recebeu o que ${colleagues} colegas viram`
+}
 export const LASER_HINT ='Ligado (ou segurando L), clique e arraste com o botão esquerdo sobre o mapa. Todos os jogadores veem o laser.'
 export const FIREWALL_HINT = 'Se o celular não abrir o link, libere o app no Firewall do Windows (rede Privada)'
 export const TUNNEL_WARNING = 'Quem tiver o link e o código entra na sala. Encerre ao terminar o jogo.'
@@ -138,6 +148,12 @@ export function downloadLabel(progress: number): string {
 export function playerStatusLabel(player: PlayerInfo): string {
   const status = player.status === 'playing' ? 'jogando' : 'aguardando'
   return `${status} · ${player.connected ? 'conectado' : 'desconectado'}`
+}
+
+/** "9 quadrados", "7,8 quadrados": quanto este jogador enxerga na cena dele (cena x fator). */
+export function sceneCellsLabel(cells: number, factor: number): string {
+  const seen = Math.round(cells * factor * 10) / 10
+  return `${String(seen).replace('.', ',')} ${seen === 1 ? 'quadrado' : 'quadrados'}`
 }
 
 /**
@@ -316,6 +332,29 @@ function TunnelSection({ tunnel, onStartTunnel, onStopTunnel }: Pick<RoomPanelPr
           Cancelar
         </button>
       )}
+    </div>
+  )
+}
+
+/** Botão "Ruído" (arma o próximo clique no mapa) e a lista do alcance. */
+function NoiseControl({ armed, rangeCells, onToggle, onRangeChange }: NoiseControlProps) {
+  const rangeId = 'lb-room-noise-range'
+  return (
+    <div className="lb-field">
+      <button type="button" className={armed ? 'lb-btn lb-btn--primary lb-btn--block' : 'lb-btn lb-btn--block'} aria-pressed={armed} onClick={onToggle}>
+        {NOISE_BUTTON_LABEL}
+      </button>
+      <label className="lb-label" htmlFor={rangeId}>
+        Alcance do ruído
+      </label>
+      <select id={rangeId} className="lb-input" value={String(rangeCells)} onChange={(event) => onRangeChange(Number(event.target.value))}>
+        {NOISE_RANGE_OPTIONS.map((option) => (
+          <option key={option.cells} value={String(option.cells)}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+      <p className="lb-label">{NOISE_HINT}</p>
     </div>
   )
 }
@@ -502,6 +541,8 @@ interface PlayerAdminProps {
   onUnassign(playerId: string, tokenId: string): void
   onKick(clientId: string): void
   onVisionRadiusChange(playerId: string, radius: number): void
+  /** "Fator de visão" do jogador, que multiplica o alcance de toda cena. */
+  onVisionFactorChange(playerId: string, factor: number): void
   onRevealPlan(playerId: string): void
   onHidePlan(playerId: string): void
   /** "Guardar ficha" de quem está fora. Ausente = sem o botão. */
@@ -698,6 +739,45 @@ function VisionRadiusField({ player, onVisionRadiusChange }: { player: PlayerInf
   )
 }
 
+/**
+ * "Fator de visão" (vale em toda cena) e, embaixo, o que depende da cena: com
+ * "Visão nesta cena" ativa, quantos quadrados este jogador enxerga ali (o raio
+ * em px não conta nessa cena); sem valor, o raio de sempre continua.
+ */
+function VisionFields({
+  player,
+  onVisionRadiusChange,
+  onVisionFactorChange,
+}: { player: PlayerInfo } & Pick<PlayerAdminProps, 'onVisionRadiusChange' | 'onVisionFactorChange'>) {
+  const factorId = `lb-room-vision-factor-${player.playerId}`
+  return (
+    <div className="lb-player__radius">
+      <div className="lb-section__row">
+        <label className="lb-label" htmlFor={factorId}>
+          Fator de visão
+        </label>
+        <span className="lb-num">{formatVisionFactor(player.visionFactor)}</span>
+      </div>
+      <input
+        id={factorId}
+        className="lb-range"
+        type="range"
+        min={VISION_FACTOR_MIN}
+        max={VISION_FACTOR_MAX}
+        step={VISION_FACTOR_STEP}
+        value={player.visionFactor}
+        onChange={(event) => onVisionFactorChange(player.playerId, Number(event.target.value))}
+      />
+      {player.sceneVisionCells !== undefined ? (
+        // A cena diz o alcance: o raio em px não conta aqui, e sai da frente.
+        <p className="lb-field__hint">Nesta cena: {sceneCellsLabel(player.sceneVisionCells, player.visionFactor)}</p>
+      ) : (
+        <VisionRadiusField player={player} onVisionRadiusChange={onVisionRadiusChange} />
+      )}
+    </div>
+  )
+}
+
 interface MoreToggleProps {
   player: PlayerInfo
   open: boolean
@@ -748,7 +828,7 @@ function MorePanel({ player, id, withSetup, onClose, ...admin }: MorePanelProps)
   return (
     <div id={id} className="lb-player__panel" role="group" aria-label={`Mais de ${player.name}`} onKeyDown={(event) => closeOnEscape(event, onClose)}>
       {withSetup && <AssignControls player={player} tokens={admin.tokens} owners={admin.owners} onAssign={admin.onAssign} />}
-      {withSetup && <VisionRadiusField player={player} onVisionRadiusChange={admin.onVisionRadiusChange} />}
+      {withSetup && <VisionFields player={player} onVisionRadiusChange={admin.onVisionRadiusChange} onVisionFactorChange={admin.onVisionFactorChange} />}
       <div className="lb-player__plan">
         <button type="button" className="lb-btn lb-btn--compact" aria-describedby={hintId} onClick={() => admin.onRevealPlan(player.playerId)}>
           Revelar planta
@@ -815,7 +895,7 @@ function WaitingCard({ player, moreOpen, onToggleMore, onCloseMore, ...admin }: 
         />
       </div>
       <AssignControls player={player} tokens={admin.tokens} owners={admin.owners} onAssign={admin.onAssign} />
-      <VisionRadiusField player={player} onVisionRadiusChange={admin.onVisionRadiusChange} />
+      <VisionFields player={player} onVisionRadiusChange={admin.onVisionRadiusChange} onVisionFactorChange={admin.onVisionFactorChange} />
       {moreOpen && <MorePanel {...admin} player={player} id={more.panelId} withSetup={false} onClose={more.close} />}
     </div>
   )
@@ -839,6 +919,10 @@ interface PlayerRowProps extends PlayerCardProps {
   onCancelNote(): void
   /** O aviso do último recado a este jogador; `null` = nenhum. */
   noteFeedback: string | null
+  /** "Dar o que o grupo viu" já ligado a ESTE jogador. Ausente = sem o botão. */
+  onGiveGroupView?(): void
+  /** O aviso do último "Dar o que o grupo viu" a este jogador; `null` = nenhum. */
+  groupViewFeedback: string | null
   /** Relógio do "fora há…" (`useOfflineClock`). */
   now: number
   /** A mesa inteira: "Emprestar ficha a" oferece quem está conectado. */
@@ -866,6 +950,8 @@ function PlayerRow({
   onSendNote,
   onCancelNote,
   noteFeedback,
+  onGiveGroupView,
+  groupViewFeedback,
   now,
   players,
   moreOpen,
@@ -919,6 +1005,12 @@ function PlayerRow({
             />
           )}
           {member !== undefined && token === null && <span className="lb-player__note">sem ficha no mapa</span>}
+          {/* Só quem joga tem cena: quem aguarda não tem onde receber o que o grupo viu. */}
+          {onGiveGroupView !== undefined && player.status === 'playing' && (
+            <button type="button" className="lb-btn lb-btn--ghost lb-btn--compact" onClick={onGiveGroupView}>
+              {GROUP_VIEW_LABEL}
+            </button>
+          )}
           <MoreToggle
             player={player}
             open={moreOpen}
@@ -935,6 +1027,11 @@ function PlayerRow({
         {noteFeedback !== null && (
           <p className="lb-party__recado-aviso" role="status">
             {noteFeedback}
+          </p>
+        )}
+        {groupViewFeedback !== null && (
+          <p className="lb-player__note" role="status">
+            {groupViewFeedback}
           </p>
         )}
         {player.borrowedFrom !== undefined && <p className="lb-player__note">Jogando também a ficha de {player.borrowedFrom.join(', ')}.</p>}
@@ -955,6 +1052,23 @@ function PlayerRow({
 interface GroupRosterProps extends Omit<PlayerAdminProps, 'owners'> {
   players: PlayerInfo[]
   party: PartySectionProps | undefined
+  /**
+   * "Dar o que o grupo viu": o jogador ganha o que os colegas viram na cena
+   * onde ele está. Devolve quantos colegas (0 = ninguém mais explorou), ou
+   * `null` se não deu. Ausente = o card fica sem o botão.
+   */
+  onGiveGroupView?(playerId: string): number | null
+}
+
+/** Aviso do último "Dar o que o grupo viu", com o mesmo formato do recado (`useNoteFeedback`). */
+function useGroupViewFeedback() {
+  const [feedback, setFeedback] = useState<{ playerId: string; text: string } | null>(null)
+  useEffect(() => {
+    if (feedback === null) return
+    const timer = setTimeout(() => setFeedback(null), GROUP_VIEW_FEEDBACK_MS)
+    return () => clearTimeout(timer)
+  }, [feedback])
+  return { feedback, show: (playerId: string, text: string) => setFeedback({ playerId, text }) }
 }
 
 /**
@@ -964,7 +1078,7 @@ interface GroupRosterProps extends Omit<PlayerAdminProps, 'owners'> {
  * ~50 controles e o Grupo com 4 linhas à vista. Quem espera personagem vem
  * primeiro, aberto; o resto na ordem de chegada.
  */
-function GroupRoster({ players, party, ...rest }: GroupRosterProps) {
+function GroupRoster({ players, party, onGiveGroupView, ...rest }: GroupRosterProps) {
   const headingId = useId()
   const sendFormId = useId()
   const giveFormId = useId()
@@ -972,6 +1086,7 @@ function GroupRoster({ players, party, ...rest }: GroupRosterProps) {
   const [moreId, setMoreId] = useState<string | null>(null)
   const send = usePartySend()
   const note = useNoteFeedback()
+  const groupView = useGroupViewFeedback()
   const now = useOfflineClock(players.some((player) => !player.connected && player.disconnectedAt !== undefined))
   const admin: PlayerAdminProps = { ...rest, owners: tokenOwners(players) }
   const members = new Map((party?.members ?? []).map((member) => [member.playerId, member]))
@@ -1028,6 +1143,12 @@ function GroupRoster({ players, party, ...rest }: GroupRosterProps) {
               }}
               onCancelNote={send.close}
               noteFeedback={note.feedback?.playerId === player.playerId ? note.feedback.text : null}
+              onGiveGroupView={
+                onGiveGroupView === undefined
+                  ? undefined
+                  : () => groupView.show(player.playerId, groupViewFeedbackText(player.name, onGiveGroupView(player.playerId) ?? null))
+              }
+              groupViewFeedback={groupView.feedback?.playerId === player.playerId ? groupView.feedback.text : null}
               now={now}
               players={players}
             />
@@ -1062,11 +1183,16 @@ export function RoomPanel({
   onLendTokens,
   onEndLoans,
   onVisionRadiusChange,
+  onVisionFactorChange,
   onRevealPlan,
   onHidePlan,
+  onGiveGroupView,
   laserOn = false,
   onToggleLaser,
   table,
+  clues,
+  secretCheck,
+  noise,
 }: RoomPanelProps) {
   const inviteId = useId()
   if (room === null) {
@@ -1102,6 +1228,8 @@ export function RoomPanel({
         )}
       </div>
 
+      {noise !== undefined && <NoiseControl {...noise} />}
+
       {/* O Grupo logo abaixo: é o que o mestre consulta a cada cena. Convite e Fechar sala são de montar e desmontar a mesa. */}
       <GroupRoster
         players={players}
@@ -1111,13 +1239,21 @@ export function RoomPanel({
         onUnassign={onUnassign}
         onKick={onKick}
         onVisionRadiusChange={onVisionRadiusChange}
+        onVisionFactorChange={onVisionFactorChange}
         onRevealPlan={onRevealPlan}
         onHidePlan={onHidePlan}
         onStoreTokens={onStoreTokens}
         onDismiss={onDismiss}
         onLendTokens={onLendTokens}
         onEndLoans={onEndLoans}
+        onGiveGroupView={onGiveGroupView}
       />
+
+      {/* Pistas logo depois do Grupo: as bolinhas são as mesmas pessoas, na mesma ordem e cor. */}
+      {players.length > 0 && <CluesSection {...clues} />}
+
+      {/* O teste secreto é de cena, como as pistas: fica perto do Grupo, não no fim da aba. */}
+      {players.length > 0 && secretCheck !== undefined && <SecretCheckSection {...secretCheck} />}
 
       {/* Iniciativa logo depois do Grupo: no combate é o que o mestre toca a cada vez. */}
       {initiative !== undefined && <InitiativeSection {...initiative} />}

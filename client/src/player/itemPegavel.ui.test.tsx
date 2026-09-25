@@ -97,6 +97,10 @@ describe('telas do item pegável', () => {
       onDescriptionChange: vi.fn(),
       locked: false,
       onLockedChange: vi.fn(),
+      marco: false,
+      onMarcoChange: vi.fn(),
+      lerDePerto: null,
+      onLerDePertoChange: vi.fn(),
       image: null,
       onChooseImage: vi.fn(),
       onClearImage: vi.fn(),
@@ -141,6 +145,7 @@ describe('Grupo do mestre: a mochila de cada um', () => {
       connected: true,
       tokenIds: [tokenId],
       visionRadius: 700,
+      visionFactor: 1,
       sceneId: 's-m',
       sceneName: 'Mansão',
     })
@@ -148,7 +153,20 @@ describe('Grupo do mestre: a mochila de cada um', () => {
     const members = partyMembers(players, world)
     expect(members.map((m) => m.mochila.map((i) => i.nome))).toEqual([['Chave do Escudo'], []])
     // O Grupo é a lista única da aba Jogo (RoomPanel): a mochila sai na linha do jogador.
-    const handlers = { onStart: vi.fn(), onStop: vi.fn(), onStartTunnel: vi.fn(), onStopTunnel: vi.fn(), onAssign: vi.fn(), onUnassign: vi.fn(), onKick: vi.fn(), onVisionRadiusChange: vi.fn(), onRevealPlan: vi.fn(), onHidePlan: vi.fn() }
+    const handlers = {
+      onStart: vi.fn(),
+      onStop: vi.fn(),
+      onStartTunnel: vi.fn(),
+      onStopTunnel: vi.fn(),
+      onAssign: vi.fn(),
+      onUnassign: vi.fn(),
+      onKick: vi.fn(),
+      onVisionRadiusChange: vi.fn(),
+      onVisionFactorChange: vi.fn(),
+      onRevealPlan: vi.fn(),
+      onHidePlan: vi.fn(),
+      clues: { rows: [], onCenter: vi.fn(), onToggle: vi.fn() },
+    }
     const party = { members, destinations: [], onGoTo: vi.fn(), onSend: () => true }
     const html = renderToStaticMarkup(
       <RoomPanel room={{ code: 'MOCHI2', urls: [], qrSvg: '<svg/>' }} players={players} tokens={roomPanelTokensOf(world)} party={party} tunnel={{ kind: 'idle' }} {...handlers} />,

@@ -30,7 +30,7 @@ const TOKENS: RoomPanelToken[] = [
 ]
 
 function jogador(overrides: Partial<PlayerInfo>): PlayerInfo {
-  return { clientId: 'c', playerId: 'p', name: '?', status: 'waiting', connected: true, tokenIds: [], visionRadius: 700, ...overrides }
+  return { clientId: 'c', playerId: 'p', name: '?', status: 'waiting', connected: true, tokenIds: [], visionRadius: 700, visionFactor: 1, ...overrides }
 }
 
 const JOGANDO: PlayerInfo[] = JOGADORES.map((j, i) =>
@@ -76,8 +76,10 @@ describe('RoomPanel: atribuir ficha — livres primeiro, de qualquer cena, sem t
           onUnassign={noop}
           onKick={noop}
           onVisionRadiusChange={noop}
+          onVisionFactorChange={noop}
           onRevealPlan={noop}
           onHidePlan={noop}
+          clues={{ rows: [], onCenter: noop, onToggle: noop }}
         />,
       ),
     )

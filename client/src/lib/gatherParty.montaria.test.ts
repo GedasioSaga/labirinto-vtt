@@ -51,6 +51,7 @@ function mesa(): { world: HostWorld; players: PlayerInfo[] } {
     connected: true,
     tokenIds,
     visionRadius: 700,
+    visionFactor: 1,
     sceneId,
     sceneName,
   })

@@ -26,7 +26,7 @@ function jogador(playerId: string, name: string): PlayerInfo {
 }
 
 function membro(playerId: string, name: string): PartyMember {
-  return { playerId, name, connected: true, sceneId: 'cena-sala', sceneName: 'Sala', token: { id: `ficha-${playerId}`, color: '#aa3333', x: 0, y: 0 }, travelPending: false }
+  return { playerId, name, connected: true, sceneId: 'cena-sala', sceneName: 'Sala', token: { id: `ficha-${playerId}`, color: '#aa3333', x: 0, y: 0 }, travelPending: false, mochila: [] }
 }
 
 const JOGADORES = [jogador('p-gabi', 'Gabi'), jogador('p-fabio', 'Fábio')]

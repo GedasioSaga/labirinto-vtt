@@ -46,8 +46,10 @@ describe('RoomPanel: Retomar a mesa?', () => {
           onUnassign={noop}
           onKick={noop}
           onVisionRadiusChange={noop}
+          onVisionFactorChange={noop}
           onRevealPlan={noop}
           onHidePlan={noop}
+          clues={{ rows: [], onCenter: noop, onToggle: noop }}
           {...props}
         />,
       ),

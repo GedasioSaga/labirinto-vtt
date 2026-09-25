@@ -31,6 +31,7 @@ export interface SceneEntry {
    * Nunca fica vazio: vazio sai do objeto (`cleanPublicSceneName`).
    */
   publicName?: string
+  /**
    * "Planta conhecida por todos": todo jogador que chega à cena recebe a
    * planta (sem interior de teto nem zona oculta). Ausente = desligada — cena
    * de aventura antiga abre igual, sem migração. Fica no `adventure.json`, e

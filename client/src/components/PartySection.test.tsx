@@ -78,7 +78,20 @@ describe('Grupo na aba Jogo', () => {
   const NA_MESA: PlayerInfo[] = [...JOGADORES, jogador({ playerId: 'dora', name: 'Dora', tokenIds: ['sumida'], sceneId: 's-a', sceneName: 'Salao' })]
   const IDLE: TunnelState = { kind: 'idle' }
   const noop = vi.fn()
-  const handlers = { onStart: noop, onStop: noop, onStartTunnel: noop, onStopTunnel: noop, onAssign: noop, onUnassign: noop, onKick: noop, onVisionRadiusChange: noop, onRevealPlan: noop, onHidePlan: noop }
+  const handlers = {
+    onStart: noop,
+    onStop: noop,
+    onStartTunnel: noop,
+    onStopTunnel: noop,
+    onAssign: noop,
+    onUnassign: noop,
+    onKick: noop,
+    onVisionRadiusChange: noop,
+    onVisionFactorChange: noop,
+    onRevealPlan: noop,
+    onHidePlan: noop,
+    clues: { rows: [], onCenter: noop, onToggle: noop },
+  }
 
   function grupo(extra: Partial<PartySectionProps> = {}): string {
     const world = mundo()

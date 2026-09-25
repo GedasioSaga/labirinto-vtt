@@ -1420,7 +1420,18 @@ function restoredMemoryOf(scene: SavedSceneMemory): Omit<PlayerMemory, 'place'> 
   if (exp === null || exp.cell !== blank.cell || exp.cols !== blank.cols || exp.rows !== blank.rows) return null
   const doors = new Map<string, DoorState>(scene.doors.map((door) => [door.wallId, { open: door.open, locked: door.locked, kind: door.kind }]))
   // Cômodo lembrado não é gravado na mesa: volta a ser lembrado quando for visto de novo.
-  return { key: memoryKey(dims), dims, exp, doors, doorsSeenAt: new Map(), vision: [], restored: true, seenRooms: new Set() }
+  return {
+    key: memoryKey(dims),
+    dims,
+    exp,
+    seen: blankExploration(dims),
+    planMarked: false,
+    doors,
+    doorsSeenAt: new Map(),
+    vision: [],
+    restored: true,
+    seenRooms: new Set(),
+  }
 }
 
 interface PlayerRecord {
@@ -1925,11 +1936,6 @@ export function createHostSession(options: HostSessionOptions): HostSession {
 
   /** O recado só para ele: o mesmo `scene.note` do caderno, com a marca "Só para você". */
   const onlyYouMessage = (note: NoteEntry): HostMessage => ({ type: 'scene.note', id: note.id, text: note.text, at: note.at, onlyYou: true })
-
-  /** `views` (o mapa e os cartões que vêm com ele) e, logo atrás, o recado só para ele guardado. */
-  const viewWithPendingNote = (clientId: string, playerId: string, views: HostMessage[]): Outbound[] => {
-    return [...views.map((msg) => ({ clientId, msg })), ...pendingNoteFor(clientId, playerId, views[0])]
-  }
 
   /**
    * MAPA POR ANDARES — o que vai em `snapshot.andares`: o rótulo do andar onde
@@ -2911,7 +2917,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     if (wall === undefined || wall.door === null) return reject('not_visible')
     const memory = memoryFor(playerId, map, world)
     // Sem o espiar de antes: a porta tem de estar à vista pela visão de sempre.
-    const view = filterMapForPlayer(map, playerId, ownership, radiusFor(playerId, map), memory.exp, memory.doors, pinAudiences, secretReveals)
+    const view = filterMapForPlayer(map, playerId, ownership, radiusFor(playerId, map), memory.exp, memory.doors, pinAudiences, undefined, undefined, secretReveals)
     // Porta secreta nunca entra aqui: para o jogador ela é parede (`lib/fogFilter.ts`).
     if (!view.visibleDoorIds.includes(wall.id)) return reject('not_visible')
     if (wall.door.open && !wall.door.locked) return { outbound: [] }
@@ -2925,6 +2931,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   const newDiceRoll = (request: DiceRequest, from: string): HostDiceRoll => {
     const { results, total } = rollDice(request, rollDie)
     return { id: randomId(), from, count: request.count, sides: request.sides, modifier: request.modifier, results, total, at: now() }
+  }
 
   /**
    * O jogador PEDE a rolagem; quem rola é o host. Rolagem de quem não entrou
@@ -4800,10 +4807,11 @@ export function createHostSession(options: HostSessionOptions): HostSession {
 
     giveGroupView(playerId, source) {
       if (!players.has(playerId)) return 0
-      const scene = sceneFor(playerId, toWorld(source))
+      const world = toWorld(source)
+      const scene = sceneFor(playerId, world)
       if (scene === null) return 0
       const blocked = playerBlockedRings(scene.map)
-      const target = memoryFor(playerId, scene.map)
+      const target = memoryFor(playerId, scene.map, world)
       let colleagues = 0
       for (const other of players.keys()) {
         if (other === playerId) continue

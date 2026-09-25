@@ -81,7 +81,20 @@ describe('TableScreenSection (aba Jogo)', () => {
 
 describe('RoomPanel com a seção da tela da mesa', () => {
   const noop = vi.fn()
-  const handlers = { onStart: noop, onStop: noop, onStartTunnel: noop, onStopTunnel: noop, onAssign: noop, onUnassign: noop, onKick: noop, onVisionRadiusChange: noop, onRevealPlan: noop, onHidePlan: noop }
+  const handlers = {
+    onStart: noop,
+    onStop: noop,
+    onStartTunnel: noop,
+    onStopTunnel: noop,
+    onAssign: noop,
+    onUnassign: noop,
+    onKick: noop,
+    onVisionRadiusChange: noop,
+    onVisionFactorChange: noop,
+    onRevealPlan: noop,
+    onHidePlan: noop,
+    clues: { rows: [], onCenter: noop, onToggle: noop },
+  }
   const ROOM = { code: 'AB12CD', urls: ['http://10.0.0.2:7777/player'], qrSvg: '<svg/>' }
   const IDLE: TunnelState = { kind: 'idle' }
 

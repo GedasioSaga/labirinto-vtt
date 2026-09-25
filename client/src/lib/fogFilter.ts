@@ -1330,6 +1330,8 @@ export function filterMapForPlayer(
     enteredRooms,
     playerId,
     seenRooms,
+    secretReveals,
+    peekDoorIds,
   })
 }
 
@@ -1345,6 +1347,10 @@ export interface PlayerOnlyView {
   playerId?: string
   /** CÔMODOS LEMBRADOS deste jogador (`filterMapForPlayer`). A tela da mesa não passa: lá vale só o visto e o explorado. */
   seenRooms?: ReadonlySet<string>
+  /** A quem o mestre revelou cada ficha secreta, escada secreta e zona oculta; ausente = segredo de todos. */
+  secretReveals?: SecretReveals
+  /** Portas que ESTE jogador está espiando agora ("Espiar"): a visão dele atravessa como se estivessem abertas. */
+  peekDoorIds?: ReadonlySet<string>
 }
 
 /** OLHOS DO GUARDA: as fichas de todos os jogadores da sala — quem a marca do guarda considera. */
@@ -1383,9 +1389,10 @@ export function filterMapForGroup(
   explored?: Exploration,
   seenDoors?: ReadonlyMap<string, DoorState>,
   watchTargets?: ReadonlySet<string>,
-  { pinAudiences, enteredRooms, playerId, seenRooms }: PlayerOnlyView = {},
+  { pinAudiences, enteredRooms, playerId, seenRooms, secretReveals, peekDoorIds }: PlayerOnlyView = {},
 ): PlayerMapView {
-  if (isWorldMap(map)) return filterWorldMapForGroup(map, viewers, explored, seenDoors, watchTargets, { pinAudiences, enteredRooms, playerId, seenRooms })
+  if (isWorldMap(map))
+    return filterWorldMapForGroup(map, viewers, explored, seenDoors, watchTargets, { pinAudiences, enteredRooms, playerId, seenRooms, secretReveals, peekDoorIds })
   const hiddenLayers = map.hiddenLayers
   // Posse é exclusiva (um token, um dono); se viesse repetido, vale o primeiro raio.
   const radiusByToken = new Map<string, number>()
@@ -1403,7 +1410,7 @@ export function filterMapForGroup(
   // ZONA DE PERIGO: dentro da fumaça o raio cai para o teto dela (`visionRadiusAt`).
   const radiusOf = (token: Token): number => visionRadiusAt(map, { x: token.x, y: token.y }, radiusByToken.get(token.id) ?? 0)
   /** O mestre revelou este item a este jogador ("Revelar para…")? */
-  const revealedToPlayer = (itemId: string): boolean => secretReveals?.get(itemId)?.has(playerId) === true
+  const revealedToPlayer = (itemId: string): boolean => playerId !== undefined && secretReveals?.get(itemId)?.has(playerId) === true
   /** "Oculto para jogadores" PARA ESTE jogador: secreto e não revelado a ele. */
   const secretFromPlayer = (item: { id: string; secret?: boolean }): boolean => item.secret === true && !revealedToPlayer(item.id)
 
@@ -1855,9 +1862,9 @@ export function filterMapForGroup(
       // Prédio sem cômodo escuro reaproveita o olhar da autoridade já calculado.
       authorityFor: (roof, token, i) => {
         const dark = glimpseDarknessOf(roof)
-        return dark === null ? authorityByToken.slice(i, i + 1).flat() : sightFrom({ x: token.x, y: token.y }, authoritySegments, dark)
+        return dark === null ? authorityByToken.slice(i, i + 1).flat() : sightFrom({ x: token.x, y: token.y }, authoritySegments, radiusOf(token), dark)
       },
-      sightFor: (roof, token, segments) => sightFrom({ x: token.x, y: token.y }, segments, glimpseDarknessOf(roof) ?? darkness),
+      sightFor: (roof, token, segments) => sightFrom({ x: token.x, y: token.y }, segments, radiusOf(token), glimpseDarknessOf(roof) ?? darkness),
       peekDoorIds,
       // A conta do jogador vista de dentro deste prédio: as paredes que ele
       // recebe, mais a mobília DESTE prédio (que o cone vai mostrar) — nunca a

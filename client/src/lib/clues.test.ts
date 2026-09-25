@@ -22,6 +22,7 @@ const membro = (playerId: string, name: string, color: string | null): PartyMemb
   sceneName: 'Sala',
   token: color === null ? null : { id: `ficha-${playerId}`, color, x: 0, y: 0 },
   travelPending: false,
+  mochila: [],
 })
 
 const MEMBROS = [membro('p-gabi', 'Gabi', '#aa3333'), membro('p-fabio', 'Fábio', '#3333aa'), membro('p-ana', 'Ana', null)]

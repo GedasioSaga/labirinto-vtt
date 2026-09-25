@@ -60,6 +60,7 @@ const DIEGO: PlayerInfo = {
   connected: true,
   tokenIds: ['diego'],
   visionRadius: 5,
+  visionFactor: 1,
 }
 
 /** Porão aberto (Diego e o zumbi); Térreo (com o alçapão) e Sótão de fundo. */

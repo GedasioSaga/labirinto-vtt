@@ -24,7 +24,7 @@ function mundo(): HostWorld {
 }
 
 function jogador(over: Partial<PlayerInfo>): PlayerInfo {
-  return { clientId: 'c', playerId: 'p', name: 'X', status: 'playing', connected: true, tokenIds: [], visionRadius: 700, ...over }
+  return { clientId: 'c', playerId: 'p', name: 'X', status: 'playing', connected: true, tokenIds: [], visionRadius: 700, visionFactor: 1, ...over }
 }
 
 const JOGADORES: PlayerInfo[] = [
@@ -73,7 +73,20 @@ describe('PartySection: destino marcado', () => {
     const world = mundo()
     const party = { members: partyMembers(JOGADORES, world), destinations: [], onGoTo: vi.fn(), onSend: vi.fn(() => true), onViewDestination }
     const noop = vi.fn()
-    const handlers = { onStart: noop, onStop: noop, onStartTunnel: noop, onStopTunnel: noop, onAssign: noop, onUnassign: noop, onKick: noop, onVisionRadiusChange: noop, onRevealPlan: noop, onHidePlan: noop }
+    const handlers = {
+      onStart: noop,
+      onStop: noop,
+      onStartTunnel: noop,
+      onStopTunnel: noop,
+      onAssign: noop,
+      onUnassign: noop,
+      onKick: noop,
+      onVisionRadiusChange: noop,
+      onVisionFactorChange: noop,
+      onRevealPlan: noop,
+      onHidePlan: noop,
+      clues: { rows: [], onCenter: noop, onToggle: noop },
+    }
     // O Grupo é a lista única da aba Jogo (RoomPanel): uma linha por jogador em jogo.
     act(() => {
       root.render(<RoomPanel room={{ code: 'GRUPO1', urls: [], qrSvg: '<svg/>' }} players={JOGADORES} tokens={roomPanelTokensOf(world)} party={party} tunnel={{ kind: 'idle' }} {...handlers} />)

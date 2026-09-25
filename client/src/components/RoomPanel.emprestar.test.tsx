@@ -17,7 +17,7 @@ const IDLE: TunnelState = { kind: 'idle' }
 const TOKENS = [{ id: 'f-lirio', name: 'Lírio' }, { id: 'f-escudo', name: 'Escudo' }]
 
 function player(overrides: Partial<PlayerInfo> = {}): PlayerInfo {
-  return { clientId: 'c2', playerId: 'p-ana', name: 'Ana', status: 'playing', connected: true, tokenIds: ['f-lirio'], visionRadius: 700, ...overrides }
+  return { clientId: 'c2', playerId: 'p-ana', name: 'Ana', status: 'playing', connected: true, tokenIds: ['f-lirio'], visionRadius: 700, visionFactor: 1, ...overrides }
 }
 
 const ANA_FORA = player({ clientId: null, connected: false })
@@ -56,8 +56,10 @@ function render(players: PlayerInfo[], extra: Partial<RoomPanelProps>) {
         onUnassign={noop}
         onKick={noop}
         onVisionRadiusChange={noop}
+        onVisionFactorChange={noop}
         onRevealPlan={noop}
         onHidePlan={noop}
+        clues={{ rows: [], onCenter: noop, onToggle: noop }}
         {...extra}
       />,
     )

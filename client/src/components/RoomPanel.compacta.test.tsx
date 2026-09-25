@@ -37,7 +37,7 @@ function mundo(): HostWorld {
 }
 
 function jogador(over: Partial<PlayerInfo>): PlayerInfo {
-  return { clientId: 'c', playerId: 'p', name: '?', status: 'playing', connected: true, tokenIds: [], visionRadius: 700, sceneId: 's-cozinha', sceneName: COZINHA, ...over }
+  return { clientId: 'c', playerId: 'p', name: '?', status: 'playing', connected: true, tokenIds: [], visionRadius: 700, visionFactor: 1, sceneId: 's-cozinha', sceneName: COZINHA, ...over }
 }
 
 const JOGADORES: PlayerInfo[] = [
@@ -63,6 +63,7 @@ describe('aba Jogo compacta: 7 jogadores, 1 aguardando', () => {
     onUnassign: vi.fn(),
     onKick: vi.fn(),
     onVisionRadiusChange: vi.fn(),
+    onVisionFactorChange: vi.fn(),
     onRevealPlan: vi.fn(),
     onHidePlan: vi.fn(),
     onGoTo: vi.fn(),
@@ -108,9 +109,11 @@ describe('aba Jogo compacta: 7 jogadores, 1 aguardando', () => {
           onUnassign={spies.onUnassign}
           onKick={spies.onKick}
           onVisionRadiusChange={spies.onVisionRadiusChange}
+          onVisionFactorChange={spies.onVisionFactorChange}
           onRevealPlan={spies.onRevealPlan}
           onHidePlan={spies.onHidePlan}
           onToggleLaser={noop}
+          clues={{ rows: [], onCenter: noop, onToggle: noop }}
         />,
       ),
     )

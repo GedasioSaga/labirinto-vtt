@@ -29,7 +29,7 @@ describe('PlayerPinCard: marco de viagem visto de longe', () => {
     container.remove()
   })
 
-  const render = (pin: Pin): void => act(() => root.render(<PlayerPinCard pin={pin} onClose={() => {}} onRequestTravel={() => {}} />))
+  const render = (pin: Pin): void => act(() => root.render(<PlayerPinCard pin={pin} stairs={[]} onClose={() => {}} onRequestTravel={() => {}} />))
   const botoesDePassagem = (): number => container.querySelectorAll('.pp-pincard__travel').length
 
   it('de longe: sem botão de passagem, com o aviso de que é preciso chegar lá, e o texto do mestre continua', () => {

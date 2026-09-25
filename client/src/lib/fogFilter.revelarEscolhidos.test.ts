@@ -45,7 +45,7 @@ function salao(): MapData {
 }
 
 const vistaDe = (playerId: string, reveals?: SecretReveals, map: MapData = salao()) =>
-  filterMapForPlayer(map, playerId, POSSE, RAIO, undefined, undefined, undefined, reveals)
+  filterMapForPlayer(map, playerId, POSSE, RAIO, undefined, undefined, undefined, undefined, undefined, reveals)
 
 const idsDasFichas = (playerId: string, reveals?: SecretReveals, map?: MapData): string[] =>
   vistaDe(playerId, reveals, map).map.tokens.map((t) => t.id)

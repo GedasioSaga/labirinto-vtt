@@ -16,7 +16,7 @@ const IDLE: TunnelState = { kind: 'idle' }
 const TOKENS = [{ id: 'f-escudo', name: 'Escudo' }]
 
 function player(overrides: Partial<PlayerInfo> = {}): PlayerInfo {
-  return { clientId: 'c2', playerId: 'p-fabio', name: 'Fábio', status: 'playing', connected: true, tokenIds: ['f-escudo'], visionRadius: 700, ...overrides }
+  return { clientId: 'c2', playerId: 'p-fabio', name: 'Fábio', status: 'playing', connected: true, tokenIds: ['f-escudo'], visionRadius: 700, visionFactor: 1, ...overrides }
 }
 
 let container: HTMLDivElement
@@ -51,8 +51,10 @@ function render(players: PlayerInfo[], extra: { onStoreTokens?: (playerId: strin
         onUnassign={noop}
         onKick={noop}
         onVisionRadiusChange={noop}
+        onVisionFactorChange={noop}
         onRevealPlan={noop}
         onHidePlan={noop}
+        clues={{ rows: [], onCenter: noop, onToggle: noop }}
         {...extra}
       />,
     )

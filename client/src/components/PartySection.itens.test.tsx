@@ -16,11 +16,24 @@ import { RoomPanel } from './RoomPanel'
 
 const IDLE: TunnelState = { kind: 'idle' }
 const noop = (): void => {}
-const handlers = { onStart: noop, onStop: noop, onStartTunnel: noop, onStopTunnel: noop, onAssign: noop, onUnassign: noop, onKick: noop, onVisionRadiusChange: noop, onRevealPlan: noop, onHidePlan: noop }
+const handlers = {
+  onStart: noop,
+  onStop: noop,
+  onStartTunnel: noop,
+  onStopTunnel: noop,
+  onAssign: noop,
+  onUnassign: noop,
+  onKick: noop,
+  onVisionRadiusChange: noop,
+  onVisionFactorChange: noop,
+  onRevealPlan: noop,
+  onHidePlan: noop,
+  clues: { rows: [], onCenter: noop, onToggle: noop },
+}
 
 function jogadorDe(member: PartyMember): PlayerInfo {
   const tokenIds = member.token === null ? [] : [member.token.id]
-  return { clientId: 'c-' + member.playerId, playerId: member.playerId, name: member.name, status: 'playing', connected: member.connected, tokenIds, visionRadius: 700 }
+  return { clientId: 'c-' + member.playerId, playerId: member.playerId, name: member.name, status: 'playing', connected: member.connected, tokenIds, visionRadius: 700, visionFactor: 1 }
 }
 
 const DIEGO: PartyMember = {

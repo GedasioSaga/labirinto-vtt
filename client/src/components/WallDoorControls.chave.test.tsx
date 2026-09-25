@@ -22,7 +22,7 @@ describe('WallDoorControls — "Abre com"', () => {
   })
 
   const render = (door: DoorState, onKeyChange = vi.fn()) => {
-    act(() => root.render(<WallDoorControls door={door} onToggleDoor={vi.fn()} onToggleOpen={vi.fn()} onToggleLocked={vi.fn()} onToggleSecret={vi.fn()} onRevealPassage={vi.fn()} onKeyChange={onKeyChange} />))
+    act(() => root.render(<WallDoorControls door={door} onToggleDoor={vi.fn()} onToggleOpen={vi.fn()} onToggleLocked={vi.fn()} onToggleSecret={vi.fn()} onRevealPassage={vi.fn()} onKeyChange={onKeyChange} onOpensFromChange={vi.fn()} />))
     return onKeyChange
   }
   const campo = () => container.querySelector('input[aria-label="Abre com"]')

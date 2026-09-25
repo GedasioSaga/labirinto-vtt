@@ -28,7 +28,7 @@ describe('PlayerPinCard: pino só de perto', () => {
     container.remove()
   })
 
-  const render = (pin: Pin): void => act(() => root.render(<PlayerPinCard pin={pin} onClose={() => {}} />))
+  const render = (pin: Pin): void => act(() => root.render(<PlayerPinCard pin={pin} stairs={[]} onClose={() => {}} />))
   const texto = (): string => container.querySelector('.pp-pincard__text')?.textContent ?? ''
 
   it('longe: "Chegue mais perto para ler", e a imagem diz o mesmo', () => {
@@ -55,7 +55,7 @@ describe('PlayerPinCard: pino só de perto', () => {
         { id: 'porto', rotulo: 'Porto' },
       ],
     }
-    act(() => root.render(<PlayerPinCard pin={placa} onClose={() => {}} onRequestTravel={() => {}} />))
+    act(() => root.render(<PlayerPinCard pin={placa} stairs={[]} onClose={() => {}} onRequestTravel={() => {}} />))
     const botoes = Array.from(container.querySelectorAll('.pp-pincard__exits button')).map((b) => b.textContent)
     expect(botoes).toEqual(['Saída 1', 'Saída 2'])
     expect(texto()).toBe('Chegue mais perto para ler.')

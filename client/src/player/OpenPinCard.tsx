@@ -34,6 +34,7 @@ export function OpenPinCard({ pin, connection, travelWaiting, onClose }: OpenPin
       onClose={onClose}
       onRead={readPin}
       travelWaiting={travelWaiting}
+      stairs={[]}
       onRequestTravel={(exitId) => {
         // Pedido enviado, o cartão sai: a espera fica no aviso de baixo,
         // e o mapa volta inteiro à vista enquanto o mestre decide.

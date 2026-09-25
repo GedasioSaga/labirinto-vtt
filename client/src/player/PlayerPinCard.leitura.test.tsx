@@ -28,7 +28,7 @@ describe('PlayerPinCard: avisa que a pista foi lida', () => {
     container.remove()
   })
 
-  const render = (pin: Pin, onRead: (pinId: string) => void): void => act(() => root.render(<PlayerPinCard pin={pin} onClose={() => {}} onRead={onRead} />))
+  const render = (pin: Pin, onRead: (pinId: string) => void): void => act(() => root.render(<PlayerPinCard pin={pin} stairs={[]} onClose={() => {}} onRead={onRead} />))
 
   it('abrir o cartão lê a pista uma vez, mesmo com pacotes novos do mesmo pino', () => {
     const onRead = vi.fn()

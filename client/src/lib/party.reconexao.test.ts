@@ -8,7 +8,7 @@ import { offlineForLabel, partyMembers, partyPresenceLabel } from './party'
 const world: HostWorld = { open: { sceneId: null, name: 'Mapa', map: createEmptyMap('m', 'Mapa', 10, 10, 50) }, background: [] }
 
 function player(patch: Partial<PlayerInfo>): PlayerInfo {
-  return { clientId: 'c1', playerId: 'p1', name: 'Gina', status: 'waiting', connected: true, tokenIds: [], visionRadius: 700, ...patch }
+  return { clientId: 'c1', playerId: 'p1', name: 'Gina', status: 'waiting', connected: true, tokenIds: [], visionRadius: 700, visionFactor: 1, ...patch }
 }
 
 describe('party: há quanto tempo o jogador está fora', () => {
