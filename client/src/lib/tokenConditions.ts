@@ -67,23 +67,6 @@ export function toggleTokenCondition(map: MapData, tokenId: string, condition: T
   return { ...map, tokens }
 }
 
-/**
- * O campo `conditions` como o jogador pode recebê-lo: só ids da lista, sem
- * repetição, na ordem da lista; sem nenhum que valha, o campo nem viaja. Texto
- * que o mestre (ou o arquivo) tenha enfiado ali fica na máquina dele.
- *
- * Não decide SE a ficha vai: isso é de `lib/fogFilter.ts`, e a condição só
- * atravessa junto com a ficha que atravessa. Ficha já limpa sai na mesma
- * instância — nada é copiado no caminho comum.
- */
-export function tokenConditionsForPlayer(token: Token): Token {
-  if (!('conditions' in token)) return token
-  const clean = tokenConditionsOf(token)
-  const raw: unknown = token.conditions
-  const intact = clean.length > 0 && Array.isArray(raw) && raw.length === clean.length && clean.every((c, i) => raw[i] === c)
-  return intact ? token : withConditions(token, clean)
-}
-
 // ───────────────────────────────────────────────────────────────────────────
 // A PASTILHA: cor, desenho e onde ela senta
 // ───────────────────────────────────────────────────────────────────────────
