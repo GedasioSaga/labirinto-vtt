@@ -16,7 +16,9 @@ const MOVE_NOTICE_TEXT: Record<TokenMoveRejection, string> = {
   wall: 'Parede no caminho',
   outside_floor: 'Fora do chão',
   not_owner: 'Essa ficha não é sua',
-  locked: 'O mestre travou essa ficha',
+  // FICHA SEGURADA PELO MESTRE: a jogadora achava que o app tinha travado.
+  // O cadeado na própria ficha (`pixi/drawTokenLock.ts`) diz o mesmo antes do arrasto.
+  locked: 'O mestre segurou sua ficha',
   outside_map: 'Fora do mapa',
   unknown_token: 'Essa ficha não está mais aqui',
   // "Fichas ocupam espaço": não diz QUEM está lá.

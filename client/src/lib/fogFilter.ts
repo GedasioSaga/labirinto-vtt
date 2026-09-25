@@ -1111,6 +1111,18 @@ function withoutBackpack(token: Token): Token {
 }
 
 /**
+ * FICHA SEGURADA PELO MESTRE: a trava (`locked`) só atravessa na ficha do
+ * próprio jogador, onde vira o cadeado da tela dele. Na ficha de outro
+ * (colega, NPC que o mestre segura) ela diria quem o mestre está segurando.
+ * Sem trava, o mesmo objeto.
+ */
+function withoutTokenLock(token: Token): Token {
+  if (!('locked' in token)) return token
+  const { locked: _doMestre, ...solta } = token
+  return solta
+}
+
+/**
  * A marca "Ficha de jogador" é do mestre (quem ele oferece a quem chega): no
  * mapa do jogador ela diria quais fichas em volta dele estão sem dono.
  */
@@ -1881,7 +1893,7 @@ export function filterMapForGroup(
       const contrato = loanOf(t.id)
       // Emprestada: o jogador lê o nome que a MESA lê. O de trabalho é do mestre.
       const seen = withoutMasterMarks(
-        withoutNpcMark(tokenForPlayer(tokenAsSeenByPlayer(withoutContract(own ? t : withoutBackpack(t)), own && contrato === undefined))),
+        withoutNpcMark(tokenForPlayer(tokenAsSeenByPlayer(withoutContract(own ? t : withoutTokenLock(withoutBackpack(t))), own && contrato === undefined))),
       )
       return contrato === undefined || playerId === undefined ? seen : { ...seen, contrato: { ...contrato } }
     })
