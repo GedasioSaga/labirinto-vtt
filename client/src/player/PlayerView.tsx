@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react'
 import { PlayerMeasureLabel, writeMeasureText } from './PlayerMeasureLabel'
 import { Application, Container, Graphics, Sprite, Text, Texture } from 'pixi.js'
 import type { FederatedPointerEvent } from 'pixi.js'
-import type { MapData, Region, RegionPoint, Token, Wall } from '../types/map'
+import type { MapData, Pin, Region, RegionPoint, Token, TokenCompanion, Wall } from '../types/map'
 import type { RoofPeek } from '../lib/fogFilter'
 import { rasterizeMinimap, hexToRgb } from '../lib/minimapRaster'
 import type { Rgb } from '../lib/minimapRaster'
@@ -18,7 +18,8 @@ import { drawAreaTriggers } from '../pixi/drawAreaTriggers'
 import { visibleDrawings, visibleLights, visibleProps, visibleRegions, visibleStairs } from '../lib/layers'
 import { visionSegments } from '../lib/visibility'
 import { tokenReachesDoor } from '../lib/doorReach'
-import { findPlayerPinAt } from '../lib/selectionHitTest'
+import { findStairPinAt } from '../lib/selectionHitTest'
+import { findPinAt, pinSizeScale, pinTapTolerance } from '../lib/pins'
 import { visiblePins } from '../lib/layers'
 import { createPinsRenderer } from '../pixi/drawPins'
 import { drawMarcas } from '../pixi/drawMarcas'
@@ -26,11 +27,13 @@ import { acharBilheteEm } from '../lib/marcas'
 import { panBy, zoomAt } from '../pixi/world'
 import { createDebouncedTask, syncWorldTextResolution } from '../pixi/textResolution'
 import type { Bounds, Camera, Point } from '../pixi/world'
-import { arrivalCamera, centeredCamera, firstOwnToken } from './playerCamera'
+import { arrivalCamera, centeredCamera, firstOwnToken, type OwnDisc } from './playerCamera'
 import { arrivalCamera as arrivalCameraForFloor } from './arrivalCamera'
 import { fireLongPress } from './playerLongPress'
 import { createPlayerCuller, type PlayerCuller } from './playerCulling'
+import { cameraGlideFrame, edgeScrollCamera, recenterTarget, startCameraGlide, type CameraGlide } from './edgeFollow'
 import { drawOwnerPulse, drawOwnerRing, ownerRingOuterPx } from './ownerMarker'
+import { companionLabelText, drawCompanionRing } from './companionMarker'
 import { drawGrid } from '../pixi/drawGrid'
 import { currentRendererResolution, watchDevicePixelRatio } from '../pixi/rendererResolution'
 import { drawHexGrid } from '../pixi/drawHexGrid'
@@ -68,7 +71,7 @@ import { createDestinationsRenderer, createSignalsRenderer } from '../pixi/drawS
 import { SIGNAL_LONG_PRESS_MS, SIGNAL_LONG_PRESS_TOLERANCE_PX, type DestinationMark, type SignalMark } from '../lib/signals'
 import { createLaserPool, createLaserRenderer } from '../pixi/drawLaser'
 import { appendLaserPoints, pruneLaserTrail, type LaserTrail, type RemoteLaser } from '../lib/laser'
-import type { PlayerViewSettings } from './PlayerPanel'
+import { followsOwnToken, type PlayerViewSettings } from './PlayerPanel'
 import {
   MEASURE_OFF,
   measurePointFromScreen,
@@ -272,6 +275,9 @@ type Drag =
   // `reach`: contorno do alcance em px de mundo, calculado uma vez por gesto
   // (`null` na cena sem passo máximo); `label`: "N quadrados" ou nada.
   // `screenStart`/`screenLast`: o dedo em px de TELA — soltar sem andar em cima de um pino é toque no pino, não arrasto.
+  // `screenX`/`screenY`: onde o dedo está agora — a borda rola o mapa com o dedo parado, e a ficha
+  // continua sob ele. `edgeArmed`: o dedo já andou mais que a tremida de um toque (pegar a ficha que
+  // está na faixa da borda não rola nada). `edgeAt`: quadro anterior da rolagem; `null` = nenhum ainda.
   | {
       kind: 'token'
       pointerId: number
@@ -285,6 +291,12 @@ type Drag =
       label: string | null
       screenStart: Point
       screenLast: Point
+      startX: number
+      startY: number
+      screenX: number
+      screenY: number
+      edgeArmed: boolean
+      edgeAt: number | null
     }
   // Régua do jogador: o ponto vive em `scene.measure`, aqui só se marca que o gesto é dela.
   // `before`: a medida de antes do toque, que volta se o toque virar pinça.
@@ -378,6 +390,10 @@ interface TokenView {
   own: boolean
   /** Raio e zoom do aro desenhado por último; `null` = sem aro. */
   ringKey: string | null
+  /** Cor do aro de COMPANHEIRO (ficha de outro jogador, `companionMarker.ts`); `null` = NPC ou a própria ficha. */
+  companionColor: number | null
+  /** "Caio (jogador)" embaixo do nome do personagem; vazio e escondido fora da ficha de companheiro. */
+  companionLabel: Text
   /** Bico da frente (facingMarker.ts), acima do aro e abaixo do nome; vazio e escondido na ficha sem frente. */
   facingNib: Graphics
   /** Para onde a ficha olha, em radianos (`tokenFacing`); `null` = sem frente. O ângulo DESENHADO é `facingNib.rotation`. */
@@ -484,15 +500,36 @@ export function paintTokenView(view: TokenView, token: Token, grid: number, own:
   // ENCONTRO MARCADO: a marca "esperando" vai no próprio nome — o mapa fica o
   // minimapa limpo de sempre, sem ícone novo por cima da ficha.
   view.label.text = rotuloDaFicha(token.name, waiting)
+  paintCompanion(view, own ? undefined : token.companion)
 }
 
-/** Aro de dono no zoom atual; só refaz quando raio, dono ou zoom mudam. */
+/**
+ * MARCA DE COMPANHEIRO: a ficha de outro jogador ganha o aro na cor dele e o
+ * nome dele embaixo do nome do personagem. Cor fora de `#rrggbb` fica sem aro
+ * (a etiqueta continua dizendo de quem é); `Text` nunca é destruído, só esvazia.
+ */
+function paintCompanion(view: TokenView, companion: TokenCompanion | undefined): void {
+  view.companionColor = companion === undefined ? null : parseHexColor(companion.color)
+  view.companionLabel.text = companion === undefined ? '' : companionLabelText(companion)
+  view.companionLabel.style.fill = view.companionColor ?? TOKEN_NAME_FILL_COLOR
+}
+
+/** Aro de dono (ou de companheiro) no zoom atual; só refaz quando raio, dono, cor ou zoom mudam. */
 function syncOwnerRing(view: TokenView, cameraScale: number): void {
-  const key = view.own ? `${view.radius}@${cameraScale}` : null
+  const key = view.own ? `${view.radius}@${cameraScale}` : view.companionColor !== null ? `${view.radius}@${cameraScale}@${view.companionColor}` : null
   if (key === view.ringKey) return
   view.ringKey = key
   if (key === null) view.ring.clear()
-  else drawOwnerRing(view.ring, view.radius, cameraScale)
+  else if (view.own) drawOwnerRing(view.ring, view.radius, cameraScale)
+  else if (view.companionColor !== null) drawCompanionRing(view.ring, view.radius, cameraScale, view.companionColor)
+}
+
+/** A etiqueta do companheiro segue o nome: mesmo tamanho, mesma visibilidade, logo abaixo dele. */
+function placeCompanionLabel(view: TokenView): void {
+  const { label, companionLabel } = view
+  companionLabel.visible = label.visible && companionLabel.text !== ''
+  companionLabel.scale.copyFrom(label.scale)
+  companionLabel.position.set(label.position.x, label.position.y + (label.text === '' ? 0 : label.height))
 }
 
 /**
@@ -582,12 +619,16 @@ export function createTokenView(token: Token, grid: number, own: boolean, turn =
   label.anchor.set(0.5, 0)
   const bar = new Graphics()
   bar.label = HEALTH_BAR_LABEL
+  // Depois do nome, de propósito: o primeiro `Text` da ficha continua sendo o nome do personagem.
+  const companionLabel = new Text({ text: '', style: { fontSize: LABEL_FONT_SIZE, fill: TOKEN_NAME_FILL_COLOR, stroke: { color: TOKEN_NAME_OUTLINE_COLOR, width: 3 } } })
+  companionLabel.anchor.set(0.5, 0)
+  companionLabel.visible = false
   // Por último: a marca de condição fica por cima do disco e da foto.
   const marks = new Graphics()
   marks.label = CONDITION_MARKS_LABEL
   const alert = new Graphics()
   alert.label = WATCH_ALERT_LABEL
-  wrapper.addChild(photoMask, photo, body, ring, bar, facingNib, label, marks, alert)
+  wrapper.addChild(photoMask, photo, body, ring, bar, facingNib, label, companionLabel, marks, alert)
   applyTokenTouch(wrapper, own)
   const view: TokenView = {
     wrapper,
@@ -598,6 +639,8 @@ export function createTokenView(token: Token, grid: number, own: boolean, turn =
     radius: tokenRadius(token, grid),
     own,
     ringKey: null,
+    companionColor: null,
+    companionLabel,
     facingNib,
     facing: null,
     facingKey: null,
@@ -638,7 +681,8 @@ export function tokenViewKey(token: Token, grid: number, own: boolean, turn = fa
   // que ganham/perdem o anel.
   // A marca do guarda também: sem ela o "!" ficaria na tela depois de ele perder o jogador de vista.
   // `waiting` idem: a marca "esperando" (ENCONTRO MARCADO) entra e sai sem o nome mudar.
-  return JSON.stringify([token.name, token.size, grid, own, tokenPhotoRef(token) !== null, token.color ?? null, healthKey, tokenConditionsOf(token), turn, watchAlertOf(token), waiting])
+  // A marca de companheiro também: a ficha que deixa de ser de jogador (ou passa a ser) repinta na hora.
+  return JSON.stringify([token.name, token.size, grid, own, tokenPhotoRef(token) !== null, token.color ?? null, healthKey, tokenConditionsOf(token), turn, watchAlertOf(token), waiting, token.companion ?? null])
 }
 
 interface Scene {
@@ -733,6 +777,8 @@ interface Scene {
   /** BILHETE NO LUGAR: bilhetes e setas de giz, logo abaixo dos pinos. */
   marks: Graphics
   lastMarksKey: string | null
+  /** Fator de tamanho mínimo com que os pinos foram pintados por último (`pinSizeScale`). */
+  pinsSizeScale: number
   /** Zonas ocultas: preto opaco acima da névoa e abaixo dos tokens. */
   concealed: Graphics
   lastConcealed: RegionPoint[][] | null
@@ -771,6 +817,8 @@ interface Scene {
   touch: TouchState
   /** Degrau dos botões + e − ainda andando; `null` = parado. O ticker o leva até o fim. */
   zoomAnimation: ZoomAnimation | null
+  /** Recentrar na própria ficha solta perto da borda (edgeFollow.ts); `null` = parado. */
+  cameraGlide: CameraGlide | null
   /** Espaço de tela, acima do `world`: ondas e seta de borda com tamanho fixo. */
   signalsLayer: Container
   signalsRenderer: ReturnType<typeof createSignalsRenderer>
@@ -1009,6 +1057,7 @@ function startOwnerPulse(scene: Scene, tokenId: string): void {
  */
 function setCameraFromApp(scene: Scene, camera: Camera): void {
   scene.zoomAnimation = null
+  scene.cameraGlide = null
   scene.camera = camera
   scene.touch = rebasePinch(scene.touch, camera)
   applyCamera(scene)
@@ -1022,6 +1071,8 @@ function setCameraFromApp(scene: Scene, camera: Camera): void {
 function stepZoom(scene: Scene, direction: ZoomDirection, animate: boolean): void {
   // Pinça em andamento manda na câmera: o botão tocado com outro dedo não disputa com ela.
   if (scene.touch.pinch !== null) return
+  // O + assume a câmera: o recentrar que andava para onde está, senão a puxaria de volta.
+  scene.cameraGlide = null
   const anchor = { x: scene.app.screen.width / 2, y: scene.app.screen.height / 2 }
   if (animate && !prefersReducedMotion()) {
     const animation = zoomStepAnimation(scene.camera, scene.zoomAnimation, anchor, direction, performance.now())
@@ -1362,13 +1413,20 @@ export function PlayerView({
     return findTapTarget(visiblePins(map.pins ?? [], map.hiddenLayers), visibleWalls(map), point, DOOR_TAP_TOLERANCE_PX / scene.camera.scale)
   }
 
-  /** Pino sob o ponto da TELA, com a mesma folga de dedo da porta. */
+  /**
+   * Pino sob o ponto da TELA: o pino como está desenhado (crescido no zoom
+   * afastado, `pinSizeScale`), com a folga de dedo da porta limitada ao
+   * tamanho dele — de longe, um toque ao lado não abre pino que não aparece.
+   */
   function pinAtScreen(scene: Scene, screenX: number, screenY: number): string | null {
     const map = latestRef.current.map
     const point = scene.world.toLocal({ x: screenX, y: screenY })
-    // O pino à vista ou, no lance de uma escada que leva a outro andar, o pino
-    // invisível dela ("Subir"/"Descer"). Escada sem ligação não tem pino no recorte.
-    const pin = findPlayerPinAt({ stairs: map.stairs, pins: map.pins ?? [], hiddenLayers: map.hiddenLayers }, point, DOOR_TAP_TOLERANCE_PX / scene.camera.scale)
+    const scale = scene.camera.scale
+    // O pino à vista (no tamanho desenhado) ou, no lance de uma escada que leva a outro
+    // andar, o pino invisível dela ("Subir"/"Descer"). Escada sem ligação não tem pino no recorte.
+    const pin =
+      findPinAt(visiblePins(map.pins ?? [], map.hiddenLayers), point, pinTapTolerance(DOOR_TAP_TOLERANCE_PX, scale), pinSizeScale(scale)) ??
+      findStairPinAt({ stairs: map.stairs, pins: map.pins ?? [], hiddenLayers: map.hiddenLayers }, point, DOOR_TAP_TOLERANCE_PX / scale)
     return pin === null ? null : pin.id
   }
 
@@ -1395,6 +1453,23 @@ export function PlayerView({
   }
 
   /**
+   * Pinta os pinos no tamanho deste zoom. `pins` já vem do recorte do mestre
+   * (lib/fogFilter.ts) e das camadas ocultas: o que chega é o que se toca.
+   */
+  function paintPins(scene: Scene, pins: readonly Pin[]): void {
+    const sizeScale = pinSizeScale(scene.camera.scale)
+    scene.pinsSizeScale = sizeScale
+    scene.pinsRenderer.draw(scene.pins, pins, null, undefined, sizeScale)
+  }
+
+  /** Zoom: os pinos só repintam quando o fator de tamanho mínimo muda (de perto ele é sempre 1). */
+  function redrawPinsForZoom(scene: Scene): void {
+    if (pinSizeScale(scene.camera.scale) === scene.pinsSizeScale) return
+    const map = latestRef.current.map
+    paintPins(scene, visiblePins(map.pins ?? [], map.hiddenLayers))
+  }
+
+  /**
    * TEXTO DA SALA: Sala cujo NOME está sob o ponto da tela e cujo texto já
    * chegou ao jogador. A caixa do rótulo é medida com todas as Salas (o rótulo
    * desvia das filhas) e com as fichas (o rótulo sai de baixo delas), como no
@@ -1414,12 +1489,14 @@ export function PlayerView({
     redrawStairsLayer(scene)
     redrawWallsLayer(scene)
     redrawDoorHints(scene)
+    redrawPinsForZoom(scene)
     scene.roomNamesRenderer.setCameraScale(scene.camera.scale)
     const { showNames } = latestRef.current.settings
     for (const view of scene.tokenViews.values()) {
       sizeTokenLabel(view.label, scene.camera.scale, showNames)
       syncOwnerRing(view, scene.camera.scale)
       syncFacingNib(view, scene.camera.scale)
+      placeCompanionLabel(view)
     }
   }
 
@@ -1514,9 +1591,9 @@ export function PlayerView({
 
     const pins = visiblePins(currentMap.pins ?? [], hidden)
     const pinsKey = JSON.stringify(pins)
-    if (pinsKey !== scene.lastPinsKey) {
+    if (pinsKey !== scene.lastPinsKey || pinSizeScale(scene.camera.scale) !== scene.pinsSizeScale) {
       scene.lastPinsKey = pinsKey
-      scene.pinsRenderer.draw(scene.pins, pins, null)
+      paintPins(scene, pins)
     }
 
     // Reaproveita a view por id e NUNCA destrói `Text` durante a sessão: Text
@@ -1541,6 +1618,7 @@ export function PlayerView({
     const draggedId = scene.drag?.kind === 'token' ? scene.drag.tokenId : null
     const now = performance.now()
     let facingCount = 0
+    let companionsCount = 0
     for (const token of currentMap.tokens) {
       const isOwn = ownSet.has(token.id)
       const isTurn = token.id === currentTurn
@@ -1569,7 +1647,9 @@ export function PlayerView({
       sizeTokenLabel(view.label, scene.camera.scale, currentSettings.showNames)
       syncOwnerRing(view, scene.camera.scale)
       syncFacing(view, token, scene.tokenTurns, { shown: shownFacing, now, animate: sameScene && !reducedMotion, cameraScale: scene.camera.scale })
+      placeCompanionLabel(view)
       if (view.facing !== null) facingCount += 1
+      if (view.companionColor !== null || view.companionLabel.text !== '') companionsCount += 1
       view.wrapper.visible = true
       // A ficha sob o dedo é do arrasto (abaixo): não desliza atrás dele.
       const animate = sameScene && !reducedMotion && token.id !== draggedId
@@ -1590,6 +1670,7 @@ export function PlayerView({
       el.dataset.floorDrawn = String(scene.floorDrawn)
       el.dataset.tokensCount = String(currentMap.tokens.length)
       el.dataset.facingCount = String(facingCount)
+      el.dataset.companionsCount = String(companionsCount)
       el.dataset.regionsCount = String(regions.filter((r) => !isDegenerateRegion(r.points)).length)
       el.dataset.labelsCount = String(drawings.filter((d) => d.kind === 'text').length)
       el.dataset.exploredCells = String(scene.exploredCells)
@@ -1635,6 +1716,25 @@ export function PlayerView({
     latestRef.current.onLaserEnd?.()
   }
 
+  /**
+   * Soltou a própria ficha perto da borda, ou debaixo do painel, com "Câmera
+   * segue minha ficha" ligado (ver `followsOwnToken`): a câmera vai
+   * até ela em `RECENTER_MS`, e de uma vez para quem pediu ao sistema menos
+   * movimento. No miolo da tela a câmera fica onde está.
+   */
+  function recenterOnDrop(scene: Scene, own: OwnDisc): void {
+    const viewport = { width: scene.app.screen.width, height: scene.app.screen.height }
+    const target = recenterTarget(scene.camera, own, viewport, readObstacles())
+    if (target === null) return
+    if (prefersReducedMotion()) {
+      setCameraFromApp(scene, target)
+      return
+    }
+    // O recentrar assume a câmera: o degrau do + que andava para onde está.
+    scene.zoomAnimation = null
+    scene.cameraGlide = startCameraGlide(scene.camera, target, performance.now())
+  }
+
   function startTokenDrag(scene: Scene, tokenId: string, event: FederatedPointerEvent): void {
     // Alt+clique ou modo Sinalizar sobre um token: deixa o evento subir para o palco sinalizar.
     // Modo Medir também: medir a partir da própria ficha é o caso mais comum, e ela não pode andar.
@@ -1650,6 +1750,8 @@ export function PlayerView({
     const world = scene.world.toLocal(event.global)
     // Pegou a ficha no meio de um deslize: ela para onde está e passa a seguir o dedo.
     scene.tokenGlides.delete(tokenId)
+    // Pegou a ficha no meio do recentrar: a câmera para onde está, e a borda passa a mandar nela.
+    scene.cameraGlide = null
     const origin = { x: view.x, y: view.y }
     const screen = { x: event.global.x, y: event.global.y }
     scene.drag = {
@@ -1665,6 +1767,12 @@ export function PlayerView({
       label: null,
       screenStart: screen,
       screenLast: screen,
+      startX: screen.x,
+      startY: screen.y,
+      screenX: screen.x,
+      screenY: screen.y,
+      edgeArmed: false,
+      edgeAt: null,
     }
   }
 
@@ -1871,6 +1979,7 @@ export function PlayerView({
         triggersCount: 0,
         marks,
         lastMarksKey: null,
+        pinsSizeScale: 1,
         concealed,
         lastConcealed: null,
         concealedCount: 0,
@@ -1893,6 +2002,7 @@ export function PlayerView({
         drag: null,
         touch: NO_TOUCH,
         zoomAnimation: null,
+        cameraGlide: null,
         signalsLayer,
         signalsRenderer: createSignalsRenderer(),
         destinationsLayer,
@@ -1928,6 +2038,50 @@ export function PlayerView({
         applyCamera(scene)
       }
       app.ticker.add(tickZoom)
+
+      // Recentrar na ficha solta perto da borda. Logo depois do degrau, pelo mesmo motivo.
+      const tickCameraGlide = () => {
+        const glide = scene.cameraGlide
+        if (glide === null) return
+        const frame = cameraGlideFrame(glide, performance.now())
+        scene.camera = frame.camera
+        if (frame.done) scene.cameraGlide = null
+        applyCamera(scene)
+      }
+      app.ticker.add(tickCameraGlide)
+
+      // Ficha arrastada na faixa da borda: o mapa rola a cada quadro, com o dedo parado ou não,
+      // e a ficha continua sob o dedo. Só a câmera desta tela — nada vai pela rede até soltar.
+      const tickEdgeScroll = () => {
+        const drag = scene.drag
+        if (drag?.kind !== 'token' || !drag.edgeArmed) return
+        // Pinça em curso manda na câmera (o dedo da ficha nem é dela, mas não disputa).
+        if (scene.touch.pinch !== null) return
+        const now = performance.now()
+        const elapsed = drag.edgeAt === null ? 0 : now - drag.edgeAt
+        drag.edgeAt = now
+        const current = latestRef.current.map
+        const mapBounds = { minX: 0, minY: 0, maxX: current.width * current.grid, maxY: current.height * current.grid }
+        const viewport = { width: app.screen.width, height: app.screen.height }
+        // A borda é a da área que o painel deixa livre, a mesma do recentrar ao soltar.
+        const next = edgeScrollCamera(scene.camera, { x: drag.screenX, y: drag.screenY }, viewport, mapBounds, elapsed, readObstacles())
+        if (next === null) return
+        // A borda assume a câmera: o degrau do + para onde está.
+        scene.zoomAnimation = null
+        scene.camera = next
+        applyCamera(scene)
+        // Passo máximo vale também com a borda rolando: a ficha para no alcance.
+        const preview = previewTokenDrag(current, drag.origin, {
+          x: (drag.screenX - next.x) / next.scale + drag.offsetX,
+          y: (drag.screenY - next.y) / next.scale + drag.offsetY,
+        })
+        drag.x = preview.at.x
+        drag.y = preview.at.y
+        drag.label = preview.label
+        scene.tokenViews.get(drag.tokenId)?.wrapper.position.set(drag.x, drag.y)
+        syncTokenDrag(scene)
+      }
+      app.ticker.add(tickEdgeScroll)
 
       let signalsDrawn = 0
       const tickSignals = () => {
@@ -2108,8 +2262,9 @@ export function PlayerView({
         event.stopPropagation()
         if (role !== 'pinch') return
         abandonDrag()
-        // A pinça partiu da câmera deste instante: o degrau dos botões para aqui, senão puxaria o mapa de volta.
+        // A pinça partiu da câmera deste instante: o degrau dos botões e o recentrar param aqui, senão puxariam o mapa de volta.
         scene.zoomAnimation = null
+        scene.cameraGlide = null
       })
 
       app.stage.on('pointerdown', (event: FederatedPointerEvent) => {
@@ -2227,8 +2382,9 @@ export function PlayerView({
           return
         }
         if (drag.kind === 'pan') {
-          // Arrastar o mapa assume a câmera: o degrau dos botões para onde está (tocar sem arrastar, não).
+          // Arrastar o mapa assume a câmera: o degrau dos botões e o recentrar param onde estão (tocar sem arrastar, não).
           scene.zoomAnimation = null
+          scene.cameraGlide = null
           scene.camera = panBy(scene.camera, event.global.x - drag.lastX, event.global.y - drag.lastY)
           drag.lastX = event.global.x
           drag.lastY = event.global.y
@@ -2243,6 +2399,12 @@ export function PlayerView({
         drag.y = preview.at.y
         drag.label = preview.label
         drag.screenLast = { x: event.global.x, y: event.global.y }
+        drag.screenX = event.global.x
+        drag.screenY = event.global.y
+        // Andou mais que a tremida de um toque: a partir daqui a borda rola o mapa (tickEdgeScroll).
+        if (!drag.edgeArmed && Math.hypot(drag.screenX - drag.startX, drag.screenY - drag.startY) > SIGNAL_LONG_PRESS_TOLERANCE_PX) {
+          drag.edgeArmed = true
+        }
         scene.tokenViews.get(drag.tokenId)?.wrapper.position.set(drag.x, drag.y)
         syncTokenDrag(scene)
       })
@@ -2306,6 +2468,10 @@ export function PlayerView({
         )
         if (release.kind === 'move') {
           latestRef.current.onMove(drag.tokenId, release.x, release.y)
+          // "Câmera segue minha ficha" (Painel): desligado, a câmera fica onde o jogador a deixou.
+          if (token !== null && followsOwnToken(latestRef.current.settings)) {
+            recenterOnDrop(scene, { x: release.x, y: release.y, radius: tokenRadius(token, latestRef.current.map.grid) })
+          }
           return
         }
         // Toque, ou arrasto que não mudou nada: a ficha volta para onde o mapa diz.
@@ -2346,8 +2512,9 @@ export function PlayerView({
 
       const onWheel = (event: WheelEvent) => {
         event.preventDefault()
-        // A roda assume a câmera: o degrau dos botões para onde está.
+        // A roda assume a câmera: o degrau dos botões e o recentrar param onde estão.
         scene.zoomAnimation = null
+        scene.cameraGlide = null
         const rect = app.canvas.getBoundingClientRect()
         scene.camera = zoomAt(scene.camera, { x: event.clientX - rect.left, y: event.clientY - rect.top }, event.deltaY)
         // applyCamera chama onZoom → redrawZoomLayers: paredes e portas refazem a largura de tela.
@@ -2372,6 +2539,8 @@ export function PlayerView({
         app.canvas.removeEventListener('pointercancel', onPointerCancel)
         cancelLongPress()
         app.ticker.remove(tickZoom)
+        app.ticker.remove(tickCameraGlide)
+        app.ticker.remove(tickEdgeScroll)
         app.ticker.remove(tickSignals)
         app.ticker.remove(tickDestinations)
         app.ticker.remove(tickPersonalNotes)

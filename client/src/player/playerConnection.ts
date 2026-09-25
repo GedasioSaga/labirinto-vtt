@@ -230,6 +230,14 @@ export interface PlayerState {
    */
   arrivalFocus?: { seq: number; tokenId: string | null }
   /**
+   * "Me avise quando der": ids dos pinos de viagem TRANCADOS desta cena que o
+   * jogador marcou. Mora só aqui (o host não sabe): é o snapshot que ele já
+   * recebe que diz quando a passagem abriu. Trocar de cena apaga a lista.
+   */
+  passageWatch?: string[]
+  /** Uma passagem marcada abriu; some sozinho. `id` novo repete o aviso. */
+  passageOpened?: { id: number }
+  /**
    * Recado do mestre para a cena do jogador. Fica até ele fechar
    * (`dismissNote`); um recado novo toma o lugar do aberto. É texto puro: a
    * tela o mostra como texto, nunca como HTML. `onlyYou`: o mestre mandou só
@@ -378,6 +386,12 @@ export interface PlayerState {
   waitEnded?: { id: number; end: FimDaEspera }
   /** ENCONTRO MARCADO: ids das fichas do mapa recebido com a marca "esperando". */
   waitingTokens?: string[]
+  /**
+   * VOLTO JÁ: o jogador saiu da mesa por um instante. A tela mostra "Você está
+   * fora da mesa · Voltar" no lugar do mapa, e a queda da conexão nesse
+   * meio-tempo não vira aviso de queda. Ausente no resto do tempo.
+   */
+  away?: true
   rev: number
   playerId?: string
   /** Motivo quando `status === 'error'`: razão do mestre ou 'connection_lost'. */
@@ -652,6 +666,12 @@ export interface PlayerConnection {
   /** Fechou o "Deixar marca aqui…": o resultado perde o sentido. */
   resetMarkPlace(): void
   /**
+   * "Me avise quando der": liga (`on`) ou desliga o aviso de quando o pino de
+   * viagem `pinId`, hoje trancado, abrir. Nada sai pela rede. `false` quando
+   * não joga ou quando ligar não faz sentido (pino fora do mapa ou aberto).
+   */
+  watchPassage(pinId: string, on: boolean): boolean
+  /**
    * Ponteiro do LASER do jogador em px de mundo. Sai em lotes: o primeiro
    * ponto na hora, os seguintes juntos a cada `LASER_SEND_INTERVAL_MS`.
    * `false` se não está jogando ou o socket não está aberto.
@@ -778,6 +798,13 @@ export interface PlayerConnection {
   stopWait(): boolean
   /** Fecha o aviso do fim da espera antes do tempo. */
   dismissWaitEnded(): void
+  /**
+   * VOLTO JÁ. `true`: avisa o mestre que saiu da mesa (`false` se não está
+   * jogando ou o socket caiu). `false` ("Voltar"): com o socket de pé, só
+   * avisa; com ele caído durante a ausência, religa, retoma a sessão e pede a
+   * volta assim que o mestre responder. `false` também quando não estava fora.
+   */
+  setAway(away: boolean): boolean
   /** Abre um socket novo (reconectar), reaproveitando o resumeToken guardado. */
   reconnect(): void
   /**
@@ -841,6 +868,11 @@ export const TRAVEL_NOTICE_TTL_MS = 4000
 export const TRAVEL_DENIED_WITH_REASON_TTL_MS = 8000
 /** Quanto tempo "O mestre viu" e "Espere um instante" ficam no lugar da mão. */
 export const CALL_NOTICE_TTL_MS = 4000
+/**
+ * "A passagem que você marcou abriu" espera mais que uma recusa: quem pediu o
+ * aviso estava fazendo outra coisa, e o aviso existe para chamar a atenção dele.
+ */
+export const PASSAGE_OPENED_NOTICE_TTL_MS = 12_000
 /**
  * "Você chegou" é mudança de lugar: sai quando o jogador mexe a própria ficha
  * (aí já viu onde está, mesma regra da reunião) ou depois deste teto. Era
@@ -1128,6 +1160,12 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
   // A última tela do mestre, sem o otimista (ver `ReceivedView`); `null` = nenhuma.
   let received: ReceivedView | null = null
   let lastResyncAt = Number.NEGATIVE_INFINITY
+  /**
+   * VOLTO JÁ: o jogador apertou "Voltar" com o socket caído. A retomada chega
+   * com o host ainda o vendo fora (`away: true`); este é o sinal de pedir a
+   * volta em vez de mostrar a tela de ausente de novo.
+   */
+  let wantsBack = false
   let socket: SocketLike | null = null
   let pingTimer: ReturnType<typeof setInterval> | null = null
   const isHidden = options.isHidden ?? (() => false)
@@ -1326,6 +1364,38 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       secretCheckNoticeTimer = null
       setState({ secretCheckNotice: undefined })
     }, SECRET_CHECK_NOTICE_TTL_MS)
+  }
+
+  let passageOpenedTimer: ReturnType<typeof setTimeout> | null = null
+
+  function clearPassageOpenedTimer(): void {
+    if (passageOpenedTimer !== null) clearTimeout(passageOpenedTimer)
+    passageOpenedTimer = null
+  }
+
+  /** O que era da cena de antes: as marcas de "me avise" e o aviso na tela. */
+  const NO_PASSAGE_WATCH: Pick<PlayerState, 'passageWatch' | 'passageOpened'> = { passageWatch: undefined, passageOpened: undefined }
+
+  /**
+   * Das passagens marcadas, as que o mapa novo traz ABERTAS: essas viram
+   * aviso e saem da lista. Pino que não veio (névoa, o mestre escondeu) fica
+   * marcado — ausência no recorte não diz que a porta abriu.
+   */
+  function passageWatchAfter(map: MapData): Partial<PlayerState> {
+    const watched = state.passageWatch ?? []
+    if (watched.length === 0) return {}
+    const opened = watched.filter((pinId) => {
+      const pin = map.pins.find((p) => p.id === pinId)
+      return pin !== undefined && passageOf(pin) !== 'trancada'
+    })
+    if (opened.length === 0) return {}
+    clearPassageOpenedTimer()
+    passageOpenedTimer = setTimeout(() => {
+      passageOpenedTimer = null
+      setState({ passageOpened: undefined })
+    }, PASSAGE_OPENED_NOTICE_TTL_MS)
+    const still = watched.filter((pinId) => !opened.includes(pinId))
+    return { passageWatch: still.length === 0 ? undefined : still, passageOpened: { id: nextNoticeId++ } }
   }
 
   let travelTimer: ReturnType<typeof setTimeout> | null = null
@@ -1856,6 +1926,9 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       scheduleAttempt()
       return
     }
+    // VOLTO JÁ: o jogador saiu de propósito (celular no bolso, aba de lado).
+    // A queda não vira aviso nem volta sozinha; o "Voltar" religa.
+    if (state.away === true) return
     // Já estava na sala: Wi-Fi que pisca ou tela bloqueada. Volta sozinho.
     if (state.playerId !== undefined) {
       beginReconnect()
@@ -2026,7 +2099,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     arrivalTokenId = null
     // `sceneName` entra SEMPRE, inclusive `undefined`: snapshot sem nome apaga o selo da cena anterior.
     // O mapa chegou: quem pedia ficha já tem uma, e o pedido termina aqui.
-    setState({ status: 'playing', rev, map: next, vision, explored, ownTokens, partyTokens, concealed, glimpses, hazards, gatilhos, andares, relogio, turn: turnOnMap, sceneName, place, places, elsewhere, peek, waitingTokens, error: undefined, seatClaim: undefined, arrivalFocus })
+    setState({ status: 'playing', rev, map: next, vision, explored, ownTokens, partyTokens, concealed, glimpses, hazards, gatilhos, andares, relogio, turn: turnOnMap, sceneName, place, places, elsewhere, peek, waitingTokens, error: undefined, seatClaim: undefined, arrivalFocus, ...passageWatchAfter(next) })
   }
 
   /**
@@ -2186,6 +2259,28 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     }
   }
 
+  /**
+   * VOLTO JÁ: o estado que o host guarda. `travelPending` devolve o "Aguardando
+   * o mestre…" que a retomada tinha apagado — o pedido ficou suspenso lá.
+   */
+  function handleAway(away: boolean, travelPending: boolean): void {
+    if (travelPending && state.travel?.phase !== 'waiting') {
+      clearTravelTimer()
+      setState({ travel: { id: nextNoticeId++, phase: 'waiting', direct: false } })
+    }
+    if (!away) {
+      wantsBack = false
+      if (state.away !== undefined) setState({ away: undefined })
+      return
+    }
+    // Apertou "Voltar" com o socket caído: a retomada ainda o vê fora, e a volta sai agora.
+    if (wantsBack) {
+      send({ type: 'away', away: false })
+      return
+    }
+    if (state.away !== true) setState({ away: true })
+  }
+
   function handleMessage(raw: unknown): void {
     if (typeof raw !== 'string') return
     let data: unknown
@@ -2223,6 +2318,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         clearMoveNotice()
         clearTurnNotice()
         clearTravelTimer()
+        clearPassageOpenedTimer()
         clearItemTimer()
         clearLeverTimer()
         clearHazardNotice()
@@ -2291,6 +2387,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
           wait: undefined,
           waitEnded: undefined,
           waitingTokens: undefined,
+          ...NO_PASSAGE_WATCH,
         })
         return
       case 'scene.changed':
@@ -2303,6 +2400,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         arrivalTokenId = typeof data.tokenId === 'string' ? data.tokenId : null
         forgetSceneLocals()
         stopWalk()
+        clearPassageOpenedTimer()
         clearTurnNotice()
         clearHazardNotice()
         // O ruído era da cena de antes: a direção dele não vale no mapa novo.
@@ -2312,7 +2410,8 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         // A porta tocada ficou na cena de antes: o "Trancada" e os botões dele perdem o sentido.
         // O ponto do toque longo era da cena de antes: a época vira.
         // A lista de "Mostrar meu mapa a…" era de quem estava na cena de antes; a fechadura e a marca também.
-        setState({ doorRequest: undefined, turnNotice: undefined, hazardNotice: undefined, noise: undefined, mapPeers: undefined, mapShare: undefined, lockAnswer: undefined, markPlace: undefined, sceneEpoch: state.sceneEpoch + 1 })
+        // As marcas de "me avise" também: o id do pino era de lá.
+        setState({ doorRequest: undefined, turnNotice: undefined, hazardNotice: undefined, noise: undefined, mapPeers: undefined, mapShare: undefined, lockAnswer: undefined, markPlace: undefined, sceneEpoch: state.sceneEpoch + 1, ...NO_PASSAGE_WATCH })
         {
           // TEXTO DE CHEGADA: o da cena nova, ou nenhum — o cartão da cena de
           // antes não fica aberto por cima de outro lugar.
@@ -2738,6 +2837,10 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         const undone = handleRejected(data.reqId, data.reason)
         if (undone && data.reason === 'not_your_turn') showTurnNotice()
         return
+      case 'away':
+        if (typeof data.away !== 'boolean') return
+        handleAway(data.away, data.travelPending === true)
+        return
       case 'kicked':
         writeResume(storage, null)
         clearReconnectTimers()
@@ -2766,7 +2869,9 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         clearMapSharedTimer()
         clearTokenAction()
         clearWaitEndedTimer()
-        setState({ status: 'closed', playerLasers: undefined, doorNotice: undefined, doorRequest: undefined, moveNotice: undefined, turnNotice: undefined, travel: undefined, item: undefined, lever: undefined, hazardNotice: undefined, call: undefined, reconnecting: undefined, pointNotice: undefined, noise: undefined, secretCheck: undefined, secretCheckNotice: undefined, mapShared: undefined, tokenAction: undefined, wait: undefined, waitEnded: undefined })
+        clearPassageOpenedTimer()
+        wantsBack = false
+        setState({ status: 'closed', away: undefined, playerLasers: undefined, doorNotice: undefined, doorRequest: undefined, moveNotice: undefined, turnNotice: undefined, travel: undefined, item: undefined, lever: undefined, hazardNotice: undefined, call: undefined, reconnecting: undefined, pointNotice: undefined, noise: undefined, secretCheck: undefined, secretCheckNotice: undefined, mapShared: undefined, tokenAction: undefined, wait: undefined, waitEnded: undefined, ...NO_PASSAGE_WATCH })
         return
       case 'session.replaced':
         // A sessão foi para outra aba (ou aparelho). O resume FICA: é o mesmo
@@ -2869,9 +2974,23 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     clearMapSharedTimer()
     clearTokenAction()
     clearWaitEndedTimer()
+    clearPassageOpenedTimer()
     const current = socket
     socket = null
     current?.close()
+  }
+
+  /** Socket novo (reconectar), reaproveitando o resumeToken guardado. */
+  function restart(): void {
+    detach()
+    // `places` fica: o host não reenvia o desenho dos lugares de antes, e o
+    // primeiro snapshot da volta solta o que ele não lembrar mais.
+    dropQueuedSecretChecks()
+    received = null
+    // As marcas de "me avise" saem: a volta pode cair em outra cena. O Volto
+    // já também: quem diz se ele segue fora é o host, na retomada.
+    setState({ status: 'connecting', error: undefined, rev: -1, map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, partyTokens: undefined, concealed: undefined, glimpses: undefined, elsewhere: undefined, peek: undefined, sceneName: undefined, place: undefined, destinations: undefined, hazards: undefined, hazardNotice: undefined, gatilhos: undefined, andares: undefined, relogio: undefined, turn: undefined, signals: undefined, laser: undefined, playerLasers: undefined, doorNotice: undefined, doorRequest: undefined, moveNotice: undefined, turnNotice: undefined, travel: undefined, note: undefined, arrival: undefined, alarm: undefined, item: undefined, lever: undefined, roomText: undefined, notebook: undefined, unreadNotes: undefined, clues: undefined, shownClue: undefined, cluePeers: undefined, clueShow: undefined, paused: undefined, call: undefined, reconnecting: undefined, pointNotice: undefined, noise: undefined, secretCheck: undefined, secretCheckNotice: undefined, mapPeers: undefined, mapShare: undefined, mapShared: undefined, tokenAction: undefined, wait: undefined, waitEnded: undefined, waitingTokens: undefined, away: undefined, ...NO_PASSAGE_WATCH })
+    open()
   }
 
   open()
@@ -2951,6 +3070,19 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       setState({ doorNotice: undefined })
     },
 
+    watchPassage(pinId, on) {
+      if (state.status !== 'playing') return false
+      const watched = state.passageWatch ?? []
+      if (!on) {
+        const kept = watched.filter((id) => id !== pinId)
+        setState({ passageWatch: kept.length === 0 ? undefined : kept })
+        return true
+      }
+      const pin = state.map?.pins.find((p) => p.id === pinId)
+      if (pin === undefined || pin.kind !== 'viagem' || passageOf(pin) !== 'trancada') return false
+      if (!watched.includes(pinId)) setState({ passageWatch: [...watched, pinId] })
+      return true
+    },
     requestTravel(pinId, exitId) {
       // O pino livre agenda o envio (e o aviso "Passando…") antes de chamar `send`: a tela da mesa sai aqui.
       if (isTable || state.status !== 'playing' || pinId.length === 0 || state.travel?.phase === 'waiting') return false
@@ -3308,15 +3440,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       // escolheu, e é a embutida que viaja. Mesma forma que o host vai gravar.
       return editOwnToken(tokenId, { type: 'token.edit', tokenId, image }, { image: null, imageData: image })
     },
-    reconnect() {
-      detach()
-      // `places` fica: o host não reenvia o desenho dos lugares de antes, e o
-      // primeiro snapshot da volta solta o que ele não lembrar mais.
-      dropQueuedSecretChecks()
-      received = null
-      setState({ status: 'connecting', error: undefined, rev: -1, map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, partyTokens: undefined, concealed: undefined, glimpses: undefined, elsewhere: undefined, peek: undefined, sceneName: undefined, place: undefined, destinations: undefined, hazards: undefined, hazardNotice: undefined, gatilhos: undefined, andares: undefined, relogio: undefined, turn: undefined, signals: undefined, laser: undefined, playerLasers: undefined, doorNotice: undefined, doorRequest: undefined, moveNotice: undefined, turnNotice: undefined, travel: undefined, note: undefined, arrival: undefined, alarm: undefined, item: undefined, lever: undefined, roomText: undefined, notebook: undefined, unreadNotes: undefined, clues: undefined, shownClue: undefined, cluePeers: undefined, clueShow: undefined, paused: undefined, call: undefined, reconnecting: undefined, pointNotice: undefined, noise: undefined, secretCheck: undefined, secretCheckNotice: undefined, mapPeers: undefined, mapShare: undefined, mapShared: undefined, tokenAction: undefined, wait: undefined, waitEnded: undefined, waitingTokens: undefined })
-      open()
-    },
+    reconnect: restart,
     wake() {
       if (state.reconnecting !== undefined) {
         // Tentativa no ar tem o prazo dela; duas de uma vez só brigariam pelo socket.
@@ -3338,6 +3462,24 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       if (state.reconnecting === undefined) return
       abandonAttempt()
       attemptNow()
+    },
+    setAway(away) {
+      if (away) {
+        if (state.status !== 'playing' || !send({ type: 'away', away: true })) return false
+        // O gesto do laser morre aqui: quem saiu não aponta nada.
+        resetOwnLaser()
+        setState({ away: true })
+        return true
+      }
+      if (state.away !== true) return false
+      if (send({ type: 'away', away: false })) {
+        setState({ away: undefined })
+        return true
+      }
+      // O socket caiu durante a ausência: religa, e a volta sai quando o mestre responder.
+      wantsBack = true
+      restart()
+      return true
     },
     close: detach,
   }

@@ -295,6 +295,21 @@ describe('createShapesRedrawer', () => {
     expect(painted).toContain('regions')
   })
 
+  it('pino com tamanho mínimo: zoom afastado repinta os pinos a cada degrau; perto, o zoom não os toca', () => {
+    const { redraw, take } = setup()
+    const map = { ...buildMap(), pins: [{ id: 'p1', x: 50, y: 50, kind: 'exclamacao' as const, description: '', image: null }] }
+    redraw(snapshot(map, { cameraScale: 2 }))
+    take()
+    // Perto o pino tem o tamanho de mundo: 2 → 1 não repinta.
+    redraw(snapshot(map, { cameraScale: 1 }))
+    expect(take()).toEqual(['walls', 'stairs', 'lights'])
+    // Longe, o pino cresce no mundo para manter a altura de tela: cada degrau repinta.
+    redraw(snapshot(map, { cameraScale: 0.1 }))
+    expect(take()).toEqual(['walls', 'stairs', 'lights', 'pins'])
+    redraw(snapshot(map, { cameraScale: 0.05 }))
+    expect(take()).toEqual(['walls', 'stairs', 'lights', 'pins'])
+  })
+
   it('camada de texto pintada pede a sincronização da resolução dos Text', () => {
     expect(paintedTextLayer(['walls', 'roomNames'])).toBe(true)
     expect(paintedTextLayer(['walls', 'regions', 'lights'])).toBe(false)

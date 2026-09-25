@@ -324,6 +324,15 @@ interface AdventureState {
    */
   setPinOneWay: (pinId: string, exitId: string, on: boolean) => boolean
   /**
+   * TRANCAR OS DOIS LADOS do pino `pinId` (da cena aberta): `true` tranca ele
+   * e o par de CADA saída ligada (numa encruzilhada, todos), levando o motivo
+   * deste lado junto; `false` devolve todos a "Pede ao mestre". Este pino entra
+   * no desfazer da cena aberta; os pares, nas cenas de fundo, ficam fora dele,
+   * como a mão única. `false` quando não há outro lado (pino sem destino, que
+   * não é de viagem, ou que não existe) — aí nada muda.
+   */
+  setPassageBothSides: (pinId: string, trancar: boolean) => boolean
+  /**
    * Leva a visão do mestre pela saída `exitId` (ausente = a principal): abre
    * a cena de destino com o par no centro da tela e aberto no painel. `false`
    * quando a saída não leva a lugar nenhum.
@@ -1307,6 +1316,26 @@ export const useAdventureStore = create<AdventureState>()((set, get) => ({
       return true
     }
     get().updateBackgroundScene(travel.sceneId, (map) => setArrivalOnly(map, partnerId, on))
+    return true
+  },
+
+  setPassageBothSides: (pinId, trancar) => {
+    const live = useMapStore.getState().map
+    const pin = live.pins.find((p) => p.id === pinId)
+    if (pin === undefined) return false
+    const lookup = sceneLookup(get(), live)
+    const pares = travelExitsOf(pin).flatMap((saida) => {
+      const travel = resolvePinTravel(pin, get().activeSceneId, lookup, saida.id)
+      return travel.status === 'ligado' ? [{ sceneId: travel.sceneId, pinId: travel.partner.id }] : []
+    })
+    if (pares.length === 0) return false
+    const passagem: PinPassage = trancar ? 'trancada' : 'pede'
+    // Trancar leva o motivo deste lado ("Desabou") ao outro: o que fechou a
+    // passagem fechou as duas pontas. Destrancar não mexe no motivo, que fica
+    // guardado para a próxima vez, como no painel.
+    const patchDoPar = trancar ? { passagem, motivo: pin.motivo } : { passagem }
+    for (const par of pares) get().updateBackgroundScene(par.sceneId, (map) => mapFactory.updatePin(map, par.pinId, patchDoPar))
+    useMapStore.getState().updatePin(pinId, { passagem })
     return true
   },
 

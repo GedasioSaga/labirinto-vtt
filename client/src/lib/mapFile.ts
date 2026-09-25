@@ -3,7 +3,14 @@ import { propPlayerImage, propPlayerLabel } from './propPlayerLook'
 import { readDoorKey } from './doorKey'
 import { lerMarcasDoArquivo } from './marcas'
 import { linkLooseWallsToRooms } from './roomLink'
-import { cleanPinName, isPinIcon, isPinKind, isPinPassage, isPinReadDistance } from './pins'
+import {
+  cleanPinName,
+  isPinBlockReason,
+  isPinIcon,
+  isPinKind,
+  isPinPassage,
+  isPinReadDistance,
+} from './pins'
 import { readPinLock } from './pinLock'
 import { cleanExitLabel, readPinDestination, readPinExits } from './pinTravel'
 import { readSceneVisionCells } from './sceneVision'
@@ -299,6 +306,10 @@ function deserializeMapFields(json: string): MapData {
       // NOME SÓ DO MESTRE: campo NOVO e OPCIONAL. Texto aparado e no teto;
       // em branco ou torto (número, arquivo editado à mão) volta AUSENTE.
       nome: cleanPinName(p.nome) || undefined,
+      // NOTA DO MESTRE: campo NOVO e OPCIONAL. Só texto volta; o resto
+      // (número, objeto, arquivo editado à mão) volta AUSENTE, sem inventar
+      // chave em mapa antigo. O `...p` acima copiaria o valor cru.
+      notaDoMestre: typeof p.notaDoMestre === 'string' ? p.notaDoMestre : undefined,
       image: typeof p.image === 'string' ? p.image : null,
       destino: p.destino === undefined ? undefined : readPinDestination(p.destino),
       // `passagem` é campo NOVO e OPCIONAL do pino de viagem: ausente é "pede
@@ -309,6 +320,10 @@ function deserializeMapFields(json: string): MapData {
       // PINO TRANCADO VIRA PEDIDO: `mudo` é campo NOVO e OPCIONAL. Só `true`
       // vale; o resto volta AUSENTE — o trancado que aceita "Pedir ao mestre".
       mudo: p.mudo === true ? true : undefined,
+      // MOTIVO DO BLOQUEIO: campo NOVO e OPCIONAL. Só um valor da lista
+      // volta; o resto (texto livre, número, arquivo editado à mão) volta
+      // AUSENTE — "Está trancada", o de sempre. O `...p` copiaria o valor cru.
+      motivo: isPinBlockReason(p.motivo) ? p.motivo : undefined,
       // ENCRUZILHADA: `rotulo` e `saidas` são campos NOVOS e OPCIONAIS. Mapa
       // de antes não tem nenhum dos dois e abre como sempre, com a saída de
       // `destino`. Saída extra fora da forma é descartada sozinha (ver
@@ -354,6 +369,9 @@ function deserializeMapFields(json: string): MapData {
       // jogador, como `escolhas`: arquivo que a traga não a põe no mapa do mestre.
       segredo: readPinLock(p.segredo),
       fechadura: undefined,
+      // SÓ IDA: `semVolta` é só do recorte do jogador, como `escolhas` (que
+      // leva o `soIda` de cada saída e já sai inteiro na linha de cima).
+      semVolta: undefined,
     })),
     // BILHETE NO LUGAR: campo NOVO e OPCIONAL. Ausente continua ausente (sem a
     // chave, nem `undefined`): o round-trip de mapa antigo sai idêntico. Marca

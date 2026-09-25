@@ -90,6 +90,7 @@ import { isLaserArmed, useLaserStore } from '../stores/laserStore'
 import { usePlayerLaserStore } from '../stores/playerLaserStore'
 import { useNoiseStore } from '../stores/noiseStore'
 import { createNoiseGesture } from './noiseGesture'
+import { useAwayTokensStore } from '../stores/awayTokensStore'
 import { createLaserGesture } from './laserGesture'
 import { LASER_KEY_TAP_MS, isLaserKey } from '../lib/laser'
 import { createMeasurementIndicatorRenderer } from './drawMeasurementIndicator'
@@ -153,7 +154,7 @@ import { createPinsRenderer } from './drawPins'
 import { drawMarcas } from './drawMarcas'
 import { findConcealZoneAt } from '../lib/concealZones'
 import { revealBrushRadius, type RevealBrushMode } from '../lib/concealBrush'
-import { findPinAt, pinKindAfterShortcut } from '../lib/pins'
+import { findPinAt, pinKindAfterShortcut, pinSizeScale, pinTapTolerance } from '../lib/pins'
 import { buildConcealZoneFromDraft, buildPin, nextTokenName } from '../lib/mapFactory'
 import { SECRET_ITEM_ALPHA } from './constants'
 import { createTextLabelsRenderer } from './drawTextLabels'
@@ -1258,6 +1259,7 @@ export function PixiCanvas({
           visiblePins(map.pins, map.hiddenLayers).filter((pin) => !pin.hidden),
           selectedPinId,
           unlinkedTravelPinIds(useAdventureStore.getState(), map),
+          pinSizeScale(camera.scale),
         )
         // BILHETE NO LUGAR: o mestre vê toda marca que os jogadores deixaram,
         // por baixo dos pinos (índice 0 do mesmo container).
@@ -1390,7 +1392,18 @@ export function PixiCanvas({
         const single = selectionSingle(selection)
         // A vez da iniciativa só acende NESTA cena: a de outra cena é outra ficha.
         const turnTokenId = turnTokenIdOn(useInitiativeStore.getState().turn, map)
-        tokensRenderer.draw(tokensContainer, visibleTokens(map.tokens, map.hiddenLayers), map.grid, single?.kind === 'token' ? single.id : null, camera.scale, turnTokenId)
+        // VOLTO JÁ: selo de ausente na ficha de quem saiu da mesa. A imagem
+        // exportada é do mapa, não da sessão: sai sem selo.
+        const awayTokenIds = exportScene === null ? useAwayTokensStore.getState().tokenIds : undefined
+        tokensRenderer.draw(
+          tokensContainer,
+          visibleTokens(map.tokens, map.hiddenLayers),
+          map.grid,
+          single?.kind === 'token' ? single.id : null,
+          camera.scale,
+          turnTokenId,
+          awayTokenIds,
+        )
         // O cone acompanha o guarda no arrasto e a direção escolhida no painel, e
         // a rota acompanha a patrulha (pelo portão do redesenho: sem guarda, sem
         // patrulha ou sem ficha mudada, nada repinta).
@@ -1678,6 +1691,10 @@ export function PixiCanvas({
       // A vez andou (Começar, Próxima vez, Encerrar): o anel troca de ficha.
       const unsubscribeTurn = useInitiativeStore.subscribe((state, previous) => {
         if (state.turn !== previous.turn) redrawTokens()
+      })
+      // A store só troca de referência quando o conjunto de fichas fora da mesa muda.
+      const unsubscribeAwayTokens = useAwayTokensStore.subscribe((state, previous) => {
+        if (state.tokenIds !== previous.tokenIds) redrawTokens()
       })
       const unsubscribeProps = subscribeToPropsRedraw(redrawProps)
       const unsubscribeBackground = subscribeToBackgroundRedraw(() => {
@@ -2293,7 +2310,8 @@ export function PixiCanvas({
       const pinAt = (map: MapData, point: Point) => {
         if (isLayerLocked(map.lockedLayers, 'anotacoes')) return null
         const clickable = visiblePins(map.pins, map.hiddenLayers).filter((pin) => !pin.hidden)
-        return findPinAt(clickable, point, PIN_TAP_TOLERANCE_PX / camera.scale)
+        // O alvo é o pino como aparece: crescido no zoom afastado, com a folga limitada ao tamanho dele.
+        return findPinAt(clickable, point, pinTapTolerance(PIN_TAP_TOLERANCE_PX, camera.scale), pinSizeScale(camera.scale))
       }
 
       /**
@@ -6013,6 +6031,7 @@ export function PixiCanvas({
         unsubscribeTravelLinks()
         unsubscribeTokens()
         unsubscribeTurn()
+        unsubscribeAwayTokens()
         unsubscribeProps()
         unsubscribeBackground()
         unsubscribeHiddenLayersForTokensAndProps()

@@ -55,6 +55,8 @@ export interface PartyMember {
    * grupo aqui" as leva junto. Ausente = nenhuma.
    */
   entourageIds?: string[]
+  /** VOLTO JÁ: saiu da mesa por um instante, de propósito. Ausente no resto do tempo. */
+  away?: true
 }
 
 /** Uma ficha do jogador que está em outra cena que não a dele. */
@@ -229,6 +231,7 @@ export function partyMembers(players: PlayerInfo[], world: HostWorld): PartyMemb
     if (away.length > 0) member.awayTokens = away
     const entourage = found === null ? [] : entourageOf(player, found.token, found.scene)
     if (entourage.length > 0) member.entourageIds = entourage
+    if (player.away === true) member.away = true
     return member
   })
 }
@@ -379,11 +382,27 @@ export function offlineForLabel(elapsedMs: number): string {
 }
 
 /**
+ * VOLTO JÁ no mapa do mestre: as fichas que levam o selo de ausente. São as
+ * de quem avisou que saiu da mesa, conectado ou não (a queda durante a
+ * ausência não tira o selo: a ficha continua travada esperando a volta).
+ */
+export function awayTokenIds(players: readonly PlayerInfo[]): ReadonlySet<string> {
+  const ids = new Set<string>()
+  for (const player of players) {
+    if (player.away !== true) continue
+    for (const tokenId of player.tokenIds) ids.add(tokenId)
+  }
+  return ids
+}
+
+/**
  * Status da linha em poucas palavras: é o que o mestre lê de relance. Quem
  * caiu diz há quanto tempo ("fora há 0:10"), para o mestre saber se espera ou
  * segue a cena. `now` é o relógio do mestre, o mesmo que marcou a queda.
  */
-export function partyPresenceLabel(member: Pick<PartyMember, 'connected' | 'offlineSince'>, now: number = Date.now()): string {
+export function partyPresenceLabel(member: Pick<PartyMember, 'connected' | 'offlineSince' | 'away'>, now: number = Date.now()): string {
+  // Volto já vem antes da conexão: é o que diz ao mestre que ele saiu de propósito, e não caiu.
+  if (member.away === true) return 'volto já'
   if (member.connected) return 'online'
   if (member.offlineSince === undefined) return 'fora'
   return `fora há ${offlineForLabel(now - member.offlineSince)}`
@@ -446,7 +465,8 @@ export interface ScenePeople {
 export function peopleByScene(members: PartyMember[], world?: HostWorld): Map<string, ScenePeople> {
   const byScene = new Map<string, ScenePeople>()
   for (const member of members) {
-    if (!member.connected || member.sceneId === null) continue
+    // Quem está no Volto já e caiu continua à mesa: a ficha e o pedido dele esperam a volta.
+    if ((!member.connected && member.away !== true) || member.sceneId === null) continue
     let entry = byScene.get(member.sceneId)
     if (entry === undefined) {
       entry = { people: [], pendingRequests: 0 }

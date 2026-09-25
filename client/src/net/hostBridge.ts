@@ -676,6 +676,11 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   const peekTimers = new Set<ReturnType<typeof setTimeout>>()
   /** Aviso de cada pedido de ação sobre ficha ainda na Caixa: `requestId` -> id do toast. */
   const actionToasts = new Map<string, string>()
+  /**
+   * VOLTO JÁ: aviso "o Deixar ir espera a volta" de cada pedido segurado,
+   * `requestId` -> id do toast. Sai quando a pergunta volta ou o pedido morre.
+   */
+  const heldToasts = new Map<string, string>()
   /** O que cada conexão está vendo, anotado do que sai em `dispatch` (espelho do "Ver tela"). */
   const screens = createPlayerScreens()
   const screenWatchers = new Set<() => void>()
@@ -1270,10 +1275,12 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
    * "Deixar ir" que não leva ninguém a lugar nenhum.
    */
   const pruneTravelToasts = () => {
-    for (const [requestId, toastId] of travelToasts) {
-      if (session !== null && session.isTravelPending(requestId)) continue
-      travelToasts.delete(requestId)
-      useToastStore.getState().dismiss(toastId)
+    for (const toasts of [travelToasts, heldToasts]) {
+      for (const [requestId, toastId] of toasts) {
+        if (session !== null && session.isTravelPending(requestId)) continue
+        toasts.delete(requestId)
+        useToastStore.getState().dismiss(toastId)
+      }
     }
     // Mesma regra para a porta: "Destrancar e abrir" de quem saiu não abre nada.
     for (const [requestId, toastId] of doorRequestToasts) {
@@ -1575,6 +1582,29 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     return linhaDoPedidoVivo(clock() - status.requestedAt, status.distanceCells)
   }
 
+  /** Tira o aviso de espera do Volto já: a pergunta voltou ou o pedido morreu. */
+  const dismissHeld = (requestId: string) => {
+    const toastId = heldToasts.get(requestId)
+    if (toastId === undefined) return
+    heldToasts.delete(requestId)
+    useToastStore.getState().dismiss(toastId)
+  }
+
+  /**
+   * VOLTO JÁ: o "Deixar ir" não levou ninguém porque o jogador está fora da
+   * mesa. O mestre precisa LER isso — sem o aviso, ele acha que liberou, e a
+   * pergunta que volta na volta do jogador parece repetida à toa. Fica até a
+   * pergunta voltar (ou o pedido morrer): é o estado do pedido, não um fato
+   * que passa.
+   */
+  const announceHeld = (request: TravelRequest) => {
+    dismissHeld(request.requestId)
+    const toastId = useToastStore
+      .getState()
+      .push('info', `${request.playerName} está no Volto já: o "Deixar ir" para ${request.toSceneName} espera a volta, e a pergunta volta aqui.`, null)
+    heldToasts.set(request.requestId, toastId)
+  }
+
   /**
    * Resposta ao pedido de passagem. `allow`: "Deixar ir" (ou "Liberar uma
    * vez", no pino trancado); `'pede'`: "Passar para pede" — o jogador passa e
@@ -1596,6 +1626,11 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       return
     }
     const result = allow === 'pede' ? session.approveLockedTravelAsAsk(requestId, world()) : session.approveTravel(requestId, world())
+    if (result.travelHeld !== undefined) {
+      announceHeld(result.travelHeld)
+      notifyPlayersIfChanged()
+      return
+    }
     if (result.applyPinPassage !== undefined) {
       const { pinId, passagem, sceneId } = result.applyPinPassage
       deps.setPinPassage?.(pinId, passagem, sceneId)
@@ -1751,6 +1786,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
    * ainda está no pino antes de deixar ir.
    */
   const askTravel = (request: TravelRequest) => {
+    dismissHeld(request.requestId)
     if (request.trancada === true) {
       askLockedTravel(request)
       return
@@ -1759,7 +1795,12 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     // clique conta de novo (`answerTravelTogether`), porque o grupo anda.
     const nearby = session === null ? 0 : session.travelCompanions(request.requestId, world()).length
     const together = nearby === 0 ? [] : [{ label: `Deixar ir com quem está perto (${nearby})`, run: () => answerTravelTogether(request.requestId) }]
-    const toastId = useToastStore.getState().push('instrucao', `${request.playerName} quer passar por ${request.pinLabel} → ${request.toSceneName}`, null, {
+    // Na volta do Volto já é a MESMA pergunta: o texto diz por que ela reaparece.
+    const text =
+      request.heldWhileAway === true
+        ? `${request.playerName} voltou do Volto já e ainda quer passar por ${request.pinLabel} → ${request.toSceneName}. O "Deixar ir" esperou a volta.`
+        : `${request.playerName} quer passar por ${request.pinLabel} → ${request.toSceneName}`
+    const toastId = useToastStore.getState().push('instrucao', text, null, {
       actions: [
         { label: 'Deixar ir', run: () => answerTravel(request.requestId, true), emLote: true },
         ...together,

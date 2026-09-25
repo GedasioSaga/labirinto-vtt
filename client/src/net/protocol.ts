@@ -277,6 +277,13 @@ export type { OwnTokenElsewhere }
  * snapshot: ids das fichas DO RECORTE cujo dono espera — a marca, sem o "quem"
  * nem o "onde". Mestre antigo responde `error invalid_message`; jogador antigo
  * ignora as três.
+ *
+ * VOLTO JÁ é aditivo pelo mesmo critério: `away` nos dois sentidos. Do jogador,
+ * `away: true` (saí da mesa por um instante) ou `false` (voltei); do mestre, a
+ * confirmação — e, na retomada de quem saiu, o aviso que vem ANTES do mapa.
+ * `travelPending` diz só que o pedido de passagem DELE ainda espera o mestre:
+ * nada de pino, cena ou nome. Mestre antigo responde `error invalid_message`
+ * (o jogador só não fica fora); jogador antigo ignora a confirmação.
  */
 export const PROTOCOL_VERSION = 1
 
@@ -708,6 +715,12 @@ export interface WaitClearMessage {
   type: 'wait.clear'
 }
 
+/** VOLTO JÁ: o jogador sai da mesa por um instante (`true`) ou volta (`false`). */
+export interface AwayMessage {
+  type: 'away'
+  away: boolean
+}
+
 export type PlayerMessage =
   | MarkPlaceMessage
   | PinAnswerMessage
@@ -744,6 +757,7 @@ export type PlayerMessage =
   | TokenActionRequestMessage
   | WaitSetMessage
   | WaitClearMessage
+  | AwayMessage
 
 /**
  * Por que a alavanca não moveu nada. `unavailable` junta pino inexistente, no
@@ -1242,6 +1256,8 @@ export type HostMessage =
   | MapShareHostMessage
   | TokenActionHostMessage
   | WaitHostMessage
+  // VOLTO JÁ: o estado que o host guarda. `travelPending`: o pedido dele ainda espera o mestre.
+  | { type: 'away'; away: boolean; travelPending?: true }
   | { type: 'kicked' }
   | { type: 'room.closed' }
   // A mesma pessoa entrou por outra aba (ou aparelho) com o resume desta
@@ -2119,6 +2135,8 @@ export function parsePlayerMessage(raw: unknown): PlayerMessage | null {
       return parseWaitSet(value)
     case 'wait.clear':
       return { type: 'wait.clear' }
+    case 'away':
+      return typeof value.away === 'boolean' ? { type: 'away', away: value.away } : null
     default:
       return null
   }

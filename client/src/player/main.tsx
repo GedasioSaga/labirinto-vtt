@@ -98,6 +98,8 @@ const NO_VISION: RegionPoint[][] = []
 /** Outro andar é só para olhar: arrastar ficha lá não pede nada ao mestre. */
 const IGNORE_MOVE = (): void => {}
 const AWAY_KEPT_HINT = 'Ficam guardados no Caderno do Painel.'
+/** O aviso do "Me avise quando der". */
+const PASSAGE_OPENED_TEXT = 'A passagem que você marcou abriu: já dá para passar.'
 
 const REASON_TEXT: Record<string, string> = {
   bad_code: 'Código de sala incorreto. Confira com o mestre e tente de novo.',
@@ -845,6 +847,12 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
   const reconnecting = state.reconnecting && <ReconnectingOverlay info={state.reconnecting} onRetry={() => connection.retryNow()} />
   const closeArrival = useCallback(() => connection.dismissArrival(), [connection])
 
+  // VOLTO JÁ: fora da mesa, a tela é só o aviso e o "Voltar" — o mapa não fica
+  // aberto no celular largado. Expulsão e sala encerrada passam na frente.
+  if (state.away === true && (state.status === 'playing' || state.status === 'waiting')) {
+    return <AwayScreen onBack={() => connection.setAway(false)} />
+  }
+
   if (state.status === 'playing' && state.map && state.vision) {
     const actionNotice = latestActionNotice(state.doorNotice, state.moveNotice)
     // O aviso mais novo é o do movimento (o `id` dos dois sai do mesmo contador).
@@ -1041,6 +1049,13 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
           wait={state.wait}
           onStartWait={startWait}
           onStopWait={stopWait}
+          onStepAway={() => {
+            if (!connection.setAway(true)) return
+            // Quem saiu não deixa um modo de toque armado para a volta.
+            setSignalArmed(false)
+            setMeasureArmed(false)
+            setLaserArmed(false)
+          }}
         />
         {/* DADO ROLADO NA SALA: as últimas rolagens da mesa, sobre o mapa, acima do zoom. Não é controle: fora da ordem do Tab. */}
         <DiceFeed rolls={state.diceRolls ?? NO_DICE_ROLLS} className="pp-dice-feed" />
@@ -1072,6 +1087,8 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
             onClose={closePin}
             onRead={(pinId) => connection.markPinRead(pinId)}
             travelWaiting={state.travel?.phase === 'waiting'}
+            watching={(state.passageWatch ?? []).includes(openPin.id)}
+            onWatch={(on) => connection.watchPassage(openPin.id, on)}
             onRequestTravel={(exitId) => {
               // Pedido enviado, o cartão sai: a espera fica no aviso de baixo,
               // e o mapa volta inteiro à vista enquanto o mestre decide.
@@ -1254,6 +1271,13 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
                 {state.travel.cancelling === true ? 'Desistindo…' : 'Desistir'}
               </button>
             )}
+          </p>
+        )}
+        {state.passageOpened && (
+          // "Me avise quando der": a passagem que ele marcou abriu. Não diz
+          // para onde leva — só que agora dá para tentar de novo.
+          <p key={state.passageOpened.id} className="pp-notice pp-notice--opened" role="status" aria-live="polite">
+            {PASSAGE_OPENED_TEXT}
           </p>
         )}
         {openPointMenu && (
@@ -1477,6 +1501,26 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
           ))}
         </div>
       )}
+    </Screen>
+  )
+}
+
+/**
+ * VOLTO JÁ: a ficha está travada e o pedido espera no mestre. Um botão só,
+ * com o foco nele: quem volta ao celular aperta sem procurar.
+ */
+function AwayScreen({ onBack }: { onBack: () => void }) {
+  return (
+    <Screen>
+      <p role="status" aria-live="polite" className="pe-lead">
+        Você está fora da mesa
+      </p>
+      <p className="pe-hint">Sua ficha fica parada, e o seu pedido espera o mestre até você voltar.</p>
+      <div className="pe-actions">
+        <button type="button" className="pe-btn pe-btn--primary" autoFocus onClick={onBack}>
+          Voltar
+        </button>
+      </div>
     </Screen>
   )
 }

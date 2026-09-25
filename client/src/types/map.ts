@@ -329,6 +329,14 @@ export interface PinDestination {
 export interface PinExitLabel {
   id: string
   rotulo: string
+  /**
+   * SÓ NO RECORTE DO JOGADOR: o par desta saída é a chegada oculta (mão
+   * única) — o cartão marca "Só ida". Quem monta é o host (`lib/fogFilter.ts`);
+   * o mestre nunca grava. Ausente = a saída de sempre, com volta.
+   * Ausência documentada, sem linha de migração: `escolhas` inteiro (e o
+   * `soIda` de cada saída junto) já volta ausente do disco (`lib/mapFile.ts`).
+   */
+  soIda?: true
 }
 
 /**
@@ -352,6 +360,14 @@ export interface PinExit extends PinExitLabel {
  * voltar.
  */
 export type PinPassage = 'pede' | 'livre' | 'trancada'
+
+/**
+ * POR QUE a passagem trancada não deixa passar. A AUSÊNCIA é "Está trancada"
+ * (a chave, o de sempre); os outros dizem ao jogador que não é questão de
+ * achar a chave. Lista curta de propósito: texto livre do mestre seria mais
+ * um lugar para escapar o que ele não quer contar.
+ */
+export type PinBlockReason = 'desabou' | 'alagada' | 'em-chamas' | 'sem-energia'
 
 /**
  * Símbolo desenhado DENTRO da cabeça do pino, no lugar do glifo. Os seis que o
@@ -446,6 +462,14 @@ export interface Pin extends PlayerSecret {
    * letras (`lib/mapFile.ts`).
    */
   nome?: string
+  /**
+   * "Nota do mestre" (só eu leio): o lembrete dele sobre o pino — a
+   * combinação do cofre, o que o NPC esconde. NUNCA sai no recorte do jogador
+   * (`pinForPlayer` em `lib/fogFilter.ts` é lista do que vai, e ela não está
+   * lá), nem na pista que o cartão vira. Ausente = sem nota — mapa gravado
+   * antes deste campo abre igual. O disco só aceita texto (`lib/mapFile.ts`).
+   */
+  notaDoMestre?: string
   image: string | null
   /** Pino não pode ser movido/editado. `undefined` === false — sem migração. */
   locked?: boolean
@@ -475,6 +499,13 @@ export interface Pin extends PlayerSecret {
    * só aceita `true` (`lib/mapFile.ts`).
    */
   mudo?: true
+  /**
+   * Só do pino de viagem trancado: o motivo ("Desabou", "Alagada"...).
+   * Ausente = "Está trancada", o de sempre — sem migração. Fica gravado se o
+   * mestre reabrir o pino (volta junto quando ele tranca de novo), mas só SAI
+   * no recorte do jogador enquanto a passagem é `trancada` (`lib/fogFilter.ts`).
+   */
+  motivo?: PinBlockReason
   /**
    * Só do pino de viagem com VÁRIAS saídas: como o mestre chama a saída
    * principal (a de `destino`) — "Porta da cripta". Ausente = sem nome; o
@@ -594,6 +625,15 @@ export interface Pin extends PlayerSecret {
    * `lib/fogFilter.ts` o monta a partir de `segredo`; o mestre nunca o grava.
    */
   fechadura?: PinLockPublic
+  /**
+   * SÓ NO RECORTE DO JOGADOR, e só no pino de UMA saída: o par dela é a
+   * chegada oculta (`soChegada`), então não há volta por aqui. O cartão mostra
+   * "Só ida" e a pergunta avisa antes de o jogador cair. É um booleano e nada
+   * mais: o destino continua fora do recorte. Quem monta é o host, que enxerga
+   * a outra cena (`oneWayExitsOf` em `lib/pinTravel.ts`); o mestre nunca grava.
+   * Numa encruzilhada o aviso vai por saída, em `escolhas[].soIda`.
+   */
+  semVolta?: true
 }
 
 /**
@@ -887,6 +927,17 @@ export interface Token extends PlayerSecret {
    *  oferece entra nela (`claimableTokensForPlayer`, `lib/fogFilter.ts`).
    *  NÃO viaja no mapa do jogador: é metadado do mestre. */
   playerCharacter?: boolean
+  /** MARCA DE COMPANHEIRO: a ficha é de OUTRO jogador da mesa. Só o recorte do
+   *  jogador escreve este campo (`lib/fogFilter.ts`), e só em ficha que ele já
+   *  recebe; o mapa do mestre nunca o guarda (o recorte apaga o que vier dele).
+   *  Ausente = NPC ou a própria ficha. */
+  companion?: TokenCompanion
+}
+
+/** Quem joga com a ficha: nome do jogador e a cor de sinal dele (`#rrggbb`, `lib/signals.ts`). */
+export interface TokenCompanion {
+  name: string
+  color: string
 }
 
 export interface Prop extends PlayerSecret {

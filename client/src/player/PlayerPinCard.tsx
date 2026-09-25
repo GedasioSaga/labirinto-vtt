@@ -1,6 +1,14 @@
 import { useEffect, useRef, useState } from 'react'
 import type { Pin, PinExitLabel, Stair, StairDirection } from '../types/map'
-import { PIN_GLYPH, PIN_ICON_LABELS, isPinIcon, isPlayerSafePinImage, passageOf } from '../lib/pins'
+import {
+  PIN_BLOCK_REASON_LABELS,
+  PIN_GLYPH,
+  PIN_ICON_LABELS,
+  blockReasonOf,
+  isPinIcon,
+  isPlayerSafePinImage,
+  passageOf,
+} from '../lib/pins'
 import { itemOfPin } from '../lib/items'
 import { stairTravelLabel } from '../lib/stairTravel'
 import { PinLeverArt, PinSymbolArt, PinTravelArt } from '../components/PinSymbolArt'
@@ -46,6 +54,13 @@ interface PlayerPinCardProps {
   onTryLock?: (tentativa: string) => void
   /** A resposta do host à última tentativa NESTE pino; ausente = nenhuma. */
   lockPhase?: LockAnswerPhase
+  /** Passagem trancada: o jogador já pediu "Me avise quando der" por este pino. */
+  watching?: boolean
+  /**
+   * Liga (`true`) ou desliga o aviso de quando a passagem trancada abrir.
+   * Ausente = o cartão trancado só lê, sem botão.
+   */
+  onWatch?: (on: boolean) => void
 }
 
 /** Nome da cabeça do pino para quem não vê o desenho: o que ela mostra no mapa. */
@@ -62,6 +77,16 @@ const TEXTO_DA_FECHADURA: Record<Exclude<LockAnswerPhase, 'sending'>, string> = 
   too_soon: 'Espere um instante antes de tentar de novo.',
   open: 'Abriu.',
 }
+
+/** O que o cartão diz da passagem fechada, depois do motivo (ou do "Está trancada"). */
+const FECHADA_SEM_PASSAR = 'Não dá para passar por aqui agora.'
+/** A trancada que aceita tentativas: quem abre é o mestre. */
+const SO_O_MESTRE_ABRE = 'Só o mestre pode abrir.'
+
+/** Etiqueta da passagem cujo par é a chegada oculta (mão única). */
+const ETIQUETA_SO_IDA = 'Só ida'
+/** O que a pergunta de confirmação acrescenta numa passagem só de ida. */
+const AVISO_SO_IDA = 'Não dá para voltar por este caminho.'
 
 /**
  * A CABEÇA DO PINO, igual à do mapa (`pixi/drawPins.ts`): a passagem no pino de
@@ -176,11 +201,14 @@ export function PlayerPinCard({
   onRead,
   onTryLock,
   lockPhase,
+  watching = false,
+  onWatch,
 }: PlayerPinCardProps) {
   const cardRef = useRef<HTMLDivElement | null>(null)
   const closeRef = useRef<HTMLButtonElement | null>(null)
   const confirmRef = useRef<HTMLButtonElement | null>(null)
   const askRef = useRef<HTMLButtonElement | null>(null)
+  const cancelRef = useRef<HTMLButtonElement | null>(null)
   /**
    * Pergunta "Pedir ao mestre…?" na tela, no lugar do botão de pedir. Numa
    * encruzilhada guarda a saída escolhida; `saida: null` = o pino de uma saída.
@@ -189,12 +217,15 @@ export function PlayerPinCard({
   /** A última saída escolhida: cancelar a pergunta devolve o foco ao botão DELA. */
   const [ultimaSaida, setUltimaSaida] = useState<string | null>(null)
   /** Para onde o foco volta depois de abrir ou fechar a pergunta; `null` = não mexe. */
-  const [focusTarget, setFocusTarget] = useState<'confirm' | 'ask' | null>(null)
+  const [focusTarget, setFocusTarget] = useState<'confirm' | 'cancel' | 'ask' | null>(null)
 
   useEffect(() => {
     // Quem chegou pelo teclado segue com o foco: abrir a pergunta o leva ao
-    // "Pedir"; cancelar o devolve ao botão que a abriu.
+    // "Pedir"; cancelar o devolve ao botão que a abriu. Passagem SÓ DE IDA não
+    // tem desfazer, então a pergunta começa no botão seguro, o "Cancelar":
+    // um Enter a mais não derruba o jogador num lugar de onde não volta.
     if (focusTarget === 'confirm') confirmRef.current?.focus()
+    if (focusTarget === 'cancel') cancelRef.current?.focus()
     if (focusTarget === 'ask') askRef.current?.focus()
   }, [focusTarget, confirming])
 
@@ -312,6 +343,9 @@ export function PlayerPinCard({
           : passagem === 'livre'
             ? TEXTOS_LIVRE
             : TEXTOS_PEDE
+  // O PORQUÊ da passagem fechada ("Desabou"). Valor desconhecido (host de
+  // versão futura) cai no "Está trancada" de sempre, sem mostrar o cru.
+  const motivo = blockReasonOf(pin)
   // ENCRUZILHADA: com mais de uma saída, um botão por saída, pelo rótulo que o
   // mestre escreveu — o destino e o nome da cena nunca chegam aqui. Com uma
   // saída só (ou sem o campo), o cartão é o de sempre. Longe de uma placa "só
@@ -322,12 +356,16 @@ export function PlayerPinCard({
   const encruzilhada = escolhas.length > 1
   // ITEM PEGÁVEL: o nome vem no recorte, numa cópia limpa (`lib/fogFilter.ts`).
   const item = itemOfPin(pin)
+  // SÓ IDA: o par é a chegada oculta. No pino de uma saída vem em `semVolta`;
+  // numa encruzilhada, por saída (`soIda`). O destino continua sem aparecer.
+  const semVolta = viagem && !encruzilhada && pin.semVolta === true
+  const saidaSoIda = (saida: PinExitLabel | null): boolean => (saida === null ? semVolta : saida.soIda === true)
   const perguntar = (saida: PinExitLabel | null) => {
     setConfirming({ saida })
     if (saida !== null) setUltimaSaida(saida.id)
-    setFocusTarget('confirm')
+    setFocusTarget(saidaSoIda(saida) ? 'cancel' : 'confirm')
   }
-  const pergunta =
+  const perguntaBase =
     confirming === null || confirming.saida === null
       ? textos.pergunta
       : chave !== null
@@ -335,6 +373,7 @@ export function PlayerPinCard({
         : passagem === 'livre'
           ? `Passar por ${confirming.saida.rotulo}?`
           : `Pedir ao mestre para passar por ${confirming.saida.rotulo}?`
+  const pergunta = confirming !== null && saidaSoIda(confirming.saida) ? `${perguntaBase} ${AVISO_SO_IDA}` : perguntaBase
 
   return (
     <div className="pp-pincard__backdrop">
@@ -372,8 +411,36 @@ export function PlayerPinCard({
             Puxar a alavanca
           </button>
         )}
-        {muda && chave === null && <p className="pp-pincard__locked">Está trancada. Não dá para passar por aqui agora.</p>}
-        {trancada && !muda && chave === null && <p className="pp-pincard__locked">Está trancada. Só o mestre pode abrir.</p>}
+        {semVolta && <span className="pp-pincard__oneway pp-pincard__oneway--card">{ETIQUETA_SO_IDA}</span>}
+        {trancada && chave === null && (
+          // Muda: "Não dá para passar"; a que aceita tentativas: "Só o mestre
+          // pode abrir". Com motivo ("Desabou"), ele vem no lugar do "Está trancada".
+          <p className="pp-pincard__locked">
+            {motivo === null ? (
+              `Está trancada. ${muda ? FECHADA_SEM_PASSAR : SO_O_MESTRE_ABRE}`
+            ) : (
+              <>
+                <strong className="pp-pincard__reason">{PIN_BLOCK_REASON_LABELS[motivo]}.</strong>{' '}
+                {muda ? FECHADA_SEM_PASSAR : SO_O_MESTRE_ABRE}
+              </>
+            )}
+          </p>
+        )}
+        {trancada && chave === null && onWatch !== undefined && (
+          // Botão de alternar: o rótulo fica o mesmo e o estado mora no
+          // `aria-pressed` (e na frase logo abaixo, para quem enxerga).
+          <>
+            <button
+              type="button"
+              className="pp-pincard__watch"
+              aria-pressed={watching}
+              onClick={() => onWatch(!watching)}
+            >
+              Me avise quando der
+            </button>
+            {watching && <p className="pp-pincard__watch-hint">Você recebe um aviso quando abrir.</p>}
+          </>
+        )}
         {naoChegou && <p className="pp-pincard__locked">Dá para ver daqui, mas para passar é preciso chegar até lá.</p>}
         {trancadaComSegredo && <p className="pp-pincard__locked">Trancada com segredo. Acerte a combinação para passar.</p>}
         {fechadura !== undefined && (
@@ -414,6 +481,12 @@ export function PlayerPinCard({
                     onClick={() => perguntar(saida)}
                   >
                     {saida.rotulo}
+                    {saida.soIda === true && (
+                      <>
+                        {' '}
+                        <span className="pp-pincard__oneway">{ETIQUETA_SO_IDA}</span>
+                      </>
+                    )}
                   </button>
                 </li>
               ))}
@@ -443,6 +516,7 @@ export function PlayerPinCard({
                 {textos.confirmar}
               </button>
               <button
+                ref={cancelRef}
                 type="button"
                 className="pp-pincard__close pp-pincard__close--inline"
                 onClick={() => {

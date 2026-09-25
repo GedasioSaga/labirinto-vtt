@@ -9,7 +9,9 @@ import {
   PIN_ICON_LABELS,
   PIN_ICON_ORDER,
   PIN_KIND_ORDER,
+  PIN_MIN_SCREEN_HEIGHT,
   PIN_SYMBOLS,
+  PIN_TAP_MAX_HEAD_RADII,
   PIN_TRAVEL_SYMBOL,
   findPinAt,
   isPinIcon,
@@ -17,7 +19,9 @@ import {
   isPinPassage,
   isPlayerSafePinImage,
   passageOf,
+  pinSizeScale,
   pinSummary,
+  pinTapTolerance,
 } from './pins'
 
 function pino(id: string, x: number, y: number, extra: Partial<Pin> = {}): Pin {
@@ -59,6 +63,77 @@ describe('findPinAt', () => {
 
   it('lista vazia devolve null em vez de estourar', () => {
     expect(findPinAt([], { x: 0, y: 0 })).toBeNull()
+  })
+
+  it('pino crescido (tamanho mínimo de tela): a cabeça desenhada lá em cima acerta, e só com o fator', () => {
+    const fator = 4
+    const cabecaCrescida = { x: 200, y: 300 - PIN_HEAD_OFFSET * fator }
+    expect(findPinAt([alvo], cabecaCrescida, 0, fator)?.id).toBe('p1')
+    expect(findPinAt([alvo], { x: 200 + PIN_HEAD_RADIUS * fator - 1, y: cabecaCrescida.y }, 0, fator)?.id).toBe('p1')
+    // Sem o fator, o mesmo ponto fica acima do pino de tamanho de mundo.
+    expect(findPinAt([alvo], cabecaCrescida)).toBeNull()
+  })
+})
+
+/**
+ * PINO NO ZOOM AFASTADO (relato dos jogadores, torre-lote-5 #485 e #517): o pino
+ * era desenhado em px de mundo e sumia na tela, mas a folga do toque era fixa em
+ * px de tela — um toque a várias casas abria um pino que ninguém via.
+ */
+describe('pino com tamanho mínimo no zoom afastado', () => {
+  it('perto (zoom 1 ou mais) o pino não muda de tamanho', () => {
+    expect(pinSizeScale(1)).toBe(1)
+    expect(pinSizeScale(2)).toBe(1)
+    // Exatamente no limiar ainda é o tamanho de mundo.
+    expect(pinSizeScale(PIN_MIN_SCREEN_HEIGHT / PIN_HEIGHT)).toBe(1)
+  })
+
+  it('longe, o pino cresce no mundo e fica com a altura mínima na tela', () => {
+    for (const escala of [0.3, 0.1, 0.05]) {
+      const fator = pinSizeScale(escala)
+      expect(fator).toBeGreaterThan(1)
+      expect(PIN_HEIGHT * fator * escala).toBeCloseTo(PIN_MIN_SCREEN_HEIGHT, 9)
+    }
+  })
+
+  it('escala inválida (zero, negativa, NaN, infinita) não explode o desenho: tamanho de mundo', () => {
+    expect(pinSizeScale(0)).toBe(1)
+    expect(pinSizeScale(-1)).toBe(1)
+    expect(pinSizeScale(Number.NaN)).toBe(1)
+    expect(pinSizeScale(Number.POSITIVE_INFINITY)).toBe(1)
+  })
+
+  it('perto, a folga do toque é a de sempre (px de tela / zoom)', () => {
+    expect(pinTapTolerance(18, 1)).toBe(18)
+    expect(pinTapTolerance(6, 0.1)).toBeCloseTo(60, 9)
+    expect(pinTapTolerance(6, 0.1)).toBeGreaterThan(0)
+  })
+
+  it('longe, a folga nunca passa de alguns raios da cabeça DESENHADA', () => {
+    const escala = 0.1
+    const cabecaNaTela = PIN_HEAD_RADIUS * pinSizeScale(escala) * escala
+    const folgaNaTela = pinTapTolerance(18, escala) * escala
+    expect(folgaNaTela).toBeGreaterThan(0)
+    expect(folgaNaTela).toBeCloseTo(cabecaNaTela * PIN_TAP_MAX_HEAD_RADII, 9)
+    expect(folgaNaTela).toBeLessThan(18)
+  })
+
+  it('escala inválida não dá folga nenhuma (nem infinita)', () => {
+    expect(pinTapTolerance(18, 0)).toBe(0)
+    expect(pinTapTolerance(18, Number.NaN)).toBe(0)
+  })
+
+  it('a 5% de zoom (cena inteira na janela): um toque a 7 casas do pino não abre nada, e a cabeça desenhada abre', () => {
+    const escala = 0.05
+    const casa = 40
+    const alvo = pino('p1', 2000, 2000)
+    const fator = pinSizeScale(escala)
+    const folga = pinTapTolerance(18, escala)
+    const seteCasas = { x: alvo.x - 7 * casa, y: alvo.y }
+    expect(findPinAt([alvo], seteCasas, folga, fator)).toBeNull()
+    // Antes: tamanho de mundo e 18 px de tela de folga — o mesmo toque abria o pino invisível.
+    expect(findPinAt([alvo], seteCasas, 18 / escala)?.id).toBe('p1')
+    expect(findPinAt([alvo], { x: alvo.x, y: alvo.y - PIN_HEAD_OFFSET * fator }, folga, fator)?.id).toBe('p1')
   })
 })
 

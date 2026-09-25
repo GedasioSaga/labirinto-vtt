@@ -1780,13 +1780,13 @@ export function addPin(map: MapData, pin: Pin): MapData {
 }
 
 /**
- * Tipo, símbolo, descrição, imagem, trava e destino (pino de viagem) do pino.
+ * Tipo, símbolo, descrição, nota do mestre, imagem, trava e destino (pino de viagem) do pino.
  * Id inexistente ou nada mudando devolve o mesmo `map`.
  */
 export function updatePin(
   map: MapData,
   id: string,
-  patch: Partial<Pick<Pin, 'kind' | 'icon' | 'description' | 'nome' | 'image' | 'locked' | 'destino' | 'passagem' | 'mudo' | 'rotulo' | 'saidas' | 'item' | 'abreCom' | 'presoA' | 'portaLigada' | 'marco' | 'lerDePerto' | 'segredo'>>,
+  patch: Partial<Pick<Pin, 'kind' | 'icon' | 'description' | 'nome' | 'notaDoMestre' | 'image' | 'locked' | 'destino' | 'passagem' | 'mudo' | 'motivo' | 'rotulo' | 'saidas' | 'item' | 'abreCom' | 'presoA' | 'portaLigada' | 'marco' | 'lerDePerto' | 'segredo'>>,
 ): MapData {
   const pin = map.pins.find((p) => p.id === id)
   if (!pin) return map
@@ -1805,6 +1805,9 @@ export function updatePin(
     next.description === pin.description &&
     // Nome só do mestre: opcional, `undefined` = sem nome.
     next.nome === pin.nome &&
+    // Nota do mestre é opcional: `undefined` === '' (sem nota). Apagar a nota
+    // de um pino que nunca teve não empurra entrada vazia no histórico.
+    (next.notaDoMestre ?? '') === (pin.notaDoMestre ?? '') &&
     next.image === pin.image &&
     !!next.locked === !!pin.locked &&
     // Marco e "ler só de perto": opcionais também — desligar o que nunca foi
@@ -1829,7 +1832,10 @@ export function updatePin(
     // "Aceita tentativas" do trancado: só `true` é mudo, ausente é aceita.
     (next.mudo === true) === (pin.mudo === true) &&
     // Fechadura com segredo: gravar a mesma combinação de novo não é mudança.
-    sameLock(next.segredo, pin.segredo)
+    sameLock(next.segredo, pin.segredo) &&
+    // Motivo do bloqueio: `undefined` é "Está trancada". Tirar o motivo de
+    // quem nunca teve não é mudança; trocar "Desabou" por "Alagada" é.
+    next.motivo === pin.motivo
   ) {
     return map
   }

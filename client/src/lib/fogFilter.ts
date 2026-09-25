@@ -1,7 +1,7 @@
-import type { ConcealZone, DoorState, Drawing, FloorPiece, HazardKind, LayerId, Light, MapData, MapLine, MapMarker, Pin, Region, RegionPoint, Stair, Token, Wall, WatchAlert } from '../types/map'
+import type { ConcealZone, DoorState, Drawing, FloorPiece, HazardKind, LayerId, Light, MapData, MapLine, MapMarker, Pin, Region, RegionPoint, Stair, Token, TokenCompanion, Wall, WatchAlert } from '../types/map'
 import { cellCenter, cellKeyAt, cellRunRects, concealedPieces, REVEAL_BRUSH_CELL, unveiledCellsOf } from './concealBrush'
 import { isTokenPhotoData } from './tokenPhoto'
-import { tokenAsSeenByPlayer } from './tokenPublicName'
+import { tokenAsSeenByPlayer, tokenPublicNameMode } from './tokenPublicName'
 import { healthForPlayer } from './tokenHealth'
 import { tokenConditionsForPlayer } from './tokenConditions'
 import { withoutCarrier } from './carry'
@@ -12,10 +12,10 @@ import { isPointExplored, isShapeExplored, type Exploration } from './exploratio
 import { pointInRing, signedArea } from './floorContour'
 import { pieceBounds, pieceDistance, shapeCenter } from './floorSdf'
 import { drawingLayer, regionLayer, stairLayer, visibleDrawings, visibleLights, visibleProps, visibleRegions, visibleStairs, visibleTokens, visibleWalls, wallLayer } from './layers'
-import { isPinIcon, isPinReadDistance, isPlayerSafePinImage, passageOf } from './pins'
+import { blockReasonOf, isPinIcon, isPinReadDistance, isPlayerSafePinImage, passageOf } from './pins'
 import { CLUE_TITLE_ONLY_IMAGE, clampClueText, clueTitleFrom } from './clues'
 import { propPlayerImage, propPlayerLabel } from './propPlayerLook'
-import { exitLabelsOf, isArrivalOnly, travelExitsOf, unreadExitLabels } from './pinTravel'
+import { exitLabelsOf, isArrivalOnly, travelExitsOf, unreadExitLabels, type OneWayExits } from './pinTravel'
 import { publicLockOf } from './pinLock'
 import { withoutAttachment } from './lightAttachment'
 import { marcaParaJogador } from './marcas'
@@ -1232,6 +1232,39 @@ function withoutNpcMark(token: Token): Token {
 }
 
 /**
+ * MARCA DE COMPANHEIRO, por id de JOGADOR: nome e cor de sinal de quem está na
+ * mesa. Montada pelo host (`net/hostSession.ts`), que é quem conhece os nomes.
+ */
+export type CompanionMarks = ReadonlyMap<string, TokenCompanion>
+
+/**
+ * Por id de ficha, a marca do jogador dono dela — só fichas de OUTROS
+ * jogadores. Ficha que o próprio jogador também tem não entra: ela é dele.
+ */
+function companionsByToken(ownership: Record<string, string[]>, playerId: string, owned: ReadonlySet<string>, marks: CompanionMarks | undefined): Map<string, TokenCompanion> {
+  const byToken = new Map<string, TokenCompanion>()
+  if (marks === undefined) return byToken
+  for (const [ownerId, tokenIds] of Object.entries(ownership)) {
+    if (ownerId === playerId) continue
+    const mark = marks.get(ownerId)
+    if (mark === undefined) continue
+    for (const id of tokenIds) {
+      if (!owned.has(id) && !byToken.has(id)) byToken.set(id, { name: mark.name, color: mark.color })
+    }
+  }
+  return byToken
+}
+
+/** A ficha com a marca que o recorte decidiu, e só ela: `companion` vindo do mapa do mestre nunca passa. */
+function withCompanionMark(token: Token, mark: TokenCompanion | undefined): Token {
+  if (mark !== undefined) return { ...token, companion: mark }
+  if (token.companion === undefined) return token
+  const copy = { ...token }
+  delete copy.companion
+  return copy
+}
+
+/**
  * "QUEM VÊ" de cada pino, por id: os jogadores escolhidos pelo mestre. Pino
  * AUSENTE do mapa = "Todos" (o pino de sempre); presente com o conjunto vazio =
  * "Só estes" sem ninguém marcado, e ninguém recebe. A lista vive na sessão do
@@ -1601,6 +1634,12 @@ const FLOOR_SEEN_DEPTH = 1
  * `seenMarks`: ids das marcas de jogador (bilhete no lugar) que ESTE jogador já
  * viu. No explorado só sai marca daqui; marca nova sai só pela visão atual —
  * senão o bilhete cravado no escuro lembrado entregaria onde o colega está agora.
+ * `oneWayExits`: por pino, as saídas cujo par é a chegada oculta
+ * (`oneWayExitsOf`, montado pelo host, que enxerga a outra cena). Ausente =
+ * nenhuma passagem sai marcada "Só ida".
+ * `companions`: nome e cor de cada jogador da mesa (`CompanionMarks`). A ficha
+ * de outro jogador que SAI no recorte leva a marca dele; ausente = nenhuma
+ * ficha sai marcada.
  */
 export function filterMapForPlayer(
   map: MapData,
@@ -1617,10 +1656,13 @@ export function filterMapForPlayer(
   peekDoorIds?: ReadonlySet<string>,
   remembered?: PlanMemory,
   seenMarks?: ReadonlySet<string>,
+  oneWayExits?: OneWayExits,
+  companions?: CompanionMarks,
 ): PlayerMapView {
   // Jogador sem entrada de posse não tem token nem visão. A marca do guarda
   // (?, !) mede as fichas de TODOS os jogadores que ele recebe, não só as dele.
-  return filterMapForGroup(map, [{ tokenIds: ownership[playerId] ?? [], visionRadius }], explored, seenDoors, allPlayerTokens(ownership), {
+  const ownTokenIds = ownership[playerId] ?? []
+  return filterMapForGroup(map, [{ tokenIds: ownTokenIds, visionRadius }], explored, seenDoors, allPlayerTokens(ownership), {
     pinAudiences,
     enteredRooms,
     playerId,
@@ -1630,6 +1672,8 @@ export function filterMapForPlayer(
     peekDoorIds,
     remembered,
     seenMarks,
+    oneWayExits,
+    companionOf: companionsByToken(ownership, playerId, new Set(ownTokenIds), companions),
   })
 }
 
@@ -1655,6 +1699,10 @@ export interface PlayerOnlyView {
   remembered?: PlanMemory
   /** Marcas de jogador (bilhete no lugar) que ESTE jogador já viu (`filterMapForPlayer`). A tela da mesa não passa: lá vale só a visão atual. */
   seenMarks?: ReadonlySet<string>
+  /** SÓ IDA: por pino, as saídas marcadas pelo host (`filterMapForPlayer`). Ausente = nenhuma sai marcada. */
+  oneWayExits?: OneWayExits
+  /** MARCA DE COMPANHEIRO por id de ficha (`companionsByToken`, via `filterMapForPlayer`). A tela da mesa não passa: nenhuma ficha sai marcada. */
+  companionOf?: ReadonlyMap<string, TokenCompanion>
 }
 
 /** OLHOS DO GUARDA: as fichas de todos os jogadores da sala — quem a marca do guarda considera. */
@@ -1693,10 +1741,10 @@ export function filterMapForGroup(
   explored?: Exploration,
   seenDoors?: ReadonlyMap<string, DoorState>,
   watchTargets?: ReadonlySet<string>,
-  { pinAudiences, enteredRooms, playerId, seenRooms, secretReveals, discoveredSecretRooms, peekDoorIds, remembered, seenMarks }: PlayerOnlyView = {},
+  { pinAudiences, enteredRooms, playerId, seenRooms, secretReveals, discoveredSecretRooms, peekDoorIds, remembered, seenMarks, oneWayExits, companionOf }: PlayerOnlyView = {},
 ): PlayerMapView {
   if (isWorldMap(map))
-    return filterWorldMapForGroup(map, viewers, explored, seenDoors, watchTargets, { pinAudiences, enteredRooms, playerId, seenRooms, secretReveals, discoveredSecretRooms, peekDoorIds, remembered, seenMarks })
+    return filterWorldMapForGroup(map, viewers, explored, seenDoors, watchTargets, { pinAudiences, enteredRooms, playerId, seenRooms, secretReveals, discoveredSecretRooms, peekDoorIds, remembered, seenMarks, oneWayExits, companionOf })
   const hiddenLayers = map.hiddenLayers
   // Posse é exclusiva (um token, um dono); se viesse repetido, vale o primeiro raio.
   const radiusByToken = new Map<string, number>()
@@ -2842,8 +2890,14 @@ export function filterMapForGroup(
   // Nome: o dono lê o real; os outros, o "Nome para os jogadores" (o de trabalho do mestre não sai).
   // MOCHILA: só a da PRÓPRIA ficha sai. O que o colega carrega é dele e do
   // mestre — ver a ficha dele no mapa não conta o que tem no bolso.
+  // Marca de companheiro DEPOIS do filtro: ficha que não sai não leva o nome do dono a lugar nenhum.
+  // Ficha disfarçada pelo mestre (outro nome ou nenhum) também não: a marca diria quem está por trás.
+  // Sem `companionOf` (tela da mesa), nenhuma sai marcada — e `companion` do mapa do mestre nunca passa.
   const tokens = playerTokens
-    .map((t) => withoutMasterMarks(withoutNpcMark(tokenForPlayer(tokenAsSeenByPlayer(owned.has(t.id) ? t : withoutBackpack(t), owned.has(t.id))))))
+    .map((t) => {
+      const mark = tokenPublicNameMode(t.publicName) === 'same' ? companionOf?.get(t.id) : undefined
+      return withCompanionMark(withoutMasterMarks(withoutNpcMark(tokenForPlayer(tokenAsSeenByPlayer(owned.has(t.id) ? t : withoutBackpack(t), owned.has(t.id))))), mark)
+    })
     .map(tokenHealthForPlayer)
     .map((t) => tokenWatchForPlayer(t, alerts.get(t.id) ?? null))
     // ROTA DE PATRULHA: os pontos dizem por onde o NPC vai passar — é do
@@ -2990,6 +3044,7 @@ export function filterMapForGroup(
     // "QUEM VÊ" também sai antes da névoa: quem não foi escolhido não recebe o
     // pino nem o id dele, mesmo em cima dele — e o host recusa passagem por um
     // pino que o jogador não recebeu (`validTravel` usa este mesmo recorte).
+    // SÓ IDA: a marca de cada saída vem do host (`oneWayExits`), e só no pino que sai.
     // PRESO À FICHA: o pino preso anda com a ficha, então conta onde ela está
     // agora. Ele só sai quando a ficha dele sai neste recorte (a visão dela,
     // não a memória do explorado) — senão o navio na névoa se revelaria pela
@@ -3014,7 +3069,7 @@ export function filterMapForGroup(
       // toque abriria "Descer por aqui?" para o host recusar. A escada continua desenhada.
       if (p.escadaId !== undefined) {
         if (!playerStairIds.has(p.escadaId) || p.hidden || p.secret || travelExitsOf(p).length === 0) return []
-        return [pinForPlayer(p, ownTokens, map.grid, true, true)]
+        return [pinForPlayer(p, ownTokens, map.grid, true, true, oneWayExits?.get(p.id))]
       }
       if (p.hidden || p.secret || hiddenLayers.includes('anotacoes')) return []
       if (p.presoA !== undefined && mapTokenIds.has(p.presoA) && !deliveredTokenIds.has(p.presoA)) return []
@@ -3023,7 +3078,7 @@ export function filterMapForGroup(
       const known = isPointKnown(point)
       const reached = p.marco === true ? !hiddenByZone(point) : known
       if (!reached) return []
-      return [pinForPlayer(p, ownTokens, map.grid, canReadPin(p, pinReaders, map.grid, hiddenByZone), known)]
+      return [pinForPlayer(p, ownTokens, map.grid, canReadPin(p, pinReaders, map.grid, hiddenByZone), known, oneWayExits?.get(p.id))]
     }),
     // BILHETE NO LUGAR: quem passar ali depois vê. Sai na visão atual; no
     // explorado, só a marca que ele JÁ VIU (`seenMarks`, como `seenDoors`) —
@@ -3365,6 +3420,11 @@ function canReadPin(pin: Pin, readers: readonly PinReader[], grid: number, hidde
  *   "Passar", "Pedir para passar" ou "Está trancada". O modo diz como a porta
  *   se comporta, não para onde ela leva. O `mudo` do trancado vai pelo mesmo
  *   motivo (oferecer ou não "Pedir ao mestre").
+ * - `motivo` VAI só com a passagem trancada (`blockReasonOf`): "Desabou" diz
+ *   o que a porta é agora, e nada da outra cena.
+ * - `semVolta` (pino de uma saída) e `escolhas[].soIda` (encruzilhada) VÃO
+ *   só quando o host marcou a saída em `oneWay`: dizem que não há volta por
+ *   ali, nunca para onde se vai.
  * - `abreCom` NUNCA (CHAVE ABRE PORTA): o jogador não descobre que pinos uma
  *   chave abre. Em troca, `chave` — o nome do item que ELE já carrega — sai só
  *   no pino trancado que uma ficha dele, encostada, abre (`ownTokens`: as
@@ -3379,7 +3439,7 @@ function canReadPin(pin: Pin, readers: readonly PinReader[], grid: number, hidde
  *   passagem por ele não vale daqui.
  * - `nome` NUNCA: é o nome só do mestre, e o cartão do jogador é a descrição.
  */
-function pinForPlayer(pin: Pin, ownTokens: readonly Token[], grid: number, readable: boolean, known: boolean): Pin {
+function pinForPlayer(pin: Pin, ownTokens: readonly Token[], grid: number, readable: boolean, known: boolean, oneWay?: ReadonlySet<string>): Pin {
   // LISTA DO QUE VAI, e não "copia tudo e apaga o que não pode": campo que o
   // arquivo trouxer e o app não conhece (versão futura, edição à mão) não
   // chega ao jogador por descuido (revisão de segurança, 22/09). `destino`,
@@ -3387,6 +3447,8 @@ function pinForPlayer(pin: Pin, ownTokens: readonly Token[], grid: number, reada
   // outra cena existe. `marco` e `lerDePerto` também: são regra do host.
   // `nome` também, e de propósito: é o rótulo SÓ DO MESTRE ("Faca") — o
   // jogador lê a descrição (teste em `fogFilter.pinoNome.test.ts`).
+  // `notaDoMestre` ("só eu leio") fica de fora SEMPRE: o jogador lê
+  // `description` e mais nada do texto do pino.
   // Pino "só de perto" com a ficha longe sai vazio e marcado `longe`.
   const forPlayer: Pin = {
     id: pin.id,
@@ -3413,13 +3475,25 @@ function pinForPlayer(pin: Pin, ownTokens: readonly Token[], grid: number, reada
   // mestre" que o host recusaria. Em qualquer outro modo ela não diz nada e
   // fica de fora (sobra de quando o pino era trancado).
   if (pin.mudo === true && passageOf(pin) === 'trancada') forPlayer.mudo = true
+  // MOTIVO DO BLOQUEIO: só do pino de viagem trancado, e só um valor da lista.
+  // Motivo guardado num pino reaberto é plano do mestre para depois — não sai.
+  const motivo = blockReasonOf(pin)
+  if (motivo !== null) forPlayer.motivo = motivo
   // ENCRUZILHADA: o jogador recebe `escolhas`, montado AQUI (nunca copiado do
   // mestre): por saída, só o id e o rótulo. Pino de uma saída não ganha o
   // campo: o cartão dele é o de sempre, e o recorte também. Placa "só de
   // perto" com a ficha longe: o rótulo é texto da placa e não sai — cada saída
   // vai só com o id e "Saída N", e o jogador ainda consegue pedir a passagem.
+  // SÓ IDA: um booleano por saída, e só com o que o HOST mandou marcar
+  // (`oneWay`, de `oneWayExitsOf`). `semVolta` gravado no pino do mestre
+  // (arquivo editado à mão) não é lido: o recorte é lista do que vai.
+  const soIda = (exitId: string): boolean => oneWay !== undefined && oneWay.has(exitId)
   const escolhas = exitLabelsOf(pin)
-  if (escolhas.length > 1) forPlayer.escolhas = readable ? escolhas : unreadExitLabels(escolhas)
+  if (escolhas.length > 1) {
+    const visiveis = readable ? escolhas : unreadExitLabels(escolhas)
+    forPlayer.escolhas = visiveis.map((saida) => (soIda(saida.id) ? { ...saida, soIda: true } : saida))
+  }
+  if (escolhas.length === 1 && soIda(escolhas[0].id)) forPlayer.semVolta = true
   // ITEM PEGÁVEL: o cartão precisa do nome e de saber se pede ao mestre.
   // Cópia limpa (`itemOfPin`), nunca o objeto do mestre.
   const item = itemOfPin(pin)

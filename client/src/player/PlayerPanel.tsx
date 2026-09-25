@@ -53,6 +53,26 @@ export interface PlayerViewSettings {
   showGrid: boolean
   /** Nomes das salas, textos da ferramenta Texto e rótulos dos tokens. */
   showNames: boolean
+  /**
+   * "Câmera segue minha ficha": soltar a própria ficha perto da borda recentra
+   * a câmera nela. Ausente = o jogador nunca escolheu, e vale o padrão do
+   * aparelho (`followsOwnToken`). Ausente também não vai para o armazenamento:
+   * quem troca de aparelho leva o padrão do aparelho novo.
+   */
+  followOwnToken?: boolean
+}
+
+/** Tela de toque: o dedo é quem arrasta a ficha até a borda, e ali a câmera seguir é o padrão. */
+const TOUCH_QUERY = '(pointer: coarse)'
+
+/**
+ * A câmera segue a própria ficha? A escolha do jogador, quando há; sem ela,
+ * ligado no celular (dedo) e desligado no notebook (mouse), como no relato da
+ * Fabi (torre, lote 1, n. 47). Sem `matchMedia` (jsdom), vale o notebook.
+ */
+export function followsOwnToken(settings: PlayerViewSettings): boolean {
+  if (settings.followOwnToken !== undefined) return settings.followOwnToken
+  return typeof window.matchMedia === 'function' && window.matchMedia(TOUCH_QUERY).matches
 }
 
 export const EXPLORED_BRIGHTNESS_MIN = 0.3
@@ -108,8 +128,8 @@ export function loadPlayerSettings(storage: StorageLike | null): PlayerViewSetti
     return { ...DEFAULT_PLAYER_SETTINGS }
   }
   if (typeof parsed !== 'object' || parsed === null) return { ...DEFAULT_PLAYER_SETTINGS }
-  const { exploredBrightness, showGrid, showNames } = parsed as Record<string, unknown>
-  return {
+  const { exploredBrightness, showGrid, showNames, followOwnToken } = parsed as Record<string, unknown>
+  const settings: PlayerViewSettings = {
     exploredBrightness:
       typeof exploredBrightness === 'number' && Number.isFinite(exploredBrightness)
         ? clampBrightness(exploredBrightness)
@@ -117,6 +137,9 @@ export function loadPlayerSettings(storage: StorageLike | null): PlayerViewSetti
     showGrid: typeof showGrid === 'boolean' ? showGrid : DEFAULT_PLAYER_SETTINGS.showGrid,
     showNames: typeof showNames === 'boolean' ? showNames : DEFAULT_PLAYER_SETTINGS.showNames,
   }
+  // Só a escolha feita entra: sem ela o padrão continua sendo o do aparelho.
+  if (typeof followOwnToken === 'boolean') settings.followOwnToken = followOwnToken
+  return settings
 }
 
 /** Armazenamento cheio ou bloqueado (aba anônima) não pode derrubar a partida. */
@@ -209,6 +232,8 @@ interface PlayerPanelProps {
   /** "Esperar aqui". Sem ele (tela antiga, teste), a seção não aparece. */
   onStartWait?: (minutes: number, who: string, where: string) => void
   onStopWait?: () => void
+  /** VOLTO JÁ: sair da mesa por um instante. Sem ele, o botão não aparece. */
+  onStepAway?: () => void
 }
 
 export function PlayerPanel({
@@ -257,6 +282,7 @@ export function PlayerPanel({
   wait,
   onStartWait,
   onStopWait,
+  onStepAway,
 }: PlayerPanelProps) {
   const tabs = onRollDice === undefined ? PANEL_TABS_NO_DICE : PANEL_TABS
   const drawerScreen = useSyncExternalStore(subscribeDrawerScreen, isDrawerScreen, () => false)
@@ -591,6 +617,14 @@ export function PlayerPanel({
               {laserArmed && <p className="pp-empty">Segure e arraste no mapa para apontar. Quem está na sua cena vê. Esc sai.</p>}
               {mapShare !== undefined && <PlayerMapShare {...mapShare} />}
               {markForm !== undefined && <PlayerMarkForm {...markForm} />}
+              {onStepAway !== undefined && (
+                <>
+                  <button type="button" className="pp-button" onClick={onStepAway}>
+                    Volto já
+                  </button>
+                  <p className="pp-empty">Sua ficha fica parada e o mestre sabe que você saiu por um instante.</p>
+                </>
+              )}
             </section>
 
             {backpack !== undefined && <PlayerBackpack {...backpack} />}
@@ -692,6 +726,14 @@ export function PlayerPanel({
               <label className="pp-check">
                 <input type="checkbox" checked={settings.showNames} onChange={(e) => onSettingsChange({ ...settings, showNames: e.target.checked })} />
                 <span>Nomes</span>
+              </label>
+              <label className="pp-check">
+                <input
+                  type="checkbox"
+                  checked={followsOwnToken(settings)}
+                  onChange={(e) => onSettingsChange({ ...settings, followOwnToken: e.target.checked })}
+                />
+                <span>Câmera segue minha ficha</span>
               </label>
             </section>
           </div>

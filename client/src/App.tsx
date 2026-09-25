@@ -18,6 +18,7 @@ import { createHostBridge, type HostBridge, type RoomInfo, type TunnelState } fr
 import { hostPlayerChanges } from './net/playerChanges'
 import { useSignalStore } from './stores/signalStore'
 import { goToPointAction } from './stores/pointActionGo'
+import { useAwayTokensStore } from './stores/awayTokensStore'
 import { laserStrokeEnded, useLaserStore } from './stores/laserStore'
 import { usePlayerLaserStore } from './stores/playerLaserStore'
 import { useNoiseStore } from './stores/noiseStore'
@@ -31,6 +32,7 @@ import { carryRefsOf } from './lib/carry'
 import { consertarNaAventura } from './stores/revisaoAventura'
 import { useFollowPlayer } from './stores/useFollowPlayer'
 import { useArrivalTextSettings } from './stores/useArrivalTextSettings'
+import { subscribeToPlayerWorldChanges } from './stores/playerWorldSubscription'
 import { playSignalSound } from './lib/signalSound'
 import { createSignalRouter } from './net/chamadoDeFundo'
 import { tableSceneKey, type AppliedMove, type PinClueState, type PlayerInfo, type SecretCheckState } from './net/hostSession'
@@ -100,7 +102,7 @@ import { ShortcutsDialog } from './components/ShortcutsDialog'
 import { ExportImageDialog } from './components/ExportImageDialog'
 import { imageExportFileName, type ImageExportOptions, type MapImageExporter } from './lib/mapImageExport'
 import { saveMapImage } from './lib/mapImageSave'
-import type { DoorKind, DoorSide, DrawingCap, DrawingDash, MapData, Pin, PinPassage, Region, Token, Wall } from './types/map'
+import type { DoorKind, DoorSide, DrawingCap, DrawingDash, MapData, Pin, PinBlockReason, PinPassage, Region, Token, Wall } from './types/map'
 import { passageOf } from './lib/pins'
 import { isArrivalOnly } from './lib/pinTravel'
 import { pinAttachOptions } from './lib/pinAttach'
@@ -605,7 +607,11 @@ function App() {
         },
         // "Ir lá" da ação no ponto: centra no ponto e o marca com o anel do jogador.
         onPointActionGo: goToPointAction,
-        onPlayersChange: setRoomPlayers,
+        onPlayersChange: (players) => {
+          setRoomPlayers(players)
+          // VOLTO JÁ: o canvas põe o selo de ausente nas fichas de quem saiu da mesa.
+          useAwayTokensStore.getState().setFromPlayers(players)
+        },
         onPinAudiencesChange: setPinAudiences,
         onTravelLogChange: setTravelLog,
         onPinCluesChange: setPinClues,
@@ -690,6 +696,8 @@ function App() {
   )
   // Cena de fundo que chega do disco depois de abrir a aventura: quem está nela sai da espera.
   useEffect(() => subscribeToServedScenes(() => hostBridgeRef.current?.notifyMapChanged()), [])
+  // O mapa aberto e as cenas de fundo: o snapshot dos jogadores lê os dois.
+  useEffect(() => subscribeToPlayerWorldChanges(() => hostBridgeRef.current?.notifyMapChanged()), [])
   const laserToggled = useLaserStore((state) => state.toggled)
   const diceRolls = useDiceStore((state) => state.rolls)
   const noiseArmed = useNoiseStore((state) => state.armed)
@@ -740,6 +748,7 @@ function App() {
     // O alarme morreu com a sessão: sala nova começa sem alarme.
     setSceneAlarm(null)
     setPausedScenes(new Set())
+    useAwayTokensStore.getState().clear()
     useSignalStore.getState().clear()
     usePlayerLaserStore.getState().clear()
     useLaserStore.getState().setToggled(false)
@@ -1808,10 +1817,18 @@ function App() {
       // "Aceita tentativas" do trancado: desligar grava `mudo`; ligar tira a marca.
       acceptsAttempts: pin.mudo !== true,
       onAcceptsAttemptsChange: (on: boolean) => useMapStore.getState().updatePin(pin.id, { mudo: on ? undefined : true }),
+      // Motivo do bloqueio: do pino desta cena, com desfazer, como o modo.
+      motivo: pin.motivo,
+      onMotivoChange: (motivo: PinBlockReason | undefined) => useMapStore.getState().updatePin(pin.id, { motivo }),
       // Mão única mora no PAR (cena de fundo): marcar e desmarcar vão pela
       // aventura, fora do desfazer desta cena.
       onOneWayChange: (exitId: string, on: boolean) => {
         useAdventureStore.getState().setPinOneWay(pin.id, exitId, on)
+      },
+      // "Trancar os dois lados": este pino (com desfazer) e os pares (cenas de
+      // fundo, fora do desfazer), sem sair da cena aberta.
+      onBothSidesChange: (trancar: boolean) => {
+        useAdventureStore.getState().setPassageBothSides(pin.id, trancar)
       },
       arrivalOnly: isArrivalOnly(pin),
     }
@@ -2800,6 +2817,9 @@ function App() {
               // Nome só do mestre: apagar grava AUSENTE (o pino de sempre), nunca `''`.
               nome: selectedPin?.nome ?? '',
               onNomeChange: (nome) => selectedPin && useMapStore.getState().updatePin(selectedPin.id, { nome: nome === '' ? undefined : nome }),
+              // "Só eu leio": opcional no schema, pino antigo chega sem nota.
+              notaDoMestre: selectedPin ? selectedPin.notaDoMestre ?? '' : null,
+              onNotaDoMestreChange: (notaDoMestre) => selectedPin && useMapStore.getState().updatePin(selectedPin.id, { notaDoMestre }),
               // Veracidade, nunca `=== true`: `locked` é opcional no schema e
               // pino de mapa salvo antes desta fase chega sem o campo.
               locked: !!selectedPin?.locked,
