@@ -72,6 +72,7 @@ function abrirViagem(): void {
     scenes: cenas.map((entry) => ({ entry, status: 'ok' as const, map: entry.id === 'costa' ? costa : mapa(entry.id, entry.name) })),
     changedSceneIds: [],
     adventureChanged: false,
+    legacySources: [],
   })
 }
 

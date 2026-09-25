@@ -146,6 +146,7 @@ function abrirAventura(): void {
     ],
     changedSceneIds: [],
     adventureChanged: false,
+    legacySources: [],
   })
 }
 
@@ -385,6 +386,7 @@ describe('pastas: Duplicar, Subir/Descer e Apagar seguem a árvore', () => {
       scenes: adventure.scenes.map((entry, i) => ({ entry, status: 'ok' as const, map: mapas[i] })),
       changedSceneIds: [],
       adventureChanged: false,
+      legacySources: [],
     })
   }
 

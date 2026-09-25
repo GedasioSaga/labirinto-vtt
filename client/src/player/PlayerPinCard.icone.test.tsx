@@ -31,7 +31,7 @@ describe('PlayerPinCard: ícone do marcador', () => {
   })
 
   function render(pin: Pin): void {
-    act(() => root.render(<PlayerPinCard pin={pin} onClose={() => {}} />))
+    act(() => root.render(<PlayerPinCard pin={pin} onClose={() => {}} stairs={[]} />))
   }
 
   function dialogo(): HTMLElement {

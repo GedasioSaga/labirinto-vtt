@@ -105,6 +105,7 @@ describe('telas do item pegável', () => {
       onChooseImage: vi.fn(),
       onClearImage: vi.fn(),
       onDelete: vi.fn(),
+      iconChoice: null,
     }
     // O interruptor é o `Toggle` da casa: checkbox nativo dentro do rótulo.
     const interruptor = (texto: string): HTMLInputElement => {

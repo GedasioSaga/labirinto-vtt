@@ -31,7 +31,8 @@ export async function saveMapImage(bytes: Uint8Array, fileName: string): Promise
 const REVOKE_DELAY_MS = 1000
 
 function downloadInBrowser(bytes: Uint8Array, fileName: string): void {
-  const url = URL.createObjectURL(new Blob([bytes], { type: 'image/png' }))
+  // `Blob` só aceita `Uint8Array<ArrayBuffer>`; os bytes de exportação nunca vêm de um SharedArrayBuffer.
+  const url = URL.createObjectURL(new Blob([bytes as Uint8Array<ArrayBuffer>], { type: 'image/png' }))
   const link = document.createElement('a')
   link.href = url
   link.download = fileName

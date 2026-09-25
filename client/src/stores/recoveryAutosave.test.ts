@@ -226,6 +226,7 @@ describe('Recuperar: devolve o trabalho ao editor', () => {
     scenes: [],
     changedSceneIds: [],
     adventureChanged: false,
+    legacySources: [],
   })
 
   it('mapa salvo: reabre o arquivo e põe por cima o trabalho, como NÃO salvo', async () => {
@@ -276,6 +277,7 @@ describe('Recuperar: devolve o trabalho ao editor', () => {
       ],
       changedSceneIds: [],
       adventureChanged: false,
+      legacySources: [],
     }
     const origem = await restoreRecoveryCopy(
       { savedAtMs: AGORA, mapPath: 'C:/adv/map.json', map: recuperado(), scenes: { s2: { ...mapaB, walls: [outraParede] } } },

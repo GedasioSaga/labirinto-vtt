@@ -2365,7 +2365,7 @@ export function filterMapForGroup(
     shown: (w) => layerShown(wallLayer(w)),
     placeOk: (w) => {
       if (w.regionId !== undefined && secretRoomIds.has(w.regionId)) return false
-      if (isUnderClosedRoof(w)) return false
+      if (interiorRoofOf(w) !== undefined) return false
       // Porta com o meio escondido não sai nem pelas amostras dos lados.
       if (w.door !== null) return !inConcealZone(wallMidpoint(w))
       return !wallSamples(w).some(inConcealZone)
@@ -2434,7 +2434,7 @@ export function filterMapForGroup(
   const floor = recallItems(map.floor, remembered?.floor, {
     allowed: (f) => !f.hidden,
     shown: () => true,
-    placeOk: (f) => !isFloorInHiddenArea(f),
+    placeOk: (f) => !hiddenFloorIds.has(f.id),
     seenNow: floorSeenNow,
     unseenOk: (f) => !memoryMode || !floorPieceSamples(f).some(isPointExploredOpen),
   })

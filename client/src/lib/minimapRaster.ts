@@ -180,7 +180,7 @@ function centerMargin(shape: Oriented, x: number, y: number): number {
   return Math.max(shape.uMin - u, u - shape.uMax, Math.abs(v) - shape.halfV)
 }
 
-export function rasterizeMinimap(input: MinimapRasterInput, style: MinimapRasterStyle): Uint8ClampedArray {
+export function rasterizeMinimap(input: MinimapRasterInput, style: MinimapRasterStyle): Uint8ClampedArray<ArrayBuffer> {
   const { width: w, height: h, originX, originY } = input
   const s = Math.max(1, Math.min(MAX_SAMPLES, Math.round(style.samples)))
   const count = s * s

@@ -83,6 +83,7 @@ describe('ScenesSection + loja: cenas em pastas', () => {
       scenes: cenas.map((entry) => ({ entry, status: 'ok' as const, map: entry.id === 'costa' ? costa : mapa(entry.id, entry.name) })),
       changedSceneIds: [],
       adventureChanged: false,
+      legacySources: [],
     })
     container = document.createElement('div')
     document.body.appendChild(container)

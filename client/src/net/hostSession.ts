@@ -1469,6 +1469,7 @@ function restoredMemoryOf(scene: SavedSceneMemory): Omit<PlayerMemory, 'place'> 
     vision: [],
     restored: true,
     seenRooms: new Set(),
+    plan: emptyPlanMemory(),
   }
 }
 
@@ -2226,7 +2227,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
    * host mandou (ele aplicou algo otimista que o host recusou calado). O
    * `patch` vazio basta: o jogador volta para a última tela recebida.
    */
-  const viewIfChanged = (clientId: string, playerId: string, world: HostWorld, force = false): HostMessage | null => {
+  const viewIfChanged = (clientId: string, playerId: string, world: HostWorld, force = false): HostMessage[] => {
     const scene = sceneFor(playerId, world)
     const map = scene === null ? null : scene.map
     const radius = radiusFor(playerId)
@@ -2239,10 +2240,13 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       last.radius === radius &&
       last.ownershipRev === ownershipRev &&
       last.memory === before
-    if (!force && sameInputs && last.stable) return null
+    if (!force && sameInputs && last.stable) return []
     const planBefore = before === undefined ? null : before.plan
     const doorsBefore = before === undefined ? null : doorsKey(before.doors)
-    const snapshot = map === null ? null : snapshotFor(playerId, map)
+    const snapshotMsgs = scene === null ? null : snapshotFor(playerId, scene.map, world, sceneNameForPlayer(scene), floorsFor(playerId, scene, world))
+    // `snapshotFor` sempre devolve o snapshot como primeiro item (`[snapshot, ...cards]`).
+    const snapshot = snapshotMsgs === null ? null : (snapshotMsgs[0] as SnapshotMessage)
+    const cards = snapshotMsgs === null ? [] : snapshotMsgs.slice(1)
     const after = map === null ? undefined : existingMemory(playerId, map)
     const view = snapshot === null ? null : contentOf(snapshot)
     const out = messageFor(clientId, last, snapshot, view, force)
@@ -2262,7 +2266,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       snapshotLength,
       stable: sameInputs && out === null && memorySettled,
     })
-    return out
+    return out === null ? cards : [out, ...cards]
   }
 
   /**
@@ -2303,8 +2307,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
    */
   const resendView = (clientId: string, playerId: string, world: HostWorld): HostResult => {
     rev += 1
-    const msg = viewIfChanged(clientId, playerId, world, true)
-    return msg === null ? { outbound: [] } : reply(clientId, msg)
+    const msgs = viewIfChanged(clientId, playerId, world, true)
+    return { outbound: msgs.map((msg) => ({ clientId, msg })) }
   }
 
   /**
@@ -3475,7 +3479,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     // FECHAR com uma ficha no vão é blocked: a porta desceria em cima dela.
     if (seen.door.open && seen.inDoorway) return reject('blocked')
 
-    return { outbound: [], applyDoor: { wallId: seen.wall.id, open: !seen.door.open, ...backgroundSceneId(scene, world) } }
+    return { outbound: [], applyDoor: { wallId: seen.wall.id, open: !seen.door.open, ...backgroundSceneId(scene, world), playerId, playerName: record.name } }
   }
 
   /**
@@ -3500,13 +3504,17 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     if (seen === null) return reject('not_visible')
     if (!seen.near) return reject('far')
     // Destrancada (o mestre ou um colega chegou antes): abre como o toque abriria.
-    if (!seen.door.locked) return { outbound: [], applyDoor: { wallId: seen.wall.id, open: true, ...backgroundSceneId(scene, world) } }
+    if (!seen.door.locked) return { outbound: [], applyDoor: { wallId: seen.wall.id, open: true, ...backgroundSceneId(scene, world), playerId, playerName: record.name } }
     if (seen.key === null) return reject('locked')
 
     const used: DoorKeyUse = { playerId, playerName: record.name, itemName: seen.key }
     // Cena de fundo: o mestre lê onde foi, porque está olhando outra.
     if (backgroundSceneId(scene, world).sceneId !== undefined) used.sceneName = scene.name
-    return { outbound: [], applyDoor: { wallId: seen.wall.id, open: true, unlock: true, ...backgroundSceneId(scene, world) }, doorKeyUsed: used }
+    return {
+      outbound: [],
+      applyDoor: { wallId: seen.wall.id, open: true, unlock: true, ...backgroundSceneId(scene, world), playerId, playerName: record.name },
+      doorKeyUsed: used,
+    }
   }
 
   /**
@@ -3614,7 +3622,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   function handlePinLever(clientId: string, msg: PinLeverMessage, world: HostWorld): HostResult {
     const playerId = byClient.get(clientId)
     if (playerId === undefined) return reply(clientId, { type: 'error', reason: 'not_joined' })
-    if (statusOf(playerId) !== 'playing') return { outbound: [] }
+    const record = players.get(playerId)
+    if (record === undefined || statusOf(playerId) !== 'playing') return { outbound: [] }
     const scene = sceneFor(playerId, world)
     // Cena pausada: a alavanca mexe numa porta, então morre em silêncio como o toque na porta.
     if (scene === null || inPausedScene(scene)) return { outbound: [] }
@@ -3635,7 +3644,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
 
     return {
       outbound: [{ clientId, msg: { type: 'pin.lever.answer', answer: 'pulled' } }],
-      applyDoor: { wallId: door.id, open: !door.door.open, ...backgroundSceneId(scene, world) },
+      applyDoor: { wallId: door.id, open: !door.door.open, ...backgroundSceneId(scene, world), playerId, playerName: record.name },
     }
   }
 
@@ -4573,15 +4582,16 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       const pending = findPendingDoor(requestId)
       if (pending === undefined) return { outbound: [] }
       pendingDoors.delete(pending.playerId)
-      const clientId = players.get(pending.playerId)?.clientId ?? null
+      const record = players.get(pending.playerId)
+      const clientId = record?.clientId ?? null
       const world = toWorld(source)
       // A cena da PORTA, não a do jogador agora nem a aberta no editor.
       const scene = allScenes(world).find((s) => sceneKey(s) === pending.mapId)
       const door = scene?.map.walls.find((w) => w.id === pending.wallId)?.door ?? null
-      if (scene === undefined || door === null) return { outbound: [] }
+      if (scene === undefined || door === null || record === undefined) return { outbound: [] }
       return {
         outbound: clientId === null ? [] : [{ clientId, msg: { type: 'door.request.answer', answer: 'opened' } }],
-        applyDoor: { wallId: pending.wallId, open: true, unlock: true, ...backgroundSceneId(scene, world) },
+        applyDoor: { wallId: pending.wallId, open: true, unlock: true, ...backgroundSceneId(scene, world), playerId: pending.playerId, playerName: record.name },
       }
     },
 
@@ -5139,10 +5149,12 @@ export function createHostSession(options: HostSessionOptions): HostSession {
         // Cada um a SUA cena: quem ficou no Salão nunca recebe nada da Cripta.
         // Quem não está em cena nenhuma recebe a espera, e não a cena do editor.
         // Só para quem a tela mudou: o passo de um não reenvia o mapa aos outros.
-        const msg = viewIfChanged(clientId, playerId, world)
-        if (msg !== null) {
+        const views = viewIfChanged(clientId, playerId, world)
+        if (views.length > 0) {
+          const [msg, ...cards] = views
           // Quem volta da espera recebe, depois do mapa, o teste secreto pendente.
           outbound.push(...withPendingSecretChecks(playerId, clientId, msg))
+          outbound.push(...cards.map((card) => ({ clientId, msg: card })))
           // O recado só para ele guardado, logo atrás do mapa — quem ganhou ficha agora o lê.
           outbound.push(...pendingNoteFor(clientId, playerId, msg))
         }

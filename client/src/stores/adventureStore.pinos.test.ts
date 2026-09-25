@@ -65,6 +65,7 @@ function abrirAventura(): void {
     ],
     changedSceneIds: [],
     adventureChanged: false,
+    legacySources: [],
   })
 }
 

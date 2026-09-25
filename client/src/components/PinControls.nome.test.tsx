@@ -41,6 +41,7 @@ describe('PinControls: nome só do mestre', () => {
       onChooseImage: () => {},
       onClearImage: () => {},
       onDelete: () => {},
+      iconChoice: null,
       ...extra,
     }
     act(() => root.render(<PinControls {...props} />))

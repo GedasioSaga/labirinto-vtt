@@ -41,6 +41,7 @@ describe('PinControls: marco e ler só de perto', () => {
       onChooseImage: () => {},
       onClearImage: () => {},
       onDelete: () => {},
+      iconChoice: null,
       ...extra,
     }
     act(() => root.render(<PinControls {...props} />))

@@ -59,7 +59,7 @@ function jogador(plan: PlanMemory = emptyPlanMemory()) {
   const doors = new Map<string, DoorState>()
   let memory = plan
   const ver = (map: MapData): PlayerMapView => {
-    const view = filterMapForPlayer(map, 'p1', OWN, RADIUS, exp, doors, memory)
+    const view = filterMapForPlayer(map, 'p1', OWN, RADIUS, exp, doors, undefined, undefined, undefined, undefined, undefined, memory)
     markRings(exp, view.vision, view.blocked)
     memory = view.plan
     for (const w of map.walls) {

@@ -39,6 +39,7 @@ function base(extra: Partial<PinControlsProps>): PinControlsProps {
     onChooseImage: () => {},
     onClearImage: () => {},
     onDelete: () => {},
+    iconChoice: null,
     ...extra,
   }
 }

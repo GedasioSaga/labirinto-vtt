@@ -29,6 +29,7 @@ function painel(lever: PinControlsProps['lever']): PinControlsProps {
     onChooseImage: vi.fn(),
     onClearImage: vi.fn(),
     onDelete: vi.fn(),
+    iconChoice: null,
     lever,
   }
 }

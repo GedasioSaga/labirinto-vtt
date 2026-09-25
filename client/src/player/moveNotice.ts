@@ -1,5 +1,6 @@
 import type { DoorToggleRejection } from '../net/protocol'
-import type { TokenMoveRejection } from '../lib/moveValidation'
+import type { TokenMoveLanding, TokenMoveRejection } from '../lib/moveValidation'
+import { MOVE_NOTICE_TEXT as LANDING_NOTICE_TEXT } from './playerConnection'
 
 /** Recusa do mestre ao toque na porta, em uma linha curta. */
 const DOOR_NOTICE_TEXT: Record<DoorToggleRejection, string> = {
@@ -7,6 +8,7 @@ const DOOR_NOTICE_TEXT: Record<DoorToggleRejection, string> = {
   far: 'Chegue mais perto da porta',
   not_visible: 'Você não vê essa porta daqui',
   wrong_side: 'Não dá para abrir por este lado',
+  blocked: 'Tem alguém no vão da porta',
 }
 
 /**
@@ -35,11 +37,20 @@ export function moveNoticeText(reason: TokenMoveRejection): string {
  * Porta e movimento avisam no mesmo lugar da tela (rodapé): dois avisos juntos
  * se sobreporiam. Vale o mais novo — o `id` dos dois sai do mesmo contador.
  */
+function isLanding(reason: TokenMoveRejection | TokenMoveLanding): reason is TokenMoveLanding {
+  return reason === 'nearest_floor'
+}
+
+/** Texto do motivo do movimento: recusa (não moveu) ou pouso aceito em outro lugar (moveu, mas não onde pedido). */
+function moveActionText(reason: TokenMoveRejection | TokenMoveLanding): string {
+  return isLanding(reason) ? LANDING_NOTICE_TEXT[reason] : MOVE_NOTICE_TEXT[reason]
+}
+
 export function latestActionNotice(
   door: { id: number; reason: DoorToggleRejection } | undefined,
-  move: { id: number; reason: TokenMoveRejection } | undefined,
+  move: { id: number; reason: TokenMoveRejection | TokenMoveLanding } | undefined,
 ): { id: number; text: string } | null {
-  if (move !== undefined && (door === undefined || move.id > door.id)) return { id: move.id, text: MOVE_NOTICE_TEXT[move.reason] }
+  if (move !== undefined && (door === undefined || move.id > door.id)) return { id: move.id, text: moveActionText(move.reason) }
   if (door !== undefined) return { id: door.id, text: DOOR_NOTICE_TEXT[door.reason] }
   return null
 }
