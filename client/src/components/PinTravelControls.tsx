@@ -116,14 +116,19 @@ function focarDepois(achar: () => HTMLElement | null | undefined): void {
   requestAnimationFrame(() => achar()?.focus())
 }
 
-function detalhe(travel: PinTravel, temCena: boolean, algumaAbre: boolean, podeCriar: boolean): string {
-  if (travel.status === 'indisponivel') return 'A cena não abriu: o arquivo dela não foi encontrado.'
+function detalhe(travel: PinTravel, temCena: boolean, algumaAbre: boolean, podeCriar: boolean, algumaCarregando: boolean): string {
+  if (travel.status === 'indisponivel') {
+    return travel.loading === true ? 'A cena ainda está sendo lida do disco.' : 'A cena não abriu: o arquivo dela não foi encontrado.'
+  }
   if (travel.status === 'ligado') {
     const descricao = travel.partner.description.trim()
     return descricao === '' ? 'até um pino sem descrição' : `até “${descricao}”`
   }
   if (!temCena) return podeCriar ? 'Nenhuma outra cena ainda: crie uma nova em “Leva a…”.' : 'Crie outra cena em Cenas para ter para onde levar.'
-  if (!algumaAbre) return podeCriar ? 'As outras cenas não abriram; crie uma nova em “Leva a…”.' : 'As outras cenas não abriram.'
+  if (!algumaAbre) {
+    if (podeCriar) return 'As outras cenas não abriram; crie uma nova em “Leva a…”.'
+    return algumaCarregando ? 'As outras cenas ainda estão sendo lidas do disco.' : 'As outras cenas não abriram.'
+  }
   return 'Escolha a cena e o pino de chegada.'
 }
 
@@ -196,6 +201,7 @@ export function PinTravelControls({
 
   const temCena = scenes.length > 0
   const algumaAbre = scenes.some((scene) => scene.available)
+  const algumaCarregando = scenes.some((scene) => scene.loading === true)
   const podeCriar = onCreateScene !== undefined
   /** A escolha abre se há cena que abre, ou se dá para criar uma ali mesmo. */
   const escolhaAbre = algumaAbre || podeCriar
@@ -341,7 +347,7 @@ export function PinTravelControls({
         <>
           <p id={STATUS_ID} className="lb-travel__status" tabIndex={-1} aria-live="polite">
             <TituloDoDestino travel={principal.travel} />
-            <span className="lb-travel__detail">{detalhe(principal.travel, temCena, algumaAbre, podeCriar)}</span>
+            <span className="lb-travel__detail">{detalhe(principal.travel, temCena, algumaAbre, podeCriar, algumaCarregando)}</span>
           </p>
           {principal.travel.status === 'ligado' && (
             <button type="button" className="lb-btn lb-btn--block" onClick={() => concluir(() => onGo(principal.id))}>
@@ -376,7 +382,7 @@ export function PinTravelControls({
               <li key={exit.id} className={`lb-travel__exit lb-travel__exit--${exit.travel.status}`}>
                 <p className="lb-travel__status">
                   <TituloDoDestino travel={exit.travel} />
-                  <span className="lb-travel__detail">{detalhe(exit.travel, temCena, algumaAbre, podeCriar)}</span>
+                  <span className="lb-travel__detail">{detalhe(exit.travel, temCena, algumaAbre, podeCriar, algumaCarregando)}</span>
                 </p>
                 <NomeDaSaida
                   key={`${exit.id}:${exit.rotulo}`}
@@ -492,7 +498,7 @@ export function PinTravelControls({
                       enterTarget={scene.id === alvoDoEnter?.id}
                       onChoose={() => escolherCena(scene.id)}
                     />
-                    {!scene.available && <span className="lb-travel__note">não abriu</span>}
+                    {!scene.available && <span className="lb-travel__note">{scene.loading === true ? 'carregando…' : 'não abriu'}</span>}
                   </li>
                 ))}
               </ul>

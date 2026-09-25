@@ -3,7 +3,7 @@ import type { PlayerHazard } from '../lib/hazards'
 import type { PlayerAreaTrigger } from '../lib/areaTriggers'
 import type { PlayerClock } from '../lib/campaignClock'
 import type { ExploredWire } from '../lib/exploration'
-import type { TokenMoveRejection } from '../lib/moveValidation'
+import type { TokenMoveLanding, TokenMoveRejection } from '../lib/moveValidation'
 import { LASER_MAX_POINTS_PER_MESSAGE } from '../lib/laser'
 import { isTokenPhotoData } from '../lib/tokenPhoto'
 import { ROOM_TEXT_MAX_LENGTH } from '../lib/roomText'
@@ -13,6 +13,7 @@ import { isPointActionKind, isPointActionRejection, type PointActionAnswer, type
 import { MAX_DESTINATION_MARKS, SIGNAL_COLOR_PATTERN, type DestinationMark } from '../lib/signals'
 import { MASTER_ROLLER_NAME, parseDiceRequest, type DiceRequest, type DiceRollEntry } from '../lib/dice'
 import { isNoiseDirection, type NoiseDirection } from '../lib/noise'
+import type { ViewPatch } from './viewPatch'
 
 /**
  * Protocolo mestre <-> jogador. Toda mensagem é um objeto discriminado por
@@ -196,6 +197,19 @@ import { isNoiseDirection, type NoiseDirection } from '../lib/noise'
  * `secret.check.answer` (jogador -> mestre) leva o id e o resultado, que o
  * host guarda para o mestre e não repassa a ninguém. Jogador antigo ignora as
  * duas primeiras; mestre antigo responde `error invalid_message` à terceira.
+ *
+ * SÓ O QUE MUDOU (`patch`, mestre -> jogador) é aditivo e COMBINADO: o jogador
+ * que sabe aplicar diz logo depois do `join`, em mensagem própria
+ * (`view.patches`) — o `join` fica com a forma de sempre —, e só ele recebe,
+ * e só quando a tela inteira dele é grande (`PATCH_MIN_SNAPSHOT_LENGTH`, em
+ * `net/hostSession.ts`). O `patch` leva só o que mudou desde a última tela
+ * que AQUELA conexão recebeu (`net/viewPatch.ts`), com `base` = o `rev` dela.
+ * O jogador cuja tela não é a `base` (mensagem perdida na fila) descarta o
+ * patch e pede a tela inteira com `view.resync` (jogador -> mestre), no
+ * máximo um por `VIEW_RESYNC_MIN_INTERVAL_MS`. Jogador antigo não manda
+ * `view.patches` e segue recebendo `snapshot`; mestre antigo responde
+ * `error invalid_message` ao `view.patches` e ao `view.resync`, que o jogador
+ * ignora durante o jogo.
  */
 export const PROTOCOL_VERSION = 1
 
@@ -274,6 +288,13 @@ export const SECRET_CHECK_LABEL_MAX_LENGTH = 40
 export const SECRET_CHECK_RESULT_MIN = -99
 export const SECRET_CHECK_RESULT_MAX = 999
 
+/**
+ * Um `view.resync` por jogador nesta janela. O host responde com a tela
+ * inteira, que é o recorte mais caro que ele faz: sem o limite, um jogador
+ * pedindo em laço ocuparia o host.
+ */
+export const VIEW_RESYNC_MIN_INTERVAL_MS = 1000
+
 const JOIN_CODE_PATTERN = /^[A-Z0-9]{6}$/
 
 // Jogador -> mestre
@@ -296,6 +317,16 @@ export interface JoinMessage {
    * tela e recebe a cena que o mestre escolheu (que pode ser outra que a dele).
    */
   tableKey?: string
+}
+
+/** O jogador sabe aplicar `patch` (ver o topo do arquivo). Sem ela, só `snapshot`. */
+export interface ViewPatchesMessage {
+  type: 'view.patches'
+}
+
+/** A tela do jogador não é a `base` do `patch` que chegou: ele pede a inteira. */
+export interface ViewResyncMessage {
+  type: 'view.resync'
 }
 
 export interface TokenMoveMessage {
@@ -555,6 +586,8 @@ export type PlayerMessage =
   | DoorPeekMessage
   | PinReadMessage
   | SecretCheckAnswerMessage
+  | ViewResyncMessage
+  | ViewPatchesMessage
 
 /**
  * Por que a alavanca não moveu nada. `unavailable` junta pino inexistente, no
@@ -602,9 +635,10 @@ export interface SecretCheckAnswerMessage {
 /**
  * Por que o host recusou o pedido de porta do jogador. `wrong_side` (porta de
  * um lado, `DoorState.opensFrom`) é aditivo: jogador antigo descarta o motivo
- * desconhecido e só não vê o aviso; a porta não abre do mesmo jeito.
+ * desconhecido e só não vê o aviso; a porta não abre do mesmo jeito. `blocked`:
+ * fechar com uma ficha que ele VÊ no vão (nunca diz qual). Também aditivo.
  */
-export type DoorToggleRejection = 'locked' | 'far' | 'not_visible' | 'wrong_side'
+export type DoorToggleRejection = 'locked' | 'far' | 'not_visible' | 'wrong_side' | 'blocked'
 
 /**
  * Por que o host não levou o pedido da porta trancada ao mestre. `pending`: um
@@ -874,9 +908,12 @@ export type HostMessage =
   // Aditivo: ausente = telhado inteiro, que é o que o mestre antigo manda.
   | { type: 'snapshot'; rev: number; map: MapData; vision: RegionPoint[][]; explored: ExploredWire; ownTokens: string[]; concealed: RegionPoint[][]; turn?: string; partyTokens?: string[]; hazards?: PlayerHazard[]; sceneName?: string; place?: string; places?: string[]; gatilhos?: PlayerAreaTrigger[]; andares?: FloorsWire; relogio?: PlayerClock; glimpses?: RegionPoint[][] }
   | { type: 'delta'; rev: number; map: MapData; vision: RegionPoint[][]; explored: ExploredWire; ownTokens: string[]; concealed: RegionPoint[][]; turn?: string; partyTokens?: string[]; hazards?: PlayerHazard[]; sceneName?: string; place?: string; places?: string[]; gatilhos?: PlayerAreaTrigger[]; andares?: FloorsWire; relogio?: PlayerClock; glimpses?: RegionPoint[][] }
+  // Só o que mudou desde a tela `base` desta conexão (ver o topo do arquivo).
+  | ({ type: 'patch'; rev: number; base: number } & ViewPatch)
   // ZONA DE PERIGO: a ficha DESTE jogador entrou num perigo. Só o tipo — nem a sala, nem a zona.
   | { type: 'hazard.entered'; kind: HazardKind }
-  | { type: 'token.move.accepted'; reqId: string; x: number; y: number }
+  // `landing`: a ficha parou em outro lugar que não o pedido, e por quê (ficha sem chão => chão mais próximo).
+  | { type: 'token.move.accepted'; reqId: string; x: number; y: number; landing?: TokenMoveLanding }
   | { type: 'token.move.rejected'; reqId: string; reason: TokenMoveRejectionReason }
   | { type: 'signal'; x: number; y: number; from: string; color: string }
   | DestinationsMessage
@@ -1514,6 +1551,10 @@ export function parsePlayerMessage(raw: unknown): PlayerMessage | null {
       return parseTokenMove(value)
     case 'ping':
       return value.away === true ? { type: 'ping', away: true } : { type: 'ping' }
+    case 'view.resync':
+      return { type: 'view.resync' }
+    case 'view.patches':
+      return { type: 'view.patches' }
     case 'signal':
       return parseSignal(value)
     case 'destination':

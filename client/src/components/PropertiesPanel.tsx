@@ -65,7 +65,7 @@ import { AreaTriggerControls, type AreaTriggerControlsProps } from './AreaTrigge
 import { ConcealZoneControls, type ConcealZoneControlsProps } from './ConcealZoneControls'
 import { ConcealBrushControls, type ConcealBrushControlsProps } from './ConcealBrushControls'
 import { PinControls, type PinControlsProps } from './PinControls'
-import { PinIconControls, type PinIconControlsProps } from './PinIconControls'
+import type { PinIconControlsProps } from './PinIconControls'
 import { TokenLibraryPanel, type TokenLibraryPanelProps } from './TokenLibraryPanel'
 import { isAxisAlignedRect, roomDimensions } from '../lib/roomOps'
 import { roomRotationOf } from '../lib/roomRotation'
@@ -204,7 +204,7 @@ interface PropertiesPanelProps {
   /** Pincel de revelar: "Revelar | Esconder" e a largura do próximo traço. */
   concealBrush: ConcealBrushControlsProps
   /** Ponto de interesse: tipo do próximo pino, ou o pino aberto no painel. */
-  pin: PinControlsProps
+  pin: Omit<PinControlsProps, 'iconChoice'>
   /** Ícone do ponto de interesse — mesmo par de estados de `pin`. */
   pinIcon: Omit<PinIconControlsProps, 'pinSelected'>
   /** Há um pino aberto no painel — conta como seleção para o título do topo. */
@@ -383,14 +383,11 @@ export function PropertiesPanel({
         {/* Perto do topo pelo mesmo motivo da Sala: descrição e imagem são o
             que o mestre quer mexer logo depois de cravar o pino. */}
         <ToolPropertiesSection group="pin" groups={groups}>
-          {/* ANTES de `PinControls`, no mesmo grupo (o par `LineCapControls` +
-              `LineShapeControls` logo abaixo usa a mesma composição): o último
-              botão daquela seção é "Excluir ponto de interesse", e ação
-              destrutiva não pode ficar no meio da coluna. */}
-          {/* Viagem e alavanca têm símbolo próprio (a passagem, a alavanca):
-              a grade de ícones não faria nada nelas, então não aparece. */}
-          {pinKindShowsIcon(pin.kind) && <PinIconControls {...pinIcon} pinSelected={pinSelected} />}
-          <PinControls {...pin} />
+          {/* Tipo e ícone num bloco só: o ícone mora logo abaixo do tipo, dentro
+              de `PinControls`. Viagem e alavanca têm símbolo próprio (a
+              passagem, a alavanca): a grade de ícones não faria nada nelas,
+              então `iconChoice` fica nulo para as duas. */}
+          <PinControls {...pin} iconChoice={pinKindShowsIcon(pin.kind) ? { ...pinIcon, pinSelected } : null} />
         </ToolPropertiesSection>
         {playerSecret && (
           <ToolPropertiesSection group="playerVisibility" groups={groups}>

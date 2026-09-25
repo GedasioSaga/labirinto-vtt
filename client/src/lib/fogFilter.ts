@@ -1,4 +1,4 @@
-import type { ConcealZone, DoorState, Drawing, FloorPiece, HazardKind, Light, MapData, Pin, Region, RegionPoint, Token, Wall, WatchAlert } from '../types/map'
+import type { ConcealZone, DoorState, Drawing, FloorPiece, HazardKind, LayerId, Light, MapData, MapLine, MapMarker, Pin, Region, RegionPoint, Stair, Token, Wall, WatchAlert } from '../types/map'
 import { cellCenter, cellKeyAt, cellRunRects, concealedPieces, REVEAL_BRUSH_CELL, unveiledCellsOf } from './concealBrush'
 import { isTokenPhotoData } from './tokenPhoto'
 import { tokenAsSeenByPlayer } from './tokenPublicName'
@@ -11,8 +11,8 @@ import type { TurnRef } from './initiative'
 import { isPointExplored, isShapeExplored, type Exploration } from './exploration'
 import { pointInRing, signedArea } from './floorContour'
 import { pieceBounds, pieceDistance, shapeCenter } from './floorSdf'
-import { visibleDrawings, visibleLights, visibleProps, visibleRegions, visibleStairs, visibleTokens, visibleWalls } from './layers'
-import { isPinReadDistance, isPlayerSafePinImage, passageOf } from './pins'
+import { drawingLayer, regionLayer, stairLayer, visibleDrawings, visibleLights, visibleProps, visibleRegions, visibleStairs, visibleTokens, visibleWalls, wallLayer } from './layers'
+import { isPinIcon, isPinReadDistance, isPlayerSafePinImage, passageOf } from './pins'
 import { CLUE_TITLE_ONLY_IMAGE, clampClueText, clueTitleFrom } from './clues'
 import { propPlayerImage, propPlayerLabel } from './propPlayerLook'
 import { exitLabelsOf, isArrivalOnly, travelExitsOf, unreadExitLabels } from './pinTravel'
@@ -146,6 +146,14 @@ export interface PlayerMapView {
    * prédio depois de marcar. Vazio sem prédio de teto fechado nem cone.
    */
   glimpses: RegionPoint[][]
+  /**
+   * A memória da planta DEPOIS deste recorte: o que está na visão agora entra
+   * (versão atual), o que o jogador viu mudar ou sumir sai, o que o mestre
+   * esconde item a item (oculto, secreto) sai; camada escondida fica guardada,
+   * sem sair. O chamador guarda para o próximo recorte. Sem `remembered` na
+   * entrada, volta só com o que está à vista agora.
+   */
+  plan: PlanMemory
 }
 
 /**
@@ -262,8 +270,7 @@ function roofRoomsOf(regions: readonly Region[]): Region[] {
  */
 export function playerBlockedRings(map: MapData): RegionPoint[][] {
   return [
-    ...activeConcealRings(map),
-    ...secretRoomsOf(map).map((r) => r.points),
+    ...playerHiddenRings(map),
     ...roofRoomsOf(map.regions).filter((r) => isUsablePolygon(r.points)).map((r) => r.points),
   ]
 }
@@ -278,6 +285,16 @@ export function playerBlockedRings(map: MapData): RegionPoint[][] {
  * pode ter escondido, entre um dia e outro, algo que o jogador já tinha visto.
  */
 export function memoryBlockedRings(map: MapData): RegionPoint[][] {
+  return [...activeConcealRings(map), ...secretRoomsOf(map).map((r) => r.points)]
+}
+
+/**
+ * Áreas que o mestre ESCONDE do jogador: zonas ocultas ativas e salas
+ * secretas. Sem o teto de propósito: sala com teto é lugar onde a ficha pode
+ * entrar andando (é entrando que o teto abre), e quem decide para onde a ficha
+ * vai (`lib/moveValidation.ts`) precisa tratá-la como o movimento normal trata.
+ */
+export function playerHiddenRings(map: MapData): RegionPoint[][] {
   return [...activeConcealRings(map), ...secretRoomsOf(map).map((r) => r.points)]
 }
 
@@ -1291,6 +1308,204 @@ function doorForPlayer(door: DoorState): DoorState {
 }
 
 /**
+ * MEMÓRIA DA PLANTA — a última versão de cada item estático que o jogador VIU,
+ * por id. É o que o explorado mostra fora da visão atual: o lugar como ele o
+ * deixou, e não como o mestre o deixou depois. Parede nova, desabamento,
+ * bilhete reescrito ou pino novo longe dele só chegam quando ele volta a ver o
+ * lugar. Vive no mestre (`net/hostSession.ts`), uma por jogador e por cena;
+ * nunca sai pela rede inteira — só o que o recorte escolhe dela.
+ */
+export interface PlanMemory {
+  walls: ReadonlyMap<string, Wall>
+  floor: ReadonlyMap<string, FloorPiece>
+  regions: ReadonlyMap<string, Region>
+  drawings: ReadonlyMap<string, Drawing>
+  markers: ReadonlyMap<string, MapMarker>
+  lines: ReadonlyMap<string, MapLine>
+  stairs: ReadonlyMap<string, Stair>
+  pins: ReadonlyMap<string, Pin>
+}
+
+export function emptyPlanMemory(): PlanMemory {
+  return { walls: new Map(), floor: new Map(), regions: new Map(), drawings: new Map(), markers: new Map(), lines: new Map(), stairs: new Map(), pins: new Map() }
+}
+
+function byId<T extends { id: string }>(items: readonly T[]): Map<string, T> {
+  return new Map(items.map((item) => [item.id, item]))
+}
+
+/** Só os itens de `all` cujo id saiu em `sent`, na versão ORIGINAL (a do mapa, não a recortada). */
+function keepSent<T extends { id: string }>(all: ReadonlyMap<string, T>, sent: readonly { id: string }[]): Map<string, T> {
+  const ids = new Set(sent.map((item) => item.id))
+  return new Map([...all].filter(([id]) => ids.has(id)))
+}
+
+/**
+ * "Revelar planta" do mestre: o jogador passa a lembrar a planta como ela está
+ * AGORA — só o que a revelação de fato mostra.
+ *
+ * NÃO entra o que está num lugar escondido NA HORA de revelar (zona oculta
+ * ativa, sala secreta, interior de teto): lá o explorado também não é marcado
+ * (`playerBlockedRings`), então o jogador nunca viu nem explorou o lugar. Se
+ * entrasse, desligar a zona ou tirar o teto depois, com o jogador longe,
+ * mandaria pela rede a versão "lembrada" de uma sala que ele nunca viu.
+ * Também não entra item oculto ou secreto: ele não foi mostrado.
+ *
+ * A decisão de lugar é a MESMA do recorte: o próprio `filterMapForPlayer`, sem
+ * token (ninguém vê nada agora) e com tudo na memória, diz o que sairia como
+ * lembrado. Camada escondida não conta: é interruptor do mapa inteiro, e
+ * religá-la mostra a planta revelada como sempre mostrou.
+ */
+export function planOfWholeMap(map: MapData): PlanMemory {
+  const everything: PlanMemory = {
+    walls: byId(map.walls),
+    floor: byId(map.floor),
+    regions: byId(map.regions),
+    drawings: byId(map.drawings),
+    markers: byId(map.markers),
+    lines: byId(map.lines),
+    stairs: byId(map.stairs),
+    pins: byId(map.pins ?? []),
+  }
+  const { map: shown } = filterMapForPlayer({ ...map, hiddenLayers: [] }, '', {}, 0, undefined, undefined, undefined, undefined, undefined, undefined, undefined, everything)
+  return {
+    walls: keepSent(everything.walls, shown.walls),
+    floor: keepSent(everything.floor, shown.floor),
+    regions: keepSent(everything.regions, shown.regions),
+    drawings: keepSent(everything.drawings, shown.drawings),
+    markers: keepSent(everything.markers, shown.markers),
+    lines: keepSent(everything.lines, shown.lines),
+    stairs: keepSent(everything.stairs, shown.stairs),
+    pins: keepSent(everything.pins, shown.pins),
+  }
+}
+
+/** De onde veio a versão que sai: a vista agora, a lembrada, ou a nunca vista (planta fora da memória). */
+type RecallSource = 'agora' | 'lembrado' | 'nunca-visto'
+
+interface RecallRules<T> {
+  /**
+   * O mestre deixa o jogador receber o item (não está oculto nem secreto).
+   * Vale para a versão atual E para a lembrada: a memória nunca devolve o que o
+   * mestre esconde. A lembrança de item escondido fica guardada SEM sair
+   * (desfeito o oculto, volta a versão que ele viu), a menos que o jogador veja o
+   * lugar enquanto está escondido: aí ele viu o lugar sem o item e esquece.
+   */
+  allowed: (item: T) => boolean
+  /**
+   * A camada do item está à mostra (`hiddenLayers`). Camada escondida não sai,
+   * mas NÃO apaga a memória: é um interruptor do mapa inteiro, e religá-lo não
+   * pode deixar o explorado de todo jogador vazio.
+   */
+  shown: (item: T) => boolean
+  /**
+   * O lugar do item permite mandá-lo (sala secreta, teto fechado, zona oculta).
+   * Lugar escondido não apaga a memória: ligar e desligar uma zona longe do
+   * jogador não pode deixar buraco sem chão nem sala no explorado dele.
+   */
+  placeOk: (item: T) => boolean
+  /** O item está na visão ATUAL do jogador. */
+  seenNow: (item: T) => boolean
+  /** Item que o jogador nunca viu (ou esqueceu) ainda sai. */
+  unseenOk: (item: T) => boolean
+}
+
+interface Recalled<T> {
+  items: { item: T; source: RecallSource }[]
+  plan: Map<string, T>
+}
+
+/**
+ * Escolhe, item a item, a versão que o jogador recebe.
+ *
+ * `all`: a lista do mapa do mestre. Item que o mestre esconde agora
+ * (`rules.allowed` ou `rules.placeOk` falso) não sai: o jogador não recebe nem
+ * a versão que viu antes, mas ela fica na memória. Saem na ordem do mapa; os
+ * apagados que ele lembra, no fim.
+ *
+ * Sem `memory` (quem não guarda memória por jogador), o explorado mostra o
+ * presente: é a regra antiga, e `unseenOk` é que decide.
+ */
+function recallItems<T extends { id: string }>(
+  all: readonly T[],
+  memory: ReadonlyMap<string, T> | undefined,
+  rules: RecallRules<T>,
+): Recalled<T> {
+  const items: { item: T; source: RecallSource }[] = []
+  const plan = new Map<string, T>()
+  for (const current of all) {
+    const remembered = memory?.get(current.id)
+    const allowedNow = rules.allowed(current)
+    if (allowedNow && !rules.shown(current)) {
+      if (remembered !== undefined) plan.set(current.id, remembered)
+      continue
+    }
+    if (allowedNow && rules.placeOk(current) && rules.seenNow(current)) {
+      items.push({ item: current, source: 'agora' })
+      plan.set(current.id, current)
+      continue
+    }
+    // O lugar lembrado está à vista e o item não está lá como era: ele vê que mudou e esquece.
+    if (remembered !== undefined && rules.allowed(remembered) && rules.shown(remembered) && !rules.seenNow(remembered)) {
+      if (allowedNow && rules.placeOk(remembered)) {
+        items.push({ item: remembered, source: 'lembrado' })
+        plan.set(current.id, remembered)
+        continue
+      }
+      // O mestre esconde agora o item ou o lugar lembrado (oculto, secreto, zona,
+      // sala secreta, teto): não sai, mas a lembrança fica para quando ele desfizer.
+      plan.set(current.id, remembered)
+    }
+    if (allowedNow && rules.placeOk(current) && rules.unseenOk(current)) items.push({ item: current, source: 'nunca-visto' })
+  }
+  if (memory === undefined) return { items, plan }
+  const present = new Set(all.map((item) => item.id))
+  // Apagado pelo mestre depois que o jogador viu: continua na memória até ele ver o lugar vazio.
+  for (const [id, remembered] of memory) {
+    if (present.has(id) || !rules.allowed(remembered)) continue
+    if (!rules.shown(remembered)) {
+      plan.set(id, remembered)
+      continue
+    }
+    if (rules.seenNow(remembered)) continue
+    // Lugar escondido agora (zona, sala secreta, teto): guarda sem mandar.
+    if (rules.placeOk(remembered)) items.push({ item: remembered, source: 'lembrado' })
+    plan.set(id, remembered)
+  }
+  return { items, plan }
+}
+
+/** Passo das amostras de visão ao longo de uma parede, em células da grade. */
+const WALL_SAMPLE_STEP_CELLS = 1
+
+/**
+ * Amostras dos DOIS lados de uma parede, ao longo dela, a `distance` px do
+ * traço. A visão para NA parede, então amostra em cima do traço cai na borda
+ * do anel; uma por célula da grade (mais as pontas) acha trecho visto de
+ * parede comprida que as 3 amostras de `wallSamples` perderiam.
+ */
+function wallSideSamples(wall: Wall, grid: number, distance: number): RegionPoint[] {
+  const dx = wall.x2 - wall.x1
+  const dy = wall.y2 - wall.y1
+  const len = Math.hypot(dx, dy)
+  if (len === 0 || !Number.isFinite(len)) return [wallMidpoint(wall)]
+  const steps = Math.max(1, Math.ceil(len / Math.max(1, grid * WALL_SAMPLE_STEP_CELLS)))
+  const nx = (-dy / len) * distance
+  const ny = (dx / len) * distance
+  const out: RegionPoint[] = []
+  // Meio de cada trecho, não as pontas: a ponta é o canto, que a parede vizinha já mostra.
+  for (let i = 0; i < steps; i += 1) {
+    const x = wall.x1 + (dx * (i + 0.5)) / steps
+    const y = wall.y1 + (dy * (i + 0.5)) / steps
+    out.push({ x: x + nx, y: y + ny }, { x: x - nx, y: y - ny })
+  }
+  return out
+}
+
+/** Profundidade mínima, em px de mundo, para um vértice da visão contar como DENTRO de uma peça de chão. */
+const FLOOR_SEEN_DEPTH = 1
+
+/**
  * `explored`: memória do jogador ANTES desta visão (quem marca é o chamador).
  * Só a planta estática (regiões, desenhos e textos, escadas, portas, linhas,
  * marcadores) entra por estar explorada; token, prop e luz mudam de lugar e
@@ -1309,6 +1524,11 @@ function doorForPlayer(door: DoorState): DoorState {
  * `peekDoorIds`: portas que ESTE jogador está espiando agora ("Espiar", o host
  * decide e marca o prazo). A visão dele atravessa essas portas como se
  * estivessem abertas; o estado da porta no pacote continua o real.
+ * `remembered`: memória da planta do jogador (`PlanMemory`). Com ela, o
+ * explorado fora da visão mostra a versão LEMBRADA de cada item e nada do que o
+ * jogador nunca viu (a parede que o mestre ergueu longe dele não aparece). Sem
+ * ela, o explorado mostra o presente — só para quem não guarda memória por
+ * jogador; o host sempre passa.
  */
 export function filterMapForPlayer(
   map: MapData,
@@ -1322,6 +1542,7 @@ export function filterMapForPlayer(
   seenRooms?: ReadonlySet<string>,
   secretReveals?: SecretReveals,
   peekDoorIds?: ReadonlySet<string>,
+  remembered?: PlanMemory,
 ): PlayerMapView {
   // Jogador sem entrada de posse não tem token nem visão. A marca do guarda
   // (?, !) mede as fichas de TODOS os jogadores que ele recebe, não só as dele.
@@ -1332,6 +1553,7 @@ export function filterMapForPlayer(
     seenRooms,
     secretReveals,
     peekDoorIds,
+    remembered,
   })
 }
 
@@ -1351,6 +1573,8 @@ export interface PlayerOnlyView {
   secretReveals?: SecretReveals
   /** Portas que ESTE jogador está espiando agora ("Espiar"): a visão dele atravessa como se estivessem abertas. */
   peekDoorIds?: ReadonlySet<string>
+  /** Memória da planta DESTE jogador (`PlanMemory`), ver `filterMapForPlayer`. A tela da mesa não passa. */
+  remembered?: PlanMemory
 }
 
 /** OLHOS DO GUARDA: as fichas de todos os jogadores da sala — quem a marca do guarda considera. */
@@ -1389,10 +1613,10 @@ export function filterMapForGroup(
   explored?: Exploration,
   seenDoors?: ReadonlyMap<string, DoorState>,
   watchTargets?: ReadonlySet<string>,
-  { pinAudiences, enteredRooms, playerId, seenRooms, secretReveals, peekDoorIds }: PlayerOnlyView = {},
+  { pinAudiences, enteredRooms, playerId, seenRooms, secretReveals, peekDoorIds, remembered }: PlayerOnlyView = {},
 ): PlayerMapView {
   if (isWorldMap(map))
-    return filterWorldMapForGroup(map, viewers, explored, seenDoors, watchTargets, { pinAudiences, enteredRooms, playerId, seenRooms, secretReveals, peekDoorIds })
+    return filterWorldMapForGroup(map, viewers, explored, seenDoors, watchTargets, { pinAudiences, enteredRooms, playerId, seenRooms, secretReveals, peekDoorIds, remembered })
   const hiddenLayers = map.hiddenLayers
   // Posse é exclusiva (um token, um dono); se viesse repetido, vale o primeiro raio.
   const radiusByToken = new Map<string, number>()
@@ -2052,7 +2276,115 @@ export function filterMapForGroup(
     return isShapeVisible(open) || (explored !== undefined && isShapeExplored(explored, open)) || open.some(inKnownComodo)
   }
 
+  /**
+   * Planta estática: visível agora, ou lembrada (`recallItems`). Nunca usar
+   * para entidade dinâmica. Sem memória da planta (`remembered` ausente), vale
+   * a regra antiga: o explorado sozinho mostra o presente. Alimenta `plan`
+   * (a memória DEPOIS deste recorte) — o que sai para a TELA continua pelas
+   * regras de sempre (`isPointKnown`/`isShapeKnown`, cômodo incluso), abaixo.
+   */
+  const memoryMode = remembered !== undefined
+  const exploredPoint = (point: RegionPoint): boolean => !memoryMode && isPointExploredOpen(point)
+  const exploredShape = (points: readonly RegionPoint[]): boolean =>
+    !memoryMode && explored !== undefined && isShapeExplored(explored, outsideZones(points))
+  const layerShown = (layer: LayerId): boolean => !hiddenLayers.includes(layer)
+
+  const markerCenter = (m: MapMarker): RegionPoint => ({ x: m.cx, y: m.cy })
+  const markers = recallItems(map.markers, remembered?.markers, {
+    allowed: () => true,
+    shown: () => true,
+    placeOk: (m) => !inHiddenPlace(markerCenter(m)) && !inConcealZone(markerCenter(m)),
+    seenNow: (m) => isVisible(markerCenter(m)),
+    unseenOk: (m) => exploredPoint(markerCenter(m)),
+  })
+
+  const lines = recallItems(map.lines, remembered?.lines, {
+    allowed: () => true,
+    shown: () => true,
+    placeOk: (l) => !l.points.some(inHiddenPlace) && !l.points.some(inConcealZone),
+    seenNow: (l) => isShapeVisible(l.points),
+    unseenOk: (l) => exploredShape(l.points),
+  })
+
+  const stairMid = (s: Stair): RegionPoint | null => {
+    const first = s.segments[0]
+    return first === undefined ? null : { x: (first.x1 + first.x2) / 2, y: (first.y1 + first.y2) / 2 }
+  }
+  const stairs = recallItems(map.stairs, remembered?.stairs, {
+    allowed: (s) => !s.hidden && !s.secret,
+    shown: (s) => layerShown(stairLayer(s)),
+    placeOk: (s) => {
+      const mid = stairMid(s)
+      return mid !== null && !inConcealZone(mid) && !stairSamples(s).some(inHiddenPlace)
+    },
+    seenNow: (s) => {
+      const mid = stairMid(s)
+      return mid !== null && isVisible(mid)
+    },
+    unseenOk: (s) => {
+      const mid = stairMid(s)
+      return mid !== null && exploredPoint(mid)
+    },
+  })
+
+  const drawings = recallItems(map.drawings, remembered?.drawings, {
+    allowed: (d) => !d.secret,
+    shown: (d) => layerShown(drawingLayer(d)),
+    placeOk: (d) => {
+      const samples = drawingSamplePoints(d)
+      if (samples.some(inHiddenPlace)) return false
+      // Traço com uma ponta na zona desenharia o que ela esconde.
+      if (isStrokeDrawing(d) && samples.some(inConcealZone)) return false
+      return outsideZones(samples).length > 0
+    },
+    seenNow: (d) => isShapeVisible(drawingSamplePoints(d)),
+    unseenOk: (d) => exploredShape(drawingSamplePoints(d)),
+  })
+
+  // Teto fechado: o "conhecido" é medido NO CONTORNO, nunca no interior —
+  // que está bloqueado justamente por causa do teto. Ver `contourSamples`.
+  const regionSamples = (r: Region): RegionPoint[] =>
+    closedRoofIds.has(r.id) ? contourSamples(r.points) : interiorSamples(r.points, r.points)
+  const regions = recallItems(map.regions, remembered?.regions, {
+    allowed: (r) => !r.hidden && !r.secret && !hiddenByAncestorIds.has(r.id),
+    shown: (r) => layerShown(regionLayer(r)),
+    // Sala de teto que a geometria não sabe julgar não vira silhueta: some.
+    // Cômodo órfão dentro do prédio, Área sem `parentId`, prédio de teto
+    // dentro de outro prédio de teto: tudo isso é interior. Ver `swallowedByClosedRoof`.
+    placeOk: (r) =>
+      !underRoofIds.has(r.id) && !brokenRoofIds.has(r.id) && !swallowedByClosedRoof(r) && outsideZones(regionSamples(r)).length > 0,
+    seenNow: (r) => isShapeVisible(regionSamples(r)),
+    unseenOk: (r) => exploredShape(regionSamples(r)),
+  })
+  /** Versão ATUAL de cada região: o nome que o mestre esconde agora não volta pela memória. */
+  const currentRegions = new Map(map.regions.map((r) => [r.id, r]))
+
   const visibleDoorIds: string[] = []
+  const walls = recallItems(map.walls, remembered?.walls, {
+    allowed: (w) => !w.hidden,
+    shown: (w) => layerShown(wallLayer(w)),
+    placeOk: (w) => {
+      if (w.regionId !== undefined && secretRoomIds.has(w.regionId)) return false
+      if (isUnderClosedRoof(w)) return false
+      // Porta com o meio escondido não sai nem pelas amostras dos lados.
+      if (w.door !== null) return !inConcealZone(wallMidpoint(w))
+      return !wallSamples(w).some(inConcealZone)
+    },
+    seenNow: (w) =>
+      w.door !== null ? doorSamples(w, DOOR_VISION_PROBE).some(isVisible) : wallSideSamples(w, map.grid, DOOR_VISION_PROBE).some(isVisible),
+    // Parede ou porta que o jogador nunca viu NÃO sai. A névoa cobria a planta
+    // na tela, mas a rede entregava o nível inteiro (12.724 de 15.073 paredes
+    // na a09) para quem abrisse o DevTools. Com memória da planta, só sai o
+    // visto agora ou lembrado (`recallItems`); sem ela, a regra antiga: o
+    // explorado mostra o presente. Sem explorado, só a visão atual conta.
+    unseenOk: (w) => {
+      if (memoryMode || explored === undefined) return false
+      const probe = explored.cell * DOOR_EXPLORED_PROBE_CELLS
+      if (w.door !== null) return doorSamples(w, probe).some(isPointExploredOpen)
+      return [...wallSideSamples(w, map.grid, DOOR_VISION_PROBE), ...wallSideSamples(w, map.grid, probe)].some(isPointExploredOpen)
+    },
+  })
+
   /**
    * Porta dentro da visão sai com o estado real; explorada fora dela, com o
    * lembrado; senão não sai. O CADEADO nunca sai: a porta trancada chega como
@@ -2076,10 +2408,48 @@ export function filterMapForGroup(
     const comodoCounts = !inHiddenPlace(wallMidpoint(w))
     const known = (p: RegionPoint): boolean => isPointExploredOpen(p) || (comodoCounts && !inHiddenPlace(p) && inKnownComodo(p))
     if (!doorSamples(w, probe).some(known)) return []
-    const remembered = seenDoors?.get(w.id)
+    const rememberedDoor = seenDoors?.get(w.id)
     // A lembrada vem do mapa do mestre (`hostSession` guarda a porta vista inteira): passa pelo mesmo corte.
-    return [{ ...w, door: doorForPlayer(remembered === undefined ? unseenDoor(door) : withoutLock(remembered)) }]
+    return [{ ...w, door: doorForPlayer(rememberedDoor === undefined ? unseenDoor(door) : withoutLock(rememberedDoor)) }]
   }
+
+  /**
+   * Peça de chão na visão atual. As amostras de `floorPieceSamples` sozinhas
+   * perdem peça grande vista só pela beirada; o token dentro dela ou um
+   * vértice do anel de visão FUNDO dentro dela (não em cima da borda, que é a
+   * parede que a separa da vizinha) também contam.
+   */
+  const floorSeenNow = (f: FloorPiece): boolean => {
+    const b = pieceBounds(f)
+    const near = rings.filter((r) => b.maxX >= r.minX && b.minX <= r.maxX && b.maxY >= r.minY && b.minY <= r.maxY)
+    if (near.length === 0) return false
+    if (floorPieceSamples(f).some(isVisible)) return true
+    if (ownTokens.some((t) => !inConcealZone({ x: t.x, y: t.y }) && pieceDistance(f, t.x, t.y) <= 0)) return true
+    return near.some((r) =>
+      r.ring.some(
+        (v) => v.x >= b.minX && v.x <= b.maxX && v.y >= b.minY && v.y <= b.maxY && !inConcealZone(v) && pieceDistance(f, v.x, v.y) < -FLOOR_SEEN_DEPTH,
+      ),
+    )
+  }
+  const floor = recallItems(map.floor, remembered?.floor, {
+    allowed: (f) => !f.hidden,
+    shown: () => true,
+    placeOk: (f) => !isFloorInHiddenArea(f),
+    seenNow: floorSeenNow,
+    unseenOk: (f) => !memoryMode || !floorPieceSamples(f).some(isPointExploredOpen),
+  })
+
+  // CHEGADA OCULTA (mão única) sai ANTES de qualquer outra regra: não é
+  // questão de névoa nem de explorado — o jogador nunca recebe o pino, nem o
+  // id dele, estando ou não em cima dele. Ver `isArrivalOnly`.
+  const pinPoint = (p: Pin): RegionPoint => ({ x: p.x, y: p.y })
+  const pins = recallItems(map.pins ?? [], remembered?.pins, {
+    allowed: (p) => !isArrivalOnly(p) && !p.hidden && !p.secret,
+    shown: () => layerShown('anotacoes'),
+    placeOk: (p) => !inRoomHiddenFromPlayer(pinPoint(p)) && !inConcealZone(pinPoint(p)),
+    seenNow: (p) => isVisible(pinPoint(p)),
+    unseenOk: (p) => exploredPoint(pinPoint(p)),
+  })
 
   /** Preenchida no recorte das regiões abaixo: só entra Sala que saiu no pacote. */
   const occupiedRooms: string[] = []
@@ -2283,7 +2653,9 @@ export function filterMapForGroup(
         const inZone = zones.length > 0 && mostly(interiorSamples(r.points, r.points), inConcealZone)
         // Teto fechado esconde o nome junto: o rótulo é desenhado DENTRO do
         // polígono e é anotação do mestre sobre o que tem lá dentro.
-        const nameHidden = r.room.nameHiddenFromPlayers || roofClosed || inZone
+        // Nome que o mestre escondeu DEPOIS que o jogador viu também some da memória.
+        const nameHidden =
+          r.room.nameHiddenFromPlayers || currentRegions.get(r.id)?.room?.nameHiddenFromPlayers === true || roofClosed || inZone
         const hasTexts = r.room.textoAoEntrar !== undefined || r.room.notaDoMestre !== undefined
         if (!nameHidden && !roofClosed && r.room.roof === undefined && r.room.comodo === undefined && !hasTexts && r.room.dark === undefined) return r
         // TEXTO DA SALA: a nota do mestre NUNCA sai. O texto de entrada só sai
@@ -2448,6 +2820,24 @@ export function filterMapForGroup(
   const gatilhos: PlayerAreaTrigger[] = triggersWithRegions(map)
     .filter(({ trigger, region }) => trigger.revealed && sentRooms.has(region.id) && !hazardHiddenByMaster(region))
     .map(({ trigger, region }) => ({ kind: trigger.kind, points: region.points.map((p) => ({ x: p.x, y: p.y })) }))
+  /**
+   * A MEMÓRIA DA PLANTA depois deste recorte (`PlayerMapView.plan`): cada tipo
+   * de item passa pelo próprio `recallItems` (acima), que decide sozinho o que
+   * entra, o que sai e o que a lembrança esquece. Separado do `filtered` de
+   * cima de propósito: o que vai para a TELA agora segue as regras ricas de
+   * sempre (cômodo, cadeado, pino com "quem vê"/marco/escada); o `plan` é só o
+   * que o chamador guarda para alimentar o próximo recorte como `remembered`.
+   */
+  const plan: PlanMemory = {
+    walls: walls.plan,
+    floor: floor.plan,
+    regions: regions.plan,
+    drawings: drawings.plan,
+    markers: markers.plan,
+    lines: lines.plan,
+    stairs: stairs.plan,
+    pins: pins.plan,
+  }
   return {
     map: filtered,
     vision: sentVision,
@@ -2462,6 +2852,7 @@ export function filterMapForGroup(
     rememberedRooms,
     unseenInsideRemembered,
     glimpses: glimpseRects,
+    plan,
   }
 }
 
@@ -2651,7 +3042,10 @@ function pinForPlayer(pin: Pin, ownTokens: readonly Token[], grid: number, reada
   }
   if (!readable) forPlayer.longe = true
   if (!known) forPlayer.soMarco = true
-  if (pin.icon !== undefined) forPlayer.icon = pin.icon
+  // Ícone: o cartão e o mapa do jogador desenham o símbolo, então ele vai —
+  // mas só um dos nomes conhecidos (texto livre de arquivo editado à mão não
+  // atravessa) e nunca no pino de viagem, que desenha a passagem.
+  if (pin.kind !== 'viagem' && isPinIcon(pin.icon)) forPlayer.icon = pin.icon
   if (pin.locked !== undefined) forPlayer.locked = pin.locked
   if (pin.hidden !== undefined) forPlayer.hidden = pin.hidden
   if (pin.secret !== undefined) forPlayer.secret = pin.secret

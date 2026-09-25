@@ -244,6 +244,17 @@ export function PlayerPinCard({
   // ALAVANCA: qual porta ela move nunca chega aqui (`lib/fogFilter.ts`); o
   // cartão só oferece puxar, e o que mudou o jogador vê no mapa.
   const alavanca = pin.kind === 'alavanca'
+  // O símbolo que o mestre escolheu (baú, armadilha…) é o que o jogador vê no
+  // mapa: o cartão repete o mesmo desenho e o nome dele, em vez do "!" do
+  // tipo. Nome desconhecido (versão futura) cai no glifo, como no mapa.
+  const icone = !viagem && !alavanca && isPinIcon(pin.icon) ? pin.icon : null
+  const nome = viagem
+    ? 'Passagem'
+    : alavanca
+      ? 'Alavanca'
+      : icone !== null
+        ? `Ponto de interesse — ${PIN_ICON_LABELS[icone]}`
+        : `Ponto de interesse ${PIN_GLYPH[pin.kind]}`
   // O modo vem no recorte (o destino, não). Trancada MUDA não oferece botão
   // nenhum: um "Pedir" que o host sempre recusa só ensinaria o jogador a
   // insistir. Trancada que aceita tentativas oferece "Pedir ao mestre".
@@ -307,7 +318,7 @@ export function PlayerPinCard({
         className={foto === null ? 'pp-pincard pp-pincard--compacto' : 'pp-pincard'}
         role="dialog"
         aria-modal="true"
-        aria-label={escada ?? (viagem ? 'Passagem' : alavanca ? 'Alavanca' : `Ponto de interesse ${PIN_GLYPH[pin.kind]}`)}
+        aria-label={escada ?? nome}
       >
         {escada === null && foto !== null && <img className="pp-pincard__image" src={foto} alt={altDaImagem} />}
         <div className="pp-pincard__body">

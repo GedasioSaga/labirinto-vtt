@@ -1,9 +1,10 @@
 import type { AppliedItems, HostScene, HostWorld, PlayerInfo } from '../net/hostSession'
-import type { CarriedItem, Token } from '../types/map'
+import type { CarriedItem, Pin, Token } from '../types/map'
 import { sceneTrail, type SceneEntry } from './adventure'
 import { carriedItemsOf, dropItemChange, giveNewItemChange, removeItemChange, type ItemChange } from './items'
 import { visibleTokens } from './layers'
 import { pinSummary } from './pins'
+import { cleanExitLabel, travelDestinationOf } from './pinTravel'
 import { roomsAt } from './roomNesting'
 import type { DestinationMark } from './signals'
 import { tokenFillColor } from './tokenColor'
@@ -232,6 +233,81 @@ export function partyMembers(players: PlayerInfo[], world: HostWorld): PartyMemb
   })
 }
 
+/** Teto do rótulo da chegada: uma linha do select estreito da aba Jogo. */
+const ARRIVAL_LABEL_MAX_LENGTH = 40
+
+/** Fim de frase seguido de espaço: "Escada de pedra. Os degraus…" corta no ponto. */
+const SENTENCE_END = /[.!?]\s/
+
+/**
+ * O nome CURTO do pino, como o mestre o reconhece numa lista: o nome que ele
+ * deu à passagem (`rotulo`); sem ele, a primeira frase da primeira linha do
+ * cartão — o cartão é o parágrafo que o JOGADOR lê, comprido demais para um
+ * select —; sem descrição, o resumo de sempre ("Pino de viagem").
+ */
+function shortArrivalLabel(pin: Pin): string {
+  const rotulo = cleanExitLabel(pin.rotulo)
+  if (rotulo !== '') return clipLabel(rotulo)
+  const firstLine = pin.description.trim().split('\n')[0]?.trim() ?? ''
+  if (firstLine === '') return pinSummary(pin)
+  const sentenceEnd = firstLine.search(SENTENCE_END)
+  return clipLabel(sentenceEnd > 0 ? firstLine.slice(0, sentenceEnd) : firstLine)
+}
+
+/** Corta no teto, na última palavra inteira, e marca o corte com reticências. */
+function clipLabel(text: string): string {
+  if (text.length <= ARRIVAL_LABEL_MAX_LENGTH) return text
+  const room = text.slice(0, ARRIVAL_LABEL_MAX_LENGTH - 1)
+  const lastSpace = room.lastIndexOf(' ')
+  return `${(lastSpace > 0 ? room.slice(0, lastSpace) : room).trimEnd()}…`
+}
+
+/** Chave de comparação: "Porta" e "porta " são o mesmo texto para quem lê. */
+function labelKey(label: string): string {
+  return label.trim().toLocaleLowerCase()
+}
+
+function countLabels(labels: readonly string[]): Map<string, number> {
+  const counts = new Map<string, number>()
+  for (const label of labels) counts.set(labelKey(label), (counts.get(labelKey(label)) ?? 0) + 1)
+  return counts
+}
+
+interface ArrivalDraft {
+  pinId: string
+  label: string
+  /** Nome da cena para onde o pino leva; `null` sem ligação ou com a cena fora do mundo. */
+  leadsTo: string | null
+}
+
+/**
+ * Nenhum texto se repete no select da Chegada (nem o "Centro da cena", que
+ * mora nele). Repetido ganha primeiro a cena para onde o pino leva — na torre,
+ * "Escada — para Andar 3" e "Escada — para Andar 1" —; o que AINDA repete
+ * (sem ligação, ou as duas levam à mesma cena) é numerado na ordem do mapa.
+ */
+function distinctArrivals(drafts: readonly ArrivalDraft[]): PartyArrival[] {
+  const baseCounts = countLabels(drafts.map((draft) => draft.label))
+  const labels = drafts.map((draft) => ((baseCounts.get(labelKey(draft.label)) ?? 0) > 1 && draft.leadsTo !== null ? `${draft.label} — para ${draft.leadsTo}` : draft.label))
+  const counts = countLabels(labels)
+  const used = new Set<string>([labelKey(PARTY_CENTER_LABEL)])
+  const lastNumber = new Map<string, number>()
+  return drafts.map((draft, index) => {
+    const label = labels[index] ?? draft.label
+    const key = labelKey(label)
+    if (counts.get(key) === 1 && !used.has(key)) {
+      used.add(key)
+      return { pinId: draft.pinId, label }
+    }
+    let number = (lastNumber.get(key) ?? 0) + 1
+    while (used.has(labelKey(`${label} (${number})`))) number += 1
+    lastNumber.set(key, number)
+    const numbered = `${label} (${number})`
+    used.add(labelKey(numbered))
+    return { pinId: draft.pinId, label: numbered }
+  })
+}
+
 /**
  * As marcas "vamos para cá" que o canvas do MESTRE desenha: só as da cena
  * aberta no editor (`openSceneId`; `null` = mapa solto). A de quem está em
@@ -250,22 +326,26 @@ export function masterDestinationMarks(players: PlayerInfo[], openSceneId: strin
 /**
  * As cenas do "Mandar para…": só aventura (mapa solto não tem para onde
  * mandar) e só as que abriram — o mundo do host já deixa de fora a cena cujo
- * arquivo falhou. As chegadas são os pinos de VIAGEM de cada uma, com o nome
- * que o mestre lê no painel do pino. `sceneList` é a lista da aventura: dela
- * sai o caminho de cada cena (`trail`); sem ela, todas ficam sem caminho.
+ * arquivo falhou. As chegadas são os pinos de VIAGEM de cada uma, pelo nome
+ * curto do pino e sem texto repetido dentro da mesma cena. `sceneList` é a
+ * lista da aventura: dela sai o caminho de cada cena (`trail`); sem ela,
+ * todas ficam sem caminho.
  */
 export function partyDestinations(world: HostWorld, sceneList: readonly SceneEntry[] = []): PartyDestination[] {
+  const scenes = allScenes(world)
+  const sceneNames = new Map<string, string>()
+  for (const scene of scenes) if (scene.sceneId !== null) sceneNames.set(scene.sceneId, scene.name)
   const destinations: PartyDestination[] = []
-  for (const scene of allScenes(world)) {
+  for (const scene of scenes) {
     if (scene.sceneId === null) continue
-    const arrivals = scene.map.pins
+    const drafts = scene.map.pins
       .filter((pin) => pin.kind === 'viagem')
       .map((pin) => {
-        const description = pin.description.trim()
-        return { pinId: pin.id, label: description === '' ? pinSummary(pin) : description }
+        const destino = travelDestinationOf(pin)
+        return { pinId: pin.id, label: shortArrivalLabel(pin), leadsTo: destino === null ? null : (sceneNames.get(destino.sceneId) ?? null) }
       })
     const trail = sceneTrail(sceneList, scene.sceneId)
-    destinations.push({ sceneId: scene.sceneId, name: scene.name, arrivals, ...(trail.length > 0 ? { trail } : {}) })
+    destinations.push({ sceneId: scene.sceneId, name: scene.name, arrivals: distinctArrivals(drafts), ...(trail.length > 0 ? { trail } : {}) })
   }
   return destinations
 }

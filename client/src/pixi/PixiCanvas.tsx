@@ -161,13 +161,15 @@ import { subscribeToPropsRedraw } from '../stores/propsSubscription'
 import { pickImageFile, importPropImage } from '../lib/imageImport'
 import { mapDirFor } from '../lib/mapFileIO'
 import {
-  findSelectableAt, findCurveControlPointAt, findWallAt, findNearestExistingVertex, findLockedLayerAt,
+  findSelectableAt, findWallAt, findNearestExistingVertex, findLockedLayerAt,
   findDoorAt, findConcealZoneForSelect,
   type SelectableHit,
 } from '../lib/selectionHitTest'
 import type { SelectionKind } from '../types/tools'
 import { drawDrawings } from './drawDrawings'
-import { drawEditHandles, findLightRadiusHandleAt, circleDrawingRadiusHandle } from './drawEditHandles'
+import { drawEditHandles, circleDrawingRadiusHandle } from './drawEditHandles'
+// Área de clique das alças no mesmo tamanho de TELA do desenho, em qualquer zoom.
+import { findBoxCornerHandleAt, findRoomCornerHandleAt, findVertexHandleAt, isOnRadiusHandle } from '../lib/handleHitArea'
 import { regionEdgeMidpoints } from '../lib/roomLink'
 import { computeAlignment, mapBoundsCandidates } from '../lib/alignmentGuides'
 import { drawGuides } from './drawGuides'
@@ -189,14 +191,14 @@ import { isValidStairDraft, buildStairFromDraft, stairStepWidthForPreset } from 
 // interior — ver a docstring de `eraseAt`). A função segue exportada e testada
 // em lib/eraseGeometry.ts para quem precise da leitura "contido conta".
 import { eraseDecisionForWall, eraseDecisionForStair, eraseDecisionForToken, eraseDecisionForProp } from '../lib/eraseGeometry'
-import { findRoomCornerAt, isAxisAlignedRect, rectFromCorners, type RoomCorner } from '../lib/roomOps'
+import { isAxisAlignedRect, rectFromCorners, type RoomCorner } from '../lib/roomOps'
 import { createRoomRotateGesture } from './roomRotateGesture'
 import { measureDistance } from '../lib/measurement'
 import { rotuloDeQuadradosAndados } from '../lib/tokenDragDistance'
 import { tokenRadiusOf } from '../lib/doorReach'
 // Integrador I8 (F4): B3 "mover e redimensionar" — geometria de bounding-box
 // pra resize por canto de Drawing rect/ellipse/polygon, Token e Prop.
-import { findBoxCornerAt, drawingBoundingBox, tokenBoundingBox, propBoundingBox, resizeTokenSize, type Corner } from '../lib/objectTransform'
+import { drawingBoundingBox, tokenBoundingBox, propBoundingBox, resizeTokenSize, type Corner } from '../lib/objectTransform'
 // N3 "ferramenta de seleção de área" — geometria pura de marquee + mover grupo.
 import { selectEntitiesInArea, areaSelectionBounds, classifyMarqueeGesture, type AreaRect } from '../lib/areaSelection'
 import { drawSelectionMarquee, drawAreaSelectionOutline, createMarqueeHintRenderer } from './drawSelectionMarquee'
@@ -3535,7 +3537,7 @@ export function PixiCanvas({
           // prioridade sobre qualquer outro gesto dessa seleção.
           if (drawing && (drawing.kind === 'rect' || drawing.kind === 'ellipse' || drawing.kind === 'polygon')) {
             const box = drawingBoundingBox(drawing)
-            const corner = box ? findBoxCornerAt(box, worldPoint) : null
+            const corner = box ? findBoxCornerHandleAt(box, worldPoint, camera.scale) : null
             if (corner !== null) {
               mode = 'resizing-drawing-corner'
               resizingDrawingId = single.id
@@ -3549,7 +3551,7 @@ export function PixiCanvas({
           // alça NENHUMA. Mesma alça de raio da Luz (drawLightRadiusHandle,
           // generalizada em drawEditHandles.ts), adaptando cx/cy pra x/y via
           // `circleDrawingRadiusHandle`.
-          if (drawing && drawing.kind === 'circle' && findLightRadiusHandleAt(circleDrawingRadiusHandle(drawing), worldPoint)) {
+          if (drawing && drawing.kind === 'circle' && isOnRadiusHandle(circleDrawingRadiusHandle(drawing), worldPoint, camera.scale)) {
             mode = 'resizing-drawing-radius'
             resizingDrawingId = single.id
             resizingDrawingSnapshot = map
@@ -3557,7 +3559,7 @@ export function PixiCanvas({
           }
 
           if (drawing && drawing.kind === 'curve') {
-            const index = findCurveControlPointAt(drawing.points, worldPoint)
+            const index = findVertexHandleAt(drawing.points, worldPoint, camera.scale)
             if (index !== null) {
               mode = 'dragging-curve-point'
               draggingCurveId = single.id
@@ -3577,7 +3579,7 @@ export function PixiCanvas({
               const b = drawing.points[i + 1]
               midpoints.push({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 })
             }
-            const midpointIndex = findCurveControlPointAt(midpoints, worldPoint)
+            const midpointIndex = findVertexHandleAt(midpoints, worldPoint, camera.scale)
             if (midpointIndex !== null) {
               const midpoint = midpoints[midpointIndex]
               useMapStore.getState().insertCurvePoint(single.id, midpointIndex, midpoint.x, midpoint.y)
@@ -3595,14 +3597,15 @@ export function PixiCanvas({
           }
 
           if (drawing && drawing.kind === 'line') {
-            const index = findCurveControlPointAt(
+            const index = findVertexHandleAt(
               [{ x: drawing.x1, y: drawing.y1 }, { x: drawing.x2, y: drawing.y2 }],
               worldPoint,
+              camera.scale,
             )
             if (index !== null) {
               mode = 'dragging-line-point'
               draggingLineId = single.id
-              // findCurveControlPointAt é genérico sobre number; o array de entrada
+              // findVertexHandleAt é genérico sobre number; o array de entrada
               // tem exatamente 2 pontos (x1,y1 e x2,y2), então o índice retornado
               // só pode ser 0 ou 1 — o mesmo par que updateLinePoint espera.
               draggingLinePointIndex = index as 0 | 1
@@ -3613,7 +3616,7 @@ export function PixiCanvas({
 
         if (activeTool === 'select' && single?.kind === 'light') {
           const light = map.lights.find((l) => l.id === single.id)
-          if (light && findLightRadiusHandleAt(light, worldPoint)) {
+          if (light && isOnRadiusHandle(light, worldPoint, camera.scale)) {
             mode = 'dragging-light-radius'
             draggingLightId = light.id
             lightRadiusDragSnapshot = map
@@ -3624,14 +3627,15 @@ export function PixiCanvas({
         if (activeTool === 'select' && single?.kind === 'wall') {
           const wall = map.walls.find((w) => w.id === single.id)
           if (wall && wall.regionId === undefined) {
-            const index = findCurveControlPointAt(
+            const index = findVertexHandleAt(
               [{ x: wall.x1, y: wall.y1 }, { x: wall.x2, y: wall.y2 }],
               worldPoint,
+              camera.scale,
             )
             if (index !== null) {
               mode = 'dragging-wall-point'
               draggingWallPointId = wall.id
-              // findCurveControlPointAt é genérico sobre number; o array de entrada
+              // findVertexHandleAt é genérico sobre number; o array de entrada
               // tem exatamente 2 pontos (x1,y1 e x2,y2), então o índice retornado
               // só pode ser 0 ou 1 — o mesmo par que updateWallPoint espera.
               draggingWallPointIndex = index as 0 | 1
@@ -3646,7 +3650,7 @@ export function PixiCanvas({
         if (activeTool === 'select' && single?.kind === 'token') {
           const token = map.tokens.find((t) => t.id === single.id)
           if (token && canInteract(token)) {
-            const corner = findBoxCornerAt(tokenBoundingBox(token, map.grid), worldPoint)
+            const corner = findBoxCornerHandleAt(tokenBoundingBox(token, map.grid), worldPoint, camera.scale)
             if (corner !== null) {
               mode = 'resizing-token'
               resizingTokenId = token.id
@@ -3659,7 +3663,7 @@ export function PixiCanvas({
         if (activeTool === 'select' && single?.kind === 'prop') {
           const prop = map.props.find((p) => p.id === single.id)
           if (prop && canInteract(prop)) {
-            const corner = findBoxCornerAt(propBoundingBox(prop), worldPoint)
+            const corner = findBoxCornerHandleAt(propBoundingBox(prop), worldPoint, camera.scale)
             if (corner !== null) {
               mode = 'resizing-prop-corner'
               resizingPropId = prop.id
@@ -3694,14 +3698,14 @@ export function PixiCanvas({
                 return
               }
               // Sala retangular (Region.room?.shape === 'rect'): resize SÓ
-              // pelos 4 cantos (findRoomCornerAt, lib/roomOps.ts) — nunca cai
+              // pelos 4 cantos (findRoomCornerHandleAt, lib/handleHitArea.ts) — nunca cai
               // no arrasto de vértice/midpoint genérico abaixo, que deixaria a
               // sala virar um quadrilátero torto e dessincronizaria as 4
               // paredes vinculadas (resizeRoomCornerLive já cuida da sync,
               // ver mapFactory.ts). Girada torta, nem o canto: reconstruir o
               // retângulo pelos cantos a desmontaria (`isAxisAlignedRect`).
               if (region.room?.shape === 'rect') {
-                const corner = isAxisAlignedRect(region.points) ? findRoomCornerAt(region.points, worldPoint) : null
+                const corner = isAxisAlignedRect(region.points) ? findRoomCornerHandleAt(region.points, worldPoint, camera.scale) : null
                 if (corner !== null) {
                   mode = 'resizing-room-corner'
                   resizingRoomId = editRegionId
@@ -3710,7 +3714,7 @@ export function PixiCanvas({
                   return
                 }
               } else {
-                const vertexIndex = findCurveControlPointAt(region.points, worldPoint)
+                const vertexIndex = findVertexHandleAt(region.points, worldPoint, camera.scale)
                 if (vertexIndex !== null) {
                   mode = 'dragging-region-point'
                   draggingRegionId = editRegionId
@@ -3719,7 +3723,7 @@ export function PixiCanvas({
                 }
 
                 const midpoints = regionEdgeMidpoints(region.points)
-                const midpointIndex = findCurveControlPointAt(midpoints, worldPoint)
+                const midpointIndex = findVertexHandleAt(midpoints, worldPoint, camera.scale)
                 if (midpointIndex !== null) {
                   const midpoint = midpoints[midpointIndex]
                   useMapStore.getState().insertRegionPoint(editRegionId, midpointIndex, midpoint.x, midpoint.y, crypto.randomUUID())
@@ -5538,7 +5542,7 @@ export function PixiCanvas({
             if (region && canInteract(region)) {
               const rect = el.getBoundingClientRect()
               const worldPoint = toWorldPoint(event.clientX - rect.left, event.clientY - rect.top)
-              const index = findCurveControlPointAt(region.points, worldPoint)
+              const index = findVertexHandleAt(region.points, worldPoint, camera.scale)
               if (index !== null) {
                 useMapStore.getState().removeRegionPoint(editRegionId, index)
                 return
@@ -5549,7 +5553,7 @@ export function PixiCanvas({
             if (drawing && drawing.kind === 'curve') {
               const rect = el.getBoundingClientRect()
               const worldPoint = toWorldPoint(event.clientX - rect.left, event.clientY - rect.top)
-              const index = findCurveControlPointAt(drawing.points, worldPoint)
+              const index = findVertexHandleAt(drawing.points, worldPoint, camera.scale)
               if (index !== null) {
                 useMapStore.getState().removeCurvePoint(single.id, index)
                 return

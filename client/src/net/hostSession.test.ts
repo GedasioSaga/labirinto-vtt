@@ -202,10 +202,10 @@ describe('hostSession', () => {
       const exp = decodeExploration(after.explored)
       if (exp === null) throw new Error('explored inválido')
       expect(isPointExplored(exp, { x: 800, y: 800 })).toBe(true)
-      // Só a Ana: a Bia continua sem a planta do lado da Ana.
-      const bia = decodeExploration(t.snapshotTo('c2').explored)
-      if (bia === null) throw new Error('explored inválido')
-      expect(isPointExplored(bia, { x: 100, y: 800 })).toBe(false)
+      // Só a Ana: a tela da Bia não muda, e por isso nada da planta revelada vai a ela.
+      const toBia = t.s.broadcast(t.map).outbound.filter((o) => o.clientId === 'c2')
+      expect(toBia).toEqual([])
+      expect(JSON.stringify(toBia)).not.toContain('Cripta distante')
     })
 
     it('Esconder de novo zera a exploração e as portas lembradas; a visão atual volta a marcar', () => {
@@ -568,12 +568,13 @@ describe('hostSession', () => {
       joinPlaying(s, 'c1', map)
       const first = snapshotTo(s.broadcast(map), 'c1')
       expect(first.msg.map.regions).toEqual([])
-      const second = snapshotTo(s.broadcast(map), 'c1')
-      expect(isPointExplored(second.explored, { x: c.vertexX, y: c.heroY })).toBe(false)
-      expect(second.msg.map.regions).toEqual([])
-      expect(JSON.stringify(second.msg)).not.toContain('COFRE-SECRETO')
+      expect(isPointExplored(first.explored, { x: c.vertexX, y: c.heroY })).toBe(false)
+      expect(JSON.stringify(first.msg)).not.toContain('COFRE-SECRETO')
       // O lado do herói continua sendo explorado.
-      expect(isPointExplored(second.explored, { x: c.heroX, y: c.heroY })).toBe(true)
+      expect(isPointExplored(first.explored, { x: c.heroX, y: c.heroY })).toBe(true)
+      // O segundo recorte já parte do explorado marcado. Nada chega: ele saiu
+      // igual ao primeiro — se a célula tivesse vazado o cofre, a tela mudaria e sairia.
+      expect(s.broadcast(map).outbound).toEqual([])
     })
 
     /** Taverna [300,500] e Salão [500,700] dividem a parede x=500; o herói está dentro do Salão. */
@@ -602,15 +603,15 @@ describe('hostSession', () => {
       const s = sessionWithRadius(RADIUS)
       const map = sharedWallMap()
       joinPlaying(s, 'c1', map)
-      for (let i = 0; i < 2; i += 1) {
-        const { msg, explored } = snapshotTo(s.broadcast(map), 'c1')
-        expect(msg.map.regions.map((r) => r.id)).toEqual(['r-salao'])
-        const json = JSON.stringify(msg.map)
-        expect(json).not.toContain('Taverna')
-        expect(json).not.toContain('tapete-taverna')
-        expect(isPointExplored(explored, { x: 495, y: 400 })).toBe(false)
-        expect(isPointExplored(explored, { x: 600, y: 400 })).toBe(true)
-      }
+      const { msg, explored } = snapshotTo(s.broadcast(map), 'c1')
+      expect(msg.map.regions.map((r) => r.id)).toEqual(['r-salao'])
+      const json = JSON.stringify(msg.map)
+      expect(json).not.toContain('Taverna')
+      expect(json).not.toContain('tapete-taverna')
+      expect(isPointExplored(explored, { x: 495, y: 400 })).toBe(false)
+      expect(isPointExplored(explored, { x: 600, y: 400 })).toBe(true)
+      // Segundo recorte, já com o explorado marcado: sai igual ao primeiro, então nada chega.
+      expect(s.broadcast(map).outbound).toEqual([])
     })
 
     it('SEGURANÇA: porta explorada fora da visão manda o último estado visto; ao voltar a ver, o real', () => {
@@ -871,14 +872,14 @@ describe('hostSession door.toggle (jogador abre porta)', () => {
     const map = doorMap(closed)
     const t = doorSetup(map)
     const r = t.s.handleMessage('c1', { type: 'door.toggle', wallId: 'porta' }, map)
-    expect(r.applyDoor).toEqual({ wallId: 'porta', open: true })
+    expect(r.applyDoor).toEqual({ wallId: 'porta', open: true, playerId: t.ana.playerId, playerName: 'Ana' })
     expect(r.outbound).toEqual([])
   })
 
   it('porta aberta encostada no token: fecha', () => {
     const map = doorMap({ ...closed, open: true })
     const t = doorSetup(map)
-    expect(t.s.handleMessage('c1', { type: 'door.toggle', wallId: 'porta' }, map).applyDoor).toEqual({ wallId: 'porta', open: false })
+    expect(t.s.handleMessage('c1', { type: 'door.toggle', wallId: 'porta' }, map).applyDoor).toEqual({ wallId: 'porta', open: false, playerId: t.ana.playerId, playerName: 'Ana' })
   })
 
   it('token longe: recusa "far" e não mexe na porta', () => {
@@ -1211,7 +1212,14 @@ describe('hostSession: cada jogador no seu mapa e o pedido de passagem', () => {
     // O editor abre a Cripta: agora ela é a aberta e o Salão é de fundo.
     const w = mundo()
     const trocado: HostWorld = { open: w.background[0], background: [w.open] }
-    const b = t.s.broadcast(trocado)
+    // A tela de nenhum dos dois muda (seguem no Salão), então nada sai: a Cripta seria tela nova.
+    expect(t.s.broadcast(trocado).outbound).toEqual([])
+    // E quando o Salão muda, é ele que chega — não a Cripta aberta no editor.
+    const salaoMudou: HostWorld = {
+      open: trocado.open,
+      background: [{ ...w.open, map: { ...w.open.map, tokens: w.open.map.tokens.map((tk) => (tk.id === 'ladino' ? { ...tk, x: 320 } : tk)) } }],
+    }
+    const b = t.s.broadcast(salaoMudou)
     expect(snapshotDe(b, 'c1').map.id).toBe('mapa-salao')
     expect(snapshotDe(b, 'c2').map.id).toBe('mapa-salao')
   })

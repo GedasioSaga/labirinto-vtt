@@ -60,6 +60,19 @@ export function doorOpensFrom(wall: Wall, point: ReachPoint): boolean {
   return side === null || side === from
 }
 
+/**
+ * Folga do vão, em px de mundo: a ficha na célula vizinha tem o disco
+ * EXATAMENTE encostado na porta (distância = raio), e o arredondamento não
+ * pode transformar esse encostar em "está no vão".
+ */
+const DOORWAY_EDGE_PX = 0.5
+
+/** A ficha está no vão: o disco dela cruza o segmento da porta (encostar na borda não conta). */
+export function tokenInDoorway(token: Pick<Token, 'x' | 'y' | 'size'>, wall: Wall, grid: number): boolean {
+  if (wall.door === null) return false
+  return distanceToWall({ x: token.x, y: token.y }, wall) < tokenRadiusOf(token, grid) - DOORWAY_EDGE_PX
+}
+
 /** Porta mais próxima do ponto dentro de `tolerance` (px de mundo), ou `null`. */
 export function findDoorAt(walls: readonly Wall[], point: ReachPoint, tolerance: number): Wall | null {
   let best: Wall | null = null

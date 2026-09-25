@@ -5,6 +5,7 @@ import type { LeverDoorOption } from '../lib/lever'
 import type { PinAttachOption } from '../lib/pinAttach'
 import { PIN_GLYPH, PIN_KIND_LABELS, PIN_KIND_ORDER, PIN_LER_DE_PERTO_MAX, PIN_LER_DE_PERTO_MIN, PIN_NOME_MAX_LENGTH, isPinReadDistance } from '../lib/pins'
 import { GatherControls, type GatherControlsProps } from './GatherControls'
+import { PinIconControls, type PinIconControlsProps } from './PinIconControls'
 import { PinLeverArt, PinTravelArt } from './PinSymbolArt'
 import { PinTravelControls, type PinTravelControlsProps } from './PinTravelControls'
 import { Toggle } from './Toggle'
@@ -70,6 +71,12 @@ export interface PinControlsProps {
     onPull: () => void
     pullBlocked: string | null
   } | null
+  /**
+   * O ícone do marcador, no MESMO bloco do tipo e logo abaixo dele: os dois
+   * dizem o que aparece na cabeça do pino. `null` = não se aplica (pino de
+   * viagem, que desenha a passagem).
+   */
+  iconChoice: PinIconControlsProps | null
 }
 
 /** Id fixo: só existe um pino aberto no painel por vez (o mesmo molde de `lb-pin-description`). */
@@ -273,6 +280,7 @@ export function PinControls({
   item = null,
   attachment = null,
   lever = null,
+  iconChoice,
 }: PinControlsProps) {
   const viagem = kind === 'viagem'
   const alavanca = kind === 'alavanca'
@@ -297,6 +305,9 @@ export function PinControls({
           </button>
         ))}
       </div>
+      {/* Logo abaixo do tipo e ANTES da descrição: o último botão do bloco
+          continua "Excluir", longe de quem só queria trocar o ícone. */}
+      {!viagem && iconChoice !== null && <PinIconControls {...iconChoice} glyph={PIN_GLYPH[kind]} />}
       {viagem && description === null && (
         <span className="lb-label">Crave o pino; no painel dele você escolhe para onde ele leva.</span>
       )}

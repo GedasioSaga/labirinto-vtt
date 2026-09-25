@@ -2,6 +2,7 @@ import { invoke as realInvoke } from '@tauri-apps/api/core'
 import { listen as realListen } from '@tauri-apps/api/event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createEmptyMap } from '../lib/mapFactory'
+import { useFollowStore } from '../stores/followStore'
 import { useToastStore } from '../stores/toastStore'
 import type { MapData, Pin, Token } from '../types/map'
 import type { AppliedTransfer, HostWorld } from './hostSession'
@@ -135,6 +136,31 @@ describe('hostBridge', () => {
     ])
   })
 
+  it('o mestre vê num aviso quem abriu e quem fechou a porta; o aviso novo do mesmo jogador substitui o anterior', async () => {
+    let clock = 0
+    const t = setup({ now: () => clock })
+    await t.bridge.start()
+    t.emit('net:message', { clientId: 'c1', msg: { type: 'join', code: ROOM.code, name: 'Ana' } })
+    t.bridge.assignToken(joinedPlayerId(t.sent()), 'heroi')
+    const avisosDePorta = () => useToastStore.getState().toasts.filter((toast) => toast.text.includes('a porta'))
+    t.emit('net:message', { clientId: 'c1', msg: { type: 'door.toggle', wallId: 'porta' } })
+    expect(avisosDePorta()).toEqual([expect.objectContaining({ kind: 'info', text: 'Ana abriu a porta' })])
+    clock += 1000
+    t.emit('net:message', { clientId: 'c1', msg: { type: 'door.toggle', wallId: 'porta' } })
+    expect(t.applyDoor).toHaveBeenLastCalledWith('porta', false)
+    expect(avisosDePorta()).toEqual([expect.objectContaining({ kind: 'info', text: 'Ana fechou a porta' })])
+  })
+
+  it('porta recusada (ninguém mexeu nela) não gera aviso ao mestre', async () => {
+    const t = setup()
+    await t.bridge.start()
+    t.emit('net:message', { clientId: 'c1', msg: { type: 'join', code: ROOM.code, name: 'Ana' } })
+    t.bridge.assignToken(joinedPlayerId(t.sent()), 'heroi')
+    t.emit('net:message', { clientId: 'c1', msg: { type: 'door.toggle', wallId: 'inexistente' } })
+    expect(t.applyDoor).not.toHaveBeenCalled()
+    expect(useToastStore.getState().toasts.filter((toast) => toast.text.includes('a porta'))).toEqual([])
+  })
+
   it('net:peer disconnected marca o jogador como desconectado', async () => {
     const t = setup()
     await t.bridge.start()
@@ -162,10 +188,40 @@ describe('hostBridge', () => {
     t.emit('net:message', { clientId: 'c1', msg: { type: 'join', code: ROOM.code, name: 'Ana' } })
     t.bridge.assignToken(joinedPlayerId(t.sent()), 'heroi')
     const before = t.sent().length
-    for (let i = 0; i < 5; i += 1) t.bridge.notifyMapChanged()
+    // Cada aviso vem de uma edição de verdade: mapa igual não sai mais (o broadcast só manda o que mudou).
+    for (let i = 0; i < 5; i += 1) {
+      t.applyMove('heroi', 200 + i * 10, 200)
+      t.bridge.notifyMapChanged()
+    }
     expect(t.sent().length).toBe(before)
     vi.advanceTimersByTime(BROADCAST_THROTTLE_MS)
     expect(t.sent().slice(before)).toEqual([expect.objectContaining({ clientId: 'c1', msg: expect.objectContaining({ type: 'snapshot' }) })])
+  })
+
+  it('tela que não chegou (net_send falhou): o broadcast seguinte manda a tela inteira de novo, mesmo sem mudança', async () => {
+    vi.useFakeTimers()
+    const t = setup()
+    await t.bridge.start()
+    t.emit('net:message', { clientId: 'c1', msg: { type: 'join', code: ROOM.code, name: 'Ana' } })
+    t.bridge.assignToken(joinedPlayerId(t.sent()), 'heroi')
+    let falhar = true
+    const ehSnapshot = (args: unknown): boolean =>
+      typeof args === 'object' && args !== null && 'msg' in args && typeof args.msg === 'object' && args.msg !== null && 'type' in args.msg && args.msg.type === 'snapshot'
+    t.invoke.mockImplementation(async (cmd: string, args?: unknown) => {
+      if (cmd === 'net_send' && falhar && ehSnapshot(args)) {
+        falhar = false
+        throw new Error('fila do cliente cheia')
+      }
+      return cmd === 'net_start_room' ? ROOM : undefined
+    })
+    t.emit('net:message', { clientId: 'c1', msg: { type: 'token.move', reqId: 'r1', tokenId: 'heroi', x: 240, y: 200 } })
+    await vi.advanceTimersByTimeAsync(0)
+    expect(falhar).toBe(false)
+
+    const before = t.sent().length
+    t.bridge.notifyMapChanged()
+    await vi.advanceTimersByTimeAsync(BROADCAST_THROTTLE_MS)
+    expect(t.sent().slice(before)).toEqual([{ clientId: 'c1', msg: expect.objectContaining({ type: 'snapshot' }) }])
   })
 
   it('stop desregistra listeners e chama net_stop_room', async () => {
@@ -201,6 +257,22 @@ describe('hostBridge', () => {
     await t.bridge.stop()
     expect(t.sent()).toEqual([])
     expect(t.invoke).toHaveBeenLastCalledWith('net_stop_room')
+  })
+
+  it('"torná-la pública" sem sala aberta: o aviso ensina e fica até o mestre dispensar, sem chamar o túnel', () => {
+    vi.useFakeTimers()
+    const t = setup()
+    void t.bridge.startTunnel()
+    const aviso = useToastStore.getState().toasts.find((toast) => toast.text === 'Abra a sala antes de torná-la pública')
+    if (aviso === undefined) throw new Error('o mestre deveria ver o aviso')
+    expect(aviso.kind).toBe('instrucao')
+    // Bem depois do prazo de um erro comum (7 s): continua na tela.
+    vi.advanceTimersByTime(60_000)
+    expect(useToastStore.getState().toasts.map((toast) => toast.id)).toEqual([aviso.id])
+    expect(t.invoke).not.toHaveBeenCalledWith('net_start_tunnel', expect.anything())
+    expect(t.bridge.tunnel()).toEqual({ kind: 'idle' })
+    useToastStore.getState().dismiss(aviso.id)
+    expect(useToastStore.getState().toasts).toEqual([])
   })
 
   it('kick envia kicked e chama net_kick', async () => {
@@ -797,6 +869,7 @@ describe('hostBridge', () => {
 describe('hostBridge: pedido de passagem pelo pino de viagem', () => {
   beforeEach(() => {
     useToastStore.setState({ toasts: [] })
+    useFollowStore.setState({ playerId: null })
   })
 
   /** Salão (aberto) e Cripta (de fundo), com a escada ligada em mão dupla. `naCripta` diz onde está o herói. */
@@ -868,6 +941,27 @@ describe('hostBridge: pedido de passagem pelo pino de viagem', () => {
     chegada?.actions?.[0]?.run()
     expect(onGoToScene).toHaveBeenCalledWith('cena-b', 975, 275)
     expect(t.bridge.players()[0]?.sceneName).toBe('Cripta')
+  })
+
+  it('"Ir lá" na chegada de OUTRO jogador desliga o seguir; na de quem já é seguido, mantém', async () => {
+    const { t, aviso, onGoToScene } = await pedido()
+    const ana = joinedPlayerId(t.sent())
+    aviso.actions?.[0]?.run()
+    const chegada = useToastStore.getState().toasts.find((toast) => toast.text === 'Ana entrou em Cripta')
+    const irLa = chegada?.actions?.[0]
+    if (irLa === undefined) throw new Error('a chegada deveria ter "Ir lá"')
+
+    // Seguindo Bruno, o mestre vai ver Ana: o seguir não pode arrastá-lo de volta.
+    useFollowStore.setState({ playerId: 'bruno' })
+    irLa.run()
+    expect(useFollowStore.getState().playerId).toBeNull()
+    expect(onGoToScene).toHaveBeenLastCalledWith('cena-b', 1025, 275)
+
+    // Seguindo a própria Ana: ir até ela é o que o seguir já faz, então continua seguindo.
+    useFollowStore.setState({ playerId: ana })
+    irLa.run()
+    expect(useFollowStore.getState().playerId).toBe(ana)
+    expect(onGoToScene).toHaveBeenCalledTimes(2)
   })
 
   it('"Não" e o × do aviso respondem pin.travel.denied, sem mover nada', async () => {

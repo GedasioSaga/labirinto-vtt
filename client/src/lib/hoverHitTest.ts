@@ -37,11 +37,11 @@ import type { MapData } from '../types/map'
 import type { Selection, SelectionKind, DrawingTool } from '../types/tools'
 import type { Point } from '../pixi/world'
 import type { HoverKind, ResizeCorner } from '../pixi/cursorPolicy'
-import { findBoxCornerAt, drawingBoundingBox, tokenBoundingBox, propBoundingBox } from './objectTransform'
-import { findRoomCornerAt, isAxisAlignedRect } from './roomOps'
+import { drawingBoundingBox, tokenBoundingBox, propBoundingBox } from './objectTransform'
+import { isAxisAlignedRect } from './roomOps'
 import { isOnRoomRotateHandle, roomRotationOf } from './roomRotation'
-import { findCurveControlPointAt, findSelectableAt } from './selectionHitTest'
-import { findLightRadiusHandleAt } from '../pixi/drawEditHandles'
+import { findSelectableAt } from './selectionHitTest'
+import { findBoxCornerHandleAt, findRoomCornerHandleAt, findVertexHandleAt, isOnRadiusHandle } from './handleHitArea'
 import { areaSelectionBounds, type AreaSelection } from './areaSelection'
 import { canInteract, isHidden } from './itemTransform'
 
@@ -51,7 +51,8 @@ export interface HoverHitInput {
   areaSelection: AreaSelection | null
   activeTool: DrawingTool
   worldPoint: Point
-  /** Zoom da câmera: a alça de girar sala tem tamanho fixo na TELA. Ausente = 1. */
+  /** Zoom da câmera: toda alça (girar, canto, vértice, raio) tem tamanho fixo
+   *  na TELA, e a área de hover acompanha (`lib/handleHitArea.ts`). Ausente = 1. */
   cameraScale?: number
 }
 
@@ -98,6 +99,7 @@ function hitTestMap(map: MapData): MapData {
  */
 export function resolveHoverHit(input: HoverHitInput): HoverHit {
   const { map, selection, areaSelection, activeTool: tool, worldPoint } = input
+  const scale = input.cameraScale ?? 1
   if (tool !== 'select' && tool !== 'token') return NONE_HIT
 
   if (tool === 'select' && selection) {
@@ -105,32 +107,32 @@ export function resolveHoverHit(input: HoverHitInput): HoverHit {
       const drawing = map.drawings.find((d) => d.id === selection.id)
       if (drawing && (drawing.kind === 'rect' || drawing.kind === 'ellipse' || drawing.kind === 'polygon')) {
         const box = drawingBoundingBox(drawing)
-        const corner = box ? findBoxCornerAt(box, worldPoint) : null
+        const corner = box ? findBoxCornerHandleAt(box, worldPoint, scale) : null
         if (corner !== null) return { kind: 'resize-corner', corner, target: null }
       }
-      if (drawing && drawing.kind === 'curve' && findCurveControlPointAt(drawing.points, worldPoint) !== null) {
+      if (drawing && drawing.kind === 'curve' && findVertexHandleAt(drawing.points, worldPoint, scale) !== null) {
         return { kind: 'vertex', corner: null, target: null }
       }
       if (drawing && drawing.kind === 'line') {
         const pts = [{ x: drawing.x1, y: drawing.y1 }, { x: drawing.x2, y: drawing.y2 }]
-        if (findCurveControlPointAt(pts, worldPoint) !== null) return { kind: 'vertex', corner: null, target: null }
+        if (findVertexHandleAt(pts, worldPoint, scale) !== null) return { kind: 'vertex', corner: null, target: null }
       }
     }
     if (selection.kind === 'light') {
       const light = map.lights.find((l) => l.id === selection.id)
-      if (light && findLightRadiusHandleAt(light, worldPoint)) return { kind: 'radius', corner: null, target: null }
+      if (light && isOnRadiusHandle(light, worldPoint, scale)) return { kind: 'radius', corner: null, target: null }
     }
     if (selection.kind === 'token') {
       const token = map.tokens.find((t) => t.id === selection.id)
       if (token && canInteract(token)) {
-        const corner = findBoxCornerAt(tokenBoundingBox(token, map.grid), worldPoint)
+        const corner = findBoxCornerHandleAt(tokenBoundingBox(token, map.grid), worldPoint, scale)
         if (corner !== null) return { kind: 'resize-corner', corner, target: null }
       }
     }
     if (selection.kind === 'prop') {
       const prop = map.props.find((p) => p.id === selection.id)
       if (prop && canInteract(prop)) {
-        const corner = findBoxCornerAt(propBoundingBox(prop), worldPoint)
+        const corner = findBoxCornerHandleAt(propBoundingBox(prop), worldPoint, scale)
         if (corner !== null) return { kind: 'resize-corner', corner, target: null }
       }
     }
@@ -142,17 +144,19 @@ export function resolveHoverHit(input: HoverHitInput): HoverHit {
     }
     if (editRegionId !== null) {
       const region = map.regions.find((r) => r.id === editRegionId)
-      if (region) {
+      // Travada não tem alça nenhuma (`pixi/drawEditHandles.ts`) e o pointerdown
+      // não deixa pegar canto, vértice nem girar: o cursor também não promete.
+      if (region && canInteract(region)) {
         // Alça de girar: mesma condição do pointerdown (`pixi/roomRotateGesture.ts`)
         // — Sala destravada. Travada não tem alça, então não tem cursor de girar.
-        if (region.room && canInteract(region) && isOnRoomRotateHandle(region.points, roomRotationOf(region.room), worldPoint, input.cameraScale ?? 1)) {
+        if (region.room && isOnRoomRotateHandle(region.points, roomRotationOf(region.room), worldPoint, scale)) {
           return { kind: 'rotate', corner: null, target: null }
         }
         if (region.room?.shape === 'rect') {
           // Torta não tem alça de canto (ver `isAxisAlignedRect`), e também não cai no vértice solto abaixo.
-          const corner = isAxisAlignedRect(region.points) ? findRoomCornerAt(region.points, worldPoint) : null
+          const corner = isAxisAlignedRect(region.points) ? findRoomCornerHandleAt(region.points, worldPoint, scale) : null
           if (corner !== null) return { kind: 'resize-corner', corner, target: null }
-        } else if (findCurveControlPointAt(region.points, worldPoint) !== null) {
+        } else if (findVertexHandleAt(region.points, worldPoint, scale) !== null) {
           return { kind: 'vertex', corner: null, target: null }
         }
       }
@@ -161,7 +165,7 @@ export function resolveHoverHit(input: HoverHitInput): HoverHit {
       const wall = map.walls.find((w) => w.id === selection.id)
       if (wall && wall.regionId === undefined) {
         const pts = [{ x: wall.x1, y: wall.y1 }, { x: wall.x2, y: wall.y2 }]
-        if (findCurveControlPointAt(pts, worldPoint) !== null) return { kind: 'vertex', corner: null, target: null }
+        if (findVertexHandleAt(pts, worldPoint, scale) !== null) return { kind: 'vertex', corner: null, target: null }
       }
     }
   }

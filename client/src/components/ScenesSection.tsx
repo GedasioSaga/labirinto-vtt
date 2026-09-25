@@ -11,7 +11,7 @@ import {
 } from 'react'
 import { createPortal } from 'react-dom'
 import { CollapsibleSection } from './CollapsibleSection'
-import { SceneOverviewDialog, tokenCountLabel } from './SceneOverview'
+import { SceneOverviewDialog } from './SceneOverview'
 import { ChevronDownIcon, CloseIcon, MoveIntoIcon, SearchIcon } from './icons'
 import { useSceneDrag, type SceneDrag } from './sceneDrag'
 import { SceneAlarmControls, type ActiveAlarmView } from './SceneAlarmControls'
@@ -700,6 +700,17 @@ interface RowPerson extends ScenePerson {
 interface RowPeople {
   people: RowPerson[]
   pendingRequests: number
+}
+
+/** Por que o nome da cena está desabilitado — `undefined` quando ela abre. */
+function unavailableTitle(scene: SceneListItem): string | undefined {
+  if (scene.available) return undefined
+  return scene.loading === true ? 'Esta cena ainda está sendo lida do disco' : 'O arquivo desta cena não foi encontrado'
+}
+
+function tokenLabel(count: number | null): string {
+  if (count === null) return 'indisponível'
+  return count === 1 ? '1 token' : `${count} tokens`
 }
 
 /**
@@ -1415,7 +1426,7 @@ export function ScenesSection({
                 aria-current={scene.active ? 'true' : undefined}
                 aria-describedby={trail.length > 0 ? pathId : undefined}
                 disabled={!scene.available}
-                title={scene.available ? undefined : 'O arquivo desta cena não foi encontrado'}
+                title={unavailableTitle(scene)}
                 onClick={() => {
                   if (drag.swallowClick()) return
                   onSelect(scene.id)
@@ -1423,7 +1434,7 @@ export function ScenesSection({
               >
                 {scene.name}
               </button>
-              <span className="lb-cenas__conta">{tokenCountLabel(scene.tokenCount)}</span>
+              <span className="lb-cenas__conta">{scene.loading === true ? 'carregando…' : tokenLabel(scene.tokenCount)}</span>
               {minutesWaiting !== undefined && <SceneEspera minutes={minutesWaiting} />}
               {scene.active && scene.renamable && editing === null && (
                 <button

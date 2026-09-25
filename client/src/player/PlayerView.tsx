@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import { PlayerMeasureLabel, writeMeasureText } from './PlayerMeasureLabel'
 import { Application, Container, Graphics, Sprite, Text, Texture } from 'pixi.js'
 import type { FederatedPointerEvent } from 'pixi.js'
 import type { MapData, Region, RegionPoint, Token, Wall } from '../types/map'
@@ -19,10 +20,11 @@ import { findDoorAt, tokenReachesDoor } from '../lib/doorReach'
 import { findPlayerPinAt } from '../lib/selectionHitTest'
 import { visiblePins } from '../lib/layers'
 import { createPinsRenderer } from '../pixi/drawPins'
-import { fitCamera, panBy, zoomAt } from '../pixi/world'
+import { panBy, zoomAt } from '../pixi/world'
 import { createDebouncedTask, syncWorldTextResolution } from '../pixi/textResolution'
 import type { Bounds, Camera, Point } from '../pixi/world'
 import { arrivalCamera, centeredCamera, firstOwnToken } from './playerCamera'
+import { arrivalCamera as arrivalCameraForFloor } from './arrivalCamera'
 import { fireLongPress } from './playerLongPress'
 import { createPlayerCuller, type PlayerCuller } from './playerCulling'
 import { drawOwnerPulse, drawOwnerRing, ownerRingOuterPx } from './ownerMarker'
@@ -75,6 +77,8 @@ import {
   type PlayerMeasureState,
 } from './playerMeasure'
 import { drawPlayerMeasure, drawPlayerTokenDrag } from './drawPlayerMeasure'
+import { resolveTokenRelease } from './tokenRelease'
+import { findTapTarget, holdBecomesSignal, type TapTarget } from './tapTarget'
 import { createTokenGlides, stepGlides, syncGlide, type TokenGlides } from './tokenGlide'
 import { applyTokenTouch, prepareTokenLayer } from './tokenTouch'
 import {
@@ -251,6 +255,7 @@ type Drag =
   // `origin`: onde a ficha estava ao começar (de onde se contam os quadrados);
   // `reach`: contorno do alcance em px de mundo, calculado uma vez por gesto
   // (`null` na cena sem passo máximo); `label`: "N quadrados" ou nada.
+  // `screenStart`/`screenLast`: o dedo em px de TELA — soltar sem andar em cima de um pino é toque no pino, não arrasto.
   | {
       kind: 'token'
       pointerId: number
@@ -262,6 +267,8 @@ type Drag =
       origin: Point
       reach: Point[] | null
       label: string | null
+      screenStart: Point
+      screenLast: Point
     }
   // Régua do jogador: o ponto vive em `scene.measure`, aqui só se marca que o gesto é dela.
   // `before`: a medida de antes do toque, que volta se o toque virar pinça.
@@ -1035,6 +1042,7 @@ export function PlayerView({
   const containerRef = useRef<HTMLDivElement | null>(null)
   const measureLabelRef = useRef<HTMLDivElement | null>(null)
   const tokenDragLabelRef = useRef<HTMLDivElement | null>(null)
+  const measureAnnouncerRef = useRef<HTMLDivElement | null>(null)
   const sceneRef = useRef<Scene | null>(null)
   const latest = {
     map,
@@ -1110,15 +1118,12 @@ export function PlayerView({
   function syncMeasure(scene: Scene): void {
     const measure = scene.measure.measure
     const label = measureLabelRef.current
+    const announcer = measureAnnouncerRef.current
     if (measure === null) {
       if (scene.lastMeasureKey === null) return
       scene.lastMeasureKey = null
       scene.measureLayer.clear()
-      if (label) {
-        // Texto vazio, e não só escondido: a medida apagada não pode continuar legível para ninguém.
-        label.textContent = ''
-        label.hidden = true
-      }
+      if (label && announcer) writeMeasureText({ label, announcer }, null)
       return
     }
     const start = measureWorldToScreen(scene.camera, measure.start)
@@ -1128,6 +1133,7 @@ export function PlayerView({
     if (key === scene.lastMeasureKey) return
     scene.lastMeasureKey = key
     drawPlayerMeasure(scene.measureLayer, start, end)
+    if (label && announcer) writeMeasureText({ label, announcer }, text)
     if (label) showScreenLabel(scene, label, text, end)
   }
 
@@ -1293,10 +1299,11 @@ export function PlayerView({
     if (el) el.dataset.doorHints = String(doors.length)
   }
 
-  /** Porta sob o ponto da TELA, dentro da tolerância do toque; `null` se não tem porta ali. */
-  function doorAtScreen(scene: Scene, screenX: number, screenY: number): Wall | null {
+  /** Pino ou porta sob o ponto da TELA, dentro da folga do dedo; `map` se é chão. Só o que o jogador vê. */
+  function tapTargetAtScreen(scene: Scene, screenX: number, screenY: number): TapTarget {
+    const map = latestRef.current.map
     const point = scene.world.toLocal({ x: screenX, y: screenY })
-    return findDoorAt(visibleWalls(latestRef.current.map), point, DOOR_TAP_TOLERANCE_PX / scene.camera.scale)
+    return findTapTarget(visiblePins(map.pins ?? [], map.hiddenLayers), visibleWalls(map), point, DOOR_TAP_TOLERANCE_PX / scene.camera.scale)
   }
 
   /** Pino sob o ponto da TELA, com a mesma folga de dedo da porta. */
@@ -1514,11 +1521,10 @@ export function PlayerView({
       syncMeasure(scene)
       // O próprio rastro também era do mapa de antes.
       scene.ownLaser = { points: [], on: scene.ownLaser.on }
-      const bounds = { minX: 0, minY: 0, maxX: worldWidth, maxY: worldHeight }
       const viewport = { width: scene.app.screen.width, height: scene.app.screen.height }
-      const fitted = fitCamera(bounds, viewport, FIT_MARGIN)
-      // O mapa inteiro, como sempre — a não ser que ele deixe a própria ficha
-      // debaixo do painel ou fora da tela: aí a câmera chega centrada nela.
+      // Enquadra o andar, mas nunca deixa a própria ficha fora da tela (andar enorme travava em 10%)
+      // — e, sobre esse enquadramento, nunca deixa a ficha debaixo do painel flutuante.
+      const fitted = arrivalCameraForFloor(currentMap, own, viewport, FIT_MARGIN)
       const mine = firstOwnToken(currentMap.tokens, own)
       const disc = mine === null ? null : { x: mine.x, y: mine.y, radius: tokenRadius(mine, currentMap.grid) }
       const arrival = arrivalCamera(fitted, disc, viewport, readObstacles())
@@ -1554,6 +1560,7 @@ export function PlayerView({
     // Pegou a ficha no meio de um deslize: ela para onde está e passa a seguir o dedo.
     scene.tokenGlides.delete(tokenId)
     const origin = { x: view.x, y: view.y }
+    const screen = { x: event.global.x, y: event.global.y }
     scene.drag = {
       kind: 'token',
       pointerId: event.pointerId,
@@ -1565,6 +1572,8 @@ export function PlayerView({
       origin,
       reach: reachOutline(latestRef.current.map, origin),
       label: null,
+      screenStart: screen,
+      screenLast: screen,
     }
   }
 
@@ -2040,11 +2049,12 @@ export function PlayerView({
         }
         scene.drag = { kind: 'pan', pointerId, lastX: x, lastY: y, startX: x, startY: y, canTap: true }
         cancelLongPress()
-        // Dedo em cima de um PINO não arma o sinal. O pino é um controle: quem
-        // aperta ali quer ler o cartão, e demorar meio segundo para soltar não
-        // muda a intenção — sem esta guarda, a mesma pressão virava ping de
-        // mapa e o cartão nunca abria (medido no toque lento).
-        if (pinAtScreen(scene, x, y) !== null) return
+        // Dedo em cima de um PINO ou de uma PORTA não arma o sinal. São
+        // controles: quem aperta ali quer ler o cartão ou abrir a porta, e
+        // demorar meio segundo para soltar (tela engasgada) não muda a
+        // intenção — sem esta guarda, a mesma pressão virava ping de mapa e o
+        // cartão ou a porta nunca respondia (medido no toque lento).
+        if (!holdBecomesSignal(tapTargetAtScreen(scene, x, y))) return
         const timer = setTimeout(() => {
           longPress = null
           // Virou sinal: o gesto não continua como arrasto de câmera.
@@ -2090,8 +2100,7 @@ export function PlayerView({
           }
           const overTappable =
             !latestRef.current.signalArmed &&
-            (pinAtScreen(scene, event.global.x, event.global.y) !== null ||
-              doorAtScreen(scene, event.global.x, event.global.y) !== null ||
+            (tapTargetAtScreen(scene, event.global.x, event.global.y).kind !== 'map' ||
               roomTextAtScreen(scene, event.global.x, event.global.y) !== null)
           app.stage.cursor = overTappable ? 'pointer' : 'default'
           return
@@ -2122,6 +2131,7 @@ export function PlayerView({
         drag.x = preview.at.x
         drag.y = preview.at.y
         drag.label = preview.label
+        drag.screenLast = { x: event.global.x, y: event.global.y }
         scene.tokenViews.get(drag.tokenId)?.wrapper.position.set(drag.x, drag.y)
         syncTokenDrag(scene)
       })
@@ -2147,31 +2157,36 @@ export function PlayerView({
           // toque RÁPIDO, não o demorado. O dedo que sobrou de uma pinça nunca é toque.
           if (!drag.canTap) return
           if (Math.hypot(drag.lastX - drag.startX, drag.lastY - drag.startY) > SIGNAL_LONG_PRESS_TOLERANCE_PX) return
-          const pinId = pinAtScreen(scene, drag.startX, drag.startY)
-          if (pinId !== null) {
-            latestRef.current.onPinOpen?.(pinId)
+          const target = tapTargetAtScreen(scene, drag.startX, drag.startY)
+          if (target.kind === 'pin') {
+            latestRef.current.onPinOpen?.(target.pinId)
             return
           }
-          const door = doorAtScreen(scene, drag.startX, drag.startY)
+          if (target.kind === 'door') {
+            latestRef.current.onDoorToggle?.(target.doorId)
+            return
+          }
           // O nome da Sala fica no MEIO dela, longe das portas: a porta vem
           // antes só para o toque na parede nunca virar leitura de texto.
-          const roomId = door === null ? roomTextAtScreen(scene, drag.startX, drag.startY) : null
-          if (roomId !== null) {
-            latestRef.current.onRoomOpen?.(roomId)
-            return
-          }
-          if (door !== null) latestRef.current.onDoorToggle?.(door.id)
+          const roomId = roomTextAtScreen(scene, drag.startX, drag.startY)
+          if (roomId !== null) latestRef.current.onRoomOpen?.(roomId)
           return
         }
         if (drag?.kind !== 'token') return
-        const token = latestRef.current.map.tokens.find((t) => t.id === drag.tokenId)
-        const x = Math.round(drag.x)
-        const y = Math.round(drag.y)
-        if (!token || (token.x === x && token.y === y)) {
-          scene.tokenViews.get(drag.tokenId)?.wrapper.position.set(token?.x ?? drag.x, token?.y ?? drag.y)
+        const token = latestRef.current.map.tokens.find((t) => t.id === drag.tokenId) ?? null
+        const release = resolveTokenRelease(
+          { startScreen: drag.screenStart, endScreen: drag.screenLast, drop: { x: drag.x, y: drag.y } },
+          token,
+          pinAtScreen(scene, drag.screenStart.x, drag.screenStart.y),
+          SIGNAL_LONG_PRESS_TOLERANCE_PX,
+        )
+        if (release.kind === 'move') {
+          latestRef.current.onMove(drag.tokenId, release.x, release.y)
           return
         }
-        latestRef.current.onMove(drag.tokenId, x, y)
+        // Toque, ou arrasto que não mudou nada: a ficha volta para onde o mapa diz.
+        scene.tokenViews.get(drag.tokenId)?.wrapper.position.set(token?.x ?? drag.x, token?.y ?? drag.y)
+        if (release.kind === 'openPin') latestRef.current.onPinOpen?.(release.pinId)
       }
 
       /**
@@ -2352,8 +2367,8 @@ export function PlayerView({
       />
 
       {/* Rótulo da régua: escrito pelo gesto direto no DOM (syncMeasure), sem re-render do React por passo do dedo.
-          `aria-live` educado: com o grude na grade o texto só muda a cada quadrado, não a cada pixel. */}
-      <div ref={measureLabelRef} className="pp-measure-label" aria-live="polite" aria-atomic="true" hidden />
+          A região viva mora à parte e nasce montada, para a PRIMEIRA medida já ser anunciada. */}
+      <PlayerMeasureLabel labelRef={measureLabelRef} announcerRef={measureAnnouncerRef} />
       {/* "N quadrados" do arrasto da própria ficha: mesmo rótulo do Medir, escrito por syncTokenDrag.
           Sem `aria-live`: o arrasto da ficha não gruda na grade, e anunciar cada décimo de quadrado enfileiraria dezenas de falas. */}
       <div ref={tokenDragLabelRef} className="pp-measure-label" data-testid="token-drag-label" hidden />

@@ -58,14 +58,23 @@ export function findLightRadiusHandleAt(target: RadiusHandleTarget, point: Point
 }
 
 /**
+ * Bolinha cheia de vértice (ponta de parede solta, ponta de linha, vértice de
+ * região, alça de raio): `HANDLE_VISUAL_RADIUS` px de TELA em qualquer zoom.
+ */
+function drawVertexHandle(graphics: Graphics, x: number, y: number, cameraScale: number): void {
+  graphics.circle(x, y, HANDLE_VISUAL_RADIUS / cameraScale).fill({ color: SELECTION_COLOR })
+}
+
+/**
  * Contorno do alcance atual (vazado, sem fill — mesma convenção de ponto
  * médio usada por drawRegionHandles) + a alça preenchida na borda, arrastável
- * pra redimensionar o raio.
+ * pra redimensionar o raio. O círculo do alcance é do mundo (é o raio de
+ * verdade); o traço dele e a bolinha é que têm tamanho de tela.
  */
-function drawLightRadiusHandle(graphics: Graphics, target: RadiusHandleTarget): void {
-  graphics.circle(target.x, target.y, target.radius).stroke({ width: STROKE_WEIGHT.hairline, color: SELECTION_COLOR, alpha: 0.6 })
+function drawLightRadiusHandle(graphics: Graphics, target: RadiusHandleTarget, cameraScale: number): void {
+  graphics.circle(target.x, target.y, target.radius).stroke({ width: STROKE_WEIGHT.hairline / cameraScale, color: SELECTION_COLOR, alpha: 0.6 })
   const handle = lightRadiusHandlePosition(target)
-  graphics.circle(handle.x, handle.y, HANDLE_VISUAL_RADIUS).fill({ color: SELECTION_COLOR })
+  drawVertexHandle(graphics, handle.x, handle.y, cameraScale)
 }
 
 type CircleDrawing = Extract<Drawing, { kind: 'circle' }>
@@ -88,12 +97,14 @@ export function circleDrawingRadiusHandle(drawing: CircleDrawing): RadiusHandleT
  * stroke, sem fill) — mesma distinção visual usada pelo draft de Região
  * (`drawRegionDraft`) e pelos handles de Curva em `drawDrawings.ts`.
  */
-function drawRegionHandles(graphics: Graphics, points: RegionPoint[]): void {
+function drawRegionHandles(graphics: Graphics, points: RegionPoint[], cameraScale: number): void {
   for (const point of points) {
-    graphics.circle(point.x, point.y, HANDLE_VISUAL_RADIUS).fill({ color: SELECTION_COLOR })
+    drawVertexHandle(graphics, point.x, point.y, cameraScale)
   }
   for (const midpoint of regionEdgeMidpoints(points)) {
-    graphics.circle(midpoint.x, midpoint.y, HANDLE_MIDPOINT_RADIUS).stroke({ width: STROKE_WEIGHT.thin, color: SELECTION_COLOR })
+    graphics
+      .circle(midpoint.x, midpoint.y, HANDLE_MIDPOINT_RADIUS / cameraScale)
+      .stroke({ width: STROKE_WEIGHT.thin / cameraScale, color: SELECTION_COLOR })
   }
 }
 
@@ -108,15 +119,28 @@ function drawRegionHandles(graphics: Graphics, points: RegionPoint[]): void {
  * guard largo aqui quebraria a edição de região comum, não só de Sala — ver
  * `drawEditHandles.test.ts` para os 3 casos cobertos.
  */
-function drawRegionOrRoomHandles(graphics: Graphics, region: { points: RegionPoint[]; room?: { shape: 'rect' | 'polygon' } }): void {
+function drawRegionOrRoomHandles(graphics: Graphics, region: { points: RegionPoint[]; room?: { shape: 'rect' | 'polygon' } }, cameraScale: number): void {
   if (region.room?.shape === 'rect') {
     // Torta (girada fora de 0/90/180/−90°): sem chip de canto. Puxar um canto
     // reconstruiria um retângulo reto no lugar dela (`isAxisAlignedRect`); os
     // chips voltam quando ela é girada de novo a um múltiplo de 90°.
-    if (isAxisAlignedRect(region.points)) drawRoomHandles(graphics, region.points)
+    if (isAxisAlignedRect(region.points)) drawRoomHandles(graphics, region.points, cameraScale)
   } else {
-    drawRegionHandles(graphics, region.points)
+    drawRegionHandles(graphics, region.points, cameraScale)
   }
+}
+
+/**
+ * Todas as alças de uma Região/Sala selecionada (por si ou pela parede dona).
+ * Travada não tem NENHUMA: o pointerdown não deixa pegar canto, vértice, meio
+ * de aresta nem a alça de girar (`canInteract` em `PixiCanvas.tsx`), e
+ * controle que não faz nada é pior que nenhum. A seleção continua visível
+ * pelo contorno, que é de outra camada.
+ */
+function drawRegionSelectionHandles(graphics: Graphics, region: Region, view: EditHandlesView): void {
+  if (isLocked(region)) return
+  drawRegionOrRoomHandles(graphics, region, view.cameraScale ?? 1)
+  drawRoomRotateHandle(graphics, region, view)
 }
 
 /** O que o desenho das alças precisa saber da câmera e do gesto em curso — nada disso mora no mapa. */
@@ -196,8 +220,13 @@ function drawRoomRotateHandle(graphics: Graphics, region: Region, view: EditHand
  * sem handle nenhum, o que parecia bug.
  *
  * Girar sala: toda Sala (qualquer forma) ganha a alça de girar acima dela
- * (`drawRoomRotateHandle`), selecionada por si ou pela parede. `view` traz o
- * zoom, porque essa alça tem tamanho fixo na tela; sem `view`, zoom 1.
+ * (`drawRoomRotateHandle`), selecionada por si ou pela parede.
+ *
+ * Zoom (`view.cameraScale`, ausente = 1): toda alça tem tamanho fixo na TELA,
+ * como o contorno de seleção — a camada `handles` já repinta a cada zoom
+ * (`shapesRedraw.ts`), e o desenho usa a escala que recebe. Item travado
+ * (Região/Sala, Token, Prop) não tem alça: o pointerdown não deixa pegar
+ * nenhuma (`canInteract`).
  */
 export function drawEditHandles(
   graphics: Graphics,
@@ -208,13 +237,11 @@ export function drawEditHandles(
 ): void {
   graphics.clear()
   if (activeTool !== 'select' || !selection) return
+  const scale = view.cameraScale ?? 1
 
   if (selection.kind === 'region') {
     const region = map.regions.find((r) => r.id === selection.id)
-    if (region) {
-      drawRegionOrRoomHandles(graphics, region)
-      drawRoomRotateHandle(graphics, region, view)
-    }
+    if (region) drawRegionSelectionHandles(graphics, region, view)
     return
   }
 
@@ -224,15 +251,12 @@ export function drawEditHandles(
 
     if (wall.regionId !== undefined) {
       const region = map.regions.find((r) => r.id === wall.regionId)
-      if (region) {
-        drawRegionOrRoomHandles(graphics, region)
-        drawRoomRotateHandle(graphics, region, view)
-      }
+      if (region) drawRegionSelectionHandles(graphics, region, view)
       return
     }
 
-    graphics.circle(wall.x1, wall.y1, HANDLE_VISUAL_RADIUS).fill({ color: SELECTION_COLOR })
-    graphics.circle(wall.x2, wall.y2, HANDLE_VISUAL_RADIUS).fill({ color: SELECTION_COLOR })
+    drawVertexHandle(graphics, wall.x1, wall.y1, scale)
+    drawVertexHandle(graphics, wall.x2, wall.y2, scale)
     return
   }
 
@@ -241,8 +265,8 @@ export function drawEditHandles(
     if (!drawing) return
 
     if (drawing.kind === 'line') {
-      graphics.circle(drawing.x1, drawing.y1, HANDLE_VISUAL_RADIUS).fill({ color: SELECTION_COLOR })
-      graphics.circle(drawing.x2, drawing.y2, HANDLE_VISUAL_RADIUS).fill({ color: SELECTION_COLOR })
+      drawVertexHandle(graphics, drawing.x1, drawing.y1, scale)
+      drawVertexHandle(graphics, drawing.x2, drawing.y2, scale)
       return
     }
 
@@ -254,7 +278,7 @@ export function drawEditHandles(
     // adapta cx/cy (nome do campo no Drawing) pra x/y (nome que a alça
     // espera), via circleDrawingRadiusHandle.
     if (drawing.kind === 'circle') {
-      drawLightRadiusHandle(graphics, circleDrawingRadiusHandle(drawing))
+      drawLightRadiusHandle(graphics, circleDrawingRadiusHandle(drawing), scale)
       return
     }
 
@@ -263,24 +287,25 @@ export function drawEditHandles(
     // acima) — nenhum desenho nesse caso, mesmo padrão de "seleção órfã não
     // desenha nada" abaixo.
     const box = drawingBoundingBox(drawing)
-    if (box) drawBoxResizeHandles(graphics, box)
+    if (box) drawBoxResizeHandles(graphics, box, scale)
     return
   }
 
+  // Token/Prop travados: o pointerdown não deixa pegar o canto (`canInteract`).
   if (selection.kind === 'token') {
     const token = map.tokens.find((t) => t.id === selection.id)
-    if (token) drawBoxResizeHandles(graphics, tokenBoundingBox(token, map.grid))
+    if (token && !isLocked(token)) drawBoxResizeHandles(graphics, tokenBoundingBox(token, map.grid), scale)
     return
   }
 
   if (selection.kind === 'prop') {
     const prop = map.props.find((p) => p.id === selection.id)
-    if (prop) drawBoxResizeHandles(graphics, propBoundingBox(prop))
+    if (prop && !isLocked(prop)) drawBoxResizeHandles(graphics, propBoundingBox(prop), scale)
     return
   }
 
   if (selection.kind === 'light') {
     const light = map.lights.find((l) => l.id === selection.id)
-    if (light) drawLightRadiusHandle(graphics, light)
+    if (light) drawLightRadiusHandle(graphics, light, scale)
   }
 }

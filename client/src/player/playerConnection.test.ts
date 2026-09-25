@@ -96,7 +96,7 @@ describe('createPlayerConnection', () => {
     const { connection, socket } = setup()
     expect(connection.getState().status).toBe('connecting')
     socket.open()
-    expect(socket.sent).toEqual([{ type: 'join', code: 'ABC123', name: 'Ana' }])
+    expect(socket.sent).toEqual([{ type: 'join', code: 'ABC123', name: 'Ana' }, { type: 'view.patches' }])
   })
 
   it('guarda resumeToken no welcome e o reenvia no próximo join da mesma sala', () => {
@@ -332,7 +332,8 @@ describe('createPlayerConnection', () => {
     expect(connection.requestMove('t1', 1, 1)).toBe(false)
     socket.receive({ type: 'snapshot', rev: 1, map: mapWithToken(10, 10), vision: [] })
     expect(connection.requestMove('nope', 1, 1)).toBe(false)
-    expect(socket.sent).toHaveLength(1)
+    // Só o que sai ao abrir: join e o aviso view.patches.
+    expect(socket.sent).toEqual([{ type: 'join', code: 'ABC123', name: 'Ana' }, { type: 'view.patches' }])
   })
 
   it('kicked muda status e limpa o resume', () => {
@@ -437,6 +438,15 @@ describe('createPlayerConnection', () => {
     socket.receive({ type: 'snapshot', rev: 1, map: mapWithToken(10, 10), vision: [] })
     socket.receive({ type: 'door.toggle.rejected', wallId: 'w1', reason: 'wrong_side' })
     expect(connection.getState().doorNotice).toMatchObject({ reason: 'wrong_side' })
+  })
+
+  it('porta que não fecha porque há alguém no vão vira o aviso "blocked"', () => {
+    vi.useFakeTimers()
+    const { connection, socket } = setup()
+    socket.open()
+    socket.receive({ type: 'snapshot', rev: 1, map: mapWithToken(10, 10), vision: [] })
+    socket.receive({ type: 'door.toggle.rejected', wallId: 'w1', reason: 'blocked' })
+    expect(connection.getState().doorNotice).toMatchObject({ reason: 'blocked' })
   })
 
   it('signal recebido entra no estado com nome e cor e some em 3 s; malformado ou fora do jogo é descartado', () => {

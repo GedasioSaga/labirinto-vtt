@@ -3,7 +3,9 @@ import { Graphics } from 'pixi.js'
 import { drawEditHandles, findLightRadiusHandleAt, lightRadiusHandlePosition, circleDrawingRadiusHandle } from './drawEditHandles'
 import { createEmptyMap } from '../lib/mapFactory'
 import { ROOM_ROTATE_HANDLE } from '../lib/roomRotation'
-import type { Light, Region, Wall, Drawing, Token, Prop } from '../types/map'
+import { tokenBoundingBox } from '../lib/objectTransform'
+import { CORNER_HANDLE_KEYLINE_WIDTH, CORNER_HANDLE_RADIUS, HANDLE_VISUAL_RADIUS } from './constants'
+import type { Light, Region, Wall, Drawing, Token, Prop, MapData } from '../types/map'
 
 /** Conta instruções `action: 'fill'` realmente empilhadas no GraphicsContext da instância. */
 function countFillInstructions(g: Graphics): number {
@@ -226,14 +228,14 @@ describe('drawEditHandles — alça de girar sala', () => {
     expect(countStrokeInstructions(g)).toBe(region.points.length)
   })
 
-  it('Sala travada: sem alça de girar (o gesto não existe, então o controle também não)', () => {
+  it('Sala travada: nem alça de girar nem chip de canto (o gesto não existe, então o controle também não)', () => {
     const region: Region = { ...buildRectRoomRegion('r1'), locked: true }
     const map = { ...createEmptyMap('m', 'M', 30, 20, 64), regions: [region] }
     const g = new Graphics()
 
     drawEditHandles(g, map, { kind: 'region', id: 'r1' }, 'select')
 
-    expect(countFillInstructions(g)).toBe(region.points.length * FILLS_POR_CHIP)
+    expect(countFillInstructions(g)).toBe(0)
     expect(countStrokeInstructions(g)).toBe(0)
   })
 
@@ -411,6 +413,103 @@ describe('drawEditHandles — Token / Prop (bounding box)', () => {
 
     expect(countFillInstructions(g)).toBe(0)
     expect(countStrokeInstructions(g)).toBe(0)
+  })
+})
+
+// Item travado: o pointerdown não deixa pegar canto, vértice nem meio de
+// aresta (`canInteract` em `PixiCanvas.tsx`). Alça desenhada ali seria um
+// controle que não faz nada — a seleção continua visível pelo contorno.
+describe('drawEditHandles — item travado não mostra alça', () => {
+  const vazio = (build: (map: MapData) => MapData, selection: Parameters<typeof drawEditHandles>[2]) => {
+    const g = new Graphics()
+    drawEditHandles(g, build(createEmptyMap('m', 'M', 30, 20, 64)), selection, 'select')
+    return { fills: countFillInstructions(g), strokes: countStrokeInstructions(g) }
+  }
+
+  it('Sala retangular travada selecionada pela PAREDE: sem chip de canto', () => {
+    const region: Region = { ...buildRectRoomRegion('r1'), locked: true }
+    const wall = buildLinkedWall('w1', 'r1', 0)
+    expect(vazio((map) => ({ ...map, regions: [region], walls: [wall] }), { kind: 'wall', id: 'w1' })).toEqual({ fills: 0, strokes: 0 })
+  })
+
+  it('Sala polígono e região comum travadas: sem vértice nem meio de aresta', () => {
+    const poligono: Region = { ...buildPolygonRoomRegion('r1'), locked: true }
+    const comum: Region = { ...buildSquareRegion('r2'), locked: true }
+    expect(vazio((map) => ({ ...map, regions: [poligono] }), { kind: 'region', id: 'r1' })).toEqual({ fills: 0, strokes: 0 })
+    expect(vazio((map) => ({ ...map, regions: [comum] }), { kind: 'region', id: 'r2' })).toEqual({ fills: 0, strokes: 0 })
+  })
+
+  it('token e prop travados: sem chip de canto', () => {
+    const token: Token = { id: 't1', characterId: null, name: 'H', x: 100, y: 100, size: 1, image: null, locked: true }
+    const prop: Prop = { id: 'p1', src: '/a.png', x: 50, y: 50, width: 20, height: 20, linkedMapPath: null, locked: true }
+    expect(vazio((map) => ({ ...map, tokens: [token] }), { kind: 'token', id: 't1' })).toEqual({ fills: 0, strokes: 0 })
+    expect(vazio((map) => ({ ...map, props: [prop] }), { kind: 'prop', id: 'p1' })).toEqual({ fills: 0, strokes: 0 })
+  })
+
+  it('controle: a mesma sala destravada mostra os chips (o "sumiu" acima não é app que nunca desenhou)', () => {
+    const region = buildRectRoomRegion('r1')
+    const resultado = vazio((map) => ({ ...map, regions: [region] }), { kind: 'region', id: 'r1' })
+    expect(resultado.fills).toBe(region.points.length * FILLS_POR_CHIP + FILLS_DA_ALCA_DE_GIRAR)
+  })
+})
+
+// As alças têm tamanho fixo na TELA, como o contorno de seleção e a alça de
+// girar: com zoom 0,25 um chip de mundo virava um pontinho de 2 px, e com zoom
+// 4 um bloco de 32 px por cima da sala. Medido pelo quanto o desenho passa da
+// borda direita do item, convertido para px de tela.
+describe('drawEditHandles — alças acompanham o zoom (tamanho fixo na tela)', () => {
+  const ZOOMS = [0.25, 0.5, 2, 4]
+  // O chip de canto também encolhe quando o objeto fica pequeno NA TELA (1/6
+  // do menor lado, ver o último teste). Aqui os zooms deixam sala e token
+  // grandes o bastante para o chip inteiro: o que se mede é só o zoom.
+  const ZOOMS_DO_CHIP = [0.75, 2, 4]
+  const sobraNaTela = (map: MapData, selection: Parameters<typeof drawEditHandles>[2], bordaDireita: number, cameraScale: number): number => {
+    const g = new Graphics()
+    drawEditHandles(g, map, selection, 'select', { cameraScale })
+    return (g.getLocalBounds().maxX - bordaDireita) * cameraScale
+  }
+  const conferir = (map: MapData, selection: Parameters<typeof drawEditHandles>[2], bordaDireita: number, zooms = ZOOMS): number => {
+    const noZoom1 = sobraNaTela(map, selection, bordaDireita, 1)
+    expect(noZoom1).toBeGreaterThan(0)
+    for (const zoom of zooms) {
+      expect(sobraNaTela(map, selection, bordaDireita, zoom), `zoom ${zoom}`).toBeCloseTo(noZoom1, 6)
+    }
+    return noZoom1
+  }
+
+  it('chip de canto da Sala retangular: mesmo tamanho na tela em qualquer zoom', () => {
+    const map = { ...createEmptyMap('m', 'M', 30, 20, 64), regions: [buildRectRoomRegion('r1')] }
+    // Zoom 1 continua exatamente como era: chip de 6 + faixa escura de 2.
+    expect(conferir(map, { kind: 'region', id: 'r1' }, 100, ZOOMS_DO_CHIP)).toBe(CORNER_HANDLE_RADIUS + CORNER_HANDLE_KEYLINE_WIDTH)
+  })
+
+  it('chip de canto de token: mesmo tamanho na tela em qualquer zoom', () => {
+    const token: Token = { id: 't1', characterId: null, name: 'H', x: 100, y: 100, size: 1, image: null }
+    const map = { ...createEmptyMap('m', 'M', 30, 20, 64), tokens: [token] }
+    expect(conferir(map, { kind: 'token', id: 't1' }, tokenBoundingBox(token, map.grid).maxX, ZOOMS_DO_CHIP)).toBe(CORNER_HANDLE_RADIUS + CORNER_HANDLE_KEYLINE_WIDTH)
+  })
+
+  it('vértice da região comum: mesmo tamanho na tela em qualquer zoom', () => {
+    const map = { ...createEmptyMap('m', 'M', 30, 20, 64), regions: [buildSquareRegion('r1')] }
+    expect(conferir(map, { kind: 'region', id: 'r1' }, 100)).toBe(HANDLE_VISUAL_RADIUS)
+  })
+
+  it('ponta de parede solta e alça de raio da luz: mesmo tamanho na tela em qualquer zoom', () => {
+    const wall = buildLooseWall('w1')
+    const light = buildLight('l1')
+    const map = { ...createEmptyMap('m', 'M', 30, 20, 64), walls: [wall], lights: [light] }
+    expect(conferir(map, { kind: 'wall', id: 'w1' }, wall.x2)).toBe(HANDLE_VISUAL_RADIUS)
+    expect(conferir(map, { kind: 'light', id: 'l1' }, light.x + light.radius)).toBe(HANDLE_VISUAL_RADIUS)
+  })
+
+  it('sala pequena vista de longe: o chip continua cabendo nela (não passa de 1/6 do lado na tela)', () => {
+    // Sala 100x100 a zoom 0,25 = 25 px de tela; 1/6 disso ~4,2 px, abaixo do teto de 6.
+    const map = { ...createEmptyMap('m', 'M', 30, 20, 64), regions: [buildRectRoomRegion('r1')] }
+    const g = new Graphics()
+    drawEditHandles(g, map, { kind: 'region', id: 'r1' }, 'select', { cameraScale: 0.25 })
+    const sobra = (g.getLocalBounds().maxX - 100) * 0.25
+    expect(sobra).toBeGreaterThanOrEqual(HANDLE_VISUAL_RADIUS + CORNER_HANDLE_KEYLINE_WIDTH)
+    expect(sobra).toBeLessThan(CORNER_HANDLE_RADIUS + CORNER_HANDLE_KEYLINE_WIDTH)
   })
 })
 

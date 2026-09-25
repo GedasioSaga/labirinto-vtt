@@ -24,6 +24,7 @@ import {
   singleSceneWorld,
   type AppliedItems,
   type AppliedMove,
+  type AppliedDoor,
   type AppliedTokenEdit,
   type DoorKeyUse,
   type DoorRequest,
@@ -616,7 +617,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
    */
   let travelDenyRecents: string[] = []
   /** Linha de cada pedido de porta trancada ainda na tela: `requestId` -> id do toast. */
-  const doorToasts = new Map<string, string>()
+  const doorRequestToasts = new Map<string, string>()
   /** Linha de cada pedido de item ainda na tela: `requestId` -> id do toast. */
   const itemToasts = new Map<string, string>()
   /** "Fulano entrou em X": um cartão por cena de destino (`net/avisoDeChegada.ts`). */
@@ -663,6 +664,8 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
 
   /** Os ids das fichas guardadas, por dono: na mesa gravada continuam dele. */
   const heldTokenIds = (): HeldTokens => new Map([...storedTokens].map(([playerId, stored]) => [playerId, stored.map(({ token }) => token.id)]))
+  /** Último aviso de porta de cada jogador: `playerId` -> id do toast. */
+  const doorToasts = new Map<string, string>()
 
   /** O mundo que a sessão serve agora: a aventura, ou só o mapa aberto. */
   const world = (): HostWorld => deps.getWorld?.() ?? singleSceneWorld(deps.getMap())
@@ -892,7 +895,12 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     notifyPinCluesIfChanged()
     return Promise.all(
       result.outbound.map(({ clientId, msg }) =>
-        deps.invoke('net_send', { clientId, msg }).catch((error: unknown) => reportError('Falha ao enviar para jogador', error)),
+        deps.invoke('net_send', { clientId, msg }).catch((error: unknown) => {
+          // Tela que não chegou: o próximo broadcast manda a inteira, e não
+          // um `patch` em cima de uma tela que o jogador não tem.
+          if (msg.type === 'snapshot' || msg.type === 'patch') session?.forgetView(clientId)
+          reportError('Falha ao enviar para jogador', error)
+        }),
       ),
     ).then(() => undefined)
   }
@@ -1166,9 +1174,9 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       useToastStore.getState().dismiss(toastId)
     }
     // Mesma regra para a porta: "Destrancar e abrir" de quem saiu não abre nada.
-    for (const [requestId, toastId] of doorToasts) {
+    for (const [requestId, toastId] of doorRequestToasts) {
       if (session !== null && session.isDoorRequestPending(requestId)) continue
-      doorToasts.delete(requestId)
+      doorRequestToasts.delete(requestId)
       useToastStore.getState().dismiss(toastId)
     }
     // E para o item: "Deixar" de quem saiu não entrega nada.
@@ -1287,8 +1295,8 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
    * mestre abriu" e o snapshot na hora: a porta abre para quem a vê.
    */
   const answerDoor = (requestId: string, allow: boolean) => {
-    const toastId = doorToasts.get(requestId)
-    doorToasts.delete(requestId)
+    const toastId = doorRequestToasts.get(requestId)
+    doorRequestToasts.delete(requestId)
     if (toastId !== undefined) useToastStore.getState().dismiss(toastId)
     if (session === null) return
     if (!allow) {
@@ -1318,7 +1326,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       // alguém espera — o pedido de passagem sozinho segue o aviso de hoje.
       sempreEmCaixa: true,
     })
-    doorToasts.set(request.requestId, toastId)
+    doorRequestToasts.set(request.requestId, toastId)
   }
 
   /** Mesma faxina de `pruneTravelToasts`, para os chamados: baixou a mão, caiu, foi expulso, a sala fechou. */
@@ -1527,6 +1535,19 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     // CHAVE ABRE PORTA no pino trancado: só depois de a ficha mudar de cena —
     // se não moveu, ninguém abriu nada.
     if (result.pinKeyUsed !== undefined) useToastStore.getState().push('info', pinKeyLine(result.pinKeyUsed))
+  }
+
+  /**
+   * "Ana abriu a porta" / "Ana fechou a porta" (com "em Cripta" quando é numa
+   * cena de fundo). Aviso comum, some sozinho; o novo do mesmo jogador
+   * substitui o anterior dele para o abre-e-fecha não empilhar.
+   */
+  const announceDoor = (door: AppliedDoor) => {
+    const previous = doorToasts.get(door.playerId)
+    if (previous !== undefined) useToastStore.getState().dismiss(previous)
+    const where = door.sceneName === undefined ? '' : ` em ${door.sceneName}`
+    const text = `${door.playerName} ${door.open ? 'abriu' : 'fechou'} a porta${where}`
+    doorToasts.set(door.playerId, useToastStore.getState().push('info', text))
   }
 
   /**
@@ -1785,6 +1806,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       else if (sceneId === undefined) deps.applyDoor(wallId, open)
       else deps.applyDoor(wallId, open, sceneId)
       broadcastNow()
+      announceDoor(result.applyDoor)
     }
     // Sem quem destranque, a porta não abriu: o aviso não pode dizer que abriu.
     if (result.doorKeyUsed !== undefined && deps.unlockAndOpenDoor !== undefined) useToastStore.getState().push('info', doorKeyLine(result.doorKeyUsed))
@@ -2375,7 +2397,9 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       // Duplo clique: mesma promise, um túnel só.
       if (pendingTunnel !== null) return pendingTunnel
       if (currentRoom === null) {
-        useToastStore.getState().push('error', 'Abra a sala antes de torná-la pública')
+        // Pede uma ação (abrir a sala) antes do gesto poder acontecer: aviso que
+        // ensina, fica até o mestre dispensar (fronteira em `lib/erroQueEnsina.ts`).
+        useToastStore.getState().push('instrucao', 'Abra a sala antes de torná-la pública')
         return Promise.resolve()
       }
       if (tunnelState.kind === 'ready') return Promise.resolve()

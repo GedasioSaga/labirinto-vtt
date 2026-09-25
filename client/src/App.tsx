@@ -56,7 +56,7 @@ import { OptionsScreen } from './screens/OptionsScreen'
 import { mapChangeCause, selectAlignableUnitCount, useMapStore } from './stores/mapStore'
 import { roomHazardState } from './lib/hazards'
 import { areaTriggerOfRegion } from './lib/areaTriggers'
-import { saveMapToAppData, saveMapToPath, pickMapJsonToOpen, openMapFile, mapDirFor, defaultMapsDir, type OpenedMapFile } from './lib/mapFileIO'
+import { saveMapToAppData, saveMapToPath, pickMapJsonToOpen, openMapFile, openMapFileFirst, mapDirFor, defaultMapsDir, type OpenedMapFile } from './lib/mapFileIO'
 import {
   applyItemsInScene,
   hasUnsavedWork,
@@ -68,6 +68,7 @@ import {
   sceneList,
   sceneMaps,
   stairTravelPanel,
+  subscribeToServedScenes,
   subscribeToTravelLinks,
   travelSceneOptions,
   useAdventureStore,
@@ -682,6 +683,8 @@ function App() {
       }),
     [],
   )
+  // Cena de fundo que chega do disco depois de abrir a aventura: quem está nela sai da espera.
+  useEffect(() => subscribeToServedScenes(() => hostBridgeRef.current?.notifyMapChanged()), [])
   const laserToggled = useLaserStore((state) => state.toggled)
   const diceRolls = useDiceStore((state) => state.rolls)
   const noiseArmed = useNoiseStore((state) => state.armed)
@@ -805,7 +808,7 @@ function App() {
               destinations: partyDestinations(world, adventure?.scenes),
               onGoTo: (member) => {
                 // "Ir lá" em OUTRO jogador é o mestre escolhendo a vista: desliga o seguir.
-                if (member.playerId !== followingId) useFollowStore.getState().stop()
+                useFollowStore.getState().irAteJogador(member.playerId)
                 if (member.token !== null) useAdventureStore.getState().goToPoint(member.sceneId, { x: member.token.x, y: member.token.y })
               },
               onSend: (playerId, sceneId, pinId) => hostBridgeRef.current?.sendPlayer(playerId, sceneId, pinId) ?? false,
@@ -1854,13 +1857,16 @@ function App() {
   }
 
   /**
-   * Põe no editor o que `openMapFile` leu: o mapa pedido e, se ele é cena de
-   * uma aventura, as outras cenas na lista. O store marca o ponto de
-   * sincronia com o disco (`markSaved`) — portal antigo convertido ao abrir
-   * continua pendente, porque a conversão ainda não foi gravada.
+   * Põe no editor o que `openMapFileFirst` leu: o mapa pedido na hora e, se
+   * ele é cena de uma aventura, as outras cenas na lista, "carregando" até
+   * chegarem do disco. O store marca o ponto de sincronia com o disco
+   * (`markSaved`) — portal antigo convertido ao abrir continua pendente,
+   * porque a conversão ainda não foi gravada.
    */
   const openInEditor = (opened: OpenedMapFile) => {
-    useAdventureStore.getState().open(opened)
+    // Não espera as cenas de fundo: a promessa nunca rejeita (a cena que não
+    // abre vira "indisponível" dentro do store).
+    void useAdventureStore.getState().open(opened)
     setCurrentMapPath(opened.path)
   }
 
@@ -1869,7 +1875,7 @@ function App() {
     try {
       const path = await pickMapJsonToOpen()
       if (!path) return
-      openInEditor(await openMapFile(path))
+      openInEditor(await openMapFileFirst(path))
       setScreen('editor')
     } catch (err) {
       reportFileError('abrir o mapa', err)
@@ -1879,7 +1885,7 @@ function App() {
   /** Abre um caminho já escolhido (lista "Carregar Mapa"). Mesma regra de checagem acima. */
   const openMapFromPath = async (path: string) => {
     try {
-      openInEditor(await openMapFile(path))
+      openInEditor(await openMapFileFirst(path))
       setScreen('editor')
     } catch (err) {
       reportFileError('abrir o mapa', err)
@@ -2075,7 +2081,7 @@ function App() {
       // O mapa importado já ganha pasta própria em mapsDir/importedMapId — mesma
       // lógica de "sincronizar currentMapPath com a origem" de handleOpen, senão
       // o próximo Salvar/Início gravaria por engano no caminho do mapa anterior.
-      openInEditor(await openMapFile(importedPath))
+      openInEditor(await openMapFileFirst(importedPath))
     } catch (err) {
       reportFileError('importar a pasta do mapa', err)
     }

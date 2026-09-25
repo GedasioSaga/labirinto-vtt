@@ -80,15 +80,16 @@ import {
 } from '../net/protocol'
 import { DICE_FEED_MAX, parseDiceRequest, type DiceRequest, type DiceRollEntry } from '../lib/dice'
 import { CLUEBOOK_MAX_CLUES } from '../lib/clues'
-import type { TokenMoveRejection } from '../lib/moveValidation'
+import type { TokenMoveLanding, TokenMoveRejection } from '../lib/moveValidation'
 import { hasEnterText } from '../lib/roomText'
 import { isPointInsideMap, POINT_NOTICE_TTL_MS, type PointActionKind, type PointNotice } from '../lib/pointActions'
 import { SCENE_PUBLIC_NAME_MAX_LENGTH } from '../lib/adventure'
 import { TOKEN_GLIDE_MS } from './tokenGlide'
-import { parseSnapshotPlaces, type SnapshotPlaces } from '../net/protocol'
+import { parseSnapshotPlaces, VIEW_RESYNC_MIN_INTERVAL_MS, type SnapshotPlaces } from '../net/protocol'
 import { rememberPlace, type VisitedPlace } from './playerPlaces'
 import { parseArrivalText } from '../lib/arrivalText'
 import { NOISE_CUE_TTL_MS, type NoiseDirection } from '../lib/noise'
+import { applyMapPatch, type MapPatch, type TokenChange } from '../net/viewPatch'
 
 /**
  * Cliente WebSocket do jogador, sem React e sem DOM: o socket e o storage são
@@ -161,8 +162,10 @@ export interface PlayerState {
    * Recusa do mestre ao movimento (parede, fora do chão, ficha alheia, lugar
    * ocupado); a ficha já voltou sozinha. Some sozinha; `id` novo repete o aviso.
    * Mesmo contador de `id` da porta. A vez (`not_your_turn`) vai em `turnNotice`.
+   * Também cobre o pouso em outro lugar quando o mestre ACEITOU o arrasto
+   * (ficha sem chão => chão mais próximo, `TokenMoveLanding`).
    */
-  moveNotice?: { id: number; reason: TokenMoveRejection }
+  moveNotice?: { id: number; reason: TokenMoveRejection | TokenMoveLanding }
   /**
    * INICIATIVA: o mestre recusou o arrasto porque não é a vez desta ficha
    * ("Espere sua vez"); some sozinho. `id` novo repete o aviso. Não diz de quem
@@ -636,6 +639,10 @@ export const WAKE_PROBE_MS = 800
 export const DOOR_NOTICE_TTL_MS = 2500
 /** Quanto tempo a recusa do movimento ("Parede no caminho") fica na tela: 2-3 s, como a da porta. */
 export const MOVE_NOTICE_TTL_MS = 2500
+/** Por que a ficha parou em outro lugar que não o pedido, em uma linha curta (pouso aceito, não recusa). */
+export const MOVE_NOTICE_TEXT: Record<TokenMoveLanding, string> = {
+  nearest_floor: 'O chão sumiu debaixo da ficha: ela foi para o chão mais perto',
+}
 const MOVE_REJECTIONS: readonly TokenMoveRejection[] = ['unknown_token', 'not_owner', 'locked', 'outside_map', 'wall', 'outside_floor', 'occupied']
 
 function isMoveRejection(value: unknown): value is TokenMoveRejection {
@@ -736,6 +743,20 @@ interface PendingMove {
   prevY: number
 }
 
+/**
+ * A última tela que o MESTRE mandou, sem nada otimista por cima (movimento
+ * pendente, nome ou foto ainda sem resposta). É a base do próximo `patch`, e
+ * é para ela que a tela volta quando o mestre não confirma.
+ */
+interface ReceivedView {
+  rev: number
+  map: MapData
+  vision: RegionPoint[][]
+  explored: Exploration | undefined
+  ownTokens: string[]
+  concealed: RegionPoint[][]
+}
+
 interface StoredResume {
   code: string
   token: string
@@ -831,6 +852,25 @@ function parseFloors(value: unknown): PlayerFloors | null {
   return { atual, outros: parsed }
 }
 
+function isTokenChange(value: unknown): value is TokenChange {
+  if (!isRecord(value) || typeof value.id !== 'string') return false
+  if ('token' in value) return isRecord(value.token) && value.token.id === value.id && isFiniteNumber(value.token.x) && isFiniteNumber(value.token.y)
+  return isRecord(value.set)
+}
+
+/**
+ * Checagem estrutural rasa do `patch` do mapa, no mesmo critério de
+ * `isMapShape`: o mestre é a fonte. O mapa que sai da aplicação passa por
+ * `isMapShape` de novo antes de ir para a tela.
+ */
+function isMapPatchShape(value: unknown): value is MapPatch {
+  if (!isRecord(value) || !isRecord(value.set)) return false
+  const { tokens } = value
+  if (tokens === undefined) return true
+  if (!isRecord(tokens) || !Array.isArray(tokens.change) || !tokens.change.every(isTokenChange)) return false
+  return isStringList(tokens.remove) && (tokens.order === undefined || isStringList(tokens.order))
+}
+
 function readResume(storage: StorageLike | null, code: string): string | undefined {
   if (!storage) return undefined
   try {
@@ -881,6 +921,9 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
   const pending = new Map<string, PendingMove>()
   let walk: Walk | null = null
   let state: PlayerState = { status: 'connecting', rev: -1, sceneEpoch: 0 }
+  // A última tela do mestre, sem o otimista (ver `ReceivedView`); `null` = nenhuma.
+  let received: ReceivedView | null = null
+  let lastResyncAt = Number.NEGATIVE_INFINITY
   let socket: SocketLike | null = null
   let pingTimer: ReturnType<typeof setInterval> | null = null
   const isHidden = options.isHidden ?? (() => false)
@@ -917,6 +960,8 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     )
   }
 
+  // Aviso da porta e aviso do movimento dividem o mesmo lugar na tela e o
+  // mesmo relógio: um novo toma o lugar do outro, nunca aparecem sobrepostos.
   let doorNoticeTimer: ReturnType<typeof setTimeout> | null = null
   let nextNoticeId = 1
 
@@ -935,7 +980,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     if (reason === 'locked') return
     doorNoticeTimer = setTimeout(() => {
       doorNoticeTimer = null
-      setState({ doorNotice: undefined })
+      setState({ doorNotice: undefined, moveNotice: undefined })
     }, DOOR_NOTICE_TTL_MS)
   }
 
@@ -946,7 +991,8 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     moveNoticeTimer = null
   }
 
-  function showMoveNotice(reason: TokenMoveRejection): void {
+  /** Recusa do movimento (`TokenMoveRejection`) ou pouso em outro lugar após aceite (`TokenMoveLanding`). */
+  function showMoveNotice(reason: TokenMoveRejection | TokenMoveLanding): void {
     clearMoveNotice()
     setState({ moveNotice: { id: nextNoticeId++, reason } })
     moveNoticeTimer = setTimeout(() => {
@@ -1602,6 +1648,8 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     // Outra cena: o resto do caminho era do mapa de antes.
     if (state.map !== undefined && state.map.id !== map.id) stopWalk()
     else if (walkMovedByOthers(map)) stopWalk()
+    // Base para o próximo `patch` (view.patch): sempre a última tela CHEIA do mestre.
+    received = { rev, map, vision, explored, ownTokens, concealed }
     let next = map
     // Reaplica, em ordem, só os movimentos ainda não confirmados pelo mestre.
     for (const [reqId, move] of pending) {
@@ -1623,6 +1671,61 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     // `sceneName` entra SEMPRE, inclusive `undefined`: snapshot sem nome apaga o selo da cena anterior.
     // O mapa chegou: quem pedia ficha já tem uma, e o pedido termina aqui.
     setState({ status: 'playing', rev, map: next, vision, explored, ownTokens, partyTokens, concealed, glimpses, hazards, gatilhos, andares, relogio, turn: turnOnMap, sceneName, place, places, error: undefined, seatClaim: undefined })
+  }
+
+  /** Pede a tela inteira ao mestre, no máximo uma vez por `VIEW_RESYNC_MIN_INTERVAL_MS` (o limite dele). */
+  function askResync(): void {
+    const at = Date.now()
+    if (at - lastResyncAt < VIEW_RESYNC_MIN_INTERVAL_MS) return
+    if (send({ type: 'view.resync' })) lastResyncAt = at
+  }
+
+  /**
+   * Só o que mudou, em cima da última tela do mestre (`received`). Base que
+   * não é a nossa (mensagem perdida no caminho) ou patch que não encaixa: a
+   * tela fica como está e pede a inteira. O patch só cobre mapa/visão/memória/
+   * fichas próprias/oculto: o resto (vez, festa, perigo, nome da cena, lugares,
+   * gatilhos, andares, relógio, vãos) segue com o que já está em `state`.
+   */
+  function applyPatch(data: Record<string, unknown>): void {
+    const { rev, base } = data
+    if (!isFiniteNumber(rev) || !isFiniteNumber(base) || rev <= state.rev) return
+    if (received === null || received.rev !== base) {
+      askResync()
+      return
+    }
+    const map = data.map === undefined ? received.map : isMapPatchShape(data.map) ? applyMapPatch(received.map, data.map) : null
+    if (map === null || !isMapShape(map)) {
+      askResync()
+      return
+    }
+    let explored = received.explored
+    if (data.explored !== undefined) {
+      const decoded = decodeExploration(data.explored)
+      if (decoded === null) return askResync()
+      explored = decoded
+    }
+    const vision = data.vision === undefined ? received.vision : isVision(data.vision) ? data.vision : null
+    const ownTokens = data.ownTokens === undefined ? received.ownTokens : isStringList(data.ownTokens) ? data.ownTokens : null
+    const concealed = data.concealed === undefined ? received.concealed : isVision(data.concealed) ? data.concealed : null
+    if (vision === null || ownTokens === null || concealed === null) return askResync()
+    applySnapshot(
+      rev,
+      map,
+      vision,
+      explored,
+      ownTokens,
+      concealed,
+      state.turn,
+      state.partyTokens ?? [],
+      state.hazards ?? [],
+      state.sceneName,
+      {},
+      state.gatilhos ?? [],
+      state.andares,
+      state.relogio,
+      state.glimpses ?? [],
+    )
   }
 
   /** Desfaz o movimento recusado. `false` = pedido desconhecido (já resolvido, ou de antes de trocar de cena). */
@@ -1753,6 +1856,8 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         clearSecretCheckNotice()
         dropQueuedSecretChecks()
         // O teste secreto sai junto: sem mapa não há cartão; o host manda de novo, logo depois do próximo mapa, o que ele ainda não respondeu.
+        // Da espera só se sai por snapshot inteiro: patch nenhum parte dela.
+        received = null
         setState({
           item: undefined,
           lever: undefined,
@@ -2035,7 +2140,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         // Aviso sem mapa na tela não tem onde aparecer.
         if (state.status !== 'playing') return
         const { reason } = data
-        if (reason !== 'locked' && reason !== 'far' && reason !== 'not_visible' && reason !== 'wrong_side') return
+        if (reason !== 'locked' && reason !== 'far' && reason !== 'not_visible' && reason !== 'wrong_side' && reason !== 'blocked') return
         if (typeof data.wallId !== 'string' || data.wallId.length === 0) return
         // A chave só vale no "Trancada" e só como texto curto: é o nome de um item da mochila.
         const key = reason === 'locked' ? cleanItemName(typeof data.key === 'string' ? data.key : '') : ''
@@ -2138,10 +2243,18 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         showHazardNotice(data.kind)
         return
       }
-      case 'token.move.accepted':
-        if (typeof data.reqId !== 'string' || !isFiniteNumber(data.x) || !isFiniteNumber(data.y)) return
-        handleAccepted(data.reqId, data.x, data.y)
+      case 'patch':
+        applyPatch(data)
         return
+      case 'token.move.accepted': {
+        if (typeof data.reqId !== 'string' || !isFiniteNumber(data.x) || !isFiniteNumber(data.y)) return
+        // Resposta a pedido que já não está pendente (troca de cena) não mexe na ficha nem avisa.
+        const known = pending.has(data.reqId)
+        handleAccepted(data.reqId, data.x, data.y)
+        // Motivo desconhecido não derruba o movimento aceito: só não inventa aviso.
+        if (known && data.landing === 'nearest_floor' && state.status === 'playing') showMoveNotice(data.landing)
+        return
+      }
       case 'token.move.rejected':
         if (typeof data.reqId !== 'string') return
         // A ficha já voltou; o aviso do motivo sai em `handleRejected`. 'not_your_turn'
@@ -2232,6 +2345,9 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       // O prazo do silêncio conta a partir de agora, não da conexão anterior.
       lastHeardAt = Date.now()
       send(join)
+      // Este jogador aplica só o que mudou (`net/viewPatch.ts`). Vai depois do
+      // `join`, na mesma conexão: o host só aceita o aviso de quem já entrou.
+      send({ type: 'view.patches' })
       stopPing()
       pingTimer = setInterval(pingOrGiveUp, PING_INTERVAL_MS)
     }
@@ -2568,6 +2684,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       // `places` fica: o host não reenvia o desenho dos lugares de antes, e o
       // primeiro snapshot da volta solta o que ele não lembrar mais.
       dropQueuedSecretChecks()
+      received = null
       setState({ status: 'connecting', error: undefined, rev: -1, map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, partyTokens: undefined, concealed: undefined, glimpses: undefined, sceneName: undefined, place: undefined, destinations: undefined, hazards: undefined, hazardNotice: undefined, gatilhos: undefined, andares: undefined, relogio: undefined, turn: undefined, signals: undefined, laser: undefined, playerLasers: undefined, doorNotice: undefined, doorRequest: undefined, moveNotice: undefined, turnNotice: undefined, travel: undefined, note: undefined, arrival: undefined, alarm: undefined, item: undefined, lever: undefined, roomText: undefined, notebook: undefined, unreadNotes: undefined, clues: undefined, shownClue: undefined, cluePeers: undefined, clueShow: undefined, paused: undefined, call: undefined, reconnecting: undefined, pointNotice: undefined, noise: undefined, secretCheck: undefined, secretCheckNotice: undefined })
       open()
     },
