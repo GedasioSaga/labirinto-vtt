@@ -1891,12 +1891,18 @@ export function filterMapForGroup(
     // mestre. O jogador vê o NPC andar só porque a ficha está na visão dele.
     .map(tokenPatrolForPlayer)
   const sentTokenIds = new Set(tokens.map((t) => t.id))
-  // Ficha que o MESTRE esconde deste jogador (oculta, secreta ou na camada
-  // Fichas escondida). A tocha presa nela fica no centro dela e anda com ela:
-  // enviar a luz, mesmo sem o vínculo, entregaria a posição e o trajeto do NPC.
+  // Ficha que o MESTRE esconde deste jogador: pela marca (oculta, secreta ou
+  // na camada Fichas escondida) ou pelo LUGAR (sala oculta, prédio de teto
+  // fechado, zona oculta). A tocha presa nela anda com ela — mesmo afastada
+  // (mapa antigo, ou a luz empurrada pelas setas) e do lado de fora, à vista:
+  // enviar a luz, mesmo sem o vínculo, entregaria o trajeto do NPC. A névoa
+  // (distância, parede comum) não entra: tocha no escuro se vê de longe.
   const layerTokenIds = new Set(layerTokens.map((t) => t.id))
+  const inPlaceHiddenByMaster = (t: Token): boolean => inRoomHiddenFromPlayer({ x: t.x, y: t.y }) || hiddenByZone({ x: t.x, y: t.y })
   const masterHiddenTokenIds = new Set(
-    map.tokens.filter((t) => !sentTokenIds.has(t.id) && (t.hidden || t.secret || !layerTokenIds.has(t.id))).map((t) => t.id),
+    map.tokens
+      .filter((t) => !sentTokenIds.has(t.id) && (t.hidden || t.secret || !layerTokenIds.has(t.id) || inPlaceHiddenByMaster(t)))
+      .map((t) => t.id),
   )
   const playerStairs = visibleStairs(map.stairs, hiddenLayers).filter((s) => {
     const first = s.segments[0]
