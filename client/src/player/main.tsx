@@ -49,6 +49,7 @@ import { hazardNoticeText } from '../lib/hazards'
 import { tableCodeFromSearch, tableKeyFromSearch } from '../lib/tableScreen'
 import { TableApp } from './TableScreen'
 import { readContract } from '../lib/tokenLoan'
+import { pinTravelChoices, type PinTravelChoice } from '../lib/pinTravelers'
 import { letterTitle, type LetterVia } from '../lib/correio'
 import { findKnownPath } from '../lib/knownPath'
 import type { Pin } from '../types/map'
@@ -86,6 +87,7 @@ const NO_CLUES: ClueEntry[] = []
 const NO_DICE_ROLLS: DiceRollEntry[] = []
 const NO_PINS: Pin[] = []
 const NO_PLACES: VisitedPlace[] = []
+const NO_TRAVELERS: PinTravelChoice[] = []
 /** Fechar o recado não perde nada: quem fecha sabe onde reler. */
 const NOTE_KEPT_HINT = 'Fica guardado no Caderno do Painel.'
 /** MAPA POR ANDARES: outro andar não tem visão agora — só a memória. */
@@ -766,6 +768,11 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
   }
 
   const openPin = openPinId === null ? null : (map?.pins ?? []).find((p) => p.id === openPinId) ?? null
+  // ESCOLHER FICHAS NO PINO: as caixas do "Quem passa?", pela mesma conta que o host confere.
+  const pinTravelers = useMemo(
+    () => (!map || openPin === null || openPin.kind !== 'viagem' ? NO_TRAVELERS : pinTravelChoices(map.tokens, ownTokens, openPin, map.grid)),
+    [map, openPin, ownTokens],
+  )
   // Estável: o cartão devolve o foco ao "Fechar" sempre que `onClose` muda, e
   // um snapshot novo a cada passo do mapa tiraria o foco do "Pedir" no meio da pergunta.
   const closePin = useCallback(() => setOpenPinId(null), [])
@@ -1032,10 +1039,11 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
             stairs={state.map.stairs}
             onClose={closePin}
             travelWaiting={state.travel?.phase === 'waiting'}
-            onRequestTravel={(exitId) => {
+            travelers={pinTravelers}
+            onRequestTravel={(exitId, tokenIds) => {
               // Pedido enviado, o cartão sai: a espera fica no aviso de baixo,
               // e o mapa volta inteiro à vista enquanto o mestre decide.
-              if (connection.requestTravel(openPin.id, exitId)) setOpenPinId(null)
+              if (connection.requestTravel(openPin.id, exitId, tokenIds)) setOpenPinId(null)
             }}
             takeWaiting={state.item?.phase === 'sent' && !state.item.direct}
             onTakeItem={() => {

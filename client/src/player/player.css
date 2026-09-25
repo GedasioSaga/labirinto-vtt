@@ -1453,6 +1453,49 @@
   gap: 8px;
 }
 
+/* ESCOLHER FICHAS NO PINO: "Quem passa?", uma linha por ficha. Sem moldura
+   própria — já está dentro da moldura fina da pergunta. Linha alta o bastante
+   para o dedo (44 px), a caixa na cor de latão da ação do cartão. */
+.pp-pincard__travelers {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+
+.pp-pincard__travelers legend {
+  padding: 0;
+  margin-bottom: 4px;
+  font-size: 13px;
+  color: var(--lb-color-parchment-dim, #a9a7a0);
+}
+
+.pp-pincard__traveler {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  font-size: 15px;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+
+.pp-pincard__traveler input {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  accent-color: var(--lb-color-brass, #e0a44a);
+  cursor: pointer;
+}
+
+.pp-pincard__traveler input:focus-visible {
+  outline: 2px solid var(--lb-color-brass, #e0a44a);
+  outline-offset: 2px;
+}
+
 /* ENCRUZILHADA: uma saída por botão, empilhadas, cada uma com o rótulo que o
    mestre escreveu. Mesma pílula do pedido simples; a lista só tira o marcador. */
 .pp-pincard__exits {
