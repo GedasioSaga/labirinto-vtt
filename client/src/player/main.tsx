@@ -13,6 +13,7 @@ import { travelNoticeText } from './travelNoticeText'
 import { OWN_TOKEN_CSS, PlayerView } from './PlayerView'
 import { PlayerPanel, loadPlayerSettings, savePlayerSettings } from './PlayerPanel'
 import { PlayerPinCard } from './PlayerPinCard'
+import { PlayerPinChooser } from './PlayerPinChooser'
 import { ARRIVAL_CARD_TITLE, PlayerNoteCard } from './PlayerNoteCard'
 import { PlayerClueCard } from './PlayerClues'
 import { coverBounds } from './playerCamera'
@@ -596,6 +597,8 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
   const [laserArmed, setLaserArmed] = useState(false)
   /** Pino aberto no cartão; `null` = cartão fechado. */
   const [openPinId, setOpenPinId] = useState<string | null>(null)
+  /** DOIS PINOS NO MESMO PONTO: os pinos da escolha "Aqui há N coisas"; `null` = fechada. */
+  const [pinChoiceIds, setPinChoiceIds] = useState<string[] | null>(null)
   /** Pista do Caderno aberta no cartão (MINHAS PISTAS); `null` = fechado. */
   const [openClueId, setOpenClueId] = useState<string | null>(null)
   /** Menu do toque longo (ações no ponto e "Andar até aqui"); `null` = fechado. */
@@ -771,6 +774,24 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
     },
     [connection],
   )
+  // Só os pinos que ainda estão no recorte: o que saiu (a ficha andou, o mestre
+  // escondeu) some da lista; sem nenhum, a escolha fecha sozinha, como o cartão.
+  const pinChoice = pinChoiceIds === null ? [] : pinChoiceIds.flatMap((id) => (map?.pins ?? []).filter((p) => p.id === id))
+  const closePinChoice = useCallback(() => setPinChoiceIds(null), [])
+  const pinChoiceVazia = pinChoiceIds !== null && pinChoice.length === 0
+  useEffect(() => {
+    // Todos saíram do recorte: a escolha acaba de vez, e não volta sozinha se um deles reaparecer.
+    if (pinChoiceVazia) setPinChoiceIds(null)
+  }, [pinChoiceVazia])
+  const choosePin = useCallback(
+    (pinId: string) => {
+      setPinChoiceIds(null)
+      openPinCard(pinId)
+    },
+    [openPinCard],
+  )
+  /** Nem cartão de pino nem escolha na tela: o Escape e o lugar do cartão ficam livres para os outros. */
+  const semPinoNaTela = openPin === null && pinChoice.length === 0
   const openClue = openClueId === null ? null : (state.clues ?? []).find((clue) => clue.id === openClueId) ?? null
   // Estável pelo mesmo motivo dos outros cartões: o Escape e o "tocar fora" religam quando `onClose` muda.
   const closeClue = useCallback(() => {
@@ -805,7 +826,7 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
     const playingMap = state.map
     const walkerId = ownTokens.flatMap((id) => playingMap.tokens.filter((t) => t.id === id)).at(0)?.id ?? null
     // Cartão de pista na tela: o Escape é dele, e um toque não pode fechar também o recado.
-    const clueCardOpen = openClue !== null || (state.shownClue !== undefined && openPin === null)
+    const clueCardOpen = openClue !== null || (state.shownClue !== undefined && semPinoNaTela)
     // Outro andar: a memória dele de lá, sem visão, sem ficha e sem toque que peça algo ao mestre.
     const otherFloor = floorTab === null ? null : floorShown(state.andares, floorTab)
     return (
@@ -868,6 +889,7 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
             playerLasers={state.playerLasers ?? NO_PLAYER_LASERS}
             onDoorToggle={(wallId) => connection.toggleDoor(wallId)}
             onPinOpen={openPinCard}
+            onPinsChoose={setPinChoiceIds}
             onRoomOpen={(regionId) => connection.openRoomText(regionId)}
             focusObstacles={mapObstacles}
             personalNotes={sceneNotes}
@@ -991,6 +1013,10 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
         {/* O pino pode sumir do recorte enquanto o cartão está aberto (o token
             andou, o mestre escondeu): sem pino no mapa novo, o cartão fecha
             sozinho em vez de mostrar um texto que o jogador não pode mais ver. */}
+        {/* DOIS PINOS NO MESMO PONTO: a escolha sai do recorte, a mesma fonte que desenha. */}
+        {openPin === null && pinChoice.length > 0 && (
+          <PlayerPinChooser pins={pinChoice} stairs={state.map.stairs} onChoose={choosePin} onClose={closePinChoice} />
+        )}
         {openPin && (
           <PlayerPinCard
             pin={openPin}
@@ -1023,7 +1049,7 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
             clue={openClue}
             title={openClue.title}
             onClose={closeClue}
-            escapeCloses={openPin === null}
+            escapeCloses={semPinoNaTela}
             share={{
               peers: state.cluePeers,
               result: state.clueShow,
@@ -1033,13 +1059,13 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
           />
         )}
         {/* O que um colega mostrou: espera a pista aberta fechar, um cartão por vez no mesmo lugar. */}
-        {state.shownClue && !openClue && openPin === null && (
+        {state.shownClue && !openClue && semPinoNaTela && (
           <PlayerClueCard
             key={state.shownClue.id}
             clue={state.shownClue.clue}
             title={`${state.shownClue.from} mostrou: ${state.shownClue.clue.title}`}
             onClose={closeShownClue}
-            escapeCloses={openPin === null}
+            escapeCloses={semPinoNaTela}
             arrivedUnasked
           />
         )}
@@ -1065,7 +1091,7 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
             title={ARRIVAL_CARD_TITLE}
             text={state.arrival.text}
             onClose={closeArrival}
-            escapeCloses={openPin === null && !clueCardOpen}
+            escapeCloses={semPinoNaTela && !clueCardOpen}
           />
         ) : (
           state.note && (
@@ -1077,7 +1103,7 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
               text={state.note.text}
               hint={NOTE_KEPT_HINT}
               onClose={closeNote}
-              escapeCloses={openPin === null && !clueCardOpen}
+              escapeCloses={semPinoNaTela && !clueCardOpen}
               onlyYou={state.note.onlyYou === true}
             />
           )
@@ -1091,7 +1117,7 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
             title={state.roomText.title || 'Ao entrar'}
             text={state.roomText.text}
             onClose={closeRoomText}
-            escapeCloses={openPin === null && !clueCardOpen}
+            escapeCloses={semPinoNaTela && !clueCardOpen}
           />
         )}
         {state.paused && (
