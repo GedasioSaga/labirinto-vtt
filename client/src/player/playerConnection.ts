@@ -434,10 +434,12 @@ export type DoorRequestPhase = 'sent' | DoorRequestAnswer | DoorRequestRejection
 export type TravelNotice =
   /**
    * `direct`: o pino é livre, ninguém decide — só falta a resposta do host.
+   * `passe`: pino no modo passe; o host confere se a ficha tem o passe. O
+   * cliente não sabe (o que abre a catraca nunca chega ao recorte).
    * `cancelling`: o jogador tocou "Desistir" e a confirmação do host ainda
    * não chegou (o mestre pode ter respondido antes: vale o que chegar).
    */
-  | { id: number; phase: 'waiting'; direct: boolean; cancelling?: true }
+  | { id: number; phase: 'waiting'; direct: boolean; passe: boolean; cancelling?: true }
   /** O pedido saiu da espera sem o mestre responder: o jogador desistiu, ou a ficha se afastou do pino. */
   | { id: number; phase: 'cancelled'; reason: PinTravelCancelReason }
   | { id: number; phase: 'arrived' }
@@ -636,7 +638,8 @@ export interface PlayerConnection {
   setOwnTokenPhoto(tokenId: string, image: string): boolean
   /**
    * Pede ao mestre para passar pelo pino de viagem `pinId` — ou, no pino
-   * livre, passa (o pedido sai depois de `FREE_PASSAGE_BEAT_MS`). `false` se
+   * livre, passa (o pedido sai depois de `FREE_PASSAGE_BEAT_MS`; no pino de
+   * passe também, e o host decide se vai direto ou vira "sem passe"). `false` se
    * não está jogando, se já há um pedido esperando ou se o socket não está aberto.
    * `exitId` é a saída escolhida numa encruzilhada (um id de `Pin.escolhas`);
    * ausente, o pedido sai sem ele e vale a saída principal, como sempre.
@@ -1187,12 +1190,14 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     signalTimers.clear()
   }
 
-  function addSignal(x: number, y: number, from: string, color: string): void {
+  function addSignal(x: number, y: number, from: string, color: string, unheard: boolean): void {
     const id = `s${nextSignalId++}`
     const current = state.signals ?? []
     // Acima do teto sai o mais antigo; o timer dele vira no-op ao não achar o id.
     const kept = current.length >= MAX_ACTIVE_SIGNALS ? current.slice(current.length - MAX_ACTIVE_SIGNALS + 1) : current
-    setState({ signals: [...kept, { id, x, y, name: from, color, createdAt: Date.now() }] })
+    const mark: SignalMark = { id, x, y, name: from, color, createdAt: Date.now() }
+    if (unheard) mark.unheard = true
+    setState({ signals: [...kept, mark] })
     signalTimers.set(
       id,
       setTimeout(() => {
@@ -2266,7 +2271,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
   function handleAway(away: boolean, travelPending: boolean): void {
     if (travelPending && state.travel?.phase !== 'waiting') {
       clearTravelTimer()
-      setState({ travel: { id: nextNoticeId++, phase: 'waiting', direct: false } })
+      setState({ travel: { id: nextNoticeId++, phase: 'waiting', direct: false, passe: false } })
     }
     if (!away) {
       wantsBack = false
@@ -2672,7 +2677,8 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         if (!isFiniteNumber(x) || !isFiniteNumber(y)) return
         if (typeof from !== 'string' || from.length > NAME_MAX_LENGTH) return
         if (typeof color !== 'string' || !SIGNAL_COLOR_PATTERN.test(color)) return
-        addSignal(x, y, from, color)
+        // Só o `true` literal vale: o eco do próprio sinal que nenhum colega recebeu.
+        addSignal(x, y, from, color, data.unheard === true)
         return
       }
       case 'point.action.answer':
@@ -3087,8 +3093,13 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       // O pino livre agenda o envio (e o aviso "Passando…") antes de chamar `send`: a tela da mesa sai aqui.
       if (isTable || state.status !== 'playing' || pinId.length === 0 || state.travel?.phase === 'waiting') return false
       const pin = state.map?.pins.find((p) => p.id === pinId)
+      const passagem = pin === undefined ? 'pede' : passageOf(pin)
       // Livre, ou trancado que a chave da mochila abre (CHAVE ABRE PORTA): ninguém decide, a passagem é direta.
-      const direct = pin !== undefined && (passageOf(pin) === 'livre' || (passageOf(pin) === 'trancada' && typeof pin.chave === 'string' && pin.chave !== ''))
+      const direct = pin !== undefined && (passagem === 'livre' || (passagem === 'trancada' && typeof pin.chave === 'string' && pin.chave !== ''))
+      // Passe: quem tem o passe vai direto, como no livre. O cliente não sabe
+      // quem tem, então trata todos igual: com a batida e com o aviso
+      // "Conferindo o passe…", o mesmo do cartão.
+      const passe = passagem === 'passe'
       // Sem saída escolhida, a mensagem sai idêntica à de antes: o mestre
       // antigo, que não conhece `exitId`, continua entendendo o pedido.
       const pedido: PinTravelRequestMessage = exitId === undefined ? { type: 'pin.travel.request', pinId } : { type: 'pin.travel.request', pinId, exitId }
@@ -3096,18 +3107,19 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       // o mestre". E o pedido sai depois de um instante, não no mesmo toque: a
       // resposta do host é quase imediata, e sem a pausa a tela trocava de cena
       // no mesmo quadro em que o cartão fechava — o jogador não via a passagem
-      // acontecer, só um salto. Pedir de novo logo depois do "Não" também
-      // espera: o que falta dos limites do host, em vez de voltar "too_soon".
-      const wait = Math.max(direct ? FREE_PASSAGE_BEAT_MS : 0, travelPaceDelay(pinId))
+      // acontecer, só um salto. Vale para quem tem o passe, que também passa na hora.
+      // Pedir de novo logo depois do "Não" também espera: o que falta dos
+      // limites do host, em vez de voltar "too_soon".
+      const wait = Math.max(direct || passe ? FREE_PASSAGE_BEAT_MS : 0, travelPaceDelay(pinId))
       if (wait === 0) {
         if (!sendTravel(pedido)) return false
         clearTravelTimer()
-        setState({ travel: { id: nextNoticeId++, phase: 'waiting', direct: false } })
+        setState({ travel: { id: nextNoticeId++, phase: 'waiting', direct: false, passe: false } })
         return true
       }
       if (socket === null || socket.readyState !== SOCKET_OPEN) return false
       clearTravelTimer()
-      setState({ travel: { id: nextNoticeId++, phase: 'waiting', direct } })
+      setState({ travel: { id: nextNoticeId++, phase: 'waiting', direct, passe } })
       travelTimer = setTimeout(() => {
         travelTimer = null
         if (state.status !== 'playing') return

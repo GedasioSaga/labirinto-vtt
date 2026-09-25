@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import type { Pin, PinExitLabel, Stair, StairDirection } from '../types/map'
+import type { Pin, PinExitLabel, PinPassage, Stair, StairDirection } from '../types/map'
 import {
   PIN_BLOCK_REASON_LABELS,
   PIN_GLYPH,
@@ -15,6 +15,7 @@ import { PinLeverArt, PinSymbolArt, PinTravelArt } from '../components/PinSymbol
 import { unreadExitLabels } from '../lib/pinTravel'
 import type { LockAnswerPhase } from './playerConnection'
 import { PlayerLockPad } from './PlayerLockPad'
+import { PASS_CHECK_TEXT } from './travelNotice'
 
 interface PlayerPinCardProps {
   pin: Pin
@@ -143,6 +144,25 @@ const TEXTOS_LIVRE: TextosDaPassagem = {
 }
 
 /**
+ * Passe (crachá, catraca): o cartão não sabe se o jogador tem o passe — o que
+ * abre a catraca nunca chega aqui (`lib/fogFilter.ts`). Então ele tenta, e diz
+ * de antemão o que acontece sem o passe: o pedido vai ao mestre.
+ */
+const TEXTOS_PASSE: TextosDaPassagem = {
+  botao: 'Passar',
+  esperando: PASS_CHECK_TEXT,
+  pergunta: 'Passar por aqui? Sem o passe, o pedido vai ao mestre.',
+  confirmar: 'Passar',
+}
+
+/** Os textos do modo do pino; trancada não oferece botão, e cai nos do pedido. */
+function textosDaPassagem(passagem: PinPassage): TextosDaPassagem {
+  if (passagem === 'livre') return TEXTOS_LIVRE
+  if (passagem === 'passe') return TEXTOS_PASSE
+  return TEXTOS_PEDE
+}
+
+/**
  * CHAVE ABRE PORTA: o pino trancado que a chave da mochila abre. O cartão diz
  * o nome do item que o jogador já carrega — nunca o que o pino pede — e passa
  * sem falar em mestre, como o livre. Na ESCADA trancada a pergunta fala o
@@ -160,12 +180,13 @@ function textosDaChave(chave: string, direction: StairDirection | undefined): Te
 
 /**
  * Escada: o cartão fala o sentido ("Subir", "Descer") em vez de "passar por
- * aqui". Livre continua "Passar" no botão — é o mesmo gesto da porta livre.
+ * aqui". Livre e passe continuam "Passar" no botão — é o mesmo gesto da porta.
  */
-function textosDaEscada(direction: StairDirection, livre: boolean): TextosDaPassagem {
+function textosDaEscada(direction: StairDirection, passagem: PinPassage): TextosDaPassagem {
   const verbo = stairTravelLabel(direction)
   const minusculo = verbo.toLowerCase()
-  if (livre) return { ...TEXTOS_LIVRE, pergunta: `${verbo} por aqui?` }
+  if (passagem === 'livre') return { ...TEXTOS_LIVRE, pergunta: `${verbo} por aqui?` }
+  if (passagem === 'passe') return { ...TEXTOS_PASSE, pergunta: `${verbo} por aqui? Sem o passe, o pedido vai ao mestre.` }
   return { ...TEXTOS_PEDE, botao: `Pedir para ${minusculo}`, pergunta: `Pedir ao mestre para ${minusculo}?` }
 }
 
@@ -339,10 +360,8 @@ export function PlayerPinCard({
       : trancada
         ? TEXTOS_TRANCADA
         : stairDirection !== undefined
-          ? textosDaEscada(stairDirection, passagem === 'livre')
-          : passagem === 'livre'
-            ? TEXTOS_LIVRE
-            : TEXTOS_PEDE
+          ? textosDaEscada(stairDirection, passagem)
+          : textosDaPassagem(passagem)
   // O PORQUÊ da passagem fechada ("Desabou"). Valor desconhecido (host de
   // versão futura) cai no "Está trancada" de sempre, sem mostrar o cru.
   const motivo = blockReasonOf(pin)
@@ -370,7 +389,7 @@ export function PlayerPinCard({
       ? textos.pergunta
       : chave !== null
         ? `Usar ${chave} e passar por ${confirming.saida.rotulo}?`
-        : passagem === 'livre'
+        : passagem === 'livre' || passagem === 'passe'
           ? `Passar por ${confirming.saida.rotulo}?`
           : `Pedir ao mestre para passar por ${confirming.saida.rotulo}?`
   const pergunta = confirming !== null && saidaSoIda(confirming.saida) ? `${perguntaBase} ${AVISO_SO_IDA}` : perguntaBase

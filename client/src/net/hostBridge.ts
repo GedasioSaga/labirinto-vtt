@@ -1795,11 +1795,13 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     // clique conta de novo (`answerTravelTogether`), porque o grupo anda.
     const nearby = session === null ? 0 : session.travelCompanions(request.requestId, world()).length
     const together = nearby === 0 ? [] : [{ label: `Deixar ir com quem está perto (${nearby})`, run: () => answerTravelTogether(request.requestId) }]
+    // Pino com passe: o mestre lê que o pedido veio porque a ficha não tem o passe.
+    const semPasse = request.motivo === 'sem-passe' ? ' (sem passe)' : ''
     // Na volta do Volto já é a MESMA pergunta: o texto diz por que ela reaparece.
     const text =
       request.heldWhileAway === true
-        ? `${request.playerName} voltou do Volto já e ainda quer passar por ${request.pinLabel} → ${request.toSceneName}. O "Deixar ir" esperou a volta.`
-        : `${request.playerName} quer passar por ${request.pinLabel} → ${request.toSceneName}`
+        ? `${request.playerName} voltou do Volto já e ainda quer passar por ${request.pinLabel} → ${request.toSceneName}${semPasse}. O "Deixar ir" esperou a volta.`
+        : `${request.playerName} quer passar por ${request.pinLabel} → ${request.toSceneName}${semPasse}`
     const toastId = useToastStore.getState().push('instrucao', text, null, {
       actions: [
         { label: 'Deixar ir', run: () => answerTravel(request.requestId, true), emLote: true },

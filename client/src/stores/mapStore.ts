@@ -3,7 +3,7 @@ import { subscribeWithSelector } from 'zustand/middleware'
 import type {
   MapData, Wall, Light, Region, Token, Prop, Drawing, DoorState, DoorSide, LayerId, GridSettings,
   Stair, StairDirection, StairShape, DoorKind, MapScale, MeasurementMode, DrawingCap, DrawingDash, FreehandTexture,
-  FloorPiece, FloorStyle, MapLine, MapMarker, MapFrame, PinIcon, PinKind, RoomMeta, TokenCondition, MovementRules, HazardKind, AreaTriggerKind, SceneFloor,
+  FloorPiece, FloorStyle, MapLine, MapMarker, MapFrame, PinIcon, PinKind, RoomMeta, TokenCondition, MovementRules, HazardKind, AreaTriggerKind, SceneFloor, NivelAlerta,
 } from '../types/map'
 import type { Camera, Point } from '../pixi/world'
 import type { DoorMode, DrawingTool, Selection } from '../types/tools'
@@ -15,6 +15,7 @@ import { FLOOR_LAYER, clampFloorPolygonSides, type FloorShapeKind } from '../lib
 import { clampTamanhoDePincel, type Bloco, type TamanhoDePincel } from '../lib/floorBlocks'
 import { paintRevealBrush as paintRevealBrushOnMap, type RevealBrushMode, type RevealBrushWidth } from '../lib/concealBrush'
 import * as mapFactory from '../lib/mapFactory'
+import { abrirVaoDosDoisLados, desabarParede as desabarParedeNoMapa, type CorteNaParede } from '../lib/abrirVao'
 // Onda 3, item 13 (Frente A) — clonagem pura por tipo de entidade, usada por
 // `duplicateSelected` (Ctrl+D) e `insertClonedEntityLive` (Alt+arrastar, ver
 // pixi/PixiCanvas.tsx).
@@ -44,7 +45,7 @@ import { moveAreaSelection, areaSelectionBounds, type AreaBounds } from '../lib/
 import { pieceBounds } from '../lib/floorSdf'
 import { groupItems, NO_GROUPS, ungroupItems, type ItemGroups } from '../lib/itemGroups'
 import { alignableUnitCount, alignSelectionItems, distributeSelectionItems, type AlignEdge, type DistributeAxis } from '../lib/alignDistribute'
-import { BLOCKED_MOVE_TEXT, DOOR_OPENED_BY_MOVE_TEXT, TOOL_CLUSTERS } from '../components/labels'
+import { BLOCKED_MOVE_TEXT, DOOR_OPENED_BY_MOVE_TEXT, PAREDE_TRAVADA_SEGURA_O_VAO_TEXT, SALA_SECRETA_SEGURA_O_VAO_TEXT, TOOL_CLUSTERS } from '../components/labels'
 import { useToastStore } from './toastStore'
 import { eraseFromDrawing } from '../lib/eraseGeometry'
 import { wallLayer, regionLayer, lightLayer, tokenLayer, drawingLayer, propLayer, stairLayer } from '../lib/layers'
@@ -701,6 +702,14 @@ interface MapStoreState {
    *  como `DOOR_LENGTH_BY_KIND` é para a porta: mapFactory recebe o número
    *  pronto. Com histórico (Ctrl+Z devolve a parede inteira). */
   addOpeningOnWall: (wallId: string, point: { x: number; y: number }) => void
+  /** "Abrir vão aqui", o gesto sobre a parede no meio da sessão
+   *  (`lib/abrirVao.abrirVaoDosDoisLados`): o vão de uma célula sai na parede
+   *  clicada E na do prédio encostado, para a ficha passar de verdade. Com
+   *  histórico (Ctrl+Z fecha o vão dos dois lados de uma vez). */
+  abrirVaoAqui: (wallId: string, point: { x: number; y: number }) => void
+  /** "Desabar": a parede clicada cai inteira, e o mesmo trecho da parede do
+   *  outro lado junto (`lib/abrirVao.desabarParede`). Com histórico. */
+  desabarParede: (wallId: string) => void
   /** Troca o tipo estrutural de uma porta JÁ CRIADA e redimensiona o vão pra
    *  `DOOR_LENGTH_BY_KIND[kind]`, centrado no meio do vão atual (ver
    *  mapFactory.setWallDoorKind). Com histórico. */
@@ -739,6 +748,10 @@ interface MapStoreState {
   setRoomComodo: (id: string, comodo: boolean) => void
   /** TEXTO DA SALA — "Ao entrar, o jogador lê" / "Nota do mestre". Com histórico, como `setRoomName`. */
   setRoomTexts: (id: string, patch: Partial<Pick<RoomMeta, 'textoAoEntrar' | 'notaDoMestre'>>) => void
+  /** FACÇÃO — quem manda na Sala ou distrito (texto em branco tira). Com histórico, como `setRoomName`. */
+  setRoomFaccao: (id: string, faccao: string) => void
+  /** NÍVEL DE ALERTA da cena (calmo, atento, caçada). Com histórico; o mesmo nível não grava. */
+  setSceneAlerta: (nivel: NivelAlerta) => void
   /** ZONA DE PERIGO — pinta a Sala com um perigo, troca ou limpa (`null`). Com histórico. */
   setRoomHazard: (roomId: string, kind: HazardKind | null) => void
   /** ZONA DE PERIGO — "Avançar um passo" pelas portas abertas. Com histórico; nada muda = nada grava. */
@@ -781,7 +794,7 @@ interface MapStoreState {
    *  mantido em dia por `stores/adventureStore.ts`, fora deste desfazer. */
   updatePin: (
     id: string,
-    patch: Partial<Pick<MapData['pins'][number], 'kind' | 'icon' | 'description' | 'nome' | 'notaDoMestre' | 'image' | 'locked' | 'destino' | 'passagem' | 'mudo' | 'motivo' | 'rotulo' | 'saidas' | 'item' | 'abreCom' | 'presoA' | 'portaLigada' | 'marco' | 'lerDePerto' | 'segredo'>>,
+    patch: Partial<Pick<MapData['pins'][number], 'kind' | 'icon' | 'description' | 'nome' | 'notaDoMestre' | 'image' | 'locked' | 'destino' | 'passagem' | 'passe' | 'mudo' | 'motivo' | 'rotulo' | 'saidas' | 'item' | 'abreCom' | 'presoA' | 'portaLigada' | 'marco' | 'lerDePerto' | 'segredo'>>,
   ) => void
   /**
    * ALAVANCA: o mestre aciona pelo painel — a porta ligada abre ou fecha, com
@@ -1308,6 +1321,18 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
     }))
   }
 
+  /** Resultado de "Abrir vão aqui"/"Desabar parede" (`lib/abrirVao`). Parede
+   *  travada no trecho recusa o gesto: nada muda, nada entra no histórico (um
+   *  Ctrl+Z vazio desfaria "nada"), e o mestre ouve o porquê. */
+  const aplicarCorteNaParede = (corte: CorteNaParede) => {
+    if (corte.travadaNoCaminho) {
+      useToastStore.getState().push('info', PAREDE_TRAVADA_SEGURA_O_VAO_TEXT)
+      return
+    }
+    withHistory(() => corte.map)
+    if (corte.salaSecretaPoupada) useToastStore.getState().push('info', SALA_SECRETA_SEGURA_O_VAO_TEXT)
+  }
+
   return {
     map: initialMap,
     past: [],
@@ -1757,6 +1782,11 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
     addOpeningOnWall: (wallId, point) => withHistory((map) =>
       mapFactory.addOpeningOnWall(map, wallId, point, map.grid),
     ),
+    abrirVaoAqui: (wallId, point) => {
+      const map = get().map
+      aplicarCorteNaParede(abrirVaoDosDoisLados(map, wallId, point, map.grid))
+    },
+    desabarParede: (wallId) => aplicarCorteNaParede(desabarParedeNoMapa(get().map, wallId)),
     setWallDoorKind: (wallId, kind) => withHistory((map) =>
       mapFactory.setWallDoorKind(map, wallId, kind, DOOR_LENGTH_BY_KIND[kind]),
     ),
@@ -1801,6 +1831,14 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
     setRoomTexts: (id, patch) => {
       if (mapFactory.setRoomTexts(get().map, id, patch) === get().map) return
       withHistory((map) => mapFactory.setRoomTexts(map, id, patch))
+    },
+    setRoomFaccao: (id, faccao) => {
+      if (mapFactory.setRoomFaccao(get().map, id, faccao) === get().map) return
+      withHistory((map) => mapFactory.setRoomFaccao(map, id, faccao), `room-faccao:${id}`)
+    },
+    setSceneAlerta: (nivel) => {
+      if (mapFactory.setSceneAlerta(get().map, nivel) === get().map) return
+      withHistory((map) => mapFactory.setSceneAlerta(map, nivel))
     },
     setRoomHazard: (roomId, kind) => {
       // Um id só para as duas chamadas: a conferência e a gravação criam a MESMA zona.

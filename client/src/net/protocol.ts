@@ -1194,7 +1194,12 @@ export type HostMessage =
   // `landing`: a ficha parou em outro lugar que não o pedido, e por quê (ficha sem chão => chão mais próximo).
   | { type: 'token.move.accepted'; reqId: string; x: number; y: number; landing?: TokenMoveLanding }
   | { type: 'token.move.rejected'; reqId: string; reason: TokenMoveRejectionReason }
-  | { type: 'signal'; x: number; y: number; from: string; color: string }
+  // `unheard`: só no eco de quem sinalizou (sai tracejado). Quer dizer "nenhum colega que você vê AGORA
+  // está vendo este ponto" (ou o ponto está fora da sua visão atual, ou numa zona oculta/teto seu).
+  // NÃO quer dizer "ninguém recebeu": colega fora de vista que já explorou o ponto recebe e o eco
+  // sai tracejado; dentro de sala secreta ninguém recebe e o eco sai cheio. Não troque por
+  // "ninguém recebeu" (`toOthers.length === 0`): vaza sala secreta, planta e presença (`echoHeard`).
+  | { type: 'signal'; x: number; y: number; from: string; color: string; unheard?: true }
   | DestinationsMessage
   // `key` (CHAVE ABRE PORTA): só no `locked`, só para quem encosta na porta
   // com o item que a abre — o nome do item, que ele já carrega. Aditivo:

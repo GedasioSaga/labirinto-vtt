@@ -3,6 +3,7 @@ import type { RoomMeta } from '../types/map'
 import { MIN_ROOM_DIMENSION } from '../lib/roomOps'
 import { ROTATION_SHIFT_STEP } from '../lib/roomRotation'
 import { ROOM_TEXT_MAX_LENGTH } from '../lib/roomText'
+import { FACCAO_MAX_LENGTH } from '../lib/faccoes'
 import { Toggle } from './Toggle'
 import { HazardControls, type HazardControlsProps } from './HazardControls'
 
@@ -50,6 +51,13 @@ export interface RoomControlsProps {
    *  por padrão), como o do teto. Ausente omite o toggle. */
   dark?: boolean
   onDarkChange?: (dark: boolean) => void
+  /** FACÇÃO — `RoomMeta.faccao`, o que foi digitado. Sem `onFaccaoChange` o campo não aparece. */
+  faccao?: string
+  onFaccaoChange?: (faccao: string) => void
+  /** Sala sem facção própria dentro de um distrito: quem manda nele (a dica diz de quem herda). */
+  faccaoHerdada?: string
+  /** Facções que já existem no mapa: viram sugestões do campo, para "Guarda" não virar "guarda". */
+  faccoesConhecidas?: readonly string[]
   /** 'polygon' (Sala Circular/Polígono Regular) esconde os campos de
    *  largura/altura — resize numérico só vale pra 'rect' (ver
    *  RoomMeta.shape em types/map.ts e lib/roomOps.ts). O nome continua
@@ -249,6 +257,10 @@ export function RoomControls({
   onNotaDoMestreChange,
   dark,
   onDarkChange,
+  faccao,
+  onFaccaoChange,
+  faccaoHerdada,
+  faccoesConhecidas,
   shape,
   axisAligned,
   width,
@@ -271,6 +283,9 @@ export function RoomControls({
   const noteId = `${baseId}-nota-do-mestre`
   const noteHintId = `${baseId}-nota-do-mestre-hint`
   const darkHintId = `${baseId}-dark-hint`
+  const faccaoId = `${baseId}-faccao`
+  const faccaoHintId = `${baseId}-faccao-hint`
+  const faccaoListId = `${baseId}-faccao-lista`
   return (
     <section className="lb-section">
       <h2 className="lb-eyebrow">Sala</h2>
@@ -351,6 +366,34 @@ export function RoomControls({
           />
           <p className="lb-field__hint" id={noteHintId}>
             Só você lê. Nunca vai para a tela dos jogadores.
+          </p>
+        </div>
+      )}
+
+      {onFaccaoChange !== undefined && (
+        <div className="lb-field">
+          <label className="lb-label" htmlFor={faccaoId}>
+            Facção
+          </label>
+          <input
+            id={faccaoId}
+            className="lb-input"
+            maxLength={FACCAO_MAX_LENGTH}
+            value={faccao ?? ''}
+            placeholder={faccaoHerdada}
+            list={faccaoListId}
+            aria-describedby={faccaoHintId}
+            onChange={(event) => onFaccaoChange(event.target.value)}
+          />
+          <datalist id={faccaoListId}>
+            {(faccoesConhecidas ?? []).map((nome) => (
+              <option key={nome} value={nome} />
+            ))}
+          </datalist>
+          <p className="lb-field__hint" id={faccaoHintId}>
+            {faccaoHerdada !== undefined && (faccao ?? '').trim() === ''
+              ? `Herda do distrito: ${faccaoHerdada}. Só você vê.`
+              : 'Quem manda aqui. Só você vê; as salas de dentro herdam.'}
           </p>
         </div>
       )}

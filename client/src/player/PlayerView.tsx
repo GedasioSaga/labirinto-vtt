@@ -113,6 +113,8 @@ import { personalNoteAtScreen, type PersonalNote } from './personalNotes'
 import { createPersonalNotesRenderer } from './drawPersonalNotes'
 import { applyRoofCut } from './roofCut'
 import { rotuloDaFicha } from '../lib/encontroMarcado'
+import { createRevisitMemory, observeRevisit } from './revisitChanges'
+import { REVISIT_NOTE, REVISIT_PAD_PX, drawRevisitPulse } from './revisitPulse'
 
 /** Pedido de "leve a câmera até este ponto" (Minhas notas e os pontos conhecidos da aba Lugares). */
 export interface FocusPointRequest {
@@ -852,6 +854,13 @@ interface Scene {
   pulseLayer: Graphics
   /** Pulso em curso: qual ficha e desde quando (`performance.now()`); `null` = parado. */
   pulse: { tokenId: string; startedAt: number } | null
+  /** MAPA LEMBRADO: o trecho que mudou desde a última visita pisca aqui, em espaço de TELA (`revisitPulse.ts`). */
+  revisitLayer: Graphics
+  /**
+   * Piscar em curso: as áreas em px de MUNDO (a câmera pode andar durante o
+   * piscar), a cena em que nasceram e desde quando; `null` = parado.
+   */
+  revisit: { areas: Bounds[]; mapId: string; startedAt: number; reducedMotion: boolean } | null
 }
 
 /** Referência estável para o padrão da prop: sem sinais, nada muda entre renders. */
@@ -1146,6 +1155,10 @@ export function PlayerView({
   const measureLabelRef = useRef<HTMLDivElement | null>(null)
   const tokenDragLabelRef = useRef<HTMLDivElement | null>(null)
   const measureAnnouncerRef = useRef<HTMLDivElement | null>(null)
+  /** Aviso "Mudou desde a sua última visita", junto ao trecho que pisca. */
+  const revisitNoteRef = useRef<HTMLDivElement | null>(null)
+  /** O que esta tela já viu de cada cena, para saber o que mudou na volta (`revisitChanges.ts`). */
+  const revisitMemoryRef = useRef(createRevisitMemory())
   const sceneRef = useRef<Scene | null>(null)
   const latest = {
     map,
@@ -1251,6 +1264,49 @@ export function PlayerView({
     const x = Math.min(Math.max(0, end.x + MEASURE_LABEL_OFFSET_PX), scene.app.screen.width - label.offsetWidth)
     const y = Math.min(Math.max(0, end.y - MEASURE_LABEL_OFFSET_PX - label.offsetHeight), scene.app.screen.height - label.offsetHeight)
     label.style.transform = `translate(${Math.round(x)}px, ${Math.round(y)}px)`
+  }
+
+  /** Área de mundo em px de TELA, pela câmera de agora. */
+  function revisitAreaOnScreen(scene: Scene, area: Bounds): Bounds {
+    const min = scene.world.toGlobal({ x: area.minX, y: area.minY })
+    const max = scene.world.toGlobal({ x: area.maxX, y: area.maxY })
+    return { minX: min.x, minY: min.y, maxX: max.x, maxY: max.y }
+  }
+
+  /** Aviso centrado acima da primeira área que pisca (px de tela), preso dentro da tela. */
+  function placeRevisitNote(scene: Scene, label: HTMLDivElement, area: Bounds): void {
+    const centerX = (area.minX + area.maxX) / 2
+    const x = Math.min(Math.max(0, centerX - label.offsetWidth / 2), scene.app.screen.width - label.offsetWidth)
+    const y = Math.min(Math.max(0, area.minY - REVISIT_PAD_PX - MEASURE_LABEL_OFFSET_PX - label.offsetHeight), scene.app.screen.height - label.offsetHeight)
+    label.style.transform = `translate(${Math.round(x)}px, ${Math.round(y)}px)`
+  }
+
+  /**
+   * MAPA LEMBRADO: o que mudou desde a última visita começa a piscar. O aviso
+   * é TEXTO do DOM (como o rótulo da régua), para o leitor de tela anunciar.
+   * No espelho do mestre o aviso fica de fora: ele é `fixed` na janela, e o
+   * espelho é um quadro dentro da tela do mestre — só o piscar aparece lá.
+   */
+  function startRevisitPulse(scene: Scene, areas: Bounds[], mapId: string): void {
+    scene.revisit = { areas, mapId, startedAt: performance.now(), reducedMotion: prefersReducedMotion() }
+    const label = revisitNoteRef.current
+    if (!label || mirror) return
+    label.textContent = REVISIT_NOTE
+    label.hidden = false
+    placeRevisitNote(scene, label, revisitAreaOnScreen(scene, areas[0]))
+  }
+
+  function stopRevisitPulse(scene: Scene): void {
+    scene.revisit = null
+    scene.revisitLayer.clear()
+    const label = revisitNoteRef.current
+    if (label) {
+      // Texto vazio, e não só escondido: o aviso que acabou não fica legível para ninguém.
+      label.textContent = ''
+      label.hidden = true
+    }
+    const el = containerRef.current
+    if (el) el.dataset.revisitPulses = '0'
   }
 
   /**
@@ -1662,9 +1718,21 @@ export function PlayerView({
     const drag = scene.drag
     if (drag?.kind === 'token') scene.tokenViews.get(drag.tokenId)?.wrapper.position.set(drag.x, drag.y)
 
+    // MAPA LEMBRADO: a volta a um trecho que mudou desde a última visita pisca.
+    // Só com o que chegou no pacote: nada que a névoa ou o mestre escondem entra na conta.
+    if (scene.revisit !== null && scene.revisit.mapId !== currentMap.id) stopRevisitPulse(scene)
+    const changed = observeRevisit(revisitMemoryRef.current, {
+      map: currentMap,
+      vision: currentVision,
+      explored: currentExplored,
+      concealed: currentConcealed,
+    })
+    if (changed.length > 0) startRevisitPulse(scene, changed, currentMap.id)
+
     // Contagens para o e2e: canvas WebGL não é legível pelo DOM.
     const el = containerRef.current
     if (el) {
+      el.dataset.revisitPulses = String(scene.revisit?.areas.length ?? 0)
       el.dataset.wallsCount = String(scene.wallsCount)
       el.dataset.wallsDrawn = String(scene.wallsDrawn)
       el.dataset.floorDrawn = String(scene.floorDrawn)
@@ -1905,6 +1973,9 @@ export function PlayerView({
       // Pulso da própria ficha logo acima do mapa: some sob a régua e os sinais, que são ação em curso.
       const pulseLayer = new Graphics()
       pulseLayer.eventMode = 'none'
+      // Trecho que mudou desde a última visita: logo acima do mapa, abaixo do pulso da própria ficha.
+      const revisitLayer = new Graphics()
+      revisitLayer.eventMode = 'none'
       // Arrasto da própria ficha: mesma altura da régua. O contorno do alcance
       // é só geometria da regra (quadrados a partir da ficha), não revela nada da névoa.
       const tokenDragLayer = new Graphics()
@@ -1912,7 +1983,7 @@ export function PlayerView({
       // Anotações pessoais logo acima do mapa (e da névoa: a nota é de quem a pôs) e abaixo de régua e sinais.
       const personalNotesLayer = new Container()
       personalNotesLayer.eventMode = 'none'
-      app.stage.addChild(world, personalNotesLayer, pulseLayer, measureLayer, tokenDragLayer, signalsLayer, laserLayer)
+      app.stage.addChild(world, revisitLayer, personalNotesLayer, pulseLayer, measureLayer, tokenDragLayer, signalsLayer, laserLayer)
       app.stage.eventMode = 'static'
       app.stage.hitArea = app.screen
 
@@ -2020,6 +2091,8 @@ export function PlayerView({
         }),
         pulseLayer,
         pulse: null,
+        revisitLayer,
+        revisit: null,
       }
       scene.onZoom = () => {
         redrawZoomLayers(scene)
@@ -2207,6 +2280,20 @@ export function PlayerView({
         if (!drawOwnerPulse(pulseLayer, at.x, at.y, from, performance.now() - pulse.startedAt)) scene.pulse = null
       }
       app.ticker.add(tickPulse)
+
+      // Trecho que mudou: pisca e o aviso segue a área na tela (arrasto, zoom) até acabar sozinho.
+      const tickRevisit = () => {
+        const revisit = scene.revisit
+        if (revisit === null) return
+        const onScreen = revisit.areas.map((area) => revisitAreaOnScreen(scene, area))
+        if (!drawRevisitPulse(revisitLayer, onScreen, performance.now() - revisit.startedAt, revisit.reducedMotion)) {
+          stopRevisitPulse(scene)
+          return
+        }
+        const label = revisitNoteRef.current
+        if (label && !label.hidden) placeRevisitNote(scene, label, onScreen[0])
+      }
+      app.ticker.add(tickRevisit)
 
       const sendSignalAt = (screenX: number, screenY: number) => {
         const point = scene.world.toLocal({ x: screenX, y: screenY })
@@ -2550,6 +2637,7 @@ export function PlayerView({
         app.ticker.remove(tickTokenGlides)
         app.ticker.remove(tickTokenTurns)
         app.ticker.remove(tickPulse)
+        app.ticker.remove(tickRevisit)
         // Antes do app.destroy: os gradientes de luz não são filhos da cena.
         scene.lightsRenderer.destroy()
       }
@@ -2665,6 +2753,9 @@ export function PlayerView({
       {/* "N quadrados" do arrasto da própria ficha: mesmo rótulo do Medir, escrito por syncTokenDrag.
           Sem `aria-live`: o arrasto da ficha não gruda na grade, e anunciar cada décimo de quadrado enfileiraria dezenas de falas. */}
       <div ref={tokenDragLabelRef} className="pp-measure-label" data-testid="token-drag-label" hidden />
+      {/* MAPA LEMBRADO: "Mudou desde a sua última visita" junto ao trecho que pisca; escrito por startRevisitPulse.
+          `aria-live` educado: é um aviso por volta ao trecho, não um fluxo contínuo. */}
+      <div ref={revisitNoteRef} className="pp-measure-label pp-revisit-note" data-testid="revisit-note" aria-live="polite" aria-atomic="true" hidden />
     </>
   )
 }

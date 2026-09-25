@@ -291,6 +291,13 @@ export interface RoomMeta {
    *  `undefined` === false (sala clara, como sempre) — sem linha de migração;
    *  só `true` escurece, valor torto vindo do disco não. */
   dark?: boolean
+  /**
+   * FACÇÃO — quem manda nesta sala ou distrito (`lib/faccoes.ts`). Sala sem
+   * facção dentro de outra (`Region.parentId`) herda a da sala de fora. Pinta
+   * o filtro "Quem manda aqui" do editor. NUNCA sai no recorte do jogador
+   * (`lib/fogFilter.ts`). `undefined` === ninguém manda, sem migração.
+   */
+  faccao?: string
 }
 
 /**
@@ -355,11 +362,30 @@ export interface PinExit extends PinExitLabel {
  * - `pede`: o jogador pede e o mestre decide ("Deixar ir"). É o de sempre;
  * - `livre`: o jogador passa sozinho, e o mestre só lê que ele chegou;
  * - `trancada`: ninguém passa sozinho; o jogador pode pedir ao mestre, que
- *   libera ou não (a menos que o pino seja `mudo`: aí nada chega).
+ *   libera ou não (a menos que o pino seja `mudo`: aí nada chega);
+ * - `passe`: crachá, catraca — a ficha com o passe (`Pin.passe`) passa
+ *   sozinha, e a sem passe gera o pedido "sem passe" ao mestre. Deixar uma
+ *   passar não muda o modo: a catraca continua fechada para as outras.
  * Cada pino do par tem o seu: a porta pode ser livre para ir e trancada para
  * voltar.
  */
-export type PinPassage = 'pede' | 'livre' | 'trancada'
+export type PinPassage = 'pede' | 'livre' | 'trancada' | 'passe'
+
+/**
+ * O que abre um pino no modo `passe`: um ITEM na mochila da ficha (pelo nome,
+ * sem ligar para maiúscula e acento — "Crachá") e/ou a MARCA do mestre, as
+ * fichas que ele deixou passar por id. Os dois ausentes = ninguém tem passe.
+ * NUNCA sai no recorte do jogador (`lib/fogFilter.ts`): diria o que abre a
+ * catraca e quem já pode passar.
+ */
+export interface PinPass {
+  /** Nome do item que abre. `undefined` === o passe não pede item. */
+  item?: string
+  /** Ids das fichas marcadas. `undefined` === nenhuma marcada — sem linha de
+   *  migração: quem lê do disco é `readPinPass` (`lib/pinPass.ts`), que
+   *  confere `item` e `fichas` juntos. */
+  fichas?: string[]
+}
 
 /**
  * POR QUE a passagem trancada não deixa passar. A AUSÊNCIA é "Está trancada"
@@ -506,6 +532,13 @@ export interface Pin extends PlayerSecret {
    * no recorte do jogador enquanto a passagem é `trancada` (`lib/fogFilter.ts`).
    */
   motivo?: PinBlockReason
+  /**
+   * Só do pino de viagem no modo `passe`: o item e as fichas que passam sem
+   * pedir. Ausente = ninguém tem passe (todo pedido vai ao mestre como "sem
+   * passe"). Sem migração: mapa salvo antes do campo abre igual. Ao contrário
+   * de `passagem`, NUNCA sai no recorte do jogador.
+   */
+  passe?: PinPass
   /**
    * Só do pino de viagem com VÁRIAS saídas: como o mestre chama a saída
    * principal (a de `destino`) — "Porta da cripta". Ausente = sem nome; o
@@ -1404,6 +1437,12 @@ export interface MapData {
    * de migração. NUNCA sai dentro do mapa do jogador: o rótulo viaja à parte.
    */
   andar?: SceneFloor
+  /**
+   * NÍVEL DE ALERTA da cena, que o mestre sobe conforme o grupo faz barulho
+   * (`lib/faccoes.ts`). `undefined` === 'calmo' — sem linha de migração, e
+   * voltar a calmo tira o campo. NUNCA sai no recorte do jogador.
+   */
+  alerta?: NivelAlerta
 }
 
 /** MAPA POR ANDARES: de que prédio a cena é andar, e o rótulo curto que o jogador lê na aba. */
@@ -1413,3 +1452,6 @@ export interface SceneFloor {
   /** Rótulo da aba (1F, 2F, B1): até 4 letras e dígitos maiúsculos (`cleanFloorLabel`). */
   rotulo: string
 }
+
+/** Calmo → atento → caçada: o quanto a cena já sabe que o grupo está lá. */
+export type NivelAlerta = 'calmo' | 'atento' | 'cacada'

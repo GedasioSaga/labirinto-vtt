@@ -25,6 +25,8 @@ import { useNoiseStore } from './stores/noiseStore'
 import { noiseFeedbackText } from './lib/noise'
 import { isEditableTarget } from './lib/keymap'
 import { useFollowStore } from './stores/followStore'
+import { useTerritorioStore } from './stores/territorioStore'
+import { alertaDaCena, coresDasFaccoes, corCss, faccaoHerdada } from './lib/faccoes'
 import { advanceTurn, startTurn, useInitiativeStore } from './stores/initiativeStore'
 import { useClockStore } from './stores/clockStore'
 import { turnTokenIdOn } from './lib/initiative'
@@ -78,10 +80,12 @@ import {
   useAdventureStore,
 } from './stores/adventureStore'
 import { ScenesSection } from './components/ScenesSection'
+import { AgendaSection } from './components/AgendaSection'
 import { MapObjectsSection } from './components/MapObjectsSection'
 import { MarcasDaCena } from './components/MarcasDaCena'
+import { PlaceTreeSection } from './components/PlaceTreeSection'
 import { currentObjectKey, isFindObjectShortcut } from './lib/mapObjects'
-import { goToMapObject } from './stores/mapObjectNavigation'
+import { framePlace, goToMapObject } from './stores/mapObjectNavigation'
 import { fontesDaBusca, irAoAchado, mandarFichaPara } from './stores/buscaDoMestre'
 import { ligacaoLevarFicha } from './stores/levarFicha'
 import type { ActiveAlarmView } from './components/SceneAlarmControls'
@@ -104,6 +108,7 @@ import { imageExportFileName, type ImageExportOptions, type MapImageExporter } f
 import { saveMapImage } from './lib/mapImageSave'
 import type { DoorKind, DoorSide, DrawingCap, DrawingDash, MapData, Pin, PinBlockReason, PinPassage, Region, Token, Wall } from './types/map'
 import { passageOf } from './lib/pins'
+import { passItemOf, passTokenOptions, withPassItem, withPassToken } from './lib/pinPass'
 import { isArrivalOnly } from './lib/pinTravel'
 import { pinAttachOptions } from './lib/pinAttach'
 import { leverDoorOptions, linkedDoorOf } from './lib/lever'
@@ -955,6 +960,9 @@ function App() {
     useDestinationStore.getState().setMarks(masterDestinationMarks(roomPlayers, openSceneId))
   }, [roomPlayers, openSceneId])
   useFollowPlayer(roomPlayers, () => hostWorldOf({ adventure, activeSceneId, cache: sceneCache }, map))
+  // FACÇÃO E ALERTA: o filtro "Quem manda aqui" é da vista do mestre; a legenda sai das salas da cena aberta.
+  const filtroFaccoes = useTerritorioStore((state) => state.filtroLigado)
+  const legendaFaccoes = coresDasFaccoes(map.regions)
   // "Ver tela" do Grupo: de quem é o espelho aberto. Quem saiu da sala (expulso,
   // sala fechada) leva o espelho junto — voltar depois não o reabre sozinho.
   const [mirrorId, setMirrorId] = useState<string | null>(null)
@@ -1820,6 +1828,18 @@ function App() {
       // Motivo do bloqueio: do pino desta cena, com desfazer, como o modo.
       motivo: pin.motivo,
       onMotivoChange: (motivo: PinBlockReason | undefined) => useMapStore.getState().updatePin(pin.id, { motivo }),
+      // PASSE: item e marcas vivem no pino desta cena, com desfazer. Lidos de
+      // novo na store na hora do clique: o painel pode estar atrás de um desfazer.
+      passItem: passItemOf(pin.passe),
+      onPassItemChange: (item: string) => {
+        const atual = useMapStore.getState().map.pins.find((p) => p.id === pin.id)
+        if (atual !== undefined) useMapStore.getState().updatePin(pin.id, { passe: withPassItem(atual.passe, item) })
+      },
+      passTokens: passTokenOptions(map.tokens, pin.passe),
+      onPassTokenToggle: (tokenId: string, on: boolean) => {
+        const atual = useMapStore.getState().map.pins.find((p) => p.id === pin.id)
+        if (atual !== undefined) useMapStore.getState().updatePin(pin.id, { passe: withPassToken(atual.passe, tokenId, on) })
+      },
       // Mão única mora no PAR (cena de fundo): marcar e desmarcar vão pela
       // aventura, fora do desfazer desta cena.
       onOneWayChange: (exitId: string, on: boolean) => {
@@ -2184,6 +2204,20 @@ function App() {
     )
   }
 
+  // Alarme para várias cenas, só com a sala aberta: a seção Cenas soa pelo
+  // formulário e a Agenda soa quando um evento com alarme dispara.
+  const soarAlarme =
+    room === null
+      ? undefined
+      : (sceneIds: string[], text: string): number | null => {
+          const bridge = hostBridgeRef.current
+          if (bridge === null) return null
+          const sent = bridge.sceneAlarm(sceneIds, text)
+          setSceneAlarm(bridge.activeAlarm())
+          return sent
+        }
+  const scenesPanel = sceneList({ adventure, activeSceneId, cache: sceneCache }, map)
+
   return (
     <div className="lb-editor">
       {/* Os avisos vêm PRIMEIRO no DOM, antes do trilho. A posição na tela é do
@@ -2249,7 +2283,7 @@ function App() {
             scenes={
               <>
               <ScenesSection
-                scenes={sceneList({ adventure, activeSceneId, cache: sceneCache }, map)}
+                scenes={scenesPanel}
                 onSelect={handleSelectScene}
                 onCreate={handleCreateScene}
                 onRename={(sceneId, name, publicName) => {
@@ -2285,17 +2319,7 @@ function App() {
                 adventureId={adventure?.id ?? null}
                 // Alarme para várias cenas, também só com a sala aberta.
                 alarm={room === null ? null : sceneAlarm}
-                onAlarm={
-                  room === null
-                    ? undefined
-                    : (sceneIds, text) => {
-                        const bridge = hostBridgeRef.current
-                        if (bridge === null) return null
-                        const sent = bridge.sceneAlarm(sceneIds, text)
-                        setSceneAlarm(bridge.activeAlarm())
-                        return sent
-                      }
-                }
+                onAlarm={soarAlarme}
                 onEndAlarm={
                   room === null
                     ? undefined
@@ -2337,6 +2361,15 @@ function App() {
                 entries={pinDirectory(pinScenesOf({ adventure, activeSceneId, cache: sceneCache }, map))}
                 onGo={(entry) => useAdventureStore.getState().goToPin(entry.sceneId, entry.pinId)}
               />
+              {/* Agenda da campanha: mora na aventura, então só aparece com ela; ao jogador só vai o alarme de um evento, no disparo. */}
+              {adventure !== null && (
+                <AgendaSection
+                  agenda={adventure.agenda}
+                  onChange={(agenda) => useAdventureStore.getState().setAgenda(agenda)}
+                  cenas={scenesPanel}
+                  onAlarm={soarAlarme}
+                />
+              )}
               </>
             }
             objects={
@@ -2358,6 +2391,7 @@ function App() {
                 />
                 {/* BILHETE NO LUGAR: reler e apagar a marca de um jogador depois que o aviso some. */}
                 <MarcasDaCena marcas={map.marcas ?? []} onApagar={hostPlayerChanges.removeMark} />
+                <PlaceTreeSection regions={map.regions} currentId={selectedRegion?.id ?? null} onFrame={framePlace} />
               </>
             }
             mapName={map.name}
@@ -2709,6 +2743,10 @@ function App() {
               onTextoAoEntrarChange: (textoAoEntrar) => selectedRegion && useMapStore.getState().setRoomTexts(selectedRegion.id, { textoAoEntrar }),
               onNotaDoMestreChange: (notaDoMestre) => selectedRegion && useMapStore.getState().setRoomTexts(selectedRegion.id, { notaDoMestre }),
               onDarkChange: (dark) => selectedRegion && useMapStore.getState().setRoomDark(selectedRegion.id, dark),
+              onFaccaoChange: (faccao) => selectedRegion && useMapStore.getState().setRoomFaccao(selectedRegion.id, faccao),
+              // Só a herdada vira dica: com facção própria o campo já diz quem manda.
+              faccaoHerdada: selectedRegion ? faccaoHerdada(map.regions, selectedRegion.id) : undefined,
+              faccoesConhecidas: legendaFaccoes.map((item) => item.faccao),
               onWidthChange: (width) =>
                 selectedRegion && resizeRoomDimensions(selectedRegion.id, width, roomDimensions(selectedRegion.points).height),
               onHeightChange: (height) =>
@@ -2881,6 +2919,13 @@ function App() {
               onPlace: (item) => void handlePlaceFromLibrary(item),
               onDropOnMap: handleDropFromLibrary,
               onDelete: (item) => void handleDeleteFromLibrary(item),
+            }}
+            territorio={{
+              filtroLigado: filtroFaccoes,
+              onFiltroChange: (ligado) => useTerritorioStore.getState().setFiltroLigado(ligado),
+              legenda: legendaFaccoes.map((item) => ({ faccao: item.faccao, cor: corCss(item.cor), salas: item.salas })),
+              alerta: alertaDaCena(map),
+              onAlertaChange: (nivel) => useMapStore.getState().setSceneAlerta(nivel),
             }}
             selectedLight={selectedLight}
             lightControls={{

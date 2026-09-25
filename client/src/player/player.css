@@ -1118,6 +1118,11 @@
   border: 0;
 }
 
+/* MAPA LEMBRADO: mesmo rótulo da régua, com a borda no âmbar do piscar (revisitPulse.ts) para ler como parte dele. */
+.pp-revisit-note {
+  border-color: rgba(232, 193, 112, 0.7);
+}
+
 .pp-field {
   display: grid;
   gap: 4px;

@@ -1392,6 +1392,63 @@ body {
   border-color: var(--lb-color-ember);
 }
 
+/* TERRITÓRIO — filtro "Quem manda aqui", legenda das facções e alerta da cena. */
+.lb-territorio {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-2);
+}
+
+.lb-territorio__legenda {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-parchment);
+}
+
+.lb-territorio__item {
+  display: flex;
+  align-items: center;
+  gap: var(--lb-space-2);
+}
+
+/* Amostra chapada da cor da facção, como a pintura no mapa (sem textura). */
+.lb-territorio__cor {
+  flex: none;
+  width: 12px;
+  height: 12px;
+  border: 1px solid var(--lb-color-line);
+  border-radius: 2px;
+}
+
+.lb-territorio__alerta {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-2);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.lb-territorio__niveis {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--lb-space-3);
+}
+
+.lb-territorio__nivel {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--lb-space-1);
+  font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-parchment);
+  cursor: pointer;
+}
+
 /* Engrenagem do cabeçalho do inspetor: empurrada para a direita do nome. */
 .lb-inspector__settings {
   flex: none;
@@ -4525,6 +4582,126 @@ html.lb-arrastando-cena * {
   color: var(--lb-color-parchment-dim);
 }
 
+/* Locais (PlaceTreeSection): a árvore Distrito > Quarteirão > Prédio > Piso >
+   Cômodo. Linha densa como a de Objetos do mapa, mas de ALTURA FIXA (28px =
+   PLACE_ROW_HEIGHT): a lista é virtualizada, cada linha fica na posição
+   absoluta dela e só as da janela existem no DOM. */
+.lb-locais {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-2);
+}
+
+.lb-locais__resumo {
+  margin: 0;
+  font-size: var(--lb-font-size-sm);
+  line-height: var(--lb-font-leading-normal);
+  color: var(--lb-color-parchment-faint);
+}
+
+.lb-locais__arvore {
+  position: relative;
+  overflow-y: auto;
+  overflow-x: hidden;
+  margin: 0 calc(var(--lb-space-2) * -1);
+  contain: strict;
+}
+
+.lb-locais__espaco {
+  position: relative;
+  width: 100%;
+}
+
+.lb-locais__item {
+  position: absolute;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--lb-space-1);
+  box-sizing: border-box;
+  height: 28px;
+  padding-right: var(--lb-space-2);
+  border-radius: var(--lb-radius-sm);
+  color: var(--lb-color-parchment);
+  font-size: var(--lb-font-size-md);
+  cursor: pointer;
+  user-select: none;
+}
+
+.lb-locais__item:hover {
+  background: var(--lb-color-stone-hover);
+}
+
+.lb-locais__item:active {
+  background: var(--lb-color-stone-sunken);
+}
+
+/* Anel por dentro: o `overflow` da janela cortaria o de fora. */
+.lb-locais__item:focus-visible {
+  box-shadow: inset 0 0 0 2px var(--lb-color-brass);
+}
+
+/* A sala selecionada no editor: o mesmo latão de Objetos do mapa. */
+.lb-locais__item[aria-selected='true'] {
+  background: var(--lb-color-brass-soft);
+  color: var(--lb-color-brass);
+}
+
+.lb-locais__seta,
+.lb-locais__recuo {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  margin-left: var(--lb-space-1);
+}
+
+.lb-locais__seta {
+  border-radius: var(--lb-radius-sm);
+  color: var(--lb-color-parchment-faint);
+  transform: rotate(-90deg);
+  transition: transform var(--lb-motion-fast) var(--lb-motion-ease);
+}
+
+.lb-locais__seta:hover {
+  color: var(--lb-color-parchment);
+  background: var(--lb-color-stone-raised);
+}
+
+.lb-locais__seta[data-aberta='true'] {
+  transform: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lb-locais__seta {
+    transition: none;
+  }
+}
+
+.lb-locais__nome {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lb-locais__conta {
+  flex: none;
+  font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-parchment-faint);
+}
+
+.lb-locais__vazio {
+  margin: 0;
+  font-size: var(--lb-font-size-sm);
+  line-height: var(--lb-font-leading-normal);
+  color: var(--lb-color-parchment-dim);
+}
+
 /* ALARME PARA VÁRIAS CENAS (SceneAlarmControls), no fim da seção Cenas. */
 .lb-alarme {
   display: flex;
@@ -4667,6 +4844,73 @@ html.lb-arrastando-cena * {
   flex: 0 0 auto;
 }
 
+/* AGENDA DA CAMPANHA (AgendaSection): a hora da mesa, os eventos e o formulário. */
+.lb-agenda,
+.lb-agenda__form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-2);
+}
+
+.lb-agenda__agora {
+  margin: 0;
+  color: var(--lb-color-parchment);
+  font-weight: 600;
+}
+
+.lb-agenda__vazio,
+.lb-agenda__dica {
+  margin: 0;
+  color: var(--lb-color-parchment-faint);
+  font-size: var(--lb-font-size-sm);
+}
+
+.lb-agenda__lista {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.lb-agenda__evento {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  column-gap: var(--lb-space-2);
+  padding: var(--lb-space-2) var(--lb-space-3);
+  border: 1px solid var(--lb-color-line);
+  border-radius: var(--lb-radius-md);
+  background: var(--lb-color-stone-sunken);
+}
+
+.lb-agenda__titulo {
+  overflow-wrap: anywhere;
+}
+
+.lb-agenda__momento {
+  grid-column: 1;
+  color: var(--lb-color-parchment-faint);
+  font-size: var(--lb-font-size-sm);
+}
+
+.lb-agenda__remover {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+}
+
+/* Disparado: fica na lista, apagado, para o mestre ver o que já passou. */
+.lb-agenda__evento[data-disparado='true'] .lb-agenda__titulo {
+  color: var(--lb-color-parchment-faint);
+}
+
+.lb-agenda__quando {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--lb-space-2);
+}
+
 /* Destino do pino de viagem (PinTravelControls): um poço rebaixado logo abaixo
    do tipo, com a régua da esquerda dizendo o estado sem precisar ler — latão
    quando a passagem leva a algum lugar, apagada quando não. É a mesma troca
@@ -4747,6 +4991,18 @@ html.lb-arrastando-cena * {
 
 .lb-travel__row {
   display: flex;
+  gap: var(--lb-space-2);
+}
+
+/* PASSE: uma ficha por botão, de 4 a 7 numa mesa — quebram linha em vez de
+   passar da largura do rail. */
+.lb-travel__row--wrap {
+  flex-wrap: wrap;
+}
+
+.lb-travel__pass {
+  display: flex;
+  flex-direction: column;
   gap: var(--lb-space-2);
 }
 

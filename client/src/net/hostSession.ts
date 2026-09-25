@@ -1,5 +1,5 @@
 import type { AreaTriggerKind, DoorState, HazardKind, MapData, MarcaNoLugar, Pin, PinPassage, RegionPoint, Token, Wall } from '../types/map'
-import { hazardPresence, newHazardEntries, type HazardEntry } from '../lib/hazards'
+import { hazardPresence, hazardsOf, newHazardEntries, type HazardEntry } from '../lib/hazards'
 import { areaTriggerPresence, newAreaTriggerEntries, regionAreaName, type AreaTriggerPresence } from '../lib/areaTriggers'
 import { fichaAlcancaPonto, MARCA_INTERVALO_MS, MARCAS_POR_CENA, MARCAS_POR_JOGADOR_POR_CENA } from '../lib/marcas'
 import { createExploration, decodeExploration, encodeExploration, forgetBlocked, forgetInside, isPointExplored, markAll, markRings, mergeExploration, mergeExplored, resizeExploration, type Exploration, type ExploredWire } from '../lib/exploration'
@@ -19,6 +19,7 @@ import { doorOpensFrom, tokenInDoorway, tokenReachesDoor } from '../lib/doorReac
 import { keyForDoor, keyForPin } from '../lib/doorKey'
 import { DESTINATION_MIN_INTERVAL_MS, SIGNAL_MIN_INTERVAL_MS, signalColor, type DestinationMark } from '../lib/signals'
 import { acceptsLockedRequest, passageOf, pinSummary } from '../lib/pins'
+import { tokenHasPass } from '../lib/pinPass'
 import { carriedItemsOf, itemOfPin, tokenReachesPin, tokensTouch, type ItemChange } from '../lib/items'
 import { selectedTokenColor } from '../lib/tokenColor'
 import { arrivalSpot, arrivalSpotWithoutPin, exitLabelsOf, freeSeatNear, isArrivalOnly, oneWayExitsOf, resolvePinTravel, SAIDA_PRINCIPAL, travelExitOf, type TravelScene } from '../lib/pinTravel'
@@ -345,6 +346,11 @@ export interface TravelRequest {
    * jogador fora esperou a volta dele. Ausente no pedido de sempre.
    */
   heldWhileAway?: true
+  /**
+   * Por que o pedido chegou: `sem-passe` = pino no modo passe e a ficha não
+   * carrega o passe. Ausente = o pedido de sempre (pino que pede ao mestre).
+   */
+  motivo?: 'sem-passe'
 }
 
 /**
@@ -1699,6 +1705,10 @@ interface PlayerMemory {
   marcas: Set<string>
   /** Visão enviada no último snapshot: é o que o jogador está vendo agora na tela. */
   vision: RegionPoint[][]
+  /** Fichas de OUTROS jogadores no último snapshot (`partyTokens`): os colegas que ele vê agora. */
+  party: string[]
+  /** Zonas ocultas e tetos fechados do último snapshot: o que ele já sabe que está escondido. */
+  covered: RegionPoint[][]
   /**
    * Veio da mesa guardada e ainda não foi conferida contra o mapa de hoje: no
    * primeiro uso, o que o mestre escondeu desde então sai da memória.
@@ -1775,6 +1785,11 @@ function normalizeName(name: string): string {
   return name.toLowerCase().replace(/\s+/g, '')
 }
 
+/** O ponto cai dentro de algum anel com área (anel degenerado não conta). */
+function inAnyRing(rings: readonly RegionPoint[][], point: RegionPoint): boolean {
+  return rings.some((ring) => ring.length >= 3 && pointInRing(point, ring))
+}
+
 function memoryKey(map: MemoryDims): string {
   return `${map.id}|${map.width}|${map.height}|${map.grid}`
 }
@@ -1827,6 +1842,8 @@ function restoredMemoryOf(scene: SavedSceneMemory): Omit<PlayerMemory, 'place'> 
     doorsSeenAt: new Map(),
     marcas: new Set(),
     vision: [],
+    party: [],
+    covered: [],
     restored: true,
     seenRooms: new Set(),
     plan: emptyPlanMemory(),
@@ -2256,6 +2273,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       doorsSeenAt: new Map(),
       marcas: new Set(),
       vision: [],
+      party: [],
+      covered: [],
       restored: false,
       seenRooms: new Set(),
       place: nextPlaceId(playerId),
@@ -2700,6 +2719,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const waiting = waitingTokensForPlayer(view, waitingTokenIds())
     // Só fichas que ele JÁ recebe: a lista não conta quem está no escuro.
     const partyTokens = view.map.tokens.filter((t) => isOtherPlayersToken(playerId, t.id)).map((t) => t.id)
+    memory.party = partyTokens
+    memory.covered = [...view.concealed, ...view.roofs]
     // Sem nome público o campo nem existe: `sceneName: undefined` no JSON sumiria, mas no objeto não.
     const where = sceneName === undefined ? {} : { sceneName }
     const explored = encodeExploration(exp)
@@ -3798,9 +3819,56 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   }
 
   /**
+   * ECO DO SINAL — o eco sai cheio (sem `unheard`) só quando o ponto está na
+   * visão ATUAL de quem sinalizou, fora do que ele já sabe que está escondido
+   * (zona oculta e teto fechado do recorte dele), e na visão ATUAL de um colega
+   * desta cena cuja ficha ele está vendo agora.
+   *
+   * ZONA DE PERIGO: a visão do colega que conta aqui é a de raio SEM perigo.
+   * A enviada ao colega já vem encolhida pela fumaça (`visionRadiusAt`),
+   * inclusive a que o mestre esconde de quem sinaliza (sala que encosta em zona
+   * oculta, camada escondida, teto fechado); usá-la faria a forma do eco contar
+   * que existe fumaça escondida onde está o colega. O preço: colega numa fumaça
+   * à vista pode não ver o ponto e o eco sair cheio mesmo assim.
+   *
+   * Por que não perguntar "alguém recebeu?" (`toOthers`): a resposta diria
+   * - o formato da sala secreta: dentro dela ninguém recebe, logo ao lado sim;
+   * - o que um colega explorou dentro da névoa de quem sinaliza (a planta);
+   * - que há colega na cena mesmo sem a ficha dele à vista.
+   * As visões usadas aqui são as enviadas, montadas SEM as paredes da sala
+   * secreta; então dentro e ao lado da sala o eco é o mesmo, e dentro da sala
+   * ele sai cheio embora ninguém receba (o preço de não desenhar a sala).
+   * Colega que só lembra o ponto (explorado, fora da visão) recebe o sinal,
+   * mas não conta aqui: a exploração dele não passa na borda da sala secreta.
+   *
+   * DIVERGE DO PEDIDO def-sinal-some-calado ("tracejado quando ninguém
+   * recebe"): nos dois casos acima o tracejado não bate com a entrega, e não
+   * há regra exata sem vazar. Decisão pendente do dono do pedido.
+   */
+  const echoHeard = (playerId: string, scene: HostScene, world: HostWorld, point: RegionPoint): boolean => {
+    const map = scene.map
+    const mine = existingMemory(playerId, map)
+    if (mine === undefined || !inAnyRing(mine.vision, point) || inAnyRing(mine.covered, point)) return false
+    const inSight = new Set(mine.party)
+    // Sem perigo no mapa, a visão enviada já é a de raio cheio: não recalcula.
+    const withoutHazards: MapData | null = hazardsOf(map).length === 0 ? null : { ...map, hazards: [] }
+    for (const otherId of byClient.values()) {
+      if (otherId === playerId || statusOf(otherId) !== 'playing' || sceneFor(otherId, world) !== scene) continue
+      if (!(ownership[otherId] ?? []).some((id) => inSight.has(id))) continue
+      const theirs = existingMemory(otherId, map)
+      if (theirs === undefined) continue
+      // Mesmo raio do snapshot do colega (`tokenRadiusIn`), só sem o perigo.
+      const vision = withoutHazards === null ? theirs.vision : filterMapForPlayer(withoutHazards, otherId, ownership, tokenRadiusIn(otherId, map)).vision
+      if (inAnyRing(vision, point)) return true
+    }
+    return false
+  }
+
+  /**
    * O mestre sempre recebe o sinal (campo `signal`) e quem sinalizou recebe o
-   * eco. Os colegas recebem pela regra de `relaySignalToColleagues`, menos no
-   * sinal `audience: 'master'` (o do toque longo, antes do menu).
+   * eco (ver `echoHeard`). Os colegas recebem pela regra de
+   * `relaySignalToColleagues` (só quem já conhece o ponto, fora de zona oculta
+   * ativa), menos no sinal `audience: 'master'` (o do toque longo, antes do menu).
    *
    * "Sinalizar" no menu depois do toque longo repete o MESMO ponto: a qualquer
    * tempo (dentro ou fora do intervalo mínimo), estende o sinal discreto aos
@@ -3838,7 +3906,11 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     if (last !== undefined && at - last.at < SIGNAL_MIN_INTERVAL_MS) return { outbound: [] }
     lastSignal.set(playerId, { at, x: msg.x, y: msg.y, relayed: toColleagues })
 
-    const outbound: Outbound[] = [{ clientId, msg: message }]
+    // Eco de quem sinalizou: `unheard` quando nenhum colega À VISTA vê o ponto —
+    // não quando ninguém recebeu (os dois divergem; ver `echoHeard`).
+    // NÃO é "nenhum repasse saiu": isso viraria oráculo (ver `echoHeard`).
+    const echo: HostMessage = echoHeard(playerId, scene, world, point) ? message : { ...message, unheard: true }
+    const outbound: Outbound[] = [{ clientId, msg: echo }]
     if (toColleagues) outbound.push(...relaySignalToColleagues(playerId, scene, message, point, world))
     const signal: HostSignal = { playerId, name: record.name, color, x: msg.x, y: msg.y }
     // Mesma regra de `backgroundSceneId`: a cena aberta e o mapa solto não levam o campo.
@@ -4629,7 +4701,14 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     // Livre: passou em tudo que o pedido passaria (névoa, token na cena, pino
     // ligado, limites, nenhum pendente) e vai direto, sem esperar o mestre —
     // ele só lê o aviso de chegada que o integrador mostra com a transferência.
-    if (passageOf(travel.pin) === 'livre') return transferResult(playerId, clientId, record.name, travel, world)
+    const passagem = passageOf(travel.pin)
+    if (passagem === 'livre') return transferResult(playerId, clientId, record.name, travel, world)
+    // Passe: quem carrega o passe vai direto, como no livre; quem não, pede.
+    // O passe é conferido na ficha do MAPA DO MESTRE (a mochila de verdade),
+    // nunca no que o cliente diz ter. Deixar alguém ir depois não muda o
+    // modo do pino: a catraca segue fechada para os outros.
+    const semPasse = passagem === 'passe' && !travelTokenHasPass(travel)
+    if (passagem === 'passe' && !semPasse) return transferResult(playerId, clientId, record.name, travel, world)
     // Encruzilhada: o mestre lê a SAÍDA ("Escada da torre → Torre Alta"), o
     // mesmo rótulo que a jogadora tocou; pino de uma saída continua nomeado
     // pela descrição, como sempre.
@@ -4660,6 +4739,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       toSceneName: travel.to.name,
     }
     if (trancada) travelRequest.trancada = true
+    // Só no modo passe: o pedido de sempre continua sem o campo.
+    if (semPasse) travelRequest.motivo = 'sem-passe'
     // `fromSceneId` e `requestedAt`: a idade e a distância AGORA que a Caixa de Pedidos relê.
     // `request`: o aviso que o mestre leu, que volta a ele se o "Deixar ir" esperar o Volto já.
     const pending: PendingTravel = {
@@ -4677,6 +4758,12 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     if (trancada) pending.trancada = true
     pendingTravels.set(playerId, pending)
     return { outbound: [], travelRequest: { ...travelRequest } }
+  }
+
+  /** A ficha que viaja carrega o passe do pino? Lida no mapa do mestre, não no recorte. */
+  function travelTokenHasPass(travel: ValidTravel): boolean {
+    const doMestre = travel.from.map.tokens.find((t) => t.id === travel.token.id)
+    return doMestre !== undefined && tokenHasPass(travel.pin.passe, doMestre)
   }
 
   /**

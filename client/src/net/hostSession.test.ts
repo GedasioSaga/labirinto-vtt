@@ -712,7 +712,8 @@ describe('hostSession: sinal do jogador', () => {
     // Ana sinaliza no lado dela; a Bia está atrás da parede e nunca viu esse lado.
     const hidden = t.s.handleMessage('c1', { type: 'signal', x: 300, y: 300 }, t.map)
     expect(hidden.signal).toEqual({ playerId: t.ana.playerId, name: 'Ana', color, x: 300, y: 300 })
-    expect(toClient(hidden, 'c1')).toEqual([{ clientId: 'c1', msg: { type: 'signal', x: 300, y: 300, from: 'Ana', color } }])
+    // Ninguém mais recebeu: o eco de Ana avisa (sai tracejado na tela dela).
+    expect(toClient(hidden, 'c1')).toEqual([{ clientId: 'c1', msg: { type: 'signal', x: 300, y: 300, from: 'Ana', color, unheard: true } }])
     expect(JSON.stringify(toClient(hidden, 'c2'))).toBe('[]')
     expect(JSON.stringify(hidden.outbound)).not.toContain('"c2"')
     expect(toClient(hidden, 'c3')).toEqual([])

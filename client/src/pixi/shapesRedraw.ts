@@ -22,6 +22,7 @@ export const SHAPES_LAYERS = [
   'drawings',
   'hazards',
   'areaTriggers',
+  'faccoes',
   'roomNames',
   'walls',
   'stairs',
@@ -60,6 +61,8 @@ export interface ShapesSnapshot {
   rendererResolution: number
   /** Sala sendo girada pela alça: a alça de girar aparece acesa. */
   rotatingRoom: boolean
+  /** Filtro "Quem manda aqui" ligado (`stores/territorioStore.ts`). Ausente === desligado. */
+  filtroFaccoes?: boolean
 }
 
 /**
@@ -124,6 +127,9 @@ export function shapesLayerDeps(layer: ShapesLayer, snapshot: ShapesSnapshot): r
     case 'areaTriggers':
       // GATILHO DE ÁREA: pinta a região marcada. Sem gatilho no mapa, nada a repintar.
       return (map.gatilhos ?? []).length === 0 ? ['sem gatilho'] : [map.gatilhos, map.regions, hidden]
+    case 'faccoes':
+      // FILTRO "QUEM MANDA AQUI": desligado, arrastar sala não repinta a camada.
+      return snapshot.filtroFaccoes === true ? ['filtro', map.regions, hidden] : ['sem filtro']
     case 'roomNames':
       return [map.regions, hidden, map.grid]
     case 'walls':

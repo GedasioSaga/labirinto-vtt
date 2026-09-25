@@ -145,6 +145,9 @@ import {
 import { createPropsRenderer } from './drawProps'
 import { createConcealZonesRenderer } from './drawConcealZones'
 import { drawHazardAreas } from './drawHazards'
+import { drawFaccoes } from './drawFaccoes'
+import { pinturaDeFaccoes } from '../lib/faccoes'
+import { useTerritorioStore } from '../stores/territorioStore'
 import { hazardAreas } from '../lib/hazards'
 import { drawAreaTriggers } from './drawAreaTriggers'
 import { areaTriggerAreas } from '../lib/areaTriggers'
@@ -182,6 +185,8 @@ import { cloneEntity, type CloneableEntity } from '../lib/entityClone'
 import { placeNewRoom, subtreeIds } from '../lib/roomNesting'
 import { useToastStore } from '../stores/toastStore'
 import { AVISO_PINCEL_SEM_ZONA, CORRIDOR_DISCARDED_TEXT, STAIR_CLICK_WITHOUT_DRAG_TEXT } from '../components/labels'
+import { WallGestureMenuHost } from '../components/WallGestureMenuHost'
+import { botaoDireitoEhDaParede, ligarMenuDaParede, type MenuDaParede } from './wallGesture'
 import {
   visibleWalls, visibleRegions, visibleStairs, visibleLights, visibleDrawings, visibleTokens, visibleProps, visiblePins,
   canInteractInLayer, isLayerLocked, wallLayer, regionLayer, stairLayer, lightLayer, tokenLayer, propLayer, drawingLayer,
@@ -588,6 +593,11 @@ export function PixiCanvas({
   // Clique direito numa porta: Abrir/Fechar e Trancar/Destrancar ali mesmo.
   const [doorMenu, setDoorMenu] = useState<{ wallId: string; x: number; y: number } | null>(null)
   const closeDoorMenu = useCallback(() => setDoorMenu(null), [])
+  // Clique direito numa parede: o menu "Abrir vão aqui / Desabar parede"
+  // (WallGestureMenu). `ponto` é o clique em px de MUNDO, para o vão abrir
+  // onde o mestre apontou; `x`/`y` e `limite` são px do contêiner.
+  const [menuDaParede, setMenuDaParede] = useState<MenuDaParede | null>(null)
+  const fecharMenuDaParede = useCallback(() => setMenuDaParede(null), [])
   // Enter e Esc desmontam o campo, e o navegador pode disparar blur depois;
   // sem esta trava o blur gravaria o nome que o Esc acabou de cancelar.
   const nameEditorOpenRef = useRef(false)
@@ -729,6 +739,9 @@ export function PixiCanvas({
       // GATILHO DE ÁREA: o mestre vê toda área marcada, revelada ou não, na mesma altura do perigo.
       const areaTriggersGraphics = new Graphics()
       areaTriggersGraphics.eventMode = 'none'
+      // FILTRO "QUEM MANDA AQUI": a cor da facção sobre o chão, sob paredes e fichas, como o perigo.
+      const faccoesGraphics = new Graphics()
+      faccoesGraphics.eventMode = 'none'
       // Pinos acima das zonas ocultas: o pino é o chamariz da cena e o mestre
       // precisa achá-lo mesmo sobre uma área que ele mesmo escondeu.
       const pinsContainer = new Container()
@@ -763,6 +776,7 @@ export function PixiCanvas({
         gridAlignOverlayGraphics,
         hazardsGraphics,
         areaTriggersGraphics,
+        faccoesGraphics,
         wallsGraphics,
         doorsGraphics,
         stairsGraphics,
@@ -1311,6 +1325,7 @@ export function PixiCanvas({
           cameraScale: camera.scale,
           rendererResolution: app.renderer.resolution,
           rotatingRoom: roomRotateGesture.isActive(),
+          filtroFaccoes: useTerritorioStore.getState().filtroLigado,
         }
       }
 
@@ -1342,6 +1357,10 @@ export function PixiCanvas({
         areaTriggers: () => {
           const { map } = sceneState()
           drawAreaTriggers(areaTriggersGraphics, areaTriggerAreas({ gatilhos: map.gatilhos, regions: visibleRegions(map.regions, map.hiddenLayers) }))
+        },
+        faccoes: () => {
+          const { map } = sceneState()
+          drawFaccoes(faccoesGraphics, useTerritorioStore.getState().filtroLigado ? pinturaDeFaccoes(map) : [])
         },
         roomNames: () => {
           const { map } = sceneState()
@@ -1686,6 +1705,11 @@ export function PixiCanvas({
         if (state.cache !== previous.cache || state.adventure !== previous.adventure || state.activeSceneId !== previous.activeSceneId) {
           redrawPins()
         }
+      })
+      // FILTRO "QUEM MANDA AQUI": ligar ou desligar pinta a camada de facções
+      // pelo mesmo portão do redesenho parcial (só ela repinta).
+      const unsubscribeTerritorio = useTerritorioStore.subscribe((state, previous) => {
+        if (state.filtroLigado !== previous.filtroLigado) redrawShapes()
       })
       const unsubscribeTokens = subscribeToTokensRedraw(redrawTokens)
       // A vez andou (Começar, Próxima vez, Encerrar): o anel troca de ficha.
@@ -3211,6 +3235,12 @@ export function PixiCanvas({
           updateCursor()
           return
         }
+
+        // Botão direito em cima de parede é o gesto do menu da parede
+        // (`onContextMenu`): não pode começar, por baixo, um traço de parede,
+        // uma seleção ou um arrasto. O pincel de blocos fica de fora — nele o
+        // botão direito apaga.
+        if (botaoDireitoEhDaParede(useMapStore.getState(), event.button, toWorldPoint(event.global.x, event.global.y), camera.scale)) return
 
         const worldPoint = toWorldPoint(event.global.x, event.global.y)
         const { map, activeTool, selection, setSelection } = useMapStore.getState()
@@ -5625,8 +5655,15 @@ export function PixiCanvas({
        * 15/09/2026). O menu de contexto do navegador nasce do mesmo botão e
        * abriria por cima do gesto — some só onde o gesto existe, para o clique
        * direito continuar normal em toda outra ferramenta.
+       *
+       * Porta também é parede: o mesmo clique acordaria os dois menus (o da
+       * porta, aqui, e o "Abrir vão / Desabar" de `ligarMenuDaParede`, logo
+       * abaixo). Este ouvinte é registrado ANTES e anota a porta que abriu;
+       * o da parede consulta a anotação e cede — na porta, manda o menu dela.
        */
+      let portaDoCliqueDireito: Wall | null = null
       const onContextMenu = (event: MouseEvent) => {
+        portaDoCliqueDireito = null
         if (direitoApagaBlocos()) {
           event.preventDefault()
           return
@@ -5639,9 +5676,23 @@ export function PixiCanvas({
         const porta = findDoorAt(useMapStore.getState().map, toWorldPoint(local.x, local.y))
         if (porta === null) return
         event.preventDefault()
+        portaDoCliqueDireito = porta
         setDoorMenu({ wallId: porta.id, x: local.x, y: local.y })
       }
       el.addEventListener('contextmenu', onContextMenu)
+      // Clique direito: no pincel de blocos ele APAGA e o menu do navegador
+      // some; em cima de parede, em qualquer outra ferramenta, abre o menu
+      // Abrir vão / Desabar; fora disso é o do navegador (wallGesture.ts).
+      // Se o mesmo clique já abriu o menu da porta (ouvinte acima), cede.
+      const desligarMenuDaParede = ligarMenuDaParede(el, {
+        estado: useMapStore.getState,
+        paraMundo: toWorldPoint,
+        escala: () => camera.scale,
+        abrir: (menu) => {
+          if (portaDoCliqueDireito !== null) return
+          setMenuDaParede(menu)
+        },
+      })
 
       /**
        * Onda 1, item 7 (nudge por seta) — move TODO o conjunto selecionado
@@ -6029,6 +6080,7 @@ export function PixiCanvas({
         unsubscribeCameraScaleForWalls()
         unsubscribeShapes()
         unsubscribeTravelLinks()
+        unsubscribeTerritorio()
         unsubscribeTokens()
         unsubscribeTurn()
         unsubscribeAwayTokens()
@@ -6042,6 +6094,7 @@ export function PixiCanvas({
         el.removeEventListener('wheel', onWheel)
         el.removeEventListener('dblclick', onDblClick)
         el.removeEventListener('contextmenu', onContextMenu)
+        desligarMenuDaParede()
         window.removeEventListener('keydown', onKeyDown)
         window.removeEventListener('keydown', onDraftKeyDown, true)
         window.removeEventListener('keyup', onKeyUp)
@@ -6141,6 +6194,7 @@ export function PixiCanvas({
           }}
         />
       )}
+      {menuDaParede && <WallGestureMenuHost menu={menuDaParede} onClose={fecharMenuDaParede} />}
     </div>
   )
 }

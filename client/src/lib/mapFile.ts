@@ -18,11 +18,13 @@ import { tokenPublicNameFromFile } from './tokenPublicName'
 import { readPinAttachment } from './pinAttach'
 import { readMovementRules } from './movementRules'
 import { readCarriedItems, readPinItem } from './items'
+import { readPinPass } from './pinPass'
 import { readHazards } from './hazards'
 import { readPinLeverDoor } from './lever'
 import { readAreaTriggers } from './areaTriggers'
 import { readArrivalText } from './arrivalText'
 import { readSceneFloor } from './buildingFloors'
+import { lerAlerta, lerFaccao } from './faccoes'
 
 /** Chão de mapa NOVO: marrom chapado do minimapa do Resident Evil 4 (15/09/2026). */
 export const DEFAULT_FLOOR_STYLE: FloorStyle = { fillColor: '#a8776a', strokeColor: null, strokeWidth: 1 }
@@ -177,6 +179,26 @@ function marcasDoArquivo(value: unknown): Pick<MapData, 'marcas'> {
 }
 
 /**
+ * FACÇÃO da Sala (`RoomMeta.faccao`): campo NOVO e OPCIONAL. Ausente continua
+ * ausente; texto volta no teto; o resto (número, objeto, texto em branco) SAI —
+ * a legenda do filtro escreveria "[object Object]".
+ */
+function roomFaccaoFromFile(region: Region): Region {
+  const room = region.room
+  if (!room || typeof room !== 'object' || !('faccao' in room)) return region
+  const faccao = lerFaccao(room.faccao)
+  if (faccao === room.faccao) return region
+  const { faccao: _descartada, ...semFaccao } = room
+  return { ...region, room: faccao === undefined ? semFaccao : { ...semFaccao, faccao } }
+}
+
+/** `alerta` só entra no mapa quando o arquivo traz um dos três níveis: mapa de antes não ganha campo. */
+function alertaField(raw: unknown): Pick<MapData, 'alerta'> {
+  const alerta = lerAlerta(raw)
+  return alerta === undefined ? {} : { alerta }
+}
+
+/**
  * Porta lida do disco. `kind` virou obrigatório (porta antiga migra para
  * 'normal'). `secret` (porta secreta) é campo NOVO: só `true` volta; qualquer
  * outro valor sai do objeto, e a porta abre como porta comum — como sempre foi.
@@ -236,7 +258,7 @@ function deserializeMapFields(json: string): MapData {
     // inalterado — `room` ausente fica undefined (região comum); o ângulo do
     // giro da sala passa como veio, desde que seja número (`roomRotationFromFile`)
     regions: entityList(parsed.regions).map((r) =>
-      roomDarkFromFile(roomTextsFromFile(roomRotationFromFile({ ...r, fillColor: r.fillColor ?? '#3a7ad0', fillPattern: r.fillPattern ?? 'solid' }))),
+      roomFaccaoFromFile(roomDarkFromFile(roomTextsFromFile(roomRotationFromFile({ ...r, fillColor: r.fillColor ?? '#3a7ad0', fillPattern: r.fillPattern ?? 'solid' })))),
     ),
     // MUDA de cru para .map(): Token.image é obrigatório.
     // `imageData` (a cópia embutida que viaja até o jogador) NÃO ganha linha
@@ -324,6 +346,10 @@ function deserializeMapFields(json: string): MapData {
       // volta; o resto (texto livre, número, arquivo editado à mão) volta
       // AUSENTE — "Está trancada", o de sempre. O `...p` copiaria o valor cru.
       motivo: isPinBlockReason(p.motivo) ? p.motivo : undefined,
+      // PASSE: campo NOVO e OPCIONAL. Forma errada volta ausente — ninguém
+      // tem passe e o pedido vai ao mestre, nunca uma catraca aberta a todos.
+      // `item` e `fichas` (as marcas do mestre) são conferidos em `readPinPass`.
+      passe: readPinPass(p.passe),
       // ENCRUZILHADA: `rotulo` e `saidas` são campos NOVOS e OPCIONAIS. Mapa
       // de antes não tem nenhum dos dois e abre como sempre, com a saída de
       // `destino`. Saída extra fora da forma é descartada sozinha (ver
@@ -413,6 +439,8 @@ function deserializeMapFields(json: string): MapData {
     ...(parsed.externa === true ? { externa: true } : {}),
     // MAPA POR ANDARES: campo NOVO e OPCIONAL. Forma torta abre como cena comum — ver `readSceneFloor`.
     ...sceneFloorField(parsed.andar),
+    // NÍVEL DE ALERTA: campo NOVO e OPCIONAL, mesmo padrão de `movement`.
+    ...alertaField(parsed.alerta),
   }
 }
 

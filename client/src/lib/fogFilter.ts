@@ -2852,12 +2852,15 @@ export function filterMapForGroup(
   // parte (`snapshot.andares`), só quando o host decide que ele vale.
   // RELÓGIO DA CAMPANHA: a marca "externa" também é do mestre; o jogador
   // recebe só se a cena dele está escura, à parte (`clockForPlayer`).
+  // NÍVEL DE ALERTA da cena: é do mestre, e sai junto — "caçada" no pacote
+  // contaria ao jogador o que a cena já sabe dele.
   const {
     hazards: _masterHazards,
     gatilhos: _masterTriggers,
     textoChegada: _arrivalText,
     andar: _masterFloor,
     externa: _masterOutdoor,
+    alerta: _masterAlert,
     ...mapWithoutHazards
   } = map
 
@@ -2992,12 +2995,22 @@ export function filterMapForGroup(
         const nameHidden =
           r.room.nameHiddenFromPlayers || currentRegions.get(r.id)?.room?.nameHiddenFromPlayers === true || roofClosed || inZone
         const hasTexts = r.room.textoAoEntrar !== undefined || r.room.notaDoMestre !== undefined
-        if (!nameHidden && !roofClosed && r.room.roof === undefined && r.room.comodo === undefined && !hasTexts && r.room.dark === undefined) return r
+        if (
+          !nameHidden &&
+          !roofClosed &&
+          r.room.roof === undefined &&
+          r.room.comodo === undefined &&
+          !hasTexts &&
+          r.room.dark === undefined &&
+          r.room.faccao === undefined
+        )
+          return r
         // TEXTO DA SALA: a nota do mestre NUNCA sai. O texto de entrada só sai
         // para quem está dentro agora ou já esteve (`enteredRooms`), e nunca de
         // Sala sob teto fechado ou em zona oculta — o texto fala do que tem lá dentro.
         // `comodo` é configuração do mestre: a tela do jogador não precisa dele.
-        const { textoAoEntrar, notaDoMestre: _nota, comodo: _comodo, ...room } = r.room
+        // FACÇÃO: quem manda aqui é anotação do mestre e nunca sai, nem para quem está dentro.
+        const { textoAoEntrar, notaDoMestre: _nota, comodo: _comodo, faccao: _faccao, ...room } = r.room
         const readable = !roofClosed && !inZone && hasEnterText(r.room)
         const occupied = readable && ownTokens.some((t) => isStrictlyInsideReadableRoom(r.points, { x: t.x, y: t.y }))
         if (occupied) occupiedRooms.push(r.id)
@@ -3438,13 +3451,17 @@ function canReadPin(pin: Pin, readers: readonly PinReader[], grid: number, hidde
  * - `soMarco` quando `known` é falso: o pino só chegou por ser marco, e a
  *   passagem por ele não vale daqui.
  * - `nome` NUNCA: é o nome só do mestre, e o cartão do jogador é a descrição.
+ * - `passe` (o item e as fichas que abrem a catraca) NUNCA: diria o que abre
+ *   a passagem e quem já pode passar. Quem confere é o host, na ficha do
+ *   mapa do mestre (`net/hostSession.ts`).
  */
 function pinForPlayer(pin: Pin, ownTokens: readonly Token[], grid: number, readable: boolean, known: boolean, oneWay?: ReadonlySet<string>): Pin {
   // LISTA DO QUE VAI, e não "copia tudo e apaga o que não pode": campo que o
   // arquivo trouxer e o app não conhece (versão futura, edição à mão) não
   // chega ao jogador por descuido (revisão de segurança, 22/09). `destino`,
   // `rotulo` e `saidas` ficam de fora — o destino de cada saída diria que a
-  // outra cena existe. `marco` e `lerDePerto` também: são regra do host.
+  // outra cena existe —, e `passe` também (a lista de quem tem passe).
+  // `marco` e `lerDePerto` também: são regra do host.
   // `nome` também, e de propósito: é o rótulo SÓ DO MESTRE ("Faca") — o
   // jogador lê a descrição (teste em `fogFilter.pinoNome.test.ts`).
   // `notaDoMestre` ("só eu leio") fica de fora SEMPRE: o jogador lê

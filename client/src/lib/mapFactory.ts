@@ -1,9 +1,10 @@
 import type {
   MapData, Wall, Light, Region, Token, Prop, Drawing, DoorState, DoorSide, LayerId, GridSettings,
   Stair, StairDirection, StairShape, DoorKind, MapScale, MeasurementMode, FloorPiece, FloorStyle, MapLine, MapMarker, MapFrame,
-  ConcealZone, Pin, PinIcon, PinKind, RoomMeta, MovementRules, SceneFloor,
+  ConcealZone, Pin, PinIcon, PinKind, RoomMeta, MovementRules, SceneFloor, NivelAlerta,
 } from '../types/map'
 import type { Point } from '../pixi/world'
+import { alertaDaCena, limitarFaccao } from './faccoes'
 import { syncLinkedWallsToPoints, remapForInsert, remapForRemove, translateLinkedWalls, previousEdgeIndex } from './roomLink'
 import { simplifyPolygon, chaikinSmooth } from './regionSmoothing'
 import { edgesCoveredByParent, findContainingRoom, insertIndexAfterSubtree, pointOnPolygonBorder, subtreeIds } from './roomNesting'
@@ -19,6 +20,7 @@ import { DEFAULT_FLOOR_STYLE } from './mapFile'
 import { sameDestination, sameExits } from './pinTravel'
 import { passageOf } from './pins'
 import { sameLock } from './pinLock'
+import { samePinPass } from './pinPass'
 import { moveTokenCarryingLights, withoutAttachment } from './lightAttachment'
 import { seatStairPins, withoutStairPins } from './stairTravel'
 import { carryAttachedPins, carryPinsByTokenSteps } from './pinAttach'
@@ -1726,6 +1728,30 @@ export function setRoomDark(map: MapData, id: string, dark: boolean): MapData {
   }
 }
 
+/**
+ * FACÇÃO da Sala (`RoomMeta.faccao`). Guarda o que o mestre digitou, só no
+ * teto — aparar a cada tecla comeria o espaço entre "Guarda" e "Carmesim" no
+ * meio da digitação; quem lê apara (`lib/faccoes.ts`). Texto em branco tira o
+ * campo. Mesmo contrato de `setRoomTexts`: região comum, id inexistente ou
+ * nada diferente devolve o mesmo `map`.
+ */
+export function setRoomFaccao(map: MapData, id: string, texto: string): MapData {
+  const region = map.regions.find((r) => r.id === id)
+  if (!region || !region.room) return map
+  const faccao = texto.trim() === '' ? undefined : limitarFaccao(texto)
+  if (faccao === region.room.faccao) return map
+  const { faccao: _anterior, ...semFaccao } = region.room
+  const room: RoomMeta = faccao === undefined ? semFaccao : { ...semFaccao, faccao }
+  return { ...map, regions: map.regions.map((r) => (r.id === id ? { ...r, room } : r)) }
+}
+
+/** NÍVEL DE ALERTA da cena. Voltar a calmo tira o campo; o mesmo nível devolve o mesmo `map`. */
+export function setSceneAlerta(map: MapData, nivel: NivelAlerta): MapData {
+  if (nivel === alertaDaCena(map)) return map
+  const { alerta: _anterior, ...semAlerta } = map
+  return nivel === 'calmo' ? semAlerta : { ...semAlerta, alerta: nivel }
+}
+
 /** Entidades que aceitam "Oculto para jogadores" (`PlayerSecret` em types/map.ts). */
 export type SecretKind = 'token' | 'region' | 'prop' | 'stair' | 'drawing' | 'pin'
 
@@ -1786,7 +1812,7 @@ export function addPin(map: MapData, pin: Pin): MapData {
 export function updatePin(
   map: MapData,
   id: string,
-  patch: Partial<Pick<Pin, 'kind' | 'icon' | 'description' | 'nome' | 'notaDoMestre' | 'image' | 'locked' | 'destino' | 'passagem' | 'mudo' | 'motivo' | 'rotulo' | 'saidas' | 'item' | 'abreCom' | 'presoA' | 'portaLigada' | 'marco' | 'lerDePerto' | 'segredo'>>,
+  patch: Partial<Pick<Pin, 'kind' | 'icon' | 'description' | 'nome' | 'notaDoMestre' | 'image' | 'locked' | 'destino' | 'passagem' | 'passe' | 'mudo' | 'motivo' | 'rotulo' | 'saidas' | 'item' | 'abreCom' | 'presoA' | 'portaLigada' | 'marco' | 'lerDePerto' | 'segredo'>>,
 ): MapData {
   const pin = map.pins.find((p) => p.id === id)
   if (!pin) return map
@@ -1835,7 +1861,10 @@ export function updatePin(
     sameLock(next.segredo, pin.segredo) &&
     // Motivo do bloqueio: `undefined` é "Está trancada". Tirar o motivo de
     // quem nunca teve não é mudança; trocar "Desabou" por "Alagada" é.
-    next.motivo === pin.motivo
+    next.motivo === pin.motivo &&
+    // PASSE: trocar o item ou marcar/desmarcar uma ficha é mudança; gravar o
+    // mesmo passe (ou apagar um que nunca existiu) não é.
+    samePinPass(next.passe, pin.passe)
   ) {
     return map
   }

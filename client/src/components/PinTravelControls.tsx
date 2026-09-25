@@ -3,6 +3,8 @@ import type { PinTravel, TravelPinOption, TravelSceneOption } from '../lib/pinTr
 import { EXIT_EXTRA_MAX_COUNT, EXIT_LABEL_MAX_LENGTH, isArrivalOnly, travelExitsOf, travelPlaceName, travelSceneLabel } from '../lib/pinTravel'
 import { PIN_BLOCK_REASON_LABELS, PIN_BLOCK_REASON_NONE_LABEL, PIN_BLOCK_REASON_ORDER, PIN_PASSAGE_LABELS, PIN_PASSAGE_ORDER, passageOf } from '../lib/pins'
 import { SCENE_FILTER_MIN, sceneSearchSummary, sceneSearchWords, searchScenes } from '../lib/sceneSearch'
+import { ITEM_NAME_MAX_LENGTH } from '../lib/items'
+import type { PassTokenOption } from '../lib/pinPass'
 import type { PinBlockReason, PinPassage } from '../types/map'
 import { ChevronDownIcon } from './icons'
 import { DoorKeyField } from './WallDoorControls'
@@ -62,6 +64,13 @@ export interface PinTravelControlsProps {
   /** Por que a passagem está trancada; `undefined` = "Trancada" (a chave). Só aparece no modo trancada. */
   motivo: PinBlockReason | undefined
   onMotivoChange: (motivo: PinBlockReason | undefined) => void
+  /** Só no modo passe: o item que abre a passagem ("Crachá"); vazio = nenhum. */
+  passItem: string
+  /** Grava o item do passe (ao sair do campo). */
+  onPassItemChange: (item: string) => void
+  /** Só no modo passe: as fichas que o mestre pode marcar, e quais já estão marcadas. */
+  passTokens: readonly PassTokenOption[]
+  onPassTokenToggle: (tokenId: string, on: boolean) => void
   /** MÃO ÚNICA da saída `exitId`: marca (ou desmarca) o par dela como chegada oculta. */
   onOneWayChange: (exitId: string, on: boolean) => void
   /**
@@ -106,6 +115,8 @@ const NOVA_ERRO_ID = 'lb-pin-travel-new-scene-error'
 /** O mesmo teto do nome no "+ Nova cena" de Cenas. */
 const NOME_DA_CENA_MAX = 80
 const DOIS_LADOS_ID = 'lb-pin-travel-both-sides'
+const PASSE_ITEM_ID = 'lb-pin-travel-pass-item'
+const PASSE_FICHAS_ID = 'lb-pin-travel-pass-tokens'
 
 /** A chave do gatilho que abriu a escolha: o id da saída, ou esta para "+ Outra saída". */
 const GATILHO_NOVA = '+nova'
@@ -115,6 +126,7 @@ const EFEITO_DA_PASSAGEM: Record<PinPassage, string> = {
   pede: 'O jogador pede e você decide se ele passa.',
   livre: 'O jogador passa sozinho; você só lê que ele chegou.',
   trancada: 'Ninguém passa por aqui, e nenhum pedido chega a você.',
+  passe: 'Quem tem o passe passa sozinho; quem não tem pede, e você lê “sem passe”.',
 }
 
 /** Trancada que aceita tentativas: o jogador ainda pode pedir. */
@@ -197,6 +209,10 @@ export function PinTravelControls({
   onAcceptsAttemptsChange,
   motivo,
   onMotivoChange,
+  passItem,
+  onPassItemChange,
+  passTokens,
+  onPassTokenToggle,
   onOneWayChange,
   onBothSidesChange,
   arrivalOnly,
@@ -507,6 +523,11 @@ export function PinTravelControls({
         </>
       )}
 
+      {/* PASSE: o que abre a catraca para quem tem o item ou a marca do mestre. */}
+      {passage === 'passe' && (
+        <PasseDoPino item={passItem} onItemChange={onPassItemChange} fichas={passTokens} onToggle={onPassTokenToggle} />
+      )}
+
       {escolha !== null && (
         <div id={SELETOR_ID} ref={seletorRef} className="lb-travel__picker">
           {escolha.passo === 'cena' ? (
@@ -794,6 +815,84 @@ function PassoDaCenaNova({ nome, vazio, onChange, onCreate, onBack, onCancel }: 
         </button>
       </div>
     </>
+  )
+}
+
+interface PasseDoPinoProps {
+  item: string
+  onItemChange: (item: string) => void
+  fichas: readonly PassTokenOption[]
+  onToggle: (tokenId: string, on: boolean) => void
+}
+
+/**
+ * O que abre a catraca: o ITEM na mochila ("Crachá") e/ou a MARCA do mestre
+ * em cada ficha. O campo grava ao sair (Tab, clique fora, Enter), como o
+ * "Nome da saída": gravar a cada tecla empilharia uma entrada de desfazer por
+ * letra; Esc devolve o gravado sem deixar o Esc chegar ao mapa. Cada ficha é
+ * um botão liga/desliga (`aria-pressed`), como "Mão única".
+ */
+function PasseDoPino({ item, onItemChange, fichas, onToggle }: PasseDoPinoProps) {
+  // A `key` inclui o item gravado: o desfazer que troca o item troca o campo junto.
+  return (
+    <div className="lb-travel__pass">
+      <CampoDoItemDoPasse key={item} item={item} onCommit={onItemChange} />
+      <span className="lb-label" id={PASSE_FICHAS_ID}>
+        Fichas com passe
+      </span>
+      {fichas.length === 0 ? (
+        <p className="lb-travel__hint">Nenhuma ficha de jogador nesta cena para marcar.</p>
+      ) : (
+        <div className="lb-travel__row lb-travel__row--wrap" role="group" aria-labelledby={PASSE_FICHAS_ID}>
+          {fichas.map((ficha) => (
+            <button
+              key={ficha.id}
+              type="button"
+              className="lb-btn lb-btn--ghost"
+              aria-pressed={ficha.marcada}
+              onClick={() => onToggle(ficha.id, !ficha.marcada)}
+            >
+              {ficha.nome}
+            </button>
+          ))}
+        </div>
+      )}
+      <p className="lb-travel__hint">O jogador não vê o item nem quem tem passe: ele só tenta passar.</p>
+    </div>
+  )
+}
+
+function CampoDoItemDoPasse({ item, onCommit }: { item: string; onCommit: (item: string) => void }) {
+  const [rascunho, setRascunho] = useState(item)
+  const gravar = () => {
+    if (rascunho.trim() !== item) onCommit(rascunho)
+  }
+  return (
+    <div className="lb-field">
+      <label className="lb-label" htmlFor={PASSE_ITEM_ID}>
+        Item do passe
+      </label>
+      <input
+        id={PASSE_ITEM_ID}
+        type="text"
+        className="lb-input"
+        value={rascunho}
+        placeholder="Crachá"
+        maxLength={ITEM_NAME_MAX_LENGTH}
+        onChange={(event) => setRascunho(event.target.value)}
+        onBlur={gravar}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter') {
+            event.preventDefault()
+            event.currentTarget.blur()
+          } else if (event.key === 'Escape') {
+            event.preventDefault()
+            event.stopPropagation()
+            setRascunho(item)
+          }
+        }}
+      />
+    </div>
   )
 }
 

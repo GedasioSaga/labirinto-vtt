@@ -5,7 +5,7 @@ import { useToastStore } from './toastStore'
 import * as mapFactory from '../lib/mapFactory'
 import { buildRoomFromDraft } from '../lib/drawingFactory'
 import { EMPTY_SELECTION, selectionOfItem } from '../lib/selectionModel'
-import type { Drawing, MapData, Region } from '../types/map'
+import type { Drawing, MapData, Region, Token } from '../types/map'
 
 // Copiar, colar e recortar (item 8 de docs/features-candidatas-2026-09-21.md).
 // A régua e2e é client/e2e/task-jornada-copiar-e-colar.spec.ts; aqui o mesmo
@@ -129,6 +129,28 @@ describe('copiar, colar e recortar', () => {
     expect(colada.fillColor).toBe('#1e32d2')
     expectPerto(centroDaSala(colada), cursor)
     expect(map.walls.filter((w) => w.regionId === colada.id)).toHaveLength(4)
+  })
+
+  it('ficha colada (copiada ou recortada) sempre ganha id novo, mesmo onde já há uma ficha com o id dela', () => {
+    const grog: Token = { id: 'grog', characterId: null, name: 'Grog', x: 100, y: 100, size: 1, image: null }
+    useMapStore.setState({ map: mapFactory.addToken(salao(), grog) })
+    useMapStore.getState().setSelection(selectionOfItem({ kind: 'token', id: 'grog' }))
+    useMapStore.getState().copySelected()
+    // A outra cena já tem uma ficha "grog" (cena copiada): colar não a substitui.
+    useMapStore.getState().loadMap(mapFactory.addToken(cripta(), { ...grog, name: 'Grog da Cripta' }))
+    expect(useMapStore.getState().pasteClipboardAt({ x: 300, y: 300 })).toBe(true)
+    const naCripta = useMapStore.getState().map.tokens
+    expect(naCripta.map((t) => t.name)).toEqual(['Grog da Cripta', 'Grog'])
+    expect(naCripta[0]?.id).toBe('grog')
+    expect(naCripta[1]?.id).not.toBe('grog')
+
+    // Recortar e colar de volta também não reaproveita o id.
+    useMapStore.getState().setSelection(selectionOfItem({ kind: 'token', id: 'grog' }))
+    useMapStore.getState().cutSelected()
+    useMapStore.getState().pasteClipboardAt({ x: 500, y: 500 })
+    const depois = useMapStore.getState().map.tokens
+    expect(depois).toHaveLength(2)
+    expect(depois.some((t) => t.id === 'grog')).toBe(false)
   })
 
   it('sala recortada e colada mantém o nome exato (não é cópia, é a mesma sala em outro lugar)', () => {
