@@ -2435,6 +2435,13 @@ body {
   padding-left: var(--lb-space-4);
 }
 
+/* "Dar um mapa a…": uma cena grande tem centenas de Salas; a lista rola
+   dentro do poço em vez de empurrar o painel inteiro. */
+.lb-papel__list {
+  max-height: 240px;
+  overflow-y: auto;
+}
+
 /* Abas Mapa | Sala no topo do rail (só no Tauri). Visual do segmented. */
 .lb-railtabs {
   display: grid;
@@ -3955,6 +3962,264 @@ html.lb-arrastando-cena * {
   font-variant-numeric: tabular-nums;
 }
 
+/* Corte da torre (CorteDaTorre.tsx): a aventura de lado, no estilo do
+   minimapa — faixas chapadas escuras, uma por andar, fio claro fino nas
+   bordas e nos poços, fichas em disco. Nada de hachura nem traço grosso. */
+.lb-dialog.lb-corte {
+  width: min(720px, 100%);
+  will-change: transform;
+}
+
+.lb-corte__corpo {
+  padding: var(--lb-space-4);
+}
+
+.lb-corte__vazio {
+  margin: 0 0 var(--lb-space-3);
+  color: var(--lb-color-parchment-faint);
+  font-size: var(--lb-font-size-sm);
+}
+
+.lb-corte__pilha {
+  display: grid;
+  column-gap: var(--lb-space-1);
+}
+
+/* O poço: um fio vertical claro que atravessa as faixas dos andares que liga. */
+.lb-corte__poco {
+  justify-self: center;
+  width: 1px;
+  background: var(--lb-color-parchment-dim);
+}
+
+.lb-corte__andar {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--lb-space-2);
+  min-width: 0;
+  padding: var(--lb-space-2);
+  border-top: 1px solid var(--lb-color-line-strong);
+  background: var(--lb-color-stone-sunken);
+}
+
+.lb-corte__andar:last-child {
+  border-bottom: 1px solid var(--lb-color-line-strong);
+}
+
+.lb-corte__numero {
+  flex: none;
+  min-width: 2ch;
+  padding-top: 3px;
+  color: var(--lb-color-parchment-faint);
+  font-family: var(--lb-font-utility);
+  font-size: var(--lb-font-size-xs);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.lb-corte__cenas {
+  display: flex;
+  flex: 1;
+  flex-wrap: wrap;
+  gap: var(--lb-space-2);
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.lb-corte__cena {
+  display: flex;
+  align-items: center;
+  gap: var(--lb-space-1);
+  min-width: 0;
+  padding: 2px var(--lb-space-1);
+  border: 1px solid var(--lb-color-line);
+  border-radius: var(--lb-radius-sm);
+  background: var(--lb-color-stone-solid);
+}
+
+.lb-corte__nome {
+  min-width: 0;
+  max-width: 18ch;
+  overflow: hidden;
+  padding: 2px var(--lb-space-1);
+  border: 0;
+  border-radius: var(--lb-radius-sm);
+  background: none;
+  color: var(--lb-color-parchment);
+  font: inherit;
+  font-size: var(--lb-font-size-sm);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.lb-corte__nome:hover:not(:disabled) {
+  background: var(--lb-color-stone-hover);
+}
+
+.lb-corte__nome[aria-current='true'] {
+  color: var(--lb-color-brass);
+  font-weight: var(--lb-font-weight-semibold);
+}
+
+.lb-corte__nome:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.lb-corte__pontos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+}
+
+/* A área de toque é o botão inteiro (16 px); o disco de 10 px é o desenho. */
+.lb-corte__ponto {
+  position: relative;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: 3px solid transparent;
+  border-radius: 50%;
+  background-clip: content-box;
+  cursor: pointer;
+  box-shadow: inset 0 0 0 1px var(--lb-color-parchment-faint);
+}
+
+.lb-corte__ponto--npc {
+  background: none;
+  box-shadow: inset 0 0 0 1px var(--lb-color-parchment-dim);
+}
+
+.lb-corte__ponto--fora {
+  opacity: 0.45;
+}
+
+.lb-corte__ponto:hover {
+  box-shadow: inset 0 0 0 1px var(--lb-color-parchment);
+}
+
+/* Pedido de passagem esperando: um anel de latão que pulsa em volta do disco. */
+.lb-corte__ponto--pedido::after {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border: 1px solid var(--lb-color-brass);
+  border-radius: 50%;
+  animation: lb-corte-pedido 1.4s ease-out infinite;
+  pointer-events: none;
+}
+
+@keyframes lb-corte-pedido {
+  from {
+    opacity: 1;
+    transform: scale(0.8);
+  }
+  to {
+    opacity: 0;
+    transform: scale(1.3);
+  }
+}
+
+/* O bloco global encurta animações para 1 ms, e um pulso infinito de 1 ms
+   pisca: aqui o anel fica parado, aceso. */
+@media (prefers-reduced-motion: reduce) {
+  .lb-corte__ponto--pedido::after {
+    animation: none;
+  }
+}
+
+/* Revisar aventura (RevisorAventura.tsx): três grupos de linhas densas, cada
+   uma com a cena em cinza, o problema e as ações à direita. Sem cor de alarme
+   gritando: o grupo diz a gravidade, a ordem diz o que olhar primeiro. */
+.lb-cenas__revisar {
+  margin-top: var(--lb-space-2);
+}
+
+.lb-dialog.lb-revisor {
+  width: min(640px, 100%);
+  will-change: transform;
+}
+
+.lb-revisor__corpo {
+  padding: 0 var(--lb-space-4) var(--lb-space-4);
+}
+
+.lb-revisor__aviso {
+  min-height: 1.4em;
+  margin: var(--lb-space-2) 0 0;
+  color: var(--lb-color-brass);
+  font-size: var(--lb-font-size-sm);
+}
+
+.lb-revisor__grupo + .lb-revisor__grupo {
+  margin-top: var(--lb-space-3);
+}
+
+.lb-revisor__titulo {
+  margin: var(--lb-space-2) 0 var(--lb-space-1);
+  color: var(--lb-color-parchment);
+  font-size: var(--lb-font-size-sm);
+  font-weight: var(--lb-font-weight-semibold);
+}
+
+.lb-revisor__conta {
+  color: var(--lb-color-parchment-faint);
+  font-weight: var(--lb-font-weight-medium);
+  font-variant-numeric: tabular-nums;
+}
+
+.lb-revisor__vazio {
+  margin: 0;
+  color: var(--lb-color-parchment-faint);
+  font-size: var(--lb-font-size-sm);
+}
+
+.lb-revisor__lista {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--lb-color-line);
+}
+
+.lb-revisor__item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--lb-space-2);
+  padding: var(--lb-space-2) 0;
+  border-bottom: 1px solid var(--lb-color-line);
+}
+
+.lb-revisor__texto {
+  flex: 1 1 260px;
+  min-width: 0;
+  margin: 0;
+  color: var(--lb-color-parchment);
+  font-size: var(--lb-font-size-sm);
+  line-height: var(--lb-font-leading-normal);
+  overflow-wrap: anywhere;
+}
+
+.lb-revisor__cena {
+  display: block;
+  color: var(--lb-color-parchment-faint);
+  font-size: var(--lb-font-size-xs);
+}
+
+.lb-revisor__acoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--lb-space-1);
+}
+
+.lb-revisor__acoes > .lb-btn {
+  min-height: 28px;
+  font-size: var(--lb-font-size-sm);
+}
+
 /* Objetos do mapa (MapObjectsSection): busca e lista da cena aberta. A linha é
    densa como a de Camadas — com trinta salas o olho precisa varrer, não ler
    cartões —, e a marca à esquerda repete em miniatura o desenho do minimapa:
@@ -4305,6 +4570,57 @@ html.lb-arrastando-cena * {
   margin: 0;
   padding: 0;
   border: 0;
+}
+
+/* Marcas dos jogadores (MarcasDaCena): o recado inteiro, quem deixou e "Apagar". */
+.lb-marcas {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-2);
+}
+
+.lb-marcas__resumo {
+  margin: 0;
+  font-size: var(--lb-font-size-sm);
+  line-height: var(--lb-font-leading-normal);
+  color: var(--lb-color-parchment-faint);
+}
+
+.lb-marcas__lista {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.lb-marcas__item {
+  display: flex;
+  align-items: center;
+  gap: var(--lb-space-2);
+}
+
+.lb-marcas__texto {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.lb-marcas__recado {
+  overflow-wrap: anywhere;
+  color: var(--lb-color-parchment);
+  font-size: var(--lb-font-size-md);
+}
+
+.lb-marcas__autor {
+  font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-parchment-faint);
+}
+
+.lb-marcas__apagar {
+  flex: 0 0 auto;
 }
 
 /* Destino do pino de viagem (PinTravelControls): um poço rebaixado logo abaixo

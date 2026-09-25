@@ -18,6 +18,7 @@ import { apagarBlocosDoChao } from './floorTool'
 import { DEFAULT_FLOOR_STYLE } from './mapFile'
 import { sameDestination, sameExits } from './pinTravel'
 import { passageOf } from './pins'
+import { sameLock } from './pinLock'
 import { moveTokenCarryingLights, withoutAttachment } from './lightAttachment'
 import { seatStairPins, withoutStairPins } from './stairTravel'
 import { carryAttachedPins, carryPinsByTokenSteps } from './pinAttach'
@@ -1785,7 +1786,7 @@ export function addPin(map: MapData, pin: Pin): MapData {
 export function updatePin(
   map: MapData,
   id: string,
-  patch: Partial<Pick<Pin, 'kind' | 'icon' | 'description' | 'nome' | 'image' | 'locked' | 'destino' | 'passagem' | 'mudo' | 'rotulo' | 'saidas' | 'item' | 'abreCom' | 'presoA' | 'portaLigada' | 'marco' | 'lerDePerto'>>,
+  patch: Partial<Pick<Pin, 'kind' | 'icon' | 'description' | 'nome' | 'image' | 'locked' | 'destino' | 'passagem' | 'mudo' | 'rotulo' | 'saidas' | 'item' | 'abreCom' | 'presoA' | 'portaLigada' | 'marco' | 'lerDePerto' | 'segredo'>>,
 ): MapData {
   const pin = map.pins.find((p) => p.id === id)
   if (!pin) return map
@@ -1826,7 +1827,9 @@ export function updatePin(
     // CHAVE ABRE PORTA: `undefined` === sem chave; apagar um campo vazio não é mudança.
     next.abreCom === pin.abreCom &&
     // "Aceita tentativas" do trancado: só `true` é mudo, ausente é aceita.
-    (next.mudo === true) === (pin.mudo === true)
+    (next.mudo === true) === (pin.mudo === true) &&
+    // Fechadura com segredo: gravar a mesma combinação de novo não é mudança.
+    sameLock(next.segredo, pin.segredo)
   ) {
     return map
   }

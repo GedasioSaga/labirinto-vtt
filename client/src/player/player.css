@@ -1200,6 +1200,34 @@
   color: var(--lb-color-danger, #e07a5f);
 }
 
+.pp-input[aria-invalid='true'] {
+  border-color: var(--lb-color-danger, #e07a5f);
+}
+
+/* BILHETE NO LUGAR: "Bilhete | Seta de giz" lado a lado e a rosa de 8 rumos em 3 x 3 (o meio é a ficha). */
+.pp-mark__tipos {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+}
+
+.pp-mark__rosa {
+  display: grid;
+  grid-template-columns: repeat(3, 44px);
+  gap: 4px;
+  justify-content: start;
+}
+
+.pp-mark__rosa .pp-button {
+  min-height: 44px;
+  padding: 0;
+  font-size: 18px;
+}
+
+.pp-mark__rosa .pp-button:nth-child(5) {
+  grid-column: 3;
+}
+
 /* Foco por teclado visível em tudo que é interativo no painel e na barra (anel de latão do editor). */
 .pp-panel :focus-visible,
 .pp-bar :focus-visible {
@@ -1449,6 +1477,98 @@
 .pp-pincard__choices {
   display: flex;
   gap: 8px;
+}
+
+/* FECHADURA COM SEGREDO: a mesma moldura fina da pergunta de passagem. */
+.pp-lock {
+  display: grid;
+  gap: 10px;
+  margin: 10px 12px 0;
+  padding: 12px;
+  border: 1px solid var(--lb-color-line-panel, rgba(255, 255, 255, 0.18));
+  border-radius: 10px;
+}
+
+.pp-lock .pp-pincard__travel {
+  margin: 0;
+}
+
+.pp-lock__field {
+  display: grid;
+  gap: 6px;
+}
+
+.pp-lock__label {
+  font-size: 13px;
+  color: var(--lb-color-parchment-dim, #a9a7a0);
+}
+
+.pp-lock__input {
+  min-width: 0;
+  padding: 10px 12px;
+  font: inherit;
+  font-size: 18px;
+  letter-spacing: 0.12em;
+  color: var(--lb-color-parchment, #ece9e1);
+  background: transparent;
+  border: 1px solid var(--lb-color-line-panel, rgba(255, 255, 255, 0.18));
+  border-radius: 8px;
+}
+
+.pp-lock__wheels {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: center;
+}
+
+.pp-lock__wheel {
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+}
+
+/* 44 px de alvo: o volante se gira com o polegar. */
+.pp-lock__turn {
+  width: 44px;
+  height: 32px;
+  padding: 0;
+  font: inherit;
+  font-size: 12px;
+  color: var(--lb-color-parchment-dim, #a9a7a0);
+  background: transparent;
+  border: 1px solid var(--lb-color-line-panel, rgba(255, 255, 255, 0.18));
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.pp-lock__turn:hover {
+  color: var(--lb-color-parchment, #ece9e1);
+}
+
+.pp-lock__digit {
+  min-width: 44px;
+  font-size: 22px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.3;
+  text-align: center;
+  color: var(--lb-color-parchment, #ece9e1);
+}
+
+.pp-lock__input:focus-visible,
+.pp-lock__turn:focus-visible {
+  outline: 2px solid var(--lb-color-brass, #e0a44a);
+  outline-offset: 2px;
+}
+
+.pp-lock__status {
+  margin: 10px 12px 0;
+  font-size: 15px;
+  color: var(--lb-color-parchment-dim, #a9a7a0);
+}
+
+.pp-lock__status--open {
+  color: var(--lb-color-brass, #e0a44a);
 }
 
 /* ENCRUZILHADA: uma saída por botão, empilhadas, cada uma com o rótulo que o
@@ -1823,6 +1943,50 @@
   line-height: 1.5;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+}
+
+/* ABALO: de que lado veio. Seta grande e o rumo por extenso, na cor de destaque do cartão. */
+.pp-note__seta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 14px;
+  color: var(--lb-color-brass, #e0a44a);
+}
+
+.pp-note__seta-glifo {
+  font-size: 22px;
+  line-height: 1;
+}
+
+/* ABALO na cena do jogador: o cartão sacode uma vez ao chegar (300 ms, como a vibração). */
+.pp-note--forte {
+  animation:
+    pp-note-in 160ms ease-out,
+    pp-note-abalo 300ms ease-in-out 160ms;
+}
+
+@keyframes pp-note-abalo {
+  0%,
+  100% {
+    transform: translate(-50%, 0);
+  }
+  25% {
+    transform: translate(calc(-50% - 4px), 0);
+  }
+  50% {
+    transform: translate(calc(-50% + 4px), 0);
+  }
+  75% {
+    transform: translate(calc(-50% - 2px), 0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pp-note--forte {
+    animation: none;
+  }
 }
 
 /* Aviso de que o recado fica no Caderno: pequeno e apagado, para não competir com o recado. */

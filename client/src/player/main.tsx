@@ -14,7 +14,9 @@ import { PlayerPanel, loadPlayerSettings, savePlayerSettings } from './PlayerPan
 import { PlayerPinCard } from './PlayerPinCard'
 import { ARRIVAL_CARD_TITLE, PlayerNoteCard } from './PlayerNoteCard'
 import { formatNoteTime } from './PlayerNotebook'
+import { PlayerMarkCard } from './PlayerMarkCard'
 import { PlayerClueCard } from './PlayerClues'
+import { mapSharedNoticeText } from './PlayerMapShare'
 import { coverBounds } from './playerCamera'
 import { PlayerZoomControls } from './PlayerZoomControls'
 import { PlayerSceneName } from './PlayerSceneName'
@@ -600,6 +602,8 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
   const [openPinId, setOpenPinId] = useState<string | null>(null)
   /** Pista do Caderno aberta no cartão (MINHAS PISTAS); `null` = fechado. */
   const [openClueId, setOpenClueId] = useState<string | null>(null)
+  /** BILHETE NO LUGAR: bilhete aberto no cartão; `null` = fechado. */
+  const [openMarkId, setOpenMarkId] = useState<string | null>(null)
   /** Menu do toque longo (ações no ponto e "Andar até aqui"); `null` = fechado. */
   const [pointMenu, setPointMenu] = useState<PointMenuState | null>(null)
   const closePointMenu = useCallback(() => setPointMenu(null), [])
@@ -756,7 +760,11 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
   const openPin = openPinId === null ? null : (map?.pins ?? []).find((p) => p.id === openPinId) ?? null
   // Estável: o cartão devolve o foco ao "Fechar" sempre que `onClose` muda, e
   // um snapshot novo a cada passo do mapa tiraria o foco do "Pedir" no meio da pergunta.
-  const closePin = useCallback(() => setOpenPinId(null), [])
+  // Fechar o cartão esquece a resposta da fechadura: reabrir começa limpo.
+  const closePin = useCallback(() => {
+    setOpenPinId(null)
+    connection.resetLockAnswer()
+  }, [connection])
   // Estável pelo mesmo motivo: o cartão do recado religa o Escape quando `onClose` muda.
   const closeNote = useCallback(() => connection.dismissNote(), [connection])
   const closeRoomText = useCallback(() => connection.dismissRoomText(), [connection])
@@ -779,6 +787,7 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
     connection.resetClueShare()
   }, [connection])
   const closeShownClue = useCallback(() => connection.dismissShownClue(), [connection])
+  const closeMark = useCallback(() => setOpenMarkId(null), [])
   const askCluePeers = useCallback(() => connection.askCluePeers(), [connection])
   /** Painel e barra do jogador: a câmera lê, na hora, o que eles cobrem do mapa. */
   const panelRef = useRef<HTMLElement | null>(null)
@@ -867,6 +876,7 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
             onDoorToggle={(wallId) => connection.toggleDoor(wallId)}
             onPinOpen={openPinCard}
             onRoomOpen={(regionId) => connection.openRoomText(regionId)}
+            onMarkOpen={setOpenMarkId}
             focusObstacles={mapObstacles}
             personalNotes={sceneNotes}
             onNoteLongPress={removeNote}
@@ -966,6 +976,18 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
           elsewhere={state.elsewhere}
           // A câmera da cena nova é a da chegada (`PlayerView`, mapa novo): a mesma da viagem.
           onSwitchView={(tokenId) => connection.switchView(tokenId)}
+          mapShare={{
+            peers: state.mapPeers,
+            result: state.mapShare,
+            onAskPeers: () => connection.askMapPeers(),
+            onShare: (name) => connection.shareMap(name),
+            onClose: () => connection.resetMapShare(),
+          }}
+          markForm={{
+            result: state.markPlace,
+            onPlace: (intent) => connection.placeMark(intent),
+            onClose: () => connection.resetMarkPlace(),
+          }}
         />
         {/* DADO ROLADO NA SALA: as últimas rolagens da mesa, sobre o mapa, acima do zoom. Não é controle: fora da ordem do Tab. */}
         <DiceFeed rolls={state.diceRolls ?? NO_DICE_ROLLS} className="pp-dice-feed" />
@@ -1010,6 +1032,9 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
               // Puxou, o cartão sai: o mapa volta inteiro à vista para o jogador ver a porta mexer.
               if (connection.pullLever(openPin.id)) setOpenPinId(null)
             }}
+            // FECHADURA COM SEGREDO: o cartão fica aberto; a resposta do host aparece nele.
+            onTryLock={(tentativa) => connection.answerLock(openPin.id, tentativa)}
+            lockPhase={state.lockAnswer?.pinId === openPin.id ? state.lockAnswer.phase : undefined}
           />
         )}
         {/* MINHAS PISTAS: a pista reaberta do Caderno, com "Mostrar para…".
@@ -1085,6 +1110,7 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
         ) : (
           state.note && (
             // `key` no id: recado novo com outro aberto remonta o cartão (e a entrada anima de novo).
+            // ABALO: o mesmo cartão, com a seta e a vibração de quem está na cena da origem.
             <PlayerNoteCard
               key={state.note.id}
               text={state.note.text}
@@ -1092,6 +1118,8 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
               onClose={closeNote}
               escapeCloses={openPin === null && !clueCardOpen}
               onlyYou={state.note.onlyYou === true}
+              seta={state.note.seta}
+              forte={state.note.forte === true}
             />
           )
         )}
@@ -1128,6 +1156,15 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
           // `key` no id: ruído novo remonta o aviso, e a entrada e o prazo da saída recomeçam.
           <PlayerNoiseCue key={state.noise.id} dir={state.noise.dir} />
         )}
+        {/* BILHETE NO LUGAR: o bilhete tocado no mapa, no mesmo cartão do recado.
+            Espera chegada, recados de fora, recado e texto de Sala fecharem: um cartão de cada vez no mesmo lugar. */}
+        <PlayerMarkCard
+          marcas={state.map.marcas}
+          openMarkId={openMarkId}
+          aguardando={Boolean(state.arrival) || awayNotes.length > 0 || Boolean(state.note) || Boolean(state.roomText)}
+          onClose={closeMark}
+          escapeCloses={openPin === null && !clueCardOpen}
+        />
         {state.travel && (
           <p key={state.travel.id} className="pp-notice pp-notice--travel" role="status" aria-live="polite">
             {travelNoticeText(state.travel)}
@@ -1193,6 +1230,12 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
           // `key` no id: o mesmo aviso repetido reinicia a animação de entrada.
           <p key={actionNotice.id} className="pp-notice" role="status" aria-live="polite">
             {actionNotice.text}
+          </p>
+        )}
+        {/* Mesmo lugar do aviso de ação: com uma recusa na tela, ela vale mais (é do gesto de agora). */}
+        {state.mapShared && !actionNotice && (
+          <p key={state.mapShared.id} className="pp-notice" role="status" aria-live="polite">
+            {mapSharedNoticeText(state.mapShared.from)}
           </p>
         )}
         <TurnWaitNotice notice={state.turnNotice} />

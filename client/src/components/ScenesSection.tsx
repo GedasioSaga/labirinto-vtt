@@ -12,6 +12,8 @@ import {
 import { createPortal } from 'react-dom'
 import { CollapsibleSection } from './CollapsibleSection'
 import { SceneOverviewDialog } from './SceneOverview'
+import { CorteDaTorreDialog } from './CorteDaTorre'
+import type { CorteJogador } from '../lib/corteDaTorre'
 import { ChevronDownIcon, CloseIcon, MoveIntoIcon, SearchIcon } from './icons'
 import { useSceneDrag, type SceneDrag } from './sceneDrag'
 import { SceneAlarmControls, type ActiveAlarmView } from './SceneAlarmControls'
@@ -22,6 +24,10 @@ import { pendingRequestsLabel, type ScenePeople, type ScenePerson, type SceneRoo
 import { esperaLonga, minutosDeEspera, rotuloDeEspera, type EsperaPorCena } from '../lib/cenaQueEspera'
 import type { SceneDeletionInfo, SceneListItem } from '../stores/adventureStore'
 import type { MapData } from '../types/map'
+import { cenasVizinhas, origensDaCena, type AbaloContagem, type AbaloOrigem, type AbaloTextos } from '../lib/abalo'
+import { AbaloForm } from './AbaloForm'
+import { RevisorAventuraDialog } from './RevisorAventura'
+import type { Conserto } from '../lib/revisorAventura'
 
 export interface ScenesSectionProps {
   scenes: SceneListItem[]
@@ -58,6 +64,12 @@ export interface ScenesSectionProps {
   onDelete?: (sceneId: string) => void
   /** O que a confirmação de "Apagar cena…" mostra: pinos que ficam soltos, cenas de dentro que sobem e quem ainda está lá. */
   deletionInfo?: (sceneId: string) => SceneDeletionInfo
+  /**
+   * ABALO POR DISTÂNCIA: um envio só, com a origem, o texto de cada faixa e as
+   * cenas vizinhas da origem (`cenasVizinhas`, pela árvore desta lista).
+   * Ausente = sala fechada: a linha fica sem o botão "Abalo".
+   */
+  onQuake?: AbaloEnvio
   /**
    * CENAS EM PASTAS: põe `sceneId` dentro de `parentId` (`null` = primeiro
    * nível). `false` = não deu. Ausente = mapa solto: sem arrastar e sem
@@ -102,6 +114,20 @@ export interface ScenesSectionProps {
    * fechada: o painel fica só com a "Planta conhecida por todos".
    */
   onRevealPlanFor?: (sceneId: string, playerIds: string[]) => number | null
+  /**
+   * CORTE DA TORRE: leva o editor à cena `sceneId` com o ponto no centro (o
+   * "Ir lá" do Grupo). Com ele e a "Visão geral" possível, a seção ganha o
+   * botão "Corte da torre". Ausente = sem o botão.
+   */
+  onGoToPoint?: (sceneId: string, x: number, y: number) => void
+  /** Jogadores da sala, para o corte pintar os pontos deles. Ausente = sala fechada: só fichas sem dono. */
+  towerPlayers?: readonly CorteJogador[]
+  /**
+   * REVISOR DA AVENTURA: aplica um conserto na cena `sceneId` (`false` = nada
+   * mudou). Com ele, `maps` e `onGoToPoint`, a seção ganha "Revisar aventura"
+   * — também no mapa solto, que tem os mesmos pinos e fichas. Ausente = sem o botão.
+   */
+  onFix?: (sceneId: string, conserto: Conserto) => boolean
 }
 
 /** Um jogador na lista do "Revelar planta para…". */
@@ -242,6 +268,9 @@ function useWaitingMinutes(waitingSince: EsperaPorCena | undefined): ReadonlyMap
 
 const NO_WAITING: ReadonlyMap<string, number> = new Map()
 
+/** Sala fechada: nenhum jogador. Constante para o corte não recalcular a cada render. */
+const NO_TOWER_PLAYERS: readonly CorteJogador[] = []
+
 /** Quanto tempo o aviso "Recado enviado…" fica na linha da cena. */
 export const NOTE_FEEDBACK_MS = 4000
 
@@ -259,6 +288,21 @@ export function noteFeedbackText(sent: number | null): string {
   if (sent === null) return 'Não deu para enviar: a sala não está aberta.'
   if (sent === 0) return 'Ninguém está nesta cena'
   return sent === 1 ? 'Recado enviado a 1 jogador' : `Recado enviado a ${sent} jogadores`
+}
+
+/** O envio do abalo: devolve quantos ouviram em cada faixa, ou `null` com a sala fechada. */
+export type AbaloEnvio = (origem: AbaloOrigem, textos: AbaloTextos, vizinhas: string[]) => AbaloContagem | null
+
+/** O aviso depois do abalo: quantos ouviram em cada faixa (faixa sem ninguém fica de fora). */
+export function abaloFeedbackText(porFaixa: AbaloContagem | null): string {
+  if (porFaixa === null) return 'Não deu para enviar: a sala não está aberta.'
+  const partes = [
+    porFaixa.perto > 0 ? `${porFaixa.perto} nesta cena` : '',
+    porFaixa.andar > 0 ? `${porFaixa.andar} nas vizinhas` : '',
+    porFaixa.longe > 0 ? `${porFaixa.longe} longe` : '',
+  ].filter((parte) => parte !== '')
+  if (partes.length === 0) return 'Ninguém ouviu: nenhum jogador nas faixas com texto'
+  return `Abalo: ${partes.join(', ')}`
 }
 
 /** Sem ninguém para marcar (lista estável: o estado inicial do formulário lê dela). */
@@ -838,6 +882,7 @@ export function ScenesSection({
   onRename,
   people,
   onNote,
+  onQuake,
   maps,
   onDuplicate,
   onShift,
@@ -845,6 +890,9 @@ export function ScenesSection({
   deletionInfo,
   onMove,
   adventureId = null,
+  onGoToPoint,
+  towerPlayers = NO_TOWER_PLAYERS,
+  onFix,
   onAlarm,
   onEndAlarm,
   alarm,
@@ -874,10 +922,20 @@ export function ScenesSection({
   const overviewButtonRef = useRef<HTMLButtonElement | null>(null)
   // Com uma cena só (mapa solto) não há o que comparar: a vista dela já é o editor.
   const canOverview = maps !== undefined && scenes.length > 1
+  /** Janela "Corte da torre" aberta. */
+  const [towerOpen, setTowerOpen] = useState(false)
+  const towerButtonRef = useRef<HTMLButtonElement | null>(null)
+  const canTower = canOverview && onGoToPoint !== undefined
+  /** Janela "Revisar aventura" aberta. */
+  const [reviewOpen, setReviewOpen] = useState(false)
+  const reviewButtonRef = useRef<HTMLButtonElement | null>(null)
+  const canReview = maps !== undefined && onGoToPoint !== undefined && onFix !== undefined
   /** Nome para os jogadores no renomear; o criar não pergunta (a cena nasce sem). */
   const [publicDraft, setPublicDraft] = useState('')
   /** Cena com o recado aberto; `null` = nenhum. */
   const [noting, setNoting] = useState<string | null>(null)
+  /** Cena de origem com o "Abalo" aberto; `null` = nenhuma. O aviso sai no mesmo lugar do recado. */
+  const [quaking, setQuaking] = useState<string | null>(null)
   /** Aviso do último recado (ou da última revelação de planta), na linha da cena; some sozinho. */
   const [noteFeedback, setNoteFeedback] = useState<{ sceneId: string; text: string } | null>(null)
   /** Cena com o "Mover para…" aberto; `null` = nenhuma. */
@@ -905,6 +963,11 @@ export function ScenesSection({
     return index === undefined ? undefined : tree[index]
   }
   const nameOf = (sceneId: string) => rowOf(sceneId)?.entry.name ?? ''
+  /** As Salas e os pinos que o "Abalo" oferece como origem. Cena sem mapa aberto (ou sem `maps`): só "sem ponto". */
+  const originsOf = (sceneId: string) => {
+    const map = maps?.get(sceneId)
+    return map === undefined ? [] : origensDaCena(map)
+  }
   /** As cenas de fora, da mais de fora para a mais de dentro. */
   const ancestorIdsOf = (sceneId: string): string[] => {
     const chain: string[] = []
@@ -928,6 +991,7 @@ export function ScenesSection({
   const toggleFolder = (folderId: string) => {
     if (!collapsed.has(folderId)) {
       if (noting !== null && isInside(noting, folderId)) setNoting(null)
+      if (quaking !== null && isInside(quaking, folderId)) setQuaking(null)
       if (moving !== null && isInside(moving, folderId)) setMoving(null)
     }
     toggle(folderId)
@@ -1046,6 +1110,7 @@ export function ScenesSection({
   const startEditing = (next: NonNullable<Editing>, initial: string, initialPublic = '') => {
     rememberOpener()
     setNoting(null)
+    setQuaking(null)
     setMoving(null)
     setPlanning(null)
     setDraft(initial)
@@ -1058,14 +1123,26 @@ export function ScenesSection({
     setEditing(null)
     setMoving(null)
     setPlanning(null)
+    setQuaking(null)
     setNoteFeedback(null)
     setNoting(sceneId)
+  }
+
+  const startQuake = (sceneId: string) => {
+    rememberOpener()
+    setEditing(null)
+    setMoving(null)
+    setNoting(null)
+    setPlanning(null)
+    setNoteFeedback(null)
+    setQuaking(sceneId)
   }
 
   const startMove = (sceneId: string) => {
     rememberOpener()
     setEditing(null)
     setNoting(null)
+    setQuaking(null)
     setMoveFeedback(null)
     setMoving(sceneId)
   }
@@ -1074,6 +1151,7 @@ export function ScenesSection({
     openerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
     setEditing(null)
     setNoting(null)
+    setQuaking(null)
     setNoteFeedback(null)
     setPlanning(sceneId)
   }
@@ -1098,6 +1176,18 @@ export function ScenesSection({
     const sent = (playerIds === undefined ? onNote?.(sceneId, text) : onNote?.(sceneId, text, playerIds)) ?? null
     setNoteFeedback({ sceneId, text: noteFeedbackText(sent) })
     closeNote()
+  }
+
+  /** Um envio só: as vizinhas saem da árvore desta lista (a mesma pasta, a de fora e as de dentro). */
+  const sendQuake = (sceneId: string, origem: AbaloOrigem, textos: AbaloTextos) => {
+    const porFaixa = onQuake?.(origem, textos, [...cenasVizinhas(scenes, sceneId)]) ?? null
+    setNoteFeedback({ sceneId, text: abaloFeedbackText(porFaixa) })
+    closeQuake()
+  }
+
+  const closeQuake = () => {
+    setQuaking(null)
+    refocusOpener()
   }
 
   const close = () => {
@@ -1184,6 +1274,23 @@ export function ScenesSection({
   const pickFromOverview = (sceneId: string) => {
     const picked = scenes.find((scene) => scene.id === sceneId)
     closeOverview()
+    if (picked !== undefined && !picked.active) onSelect(sceneId)
+  }
+
+  const closeTower = () => {
+    setTowerOpen(false)
+    towerButtonRef.current?.focus()
+  }
+
+  const closeReview = () => {
+    setReviewOpen(false)
+    reviewButtonRef.current?.focus()
+  }
+
+  /** Nome de cena no corte: a mesma regra da miniatura — a já aberta só fecha. */
+  const pickSceneFromTower = (sceneId: string) => {
+    const picked = scenes.find((scene) => scene.id === sceneId)
+    closeTower()
     if (picked !== undefined && !picked.active) onSelect(sceneId)
   }
 
@@ -1476,6 +1583,20 @@ export function ScenesSection({
                   <span aria-hidden="true">✉</span>
                 </button>
               )}
+              {/* ABALO: montado também com o formulário aberto, como o Recado — é para ele que o foco volta. */}
+              {onQuake !== undefined && scene.id !== '' && (
+                <button
+                  type="button"
+                  className="lb-cenas__recado-btn"
+                  aria-label={`Abalo a partir de ${scene.name}`}
+                  aria-expanded={quaking === scene.id}
+                  title="Abalo: um texto por distância para todas as cenas"
+                  disabled={!scene.available}
+                  onClick={() => (quaking === scene.id ? closeQuake() : startQuake(scene.id))}
+                >
+                  <span aria-hidden="true">≋</span>
+                </button>
+              )}
               {/* Mapa solto (`id` vazio) não tem cena para pausar. O nome
                   acessível é o mesmo ligado ou desligado; o estado vai em
                   `aria-pressed`, como pede um botão alternável. */}
@@ -1562,6 +1683,15 @@ export function ScenesSection({
                   onCancel={closeNote}
                 />
               )}
+              {onQuake !== undefined && quaking === scene.id && (
+                <AbaloForm
+                  sceneId={scene.id}
+                  sceneName={scene.name}
+                  origens={originsOf(scene.id)}
+                  onSend={(origem, textos) => sendQuake(scene.id, origem, textos)}
+                  onCancel={closeQuake}
+                />
+              )}
               {onMove !== undefined && moving === scene.id && (
                 <MoveForm
                   sceneName={scene.name}
@@ -1620,9 +1750,60 @@ export function ScenesSection({
             Visão geral
           </button>
         )}
+        {canTower && (
+          <button
+            ref={towerButtonRef}
+            type="button"
+            className="lb-btn"
+            aria-haspopup="dialog"
+            aria-expanded={towerOpen}
+            title="Os andares empilhados, com os poços e quem está em cada um"
+            onClick={() => setTowerOpen(true)}
+          >
+            Corte da torre
+          </button>
+        )}
       </div>
+      {canReview && (
+        <button
+          ref={reviewButtonRef}
+          type="button"
+          className="lb-btn lb-btn--block lb-cenas__revisar"
+          aria-haspopup="dialog"
+          aria-expanded={reviewOpen}
+          title="Texto do mestre à vista, pino sem par e outros problemas das cenas, com Ir lá e conserto"
+          onClick={() => setReviewOpen(true)}
+        >
+          Revisar aventura
+        </button>
+      )}
+      {reviewOpen && maps !== undefined && onGoToPoint !== undefined && onFix !== undefined && (
+        <RevisorAventuraDialog
+          scenes={scenes}
+          maps={maps}
+          onGoTo={(sceneId, x, y) => {
+            closeReview()
+            onGoToPoint(sceneId, x, y)
+          }}
+          onFix={onFix}
+          onClose={closeReview}
+        />
+      )}
       {overviewOpen && canOverview && maps !== undefined && (
         <SceneOverviewDialog scenes={tree.map((row) => row.entry)} maps={maps} onPick={pickFromOverview} onClose={closeOverview} />
+      )}
+      {towerOpen && maps !== undefined && onGoToPoint !== undefined && canTower && (
+        <CorteDaTorreDialog
+          scenes={scenes}
+          maps={maps}
+          players={towerPlayers}
+          onPickScene={pickSceneFromTower}
+          onPickPoint={(ponto) => {
+            closeTower()
+            onGoToPoint(ponto.sceneId, ponto.x, ponto.y)
+          }}
+          onClose={closeTower}
+        />
       )}
       {editing !== null && (
         <form className="lb-cenas__form" onSubmit={submit}>

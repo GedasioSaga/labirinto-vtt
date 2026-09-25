@@ -385,6 +385,36 @@ export interface CarriedItem {
 }
 
 /**
+ * FECHADURA COM SEGREDO — como o jogador entra com a combinação no cartão:
+ * `teclado` (digita, aceita letras) ou `volantes` (gira uma rodinha de 0 a 9
+ * por casa).
+ */
+export type PinLockForm = 'teclado' | 'volantes'
+
+/**
+ * A fechadura como o MESTRE a grava. Mora só no mapa do mestre: o recorte do
+ * jogador (`lib/fogFilter.ts`) nunca a copia, e quem confere a tentativa é o
+ * host (`net/hostSession.ts`). Ver `lib/pinLock.ts`.
+ */
+export interface PinLock {
+  /** A combinação. Conferida sem espaço, traço, ponto, barra nem caixa (`normalizeLockAnswer`). */
+  resposta: string
+  forma: PinLockForm
+  /** Um jogador acertou. Ausente = fechada, sem linha de migração; do disco só `true` volta (`readPinLock`). */
+  aberta?: true
+  /** Id da parede-porta DESTA cena que acertar destranca junto (não abre: só destranca). Ausente = nenhuma, sem linha de migração. */
+  abrePorta?: string
+}
+
+/**
+ * O que o JOGADOR sabe da fechadura fechada: a forma e, SÓ nos volantes,
+ * quantas casas ela tem — o que qualquer um vê olhando um cadeado de volantes.
+ * O teclado não mostra o tamanho da senha, então ele nem viaja. Nunca a
+ * resposta nem a porta ligada. Montado por `lib/fogFilter.ts`; o mestre nunca grava.
+ */
+export type PinLockPublic = { forma: 'teclado' } | { forma: 'volantes'; casas: number }
+
+/**
  * Ponto de interesse cravado pelo mestre. O jogador toca o pino no mapa e lê o
  * cartão: imagem em cima, descrição embaixo.
  *
@@ -553,6 +583,17 @@ export interface Pin extends PlayerSecret {
    * dela diria que ela existe. Sem migração: mapa antigo não tem alavanca.
    */
   portaLigada?: string
+  /**
+   * FECHADURA COM SEGREDO, de qualquer tipo de pino. Fechada, o cartão do
+   * jogador pede a combinação e o pino de viagem não deixa passar. NUNCA sai no
+   * recorte do jogador. Ausente = sem fechadura, sem migração.
+   */
+  segredo?: PinLock
+  /**
+   * SÓ NO RECORTE DO JOGADOR, e só com a fechadura fechada: forma e, nos volantes, casas.
+   * `lib/fogFilter.ts` o monta a partir de `segredo`; o mestre nunca o grava.
+   */
+  fechadura?: PinLockPublic
 }
 
 /**
@@ -1111,6 +1152,37 @@ export interface MapMarker {
   shape?: 'rect' | 'ellipse'
 }
 
+/** Para onde a seta de giz aponta: 8 rumos (`l` = leste, `o` = oeste). */
+export type MarcaRumo = 'n' | 'ne' | 'l' | 'se' | 's' | 'so' | 'o' | 'no'
+
+/**
+ * BILHETE NO LUGAR — marca que um JOGADOR deixou num ponto da cena: um
+ * bilhete curto ou uma seta de giz. Fica no mapa (vai no map.json) e aparece
+ * para quem já viu aquele ponto (`lib/fogFilter.ts`, mesma regra do
+ * marcador). `autor` e `em` são só do mestre: o recorte do jogador leva a
+ * marca sem eles (`marcaParaJogador` em `lib/marcas.ts`).
+ */
+export interface MarcaNoLugar {
+  id: string
+  tipo: 'bilhete' | 'seta'
+  /** Ponto em px de mundo. */
+  x: number
+  y: number
+  /*
+   * Os quatro abaixo não têm default no arquivo: `lerMarcasDoArquivo`
+   * (`lib/marcas.ts`) confere a marca campo a campo, sem linha de migração em
+   * `mapFile.ts` — o campo que não é da forma certa volta ausente.
+   */
+  /** Só no bilhete: o recado, já limpo e dentro do teto (`MARCA_TEXTO_MAX`). `undefined` === seta. */
+  texto?: string
+  /** Só na seta. `undefined` === bilhete. */
+  rumo?: MarcaRumo
+  /** Nome, na sala, de quem deixou. Nunca vai ao jogador. `undefined` === autor desconhecido (marca gravada à mão). */
+  autor?: string
+  /** Quando foi deixada (ms, relógio do mestre). Nunca vai ao jogador. `undefined` === hora desconhecida. */
+  em?: number
+}
+
 /** Moldura com título lateral em volta do retângulo `x, y, w, h` do mundo (ver lib/mapFrame.ts). */
 export interface MapFrame {
   title: string
@@ -1210,6 +1282,11 @@ export interface MapData {
   concealZones: ConcealZone[]
   /** Pontos de interesse ("!" e "?"). Vazio em mapa antigo — migração em `lib/mapFile.ts`. */
   pins: Pin[]
+  /**
+   * BILHETE NO LUGAR — marcas deixadas pelos jogadores. `undefined` === `[]`
+   * (mapa de antes do campo), sem linha de migração: mesma regra de `gridOffset`.
+   */
+  marcas?: MarcaNoLugar[]
   frame: MapFrame | null
   fog: FogState
   hiddenLayers: LayerId[] // vazio = tudo visível

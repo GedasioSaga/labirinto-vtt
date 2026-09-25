@@ -6,6 +6,7 @@ import type { PinAttachOption } from '../lib/pinAttach'
 import { PIN_GLYPH, PIN_KIND_LABELS, PIN_KIND_ORDER, PIN_LER_DE_PERTO_MAX, PIN_LER_DE_PERTO_MIN, PIN_NOME_MAX_LENGTH, isPinReadDistance } from '../lib/pins'
 import { GatherControls, type GatherControlsProps } from './GatherControls'
 import { PinIconControls, type PinIconControlsProps } from './PinIconControls'
+import { PinLockControls, type PinLockControlsProps } from './PinLockControls'
 import { PinLeverArt, PinTravelArt } from './PinSymbolArt'
 import { PinTravelControls, type PinTravelControlsProps } from './PinTravelControls'
 import { Toggle } from './Toggle'
@@ -77,6 +78,11 @@ export interface PinControlsProps {
    * viagem, que desenha a passagem).
    */
   iconChoice: PinIconControlsProps | null
+  /**
+   * FECHADURA COM SEGREDO do pino aberto no painel (qualquer tipo). `null` =
+   * nenhum pino aberto: não há fechadura para editar.
+   */
+  lock?: PinLockControlsProps | null
 }
 
 /** Id fixo: só existe um pino aberto no painel por vez (o mesmo molde de `lb-pin-description`). */
@@ -281,6 +287,7 @@ export function PinControls({
   attachment = null,
   lever = null,
   iconChoice,
+  lock = null,
 }: PinControlsProps) {
   const viagem = kind === 'viagem'
   const alavanca = kind === 'alavanca'
@@ -365,6 +372,8 @@ export function PinControls({
             lerDePerto={lerDePerto}
             onLerDePertoChange={onLerDePertoChange}
           />
+          {/* O que o pino É para o jogador (tranca), antes da ação de mesa. */}
+          {lock !== null && <PinLockControls {...lock} />}
           {/* Ação de MESA, não de edição do pino: fica logo depois do que o
               pino é, antes da imagem e do excluir. */}
           {gather !== null && <GatherControlsFor gather={gather} />}

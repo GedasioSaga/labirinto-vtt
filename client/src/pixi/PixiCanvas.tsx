@@ -150,6 +150,7 @@ import { areaTriggerAreas } from '../lib/areaTriggers'
 import { drawWatchCones } from './drawNpcWatch'
 import { drawPatrolRoutes } from './drawNpcPatrol'
 import { createPinsRenderer } from './drawPins'
+import { drawMarcas } from './drawMarcas'
 import { findConcealZoneAt } from '../lib/concealZones'
 import { revealBrushRadius, type RevealBrushMode } from '../lib/concealBrush'
 import { findPinAt, pinKindAfterShortcut } from '../lib/pins'
@@ -1258,6 +1259,10 @@ export function PixiCanvas({
           selectedPinId,
           unlinkedTravelPinIds(useAdventureStore.getState(), map),
         )
+        // BILHETE NO LUGAR: o mestre vê toda marca que os jogadores deixaram,
+        // por baixo dos pinos (índice 0 do mesmo container).
+        if (marksGraphics.parent !== pinsContainer) pinsContainer.addChildAt(marksGraphics, 0)
+        drawMarcas(marksGraphics, map.marcas ?? [])
       }
 
       // Chão por peças fica na camada 'salas', junto das Regiões.
@@ -1412,6 +1417,7 @@ export function PixiCanvas({
       const concealZonesRenderer = createConcealZonesRenderer()
       // O editor é o único que desenha o nome só do mestre ao lado do pino.
       const pinsRenderer = createPinsRenderer({ showNames: true })
+      const marksGraphics = new Graphics()
       const floorRenderer = createFloorRenderer()
       // Gradientes de luz nascem POR RENDERER e morrem no teardown.
       const lightsRenderer = createLightsRenderer()

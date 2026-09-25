@@ -16,7 +16,9 @@ import { isPinIcon, isPinReadDistance, isPlayerSafePinImage, passageOf } from '.
 import { CLUE_TITLE_ONLY_IMAGE, clampClueText, clueTitleFrom } from './clues'
 import { propPlayerImage, propPlayerLabel } from './propPlayerLook'
 import { exitLabelsOf, isArrivalOnly, travelExitsOf, unreadExitLabels } from './pinTravel'
+import { publicLockOf } from './pinLock'
 import { withoutAttachment } from './lightAttachment'
+import { marcaParaJogador } from './marcas'
 import { itemOfPin, tokenReachesPin } from './items'
 import { keyForPin } from './doorKey'
 import { computeVisibility, visionSegments, wallLetsSightThrough, type Segment } from './visibility'
@@ -34,6 +36,7 @@ import { caravanMembers, caravanPoint, caravanTokenFor, isWorldMap } from './car
 import { triggersWithRegions, type PlayerAreaTrigger } from './areaTriggers'
 import { isDarkAt, periodOfHour, type PlayerClock } from './campaignClock'
 import { noiseDirection, type NoiseDirection } from './noise'
+import { setaDoAbalo, type AbaloSeta } from './abalo'
 
 /**
  * Recorte do mapa que um jogador pode receber. Tudo que sai daqui vai pela
@@ -324,6 +327,20 @@ export function memoryBlockedRings(map: MapData): RegionPoint[][] {
  */
 export function playerHiddenRings(map: MapData): RegionPoint[][] {
   return [...activeConcealRings(map), ...secretRoomsOf(map).map((r) => r.points)]
+}
+
+/**
+ * MAPA DE PAPEL — as Salas que o mestre pode gravar na memória de um jogador.
+ * Fica de fora tudo o que o recorte nunca entrega: Sala secreta ou oculta (e o
+ * que está dentro dela, mesma regra de `filterMapForPlayer`), Sala com teto e o
+ * que está sob ele (o interior do prédio só abre andando para dentro) e
+ * polígono que não dá para julgar. Região comum não é Sala: não entra.
+ */
+export function giftableRoomsOf(map: MapData): Region[] {
+  const barred = new Set(
+    map.regions.filter((r) => r.secret || r.hidden || roomHasRoof(r.room)).flatMap((r) => [...subtreeIds(map.regions, r.id)]),
+  )
+  return map.regions.filter((r) => r.room !== undefined && !barred.has(r.id) && isUsablePolygon(r.points))
 }
 
 /**
@@ -1581,6 +1598,9 @@ const FLOOR_SEEN_DEPTH = 1
  * jogador nunca viu (a parede que o mestre ergueu longe dele não aparece). Sem
  * ela, o explorado mostra o presente — só para quem não guarda memória por
  * jogador; o host sempre passa.
+ * `seenMarks`: ids das marcas de jogador (bilhete no lugar) que ESTE jogador já
+ * viu. No explorado só sai marca daqui; marca nova sai só pela visão atual —
+ * senão o bilhete cravado no escuro lembrado entregaria onde o colega está agora.
  */
 export function filterMapForPlayer(
   map: MapData,
@@ -1596,6 +1616,7 @@ export function filterMapForPlayer(
   discoveredSecretRooms?: ReadonlySet<string>,
   peekDoorIds?: ReadonlySet<string>,
   remembered?: PlanMemory,
+  seenMarks?: ReadonlySet<string>,
 ): PlayerMapView {
   // Jogador sem entrada de posse não tem token nem visão. A marca do guarda
   // (?, !) mede as fichas de TODOS os jogadores que ele recebe, não só as dele.
@@ -1608,6 +1629,7 @@ export function filterMapForPlayer(
     discoveredSecretRooms,
     peekDoorIds,
     remembered,
+    seenMarks,
   })
 }
 
@@ -1631,6 +1653,8 @@ export interface PlayerOnlyView {
   peekDoorIds?: ReadonlySet<string>
   /** Memória da planta DESTE jogador (`PlanMemory`), ver `filterMapForPlayer`. A tela da mesa não passa. */
   remembered?: PlanMemory
+  /** Marcas de jogador (bilhete no lugar) que ESTE jogador já viu (`filterMapForPlayer`). A tela da mesa não passa: lá vale só a visão atual. */
+  seenMarks?: ReadonlySet<string>
 }
 
 /** OLHOS DO GUARDA: as fichas de todos os jogadores da sala — quem a marca do guarda considera. */
@@ -1669,10 +1693,10 @@ export function filterMapForGroup(
   explored?: Exploration,
   seenDoors?: ReadonlyMap<string, DoorState>,
   watchTargets?: ReadonlySet<string>,
-  { pinAudiences, enteredRooms, playerId, seenRooms, secretReveals, peekDoorIds, remembered }: PlayerOnlyView = {},
+  { pinAudiences, enteredRooms, playerId, seenRooms, secretReveals, peekDoorIds, remembered, seenMarks }: PlayerOnlyView = {},
 ): PlayerMapView {
   if (isWorldMap(map))
-    return filterWorldMapForGroup(map, viewers, explored, seenDoors, watchTargets, { pinAudiences, enteredRooms, playerId, seenRooms, secretReveals, peekDoorIds, remembered })
+    return filterWorldMapForGroup(map, viewers, explored, seenDoors, watchTargets, { pinAudiences, enteredRooms, playerId, seenRooms, secretReveals, peekDoorIds, remembered, seenMarks })
   const hiddenLayers = map.hiddenLayers
   // Posse é exclusiva (um token, um dono); se viesse repetido, vale o primeiro raio.
   const radiusByToken = new Map<string, number>()
@@ -2996,6 +3020,25 @@ export function filterMapForGroup(
       if (!reached) return []
       return [pinForPlayer(p, ownTokens, map.grid, canReadPin(p, pinReaders, map.grid, hiddenByZone), known)]
     }),
+    // BILHETE NO LUGAR: quem passar ali depois vê. Sai na visão atual; no
+    // explorado, só a marca que ele JÁ VIU (`seenMarks`, como `seenDoors`) —
+    // a marca nasce no centro da ficha de quem a deixa, então marca nova no
+    // escuro lembrado seria a posição atual do colega, que a névoa esconde.
+    // Zona oculta ativa, sala secreta e teto fechado escondem a marca como
+    // escondem o chão (cômodo ainda não visto também, `inHiddenPlace`). Sai
+    // SEMPRE pela lista do que vai (`marcaParaJogador`): autor e hora são do
+    // mestre. Mapa sem o campo continua sem o campo.
+    ...(map.marcas === undefined
+      ? {}
+      : {
+          marcas: map.marcas
+            .filter((m) => {
+              const point = { x: m.x, y: m.y }
+              if (inHiddenPlace(point)) return false
+              return isVisible(point) || (seenMarks?.has(m.id) === true && isPointExploredOpen(point))
+            })
+            .map(marcaParaJogador),
+        }),
     // Metadado do mestre: nome, estado e células do pincel das zonas não saem; só `concealed` (geometria).
     concealZones: [],
   }
@@ -3378,6 +3421,12 @@ function pinForPlayer(pin: Pin, ownTokens: readonly Token[], grid: number, reada
   if (item !== null) forPlayer.item = item
   const key = keyForPin(pin, ownTokens.filter((t) => tokenReachesPin(t, pin, grid)))
   if (key !== null) forPlayer.chave = key.item.nome
+  // FECHADURA COM SEGREDO: `segredo` (resposta e porta ligada) nunca vai. O
+  // jogador recebe `fechadura`, montada AQUI a partir do segredo — só a forma e
+  // (nos volantes) as casas, e só enquanto ela está fechada. Uma `fechadura` que viesse no
+  // mapa do mestre não é copiada.
+  const fechadura = publicLockOf(pin)
+  if (fechadura !== null) forPlayer.fechadura = fechadura
   return forPlayer
 }
 
@@ -3452,6 +3501,25 @@ export function roomClueForPlayer(title: string, text: string): PlayerClueConten
   const clamped = clampClueText(text.trim())
   if (clamped === '') return null
   return { title: clueTitleFrom(title, clueTitleFrom(clamped, CLUE_TITLE_ONLY_IMAGE)), text: clamped, image: null }
+}
+
+/**
+ * ABALO POR DISTÂNCIA — o que do ponto de origem vai ao jogador que está na
+ * cena dele: só o RUMO de 8 pontas (`lib/abalo.ts`), nunca o ponto. É visto da
+ * PRÓPRIA ficha do jogador, e só da ficha que o recorte dele leva (mesma
+ * camada e mesmo "escondido" de `filterMapForPlayer`): ficha que o mestre
+ * escondeu não dá seta, e a ficha de outro jogador nunca serve de referência.
+ * Até uma casa de distância, `aqui`. Sem ficha no recorte: `null` (sem seta).
+ *
+ * Quem chama responde por o jogador ESTAR na cena de `map` e por o mestre ter
+ * escolhido a origem: o abalo é um som que ele decidiu fazer ouvir, então a
+ * seta vale mesmo com a origem no escuro — é o rumo, e não o lugar.
+ */
+export function abaloSetaForPlayer(map: MapData, playerId: string, ownership: Record<string, string[]>, origem: RegionPoint): AbaloSeta | null {
+  const owned = new Set(ownership[playerId] ?? [])
+  const ficha = visibleTokens(map.tokens, map.hiddenLayers).find((t) => owned.has(t.id) && !t.hidden)
+  if (ficha === undefined) return null
+  return setaDoAbalo({ x: ficha.x, y: ficha.y }, origem, map.grid)
 }
 
 /**

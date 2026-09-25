@@ -1,9 +1,11 @@
-import type { AreaTriggerKind, DoorState, HazardKind, MapData, Pin, PinPassage, RegionPoint, Token, Wall } from '../types/map'
+import type { AreaTriggerKind, DoorState, HazardKind, MapData, MarcaNoLugar, Pin, PinPassage, RegionPoint, Token, Wall } from '../types/map'
 import { hazardPresence, newHazardEntries, type HazardEntry } from '../lib/hazards'
 import { areaTriggerPresence, newAreaTriggerEntries, regionAreaName, type AreaTriggerPresence } from '../lib/areaTriggers'
+import { fichaAlcancaPonto, MARCA_INTERVALO_MS, MARCAS_POR_CENA, MARCAS_POR_JOGADOR_POR_CENA } from '../lib/marcas'
 import { createExploration, decodeExploration, encodeExploration, forgetBlocked, forgetInside, isPointExplored, markAll, markRings, mergeExploration, mergeExplored, resizeExploration, type Exploration, type ExploredWire } from '../lib/exploration'
 import { pointInRing } from '../lib/floorContour'
-import { alarmForPlayer, allPlayerTokens, claimableTokensForPlayer, clockForPlayer, diceRollForPlayer, emptyPlanMemory, filterFloorMemory, filterMapForGroup, filterMapForPlayer, memoryBlockedRings, noiseCueForPlayer, ownTokensInView, pinClueForPlayer, planOfWholeMap, playerBlockedRings, roomClueForPlayer, sceneNameForPlayer, turnForPlayer, type GroupViewer, type OwnTokenElsewhere, type PlanMemory, type PlayerClueContent, type PlayerMapView, type SceneAlarm } from '../lib/fogFilter'
+import { abaloSetaForPlayer, alarmForPlayer, allPlayerTokens, claimableTokensForPlayer, clockForPlayer, diceRollForPlayer, emptyPlanMemory, filterFloorMemory, filterMapForGroup, filterMapForPlayer, giftableRoomsOf, memoryBlockedRings, noiseCueForPlayer, ownTokensInView, pinClueForPlayer, planOfWholeMap, playerBlockedRings, roomClueForPlayer, sceneNameForPlayer, turnForPlayer, type GroupViewer, type OwnTokenElsewhere, type PlanMemory, type PlayerClueContent, type PlayerMapView, type SceneAlarm } from '../lib/fogFilter'
+import { faixaDoAbalo, type AbaloContagem, type AbaloFaixa, type AbaloOrigem, type AbaloTextos } from '../lib/abalo'
 import { MASTER_ROLLER_NAME, rollDice, secureRollDie, type DiceRequest, type HostDiceRoll, type RollDie } from '../lib/dice'
 import { CLUEBOOK_MAX_CLUES } from '../lib/clues'
 import { visionRadiusAtHour } from '../lib/campaignClock'
@@ -35,6 +37,7 @@ import { linkedDoorOf } from '../lib/lever'
 import { carriedBy, carrierIdOf } from '../lib/carry'
 import { companionArrivals, type CarriedArrival } from '../lib/carryArrival'
 import { VISION_FACTOR_DEFAULT, clampVisionFactor, playerVisionRadius, readSceneVisionCells } from '../lib/sceneVision'
+import { isLockClosed, lockAccepts } from '../lib/pinLock'
 import {
   parsePlayerMessage,
   type ClueEntry,
@@ -58,6 +61,10 @@ import {
   type ItemGiveRejection,
   type JoinMessage,
   type LaserMessage,
+  type MapShareMessage,
+  type MarkPlaceMessage,
+  type MarkPlaceRefusal,
+  type PinAnswerMessage,
   type PinLeverMessage,
   type PinLeverRejection,
   type PinReadMessage,
@@ -430,6 +437,42 @@ export interface GatherArrival {
   entourage?: readonly EntourageSeat[]
 }
 
+/**
+ * FECHADURA COM SEGREDO: um jogador acertou a combinação do pino `pinId`. O
+ * integrador aplica `openPinLock` no mapa do mestre (`net/playerChanges.ts`) —
+ * a fechadura fica aberta e a porta ligada, destrancada. `sceneId` como em
+ * `AppliedDoor`.
+ */
+export interface AppliedLock {
+  pinId: string
+  sceneId?: string
+}
+
+/**
+ * BILHETE NO LUGAR: a marca que o jogador cravou, já validada e com autor e
+ * hora. O integrador a grava no mapa da cena (`net/playerChanges.ts`) e avisa
+ * o mestre com `playerName` e `sceneName` — nada disto vai ao jogador; o que
+ * sai para ele é o recorte do snapshot. `sceneId` como em `AppliedDoor`.
+ */
+export interface AppliedMark {
+  marca: MarcaNoLugar
+  playerName: string
+  sceneName: string
+  sceneId?: string
+}
+
+/**
+ * Tentativa CONFERIDA numa fechadura, para o mestre ler (quem, onde, o que
+ * tentou e se abriu). Nunca vai a jogador nenhum: não vira pedido, só aviso.
+ */
+export interface LockAttempt {
+  playerName: string
+  /** Como o mestre chama o pino: a descrição dele ou, sem descrição, o resumo. */
+  pinLabel: string
+  tentativa: string
+  ok: boolean
+}
+
 /** Sinal aceito de um jogador, para a UI do mestre desenhar. */
 export interface HostSignal {
   playerId: string
@@ -535,6 +578,12 @@ export interface HostResult {
   /** Espiar aceito: o integrador avisa o mestre e reenvia o snapshot agora e no fim do prazo. */
   peek?: HostPeek
   applyTokenEdit?: AppliedTokenEdit
+  /** Combinação certa: o integrador abre a fechadura e faz o broadcast. */
+  applyLock?: AppliedLock
+  /** Tentativa conferida (certa ou errada): o integrador avisa o mestre. */
+  lockAttempt?: LockAttempt
+  /** BILHETE NO LUGAR aceito: o integrador grava a marca na cena e faz o broadcast. */
+  applyMark?: AppliedMark
   signal?: HostSignal
   playerLaser?: HostPlayerLaser
   /** Ação no ponto aceita: o integrador põe a linha na Caixa do mestre. */
@@ -598,6 +647,34 @@ export interface HostResult {
    * a jogava deixa de vê-la como dele. Dado do mestre — nunca vai pela rede.
    */
   loansReturned?: LoanReturn[]
+  /**
+   * PASSAR O MAPA: a memória de `toPlayerId` ganhou o que `fromPlayerId`
+   * explorou. O integrador faz o broadcast: é o snapshot seguinte que leva o
+   * trecho novo a quem recebeu.
+   */
+  mapShared?: { fromPlayerId: string; toPlayerId: string }
+  /**
+   * MAPA DE PAPEL: as Salas (ids, na ordem pedida) que entraram na memória de
+   * `playerId`. O integrador faz o broadcast, como no `mapShared`.
+   */
+  mapGiven?: { playerId: string; roomIds: string[] }
+  /**
+   * MAPA DE PAPEL recusado por um motivo que o mestre precisa ler (o jogador
+   * não é avisado): `memoria-cheia` = o mapa é de uma cena que ele ainda não
+   * tem na memória e ela já guarda `MAX_SCENE_MEMORIES_PER_PLAYER` cenas.
+   */
+  mapRefused?: { playerId: string; reason: MapGiftRefusal }
+}
+
+/** Por que o mapa de papel não entrou, quando o motivo não é "nada a dar". */
+export type MapGiftRefusal = 'memoria-cheia'
+
+/** O que "Dar um mapa a…" devolve ao painel: quantas Salas entraram (0 = nada) ou o motivo da recusa. */
+export type GiveMapOutcome = number | MapGiftRefusal
+
+/** O que `abalo` devolve: as mensagens e quantos receberam em cada faixa. */
+export interface AbaloResult extends HostResult {
+  porFaixa: AbaloContagem
 }
 
 /**
@@ -785,6 +862,14 @@ export const VISION_RADIUS_STEP = 50
 export const PLAYER_LASER_MAX_PER_WINDOW = 40
 export const PLAYER_LASER_WINDOW_MS = 1000
 
+/**
+ * FECHADURA COM SEGREDO: uma tentativa por jogador nesta janela, de qualquer
+ * fechadura. Sem isto, um jogador em laço varreria as 10 mil combinações de um
+ * cadeado de 4 volantes em segundos. A que vem cedo demais volta `too_soon` e
+ * nem é conferida.
+ */
+export const LOCK_ANSWER_MIN_INTERVAL_MS = 1500
+
 /** Um pedido de porta por jogador nesta janela; o excesso morre em silêncio (igual ao sinal). */
 export const DOOR_TOGGLE_MIN_INTERVAL_MS = 250
 
@@ -815,6 +900,13 @@ export const CLUE_SHOW_MIN_INTERVAL_MS = 1000
 export { TRAVEL_REQUEST_MIN_INTERVAL_MS, TRAVEL_REQUEST_PLAYER_MIN_INTERVAL_MS }
 
 /**
+ * "Mostrar meu mapa a…": um mapa mostrado por jogador nesta janela. Cada um
+ * dispara um broadcast (o snapshot de quem recebe muda), e um jogador em laço
+ * não pode fazer o host remontar o recorte de todos sem parar.
+ */
+export const MAP_SHARE_MIN_INTERVAL_MS = 3000
+
+/**
  * DESISTIR DO PEDIDO: quantas casas a ficha pode se afastar do pino, além da
  * distância em que pediu, antes de o pedido cair sozinho. Conta da posição
  * do pedido (e não do pino) porque o pedido não exige estar colado nele:
@@ -838,6 +930,20 @@ export const MAX_SCENE_MEMORIES_PER_PLAYER = 32
  * levanta a mão em série — cada chamado novo é um bipe na mesa do mestre.
  */
 export const CALL_MIN_INTERVAL_MS = 3000
+
+/**
+ * MAPA DE PAPEL — a Sala deixa marca na memória? Marca só ela, sob os mesmos
+ * vetos, em `scratch` (exploração vazia da MESMA grade, reaproveitada entre as
+ * Salas): sobrou célula ou contorno, entra. Sala toda sob zona oculta ativa não
+ * deixa nada, e contá-la como entregue anunciaria um mapa que não existe.
+ */
+function roomLeavesMark(scratch: Exploration, points: readonly RegionPoint[], blocked: readonly RegionPoint[][]): boolean {
+  scratch.bits.fill(0)
+  scratch.rings = []
+  scratch.ringVertices = 0
+  markRings(scratch, [points], blocked)
+  return scratch.rings.length > 0 || scratch.bits.some((byte) => byte !== 0)
+}
 
 /**
  * Quantas cenas guardam o "último recado". O `sceneId` vem da tela do mestre
@@ -1058,6 +1164,16 @@ export interface HostSession {
   /** Os testes secretos, do mais antigo ao mais novo, para o painel do MESTRE. */
   secretChecks(): SecretCheckState[]
   /**
+   * ABALO POR DISTÂNCIA: a cada jogador que joga e está numa cena agora, o
+   * texto da FAIXA dele (`lib/abalo.ts`): `perto` na cena da origem, `andar`
+   * nas cenas de `vizinhas`, `longe` no resto. Faixa com texto vazio não manda
+   * nada a quem está nela. Quem está `perto` recebe `forte` e, com ponto de
+   * origem, a seta vista da própria ficha (`abaloSetaForPlayer`). O abalo entra
+   * no caderno de quem recebeu; não fica guardado para quem chega depois (é um
+   * instante, não um recado da cena). `porFaixa`: o aviso do mestre.
+   */
+  abalo(origem: AbaloOrigem, textos: AbaloTextos, vizinhas: readonly string[], source: HostMapSource): AbaloResult
+  /**
    * "Deixar ir": revalida o pedido contra o mundo de AGORA (o token pode ter
    * andado, o pino sumido) e devolve `applyTransfer` + `scene.changed` ao
    * dono. Pedido que já não existe (jogador saiu, já decidido) não faz nada.
@@ -1256,6 +1372,31 @@ export interface HostSession {
    */
   giveGroupView(playerId: string, source: HostMapSource): number
   /**
+   * PASSAR O MAPA pelo mestre: o que `fromPlayerId` explorou na cena onde está
+   * agora (células, contornos e portas no estado que ELE viu) entra na memória
+   * de `toPlayerId` para aquela cena — e só na dele. Zona oculta ativa e sala
+   * secreta de agora não passam. Quem recebe ganha `map.shared` com o nome de
+   * quem passou; o trecho vem no broadcast que o integrador faz depois.
+   * Nada a passar (mesmo jogador, desconhecido, doador sem cena ou que ainda
+   * não explorou a dele, quem recebe fora da cena do doador ou aguardando):
+   * `{ outbound: [] }` sem `mapShared`.
+   */
+  shareMap(fromPlayerId: string, toPlayerId: string, source: HostMapSource): HostResult
+  /**
+   * MAPA DE PAPEL: o mestre grava as Salas `roomIds` da cena `sceneId` (`null`
+   * = o mapa solto) na memória de `playerId` — e só na dele —, como um mapa
+   * achado. Vale para qualquer cena do mundo, não só a dele: o recorte só
+   * entrega aquela memória quando ele estiver lá. Entra só Sala que o recorte
+   * pode mostrar (`giftableRoomsOf`) e que deixa ao menos uma célula marcada:
+   * Sala toda sob zona oculta ativa fica de fora (e fora de `mapGiven`). Quem
+   * recebe ganha `map.given`, sem cena nem Sala. Nada a gravar (jogador, cena ou
+   * Sala desconhecidos, só Salas proibidas ou escondidas): `{ outbound: [] }`
+   * sem `mapGiven`. Cena que ele ainda não tem na memória com a memória no teto:
+   * nada é gravado e volta `mapRefused` (`memoria-cheia`) — o mapa de papel
+   * nunca empurra para fora uma cena que ele explorou.
+   */
+  giveRoomsMap(playerId: string, sceneId: string | null, roomIds: readonly string[], source: HostMapSource): HostResult
+  /**
    * Zera exploração e portas lembradas do jogador; a visão atual volta a
    * marcar no próximo broadcast. Com `source`, só da cena onde ele está; sem,
    * de todas.
@@ -1420,6 +1561,8 @@ interface PlayerMemory {
   doors: Map<string, DoorState>
   /** Por id da parede: quando (`doorSeenSeq`) a porta foi vista por último. Só a tela da mesa usa. */
   doorsSeenAt: Map<string, number>
+  /** Ids das marcas de jogador (bilhete no lugar) que ele já recebeu: só estas voltam pelo explorado. */
+  marcas: Set<string>
   /** Visão enviada no último snapshot: é o que o jogador está vendo agora na tela. */
   vision: RegionPoint[][]
   /**
@@ -1548,6 +1691,7 @@ function restoredMemoryOf(scene: SavedSceneMemory): Omit<PlayerMemory, 'place'> 
     planMarked: false,
     doors,
     doorsSeenAt: new Map(),
+    marcas: new Set(),
     vision: [],
     restored: true,
     seenRooms: new Set(),
@@ -1659,6 +1803,10 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   const rollDie = options.rollDie ?? secureRollDie
   // Por playerId: última troca de ficha aceita ("Olhar por…").
   const lastViewSwitchAt = new Map<string, number>()
+  /** Última tentativa na fechadura, por jogador (`LOCK_ANSWER_MIN_INTERVAL_MS`). */
+  const lastLockAnswerAt = new Map<string, number>()
+  /** Última marca cravada (ou tentada), por jogador (`MARCA_INTERVALO_MS`). */
+  const lastMarkAt = new Map<string, number>()
   // Por playerId: janela corrente do teto de lotes de laser (PLAYER_LASER_MAX_PER_WINDOW).
   const laserWindows = new Map<string, { start: number; count: number }>()
   // Por playerId: conexões que receberam algum ponto do gesto em curso, e a
@@ -1714,6 +1862,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   const lastClueShowAt = new Map<string, number>()
   // Por playerId: "Fator de visão" (vale em toda cena); ausente = x1,0. Só o kick apaga.
   const visionFactors = new Map<string, number>()
+  // Por playerId: quando o último "Mostrar meu mapa a…" dele chegou a alguém.
+  const lastMapShareAt = new Map<string, number>()
   // Por pinId: quem vê o pino ("Só estes"). Ausente = Todos. O kick tira o
   // jogador de toda lista; o registro de quem só caiu fica (resume).
   const pinAudiences = new Map<string, Set<string>>()
@@ -1930,7 +2080,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     return memory
   }
 
-  const nextPlaceId = (playerId: string): string => {
+  const nextPlaceId =(playerId: string): string => {
     const n = (placeCounters.get(playerId) ?? 0) + 1
     placeCounters.set(playerId, n)
     return `l${n}`
@@ -1938,6 +2088,28 @@ export function createHostSession(options: HostSessionOptions): HostSession {
 
   /** LUGARES: os ids das memórias que o jogador ainda tem, da usada há mais tempo à de agora. */
   const rememberedPlaces = (playerId: string): string[] => [...(memories.get(playerId)?.values() ?? [])].map((memory) => memory.place)
+
+  /** Memória vazia deste mapa, para `playerId`: memória nova é lugar novo (`nextPlaceId`). */
+  const blankMemory = (playerId: string, map: MapData): PlayerMemory => {
+    const dims = dimsOf(map)
+    return {
+      key: memoryKey(dims),
+      dims,
+      exp: blankExploration(dims),
+      seen: blankExploration(dims),
+      planMarked: false,
+      doors: new Map(),
+      doorsSeenAt: new Map(),
+      marcas: new Set(),
+      vision: [],
+      restored: false,
+      seenRooms: new Set(),
+      place: nextPlaceId(playerId),
+      plan: emptyPlanMemory(),
+      sentExplored: null,
+      secretRooms: new Set(),
+    }
+  }
 
   /**
    * Memória do jogador para este mapa. Cada cena tem a sua: ir à Cripta e
@@ -1952,24 +2124,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       byScene = new Map()
       memories.set(playerId, byScene)
     }
-    const found = existingMemory(playerId, map)
-    const dims = dimsOf(map)
-    const memory: PlayerMemory = found ?? {
-      key: memoryKey(dims),
-      dims,
-      exp: blankExploration(dims),
-      seen: blankExploration(dims),
-      planMarked: false,
-      doors: new Map(),
-      doorsSeenAt: new Map(),
-      vision: [],
-      restored: false,
-      seenRooms: new Set(),
-      place: nextPlaceId(playerId),
-      plan: emptyPlanMemory(),
-      sentExplored: null,
-      secretRooms: new Set(),
-    }
+    const memory = existingMemory(playerId, map) ?? blankMemory(playerId, map)
     // Apagar e regravar põe a cena no fim da ordem: é a mais recente agora.
     byScene.delete(map.id)
     byScene.set(map.id, memory)
@@ -1980,6 +2135,24 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       if (oldest === map.id || withOwnToken.has(oldest)) continue
       byScene.delete(oldest)
     }
+    return memory
+  }
+
+  /**
+   * MAPA DE PAPEL: a memória onde o presente é gravado, SEM mexer na ordem de
+   * uso. A que ele já tem fica onde está (ganhar um mapa não é visitar a cena).
+   * Cena nova entra como a MENOS recente — é a primeira a sair quando ele andar
+   * por uma cena a mais — e nunca despeja outra: com a memória no teto, `null`.
+   */
+  const giftMemoryFor = (playerId: string, map: MapData): PlayerMemory | null => {
+    const found = existingMemory(playerId, map)
+    if (found !== undefined) return found
+    const byScene = memories.get(playerId) ?? new Map<string, PlayerMemory>()
+    // Memória do mesmo id com outra grade (mapa redimensionado) já não vale: é trocada, não soma.
+    const others = [...byScene].filter(([mapId]) => mapId !== map.id)
+    if (others.length >= MAX_SCENE_MEMORIES_PER_PLAYER) return null
+    const memory = blankMemory(playerId, map)
+    memories.set(playerId, new Map([[map.id, memory], ...others]))
     return memory
   }
 
@@ -2306,6 +2479,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       peekingFor(playerId, scene),
       undefined,
       memory.secretRooms,
+      memory.marcas,
     )
     // DENTRO DA SALA SECRETA: a sala onde a ficha dele está fica descoberta por
     // ele — continua no mapa lembrado depois que ele sai. Só dele: é a memória
@@ -2352,6 +2526,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     for (const pin of view.map.pins) {
       if (pin.longe !== true) addToSet(pinReceived, pin.id, playerId)
     }
+    // Marca que saiu agora foi vista agora (ou já estava lembrada): passa a valer no explorado.
+    for (const m of view.map.marcas ?? []) memory.marcas.add(m.id)
     const sent = new Set(view.map.tokens.map((t) => t.id))
     const ownTokens = (ownership[playerId] ?? []).filter((id) => sent.has(id))
     // Só fichas que ele JÁ recebe: a lista não conta quem está no escuro.
@@ -3105,6 +3281,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     cluebooks.delete(playerId)
     seenPins.delete(playerId)
     lastClueShowAt.delete(playerId)
+    lastMapShareAt.delete(playerId)
     placeCounters.delete(playerId)
     lastDiceRollAt.delete(playerId)
     destinations.delete(playerId)
@@ -4087,6 +4264,9 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       }
       if (keyHolder === null && !passaCadeado) return null
     }
+    // Fechadura com segredo ainda fechada: ninguém passa, pelo mesmo `null`.
+    // Quem abre é a combinação certa (`handlePinAnswer`), não o pedido.
+    if (isLockClosed(pin)) return null
     // Chegada oculta (mão única) não leva de volta. O recorte já não a manda,
     // mas a recusa não depende da névoa: mesmo `null`, mesmo motivo genérico.
     if (isArrivalOnly(pin)) return null
@@ -4357,6 +4537,96 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   }
 
   /**
+   * FECHADURA COM SEGREDO — o jogador tentou a combinação do pino `pinId`. A
+   * autoridade é aqui, no molde da passagem (`validTravel`): o pino existe NA
+   * CENA DO JOGADOR, saiu no recorte dele AGORA (a névoa, a zona oculta, o
+   * "quem vê" e o segredo do mestre valem), tem fechadura fechada, e o jogador
+   * tem ficha na cena. Qualquer falha responde o mesmo "não abre" da
+   * combinação errada: o jogador não descobre que o pino existe, nem que já
+   * foi aberto. A resposta certa nunca entra em mensagem nenhuma.
+   */
+  function handlePinAnswer(clientId: string, msg: PinAnswerMessage, world: HostWorld): HostResult {
+    const playerId = byClient.get(clientId)
+    if (playerId === undefined) return reply(clientId, { type: 'error', reason: 'not_joined' })
+    const record = players.get(playerId)
+    const naoAbre = reply(clientId, { type: 'pin.answer.result', pinId: msg.pinId, ok: false })
+    if (record === undefined || statusOf(playerId) !== 'playing') return naoAbre
+    // O limite vem ANTES de tudo, como o da passagem: barato, por jogador, e
+    // segura quem tenta varrer as combinações em laço.
+    const at = now()
+    const last = lastLockAnswerAt.get(playerId)
+    if (last !== undefined && at - last < LOCK_ANSWER_MIN_INTERVAL_MS) {
+      return reply(clientId, { type: 'pin.answer.result', pinId: msg.pinId, ok: false, reason: 'too_soon' })
+    }
+    lastLockAnswerAt.set(playerId, at)
+    const scene = sceneFor(playerId, world)
+    if (scene === null) return naoAbre
+    const pin = scene.map.pins.find((p) => p.id === msg.pinId)
+    const lock = pin?.segredo
+    if (pin === undefined || lock === undefined || !isLockClosed(pin)) return naoAbre
+    const memory = memoryFor(playerId, scene.map, world)
+    const view = filterMapForPlayer(scene.map, playerId, ownership, radiusFor(playerId), memory.exp, memory.doors, pinAudiences)
+    if (!view.map.pins.some((p) => p.id === pin.id)) return naoAbre
+    const owned = new Set(ownership[playerId] ?? [])
+    // Tokens do recorte do jogador: respeita camada oculta e token escondido pelo mestre.
+    if (!view.map.tokens.some((t) => owned.has(t.id))) return naoAbre
+    const ok = lockAccepts(lock, msg.tentativa)
+    const description = pin.description.trim()
+    const lockAttempt: LockAttempt = { playerName: record.name, pinLabel: description === '' ? pinSummary(pin) : description, tentativa: msg.tentativa, ok }
+    const outbound: Outbound[] = [{ clientId, msg: { type: 'pin.answer.result', pinId: pin.id, ok } }]
+    if (!ok) return { outbound, lockAttempt }
+    return { outbound, lockAttempt, applyLock: { pinId: pin.id, ...backgroundSceneId(scene, world) } }
+  }
+
+  /**
+   * BILHETE NO LUGAR — o jogador quer cravar uma marca no ponto. A autoridade
+   * é aqui: o ponto está no mapa da cena DELE, encostado numa ficha dele que
+   * o recorte mostra (`fichaAlcancaPonto`), e o próprio recorte deixaria a
+   * marca sair para ele agora — a marca de prova passa pelo MESMO
+   * `filterMapForPlayer`, então zona oculta ativa, sala secreta, teto fechado
+   * e ponto que ele não conhece recusam sem regra paralela. Toda recusa de
+   * lugar é `unavailable`: o motivo exato diria o que existe ali. Aceita, volta
+   * `applyMark` com autor e hora para o integrador gravar; quem mais a recebe
+   * é decidido pelo recorte do broadcast seguinte.
+   */
+  function handleMarkPlace(clientId: string, msg: MarkPlaceMessage, world: HostWorld): HostResult {
+    const playerId = byClient.get(clientId)
+    if (playerId === undefined) return reply(clientId, { type: 'error', reason: 'not_joined' })
+    const record = players.get(playerId)
+    const recusa = (reason: MarkPlaceRefusal): HostResult => reply(clientId, { type: 'mark.place.result', ok: false, reason })
+    if (record === undefined || statusOf(playerId) !== 'playing') return recusa('unavailable')
+    // O limite vem antes de tudo: barato, por jogador, e segura quem manda em laço.
+    const at = now()
+    const last = lastMarkAt.get(playerId)
+    if (last !== undefined && at - last < MARCA_INTERVALO_MS) return recusa('too_soon')
+    lastMarkAt.set(playerId, at)
+    const scene = sceneFor(playerId, world)
+    if (scene === null) return recusa('unavailable')
+    const map = scene.map
+    const point = { x: Math.round(msg.x), y: Math.round(msg.y) }
+    if (point.x < 0 || point.y < 0 || point.x > map.width * map.grid || point.y > map.height * map.grid) return recusa('unavailable')
+    const base = msg.tipo === 'bilhete' ? { tipo: msg.tipo, texto: msg.texto } : { tipo: msg.tipo, rumo: msg.rumo }
+    const prova: MarcaNoLugar = { id: randomId(), ...point, ...base }
+    const memory = memoryFor(playerId, map, world)
+    const view = filterMapForPlayer({ ...map, marcas: [prova] }, playerId, ownership, radiusFor(playerId), memory.exp, memory.doors, pinAudiences)
+    const owned = new Set(ownership[playerId] ?? [])
+    // Fichas do recorte: ficha escondida pelo mestre (ou na camada oculta) não crava nada.
+    // Ficha SECRETA também não: o dono a recebe, mas os outros não — a marca
+    // nascendo ali contaria a eles onde está a ficha que o mestre esconde.
+    const secretas = new Set(map.tokens.filter((t) => t.secret === true).map((t) => t.id))
+    const alcanca = view.map.tokens.some((t) => owned.has(t.id) && !secretas.has(t.id) && fichaAlcancaPonto(t, point, map.grid))
+    if (!alcanca || !(view.map.marcas ?? []).some((m) => m.id === prova.id)) return recusa('unavailable')
+    const marcas = map.marcas ?? []
+    const minhas = marcas.filter((m) => m.autor === record.name).length
+    if (minhas >= MARCAS_POR_JOGADOR_POR_CENA || marcas.length >= MARCAS_POR_CENA) return recusa('full')
+    const marca: MarcaNoLugar = { ...prova, autor: record.name, em: at }
+    return {
+      outbound: [{ clientId, msg: { type: 'mark.place.result', ok: true } }],
+      applyMark: { marca, playerName: record.name, sceneName: scene.name, ...backgroundSceneId(scene, world) },
+    }
+  }
+
+  /**
    * MINHAS PISTAS — o jogador abriu o cartão do pino. Só vale pino do ÚLTIMO
    * recorte mandado a ele, da cena onde ele está AGORA, e que o mestre não
    * escondeu desde então: pino secreto, oculto, no escuro, em zona oculta ou de
@@ -4456,6 +4726,58 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const outbound: Outbound[] = cancelled === null ? [] : [{ clientId, msg: { type: 'pin.travel.cancelled', reason: 'player' } }]
     for (const view of viewFor(playerId, world, 'on_change')) outbound.push({ clientId, msg: view })
     return cancelled === null ? { outbound } : { outbound, travelCancelled: cancelled }
+  }
+
+  /**
+   * PASSAR O MAPA: soma na memória de `toPlayerId` o que `fromPlayerId` guarda
+   * de `map`. Zona oculta ativa e sala secreta de AGORA barram (a memória do
+   * doador pode ser de antes de o mestre esconder). Portas: só as que quem
+   * recebe ainda não viu, no estado que o doador viu — nunca o atual do mapa.
+   * `false` quando o doador não guarda nada deste mapa.
+   * Passa só o que a VISÃO do doador marcou (`seen`): a planta que o mestre
+   * revelou só a ele não vaza para o colega por aqui.
+   */
+  const giveMap = (fromPlayerId: string, toPlayerId: string, map: MapData, world: HostWorld): boolean => {
+    const given = existingMemory(fromPlayerId, map)
+    if (given === undefined) return false
+    const memory = memoryFor(toPlayerId, map, world)
+    if (!mergeExploration(memory.exp, given.seen, playerBlockedRings(map))) return false
+    for (const [wallId, door] of given.doors) {
+      if (!memory.doors.has(wallId)) memory.doors.set(wallId, { ...door })
+    }
+    // Marcas: as que o doador viu, como ele as lembra (o recorte ainda pede o explorado e a regra de agora).
+    for (const marcaId of given.marcas) memory.marcas.add(marcaId)
+    return true
+  }
+
+  /**
+   * "Mostrar meu mapa a…": o que o jogador explorou na cena onde está passa ao
+   * colega `to`, que tem de estar na MESMA cena agora. Qualquer recusa volta
+   * como `ok: false`, sem dizer onde o colega está (mesma regra da pista).
+   */
+  function handleMapShare(clientId: string, msg: MapShareMessage, world: HostWorld): HostResult {
+    const playerId = byClient.get(clientId)
+    if (playerId === undefined) return reply(clientId, { type: 'error', reason: 'not_joined' })
+    const refused = reply(clientId, { type: 'map.share.result', to: msg.to, ok: false })
+    const sender = players.get(playerId)
+    if (sender === undefined || statusOf(playerId) !== 'playing') return refused
+    const scene = sceneFor(playerId, world)
+    const target = peersOf(playerId, world).find((other) => other.name === msg.to)
+    if (scene === null || target === undefined || target.clientId === null) return refused
+    const at = now()
+    const last = lastMapShareAt.get(playerId)
+    if (last !== undefined && at - last < MAP_SHARE_MIN_INTERVAL_MS) {
+      return reply(clientId, { type: 'map.share.result', to: msg.to, ok: false, reason: 'too_soon' })
+    }
+    if (!giveMap(playerId, target.playerId, scene.map, world)) return refused
+    lastMapShareAt.set(playerId, at)
+    return {
+      outbound: [
+        { clientId: target.clientId, msg: { type: 'map.shared', from: sender.name } },
+        { clientId, msg: { type: 'map.share.result', to: msg.to, ok: true } },
+      ],
+      mapShared: { fromPlayerId: playerId, toPlayerId: target.playerId },
+    }
   }
 
   const findPendingTravel = (requestId: string): PendingTravel | undefined =>
@@ -4643,6 +4965,12 @@ export function createHostSession(options: HostSessionOptions): HostSession {
           return handleSecretCheckAnswer(clientId, msg)
         case 'view.switch':
           return handleViewSwitch(clientId, msg, world)
+        case 'map.share':
+          return handleMapShare(clientId, msg, world)
+        case 'pin.answer':
+          return handlePinAnswer(clientId, msg, world)
+        case 'mark.place':
+          return handleMarkPlace(clientId, msg, world)
       }
     },
 
@@ -5450,6 +5778,48 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       sentViews.delete(clientId)
     },
 
+    shareMap(fromPlayerId, toPlayerId, source) {
+      const giver = players.get(fromPlayerId)
+      const target = players.get(toPlayerId)
+      if (giver === undefined || target === undefined || fromPlayerId === toPlayerId) return { outbound: [] }
+      const world = toWorld(source)
+      // A cena ONDE O DOADOR ESTÁ: é dela que ele tem o mapa na cabeça agora.
+      const scene = sceneFor(fromPlayerId, world)
+      if (scene === null) return { outbound: [] }
+      // Só a quem joga NA MESMA cena: o aviso diz "já aparece no seu", e noutra
+      // cena não apareceria; a memória de uma cena onde ele nunca esteve ainda
+      // empurraria para fora a mais antiga que ele explorou (teto de memórias).
+      if (statusOf(toPlayerId) !== 'playing' || sceneFor(toPlayerId, world) !== scene) return { outbound: [] }
+      if (!giveMap(fromPlayerId, toPlayerId, scene.map, world)) return { outbound: [] }
+      return {
+        outbound: target.clientId === null ? [] : [{ clientId: target.clientId, msg: { type: 'map.shared', from: giver.name } }],
+        mapShared: { fromPlayerId, toPlayerId },
+      }
+    },
+
+    giveRoomsMap(playerId, sceneId, roomIds, source) {
+      const player = players.get(playerId)
+      if (player === undefined) return { outbound: [] }
+      const scene = allScenes(toWorld(source)).find((s) => s.sceneId === sceneId)
+      if (scene === undefined) return { outbound: [] }
+      const map = scene.map
+      const wanted = new Set(roomIds)
+      // Mesmo veto do "Revelar planta": zona oculta ativa, sala secreta e teto não viram explorados.
+      const blocked = playerBlockedRings(map)
+      const scratch = blankExploration(dimsOf(map))
+      const rooms = giftableRoomsOf(map).filter((r) => wanted.has(r.id) && roomLeavesMark(scratch, r.points, blocked))
+      if (rooms.length === 0) return { outbound: [] }
+      const memory = giftMemoryFor(playerId, map)
+      if (memory === null) return { outbound: [], mapRefused: { playerId, reason: 'memoria-cheia' } }
+      markRings(memory.exp, rooms.map((r) => r.points), blocked)
+      const allowed = new Set(rooms.map((r) => r.id))
+      const given = [...wanted].filter((id) => allowed.has(id))
+      return {
+        outbound: player.clientId === null ? [] : [{ clientId: player.clientId, msg: { type: 'map.given' } }],
+        mapGiven: { playerId, roomIds: given },
+      }
+    },
+
     hidePlan(playerId, source) {
       // A memória muda: o próximo broadcast refaz o recorte dele, mesmo sem a cena mudar.
       lastViews.delete(playerId)
@@ -5713,6 +6083,41 @@ export function createHostSession(options: HostSessionOptions): HostSession {
         answers: Object.fromEntries(check.answers),
         open: check.open,
       }))
+    },
+
+    abalo(origem, textos, vizinhas, source) {
+      const world = toWorld(source)
+      const vizinhasSet = new Set(vizinhas)
+      const porFaixa: AbaloContagem = { perto: 0, andar: 0, longe: 0 }
+      // Um recado por FAIXA, igual para todos dela: nasce na primeira entrega, e faixa vazia nem ganha id.
+      const notas = new Map<AbaloFaixa, NoteEntry | null>()
+      const notaDa = (faixa: AbaloFaixa): NoteEntry | null => {
+        const pronta = notas.get(faixa)
+        if (pronta !== undefined) return pronta
+        const text = clampNoteText(textos[faixa])
+        const nota = text.trim().length === 0 ? null : { id: randomId(), text, at: now() }
+        notas.set(faixa, nota)
+        return nota
+      }
+      const ponto = origem.x !== undefined && origem.y !== undefined && Number.isFinite(origem.x) && Number.isFinite(origem.y) ? { x: origem.x, y: origem.y } : null
+      const outbound: Outbound[] = []
+      for (const [clientId, playerId] of byClient) {
+        if (statusOf(playerId) !== 'playing') continue
+        // A cena de CADA jogador (a da ficha dele); sem cena, ele aguarda e não ouve nada.
+        const scene = sceneFor(playerId, world)
+        if (scene === null) continue
+        const faixa = faixaDoAbalo(scene.sceneId, origem.sceneId, vizinhasSet)
+        const nota = notaDa(faixa)
+        if (nota === null) continue
+        rememberNote(playerId, nota)
+        porFaixa[faixa] += 1
+        const forte = faixa === 'perto'
+        // Só o rumo, visto da ficha que o recorte dele leva; o ponto nunca viaja.
+        const seta = forte && ponto !== null ? abaloSetaForPlayer(scene.map, playerId, ownership, ponto) : null
+        const msg: HostMessage = seta === null ? { type: 'abalo', id: nota.id, text: nota.text, at: nota.at, forte } : { type: 'abalo', id: nota.id, text: nota.text, at: nota.at, forte, seta }
+        outbound.push({ clientId, msg })
+      }
+      return { outbound, porFaixa }
     },
 
     listPlayers(source) {

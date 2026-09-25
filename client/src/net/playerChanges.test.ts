@@ -193,7 +193,7 @@ describe('App liga a ponte do host às mudanças do jogador', () => {
   })
 
   it('e não são redefinidos com as actions do mestre', () => {
-    expect(bridgeDeps).not.toMatch(/\bapply(Move|Door|TokenEdit)\s*:/)
+    expect(bridgeDeps).not.toMatch(/\bapply(Move|Door|TokenEdit|Lock)\s*:/)
     expect(bridgeDeps).not.toMatch(/\.(setTokenPosition|setWallDoor|renameToken|setTokenImage)\(/)
   })
 })

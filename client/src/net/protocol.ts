@@ -1,7 +1,8 @@
-import type { HazardKind, MapData, RegionPoint } from '../types/map'
+import type { HazardKind, MapData, MarcaRumo, RegionPoint } from '../types/map'
 import type { PlayerHazard } from '../lib/hazards'
 import type { PlayerAreaTrigger } from '../lib/areaTriggers'
 import type { PlayerClock } from '../lib/campaignClock'
+import { isMarcaRumo, MARCA_TEXTO_MAX, normalizarTextoDaMarca } from '../lib/marcas'
 import type { ExploredWire } from '../lib/exploration'
 import type { TokenMoveLanding, TokenMoveRejection } from '../lib/moveValidation'
 import { LASER_MAX_POINTS_PER_MESSAGE } from '../lib/laser'
@@ -15,6 +16,8 @@ import { MASTER_ROLLER_NAME, parseDiceRequest, type DiceRequest, type DiceRollEn
 import { isNoiseDirection, type NoiseDirection } from '../lib/noise'
 import type { ViewPatch } from './viewPatch'
 import type { OwnTokenElsewhere, RoofPeek } from '../lib/fogFilter'
+import { ABALO_SETAS, type AbaloSeta } from '../lib/abalo'
+import { LOCK_ANSWER_MAX_LENGTH } from '../lib/pinLock'
 
 export type { OwnTokenElsewhere }
 
@@ -229,6 +232,31 @@ export type { OwnTokenElsewhere }
  * snapshot da cena daquela ficha. Mestre antigo responde `error
  * invalid_message`, que o jogador ignora durante o jogo; jogador antigo ignora
  * o campo.
+ *
+ * PASSAR O MAPA é aditivo pelo mesmo critério. Do jogador: `map.share` (o nome
+ * do colega da mesma cena; a lista vem do mesmo `clue.peers`). Do mestre:
+ * `map.shared` (quem passou) e `map.share.result`. O trecho explorado em si
+ * nunca viaja nestas mensagens: vai no `explored` do snapshot de quem recebeu.
+ * O MAPA DE PAPEL do mestre soma `map.given`, só com o tipo; jogador antigo o
+ * ignora no `default`.
+ *
+ * O ABALO POR DISTÂNCIA é aditivo pelo mesmo critério: `abalo` (mestre ->
+ * jogador) leva o texto da FAIXA daquele jogador, um id, a hora, `forte` (está
+ * na cena da origem: o aparelho vibra) e, só nesse caso, `seta` — o rumo de 8
+ * pontas visto da ficha dele. Nunca o ponto de origem, o id ou o nome de cena,
+ * nem o texto de outra faixa. Jogador antigo cai no `default` e ignora.
+ *
+ * A FECHADURA COM SEGREDO é aditiva pelo mesmo critério: `pin.answer` (jogador
+ * -> mestre, o id do pino e a tentativa) e `pin.answer.result` (só abriu ou
+ * não). A resposta certa nunca viaja: o recorte leva `Pin.fechadura` (forma e,
+ * nos volantes, casas), nunca `Pin.segredo`. Mestre antigo responde `error invalid_message`;
+ * jogador antigo ignora o resultado.
+ *
+ * O BILHETE NO LUGAR é aditivo pelo mesmo critério: `mark.place` (jogador ->
+ * mestre, o ponto e o bilhete ou a seta) e `mark.place.result` (ficou ou não).
+ * A marca em si viaja no `map.marcas` do snapshot, já recortada pela névoa e
+ * sem autor nem hora. Mestre antigo responde `error invalid_message`; jogador
+ * antigo ignora o resultado e o campo novo do mapa.
  */
 export const PROTOCOL_VERSION = 1
 
@@ -597,7 +625,41 @@ export interface ViewSwitchMessage {
   tokenId: string
 }
 
+/**
+ * PASSAR O MAPA: "Mostrar meu mapa a…" o colega de nome `to`, que tem de estar
+ * na mesma cena agora. Só o nome viaja: o host passa o que ELE guarda da
+ * memória de quem pede, nunca um mapa que o jogador mandasse.
+ */
+export interface MapShareMessage {
+  type: 'map.share'
+  to: string
+}
+
+/**
+ * FECHADURA COM SEGREDO: a tentativa do jogador no pino `pinId`. Só o texto
+ * que ele digitou ou girou; quem confere é o host, contra a resposta que o
+ * jogador nunca recebe. A volta é `pin.answer.result`.
+ */
+export interface PinAnswerMessage {
+  type: 'pin.answer'
+  pinId: string
+  tentativa: string
+}
+
+/**
+ * BILHETE NO LUGAR: o jogador crava um bilhete (`texto`) ou risca uma seta
+ * (`rumo`) no ponto (`x`, `y`) em px de mundo da cena onde está. Nada de autor
+ * nem de hora: quem é o host sabe pela conexão, e a hora é a do mestre. A
+ * volta é `mark.place.result`.
+ */
+export type MarkPlaceMessage =
+  | { type: 'mark.place'; x: number; y: number; tipo: 'bilhete'; texto: string }
+  | { type: 'mark.place'; x: number; y: number; tipo: 'seta'; rumo: MarcaRumo }
+
 export type PlayerMessage =
+  | MarkPlaceMessage
+  | PinAnswerMessage
+  | MapShareMessage
   | JoinMessage
   | SeatClaimMessage
   | TokenMoveMessage
@@ -707,6 +769,30 @@ export type PinTravelRejection = 'unavailable' | 'pending' | 'too_soon'
  */
 export type PinTravelCancelReason = 'player' | 'far'
 
+/**
+ * A resposta do host à tentativa na fechadura: `ok` abriu. Recusa sem motivo é
+ * "não abre" — a mesma para combinação errada, pino que não existe, no escuro
+ * ou já aberto, para não dizer ao jogador o que existe. `too_soon`: tentou de
+ * novo antes do intervalo mínimo, e a tentativa nem foi conferida.
+ */
+export interface PinAnswerResultMessage {
+  type: 'pin.answer.result'
+  pinId: string
+  ok: boolean
+  reason?: 'too_soon'
+}
+
+/**
+ * Por que a marca não ficou. Genérico de propósito: longe da ficha, fora do
+ * mapa, num ponto que o jogador não conhece ou numa zona oculta respondem
+ * todos `unavailable` — um motivo por caso diria o que existe ali. `full`: ele
+ * já deixou o teto de marcas nesta cena; `too_soon`: deixou outra há pouco.
+ */
+export type MarkPlaceRefusal = 'unavailable' | 'full' | 'too_soon'
+
+/** A resposta do host a `mark.place`: ficou (`ok`) ou não, com o motivo. */
+export type MarkPlaceResultMessage = { type: 'mark.place.result'; ok: true } | { type: 'mark.place.result'; ok: false; reason: MarkPlaceRefusal }
+
 // Mestre -> jogador
 /** Laser do mestre: lote de pontos (px de mundo) desde o último envio, ou `off` ao soltar. */
 export type LaserMessage = { type: 'laser'; points: RegionPoint[] } | { type: 'laser'; off: true }
@@ -728,6 +814,20 @@ export interface SceneNoteMessage {
   at?: number
   /** Recado só para este jogador (ninguém mais na sala recebeu). Ausente = recado da cena. */
   onlyYou?: true
+}
+
+/**
+ * ABALO: o texto da faixa DESTE jogador. `forte` = ele está na cena da origem
+ * (vibra); `seta` só vem junto de `forte`, e só quando o mestre marcou um ponto
+ * e a ficha dele está no mapa. Entra no caderno como um recado.
+ */
+export interface AbaloMessage {
+  type: 'abalo'
+  id: string
+  text: string
+  at: number
+  forte: boolean
+  seta?: AbaloSeta
 }
 
 /** Um recado guardado no caderno do jogador. Nada da cena: só o que ele leu e quando. */
@@ -942,6 +1042,35 @@ export interface SecretCheckClosedMessage {
  */
 export type HostErrorReason = 'bad_code' | 'invalid_message' | 'not_joined' | 'already_joined' | 'table_full' | 'bad_table_key'
 
+/**
+ * Um colega (ou o mestre por ele) passou o mapa: o trecho que `from` explorou
+ * já está na memória de quem recebe e vem no snapshot seguinte. Só o nome de
+ * quem passou — nem cena, nem posição.
+ */
+export interface MapSharedMessage {
+  type: 'map.shared'
+  from: string
+}
+
+/** O mapa chegou (`ok`) ou não ao colega `to`. `too_soon`: outro mapa saiu há pouco; o colega segue na cena. */
+export interface MapShareResultMessage {
+  type: 'map.share.result'
+  to: string
+  ok: boolean
+  reason?: 'too_soon'
+}
+
+/**
+ * MAPA DE PAPEL: o mestre gravou Salas na memória deste jogador. Só o tipo —
+ * nem cena, nem Sala, nem título: as Salas chegam no `explored` do snapshot
+ * quando ele estiver na cena delas.
+ */
+export interface MapGivenMessage {
+  type: 'map.given'
+}
+
+export type MapShareHostMessage = MapSharedMessage | MapShareResultMessage | MapGivenMessage
+
 export type HostMessage =
   // `name`: nome EFETIVO na sala, que pode não ser o que o jogador digitou.
   | { type: 'welcome'; playerId: string; resumeToken: string; name: string }
@@ -991,6 +1120,8 @@ export type HostMessage =
   // Aditivo: jogador antigo ignora o campo e lê o "não deixou" de sempre.
   | { type: 'pin.travel.denied'; text?: string }
   | { type: 'pin.travel.cancelled'; reason: PinTravelCancelReason }
+  | PinAnswerResultMessage
+  | MarkPlaceResultMessage
   // `by: 'master'`: o mestre levou o jogador sem pedido ("Mandar para…" do
   // painel Grupo). Aditivo: jogador antigo ignora o campo e lê "Você chegou".
   // `by: 'gather'`: também sem pedido, mas pelo "Reunir o grupo aqui" de um
@@ -1002,6 +1133,7 @@ export type HostMessage =
   | LaserMessage
   | RelayedLaserMessage
   | SceneNoteMessage
+  | AbaloMessage
   | RoomTextMessage
   | NotebookMessage
   | NotesAwayMessage
@@ -1023,6 +1155,7 @@ export type HostMessage =
   | NoiseMessage
   | SecretCheckMessage
   | SecretCheckClosedMessage
+  | MapShareHostMessage
   | { type: 'kicked' }
   | { type: 'room.closed' }
   // A mesma pessoa entrou por outra aba (ou aparelho) com o resume desta
@@ -1214,6 +1347,27 @@ export function parseSceneNote(value: unknown): SceneNoteMessage | null {
 
 function isNoteTime(value: unknown): value is number {
   return isFiniteNumber(value) && value >= 0
+}
+
+function isAbaloSeta(value: unknown): value is AbaloSeta {
+  return typeof value === 'string' && ABALO_SETAS.some((seta) => seta === value)
+}
+
+/**
+ * Valida o `abalo` que o jogador recebe. Mesma regra do recado: forma errada,
+ * texto vazio ou acima do teto recusam a mensagem inteira. A `seta` que este
+ * jogador não conhece (mestre mais novo) cai sozinha — o texto ainda vale.
+ * Devolve cópia só com os campos conhecidos.
+ */
+export function parseAbalo(value: unknown): AbaloMessage | null {
+  if (!isRecord(value) || value.type !== 'abalo') return null
+  const { id, text, at, forte, seta } = value
+  if (!isBoundedString(id, 1, REQ_ID_MAX_LENGTH)) return null
+  if (!isBoundedString(text, 1, NOTE_MAX_LENGTH)) return null
+  if (!isNoteTime(at) || typeof forte !== 'boolean') return null
+  const parsed: AbaloMessage = { type: 'abalo', id, text, at, forte }
+  if (forte && isAbaloSeta(seta)) parsed.seta = seta
+  return parsed
 }
 
 function parseNoteEntry(value: unknown): NoteEntry | null {
@@ -1453,6 +1607,25 @@ export function parseClueMessage(value: unknown): ClueHostMessage | null {
   }
 }
 
+/** PASSAR O MAPA: valida `map.shared`, `map.share.result` e `map.given` que o jogador recebe. Campo a mais sai. */
+export function parseMapShareMessage(value: unknown): MapShareHostMessage | null {
+  if (!isRecord(value)) return null
+  switch (value.type) {
+    case 'map.given':
+      return { type: 'map.given' }
+    case 'map.shared':
+      return isRoomName(value.from) ? { type: 'map.shared', from: value.from } : null
+    case 'map.share.result': {
+      const { to, ok, reason } = value
+      if (!isRoomName(to) || typeof ok !== 'boolean' || (reason !== undefined && typeof reason !== 'string')) return null
+      // Mesma regra da pista: motivo que este jogador não conhece vira a recusa comum.
+      return !ok && reason === 'too_soon' ? { type: 'map.share.result', to, ok, reason } : { type: 'map.share.result', to, ok }
+    }
+    default:
+      return null
+  }
+}
+
 /** Cor do laser repassado: `#rrggbb`, a forma que `Token.color` grava. */
 const LASER_COLOR_PATTERN = /^#[0-9a-f]{6}$/i
 
@@ -1621,6 +1794,37 @@ export function parseDiceRolled(value: unknown): DiceRolledMessage | null {
   return roll === null ? null : { type: 'dice.rolled', roll }
 }
 
+/** Bilhete maior que isto nem é normalizado: o teto é de 80 e ninguém digita 320 espaços. */
+const MARCA_TEXTO_BRUTO_MAX = MARCA_TEXTO_MAX * 4
+
+/**
+ * BILHETE NO LUGAR. Bilhete: o texto normalizado (`normalizarTextoDaMarca`)
+ * tem de ter de 1 a `MARCA_TEXTO_MAX` letras — acima do teto a mensagem cai
+ * inteira, em vez de gravar meio recado. Seta: um dos 8 rumos; texto que
+ * viesse junto é jogado fora. Autor, hora e o resto ficam para trás.
+ */
+function parseMarkPlace(obj: Record<string, unknown>): MarkPlaceMessage | null {
+  const { x, y, tipo, texto, rumo } = obj
+  if (!isFiniteNumber(x) || !isFiniteNumber(y)) return null
+  if (tipo === 'seta') return isMarcaRumo(rumo) ? { type: 'mark.place', x, y, tipo, rumo } : null
+  if (tipo !== 'bilhete' || !isBoundedString(texto, 1, MARCA_TEXTO_BRUTO_MAX)) return null
+  const limpo = normalizarTextoDaMarca(texto)
+  if (limpo.length === 0 || limpo.length > MARCA_TEXTO_MAX) return null
+  return { type: 'mark.place', x, y, tipo, texto: limpo }
+}
+
+/**
+ * Valida o `mark.place.result` que o jogador recebe. Motivo que este jogador
+ * não conhece (mestre mais novo) vira a recusa comum, como na pista.
+ */
+export function parseMarkPlaceResult(value: unknown): MarkPlaceResultMessage | null {
+  if (!isRecord(value) || value.type !== 'mark.place.result' || typeof value.ok !== 'boolean') return null
+  if (value.ok) return { type: 'mark.place.result', ok: true }
+  const { reason } = value
+  const known: MarkPlaceRefusal = reason === 'full' || reason === 'too_soon' ? reason : 'unavailable'
+  return { type: 'mark.place.result', ok: false, reason: known }
+}
+
 /**
  * Valida mensagem vinda do jogador. Aceita o objeto já desserializado ou a
  * string JSON crua do transporte. Devolve um objeto novo só com os campos
@@ -1706,6 +1910,14 @@ export function parsePlayerMessage(raw: unknown): PlayerMessage | null {
         : null
     case 'view.switch':
       return isBoundedString(value.tokenId, 1, REQ_ID_MAX_LENGTH) ? { type: 'view.switch', tokenId: value.tokenId } : null
+    case 'map.share':
+      return isRoomName(value.to) ? { type: 'map.share', to: value.to } : null
+    case 'pin.answer':
+      return isBoundedString(value.pinId, 1, REQ_ID_MAX_LENGTH) && isBoundedString(value.tentativa, 1, LOCK_ANSWER_MAX_LENGTH)
+        ? { type: 'pin.answer', pinId: value.pinId, tentativa: value.tentativa }
+        : null
+    case 'mark.place':
+      return parseMarkPlace(value)
     default:
       return null
   }

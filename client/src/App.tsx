@@ -28,16 +28,18 @@ import { advanceTurn, startTurn, useInitiativeStore } from './stores/initiativeS
 import { useClockStore } from './stores/clockStore'
 import { turnTokenIdOn } from './lib/initiative'
 import { carryRefsOf } from './lib/carry'
+import { consertarNaAventura } from './stores/revisaoAventura'
 import { useFollowPlayer } from './stores/useFollowPlayer'
 import { useArrivalTextSettings } from './stores/useArrivalTextSettings'
 import { playSignalSound } from './lib/signalSound'
 import { createSignalRouter } from './net/chamadoDeFundo'
 import { tableSceneKey, type AppliedMove, type PinClueState, type PlayerInfo, type SecretCheckState } from './net/hostSession'
 import { tableScreenUrl } from './lib/tableScreen'
-import { RoomPanel, roomPanelTokensOf } from './components/RoomPanel'
+import { giftScenesOf, RoomPanel, roomPanelTokensOf } from './components/RoomPanel'
 import { hostCluesProps } from './components/CluesSection'
 import { LivePlayerMirror } from './components/PlayerMirror'
 import { masterDestinationMarks, partyDestinations, partyItemChange, partyMembers, peopleByScene } from './lib/party'
+import { jogadoresDoCorte } from './lib/corteDaTorre'
 import { useDestinationStore } from './stores/destinationStore'
 import { useCenaQueEspera } from './stores/useCenaQueEspera'
 import type { TravelLogEntry } from './lib/travelLog'
@@ -75,6 +77,7 @@ import {
 } from './stores/adventureStore'
 import { ScenesSection } from './components/ScenesSection'
 import { MapObjectsSection } from './components/MapObjectsSection'
+import { MarcasDaCena } from './components/MarcasDaCena'
 import { currentObjectKey, isFindObjectShortcut } from './lib/mapObjects'
 import { goToMapObject } from './stores/mapObjectNavigation'
 import { ligacaoLevarFicha } from './stores/levarFicha'
@@ -101,6 +104,7 @@ import { passageOf } from './lib/pins'
 import { isArrivalOnly } from './lib/pinTravel'
 import { pinAttachOptions } from './lib/pinAttach'
 import { leverDoorOptions, linkedDoorOf } from './lib/lever'
+import { lockDoorOptions } from './lib/pinLock'
 import type { Screen } from './types/screen'
 import { createMapScreen, parentScreen } from './lib/navigation'
 import * as mapFactory from './lib/mapFactory'
@@ -887,6 +891,9 @@ function App() {
             onRevealPlan={(playerId) => hostBridgeRef.current?.revealPlan(playerId)}
             onHidePlan={(playerId) => hostBridgeRef.current?.hidePlan(playerId)}
             onGiveGroupView={(playerId) => hostBridgeRef.current?.giveGroupView(playerId) ?? null}
+            onShareMap={(fromPlayerId, toPlayerId) => hostBridgeRef.current?.shareMap(fromPlayerId, toPlayerId) ?? false}
+            giftScenes={giftScenesOf(world)}
+            onGiveMap={(playerId, sceneId, roomIds) => hostBridgeRef.current?.giveRoomsMap(playerId, sceneId, roomIds) ?? 0}
             laserOn={laserToggled}
             onToggleLaser={() => {
               // Laser e Ruído disputam o mesmo clique no mapa: ligar um desliga o outro.
@@ -2291,6 +2298,17 @@ function App() {
                         })
                       }
                 }
+                // Abalo por distância: mesma regra do recado, um envio para a aventura inteira.
+                onQuake={room === null ? undefined : (origem, textos, vizinhas) => hostBridgeRef.current?.abalo(origem, textos, vizinhas) ?? null}
+                // Corte da torre: clicar numa ficha é o mestre escolhendo a vista (como o "Ir lá" do Grupo), então desliga o seguir.
+                // O revisor também vale no mapa solto, cujo id na lista é '': ali "a cena" é a aberta.
+                onGoToPoint={(sceneId, x, y) => {
+                  useFollowStore.getState().stop()
+                  useAdventureStore.getState().goToPoint(sceneId === '' ? null : sceneId, { x, y })
+                }}
+                towerPlayers={roomPlayers.length === 0 ? undefined : jogadoresDoCorte(roomPlayers)}
+                // Revisor da aventura: o conserto entra no desfazer da cena aberta, ou marca a de fundo para salvar.
+                onFix={consertarNaAventura}
               />
               {/* Todos os pinos da aventura pelo nome só do mestre: tocar abre a cena com o pino selecionado. */}
               <PinsSection
@@ -2300,7 +2318,11 @@ function App() {
               </>
             }
             objects={
-              <MapObjectsSection map={map} currentKey={currentMapObjectKey} onGoTo={goToMapObject} searchRequest={objectSearchRequest} />
+              <>
+                <MapObjectsSection map={map} currentKey={currentMapObjectKey} onGoTo={goToMapObject} searchRequest={objectSearchRequest} />
+                {/* BILHETE NO LUGAR: reler e apagar a marca de um jogador depois que o aviso some. */}
+                <MarcasDaCena marcas={map.marcas ?? []} onApagar={hostPlayerChanges.removeMark} />
+              </>
             }
             mapName={map.name}
             mapWidth={map.width}
@@ -2770,6 +2792,14 @@ function App() {
               lerDePerto: selectedPin?.lerDePerto ?? null,
               onLerDePertoChange: (casas) =>
                 selectedPin && useMapStore.getState().updatePin(selectedPin.id, { lerDePerto: casas ?? undefined }),
+              // FECHADURA COM SEGREDO: a combinação fica neste mapa; o host confere a tentativa.
+              lock: selectedPin
+                ? {
+                    lock: selectedPin.segredo ?? null,
+                    onChange: (segredo) => useMapStore.getState().updatePin(selectedPin.id, { segredo }),
+                    doors: lockDoorOptions(map, selectedPin),
+                  }
+                : null,
               image: selectedPin?.image ?? null,
               onChooseImage: () => selectedPin && void handleChoosePinImage(selectedPin.id),
               onClearImage: () => selectedPin && useMapStore.getState().updatePin(selectedPin.id, { image: null }),

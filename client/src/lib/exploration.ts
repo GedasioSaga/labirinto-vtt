@@ -537,24 +537,6 @@ export function forgetInside(exp: Exploration, rings: readonly (readonly RegionP
 }
 
 /**
- * TELA DA MESA — junta em `target` o que `source` lembra: célula marcada em
- * qualquer uma fica marcada, e cada contorno lembrado entra pela mesma regra de
- * `rememberRing` (teto de vértices, sem repetir anel já coberto). Os contornos
- * de `source` já passaram pelo veto de área proibida quando foram guardados.
- * Grades diferentes (outro mapa, ou o mesmo redimensionado) não se juntam.
- */
-export function mergeExploration(target: Exploration, source: Exploration): void {
-  if (target.cell !== source.cell || target.cols !== source.cols || target.rows !== source.rows) return
-  for (let i = 0; i < target.bits.length; i += 1) target.bits[i] |= source.bits[i]
-  for (const ring of source.rings) {
-    if (target.ringVertices + ring.points.length > MAX_MEMORY_VERTICES) continue
-    if (target.rings.some((stored) => sameRing(stored, ring) || ringCovers(stored, ring))) continue
-    target.rings.push(ring)
-    target.ringVertices += ring.points.length
-  }
-}
-
-/**
  * "Revelar planta" do mestre: marca o mapa inteiro, menos as células que tocam
  * zona oculta ativa (mesma regra de `markRings`, senão a planta escondida
  * vazaria pela memória).
@@ -587,6 +569,43 @@ export function mergeExplored(into: Exploration, from: Exploration, concealed: r
     }
   }
   for (const ring of from.rings) rememberRing(into, ring.points, zones)
+}
+
+/**
+ * PASSAR O MAPA e TELA DA MESA: soma em `into` o que `from` explorou (células
+ * e contornos lembrados). É de mão única: `from` não muda.
+ *
+ * `concealed`: zonas ocultas ativas e salas secretas AGORA. A memória do
+ * colega pode ter sido marcada antes de o mestre esconder o lugar; célula que
+ * toca essas áreas e contorno que encosta nelas não passam — a mesma regra de
+ * `markRings`, senão a planta escondida viajaria pela memória de outro. Sem
+ * `concealed` (tela da mesa), junta tudo: os contornos de `from` já passaram
+ * pelo veto quando foram guardados.
+ *
+ * Cada contorno lembrado entra como já está (já foi simplificado e encaixado
+ * na malha ao ser guardado), com o teto de vértices e sem repetir anel já
+ * coberto, como em `rememberRing`.
+ *
+ * Grade diferente (o mapa foi redimensionado entre uma memória e outra) não
+ * mistura: devolve `false` sem mexer em `into`.
+ */
+export function mergeExploration(into: Exploration, from: Exploration, concealed: readonly RegionPoint[][] = []): boolean {
+  if (into.cell !== from.cell || into.cols !== from.cols || into.rows !== from.rows) return false
+  const zones = zoneBoxes(concealed)
+  forEachExploredRun(from, (row, colStart, colEnd) => setRunOutsideZones(into, row, colStart, colEnd, zones))
+  for (const ring of from.rings) {
+    if (into.ringVertices + ring.points.length > MAX_MEMORY_VERTICES) continue
+    const tocaZona = zones.some(
+      (z) =>
+        !(ring.maxX < z.minX || ring.minX > z.maxX || ring.maxY < z.minY || ring.minY > z.maxY) &&
+        ringTouchesRect(ring.points, z.minX, z.minY, z.maxX, z.maxY),
+    )
+    if (tocaZona) continue
+    if (into.rings.some((stored) => sameRing(stored, ring) || ringCovers(stored, ring))) continue
+    into.rings.push(ring)
+    into.ringVertices += ring.points.length
+  }
+  return true
 }
 
 /**

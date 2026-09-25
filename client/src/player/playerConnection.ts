@@ -1,4 +1,4 @@
-import type { HazardKind, MapData, RegionPoint, Token } from '../types/map'
+import type { HazardKind, MapData, MarcaRumo, RegionPoint, Token } from '../types/map'
 import { moveTokenCarryingLights } from '../lib/lightAttachment'
 import { HAZARD_NOTICE_TTL_MS, isHazardKind, parsePlayerHazards, type PlayerHazard } from '../lib/hazards'
 import { parsePlayerAreaTriggers, type PlayerAreaTrigger } from '../lib/areaTriggers'
@@ -52,12 +52,15 @@ import {
   CALL_TEXT_MAX_LENGTH,
   NOTEBOOK_MAX_NOTES,
   isCallReason,
+  parseAbalo,
   parseCallReply,
   parseClueMessage,
   parseDestinationsMessage,
   parseDiceRolled,
   parseElsewhere,
   parseLaserMessage,
+  parseMapShareMessage,
+  parseMarkPlaceResult,
   parseNotebook,
   parseNotesAway,
   parsePartyUpdate,
@@ -70,6 +73,7 @@ import {
   type CallRaiseMessage,
   type CallReason,
   type ClueEntry,
+  type MarkPlaceRefusal,
   type NoteEntry,
   type OwnTokenElsewhere,
   type PartyMember,
@@ -84,6 +88,8 @@ import {
   type SeatOption,
 } from '../net/protocol'
 import { DICE_FEED_MAX, parseDiceRequest, type DiceRequest, type DiceRollEntry } from '../lib/dice'
+import { MARCA_TEXTO_MAX, normalizarTextoDaMarca } from '../lib/marcas'
+import type { AbaloSeta } from '../lib/abalo'
 import { CLUEBOOK_MAX_CLUES } from '../lib/clues'
 import type { TokenMoveLanding, TokenMoveRejection } from '../lib/moveValidation'
 import type { RoofPeek } from '../lib/fogFilter'
@@ -96,6 +102,7 @@ import { rememberPlace, type VisitedPlace } from './playerPlaces'
 import { parseArrivalText } from '../lib/arrivalText'
 import { NOISE_CUE_TTL_MS, type NoiseDirection } from '../lib/noise'
 import { applyMapPatch, type MapPatch, type TokenChange } from '../net/viewPatch'
+import { LOCK_ANSWER_MAX_LENGTH } from '../lib/pinLock'
 
 /**
  * Cliente WebSocket do jogador, sem React e sem DOM: o socket e o storage são
@@ -205,13 +212,18 @@ export interface PlayerState {
   item?: ItemNotice
   /** ALAVANCA: a resposta ao "Puxar a alavanca". Some sozinha; `id` novo repete o aviso. */
   lever?: { id: number; phase: LeverPhase }
+  /** FECHADURA COM SEGREDO: a última tentativa, no pino `pinId`, e a resposta do host. */
+  lockAnswer?: { pinId: string; phase: LockAnswerPhase }
   /**
    * Recado do mestre para a cena do jogador. Fica até ele fechar
    * (`dismissNote`); um recado novo toma o lugar do aberto. É texto puro: a
    * tela o mostra como texto, nunca como HTML. `onlyYou`: o mestre mandou só
    * para este jogador (a tela diz "Só para você").
+   *
+   * ABALO: o mesmo cartão. `seta` = de que lado veio (só na cena da origem);
+   * `forte` = o jogador está na cena da origem, e o aparelho vibra ao abrir.
    */
-  note?: { id: string; text: string; onlyYou?: true }
+  note?: { id: string; text: string; onlyYou?: true; seta?: AbaloSeta; forte?: true }
   /**
    * PAUSA POR CENA: o mestre pausou a cena deste jogador (está com outro
    * grupo). Enquanto `true`, a tela mostra o aviso fixo; quem manda é o host,
@@ -328,6 +340,17 @@ export interface PlayerState {
    * sozinho depois de `SECRET_CHECK_NOTICE_TTL_MS`; nunca leva o resultado.
    */
   secretCheckNotice?: { id: number; kind: SecretCheckNoticeKind }
+  /** "Mostrar meu mapa a…": esperando a lista, ou os colegas da mesma cena. */
+  mapPeers?: CluePeers
+  /** "Mostrar meu mapa a…": o último envio e a resposta do host. */
+  mapShare?: MapShare
+  /**
+   * Um colega (ou o mestre por ele) acabou de passar o mapa. `id` novo repete o
+   * aviso. `from: null` = MAPA DE PAPEL: o próprio mestre deu Salas a ele.
+   */
+  mapShared?: { id: number; from: string | null }
+  /** BILHETE NO LUGAR: a última marca que ele tentou deixar e o que o host respondeu. */
+  markPlace?: MarkPlace
   rev: number
   playerId?: string
   /** Motivo quando `status === 'error'`: razão do mestre ou 'connection_lost'. */
@@ -385,6 +408,30 @@ export type TravelNotice =
   | { id: number; phase: 'denied'; text?: string }
   | { id: number; phase: 'rejected'; reason: PinTravelRejection }
 
+/**
+ * Onde está a tentativa na fechadura: conferindo no host, `wrong` ("Não
+ * abre"), `too_soon` (tentou rápido demais; nem foi conferida) ou `open`.
+ */
+export type LockAnswerPhase = 'sending' | 'wrong' | 'too_soon' | 'open'
+
+/**
+ * Quanto a tentativa espera a resposta do host. Mestre antigo não conhece
+ * `pin.answer` e nunca responde: sem o teto, o "Conferindo…" ficaria para sempre.
+ */
+export const LOCK_ANSWER_TIMEOUT_MS = 5000
+
+/**
+ * BILHETE NO LUGAR: onde está a última marca. `sending` espera o host;
+ * `refused` traz o motivo que ele deu (`MarkPlaceRefusal`).
+ */
+export type MarkPlace = { phase: 'sending' } | { phase: 'ok' } | { phase: 'refused'; reason: MarkPlaceRefusal }
+
+/** O que o jogador quer cravar: um bilhete com texto ou uma seta com rumo. */
+export type MarkPlaceIntent = { tipo: 'bilhete'; texto: string } | { tipo: 'seta'; rumo: MarcaRumo }
+
+/** Quanto a marca espera a resposta do host. Mestre antigo nunca responde: sem o teto, o "Deixando…" ficaria para sempre. */
+export const MARK_PLACE_TIMEOUT_MS = 5000
+
 export type CluePeers = { phase: 'loading' } | { phase: 'ready'; names: string[] }
 
 export interface ClueShow {
@@ -392,6 +439,12 @@ export interface ClueShow {
   /** `too_soon`: o mestre pediu um instante entre duas pistas mostradas; o colega segue na cena. */
   phase: 'sending' | 'ok' | 'failed' | 'too_soon'
 }
+
+/** "Mostrar meu mapa a…": as mesmas fases do "Mostrar para…" da pista. */
+export type MapShare = ClueShow
+
+/** Quanto tempo o aviso "Ana mostrou o próprio mapa a você" fica na tela. */
+export const MAP_SHARED_NOTICE_TTL_MS = 5000
 
 /** Põe a pista no fim do caderno; a mesma (mesmo id) sai de onde estava. Passou do teto, sai a mais antiga. */
 function withClue(book: readonly ClueEntry[], clue: ClueEntry): ClueEntry[] {
@@ -549,6 +602,22 @@ export interface PlayerConnection {
    */
   cancelTravel(): boolean
   /**
+   * FECHADURA COM SEGREDO: manda a tentativa no pino `pinId` (sem os espaços
+   * das pontas). `false` (e nada sai) quando não joga, o pino não chegou com
+   * fechadura, a tentativa é vazia ou passa do teto, ou o socket caiu.
+   */
+  answerLock(pinId: string, tentativa: string): boolean
+  /** O cartão fechou: a resposta da fechadura perde o sentido. */
+  resetLockAnswer(): void
+  /**
+   * BILHETE NO LUGAR: crava a marca onde está a PRIMEIRA ficha dele no mapa.
+   * `false` (e nada sai) quando não joga, não tem ficha no mapa, o bilhete é
+   * vazio ou passa do teto, ou o socket caiu. Quem confere o lugar é o host.
+   */
+  placeMark(intent: MarkPlaceIntent): boolean
+  /** Fechou o "Deixar marca aqui…": o resultado perde o sentido. */
+  resetMarkPlace(): void
+  /**
    * Ponteiro do LASER do jogador em px de mundo. Sai em lotes: o primeiro
    * ponto na hora, os seguintes juntos a cada `LASER_SEND_INTERVAL_MS`.
    * `false` se não está jogando ou o socket não está aberto.
@@ -608,6 +677,12 @@ export interface PlayerConnection {
   showClue(clueId: string, to: string): boolean
   /** O cartão da pista fechou: a lista de colegas e o resultado do envio perdem o sentido. */
   resetClueShare(): void
+  /** "Mostrar meu mapa a…": pede ao host quem está na mesma cena (a mesma pergunta das pistas). */
+  askMapPeers(): boolean
+  /** Mostra o que o jogador explorou nesta cena ao colega `to`. `false` se não joga ou o socket caiu. */
+  shareMap(to: string): boolean
+  /** Fechou o "Mostrar meu mapa a…": a lista e o resultado perdem o sentido. */
+  resetMapShare(): void
   /** Fecha o cartão da pista que um colega mostrou (a pista continua no caderno). */
   dismissShownClue(): void
   /**
@@ -1028,6 +1103,39 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
   // mesmo relógio: um novo toma o lugar do outro, nunca aparecem sobrepostos.
   let doorNoticeTimer: ReturnType<typeof setTimeout> | null = null
   let nextNoticeId = 1
+  let mapSharedTimer: ReturnType<typeof setTimeout> | null = null
+
+  function clearMapSharedTimer(): void {
+    if (mapSharedTimer !== null) clearTimeout(mapSharedTimer)
+    mapSharedTimer = null
+  }
+
+  /** "Ana mostrou o próprio mapa a você" (ou, com `null`, o mapa de papel do mestre): fica alguns segundos e sai sozinho. */
+  function showMapShared(from: string | null): void {
+    clearMapSharedTimer()
+    setState({ mapShared: { id: nextNoticeId++, from } })
+    mapSharedTimer = setTimeout(() => {
+      mapSharedTimer = null
+      setState({ mapShared: undefined })
+    }, MAP_SHARED_NOTICE_TTL_MS)
+  }
+
+  /** PASSAR O MAPA: o aviso de quem recebe e a resposta do host a quem mostrou. */
+  function handleMapShareMessage(data: unknown): void {
+    const msg = parseMapShareMessage(data)
+    // Sem mapa na tela, não há onde ler o aviso nem a resposta.
+    if (msg === null || state.status !== 'playing') return
+    if (msg.type === 'map.shared') {
+      showMapShared(msg.from)
+      return
+    }
+    if (msg.type === 'map.given') {
+      showMapShared(null)
+      return
+    }
+    if (state.mapShare?.phase !== 'sending' || state.mapShare.to !== msg.to) return
+    setState({ mapShare: { to: msg.to, phase: msg.ok ? 'ok' : msg.reason === 'too_soon' ? 'too_soon' : 'failed' } })
+  }
 
   function clearDoorNotice(): void {
     if (doorNoticeTimer !== null) clearTimeout(doorNoticeTimer)
@@ -1357,6 +1465,20 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       noiseTimer = null
       setState({ noise: undefined })
     }, NOISE_CUE_TTL_MS)
+  }
+
+  let lockTimer: ReturnType<typeof setTimeout> | null = null
+
+  function clearLockTimer(): void {
+    if (lockTimer !== null) clearTimeout(lockTimer)
+    lockTimer = null
+  }
+
+  let markTimer: ReturnType<typeof setTimeout> | null = null
+
+  function clearMarkTimer(): void {
+    if (markTimer !== null) clearTimeout(markTimer)
+    markTimer = null
   }
 
   let laserTimer: ReturnType<typeof setTimeout> | null = null
@@ -1886,11 +2008,16 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         setState(state.status === 'playing' ? { clues, shownClue: { id: nextNoticeId++, from: msg.from, clue: msg.clue } } : { clues })
         return
       }
-      case 'clue.peers':
+      case 'clue.peers': {
         // Só quem pediu espera a lista: resposta atrasada de um cartão já fechado não reabre nada.
-        if (state.cluePeers?.phase !== 'loading') return
-        setState({ cluePeers: { phase: 'ready', names: msg.names } })
+        // A mesma pergunta serve ao cartão da pista e ao "Mostrar meu mapa a…": cada um só se estava esperando.
+        const ready: CluePeers = { phase: 'ready', names: msg.names }
+        const patch: Partial<PlayerState> = {}
+        if (state.cluePeers?.phase === 'loading') patch.cluePeers = ready
+        if (state.mapPeers?.phase === 'loading') patch.mapPeers = ready
+        if (patch.cluePeers !== undefined || patch.mapPeers !== undefined) setState(patch)
         return
+      }
       case 'clue.show.result':
         if (state.clueShow?.phase !== 'sending' || state.clueShow.to !== msg.to) return
         setState({ clueShow: { to: msg.to, phase: msg.ok ? 'ok' : msg.reason === 'too_soon' ? 'too_soon' : 'failed' } })
@@ -1941,6 +2068,9 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         clearNoiseTimer()
         clearSecretCheckNotice()
         dropQueuedSecretChecks()
+        clearMapSharedTimer()
+        clearLockTimer()
+        clearMarkTimer()
         // O teste secreto sai junto: sem mapa não há cartão; o host manda de novo, logo depois do próximo mapa, o que ele ainda não respondeu.
         // Da espera só se sai por snapshot inteiro: patch nenhum parte dela.
         received = null
@@ -1987,6 +2117,11 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
           clueShow: undefined,
           call: undefined,
           pointNotice: undefined,
+          mapPeers: undefined,
+          mapShare: undefined,
+          mapShared: undefined,
+          lockAnswer: undefined,
+          markPlace: undefined,
         })
         return
       case 'scene.changed':
@@ -2001,9 +2136,12 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         clearHazardNotice()
         // O ruído era da cena de antes: a direção dele não vale no mapa novo.
         clearNoiseTimer()
+        clearLockTimer()
+        clearMarkTimer()
         // A porta tocada ficou na cena de antes: o "Trancada" e os botões dele perdem o sentido.
         // O ponto do toque longo era da cena de antes: a época vira.
-        setState({ doorRequest: undefined, turnNotice: undefined, hazardNotice: undefined, noise: undefined, sceneEpoch: state.sceneEpoch + 1 })
+        // A lista de "Mostrar meu mapa a…" era de quem estava na cena de antes; a fechadura e a marca também.
+        setState({ doorRequest: undefined, turnNotice: undefined, hazardNotice: undefined, noise: undefined, mapPeers: undefined, mapShare: undefined, lockAnswer: undefined, markPlace: undefined, sceneEpoch: state.sceneEpoch + 1 })
         {
           // TEXTO DE CHEGADA: o da cena nova, ou nenhum — o cartão da cena de
           // antes não fica aberto por cima de outro lugar.
@@ -2035,6 +2173,26 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         showTravelAnswer({ id: nextNoticeId++, phase: 'cancelled', reason })
         return
       }
+      case 'pin.answer.result': {
+        // Só a resposta da tentativa que está no ar, no pino dela: resposta
+        // atrasada de um cartão já fechado não reabre nada.
+        const waiting = state.lockAnswer
+        if (waiting?.phase !== 'sending' || data.pinId !== waiting.pinId || typeof data.ok !== 'boolean') return
+        clearLockTimer()
+        const phase: LockAnswerPhase = data.ok ? 'open' : data.reason === 'too_soon' ? 'too_soon' : 'wrong'
+        setState({ lockAnswer: { pinId: waiting.pinId, phase } })
+        return
+      }
+      case 'mark.place.result': {
+        // Só a resposta da marca que está no ar: resposta atrasada de um
+        // formulário já fechado não reabre nada.
+        if (state.markPlace?.phase !== 'sending') return
+        const result = parseMarkPlaceResult(data)
+        if (result === null) return
+        clearMarkTimer()
+        setState({ markPlace: result.ok ? { phase: 'ok' } : { phase: 'refused', reason: result.reason } })
+        return
+      }
       case 'scene.note': {
         // O host só manda a quem joga; fora do jogo não há tela de cartão.
         if (state.status !== 'playing') return
@@ -2054,6 +2212,26 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
           note: shown,
           notebook: [...book, entry].slice(-NOTEBOOK_MAX_NOTES),
           unreadNotes: [...(state.unreadNotes ?? []), note.id].slice(-NOTEBOOK_MAX_NOTES),
+        })
+        return
+      }
+      case 'abalo': {
+        // Mesma regra do recado: só quem joga tem tela de cartão.
+        if (state.status !== 'playing') return
+        const abalo = parseAbalo(data)
+        if (abalo === null) return
+        const card: NonNullable<PlayerState['note']> = { id: abalo.id, text: abalo.text }
+        if (abalo.seta !== undefined) card.seta = abalo.seta
+        if (abalo.forte) card.forte = true
+        const book = state.notebook ?? []
+        if (book.some((entry) => entry.id === abalo.id)) {
+          setState({ note: card })
+          return
+        }
+        setState({
+          note: card,
+          notebook: [...book, { id: abalo.id, text: abalo.text, at: abalo.at }].slice(-NOTEBOOK_MAX_NOTES),
+          unreadNotes: [...(state.unreadNotes ?? []), abalo.id].slice(-NOTEBOOK_MAX_NOTES),
         })
         return
       }
@@ -2094,6 +2272,11 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         setState({ diceRolls: [...(state.diceRolls ?? []), rolled.roll].slice(-DICE_FEED_MAX) })
         return
       }
+      case 'map.shared':
+      case 'map.share.result':
+      case 'map.given':
+        handleMapShareMessage(data)
+        return
       case 'room.text': {
         // Mesma regra do recado: só quem joga tem tela de cartão.
         if (state.status !== 'playing') return
@@ -2397,7 +2580,8 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         clearNoiseTimer()
         clearSecretCheckNotice()
         dropQueuedSecretChecks()
-        setState({ status: 'closed', playerLasers: undefined, doorNotice: undefined, doorRequest: undefined, moveNotice: undefined, turnNotice: undefined, travel: undefined, item: undefined, lever: undefined, hazardNotice: undefined, call: undefined, reconnecting: undefined, pointNotice: undefined, noise: undefined, secretCheck: undefined, secretCheckNotice: undefined })
+        clearMapSharedTimer()
+        setState({ status: 'closed', playerLasers: undefined, doorNotice: undefined, doorRequest: undefined, moveNotice: undefined, turnNotice: undefined, travel: undefined, item: undefined, lever: undefined, hazardNotice: undefined, call: undefined, reconnecting: undefined, pointNotice: undefined, noise: undefined, secretCheck: undefined, secretCheckNotice: undefined, mapShared: undefined })
         return
       case 'session.replaced':
         // A sessão foi para outra aba (ou aparelho). O resume FICA: é o mesmo
@@ -2497,6 +2681,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     forgetPointActions()
     clearNoiseTimer()
     clearSecretCheckNotice()
+    clearMapSharedTimer()
     const current = socket
     socket = null
     current?.close()
@@ -2621,6 +2806,58 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       return true
     },
 
+    answerLock(pinId, tentativa) {
+      if (state.status !== 'playing') return false
+      const pin = state.map?.pins.find((p) => p.id === pinId)
+      const texto = tentativa.trim()
+      if (pin?.fechadura === undefined || texto.length === 0 || texto.length > LOCK_ANSWER_MAX_LENGTH) return false
+      if (!send({ type: 'pin.answer', pinId, tentativa: texto })) return false
+      clearLockTimer()
+      setState({ lockAnswer: { pinId, phase: 'sending' } })
+      lockTimer = setTimeout(() => {
+        lockTimer = null
+        // Ninguém respondeu (mestre antigo, rede lenta): libera o "Tentar".
+        if (state.lockAnswer?.phase === 'sending') setState({ lockAnswer: undefined })
+      }, LOCK_ANSWER_TIMEOUT_MS)
+      return true
+    },
+
+    resetLockAnswer() {
+      clearLockTimer()
+      if (state.lockAnswer !== undefined) setState({ lockAnswer: undefined })
+    },
+
+    placeMark(intent) {
+      if (state.status !== 'playing') return false
+      const owned = new Set(state.ownTokens ?? [])
+      const ficha = state.map?.tokens.find((t) => owned.has(t.id))
+      if (ficha === undefined) return false
+      const x = Math.round(ficha.x)
+      const y = Math.round(ficha.y)
+      let message: PlayerMessage
+      if (intent.tipo === 'seta') {
+        message = { type: 'mark.place', x, y, tipo: 'seta', rumo: intent.rumo }
+      } else {
+        const texto = normalizarTextoDaMarca(intent.texto)
+        if (texto.length === 0 || texto.length > MARCA_TEXTO_MAX) return false
+        message = { type: 'mark.place', x, y, tipo: 'bilhete', texto }
+      }
+      if (!send(message)) return false
+      clearMarkTimer()
+      setState({ markPlace: { phase: 'sending' } })
+      markTimer = setTimeout(() => {
+        markTimer = null
+        // Ninguém respondeu (mestre antigo, rede lenta): libera o "Deixar".
+        if (state.markPlace?.phase === 'sending') setState({ markPlace: undefined })
+      }, MARK_PLACE_TIMEOUT_MS)
+      return true
+    },
+
+    resetMarkPlace() {
+      clearMarkTimer()
+      if (state.markPlace !== undefined) setState({ markPlace: undefined })
+    },
+
     laserMove(x, y) {
       if (state.status !== 'playing' || !Number.isFinite(x) || !Number.isFinite(y)) return false
       if (socket === null || socket.readyState !== SOCKET_OPEN) return false
@@ -2735,6 +2972,22 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       if (state.cluePeers !== undefined || state.clueShow !== undefined) setState({ cluePeers: undefined, clueShow: undefined })
     },
 
+    askMapPeers() {
+      if (state.status !== 'playing' || !send({ type: 'clue.peers' })) return false
+      setState({ mapPeers: { phase: 'loading' }, mapShare: undefined })
+      return true
+    },
+
+    shareMap(to) {
+      if (state.status !== 'playing' || !send({ type: 'map.share', to })) return false
+      setState({ mapShare: { to, phase: 'sending' } })
+      return true
+    },
+
+    resetMapShare() {
+      if (state.mapPeers !== undefined || state.mapShare !== undefined) setState({ mapPeers: undefined, mapShare: undefined })
+    },
+
     dismissShownClue() {
       if (state.shownClue !== undefined) setState({ shownClue: undefined })
     },
@@ -2824,7 +3077,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       // primeiro snapshot da volta solta o que ele não lembrar mais.
       dropQueuedSecretChecks()
       received = null
-      setState({ status: 'connecting', error: undefined, rev: -1, map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, partyTokens: undefined, concealed: undefined, glimpses: undefined, elsewhere: undefined, peek: undefined, sceneName: undefined, place: undefined, destinations: undefined, hazards: undefined, hazardNotice: undefined, gatilhos: undefined, andares: undefined, relogio: undefined, turn: undefined, signals: undefined, laser: undefined, playerLasers: undefined, doorNotice: undefined, doorRequest: undefined, moveNotice: undefined, turnNotice: undefined, travel: undefined, note: undefined, arrival: undefined, alarm: undefined, item: undefined, lever: undefined, roomText: undefined, notebook: undefined, unreadNotes: undefined, clues: undefined, shownClue: undefined, cluePeers: undefined, clueShow: undefined, paused: undefined, call: undefined, reconnecting: undefined, pointNotice: undefined, noise: undefined, secretCheck: undefined, secretCheckNotice: undefined })
+      setState({ status: 'connecting', error: undefined, rev: -1, map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, partyTokens: undefined, concealed: undefined, glimpses: undefined, elsewhere: undefined, peek: undefined, sceneName: undefined, place: undefined, destinations: undefined, hazards: undefined, hazardNotice: undefined, gatilhos: undefined, andares: undefined, relogio: undefined, turn: undefined, signals: undefined, laser: undefined, playerLasers: undefined, doorNotice: undefined, doorRequest: undefined, moveNotice: undefined, turnNotice: undefined, travel: undefined, note: undefined, arrival: undefined, alarm: undefined, item: undefined, lever: undefined, roomText: undefined, notebook: undefined, unreadNotes: undefined, clues: undefined, shownClue: undefined, cluePeers: undefined, clueShow: undefined, paused: undefined, call: undefined, reconnecting: undefined, pointNotice: undefined, noise: undefined, secretCheck: undefined, secretCheckNotice: undefined, mapPeers: undefined, mapShare: undefined, mapShared: undefined })
       open()
     },
     wake() {

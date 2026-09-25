@@ -5,6 +5,8 @@ import { itemOfPin } from '../lib/items'
 import { stairTravelLabel } from '../lib/stairTravel'
 import { PinLeverArt, PinSymbolArt, PinTravelArt } from '../components/PinSymbolArt'
 import { unreadExitLabels } from '../lib/pinTravel'
+import type { LockAnswerPhase } from './playerConnection'
+import { PlayerLockPad } from './PlayerLockPad'
 
 interface PlayerPinCardProps {
   pin: Pin
@@ -37,6 +39,13 @@ interface PlayerPinCardProps {
    * "só de perto" visto de longe: sai quando o texto chega.
    */
   onRead?: (pinId: string) => void
+  /**
+   * FECHADURA COM SEGREDO: manda a tentativa ao host. Ausente = o cartão não
+   * oferece tentar (a fechadura aparece, mas sem "Tentar").
+   */
+  onTryLock?: (tentativa: string) => void
+  /** A resposta do host à última tentativa NESTE pino; ausente = nenhuma. */
+  lockPhase?: LockAnswerPhase
 }
 
 /** Nome da cabeça do pino para quem não vê o desenho: o que ela mostra no mapa. */
@@ -45,6 +54,13 @@ function nomeDaCabeca(pin: Pin): string {
   if (pin.kind === 'alavanca') return 'alavanca'
   if (isPinIcon(pin.icon)) return PIN_ICON_LABELS[pin.icon].toLocaleLowerCase('pt-BR')
   return pin.kind === 'interrogacao' ? 'interrogação' : 'exclamação'
+}
+
+/** O que o cartão diz de cada resposta do host. */
+const TEXTO_DA_FECHADURA: Record<Exclude<LockAnswerPhase, 'sending'>, string> = {
+  wrong: 'Não abre.',
+  too_soon: 'Espere um instante antes de tentar de novo.',
+  open: 'Abriu.',
 }
 
 /**
@@ -158,6 +174,8 @@ export function PlayerPinCard({
   onPullLever,
   stairs,
   onRead,
+  onTryLock,
+  lockPhase,
 }: PlayerPinCardProps) {
   const cardRef = useRef<HTMLDivElement | null>(null)
   const closeRef = useRef<HTMLButtonElement | null>(null)
@@ -259,16 +277,23 @@ export function PlayerPinCard({
   // nenhum: um "Pedir" que o host sempre recusa só ensinaria o jogador a
   // insistir. Trancada que aceita tentativas oferece "Pedir ao mestre".
   const passagem = passageOf(pin)
-  const trancada = viagem && passagem === 'trancada'
+  // FECHADURA COM SEGREDO: vem no recorte só enquanto está fechada (forma e,
+  // nos volantes, casas; a resposta mora no host). Fechada, a passagem também não abre: o
+  // cartão oferece a combinação no lugar do "Pedir para passar".
+  const fechadura = pin.fechadura
+  const trancadaComSegredo = viagem && fechadura !== undefined
+  const trancada = viagem && passagem === 'trancada' && !trancadaComSegredo
   // CHAVE ABRE PORTA: o host só manda `chave` a quem encosta no pino com o
   // item. O mapa chega da rede sem conferência campo a campo: só texto vale.
   const chave = trancada && typeof pin.chave === 'string' && pin.chave !== '' ? pin.chave : null
   const muda = trancada && pin.mudo === true
   // MARCO visto de longe (`soMarco`): o jogador enxerga o Templo, mas nunca
   // esteve lá — o host recusa a passagem, então o cartão nem oferece.
-  const naoChegou = viagem && !trancada && pin.soMarco === true
+  const naoChegou = viagem && !trancada && !trancadaComSegredo && pin.soMarco === true
   // Muda só abre com a chave; a que aceita tentativas vira pedido ao mestre.
-  const podePedir = viagem && (!muda || chave !== null) && !naoChegou && onRequestTravel !== undefined
+  // Com segredo, só a combinação abre.
+  const podePedir =
+    viagem && !trancadaComSegredo && (!muda || chave !== null) && !naoChegou && onRequestTravel !== undefined
   // Escada: o sentido vem da escada do recorte (`lib/fogFilter.ts` só manda o pino junto com ela).
   const stairDirection: StairDirection | undefined =
     viagem && pin.escadaId !== undefined ? stairs.find((s) => s.id === pin.escadaId)?.direction : undefined
@@ -350,6 +375,17 @@ export function PlayerPinCard({
         {muda && chave === null && <p className="pp-pincard__locked">Está trancada. Não dá para passar por aqui agora.</p>}
         {trancada && !muda && chave === null && <p className="pp-pincard__locked">Está trancada. Só o mestre pode abrir.</p>}
         {naoChegou && <p className="pp-pincard__locked">Dá para ver daqui, mas para passar é preciso chegar até lá.</p>}
+        {trancadaComSegredo && <p className="pp-pincard__locked">Trancada com segredo. Acerte a combinação para passar.</p>}
+        {fechadura !== undefined && (
+          // A chave é o pino, a forma e (nos volantes) as casas: outro cadeado começa zerado.
+          <PlayerLockPad key={`${pin.id}|${fechadura.forma}|${fechadura.forma === 'volantes' ? fechadura.casas : ''}`} pinId={pin.id} lock={fechadura} sending={lockPhase === 'sending'} onTry={onTryLock} />
+        )}
+        {lockPhase !== undefined && lockPhase !== 'sending' && (
+          // Fora da fechadura: o "Abriu." fica depois que o snapshot novo tira a fechadura do pino.
+          <p className={lockPhase === 'open' ? 'pp-lock__status pp-lock__status--open' : 'pp-lock__status'} role="status">
+            {TEXTO_DA_FECHADURA[lockPhase]}
+          </p>
+        )}
         {podePedir && confirming === null && !encruzilhada && (
           <button
             ref={askRef}

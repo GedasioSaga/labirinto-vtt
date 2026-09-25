@@ -21,6 +21,8 @@ import { tokenReachesDoor } from '../lib/doorReach'
 import { findPlayerPinAt } from '../lib/selectionHitTest'
 import { visiblePins } from '../lib/layers'
 import { createPinsRenderer } from '../pixi/drawPins'
+import { drawMarcas } from '../pixi/drawMarcas'
+import { acharBilheteEm } from '../lib/marcas'
 import { panBy, zoomAt } from '../pixi/world'
 import { createDebouncedTask, syncWorldTextResolution } from '../pixi/textResolution'
 import type { Bounds, Camera, Point } from '../pixi/world'
@@ -168,6 +170,8 @@ interface PlayerViewProps {
   onPinOpen?: (pinId: string) => void
   /** Toque curto no nome de uma Sala cujo texto já chegou: reabre o texto da sala. */
   onRoomOpen?: (regionId: string) => void
+  /** BILHETE NO LUGAR: toque curto num bilhete deixado no chão abre o cartão dele. */
+  onMarkOpen?: (markId: string) => void
   /** Rastro do laser do mestre; o ticker esmaece cada ponto pela idade. */
   laser?: LaserTrail
   /**
@@ -714,6 +718,9 @@ interface Scene {
   triggers: Graphics
   lastTriggers: readonly PlayerAreaTrigger[] | null
   triggersCount: number
+  /** BILHETE NO LUGAR: bilhetes e setas de giz, logo abaixo dos pinos. */
+  marks: Graphics
+  lastMarksKey: string | null
   /** Zonas ocultas: preto opaco acima da névoa e abaixo dos tokens. */
   concealed: Graphics
   lastConcealed: RegionPoint[][] | null
@@ -1051,6 +1058,7 @@ export function PlayerView({
   onDoorToggle,
   onPinOpen,
   onRoomOpen,
+  onMarkOpen,
   laser,
   laserArmed = false,
   ownLaserColor = OWN_TOKEN_CSS,
@@ -1097,6 +1105,7 @@ export function PlayerView({
     onDoorToggle,
     onPinOpen,
     onRoomOpen,
+    onMarkOpen,
     laser,
     laserArmed,
     ownLaserColor,
@@ -1345,6 +1354,13 @@ export function PlayerView({
     return pin === null ? null : pin.id
   }
 
+  /** BILHETE NO LUGAR: bilhete sob o ponto da TELA, com a mesma folga de dedo do pino. A seta não abre nada. */
+  function markAtScreen(scene: Scene, screenX: number, screenY: number): string | null {
+    const point = scene.world.toLocal({ x: screenX, y: screenY })
+    const marca = acharBilheteEm(latestRef.current.map.marcas ?? [], point, DOOR_TAP_TOLERANCE_PX / scene.camera.scale)
+    return marca === null ? null : marca.id
+  }
+
   /**
    * TEXTO DA SALA: Sala cujo NOME está sob o ponto da tela e cujo texto já
    * chegou ao jogador. A caixa do rótulo é medida com todas as Salas (o rótulo
@@ -1455,6 +1471,13 @@ export function PlayerView({
 
     // O recorte do mestre já tirou daqui todo pino que este jogador não pode
     // ver (lib/fogFilter.ts): o que chegou é o que ele pode tocar.
+    const marcas = currentMap.marcas ?? []
+    const marksKey = JSON.stringify(marcas)
+    if (marksKey !== scene.lastMarksKey) {
+      scene.lastMarksKey = marksKey
+      drawMarcas(scene.marks, marcas)
+    }
+
     const pins = visiblePins(currentMap.pins ?? [], hidden)
     const pinsKey = JSON.stringify(pins)
     if (pinsKey !== scene.lastPinsKey) {
@@ -1668,6 +1691,7 @@ export function PlayerView({
       const peekedRoofs = new Graphics()
       const peekMask = new Graphics()
       const pins = new Container()
+      const marks = new Graphics()
       const tokens = new Container()
       prepareTokenLayer(tokens)
       // Mesma ordem do editor, de baixo para cima; tudo da planta fica sob a
@@ -1716,6 +1740,9 @@ export function PlayerView({
         // O telhado espiado pela porta, no mesmo andar do telhado, com o buraco da visão.
         peekedRoofs,
         peekMask,
+        // Bilhete e giz acima da névoa, como o pino: só chega o que o jogador
+        // já viu (lib/fogFilter.ts), e no escuro lembrado ele continua legível.
+        marks,
         pins,
         tokens,
       )
@@ -1805,6 +1832,8 @@ export function PlayerView({
         triggers,
         lastTriggers: null,
         triggersCount: 0,
+        marks,
+        lastMarksKey: null,
         concealed,
         lastConcealed: null,
         concealedCount: 0,
@@ -2094,6 +2123,8 @@ export function PlayerView({
         // intenção — sem esta guarda, a mesma pressão virava ping de mapa e o
         // cartão ou a porta nunca respondia (medido no toque lento).
         if (!holdBecomesSignal(tapTargetAtScreen(scene, x, y))) return
+        // O bilhete no chão é controle do mesmo jeito: segurar em cima dele é querer ler.
+        if (markAtScreen(scene, x, y) !== null) return
         const timer = setTimeout(() => {
           longPress = null
           // Virou sinal: o gesto não continua como arrasto de câmera.
@@ -2140,6 +2171,7 @@ export function PlayerView({
           const overTappable =
             !latestRef.current.signalArmed &&
             (tapTargetAtScreen(scene, event.global.x, event.global.y).kind !== 'map' ||
+              markAtScreen(scene, event.global.x, event.global.y) !== null ||
               roomTextAtScreen(scene, event.global.x, event.global.y) !== null)
           app.stage.cursor = overTappable ? 'pointer' : 'default'
           return
@@ -2199,6 +2231,12 @@ export function PlayerView({
           const target = tapTargetAtScreen(scene, drag.startX, drag.startY)
           if (target.kind === 'pin') {
             latestRef.current.onPinOpen?.(target.pinId)
+            return
+          }
+          // Bilhete depois do pino (o pino é desenhado por cima) e antes da porta.
+          const markId = latestRef.current.onMarkOpen === undefined ? null : markAtScreen(scene, drag.startX, drag.startY)
+          if (markId !== null) {
+            latestRef.current.onMarkOpen?.(markId)
             return
           }
           if (target.kind === 'door') {

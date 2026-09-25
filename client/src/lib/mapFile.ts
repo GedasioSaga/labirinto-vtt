@@ -1,8 +1,10 @@
 import type { DoorState, FloorStyle, MapData, Prop, Region } from '../types/map'
 import { propPlayerImage, propPlayerLabel } from './propPlayerLook'
 import { readDoorKey } from './doorKey'
+import { lerMarcasDoArquivo } from './marcas'
 import { linkLooseWallsToRooms } from './roomLink'
 import { cleanPinName, isPinIcon, isPinKind, isPinPassage, isPinReadDistance } from './pins'
+import { readPinLock } from './pinLock'
 import { cleanExitLabel, readPinDestination, readPinExits } from './pinTravel'
 import { readSceneVisionCells } from './sceneVision'
 import { tokenPublicNameFromFile } from './tokenPublicName'
@@ -159,6 +161,12 @@ function roomDarkFromFile(region: Region): Region {
   if (!room || typeof room !== 'object' || !('dark' in room) || room.dark === true) return region
   const { dark: _descartado, ...semEscuro } = room
   return { ...region, room: semEscuro }
+}
+
+/** BILHETE NO LUGAR: `{ marcas }` só quando o arquivo trouxe o campo. */
+function marcasDoArquivo(value: unknown): Pick<MapData, 'marcas'> {
+  const marcas = lerMarcasDoArquivo(value)
+  return marcas === undefined ? {} : { marcas }
 }
 
 /**
@@ -339,7 +347,18 @@ function deserializeMapFields(json: string): MapData {
       // ALAVANCA: campo NOVO e OPCIONAL. Só texto não vazio vale; o resto
       // volta AUSENTE (alavanca solta, que não move nada) — ver `readPinLeverDoor`.
       portaLigada: readPinLeverDoor(p.portaLigada),
+      // FECHADURA COM SEGREDO: campo NOVO e OPCIONAL, conferido campo a campo
+      // por `readPinLock` — `resposta` em texto (sem ela, sem fechadura),
+      // `forma` desconhecida volta 'teclado', `aberta` só `true` e `abrePorta`
+      // só texto; ausentes continuam ausentes. `fechadura` é só do recorte do
+      // jogador, como `escolhas`: arquivo que a traga não a põe no mapa do mestre.
+      segredo: readPinLock(p.segredo),
+      fechadura: undefined,
     })),
+    // BILHETE NO LUGAR: campo NOVO e OPCIONAL. Ausente continua ausente (sem a
+    // chave, nem `undefined`): o round-trip de mapa antigo sai idêntico. Marca
+    // torta cai sozinha e as boas ficam (`lerMarcasDoArquivo`).
+    ...marcasDoArquivo(parsed.marcas),
     frame: parsed.frame ?? null,
     fog: parsed.fog ?? { mode: 'none', revealed: [] },
     hiddenLayers: plainList(parsed.hiddenLayers),

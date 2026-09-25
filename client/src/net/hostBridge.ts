@@ -29,7 +29,11 @@ import {
   type DoorKeyUse,
   type DoorRequest,
   type ItemRequest,
+  type AppliedLock,
+  type AppliedMark,
+  type LockAttempt,
   type AppliedTransfer,
+  type GiveMapOutcome,
   type CaravanStop,
   type HazardEntryNotice,
   type GatherArrival,
@@ -67,6 +71,7 @@ import {
   type HostErrorReason,
   type LaserMessage,
 } from './protocol'
+import type { AbaloContagem, AbaloOrigem, AbaloTextos } from '../lib/abalo'
 import { createPlayerScreens, type PlayerScreen } from './playerScreens'
 import { guardSightingNotices } from './guardNotices'
 import type { TurnRef } from '../lib/initiative'
@@ -83,6 +88,9 @@ import { areaTriggerEntryLine } from '../lib/areaTriggers'
  * `net:peer` {clientId, event, name?}, `net_send({clientId, msg})` e
  * `net_kick({clientId})`.
  */
+
+/** Quanto o aviso "Ana deixou um bilhete…" fica na tela: dá para ler o texto e decidir "Apagar". */
+export const MARK_NOTICE_MS = 12_000
 
 export interface RoomInfo {
   code: string
@@ -143,6 +151,24 @@ export interface HostBridgeDeps {
    * ponte sem este retorno simplesmente não oferece a edição ao jogador.
    */
   applyTokenEdit?: (edit: AppliedTokenEdit) => void
+  /**
+   * FECHADURA COM SEGREDO: o jogador acertou a combinação (a sessão já
+   * conferiu). O integrador abre a fechadura e destranca a porta ligada.
+   * Opcional como `applyTokenEdit`.
+   */
+  applyLock?: (lock: AppliedLock) => void
+  /**
+   * BILHETE NO LUGAR: a marca que o jogador cravou (a sessão já conferiu). O
+   * integrador a grava no mapa da cena. Opcional como `applyTokenEdit`: sem
+   * ele, a marca não fica e o mestre não é avisado.
+   */
+  applyMark?: (mark: AppliedMark) => void
+  /**
+   * "Apagar" do aviso da marca: tira a marca `markId` da cena que a tem NA
+   * HORA do clique (o mestre pode ter trocado de cena desde o aviso). `false`
+   * quando ela já não estava em cena nenhuma.
+   */
+  removeMark?: (markId: string) => boolean
   /**
    * O mestre deixou o jogador passar: mover o token entre as cenas. `false`
    * quando não deu (cena sumiu, token sumiu) — o jogador recebe a recusa em
@@ -283,6 +309,20 @@ export interface HostBridge {
    */
   giveGroupView(playerId: string): number | null
   /**
+   * "Passar o mapa de Ana a…": o que `fromPlayerId` explorou na cena onde está
+   * vai à memória de `toPlayerId`; o aviso sai a ele e o snapshot na hora.
+   * `false` quando nada passou (sala fechada, doador sem mapa da cena).
+   */
+  shareMap(fromPlayerId: string, toPlayerId: string): boolean
+  /**
+   * MAPA DE PAPEL — "Dar um mapa a…": grava as Salas `roomIds` da cena
+   * `sceneId` (`null` = mapa solto) na memória de `playerId`; o aviso sai a ele
+   * e o snapshot na hora. Devolve quantas Salas entraram (0 = nada: sala
+   * fechada, cena sumiu ou só Salas que o jogador não pode ver agora) ou
+   * `memoria-cheia` (cena nova com a memória dele no teto: nada foi gravado).
+   */
+  giveRoomsMap(playerId: string, sceneId: string | null, roomIds: readonly string[]): GiveMapOutcome
+  /**
    * "Mandar para…" do painel Grupo: leva a ficha do jogador para `toSceneId`,
    * no pino `pinId` ou no centro (`null`), sem pedido. `false` quando não deu
    * (sala fechada, destino ou ficha sumiram): o painel avisa e fica aberto.
@@ -364,6 +404,12 @@ export interface HostBridge {
   secretCheck(label: string, playerIds: readonly string[]): number | null
   /** "Encerrar" o teste: quem não respondeu tem o cartão fechado. */
   closeSecretCheck(checkId: string): void
+  /**
+   * ABALO POR DISTÂNCIA: a cada jogador em cena, o texto da faixa dele
+   * (`hostSession.abalo`). Devolve quantos ouviram em cada faixa, ou `null` com
+   * a sala fechada.
+   */
+  abalo(origem: AbaloOrigem, textos: AbaloTextos, vizinhas: readonly string[]): AbaloContagem | null
   /**
    * "Ver tela" do painel Grupo: o último recorte que SAIU pelo fio para este
    * jogador (a cena dele, com a névoa e a zona oculta já aplicadas), a espera
@@ -1758,6 +1804,46 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     useToastStore.getState().push('info', text)
   }
 
+  /**
+   * FECHADURA COM SEGREDO: o mestre lê cada tentativa conferida (quem, onde, o
+   * que tentou), sem que ela vire pedido — a combinação já respondeu sozinha.
+   */
+  const tellLockAttempt = (attempt: LockAttempt) => {
+    const text = attempt.ok
+      ? `${attempt.playerName} abriu a fechadura de ${attempt.pinLabel} com “${attempt.tentativa}”`
+      : `${attempt.playerName} tentou “${attempt.tentativa}” em ${attempt.pinLabel}: não abriu`
+    useToastStore.getState().push('info', text)
+  }
+
+  /**
+   * BILHETE NO LUGAR: o mestre lê na hora quem deixou o quê e em que cena, com
+   * "Apagar" (o bilhete que não cabe na mesa). O aviso fica mais que um "info"
+   * comum — é uma oferta de ação —, mas some sozinho: marca não é pedido, e
+   * ninguém fica esperando resposta do outro lado.
+   */
+  const tellMarkPlaced = (mark: AppliedMark) => {
+    const { marca, playerName, sceneName } = mark
+    const text =
+      marca.tipo === 'bilhete'
+        ? `${playerName} deixou um bilhete em ${sceneName}: “${marca.texto ?? ''}”`
+        : `${playerName} riscou uma seta de giz em ${sceneName}`
+    const removeMark = deps.removeMark
+    const actions =
+      removeMark === undefined
+        ? []
+        : [
+            {
+              label: 'Apagar',
+              // A cena é a que tem a marca no clique, não a de quando ela chegou.
+              run: () => {
+                if (removeMark(marca.id)) broadcastNow()
+                else useToastStore.getState().push('info', marca.tipo === 'bilhete' ? 'Esse bilhete já não está no mapa' : 'Essa seta de giz já não está no mapa')
+              },
+            },
+          ]
+    useToastStore.getState().push('info', text, MARK_NOTICE_MS, { actions })
+  }
+
   const onMessage = (event: { payload: unknown }) => {
     if (session === null || !isRecord(event.payload)) return
     const clientId = parseClientId(event.payload.clientId)
@@ -1849,10 +1935,24 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       if (deps.applyItems === undefined) void dispatch(session.denyItemRequest(result.itemRequest.requestId))
       else askItem(result.itemRequest)
     }
+    // "Mostrar meu mapa a…" aceito: o colega recebe o trecho no snapshot de agora.
+    if (result.mapShared !== undefined) broadcastNow()
     if (result.applyTokenEdit !== undefined && deps.applyTokenEdit !== undefined) {
       // Mesma regra da porta: o mestre vê pela store, os outros jogadores pelo snapshot imediato.
       deps.applyTokenEdit(result.applyTokenEdit)
       broadcastNow()
+    }
+    if (result.applyLock !== undefined && deps.applyLock !== undefined) {
+      // Mesma regra da porta: o cartão do jogador perde a fechadura no snapshot de agora.
+      deps.applyLock(result.applyLock)
+      broadcastNow()
+    }
+    if (result.lockAttempt !== undefined) tellLockAttempt(result.lockAttempt)
+    if (result.applyMark !== undefined && deps.applyMark !== undefined) {
+      // Mesma regra da porta: o mestre vê pela store, quem conhece o ponto pelo snapshot de agora.
+      deps.applyMark(result.applyMark)
+      broadcastNow()
+      tellMarkPlaced(result.applyMark)
     }
     if (result.secretCheckAnswer !== undefined) {
       // Só na tela do mestre: o painel e o aviso. Não há `net_send` com o resultado.
@@ -2123,6 +2223,27 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       return colleagues
     },
 
+    shareMap(fromPlayerId, toPlayerId) {
+      if (session === null) return false
+      const result = session.shareMap(fromPlayerId, toPlayerId, world())
+      if (result.mapShared === undefined) return false
+      // O aviso primeiro, o trecho novo no snapshot logo atrás.
+      void dispatch(result)
+      broadcastNow()
+      return true
+    },
+
+    giveRoomsMap(playerId, sceneId, roomIds) {
+      if (session === null) return 0
+      const result = session.giveRoomsMap(playerId, sceneId, roomIds, world())
+      if (result.mapRefused !== undefined) return result.mapRefused.reason
+      if (result.mapGiven === undefined) return 0
+      // O aviso primeiro, as Salas novas no snapshot logo atrás.
+      void dispatch(result)
+      broadcastNow()
+      return result.mapGiven.roomIds.length
+    },
+
     sendPlayer(playerId, toSceneId, pinId, gatherAt) {
       if (session === null) return false
       const result = session.sendPlayer(playerId, toSceneId, pinId, world(), gatherAt)
@@ -2264,6 +2385,13 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       if (session === null) return
       void dispatch(session.closeSecretCheck(checkId))
       notifySecretChecksIfChanged()
+    },
+
+    abalo(origem, textos, vizinhas) {
+      if (session === null) return null
+      const result = session.abalo(origem, textos, vizinhas, world())
+      void dispatch(result)
+      return result.porFaixa
     },
 
     assignToken(playerId, tokenId) {

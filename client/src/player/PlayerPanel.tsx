@@ -13,6 +13,8 @@ import { PersonalNoteList } from './PlayerPersonalNotes'
 import type { PersonalNote } from './personalNotes'
 import { DiceForm } from '../components/DiceControls'
 import type { DiceRequest } from '../lib/dice'
+import { PlayerMapShare, type PlayerMapShareProps } from './PlayerMapShare'
+import { PlayerMarkForm, type PlayerMarkFormProps } from './PlayerMarkForm'
 
 /** Caderno sem pistas passadas (tela antiga, teste): a mesma lista vazia, sem objeto novo a cada render. */
 const NO_CLUES: readonly ClueEntry[] = []
@@ -197,6 +199,10 @@ interface PlayerPanelProps {
   elsewhere?: readonly OwnTokenElsewhere[]
   /** "Olhar por…": tocou numa ficha de fora; a cena da tela passa a ser a dela. */
   onSwitchView?: (tokenId: string) => void
+  /** "Mostrar meu mapa a…": ausente = a tela não oferece (teste, tela antiga). */
+  mapShare?: PlayerMapShareProps
+  /** BILHETE NO LUGAR — "Deixar marca aqui…": ausente = a tela não oferece (teste, tela antiga). */
+  markForm?: PlayerMarkFormProps
 }
 
 export function PlayerPanel({
@@ -240,6 +246,8 @@ export function PlayerPanel({
   onRollDice,
   elsewhere = NO_ELSEWHERE,
   onSwitchView = IGNORE_SWITCH,
+  mapShare,
+  markForm,
 }: PlayerPanelProps) {
   const tabs = onRollDice === undefined ? PANEL_TABS_NO_DICE : PANEL_TABS
   const drawerScreen = useSyncExternalStore(subscribeDrawerScreen, isDrawerScreen, () => false)
@@ -572,6 +580,8 @@ export function PlayerPanel({
                 Laser
               </button>
               {laserArmed && <p className="pp-empty">Segure e arraste no mapa para apontar. Quem está na sua cena vê. Esc sai.</p>}
+              {mapShare !== undefined && <PlayerMapShare {...mapShare} />}
+              {markForm !== undefined && <PlayerMarkForm {...markForm} />}
             </section>
 
             {backpack !== undefined && <PlayerBackpack {...backpack} />}
