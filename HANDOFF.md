@@ -252,6 +252,12 @@ mesma cena, do run antigo `wf_e3f23fdf-79d`) vai numa 2ª junção curta, perto 
   `auto/f2-<id>` com os worktrees em `.claude/worktrees/wf_f7c100fc-85d-*`) e retomar `publicar-grupos`.
 - Regra nova (memória `fabrica-de-features`): `cmd //c rmdir` nas junctions ANTES de qualquer `git worktree remove`.
 
+**25/09, 03h20 — grupo visão juntado em `auto/juntar` (`7da1931` + `ffda9b1`), tipos-src e tipos-e2e VERDES;
+unidade VERMELHA só pelo `node_modules` incompleto.** `publicar-grupos` (`wf_3c4bb722-2b5`) parou ali, como
+previsto. Relançado em modo `so_juntar` (`wf_8cc51539-dc2`): junta os grupos seguintes em `auto/juntar`, resolve
+conflitos e deixa os tipos verdes, sem unidade, prova nem push. Depois da restauração: rodar `publicar-grupos.js`
+sem `so_juntar` (os merges já feitos saem como "já juntado"), que prova e publica.
+
 **25/09, 02h55 — fábrica relançada de novo como `wf_86b2f741-40b`** (`scratchpad/noite-1b.json`, 115 peças: 4
 consertos independentes + as 111 da onda 3, 2 por vez). Os 11 consertos cujo código base ainda não está em
 `auto/acervo` (zona oculta, teste secreto, mostrar pista, painel de pistas, janela no escuro, eco do sinal, passe,
