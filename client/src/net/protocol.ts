@@ -193,6 +193,13 @@ import { MASTER_ROLLER_NAME, parseDiceRequest, type DiceRequest, type DiceRollEn
  * nome), `seat.claim` (jogador -> mestre) e, na volta, `seat.claim.state`.
  * Mestre antigo responde `error invalid_message` ao pedido e nunca manda a
  * lista (o jogador fica na espera de sempre); jogador antigo ignora as duas.
+ *
+ * A LOJA COM PREÇOS é aditiva pelo mesmo critério: `pin.buy` (jogador ->
+ * mestre, o id do pino e o da mercadoria) e, na volta, `pin.buy.rejected` e
+ * `pin.buy.answer` (vendido, com o nome; ou não). A mercadoria viaja no
+ * `Pin.loja` do snapshot, já recortada pela névoa. Nem o pedido nem a
+ * resposta levam nome ou id de cena. Mestre antigo responde `error
+ * invalid_message`; jogador antigo ignora a resposta e o campo novo.
  */
 export const PROTOCOL_VERSION = 1
 
@@ -456,6 +463,18 @@ export interface PinTakeMessage {
 }
 
 /**
+ * LOJA COM PREÇOS: "Quero" a mercadoria `itemId` da banca `pinId`, na cena
+ * onde o jogador está. Só os ids: o nome e o preço que o mestre lê saem do
+ * mapa DELE, nunca do que o jogador mandasse. A volta é `pin.buy.rejected`
+ * (o host recusou antes de perguntar) ou `pin.buy.answer` (o mestre decidiu).
+ */
+export interface PinBuyMessage {
+  type: 'pin.buy'
+  pinId: string
+  itemId: string
+}
+
+/**
  * CHAVE ABRE PORTA: o jogador usa a chave que carrega na porta trancada
  * `wallId`. Só a porta: o host acha a chave na mochila das fichas dele
  * encostadas nela — o jogador não escolhe item nem diz nome.
@@ -589,6 +608,7 @@ export type PlayerMessage =
   | TokenEditMessage
   | PinTravelRequestMessage
   | PinTakeMessage
+  | PinBuyMessage
   | ItemGiveMessage
   | CabineCallMessage
   | PlayerLaserMessage
@@ -634,6 +654,17 @@ export const PIN_LEVER_REJECTIONS: readonly PinLeverRejection[] = ['unavailable'
 export type PinTakeRejection = 'unavailable' | 'far' | 'pending'
 
 export const PIN_TAKE_REJECTIONS: readonly PinTakeRejection[] = ['unavailable', 'far', 'pending']
+
+/**
+ * Por que o host não levou o "Quero" ao mestre. `unavailable` junta banca
+ * inexistente, no escuro, oculta, em outra cena, mercadoria inventada e que
+ * acabou — um motivo por caso diria o que existe no escuro. `far`: nenhuma
+ * ficha dele na banca. `pending`: um pedido de compra dele já espera.
+ * `too_soon`: pediu de novo antes do intervalo mínimo.
+ */
+export type PinBuyRejection = 'unavailable' | 'far' | 'pending' | 'too_soon'
+
+export const PIN_BUY_REJECTIONS: readonly PinBuyRejection[] = ['unavailable', 'far', 'pending', 'too_soon']
 
 /** Por que o "Dar a…" não valeu: colega longe, ou item/ficha que não servem. */
 export type ItemGiveRejection = 'unavailable' | 'far'
@@ -948,6 +979,10 @@ export type HostMessage =
   | { type: 'pin.take.rejected'; reason: PinTakeRejection }
   | { type: 'pin.take.answer'; answer: 'taken'; nome: string }
   | { type: 'pin.take.answer'; answer: 'denied' }
+  // LOJA COM PREÇOS, só a quem pediu. `nome` só no `sold`: o que agora está na mochila dele.
+  | { type: 'pin.buy.rejected'; reason: PinBuyRejection }
+  | { type: 'pin.buy.answer'; answer: 'sold'; nome: string }
+  | { type: 'pin.buy.answer'; answer: 'denied' }
   | { type: 'item.give.rejected'; reason: ItemGiveRejection }
   // ALAVANCA. `pulled` não diz qual porta nem se abriu ou fechou: a porta
   // ligada pode estar fora da vista, e o jogador só vê o que o recorte mostra.
@@ -1660,6 +1695,10 @@ export function parsePlayerMessage(raw: unknown): PlayerMessage | null {
       return isBoundedString(value.clueId, 1, REQ_ID_MAX_LENGTH) && isRoomName(value.to) ? { type: 'clue.show', clueId: value.clueId, to: value.to } : null
     case 'pin.take':
       return isBoundedString(value.pinId, 1, REQ_ID_MAX_LENGTH) ? { type: 'pin.take', pinId: value.pinId } : null
+    case 'pin.buy':
+      return isBoundedString(value.pinId, 1, REQ_ID_MAX_LENGTH) && isBoundedString(value.itemId, 1, REQ_ID_MAX_LENGTH)
+        ? { type: 'pin.buy', pinId: value.pinId, itemId: value.itemId }
+        : null
     case 'item.give':
       return isBoundedString(value.itemId, 1, REQ_ID_MAX_LENGTH) && isBoundedString(value.toTokenId, 1, REQ_ID_MAX_LENGTH)
         ? { type: 'item.give', itemId: value.itemId, toTokenId: value.toTokenId }

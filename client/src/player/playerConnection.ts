@@ -14,6 +14,7 @@ import {
   PLAYER_MESSAGE_MAX_BYTES,
   PIN_LEVER_REJECTIONS,
   PIN_TAKE_REJECTIONS,
+  PIN_BUY_REJECTIONS,
   REQ_ID_MAX_LENGTH,
   TOKEN_HIDE_REJECTIONS,
   TRAVEL_REQUEST_MIN_INTERVAL_MS,
@@ -27,6 +28,7 @@ import {
   type JoinMessage,
   type PinLeverRejection,
   type PinTakeRejection,
+  type PinBuyRejection,
   type PinTravelRejection,
   type PinTravelRequestMessage,
   type PlayerMessage,
@@ -35,6 +37,7 @@ import {
 } from '../net/protocol'
 import { ACEITA_GZIP, criarEntradaEmOrdem } from '../net/pacoteComprimido'
 import { carriedItemsOf, cleanItemName, itemOfPin } from '../lib/items'
+import { lojaParaJogador } from '../lib/loja'
 import { fitsTokenPhotoSend } from '../lib/tokenPhoto'
 import { isPlayerSafePinImage, passageOf } from '../lib/pins'
 import { MAX_ACTIVE_SIGNALS, SIGNAL_COLOR_PATTERN, SIGNAL_TTL_MS, type DestinationMark, type SignalMark } from '../lib/signals'
@@ -198,6 +201,8 @@ export interface PlayerState {
   travel?: TravelNotice
   /** ITEM PEGÁVEL: "Pegar" ou "Dar a…" — enviado, a resposta do mestre ou a recusa do host. Some sozinho. */
   item?: ItemNotice
+  /** LOJA COM PREÇOS: o último "Quero" — esperando o mestre, a resposta dele ou a recusa do host. A resposta some sozinha. */
+  compra?: CompraNotice
   /** ALAVANCA: a resposta ao "Puxar a alavanca". Some sozinha; `id` novo repete o aviso. */
   lever?: { id: number; phase: LeverPhase }
   /**
@@ -406,6 +411,26 @@ export type ItemNotice =
   | { id: number; phase: 'give_rejected'; reason: ItemGiveRejection }
 
 /**
+ * LOJA COM PREÇOS: onde está o "Quero". `sent` espera o mestre (sem prazo:
+ * o host guarda o pedido até ele responder ou o jogador cair); `sold` e
+ * `denied` são a resposta do mestre; o resto é a recusa do host.
+ */
+export type CompraPhase = 'sent' | 'sold' | 'denied' | PinBuyRejection
+
+/**
+ * O último "Quero": a mercadoria `itemId` da banca `pinId`, com o `nome` que
+ * o jogador leu na hora (a banca pode sair do recorte antes da resposta).
+ * `id` novo repete o aviso.
+ */
+export interface CompraNotice {
+  id: number
+  pinId: string
+  itemId: string
+  nome: string
+  phase: CompraPhase
+}
+
+/**
  * Onde está a mão do jogador. `waiting` fica até o mestre responder (ou ele
  * baixar); `seen` ("O mestre viu") e `too_soon` ("espere um instante") somem
  * sozinhos depois de `CALL_NOTICE_TTL_MS`. A resposta escrita do mestre não
@@ -574,6 +599,13 @@ export interface PlayerConnection {
    */
   takePin(pinId: string): boolean
   /**
+   * LOJA COM PREÇOS: "Quero" a mercadoria `itemId` da banca `pinId`. `false`
+   * (e nada sai) quando não joga, a mercadoria não chegou no recorte ou
+   * acabou, já há um "Quero" esperando o mestre, ou o socket caiu. Quem
+   * confere de verdade é o host.
+   */
+  buy(pinId: string, itemId: string): boolean
+  /**
    * "Dar a…": o item `itemId` da mochila de uma ficha dele vai à ficha
    * `toTokenId`. `false` se o item não está com ele ou o socket não está aberto.
    */
@@ -695,6 +727,8 @@ export const DOOR_REQUEST_NOTICE_TTL_MS = 4000
 export const HIDE_NOTICE_TTL_MS = DOOR_REQUEST_NOTICE_TTL_MS
 /** Quanto tempo o aviso do item ("está com você", "O mestre disse não") fica na tela. */
 export const ITEM_NOTICE_TTL_MS = 4000
+/** LOJA: quanto a resposta ao "Quero" ("está com você", "O mestre não vendeu") fica na tela. O enviado fica até a resposta. */
+export const COMPRA_NOTICE_TTL_MS = ITEM_NOTICE_TTL_MS
 /** Quanto tempo o aviso da alavanca ("Você puxou a alavanca") fica na tela: recado curto, como o da porta. */
 export const LEVER_NOTICE_TTL_MS = DOOR_NOTICE_TTL_MS
 /** Quanto tempo a recusa do mestre ("não deixou passar agora") fica na tela. Mais que a porta. */
@@ -1139,6 +1173,31 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       itemTimer = null
       setState({ item: undefined })
     }, ITEM_NOTICE_TTL_MS)
+  }
+
+  let compraTimer: ReturnType<typeof setTimeout> | null = null
+
+  function clearCompraTimer(): void {
+    if (compraTimer !== null) clearTimeout(compraTimer)
+    compraTimer = null
+  }
+
+  /** LOJA: aviso do "Quero". O enviado espera o mestre; a resposta e a recusa somem sozinhas. */
+  function showCompra(compra: CompraNotice): void {
+    clearCompraTimer()
+    setState({ compra })
+    if (compra.phase === 'sent') return
+    compraTimer = setTimeout(() => {
+      compraTimer = null
+      setState({ compra: undefined })
+    }, COMPRA_NOTICE_TTL_MS)
+  }
+
+  /** A resposta do host ou do mestre ao "Quero" que está no ar; sem pedido no ar, nada muda. */
+  function answerCompra(phase: Exclude<CompraPhase, 'sent'>, nome?: string): void {
+    const atual = state.compra
+    if (atual === undefined || atual.phase !== 'sent') return
+    showCompra({ ...atual, id: nextNoticeId++, phase, nome: nome ?? atual.nome })
   }
 
   let callTimer: ReturnType<typeof setTimeout> | null = null
@@ -1802,6 +1861,11 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         // A lista de fichas livres também: o host conta o que mandou POR CONEXÃO,
         // e a desta começa vazia; a velha mostraria como livre a ficha de outro.
         setState({ playerId: data.playerId, status: state.status === 'playing' ? 'playing' : 'waiting', reconnecting: undefined, seatClaim: undefined, seatOptions: undefined })
+        // LOJA: o "Quero" também morre no host com a queda — esperando, travaria os botões para sempre.
+        if (state.compra?.phase === 'sent') {
+          clearCompraTimer()
+          setState({ compra: undefined })
+        }
         return
       case 'lobby.waiting':
         clearSignalTimers()
@@ -1813,6 +1877,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         clearTurnNotice()
         clearTravelTimer()
         clearItemTimer()
+        clearCompraTimer()
         clearLeverTimer()
         clearHazardNotice()
         clearCallTimer()
@@ -1820,6 +1885,8 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         forgetPointActions()
         setState({
           item: undefined,
+          // Sem ficha, não há "Quero" que chegue: o host também o esqueceu com a ficha.
+          compra: undefined,
           lever: undefined,
           // Sem ficha, não há o que esconder: a espera e a recusa saem.
           hide: undefined,
@@ -2132,6 +2199,26 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         showItemNotice({ id: nextNoticeId++, phase: 'rejected', reason })
         return
       }
+      case 'pin.buy.answer': {
+        if (state.status !== 'playing') return
+        if (data.answer === 'denied') {
+          answerCompra('denied')
+          return
+        }
+        // O nome vai para a tela: só texto, aparado e no teto.
+        if (data.answer !== 'sold' || typeof data.nome !== 'string') return
+        const nome = cleanItemName(data.nome)
+        if (nome === '') return
+        answerCompra('sold', nome)
+        return
+      }
+      case 'pin.buy.rejected': {
+        if (state.status !== 'playing') return
+        const reason = PIN_BUY_REJECTIONS.find((r) => r === data.reason)
+        if (reason === undefined) return
+        answerCompra(reason)
+        return
+      }
       case 'item.give.rejected': {
         if (state.status !== 'playing') return
         const reason = ITEM_GIVE_REJECTIONS.find((r) => r === data.reason)
@@ -2231,13 +2318,14 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         clearTurnNotice()
         clearTravelTimer()
         clearItemTimer()
+        clearCompraTimer()
         clearLeverTimer()
         clearHazardNotice()
         clearCallTimer()
         clearReconnectTimers()
         clearHideTimer()
         forgetPointActions()
-        setState({ status: 'closed', hide: undefined, playerLasers: undefined, doorNotice: undefined, doorRequest: undefined, moveNotice: undefined, turnNotice: undefined, travel: undefined, item: undefined, lever: undefined, hazardNotice: undefined, call: undefined, reconnecting: undefined, pointNotice: undefined })
+        setState({ status: 'closed', hide: undefined, playerLasers: undefined, doorNotice: undefined, doorRequest: undefined, moveNotice: undefined, turnNotice: undefined, travel: undefined, item: undefined, compra: undefined, lever: undefined, hazardNotice: undefined, call: undefined, reconnecting: undefined, pointNotice: undefined })
         return
       case 'session.replaced':
         // A sessão foi para outra aba (ou aparelho). O resume FICA: é o mesmo
@@ -2340,6 +2428,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     clearTurnNotice()
     clearTravelTimer()
     clearItemTimer()
+    clearCompraTimer()
     clearLeverTimer()
     clearHazardNotice()
     clearCallTimer()
@@ -2516,6 +2605,17 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       return true
     },
 
+    buy(pinId, itemId) {
+      if (state.status !== 'playing' || state.compra?.phase === 'sent') return false
+      const pin = state.map?.pins.find((p) => p.id === pinId)
+      // A mesma leitura do cartão: o mapa da rede não é conferido campo a campo.
+      const item = pin === undefined ? undefined : (lojaParaJogador(pin) ?? []).find((i) => i.id === itemId)
+      if (item === undefined || item.estoque === 0) return false
+      if (!send({ type: 'pin.buy', pinId, itemId })) return false
+      showCompra({ id: nextNoticeId++, pinId, itemId, nome: item.nome, phase: 'sent' })
+      return true
+    },
+
     giveItem(itemId, toTokenId) {
       if (state.status !== 'playing' || toTokenId.length === 0) return false
       const own = state.ownTokens ?? []
@@ -2657,7 +2757,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       detach()
       // `places` fica: o host não reenvia o desenho dos lugares de antes, e o
       // primeiro snapshot da volta solta o que ele não lembrar mais.
-      setState({ status: 'connecting', hide: undefined, error: undefined, rev: -1, map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, partyTokens: undefined, concealed: undefined, sceneName: undefined, place: undefined, destinations: undefined, hazards: undefined, hazardNotice: undefined, gatilhos: undefined, andares: undefined, relogio: undefined, porAtravessar: undefined, turn: undefined, signals: undefined, laser: undefined, playerLasers: undefined, doorNotice: undefined, doorRequest: undefined, moveNotice: undefined, turnNotice: undefined, travel: undefined, note: undefined, arrival: undefined, alarm: undefined, item: undefined, lever: undefined, roomText: undefined, notebook: undefined, unreadNotes: undefined, clues: undefined, shownClue: undefined, cluePeers: undefined, clueShow: undefined, paused: undefined, call: undefined, reconnecting: undefined, pointNotice: undefined, letterPeers: undefined, letterSend: undefined })
+      setState({ status: 'connecting', hide: undefined, compra: undefined, error: undefined, rev: -1, map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, partyTokens: undefined, concealed: undefined, sceneName: undefined, place: undefined, destinations: undefined, hazards: undefined, hazardNotice: undefined, gatilhos: undefined, andares: undefined, relogio: undefined, porAtravessar: undefined, turn: undefined, signals: undefined, laser: undefined, playerLasers: undefined, doorNotice: undefined, doorRequest: undefined, moveNotice: undefined, turnNotice: undefined, travel: undefined, note: undefined, arrival: undefined, alarm: undefined, item: undefined, lever: undefined, roomText: undefined, notebook: undefined, unreadNotes: undefined, clues: undefined, shownClue: undefined, cluePeers: undefined, clueShow: undefined, paused: undefined, call: undefined, reconnecting: undefined, pointNotice: undefined, letterPeers: undefined, letterSend: undefined })
       open()
     },
     wake() {

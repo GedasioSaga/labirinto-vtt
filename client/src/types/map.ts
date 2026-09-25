@@ -549,6 +549,30 @@ export interface Pin extends PlayerSecret, NoPiso {
    * dela diria que ela existe. Sem migração: mapa antigo não tem alavanca.
    */
   portaLigada?: string
+  /**
+   * LOJA COM PREÇOS (pino "!"/"?", nunca o de viagem nem a alavanca): as
+   * mercadorias da banca, na ordem do mestre. O jogador vê a lista no cartão e
+   * toca "Quero", que vira pedido ao mestre (`net/hostSession.ts`). Sai no
+   * recorte só como `lib/loja.ts` a monta (lista do que vai). Ausente = sem
+   * loja, sem migração.
+   */
+  loja?: LojaItem[]
+}
+
+/**
+ * Uma mercadoria da banca. `preco` é texto livre, com a moeda da aventura
+ * ("1 moeda", "uma vela"). `estoque`: quantas restam; ausente = sem conta
+ * (não acaba), 0 = acabou. "Vender" tira um (`lib/loja.ts`).
+ */
+export interface LojaItem {
+  id: string
+  nome: string
+  preco: string
+  /**
+   * Ausente = sem conta, sem linha de migração: a loja inteira é lida item a
+   * item por `lerLojaDoArquivo` (`lib/loja.ts`), que deixa o estoque torto ausente.
+   */
+  estoque?: number
 }
 
 /**

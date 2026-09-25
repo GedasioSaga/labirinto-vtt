@@ -2788,6 +2788,15 @@ function App() {
                       onChange: (item) => useMapStore.getState().updatePin(selectedPin.id, { item: item ?? undefined }),
                     }
                   : null,
+              // LOJA COM PREÇOS: só com um pino "!"/"?" aberto. O "Quero" do jogador chega na caixa Pedidos.
+              loja:
+                selectedPin && selectedPin.kind !== 'viagem' && selectedPin.kind !== 'alavanca'
+                  ? {
+                      pinId: selectedPin.id,
+                      loja: selectedPin.loja ?? null,
+                      onChange: (loja) => useMapStore.getState().updatePin(selectedPin.id, { loja }),
+                    }
+                  : null,
               // PRESO À FICHA: só o pino de viagem (a prancha do navio, a porta da carroça).
               attachment:
                 selectedPin && selectedPin.kind === 'viagem'
