@@ -994,6 +994,16 @@ export interface HostSession {
    */
   dismissPlayer(playerId: string): boolean
   /**
+   * "Passar fichas e mapa a…": esquece quem está FORA, como o Dispensar, e
+   * antes entrega a `heirId` as fichas DELE (a que ele jogava emprestada fica
+   * com o dono; a que ele tinha emprestado a outro passa, e o empréstimo
+   * acaba), o ajudante contratado com o acordo, e o explorado de cada cena,
+   * somado ao de quem recebe. `null` sem mudar nada: dono conectado (esse é o
+   * Expulsar), desconhecido, ou `heirId` desconhecido ou o próprio. Não envia
+   * snapshot: o integrador faz o broadcast.
+   */
+  handOverPlayer(playerId: string, heirId: string): (HostResult & { handedTokens: string[] }) | null
+  /**
    * `room.closed` para todo jogador conectado (jogando ou aguardando) e toda tela da mesa. O
    * integrador envia isto ANTES de derrubar a sala, para o jogador ler "O
    * mestre encerrou a sala" e não "A conexão caiu". Não mexe no estado.
@@ -2893,6 +2903,35 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     if (target.size > 0) memories.set(into, target)
     const radius = visionOverrides.get(from)
     if (!visionOverrides.has(into) && radius !== undefined) visionOverrides.set(into, radius)
+  }
+
+  /**
+   * "Passar fichas e mapa a…": `heirId` soma o que `fromId` lembra de cada
+   * cena. Cena que só `fromId` conhecia chega com lugar novo DE `heirId`
+   * (`place` é contador de cada jogador) e antes das de `heirId` na ordem de
+   * uso, para o teto esquecer primeiro o que ele nunca viu. Cena dos dois com
+   * a mesma planta soma células, portas e cômodos; planta diferente fica a de
+   * `heirId`. `restored` faz o primeiro uso tirar o que hoje é zona oculta ou
+   * sala secreta, como na mesa retomada.
+   */
+  function inheritPlayerMemories(heirId: string, fromId: string): void {
+    const inherited = memories.get(fromId)
+    if (inherited === undefined) return
+    const own = memories.get(heirId) ?? new Map<string, PlayerMemory>()
+    const merged = new Map<string, PlayerMemory>()
+    for (const [mapId, memory] of inherited) {
+      const mine = own.get(mapId)
+      if (mine === undefined) {
+        merged.set(mapId, { ...memory, vision: [], seenRooms: new Set(memory.seenRooms), restored: true, place: nextPlaceId(heirId) })
+        continue
+      }
+      if (mine.key !== memory.key) continue
+      inheritMemory(mine, memory, [])
+      for (const room of memory.seenRooms) mine.seenRooms.add(room)
+      mine.restored = true
+    }
+    for (const [mapId, memory] of own) merged.set(mapId, memory)
+    memories.set(heirId, merged)
   }
 
   /**
@@ -5117,6 +5156,28 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       if (record === undefined || record.clientId !== null) return false
       forgetPlayer(playerId)
       return true
+    },
+
+    handOverPlayer(playerId, heirId) {
+      const record = players.get(playerId)
+      if (record === undefined || record.clientId !== null || heirId === playerId || !players.has(heirId)) return null
+      // A ficha que ele jogava emprestada é do dono: o `forgetPlayer` a devolve.
+      const borrowed = new Set([...loans].filter(([, loan]) => loan.borrowerId === playerId).map(([tokenId]) => tokenId))
+      const handedTokens = (ownership[playerId] ?? []).filter((tokenId) => !borrowed.has(tokenId))
+      // Emprestada a quem recebe, ela já está na mão dele: só deixa de ser
+      // empréstimo, sem ele passar pela espera.
+      for (const [tokenId, loan] of [...loans]) if (loan.ownerId === playerId && loan.borrowerId === heirId) loans.delete(tokenId)
+      // Emprestada a outro, volta antes de passar: quem recebe joga como dono.
+      const loanBack = endLoansOf(playerId)
+      const held = ownership[heirId] ?? []
+      ownership[heirId] = [...held, ...handedTokens.filter((tokenId) => !held.includes(tokenId))]
+      // AJUDANTE CONTRATADO: o acordo acompanha a ficha.
+      for (const loan of helperLoans.values()) if (loan.playerId === playerId) loan.playerId = heirId
+      // Quem ganhou ficha já não pede uma.
+      if (handedTokens.length > 0) pendingSeatClaims.delete(heirId)
+      inheritPlayerMemories(heirId, playerId)
+      forgetPlayer(playerId)
+      return { outbound: loanBack.outbound, ...loansReturnedField(loanBack.returned), handedTokens }
     },
 
     closeRoom() {
