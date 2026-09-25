@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { Token } from '../types/map'
 import { PIN_TRAVEL_MAX_TOKENS } from '../net/protocol'
-import { pinTravelChoices, pinTravelGroup } from './pinTravelers'
+import { pinTravelChoices, pinTravelGroup, pinTravelGroupOf } from './pinTravelers'
 
 /**
  * ESCOLHER FICHAS NO PINO — a conta pura, a mesma no cartão do jogador (quais
@@ -57,5 +57,26 @@ describe('pinTravelChoices: as caixas do cartão "Quem passa?"', () => {
     const contrato = { tarefa: 'guiar', ate: null, visao: true }
     const tokens = [ficha('guia', casa(10, 6), { contrato })]
     expect(pinTravelChoices(tokens, ['guia'], PINO, GRADE).map((c) => c.id)).toEqual(['guia'])
+  })
+
+  it('só ajudantes na mão (dois ou mais): nenhuma escolha — só o mais perto, porque todos seguem o jogador de qualquer jeito', () => {
+    const contrato = { tarefa: 'guiar', ate: null, visao: true }
+    const tokens = [ficha('carregador', casa(8, 6), { contrato }), ficha('guia', casa(9, 6), { contrato })]
+    expect(pinTravelChoices(tokens, ['carregador', 'guia'], PINO, GRADE)).toEqual([{ id: 'guia', name: 'Nome guia' }])
+  })
+})
+
+describe('pinTravelGroupOf: o grupo que o cartão oferece e o host aceita', () => {
+  const ehAjudante = (t: { id: string }) => t.id.startsWith('aj-')
+
+  it('com ficha própria, o grupo é o das próprias (o ajudante fica de fora, ele segue sozinho)', () => {
+    const fichas = [ficha('aj-guia', casa(10, 6)), ficha('bruno', casa(9, 6)), ficha('ponei', casa(8, 6))]
+    expect(pinTravelGroupOf(fichas, ehAjudante, PINO, GRADE).map((t) => t.id)).toEqual(['bruno', 'ponei'])
+  })
+
+  it('só ajudantes: o grupo é só o mais perto do pino; sem ficha nenhuma, vazio', () => {
+    const fichas = [ficha('aj-longe', casa(8, 6)), ficha('aj-perto', casa(10, 6))]
+    expect(pinTravelGroupOf(fichas, ehAjudante, PINO, GRADE).map((t) => t.id)).toEqual(['aj-perto'])
+    expect(pinTravelGroupOf([], ehAjudante, PINO, GRADE)).toEqual([])
   })
 })

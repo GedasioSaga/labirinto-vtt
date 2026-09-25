@@ -30,6 +30,20 @@ export function pinTravelGroup<T extends Point>(own: readonly T[], pin: Point, g
   return byDistance.filter((token) => token === nearest || isNear(token, nearest, grid)).slice(0, PIN_TRAVEL_MAX_TOKENS)
 }
 
+/**
+ * O grupo do pino entre as fichas `mine` do jogador — a mesma conta no cartão
+ * (as caixas) e no host (o que ele aceita). O ajudante contratado (`isHelper`)
+ * não é escolha: ele segue o jogador sozinho (`loanedFollowers` no host). Com
+ * ficha própria, o grupo é o das próprias. Só com ajudantes na mão, é só o
+ * mais perto do pino, que vai à frente: os outros atravessam de qualquer
+ * jeito, então oferecer caixa para deixá-los seria uma caixa sem efeito.
+ */
+export function pinTravelGroupOf<T extends Point>(mine: readonly T[], isHelper: (token: T) => boolean, pin: Point, grid: number): T[] {
+  const own = mine.filter((token) => !isHelper(token))
+  if (own.length > 0) return pinTravelGroup(own, pin, grid)
+  return pinTravelGroup(mine, pin, grid).slice(0, 1)
+}
+
 /** Uma caixa do "Quem passa?": a ficha e o nome dela. */
 export interface PinTravelChoice {
   id: string
@@ -37,15 +51,13 @@ export interface PinTravelChoice {
 }
 
 /**
- * As caixas do cartão do pino: o grupo (`pinTravelGroup`) das fichas de
+ * As caixas do cartão do pino: o grupo (`pinTravelGroupOf`) das fichas de
  * `ownIds` que estão em `tokens` (o recorte do jogador). O ajudante contratado
- * (com `contrato`) não é caixa — ele segue o jogador sozinho — salvo quando é
- * a única ficha na mão, e aí é ele que viaja, como no host.
+ * (com `contrato`) não é caixa — ele segue o jogador sozinho —, e só com
+ * ajudantes na mão a caixa é uma só, a do mais perto, como no host.
  */
 export function pinTravelChoices(tokens: readonly Token[], ownIds: readonly string[], pin: Point, grid: number): PinTravelChoice[] {
   const owned = new Set(ownIds)
   const mine = tokens.filter((t) => owned.has(t.id))
-  const own = mine.filter((t) => readContract(t.contrato) === undefined)
-  const candidates = own.length > 0 ? own : mine
-  return pinTravelGroup(candidates, pin, grid).map((t) => ({ id: t.id, name: t.name }))
+  return pinTravelGroupOf(mine, (t) => readContract(t.contrato) !== undefined, pin, grid).map((t) => ({ id: t.id, name: t.name }))
 }

@@ -47,7 +47,7 @@ import { gatherSpots, pinClearance, type KeepClear } from '../lib/gatherParty'
 import { visibleTokens } from '../lib/layers'
 import type { SavedSceneMemory, SavedSeat, SavedSeatExploration } from '../lib/savedTable'
 import { companionSpots, companionsNear, entourageNear, entourageSeats, type Companion, type Seat } from '../lib/travelTogether'
-import { pinTravelGroup } from '../lib/pinTravelers'
+import { pinTravelGroupOf } from '../lib/pinTravelers'
 import {
   MAX_PENDING_POINT_ACTIONS_PER_PLAYER,
   POINT_ACTION_MIN_INTERVAL_MS,
@@ -3632,14 +3632,20 @@ export function createHostSession(options: HostSessionOptions): HostSession {
 
   /**
    * ESCOLHER FICHAS NO PINO: as fichas de `tokenIds`, na ordem do grupo do
-   * pino (`pinTravelGroup` — a mesma conta das caixas do cartão do jogador).
+   * pino (`pinTravelGroupOf` — a mesma conta das caixas do cartão do jogador).
    * `null` quando alguma não está no grupo: o pedido inteiro não vale, em vez
    * de passar sem ela — o jogador pediu aquelas, e levar outra conta seria
    * decidir por ele. A lista já chega sem repetição (`protocol.ts`).
+   * Só com ajudantes na mão o grupo é só o mais perto: os outros seguem por
+   * `loanedFollowers` de qualquer jeito, então pedir para deixar um deles
+   * (ou pôr outro à frente) é recusado em vez de ser ignorado em silêncio.
    */
   function chosenTravelers(playerId: string, seen: readonly Token[], pin: Pin, grid: number, tokenIds: readonly string[]): Token[] | null {
     const wanted = new Set(tokenIds)
-    const picked = pinTravelGroup(travelCandidates(playerId, seen), pin, grid).filter((t) => wanted.has(t.id))
+    const owned = new Set(ownership[playerId] ?? [])
+    const loaned = loansFor(playerId)
+    const mine = seen.filter((t) => owned.has(t.id))
+    const picked = pinTravelGroupOf(mine, (t) => loaned.has(t.id), pin, grid).filter((t) => wanted.has(t.id))
     return picked.length === wanted.size ? picked : null
   }
 

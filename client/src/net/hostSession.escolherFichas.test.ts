@@ -187,3 +187,67 @@ describe('hostSession: escolher quais fichas passam pelo pino', () => {
     expect(ultimo?.tokens.map((tk) => tk.id)).not.toContain('gato')
   })
 })
+
+/**
+ * Só ajudantes contratados na mão (nenhum personagem próprio): o carregador
+ * (mais perto do pino, colado nele) e o guia, uma casa atrás. Ajudante segue
+ * o jogador (`loanedFollowers`): os dois atravessam sempre, então não há o que
+ * escolher — o host aceita só o mais perto, como o cartão oferece.
+ */
+function mesaDeAjudantes() {
+  const tokens = [ficha('guia', casa(8, 6)), ficha('carregador', casa(9, 6))]
+  const world = (): HostWorld => ({
+    open: {
+      sceneId: ESTRADA,
+      name: 'Estrada Real',
+      map: { ...createEmptyMap('mapa-estrada', 'Aventura', 40, 12, GRADE), tokens, pins: [ponte('ponte-a', PONTE_A, VILA, 'ponte-b', 'pede')] },
+    },
+    background: [
+      {
+        sceneId: VILA,
+        name: 'Vila Cinzenta',
+        map: { ...createEmptyMap('mapa-vila', 'Planta', 40, 12, GRADE), tokens: [], pins: [ponte('ponte-b', PONTE_B, ESTRADA, 'ponte-a', 'pede')] },
+      },
+    ],
+  })
+  let agora = 1_000_000
+  let n = 0
+  const s = createHostSession({ code: CODE, visionRadius: 700, now: () => agora, randomId: () => `id-${(n += 1)}` })
+  const bruno = welcomeOf(s.handleMessage('c1', { type: 'join', code: CODE, name: 'Bruno' }, world()).outbound).playerId
+  for (const id of ['guia', 'carregador']) s.lendToken(bruno, id, { tarefa: 'carregar', minutos: null, visao: true })
+  s.broadcast(world())
+  const pede = (tokenIds?: string[]): HostResult => {
+    agora += PAUSA_MS
+    const msg = tokenIds === undefined ? { type: 'pin.travel.request' as const, pinId: 'ponte-a' } : { type: 'pin.travel.request' as const, pinId: 'ponte-a', tokenIds }
+    return s.handleMessage('c1', msg, world())
+  }
+  const aprova = (r: HostResult): HostResult => {
+    if (r.travelRequest === undefined) throw new Error('o pedido deveria valer')
+    return s.approveTravel(r.travelRequest.requestId, world())
+  }
+  return { pede, aprova }
+}
+
+/** Quem atravessa com os ajudantes: a principal e os que seguem o jogador. */
+const quemPassaComAjudantes = (transfer: AppliedTransfer | undefined): string[] =>
+  transfer === undefined ? [] : [transfer.tokenId, ...(transfer.companions ?? []).map((c) => c.tokenId)]
+
+describe('hostSession: só ajudantes na mão, não há o que escolher', () => {
+  it('sem escolha: o carregador (mais perto) vai à frente e o guia segue junto', () => {
+    const t = mesaDeAjudantes()
+    expect(quemPassaComAjudantes(t.aprova(t.pede()).applyTransfer)).toEqual(['carregador', 'guia'])
+  })
+
+  it('desmarcar o carregador e pedir só o guia recusa: a caixa não pode prometer deixar para trás quem vai seguir de qualquer jeito', () => {
+    const t = mesaDeAjudantes()
+    const r = t.pede(['guia'])
+    expect(r.travelRequest).toBeUndefined()
+    expect(r.applyTransfer).toBeUndefined()
+    expect(para(r, 'c1')).toEqual([{ type: 'pin.travel.rejected', reason: 'unavailable' }])
+  })
+
+  it('pedido com o mais perto (o que o cartão oferece) vale, e os dois atravessam', () => {
+    const t = mesaDeAjudantes()
+    expect(quemPassaComAjudantes(t.aprova(t.pede(['carregador'])).applyTransfer)).toEqual(['carregador', 'guia'])
+  })
+})
