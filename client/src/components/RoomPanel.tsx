@@ -78,6 +78,11 @@ export interface RoomPanelProps {
   /** "Dispensar" quem está fora: o card sai. Ausente = sem o botão. */
   onDismiss?(playerId: string): void
   /**
+   * "Passar fichas e mapa a" de quem está fora: o card sai e as fichas e o
+   * explorado dele passam a `heirId`. Ausente = sem a lista.
+   */
+  onHandOver?(playerId: string, heirId: string): void
+  /**
    * "Emprestar ficha a" de quem está fora: as fichas dele passam a ser jogadas
    * por `borrowerId` até ele voltar. Ausente (ou sem `onEndLoans`) = sem a lista.
    */
@@ -637,6 +642,8 @@ interface PlayerAdminProps {
   onStoreTokens?(playerId: string): void
   /** "Dispensar" quem está fora. Ausente = sem o botão. */
   onDismiss?(playerId: string): void
+  /** "Passar fichas e mapa a" de quem está fora. Ausente = sem a lista. */
+  onHandOver?(playerId: string, heirId: string): void
   /** "Emprestar ficha a" de quem está fora. Ausente (ou sem `onEndLoans`) = sem a lista. */
   onLendTokens?(ownerId: string, borrowerId: string): void
   /** "Tomar de volta" da ficha emprestada. */
@@ -697,28 +704,114 @@ function LoanControls({ player, players, onLendTokens, onEndLoans }: LoanControl
   )
 }
 
+interface HandOverControlsProps {
+  /** Quem está fora: sai da mesa. */
+  player: PlayerInfo
+  players: PlayerInfo[]
+  onHandOver(playerId: string, heirId: string): void
+}
+
+/**
+ * REMOVER QUEM SAIU: "Passar fichas e mapa a" escolhe outro jogador (na mesa
+ * ou fora, que recebe quando voltar) para ficar com as fichas e o explorado de
+ * quem foi embora, e tira o card. Tirar alguém da mesa não se desfaz: a
+ * escolha abre a confirmação no próprio card, com o foco em Cancelar, como no
+ * "Dar a" de ficha alheia.
+ */
+function HandOverControls({ player, players, onHandOver }: HandOverControlsProps) {
+  const [heirId, setHeirId] = useState<string | null>(null)
+  const selectRef = useRef<HTMLSelectElement>(null)
+  const heirs = players.filter((other) => other.playerId !== player.playerId)
+  // Quem recebia pode ter saído enquanto o mestre lia: sem ele, não há o que confirmar.
+  const heir = heirId === null ? undefined : heirs.find((other) => other.playerId === heirId)
+  if (heirs.length === 0) return null
+  const selectId = `lb-room-handover-${player.playerId}`
+  const confirmTextId = `lb-room-handover-confirm-${player.playerId}`
+  const closeConfirm = () => {
+    setHeirId(null)
+    selectRef.current?.focus()
+  }
+  return (
+    <>
+      <label className="lb-label" htmlFor={selectId}>
+        Passar fichas e mapa a
+      </label>
+      <select
+        ref={selectRef}
+        id={selectId}
+        className="lb-input"
+        value=""
+        onChange={(event) => {
+          if (event.target.value !== '') setHeirId(event.target.value)
+        }}
+      >
+        <option value="">Escolher…</option>
+        {heirs.map((other) => (
+          <option key={other.playerId} value={other.playerId}>
+            {other.name}
+          </option>
+        ))}
+      </select>
+      {heir !== undefined && (
+        <div
+          role="alertdialog"
+          aria-modal="false"
+          aria-labelledby={confirmTextId}
+          className="lb-room__confirm"
+          onKeyDown={(event) => {
+            if (event.key !== 'Escape') return
+            // Esc é desta confirmação: não chega aos atalhos do editor.
+            event.stopPropagation()
+            closeConfirm()
+          }}
+        >
+          <p id={confirmTextId}>
+            Tirar {player.name} da mesa e passar as fichas e o mapa dele a {heir.name}?
+          </p>
+          <button
+            type="button"
+            className="lb-btn lb-btn--danger"
+            onClick={() => {
+              setHeirId(null)
+              onHandOver(player.playerId, heir.playerId)
+            }}
+          >
+            Passar e remover
+          </button>
+          {/* Foco começa no botão seguro (convenção de confirmação destrutiva). */}
+          <button type="button" className="lb-btn lb-btn--ghost" autoFocus onClick={closeConfirm}>
+            Cancelar
+          </button>
+        </div>
+      )}
+    </>
+  )
+}
+
 /**
  * Quem foi embora: a ficha dele não pode ficar no corredor para sempre, nem a
  * linha na lista. "Ficha guardada" diz o que volta com ele; "Guardar ficha"
  * tira a ficha do mapa até ele voltar; "Emprestar ficha a" põe outro jogador
- * para jogá-la até ele voltar; "Dispensar" tira a linha. Conectado não tem
- * nada disso: o "Expulsar" dele fica no "Mais".
+ * para jogá-la até ele voltar; "Passar fichas e mapa a" entrega tudo a outro
+ * e tira a linha; "Dispensar" tira a linha. Conectado não tem nada disso: o
+ * "Expulsar" dele fica no "Mais".
  */
 function AwayControls({
   player,
   players,
   onStoreTokens,
   onDismiss,
+  onHandOver,
   onLendTokens,
   onEndLoans,
-}: { player: PlayerInfo; players: PlayerInfo[] } & Pick<PlayerAdminProps, 'onStoreTokens' | 'onDismiss' | 'onLendTokens' | 'onEndLoans'>) {
+}: { player: PlayerInfo; players: PlayerInfo[] } & Pick<PlayerAdminProps, 'onStoreTokens' | 'onDismiss' | 'onHandOver' | 'onLendTokens' | 'onEndLoans'>) {
   if (player.clientId !== null) return null
   const stored = player.storedTokenNames ?? []
   // Emprestada, a ficha está em jogo com outro: guardar a tiraria do mapa debaixo dele.
   // E a que ele joga emprestada é do dono: só conta a dele.
   const canStore = onStoreTokens !== undefined && ownTokenIdsOf(player).length > 0 && player.lentTo === undefined
   const canLend = onLendTokens !== undefined && onEndLoans !== undefined
-  if (stored.length === 0 && !canStore && !canLend && onDismiss === undefined) return null
+  if (stored.length === 0 && !canStore && !canLend && onDismiss === undefined && onHandOver === undefined) return null
   return (
     <div className="lb-player__line lb-player__line--acoes">
       {stored.length > 0 && (
@@ -732,6 +825,7 @@ function AwayControls({
           Guardar ficha
         </button>
       )}
+      {onHandOver !== undefined && <HandOverControls player={player} players={players} onHandOver={onHandOver} />}
       {onDismiss !== undefined && (
         <button type="button" className="lb-btn lb-btn--danger lb-btn--compact" onClick={() => onDismiss(player.playerId)}>
           Dispensar
@@ -1076,6 +1170,7 @@ function PlayerRow({
           players={players}
           onStoreTokens={admin.onStoreTokens}
           onDismiss={admin.onDismiss}
+          onHandOver={admin.onHandOver}
           onLendTokens={admin.onLendTokens}
           onEndLoans={admin.onEndLoans}
         />
@@ -1194,6 +1289,7 @@ export function RoomPanel({
   onKick,
   onStoreTokens,
   onDismiss,
+  onHandOver,
   onLendTokens,
   onEndLoans,
   onVisionRadiusChange,
@@ -1251,6 +1347,7 @@ export function RoomPanel({
         onHidePlan={onHidePlan}
         onStoreTokens={onStoreTokens}
         onDismiss={onDismiss}
+        onHandOver={onHandOver}
         onLendTokens={onLendTokens}
         onEndLoans={onEndLoans}
       />
