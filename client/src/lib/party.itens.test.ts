@@ -4,6 +4,7 @@ import type { MapData, Token } from '../types/map'
 import { applyItemChange } from './items'
 import { buildPin, createEmptyMap } from './mapFactory'
 import { partyItemChange, partyMembers } from './party'
+import { mapaDoPiso } from './pisos'
 
 /**
  * ITEM PEGÁVEL no Grupo do mestre: ele VÊ quem tem o quê (e em que ficha),
@@ -77,6 +78,29 @@ describe('partyItemChange', () => {
     expect(pino).toMatchObject({ x: 200, y: 120, kind: 'exclamacao', item: { nome: CHAVE.nome } })
     // Aplicar de novo (um passo do desfazer que já tem o pino) não o duplica.
     expect(applyItemChange(depois, change).pins.filter((p) => p.id === CHAVE.id)).toHaveLength(1)
+  })
+
+  it('Devolver no térreo: o pino nasce sem campo piso (arquivo igual ao de mapa sem pisos)', () => {
+    const world = mundo()
+    const [item] = membroDiego(world).mochila
+    if (item === undefined) throw new Error('sem item')
+    const change = partyItemChange(world, { kind: 'devolver', item }, 'novo-id')
+    expect(change?.addPin?.id).toBe(CHAVE.id)
+    expect(change?.addPin).not.toHaveProperty('piso')
+  })
+
+  it('Devolver com a ficha no 1º piso: o pino nasce no piso DELA — aparece no recorte dela e não no térreo', () => {
+    const world = mundo([ficha('diego', { x: 300, y: 300, piso: 1, mochila: [CHAVE] })])
+    const [item] = membroDiego(world).mochila
+    if (item === undefined) throw new Error('sem item')
+    const change = partyItemChange(world, { kind: 'devolver', item }, 'novo-id')
+    if (change === null) throw new Error('esperava mudança')
+    const [cena] = world.background
+    if (cena === undefined) throw new Error('sem cena')
+    const depois = applyItemChange(cena.map, change)
+    expect(depois.pins.find((p) => p.id === CHAVE.id)).toMatchObject({ x: 300, y: 300, piso: 1, item: { nome: CHAVE.nome } })
+    expect(mapaDoPiso(depois, 1).pins.map((p) => p.id)).toContain(CHAVE.id)
+    expect(mapaDoPiso(depois, 0).pins.map((p) => p.id)).not.toContain(CHAVE.id)
   })
 
   it('Devolver quando já existe pino com o id do item: o pino novo ganha outro id, não some nem sobrescreve', () => {
