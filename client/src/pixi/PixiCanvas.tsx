@@ -50,6 +50,7 @@ import { createFloorRenderer, drawBlocosDraft, drawFloorDraft } from './drawFloo
 import { drawMapLines, drawMapMarkers } from './drawMapLines'
 import { drawMapFrame } from './drawMapFrame'
 import { createDebouncedTask, syncWorldTextResolution } from './textResolution'
+import { createZoomDaRoda } from './zoomDaRoda'
 import { pixelGrid, snapToPhysicalPixel } from './pixelAlign'
 import { buildFloorMask } from './floorMask'
 import { layoutMapFrame } from '../lib/mapFrame'
@@ -1699,18 +1700,34 @@ export function PixiCanvas({
       // marcador das luzes (o halo fica), e, com algo selecionado, o contorno
       // da sala ou do desenho selecionado e as alças. Chão, salas não
       // selecionadas, nomes, zonas, pinos e rótulos ficam parados.
+      //
+      // Durante o giro da roda nem esse portão roda: o `world` só escala e a
+      // geometria é refeita uma vez quando a roda para (zoomDaRoda.ts). Os
+      // nomes seguem por quadro: só mudam a escala do próprio texto.
+      const redrawScaleDependentLayers = () => {
+        redrawShapes()
+        // Móvel desenhado tem fio em px de tela, como a parede. Objeto de
+        // imagem não muda com o zoom: mapa sem móvel não redesenha nada aqui.
+        if (hasDrawnFurniture()) redrawProps()
+      }
+      const zoomDaRoda = createZoomDaRoda({
+        redesenhar: () => {
+          if (!destroyed) redrawScaleDependentLayers()
+        },
+        redesenharNoQuadro: umaVezPorQuadro(redrawScaleDependentLayers),
+      })
+      const syncLabelsToScale = umaVezPorQuadro(() => {
+        const { scale } = useMapStore.getState().camera
+        // Nomes de sala/token: tamanho mínimo na tela e somem abaixo de 30% (screenLabel.ts).
+        roomNamesRenderer.setCameraScale(scale)
+        tokensRenderer.setCameraScale(scale)
+      })
       const unsubscribeCameraScaleForWalls = useMapStore.subscribe(
         (state) => state.camera.scale,
-        umaVezPorQuadro(() => {
-          const { scale } = useMapStore.getState().camera
-          // Nomes de sala/token: tamanho mínimo na tela e somem abaixo de 30% (screenLabel.ts).
-          roomNamesRenderer.setCameraScale(scale)
-          tokensRenderer.setCameraScale(scale)
-          redrawShapes()
-          // Móvel desenhado tem fio em px de tela, como a parede. Objeto de
-          // imagem não muda com o zoom: mapa sem móvel não redesenha nada aqui.
-          if (hasDrawnFurniture()) redrawProps()
-        }),
+        () => {
+          syncLabelsToScale()
+          zoomDaRoda.escalaMudou()
+        },
       )
       // tokensSubscription.ts/propsSubscription.ts (fora do escopo deste
       // integrador) só assinam [map.tokens/map.props, selection] — nenhum dos
@@ -5971,7 +5988,13 @@ export function PixiCanvas({
           ctrlKey: event.ctrlKey,
           shiftKey: event.shiftKey,
         })
-        applyCamera(gesture.kind === 'zoom' ? zoomAt(camera, pointer, gesture.deltaY) : panBy(camera, -gesture.dx, -gesture.dy), 'gesto')
+        if (gesture.kind === 'zoom') {
+          // Antes de mover a câmera: a assinatura de escala dispara dentro do applyCamera.
+          zoomDaRoda.rodaGirou()
+          applyCamera(zoomAt(camera, pointer, gesture.deltaY), 'gesto')
+          return
+        }
+        applyCamera(panBy(camera, -gesture.dx, -gesture.dy), 'gesto')
       }
       el.addEventListener('wheel', onWheel, { passive: false })
 
@@ -5991,6 +6014,7 @@ export function PixiCanvas({
         unsubscribeGrid()
         unsubscribeGridOffset()
         unsubscribeCameraScaleForWalls()
+        zoomDaRoda.cancelar()
         unsubscribeShapes()
         unsubscribeTravelLinks()
         unsubscribeTokens()
