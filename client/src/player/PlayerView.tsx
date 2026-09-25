@@ -16,7 +16,8 @@ import { drawAreaTriggers } from '../pixi/drawAreaTriggers'
 import { visibleDrawings, visibleLights, visibleProps, visibleRegions, visibleStairs } from '../lib/layers'
 import { visionSegments } from '../lib/visibility'
 import { findDoorAt, tokenReachesDoor } from '../lib/doorReach'
-import { findPlayerPinAt } from '../lib/selectionHitTest'
+import { findPlayerPinAt, findPlayerPinsAt } from '../lib/selectionHitTest'
+import { escolhaDoToque } from './pinChooser'
 import { visiblePins } from '../lib/layers'
 import { createPinsRenderer } from '../pixi/drawPins'
 import { fitCamera, panBy, zoomAt } from '../pixi/world'
@@ -158,6 +159,12 @@ interface PlayerViewProps {
   onDoorToggle?: (wallId: string) => void
   /** Toque curto num pino: abre o cartão do ponto de interesse. */
   onPinOpen?: (pinId: string) => void
+  /**
+   * Toque curto onde há MAIS DE UM pino (cravados no mesmo ponto, ou colados
+   * dentro da folga do dedo): os ids, do mais perto ao mais longe, para o
+   * jogador escolher. Ausente = abre o mais perto, como `onPinOpen`.
+   */
+  onPinsChoose?: (pinIds: string[]) => void
   /** Toque curto no nome de uma Sala cujo texto já chegou: reabre o texto da sala. */
   onRoomOpen?: (regionId: string) => void
   /** Rastro do laser do mestre; o ticker esmaece cada ponto pela idade. */
@@ -1013,6 +1020,7 @@ export function PlayerView({
   measureArmed = false,
   onDoorToggle,
   onPinOpen,
+  onPinsChoose,
   onRoomOpen,
   laser,
   laserArmed = false,
@@ -1056,6 +1064,7 @@ export function PlayerView({
     measureArmed,
     onDoorToggle,
     onPinOpen,
+    onPinsChoose,
     onRoomOpen,
     laser,
     laserArmed,
@@ -1304,6 +1313,19 @@ export function PlayerView({
     // invisível dela ("Subir"/"Descer"). Escada sem ligação não tem pino no recorte.
     const pin = findPlayerPinAt({ stairs: map.stairs, pins: map.pins ?? [], hiddenLayers: map.hiddenLayers }, point, DOOR_TAP_TOLERANCE_PX / scene.camera.scale)
     return pin === null ? null : pin.id
+  }
+
+  /**
+   * TODOS os pinos sob o ponto da TELA, do mais perto ao mais longe, com a
+   * mesma folga de dedo. Só o toque curto pergunta por eles: com dois pinos no
+   * mesmo ponto, o de baixo deixa de ser inalcançável.
+   */
+  function pinsAtScreen(scene: Scene, screenX: number, screenY: number): string[] {
+    const map = latestRef.current.map
+    const point = scene.world.toLocal({ x: screenX, y: screenY })
+    return findPlayerPinsAt({ stairs: map.stairs, pins: map.pins ?? [], hiddenLayers: map.hiddenLayers }, point, DOOR_TAP_TOLERANCE_PX / scene.camera.scale).map(
+      (pin) => pin.id,
+    )
   }
 
   /**
@@ -2147,9 +2169,14 @@ export function PlayerView({
           // toque RÁPIDO, não o demorado. O dedo que sobrou de uma pinça nunca é toque.
           if (!drag.canTap) return
           if (Math.hypot(drag.lastX - drag.startX, drag.lastY - drag.startY) > SIGNAL_LONG_PRESS_TOLERANCE_PX) return
-          const pinId = pinAtScreen(scene, drag.startX, drag.startY)
-          if (pinId !== null) {
-            latestRef.current.onPinOpen?.(pinId)
+          // Mais de um pino sob o dedo: o jogador escolhe ("Aqui há 2 coisas").
+          const escolha = escolhaDoToque(pinsAtScreen(scene, drag.startX, drag.startY))
+          if (escolha.tipo === 'escolher' && latestRef.current.onPinsChoose !== undefined) {
+            latestRef.current.onPinsChoose(escolha.pinIds)
+            return
+          }
+          if (escolha.tipo !== 'nada') {
+            latestRef.current.onPinOpen?.(escolha.tipo === 'abrir' ? escolha.pinId : escolha.pinIds[0])
             return
           }
           const door = doorAtScreen(scene, drag.startX, drag.startY)

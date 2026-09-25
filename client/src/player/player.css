@@ -1469,6 +1469,57 @@
   overflow-wrap: anywhere;
 }
 
+/*
+ * DOIS PINOS NO MESMO PONTO: "Aqui há 2 coisas". Mesma moldura do cartão do
+ * pino; cada linha é a cabeça do mapa e as primeiras palavras, em linha fina
+ * sobre o fundo escuro — escolher não é a ação principal, então nada de latão.
+ */
+.pp-pinchooser__title {
+  margin: 0;
+  padding: 16px 16px 4px;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.pp-pinchooser__list {
+  display: grid;
+  gap: 8px;
+  margin: 8px 12px 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pp-pinchooser__option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 44px;
+  padding: 8px 12px;
+  font: inherit;
+  font-size: 15px;
+  text-align: left;
+  color: var(--lb-color-parchment, #eceae4);
+  background: transparent;
+  border: 1px solid var(--lb-color-line-panel, rgba(255, 255, 255, 0.18));
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+.pp-pinchooser__option:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.pp-pinchooser__option:focus-visible {
+  outline: 2px solid var(--lb-color-brass, #e0a44a);
+  outline-offset: 2px;
+}
+
+.pp-pinchooser__label {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
 
 .pp-pincard__choices .pp-pincard__travel {
   flex: 1;
