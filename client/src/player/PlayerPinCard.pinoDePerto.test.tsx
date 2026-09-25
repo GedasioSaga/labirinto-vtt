@@ -48,7 +48,7 @@ function botao(nome: string): HTMLButtonElement {
 describe('PlayerPinCard: pino de viagem de longe', () => {
   it('pino de uma saída: o botão fica apagado com "Chegue mais perto para passar" e não pede', () => {
     const pedir = vi.fn()
-    act(() => root.render(<PlayerPinCard pin={PORTA} onClose={() => {}} onRequestTravel={pedir} longe />))
+    act(() => root.render(<PlayerPinCard pin={PORTA} stairs={[]} onClose={() => {}} onRequestTravel={pedir} longe />))
     expect(host.textContent).toContain('Porta do porão')
     const apagado = botao('Chegue mais perto para passar')
     expect(apagado.disabled).toBe(true)
@@ -58,20 +58,20 @@ describe('PlayerPinCard: pino de viagem de longe', () => {
   })
 
   it('encruzilhada: todas as saídas apagadas, com o aviso de chegar mais perto', () => {
-    act(() => root.render(<PlayerPinCard pin={ENCRUZILHADA} onClose={() => {}} onRequestTravel={() => {}} longe />))
+    act(() => root.render(<PlayerPinCard pin={ENCRUZILHADA} stairs={[]} onClose={() => {}} onRequestTravel={() => {}} longe />))
     expect(host.textContent).toContain('Chegue mais perto para passar')
     expect(botao('Escada de cima').disabled).toBe(true)
     expect(botao('Túnel de baixo').disabled).toBe(true)
   })
 
   it('trancada de longe diz só que está trancada, sem "Chegue mais perto"', () => {
-    act(() => root.render(<PlayerPinCard pin={{ ...PORTA, passagem: 'trancada' }} onClose={() => {}} onRequestTravel={() => {}} longe />))
+    act(() => root.render(<PlayerPinCard pin={{ ...PORTA, passagem: 'trancada' }} stairs={[]} onClose={() => {}} onRequestTravel={() => {}} longe />))
     expect(host.textContent).toContain('Está trancada')
     expect(host.textContent).not.toContain('Chegue mais perto')
   })
 
   it('perto (sem `longe`), o cartão é o de sempre: "Pedir para passar" aceita toque', () => {
-    act(() => root.render(<PlayerPinCard pin={PORTA} onClose={() => {}} onRequestTravel={() => {}} />))
+    act(() => root.render(<PlayerPinCard pin={PORTA} stairs={[]} onClose={() => {}} onRequestTravel={() => {}} />))
     const pedir = botao('Pedir para passar')
     expect(pedir.disabled).toBe(false)
     expect(host.textContent).not.toContain('Chegue mais perto')
@@ -79,9 +79,9 @@ describe('PlayerPinCard: pino de viagem de longe', () => {
 
   it('a ficha sai de perto com a pergunta aberta: o "Pedir" da confirmação apaga também', () => {
     const pedir = vi.fn()
-    act(() => root.render(<PlayerPinCard pin={PORTA} onClose={() => {}} onRequestTravel={pedir} />))
+    act(() => root.render(<PlayerPinCard pin={PORTA} stairs={[]} onClose={() => {}} onRequestTravel={pedir} />))
     act(() => botao('Pedir para passar').click())
-    act(() => root.render(<PlayerPinCard pin={PORTA} onClose={() => {}} onRequestTravel={pedir} longe />))
+    act(() => root.render(<PlayerPinCard pin={PORTA} stairs={[]} onClose={() => {}} onRequestTravel={pedir} longe />))
     const confirmar = botao('Pedir')
     expect(confirmar.disabled).toBe(true)
     act(() => confirmar.click())
