@@ -252,6 +252,13 @@ mesma cena, do run antigo `wf_e3f23fdf-79d`) vai numa 2ª junção curta, perto 
   `auto/f2-<id>` com os worktrees em `.claude/worktrees/wf_f7c100fc-85d-*`) e retomar `publicar-grupos`.
 - Regra nova (memória `fabrica-de-features`): `cmd //c rmdir` nas junctions ANTES de qualquer `git worktree remove`.
 
+**25/09, 02h55 — fábrica relançada de novo como `wf_86b2f741-40b`** (`scratchpad/noite-1b.json`, 115 peças: 4
+consertos independentes + as 111 da onda 3, 2 por vez). Os 11 consertos cujo código base ainda não está em
+`auto/acervo` (zona oculta, teste secreto, mostrar pista, painel de pistas, janela no escuro, eco do sinal, passe,
+agenda, facção, veículo, esteira) puxavam grupos inteiros para `int-noite` e foram adiados:
+`scratchpad/consertos-adiados.json`, rodar depois que `publicar-grupos` terminar e `int-noite` absorver o acervo.
+A tocha (`auto/f2-tocha-presa-na-ficha-4`, `721dbf3`, revisor aprovou) aguarda só a prova.
+
 **25/09, 01h05 — fábrica relançada como `wf_f7c100fc-85d`.** O builder isolado em worktree não conseguia
 `git status/add/commit` (o hook do rtk reescreve para `rtk git` e a guarda de isolamento recusa) e a ferramenta
 PowerShell travou na máquina (6 `powershell.exe` presos; o `taskkill` foi negado pela permissão automática).
