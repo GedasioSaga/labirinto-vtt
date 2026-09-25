@@ -1,5 +1,6 @@
 import type { CarriedItem, MapData, Pin, PinItem, Token } from '../types/map'
 import { tokenRadiusOf } from './doorReach'
+import { venderItem } from './loja'
 import { comPiso, pisoDe } from './pisos'
 
 /**
@@ -100,6 +101,13 @@ export interface ItemChange {
   removePinId?: string
   addPin?: Pin
   mochilas: BackpackUpdate[]
+  /**
+   * LOJA COM PREÇOS — "Vender": a mercadoria `itemId` da banca `pinId` perde
+   * um do estoque (`venderItem`, `lib/loja.ts`), na MESMA mudança que põe a
+   * mercadoria na mochila de quem comprou — um Ctrl+Z do mestre não desfaz um
+   * lado sem o outro. A banca continua no mapa.
+   */
+  venda?: { pinId: string; itemId: string }
 }
 
 /** "Tirar" do mestre: o item sai da mochila da ficha e some (a chave usada). `null` = a ficha não o tem. */
@@ -158,6 +166,13 @@ export function giveTargets(map: MapData, ownTokenIds: readonly string[], partyT
  * nada mudando devolve o MESMO mapa.
  */
 export function applyItemChange(map: MapData, change: ItemChange): MapData {
+  const venda = change.venda
+  const vendido = venda === undefined ? map : venderItem(map, venda.pinId, venda.itemId)
+  return applyBackpacksAndPins(vendido, change)
+}
+
+/** As mochilas e o pino que sai ou volta; nada mudando, o MESMO mapa. */
+function applyBackpacksAndPins(map: MapData, change: ItemChange): MapData {
   const byToken = new Map(change.mochilas.map((update) => [update.tokenId, update.mochila]))
   let tokensChanged = false
   const tokens = map.tokens.map((token) => {

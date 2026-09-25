@@ -19,6 +19,7 @@ import { exitLabelsOf, isArrivalOnly, travelExitsOf } from './pinTravel'
 import { cabineNaParada, type CabineDeTransporte } from './cabine'
 import { withoutAttachment } from './lightAttachment'
 import { itemOfPin, readCarriedItems, tokenReachesPin } from './items'
+import { lojaParaJogador } from './loja'
 import { keyForPin } from './doorKey'
 import { computeVisibility, visionSegments } from './visibility'
 import { tokenRadiusOf } from './doorReach'
@@ -2479,6 +2480,11 @@ function pinForPlayer(pin: Pin, ownTokens: readonly Token[], grid: number): Pin 
   if (item !== null) forPlayer.item = item
   const key = keyForPin(pin, ownTokens.filter((t) => tokenReachesPin(t, pin, grid)))
   if (key !== null) forPlayer.chave = key.item.nome
+  // LOJA COM PREÇOS: cada mercadoria sai pela lista do que vai (id, nome,
+  // preço, estoque) — campo que o mestre guardar no item não viaja. Pino que
+  // não passou pela névoa, zona oculta ou "Quem vê" nem chega aqui.
+  const loja = lojaParaJogador(pin)
+  if (loja !== null) forPlayer.loja = loja
   return forPlayer
 }
 

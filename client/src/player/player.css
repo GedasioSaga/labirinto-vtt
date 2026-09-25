@@ -1421,6 +1421,120 @@
   outline-offset: 2px;
 }
 
+/*
+ * LOJA COM PREÇOS: uma linha por mercadoria — nome, preço e estoque à
+ * esquerda, "Quero" à direita. Fio fino entre as mercadorias, sem caixa nem
+ * grade: o cartão é chapado, como o mapa. A lista rola sozinha numa banca
+ * grande, para o "Fechar" não sair da tela.
+ */
+.pp-loja {
+  margin: 10px 12px 0;
+}
+
+.pp-loja__titulo {
+  margin: 0 0 4px;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--lb-color-parchment-dim, #a9a7a0);
+}
+
+.pp-loja__lista {
+  max-height: 40vh;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.pp-loja__item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: 10px;
+  padding: 8px 0;
+  border-top: 1px solid var(--lb-color-line-panel, rgba(255, 255, 255, 0.12));
+}
+
+.pp-loja__item:first-child {
+  border-top: 0;
+}
+
+.pp-loja__nome,
+.pp-loja__preco,
+.pp-loja__estoque {
+  grid-column: 1;
+  overflow-wrap: anywhere;
+}
+
+.pp-loja__nome {
+  font-size: 15px;
+}
+
+.pp-loja__preco {
+  font-size: 14px;
+  color: var(--lb-color-brass, #e0a44a);
+}
+
+.pp-loja__estoque {
+  font-size: 13px;
+  color: var(--lb-color-parchment-dim, #a9a7a0);
+}
+
+.pp-loja__estoque--acabou {
+  font-weight: 600;
+}
+
+/* Alvo de toque de 40 px de altura: é o gesto principal da banca no celular. */
+.pp-loja__quero {
+  grid-column: 2;
+  grid-row: 1 / span 3;
+  min-height: 40px;
+  padding: 8px 16px;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--lb-color-brass-contrast, #1c1608);
+  background: var(--lb-color-brass, #e0a44a);
+  border: 1px solid transparent;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background-color var(--lb-motion-fast, 120ms) var(--lb-motion-ease, ease-out);
+}
+
+.pp-loja__quero:hover:not(:disabled) {
+  background: var(--lb-color-brass-bright, #f3ba66);
+}
+
+.pp-loja__quero:disabled {
+  color: var(--lb-color-parchment-dim, #a9a7a0);
+  background: transparent;
+  border-color: var(--lb-color-line-panel, rgba(255, 255, 255, 0.18));
+  cursor: default;
+}
+
+.pp-loja__quero:focus-visible {
+  outline: 2px solid var(--lb-color-brass, #e0a44a);
+  outline-offset: 2px;
+}
+
+.pp-loja__status {
+  margin: 6px 0 0;
+  font-size: 15px;
+  color: var(--lb-color-parchment-dim, #a9a7a0);
+}
+
+.pp-loja__status--ok {
+  color: var(--lb-color-brass, #e0a44a);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pp-loja__quero {
+    transition: none;
+  }
+}
+
 .pp-pincard__confirm {
   display: grid;
   gap: 8px;

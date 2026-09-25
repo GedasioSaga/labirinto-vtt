@@ -1,7 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
-import type { Pin, PinExitLabel, Stair, StairDirection } from '../types/map'
+import type { LojaItem, Pin, PinExitLabel, Stair, StairDirection } from '../types/map'
 import { PIN_GLYPH, PIN_ICON_LABELS, isPinIcon, isPlayerSafePinImage, passageOf } from '../lib/pins'
 import { itemOfPin } from '../lib/items'
+import { lojaParaJogador, textoDoEstoque } from '../lib/loja'
+import { compraNoticeText } from './compraNotice'
+import type { CompraNotice } from './playerConnection'
 import { stairTravelLabel } from '../lib/stairTravel'
 import { PinLeverArt, PinSymbolArt, PinTravelArt } from '../components/PinSymbolArt'
 import type { PinTravelChoice } from '../lib/pinTravelers'
@@ -37,6 +40,14 @@ interface PlayerPinCardProps {
   onChamarCabine?: () => boolean
   /** ALAVANCA: "Puxar a alavanca". Ausente = o cartão só lê. Só vale no pino do tipo alavanca. */
   onPullLever?: () => void
+  /**
+   * LOJA COM PREÇOS: manda o "Quero" da mercadoria `itemId` ao mestre. O
+   * cartão fica aberto (quem compra continua olhando a banca). Ausente = a
+   * lista aparece, mas sem "Quero".
+   */
+  onBuy?: (itemId: string) => void
+  /** O último "Quero" NESTA banca e onde ele está; ausente = nenhum. */
+  compra?: CompraNotice
   /**
    * As escadas do recorte. OBRIGATÓRIO: quando o pino é a passagem de uma
    * ESCADA que leva a outro andar (`Pin.escadaId`), o cartão acha a escada
@@ -165,6 +176,8 @@ export function PlayerPinCard({
   takeWaiting = false,
   onChamarCabine,
   onPullLever,
+  onBuy,
+  compra,
   stairs,
   travelers = NO_TRAVELERS,
 }: PlayerPinCardProps) {
@@ -287,6 +300,9 @@ export function PlayerPinCard({
   const encruzilhada = escolhas.length > 1
   // ITEM PEGÁVEL: o nome vem no recorte, numa cópia limpa (`lib/fogFilter.ts`).
   const item = itemOfPin(pin)
+  // LOJA COM PREÇOS: relida aqui — o mapa da rede não é conferido campo a
+  // campo, e mercadoria torta não pode quebrar o cartão. `null` = sem banca.
+  const mercadorias = lojaParaJogador(pin)
   // ESCOLHER FICHAS NO PINO: só com duas ou mais há o que escolher.
   const escolheFichas = travelers.length > 1
   const marcadas = travelers.filter((f) => !deFora.has(f.id)).map((f) => f.id)
@@ -331,6 +347,7 @@ export function PlayerPinCard({
             {escada ?? (descricao === '' ? 'O mestre ainda não escreveu nada sobre este ponto.' : descricao)}
           </p>
         </div>
+        {mercadorias !== null && <PlayerLoja mercadorias={mercadorias} onBuy={onBuy} compra={compra} />}
         {item !== null && (
           // Pegar não pede confirmação: no modo "pede" o mestre ainda decide, e
           // no livre o item só troca do chão para a mochila — "Dar a…" desfaz.
@@ -469,5 +486,59 @@ export function PlayerPinCard({
         </button>
       </div>
     </div>
+  )
+}
+
+interface PlayerLojaProps {
+  mercadorias: readonly LojaItem[]
+  onBuy?: (itemId: string) => void
+  compra?: CompraNotice
+}
+
+/**
+ * LOJA COM PREÇOS: a banca no cartão. Uma linha por mercadoria — nome, preço,
+ * estoque ("Acabou" quando não há) e "Quero". O "Quero" diz no nome acessível
+ * QUAL mercadoria ("Quero Xarope de tosse"): uma lista de botões iguais não
+ * diria nada a quem navega por leitor de tela. Com um pedido esperando o
+ * mestre, nenhum "Quero" liga: um pedido por vez, como o host exige.
+ */
+function PlayerLoja({ mercadorias, onBuy, compra }: PlayerLojaProps) {
+  const esperando = compra?.phase === 'sent'
+  return (
+    <section className="pp-loja" aria-labelledby="pp-loja-titulo">
+      <h3 id="pp-loja-titulo" className="pp-loja__titulo">
+        Mercadorias
+      </h3>
+      <ul className="pp-loja__lista" aria-label="Mercadorias">
+        {mercadorias.map((mercadoria) => {
+          const estoque = textoDoEstoque(mercadoria)
+          return (
+            <li key={mercadoria.id} className="pp-loja__item">
+              <span className="pp-loja__nome">{mercadoria.nome}</span>
+              {mercadoria.preco.trim() !== '' && <span className="pp-loja__preco">{mercadoria.preco}</span>}
+              {estoque !== null && (
+                <span className={mercadoria.estoque === 0 ? 'pp-loja__estoque pp-loja__estoque--acabou' : 'pp-loja__estoque'}>{estoque}</span>
+              )}
+              {onBuy !== undefined && (
+                <button
+                  type="button"
+                  className="pp-loja__quero"
+                  aria-label={`Quero ${mercadoria.nome}`}
+                  disabled={esperando || mercadoria.estoque === 0}
+                  onClick={() => onBuy(mercadoria.id)}
+                >
+                  Quero
+                </button>
+              )}
+            </li>
+          )
+        })}
+      </ul>
+      {compra !== undefined && (
+        <p className={compra.phase === 'sold' ? 'pp-loja__status pp-loja__status--ok' : 'pp-loja__status'} role="status">
+          {compraNoticeText(compra)}
+        </p>
+      )}
+    </section>
   )
 }
