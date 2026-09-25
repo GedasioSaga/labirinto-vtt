@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { createExploration, encodeExploration } from './exploration'
+import { createExploration, decodeExploration, encodeExploration, markRings } from './exploration'
 import {
   loadSavedExploration,
   loadSavedTable,
@@ -91,6 +91,33 @@ describe('savedTable: o mapa explorado de cada jogador', () => {
       ['Carla', ['m-porao']],
       ['Diego', ['m-porao']],
     ])
+  })
+
+  it('mapa muito grande: o contorno lembrado além de 16.383 px volta ao retomar a mesa', () => {
+    const exp = createExploration({ width: 40_000, height: 2_000, grid: 50 })
+    markRings(exp, [
+      [
+        { x: 30_000, y: 1_000 },
+        { x: 30_300, y: 1_000 },
+        { x: 30_300, y: 1_300 },
+        { x: 30_000, y: 1_300 },
+      ],
+    ])
+    const explored = encodeExploration(exp)
+    expect(typeof explored.ringsFar).toBe('string')
+    const grande: SavedExploration = {
+      version: 1,
+      seats: [{ name: 'Fabi', scenes: [{ mapId: 'm-galpao', width: 800, height: 40, grid: 50, explored, doors: [] }] }],
+    }
+    const storage = memoria()
+    storeSavedExploration(storage, 'adv_1', grande)
+    const lida = loadSavedExploration(storage, 'adv_1')
+    expect(lida).toEqual(grande)
+    const volta = decodeExploration(lida?.seats[0]?.scenes[0]?.explored)
+    expect(volta?.rings).toEqual(exp.rings)
+    // Campo novo torto derruba a cena, como qualquer campo do fio fora do formato.
+    const torta = parseSavedExploration({ version: 1, seats: [{ name: 'Fabi', scenes: [{ ...grande.seats[0]?.scenes[0], explored: { ...explored, ringsFar: 7 } }] }] })
+    expect(torta).toBeNull()
   })
 
   it('storage que lança ou não existe: ler dá null e gravar não derruba nada', () => {
