@@ -101,3 +101,40 @@ describe('filterMapForPlayer — tocha afastada de ficha que o LUGAR esconde', (
     })
   }
 })
+
+/**
+ * Camada Fichas ESCONDIDA pelo mestre: nenhuma ficha é olho, então o único
+ * pedaço à vista é o que o pincel de revelar destapou numa zona oculta. A
+ * tocha do guarda cai nesse pedaço; uma luz solta ao lado prova que o pedaço
+ * está mesmo à vista (sem ela, "a tocha não chega" passaria com o recorte
+ * vazio por outro motivo).
+ */
+describe('filterMapForPlayer — tocha presa em ficha da camada Fichas escondida', () => {
+  const PEDACO: ConcealZone = {
+    id: 'zona-pincel',
+    name: 'nome-zona-pincel',
+    revealed: false,
+    points: [
+      { x: 200, y: 450 },
+      { x: 350, y: 450 },
+      { x: 350, y: 520 },
+      { x: 200, y: 520 },
+    ],
+    // Células de 10 px (`REVEAL_BRUSH_CELL`) de x=250 a x=309 na altura 480:
+    // a tocha (250 e, depois do passo, 270) e a luz solta (300).
+    unveiledCells: ['25,48', '26,48', '27,48', '28,48', '29,48', '30,48'],
+  }
+  const luzSolta: Light = { id: 'luz-solta', x: 300, y: 480, radius: 80, color: '#0f0', intensity: 1 }
+
+  it('SEGURANÇA: a tocha do guarda no pedaço destapado não sai, nem depois de ele andar; a luz solta ao lado sai', () => {
+    const antes = cena({ hiddenLayers: ['tokens'], concealZones: [PEDACO], lights: [tochaDoGuarda, luzSolta] })
+    const depois = setTokenPosition(antes, 'guarda', GUARDA.x + 20, GUARDA.y)
+    expect(depois.lights[0]).toMatchObject({ x: TOCHA.x + 20, attachedTokenId: 'guarda' })
+    for (const mapa of [antes, depois]) {
+      const { map: out } = filterMapForPlayer(mapa, 'p1', OWNERSHIP, RADIUS)
+      expect(out.lights.map((l) => l.id)).toEqual(['luz-solta'])
+      const json = JSON.stringify(out)
+      for (const vazado of ['tocha-do-guarda', 'guarda']) expect(json).not.toContain(vazado)
+    }
+  })
+})
