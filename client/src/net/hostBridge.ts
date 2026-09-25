@@ -26,6 +26,7 @@ import {
   type AppliedTokenEdit,
   type DoorKeyUse,
   type DoorRequest,
+  type HideRequest,
   type ItemRequest,
   type AppliedTransfer,
   type CaravanStop,
@@ -129,6 +130,12 @@ export interface HostBridgeDeps {
    * jogador lê "O mestre disse não".
    */
   unlockAndOpenDoor?: (wallId: string, sceneId?: string) => void
+  /**
+   * ESCONDER-SE: o "Deixar" do mestre liga "Oculto para jogadores" na ficha
+   * `tokenId`, na cena `sceneId` (ausente = a aberta). Decisão do mestre: passo
+   * do Ctrl+Z dele. Sem este retorno, o pedido é recusado na hora.
+   */
+  hideToken?: (tokenId: string, sceneId?: string) => void
   /**
    * ITEM PEGÁVEL: gravar a troca de lugar do item (pino que sai, mochilas
    * novas) na cena `change.sceneId` — a aberta quando ausente. Sem este
@@ -417,6 +424,17 @@ export function itemRequestLine(request: ItemRequest): string {
   return `${request.playerName} quer pegar ${request.itemName}${where}`
 }
 
+/**
+ * "Duda quer se esconder", mais " em Porto" quando a ficha está numa cena de
+ * fundo. Ficha com outro nome (a segunda dela, o cavalo) diz qual: "Duda quer
+ * esconder Cavalo".
+ */
+export function hideRequestLine(request: HideRequest): string {
+  const where = request.sceneName === undefined ? '' : ` em ${request.sceneName}`
+  const what = request.tokenName === '' || request.tokenName === request.playerName ? 'se esconder' : `esconder ${request.tokenName}`
+  return `${request.playerName} quer ${what}${where}`
+}
+
 /** "Ana tenta forçar a porta", mais " em Mansão" quando a porta está numa cena de fundo. */
 export function doorRequestLine(request: DoorRequest): string {
   const where = request.sceneName === undefined ? '' : ` em ${request.sceneName}`
@@ -570,6 +588,8 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   let travelDenyRecents: string[] = []
   /** Linha de cada pedido de porta trancada ainda na tela: `requestId` -> id do toast. */
   const doorToasts = new Map<string, string>()
+  /** Linha de cada pedido de esconder-se ainda na tela: `requestId` -> id do toast. */
+  const hideToasts = new Map<string, string>()
   /** Linha de cada pedido de item ainda na tela: `requestId` -> id do toast. */
   const itemToasts = new Map<string, string>()
   /** CORREIO: aviso do mestre de cada bilhete que ainda espera: `letterId` -> id do toast. */
@@ -1138,6 +1158,12 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       doorToasts.delete(requestId)
       useToastStore.getState().dismiss(toastId)
     }
+    // E para o esconder-se: "Deixar" de quem saiu não esconde nada.
+    for (const [requestId, toastId] of hideToasts) {
+      if (session !== null && session.isHidePending(requestId)) continue
+      hideToasts.delete(requestId)
+      useToastStore.getState().dismiss(toastId)
+    }
     // E para o item: "Deixar" de quem saiu não entrega nada.
     for (const [requestId, toastId] of itemToasts) {
       if (session !== null && session.isItemRequestPending(requestId)) continue
@@ -1286,6 +1312,45 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       sempreEmCaixa: true,
     })
     doorToasts.set(request.requestId, toastId)
+  }
+
+  /**
+   * Resposta ao pedido de esconder-se. "Deixar" liga "Oculto para jogadores"
+   * na ficha (passo do Ctrl+Z do mestre) e manda o snapshot na hora: os
+   * outros deixam de receber a ficha, e o dono a recebe marcada (a tela dele
+   * esmaece). "Não" só avisa quem pediu.
+   */
+  const answerHide = (requestId: string, allow: boolean) => {
+    const toastId = hideToasts.get(requestId)
+    hideToasts.delete(requestId)
+    if (toastId !== undefined) useToastStore.getState().dismiss(toastId)
+    if (session === null) return
+    if (!allow) {
+      void dispatch(session.denyHide(requestId))
+      return
+    }
+    const result = session.approveHide(requestId, world())
+    if (result.applyHide !== undefined) deps.hideToken?.(result.applyHide.tokenId, result.applyHide.sceneId)
+    void dispatch(result)
+    if (result.applyHide !== undefined) broadcastNow()
+  }
+
+  /**
+   * Pedido de esconder-se: uma linha no grupo "Pedidos", a mesma caixa da
+   * porta e da passagem. Espera o mestre como eles (o × vale "Não"; o jogador
+   * está vendo "Aguardando o mestre…").
+   */
+  const askHide = (request: HideRequest) => {
+    const toastId = useToastStore.getState().push('instrucao', hideRequestLine(request), null, {
+      actions: [
+        { label: 'Deixar', run: () => answerHide(request.requestId, true), emLote: true },
+        { label: 'Não', run: () => answerHide(request.requestId, false) },
+      ],
+      onDismiss: () => answerHide(request.requestId, false),
+      grupo: 'Pedidos',
+      sempreEmCaixa: true,
+    })
+    hideToasts.set(request.requestId, toastId)
   }
 
   /** Mesma faxina de `pruneTravelToasts`, para os chamados: baixou a mão, caiu, foi expulso, a sala fechou. */
@@ -1827,6 +1892,11 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       // Integrador sem quem destranque: a pergunta não teria resposta que abrisse a porta.
       if (deps.unlockAndOpenDoor === undefined) void dispatch(session.denyDoorRequest(result.doorRequest.requestId))
       else askDoor(result.doorRequest)
+    }
+    if (result.hideRequest !== undefined) {
+      // Integrador sem quem esconda a ficha: "Deixar" não teria o que fazer.
+      if (deps.hideToken === undefined) void dispatch(session.denyHide(result.hideRequest.requestId))
+      else askHide(result.hideRequest)
     }
     if (result.itemRequest !== undefined) {
       // Integrador sem quem grave a mochila: "Deixar" não teria como entregar.

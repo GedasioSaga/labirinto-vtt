@@ -126,6 +126,16 @@ export function savePlayerSettings(storage: StorageLike | null, settings: Player
   }
 }
 
+/** ESCONDER-SE: o "Esconder" do personagem próprio. Quem decide é o mestre. */
+export interface PlayerHideControls {
+  /** A ficha dele está oculta para os outros jogadores (o mestre deixou). */
+  hidden: boolean
+  /** O pedido espera o mestre. */
+  waiting: boolean
+  /** "Esconder": pede ao mestre, pelo socket, que a ficha suma dos outros. */
+  onRequest: (tokenId: string) => void
+}
+
 interface PlayerPanelProps {
   characters: PlayerCharacter[]
   /** Cor CSS da bolinha: a mesma do token do jogador no canvas. */
@@ -152,6 +162,8 @@ interface PlayerPanelProps {
   onRenameToken: (tokenId: string, name: string) => void
   /** Foto nova do próprio token. Rejeita (lança) quando a imagem não serve, e o aviso vai para a tela. */
   onChangeTokenPhoto: (tokenId: string, file: File) => Promise<void>
+  /** ESCONDER-SE. Ausente (tela antiga, teste) = sem o botão. */
+  hide?: PlayerHideControls
   /** O painel e a barra de cima: a câmera mede o que eles cobrem para centrar a ficha no que sobra. */
   panelRef?: RefObject<HTMLElement | null>
   barRef?: RefObject<HTMLDivElement | null>
@@ -216,6 +228,7 @@ export function PlayerPanel({
   onClearDestination,
   onRenameToken,
   onChangeTokenPhoto,
+  hide,
   panelRef,
   barRef,
   notebook,
@@ -611,6 +624,15 @@ export function PlayerPanel({
                     {photoError}
                   </p>
                 )}
+                {/* Esconder é pedido: quem decide é o mestre, e só ele revela de novo. */}
+                {hide !== undefined &&
+                  (hide.hidden ? (
+                    <p className="pp-empty">Escondida: os outros jogadores não veem sua ficha. Só o mestre revela.</p>
+                  ) : (
+                    <button type="button" className="pp-button" disabled={hide.waiting} onClick={() => hide.onRequest(mine.id)}>
+                      {hide.waiting ? 'Aguardando o mestre…' : 'Esconder'}
+                    </button>
+                  ))}
               </section>
             )}
 

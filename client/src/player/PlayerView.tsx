@@ -52,6 +52,7 @@ import { readTokenHealth } from '../lib/tokenHealth'
 import { drawTokenHealthBar, HEALTH_BAR_LABEL, tokenLabelTop } from '../pixi/drawTokenHealth'
 import { fitPhotoSprite, textureFromDataUrl } from '../pixi/tokenPhotoSprite'
 import { isTokenPhotoData, tokenPhotoRef } from '../lib/tokenPhoto'
+import { playerTokenAlpha } from '../lib/tokenHiding'
 import { tokenConditionsOf } from '../lib/tokenConditions'
 import { CONDITION_MARKS_LABEL, drawTokenConditions } from '../pixi/drawTokenConditions'
 import { watchAlertOf } from '../lib/npcWatch'
@@ -1471,6 +1472,8 @@ export function PlayerView({
       syncOwnerRing(view, scene.camera.scale)
       syncFacing(view, token, scene.tokenTurns, { shown: shownFacing, now, animate: sameScene && !reducedMotion, cameraScale: scene.camera.scale })
       if (view.facing !== null) facingCount += 1
+      // Esconder-se: a própria ficha escondida sai esmaecida (`lib/tokenHiding.ts`).
+      view.wrapper.alpha = playerTokenAlpha(token, isOwn)
       view.wrapper.visible = true
       // A ficha sob o dedo é do arrasto (abaixo): não desliza atrás dele.
       const animate = sameScene && !reducedMotion && token.id !== draggedId
