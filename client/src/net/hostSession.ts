@@ -2627,7 +2627,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const entered = enteredRooms.get(playerId)?.get(map.id)
     // SÓ IDA: o host enxerga a outra cena e diz, por saída, se o par é a
     // chegada oculta. Ao jogador vai só o booleano (`pinForPlayer`).
-    const oneWay = oneWayExitsOf(map, scene.sceneId, travelLookup(world))
+    const oneWay = oneWayExitsOf(map, scene.sceneId, travelLookup(allScenes(world)))
     const view = filterMapForPlayer(
       map,
       playerId,
@@ -4573,7 +4573,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     if (isArrivalOnly(pin)) return null
     const scenes = allScenes(world)
     if (travelExitOf(pin, exitId) === null) return null
-    const travel = resolvePinTravel(pin, fromSceneId, travelLookup(world), exitId)
+    const travel = resolvePinTravel(pin, fromSceneId, travelLookup(scenes), exitId)
     if (travel.status !== 'ligado') return null
     const to = scenes.find((s) => s.sceneId === travel.sceneId)
     if (to === undefined || to.sceneId === null) return null

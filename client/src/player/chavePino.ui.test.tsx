@@ -121,7 +121,10 @@ describe('telas da chave no pino trancado', () => {
       onGo: vi.fn(),
       passage,
       onPassageChange: vi.fn(),
+      motivo: undefined,
+      onMotivoChange: vi.fn(),
       onOneWayChange: vi.fn(),
+      onBothSidesChange: vi.fn(),
       arrivalOnly: false,
       ...extra,
     }

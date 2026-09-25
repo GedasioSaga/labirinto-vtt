@@ -23,7 +23,10 @@ function html(travel: PinTravel, scenes: readonly TravelSceneOption[]): string {
       onGo={nada}
       passage="pede"
       onPassageChange={nada}
+      motivo={undefined}
+      onMotivoChange={nada}
       onOneWayChange={nada}
+      onBothSidesChange={nada}
       arrivalOnly={false}
     />,
   )

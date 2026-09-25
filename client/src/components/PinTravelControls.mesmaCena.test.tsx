@@ -101,7 +101,10 @@ describe('PinTravelControls: atalho na mesma cena, com a ligação do App', () =
           onGo={(exitId) => aventura().travelThroughPin(pin.id, exitId)}
           passage={passageOf(pin)}
           onPassageChange={(passagem) => useMapStore.getState().updatePin(pin.id, { passagem })}
+          motivo={undefined}
+          onMotivoChange={() => {}}
           onOneWayChange={(exitId, on) => aventura().setPinOneWay(pin.id, exitId, on)}
+          onBothSidesChange={() => {}}
           arrivalOnly={isArrivalOnly(pin)}
         />,
       ),

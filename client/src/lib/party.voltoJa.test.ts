@@ -20,11 +20,11 @@ const mundo: HostWorld = {
 }
 
 function jogador(over: Partial<PlayerInfo>): PlayerInfo {
-  return { clientId: 'c1', playerId: 'ana', name: 'Ana', status: 'playing', connected: true, tokenIds: ['t1'], visionRadius: 700, sceneId: 's-a', sceneName: 'Salão', ...over }
+  return { clientId: 'c1', playerId: 'ana', name: 'Ana', status: 'playing', connected: true, tokenIds: ['t1'], visionRadius: 700, visionFactor: 1, sceneId: 's-a', sceneName: 'Salão', ...over }
 }
 
 function membro(over: Partial<PartyMember>): PartyMember {
-  return { playerId: 'p', name: 'X', connected: true, sceneId: 's-a', sceneName: 'Salão', token: { id: 't', color: '#3cff00', x: 0, y: 0 }, travelPending: false, ...over }
+  return { playerId: 'p', name: 'X', connected: true, sceneId: 's-a', sceneName: 'Salão', token: { id: 't', color: '#3cff00', x: 0, y: 0 }, travelPending: false, mochila: [], ...over }
 }
 
 describe('Volto já no painel do mestre', () => {

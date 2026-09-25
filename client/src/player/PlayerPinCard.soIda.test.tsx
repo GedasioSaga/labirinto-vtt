@@ -45,7 +45,7 @@ describe('PlayerPinCard: passagem só de ida', () => {
   })
 
   function render(pin: Pin, onRequestTravel: (exitId?: string) => void = () => {}): void {
-    act(() => root.render(<PlayerPinCard pin={pin} onClose={() => {}} onRequestTravel={onRequestTravel} />))
+    act(() => root.render(<PlayerPinCard pin={pin} stairs={[]} onClose={() => {}} onRequestTravel={onRequestTravel} />))
   }
 
   const botao = (texto: string): HTMLButtonElement | undefined =>

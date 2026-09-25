@@ -30,7 +30,7 @@ describe('PlayerPinCard: passagem fechada diz o motivo', () => {
   })
 
   function render(pin: Pin, extra: { watching?: boolean; onWatch?: (on: boolean) => void } = {}): void {
-    act(() => root.render(<PlayerPinCard pin={pin} onClose={() => {}} onRequestTravel={() => {}} {...extra} />))
+    act(() => root.render(<PlayerPinCard pin={pin} stairs={[]} onClose={() => {}} onRequestTravel={() => {}} {...extra} />))
   }
 
   const aviso = (): HTMLElement | null => container.querySelector('.pp-pincard__locked')

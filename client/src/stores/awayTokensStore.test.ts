@@ -10,7 +10,7 @@ import { useAwayTokensStore } from './awayTokensStore'
  */
 
 function jogador(over: Partial<PlayerInfo>): PlayerInfo {
-  return { clientId: 'c1', playerId: 'ana', name: 'Ana', status: 'playing', connected: true, tokenIds: ['t1'], visionRadius: 700, ...over }
+  return { clientId: 'c1', playerId: 'ana', name: 'Ana', status: 'playing', connected: true, tokenIds: ['t1'], visionRadius: 700, visionFactor: 1, ...over }
 }
 
 describe('awayTokensStore', () => {

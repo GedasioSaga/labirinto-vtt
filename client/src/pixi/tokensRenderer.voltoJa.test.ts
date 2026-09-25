@@ -39,7 +39,7 @@ describe('createTokensRenderer — selo de ausente do Volto já', () => {
   it('ficha de quem está no Volto já ganha o selo no alto à direita e fica apagada', () => {
     const container = new Container()
     const renderer = createTokensRenderer()
-    renderer.draw(container, [ficha()], GRID, null, 1, new Set(['ficha-ana']))
+    renderer.draw(container, [ficha()], GRID, null, 1, null, new Set(['ficha-ana']))
 
     const wrapper = container.children[0]
     expect(wrapper.alpha).toBe(1)
@@ -58,7 +58,7 @@ describe('createTokensRenderer — selo de ausente do Volto já', () => {
   it('controle: ficha de quem está à mesa não ganha selo nem apaga', () => {
     const container = new Container()
     const renderer = createTokensRenderer()
-    renderer.draw(container, [ficha(), ficha({ id: 'ficha-bruno', name: 'Bruno' })], GRID, null, 1, new Set(['ficha-bruno']))
+    renderer.draw(container, [ficha(), ficha({ id: 'ficha-bruno', name: 'Bruno' })], GRID, null, 1, null, new Set(['ficha-bruno']))
     expect(visualOf(container).alpha).toBe(1)
     expect(ringOf(container).getLocalBounds().width).toBe(0)
   })
@@ -66,8 +66,8 @@ describe('createTokensRenderer — selo de ausente do Volto já', () => {
   it('ao voltar, o selo sai e a ficha volta ao normal', () => {
     const container = new Container()
     const renderer = createTokensRenderer()
-    renderer.draw(container, [ficha()], GRID, null, 1, new Set(['ficha-ana']))
-    renderer.draw(container, [ficha()], GRID, null, 1, new Set())
+    renderer.draw(container, [ficha()], GRID, null, 1, null, new Set(['ficha-ana']))
+    renderer.draw(container, [ficha()], GRID, null, 1, null, new Set())
     expect(visualOf(container).alpha).toBe(1)
     expect(ringOf(container).getLocalBounds().width).toBe(0)
   })
@@ -75,7 +75,7 @@ describe('createTokensRenderer — selo de ausente do Volto já', () => {
   it('ficha secreta no Volto já continua secreta: o selo não a torna mais visível', () => {
     const container = new Container()
     const renderer = createTokensRenderer()
-    renderer.draw(container, [ficha({ secret: true })], GRID, null, 1, new Set(['ficha-ana']))
+    renderer.draw(container, [ficha({ secret: true })], GRID, null, 1, null, new Set(['ficha-ana']))
     expect(container.children[0].alpha).toBe(SECRET_ITEM_ALPHA)
     expect(visualOf(container).alpha).toBe(AWAY_TOKEN_ALPHA)
     expect(ringOf(container).getLocalBounds().width).toBeGreaterThan(0)
@@ -84,7 +84,7 @@ describe('createTokensRenderer — selo de ausente do Volto já', () => {
   it('ficha com foto também ganha o selo, e a foto apaga no lugar do círculo', () => {
     const container = new Container()
     const renderer = createTokensRenderer()
-    renderer.draw(container, [ficha({ image: 'imgs/ana.png' })], GRID, null, 1, new Set(['ficha-ana']))
+    renderer.draw(container, [ficha({ image: 'imgs/ana.png' })], GRID, null, 1, null, new Set(['ficha-ana']))
     expect(visualOf(container).alpha).toBe(AWAY_TOKEN_ALPHA)
     // A moldura da foto já ocupa o raio inteiro: o selo é o que passa dela.
     const raio = GRID / 2
