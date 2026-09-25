@@ -2,7 +2,7 @@ import { useEffect, useId, useRef, useState, useSyncExternalStore } from 'react'
 import type { ChangeEvent, ComponentProps, FormEvent, KeyboardEvent as ReactKeyboardEvent, MouseEvent, RefObject } from 'react'
 import type { StorageLike } from './playerConnection'
 import { PlayerBackpack } from './PlayerBackpack'
-import { NAME_MAX_LENGTH, type ClueEntry, type NoteEntry, type PartyMember, type PartyWhere } from '../net/protocol'
+import { NAME_MAX_LENGTH, type ClueEntry, type NoteEntry, type PartyMember, type PartyWhere, type OwnTokenElsewhere } from '../net/protocol'
 import type { Pin, RegionPoint } from '../types/map'
 import { PlayerNotebook } from './PlayerNotebook'
 import { PlayerClueList } from './PlayerClues'
@@ -19,6 +19,9 @@ const NO_CLUES: readonly ClueEntry[] = []
 const IGNORE_CLUE = (): void => {}
 const NO_PERSONAL_NOTES: readonly PersonalNote[] = []
 const IGNORE_NOTE = (): void => {}
+/** Sem fichas em outra cena (mestre antigo, teste): a mesma lista vazia a cada render. */
+const NO_ELSEWHERE: readonly OwnTokenElsewhere[] = []
+const IGNORE_SWITCH = (): void => {}
 
 // Painel do jogador: meus personagens, ajustes de visão e centralizar a câmera.
 // Fica sobre o canvas (não ao lado) para o enquadramento do mapa não depender
@@ -190,6 +193,10 @@ interface PlayerPanelProps {
   onRemoveNote?: (noteId: string) => void
   /** DADO ROLADO NA SALA: pede a rolagem ao host. Sem o callback, não há aba Dados. */
   onRollDice?: (request: DiceRequest) => void
+  /** MINHAS FICHAS EM OUTRAS CENAS: as fichas dele fora da cena na tela, com a Sala ('' = sem nome que ele leia). */
+  elsewhere?: readonly OwnTokenElsewhere[]
+  /** "Olhar por…": tocou numa ficha de fora; a cena da tela passa a ser a dela. */
+  onSwitchView?: (tokenId: string) => void
 }
 
 export function PlayerPanel({
@@ -231,6 +238,8 @@ export function PlayerPanel({
   onFocusNote,
   onRemoveNote = IGNORE_NOTE,
   onRollDice,
+  elsewhere = NO_ELSEWHERE,
+  onSwitchView = IGNORE_SWITCH,
 }: PlayerPanelProps) {
   const tabs = onRollDice === undefined ? PANEL_TABS_NO_DICE : PANEL_TABS
   const drawerScreen = useSyncExternalStore(subscribeDrawerScreen, isDrawerScreen, () => false)
@@ -334,6 +343,12 @@ export function PlayerPanel({
   function focusPin(pin: Pin) {
     onFocusPoint({ x: pin.x, y: pin.y })
     // Mesma razão do "Centralizar": no celular a gaveta cobre o ponto.
+    closeDrawer()
+  }
+
+  function lookThrough(tokenId: string) {
+    onSwitchView(tokenId)
+    // Mesma razão do centralizar: a cena nova aparece no mapa que a gaveta cobre.
     closeDrawer()
   }
 
@@ -487,7 +502,7 @@ export function PlayerPanel({
               <h2 id={`${panelId}-chars`} className="pp-heading">
                 Meus personagens
               </h2>
-              {characters.length === 0 ? (
+              {characters.length === 0 && elsewhere.length === 0 ? (
                 <p className="pp-empty">Nenhum personagem seu no mapa.</p>
               ) : (
                 <ul className="pp-list">
@@ -501,6 +516,24 @@ export function PlayerPanel({
                       >
                         <span className="pp-dot" style={{ background: characterColor }} aria-hidden="true" />
                         <span className="pp-character__name">{character.name}</span>
+                      </button>
+                    </li>
+                  ))}
+                  {/* Fichas dele em outra cena: tocar troca a cena da tela. Só a
+                      Sala, nunca a cena — o nome da cena é do mestre. */}
+                  {elsewhere.map((item) => (
+                    <li key={item.tokenId}>
+                      <button
+                        type="button"
+                        className="pp-character pp-character--away"
+                        aria-label={`Olhar por ${item.name}`}
+                        onClick={() => lookThrough(item.tokenId)}
+                      >
+                        <span className="pp-dot pp-dot--away" style={{ color: characterColor }} aria-hidden="true" />
+                        <span className="pp-character__text">
+                          <span className="pp-character__name">{item.name}</span>{' '}
+                          <span className="pp-character__where">{item.room === '' ? 'Em outro lugar' : `Em outro lugar · ${item.room}`}</span>
+                        </span>
                       </button>
                     </li>
                   ))}

@@ -14,6 +14,9 @@ import { MAX_DESTINATION_MARKS, SIGNAL_COLOR_PATTERN, type DestinationMark } fro
 import { MASTER_ROLLER_NAME, parseDiceRequest, type DiceRequest, type DiceRollEntry } from '../lib/dice'
 import { isNoiseDirection, type NoiseDirection } from '../lib/noise'
 import type { ViewPatch } from './viewPatch'
+import type { OwnTokenElsewhere, RoofPeek } from '../lib/fogFilter'
+
+export type { OwnTokenElsewhere }
 
 /**
  * Protocolo mestre <-> jogador. Toda mensagem é um objeto discriminado por
@@ -55,6 +58,9 @@ import type { ViewPatch } from './viewPatch'
  * antigo responde `error invalid_message`; jogador antigo ignora as três.
  * O `text` opcional do `pin.travel.denied` é o motivo que o MESTRE escreveu
  * para quem pediu ("Não, porque…"): vai só a ele e não é do mapa.
+ * `pin.travel.cancel` (jogador desiste) e `pin.travel.cancelled` (o pedido
+ * saiu da espera: ele desistiu ou a ficha se afastou do pino) seguem a mesma
+ * regra, e a volta leva só o motivo.
  *
  * `scene.note` (mestre -> jogador) é o RECADO POR CENA, aditivo pelo mesmo
  * critério: jogador antigo cai no `default` e ignora. Leva só o texto e um id,
@@ -75,6 +81,11 @@ import type { ViewPatch } from './viewPatch'
  * que AQUELE jogador já recebeu, mandada quando ele entra ou volta. Jogador
  * antigo ignora os dois; mestre antigo não manda `at` e o jogador anota a hora
  * da chegada.
+ *
+ * RECADO PARA QUEM ESTÁ FORA é aditivo pelo mesmo critério: `notes.away`
+ * (mestre -> jogador), na volta, os recados mandados à cena dele enquanto ele
+ * estava fora do ar, na ordem em que saíram. Mesma forma do caderno (id,
+ * texto, hora), nunca a cena. Jogador antigo ignora; o caderno ainda os traz.
  *
  * MINHAS PISTAS é aditivo pelo mesmo critério. Do jogador: `clue.read` (abriu o
  * cartão de um pino), `clue.peers` (quem está na cena comigo?) e `clue.show`
@@ -210,6 +221,14 @@ import type { ViewPatch } from './viewPatch'
  * `view.patches` e segue recebendo `snapshot`; mestre antigo responde
  * `error invalid_message` ao `view.patches` e ao `view.resync`, que o jogador
  * ignora durante o jogo.
+ *
+ * MINHAS FICHAS EM OUTRAS CENAS é aditivo pelo mesmo critério: `snapshot.elsewhere`
+ * (mestre -> jogador) lista as fichas DELE que estão em outra cena — id, nome
+ * e a Sala onde está, nunca a cena nem a posição; ausente = nenhuma. Do jogador,
+ * `view.switch` pede para olhar por uma delas: o host confere a posse e manda o
+ * snapshot da cena daquela ficha. Mestre antigo responde `error
+ * invalid_message`, que o jogador ignora durante o jogo; jogador antigo ignora
+ * o campo.
  */
 export const PROTOCOL_VERSION = 1
 
@@ -294,6 +313,8 @@ export const SECRET_CHECK_RESULT_MAX = 999
  * pedindo em laço ocuparia o host.
  */
 export const VIEW_RESYNC_MIN_INTERVAL_MS = 1000
+/** Quantos recados a fila de quem está fora do ar guarda por jogador. Passou, sai o mais antigo. */
+export const AWAY_NOTES_MAX = 20
 
 const JOIN_CODE_PATTERN = /^[A-Z0-9]{6}$/
 
@@ -419,6 +440,16 @@ export interface PinTravelRequestMessage {
    * Aditivo: ausente vale a saída principal, e é o que o cliente antigo manda.
    */
   exitId?: string
+}
+
+/**
+ * DESISTIR DO PEDIDO: o jogador retira o pedido de passagem que espera o
+ * mestre. Só o tipo — cada jogador tem no máximo um pedido, e o host sabe
+ * quem é pela conexão. Aditiva: mestre antigo responde `error
+ * invalid_message`, que o jogador ignora durante o jogo.
+ */
+export interface PinTravelCancelMessage {
+  type: 'pin.travel.cancel'
 }
 
 /**
@@ -560,6 +591,12 @@ export interface SeatClaimMessage {
   tokenId: string
 }
 
+/** Olhar por outra ficha minha: a cena vista passa a ser a da ficha `tokenId`. Só o id: a cena quem acha é o host. */
+export interface ViewSwitchMessage {
+  type: 'view.switch'
+  tokenId: string
+}
+
 export type PlayerMessage =
   | JoinMessage
   | SeatClaimMessage
@@ -574,6 +611,7 @@ export type PlayerMessage =
   | PinTravelRequestMessage
   | PinTakeMessage
   | ItemGiveMessage
+  | PinTravelCancelMessage
   | PlayerLaserMessage
   | ClueReadMessage
   | CluePeersRequestMessage
@@ -588,6 +626,7 @@ export type PlayerMessage =
   | SecretCheckAnswerMessage
   | ViewResyncMessage
   | ViewPatchesMessage
+  | ViewSwitchMessage
 
 /**
  * Por que a alavanca não moveu nada. `unavailable` junta pino inexistente, no
@@ -661,6 +700,13 @@ export type DoorRequestAnswer = 'opened' | 'denied'
  */
 export type PinTravelRejection = 'unavailable' | 'pending' | 'too_soon'
 
+/**
+ * Por que o pedido de passagem saiu da espera sem resposta do mestre:
+ * `player` = o jogador desistiu; `far` = a ficha dele se afastou do pino.
+ * Só o motivo: nem o pino nem o destino voltam ao jogador.
+ */
+export type PinTravelCancelReason = 'player' | 'far'
+
 // Mestre -> jogador
 /** Laser do mestre: lote de pontos (px de mundo) desde o último envio, ou `off` ao soltar. */
 export type LaserMessage = { type: 'laser'; points: RegionPoint[] } | { type: 'laser'; off: true }
@@ -694,6 +740,12 @@ export interface NoteEntry {
 /** O caderno inteiro do jogador, do mais antigo ao mais novo, mandado quando ele entra ou volta. */
 export interface NotebookMessage {
   type: 'notes.book'
+  notes: NoteEntry[]
+}
+
+/** Recados que chegaram à cena do jogador enquanto ele estava fora do ar, do mais antigo ao mais novo. */
+export interface NotesAwayMessage {
+  type: 'notes.away'
   notes: NoteEntry[]
 }
 
@@ -906,8 +958,10 @@ export type HostMessage =
   // `relogio` (RELÓGIO DA CAMPANHA): só o período e, da cena dele, se está escuro — nunca a hora (`clockForPlayer`).
   // `glimpses`: cone pelo vão de prédio com teto (`PlayerMapView.glimpses`).
   // Aditivo: ausente = telhado inteiro, que é o que o mestre antigo manda.
-  | { type: 'snapshot'; rev: number; map: MapData; vision: RegionPoint[][]; explored: ExploredWire; ownTokens: string[]; concealed: RegionPoint[][]; turn?: string; partyTokens?: string[]; hazards?: PlayerHazard[]; sceneName?: string; place?: string; places?: string[]; gatilhos?: PlayerAreaTrigger[]; andares?: FloorsWire; relogio?: PlayerClock; glimpses?: RegionPoint[][] }
-  | { type: 'delta'; rev: number; map: MapData; vision: RegionPoint[][]; explored: ExploredWire; ownTokens: string[]; concealed: RegionPoint[][]; turn?: string; partyTokens?: string[]; hazards?: PlayerHazard[]; sceneName?: string; place?: string; places?: string[]; gatilhos?: PlayerAreaTrigger[]; andares?: FloorsWire; relogio?: PlayerClock; glimpses?: RegionPoint[][] }
+  // `elsewhere` (MINHAS FICHAS EM OUTRAS CENAS): as fichas dele em outra cena.
+  // `peek`: aditivo — só sai com uma ficha do jogador no vão de porta aberta de prédio de teto fechado.
+  | { type: 'snapshot'; rev: number; map: MapData; vision: RegionPoint[][]; explored: ExploredWire; ownTokens: string[]; concealed: RegionPoint[][]; turn?: string; partyTokens?: string[]; hazards?: PlayerHazard[]; sceneName?: string; place?: string; places?: string[]; gatilhos?: PlayerAreaTrigger[]; andares?: FloorsWire; relogio?: PlayerClock; glimpses?: RegionPoint[][]; elsewhere?: OwnTokenElsewhere[]; peek?: RoofPeek }
+  | { type: 'delta'; rev: number; map: MapData; vision: RegionPoint[][]; explored: ExploredWire; ownTokens: string[]; concealed: RegionPoint[][]; turn?: string; partyTokens?: string[]; hazards?: PlayerHazard[]; sceneName?: string; place?: string; places?: string[]; gatilhos?: PlayerAreaTrigger[]; andares?: FloorsWire; relogio?: PlayerClock; glimpses?: RegionPoint[][]; elsewhere?: OwnTokenElsewhere[]; peek?: RoofPeek }
   // Só o que mudou desde a tela `base` desta conexão (ver o topo do arquivo).
   | ({ type: 'patch'; rev: number; base: number } & ViewPatch)
   // ZONA DE PERIGO: a ficha DESTE jogador entrou num perigo. Só o tipo — nem a sala, nem a zona.
@@ -936,6 +990,7 @@ export type HostMessage =
   // `text`: o motivo curto do "Não, porque…" (até `TRAVEL_DENY_TEXT_MAX_LENGTH`).
   // Aditivo: jogador antigo ignora o campo e lê o "não deixou" de sempre.
   | { type: 'pin.travel.denied'; text?: string }
+  | { type: 'pin.travel.cancelled'; reason: PinTravelCancelReason }
   // `by: 'master'`: o mestre levou o jogador sem pedido ("Mandar para…" do
   // painel Grupo). Aditivo: jogador antigo ignora o campo e lê "Você chegou".
   // `by: 'gather'`: também sem pedido, mas pelo "Reunir o grupo aqui" de um
@@ -949,6 +1004,7 @@ export type HostMessage =
   | SceneNoteMessage
   | RoomTextMessage
   | NotebookMessage
+  | NotesAwayMessage
   | ClueHostMessage
   | SceneAlarmMessage
   | SceneAlarmEndMessage
@@ -1297,6 +1353,24 @@ export function parseNotebook(value: unknown): NotebookMessage | null {
   return { type: 'notes.book', notes: parsed }
 }
 
+/**
+ * Valida a fila de quem esteve fora. De 1 a `AWAY_NOTES_MAX` itens (fila vazia
+ * não abre cartão), cada um com id, texto dentro do teto e hora; um item ruim
+ * recusa a mensagem inteira. Devolve cópia só com os campos conhecidos.
+ */
+export function parseNotesAway(value: unknown): NotesAwayMessage | null {
+  if (!isRecord(value) || value.type !== 'notes.away') return null
+  const { notes } = value
+  if (!Array.isArray(notes) || notes.length === 0 || notes.length > AWAY_NOTES_MAX) return null
+  const parsed: NoteEntry[] = []
+  for (const item of notes) {
+    const entry = parseNoteEntry(item)
+    if (entry === null) return null
+    parsed.push(entry)
+  }
+  return { type: 'notes.away', notes: parsed }
+}
+
 /** Folga para o sufixo que o host põe em nome repetido ("Ana (2)", ver `uniqueName`). */
 const NAME_SUFFIX_ROOM = 8
 
@@ -1394,6 +1468,24 @@ export function parseRoomText(value: unknown): RoomTextMessage | null {
   if (!isBoundedString(title, 0, ROOM_TEXT_MAX_LENGTH)) return null
   if (!isBoundedString(text, 1, ROOM_TEXT_MAX_LENGTH)) return null
   return { type: 'room.text', id, title, text }
+}
+
+/**
+ * Valida o `snapshot.elsewhere` que o jogador recebe: lista de fichas dele em
+ * outra cena, cada uma com id (do tamanho que o `view.switch` aceita de volta),
+ * nome e Sala em texto ('' vale). Qualquer item fora da forma recusa a lista
+ * inteira. Devolve cópia só com os três campos.
+ */
+export function parseElsewhere(value: unknown): OwnTokenElsewhere[] | null {
+  if (!Array.isArray(value)) return null
+  const parsed: OwnTokenElsewhere[] = []
+  for (const item of value) {
+    if (!isRecord(item)) return null
+    const { tokenId, name, room } = item
+    if (!isBoundedString(tokenId, 1, REQ_ID_MAX_LENGTH) || typeof name !== 'string' || typeof room !== 'string') return null
+    parsed.push({ tokenId, name, room })
+  }
+  return parsed
 }
 
 /**
@@ -1571,6 +1663,8 @@ export function parsePlayerMessage(raw: unknown): PlayerMessage | null {
       return parseTokenEdit(value)
     case 'pin.travel.request':
       return parseTravelRequest(value)
+    case 'pin.travel.cancel':
+      return { type: 'pin.travel.cancel' }
     case 'laser':
       // Só o corpo: `from`/`color` mandados pelo jogador são jogados fora — o
       // nome e a cor quem põe é o host, pela conexão e pela ficha dele.
@@ -1610,6 +1704,8 @@ export function parsePlayerMessage(raw: unknown): PlayerMessage | null {
       return isBoundedString(value.id, 1, REQ_ID_MAX_LENGTH) && isSecretCheckResult(value.result)
         ? { type: 'secret.check.answer', id: value.id, result: value.result }
         : null
+    case 'view.switch':
+      return isBoundedString(value.tokenId, 1, REQ_ID_MAX_LENGTH) ? { type: 'view.switch', tokenId: value.tokenId } : null
     default:
       return null
   }

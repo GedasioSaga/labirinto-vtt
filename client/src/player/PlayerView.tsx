@@ -3,6 +3,7 @@ import { PlayerMeasureLabel, writeMeasureText } from './PlayerMeasureLabel'
 import { Application, Container, Graphics, Sprite, Text, Texture } from 'pixi.js'
 import type { FederatedPointerEvent } from 'pixi.js'
 import type { MapData, Region, RegionPoint, Token, Wall } from '../types/map'
+import type { RoofPeek } from '../lib/fogFilter'
 import { rasterizeMinimap, hexToRgb } from '../lib/minimapRaster'
 import type { Rgb } from '../lib/minimapRaster'
 import { compileFloor } from '../lib/floorSdf'
@@ -126,6 +127,8 @@ interface PlayerViewProps {
   gatilhos?: readonly PlayerAreaTrigger[]
   /** Cone pelo vão de prédio com teto: o telhado abre só aqui (`roofCut.ts`). */
   glimpses?: RegionPoint[][]
+  /** Espiada pela porta aberta: o telhado desses prédios sai recortado pela visão de quem está no vão. */
+  peek?: RoofPeek
   ownTokens: string[]
   /** INICIATIVA: a ficha da vez (sempre uma de `map.tokens`), que ganha o anel da vez. */
   turnTokenId?: string | null
@@ -241,7 +244,7 @@ const HEX_COLOR = /^#?([0-9a-f]{3}|[0-9a-f]{6})$/i
  * acima do preto da névoa (para o prédio ler como objeto, e não como buraco) e
  * bem abaixo do chão iluminado, porque teto não é lugar iluminado por lanterna.
  */
-const ROOF_COLOR = 0x52483f
+export const ROOF_COLOR = 0x52483f
 /** Aresta do telhado: um passo mais claro, para o contorno do prédio ler contra a névoa. */
 const ROOF_EDGE_COLOR = 0x6e6055
 const ROOF_EDGE_WIDTH = 3
@@ -717,11 +720,16 @@ interface Scene {
   concealedCount: number
   /** Silhueta dos prédios de teto fechado: chapada acima da névoa. */
   roofs: Graphics
+  /** Telhado dos prédios espiados pela porta aberta, recortado por `peekMask` (máscara inversa). */
+  peekedRoofs: Graphics
+  /** A visão de quem espia: o buraco no telhado dos prédios espiados. */
+  peekMask: Graphics
   lastRoofsKey: string | null
   roofsCount: number
   /** Máscara invertida do telhado: o cone pelo vão (`applyRoofCut`). */
   roofCut: Graphics
   lastRoofCut: RegionPoint[][] | null
+  peekedRoofsCount: number
   tokens: Container
   tokenViews: Map<string, TokenView>
   /** Fichas deslizando do ponto antigo ao novo; o ticker as leva até lá. */
@@ -933,18 +941,37 @@ function redrawConcealed(scene: Scene, concealed: RegionPoint[][]): void {
  * propósito, porque um prédio não some quando a lanterna não alcança o telhado:
  * quem está na rua vê a construção inteira.
  */
-function redrawRoofs(scene: Scene, regions: Region[]): void {
+function redrawRoofs(scene: Scene, regions: Region[], peek: RoofPeek | undefined): void {
   const roofs = regions.filter((r) => roomHasRoof(r.room) && r.points.length >= 3)
-  const key = JSON.stringify(roofs.map((r) => r.points))
+  const peekedIds = new Set(peek?.roofIds ?? [])
+  const peekVision = (peek?.vision ?? []).filter((poly) => poly.length >= 3)
+  // Sem visão de quem espia não há o que recortar: o telhado sai inteiro.
+  const peeked = peekVision.length === 0 ? [] : roofs.filter((r) => peekedIds.has(r.id))
+  const whole = peeked.length === 0 ? roofs : roofs.filter((r) => !peekedIds.has(r.id))
+  const key = JSON.stringify([whole.map((r) => r.points), peeked.map((r) => r.points), peeked.length === 0 ? [] : peekVision])
   if (key === scene.lastRoofsKey) return
   scene.lastRoofsKey = key
-  scene.roofs.clear()
-  for (const region of roofs) scene.roofs.poly(region.points, true)
-  if (roofs.length > 0) {
-    scene.roofs.fill({ color: ROOF_COLOR, alpha: 1 })
-    scene.roofs.stroke({ width: ROOF_EDGE_WIDTH, color: ROOF_EDGE_COLOR, alpha: 1 })
-  }
+  paintRoofs(scene.roofs, whole)
+  paintRoofs(scene.peekedRoofs, peeked)
+  // VER PELA PORTA ABERTA: o telhado do prédio espiado continua lá, com um
+  // buraco no formato da visão de quem está no vão — máscara INVERSA pelo
+  // mesmo motivo da névoa (`redrawFog`): `cut` falha com buraco saindo da forma.
+  scene.peekMask.clear()
+  for (const poly of peeked.length === 0 ? [] : peekVision) scene.peekMask.poly(poly, true).fill({ color: 0xffffff })
+  if (peeked.length > 0) scene.peekedRoofs.setMask({ mask: scene.peekMask, inverse: true })
+  else scene.peekedRoofs.mask = null
+  scene.peekMask.visible = peeked.length > 0
   scene.roofsCount = roofs.length
+  scene.peekedRoofsCount = peeked.length
+}
+
+function paintRoofs(layer: Graphics, roofs: readonly Region[]): void {
+  layer.clear()
+  for (const region of roofs) layer.poly(region.points, true)
+  if (roofs.length > 0) {
+    layer.fill({ color: ROOF_COLOR, alpha: 1 })
+    layer.stroke({ width: ROOF_EDGE_WIDTH, color: ROOF_EDGE_COLOR, alpha: 1 })
+  }
 }
 
 /**
@@ -1005,6 +1032,7 @@ export function PlayerView({
   hazards = NO_HAZARDS,
   gatilhos = NO_TRIGGERS,
   glimpses = NO_CONCEALED,
+  peek,
   ownTokens,
   turnTokenId = null,
   settings,
@@ -1052,6 +1080,7 @@ export function PlayerView({
     glimpses,
     hazards,
     gatilhos,
+    peek,
     ownTokens,
     turnTokenId,
     settings,
@@ -1354,6 +1383,7 @@ export function PlayerView({
       hazards: currentHazards,
       gatilhos: currentTriggers,
       glimpses: currentGlimpses,
+      peek: currentPeek,
       ownTokens: own,
       turnTokenId: currentTurn,
       settings: currentSettings,
@@ -1417,7 +1447,7 @@ export function PlayerView({
     redrawTriggers(scene, currentTriggers)
     redrawFog(scene, currentMap, currentVision, currentExplored, currentSettings.exploredBrightness)
     redrawConcealed(scene, currentConcealed)
-    redrawRoofs(scene, regions)
+    redrawRoofs(scene, regions, currentPeek)
     if (currentGlimpses !== scene.lastRoofCut) {
       scene.lastRoofCut = currentGlimpses
       applyRoofCut(scene.roofs, scene.roofCut, currentGlimpses)
@@ -1507,6 +1537,7 @@ export function PlayerView({
       el.dataset.concealedCount = String(scene.concealedCount)
       el.dataset.hazardsCount = String(scene.hazardsCount)
       el.dataset.triggersCount = String(scene.triggersCount)
+      el.dataset.peekedRoofsCount = String(scene.peekedRoofsCount)
       el.dataset.pinsCount = String(pins.length)
       el.dataset.propsCount = String(scene.propsCount)
       el.dataset.propLabelsCount = String(scene.propLooksCount.labels)
@@ -1634,6 +1665,8 @@ export function PlayerView({
       const roofs = new Graphics()
       // Máscara do telhado: mora no mundo (acompanha a câmera, como `gridMask`).
       const roofCut = new Graphics()
+      const peekedRoofs = new Graphics()
+      const peekMask = new Graphics()
       const pins = new Container()
       const tokens = new Container()
       prepareTokenLayer(tokens)
@@ -1680,6 +1713,9 @@ export function PlayerView({
         // do lado de fora (senão o teto teria aberto) e nunca fica sob o prédio.
         roofCut,
         roofs,
+        // O telhado espiado pela porta, no mesmo andar do telhado, com o buraco da visão.
+        peekedRoofs,
+        peekMask,
         pins,
         tokens,
       )
@@ -1773,10 +1809,13 @@ export function PlayerView({
         lastConcealed: null,
         concealedCount: 0,
         roofs,
+        peekedRoofs,
+        peekMask,
         lastRoofsKey: null,
         roofsCount: 0,
         roofCut,
         lastRoofCut: null,
+        peekedRoofsCount: 0,
         tokens,
         tokenViews: new Map(),
         tokenGlides: createTokenGlides(),
@@ -2287,7 +2326,7 @@ export function PlayerView({
   useEffect(() => {
     const scene = sceneRef.current
     if (scene) redraw(scene)
-  }, [map, vision, explored, concealed, glimpses, hazards, gatilhos, ownTokens, turnTokenId, settings])
+  }, [map, vision, explored, concealed, glimpses, hazards, gatilhos, peek, ownTokens, turnTokenId, settings])
 
   useEffect(() => {
     // Contagem para o e2e (o desenho em si é do ticker); muda quando chega ou expira um sinal.

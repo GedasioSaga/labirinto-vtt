@@ -1,4 +1,4 @@
-import { useEffect, useId } from 'react'
+import { useEffect, useId, type ReactNode } from 'react'
 import { isEditableTarget } from '../lib/keymap'
 
 /** Título do cartão do TEXTO DE CHEGADA DA CENA (o mesmo cartão do recado). */
@@ -6,7 +6,9 @@ export const ARRIVAL_CARD_TITLE = 'Ao chegar'
 
 export interface PlayerNoteCardProps {
   /** O recado como o mestre escreveu. Vai para a tela como TEXTO: HTML aparece literal. */
-  text: string
+  text?: string
+  /** Corpo além do texto (a lista do "Enquanto você esteve fora"). Também só texto do React, nunca HTML. */
+  children?: ReactNode
   /**
    * Cabeçalho do cartão. Ausente = "Recado do mestre". O TEXTO DA SALA usa o
    * mesmo cartão com o nome da Sala aqui, e o TEXTO DE CHEGADA com
@@ -35,7 +37,7 @@ export const ONLY_YOU_LABEL = 'Só para você'
  * O texto entra como filho de texto do React (nunca `innerHTML`): o React
  * escapa `<` e `>`, e o recado "<b>x</b>" aparece com os sinais na tela.
  */
-export function PlayerNoteCard({ text, title = 'Recado do mestre', hint, onClose, escapeCloses = true, onlyYou = false }: PlayerNoteCardProps) {
+export function PlayerNoteCard({ text, children, title = 'Recado do mestre', hint, onClose, escapeCloses = true, onlyYou = false }: PlayerNoteCardProps) {
   const titleId = useId()
   const onlyId = useId()
 
@@ -63,7 +65,8 @@ export function PlayerNoteCard({ text, title = 'Recado do mestre', hint, onClose
           {ONLY_YOU_LABEL}
         </p>
       )}
-      <p className="pp-note__text">{text}</p>
+      {text !== undefined && <p className="pp-note__text">{text}</p>}
+      {children}
       {hint !== undefined && <p className="pp-note__hint">{hint}</p>}
       <button type="button" className="pp-note__close" onClick={onClose}>
         Fechar

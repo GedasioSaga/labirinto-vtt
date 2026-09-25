@@ -20,7 +20,8 @@ import { withoutAttachment } from './lightAttachment'
 import { itemOfPin, tokenReachesPin } from './items'
 import { keyForPin } from './doorKey'
 import { computeVisibility, visionSegments, wallLetsSightThrough, type Segment } from './visibility'
-import { DOOR_REACH_CELLS, distanceToWall, tokenRadiusOf } from './doorReach'
+import { isDoorPassable } from './collision'
+import { DOOR_REACH_CELLS, distanceToWall, tokenRadiusOf, tokenReachesDoor } from './doorReach'
 import { darkVision, type Darkness } from './darkness'
 import { ancestorsOf, NESTING_TOLERANCE, pointInPolygonInclusive, pointOnPolygonBorder, subtreeIds } from './roomNesting'
 import { roomHasRoof, roomIsComodo } from './roomOps'
@@ -115,6 +116,22 @@ export interface PlayerMapView {
    */
   occupiedRooms: string[]
   /**
+   * DENTRO DA SALA SECRETA — ids das salas secretas que uma ficha do jogador
+   * ocupa agora, estritamente dentro, e que por isso abriram para ELE. O
+   * chamador as guarda como descobertas por este jogador e as devolve em
+   * `discoveredSecretRooms`: a sala continua no mapa lembrado dele depois que
+   * ele sai. Não sai pela rede.
+   */
+  occupiedSecretRooms: string[]
+  /**
+   * VER PELA PORTA ABERTA — a espiada deste jogador, ou `null` quando ninguém
+   * dele está no vão de uma porta aberta de prédio de teto fechado. Sai pela
+   * rede (`snapshot.peek`): a tela recorta o telhado desses prédios pela visão
+   * de quem espia. Não traz nada novo — as ids são de prédios que já saíram em
+   * `map.regions`, e a visão é a mesma que já vai em `vision`.
+   */
+  peek: RoofPeek | null
+  /**
    * CÔMODO LEMBRADO — os cômodos (`RoomMeta.comodo`) que este jogador CONHECE
    * neste recorte: vistos agora (ficha dentro, ou olhando para dentro pela
    * porta), já lembrados (`seenRooms`) ou com o interior já explorado. O
@@ -154,6 +171,17 @@ export interface PlayerMapView {
    * entrada, volta só com o que está à vista agora.
    */
   plan: PlanMemory
+}
+
+/**
+ * VER PELA PORTA ABERTA DE PRÉDIO FECHADO. O teto continua fechado; só o cone
+ * que passa pela porta aberta, visto por quem está no vão, fica à vista.
+ */
+export interface RoofPeek {
+  /** Prédios de teto fechado espiados agora, todos presentes em `map.regions`. */
+  roofIds: string[]
+  /** A visão enviada de cada ficha que está no vão: é o recorte do telhado. */
+  vision: RegionPoint[][]
 }
 
 /**
@@ -462,6 +490,8 @@ const INTERIOR_PULL = 0.15
 const INTERIOR_PULL_MIN = 4
 /** Distância, em px de mundo, das amostras de visão da porta para cada lado da parede (a porta fica na borda do anel). */
 const DOOR_VISION_PROBE = 2
+/** Distância, em px de mundo, em que um vértice do anel de quem espia conta como raio parado NA parede. */
+const PEEK_WALL_HIT = 1
 /**
  * Distância das amostras de explorado da porta, em células: maior que a
  * diagonal da célula (√2), para cair numa célula que não cruza a parede da
@@ -964,12 +994,13 @@ function mostly(samples: readonly RegionPoint[], test: (p: RegionPoint) => boole
 /**
  * Chão sem as peças escondidas, cacheado pelo array imutável `map.floor`: o
  * contorno do chão (visão) é cacheado pela referência. Mais de uma chave por
- * chão: a visão do jogador e o cone de cada prédio pedem recortes diferentes
- * no mesmo snapshot, e com uma chave só um apagava o outro (contorno refeito
- * a cada passo).
+ * chão: a visão do jogador, o cone de cada prédio e o segundo recorte de quem
+ * espia pela porta aberta (com o chão do prédio espiado) pedem recortes
+ * diferentes no mesmo snapshot — com uma chave só um apagava o outro
+ * (contorno refeito a cada passo).
  */
 const playerFloorCache = new WeakMap<FloorPiece[], Map<string, FloorPiece[]>>()
-/** Recortes guardados por chão; passou disso, recomeça (chão novo a cada edição, então é raro). */
+/** Recortes guardados por chão; passou disso, descarta o mais antigo (chão novo a cada edição, então é raro). */
 const MAX_FLOOR_CUTS = 8
 
 function floorWithout(floor: FloorPiece[], hiddenIds: ReadonlySet<string>): FloorPiece[] {
@@ -979,9 +1010,13 @@ function floorWithout(floor: FloorPiece[], hiddenIds: ReadonlySet<string>): Floo
   const cached = cuts?.get(key)
   if (cached !== undefined) return cached
   const out = floor.filter((f) => !hiddenIds.has(f.id))
-  if (cuts === undefined || cuts.size >= MAX_FLOOR_CUTS) {
+  if (cuts === undefined) {
     cuts = new Map()
     playerFloorCache.set(floor, cuts)
+  }
+  if (cuts.size >= MAX_FLOOR_CUTS) {
+    const oldest = cuts.keys().next()
+    if (oldest.done !== true) cuts.delete(oldest.value)
   }
   cuts.set(key, out)
   return out
@@ -1282,6 +1317,19 @@ export function claimableTokensForPlayer(maps: readonly MapData[], taken: Readon
  */
 export type SecretReveals = ReadonlyMap<string, ReadonlySet<string>>
 
+/** O marcador de "Oculta para jogadores" é do editor do mestre: a sala aberta sai sem ele. */
+function withoutSecretMark(region: Region): Region {
+  if (region.secret !== true) return region
+  const copy = { ...region }
+  delete copy.secret
+  return copy
+}
+
+/** Ponto estritamente dentro do polígono: em cima do muro conta como fora (mesma regra do teto). */
+function strictlyInside(points: readonly RegionPoint[], p: RegionPoint): boolean {
+  return pointInPolygonInclusive(p, points) && !pointOnPolygonBorder(p, points)
+}
+
 /** Porta explorada que o jogador nunca viu: aparece fechada e destrancada. */
 function unseenDoor(door: DoorState): DoorState {
   return { open: false, locked: false, kind: door.kind }
@@ -1521,6 +1569,10 @@ const FLOOR_SEEN_DEPTH = 1
  * já viu — o que o chamador guardou de `rememberedRooms` nos recortes de antes.
  * `secretReveals`: a quem o mestre revelou cada ficha secreta, escada secreta
  * e zona oculta (`SecretReveals`); ausente = segredo de todos.
+ * `discoveredSecretRooms`: salas secretas deste mapa que ESTE jogador já
+ * descobriu (esteve com a ficha dentro, `occupiedSecretRooms`). Abrem só para
+ * ele, como se a ficha ainda estivesse lá; o resto da regra (névoa, explorado)
+ * continua valendo.
  * `peekDoorIds`: portas que ESTE jogador está espiando agora ("Espiar", o host
  * decide e marca o prazo). A visão dele atravessa essas portas como se
  * estivessem abertas; o estado da porta no pacote continua o real.
@@ -1541,6 +1593,7 @@ export function filterMapForPlayer(
   enteredRooms?: ReadonlySet<string>,
   seenRooms?: ReadonlySet<string>,
   secretReveals?: SecretReveals,
+  discoveredSecretRooms?: ReadonlySet<string>,
   peekDoorIds?: ReadonlySet<string>,
   remembered?: PlanMemory,
 ): PlayerMapView {
@@ -1552,6 +1605,7 @@ export function filterMapForPlayer(
     playerId,
     seenRooms,
     secretReveals,
+    discoveredSecretRooms,
     peekDoorIds,
     remembered,
   })
@@ -1571,6 +1625,8 @@ export interface PlayerOnlyView {
   seenRooms?: ReadonlySet<string>
   /** A quem o mestre revelou cada ficha secreta, escada secreta e zona oculta; ausente = segredo de todos. */
   secretReveals?: SecretReveals
+  /** Salas secretas deste mapa que ESTE jogador já descobriu (`filterMapForPlayer`). A tela da mesa não passa. */
+  discoveredSecretRooms?: ReadonlySet<string>
   /** Portas que ESTE jogador está espiando agora ("Espiar"): a visão dele atravessa como se estivessem abertas. */
   peekDoorIds?: ReadonlySet<string>
   /** Memória da planta DESTE jogador (`PlanMemory`), ver `filterMapForPlayer`. A tela da mesa não passa. */
@@ -1659,19 +1715,39 @@ export function filterMapForGroup(
   const inConcealZone = (point: RegionPoint): boolean => zones.length > 0 && zones.some((zone) => hidesPoint(zone, point))
 
   // Sala "Oculta para jogadores" leva junto as paredes dela e o que está dentro dela.
-  const secretRooms = secretRoomsOf(map)
+  const allSecretRooms = secretRoomsOf(map)
+  /**
+   * DENTRO DA SALA SECRETA — a sala abre PARA ESTE JOGADOR quando uma ficha
+   * dele está estritamente dentro (em cima do muro ainda é fora: na dúvida,
+   * fecha) ou quando ele já a descobriu (`discoveredSecretRooms`). Aberta, ela é
+   * uma Sala comum para ele: paredes, portas, nome, chão e pinos NÃO secretos.
+   * Geometria indecidível nunca abre. Os outros jogadores continuam sem ela.
+   */
+  const occupiedSecretIds = allSecretRooms
+    .filter((r) => isUsablePolygon(r.points) && ownTokens.some((t) => strictlyInside(r.points, { x: t.x, y: t.y })))
+    .map((r) => r.id)
+  const openSecretIds = new Set([
+    ...occupiedSecretIds,
+    ...allSecretRooms.filter((r) => discoveredSecretRooms?.has(r.id) === true && isUsablePolygon(r.points)).map((r) => r.id),
+  ])
+  const secretRooms = allSecretRooms.filter((r) => !openSecretIds.has(r.id))
+  /** Secreta e ainda FECHADA para este jogador. */
+  const isClosedSecret = (r: Region): boolean => r.secret === true && !openSecretIds.has(r.id)
   // Sub-sala de sala secreta ou oculta some junto, com as paredes dela. O nome
-  // oculto da sala de fora NÃO passa para a de dentro.
+  // oculto da sala de fora NÃO passa para a de dentro. Sala secreta aberta para
+  // o jogador leva junto as sub-salas comuns; sub-sala secreta continua fechada.
   const hiddenByAncestorIds = new Set(
-    map.regions.filter((r) => r.parentId !== undefined && ancestorsOf(map.regions, r.id).some((a) => a.secret || a.hidden)).map((r) => r.id),
+    map.regions.filter((r) => r.parentId !== undefined && ancestorsOf(map.regions, r.id).some((a) => isClosedSecret(a) || a.hidden)).map((r) => r.id),
   )
   const secretRoomIds = new Set([...secretRooms.flatMap((r) => [...subtreeIds(map.regions, r.id)]), ...hiddenByAncestorIds])
+  // Aberta dentro de uma sala que continua fechada (sub-sala de secreta) não conta: segue sumida.
+  const occupiedSecretRooms = occupiedSecretIds.filter((id) => !secretRoomIds.has(id))
   const secretRoomRings = boxRings(secretRooms.map((r) => r.points))
   const inSecretRoom = (point: RegionPoint): boolean => secretRoomRings.length > 0 && inAnyRing(secretRoomRings, point)
   // Sala do jogador = toda região que não some por ser secreta ou oculta. Não
   // passa por `hiddenLayers`: com a camada Salas escondida a Biblioteca não sai,
   // mas a parede dela continua saindo — e o vão também saía.
-  const playerRegions = map.regions.filter((r) => !r.hidden && !r.secret && !secretRoomIds.has(r.id) && isUsablePolygon(r.points))
+  const playerRegions = map.regions.filter((r) => !r.hidden && !isClosedSecret(r) && !secretRoomIds.has(r.id) && isUsablePolygon(r.points))
   /**
    * PORTA SECRETA vira parede comum ANTES de qualquer outra regra: segura a
    * visão da autoridade (nada do outro lado entra no pacote, nem com ela
@@ -1709,12 +1785,16 @@ export function filterMapForGroup(
    * `pointInPolygonInclusive` também na caixa envolvente) e ABRIR exige o token
    * ESTRITAMENTE dentro: em cima do muro, o teto fica fechado. Na dúvida, fecha.
    *
-   * Sala secreta vence: quem já sumiu inteiro não precisa de teto. Polígono com
+   * Sala secreta FECHADA vence: quem já sumiu inteiro não precisa de teto. A
+   * secreta ABERTA para este jogador (ocupada ou descoberta) sai como cômodo
+   * comum, então o teto dela vale igual ao de qualquer prédio — filtrar pelo
+   * `secret` bruto arrancava o teto e entregava o NPC lá dentro a quem está fora.
+   * Polígono com
    * menos de 3 vértices ou com coordenada não-finita é INDECIDÍVEL: a sala some
    * do pacote (`brokenRoofIds`) em vez de virar um teto que nunca fecha.
    */
   const roofCandidates = roofRoomsOf(visibleRegions(map.regions, hiddenLayers)).filter(
-    (r) => !r.hidden && !r.secret && !secretRoomIds.has(r.id),
+    (r) => !r.hidden && !isClosedSecret(r) && !secretRoomIds.has(r.id),
   )
   /** Sala de teto que a geometria não sabe julgar: não sai para o jogador, e não abre. */
   const brokenRoofIds = new Set(roofCandidates.filter((r) => !isUsablePolygon(r.points)).map((r) => r.id))
@@ -1771,10 +1851,15 @@ export function filterMapForGroup(
   const inGlimpseOf = (roof: ClosedRoof, point: RegionPoint): boolean =>
     glimpses.some((g) => g.roof === roof && inRoof(roof, point) && inAnyRing(g.sight, point) && inAnyRing(g.authority, point))
   const inGlimpse = (point: RegionPoint): boolean => glimpses.some((g) => inGlimpseOf(g.roof, point))
-  /** Escondido pelo teto: dentro de prédio de teto fechado e fora do cone pelo vão. */
+  /** Escondido pelo teto: dentro de prédio de teto fechado, fora do cone pelo vão (`inGlimpseOf`). */
   const inClosedRoof = (point: RegionPoint): boolean => closedRoofs.some((roof) => inRoof(roof, point) && !inGlimpseOf(roof, point))
-  /** Ponto que o jogador não recebe por causa da SALA: secreta ou de teto fechado. */
-  const inRoomHiddenFromPlayer = (point: RegionPoint): boolean => inSecretRoom(point) || inClosedRoof(point)
+  /**
+   * Ponto que o jogador não recebe por causa da SALA: secreta ou de teto
+   * fechado — menos o cone pelo vão (já fora de `inClosedRoof`) e menos o cone
+   * de quem espia pela porta aberta (`roofHides`, definido depois da visão,
+   * que é de onde o cone sai).
+   */
+  const inRoomHiddenFromPlayer = (point: RegionPoint): boolean => inSecretRoom(point) || roofHides(point)
 
   /**
    * Ponto no pedaço que o pincel revelou: dentro de uma zona ativa e não
@@ -1863,16 +1948,12 @@ export function filterMapForGroup(
     closedRoofs.some((roof) => roof.id !== r.id && mostly(interiorSamples(r.points, r.points), (p) => inRoof(roof, p)))
 
   /** Sub-sala declarada por `parentId`: continua valendo, é mais barata que a geometria. */
-  const underRoofIds = new Set(closedRoofs.flatMap((roof) => [...subtreeIds(map.regions, roof.id)].filter((id) => id !== roof.id)))
-  /** Prédio que o jogador vê MESMO: teto fechado que não está dentro de outro prédio de teto fechado. */
-  const visibleRoofIds = new Set(
-    closedRoofs
-      .filter((roof) => !closedRoofs.some((outer) => outer.id !== roof.id && mostly(roof.points, (p) => inRoof(outer, p))))
-      .map((roof) => roof.id),
-  )
+  const underIdsOf = (roofs: readonly ClosedRoof[]): Set<string> =>
+    new Set(roofs.flatMap((roof) => [...subtreeIds(map.regions, roof.id)].filter((id) => id !== roof.id)))
+  const underRoofIds = underIdsOf(closedRoofs)
 
   /**
-   * Parede que é MOBÍLIA de dentro de um teto fechado.
+   * Parede que é MOBÍLIA de dentro de um dos tetos `roofs`.
    *
    * Duas perguntas, não uma: a parede está inteira dentro do polígono E não é o
    * CONTORNO dele. Sem a segunda, a parede do próprio muro (e a porta da frente
@@ -1907,6 +1988,27 @@ export function filterMapForGroup(
     if (w.door !== null) return wallSamples(w).every(seen) ? [w] : []
     return wallRunsWhere(w, seen)
   }
+  /**
+   * Prédio de teto fechado que a parede `w` fica embaixo de, entre `roofs`
+   * (mobília interior OU dentro do polígono): usado pelo cone de quem espia
+   * pela porta aberta, que testa contra o conjunto de tetos ainda não
+   * espiados.
+   */
+  const wallUnderRoofs = (roofs: readonly ClosedRoof[]): ((w: Wall) => boolean) => {
+    const underIds = roofs === closedRoofs ? underRoofIds : underIdsOf(roofs)
+    /** Prédio que o jogador vê MESMO: teto fechado que não está dentro de outro prédio de teto fechado. */
+    const topRoofIds = new Set(
+      roofs.filter((roof) => !roofs.some((outer) => outer.id !== roof.id && mostly(roof.points, (p) => inRoof(outer, p)))).map((roof) => roof.id),
+    )
+    return (w) => {
+      if (w.regionId !== undefined && underIds.has(w.regionId)) return true
+      if (roofs.length === 0) return false
+      if (w.regionId !== undefined && topRoofIds.has(w.regionId)) return false
+      const samples = wallSamples(w)
+      return roofs.some((roof) => samples.every((p) => inRoof(roof, p)) && samples.some((p) => !pointOnPolygonBorder(p, roof.points)))
+    }
+  }
+  const isUnderClosedRoof = wallUnderRoofs(closedRoofs)
 
   /**
    * Polígonos dos prédios de teto fechado. Vão SEPARADOS de `blocked`, e essa
@@ -1920,6 +2022,7 @@ export function filterMapForGroup(
    * `forgetInside` (`net/hostSession.ts`).
    */
   const roofs = closedRoofs.map((roof) => roof.points)
+  // Só a sala secreta FECHADA para este jogador: a que abriu vira memória dele como qualquer cômodo.
   const blocked = [...concealRings, ...secretRooms.map((r) => r.points)]
 
   // Peça de chão com a maioria das amostras em área escondida não sai. Limitação
@@ -2104,6 +2207,61 @@ export function filterMapForGroup(
         ),
     }),
   )
+
+  /**
+   * VER PELA PORTA ABERTA DE PRÉDIO FECHADO. Ficha do jogador no vão de uma
+   * porta aberta (e destrancada) do CONTORNO de um prédio de teto fechado — ao
+   * alcance dela, a mesma conta de `lib/doorReach.ts` que o host usa para
+   * abrir porta — espia o lado de dentro. O teto continua fechado: só o que a
+   * visão DESSA ficha alcança pela porta sai do teto (`roofHides`). O raycast já
+   * para nas paredes de dentro, então quem espia vê o cômodo em frente à porta
+   * e não o prédio inteiro. Prédio de geometria indecidível nunca é espiado.
+   */
+  const peekerIndexes = new Set<number>()
+  const peekedRoofIds = new Set<string>()
+  // Porta aberta ao alcance de alguma ficha do jogador: poucas, então o teste de contorno (o caro) só roda nelas.
+  const doorsInReach =
+    ownTokens.length === 0 || closedRoofs.length === 0
+      ? []
+      : knownWalls.filter(
+          (w) =>
+            !w.hidden &&
+            isDoorPassable(w.door) &&
+            !isSecretRoomWall(w) &&
+            !inConcealZone(wallMidpoint(w)) &&
+            ownTokens.some((t) => tokenReachesDoor(t, w, map.grid)),
+        )
+  for (const roof of closedRoofs) {
+    if (roof.broken) continue
+    const doors = doorsInReach.filter((w) => wallLineSamples(w).every((p) => pointOnPolygonBorder(p, roof.points)))
+    if (doors.length === 0) continue
+    ownTokens.forEach((t, i) => {
+      if (!doors.some((d) => tokenReachesDoor(t, d, map.grid))) return
+      peekerIndexes.add(i)
+      peekedRoofIds.add(roof.id)
+    })
+  }
+  const peekVision = authorityVision.filter((_, i) => peekerIndexes.has(i))
+  const peekRings = boxRings(peekVision)
+  const inPeekCone = (point: RegionPoint): boolean => peekRings.length > 0 && inAnyRing(peekRings, point)
+  /** Teto fechado que ninguém do jogador está espiando: esconde como sempre. */
+  const unpeekedRoofs = closedRoofs.filter((roof) => !peekedRoofIds.has(roof.id))
+  const inUnpeekedRoof = (point: RegionPoint): boolean => unpeekedRoofs.some((roof) => inRoof(roof, point))
+  /**
+   * O ponto está sob teto fechado para este jogador. Dentro do prédio espiado,
+   * o cone de quem está no vão fica de fora; um prédio de teto fechado DENTRO
+   * do espiado continua escondendo o dele (`inUnpeekedRoof`). Cobre também o
+   * cone pelo vão (`inClosedRoof`, que já descontou `inGlimpseOf`).
+   */
+  const roofHides = (point: RegionPoint): boolean => {
+    if (peekRings.length === 0) return inClosedRoof(point)
+    return inUnpeekedRoof(point) || (inClosedRoof(point) && !inPeekCone(point))
+  }
+  /** Parede de dentro de um teto que ninguém espia. */
+  const isUnderUnpeekedRoof = peekRings.length === 0 ? isUnderClosedRoof : wallUnderRoofs(unpeekedRoofs)
+  /** Parede de dentro de um prédio espiado (e só dele): candidata a sair pelo cone. */
+  const isPeekInterior = (w: Wall): boolean => peekRings.length > 0 && isUnderClosedRoof(w) && !isUnderUnpeekedRoof(w)
+
   // `knownWalls` (e não `map.walls`): a porta/estante da sala secreta chega ao
   // jogador disfarçada de parede, e a sombra dela precisa sair igual.
   const playerWalls = knownWalls.flatMap((w): Wall[] => {
@@ -2116,7 +2274,28 @@ export function filterMapForGroup(
   let vision = authorityVision
   if (ownTokens.length > 0 && (wallsChanged || hiddenFloorIds.size > 0)) {
     const playerSegments = visionSegments({ ...map, walls: playerWalls, floor: playerFloorForVision }, peekDoorIds)
-    vision = visionByToken(playerSegments).flat()
+    /**
+     * Quem espia enxerga com as paredes de dentro do prédio espiado INTEIRAS e
+     * com o chão dele: são elas que param o raio no cômodo da frente. Sem elas
+     * a visão enviada atravessaria o prédio e desenharia na névoa o que está
+     * atrás da divisória. As paredes que o raio acerta são as que o cone vê —
+     * e só essas saem no pacote (`peekedWallForPlayer`).
+     */
+    const peekSegments =
+      peekerIndexes.size === 0
+        ? playerSegments
+        : visionSegments(
+            {
+              ...map,
+              walls: [...playerWalls, ...knownWalls.filter((w) => !isSecretRoomWall(w) && isPeekInterior(w)).flatMap(zoneCutWall)],
+              floor: floorWithout(
+                map.floor,
+                new Set(map.floor.filter((f) => mostly(floorPieceSamples(f), (p) => inAnyRing(hiddenAreas, p) || inUnpeekedRoof(p))).map((f) => f.id)),
+              ),
+            },
+            peekDoorIds,
+          )
+    vision = ownTokens.map((t, i) => sightFrom({ x: t.x, y: t.y }, peekerIndexes.has(i) ? peekSegments : playerSegments, radiusOf(t), darkness)).flat()
   }
 
   const isVisible = (point: RegionPoint): boolean => !hiddenByZone(point) && (inAnyRing(rings, point) || inBrushReveal(point))
@@ -2451,6 +2630,47 @@ export function filterMapForGroup(
     unseenOk: (p) => exploredPoint(pinPoint(p)),
   })
 
+  /** Ponto no cone de quem espia e fora do que a zona esconde. */
+  const seenByPeek = (point: RegionPoint): boolean => inPeekCone(point) && !hiddenByZone(point)
+  /**
+   * Parede de dentro do prédio espiado, no pacote. Só o trecho que o cone VÊ:
+   * a amostra na própria reta cai na borda do anel (o raio para nela), então a
+   * pergunta é feita também a `DOOR_VISION_PROBE` px de cada lado. Porta de
+   * dentro vista sai inteira, com o estado real — ela é pequena, e cortá-la
+   * mudaria o id que o toque usa. Parede que nenhum raio de quem espia acerta
+   * nem é amostrada (`peekTouchesWall`): prédio grande tem muita parede longe
+   * do cone.
+   */
+  const peekedWallForPlayer = (w: Wall): Wall[] => {
+    if (!isPeekInterior(w)) return []
+    if (w.door !== null) {
+      if (inConcealZone(wallMidpoint(w)) || !doorSamples(w, DOOR_VISION_PROBE).some((p) => seenByPeek(p) && isVisible(p))) return []
+      visibleDoorIds.push(w.id)
+      return [w]
+    }
+    if (!peekTouchesWall(w)) return []
+    const len = Math.hypot(w.x2 - w.x1, w.y2 - w.y1)
+    if (len === 0) return []
+    const nx = (-(w.y2 - w.y1) / len) * DOOR_VISION_PROBE
+    const ny = ((w.x2 - w.x1) / len) * DOOR_VISION_PROBE
+    const runs = wallRunsWhere(
+      w,
+      (p) => !inConcealZone(p) && (seenByPeek(p) || seenByPeek({ x: p.x + nx, y: p.y + ny }) || seenByPeek({ x: p.x - nx, y: p.y - ny })),
+    )
+    // Vista de ponta a ponta: sai a própria parede, com o id de sempre.
+    const whole = runs.length === 1 && runs[0].x1 === w.x1 && runs[0].y1 === w.y1 && runs[0].x2 === w.x2 && runs[0].y2 === w.y2
+    return whole ? [w] : runs
+  }
+  /**
+   * Algum raio de quem espia termina nesta parede, ou (parede que não segura a
+   * luz) alguma amostra dela está no cone. Todo trecho visto de uma parede que
+   * segura a luz tem vértice do anel em cima: é onde o raio para.
+   */
+  const peekTouchesWall = (w: Wall): boolean => {
+    if (!w.blocksLight) return wallLineSamples(w).some(seenByPeek)
+    return peekVision.some((ring) => ring.some((v) => distanceToWall(v, w) <= PEEK_WALL_HIT))
+  }
+
   /** Preenchida no recorte das regiões abaixo: só entra Sala que saiu no pacote. */
   const occupiedRooms: string[] = []
 
@@ -2465,11 +2685,42 @@ export function filterMapForGroup(
   )
 
   /**
+   * Células (da grade do pincel) do chão do prédio espiado que o cone mostra:
+   * o CENTRO dentro do prédio, fora de qualquer teto que ainda esconde, de sala
+   * secreta e de zona oculta, e à vista. Varre só a caixa do prédio cortada
+   * pela caixa do cone, e só com espiada.
+   */
+  function peekFloorCells(): string[] {
+    if (peekRings.length === 0) return []
+    const keys = new Set<string>()
+    for (const roof of closedRoofs) {
+      if (!peekedRoofIds.has(roof.id)) continue
+      for (const ring of peekRings) {
+        const minX = Math.max(roof.minX, ring.minX)
+        const maxX = Math.min(roof.maxX, ring.maxX)
+        const minY = Math.max(roof.minY, ring.minY)
+        const maxY = Math.min(roof.maxY, ring.maxY)
+        if (minX > maxX || minY > maxY) continue
+        for (let row = Math.floor(minY / REVEAL_BRUSH_CELL); row <= Math.floor(maxY / REVEAL_BRUSH_CELL); row += 1) {
+          for (let col = Math.floor(minX / REVEAL_BRUSH_CELL); col <= Math.floor(maxX / REVEAL_BRUSH_CELL); col += 1) {
+            const center = { x: (col + 0.5) * REVEAL_BRUSH_CELL, y: (row + 0.5) * REVEAL_BRUSH_CELL }
+            if (inRoof(roof, center) && !roofHides(center) && !inSecretRoom(center) && isVisible(center)) keys.add(cellKeyAt(center))
+          }
+        }
+      }
+    }
+    return [...keys]
+  }
+  const peekCells = peekFloorCells()
+  const floorCells = peekCells.length === 0 ? shownCells : [...new Set([...shownCells, ...peekCells])]
+
+  /**
    * Chão que o jogador recebe. Peça escondida (`hiddenFloorIds`) continua sem
    * sair, mas o pedaço dela sob o corredor pintado sai recortado nas células
    * pintadas (`floorInCells`): sem isso o corredor revelado aparecia como uma
    * faixa do fundo, sem o chão que o mestre vê ali. A ordem das peças se
-   * mantém, então 'subtract' continua abrindo buraco no que vem antes.
+   * mantém, então 'subtract' continua abrindo buraco no que vem antes. O chão
+   * do prédio espiado sai do mesmo jeito, nas células que o cone mostra.
    */
   // O cone pelo vão devolve o chão do prédio do mesmo jeito: só nas células dele.
   const floorCells = glimpseCells.length === 0 ? shownCells : [...shownCells, ...glimpseCells]
@@ -2506,7 +2757,7 @@ export function filterMapForGroup(
    */
   const regionHiddenByMaster = (r: Region): boolean =>
     r.hidden === true ||
-    r.secret === true ||
+    isClosedSecret(r) ||
     hiddenByAncestorIds.has(r.id) ||
     underRoofIds.has(r.id) ||
     brokenRoofIds.has(r.id) ||
@@ -2537,7 +2788,7 @@ export function filterMapForGroup(
   // Ficha secreta revelada a este jogador ("Revelar para…") segue a regra da
   // ficha comum: só com visão, e nunca dentro de teto fechado ou zona.
   const playerTokens = layerTokens.filter(
-    (t) => !t.hidden && (owned.has(t.id) || (!secretFromPlayer(t) && !inClosedRoof({ x: t.x, y: t.y }) && isVisible({ x: t.x, y: t.y }))),
+    (t) => !t.hidden && (owned.has(t.id) || (!secretFromPlayer(t) && !roofHides({ x: t.x, y: t.y }) && isVisible({ x: t.x, y: t.y }))),
   )
   /**
    * OLHOS DO GUARDA. A marca (?, !) conta só as fichas de jogador (`watchTargets`,
@@ -2646,6 +2897,7 @@ export function filterMapForGroup(
         if (knownComodoIds.has(r.id)) return true
         return isShapeKnown(interiorSamples(r.points, r.points), { points: r.points, closed: true })
       })
+      .map(withoutSecretMark)
       .map((r) => {
         if (r.room === undefined) return r
         const roofClosed = closedRoofIds.has(r.id)
@@ -2688,10 +2940,15 @@ export function filterMapForGroup(
     walls: visibleWalls(knownWalls, hiddenLayers).flatMap((w) => {
       if (w.hidden) return []
       if (w.regionId !== undefined && secretRoomIds.has(w.regionId)) return []
-      // Mobília de prédio de teto fechado: só o que o cone pelo vão alcança.
+      // Mobília de prédio de teto fechado: o cone pelo vão alcança, OU quem
+      // espia pela porta aberta alcança (`peekedWallForPlayer`) — os dois cones
+      // são independentes, e a parede sai pelo que a mostrar.
       const roof = interiorRoofOf(w)
       const pieces = roof === undefined ? [w] : glimpsedInteriorWall(w, roof)
-      return pieces.flatMap((piece) => (piece.door !== null ? doorWallForPlayer(piece, piece.door) : wallForPlayer(piece)))
+      return [
+        ...pieces.flatMap((piece) => (piece.door !== null ? doorWallForPlayer(piece, piece.door) : wallForPlayer(piece))),
+        ...peekedWallForPlayer(w),
+      ]
     }),
     floor: playerFloor,
     // Pino de ponto de interesse: anotação estática, então vale o explorado
@@ -2821,6 +3078,15 @@ export function filterMapForGroup(
     .filter(({ trigger, region }) => trigger.revealed && sentRooms.has(region.id) && !hazardHiddenByMaster(region))
     .map(({ trigger, region }) => ({ kind: trigger.kind, points: region.points.map((p) => ({ x: p.x, y: p.y })) }))
   /**
+   * VER PELA PORTA ABERTA — a espiada deste jogador, para `PlayerMapView.peek`.
+   * Só o prédio que saiu no pacote entra: o id de um prédio engolido por outro
+   * teto fechado não atravessa. Sem anel de quem espia (alcance zero), nada
+   * saiu pelo cone: não há o que recortar.
+   */
+  const peekRoofIds = peekRings.length === 0 ? [] : [...peekedRoofIds].filter((id) => sentRooms.has(id))
+  const peek: RoofPeek | null =
+    peekRoofIds.length === 0 ? null : { roofIds: peekRoofIds, vision: [...peekerIndexes].sort((a, b) => a - b).map((i) => vision[i]) }
+  /**
    * A MEMÓRIA DA PLANTA depois deste recorte (`PlayerMapView.plan`): cada tipo
    * de item passa pelo próprio `recallItems` (acima), que decide sozinho o que
    * entra, o que sai e o que a lembrança esquece. Separado do `filtered` de
@@ -2846,6 +3112,8 @@ export function filterMapForGroup(
     blocked,
     roofs,
     occupiedRooms,
+    occupiedSecretRooms,
+    peek,
     hazards,
     hazardsHere,
     gatilhos,
@@ -2917,6 +3185,46 @@ export function filterFloorMemory(
 ): FloorMemoryView {
   const view = filterMapForGroup(map, [], explored, seenDoors, undefined, only)
   return { map: view.map, concealed: view.concealed }
+}
+
+/**
+ * MINHAS FICHAS EM OUTRAS CENAS — uma ficha do jogador numa cena que ele não
+ * está vendo agora. Vai pela rede: só o id, o nome que o DONO lê e o nome da
+ * Sala onde ela está ('' = sem Sala, ou Sala cujo nome o jogador não pode
+ * ler). Nunca a cena (nome ou id) nem a posição.
+ */
+export interface OwnTokenElsewhere {
+  tokenId: string
+  name: string
+  room: string
+}
+
+/**
+ * As fichas do jogador no RECORTE `view` de uma cena, com a Sala de cada uma.
+ * Lê só o que já saiu de `filterMapForPlayer`: ficha que o mestre escondeu
+ * (oculta, camada Fichas escondida) não está no recorte e não entra; Sala
+ * secreta, oculta, sob teto fechado ou ainda desconhecida não saiu nas regiões,
+ * e nome escondido chega vazio — então nada aqui diz mais do que o jogador
+ * veria se olhasse por esta ficha. Sala dentro de Sala: vale a menor.
+ */
+export function ownTokensInView(view: PlayerMapView, ownedIds: readonly string[]): OwnTokenElsewhere[] {
+  const owned = new Set(ownedIds)
+  const namedRooms = view.map.regions.flatMap((r) => (r.room !== undefined && r.room.name !== '' && isUsablePolygon(r.points) ? [{ points: r.points, name: r.room.name }] : []))
+  return view.map.tokens
+    .filter((t) => owned.has(t.id))
+    .map((t) => {
+      const point = { x: t.x, y: t.y }
+      let room = ''
+      let roomArea = Number.POSITIVE_INFINITY
+      for (const r of namedRooms) {
+        if (!pointInPolygonInclusive(point, r.points) || pointOnPolygonBorder(point, r.points)) continue
+        const area = Math.abs(signedArea(r.points))
+        if (area >= roomArea) continue
+        roomArea = area
+        room = r.name
+      }
+      return { tokenId: t.id, name: t.name, room }
+    })
 }
 
 /** O host vê o mapa inteiro, inclusive itens ocultos. */

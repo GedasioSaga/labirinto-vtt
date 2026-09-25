@@ -13,6 +13,7 @@ import { OWN_TOKEN_CSS, PlayerView } from './PlayerView'
 import { PlayerPanel, loadPlayerSettings, savePlayerSettings } from './PlayerPanel'
 import { PlayerPinCard } from './PlayerPinCard'
 import { ARRIVAL_CARD_TITLE, PlayerNoteCard } from './PlayerNoteCard'
+import { formatNoteTime } from './PlayerNotebook'
 import { PlayerClueCard } from './PlayerClues'
 import { coverBounds } from './playerCamera'
 import { PlayerZoomControls } from './PlayerZoomControls'
@@ -89,6 +90,7 @@ const NOTE_KEPT_HINT = 'Fica guardado no Caderno do Painel.'
 const NO_VISION: RegionPoint[][] = []
 /** Outro andar é só para olhar: arrastar ficha lá não pede nada ao mestre. */
 const IGNORE_MOVE = (): void => {}
+const AWAY_KEPT_HINT = 'Ficam guardados no Caderno do Painel.'
 
 const REASON_TEXT: Record<string, string> = {
   bad_code: 'Código de sala incorreto. Confira com o mestre e tente de novo.',
@@ -758,6 +760,8 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
   // Estável pelo mesmo motivo: o cartão do recado religa o Escape quando `onClose` muda.
   const closeNote = useCallback(() => connection.dismissNote(), [connection])
   const closeRoomText = useCallback(() => connection.dismissRoomText(), [connection])
+  const closeAwayNotes = useCallback(() => connection.dismissAwayNotes(), [connection])
+  const awayNotes = state.awayNotes ?? NO_NOTES
   // Estável: o painel marca o Caderno como lido num efeito que depende dela.
   const readNotebook = useCallback(() => connection.markNotebookRead(), [connection])
   // MINHAS PISTAS: abrir o cartão do pino é ler — o host guarda a pista no Caderno.
@@ -821,6 +825,7 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
             vision={state.vision}
             explored={state.explored}
             concealed={state.concealed}
+            peek={state.peek}
             glimpses={state.glimpses}
             hazards={state.hazards}
             gatilhos={state.gatilhos}
@@ -958,6 +963,9 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
           }}
           backpack={{ ...backpack, onGive: (itemId, toTokenId) => void connection.giveItem(itemId, toTokenId) }}
           onRollDice={(request) => connection.rollDice(request)}
+          elsewhere={state.elsewhere}
+          // A câmera da cena nova é a da chegada (`PlayerView`, mapa novo): a mesma da viagem.
+          onSwitchView={(tokenId) => connection.switchView(tokenId)}
         />
         {/* DADO ROLADO NA SALA: as últimas rolagens da mesa, sobre o mapa, acima do zoom. Não é controle: fora da ordem do Tab. */}
         <DiceFeed rolls={state.diceRolls ?? NO_DICE_ROLLS} className="pp-dice-feed" />
@@ -1047,8 +1055,8 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
           <PlayerAlarmBanner key={state.alarm.id} text={state.alarm.text} vibrationTarget={typeof navigator === 'undefined' ? undefined : navigator} />
         )}
         {state.arrival ? (
-          // TEXTO DE CHEGADA: o mesmo cartão, no mesmo lugar do recado. Os dois
-          // abertos se sobreporiam: o recado espera, guardado, até este fechar.
+          // TEXTO DE CHEGADA: o mesmo cartão, no mesmo lugar do recado. Os
+          // outros esperam, guardados, até este fechar.
           <PlayerNoteCard
             key={`chegada-${state.arrival.id}`}
             title={ARRIVAL_CARD_TITLE}
@@ -1056,6 +1064,24 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
             onClose={closeArrival}
             escapeCloses={openPin === null && !clueCardOpen}
           />
+        ) : awayNotes.length > 0 ? (
+          // ENQUANTO VOCÊ ESTEVE FORA: os recados que chegaram com ele fora do
+          // ar, em ordem. O recado e o texto da Sala esperam ele fechar, um
+          // cartão de cada vez no mesmo lugar.
+          <PlayerNoteCard
+            title={`Enquanto você esteve fora (${awayNotes.length})`}
+            hint={AWAY_KEPT_HINT}
+            onClose={closeAwayNotes}
+            escapeCloses={openPin === null && !clueCardOpen}
+          >
+            <ol className="pp-notebook">
+              {awayNotes.map((note) => (
+                <li key={note.id} className="pp-notebook__item">
+                  <span className="pp-notebook__meta">{formatNoteTime(note.at)} · Mestre:</span> {note.text}
+                </li>
+              ))}
+            </ol>
+          </PlayerNoteCard>
         ) : (
           state.note && (
             // `key` no id: recado novo com outro aberto remonta o cartão (e a entrada anima de novo).
@@ -1072,7 +1098,7 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
         {/* TEXTO DA SALA: o mesmo cartão, com o nome da Sala no alto. Um
             cartão de cada vez no mesmo lugar: com recado aberto, o texto da
             sala espera o recado fechar em vez de ficar por baixo dele. */}
-        {state.roomText && !state.note && !state.arrival && (
+        {state.roomText && !state.note && !state.arrival && awayNotes.length === 0 && (
           <PlayerNoteCard
             key={state.roomText.id}
             title={state.roomText.title || 'Ao entrar'}
@@ -1105,6 +1131,12 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
         {state.travel && (
           <p key={state.travel.id} className="pp-notice pp-notice--travel" role="status" aria-live="polite">
             {travelNoticeText(state.travel)}
+            {/* DESISTIR: só quem espera o MESTRE (o pino livre não espera ninguém). */}
+            {state.travel.phase === 'waiting' && !state.travel.direct && (
+              <button type="button" className="pp-notice__action" disabled={state.travel.cancelling === true} onClick={() => connection.cancelTravel()}>
+                {state.travel.cancelling === true ? 'Desistindo…' : 'Desistir'}
+              </button>
+            )}
           </p>
         )}
         {openPointMenu && (

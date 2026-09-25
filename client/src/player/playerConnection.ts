@@ -25,6 +25,7 @@ import {
   type JoinMessage,
   type PinLeverRejection,
   type PinTakeRejection,
+  type PinTravelCancelReason,
   type PinTravelRejection,
   type PinTravelRequestMessage,
   type PlayerMessage,
@@ -47,6 +48,7 @@ import {
   type RemoteLaserUpdate,
 } from '../lib/laser'
 import {
+  AWAY_NOTES_MAX,
   CALL_TEXT_MAX_LENGTH,
   NOTEBOOK_MAX_NOTES,
   isCallReason,
@@ -54,8 +56,10 @@ import {
   parseClueMessage,
   parseDestinationsMessage,
   parseDiceRolled,
+  parseElsewhere,
   parseLaserMessage,
   parseNotebook,
+  parseNotesAway,
   parsePartyUpdate,
   parsePointActionReply,
   parseRoomText,
@@ -67,6 +71,7 @@ import {
   type CallReason,
   type ClueEntry,
   type NoteEntry,
+  type OwnTokenElsewhere,
   type PartyMember,
   type PointActionReply,
   isSeatClaimState,
@@ -81,6 +86,7 @@ import {
 import { DICE_FEED_MAX, parseDiceRequest, type DiceRequest, type DiceRollEntry } from '../lib/dice'
 import { CLUEBOOK_MAX_CLUES } from '../lib/clues'
 import type { TokenMoveLanding, TokenMoveRejection } from '../lib/moveValidation'
+import type { RoofPeek } from '../lib/fogFilter'
 import { hasEnterText } from '../lib/roomText'
 import { isPointInsideMap, POINT_NOTICE_TTL_MS, type PointActionKind, type PointNotice } from '../lib/pointActions'
 import { SCENE_PUBLIC_NAME_MAX_LENGTH } from '../lib/adventure'
@@ -127,6 +133,12 @@ export interface PlayerState {
   ownTokens?: string[]
   /** Ids dos tokens de COLEGAS (outros jogadores) no mapa recebido: o "Dar a…" só oferece estes. */
   partyTokens?: string[]
+  /**
+   * MINHAS FICHAS EM OUTRAS CENAS: as fichas dele fora da cena na tela, com
+   * nome e Sala ('' = sem nome que ele possa ler). Nunca a cena. Cada
+   * snapshot substitui a lista; sem o campo, ela fica vazia.
+   */
+  elsewhere?: OwnTokenElsewhere[]
   /** Polígonos das zonas ocultas ativas: o jogador pinta preto por cima. */
   concealed?: RegionPoint[][]
   /** ZONA DE PERIGO: tipo e polígono de cada sala tomada que o jogador enxerga agora. */
@@ -147,6 +159,12 @@ export interface PlayerState {
   turn?: string
   /** Cone pelo vão de prédio com teto: a tela abre o telhado só nestes retângulos. */
   glimpses?: RegionPoint[][]
+  /**
+   * VER PELA PORTA ABERTA: prédios de teto fechado que uma ficha dele espia do
+   * vão da porta, e a visão de quem espia (o recorte do telhado). Cada
+   * snapshot substitui; sem o campo, não há espiada.
+   */
+  peek?: RoofPeek
   /** Sinais recebidos ainda vivos (somem sozinhos depois de `SIGNAL_TTL_MS`). */
   signals?: SignalMark[]
   /**
@@ -241,6 +259,12 @@ export interface PlayerState {
   notebook?: NoteEntry[]
   /** Ids de recados que chegaram e o jogador ainda não viu (nem no cartão fechado, nem no Caderno). */
   unreadNotes?: string[]
+  /**
+   * ENQUANTO VOCÊ ESTEVE FORA: os recados que o host guardou para a volta
+   * (`notes.away`), do mais antigo ao mais novo. Fica até ele fechar o cartão
+   * (`dismissAwayNotes`) e sobrevive a reconectar: o host só manda a fila uma vez.
+   */
+  awayNotes?: NoteEntry[]
   /**
    * MINHAS PISTAS: os cartões lidos e os que colegas mostraram, da mais antiga
    * à mais nova (até `CLUEBOOK_MAX_CLUES`). Só entra o que o HOST confirmou
@@ -344,8 +368,14 @@ export type DoorRequestPhase = 'sent' | DoorRequestAnswer | DoorRequestRejection
  * Nenhum deles sabe para onde o pino leva: o host nunca conta.
  */
 export type TravelNotice =
-  /** `direct`: o pino é livre, ninguém decide — só falta a resposta do host. */
-  | { id: number; phase: 'waiting'; direct: boolean }
+  /**
+   * `direct`: o pino é livre, ninguém decide — só falta a resposta do host.
+   * `cancelling`: o jogador tocou "Desistir" e a confirmação do host ainda
+   * não chegou (o mestre pode ter respondido antes: vale o que chegar).
+   */
+  | { id: number; phase: 'waiting'; direct: boolean; cancelling?: true }
+  /** O pedido saiu da espera sem o mestre responder: o jogador desistiu, ou a ficha se afastou do pino. */
+  | { id: number; phase: 'cancelled'; reason: PinTravelCancelReason }
   | { id: number; phase: 'arrived' }
   /** O mestre levou o jogador para outra cena sem ele pedir. */
   | { id: number; phase: 'moved' }
@@ -512,6 +542,13 @@ export interface PlayerConnection {
    */
   requestTravel(pinId: string, exitId?: string): boolean
   /**
+   * "Desistir": retira o pedido que espera o mestre. O aviso fica em
+   * "desistindo" até o host confirmar (`pin.travel.cancelled`). `false` sem
+   * pedido esperando o mestre (pino livre não espera ninguém), com a
+   * desistência já no ar, ou com o socket fechado.
+   */
+  cancelTravel(): boolean
+  /**
    * Ponteiro do LASER do jogador em px de mundo. Sai em lotes: o primeiro
    * ponto na hora, os seguintes juntos a cada `LASER_SEND_INTERVAL_MS`.
    * `false` se não está jogando ou o socket não está aberto.
@@ -548,6 +585,8 @@ export interface PlayerConnection {
   markPinRead(pinId: string): boolean
   /** Fecha o recado aberto (botão "Fechar" ou Escape do cartão). Quem fechou leu: aquele recado deixa de ser novo. */
   dismissNote(): void
+  /** Fecha o cartão "Enquanto você esteve fora". Os recados continuam no Caderno e deixam de ser novos. */
+  dismissAwayNotes(): void
   /** O jogador abriu o Caderno: nenhum recado é novo mais. */
   markNotebookRead(): void
   /**
@@ -600,6 +639,12 @@ export interface PlayerConnection {
    * com o socket fechado.
    */
   answerSecretCheck(result: number): boolean
+  /**
+   * MINHAS FICHAS EM OUTRAS CENAS — "Olhar por…": pede ao mestre para ver a
+   * cena da ficha `tokenId`. O mapa novo vem no snapshot da resposta. `false`
+   * (e nada sai) quando a ficha não está na lista de fora ou o socket caiu.
+   */
+  switchView(tokenId: string): boolean
   /** Abre um socket novo (reconectar), reaproveitando o resumeToken guardado. */
   reconnect(): void
   /**
@@ -792,6 +837,10 @@ function isSceneName(value: unknown): value is string {
   return typeof value === 'string' && value.length > 0 && value.length <= SCENE_PUBLIC_NAME_MAX_LENGTH
 }
 
+function isRoofPeek(value: unknown): value is RoofPeek {
+  return isRecord(value) && isStringList(value.roofIds) && isVision(value.vision)
+}
+
 /**
  * Checagem estrutural rasa do mapa: vem do mestre (fonte confiável), então só
  * garante os campos que o render e o move otimista tocam — não revalida o
@@ -895,11 +944,26 @@ function writeResume(storage: StorageLike | null, value: StoredResume | null): v
 }
 
 /**
- * Há recado que o jogador não viu? O que está no cartão aberto não conta: ele
- * está lendo. É o que acende o ponto no Painel e na aba Caderno.
+ * Há recado que o jogador não viu? O que está num cartão aberto (o do recado
+ * ou o "Enquanto você esteve fora") não conta: ele está lendo. É o que acende
+ * o ponto no Painel e na aba Caderno.
  */
 export function hasUnreadNotes(state: PlayerState): boolean {
-  return (state.unreadNotes ?? []).some((id) => id !== state.note?.id)
+  const onCard = new Set((state.awayNotes ?? []).map((entry) => entry.id))
+  if (state.note !== undefined) onCard.add(state.note.id)
+  return (state.unreadNotes ?? []).some((id) => !onCard.has(id))
+}
+
+/** `extra` no fim de `list`, sem repetir id; passou de `max`, saem os mais antigos. */
+function appendNotes(list: NoteEntry[], extra: NoteEntry[], max: number): NoteEntry[] {
+  const known = new Set(list.map((entry) => entry.id))
+  return [...list, ...extra.filter((entry) => !known.has(entry.id))].slice(-max)
+}
+
+/** Os ids de recado novo, sem repetir, no mesmo teto do caderno. */
+function appendIds(list: string[], extra: string[]): string[] {
+  const known = new Set(list)
+  return [...list, ...extra.filter((id) => !known.has(id))].slice(-NOTEBOOK_MAX_NOTES)
 }
 
 /** Mesma regra do mestre: a tocha presa na ficha anda junto (`lib/lightAttachment.ts`). */
@@ -1627,6 +1691,24 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     return null
   }
 
+  /**
+   * A cena na tela vai trocar (o mestre deixou passar, ou o jogador vai olhar
+   * por outra ficha): tudo o que era dela perde o sentido — movimento ainda sem
+   * resposta (o `x`/`y` dele é do outro mapa e seria reaplicado em cima do
+   * novo), sinais, laser, avisos e a lista de "Mostrar para…", que era de quem
+   * estava na cena de antes.
+   */
+  function forgetSceneLocals(): void {
+    pending.clear()
+    clearSignalTimers()
+    clearLaserTimer()
+    clearPlayerLasers()
+    resetOwnLaser()
+    clearDoorNotice()
+    clearMoveNotice()
+    setState({ signals: undefined, laser: undefined, playerLasers: undefined, doorNotice: undefined, moveNotice: undefined, cluePeers: undefined, clueShow: undefined })
+  }
+
   function applySnapshot(
     rev: number,
     map: MapData,
@@ -1643,6 +1725,8 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     andares: PlayerFloors | undefined,
     relogio: PlayerClock | undefined,
     glimpses: RegionPoint[][],
+    elsewhere: OwnTokenElsewhere[],
+    peek: RoofPeek | undefined,
   ): void {
     if (rev <= state.rev) return
     // Outra cena: o resto do caminho era do mapa de antes.
@@ -1670,7 +1754,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     const places = place === undefined ? state.places : rememberPlace(state.places ?? [], place, map, explored, concealed, remembered)
     // `sceneName` entra SEMPRE, inclusive `undefined`: snapshot sem nome apaga o selo da cena anterior.
     // O mapa chegou: quem pedia ficha já tem uma, e o pedido termina aqui.
-    setState({ status: 'playing', rev, map: next, vision, explored, ownTokens, partyTokens, concealed, glimpses, hazards, gatilhos, andares, relogio, turn: turnOnMap, sceneName, place, places, error: undefined, seatClaim: undefined })
+    setState({ status: 'playing', rev, map: next, vision, explored, ownTokens, partyTokens, concealed, glimpses, hazards, gatilhos, andares, relogio, turn: turnOnMap, sceneName, place, places, elsewhere, peek, error: undefined, seatClaim: undefined })
   }
 
   /** Pede a tela inteira ao mestre, no máximo uma vez por `VIEW_RESYNC_MIN_INTERVAL_MS` (o limite dele). */
@@ -1725,6 +1809,8 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       state.andares,
       state.relogio,
       state.glimpses ?? [],
+      state.elsewhere ?? [],
+      state.peek,
     )
   }
 
@@ -1871,7 +1957,9 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
           explored: undefined,
           ownTokens: undefined,
           partyTokens: undefined,
+          elsewhere: undefined,
           concealed: undefined,
+          peek: undefined,
           glimpses: undefined,
           // Os lugares ficam (são do jogador); só "onde estou agora" sai.
           sceneName: undefined,
@@ -1907,22 +1995,15 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         // mapa e seria reaplicado em cima do novo), sinais e laser. O mapa
         // novo vem no snapshot logo atrás.
         if (state.status !== 'playing') return
-        pending.clear()
+        forgetSceneLocals()
         stopWalk()
-        clearSignalTimers()
-        clearLaserTimer()
-        clearPlayerLasers()
-        resetOwnLaser()
-        clearDoorNotice()
-        clearMoveNotice()
         clearTurnNotice()
         clearHazardNotice()
         // O ruído era da cena de antes: a direção dele não vale no mapa novo.
         clearNoiseTimer()
         // A porta tocada ficou na cena de antes: o "Trancada" e os botões dele perdem o sentido.
-        // A lista de "Mostrar para…" era de quem estava na cena de antes.
         // O ponto do toque longo era da cena de antes: a época vira.
-        setState({ signals: undefined, laser: undefined, playerLasers: undefined, doorNotice: undefined, doorRequest: undefined, moveNotice: undefined, turnNotice: undefined, hazardNotice: undefined, cluePeers: undefined, clueShow: undefined, noise: undefined, sceneEpoch: state.sceneEpoch + 1 })
+        setState({ doorRequest: undefined, turnNotice: undefined, hazardNotice: undefined, noise: undefined, sceneEpoch: state.sceneEpoch + 1 })
         {
           // TEXTO DE CHEGADA: o da cena nova, ou nenhum — o cartão da cena de
           // antes não fica aberto por cima de outro lugar.
@@ -1945,6 +2026,13 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         const { reason } = data
         if (reason !== 'unavailable' && reason !== 'pending' && reason !== 'too_soon') return
         showTravelAnswer({ id: nextNoticeId++, phase: 'rejected', reason })
+        return
+      }
+      case 'pin.travel.cancelled': {
+        if (state.status !== 'playing') return
+        const { reason } = data
+        if (reason !== 'player' && reason !== 'far') return
+        showTravelAnswer({ id: nextNoticeId++, phase: 'cancelled', reason })
         return
       }
       case 'scene.note': {
@@ -1976,6 +2064,20 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         // Recado que o host já tinha é história, não novidade: só o que ainda estava por ler e continua na lista segue novo.
         const kept = new Set(book.notes.map((entry) => entry.id))
         setState({ notebook: book.notes, unreadNotes: (state.unreadNotes ?? []).filter((id) => kept.has(id)) })
+        return
+      }
+      case 'notes.away': {
+        // Vale também aguardando: o cartão espera o mapa, os recados já são dele.
+        const away = parseNotesAway(data)
+        if (away === null) return
+        const ids = away.notes.map((entry) => entry.id)
+        setState({
+          // Cartão ainda aberto de uma volta anterior: soma, não troca.
+          awayNotes: appendNotes(state.awayNotes ?? [], away.notes, AWAY_NOTES_MAX),
+          // O host já manda no `notes.book`; mestre que não mandasse não perde o recado.
+          notebook: appendNotes(state.notebook ?? [], away.notes, NOTEBOOK_MAX_NOTES),
+          unreadNotes: appendIds(state.unreadNotes ?? [], ids),
+        })
         return
       }
       case 'clue.added':
@@ -2233,7 +2335,14 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         // RELÓGIO DA CAMPANHA: ausente = sem relógio; malformado derruba a mensagem.
         const relogio = data.relogio === undefined ? undefined : readPlayerClock(data.relogio)
         if (relogio === null) return
-        applySnapshot(data.rev, data.map, data.vision, explored, data.ownTokens ?? [], data.concealed ?? [], data.turn, data.partyTokens ?? [], hazards, data.sceneName, where, gatilhos, andares, relogio, data.glimpses ?? [])
+        if (data.peek !== undefined && !isRoofPeek(data.peek)) return
+        let elsewhere: OwnTokenElsewhere[] = []
+        if (data.elsewhere !== undefined) {
+          const parsed = parseElsewhere(data.elsewhere)
+          if (parsed === null) return
+          elsewhere = parsed
+        }
+        applySnapshot(data.rev, data.map, data.vision, explored, data.ownTokens ?? [], data.concealed ?? [], data.turn, data.partyTokens ?? [], hazards, data.sceneName, where, gatilhos, andares, relogio, data.glimpses ?? [], elsewhere, data.peek)
         return
       }
       case 'hazard.entered': {
@@ -2504,6 +2613,14 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       return true
     },
 
+    cancelTravel() {
+      const travel = state.travel
+      if (state.status !== 'playing' || travel?.phase !== 'waiting' || travel.direct || travel.cancelling === true) return false
+      if (!send({ type: 'pin.travel.cancel' })) return false
+      setState({ travel: { ...travel, cancelling: true } })
+      return true
+    },
+
     laserMove(x, y) {
       if (state.status !== 'playing' || !Number.isFinite(x) || !Number.isFinite(y)) return false
       if (socket === null || socket.readyState !== SOCKET_OPEN) return false
@@ -2567,6 +2684,13 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       const open = state.note
       if (open === undefined) return
       setState({ note: undefined, unreadNotes: (state.unreadNotes ?? []).filter((id) => id !== open.id) })
+    },
+
+    dismissAwayNotes() {
+      const shown = state.awayNotes
+      if (shown === undefined) return
+      const read = new Set(shown.map((entry) => entry.id))
+      setState({ awayNotes: undefined, unreadNotes: (state.unreadNotes ?? []).filter((id) => !read.has(id)) })
     },
 
     markNotebookRead() {
@@ -2664,6 +2788,21 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       return true
     },
 
+    switchView(tokenId) {
+      if (state.status !== 'playing' || !(state.elsewhere ?? []).some((item) => item.tokenId === tokenId)) return false
+      if (!send({ type: 'view.switch', tokenId })) return false
+      forgetSceneLocals()
+      // Pino livre ainda na pausa antes de sair: o pedido era de um pino da
+      // cena que ele largou e sairia já na nova. Desiste aqui. O pedido que
+      // espera o mestre fica: quem o derruba é o host, que avisa com
+      // `pin.travel.cancelled` e tira a linha da fila do mestre.
+      if (state.travel?.phase === 'waiting' && state.travel.direct) {
+        clearTravelTimer()
+        setState({ travel: undefined })
+      }
+      return true
+    },
+
     setOwnTokenName(tokenId, name) {
       const limpo = name.trim()
       if (limpo.length < NAME_MIN_LENGTH || limpo.length > NAME_MAX_LENGTH) return false
@@ -2685,7 +2824,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       // primeiro snapshot da volta solta o que ele não lembrar mais.
       dropQueuedSecretChecks()
       received = null
-      setState({ status: 'connecting', error: undefined, rev: -1, map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, partyTokens: undefined, concealed: undefined, glimpses: undefined, sceneName: undefined, place: undefined, destinations: undefined, hazards: undefined, hazardNotice: undefined, gatilhos: undefined, andares: undefined, relogio: undefined, turn: undefined, signals: undefined, laser: undefined, playerLasers: undefined, doorNotice: undefined, doorRequest: undefined, moveNotice: undefined, turnNotice: undefined, travel: undefined, note: undefined, arrival: undefined, alarm: undefined, item: undefined, lever: undefined, roomText: undefined, notebook: undefined, unreadNotes: undefined, clues: undefined, shownClue: undefined, cluePeers: undefined, clueShow: undefined, paused: undefined, call: undefined, reconnecting: undefined, pointNotice: undefined, noise: undefined, secretCheck: undefined, secretCheckNotice: undefined })
+      setState({ status: 'connecting', error: undefined, rev: -1, map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, partyTokens: undefined, concealed: undefined, glimpses: undefined, elsewhere: undefined, peek: undefined, sceneName: undefined, place: undefined, destinations: undefined, hazards: undefined, hazardNotice: undefined, gatilhos: undefined, andares: undefined, relogio: undefined, turn: undefined, signals: undefined, laser: undefined, playerLasers: undefined, doorNotice: undefined, doorRequest: undefined, moveNotice: undefined, turnNotice: undefined, travel: undefined, note: undefined, arrival: undefined, alarm: undefined, item: undefined, lever: undefined, roomText: undefined, notebook: undefined, unreadNotes: undefined, clues: undefined, shownClue: undefined, cluePeers: undefined, clueShow: undefined, paused: undefined, call: undefined, reconnecting: undefined, pointNotice: undefined, noise: undefined, secretCheck: undefined, secretCheckNotice: undefined })
       open()
     },
     wake() {

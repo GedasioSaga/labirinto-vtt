@@ -1,9 +1,9 @@
 import type { AreaTriggerKind, DoorState, HazardKind, MapData, Pin, PinPassage, RegionPoint, Token, Wall } from '../types/map'
 import { hazardPresence, newHazardEntries, type HazardEntry } from '../lib/hazards'
 import { areaTriggerPresence, newAreaTriggerEntries, regionAreaName, type AreaTriggerPresence } from '../lib/areaTriggers'
-import { createExploration, decodeExploration, encodeExploration, forgetBlocked, forgetInside, isPointExplored, markAll, markRings, mergeExploration, mergeExplored, resizeExploration, type Exploration } from '../lib/exploration'
+import { createExploration, decodeExploration, encodeExploration, forgetBlocked, forgetInside, isPointExplored, markAll, markRings, mergeExploration, mergeExplored, resizeExploration, type Exploration, type ExploredWire } from '../lib/exploration'
 import { pointInRing } from '../lib/floorContour'
-import { alarmForPlayer, allPlayerTokens, claimableTokensForPlayer, clockForPlayer, diceRollForPlayer, emptyPlanMemory, filterFloorMemory, filterMapForGroup, filterMapForPlayer, memoryBlockedRings, noiseCueForPlayer, pinClueForPlayer, planOfWholeMap, playerBlockedRings, roomClueForPlayer, sceneNameForPlayer, turnForPlayer, type GroupViewer, type PlanMemory, type PlayerClueContent, type PlayerMapView, type SceneAlarm } from '../lib/fogFilter'
+import { alarmForPlayer, allPlayerTokens, claimableTokensForPlayer, clockForPlayer, diceRollForPlayer, emptyPlanMemory, filterFloorMemory, filterMapForGroup, filterMapForPlayer, memoryBlockedRings, noiseCueForPlayer, ownTokensInView, pinClueForPlayer, planOfWholeMap, playerBlockedRings, roomClueForPlayer, sceneNameForPlayer, turnForPlayer, type GroupViewer, type OwnTokenElsewhere, type PlanMemory, type PlayerClueContent, type PlayerMapView, type SceneAlarm } from '../lib/fogFilter'
 import { MASTER_ROLLER_NAME, rollDice, secureRollDie, type DiceRequest, type HostDiceRoll, type RollDie } from '../lib/dice'
 import { CLUEBOOK_MAX_CLUES } from '../lib/clues'
 import { visionRadiusAtHour } from '../lib/campaignClock'
@@ -65,6 +65,7 @@ import {
   type PinTakeRejection,
   type PartyMember,
   type PartyWhere,
+  type PinTravelCancelReason,
   type PinTravelRejection,
   type PinTravelRequestMessage,
   type PlayerLaserMessage,
@@ -76,8 +77,10 @@ import {
   type SignalMessage,
   type TokenEditMessage,
   type TokenMoveMessage,
+  type ViewSwitchMessage,
 } from './protocol'
 import {
+  AWAY_NOTES_MAX,
   clampAlarmText,
   clampNoteText,
   clampSeatOptionName,
@@ -338,6 +341,18 @@ export interface AppliedPinPassage {
 }
 
 /**
+ * O pedido `requestId` saiu da espera sem resposta do mestre: o jogador
+ * desistiu (`player`) ou a ficha dele se afastou do pino (`far`). O
+ * integrador tira a linha da Caixa de Pedidos e avisa o mestre pelo nome.
+ */
+export interface TravelCancelled {
+  requestId: string
+  playerId: string
+  playerName: string
+  reason: PinTravelCancelReason
+}
+
+/**
  * O mestre deixou ir: tirar `tokenId` da cena `fromSceneId` e pô-lo em
  * (`x`, `y`) da cena `toSceneId`, no pino par. Quem aplica é o integrador
  * (`adventureStore.transferToken`), fora do desfazer das duas cenas.
@@ -538,6 +553,8 @@ export interface HostResult {
   itemRequest?: ItemRequest
   /** Item pego (pino livre ou "Deixar") ou dado: o integrador grava na cena. */
   applyItems?: AppliedItems
+  /** O pedido saiu da espera sem o mestre responder: o integrador tira a linha dele da Caixa. */
+  travelCancelled?: TravelCancelled
   /**
    * O mestre deixou ir, ou o pino é livre (aí vem de `handleMessage`): o
    * integrador move o token entre as cenas ANTES de despachar `outbound`.
@@ -772,6 +789,13 @@ export const PLAYER_LASER_WINDOW_MS = 1000
 export const DOOR_TOGGLE_MIN_INTERVAL_MS = 250
 
 /**
+ * Uma troca de ficha ("Olhar por…") por jogador nesta janela; o excesso morre
+ * em silêncio. Cada troca monta um recorte de névoa inteiro: o toque repetido
+ * não pode virar trabalho sem fim para o mestre.
+ */
+export const VIEW_SWITCH_MIN_INTERVAL_MS = 300
+
+/**
  * Uma FOTO nova por jogador nesta janela. Só a foto: ela é o único campo caro
  * de `token.edit` (centenas de KB), e trocar o nome é texto de 32 caracteres —
  * estrangular os dois juntos faria o jogador que digita o nome e escolhe a
@@ -789,6 +813,15 @@ export const CLUE_SHOW_MIN_INTERVAL_MS = 1000
 // Os dois limites do pedido de passagem moram em `protocol.ts`: o cliente do
 // jogador lê os mesmos números para esperar sozinho em vez de esbarrar neles.
 export { TRAVEL_REQUEST_MIN_INTERVAL_MS, TRAVEL_REQUEST_PLAYER_MIN_INTERVAL_MS }
+
+/**
+ * DESISTIR DO PEDIDO: quantas casas a ficha pode se afastar do pino, além da
+ * distância em que pediu, antes de o pedido cair sozinho. Conta da posição
+ * do pedido (e não do pino) porque o pedido não exige estar colado nele:
+ * quem pediu de 4 casas e dá um passo para trás continua esperando; quem
+ * anda 3 casas para longe desistiu na prática.
+ */
+export const TRAVEL_CANCEL_SLACK_CELLS = 2
 
 /**
  * Quantas cenas cada jogador lembra (exploração e portas vistas). Passou do
@@ -902,6 +935,13 @@ export interface HostSession {
    * conexão muda sabe que ela sumiu ANTES de notar); ausente, agora.
    */
   disconnect(clientId: string, at?: number): void
+  /**
+   * Uma mensagem para `clientId` não saiu (ex.: fila da conexão cheia) e a
+   * conexão continua aberta. O recorte que o host conta como entregue a esse
+   * jogador pode não estar na tela dele: o próximo broadcast refaz e reenvia,
+   * mesmo sem a cena dele mudar. Conexão que não é de jogador: nada.
+   */
+  sendFailed(clientId: string): void
   kick(clientId: string): HostResult
   /**
    * "É ela" da pergunta "Ana voltou?": a conexão de `playerId` (quem entrou
@@ -954,6 +994,10 @@ export interface HostSession {
    * `recipients` (RECADO PARA ESCOLHIDOS): só esses jogadores, e só se ainda
    * estiverem na cena — a lista do mestre pode ter ficado velha. Lista vazia =
    * ninguém. O pacote de quem recebe é o mesmo: não diz quem mais leu.
+   *
+   * FORA DO AR: quem tem ficha na cena e caiu guarda o recado numa fila (até
+   * `AWAY_NOTES_MAX`), entregue inteira na volta (`notes.away`), e não só o
+   * último da cena. Não conta em `outbound`: não recebeu agora.
    */
   sceneNote(sceneId: string, text: string, source: HostMapSource, recipients?: readonly string[]): HostResult
   /**
@@ -1324,6 +1368,8 @@ interface PendingTravel {
   partnerId: string
   /** Veio de um pino trancado que aceita tentativas: a aprovação do mestre passa pelo cadeado. */
   trancada?: true
+  /** Distância (px) da ficha mais perto ao pino quando pediu: é dela que conta a folga de `TRAVEL_CANCEL_SLACK_CELLS`. */
+  distance: number
 }
 
 /** Pedido da porta trancada à espera do mestre. Um por jogador. `mapId`: a `sceneKey` da cena da porta. */
@@ -1400,6 +1446,15 @@ interface PlayerMemory {
    * chega quando ele volta a ver o lugar. Só o snapshot a atualiza.
    */
   plan: PlanMemory
+  /** O explorado que seguiu no último snapshot desta cena. `null` = nenhum ainda. */
+  sentExplored: Pick<ExploredWire, 'bits' | 'rings'> | null
+  /**
+   * DENTRO DA SALA SECRETA — salas secretas deste mapa em que a ficha dele já
+   * esteve (`occupiedSecretRooms` do recorte). Abrem só para ele, também depois
+   * que ele sai. Vive na memória da cena: "Esconder planta", mapa novo e o kick
+   * esquecem junto com o explorado.
+   */
+  secretRooms: Set<string>
 }
 
 type MemoryDims = Pick<MapData, 'id' | 'width' | 'height' | 'grid'>
@@ -1409,6 +1464,33 @@ function addToSet(sets: Map<string, Set<string>>, key: string, member: string): 
   const found = sets.get(key)
   if (found === undefined) sets.set(key, new Set([member]))
   else found.add(member)
+}
+
+/**
+ * Com o que o último recorte de um jogador foi feito. Igual no broadcast
+ * seguinte = o recorte sairia igual: o host não refiltra nem reenvia. Os mapas
+ * são comparados por REFERÊNCIA — as stores do mestre (mapStore e o cache da
+ * aventura) nunca editam um `MapData` no lugar, então mapa que mudou é outro
+ * objeto. `epoch` cobre o que é da sessão e vale para todos ("Quem vê").
+ */
+interface ViewInputs {
+  map: MapData
+  /** Mapas das OUTRAS cenas onde ele tem ficha (a lista "minhas fichas em outras cenas"). */
+  elsewhere: MapData[]
+  owned: string
+  radius: number
+  epoch: number
+}
+
+function sameViewInputs(a: ViewInputs, b: ViewInputs): boolean {
+  return (
+    a.map === b.map &&
+    a.owned === b.owned &&
+    a.radius === b.radius &&
+    a.epoch === b.epoch &&
+    a.elsewhere.length === b.elsewhere.length &&
+    a.elsewhere.every((map, i) => map === b.elsewhere[i])
+  )
 }
 
 /** Chave de comparação do nome: sem maiúsculas e sem espaços. */
@@ -1575,6 +1657,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   // Por playerId: a última rolagem de dado (DICE_ROLL_MIN_INTERVAL_MS). Reconectar não zera.
   const lastDiceRollAt = new Map<string, number>()
   const rollDie = options.rollDie ?? secureRollDie
+  // Por playerId: última troca de ficha aceita ("Olhar por…").
+  const lastViewSwitchAt = new Map<string, number>()
   // Por playerId: janela corrente do teto de lotes de laser (PLAYER_LASER_MAX_PER_WINDOW).
   const laserWindows = new Map<string, { start: number; count: number }>()
   // Por playerId: conexões que receberam algum ponto do gesto em curso, e a
@@ -1613,6 +1697,10 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   // Por playerId: a cena (sceneId, ou `null` sem cena) em que o último recado
   // de chegada já foi avaliado. Mudou, é chegada: vale o último recado de lá.
   const noteSceneOf = new Map<string, string | null>()
+  // Por playerId: os recados mandados à cena dele enquanto ele estava fora do
+  // ar, do mais antigo ao mais novo. A volta (join/resume) entrega e esvazia;
+  // o kick apaga.
+  const awayNotes = new Map<string, NoteEntry[]>()
   // MINHAS PISTAS — por playerId: o caderno de pistas, da mais antiga à mais
   // nova. `source` (pino ou Sala + mapa) é a chave de "já tenho esta" e NUNCA
   // sai pela rede: o jogador só vê o `id` que o host inventou. Sobrevive a
@@ -1731,6 +1819,14 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   const lastResyncAt = new Map<string, number>()
   // Sobe a cada troca de posse: ela entra no recorte de todo jogador.
   let ownershipRev = 0
+  // HOST RECALCULA SÓ A CENA QUE MUDOU — por playerId: com o que o último
+  // recorte dele foi feito (`ViewInputs`). Ausente = o próximo broadcast
+  // refaz. Raio e fichas entram na própria chave; quem mexe na memória dele
+  // (revelar, esconder, viagem, recusa de edição) apaga a entrada, e o envio
+  // que falhou para ele também (`sendFailed`).
+  const lastViews = new Map<string, ViewInputs>()
+  // Sobe quando muda algo que entra no recorte de TODOS ("Quem vê" dos pinos).
+  let viewEpoch = 0
   let rev = 0
   // ZONA DE PERIGO: em que zona estava cada ficha de JOGADOR no último
   // broadcast, por cena (chave `sceneKey`). É daqui que sai "entrou agora".
@@ -1871,6 +1967,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       seenRooms: new Set(),
       place: nextPlaceId(playerId),
       plan: emptyPlanMemory(),
+      sentExplored: null,
+      secretRooms: new Set(),
     }
     // Apagar e regravar põe a cena no fim da ordem: é a mais recente agora.
     byScene.delete(map.id)
@@ -1913,6 +2011,59 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   }
 
   /**
+   * MINHAS FICHAS EM OUTRAS CENAS: as fichas do jogador nas cenas que ele NÃO
+   * está vendo (`here`), cada uma lida do recorte que ELE receberia de lá
+   * (`ownTokensInView`): ficha escondida pelo mestre não entra, e a Sala só vem
+   * com o nome que a névoa, a zona oculta e o mestre deixam. A memória daquela
+   * cena é só lida — nada aqui marca explorado nem muda a ordem das memórias.
+   */
+  const elsewhereFor = (playerId: string, world: HostWorld, here: HostScene): OwnTokenElsewhere[] => {
+    const owned = ownership[playerId] ?? []
+    return allScenes(world).flatMap((scene) => {
+      if (sceneKey(scene) === sceneKey(here) || !ownsTokenIn(playerId, scene)) return []
+      const memory = existingMemory(playerId, scene.map)
+      const view = filterMapForPlayer(scene.map, playerId, ownership, radiusFor(playerId), memory?.exp, memory?.doors, pinAudiences, undefined, memory?.secretRooms)
+      return ownTokensInView(view, owned)
+    })
+  }
+
+  /** Com o que o recorte do jogador na cena `here` seria feito agora (ver `ViewInputs`). */
+  const viewInputsFor = (playerId: string, world: HostWorld, here: HostScene): ViewInputs => ({
+    map: here.map,
+    // Mesmas cenas, na mesma ordem, de `elsewhereFor`.
+    elsewhere: allScenes(world)
+      .filter((scene) => sceneKey(scene) !== sceneKey(here) && ownsTokenIn(playerId, scene))
+      .map((scene) => scene.map),
+    owned: (ownership[playerId] ?? []).join('\n'),
+    radius: radiusFor(playerId),
+    epoch: viewEpoch,
+  })
+
+  /**
+   * O recorte que o jogador já tem continua valendo: a cena dele, as outras
+   * onde ele tem ficha e o que é dele na sessão não mudaram desde o último.
+   */
+  const viewUnchanged = (playerId: string, world: HostWorld): boolean => {
+    const last = lastViews.get(playerId)
+    if (last === undefined) return false
+    const scene = sceneFor(playerId, world)
+    return scene !== null && sameViewInputs(last, viewInputsFor(playerId, world, scene))
+  }
+
+  /**
+   * A cena onde está a ficha `tokenId` do jogador, se ele pode olhar por ela:
+   * a ficha é dele e o mestre não a escondeu (a mesma regra que põe a ficha
+   * própria no recorte, `filterMapForPlayer`). `null` para todo o resto.
+   */
+  const sceneOfOwnToken = (playerId: string, tokenId: string, world: HostWorld): HostScene | null => {
+    if (!(ownership[playerId] ?? []).includes(tokenId)) return null
+    const found = allScenes(world).find((scene) =>
+      visibleTokens(scene.map.tokens, scene.map.hiddenLayers).some((t) => t.id === tokenId && t.hidden !== true),
+    )
+    return found ?? null
+  }
+
+  /**
    * O que o jogador vê agora: o recorte da cena dele (ou a espera quando ele
    * não está em cena nenhuma), os cartões de texto de Sala que vêm com ele e,
    * no fim, o último recado da cena quando isto é uma CHEGADA a ela.
@@ -1923,11 +2074,23 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const scene = sceneFor(playerId, world)
     if (scene === null) {
       noteSceneOf.set(playerId, null)
+      lastViews.delete(playerId)
       // Sem cena, sem mapa na tela: nenhum pino dele vale como "visto agora".
       seenPins.delete(playerId)
       return [{ type: 'lobby.waiting' }]
     }
-    const view = snapshotFor(playerId, scene.map, world, sceneNameForPlayer(scene), floorsFor(playerId, scene, world))
+    const { messages: view, settled } = snapshotFor(
+      playerId,
+      scene.map,
+      world,
+      sceneNameForPlayer(scene),
+      floorsFor(playerId, scene, world),
+      elsewhereFor(playerId, world, scene),
+    )
+    // Explorou chão novo agora: o recorte seguinte, feito com esse explorado,
+    // pode sair diferente — o próximo broadcast refaz uma vez, mesmo sem mudança.
+    if (settled) lastViews.set(playerId, viewInputsFor(playerId, world, scene))
+    else lastViews.delete(playerId)
     const note = arrivalNote(playerId, scene.sceneId, arrived)
     return note === null ? view : [...view, noteMessage(note)]
   }
@@ -2103,8 +2266,19 @@ export function createHostSession(options: HostSessionOptions): HostSession {
    *
    * `sceneName`: o nome público da cena DELE, já recortado por
    * `sceneNameForPlayer`; `undefined` = o snapshot sai sem o campo.
+   *
+   * `settled`: a marcação não mudou o explorado desde o snapshot anterior desta
+   * cena. Só assim refazer o recorte com o mesmo mapa sairia igual — com chão
+   * novo explorado, o filtro seguinte já parte dele.
    */
-  const snapshotFor = (playerId: string, map: MapData, world: HostWorld, sceneName: string | undefined, andares: FloorsWire | undefined): HostMessage[] => {
+  const snapshotFor = (
+    playerId: string,
+    map: MapData,
+    world: HostWorld,
+    sceneName: string | undefined,
+    andares: FloorsWire | undefined,
+    elsewhere: OwnTokenElsewhere[],
+  ): { messages: HostMessage[]; settled: boolean } => {
     // A cena dona deste mapa (para "Revelar planta para…" e o espiar de porta);
     // sem cena correspondente no mundo (não deveria acontecer), uma sem segredos.
     const scene = allScenes(world).find((s) => s.map.id === map.id) ?? { sceneId: null, name: map.name, map }
@@ -2118,7 +2292,26 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       memory.planMarked = true
     }
     const entered = enteredRooms.get(playerId)?.get(map.id)
-    const view = filterMapForPlayer(map, playerId, ownership, tokenRadiusIn(playerId, map), exp, memory.doors, pinAudiences, entered, memory.seenRooms, secretReveals, peekingFor(playerId, scene))
+    const view = filterMapForPlayer(
+      map,
+      playerId,
+      ownership,
+      tokenRadiusIn(playerId, map),
+      exp,
+      memory.doors,
+      pinAudiences,
+      entered,
+      memory.seenRooms,
+      secretReveals,
+      peekingFor(playerId, scene),
+      undefined,
+      memory.secretRooms,
+    )
+    // DENTRO DA SALA SECRETA: a sala onde a ficha dele está fica descoberta por
+    // ele — continua no mapa lembrado depois que ele sai. Só dele: é a memória
+    // desta cena, deste jogador.
+    const discoveredBefore = memory.secretRooms.size
+    for (const id of view.occupiedSecretRooms) memory.secretRooms.add(id)
     // Zona oculta ativa e sala secreta: célula que toca nelas não vira explorada
     // (senão o jogador guardaria a planta escondida e o formato dela).
     markRings(exp, view.vision, view.blocked)
@@ -2165,16 +2358,23 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const partyTokens = view.map.tokens.filter((t) => isOtherPlayersToken(playerId, t.id)).map((t) => t.id)
     // Sem nome público o campo nem existe: `sceneName: undefined` no JSON sumiria, mas no objeto não.
     const where = sceneName === undefined ? {} : { sceneName }
+    const explored = encodeExploration(exp)
+    const previous = memory.sentExplored
+    // Sala secreta descoberta agora também muda o recorte seguinte.
+    const settled = previous !== null && previous.bits === explored.bits && previous.rings === explored.rings && memory.secretRooms.size === discoveredBefore
+    memory.sentExplored = { bits: explored.bits, rings: explored.rings }
     // LUGARES: o id desta memória e a lista das que ele ainda tem. Nada da cena
     // vai junto — nem id, nem nome —, só o contador dele.
-    const snapshot: HostMessage = {
+    // VER PELA PORTA ABERTA: sem ficha no vão o campo nem sai.
+    const base: Extract<HostMessage, { type: 'snapshot' }> = {
       type: 'snapshot',
       rev,
       map: view.map,
       vision: view.vision,
-      explored: encodeExploration(exp),
+      explored,
       ownTokens,
       concealed: view.concealed,
+      ...(view.peek === null ? {} : { peek: view.peek }),
       partyTokens,
       ...where,
       place: memory.place,
@@ -2182,19 +2382,21 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     }
     // A vez sai pelo MESMO recorte do mapa: ficha que não foi ao jogador não vira vez nele.
     const turn = turnForPlayer(view.map, options.getTurn?.() ?? null)
-    if (turn !== null) snapshot.turn = turn
+    if (turn !== null) base.turn = turn
     // ZONA DE PERIGO: só o que ele enxerga, e o campo só existe quando há algum.
-    if (view.hazards.length > 0) snapshot.hazards = view.hazards
+    if (view.hazards.length > 0) base.hazards = view.hazards
     // GATILHO DE ÁREA: só o que o mestre revelou, mesma regra do campo.
-    if (view.gatilhos.length > 0) snapshot.gatilhos = view.gatilhos
+    if (view.gatilhos.length > 0) base.gatilhos = view.gatilhos
     // MAPA POR ANDARES: o campo só existe quando há outro andar conhecido.
-    if (andares !== undefined) snapshot.andares = andares
+    if (andares !== undefined) base.andares = andares
     // RELÓGIO DA CAMPANHA: o período e, desta cena, se está escuro. Sem relógio, o campo nem sai.
     const relogio = clockForPlayer(clockHour(), map)
-    if (relogio !== null) snapshot.relogio = relogio
+    if (relogio !== null) base.relogio = relogio
     // CONE PELO VÃO: campo aditivo, só vai quando há cone.
-    if (view.glimpses.length > 0) snapshot.glimpses = view.glimpses
-    return [snapshot, ...roomTextCardsFor(playerId, map.id, view)]
+    if (view.glimpses.length > 0) base.glimpses = view.glimpses
+    // Sem ficha em outra cena o campo nem sai: o snapshot fica igual ao de sempre.
+    const snapshot: HostMessage = elsewhere.length > 0 ? { ...base, elsewhere } : base
+    return { messages: [snapshot, ...roomTextCardsFor(playerId, map.id, view)], settled }
   }
 
   /** A porta que o jogador espia AGORA nesta cena, ou nada. Prazo vencido apaga o registro. */
@@ -2328,6 +2530,9 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     // Sem ficha, ele sai da cena: a ficha devolvida (mesmo na cena de antes) é
     // CHEGADA, e o recado mandado enquanto ele aguardava vem no broadcast seguinte.
     noteSceneOf.delete(playerId)
+    // A tela dele virou a espera: o recorte que ele tinha não está mais nela.
+    // A ficha que volta (mesmo a mesma, na mesma cena) refaz o recorte.
+    lastViews.delete(playerId)
     const clientId = players.get(playerId)?.clientId ?? null // registro ausente = jogador expulso: não há a quem avisar
     if (!wasPlaying || clientId === null) return []
     lostSecretCheckCard.add(playerId)
@@ -2775,7 +2980,16 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     // MINHAS PISTAS: é o que faz a pista sobreviver a recarregar a página. Só a entrada, nunca a `source`.
     const clues = cluebooks.get(playerId) ?? []
     if (clues.length > 0) outbound.push({ clientId, msg: { type: 'clues.book', clues: clues.map((item) => ({ ...item.entry })) } })
-    for (const msg of cards) outbound.push({ clientId, msg })
+    // FORA DO AR: a fila sai uma vez só, por último (é o cartão por cima). O
+    // recado da cena que já está nela não abre um segundo cartão.
+    const away = awayNotes.get(playerId) ?? []
+    awayNotes.delete(playerId)
+    const awayIds = new Set(away.map((entry) => entry.id))
+    for (const msg of cards) {
+      if (msg.type === 'scene.note' && awayIds.has(msg.id)) continue
+      outbound.push({ clientId, msg })
+    }
+    if (away.length > 0) outbound.push({ clientId, msg: { type: 'notes.away', notes: away.map((entry) => ({ ...entry })) } })
     // Conexão nova começa sem marca nenhuma na tela: a lista dele sai de novo, depois do mapa.
     sentDestinations.delete(playerId)
     pruneDestinations(world)
@@ -3022,10 +3236,61 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     // como no movimento normal, e o teto abre porque a ficha entrou).
     const landing = result.landing === undefined ? {} : { landing: result.landing }
     const accepted: HostMessage = { type: 'token.move.accepted', reqId: msg.reqId, x: result.x, y: result.y, ...landing }
-    return {
-      outbound: [{ clientId, msg: accepted }],
-      applyMove: { tokenId: msg.tokenId, x: result.x, y: result.y, ...backgroundSceneId(scene, world) },
+    const outbound: Outbound[] = [{ clientId, msg: accepted }]
+    const applyMove: AppliedMove = { tokenId: msg.tokenId, x: result.x, y: result.y, ...backgroundSceneId(scene, world) }
+    const cancelled = travelLeftBehind(playerId, scene, msg.tokenId, result.x, result.y)
+    if (cancelled === null) return { outbound, applyMove }
+    // Depois do aceite: o jogador vê a ficha no lugar novo e, logo em seguida, que o pedido caiu.
+    outbound.push({ clientId, msg: { type: 'pin.travel.cancelled', reason: 'far' } })
+    return { outbound, applyMove, travelCancelled: cancelled }
+  }
+
+  /**
+   * DESISTIR DO PEDIDO — o pedido cai sozinho quando a ficha anda para longe
+   * do pino: a ficha dele mais perto do pino (a que andou, já no lugar novo)
+   * ficou mais de `TRAVEL_CANCEL_SLACK_CELLS` casas além da distância em que
+   * pediu. Chegar mais perto nunca derruba. Pino que não está nesta cena (ou
+   * sumiu) não conta aqui: é a revalidação do "Deixar ir" que recusa.
+   */
+  function travelLeftBehind(playerId: string, scene: HostScene, movedTokenId: string, x: number, y: number): TravelCancelled | null {
+    const pending = pendingTravels.get(playerId)
+    if (pending === undefined) return null
+    const pin = scene.map.pins.find((p) => p.id === pending.pinId)
+    if (pin === undefined) return null
+    const owned = new Set(ownership[playerId] ?? [])
+    let nearest = Number.POSITIVE_INFINITY
+    // Só as fichas que o jogador enxerga, igual ao pedido e ao "Deixar ir"
+    // (filterMapForPlayer): ficha escondida pelo mestre não segura o pedido
+    // nem vaza, por andar, que está perto do pino.
+    for (const t of visibleTokens(scene.map.tokens, scene.map.hiddenLayers)) {
+      if (!owned.has(t.id) || t.hidden === true) continue
+      const at = t.id === movedTokenId ? { x, y } : t
+      nearest = Math.min(nearest, Math.hypot(at.x - pin.x, at.y - pin.y))
     }
+    if (nearest <= pending.distance + TRAVEL_CANCEL_SLACK_CELLS * scene.map.grid) return null
+    return dropPendingTravel(playerId, 'far')
+  }
+
+  /** Tira o pedido de `playerId` da espera e diz ao integrador de quem era. Sem pedido: `null`. */
+  function dropPendingTravel(playerId: string, reason: PinTravelCancelReason): TravelCancelled | null {
+    const pending = pendingTravels.get(playerId)
+    const record = players.get(playerId)
+    if (pending === undefined || record === undefined) return null
+    pendingTravels.delete(playerId)
+    return { requestId: pending.requestId, playerId, playerName: record.name, reason }
+  }
+
+  /**
+   * "Desistir": o jogador retira o pedido que espera o mestre. Se o mestre já
+   * respondeu (a resposta chegou ao host antes), não há o que retirar e nada
+   * sai — o jogador lê a resposta do mestre, que é o que valeu.
+   */
+  function handleTravelCancel(clientId: string): HostResult {
+    const playerId = byClient.get(clientId)
+    if (playerId === undefined) return reply(clientId, { type: 'error', reason: 'not_joined' })
+    const cancelled = dropPendingTravel(playerId, 'player')
+    if (cancelled === null) return { outbound: [] }
+    return { outbound: [{ clientId, msg: { type: 'pin.travel.cancelled', reason: 'player' } }], travelCancelled: cancelled }
   }
 
   /** O jogador já conhece o ponto: está na visão do último snapshot ou numa célula explorada deste mapa. */
@@ -3704,12 +3969,18 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const playerId = byClient.get(clientId)
     if (playerId === undefined) return reply(clientId, { type: 'error', reason: 'not_joined' })
     if (statusOf(playerId) !== 'playing') return { outbound: [] }
-    if (!(ownership[playerId] ?? []).includes(msg.tokenId)) return { outbound: [] }
+    // A tela dele já pôs a edição (otimista) e só volta pelo snapshot seguinte:
+    // recusado, o recorte dele precisa sair de novo mesmo sem a cena mudar.
+    const refuse = (): HostResult => {
+      lastViews.delete(playerId)
+      return { outbound: [] }
+    }
+    if (!(ownership[playerId] ?? []).includes(msg.tokenId)) return refuse()
     // Ficha emprestada: quem a joga move, mas o nome e a cara são do dono.
-    if (loans.get(msg.tokenId)?.borrowerId === playerId) return { outbound: [] }
+    if (loans.get(msg.tokenId)?.borrowerId === playerId) return refuse()
     // O token pode estar em qualquer cena: a ficha é do jogador, não do mapa aberto.
     const scene = allScenes(world).find((s) => s.map.tokens.some((t) => t.id === msg.tokenId))
-    if (scene === undefined) return { outbound: [] }
+    if (scene === undefined) return refuse()
     if (msg.image !== undefined) {
       const at = now()
       const last = lastTokenPhotoAt.get(playerId)
@@ -3898,7 +4169,10 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     }
     const requestId = randomId()
     // O destino que o mestre LEU vai junto: é com ele que o "Deixar ir" confere.
-    const pending: PendingTravel = { requestId, playerId, pinId: msg.pinId, exitId, toSceneId: travel.to.sceneId, partnerId: travel.partner.id }
+    // DESISTIR DO PEDIDO: guarda a distância da ficha ao pino agora, para o
+    // pedido cair sozinho se ela andar para longe antes do mestre responder.
+    const distance = Math.hypot(travel.token.x - travel.pin.x, travel.token.y - travel.pin.y)
+    const pending: PendingTravel = { requestId, playerId, pinId: msg.pinId, exitId, toSceneId: travel.to.sceneId, partnerId: travel.partner.id, distance }
     if (trancada) pending.trancada = true
     pendingTravels.set(playerId, pending)
     // Pedido do mestre: nada disto vai ao jogador (`outbound` vazio).
@@ -3990,6 +4264,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     // próximo broadcast manda, com a memória que ele tem DELA.
     currentScene.set(playerId, sceneKey(travel.to))
     forgetSentView(playerId)
+    lastViews.delete(playerId)
     const along = carriedAlong(playerId, travel.token.id, travel.from, travel.to, spot, world, 'master')
     const applyTransfer: AppliedTransfer = {
       ...along.transfer,
@@ -4153,6 +4428,36 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     }
   }
 
+  /**
+   * MINHAS FICHAS EM OUTRAS CENAS — "Olhar por…": a cena vista passa a ser a
+   * da ficha `tokenId`, e só ele recebe o snapshot de lá (com `rev` novo, senão
+   * o cliente o descartaria como velho). Ficha que não é dele, que o mestre
+   * escondeu, que não existe ou que já está na tela: nada sai — a resposta é a
+   * mesma para todas, então o jogador não descobre se o id existe em algum lugar.
+   */
+  function handleViewSwitch(clientId: string, msg: ViewSwitchMessage, world: HostWorld): HostResult {
+    const playerId = byClient.get(clientId)
+    if (playerId === undefined) return reply(clientId, { type: 'error', reason: 'not_joined' })
+    const nothing: HostResult = { outbound: [] }
+    if (statusOf(playerId) !== 'playing') return nothing
+    const here = sceneFor(playerId, world)
+    const target = sceneOfOwnToken(playerId, msg.tokenId, world)
+    if (here === null || target === null || sceneKey(target) === sceneKey(here)) return nothing
+    const at = now()
+    const last = lastViewSwitchAt.get(playerId)
+    if (last !== undefined && at - last < VIEW_SWITCH_MIN_INTERVAL_MS) return nothing
+    lastViewSwitchAt.set(playerId, at)
+    // O pedido de passagem era da cena de antes: largá-la é desistir dele.
+    // Sem isso ele travaria todo pedido novo ('pending') e o "Deixar ir"
+    // procuraria o pino na cena nova. O aviso vem antes do snapshot novo.
+    const cancelled = dropPendingTravel(playerId, 'player')
+    currentScene.set(playerId, sceneKey(target))
+    rev += 1
+    const outbound: Outbound[] = cancelled === null ? [] : [{ clientId, msg: { type: 'pin.travel.cancelled', reason: 'player' } }]
+    for (const view of viewFor(playerId, world, 'on_change')) outbound.push({ clientId, msg: view })
+    return cancelled === null ? { outbound } : { outbound, travelCancelled: cancelled }
+  }
+
   const findPendingTravel = (requestId: string): PendingTravel | undefined =>
     [...pendingTravels.values()].find((pending) => pending.requestId === requestId)
 
@@ -4306,6 +4611,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
           return handleTokenEdit(clientId, msg, world)
         case 'pin.travel.request':
           return handleTravelRequest(clientId, msg, world)
+        case 'pin.travel.cancel':
+          return handleTravelCancel(clientId)
         case 'laser':
           return handlePlayerLaser(clientId, msg, world)
         case 'clue.read':
@@ -4334,6 +4641,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
           return handlePinRead(clientId, msg)
         case 'secret.check.answer':
           return handleSecretCheckAnswer(clientId, msg)
+        case 'view.switch':
+          return handleViewSwitch(clientId, msg, world)
       }
     },
 
@@ -4867,6 +5176,11 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       return { outbound, ...loansReturnedField(returned) }
     },
 
+    sendFailed(clientId) {
+      const playerId = byClient.get(clientId)
+      if (playerId !== undefined) lastViews.delete(playerId)
+    },
+
     disconnect(clientId, at) {
       tableClients.delete(clientId)
       const playerId = byClient.get(clientId)
@@ -4899,6 +5213,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       // O pedido de ficha também: "Aceitar" daria ficha a quem não está olhando a tela.
       pendingSeatClaims.delete(playerId)
       lastSeatOptionsSent.delete(clientId)
+      // A conexão nova começa do zero: o recorte que a antiga tinha não vale para ela.
+      lastViews.delete(playerId)
     },
 
     kick(clientId) {
@@ -4911,7 +5227,12 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       forgetSentView(playerId)
       patchClients.delete(clientId)
       lastResyncAt.delete(playerId)
+      awayNotes.delete(playerId)
+      lastViewSwitchAt.delete(playerId)
+      lastViews.delete(playerId)
       forgetPlayer(playerId)
+      // As listas de "Quem vê" mudaram: todos refazem no próximo broadcast.
+      viewEpoch += 1
       return reply(clientId, { type: 'kicked' })
     },
 
@@ -5033,6 +5354,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     },
 
     setPinAudience(pinId, playerIds) {
+      // O pino pode estar no recorte de qualquer um: todos refazem no próximo broadcast.
+      viewEpoch += 1
       if (playerIds === null) {
         pinAudiences.delete(pinId)
         return
@@ -5080,6 +5403,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       const memory = memoryFor(playerId, map, world)
       markAll(memory.exp, playerBlockedRings(map))
       // A memória muda no lugar (mesmo objeto): sem isto, o broadcast a acharia igual.
+      lastViews.delete(playerId)
       forgetSentView(playerId)
       // Revelar é mostrar a planta de AGORA: a memória passa a ser o presente,
       // menos o que está sob zona, sala secreta ou teto (lá o explorado também
@@ -5127,6 +5451,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     },
 
     hidePlan(playerId, source) {
+      // A memória muda: o próximo broadcast refaz o recorte dele, mesmo sem a cena mudar.
+      lastViews.delete(playerId)
       // Apagar a memória: o próximo snapshot recria vazia (explorado, portas e visão).
       forgetSentView(playerId)
       if (source === undefined) {
@@ -5145,7 +5471,14 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       rev += 1
       const outbound: Outbound[] = []
       for (const [clientId, playerId] of byClient) {
-        if (statusOf(playerId) !== 'playing') continue
+        if (statusOf(playerId) !== 'playing') {
+          // Fora de jogo a tela dele não tem recorte: quando voltar, o envio refaz.
+          lastViews.delete(playerId)
+          continue
+        }
+        // SÓ A CENA QUE MUDOU: um passo no Salão não refaz o recorte de quem
+        // está na Cripta. O recorte dele sairia igual ao que já está na tela.
+        if (viewUnchanged(playerId, world)) continue
         // Cada um a SUA cena: quem ficou no Salão nunca recebe nada da Cripta.
         // Quem não está em cena nenhuma recebe a espera, e não a cena do editor.
         // Só para quem a tela mudou: o passo de um não reenvia o mapa aos outros.
@@ -5274,6 +5607,14 @@ export function createHostSession(options: HostSessionOptions): HostSession {
         // Já recebeu aqui: o broadcast seguinte não repete como "chegada".
         noteSceneOf.set(playerId, sceneId)
         outbound.push({ clientId, msg: noteMessage(note) })
+      }
+      // FORA DO AR: a mesma regra de cena (a DELE, por `sceneFor`), para quem
+      // caiu. Recado de outra cena nunca entra na fila de ninguém.
+      for (const record of players.values()) {
+        if (record.clientId !== null || statusOf(record.playerId) !== 'playing') continue
+        if (sceneFor(record.playerId, world)?.sceneId !== sceneId) continue
+        rememberNote(record.playerId, note)
+        awayNotes.set(record.playerId, [...(awayNotes.get(record.playerId) ?? []), note].slice(-AWAY_NOTES_MAX))
       }
       return { outbound }
     },

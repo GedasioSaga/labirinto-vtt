@@ -206,6 +206,11 @@ describe('hostSession', () => {
       const toBia = t.s.broadcast(t.map).outbound.filter((o) => o.clientId === 'c2')
       expect(toBia).toEqual([])
       expect(JSON.stringify(toBia)).not.toContain('Cripta distante')
+      // Mesmo forçando o host a refazer o recorte da Bia (mapa como objeto NOVO,
+      // sem mudança real), a exploração dela continua sem o lado da Ana.
+      const bia = decodeExploration(t.snapshotTo('c2', { ...t.map }).explored)
+      if (bia === null) throw new Error('explored inválido')
+      expect(isPointExplored(bia, { x: 100, y: 800 })).toBe(false)
     })
 
     it('Esconder de novo zera a exploração e as portas lembradas; a visão atual volta a marcar', () => {

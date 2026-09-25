@@ -958,6 +958,28 @@
   color: var(--lb-color-parchment-faint, #6d6c68);
 }
 
+/* Ficha em outra cena: anel vazio na cor da ficha (não está no mapa da tela) e a Sala embaixo do nome. */
+.pp-dot--away {
+  box-sizing: border-box;
+  background: transparent;
+  border: 2px solid currentColor;
+  box-shadow: none;
+}
+
+.pp-character__text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.pp-character__where {
+  font-size: 12px;
+  color: var(--lb-color-parchment-dim, #a2a09a);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .pp-button {
   padding: 8px 10px;
   background: var(--lb-color-stone-raised, #232328);
@@ -1582,6 +1604,39 @@
 .pp-peek:focus-visible {
   outline: 2px solid var(--lb-color-brass, #e0a44a);
   outline-offset: 2px;
+}
+
+/* "Desistir" dentro do aviso de espera: secundário (contorno), para não competir com a espera. */
+.pp-notice__action {
+  margin-left: 10px;
+  padding: 3px 12px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--lb-color-parchment, #eceae4);
+  background: transparent;
+  border: 1px solid var(--lb-color-line-panel, rgba(255, 255, 255, 0.28));
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background-color 120ms ease-out;
+}
+
+.pp-notice__action:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.pp-notice__action:active:not(:disabled) {
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.pp-notice__action:focus-visible {
+  outline: 2px solid var(--lb-color-brass, #e0a44a);
+  outline-offset: 2px;
+}
+
+.pp-notice__action:disabled {
+  color: var(--lb-color-parchment-dim, #a9a7a0);
+  cursor: default;
 }
 
 @media (prefers-reduced-motion: reduce) {

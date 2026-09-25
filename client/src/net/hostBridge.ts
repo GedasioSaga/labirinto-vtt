@@ -54,6 +54,7 @@ import {
   type ReturnCandidate,
   type SeatClaim,
   type SecretCheckState,
+  type TravelCancelled,
   type TravelRequest,
 } from './hostSession'
 import {
@@ -893,12 +894,18 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     // Todo recorte e toda leitura passam por aqui: o painel Pistas acompanha
     // o que SAI (recebeu) e o que o jogador abriu (leu), sem esperar nada.
     notifyPinCluesIfChanged()
+    // A sessão de AGORA: a falha chega depois, talvez com a sala já fechada ou reaberta.
+    const owner = session
     return Promise.all(
       result.outbound.map(({ clientId, msg }) =>
         deps.invoke('net_send', { clientId, msg }).catch((error: unknown) => {
           // Tela que não chegou: o próximo broadcast manda a inteira, e não
           // um `patch` em cima de uma tela que o jogador não tem.
           if (msg.type === 'snapshot' || msg.type === 'patch') session?.forgetView(clientId)
+          // A conexão segue aberta mas a mensagem se perdeu: sem isto o host
+          // contaria o recorte como entregue e a tela do jogador ficaria velha
+          // até a cena DELE mudar.
+          if (owner !== null && owner === session) owner.sendFailed(clientId)
           reportError('Falha ao enviar para jogador', error)
         }),
       ),
@@ -1737,6 +1744,20 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     peekTimers.add(timer)
   }
 
+  /**
+   * DESISTIR DO PEDIDO: o pedido saiu da espera sem o mestre responder. A
+   * linha dele some da Caixa de Pedidos (um "Deixar ir" ali não levaria
+   * ninguém), e no lugar fica um aviso curto que some sozinho — não pede
+   * resposta, só explica por que a linha sumiu.
+   */
+  const dropTravelToast = (cancelled: TravelCancelled) => {
+    const toastId = travelToasts.get(cancelled.requestId)
+    travelToasts.delete(cancelled.requestId)
+    if (toastId !== undefined) useToastStore.getState().dismiss(toastId)
+    const text = cancelled.reason === 'far' ? `${cancelled.playerName} se afastou da passagem` : `${cancelled.playerName} desistiu de passar`
+    useToastStore.getState().push('info', text)
+  }
+
   const onMessage = (event: { payload: unknown }) => {
     if (session === null || !isRecord(event.payload)) return
     const clientId = parseClientId(event.payload.clientId)
@@ -1817,6 +1838,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
         void dispatch(session.denyTravel(result.travelRequest.requestId))
       } else askTravel(result.travelRequest)
     }
+    if (result.travelCancelled !== undefined) dropTravelToast(result.travelCancelled)
     if (result.doorRequest !== undefined) {
       // Integrador sem quem destranque: a pergunta não teria resposta que abrisse a porta.
       if (deps.unlockAndOpenDoor === undefined) void dispatch(session.denyDoorRequest(result.doorRequest.requestId))

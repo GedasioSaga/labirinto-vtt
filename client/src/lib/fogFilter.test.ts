@@ -384,6 +384,9 @@ describe('filterMapForPlayer — A5: oculto para jogadores e zona oculta', () =>
   it('SEGURANÇA: Sala secret leva junto as paredes dela e os textos dentro dela', () => {
     const points = [{ x: 100, y: 100 }, { x: 400, y: 100 }, { x: 400, y: 400 }, { x: 100, y: 400 }]
     const map = twoRooms({
+      // Herói FORA da sala, olhando para ela: com a ficha dentro, a sala abre
+      // para ele (fogFilter.dentroDaSalaSecreta.test.ts).
+      tokens: [token('heroi', 450, 450)],
       regions: [room('sala-secreta', 'nome-sala-secreta', points, { secret: true })],
       walls: [wall('divisoria', 500, 0, 500, 1000), wall('parede-da-sala-secreta', 100, 400, 400, 400, { regionId: 'sala-secreta' })],
       drawings: [
@@ -435,7 +438,8 @@ describe('filterMapForPlayer — A5: oculto para jogadores e zona oculta', () =>
     }
 
     it('SEGURANÇA: mãe secreta esconde filha, neta e as paredes delas', () => {
-      const { map: out } = filterMapForPlayer(nested({ secret: true }), 'p1', ownership, RADIUS)
+      // Herói FORA da casa, olhando para ela: com a ficha dentro, a casa abre para ele.
+      const { map: out } = filterMapForPlayer({ ...nested({ secret: true }), tokens: [token('heroi', 450, 450)] }, 'p1', ownership, RADIUS)
       const json = JSON.stringify(out)
       for (const id of ['casa', 'quarto-filho', 'armario-neto', 'parede-do-quarto', 'parede-do-armario']) expect(json).not.toContain(id)
       expect(out.walls.map((w) => w.id)).toEqual(['divisoria'])
