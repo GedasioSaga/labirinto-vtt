@@ -20,6 +20,9 @@ import { useSignalStore } from './stores/signalStore'
 import { goToPointAction } from './stores/pointActionGo'
 import { laserStrokeEnded, useLaserStore } from './stores/laserStore'
 import { usePlayerLaserStore } from './stores/playerLaserStore'
+import { useNoiseStore } from './stores/noiseStore'
+import { noiseFeedbackText } from './lib/noise'
+import { isEditableTarget } from './lib/keymap'
 import { useFollowStore } from './stores/followStore'
 import { advanceTurn, startTurn, useInitiativeStore } from './stores/initiativeStore'
 import { useClockStore } from './stores/clockStore'
@@ -29,9 +32,10 @@ import { useFollowPlayer } from './stores/useFollowPlayer'
 import { useArrivalTextSettings } from './stores/useArrivalTextSettings'
 import { playSignalSound } from './lib/signalSound'
 import { createSignalRouter } from './net/chamadoDeFundo'
-import { tableSceneKey, type AppliedMove, type PlayerInfo } from './net/hostSession'
+import { tableSceneKey, type AppliedMove, type PinClueState, type PlayerInfo, type SecretCheckState } from './net/hostSession'
 import { tableScreenUrl } from './lib/tableScreen'
 import { RoomPanel, roomPanelTokensOf } from './components/RoomPanel'
+import { hostCluesProps } from './components/CluesSection'
 import { LivePlayerMirror } from './components/PlayerMirror'
 import { masterDestinationMarks, partyDestinations, partyItemChange, partyMembers, peopleByScene } from './lib/party'
 import { useDestinationStore } from './stores/destinationStore'
@@ -58,6 +62,7 @@ import {
   hasUnsavedWork,
   hostWorldOf,
   pinExitsTravelOf,
+  pinScenesOf,
   pinTravelOptions,
   sceneDeletionInfo,
   sceneList,
@@ -73,6 +78,8 @@ import { currentObjectKey, isFindObjectShortcut } from './lib/mapObjects'
 import { goToMapObject } from './stores/mapObjectNavigation'
 import { ligacaoLevarFicha } from './stores/levarFicha'
 import type { ActiveAlarmView } from './components/SceneAlarmControls'
+import { PinsSection } from './components/PinsSection'
+import { pinDirectory } from './lib/pinDirectory'
 import { pickBackgroundImage, importBackgroundImage, pickImageFile, importPinImage, importTokenImage, buildTokenSharedPhoto } from './lib/imageImport'
 import { useTokenLibraryStore } from './stores/tokenLibraryStore'
 import { apagarDoAcervo, fotoSobrouNoDisco, salvarNoAcervo, trazerDoAcervo, type ItemDoAcervoNaTela } from './lib/tokenLibrary'
@@ -82,12 +89,13 @@ import { pickExportFolder, pickImportFolder, exportMapFolder, importMapFolder } 
 import { join } from '@tauri-apps/api/path'
 import { Toolbar } from './components/Toolbar'
 import { PropertiesPanel } from './components/PropertiesPanel'
+import type { RevealToControlsProps } from './components/PlayerSecretControls'
 import { ActionBar } from './components/ActionBar'
 import { ShortcutsDialog } from './components/ShortcutsDialog'
 import { ExportImageDialog } from './components/ExportImageDialog'
 import { imageExportFileName, type ImageExportOptions, type MapImageExporter } from './lib/mapImageExport'
 import { saveMapImage } from './lib/mapImageSave'
-import type { DoorKind, DrawingCap, DrawingDash, MapData, Pin, PinPassage, Region, Token, Wall } from './types/map'
+import type { DoorKind, DoorSide, DrawingCap, DrawingDash, MapData, Pin, PinPassage, Region, Token, Wall } from './types/map'
 import { passageOf } from './lib/pins'
 import { isArrivalOnly } from './lib/pinTravel'
 import { pinAttachOptions } from './lib/pinAttach'
@@ -391,6 +399,7 @@ function App() {
   const setWallDoor = useMapStore((state) => state.setWallDoor)
   const setDoorLocked = useMapStore((state) => state.setDoorLocked)
   const setDoorSecret = useMapStore((state) => state.setDoorSecret)
+  const setDoorOpensFrom = useMapStore((state) => state.setDoorOpensFrom)
   const revealSecretPassage = useMapStore((state) => state.revealSecretPassage)
   const turnWallIntoDoor = useMapStore((state) => state.turnWallIntoDoor)
   const doorKind = useMapStore((state) => state.doorKind)
@@ -410,6 +419,7 @@ function App() {
   const wallLineStyle = useMapStore((state) => state.wallLineStyle)
   const setWallLineStyle = useMapStore((state) => state.setWallLineStyle)
   const setWallLineStyleForWall = useMapStore((state) => state.setWallLineStyleForWall)
+  const setWallJanela = useMapStore((state) => state.setWallJanela)
   const regionStrokeWidth = useMapStore((state) => state.regionStrokeWidth)
   const setRegionStrokeWidth = useMapStore((state) => state.setRegionStrokeWidth)
   const regionStrokeJoin = useMapStore((state) => state.regionStrokeJoin)
@@ -440,6 +450,8 @@ function App() {
   const arrivalTextSettings = useArrivalTextSettings()
   const setOutdoor = useMapStore((state) => state.setOutdoor)
   const setSceneFloor = useMapStore((state) => state.setSceneFloor)
+  const setSceneVisionCells = useMapStore((state) => state.setSceneVisionCells)
+  const setSceneDark = useMapStore((state) => state.setSceneDark)
   const setScenarioLink = useMapStore((state) => state.setScenarioLink)
   const updateTextLabel = useMapStore((state) => state.updateTextLabel)
   const setTextFontFamily = useMapStore((state) => state.setTextFontFamily)
@@ -523,6 +535,12 @@ function App() {
   const [pausedScenes, setPausedScenes] = useState<ReadonlySet<string>>(() => new Set())
   // G15 — diário de viagens da sala (só do mestre; a ponte avisa a cada viagem e "Desfazer").
   const [travelLog, setTravelLog] = useState<TravelLogEntry[]>([])
+  // Painel Pistas: quem recebeu e quem leu cada pino. O dono também é a sessão do host.
+  const [pinClues, setPinClues] = useState<Record<string, PinClueState>>({})
+  // "Revelar para…" de ficha/escada/zona secreta. Mesma regra: o dono é a sessão do host.
+  const [secretReveals, setSecretReveals] = useState<Record<string, string[]>>({})
+  // Testes secretos e as respostas: só o mestre vê. O dono é a sessão do host.
+  const [secretChecks, setSecretChecks] = useState<SecretCheckState[]>([])
   const [tunnel, setTunnel] = useState<TunnelState>({ kind: 'idle' })
   const [railTab, setRailTab] = useState<RailTab>('map')
   /** Muda a cada Ctrl+K: "Objetos do mapa" abre com o cursor na busca (MapObjectsSection). */
@@ -584,6 +602,9 @@ function App() {
         onPlayersChange: setRoomPlayers,
         onPinAudiencesChange: setPinAudiences,
         onTravelLogChange: setTravelLog,
+        onPinCluesChange: setPinClues,
+        onSecretRevealsChange: setSecretReveals,
+        onSecretChecksChange: setSecretChecks,
         onTunnelChange: setTunnel,
         // A vez vai no snapshot, recortada por jogador (`turnForPlayer`): ficha que ele não vê não vira vez.
         getTurn: () => useInitiativeStore.getState().turn,
@@ -663,6 +684,20 @@ function App() {
   )
   const laserToggled = useLaserStore((state) => state.toggled)
   const diceRolls = useDiceStore((state) => state.rolls)
+  const noiseArmed = useNoiseStore((state) => state.armed)
+  const noiseRangeCells = useNoiseStore((state) => state.rangeCells)
+  // Ruído armado: Escape desarma sem disparar (fora de campo de texto, onde o Escape é da edição).
+  useEffect(() => {
+    if (!noiseArmed) return
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return
+      const alvo = event.target
+      if (alvo instanceof HTMLElement && isEditableTarget(alvo.tagName, alvo instanceof HTMLInputElement ? alvo.type : undefined, alvo.isContentEditable)) return
+      useNoiseStore.getState().setArmed(false)
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [noiseArmed])
   // B2 — o `off` sai no fim do traço: soltar o botão, sair da janela ou desarmar (L e botão Laser).
   useEffect(
     () =>
@@ -701,6 +736,7 @@ function App() {
     usePlayerLaserStore.getState().clear()
     useLaserStore.getState().setToggled(false)
     useDiceStore.getState().clear()
+    useNoiseStore.getState().setArmed(false)
   }
   /**
    * O mundo que o host serve (cena aberta + as de fundo), para o painel Jogo:
@@ -733,10 +769,27 @@ function App() {
     useToastStore.getState().push('info', `Viagem desfeita: ${entry.tokenName} voltou para ${entry.fromSceneName}`)
     return true
   }
+  /**
+   * "Revelar para…" de ficha secreta, escada secreta ou zona oculta `itemId`.
+   * Só com a sala aberta: a lista vive na sessão do host (`setSecretReveal`).
+   */
+  const secretRevealFor = (itemId: string): RevealToControlsProps | null =>
+    room === null
+      ? null
+      : {
+          players: partyMembers(roomPlayers, roomPanelWorld()).map((member) => ({
+            playerId: member.playerId,
+            name: member.name,
+            color: member.token?.color ?? null,
+          })),
+          chosen: secretReveals[itemId] ?? [],
+          onChange: (chosen) => hostBridgeRef.current?.setSecretReveal(itemId, chosen),
+        }
   /** Fora do Tauri o rail segue só com o inspetor; no app ganha as abas Mapa | Jogo. */
   const withRoomTabs = (mapPanel: ReactNode): ReactNode => {
     if (!isTauri()) return mapPanel
     const world = roomPanelWorld()
+    const members = partyMembers(roomPlayers, world)
     return (
       <RailTabs
         active={railTab}
@@ -748,7 +801,7 @@ function App() {
             players={roomPlayers}
             tokens={roomPanelTokensOf(world)}
             party={{
-              members: partyMembers(roomPlayers, world),
+              members,
               destinations: partyDestinations(world, adventure?.scenes),
               onGoTo: (member) => {
                 // "Ir lá" em OUTRO jogador é o mestre escolhendo a vista: desliga o seguir.
@@ -798,6 +851,21 @@ function App() {
               onNextPeriod: () => useClockStore.getState().nextPeriod(),
               onOutdoorChange: setOutdoor,
             }}
+            clues={hostCluesProps({
+              world,
+              members,
+              clues: pinClues,
+              audiences: pinAudiences,
+              stopFollow: () => useFollowStore.getState().stop(),
+              goToPoint: (sceneId, point) => useAdventureStore.getState().goToPoint(sceneId, point),
+              setPinAudience: (pinId, playerIds) => hostBridgeRef.current?.setPinAudience(pinId, playerIds),
+            })}
+            secretCheck={{
+              players: roomPlayers.map((player) => ({ playerId: player.playerId, name: player.name, playing: player.status === 'playing' })),
+              checks: secretChecks,
+              onAsk: (label, playerIds) => hostBridgeRef.current?.secretCheck(label, playerIds) ?? null,
+              onClose: (checkId) => hostBridgeRef.current?.closeSecretCheck(checkId),
+            }}
             tunnel={tunnel}
             savedTableNames={savedTableNames()}
             onStart={(resume) => void handleStartRoom(resume)}
@@ -812,10 +880,16 @@ function App() {
             onLendTokens={(ownerId, borrowerId) => hostBridgeRef.current?.lendTokens(ownerId, borrowerId)}
             onEndLoans={(ownerId) => hostBridgeRef.current?.endLoans(ownerId)}
             onVisionRadiusChange={(playerId, radius) => hostBridgeRef.current?.setVisionRadius(playerId, radius)}
+            onVisionFactorChange={(playerId, factor) => hostBridgeRef.current?.setVisionFactor(playerId, factor)}
             onRevealPlan={(playerId) => hostBridgeRef.current?.revealPlan(playerId)}
             onHidePlan={(playerId) => hostBridgeRef.current?.hidePlan(playerId)}
+            onGiveGroupView={(playerId) => hostBridgeRef.current?.giveGroupView(playerId) ?? null}
             laserOn={laserToggled}
-            onToggleLaser={() => useLaserStore.getState().setToggled(!useLaserStore.getState().toggled)}
+            onToggleLaser={() => {
+              // Laser e Ruído disputam o mesmo clique no mapa: ligar um desliga o outro.
+              useNoiseStore.getState().setArmed(false)
+              useLaserStore.getState().setToggled(!useLaserStore.getState().toggled)
+            }}
             table={{
               url: room === null || room.urls[0] === undefined || tableKey === null ? null : tableScreenUrl(room.urls[0], room.code, tableKey),
               scenes: [world.open, ...world.background].map((scene) => ({ key: tableSceneKey(scene), name: scene.name })),
@@ -825,6 +899,15 @@ function App() {
                 setTableScene(key)
                 hostBridgeRef.current?.setTableScene(key)
               },
+            }}
+            noise={{
+              armed: noiseArmed,
+              rangeCells: noiseRangeCells,
+              onToggle: () => {
+                useLaserStore.getState().setToggled(false)
+                useNoiseStore.getState().setArmed(!useNoiseStore.getState().armed)
+              },
+              onRangeChange: (cells) => useNoiseStore.getState().setRangeCells(cells),
             }}
           />
         }
@@ -1330,6 +1413,11 @@ function App() {
   const handleDoorKeyChange = (nome: string) => {
     if (!selectedWall || !selectedWall.door) return
     setWallDoor(selectedWall.id, setDoorKey(selectedWall.door, nome))
+  }
+
+  const handleOpensFromChange = (side: DoorSide | null) => {
+    if (!selectedWall || !selectedWall.door) return
+    setDoorOpensFrom(selectedWall.id, side)
   }
 
   /**
@@ -2080,6 +2168,11 @@ function App() {
           focusObstacles={canvasObstacles}
           onTravelPin={handleTravelPin}
           onLaserMove={(x, y) => hostBridgeRef.current?.laserMove(x, y)}
+          onNoise={(x, y) => {
+            // Sala fechada devolve `null`: o aviso diz por que o ruído não saiu.
+            const heard = hostBridgeRef.current?.noise(x, y, useNoiseStore.getState().rangeCells) ?? null
+            useToastStore.getState().push('info', noiseFeedbackText(heard))
+          }}
           onRoomCreated={() => {
             // O nome é pedido sobre a própria Sala (PixiCanvas); a aba Mapa só
             // mostra o resto da Sala recém-criada, sem tirar o foco do canvas.
@@ -2119,6 +2212,7 @@ function App() {
         {withRoomTabs(
           <PropertiesPanel
             scenes={
+              <>
               <ScenesSection
                 scenes={sceneList({ adventure, activeSceneId, cache: sceneCache }, map)}
                 onSelect={handleSelectScene}
@@ -2136,6 +2230,14 @@ function App() {
                 waitingSince={waitingSince}
                 // Recado por cena só com a sala aberta: sem sala não há quem leia.
                 onNote={room === null ? undefined : (sceneId, text, playerIds) => hostBridgeRef.current?.sceneNote(sceneId, text, playerIds) ?? null}
+                // A flag grava com a aventura; o snapshot sai pelo throttle do mapa para quem já está lá.
+                onTogglePlanKnown={(sceneId, known) => {
+                  useAdventureStore.getState().setScenePlanKnown(sceneId, known)
+                  hostBridgeRef.current?.notifyMapChanged()
+                }}
+                players={roomPlayers.map((p) => ({ playerId: p.playerId, name: p.name }))}
+                // "Revelar planta para…" só com a sala aberta: sem sala não há para quem.
+                onRevealPlanFor={room === null ? undefined : (sceneId, playerIds) => hostBridgeRef.current?.revealPlanFor(sceneId, playerIds) ?? null}
                 // Menu "…" da cena: só com aventura (o mapa solto não tem lista de cenas para mexer).
                 onDuplicate={adventure === null ? undefined : handleDuplicateScene}
                 onShift={adventure === null ? undefined : (sceneId, delta) => useAdventureStore.getState().shiftScene(sceneId, delta)}
@@ -2184,6 +2286,12 @@ function App() {
                       }
                 }
               />
+              {/* Todos os pinos da aventura pelo nome só do mestre: tocar abre a cena com o pino selecionado. */}
+              <PinsSection
+                entries={pinDirectory(pinScenesOf({ adventure, activeSceneId, cache: sceneCache }, map))}
+                onGo={(entry) => useAdventureStore.getState().goToPin(entry.sceneId, entry.pinId)}
+              />
+              </>
             }
             objects={
               <MapObjectsSection map={map} currentKey={currentMapObjectKey} onGoTo={goToMapObject} searchRequest={objectSearchRequest} />
@@ -2328,6 +2436,12 @@ function App() {
             movement={{ movement: map.movement, onMovementChange: setMovementRules, worldMap: map.worldMap === true, onWorldMapChange: setWorldMap }}
             arrivalText={arrivalTextSettings}
             sceneFloor={{ andar: map.andar, onChange: setSceneFloor }}
+            sceneVision={{
+              visionCells: map.visionCells,
+              onVisionCellsChange: setSceneVisionCells,
+              dark: map.dark === true,
+              onDarkChange: setSceneDark,
+            }}
             gridAlign={{
               backgroundFilename:
                 map.background.type === 'image' && map.background.src
@@ -2380,6 +2494,7 @@ function App() {
               onToggleSecret: handleToggleSecret,
               onRevealPassage: handleRevealPassage,
               onKeyChange: handleDoorKeyChange,
+              onOpensFromChange: handleOpensFromChange,
             }}
             doorKind={{
               kind: selectedWall?.door ? selectedWall.door.kind : doorKind,
@@ -2393,6 +2508,9 @@ function App() {
               onThicknessChange: handleWallThicknessChange,
               lineStyle: selectedWall ? selectedWall.lineStyle : wallLineStyle,
               onLineStyleChange: handleWallLineStyleChange,
+              // Janela só na parede selecionada e sem porta (`setWallJanela`).
+              janela: selectedWall?.janela === true,
+              onJanelaChange: selectedWall && selectedWall.door === null ? (on: boolean) => setWallJanela(selectedWall.id, on) : undefined,
             }}
             selectedProp={selectedProp}
             propTransform={{
@@ -2473,11 +2591,18 @@ function App() {
               onCarry: (carrierId) => selectedToken && useMapStore.getState().carryToken(selectedToken.id, carrierId),
               onRelease: (carriedId) => useMapStore.getState().releaseCarriedToken(carriedId),
             }}
+            // "Visto por": só com a sala aberta, lendo as telas que saíram pelo fio (`HostBridge.tokenSeenBy`).
+            tokenSeenBy={
+              room !== null && hostBridgeRef.current !== null
+                ? { watch: hostBridgeRef.current.watchPlayerScreens, read: hostBridgeRef.current.tokenSeenBy }
+                : undefined
+            }
             tokenTransform={{
               onRotationChange: (rotation) => selectedToken && updateToken(selectedToken.id, { rotation }),
               onLockedChange: (locked) => selectedToken && updateToken(selectedToken.id, { locked }),
               onHiddenChange: (hidden) => selectedToken && updateToken(selectedToken.id, { hidden }),
               onSecretChange: (secret) => selectedToken && useMapStore.getState().setItemSecret('token', selectedToken.id, secret),
+              reveal: selectedToken ? secretRevealFor(selectedToken.id) : null,
             }}
             tokenPlayerCharacter={{
               // Mesmo caminho da cor: `updateToken` passa por `withHistory` (Ctrl+Z
@@ -2519,6 +2644,7 @@ function App() {
               onComodoChange: (comodo) => selectedRegion && useMapStore.getState().setRoomComodo(selectedRegion.id, comodo),
               onTextoAoEntrarChange: (textoAoEntrar) => selectedRegion && useMapStore.getState().setRoomTexts(selectedRegion.id, { textoAoEntrar }),
               onNotaDoMestreChange: (notaDoMestre) => selectedRegion && useMapStore.getState().setRoomTexts(selectedRegion.id, { notaDoMestre }),
+              onDarkChange: (dark) => selectedRegion && useMapStore.getState().setRoomDark(selectedRegion.id, dark),
               onWidthChange: (width) =>
                 selectedRegion && resizeRoomDimensions(selectedRegion.id, width, roomDimensions(selectedRegion.points).height),
               onHeightChange: (height) =>
@@ -2564,6 +2690,8 @@ function App() {
                         onChange: (chosen) => hostBridgeRef.current?.setPinAudience(secretTarget.id, chosen),
                       }
                     : null,
+                // "Revelar para…" só na escada: é o outro item que o recorte sabe revelar a um só.
+                reveal: secretTarget.kind === 'stair' ? secretRevealFor(secretTarget.id) : null,
               }
             }
             areaTrigger={
@@ -2582,6 +2710,7 @@ function App() {
                 revealed: selectedConcealZone.revealed,
                 onRevealedChange: (revealed) => useMapStore.getState().updateConcealZone(selectedConcealZone.id, { revealed }),
                 onDelete: () => useMapStore.getState().removeConcealZone(selectedConcealZone.id),
+                reveal: secretRevealFor(selectedConcealZone.id),
               }
             }
             concealBrush={{
@@ -2621,10 +2750,20 @@ function App() {
                   : null,
               description: selectedPin?.description ?? null,
               onDescriptionChange: (description) => selectedPin && useMapStore.getState().updatePin(selectedPin.id, { description }),
+              // Nome só do mestre: apagar grava AUSENTE (o pino de sempre), nunca `''`.
+              nome: selectedPin?.nome ?? '',
+              onNomeChange: (nome) => selectedPin && useMapStore.getState().updatePin(selectedPin.id, { nome: nome === '' ? undefined : nome }),
               // Veracidade, nunca `=== true`: `locked` é opcional no schema e
               // pino de mapa salvo antes desta fase chega sem o campo.
               locked: !!selectedPin?.locked,
               onLockedChange: (locked) => selectedPin && useMapStore.getState().updatePin(selectedPin.id, { locked }),
+              // Opcionais no schema: ausente = pino de sempre. Desligar grava
+              // AUSENTE (`undefined`), nunca `false`, que o disco não guarda.
+              marco: selectedPin?.marco === true,
+              onMarcoChange: (marco) => selectedPin && useMapStore.getState().updatePin(selectedPin.id, { marco: marco ? true : undefined }),
+              lerDePerto: selectedPin?.lerDePerto ?? null,
+              onLerDePertoChange: (casas) =>
+                selectedPin && useMapStore.getState().updatePin(selectedPin.id, { lerDePerto: casas ?? undefined }),
               image: selectedPin?.image ?? null,
               onChooseImage: () => selectedPin && void handleChoosePinImage(selectedPin.id),
               onClearImage: () => selectedPin && useMapStore.getState().updatePin(selectedPin.id, { image: null }),

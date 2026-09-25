@@ -46,6 +46,10 @@ export interface RoomControlsProps {
   /** `RoomMeta.notaDoMestre` — nunca sai para o jogador. Sem `onNotaDoMestreChange` o campo não aparece. */
   notaDoMestre?: string
   onNotaDoMestreChange?: (text: string) => void
+  /** SALA ESCURA — `RoomMeta.dark`. Toggle direto ("Sala escura", desligado
+   *  por padrão), como o do teto. Ausente omite o toggle. */
+  dark?: boolean
+  onDarkChange?: (dark: boolean) => void
   /** 'polygon' (Sala Circular/Polígono Regular) esconde os campos de
    *  largura/altura — resize numérico só vale pra 'rect' (ver
    *  RoomMeta.shape em types/map.ts e lib/roomOps.ts). O nome continua
@@ -243,6 +247,8 @@ export function RoomControls({
   onTextoAoEntrarChange,
   notaDoMestre,
   onNotaDoMestreChange,
+  dark,
+  onDarkChange,
   shape,
   axisAligned,
   width,
@@ -264,6 +270,7 @@ export function RoomControls({
   const enterHintId = `${baseId}-texto-ao-entrar-hint`
   const noteId = `${baseId}-nota-do-mestre`
   const noteHintId = `${baseId}-nota-do-mestre-hint`
+  const darkHintId = `${baseId}-dark-hint`
   return (
     <section className="lb-section">
       <h2 className="lb-eyebrow">Sala</h2>
@@ -349,6 +356,14 @@ export function RoomControls({
       )}
 
       {hazard !== undefined && <HazardControls {...hazard} />}
+      {dark !== undefined && onDarkChange !== undefined && (
+        <>
+          <Toggle label="Sala escura" checked={dark} onChange={onDarkChange} describedBy={darkHintId} />
+          <p className="lb-field__hint" id={darkHintId}>
+            Aqui dentro o jogador só vê a casa em volta da ficha e o que uma Luz ilumina. Você continua vendo tudo.
+          </p>
+        </>
+      )}
 
       {shape === 'rect' && axisAligned && (
         <>

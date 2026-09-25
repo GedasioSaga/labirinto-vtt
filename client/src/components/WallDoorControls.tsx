@@ -1,5 +1,5 @@
 import { useEffect, useId, useState } from 'react'
-import type { DoorState } from '../types/map'
+import type { DoorSide, DoorState } from '../types/map'
 import { ITEM_NAME_MAX_LENGTH } from '../lib/items'
 import { Toggle } from './Toggle'
 
@@ -19,6 +19,8 @@ export interface WallDoorControlsProps {
    * Chega só ao sair do campo ou no Enter. Sem ele, o campo não aparece.
    */
   onKeyChange?: (nome: string) => void
+  /** Porta de um lado: 'left'/'right' só abre de lá; `null` abre dos dois lados. */
+  onOpensFromChange: (side: DoorSide | null) => void
 }
 
 /**
@@ -73,7 +75,7 @@ export function DoorKeyField({
  * parede); com ela ligada aparece "Revelar passagem", o gesto de mesa de
  * mostrar a passagem — desliga o segredo da porta e da sala do outro lado.
  */
-export function WallDoorControls({ door, onToggleDoor, onToggleOpen, onToggleLocked, onToggleSecret, onRevealPassage, onKeyChange }: WallDoorControlsProps) {
+export function WallDoorControls({ door, onToggleDoor, onToggleOpen, onToggleLocked, onToggleSecret, onRevealPassage, onKeyChange, onOpensFromChange }: WallDoorControlsProps) {
   const secret = door?.secret === true
   const secretHintId = `${useId()}-secreta`
   return (
@@ -95,9 +97,47 @@ export function WallDoorControls({ door, onToggleDoor, onToggleOpen, onToggleLoc
               Revelar passagem
             </button>
           )}
+          <OpensFromField opensFrom={door.opensFrom} onOpensFromChange={onOpensFromChange} />
         </div>
       )}
       {door !== null && door.locked && onKeyChange !== undefined && <DoorKeyField value={door.abreCom ?? ''} onChange={onKeyChange} />}
     </section>
+  )
+}
+
+/** Lado que "Só deste lado" liga primeiro; "Trocar o lado" inverte. */
+const FIRST_SIDE: DoorSide = 'right'
+
+function otherSide(side: DoorSide): DoorSide {
+  return side === 'right' ? 'left' : 'right'
+}
+
+/**
+ * PORTA DE UM LADO: "Abre por" (Os dois lados | Só deste lado). Com um lado só,
+ * a seta no mapa (`pixi/drawDoors.ts`) aponta de onde abre, e "Trocar o lado"
+ * inverte. Mesmo segmento de `DoorKindControls`.
+ */
+function OpensFromField({ opensFrom, onOpensFromChange }: { opensFrom: DoorSide | undefined; onOpensFromChange: (side: DoorSide | null) => void }) {
+  const hintId = `${useId()}-lado`
+  const oneSide = opensFrom !== undefined
+  return (
+    <>
+      <div className="lb-seg" role="radiogroup" aria-label="Abre por" aria-describedby={hintId}>
+        <button type="button" role="radio" aria-checked={!oneSide} className="lb-seg__option" onClick={() => onOpensFromChange(null)}>
+          Os dois lados
+        </button>
+        <button type="button" role="radio" aria-checked={oneSide} className="lb-seg__option" onClick={() => onOpensFromChange(opensFrom ?? FIRST_SIDE)}>
+          Só deste lado
+        </button>
+      </div>
+      <p id={hintId} className="lb-field__hint">
+        {oneSide ? 'A seta no mapa mostra o lado que abre. Do outro, o jogador lê "Não abre deste lado".' : 'Qualquer jogador encostado abre.'}
+      </p>
+      {oneSide && (
+        <button type="button" className="lb-btn lb-btn--block" onClick={() => onOpensFromChange(otherSide(opensFrom))}>
+          Trocar o lado
+        </button>
+      )}
+    </>
   )
 }

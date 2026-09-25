@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { subscribeWithSelector } from 'zustand/middleware'
 import type {
-  MapData, Wall, Light, Region, Token, Prop, Drawing, DoorState, LayerId, GridSettings,
+  MapData, Wall, Light, Region, Token, Prop, Drawing, DoorState, DoorSide, LayerId, GridSettings,
   Stair, StairDirection, StairShape, DoorKind, MapScale, MeasurementMode, DrawingCap, DrawingDash, FreehandTexture,
   FloorPiece, FloorStyle, MapLine, MapMarker, MapFrame, PinIcon, PinKind, RoomMeta, TokenCondition, MovementRules, HazardKind, AreaTriggerKind, SceneFloor,
 } from '../types/map'
@@ -318,6 +318,8 @@ interface MapStoreState {
    *  espelho exato de `setWallKindForWall`. Com histórico. */
   setWallThicknessForWall: (id: string, thickness: Wall['thickness']) => void
   setWallLineStyleForWall: (id: string, lineStyle: Wall['lineStyle']) => void
+  /** Liga/desliga 'Janela' numa parede sem porta (`Wall.janela`). Com histórico. */
+  setWallJanela: (id: string, janela: boolean) => void
   /** Tipo estrutural (`normal | double | gate`) da PRÓXIMA porta a nascer
    *  pela ferramenta "Porta" (`addDoorOnWall`) — preferência de ferramenta,
    *  mesma classe de `wallKind`/`polygonSides`. Não confundir com
@@ -707,6 +709,8 @@ interface MapStoreState {
   setDoorLocked: (wallId: string, locked: boolean) => void
   /** Liga/desliga `DoorState.secret` (porta secreta; ligar fecha). Com histórico. */
   setDoorSecret: (wallId: string, secret: boolean) => void
+  /** Porta de um lado: 'left'/'right' só abre de lá, `null` dos dois (mapFactory.setDoorOpensFrom). Com histórico. */
+  setDoorOpensFrom: (wallId: string, side: DoorSide | null) => void
   /** "Revelar passagem": tira o segredo da porta e o oculto da sala ligada
    *  (mapFactory.revealSecretPassage). Um passo de histórico só. */
   revealSecretPassage: (wallId: string) => void
@@ -743,6 +747,8 @@ interface MapStoreState {
   setRegionTrigger: (regionId: string, kind: AreaTriggerKind | null) => void
   /** GATILHO DE ÁREA — "Mostrar aos jogadores". Com histórico; nada muda = nada grava. */
   setRegionTriggerRevealed: (regionId: string, revealed: boolean) => void
+  /** SALA ESCURA — liga/desliga `RoomMeta.dark` da Sala, com histórico. */
+  setRoomDark: (id: string, dark: boolean) => void
   /** A5 — "Oculto para jogadores" de Token/Região/Objeto/Escada/Desenho. Com histórico. */
   setItemSecret: (kind: mapFactory.SecretKind, id: string, secret: boolean) => void
   /** "Oculto para jogadores" EM LOTE: todos os itens da seleção que aceitam
@@ -759,7 +765,7 @@ interface MapStoreState {
    *  mantido em dia por `stores/adventureStore.ts`, fora deste desfazer. */
   updatePin: (
     id: string,
-    patch: Partial<Pick<MapData['pins'][number], 'kind' | 'icon' | 'description' | 'image' | 'locked' | 'destino' | 'passagem' | 'mudo' | 'rotulo' | 'saidas' | 'item' | 'abreCom' | 'presoA' | 'portaLigada'>>,
+    patch: Partial<Pick<MapData['pins'][number], 'kind' | 'icon' | 'description' | 'nome' | 'image' | 'locked' | 'destino' | 'passagem' | 'mudo' | 'rotulo' | 'saidas' | 'item' | 'abreCom' | 'presoA' | 'portaLigada' | 'marco' | 'lerDePerto'>>,
   ) => void
   /**
    * ALAVANCA: o mestre aciona pelo painel — a porta ligada abre ou fecha, com
@@ -844,6 +850,10 @@ interface MapStoreState {
   setOutdoor: (outdoor: boolean) => void
   /** MAPA POR ANDARES: de que prédio a cena é andar, e o rótulo da aba do jogador. `undefined` = cena comum. Com desfazer. */
   setSceneFloor: (andar: SceneFloor | undefined) => void
+  /** "Visão nesta cena" em quadrados; `undefined` = sem valor. Com histórico. */
+  setSceneVisionCells: (cells: number | undefined) => void
+  /** "Cena escura" (`MapData.dark`). Com histórico. */
+  setSceneDark: (dark: boolean) => void
   setScenarioLink: (value: string | null) => void
   setPropLinkedPath: (id: string, path: string | null) => void
   updateCurvePoint: (drawingId: string, index: number, x: number, y: number) => void
@@ -1724,6 +1734,7 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
     setWallKindForWall: (id, kind) => withHistory((map) => mapFactory.setWallKindForWall(map, id, kind)),
     setWallThicknessForWall: (id, thickness) => withHistory((map) => mapFactory.setWallThicknessForWall(map, id, thickness)),
     setWallLineStyleForWall: (id, lineStyle) => withHistory((map) => mapFactory.setWallLineStyleForWall(map, id, lineStyle)),
+    setWallJanela: (id, janela) => withHistory((map) => mapFactory.setWallJanela(map, id, janela)),
     addDoorOnWall: (wallId, point, kind) => withHistory((map) =>
       mapFactory.addDoorOnWall(map, wallId, point, DOOR_LENGTH_BY_KIND[kind], kind),
     ),
@@ -1735,6 +1746,7 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
     ),
     setDoorLocked: (wallId, locked) => withHistory((map) => mapFactory.setDoorLocked(map, wallId, locked)),
     setDoorSecret: (wallId, secret) => withHistory((map) => mapFactory.setDoorSecret(map, wallId, secret)),
+    setDoorOpensFrom: (wallId, side) => withHistory((map) => mapFactory.setDoorOpensFrom(map, wallId, side)),
     revealSecretPassage: (wallId) => withHistory((map) => mapFactory.revealSecretPassage(map, wallId)),
     turnWallIntoDoor: (wallId) => {
       const { map, doorKind } = get()
@@ -1793,6 +1805,10 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
     setRegionTriggerRevealed: (regionId, revealed) => {
       if (setRegionTriggerRevealedOnMap(get().map, regionId, revealed) === get().map) return
       withHistory((map) => setRegionTriggerRevealedOnMap(map, regionId, revealed))
+    },
+    setRoomDark: (id, dark) => {
+      if (mapFactory.setRoomDark(get().map, id, dark) === get().map) return
+      withHistory((map) => mapFactory.setRoomDark(map, id, dark))
     },
     setItemSecret: (kind, id, secret) => {
       if (mapFactory.setItemSecret(get().map, kind, id, secret) === get().map) return
@@ -1886,6 +1902,11 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
     },
     setOutdoor: (outdoor) => withHistory((map) => setOutdoorOnMap(map, outdoor)),
     setSceneFloor: (andar) => withHistory((map) => mapFactory.setSceneFloor(map, andar)),
+    setSceneVisionCells: (cells) => withHistory((map) => mapFactory.setSceneVisionCells(map, cells)),
+    setSceneDark: (dark) => {
+      if (mapFactory.setSceneDark(get().map, dark) === get().map) return
+      withHistory((map) => mapFactory.setSceneDark(map, dark))
+    },
     setScenarioLink: (value) => withHistory((map) => mapFactory.setScenarioLink(map, value)),
     setPropLinkedPath: (id, path) => withHistory((map) => ({
       ...map,

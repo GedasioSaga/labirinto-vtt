@@ -3,7 +3,7 @@ import type { PinItem, PinKind } from '../types/map'
 import { ITEM_NAME_MAX_LENGTH, cleanItemName } from '../lib/items'
 import type { LeverDoorOption } from '../lib/lever'
 import type { PinAttachOption } from '../lib/pinAttach'
-import { PIN_GLYPH, PIN_KIND_LABELS, PIN_KIND_ORDER } from '../lib/pins'
+import { PIN_GLYPH, PIN_KIND_LABELS, PIN_KIND_ORDER, PIN_LER_DE_PERTO_MAX, PIN_LER_DE_PERTO_MIN, PIN_NOME_MAX_LENGTH, isPinReadDistance } from '../lib/pins'
 import { GatherControls, type GatherControlsProps } from './GatherControls'
 import { PinLeverArt, PinTravelArt } from './PinSymbolArt'
 import { PinTravelControls, type PinTravelControlsProps } from './PinTravelControls'
@@ -15,9 +15,21 @@ export interface PinControlsProps {
   /** `null` = nenhum pino selecionado: só o tipo do próximo aparece. */
   description: string | null
   onDescriptionChange: (description: string) => void
+  /**
+   * "Nome (só mestre)" do pino aberto: o rótulo ao lado dele no editor e na
+   * lista "Pinos". Vazio = sem nome. Ausente `onNomeChange` = sem o campo.
+   */
+  nome?: string
+  onNomeChange?: (nome: string) => void
   /** Pino travado não se move no arrasto — continua clicável para destravar aqui. */
   locked: boolean
   onLockedChange: (locked: boolean) => void
+  /** "Marco: todos veem": o pino chega a todo jogador, mesmo na névoa. */
+  marco: boolean
+  onMarcoChange: (marco: boolean) => void
+  /** "Ler só de perto": casas até onde a ficha precisa chegar; `null` = lê de qualquer lugar. */
+  lerDePerto: number | null
+  onLerDePertoChange: (casas: number | null) => void
   image: string | null
   onChooseImage: () => void
   onClearImage: () => void
@@ -244,8 +256,14 @@ export function PinControls({
   onKindChange,
   description,
   onDescriptionChange,
+  nome = '',
+  onNomeChange,
   locked,
   onLockedChange,
+  marco,
+  onMarcoChange,
+  lerDePerto,
+  onLerDePertoChange,
   image,
   onChooseImage,
   onClearImage,
@@ -290,6 +308,26 @@ export function PinControls({
       {alavanca && description !== null && lever !== null && <PinLeverControls {...lever} />}
       {description !== null && (
         <>
+          {/* Antes da descrição: é o que o MESTRE lê (sete "?" iguais no mapa
+              do crime); a descrição, logo abaixo, é o que o jogador lê. */}
+          {onNomeChange !== undefined && (
+            <div className="lb-field">
+              <label className="lb-label" htmlFor="lb-pin-nome">
+                Nome (só mestre)
+              </label>
+              <input
+                id="lb-pin-nome"
+                className="lb-input"
+                value={nome}
+                maxLength={PIN_NOME_MAX_LENGTH}
+                aria-describedby="lb-pin-nome-hint"
+                onChange={(event) => onNomeChange(event.target.value)}
+              />
+              <span id="lb-pin-nome-hint" className="lb-label">
+                Os jogadores não veem o nome; eles leem a descrição.
+              </span>
+            </div>
+          )}
           <div className="lb-field">
             <label className="lb-label" htmlFor="lb-pin-description">
               Descrição
@@ -309,6 +347,13 @@ export function PinControls({
           <Toggle label="Travado" checked={locked} onChange={onLockedChange} />
           {viagem && attachment !== null && <PinAttachControls {...attachment} />}
           {!viagem && !alavanca && item !== null && <PinItemControls value={item.value} onChange={item.onChange} />}
+          {/* Quem lê o pino, e de onde. */}
+          <PinReachControls
+            marco={marco}
+            onMarcoChange={onMarcoChange}
+            lerDePerto={lerDePerto}
+            onLerDePertoChange={onLerDePertoChange}
+          />
           {/* Ação de MESA, não de edição do pino: fica logo depois do que o
               pino é, antes da imagem e do excluir. */}
           {gather !== null && <GatherControlsFor gather={gather} />}
@@ -338,6 +383,61 @@ export function PinControls({
         </>
       )}
     </section>
+  )
+}
+
+type PinReachControlsProps = Pick<PinControlsProps, 'marco' | 'onMarcoChange' | 'lerDePerto' | 'onLerDePertoChange'>
+
+/**
+ * "Marco: todos veem" e "Ler só de perto: N casas". O campo de casas guarda um
+ * RASCUNHO enquanto o mestre digita: apagar o "2" para escrever "3" passa por
+ * um campo vazio, e o pino não pode perder o "só de perto" nesse meio. Só
+ * número inteiro na faixa chega ao pino; o rascunho some ao sair do campo.
+ */
+function PinReachControls({ marco, onMarcoChange, lerDePerto, onLerDePertoChange }: PinReachControlsProps) {
+  const [rascunho, setRascunho] = useState<string | null>(null)
+  return (
+    <>
+      <Toggle label="Marco: todos veem" checked={marco} onChange={onMarcoChange} describedBy="lb-pin-marco-hint" />
+      <span id="lb-pin-marco-hint" className="lb-label">
+        Aparece para todos os jogadores, mesmo na névoa. O que está em volta continua escondido.
+      </span>
+      <Toggle
+        label="Ler só de perto"
+        checked={lerDePerto !== null}
+        onChange={(checked) => onLerDePertoChange(checked ? PIN_LER_DE_PERTO_MIN : null)}
+        describedBy="lb-pin-perto-hint"
+      />
+      {lerDePerto !== null && (
+        <div className="lb-field">
+          <label className="lb-label" htmlFor="lb-pin-ler-de-perto">
+            Casas
+          </label>
+          <input
+            id="lb-pin-ler-de-perto"
+            className="lb-input"
+            type="number"
+            min={PIN_LER_DE_PERTO_MIN}
+            max={PIN_LER_DE_PERTO_MAX}
+            step={1}
+            value={rascunho ?? String(lerDePerto)}
+            aria-describedby="lb-pin-perto-hint"
+            onChange={(event) => {
+              const texto = event.target.value
+              setRascunho(texto)
+              const casas = Number(texto)
+              if (texto.trim() !== '' && isPinReadDistance(casas)) onLerDePertoChange(casas)
+            }}
+            onBlur={() => setRascunho(null)}
+          />
+        </div>
+      )}
+      <span id="lb-pin-perto-hint" className="lb-label">
+        {lerDePerto === null
+          ? 'Longe, o jogador vê o pino e lê "Chegue mais perto para ler".'
+          : `Só quem estiver a ${lerDePerto} ${lerDePerto === 1 ? 'casa' : 'casas'} e enxergando o pino lê o texto e vê a imagem.`}
+      </span>
+    </>
   )
 }
 

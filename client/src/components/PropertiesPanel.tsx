@@ -16,6 +16,7 @@ import type { ScenarioLinkControlsProps } from './ScenarioLinkControls'
 import type { MovementControlsProps } from './MovementControls'
 import type { ArrivalTextControlsProps } from './ArrivalTextControls'
 import type { SceneFloorControlsProps } from './SceneFloorControls'
+import type { SceneVisionControlsProps } from './SceneVisionControls'
 import { TextLabelControls, type TextLabelControlsProps } from './TextLabelControls'
 import { RegionJoinField, RegionSmoothButton, RegionStyleControls, type RegionStyleControlsProps } from './RegionStyleControls'
 import { AdvancedField, AdvancedSection } from './AdvancedSection'
@@ -43,6 +44,7 @@ import { readTokenPatrol } from '../lib/npcPatrol'
 import { TokenCarryControls, type TokenCarryControlsProps } from './TokenCarryControls'
 import { LightControls, type LightControlsProps } from './LightControls'
 import { TokenLightsControls, type TokenLightsControlsProps } from './TokenLightsControls'
+import { TokenSeenBy, type TokenSeenByProps } from './TokenSeenBy'
 import { WallLineStyleField, WallStyleControls, type WallStyleControlsProps } from './WallStyleControls'
 import { StairControls, type StairControlsProps } from './StairControls'
 import { RoomControls, type RoomControlsProps } from './RoomControls'
@@ -111,6 +113,8 @@ interface PropertiesPanelProps {
   pathStyle: PathStyleControlsProps
   grid: GridControlsProps
   mapScale: MapScaleControlsProps
+  /** "Visão nesta cena", na janela Configurações do mapa. */
+  sceneVision: SceneVisionControlsProps
   gridAlign: GridAlignControlsProps
   layers: LayersPanelProps
   selection: SelectionControlsProps
@@ -162,6 +166,8 @@ interface PropertiesPanelProps {
   tokenPatrol: Omit<TokenPatrolControlsProps, 'patrol'>
   /** LEVAR FICHA JUNTO: quem leva a ficha selecionada, quem ela leva, a quem pode ser presa, e as ações. */
   tokenCarry: Omit<TokenCarryControlsProps, 'tokenId'>
+  /** "Visto por" da ficha sem dono (`HostBridge.tokenSeenBy`). Ausente = sala fechada. */
+  tokenSeenBy?: Omit<TokenSeenByProps, 'tokenId'>
   /** F3, contrato do agente C4 — rotação/travar/ocultar do Token selecionado. */
   tokenTransform: Omit<ItemTransformControlsProps, 'title' | 'rotation' | 'locked' | 'hidden' | 'secret'>
   /** "Ficha de jogador" do Token selecionado: entra na lista de quem chega sem personagem. */
@@ -177,7 +183,7 @@ interface PropertiesPanelProps {
   regionStyle: RegionStyleControlsProps
   room: Omit<
     RoomControlsProps,
-    'name' | 'shape' | 'axisAligned' | 'width' | 'height' | 'rotation' | 'locked' | 'nameHiddenFromPlayers' | 'roof' | 'comodo' | 'textoAoEntrar' | 'notaDoMestre'
+    'name' | 'shape' | 'axisAligned' | 'width' | 'height' | 'rotation' | 'locked' | 'nameHiddenFromPlayers' | 'roof' | 'comodo' | 'textoAoEntrar' | 'notaDoMestre' | 'dark'
   >
   selectedLight: Light | null
   lightControls: Omit<LightControlsProps, 'color' | 'intensity' | 'attachedTokenId'>
@@ -230,6 +236,7 @@ export function PropertiesPanel({
   pathStyle,
   grid,
   mapScale,
+  sceneVision,
   gridAlign,
   layers,
   selection,
@@ -259,6 +266,7 @@ export function PropertiesPanel({
   tokenWatch,
   tokenPatrol,
   tokenCarry,
+  tokenSeenBy,
   tokenTransform,
   tokenPlayerCharacter,
   selectedTextLabel,
@@ -318,6 +326,7 @@ export function PropertiesPanel({
           grid={grid}
           gridAlign={gridAlign}
           mapScale={mapScale}
+          sceneVision={sceneVision}
           scenarioLink={scenarioLink}
           movement={movement}
           mapSize={{ width: mapWidth, height: mapHeight, onApply: onMapSizeApply }}
@@ -358,6 +367,7 @@ export function PropertiesPanel({
               comodo={selectedRegion.room.comodo === true}
               textoAoEntrar={selectedRegion.room.textoAoEntrar ?? ''}
               notaDoMestre={selectedRegion.room.notaDoMestre ?? ''}
+              dark={selectedRegion.room.dark === true}
               {...room}
             />
           </ToolPropertiesSection>
@@ -507,6 +517,8 @@ export function PropertiesPanel({
         )}
         {selectedToken && (
           <ToolPropertiesSection group="tokenImage" groups={groups}>
+            {/* Primeiro: é a pergunta que o mestre faz em voz alta no meio da cena. */}
+            {tokenSeenBy && <TokenSeenBy tokenId={selectedToken.id} {...tokenSeenBy} />}
             <TokenNameControls key={selectedToken.id} name={selectedToken.name} publicName={selectedToken.publicName} {...tokenName} />
             {/* Vida logo abaixo do nome: é o campo que o mestre mexe a cada
                 golpe no meio da luta, e não pode morar embaixo da dobra.

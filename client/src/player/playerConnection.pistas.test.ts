@@ -5,6 +5,9 @@
  * A pista que um colega mostra (`clue.shown`) entra também e abre o cartão
  * "Gabi mostrou: Bilhete". Tudo que chega passa pelo parser: foto que não é
  * `data:image/` e campo desconhecido não entram.
+ *
+ * LEITURA DA PISTA no cliente do jogador: `markPinRead` manda `pin.read` só
+ * com o id, só jogando e só para pino que está no mapa dele.
  */
 import { describe, expect, it } from 'vitest'
 import { createEmptyMap } from '../lib/mapFactory'
@@ -179,5 +182,46 @@ describe('playerConnection: Minhas pistas', () => {
     const { connection, socket } = jogando()
     socket.receive({ type: 'clue.added', clue: { ...BILHETE, image: 'file:///C:/mestre/mapa.png' } })
     expect(connection.getState().clues).toBeUndefined()
+  })
+})
+
+function conectado() {
+  const sockets: FakeSocket[] = []
+  const connection = createPlayerConnection({
+    url: 'ws://host/ws',
+    code: 'CR1ME7',
+    name: 'Gabi',
+    storage: null,
+    createSocket: () => {
+      const socket = new FakeSocket()
+      sockets.push(socket)
+      return socket
+    },
+  })
+  const socket = sockets[0]
+  if (!socket) throw new Error('socket não criado')
+  socket.open()
+  socket.receive({ type: 'welcome', playerId: 'p1', resumeToken: 'tok', name: 'Gabi' })
+  return { connection, socket }
+}
+
+const MAPA = { ...createEmptyMap('m1', '', 10, 10, 50), pins: [{ id: 'bilhete', x: 100, y: 100, kind: 'interrogacao', description: 'Bilhete', image: null }] }
+
+describe('markPinRead', () => {
+  it('jogando: manda pin.read com o id do pino', () => {
+    const { connection, socket } = conectado()
+    socket.receive({ type: 'snapshot', rev: 1, map: MAPA, vision: [], ownTokens: [], concealed: [] })
+    expect(connection.getState().status).toBe('playing')
+    expect(connection.markPinRead('bilhete')).toBe(true)
+    expect(socket.sent.at(-1)).toEqual({ type: 'pin.read', pinId: 'bilhete' })
+  })
+
+  it('pino que não está no mapa dele, ou fora do jogo: não manda nada', () => {
+    const { connection, socket } = conectado()
+    expect(connection.markPinRead('bilhete')).toBe(false)
+    socket.receive({ type: 'snapshot', rev: 1, map: MAPA, vision: [], ownTokens: [], concealed: [] })
+    const enviadas = socket.sent.length
+    expect(connection.markPinRead('inventado')).toBe(false)
+    expect(socket.sent.length).toBe(enviadas)
   })
 })

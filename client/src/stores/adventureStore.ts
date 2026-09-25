@@ -61,6 +61,7 @@ import {
 import { cloneSceneMap } from '../lib/entityClone'
 import { mapDirFor, saveAdventureToDisk, scenePath, type OpenedMapFile } from '../lib/mapFileIO'
 import { storedTokensOfScene, withStoredTokens, type StoredToken } from '../lib/storedTokens'
+import type { PinDirectoryScene } from '../lib/pinDirectory'
 import { dirname } from '@tauri-apps/api/path'
 import { removeSelectionItem, selectionHas, type SelectionItem } from '../lib/selectionModel'
 import { useMapStore } from './mapStore'
@@ -138,6 +139,8 @@ export interface SceneListItem {
   parentId?: string
   /** NOME PARA OS JOGADORES; ausente = a cena não tem (ou é o mapa solto). */
   publicName?: string
+  /** `true` = "Planta conhecida por todos" ligada nesta cena. Ausente = desligada (e mapa solto). */
+  planKnownByAll?: boolean
 }
 
 /** `{ publicName }` só quando a cena tem um: o objeto não carrega `publicName: undefined`. */
@@ -220,6 +223,8 @@ interface AdventureState {
    * existe) ou quando ela já estava lá.
    */
   moveScene: (sceneId: string, parentId: string | null) => boolean
+  /** Liga/desliga "Planta conhecida por todos" na cena. Grava com a aventura, como o nome. */
+  setScenePlanKnown: (sceneId: string, known: boolean) => void
   /**
    * Troca a cena aberta. `false` quando não há o que trocar (mesma cena, cena
    * indisponível). `focus` centraliza a câmera nesse ponto da cena que entra.
@@ -232,6 +237,12 @@ interface AdventureState {
    * na cena aberta) é a caixa do objeto procurado: afasta se ela não couber.
    */
   goToPoint: (sceneId: string | null, point: Point, fit?: Bounds) => boolean
+  /**
+   * LISTA "PINOS": abre a cena `sceneId` (`null` = mapa solto) com a câmera no
+   * pino `pinId` e ele selecionado no painel. `false` quando o pino não existe
+   * mais ali ou a cena não abre — aí nada muda.
+   */
+  goToPin: (sceneId: string | null, pinId: string) => boolean
   /** Muda uma cena de FUNDO sem passar pelo desfazer da cena aberta. */
   updateBackgroundScene: (sceneId: string, updater: (map: MapData) => MapData) => void
   /**
@@ -336,11 +347,11 @@ export function sceneList(state: Pick<AdventureState, 'adventure' | 'activeScene
   if (state.adventure === null) {
     return [{ id: '', name: liveMap.name, tokenCount: liveMap.tokens.length, available: true, active: true, renamable: false }]
   }
-  return state.adventure.scenes.map((entry) => {
+  return state.adventure.scenes.map((entry): SceneListItem => {
     const active = entry.id === state.activeSceneId
     const slot = state.cache[entry.id]
     // `parentId` só na cena de dentro: a do primeiro nível fica como sempre foi.
-    const base = { id: entry.id, name: entry.name, active, renamable: true, ...(entry.parentId === undefined ? {} : { parentId: entry.parentId }), ...publicNameOf(entry) }
+    const base = { id: entry.id, name: entry.name, active, renamable: true, ...(entry.parentId === undefined ? {} : { parentId: entry.parentId }), ...publicNameOf(entry), ...(entry.planKnownByAll === true ? { planKnownByAll: true } : {}) }
     if (active) return { ...base, tokenCount: liveMap.tokens.length, available: true }
     if (slot === undefined || slot.status !== 'ok') return { ...base, tokenCount: null, available: false }
     return { ...base, tokenCount: slot.map.tokens.length, available: true }
@@ -417,6 +428,20 @@ export function sceneDeletionInfo(state: SceneState, liveMap: MapData, sceneId: 
 
 /** Sufixo do nome da cena duplicada, o mesmo da cópia de mapa e de sala. */
 const SCENE_COPY_SUFFIX = ' (cópia)'
+
+/**
+ * Os pinos de cada cena para a lista "Pinos" (`lib/pinDirectory.ts`): a aberta
+ * pelo mapa vivo, as de fundo pelo cache, na ordem da aventura. Cena que não
+ * abriu fica de fora (não há pino para ir). Sem aventura, o mapa solto sozinho.
+ */
+export function pinScenesOf(state: SceneState, liveMap: MapData): PinDirectoryScene[] {
+  if (state.adventure === null) return [{ sceneId: null, sceneName: liveMap.name, pins: liveMap.pins }]
+  return state.adventure.scenes.flatMap((entry): PinDirectoryScene[] => {
+    if (entry.id === state.activeSceneId) return [{ sceneId: entry.id, sceneName: entry.name, pins: liveMap.pins }]
+    const slot = state.cache[entry.id]
+    return slot !== undefined && slot.status === 'ok' ? [{ sceneId: entry.id, sceneName: entry.name, pins: slot.map.pins }] : []
+  })
+}
 
 /**
  * As cenas da aventura como a ligação dos pinos de viagem as enxerga: a
@@ -540,13 +565,16 @@ export function hostWorldOf(state: SceneState, liveMap: MapData): HostWorld {
   if (state.adventure === null || state.activeSceneId === null) return singleSceneWorld(liveMap)
   const background: HostScene[] = []
   let open: HostScene = { sceneId: state.activeSceneId, name: liveMap.name, map: liveMap }
+  // A flag só entra quando ligada: cena de sempre continua o mesmo objeto de antes.
+  const planOf = (on: boolean): { planKnownByAll?: boolean } => (on ? { planKnownByAll: true } : {})
   for (const entry of state.adventure.scenes) {
+    const planKnownByAll = entry.planKnownByAll === true
     if (entry.id === state.activeSceneId) {
-      open = { sceneId: entry.id, name: entry.name, ...publicNameOf(entry), map: liveMap }
+      open = { sceneId: entry.id, name: entry.name, ...publicNameOf(entry), map: liveMap, ...planOf(planKnownByAll) }
       continue
     }
     const slot = state.cache[entry.id]
-    if (slot !== undefined && slot.status === 'ok') background.push({ sceneId: entry.id, name: entry.name, ...publicNameOf(entry), map: slot.map })
+    if (slot !== undefined && slot.status === 'ok') background.push({ sceneId: entry.id, name: entry.name, ...publicNameOf(entry), map: slot.map, ...planOf(planKnownByAll) })
   }
   return { open, background }
 }
@@ -868,6 +896,23 @@ export const useAdventureStore = create<AdventureState>()((set, get) => ({
     })
   },
 
+  setScenePlanKnown: (sceneId, known) => {
+    const { adventure } = get()
+    if (adventure === null || !adventure.scenes.some((entry) => entry.id === sceneId)) return
+    set({
+      adventure: {
+        ...adventure,
+        scenes: adventure.scenes.map((entry): SceneEntry => {
+          if (entry.id !== sceneId) return entry
+          // Desligada, a entrada volta sem o campo: o arquivo fica igual ao de antes.
+          const plain = { id: entry.id, name: entry.name, file: entry.file }
+          return known ? { ...plain, planKnownByAll: true } : plain
+        }),
+      },
+      structureDirty: true,
+    })
+  },
+
   switchScene: (sceneId, focus) => {
     const { activeSceneId, cache, dirty } = get()
     if (activeSceneId === null || sceneId === activeSceneId) return false
@@ -903,6 +948,16 @@ export const useAdventureStore = create<AdventureState>()((set, get) => ({
       return true
     }
     return get().switchScene(sceneId, point)
+  },
+
+  goToPin: (sceneId, pinId) => {
+    const scene = pinScenesOf(get(), useMapStore.getState().map).find((s) => s.sceneId === sceneId)
+    const pin = scene?.pins.find((p) => p.id === pinId)
+    if (pin === undefined) return false
+    if (!get().goToPoint(sceneId, pinFocusPoint(pin))) return false
+    // Depois da troca: carregar a cena nova no editor não pode apagar a seleção.
+    useMapStore.getState().setSelectedPin(pinId)
+    return true
   },
 
   updateBackgroundScene: (sceneId, updater) => {

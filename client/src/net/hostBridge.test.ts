@@ -608,6 +608,35 @@ describe('hostBridge', () => {
       t.bridge.hidePlan('p1')
       t.bridge.setVisionRadius('p1', 300)
       expect(t.sent()).toEqual([])
+      expect(t.bridge.revealPlanFor('s-b', ['p1'])).toBeNull()
+      expect(t.bridge.giveGroupView('p1')).toBeNull()
+      expect(t.sent()).toEqual([])
+    })
+
+    it('Revelar planta para… cena de fundo: devolve quantos e manda snapshot; cena que não existe não manda nada', async () => {
+      vi.useFakeTimers()
+      const cripta = { ...sampleMap(), id: 'm-cripta', tokens: [] }
+      const t = setup({ getWorld: () => ({ open: { sceneId: 's-a', name: 'Salão', map: sampleMap() }, background: [{ sceneId: 's-b', name: 'Cripta', map: cripta }] }) })
+      await t.bridge.start()
+      t.emit('net:message', { clientId: 'c1', msg: { type: 'join', code: ROOM.code, name: 'Ana' } })
+      const playerId = joinedPlayerId(t.sent())
+      t.bridge.assignToken(playerId, 'heroi')
+      const before = t.sent().length
+      expect(t.bridge.revealPlanFor('s-nao-existe', [playerId])).toBe(0)
+      expect(snapshotsFrom(t.sent().slice(before))).toHaveLength(0)
+      expect(t.bridge.revealPlanFor('s-b', [playerId])).toBe(1)
+      const snaps = snapshotsFrom(t.sent().slice(before))
+      expect(snaps).toHaveLength(1)
+      // Ana está no Salão: o snapshot é o do Salão, nada da Cripta vai junto.
+      expect(JSON.stringify(snaps)).not.toContain('m-cripta')
+      expect(JSON.stringify(snaps)).not.toContain('Cripta')
+    })
+
+    it('Dar o que o grupo viu sem colega na cena: 0 e nenhum snapshot', async () => {
+      const t = await controlsSetup()
+      const before = t.sent().length
+      expect(t.bridge.giveGroupView(t.playerId)).toBe(0)
+      expect(snapshotsFrom(t.sent().slice(before))).toHaveLength(0)
     })
   })
 

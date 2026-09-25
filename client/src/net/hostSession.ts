@@ -1,17 +1,18 @@
 import type { AreaTriggerKind, DoorState, HazardKind, MapData, Pin, PinPassage, RegionPoint, Token, Wall } from '../types/map'
 import { hazardPresence, newHazardEntries, type HazardEntry } from '../lib/hazards'
 import { areaTriggerPresence, newAreaTriggerEntries, regionAreaName, type AreaTriggerPresence } from '../lib/areaTriggers'
-import { createExploration, decodeExploration, encodeExploration, forgetBlocked, forgetInside, isPointExplored, markAll, markRings, mergeExploration, resizeExploration, type Exploration } from '../lib/exploration'
+import { createExploration, decodeExploration, encodeExploration, forgetBlocked, forgetInside, isPointExplored, markAll, markRings, mergeExploration, mergeExplored, resizeExploration, type Exploration } from '../lib/exploration'
 import { pointInRing } from '../lib/floorContour'
-import { alarmForPlayer, allPlayerTokens, claimableTokensForPlayer, clockForPlayer, diceRollForPlayer, filterFloorMemory, filterMapForGroup, filterMapForPlayer, memoryBlockedRings, pinClueForPlayer, playerBlockedRings, roomClueForPlayer, sceneNameForPlayer, turnForPlayer, type GroupViewer, type PlayerClueContent, type PlayerMapView, type SceneAlarm } from '../lib/fogFilter'
+import { alarmForPlayer, allPlayerTokens, claimableTokensForPlayer, clockForPlayer, diceRollForPlayer, filterFloorMemory, filterMapForGroup, filterMapForPlayer, memoryBlockedRings, noiseCueForPlayer, pinClueForPlayer, playerBlockedRings, roomClueForPlayer, sceneNameForPlayer, turnForPlayer, type GroupViewer, type PlayerClueContent, type PlayerMapView, type SceneAlarm } from '../lib/fogFilter'
 import { MASTER_ROLLER_NAME, rollDice, secureRollDie, type DiceRequest, type HostDiceRoll, type RollDie } from '../lib/dice'
 import { CLUEBOOK_MAX_CLUES } from '../lib/clues'
 import { visionRadiusAtHour } from '../lib/campaignClock'
 import { sameBuilding, sortFloorLabels } from '../lib/buildingFloors'
 import { turnTokenIdOn, type TurnRef } from '../lib/initiative'
+import { clampNoiseRangeCells } from '../lib/noise'
 import { validateTokenMove } from '../lib/moveValidation'
 import { tokensOccupy } from '../lib/movementRules'
-import { tokenReachesDoor } from '../lib/doorReach'
+import { doorOpensFrom, tokenReachesDoor } from '../lib/doorReach'
 import { keyForDoor, keyForPin } from '../lib/doorKey'
 import { DESTINATION_MIN_INTERVAL_MS, SIGNAL_MIN_INTERVAL_MS, signalColor, type DestinationMark } from '../lib/signals'
 import { acceptsLockedRequest, passageOf, pinSummary } from '../lib/pins'
@@ -33,6 +34,7 @@ import {
 import { linkedDoorOf } from '../lib/lever'
 import { carriedBy, carrierIdOf } from '../lib/carry'
 import { companionArrivals, type CarriedArrival } from '../lib/carryArrival'
+import { VISION_FACTOR_DEFAULT, clampVisionFactor, playerVisionRadius, readSceneVisionCells } from '../lib/sceneVision'
 import {
   parsePlayerMessage,
   type ClueEntry,
@@ -40,6 +42,7 @@ import {
   type ClueShowMessage,
   type CallRaiseMessage,
   type CallReason,
+  type DoorPeekMessage,
   type DoorRequestHow,
   type DoorRequestMessage,
   type DoorRequestRejection,
@@ -57,6 +60,7 @@ import {
   type LaserMessage,
   type PinLeverMessage,
   type PinLeverRejection,
+  type PinReadMessage,
   type PinTakeMessage,
   type PinTakeRejection,
   type PartyMember,
@@ -68,6 +72,7 @@ import {
   type SeatClaimMessage,
   type SeatClaimState,
   type SeatOption,
+  type SecretCheckAnswerMessage,
   type SignalMessage,
   type TokenEditMessage,
   type TokenMoveMessage,
@@ -76,6 +81,7 @@ import {
   clampAlarmText,
   clampNoteText,
   clampSeatOptionName,
+  clampSecretCheckLabel,
   clampTravelDenyText,
   NOTEBOOK_MAX_NOTES,
   REQ_ID_MAX_LENGTH,
@@ -115,6 +121,12 @@ export interface HostScene {
   name: string
   publicName?: string
   map: MapData
+  /**
+   * "Planta conhecida por todos": quem está nesta cena recebe a planta inteira
+   * como explorada (fora de zona oculta, sala secreta e teto), igual ao
+   * "Revelar planta". Ausente = não. Fica no mestre: nunca vai ao jogador.
+   */
+  planKnownByAll?: boolean
 }
 
 /**
@@ -471,12 +483,33 @@ export interface PointActionRequest {
   background: boolean
 }
 
+/**
+ * "Espiar" aceito: quem espiou e por qual porta. É o aviso do mestre; a porta
+ * NÃO muda. O cone vale `PEEK_DURATION_MS` e o integrador manda o snapshot na
+ * hora e de novo quando o prazo acaba (é aí que o cone fecha na tela).
+ */
+export interface HostPeek {
+  playerId: string
+  playerName: string
+  wallId: string
+}
+
+/** Quanto dura o olhar pela porta espiada, em ms. */
+export const PEEK_DURATION_MS = 5_000
+
+/** O aviso do mestre, em uma linha. */
+export function peekNoticeText(peek: HostPeek): string {
+  return `${peek.playerName} espiou`
+}
+
 export interface HostResult {
   outbound: Outbound[]
   /** Chamado NOVO na fila: o integrador mostra a linha e toca o bipe. Repetição do mesmo chamado não vem. */
   call?: MasterCall
   applyMove?: AppliedMove
   applyDoor?: AppliedDoor
+  /** Espiar aceito: o integrador avisa o mestre e reenvia o snapshot agora e no fim do prazo. */
+  peek?: HostPeek
   applyTokenEdit?: AppliedTokenEdit
   signal?: HostSignal
   playerLaser?: HostPlayerLaser
@@ -501,6 +534,10 @@ export interface HostResult {
    * integrador move o token entre as cenas ANTES de despachar `outbound`.
    */
   applyTransfer?: AppliedTransfer
+  /** `secretCheck` criou o teste: é o id dele (o mesmo que foi aos jogadores). */
+  secretCheckId?: string
+  /** Um jogador respondeu ao teste secreto: o integrador mostra ao MESTRE. Nada disto vai a jogador. */
+  secretCheckAnswer?: SecretCheckAnswer
   /** "Passar para pede": o integrador muda o modo do pino trancado por onde o jogador passou. */
   applyPinPassage?: AppliedPinPassage
   /**
@@ -594,9 +631,38 @@ export interface HazardEntryNotice {
   sceneName?: string
 }
 
+/**
+ * Um TESTE SECRETO como o mestre o vê: o nome, quem foi pedido (ids, na
+ * ordem da sala) e o que cada um respondeu. `open` = o mestre ainda não
+ * encerrou. Nada disto sai inteiro para jogador: cada escolhido recebe só o
+ * id e o nome.
+ */
+export interface SecretCheckState {
+  id: string
+  label: string
+  asked: string[]
+  answers: Record<string, number>
+  open: boolean
+}
+
+/** A resposta que acabou de chegar, para o aviso do mestre. */
+export interface SecretCheckAnswer {
+  checkId: string
+  playerId: string
+  playerName: string
+  label: string
+  result: number
+}
+
 /** Por playerId, fichas fora do mapa que continuam sendo dele (o "Guardar ficha" da ponte). */
 export type HeldTokens = ReadonlyMap<string, readonly string[]>
 export type { HostDiceRoll }
+
+/**
+ * Quantos testes secretos o mestre guarda na lista. Passou, sai o encerrado ou
+ * já respondido por todos mais antigo; sem nenhum, o mais antigo, encerrado.
+ */
+export const MAX_SECRET_CHECKS = 20
 
 export interface PlayerInfo {
   clientId: string | null
@@ -605,8 +671,18 @@ export interface PlayerInfo {
   status: PlayerStatus
   connected: boolean
   tokenIds: string[]
-  /** Raio efetivo: o do mestre para este jogador ou, sem ajuste, o global. */
+  /**
+   * Raio em px para cena SEM "Visão nesta cena": o do mestre para este jogador
+   * ou, sem ajuste, o global. O corte de verdade ainda multiplica pelo fator.
+   */
   visionRadius: number
+  /** "Fator de visão" deste jogador, em toda cena (x1,0 de fábrica). */
+  visionFactor: number
+  /**
+   * "Visão nesta cena" da cena onde ele está, em quadrados. Ausente = a cena
+   * não tem valor (ou ele não está em cena): vale o `visionRadius`.
+   */
+  sceneVisionCells?: number
   /** Cena em que o jogador está, para o painel do mestre. Só com aventura aberta e jogador jogando. */
   sceneName?: string
   /** Id da mesma cena de `sceneName`: é por ele que o "Ir lá" do painel Grupo abre a cena. */
@@ -657,6 +733,16 @@ export function ownTokenIdsOf(player: Pick<PlayerInfo, 'tokenIds' | 'borrowedTok
 
 /** O que foi feito do recado para um jogador: saiu agora, ficou guardado para a volta dele, ou nada (`null`). */
 export type PlayerNoteDelivery = 'sent' | 'queued' | null
+
+/**
+ * Uma linha do painel PISTAS do mestre: quem RECEBEU o pino (ele saiu, com o
+ * texto, no pacote do jogador) e quem o LEU (abriu o cartão, `pin.read`). Ids
+ * de jogador, na ordem da sala. `read` está sempre contido em `received`.
+ */
+export interface PinClueState {
+  received: string[]
+  read: string[]
+}
 
 /** Faixa do "Raio de visão" por jogador, em px de mundo. */
 export const VISION_RADIUS_MIN = 50
@@ -880,6 +966,27 @@ export interface HostSession {
    */
   masterRoll(request: DiceRequest, hidden: boolean): HostResult
   /**
+   * RUÍDO NO MAPA: o mestre fez um ruído em (`x`, `y`) da cena ABERTA no
+   * editor (é o mapa em que ele clicou). Quem joga nessa cena e tem ficha a
+   * até `rangeCells` casas (preso na faixa de `lib/noise.ts`) recebe `noise`
+   * só com a DIREÇÃO, pelo recorte de `noiseCueForPlayer`. Nada fica guardado:
+   * quem entra depois não ouve. `outbound.length` é quantos ouviram.
+   */
+  noise(x: number, y: number, rangeCells: number, source: HostMapSource): HostResult
+  /**
+   * TESTE SECRETO: `secret.check` (só id e nome do teste, aparado e cortado
+   * no teto) para os escolhidos que estão na sala e jogando, estejam em que
+   * cena estiverem. Quem não foi escolhido não recebe nada. Escolhido que
+   * caiu recebe o pedido ao voltar, enquanto não responder e o mestre não
+   * encerrar. Nome vazio ou ninguém válido: nada, e nenhum teste é criado.
+   * `secretCheckId` no resultado é o id do teste criado.
+   */
+  secretCheck(label: string, playerIds: readonly string[]): HostResult
+  /** Encerra o teste: `secret.check.closed` a quem foi pedido, está conectado e não respondeu. Resposta depois disso não conta. */
+  closeSecretCheck(checkId: string): HostResult
+  /** Os testes secretos, do mais antigo ao mais novo, para o painel do MESTRE. */
+  secretChecks(): SecretCheckState[]
+  /**
    * "Deixar ir": revalida o pedido contra o mundo de AGORA (o token pode ter
    * andado, o pino sumido) e devolve `applyTransfer` + `scene.changed` ao
    * dono. Pedido que já não existe (jogador saiu, já decidido) não faz nada.
@@ -1025,6 +1132,12 @@ export interface HostSession {
    */
   setVisionRadius(playerId: string, radius: number | null): void
   /**
+   * "Fator de visão" deste jogador (limitado à faixa de `lib/sceneVision.ts`),
+   * que multiplica o alcance de toda cena; `null` volta a x1,0. Não envia: o
+   * integrador faz o broadcast. Jogador desconhecido ou fator não finito é ignorado.
+   */
+  setVisionFactor(playerId: string, factor: number | null): void
+  /**
    * "Quem vê" do pino `pinId`: só estes jogadores o recebem (`lib/fogFilter.ts`).
    * `null` = Todos (apaga a lista). Id que não é de jogador da sala é ignorado;
    * lista vazia vale ("Só estes" sem ninguém: ninguém recebe). Não envia: o
@@ -1035,8 +1148,42 @@ export interface HostSession {
   pinAudience(pinId: string): string[] | null
   /** Todas as listas, por pino, para o painel do mestre. Pino de "Todos" não aparece. */
   pinAudiences(): Record<string, string[]>
+  /**
+   * PAINEL PISTAS: por pino, quem recebeu e quem leu. Recebeu é para sempre
+   * nesta sessão — esconder o pino depois não desfaz o que o jogador já leu
+   * na tela; só o kick apaga. Pino que ninguém recebeu não aparece.
+   */
+  pinClues(): Record<string, PinClueState>
+  /**
+   * "Revelar para…" da ficha secreta, da escada secreta ou da zona oculta
+   * `itemId`: só estes jogadores a recebem (`lib/fogFilter.ts`; a ficha ainda
+   * exige visão). `null` ou lista vazia = segredo de todos de novo. Id que não é
+   * de jogador da sala é ignorado. Não envia: o integrador faz o broadcast. A
+   * lista vive só nesta sessão.
+   */
+  setSecretReveal(itemId: string, playerIds: readonly string[] | null): void
+  /** A lista de `setSecretReveal`, na ordem de entrada na sala; `[]` = ninguém. */
+  secretReveal(itemId: string): string[]
+  /** Todas as listas, por item, para o painel do mestre. Item sem ninguém não aparece. */
+  secretReveals(): Record<string, string[]>
   /** Marca a planta inteira da cena onde o jogador está como explorada, fora de zona oculta ativa. Tokens seguem exigindo visão. */
   revealPlan(playerId: string, source: HostMapSource): void
+  /**
+   * "Revelar planta para…": a planta da cena `sceneId` fica revelada para estes
+   * jogadores, estejam onde estiverem — quem está em outra cena não recebe nada
+   * agora; a planta aparece quando ele chega lá. Id que não é de jogador da
+   * sala é ignorado. Devolve quantos jogadores ganharam a planta (0 = cena que
+   * não existe ou ninguém válido). Não envia: o integrador faz o broadcast.
+   */
+  revealPlanFor(sceneId: string, playerIds: readonly string[], source: HostMapSource): number
+  /**
+   * "Dar o que o grupo viu": soma à memória do jogador, na cena ONDE ELE ESTÁ,
+   * o que cada colega VIU lá (a visão deles, não a planta que o mestre revelou
+   * a algum deles), fora do que zona oculta, sala secreta e teto escondem
+   * agora. Devolve quantos colegas tinham memória da cena (0 = nada a dar).
+   * Não envia: o integrador faz o broadcast.
+   */
+  giveGroupView(playerId: string, source: HostMapSource): number
   /**
    * Zera exploração e portas lembradas do jogador; a visão atual volta a
    * marcar no próximo broadcast. Com `source`, só da cena onde ele está; sem,
@@ -1120,6 +1267,19 @@ interface OpenCall {
   seq: number
 }
 
+/** Um teste secreto no host: quem foi pedido, o que cada um respondeu e se ainda aceita resposta. */
+interface SecretCheckRecord {
+  label: string
+  asked: Set<string>
+  answers: Map<string, number>
+  open: boolean
+}
+
+/** Não espera mais ninguém: encerrado, ou todo pedido já respondeu. Apagar não deixa cartão órfão. */
+function isSecretCheckSettled(check: SecretCheckRecord): boolean {
+  return !check.open || [...check.asked].every((playerId) => check.answers.has(playerId))
+}
+
 /** Pedido de passagem à espera do mestre. Um por jogador. */
 interface PendingTravel {
   requestId: string
@@ -1171,6 +1331,14 @@ interface PlayerMemory {
    */
   dims: MemoryDims
   exp: Exploration
+  /**
+   * Só o que a VISÃO dele marcou (sem "Revelar planta" nem planta conhecida).
+   * É o que "Dar o que o grupo viu" repassa: a planta que o mestre revelou a
+   * um jogador não pode vazar para o colega por esse caminho.
+   */
+  seen: Exploration
+  /** A planta revelada (da cena ou por "Revelar planta para…") já foi marcada nesta memória. */
+  planMarked: boolean
   doors: Map<string, DoorState>
   /** Por id da parede: quando (`doorSeenSeq`) a porta foi vista por último. Só a tela da mesa usa. */
   doorsSeenAt: Map<string, number>
@@ -1197,6 +1365,13 @@ interface PlayerMemory {
 }
 
 type MemoryDims = Pick<MapData, 'id' | 'width' | 'height' | 'grid'>
+
+/** Põe `member` no conjunto de `key`, criando o conjunto na primeira vez. */
+function addToSet(sets: Map<string, Set<string>>, key: string, member: string): void {
+  const found = sets.get(key)
+  if (found === undefined) sets.set(key, new Set([member]))
+  else found.add(member)
+}
 
 /** Chave de comparação do nome: sem maiúsculas e sem espaços. */
 function normalizeName(name: string): string {
@@ -1313,6 +1488,9 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   const lastItemGiveAt = new Map<string, number>()
   // Por playerId: o mesmo limite do toque na porta, para puxar a alavanca.
   const lastLeverAt = new Map<string, number>()
+  // Por playerId: a porta que ele espia agora (uma só), na cena em que espiou,
+  // até quando. Vencida, some na próxima leitura; o kick apaga.
+  const peeks = new Map<string, { sceneKey: string; wallId: string; until: number }>()
   // Por playerId: limite da foto nova do próprio token (só da foto, ver TOKEN_PHOTO_MIN_INTERVAL_MS).
   const lastTokenPhotoAt = new Map<string, number>()
   // Por playerId: ajuste do mestre sobre `options.visionRadius`; só o kick apaga.
@@ -1341,6 +1519,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   const seenPins = new Map<string, { mapId: string; pins: Pin[] }>()
   // Por playerId: quando a última pista mostrada chegou a um colega.
   const lastClueShowAt = new Map<string, number>()
+  // Por playerId: "Fator de visão" (vale em toda cena); ausente = x1,0. Só o kick apaga.
+  const visionFactors = new Map<string, number>()
   // Por pinId: quem vê o pino ("Só estes"). Ausente = Todos. O kick tira o
   // jogador de toda lista; o registro de quem só caiu fica (resume).
   const pinAudiences = new Map<string, Set<string>>()
@@ -1417,6 +1597,26 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   // Por clientId: a última lista de fichas livres enviada àquela conexão (JSON).
   // Por conexão, e não por jogador: quem reconecta tem tela nova.
   const lastSeatOptionsSent = new Map<string, string>()
+  // Por id de ficha secreta, escada secreta ou zona oculta: a quem o mestre
+  // revelou ("Revelar para…"). Ausente = ninguém. O kick tira o jogador.
+  const secretReveals = new Map<string, Set<string>>()
+  // Por id de CENA da aventura: quem ganhou a planta pelo "Revelar planta
+  // para…". Vale até o jogador chegar lá (e depois); "Esconder de novo" e o
+  // kick tiram. Vive só nesta sessão, como o "Quem vê" dos pinos.
+  const planGrants = new Map<string, Set<string>>()
+  // Por pinId: quem recebeu o pino COM o texto (painel Pistas). Só entra pino
+  // que saiu de verdade num recorte: o tamanho fica preso aos pinos reais, e o
+  // `pin.read` de um id inventado nunca vira chave aqui. O kick tira o jogador.
+  const pinReceived = new Map<string, Set<string>>()
+  // Por pinId: quem abriu o cartão. Subconjunto de `pinReceived`.
+  const pinRead = new Map<string, Set<string>>()
+  // Por id de teste secreto, na ordem em que o mestre pediu (a do Map). Até
+  // `MAX_SECRET_CHECKS`: sai primeiro o encerrado ou já respondido por todos,
+  // e só sem nenhum desses o mais antigo (encerrado, com aviso). O kick tira o jogador.
+  const secretChecks = new Map<string, SecretCheckRecord>()
+  // Quem recebeu `lobby.waiting` depois do último mapa: o cliente apagou o
+  // cartão do teste secreto, então o próximo snapshot leva os pedidos de novo.
+  const lostSecretCheckCard = new Set<string>()
   let rev = 0
   // ZONA DE PERIGO: em que zona estava cada ficha de JOGADOR no último
   // broadcast, por cena (chave `sceneKey`). É daqui que sai "entrou agora".
@@ -1435,13 +1635,33 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   // entrada por cena com caravana: sai quando o grupo deixa a cena.
   const caravanAt = new Map<string, CaravanMemory>()
 
-  const radiusFor =(playerId: string): number => visionOverrides.get(playerId) ?? options.visionRadius
+  /** Raio em px do jogador para cena SEM "Visão nesta cena": o do mestre ou o global (o de sempre). */
+  const baseRadiusFor = (playerId: string): number => visionOverrides.get(playerId) ?? options.visionRadius
+  const factorFor = (playerId: string): number => visionFactors.get(playerId) ?? VISION_FACTOR_DEFAULT
+  /**
+   * Raio do jogador: o de sempre (ou override do mestre), vezes o fator de
+   * visão da cena quando há mapa para calcular ("Visão nesta cena"). Sem
+   * `map` (usado pelo relógio da campanha, que aplica o próprio ajuste de
+   * hora), sai só o raio de base.
+   */
+  const radiusFor = (playerId: string, map?: MapData): number =>
+    map === undefined ? baseRadiusFor(playerId) : playerVisionRadius(map, baseRadiusFor(playerId), factorFor(playerId))
 
-  /** "Quem vê" do pino na ordem da sala (a do painel Grupo), não na ordem em que o mestre marcou. `null` = Todos. */
+  /** Jogadores do conjunto, na ordem da sala (a do painel Grupo), não na ordem em que o mestre marcou. */
+  const inRoomOrder = (chosen: ReadonlySet<string>): string[] =>
+    [...players.values()].sort((a, b) => a.joinedAt - b.joinedAt).flatMap((p) => (chosen.has(p.playerId) ? [p.playerId] : []))
+
+  /** "Quem vê" do pino na ordem da sala. `null` = Todos. */
   const audienceOf = (pinId: string): string[] | null => {
     const chosen = pinAudiences.get(pinId)
     if (chosen === undefined) return null
-    return [...players.values()].sort((a, b) => a.joinedAt - b.joinedAt).flatMap((p) => (chosen.has(p.playerId) ? [p.playerId] : []))
+    return inRoomOrder(chosen)
+  }
+
+  /** "Revelar para…" do item, na ordem da sala; `[]` = ninguém. */
+  const secretRevealOf = (itemId: string): string[] => {
+    const chosen = secretReveals.get(itemId)
+    return chosen === undefined ? [] : inRoomOrder(chosen)
   }
 
   /** A hora do relógio da campanha agora; `null` = o mestre não tem relógio. */
@@ -1528,6 +1748,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       key: memoryKey(dims),
       dims,
       exp: blankExploration(dims),
+      seen: blankExploration(dims),
+      planMarked: false,
       doors: new Map(),
       doorsSeenAt: new Map(),
       vision: [],
@@ -1738,6 +1960,19 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     return { atual: here.rotulo, outros }
   }
 
+  /** A planta desta cena está revelada para o jogador: pela cena inteira ou pelo "Revelar planta para…". */
+  const planRevealedFor = (playerId: string, scene: HostScene): boolean =>
+    scene.planKnownByAll === true || (scene.sceneId !== null && planGrants.get(scene.sceneId)?.has(playerId) === true)
+
+  /** Tira do jogador as revelações guardadas: de uma cena, ou de todas (`null`). */
+  const dropPlanGrants = (playerId: string, sceneId: string | null): void => {
+    for (const [grantScene, chosen] of planGrants) {
+      if (sceneId !== null && grantScene !== sceneId) continue
+      chosen.delete(playerId)
+      if (chosen.size === 0) planGrants.delete(grantScene)
+    }
+  }
+
   /** A ficha é de OUTRO jogador (não do mestre, não dele): colega a quem se pode dar um item. */
   const isOtherPlayersToken = (playerId: string, tokenId: string): boolean =>
     Object.entries(ownership).some(([owner, ids]) => owner !== playerId && ids.includes(tokenId))
@@ -1760,10 +1995,20 @@ export function createHostSession(options: HostSessionOptions): HostSession {
    * `sceneNameForPlayer`; `undefined` = o snapshot sai sem o campo.
    */
   const snapshotFor = (playerId: string, map: MapData, world: HostWorld, sceneName: string | undefined, andares: FloorsWire | undefined): HostMessage[] => {
+    // A cena dona deste mapa (para "Revelar planta para…" e o espiar de porta);
+    // sem cena correspondente no mundo (não deveria acontecer), uma sem segredos.
+    const scene = allScenes(world).find((s) => s.map.id === map.id) ?? { sceneId: null, name: map.name, map }
     const memory = memoryFor(playerId, map, world)
     const exp = memory.exp
+    // Planta revelada (cena conhecida por todos, ou "Revelar planta para…"):
+    // marcada ANTES do recorte, para a planta sair já neste snapshot. Uma vez
+    // por memória: `markAll` varre o mapa inteiro e o snapshot sai a cada passo.
+    if (!memory.planMarked && planRevealedFor(playerId, scene)) {
+      markAll(exp, playerBlockedRings(map))
+      memory.planMarked = true
+    }
     const entered = enteredRooms.get(playerId)?.get(map.id)
-    const view = filterMapForPlayer(map, playerId, ownership, tokenRadiusIn(playerId, map), exp, memory.doors, pinAudiences, entered, memory.seenRooms)
+    const view = filterMapForPlayer(map, playerId, ownership, tokenRadiusIn(playerId, map), exp, memory.doors, pinAudiences, entered, memory.seenRooms, secretReveals, peekingFor(playerId, scene))
     // Zona oculta ativa e sala secreta: célula que toca nelas não vira explorada
     // (senão o jogador guardaria a planta escondida e o formato dela).
     markRings(exp, view.vision, view.blocked)
@@ -1780,6 +2025,9 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       memory.seenRooms.add(room.id)
       markRings(exp, [room.points], [...view.blocked, ...view.unseenInsideRemembered, ...room.roomsInside])
     }
+    // O que ele VIU, à parte: é o que "Dar o que o grupo viu" repassa.
+    markRings(memory.seen, view.vision, view.blocked)
+    forgetInside(memory.seen, view.roofs)
     // TETO DE CONSTRUÇÃO: o teto não entra em `view.blocked` (o contorno do
     // prédio não é segredo, e o veto de lá joga fora o anel de visão inteiro,
     // apagando a memória do jogador longe do prédio). O veto do teto é só a
@@ -1795,6 +2043,11 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       if (w.door === null || !seenNow.has(w.id)) continue
       memory.doors.set(w.id, { ...w.door })
       memory.doorsSeenAt.set(w.id, (doorSeenSeq += 1))
+    }
+    // PAINEL PISTAS: o pino que sai aqui com o texto foi RECEBIDO. O "só de
+    // perto" visto de longe (`longe`) chega vazio: ainda não conta.
+    for (const pin of view.map.pins) {
+      if (pin.longe !== true) addToSet(pinReceived, pin.id, playerId)
     }
     const sent = new Set(view.map.tokens.map((t) => t.id))
     const ownTokens = (ownership[playerId] ?? []).filter((id) => sent.has(id))
@@ -1829,7 +2082,20 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     // RELÓGIO DA CAMPANHA: o período e, desta cena, se está escuro. Sem relógio, o campo nem sai.
     const relogio = clockForPlayer(clockHour(), map)
     if (relogio !== null) snapshot.relogio = relogio
+    // CONE PELO VÃO: campo aditivo, só vai quando há cone.
+    if (view.glimpses.length > 0) snapshot.glimpses = view.glimpses
     return [snapshot, ...roomTextCardsFor(playerId, map.id, view)]
+  }
+
+  /** A porta que o jogador espia AGORA nesta cena, ou nada. Prazo vencido apaga o registro. */
+  const peekingFor = (playerId: string, scene: HostScene): ReadonlySet<string> | undefined => {
+    const peek = peeks.get(playerId)
+    if (peek === undefined) return undefined
+    if (now() >= peek.until) {
+      peeks.delete(playerId)
+      return undefined
+    }
+    return peek.sceneKey === sceneKey(scene) ? new Set([peek.wallId]) : undefined
   }
 
   const reply =(clientId: string, msg: HostMessage): HostResult => ({ outbound: [{ clientId, msg }] })
@@ -1842,7 +2108,63 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     noteSceneOf.delete(playerId)
     const clientId = players.get(playerId)?.clientId ?? null // registro ausente = jogador expulso: não há a quem avisar
     if (!wasPlaying || clientId === null) return []
+    lostSecretCheckCard.add(playerId)
     return [{ clientId, msg: { type: 'lobby.waiting' } }]
+  }
+
+  /** Os testes secretos abertos que ainda esperam a resposta DELE, para mandar logo depois de um mapa. */
+  const pendingSecretChecksFor = (playerId: string, clientId: string): Outbound[] => {
+    const outbound: Outbound[] = []
+    for (const [id, check] of secretChecks) {
+      if (check.open && check.asked.has(playerId) && !check.answers.has(playerId)) {
+        outbound.push({ clientId, msg: { type: 'secret.check', id, label: check.label } })
+      }
+    }
+    return outbound
+  }
+
+  /**
+   * O que vai ao jogador junto com a vista dele. Espera apaga o cartão no
+   * cliente (marca); o primeiro mapa depois dela traz os pedidos pendentes de
+   * volta, sempre DEPOIS do mapa — sem mapa o cartão não tem onde aparecer.
+   */
+  const withPendingSecretChecks = (playerId: string, clientId: string, view: HostMessage): Outbound[] => {
+    if (view.type !== 'snapshot') {
+      if (view.type === 'lobby.waiting') lostSecretCheckCard.add(playerId)
+      return [{ clientId, msg: view }]
+    }
+    if (!lostSecretCheckCard.delete(playerId)) return [{ clientId, msg: view }]
+    return [{ clientId, msg: view }, ...pendingSecretChecksFor(playerId, clientId)]
+  }
+
+  /** Fecha o teste: `secret.check.closed` a quem foi pedido, está conectado e ainda não respondeu. */
+  const closeSecretCheckFor = (checkId: string, check: SecretCheckRecord): Outbound[] => {
+    check.open = false
+    const outbound: Outbound[] = []
+    for (const playerId of inRoomOrder(check.asked)) {
+      if (check.answers.has(playerId)) continue
+      const clientId = players.get(playerId)?.clientId ?? null
+      if (clientId !== null) outbound.push({ clientId, msg: { type: 'secret.check.closed', id: checkId } })
+    }
+    return outbound
+  }
+
+  /**
+   * Acima do teto: sai o encerrado ou já respondido por todos mais antigo.
+   * Sem nenhum, o mais antigo é encerrado antes de sair — quem ainda devia a
+   * resposta recebe o fechamento, e não um cartão que responde para o nada.
+   */
+  const trimSecretChecks = (): Outbound[] => {
+    const outbound: Outbound[] = []
+    while (secretChecks.size > MAX_SECRET_CHECKS) {
+      const all = [...secretChecks]
+      const victim = all.find(([, check]) => isSecretCheckSettled(check)) ?? all[0]
+      if (victim === undefined) break
+      const [id, check] = victim
+      if (check.open) outbound.push(...closeSecretCheckFor(id, check))
+      secretChecks.delete(id)
+    }
+    return outbound
   }
 
   /**
@@ -2300,6 +2622,9 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     // `name` é o nome já passado por `uniqueName`: é assim que o jogador
     // descobre que entrou como "Ana (2)" em vez da "Ana" que digitou.
     const welcome: HostMessage = { type: 'welcome', playerId: record.playerId, resumeToken: record.resumeToken, name: record.name }
+    // A aba que (re)entra não tem cartão nenhum: com mapa na tela, o teste
+    // secreto que ainda espera a resposta DELE chega de novo, depois do mapa.
+    lostSecretCheckCard.add(record.playerId)
     return {
       outbound: [{ clientId, msg: welcome }, ...entryOutbound(clientId, record.playerId, world), ...replacedOut, ...loanBack.outbound],
       ...loansReturnedField(loanBack.returned),
@@ -2343,7 +2668,25 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     destinations.delete(playerId)
     lastDestinationAt.delete(playerId)
     sentDestinations.delete(playerId)
+    peeks.delete(playerId)
+    visionFactors.delete(playerId)
     for (const chosen of pinAudiences.values()) chosen.delete(playerId)
+    for (const sets of [pinReceived, pinRead]) {
+      for (const [pinId, who] of sets) {
+        who.delete(playerId)
+        if (who.size === 0) sets.delete(pinId)
+      }
+    }
+    for (const [itemId, chosen] of secretReveals) {
+      chosen.delete(playerId)
+      if (chosen.size === 0) secretReveals.delete(itemId)
+    }
+    for (const check of secretChecks.values()) {
+      check.asked.delete(playerId)
+      check.answers.delete(playerId)
+    }
+    lostSecretCheckCard.delete(playerId)
+    dropPlanGrants(playerId, null)
     pendingSeatClaims.delete(playerId)
     lastSeatClaimDeniedAt.delete(playerId)
     // Esquecido não tem mais o que desfazer. O assento não volta: quem foi
@@ -2401,6 +2744,23 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     if (!tokensOccupy(map)) return undefined
     const memory = existingMemory(playerId, map)
     return filterMapForPlayer(map, playerId, ownership, tokenRadiusIn(playerId, map), memory?.exp, memory?.doors).map.tokens
+  }
+
+  /**
+   * RESPOSTA AO TESTE SECRETO: só conta de quem foi pedido, com o teste
+   * aberto e na primeira vez. Id inventado, pedido de outro, repetida ou
+   * depois de encerrar morrem em silêncio — responder "recusado" só ensinaria
+   * que o teste existe. Nada volta a jogador nenhum: o resultado é do mestre.
+   */
+  function handleSecretCheckAnswer(clientId: string, msg: SecretCheckAnswerMessage): HostResult {
+    const playerId = byClient.get(clientId)
+    if (playerId === undefined) return reply(clientId, { type: 'error', reason: 'not_joined' })
+    const check = secretChecks.get(msg.id)
+    const record = players.get(playerId)
+    if (check === undefined || record === undefined || !check.open) return { outbound: [] }
+    if (!check.asked.has(playerId) || check.answers.has(playerId)) return { outbound: [] }
+    check.answers.set(playerId, msg.result)
+    return { outbound: [], secretCheckAnswer: { checkId: msg.id, playerId, playerName: record.name, label: check.label, result: msg.result } }
   }
 
   function handleMove(clientId: string, msg: TokenMoveMessage, world: HostWorld): HostResult {
@@ -2525,10 +2885,46 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     return [...byClient.keys()].map((clientId): Outbound => ({ clientId, msg: { type: 'dice.rolled', roll: { ...forPlayers, results: [...forPlayers.results] } } }))
   }
 
+  /**
+   * "Espiar" pela porta FECHADA encostada no token do jogador. Mesma autoridade
+   * do `door.toggle` (e o mesmo limite por jogador): porta visível para ele
+   * agora e token perto. Trancada NÃO recusa — espiar pela fechadura é
+   * justamente o que se faz numa porta trancada. Porta aberta não tem o que
+   * espiar e não faz nada. Aceito, a visão DELE atravessa a porta por
+   * `PEEK_DURATION_MS` (`peekingFor`); a porta do mestre não muda.
+   */
+  function handleDoorPeek(clientId: string, msg: DoorPeekMessage, world: HostWorld): HostResult {
+    const playerId = byClient.get(clientId)
+    if (playerId === undefined) return reply(clientId, { type: 'error', reason: 'not_joined' })
+    const record = players.get(playerId)
+    if (record === undefined || statusOf(playerId) !== 'playing') return { outbound: [] }
+    const scene = sceneFor(playerId, world)
+    if (scene === null) return { outbound: [] }
+    const map = scene.map
+    const at = now()
+    const last = lastDoorToggleAt.get(playerId)
+    if (last !== undefined && at - last < DOOR_TOGGLE_MIN_INTERVAL_MS) return { outbound: [] }
+    lastDoorToggleAt.set(playerId, at)
+
+    const reject = (reason: 'far' | 'not_visible'): HostResult => reply(clientId, { type: 'door.toggle.rejected', wallId: msg.wallId, reason })
+    const wall = map.walls.find((w) => w.id === msg.wallId)
+    if (wall === undefined || wall.door === null) return reject('not_visible')
+    const memory = memoryFor(playerId, map, world)
+    // Sem o espiar de antes: a porta tem de estar à vista pela visão de sempre.
+    const view = filterMapForPlayer(map, playerId, ownership, radiusFor(playerId, map), memory.exp, memory.doors, pinAudiences, secretReveals)
+    // Porta secreta nunca entra aqui: para o jogador ela é parede (`lib/fogFilter.ts`).
+    if (!view.visibleDoorIds.includes(wall.id)) return reject('not_visible')
+    if (wall.door.open && !wall.door.locked) return { outbound: [] }
+    const owned = new Set(ownership[playerId] ?? [])
+    const near = view.map.tokens.some((t) => owned.has(t.id) && tokenReachesDoor(t, wall, map.grid))
+    if (!near) return reject('far')
+    peeks.set(playerId, { sceneKey: sceneKey(scene), wallId: wall.id, until: at + PEEK_DURATION_MS })
+    return { outbound: [], peek: { playerId, playerName: record.name, wallId: wall.id } }
+  }
+
   const newDiceRoll = (request: DiceRequest, from: string): HostDiceRoll => {
     const { results, total } = rollDice(request, rollDie)
     return { id: randomId(), from, count: request.count, sides: request.sides, modifier: request.modifier, results, total, at: now() }
-  }
 
   /**
    * O jogador PEDE a rolagem; quem rola é o host. Rolagem de quem não entrou
@@ -2779,20 +3175,19 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   }
 
   /**
-   * Jogador abre ou fecha porta. Autoridade é aqui: a porta precisa existir,
-   * estar VISÍVEL para ele agora (não só lembrada — senão abriria porta do
-   * outro lado do mapa), estar DESTRANCADA (trancada é só do mestre) e ter um
-   * token dele encostado (`tokenReachesDoor`). Recusa vira aviso curto na tela
-   * do jogador; porta inexistente ou invisível responde o mesmo
-   * `not_visible`, para não dizer o que existe no escuro.
-   */
-  /**
    * A porta `wallId` do mapa do MESTRE (com o cadeado real), só se o jogador a
    * vê AGORA — lembrada não conta, senão abriria porta do outro lado do mapa.
    * `near`: algum token dele, no recorte dele (respeita camada oculta e token
-   * escondido pelo mestre), encosta nela. `null` = inexistente ou no escuro.
+   * escondido pelo mestre), encosta nela. `nearTokens`: os mesmos tokens, para
+   * quem precisa saber de que LADO encostou (`doorOpensFrom`). `null` =
+   * inexistente ou no escuro.
    */
-  const doorSeenBy = (playerId: string, map: MapData, wallId: string, world: HostWorld): { wall: Wall; door: DoorState; near: boolean; key: string | null } | null => {
+  const doorSeenBy = (
+    playerId: string,
+    map: MapData,
+    wallId: string,
+    world: HostWorld,
+  ): { wall: Wall; door: DoorState; near: boolean; nearTokens: Token[]; key: string | null } | null => {
     const wall = map.walls.find((w) => w.id === wallId)
     if (wall === undefined || wall.door === null) return null
     const memory = memoryFor(playerId, map, world)
@@ -2800,11 +3195,12 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     if (!view.visibleDoorIds.includes(wall.id)) return null
     const owned = new Set(ownership[playerId] ?? [])
     const nearIds = new Set(view.map.tokens.filter((t) => owned.has(t.id) && tokenReachesDoor(t, wall, map.grid)).map((t) => t.id))
+    const nearTokens = map.tokens.filter((t) => nearIds.has(t.id))
     // CHAVE ABRE PORTA: a mochila é a das fichas do MAPA DO MESTRE encostadas
     // na porta — a chave precisa estar na mão de quem está ali, não na de uma
     // ficha dele do outro lado da cena.
-    const found = keyForDoor(wall.door, map.tokens.filter((t) => nearIds.has(t.id)))
-    return { wall, door: wall.door, near: nearIds.size > 0, key: found === null ? null : found.item.nome }
+    const found = keyForDoor(wall.door, nearTokens)
+    return { wall, door: wall.door, near: nearIds.size > 0, nearTokens, key: found === null ? null : found.item.nome }
   }
 
   /** Limite de 1 pedido de porta por `DOOR_TOGGLE_MIN_INTERVAL_MS`: `false` = o excesso morre em silêncio. */
@@ -2836,6 +3232,10 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       return seen.key === null ? reject('locked') : reply(clientId, { type: 'door.toggle.rejected', wallId: msg.wallId, reason: 'locked', key: seen.key })
     }
     if (!seen.near) return reject('far')
+    // PORTA DE UM LADO: para ABRIR, uma ficha dele encostada precisa estar do
+    // lado que abre (`DoorState.opensFrom`; a parede é a do mestre, o lado
+    // nunca sai no recorte). Fechar vale dos dois lados.
+    if (!seen.door.open && !seen.nearTokens.some((t) => doorOpensFrom(seen.wall, t))) return reject('wrong_side')
 
     return { outbound: [], applyDoor: { wallId: seen.wall.id, open: !seen.door.open, ...backgroundSceneId(scene, world) } }
   }
@@ -3073,6 +3473,21 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   }
 
   /**
+   * LEITURA DA PISTA: só conta pino que o host já mandou COM o texto a este
+   * jogador (`pinReceived`). Id inventado, pino no escuro ou "só de perto"
+   * visto de longe morrem em silêncio — responder "recusado" só ensinaria
+   * quais ids existem. Nada volta ao jogador.
+   */
+  function handlePinRead(clientId: string, msg: PinReadMessage): HostResult {
+    const playerId = byClient.get(clientId)
+    if (playerId === undefined) return reply(clientId, { type: 'error', reason: 'not_joined' })
+    const receivedBy = pinReceived.get(msg.pinId)
+    if (receivedBy === undefined || !receivedBy.has(playerId)) return { outbound: [] }
+    addToSet(pinRead, msg.pinId, playerId)
+    return { outbound: [] }
+  }
+
+  /**
    * O pedido de passagem vale? Autoridade é aqui, no molde da porta
    * (`handleDoorToggle`): o pino existe NA CENA DO JOGADOR, está VISÍVEL para
    * ele agora (a mesma regra da névoa que decide mandar o pino no recorte —
@@ -3093,8 +3508,13 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const pin = from.map.pins.find((p) => p.id === pinId)
     if (pin === undefined) return null
     const memory = memoryFor(playerId, from.map, world)
-    const view = filterMapForPlayer(from.map, playerId, ownership, tokenRadiusIn(playerId, from.map), memory.exp, memory.doors, pinAudiences, undefined, memory.seenRooms)
-    if (!view.map.pins.some((p) => p.id === pinId)) return null
+    const view = filterMapForPlayer(from.map, playerId, ownership, tokenRadiusIn(playerId, from.map), memory.exp, memory.doors, pinAudiences, undefined, memory.seenRooms, secretReveals)
+    const seen = view.map.pins.find((p) => p.id === pinId)
+    if (seen === undefined) return null
+    // MARCO visto de longe: o pino chega ao jogador na névoa, mas ele nunca
+    // esteve lá. Sem isto, marco + viagem seria teletransporte de qualquer
+    // ponto do mapa (e, "livre", sem o mestre saber).
+    if (seen.soMarco === true) return null
     const owned = new Set(ownership[playerId] ?? [])
     // Trancada: ninguém passa sozinho. Cai no mesmo `null` de todo o resto,
     // então o jogador lê o motivo genérico de sempre e nada chega ao mestre.
@@ -3591,6 +4011,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
           return handleDoorRequest(clientId, msg, world)
         case 'door.useKey':
           return handleDoorUseKey(clientId, msg, world)
+        case 'door.peek':
+          return handleDoorPeek(clientId, msg, world)
         case 'token.edit':
           return handleTokenEdit(clientId, msg, world)
         case 'pin.travel.request':
@@ -3619,6 +4041,10 @@ export function createHostSession(options: HostSessionOptions): HostSession {
           return handlePinLever(clientId, msg, world)
         case 'seat.claim':
           return handleSeatClaim(clientId, msg, world)
+        case 'pin.read':
+          return handlePinRead(clientId, msg)
+        case 'secret.check.answer':
+          return handleSecretCheckAnswer(clientId, msg)
       }
     },
 
@@ -4297,6 +4723,16 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       return saved
     },
 
+    setVisionFactor(playerId, factor) {
+      if (!players.has(playerId)) return
+      if (factor === null) {
+        visionFactors.delete(playerId)
+        return
+      }
+      if (!Number.isFinite(factor)) return
+      visionFactors.set(playerId, clampVisionFactor(factor))
+    },
+
     setPinAudience(pinId, playerIds) {
       if (playerIds === null) {
         pinAudiences.delete(pinId)
@@ -4313,6 +4749,29 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       return all
     },
 
+    pinClues() {
+      const all: Record<string, PinClueState> = {}
+      for (const [pinId, received] of pinReceived) {
+        all[pinId] = { received: inRoomOrder(received), read: inRoomOrder(pinRead.get(pinId) ?? new Set()) }
+      }
+      return all
+    },
+
+    setSecretReveal(itemId, playerIds) {
+      const chosen = new Set((playerIds ?? []).filter((id) => players.has(id)))
+      // Sem ninguém é o segredo de sempre: a entrada some, e o painel não guarda lista vazia.
+      if (chosen.size === 0) secretReveals.delete(itemId)
+      else secretReveals.set(itemId, chosen)
+    },
+
+    secretReveal: secretRevealOf,
+
+    secretReveals() {
+      const all: Record<string, string[]> = {}
+      for (const itemId of secretReveals.keys()) all[itemId] = secretRevealOf(itemId)
+      return all
+    },
+
     revealPlan(playerId, source) {
       if (!players.has(playerId)) return
       const world = toWorld(source)
@@ -4322,14 +4781,51 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       markAll(memoryFor(playerId, map, world).exp, playerBlockedRings(map))
     },
 
+    revealPlanFor(sceneId, playerIds, source) {
+      const scene = allScenes(toWorld(source)).find((s) => s.sceneId === sceneId)
+      if (scene === undefined) return 0
+      const valid = new Set(playerIds.filter((id) => players.has(id)))
+      if (valid.size === 0) return 0
+      const chosen = planGrants.get(sceneId) ?? new Set<string>()
+      planGrants.set(sceneId, chosen)
+      for (const id of valid) {
+        chosen.add(id)
+        // Memória que já existe desta cena volta a receber a planta no próximo
+        // snapshot: a marcação pode ter sido gasta antes, e a planta mudou desde então.
+        const memory = existingMemory(id, scene.map)
+        if (memory !== undefined) memory.planMarked = false
+      }
+      return valid.size
+    },
+
+    giveGroupView(playerId, source) {
+      if (!players.has(playerId)) return 0
+      const scene = sceneFor(playerId, toWorld(source))
+      if (scene === null) return 0
+      const blocked = playerBlockedRings(scene.map)
+      const target = memoryFor(playerId, scene.map)
+      let colleagues = 0
+      for (const other of players.keys()) {
+        if (other === playerId) continue
+        const memory = existingMemory(other, scene.map)
+        if (memory === undefined) continue
+        colleagues += 1
+        mergeExplored(target.exp, memory.seen, blocked)
+      }
+      return colleagues
+    },
+
     hidePlan(playerId, source) {
       // Apagar a memória: o próximo snapshot recria vazia (explorado, portas e visão).
       if (source === undefined) {
         memories.delete(playerId)
+        dropPlanGrants(playerId, null)
         return
       }
       const scene = sceneFor(playerId, toWorld(source))
-      if (scene !== null) memories.get(playerId)?.delete(scene.map.id)
+      if (scene === null) return
+      memories.get(playerId)?.delete(scene.map.id)
+      if (scene.sceneId !== null) dropPlanGrants(playerId, scene.sceneId)
     },
 
     broadcast(source) {
@@ -4340,9 +4836,12 @@ export function createHostSession(options: HostSessionOptions): HostSession {
         if (statusOf(playerId) !== 'playing') continue
         // Cada um a SUA cena: quem ficou no Salão nunca recebe nada da Cripta.
         // Quem não está em cena nenhuma recebe a espera, e não a cena do editor.
-        // Chegou a uma cena com recado (viagem, ficha nova): o recado vem logo atrás do mapa,
-        // e o recado só para ele guardado também — quem ganhou ficha agora o lê.
-        outbound.push(...viewWithPendingNote(clientId, playerId, viewFor(playerId, world, 'on_change')))
+        const views = viewFor(playerId, world, 'on_change')
+        // Quem volta da espera recebe, depois do mapa, o teste secreto pendente.
+        outbound.push(...withPendingSecretChecks(playerId, clientId, views[0]))
+        outbound.push(...views.slice(1).map((msg) => ({ clientId, msg })))
+        // O recado só para ele guardado, logo atrás do mapa — quem ganhou ficha agora o lê.
+        outbound.push(...pendingNoteFor(clientId, playerId, views[0]))
         // Trocou de cena (pedido, "Mandar para…", reunir): a pausa é a da cena NOVA.
         outbound.push(...pausedUpdate(clientId, playerId, world))
       }
@@ -4499,6 +4998,61 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       return { outbound: [{ clientId, msg: onlyYouMessage(note) }], delivery: 'sent' }
     },
 
+    noise(x, y, rangeCells, source) {
+      if (!Number.isFinite(x) || !Number.isFinite(y)) return { outbound: [] }
+      const world = toWorld(source)
+      const scene = world.open
+      const rangePx = clampNoiseRangeCells(rangeCells) * scene.map.grid
+      const id = randomId()
+      const outbound: Outbound[] = []
+      for (const [clientId, playerId] of byClient) {
+        if (statusOf(playerId) !== 'playing') continue
+        // A cena DELE, não a do editor: quem está na Cripta não ouve o Salão,
+        // mesmo com a ficha na mesma coordenada.
+        if (sceneFor(playerId, world) !== scene) continue
+        const dir = noiseCueForPlayer(scene.map, playerId, ownership, { x, y }, rangePx)
+        if (dir === null) continue
+        outbound.push({ clientId, msg: { type: 'noise', id, dir } })
+      }
+      return { outbound }
+    },
+
+    secretCheck(label, playerIds) {
+      const clamped = clampSecretCheckLabel(label)
+      if (clamped.length === 0) return { outbound: [] }
+      // Só quem está na sala e joga: quem aguarda não tem mapa onde o cartão apareça.
+      const asked = new Set(playerIds.filter((playerId) => players.has(playerId) && statusOf(playerId) === 'playing'))
+      if (asked.size === 0) return { outbound: [] }
+      const id = randomId()
+      secretChecks.set(id, { label: clamped, asked, answers: new Map(), open: true })
+      // O fechamento de um teste apagado sai ANTES do pedido novo: o cliente
+      // mostra um cartão por vez, e o novo não pode ser apagado pelo aviso velho.
+      const outbound: Outbound[] = trimSecretChecks()
+      // Um a um, pela lista do próprio teste: cada escolhido recebe só o id e
+      // o nome — nunca quem mais foi escolhido. Quem caiu recebe ao voltar.
+      for (const playerId of inRoomOrder(asked)) {
+        const clientId = players.get(playerId)?.clientId ?? null
+        if (clientId !== null) outbound.push({ clientId, msg: { type: 'secret.check', id, label: clamped } })
+      }
+      return { outbound, secretCheckId: id }
+    },
+
+    closeSecretCheck(checkId) {
+      const check = secretChecks.get(checkId)
+      if (check === undefined || !check.open) return { outbound: [] }
+      return { outbound: closeSecretCheckFor(checkId, check) }
+    },
+
+    secretChecks() {
+      return [...secretChecks].map(([id, check]) => ({
+        id,
+        label: check.label,
+        asked: inRoomOrder(check.asked),
+        answers: Object.fromEntries(check.answers),
+        open: check.open,
+      }))
+    },
+
     listPlayers(source) {
       const world = source === undefined ? null : toWorld(source)
       // Nome de cena só faz sentido com aventura: no mapa solto todo mundo está no mesmo lugar.
@@ -4514,8 +5068,11 @@ export function createHostSession(options: HostSessionOptions): HostSession {
             status: statusOf(p.playerId),
             connected: p.clientId !== null,
             tokenIds: [...(ownership[p.playerId] ?? [])],
-            visionRadius: radiusFor(p.playerId),
+            visionRadius: baseRadiusFor(p.playerId),
+            visionFactor: factorFor(p.playerId),
           }
+          // No mapa solto todo mundo está (ou vai estar) no mapa aberto.
+          let visionScene: HostScene | null = world !== null && !withScenes ? world.open : null
           // O selo da lista Cenas nasce e morre com o pedido: aprovar, recusar
           // e cair a conexão já tiram o jogador de `pendingTravels`.
           if (pendingTravels.has(p.playerId)) info.travelPending = true
@@ -4534,12 +5091,15 @@ export function createHostSession(options: HostSessionOptions): HostSession {
             else {
               info.sceneName = scene.name
               if (scene.sceneId !== null) info.sceneId = scene.sceneId
+              visionScene = scene
             }
           }
           // O mestre vê toda marca: é ele quem conduz. Depois do prune, a marca está na cena do dono.
           const mark = destinations.get(p.playerId)
           const markScene = world === null || mark === undefined ? null : sceneFor(p.playerId, world)
           if (mark !== undefined && markScene !== null) info.destination = { x: mark.x, y: mark.y, color: laserColorOf(p.playerId, markScene.map) }
+          const cells = visionScene === null ? undefined : readSceneVisionCells(visionScene.map.visionCells)
+          if (cells !== undefined) info.sceneVisionCells = cells
           return info
         })
     },

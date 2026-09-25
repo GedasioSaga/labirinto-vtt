@@ -19,6 +19,8 @@ import {
 import {
   createHostSession,
   ownTokenIdsOf,
+  PEEK_DURATION_MS,
+  peekNoticeText,
   singleSceneWorld,
   type AppliedItems,
   type AppliedMove,
@@ -33,6 +35,7 @@ import {
   type HeldTokens,
   type HostDiceRoll,
   type AreaTriggerEntryNotice,
+  type HostPeek,
   type HostResult,
   type HostPlayerLaser,
   type HostSession,
@@ -42,12 +45,14 @@ import {
   type PinKeyUse,
   type MapChangeCause,
   type Outbound,
+  type PinClueState,
   type PlayerInfo,
   type PlayerNoteDelivery,
   type PointActionRequest,
   type ReclaimedSeat,
   type ReturnCandidate,
   type SeatClaim,
+  type SecretCheckState,
   type TravelRequest,
 } from './hostSession'
 import {
@@ -160,6 +165,16 @@ export interface HostBridgeDeps {
    * de cena, a cada "Desfazer" e ao abrir/fechar a sala. Só do mestre.
    */
   onTravelLogChange?: (log: TravelLogEntry[]) => void
+  /**
+   * PAINEL PISTAS: quem recebeu e quem leu cada pino (`pinId` -> estado). Sai a
+   * cada mudança, inclusive na hora em que o jogador abre o cartão. Sala
+   * fechada = `{}`.
+   */
+  onPinCluesChange?: (clues: Record<string, PinClueState>) => void
+  /** "Revelar para…" de cada ficha/escada/zona revelada a alguém (`itemId` -> jogadores). Sala fechada = `{}`. */
+  onSecretRevealsChange?: (reveals: Record<string, string[]>) => void
+  /** TESTES SECRETOS e as respostas, só para o painel do mestre. Sala fechada = `[]`. */
+  onSecretChecksChange?: (checks: SecretCheckState[]) => void
   onTunnelChange?: (state: TunnelState) => void
   /** Sinal aceito de um jogador (já validado e dentro do limite por segundo). */
   onSignal?: (signal: HostSignal) => void
@@ -236,15 +251,35 @@ export interface HostBridge {
   laserOff(): void
   /** Raio de visão só deste jogador (`null` = global). Vem de um slider: o snapshot sai pelo throttle do mapa. */
   setVisionRadius(playerId: string, radius: number | null): void
+  /** "Fator de visão" deste jogador (`null` = x1,0). Vem de um slider: mesmo throttle do raio. */
+  setVisionFactor(playerId: string, factor: number | null): void
   /**
    * "Quem vê" do pino: só `playerIds` o recebem; `null` = Todos. Snapshot na
    * hora — o jogador marcado vê o pino sem recarregar, e o desmarcado o perde.
    */
   setPinAudience(pinId: string, playerIds: readonly string[] | null): void
+  /**
+   * "Revelar para…" da ficha secreta, escada secreta ou zona oculta: só
+   * `playerIds` a recebem; `null` ou `[]` = segredo de todos. Snapshot na hora —
+   * quem descobriu vê sem recarregar, e o desmarcado perde no mesmo pacote.
+   */
+  setSecretReveal(itemId: string, playerIds: readonly string[] | null): void
   /** "Revelar planta": snapshot imediato com a planta inteira explorada (fora de zona oculta ativa). */
   revealPlan(playerId: string): void
   /** "Esconder de novo": snapshot imediato com exploração e portas lembradas zeradas. */
   hidePlan(playerId: string): void
+  /**
+   * "Revelar planta para…" da lista Cenas: a planta de `sceneId` para estes
+   * jogadores, mesmo fora dela (aparece quando chegarem). Devolve quantos
+   * ganharam, ou `null` com a sala fechada. Snapshot na hora.
+   */
+  revealPlanFor(sceneId: string, playerIds: readonly string[]): number | null
+  /**
+   * "Dar o que o grupo viu": o jogador ganha o que os colegas viram na cena
+   * onde ele está. Devolve quantos colegas tinham visto algo lá (0 = nada a
+   * dar), ou `null` com a sala fechada. Snapshot na hora.
+   */
+  giveGroupView(playerId: string): number | null
   /**
    * "Mandar para…" do painel Grupo: leva a ficha do jogador para `toSceneId`,
    * no pino `pinId` ou no centro (`null`), sem pedido. `false` quando não deu
@@ -314,6 +349,20 @@ export interface HostBridge {
    */
   storedTokens(): StoredToken[]
   /**
+   * RUÍDO NO MAPA em (`x`, `y`) da cena aberta, com alcance em casas. Sai só a
+   * direção, só para quem está perto. Devolve quantos ouviram (0 = ninguém
+   * perto), ou `null` com a sala fechada.
+   */
+  noise(x: number, y: number, rangeCells: number): number | null
+  /**
+   * TESTE SECRETO: pede o teste `label` a estes jogadores. Devolve quantos
+   * foram pedidos (0 = nenhum escolhido joga agora), ou `null` com a sala
+   * fechada. As respostas chegam por `onSecretChecksChange` e num aviso.
+   */
+  secretCheck(label: string, playerIds: readonly string[]): number | null
+  /** "Encerrar" o teste: quem não respondeu tem o cartão fechado. */
+  closeSecretCheck(checkId: string): void
+  /**
    * "Ver tela" do painel Grupo: o último recorte que SAIU pelo fio para este
    * jogador (a cena dele, com a névoa e a zona oculta já aplicadas), a espera
    * (`waiting`) ou `null` quando ele não tem tela (caiu, saiu, sala fechada).
@@ -354,6 +403,15 @@ export interface HostBridge {
    * recebe; `hidden`, só a tela do mestre (`onDiceRoll`). `null` com a sala fechada.
    */
   rollDice(request: DiceRequest, hidden: boolean): HostDiceRoll | null
+  /**
+   * "Visto por" do painel da ficha: nomes dos jogadores conectados cuja tela
+   * (o último recorte que SAIU, `playerScreen`) tem a ficha `tokenId` do mapa
+   * aberto no editor, na ordem de entrada na sala. É a mesma regra do recorte
+   * por construção — névoa, parede, zona oculta, teto, cena de cada um.
+   * `null` = não se aplica: sala fechada ou ficha com dono (o dono sempre a vê).
+   * Muda junto com as telas: observe com `watchPlayerScreens`.
+   */
+  tokenSeenBy(tokenId: string): string[] | null
 }
 
 export const BROADCAST_THROTTLE_MS = 50
@@ -373,6 +431,9 @@ const KICK_ON_JOIN_ERROR: ReadonlySet<HostErrorReason> = new Set<HostErrorReason
  * mudança, e não a cada snapshot. Fechar a sala grava o que estiver pendente.
  */
 export const EXPLORATION_SAVE_DELAY_MS = 1500
+
+/** Folga do timer que fecha o cone do "Espiar": o prazo da sessão já venceu quando ele dispara. */
+const PEEK_CLOSE_SLACK_MS = 50
 /**
  * O aviso de jogador novo fica mais tempo que um info comum (4 s): o mestre
  * costuma estar desenhando no mapa, de olho no canvas e não no rail, e perder
@@ -509,6 +570,11 @@ function dropText(names: string[]): string {
   return `${names.slice(0, -1).join(', ')} e ${last} caíram`
 }
 
+/** O aviso do mestre quando alguém responde ao teste secreto: quem, qual teste e o resultado. */
+export function secretCheckAnswerText(playerName: string, label: string, result: number): string {
+  return `${playerName} — ${label}: ${result}`
+}
+
 function errorText(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
 }
@@ -528,6 +594,9 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   let lastPlayersKey = '[]'
   let lastPinAudiencesKey = '{}'
   let lastTableScreens = 0
+  let lastPinCluesKey = '{}'
+  let lastSecretRevealsKey = '{}'
+  let lastSecretChecksKey = '[]'
   let tunnelState: TunnelState = TUNNEL_IDLE
   let lastTunnelKey = JSON.stringify(TUNNEL_IDLE)
   let pendingTunnel: Promise<void> | null = null
@@ -552,6 +621,8 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   const itemToasts = new Map<string, string>()
   /** "Fulano entrou em X": um cartão por cena de destino (`net/avisoDeChegada.ts`). */
   const announceArrival = createArrivalAnnouncer(deps.onGoToScene)
+  /** Prazo de cada "Espiar" aceito: no fim, o snapshot que fecha o cone. Fechar a sala cancela. */
+  const peekTimers = new Set<ReturnType<typeof setTimeout>>()
   /** O que cada conexão está vendo, anotado do que sai em `dispatch` (espelho do "Ver tela"). */
   const screens = createPlayerScreens()
   const screenWatchers = new Set<() => void>()
@@ -784,6 +855,30 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     deps.onPinAudiencesChange?.(audiences)
   }
 
+  const notifyPinCluesIfChanged = () => {
+    const clues = session?.pinClues() ?? {}
+    const key = JSON.stringify(clues)
+    if (key === lastPinCluesKey) return
+    lastPinCluesKey = key
+    deps.onPinCluesChange?.(clues)
+  }
+
+  const notifySecretRevealsIfChanged = () => {
+    const reveals = session?.secretReveals() ?? {}
+    const key = JSON.stringify(reveals)
+    if (key === lastSecretRevealsKey) return
+    lastSecretRevealsKey = key
+    deps.onSecretRevealsChange?.(reveals)
+  }
+
+  const notifySecretChecksIfChanged = () => {
+    const checks = session?.secretChecks() ?? []
+    const key = JSON.stringify(checks)
+    if (key === lastSecretChecksKey) return
+    lastSecretChecksKey = key
+    deps.onSecretChecksChange?.(checks)
+  }
+
   /** Envia tudo; a promise nunca rejeita — falha vira toast, nunca silêncio. */
   const dispatch = (result: HostResult): Promise<void> => {
     // O espelho anota o que SAI, na ordem em que sai: é o que o jogador recebe.
@@ -792,6 +887,9 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       if (screens.record(clientId, msg)) screensChanged = true
     }
     if (screensChanged) notifyScreens()
+    // Todo recorte e toda leitura passam por aqui: o painel Pistas acompanha
+    // o que SAI (recebeu) e o que o jogador abriu (leu), sem esperar nada.
+    notifyPinCluesIfChanged()
     return Promise.all(
       result.outbound.map(({ clientId, msg }) =>
         deps.invoke('net_send', { clientId, msg }).catch((error: unknown) => reportError('Falha ao enviar para jogador', error)),
@@ -948,6 +1046,9 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     pendingBroadcast = setTimeout(() => {
       pendingBroadcast = null
       broadcastNow()
+      // O mestre mexeu no "Visão nesta cena": o painel Sala relê quantos
+      // quadrados cada um enxerga ali. Sem mudança, a lista não sai (chave JSON).
+      notifyPlayersIfChanged()
     }, BROADCAST_THROTTLE_MS)
   }
 
@@ -1600,6 +1701,21 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     })
   }
 
+  /**
+   * "Espiar" aceito: o mestre lê quem espiou, quem espiou recebe o cone agora,
+   * e no fim do prazo sai o snapshot que o fecha — a sessão já não conta a
+   * porta espiada depois de `PEEK_DURATION_MS` (a folga cobre o relógio do timer).
+   */
+  const announcePeek = (peek: HostPeek) => {
+    useToastStore.getState().push('info', peekNoticeText(peek), PLAYER_JOINED_TOAST_MS)
+    broadcastNow()
+    const timer = setTimeout(() => {
+      peekTimers.delete(timer)
+      broadcastNow()
+    }, PEEK_DURATION_MS + PEEK_CLOSE_SLACK_MS)
+    peekTimers.add(timer)
+  }
+
   const onMessage = (event: { payload: unknown }) => {
     if (session === null || !isRecord(event.payload)) return
     const clientId = parseClientId(event.payload.clientId)
@@ -1672,6 +1788,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     }
     // Sem quem destranque, a porta não abriu: o aviso não pode dizer que abriu.
     if (result.doorKeyUsed !== undefined && deps.unlockAndOpenDoor !== undefined) useToastStore.getState().push('info', doorKeyLine(result.doorKeyUsed))
+    if (result.peek !== undefined) announcePeek(result.peek)
     if (result.travelRequest !== undefined) {
       if (deps.applyTransfer === undefined) {
         // Integrador sem transferência: ninguém do lado do mestre saberia atender.
@@ -1692,6 +1809,12 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       // Mesma regra da porta: o mestre vê pela store, os outros jogadores pelo snapshot imediato.
       deps.applyTokenEdit(result.applyTokenEdit)
       broadcastNow()
+    }
+    if (result.secretCheckAnswer !== undefined) {
+      // Só na tela do mestre: o painel e o aviso. Não há `net_send` com o resultado.
+      const answer = result.secretCheckAnswer
+      useToastStore.getState().push('info', secretCheckAnswerText(answer.playerName, answer.label, answer.result), PLAYER_JOINED_TOAST_MS)
+      notifySecretChecksIfChanged()
     }
     notifyPlayersIfChanged()
     if (wasJoined) return
@@ -1843,6 +1966,8 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       cancelPendingBroadcast()
       // Com a sessão ainda viva: depois dela não há de onde ler o explorado.
       flushExplorationSave()
+      for (const timer of peekTimers) clearTimeout(timer)
+      peekTimers.clear()
       resetLaser()
       // Avisa antes de derrubar: sem `room.closed` o jogador veria queda de rede,
       // não "O mestre encerrou a sala".
@@ -1869,6 +1994,9 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       resetTunnel()
       notifyPlayersIfChanged()
       notifyPinAudiencesIfChanged()
+      notifyPinCluesIfChanged()
+      notifySecretRevealsIfChanged()
+      notifySecretChecksIfChanged()
       try {
         await deps.invoke('net_stop_room')
       } catch (error) {
@@ -1904,11 +2032,25 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       notifyPlayersIfChanged()
     },
 
+    setVisionFactor(playerId, factor) {
+      if (session === null) return
+      session.setVisionFactor(playerId, factor)
+      scheduleBroadcast()
+      notifyPlayersIfChanged()
+    },
+
     setPinAudience(pinId, playerIds) {
       if (session === null) return
       session.setPinAudience(pinId, playerIds)
       broadcastNow()
       notifyPinAudiencesIfChanged()
+    },
+
+    setSecretReveal(itemId, playerIds) {
+      if (session === null) return
+      session.setSecretReveal(itemId, playerIds)
+      broadcastNow()
+      notifySecretRevealsIfChanged()
     },
 
     revealPlan(playerId) {
@@ -1921,6 +2063,20 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       if (session === null) return
       session.hidePlan(playerId, world())
       broadcastNow()
+    },
+
+    revealPlanFor(sceneId, playerIds) {
+      if (session === null) return null
+      const granted = session.revealPlanFor(sceneId, playerIds, world())
+      if (granted > 0) broadcastNow()
+      return granted
+    },
+
+    giveGroupView(playerId) {
+      if (session === null) return null
+      const colleagues = session.giveGroupView(playerId, world())
+      if (colleagues > 0) broadcastNow()
+      return colleagues
     },
 
     sendPlayer(playerId, toSceneId, pinId, gatherAt) {
@@ -2043,6 +2199,29 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       return result.diceRoll ?? null
     },
 
+    noise(x, y, rangeCells) {
+      if (session === null) return null
+      const result = session.noise(x, y, rangeCells, world())
+      void dispatch(result)
+      return result.outbound.length
+    },
+
+    secretCheck(label, playerIds) {
+      if (session === null) return null
+      const result = session.secretCheck(label, playerIds)
+      void dispatch(result)
+      notifySecretChecksIfChanged()
+      const id = result.secretCheckId
+      // Pedidos, não envios: quem caiu entra na conta e recebe ao voltar.
+      return id === undefined ? 0 : (session.secretChecks().find((check) => check.id === id)?.asked.length ?? 0)
+    },
+
+    closeSecretCheck(checkId) {
+      if (session === null) return
+      void dispatch(session.closeSecretCheck(checkId))
+      notifySecretChecksIfChanged()
+    },
+
     assignToken(playerId, tokenId) {
       if (session === null) return
       void dispatch(session.assignToken(playerId, tokenId))
@@ -2067,6 +2246,9 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       pruneReturnToasts()
       notifyPlayersIfChanged()
       notifyPinAudiencesIfChanged()
+      notifyPinCluesIfChanged()
+      notifySecretRevealsIfChanged()
+      notifySecretChecksIfChanged()
       await sendThenKick(result, clientId)
       // O `kicked` já apagou a tela; sem ele (jogador já fora da sessão) apaga aqui.
       forgetScreen(clientId)
@@ -2169,6 +2351,20 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       return () => {
         screenWatchers.delete(listener)
       }
+    },
+
+    tokenSeenBy(tokenId) {
+      if (session === null) return null
+      // Sem mundo, como `playerScreen`: roda a cada recorte novo enquanto o painel está aberto.
+      const players = session.listPlayers()
+      if (players.some((player) => player.tokenIds.includes(tokenId))) return null
+      // A tela precisa ser do MAPA ABERTO: tela de outra cena não diz nada sobre esta ficha.
+      const openMapId = deps.getMap().id
+      return players.flatMap((player) => {
+        const screen = player.clientId === null ? null : screens.get(player.clientId)
+        if (screen === null || screen.kind !== 'map' || screen.map.id !== openMapId) return []
+        return screen.map.tokens.some((token) => token.id === tokenId) ? [player.name] : []
+      })
     },
 
     room() {

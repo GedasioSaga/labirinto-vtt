@@ -28,6 +28,10 @@ import { PlayerCallButton } from './PlayerCallButton'
 import { ReconnectingOverlay } from './ReconnectingOverlay'
 import { PointActionMenu } from './PointActionMenu'
 import { isPointInsideMap, pointNoticeText } from '../lib/pointActions'
+import { OpenPinCard } from './OpenPinCard'
+import { PlayerSecretCheckCard, SECRET_CHECK_NOTICE_TEXT } from './PlayerSecretCheckCard'
+import { PlayerNoiseCue } from './PlayerNoiseCue'
+import { PeekDoorButton } from './PeekDoorButton'
 import { escapeDisarmsMeasure } from './playerMeasure'
 import type { PlayerViewSettings } from './PlayerPanel'
 import { PlayerErrorBoundary } from './ErrorBoundary'
@@ -818,6 +822,7 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
             vision={state.vision}
             explored={state.explored}
             concealed={state.concealed}
+            glimpses={state.glimpses}
             hazards={state.hazards}
             gatilhos={state.gatilhos}
             ownTokens={ownTokens}
@@ -982,6 +987,7 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
             pin={openPin}
             stairs={state.map.stairs}
             onClose={closePin}
+            onRead={(pinId) => connection.markPinRead(pinId)}
             travelWaiting={state.travel?.phase === 'waiting'}
             onRequestTravel={(exitId) => {
               // Pedido enviado, o cartão sai: a espera fica no aviso de baixo,
@@ -1083,6 +1089,20 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
           </p>
         )}
         <PlayerCallButton call={state.call} onRaise={(reason, text) => connection.raiseHand(reason, text)} onLower={() => connection.lowerHand()} />
+        {state.secretCheck && (
+          // `key` no id: pedido novo com outro aberto começa com o campo vazio.
+          <PlayerSecretCheckCard key={state.secretCheck.id} label={state.secretCheck.label} onAnswer={(result) => connection.answerSecretCheck(result)} />
+        )}
+        {state.secretCheckNotice && !state.secretCheck && (
+          // No lugar do cartão que acabou de fechar; um pedido novo toma o lugar do aviso.
+          <p key={state.secretCheckNotice.id} className="pp-notice pp-notice--secret" role="status" aria-live="polite">
+            {SECRET_CHECK_NOTICE_TEXT[state.secretCheckNotice.kind]}
+          </p>
+        )}
+        {state.noise && (
+          // `key` no id: ruído novo remonta o aviso, e a entrada e o prazo da saída recomeçam.
+          <PlayerNoiseCue key={state.noise.id} dir={state.noise.dir} />
+        )}
         {state.travel && (
           <p key={state.travel.id} className="pp-notice pp-notice--travel" role="status" aria-live="polite">
             {travelNoticeText(state.travel)}
@@ -1137,6 +1157,7 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
             {doorRequestText(state.doorRequest.phase)}
           </p>
         )}
+        <PeekDoorButton map={state.map} ownTokens={ownTokens} onPeek={(wallId) => connection.peekDoor(wallId)} />
         {actionNotice && moveNoticeShown && (
           // `key` no id: o mesmo aviso repetido reinicia a animação de entrada.
           <p key={actionNotice.id} className="pp-notice" role="status" aria-live="polite">

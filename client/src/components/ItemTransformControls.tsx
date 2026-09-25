@@ -1,4 +1,5 @@
 import { useId } from 'react'
+import { RevealToControls, type RevealToControlsProps } from './PlayerSecretControls'
 import { Toggle } from './Toggle'
 
 export interface ItemTransformControlsProps {
@@ -22,6 +23,11 @@ export interface ItemTransformControlsProps {
   /** A5 — "Oculto para jogadores". Ausente (junto do callback) omite o toggle. */
   secret?: boolean
   onSecretChange?: (secret: boolean) => void
+  /**
+   * "Revelar para…" quem descobriu a ficha secreta. Só com a sala aberta, e
+   * só aparece com o "Oculto para jogadores" ligado. Ausente/`null` omite.
+   */
+  reveal?: RevealToControlsProps | null
 }
 
 /**
@@ -47,6 +53,7 @@ export function ItemTransformControls({
   onHiddenChange,
   secret,
   onSecretChange,
+  reveal = null,
 }: ItemTransformControlsProps) {
   const showRotation = rotation !== undefined && onRotationChange !== undefined
   // React.useId(): duas seções deste componente podem coexistir no DOM em
@@ -83,6 +90,7 @@ export function ItemTransformControls({
       {secret !== undefined && onSecretChange !== undefined && (
         <Toggle label="Oculto para jogadores" checked={secret} onChange={onSecretChange} />
       )}
+      {reveal !== null && secret === true && <RevealToControls {...reveal} />}
     </section>
   )
 }

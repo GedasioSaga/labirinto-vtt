@@ -4,6 +4,7 @@ import { PIN_GLYPH, PIN_ICON_LABELS, isPinIcon, isPlayerSafePinImage, passageOf 
 import { itemOfPin } from '../lib/items'
 import { stairTravelLabel } from '../lib/stairTravel'
 import { PinLeverArt, PinSymbolArt, PinTravelArt } from '../components/PinSymbolArt'
+import { unreadExitLabels } from '../lib/pinTravel'
 
 interface PlayerPinCardProps {
   pin: Pin
@@ -30,6 +31,12 @@ interface PlayerPinCardProps {
    * que impede quem abre o cartão de esquecer a escada.
    */
   stairs: readonly Stair[]
+  /**
+   * LEITURA DA PISTA: o cartão abriu com o texto à mostra. Sai uma vez por
+   * pino aberto — pacote novo do mesmo pino não repete — e nunca com o pino
+   * "só de perto" visto de longe: sai quando o texto chega.
+   */
+  onRead?: (pinId: string) => void
 }
 
 /** Nome da cabeça do pino para quem não vê o desenho: o que ela mostra no mapa. */
@@ -150,6 +157,7 @@ export function PlayerPinCard({
   takeWaiting = false,
   onPullLever,
   stairs,
+  onRead,
 }: PlayerPinCardProps) {
   const cardRef = useRef<HTMLDivElement | null>(null)
   const closeRef = useRef<HTMLButtonElement | null>(null)
@@ -201,9 +209,34 @@ export function PlayerPinCard({
   }, [onClose])
 
   const descricao = pin.description.trim()
+  // Pino "só de perto" com a ficha longe: o host não mandou texto nem imagem
+  // (`lib/fogFilter.ts`). O cartão diz o que fazer, em vez de fingir que o
+  // mestre não escreveu nada. Chegando perto, o próximo pacote traz o texto e
+  // este cartão, se estiver aberto, troca sozinho.
+  const longe = pin.longe === true
+
+  // O último pino que este cartão já contou como lido: o pacote seguinte do
+  // mesmo pino (a cada passo de alguém) não pode virar leitura de novo.
+  const lidoRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (longe || lidoRef.current === pin.id) return
+    lidoRef.current = pin.id
+    onRead?.(pin.id)
+  }, [pin.id, longe, onRead])
   // Só data URL vira foto: se um caminho de disco escapasse até aqui, o
   // `<img>` tentaria abrir o computador do mestre pelo navegador do jogador.
   const foto = isPlayerSafePinImage(pin.image) ? pin.image : null
+  const textoDoCartao = longe
+    ? 'Chegue mais perto para ler.'
+    : descricao === ''
+      ? 'O mestre ainda não escreveu nada sobre este ponto.'
+      : descricao
+  const altDaImagem =
+    foto !== null
+      ? 'Imagem deixada pelo mestre neste ponto de interesse'
+      : longe
+        ? 'Chegue mais perto para ver a imagem'
+        : 'Este ponto de interesse ainda não tem imagem'
   // Pino de viagem: o cartão é o de sempre (imagem e descrição do mestre), com
   // a passagem no lugar do glifo — a mesma cabeça que o jogador vê no mapa.
   // O nome da cena de destino nunca chega aqui (`lib/fogFilter.ts`).
@@ -220,8 +253,11 @@ export function PlayerPinCard({
   // item. O mapa chega da rede sem conferência campo a campo: só texto vale.
   const chave = trancada && typeof pin.chave === 'string' && pin.chave !== '' ? pin.chave : null
   const muda = trancada && pin.mudo === true
+  // MARCO visto de longe (`soMarco`): o jogador enxerga o Templo, mas nunca
+  // esteve lá — o host recusa a passagem, então o cartão nem oferece.
+  const naoChegou = viagem && !trancada && pin.soMarco === true
   // Muda só abre com a chave; a que aceita tentativas vira pedido ao mestre.
-  const podePedir = viagem && (!muda || chave !== null) && onRequestTravel !== undefined
+  const podePedir = viagem && (!muda || chave !== null) && !naoChegou && onRequestTravel !== undefined
   // Escada: o sentido vem da escada do recorte (`lib/fogFilter.ts` só manda o pino junto com ela).
   const stairDirection: StairDirection | undefined =
     viagem && pin.escadaId !== undefined ? stairs.find((s) => s.id === pin.escadaId)?.direction : undefined
@@ -242,8 +278,11 @@ export function PlayerPinCard({
             : TEXTOS_PEDE
   // ENCRUZILHADA: com mais de uma saída, um botão por saída, pelo rótulo que o
   // mestre escreveu — o destino e o nome da cena nunca chegam aqui. Com uma
-  // saída só (ou sem o campo), o cartão é o de sempre.
-  const escolhas = viagem ? (pin.escolhas ?? []) : []
+  // saída só (ou sem o campo), o cartão é o de sempre. Longe de uma placa "só
+  // de perto", o recorte já manda "Saída N"; o cartão repete a regra para que
+  // nenhum nome escrito na placa apareça ao lado de "Chegue mais perto".
+  const recebidas = viagem ? (pin.escolhas ?? []) : []
+  const escolhas = longe ? unreadExitLabels(recebidas) : recebidas
   const encruzilhada = escolhas.length > 1
   // ITEM PEGÁVEL: o nome vem no recorte, numa cópia limpa (`lib/fogFilter.ts`).
   const item = itemOfPin(pin)
@@ -270,14 +309,13 @@ export function PlayerPinCard({
         aria-modal="true"
         aria-label={escada ?? (viagem ? 'Passagem' : alavanca ? 'Alavanca' : `Ponto de interesse ${PIN_GLYPH[pin.kind]}`)}
       >
-        {escada === null && foto !== null && <img className="pp-pincard__image" src={foto} alt="Imagem deixada pelo mestre neste ponto de interesse" />}
+        {escada === null && foto !== null && <img className="pp-pincard__image" src={foto} alt={altDaImagem} />}
         <div className="pp-pincard__body">
           <CabecaDoPino pin={pin} />
           {/* Escada: só o sentido. O pino dela não tem texto do mestre, e "o
-              mestre ainda não escreveu nada" leria como ponto de interesse vazio. */}
-          <p className="pp-pincard__text">
-            {escada ?? (descricao === '' ? 'O mestre ainda não escreveu nada sobre este ponto.' : descricao)}
-          </p>
+              mestre ainda não escreveu nada" leria como ponto de interesse vazio.
+              Pino "só de perto" visto de longe: "Chegue mais perto para ler". */}
+          <p className="pp-pincard__text">{escada ?? textoDoCartao}</p>
         </div>
         {item !== null && (
           // Pegar não pede confirmação: no modo "pede" o mestre ainda decide, e
@@ -300,6 +338,7 @@ export function PlayerPinCard({
         )}
         {muda && chave === null && <p className="pp-pincard__locked">Está trancada. Não dá para passar por aqui agora.</p>}
         {trancada && !muda && chave === null && <p className="pp-pincard__locked">Está trancada. Só o mestre pode abrir.</p>}
+        {naoChegou && <p className="pp-pincard__locked">Dá para ver daqui, mas para passar é preciso chegar até lá.</p>}
         {podePedir && confirming === null && !encruzilhada && (
           <button
             ref={askRef}

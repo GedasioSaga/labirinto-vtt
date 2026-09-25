@@ -88,6 +88,8 @@ import { useDestinationStore } from '../stores/destinationStore'
 import { createLaserPool, createLaserRenderer } from './drawLaser'
 import { isLaserArmed, useLaserStore } from '../stores/laserStore'
 import { usePlayerLaserStore } from '../stores/playerLaserStore'
+import { useNoiseStore } from '../stores/noiseStore'
+import { createNoiseGesture } from './noiseGesture'
 import { createLaserGesture } from './laserGesture'
 import { LASER_KEY_TAP_MS, isLaserKey } from '../lib/laser'
 import { createMeasurementIndicatorRenderer } from './drawMeasurementIndicator'
@@ -504,6 +506,11 @@ interface PixiCanvasProps {
    * inteiro fora da tela do mestre (câmera e seleção dele não mudam).
    */
   onImageExporterChange?: (exporter: MapImageExporter | null) => void
+  /**
+   * RUÍDO NO MAPA — ponto de mundo do clique com o ruído armado (botão
+   * "Ruído" da aba Jogo). Um clique, um ruído: o gesto já desarmou.
+   */
+  onNoise?: (x: number, y: number) => void
 }
 
 /**
@@ -529,6 +536,7 @@ export function PixiCanvas({
   onRoomCreated,
   onPlaceToken,
   onLaserMove,
+  onNoise,
   onTravelPin,
   focusObstacles,
   onShowShortcuts,
@@ -543,6 +551,10 @@ export function PixiCanvas({
   useEffect(() => {
     onLaserMoveRef.current = onLaserMove
   }, [onLaserMove])
+  const onNoiseRef = useRef(onNoise)
+  useEffect(() => {
+    onNoiseRef.current = onNoise
+  }, [onNoise])
   const onTravelPinRef = useRef(onTravelPin)
   useEffect(() => {
     onTravelPinRef.current = onTravelPin
@@ -974,6 +986,7 @@ export function PixiCanvas({
         useLaserStore.getState().addPoint(point.x, point.y)
         onLaserMoveRef.current?.(point.x, point.y)
       })
+      const noiseGesture = createNoiseGesture((point) => onNoiseRef.current?.(point.x, point.y))
       /** Arma o laser pela tecla: nada é desenhado nem enviado até o botão esquerdo. */
       const activateLaserKey = () => {
         if (laserKeyTimer !== null) clearTimeout(laserKeyTimer)
@@ -1000,6 +1013,7 @@ export function PixiCanvas({
       el.addEventListener('pointerleave', onCanvasPointerLeave)
       // Alt+Tab com L ou o botão apertado: keyup/pointerup nunca chegam e o laser ficaria preso ligado.
       const onWindowBlur = () => {
+        noiseGesture.cancel()
         laserGesture.cancel()
         releaseLaserKey(false)
       }
@@ -1394,7 +1408,8 @@ export function PixiCanvas({
       const regionsRenderer = createRegionsRenderer({ roofMarker: true })
       const roomNamesRenderer = createRoomNamesRenderer()
       const concealZonesRenderer = createConcealZonesRenderer()
-      const pinsRenderer = createPinsRenderer()
+      // O editor é o único que desenha o nome só do mestre ao lado do pino.
+      const pinsRenderer = createPinsRenderer({ showNames: true })
       const floorRenderer = createFloorRenderer()
       // Gradientes de luz nascem POR RENDERER e morrem no teardown.
       const lightsRenderer = createLightsRenderer()
@@ -3042,8 +3057,8 @@ export function PixiCanvas({
       // `mode` e os 21 `DrawingTool` — antes só conhecia 2 estados
       // ('crosshair' pra Borracha, 'default' pro resto).
       const updateCursor = () => {
-        // B2 — laser armado (L ou botão Laser) fora de pan: mira, qualquer que seja a ferramenta.
-        if (isLaserArmed(useLaserStore.getState()) && mode === 'idle' && !spaceHeld) {
+        // B2 — laser ou ruído armado fora de pan: mira, qualquer que seja a ferramenta.
+        if ((isLaserArmed(useLaserStore.getState()) || useNoiseStore.getState().armed) && mode === 'idle' && !spaceHeld) {
           el.style.cursor = 'crosshair'
           return
         }
@@ -3058,6 +3073,12 @@ export function PixiCanvas({
       updateCursor()
       const unsubscribeLaserCursor = useLaserStore.subscribe((state, previous) => {
         if (isLaserArmed(state) === isLaserArmed(previous)) return
+        hoverGraphics.clear()
+        hoverTarget = null
+        updateCursor()
+      })
+      const unsubscribeNoiseCursor = useNoiseStore.subscribe((state, previous) => {
+        if (state.armed === previous.armed) return
         hoverGraphics.clear()
         hoverTarget = null
         updateCursor()
@@ -3138,6 +3159,8 @@ export function PixiCanvas({
         // viagem, mais abaixo, arma uma — e só para ESTE aperto.
         travelPress = null
 
+        // Ruído armado + botão esquerdo: o clique é do ruído (um só) e a ferramenta ativa não roda.
+        if (!spaceHeld && noiseGesture.pointerDown(event.button, toWorldPoint(event.global.x, event.global.y))) return
         // B2 — laser armado + botão esquerdo: o traço é do laser e a ferramenta ativa não roda.
         if (!spaceHeld && laserGesture.pointerDown(event.button, toWorldPoint(event.global.x, event.global.y))) return
 
@@ -4038,6 +4061,8 @@ export function PixiCanvas({
       })
 
       app.stage.on('pointerup', (event) => {
+        // O soltar do clique do ruído também é dele: a ferramenta não viu o apertar.
+        if (noiseGesture.pointerUp()) return
         // B2 — fim do traço do laser; o App manda `laser {off}` na transição.
         if (laserGesture.pointerUp()) return
 
@@ -4540,6 +4565,7 @@ export function PixiCanvas({
         // O toque terminou FORA do canvas: ele não é mais a primeira metade de
         // um duplo clique, e o próximo toque dentro do mapa é um toque novo.
         ultimoToqueDoTracado = null
+        if (noiseGesture.pointerUp()) return
         if (laserGesture.pointerUp()) return
         // Mesmo fechamento de gesto do pointerup acima — o mouse pode sair do
         // canvas no meio de um arrasto de Curva, e o gesto ainda precisa virar
@@ -4747,7 +4773,7 @@ export function PixiCanvas({
         // Traço do laser em curso (botão esquerdo pressionado): consome o move.
         if (laserGesture.pointerMove(laserPointer)) return
         // Armado e ocioso: sem hover nem prévia da ferramenta, só a mira.
-        if (mode === 'idle' && isLaserArmed(useLaserStore.getState())) return
+        if (mode === 'idle' && (isLaserArmed(useLaserStore.getState()) || useNoiseStore.getState().armed)) return
 
         if (mode === 'panning') {
           const dx = event.global.x - lastPoint.x
@@ -5961,6 +5987,8 @@ export function PixiCanvas({
         app.ticker.remove(tickLaser)
         app.ticker.remove(tickPlayerLasers)
         unsubscribeLaserCursor()
+        unsubscribeNoiseCursor()
+        noiseGesture.cancel()
         laserGesture.cancel()
         releaseLaserKey(false)
         el.removeEventListener('pointerleave', onCanvasPointerLeave)

@@ -31,6 +31,12 @@ export interface SceneEntry {
    * Nunca fica vazio: vazio sai do objeto (`cleanPublicSceneName`).
    */
   publicName?: string
+   * "Planta conhecida por todos": todo jogador que chega à cena recebe a
+   * planta (sem interior de teto nem zona oculta). Ausente = desligada — cena
+   * de aventura antiga abre igual, sem migração. Fica no `adventure.json`, e
+   * não no `map.json`, porque o mapa é o que vai (recortado) ao jogador.
+   */
+  planKnownByAll?: true
 }
 
 export interface Adventure {
@@ -114,10 +120,12 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function sceneEntryOrNull(value: unknown): SceneEntry | null {
   if (!isRecord(value)) return null
-  const { id, name, file, parentId, publicName } = value
+  const { id, name, file, parentId, publicName, planKnownByAll } = value
   if (typeof id !== 'string' || id.length === 0) return null
   if (typeof file !== 'string') return null
   const entry: SceneEntry = { id, name: typeof name === 'string' ? name : UNNAMED_SCENE, file }
+  // Só `true` liga: qualquer outra coisa vinda do disco é desligada.
+  if (planKnownByAll === true) entry.planKnownByAll = true
   // Nome público de outro tipo (arquivo editado à mão) cai calado: a cena só fica sem ele.
   const named = typeof publicName === 'string' ? withPublicSceneName(entry, publicName) : entry
   return withParent(named, typeof parentId === 'string' && parentId.length > 0 ? parentId : null)

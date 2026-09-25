@@ -1707,6 +1707,184 @@ body {
   margin: 0;
 }
 
+/* Teste secreto (aba Jogo): nome do teste, quem faz, e as respostas embaixo,
+   o mais novo em cima. Só o mestre lê esta lista. */
+.lb-secret-check {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-2);
+  flex: none;
+}
+
+.lb-secret-check__form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-2);
+  margin: 0;
+}
+
+.lb-secret-check__error {
+  margin: 0;
+  font-size: 12px;
+  color: var(--lb-color-ember);
+}
+
+.lb-secret-check .lb-input[aria-invalid='true'] {
+  border-color: var(--lb-color-ember);
+}
+
+.lb-secret-check__who {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-1);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.lb-secret-check__option {
+  display: flex;
+  align-items: center;
+  gap: var(--lb-space-2);
+  min-height: 28px;
+}
+
+.lb-secret-check__list,
+.lb-secret-check__answers {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.lb-secret-check__item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-1);
+}
+
+/* Painel Pistas (aba Jogo): uma linha por pino "!"/"?" e uma bolinha por
+   jogador. A bolinha pinta com `currentColor` (a cor da ficha vem no `color`
+   inline): vazia = só o aro, recebeu = aro com miolo, leu = cheia. */
+.lb-clues {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-2);
+  flex: none;
+}
+
+.lb-clues__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.lb-clues__item {
+  display: flex;
+  align-items: center;
+  gap: var(--lb-space-2);
+  padding: var(--lb-space-1) var(--lb-space-2);
+  border: 1px solid var(--lb-color-line);
+  border-radius: var(--lb-radius-md);
+  background: var(--lb-color-stone-sunken);
+}
+
+.lb-clues__pin {
+  display: flex;
+  align-items: baseline;
+  gap: var(--lb-space-2);
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 32px;
+  padding: 0 var(--lb-space-1);
+  border: 0;
+  border-radius: var(--lb-radius-md);
+  background: transparent;
+  color: var(--lb-color-parchment);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.lb-clues__pin:hover {
+  background: var(--lb-color-stone-hover);
+}
+
+.lb-clues__glyph {
+  flex: none;
+  font-weight: 700;
+  color: var(--lb-color-brass);
+}
+
+.lb-clues__label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lb-clues__scene {
+  flex: none;
+  max-width: 45%;
+  margin-left: auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-parchment-dim);
+}
+
+.lb-clues__dots {
+  display: flex;
+  flex: none;
+  gap: 2px;
+}
+
+/* Alvo de toque de 24 px em volta de um disco de 12 px. */
+.lb-clues__dot {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--lb-color-parchment-dim);
+  cursor: pointer;
+}
+
+.lb-clues__dot::before {
+  content: '';
+  box-sizing: border-box;
+  width: 12px;
+  height: 12px;
+  border: 2px solid currentColor;
+  border-radius: 50%;
+}
+
+.lb-clues__dot[data-estado='recebeu']::before {
+  background: radial-gradient(circle, currentColor 0 2px, transparent 2.5px);
+}
+
+.lb-clues__dot[data-estado='leu']::before {
+  background: currentColor;
+}
+
+.lb-clues__dot--hidden::before {
+  border-style: dashed;
+  opacity: 0.55;
+}
+
+.lb-clues__dot:hover {
+  background: var(--lb-color-stone-hover);
+}
+
 .lb-clock__hour {
   font-size: 20px;
   color: var(--lb-color-parchment);
@@ -3954,6 +4132,36 @@ html.lb-arrastando-cena * {
   font-style: italic;
 }
 
+/* Pinos da aventura: a mesma linha de cartão das Cenas, com o nome do pino à
+   esquerda e a cena dele à direita. A lista rola dentro dela: sete jogadores
+   num mapa de crime podem deixar dezenas de pinos. */
+.lb-pinos {
+  max-height: 18rem;
+  overflow-y: auto;
+}
+
+.lb-pinos__linha {
+  display: flex;
+  align-items: baseline;
+  gap: var(--lb-space-2);
+}
+
+.lb-pinos__nome {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.lb-pinos__cena {
+  flex: none;
+  max-width: 45%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--lb-color-parchment-faint);
+  font-size: var(--lb-font-size-sm);
+}
+
 .lb-objetos__marca {
   display: inline-flex;
   flex: none;
@@ -4078,6 +4286,25 @@ html.lb-arrastando-cena * {
   margin: 0;
   color: var(--lb-color-parchment-faint);
   font-size: var(--lb-font-size-sm);
+}
+
+/* Planta da cena ("Planta conhecida por todos" e "Revelar planta para…"): a
+   linha inteira do item, como o recado; as caixas usam o poço do "Reunir". */
+.lb-cenas__planta {
+  display: flex;
+  flex-direction: column;
+  flex-basis: 100%;
+  gap: var(--lb-space-2);
+}
+
+.lb-cenas__planta-quem {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-1);
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
 }
 
 /* Destino do pino de viagem (PinTravelControls): um poço rebaixado logo abaixo

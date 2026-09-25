@@ -362,19 +362,30 @@ function isPointInMemoryRings(exp: Exploration, point: RegionPoint): boolean {
  * inteiro de uma vez (caminho de sempre).
  */
 function setRunOutsideZones(exp: Exploration, row: number, colStart: number, colEnd: number, zones: readonly ZoneBox[]): void {
-  const y0 = row * exp.cell
-  const y1 = y0 + exp.cell
-  const rowZones = zones.filter((z) => z.maxY >= y0 && z.minY <= y1)
+  const rowZones = zonesOnRow(exp, row, zones)
   if (rowZones.length === 0) {
     setRun(exp, row, colStart, colEnd)
     return
   }
   for (let col = colStart; col < colEnd; col += 1) {
-    const x0 = col * exp.cell
-    const x1 = x0 + exp.cell
-    const blocked = rowZones.some((z) => z.maxX >= x0 && z.minX <= x1 && ringTouchesRect(z.ring, x0, y0, x1, y1))
-    if (!blocked) setRun(exp, row, col, col + 1)
+    if (!cellTouchesZones(exp, col, row, rowZones)) setRun(exp, row, col, col + 1)
   }
+}
+
+/** Zonas cuja caixa alcança a faixa da linha `row`: as únicas que podem tocar células dela. */
+function zonesOnRow(exp: Exploration, row: number, zones: readonly ZoneBox[]): ZoneBox[] {
+  const y0 = row * exp.cell
+  const y1 = y0 + exp.cell
+  return zones.filter((z) => z.maxY >= y0 && z.minY <= y1)
+}
+
+/** A célula toca alguma das zonas (já filtradas pela linha em `zonesOnRow`). */
+function cellTouchesZones(exp: Exploration, col: number, row: number, rowZones: readonly ZoneBox[]): boolean {
+  const x0 = col * exp.cell
+  const x1 = x0 + exp.cell
+  const y0 = row * exp.cell
+  const y1 = y0 + exp.cell
+  return rowZones.some((z) => z.maxX >= x0 && z.minX <= x1 && ringTouchesRect(z.ring, x0, y0, x1, y1))
 }
 
 /**
@@ -551,6 +562,31 @@ export function mergeExploration(target: Exploration, source: Exploration): void
 export function markAll(exp: Exploration, concealed: readonly RegionPoint[][] = []): void {
   const zones = zoneBoxes(concealed)
   for (let row = 0; row < exp.rows; row += 1) setRunOutsideZones(exp, row, 0, exp.cols, zones)
+}
+
+/**
+ * "Dar o que o grupo viu": soma a `into` o que `from` lembra — células e
+ * contornos —, com a MESMA regra de área proibida de `markAll`/`markRings`:
+ * célula que toca `concealed` não entra, e contorno que encosta nela também
+ * não. `concealed` é o de AGORA (`playerBlockedRings`), então zona ligada
+ * depois que o colega viu, sala secreta e prédio de teto ficam de fora mesmo
+ * que o colega os lembre.
+ *
+ * Memórias de grades diferentes (mapa redimensionado entre uma e outra) não
+ * se somam: a célula de uma não é a célula da outra.
+ */
+export function mergeExplored(into: Exploration, from: Exploration, concealed: readonly RegionPoint[][] = []): void {
+  if (into.cell !== from.cell || into.cols !== from.cols || into.rows !== from.rows) return
+  const zones = zoneBoxes(concealed)
+  for (let row = 0; row < from.rows; row += 1) {
+    const rowZones = zonesOnRow(from, row, zones)
+    for (let col = 0; col < from.cols; col += 1) {
+      if (!isCellSet(from, col, row)) continue
+      if (rowZones.length > 0 && cellTouchesZones(from, col, row, rowZones)) continue
+      setRun(into, row, col, col + 1)
+    }
+  }
+  for (const ring of from.rings) rememberRing(into, ring.points, zones)
 }
 
 /**

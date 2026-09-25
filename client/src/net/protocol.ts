@@ -12,6 +12,7 @@ import { CLUEBOOK_MAX_CLUES, CLUE_TEXT_MAX_LENGTH, CLUE_TITLE_MAX_LENGTH } from 
 import { isPointActionKind, isPointActionRejection, type PointActionAnswer, type PointActionKind, type PointActionRejection } from '../lib/pointActions'
 import { MAX_DESTINATION_MARKS, SIGNAL_COLOR_PATTERN, type DestinationMark } from '../lib/signals'
 import { MASTER_ROLLER_NAME, parseDiceRequest, type DiceRequest, type DiceRollEntry } from '../lib/dice'
+import { isNoiseDirection, type NoiseDirection } from '../lib/noise'
 
 /**
  * Protocolo mestre <-> jogador. Toda mensagem é um objeto discriminado por
@@ -179,6 +180,22 @@ import { MASTER_ROLLER_NAME, parseDiceRequest, type DiceRequest, type DiceRollEn
  * nome), `seat.claim` (jogador -> mestre) e, na volta, `seat.claim.state`.
  * Mestre antigo responde `error invalid_message` ao pedido e nunca manda a
  * lista (o jogador fica na espera de sempre); jogador antigo ignora as duas.
+ *
+ * `pin.read` (jogador -> mestre) é a LEITURA DA PISTA, aditiva pelo mesmo
+ * critério: o jogador abriu o cartão do pino e o texto estava lá. Acende
+ * "leu" no painel Pistas do mestre. Não tem volta: nada sai para o jogador.
+ * Mestre antigo responde `error invalid_message`, que o jogador ignora.
+ *
+ * `noise` (mestre -> jogador) é o RUÍDO NO MAPA, aditivo pelo mesmo critério:
+ * jogador antigo cai no `default` e ignora. Leva só um id e a DIREÇÃO já
+ * arredondada (`lib/noise.ts`), nunca a posição do ruído nem o que o fez.
+ *
+ * O TESTE SECRETO é aditivo pelo mesmo critério: `secret.check` (mestre ->
+ * jogador escolhido) leva só um id e o nome do teste — nunca quem mais foi
+ * escolhido; `secret.check.closed` (o mestre encerrou) leva só o id; e
+ * `secret.check.answer` (jogador -> mestre) leva o id e o resultado, que o
+ * host guarda para o mestre e não repassa a ninguém. Jogador antigo ignora as
+ * duas primeiras; mestre antigo responde `error invalid_message` à terceira.
  */
 export const PROTOCOL_VERSION = 1
 
@@ -248,6 +265,14 @@ export const CALL_REASON_LABELS: Record<CallReason, string> = {
 export const CALL_TEXT_MAX_LENGTH = 140
 /** Teto do motivo do "Não, porque…" do pedido de passagem, em unidades UTF-16 (o `maxLength` do campo conta igual). */
 export const TRAVEL_DENY_TEXT_MAX_LENGTH = 80
+/** Teto do nome do teste secreto ("Percepção"), em unidades UTF-16, como o recado. */
+export const SECRET_CHECK_LABEL_MAX_LENGTH = 40
+/**
+ * Faixa do resultado que o jogador manda: inteiro, com folga para modificador
+ * negativo e para sistema de dado percentual. Fora disso a mensagem cai.
+ */
+export const SECRET_CHECK_RESULT_MIN = -99
+export const SECRET_CHECK_RESULT_MAX = 999
 
 const JOIN_CODE_PATTERN = /^[A-Z0-9]{6}$/
 
@@ -315,6 +340,19 @@ export interface SignalMessage {
  */
 export interface DoorToggleMessage {
   type: 'door.toggle'
+  wallId: string
+}
+
+/**
+ * "Espiar": jogador olha pela porta FECHADA encostada no token dele. O host
+ * valida como o `door.toggle` (porta visível para ele, token perto) e, se
+ * valer, a visão DELE atravessa a porta por `PEEK_DURATION_MS`; a porta segue
+ * fechada para todos e o mestre recebe o aviso. Recusa volta no mesmo
+ * `door.toggle.rejected`. Aditiva: mestre antigo responde `error
+ * invalid_message`, que o jogador ignora.
+ */
+export interface DoorPeekMessage {
+  type: 'door.peek'
   wallId: string
 }
 
@@ -514,6 +552,9 @@ export type PlayerMessage =
   | PointActionMessage
   | DiceRollMessage
   | PinLeverMessage
+  | DoorPeekMessage
+  | PinReadMessage
+  | SecretCheckAnswerMessage
 
 /**
  * Por que a alavanca não moveu nada. `unavailable` junta pino inexistente, no
@@ -539,8 +580,31 @@ export type ItemGiveRejection = 'unavailable' | 'far'
 
 export const ITEM_GIVE_REJECTIONS: readonly ItemGiveRejection[] = ['unavailable', 'far']
 
-/** Por que o host recusou o pedido de porta do jogador. */
-export type DoorToggleRejection = 'locked' | 'far' | 'not_visible'
+/**
+ * Jogador leu o cartão do pino `pinId` (abriu, com o texto já chegado). Só o
+ * id: o host confere que o pino saiu mesmo para ele antes de contar.
+ */
+export interface PinReadMessage {
+  type: 'pin.read'
+  pinId: string
+}
+
+/**
+ * Resposta do jogador ao teste secreto `id`. Só o número: o host confere que
+ * o pedido foi mesmo para ele antes de contar.
+ */
+export interface SecretCheckAnswerMessage {
+  type: 'secret.check.answer'
+  id: string
+  result: number
+}
+
+/**
+ * Por que o host recusou o pedido de porta do jogador. `wrong_side` (porta de
+ * um lado, `DoorState.opensFrom`) é aditivo: jogador antigo descarta o motivo
+ * desconhecido e só não vê o aviso; a porta não abre do mesmo jeito.
+ */
+export type DoorToggleRejection = 'locked' | 'far' | 'not_visible' | 'wrong_side'
 
 /**
  * Por que o host não levou o pedido da porta trancada ao mestre. `pending`: um
@@ -764,6 +828,29 @@ export function clampSeatOptionName(name: string): string {
 }
 
 /**
+ * Ruído que o jogador ouviu: de que lado veio, visto da ficha dele. Sem
+ * posição, distância nem fonte — o host já decidiu tudo isso (`fogFilter.ts`).
+ */
+export interface NoiseMessage {
+  type: 'noise'
+  id: string
+  dir: NoiseDirection
+}
+
+/** Pedido de teste secreto a este jogador. `label` é o nome que o mestre deu ("Percepção"). */
+export interface SecretCheckMessage {
+  type: 'secret.check'
+  id: string
+  label: string
+}
+
+/** O mestre encerrou o teste `id`: o cartão de quem não respondeu fecha. */
+export interface SecretCheckClosedMessage {
+  type: 'secret.check.closed'
+  id: string
+}
+
+/**
  * `table_full`: já há `MAX_TABLE_SCREENS` telas da mesa na sala (`hostSession.ts`).
  * `bad_table_key`: tela da mesa sem a chave do link da TV, ou com outra.
  */
@@ -783,8 +870,10 @@ export type HostMessage =
   // `gatilhos` (GATILHO DE ÁREA): só o revelado pelo mestre, e só quando há algum (`PlayerMapView.gatilhos`).
   // `andares` (MAPA POR ANDARES): só quando a cena dele é andar de um prédio e ele já esteve em outro andar dele.
   // `relogio` (RELÓGIO DA CAMPANHA): só o período e, da cena dele, se está escuro — nunca a hora (`clockForPlayer`).
-  | { type: 'snapshot'; rev: number; map: MapData; vision: RegionPoint[][]; explored: ExploredWire; ownTokens: string[]; concealed: RegionPoint[][]; turn?: string; partyTokens?: string[]; hazards?: PlayerHazard[]; sceneName?: string; place?: string; places?: string[]; gatilhos?: PlayerAreaTrigger[]; andares?: FloorsWire; relogio?: PlayerClock }
-  | { type: 'delta'; rev: number; map: MapData; vision: RegionPoint[][]; explored: ExploredWire; ownTokens: string[]; concealed: RegionPoint[][]; turn?: string; partyTokens?: string[]; hazards?: PlayerHazard[]; sceneName?: string; place?: string; places?: string[]; gatilhos?: PlayerAreaTrigger[]; andares?: FloorsWire; relogio?: PlayerClock }
+  // `glimpses`: cone pelo vão de prédio com teto (`PlayerMapView.glimpses`).
+  // Aditivo: ausente = telhado inteiro, que é o que o mestre antigo manda.
+  | { type: 'snapshot'; rev: number; map: MapData; vision: RegionPoint[][]; explored: ExploredWire; ownTokens: string[]; concealed: RegionPoint[][]; turn?: string; partyTokens?: string[]; hazards?: PlayerHazard[]; sceneName?: string; place?: string; places?: string[]; gatilhos?: PlayerAreaTrigger[]; andares?: FloorsWire; relogio?: PlayerClock; glimpses?: RegionPoint[][] }
+  | { type: 'delta'; rev: number; map: MapData; vision: RegionPoint[][]; explored: ExploredWire; ownTokens: string[]; concealed: RegionPoint[][]; turn?: string; partyTokens?: string[]; hazards?: PlayerHazard[]; sceneName?: string; place?: string; places?: string[]; gatilhos?: PlayerAreaTrigger[]; andares?: FloorsWire; relogio?: PlayerClock; glimpses?: RegionPoint[][] }
   // ZONA DE PERIGO: a ficha DESTE jogador entrou num perigo. Só o tipo — nem a sala, nem a zona.
   | { type: 'hazard.entered'; kind: HazardKind }
   | { type: 'token.move.accepted'; reqId: string; x: number; y: number }
@@ -838,6 +927,9 @@ export type HostMessage =
   | SeatOptionsMessage
   // Só a quem pediu a ficha; a aceitação chega como o mapa, com a ficha dele.
   | { type: 'seat.claim.state'; state: SeatClaimState }
+  | NoiseMessage
+  | SecretCheckMessage
+  | SecretCheckClosedMessage
   | { type: 'kicked' }
   | { type: 'room.closed' }
   // A mesma pessoa entrou por outra aba (ou aparelho) com o resume desta
@@ -1036,6 +1128,53 @@ function parseNoteEntry(value: unknown): NoteEntry | null {
   const { id, text, at } = value
   if (!isBoundedString(id, 1, REQ_ID_MAX_LENGTH) || !isBoundedString(text, 1, NOTE_MAX_LENGTH) || !isNoteTime(at)) return null
   return { id, text, at }
+}
+
+/**
+ * Nome do teste secreto como sai para o jogador: aparado e cortado no teto,
+ * sem meia letra no fim (mesma regra do recado).
+ */
+export function clampSecretCheckLabel(label: string): string {
+  const trimmed = label.trim()
+  if (trimmed.length <= SECRET_CHECK_LABEL_MAX_LENGTH) return trimmed
+  const cut = trimmed.slice(0, SECRET_CHECK_LABEL_MAX_LENGTH)
+  const last = cut.charCodeAt(cut.length - 1)
+  return last >= 0xd800 && last <= 0xdbff ? cut.slice(0, -1) : cut
+}
+
+/** O resultado do teste secreto vale: inteiro dentro da faixa. */
+export function isSecretCheckResult(value: unknown): value is number {
+  return typeof value === 'number' && Number.isInteger(value) && value >= SECRET_CHECK_RESULT_MIN && value <= SECRET_CHECK_RESULT_MAX
+}
+
+/**
+ * Valida o `secret.check` que o jogador recebe. Devolve cópia só com `id` e
+ * `label`: campo a mais (uma lista de quem mais foi escolhido) não chega à tela.
+ */
+export function parseSecretCheck(value: unknown): SecretCheckMessage | null {
+  if (!isRecord(value) || value.type !== 'secret.check') return null
+  const { id, label } = value
+  if (!isBoundedString(id, 1, REQ_ID_MAX_LENGTH)) return null
+  if (!isBoundedString(label, 1, SECRET_CHECK_LABEL_MAX_LENGTH)) return null
+  return { type: 'secret.check', id, label }
+}
+
+/** Valida o `secret.check.closed` que o jogador recebe. */
+export function parseSecretCheckClosed(value: unknown): SecretCheckClosedMessage | null {
+  if (!isRecord(value) || value.type !== 'secret.check.closed') return null
+  return isBoundedString(value.id, 1, REQ_ID_MAX_LENGTH) ? { type: 'secret.check.closed', id: value.id } : null
+}
+
+/**
+ * Valida o `noise` que o jogador recebe. Devolve cópia só com `id` e `dir`:
+ * campo a mais (uma posição, um nome) não chega ao estado da tela.
+ */
+export function parseNoiseMessage(value: unknown): NoiseMessage | null {
+  if (!isRecord(value) || value.type !== 'noise') return null
+  const { id, dir } = value
+  if (!isBoundedString(id, 1, REQ_ID_MAX_LENGTH)) return null
+  if (!isNoiseDirection(dir)) return null
+  return { type: 'noise', id, dir }
 }
 
 /**
@@ -1385,6 +1524,8 @@ export function parsePlayerMessage(raw: unknown): PlayerMessage | null {
       return parseDoorRequest(value)
     case 'door.useKey':
       return isBoundedString(value.wallId, 1, REQ_ID_MAX_LENGTH) ? { type: 'door.useKey', wallId: value.wallId } : null
+    case 'door.peek':
+      return isBoundedString(value.wallId, 1, REQ_ID_MAX_LENGTH) ? { type: 'door.peek', wallId: value.wallId } : null
     case 'token.edit':
       return parseTokenEdit(value)
     case 'pin.travel.request':
@@ -1422,6 +1563,12 @@ export function parsePlayerMessage(raw: unknown): PlayerMessage | null {
       return isBoundedString(value.pinId, 1, REQ_ID_MAX_LENGTH) ? { type: 'pin.lever', pinId: value.pinId } : null
     case 'seat.claim':
       return isBoundedString(value.tokenId, 1, REQ_ID_MAX_LENGTH) ? { type: 'seat.claim', tokenId: value.tokenId } : null
+    case 'pin.read':
+      return isBoundedString(value.pinId, 1, REQ_ID_MAX_LENGTH) ? { type: 'pin.read', pinId: value.pinId } : null
+    case 'secret.check.answer':
+      return isBoundedString(value.id, 1, REQ_ID_MAX_LENGTH) && isSecretCheckResult(value.result)
+        ? { type: 'secret.check.answer', id: value.id, result: value.result }
+        : null
     default:
       return null
   }

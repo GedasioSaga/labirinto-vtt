@@ -100,6 +100,7 @@ import { previewTokenDrag } from './playerTokenDrag'
 import { reachOutline } from '../lib/movementRules'
 import { personalNoteAtScreen, type PersonalNote } from './personalNotes'
 import { createPersonalNotesRenderer } from './drawPersonalNotes'
+import { applyRoofCut } from './roofCut'
 
 /** Pedido de "leve a câmera até este ponto" (Minhas notas e os pontos conhecidos da aba Lugares). */
 export interface FocusPointRequest {
@@ -119,6 +120,8 @@ interface PlayerViewProps {
   hazards?: readonly PlayerHazard[]
   /** GATILHO DE ÁREA: armadilhas/alarmes que o mestre revelou (o host já recortou). */
   gatilhos?: readonly PlayerAreaTrigger[]
+  /** Cone pelo vão de prédio com teto: o telhado abre só aqui (`roofCut.ts`). */
+  glimpses?: RegionPoint[][]
   ownTokens: string[]
   /** INICIATIVA: a ficha da vez (sempre uma de `map.tokens`), que ganha o anel da vez. */
   turnTokenId?: string | null
@@ -709,6 +712,9 @@ interface Scene {
   roofs: Graphics
   lastRoofsKey: string | null
   roofsCount: number
+  /** Máscara invertida do telhado: o cone pelo vão (`applyRoofCut`). */
+  roofCut: Graphics
+  lastRoofCut: RegionPoint[][] | null
   tokens: Container
   tokenViews: Map<string, TokenView>
   /** Fichas deslizando do ponto antigo ao novo; o ticker as leva até lá. */
@@ -991,6 +997,7 @@ export function PlayerView({
   concealed = NO_CONCEALED,
   hazards = NO_HAZARDS,
   gatilhos = NO_TRIGGERS,
+  glimpses = NO_CONCEALED,
   ownTokens,
   turnTokenId = null,
   settings,
@@ -1034,6 +1041,7 @@ export function PlayerView({
     vision,
     explored,
     concealed,
+    glimpses,
     hazards,
     gatilhos,
     ownTokens,
@@ -1338,6 +1346,7 @@ export function PlayerView({
       concealed: currentConcealed,
       hazards: currentHazards,
       gatilhos: currentTriggers,
+      glimpses: currentGlimpses,
       ownTokens: own,
       turnTokenId: currentTurn,
       settings: currentSettings,
@@ -1402,6 +1411,10 @@ export function PlayerView({
     redrawFog(scene, currentMap, currentVision, currentExplored, currentSettings.exploredBrightness)
     redrawConcealed(scene, currentConcealed)
     redrawRoofs(scene, regions)
+    if (currentGlimpses !== scene.lastRoofCut) {
+      scene.lastRoofCut = currentGlimpses
+      applyRoofCut(scene.roofs, scene.roofCut, currentGlimpses)
+    }
 
     // O recorte do mestre já tirou daqui todo pino que este jogador não pode
     // ver (lib/fogFilter.ts): o que chegou é o que ele pode tocar.
@@ -1610,6 +1623,8 @@ export function PlayerView({
       const visionMask = new Graphics()
       const concealed = new Graphics()
       const roofs = new Graphics()
+      // Máscara do telhado: mora no mundo (acompanha a câmera, como `gridMask`).
+      const roofCut = new Graphics()
       const pins = new Container()
       const tokens = new Container()
       prepareTokenLayer(tokens)
@@ -1654,6 +1669,7 @@ export function PlayerView({
         concealed,
         // Telhado acima da névoa e abaixo dos tokens: o token do jogador está
         // do lado de fora (senão o teto teria aberto) e nunca fica sob o prédio.
+        roofCut,
         roofs,
         pins,
         tokens,
@@ -1750,6 +1766,8 @@ export function PlayerView({
         roofs,
         lastRoofsKey: null,
         roofsCount: 0,
+        roofCut,
+        lastRoofCut: null,
         tokens,
         tokenViews: new Map(),
         tokenGlides: createTokenGlides(),
@@ -2254,7 +2272,7 @@ export function PlayerView({
   useEffect(() => {
     const scene = sceneRef.current
     if (scene) redraw(scene)
-  }, [map, vision, explored, concealed, hazards, gatilhos, ownTokens, turnTokenId, settings])
+  }, [map, vision, explored, concealed, glimpses, hazards, gatilhos, ownTokens, turnTokenId, settings])
 
   useEffect(() => {
     // Contagem para o e2e (o desenho em si é do ticker); muda quando chega ou expira um sinal.

@@ -9,12 +9,15 @@ import { MovementControls, type MovementControlsProps } from './MovementControls
 import { MapSizeControls, type MapSizeControlsProps } from './MapSizeControls'
 import { ArrivalTextControls, type ArrivalTextControlsProps } from './ArrivalTextControls'
 import { SceneFloorControls, type SceneFloorControlsProps } from './SceneFloorControls'
+import { SceneVisionControls, type SceneVisionControlsProps } from './SceneVisionControls'
 import { FEATURES } from '../lib/features'
 
 export interface MapSettingsProps {
   grid: GridControlsProps
   gridAlign: GridAlignControlsProps
   mapScale: MapScaleControlsProps
+  /** "Visão nesta cena": alcance da visão dos jogadores nesta cena, em quadrados. */
+  sceneVision: SceneVisionControlsProps
   scenarioLink: ScenarioLinkControlsProps
   /** Passo máximo e ocupação da cena; ausente, a seção não aparece. */
   movement?: MovementControlsProps
@@ -55,6 +58,7 @@ export function MapSettingsDialog({
   grid,
   gridAlign,
   mapScale,
+  sceneVision,
   scenarioLink,
   movement,
   mapSize,
@@ -144,6 +148,7 @@ export function MapSettingsDialog({
           <MapSizeControls {...mapSize} />
           {arrivalText && <ArrivalTextControls {...arrivalText} />}
           {sceneFloor && <SceneFloorControls {...sceneFloor} />}
+          <SceneVisionControls {...sceneVision} />
           {showScenarioLink && <ScenarioLinkControls {...scenarioLink} />}
         </div>
       </div>

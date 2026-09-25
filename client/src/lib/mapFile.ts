@@ -2,8 +2,9 @@ import type { DoorState, FloorStyle, MapData, Prop, Region } from '../types/map'
 import { propPlayerImage, propPlayerLabel } from './propPlayerLook'
 import { readDoorKey } from './doorKey'
 import { linkLooseWallsToRooms } from './roomLink'
-import { isPinIcon, isPinKind, isPinPassage } from './pins'
+import { cleanPinName, isPinIcon, isPinKind, isPinPassage, isPinReadDistance } from './pins'
 import { cleanExitLabel, readPinDestination, readPinExits } from './pinTravel'
+import { readSceneVisionCells } from './sceneVision'
 import { tokenPublicNameFromFile } from './tokenPublicName'
 import { readPinAttachment } from './pinAttach'
 import { readMovementRules } from './movementRules'
@@ -149,14 +150,31 @@ function roomTextsFromFile(region: Region): Region {
 }
 
 /**
+ * SALA ESCURA (`RoomMeta.dark`) é campo NOVO. Ausente continua ausente (sala
+ * clara, como sempre); só `true` volta. O resto (texto, número, arquivo editado
+ * à mão) SAI: a sala abre clara em vez de carregar um valor que o tipo não tem.
+ */
+function roomDarkFromFile(region: Region): Region {
+  const room = region.room
+  if (!room || typeof room !== 'object' || !('dark' in room) || room.dark === true) return region
+  const { dark: _descartado, ...semEscuro } = room
+  return { ...region, room: semEscuro }
+}
+
+/**
  * Porta lida do disco. `kind` virou obrigatório (porta antiga migra para
  * 'normal'). `secret` (porta secreta) é campo NOVO: só `true` volta; qualquer
  * outro valor sai do objeto, e a porta abre como porta comum — como sempre foi.
+ * `opensFrom` (porta de um lado) é campo NOVO pelo mesmo critério: só
+ * 'left'/'right' voltam; qualquer outro valor sai, e a porta abre dos dois lados.
  */
 function doorFromFile(door: DoorState): DoorState {
-  const { secret, ...rest } = doorKeyFromFile(door)
+  const { secret, opensFrom, ...rest } = doorKeyFromFile(door)
+  // `door` vem de JSON.parse: o tipo declarado não garante o valor, por isso a checagem de runtime.
+  const side: unknown = opensFrom
   const withKind: DoorState = { ...rest, kind: rest.kind ?? 'normal' }
-  return secret === true ? { ...withKind, secret: true } : withKind
+  const withSecret: DoorState = secret === true ? { ...withKind, secret: true } : withKind
+  return side === 'left' || side === 'right' ? { ...withSecret, opensFrom: side } : withSecret
 }
 
 /** `movement` só entra no mapa quando o arquivo traz regra válida: mapa de antes não ganha campo. */
@@ -203,7 +221,7 @@ function deserializeMapFields(json: string): MapData {
     // inalterado — `room` ausente fica undefined (região comum); o ângulo do
     // giro da sala passa como veio, desde que seja número (`roomRotationFromFile`)
     regions: entityList(parsed.regions).map((r) =>
-      roomTextsFromFile(roomRotationFromFile({ ...r, fillColor: r.fillColor ?? '#3a7ad0', fillPattern: r.fillPattern ?? 'solid' })),
+      roomDarkFromFile(roomTextsFromFile(roomRotationFromFile({ ...r, fillColor: r.fillColor ?? '#3a7ad0', fillPattern: r.fillPattern ?? 'solid' }))),
     ),
     // MUDA de cru para .map(): Token.image é obrigatório.
     // `imageData` (a cópia embutida que viaja até o jogador) NÃO ganha linha
@@ -270,6 +288,9 @@ function deserializeMapFields(json: string): MapData {
       kind: isPinKind(p.kind) ? p.kind : 'exclamacao',
       icon: isPinIcon(p.icon) ? p.icon : undefined,
       description: typeof p.description === 'string' ? p.description : '',
+      // NOME SÓ DO MESTRE: campo NOVO e OPCIONAL. Texto aparado e no teto;
+      // em branco ou torto (número, arquivo editado à mão) volta AUSENTE.
+      nome: cleanPinName(p.nome) || undefined,
       image: typeof p.image === 'string' ? p.image : null,
       destino: p.destino === undefined ? undefined : readPinDestination(p.destino),
       // `passagem` é campo NOVO e OPCIONAL do pino de viagem: ausente é "pede
@@ -298,6 +319,14 @@ function deserializeMapFields(json: string): MapData {
       // PRESO À FICHA: campo NOVO e OPCIONAL. Só texto não vazio vale; o resto
       // volta AUSENTE (pino parado, o de sempre) — ver `readPinAttachment`.
       presoA: readPinAttachment(p.presoA),
+      // MARCO e LER SÓ DE PERTO: campos NOVOS e OPCIONAIS. Na dúvida, o pino
+      // de sempre: `marco` só com `true` (um valor torto não pode furar a
+      // névoa) e `lerDePerto` só com inteiro de casas na faixa do painel.
+      marco: p.marco === true ? true : undefined,
+      lerDePerto: isPinReadDistance(p.lerDePerto) ? p.lerDePerto : undefined,
+      // `longe` e `soMarco` são só do recorte do jogador, como `escolhas`.
+      longe: undefined,
+      soMarco: undefined,
       escolhas: undefined,
       // ITEM PEGÁVEL: campo NOVO e OPCIONAL. Forma errada volta ausente (o
       // pino só deixa de ser pegável); `livre` só vale `true` (`readPinItem`).
@@ -322,6 +351,11 @@ function deserializeMapFields(json: string): MapData {
     // antigo sem gridShape salvo cairia em 'chessboard' por engano
     measurementMode:
       parsed.measurementMode ?? ((parsed.gridShape ?? 'square') === 'hex' ? 'hex' : 'chessboard'),
+    // NOVO — "Visão nesta cena". Ausente continua ausente (o raio de sempre);
+    // valor torto volta ausente em vez de virar raio zero (`lib/sceneVision.ts`).
+    visionCells: readSceneVisionCells(parsed.visionCells),
+    // NOVO — "Cena escura". Só `true` escurece; ausente ou torto volta ausente (cena clara).
+    dark: parsed.dark === true ? true : undefined,
     ownerId: parsed.ownerId ?? null,
     scenarioLink: parsed.scenarioLink ?? null,
     // MOVIMENTO CONTADO: campo NOVO e OPCIONAL. Mapa de antes (ou com lixo

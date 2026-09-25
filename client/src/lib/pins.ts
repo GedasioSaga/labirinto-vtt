@@ -113,6 +113,19 @@ export function acceptsLockedRequest(pin: Pin): boolean {
   return passageOf(pin) === 'trancada' && pin.mudo !== true
 }
 
+/** "Ler só de perto": menor e maior número de casas que o painel e o disco aceitam. */
+export const PIN_LER_DE_PERTO_MIN = 1
+export const PIN_LER_DE_PERTO_MAX = 20
+
+/**
+ * Guarda de leitura de `Pin.lerDePerto`: só inteiro de casas dentro da faixa.
+ * Zero, negativo, fração, texto ou número gigante (arquivo editado à mão) não
+ * vale — o chamador trata como ausente, o pino de sempre.
+ */
+export function isPinReadDistance(value: unknown): value is number {
+  return typeof value === 'number' && Number.isInteger(value) && value >= PIN_LER_DE_PERTO_MIN && value <= PIN_LER_DE_PERTO_MAX
+}
+
 /** Ponto do desenho do símbolo, no quadrado normalizado -1..1 com a origem no centro da cabeça. */
 export interface PinSymbolPoint {
   x: number
@@ -389,6 +402,23 @@ export function findPinAt(pins: readonly Pin[], point: RegionPoint, tolerance = 
     if (Math.abs(dx) <= PIN_HEAD_RADIUS / 2 + tolerance && dy <= tolerance && dy >= -PIN_HEIGHT - tolerance) return pin
   }
   return null
+}
+
+/** Teto do nome só do mestre: é um rótulo ao lado do pino, não um texto. */
+export const PIN_NOME_MAX_LENGTH = 40
+
+/**
+ * O nome só do mestre como ele é gravado: aparado e cortado no teto. Texto em
+ * branco e o que não é texto (arquivo editado à mão) viram `''` = sem nome.
+ */
+export function cleanPinName(value: unknown): string {
+  return typeof value === 'string' ? value.trim().slice(0, PIN_NOME_MAX_LENGTH) : ''
+}
+
+/** Como o MESTRE chama o pino na lista e ao lado dele: o nome, ou o resumo de sempre. */
+export function pinMasterLabel(pin: Pin): string {
+  const nome = cleanPinName(pin.nome)
+  return nome === '' ? pinSummary(pin) : nome
 }
 
 /**

@@ -128,9 +128,22 @@ export interface Wall {
    *  tela/modo jogador, então essa promessa não existe. `undefined` === false
    *  (visível, comportamento idêntico ao de hoje) — sem linha de migração. */
   hidden?: boolean
+  /**
+   * JANELA — deixa a VISÃO passar e continua barrando o PASSO (`blocksMove`
+   * vale como sempre). Desenhada como traço duplo fino (`pixi/drawWalls.ts`).
+   * Só vale em parede SEM porta: porta tem as regras dela. Numa construção com
+   * teto, quem está junto da janela recebe só o interior que o olhar alcança
+   * (`lib/fogFilter.ts`). `undefined` === parede comum, sem linha de migração
+   * (`lib/mapFile.ts` copia a parede inteira).
+   */
+  janela?: boolean
 }
 
-/** 3 tipos estruturais. Cada um muda só render + comprimento do vão. */
+/**
+ * 3 tipos estruturais. Cada um muda render + comprimento do vão; a GRADE
+ * ('gate') também deixa a visão passar fechada ou trancada — são barras, não
+ * tábuas (`lib/visibility.ts`). O passo ela barra como qualquer porta fechada.
+ */
 export type DoorKind = 'normal' | 'double' | 'gate'
 
 export interface DoorState {
@@ -153,7 +166,24 @@ export interface DoorState {
    *  porta sem pedir ao mestre (`lib/doorKey.ts`). Só do mestre: o jogador
    *  nunca o recebe (`lib/fogFilter.ts`). `undefined` = só o mestre abre. */
   abreCom?: string
+  /**
+   * PORTA DE UM LADO — só o jogador com a ficha DESTE lado da parede abre a
+   * porta; do outro lado o host recusa com `wrong_side` ("Não abre deste
+   * lado"). Fechar vale dos dois lados: a regra é para abrir. O lado é
+   * relativo ao sentido da parede, `lib/doorReach.ts:sideOfWall`. Regra do
+   * mestre: nunca chega ao jogador (`lib/fogFilter.ts`), e o editor mostra uma
+   * seta no lado que abre (`pixi/drawDoors.ts`). `undefined` === abre dos dois
+   * lados (mapa salvo antes), sem linha de migração; do disco só
+   * 'left'/'right' voltam (`lib/mapFile.ts`).
+   */
+  opensFrom?: DoorSide
 }
+
+/**
+ * Lado de uma parede para quem anda de (x1,y1) até (x2,y2) na tela (y cresce
+ * para baixo): 'right' é a mão direita de quem anda, 'left' a esquerda.
+ */
+export type DoorSide = 'left' | 'right'
 
 export interface Light {
   id: string
@@ -255,6 +285,12 @@ export interface RoomMeta {
    * jogador (`lib/fogFilter.ts`). `undefined` === sem nota, sem migração.
    */
   notaDoMestre?: string
+  /** SALA ESCURA — dentro do polígono o jogador só vê a casa em volta da
+   *  ficha e o que uma Luz ilumina (`lib/darkness.ts`, aplicado em
+   *  `lib/fogFilter.ts`). Regra do mestre: não sai no recorte do jogador.
+   *  `undefined` === false (sala clara, como sempre) — sem linha de migração;
+   *  só `true` escurece, valor torto vindo do disco não. */
+  dark?: boolean
 }
 
 /**
@@ -371,6 +407,15 @@ export interface Pin extends PlayerSecret {
   icon?: PinIcon
   /** O que o jogador lê no cartão. Vazio = o mestre ainda não escreveu nada. */
   description: string
+  /**
+   * NOME SÓ DO MESTRE ("Faca"): o que distingue sete "?" iguais no editor —
+   * desenhado ao lado do pino e na lista "Pinos". NUNCA sai no recorte do
+   * jogador (`lib/fogFilter.ts` monta o pino dele por lista do que vai), que lê
+   * só a descrição. Ausente = sem nome, o pino de sempre — sem migração. O
+   * disco só aceita texto não vazio, aparado e com até `PIN_NOME_MAX_LENGTH`
+   * letras (`lib/mapFile.ts`).
+   */
+  nome?: string
   image: string | null
   /** Pino não pode ser movido/editado. `undefined` === false — sem migração. */
   locked?: boolean
@@ -443,6 +488,37 @@ export interface Pin extends PlayerSecret {
    * então segue a visão da ficha, não a memória do explorado.
    */
   presoA?: string
+  /**
+   * MARCO ("todos veem"): o pino chega ao jogador mesmo na névoa, sem ele ter
+   * visto ou explorado o lugar — o Templo que a cidade inteira conhece. Só o
+   * pino atravessa: o que está em volta continua preto. Não fura nada que o
+   * mestre esconde (oculto, zona oculta, sala secreta, teto, "Só estes").
+   * Ausente = o pino de sempre, que só aparece à vista ou explorado. O disco
+   * só aceita `true` (`lib/mapFile.ts`); o campo não vai ao jogador.
+   */
+  marco?: true
+  /**
+   * LER SÓ DE PERTO: a quantas casas uma ficha do jogador precisa estar (e
+   * enxergando o pino) para o texto e a imagem entrarem no pacote. Longe, o
+   * jogador recebe o pino com `longe` e sem descrição — nem o "Revelar planta"
+   * entrega o que está escrito (`lib/fogFilter.ts`). Inteiro de
+   * `PIN_LER_DE_PERTO_MIN` a `PIN_LER_DE_PERTO_MAX`; ausente = lê de onde vir o
+   * pino, como sempre. O campo não vai ao jogador.
+   */
+  lerDePerto?: number
+  /**
+   * SÓ NO RECORTE DO JOGADOR: o pino é "só de perto" e a ficha dele está
+   * longe, então a descrição e a imagem ficaram no host. O cartão diz "Chegue
+   * mais perto para ler". O mestre nunca grava este campo.
+   */
+  longe?: true
+  /**
+   * SÓ NO RECORTE DO JOGADOR: o pino chegou SÓ por ser marco — não está à
+   * vista nem explorado. Ver o Templo de longe não é estar lá: a passagem não
+   * vale daqui (o host recusa em `validTravel`) e o cartão não oferece o
+   * botão. O mestre nunca grava este campo.
+   */
+  soMarco?: true
   /**
    * SÓ NO RECORTE DO JOGADOR, e só quando o pino tem mais de uma saída: o id e
    * o rótulo de cada uma, na ordem (a principal primeiro). O mestre nunca grava
@@ -1145,6 +1221,16 @@ export interface MapData {
   lockedLayers: LayerId[]
   scale: MapScale
   measurementMode: MeasurementMode
+  /** "Visão nesta cena", em quadrados: o jogador enxerga isto vezes o fator
+   *  dele (lib/sceneVision.ts). `undefined` = sem valor, o raio em px de cada
+   *  jogador de sempre — sem linha de migração, mesmo padrão de gridOffset. É
+   *  do mestre: não sai no recorte do jogador (lib/fogFilter.ts). */
+  visionCells?: number
+  /** CENA ESCURA — o jogador só vê a casa em volta da ficha e o que uma Luz
+   *  ilumina na linha de visão dele, mesmo além do raio (`lib/darkness.ts`).
+   *  É do mestre: não sai no recorte do jogador (`lib/fogFilter.ts`).
+   *  `undefined` === false (cena clara, como sempre) — sem linha de migração. */
+  dark?: boolean
   ownerId: string | null
   scenarioLink: string | null
   /** Passo máximo e ocupação das fichas dos jogadores. `undefined` = livre. */

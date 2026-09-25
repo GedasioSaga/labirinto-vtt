@@ -1,5 +1,5 @@
 import type {
-  MapData, Wall, Light, Region, Token, Prop, Drawing, DoorState, LayerId, GridSettings,
+  MapData, Wall, Light, Region, Token, Prop, Drawing, DoorState, DoorSide, LayerId, GridSettings,
   Stair, StairDirection, StairShape, DoorKind, MapScale, MeasurementMode, FloorPiece, FloorStyle, MapLine, MapMarker, MapFrame,
   ConcealZone, Pin, PinIcon, PinKind, RoomMeta, MovementRules, SceneFloor,
 } from '../types/map'
@@ -881,6 +881,26 @@ export function setWallLineStyleForWall(map: MapData, wallId: string, lineStyle:
 }
 
 /**
+ * Liga/desliga 'Janela' (`Wall.janela`): a visão atravessa, a ficha não. Só em
+ * parede sem porta — porta tem as regras dela, e a janela nela seria ignorada.
+ * Desligar TIRA o campo: a parede volta idêntica à comum, sem `janela: false`
+ * sobrando no arquivo.
+ */
+export function setWallJanela(map: MapData, wallId: string, janela: boolean): MapData {
+  const target = map.walls.find((w) => w.id === wallId)
+  if (target === undefined || target.door !== null || (target.janela === true) === janela) return map
+  return {
+    ...map,
+    walls: map.walls.map((w) => {
+      if (w.id !== wallId) return w
+      if (janela) return { ...w, janela: true }
+      const { janela: _janela, ...comum } = w
+      return comum
+    }),
+  }
+}
+
+/**
  * Folga, em px de mundo, para decidir "este pedaço está na MESMA RETA do vão" e
  * "estes dois pedaços se ENCOSTAM". Os pedaços de uma aresta nascem do mesmo
  * vetor unitário (`addDoorOnWall`), então o erro real aqui é de arredondamento
@@ -1130,6 +1150,19 @@ export function setDoorSecret(map: MapData, wallId: string, secret: boolean): Ma
   if (!wall || !wall.door) return map
   const { secret: _anterior, ...plain } = wall.door
   const door: DoorState = secret ? { ...plain, open: false, secret: true } : plain
+  return { ...map, walls: map.walls.map((w) => (w.id === wallId ? { ...w, door } : w)) }
+}
+
+/**
+ * PORTA DE UM LADO: 'left'/'right' liga `DoorState.opensFrom` (só abre de
+ * lá); `null` tira o campo (abre dos dois lados, `undefined` === como sempre).
+ * O resto da porta não muda. Parede inexistente ou sem porta: mesma referência.
+ */
+export function setDoorOpensFrom(map: MapData, wallId: string, side: DoorSide | null): MapData {
+  const wall = map.walls.find((w) => w.id === wallId)
+  if (!wall || !wall.door) return map
+  const { opensFrom: _anterior, ...plain } = wall.door
+  const door: DoorState = side === null ? plain : { ...plain, opensFrom: side }
   return { ...map, walls: map.walls.map((w) => (w.id === wallId ? { ...w, door } : w)) }
 }
 
@@ -1639,6 +1672,22 @@ export function setRoomTexts(map: MapData, id: string, patch: Partial<Pick<RoomM
   }
 }
 
+/** SALA ESCURA — "Sala escura" (`RoomMeta.dark`). Mesmo contrato de
+ * `setRoomRoof`: região comum, id inexistente ou valor igual devolve o mesmo
+ * `map`. Desligar TIRA o campo: sala clara fica igual à de antes dele. */
+export function setRoomDark(map: MapData, id: string, dark: boolean): MapData {
+  const region = map.regions.find((r) => r.id === id)
+  if (!region || !region.room || (region.room.dark === true) === dark) return map
+  return {
+    ...map,
+    regions: map.regions.map((r) => {
+      if (r.id !== id || !r.room) return r
+      const { dark: _antes, ...room } = r.room
+      return { ...r, room: dark ? { ...room, dark: true } : room }
+    }),
+  }
+}
+
 /** Entidades que aceitam "Oculto para jogadores" (`PlayerSecret` em types/map.ts). */
 export type SecretKind = 'token' | 'region' | 'prop' | 'stair' | 'drawing' | 'pin'
 
@@ -1699,7 +1748,7 @@ export function addPin(map: MapData, pin: Pin): MapData {
 export function updatePin(
   map: MapData,
   id: string,
-  patch: Partial<Pick<Pin, 'kind' | 'icon' | 'description' | 'image' | 'locked' | 'destino' | 'passagem' | 'mudo' | 'rotulo' | 'saidas' | 'item' | 'abreCom' | 'presoA' | 'portaLigada'>>,
+  patch: Partial<Pick<Pin, 'kind' | 'icon' | 'description' | 'nome' | 'image' | 'locked' | 'destino' | 'passagem' | 'mudo' | 'rotulo' | 'saidas' | 'item' | 'abreCom' | 'presoA' | 'portaLigada' | 'marco' | 'lerDePerto'>>,
 ): MapData {
   const pin = map.pins.find((p) => p.id === id)
   if (!pin) return map
@@ -1716,8 +1765,14 @@ export function updatePin(
     // de um pino que nunca teve não pode empurrar entrada vazia no histórico.
     next.icon === pin.icon &&
     next.description === pin.description &&
+    // Nome só do mestre: opcional, `undefined` = sem nome.
+    next.nome === pin.nome &&
     next.image === pin.image &&
     !!next.locked === !!pin.locked &&
+    // Marco e "ler só de perto": opcionais também — desligar o que nunca foi
+    // ligado (`undefined` sobre ausente) não é mudança.
+    next.marco === pin.marco &&
+    next.lerDePerto === pin.lerDePerto &&
     // Mesma regra: desligar um pino que nunca foi ligado não é mudança.
     sameDestination(next.destino, pin.destino) &&
     // Encruzilhada: acrescentar, desligar ou renomear uma saída é mudança;
@@ -1875,5 +1930,28 @@ export function setSceneFloor(map: MapData, andar: SceneFloor | undefined): MapD
   if (andar !== undefined) return { ...map, andar }
   if (map.andar === undefined) return map
   const { andar: _comum, ...rest } = map
+  return rest
+}
+
+/**
+ * "Visão nesta cena" (lib/sceneVision.ts). `undefined` TIRA o campo em vez de
+ * gravar `"visionCells": null`: cena sem valor fica igual a cena de antes dele.
+ */
+export function setSceneVisionCells(map: MapData, visionCells: number | undefined): MapData {
+  if (visionCells === undefined) {
+    const { visionCells: _semValor, ...rest } = map
+    return rest
+  }
+  return { ...map, visionCells }
+}
+
+/**
+ * "Cena escura" (`MapData.dark`, `lib/darkness.ts`). Desligar TIRA o campo,
+ * como `setSceneVisionCells`; valor igual devolve o mesmo `map`.
+ */
+export function setSceneDark(map: MapData, dark: boolean): MapData {
+  if ((map.dark === true) === dark) return map
+  if (dark) return { ...map, dark: true }
+  const { dark: _antes, ...rest } = map
   return rest
 }

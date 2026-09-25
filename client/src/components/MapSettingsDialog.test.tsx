@@ -36,6 +36,7 @@ function makeProps(overrides: { measurementMode?: MeasurementMode; withImage?: b
       onMeasurementModeChange,
       gridShape: 'square',
     },
+    sceneVision: { visionCells: undefined, onVisionCellsChange: vi.fn() },
     scenarioLink: { scenarioLink: null, onScenarioLinkChange: vi.fn() },
     mapSize: { width: 30, height: 10, onApply: onMapSizeApply },
   }
@@ -94,6 +95,15 @@ describe('MapSettingsButton / MapSettingsDialog', () => {
     const active = document.activeElement
     expect(active?.getAttribute('role')).toBe('radio')
     expect(active?.closest('[aria-label="Formato da grade"]')).not.toBeNull()
+  })
+
+  it('a janela tem "Visão nesta cena", com o valor da cena', () => {
+    const { props } = makeProps()
+    render({ ...props, sceneVision: { ...props.sceneVision, visionCells: 6 } })
+    openDialog()
+    const campo = document.body.querySelector<HTMLInputElement>('#lb-scene-vision')
+    expect(campo?.value).toBe('6')
+    expect(document.body.querySelector('label[for="lb-scene-vision"]')?.textContent).toBe('Visão nesta cena (quadrados)')
   })
 
   it('Esc fecha a janela e devolve o foco à engrenagem', () => {

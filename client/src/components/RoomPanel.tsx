@@ -1,7 +1,11 @@
 import { useEffect, useId, useRef, useState, type KeyboardEvent, type RefObject } from 'react'
 import { partyPresenceLabel, type PartyMember } from '../lib/party'
 import { ownTokenIdsOf, VISION_RADIUS_MAX, VISION_RADIUS_MIN, VISION_RADIUS_STEP, type HostWorld, type PlayerInfo } from '../net/hostSession'
+import { VISION_FACTOR_MAX, VISION_FACTOR_MIN, VISION_FACTOR_STEP, formatVisionFactor } from '../lib/sceneVision'
+import { NOISE_RANGE_OPTIONS } from '../lib/noise'
 import type { RoomInfo, TunnelState } from '../net/hostBridge'
+import { CluesSection, type CluesSectionProps } from './CluesSection'
+import { SecretCheckSection, type SecretCheckSectionProps } from './SecretCheckSection'
 import {
   PartyActions,
   PartyAwayTokens,
@@ -45,6 +49,14 @@ export interface RoomPanelProps {
    * que é da sala (fichas, raio, planta, Expulsar).
    */
   party?: PartySectionProps
+  /**
+   * Seção "Pistas" (quem recebeu e quem leu cada pino "!"/"?"), com a sala aberta
+   * e alguém nela. Obrigatória de propósito: esquecer de ligá-la no App vira erro
+   * de tipo, e não um painel que some da tela em silêncio.
+   */
+  clues: CluesSectionProps
+  /** Seção "Teste secreto" (pedir a escolhidos e ler as respostas). Ausente = sem a seção. */
+  secretCheck?: SecretCheckSectionProps
   /** Seção "Iniciativa" (ordem e vez). Ausente = sem a seção. Aparece com a sala aberta ou fechada. */
   initiative?: InitiativeSectionProps
   /** Seção "Relógio da campanha" (hora do dia e cena externa). Ausente = sem a seção. Aparece com a sala aberta ou fechada. */
@@ -77,14 +89,35 @@ export interface RoomPanelProps {
   /** "Tomar de volta" da ficha emprestada: ela sai de quem a jogava e fica só com o dono. */
   onEndLoans?(ownerId: string): void
   onVisionRadiusChange(playerId: string, radius: number): void
+  /** "Fator de visão" do jogador, que multiplica o alcance de toda cena. */
+  onVisionFactorChange(playerId: string, factor: number): void
   onRevealPlan(playerId: string): void
   onHidePlan(playerId: string): void
+  /**
+   * "Dar o que o grupo viu": o jogador ganha o que os colegas viram na cena
+   * onde ele está. Devolve quantos colegas (0 = ninguém mais explorou), ou
+   * `null` se não deu. Ausente = o card fica sem o botão.
+   */
+  onGiveGroupView?(playerId: string): number | null
   /** Botão "Laser" ligado: arma o laser (independe de segurar L); o traço sai clicando no mapa. */
   laserOn?: boolean
   onToggleLaser?(): void
+  /** "Ruído": arma o ruído (o próximo clique no mapa o dispara) e escolhe o alcance. Ausente = sem o controle. */
+  noise?: NoiseControlProps
   /** Seção "Tela da mesa" (link da TV e a cena que ela mostra). Ausente = sem a seção. */
   table?: TableScreenSectionProps
 }
+
+export interface NoiseControlProps {
+  armed: boolean
+  /** Alcance em casas (um de `NOISE_RANGE_OPTIONS`). */
+  rangeCells: number
+  onToggle(): void
+  onRangeChange(cells: number): void
+}
+
+export const NOISE_BUTTON_LABEL = 'Ruído'
+export const NOISE_HINT = 'Ligado, clique no mapa onde algo fez barulho. Quem estiver perto ouve só a direção, nunca o lugar nem o que foi.'
 
 export const PLAN_HINT = 'Revelar planta mostra paredes, salas e portas, sem os tokens. Zonas ocultas continuam escondidas.'
 export const LASER_HINT ='Ligado (ou segurando L), clique e arraste com o botão esquerdo sobre o mapa. Todos os jogadores veem o laser.'
@@ -1119,4 +1152,4 @@ export function RoomPanel({
     </section>
   )
 }
-
+

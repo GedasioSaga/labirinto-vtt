@@ -161,6 +161,16 @@ export function exitLabelsOf(pin: Pin): PinExitLabel[] {
   })
 }
 
+/**
+ * As saídas de uma placa que o jogador ainda NÃO consegue ler (pino "só de
+ * perto", ficha longe): o id fica — é com ele que o pedido de passagem volta —,
+ * mas o nome vira "Saída N" pela posição. O rótulo é texto escrito na placa, e
+ * texto de pino "só de perto" não sai de longe.
+ */
+export function unreadExitLabels(saidas: readonly PinExitLabel[]): PinExitLabel[] {
+  return saidas.map((saida, index) => ({ id: saida.id, rotulo: `Saída ${index + 1}` }))
+}
+
 /** Alguma saída do pino leva a `destino`. É assim que o par "aponta de volta". */
 export function leadsTo(pin: Pin, destino: PinDestination): boolean {
   return travelExitsOf(pin).some((saida) => sameDestination(saida.destino, destino))
