@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { decodeExploration, isPointExplored, type Exploration } from '../lib/exploration'
-import { createEmptyMap } from '../lib/mapFactory'
-import type { MapData, Pin, Region, Stair, Token, Wall } from '../types/map'
+import { createEmptyMap, setTokenPosition } from '../lib/mapFactory'
+import { comFichaNoPiso } from '../lib/pisos'
+import type { AreaTrigger, Hazard, Light, MapData, Pin, Region, Stair, Token, Wall } from '../types/map'
 import { createHostSession, type HostSession, type HostWorld } from './hostSession'
 import type { HostMessage } from './protocol'
 
@@ -206,5 +207,74 @@ describe('hostSession — pisos na mesma cena', () => {
     t.passa(5000)
     const mesmoPiso = t.s.handleMessage('c2', { type: 'signal', x: 500, y: 500 }, juntos)
     expect(mesmoPiso.outbound.map((o) => o.clientId).sort()).toEqual(['c1', 'c2'])
+  })
+
+  it('a tocha presa sobe a escada com a ficha: quem ficou no térreo não vê a luz andar lá em cima', () => {
+    const t = mesa()
+    // O Caio (Bia) está no térreo; a Lia (Ana) leva a tocha.
+    const tocha: Light = { id: 'tocha-da-lia', x: 500, y: 500, radius: 120, color: '#fc8', intensity: 1, attachedTokenId: 'lia' }
+    const map = comFicha(predio({ lights: [tocha] }), 'caio', { piso: undefined })
+    t.s.assignToken(t.entra('c1', 'Ana', map), 'lia')
+    t.s.assignToken(t.entra('c2', 'Bia', map), 'caio')
+    const noTerreo = t.snapshotPara('c2', map).map.lights.map((l) => l.x)
+    // Pré-condição: no mesmo piso, a Bia vê a tocha.
+    expect(noTerreo).toEqual([500])
+    t.snapshotPara('c1', map)
+    const sobe = t.s.handleMessage('c1', { type: 'token.piso', tokenId: 'lia', stairId: 'escada' }, map).applyPiso
+    if (sobe === undefined) throw new Error('esperava subir')
+    // O integrador aplica como `playerChanges` (troca de piso) e depois o passo lá em cima.
+    const andou = setTokenPosition(comFichaNoPiso(map, sobe.tokenId, sobe.piso), 'lia', 850, 500)
+    expect(t.snapshotPara('c2', andou).map.lights).toEqual([])
+    // A Ana, lá em cima, continua com a própria tocha acesa, no lugar novo.
+    expect(t.snapshotPara('c1', andou).map.lights.map((l) => [l.x, l.attachedTokenId])).toEqual([[850, 'lia']])
+  })
+
+  it('luz de um piso presa em ficha de outro (arquivo antigo) não sai como luz solta', () => {
+    const t = mesa()
+    const presaEmCima: Light = { id: 'tocha-do-caio', x: 400, y: 400, radius: 120, color: '#fc8', intensity: 1, attachedTokenId: 'caio' }
+    const solta: Light = { id: 'lustre', x: 400, y: 400, radius: 120, color: '#fc8', intensity: 1 }
+    const map = predio({ lights: [presaEmCima, solta] })
+    t.s.assignToken(t.entra('c1', 'Ana', map), 'lia')
+    expect(t.snapshotPara('c1', map).map.lights.map((l) => l.id)).toEqual(['lustre'])
+  })
+
+  it('a marca "vamos para cá" de quem está em outro piso não chega; a do mesmo piso chega', () => {
+    const t = mesa()
+    const map = predio()
+    t.s.assignToken(t.entra('c1', 'Ana', map), 'lia')
+    t.s.assignToken(t.entra('c2', 'Bia', map), 'caio')
+    t.snapshotPara('c1', map)
+    t.snapshotPara('c2', map)
+    const marcasDe = (outbound: readonly { clientId: string; msg: HostMessage }[], clientId: string): string[] | undefined => {
+      const msg = outbound.find((o) => o.clientId === clientId && o.msg.type === 'destinations')?.msg
+      return msg?.type === 'destinations' ? msg.marks.map((m) => `${m.from}@${m.x},${m.y}`) : undefined
+    }
+    // A Bia, no 1º piso, marca (500, 500) — ponto que a Ana conhece no térreo.
+    const emCima = t.s.handleMessage('c2', { type: 'destination', x: 500, y: 500 }, map).outbound
+    expect(marcasDe(emCima, 'c2')).toEqual(['Bia@500,500'])
+    expect(marcasDe(emCima, 'c1')).toBeUndefined()
+    // A Bia desce: a marca que ela pôs lá em cima sai (diria onde ela esteve).
+    const juntos = comFicha(map, 'caio', { piso: undefined })
+    expect(marcasDe(t.s.broadcast(juntos).outbound, 'c2')).toEqual([])
+    // Pré-condição: no mesmo piso, a marca chega à Ana.
+    t.passa(5000)
+    const mesmoPiso = t.s.handleMessage('c2', { type: 'destination', x: 500, y: 500 }, juntos).outbound
+    expect(marcasDe(mesmoPiso, 'c1')).toEqual(['Bia@500,500'])
+  })
+
+  it('armadilha e perigo do andar de cima não avisam o mestre de quem passa por baixo', () => {
+    const t = mesa()
+    const gatilhos: AreaTrigger[] = [{ id: 'g-1', kind: 'armadilha', regionId: 'biblioteca', revealed: false }]
+    const hazards: Hazard[] = [{ id: 'fogo-1', kind: 'fogo', roomIds: ['biblioteca'] }]
+    // Linha de base: as duas fichas FORA da sala (x < 40), cada uma no seu piso.
+    const fora = predio({ gatilhos, hazards, tokens: [token('lia', 20, 500), token('caio', 20, 300, { piso: 1 })] })
+    t.s.assignToken(t.entra('c1', 'Ana', fora), 'lia')
+    t.s.assignToken(t.entra('c2', 'Bia', fora), 'caio')
+    t.s.broadcast(fora)
+    // As duas entram no mesmo x/y: a Lia no térreo (debaixo da biblioteca), o Caio NA biblioteca.
+    const dentro = comFicha(comFicha(fora, 'lia', { x: 500, y: 500 }), 'caio', { x: 300, y: 300 })
+    const result = t.s.broadcast(dentro)
+    expect(result.triggerEntries?.map((e) => e.tokenName)).toEqual(['nome-caio'])
+    expect(result.hazardEntries?.map((e) => e.tokenName)).toEqual(['nome-caio'])
   })
 })

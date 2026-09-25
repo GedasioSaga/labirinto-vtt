@@ -1,4 +1,4 @@
-import type { MapData, NoPiso, Stair, Token } from '../types/map'
+import type { Light, MapData, NoPiso, Stair, Token } from '../types/map'
 import type { SelectionKind } from '../types/tools'
 import { subtreeIds } from './roomNesting'
 
@@ -298,11 +298,22 @@ export function pisoDigitado(value: number): number | null {
   return Math.min(PISO_MAX, Math.max(PISO_MIN, Math.trunc(value)))
 }
 
-/** O mestre põe a ficha em outro piso (painel da ficha). Ficha inexistente ou já lá: o próprio mapa. */
+/**
+ * A ficha vai a outro piso — pelo painel do mestre ou pela escada do jogador —
+ * e a luz presa nela vai junto, como em "Levar ao piso" (`comSelecaoNoPiso`):
+ * a tocha que ficasse embaixo seguiria o x/y da ficha lá em cima e desenharia,
+ * no recorte de quem está embaixo, o caminho de quem subiu. Ficha inexistente
+ * ou já lá: o próprio mapa.
+ */
 export function comFichaNoPiso(map: MapData, tokenId: string, piso: number): MapData {
   const token = map.tokens.find((t) => t.id === tokenId)
   if (token === undefined || pisoDe(token) === piso) return map
-  return { ...map, tokens: map.tokens.map((t) => (t.id === tokenId ? comPiso(t, piso) : t)) }
+  const levaLuz = (l: Light): boolean => l.attachedTokenId === tokenId && pisoDe(l) !== piso
+  return {
+    ...map,
+    tokens: map.tokens.map((t) => (t.id === tokenId ? comPiso(t, piso) : t)),
+    lights: map.lights.some(levaLuz) ? map.lights.map((l) => (levaLuz(l) ? comPiso(l, piso) : l)) : map.lights,
+  }
 }
 
 /**

@@ -1951,6 +1951,11 @@ export function filterMapForGroup(
   const masterHiddenTokenIds = new Set(
     map.tokens.filter((t) => !sentTokenIds.has(t.id) && (t.hidden || t.secret || !layerTokenIds.has(t.id))).map((t) => t.id),
   )
+  // PISOS: ficha de OUTRO piso. A luz presa nela que ficou neste piso (arquivo
+  // antigo, luz levada sozinha) anda com a ficha lá em cima: sair como luz
+  // solta desenharia aqui o caminho de quem está no outro piso.
+  const destePiso = new Set(map.tokens.map((t) => t.id))
+  const outroPisoTokenIds = new Set(map === mapaInteiro ? [] : mapaInteiro.tokens.filter((t) => !destePiso.has(t.id)).map((t) => t.id))
   const playerStairs = visibleStairs(map.stairs, hiddenLayers).filter((s) => {
     const first = s.segments[0]
     if (s.hidden || s.secret || first === undefined || stairSamples(s).some(inHiddenPlace)) return false
@@ -1990,7 +1995,7 @@ export function filterMapForGroup(
     // `lightForPlayer` (lista do que vai) — a regra nunca atravessa.
     lights: visibleLights(map.lights, hiddenLayers)
       .filter((l) => !l.hidden && l.apagada !== true && !inClosedRoof({ x: l.x, y: l.y }) && isVisible({ x: l.x, y: l.y }))
-      .filter((l) => l.attachedTokenId === undefined || !masterHiddenTokenIds.has(l.attachedTokenId))
+      .filter((l) => l.attachedTokenId === undefined || (!masterHiddenTokenIds.has(l.attachedTokenId) && !outroPisoTokenIds.has(l.attachedTokenId)))
       .map((l) => lightForPlayer(l.attachedTokenId === undefined || sentTokenIds.has(l.attachedTokenId) ? l : withoutAttachment(l))),
     stairs: playerStairs,
     // A silhueta inteira responde à sala, não só o centro: sala secreta ou teto

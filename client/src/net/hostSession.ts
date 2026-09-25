@@ -1699,9 +1699,10 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   // sem isso o bilhete chegava mudo.
   const unseenLetters = new Map<string, Set<string>>()
   // MARCA "VAMOS PARA CÁ" — por playerId: a marca dele e a cena (`sceneKey`)
-  // onde a pôs. Uma por jogador; fica até ele tirar, perder a ficha ou sair
-  // daquela cena (`pruneDestinations`). Sobrevive a disconnect; só o kick apaga.
-  const destinations = new Map<string, { scene: string; x: number; y: number }>()
+  // e o piso onde a pôs. Uma por jogador; fica até ele tirar, perder a ficha
+  // ou sair daquela cena ou piso (`pruneDestinations`). Sobrevive a
+  // disconnect; só o kick apaga.
+  const destinations = new Map<string, { scene: string; piso: number; x: number; y: number }>()
   // Por playerId: quando pôs a última marca (DESTINATION_MIN_INTERVAL_MS).
   const lastDestinationAt = new Map<string, number>()
   // Por playerId: a última lista de marcas mandada a ele (JSON). Só sai lista
@@ -3087,13 +3088,14 @@ export function createHostSession(options: HostSessionOptions): HostSession {
 
   /**
    * Tira a marca de quem não está mais onde a pôs: perdeu a última ficha, ou
-   * a ficha dele está em outra cena. Uma marca "vamos para cá" de quem já foi
-   * embora mandaria o grupo a lugar nenhum — e diria onde ele esteve.
+   * a ficha dele está em outra cena ou em outro piso. Uma marca "vamos para
+   * cá" de quem já foi embora mandaria o grupo a lugar nenhum — e diria onde
+   * ele esteve.
    */
   const pruneDestinations = (world: HostWorld): void => {
     for (const [ownerId, mark] of destinations) {
       const scene = statusOf(ownerId) === 'playing' ? sceneFor(ownerId, world) : null
-      if (scene === null || sceneKey(scene) !== mark.scene) destinations.delete(ownerId)
+      if (scene === null || sceneKey(scene) !== mark.scene || pisoOf(ownerId, scene.map) !== mark.piso) destinations.delete(ownerId)
     }
   }
 
@@ -3109,10 +3111,12 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const scene = sceneFor(playerId, world)
     if (scene === null) return []
     const key = sceneKey(scene)
-    const blocked = playerBlockedRings(scene.map)
+    const blocked = playerBlockedRings(floorMapOf(playerId, scene.map))
+    const piso = pisoOf(playerId, scene.map)
     const marks: DestinationMark[] = []
     for (const [ownerId, mark] of destinations) {
-      if (mark.scene !== key) continue
+      // PISOS: a marca de quem está em outro piso diria onde ele quer ir lá — e apontaria o lugar errado aqui.
+      if (mark.scene !== key || mark.piso !== piso) continue
       const owner = players.get(ownerId)
       if (owner === undefined) continue
       const mine = ownerId === playerId
@@ -3167,7 +3171,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const last = lastDestinationAt.get(playerId)
     if (last !== undefined && at - last < DESTINATION_MIN_INTERVAL_MS) return { outbound: [] }
     lastDestinationAt.set(playerId, at)
-    destinations.set(playerId, { scene: sceneKey(scene), x: msg.x, y: msg.y })
+    destinations.set(playerId, { scene: sceneKey(scene), piso: pisoOf(playerId, map), x: msg.x, y: msg.y })
     return { outbound: destinationUpdates(world) }
   }
 

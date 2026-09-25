@@ -106,6 +106,22 @@ describe('pisos — o mestre edita', () => {
     expect(comFichaNoPiso(map, 'ninguem', 3)).toBe(map)
   })
 
+  it('ficha que sobe leva a tocha presa nela; a luz solta e a de outra ficha ficam', () => {
+    const luz = (id: string, attachedTokenId?: string) => ({ id, x: 200, y: 260, radius: 100, color: '#fff', intensity: 1, ...(attachedTokenId === undefined ? {} : { attachedTokenId }) })
+    const map: MapData = { ...torre(), lights: [luz('tocha', 'lia'), luz('lustre'), luz('lanterna', 'caio')] }
+    const emCima = comFichaNoPiso(map, 'lia', 1)
+    expect(emCima.lights.map((l) => [l.id, pisoDe(l)])).toEqual([
+      ['tocha', 1],
+      ['lustre', 0],
+      ['lanterna', 0],
+    ])
+    // Desce de volta: a tocha volta ao térreo, sem o campo.
+    expect('piso' in comFichaNoPiso(emCima, 'lia', 0).lights[0]).toBe(false)
+    // Sem luz presa na ficha: a MESMA lista (o editor redesenha luz quando a referência muda).
+    const semTocha: MapData = { ...map, lights: [luz('lustre')] }
+    expect(comFichaNoPiso(semTocha, 'lia', 1).lights).toBe(semTocha.lights)
+  })
+
   it('escada: liga ao 3º piso, vira enfeite (o campo sai) e muda de piso', () => {
     const map = torre()
     const liga = comEscadaNosPisos(map, 'enfeite', { levaAoPiso: 3 })
