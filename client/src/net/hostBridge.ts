@@ -555,6 +555,19 @@ function dropText(names: string[]): string {
   return `${names.slice(0, -1).join(', ')} e ${last} caíram`
 }
 
+/**
+ * ESCOLHER FICHAS NO PINO: " com Rufo" / " com Enzo e Rufo" quando o jogador
+ * escolheu quais fichas passam — o mestre lê quem vai. Sem escolha, nada: a
+ * linha do pedido fica a de sempre.
+ */
+function travelWithText(request: TravelRequest): string {
+  const names = request.tokenNames ?? []
+  const last = names.at(-1)
+  if (last === undefined) return ''
+  if (names.length === 1) return ` com ${last}`
+  return ` com ${names.slice(0, -1).join(', ')} e ${last}`
+}
+
 function errorText(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
 }
@@ -1648,7 +1661,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       travelsComCabine.add(request.requestId)
       scheduleBroadcast()
     }
-    const toastId = useToastStore.getState().push('instrucao', `${request.playerName} quer passar por ${request.pinLabel} → ${request.toSceneName}${naCabine}`, null, {
+    const toastId = useToastStore.getState().push('instrucao', `${request.playerName} quer passar${travelWithText(request)} por ${request.pinLabel} → ${request.toSceneName}${naCabine}`, null, {
       actions: [
         { label: 'Deixar ir', run: () => answerTravel(request.requestId, true), emLote: true },
         ...together,
@@ -1702,7 +1715,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
    */
   const askLockedTravel = (request: TravelRequest) => {
     const paraPede = deps.setPinPassage === undefined ? [] : [{ label: 'Passar para pede', run: () => answerTravel(request.requestId, 'pede') }]
-    const toastId = useToastStore.getState().push('instrucao', `${request.playerName} quer passar por ${request.pinLabel} (trancada) → ${request.toSceneName}`, null, {
+    const toastId = useToastStore.getState().push('instrucao', `${request.playerName} quer passar${travelWithText(request)} por ${request.pinLabel} (trancada) → ${request.toSceneName}`, null, {
       actions: [
         { label: 'Liberar uma vez', run: () => answerTravel(request.requestId, true), emLote: true },
         ...paraPede,

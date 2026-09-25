@@ -236,6 +236,69 @@ auto/juntar-grandes` em `auto/acervo`. O que entrar depois nos dois ramos (as 3 
 mesma cena, do run antigo `wf_e3f23fdf-79d`) vai numa 2ª junção curta, perto das 15h15. A 2ª passada geral
 (`auto/juntar`) vai precisar juntar `auto/acervo` antes de voltar para ele, porque as grandes terão entrado por fora.
 
+**25/09, 02h10 — INCIDENTE: `node_modules` principal danificado (causado pelo orquestrador). Precisa do usuário.**
+
+- Causa: às ~01h o orquestrador rodou `git worktree remove` na árvore parada `.claude/worktrees/wf_319c925b-2b1-3`
+  sem antes remover as junctions de `node_modules`. O git entrou pela junction e apagou, em
+  `C:/dev/labirinto/node_modules`, a pasta `.bin` e os pacotes `@asamuzakjp/*`, `@babel/*`, `@bramus/*` e
+  `@csstools/*` (30 pacotes de dev), até travar no `@esbuild` em uso ("Invalid argument").
+- Efeito: `--so=unidade` cai nos testes com jsdom ("Cannot find module '@asamuzakjp/css-color'") e as jornadas
+  não sobem o vite ("'vite' não é reconhecido"). `tipos-src` continua verde. Toda prova sai `PROVA_AMBIENTE`.
+- Conserto (pedido ao usuário; o `npm install` foi negado pela permissão automática e não foi contornado):
+  `npm install --no-save --prefer-offline --no-audit --no-fund` em `C:/dev/labirinto` (só restaura o que o
+  lockfile já tem; `--no-save` não grava o lockfile). Conferir depois: `ls node_modules/.bin/vite` e
+  `node -e` comparando `package-lock.json` com o disco (0 faltando, fora os opcionais de outra plataforma).
+- Depois do conserto: re-provar as peças que saíram `PROVA_AMBIENTE` da fábrica `wf_f7c100fc-85d` (branches
+  `auto/f2-<id>` com os worktrees em `.claude/worktrees/wf_f7c100fc-85d-*`) e retomar `publicar-grupos`.
+- Regra nova (memória `fabrica-de-features`): `cmd //c rmdir` nas junctions ANTES de qualquer `git worktree remove`.
+
+**25/09, 08h45 — `node_modules` restaurado pelo usuário** (`npm install --no-save`: 30 pacotes; 0 faltando do lockfile,
+lockfile intacto). Retomada:
+- `wf_9b232d09-dce` (`publicar-grupos.js`, árvore `C:/dev/labirinto-pub`, branch `auto/pub-1` em `9eb13ed` = visão +
+  defeitos juntados): unidade, prova, absorve `auto/acervo` e publica em `main`.
+- `wf_3aed54cc-7f7` (`fabrica-v3.js`, `scratchpad/manha.json`): 11 peças `pronta` (revisor já aprovou; vão direto à
+  prova), pisos como `construida` (revisão de novo) e as 104 restantes. Publica a cada 10 integradas.
+- `wf_8cc51539-dc2` segue juntando os grupos t-* em `auto/juntar` (modo `so_juntar`).
+- Publicação agora usa trava: `mkdir .git/publicando.lock` (atômico), `rmdir` ao terminar. Se sobrar trava de um
+  agente morto, conferir o `dono` dentro dela antes de apagar.
+
+**25/09, 03h20 — grupo visão juntado em `auto/juntar` (`7da1931` + `ffda9b1`), tipos-src e tipos-e2e VERDES;
+unidade VERMELHA só pelo `node_modules` incompleto.** `publicar-grupos` (`wf_3c4bb722-2b5`) parou ali, como
+previsto. Relançado em modo `so_juntar` (`wf_8cc51539-dc2`): junta os grupos seguintes em `auto/juntar`, resolve
+conflitos e deixa os tipos verdes, sem unidade, prova nem push. Depois da restauração: rodar `publicar-grupos.js`
+sem `so_juntar` (os merges já feitos saem como "já juntado"), que prova e publica.
+
+**25/09, 02h55 — fábrica relançada de novo como `wf_86b2f741-40b`** (`scratchpad/noite-1b.json`, 115 peças: 4
+consertos independentes + as 111 da onda 3, 2 por vez). Os 11 consertos cujo código base ainda não está em
+`auto/acervo` (zona oculta, teste secreto, mostrar pista, painel de pistas, janela no escuro, eco do sinal, passe,
+agenda, facção, veículo, esteira) puxavam grupos inteiros para `int-noite` e foram adiados:
+`scratchpad/consertos-adiados.json`, rodar depois que `publicar-grupos` terminar e `int-noite` absorver o acervo.
+A tocha (`auto/f2-tocha-presa-na-ficha-4`, `721dbf3`, revisor aprovou) aguarda só a prova.
+
+**25/09, 01h05 — fábrica relançada como `wf_f7c100fc-85d`.** O builder isolado em worktree não conseguia
+`git status/add/commit` (o hook do rtk reescreve para `rtk git` e a guarda de isolamento recusa) e a ferramenta
+PowerShell travou na máquina (6 `powershell.exe` presos; o `taskkill` foi negado pela permissão automática).
+Regra nova no `fabrica-v3.js`: `git.exe` nesses subcomandos, um comando por chamada. A tocha continuou do commit
+`b192c4d` como `tocha-presa-na-ficha-4`.
+
+**25/09, 00h30 — noite automática (usuário dormindo): o que roda e o que fazer a cada volta.**
+
+1. `wf_3c4bb722-2b5` (`scratchpad/publicar-grupos.js`): publica em `main` um grupo por vez, com push por grupo:
+   visão (termina o merge pela metade + consertos do grupo), defeitos, t-defeitos, t-medias-a, t-medias-b,
+   t-pequenas, t-ideias e as metades `-b`. Para no primeiro que falhar.
+2. `wf_319c925b-2b1` (`scratchpad/fabrica-v3.js`, args `scratchpad/noite-1.json`, 56 peças, 2 por vez): fábrica
+   contínua na branch única `auto/int-noite` (`C:/dev/labirinto-int-noite`, saiu de `auto/acervo` `767424e`):
+   16 consertos pendentes (tocha, zona oculta, testes secretos, esconder-se, mostrar pista, painel de pistas,
+   janela no escuro, eco do sinal, id repetido, passe, agenda, facção, lista branca, veículo, esteira, pisos) e 40
+   peças da onda 3. A cada 10 integradas: absorve `auto/acervo`, merge em `auto/acervo`, fase0 + tipos + unidade,
+   checagem de segredo, fast-forward de `main` e push (espera o `main` ficar livre se o outro workflow estiver
+   publicando).
+3. Quando (1) terminar: instalador 0.3.0 (mesmo formato da 0.2.0: versão, `npm run tauri:build`, tag, Release).
+4. Quando (2) terminar: lançar `scratchpad/fabrica-v3.js` com `scratchpad/noite-2.json` (71 peças, 3 por vez).
+   Os args vêm de `node scratchpad/gerar-noite.cjs` (rodar de novo recalcula o que falta).
+Regra da noite: no máximo ~5 agentes ao mesmo tempo no total; acima disso os pedidos ao modelo travam 3 min e o
+agente recomeça.
+
 **25/09, 00h00 — grandes em `main` e instalador 0.2.0 publicado.**
 
 - `git push origin main` b060f54..350cf4d: merge `350cf4d` de `auto/juntar-grandes` (confronto por cena, ajudante

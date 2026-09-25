@@ -805,3 +805,13 @@ dessa versão (tag + Release, como a 0.2.0); (3) fábrica contínua numa branch 
 `auto/acervo`: consertos pendentes (visão e ideias da torre), pisos na mesma cena e as peças da onda 3 que
 faltam, 3 peças em paralelo (mais que isso trava a fila do modelo, medido em 24/09); a cada 10 peças integradas,
 merge em `auto/acervo`, testes, checagem de segredo e push em `main`.
+
+### 25/09/2026, 08h40 — tudo em Opus
+
+> "Porque está fazendo em sonnet? eu quero que faça em OPUS"
+
+Feito na hora: os três scripts dos workflows (`fabrica-v3.js`, `publicar-grupos.js`) trocaram `model: 'sonnet'` por
+`model: 'opus'` nas etapas de prova, integração, junção e publicação (construtor, revisor e debugador já eram Opus
+pelo agent). Os três runs foram parados e relançados em Opus: publicação de visão + defeitos (`wf_b6ab019e-855`),
+junção dos grupos t-* (`wf_6f9b4b28-6a5`) e a fábrica com as 11 peças prontas (`wf_c2bcab30-9ea`). Regra que vale
+daqui para frente: nenhuma etapa em Sonnet; Fable continua proibido.

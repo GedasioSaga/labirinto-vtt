@@ -543,8 +543,10 @@ export interface PlayerConnection {
    * não está jogando, se já há um pedido esperando ou se o socket não está aberto.
    * `exitId` é a saída escolhida numa encruzilhada (um id de `Pin.escolhas`);
    * ausente, o pedido sai sem ele e vale a saída principal, como sempre.
+   * `tokenIds` são as fichas escolhidas no "Quem passa?" do cartão; ausente
+   * ou vazio, o pedido sai sem o campo e o host leva o grupo de sempre.
    */
-  requestTravel(pinId: string, exitId?: string): boolean
+  requestTravel(pinId: string, exitId?: string, tokenIds?: readonly string[]): boolean
   /**
    * CABINE DE TRANSPORTE: "Chamar a cabine" pela parada `pinId`. Sem resposta:
    * a parada diz "chamada" no próximo recorte. `false` se não está jogando ou
@@ -2424,7 +2426,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       return send({ type: 'token.piso', tokenId, stairId })
     },
 
-    requestTravel(pinId, exitId) {
+    requestTravel(pinId, exitId, tokenIds) {
       // O pino livre agenda o envio (e o aviso "Passando…") antes de chamar `send`: a tela da mesa sai aqui.
       if (isTable || state.status !== 'playing' || pinId.length === 0 || state.travel?.phase === 'waiting') return false
       const pin = state.map?.pins.find((p) => p.id === pinId)
@@ -2433,6 +2435,8 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       // Sem saída escolhida, a mensagem sai idêntica à de antes: o mestre
       // antigo, que não conhece `exitId`, continua entendendo o pedido.
       const pedido: PinTravelRequestMessage = exitId === undefined ? { type: 'pin.travel.request', pinId } : { type: 'pin.travel.request', pinId, exitId }
+      // ESCOLHER FICHAS NO PINO: a lista só vai quando o cartão ofereceu a escolha.
+      if (tokenIds !== undefined && tokenIds.length > 0) pedido.tokenIds = [...tokenIds]
       // Pino livre não espera ninguém: o aviso diz "Passando…", não "Aguardando
       // o mestre". E o pedido sai depois de um instante, não no mesmo toque: a
       // resposta do host é quase imediata, e sem a pausa a tela trocava de cena

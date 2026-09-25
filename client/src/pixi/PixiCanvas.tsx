@@ -47,11 +47,13 @@ import { createLightsRenderer } from './drawLights'
 import { visionSegments, type Segment } from '../lib/visibility'
 import { createRegionsRenderer, resolveHighlightedRegionId } from './drawRegions'
 import { createShapesRedrawer, paintedTextLayer, type ShapesLayer, type ShapesSnapshot } from './shapesRedraw'
+import { createMontadorEmFatias } from './montagemEmFatias'
 import { createRoomNamesRenderer, findRoomLabelAt, roomLabelAnchor, roomLabelFontSize, roomLabelPosition } from './drawRoomNames'
 import { createFloorRenderer, drawBlocosDraft, drawFloorDraft } from './drawFloor'
 import { drawMapLines, drawMapMarkers } from './drawMapLines'
 import { drawMapFrame } from './drawMapFrame'
 import { createDebouncedTask, syncWorldTextResolution } from './textResolution'
+import { createZoomDaRoda } from './zoomDaRoda'
 import { pixelGrid, snapToPhysicalPixel } from './pixelAlign'
 import { buildFloorMask } from './floorMask'
 import { layoutMapFrame } from '../lib/mapFrame'
@@ -1373,9 +1375,55 @@ export function PixiCanvas({
         },
       })
 
+      /**
+       * TROCA DE CENA RÁPIDA: o que cada camada adiada desenha. Enquanto a
+       * camada espera o quadro dela, fica escondida — senão os nomes e pinos
+       * da cena anterior apareceriam por cima das paredes da nova. As camadas
+       * da primeira fatia (chão, salas, paredes, escadas) nunca se escondem.
+       */
+      const objetosDaCamada: Partial<Record<ShapesLayer, readonly Container[]>> = {
+        floorSelection: [floorSelectionGraphics],
+        perigos: [perigosGraphics],
+        drawings: [drawingsGraphics, secretDrawingsGraphics],
+        hazards: [hazardsGraphics],
+        areaTriggers: [areaTriggersGraphics],
+        roomNames: [roomNamesContainer],
+        lights: [lightsContainer],
+        watchCones: [watchConesGraphics],
+        patrolRoutes: [patrolRoutesGraphics],
+        concealZones: [concealZonesContainer],
+        pins: [pinsContainer],
+        textLabels: [textLabelsContainer],
+        handles: [handlesGraphics],
+        areaOutline: [areaSelectionOutlineGraphics],
+      }
+      // Andar denso: o clique pinta paredes e salas, o resto chega uma fatia
+      // por quadro (montagemEmFatias.ts). `aria-busy` no editor enquanto monta.
+      const montagemDaCena = createMontadorEmFatias(redrawLayers, {
+        ler: shapesSnapshot,
+        agendar: (tarefa) => {
+          const pedido = requestAnimationFrame(() => {
+            // O componente pode ter desmontado entre o agendamento e o quadro.
+            if (!destroyed) tarefa()
+          })
+          return () => cancelAnimationFrame(pedido)
+        },
+        esconder: (camada, oculta) => {
+          // Só as camadas adiadas estão no mapa; a primeira fatia não tem o que esconder.
+          for (const objeto of objetosDaCamada[camada] ?? []) objeto.visible = !oculta
+        },
+        aoPintar: (pintadas) => {
+          if (paintedTextLayer(pintadas)) syncTextResolution()
+        },
+        aoMudarMontagem: (montando) => {
+          if (montando) el.setAttribute('aria-busy', 'true')
+          else el.removeAttribute('aria-busy')
+        },
+      })
+
       /** Pinta as camadas pedidas (todas, sem `only`) que mudaram; Text novo nasce na resolução do renderer e é ajustado ao zoom atual. */
       const redrawShapeLayers = (only?: readonly ShapesLayer[]) => {
-        if (paintedTextLayer(redrawLayers(shapesSnapshot(), only))) syncTextResolution()
+        if (paintedTextLayer(montagemDaCena.redesenhar(shapesSnapshot(), only))) syncTextResolution()
       }
 
       const redrawShapes = () => redrawShapeLayers()
@@ -1578,6 +1626,8 @@ export function PixiCanvas({
        * seleção, prévia de desenho, guias, sombra fora do mapa, sinais e laser.
        */
       const exportImage = async (options: ImageExportOptions): Promise<Uint8Array> => {
+        // Exportar logo depois de trocar de andar: a cena precisa estar inteira nesta chamada.
+        if (paintedTextLayer(montagemDaCena.concluir())) syncTextResolution()
         // O piso em edição, como o mestre o vê: os pisos empilhados sairiam um por cima do outro.
         const source = doPisoEmEdicao(useMapStore.getState().map)
         const width = source.width * source.grid
@@ -1712,18 +1762,34 @@ export function PixiCanvas({
       // marcador das luzes (o halo fica), e, com algo selecionado, o contorno
       // da sala ou do desenho selecionado e as alças. Chão, salas não
       // selecionadas, nomes, zonas, pinos e rótulos ficam parados.
+      //
+      // Durante o giro da roda nem esse portão roda: o `world` só escala e a
+      // geometria é refeita uma vez quando a roda para (zoomDaRoda.ts). Os
+      // nomes seguem por quadro: só mudam a escala do próprio texto.
+      const redrawScaleDependentLayers = () => {
+        redrawShapes()
+        // Móvel desenhado tem fio em px de tela, como a parede. Objeto de
+        // imagem não muda com o zoom: mapa sem móvel não redesenha nada aqui.
+        if (hasDrawnFurniture()) redrawProps()
+      }
+      const zoomDaRoda = createZoomDaRoda({
+        redesenhar: () => {
+          if (!destroyed) redrawScaleDependentLayers()
+        },
+        redesenharNoQuadro: umaVezPorQuadro(redrawScaleDependentLayers),
+      })
+      const syncLabelsToScale = umaVezPorQuadro(() => {
+        const { scale } = useMapStore.getState().camera
+        // Nomes de sala/token: tamanho mínimo na tela e somem abaixo de 30% (screenLabel.ts).
+        roomNamesRenderer.setCameraScale(scale)
+        tokensRenderer.setCameraScale(scale)
+      })
       const unsubscribeCameraScaleForWalls = useMapStore.subscribe(
         (state) => state.camera.scale,
-        umaVezPorQuadro(() => {
-          const { scale } = useMapStore.getState().camera
-          // Nomes de sala/token: tamanho mínimo na tela e somem abaixo de 30% (screenLabel.ts).
-          roomNamesRenderer.setCameraScale(scale)
-          tokensRenderer.setCameraScale(scale)
-          redrawShapes()
-          // Móvel desenhado tem fio em px de tela, como a parede. Objeto de
-          // imagem não muda com o zoom: mapa sem móvel não redesenha nada aqui.
-          if (hasDrawnFurniture()) redrawProps()
-        }),
+        () => {
+          syncLabelsToScale()
+          zoomDaRoda.escalaMudou()
+        },
       )
       // tokensSubscription.ts/propsSubscription.ts (fora do escopo deste
       // integrador) só assinam [map.tokens/map.props, selection] — nenhum dos
@@ -5999,7 +6065,13 @@ export function PixiCanvas({
           ctrlKey: event.ctrlKey,
           shiftKey: event.shiftKey,
         })
-        applyCamera(gesture.kind === 'zoom' ? zoomAt(camera, pointer, gesture.deltaY) : panBy(camera, -gesture.dx, -gesture.dy), 'gesto')
+        if (gesture.kind === 'zoom') {
+          // Antes de mover a câmera: a assinatura de escala dispara dentro do applyCamera.
+          zoomDaRoda.rodaGirou()
+          applyCamera(zoomAt(camera, pointer, gesture.deltaY), 'gesto')
+          return
+        }
+        applyCamera(panBy(camera, -gesture.dx, -gesture.dy), 'gesto')
       }
       el.addEventListener('wheel', onWheel, { passive: false })
 
@@ -6016,9 +6088,12 @@ export function PixiCanvas({
         containerResizeObserver.disconnect()
         stopWatchingResolution()
         textResolutionTask.cancel()
+        montagemDaCena.cancelar()
+        el.removeAttribute('aria-busy')
         unsubscribeGrid()
         unsubscribeGridOffset()
         unsubscribeCameraScaleForWalls()
+        zoomDaRoda.cancelar()
         unsubscribeShapes()
         unsubscribeTravelLinks()
         unsubscribeTokens()
