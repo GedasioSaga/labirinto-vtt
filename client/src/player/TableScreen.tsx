@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import type { FormEvent, ReactNode } from 'react'
 import { JOIN_CODE_LENGTH } from '../net/protocol'
+import { pedeGzip } from '../net/pacoteComprimido'
 import { tableCodeFromSearch } from '../lib/tableScreen'
 import { createPlayerConnection, TABLE_SCREEN_NAME, type PlayerConnection, type PlayerState } from './playerConnection'
 import { PlayerView } from './PlayerView'
@@ -153,6 +154,7 @@ export function TableApp({ initialCode, tableKey }: { initialCode: string; table
       tableKey,
       createSocket: (url) => new WebSocket(url),
       storage: null,
+      aceitaGzip: pedeGzip(window.location.hostname),
     })
     setConnection(created)
     return () => {

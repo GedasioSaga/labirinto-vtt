@@ -67,6 +67,7 @@ import {
 } from './protocol'
 import { letterViaPhrase } from '../lib/correio'
 import { createPlayerScreens, type PlayerScreen } from './playerScreens'
+import { criarSaidaEmOrdem } from './pacoteComprimido'
 import { guardSightingNotices } from './guardNotices'
 import type { TurnRef } from '../lib/initiative'
 import { hazardEntryLine } from '../lib/hazards'
@@ -634,6 +635,8 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   const lastHeard = new Map<string, number>()
   /** Conexões cuja aba está em segundo plano (último ping com `away: true`). Nunca sai pela rede. */
   const awayClients = new Set<string>()
+  /** PACOTE COMPRIMIDO: conexões que declararam `accept: ['gzip']` no `join`. Nunca sai pela rede. */
+  const gzipClients = new Set<string>()
   let livenessTimer: ReturnType<typeof setInterval> | null = null
   /** Pergunta "Ana voltou?" de quem entrou agora: `playerId` dele -> id do toast. */
   const returnToasts = new Map<string, string>()
@@ -838,6 +841,18 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     deps.onPinAudiencesChange?.(audiences)
   }
 
+  /**
+   * Um `net_send` por mensagem, na ordem. Para quem aceita gzip, a mensagem
+   * grande vai comprimida (`pacoteComprimido.ts`) e as de trás esperam por
+   * ela. Nunca rejeita: falha vira toast.
+   */
+  const sendToClient = criarSaidaEmOrdem((clientId, msg) =>
+    deps.invoke('net_send', { clientId, msg }).then(
+      () => undefined,
+      (error: unknown) => reportError('Falha ao enviar para jogador', error),
+    ),
+  )
+
   /** Envia tudo; a promise nunca rejeita — falha vira toast, nunca silêncio. */
   const dispatch = (result: HostResult): Promise<void> => {
     // O espelho anota o que SAI, na ordem em que sai: é o que o jogador recebe.
@@ -846,11 +861,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       if (screens.record(clientId, msg)) screensChanged = true
     }
     if (screensChanged) notifyScreens()
-    return Promise.all(
-      result.outbound.map(({ clientId, msg }) =>
-        deps.invoke('net_send', { clientId, msg }).catch((error: unknown) => reportError('Falha ao enviar para jogador', error)),
-      ),
-    ).then(() => undefined)
+    return Promise.all(result.outbound.map(({ clientId, msg }) => sendToClient(clientId, msg, gzipClients.has(clientId)))).then(() => undefined)
   }
 
   /** A conexão acabou (caiu ou foi expulsa): a tela dela sai do espelho. */
@@ -1781,6 +1792,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   const dropReplaced = (clientId: string) => {
     lastHeard.delete(clientId)
     awayClients.delete(clientId)
+    gzipClients.delete(clientId)
     deps.invoke('net_kick', { clientId }).catch(() => {
       // Já fechada no Rust (a aba foi fechada antes): era o que se queria.
     })
@@ -1820,6 +1832,11 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     const parsed = parsePlayerMessage(event.payload.msg)
     if (parsed?.type === 'ping' && parsed.away === true) awayClients.add(clientId)
     else awayClients.delete(clientId)
+    // Antes de a sessão responder: o `welcome` e o mapa que saem deste join já vão comprimidos.
+    if (parsed?.type === 'join') {
+      if (parsed.accept?.includes('gzip') === true) gzipClients.add(clientId)
+      else gzipClients.delete(clientId)
+    }
     const before = session.listPlayers()
     // Tela da mesa conta como "já entrou": o lixo que ela mandasse depois não a derruba como join recusado.
     const wasTable = session.isTable(clientId)
@@ -1928,6 +1945,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     if (session === null) return
     lastHeard.delete(clientId)
     awayClients.delete(clientId)
+    gzipClients.delete(clientId)
     // Conexão que nunca entrou (código errado) — ou que a varredura já deu
     // como caída — não acha jogador: não há quem avisar de novo.
     const dropped = session.listPlayers().find((p) => p.clientId === clientId)

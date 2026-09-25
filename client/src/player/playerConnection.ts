@@ -32,6 +32,7 @@ import {
   type SignalAudience,
   type TokenHideRejection,
 } from '../net/protocol'
+import { ACEITA_GZIP, criarEntradaEmOrdem } from '../net/pacoteComprimido'
 import { carriedItemsOf, cleanItemName, itemOfPin } from '../lib/items'
 import { fitsTokenPhotoSend } from '../lib/tokenPhoto'
 import { isPlayerSafePinImage, passageOf } from '../lib/pins'
@@ -455,6 +456,12 @@ export interface PlayerConnectionOptions {
    * === 'hidden'`.) Ausente = sempre à vista.
    */
   isHidden?: () => boolean
+  /**
+   * PACOTE COMPRIMIDO: este navegador abre gzip (`sabeAbrirGzip()`)? Com
+   * `true`, o `join` declara `accept: ['gzip']` e o mestre manda o mapa grande
+   * comprimido. Ausente = texto, como sempre.
+   */
+  aceitaGzip?: boolean
 }
 
 /** O `join` da tela da mesa: sem chave, a mensagem vai sem o campo e a sala responde `bad_table_key`. */
@@ -2260,25 +2267,36 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       const join: JoinMessage = isTable ? tableJoin(code, name, options.tableKey) : resume ? { type: 'join', code, name, resume } : { type: 'join', code, name }
       // O prazo do silêncio conta a partir de agora, não da conexão anterior.
       lastHeardAt = Date.now()
-      send(join)
+      send(options.aceitaGzip === true ? { ...join, accept: [ACEITA_GZIP] } : join)
       stopPing()
       pingTimer = setInterval(pingOrGiveUp, PING_INTERVAL_MS)
     }
+    // Pacote comprimido abre fora de ordem (assíncrono): a entrada o põe de volta na fila.
+    // Aberto depois de a conexão trocar de socket, não vale mais nada.
+    const receive = criarEntradaEmOrdem((data) => {
+      if (socket === current) handleMessage(data)
+    })
     current.onmessage = (event) => {
       if (socket !== current) return
       // Qualquer mensagem do host é prova de vida, não só o pong.
       lastHeardAt = Date.now()
       clearWakeProbe()
-      handleMessage(event.data)
+      receive(event.data)
     }
     current.onerror = () => {
       // O browser sempre dispara `close` depois; o tratamento fica lá.
     }
     current.onclose = () => {
       if (socket !== current) return
-      socket = null
+      // Ninguém mais escuta este socket: o ping para já.
       stopPing()
-      handleSocketLost()
+      // A queda só é tratada depois do que chegou antes dela: o `kicked` ou o
+      // `session.replaced` atrás de um pacote ainda abrindo decide que não há volta.
+      receive.quandoEsvaziar(() => {
+        if (socket !== current) return
+        socket = null
+        handleSocketLost()
+      })
     }
   }
 

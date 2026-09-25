@@ -283,7 +283,17 @@ export interface JoinMessage {
    * tela e recebe a cena que o mestre escolheu (que pode ser outra que a dele).
    */
   tableKey?: string
+  /**
+   * PACOTE COMPRIMIDO: o que este cliente sabe abrir. Com `'gzip'`, o mestre
+   * manda a mensagem grande (o mapa) no envelope `{"gz":...}`
+   * (`net/pacoteComprimido.ts`). Ausente = texto, como sempre; mestre antigo
+   * ignora o campo.
+   */
+  accept?: JoinAccept[]
 }
+
+/** Compressões que o jogador pode declarar no `join`. */
+export type JoinAccept = 'gzip'
 
 export interface TokenMoveMessage {
   type: 'token.move'
@@ -970,6 +980,15 @@ function isFiniteNumber(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value)
 }
 
+/**
+ * PACOTE COMPRIMIDO: do `accept` do `join`, só o que o mestre sabe mandar.
+ * Malformado ou sem nada conhecido = ausente: o `accept` nunca derruba a entrada.
+ */
+function parseJoinAccept(raw: unknown): { accept?: JoinAccept[] } {
+  if (!Array.isArray(raw) || !raw.includes('gzip')) return {}
+  return { accept: ['gzip'] }
+}
+
 function parseJoin(obj: Record<string, unknown>): JoinMessage | null {
   const { code, name, resume, role, tableKey } = obj
   if (typeof code !== 'string' || !JOIN_CODE_PATTERN.test(code)) return null
@@ -977,17 +996,18 @@ function parseJoin(obj: Record<string, unknown>): JoinMessage | null {
   const trimmed = name.trim()
   // `length` conta unidades UTF-16 (emoji = 2): é o limite que o jogador vê no input.
   if (trimmed.length < NAME_MIN_LENGTH || trimmed.length > NAME_MAX_LENGTH) return null
+  const accept = parseJoinAccept(obj.accept)
   if (role !== undefined) {
     // Tela da mesa nunca retoma sessão de jogador: com `resume` junto, a mensagem cai inteira.
     if (role !== 'table' || resume !== undefined) return null
     // Sem chave a mensagem passa: quem recusa é a sessão (`bad_table_key`), para a TV dizer o que falta.
-    if (tableKey === undefined) return { type: 'join', code, name: trimmed, role }
+    if (tableKey === undefined) return { type: 'join', code, name: trimmed, role, ...accept }
     if (!isBoundedString(tableKey, 1, TABLE_KEY_MAX_LENGTH)) return null
-    return { type: 'join', code, name: trimmed, role, tableKey }
+    return { type: 'join', code, name: trimmed, role, tableKey, ...accept }
   }
-  if (resume === undefined) return { type: 'join', code, name: trimmed }
+  if (resume === undefined) return { type: 'join', code, name: trimmed, ...accept }
   if (!isBoundedString(resume, 1, RESUME_TOKEN_MAX_LENGTH)) return null
-  return { type: 'join', code, name: trimmed, resume }
+  return { type: 'join', code, name: trimmed, resume, ...accept }
 }
 
 function parseTokenMove(obj: Record<string, unknown>): TokenMoveMessage | null {

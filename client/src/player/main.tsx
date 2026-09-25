@@ -6,6 +6,7 @@ import { latestActionNotice } from './moveNotice'
 import { ConfrontoFaixa } from './ConfrontoFaixa'
 import { themeCss } from '../theme'
 import { createPlayerConnection, hasUnreadNotes, RESUME_STORAGE_KEY } from './playerConnection'
+import { pedeGzip } from '../net/pacoteComprimido'
 import type { PlayerConnection, PlayerState, SeatClaimNotice, SocketLike, StorageLike } from './playerConnection'
 import type { SeatOption } from '../net/protocol'
 import { SeatPicker } from './SeatPicker'
@@ -1406,6 +1407,8 @@ function PlayerApp() {
         }),
       storage: resumeStorageOrNull(),
       isHidden: () => document.visibilityState === 'hidden',
+      // Pelo link público (4G), o mapa chega comprimido; na rede local, texto como sempre.
+      aceitaGzip: pedeGzip(window.location.hostname),
     })
     setSession({ connection, code, typedName: name })
   }
