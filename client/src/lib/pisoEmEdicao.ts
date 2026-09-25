@@ -38,6 +38,17 @@ export function selecaoNoPiso(map: MapData, piso: number, selection: SelectionSe
   return fica.length === selection.length ? selection : fica
 }
 
+/**
+ * O pino selecionado (`selectedPinId`, fora de `selection`) só se ele está no
+ * piso em edição. O pino preso a uma ficha (`presoA`) sobe com ela pela
+ * escada: selecionado e invisível, o Delete o apagaria sem o mestre ver.
+ * Nenhum pino, ou ele está no piso: o PRÓPRIO id.
+ */
+export function pinoNoPiso(map: MapData, piso: number, pinId: string | null): string | null {
+  if (pinId === null) return null
+  return mapaDoPiso(map, piso).pins.some((pino) => pino.id === pinId) ? pinId : null
+}
+
 /** Laço (arrasto no vazio com Selecionar): só o que está no piso em edição. */
 export function selecaoDoLacoNoPiso(map: MapData, piso: number, rect: AreaRect): SelectionSet {
   return selectionFromAreaSelection(selectEntitiesInArea(mapaDoPiso(map, piso), rect))

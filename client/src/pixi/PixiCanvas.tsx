@@ -5843,8 +5843,10 @@ export function PixiCanvas({
             // não existe mais. Sem conferir o mapa, o atalho engolia o
             // `removeSelected` e ainda prometia "Ctrl+Z desfaz" para uma ação que
             // não aconteceu — e o Ctrl+Z do mestre desfaria outra coisa.
-            const { map: mapaDoPino, selectedPinId: pinoSelecionado } = useMapStore.getState()
-            const pinoApagado = pinoSelecionado === null ? undefined : mapaDoPino.pins.find((pino) => pino.id === pinoSelecionado)
+            // PISOS: só o pino do piso em edição — o de outro piso não está na tela.
+            const { map: mapaDoPino, selectedPinId: pinoSelecionado, pisoAtivo: pisoDoPino } = useMapStore.getState()
+            const pinoApagado =
+              pinoSelecionado === null ? undefined : mapaDoPiso(mapaDoPino, pisoDoPino).pins.find((pino) => pino.id === pinoSelecionado)
             if (pinoApagado !== undefined) {
               // O par de um pino de viagem mora em OUTRA cena: o aviso diz o
               // que mudou lá, porque daqui não dá para ver.

@@ -18,7 +18,7 @@ import { clampTamanhoDePincel, type Bloco, type TamanhoDePincel } from '../lib/f
 import { paintRevealBrush as paintRevealBrushOnMap, type RevealBrushMode, type RevealBrushWidth } from '../lib/concealBrush'
 import * as mapFactory from '../lib/mapFactory'
 import { comEscadaNosPisos, comFichaNoPiso, comSelecaoNoPiso, ehPiso, mapaDoPiso, nascemNoPiso, pisoDe } from '../lib/pisos'
-import { apagarBlocosNoPiso, selecaoNoPiso } from '../lib/pisoEmEdicao'
+import { apagarBlocosNoPiso, pinoNoPiso, selecaoNoPiso } from '../lib/pisoEmEdicao'
 import { amarrarAoEstado as amarrarNoMapa, type AmarraDeEstado } from '../lib/estadoDoMundo'
 import { comRotina } from '../lib/rotinaDoNpc'
 // Onda 3, item 13 (Frente A) — clonagem pura por tipo de entidade, usada por
@@ -2022,14 +2022,17 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
       if (typingEdit !== null && typingEdit.map === prevMap) typingEdit = { key: typingEdit.key, map: nextMap }
       // PISOS NA MESMA CENA: o jogador levou a ficha a outro piso pela escada.
       // O editor fica onde o mestre está; a ficha, agora invisível aqui, sai
-      // da seleção — senão o Delete dele apagaria o que ele não vê.
-      const { selection, pisoAtivo } = get()
+      // da seleção — senão o Delete dele apagaria o que ele não vê. O pino
+      // preso a ela (`presoA`) sobe junto, e o selecionado mora fora de `selection`.
+      const { selection, selectedPinId, pisoAtivo } = get()
       const naTela = selecaoNoPiso(nextMap, pisoAtivo, selection)
+      const pinoNaTela = pinoNoPiso(nextMap, pisoAtivo, selectedPinId)
       set((state) => ({
         map: nextMap,
         past: state.past.map(transform),
         future: state.future.map(transform),
         ...(naTela === selection ? {} : { selection: naTela }),
+        ...(pinoNaTela === selectedPinId ? {} : { selectedPinId: pinoNaTela }),
       }))
     },
     updateLinePoint: (drawingId, endpoint, x, y) => {
