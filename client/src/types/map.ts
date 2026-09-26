@@ -1180,8 +1180,9 @@ export interface Token extends PlayerSecret, NoPiso {
    * sala recusa todo pedido de jogador que a moveria — o passo, a escada, a
    * passagem pelo pino, e de carona (a bordo ou levada) — e o mestre continua
    * movendo à vontade. Diferente de `locked`, trava do editor que segura o
-   * mestre também. `undefined` === false, sem linha de migração; descongelar
-   * APAGA o campo. Quem lê do disco passa por `estaCongelada` (`lib/congelar.ts`).
+   * mestre também. `undefined` === false, sem linha de migração; o
+   * "Descongelar todos" apaga o campo, o interruptor da ficha grava `false`
+   * (como o Travado). Quem lê do disco passa por `estaCongelada` (`lib/congelar.ts`).
    * Atravessa só para o DONO da ficha (`lib/fogFilter.ts`), onde vira o floco
    * e o aviso "Congelado pelo mestre".
    */

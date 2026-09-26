@@ -55,15 +55,17 @@ function render(world: HostWorld, congelar: PartySectionProps['congelar']): void
 
 const texto = (el: Element | null | undefined) => (el?.textContent ?? '').trim()
 const botao = (nome: string) => Array.from(container.querySelectorAll('button')).find((b) => texto(b) === nome) ?? null
-const cabecaDoGrupo = () => container.querySelector('.lb-party__head')
 
 describe('Grupo — congelar a mesa', () => {
   it('ninguém congelado: só "Congelar todos", no alto do Grupo; o clique congela', () => {
     const onChange = vi.fn()
     render(mundo(), { todas: false, alguma: false, onChange })
     const congelar = botao('Congelar todos')
-    expect(congelar).not.toBeNull()
-    expect(cabecaDoGrupo()?.contains(congelar ?? null)).toBe(true)
+    if (congelar === null) throw new Error('sem o "Congelar todos"')
+    // No alto do Grupo: dentro dele, antes da lista das pessoas.
+    expect(container.querySelector('section.lb-party')?.contains(congelar)).toBe(true)
+    const lista = container.querySelector('ul.lb-party__list')
+    expect(lista !== null && (congelar.compareDocumentPosition(lista) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0).toBe(true)
     expect(botao('Descongelar todos')).toBeNull()
     act(() => congelar?.click())
     expect(onChange).toHaveBeenCalledWith(true)

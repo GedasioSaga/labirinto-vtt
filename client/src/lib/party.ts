@@ -2,6 +2,7 @@ import type { AppliedItems, HostScene, HostWorld, PlayerInfo } from '../net/host
 import type { CarriedItem, Pin, Token } from '../types/map'
 import { sceneTrail, type SceneEntry } from './adventure'
 import { carriedItemsOf, dropItemChange, giveNewItemChange, removeItemChange, type ItemChange } from './items'
+import { estaCongelada } from './congelar'
 import { visibleTokens } from './layers'
 import { pinSummary } from './pins'
 import { cleanExitLabel, travelDestinationOf } from './pinTravel'
@@ -63,6 +64,8 @@ export interface PartyMember {
   entourageIds?: string[]
   /** VOLTO JÁ: saiu da mesa por um instante, de propósito. Ausente no resto do tempo. */
   away?: true
+  /** CONGELAR FICHA: a ficha da linha (`token`) está congelada pelo mestre. Ausente = solta. Só o mestre lê. */
+  congelado?: true
 }
 
 /** Uma ficha do jogador que está em outra cena que não a dele. */
@@ -255,6 +258,7 @@ export function partyMembers(players: PlayerInfo[], world: HostWorld): PartyMemb
     const entourage = found === null ? [] : entourageOf(player, found.token, found.scene)
     if (entourage.length > 0) member.entourageIds = entourage
     if (player.away === true) member.away = true
+    if (token !== null && estaCongelada(token)) member.congelado = true
     return member
   })
 }

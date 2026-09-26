@@ -1923,6 +1923,14 @@ label.lb-switch[data-dica-linha='aberta'] > span:first-child::after,
   color: var(--lb-color-brass);
 }
 
+/* CONGELAR FICHA: os dois gestos de mesa numa linha logo abaixo do título,
+   antes das pessoas; quebram de linha no rail estreito em vez de cortar. */
+.lb-party__congelar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--lb-space-2);
+}
+
 /* Um poço só, com filete entre as linhas: sete caixas de borda própria eram
    sete cartões disputando o olho; a linha fina é o traço do minimapa. */
 /* RELÓGIO DA CAMPANHA: mesma coluna da Iniciativa, a hora grande e o período ao lado. */
@@ -2235,6 +2243,14 @@ label.lb-switch[data-dica-linha='aberta'] > span:first-child::after,
 
 .lb-player__away {
   color: var(--lb-color-parchment-faint);
+}
+
+/* CONGELAR FICHA: a marca da linha, no azul-gelo do floco da ficha no mapa
+   (`pixi/drawTokenFrozen.ts`). Não encolhe: a cena corta antes dela. */
+.lb-player__congelado {
+  flex: none;
+  font-size: var(--lb-font-size-sm);
+  color: #9fd0ff;
 }
 
 /* "aguardando" no cartão de quem espera: o latão é o destaque da lista inteira. */

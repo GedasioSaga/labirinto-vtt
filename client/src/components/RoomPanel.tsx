@@ -30,6 +30,9 @@ import {
   PartyNoteForm,
   PartyPurse,
   PartySendForm,
+  CONGELADO_TAG,
+  CONGELAR_TODOS_LABEL,
+  DESCONGELAR_TODOS_LABEL,
   playerNoteFeedbackText,
   useNoteFeedback,
   useOfflineClock,
@@ -1522,6 +1525,8 @@ function PlayerRow({
             {presenceView}
             {where}
           </span>{' '}
+          {/* CONGELAR FICHA: o mestre não guarda de cabeça quem ele segurou. */}
+          {member?.congelado === true && <span className="lb-player__congelado">{CONGELADO_TAG}</span>}
           <TokenChips player={player} tokens={admin.tokens} onUnassign={admin.onUnassign} />
         </div>
         {member !== undefined && <PartyBackpack member={member} onItem={party?.onItem} />}
@@ -1615,6 +1620,32 @@ function useGroupViewFeedback() {
   return { feedback, show: (playerId: string, text: string) => setFeedback({ playerId, text }) }
 }
 
+/** O porquê dos dois botões do Grupo, no `title` (a frase do "Congelado" da ficha). */
+const CONGELAR_A_MESA_TITLE = 'Os jogadores não movem as próprias fichas; você continua movendo.'
+
+/**
+ * CONGELAR FICHA — os dois gestos de mesa no alto do Grupo: "Congelar todos"
+ * enquanto alguma ficha de jogador está solta, "Descongelar todos" enquanto
+ * alguma está congelada (os dois, quando só uma parte está). Ações de uma
+ * vez, não interruptor: o estado de cada um mora na marca da linha.
+ */
+function CongelarAMesa({ todas, alguma, onChange }: NonNullable<PartySectionProps['congelar']>) {
+  return (
+    <div className="lb-party__congelar">
+      {!todas && (
+        <button type="button" className="lb-btn lb-btn--compact" title={CONGELAR_A_MESA_TITLE} onClick={() => onChange(true)}>
+          {CONGELAR_TODOS_LABEL}
+        </button>
+      )}
+      {alguma && (
+        <button type="button" className="lb-btn lb-btn--compact" onClick={() => onChange(false)}>
+          {DESCONGELAR_TODOS_LABEL}
+        </button>
+      )}
+    </div>
+  )
+}
+
 /**
  * O Grupo: UMA lista com a mesa inteira, uma linha por jogador. Antes eram
  * duas (Grupo e Jogadores) com as mesmas pessoas, e cada card de Jogadores
@@ -1656,6 +1687,7 @@ function GroupRoster({ players, party, onGiveGroupView, ...rest }: GroupRosterPr
           <span className={waiting.length > 0 ? 'lb-party__count lb-party__count--waiting' : 'lb-party__count'}>{groupCountLabel(players.length, waiting.length)}</span>
         )}
       </div>
+      {players.length > 0 && party?.congelar !== undefined && <CongelarAMesa {...party.congelar} />}
       {players.length === 0 && <p className="lb-player__note">{EMPTY_GROUP_HINT}</p>}
       {waiting.map((player) => (
         <WaitingCard key={player.playerId} {...cardProps(player)} />

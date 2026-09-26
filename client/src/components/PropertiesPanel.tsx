@@ -198,8 +198,8 @@ interface PropertiesPanelProps {
    * bordo. Ausente = sem o controle (quem monta o painel sem essa ligação).
    */
   tokenVehicle?: Omit<TokenVehicleControlsProps, 'vehicle'>
-  /** F3, contrato do agente C4 — rotação/travar/ocultar do Token selecionado. */
-  tokenTransform: Omit<ItemTransformControlsProps, 'title' | 'rotation' | 'locked' | 'hidden' | 'secret'>
+  /** F3, contrato do agente C4 — rotação/travar/ocultar do Token selecionado. `onCongeladoChange`: o "Congelado" (CONGELAR FICHA). */
+  tokenTransform: Omit<ItemTransformControlsProps, 'title' | 'rotation' | 'locked' | 'congelado' | 'hidden' | 'secret'>
   /** "Ficha de jogador" do Token selecionado: entra na lista de quem chega sem personagem. */
   tokenPlayerCharacter: Omit<TokenPlayerCharacterControlsProps, 'playerCharacter'>
   selectedTextLabel: Extract<Drawing, { kind: 'text' }> | null
@@ -697,6 +697,7 @@ export function PropertiesPanel({
               title="Trava e visibilidade"
               rotation={selectedToken.rotation ?? 0}
               locked={!!selectedToken.locked}
+              congelado={selectedToken.congelado === true}
               hidden={!!selectedToken.hidden}
               secret={!!selectedToken.secret}
               {...tokenTransform}

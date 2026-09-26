@@ -2073,6 +2073,14 @@
   border-color: var(--lb-color-brass, #e0a44a);
 }
 
+/* CONGELAR FICHA: o aviso fixo da ficha congelada mora no lugar do da pausa
+   (os dois nunca saem juntos: com a cena pausada, vale o dela), com a borda
+   azul-gelo do floco que a ficha ganha no mapa (`pixi/drawTokenFrozen.ts`). */
+.pp-notice--congelado {
+  bottom: 112px;
+  border-color: #9fd0ff;
+}
+
 /* Ação no ponto: acima da viagem e da pausa, para os avisos não se cobrirem. */
 .pp-notice--point {
   bottom: 156px;
