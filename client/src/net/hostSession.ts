@@ -2445,6 +2445,40 @@ function samePlan(a: PlanMemory, b: PlanMemory): boolean {
   })
 }
 
+/**
+ * O explorado ganhou célula que o recorte anterior não tinha (`before`):
+ * mesa retomada, memória por ficha, mapa de papel, planta revelada, "Dar o que
+ * o grupo viu". Sem recorte anterior, qualquer célula conta.
+ */
+function explorationGrewSince(exp: Exploration, before: Uint8Array | undefined): boolean {
+  const bits = exp.bits
+  if (before === undefined || before.length !== bits.length) return bits.some((byte) => byte !== 0)
+  for (let i = 0; i < bits.length; i += 1) if ((bits[i] & ~before[i]) !== 0) return true
+  return false
+}
+
+/**
+ * A memória da planta de um recorte feito sem ela (`explorationGrewSince`): a
+ * versão do mestre de cada item que saiu ao jogador. Peça recortada (zona,
+ * cone) tem outro id e fica de fora, como em `planOfWholeMap`.
+ */
+function planOfSent(map: MapData, sent: MapData): PlanMemory {
+  const keep = <T extends { id: string }>(all: readonly T[], out: readonly { id: string }[]): Map<string, T> => {
+    const ids = new Set(out.map((item) => item.id))
+    return new Map(all.filter((item) => ids.has(item.id)).map((item) => [item.id, item]))
+  }
+  return {
+    walls: keep(map.walls, sent.walls),
+    floor: keep(map.floor, sent.floor),
+    regions: keep(map.regions, sent.regions),
+    drawings: keep(map.drawings, sent.drawings),
+    markers: keep(map.markers, sent.markers),
+    lines: keep(map.lines, sent.lines),
+    stairs: keep(map.stairs, sent.stairs),
+    pins: keep(map.pins ?? [], sent.pins ?? []),
+  }
+}
+
 function doorsKey(doors: ReadonlyMap<string, DoorState>): string {
   return JSON.stringify([...doors])
 }
@@ -2552,6 +2586,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   // em que ele já entrou. Sobrevive a reconexão e a "Esconder planta" (o cartão
   // não repete); só o kick apaga.
   const enteredRooms = new Map<string, Map<string, Set<string>>>()
+  // MEMÓRIA DA PLANTA: o explorado de cada memória no último recorte (`explorationGrewSince`).
+  const bitsAtLastCut = new WeakMap<PlayerMemory, Uint8Array>()
   // Por sceneId da aventura: o último recado mandado para a cena. É o que
   // quem chega ou volta recebe. Na ordem do último recado (a primeira sai no teto).
   const lastNoteByScene = new Map<string, NoteEntry>()
@@ -3458,6 +3494,11 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       markAll(exp, playerBlockedRings(floorMapOf(playerId, map)))
       memory.planMarked = true
     }
+    // MEMÓRIA DA PLANTA (`memory.plan`): sem ela o explorado mostra o PRESENTE —
+    // a parede e o texto que o mestre mudou longe do jogador. Explorado que
+    // cresceu fora da visão (ver `explorationGrewSince`) ainda não tem planta
+    // lembrada: esse recorte sai sem ela (o presente) e guarda o que saiu.
+    const fromExplored = explorationGrewSince(exp, bitsAtLastCut.get(memory))
     const entered = enteredRooms.get(playerId)?.get(map.id)
     // SÓ IDA: o host enxerga a outra cena e diz, por saída, se o par é a
     // chegada oculta. Ao jogador vai só o booleano (`pinForPlayer`).
@@ -3476,7 +3517,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       secretReveals,
       memory.secretRooms,
       peekingFor(playerId, scene),
-      undefined,
+      fromExplored ? undefined : memory.plan,
       memory.marcas,
       oneWay,
       companionMarks(),
@@ -3517,6 +3558,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     // dentro depois que ele sai.
     forgetInside(exp, view.roofs)
     memory.vision = view.vision
+    memory.plan = fromExplored ? planOfSent(map, view.map) : view.plan
+    bitsAtLastCut.set(memory, exp.bits.slice())
     memory.tokens = view.map.tokens
     seenPins.set(playerId, { mapId: map.id, pins: view.map.pins })
     const seenNow = new Set(view.visibleDoorIds)
@@ -5744,9 +5787,9 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       secretReveals,
       undefined,
       undefined,
-      // Sem memória da planta, como o recorte que vai ao jogador (`snapshotFor`):
+      // Com a memória da planta, como o recorte que vai ao jogador (`snapshotFor`):
       // a passagem se decide pelo mesmo explorado que a tela dele mostra.
-      undefined,
+      memory.plan,
     )
     const seen = view.map.pins.find((p) => p.id === pinId)
     if (seen === undefined) return unavailable

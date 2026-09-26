@@ -2657,16 +2657,17 @@ export function filterMapForGroup(
       !underRoofIds.has(r.id) &&
       !swallowedByClosedRoof(r),
   )
-  const seesInto = (room: BoxedRoom): boolean => {
+  // As amostras que contam (`openSamples`): o pincel que deixa parte do
+  // cômodo escondida não o faz "lembrado" — senão o corredor pintado
+  // entregava o polígono do cômodo inteiro, e a planta de dentro com ele.
+  const comodoSamples = (room: BoxedRoom): readonly RegionPoint[] => openSamples(interiorSamples(room.points, room.points), { points: room.points, closed: true })
+  /** Ele vê dentro do cômodo AGORA: ficha dentro, amostra à vista ou anel de visão entrando nele (sem o explorado). */
+  const seesIntoNow = (room: BoxedRoom): boolean => {
     if (ownTokens.some((t) => isStrictlyInsideReadableRoom(room.points, { x: t.x, y: t.y }))) return true
-    // As amostras que contam (`openSamples`): o pincel que deixa parte do
-    // cômodo escondida não o faz "lembrado" — senão o corredor pintado
-    // entregava o polígono do cômodo inteiro, e a planta de dentro com ele.
-    const samples = openSamples(interiorSamples(room.points, room.points), { points: room.points, closed: true })
-    if (samples.some(isVisible)) return true
-    if (explored !== undefined && isShapeExplored(explored, samples)) return true
+    if (comodoSamples(room).some(isVisible)) return true
     return authorityVision.some((ring) => ringReachesInto(ring, room, (p) => !inConcealZone(p) && !inSecretRoom(p)))
   }
+  const seesInto = (room: BoxedRoom): boolean => seesIntoNow(room) || (explored !== undefined && isShapeExplored(explored, comodoSamples(room)))
   const comodoRooms = boxRooms(comodoCandidates)
   /**
    * Zona oculta ativa sobre o interior INTEIRO: a lembrança (`seenRooms`) não
@@ -2747,6 +2748,18 @@ export function filterMapForGroup(
    */
   const inKnownComodo = (p: RegionPoint): boolean =>
     !inConcealZone(p) && !inUnseenComodo(p) && knownComodos.some((room) => inRoomStrictly(room, p) && !inNestedRoomOfComodo(room, p))
+  /**
+   * MEMÓRIA SEM SPOILER x CÔMODO LEMBRADO: ver dentro do cômodo AGORA
+   * (`seesIntoNow`) é ver a planta dele inteira — ela entra na memória da
+   * planta (`recallItems`, "visto agora"). Só lembrado (`seenRooms`), o cômodo
+   * mostra a versão que ele viu, não o que o mestre mudou lá longe dele.
+   */
+  const comodosSeenNow = knownComodos.filter(seesIntoNow)
+  const inComodoSeenNow = (p: RegionPoint): boolean =>
+    comodosSeenNow.length > 0 &&
+    !inConcealZone(p) &&
+    !inUnseenComodo(p) &&
+    comodosSeenNow.some((room) => inRoomStrictly(room, p) && !inNestedRoomOfComodo(room, p))
   /** Ponto que o jogador não recebe por causa da SALA: secreta, de teto fechado ou cômodo ainda não visto. */
   const inHiddenPlace = (p: RegionPoint): boolean => inRoomHiddenFromPlayer(p) || inUnseenComodo(p)
 
@@ -2803,11 +2816,18 @@ export function filterMapForGroup(
    * memória, a TELA recebe a versão que `recallItems` escolheu
    * (`recalledList`), com as regras de cada tipo por cima; e `plan` é a
    * memória DEPOIS deste recorte.
+   *
+   * CÔMODO LEMBRADO com memória: a planta nunca vista dentro do cômodo
+   * conhecido sai na versão de agora, como a parede dele (`recalledWall`) —
+   * o cômodo levanta a névoa inteiro, sem precisar de célula explorada.
    */
   const memoryMode = remembered !== undefined
-  const exploredPoint = (point: RegionPoint): boolean => !memoryMode && isPointExploredOpen(point)
+  const exploredPoint = (point: RegionPoint): boolean => (memoryMode ? inKnownComodo(point) : isPointExploredOpen(point))
   const exploredShape = (points: readonly RegionPoint[]): boolean =>
-    !memoryMode && explored !== undefined && isShapeExplored(explored, outsideZones(points))
+    memoryMode ? outsideZones(points).some(inKnownComodo) : explored !== undefined && isShapeExplored(explored, outsideZones(points))
+  /** Com memória: ponto no cômodo que ele vê AGORA (`inComodoSeenNow`) conta como visto agora. */
+  const comodoSeenPoint = (point: RegionPoint): boolean => memoryMode && inComodoSeenNow(point)
+  const comodoSeenShape = (points: readonly RegionPoint[]): boolean => memoryMode && outsideZones(points).some(inComodoSeenNow)
   const layerShown = (layer: LayerId): boolean => !hiddenLayers.includes(layer)
 
   const markerCenter = (m: MapMarker): RegionPoint => ({ x: m.cx, y: m.cy })
@@ -2815,7 +2835,7 @@ export function filterMapForGroup(
     allowed: () => true,
     shown: () => true,
     placeOk: (m) => !inHiddenPlace(markerCenter(m)) && !inConcealZone(markerCenter(m)),
-    seenNow: (m) => isVisible(markerCenter(m)),
+    seenNow: (m) => isVisible(markerCenter(m)) || comodoSeenPoint(markerCenter(m)),
     unseenOk: (m) => exploredPoint(markerCenter(m)),
   })
 
@@ -2823,7 +2843,7 @@ export function filterMapForGroup(
     allowed: () => true,
     shown: () => true,
     placeOk: (l) => !l.points.some(inHiddenPlace) && !l.points.some(inConcealZone),
-    seenNow: (l) => isShapeVisible(l.points),
+    seenNow: (l) => isShapeVisible(l.points) || comodoSeenShape(l.points),
     unseenOk: (l) => exploredShape(l.points),
   })
 
@@ -2840,7 +2860,7 @@ export function filterMapForGroup(
     },
     seenNow: (s) => {
       const mid = stairMid(s)
-      return mid !== null && isVisible(mid)
+      return mid !== null && (isVisible(mid) || comodoSeenPoint(mid))
     },
     unseenOk: (s) => {
       const mid = stairMid(s)
@@ -2858,7 +2878,7 @@ export function filterMapForGroup(
       if (isStrokeDrawing(d) && samples.some(inConcealZone)) return false
       return outsideZones(samples).length > 0
     },
-    seenNow: (d) => isShapeVisible(drawingSamplePoints(d)),
+    seenNow: (d) => isShapeVisible(drawingSamplePoints(d)) || comodoSeenShape(drawingSamplePoints(d)),
     unseenOk: (d) => exploredShape(drawingSamplePoints(d)),
   })
 
@@ -2867,14 +2887,16 @@ export function filterMapForGroup(
   const regionSamples = (r: Region): RegionPoint[] =>
     closedRoofIds.has(r.id) ? contourSamples(r.points) : interiorSamples(r.points, r.points)
   const regions = recallItems(map.regions, remembered?.regions, {
-    allowed: (r) => !r.hidden && !r.secret && !hiddenByAncestorIds.has(r.id),
+    // DENTRO DA SALA SECRETA: a secreta aberta para ESTE jogador (ficha dentro,
+    // ou já descoberta por ele) é Sala comum para ele (`isClosedSecret`).
+    allowed: (r) => !r.hidden && !isClosedSecret(r) && !hiddenByAncestorIds.has(r.id),
     shown: (r) => layerShown(regionLayer(r)),
     // Sala de teto que a geometria não sabe julgar não vira silhueta: some.
     // Cômodo órfão dentro do prédio, Área sem `parentId`, prédio de teto
     // dentro de outro prédio de teto: tudo isso é interior. Ver `swallowedByClosedRoof`.
     placeOk: (r) =>
       !underRoofIds.has(r.id) && !brokenRoofIds.has(r.id) && !swallowedByClosedRoof(r) && outsideZones(regionSamples(r)).length > 0,
-    seenNow: (r) => isShapeVisible(regionSamples(r)),
+    seenNow: (r) => isShapeVisible(regionSamples(r)) || comodoSeenShape(regionSamples(r)),
     unseenOk: (r) => exploredShape(regionSamples(r)),
   })
   /** Versão ATUAL de cada região: o nome que o mestre esconde agora não volta pela memória. */
@@ -2892,8 +2914,14 @@ export function filterMapForGroup(
       // Parede que encosta na zona: o trecho escondido sai cortado no pacote (`wallForPlayer`), não a parede inteira.
       return true
     },
-    seenNow: (w) =>
-      w.door !== null ? doorSamples(w, DOOR_VISION_PROBE).some(isVisible) : wallSideSamples(w, map.grid, DOOR_VISION_PROBE).some(isVisible),
+    seenNow: (w) => {
+      if (w.door !== null ? doorSamples(w, DOOR_VISION_PROBE).some(isVisible) : wallSideSamples(w, map.grid, DOOR_VISION_PROBE).some(isVisible)) return true
+      // Cômodo visto agora: as mesmas amostras de `inKnownComodoWall`, fora da sala escondida.
+      if (!memoryMode || inHiddenPlace(wallMidpoint(w))) return false
+      const probe = (explored?.cell ?? map.grid) * DOOR_EXPLORED_PROBE_CELLS
+      const samples = w.door !== null ? doorSamples(w, probe) : wallSideSamples(w, map.grid, probe)
+      return samples.some((p) => !inHiddenPlace(p) && comodoSeenPoint(p))
+    },
     // Parede ou porta que o jogador nunca viu NÃO sai. A névoa cobria a planta
     // na tela, mas a rede entregava o nível inteiro (12.724 de 15.073 paredes
     // na a09) para quem abrisse o DevTools. Com memória da planta, só sai o
@@ -3023,7 +3051,7 @@ export function filterMapForGroup(
     allowed: (p) => !isArrivalOnly(p) && !p.hidden && !p.secret,
     shown: () => layerShown('anotacoes'),
     placeOk: (p) => !inRoomHiddenFromPlayer(pinPoint(p)) && !inConcealZone(pinPoint(p)),
-    seenNow: (p) => isVisible(pinPoint(p)),
+    seenNow: (p) => isVisible(pinPoint(p)) || comodoSeenPoint(pinPoint(p)),
     unseenOk: (p) => exploredPoint(pinPoint(p)),
   })
 
