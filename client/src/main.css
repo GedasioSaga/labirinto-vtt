@@ -1601,30 +1601,6 @@ label.lb-switch[data-dica-linha='aberta'] > span:first-child::after,
   border-radius: 2px;
 }
 
-.lb-territorio__alerta {
-  display: flex;
-  flex-direction: column;
-  gap: var(--lb-space-2);
-  margin: 0;
-  padding: 0;
-  border: 0;
-}
-
-.lb-territorio__niveis {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--lb-space-3);
-}
-
-.lb-territorio__nivel {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--lb-space-1);
-  font-size: var(--lb-font-size-sm);
-  color: var(--lb-color-parchment);
-  cursor: pointer;
-}
-
 /* Engrenagem do cabeçalho do inspetor: empurrada para a direita do nome. */
 .lb-inspector__settings {
   flex: none;
