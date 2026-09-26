@@ -11,7 +11,9 @@
 import { act } from 'react'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { createEmptyMap } from '../lib/mapFactory'
+import { TRAVEL_REQUEST_MIN_INTERVAL_MS } from '../net/protocol'
 import type { Pin, Token } from '../types/map'
+import { TRAVEL_PACE_MARGIN_MS } from './playerConnection'
 
 type PlayerViewProps = Parameters<(typeof import('./PlayerView'))['PlayerView']>[0]
 
@@ -136,9 +138,17 @@ describe('main.tsx: desistir do pedido de passagem', () => {
   })
 
   it('a ficha se afastou: o aviso diz que o pedido caiu por isso', () => {
-    pedirPassagem()
-    expect(mestre().enviados('pin.travel.request')).toHaveLength(2)
-    act(() => mestre().manda({ type: 'pin.travel.cancelled', reason: 'far' }))
-    expect(avisoDaViagem()?.textContent).toBe('Você se afastou da passagem. Pedido retirado')
+    // Pedir de novo logo depois espera o limite do host no próprio cliente
+    // (o pedido sai sozinho quando o intervalo passa): o relógio anda até lá.
+    vi.useFakeTimers()
+    try {
+      pedirPassagem()
+      act(() => vi.advanceTimersByTime(TRAVEL_REQUEST_MIN_INTERVAL_MS + TRAVEL_PACE_MARGIN_MS))
+      expect(mestre().enviados('pin.travel.request')).toHaveLength(2)
+      act(() => mestre().manda({ type: 'pin.travel.cancelled', reason: 'far' }))
+      expect(avisoDaViagem()?.textContent).toBe('Você se afastou da passagem. Pedido retirado')
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })

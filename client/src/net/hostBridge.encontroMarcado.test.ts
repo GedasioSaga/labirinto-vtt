@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createEmptyMap } from '../lib/mapFactory'
+import { PING_INTERVAL_MS } from '../player/playerConnection'
 import { useToastStore } from '../stores/toastStore'
 import type { MapData } from '../types/map'
 import { createHostBridge } from './hostBridge'
@@ -82,11 +83,23 @@ describe('hostBridge: encontro marcado', () => {
     expect(t.bridge.players().find((p) => p.name === 'Ana')?.waiting).toEqual({ who: 'Bia', until: T0 + 5 * MINUTO })
   })
 
+  /**
+   * A mesa parada, mas Ana e Caio conectados: o cliente vivo manda o ping de
+   * sempre, e a varredura de silêncio da reconexão não os derruba no meio.
+   */
+  async function passaComPing(t: ReturnType<typeof setup>, ms: number) {
+    for (let feito = 0; feito < ms; feito += PING_INTERVAL_MS) {
+      await vi.advanceTimersByTimeAsync(Math.min(PING_INTERVAL_MS, ms - feito))
+      t.mensagem('c1', { type: 'ping' })
+      t.mensagem('c2', { type: 'ping' })
+    }
+  }
+
   it('o prazo vence com a mesa parada: a Ana lê o aviso e a marca sai da ficha do Caio', async () => {
     const t = await mesaComAnaEsperando()
-    await vi.advanceTimersByTimeAsync(5 * MINUTO - 1000)
+    await passaComPing(t, 5 * MINUTO - 1000)
     expect(t.sent.some((s) => s.msg.type === 'wait.ended')).toBe(false)
-    await vi.advanceTimersByTimeAsync(1000)
+    await passaComPing(t, 1000)
     expect(t.sent.filter((s) => s.msg.type === 'wait.ended')).toEqual([{ clientId: 'c1', msg: { type: 'wait.ended', reason: 'expired', who: 'Bia' } }])
     const doCaio = t.sent.filter((s) => s.clientId === 'c2' && (s.msg.type === 'snapshot' || s.msg.type === 'delta'))
     expect(doCaio.at(-1)?.msg.waiting).toBeUndefined()

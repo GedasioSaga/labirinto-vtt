@@ -86,9 +86,11 @@ describe('nome da cena para o jogador', () => {
     expect(noPorao.map.id).toBe('m-p')
     expect('sceneName' in noPorao).toBe(false)
 
-    // Nome público só com espaço conta como vazio.
-    const espacos = snapshotDe(s.broadcast(mansao({ ana: 'p', bia: 't' }, { publicName: '   ' })), 'c-ana')
-    expect('sceneName' in espacos).toBe(false)
+    // Nome público só com espaço conta como vazio: a tela da Ana sai igual à
+    // do Porão sem nome (nada novo sai), e a que ela tem não traz o campo.
+    const espacos = s.broadcast(mansao({ ana: 'p', bia: 't' }, { publicName: '   ' }))
+    expect(espacos.outbound.filter((o) => o.clientId === 'c-ana')).toEqual([])
+    expect('sceneName' in noPorao).toBe(false)
   })
 
   it('nenhum pacote, de ninguém, traz o nome interno de cena nenhuma', () => {

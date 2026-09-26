@@ -169,8 +169,8 @@ describe('hostSession: bilhete no lugar', () => {
     // Caio está no mesmo mapa, longe: nada do bilhete.
     expect(marcasNoSnapshot(agora, 'c3')).toEqual([])
     expect(JSON.stringify(para(agora, 'c3'))).not.toContain('Fui pela escada')
-    // Bruno está em OUTRA cena: nada do bilhete, nem do Salão.
-    expect(marcasNoSnapshot(agora, 'c2')).toEqual([])
+    // Bruno está em OUTRA cena: a tela dele não muda (nada sai), nada do bilhete, nem do Salão.
+    expect(para(agora, 'c2')).toEqual([])
     expect(JSON.stringify(para(agora, 'c2'))).not.toContain('Fui pela escada')
     expect(JSON.stringify(para(agora, 'c2'))).not.toContain('Salao Norte')
     // Caio anda até o canto de Ana: agora recebe, sem o nome de quem deixou.
@@ -205,11 +205,13 @@ describe('hostSession: bilhete no lugar', () => {
     expect(marcasNoSnapshot(s.broadcast(mundo()), 'c3').map((m) => m.texto)).toEqual(['estou aqui agora'])
     moverCaio(2800, 800)
     expect(marcasNoSnapshot(s.broadcast(mundo()), 'c3').map((m) => m.texto)).toEqual(['estou aqui agora'])
-    // Um segundo bilhete cravado depois dessa volta continua fora do escuro lembrado dele.
+    // Um segundo bilhete cravado depois dessa volta continua fora do escuro
+    // lembrado dele: a tela de Caio não muda (nada sai), e segue só com o primeiro.
     relogio.t += 5000
     aplicar(deixar('c1', { x: 210, y: 200, tipo: 'bilhete', texto: 'ainda aqui' }))
-    const ultimo = marcasNoSnapshot(s.broadcast(mundo()), 'c3')
-    expect(ultimo.map((m) => m.texto)).toEqual(['estou aqui agora'])
+    const ultimo = s.broadcast(mundo())
+    expect(para(ultimo, 'c3')).toEqual([])
+    expect(JSON.stringify(para(ultimo, 'c3'))).not.toContain('ainda aqui')
   })
 
   it('"Mostrar meu mapa a…" passa também as marcas que quem mostra já viu', () => {

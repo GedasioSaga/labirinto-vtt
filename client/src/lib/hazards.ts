@@ -291,11 +291,12 @@ export function visionRadiusAt(map: MapData, point: RegionPoint, radius: number)
 /**
  * Os polígonos das salas tomadas por fumaça ou vapor (`obscuresVision`): o
  * VÉU. Quem está dentro de um só é visto por quem está dentro do mesmo.
+ * `hiddenRoom`: a sala cujo perigo o mestre esconde de quem olha não vela.
  */
-export function obscuringRoomRings(map: MapData): RegionPoint[][] {
+export function obscuringRoomRings(map: MapData, hiddenRoom: (room: Region) => boolean = () => false): RegionPoint[][] {
   return hazardsOf(map)
     .filter((h) => obscuresVision(h.kind))
-    .flatMap((h) => hazardRooms(map, h).map((r) => r.points))
+    .flatMap((h) => hazardRooms(map, h).filter((r) => !hiddenRoom(r)).map((r) => r.points))
 }
 
 /** Ficha dentro de zona: quem, em qual zona, de que perigo. */

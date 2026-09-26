@@ -27,7 +27,8 @@ function mundo(): HostWorld {
     ...createEmptyMap('mapa-salao', 'Salão', 40, 10, 50),
     tokens: [ficha('ana', 225, 225), ficha('ferido', 275, 225, { levadoPor: 'ana' })],
     pins: [
-      viagem('escada', 425, 225, { sceneId: CRIPTA, pinId: 'escada-b' }),
+      // A escada encostada na Ana (pino só atravessa de perto); o ferido não a alcança sozinho.
+      viagem('escada', 175, 225, { sceneId: CRIPTA, pinId: 'escada-b' }),
       // A porta que pede passagem ao mestre, do lado do ferido.
       { ...viagem('porta', 325, 275, { sceneId: CRIPTA, pinId: 'porta-b' }), passagem: 'pede' },
     ],

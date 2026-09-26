@@ -45,9 +45,19 @@ function fichaNoRecorte(map: MapData, id: string, posse?: Record<string, string[
 const caioEm = (x: number, y: number, extra: Partial<Token> = {}): Token =>
   ficha('caio', 'Ladino', x, y, { imageData: FOTO, color: VERMELHO, characterId: 'char-caio', rotation: 90, ...extra })
 
+/**
+ * VULTO NO ESCURO (outra feature): ficha de outro jogador além da metade do
+ * raio e fora de toda luz já chega sem rosto, com ou sem a opção. Os controles
+ * "sem a opção, como sempre" põem o Caio a 10 casas DENTRO de uma tocha, para
+ * medir só a opção das N casas.
+ */
+function comTochaNoCaio(map: MapData): MapData {
+  return { ...map, lights: [{ id: 'tocha', x: 600, y: 100, radius: 150, color: '#ffcc66', intensity: 1 }] }
+}
+
 describe('filterMapForPlayer: vulto além de N casas', () => {
   it('sem a opção na cena, a ficha do Caio a 10 casas chega com nome, foto, cor e marca, como sempre', () => {
-    const caio = fichaNoRecorte(salao([ficha('duda', 'Duda', 100, 100), caioEm(600, 100)]), 'caio')
+    const caio = fichaNoRecorte(comTochaNoCaio(salao([ficha('duda', 'Duda', 100, 100), caioEm(600, 100)])), 'caio')
     expect(caio?.name).toBe('Ladino')
     expect(caio?.imageData).toBe(FOTO)
     expect(caio?.color).toBe(VERMELHO)
@@ -126,7 +136,7 @@ describe('filterMapForPlayer: vulto além de N casas', () => {
 
   it('valor torto na opção (0, negativo, fração, NaN) não liga nada: a ficha sai como sempre', () => {
     for (const torto of [0, -2, 2.5, Number.NaN]) {
-      const caio = fichaNoRecorte(salao([ficha('duda', 'Duda', 100, 100), caioEm(600, 100)], torto), 'caio')
+      const caio = fichaNoRecorte(comTochaNoCaio(salao([ficha('duda', 'Duda', 100, 100), caioEm(600, 100)], torto)), 'caio')
       expect(caio?.name, `faceRangeCells: ${torto}`).toBe('Ladino')
     }
   })

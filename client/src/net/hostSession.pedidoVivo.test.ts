@@ -31,8 +31,8 @@ function welcomeOf(messages: { msg: HostMessage }[]): { playerId: string } {
   return first
 }
 
-/** O herói no Salão (ou na Cripta), a escada em (400, 200): 4 casas de 50 px do herói em (200, 200). */
-function mundo(heroi: { cena: 'salao' | 'cripta'; x: number; y: number } = { cena: 'salao', x: 200, y: 200 }): HostWorld {
+/** O herói no Salão (ou na Cripta), a escada em (400, 200): 1 casa de 50 px do herói em (350, 200) — encostado, o pino só atravessa de perto. */
+function mundo(heroi: { cena: 'salao' | 'cripta'; x: number; y: number } = { cena: 'salao', x: 350, y: 200 }): HostWorld {
   const ficha = token('heroi', heroi.x, heroi.y)
   const salao: MapData = {
     ...createEmptyMap('mapa-salao', 'Salão', 40, 10, GRADE),
@@ -83,7 +83,7 @@ describe('hostSession: pedido de passagem com idade e distância', () => {
     const t = mesa()
     const pedidoEm = t.agora()
     const pedido = t.pedir()
-    expect(t.s.travelRequestStatus(pedido.requestId, t.w)).toEqual({ requestedAt: pedidoEm, distanceCells: 4 })
+    expect(t.s.travelRequestStatus(pedido.requestId, t.w)).toEqual({ requestedAt: pedidoEm, distanceCells: 1 })
   })
 
   it('a hora é a do pedido, não a da leitura: o relógio andar não a muda', () => {
@@ -124,6 +124,6 @@ describe('hostSession: pedido de passagem com idade e distância', () => {
     t.advance(TRAVEL_REQUEST_PLAYER_MIN_INTERVAL_MS + 60_000)
     const segundoEm = t.agora()
     const segundo = t.pedir()
-    expect(t.s.travelRequestStatus(segundo.requestId, t.w)).toEqual({ requestedAt: segundoEm, distanceCells: 4 })
+    expect(t.s.travelRequestStatus(segundo.requestId, t.w)).toEqual({ requestedAt: segundoEm, distanceCells: 1 })
   })
 })

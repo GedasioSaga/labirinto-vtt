@@ -88,12 +88,19 @@ function sala(dono: { ladino: boolean } = { ladino: true }, map: MapData = ponte
   entrar('c2', 'Bruno', dono.ladino ? 'ladino' : null)
   const mover = (clientId: string, tokenId: string, x: number, y: number) =>
     s.handleMessage(clientId, { type: 'token.move', reqId: 'r1', tokenId, x, y }, map)
+  // A tela de cada conexão: o broadcast só manda quando ela muda, então a tela
+  // é o último snapshot recebido. `enviado`: tudo o que saiu no último envio.
+  const telas = new Map<string, Extract<HostMessage, { type: 'snapshot' }>>()
+  let enviado = ''
   const snapshotDe = (clientId: string): Extract<HostMessage, { type: 'snapshot' }> => {
-    const msg = s.broadcast(map).outbound.find((o) => o.clientId === clientId)?.msg
-    if (msg?.type !== 'snapshot') throw new Error('esperava snapshot')
+    const saida = s.broadcast(map).outbound
+    enviado = JSON.stringify(saida)
+    for (const o of saida) if (o.msg.type === 'snapshot') telas.set(o.clientId, o.msg)
+    const msg = telas.get(clientId)
+    if (msg === undefined) throw new Error('esperava snapshot')
     return msg
   }
-  return { vez, mover, snapshotDe }
+  return { vez, mover, snapshotDe, ultimoEnvio: () => enviado }
 }
 
 describe('só quem está na vez move', () => {
@@ -181,12 +188,13 @@ describe('vez de quem o jogador não vê', () => {
   const semRev = (msg: Extract<HostMessage, { type: 'snapshot' }>) => ({ ...msg, rev: 0 })
 
   it('ficha SECRETA na vez: o snapshot é idêntico ao de ninguém na vez', () => {
-    const { vez, snapshotDe } = sala()
+    const { vez, snapshotDe, ultimoEnvio } = sala()
     const ninguem = semRev(snapshotDe('c1'))
     vez.atual = { mapId: 'mapa-ponte', tokenId: 'vulto' }
     const msg = snapshotDe('c1')
     expect(semRev(msg)).toEqual(ninguem)
     expect(JSON.stringify(msg)).not.toContain('vulto')
+    expect(ultimoEnvio()).not.toContain('vulto')
   })
 
   it('ficha fora da visão na vez, com dono ou sem dono: idêntico ao de ninguém na vez', () => {

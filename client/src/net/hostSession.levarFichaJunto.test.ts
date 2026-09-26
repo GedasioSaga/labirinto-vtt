@@ -27,7 +27,8 @@ function mundo(ferido: Partial<Token> = {}, salaoExtra: Partial<MapData> = {}): 
   const salao: MapData = {
     ...createEmptyMap('mapa-salao', 'Salão Nobre', 40, 10, GRID),
     tokens: [ficha('ana', 225, 225), ficha('ferido', 275, 225, { levadoPor: 'ana', ...ferido }), ficha('npc', 225, 325)],
-    pins: [viagem('escada', 425, 225, { sceneId: CRIPTA, pinId: 'escada-b' })],
+    // A escada encostada na Ana (50 px): o pino de viagem só atravessa de perto.
+    pins: [viagem('escada', 175, 225, { sceneId: CRIPTA, pinId: 'escada-b' })],
     ...salaoExtra,
   }
   const cripta: MapData = {

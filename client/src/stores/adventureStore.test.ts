@@ -751,8 +751,10 @@ describe('transferToken (o jogador atravessou o pino de viagem)', () => {
       const residente = residenteEm(map)
       if (map === null || residente === undefined) throw new Error('esperava a Cripta com o Grog da Cripta')
       const { snapshot, mover } = sessaoNaCripta(map)
-      expect(snapshot().turn).toBe(residente.id)
-      expect(snapshot().turn).not.toBe('grog')
+      // Uma tela só: o broadcast só manda o que mudou, e um segundo broadcast sem mudança não manda nada.
+      const tela = snapshot()
+      expect(tela.turn).toBe(residente.id)
+      expect(tela.turn).not.toBe('grog')
       const r = mover()
       expect(r.applyMove).toBeUndefined()
       expect(r.outbound).toEqual([{ clientId: 'c1', msg: { type: 'token.move.rejected', reqId: 'r1', reason: 'not_your_turn' } }])

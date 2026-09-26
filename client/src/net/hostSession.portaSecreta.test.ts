@@ -170,7 +170,7 @@ describe('hostSession: porta secreta parece parede até o mestre revelar', () =>
     const snap = snapshotDe(s.broadcast(map).outbound)
     expect(snap.map.walls.find((w) => w.id === 'porta')?.door).toEqual({ open: false, locked: false, kind: 'normal' })
     const toque = s.handleMessage('c1', { type: 'door.toggle', wallId: 'porta' }, map)
-    expect(toque.applyDoor).toEqual({ wallId: 'porta', open: true })
+    expect(toque.applyDoor).toEqual({ wallId: 'porta', open: true, playerId: 'id-1', playerName: 'Gabi' })
     const aberta = setWallDoor(map, 'porta', { open: true, locked: false, kind: 'normal' })
     const depois = snapshotDe(s.broadcast(aberta).outbound)
     expect(depois.map.tokens.map((t) => t.name).sort()).toEqual(['Bau de joias', 'Gabi'])

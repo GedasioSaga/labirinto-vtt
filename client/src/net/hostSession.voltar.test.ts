@@ -163,7 +163,11 @@ describe('hostSession: aba nova do mesmo aparelho', () => {
     expect(outra.result.outbound).toContainEqual({ clientId: 'c1', msg: { type: 'session.replaced' } })
     // A aba velha não recebe nada além do aviso: nem o mapa, nem a ficha.
     expect(wireFor(outra.result, 'c1')).toBe(JSON.stringify([{ type: 'session.replaced' }]))
-    const depois = m.s.broadcast(mundo)
+    // A aba nova já recebe o mapa na entrada.
+    expect(outra.result.outbound.some((o) => o.clientId === 'c7' && o.msg.type === 'snapshot')).toBe(true)
+    // O broadcast só manda o que mudou: o escudo, que a Ana vê, anda — só a aba nova recebe.
+    const mexeu: HostWorld = { ...mundo, open: { ...HALL, map: { ...HALL.map, tokens: HALL.map.tokens.map((t) => (t.id === 'escudo' ? { ...t, x: 250 } : t)) } } }
+    const depois = m.s.broadcast(mexeu)
     expect(depois.outbound.some((o) => o.clientId === 'c1')).toBe(false)
     expect(depois.outbound.some((o) => o.clientId === 'c7' && o.msg.type === 'snapshot')).toBe(true)
     expect(m.s.listPlayers(mundo).filter((p) => p.name.startsWith('Ana'))).toHaveLength(1)

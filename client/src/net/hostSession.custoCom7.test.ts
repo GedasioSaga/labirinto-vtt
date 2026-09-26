@@ -125,15 +125,18 @@ function mesa(map: MapData, players: number): Mesa {
  * snapshot a todos. O `JSON.stringify` de cada envio é o que o `invoke` do
  * Tauri faz com a mensagem antes de ela sair da thread do mestre.
  */
-function mover(session: HostSession, map: MapData, clientId: string, tokenId: string, x: number, y: number): MapData {
+function mover(session: HostSession, map: MapData, clientId: string, tokenId: string, x: number, y: number): { next: MapData; telas: number } {
   const result = session.handleMessage(clientId, { type: 'token.move', reqId: `r-${x}-${y}`, tokenId, x, y }, map)
   const applied = result.applyMove
   if (applied === undefined) throw new Error(`movimento recusado: ${JSON.stringify(result.outbound)}`)
   const next: MapData = { ...map, tokens: map.tokens.map((t) => (t.id === applied.tokenId ? { ...t, x: applied.x, y: applied.y } : t)) }
-  const outbound = [...result.outbound, ...session.broadcast(next).outbound]
+  const envio = session.broadcast(next).outbound
+  const outbound = [...result.outbound, ...envio]
   const bytes = outbound.reduce((sum, o) => sum + JSON.stringify(o).length, 0)
   if (bytes === 0) throw new Error('nada enviado')
-  return next
+  // Quantos jogadores receberam a tela nova neste passo (o broadcast só manda a quem ela mudou).
+  const telas = new Set(envio.filter((o) => o.msg.type === 'snapshot' || o.msg.type === 'patch').map((o) => o.clientId)).size
+  return { next, telas }
 }
 
 /** Maior tempo de um movimento (validação + snapshot de todos), com um jogador por vez andando pela rua. */
@@ -141,6 +144,7 @@ function piorMovimento(players: number): { maxMs: number; snapshots: number } {
   let map = vila(players)
   const { session, clients } = mesa(map, players)
   let maxMs = 0
+  let telas = 0
   for (let step = 1; step <= STEPS; step += 1) {
     const who = step % players
     const token = map.tokens.find((t) => t.id === `heroi${who}`)
@@ -148,10 +152,13 @@ function piorMovimento(players: number): { maxMs: number; snapshots: number } {
     const clientId = clients[who]
     if (clientId === undefined) throw new Error('cliente sumiu')
     const start = performance.now()
-    map = mover(session, map, clientId, token.id, token.x, token.y + GRID)
+    const passo = mover(session, map, clientId, token.id, token.x, token.y + GRID)
     maxMs = Math.max(maxMs, performance.now() - start)
+    map = passo.next
+    telas = passo.telas
   }
-  return { maxMs, snapshots: session.broadcast(map).outbound.length }
+  // Os que estão na mesma rua veem quem andou: o último passo chega à tela de todos.
+  return { maxMs, snapshots: telas }
 }
 
 describe('custo do mestre com 7 jogadores na vila', () => {

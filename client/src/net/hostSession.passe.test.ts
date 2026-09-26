@@ -42,8 +42,9 @@ function saguao(pin: Pin): MapData {
     ...createEmptyMap('mapa-saguao', 'Saguão', 40, 10, 50),
     tokens: [
       // Minúsculo e sem acento de propósito: o passe confere o nome do item, não a grafia.
-      token('ficha-fabi', 300, 200, { mochila: [{ id: 'item-1', nome: 'cracha' }] }),
-      token('ficha-caio', 320, 240, { mochila: [{ id: 'item-2', nome: 'Lanterna' }] }),
+      // Todas encostadas na catraca (400, 200): o pino de viagem só atravessa de perto.
+      token('ficha-fabi', 350, 200, { mochila: [{ id: 'item-1', nome: 'cracha' }] }),
+      token('ficha-caio', 360, 240, { mochila: [{ id: 'item-2', nome: 'Lanterna' }] }),
       token('ficha-bia', 340, 160),
       token('ficha-duda', 330, 220),
     ],
@@ -96,8 +97,9 @@ function mesa(w: HostWorld) {
   entra('c-caio', 'Caio', 'ficha-caio')
   entra('c-bia', 'Bia', 'ficha-bia')
   entra('c-duda', 'Duda', 'ficha-duda')
-  s.broadcast(w)
-  return { s, pedir: (clientId: string) => s.handleMessage(clientId, { type: 'pin.travel.request', pinId: 'catraca' }, w) }
+  // O primeiro envio: o broadcast só manda de novo quando a tela de alguém muda.
+  const inicial = s.broadcast(w)
+  return { s, inicial, pedir: (clientId: string) => s.handleMessage(clientId, { type: 'pin.travel.request', pinId: 'catraca' }, w) }
 }
 
 describe('hostSession: passagem por passe', () => {
@@ -144,7 +146,7 @@ describe('hostSession: passagem por passe', () => {
   it('o pacote do jogador não traz o passe: nem o item, nem a lista de quem tem', () => {
     const w = mundo()
     const t = mesa(w)
-    const r = t.s.broadcast(w)
+    const r = t.inicial
     const pinoDoCaio = snapshotDe(r, 'c-caio').map.pins.find((p) => p.id === 'catraca')
     // O modo vai (o cartão oferece "Passar"); o que abre a catraca, não.
     expect(pinoDoCaio).toMatchObject({ id: 'catraca', passagem: 'passe' })

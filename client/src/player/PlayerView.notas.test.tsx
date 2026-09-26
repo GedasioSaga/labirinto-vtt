@@ -1,7 +1,7 @@
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { Container, EventBoundary, FederatedPointerEvent, Text } from 'pixi.js'
+import { Container, EventBoundary, FederatedPointerEvent, Graphics, Text } from 'pixi.js'
 import { createEmptyMap } from '../lib/mapFactory'
 import { SIGNAL_LONG_PRESS_MS } from '../lib/signals'
 import type { MapData, RegionPoint, Token } from '../types/map'
@@ -113,9 +113,16 @@ function mundo(): Container {
   return world
 }
 
-/** A camada das anotações: o segundo filho do palco, em espaço de tela. */
+/**
+ * A camada das anotações, em espaço de tela: o primeiro `Container` que não é
+ * `Graphics` depois do mundo (`app.stage.addChild(world, revisitLayer,
+ * personalNotesLayer, …)`). A REVISITA (outra feature) pôs a camada dela
+ * logo acima do mundo, então a posição fixa não serve mais.
+ */
 function camadaDasNotas(): Container {
-  const camada = palco().children[1]
+  const camada = palco()
+    .children.slice(1)
+    .find((filho) => filho instanceof Container && !(filho instanceof Graphics))
   if (!(camada instanceof Container)) throw new Error('a PlayerView não montou a camada das notas')
   return camada
 }

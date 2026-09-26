@@ -24,6 +24,8 @@ function ficha(id: string, x: number, y: number): Token {
 }
 
 const PORTA: DoorState = { open: false, locked: true, kind: 'normal' }
+/** A mesma porta no recorte do jogador: trancada chega como porta fechada comum (o cadeado é do mestre). */
+const PORTA_NO_JOGADOR: DoorState = { ...PORTA, locked: false }
 
 function escritorio(porta: DoorState = PORTA): MapData {
   const predio: Region = {
@@ -117,13 +119,15 @@ describe("hostSession: 'Espiar' pela porta fechada", () => {
     const espiando = s.broadcast(map).outbound
     const daAna = snapshotDe(espiando, 'c-ana')
     expect(fichasDe(daAna)).toEqual(['ana', 'bia', 'caio', 'escrivao'])
-    expect(daAna.map.walls.find((w) => w.id === 'porta')?.door).toEqual(PORTA)
+    expect(daAna.map.walls.find((w) => w.id === 'porta')?.door).toEqual(PORTA_NO_JOGADOR)
     expect(daAna.glimpses?.length ?? 0).toBeGreaterThan(0)
-    // Bia, colada na mesma porta, não espiou: nada de dentro.
-    const daBia = snapshotDe(espiando, 'c-bia')
+    // Bia, colada na mesma porta, não espiou: nada de dentro. A tela dela não
+    // mudou, então o envio não manda nada novo a ela — fica a de antes.
+    expect(espiando.filter((m) => m.clientId === 'c-bia')).toEqual([])
+    const daBia = snapshotDe(antes, 'c-bia')
     expect(fichasDe(daBia)).toEqual(['ana', 'bia', 'caio'])
     expect(JSON.stringify(daBia)).not.toContain('escrivao')
-    expect(daBia.map.walls.find((w) => w.id === 'porta')?.door).toEqual(PORTA)
+    expect(daBia.map.walls.find((w) => w.id === 'porta')?.door).toEqual(PORTA_NO_JOGADOR)
 
     // Passados os 5 s, o cone fecha.
     relogio.agora += PEEK_DURATION_MS
@@ -163,22 +167,31 @@ describe("hostSession: 'Espiar' pela porta fechada", () => {
     const relogio = { agora: 1_000 }
     const map = escritorio()
     const { s } = mesa(map, relogio)
-    s.broadcast(map)
+    expect(JSON.stringify(snapshotDe(s.broadcast(map).outbound, 'c-caio'))).not.toContain('escrivao')
+    // Tela assentada: o 2º envio traz a parede ao lado do explorado que o 1º marcou
+    // (paredes-so-as-vistas); é depois dele que a recusa não pode mudar nada.
+    expect(JSON.stringify(s.broadcast(map).outbound)).not.toContain('escrivao')
     const pedido = s.handleMessage('c-caio', { type: 'door.peek', wallId: 'porta' }, map)
     expect(pedido.peek).toBeUndefined()
     expect(pedido.outbound).toEqual([{ clientId: 'c-caio', msg: { type: 'door.toggle.rejected', wallId: 'porta', reason: 'far' } }])
-    expect(JSON.stringify(snapshotDe(s.broadcast(map).outbound, 'c-caio'))).not.toContain('escrivao')
+    // A tela de Caio não muda com a recusa: o envio seguinte não manda nada a ele (nem o escrivão).
+    const depois = s.broadcast(map).outbound.filter((m) => m.clientId === 'c-caio')
+    expect(depois).toEqual([])
+    expect(JSON.stringify(depois)).not.toContain('escrivao')
   })
 
   it('SEGURANÇA: porta secreta não se espia, e a recusa não diz que é porta', () => {
     const relogio = { agora: 1_000 }
     const map = escritorio({ ...PORTA, secret: true })
     const { s } = mesa(map, relogio)
-    s.broadcast(map)
+    expect(JSON.stringify(snapshotDe(s.broadcast(map).outbound, 'c-ana'))).not.toContain('escrivao')
     const pedido = s.handleMessage('c-ana', { type: 'door.peek', wallId: 'porta' }, map)
     expect(pedido.peek).toBeUndefined()
     expect(pedido.outbound).toEqual([{ clientId: 'c-ana', msg: { type: 'door.toggle.rejected', wallId: 'porta', reason: 'not_visible' } }])
-    expect(JSON.stringify(snapshotDe(s.broadcast(map).outbound, 'c-ana'))).not.toContain('escrivao')
+    // A tela de Ana não muda com a recusa: o envio seguinte não manda nada a ela (nem o escrivão).
+    const depois = s.broadcast(map).outbound.filter((m) => m.clientId === 'c-ana')
+    expect(depois).toEqual([])
+    expect(JSON.stringify(depois)).not.toContain('escrivao')
   })
 
   it('parede sem porta ou id inventado: not_visible, sem aviso ao mestre', () => {

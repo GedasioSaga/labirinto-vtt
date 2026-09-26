@@ -90,8 +90,8 @@ describe('grade: deixa ver, não deixa passar', () => {
   it('Carla vê o rato pela grade fechada (e trancada)', () => {
     const carla = filterMapForPlayer(adega(porta({ kind: 'gate', locked: true })), 'pC', { pC: ['carla'] }, RADIUS)
     expect(carla.map.tokens.map((t) => t.id).sort()).toEqual(['carla', 'rato'])
-    // A grade sai como estava: fechada e trancada.
-    expect(carla.map.walls.find((w) => w.id === 'grade')?.door).toEqual(porta({ kind: 'gate', locked: true }))
+    // A grade sai fechada; o cadeado nunca sai (PORTA TRANCADA VIRA PEDIDO: o jogador descobre tentando).
+    expect(carla.map.walls.find((w) => w.id === 'grade')?.door).toEqual(porta({ kind: 'gate' }))
   })
 
   it('porta comum fechada no mesmo lugar esconde o rato (controle)', () => {
@@ -219,7 +219,8 @@ describe("'Espiar' em porta fechada: cone só para quem espiou, porta segue fech
     const { view, tokenIds } = recebidos(escritorio(), 'pAna', new Set(['vao']))
     expect(tokenIds).toContain('guarda')
     expect(tokenIds).not.toContain('ladrao')
-    expect(view.map.walls.find((w) => w.id === 'vao')?.door).toEqual(porta({ locked: true }))
+    // Trancada no mapa do mestre; para o jogador chega só fechada (PORTA TRANCADA VIRA PEDIDO: o cadeado nunca sai).
+    expect(view.map.walls.find((w) => w.id === 'vao')?.door).toEqual(porta())
     expect(view.glimpses.length).toBeGreaterThan(0)
   })
 

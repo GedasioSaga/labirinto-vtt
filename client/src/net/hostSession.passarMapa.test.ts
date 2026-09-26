@@ -94,12 +94,13 @@ function mesa() {
   s.assignToken(bruno, 'bruno')
   s.assignToken(carla, 'carla')
   s.assignToken(davi, 'davi')
-  // Primeiro snapshot: cada um marca o que vê da própria ficha.
-  s.broadcast(world)
+  // Primeiro snapshot: cada um marca o que vê da própria ficha. Depois dele, o
+  // broadcast só manda de novo a quem a tela mudou.
+  const inicial = s.broadcast(world)
   const avanca = (ms: number) => {
     agora += ms
   }
-  return { s, world, ana, bruno, carla, davi, eva, avanca }
+  return { s, world, ana, bruno, carla, davi, eva, avanca, inicial }
 }
 
 function msgsPara(r: HostResult, clientId: string): HostMessage[] {
@@ -120,9 +121,10 @@ function exploradoDe(r: HostResult, clientId: string): Exploration {
 
 describe('Passar o mapa — pelo mestre', () => {
   it('Bruno passa a conhecer o canto da Ana; a Carla, na mesma cena, continua sem conhecer', () => {
-    const { s, world, ana, bruno } = mesa()
-    const antes = s.broadcast(world)
-    expect(isPointExplored(exploradoDe(antes, 'c-bruno'), CANTO_DA_ANA)).toBe(false)
+    const { s, world, ana, bruno, inicial } = mesa()
+    // A mesa parada: o envio seguinte não muda a tela de ninguém; a de antes é a da entrada.
+    expect(msgsPara(s.broadcast(world), 'c-bruno')).toEqual([])
+    expect(isPointExplored(exploradoDe(inicial, 'c-bruno'), CANTO_DA_ANA)).toBe(false)
 
     const r = s.shareMap(ana, bruno, world)
     expect(r.mapShared).toEqual({ fromPlayerId: ana, toPlayerId: bruno })
@@ -134,15 +136,18 @@ describe('Passar o mapa — pelo mestre', () => {
 
     const depois = s.broadcast(world)
     expect(isPointExplored(exploradoDe(depois, 'c-bruno'), CANTO_DA_ANA)).toBe(true)
-    expect(isPointExplored(exploradoDe(depois, 'c-carla'), CANTO_DA_ANA)).toBe(false)
+    // A Carla e a Ana não ganharam nada: a tela delas não muda (nada sai), e a que têm é a da entrada.
+    expect(msgsPara(depois, 'c-carla')).toEqual([])
+    expect(isPointExplored(exploradoDe(inicial, 'c-carla'), CANTO_DA_ANA)).toBe(false)
     // O Bruno não perdeu o canto dele.
     expect(isPointExplored(exploradoDe(depois, 'c-bruno'), { x: 1900, y: 250 })).toBe(true)
     // E a Ana não ganhou o do Bruno: passar é de mão única.
-    expect(isPointExplored(exploradoDe(depois, 'c-ana'), { x: 1900, y: 250 })).toBe(false)
+    expect(msgsPara(depois, 'c-ana')).toEqual([])
+    expect(isPointExplored(exploradoDe(inicial, 'c-ana'), { x: 1900, y: 250 })).toBe(false)
   })
 
   it('porta vem com o estado que a Ana VIU, nunca com o atual', () => {
-    const { s, ana, bruno } = mesa()
+    const { s, ana, bruno, inicial } = mesa()
     // A Ana viu a porta fechada e se afastou; depois o mestre a abriu, longe dos olhos dela.
     const longe = mundo({ anaX: 600 })
     s.broadcast(longe)
@@ -151,8 +156,10 @@ describe('Passar o mapa — pelo mestre', () => {
     const r = s.broadcast(aberta)
     const porta = snapshotDe(r, 'c-bruno').map.walls.find((w) => w.id === 'porta-1')
     expect(porta?.door).toEqual({ open: false, locked: false, kind: 'normal' })
-    // A Carla não conhece a porta: não está na visão dela nem no explorado.
-    expect(snapshotDe(r, 'c-carla').map.walls.find((w) => w.id === 'porta-1')).toBeUndefined()
+    // A Carla não conhece a porta: não está na visão dela nem no explorado. A
+    // tela dela não muda (nada sai), e a que ela tem não traz a porta.
+    expect(JSON.stringify(msgsPara(r, 'c-carla'))).not.toContain('porta-1')
+    expect(snapshotDe(inicial, 'c-carla').map.walls.find((w) => w.id === 'porta-1')).toBeUndefined()
   })
 
   it('zona oculta ativa: o que a Ana viu antes de o mestre esconder NÃO passa ao Bruno', () => {
@@ -166,7 +173,7 @@ describe('Passar o mapa — pelo mestre', () => {
   })
 
   it('Davi, em outra cena, não recebe nada: nem aviso falso ("já aparece no seu"), nem nome, id ou planta do Salão', () => {
-    const { s, world, ana, davi } = mesa()
+    const { s, world, ana, davi, inicial } = mesa()
     const r = s.shareMap(ana, davi, world)
     // Nada passou: o aviso diria que o trecho já aparece, e na Cripta nada apareceria.
     expect(r).toEqual({ outbound: [] })
@@ -174,8 +181,9 @@ describe('Passar o mapa — pelo mestre', () => {
     const b = s.broadcast(world)
     const json = JSON.stringify(msgsPara(b, 'c-davi'))
     for (const vazamento of ['Salao', 's-salao', 'm-salao', 'porta-1', 'ficha-ana', 'map.shared']) expect(json).not.toContain(vazamento)
-    // Ele continua recebendo a Cripta, onde a ficha dele está.
-    expect(snapshotDe(b, 'c-davi').map.id).toBe('m-cripta')
+    // Nada muda para ele: a tela não muda (nada sai), e continua a Cripta, onde a ficha dele está.
+    expect(msgsPara(b, 'c-davi')).toEqual([])
+    expect(snapshotDe(inicial, 'c-davi').map.id).toBe('m-cripta')
   })
 
   it('Davi, com memória de 8 cenas, não perde a mais antiga por um mapa de uma cena onde nunca esteve', () => {
@@ -211,20 +219,21 @@ describe('Passar o mapa — pelo mestre', () => {
   })
 
   it('pedido sem sentido não faz nada: para si mesmo, jogador desconhecido, doador sem cena', () => {
-    const { s, world, ana, bruno, eva } = mesa()
+    const { s, world, ana, bruno, eva, inicial } = mesa()
     expect(s.shareMap(ana, ana, world)).toEqual({ outbound: [] })
     expect(s.shareMap(ana, 'fantasma', world)).toEqual({ outbound: [] })
     expect(s.shareMap('fantasma', bruno, world)).toEqual({ outbound: [] })
     // Eva aguarda sem ficha: não tem mapa de cena nenhuma para passar.
     expect(s.shareMap(eva, bruno, world)).toEqual({ outbound: [] })
-    const r = s.broadcast(world)
-    expect(isPointExplored(exploradoDe(r, 'c-ana'), { x: 1900, y: 250 })).toBe(false)
+    // Nada passou: nenhuma tela muda, nada sai, e a da Ana não conhece o canto do Bruno.
+    expect(s.broadcast(world).outbound).toEqual([])
+    expect(isPointExplored(exploradoDe(inicial, 'c-ana'), { x: 1900, y: 250 })).toBe(false)
   })
 })
 
 describe('Passar o mapa — pela Ana ("Mostrar meu mapa a…")', () => {
   it('Ana mostra ao Bruno, na mesma cena: ele recebe o aviso e passa a conhecer; a Carla não', () => {
-    const { s, world, ana, bruno } = mesa()
+    const { s, world, ana, bruno, inicial } = mesa()
     const r = s.handleMessage('c-ana', { type: 'map.share', to: 'Bruno' }, world)
     expect(msgsPara(r, 'c-ana')).toEqual([{ type: 'map.share.result', to: 'Bruno', ok: true }])
     expect(msgsPara(r, 'c-bruno')).toEqual([{ type: 'map.shared', from: 'Ana' }])
@@ -233,16 +242,20 @@ describe('Passar o mapa — pela Ana ("Mostrar meu mapa a…")', () => {
 
     const depois = s.broadcast(world)
     expect(isPointExplored(exploradoDe(depois, 'c-bruno'), CANTO_DA_ANA)).toBe(true)
-    expect(isPointExplored(exploradoDe(depois, 'c-carla'), CANTO_DA_ANA)).toBe(false)
+    // A Carla não ganhou nada: a tela dela não muda (nada sai).
+    expect(msgsPara(depois, 'c-carla')).toEqual([])
+    expect(isPointExplored(exploradoDe(inicial, 'c-carla'), CANTO_DA_ANA)).toBe(false)
   })
 
   it('Davi está em outra cena: recusa sem motivo, e nada chega a ele', () => {
-    const { s, world } = mesa()
+    const { s, world, inicial } = mesa()
     const r = s.handleMessage('c-ana', { type: 'map.share', to: 'Davi' }, world)
     expect(r.outbound).toEqual([{ clientId: 'c-ana', msg: { type: 'map.share.result', to: 'Davi', ok: false } }])
     expect(r.mapShared).toBeUndefined()
     const b = s.broadcast(world)
-    expect(isPointExplored(exploradoDe(b, 'c-ana'), CANTO_DA_ANA)).toBe(true)
+    // Recusado, nada muda: nenhuma tela nova sai; a Ana segue com o canto dela.
+    expect(b.outbound).toEqual([])
+    expect(isPointExplored(exploradoDe(inicial, 'c-ana'), CANTO_DA_ANA)).toBe(true)
     expect(JSON.stringify(msgsPara(b, 'c-davi'))).not.toContain('Salao')
   })
 

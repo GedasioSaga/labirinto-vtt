@@ -89,9 +89,11 @@ describe('StairControls: Leva a…', () => {
     if (select === null) throw new Error('sem o campo "Leva a"')
     expect(select.value).toBe('cena-andar1')
     const modos = container.querySelector('[aria-label="Passagem da escada"]')
+    // PASSAGEM POR PASSE (outra feature) entrou na ordem comum dos modos (`PIN_PASSAGE_ORDER`).
     expect(Array.from(modos?.querySelectorAll('[role="radio"]') ?? []).map((b) => [b.textContent, b.getAttribute('aria-checked')])).toEqual([
       ['Pede ao mestre', 'true'],
       ['Livre', 'false'],
+      ['Com passe', 'false'],
       ['Trancada', 'false'],
     ])
     const livre = Array.from(modos?.querySelectorAll<HTMLButtonElement>('[role="radio"]') ?? []).find((b) => b.textContent === 'Livre')

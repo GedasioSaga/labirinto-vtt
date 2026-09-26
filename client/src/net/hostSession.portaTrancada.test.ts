@@ -61,8 +61,9 @@ function mesa(map: MapData = mansao()) {
   const joined = s.handleMessage('c1', { type: 'join', code: CODE, name: 'Ana' }, world).outbound[0]?.msg
   if (joined?.type !== 'welcome') throw new Error('esperava welcome')
   s.assignToken(joined.playerId, 'lirio')
-  s.broadcast(world)
-  return { s, world, playerId: joined.playerId, advance: (ms: number) => void (clock += ms) }
+  // O primeiro envio: o broadcast só manda de novo quando a tela de Ana muda.
+  const inicial = s.broadcast(world)
+  return { s, world, inicial, playerId: joined.playerId, advance: (ms: number) => void (clock += ms) }
 }
 
 function snapshotOf(result: HostResult): Extract<HostMessage, { type: 'snapshot' }> {
@@ -85,7 +86,7 @@ describe('protocolo: door.request', () => {
 describe('porta trancada chega ao jogador como porta fechada comum', () => {
   it('SEGURANÇA: nenhuma porta do snapshot vem trancada — as três têm o mesmo estado de porta comum', () => {
     const t = mesa()
-    const snap = snapshotOf(t.s.broadcast(t.world))
+    const snap = snapshotOf(t.inicial)
     const portas = snap.map.walls.filter((w) => w.door !== null)
     expect(portas.map((w) => w.id).sort()).toEqual(['cozinha', 'escritorio', 'quarto'])
     expect(snap.map.walls.find((w) => w.id === 'escritorio')?.door).toEqual(fechada)
@@ -119,7 +120,7 @@ describe('hostSession door.request (pedido ao mestre)', () => {
     s.assignToken(joined.playerId, 'lirio')
     const pedido = s.handleMessage('c1', { type: 'door.request', wallId: 'escritorio', how: 'force' }, map).doorRequest
     expect(pedido).toEqual({ requestId: expect.any(String), playerId: joined.playerId, playerName: 'Ana', how: 'force' })
-    expect(s.approveDoorRequest(pedido?.requestId ?? '', map).applyDoor).toEqual({ wallId: 'escritorio', open: true, unlock: true })
+    expect(s.approveDoorRequest(pedido?.requestId ?? '', map).applyDoor).toEqual({ wallId: 'escritorio', open: true, unlock: true, playerId: joined.playerId, playerName: 'Ana' })
   })
 
   it('5 toques não viram 5 linhas: com um pedido esperando, os seguintes respondem "pending"', () => {
@@ -140,7 +141,7 @@ describe('hostSession door.request (pedido ao mestre)', () => {
     const pedido = t.s.handleMessage('c1', { type: 'door.request', wallId: 'escritorio', how: 'force' }, t.world).doorRequest
     if (pedido === undefined) throw new Error('esperava pedido')
     const r = t.s.approveDoorRequest(pedido.requestId, t.world)
-    expect(r.applyDoor).toEqual({ wallId: 'escritorio', open: true, unlock: true, sceneId: 'cena-mansao' })
+    expect(r.applyDoor).toEqual({ wallId: 'escritorio', open: true, unlock: true, sceneId: 'cena-mansao', playerId: t.playerId, playerName: 'Ana' })
     expect(r.outbound).toEqual([{ clientId: 'c1', msg: { type: 'door.request.answer', answer: 'opened' } }])
     expect(t.s.isDoorRequestPending(pedido.requestId)).toBe(false)
     // Respondido, o pedido não vale uma segunda vez.

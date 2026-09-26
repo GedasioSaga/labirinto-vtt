@@ -139,7 +139,8 @@ describe('caderno de recados (host)', () => {
 
     expect(textoPara(r, 'c-diego')).not.toContain(RECADO)
     expect(textoPara(r, 'c-fabio')).not.toContain(RECADO)
-    expect(msgsPara(r, 'c-diego').map((m) => m.type)).toEqual(['snapshot'])
+    // A tela de Diego não mudou: o broadcast só manda o que mudou, e a ele não sai nada.
+    expect(msgsPara(r, 'c-diego').map((m) => m.type)).toEqual([])
   })
 
   it('Diego volta à sala: o caderno dele não traz recado de outra cena', () => {
@@ -157,8 +158,8 @@ describe('caderno de recados (host)', () => {
     const { s } = mesa()
     s.sceneNote('s-prisao', RECADO, mundo())
     expect(msgsPara(s.broadcast(mundo(true)), 'c-gabi').map((m) => m.type)).toEqual(['snapshot', 'scene.note'])
-    // Broadcast seguinte na mesma cena: só o mapa.
-    expect(msgsPara(s.broadcast(mundo(true)), 'c-gabi').map((m) => m.type)).toEqual(['snapshot'])
+    // Broadcast seguinte na mesma cena: a tela dela não mudou, nada sai (nem o recado de novo).
+    expect(msgsPara(s.broadcast(mundo(true)), 'c-gabi').map((m) => m.type)).toEqual([])
     // Foi para fora (ficha sumiu da Prisão) e voltou: já leu, o cartão não reabre.
     s.broadcast(mundo(false))
     expect(msgsPara(s.broadcast(mundo(true)), 'c-gabi').map((m) => m.type)).toEqual(['snapshot'])

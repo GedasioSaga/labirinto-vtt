@@ -2417,7 +2417,8 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       else if (sceneId === undefined) deps.applyDoor(wallId, open)
       else deps.applyDoor(wallId, open, sceneId)
       broadcastNow()
-      announceDoor(result.applyDoor)
+      // Com a chave, o aviso é o `doorKeyLine` logo abaixo (e sem quem destranque a porta nem abriu).
+      if (unlock !== true) announceDoor(result.applyDoor)
     }
     // Sem quem destranque, a porta não abriu: o aviso não pode dizer que abriu.
     if (result.doorKeyUsed !== undefined && deps.unlockAndOpenDoor !== undefined) useToastStore.getState().push('info', doorKeyLine(result.doorKeyUsed))

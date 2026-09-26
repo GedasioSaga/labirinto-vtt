@@ -116,7 +116,10 @@ describe('playerConnection: a queda não apaga o caderno que ele leva para casa'
 
   it('"Reconectar" zera a lista da tela, mas guarda as pistas e os recados para o arquivo', () => {
     const t = comPistaERecado()
-    expect(t.connection.getState().error).toBe('connection_lost')
+    // RECONEXÃO AUTOMÁTICA (outra feature): quem já estava na sala não vê o
+    // erro, a tela esmaece e tenta voltar sozinha; o "Reconectar" continua lá.
+    expect(t.connection.getState().reconnecting).toBeDefined()
+    expect(t.connection.getState().error).toBeUndefined()
     t.connection.reconnect()
     const depois = t.connection.getState()
     expect(depois.status).toBe('connecting')

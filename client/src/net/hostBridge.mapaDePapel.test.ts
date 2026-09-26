@@ -97,12 +97,13 @@ async function mesa(opts: { zonaSobreOPombal?: boolean } = {}) {
 }
 
 describe('hostBridge — mapa de papel', () => {
-  it('dar o Pombal à Ana: devolve 1 Sala, ela recebe o aviso e o snapshot logo atrás; o Bruno só o snapshot comum', async () => {
+  it('dar o Pombal à Ana: devolve 1 Sala, ela recebe o aviso e o snapshot logo atrás; a tela do Bruno não mudou e nada sai para ele', async () => {
     const t = await mesa()
     const antes = t.sent().length
     expect(t.bridge.giveRoomsMap(t.ana, null, ['r-pombal'])).toBe(1)
     expect(tipos(t.sent().slice(antes), 'c1')).toEqual(['map.given', 'snapshot'])
-    expect(tipos(t.sent().slice(antes), 'c2')).toEqual(['snapshot'])
+    // Broadcast só o que mudou: o mapa é da Ana, a tela do Bruno é a mesma.
+    expect(tipos(t.sent().slice(antes), 'c2')).toEqual([])
   })
 
   it('nada a dar, ou sala fechada: 0 e nada sai', async () => {

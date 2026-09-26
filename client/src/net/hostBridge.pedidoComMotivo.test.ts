@@ -21,12 +21,17 @@ function queEnvia(resposta: ToastMessage['resposta']): ToastResposta | undefined
   return resposta !== undefined && 'enviar' in resposta ? resposta : undefined
 }
 
-/** Espalhados a mais de 2 casas uns dos outros: ninguém vira "quem está perto" de ninguém. */
+/**
+ * Nos quatro cantos do portão (300, 175), cada um a 53 px dele em x e em y:
+ * todos encostados no pino (pino só atravessa de perto, ~75 px com a ficha de
+ * 1 casa) e a mais de 2 casas uns dos outros (106 px): ninguém vira "quem
+ * está perto" de ninguém.
+ */
 const FICHAS: Record<string, { x: number; y: number }> = {
-  'ficha-felipe': { x: 225, y: 175 },
-  'ficha-gabi': { x: 125, y: 375 },
-  'ficha-hugo': { x: 425, y: 375 },
-  'ficha-iara': { x: 525, y: 175 },
+  'ficha-felipe': { x: 247, y: 122 },
+  'ficha-gabi': { x: 353, y: 122 },
+  'ficha-hugo': { x: 247, y: 228 },
+  'ficha-iara': { x: 353, y: 228 },
 }
 
 function mesa() {
@@ -141,7 +146,7 @@ describe('hostBridge: "Ver" e "Não, porque…" no pedido de passagem', () => {
     expect(ver?.mantem).toBe(true)
     const antes = t.sent().length
     ver?.run()
-    expect(t.onGoToPoint).toHaveBeenCalledWith('cena-a', 225, 175)
+    expect(t.onGoToPoint).toHaveBeenCalledWith('cena-a', 247, 122)
     expect(t.sent().slice(antes)).toEqual([])
     expect(linhasDaCaixa()).toHaveLength(4)
 

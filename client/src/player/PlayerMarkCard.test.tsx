@@ -134,9 +134,13 @@ describe('player/main.tsx liga o toque ao cartão do bilhete', () => {
   })
 
   it('o cartão recebe as marcas do recorte, o id aberto, a espera pelo recado e pelo texto de Sala, e o fechar', () => {
-    expect(semEspacos).toContain(
-      '<PlayerMarkCard marcas={state.map.marcas} openMarkId={openMarkId} aguardando={Boolean(state.note) || Boolean(state.roomText)} onClose={closeMark}',
-    )
+    // A espera cresceu com as junções (chegada, recados de longe, resposta de ação)
+    // e ganhou o Esc: o que se prova é que as pontas daqui continuam ligadas.
+    const cartao = /<PlayerMarkCard marcas=\{state\.map\.marcas\} openMarkId=\{openMarkId\} aguardando=\{([^}]*)\} onClose=\{closeMark\}/.exec(semEspacos)
+    expect(cartao).not.toBeNull()
+    const aguardando = cartao?.[1] ?? ''
+    expect(aguardando).toContain('Boolean(state.note)')
+    expect(aguardando).toContain('Boolean(state.roomText)')
     expect(semEspacos).toContain('const closeMark = useCallback(() => setOpenMarkId(null), [])')
   })
 })

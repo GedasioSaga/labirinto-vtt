@@ -29,7 +29,8 @@ function salao(tokens: Token[]): MapData {
   return {
     ...createEmptyMap('mapa-salao', 'Salão Nobre', 40, 10, GRID),
     tokens,
-    pins: [viagem('escada', 425, 225, { sceneId: CRIPTA, pinId: 'escada-b' })],
+    // A escada encostada na Ana (50 px): o pino de viagem só atravessa de perto.
+    pins: [viagem('escada', 175, 225, { sceneId: CRIPTA, pinId: 'escada-b' })],
   }
 }
 

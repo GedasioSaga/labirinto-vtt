@@ -60,9 +60,11 @@ function mesa(map: MapData = mansao()) {
     ids[nome] = joined.playerId
     s.assignToken(joined.playerId, ficha)
   }
-  s.broadcast(world)
+  // O primeiro envio: o broadcast só manda de novo quando a tela de alguém muda.
+  const inicial = s.broadcast(world)
   return {
     s,
+    inicial,
     ids,
     get world() {
       return world
@@ -100,14 +102,14 @@ describe('protocolo: pin.take e item.give', () => {
 describe('recorte: o jogador recebe o pino pegável, nunca a mochila alheia', () => {
   it('o pino chega com o nome do item e nada mais do que o cartão precisa', () => {
     const t = mesa()
-    const pino = snapshotFor(t.s.broadcast(t.world), 'c1').map.pins.find((p) => p.id === 'pino-chave')
+    const pino = snapshotFor(t.inicial, 'c1').map.pins.find((p) => p.id === 'pino-chave')
     expect(pino?.item).toEqual({ nome: 'Chave do Escudo' })
   })
 
   it('SEGURANÇA: Bruno não recebe o que o Diego carrega; Diego recebe a própria mochila', () => {
     const map = mansao([], [token('diego', 180, 200, { mochila: [{ id: 'x', nome: 'Carta Secreta' }] }), token('bruno', 240, 200), token('carla', 600, 200)])
     const t = mesa(map)
-    const envio = t.s.broadcast(t.world)
+    const envio = t.inicial
     expect(snapshotFor(envio, 'c1').map.tokens.find((tk) => tk.id === 'diego')?.mochila).toEqual([{ id: 'x', nome: 'Carta Secreta' }])
     const doBruno = snapshotFor(envio, 'c2')
     expect(doBruno.map.tokens.find((tk) => tk.id === 'diego')).toBeDefined()
@@ -117,7 +119,7 @@ describe('recorte: o jogador recebe o pino pegável, nunca a mochila alheia', ()
 
   it('SEGURANÇA: item oculto para jogadores não chega a ninguém, nem o nome dele', () => {
     const t = mesa(mansao([chave({ secret: true })]))
-    const envio = t.s.broadcast(t.world)
+    const envio = t.inicial
     for (const c of ['c1', 'c2', 'c3']) expect(JSON.stringify(snapshotFor(envio, c))).not.toContain('Chave do Escudo')
   })
 })
@@ -262,14 +264,14 @@ describe('Dar a um colega encostado', () => {
 
   it('o snapshot diz quais fichas vistas são de COLEGAS: NPC do mestre e a própria ficha ficam de fora', () => {
     const t = mesa(mansao([], [token('diego', 180, 200), token('bruno', 240, 200), token('zumbi', 180, 240), token('carla', 600, 200)]))
-    const envio = t.s.broadcast(t.world)
+    const envio = t.inicial
     expect(snapshotFor(envio, 'c1').partyTokens).toEqual(['bruno', 'carla'])
     expect(snapshotFor(envio, 'c2').partyTokens).toEqual(['diego', 'carla'])
   })
 
   it('SEGURANÇA: ficha de colega que ele não vê não entra na lista', () => {
     const t = mesa(mansao([], [token('diego', 180, 200), token('bruno', 240, 200), token('carla', 600, 200, { hidden: true })]))
-    const doDiego = snapshotFor(t.s.broadcast(t.world), 'c1')
+    const doDiego = snapshotFor(t.inicial, 'c1')
     expect(doDiego.partyTokens).toEqual(['bruno'])
     expect(JSON.stringify(doDiego)).not.toContain('carla')
   })

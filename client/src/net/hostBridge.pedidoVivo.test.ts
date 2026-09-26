@@ -16,7 +16,8 @@ const ROOM = { code: 'AB12CD', urls: ['http://192.168.0.2:7777'], qrSvg: '<svg/>
 const MIN = 60_000
 
 async function mesa() {
-  const estado = { clock: 1_000_000, ana: { x: 200, y: 200 } }
+  // Ana encostada na escada (300, 200): pino só atravessa de perto.
+  const estado = { clock: 1_000_000, ana: { x: 250, y: 200 } }
   const ficha = (id: string, x: number, y: number): Token => ({ id, characterId: null, name: id, x, y, size: 1, image: null })
   const escada = (id: string, x: number, y: number, sceneId: string, pinId: string): Pin => ({
     id,
@@ -82,8 +83,8 @@ describe('hostBridge: pedido de passagem com idade e distância', () => {
     const toast = t.pedido()
     // A frase de sempre continua inteira: a idade e a distância vêm à parte.
     expect(toast.text).toBe('Ana quer passar por Escada que desce → Cripta')
-    // Ana em (200, 200), escada em (300, 200): 100 px = 2 casas de 50 px.
-    expect(toast.detalhe?.()).toBe('há menos de 1 min · agora a 2 casas do pino')
+    // Ana em (250, 200), escada em (300, 200): 50 px = 1 casa de 50 px.
+    expect(toast.detalhe?.()).toBe('há menos de 1 min · agora a 1 casa do pino')
   })
 
   it('o relógio anda e a ficha anda: a mesma linha, lida de novo, mostra os dois', async () => {
@@ -99,7 +100,7 @@ describe('hostBridge: pedido de passagem com idade e distância', () => {
     const t = await mesa()
     const antes = t.enviados()
     t.estado.clock += 5 * MIN
-    expect(t.pedido().detalhe?.()).toBe('há 5 min · agora a 2 casas do pino')
+    expect(t.pedido().detalhe?.()).toBe('há 5 min · agora a 1 casa do pino')
     expect(t.enviados()).toBe(antes)
   })
 

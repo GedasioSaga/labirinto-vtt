@@ -23,10 +23,11 @@ type Ponto = { x: number; y: number }
 const PAR: Ponto = { x: 1025, y: 325 }
 const MONSTRO = 'Horror do porão'
 
+// Os três encostados na escada-a (900, 440): o pino de viagem só atravessa de perto.
 const JOGADORES = [
-  { clientId: 'c1', nome: 'Ana', ficha: 'lanterna', em: { x: 700, y: 300 } },
-  { clientId: 'c2', nome: 'Bruno', ficha: 'machado', em: { x: 820, y: 300 } },
-  { clientId: 'c3', nome: 'Carla', ficha: 'cajado', em: { x: 760, y: 420 } },
+  { clientId: 'c1', nome: 'Ana', ficha: 'lanterna', em: { x: 850, y: 440 } },
+  { clientId: 'c2', nome: 'Bruno', ficha: 'machado', em: { x: 900, y: 390 } },
+  { clientId: 'c3', nome: 'Carla', ficha: 'cajado', em: { x: 950, y: 440 } },
 ] as const
 
 function ficha(id: string, p: Ponto, extra: Partial<Token> = {}): Token {

@@ -33,6 +33,7 @@ export function travelNoticeText(notice: TravelNotice): string {
     case 'rejected':
       if (notice.reason === 'pending') return 'Seu pedido anterior ainda espera o mestre'
       if (notice.reason === 'too_soon') return 'Espere um pouco antes de pedir de novo'
+      if (notice.reason === 'far') return 'Chegue mais perto da passagem'
       return 'Não dá para passar por aqui agora'
   }
 }

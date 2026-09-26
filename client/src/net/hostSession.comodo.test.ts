@@ -225,10 +225,12 @@ describe('hostSession — prédio de teto dentro do cômodo lembrado', () => {
     expect(dentro.map.pins).toEqual([])
     expect(JSON.stringify(dentro.map)).not.toContain('nome-quarto')
 
-    // O mestre desliga o Cômodo: a memória antiga não pode sustentar o vazamento.
-    const semComodo = snapshotPara(s.broadcast(patioComCasa(false, naCasa)), 'c1')
-    expect(semComodo.map.pins).toEqual([])
-    expect(JSON.stringify(semComodo.map)).not.toContain('nome-quarto')
+    // O mestre desliga o Cômodo: a memória antiga não pode sustentar o
+    // vazamento. A tela do Bruno sai igual (nada novo vai a ele) e a que ele
+    // tem é a de dentro, sem o quarto.
+    const semComodo = s.broadcast(patioComCasa(false, naCasa))
+    expect(semComodo.outbound.filter((o) => o.clientId === 'c1')).toEqual([])
+    expect(JSON.stringify(semComodo.outbound)).not.toContain('nome-quarto')
   })
 })
 
@@ -327,8 +329,16 @@ describe('hostSession — Casa > Quarto: Sala comum dentro do cômodo lembrado',
     const s = createHostSession({ code: CODE, visionRadius: 700, now: () => 0, randomId: () => `id-${(n += 1)}` })
     s.assignToken(entra(s, 'c1', 'Bruno', casaComQuarto(naFrente)), 'ficha-bruno')
 
+    // A tela do Bruno: o broadcast só manda quando ela muda (parado no mesmo
+    // lugar, pode não sair nada); tudo o que sai também é conferido.
+    let tela: Extract<HostMessage, { type: 'snapshot' }> | null = null
     for (const at of [naFrente, naFrente, naRua, naRua]) {
-      const snap = snapshotPara(s.broadcast(casaComQuarto(at)), 'c1')
+      const envio = s.broadcast(casaComQuarto(at))
+      expect(JSON.stringify(envio.outbound)).not.toContain('nome-quarto')
+      expect(JSON.stringify(envio.outbound)).not.toContain('a-carta-do-quarto')
+      if (envio.outbound.some((o) => o.clientId === 'c1')) tela = snapshotPara(envio, 'c1')
+      if (tela === null) throw new Error('esperava a tela do Bruno')
+      const snap = tela
       // A casa lembrada sai, com o pino da frente — é o controle de que o cômodo funciona.
       expect(regioes(snap)).toEqual(['casa'])
       expect(snap.map.pins.map((p) => p.id)).toEqual(['pino-da-frente'])

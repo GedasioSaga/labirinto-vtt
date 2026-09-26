@@ -60,7 +60,9 @@ async function mesa() {
   entra('c2', 'Bruno', 'ficha-bruno')
   // O snapshot sai: é o recorte que vale para "a ficha que ele vê".
   bridge.notifyMapChanged()
-  vi.runAllTimers()
+  // Só os timers pendentes: a varredura de silêncio (reconexão) é um setInterval
+  // e `runAllTimers` nunca acabaria.
+  vi.runOnlyPendingTimers()
   return { emit, sent }
 }
 

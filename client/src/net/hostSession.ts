@@ -5,7 +5,7 @@ import { fichaAlcancaPonto, MARCA_INTERVALO_MS, MARCAS_POR_CENA, MARCAS_POR_JOGA
 import { contractFromTerms, isContractDue, type LoanTerms } from '../lib/tokenLoan'
 import { tokenAsSeenByPlayer } from '../lib/tokenPublicName'
 import { idDePortaCabeNoFio, MAX_PORTAS_POR_ATRAVESSAR } from '../lib/portasPorAtravessar'
-import { createExploration, decodeExploration, encodeExploration, forgetBlocked, forgetInside, isPointExplored, markAll, markRings, mergeExploration, mergeExplored, resizeExploration, type Exploration, type ExploredWire } from '../lib/exploration'
+import { createExploration, decodeExploration, encodeExploration, forgetBlocked, forgetInside, isPointExplored, markAll, markRings, mergeExploration, mergeExplored, resizeExploration, type Exploration, type ExploredWire, type MemoryRing } from '../lib/exploration'
 import { pointInRing } from '../lib/floorContour'
 import { cabineAposViagem, cabineDaParada, cabineNaParada, type CabineDeTransporte, type ChamadaAceita, type MovimentoDeCabine } from '../lib/cabine'
 import {
@@ -2191,6 +2191,16 @@ function sameViewInputs(a: ViewInputs, b: ViewInputs): boolean {
   )
 }
 
+/** O explorado `exp` continua igual aos bits e contornos guardados antes de uma soma no lugar. */
+function sameExploration(exp: Exploration, bitsBefore: Uint8Array, ringsBefore: readonly MemoryRing[]): boolean {
+  return (
+    exp.bits.length === bitsBefore.length &&
+    exp.bits.every((byte, i) => byte === bitsBefore[i]) &&
+    exp.rings.length === ringsBefore.length &&
+    exp.rings.every((ring, i) => ring === ringsBefore[i])
+  )
+}
+
 /**
  * Põe `memory` como a cena mais recente de `byScene` e esquece as mais
  * antigas acima de `max`.
@@ -2389,6 +2399,14 @@ interface SentView {
    * marcação do explorado pode mostrar mais no seguinte.
    */
   stable: boolean
+  /**
+   * As entradas de `lastViews` (`ViewInputs`: `viewEpoch` do "Quem vê", da
+   * espera e do kick, mapas das outras cenas onde ele tem ficha); `null` = a
+   * espera. Sem elas, o atalho do `stable` pularia o que só sobe o epoch.
+   */
+  inputs: ViewInputs | null
+  /** Vez da iniciativa, hora do relógio e fator de visão, em JSON: entram na tela sem mudar o mapa. */
+  session: string
 }
 
 type SnapshotMessage = Extract<HostMessage, { type: 'snapshot' }>
@@ -2851,7 +2869,9 @@ export function createHostSession(options: HostSessionOptions): HostSession {
    */
   const radiusIn = (playerId: string, map: MapData): number => {
     const hour = clockHour()
-    return hour === null ? radiusFor(playerId) : visionRadiusAtHour(radiusFor(playerId), hour, map)
+    // "Visão nesta cena" e o fator do jogador entram antes da hora (`radiusFor` com o mapa).
+    const base = radiusFor(playerId, map)
+    return hour === null ? base : visionRadiusAtHour(base, hour, map)
   }
   /**
    * RAIO POR FICHA: o raio de cada ficha que `playerId` vê. A emprestada
@@ -3614,6 +3634,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const last = sentViews.get(clientId)
     const cabines = world.cabines
     const ocupadas = ocupadasKey(playerId, world)
+    const inputs = scene === null ? null : viewInputsFor(playerId, world, scene)
+    const session = JSON.stringify([options.getTurn?.() ?? null, clockHour(), factorFor(playerId)])
     const sameInputs =
       last !== undefined &&
       last.playerId === playerId &&
@@ -3622,7 +3644,9 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       last.ownershipRev === ownershipRev &&
       last.memory === before &&
       last.cabines === cabines &&
-      last.ocupadas === ocupadas
+      last.ocupadas === ocupadas &&
+      (last.inputs === null || inputs === null ? last.inputs === inputs : sameViewInputs(last.inputs, inputs)) &&
+      last.session === session
     if (!force && sameInputs && last.stable) return []
     const planBefore = before === undefined ? null : before.plan
     const doorsBefore = before === undefined ? null : doorsKey(before.doors)
@@ -3655,6 +3679,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       rev: sentRev,
       snapshotLength,
       stable: sameInputs && out === null && memorySettled,
+      inputs,
+      session,
     })
     return out === null ? cards : [out, ...cards]
   }
@@ -4141,6 +4167,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       ownership[loan.borrowerId] = held.filter((t) => t !== tokenId)
       returned.push({ ownerId, borrowerId: loan.borrowerId, tokenId })
     }
+    // Troca de posse: nenhuma tela sai do cache (`SentView.ownershipRev`).
+    if (returned.length > 0) ownershipRev += 1
     const outbound = [...wasPlaying].flatMap(([borrowerId, playing]) => waitingIfLostLast(borrowerId, playing))
     return { outbound, returned }
   }
@@ -4258,7 +4286,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const outbound: Outbound[] = []
     // Retomada de quem está no Volto já: a tela sabe que está fora ANTES de o mapa chegar.
     if (awayPlayers.has(playerId)) outbound.push({ clientId, msg: awayMessage(playerId) })
-    if (next !== undefined) outbound.push({ clientId, msg: next })
+    // TESTE SECRETO: o pedido que ficou aberto volta logo depois do mapa.
+    if (next !== undefined) outbound.push(...withPendingSecretChecks(playerId, clientId, next))
     // O caderno vem antes do cartão: o cliente já tem o recado guardado quando o cartão reabre.
     const book = notebooks.get(playerId) ?? []
     if (book.length > 0) outbound.push({ clientId, msg: notebookMessage(book, takeUnseenLetters(playerId, book)) })
@@ -5237,7 +5266,10 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     // FECHAR com uma ficha no vão é blocked: a porta desceria em cima dela.
     if (seen.door.open && seen.inDoorway) return reject('blocked')
 
-    return { outbound: [], applyDoor: { wallId: seen.wall.id, open: !seen.door.open, ...backgroundSceneId(scene, world), playerId, playerName: record.name } }
+    // Cena de fundo: o aviso do mestre diz também em que cena a porta mudou.
+    const background = backgroundSceneId(scene, world)
+    const where = background.sceneId === undefined ? {} : { sceneId: background.sceneId, sceneName: scene.name }
+    return { outbound: [], applyDoor: { wallId: seen.wall.id, open: !seen.door.open, ...where, playerId, playerName: record.name } }
   }
 
   /**
@@ -6480,6 +6512,9 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     }
     // Marcas: as que o doador viu, como ele as lembra (o recorte ainda pede o explorado e a regra de agora).
     for (const marcaId of given.marcas) memory.marcas.add(marcaId)
+    // A memória mudou no lugar (mesmo objeto): sem isto, o broadcast a acharia igual.
+    lastViews.delete(toPlayerId)
+    forgetSentView(toPlayerId)
     return true
   }
 
@@ -7614,6 +7649,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       const held = ownership[borrowerId] ?? []
       ownership[borrowerId] = [...held, ...lent.filter((tokenId) => !held.includes(tokenId))]
       for (const tokenId of lent) loans.set(tokenId, { ownerId, borrowerId })
+      // Troca de posse: nenhuma tela sai do cache (`SentView.ownershipRev`).
+      if (lent.length > 0) ownershipRev += 1
       return { outbound: [], lent }
     },
 
@@ -7625,6 +7662,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     sendFailed(clientId) {
       const playerId = byClient.get(clientId)
       if (playerId !== undefined) lastViews.delete(playerId)
+      // O próximo broadcast refaz e reenvia: a conexão não tem a tela que o host guardou.
+      sentViews.delete(clientId)
     },
 
     disconnect(clientId, at) {
@@ -7919,6 +7958,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       const piso = pisoOf(playerId, scene.map)
       const blocked = playerBlockedRings(floorMapOf(playerId, scene.map))
       const target = memoryFor(playerId, scene.map, world)
+      const bitsBefore = target.exp.bits.slice()
+      const ringsBefore = [...target.exp.rings]
       let colleagues = 0
       for (const other of players.keys()) {
         if (other === playerId) continue
@@ -7926,6 +7967,12 @@ export function createHostSession(options: HostSessionOptions): HostSession {
         if (memory === undefined) continue
         colleagues += 1
         mergeExplored(target.exp, memory.seen, blocked)
+      }
+      // A memória mudou no lugar (mesmo objeto): sem isto, o broadcast a acharia igual.
+      // Nada somado (ninguém viu, ou só o que está vetado agora): a tela fica como está.
+      if (!sameExploration(target.exp, bitsBefore, ringsBefore)) {
+        lastViews.delete(playerId)
+        forgetSentView(playerId)
       }
       return colleagues
     },
@@ -7968,6 +8015,9 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       const memory = giftMemoryFor(playerId, map)
       if (memory === null) return { outbound: [], mapRefused: { playerId, reason: 'memoria-cheia' } }
       markRings(memory.exp, rooms.map((r) => r.points), blocked)
+      // A memória mudou no lugar (mesmo objeto): sem isto, o broadcast a acharia igual.
+      lastViews.delete(playerId)
+      forgetSentView(playerId)
       const allowed = new Set(rooms.map((r) => r.id))
       const given = [...wanted].filter((id) => allowed.has(id))
       return {

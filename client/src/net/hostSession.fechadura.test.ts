@@ -52,9 +52,11 @@ function mesa(source: MapData | HostWorld, relogio: { t: number } = { t: 1_000_0
   const s = createHostSession({ code: CODE, visionRadius: 700, now: () => relogio.t, randomId: () => `id-${(n += 1)}` })
   const ana = welcome(s.handleMessage('c1', { type: 'join', code: CODE, name: 'Ana' }, source))
   s.assignToken(ana, 'heroi')
-  s.broadcast(source)
+  // O primeiro envio: o broadcast só manda de novo quando a tela de Ana muda.
+  const inicial = s.broadcast(source)
   return {
     s,
+    inicial,
     tentar: (tentativa: string, pinId = 'cofre', src: MapData | HostWorld = source) => s.handleMessage('c1', { type: 'pin.answer', pinId, tentativa }, src),
   }
 }
@@ -80,7 +82,7 @@ describe('hostSession: fechadura com segredo', () => {
   it('o snapshot leva a forma da fechadura e nunca a resposta', () => {
     const map = salao([cofre()])
     const t = mesa(map)
-    const snap = t.s.broadcast(map).outbound.find((o) => o.clientId === 'c1')?.msg
+    const snap = t.inicial.outbound.find((o) => o.clientId === 'c1')?.msg
     if (snap?.type !== 'snapshot' && snap?.type !== 'delta') throw new Error('esperava snapshot')
     expect(snap.map.pins.find((p) => p.id === 'cofre')?.fechadura).toEqual({ forma: 'volantes', casas: 4 })
     expect(JSON.stringify(snap)).not.toContain('9382')
@@ -205,7 +207,7 @@ describe('hostSession: fechadura com segredo', () => {
   it('o snapshot de uma fechadura de teclado não leva o tamanho da senha', () => {
     const map = salao([cofre({ segredo: { resposta: 'labirinto', forma: 'teclado' } })])
     const t = mesa(map)
-    const snap = t.s.broadcast(map).outbound.find((o) => o.clientId === 'c1')?.msg
+    const snap = t.inicial.outbound.find((o) => o.clientId === 'c1')?.msg
     if (snap?.type !== 'snapshot' && snap?.type !== 'delta') throw new Error('esperava snapshot')
     expect(snap.map.pins.find((p) => p.id === 'cofre')?.fechadura).toStrictEqual({ forma: 'teclado' })
     expect(JSON.stringify(snap)).not.toContain('casas')

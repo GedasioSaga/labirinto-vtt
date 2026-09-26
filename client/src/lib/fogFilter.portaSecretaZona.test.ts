@@ -110,7 +110,9 @@ describe('porta secreta: o jogador recebe o mesmo que receberia da parede lisa',
       ],
     }
     const longe = parede('w-longe', 0, 800, 400, 800)
-    const mapa = (walls: Wall[]): MapData => ({ ...corredor([...walls, longe], [zona]), tokens: [{ id: 't', characterId: null, name: 'Gabi', x: 300, y: 540, size: 1, image: null }] })
+    // Gabi em x 500: a visão (raio 400) alcança os dois lados da zona. Só sai
+    // parede vista (paredes-so-as-vistas); de x 300 a n2 da porta comum nem era vista.
+    const mapa = (walls: Wall[]): MapData => ({ ...corredor([...walls, longe], [zona]), tokens: [{ id: 't', characterId: null, name: 'Gabi', x: 500, y: 540, size: 1, image: null }] })
     const secreta = doJogador(mapa([parede('n1', 0, 500, 680, 500), parede('pn', 680, 500, 730, 500, { door: SECRETA }), parede('n2', 730, 500, 1000, 500)]))
     const lisa = doJogador(mapa([parede('n1', 0, 500, 1000, 500)]))
     const comum = doJogador(mapa([parede('n1', 0, 500, 680, 500), parede('pn', 680, 500, 730, 500, { door: { open: false, locked: false, kind: 'normal' } }), parede('n2', 730, 500, 1000, 500)]))

@@ -71,7 +71,10 @@ describe('zona de perigo — aviso de quem entra', () => {
   })
 
   it('fogo em sala "Oculta para jogadores": o mestre lê, Ana não recebe aviso nem o tipo', () => {
-    const regions = torre().regions.map((r) => (r.id === 'sala-c' ? { ...r, secret: true } : r))
+    // "Oculta para jogadores" (`hidden`): a sala SECRETA abre para quem está
+    // dentro dela (DENTRO DA SALA SECRETA), e aí o fogo é dela de ver; a
+    // oculta pelo mestre continua escondida mesmo com a Ana lá dentro.
+    const regions = torre().regions.map((r) => (r.id === 'sala-c' ? { ...r, hidden: true } : r))
     const fora = torre({ regions, hazards: [zona('fogo-1', 'fogo', ['sala-c'])], tokens: [ficha('ana', 250, 200), ficha('bia', 300, 200)] })
     const s = mesa(fora)
     s.broadcast(fora)

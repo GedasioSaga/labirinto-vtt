@@ -87,7 +87,8 @@ describe('secretCheck (teste secreto)', () => {
     // O número em si aparece por acaso nas coordenadas da visão: o que não
     // pode aparecer é mensagem de teste secreto nem campo de resultado.
     const depois = s.broadcast(mundo).outbound
-    expect(depois.map((o) => o.msg.type)).toEqual(['snapshot', 'snapshot', 'snapshot'])
+    // Responder não muda a tela de ninguém: o broadcast só manda o que mudou, e nada sai.
+    expect(depois.map((o) => o.msg.type)).toEqual([])
     expect(JSON.stringify(depois)).not.toMatch(/secret|"result"|Percep/)
     // Quem chega depois também não fica sabendo.
     const dora = s.handleMessage('c9', { type: 'join', code: CODE, name: 'Dora' }, mundo).outbound
@@ -213,8 +214,8 @@ describe('secretCheck (teste secreto)', () => {
     const volta = s.broadcast(mundo).outbound.filter((o) => o.clientId === 'c1')
     expect(volta.map((o) => o.msg.type)).toEqual(['snapshot', 'secret.check'])
     expect(volta[1]).toEqual({ clientId: 'c1', msg: { type: 'secret.check', id, label: 'Percepção' } })
-    // Uma vez só: o broadcast seguinte é só o mapa.
-    expect(s.broadcast(mundo).outbound.filter((o) => o.clientId === 'c1').map((o) => o.msg.type)).toEqual(['snapshot'])
+    // Uma vez só: o broadcast seguinte não traz o pedido de novo (nem o mapa, que não mudou).
+    expect(s.broadcast(mundo).outbound.filter((o) => o.clientId === 'c1').map((o) => o.msg.type)).toEqual([])
   })
 
   it('a ficha passada a outro jogador e devolvida traz o pedido de volta só para quem foi pedido e não respondeu', () => {

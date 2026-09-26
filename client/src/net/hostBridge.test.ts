@@ -686,7 +686,7 @@ describe('hostBridge', () => {
       expect(t.sent()).toEqual([])
     })
 
-    it('Revelar planta para… cena de fundo: devolve quantos e manda snapshot; cena que não existe não manda nada', async () => {
+    it('Revelar planta para… cena de fundo: devolve quantos, e a tela do Salão não muda (nada sai); cena que não existe não manda nada', async () => {
       vi.useFakeTimers()
       const cripta = { ...sampleMap(), id: 'm-cripta', tokens: [] }
       const t = setup({ getWorld: () => ({ open: { sceneId: 's-a', name: 'Salão', map: sampleMap() }, background: [{ sceneId: 's-b', name: 'Cripta', map: cripta }] }) })
@@ -698,11 +698,12 @@ describe('hostBridge', () => {
       expect(t.bridge.revealPlanFor('s-nao-existe', [playerId])).toBe(0)
       expect(snapshotsFrom(t.sent().slice(before))).toHaveLength(0)
       expect(t.bridge.revealPlanFor('s-b', [playerId])).toBe(1)
-      const snaps = snapshotsFrom(t.sent().slice(before))
-      expect(snaps).toHaveLength(1)
-      // Ana está no Salão: o snapshot é o do Salão, nada da Cripta vai junto.
-      expect(JSON.stringify(snaps)).not.toContain('m-cripta')
-      expect(JSON.stringify(snaps)).not.toContain('Cripta')
+      // Ana está no Salão: a tela dela não muda, e o broadcast só manda o que
+      // mudou — nenhum snapshot sai agora. A planta da Cripta fica guardada para
+      // quando ela chegar lá; nada da Cripta vai junto nesta hora.
+      expect(snapshotsFrom(t.sent().slice(before))).toHaveLength(0)
+      expect(JSON.stringify(t.sent().slice(before))).not.toContain('m-cripta')
+      expect(JSON.stringify(t.sent().slice(before))).not.toContain('Cripta')
     })
 
     it('Dar o que o grupo viu sem colega na cena: 0 e nenhum snapshot', async () => {
@@ -958,7 +959,8 @@ describe('hostBridge: pedido de passagem pelo pino de viagem', () => {
     useFollowStore.setState({ playerId: 'bruno' })
     irLa.run()
     expect(useFollowStore.getState().playerId).toBeNull()
-    expect(onGoToScene).toHaveBeenLastCalledWith('cena-b', 1025, 275)
+    // Casa livre ao lado do par (chegada-em-casa-livre) e o piso de chegada (pisos), como no teste acima.
+    expect(onGoToScene).toHaveBeenLastCalledWith('cena-b', 975, 275, 0)
 
     // Seguindo a própria Ana: ir até ela é o que o seguir já faz, então continua seguindo.
     useFollowStore.setState({ playerId: ana })

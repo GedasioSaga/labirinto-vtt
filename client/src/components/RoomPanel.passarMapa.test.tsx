@@ -77,7 +77,18 @@ describe('RoomPanel: passar o mapa de um jogador a outro', () => {
     return achado
   }
 
+  /**
+   * ABA JOGO COMPACTA: o "Passar o mapa" mora no "Mais" (…) do card, fechado
+   * por padrão; um aberto por vez. Abre o do jogador antes de procurar a lista.
+   */
+  function abrirMais(nome: string): void {
+    const mais = card(nome).querySelector<HTMLButtonElement>(`button[aria-label="Mais de ${nome}"]`)
+    if (mais === null) throw new Error(`sem o "Mais" de ${nome}`)
+    if (mais.getAttribute('aria-expanded') !== 'true') act(() => mais.click())
+  }
+
   function listaDePassar(nome: string): HTMLSelectElement | null {
+    abrirMais(nome)
     const label = Array.from(card(nome).querySelectorAll('label')).find((l) => (l.textContent ?? '').startsWith('Passar o mapa de'))
     const id = label?.htmlFor
     return id === undefined ? null : container.querySelector<HTMLSelectElement>(`select[id="${id}"]`)

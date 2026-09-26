@@ -62,8 +62,9 @@ function mesa(w: HostWorld) {
   const ana = entrar('c1', 'Ana', 'ana')
   const bia = entrar('c2', 'Bia', 'bia')
   entrar('c3', 'Caio', 'caio')
-  s.broadcast(w)
-  return { s, ana, bia }
+  // O primeiro envio: o broadcast só manda de novo quando a tela de alguém muda.
+  const inicial = s.broadcast(w)
+  return { s, ana, bia, inicial }
 }
 
 function paraCliente(r: HostResult, clientId: string): HostMessage[] {
@@ -113,8 +114,7 @@ describe('texto de chegada: só quem chega, uma vez', () => {
 
   it('o snapshot nunca leva o texto: nem antes de ir, nem depois de chegar', () => {
     const w = mundo()
-    const { s, ana } = mesa(w)
-    const antes = s.broadcast(w)
+    const { s, ana, inicial: antes } = mesa(w)
     for (const c of ['c1', 'c2', 'c3']) {
       expect(paraCliente(antes, c).map((m) => m.type)).toContain('snapshot')
       expect(textoPara(antes, c)).not.toContain(TEXTO_SALAO)

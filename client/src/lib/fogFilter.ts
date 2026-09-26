@@ -2860,7 +2860,8 @@ export function filterMapForGroup(
       if (interiorRoofOf(w) !== undefined) return false
       // Porta com o meio escondido não sai nem pelas amostras dos lados.
       if (w.door !== null) return !inConcealZone(wallMidpoint(w))
-      return !wallSamples(w).some(inConcealZone)
+      // Parede que encosta na zona: o trecho escondido sai cortado no pacote (`wallForPlayer`), não a parede inteira.
+      return true
     },
     seenNow: (w) =>
       w.door !== null ? doorSamples(w, DOOR_VISION_PROBE).some(isVisible) : wallSideSamples(w, map.grid, DOOR_VISION_PROBE).some(isVisible),
@@ -2876,6 +2877,51 @@ export function filterMapForGroup(
       return [...wallSideSamples(w, map.grid, DOOR_VISION_PROBE), ...wallSideSamples(w, map.grid, probe)].some(isPointExploredOpen)
     },
   })
+  /**
+   * PAREDES SÓ AS VISTAS no pacote. `walls` decide pelos ids do mapa do
+   * mestre; o pacote sai de `knownWalls`, onde a porta secreta já virou
+   * parede, a emenda levou o id da vizinha e o disfarce da sala secreta
+   * partiu a parede em `<id>-<i>` (cada pedaço responde pela parede de origem).
+   */
+  const recalledWalls = new Map(walls.items.map((entry) => [entry.item.id, entry]))
+  const mapWallsById = new Map(map.walls.map((w) => [w.id, w]))
+  /** Amostras dos lados da parede (porta: as do vão), a `distance` px: as mesmas de `walls`. */
+  const wallProbeSamples = (w: Wall, distance: number): RegionPoint[] =>
+    w.door !== null ? doorSamples(w, distance) : wallSideSamples(w, map.grid, distance)
+  /** Parede de cômodo lembrado: sai como a porta dele (`doorWallForPlayer`), nunca pela sala escondida. */
+  const inKnownComodoWall = (w: Wall): boolean => {
+    if (inHiddenPlace(wallMidpoint(w))) return false
+    const probe = (explored?.cell ?? map.grid) * DOOR_EXPLORED_PROBE_CELLS
+    return wallProbeSamples(w, probe).some((p) => !inHiddenPlace(p) && inKnownComodo(p))
+  }
+  /** Parede vista agora ou com o lado explorado (a regra de antes da memória da planta). */
+  const wallSeenOrExplored = (w: Wall): boolean => {
+    if (wallProbeSamples(w, DOOR_VISION_PROBE).some(isVisible)) return true
+    if (explored === undefined) return false
+    return [...wallProbeSamples(w, DOOR_VISION_PROBE), ...wallProbeSamples(w, explored.cell * DOOR_EXPLORED_PROBE_CELLS)].some(isPointExploredOpen)
+  }
+  /**
+   * A versão de `w` (de `knownWalls`) que o jogador recebe; `null` = ele nunca
+   * a viu. Parede como o mestre a desenhou responde por `walls` (a lembrada
+   * troca a de agora). A que mudou no caminho — porta secreta virada parede,
+   * emenda, pedaço do disfarce — não tem id no mapa que responda por ela:
+   * sai se está à vista ou com o lado explorado, sempre a versão de agora (a
+   * lembrada de uma porta secreta sairia como porta).
+   */
+  const recalledWall = (w: Wall): Wall | null => {
+    if (mapWallsById.get(w.id) !== w) return wallSeenOrExplored(w) || inKnownComodoWall(w) ? w : null
+    const entry = recalledWalls.get(w.id)
+    if (entry === undefined) return inKnownComodoWall(w) ? w : null
+    return entry.source === 'lembrado' ? entry.item : w
+  }
+  /** A parede que o mestre apagou e o jogador ainda lembra (não viu o lugar vazio): sai como ele a viu. */
+  const forgottenWallsStillRemembered = (): Wall[] =>
+    walls.items.flatMap(({ item: w, source }) => {
+      if (source !== 'lembrado' || mapWallsById.has(w.id)) return []
+      if (w.door === null) return wallForPlayer(w)
+      if (inConcealZone(wallMidpoint(w))) return []
+      return [{ ...w, door: doorForPlayer(withoutLock(seenDoors?.get(w.id) ?? unseenDoor(w.door))) }]
+    })
 
   // MEMÓRIA POR FICHA: a porta entra na lista da ficha cujo anel a vê (o
   // pincel do mestre não conta — ele mostra, não vira memória). Por ficha,
@@ -3136,7 +3182,16 @@ export function filterMapForGroup(
    * pincel do mestre também não furam o véu. O polígono do perigo continua
    * saindo pela regra da sala: o jogador vê a mancha, não quem está nela.
    */
-  const veils = obscuringRoomRings(map)
+  // Sala tomada que o MESTRE esconde deste jogador (ver ZONA DE PERIGO, mais abaixo):
+  // camada escondida, sala escondida, teto fechado ou zona oculta ativa encostada.
+  const layerRegionIds = new Set(visibleRegions(map.regions, hiddenLayers).map((r) => r.id))
+  const touchesConcealZone = (points: RegionPoint[]): boolean =>
+    zones.length > 0 &&
+    (interiorSamples(points, points).some(inConcealZone) || concealed.some((zone) => zone.some((p) => pointInRing(p, points))))
+  const hazardHiddenByMaster = (room: Region): boolean =>
+    !layerRegionIds.has(room.id) || regionHiddenByMaster(room) || closedRoofIds.has(room.id) || touchesConcealZone(room.points)
+  // A fumaça escondida não vela ninguém: o colega sumir da tela contaria que há algo naquela sala.
+  const veils = obscuringRoomRings(map, hazardHiddenByMaster)
   const veilsAt = (p: RegionPoint): RegionPoint[][] => (veils.length === 0 ? [] : veils.filter((ring) => pointInRing(p, ring)))
   const seenInsideVeil = (t: Token, veilsOfToken: readonly RegionPoint[][]): boolean => {
     const center = { x: t.x, y: t.y }
@@ -3229,7 +3284,8 @@ export function filterMapForGroup(
   // ESTADO DO MUNDO: luz apagada pelo estado não sai, e a que sai vai por
   // `lightForPlayer` (lista do que vai) — a regra nunca atravessa.
   const lightsInPlay = visibleLights(map.lights, hiddenLayers)
-    .filter((l) => !l.hidden && l.apagada !== true && !inClosedRoof({ x: l.x, y: l.y }))
+    // `underClosedRoof`, não `inClosedRoof`: tocha no cone pelo vão também fica, o halo desenharia o interior fora do cone.
+    .filter((l) => !l.hidden && l.apagada !== true && !underClosedRoof({ x: l.x, y: l.y }))
     .filter(
       (l) =>
         l.attachedTokenId === undefined ||
@@ -3400,21 +3456,25 @@ export function filterMapForGroup(
     // secreta já vem emendada nas vizinhas (`mergeSecretDoorSeams` em `knownWalls`).
     // ESTADO DO MUNDO: toda porta que sai (à vista, lembrada, espiada ou pelo
     // cone) passa por `doorForPlayer` no fim — a regra do estado nunca atravessa.
-    walls: visibleWalls(knownWalls, hiddenLayers)
-      .flatMap((w) => {
+    // PAREDES SÓ AS VISTAS: fora do prédio de teto, só sai a parede que o
+    // jogador vê agora ou lembra (`recalledWall`), nunca o nível inteiro.
+    walls: [
+      ...visibleWalls(knownWalls, hiddenLayers).flatMap((w) => {
         if (w.hidden) return []
         if (w.regionId !== undefined && secretRoomIds.has(w.regionId)) return []
         // Mobília de prédio de teto fechado: o cone pelo vão alcança, OU quem
         // espia pela porta aberta alcança (`peekedWallForPlayer`) — os dois cones
         // são independentes, e a parede sai pelo que a mostrar.
         const roof = interiorRoofOf(w)
-        const pieces = roof === undefined ? [w] : glimpsedInteriorWall(w, roof)
+        const recalled = roof === undefined ? recalledWall(w) : null
+        const pieces = roof === undefined ? (recalled === null ? [] : [recalled]) : glimpsedInteriorWall(w, roof)
         return [
           ...pieces.flatMap((piece) => (piece.door !== null ? doorWallForPlayer(piece, piece.door) : wallForPlayer(piece))),
           ...peekedWallForPlayer(w),
         ]
-      })
-      .map(wallWithPlayerDoor),
+      }),
+      ...forgottenWallsStillRemembered(),
+    ].map(wallWithPlayerDoor),
     floor: playerFloor,
     // Pino de ponto de interesse: anotação estática, então vale o explorado
     // (mesma regra de linha/marcador). `image` só atravessa em data URL — se
@@ -3534,15 +3594,10 @@ export function filterMapForGroup(
    * se movem. E `hazardsHere` lista o perigo das salas onde está uma ficha do
    * jogador, visível ou não: na fumaça a visão encolhe e pode não alcançar
    * amostra nenhuma de um salão, mas quem está dentro sabe que está. Esse
-   * campo é do host (decide o aviso) e não vai pela rede.
+   * campo é do host (decide o aviso) e não vai pela rede. A regra de o mestre
+   * esconder (`hazardHiddenByMaster`) fica lá em cima, junto do véu da fumaça.
    */
-  const layerRegionIds = new Set(visibleRegions(map.regions, hiddenLayers).map((r) => r.id))
   const sentRooms = new Set(filtered.regions.map((r) => r.id))
-  const touchesConcealZone = (points: RegionPoint[]): boolean =>
-    zones.length > 0 &&
-    (interiorSamples(points, points).some(inConcealZone) || concealed.some((zone) => zone.some((p) => pointInRing(p, points))))
-  const hazardHiddenByMaster = (room: Region): boolean =>
-    !layerRegionIds.has(room.id) || regionHiddenByMaster(room) || closedRoofIds.has(room.id) || touchesConcealZone(room.points)
   const hazards: PlayerHazard[] = []
   const hazardsHere: { tokenId: string; kind: HazardKind }[] = []
   for (const hazard of hazardsOf(map)) {

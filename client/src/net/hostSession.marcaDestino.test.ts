@@ -62,13 +62,18 @@ describe('hostSession: sinal na cor da ficha', () => {
     const t = mesa()
     const r = t.s.handleMessage('c2', { type: 'signal', x: 200, y: 200 }, t.mundo)
     expect(r.signal).toMatchObject({ playerId: t.bruno, name: 'Bruno', color: COR_BRUNO })
-    expect(para(r, 'c2')).toEqual([{ clientId: 'c2', msg: { type: 'signal', x: 200, y: 200, from: 'Bruno', color: COR_BRUNO } }])
+    // O eco sai vermelho e lê a FICHA dele (DISFARCE: o dono lê o nome real
+    // dela); sozinho na Cripta, nenhum colega vê o ponto e o eco sai tracejado (ECO DO SINAL).
+    expect(para(r, 'c2')).toEqual([{ clientId: 'c2', msg: { type: 'signal', x: 200, y: 200, from: 'ficha-machado', color: COR_BRUNO, unheard: true } }])
+    expect(JSON.stringify(para(r, 'c2'))).not.toContain('Bruno')
   })
 
   it('o colega da mesma cena recebe o sinal de Elisa na cor da ficha dela', () => {
     const t = mesa()
     const r = t.s.handleMessage('c1', { type: 'signal', x: 200, y: 300 }, t.mundo)
-    expect(para(r, 'c3')).toEqual([{ clientId: 'c3', msg: { type: 'signal', x: 200, y: 300, from: 'Elisa', color: COR_ELISA } }])
+    // DISFARCE: o Caio lê a ficha da Elisa como ela chegou a ele, nunca o nome da jogadora.
+    expect(para(r, 'c3')).toEqual([{ clientId: 'c3', msg: { type: 'signal', x: 200, y: 300, from: 'ficha-lanterna', color: COR_ELISA } }])
+    expect(JSON.stringify(para(r, 'c3'))).not.toContain('Elisa')
   })
 })
 

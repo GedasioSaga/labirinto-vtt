@@ -167,21 +167,31 @@ describe('whereAmI sobre o recorte do jogador: o escondido não chega', () => {
     expect(JSON.stringify(trail)).not.toContain('nome-casa-oculto')
   })
 
-  it('prédio secreto: nem ele nem o cômodo de dentro aparecem, mesmo com a ficha lá dentro', () => {
-    const master = masterMap([
+  // DENTRO DA SALA SECRETA (outra feature): a sala secreta abre para o jogador
+  // com a ficha dentro — ele recebe a sala com o nome —, então a faixa a mostra.
+  // O que o mestre esconde de verdade com a ficha lá dentro é a sala OCULTA.
+  it('prédio oculto: nem ele nem o cômodo de dentro aparecem, mesmo com a ficha lá dentro; o secreto abre para quem está dentro', () => {
+    const oculto = masterMap([
+      room('casa', 'nome-casa-oculta', CASA, { hidden: true }),
+      room('quarto', 'nome-quarto-da-oculta', QUARTO, { parentId: 'casa' }),
+    ])
+    const trail = trailFor(oculto)
+    expect(trail).toEqual([])
+    expect(JSON.stringify(trail)).not.toContain('oculta')
+    const secreto = masterMap([
       room('casa', 'nome-casa-secreta', CASA, { secret: true }),
       room('quarto', 'nome-quarto-da-secreta', QUARTO, { parentId: 'casa' }),
     ])
-    const trail = trailFor(master)
-    expect(trail).toEqual([])
-    expect(JSON.stringify(trail)).not.toContain('secreta')
+    expect(trailFor(secreto)).toEqual(['nome-casa-secreta', 'nome-quarto-da-secreta'])
   })
 
-  it('cômodo secreto dentro de prédio visível: só o prédio', () => {
-    const master = masterMap([room('casa', 'nome-casa', CASA), room('quarto', 'nome-quarto-secreto', QUARTO, { parentId: 'casa', secret: true })])
-    const trail = trailFor(master)
+  it('cômodo oculto dentro de prédio visível: só o prédio; o secreto abre para quem está dentro', () => {
+    const oculto = masterMap([room('casa', 'nome-casa', CASA), room('quarto', 'nome-quarto-oculto', QUARTO, { parentId: 'casa', hidden: true })])
+    const trail = trailFor(oculto)
     expect(trail).toEqual(['nome-casa'])
-    expect(JSON.stringify(trail)).not.toContain('nome-quarto-secreto')
+    expect(JSON.stringify(trail)).not.toContain('nome-quarto-oculto')
+    const secreto = masterMap([room('casa', 'nome-casa', CASA), room('quarto', 'nome-quarto-secreto', QUARTO, { parentId: 'casa', secret: true })])
+    expect(trailFor(secreto)).toEqual(['nome-casa', 'nome-quarto-secreto'])
   })
 
   it('cômodo dentro de zona oculta ativa: o nome é do que a zona esconde', () => {

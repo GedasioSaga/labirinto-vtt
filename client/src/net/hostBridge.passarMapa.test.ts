@@ -72,8 +72,8 @@ describe('hostBridge — passar o mapa', () => {
     const antes = t.sent().length
     expect(t.bridge.shareMap(t.ana, t.bruno)).toBe(true)
     expect(tipos(t.sent().slice(antes), 'c2')).toEqual(['map.shared', 'snapshot'])
-    // A Ana não é avisada de nada; só ganha o snapshot comum do broadcast.
-    expect(tipos(t.sent().slice(antes), 'c1')).toEqual(['snapshot'])
+    // A Ana não é avisada de nada, e a tela dela não mudou: o broadcast só manda o que mudou.
+    expect(tipos(t.sent().slice(antes), 'c1')).toEqual([])
   })
 
   it('pelo mestre, sem nada a passar ou sem sala: false e nada sai', async () => {
@@ -91,6 +91,7 @@ describe('hostBridge — passar o mapa', () => {
     const antes = t.sent().length
     t.emit({ clientId: 'c1', msg: { type: 'map.share', to: 'Bruno' } })
     expect(tipos(t.sent().slice(antes), 'c2')).toEqual(['map.shared', 'snapshot'])
-    expect(tipos(t.sent().slice(antes), 'c1')).toEqual(['map.share.result', 'snapshot'])
+    // Quem mostrou lê a resposta; a tela dela não mudou, então nenhum snapshot a mais.
+    expect(tipos(t.sent().slice(antes), 'c1')).toEqual(['map.share.result'])
   })
 })

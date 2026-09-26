@@ -193,8 +193,10 @@ describe('hostSession: esconder-se é pedido ao mestre', () => {
     expect(move.applyMove).toMatchObject({ tokenId: 'ficha-duda', x: 300, y: 250 })
     m.patchToken('ficha-duda', { x: 300, y: 250 })
     const depois = m.s.broadcast(m.world())
-    expect(snapshotDe(depois, 'c-enzo').map.tokens.map((t) => t.id)).toEqual(['ficha-enzo', 'guarda'])
-    expect(JSON.stringify(snapshotDe(depois, 'c-enzo'))).not.toContain('ficha-duda')
+    // O passo da ficha escondida não muda a tela do Enzo: nada sai para ele (nem o id).
+    const paraEnzo = depois.outbound.filter((o) => o.clientId === 'c-enzo')
+    expect(paraEnzo).toEqual([])
+    expect(JSON.stringify(paraEnzo)).not.toContain('ficha-duda')
     expect(snapshotDe(depois, 'c-duda').map.tokens.find((t) => t.id === 'ficha-duda')).toMatchObject({ x: 300, y: 250, secret: true })
 
     // "Revelar para todos" do mestre: `secret` desligado devolve a ficha ao Enzo.

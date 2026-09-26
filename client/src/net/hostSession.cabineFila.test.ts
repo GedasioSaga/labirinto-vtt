@@ -43,12 +43,13 @@ function welcomeOf(messages: { msg: HostMessage }[]): { playerId: string } {
 function mundo(atual: CabineDeTransporte['atual'], passagem: PinPassage = 'pede', fila?: ChamadaDeCabine[]): HostWorld {
   const terreo: MapData = {
     ...createEmptyMap('mapa-terreo', 'Térreo', 40, 10, 50),
-    tokens: [token('ana-ficha', 200, 200), token('caio-ficha', 250, 250)],
+    // Todos encostados na grade: o pino de viagem só atravessa de perto.
+    tokens: [token('ana-ficha', 250, 200), token('caio-ficha', 250, 250)],
     pins: [viagem('grade-terreo', 300, 200, PARADA_TOPO, passagem)],
   }
   const topo: MapData = {
     ...createEmptyMap('mapa-topo', 'Topo', 40, 10, 50),
-    tokens: [token('bia-ficha', 200, 200)],
+    tokens: [token('bia-ficha', 250, 200)],
     pins: [viagem('grade-topo', 300, 200, PARADA_TERREO, passagem)],
   }
   return {

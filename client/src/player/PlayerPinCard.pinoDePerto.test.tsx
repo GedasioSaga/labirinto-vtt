@@ -64,10 +64,22 @@ describe('PlayerPinCard: pino de viagem de longe', () => {
     expect(botao('Túnel de baixo').disabled).toBe(true)
   })
 
+  // PINO TRANCADO VIRA PEDIDO: só a trancada muda (`mudo`) segue sem botão de
+  // passagem; a que aceita pedido oferece "Pedir ao mestre", que também só vale de perto.
   it('trancada de longe diz só que está trancada, sem "Chegue mais perto"', () => {
-    act(() => root.render(<PlayerPinCard pin={{ ...PORTA, passagem: 'trancada' }} stairs={[]} onClose={() => {}} onRequestTravel={() => {}} longe />))
+    act(() => root.render(<PlayerPinCard pin={{ ...PORTA, passagem: 'trancada', mudo: true }} stairs={[]} onClose={() => {}} onRequestTravel={() => {}} longe />))
     expect(host.textContent).toContain('Está trancada')
     expect(host.textContent).not.toContain('Chegue mais perto')
+  })
+
+  it('trancada que aceita pedido, de longe: o pedido ao mestre fica apagado com "Chegue mais perto para passar"', () => {
+    const pedir = vi.fn()
+    act(() => root.render(<PlayerPinCard pin={{ ...PORTA, passagem: 'trancada' }} stairs={[]} onClose={() => {}} onRequestTravel={pedir} longe />))
+    expect(host.textContent).toContain('Está trancada')
+    const apagado = botao('Chegue mais perto para passar')
+    expect(apagado.disabled).toBe(true)
+    act(() => apagado.click())
+    expect(pedir).not.toHaveBeenCalled()
   })
 
   it('perto (sem `longe`), o cartão é o de sempre: "Pedir para passar" aceita toque', () => {

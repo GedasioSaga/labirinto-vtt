@@ -94,7 +94,8 @@ describe('hostSession: pino preso a uma ficha', () => {
 
   it('a viagem pela prancha continua valendo depois que o navio andou', () => {
     const s = mesa(mundo(porto()))
-    const w = mundo(setTokenPosition(porto(), 'navio', 600, 200))
+    // O herói acompanha o navio e encosta na prancha (620, 200): o pino de viagem só atravessa de perto.
+    const w = mundo(setTokenPosition(setTokenPosition(porto(), 'navio', 600, 200), 'heroi', 570, 200))
     s.broadcast(w)
     const pedido = s.handleMessage('c1', { type: 'pin.travel.request', pinId: 'prancha' }, w).travelRequest
     expect(pedido).toMatchObject({ toSceneId: CONVES })
@@ -106,23 +107,28 @@ describe('hostSession: pino preso a uma ficha', () => {
    * anotação fixa. A prancha presa ao navio não: ela contaria onde o navio
    * está agora, e o navio ele não vê.
    */
-  function heroiLonge(presa: boolean): { s: ReturnType<typeof mesa>; w: HostWorld } {
+  function heroiLonge(presa: boolean): { s: ReturnType<typeof mesa>; w: HostWorld; longeEnviado: HostResult } {
     const base = porto()
     const inicio = presa ? base : { ...base, pins: base.pins.map((p) => ({ ...p, presoA: undefined })) }
     const s = mesa(mundo(inicio))
     const longe = setTokenPosition(inicio, 'heroi', 2500, 200)
-    s.broadcast(mundo(longe))
+    // A tela que o herói recebe ao se afastar: o broadcast só manda de novo quando ela muda.
+    const longeEnviado = s.broadcast(mundo(longe))
     // O navio anda DENTRO do cais explorado, fora da visão do herói.
     const w = mundo(setTokenPosition(longe, 'navio', 600, 200))
-    return { s, w }
+    return { s, w, longeEnviado }
   }
 
   it('navio fora da visão: a prancha não sai, nem pela memória, e o pedido direto é recusado com o motivo genérico', () => {
-    const { s, w } = heroiLonge(true)
+    const { s, w, longeEnviado } = heroiLonge(true)
     const r = s.broadcast(w)
-    const mapa = mapaDoJogador(r)
+    // O navio andar fora da visão não muda a tela do herói: nada sai para ele.
+    expect(r.outbound.filter((o) => o.clientId === 'c1')).toEqual([])
+    // E a tela que ele tem (a de quando se afastou) não traz a prancha.
+    const mapa = mapaDoJogador(longeEnviado)
     expect(mapa.tokens.map((t) => t.id)).toEqual(['heroi'])
     expect(mapa.pins).toEqual([])
+    expect(JSON.stringify(longeEnviado.outbound)).not.toContain('prancha')
     expect(JSON.stringify(r.outbound)).not.toContain('prancha')
     const pedido = s.handleMessage('c1', { type: 'pin.travel.request', pinId: 'prancha' }, w)
     expect(recusa(pedido)).toBe('unavailable')
@@ -130,8 +136,10 @@ describe('hostSession: pino preso a uma ficha', () => {
   })
 
   it('controle: o mesmo pino, solto, sai pela memória do cais', () => {
-    const { s, w } = heroiLonge(false)
-    const mapa = mapaDoJogador(s.broadcast(w))
+    const { s, w, longeEnviado } = heroiLonge(false)
+    // Solta, a prancha não anda com o navio: a tela do herói não muda e nada sai para ele.
+    expect(s.broadcast(w).outbound.filter((o) => o.clientId === 'c1')).toEqual([])
+    const mapa = mapaDoJogador(longeEnviado)
     expect(mapa.pins.map((p) => [p.id, p.x, p.y])).toEqual([['prancha', 420, 200]])
   })
 })

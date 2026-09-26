@@ -100,6 +100,6 @@ describe('hostSession: sala secreta não vaza pela rede', () => {
     const s = anaNaMesa(map)
     const snap = snapshotDe(s.broadcast(map).outbound)
     expect(snap.map.walls.find((w) => w.id === 'estante')?.door).toEqual({ open: false, locked: false, kind: 'normal' })
-    expect(s.handleMessage('c1', { type: 'door.toggle', wallId: 'estante' }, map).applyDoor).toEqual({ wallId: 'estante', open: true })
+    expect(s.handleMessage('c1', { type: 'door.toggle', wallId: 'estante' }, map).applyDoor).toEqual({ wallId: 'estante', open: true, playerId: 'id-1', playerName: 'Ana' })
   })
 })

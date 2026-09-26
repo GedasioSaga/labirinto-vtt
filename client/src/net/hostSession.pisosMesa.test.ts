@@ -74,16 +74,18 @@ function mesa(world: HostWorld) {
   s.assignToken(playerIdOf(s.handleMessage('c-bia', { type: 'join', code: CODE, name: 'Bia' }, world)), 'caio')
   s.handleMessage('c-tv', { type: 'join', code: CODE, name: 'Mesa', role: 'table', tableKey: CHAVE }, world)
   s.setTableScene(tableSceneKey(world.open))
-  s.broadcast(world)
-  return { s, r: s.broadcast(world) }
+  // O primeiro envio leva a tela de cada jogador; no segundo, a tela deles não
+  // muda e só a TV recebe de novo.
+  const inicial = s.broadcast(world)
+  return { s, inicial, r: s.broadcast(world) }
 }
 
 describe('tela da mesa com pisos', () => {
   it('a TV mostra o piso do grupo (o térreo da Ana) e nada do 1º piso — nem o que a Bia explorou lá', () => {
     const world = mundo(torre())
-    const { r } = mesa(world)
-    // Controle: a Bia explorou a ponta leste, no 1º piso.
-    expect(isPointExplored(exploradoDe(snapshotPara(r, 'c-bia')), LESTE)).toBe(true)
+    const { r, inicial } = mesa(world)
+    // Controle: a Bia explorou a ponta leste, no 1º piso (a tela dela é a do primeiro envio).
+    expect(isPointExplored(exploradoDe(snapshotPara(inicial, 'c-bia')), LESTE)).toBe(true)
 
     const tv = snapshotPara(r, 'c-tv')
     const texto = JSON.stringify(tv)

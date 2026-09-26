@@ -83,13 +83,15 @@ describe('playerConnection: pacote comprimido', () => {
   it('quem sabe abrir gzip declara no join', () => {
     const { socket } = setup(true)
     socket.open()
-    expect(socket.sent).toEqual([{ type: 'join', code: 'ABC123', name: 'Ana', accept: ['gzip'] }])
+    // BROADCAST SÓ O QUE MUDOU (outra feature): logo depois do join sai o aviso
+    // `view.patches`, na mesma conexão. O join em si continua o que se prova.
+    expect(socket.sent).toEqual([{ type: 'join', code: 'ABC123', name: 'Ana', accept: ['gzip'] }, { type: 'view.patches' }])
   })
 
   it('sem a opção, o join é o de sempre (mestre manda texto)', () => {
     const { socket } = setup()
     socket.open()
-    expect(socket.sent).toEqual([{ type: 'join', code: 'ABC123', name: 'Ana' }])
+    expect(socket.sent).toEqual([{ type: 'join', code: 'ABC123', name: 'Ana' }, { type: 'view.patches' }])
   })
 
   it('o envelope é aberto e lido como a mensagem de dentro', async () => {

@@ -37,7 +37,9 @@ describe('PlayerPinCard: passagem fechada diz o motivo', () => {
   const botaoAvisar = (): HTMLButtonElement | undefined =>
     Array.from(container.querySelectorAll('button')).find((b) => b.textContent === 'Me avise quando der')
 
-  it('cada motivo aparece no cartão, com o "não dá para passar"', () => {
+  // PINO TRANCADO VIRA PEDIDO: a trancada que aceita pedidos diz "Só o mestre
+  // pode abrir."; a muda (`mudo`) segue com "Não dá para passar por aqui agora.".
+  it('cada motivo aparece no cartão, com quem pode abrir (ou, na muda, o "não dá para passar")', () => {
     const esperado: [PinBlockReason, string][] = [
       ['desabou', 'Desabou'],
       ['alagada', 'Alagada'],
@@ -47,19 +49,25 @@ describe('PlayerPinCard: passagem fechada diz o motivo', () => {
     for (const [motivo, texto] of esperado) {
       render({ ...CARACOL, motivo })
       expect(aviso()?.textContent, motivo).toContain(texto)
-      expect(aviso()?.textContent, motivo).toContain('Não dá para passar por aqui agora.')
+      expect(aviso()?.textContent, motivo).toContain('Só o mestre pode abrir.')
       expect(aviso()?.textContent, motivo).not.toContain('Está trancada')
+      render({ ...CARACOL, motivo, mudo: true })
+      expect(aviso()?.textContent, `${motivo} mudo`).toContain(texto)
+      expect(aviso()?.textContent, `${motivo} mudo`).toContain('Não dá para passar por aqui agora.')
+      expect(aviso()?.textContent, `${motivo} mudo`).not.toContain('Está trancada')
     }
   })
 
   it('sem motivo continua o de sempre: "Está trancada"', () => {
     render(CARACOL)
+    expect(aviso()?.textContent).toBe('Está trancada. Só o mestre pode abrir.')
+    render({ ...CARACOL, mudo: true })
     expect(aviso()?.textContent).toBe('Está trancada. Não dá para passar por aqui agora.')
   })
 
   it('motivo desconhecido (host de versão futura) cai no genérico, sem mostrar o valor cru', () => {
     render({ ...CARACOL, motivo: 'VALOR-CRU' } as unknown as Pin) // teste: simula campo fora do tipo vindo da rede
-    expect(aviso()?.textContent).toBe('Está trancada. Não dá para passar por aqui agora.')
+    expect(aviso()?.textContent).toBe('Está trancada. Só o mestre pode abrir.')
     expect(container.textContent).not.toContain('VALOR-CRU')
   })
 

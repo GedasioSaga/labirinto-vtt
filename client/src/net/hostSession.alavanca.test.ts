@@ -15,6 +15,8 @@ import { parsePlayerMessage, type HostMessage } from './protocol'
 const CODE = 'AB12CD'
 const GRID = 40
 const RADIUS = 700
+/** Quem puxou: o aviso do mestre diz quem mexeu na porta (nada disto vai ao jogador). */
+const DIEGO = { playerId: 'id-1', playerName: 'Diego' }
 
 function ficha(id: string, x: number, y: number): Token {
   return { id, characterId: null, name: `nome-${id}`, x, y, size: 1, image: null }
@@ -56,9 +58,11 @@ function mesa(map: HostWorld | MapData = cripta()) {
     if (joined?.type !== 'welcome') throw new Error('esperava welcome')
     s.assignToken(joined.playerId, id)
   }
-  s.broadcast(map)
+  // O primeiro envio: o broadcast só manda de novo quando a tela de alguém muda.
+  const inicial = s.broadcast(map)
   return {
     s,
+    inicial,
     puxar: (clientId: string, pinId: string, world: HostWorld | MapData = map): HostResult => {
       clock += DOOR_TOGGLE_MIN_INTERVAL_MS
       return s.handleMessage(clientId, { type: 'pin.lever', pinId }, world)
@@ -94,7 +98,7 @@ describe('puxar a alavanca', () => {
   it('Diego encostado: a porta ligada abre, e a resposta não diz qual porta nem o estado dela', () => {
     const t = mesa()
     const r = t.puxar('c1', 'alav-cripta')
-    expect(r.applyDoor).toEqual({ wallId: 'porta-cripta', open: true })
+    expect(r.applyDoor).toEqual({ wallId: 'porta-cripta', open: true, ...DIEGO })
     expect(r.outbound).toEqual([{ clientId: 'c1', msg: { type: 'pin.lever.answer', answer: 'pulled' } }])
   })
 
@@ -102,13 +106,13 @@ describe('puxar a alavanca', () => {
     const map = cripta()
     const t = mesa(map)
     const aberta = aplicar(map, t.puxar('c1', 'alav-cripta'))
-    expect(t.puxar('c1', 'alav-cripta', aberta).applyDoor).toEqual({ wallId: 'porta-cripta', open: false })
+    expect(t.puxar('c1', 'alav-cripta', aberta).applyDoor).toEqual({ wallId: 'porta-cripta', open: false, ...DIEGO })
   })
 
   it('a visão acompanha: com a porta aberta Diego passa a ver Carla do outro lado', () => {
     const map = cripta()
     const t = mesa(map)
-    expect(snapshotFor(t.s.broadcast(map), 'c1').map.tokens.map((tk) => tk.id)).not.toContain('carla')
+    expect(snapshotFor(t.inicial, 'c1').map.tokens.map((tk) => tk.id)).not.toContain('carla')
     const aberta = aplicar(map, t.puxar('c1', 'alav-cripta'))
     expect(snapshotFor(t.s.broadcast(aberta), 'c1').map.tokens.map((tk) => tk.id)).toContain('carla')
   })
@@ -127,7 +131,7 @@ describe('puxar a alavanca', () => {
   it('porta de OUTRA sala, fora da vista: abre do mesmo jeito, e o id dela não sai para ninguém', () => {
     const t = mesa()
     const r = t.puxar('c1', 'alav-cofre')
-    expect(r.applyDoor).toEqual({ wallId: 'porta-cofre-7c1e', open: true })
+    expect(r.applyDoor).toEqual({ wallId: 'porta-cofre-7c1e', open: true, ...DIEGO })
     expect(r.outbound.length).toBe(1)
     expect(JSON.stringify(r.outbound)).not.toContain('porta-cofre-7c1e')
   })
@@ -138,7 +142,7 @@ describe('puxar a alavanca', () => {
       background: [{ sceneId: 'cena-cripta', name: 'Cripta', map: cripta() }],
     }
     const t = mesa(world)
-    expect(t.puxar('c1', 'alav-cripta').applyDoor).toEqual({ wallId: 'porta-cripta', open: true, sceneId: 'cena-cripta' })
+    expect(t.puxar('c1', 'alav-cripta').applyDoor).toEqual({ wallId: 'porta-cripta', open: true, sceneId: 'cena-cripta', ...DIEGO })
   })
 })
 
@@ -192,7 +196,7 @@ describe('quando a alavanca não move nada', () => {
     if (joined?.type !== 'welcome') throw new Error('esperava welcome')
     s.assignToken(joined.playerId, 'diego')
     s.broadcast(map)
-    expect(s.handleMessage('c1', { type: 'pin.lever', pinId: 'alav-cripta' }, map).applyDoor).toEqual({ wallId: 'porta-cripta', open: true })
+    expect(s.handleMessage('c1', { type: 'pin.lever', pinId: 'alav-cripta' }, map).applyDoor).toEqual({ wallId: 'porta-cripta', open: true, ...DIEGO })
     const rajada = s.handleMessage('c1', { type: 'pin.lever', pinId: 'alav-cripta' }, map)
     expect(rajada.applyDoor).toBeUndefined()
     expect(rajada.outbound).toEqual([])

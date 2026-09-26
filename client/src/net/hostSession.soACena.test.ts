@@ -111,7 +111,9 @@ describe('o host recalcula só a cena que mudou', () => {
     const { s, ana, bruno, caio } = mesa(mundo)
     s.broadcast(mundo)
     filtro.mockClear()
-    expect(comSnapshot(s.broadcast(mundo))).toEqual(['c-ana', 'c-bruno', 'c-caio'])
+    // Refeito com o explorado novo, o recorte sai igual à tela que cada um já
+    // tem: o broadcast só manda o que mudou, então nada sai.
+    expect(comSnapshot(s.broadcast(mundo))).toEqual([])
     expect(refiltrados()).toEqual([ana, bruno, caio].sort())
     filtro.mockClear()
     expect(comSnapshot(s.broadcast(mundo))).toEqual([])
@@ -138,7 +140,8 @@ describe('o host recalcula só a cena que mudou', () => {
     filtro.mockClear()
     const depois = comCena(mundo, 'm-cripta', (map) => setTokenPosition(map, 'rival', 150, 100))
     const r = s.broadcast(depois)
-    expect(comSnapshot(r)).toEqual(['c-ana', 'c-bruno'])
+    // Ana é refeita (tem ficha lá), mas o passo do rival não muda a tela dela: só Bruno recebe.
+    expect(comSnapshot(r)).toEqual(['c-bruno'])
     expect(refiltrados()).toEqual([ana, bruno].sort())
   })
 
@@ -179,15 +182,18 @@ describe('o que é do jogador na sessão ainda refaz o recorte dele', () => {
     expect(refiltrados()).toEqual([bruno])
   })
 
-  it('ficha nova para Caio: só ele é refiltrado', () => {
+  it('ficha nova para Caio: só ele recebe (a posse entra no recorte de todos, que são refeitos)', () => {
     const mundo = comCena(mundoInicial(), 'm-torre', (map) => ({ ...map, tokens: [...map.tokens, ficha('corvo', 200, 100)] }))
-    const { s, caio } = mesa(mundo)
+    const { s, ana, bruno, caio } = mesa(mundo)
     assenta(s, mundo)
     filtro.mockClear()
     s.assignToken(caio, 'corvo')
     const r = s.broadcast(mundo)
     expect(comSnapshot(r)).toEqual(['c-caio'])
-    expect(refiltrados()).toEqual([caio])
+    // BROADCAST SÓ O QUE MUDOU: troca de posse entra no recorte de TODO jogador
+    // (fichas de colega, marca de companheiro), então todos são refeitos; só a
+    // tela de Caio muda, e só ele recebe.
+    expect(refiltrados()).toEqual([ana, bruno, caio].sort())
   })
 
   it('revelar e esconder a planta de Caio: ele é refiltrado nas duas', () => {
@@ -211,7 +217,8 @@ describe('o que é do jogador na sessão ainda refaz o recorte dele', () => {
     filtro.mockClear()
     s.setPinAudience('qualquer-pino', [ana])
     const r = s.broadcast(mundo)
-    expect(comSnapshot(r)).toEqual(['c-ana', 'c-bruno', 'c-caio'])
+    // O pino não existe em cena nenhuma: refeito, o recorte de todos sai igual e nada é enviado.
+    expect(comSnapshot(r)).toEqual([])
     expect(refiltrados()).toEqual([ana, bruno, caio].sort())
   })
 
@@ -223,7 +230,10 @@ describe('o que é do jogador na sessão ainda refaz o recorte dele', () => {
     // Segunda foto dentro da janela: recusada em silêncio. A tela dele pôs a foto na hora (otimista).
     const recusada = s.handleMessage('c-caio', { type: 'token.edit', tokenId: 'vigia', image: null }, mundo)
     expect(recusada.applyTokenEdit).toBeUndefined()
-    expect(comSnapshot(s.broadcast(mundo))).toEqual(['c-caio'])
+    // A tela que vale volta já na resposta (BROADCAST SÓ O QUE MUDOU: a foto
+    // recusada volta sem esperar o broadcast), e o envio seguinte não repete.
+    expect(comSnapshot(recusada)).toEqual(['c-caio'])
+    expect(comSnapshot(s.broadcast(mundo))).toEqual([])
   })
 
   it('Bruno cai e volta pelo resume: a volta traz a cena, e o envio seguinte sem mudança não repete', () => {
@@ -234,15 +244,16 @@ describe('o que é do jogador na sessão ainda refaz o recorte dele', () => {
     const volta = s.handleMessage('c-bruno-2', { type: 'join', code: CODE, name: 'Bruno', resume: resumeDe(bruno) }, mundo)
     expect(comSnapshot(volta)).toEqual(['c-bruno-2'])
     expect(comSnapshot(s.broadcast(mundo))).toEqual([])
-    // A cena dele muda depois da volta: o snapshot vai para a conexão NOVA.
-    expect(comSnapshot(s.broadcast(comCena(mundo, 'm-cripta', (map) => setTokenPosition(map, 'rival', 150, 100))))).toEqual(['c-ana', 'c-bruno-2'])
+    // A cena dele muda depois da volta: o snapshot vai para a conexão NOVA. (A
+    // tela de Ana, com ficha na Cripta, não muda com o passo do rival.)
+    expect(comSnapshot(s.broadcast(comCena(mundo, 'm-cripta', (map) => setTokenPosition(map, 'rival', 150, 100))))).toEqual(['c-bruno-2'])
   })
 })
 
 describe('a ficha sai e volta: o jogador sai da espera', () => {
   it('o mestre tira a única ficha de Caio e devolve a mesma: o envio seguinte leva a Torre a ele', () => {
     const mundo = mundoInicial()
-    const { s, caio } = mesa(mundo)
+    const { s, ana, bruno, caio } = mesa(mundo)
     assenta(s, mundo)
     const saida = s.unassignToken(caio, 'vigia')
     expect(saida.outbound.map((o) => [o.clientId, o.msg.type])).toEqual([['c-caio', 'lobby.waiting']])
@@ -251,7 +262,8 @@ describe('a ficha sai e volta: o jogador sai da espera', () => {
     filtro.mockClear()
     const r = s.broadcast(mundo)
     expect(comSnapshot(r)).toEqual(['c-caio'])
-    expect(refiltrados()).toEqual([caio])
+    // A posse entra no recorte de todos (BROADCAST SÓ O QUE MUDOU): todos refeitos, só Caio recebe.
+    expect(refiltrados()).toEqual([ana, bruno, caio].sort())
     const snap = r.outbound.find((o) => o.clientId === 'c-caio' && o.msg.type === 'snapshot')?.msg
     expect(snap?.type === 'snapshot' ? snap.map.id : null).toBe('m-torre')
   })

@@ -313,7 +313,11 @@ describe('aba Jogo compacta: 7 jogadores, 1 aguardando', () => {
     clicar(maisGina)
     expect(botao(linha('Carla'), 'Mais de Carla').getAttribute('aria-expanded')).toBe('false')
     expect(botoes(painelDe(maisGina))).toEqual(expect.arrayContaining(['Revelar planta', 'Esconder de novo', 'Expulsar']))
-    expect(gina.querySelectorAll('input[type="range"]').length).toBe(1)
+    // FATOR DE VISÃO (outra feature) mora junto do raio: dois sliders à vista, e nenhum se repete no "Mais".
+    expect(gina.querySelectorAll('input[type="range"]').length).toBe(2)
+    expect(ocorrencias(gina.textContent, 'Raio de visão')).toBe(1)
+    expect(ocorrencias(gina.textContent, 'Fator de visão')).toBe(1)
+    expect(painelDe(maisGina).querySelectorAll('input[type="range"]').length).toBe(0)
     expect(ocorrencias(container.textContent, PLAN_HINT)).toBe(1)
 
     // Quem caiu não tem conexão para derrubar: a planta sim, Expulsar não.

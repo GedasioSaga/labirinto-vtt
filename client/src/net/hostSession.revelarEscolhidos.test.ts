@@ -79,11 +79,14 @@ function mesa() {
 describe('hostSession: revelar ficha e zona oculta só para quem descobriu', () => {
   it('sentinela para Ana: aparece nela; o pacote do Duda, ao lado, não tem nem o id', () => {
     const { s, w, ana } = mesa()
-    expect(fichasDe(s.broadcast(w), 'c-ana')).not.toContain('sentinela')
+    const antes = s.broadcast(w)
+    expect(fichasDe(antes, 'c-ana')).not.toContain('sentinela')
     s.setSecretReveal('sentinela', [ana])
     const r = s.broadcast(w)
     expect(fichasDe(r, 'c-ana')).toContain('sentinela')
-    expect(fichasDe(r, 'c-duda')).not.toContain('sentinela')
+    // O Duda não foi escolhido: a tela dele não muda (nada sai), e a que ele tem não traz a sentinela.
+    expect(r.outbound.filter((o) => o.clientId === 'c-duda')).toEqual([])
+    expect(fichasDe(antes, 'c-duda')).not.toContain('sentinela')
     expect(JSON.stringify(r.outbound.filter((o) => o.clientId === 'c-duda'))).not.toContain('sentinela')
   })
 

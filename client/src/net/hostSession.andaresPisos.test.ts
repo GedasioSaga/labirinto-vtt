@@ -117,9 +117,15 @@ describe('mapa por andares com pisos: a aba do outro andar é a memória do tér
     expect(b1?.map((o) => o.rotulo)).toEqual(['B1'])
     expect(b1?.[0]?.map.regions.map((reg) => reg.id)).toEqual(['adega'])
     expect(b1?.[0]?.map.walls.map((w) => w.id)).toEqual(['parede-do-terreo'])
+    // MINHAS FICHAS EM OUTRAS CENAS: a lista diz em que Sala está a ficha DELA
+    // no porão — ela explorou o 1º piso com essa ficha. É o único pedaço do 1º
+    // piso que sai, e fora da aba: a aba continua só com o térreo.
+    expect(snapshotPara(r, 'c1').elsewhere).toEqual([{ tokenId: 'heroi-porao', name: 'ficha-heroi-porao', room: 'Biblioteca do primeiro' }])
     const texto = textoPara(r, 'c1')
-    for (const segredo of ['parede-do-primeiro', 'biblioteca', 'Biblioteca do primeiro']) {
+    for (const segredo of ['parede-do-primeiro', 'biblioteca']) {
       expect(texto, segredo).not.toContain(segredo)
     }
+    const semALista = JSON.stringify(r.outbound.filter((o) => o.clientId === 'c1').map((o) => (o.msg.type === 'snapshot' ? { ...o.msg, elsewhere: undefined } : o.msg)))
+    expect(semALista, 'Biblioteca do primeiro').not.toContain('Biblioteca do primeiro')
   })
 })

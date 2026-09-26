@@ -37,7 +37,8 @@ function caracol(extra: Partial<Pin> = {}): Pin {
 }
 
 function mundo(pin: Pin): HostWorld {
-  const salao: MapData = { ...createEmptyMap('mapa-salao', 'Salão', 40, 10, 50), tokens: [token('ficha-diego', 200, 200)], pins: [pin] }
+  // Diego encostado na escada (50 px): o pino de viagem só atravessa (e só recusa pelo modo) de perto.
+  const salao: MapData = { ...createEmptyMap('mapa-salao', 'Salão', 40, 10, 50), tokens: [token('ficha-diego', 350, 200)], pins: [pin] }
   return {
     open: { sceneId: SALAO, name: 'Salão', map: salao },
     background: [
@@ -98,12 +99,16 @@ describe('hostSession: motivo do bloqueio', () => {
   })
 
   it('pedido de passagem pelo pino que desabou é recusado com o motivo genérico, sem transferência', () => {
-    const w = mundo(caracol())
+    // Trancado MUDO: o que aceita tentativas (o padrão) vira pedido ao mestre
+    // (hostSession.pinoTrancado); o mudo é a recusa genérica que este teste prova.
+    const w = mundo(caracol({ mudo: true }))
     const s = mesa(w)
     s.broadcast(w)
     const r = s.handleMessage('c-diego', { type: 'pin.travel.request', pinId: 'caracol' }, w)
     const msg = r.outbound[0]?.msg
     expect(msg?.type === 'pin.travel.rejected' ? msg.reason : null).toBe('unavailable')
     expect(r.applyTransfer).toBeUndefined()
+    expect(r.travelRequest).toBeUndefined()
+    expect(JSON.stringify(r.outbound)).not.toContain(NOME_DA_CRIPTA)
   })
 })

@@ -63,7 +63,13 @@ type Ponto = { x: number; y: number }
 type Props = Parameters<typeof PlayerView>[0]
 
 const GRADE = 40
-/** Cena grande: 250 x 250 casas (10.000 px de mundo) numa tela de 800 x 600 — o enquadramento fica perto de 5%. */
+/**
+ * Cena grande: 250 x 250 casas (10.000 px de mundo) numa tela de 800 x 600 — o
+ * enquadramento trava no zoom mínimo (10%). CHEGADA COM FICHA NA TELA (outra
+ * feature): com ficha PRÓPRIA no andar grande a câmera centraliza nela a 100%,
+ * então aqui a Ana é de outro jogador (`ownTokens` vazio) e a câmera enquadra
+ * o andar inteiro, que é o cenário do relato.
+ */
 const CASAS = 250
 const ANA: Token = { id: 'tok-ana', characterId: null, name: 'Ana', x: 1000, y: 1000, size: 1, image: null, color: '#3cff00' }
 const PINO: Pin = { id: 'p-bau', x: 5000, y: 5000, kind: 'exclamacao', description: 'Baú velho', image: null }
@@ -86,7 +92,7 @@ function cena(): MapData {
 const BASE: Props = {
   map: cena(),
   vision: quadrado(CASAS * GRADE),
-  ownTokens: [ANA.id],
+  ownTokens: [],
   settings: DEFAULT_PLAYER_SETTINGS,
   focusTokenId: null,
   focusSeq: 0,
@@ -105,9 +111,12 @@ function mundo(): Container {
   return world
 }
 
-/** O desenho dos pinos: a camada logo abaixo das fichas (`world.addChild(…, roofs, pins, tokens)`). */
+/**
+ * O desenho dos pinos: `world.addChild(…, marks, pins, lastSeen, tokens)` — a
+ * lembrança da última vista (outra feature) entrou entre os pinos e as fichas.
+ */
 function desenhoDosPinos(): Graphics {
-  const desenho = mundo().children.at(-2)?.children[0]
+  const desenho = mundo().children.at(-3)?.children[0]
   if (!(desenho instanceof Graphics)) throw new Error('a camada de pinos não tem o Graphics dos pinos')
   return desenho
 }

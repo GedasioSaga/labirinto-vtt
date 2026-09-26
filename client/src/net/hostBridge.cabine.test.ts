@@ -23,7 +23,8 @@ function grade(id: string, destino: Pin['destino']): Pin {
 function mundo(): HostWorld {
   const terreo: MapData = {
     ...createEmptyMap('m-terreo', 'Térreo', 30, 10, 50),
-    tokens: [{ id: 'arco', characterId: null, name: 'Arco', x: 200, y: 100, size: 1, image: null }],
+    // Arco encostado na grade (300, 100): pino só atravessa de perto.
+    tokens: [{ id: 'arco', characterId: null, name: 'Arco', x: 250, y: 100, size: 1, image: null }],
     pins: [grade('grade-terreo', TOPO)],
   }
   const topo: MapData = { ...createEmptyMap('m-topo', 'Topo', 30, 10, 50), pins: [grade('grade-topo', TERREO)] }

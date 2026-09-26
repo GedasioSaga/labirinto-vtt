@@ -171,13 +171,16 @@ describe('hostSession: marco + viagem nas outras portas de entrada', () => {
     expect(t.s.approveTravel(pedido.requestId, perto).applyTransfer).toMatchObject({ tokenId: 'ficha-ana', toSceneId: INTERIOR })
   })
 
-  it('explorado continua valendo: Ana que esteve na porta e voltou ao cais passa pelo marco, como por todo pino', () => {
+  it('explorado continua valendo: Ana que esteve na porta e voltou ao cais trata o marco como todo pino (de longe, "far", e não o "só marco")', () => {
     const t = mesa(mundo(1450, 300, 'livre'))
     const cais = mundo(200, 200, 'livre')
     // Longe agora, mas o Templo ficou no explorado dela: não é "só marco".
     expect(pinosDa(t.s.broadcast(cais)).find((p) => p.id === 'templo')?.soMarco).toBeUndefined()
+    // SÓ DE PERTO: de longe todo pino visto responde "far" — o explorado não é
+    // mais atalho de viagem, e o marco explorado responde igual a todo pino
+    // (o "só marco" nunca visto seria o `unavailable` genérico).
     const r = t.s.handleMessage('c-ana', { type: 'pin.travel.request', pinId: 'templo' }, cais)
-    expect(recusa(r)).toBeNull()
-    expect(r.applyTransfer).toMatchObject({ tokenId: 'ficha-ana', fromSceneId: CAPITAL, toSceneId: INTERIOR })
+    expect(recusa(r)).toBe('far')
+    expect(r.applyTransfer).toBeUndefined()
   })
 })

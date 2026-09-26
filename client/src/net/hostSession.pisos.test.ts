@@ -64,9 +64,13 @@ function mesa(getTurn?: () => TurnRef | null) {
     if (first?.type !== 'welcome') throw new Error('esperava welcome')
     return first.playerId
   }
+  // A tela de cada conexão depois do envio: o broadcast só manda a quem a tela
+  // mudou, então a tela é o último snapshot que a conexão recebeu.
+  const telas = new Map<string, Snapshot>()
   const snapshotPara = (clientId: string, map: MapData): Snapshot => {
-    const msg = s.broadcast(map).outbound.find((o) => o.clientId === clientId && o.msg.type === 'snapshot')?.msg
-    if (msg?.type !== 'snapshot') throw new Error(`esperava snapshot para ${clientId}`)
+    for (const o of s.broadcast(map).outbound) if (o.msg.type === 'snapshot') telas.set(o.clientId, o.msg)
+    const msg = telas.get(clientId)
+    if (msg === undefined) throw new Error(`esperava snapshot para ${clientId}`)
     return msg
   }
   const passa = (ms: number): void => {

@@ -190,7 +190,11 @@ describe('hostSession', () => {
 
     it('SEGURANÇA: Revelar planta envia a sala distante, mas não o token fora da visão', () => {
       const t = controlsSetup()
-      const before = JSON.stringify(t.snapshotTo('c1'))
+      const primeiro = t.s.broadcast(t.map).outbound
+      const snapAna = primeiro.find((o) => o.clientId === 'c1')?.msg
+      const snapBia = primeiro.find((o) => o.clientId === 'c2')?.msg
+      if (snapAna?.type !== 'snapshot' || snapBia?.type !== 'snapshot') throw new Error('esperava snapshots')
+      const before = JSON.stringify(snapAna)
       expect(before).not.toContain('Cripta distante')
 
       t.s.revealPlan(t.ana, t.map)
@@ -207,8 +211,11 @@ describe('hostSession', () => {
       expect(toBia).toEqual([])
       expect(JSON.stringify(toBia)).not.toContain('Cripta distante')
       // Mesmo forçando o host a refazer o recorte da Bia (mapa como objeto NOVO,
-      // sem mudança real), a exploração dela continua sem o lado da Ana.
-      const bia = decodeExploration(t.snapshotTo('c2', { ...t.map }).explored)
+      // sem mudança real), nada sai para ela: a tela que ela tem é a do
+      // primeiro envio, e a exploração dela continua sem o lado da Ana.
+      const refeito = t.s.broadcast({ ...t.map }).outbound.filter((o) => o.clientId === 'c2')
+      expect(refeito).toEqual([])
+      const bia = decodeExploration(snapBia.explored)
       if (bia === null) throw new Error('explored inválido')
       expect(isPointExplored(bia, { x: 100, y: 800 })).toBe(false)
     })
@@ -340,12 +347,14 @@ describe('hostSession', () => {
     s.assignToken(p1.playerId, 'heroi')
     const andou = setTokenPosition(map, 'guarda', 330, 260)
     expect(andou.lights[0]).toMatchObject({ x: 330, y: 360 })
-    for (const mapa of [map, andou]) {
-      const toC1 = s.broadcast(mapa).outbound.find((o) => o.clientId === 'c1')?.msg
-      if (toC1?.type !== 'snapshot') throw new Error('esperava snapshot para c1')
-      expect(toC1.map.lights).toEqual([])
-      expect(JSON.stringify(toC1)).not.toContain('guarda')
-    }
+    const toC1 = s.broadcast(map).outbound.find((o) => o.clientId === 'c1')?.msg
+    if (toC1?.type !== 'snapshot') throw new Error('esperava snapshot para c1')
+    expect(toC1.map.lights).toEqual([])
+    expect(JSON.stringify(toC1)).not.toContain('guarda')
+    // O guarda anda dentro da zona: a tela de Ana não muda, e nada sai para ela (nem a tocha).
+    const depois = s.broadcast(andou).outbound.filter((o) => o.clientId === 'c1')
+    expect(depois).toEqual([])
+    expect(JSON.stringify(depois)).not.toContain('guarda')
   })
 
   it('SEGURANÇA: NPC oculto ou secreto anda com a tocha no centro, à vista do herói — nenhum snapshot leva a tocha; a do NPC comum chega', () => {
@@ -843,8 +852,9 @@ describe('hostSession: sinal do jogador', () => {
       const toBia = JSON.stringify(toClient(r, 'c2'))
       expect(toBia).not.toContain('Ana')
       expect(toBia).not.toContain(signalColor(t.ana.playerId))
-      // O mestre continua vendo a jogadora real, na cor fixa dela, e a ficha junto.
-      expect(r.signal).toEqual({ playerId: t.ana.playerId, name: 'Ana', tokenName: 'Contínua do 9', color: signalColor(t.ana.playerId), x: 800, y: 300 })
+      // O mestre continua vendo a jogadora real, e a ficha junto — na cor da
+      // FICHA dela (SINAL NA COR DA FICHA: a do laser e da marca; sem cor, a fixa).
+      expect(r.signal).toEqual({ playerId: t.ana.playerId, name: 'Ana', tokenName: 'Contínua do 9', color: '#aa3322', x: 800, y: 300 })
     })
 
     it('com "Nome para os jogadores", a Bia lê a máscara; a Ana (dona) lê o nome real da ficha', () => {
@@ -951,8 +961,10 @@ describe('hostSession: sinal do jogador', () => {
     const color = signalColor(t.ana.playerId)
     // (800,300) é do lado que a Bia vê: sem o campo, ela receberia.
     const quiet = t.s.handleMessage('c1', { type: 'signal', x: 800, y: 300, audience: 'master' }, t.map)
-    expect(quiet.signal).toEqual({ playerId: t.ana.playerId, name: 'Ana', color, x: 800, y: 300 })
-    expect(toClient(quiet, 'c1')).toEqual([{ clientId: 'c1', msg: { type: 'signal', x: 800, y: 300, from: 'Ana', color } }])
+    // O mestre lê a jogadora e a ficha dela mais perto do ponto (DISFARCE: "Ana (nome-heroi)").
+    expect(quiet.signal).toEqual({ playerId: t.ana.playerId, name: 'Ana', tokenName: 'nome-heroi', color, x: 800, y: 300 })
+    // O eco lê a ficha da própria Ana (DISFARCE), e sai tracejado: nenhum colega à vista dela vê o ponto (ECO DO SINAL).
+    expect(toClient(quiet, 'c1')).toEqual([{ clientId: 'c1', msg: { type: 'signal', x: 800, y: 300, from: 'nome-heroi', color: SIGNAL_NEUTRAL_COLOR, unheard: true } }])
     expect(JSON.stringify(toClient(quiet, 'c2'))).toBe('[]')
   })
 
@@ -964,7 +976,10 @@ describe('hostSession: sinal do jogador', () => {
     const shared = t.s.handleMessage('c1', { type: 'signal', x: 800, y: 300 }, t.map)
     expect(shared.signal).toBeUndefined()
     expect(toClient(shared, 'c1')).toEqual([])
-    expect(toClient(shared, 'c2')).toEqual([{ clientId: 'c2', msg: { type: 'signal', x: 800, y: 300, from: 'Ana', color } }])
+    // DISFARCE: a Bia lê a ficha da Ana como ela chegou a ela — atrás da parede, não chegou: sem nome, no cinza neutro.
+    expect(toClient(shared, 'c2')).toEqual([{ clientId: 'c2', msg: { type: 'signal', x: 800, y: 300, from: '', color: SIGNAL_NEUTRAL_COLOR } }])
+    expect(JSON.stringify(toClient(shared, 'c2'))).not.toContain('Ana')
+    expect(JSON.stringify(toClient(shared, 'c2'))).not.toContain(color)
     // Uma vez só: repetir dentro do intervalo continua descartado.
     expect(t.s.handleMessage('c1', { type: 'signal', x: 800, y: 300 }, t.map)).toEqual({ outbound: [] })
   })
@@ -973,18 +988,20 @@ describe('hostSession: sinal do jogador', () => {
     const t = signalSetup()
     const color = signalColor(t.ana.playerId)
     const gesture = t.s.handleMessage('c1', { type: 'signal', x: 800, y: 300, audience: 'master' }, t.map)
-    expect(gesture.signal).toEqual({ playerId: t.ana.playerId, name: 'Ana', color, x: 800, y: 300 })
+    expect(gesture.signal).toEqual({ playerId: t.ana.playerId, name: 'Ana', tokenName: 'nome-heroi', color, x: 800, y: 300 })
     t.advance(1500)
     const shared = t.s.handleMessage('c1', { type: 'signal', x: 800, y: 300 }, t.map)
     expect(shared.signal).toBeUndefined()
     expect(toClient(shared, 'c1')).toEqual([])
-    expect(toClient(shared, 'c2')).toEqual([{ clientId: 'c2', msg: { type: 'signal', x: 800, y: 300, from: 'Ana', color } }])
+    // DISFARCE: a Bia lê a ficha da Ana como ela chegou a ela — atrás da parede, não chegou: sem nome, no cinza neutro.
+    expect(toClient(shared, 'c2')).toEqual([{ clientId: 'c2', msg: { type: 'signal', x: 800, y: 300, from: '', color: SIGNAL_NEUTRAL_COLOR } }])
+    expect(JSON.stringify(toClient(shared, 'c2'))).not.toContain('Ana')
     // O repasse conta no limite: outro sinal logo depois não chega aos colegas em rajada.
     t.advance(SIGNAL_MIN_INTERVAL_MS - 1)
     expect(t.s.handleMessage('c1', { type: 'signal', x: 820, y: 300 }, t.map)).toEqual({ outbound: [] })
     // Passado o intervalo, um sinal novo volta a ser sinal novo (ping no mestre).
     t.advance(1)
-    expect(t.s.handleMessage('c1', { type: 'signal', x: 820, y: 300 }, t.map).signal).toEqual({ playerId: t.ana.playerId, name: 'Ana', color, x: 820, y: 300 })
+    expect(t.s.handleMessage('c1', { type: 'signal', x: 820, y: 300 }, t.map).signal).toEqual({ playerId: t.ana.playerId, name: 'Ana', tokenName: 'nome-heroi', color, x: 820, y: 300 })
   })
 
   it('o sinal discreto não abre brecha no limite: outro ponto, ou outro discreto, dentro do intervalo é descartado', () => {

@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { Container, Graphics } from 'pixi.js'
 import { AWAY_TOKEN_ALPHA, createTokensRenderer } from './tokensRenderer'
 import { SECRET_ITEM_ALPHA } from './constants'
+import { CONDITION_MARKS_LABEL } from './drawTokenConditions'
 import type { Token } from '../types/map'
 
 vi.mock('@tauri-apps/api/core', () => ({
@@ -28,7 +29,7 @@ function visualOf(container: Container): Container {
   return visual
 }
 
-/** O selo mora no anel (filho 1): o wrapper continua com os 3 slots de sempre. */
+/** O selo mora no anel (filho 1): o wrapper continua com os slots de sempre. */
 function ringOf(container: Container): Graphics {
   const ring = container.children[0]?.children[1]
   if (!(ring instanceof Graphics)) throw new Error('anel ausente')
@@ -52,7 +53,10 @@ describe('createTokensRenderer — selo de ausente do Volto já', () => {
     expect(selo.x + selo.width).toBeGreaterThan(raio)
     expect(selo.y).toBeLessThan(-raio / 2)
     expect(selo.width).toBeGreaterThan(0)
-    expect(wrapper.children.length).toBe(3)
+    // O selo não cria slot: os de sempre são visual, anel, nome e — desde a
+    // CONDIÇÃO NA FICHA (outra feature) — as marcas de condição.
+    expect(wrapper.children.length).toBe(4)
+    expect(wrapper.children.map((c) => c.label)).toContain(CONDITION_MARKS_LABEL)
   })
 
   it('controle: ficha de quem está à mesa não ganha selo nem apaga', () => {

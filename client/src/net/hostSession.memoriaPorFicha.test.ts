@@ -60,12 +60,21 @@ function mesa() {
     if (first?.type !== 'welcome') throw new Error('esperava welcome')
     return first.playerId
   }
+  // A tela de cada conexão: o último snapshot que ela recebeu (o broadcast só manda quando ela muda).
+  const telas = new Map<string, Snapshot>()
   const snapshotPara = (clientId: string, map: MapData): Snapshot => {
-    const msg = s.broadcast(map).outbound.find((o) => o.clientId === clientId && o.msg.type === 'snapshot')?.msg
+    const saida = s.broadcast(map).outbound
+    for (const o of saida) if (o.msg.type === 'snapshot') telas.set(o.clientId, o.msg)
+    const msg = saida.find((o) => o.clientId === clientId && o.msg.type === 'snapshot')?.msg
     if (msg?.type !== 'snapshot') throw new Error(`esperava snapshot para ${clientId}`)
     return msg
   }
-  return { s, entra, snapshotPara }
+  const tela = (clientId: string): Snapshot => {
+    const snap = telas.get(clientId)
+    if (snap === undefined) throw new Error(`sem tela para ${clientId}`)
+    return snap
+  }
+  return { s, entra, snapshotPara, tela }
 }
 
 function exploradoDe(snap: Snapshot): Exploration {
@@ -149,9 +158,9 @@ describe('memória por ficha', () => {
     const bruno = t.entra('c1', 'Bruno', tresSalas())
     t.s.assignToken(bruno, 'lia')
     t.s.assignToken(bruno, 'caio')
-    // Bruno vê A (Lia) e C (Caio) ao mesmo tempo.
+    // Bruno vê A (Lia) e C (Caio) ao mesmo tempo: a tela dele (a da Lia já em B) tem os dois.
     const emB = liaAndaDeAParaB(t, 'c1')
-    expect(isPointExplored(exploradoDe(t.snapshotPara('c1', emB)), PONTO_C)).toBe(true)
+    expect(isPointExplored(exploradoDe(t.tela('c1')), PONTO_C)).toBe(true)
 
     const bia = t.entra('c2', 'Bia', emB)
     t.s.assignToken(bia, 'lia')

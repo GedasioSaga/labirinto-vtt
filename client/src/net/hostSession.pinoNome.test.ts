@@ -66,9 +66,10 @@ describe('hostSession: o nome do pino não atravessa a rede', () => {
 
   it('o mestre renomeia o pino com a sessão aberta: o nome novo também não sai', () => {
     const s = mesa()
-    s.broadcast(mundo('Faca'))
+    expect(pinosDo(s.broadcast(mundo('Faca'))).map((p) => p.id)).toEqual(['pino-7'])
     const r = s.broadcast(mundo('Arma do crime'))
-    expect(pinosDo(r).map((p) => p.id)).toEqual(['pino-7'])
+    // O nome não entra no recorte: a tela do Diego sai igual e nada novo vai a ele.
+    expect(r.outbound.filter((o) => o.clientId === 'c-diego')).toEqual([])
     expect(pacoteDo(r)).not.toContain('Arma do crime')
   })
 })

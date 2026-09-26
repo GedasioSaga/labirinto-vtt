@@ -86,9 +86,10 @@ function mesa(world: HostWorld) {
   }
   const diego = entrar('c1', 'Diego', 'diego-ficha')
   const ana = entrar('c2', 'Ana', 'ana-ficha')
-  s.broadcast(world)
+  // O primeiro envio: o broadcast só manda de novo quando a tela de alguém muda.
+  const inicial = s.broadcast(world)
   const pedir = (clientId: string) => s.handleMessage(clientId, { type: 'pin.travel.request', pinId: 'portao' }, world)
-  return { s, diego, ana, pedir }
+  return { s, diego, ana, inicial, pedir }
 }
 
 function recusa(r: HostResult): string | null {
@@ -132,12 +133,18 @@ describe('hostSession: a chave da mochila abre o pino de viagem trancado', () =>
   })
 
   it('Diego com a chave, mas longe do pino: não passa', () => {
+    // SÓ DE PERTO: de longe o pino visto responde "far" antes de olhar modo
+    // ou chave — mudo ou aceitando tentativas, a chave não abre e nada chega ao mestre.
     const m = mesa(mundo({ diegoX: 150, portao: { mudo: true } }))
     const r = m.pedir('c1')
-    expect(recusa(r)).toBe('unavailable')
+    expect(recusa(r)).toBe('far')
     expect(r.applyTransfer).toBeUndefined()
     expect(r.pinKeyUsed).toBeUndefined()
-    soPedeAoMestre(mesa(mundo({ diegoX: 150 })).pedir('c1'), 'Diego')
+    const pede = mesa(mundo({ diegoX: 150 })).pedir('c1')
+    expect(recusa(pede)).toBe('far')
+    expect(pede.applyTransfer).toBeUndefined()
+    expect(pede.pinKeyUsed).toBeUndefined()
+    expect(pede.travelRequest).toBeUndefined()
   })
 
   it('pino trancado sem "Abre com": nem quem carrega a chave passa', () => {
@@ -164,7 +171,7 @@ describe('hostSession: a chave da mochila abre o pino de viagem trancado', () =>
 
   it('o recorte: Diego recebe só o nome da chave que ele carrega; o "Abre com" não sai para ninguém', () => {
     const m = mesa(mundo())
-    const b = m.s.broadcast(mundo())
+    const b = m.inicial
     const deDiego = pinoNoSnapshot(b, 'c1')
     const deAna = pinoNoSnapshot(b, 'c2')
     expect(deDiego?.chave).toBe(CHAVE)

@@ -28,19 +28,59 @@ function html(p: PlayerInfo): string {
   return renderToStaticMarkup(<RoomPanel room={ROOM} players={[p]} tokens={[]} tunnel={IDLE} {...handlers()} />)
 }
 
+/**
+ * ABA JOGO COMPACTA: no card de quem JOGA, raio e fator moram no "Mais" (…),
+ * fechado por padrão. Monta o painel de verdade, abre o "Mais de Eva" e
+ * devolve o card aberto (o `container` é removido pelo chamador via `fechar`).
+ */
+function comMaisAberto(p: PlayerInfo): { container: HTMLDivElement; fechar(): void } {
+  Reflect.set(globalThis, 'IS_REACT_ACT_ENVIRONMENT', true)
+  const container = document.createElement('div')
+  document.body.appendChild(container)
+  const root = createRoot(container)
+  act(() => root.render(<RoomPanel room={ROOM} players={[p]} tokens={[]} tunnel={IDLE} {...handlers()} />))
+  const mais = container.querySelector<HTMLButtonElement>(`button[aria-label="Mais de ${p.name}"]`)
+  if (mais === null) throw new Error(`sem o "Mais" de ${p.name}`)
+  act(() => mais.click())
+  return {
+    container,
+    fechar: () => {
+      act(() => root.unmount())
+      container.remove()
+    },
+  }
+}
+
 describe('RoomPanel — fator de visão', () => {
   it('todo jogador tem o slider "Fator de visão" com o valor em x1,0', () => {
-    const out = html(player({ visionFactor: 1.5 }))
-    expect(out).toMatch(/<label class="lb-label" for="lb-room-vision-factor-p1">Fator de visão<\/label>/)
-    expect(out).toContain('>x1,5</span>')
-    expect(out).toMatch(/<input id="lb-room-vision-factor-p1" class="lb-range" type="range" min="0.5" max="3" step="0.1" value="1.5"\/>/)
+    const { container, fechar } = comMaisAberto(player({ visionFactor: 1.5 }))
+    try {
+      const label = container.querySelector<HTMLLabelElement>('label[for="lb-room-vision-factor-p1"]')
+      expect(label?.className).toBe('lb-label')
+      expect(label?.textContent).toBe('Fator de visão')
+      expect(Array.from(container.querySelectorAll('span')).map((s) => s.textContent)).toContain('x1,5')
+      const slider = container.querySelector<HTMLInputElement>('input#lb-room-vision-factor-p1')
+      expect(slider?.className).toBe('lb-range')
+      expect(slider?.type).toBe('range')
+      expect(slider?.min).toBe('0.5')
+      expect(slider?.max).toBe('3')
+      expect(slider?.step).toBe('0.1')
+      expect(slider?.value).toBe('1.5')
+    } finally {
+      fechar()
+    }
   })
 
   it('cena com "Visão nesta cena": mostra os quadrados dele ali e esconde o raio em px', () => {
-    const out = html(player({ visionFactor: 1.5, sceneVisionCells: 6 }))
-    expect(out).toContain('Nesta cena: 9 quadrados')
-    expect(out).not.toContain('Raio de visão')
-    expect(out).not.toContain('700 px')
+    const { container, fechar } = comMaisAberto(player({ visionFactor: 1.5, sceneVisionCells: 6 }))
+    try {
+      const out = container.innerHTML
+      expect(out).toContain('Nesta cena: 9 quadrados')
+      expect(out).not.toContain('Raio de visão')
+      expect(out).not.toContain('700 px')
+    } finally {
+      fechar()
+    }
   })
 
   it('cena sem valor (ou jogador aguardando): o raio em px de sempre continua', () => {
@@ -70,6 +110,10 @@ describe('RoomPanel — arrastar o fator', () => {
   it('manda o fator escolhido para aquele jogador', () => {
     const onVisionFactorChange = vi.fn()
     act(() => root.render(<RoomPanel room={ROOM} players={[player()]} tokens={[]} tunnel={IDLE} {...handlers(onVisionFactorChange)} />))
+    // ABA JOGO COMPACTA: o fator de quem joga mora no "Mais" (…), fechado por padrão.
+    const mais = container.querySelector<HTMLButtonElement>('button[aria-label="Mais de Eva"]')
+    if (mais === null) throw new Error('sem o "Mais" de Eva')
+    act(() => mais.click())
     const slider = container.querySelector<HTMLInputElement>('#lb-room-vision-factor-p1')
     if (slider === null) throw new Error('slider do fator ausente')
     const setValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set

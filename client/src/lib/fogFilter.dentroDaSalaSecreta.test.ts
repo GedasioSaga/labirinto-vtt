@@ -96,7 +96,8 @@ describe('dentro da sala secreta: a ficha vê o próprio cômodo', () => {
     expect(quarto?.secret).toBeUndefined()
     const paredes = view.map.walls.map((w) => w.id)
     for (const id of ['sec-n', 'sec-l', 'sec-s', 'estante']) expect(paredes).toContain(id)
-    expect(view.map.walls.find((w) => w.id === 'estante')?.door).toEqual(trancada)
+    // PORTA TRANCADA VIRA PEDIDO: o cadeado nunca sai; a estante chega fechada, como porta comum.
+    expect(view.map.walls.find((w) => w.id === 'estante')?.door).toEqual({ ...trancada, locked: false })
     expect(view.map.pins.map((p) => p.id)).toContain('pino-chegada')
     // A visão cobre o cômodo, e a sala não entra no balde que a memória recusa.
     expect(pointInRing({ x: 1100, y: 400 }, view.vision[0])).toBe(true)

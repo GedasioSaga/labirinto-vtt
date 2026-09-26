@@ -146,10 +146,14 @@ describe('hostSession: encontro marcado', () => {
     expect(fimDaEspera(r, 'c1')).toEqual({ type: 'wait.ended', reason: 'met', who: 'Bia' })
     expect(fimDaEspera(r, 'c2')).toBeUndefined()
     expect(r.waitsChanged).toBe(true)
+    // A marca já saiu das telas neste mesmo envio.
+    expect(snapshotDe(r, 'c1').waiting).toBeUndefined()
+    expect(snapshotDe(r, 'c2').waiting).toBeUndefined()
 
+    // O envio seguinte, com as telas iguais, não manda nada (nem o aviso de novo).
     const depois = t.s.broadcast(chegou)
-    expect(snapshotDe(depois, 'c1').waiting).toBeUndefined()
-    expect(snapshotDe(depois, 'c2').waiting).toBeUndefined()
+    expect(para(depois, 'c1')).toEqual([])
+    expect(para(depois, 'c2')).toEqual([])
     expect(fimDaEspera(depois, 'c1')).toBeUndefined()
     expect(depois.waitsChanged).toBeUndefined()
   })
@@ -157,12 +161,14 @@ describe('hostSession: encontro marcado', () => {
   it('SEGURANÇA — a Bia entra no Salão, mas no escuro da Ana: nenhum aviso (o aviso diria onde ela está)', () => {
     const t = mesa()
     t.esperar({ minutes: 15, who: 'bia' })
-    t.s.broadcast(t.w)
+    const antes = t.s.broadcast(t.w)
+    expect(snapshotDe(antes, 'c1').waiting).toEqual(['ana-t'])
     const noEscuro = mundo([token('ana-t', 200, 200), token('caio-t', 400, 200), token('bia-t', 1800, 250)], [])
     const r = t.s.broadcast(noEscuro)
     expect(fimDaEspera(r, 'c1')).toBeUndefined()
     expect(JSON.stringify(para(r, 'c1'))).not.toContain('bia-t')
-    expect(snapshotDe(r, 'c1').waiting).toEqual(['ana-t'])
+    // A Bia no escuro não muda a tela da Ana: nada sai para ela, e a marca continua a de antes.
+    expect(para(r, 'c1')).toEqual([])
   })
 
   it('"qualquer colega": quem já estava à vista não conta; quem some e volta, conta', () => {

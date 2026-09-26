@@ -33,7 +33,8 @@ function mesa() {
       name: 'Salão',
       map: {
         ...createEmptyMap('mapa-a', 'A', 40, 10, 50),
-        tokens: naCripta.has('ficha-ana') ? [] : [ficha('ficha-ana', 'Ana', 200, 200)],
+        // Ana encostada na escada (300, 200): pino só atravessa de perto.
+        tokens: naCripta.has('ficha-ana') ? [] : [ficha('ficha-ana', 'Ana', 250, 200)],
         pins: [escada('escada-a', 300, 200, 'Escada que desce', 'cena-b', 'escada-b')],
       },
     },

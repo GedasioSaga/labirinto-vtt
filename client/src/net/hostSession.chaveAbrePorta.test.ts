@@ -94,7 +94,7 @@ describe('hostSession: a chave na mochila abre a porta sem pedir ao mestre', () 
   it('"Usar Chave do Escudo": destranca e abre na cena de fundo, e o mestre recebe o aviso com quem, qual item e onde', () => {
     const t = mesa()
     const r = t.s.handleMessage('c1', { type: 'door.useKey', wallId: 'escritorio' }, t.world)
-    expect(r.applyDoor).toEqual({ wallId: 'escritorio', open: true, unlock: true, sceneId: 'cena-mansao' })
+    expect(r.applyDoor).toEqual({ wallId: 'escritorio', open: true, unlock: true, sceneId: 'cena-mansao', playerId: t.diego, playerName: 'Diego' })
     expect(r.doorKeyUsed).toEqual({ playerId: t.diego, playerName: 'Diego', itemName: CHAVE, sceneName: 'Mansão' })
     expect(r.doorRequest).toBeUndefined()
     expect(r.outbound).toEqual([])
@@ -104,7 +104,7 @@ describe('hostSession: a chave na mochila abre a porta sem pedir ao mestre', () 
 
   it('o nome da chave casa sem diferença de maiúscula e espaço: "chave do escudo " na porta abre com a Chave do Escudo', () => {
     const t = mesa(mansao({ ...comChave, abreCom: ' chave do ESCUDO ' }))
-    expect(t.s.handleMessage('c1', { type: 'door.useKey', wallId: 'escritorio' }, t.world).applyDoor).toEqual({ wallId: 'escritorio', open: true, unlock: true, sceneId: 'cena-mansao' })
+    expect(t.s.handleMessage('c1', { type: 'door.useKey', wallId: 'escritorio' }, t.world).applyDoor).toEqual({ wallId: 'escritorio', open: true, unlock: true, sceneId: 'cena-mansao', playerId: t.diego, playerName: 'Diego' })
   })
 
   it('Ana sem a chave: "Trancada" sem nome de chave (fica o Pedir ao mestre), e "Usar" dela não abre nada', () => {

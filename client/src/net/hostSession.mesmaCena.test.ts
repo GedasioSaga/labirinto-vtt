@@ -35,13 +35,16 @@ function welcomeOf(messages: { msg: HostMessage }[]): { playerId: string } {
 }
 
 /** A torre: o herói no térreo, ao lado da escada que sobe; o topo fica a 1.600 px, no escuro. */
-function mundo(opts: { passagem?: PinPassage; soChegada?: boolean; heroi?: { x: number; y: number } } = {}): HostWorld {
+function mundo(opts: { passagem?: PinPassage; mudo?: boolean; soChegada?: boolean; heroi?: { x: number; y: number } } = {}): HostWorld {
   const heroi = opts.heroi ?? { x: 200, y: 200 }
   const map: MapData = {
     ...createEmptyMap('mapa-torre', 'Torre', 40, 10, 50),
     tokens: [token('heroi', heroi.x, heroi.y)],
     pins: [
-      viagem('escada-baixo', 250, 200, { sceneId: TORRE, pinId: 'escada-topo' }, opts.passagem === undefined ? {} : { passagem: opts.passagem }),
+      viagem('escada-baixo', 250, 200, { sceneId: TORRE, pinId: 'escada-topo' }, {
+        ...(opts.passagem === undefined ? {} : { passagem: opts.passagem }),
+        ...(opts.mudo === true ? { mudo: true } : {}),
+      }),
       viagem('escada-topo', 1800, 250, { sceneId: TORRE, pinId: 'escada-baixo' }, opts.soChegada === true ? { soChegada: true } : {}),
     ],
   }
@@ -127,7 +130,8 @@ describe('hostSession: atalho na mesma cena', () => {
   })
 
   it('trancada: ninguém passa e nada chega ao mestre', () => {
-    const t = mesa({ passagem: 'trancada' })
+    // Trancada MUDA: a que aceita tentativas (o padrão) vira pedido ao mestre (hostSession.pinoTrancado).
+    const t = mesa({ passagem: 'trancada', mudo: true })
     const r = t.pedir('escada-baixo')
     expect(recusa(r)).toBe('unavailable')
     expect(r.travelRequest).toBeUndefined()

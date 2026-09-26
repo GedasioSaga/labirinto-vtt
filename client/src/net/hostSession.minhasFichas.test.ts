@@ -176,11 +176,12 @@ describe('view.switch: olhar por outra ficha minha', () => {
   it('ficha de outro jogador, escondida pelo mestre, inexistente ou da própria cena: nada sai e a cena não muda', () => {
     const mundo = mundoPadrao()
     const { s } = mesa(mundo)
-    s.broadcast(mundo)
+    expect(snapshotPara(s.broadcast(mundo), 'c1')?.map.id).toBe('m-salao')
     for (const tokenId of ['rival', 'sombra', 'nao-existe', 'heroi']) {
       expect(s.handleMessage('c1', { type: 'view.switch', tokenId }, mundo)).toEqual({ outbound: [] })
     }
-    expect(snapshotPara(s.broadcast(mundo), 'c1')?.map.id).toBe('m-salao')
+    // A cena não muda: o envio seguinte não tem tela nova para a Ana (a dela continua o Salão).
+    expect(s.broadcast(mundo).outbound.filter((o) => o.clientId === 'c1')).toEqual([])
   })
 
   it('quem ainda não entrou recebe not_joined', () => {

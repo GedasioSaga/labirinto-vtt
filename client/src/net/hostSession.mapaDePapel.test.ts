@@ -109,8 +109,9 @@ function mesa(opts: { zona?: boolean } = {}) {
   const bruno = entra(s, 'c-bruno', 'Bruno', world)
   s.assignToken(ana, 'ana')
   s.assignToken(bruno, 'bruno')
-  s.broadcast(world)
-  return { s, world, ana, bruno }
+  // O primeiro envio: o broadcast só manda de novo quando a tela de alguém muda.
+  const inicial = s.broadcast(world)
+  return { s, world, ana, bruno, inicial }
 }
 
 function msgsPara(r: HostResult, clientId: string): HostMessage[] {
@@ -131,9 +132,10 @@ function exploradoDe(r: HostResult, clientId: string): Exploration {
 
 describe('Mapa de papel — o mestre dá Salas a um jogador', () => {
   it('Ana passa a conhecer a Biblioteca, longe da visão dela; Bruno, na mesma cena, não; a Cozinha, que não estava no mapa, também não', () => {
-    const { s, world, ana } = mesa()
-    const antes = s.broadcast(world)
-    expect(isPointExplored(exploradoDe(antes, 'c-ana'), BIBLIOTECA)).toBe(false)
+    const { s, world, ana, inicial } = mesa()
+    // A mesa parada: o envio seguinte não muda a tela de ninguém; a de antes é a da entrada.
+    expect(msgsPara(s.broadcast(world), 'c-ana')).toEqual([])
+    expect(isPointExplored(exploradoDe(inicial, 'c-ana'), BIBLIOTECA)).toBe(false)
 
     const r = s.giveRoomsMap(ana, 's-salao', ['r-bib'], world)
     expect(r.mapGiven).toEqual({ playerId: ana, roomIds: ['r-bib'] })
@@ -144,12 +146,14 @@ describe('Mapa de papel — o mestre dá Salas a um jogador', () => {
     const depois = s.broadcast(world)
     expect(isPointExplored(exploradoDe(depois, 'c-ana'), BIBLIOTECA)).toBe(true)
     expect(isPointExplored(exploradoDe(depois, 'c-ana'), COZINHA)).toBe(false)
-    expect(isPointExplored(exploradoDe(depois, 'c-bruno'), BIBLIOTECA)).toBe(false)
+    // Bruno não ganhou nada: a tela dele não muda (nada sai), e a que ele tem não conhece a Biblioteca.
+    expect(msgsPara(depois, 'c-bruno')).toEqual([])
+    expect(isPointExplored(exploradoDe(inicial, 'c-bruno'), BIBLIOTECA)).toBe(false)
     // A Sala chega no recorte dela, com o nome — é a planta do mapa achado.
     const bib = snapshotDe(depois, 'c-ana').map.regions.find((reg) => reg.id === 'r-bib')
     expect(bib?.room?.name).toBe('Biblioteca')
     expect(snapshotDe(depois, 'c-ana').map.regions.find((reg) => reg.id === 'r-cozinha')).toBeUndefined()
-    expect(snapshotDe(depois, 'c-bruno').map.regions.find((reg) => reg.id === 'r-bib')).toBeUndefined()
+    expect(snapshotDe(inicial, 'c-bruno').map.regions.find((reg) => reg.id === 'r-bib')).toBeUndefined()
   })
 
   it('Sala secreta e Sala oculta pedidas junto NÃO entram nem chegam; só a permitida vale', () => {
@@ -185,12 +189,14 @@ describe('Mapa de papel — o mestre dá Salas a um jogador', () => {
   })
 
   it('só a Cozinha, toda sob zona oculta ativa: nada entra, a Ana não é avisada de um mapa vazio', () => {
-    const { s, ana } = mesa({ zona: true })
+    const { s, ana, inicial } = mesa({ zona: true })
     const escondido = mundo({ zona: true })
     const r = s.giveRoomsMap(ana, 's-salao', ['r-cozinha'], escondido)
     expect(r).toEqual({ outbound: [] })
     expect(r.mapGiven).toBeUndefined()
-    expect(isPointExplored(exploradoDe(s.broadcast(escondido), 'c-ana'), COZINHA)).toBe(false)
+    // Nada entrou: a tela da Ana não muda (nada sai), e a que ela tem não conhece a Cozinha.
+    expect(msgsPara(s.broadcast(escondido), 'c-ana')).toEqual([])
+    expect(isPointExplored(exploradoDe(inicial, 'c-ana'), COZINHA)).toBe(false)
   })
 
   it('mapa de OUTRA cena: nada da Cripta chega enquanto a Ana está no Salão; ao chegar lá, o Pombal já é dela', () => {
@@ -221,13 +227,14 @@ describe('Mapa de papel — o mestre dá Salas a um jogador', () => {
   })
 
   it('pedido sem sentido não faz nada: jogador, cena ou Sala que não existem, lista vazia', () => {
-    const { s, world, ana } = mesa()
+    const { s, world, ana, inicial } = mesa()
     expect(s.giveRoomsMap('fantasma', 's-salao', ['r-bib'], world)).toEqual({ outbound: [] })
     expect(s.giveRoomsMap(ana, 's-nenhuma', ['r-bib'], world)).toEqual({ outbound: [] })
     expect(s.giveRoomsMap(ana, 's-salao', ['r-inventada'], world)).toEqual({ outbound: [] })
     expect(s.giveRoomsMap(ana, 's-salao', [], world)).toEqual({ outbound: [] })
-    const depois = s.broadcast(world)
-    expect(isPointExplored(exploradoDe(depois, 'c-ana'), BIBLIOTECA)).toBe(false)
+    // Nada entrou: a tela da Ana não muda (nada sai), e a que ela tem não conhece a Biblioteca.
+    expect(msgsPara(s.broadcast(world), 'c-ana')).toEqual([])
+    expect(isPointExplored(exploradoDe(inicial, 'c-ana'), BIBLIOTECA)).toBe(false)
   })
 
   it('mapa solto (sem aventura): a cena é a aberta, pedida como null', () => {

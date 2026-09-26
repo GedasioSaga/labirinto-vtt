@@ -94,15 +94,24 @@ describe('filterMapForPlayer — zona de perigo', () => {
     expect(view.hazardsHere).toEqual([{ tokenId: 'ana', kind: 'fumaca' }])
   })
 
-  it('Ana dentro de sala secreta em chamas: nem desenho, nem o "você está no fogo"', () => {
+  it('sala secreta em chamas: Ana dentro recebe o fogo do cômodo dela; Bia de fora, nem desenho, nem o "você está no fogo"', () => {
+    // DENTRO DA SALA SECRETA: a sala abre só para o jogador com a ficha dentro
+    // (recebe a sala, as paredes e a porta como qualquer outra), então o fogo
+    // dela é o fogo do cômodo de Ana. O segredo continua para quem está de
+    // fora: Bia, olhando pela porta aberta da sala A, não recebe nada.
     const map = torre({
-      tokens: [ficha('ana', 750, 200)],
+      tokens: [ficha('ana', 750, 200), ficha('bia', 250, 200)],
       regions: [sala('sala-a', 0, 500), sala('sala-b', 500, 1000, { secret: true }), sala('sala-c', 1000, 1500)],
       hazards: [zona('z1', 'fogo', ['sala-b'])],
     })
-    const view = filterMapForPlayer(map, 'p1', DONOS, RAIO)
-    expect(view.hazards).toEqual([])
-    expect(view.hazardsHere).toEqual([])
+    const donos = { p1: ['ana'], p2: ['bia'] }
+    const bia = filterMapForPlayer(map, 'p2', donos, RAIO)
+    expect(bia.hazards).toEqual([])
+    expect(bia.hazardsHere).toEqual([])
+    expect(JSON.stringify(bia)).not.toContain('fogo')
+    const ana = filterMapForPlayer(map, 'p1', donos, RAIO)
+    expect(ana.hazards.map((h) => h.kind)).toEqual(['fogo'])
+    expect(ana.hazardsHere).toEqual([{ tokenId: 'ana', kind: 'fogo' }])
   })
 
   it('tela da mesa: o grupo vê o perigo onde algum deles enxerga', () => {

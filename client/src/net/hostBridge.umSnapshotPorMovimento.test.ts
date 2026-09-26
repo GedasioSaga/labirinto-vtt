@@ -41,7 +41,11 @@ function setup() {
     handler({ payload })
   }
   const sent = () => invoke.mock.calls.filter((call) => call[0] === 'net_send').map((call) => call[1])
-  return { bridge, emit, sent, applyMove }
+  /** O mestre arrasta a ficha no editor: o mapa muda sem passar pelo `applyMove` do jogador. */
+  const mestreArrasta = (tokenId: string, x: number, y: number) => {
+    map = { ...map, tokens: map.tokens.map((t) => (t.id === tokenId ? { ...t, x, y } : t)) }
+  }
+  return { bridge, emit, sent, applyMove, mestreArrasta }
 }
 
 function snapshotsPorCliente(sent: unknown[]): Map<string, number> {
@@ -109,6 +113,8 @@ describe('hostBridge — um snapshot por jogador a cada movimento', () => {
   it('mudança do mestre sem movimento continua saindo pelo agendado (o throttle não some)', async () => {
     const t = await mesaDe7()
     const before = t.sent().length
+    // Uma mudança de verdade: o broadcast só manda a quem a tela mudou, e mapa igual não muda tela nenhuma.
+    t.mestreArrasta('heroi0', 125, 125 + GRID)
     t.bridge.notifyMapChanged()
     expect(t.sent().length).toBe(before)
     vi.advanceTimersByTime(BROADCAST_THROTTLE_MS)

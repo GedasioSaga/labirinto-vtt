@@ -28,7 +28,8 @@ function mundo() {
       name: 'Saguão',
       map: {
         ...createEmptyMap('mapa-a', 'A', 40, 10, 50),
-        tokens: [ficha('ficha-fabi', 'Fabi', 200, { mochila: [{ id: 'i1', nome: 'Crachá' }] }), ficha('ficha-caio', 'Caio', 250)].filter((t) => !noLab.has(t.id)),
+        // Fabi e Caio encostados na catraca (300): pino só atravessa de perto.
+        tokens: [ficha('ficha-fabi', 'Fabi', 350, { mochila: [{ id: 'i1', nome: 'Crachá' }] }), ficha('ficha-caio', 'Caio', 250)].filter((t) => !noLab.has(t.id)),
         pins: [catraca('catraca-a', 'Catraca', 'cena-b', 'catraca-b', { passagem: 'passe', passe: { item: 'Crachá' } })],
       },
     },

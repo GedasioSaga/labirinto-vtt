@@ -69,7 +69,10 @@ async function mesa() {
   const cripta = useAdventureStore.getState().createScene('Cripta Rubra', null)
   const vale = useAdventureStore.getState().adventure?.scenes[0].id ?? ''
   useAdventureStore.getState().switchScene(vale)
-  useMapStore.getState().addPin(viagem('alcapao', centro(4), centro(2), { sceneId: cripta, pinId: 'alcapao-b' }))
+  // PINO SÓ DE PERTO PARA VIAJAR (outra feature): o pino atravessa só com a
+  // ficha a uma casa dele. Na diagonal de baixo da Ana e logo abaixo da Bia:
+  // encostado nas duas (a 90 px da Ana e a 64 px da Bia; o alcance é 96 px).
+  useMapStore.getState().addPin(viagem('alcapao', centro(3), centro(3), { sceneId: cripta, pinId: 'alcapao-b' }))
   useAdventureStore.getState().updateBackgroundScene(cripta, (map) =>
     addPin(map, viagem('alcapao-b', centro(20), centro(10), { sceneId: vale, pinId: 'alcapao' })),
   )
@@ -168,7 +171,7 @@ describe('o vínculo da ficha levada que muda de cena sem quem a leva', () => {
 
   it('a Ana leva a Bia pelo pino: o vínculo atravessa inteiro (a Bia chega com a Ana já lá)', async () => {
     const t = await mesa()
-    // A Ana precisa do pino à vista: o alçapão fica a duas casas dela.
+    // A Ana precisa do pino à vista e encostado: o alçapão fica na diagonal dela.
     t.fala('c1', { type: 'pin.travel.request', pinId: 'alcapao' })
     expect(tokensDaCena(t.cripta).map((tk) => tk.id).sort()).toEqual(['grog', 'lia'])
     expect(tokensDaCena(t.cripta).find((tk) => tk.id === 'lia')?.levadoPor).toBe('grog')

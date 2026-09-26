@@ -5,10 +5,11 @@
  * vira o aviso "retirado" (também quando o pedido caiu porque a ficha se
  * afastou), e a partir dele dá para pedir de novo.
  */
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { createEmptyMap } from '../lib/mapFactory'
+import { TRAVEL_REQUEST_MIN_INTERVAL_MS } from '../net/protocol'
 import type { Pin } from '../types/map'
-import { createPlayerConnection, type SocketLike } from './playerConnection'
+import { createPlayerConnection, TRAVEL_PACE_MARGIN_MS, type SocketLike } from './playerConnection'
 
 class FakeSocket implements SocketLike {
   readyState = 0
@@ -82,13 +83,21 @@ describe('desistir do pedido no cliente do jogador', () => {
   })
 
   it('o host confirma: o aviso vira "retirado" e o próximo pedido sai', () => {
-    const { connection, socket } = jogando()
-    connection.requestTravel('porta')
-    connection.cancelTravel()
-    socket.receive({ type: 'pin.travel.cancelled', reason: 'player' })
-    expect(connection.getState().travel).toMatchObject({ phase: 'cancelled', reason: 'player' })
-    expect(connection.requestTravel('porta')).toBe(true)
-    expect(socket.enviados('pin.travel.request')).toHaveLength(2)
+    // PEDIR DE NOVO ESPERA O LIMITE DO HOST (junção): o segundo pedido no mesmo
+    // pino sai depois do intervalo, em vez de voltar "too_soon". O relógio é o do teste.
+    vi.useFakeTimers()
+    try {
+      const { connection, socket } = jogando()
+      connection.requestTravel('porta')
+      connection.cancelTravel()
+      socket.receive({ type: 'pin.travel.cancelled', reason: 'player' })
+      expect(connection.getState().travel).toMatchObject({ phase: 'cancelled', reason: 'player' })
+      expect(connection.requestTravel('porta')).toBe(true)
+      vi.advanceTimersByTime(TRAVEL_REQUEST_MIN_INTERVAL_MS + TRAVEL_PACE_MARGIN_MS)
+      expect(socket.enviados('pin.travel.request')).toHaveLength(2)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('o pedido cai sozinho porque a ficha se afastou: o aviso diz o motivo "far"', () => {

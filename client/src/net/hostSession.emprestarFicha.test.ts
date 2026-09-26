@@ -73,8 +73,9 @@ function mesa() {
   s.assignToken(carla.playerId, 'escudo')
   // Raio curto da Ana: o fundo do Hall (1300, 400) fica longe do que ela vê.
   s.setVisionRadius(ana.playerId, 300)
-  s.broadcast(mundo)
-  return { s, ana, bruno, carla, entra, mover, mundo: () => mundo }
+  // O primeiro envio: o broadcast só manda de novo quando a tela de alguém muda.
+  const inicial = s.broadcast(mundo)
+  return { s, ana, bruno, carla, entra, mover, mundo: () => mundo, inicial }
 }
 
 describe('hostSession: emprestar a ficha de quem saiu', () => {
@@ -102,7 +103,7 @@ describe('hostSession: emprestar a ficha de quem saiu', () => {
 
   it('a Ana volta pelo resume: o Lírio sai da Carla e volta para ela, com o que ele explorou no empréstimo', () => {
     const m = mesa()
-    const antes = m.s.broadcast(m.mundo())
+    const antes = m.inicial
     expect(explorado(snapshotOf(antes, 'c1'), 1300, 400)).toBe(false)
     m.s.disconnect('c1')
     m.s.lendTokens(m.ana.playerId, m.carla.playerId, m.mundo())
@@ -147,7 +148,11 @@ describe('hostSession: emprestar a ficha de quem saiu', () => {
     const r = m.s.confirmReturn(nova.playerId, m.ana.playerId, m.mundo())
     expect(r.loansReturned).toEqual([{ ownerId: m.ana.playerId, borrowerId: m.carla.playerId, tokenId: 'lirio' }])
     expect(snapshotOf(r, 'c9').ownTokens).toEqual(['lirio'])
-    expect(snapshotOf(m.s.broadcast(m.mundo()), 'c3').ownTokens).toEqual(['escudo'])
+    // A Carla nunca chegou a receber o Lírio (nenhum envio no meio): a tela
+    // dela continua a da entrada, só com o Escudo, e nada novo sai para ela.
+    expect(m.s.broadcast(m.mundo()).outbound.filter((o) => o.clientId === 'c3')).toEqual([])
+    expect(snapshotOf(m.inicial, 'c3').ownTokens).toEqual(['escudo'])
+    expect(m.s.listPlayers(m.mundo()).find((p) => p.playerId === m.carla.playerId)?.tokenIds).toEqual(['escudo'])
   })
 
   it('"Tomar de volta": o mestre encerra o empréstimo antes de a Ana voltar', () => {
@@ -156,7 +161,11 @@ describe('hostSession: emprestar a ficha de quem saiu', () => {
     m.s.lendTokens(m.ana.playerId, m.carla.playerId, m.mundo())
     const r = m.s.endLoans(m.ana.playerId)
     expect(r.loansReturned).toEqual([{ ownerId: m.ana.playerId, borrowerId: m.carla.playerId, tokenId: 'lirio' }])
-    expect(snapshotOf(m.s.broadcast(m.mundo()), 'c3').ownTokens).toEqual(['escudo'])
+    // A Carla nunca chegou a receber o Lírio (nenhum envio no meio): a tela
+    // dela continua a da entrada, só com o Escudo, e nada novo sai para ela.
+    expect(m.s.broadcast(m.mundo()).outbound.filter((o) => o.clientId === 'c3')).toEqual([])
+    expect(snapshotOf(m.inicial, 'c3').ownTokens).toEqual(['escudo'])
+    expect(m.s.listPlayers(m.mundo()).find((p) => p.playerId === m.carla.playerId)?.tokenIds).toEqual(['escudo'])
     expect(m.s.listPlayers(m.mundo()).find((p) => p.playerId === m.ana.playerId)?.tokenIds).toEqual(['lirio'])
   })
 
@@ -255,7 +264,9 @@ describe('hostSession: o empréstimo não entrega o que está escondido', () => 
     const r = m.s.lendTokens(m.bruno.playerId, m.carla.playerId, m.mundo())
     expect(r.lent).toEqual([])
     const depois = m.s.broadcast(m.mundo())
-    expect(snapshotOf(depois, 'c3').ownTokens).toEqual(['escudo'])
+    // Nada foi emprestado: a tela da Carla não muda e nada sai para ela.
+    expect(depois.outbound.filter((o) => o.clientId === 'c3')).toEqual([])
+    expect(m.s.listPlayers(m.mundo()).find((p) => p.playerId === m.carla.playerId)?.tokenIds).toEqual(['escudo'])
     expect(wireFor(depois, 'c3')).not.toContain('machado')
     expect(wireFor(depois, 'c3')).not.toContain('Cripta Rubra')
     expect(wireFor(depois, 'c3')).not.toContain('m-cripta')

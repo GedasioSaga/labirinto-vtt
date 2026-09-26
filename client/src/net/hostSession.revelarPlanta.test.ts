@@ -187,8 +187,10 @@ describe('Dar o que o grupo viu', () => {
 
   it('Duda atrasada recebe só o que os três viram, naquela cena', () => {
     const { s, ids, mundo } = grupo()
-    s.broadcast(mundo)
-    const antes = exploradoDe(s.broadcast(mundo), 'Duda')
+    const inicial = s.broadcast(mundo)
+    // A mesa parada: o envio seguinte não muda a tela de ninguém; a de antes é a da entrada.
+    expect(s.broadcast(mundo).outbound).toEqual([])
+    const antes = exploradoDe(inicial, 'Duda')
     expect(isPointExplored(antes, { x: 100, y: 100 })).toBe(false)
 
     // Eva está em outra cena: não conta como colega da Capital.
@@ -203,17 +205,20 @@ describe('Dar o que o grupo viu', () => {
     expect(isPointExplored(duda, { x: 300, y: 420 })).toBe(false)
     // E o que Eva viu na Abadia (300, 400) não vira Capital de ninguém.
     expect(isPointExplored(duda, { x: 300, y: 400 })).toBe(false)
-    // Só a Duda recebe: Ana não ganha o canto da Duda.
-    expect(isPointExplored(exploradoDe(r, 'Ana'), { x: 900, y: 150 })).toBe(false)
+    // Só a Duda recebe: Ana não ganha o canto da Duda (a tela dela não muda, nada sai).
+    expect(r.outbound.filter((o) => o.clientId === 'c-Ana')).toEqual([])
+    expect(isPointExplored(exploradoDe(inicial, 'Ana'), { x: 900, y: 150 })).toBe(false)
   })
 
   it('ninguém mais explorou a cena: devolve 0 e nada muda', () => {
     const mundo: HostWorld = { open: cena('s-capital', mapa('m-capital', { tokens: [ficha('duda', 900, 150)] })), background: [cena('s-abadia', mapa('m-abadia', { tokens: [ficha('eva', 300, 400)] }))] }
     const { s, ids } = mesa(['Duda', 'Eva'], mundo)
-    s.broadcast(mundo)
+    const inicial = s.broadcast(mundo)
     expect(s.giveGroupView(ids.Duda, mundo)).toBe(0)
     expect(s.giveGroupView('fantasma', mundo)).toBe(0)
-    const exp = exploradoDe(s.broadcast(mundo), 'Duda')
+    // Nada muda: nenhuma tela nova sai, e a da Duda é a da entrada.
+    expect(s.broadcast(mundo).outbound).toEqual([])
+    const exp = exploradoDe(inicial, 'Duda')
     expect(isPointExplored(exp, { x: 100, y: 100 })).toBe(false)
     expect(isPointExplored(exp, { x: 900, y: 150 })).toBe(true)
   })
@@ -238,7 +243,11 @@ describe('Dar o que o grupo viu', () => {
     // A Ana está dentro: o teto abriu para ela e ela lembra o interior.
     expect(isPointExplored(exploradoDe(r0, 'Ana'), { x: 800, y: 375 })).toBe(true)
     expect(s.giveGroupView(ids.Duda, mundo)).toBe(1)
-    expect(isPointExplored(exploradoDe(s.broadcast(mundo), 'Duda'), { x: 800, y: 375 })).toBe(false)
+    // O que a Ana tinha para dar era o interior: nada disso entra, a tela da Duda não muda (nada sai)…
+    const r1 = s.broadcast(mundo)
+    expect(r1.outbound.filter((o) => o.clientId === 'c-Duda')).toEqual([])
+    // …e a que ela tem não conhece o interior.
+    expect(isPointExplored(exploradoDe(r0, 'Duda'), { x: 800, y: 375 })).toBe(false)
   })
 
   it('SEGURANÇA: a planta que o mestre revelou só ao Oto não vaza pelo grupo', () => {

@@ -27,7 +27,8 @@ function mapa(id: string, nome: string, tokens: Token[], pins: Pin[] = []): MapD
 const SALAO: HostScene = {
   sceneId: 's-salao',
   name: 'Salao Norte',
-  map: mapa('m-salao', 'Salao Norte', [ficha('lanterna', 200, 200)], [viagem('alcapao', 400, 200, { sceneId: 's-cripta', pinId: 'fundo' })]),
+  // O alçapão encostado na lanterna (50 px): o pino de viagem só atravessa de perto.
+  map: mapa('m-salao', 'Salao Norte', [ficha('lanterna', 200, 200)], [viagem('alcapao', 250, 200, { sceneId: 's-cripta', pinId: 'fundo' })]),
 }
 const CRIPTA: HostScene = {
   sceneId: 's-cripta',

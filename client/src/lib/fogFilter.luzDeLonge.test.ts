@@ -166,8 +166,18 @@ describe('raio de visão da sala', () => {
   })
 
   it('sala secreta não muda o raio (o jogador não pode deduzir a sala pela visão)', () => {
-    const map = mapa({ tokens: [ficha('heroi', 200, 500), ALEM], regions: [sala('mirante', retangulo(100, 400, 300, 600), { raioDeVisao: 1500 }, { secret: true })] })
-    expect(filterMapForPlayer(map, 'p1', OWNERSHIP, RADIUS).map.tokens.map((t) => t.id)).toEqual(['heroi'])
+    // DENTRO DA SALA SECRETA: a secreta abre para quem tem a ficha dentro (ele
+    // recebe a sala), então o raio dela passa a valer para ele — não há o que
+    // deduzir. A sala que o jogador NÃO recebe (oculta pelo mestre) continua
+    // sem mudar o raio, com a ficha dentro dela.
+    const oculta = mapa({ tokens: [ficha('heroi', 200, 500), ALEM], regions: [sala('mirante', retangulo(100, 400, 300, 600), { raioDeVisao: 1500 }, { hidden: true })] })
+    const viewOculta = filterMapForPlayer(oculta, 'p1', OWNERSHIP, RADIUS)
+    expect(viewOculta.map.tokens.map((t) => t.id)).toEqual(['heroi'])
+    expect(viewOculta.map.regions).toEqual([])
+    const secreta = mapa({ tokens: [ficha('heroi', 200, 500), ALEM], regions: [sala('mirante', retangulo(100, 400, 300, 600), { raioDeVisao: 1500 }, { secret: true })] })
+    const viewSecreta = filterMapForPlayer(secreta, 'p1', OWNERSHIP, RADIUS)
+    expect(viewSecreta.map.regions.map((r) => r.id)).toEqual(['mirante'])
+    expect(viewSecreta.map.tokens.map((t) => t.id).sort()).toEqual(['estatua', 'heroi'])
   })
 
   it('valor inválido no raio da sala (0, negativo, NaN) é ignorado', () => {

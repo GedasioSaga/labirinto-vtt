@@ -23,7 +23,8 @@ const GRID = 50
 const CENA_LAB = 'cena-laboratorio'
 const CENA_PATIO = 'cena-patio'
 
-const diego: Token = { id: 'diego', characterId: null, name: 'Diego', x: 200, y: 200, size: 1, image: null }
+// Diego encostado na porta de aço (400, 200): pino só atravessa de perto.
+const diego: Token = { id: 'diego', characterId: null, name: 'Diego', x: 350, y: 200, size: 1, image: null }
 
 function viagem(id: string, x: number, y: number, description: string, destino: Pin['destino'], extra: Partial<Pin> = {}): Pin {
   return { id, x, y, kind: 'viagem', description, image: null, destino, ...extra }
@@ -144,7 +145,7 @@ describe('hostBridge: pino de viagem trancado vira pedido', () => {
     expect(ver?.mantem).toBe(true)
     const antes = m.sent().length
     acao('Ver', linha).run()
-    expect(m.onGoToPoint).toHaveBeenCalledWith(CENA_LAB, 200, 200)
+    expect(m.onGoToPoint).toHaveBeenCalledWith(CENA_LAB, 350, 200)
     // Olhar não responde: nada vai ao Diego, ninguém passa.
     expect(m.sent().slice(antes)).toEqual([])
     expect(m.applyTransfer).not.toHaveBeenCalled()

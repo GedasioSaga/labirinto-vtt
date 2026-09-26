@@ -138,7 +138,9 @@ describe('pedido de ação sobre ficha no cliente', () => {
     expect(connection.getState().tokenAction).toMatchObject({ phase: 'refused', action: 'oferecer' })
     vi.advanceTimersByTime(TOKEN_ACTION_NOTICE_TTL_MS)
     connection.requestTokenAction('severa', 'empurrar')
-    const second = socket.sent[1]
+    // O prazo do aviso (5 s) passa por pings do batimento (a cada 2 s): o segundo pedido é o segundo `token.action`, não o segundo envio.
+    const second = socket.sent.filter((m) => typeof m === 'object' && m !== null && 'type' in m && m.type === 'token.action')[1]
+    expect(second).toBeDefined()
     const reqId2 = typeof second === 'object' && second !== null && 'reqId' in second ? second.reqId : null
     socket.receive({ type: 'token.action.rejected', reqId: reqId2, reason: 'unavailable' })
     expect(connection.getState().tokenAction).toMatchObject({ phase: 'rejected', reason: 'unavailable', action: 'empurrar' })

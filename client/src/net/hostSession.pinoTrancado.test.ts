@@ -31,7 +31,8 @@ function viagem(id: string, x: number, y: number, description: string, destino: 
 function mundo(porta: Partial<Pin> = { passagem: 'trancada' }): HostWorld {
   const lab: MapData = {
     ...createEmptyMap('mapa-lab', NOME_LAB, 40, 10, 50),
-    tokens: [token('diego', 200, 200)],
+    // Diego encostado na porta (o pino de viagem só atravessa de perto).
+    tokens: [token('diego', 350, 200)],
     pins: [
       viagem('porta-lab', 400, 200, 'Porta de aço', { sceneId: CENA_PATIO, pinId: 'porta-patio' }, porta),
       // Trancado também, mas longe (1700 px, raio 700): no escuro para o Diego.
@@ -150,7 +151,7 @@ describe('hostSession: pino de viagem trancado vira pedido', () => {
     const t = mesa()
     const pedido = t.pedir('porta-lab').travelRequest
     if (pedido === undefined) throw new Error('o pedido deveria chegar ao mestre')
-    expect(t.s.travelTarget(pedido.requestId, mundo())).toEqual({ sceneId: CENA_LAB, x: 200, y: 200 })
+    expect(t.s.travelTarget(pedido.requestId, mundo())).toEqual({ sceneId: CENA_LAB, x: 350, y: 200 })
     expect(t.s.isTravelPending(pedido.requestId)).toBe(true)
   })
 

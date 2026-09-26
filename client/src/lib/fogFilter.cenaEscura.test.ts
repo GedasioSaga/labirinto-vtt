@@ -91,8 +91,11 @@ describe('cena escura: só se vê onde há luz', () => {
   })
 
   it('controle: a mesma cena clara mostra o corredor inteiro', () => {
-    const view = filterMapForPlayer(porao({ dark: undefined }), 'p1', CARLA, RADIUS)
-    // O foguista está a 601 px: fora do raio de 600, e sem escuro não há luz que o traga.
+    // FICHA VISTA PELA BORDA: a ficha sai também pela borda do disco (18 px do
+    // centro), então o raio do controle fica em 560: o foguista (centro a 601 px,
+    // borda a ~583) fica todo fora dele, e sem escuro não há luz que o traga.
+    const RAIO_CONTROLE = 560
+    const view = filterMapForPlayer(porao({ dark: undefined }), 'p1', CARLA, RAIO_CONTROLE)
     expect(ids(view.map.tokens)).toEqual(['carla', 'rato', 'vizinho'])
     expect(inVision(view.vision, { x: 400, y: 100 })).toBe(true)
   })
@@ -166,7 +169,13 @@ describe('sala escura numa cena clara', () => {
   })
 
   it('de dentro do quarto escuro: a casa dela e o corredor claro lá fora, nada do quarto', () => {
-    const view = filterMapForPlayer(quartoEscuro({ x: 550, y: 550 }), 'p1', DUDA, RADIUS)
+    // FICHA VISTA PELA BORDA: a 'na-soleira' (centro 5 px dentro do quarto) tem
+    // meio corpo no corredor claro e sai por ele; aqui a ficha perto da porta
+    // fica com o disco inteiro dentro do quarto escuro, que é o que se prova.
+    const map = quartoEscuro({ x: 550, y: 550 }, {
+      tokens: [token('duda', 550, 550), token('perto-da-porta', 550, 430), token('no-fundo', 550, 650), token('no-corredor', 200, 370)],
+    })
+    const view = filterMapForPlayer(map, 'p1', DUDA, RADIUS)
     expect(ids(view.map.tokens)).toEqual(['duda', 'no-corredor'])
     expect(inVision(view.vision, { x: 550, y: 550 })).toBe(true)
     expect(inVision(view.vision, { x: 550, y: 650 })).toBe(false)

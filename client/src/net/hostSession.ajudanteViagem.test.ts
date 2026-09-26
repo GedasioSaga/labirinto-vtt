@@ -30,11 +30,11 @@ function welcomeOf(messages: { msg: HostMessage }[]): { playerId: string } {
   return first
 }
 
-/** Herói longe do alçapão, Tiziu (o ajudante) quase em cima dele. */
+/** Herói encostado no alçapão (o pino só atravessa de perto), Tiziu (o ajudante) mais perto ainda, quase em cima dele. */
 function mundo(): HostWorld {
   const salao: MapData = {
     ...createEmptyMap('mapa-salao', 'Salão', 40, 10, 50),
-    tokens: [token('heroi', 200, 200), token('tiziu', 380, 200)],
+    tokens: [token('heroi', 340, 200), token('tiziu', 380, 200)],
     pins: [viagem('alcapao', 400, 200, { sceneId: CRIPTA, pinId: 'fundo' })],
   }
   const cripta: MapData = {

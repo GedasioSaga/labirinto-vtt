@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { buildRoomFromDraft } from '../lib/drawingFactory'
 import { createEmptyMap } from '../lib/mapFactory'
-import { SIGNAL_MIN_INTERVAL_MS, signalColor } from '../lib/signals'
+import { SIGNAL_MIN_INTERVAL_MS, SIGNAL_NEUTRAL_COLOR, signalColor } from '../lib/signals'
 import type { MapData, Token, Wall } from '../types/map'
 import { createHostSession, type HostResult } from './hostSession'
 import type { HostMessage } from './protocol'
@@ -24,6 +24,14 @@ import type { HostMessage } from './protocol'
 
 const CODE = 'AB12CD'
 const RADIUS = 700
+/**
+ * DISFARCE NO SINAL: o sinal lê a FICHA, nunca a jogadora. O eco de Ana lê a
+ * ficha dela (o nome real, que ela é a dona; sem cor na ficha, o cinza
+ * neutro); o colega lê a ficha como ela chegou a ele — aqui, a 400 px, como
+ * vulto (sem nome, no cinza neutro).
+ */
+const ECO = { from: 'nome-heroi', color: SIGNAL_NEUTRAL_COLOR }
+const VULTO = { from: '', color: SIGNAL_NEUTRAL_COLOR }
 
 type Ponto = { x: number; y: number }
 
@@ -69,9 +77,11 @@ function montar(map: MapData = mapa(), radius: number = RADIUS) {
   s.assignToken(ana.playerId, 'heroi')
   s.assignToken(bia.playerId, 'ladino')
   s.assignToken(caio.playerId, 'mago')
-  s.broadcast(map)
+  // O primeiro envio: o broadcast só manda de novo a quem a tela mudou.
+  const inicial = s.broadcast(map)
   return {
     s,
+    inicial,
     color: signalColor(ana.playerId),
     /** Sinal de Ana, já passado o intervalo mínimo do anterior. */
     sinal: (p: Ponto, m: MapData = map): HostResult => {
@@ -98,21 +108,20 @@ describe('hostSession: eco do sinal — os 3 casos', () => {
     const map = mapa({ bia: { x: 300, y: 600 }, caio: { x: 200, y: 600 } })
     const t = montar(map)
     const r = t.sinal({ x: 300, y: 300 })
-    const comum = { type: 'signal', x: 300, y: 300, from: 'Ana', color: t.color }
-    expect(para(r, 'c-ana')).toEqual([comum])
+    const comum = { type: 'signal', x: 300, y: 300, ...VULTO }
+    expect(para(r, 'c-ana')).toEqual([{ type: 'signal', x: 300, y: 300, ...ECO }])
     expect(para(r, 'c-bia')).toEqual([comum])
     expect(para(r, 'c-caio')).toEqual([comum])
     expect(para(r, 'c-davi')).toEqual([])
-    expect(r.signal).toEqual({ playerId: expect.any(String), name: 'Ana', color: t.color, x: 300, y: 300 })
+    expect(r.signal).toEqual({ playerId: expect.any(String), name: 'Ana', tokenName: 'nome-heroi', color: t.color, x: 300, y: 300 })
   })
 
   it('parte recebe: Caio (ao lado de Ana) recebe, Bia (atrás da parede) não; o eco sai cheio e não conta quem', () => {
     const t = montar(mapa({ caio: { x: 200, y: 600 } }))
     const r = t.sinal({ x: 300, y: 300 })
-    const comum = { type: 'signal', x: 300, y: 300, from: 'Ana', color: t.color }
-    expect(para(r, 'c-caio')).toEqual([comum])
+    expect(para(r, 'c-caio')).toEqual([{ type: 'signal', x: 300, y: 300, ...VULTO }])
     expect(para(r, 'c-bia')).toEqual([])
-    expect(para(r, 'c-ana')).toEqual([comum])
+    expect(para(r, 'c-ana')).toEqual([{ type: 'signal', x: 300, y: 300, ...ECO }])
     const eco = JSON.stringify(para(r, 'c-ana'))
     expect(eco).not.toContain('Bia')
     expect(eco).not.toContain('Caio')
@@ -122,12 +131,12 @@ describe('hostSession: eco do sinal — os 3 casos', () => {
   it('ninguém recebe: Bia e Caio, do outro lado da parede, nunca viram o ponto; o eco de Ana sai com unheard', () => {
     const t = montar()
     const r = t.sinal({ x: 300, y: 300 })
-    expect(para(r, 'c-ana')).toEqual([{ type: 'signal', x: 300, y: 300, from: 'Ana', color: t.color, unheard: true }])
+    expect(para(r, 'c-ana')).toEqual([{ type: 'signal', x: 300, y: 300, ...ECO, unheard: true }])
     expect(para(r, 'c-bia')).toEqual([])
     expect(para(r, 'c-caio')).toEqual([])
     expect(para(r, 'c-davi')).toEqual([])
     // O mestre continua recebendo.
-    expect(r.signal).toEqual({ playerId: expect.any(String), name: 'Ana', color: t.color, x: 300, y: 300 })
+    expect(r.signal).toEqual({ playerId: expect.any(String), name: 'Ana', tokenName: 'nome-heroi', color: t.color, x: 300, y: 300 })
   })
 
   it('jogando sozinho (os outros só aguardam): o sinal fica sem destinatário', () => {
@@ -161,7 +170,7 @@ describe('hostSession: eco do sinal — o eco não revela o que Ana não sabe', 
     })
     const t = montar(zona(false))
     const oculto = t.sinal({ x: 300, y: 300 })
-    expect(para(oculto, 'c-ana')).toEqual([{ type: 'signal', x: 300, y: 300, from: 'Ana', color: t.color, unheard: true }])
+    expect(para(oculto, 'c-ana')).toEqual([{ type: 'signal', x: 300, y: 300, ...ECO, unheard: true }])
     const oculta = JSON.stringify(oculto.outbound)
     expect(oculta).not.toContain('cofre')
     expect(oculta).not.toContain('"c-bia"')
@@ -171,7 +180,7 @@ describe('hostSession: eco do sinal — o eco não revela o que Ana não sabe', 
     t.s.broadcast(zona(true))
     const revelado = t.sinal({ x: 300, y: 300 }, zona(true))
     expect(para(revelado, 'c-bia')).toHaveLength(1)
-    expect(para(revelado, 'c-ana')).toEqual([{ type: 'signal', x: 300, y: 300, from: 'Ana', color: t.color }])
+    expect(para(revelado, 'c-ana')).toEqual([{ type: 'signal', x: 300, y: 300, ...ECO }])
   })
 
   it('DIVERGE DO PEDIDO — sala secreta não descoberta: dentro ninguém recebe e o eco sai cheio; sinal dentro e logo ao lado dão o MESMO eco, embora só o de fora seja repassado', () => {
@@ -190,7 +199,7 @@ describe('hostSession: eco do sinal — o eco não revela o que Ana não sabe', 
     expect(para(dentro, 'c-bia')).toEqual([])
     // O eco de Ana é o mesmo nos dois: sem isso, um sinal por segundo desenharia a sala.
     expect(ecoSemPonto(dentro)).toEqual(ecoSemPonto(fora))
-    expect(para(dentro, 'c-ana')).toEqual([{ type: 'signal', x: 750, y: 650, from: 'Ana', color: t.color }])
+    expect(para(dentro, 'c-ana')).toEqual([{ type: 'signal', x: 750, y: 650, ...ECO }])
     expect(JSON.stringify(dentro.outbound)).not.toContain('Cofre')
   })
 
@@ -204,7 +213,7 @@ describe('hostSession: eco do sinal — o eco não revela o que Ana não sabe', 
     expect(para(conhecido, 'c-bia')).toHaveLength(1)
     expect(para(ninguem, 'c-bia')).toEqual([])
     expect(ecoSemPonto(conhecido)).toEqual(ecoSemPonto(ninguem))
-    expect(para(conhecido, 'c-ana')).toEqual([{ type: 'signal', x: 800, y: 400, from: 'Ana', color: t.color, unheard: true }])
+    expect(para(conhecido, 'c-ana')).toEqual([{ type: 'signal', x: 800, y: 400, ...ECO, unheard: true }])
   })
 
   it('fumaça que o mestre esconde de Ana (sala encostada em zona oculta): o eco é o MESMO com e sem a fumaça', () => {
@@ -221,11 +230,11 @@ describe('hostSession: eco do sinal — o eco não revela o que Ana não sabe', 
     const ponto = { x: 150, y: 600 }
 
     const semPerigo = montar(base)
-    const vistasSem = semPerigo.s.broadcast(base)
+    const vistasSem = semPerigo.inicial
     const ecoSem = para(semPerigo.sinal(ponto), 'c-ana')
 
     const perigo = montar(comFumaca)
-    const vistasCom = perigo.s.broadcast(comFumaca)
+    const vistasCom = perigo.inicial
     const ecoCom = para(perigo.sinal(ponto), 'c-ana')
 
     // Premissas: Bia está na tela de Ana e a fumaça não chega a Ana por nada.
@@ -234,7 +243,7 @@ describe('hostSession: eco do sinal — o eco não revela o que Ana não sabe', 
     expect(fichasVistas(vistasSem, 'c-ana')).toEqual(fichasVistas(vistasCom, 'c-ana'))
     // O eco não pode ser o canal: igual nos dois mapas, e cheio (Bia, sem contar a fumaça, vê o ponto).
     expect(ecoCom).toEqual(ecoSem)
-    expect(ecoCom).toEqual([{ type: 'signal', x: 150, y: 600, from: 'Ana', color: perigo.color }])
+    expect(ecoCom).toEqual([{ type: 'signal', x: 150, y: 600, ...ECO }])
   })
 
   /**
@@ -256,11 +265,11 @@ describe('hostSession: eco do sinal — o eco não revela o que Ana não sabe', 
     const ponto = { x: 150, y: 600 }
 
     const semPerigo = montar(base)
-    const vistasSem = semPerigo.s.broadcast(base)
+    const vistasSem = semPerigo.inicial
     const ecoSem = para(semPerigo.sinal(ponto), 'c-ana')
 
     const perigo = montar(comFumaca)
-    const vistasCom = perigo.s.broadcast(comFumaca)
+    const vistasCom = perigo.inicial
     const ecoCom = para(perigo.sinal(ponto), 'c-ana')
 
     // Premissas: Bia está na tela de Ana, a fumaça não chega a Ana por nada e
@@ -271,7 +280,7 @@ describe('hostSession: eco do sinal — o eco não revela o que Ana não sabe', 
     expect(JSON.stringify(para(vistasCom, 'c-bia'))).not.toEqual(JSON.stringify(para(vistasSem, 'c-bia')))
     // O eco não pode ser o canal: igual nos dois mapas, e cheio (Bia, sem contar a fumaça, vê o ponto).
     expect(ecoCom).toEqual(ecoSem)
-    expect(ecoCom).toEqual([{ type: 'signal', x: 150, y: 600, from: 'Ana', color: perigo.color }])
+    expect(ecoCom).toEqual([{ type: 'signal', x: 150, y: 600, ...ECO }])
   })
 
   it('DIVERGE DO PEDIDO — colega fora de vista: Bia recebe e o eco sai tracejado; Bia vê o ponto que Ana vê, mas a ficha dela não está na tela de Ana; o eco não conta que ela está ali', () => {
@@ -279,12 +288,12 @@ describe('hostSession: eco do sinal — o eco não revela o que Ana não sabe', 
     const paredes = [wall('meia', 500, 0, 500, 600)]
     const map = mapa({ caio: { x: 100, y: 950 }, paredes })
     const t = montar(map)
-    const vistas = t.s.broadcast(map)
+    const vistas = t.inicial
     // Premissa do cenário: a ficha de Bia não vai para Ana.
     expect(fichasVistas(vistas, 'c-ana')).not.toContain('ladino')
     expect(fichasVistas(vistas, 'c-ana')).toContain('heroi')
     const r = t.sinal({ x: 500, y: 800 })
     expect(para(r, 'c-bia')).toHaveLength(1)
-    expect(para(r, 'c-ana')).toEqual([{ type: 'signal', x: 500, y: 800, from: 'Ana', color: t.color, unheard: true }])
+    expect(para(r, 'c-ana')).toEqual([{ type: 'signal', x: 500, y: 800, ...ECO, unheard: true }])
   })
 })

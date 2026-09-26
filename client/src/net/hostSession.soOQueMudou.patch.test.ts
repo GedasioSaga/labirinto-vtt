@@ -99,11 +99,16 @@ function aplicaTela(tela: PlayerViewContent, patch: Patch): PlayerViewContent {
 const peloFio = (valor: unknown): unknown => JSON.parse(JSON.stringify(valor))
 
 describe('só o que mudou: quem sabe aplicar recebe patch', () => {
-  /** 7 fichas com foto na mesma sala, todas à vista umas das outras; a da Ana andou `passo` px. */
+  /**
+   * 7 fichas com foto na mesma sala, todas à vista umas das outras; a da Ana
+   * andou `passo` px. Todas a menos de meio raio umas das outras em todo passo:
+   * mais longe que isso a ficha de colega chega como VULTO (sem nome nem foto),
+   * e o passo que a trouxesse para perto mandaria a foto dela — de propósito.
+   */
   function sala(passo: number): MapData {
     return mapa(
       'm',
-      NOMES.map((n, i) => ({ ...ficha(n, n === 'ana' ? 100 + passo : 100 + i * 60, n === 'ana' ? 300 : 100), imageData: FOTO })),
+      NOMES.map((n, i) => ({ ...ficha(n, n === 'ana' ? 100 + passo : 100 + i * 30, n === 'ana' ? 140 : 100), imageData: FOTO })),
     )
   }
 

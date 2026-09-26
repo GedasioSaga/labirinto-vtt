@@ -31,11 +31,14 @@ describe('PlayerPinCard: pino só de perto', () => {
   const render = (pin: Pin): void => act(() => root.render(<PlayerPinCard pin={pin} stairs={[]} onClose={() => {}} />))
   const texto = (): string => container.querySelector('.pp-pincard__text')?.textContent ?? ''
 
-  it('longe: "Chegue mais perto para ler", e a imagem diz o mesmo', () => {
+  it('longe: "Chegue mais perto para ler", e nenhuma imagem no cartão', () => {
     render(LONGE)
     expect(texto()).toBe('Chegue mais perto para ler.')
     expect(container.textContent).not.toContain('ainda não escreveu')
-    expect(container.querySelector('img')?.getAttribute('alt')).toBe('Chegue mais perto para ver a imagem')
+    // Cartão compacto (cartao-e-rotulo-legiveis): sem foto não há <img>, só a
+    // cabeça do pino — de longe, nada de imagem chega ao cartão.
+    expect(container.querySelector('img')).toBeNull()
+    expect(container.querySelector('.pp-pincard--compacto')).not.toBeNull()
   })
 
   it('ao chegar perto o recorte manda o texto e o cartão aberto troca sozinho', () => {

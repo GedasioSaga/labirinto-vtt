@@ -89,14 +89,14 @@ describe('hostSession: porta que só abre de um lado', () => {
     s.broadcast(map)
     const r = s.handleMessage('c-bruno', { type: 'door.toggle', wallId: 'porta' }, map)
     expect(r.outbound).toEqual([])
-    expect(r.applyDoor).toEqual({ wallId: 'porta', open: true })
+    expect(r.applyDoor).toEqual({ wallId: 'porta', open: true, playerId: 'id-1', playerName: 'Bruno' })
   })
 
   it('trocar o lado inverte quem abre', () => {
     const map = castelo({ opensFrom: 'left' })
     const s = mesa(map)
     s.broadcast(map)
-    expect(s.handleMessage('c-fabio', { type: 'door.toggle', wallId: 'porta' }, map).applyDoor).toEqual({ wallId: 'porta', open: true })
+    expect(s.handleMessage('c-fabio', { type: 'door.toggle', wallId: 'porta' }, map).applyDoor).toEqual({ wallId: 'porta', open: true, playerId: 'id-3', playerName: 'Fabio' })
     const bruno = s.handleMessage('c-bruno', { type: 'door.toggle', wallId: 'porta' }, map)
     expect(bruno.applyDoor).toBeUndefined()
     expect(bruno.outbound).toEqual([{ clientId: 'c-bruno', msg: { type: 'door.toggle.rejected', wallId: 'porta', reason: 'wrong_side' } }])
@@ -106,7 +106,7 @@ describe('hostSession: porta que só abre de um lado', () => {
     const map = castelo({ open: true })
     const s = mesa(map)
     s.broadcast(map)
-    expect(s.handleMessage('c-fabio', { type: 'door.toggle', wallId: 'porta' }, map).applyDoor).toEqual({ wallId: 'porta', open: false })
+    expect(s.handleMessage('c-fabio', { type: 'door.toggle', wallId: 'porta' }, map).applyDoor).toEqual({ wallId: 'porta', open: false, playerId: 'id-3', playerName: 'Fabio' })
   })
 
   it('trancada continua dizendo "Trancada" dos dois lados; longe continua "far"', () => {
@@ -128,7 +128,7 @@ describe('hostSession: porta que só abre de um lado', () => {
     const map = castelo({ opensFrom: undefined })
     const s = mesa(map)
     s.broadcast(map)
-    expect(s.handleMessage('c-fabio', { type: 'door.toggle', wallId: 'porta' }, map).applyDoor).toEqual({ wallId: 'porta', open: true })
+    expect(s.handleMessage('c-fabio', { type: 'door.toggle', wallId: 'porta' }, map).applyDoor).toEqual({ wallId: 'porta', open: true, playerId: 'id-3', playerName: 'Fabio' })
   })
 
   it('SEGURANÇA: o lado que abre é regra do mestre — não chega a nenhum jogador', () => {

@@ -51,6 +51,19 @@ function para(r: HostResult, clientId: string): string {
   return JSON.stringify(r.outbound.filter((o) => o.clientId === clientId))
 }
 
+/**
+ * O que vai a `clientId` sem a MARCA DE COMPANHEIRO das fichas do snapshot:
+ * a marca põe, de propósito, o nome do jogador na ficha dele que o colega já
+ * vê — não é o chamado. O resto (chamado, visto, resposta) não pode ter o nome.
+ */
+function paraSemMarcaDeCompanheiro(r: HostResult, clientId: string): string {
+  return JSON.stringify(
+    r.outbound
+      .filter((o) => o.clientId === clientId)
+      .map((o) => (o.msg.type === 'snapshot' ? { ...o.msg, map: { ...o.msg.map, tokens: o.msg.map.tokens.map(({ companion: _marca, ...t }) => t) } } : o.msg)),
+  )
+}
+
 function levanta(s: ReturnType<typeof createHostSession>, clientId: string, reason: string, text?: string): HostResult {
   return s.handleMessage(clientId, text === undefined ? { type: 'call.raise', reason } : { type: 'call.raise', reason, text }, mundo)
 }
@@ -177,9 +190,13 @@ describe('chamar o mestre na sessão', () => {
     for (const r of todas) {
       expect(para(r, 'c-carla')).not.toContain(segredo)
       expect(para(r, 'c-bruno')).not.toContain(segredo)
-      // Nem o nome de quem chamou vai aos outros.
-      expect(para(r, 'c-carla')).not.toContain('Duda')
-      expect(para(r, 'c-bruno')).not.toContain('Duda')
+      // Nem o nome de quem chamou vai aos outros (fora a marca de companheiro na ficha dela que a Carla vê).
+      expect(paraSemMarcaDeCompanheiro(r, 'c-carla')).not.toContain('Duda')
+      expect(paraSemMarcaDeCompanheiro(r, 'c-bruno')).not.toContain('Duda')
+      for (const o of r.outbound) {
+        if (o.clientId === 'c-duda' || o.msg.type !== 'snapshot') continue
+        for (const t of o.msg.map.tokens) if (t.companion?.name === 'Duda') expect(t.id).toBe('lanterna')
+      }
     }
   })
 

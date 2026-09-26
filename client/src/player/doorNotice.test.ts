@@ -12,6 +12,8 @@ describe('doorNotice: a recusa da porta em uma linha', () => {
       far: 'Chegue mais perto da porta',
       not_visible: 'Você não vê essa porta daqui',
       wrong_side: 'Não abre deste lado',
+      // porta-nao-fecha-em-cima: fechar com alguém no vão.
+      blocked: 'Tem alguém no vão da porta',
     })
   })
 })

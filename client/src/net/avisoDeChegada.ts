@@ -1,3 +1,4 @@
+import { useFollowStore } from '../stores/followStore'
 import { useToastStore } from '../stores/toastStore'
 import type { AppliedTransfer } from './hostSession'
 
@@ -72,17 +73,18 @@ export function createArrivalAnnouncer(
   }
 
   const mostrar = (sceneId: string, sceneName: string, chegados: Map<string, Chegado>) => {
-    const ultimo = [...chegados.values()].at(-1)
-    if (ultimo === undefined) return
+    const ultimaEntrada = [...chegados.entries()].at(-1)
+    if (ultimaEntrada === undefined) return
+    const [ultimoId, ultimo] = ultimaEntrada
     const nomes = [...chegados.values()].map((chegado) => chegado.name)
+    // Antes de mover a câmera: seguindo outro jogador, o seguir levaria o mestre de volta.
+    const irLa = (ir: NonNullable<typeof goTo>) => () => {
+      useFollowStore.getState().irAteJogador(ultimoId)
+      ir(sceneId, ultimo.x, ultimo.y, ultimo.piso)
+    }
     const toastId = useToastStore
       .getState()
-      .push(
-        'info',
-        textoDeChegada(nomes, sceneName),
-        duracaoMs,
-        goTo === undefined ? {} : { actions: [{ label: 'Ir lá', run: () => goTo(sceneId, ultimo.x, ultimo.y, ultimo.piso) }] },
-      )
+      .push('info', textoDeChegada(nomes, sceneName), duracaoMs, goTo === undefined ? {} : { actions: [{ label: 'Ir lá', run: irLa(goTo) }] })
     cartoes.set(sceneId, { toastId, sceneName, chegados })
   }
 

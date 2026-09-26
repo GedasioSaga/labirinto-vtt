@@ -75,9 +75,11 @@ function mesa(map: MapData = mercado(), extraBackground: HostWorld['background']
     ids[nome] = joined.playerId
     s.assignToken(joined.playerId, fichaId)
   }
-  s.broadcast(world)
+  // O primeiro envio: o broadcast só manda de novo quando a tela de alguém muda.
+  const inicial = s.broadcast(world)
   return {
     s,
+    inicial,
     ids,
     get world() {
       return world
@@ -122,13 +124,13 @@ describe('protocolo: pin.buy', () => {
 describe('recorte: a banca no snapshot', () => {
   it('o snapshot leva as mercadorias da banca que o jogador vê', () => {
     const t = mesa()
-    const pin = snapshotFor(t.s.broadcast(t.world), 'c1').map.pins.find((p) => p.id === 'botica')
+    const pin = snapshotFor(t.inicial, 'c1').map.pins.find((p) => p.id === 'botica')
     expect(pin?.loja?.map((i) => i.nome)).toEqual(['Xarope de tosse', 'Atadura', 'Chave-mestra'])
   })
 
   it('SEGURANÇA: banca oculta para jogadores — o snapshot não leva nem o nome de uma mercadoria', () => {
     const t = mesa(mercado([botica({ secret: true })]))
-    const snap = snapshotFor(t.s.broadcast(t.world), 'c1')
+    const snap = snapshotFor(t.inicial, 'c1')
     expect(snap.map.pins).toEqual([])
     expect(JSON.stringify(snap)).not.toContain('Xarope')
     expect(JSON.stringify(snap)).not.toContain('Chave-mestra')

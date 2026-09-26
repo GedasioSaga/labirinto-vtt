@@ -51,7 +51,8 @@ function andar1(): MapData {
 function terreo(passagem: Pin['passagem'], escadaSecreta: boolean): MapData {
   return {
     ...createEmptyMap('mapa-terreo', 'Térreo', 40, 10, 50),
-    tokens: [token('bruno', 200, 200)],
+    // Bruno encostado no pé da escada: o pino de viagem só atravessa de perto.
+    tokens: [token('bruno', 250, 200)],
     stairs: [escada('escada-de-baixo', 'up', 300, 200, escadaSecreta ? { secret: true } : {})],
     pins: [pinoDaEscada('pino-de-baixo', 'escada-de-baixo', 300, 200, { sceneId: ANDAR1, pinId: 'pino-de-cima' }, passagem)],
   }

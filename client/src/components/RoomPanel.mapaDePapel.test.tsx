@@ -130,6 +130,10 @@ describe('RoomPanel: dar um mapa de papel', () => {
         />,
       ),
     )
+    // ABA JOGO COMPACTA: o "Dar um mapa a…" mora no "Mais" (…) do card, fechado por padrão.
+    const mais = container.querySelector<HTMLButtonElement>('button[aria-label="Mais de Ana"]')
+    if (mais === null) throw new Error('sem o "Mais" de Ana')
+    act(() => mais.click())
   }
 
   function botao(texto: string): HTMLButtonElement {

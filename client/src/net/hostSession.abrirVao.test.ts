@@ -132,7 +132,10 @@ describe('hostSession: o mestre abre um vão entre dois prédios no meio da sess
     // A parede leste da Oficina (x=1024): fora da visão dela, nunca explorada.
     const desabou = desabarParede(map, 'o1').map
     expect(desabou.walls.some((w) => w.id === 'o1')).toBe(false)
-    const depois = snapshotDe(s.broadcast(desabou).outbound)
+    // Paredes-so-as-vistas: a o1 nunca saiu para ela, então a tela pode nem mudar
+    // (nada vai à Gabi). Se algo vai, é um snapshot, e ele não revela nada.
+    const saida = s.broadcast(desabou).outbound.filter((m) => m.clientId === 'c1')
+    const depois = saida.length === 0 ? antes : snapshotDe(saida)
     expect(depois.map.tokens.map((t) => t.id)).toEqual(['gabi'])
     expect(depois.map.regions.map((r) => r.id)).toEqual(antes.map.regions.map((r) => r.id))
     expect(depois.vision).toEqual(antes.vision)
