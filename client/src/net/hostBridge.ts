@@ -72,6 +72,7 @@ import {
   type SecretCheckState,
   type TokenActionRequest,
   type TravelCancelled,
+  type FrozenTravel,
   type TrancaAviso,
   type TravelRequest,
 } from './hostSession'
@@ -668,6 +669,11 @@ export function pinKeyLine(used: PinKeyUse): string {
   return `${used.playerName} abriu ${used.pinLabel} com ${used.itemName}${where}`
 }
 
+/** CONGELAR FICHA: "Pedido de Ana retirado: ficha congelada" — no lugar da linha que saiu da Caixa. */
+export function frozenTravelLine(frozen: FrozenTravel): string {
+  return `Pedido de ${frozen.playerName} retirado: ficha congelada`
+}
+
 const DEFAULT_VISION_RADIUS = 700
 /** Quantos motivos do "Não, porque…" voltam prontos no próximo pedido. */
 export const TRAVEL_DENY_RECENTS_MAX = 3
@@ -1247,6 +1253,14 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     // aviso do mestre e o selo da lista vão junto.
     if (result.outbound.some((o) => o.msg.type === 'scene.changed')) {
       pruneTravelToasts()
+      notifyPlayersIfChanged()
+    }
+    // CONGELAR FICHA: o mestre congelou quem iria — o pedido saiu da espera na
+    // sessão (a recusa já foi em `outbound`). A linha sai da Caixa, nenhum
+    // "Deixar ir" fica oferecendo o que seria recusado, e o mestre lê por quê.
+    if (result.frozenTravels !== undefined) {
+      pruneTravelToasts()
+      for (const frozen of result.frozenTravels) useToastStore.getState().push('info', frozenTravelLine(frozen))
       notifyPlayersIfChanged()
     }
     announceHazardEntries(result.hazardEntries ?? [])

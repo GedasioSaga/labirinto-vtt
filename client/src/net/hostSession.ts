@@ -88,7 +88,7 @@ import {
 import { tokenSizeInSquares } from '../lib/tokenSize'
 import { linkedDoorOf } from '../lib/lever'
 import { carriedBy, carrierIdOf } from '../lib/carry'
-import { congeladaPresaA, estaCongelada, semAsCongeladas } from '../lib/congelar'
+import { congeladaPresaA, estaCongelada, podeAcompanhar, semAsCongeladas } from '../lib/congelar'
 import { companionArrivals, type CarriedArrival } from '../lib/carryArrival'
 import { VISION_FACTOR_DEFAULT, clampVisionFactor, playerVisionRadius, readSceneVisionCells } from '../lib/sceneVision'
 import { isLockClosed, lockAccepts } from '../lib/pinLock'
@@ -556,6 +556,13 @@ export interface TravelCancelled {
 }
 
 /**
+ * CONGELAR FICHA: o pedido de passagem que saiu da espera porque o mestre
+ * congelou quem iria (`HostResult.frozenTravels`). O jogador já leu a recusa
+ * `congelado`; o integrador tira a linha da Caixa. Só o mestre lê.
+ */
+export type FrozenTravel = Omit<TravelCancelled, 'reason'>
+
+/**
  * JOGADOR TRANCA: o aviso curto do mestre quando alguém corre ou tira o
  * ferrolho de uma porta, ou barra ou desbarra uma passagem. Só o mestre lê.
  */
@@ -978,6 +985,13 @@ export interface HostResult {
   applyItems?: AppliedItems
   /** O pedido saiu da espera sem o mestre responder: o integrador tira a linha dele da Caixa. */
   travelCancelled?: TravelCancelled
+  /**
+   * CONGELAR FICHA: pedidos que o mestre congelou no meio da espera (a ficha
+   * de quem pede, uma escolhida, ou uma presa a quem passa). O "Deixar ir" já
+   * recusaria: saem da espera no broadcast, a recusa `congelado` vai em
+   * `outbound`, e o integrador tira as linhas da Caixa. Ausente = nenhum.
+   */
+  frozenTravels?: FrozenTravel[]
   /**
    * VOLTO JÁ: o "Deixar ir" não levou ninguém porque o jogador está fora da
    * mesa. O pedido segue esperando, e o integrador diz isso ao mestre.
@@ -5165,6 +5179,30 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   }
 
   /**
+   * CONGELAR FICHA — os pedidos que o mestre congelou no meio da espera: a
+   * conta é a do "Deixar ir" (`validTravel`, com os mesmos argumentos de
+   * `approveTravel`), e só o motivo `congelado` solta — o resto continua
+   * esperando o mestre, como sempre. O jogador lê a recusa agora, em vez de
+   * esperar um clique que não o levaria. Sem ficha congelada em cena nenhuma
+   * não confere nada: é o caso de quase todo broadcast.
+   */
+  function dropFrozenTravels(world: HostWorld): { outbound: Outbound[]; frozen: FrozenTravel[] } {
+    const outbound: Outbound[] = []
+    const frozen: FrozenTravel[] = []
+    if (pendingTravels.size === 0 || !allScenes(world).some((scene) => scene.map.tokens.some(estaCongelada))) return { outbound, frozen }
+    for (const pending of [...pendingTravels.values()]) {
+      const check = validTravel(pending.playerId, pending.pinId, pending.exitId, world, false, pending.trancada === true, pending.tokenIds, pending.chosenReach)
+      if (check.ok || check.reason !== 'congelado') continue
+      pendingTravels.delete(pending.playerId)
+      const record = players.get(pending.playerId)
+      if (record === undefined) continue
+      frozen.push({ requestId: pending.requestId, playerId: pending.playerId, playerName: record.name })
+      if (record.clientId !== null) outbound.push({ clientId: record.clientId, msg: { type: 'pin.travel.rejected', reason: 'congelado' } })
+    }
+    return { outbound, frozen }
+  }
+
+  /**
    * "Desistir": o jogador retira o pedido que espera o mestre. Se o mestre já
    * respondeu (a resposta chegou ao host antes), não há o que retirar e nada
    * sai — o jogador lê a resposta do mestre, que é o que valeu.
@@ -7729,7 +7767,9 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     // que o mestre escondeu, ou de camada oculta, não está no tabuleiro para
     // ninguém — não conta no "(N)" e não é levada para a outra cena.
     // PISOS: só quem está no piso de quem pediu; a colada no andar de cima fica.
-    const onBoard = doPisoDe(travel.token, fromMap, visibleTokens(fromMap.tokens, fromMap.hiddenLayers).filter((t) => t.hidden !== true))
+    // CONGELAR FICHA: ficha congelada nunca atravessa por pino — nem a do
+    // colega que iria junto, nem quem leva uma congelada presa. Não conta no "(N)".
+    const onBoard = doPisoDe(travel.token, fromMap, visibleTokens(fromMap.tokens, fromMap.hiddenLayers).filter((t) => t.hidden !== true && podeAcompanhar(fromMap, t)))
     const candidates = [...players.values()].flatMap((record) => {
       if (record.playerId === pending.playerId || record.clientId === null || statusOf(record.playerId) !== 'playing') return []
       // A cena DELE, pela mesma regra do broadcast: ficha esquecida no Salão
@@ -8328,6 +8368,10 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       })
       const taken: Seat[] = [leader, ...leadEntourage, ...companionSeats]
       const results: HostResult[] = [lead]
+      // CONGELAR FICHA: o séquito de cada companheiro sai de quem pode ir junto
+      // (`podeAcompanhar`): a coruja congelada da Bia fica, e a montaria que
+      // leva uma congelada a bordo também.
+      const acompanham: MapData = { ...travel.from.map, tokens: travel.from.map.tokens.filter((t) => podeAcompanhar(travel.from.map, t)) }
       near.forEach((companion, index) => {
         const spot = spots[index] ?? null
         const record = players.get(companion.playerId)
@@ -8348,7 +8392,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
           x: spot.x,
           y: spot.y,
         }
-        taken.push(...withEntourage(applyTransfer, travel.from.map, companion.token, travel.to.map, taken, travel.partner))
+        taken.push(...withEntourage(applyTransfer, acompanham, companion.token, travel.to.map, taken, travel.partner))
         // Sem `by`: para ele é a mesma chegada de quem pediu, "Você chegou".
         results.push({ outbound: [{ clientId: record.clientId, msg: { type: 'scene.changed' } }], applyTransfer })
       })
@@ -9220,6 +9264,9 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       }
       // Prazo vencido antes do mapa: o recado da volta chega e o snapshot já sai sem o ajudante.
       const outbound: Outbound[] = expireDue(world)
+      // CONGELAR FICHA: o pedido que o mestre congelou sai da espera já neste envio.
+      const congelados = dropFrozenTravels(world)
+      outbound.push(...congelados.outbound)
       for (const [clientId, playerId] of byClient) {
         if (statusOf(playerId) !== 'playing') {
           // Fora de jogo a tela dele não tem recorte: quando voltar, o envio refaz.
@@ -9288,6 +9335,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       const triggerEntries = triggerEntriesIn(world)
       return {
         outbound,
+        ...(congelados.frozen.length === 0 ? {} : { frozenTravels: congelados.frozen }),
         ...(hazards.entries.length === 0 ? {} : { hazardEntries: hazards.entries }),
         ...(triggerEntries.length === 0 ? {} : { triggerEntries }),
         // ENCONTRO MARCADO: a espera de alguém acabou no recorte (voltou ao lugar).

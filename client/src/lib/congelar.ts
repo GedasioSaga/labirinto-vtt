@@ -73,6 +73,15 @@ export function semAsCongeladas(map: MapData): MapData {
 }
 
 /**
+ * A ficha pode ir JUNTO numa passagem que o mestre aprova para outro ("Deixar
+ * ir com quem está perto"): não está congelada e não leva congelada presa (a
+ * bordo, levada) — senão a congelada atravessaria de carona.
+ */
+export function podeAcompanhar(map: MapData, token: Token): boolean {
+  return !estaCongelada(token) && congeladaPresaA(map, [token.id]) === null
+}
+
+/**
  * O que os botões do Grupo oferecem. `todas`: toda ficha de jogador em cena
  * carregada já está congelada (sem ficha nenhuma em cena, não há o que
  * congelar: `false`). `alguma`: há ficha congelada em cena carregada, de

@@ -253,6 +253,8 @@ describe('passagem pelo pino', () => {
     const { s } = mesa(w)
     const requestId = pede(s, w, { pinId: 'porta' }).travelRequest?.requestId
     if (requestId === undefined) throw new Error('o pedido deveria chegar ao mestre')
+    // O clique chega antes do envio seguinte (que já tiraria o pedido da
+    // espera): a aprovação sozinha também recusa a ficha congelada.
     const congelada = mundo({ ana: { congelado: true }, ponei: { x: 725, y: 525 } })
     const r = s.approveTravel(requestId, congelada)
     expect(r.outbound).toEqual([{ clientId: 'c1', msg: recusaDaPassagem }])
@@ -264,6 +266,111 @@ describe('passagem pelo pino', () => {
     const { s, ana } = mesa(w)
     const r = s.sendPlayer(ana, CRIPTA, 'escada-b', w)
     expect(r.applyTransfer?.tokenId).toBe('ana')
+  })
+})
+
+describe('congelar com pedido de passagem esperando o mestre', () => {
+  const recusa: HostMessage = { type: 'pin.travel.rejected', reason: 'congelado' }
+  const LONGE = { x: 725, y: 525 }
+
+  /** Ana pede pela porta que pede ao mestre; o pedido fica esperando. */
+  function pedidoEsperando(w: HostWorld, fichasDaAna?: string[], tokenIds?: string[]): { s: HostSession; ana: string; requestId: string } {
+    const { s, ana } = mesa(w, fichasDaAna)
+    const r = s.handleMessage('c1', { type: 'pin.travel.request', pinId: 'porta', ...(tokenIds === undefined ? {} : { tokenIds }) }, w)
+    const requestId = r.travelRequest?.requestId
+    if (requestId === undefined) throw new Error('o pedido deveria chegar ao mestre')
+    return { s, ana, requestId }
+  }
+
+  it('congelar quem pede solta o pedido no envio seguinte: a Ana lê a recusa e a Caixa perde a linha', () => {
+    const { s, ana, requestId } = pedidoEsperando(mundo({ ponei: LONGE }))
+    const r = s.broadcast(mundo({ ana: { congelado: true }, ponei: LONGE }))
+    expect(r.outbound).toContainEqual({ clientId: 'c1', msg: recusa })
+    expect(r.frozenTravels).toEqual([{ requestId, playerId: ana, playerName: 'Ana' }])
+    expect(s.isTravelPending(requestId)).toBe(false)
+    // O "Deixar ir" atrasado não acha mais o pedido: nada sai.
+    expect(s.approveTravel(requestId, mundo({ ana: { congelado: true }, ponei: LONGE })).outbound).toEqual([])
+  })
+
+  it('congelar a escolhida no "Quem passa?" também solta', () => {
+    const { s, requestId } = pedidoEsperando(mundo(), undefined, ['ana', 'ponei'])
+    const r = s.broadcast(mundo({ ponei: { congelado: true } }))
+    expect(r.outbound).toContainEqual({ clientId: 'c1', msg: recusa })
+    expect(s.isTravelPending(requestId)).toBe(false)
+  })
+
+  it('congelar quem vai a bordo ou levado por quem passa também solta', () => {
+    const aBordo = (bia: Partial<Token>) => mundo({ bia: { x: 225, y: 225, ...bia } }, [ficha('carroca', 225, 225, { veiculo: { lugares: 2, passageiros: ['bia'] } })])
+    const carroca = pedidoEsperando(aBordo({}), ['carroca'])
+    expect(carroca.s.broadcast(aBordo({ congelado: true })).outbound).toContainEqual({ clientId: 'c1', msg: recusa })
+    expect(carroca.s.isTravelPending(carroca.requestId)).toBe(false)
+
+    const levando = (ferido: Partial<Token>) => mundo({ ponei: LONGE }, [ficha('ferido', 175, 175, { levadoPor: 'ana', ...ferido })])
+    const ferido = pedidoEsperando(levando({}))
+    expect(ferido.s.broadcast(levando({ congelado: true })).outbound).toContainEqual({ clientId: 'c1', msg: recusa })
+    expect(ferido.s.isTravelPending(ferido.requestId)).toBe(false)
+  })
+
+  it('controle: congelar quem não vai junto não mexe no pedido', () => {
+    const { s, requestId } = pedidoEsperando(mundo({ ponei: LONGE }))
+    const r = s.broadcast(mundo({ ponei: LONGE, npc: { congelado: true }, bia: { congelado: true } }))
+    expect(r.outbound).not.toContainEqual({ clientId: 'c1', msg: recusa })
+    expect(r.frozenTravels).toBeUndefined()
+    expect(s.isTravelPending(requestId)).toBe(true)
+  })
+})
+
+describe('"Deixar ir com quem está perto": a congelada fica', () => {
+  const LONGE = { x: 725, y: 525 }
+  /** A Bia a duas casas da Ana: perto o bastante para ir junto. */
+  const PERTO = { x: 325, y: 225 }
+
+  function pedido(w: HostWorld, fichasDaBia: string[] = ['bia']): { s: HostSession; requestId: string } {
+    let n = 0
+    const s = createHostSession({ code: CODE, visionRadius: 700, now: () => 1_000_000, randomId: () => `id-${(n += 1)}` })
+    const ana = playerIdOf(s.handleMessage('c1', { type: 'join', code: CODE, name: 'Ana' }, w))
+    s.assignToken(ana, 'ana')
+    const bia = playerIdOf(s.handleMessage('c2', { type: 'join', code: CODE, name: 'Bia' }, w))
+    for (const id of fichasDaBia) s.assignToken(bia, id)
+    s.broadcast(w)
+    const requestId = s.handleMessage('c1', { type: 'pin.travel.request', pinId: 'porta' }, w).travelRequest?.requestId
+    if (requestId === undefined) throw new Error('o pedido deveria chegar ao mestre')
+    return { s, requestId }
+  }
+
+  const levados = (resultados: HostResult[]) => resultados.flatMap((r) => (r.applyTransfer === undefined ? [] : [r.applyTransfer.tokenId]))
+
+  it('controle: a Bia solta, perto, conta no "(N)" e vai junto', () => {
+    const w = mundo({ ponei: LONGE, bia: PERTO })
+    const { s, requestId } = pedido(w)
+    expect(s.travelCompanions(requestId, w)).toHaveLength(1)
+    expect(levados(s.approveTravelTogether(requestId, w))).toEqual(['ana', 'bia'])
+  })
+
+  it('a Bia congelada não conta no "(N)" e fica para trás', () => {
+    const w = mundo({ ponei: LONGE, bia: { ...PERTO, congelado: true } })
+    const { s, requestId } = pedido(w)
+    expect(s.travelCompanions(requestId, w)).toEqual([])
+    expect(levados(s.approveTravelTogether(requestId, w))).toEqual(['ana'])
+  })
+
+  it('a coruja congelada da Bia não vai no séquito dela', () => {
+    const coruja = (extra: Partial<Token>) => mundo({ ponei: LONGE, bia: PERTO }, [ficha('coruja', 375, 225, extra)])
+    const solta = pedido(coruja({}), ['bia', 'coruja'])
+    const [, daBia] = solta.s.approveTravelTogether(solta.requestId, coruja({}))
+    expect((daBia?.applyTransfer?.entourage ?? []).map((e) => e.tokenId)).toEqual(['coruja'])
+
+    const congelada = pedido(coruja({ congelado: true }), ['bia', 'coruja'])
+    const [, daBiaSemCoruja] = congelada.s.approveTravelTogether(congelada.requestId, coruja({ congelado: true }))
+    expect(daBiaSemCoruja?.applyTransfer?.tokenId).toBe('bia')
+    expect((daBiaSemCoruja?.applyTransfer?.entourage ?? []).map((e) => e.tokenId)).toEqual([])
+  })
+
+  it('o bote da Bia com alguém congelado a bordo não vai junto (levaria a congelada)', () => {
+    const w = mundo({ ponei: LONGE, bia: LONGE, npc: { ...PERTO, congelado: true } }, [ficha('bote', PERTO.x, PERTO.y, { veiculo: { lugares: 2, passageiros: ['npc'] } })])
+    const { s, requestId } = pedido(w, ['bia', 'bote'])
+    expect(s.travelCompanions(requestId, w)).toEqual([])
+    expect(levados(s.approveTravelTogether(requestId, w))).toEqual(['ana'])
   })
 })
 
