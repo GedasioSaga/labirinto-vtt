@@ -1,0 +1,308 @@
+import type { MapData, Token, TokenVehicle } from '../types/map'
+import { followStep } from './carry'
+import { carryAttachedLights, moveTokenCarryingLights } from './lightAttachment'
+import { mapaDoPiso, pisoDe } from './pisos'
+import { tokenSizeInSquares } from './tokenSize'
+
+/**
+ * VEÍCULO COM LUGARES (cesto, bote, vagonete) — regras puras, compartilhadas
+ * pelo editor do mestre (`mapFactory.setTokenPosition`), pelo disco
+ * (`lib/mapFile.ts`), pela travessia entre cenas (`adventureStore`) e pelo
+ * painel da ficha. Sem DOM, sem store.
+ *
+ * O veículo é uma ficha com `veiculo`; os passageiros são outras fichas DA
+ * MESMA CENA, guardadas pelo id na lista dele. Quem está a bordo anda junto
+ * com o veículo, sem atravessar parede (barrado, fica e desce); andar sozinho
+ * é descer. Veículo não embarca em veículo.
+ */
+
+export const VEHICLE_SEATS_MIN = 1
+/** Teto de lugares: um bote grande leva o grupo inteiro (4 a 7) e sobra; arquivo editado à mão não incha o mapa. */
+export const VEHICLE_SEATS_MAX = 12
+/** Lugares de quem acabou de ligar o veículo: o cesto do pedido leva dois. */
+export const VEHICLE_SEATS_DEFAULT = 2
+/** Teto do id de ficha lido do disco: id do app é curto; texto enorme é lixo. */
+const PASSENGER_ID_MAX_LENGTH = 128
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function isSeatCount(value: unknown): value is number {
+  return typeof value === 'number' && Number.isInteger(value) && value >= VEHICLE_SEATS_MIN && value <= VEHICLE_SEATS_MAX
+}
+
+/** Monta o veículo já limpo: lista sem vazio nem repetição, cortada nos lugares; lista vazia não é gravada. */
+function buildVehicle(lugares: number, passageiros: readonly string[]): TokenVehicle {
+  const ids = [...new Set(passageiros.filter((id) => id !== ''))].slice(0, lugares)
+  return ids.length > 0 ? { lugares, passageiros: ids } : { lugares }
+}
+
+/**
+ * `Token.veiculo` como vem do disco. Lugares fora da faixa (ou não inteiro)
+ * = AUSENTE: a ficha volta a ser comum. Lista torta vira vazia; na lista, só
+ * texto curto e não vazio fica, sem repetição e até os lugares.
+ */
+export function readTokenVehicle(value: unknown): TokenVehicle | undefined {
+  if (!isRecord(value) || !isSeatCount(value.lugares)) return undefined
+  const lista = Array.isArray(value.passageiros) ? value.passageiros : []
+  const ids = lista.filter((id): id is string => typeof id === 'string' && id.length <= PASSENGER_ID_MAX_LENGTH)
+  return buildVehicle(value.lugares, ids)
+}
+
+/** O veículo da ficha, lido e sem a própria ficha na lista; `null` = ficha comum. */
+export function vehicleOf(token: Token): TokenVehicle | null {
+  const vehicle = readTokenVehicle(token.veiculo)
+  if (vehicle === undefined) return null
+  return buildVehicle(vehicle.lugares, (vehicle.passageiros ?? []).filter((id) => id !== token.id))
+}
+
+/**
+ * Quem está a bordo do veículo `vehicleId` AGORA, na ordem do embarque: só
+ * fichas que estão nesta cena e não são veículo. Id que sobrou de ficha
+ * apagada ou que saiu da cena não ocupa lugar.
+ */
+export function passengerIdsOf(map: MapData, vehicleId: string): string[] {
+  const vehicleToken = map.tokens.find((t) => t.id === vehicleId)
+  const vehicle = vehicleToken === undefined ? null : vehicleOf(vehicleToken)
+  if (vehicle === null) return []
+  return (vehicle.passageiros ?? []).filter((id) => {
+    const passenger = map.tokens.find((t) => t.id === id)
+    return passenger !== undefined && vehicleOf(passenger) === null
+  })
+}
+
+/** As fichas a bordo, na ordem do embarque: é o grupo que atravessa junto com o veículo. */
+export function passengersOf(map: MapData, vehicleId: string): Token[] {
+  return passengerIdsOf(map, vehicleId).flatMap((id) => map.tokens.filter((t) => t.id === id))
+}
+
+/** O veículo que leva a ficha `tokenId` nesta cena; `null` = ela anda a pé. */
+export function vehicleCarrying(map: MapData, tokenId: string): Token | null {
+  return map.tokens.find((t) => t.id !== tokenId && passengerIdsOf(map, t.id).includes(tokenId)) ?? null
+}
+
+function withVehicle(map: MapData, tokenId: string, vehicle: TokenVehicle): MapData {
+  return { ...map, tokens: map.tokens.map((t) => (t.id === tokenId ? { ...t, veiculo: vehicle } : t)) }
+}
+
+/** Tira a ficha da lista de todo veículo da cena. Ninguém a levava: o MESMO mapa. */
+export function leaveVehicle(map: MapData, tokenId: string): MapData {
+  let changed = false
+  const tokens = map.tokens.map((t) => {
+    const vehicle = t.veiculo === undefined ? null : vehicleOf(t)
+    if (vehicle === null || !(vehicle.passageiros ?? []).includes(tokenId)) return t
+    changed = true
+    return { ...t, veiculo: buildVehicle(vehicle.lugares, (vehicle.passageiros ?? []).filter((id) => id !== tokenId)) }
+  })
+  return changed ? { ...map, tokens } : map
+}
+
+/**
+ * Quantas casas LIVRES cabem entre a borda do veículo e a da ficha que
+ * embarca: encostada (0) ou com uma casa de folga. Mais longe que isso ela
+ * não sobe — o mestre traz a ficha para perto antes, como na mesa.
+ */
+export const VEHICLE_BOARD_REACH_CELLS = 1
+/** Folga, em casas, para ficha solta fora da grade não perder o embarque por um pixel. */
+const BOARD_REACH_EPSILON_CELLS = 0.01
+
+/**
+ * A ficha `token` está perto do veículo `vehicle` para embarcar: no mesmo
+ * piso e com no máximo `VEHICLE_BOARD_REACH_CELLS` casas entre as bordas das
+ * duas (distância de xadrez, a diagonal conta como do lado). Os tamanhos
+ * contam: num bote de 2 casas a folga começa na borda dele, não no centro.
+ */
+export function isNearVehicle(map: Pick<MapData, 'grid'>, vehicle: Token, token: Token): boolean {
+  if (pisoDe(vehicle) !== pisoDe(token)) return false
+  const centers = Math.max(Math.abs(token.x - vehicle.x), Math.abs(token.y - vehicle.y)) / map.grid
+  const gap = centers - (tokenSizeInSquares(vehicle) + tokenSizeInSquares(token)) / 2
+  return gap <= VEHICLE_BOARD_REACH_CELLS + BOARD_REACH_EPSILON_CELLS
+}
+
+/** Por que o embarque não aconteceu. */
+export type BoardRefusal = 'cheio' | 'longe' | 'sem-veiculo' | 'sem-ficha' | 'propria' | 'e-veiculo'
+
+export type BoardResult = { ok: true; map: MapData } | { ok: false; motivo: BoardRefusal }
+
+/**
+ * Põe a ficha `tokenId` a bordo do veículo `vehicleId`. Recusa com o motivo,
+ * sem mexer no mapa: veículo cheio, ficha longe do veículo (`isNearVehicle`),
+ * ficha que não é veículo, a própria ficha, outro veículo, ficha que não está
+ * na cena. Quem já está a bordo: o mesmo mapa, mesmo longe (mapa de arquivo).
+ * Quem estava noutro veículo desce dele antes (um lugar por ficha).
+ */
+export function boardVehicle(map: MapData, vehicleId: string, tokenId: string): BoardResult {
+  const vehicleToken = map.tokens.find((t) => t.id === vehicleId)
+  const vehicle = vehicleToken === undefined ? null : vehicleOf(vehicleToken)
+  if (vehicleToken === undefined || vehicle === null) return { ok: false, motivo: 'sem-veiculo' }
+  if (tokenId === vehicleId) return { ok: false, motivo: 'propria' }
+  const passenger = map.tokens.find((t) => t.id === tokenId)
+  if (passenger === undefined) return { ok: false, motivo: 'sem-ficha' }
+  if (vehicleOf(passenger) !== null) return { ok: false, motivo: 'e-veiculo' }
+  const aboard = passengerIdsOf(map, vehicleId)
+  if (aboard.includes(tokenId)) return { ok: true, map }
+  if (!isNearVehicle(map, vehicleToken, passenger)) return { ok: false, motivo: 'longe' }
+  if (aboard.length >= vehicle.lugares) return { ok: false, motivo: 'cheio' }
+  return { ok: true, map: withVehicle(leaveVehicle(map, tokenId), vehicleId, buildVehicle(vehicle.lugares, [...aboard, tokenId])) }
+}
+
+/**
+ * Liga o veículo com `lugares` (levado para a faixa), troca os lugares, ou
+ * desliga com `null` — quem estava a bordo fica onde está, a pé. Baixar os
+ * lugares abaixo de quem está a bordo desce os últimos que embarcaram. A
+ * ficha que estava a bordo de outro veículo desce antes de virar veículo.
+ */
+export function setVehicleSeats(map: MapData, tokenId: string, lugares: number | null): MapData {
+  const token = map.tokens.find((t) => t.id === tokenId)
+  if (token === undefined) return map
+  if (lugares === null) {
+    if (!('veiculo' in token)) return map
+    return { ...map, tokens: map.tokens.map((t) => (t.id === tokenId ? withoutVehicleField(t) : t)) }
+  }
+  const seats = Math.min(VEHICLE_SEATS_MAX, Math.max(VEHICLE_SEATS_MIN, Math.round(lugares)))
+  const current = vehicleOf(token) === null ? [] : passengerIdsOf(map, tokenId)
+  return withVehicle(leaveVehicle(map, tokenId), tokenId, buildVehicle(seats, current))
+}
+
+/** A ficha sem o campo `veiculo` (sem deixar a chave com `undefined` no JSON). */
+export function withoutVehicleField(token: Token): Token {
+  if (!('veiculo' in token)) return token
+  const { veiculo: _veiculo, ...rest } = token
+  return rest
+}
+
+/**
+ * O passageiro `rider` consegue andar (dx, dy) junto com o veículo em `map`
+ * (o mapa ANTES do passo)? A mesma regra da ficha levada (`followStep`, que é
+ * a do passo do jogador sem posse, vez nem ocupação): parede, porta fechada ou
+ * secreta, fora do chão e fora do mapa barram. PISOS: só a planta do piso
+ * dele (`mapaDoPiso`). Validar só o passo do veículo deixava quem vai a bordo
+ * atravessar a parede do corredor e enxergar de dentro de uma sala que
+ * ninguém alcançou — ou pousar numa sala secreta.
+ */
+function riderFollows(map: MapData, rider: Token, dx: number, dy: number): boolean {
+  const stepped = followStep(mapaDoPiso(map, pisoDe(rider)), rider, dx, dy)
+  return stepped.x === rider.x + dx && stepped.y === rider.y + dy
+}
+
+/**
+ * Põe a ficha em (x, y) com a regra do veículo: o VEÍCULO leva quem está a
+ * bordo (e as tochas presas neles) pelo mesmo deslocamento — quem a parede
+ * barra (`riderFollows`) fica onde está e desce; o PASSAGEIRO que anda
+ * sozinho desce. Ficha comum: só ela e a tocha dela, como sempre.
+ */
+export function moveTokenWithVehicle(map: MapData, tokenId: string, x: number, y: number): MapData {
+  const token = map.tokens.find((t) => t.id === tokenId)
+  if (token === undefined) return map
+  const aboard = vehicleOf(token) === null ? [] : passengerIdsOf(map, tokenId)
+  if (aboard.length === 0) {
+    const moved = moveTokenCarryingLights(map, tokenId, x, y)
+    return token.x === x && token.y === y ? moved : leaveVehicle(moved, tokenId)
+  }
+  const dx = x - token.x
+  const dy = y - token.y
+  const moving = withRiders(map, new Set([tokenId]), dx, dy)
+  const next: MapData = {
+    ...map,
+    tokens: map.tokens.map((t) => {
+      if (t.id === tokenId) return { ...t, x, y }
+      return moving.has(t.id) ? { ...t, x: t.x + dx, y: t.y + dy } : t
+    }),
+    lights: carryAttachedLights(map.lights, moving, dx, dy),
+  }
+  return leaveVehiclesLeftBehind(map, next, moving)
+}
+
+/**
+ * Anda o GRUPO de fichas `tokenIds` por (dx, dy) com a regra do veículo — o
+ * caminho das setas e do arrasto da seleção (`lib/areaSelection.ts`), que
+ * mexem em várias fichas de uma vez. O veículo do grupo leva quem está a
+ * bordo, esteja ou não no grupo, e cada um anda UMA vez; o passageiro que anda
+ * sem o seu veículo desce dele. As tochas presas em quem andou vão junto,
+ * menos as de `skipLights` (já movidas pela seleção).
+ */
+export function moveTokensWithVehicles(
+  map: MapData,
+  tokenIds: ReadonlySet<string>,
+  dx: number,
+  dy: number,
+  skipLights?: ReadonlySet<string>,
+): MapData {
+  if (dx === 0 && dy === 0) return map
+  const moving = withRiders(map, tokenIds, dx, dy)
+  if (moving.size === 0) return map
+  const next: MapData = {
+    ...map,
+    tokens: map.tokens.map((t) => (moving.has(t.id) ? { ...t, x: t.x + dx, y: t.y + dy } : t)),
+    lights: carryAttachedLights(map.lights, moving, dx, dy, skipLights),
+  }
+  return leaveVehiclesLeftBehind(map, next, moving)
+}
+
+/**
+ * O grupo que anda (dx, dy) junto em `map` (o mapa ANTES do passo): as fichas
+ * `tokenIds` que existem na cena e quem está a bordo de cada veículo entre
+ * elas. O passageiro que também está em `tokenIds` anda (quem o mandou foi o
+ * mestre); o que só vai a bordo anda se o trajeto DELE é livre
+ * (`riderFollows`) — barrado, fica de fora e desce (`leaveVehiclesLeftBehind`).
+ */
+export function withRiders(map: MapData, tokenIds: ReadonlySet<string>, dx: number, dy: number): Set<string> {
+  const moving = new Set<string>()
+  const still = dx === 0 && dy === 0
+  for (const token of map.tokens) {
+    if (!tokenIds.has(token.id)) continue
+    moving.add(token.id)
+    for (const rider of passengersOf(map, token.id)) {
+      if (still || tokenIds.has(rider.id) || riderFollows(map, rider, dx, dy)) moving.add(rider.id)
+    }
+  }
+  return moving
+}
+
+/**
+ * Depois que o grupo `moving` andou (`before` é o mapa de ANTES do passo):
+ * desce do veículo o passageiro que andou sem ele, e o que ficou para trás
+ * quando o veículo andou (a parede o barrou). Ninguém desceu: `next`.
+ */
+export function leaveVehiclesLeftBehind(before: MapData, next: MapData, moving: ReadonlySet<string>): MapData {
+  let result = next
+  for (const id of moving) {
+    const carrier = vehicleCarrying(before, id)
+    if (carrier !== null && !moving.has(carrier.id)) result = leaveVehicle(result, id)
+    for (const rider of passengerIdsOf(before, id)) {
+      if (!moving.has(rider)) result = leaveVehicle(result, rider)
+    }
+  }
+  return result
+}
+
+/** Uma ficha da cena como o painel do veículo a mostra. */
+export interface VehicleSeatOption {
+  id: string
+  nome: string
+  aBordo: boolean
+  /** Dá para marcar ou desmarcar: quem está a bordo sempre; quem está fora, só perto do veículo e com lugar livre. */
+  disponivel: boolean
+  /** Fora do veículo e longe dele (`isNearVehicle`): o painel diz por que não sobe. */
+  longe: boolean
+}
+
+/**
+ * As fichas do painel do veículo: as da cena, na ordem do mapa, menos o
+ * próprio veículo e os outros veículos (não embarcam).
+ */
+export function vehicleSeatOptions(map: MapData, vehicleId: string): VehicleSeatOption[] {
+  const vehicleToken = map.tokens.find((t) => t.id === vehicleId)
+  const vehicle = vehicleToken === undefined ? null : vehicleOf(vehicleToken)
+  if (vehicleToken === undefined || vehicle === null) return []
+  const aboard = passengerIdsOf(map, vehicleId)
+  const cheio = aboard.length >= vehicle.lugares
+  return map.tokens
+    .filter((t) => t.id !== vehicleId && vehicleOf(t) === null)
+    .map((t) => {
+      const aBordo = aboard.includes(t.id)
+      const longe = !aBordo && !isNearVehicle(map, vehicleToken, t)
+      return { id: t.id, nome: t.name.trim() === '' ? 'Ficha sem nome' : t.name, aBordo, disponivel: aBordo || (!cheio && !longe), longe }
+    })
+}

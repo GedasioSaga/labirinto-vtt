@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { SelectionKind } from '../types/tools'
 import type { SecretBatchState } from '../lib/batchSecret'
-import { deleteSelectionLabel } from './labels'
 import { TokenIcon } from './icons'
 
 /**
@@ -44,15 +43,23 @@ export interface SelectionControlsProps {
   defaultTokenName: string
   /** Chamado com o nome confirmado (nunca vazio: vazio vira `defaultTokenName`). */
   onAddToken: (name: string) => void
+  /**
+   * Apaga a seleção. O botão que a chama mora na faixa do topo
+   * (`SelectionHeader`, montada pelo `PropertiesPanel` com este mesmo objeto):
+   * uma instância só do "Apagar …", à vista em qualquer altura da coluna.
+   */
   onRemoveSelected: () => void
 }
 
 /**
- * Ações sobre o que está selecionado no mapa.
+ * A seção "Seleção": o que vale sem nada selecionado ("Adicionar token") e o
+ * "Oculto para jogadores" de vários itens de uma vez.
  *
- * O texto do botão de apagar para 1 item selecionado é verificado byte a
- * byte pelos testes e2e (`toHaveText('Apagar parede selecionada')`),
- * então esse caso não pode ganhar ícone nem qualquer outro nó de texto.
+ * Sem seleção fica o botão desabilitado "Nada selecionado", onde o "Apagar"
+ * morava: os testes e2e o procuram (`getByRole('button', { name:
+ * /Apagar|Nada selecionado/ })`) para saber que o clique no vazio desmarcou.
+ * Com seleção o "Apagar" está na faixa do topo, e aqui não repete — duas
+ * instâncias do mesmo nome quebrariam o modo estrito do Playwright.
  *
  * "Adicionar token" pede o nome antes de criar: sem isso todo token nascia
  * "Token" e a lista de atribuir jogador ficava com itens idênticos.
@@ -87,7 +94,7 @@ function BatchSecretToggle({ state, count, onChange }: SelectionSecretProps) {
   )
 }
 
-export function SelectionControls({ selection, secret, defaultTokenName, onAddToken, onRemoveSelected }: SelectionControlsProps) {
+export function SelectionControls({ selection, secret, defaultTokenName, onAddToken }: SelectionControlsProps) {
   const [tokenNameDraft, setTokenNameDraft] = useState<string | null>(null)
   /**
    * O campo abre com o nome sugerido JÁ SELECIONADO (`onFocus` + `select()`),
@@ -100,12 +107,6 @@ export function SelectionControls({ selection, secret, defaultTokenName, onAddTo
    * posiciona o cursor), que é o que se espera de quem foi corrigir uma letra.
    */
   const justSelectedOnFocus = useRef(false)
-  const label =
-    selection === null
-      ? 'Nada selecionado'
-      : selection.count === 1
-        ? deleteSelectionLabel(selection.kind)
-        : `Apagar ${selection.count} itens selecionados`
 
   const confirmToken = () => {
     if (tokenNameDraft === null) return
@@ -166,14 +167,11 @@ export function SelectionControls({ selection, secret, defaultTokenName, onAddTo
         </form>
       )}
       {secret !== undefined && <BatchSecretToggle {...secret} />}
-      <button
-        type="button"
-        className={`lb-btn lb-btn--block${selection ? ' lb-btn--danger' : ''}`}
-        onClick={onRemoveSelected}
-        disabled={!selection}
-      >
-        {label}
-      </button>
+      {selection === null && (
+        <button type="button" className="lb-btn lb-btn--block" disabled>
+          Nada selecionado
+        </button>
+      )}
     </section>
   )
 }

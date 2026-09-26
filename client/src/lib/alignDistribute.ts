@@ -13,11 +13,12 @@
  * horizontal) e meio (eixo vertical) alinham no centro da caixa do conjunto.
  * Distribuir deixa o ESPAÇO entre vizinhos igual, com as duas pontas paradas.
  */
-import type { MapData } from '../types/map'
+import type { MapData, Token } from '../types/map'
 import type { SelectionItem } from './selectionModel'
 import { selectionToAreaSelection } from './selectionModel'
 import { areaSelectionBounds, moveAreaSelection, EMPTY_AREA_SELECTION, type AreaBounds, type AreaSelection } from './areaSelection'
 import { ancestorsOf, subtreeIds } from './roomNesting'
+import { leaveVehicle, vehicleCarrying, withoutVehicleField } from './vehicle'
 
 export type AlignEdge = 'left' | 'center' | 'right' | 'top' | 'middle' | 'bottom'
 export type DistributeAxis = 'horizontal' | 'vertical'
@@ -83,6 +84,49 @@ export function alignableUnitCount(map: MapData, items: readonly SelectionItem[]
   return unitsOf(map, items).length
 }
 
+/**
+ * VEÍCULO: cada bloco anda por `moveAreaSelection`, e lá o veículo leva quem
+ * está a bordo. Se o passageiro TAMBÉM está na seleção, ele é um bloco próprio
+ * com o deslocamento dele — levado pelo veículo, andaria duas vezes. Então,
+ * antes de mover, ele sai da lista do veículo selecionado (não é levado, e
+ * andar sozinho não o faz descer de ninguém); depois, `restoreBoarding`
+ * devolve a lista original. Passageiro sem o veículo na seleção continua
+ * descendo ao andar, e veículo sem o passageiro na seleção continua levando.
+ */
+function detachSelectedRiders(map: MapData, items: readonly SelectionItem[]): MapData {
+  const tokenIds = new Set(selectionToAreaSelection(items).tokens)
+  let next = map
+  for (const id of tokenIds) {
+    const carrier = vehicleCarrying(map, id)
+    if (carrier !== null && tokenIds.has(carrier.id)) next = leaveVehicle(next, id)
+  }
+  return next
+}
+
+/**
+ * Devolve a lista de passageiros de cada veículo que `detachSelectedRiders`
+ * mexeu. Nada andou: o MESMO `original` (a store não empilha passo vazio).
+ */
+function restoreBoarding(original: MapData, detached: MapData, moved: MapData): MapData {
+  if (moved === detached) return original
+  if (detached === original) return moved
+  const originalById = new Map(original.tokens.map((t) => [t.id, t]))
+  // Só os veículos cuja ficha `leaveVehicle` trocou; o resto é o mesmo objeto.
+  const touched = new Map<string, Token>()
+  for (const t of detached.tokens) {
+    const before = originalById.get(t.id)
+    if (before !== undefined && before !== t) touched.set(t.id, before)
+  }
+  return {
+    ...moved,
+    tokens: moved.tokens.map((t) => {
+      const before = touched.get(t.id)
+      if (before === undefined) return t
+      return before.veiculo === undefined ? withoutVehicleField(t) : { ...t, veiculo: before.veiculo }
+    }),
+  }
+}
+
 function moveUnit(map: MapData, unit: AlignUnit, dx: number, dy: number): MapData {
   if (Math.abs(dx) < MOVE_EPSILON && Math.abs(dy) < MOVE_EPSILON) return map
   return moveAreaSelection(map, unit.move, dx, dy)
@@ -127,12 +171,13 @@ export function alignSelectionItems(map: MapData, items: readonly SelectionItem[
   const units = unitsOf(map, items)
   if (units.length < 2) return map
   const all = unionBounds(units)
-  let next = map
+  const detached = detachSelectedRiders(map, items)
+  let next = detached
   for (const unit of units) {
     const { dx, dy } = alignDelta(edge, all, unit.bounds)
     next = moveUnit(next, unit, dx, dy)
   }
-  return next
+  return restoreBoarding(map, detached, next)
 }
 
 /**
@@ -153,12 +198,13 @@ export function distributeSelectionItems(map: MapData, items: readonly Selection
   const occupied = sorted.reduce((sum, u) => sum + (end(u.bounds) - start(u.bounds)), 0)
   const gap = (end(last) - start(first) - occupied) / (sorted.length - 1)
 
-  let next = map
+  const detached = detachSelectedRiders(map, items)
+  let next = detached
   let cursor = end(first) + gap
   for (const unit of sorted.slice(1, -1)) {
     const delta = cursor - start(unit.bounds)
     next = axis === 'horizontal' ? moveUnit(next, unit, delta, 0) : moveUnit(next, unit, 0, delta)
     cursor += end(unit.bounds) - start(unit.bounds) + gap
   }
-  return next
+  return restoreBoarding(map, detached, next)
 }

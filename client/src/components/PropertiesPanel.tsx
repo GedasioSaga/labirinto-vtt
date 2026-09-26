@@ -9,6 +9,7 @@ import { CollapsibleSection } from './CollapsibleSection'
 import { PropLayerControls, type PropLayerControlsProps } from './PropLayerControls'
 import { PropPlayerControls, type PropPlayerControlsProps } from './PropPlayerControls'
 import { SelectionControls, type SelectionControlsProps } from './SelectionControls'
+import { SelectionHeader, deleteLabelFor, floorActions, selectionIdentity } from './SelectionHeader'
 import { WallDoorControls, type WallDoorControlsProps } from './WallDoorControls'
 import { DoorKindControls, type DoorKindControlsProps } from './DoorKindControls'
 import { DoorModeControls, type DoorModeControlsProps } from './DoorModeControls'
@@ -43,12 +44,14 @@ import { readTokenWatch } from '../lib/npcWatch'
 import { TokenPatrolControls, type TokenPatrolControlsProps } from './TokenPatrolControls'
 import { readTokenPatrol } from '../lib/npcPatrol'
 import { TokenCarryControls, type TokenCarryControlsProps } from './TokenCarryControls'
+import { TokenVehicleControls, type TokenVehicleControlsProps } from './TokenVehicleControls'
+import { vehicleOf } from '../lib/vehicle'
 import { LightControls, type LightControlsProps } from './LightControls'
 import { TokenLightsControls, type TokenLightsControlsProps } from './TokenLightsControls'
 import { TokenSeenBy, type TokenSeenByProps } from './TokenSeenBy'
 import { WallLineStyleField, WallStyleControls, type WallStyleControlsProps } from './WallStyleControls'
 import { StairControls, type StairControlsProps } from './StairControls'
-import { LevarAoPisoControls, PisoControls } from './PisoControls'
+import { LEVAR_AO_PISO_HINT, PisoControls } from './PisoControls'
 import { pisoDe } from '../lib/pisos'
 import { RoomControls, type RoomControlsProps } from './RoomControls'
 import type { MapScaleControlsProps } from './MapScaleControls'
@@ -190,6 +193,11 @@ interface PropertiesPanelProps {
   tokenCarry: Omit<TokenCarryControlsProps, 'tokenId'>
   /** "Visto por" da ficha sem dono (`HostBridge.tokenSeenBy`). Ausente = sala fechada. */
   tokenSeenBy?: Omit<TokenSeenByProps, 'tokenId'>
+  /**
+   * VEÍCULO COM LUGARES: faz da ficha um cesto/bote e marca quem está a
+   * bordo. Ausente = sem o controle (quem monta o painel sem essa ligação).
+   */
+  tokenVehicle?: Omit<TokenVehicleControlsProps, 'vehicle'>
   /** F3, contrato do agente C4 — rotação/travar/ocultar do Token selecionado. */
   tokenTransform: Omit<ItemTransformControlsProps, 'title' | 'rotation' | 'locked' | 'hidden' | 'secret'>
   /** "Ficha de jogador" do Token selecionado: entra na lista de quem chega sem personagem. */
@@ -335,6 +343,7 @@ export function PropertiesPanel({
   tokenPatrol,
   tokenCarry,
   tokenSeenBy,
+  tokenVehicle,
   tokenTransform,
   tokenPlayerCharacter,
   selectedTextLabel,
@@ -379,6 +388,24 @@ export function PropertiesPanel({
   const toolHeading = headingTool === null ? undefined : TOOL_LABELS[headingTool]
   // Campos da região que moram no Avançado (fatia 3), em consts para o TS estreitar dentro do render prop.
   const { strokeJoin, onStrokeJoinChange, onSmoothRegion } = regionStyle
+  // A faixa da seleção remonta quando o item muda (o menu aberto não passa de um item para o outro).
+  const selectedItem = selectedRegion ?? selectedToken ?? selectedWall ?? selectedProp ?? selectedLight ?? selectedStair ?? selectedTextLabel ?? selectedFloorPiece
+  const selectionKey = selection.selection === null ? '' : `${selection.selection.kind}:${selection.selection.count}:${selectedItem?.id ?? ''}`
+  // "Oculto para jogadores" da região selecionada: vai para o bloco do Travado.
+  const regionSecret = selectedRegion !== null && groups.has('playerVisibility') ? playerSecret : null
+  // A seção "Parede" muda de lugar conforme o item (ordem por tarefa): montada uma vez só.
+  const doorSelected = selectedWall !== null && selectedWall.door !== null
+  const wallStyleSection = (
+    <ToolPropertiesSection group="wallStyle" groups={groups}>
+      <WallStyleControls {...wallStyle} />
+      {/* `key` pelo id: outra parede selecionada faz o Avançado nascer fechado. */}
+      <AdvancedSection key={selectedWall?.id ?? 'wall-tool'}>
+        <AdvancedField hint="Arredondada suaviza a ponta solta e a quina entre paredes; Reta deixa a quina viva.">
+          {(hintId) => <WallLineStyleField lineStyle={wallStyle.lineStyle} onLineStyleChange={wallStyle.onLineStyleChange} describedBy={hintId} />}
+        </AdvancedField>
+      </AdvancedSection>
+    </ToolPropertiesSection>
+  )
 
   return (
     <div className="lb-panel lb-inspector">
@@ -407,6 +434,31 @@ export function PropertiesPanel({
       </header>
 
       <div className="lb-inspector__body lb-scroll">
+        {/* A faixa da seleção, fixa no topo do corpo: o que está selecionado,
+            Apagar e "Mais ações" à vista em qualquer altura da coluna. Sem
+            título, então o primeiro `h2` continua sendo o do item. `key`: outro
+            item selecionado reabre a faixa com o menu fechado. */}
+        {selection.selection !== null && (
+          <SelectionHeader
+            key={selectionKey}
+            identity={selectionIdentity(selection.selection, {
+              region: selectedRegion,
+              token: selectedToken,
+              wall: selectedWall,
+              prop: selectedProp,
+              light: selectedLight,
+              stair: selectedStair,
+              textLabel: selectedTextLabel,
+              floorPiece: selectedFloorPiece,
+            })}
+            deleteLabel={deleteLabelFor(selection.selection)}
+            onDelete={selection.onRemoveSelected}
+            // PISOS NA MESMA CENA: parede, sala, chão, luz, objeto, desenho —
+            // tudo sobe ou desce um piso pelo menu, sem ocupar a coluna.
+            actions={pisos === undefined ? [] : floorActions(pisos.pisoAtivo, pisos.onLevarSelecaoAoPiso)}
+            actionsHint={pisos === undefined ? null : LEVAR_AO_PISO_HINT}
+          />
+        )}
         {/* Cabeçalho de contexto: a primeira coisa lida na coluna é o nome da
             ferramenta ativa. O prefixo "Ferramenta ·" separa este título dos
             títulos de bloco que vêm abaixo ("Região", "Preenchimento"), que
@@ -443,7 +495,27 @@ export function PropertiesPanel({
               raioDeVisao={selectedRegion.room.raioDeVisao ?? null}
               {...room}
             />
-            {perigoDaSala}
+          </ToolPropertiesSection>
+        )}
+        {/* Sala e Região, em ordem de tarefa: travar e esconder dos jogadores
+            logo depois do bloco do item (eram a 20ª e a 14ª rolagem), num bloco
+            só, como na ficha; depois a aparência (Região + Preenchimento), o
+            Gatilho, o Perigo que se alastra e, por último, o Avançado. */}
+        {selectedRegion && (
+          <ToolPropertiesSection group="itemTransform" groups={groups}>
+            <ItemTransformControls
+              // Rótulo segue o que o usuário chama a coisa: desenhada pela
+              // ferramenta Sala é "Sala", pela ferramenta Região é "Região".
+              title={selectedRegion.room ? 'Sala' : 'Região'}
+              locked={!!selectedRegion.locked}
+              // O "Oculto para jogadores" da região (grupo `playerVisibility`)
+              // mora aqui, ao lado do Travado, e não num bloco "Jogadores" à
+              // parte: na região ele não traz mais nada (a lista "Quem vê" é
+              // só do pino, e o "Revelar para…", só da escada).
+              secret={regionSecret?.secret}
+              onSecretChange={regionSecret?.onSecretChange}
+              {...regionTransform}
+            />
           </ToolPropertiesSection>
         )}
         {concealZone && (
@@ -465,18 +537,11 @@ export function PropertiesPanel({
           <PinControls {...pin} iconChoice={pinKindShowsIcon(pin.kind) ? { ...pinIcon, pinSelected } : null} />
           {estadoDoPino}
         </ToolPropertiesSection>
-        {playerSecret && (
+        {/* Escada, desenho, texto e pino: "Jogadores" logo depois do bloco do
+            item, onde sempre esteve. A região o tem lá em cima, junto do Travado. */}
+        {!selectedRegion && playerSecret && (
           <ToolPropertiesSection group="playerVisibility" groups={groups}>
             <PlayerSecretControls {...playerSecret} />
-          </ToolPropertiesSection>
-        )}
-        {/* GATILHO DE ÁREA logo abaixo de "Jogadores": as duas decidem o que o
-            jogador recebe desta área. Região e Sala, não só Sala. */}
-        {selectedRegion && areaTrigger && (
-          <ToolPropertiesSection group="playerVisibility" groups={groups}>
-            <section className="lb-section">
-              <AreaTriggerControls key={selectedRegion.id} {...areaTrigger} />
-            </section>
           </ToolPropertiesSection>
         )}
         {/* ANTES do Estilo de desenho: com a ferramenta Caminho na mão esta é
@@ -496,8 +561,30 @@ export function PropertiesPanel({
         )}
         <ToolPropertiesSection group="regionStyle" groups={groups}>
           <RegionStyleControls {...regionStyle} />
-          {/* Provisório (a fatia 4 reposiciona dentro do bloco do objeto). `key`
-              pelo id: outra região selecionada faz o Avançado nascer fechado. */}
+        </ToolPropertiesSection>
+        {/* Preenchimento junto da Região: as duas dizem como a área aparece. */}
+        <ToolPropertiesSection group="fill" groups={groups}>
+          <FillControls {...fill} />
+        </ToolPropertiesSection>
+        {/* GATILHO DE ÁREA: decide o que o jogador recebe ao entrar. Região e
+            Sala, não só Sala. */}
+        {selectedRegion && areaTrigger && (
+          <ToolPropertiesSection group="playerVisibility" groups={groups}>
+            <section className="lb-section">
+              <AreaTriggerControls key={selectedRegion.id} {...areaTrigger} />
+            </section>
+          </ToolPropertiesSection>
+        )}
+        {/* PERIGO QUE SE ALASTRA: gesto de mesa (pôr fogo, avançar), não de
+            construir a sala — depois do que a sala é. */}
+        {selectedRegion?.room && (
+          <ToolPropertiesSection group="room" groups={groups}>
+            {perigoDaSala}
+          </ToolPropertiesSection>
+        )}
+        <ToolPropertiesSection group="regionStyle" groups={groups}>
+          {/* Por último no bloco da região. `key` pelo id: outra região
+              selecionada faz o Avançado nascer fechado. */}
           <AdvancedSection key={selectedRegion?.id ?? 'region-tool'}>
             {strokeJoin !== undefined && onStrokeJoinChange && (
               <AdvancedField hint="Define se os vértices do contorno ficam arredondados ou em quina.">
@@ -510,20 +597,6 @@ export function PropertiesPanel({
               </AdvancedField>
             )}
           </AdvancedSection>
-        </ToolPropertiesSection>
-        {selectedRegion && (
-          <ToolPropertiesSection group="itemTransform" groups={groups}>
-            <ItemTransformControls
-              // Rótulo segue o que o usuário chama a coisa: desenhada pela
-              // ferramenta Sala é "Sala", pela ferramenta Região é "Região".
-              title={selectedRegion.room ? 'Sala' : 'Região'}
-              locked={!!selectedRegion.locked}
-              {...regionTransform}
-            />
-          </ToolPropertiesSection>
-        )}
-        <ToolPropertiesSection group="fill" groups={groups}>
-          <FillControls {...fill} />
         </ToolPropertiesSection>
         <ToolPropertiesSection group="polygonSides" groups={groups}>
           <PolygonSidesControls {...polygonSides} />
@@ -546,18 +619,10 @@ export function PropertiesPanel({
             <FloorPieceControls piece={selectedFloorPiece} floorFillColor={floorStyle.style.fillColor} {...floorPieceControls} />
           </ToolPropertiesSection>
         )}
-        <ToolPropertiesSection group="wallStyle" groups={groups}>
-          <WallStyleControls {...wallStyle} />
-          {/* Provisório (a fatia 4 reposiciona). `key` pelo id: outra parede
-              selecionada faz o Avançado nascer fechado. */}
-          <AdvancedSection key={selectedWall?.id ?? 'wall-tool'}>
-            <AdvancedField hint="Arredondada suaviza a ponta solta e a quina entre paredes; Reta deixa a quina viva.">
-              {(hintId) => (
-                <WallLineStyleField lineStyle={wallStyle.lineStyle} onLineStyleChange={wallStyle.onLineStyleChange} describedBy={hintId} />
-              )}
-            </AdvancedField>
-          </AdvancedSection>
-        </ToolPropertiesSection>
+        {/* Parede lisa: "Parede" primeiro, "Virar porta" depois. Porta
+            selecionada: o que se mexe na porta (aberta, trancada, tipo) vem
+            antes da espessura da parede em que ela mora. */}
+        {!doorSelected && wallStyleSection}
         {selectedWall && (
           <ToolPropertiesSection group="wallDoor" groups={groups}>
             <WallDoorControls door={selectedWall.door} {...wallDoor} />
@@ -575,6 +640,7 @@ export function PropertiesPanel({
               que o clique seguinte ignoraria. */}
           {(activeTool !== 'door' || doorMode.mode === 'porta') && <DoorKindControls {...doorKind} />}
         </ToolPropertiesSection>
+        {doorSelected && wallStyleSection}
         {selectedProp && (
           <ToolPropertiesSection group="itemTransform" groups={groups}>
             <ItemTransformControls
@@ -609,14 +675,35 @@ export function PropertiesPanel({
                 foto): a condição é o controle de MESA, mexido a cada rodada, e
                 fica à vista sem rolar. Cor e foto são de preparação. */}
             <TokenConditionControls conditions={tokenConditionsOf(selectedToken)} {...tokenCondition} />
-            {/* Vigia logo depois da condição: também é controle de MESA (o
-                guarda vira para a porta no meio da cena), não de preparação. */}
+          </ToolPropertiesSection>
+        )}
+        {/* Girar, travar e esconder logo depois das condições: também são gestos
+            de mesa, e moravam na 14ª rolagem, depois de todo o bloco de preparação. */}
+        {selectedToken && (
+          <ToolPropertiesSection group="itemTransform" groups={groups}>
+            <ItemTransformControls
+              title="Token"
+              rotation={selectedToken.rotation ?? 0}
+              locked={!!selectedToken.locked}
+              hidden={!!selectedToken.hidden}
+              secret={!!selectedToken.secret}
+              {...tokenTransform}
+            />
+          </ToolPropertiesSection>
+        )}
+        {selectedToken && (
+          <ToolPropertiesSection group="tokenImage" groups={groups}>
+            {/* Vigia logo depois da condição e do Travado: também é controle de
+                MESA (o guarda vira para a porta no meio da cena), não de preparação. */}
             <TokenWatchControls watch={readTokenWatch(selectedToken.vigia)} {...tokenWatch} />
             {/* Patrulha junto da vigia: as duas dizem o que o NPC faz na cena. */}
             <TokenPatrolControls patrol={readTokenPatrol(selectedToken.patrulha)} {...tokenPatrol} />
             {/* Levar junto também é controle de MESA: o aliado cai no meio da
                 cena e alguém o carrega até a saída. */}
             <TokenCarryControls tokenId={selectedToken.id} {...tokenCarry} />
+            {/* Veículo depois da vigia: também é controle de MESA (quem sobe no
+                cesto muda no meio da cena), não de preparação. */}
+            {tokenVehicle !== undefined && <TokenVehicleControls vehicle={vehicleOf(selectedToken)} {...tokenVehicle} />}
             {/* Antes da imagem: a cor é o caminho de um clique, a foto é o de
                 abrir o disco. Quem só quer separar aliado de inimigo não
                 precisa passar pelo controle caro para chegar no barato. */}
@@ -624,6 +711,9 @@ export function PropertiesPanel({
             {/* `tokenPhotoRef`: foto escolhida pelo JOGADOR vive em `imageData` — sem isto o painel ofereceria "Escolher imagem..." num token que já tem foto. */}
             <TokenImageControls image={tokenPhotoRef(selectedToken)} {...tokenImage} />
             <TokenNpcControls npc={selectedToken.npc === true} {...tokenNpc} />
+            {/* "Ficha de jogador" ao lado de "Ficha de NPC": as duas dizem de quem
+                é a ficha, e são de preparação — não entre os gestos de mesa. */}
+            <TokenPlayerCharacterControls playerCharacter={selectedToken.playerCharacter === true} {...tokenPlayerCharacter} />
             {rotinaDaFicha}
             {pisos !== undefined && (
               <PisoControls key={`piso-${selectedToken.id}`} piso={pisoDe(selectedToken)} onPisoChange={(piso) => pisos.onTokenPisoChange(selectedToken.id, piso)} />
@@ -641,20 +731,6 @@ export function PropertiesPanel({
               />
             )}
             <TokenLightsControls {...tokenLights} />
-
-          </ToolPropertiesSection>
-        )}
-        {selectedToken && (
-          <ToolPropertiesSection group="itemTransform" groups={groups}>
-            <ItemTransformControls
-              title="Token"
-              rotation={selectedToken.rotation ?? 0}
-              locked={!!selectedToken.locked}
-              hidden={!!selectedToken.hidden}
-              secret={!!selectedToken.secret}
-              {...tokenTransform}
-            />
-            <TokenPlayerCharacterControls playerCharacter={selectedToken.playerCharacter === true} {...tokenPlayerCharacter} />
           </ToolPropertiesSection>
         )}
         {selectedLight && (
@@ -685,13 +761,12 @@ export function PropertiesPanel({
             )}
           </ToolPropertiesSection>
         )}
+        {/* "Levar ao piso" e Apagar moram na faixa do topo; aqui ficam o que
+            vale sem seleção ("Adicionar token", "Nada selecionado") e o que é
+            de vários itens (seleção de área, alinhar). */}
         <ToolPropertiesSection group="selection" groups={groups}>
           <AreaSelectionControls {...areaSelection} />
           <AlignDistributeControls {...alignDistribute} />
-          {/* PISOS NA MESMA CENA: parede, sala, chão, luz, objeto, desenho — tudo sobe ou desce um piso por aqui. */}
-          {pisos !== undefined && selection.selection !== null && (
-            <LevarAoPisoControls pisoAtivo={pisos.pisoAtivo} onLevar={pisos.onLevarSelecaoAoPiso} />
-          )}
           <SelectionControls {...selection} />
         </ToolPropertiesSection>
         {/* Cenas da aventura: depois do bloco da ferramenta e do objeto, junto das

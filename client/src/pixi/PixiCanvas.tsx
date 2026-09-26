@@ -153,6 +153,8 @@ import { useTerritorioStore } from '../stores/territorioStore'
 import { hazardAreas } from '../lib/hazards'
 import { drawAreaTriggers } from './drawAreaTriggers'
 import { areaTriggerAreas } from '../lib/areaTriggers'
+import { drawConveyorMarks } from './drawConveyors'
+import { conveyorMarks, NO_CONVEYOR_MARKS } from '../lib/conveyorMarks'
 import { drawWatchCones } from './drawNpcWatch'
 import { drawPerigos } from './drawPerigos'
 import { drawPatrolRoutes } from './drawNpcPatrol'
@@ -747,6 +749,10 @@ export function PixiCanvas({
       // FILTRO "QUEM MANDA AQUI": a cor da facção sobre o chão, sob paredes e fichas, como o perigo.
       const faccoesGraphics = new Graphics()
       faccoesGraphics.eventMode = 'none'
+      // ESTEIRA e CABINE: setas finas no chão da sala-esteira e a ligação das
+      // cabines, sobre o perigo e sob as paredes (só o mestre desenha isto).
+      const conveyorsGraphics = new Graphics()
+      conveyorsGraphics.eventMode = 'none'
       // Pinos acima das zonas ocultas: o pino é o chamariz da cena e o mestre
       // precisa achá-lo mesmo sobre uma área que ele mesmo escondeu.
       const pinsContainer = new Container()
@@ -783,6 +789,7 @@ export function PixiCanvas({
         hazardsGraphics,
         areaTriggersGraphics,
         faccoesGraphics,
+        conveyorsGraphics,
         wallsGraphics,
         doorsGraphics,
         stairsGraphics,
@@ -1383,6 +1390,11 @@ export function PixiCanvas({
         faccoes: () => {
           const { map } = sceneState()
           drawFaccoes(faccoesGraphics, useTerritorioStore.getState().filtroLigado ? pinturaDeFaccoes(map) : [])
+        },
+        // ESTEIRA: a camada Salas escondida esconde a sala e a esteira dela junto.
+        conveyors: () => {
+          const { map } = sceneState()
+          drawConveyorMarks(conveyorsGraphics, map.hiddenLayers.includes('salas') ? NO_CONVEYOR_MARKS : conveyorMarks(map), camera.scale, app.renderer.resolution)
         },
         roomNames: () => {
           const { map } = sceneState()

@@ -180,6 +180,8 @@ describe('o vínculo da ficha levada que muda de cena sem quem a leva', () => {
   it('reunião: a levada vem na travessia de quem leva e só assenta; se quem leva não veio, ela viaja sozinha', () => {
     const plan = {
       leftOut: [],
+      ridesAlong: [],
+      hold: { seats: [], keepClear: [] },
       moves: [
         { playerId: 'p-ana', name: 'Ana', tokenId: 'grog', travels: true, x: 10, y: 10 },
         { playerId: 'p-bia', name: 'Bia', tokenId: 'lia', travels: true, x: 20, y: 10, vemCom: 'grog' },

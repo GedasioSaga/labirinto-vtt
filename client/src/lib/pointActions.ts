@@ -1,4 +1,4 @@
-import type { MapData, RegionPoint } from '../types/map'
+import type { MapData, Pin, Region, RegionPoint } from '../types/map'
 import { pointInRing } from './floorContour'
 
 /**
@@ -77,14 +77,56 @@ function ringArea(ring: readonly RegionPoint[]): number {
  * ponto fora de toda sala com nome.
  */
 export function roomNameAt(map: MapData, point: RegionPoint): string | null {
-  let best: { name: string; area: number } | null = null
+  return roomAt(map, point)?.name ?? null
+}
+
+/** A menor Sala com nome que contém o ponto, com o nome aparado; `null` = nenhuma. */
+function roomAt(map: MapData, point: RegionPoint): { name: string; region: Region } | null {
+  let best: { name: string; region: Region; area: number } | null = null
   for (const region of map.regions) {
     const name = region.room?.name.trim() ?? ''
     if (name === '' || region.points.length < 3 || !pointInRing(point, region.points)) continue
     const area = ringArea(region.points)
-    if (best === null || area < best.area) best = { name, area }
+    if (best === null || area < best.area) best = { name, region, area }
   }
-  return best?.name ?? null
+  return best === null ? null : { name: best.name, region: best.region }
+}
+
+/** Uma pista oculta que o mestre pode entregar a quem revistou: o pino e como o mestre o reconhece. */
+export interface PointActionClue {
+  pinId: string
+  /** O nome só do mestre ("Carta"), ou a primeira linha da descrição. Leitura do MESTRE. */
+  label: string
+}
+
+/** Quantas pistas a linha do Revistar oferece: cada uma é um botão na Caixa. */
+export const PISTAS_DO_REVISTAR_MAX = 4
+/** Teto do rótulo do botão "Entregar: …" (a linha da Caixa é estreita). */
+export const PISTA_ROTULO_MAX = 28
+const PISTA_SEM_TEXTO = 'Pista sem texto'
+
+/** Como o mestre reconhece o pino no botão: o nome dele, senão a primeira linha escrita. */
+function clueLabelOf(pin: Pick<Pin, 'nome' | 'description'>): string {
+  const nome = pin.nome?.trim() ?? ''
+  const primeiraLinha = pin.description.split('\n').map((linha) => linha.trim()).find((linha) => linha !== '') ?? ''
+  const label = nome !== '' ? nome : primeiraLinha !== '' ? primeiraLinha : PISTA_SEM_TEXTO
+  return label.length > PISTA_ROTULO_MAX ? `${label.slice(0, PISTA_ROTULO_MAX - 1)}…` : label
+}
+
+/**
+ * REVISTAR + "ENTREGAR PISTA…": os pinos OCULTOS PARA JOGADORES ("!"/"?") da
+ * Sala onde o jogador tocou — a carta na gaveta, o diário sob o colchão. São
+ * o que o mestre escondeu para ser achado revistando. Leitura do MESTRE: nada
+ * disto vai ao jogador; o que sai é só o cartão que o mestre escolher entregar.
+ * Fora de Sala com nome, nenhuma (não há "a sala" para revistar).
+ */
+export function hiddenCluesAt(map: MapData, point: RegionPoint): PointActionClue[] {
+  const room = roomAt(map, point)
+  if (room === null) return []
+  return map.pins
+    .filter((pin) => pin.secret === true && (pin.kind === 'exclamacao' || pin.kind === 'interrogacao') && pointInRing(pin, room.region.points))
+    .slice(0, PISTAS_DO_REVISTAR_MAX)
+    .map((pin) => ({ pinId: pin.id, label: clueLabelOf(pin) }))
 }
 
 /** O que o mestre precisa ler do pedido para escrever a linha da Caixa. */

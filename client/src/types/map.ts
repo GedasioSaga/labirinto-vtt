@@ -184,6 +184,15 @@ export interface DoorState {
    * 'left'/'right' voltam (`lib/mapFile.ts`).
    */
   opensFrom?: DoorSide
+  /**
+   * FERROLHO DO JOGADOR — só existe no RECORTE, nunca no mapa do mestre nem no
+   * disco: um jogador correu o ferrolho desta porta, e quem recebe está do
+   * MESMO lado (o ferrolho mora na sessão do host, `net/hostSession.ts`). É o
+   * que faz a tela dele oferecer "Tirar o ferrolho". Do outro lado a porta
+   * chega como sempre, sem este campo (`lib/fogFilter.ts`). `undefined` ===
+   * sem ferrolho deste lado; nunca vem do disco, então sem linha de migração.
+   */
+  ferrolhoDoMeuLado?: true
 }
 
 /**
@@ -631,6 +640,15 @@ export interface Pin extends PlayerSecret, NoPiso {
    */
   passe?: PinPass
   /**
+   * BARRA DO JOGADOR — só existe no RECORTE, nunca no mapa do mestre nem no
+   * disco: um jogador desta cena barrou a passagem deste lado (a barra mora na
+   * sessão do host, `net/hostSession.ts`). Chega a quem joga nesta cena e vê o
+   * pino, para o cartão dizer "barrada" e oferecer "Tirar a barra"; quem está
+   * na cena do outro lado não recebe nada (`lib/fogFilter.ts`). `undefined` ===
+   * sem barra; nunca vem do disco, então sem linha de migração.
+   */
+  barradaDaqui?: true
+  /**
    * Só do pino de viagem com VÁRIAS saídas: como o mestre chama a saída
    * principal (a de `destino`) — "Porta da cripta". Ausente = sem nome; o
    * jogador lê "Saída 1". Não sai no recorte do jogador: vai dentro de `escolhas`.
@@ -785,6 +803,17 @@ export interface Pin extends PlayerSecret, NoPiso {
    * loja, sem migração.
    */
   loja?: LojaItem[]
+  /**
+   * CABINE CONTÍNUA (paternoster). No pino "!"/"?": o id do PRÓXIMO pino desta
+   * cena; no pino de viagem: o id do PAR em outra cena. A cada "Avançar
+   * esteiras" (e a cada "Próximo apito"), a ficha parada na casa deste pino é
+   * levada até lá (`lib/cabins.ts`). Ausente = pino sem cabine, sem migração;
+   * o disco só aceita texto não vazio (`readCabin`). NUNCA sai no recorte do
+   * jogador (`lib/fogFilter.ts` copia o pino por lista do que vai): diria onde
+   * fica a próxima parada antes de ele chegar lá. Não confundir com `cabine`,
+   * a CABINE DE TRANSPORTE chamada pelo jogador, que mora na aventura.
+   */
+  cabineContinua?: string
 }
 
 /**
@@ -801,6 +830,21 @@ export interface LojaItem {
    * item por `lerLojaDoArquivo` (`lib/loja.ts`), que deixa o estoque torto ausente.
    */
   estoque?: number
+}
+
+/**
+ * "MOSTRAR AGORA A…": o cartão de um ponto de interesse que o mestre abre
+ * direto na tela de um jogador. É só o conteúdo do cartão — sem posição (o
+ * pino pode estar onde o jogador nunca viu), sem destino e sem regra do
+ * mestre. Quem monta é `pinCardForPlayer` (`lib/fogFilter.ts`); só "!" e "?"
+ * viram cartão mostrado — viagem e alavanca nunca.
+ */
+export interface PinCard {
+  id: string
+  kind: Extract<PinKind, 'exclamacao' | 'interrogacao'>
+  icon?: PinIcon
+  description: string
+  image: string | null
 }
 
 /**
@@ -878,6 +922,26 @@ export interface AreaTrigger {
   regionId: string
   /** `true` = o mestre mostrou aos jogadores. Nasce `false`. */
   revealed: boolean
+}
+
+/** Para onde a esteira empurra. Norte é para cima na tela (y menor). */
+export type ConveyorDirection = 'norte' | 'sul' | 'leste' | 'oeste'
+
+/**
+ * MOVIMENTO IMPOSTO — esteira (ou corrente) numa SALA (`Region` com `room`):
+ * a cada "Avançar esteiras" do mestre, a ficha que está na sala anda
+ * `stepCells` casas na `direction`, parando na parede (`lib/conveyors.ts` →
+ * `advanceConveyors`). Uma sala tem no máximo uma esteira.
+ *
+ * O jogador NUNCA recebe este objeto (`lib/fogFilter.ts` tira o campo do
+ * recorte): ele vê só a própria ficha onde a esteira a largou.
+ */
+export interface Conveyor {
+  id: string
+  roomId: string
+  direction: ConveyorDirection
+  /** Casas por Avançar, inteiro de 1 a `MAX_CONVEYOR_STEP`. */
+  stepCells: number
 }
 
 export interface Region extends PlayerSecret, NoPiso {
@@ -970,6 +1034,19 @@ export interface TokenWatch {
   abertura: number
   /** Até onde ele enxerga, em quadrados da grade. */
   alcance: number
+}
+
+/**
+ * VEÍCULO COM LUGARES (cesto, bote, vagonete): a ficha leva até `lugares`
+ * outras fichas da mesma cena. Quem está a bordo anda junto com ela e
+ * atravessa o pino junto (`lib/vehicle.ts`).
+ */
+export interface TokenVehicle {
+  /** Quantas fichas cabem, de 1 a `VEHICLE_SEATS_MAX`. */
+  lugares: number
+  /** Ids das fichas a bordo, na ordem em que embarcaram. Ausente = vazio,
+   *  sem linha de migração: quem lê do disco é `readTokenVehicle`. */
+  passageiros?: string[]
 }
 
 /**
@@ -1127,6 +1204,13 @@ export interface Token extends PlayerSecret, NoPiso {
    *  recebe; o mapa do mestre nunca o guarda (o recorte apaga o que vier dele).
    *  Ausente = NPC ou a própria ficha. */
   companion?: TokenCompanion
+  /**
+   * VEÍCULO: a ficha é um cesto/bote/vagonete com lugares. Ausente = ficha
+   * comum, sem linha de migração. O mapa do disco passa por `readTokenVehicle`
+   * (`lib/mapFile.ts`). NÃO atravessa para o jogador: a lista de passageiros
+   * entregaria ficha que a névoa ou o mestre escondem (`lib/fogFilter.ts`).
+   */
+  veiculo?: TokenVehicle
 }
 
 /** Quem joga com a ficha: nome do jogador e a cor de sinal dele (`#rrggbb`, `lib/signals.ts`). */
@@ -1669,6 +1753,13 @@ export interface MapData {
    * voltar a calmo tira o campo. NUNCA sai no recorte do jogador.
    */
   alerta?: NivelAlerta
+  /**
+   * ESTEIRAS (movimento imposto). `undefined` === nenhuma — mesmo padrão de
+   * `hazards`: mapa de antes abre igual, a última removida tira o campo.
+   * Leitura segura em `lib/conveyors.ts` → `readConveyors`. NUNCA sai no
+   * recorte do jogador.
+   */
+  conveyors?: Conveyor[]
 }
 
 export type TipoDePerigo = 'fogo' | 'agua'

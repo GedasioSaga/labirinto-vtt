@@ -54,6 +54,7 @@ import { withStoredTokens } from './lib/storedTokens'
 import { loadSavedExploration, loadSavedTable, savedTableSummary, storeSavedExploration, storeSavedTable, type TableStorage } from './lib/savedTable'
 import { applyGatherPlan, gatherCandidates, planGather, sendCandidates } from './lib/gatherParty'
 import { comConfronto, iniciarConfronto, proximaVez } from './lib/confronto'
+import { canShowPinNow, showPinNowCandidates, showPinNowWithNotice } from './components/ShowPinNowControls'
 import { RailTabs, type RailTab } from './components/RailTabs'
 import { ask } from '@tauri-apps/plugin-dialog'
 import { criarPedidoDeFechar } from './lib/avisoAoFechar'
@@ -67,6 +68,10 @@ import { mapChangeCause, selectAlignableUnitCount, useMapStore } from './stores/
 import { roomHazardState } from './lib/hazards'
 import { areaTriggerOfRegion } from './lib/areaTriggers'
 import { saveMapToAppData, saveMapToPath, pickMapJsonToOpen, openMapFile, openMapFileFirst, mapDirFor, defaultMapsDir, type OpenedMapFile } from './lib/mapFileIO'
+import { canAdvanceImposed, roomConveyorState } from './lib/conveyors'
+import { cabinOf, cabinTargets, cabinTargetsOfPar } from './lib/cabins'
+import { avancarMovimentoImposto, ownerFromPlayers } from './stores/avancarMovimentoImposto'
+import { NO_OWNER_RADII, type OwnerVisionRadii } from './lib/imposedOccupancy'
 import {
   applyItemsInScene,
   hasUnsavedWork,
@@ -127,6 +132,7 @@ import { pinAttachOptions } from './lib/pinAttach'
 import { leverDoorOptions, linkedDoorOf } from './lib/lever'
 import { lockDoorOptions } from './lib/pinLock'
 import { pinColecaoPanel } from './components/pinColecaoPanel'
+import { vehicleSeatOptions } from './lib/vehicle'
 import type { Screen } from './types/screen'
 import { createMapScreen, parentScreen } from './lib/navigation'
 import * as mapFactory from './lib/mapFactory'
@@ -636,8 +642,8 @@ function App() {
           applyItemsInScene(change)
         },
         // "Deixar ir": o token troca de cena fora do desfazer das duas (ver `transferToken`).
-        applyTransfer: ({ tokenId, fromSceneId, toSceneId, x, y, piso }) =>
-          useAdventureStore.getState().transferToken(tokenId, fromSceneId, toSceneId, x, y, piso),
+        applyTransfer: ({ tokenId, fromSceneId, toSceneId, x, y, piso, hold }) =>
+          useAdventureStore.getState().transferToken(tokenId, fromSceneId, toSceneId, x, y, piso, hold),
         // CABINE DE TRANSPORTE: quem passou pela parada levou a cabine junto.
         applyCabine: ({ cabineId, parada }) => {
           useAdventureStore.getState().moverCabine(cabineId, parada)
@@ -1316,6 +1322,24 @@ function App() {
   const selectedRoomHazard = selectedRegion?.room ? roomHazardState(map, selectedRegion.id) : null
   // GATILHO DE ÁREA da Região/Sala selecionada (`null` = sem gatilho).
   const selectedRegionTrigger = selectedRegion ? areaTriggerOfRegion(map, selectedRegion.id) : null
+  // ESTEIRA e CABINE: com "Fichas ocupam espaço", só segura a ficha quem o
+  // dono dela enxerga com o raio que o host APLICA a ela neste mapa ("Visão
+  // nesta cena", fator, hora do relógio: `tokenVisionRadii`), nunca o de base.
+  // Sem sala aberta (ponte ainda não criada) ninguém tem dono.
+  const conveyorRadiiIn = (target: MapData): OwnerVisionRadii => hostBridgeRef.current?.tokenVisionRadii(target) ?? NO_OWNER_RADII
+  const conveyorRadii = conveyorRadiiIn(map)
+  // UM AVANÇAR (botão "Avançar esteiras" e "Próximo apito" da Agenda): esteiras
+  // e cabines desta cena, e a cabine que leva ao par — a ficha de jogador pela
+  // sessão ("Mandar para…" com a ficha exata), a sem dono pelo "Levar para…".
+  const avancarEsteiras = () => {
+    // O raio de AGORA: o "Próximo apito" pode ter mudado a hora neste mesmo clique.
+    avancarMovimentoImposto(conveyorRadiiIn(useMapStore.getState().map), {
+      ownerOf: ownerFromPlayers(roomPlayers),
+      sendPlayer: (playerId, sceneId, pinId, tokenId) => hostBridgeRef.current?.sendPlayer(playerId, sceneId, pinId, undefined, tokenId) ?? false,
+    })
+  }
+  // ESTEIRA da Sala selecionada: direção, passo e se "Avançar esteiras" move alguém.
+  const selectedRoomConveyor = selectedRegion?.room ? roomConveyorState(map, selectedRegion.id, conveyorRadii) : null
   const selectedLight = singleSelection?.kind === 'light' ? map.lights.find((l) => l.id === singleSelection.id) ?? null : null
   const selectedStair = singleSelection?.kind === 'stair' ? map.stairs.find((s) => s.id === singleSelection.id) ?? null : null
   const selectedFloorIndex = singleSelection?.kind === 'floor' ? map.floor.findIndex((p) => p.id === singleSelection.id) : -1
@@ -1945,6 +1969,17 @@ function App() {
     if (failed.length > 0) useToastStore.getState().push('error', `Não deu para trazer: ${failed.join(', ')}. A cena ou a ficha mudou; tente de novo.`)
   }
 
+  /**
+   * "Mostrar agora a…" no painel do pino `pinId`: o cartão abre sozinho na
+   * tela do jogador. O mestre lê no aviso que saiu — ou que não deu, porque a
+   * lista pode ter ficado aberta enquanto ele saía da cena ou caía.
+   */
+  const handleShowPinNow = (pinId: string, playerId: string) => {
+    const bridge = hostBridgeRef.current
+    if (bridge === null) return
+    showPinNowWithNotice(bridge, pinId, playerId, (kind, text) => useToastStore.getState().push(kind, text))
+  }
+
   /** Assinatura que a barra de ações e o clique da ferramenta Token já usam:
    *  cria e esquece. Onde a peça nasce e por quê: `stores/criarToken.ts`. */
   const handleAddToken = (name: string, at?: { x: number; y: number }) => {
@@ -2434,6 +2469,7 @@ function App() {
                   onChange={(agenda) => useAdventureStore.getState().setAgenda(agenda)}
                   cenas={scenesPanel}
                   onAlarm={soarAlarme}
+                  onApito={avancarEsteiras}
                 />
               )}
               </>
@@ -2852,6 +2888,15 @@ function App() {
                 ? { watch: hostBridgeRef.current.watchPlayerScreens, read: hostBridgeRef.current.tokenSeenBy }
                 : undefined
             }
+            tokenVehicle={{
+              options: selectedToken ? vehicleSeatOptions(map, selectedToken.id) : [],
+              // Os dois passam pelo histórico e leem o mapa ATUAL da store:
+              // dois cliques seguidos nunca decidem sobre uma cópia velha.
+              onSeatsChange: (lugares) => selectedToken && useMapStore.getState().setVehicleSeats(selectedToken.id, lugares),
+              onPassengerChange: (tokenId, aBordo) => {
+                if (selectedToken) useMapStore.getState().setVehiclePassenger(selectedToken.id, tokenId, aBordo)
+              },
+            }}
             tokenTransform={{
               onRotationChange: (rotation) => selectedToken && updateToken(selectedToken.id, { rotation }),
               onLockedChange: (locked) => selectedToken && updateToken(selectedToken.id, { locked }),
@@ -2934,6 +2979,16 @@ function App() {
                   : undefined,
               // MOBÍLIA DESENHADA: móvel no centro da sala, no giro dela, selecionado.
               onAddMobilia: porMobiliaNaSala(selectedRegion),
+              conveyor:
+                selectedRegion && selectedRoomConveyor
+                  ? {
+                      direction: selectedRoomConveyor.direction,
+                      stepCells: selectedRoomConveyor.stepCells,
+                      canAdvance: selectedRoomConveyor.canAdvance,
+                      onChange: (setting) => useMapStore.getState().setRoomConveyor(selectedRegion.id, setting),
+                      onAdvance: avancarEsteiras,
+                    }
+                  : undefined,
             }}
             playerSecret={
               secretTarget && {
@@ -3010,6 +3065,15 @@ function App() {
                       onGather: (playerIds) => handleGather(selectedPin.id, playerIds),
                     }
                   : null,
+              // "Mostrar agora a…": regra de quando aparece em `canShowPinNow`.
+              showNow:
+                selectedPin && canShowPinNow(selectedPin, room !== null)
+                  ? {
+                      pinId: selectedPin.id,
+                      candidates: showPinNowCandidates(partyMembers(roomPlayers, roomPanelWorld()), roomPanelWorld().open.sceneId),
+                      onShow: (playerId) => handleShowPinNow(selectedPin.id, playerId),
+                    }
+                  : null,
               description: selectedPin?.description ?? null,
               onDescriptionChange: (description) => selectedPin && useMapStore.getState().updatePin(selectedPin.id, { description }),
               // Nome só do mestre: apagar grava AUSENTE (o pino de sempre), nunca `''`.
@@ -3071,6 +3135,22 @@ function App() {
                   : null,
               // ALAVANCA: a porta que ela abre (desta cena, de qualquer sala) e o "Acionar agora" do mestre.
               lever: selectedPin && selectedPin.kind === 'alavanca' ? leverPanel(selectedPin) : null,
+              // CABINE CONTÍNUA: o "!"/"?" leva ao próximo pino da cena; o de
+              // viagem leva ao PAR (outra cena). A chegada oculta não leva de volta; a alavanca não é parada.
+              cabin:
+                selectedPin && selectedPin.soChegada !== true && selectedPin.kind !== 'alavanca'
+                  ? {
+                      target: cabinOf(map, selectedPin.id),
+                      targets:
+                        selectedPin.kind === 'viagem'
+                          ? cabinTargetsOfPar(pinExitsTravelOf({ adventure, activeSceneId, cache: sceneCache }, map, selectedPin))
+                          : cabinTargets(map, selectedPin.id),
+                      emptyHint: selectedPin.kind === 'viagem' ? 'Ligue este pino a um par em outra cena para a cabine levar até lá.' : undefined,
+                      canAdvance: canAdvanceImposed(map, conveyorRadii),
+                      onChange: (targetId) => useMapStore.getState().setPinCabin(selectedPin.id, targetId),
+                      onAdvance: avancarEsteiras,
+                    }
+                  : null,
             }}
             pinIcon={{
               // Mesma ligação dupla do tipo logo acima: com um pino aberto, o

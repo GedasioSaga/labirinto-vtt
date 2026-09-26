@@ -34,10 +34,14 @@ import { setOutdoor as setOutdoorOnMap } from '../lib/campaignClock'
 import { applyPatrolOp, type PatrolOp } from '../lib/npcPatrol'
 import { toggleTokenCondition as toggleConditionOnMap } from '../lib/tokenConditions'
 import { attachCarried, carrierIdOf, releaseCarried } from '../lib/carry'
+import { boardVehicle, leaveVehicle, setVehicleSeats as setVehicleSeatsOnMap, vehicleCarrying } from '../lib/vehicle'
 import { advanceHazard as advanceHazardOnMap, setRoomHazard as setRoomHazardOnMap } from '../lib/hazards'
 import { setSelectionSecret as setSelectionSecretOnMap } from '../lib/batchSecret'
 import { setRegionTrigger as setRegionTriggerOnMap, setRegionTriggerRevealed as setRegionTriggerRevealedOnMap } from '../lib/areaTriggers'
 import { setArrivalText as setArrivalTextOnMap } from '../lib/arrivalText'
+import { advanceConveyors as advanceConveyorsOnMap, setRoomConveyor as setRoomConveyorOnMap, type ConveyorSetting } from '../lib/conveyors'
+import type { OwnerVisionRadii } from '../lib/imposedOccupancy'
+import { setPinCabin as setPinCabinOnMap } from '../lib/cabins'
 
 /** Ferramentas que criam Sala: mantêm o "Criar sala dentro" armado. */
 const ROOM_TOOLS: ReadonlySet<string> = new Set(['room', 'roomCircle', 'roomPolygon', 'roomFree'])
@@ -665,6 +669,17 @@ interface MapStoreState {
    * entrada de histórico.
    */
   patrolAction: (id: string, op: PatrolOp) => void
+  /**
+   * VEÍCULO: faz da ficha um veículo com `lugares`, troca os lugares, ou
+   * desliga (`null`) — `lib/vehicle.ts`. Com histórico: Ctrl+Z desfaz.
+   */
+  setVehicleSeats: (id: string, lugares: number | null) => void
+  /**
+   * VEÍCULO: embarca (`aBordo`) ou desce a ficha `tokenId` do veículo
+   * `vehicleId`, sobre o estado ATUAL do mapa. `false` = recusado (cheio,
+   * não é veículo, a ficha não embarca) e nada mudou. Com histórico.
+   */
+  setVehiclePassenger: (vehicleId: string, tokenId: string, aBordo: boolean) => boolean
   addProp: (prop: Prop) => void
   removeProp: (id: string) => void
   moveProp: (id: string, x: number, y: number) => void
@@ -797,6 +812,15 @@ interface MapStoreState {
   setRoomDark: (id: string, dark: boolean) => void
   /** "Raio de visão aqui" da Sala; `null` volta ao raio do jogador. Com histórico. */
   setRoomVisionRadius: (id: string, raio: number | null) => void
+  /** ESTEIRA — liga a esteira da Sala (direção e passo), troca ou desliga (`null`). Com histórico. */
+  setRoomConveyor: (roomId: string, setting: ConveyorSetting | null) => void
+  /**
+   * ESTEIRA — "Avançar esteiras": todas as esteiras da cena empurram as fichas. Com histórico; ninguém anda = nada grava.
+   * `radii`: o raio que o host aplica a cada ficha com dono na sala aberta (`HostSession.tokenVisionRadii`); sem sala, omitir.
+   */
+  advanceConveyors: (radii?: OwnerVisionRadii) => void
+  /** CABINE CONTÍNUA — liga o pino à próxima parada da cena, troca ou desliga (`null`). Com histórico. */
+  setPinCabin: (pinId: string, targetId: string | null) => void
   /** A5 — "Oculto para jogadores" de Token/Região/Objeto/Escada/Desenho. Com histórico. */
   setItemSecret: (kind: mapFactory.SecretKind, id: string, secret: boolean) => void
   /** "Oculto para jogadores" EM LOTE: todos os itens da seleção que aceitam
@@ -1779,6 +1803,22 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
       const next = applyPatrolOp(get().map, id, op)
       if (next !== get().map) withHistory(() => next)
     },
+    setVehicleSeats: (id, lugares) => {
+      const next = setVehicleSeatsOnMap(get().map, id, lugares)
+      if (next !== get().map) withHistory(() => next)
+    },
+    setVehiclePassenger: (vehicleId, tokenId, aBordo) => {
+      const { map } = get()
+      if (!aBordo) {
+        const next = vehicleCarrying(map, tokenId)?.id === vehicleId ? leaveVehicle(map, tokenId) : map
+        if (next !== map) withHistory(() => next)
+        return true
+      }
+      const result = boardVehicle(map, vehicleId, tokenId)
+      if (!result.ok) return false
+      if (result.map !== map) withHistory(() => result.map)
+      return true
+    },
     addProp: (prop) => withHistory((map) => mapFactory.addProp(map, prop)),
     removeProp: (id) => withHistory((map) => mapFactory.removeProp(map, id)),
     moveProp: (id, x, y) => withHistory((map) => mapFactory.setPropPosition(map, id, x, y)),
@@ -1958,6 +1998,20 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
     setRoomVisionRadius: (id, raio) => {
       if (mapFactory.setRoomVisionRadius(get().map, id, raio) === get().map) return
       withHistory((map) => mapFactory.setRoomVisionRadius(map, id, raio))
+    },
+    setRoomConveyor: (roomId, setting) => {
+      // Um id só para as duas chamadas: a conferência e a gravação criam a MESMA esteira.
+      const id = crypto.randomUUID()
+      if (setRoomConveyorOnMap(get().map, roomId, setting, () => id) === get().map) return
+      withHistory((map) => setRoomConveyorOnMap(map, roomId, setting, () => id))
+    },
+    advanceConveyors: (radii) => {
+      if (advanceConveyorsOnMap(get().map, radii) === get().map) return
+      withHistory((map) => advanceConveyorsOnMap(map, radii))
+    },
+    setPinCabin: (pinId, targetId) => {
+      if (setPinCabinOnMap(get().map, pinId, targetId) === get().map) return
+      withHistory((map) => setPinCabinOnMap(map, pinId, targetId))
     },
     setItemSecret: (kind, id, secret) => {
       if (mapFactory.setItemSecret(get().map, kind, id, secret) === get().map) return

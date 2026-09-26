@@ -1,8 +1,9 @@
-import type { ConcealZone, DoorState, FloorStyle, Light, MapData, Prop, Region } from '../types/map'
+import type { ConcealZone, DoorState, FloorStyle, Light, MapData, Prop, Region, Token } from '../types/map'
 import { isEfeitoNaLuz, isEfeitoNaPorta, isEfeitoNaZona, regraDePinoDoArquivo, regraDoArquivo } from './estadoDoMundo'
 import { propPlayerImage, propPlayerLabel } from './propPlayerLook'
 import { readDoorKey } from './doorKey'
 import { lerMarcasDoArquivo } from './marcas'
+import { readTokenVehicle, withoutVehicleField } from './vehicle'
 import { linkLooseWallsToRooms } from './roomLink'
 import {
   cleanPinName,
@@ -35,6 +36,8 @@ import { readSceneFloor } from './buildingFloors'
 import { lerAlerta, lerFaccao } from './faccoes'
 import { faceRangeCellsOrNull } from './tokenVulto'
 import { pisosDoArquivo } from './pisos'
+import { readConveyors } from './conveyors'
+import { pinWithCabin, readCabin } from './cabins'
 
 /** Chão de mapa NOVO: marrom chapado do minimapa do Resident Evil 4 (15/09/2026). */
 export const DEFAULT_FLOOR_STYLE: FloorStyle = { fillColor: '#a8776a', strokeColor: null, strokeWidth: 1 }
@@ -109,6 +112,13 @@ function doorKeyFromFile(door: DoorState): DoorState {
   const abreCom = readDoorKey(door.abreCom)
   const { abreCom: _cru, ...semChave } = door
   return abreCom === undefined ? semChave : { ...semChave, abreCom }
+}
+
+/** VEÍCULO do disco: forma certa fica limpa; torta some e a ficha volta a ser comum. */
+function tokenVehicleFromFile(token: Token): Token {
+  if (!('veiculo' in token)) return token
+  const veiculo = readTokenVehicle(token.veiculo)
+  return veiculo === undefined ? withoutVehicleField(token) : { ...token, veiculo }
 }
 
 /** Lista de valores simples (ids de camada): só a forma de lista é garantida. */
@@ -333,8 +343,10 @@ function deserializeMapFields(json: string): MapData {
     // do host. Arquivo que o traga (editado à mão) perde o campo na leitura.
     // `emprestada` (NPC emprestado) também é marca de FIO: mesma limpeza.
     // `rotina` (ROTINA DO NPC): rotina torta some e a ficha volta a ser a de sempre; ausente continua ausente.
+    // VEÍCULO (`veiculo`): mesmo tratamento da mochila — ausente continua
+    // ausente, forma torta some e a ficha volta a ser comum (`readTokenVehicle`).
     tokens: entityList(parsed.tokens).map((t) => {
-      const lido = fichaComRotinaDoArquivo(withoutLentMark(withoutContract(tokenPublicNameFromFile({ ...t, image: t.image ?? null }))))
+      const lido = tokenVehicleFromFile(fichaComRotinaDoArquivo(withoutLentMark(withoutContract(tokenPublicNameFromFile({ ...t, image: t.image ?? null })))))
       if (!('mochila' in t)) return lido
       const mochila = readCarriedItems(t.mochila)
       if (mochila !== undefined) return { ...lido, mochila }
@@ -384,7 +396,10 @@ function deserializeMapFields(json: string): MapData {
     // `null` em vez de levar o clique do mestre para uma cena que não existe.
     // `kind: 'viagem'` é o terceiro tipo: sem ele na lista, todo pino de
     // viagem voltaria do disco como "!".
-    pins: entityList(parsed.pins).map((p) => ({
+    // CABINE CONTÍNUA: campo NOVO e OPCIONAL. `pinWithCabin` tira a chave
+    // quando o valor cru não é um id (o `...p` copiaria o lixo), então mapa de
+    // antes abre sem o campo e cabine quebrada vira "pino sem cabine".
+    pins: entityList(parsed.pins).map((p) => pinWithCabin({
       ...p,
       kind: isPinKind(p.kind) ? p.kind : 'exclamacao',
       icon: isPinIcon(p.icon) ? p.icon : undefined,
@@ -474,7 +489,7 @@ function deserializeMapFields(json: string): MapData {
       // `lerLojaDoArquivo` — o torto cai, o bom fica, campo desconhecido não
       // entra. Nada que preste volta ausente (o `...p` acima copiaria o cru).
       loja: lerLojaDoArquivo(p.loja),
-    })),
+    }, readCabin(p.cabineContinua))),
     // BILHETE NO LUGAR: campo NOVO e OPCIONAL. Ausente continua ausente (sem a
     // chave, nem `undefined`): o round-trip de mapa antigo sai idêntico. Marca
     // torta cai sozinha e as boas ficam (`lerMarcasDoArquivo`).
@@ -521,6 +536,8 @@ function deserializeMapFields(json: string): MapData {
     ...sceneFloorField(parsed.andar),
     // NÍVEL DE ALERTA: campo NOVO e OPCIONAL, mesmo padrão de `movement`.
     ...alertaField(parsed.alerta),
+    // ESTEIRA: campo NOVO e OPCIONAL, mesmo padrão de `hazards` — ver `readConveyors`.
+    ...conveyorsField(parsed.conveyors),
   }
 }
 
@@ -534,6 +551,12 @@ function arrivalTextField(raw: unknown): Pick<MapData, 'textoChegada'> {
 function sceneFloorField(raw: unknown): Pick<MapData, 'andar'> {
   const andar = readSceneFloor(raw)
   return andar === undefined ? {} : { andar }
+}
+
+/** `conveyors` só entra no mapa quando o arquivo traz esteira válida: mapa de antes não ganha campo. */
+function conveyorsField(raw: unknown): Pick<MapData, 'conveyors'> {
+  const conveyors = readConveyors(raw)
+  return conveyors === undefined ? {} : { conveyors }
 }
 
 /** `hazards` só entra no mapa quando o arquivo traz zona válida: mapa de antes não ganha campo. */

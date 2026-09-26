@@ -18,6 +18,8 @@ import { PlayerPinChooser } from './PlayerPinChooser'
 import { ARRIVAL_CARD_TITLE, PlayerNoteCard } from './PlayerNoteCard'
 import { formatNoteTime } from './PlayerNotebook'
 import { PlayerMarkCard } from './PlayerMarkCard'
+import { PlayerFerrolho } from './PlayerFerrolho'
+import { acaoDeFerrolho, tokenAlcancaPino } from '../lib/ferrolho'
 import { PlayerTokenCard } from './PlayerTokenCard'
 import { tokenActionNoticeText, tokenActionReply } from './tokenCard'
 import { PlayerClueCard } from './PlayerClues'
@@ -66,7 +68,7 @@ import { readContract } from '../lib/tokenLoan'
 import { pinTravelChoices, type PinTravelChoice } from '../lib/pinTravelers'
 import { letterTitle, type LetterVia } from '../lib/correio'
 import { findKnownPath } from '../lib/knownPath'
-import type { Pin } from '../types/map'
+import type { Pin, Stair } from '../types/map'
 import { loadPlaceNames, savePlaceName, withPlaceName, type VisitedPlace } from './playerPlaces'
 import { PersonalNoteDraft } from './PlayerPersonalNotes'
 import {
@@ -104,6 +106,8 @@ const NO_DICE_ROLLS: DiceRollEntry[] = []
 const NO_PINS: Pin[] = []
 const NO_PLACES: VisitedPlace[] = []
 const NO_TRAVELERS: PinTravelChoice[] = []
+/** O cartão mostrado pelo mestre nunca é de escada: vem só "!" ou "?". */
+const NO_STAIRS: Stair[] = []
 /** Fechar o recado não perde nada: quem fecha sabe onde reler. */
 const NOTE_KEPT_HINT = 'Fica guardado no Caderno do Painel.'
 /** MAPA POR ANDARES: outro andar não tem visão agora — só a memória. */
@@ -825,6 +829,9 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
   // snapshot, não a cada quadro do arrasto: o arrasto é local ao `PlayerView`.
   const where = useMemo(() => (map ? whereAmI(map, ownTokens, focus.tokenId) : null), [map, ownTokens, focus.tokenId])
   const focusToken = useCallback((tokenId: string) => setFocus((current) => ({ tokenId, seq: current.seq + 1 })), [])
+  // JOGADOR TRANCA A PORTA: a porta que a ficha dele alcança agora, lida do
+  // recorte (a marca "do meu lado" só chega a quem está do lado do ferrolho).
+  const acaoFerrolho = useMemo(() => (map ? acaoDeFerrolho(map, ownTokens) : null), [map, ownTokens])
 
   // LEVAR O MAPA PARA CASA: o arquivo sai do que já está neste aparelho (as
   // cenas guardadas pela conexão, as pistas e os recados), sem pedir nada ao
@@ -861,6 +868,9 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
     () => (!map || openPin === null || openPin.kind !== 'viagem' ? NO_TRAVELERS : pinTravelChoices(map.tokens, ownTokens, openPin, map.grid)),
     [map, openPin, ownTokens],
   )
+  // BARRAR A PASSAGEM: só com uma ficha dele encostada no pino aberto — a mesma conta do host.
+  const alcancaPinoAberto =
+    openPin !== null && map !== undefined && map.tokens.some((t) => ownTokens.includes(t.id) && tokenAlcancaPino(t, openPin, map.grid))
   // Estável: o cartão devolve o foco ao "Fechar" sempre que `onClose` muda, e
   // um snapshot novo a cada passo do mapa tiraria o foco do "Pedir" no meio da pergunta.
   // Fechar o cartão esquece a resposta da fechadura: reabrir começa limpo.
@@ -918,8 +928,16 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
     },
     [openPinCard],
   )
+  // "MOSTRAR AGORA A…": o cartão que o mestre abriu nesta tela. Ocupa o lugar
+  // do cartão do pino (e da escolha e da ficha): fechá-lo fecha também o que
+  // o jogador tinha aberto, para não revelar um cartão esquecido atrás.
+  const shownPin = state.shownPin ?? null
+  const closeShownPin = useCallback(() => {
+    connection.dismissShownPin()
+    closePin()
+  }, [connection, closePin])
   /** Nem cartão de pino nem escolha na tela: o Escape e o lugar do cartão ficam livres para os outros. */
-  const semPinoNaTela = openPin === null && pinChoice.length === 0
+  const semPinoNaTela = openPin === null && pinChoice.length === 0 && shownPin === null
   const openClue = openClueId === null ? null : (state.clues ?? []).find((clue) => clue.id === openClueId) ?? null
   // Estável pelo mesmo motivo dos outros cartões: o Escape e o "tocar fora" religam quando `onClose` muda.
   const closeClue = useCallback(() => {
@@ -1218,11 +1236,16 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
         {/* O pino pode sumir do recorte enquanto o cartão está aberto (o token
             andou, o mestre escondeu): sem pino no mapa novo, o cartão fecha
             sozinho em vez de mostrar um texto que o jogador não pode mais ver. */}
+        {/* "Mostrar agora a…": o mestre abriu este cartão aqui. Só lê — chega
+            sem posição (`PinCard`), então não oferece passar, pegar nem
+            comprar; `key` no id remonta a cada envio (e o foco vai de novo ao
+            "Fechar"). Fica no lugar do cartão do pino, da escolha e da ficha. */}
+        {shownPin && <PlayerPinCard key={`mostrado-${shownPin.id}`} pin={shownPin.pin} stairs={NO_STAIRS} onClose={closeShownPin} />}
         {/* DOIS PINOS NO MESMO PONTO: a escolha sai do recorte, a mesma fonte que desenha. */}
-        {openPin === null && pinChoice.length > 0 && (
+        {!shownPin && openPin === null && pinChoice.length > 0 && (
           <PlayerPinChooser pins={pinChoice} stairs={state.map.stairs} onChoose={choosePin} onClose={closePinChoice} />
         )}
-        {openPin && (
+        {!shownPin && openPin && (
           <PlayerPinCard
             pin={openPin}
             stairs={state.map.stairs}
@@ -1255,11 +1278,13 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
             // LOJA COM PREÇOS: o cartão fica aberto — quem compra continua olhando a banca, e o pedido aparece nela.
             onBuy={(itemId) => connection.buy(openPin.id, itemId)}
             compra={state.compra?.pinId === openPin.id ? state.compra : undefined}
+            // O cartão fica aberto: a barra aparece (ou some) nele quando o recorte novo chega.
+            onBarrar={alcancaPinoAberto ? (on) => connection.barPin(openPin.id, on) : undefined}
           />
         )}
         {/* AGIR SOBRE UMA FICHA: o cartão da ficha alheia. Enviado, ele sai: a
             espera e a resposta ficam no aviso de baixo, e o mapa volta à vista. */}
-        {openToken && (
+        {!shownPin && openToken && (
           <PlayerTokenCard
             key={openToken.id}
             token={openToken}
@@ -1512,6 +1537,14 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
           <p key={state.hide.id} className="pp-notice" role="status" aria-live="polite">
             {HIDE_NOTICE_TEXT[state.hide.reason]}
           </p>
+        )}
+        {/* Com cartão aberto por cima, o botão sai: um toque nele não pode fechar o cartão e trancar junto. */}
+        {noCardOnTop && (
+          <PlayerFerrolho
+            acao={acaoFerrolho}
+            revisao={`${state.rev}|${state.doorNotice?.id ?? ''}`}
+            onAct={(wallId, on) => connection.barDoor(wallId, on)}
+          />
         )}
         {actionNotice && moveNoticeShown && (
           // `key` no id: o mesmo aviso repetido reinicia a animação de entrada.
