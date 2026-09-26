@@ -150,23 +150,34 @@ describe('painel de propriedades — faixa da seleção e ordem por tarefa', () 
     expect(botoesComTexto(/^Apagar token selecionado$/)).toHaveLength(1)
   })
 
-  it('ficha: Rotação, Travado e Oculto logo depois de Condições; a ordem item → Seleção → Chão do mapa → Camadas continua', () => {
+  it('ficha: Travado e Oculto logo depois de Condições, Rotação no Avançado da mesma seção; a ordem item → Seleção → Chão do mapa → Camadas continua', () => {
     renderPainel(painelDaFicha())
     const lista = titulos()
-    const condicoes = lista.indexOf('Condições')
-    expect(condicoes).toBeGreaterThan(0)
-    expect(lista[condicoes + 1]).toBe('Token')
-    const transformacao = container.querySelectorAll('.lb-inspector__body h2')[condicoes + 1]?.closest('section')
-    expect(transformacao?.textContent).toContain('Rotação')
-    expect(transformacao?.textContent).toContain('Travado')
-    expect(transformacao?.textContent).toContain('Oculto para jogadores')
+    // Condições é uma linha "+" sem título (peça ficha-em-ordem-de-tarefa): a
+    // âncora é o bloco dela, e o bloco seguinte é o da transformação ("Token").
+    const condicoes = container.querySelector('.lb-inspector__body [aria-label="Condições da ficha"]')?.closest('section')
+    expect(condicoes).toBeTruthy()
+    const transformacao = condicoes?.nextElementSibling
+    expect(transformacao?.querySelector('h2')?.textContent).toBe('Token')
+    expect(antes(container.querySelector('.lb-inspector__body h2'), condicoes)).toBe(true)
+    const interruptores = Array.from(transformacao?.querySelectorAll(':scope > label.lb-switch') ?? []).map((l) => (l.textContent ?? '').trim())
+    expect(interruptores).toEqual(['Travado', 'Oculto para jogadores'])
+    // Rotação e "Oculto no editor", raros numa ficha, no Avançado recolhido da própria seção.
+    const avancado = transformacao?.querySelector('h3 > button')
+    expect(avancado?.textContent).toBe('Avançado')
+    expect(avancado?.getAttribute('aria-expanded')).toBe('false')
+    const recolhido = document.getElementById(avancado?.getAttribute('aria-controls') ?? 'sem-id')
+    expect(recolhido?.textContent).toContain('Rotação')
+    expect(recolhido?.textContent).toContain('Oculto no editor')
     // "Ficha de jogador" foi para junto de "Ficha de NPC", fora dos gestos de mesa.
     expect(transformacao?.textContent).not.toContain('Ficha de jogador')
     const rotulo = (texto: string) => Array.from(container.querySelectorAll('label')).find((l) => (l.textContent ?? '').includes(texto))
     expect(antes(rotulo('Ficha de NPC'), rotulo('Ficha de jogador'))).toBe(true)
 
     const selecaoIdx = lista.indexOf('Seleção')
-    expect(selecaoIdx).toBeGreaterThan(condicoes + 1)
+    expect(selecaoIdx).toBeGreaterThan(lista.indexOf('Token'))
+    const selecao = Array.from(container.querySelectorAll('.lb-inspector__body h2')).find((h) => h.textContent === 'Seleção')
+    expect(antes(transformacao, selecao)).toBe(true)
     expect(lista.indexOf('Chão do mapa')).toBeGreaterThan(selecaoIdx)
     expect(lista.indexOf('Camadas')).toBeGreaterThan(lista.indexOf('Chão do mapa'))
   })
