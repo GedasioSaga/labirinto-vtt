@@ -139,9 +139,9 @@ describe('painel de propriedades — a ficha em ordem de tarefa', () => {
     expect(foraDeOrdem).toEqual([])
   })
 
-  it('título de bloco só onde há grupo de campos: 6 na ficha nova (eram 12)', () => {
+  it('título de bloco só onde há grupo de campos, cada um uma vez: 7 na ficha nova (eram 12)', () => {
     renderFicha()
-    expect(titulosDaFicha()).toEqual(['Token', 'Vida', 'Tamanho da ficha', 'Token', 'Imagem do token', 'Piso'])
+    expect(titulosDaFicha()).toEqual(['Token', 'Vida', 'Tamanho da ficha', 'Trava e visibilidade', 'Imagem do token', 'Comportamento', 'Piso'])
     for (const sumiu of ['Condições', 'Vigia', 'Patrulha', 'Levar junto', 'Veículo', 'Cor da ficha']) {
       expect(titulosDaFicha()).not.toContain(sumiu)
     }
@@ -179,7 +179,7 @@ describe('painel de propriedades — a ficha em ordem de tarefa', () => {
   it('Travado e "Oculto para jogadores" à vista na seção da transformação; Rotação e "Oculto no editor" só no Avançado', () => {
     renderFicha()
     const transformacao = interruptor('Travado')?.closest('section')
-    expect(transformacao?.querySelector('h2')?.textContent).toBe('Token')
+    expect(transformacao?.querySelector('h2')?.textContent).toBe('Trava e visibilidade')
     expect(interruptor('Oculto para jogadores')?.closest('section')).toBe(transformacao)
     // Visíveis: fora de qualquer corpo recolhido.
     expect(interruptor('Travado')?.closest('[hidden]')).toBeNull()
@@ -219,7 +219,7 @@ describe('painel de propriedades — a ficha em ordem de tarefa', () => {
     expect(avancado()?.getAttribute('aria-expanded')).toBe('false')
   })
 
-  it('os opcionais de comportamento vazios são uma linha cada, sem título e sem nada embaixo', () => {
+  it('os opcionais de comportamento vazios são uma linha cada, sem título próprio (o do grupo basta) e sem nada embaixo', () => {
     renderFicha(GUARDA, daAventura(GUARDA))
     for (const nome of ['Esta ficha vigia', 'Esta ficha é um veículo']) {
       const secao = interruptor(nome)?.closest('section')
@@ -276,10 +276,10 @@ describe('painel de propriedades — a ficha em ordem de tarefa', () => {
     expect(cores?.closest('section')?.querySelector('h2')).toBeNull()
   })
 
-  it('"Ficha de NPC" e "Ficha de jogador" formam um par de chaves, uma logo depois da outra', () => {
+  it('"Ficha de NPC" e "Ficha de jogador" abrem o grupo "Comportamento", uma logo depois da outra', () => {
     renderFicha()
     const npc = interruptor('Ficha de NPC')?.closest('section')
-    expect(npc?.classList.contains('lb-token-chaves')).toBe(true)
+    expect(npc?.previousElementSibling).toBe(h2('Comportamento'))
     expect(npc?.nextElementSibling).toBe(interruptor('Ficha de jogador')?.closest('section'))
   })
 })

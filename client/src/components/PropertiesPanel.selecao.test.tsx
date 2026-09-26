@@ -154,11 +154,12 @@ describe('painel de propriedades — faixa da seleção e ordem por tarefa', () 
     renderPainel(painelDaFicha())
     const lista = titulos()
     // Condições é uma linha "+" sem título (peça ficha-em-ordem-de-tarefa): a
-    // âncora é o bloco dela, e o bloco seguinte é o da transformação ("Token").
+    // âncora é o bloco dela, e o bloco seguinte é o da transformação, com o
+    // título que não repete o "Token" do Nome (peça ux-ficha-grupos).
     const condicoes = container.querySelector('.lb-inspector__body [aria-label="Condições da ficha"]')?.closest('section')
     expect(condicoes).toBeTruthy()
     const transformacao = condicoes?.nextElementSibling
-    expect(transformacao?.querySelector('h2')?.textContent).toBe('Token')
+    expect(transformacao?.querySelector('h2')?.textContent).toBe('Trava e visibilidade')
     expect(antes(container.querySelector('.lb-inspector__body h2'), condicoes)).toBe(true)
     const interruptores = Array.from(transformacao?.querySelectorAll(':scope > label.lb-switch') ?? []).map((l) => (l.textContent ?? '').trim())
     expect(interruptores).toEqual(['Travado', 'Oculto para jogadores'])
