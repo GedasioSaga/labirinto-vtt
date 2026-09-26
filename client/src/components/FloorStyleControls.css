@@ -1,0 +1,35 @@
+/*
+ * FloorStyleControls — "Chão do mapa" no formato das linhas de propriedade do
+ * painel Design do Figma UI3 (peça mapa-inteiro-enxuto do laudo do painel): a
+ * cor mora na linha do rótulo, como a amostra do "Fill" ao lado do valor, e a
+ * linha lê igual ao interruptor de baixo ("Contorno"): nome à esquerda,
+ * controle à direita, 34 px de alvo. Rótulo em cima da amostra gastava uma
+ * linha a mais por cor.
+ *
+ * Primitivas (`.lb-field`, `.lb-label`, `.lb-swatch` e o "?" da dica sob
+ * demanda) vêm de main.css. Só `var(--lb-*)` de theme.ts.
+ *
+ * ESPECIFICIDADE: main.tsx importa o App antes de main.css, então esta folha
+ * entra ANTES dela na cascata. As regras daqui desfazem as de `.lb-field`
+ * (coluna) e `.lb-label` (rótulo pequeno e apagado) com duas classes no
+ * seletor, sem depender da ordem.
+ */
+
+/* Rótulo à esquerda, amostra à direita. Continua `.lb-field`: é a "linha" que
+   a dica sob demanda (P3) paira, com o "?" logo depois do rótulo. */
+.lb-field.lb-floor-linha {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--lb-space-3);
+  min-height: 34px;
+}
+
+/* O rótulo da linha lê como o do interruptor vizinho: mesmo corpo e mesma cor,
+   porque a linha é o mesmo desenho. O `.lb-label` pequeno e apagado de
+   main.css fica para o rótulo EM CIMA de um campo. */
+.lb-floor-linha > .lb-label {
+  font-size: var(--lb-font-size-md);
+  font-weight: var(--lb-font-weight-regular);
+  color: var(--lb-color-parchment);
+}

@@ -31,20 +31,37 @@ function contarSalas(salas: number): string {
  * facções e o alerta da cena, que o mestre sobe conforme o grupo faz barulho.
  * Tudo aqui é só do mestre: `lib/fogFilter.ts` tira facção e alerta do
  * pacote de todo jogador.
+ *
+ * Peça mapa-inteiro-enxuto (laudo do painel, rodada 2):
+ * - o alerta é o segmentado do projeto, a mesma pastilha de "Precisão do
+ *   contorno" e "Abre por", no lugar dos rádios nativos (13 px, azul do
+ *   navegador, fora de `theme.ts`);
+ * - "Nenhuma sala tem facção" diz por que o "Quem manda aqui" não pinta nada:
+ *   é a explicação do interruptor (`aria-describedby`), então mora no "?" dele
+ *   como dica sob demanda (`lib/dicaDoPainel.ts`), não em duas linhas da coluna.
  */
 export function TerritorioControls({ filtroLigado, onFiltroChange, legenda, alerta, onAlertaChange }: TerritorioControlsProps) {
   const baseId = useId()
   const filtroHintId = `${baseId}-filtro-hint`
+  const semFaccaoId = `${baseId}-sem-faccao`
   const alertaHintId = `${baseId}-alerta-hint`
+  const semFaccao = legenda.length === 0
   return (
     <div className="lb-territorio">
-      <Toggle label="Quem manda aqui" checked={filtroLigado} onChange={onFiltroChange} describedBy={filtroHintId} />
+      <Toggle
+        label="Quem manda aqui"
+        checked={filtroLigado}
+        onChange={onFiltroChange}
+        describedBy={semFaccao ? `${filtroHintId} ${semFaccaoId}` : filtroHintId}
+      />
       <p className="lb-field__hint" id={filtroHintId}>
         Pinta cada sala e distrito com a cor da facção. Só no seu editor.
       </p>
 
-      {legenda.length === 0 ? (
-        <p className="lb-field__hint">Nenhuma sala tem facção. Escolha uma no campo Facção do painel da Sala.</p>
+      {semFaccao ? (
+        <p className="lb-field__hint" id={semFaccaoId}>
+          Nenhuma sala tem facção. Escolha uma no campo Facção do painel da Sala.
+        </p>
       ) : (
         <ul className="lb-territorio__legenda" aria-label="Facções do mapa">
           {legenda.map((item) => (
@@ -56,23 +73,26 @@ export function TerritorioControls({ filtroLigado, onFiltroChange, legenda, aler
         </ul>
       )}
 
-      <fieldset className="lb-territorio__alerta" aria-describedby={alertaHintId}>
-        <legend className="lb-label">Alerta da cena</legend>
-        <div className="lb-territorio__niveis">
+      {/* Rótulo e segmentado no mesmo campo: é a "linha" que a dica paira, com o
+          "?" logo depois do rótulo. O nome do grupo vem de `aria-label`, como
+          nos outros segmentados do painel ("Abre por", "Abrir na parede"). */}
+      <div className="lb-field">
+        <span className="lb-label">Alerta da cena</span>
+        <div className="lb-seg" role="radiogroup" aria-label="Alerta da cena" aria-describedby={alertaHintId}>
           {NIVEIS_ALERTA.map((nivel) => (
-            <label key={nivel} className="lb-territorio__nivel">
-              <input
-                type="radio"
-                name={`${baseId}-alerta`}
-                value={nivel}
-                checked={alerta === nivel}
-                onChange={() => onAlertaChange(nivel)}
-              />
+            <button
+              key={nivel}
+              type="button"
+              role="radio"
+              aria-checked={alerta === nivel}
+              className="lb-seg__option"
+              onClick={() => onAlertaChange(nivel)}
+            >
               {ROTULO_ALERTA[nivel]}
-            </label>
+            </button>
           ))}
         </div>
-      </fieldset>
+      </div>
       <p className="lb-field__hint" id={alertaHintId}>
         Suba conforme o grupo faz barulho. Os jogadores não recebem o nível.
       </p>

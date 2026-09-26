@@ -104,6 +104,17 @@ const AVISO_SEM_FACCAO = 'Nenhuma sala tem facção'
 const FRASE_DO_FILTRO = 'Pinta cada sala e distrito'
 const FRASE_DO_ALERTA = 'Suba conforme o grupo faz barulho'
 
+/** Aviso de estado sem controle nenhum que ele explique (o Acervo vazio): conteúdo da coluna. */
+const AVISO_SOLTO = 'Nenhum token no acervo ainda.'
+
+function avisoSolto(): HTMLElement {
+  const aviso = document.createElement('p')
+  aviso.className = 'lb-field__hint'
+  aviso.textContent = AVISO_SOLTO
+  corpo.appendChild(aviso)
+  return aviso
+}
+
 describe('classificarDicas — quais frases viram balão', () => {
   it('a frase do interruptor, ligada por aria-describedby, vira balão; a linha é o interruptor inteiro', () => {
     montar(npc())
@@ -115,14 +126,23 @@ describe('classificarDicas — quais frases viram balão', () => {
     expect(linhas.get(linha)).toEqual([dica])
   })
 
-  it('aviso sem ligação com controle fica no fluxo; a frase do interruptor e a do grupo de rádios viram balão', () => {
+  it('aviso sem ligação com controle nenhum fica no fluxo: é conteúdo, não explicação', () => {
+    montar(npc())
+    const aviso = avisoSolto()
+    expect(classificarDicas(corpo).sobDemanda, 'o aviso de lista vazia tem de continuar à vista').not.toContain(aviso)
+  })
+
+  it('Território: a frase do filtro e a de sem facção são do interruptor; a do alerta é do campo (rótulo e segmentado)', () => {
     montar(territorio())
     const { sobDemanda, linhas } = classificarDicas(corpo)
     expect(sobDemanda).toContain(dicaComTexto(FRASE_DO_FILTRO))
     expect(sobDemanda).toContain(dicaComTexto(FRASE_DO_ALERTA))
-    expect(sobDemanda, 'o aviso de lista vazia é conteúdo, não explicação: tem de continuar à vista').not.toContain(dicaComTexto(AVISO_SEM_FACCAO))
-    const grupo = corpo.querySelector('fieldset')
-    expect(grupo !== null && linhas.get(grupo as HTMLElement)?.[0] === dicaComTexto(FRASE_DO_ALERTA), 'a linha do alerta é o grupo inteiro (legenda e rádios)').toBe(true)
+    // Peça mapa-inteiro-enxuto: a frase de estado diz por que "Quem manda aqui"
+    // não pinta nada; ligada ao interruptor, ela é a explicação dele.
+    expect(sobDemanda).toContain(dicaComTexto(AVISO_SEM_FACCAO))
+    expect(linhas.get(interruptor('Quem manda aqui').linha)).toEqual([dicaComTexto(FRASE_DO_FILTRO), dicaComTexto(AVISO_SEM_FACCAO)])
+    const campo = corpo.querySelector<HTMLElement>('[role="radiogroup"]')?.closest<HTMLElement>('.lb-field') ?? null
+    expect(campo !== null && linhas.get(campo)?.[0] === dicaComTexto(FRASE_DO_ALERTA), 'a linha do alerta é o campo inteiro (rótulo e segmentado)').toBe(true)
   })
 
   it('frase de controle desabilitado é o motivo de ele não fazer nada: fica no fluxo', () => {
@@ -172,6 +192,7 @@ describe('classificarDicas — quais frases viram balão', () => {
 describe('instalarDicasDoPainel — a frase sai do fluxo e continua ligada ao controle', () => {
   it('marca a frase como balão fechado sem mudar id, texto nem aria-describedby; o aviso fica sem marca', () => {
     montar(npc(), territorio())
+    const aviso = avisoSolto()
     const dica = dicaComTexto(TOKEN_NPC_HINT)
     const id = dica.id
     instalar()
@@ -182,7 +203,7 @@ describe('instalarDicasDoPainel — a frase sai do fluxo e continua ligada ao co
     expect(dica.textContent).toBe(TOKEN_NPC_HINT)
     expect(caixa.getAttribute('aria-describedby')).toBe(id)
     expect(linha.getAttribute('data-dica-ids')).toBe(id)
-    expect(dicaComTexto(AVISO_SEM_FACCAO).hasAttribute('data-dica')).toBe(false)
+    expect(aviso.hasAttribute('data-dica')).toBe(false)
   })
 
   it('frase fora do corpo do painel (diálogo, aba Jogo) não muda', () => {

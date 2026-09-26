@@ -1,6 +1,8 @@
+import { useId } from 'react'
 import type { FloorStyle, MapFrame } from '../types/map'
 import { AdvancedField, AdvancedSection } from './AdvancedSection'
 import { Toggle } from './Toggle'
+import './FloorStyleControls.css'
 
 export interface FloorStyleControlsProps {
   style: FloorStyle
@@ -31,6 +33,10 @@ const SAMPLE_STEP_OPTIONS: Array<{ value: number; label: string }> = [
  * Estilo do chão do MAPA inteiro (não de uma peça). A criação de peças a
  * partir da imagem de fundo saiu daqui para o menu do botão de imagem da
  * ActionBar, que só existe quando há imagem.
+ *
+ * Peça mapa-inteiro-enxuto (laudo do painel, rodada 2): cada cor mora na
+ * linha do rótulo (`FloorStyleControls.css`), e a frase de mapa sem chão é a
+ * explicação de "Cor do chão" e de "Contorno", no "?" deles.
  */
 export function FloorStyleControls({
   style,
@@ -41,19 +47,15 @@ export function FloorStyleControls({
   hasFloorContent,
 }: FloorStyleControlsProps) {
   const sampleStep = style.sampleStep ?? DEFAULT_SAMPLE_STEP
+  const semChaoId = `${useId()}-sem-chao`
+  /** Sem chão no mapa, cor e contorno não aparecem na tela: os dois apontam a frase que diz por quê. */
+  const explicaSemChao = hasFloorContent ? undefined : semChaoId
 
   // Sem <section>/título próprios: quem envolve é a `CollapsibleSection`
   // "Chão" do PropertiesPanel, que já é a seção e o cabeçalho.
   return (
     <>
-      {!hasFloorContent && (
-        // Num mapa sem chão estes controles não mudam nada na tela; a frase
-        // evita que pareçam quebrados e aponta onde o chão nasce.
-        <p className="lb-field__hint">
-          Vale para o chão por peças e para o minimapa recriado. Este mapa ainda não tem nenhum: use a ferramenta Chão ou o menu da imagem de fundo.
-        </p>
-      )}
-      <div className="lb-field">
+      <div className="lb-field lb-floor-linha">
         <label className="lb-label" htmlFor="lb-floor-fill-color">
           Cor do chão
         </label>
@@ -62,6 +64,7 @@ export function FloorStyleControls({
           className="lb-swatch"
           type="color"
           value={style.fillColor}
+          aria-describedby={explicaSemChao}
           onChange={(event) => onStyleChange({ fillColor: event.target.value })}
         />
       </div>
@@ -69,10 +72,11 @@ export function FloorStyleControls({
       <Toggle
         label="Contorno"
         checked={style.strokeColor !== null}
+        describedBy={explicaSemChao}
         onChange={(checked) => onStyleChange({ strokeColor: checked ? DEFAULT_STROKE_COLOR : null })}
       />
       {style.strokeColor !== null && (
-        <div className="lb-field">
+        <div className="lb-field lb-floor-linha">
           <label className="lb-label" htmlFor="lb-floor-stroke-color">
             Cor do contorno
           </label>
@@ -84,6 +88,16 @@ export function FloorStyleControls({
             onChange={(event) => onStyleChange({ strokeColor: event.target.value })}
           />
         </div>
+      )}
+      {!hasFloorContent && (
+        // Num mapa sem chão estes controles não mudam nada na tela; a frase
+        // evita que pareçam quebrados e aponta onde o chão nasce. Ligada aos
+        // dois por `aria-describedby`, ela sai da coluna e vira o balão do "?"
+        // deles (dica sob demanda, `lib/dicaDoPainel.ts`): o leitor de tela
+        // continua lendo a frase como descrição de cada um.
+        <p className="lb-field__hint" id={semChaoId}>
+          Vale para o chão por peças e para o minimapa recriado. Este mapa ainda não tem nenhum: use a ferramenta Chão ou o menu da imagem de fundo.
+        </p>
       )}
 
       {/* Decisão do usuário (14/09/2026): controles técnicos ficam no Avançado, fechado, com a frase do que fazem. */}

@@ -800,10 +800,13 @@ export function PropertiesPanel({
         {objects}
         {/* FACÇÃO E ALERTA do mapa inteiro. Mesmo grupo das Camadas (é filtro
             de vista e estado da cena, não ferramenta), antes de "Chão do mapa"
-            para Camadas continuar o último título da coluna. */}
+            para Camadas continuar o último título da coluna. Nasce fechada
+            mesmo sem seleção (peça mapa-inteiro-enxuto): o mestre mexe nela
+            durante o jogo, não na primeira tela do mapa; a escolha dele fica
+            lembrada (`lb-section:territorio`). */}
         {territorio !== undefined && (
           <ToolPropertiesSection group="layers" groups={groups}>
-            <CollapsibleSection id="territorio" title="Território" defaultOpen={mapSectionsOpenByDefault}>
+            <CollapsibleSection id="territorio" title="Território" defaultOpen={false}>
               <TerritorioControls {...territorio} />
             </CollapsibleSection>
           </ToolPropertiesSection>
