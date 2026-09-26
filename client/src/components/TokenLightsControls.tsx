@@ -13,13 +13,17 @@ export interface TokenLightsControlsProps {
  * sempre pega a ficha. Este bloco, no painel da ficha, é o caminho de volta
  * para a luz: "Soltar a luz" direto, ou "Ajustar a luz" para abrir o painel
  * dela. Sem luz na ficha, não aparece.
+ *
+ * Seção própria, o último dos opcionais de comportamento da ficha (peça
+ * ficha-em-ordem-de-tarefa): com o respiro e a divisória das outras linhas,
+ * e não encostado na borda do painel.
  */
 export function TokenLightsControls({ lights, onSelectLight, onDetach }: TokenLightsControlsProps) {
   if (lights.length === 0) return null
   // Com mais de uma luz, o número separa os botões para o leitor de tela.
   const suffix = (index: number): string => (lights.length > 1 ? ` ${index + 1}` : '')
   return (
-    <div className="lb-field">
+    <section className="lb-section">
       <span className="lb-label">{lights.length > 1 ? 'Luzes nesta ficha' : 'Luz nesta ficha'}</span>
       {lights.map((light, index) => (
         <div key={light.id} className="lb-section__row">
@@ -34,6 +38,6 @@ export function TokenLightsControls({ lights, onSelectLight, onDetach }: TokenLi
           )}
         </div>
       ))}
-    </div>
+    </section>
   )
 }

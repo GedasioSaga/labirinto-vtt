@@ -1,6 +1,7 @@
 import type { TokenWatch } from '../types/map'
 import { WATCH_APERTURES, WATCH_APERTURE_MAX, WATCH_DEFAULT, WATCH_DIRECTIONS, WATCH_RANGES } from '../lib/npcWatch'
 import { Toggle } from './Toggle'
+import './TokenControls.css'
 
 export interface TokenWatchControlsProps {
   /** Vigia da ficha selecionada, já lida (`readTokenWatch`); `null` = ficha comum. */
@@ -33,16 +34,21 @@ function apertureLabel(degrees: number): string {
  * rádio — o mesmo controle do "Tamanho da ficha" (`TokenSizeControls`): um
  * clique por escolha, estado marcado e teclado já prontos. Cada escolha passa
  * pelo histórico (`updateToken`), então Ctrl+Z desfaz.
+ *
+ * UMA linha, sem título (peça ficha-em-ordem-de-tarefa, no molde das linhas
+ * de opcional do Figma UI3): é o primeiro dos opcionais de comportamento da
+ * ficha, depois de tudo o que a ficha é. Desligada, só o interruptor, com o
+ * alvo de 34 px das outras linhas; ligada, as escolhas aparecem embaixo e o
+ * interruptor não sai do lugar (TokenControls.css).
  */
 export function TokenWatchControls({ watch, onWatchChange }: TokenWatchControlsProps) {
   return (
-    <section className="lb-section">
-      <h2 className="lb-eyebrow">Vigia</h2>
+    <section className="lb-section lb-token-linha">
       <Toggle label="Esta ficha vigia" checked={watch !== null} onChange={(on) => onWatchChange(on ? WATCH_DEFAULT : null)} />
       {watch !== null && (
-        <>
+        <div className="lb-token-linha__corpo">
           <span className="lb-label">Para onde olha</span>
-          <div className="lb-seg" role="radiogroup" aria-label="Para onde olha">
+          <div className="lb-seg lb-token-direcoes" role="radiogroup" aria-label="Para onde olha">
             {WATCH_DIRECTIONS.map((option) => (
               <button
                 key={option.value}
@@ -92,7 +98,7 @@ export function TokenWatchControls({ watch, onWatchChange }: TokenWatchControlsP
           </div>
           {/* O mestre precisa saber o que sai para a mesa e o que fica com ele. */}
           <span className="lb-label">O cone só você vê. Quem joga vê "?" ou "!" em cima do guarda quando ele avista alguém.</span>
-        </>
+        </div>
       )}
     </section>
   )

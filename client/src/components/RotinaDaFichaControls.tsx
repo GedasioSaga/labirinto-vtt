@@ -2,9 +2,16 @@ import { useId } from 'react'
 import type { EstadoDoMundo } from '../lib/estadoDoMundo'
 import { gravarPosto, tirarPosto } from '../lib/rotinaDoNpc'
 import type { PostoDaRotina, RotinaDoNpc, Token } from '../types/map'
+import './TokenControls.css'
 
 /** Valor da lista de estado que quer dizer "a ficha não tem rotina". */
 const NENHUMA = ''
+
+/** O que a lista faz, lido ao pairar ou focar a linha (dica sob demanda, peça P3). */
+export const ROTINA_HINT = 'A cada valor do estado, a ficha vai ao posto gravado nele.'
+
+/** Por que a linha está apagada, e o que fazer: sem estado na aventura não há do que a rotina dependa. */
+export const ROTINA_SEM_ESTADO = 'Crie um Estado do mundo'
 
 export interface RotinaDaFichaControlsProps {
   token: Token
@@ -30,20 +37,31 @@ function ondeFica(posto: PostoDaRotina, cenas: RotinaDaFichaControlsProps['cenas
  * posto. Trocar o estado em "Estado do mundo" leva a ficha ao posto, mesmo em
  * outra cena. Turno sem posto: a ficha fica onde está. Nada disto vai ao
  * jogador (`lib/fogFilter.ts`).
+ *
+ * UMA linha quando vazia (peça ficha-em-ordem-de-tarefa, no molde das linhas
+ * de opcional do Figma UI3): "Rotina por" à esquerda e a lista à direita, como
+ * "Vai junto de"; sem estado na aventura, a linha fica apagada e diz o que
+ * falta no lugar da lista. Com rotina, os turnos aparecem embaixo da linha.
  */
 export function RotinaDaFichaControls({ token, estados, cenas, cenaAberta, onChange }: RotinaDaFichaControlsProps) {
   const baseId = useId()
   const rotina = token.rotina
   if (estados.length === 0 && rotina === undefined) {
+    // Nada de lista vazia clicável: a linha fica, apagada, com o motivo no
+    // lugar do controle (o mesmo desenho de "Vai junto de" sem outra ficha).
     return (
-      <p className="lb-world-amarra__vazio">
-        Para a ficha mudar de lugar a cada turno, crie um estado em "Estado do mundo" (por exemplo "Apito": Aurora, Meio, Brasa, Sombra).
-      </p>
+      <section className="lb-section lb-token-linha">
+        <div className="lb-token-par lb-token-par--vazio">
+          <span className="lb-label">Rotina</span>
+          <span className="lb-token-par__motivo">{ROTINA_SEM_ESTADO}</span>
+        </div>
+      </section>
     )
   }
 
   const estado = rotina === undefined ? undefined : estados.find((e) => e.id === rotina.estadoId)
   const estadoId = `${baseId}-estado`
+  const dicaId = `${baseId}-dica`
   // Estado que sumiu da aventura: os valores dos postos são tudo o que sobra dele.
   const valores = estado !== undefined ? estado.valores : rotina === undefined ? [] : rotina.postos.map((posto) => posto.valor)
 
@@ -57,12 +75,18 @@ export function RotinaDaFichaControls({ token, estados, cenas, cenaAberta, onCha
   }
 
   return (
-    <div className="lb-world-amarra">
-      <div className="lb-field">
+    <section className="lb-section lb-token-linha lb-token-linha--campo">
+      <div className="lb-field lb-token-par">
         <label className="lb-label" htmlFor={estadoId}>
           Rotina por
         </label>
-        <select id={estadoId} className="lb-input" value={rotina?.estadoId ?? NENHUMA} onChange={(event) => escolherEstado(event.target.value)}>
+        <select
+          id={estadoId}
+          className="lb-input"
+          value={rotina?.estadoId ?? NENHUMA}
+          aria-describedby={dicaId}
+          onChange={(event) => escolherEstado(event.target.value)}
+        >
           <option value={NENHUMA}>Nenhuma</option>
           {estados.map((e) => (
             <option key={e.id} value={e.id}>
@@ -72,37 +96,42 @@ export function RotinaDaFichaControls({ token, estados, cenas, cenaAberta, onCha
           {rotina !== undefined && estado === undefined && <option value={rotina.estadoId}>Estado que não existe mais</option>}
         </select>
       </div>
+      <p id={dicaId} className="lb-field__hint">
+        {ROTINA_HINT}
+      </p>
       {rotina !== undefined && (
-        <ul className="lb-world-amarra__valores">
-          {valores.map((valor) => {
-            const posto = rotina.postos.find((p) => p.valor === valor)
-            return (
-              <li key={valor} className="lb-rotina__turno">
-                <span className="lb-label">
-                  {valor}
-                  {estado?.atual === valor && <span className="lb-world-amarra__agora"> (agora)</span>}
-                </span>
-                <span className="lb-rotina__onde">{posto === undefined ? 'Fica onde está' : ondeFica(posto, cenas, cenaAberta)}</span>
-                <span className="lb-rotina__acoes">
-                  <button
-                    type="button"
-                    className="lb-btn lb-btn--ghost"
-                    aria-label={`Gravar aqui para ${valor}`}
-                    onClick={() => onChange(gravarPosto(rotina, { valor, sceneId: cenaAberta, x: token.x, y: token.y }))}
-                  >
-                    Gravar aqui
-                  </button>
-                  {posto !== undefined && (
-                    <button type="button" className="lb-btn lb-btn--ghost" aria-label={`Tirar posto de ${valor}`} onClick={() => onChange(tirarPosto(rotina, valor))}>
-                      Tirar
+        <div className="lb-token-linha__corpo">
+          <ul className="lb-world-amarra__valores">
+            {valores.map((valor) => {
+              const posto = rotina.postos.find((p) => p.valor === valor)
+              return (
+                <li key={valor} className="lb-rotina__turno">
+                  <span className="lb-label">
+                    {valor}
+                    {estado?.atual === valor && <span className="lb-world-amarra__agora"> (agora)</span>}
+                  </span>
+                  <span className="lb-rotina__onde">{posto === undefined ? 'Fica onde está' : ondeFica(posto, cenas, cenaAberta)}</span>
+                  <span className="lb-rotina__acoes">
+                    <button
+                      type="button"
+                      className="lb-btn lb-btn--ghost"
+                      aria-label={`Gravar aqui para ${valor}`}
+                      onClick={() => onChange(gravarPosto(rotina, { valor, sceneId: cenaAberta, x: token.x, y: token.y }))}
+                    >
+                      Gravar aqui
                     </button>
-                  )}
-                </span>
-              </li>
-            )
-          })}
-        </ul>
+                    {posto !== undefined && (
+                      <button type="button" className="lb-btn lb-btn--ghost" aria-label={`Tirar posto de ${valor}`} onClick={() => onChange(tirarPosto(rotina, valor))}>
+                        Tirar
+                      </button>
+                    )}
+                  </span>
+                </li>
+              )
+            })}
+          </ul>
+        </div>
       )}
-    </div>
+    </section>
   )
 }

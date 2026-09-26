@@ -1,0 +1,350 @@
+/*
+ * TokenControls — o bloco da Ficha no formato do painel de propriedades do
+ * Figma UI3 (aba Design, camada selecionada), peça ficha-em-ordem-de-tarefa:
+ * os fixos primeiro e os opcionais depois; o opcional vazio é UMA linha com
+ * "+" ("Click Add stroke in the Stroke section", help.figma.com), com um
+ * interruptor ou com o motivo de estar apagado; a propriedade curta mora numa
+ * linha só (rótulo à esquerda, controle à direita, como "Device" e
+ * "Background" no Figma). Título de bloco sobra só onde há um grupo de campos.
+ *
+ * As linhas de uma propriedade têm a mesma geometria: 34 px de alvo (a altura
+ * do `.lb-btn`), 4 px de folga em cima e embaixo e a divisória — 43 px, dentro
+ * dos 44 px que a BAR pede para o opcional vazio. A coluna se lê num passo só.
+ *
+ * Primitivas (`.lb-section`, `.lb-seg`, `.lb-switch`, `.lb-field`,
+ * `.lb-label`, `.lb-input`, o anel de `:focus-visible`) vêm de main.css, como
+ * em RoomControls.css e SelectionHeader.css. Só `var(--lb-*)` de theme.ts.
+ *
+ * ESPECIFICIDADE: main.tsx importa o App antes de main.css, então esta folha
+ * entra ANTES dela na cascata. Onde uma regra daqui desfaz uma de main.css
+ * (o respiro de `.lb-section`, a divisória de `.lb-section + .lb-section`), o
+ * seletor daqui tem mais classes que o de lá e não depende da ordem.
+ */
+
+/* ------------------------------------------------ linha de uma propriedade */
+
+/* A seção de uma linha só: sem o respiro de 16 px em cima e embaixo, quem dá
+   a altura é a própria linha. A divisória de cima continua vindo de
+   `.lb-section + .lb-section` (main.css). */
+.lb-section.lb-token-linha {
+  gap: var(--lb-space-2);
+  padding-top: var(--lb-space-1);
+  padding-bottom: var(--lb-space-1);
+}
+
+/* Com um campo de texto ou lista (38 px, com borda), a linha ganha o respiro
+   de um degrau: a borda do campo não encosta na divisória. */
+.lb-section.lb-token-linha--campo {
+  padding-top: var(--lb-space-2);
+  padding-bottom: var(--lb-space-2);
+}
+
+/* Rótulo à esquerda, controle à direita. Em `.lb-field` (main.css, coluna)
+   vira linha, e continua sendo a "linha" que a dica sob demanda (P3) paira e
+   marca com o "?". Duas classes no seletor: `.lb-field` vem depois na cascata
+   e, com a mesma especificidade, voltaria a empilhar rótulo e lista. */
+.lb-token-linha .lb-token-par {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--lb-space-3);
+  min-height: 34px;
+}
+
+/* O rótulo da linha lê como o dos interruptores vizinhos ("Travado", "Esta
+   ficha vigia"): mesmo corpo e mesma cor, porque a linha é o mesmo desenho —
+   nome à esquerda, controle à direita. O `.lb-label` pequeno e apagado de
+   main.css fica para o rótulo EM CIMA de um campo. */
+.lb-token-par > .lb-label {
+  flex: none;
+  font-size: var(--lb-font-size-md);
+  font-weight: var(--lb-font-weight-regular);
+  color: var(--lb-color-parchment);
+}
+
+/* O campo divide a linha com o rótulo: `min-width: 0` deixa a lista encolher
+   em vez de vazar do rail de 264 px (o mesmo cuidado de `.lb-room-dims`). A
+   altura é a do `.lb-input` de sempre: o alvo não encolhe. */
+.lb-token-par > .lb-input {
+  flex: 0 1 60%;
+  min-width: 0;
+}
+
+/* Sem o que escolher: a linha fica, apagada, e diz por quê no lugar do
+   controle — nada de lista vazia clicável. */
+.lb-token-par--vazio > .lb-label {
+  color: var(--lb-color-parchment-faint);
+}
+
+.lb-token-par__motivo {
+  font-size: var(--lb-font-size-sm);
+  line-height: var(--lb-font-leading-tight);
+  color: var(--lb-color-parchment-faint);
+  text-align: right;
+}
+
+/* ----------------------------------------- opcional com "+" (Condições...) */
+
+.lb-section.lb-token-opt {
+  gap: 0;
+  padding-top: var(--lb-space-1);
+  padding-bottom: var(--lb-space-1);
+}
+
+/* A linha do opcional. O botão inteiro é o alvo, na largura da coluna. A
+   margem negativa deixa o texto alinhado aos rótulos de cima e o fundo do
+   ponteiro transbordar um pouco para os lados, dentro do respiro da seção —
+   o desenho do "+" da Sala (RoomControls.css). */
+.lb-token-opt__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--lb-space-3);
+  width: calc(100% + 2 * var(--lb-space-2));
+  min-height: 34px;
+  margin: 0 calc(-1 * var(--lb-space-2));
+  padding: 0 var(--lb-space-2);
+  border: 0;
+  border-radius: var(--lb-radius-sm);
+  background: transparent;
+  /* Vazio lê mais apagado que o que tem conteúdo (o título cinza das seções
+     vazias do Figma); aberto ou preenchido, o nome acende. */
+  color: var(--lb-color-parchment-dim);
+  font-family: inherit;
+  font-size: var(--lb-font-size-md);
+  line-height: var(--lb-font-leading-tight);
+  text-align: left;
+}
+
+button.lb-token-opt__head {
+  cursor: pointer;
+  transition:
+    background var(--lb-motion-fast) var(--lb-motion-ease),
+    color var(--lb-motion-fast) var(--lb-motion-ease);
+}
+
+.lb-token-opt__head[aria-expanded='true'],
+.lb-token-opt__head--cheio {
+  color: var(--lb-color-parchment);
+}
+
+button.lb-token-opt__head:hover {
+  background: var(--lb-color-stone-hover);
+  color: var(--lb-color-parchment);
+}
+
+button.lb-token-opt__head:active {
+  background: var(--lb-color-stone-sunken);
+}
+
+/* Com rota, o resumo mora no cabeçalho ("3 pontos · no ponto 2"), no lugar
+   do sinal: uma linha a menos no bloco aberto. */
+.lb-token-opt__resumo {
+  font-size: var(--lb-font-size-sm);
+  font-variant-numeric: tabular-nums;
+  color: var(--lb-color-parchment-dim);
+}
+
+/* O "+" que vira "−" ao abrir: a barra de pé encolhe até sumir. É o único
+   movimento do bloco — abrir e fechar é gesto frequente, então a seção abre
+   de uma vez; só o sinal diz, em 110 ms, o que mudou. */
+.lb-token-opt__sinal {
+  flex: none;
+  display: grid;
+  place-items: center;
+  color: var(--lb-color-parchment-faint);
+  transition:
+    color var(--lb-motion-fast) var(--lb-motion-ease),
+    transform var(--lb-motion-fast) var(--lb-motion-ease);
+}
+
+.lb-token-opt__sinal svg {
+  display: block;
+}
+
+.lb-token-opt__barra {
+  transform-box: fill-box;
+  transform-origin: center;
+  transition: transform var(--lb-motion-fast) var(--lb-motion-ease);
+}
+
+.lb-token-opt__head[aria-expanded='true'] .lb-token-opt__barra {
+  transform: scaleY(0);
+}
+
+/* O sinal em latão diz "isto abre (ou fecha)" quando o ponteiro ou o foco
+   chegam. */
+button.lb-token-opt__head:hover .lb-token-opt__sinal,
+button.lb-token-opt__head:focus-visible .lb-token-opt__sinal {
+  color: var(--lb-color-brass);
+}
+
+/* Apertar responde na hora (Emil: encolher um pouco no `:active`). */
+button.lb-token-opt__head:active .lb-token-opt__sinal {
+  transform: scale(0.9);
+}
+
+/* O corpo aberto: o passo de 12 px entre controles e, somado aos 4 px da
+   seção, o respiro de 16 px de toda seção no fim. */
+.lb-token-opt__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-3);
+  padding-top: var(--lb-space-1);
+  padding-bottom: var(--lb-space-3);
+}
+
+/* `hidden` vence o `display: flex` acima (o mesmo cuidado de
+   `.lb-collapsible__body[hidden]` em main.css): fechado, fora da vista e da
+   ordem de Tab, mas no DOM. */
+.lb-token-opt__body[hidden] {
+  display: none;
+}
+
+/* ------------------------- interruptor numa linha (Vigia, Veículo) */
+
+/* O interruptor que liga um comportamento da ficha ("Esta ficha vigia",
+   "Esta ficha é um veículo") é a linha inteira: o rótulo todo é o alvo
+   (`Toggle`), com os 34 px das outras linhas da ficha. */
+.lb-token-linha > .lb-switch {
+  min-height: 34px;
+}
+
+/* Desligado, o rótulo lê apagado como o das linhas "+" vazias (o título cinza
+   das seções vazias do Figma): na lista de opcionais, o que a ficha não usa
+   recua e o que ela usa acende. O ponteiro e o foco também acendem. */
+.lb-token-linha > .lb-switch > span:first-child {
+  color: var(--lb-color-parchment-dim);
+  transition: color var(--lb-motion-fast) var(--lb-motion-ease);
+}
+
+.lb-token-linha > .lb-switch:has(.lb-switch__input:checked) > span:first-child,
+.lb-token-linha > .lb-switch:has(.lb-switch__input:focus-visible) > span:first-child,
+.lb-token-linha > .lb-switch:hover > span:first-child {
+  color: var(--lb-color-parchment);
+}
+
+/* Ligado (ou com valor, na lista da Rotina), os controles aparecem embaixo da
+   linha, que não sai do lugar: 12 px da linha ao primeiro controle (o vão da
+   seção mais este respiro), o passo de 12 px entre controles e os 16 px de
+   toda seção no fim. Aparece de uma vez, sem animar a altura. */
+.lb-token-linha__corpo {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-3);
+  padding-top: var(--lb-space-1);
+  padding-bottom: var(--lb-space-3);
+}
+
+/* Na linha de campo o respiro da seção já é de 8 px: o fim soma os mesmos 16. */
+.lb-token-linha--campo > .lb-token-linha__corpo {
+  padding-bottom: var(--lb-space-2);
+}
+
+/* "Para onde olha": oito setas numa fila. Com `1fr` (= `minmax(auto, 1fr)`)
+   a largura mínima das oito pastilhas somava 246 px e a última seta vazava do
+   rail de 264 px, cortada na borda da coluna. Com `minmax(0, 1fr)` e sem o
+   recuo lateral, as oito cabem: 24 px cada, o mínimo da WCAG 2.5.8. */
+.lb-seg.lb-token-direcoes {
+  grid-auto-flow: row;
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+}
+
+.lb-seg.lb-token-direcoes .lb-seg__option {
+  padding-left: 0;
+  padding-right: 0;
+}
+
+/* ------------------------------------------------ Ficha de NPC com a outra */
+
+/* "Ficha de NPC" e "Ficha de jogador" (o bloco seguinte, que o
+   PropertiesPanel monta logo abaixo) dizem de quem é a ficha: um par de
+   chaves, sem divisória nem respiro de bloco entre elas, no passo de 12 px
+   dos interruptores. */
+.lb-section.lb-token-chaves {
+  padding-bottom: 0;
+}
+
+.lb-section.lb-token-chaves + .lb-section {
+  border-top: 0;
+  padding-top: var(--lb-space-3);
+}
+
+/* ---------------------------------------------------------- Cor da ficha */
+
+/* As seis amostras numa linha só, repartindo a largura que sobra do rótulo:
+   `minmax(0, 1fr)` mantém as colunas iguais. */
+.lb-token-cores {
+  flex: 1 1 auto;
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  min-width: 0;
+}
+
+/* A amostra: o disco no meio de um alvo da altura da linha e de um sexto da
+   largura. Sem fundo em repouso — a tinta é a informação. */
+.lb-token-cor {
+  display: grid;
+  place-items: center;
+  min-height: 34px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--lb-radius-sm);
+  background: transparent;
+  cursor: pointer;
+  transition: background var(--lb-motion-fast) var(--lb-motion-ease);
+}
+
+.lb-token-cor:hover {
+  background: var(--lb-color-stone-hover);
+}
+
+.lb-token-cor__disco {
+  display: block;
+  border-radius: var(--lb-radius-full);
+  transition: transform var(--lb-motion-fast) var(--lb-motion-ease);
+}
+
+/* O contorno escuro do disco, como o da ficha no mapa. */
+.lb-token-cor__disco circle {
+  stroke: var(--lb-color-ink);
+  stroke-width: 1;
+}
+
+/* Marcada: um aro de latão com folga em volta do disco. `outline` e não
+   sombra: a folga fica transparente sobre qualquer fundo (repouso ou
+   ponteiro), e a sombra de `:focus-visible` (main.css) continua livre para o
+   anel de foco do próprio botão. */
+.lb-token-cor[aria-checked='true'] .lb-token-cor__disco {
+  outline: 2px solid var(--lb-color-brass);
+  outline-offset: 2px;
+}
+
+.lb-token-cor:active .lb-token-cor__disco {
+  transform: scale(0.9);
+}
+
+/* "Cor padrão" só existe com uma cor escolhida: embaixo das amostras, à
+   direita, sem mexer nelas. A margem completa, com os 4 px da seção, o
+   respiro de 8 px até a divisória. */
+.lb-token-cor__padrao {
+  align-self: flex-end;
+  margin-bottom: var(--lb-space-1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  button.lb-token-opt__head,
+  .lb-token-opt__sinal,
+  .lb-token-opt__barra,
+  .lb-token-cor,
+  .lb-token-cor__disco,
+  .lb-token-linha > .lb-switch > span:first-child {
+    transition: none;
+  }
+
+  button.lb-token-opt__head:active .lb-token-opt__sinal,
+  .lb-token-cor:active .lb-token-cor__disco {
+    transform: none;
+  }
+}

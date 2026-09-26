@@ -1,4 +1,5 @@
 import { TOKEN_COLOR_OPTIONS, tokenColorName } from '../lib/tokenColor'
+import './TokenControls.css'
 
 export interface TokenColorControlsProps {
   /** Cor marcada, em `#rrggbb` minúsculo; `null` = cor de fábrica. */
@@ -13,45 +14,50 @@ export interface TokenColorControlsProps {
  * seletor de milhões de tons: o gesto é "este é inimigo", um clique, e não
  * "procure um vermelho".
  *
- * Mesma pastilha em grade de `PinIconControls` (`lb-seg--grid`, `role="radio"`
- * dentro de um `radiogroup`): é o padrão da casa para escolha entre poucas
- * opções com amostra visual, e já vem com alvo de toque, estado marcado e
- * navegação por teclado do `.lb-seg__option`.
+ * UMA linha (peça P4 do laudo do painel): "Cor" à esquerda e as seis amostras
+ * à direita, como a linha "Background" do painel do Figma UI3 — sem bloco nem
+ * título, e as seis juntas no olho. A amostra é só o disco da tinta que sai
+ * no mapa; a marcada ganha um aro de latão (TokenControls.css).
  *
- * O NOME ACESSÍVEL carrega o papel junto do rótulo ("Verde — aliado") enquanto
- * o texto visível fica curto ("Verde") para caber nas três colunas do rail.
- * O visível continua contido no acessível, então comando de voz e leitor de
- * tela concordam com o que está escrito na tela.
+ * `role="radio"` dentro de um `radiogroup` chamado "Cor da ficha" (o nome que
+ * a jornada `condicao-na-ficha` procura). O NOME ACESSÍVEL carrega o papel
+ * junto do rótulo ("Verde — aliado"); sem texto na amostra, o mesmo nome
+ * aparece no `title` ao pairar, como nas setas de "Para onde olha"
+ * (`TokenWatchControls`).
  */
 export function TokenColorControls({ color, onColorChange }: TokenColorControlsProps) {
   return (
-    <section className="lb-section">
-      <h2 className="lb-eyebrow">Cor da ficha</h2>
-      <div className="lb-seg lb-seg--grid" role="radiogroup" aria-label="Cor da ficha">
-        {TOKEN_COLOR_OPTIONS.map((option) => (
-          <button
-            key={option.value}
-            type="button"
-            role="radio"
-            aria-checked={color === option.value}
-            aria-label={tokenColorName(option)}
-            className="lb-seg__option"
-            onClick={() => onColorChange(option.value)}
-          >
-            {/* Amostra chapada, sem degradê nem brilho: é a mesma tinta que
-                sai no mapa. `aria-hidden` porque o nome da cor já está no
-                nome acessível do botão — anunciar duas vezes atrapalha. */}
-            <svg className="lb-token-color__chip" width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
-              <circle cx="9" cy="9" r="8" fill={option.value} stroke="#1a1a1a" strokeWidth="1" />
-            </svg>
-            {option.label}
-          </button>
-        ))}
+    <section className="lb-section lb-token-linha">
+      <div className="lb-token-par">
+        <span className="lb-label" aria-hidden="true">
+          Cor
+        </span>
+        <div className="lb-token-cores" role="radiogroup" aria-label="Cor da ficha">
+          {TOKEN_COLOR_OPTIONS.map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              role="radio"
+              aria-checked={color === option.value}
+              aria-label={tokenColorName(option)}
+              title={tokenColorName(option)}
+              className="lb-token-cor"
+              onClick={() => onColorChange(option.value)}
+            >
+              {/* Amostra chapada, sem degradê nem brilho: é a mesma tinta que
+                  sai no mapa. `aria-hidden` porque o nome da cor já está no
+                  nome acessível do botão — anunciar duas vezes atrapalha. */}
+              <svg className="lb-token-cor__disco" width="20" height="20" viewBox="0 0 20 20" aria-hidden="true" focusable="false">
+                <circle cx="10" cy="10" r="9.5" fill={option.value} />
+              </svg>
+            </button>
+          ))}
+        </div>
       </div>
       {/* Só aparece quando há o que desfazer — mesma regra do "Sem ícone" de
           `PinIconControls`. Sem cor escolhida o botão não mudaria nada. */}
       {color !== null && (
-        <button type="button" className="lb-btn lb-btn--ghost" onClick={() => onColorChange(null)}>
+        <button type="button" className="lb-btn lb-btn--ghost lb-token-cor__padrao" onClick={() => onColorChange(null)}>
           Cor padrão
         </button>
       )}
