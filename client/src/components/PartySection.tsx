@@ -3,7 +3,7 @@ import { ITEM_NAME_MAX_LENGTH } from '../lib/items'
 import { awayTokenLabel, awayTokenName, type PartyDestination, type PartyItemAction, type PartyMember } from '../lib/party'
 import { SceneSendForm } from './SceneSendForm'
 import type { PlayerNoteDelivery, TradeProposeRefusal, TradeProposeResult } from '../net/hostSession'
-import { MOEDAS_MAX, moedasLabel, TRADE_FROM_MAX_LENGTH, type TradeProposal } from '../lib/troca'
+import { MOEDAS_MAX, moedasLabel, TRADE_FROM_MAX_LENGTH, TRADE_ITEMS_MAX, type TradeProposal } from '../lib/troca'
 import { NOTE_FEEDBACK_MS, NoteForm } from './ScenesSection'
 
 export interface PartySectionProps {
@@ -56,6 +56,7 @@ export const PARTY_TRADE_REFUSAL_TEXT: Record<TradeProposeRefusal, string> = {
   pending: 'Já há uma oferta esperando este jogador.',
   short: 'A ficha não tem o que você pede.',
   offline: 'O jogador está fora do ar agora.',
+  too_many: `Até ${TRADE_ITEMS_MAX} itens de cada lado da troca.`,
   unavailable: 'Não deu: a ficha mudou. Tente de novo.',
 }
 /** O que a linha diz quando o jogador pôs a marca "vamos para cá". */
@@ -710,6 +711,8 @@ function TradeForm({ member, onTrade, onClose }: TradeFormProps) {
     .filter((nome) => nome !== '')
   const vazia = nomes.length === 0 && pedidos.length === 0 && (dou ?? 0) === 0 && (peco ?? 0) === 0
   const torta = dou === null || peco === null
+  // O mesmo teto que o host cobra: avisar aqui evita um "não deu" depois.
+  const demais = nomes.length > TRADE_ITEMS_MAX || pedidos.length > TRADE_ITEMS_MAX
 
   useEffect(() => {
     firstRef.current?.focus()
@@ -722,7 +725,7 @@ function TradeForm({ member, onTrade, onClose }: TradeFormProps) {
 
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    if (vazia || dou === null || peco === null) return
+    if (vazia || demais || dou === null || peco === null) return
     const result = onTrade(member, { de: de.trim(), dou: { itens: nomes, moedas: dou }, peco: { itemIds: pedidos, moedas: peco } })
     if (result === 'sent') onClose()
     else setRefusal(result)
@@ -766,6 +769,11 @@ function TradeForm({ member, onTrade, onClose }: TradeFormProps) {
           Moedas: use um número inteiro de 0 a {MOEDAS_MAX}.
         </p>
       )}
+      {demais && refusal === null && (
+        <p className="lb-room__error" role="alert">
+          {PARTY_TRADE_REFUSAL_TEXT.too_many}
+        </p>
+      )}
       {refusal !== null && (
         <p className="lb-room__error" role="alert">
           {PARTY_TRADE_REFUSAL_TEXT[refusal]}
@@ -775,7 +783,7 @@ function TradeForm({ member, onTrade, onClose }: TradeFormProps) {
         <button type="button" className="lb-btn lb-btn--ghost" onClick={onClose}>
           Cancelar
         </button>
-        <button type="submit" className="lb-btn lb-btn--primary" disabled={vazia || torta}>
+        <button type="submit" className="lb-btn lb-btn--primary" disabled={vazia || torta || demais}>
           Propor
         </button>
       </div>

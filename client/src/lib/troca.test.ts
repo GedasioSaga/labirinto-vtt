@@ -10,9 +10,11 @@ import {
   moedasDe,
   moedasLabel,
   payCoinsChange,
+  purseToward,
   readMoedas,
   tradeChange,
   tradeSideText,
+  tradeTooBig,
 } from './troca'
 
 /**
@@ -152,5 +154,46 @@ describe('troca aceita: tudo ou nada', () => {
   it('sem o item pedido ou sem moeda bastante, nada muda', () => {
     expect(tradeChange(ficha('bruno', { moedas: 5 }), termos.dou, termos.peco, ids())).toBeNull()
     expect(tradeChange(ficha('bruno', { moedas: 1, mochila: [{ id: 'faca', nome: 'Faca' }] }), termos.dou, termos.peco, ids())).toBeNull()
+  })
+})
+
+describe('A bolsa que paga um colega (a mesma conta do host)', () => {
+  const GRADE = 50
+  const rica = ficha('rica', { x: 400, y: 400, moedas: 10 })
+  const pobre = ficha('pobre', { x: 100, y: 100, moedas: 2 })
+  const diego = ficha('diego', { x: 160, y: 100 })
+
+  it('conta só a ficha dele encostada no colega, não a mais rica', () => {
+    expect(purseToward([rica, pobre], diego, GRADE)).toBe(2)
+  })
+
+  it('ficha encostada sem o campo moedas: zero', () => {
+    expect(purseToward([rica, ficha('semBolsa', { x: 100, y: 100 })], diego, GRADE)).toBe(0)
+  })
+
+  it('duas encostadas: a maior delas, como o host tenta uma por uma', () => {
+    expect(purseToward([pobre, ficha('outra', { x: 120, y: 140, moedas: 7 })], diego, GRADE)).toBe(7)
+  })
+
+  it('nenhuma encostada, ou colega fora do mapa: a maior de todas (o host responde "longe")', () => {
+    expect(purseToward([rica, pobre], ficha('longe', { x: 900, y: 900 }), GRADE)).toBe(10)
+    expect(purseToward([rica, pobre], undefined, GRADE)).toBe(10)
+    expect(purseToward([], undefined, GRADE)).toBe(0)
+  })
+})
+
+describe('Troca grande demais', () => {
+  const vazio = { itens: [], moedas: 0 }
+  it('mais de 10 itens de um lado é grande demais; 10 não', () => {
+    const onze = Array.from({ length: 11 }, (_, i) => `Item ${i + 1}`)
+    expect(tradeTooBig({ de: '', dou: { itens: onze, moedas: 0 }, peco: { itemIds: [], moedas: 0 } })).toBe(true)
+    expect(tradeTooBig({ de: '', dou: vazio, peco: { itemIds: onze, moedas: 0 } })).toBe(true)
+    expect(tradeTooBig({ de: '', dou: { itens: onze.slice(0, 10), moedas: 0 }, peco: { itemIds: onze.slice(0, 10), moedas: 0 } })).toBe(false)
+  })
+
+  it('nome vazio e id repetido não contam, como na oferta limpa', () => {
+    const dezEVazios = [...Array.from({ length: 10 }, (_, i) => `Item ${i + 1}`), '  ', '']
+    expect(tradeTooBig({ de: '', dou: { itens: dezEVazios, moedas: 0 }, peco: { itemIds: ['a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a'], moedas: 0 } })).toBe(false)
+    expect(cleanTradeTerms({ de: '', dou: { itens: dezEVazios, moedas: 0 }, peco: { itemIds: [], moedas: 0 } })?.dou.itens.length).toBe(10)
   })
 })

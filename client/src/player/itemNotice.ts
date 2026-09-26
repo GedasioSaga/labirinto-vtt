@@ -21,7 +21,7 @@ export function itemNoticeText(notice: ItemNotice): string {
       return notice.reason === 'far' ? 'Chegue mais perto para dar' : 'Não dá para dar isso agora'
     case 'coins_rejected':
       if (notice.reason === 'far') return 'Chegue mais perto para pagar'
-      if (notice.reason === 'short') return 'Você não tem tantas moedas'
+      if (notice.reason === 'short') return 'A sua ficha ao lado dele não tem tantas moedas'
       return 'Não dá para pagar a essa ficha'
   }
 }

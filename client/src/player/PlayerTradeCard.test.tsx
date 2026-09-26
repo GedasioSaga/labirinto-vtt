@@ -135,6 +135,39 @@ describe('"Comigo": bolsa e Pagar a…', () => {
     expect(onPay).toHaveBeenCalledWith('diego', 2)
   })
 
+  it('a ficha encostada no colega tem menos que o valor: sem botão, e a linha diz quanto ela tem', () => {
+    const onPay = vi.fn()
+    // Bolsa do painel 10 (ficha longe); a ficha encostada no Diego tem 0.
+    act(() =>
+      root.render(
+        <PlayerBackpack
+          items={[]}
+          moedas={10}
+          colleagues={[
+            { tokenId: 'diego', name: 'Diego', moedas: 0 },
+            { tokenId: 'carla', name: 'Carla', moedas: 10 },
+          ]}
+          onGive={() => {}}
+          onPay={onPay}
+        />,
+      ),
+    )
+    const abrir = Array.from(container.querySelectorAll('button')).find((b) => b.textContent === 'Pagar a…')
+    if (abrir === undefined) throw new Error('sem Pagar a…')
+    act(() => abrir.click())
+    const valor = container.querySelector<HTMLInputElement>('input[type="number"]')
+    if (valor === null) throw new Error('sem campo')
+    const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set
+    act(() => {
+      setter?.call(valor, '5')
+      valor.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+    const botoes = Array.from(container.querySelectorAll('button')).map((b) => b.getAttribute('aria-label'))
+    expect(botoes).not.toContain('Pagar 5 moedas a Diego')
+    expect(botoes).toContain('Pagar 5 moedas a Carla')
+    expect(container.textContent).toContain('Diego: a sua ficha ao lado dele tem 0 moedas')
+  })
+
   it('bolsa vazia não oferece Pagar a…', () => {
     act(() => root.render(<PlayerBackpack items={[]} moedas={0} colleagues={[{ tokenId: 'diego', name: 'Diego' }]} onGive={() => {}} onPay={() => {}} />))
     expect(Array.from(container.querySelectorAll('button')).some((b) => b.textContent === 'Pagar a…')).toBe(false)

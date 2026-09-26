@@ -188,6 +188,22 @@ describe('Oferta do mestre', () => {
     expect(t.s.proposeTrade(t.ids.Bruno ?? '', 'bruno', { de: 'Z', dou: { itens: [], moedas: 0 }, peco: { itemIds: [], moedas: 0 } }, t.world)).toEqual({ outbound: [], offerId: null, refusal: 'unavailable' })
   })
 
+  it('mais de 10 itens de um lado: "too_many" (motivo próprio), nunca "unavailable"', () => {
+    const t = mesa()
+    const onzeNomes = Array.from({ length: 11 }, (_, i) => `Item ${i + 1}`)
+    const onzeIds = Array.from({ length: 11 }, (_, i) => `id-pedido-${i + 1}`)
+    const vazio = { itens: [], moedas: 0 }
+    expect(t.s.proposeTrade(t.ids.Bruno ?? '', 'bruno', { de: 'Z', dou: { itens: onzeNomes, moedas: 0 }, peco: { itemIds: [], moedas: 1 } }, t.world)).toEqual({
+      outbound: [],
+      offerId: null,
+      refusal: 'too_many',
+    })
+    expect(t.s.proposeTrade(t.ids.Bruno ?? '', 'bruno', { de: 'Z', dou: vazio, peco: { itemIds: onzeIds, moedas: 0 } }, t.world)).toEqual({ outbound: [], offerId: null, refusal: 'too_many' })
+    // Dez de cada lado ainda é oferta: o teto é o mesmo do formulário.
+    const dez = t.s.proposeTrade(t.ids.Bruno ?? '', 'bruno', { de: 'Z', dou: { itens: onzeNomes.slice(0, 10), moedas: 0 }, peco: { itemIds: [], moedas: 1 } }, t.world)
+    expect(dez.offerId).toEqual(expect.any(String))
+  })
+
   it('uma oferta por vez: a segunda espera a primeira acabar', () => {
     const t = mesa()
     ofertaAoBruno(t)

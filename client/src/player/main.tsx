@@ -43,7 +43,7 @@ import type { RemoteLaser } from '../lib/laser'
 import { selectedTokenColor } from '../lib/tokenColor'
 import { buildTokenPhotoData } from '../lib/tokenPhoto'
 import { carriedItemsOf, giveTargets } from '../lib/items'
-import { moedasDe, ownTradeToken } from '../lib/troca'
+import { moedasDe, ownTradeToken, purseToward } from '../lib/troca'
 import { PlayerTradeCard } from './PlayerTradeCard'
 import { itemNoticeText } from './itemNotice'
 import { compraNoticeText } from './compraNotice'
@@ -750,14 +750,19 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
   const partyTokens = state.partyTokens ?? NO_TOKENS
   // ITEM PEGÁVEL: "Comigo" é a mochila das fichas dele; "Dar a…" oferece só
   // fichas de COLEGAS encostadas numa delas — NPC do mestre o host recusaria.
-  // MOEDAS E TROCA: a bolsa que conta é a da ficha dele que mais tem — o host
-  // não junta bolsas de fichas diferentes num pagamento só.
+  // MOEDAS E TROCA: a bolsa do painel é a da ficha dele que mais tem — o host
+  // não junta bolsas de fichas diferentes num pagamento só. Cada colega leva a
+  // bolsa que o paga de verdade: a da ficha dele ENCOSTADA no colega.
   const backpack = useMemo(() => {
     if (!map) return { items: [], colleagues: [], moedas: 0 }
     const own = map.tokens.filter((t) => ownTokens.includes(t.id))
+    const colleagues = giveTargets(map, ownTokens, partyTokens).map((colleague) => ({
+      ...colleague,
+      moedas: purseToward(own, map.tokens.find((t) => t.id === colleague.tokenId), map.grid),
+    }))
     return {
       items: own.flatMap(carriedItemsOf),
-      colleagues: giveTargets(map, ownTokens, partyTokens),
+      colleagues,
       moedas: own.reduce((maior, t) => Math.max(maior, moedasDe(t)), 0),
     }
   }, [map, ownTokens, partyTokens])

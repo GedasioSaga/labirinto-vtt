@@ -6,6 +6,11 @@ import type { CarriedItem } from '../types/map'
 export interface BackpackColleague {
   tokenId: string
   name: string
+  /**
+   * MOEDAS E TROCA: a bolsa que paga ESTE colega — a da ficha do jogador
+   * encostada nele, que é a que o host cobra. Ausente = a bolsa do painel.
+   */
+  moedas?: number
 }
 
 interface PlayerBackpackProps {
@@ -88,7 +93,9 @@ interface PurseLineProps {
 
 /**
  * A bolsa e o "Pagar a…": abre um campo de quantas moedas (começa em 1) e um
- * botão por colega encostado. Valor fora de 1..bolsa não oferece colega.
+ * botão por colega encostado. Valor fora de 1..bolsa não oferece colega; o
+ * colega cuja ficha encostada não tem o valor aparece sem botão, dizendo
+ * quanto ela tem — o host recusaria.
  */
 function PurseLine({ moedas, colleagues, onPay }: PurseLineProps) {
   const fieldId = useId()
@@ -116,21 +123,30 @@ function PurseLine({ moedas, colleagues, onPay }: PurseLineProps) {
             <p className="pp-empty">Ninguém encostado em você.</p>
           ) : (
             <ul className="pp-list" aria-label="Pagar a">
-              {colleagues.map((colleague) => (
-                <li key={colleague.tokenId}>
-                  <button
-                    type="button"
-                    className="pp-button"
-                    aria-label={`Pagar ${moedasLabel(quanto)} a ${colleague.name}`}
-                    onClick={() => {
-                      setOpen(false)
-                      onPay(colleague.tokenId, quanto)
-                    }}
-                  >
-                    {colleague.name}
-                  </button>
-                </li>
-              ))}
+              {colleagues.map((colleague) => {
+                const pagaDele = colleague.moedas ?? moedas
+                return (
+                  <li key={colleague.tokenId}>
+                    {quanto > pagaDele ? (
+                      <span className="pp-empty">
+                        {colleague.name}: a sua ficha ao lado dele tem {moedasLabel(pagaDele)}
+                      </span>
+                    ) : (
+                      <button
+                        type="button"
+                        className="pp-button"
+                        aria-label={`Pagar ${moedasLabel(quanto)} a ${colleague.name}`}
+                        onClick={() => {
+                          setOpen(false)
+                          onPay(colleague.tokenId, quanto)
+                        }}
+                      >
+                        {colleague.name}
+                      </button>
+                    )}
+                  </li>
+                )
+              })}
             </ul>
           )}
         </div>

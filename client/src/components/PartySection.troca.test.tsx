@@ -104,6 +104,32 @@ describe('Grupo: moedas e troca do mestre', () => {
     expect(container.querySelector('form[aria-label="Troca com Bruno"]')).toBeNull()
   })
 
+  it('mais de 10 itens em "Dá itens": diz o motivo certo e não deixa propor', () => {
+    const onTrade = vi.fn((_member: PartyMember, _proposta: TradeProposal): TradeProposeResult => 'sent')
+    render(() => true, onTrade)
+    act(() => botao('Propor troca a Bruno').click())
+    const onze = Array.from({ length: 11 }, (_, i) => `Item ${i + 1}`).join(', ')
+    digita('form[aria-label="Troca com Bruno"] input[name="dou-itens"]', onze)
+    expect(container.querySelector('[role="alert"]')?.textContent).toBe(PARTY_TRADE_REFUSAL_TEXT.too_many)
+    expect(PARTY_TRADE_REFUSAL_TEXT.too_many).toContain('10')
+    expect(botao('Propor').disabled).toBe(true)
+    // Voltando a 10, a oferta sai.
+    digita('form[aria-label="Troca com Bruno"] input[name="dou-itens"]', onze.split(', ').slice(0, 10).join(', '))
+    expect(container.querySelector('[role="alert"]')).toBeNull()
+    act(() => botao('Propor').click())
+    expect(onTrade).toHaveBeenCalledTimes(1)
+  })
+
+  it('o host recusa por excesso de itens: a linha diz o motivo, não "a ficha mudou"', () => {
+    render(() => true, () => 'too_many')
+    act(() => botao('Propor troca a Bruno').click())
+    digita('form[aria-label="Troca com Bruno"] input[name="peco-moedas"]', '1')
+    act(() => botao('Propor').click())
+    const alerta = container.querySelector('[role="alert"]')?.textContent
+    expect(alerta).toBe(PARTY_TRADE_REFUSAL_TEXT.too_many)
+    expect(alerta).not.toBe(PARTY_TRADE_REFUSAL_TEXT.unavailable)
+  })
+
   it('não saiu: o formulário fica e diz por quê', () => {
     render(() => true, () => 'pending')
     act(() => botao('Propor troca a Bruno').click())

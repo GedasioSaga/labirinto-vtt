@@ -117,7 +117,7 @@ import {
   type TradeClosedResult,
   type TradeCounterMessage,
 } from './protocol'
-import { canPay, cleanTradeTerms, payCoinsChange, tradeChange, tradeSideText, type TradeAsk, type TradeProposal } from '../lib/troca'
+import { canPay, cleanTradeTerms, payCoinsChange, tradeChange, tradeSideText, tradeTooBig, type TradeAsk, type TradeProposal } from '../lib/troca'
 import {
   clampAlarmText,
   clampNoteText,
@@ -749,10 +749,11 @@ export interface TradeUpdate {
 /**
  * Por que a oferta do mestre não saiu: `pending` = já há uma oferta
  * esperando este jogador; `short` = a ficha não tem o que se pede;
- * `offline` = o jogador está fora do ar ou sem mapa; `unavailable` = oferta
- * vazia, ficha que não é dele ou que sumiu.
+ * `offline` = o jogador está fora do ar ou sem mapa; `too_many` = mais de
+ * `TRADE_ITEMS_MAX` itens de um lado; `unavailable` = oferta vazia, ficha que
+ * não é dele ou que sumiu.
  */
-export type TradeProposeRefusal = 'pending' | 'short' | 'offline' | 'unavailable'
+export type TradeProposeRefusal = 'pending' | 'short' | 'offline' | 'too_many' | 'unavailable'
 
 /** O que a tela do mestre lê da oferta: saiu, ou o motivo de não sair. */
 export type TradeProposeResult = 'sent' | TradeProposeRefusal
@@ -5077,8 +5078,11 @@ export function createHostSession(options: HostSessionOptions): HostSession {
 
     proposeTrade(playerId, tokenId, proposal, source) {
       const refuse = (refusal: TradeProposeRefusal): HostResult & { offerId: null; refusal: TradeProposeRefusal } => ({ outbound: [], offerId: null, refusal })
+      if (!(ownership[playerId] ?? []).includes(tokenId)) return refuse('unavailable')
+      // Grande demais tem motivo próprio: "a ficha mudou" mandaria o mestre tentar de novo à toa.
+      if (tradeTooBig(proposal)) return refuse('too_many')
       const terms = cleanTradeTerms(proposal)
-      if (terms === null || !(ownership[playerId] ?? []).includes(tokenId)) return refuse('unavailable')
+      if (terms === null) return refuse('unavailable')
       const record = players.get(playerId)
       const world = toWorld(source)
       // Fora do ar ou sem mapa, a tela dele não teria onde abrir o cartão.

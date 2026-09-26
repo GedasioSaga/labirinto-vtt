@@ -76,6 +76,47 @@ describe('Pagar no cliente do jogador', () => {
     expect(socket.sent.length).toBe(antes)
   })
 
+  it('duas fichas: só paga a ficha ENCOSTADA no colega, como o host cobra', () => {
+    // Ficha A rica e longe do Diego; ficha B pobre e encostada nele.
+    const map: MapData = {
+      ...createEmptyMap('m1', '', 10, 10, 50),
+      tokens: [
+        { id: 'fichaA', characterId: null, name: 'Ficha A', x: 400, y: 400, size: 1, image: null, moedas: 10 },
+        { id: 'fichaB', characterId: null, name: 'Ficha B', x: 100, y: 100, size: 1, image: null, moedas: 2 },
+        { id: 'diego', characterId: null, name: 'Diego', x: 160, y: 100, size: 1, image: null },
+      ],
+    }
+    const { connection, socket } = jogando(map, ['fichaA', 'fichaB'])
+    const antes = socket.sent.length
+    expect(connection.giveCoins('diego', 5)).toBe(false)
+    expect(socket.sent.length).toBe(antes)
+    expect(connection.giveCoins('diego', 2)).toBe(true)
+    expect(socket.sent).toContainEqual({ type: 'coins.give', toTokenId: 'diego', moedas: 2 })
+  })
+
+  it('a ficha encostada sem moeda nenhuma (campo ausente) não paga, mesmo com a outra cheia', () => {
+    const map: MapData = {
+      ...createEmptyMap('m1', '', 10, 10, 50),
+      tokens: [
+        { id: 'fichaA', characterId: null, name: 'Ficha A', x: 400, y: 400, size: 1, image: null, moedas: 10 },
+        { id: 'fichaB', characterId: null, name: 'Ficha B', x: 100, y: 100, size: 1, image: null },
+        { id: 'diego', characterId: null, name: 'Diego', x: 160, y: 100, size: 1, image: null },
+      ],
+    }
+    const { connection, socket } = jogando(map, ['fichaA', 'fichaB'])
+    const antes = socket.sent.length
+    expect(connection.giveCoins('diego', 1)).toBe(false)
+    expect(socket.sent.length).toBe(antes)
+  })
+
+  it('o aviso de "short" fala da ficha perto do colega, não da bolsa toda', () => {
+    const { connection, socket } = jogando()
+    socket.receive({ type: 'coins.give.rejected', reason: 'short' })
+    const notice = connection.getState().item
+    expect(notice).toMatchObject({ phase: 'coins_rejected', reason: 'short' })
+    expect(notice && itemNoticeText(notice)).toBe('A sua ficha ao lado dele não tem tantas moedas')
+  })
+
   it('a recusa vira aviso', () => {
     const { connection, socket } = jogando()
     socket.receive({ type: 'coins.give.rejected', reason: 'far' })

@@ -1,5 +1,5 @@
 import type { Token } from '../types/map'
-import { carriedItemsOf, cleanItemName, type ItemChange } from './items'
+import { carriedItemsOf, cleanItemName, tokensTouch, type ItemChange } from './items'
 
 /**
  * MOEDAS E TROCA ENTRE FICHAS — regras puras, compartilhadas pelo host
@@ -86,6 +86,32 @@ export function cleanTradeFrom(raw: string): string {
   return trimmed === '' ? TRADE_FROM_DEFAULT : trimmed
 }
 
+/** Os nomes que o mestre dá, aparados; vazios saem. */
+function cleanGiveNames(itens: readonly string[]): string[] {
+  return itens.map(cleanItemName).filter((nome) => nome !== '')
+}
+
+/**
+ * Mais de `TRADE_ITEMS_MAX` itens de um lado, contados como a oferta limpa
+ * conta (nome vazio e id repetido não entram). O host recusa com motivo
+ * próprio, e o formulário do mestre avisa antes de mandar.
+ */
+export function tradeTooBig(raw: TradeProposal): boolean {
+  return cleanGiveNames(raw.dou.itens).length > TRADE_ITEMS_MAX || distinctIds(raw.peco.itemIds).length > TRADE_ITEMS_MAX
+}
+
+/**
+ * A bolsa que paga `target` no "Pagar a…": a maior entre as fichas `own`
+ * encostadas nele — o host só cobra de uma ficha encostada no alvo, nunca da
+ * mais rica que está longe. Nenhuma encostada (ou alvo fora do mapa): a maior
+ * de todas, e o host responde "longe", que é o motivo certo.
+ */
+export function purseToward(own: readonly Token[], target: Pick<Token, 'x' | 'y' | 'size'> | undefined, grid: number): number {
+  const touching = target === undefined ? [] : own.filter((t) => tokensTouch(t, target, grid))
+  const pagantes = touching.length > 0 ? touching : own
+  return pagantes.reduce((maior, t) => Math.max(maior, moedasDe(t)), 0)
+}
+
 /**
  * A oferta limpa: nomes aparados (vazios saem), no máximo `TRADE_ITEMS_MAX`
  * itens de cada lado, ids pedidos sem repetição. `null` = moeda torta ou
@@ -93,9 +119,9 @@ export function cleanTradeFrom(raw: string): string {
  */
 export function cleanTradeTerms(raw: TradeProposal): TradeProposal | null {
   if (!isCoinAmount(raw.dou.moedas) || !isCoinAmount(raw.peco.moedas)) return null
-  const itens = raw.dou.itens.map(cleanItemName).filter((nome) => nome !== '')
+  if (tradeTooBig(raw)) return null
+  const itens = cleanGiveNames(raw.dou.itens)
   const itemIds = distinctIds(raw.peco.itemIds)
-  if (itens.length > TRADE_ITEMS_MAX || itemIds.length > TRADE_ITEMS_MAX) return null
   const vazia = itens.length === 0 && raw.dou.moedas === 0 && itemIds.length === 0 && raw.peco.moedas === 0
   if (vazia) return null
   return { de: cleanTradeFrom(raw.de), dou: { itens, moedas: raw.dou.moedas }, peco: { itemIds, moedas: raw.peco.moedas } }

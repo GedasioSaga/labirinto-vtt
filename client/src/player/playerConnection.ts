@@ -42,7 +42,7 @@ import {
 } from '../net/protocol'
 import { ACEITA_GZIP, criarEntradaEmOrdem } from '../net/pacoteComprimido'
 import { carriedItemsOf, cleanItemName, itemOfPin } from '../lib/items'
-import { canPay, isCoinAmount, moedasDe, ownTradeToken } from '../lib/troca'
+import { canPay, isCoinAmount, ownTradeToken, purseToward } from '../lib/troca'
 import { lojaParaJogador } from '../lib/loja'
 import { fitsTokenPhotoSend } from '../lib/tokenPhoto'
 import { isPlayerSafePinImage, passageOf } from '../lib/pins'
@@ -2729,8 +2729,11 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
 
     giveCoins(toTokenId, moedas) {
       if (state.status !== 'playing' || toTokenId.length === 0 || !isCoinAmount(moedas) || moedas === 0) return false
-      // Uma ficha só paga: o host não junta bolsas de fichas diferentes.
-      if (!ownTokensNow().some((t) => moedasDe(t) >= moedas)) return false
+      // Uma ficha só paga, e a ENCOSTADA no colega: o host não junta bolsas nem cobra da ficha longe.
+      const map = state.map
+      if (map === undefined) return false
+      const alvo = map.tokens.find((t) => t.id === toTokenId)
+      if (purseToward(ownTokensNow(), alvo, map.grid) < moedas) return false
       return send({ type: 'coins.give', toTokenId, moedas })
     },
 
