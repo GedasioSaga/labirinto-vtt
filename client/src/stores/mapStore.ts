@@ -841,7 +841,7 @@ interface MapStoreState {
    *  mantido em dia por `stores/adventureStore.ts`, fora deste desfazer. */
   updatePin: (
     id: string,
-    patch: Partial<Pick<MapData['pins'][number], 'kind' | 'icon' | 'description' | 'nome' | 'notaDoMestre' | 'image' | 'locked' | 'destino' | 'passagem' | 'passe' | 'mudo' | 'motivo' | 'rotulo' | 'saidas' | 'item' | 'abreCom' | 'presoA' | 'portaLigada' | 'marco' | 'lerDePerto' | 'segredo' | 'colecao' | 'loja'>>,
+    patch: Partial<Pick<MapData['pins'][number], 'kind' | 'icon' | 'description' | 'nome' | 'notaDoMestre' | 'image' | 'locked' | 'destino' | 'passagem' | 'passe' | 'mudo' | 'motivo' | 'rotulo' | 'saidas' | 'item' | 'abreCom' | 'presoA' | 'portaLigada' | 'marco' | 'lerDePerto' | 'segredo' | 'colecao' | 'loja' | 'daVista'>>,
   ) => void
   /**
    * ALAVANCA: o mestre aciona pelo painel — a porta ligada abre ou fecha, com

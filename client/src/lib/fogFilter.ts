@@ -4,7 +4,7 @@ import { isTokenPhotoData } from './tokenPhoto'
 import { tokenAsSeenByPlayer, tokenPublicNameMode } from './tokenPublicName'
 import { healthForPlayer } from './tokenHealth'
 import { tokenConditionsOf } from './tokenConditions'
-import { parseHexColor } from './tokenColor'
+import { parseHexColor, selectedTokenColor, TOKEN_COLOR_DEFAULT } from './tokenColor'
 import { carrierIdOf } from './carry'
 import { guardAlerts, tokenWatchOf } from './npcWatch'
 import type { TurnRef } from './initiative'
@@ -42,6 +42,7 @@ import { isDarkAt, periodOfHour, type PlayerClock } from './campaignClock'
 import { noiseDirection, type NoiseDirection } from './noise'
 import { setaDoAbalo, type AbaloSeta } from './abalo'
 import { faceRangeCellsOrNull, isFaceInReach, tokenAsVulto } from './tokenVulto'
+import { clampDaVista, clipRingToCircle, clipSegmentToCircle, isDaVista, type Espiada, type EspiadaParede } from './espiar'
 
 /**
  * Recorte do mapa que um jogador pode receber. Tudo que sai daqui vai pela
@@ -4016,6 +4017,141 @@ function canReadPin(pin: Pin, readers: readonly PinReader[], grid: number, hidde
 }
 
 /**
+ * ESPIAR — o "olho" posto em cima do pino par: uma ficha de mentira, dona de
+ * um dono de mentira. Os ids começam com um caractere de controle que nenhum
+ * id do app (uuid, texto do mestre) tem, então não colidem com nada do mapa.
+ */
+const OLHO_ID = '\u0000olho-espiar'
+const OLHO_DONO = '\u0000espiar'
+/** Parede a até esta distância da borda do que se vê conta como vista: é ela que faz a borda. */
+const ESPIADA_BORDA_PX = 2
+/** Passo das amostras ao longo da parede, em frações de casa. */
+const ESPIADA_PASSOS_POR_CASA = 10
+
+/** Distância do ponto ao segmento. */
+function distanceToSegment(p: RegionPoint, a: RegionPoint, b: RegionPoint): number {
+  const dx = b.x - a.x
+  const dy = b.y - a.y
+  const len2 = dx * dx + dy * dy
+  const t = len2 === 0 ? 0 : Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / len2))
+  return Math.hypot(p.x - (a.x + t * dx), p.y - (a.y + t * dy))
+}
+
+/** Dentro do anel, ou colado na borda dele. */
+function inOrOnRing(p: RegionPoint, ring: RegionPoint[], tolerance: number): boolean {
+  if (ring.length < 3) return false
+  if (pointInRing(p, ring)) return true
+  return ring.some((a, i) => {
+    const b = ring[(i + 1) % ring.length]
+    return b !== undefined && distanceToSegment(p, a, b) <= tolerance
+  })
+}
+
+/**
+ * Os trechos da parede (já relativa ao olho e cortada no raio) que tocam o que
+ * se vê. Uma parede que atravessa o raio atrás de outra só sai no pedaço que o
+ * olho alcança — senão o recorte desenharia a planta do que está escondido.
+ */
+function wallRunsSeen(seg: EspiadaParede, seen: (p: RegionPoint) => boolean, step: number): EspiadaParede[] {
+  const len = Math.hypot(seg.x2 - seg.x1, seg.y2 - seg.y1)
+  const n = Math.max(1, Math.ceil(len / step))
+  const runs: EspiadaParede[] = []
+  let start: RegionPoint | null = null
+  let last: RegionPoint | null = null
+  for (let i = 0; i <= n; i += 1) {
+    const t = i / n
+    const p = { x: seg.x1 + t * (seg.x2 - seg.x1), y: seg.y1 + t * (seg.y2 - seg.y1) }
+    if (seen(p)) {
+      if (start === null) start = p
+      last = p
+      continue
+    }
+    if (start !== null && last !== null && last !== start) runs.push({ x1: start.x, y1: start.y, x2: last.x, y2: last.y })
+    start = null
+    last = null
+  }
+  if (start !== null && last !== null && last !== start) runs.push({ x1: start.x, y1: start.y, x2: last.x, y2: last.y })
+  return runs
+}
+
+
+/**
+ * ESPIAR PELA PASSAGEM — o recorte do outro lado, visto de cima do pino `par`
+ * até `casas` casas (cortado na faixa de `lib/espiar.ts`).
+ *
+ * UMA regra de névoa só: o recorte sai de `filterMapForPlayer` com um olho de
+ * mentira no pino par, dono único de tudo — a ficha do jogador que estiver lá
+ * não dá visão a mais, e tudo o que o recorte comum esconde (parede, zona
+ * oculta, sala secreta, teto fechado, ficha oculta ou secreta, camada
+ * escondida) fica escondido aqui também. Sem memória: nada de explorado nem
+ * porta lembrada entra, e nada sai daqui para a memória de ninguém.
+ *
+ * Depois, o que vai pela rede é só geometria RELATIVA ao par e pontos
+ * coloridos: nem nome ou id de cena, mapa, ficha, pino ou zona. Tudo cortado no
+ * círculo do raio — a planta do mapa comum vai inteira, a daqui não.
+ */
+export function espiadaPeloPino(map: MapData, par: Pin, casas: number): Espiada {
+  const grid = map.grid
+  const raio = clampDaVista(casas) * grid
+  const olho: Token = { id: OLHO_ID, characterId: null, name: '', x: par.x, y: par.y, size: 1, image: null }
+  const view = filterMapForPlayer({ ...map, tokens: [...map.tokens, olho] }, OLHO_DONO, { [OLHO_DONO]: [OLHO_ID] }, raio)
+  const rel = (p: RegionPoint): RegionPoint => ({ x: p.x - par.x, y: p.y - par.y })
+  const inCircle = (p: RegionPoint) => Math.hypot(p.x, p.y) <= raio + ESPIADA_BORDA_PX
+  // Todo anel sai CORTADO no círculo — o que vai pela rede, e não só o desenho.
+  const cutRings = (rings: readonly RegionPoint[][]): RegionPoint[][] =>
+    rings.flatMap((ring) => {
+      const cut = clipRingToCircle(ring.map(rel), raio)
+      return cut === null ? [] : [cut]
+    })
+
+  // Sem suposição de ordem: o anel do olho (que só existe se a camada de
+  // fichas de lá estiver à vista) já cabe no raio, e as células que o pincel
+  // do mestre revelou, no MAPA INTEIRO, passam pelo mesmo corte.
+  const vision = cutRings(view.vision)
+  const seen = (p: RegionPoint) => vision.some((ring) => inOrOnRing(p, ring, ESPIADA_BORDA_PX))
+  const step = grid / ESPIADA_PASSOS_POR_CASA
+
+  const walls: Espiada['walls'] = []
+  const doors: Espiada['doors'] = []
+  for (const w of view.map.walls) {
+    const a = rel({ x: w.x1, y: w.y1 })
+    const b = rel({ x: w.x2, y: w.y2 })
+    const clipped = clipSegmentToCircle({ x1: a.x, y1: a.y, x2: b.x, y2: b.y }, raio)
+    if (clipped === null) continue
+    const runs = wallRunsSeen(clipped, seen, step)
+    if (w.door === null) {
+      walls.push(...runs)
+      continue
+    }
+    // Porta é peça curta: sai inteira (o trecho no raio) se o olho alcança algum pedaço dela.
+    if (runs.length > 0) doors.push({ ...clipped, open: w.door.open })
+  }
+
+  const tokens = view.map.tokens
+    .filter((t) => t.id !== OLHO_ID)
+    .map((t) => ({ t, p: rel({ x: t.x, y: t.y }) }))
+    // O pincel também deixa ver ficha longe daqui: só o que está no círculo.
+    .filter(({ p }) => inCircle(p))
+    .map(({ t, p }) => ({ x: p.x, y: p.y, size: t.size, color: selectedTokenColor(t) ?? `#${TOKEN_COLOR_DEFAULT.toString(16).padStart(6, '0')}` }))
+
+  return {
+    raio,
+    grid,
+    vision,
+    walls,
+    doors,
+    tokens,
+    concealed: cutRings(view.concealed),
+    // NUNCA `view.roofs`: aquele traz todo teto fechado do mapa, sem olhar a
+    // névoa — no recorte comum ele não vai pela rede, só alimenta o
+    // `forgetInside`. A silhueta que o jogador pode ver é a da Sala que saiu em
+    // `view.map.regions` (contorno conhecido, `room.roof` só com teto fechado
+    // para este olho) — a mesma regra que pinta o teto em `player/PlayerView.tsx`.
+    roofs: cutRings(view.map.regions.filter((r) => roomHasRoof(r.room) && r.points.length >= 3).map((r) => r.points)),
+  }
+}
+
+/**
  * O pino como o jogador pode recebê-lo. Sai SEMPRE numa cópia:
  * - `image` só em data URL (`isPlayerSafePinImage`) — nunca um caminho do
  *   disco do mestre;
@@ -4090,6 +4226,10 @@ function pinForPlayer(pin: Pin, ownTokens: readonly Token[], grid: number, reada
   // Motivo guardado num pino reaberto é plano do mestre para depois — não sai.
   const motivo = blockReasonOf(pin)
   if (motivo !== null) forPlayer.motivo = motivo
+  // ESPIAR: "Dá vista" vai, como `passagem` — o cartão precisa oferecer
+  // "Espiar", e o número de casas não diz nada do outro lado. Só do pino de
+  // viagem e só na forma certa: pino "!" com o campo vindo do disco não espia.
+  if (pin.kind === 'viagem' && isDaVista(pin.daVista)) forPlayer.daVista = pin.daVista
   // ENCRUZILHADA: o jogador recebe `escolhas`, montado AQUI (nunca copiado do
   // mestre): por saída, só o id e o rótulo. Pino de uma saída não ganha o
   // campo: o cartão dele é o de sempre, e o recorte também. Placa "só de

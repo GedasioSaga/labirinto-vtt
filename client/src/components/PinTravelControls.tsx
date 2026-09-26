@@ -6,6 +6,7 @@ import { SCENE_FILTER_MIN, sceneSearchSummary, sceneSearchWords, searchScenes } 
 import { ITEM_NAME_MAX_LENGTH } from '../lib/items'
 import type { PassTokenOption } from '../lib/pinPass'
 import type { PinBlockReason, PinPassage } from '../types/map'
+import { clampDaVista, DA_VISTA_MAX_CASAS, DA_VISTA_MIN_CASAS, DA_VISTA_PADRAO_CASAS, ESPIAR_DURACAO_MS } from '../lib/espiar'
 import { ChevronDownIcon } from './icons'
 import { DoorKeyField } from './WallDoorControls'
 import { SceneChoice, SceneSearchField } from './SceneSearch'
@@ -85,6 +86,12 @@ export interface PinTravelControlsProps {
    * nenhum. Quem desfaz é o "Mão única" do pino de origem.
    */
   arrivalOnly: boolean
+  /**
+   * ESPIAR: "Dá vista (N casas)" deste pino — `null` = não dá vista. Com
+   * `onDaVistaChange` ausente o painel não oferece (quem monta sem aventura).
+   */
+  daVista?: number | null
+  onDaVistaChange?: (casas: number | null) => void
 }
 
 /**
@@ -216,6 +223,8 @@ export function PinTravelControls({
   onOneWayChange,
   onBothSidesChange,
   arrivalOnly,
+  daVista = null,
+  onDaVistaChange,
 }: PinTravelControlsProps) {
   const [escolha, setEscolha] = useState<Escolha>(null)
   const [busca, setBusca] = useState('')
@@ -528,6 +537,11 @@ export function PinTravelControls({
         <PasseDoPino item={passItem} onItemChange={onPassItemChange} fichas={passTokens} onToggle={onPassTokenToggle} />
       )}
 
+      {/* ESPIAR: só com a saída principal ligada — é por ela que o jogador olha. */}
+      {onDaVistaChange !== undefined && principal?.travel.status === 'ligado' && (
+        <DaVista casas={daVista} encruzilhada={encruzilhada} onChange={onDaVistaChange} />
+      )}
+
       {escolha !== null && (
         <div id={SELETOR_ID} ref={seletorRef} className="lb-travel__picker">
           {escolha.passo === 'cena' ? (
@@ -680,6 +694,64 @@ function DoisLados({ passage, exits, onChange }: DoisLadosProps) {
       </button>
       <p id={DOIS_LADOS_ID} className="lb-travel__hint">
         {trancados ? `Este pino e ${deLa} voltam a pedir a você.` : `Tranca este pino e ${deLa} de uma vez.`}
+      </p>
+    </>
+  )
+}
+
+const DA_VISTA_ID = 'lb-pin-travel-peek'
+
+interface DaVistaProps {
+  casas: number | null
+  encruzilhada: boolean
+  onChange: (casas: number | null) => void
+}
+
+/**
+ * "Dá vista": grade, fresta, boca do poço. Botão de alternar (`aria-pressed`),
+ * no molde do "Mão única"; ligado, o campo de casas logo abaixo. O que o
+ * jogador ganha e o que NÃO ganha vai dito embaixo, com o número de casas.
+ */
+function DaVista({ casas, encruzilhada, onChange }: DaVistaProps) {
+  const ligado = casas !== null
+  const efeito = `${DA_VISTA_ID}-efeito`
+  const campo = `${DA_VISTA_ID}-casas`
+  return (
+    <>
+      <button
+        type="button"
+        className="lb-btn lb-btn--ghost lb-btn--block"
+        aria-pressed={ligado}
+        aria-describedby={efeito}
+        onClick={() => onChange(ligado ? null : DA_VISTA_PADRAO_CASAS)}
+      >
+        Dá vista
+      </button>
+      {ligado && (
+        <>
+          <label className="lb-label" htmlFor={campo}>
+            Casas em volta do pino de chegada
+          </label>
+          <input
+            id={campo}
+            className="lb-input"
+            type="number"
+            min={DA_VISTA_MIN_CASAS}
+            max={DA_VISTA_MAX_CASAS}
+            step={1}
+            value={casas}
+            onChange={(event) => {
+              const lido = Number(event.currentTarget.value)
+              // Campo vazio ou no meio da digitação: espera um número de verdade.
+              if (event.currentTarget.value !== '' && Number.isFinite(lido)) onChange(clampDaVista(lido))
+            }}
+          />
+        </>
+      )}
+      <p id={efeito} className="lb-travel__hint">
+        {ligado
+          ? `Com a ficha encostada, o jogador espia por ${ESPIAR_DURACAO_MS / 1000} s até ${casas} ${casas === 1 ? 'casa' : 'casas'} do outro lado${encruzilhada ? ' da saída principal' : ''}. Não vê o nome da cena e não guarda nada na memória; você recebe o aviso.`
+          : 'Marque para o jogador poder olhar o outro lado sem passar (grade, fresta, boca do poço).'}
       </p>
     </>
   )

@@ -29,6 +29,7 @@ const NO_TRAVELERS: readonly PinTravelChoice[] = []
  * opcional aqui de propósito: o cartão nunca usa onde o pino está.
  */
 type PinDoCartao = Omit<Pin, 'x' | 'y'> & Partial<Pick<Pin, 'x' | 'y'>>
+import { isDaVista } from '../lib/espiar'
 
 interface PlayerPinCardProps {
   pin: PinDoCartao
@@ -101,6 +102,14 @@ interface PlayerPinCardProps {
    * "Chegue mais perto para passar" até a ficha chegar.
    */
   longe?: boolean
+  /**
+   * ESPIAR PELA PASSAGEM: pino de viagem que "dá vista" ganha o botão
+   * "Espiar". Ausente = o cartão não oferece. Quem confere se a ficha está
+   * encostada é o host; a recusa aparece fora do cartão.
+   */
+  onPeek?: () => void
+  /** A espiada foi pedida e o host ainda não respondeu. */
+  peekWaiting?: boolean
 }
 
 const TEXTO_LONGE = 'Chegue mais perto para passar'
@@ -270,6 +279,8 @@ export function PlayerPinCard({
   onWatch,
   longe = false,
   travelers = NO_TRAVELERS,
+  onPeek,
+  peekWaiting = false,
 }: PlayerPinCardProps) {
   const cardRef = useRef<HTMLDivElement | null>(null)
   /**
@@ -441,6 +452,8 @@ export function PlayerPinCard({
   // O PORQUÊ da passagem fechada ("Desabou"). Valor desconhecido (host de
   // versão futura) cai no "Está trancada" de sempre, sem mostrar o cru.
   const motivo = blockReasonOf(pin)
+  // ESPIAR: vale também com a porta trancada — olhar pela grade não é passar.
+  const podeEspiar = viagem && isDaVista(pin.daVista) && onPeek !== undefined
   // ENCRUZILHADA: com mais de uma saída, um botão por saída, pelo rótulo que o
   // mestre escreveu — o destino e o nome da cena nunca chegam aqui. Com uma
   // saída só (ou sem o campo), o cartão é o de sempre. Longe de uma placa "só
@@ -585,6 +598,12 @@ export function PlayerPinCard({
             }}
           >
             Chamar a cabine
+          </button>
+        )}
+        {podeEspiar && confirming === null && (
+          // Espiar não interrompe o mestre nem troca de cena: sem pergunta antes.
+          <button type="button" className="pp-pincard__travel pp-pincard__peek" disabled={peekWaiting} onClick={() => onPeek()}>
+            {peekWaiting ? 'Olhando…' : 'Espiar'}
           </button>
         )}
         {podePedir && confirming === null && !encruzilhada && (
