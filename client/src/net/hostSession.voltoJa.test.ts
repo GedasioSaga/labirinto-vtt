@@ -27,7 +27,8 @@ function viagem(id: string, x: number, y: number, destino: Pin['destino']): Pin 
 function mundo(): HostWorld {
   const salao: MapData = {
     ...createEmptyMap('mapa-salao', 'Salão', 40, 10, 50),
-    tokens: [ficha('heroi', 200, 200)],
+    // A ficha de Ana encostada na escada: pino de viagem só atravessa de perto.
+    tokens: [ficha('heroi', 300, 200)],
     pins: [viagem('escada', 350, 200, { sceneId: TORRE, pinId: 'topo' })],
   }
   const torre: MapData = {
