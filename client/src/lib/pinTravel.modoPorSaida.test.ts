@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import type { Pin } from '../types/map'
+import type { Pin, Token } from '../types/map'
+import { keyForPin } from './doorKey'
 import { deserializeMap, serializeMap } from './mapFile'
 import { createEmptyMap, updatePin } from './mapFactory'
+import { blockReasonOf } from './pins'
 import {
   acceptsLockedExitRequest,
   exitPassageOf,
@@ -210,6 +212,60 @@ describe('pinTravel: modo por saída ao desligar a principal', () => {
     expect(promovido.destino).toEqual({ sceneId: 'scene_e', pinId: 'e' })
     expect(exitPassageOf(promovido, 'principal')).toBe('passe')
     expect(exitPassageOf(promovido, 'saida_torre')).toBe('livre')
+  })
+
+  // Pino trancado com "Abre com: Chave de ferro" e motivo: principal para a
+  // Cripta, Escada livre por conta própria, Poço seguindo o pino. A chave e o
+  // motivo só valem com o PINO trancado (keyForPin, blockReasonOf).
+  const CHAVE_DE_FERRO = 'Chave de ferro'
+  const TRANCADO_COM_CHAVE: Pin = {
+    ...CRUZ,
+    passagem: 'trancada',
+    abreCom: CHAVE_DE_FERRO,
+    motivo: 'desabou',
+    saidas: [
+      { id: 'saida_torre', rotulo: 'Escada', destino: { sceneId: 'scene_c', pinId: 'c' }, passagem: 'livre' },
+      { id: 'saida_poco', rotulo: 'Poço', destino: { sceneId: 'scene_d', pinId: 'd' } },
+    ],
+  }
+  const comChave: Token = {
+    id: 'diego',
+    characterId: null,
+    name: 'Diego',
+    x: 64,
+    y: 64,
+    size: 1,
+    image: null,
+    mochila: [{ id: 'i1', nome: CHAVE_DE_FERRO }],
+  }
+
+  const chaveEMotivoContinuam = (promovido: Pin): void => {
+    expect(keyForPin(promovido, [comChave])?.item.nome).toBe(CHAVE_DE_FERRO)
+    expect(blockReasonOf(promovido)).toBe('desabou')
+    // Quem subiu foi o Poço, o que seguia o pino: o pino continua trancado.
+    expect(promovido.destino).toEqual({ sceneId: 'scene_d', pinId: 'd' })
+    expect(exitPassageOf(promovido, 'principal')).toBe('trancada')
+    expect(exitPassageOf(promovido, 'saida_torre')).toBe('livre')
+  }
+
+  it('pino trancado com chave: sobe a extra que segue o pino, e a chave e o motivo continuam valendo', () => {
+    chaveEMotivoContinuam(desligarPrincipal(TRANCADO_COM_CHAVE))
+  })
+
+  it('pino trancado com chave: apagar a cena da principal também não faz a chave e o motivo sumirem', () => {
+    const map = { ...createEmptyMap('m', 'M', 5, 5, 64), pins: [TRANCADO_COM_CHAVE] }
+    chaveEMotivoContinuam(unlinkFromScene(map, 'scene_b').pins[0])
+  })
+
+  it('pino trancado sem extra que segue o pino: sobe a extra trancada por conta própria, e a chave continua', () => {
+    const pocoTrancado: Pin = {
+      ...TRANCADO_COM_CHAVE,
+      saidas: [
+        { id: 'saida_torre', rotulo: 'Escada', destino: { sceneId: 'scene_c', pinId: 'c' }, passagem: 'livre' },
+        { id: 'saida_poco', rotulo: 'Poço', destino: { sceneId: 'scene_d', pinId: 'd' }, passagem: 'trancada' },
+      ],
+    }
+    chaveEMotivoContinuam(desligarPrincipal(pocoTrancado))
   })
 
   it('updatePin: a promoção com troca de modo é mudança gravada no mapa', () => {

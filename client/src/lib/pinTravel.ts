@@ -276,15 +276,19 @@ export type ExitPatch = Partial<Pick<Pin, 'destino' | 'rotulo' | 'saidas' | 'pas
 
 /**
  * Qual extra sobe para o lugar da principal. Em regra, a primeira. No pino
- * de PASSE (a catraca), se a primeira tem modo próprio e alguma outra ainda
- * segue o pino, sobe a primeira que segue o pino: o passe não é modo de
- * saída (`ExitPassage`), então não dá para gravá-lo por escrito nas extras
- * que ficam — trocar o modo do pino abriria a catraca delas.
+ * de PASSE ou TRANCADO, sobe a primeira extra que passa no MODO DO PINO (sem
+ * modo próprio, ou com o próprio igual ao do pino), se houver: o modo do pino
+ * não muda. O passe (`Pin.passe`), o "Abre com" e o motivo são do pino e só
+ * valem com ele nesse modo (`keyForPin`, `blockReasonOf`) — gravar o modo
+ * antigo por escrito na extra que fica não os leva junto, e a Chave de ferro
+ * deixaria de abrir o Poço. Nenhuma extra nesse modo: nenhuma saída que fica
+ * depende deles, e sobe a primeira.
  */
 function exitToPromote(modoAntigo: PinPassage, extras: readonly PinExit[]): PinExit | undefined {
   const [primeira] = extras
-  if (primeira === undefined || modoAntigo !== 'passe' || !isExitPassage(primeira.passagem)) return primeira
-  return extras.find((saida) => !isExitPassage(saida.passagem)) ?? primeira
+  if (primeira === undefined || (modoAntigo !== 'passe' && modoAntigo !== 'trancada')) return primeira
+  const passaNoModoDoPino = (saida: PinExit): boolean => !isExitPassage(saida.passagem) || saida.passagem === modoAntigo
+  return extras.find(passaNoModoDoPino) ?? primeira
 }
 
 /**
@@ -304,8 +308,8 @@ function promoteExtraExit(pin: Pin, extras: readonly PinExit[]): ExitPatch {
   const modoNovo = isExitPassage(promovida.passagem) ? promovida.passagem : modoAntigo
   const saidas = resto.length === 0 ? undefined : resto
   if (modoNovo === modoAntigo) return { destino: promovida.destino, rotulo, saidas }
-  // Aqui o modo antigo só é 'passe' se nenhuma extra que fica segue o pino
-  // (`exitToPromote`): todas têm modo próprio e passam intactas.
+  // Aqui o modo antigo só é 'passe' ou 'trancada' se nenhuma extra que fica
+  // passa nesse modo (`exitToPromote`): todas têm outro modo próprio e passam intactas.
   const restoComModo = resto.map((saida) =>
     isExitPassage(saida.passagem) || !isExitPassage(modoAntigo) ? saida : { ...saida, passagem: modoAntigo },
   )
