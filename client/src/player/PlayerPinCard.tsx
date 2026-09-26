@@ -4,6 +4,7 @@ import {
   PIN_BLOCK_REASON_LABELS,
   PIN_GLYPH,
   PIN_ICON_LABELS,
+  PIN_PASSAGE_LABELS,
   blockReasonOf,
   isPinIcon,
   isPlayerSafePinImage,
@@ -15,7 +16,7 @@ import { compraNoticeText } from './compraNotice'
 import type { CompraNotice } from './playerConnection'
 import { stairTravelLabel } from '../lib/stairTravel'
 import { PinLeverArt, PinSymbolArt, PinTravelArt } from '../components/PinSymbolArt'
-import { unreadExitLabels } from '../lib/pinTravel'
+import { playerExitPassageOf, unreadExitLabels } from '../lib/pinTravel'
 import type { LockAnswerPhase } from './playerConnection'
 import { PlayerLockPad } from './PlayerLockPad'
 import { PASS_CHECK_TEXT } from './travelNotice'
@@ -139,6 +140,13 @@ const TEXTO_DA_FECHADURA: Record<Exclude<LockAnswerPhase, 'sending'>, string> = 
 const FECHADA_SEM_PASSAR = 'Não dá para passar por aqui agora.'
 /** A trancada que aceita tentativas: quem abre é o mestre. */
 const SO_O_MESTRE_ABRE = 'Só o mestre pode abrir.'
+
+/** Os rótulos das saídas em português corrido: "Porta", "Porta e Poço", "Porta, Poço e Grade". */
+function juntarRotulos(saidas: readonly PinExitLabel[]): string {
+  const rotulos = saidas.map((saida) => saida.rotulo)
+  if (rotulos.length <= 1) return rotulos.join('')
+  return `${rotulos.slice(0, -1).join(', ')} e ${rotulos[rotulos.length - 1]}`
+}
 
 /** Etiqueta da passagem cujo par é a chegada oculta (mão única). */
 const ETIQUETA_SO_IDA = 'Só ida'
@@ -415,18 +423,43 @@ export function PlayerPinCard({
   // cartão oferece a combinação no lugar do "Pedir para passar".
   const fechadura = pin.fechadura
   const trancadaComSegredo = viagem && fechadura !== undefined
-  const trancada = viagem && passagem === 'trancada' && !trancadaComSegredo
+  // ENCRUZILHADA: com mais de uma saída, um botão por saída, pelo rótulo que o
+  // mestre escreveu — o destino e o nome da cena nunca chegam aqui. Com uma
+  // saída só (ou sem o campo), o cartão é o de sempre. Longe de uma placa "só
+  // de perto", o recorte já manda "Saída N"; o cartão repete a regra para que
+  // nenhum nome escrito na placa apareça ao lado de "Chegue mais perto".
+  const recebidas = viagem ? (pin.escolhas ?? []) : []
+  const escolhas = longeParaLer ? unreadExitLabels(recebidas) : recebidas
+  const encruzilhada = escolhas.length > 1
+  // MODO POR SAÍDA: cada saída pode ter o modo dela (lido pelo id no que o
+  // host mandou). A passagem só é "trancada" para o cartão inteiro quando
+  // TODAS as saídas são; com modos misturados, cada botão diz o seu.
+  const modoDaSaida = (saida: PinExitLabel): PinPassage => playerExitPassageOf(pin, saida.id)
+  const modos = encruzilhada ? escolhas.map(modoDaSaida) : [passagem]
+  const modosMisturados = modos.some((modo) => modo !== modos[0])
+  const trancada = viagem && modos.every((modo) => modo === 'trancada') && !trancadaComSegredo
+  // Barrar e chamar a cabine são gestos do PINO, não de uma saída: o host
+  // (`handlePinBar`, `handleCabineCall`) recusa quando o modo do PINO é
+  // trancada, mesmo numa encruzilhada com uma extra livre. O cartão segue a
+  // mesma regra para não oferecer botão que nunca faz nada.
+  const pinoTrancado = trancada || (viagem && passagem === 'trancada')
   // CABINE DE TRANSPORTE: só se passa com a cabine AQUI (e livre) — longe,
   // chamada ou ocupada, o host recusaria. A frase não diz onde a cabine está
   // nem quem está nela: o recorte nem sabe. Longe, oferece chamá-la. Fechada
   // com segredo também não chama: primeiro a combinação.
   const cabine = cabineDoPino
   const semCabine = cabine !== undefined && cabine !== 'aqui'
-  const podeChamar = !trancada && !trancadaComSegredo && cabine === 'longe' && !chamou && onChamarCabine !== undefined
+  const podeChamar = !pinoTrancado && !trancadaComSegredo && cabine === 'longe' && !chamou && onChamarCabine !== undefined
   // CHAVE ABRE PORTA: o host só manda `chave` a quem encosta no pino com o
   // item. O mapa chega da rede sem conferência campo a campo: só texto vale.
-  const chave = trancada && typeof pin.chave === 'string' && pin.chave !== '' ? pin.chave : null
+  // A chave abre o pino TRANCADO (o host só a manda nele): numa encruzilhada
+  // misturada, abre as saídas que seguem o modo trancado do pino.
+  const chaveDoPino = viagem && !trancadaComSegredo && passagem === 'trancada' && typeof pin.chave === 'string' && pin.chave !== '' ? pin.chave : null
+  const chave = trancada ? chaveDoPino : null
   const muda = trancada && pin.mudo === true
+  const chaveDaSaida = (saida: PinExitLabel): string | null => (modoDaSaida(saida) === 'trancada' ? chaveDoPino : null)
+  // Saída trancada num pino mudo, sem a chave: o botão dela fica desligado.
+  const saidaMuda = (saida: PinExitLabel): boolean => modoDaSaida(saida) === 'trancada' && pin.mudo === true && chaveDaSaida(saida) === null
   // MARCO visto de longe (`soMarco`): o jogador enxerga o Templo, mas nunca
   // esteve lá — o host recusa a passagem, então o cartão nem oferece.
   const naoChegou = viagem && !trancada && !trancadaComSegredo && pin.soMarco === true
@@ -459,6 +492,14 @@ export function PlayerPinCard({
   // O PORQUÊ da passagem fechada ("Desabou"). Valor desconhecido (host de
   // versão futura) cai no "Está trancada" de sempre, sem mostrar o cru.
   const motivo = blockReasonOf(pin)
+  // MODO POR SAÍDA: pino trancado (sem a chave) com uma saída que abre por
+  // conta própria. `trancada` fica falso (nem todas fecham), mas o motivo e o
+  // "Me avise" são do PINO: o host manda o motivo (`blockReasonOf`) e o aviso
+  // dispara quando o pino abre (`passageWatchAfter`). O motivo vem junto do
+  // nome das saídas trancadas, para o jogador saber QUAL está fechada.
+  const pinoFechadoMisturado = modosMisturados && viagem && !trancadaComSegredo && passagem === 'trancada' && chaveDoPino === null
+  const saidasFechadas = pinoFechadoMisturado ? juntarRotulos(escolhas.filter((saida) => modoDaSaida(saida) === 'trancada')) : ''
+  const podeVigiar = (trancada && chave === null) || pinoFechadoMisturado
   // ESPIAR: vale também com a porta trancada — olhar pela grade não é passar.
   const podeEspiar = viagem && isDaVista(pin.daVista) && onPeek !== undefined
   // A barra que um jogador desta cena pôs: o recorte só a marca para quem está deste lado.
@@ -467,15 +508,7 @@ export function PlayerPinCard({
   // isso o texto não diz "você" — seria falso para quem não barrou.
   const barrada = viagem && pin.barradaDaqui === true
   // Fechada (a chave ou com segredo) já não passa ninguém: barrar não muda nada.
-  const podeBarrar = viagem && !trancada && !trancadaComSegredo && onBarrar !== undefined
-  // ENCRUZILHADA: com mais de uma saída, um botão por saída, pelo rótulo que o
-  // mestre escreveu — o destino e o nome da cena nunca chegam aqui. Com uma
-  // saída só (ou sem o campo), o cartão é o de sempre. Longe de uma placa "só
-  // de perto", o recorte já manda "Saída N"; o cartão repete a regra para que
-  // nenhum nome escrito na placa apareça ao lado de "Chegue mais perto".
-  const recebidas = viagem ? (pin.escolhas ?? []) : []
-  const escolhas = longeParaLer ? unreadExitLabels(recebidas) : recebidas
-  const encruzilhada = escolhas.length > 1
+  const podeBarrar = viagem && !pinoTrancado && !trancadaComSegredo && onBarrar !== undefined
   // ITEM PEGÁVEL: o nome vem no recorte, numa cópia limpa (`lib/fogFilter.ts`).
   const item = itemOfPin(pin)
   // SÓ IDA: o par é a chegada oculta. No pino de uma saída vem em `semVolta`;
@@ -502,14 +535,30 @@ export function PlayerPinCard({
     if (saida !== null) setUltimaSaida(saida.id)
     setFocusTarget(saidaSoIda(saida) ? 'cancel' : 'confirm')
   }
-  const perguntaBase =
-    confirming === null || confirming.saida === null
-      ? textos.pergunta
-      : chave !== null
-        ? `Usar ${chave} e passar por ${confirming.saida.rotulo}?`
-        : passagem === 'livre' || passagem === 'passe'
-          ? `Passar por ${confirming.saida.rotulo}?`
-          : `Pedir ao mestre para passar por ${confirming.saida.rotulo}?`
+  /**
+   * Os textos da saída `saida` (`null` = o pino de uma saída). Sem modos
+   * misturados, os do pino, como sempre; misturados, os do modo DELA.
+   */
+  const textosDaSaida = (saida: PinExitLabel | null): TextosDaPassagem => {
+    if (saida === null || !modosMisturados) return textos
+    const chaveDela = chaveDaSaida(saida)
+    if (chaveDela !== null) return textosDaChave(chaveDela, undefined)
+    const modo = modoDaSaida(saida)
+    return modo === 'trancada' ? TEXTOS_TRANCADA : textosDaPassagem(modo)
+  }
+  const perguntaDaSaida = (saida: PinExitLabel): string => {
+    const chaveDela = modosMisturados ? chaveDaSaida(saida) : chave
+    const modo = modosMisturados ? modoDaSaida(saida) : passagem
+    if (chaveDela !== null) return `Usar ${chaveDela} e passar por ${saida.rotulo}?`
+    if (modo === 'livre' || modo === 'passe') return `Passar por ${saida.rotulo}?`
+    // Trancada ao lado de saídas que abrem: o pedido é para o mestre ABRIR esta.
+    if (modosMisturados && modo === 'trancada') return `Pedir ao mestre para abrir ${saida.rotulo}?`
+    return `Pedir ao mestre para passar por ${saida.rotulo}?`
+  }
+  const perguntaBase = confirming === null || confirming.saida === null ? textos.pergunta : perguntaDaSaida(confirming.saida)
+  // O que o cartão diz enquanto espera: o da saída que foi pedida por último.
+  const saidaPedida = escolhas.find((saida) => saida.id === ultimaSaida) ?? null
+  const esperando = encruzilhada ? textosDaSaida(saidaPedida).esperando : textos.esperando
   const pergunta = confirming !== null && saidaSoIda(confirming.saida) ? `${perguntaBase} ${AVISO_SO_IDA}` : perguntaBase
 
   return (
@@ -564,7 +613,14 @@ export function PlayerPinCard({
             )}
           </p>
         )}
-        {trancada && chave === null && onWatch !== undefined && (
+        {pinoFechadoMisturado && motivo !== null && (
+          // Sem motivo, o "Trancada" no botão da saída já basta.
+          <p className="pp-pincard__locked">
+            {saidasFechadas}: <strong className="pp-pincard__reason">{PIN_BLOCK_REASON_LABELS[motivo]}.</strong>{' '}
+            {pin.mudo === true ? FECHADA_SEM_PASSAR : SO_O_MESTRE_ABRE}
+          </p>
+        )}
+        {podeVigiar && onWatch !== undefined && (
           // Botão de alternar: o rótulo fica o mesmo e o estado mora no
           // `aria-pressed` (e na frase logo abaixo, para quem enxerga).
           <>
@@ -641,7 +697,7 @@ export function PlayerPinCard({
           // ficam desligadas: um pedido por vez, como no cartão simples.
           <>
             {/* A mesma moldura de estado do "Está trancada": diz o que aconteceu, sem convidar toque. */}
-            {travelWaiting && <p className="pp-pincard__locked">{textos.esperando}</p>}
+            {travelWaiting && <p className="pp-pincard__locked">{esperando}</p>}
             <ul className="pp-pincard__exits" aria-label="Saídas">
               {escolhas.map((saida, index) => (
                 <li key={saida.id}>
@@ -649,10 +705,18 @@ export function PlayerPinCard({
                     ref={saida.id === ultimaSaida || (ultimaSaida === null && index === 0) ? askRef : undefined}
                     type="button"
                     className="pp-pincard__travel"
-                    disabled={travelWaiting || longe}
+                    // MODO POR SAÍDA: trancada num pino mudo não pede nada — o host recusaria.
+                    disabled={travelWaiting || longe || saidaMuda(saida)}
                     onClick={() => perguntar(saida)}
                   >
                     {saida.rotulo}
+                    {/* Modos misturados: cada botão diz o modo dele, no texto (e para o leitor de tela). */}
+                    {modosMisturados && (
+                      <>
+                        {' '}
+                        <span className="pp-pincard__mode">{PIN_PASSAGE_LABELS[modoDaSaida(saida)]}</span>
+                      </>
+                    )}
                     {saida.soIda === true && (
                       <>
                         {' '}
@@ -705,7 +769,7 @@ export function PlayerPinCard({
                   onRequestTravel(saida?.id, marcadas)
                 }}
               >
-                {textos.confirmar}
+                {textosDaSaida(confirming.saida).confirmar}
               </button>
               <button
                 ref={cancelRef}

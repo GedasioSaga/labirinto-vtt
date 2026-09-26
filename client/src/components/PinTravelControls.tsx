@@ -1,11 +1,11 @@
 import { useRef, useState, type KeyboardEvent, type MouseEvent } from 'react'
 import type { PinTravel, TravelPinOption, TravelSceneOption } from '../lib/pinTravel'
-import { EXIT_EXTRA_MAX_COUNT, EXIT_LABEL_MAX_LENGTH, isArrivalOnly, travelExitsOf, travelPlaceName, travelSceneLabel } from '../lib/pinTravel'
+import { EXIT_EXTRA_MAX_COUNT, EXIT_LABEL_MAX_LENGTH, EXIT_PASSAGE_ORDER, isArrivalOnly, isExitPassage, travelExitsOf, travelPlaceName, travelSceneLabel } from '../lib/pinTravel'
 import { PIN_BLOCK_REASON_LABELS, PIN_BLOCK_REASON_NONE_LABEL, PIN_BLOCK_REASON_ORDER, PIN_PASSAGE_LABELS, PIN_PASSAGE_ORDER, passageOf } from '../lib/pins'
 import { SCENE_FILTER_MIN, sceneSearchSummary, sceneSearchWords, searchScenes } from '../lib/sceneSearch'
 import { ITEM_NAME_MAX_LENGTH } from '../lib/items'
 import type { PassTokenOption } from '../lib/pinPass'
-import type { PinBlockReason, PinPassage } from '../types/map'
+import type { ExitPassage, PinBlockReason, PinPassage } from '../types/map'
 import { clampDaVista, DA_VISTA_MAX_CASAS, DA_VISTA_MIN_CASAS, DA_VISTA_PADRAO_CASAS, ESPIAR_DURACAO_MS } from '../lib/espiar'
 import { ChevronDownIcon } from './icons'
 import { DoorKeyField } from './WallDoorControls'
@@ -18,6 +18,13 @@ export interface PinTravelExitView {
   rotulo: string
   /** Para onde ela leva agora. */
   travel: PinTravel
+  /** MODO POR SAÍDA: o modo próprio da saída extra. Ausente = como a principal. */
+  passagem?: ExitPassage
+  /**
+   * Ligada: como o jogador passa pelo PAR de volta a este pino — a volta pode
+   * ser uma extra do par com modo próprio. Ausente = o modo do pino par.
+   */
+  modoDaVolta?: PinPassage
 }
 
 export interface PinTravelControlsProps {
@@ -45,9 +52,14 @@ export interface PinTravelControlsProps {
   onRename: (exitId: string, rotulo: string) => void
   /** Leva a visão do mestre pela saída — o mesmo que o clique com Selecionar faz pela principal. */
   onGo: (exitId: string) => void
-  /** Como o jogador passa por ESTE pino (o par tem o seu). Vale para todas as saídas. */
+  /** Como o jogador passa por ESTE pino (o par tem o seu). Vale para a principal e para as saídas sem modo próprio. */
   passage: PinPassage
   onPassageChange: (passage: PinPassage) => void
+  /**
+   * MODO POR SAÍDA: grava o modo da saída EXTRA `exitId` (`undefined` = como a
+   * principal). Só numa encruzilhada; sem ele, o painel não oferece a escolha.
+   */
+  onExitPassageChange?: (exitId: string, passagem: ExitPassage | undefined) => void
   /** CHAVE ABRE PORTA: o "Abre com" do pino trancado ("" = sem chave). */
   keyName?: string
   /**
@@ -56,9 +68,10 @@ export interface PinTravelControlsProps {
    */
   onKeyChange?: (nome: string) => void
   /**
-   * Só vale com "Trancada": o jogador pode "Pedir ao mestre" (ligada, o
-   * padrão) ou a passagem é muda (desligada) — nenhum pedido chega.
-   * Ausente = ligada. Sem `onAcceptsAttemptsChange`, o botão não aparece.
+   * Só vale com "Trancada" — a do pino ou a de uma saída extra: o jogador
+   * pode "Pedir ao mestre" (ligada, o padrão) ou a passagem é muda
+   * (desligada) — nenhum pedido chega. Ausente = ligada. Sem
+   * `onAcceptsAttemptsChange`, o botão não aparece.
    */
   acceptsAttempts?: boolean
   onAcceptsAttemptsChange?: (on: boolean) => void
@@ -139,7 +152,70 @@ const EFEITO_DA_PASSAGEM: Record<PinPassage, string> = {
 /** Trancada que aceita tentativas: o jogador ainda pode pedir. */
 const EFEITO_TRANCADA_COM_PEDIDO = 'Ninguém passa sozinho; o jogador pode pedir e você decide.'
 
+/** O mesmo, dito das saídas extras trancadas quando o pino está em outro modo. */
+const EFEITO_SAIDA_TRANCADA_COM_PEDIDO = 'Nas saídas trancadas, ninguém passa sozinho; o jogador pode pedir e você decide.'
+const EFEITO_SAIDA_TRANCADA_MUDA = 'Nas saídas trancadas, ninguém passa, e nenhum pedido chega a você.'
+
 const TENTATIVAS_ID = 'lb-pin-travel-attempts'
+
+/** "Aceita tentativas": ligada, o jogador pode pedir pela passagem trancada; desligada, ela é muda. */
+function AceitaTentativas({ on, onChange }: { on: boolean; onChange: (on: boolean) => void }) {
+  return (
+    <button
+      type="button"
+      className="lb-btn lb-btn--ghost lb-btn--block"
+      aria-pressed={on}
+      aria-describedby={TENTATIVAS_ID}
+      onClick={() => onChange(!on)}
+    >
+      Aceita tentativas
+    </button>
+  )
+}
+const MODO_DA_SAIDA_ID = 'lb-pin-travel-exit-passage'
+
+/** O valor da opção "Como a principal" no `<select>`: a ausência do modo próprio. */
+const COMO_A_PRINCIPAL = ''
+
+interface ModoDaSaidaProps {
+  id: string
+  /** O modo próprio da saída; `undefined` = como a principal. */
+  passagem: ExitPassage | undefined
+  /** O modo da principal (o do pino), dito na opção "Como a principal". */
+  principal: PinPassage
+  onChange: (passagem: ExitPassage | undefined) => void
+}
+
+/**
+ * MODO POR SAÍDA — "Passagem desta saída" de uma saída extra. Um `<select>`,
+ * e não o segmented da "Passagem": são até onze saídas empilhadas no poço, e
+ * quatro linhas por saída empurrariam o resto do painel para longe.
+ */
+function ModoDaSaida({ id, passagem, principal, onChange }: ModoDaSaidaProps) {
+  return (
+    <div className="lb-travel__exit-passage">
+      <label className="lb-label" htmlFor={id}>
+        Passagem desta saída
+      </label>
+      <select
+        id={id}
+        className="lb-input"
+        value={passagem ?? COMO_A_PRINCIPAL}
+        onChange={(event) => {
+          const valor = event.target.value
+          onChange(isExitPassage(valor) ? valor : undefined)
+        }}
+      >
+        <option value={COMO_A_PRINCIPAL}>Como a principal ({PIN_PASSAGE_LABELS[principal]})</option>
+        {EXIT_PASSAGE_ORDER.map((option) => (
+          <option key={option} value={option}>
+            {PIN_PASSAGE_LABELS[option]}
+          </option>
+        ))}
+      </select>
+    </div>
+  )
+}
 
 /** Foco depois do render: quem o recebe pode ter acabado de nascer (ou de trocar de pino). */
 function focarDepois(achar: () => HTMLElement | null | undefined): void {
@@ -210,6 +286,7 @@ export function PinTravelControls({
   onGo,
   passage,
   onPassageChange,
+  onExitPassageChange,
   keyName = '',
   onKeyChange,
   acceptsAttempts = true,
@@ -246,6 +323,8 @@ export function PinTravelControls({
   const escolhaAbre = algumaAbre || podeCriar
   const aberta = escolha !== null
   const encruzilhada = exits.length > 1
+  /** Alguma saída EXTRA trancada por conta própria: a marca `mudo` do pino vale para ela. */
+  const extraTrancada = exits.some((exit) => exit.passagem === 'trancada')
   const principal = exits[0]
   const mostraBusca = scenes.length >= SCENE_FILTER_MIN
   const buscando = mostraBusca && sceneSearchWords(busca).length > 0
@@ -449,6 +528,16 @@ export function PinTravelControls({
                 {exit.travel.status === 'ligado' && (
                   <MaoUnica id={`${MAO_UNICA_ID}-${index}`} travel={exit.travel} onChange={(on) => onOneWayChange(exit.id, on)} />
                 )}
+                {/* MODO POR SAÍDA: a principal segue a "Passagem" do pino, lá
+                    embaixo; cada extra pode ter a sua. */}
+                {index > 0 && onExitPassageChange !== undefined && (
+                  <ModoDaSaida
+                    id={`${MODO_DA_SAIDA_ID}-${index}`}
+                    passagem={exit.passagem}
+                    principal={passage}
+                    onChange={(passagem) => onExitPassageChange(exit.id, passagem)}
+                  />
+                )}
               </li>
             ))}
           </ul>
@@ -485,19 +574,23 @@ export function PinTravelControls({
       {passage === 'trancada' && onAcceptsAttemptsChange !== undefined && (
         // O mesmo botão de alternar da "Mão única" (`aria-pressed`), logo
         // abaixo do modo que ele qualifica.
-        <button
-          type="button"
-          className="lb-btn lb-btn--ghost lb-btn--block"
-          aria-pressed={acceptsAttempts}
-          aria-describedby={TENTATIVAS_ID}
-          onClick={() => onAcceptsAttemptsChange(!acceptsAttempts)}
-        >
-          Aceita tentativas
-        </button>
+        <AceitaTentativas on={acceptsAttempts} onChange={onAcceptsAttemptsChange} />
       )}
       <p id={passage === 'trancada' ? TENTATIVAS_ID : undefined} className="lb-travel__hint">
         {passage === 'trancada' && acceptsAttempts ? EFEITO_TRANCADA_COM_PEDIDO : EFEITO_DA_PASSAGEM[passage]}
       </p>
+      {/* MODO POR SAÍDA: a marca `mudo` é do pino e cala também a saída
+          EXTRA trancada — inclusive a que sobrou de quando o pino era
+          trancado. Com o pino em outro modo, o botão aparece quando alguma
+          extra está trancada, para o mestre ver e mudar o que vale para ela. */}
+      {passage !== 'trancada' && extraTrancada && onAcceptsAttemptsChange !== undefined && (
+        <>
+          <AceitaTentativas on={acceptsAttempts} onChange={onAcceptsAttemptsChange} />
+          <p id={TENTATIVAS_ID} className="lb-travel__hint">
+            {acceptsAttempts ? EFEITO_SAIDA_TRANCADA_COM_PEDIDO : EFEITO_SAIDA_TRANCADA_MUDA}
+          </p>
+        </>
+      )}
       {/* CHAVE ABRE PORTA: quem carrega o item passa sem pedir, e você lê o aviso. */}
       {passage === 'trancada' && onKeyChange !== undefined && (
         <DoorKeyField value={keyName} onChange={onKeyChange} placeholder="Nome do item (vazio: sem chave)" />
@@ -682,10 +775,14 @@ interface DoisLadosProps {
  * falta. Sem saída ligada não há outro lado, e o botão não aparece.
  */
 function DoisLados({ passage, exits, onChange }: DoisLadosProps) {
-  const ligadas = exits.flatMap((exit) => (exit.travel.status === 'ligado' ? [exit.travel] : []))
+  const ligadas = exits.flatMap((exit) => (exit.travel.status === 'ligado' ? [{ exit, travel: exit.travel }] : []))
   if (ligadas.length === 0) return null
-  const trancados = passage === 'trancada' && ligadas.every((travel) => passageOf(travel.partner) === 'trancada')
-  const cenas = [...new Set(ligadas.map((travel) => travel.sceneName))].join(', ')
+  // MODO POR SAÍDA: "trancados" só quando nenhuma saída abre por conta
+  // própria — nem a extra deste pino, nem a volta do par.
+  const trancados =
+    passage === 'trancada' &&
+    ligadas.every(({ exit, travel }) => (exit.passagem ?? passage) === 'trancada' && (exit.modoDaVolta ?? passageOf(travel.partner)) === 'trancada')
+  const cenas = [...new Set(ligadas.map(({ travel }) => travel.sceneName))].join(', ')
   const deLa = ligadas.length === 1 ? `o de ${cenas}` : `os de ${cenas}`
   return (
     <>

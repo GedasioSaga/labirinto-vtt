@@ -5438,6 +5438,13 @@ html.lb-arrastando-cena * {
   border-top: 1px solid var(--lb-color-line);
 }
 
+/* MODO POR SAÍDA: rótulo em cima do select, no ritmo do resto da saída. */
+.lb-travel__exit-passage {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-1);
+}
+
 /* Ações secundárias numa linha só, menores que a principal ("Ir para …"):
    em duas metades iguais "Trocar destino" quebrava em duas linhas ao lado de
    "Desligar" (medido na largura do rail, 21/09/2026). */

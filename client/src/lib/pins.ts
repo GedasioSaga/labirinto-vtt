@@ -151,14 +151,6 @@ export function passageOf(pin: Pick<Pin, 'passagem'>): PinPassage {
   return isPinPassage(pin.passagem) ? pin.passagem : 'pede'
 }
 
-/**
- * Pino trancado que aceita "Pedir ao mestre": trancado e sem a marca `mudo`.
- * Qualquer outro modo responde `false` — livre e pede não são "tentativas".
- */
-export function acceptsLockedRequest(pin: Pin): boolean {
-  return passageOf(pin) === 'trancada' && pin.mudo !== true
-}
-
 /** "Ler só de perto": menor e maior número de casas que o painel e o disco aceitam. */
 export const PIN_LER_DE_PERTO_MIN = 1
 export const PIN_LER_DE_PERTO_MAX = 20
