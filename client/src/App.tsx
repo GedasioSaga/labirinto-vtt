@@ -133,6 +133,7 @@ import { leverDoorOptions, linkedDoorOf } from './lib/lever'
 import { lockDoorOptions } from './lib/pinLock'
 import { pinColecaoPanel } from './components/pinColecaoPanel'
 import { vehicleSeatOptions } from './lib/vehicle'
+import { isDaVista } from './lib/espiar'
 import type { Screen } from './types/screen'
 import { createMapScreen, parentScreen } from './lib/navigation'
 import * as mapFactory from './lib/mapFactory'
@@ -1941,6 +1942,9 @@ function App() {
         useAdventureStore.getState().setPassageBothSides(pin.id, trancar)
       },
       arrivalOnly: isArrivalOnly(pin),
+      // ESPIAR: "Dá vista" é do pino desta cena, com desfazer como o modo de passagem.
+      daVista: isDaVista(pin.daVista) ? pin.daVista : null,
+      onDaVistaChange: (casas: number | null) => useMapStore.getState().updatePin(pin.id, { daVista: casas ?? undefined }),
     }
   }
 

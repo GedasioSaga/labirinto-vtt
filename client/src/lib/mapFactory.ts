@@ -1848,7 +1848,7 @@ export function addPin(map: MapData, pin: Pin): MapData {
 export function updatePin(
   map: MapData,
   id: string,
-  patch: Partial<Pick<Pin, 'kind' | 'icon' | 'description' | 'nome' | 'notaDoMestre' | 'image' | 'locked' | 'destino' | 'passagem' | 'passe' | 'mudo' | 'motivo' | 'rotulo' | 'saidas' | 'item' | 'abreCom' | 'presoA' | 'portaLigada' | 'marco' | 'lerDePerto' | 'segredo' | 'colecao' | 'loja'>>,
+  patch: Partial<Pick<Pin, 'kind' | 'icon' | 'description' | 'nome' | 'notaDoMestre' | 'image' | 'locked' | 'destino' | 'passagem' | 'passe' | 'mudo' | 'motivo' | 'rotulo' | 'saidas' | 'item' | 'abreCom' | 'presoA' | 'portaLigada' | 'marco' | 'lerDePerto' | 'segredo' | 'colecao' | 'loja' | 'daVista'>>,
 ): MapData {
   const pin = map.pins.find((p) => p.id === id)
   if (!pin) return map
@@ -1905,7 +1905,9 @@ export function updatePin(
     sameColecao(next.colecao, pin.colecao) &&
     // LOJA COM PREÇOS: gravar a mesma lista de novo, ou tirar a loja de um
     // pino que nunca teve, não é mudança.
-    sameLoja(next.loja, pin.loja)
+    sameLoja(next.loja, pin.loja) &&
+    // "Dá vista": ausente é "não dá vista", e desligar o que nunca foi ligado não é mudança.
+    next.daVista === pin.daVista
   ) {
     return map
   }
