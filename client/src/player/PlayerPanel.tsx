@@ -266,6 +266,12 @@ interface PlayerPanelProps {
    * Lança quando não deu (o aviso vai para a aba). Ausente = sem o botão.
    */
   onDownloadNotebook?: () => string
+  /**
+   * INVENTÁRIO (tecla I): o botão "Inventário" na barra de cima, ao lado de
+   * "Minha ficha". `byKeyboard` = acionado por Enter/Espaço (entra sem
+   * animação). Ausente (tela antiga, teste, nenhuma ficha dele no mapa) = sem o botão.
+   */
+  onOpenInventory?: (byKeyboard: boolean) => void
 }
 
 /** Resultado do último "Baixar meu caderno", para a aba dizer o que houve. */
@@ -322,6 +328,7 @@ export function PlayerPanel({
   onStopWait,
   onStepAway,
   onDownloadNotebook,
+  onOpenInventory,
 }: PlayerPanelProps) {
   const tabs = onRollDice === undefined ? PANEL_TABS_NO_DICE : PANEL_TABS
   const drawerScreen = useSyncExternalStore(subscribeDrawerScreen, isDrawerScreen, () => false)
@@ -564,6 +571,25 @@ export function PlayerPanel({
               <path d="M7 0.75v2M7 11.25v2M0.75 7h2M11.25 7h2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
             </svg>
             Minha ficha
+          </button>
+        )}
+        {onOpenInventory !== undefined && (
+          <button
+            type="button"
+            className="pp-bag"
+            aria-haspopup="dialog"
+            aria-keyshortcuts="I"
+            // `detail` 0 = Enter/Espaço: quem veio pelo teclado não espera animação.
+            onClick={(event) => onOpenInventory(event.detail === 0)}
+          >
+            <svg className="pp-bag__icon" width="14" height="14" viewBox="0 0 14 14" aria-hidden="true" focusable="false">
+              <path d="M4.75 4.5V3.6a2.25 2.25 0 0 1 4.5 0v.9" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+              <path d="M2.4 4.5h9.2l-.75 7.25a.9.9 0 0 1-.9.8H4.05a.9.9 0 0 1-.9-.8Z" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
+            </svg>
+            Inventário
+            <kbd className="pp-bag__key" aria-hidden="true">
+              I
+            </kbd>
           </button>
         )}
       </div>
