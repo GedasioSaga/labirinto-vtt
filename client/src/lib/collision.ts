@@ -39,10 +39,83 @@ export function isDoorPassable(door: DoorState | null): boolean {
   return door !== null && door.open && !door.locked && door.secret !== true
 }
 
+function blocksPassage(wall: Wall): boolean {
+  return wall.blocksMove && !isDoorPassable(wall.door)
+}
+
+/**
+ * Toque do traço em UMA parede, sem olhar as vizinhas: raspar a ponta conta
+ * aqui como cruzar. Quem decide se a ficha passa é `findTokenPath`, que olha
+ * as paredes emendadas na ponta raspada.
+ */
 export function moveCrossesWall(from: Point, to: Point, wall: Wall): boolean {
-  if (!wall.blocksMove) return false
-  if (isDoorPassable(wall.door)) return false
+  if (!blocksPassage(wall)) return false
   return segmentsIntersect(from, to, { x: wall.x1, y: wall.y1 }, { x: wall.x2, y: wall.y2 })
+}
+
+/** Pontas a menos disso (px de mundo) contam como emendadas: a junta desenhada não abre fresta por arredondamento. */
+const JOINT_TOLERANCE = 0.5
+
+function distanceToSegment(p: Point, a: Point, b: Point): number {
+  const dx = b.x - a.x
+  const dy = b.y - a.y
+  const lengthSq = dx * dx + dy * dy
+  const t = lengthSq === 0 ? 0 : Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / lengthSq))
+  return Math.hypot(p.x - (a.x + dx * t), p.y - (a.y + dy * t))
+}
+
+function isStrictlyInside(from: Point, to: Point, p: Point): boolean {
+  const atEnd = (q: Point): boolean => q.x === p.x && q.y === p.y
+  return onSegment(from, to, p) && !atEnd(from) && !atEnd(to)
+}
+
+/**
+ * Como o traço toca a parede: `null` não toca; `'crosses'` cruza ou encosta
+ * de verdade; um Ponto = só raspa a PONTA da parede (a ponta cai no meio do
+ * traço e o resto da parede fica de um lado só). Terminar o passo em cima da
+ * parede ou andar ao longo dela continua sendo `'crosses'`.
+ */
+function wallContact(from: Point, to: Point, wall: Wall): Point | 'crosses' | null {
+  const a = { x: wall.x1, y: wall.y1 }
+  const b = { x: wall.x2, y: wall.y2 }
+  if (!segmentsIntersect(from, to, a, b)) return null
+  const sideA = orientation(from, to, a)
+  const sideB = orientation(from, to, b)
+  if (sideA === 0 && sideB !== 0 && isStrictlyInside(from, to, a)) return a
+  if (sideB === 0 && sideA !== 0 && isStrictlyInside(from, to, b)) return b
+  return 'crosses'
+}
+
+/**
+ * Pontas das paredes que saem da quina `tip`: a outra ponta de quem termina
+ * ali, ou as duas de quem passa por ela.
+ */
+function armsAt(tip: Point, wall: Wall): Point[] {
+  const a = { x: wall.x1, y: wall.y1 }
+  const b = { x: wall.x2, y: wall.y2 }
+  if (Math.hypot(a.x - tip.x, a.y - tip.y) <= JOINT_TOLERANCE) return [b]
+  if (Math.hypot(b.x - tip.x, b.y - tip.y) <= JOINT_TOLERANCE) return [a]
+  if (distanceToSegment(tip, a, b) <= JOINT_TOLERANCE) return [a, b]
+  return []
+}
+
+/**
+ * Raspar a quina `tip` fecha a passagem quando as paredes que saem dela ficam
+ * dos DOIS lados do traço (parede que continua, canto de sala) ou uma delas
+ * segue ao longo do traço. Todas de um lado só = ponta solta: a ficha passa.
+ */
+function tipClosesPassage(from: Point, to: Point, tip: Point, blockers: readonly Wall[]): boolean {
+  let left = false
+  let right = false
+  for (const wall of blockers) {
+    for (const arm of armsAt(tip, wall)) {
+      const side = orientation(from, to, arm) - orientation(from, to, tip)
+      if (side === 0) return true
+      if (side > 0) left = true
+      else right = true
+    }
+  }
+  return left && right
 }
 
 /** Folga padrão (px de mundo) quando o chamador não informa a célula: 1 célula do mapa novo (64 px). */
@@ -50,8 +123,21 @@ export const DEFAULT_DOOR_SLACK = 64
 /** Distância das pontas do vão até o ponto de passagem: longe da junta com o pedaço de parede vizinho. */
 const DOOR_EDGE_INSET = 2
 
+/**
+ * O traço reto passa sem cruzar parede que barra. Raspar a ponta de uma
+ * parede passa (a diagonal entre células vizinhas cai EXATAMENTE na quina da
+ * grade, onde as paredes terminam), a menos que outra parede emendada naquela
+ * quina feche o outro lado.
+ */
 function isPathClear(from: Point, to: Point, walls: readonly Wall[]): boolean {
-  return !walls.some((wall) => moveCrossesWall(from, to, wall))
+  const blockers = walls.filter(blocksPassage)
+  const tips: Point[] = []
+  for (const wall of blockers) {
+    const contact = wallContact(from, to, wall)
+    if (contact === 'crosses') return false
+    if (contact !== null) tips.push(contact)
+  }
+  return !tips.some((tip) => tipClosesPassage(from, to, tip, blockers))
 }
 
 /**

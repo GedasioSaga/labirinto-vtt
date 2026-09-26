@@ -1,0 +1,47 @@
+import { describe, expect, it } from 'vitest'
+import type { MapData, Token, Wall } from '../types/map'
+import { createEmptyMap } from './mapFactory'
+import { describeBlockedMove, validateTokenMove } from './moveValidation'
+
+// Os dois caminhos de movimento — o pedido do jogador que o host valida
+// (`validateTokenMove`, hostSession) e o arrasto do mestre no editor
+// (`describeBlockedMove`, mapStore) — raspam a ponta da parede do mesmo jeito.
+
+function token(id: string, x: number, y: number): Token {
+  return { id, characterId: null, name: id, x, y, size: 1, image: null }
+}
+
+function wall(id: string, x1: number, y1: number, x2: number, y2: number): Wall {
+  return { id, x1, y1, x2, y2, blocksLight: true, blocksMove: true, door: null }
+}
+
+const pontaSolta = wall('ponta', 64, 0, 64, 64)
+const continuacao = wall('continua', 64, 64, 64, 128)
+
+function mapa(walls: Wall[]): MapData {
+  return { ...createEmptyMap('m', 'M', 20, 20, 64), tokens: [token('t1', 32, 96)], walls }
+}
+
+const ownership = { p1: ['t1'] }
+
+describe('passar rente à quina: pedido do jogador', () => {
+  it('diagonal raspando a ponta solta é aceita', () => {
+    expect(validateTokenMove(mapa([pontaSolta]), { playerId: 'p1', tokenId: 't1', x: 96, y: 32 }, ownership)).toEqual({ ok: true, x: 96, y: 32 })
+  })
+
+  it('parede que continua depois da quina recusa com wall', () => {
+    expect(validateTokenMove(mapa([pontaSolta, continuacao]), { playerId: 'p1', tokenId: 't1', x: 96, y: 32 }, ownership)).toEqual({ ok: false, reason: 'wall' })
+  })
+})
+
+describe('passar rente à quina: arrasto do mestre', () => {
+  it('ponta solta não barra o arrasto', () => {
+    expect(describeBlockedMove({ x: 32, y: 96 }, { x: 96, y: 32 }, [pontaSolta], 64)).toBeNull()
+  })
+
+  it('emenda na quina barra e diz qual parede', () => {
+    const blocked = describeBlockedMove({ x: 32, y: 96 }, { x: 96, y: 32 }, [pontaSolta, continuacao], 64)
+    expect(blocked?.reason).toBe('wall')
+    expect(['ponta', 'continua']).toContain(blocked?.wallId)
+  })
+})
