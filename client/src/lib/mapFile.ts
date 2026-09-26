@@ -36,6 +36,8 @@ import { readSceneFloor } from './buildingFloors'
 import { lerAlerta, lerFaccao } from './faccoes'
 import { faceRangeCellsOrNull } from './tokenVulto'
 import { pisosDoArquivo } from './pisos'
+import { readConveyors } from './conveyors'
+import { pinWithCabin, readCabin } from './cabins'
 
 /** Chão de mapa NOVO: marrom chapado do minimapa do Resident Evil 4 (15/09/2026). */
 export const DEFAULT_FLOOR_STYLE: FloorStyle = { fillColor: '#a8776a', strokeColor: null, strokeWidth: 1 }
@@ -394,7 +396,10 @@ function deserializeMapFields(json: string): MapData {
     // `null` em vez de levar o clique do mestre para uma cena que não existe.
     // `kind: 'viagem'` é o terceiro tipo: sem ele na lista, todo pino de
     // viagem voltaria do disco como "!".
-    pins: entityList(parsed.pins).map((p) => ({
+    // CABINE CONTÍNUA: campo NOVO e OPCIONAL. `pinWithCabin` tira a chave
+    // quando o valor cru não é um id (o `...p` copiaria o lixo), então mapa de
+    // antes abre sem o campo e cabine quebrada vira "pino sem cabine".
+    pins: entityList(parsed.pins).map((p) => pinWithCabin({
       ...p,
       kind: isPinKind(p.kind) ? p.kind : 'exclamacao',
       icon: isPinIcon(p.icon) ? p.icon : undefined,
@@ -484,7 +489,7 @@ function deserializeMapFields(json: string): MapData {
       // `lerLojaDoArquivo` — o torto cai, o bom fica, campo desconhecido não
       // entra. Nada que preste volta ausente (o `...p` acima copiaria o cru).
       loja: lerLojaDoArquivo(p.loja),
-    })),
+    }, readCabin(p.cabineContinua))),
     // BILHETE NO LUGAR: campo NOVO e OPCIONAL. Ausente continua ausente (sem a
     // chave, nem `undefined`): o round-trip de mapa antigo sai idêntico. Marca
     // torta cai sozinha e as boas ficam (`lerMarcasDoArquivo`).
@@ -531,6 +536,8 @@ function deserializeMapFields(json: string): MapData {
     ...sceneFloorField(parsed.andar),
     // NÍVEL DE ALERTA: campo NOVO e OPCIONAL, mesmo padrão de `movement`.
     ...alertaField(parsed.alerta),
+    // ESTEIRA: campo NOVO e OPCIONAL, mesmo padrão de `hazards` — ver `readConveyors`.
+    ...conveyorsField(parsed.conveyors),
   }
 }
 
@@ -544,6 +551,12 @@ function arrivalTextField(raw: unknown): Pick<MapData, 'textoChegada'> {
 function sceneFloorField(raw: unknown): Pick<MapData, 'andar'> {
   const andar = readSceneFloor(raw)
   return andar === undefined ? {} : { andar }
+}
+
+/** `conveyors` só entra no mapa quando o arquivo traz esteira válida: mapa de antes não ganha campo. */
+function conveyorsField(raw: unknown): Pick<MapData, 'conveyors'> {
+  const conveyors = readConveyors(raw)
+  return conveyors === undefined ? {} : { conveyors }
 }
 
 /** `hazards` só entra no mapa quando o arquivo traz zona válida: mapa de antes não ganha campo. */

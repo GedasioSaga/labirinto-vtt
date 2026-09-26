@@ -1,4 +1,4 @@
-import type { ConcealZone, DoorState, Drawing, FloorPiece, HazardKind, LayerId, Light, MapData, MapLine, MapMarker, Pin, Region, RegionPoint, Stair, Token, TokenCompanion, TokenContract, Wall, WatchAlert } from '../types/map'
+import type { ConcealZone, DoorState, Drawing, FloorPiece, HazardKind, LayerId, Light, MapData, MapLine, MapMarker, Pin, PinCard, Region, RegionPoint, Stair, Token, TokenCompanion, TokenContract, Wall, WatchAlert } from '../types/map'
 import { cellCenter, cellKeyAt, cellRunRects, concealedPieces, REVEAL_BRUSH_CELL, unveiledCellsOf } from './concealBrush'
 import { isTokenPhotoData } from './tokenPhoto'
 import { tokenAsSeenByPlayer, tokenPublicNameMode } from './tokenPublicName'
@@ -42,6 +42,7 @@ import { isDarkAt, periodOfHour, type PlayerClock } from './campaignClock'
 import { noiseDirection, type NoiseDirection } from './noise'
 import { setaDoAbalo, type AbaloSeta } from './abalo'
 import { faceRangeCellsOrNull, isFaceInReach, tokenAsVulto } from './tokenVulto'
+import { fichaDoLadoAlcanca, type LadoDaPorta } from './ferrolho'
 
 /**
  * Recorte do mapa que um jogador pode receber. Tudo que sai daqui vai pela
@@ -68,6 +69,12 @@ export interface PlayerMapView {
   vision: RegionPoint[][]
   /** Portas dentro da visão atual: saíram com o estado real e o chamador deve lembrá-lo. */
   visibleDoorIds: string[]
+  /**
+   * Pinos do recorte dentro da visão ATUAL. O resto do recorte saiu só por
+   * explorado (névoa): estado vivo dele (a barra do jogador) não pode chegar,
+   * senão denuncia quem está lá. O chamador lembra o estado dos que estão aqui.
+   */
+  visiblePinIds: string[]
   /**
    * Polígonos das zonas ocultas ativas (`revealed === false`). O jogador pinta
    * preto por cima e o chamador não marca explorado em célula que toque neles.
@@ -3204,6 +3211,8 @@ export function filterMapForGroup(
   // recebe só se a cena dele está escura, à parte (`clockForPlayer`).
   // NÍVEL DE ALERTA da cena: é do mestre, e sai junto — "caçada" no pacote
   // contaria ao jogador o que a cena já sabe dele.
+  // ESTEIRA: regra do mestre (sala, direção, passo) — nunca sai. O jogador vê só
+  // a própria ficha onde a esteira a largou, pelo recorte de fichas de sempre.
   const {
     hazards: _masterHazards,
     gatilhos: _masterTriggers,
@@ -3211,6 +3220,7 @@ export function filterMapForGroup(
     andar: _masterFloor,
     externa: _masterOutdoor,
     alerta: _masterAlert,
+    conveyors: _masterConveyors,
     ...mapWithoutHazards
   } = map
 
@@ -3762,10 +3772,14 @@ export function filterMapForGroup(
     stairs: stairs.plan,
     pins: pins.plan,
   }
+  // Só a visão de AGORA: pino que saiu por explorado, lembrado ou por cômodo
+  // lembrado leva a barra lembrada, nunca a viva (`marcarTrancasParaJogador`).
+  const visiblePinIds = recorte.pins.filter((p) => isVisible(pinPoint(p))).map((p) => p.id)
   return {
     map: recorte,
     vision: sentVision,
     visibleDoorIds,
+    visiblePinIds,
     concealed,
     blocked,
     roofs,
@@ -4324,4 +4338,99 @@ export function noiseCueForPlayer(
     nearestDistance = distance
   }
   return nearest === null ? null : noiseDirection(nearest, point, map.grid)
+}
+
+/**
+ * TRANCAS DO JOGADOR numa cena, como a sessão do host as guarda: o lado de
+ * cada ferrolho (por id da parede com porta) e os pinos de viagem barrados.
+ * Nome de quem trancou não entra aqui: nunca vai a jogador nenhum.
+ */
+export interface TrancasDaCena {
+  ferrolhos: ReadonlyMap<string, LadoDaPorta>
+  pinosBarrados: ReadonlySet<string>
+}
+
+/**
+ * Põe no RECORTE a marca das trancas que ESTE jogador pode saber, depois do
+ * `filterMapForPlayer` (e depois de o host lembrar as portas: a marca não
+ * entra na memória de portas vistas).
+ *
+ * - Porta: `ferrolhoDoMeuLado` só se a porta está na visão AGORA, fechada e
+ *   destrancada pelo mestre, e uma ficha dele (do recorte: camada oculta e
+ *   ficha escondida já saíram) ALCANÇA a porta do lado do ferrolho — o mesmo
+ *   critério com que o host aceita tirá-lo ou abrir. Do outro lado a porta
+ *   sai como sempre — a tentativa de abrir é que conta a ele que está trancada.
+ * - Pino: `barradaDaqui` em pino que já saiu no recorte, e como a porta: o
+ *   pino na visão AGORA (`visiblePinIds`) leva a barra de agora; o que saiu só
+ *   por explorado (névoa) leva a barra LEMBRADA (`barrasLembradas`, a última
+ *   vista por este jogador). Ao vivo na névoa, a marca surgindo ou sumindo
+ *   contava a quem está longe que alguém barrou ou chegou por ali. A barra é
+ *   desta cena; quem está na cena do outro lado recebe outro mapa e nunca a vê.
+ *
+ * Sem nenhuma marca a pôr, devolve o MESMO `view.map`.
+ */
+export function marcarTrancasParaJogador(
+  view: PlayerMapView,
+  ownTokenIds: ReadonlySet<string>,
+  trancas: TrancasDaCena,
+  barrasLembradas: ReadonlySet<string>,
+): MapData {
+  const map = view.map
+  if (trancas.ferrolhos.size === 0 && trancas.pinosBarrados.size === 0 && barrasLembradas.size === 0) return map
+  const visiveis = new Set(view.visibleDoorIds)
+  const fichas = map.tokens.filter((t) => ownTokenIds.has(t.id))
+  let mudouParede = false
+  const walls = map.walls.map((wall) => {
+    const lado = trancas.ferrolhos.get(wall.id)
+    const door = wall.door
+    if (lado === undefined || door === null || door.open || door.locked || !visiveis.has(wall.id)) return wall
+    // O mesmo critério do host (`fichaDoLadoAlcanca`): só ficha que ALCANÇA a porta conta.
+    if (!fichaDoLadoAlcanca(fichas, wall, lado, map.grid)) return wall
+    mudouParede = true
+    const marcada: DoorState = { ...door, ferrolhoDoMeuLado: true }
+    return { ...wall, door: marcada }
+  })
+  let mudouPino = false
+  const pinosAVista = new Set(view.visiblePinIds)
+  const pins = map.pins.map((pin) => {
+    const barrado = pinosAVista.has(pin.id) ? trancas.pinosBarrados.has(pin.id) : barrasLembradas.has(pin.id)
+    if (!barrado) return pin
+    mudouPino = true
+    const marcado: Pin = { ...pin, barradaDaqui: true }
+    return marcado
+  })
+  if (!mudouParede && !mudouPino) return map
+  return { ...map, walls: mudouParede ? walls : map.walls, pins: mudouPino ? pins : map.pins }
+}
+
+/**
+ * "MOSTRAR AGORA A…": o cartão que o mestre abre na tela de um jogador. É o
+ * recorte do cartão, não do mapa: vai o texto INTEIRO e a imagem mesmo com o
+ * pino na névoa ou "só de perto" e a ficha longe — mostrar é o mestre
+ * entregando a pista de propósito. Por isso mesmo não vai a POSIÇÃO: o pino
+ * pode estar numa sala que o jogador nunca viu, e o cartão não diz onde.
+ *
+ * O pino OCULTO PARA JOGADORES sai também: é a carta escondida na gaveta que
+ * o mestre entrega a quem revistou ("Entregar pista…"). Quem decide é sempre
+ * o mestre — jogador nenhum consegue pedir um cartão por id.
+ *
+ * `null` (nada sai):
+ * - pino de viagem (e a chegada oculta): o cartão de passagem é do mapa, e
+ *   mostrá-lo longe ofereceria passar por onde o jogador não está;
+ * - alavanca: o cartão dela é o botão de puxar, que só vale de perto.
+ *
+ * LISTA DO QUE VAI, como em `pinForPlayer`: campo desconhecido não atravessa —
+ * nem o nome e a nota do mestre, nem item, loja, fechadura ou coleção.
+ */
+export function pinCardForPlayer(pin: Pin): PinCard | null {
+  if (isArrivalOnly(pin)) return null
+  if (pin.kind !== 'exclamacao' && pin.kind !== 'interrogacao') return null
+  const card: PinCard = {
+    id: pin.id,
+    kind: pin.kind,
+    description: pin.description,
+    image: isPlayerSafePinImage(pin.image) ? pin.image : null,
+  }
+  if (isPinIcon(pin.icon)) card.icon = pin.icon
+  return card
 }

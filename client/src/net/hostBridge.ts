@@ -2,6 +2,7 @@ import type { InvokeArgs } from '@tauri-apps/api/core'
 import type { UnlistenFn } from '@tauri-apps/api/event'
 import { useToastStore, type ToastAction, type ToastResposta } from '../stores/toastStore'
 import type { MapData, PinPassage, RegionPoint, Token } from '../types/map'
+import { NO_OWNER_RADII, type OwnerVisionRadii } from '../lib/imposedOccupancy'
 import { LASER_MAX_POINTS_PER_MESSAGE, LASER_SEND_INTERVAL_MS } from '../lib/laser'
 import { pointActionMasterText, type PointActionAnswer } from '../lib/pointActions'
 import type { StoredToken } from '../lib/storedTokens'
@@ -37,6 +38,7 @@ import {
   type AppliedMark,
   type LockAttempt,
   type PurchaseRequest,
+  type BarDispute,
   type AppliedTransfer,
   type GiveMapOutcome,
   type CaravanStop,
@@ -68,6 +70,7 @@ import {
   type SecretCheckState,
   type TokenActionRequest,
   type TravelCancelled,
+  type TrancaAviso,
   type TravelRequest,
 } from './hostSession'
 import { distanceLabel, TOKEN_ACTION_LABELS, TOKEN_ACTION_REPLY_MAX_LENGTH } from '../lib/tokenActions'
@@ -306,6 +309,11 @@ export interface HostBridge {
   lendToken(playerId: string, tokenId: string, terms: LoanTerms): void
   kick(clientId: string): Promise<void>
   players(): PlayerInfo[]
+  /**
+   * MOVIMENTO IMPOSTO: o raio que o host aplica a cada ficha com dono, neste
+   * `map` (`HostSession.tokenVisionRadii`). Sala fechada = nenhum raio.
+   */
+  tokenVisionRadii(map: MapData): OwnerVisionRadii
   /** Jogadores com conexão viva agora (0 com a sala fechada): quem cai se o mestre fechar o app. */
   connectedPlayerCount(): number
   room(): RoomInfo | null
@@ -326,6 +334,13 @@ export interface HostBridge {
    * hora — o jogador marcado vê o pino sem recarregar, e o desmarcado o perde.
    */
   setPinAudience(pinId: string, playerIds: readonly string[] | null): void
+  /**
+   * "Mostrar agora a…": o cartão do pino abre sozinho na tela deste jogador.
+   * `true` = saiu; `false` = não deu (ele saiu da cena, caiu, o pino sumiu ou
+   * ficou oculto); `null` = sala fechada. Com "Só estes", ele entra na lista:
+   * snapshot na hora e o painel recebe a lista nova.
+   */
+  showPin(playerId: string, pinId: string): boolean | null
   /**
    * "Revelar para…" da ficha secreta, escada secreta ou zona oculta: só
    * `playerIds` a recebem; `null` ou `[]` = segredo de todos. Snapshot na hora —
@@ -368,8 +383,9 @@ export interface HostBridge {
    * (sala fechada, destino ou ficha sumiram): o painel avisa e fica aberto.
    * `gatherAt`: "Reunir o grupo aqui" — chega nessa casa, com o aviso de
    * reunião; a montaria e o familiar, nas casas que o plano deu a eles.
+   * `tokenId`: a cabine contínua ao par leva ESTA ficha dele (`hostSession.sendPlayer`).
    */
-  sendPlayer(playerId: string, toSceneId: string, pinId: string | null, gatherAt?: GatherArrival): boolean
+  sendPlayer(playerId: string, toSceneId: string, pinId: string | null, gatherAt?: GatherArrival, tokenId?: string): boolean
   /**
    * "Trazer" do painel Grupo: a ficha `tokenId` do jogador, que ficou em
    * outra cena, vem para o lado dele. Não é viagem: sem "Você chegou" e fora
@@ -778,6 +794,8 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
    * `requestId` -> id do toast. Sai quando a pergunta volta ou o pedido morre.
    */
   const heldToasts = new Map<string, string>()
+  /** Aviso de cada disputa na porta (ferrolho) ainda na Caixa: `requestId` -> id do toast. */
+  const disputeToasts = new Map<string, string>()
   /** O que cada conexão está vendo, anotado do que sai em `dispatch` (espelho do "Ver tela"). */
   const screens = createPlayerScreens()
   const screenWatchers = new Set<() => void>()
@@ -1690,13 +1708,69 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     }
   }
 
-  /** Mesma faxina de `pruneTravelToasts`, para os pedidos de ação sobre ficha. */
+  /** Mesma faxina de `pruneTravelToasts`, para os pedidos de ação sobre ficha e as disputas na porta. */
   const pruneActionToasts = () => {
     for (const [requestId, toastId] of actionToasts) {
       if (session !== null && session.isTokenActionPending(requestId)) continue
       actionToasts.delete(requestId)
       useToastStore.getState().dismiss(toastId)
     }
+    for (const [requestId, toastId] of disputeToasts) {
+      if (session !== null && session.isBarDisputePending(requestId)) continue
+      disputeToasts.delete(requestId)
+      useToastStore.getState().dismiss(toastId)
+    }
+  }
+
+  const answerBarDispute = (requestId: string, force: boolean) => {
+    const toastId = disputeToasts.get(requestId)
+    disputeToasts.delete(requestId)
+    if (toastId !== undefined) useToastStore.getState().dismiss(toastId)
+    if (session === null) return
+    const result = session.answerBarDispute(requestId, force, world())
+    void dispatch(result)
+    if (result.applyDoor !== undefined) applyDoorAndBroadcast(result.applyDoor)
+  }
+
+  /**
+   * DISPUTA NA PORTA: alguém força, do outro lado, a porta que um jogador
+   * trancou com o ferrolho. Espera o mestre na Caixa de Pedidos, como o pedido
+   * de ação: "Arrombar" abre a porta (o ferrolho sai), "Aguenta" deixa como
+   * está. O × vale "Aguenta": a porta nunca abre sem o mestre dizer.
+   */
+  const askBarDispute = (dispute: BarDispute) => {
+    const where = dispute.sceneName === undefined ? '' : ` em ${dispute.sceneName}`
+    const toastId = useToastStore.getState().push('instrucao', `${dispute.playerName} tenta abrir a porta que ${dispute.barrerName} trancou com o ferrolho${where}`, null, {
+      actions: [
+        { label: 'Arrombar', run: () => answerBarDispute(dispute.requestId, true) },
+        { label: 'Aguenta', run: () => answerBarDispute(dispute.requestId, false) },
+      ],
+      onDismiss: () => answerBarDispute(dispute.requestId, false),
+      grupo: 'Pedidos',
+    })
+    disputeToasts.set(dispute.requestId, toastId)
+  }
+
+  /** "Ana passou o ferrolho numa porta", "Ana barrou Fundo do poço em Cripta": só informa, some sozinho. */
+  const announceTranca = (aviso: TrancaAviso) => {
+    const where = aviso.sceneName === undefined ? '' : ` em ${aviso.sceneName}`
+    const oQue =
+      aviso.alvo === 'porta'
+        ? aviso.acao === 'trancou'
+          ? 'passou o ferrolho numa porta'
+          : 'tirou o ferrolho de uma porta'
+        : `${aviso.acao === 'trancou' ? 'barrou' : 'tirou a barra de'} ${aviso.rotulo ?? 'uma passagem'}`
+    useToastStore.getState().push('info', `${aviso.playerName} ${oQue}${where}`)
+  }
+
+  /** Porta que a sessão mandou abrir ou fechar: o mestre vê pela store, os jogadores pelo snapshot imediato. */
+  const applyDoorAndBroadcast = (door: AppliedDoor) => {
+    // CHAVE ABRE PORTA: a chave da mochila tira o cadeado antes de abrir,
+    // pelo mesmo caminho do "Destrancar e abrir" do mestre.
+    if (door.unlock === true) deps.unlockAndOpenDoor?.(door.wallId, door.sceneId)
+    else if (door.sceneId === undefined) deps.applyDoor(door.wallId, door.open)
+    else deps.applyDoor(door.wallId, door.open, door.sceneId)
+    broadcastNow()
   }
 
   /** "Visto" ou "Responder": a linha sai e a resposta vai só a quem chamou. */
@@ -1756,6 +1830,26 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   }
 
   /**
+   * "ENTREGAR PISTA…" do Revistar: o cartão do pino oculto abre só em quem
+   * revistou (o mesmo `showPin` do "Mostrar agora a…"), e o pedido dele fica
+   * respondido ("Feito"). O mestre lê no aviso se saiu — ou por que não: a
+   * linha pode ter esperado enquanto o jogador saía da cena ou caía.
+   */
+  const deliverClue = (request: PointActionRequest, pinId: string) => {
+    if (session === null) return
+    const shown = session.showPin(request.playerId, pinId, world())
+    answerPointAction(request.requestId, 'seen')
+    if (shown.outbound.length === 0) {
+      useToastStore.getState().push('error', `Não deu para entregar a pista a ${request.playerName}: saiu desta cena ou perdeu a conexão.`)
+      return
+    }
+    broadcastNow()
+    void dispatch(shown)
+    notifyPinAudiencesIfChanged()
+    useToastStore.getState().push('info', `Cartão aberto na tela de ${request.playerName}.`)
+  }
+
+  /**
    * AÇÃO NO PONTO: "Fabi quer Procurar — Ferreiro" na Caixa (grupo
    * "Pedidos"), esperando o mestre. "Ir lá" leva ao ponto e deixa a linha;
    * "Nada aqui" e "Feito" respondem só a quem pediu. O × vale "Feito": a
@@ -1765,9 +1859,15 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   const askPointAction = (request: PointActionRequest) => {
     const goTo = deps.onPointActionGo
     const irLa = goTo === undefined ? [] : [{ label: 'Ir lá', mantem: true, run: () => goTo(request) }]
+    // REVISTAR: um "Entregar: Carta" por pista oculta da sala (`hiddenCluesAt`).
+    const entregar = (request.pistas ?? []).map((pista) => ({
+      label: `Entregar: ${pista.label}`,
+      run: () => deliverClue(request, pista.pinId),
+    }))
     const toastId = useToastStore.getState().push('instrucao', pointActionMasterText(request), null, {
       actions: [
         ...irLa,
+        ...entregar,
         { label: 'Nada aqui', run: () => answerPointAction(request.requestId, 'nothing') },
         { label: 'Feito', run: () => answerPointAction(request.requestId, 'seen') },
       ],
@@ -1915,6 +2015,9 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       // Recusa da revalidação (o token andou, o pino sumiu, a porta foi
       // trancada) ou pedido que já morreu.
       void dispatch(result)
+      // Barrada do outro lado depois do aviso: o pedido volta como disputa,
+      // e o mestre decide lendo quem barrou.
+      if (result.travelRequest !== undefined) askTravel(result.travelRequest)
       notifyPlayersIfChanged()
       return
     }
@@ -1936,6 +2039,10 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     if (lead === undefined || lead.applyTransfer === undefined) {
       // Pedido que já morreu, ou recusa da revalidação: ninguém foi.
       if (lead !== undefined) void dispatch(lead)
+      // Barrada do outro lado depois do aviso: como no "Deixar ir"
+      // (`answerTravel`), o pedido volta à Caixa como disputa. Sem isso o
+      // jogador seguia "Aguardando o mestre…" e o mestre não tinha onde responder.
+      if (lead?.travelRequest !== undefined) askTravel(lead.travelRequest)
       notifyPlayersIfChanged()
       return
     }
@@ -2085,9 +2192,13 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       askLockedTravel(request)
       return
     }
+    // BARRADA do outro lado: é uma disputa, e o botão diz o que ele faz com a
+    // barra. Fora do "Deixar todos" e do "com quem está perto": quebrar a barra
+    // de um colega não vai em lote.
+    const barrada = request.barradaPor
     // Quem está perto AGORA, só para oferecer o botão e dizer quantos; o
     // clique conta de novo (`answerTravelTogether`), porque o grupo anda.
-    const nearby = session === null ? 0 : session.travelCompanions(request.requestId, world()).length
+    const nearby = session === null || barrada !== undefined ? 0 : session.travelCompanions(request.requestId, world()).length
     const together = nearby === 0 ? [] : [{ label: `Deixar ir com quem está perto (${nearby})`, run: () => answerTravelTogether(request.requestId) }]
     // Pino com passe: o mestre lê que o pedido veio porque a ficha não tem o passe.
     const semPasse = request.motivo === 'sem-passe' ? ' (sem passe)' : ''
@@ -2100,17 +2211,25 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     }
     const destino = `${travelWithText(request)} por ${request.pinLabel} → ${request.toSceneName}${semPasse}${naCabine}`
     // Na volta do Volto já é a MESMA pergunta: o texto diz por que ela reaparece.
-    const text =
+    const pergunta =
       request.heldWhileAway === true
         ? `${request.playerName} voltou do Volto já e ainda quer passar${destino}. O "Deixar ir" esperou a volta.`
         : `${request.playerName} quer passar${destino}`
+    const text = barrada === undefined ? pergunta : `${pergunta} (barrada do outro lado por ${barrada})`
     const toastId = useToastStore.getState().push('instrucao', text, null, {
-      actions: [
-        { label: 'Deixar ir', run: () => answerTravel(request.requestId, true), emLote: true },
-        ...together,
-        ...travelVerAction(request.requestId),
-        { label: 'Não', run: () => answerTravel(request.requestId, false) },
-      ],
+      actions:
+        barrada === undefined
+          ? [
+              { label: 'Deixar ir', run: () => answerTravel(request.requestId, true), emLote: true },
+              ...together,
+              ...travelVerAction(request.requestId),
+              { label: 'Não', run: () => answerTravel(request.requestId, false) },
+            ]
+          : [
+              { label: 'Passa (quebra a barra)', run: () => answerTravel(request.requestId, true) },
+              ...travelVerAction(request.requestId),
+              { label: 'A barra aguenta', run: () => answerTravel(request.requestId, false) },
+            ],
       onDismiss: () => answerTravel(request.requestId, false),
       grupo: 'Pedidos',
       resposta: travelDenyResposta(request.requestId),
@@ -2423,19 +2542,21 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     }
     if (result.applyDoor !== undefined) {
       // Todos veem a porta nova: o mestre pela store, os jogadores pelo snapshot imediato.
-      const { wallId, open, sceneId, unlock } = result.applyDoor
-      // CHAVE ABRE PORTA: a chave da mochila tira o cadeado antes de abrir,
-      // pelo mesmo caminho do "Destrancar e abrir" do mestre.
-      if (unlock === true) deps.unlockAndOpenDoor?.(wallId, sceneId)
-      else if (sceneId === undefined) deps.applyDoor(wallId, open)
-      else deps.applyDoor(wallId, open, sceneId)
-      broadcastNow()
+      applyDoorAndBroadcast(result.applyDoor)
       // Com a chave, o aviso é o `doorKeyLine` logo abaixo (e sem quem destranque a porta nem abriu).
-      if (unlock !== true) announceDoor(result.applyDoor)
+      // Com o ferrolho, é o da tranca: "passou o ferrolho" já diz que fechou.
+      if (result.applyDoor.unlock !== true && result.trancaAviso === undefined) announceDoor(result.applyDoor)
+    }
+    if (result.trancaAviso !== undefined) {
+      announceTranca(result.trancaAviso)
+      // Ferrolho sem porta a mexer, ou barra de pino: só a sessão mudou, e a
+      // marca de quem está do lado da tranca sai no recorte novo.
+      if (result.applyDoor === undefined) broadcastNow()
     }
     // Sem quem destranque, a porta não abriu: o aviso não pode dizer que abriu.
     if (result.doorKeyUsed !== undefined && deps.unlockAndOpenDoor !== undefined) useToastStore.getState().push('info', doorKeyLine(result.doorKeyUsed))
     if (result.peek !== undefined) announcePeek(result.peek)
+    if (result.barDispute !== undefined) askBarDispute(result.barDispute)
     if (result.travelRequest !== undefined) {
       if (deps.applyTransfer === undefined) {
         // Integrador sem transferência: ninguém do lado do mestre saberia atender.
@@ -2697,6 +2818,9 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       // uma edição seguinte (no mesmo intervalo do broadcast) seja comparada
       // com a memória de antes do Ctrl+Z.
       if (cause === 'history') followCaravans('history')
+      // Cada mudança, não só a que sobra no fim do intervalo: a porta aberta e
+      // fechada de novo nele desfaz o ferrolho do jogador mesmo assim.
+      session?.podarFerrolhos(world)
       scheduleBroadcast()
     },
 
@@ -2732,6 +2856,18 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       session.setPinAudience(pinId, playerIds)
       broadcastNow()
       notifyPinAudiencesIfChanged()
+    },
+
+    showPin(playerId, pinId) {
+      if (session === null) return null
+      const result = session.showPin(playerId, pinId, world())
+      if (result.outbound.length === 0) return false
+      // O mapa com a lista nova sai antes do cartão: o pino (se à vista) já
+      // está no mapa dela quando o cartão abre.
+      broadcastNow()
+      void dispatch(result)
+      notifyPinAudiencesIfChanged()
+      return true
     },
 
     setSecretReveal(itemId, playerIds) {
@@ -2788,9 +2924,9 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       return result.mapGiven.roomIds.length
     },
 
-    sendPlayer(playerId, toSceneId, pinId, gatherAt) {
+    sendPlayer(playerId, toSceneId, pinId, gatherAt, tokenId) {
       if (session === null) return false
-      const result = session.sendPlayer(playerId, toSceneId, pinId, world(), gatherAt)
+      const result = session.sendPlayer(playerId, toSceneId, pinId, world(), gatherAt, tokenId)
       const transfer = result.applyTransfer
       // Mesmo caminho do "Deixar ir" (`answerTravel`): a ficha muda de cena
       // antes do `scene.changed` sair, e o snapshot da cena nova vem atrás.
@@ -3087,6 +3223,10 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
 
     players() {
       return playerList()
+    },
+
+    tokenVisionRadii(map) {
+      return session === null ? NO_OWNER_RADII : session.tokenVisionRadii(map)
     },
 
     connectedPlayerCount() {

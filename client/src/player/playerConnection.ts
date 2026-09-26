@@ -1,4 +1,4 @@
-import type { HazardKind, MapData, MarcaRumo, RegionPoint, Token } from '../types/map'
+import type { HazardKind, MapData, MarcaRumo, PinCard, RegionPoint, Token } from '../types/map'
 import { moveTokenCarryingLights } from '../lib/lightAttachment'
 import { HAZARD_NOTICE_TTL_MS, isHazardKind, parsePlayerHazards, type PlayerHazard } from '../lib/hazards'
 import { parsePlayerAreaTriggers, type PlayerAreaTrigger } from '../lib/areaTriggers'
@@ -74,6 +74,7 @@ import {
   parseNotebook,
   parseNotesAway,
   parsePartyUpdate,
+  parsePinShow,
   parsePointActionReply,
   parseRoomText,
   parseRouteMessage,
@@ -280,6 +281,13 @@ export interface PlayerState {
    * `forte` = o jogador está na cena da origem, e o aparelho vibra ao abrir.
    */
   note?: OpenNote
+  /**
+   * "Mostrar agora a…": o cartão que o mestre abriu nesta tela. Fica até o
+   * jogador fechar (`dismissShownPin`); outro toma o lugar. `id` novo a cada
+   * `pin.show`, inclusive do mesmo pino: mostrado de novo, abre de novo. Chega
+   * sem posição (`PinCard`): o cartão nunca diz onde o pino está.
+   */
+  shownPin?: { id: number; pin: PinCard }
   /**
    * PAUSA POR CENA: o mestre pausou a cena deste jogador (está com outro
    * grupo). Enquanto `true`, a tela mostra o aviso fixo; quem manda é o host,
@@ -504,6 +512,7 @@ export type HideNotice = { id: number; phase: 'waiting'; tokenId: string } | { i
 export type TravelNotice =
   /**
    * `direct`: o pino é livre, ninguém decide — só falta a resposta do host.
+   * Vira `false` com `pin.travel.pending`: a passagem estava barrada e o pedido espera o mestre.
    * `passe`: pino no modo passe; o host confere se a ficha tem o passe. O
    * cliente não sabe (o que abre a catraca nunca chega ao recorte).
    * `cancelling`: o jogador tocou "Desistir" e a confirmação do host ainda
@@ -770,6 +779,13 @@ export interface PlayerConnection {
    */
   changeFloor(tokenId: string, stairId: string): boolean
   /**
+   * Corre (`on`) ou tira o ferrolho da porta, do lado da ficha dele. O host
+   * decide; a marca volta no recorte. `false` se não está jogando ou o socket não está aberto.
+   */
+  barDoor(wallId: string, on: boolean): boolean
+  /** Barra (`on`) ou desbarra o pino de viagem onde a ficha dele está encostada. Mesmas recusas de `barDoor`. */
+  barPin(pinId: string, on: boolean): boolean
+  /**
    * Nome novo do PRÓPRIO token: aplica na hora e envia. `false` quando o token
    * não é dele, não está no mapa, o nome não cabe ou o socket não está aberto.
    */
@@ -870,6 +886,8 @@ export interface PlayerConnection {
   markPinRead(pinId: string): boolean
   /** Fecha o recado aberto (botão "Fechar" ou Escape do cartão). Quem fechou leu: aquele recado deixa de ser novo. */
   dismissNote(): void
+  /** Fecha o cartão que o mestre mostrou ("Fechar", Escape ou toque fora). */
+  dismissShownPin(): void
   /** Fecha o cartão "Enquanto você esteve fora". Os recados continuam no Caderno e deixam de ser novos. */
   dismissAwayNotes(): void
   /** O jogador abriu o Caderno: nenhum recado é novo mais. */
@@ -2725,6 +2743,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
           secretCheckNotice: undefined,
           playerLasers: undefined,
           shownClue: undefined,
+          shownPin: undefined,
           cluePeers: undefined,
           clueShow: undefined,
           call: undefined,
@@ -2768,7 +2787,8 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         // A lista de "Mostrar meu mapa a…" era de quem estava na cena de antes; a fechadura e a marca também.
         // As marcas de "me avise" também: o id do pino era de lá. E o caminho
         // de um colega e a lista da régua (os pontos eram do mapa de lá).
-        setState({ doorRequest: undefined, turnNotice: undefined, hazardNotice: undefined, noise: undefined, mapPeers: undefined, mapShare: undefined, lockAnswer: undefined, markPlace: undefined, sceneEpoch: state.sceneEpoch + 1, ...NO_PASSAGE_WATCH, ...NO_ROUTE })
+        // O cartão que o mestre mostrou era da cena de antes: fecha junto.
+        setState({ shownPin: undefined, doorRequest: undefined, turnNotice: undefined, hazardNotice: undefined, noise: undefined, mapPeers: undefined, mapShare: undefined, lockAnswer: undefined, markPlace: undefined, sceneEpoch: state.sceneEpoch + 1, ...NO_PASSAGE_WATCH, ...NO_ROUTE })
         {
           // TEXTO DE CHEGADA: o da cena nova, ou nenhum — o cartão da cena de
           // antes não fica aberto por cima de outro lugar.
@@ -2778,6 +2798,17 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         // Levado pelo mestre, "Você chegou" mentiria: ele não pediu para ir.
         // Reunido pelo mestre: outro aviso, porque ele não foi levado sozinho.
         showTravelAnswer({ id: nextNoticeId++, phase: data.by === 'gather' ? 'gathered' : data.by === 'master' ? 'moved' : 'arrived' })
+        return
+      case 'pin.travel.pending':
+        // A passagem livre virou pedido ao mestre (barrada do outro lado):
+        // "Passando…" mentiria. Só vale com o pedido no ar — aviso atrasado,
+        // depois da resposta, não reabre a espera.
+        if (state.status !== 'playing' || state.travel?.phase !== 'waiting') return
+        // Sem `clearTravelTimer`: a espera não tem prazo, e o único timer possível
+        // aqui seria o da batida da passagem livre, que já disparou (é ele que manda o pedido).
+        // Nem "Passando…" nem "Conferindo o passe…": o host já disse que é pedido ao
+        // mestre. `cancelling` segue o do pedido no ar (o "Desistir" já tocado continua valendo).
+        setState({ travel: { ...state.travel, id: nextNoticeId++, direct: false, passe: false } })
         return
       case 'pin.travel.denied': {
         if (state.status !== 'playing') return
@@ -2818,6 +2849,14 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         if (result === null) return
         clearMarkTimer()
         setState({ markPlace: result.ok ? { phase: 'ok' } : { phase: 'refused', reason: result.reason } })
+        return
+      }
+      case 'pin.show': {
+        // Mesma regra do recado: só quem joga tem tela de cartão.
+        if (state.status !== 'playing') return
+        const shown = parsePinShow(data)
+        if (shown === null) return
+        setState({ shownPin: { id: nextNoticeId++, pin: shown.pin } })
         return
       }
       case 'scene.note': {
@@ -3429,7 +3468,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       clues: state.clues ?? state.keptNotebook?.clues ?? [],
       notes: state.notebook ?? state.keptNotebook?.notes ?? [],
     }
-    setState({ keptNotebook, status: 'connecting', hide: undefined, compra: undefined, porAtravessar: undefined, letterPeers: undefined, letterSend: undefined, error: undefined, rev: -1, map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, partyTokens: undefined, concealed: undefined, glimpses: undefined, elsewhere: undefined, peek: undefined, sceneName: undefined, place: undefined, destinations: undefined, hazards: undefined, hazardNotice: undefined, gatilhos: undefined, andares: undefined, relogio: undefined, turn: undefined, signals: undefined, laser: undefined, playerLasers: undefined, doorNotice: undefined, doorRequest: undefined, moveNotice: undefined, turnNotice: undefined, travel: undefined, note: undefined, arrival: undefined, alarm: undefined, item: undefined, lever: undefined, roomText: undefined, notebook: undefined, unreadNotes: undefined, clues: undefined, colecoes: undefined, shownClue: undefined, cluePeers: undefined, clueShow: undefined, paused: undefined, call: undefined, reconnecting: undefined, pointNotice: undefined, noise: undefined, secretCheck: undefined, secretCheckNotice: undefined, mapPeers: undefined, mapShare: undefined, mapShared: undefined, tokenAction: undefined, wait: undefined, waitEnded: undefined, waitingTokens: undefined, away: undefined, ...NO_PASSAGE_WATCH, ...NO_ROUTE })
+    setState({ keptNotebook, status: 'connecting', hide: undefined, compra: undefined, porAtravessar: undefined, letterPeers: undefined, letterSend: undefined, error: undefined, rev: -1, map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, partyTokens: undefined, concealed: undefined, glimpses: undefined, elsewhere: undefined, peek: undefined, sceneName: undefined, place: undefined, destinations: undefined, hazards: undefined, hazardNotice: undefined, gatilhos: undefined, andares: undefined, relogio: undefined, turn: undefined, signals: undefined, laser: undefined, playerLasers: undefined, doorNotice: undefined, doorRequest: undefined, moveNotice: undefined, turnNotice: undefined, travel: undefined, note: undefined, arrival: undefined, alarm: undefined, item: undefined, lever: undefined, roomText: undefined, notebook: undefined, unreadNotes: undefined, clues: undefined, colecoes: undefined, shownClue: undefined, shownPin: undefined, cluePeers: undefined, clueShow: undefined, paused: undefined, call: undefined, reconnecting: undefined, pointNotice: undefined, noise: undefined, secretCheck: undefined, secretCheckNotice: undefined, mapPeers: undefined, mapShare: undefined, mapShared: undefined, tokenAction: undefined, wait: undefined, waitEnded: undefined, waitingTokens: undefined, away: undefined, ...NO_PASSAGE_WATCH, ...NO_ROUTE })
     open()
   }
 
@@ -3544,6 +3583,14 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     changeFloor(tokenId, stairId) {
       if (state.status !== 'playing' || tokenId.length === 0 || stairId.length === 0) return false
       return send({ type: 'token.piso', tokenId, stairId })
+    },
+    barDoor(wallId, on) {
+      if (state.status !== 'playing' || wallId.length === 0) return false
+      return send({ type: 'door.bar', wallId, on })
+    },
+    barPin(pinId, on) {
+      if (state.status !== 'playing' || pinId.length === 0) return false
+      return send({ type: 'pin.bar', pinId, on })
     },
 
     requestTravel(pinId, exitId, tokenIds) {
@@ -3722,6 +3769,10 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       const open = state.note
       if (open === undefined) return
       setState({ note: undefined, unreadNotes: (state.unreadNotes ?? []).filter((id) => id !== open.id) })
+    },
+
+    dismissShownPin() {
+      if (state.shownPin !== undefined) setState({ shownPin: undefined })
     },
 
     dismissAwayNotes() {

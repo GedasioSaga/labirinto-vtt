@@ -147,7 +147,7 @@ export function isPinPassage(value: unknown): value is PinPassage {
  * do campo fazia, e um valor desconhecido que escapasse até aqui também cai no
  * modo que pergunta — nunca num que deixa passar sem ninguém ver.
  */
-export function passageOf(pin: Pin): PinPassage {
+export function passageOf(pin: Pick<Pin, 'passagem'>): PinPassage {
   return isPinPassage(pin.passagem) ? pin.passagem : 'pede'
 }
 
@@ -196,7 +196,7 @@ export function isPinBlockReason(value: unknown): value is PinBlockReason {
  * lista. Motivo guardado num pino reaberto fica com o mestre — é o que ele
  * preparou para depois, não o que a porta é agora.
  */
-export function blockReasonOf(pin: Pin): PinBlockReason | null {
+export function blockReasonOf(pin: Pick<Pin, 'kind' | 'passagem' | 'motivo'>): PinBlockReason | null {
   if (pin.kind !== 'viagem' || passageOf(pin) !== 'trancada') return null
   return isPinBlockReason(pin.motivo) ? pin.motivo : null
 }

@@ -1,0 +1,275 @@
+/*
+ * SelectionHeader — a faixa da seleção no topo do corpo do inspetor: o ícone
+ * da ferramenta que criou a coisa, o nome e o tipo, e as ações (Apagar, "Mais
+ * ações"). Primitivas (`.lb-tip`, `.lb-sr-only`, `.lb-panel`, o anel de foco)
+ * vêm de main.css, como em ActionBar.css. Só `var(--lb-*)` de theme.ts — zero
+ * hex, zero sombra solta.
+ */
+
+/* Gruda no topo do corpo que rola (`.lb-inspector__body`): Apagar fica à mão em
+   qualquer altura da coluna. Fundo opaco na cor do painel já composto sobre o
+   canvas (`stone-sunken` ≈ o `stone` translúcido sobre o cinza do canvas), para
+   o que rola por baixo não vazar. `z-index` acima do balão das dicas (10/11) e
+   abaixo dos menus (20). */
+.lb-selhead {
+  position: sticky;
+  top: 0;
+  z-index: 12;
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--lb-space-2);
+  padding: var(--lb-space-1) var(--lb-space-3) var(--lb-space-1) var(--lb-space-4);
+  background: var(--lb-color-stone-sunken);
+  border-bottom: 1px solid var(--lb-color-line);
+}
+
+/* Rolada a coluna, a faixa ganha sombra: mostra que o painel passa POR BAIXO
+   dela. Ligada à rolagem, não ao tempo — não é movimento. */
+@supports (animation-timeline: scroll()) {
+  .lb-selhead {
+    animation: lb-selhead-sombra linear both;
+    animation-timeline: scroll(nearest block);
+    animation-range: 0 var(--lb-space-6);
+  }
+
+  @keyframes lb-selhead-sombra {
+    to {
+      box-shadow: var(--lb-shadow-md);
+    }
+  }
+}
+
+/* Com a faixa, o que o Tab (ou `scrollIntoView`) traz para a vista para abaixo
+   dela, e não atrás: 44 px do botão + o respiro de cima e de baixo + a linha. */
+.lb-inspector__body:has(> .lb-selhead) {
+  scroll-padding-top: calc(44px + 2 * var(--lb-space-1) + 1px + var(--lb-space-2));
+}
+
+/* O ícone da ferramenta no ladrilho de latão, o mesmo acento da ferramenta
+   ativa na barra e da marca no cabeçalho do inspetor: é o que está na mão. */
+.lb-selhead__mark {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--lb-radius-sm);
+  background: var(--lb-color-brass-soft);
+  color: var(--lb-color-brass);
+}
+
+.lb-selhead__mark svg {
+  display: block;
+}
+
+.lb-selhead__id {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+/* Nome em cima (é o que distingue esta sala das outras), tipo embaixo. */
+.lb-selhead__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--lb-font-size-md);
+  font-weight: var(--lb-font-weight-medium);
+  line-height: var(--lb-font-leading-tight);
+  color: var(--lb-color-parchment);
+}
+
+/* Legenda de mapa (a família condensada dos títulos), sem caixa alta: não é
+   título de seção e não deve ser lida como um. */
+.lb-selhead__type {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--lb-font-utility);
+  font-size: var(--lb-font-size-sm);
+  letter-spacing: var(--lb-font-tracking-wide);
+  line-height: var(--lb-font-leading-tight);
+  color: var(--lb-color-parchment-faint);
+}
+
+/* Botão só com ícone: alvo de 44 px (invariante de toque), com o desenho de
+   36 px — o tamanho de `.lb-iconbtn` — no miolo. O respiro de 4 px em volta é
+   área de clique, não enfeite. */
+.lb-selhead__btn {
+  flex: none;
+  display: grid;
+  width: 44px;
+  height: 44px;
+  padding: var(--lb-space-1);
+  border: 0;
+  border-radius: var(--lb-radius-md);
+  background: transparent;
+  color: var(--lb-color-parchment-dim);
+  cursor: pointer;
+}
+
+.lb-selhead__chip {
+  position: relative;
+  display: grid;
+  place-items: center;
+  border-radius: var(--lb-radius-md);
+  transition:
+    background var(--lb-motion-fast) var(--lb-motion-ease),
+    color var(--lb-motion-fast) var(--lb-motion-ease),
+    transform var(--lb-motion-fast) var(--lb-motion-ease);
+}
+
+.lb-selhead__chip svg {
+  display: block;
+}
+
+.lb-selhead__btn:hover .lb-selhead__chip {
+  background: var(--lb-color-stone-hover);
+  color: var(--lb-color-parchment);
+}
+
+/* Apertar responde na hora (Emil: `scale(0.97)` no `:active`). */
+.lb-selhead__btn:active .lb-selhead__chip {
+  transform: scale(0.97);
+}
+
+/* O anel de foco abraça o desenho, não a área de clique. */
+.lb-selhead__btn:focus-visible {
+  box-shadow: none;
+}
+
+.lb-selhead__btn:focus-visible .lb-selhead__chip {
+  box-shadow: var(--lb-shadow-focus);
+}
+
+/* Apagar: neutro parado (a faixa fica quieta em toda seleção) e brasa quando o
+   ponteiro ou o foco chegam — a mesma brasa do botão de apagar de antes. */
+.lb-selhead__btn--apagar:hover .lb-selhead__chip,
+.lb-selhead__btn--apagar:focus-visible .lb-selhead__chip {
+  background: var(--lb-color-ember-soft);
+  color: var(--lb-color-ember);
+}
+
+/* "⋯" com o menu aberto: o mesmo destaque do botão de imagem de fundo aberto. */
+.lb-selhead__btn[aria-expanded='true'] .lb-selhead__chip {
+  background: var(--lb-color-brass-soft);
+  color: var(--lb-color-brass);
+}
+
+/* Balão das dicas da faixa: os dois botões moram no canto direito da coluna, e
+   o balão centrado no botão passaria da borda (o corpo rola e corta o que sai
+   dele). Alinhado pela direita do desenho, e quebra linha em vez de passar da
+   borda esquerda ("Apagar peça de chão selecionada (Delete)" não cabe numa
+   linha só); a setinha continua no meio do botão. */
+.lb-selhead .lb-tip::after {
+  left: auto;
+  right: var(--lb-space-1);
+  width: max-content;
+  max-width: 11rem;
+  white-space: normal;
+  text-align: left;
+  transform: translateY(-3px);
+}
+
+.lb-selhead .lb-tip:hover::after,
+.lb-selhead .lb-tip:focus-visible::after {
+  transform: translateY(0);
+}
+
+/* Menu aberto: a dica do "⋯" cobriria o primeiro item. */
+.lb-selhead .lb-tip[aria-expanded='true']::after,
+.lb-selhead .lb-tip[aria-expanded='true']::before {
+  display: none;
+}
+
+/* Foco de teclado num botão e o ponteiro parado no vizinho: os dois balões se
+   cobriam (visto no passeio). Fica só o do foco, que é onde a pessoa está. */
+.lb-selhead:has(.lb-tip:focus-visible) .lb-tip:not(:focus-visible)::after,
+.lb-selhead:has(.lb-tip:focus-visible) .lb-tip:not(:focus-visible)::before {
+  opacity: 0;
+}
+
+/* Menu "Mais ações": nasce sob o "⋯", por cima da coluna (não ocupa lugar
+   nela), com as margens do conteúdo das seções. Duas classes pelo mesmo motivo
+   de ActionBar.css: `.lb-panel` vem depois e venceria o fundo opaco. */
+.lb-panel.lb-selhead__pop {
+  position: absolute;
+  top: calc(100% - var(--lb-space-1));
+  left: var(--lb-space-4);
+  right: var(--lb-space-4);
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  padding: var(--lb-space-1);
+  background: var(--lb-color-stone-solid);
+  transform-origin: top right;
+  /* A mesma entrada dos outros menus da coluna (main.css): abre do "⋯". */
+  animation: lb-cenas-menu-entra var(--lb-motion-fast) var(--lb-motion-ease);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lb-panel.lb-selhead__pop {
+    animation: none;
+  }
+
+  .lb-selhead__btn:active .lb-selhead__chip {
+    transform: none;
+  }
+}
+
+.lb-selhead__menu {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.lb-selhead__item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  width: 100%;
+  padding: 6px var(--lb-space-2);
+  border: 1px solid transparent;
+  border-radius: var(--lb-radius-sm);
+  background: transparent;
+  color: var(--lb-color-parchment-dim);
+  font-family: inherit;
+  font-size: var(--lb-font-size-sm);
+  text-align: left;
+  cursor: pointer;
+}
+
+.lb-selhead__item:focus {
+  outline: none;
+}
+
+.lb-selhead__item:hover:not([aria-disabled='true']),
+.lb-selhead__item:focus-visible {
+  background: var(--lb-color-stone-hover);
+  color: var(--lb-color-parchment);
+}
+
+/* O que não age agora fica no lugar, esmaecido, com o motivo por extenso. */
+.lb-selhead__item[aria-disabled='true'] {
+  color: var(--lb-color-parchment-faint);
+  cursor: not-allowed;
+}
+
+.lb-selhead__reason {
+  font-size: var(--lb-font-size-xs);
+  color: var(--lb-color-parchment-faint);
+}
+
+/* A frase que antes morava sob os dois botões na coluna, agora no pé do menu. */
+.lb-selhead__hint {
+  margin: var(--lb-space-1) 0 0;
+  padding: var(--lb-space-2) var(--lb-space-2) var(--lb-space-1);
+  border-top: 1px solid var(--lb-color-line);
+  font-size: var(--lb-font-size-xs);
+  line-height: var(--lb-font-leading-normal);
+  color: var(--lb-color-parchment-faint);
+}
