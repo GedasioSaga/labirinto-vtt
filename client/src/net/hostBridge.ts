@@ -38,6 +38,8 @@ import {
   type LockAttempt,
   type PurchaseRequest,
   type BarDispute,
+  type TradeProposeResult,
+  type TradeUpdate,
   type AppliedTransfer,
   type GiveMapOutcome,
   type CaravanStop,
@@ -74,6 +76,7 @@ import {
 } from './hostSession'
 import { distanceLabel, TOKEN_ACTION_LABELS, TOKEN_ACTION_REPLY_MAX_LENGTH } from '../lib/tokenActions'
 import { linhaDoPedidoVivo } from '../lib/pedidoVivo'
+import { tradeSideText, type TradeProposal } from '../lib/troca'
 import {
   CALL_REASON_LABELS,
   clampTravelDenyText,
@@ -415,6 +418,12 @@ export interface HostBridge {
    */
   playerNote(playerId: string, text: string): PlayerNoteDelivery
   /**
+   * MOEDAS E TROCA — "Propor troca…" do Grupo: a oferta vai só ao jogador
+   * `playerId`, pela ficha `tokenId`, e a linha dela fica na Caixa até ele
+   * responder. Sem sala, ou sem quem grave a mochila, não sai (`unavailable`).
+   */
+  proposeTrade(playerId: string, tokenId: string, proposta: TradeProposal): TradeProposeResult
+  /**
    * "Desfazer" do diário: devolve a ficha da viagem `entryId` à cena e à casa
    * de onde saiu, e tira a linha do diário. Só vale para a ÚLTIMA viagem do
    * jogador; `false` quando não deu (sala fechada, viagem velha, a ficha já
@@ -571,6 +580,29 @@ export function purchaseRequestLine(request: PurchaseRequest): string {
   const preco = request.preco.trim() === '' ? '' : ` (${request.preco.trim()})`
   const where = request.sceneName === undefined ? '' : `, ${request.sceneName}`
   return `${request.playerName} quer ${request.itemName}${preco} em ${request.pinLabel}${where}`
+}
+
+/**
+ * MOEDAS E TROCA — a linha da Caixa do mestre sobre o que o jogador fez:
+ * "Bruno aceitou a troca com Zulmira: deu Faca e 3 moedas por Xarope",
+ * "Bruno contrapropõe a Zulmira: Vela e 1 moeda por Xarope".
+ */
+export function tradeUpdateLine(update: TradeUpdate): string {
+  switch (update.kind) {
+    case 'accepted':
+      return `${update.playerName} aceitou a troca com ${update.de}: deu ${update.pedido} por ${update.oferta}`
+    case 'refused':
+      return `${update.playerName} recusou a troca com ${update.de}`
+    case 'countered':
+      return `${update.playerName} contrapropõe a ${update.de}: ${update.pedido} por ${update.oferta}`
+    case 'failed':
+      return `A troca de ${update.playerName} com ${update.de} não deu: faltou o que pagar`
+  }
+}
+
+/** A linha da oferta aberta: "Oferta a Bruno (Zulmira): Xarope por Faca e 3 moedas". */
+export function tradeOfferLine(playerName: string, de: string, oferta: string, pedido: string): string {
+  return `Oferta a ${playerName} (${de}): ${oferta} por ${pedido}`
 }
 
 /** "Diego quer pegar Chave do Escudo", mais " em Mansão" quando o item está numa cena de fundo. */
@@ -770,6 +802,8 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   const itemToasts = new Map<string, string>()
   /** LOJA: linha de cada "Quero" ainda na tela: `requestId` -> id do toast. */
   const purchaseToasts = new Map<string, string>()
+  /** MOEDAS E TROCA: a linha de cada oferta aberta (esperando o jogador ou a contraproposta): `offerId` -> id do toast. */
+  const tradeToasts = new Map<string, string>()
   /** CORREIO: aviso do mestre de cada bilhete que ainda espera: `letterId` -> id do toast. */
   const letterToasts = new Map<string, string>()
   /**
@@ -1465,6 +1499,12 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       purchaseToasts.delete(requestId)
       useToastStore.getState().dismiss(toastId)
     }
+    // E para a troca: a oferta de quem caiu ou saiu morreu na sessão.
+    for (const [offerId, toastId] of tradeToasts) {
+      if (session !== null && session.isTradePending(offerId)) continue
+      tradeToasts.delete(offerId)
+      useToastStore.getState().dismiss(toastId)
+    }
     // Mesma regra para a ação no ponto: jogador expulso ou sala fechada não
     // deixa um "Nada aqui" que não chega a ninguém.
     for (const [requestId, toastId] of pointActionToasts) {
@@ -1610,6 +1650,74 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       sempreEmCaixa: true,
     })
     purchaseToasts.set(request.requestId, toastId)
+  }
+
+  /** Tira da tela a linha da oferta `offerId`, se ainda há uma. */
+  const dropTradeToast = (offerId: string) => {
+    const toastId = tradeToasts.get(offerId)
+    tradeToasts.delete(offerId)
+    if (toastId !== undefined) useToastStore.getState().dismiss(toastId)
+  }
+
+  /**
+   * MOEDAS E TROCA — "Aceitar" a contraproposta revalida na sessão e grava
+   * pela store (mochila e bolsa juntas, na cena da ficha) ANTES de mandar o
+   * "Troca feita"; o snapshot sai na hora. "Recusar" só avisa o jogador.
+   */
+  const answerTradeCounter = (offerId: string, accept: boolean) => {
+    dropTradeToast(offerId)
+    if (session === null) return
+    if (!accept || deps.applyItems === undefined) {
+      void dispatch(session.refuseTradeCounter(offerId))
+      return
+    }
+    const result = session.acceptTradeCounter(offerId, world())
+    if (result.applyItems !== undefined) deps.applyItems(result.applyItems)
+    void dispatch(result)
+    if (result.applyItems !== undefined) broadcastNow()
+    if (result.tradeUpdate !== undefined) announceTrade(result.tradeUpdate)
+  }
+
+  /** O mestre desiste da oferta que ainda espera o jogador. */
+  const cancelTrade = (offerId: string) => {
+    dropTradeToast(offerId)
+    if (session !== null) void dispatch(session.cancelTrade(offerId))
+  }
+
+  /**
+   * A linha da oferta aberta, no grupo "Pedidos": espera o jogador, e
+   * "Desfazer" (ou o ×) a tira dele. Some sozinha quando a troca acaba.
+   */
+  const showOpenTrade = (offerId: string, line: string) => {
+    const toastId = useToastStore.getState().push('instrucao', line, null, {
+      actions: [{ label: 'Desfazer', run: () => cancelTrade(offerId) }],
+      onDismiss: () => cancelTrade(offerId),
+      grupo: 'Pedidos',
+      sempreEmCaixa: true,
+    })
+    tradeToasts.set(offerId, toastId)
+  }
+
+  /**
+   * O que o jogador fez com a oferta. A contraproposta espera o mestre
+   * ("Aceitar"/"Recusar"; o × vale "Recusar"); o resto é aviso.
+   */
+  const announceTrade = (update: TradeUpdate) => {
+    dropTradeToast(update.offerId)
+    if (update.kind !== 'countered') {
+      useToastStore.getState().push('info', tradeUpdateLine(update))
+      return
+    }
+    const toastId = useToastStore.getState().push('instrucao', tradeUpdateLine(update), null, {
+      actions: [
+        { label: 'Aceitar', run: () => answerTradeCounter(update.offerId, true) },
+        { label: 'Recusar', run: () => answerTradeCounter(update.offerId, false) },
+      ],
+      onDismiss: () => answerTradeCounter(update.offerId, false),
+      grupo: 'Pedidos',
+      sempreEmCaixa: true,
+    })
+    tradeToasts.set(update.offerId, toastId)
   }
 
   /**
@@ -2574,6 +2682,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       if (deps.applyItems === undefined) void dispatch(session.denyPurchase(result.purchaseRequest.requestId))
       else askPurchase(result.purchaseRequest)
     }
+    if (result.tradeUpdate !== undefined) announceTrade(result.tradeUpdate)
     if (result.chamadaDeCabine !== undefined) announceCabineCall(result.chamadaDeCabine)
     if (result.letter !== undefined) askLetter(result.letter)
     if (result.applyTokenEdit !== undefined && deps.applyTokenEdit !== undefined) {
@@ -3020,6 +3129,25 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       const result = session.playerNote(playerId, text, world())
       void dispatch(result)
       return result.delivery
+    },
+
+    proposeTrade(playerId, tokenId, proposta) {
+      // Sem quem grave a mochila, "Aceitar" não teria como entregar: a oferta nem sai.
+      if (session === null || deps.applyItems === undefined) return 'unavailable'
+      const result = session.proposeTrade(playerId, tokenId, proposta, world())
+      if (result.offerId === null) return result.refusal ?? 'unavailable'
+      void dispatch(result)
+      const offer = result.outbound[0]?.msg
+      const name = session.listPlayers().find((p) => p.playerId === playerId)?.name ?? ''
+      if (offer?.type === 'trade.offer') {
+        const oferta = tradeSideText(offer.dou.itens, offer.dou.moedas)
+        const pedido = tradeSideText(
+          offer.peco.itens.map((item) => item.nome),
+          offer.peco.moedas,
+        )
+        showOpenTrade(result.offerId, tradeOfferLine(name, offer.de, oferta, pedido))
+      }
+      return 'sent'
     },
 
     rollDice(request, hidden) {

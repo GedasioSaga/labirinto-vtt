@@ -1,4 +1,5 @@
-import type { ConcealZone, DoorState, FloorStyle, Light, MapData, Prop, Region } from '../types/map'
+import type { ConcealZone, DoorState, FloorStyle, Light, MapData, Prop, Region, Token } from '../types/map'
+import { readMoedas } from './troca'
 import { isEfeitoNaLuz, isEfeitoNaPorta, isEfeitoNaZona, regraDePinoDoArquivo, regraDoArquivo } from './estadoDoMundo'
 import { propPlayerImage, propPlayerLabel } from './propPlayerLook'
 import { readDoorKey } from './doorKey'
@@ -265,6 +266,15 @@ function lightFromFile(light: Light): Light {
   return apagada === true ? { ...withRule, apagada: true } : withRule
 }
 
+/** BOLSA do arquivo: ausente fica ausente; valor torto some (bolsa vazia) em vez de ir parar na tela. */
+function bolsaDoArquivo(token: Token): Token {
+  if (!('moedas' in token)) return token
+  const moedas = readMoedas(token.moedas)
+  if (moedas !== undefined) return { ...token, moedas }
+  const { moedas: _torta, ...semBolsa } = token
+  return semBolsa
+}
+
 /** `movement` só entra no mapa quando o arquivo traz regra válida: mapa de antes não ganha campo. */
 function movementField(raw: unknown): Pick<MapData, 'movement'> {
   const movement = readMovementRules(raw)
@@ -335,12 +345,15 @@ function deserializeMapFields(json: string): MapData {
     // do host. Arquivo que o traga (editado à mão) perde o campo na leitura.
     // `emprestada` (NPC emprestado) também é marca de FIO: mesma limpeza.
     // `rotina` (ROTINA DO NPC): rotina torta some e a ficha volta a ser a de sempre; ausente continua ausente.
+    // BOLSA (moedas e troca) segue a mesma mão única: ausente continua
+    // ausente; só inteiro positivo até o teto fica (`readMoedas`).
     tokens: entityList(parsed.tokens).map((t) => {
       const lido = fichaComRotinaDoArquivo(withoutLentMark(withoutContract(tokenPublicNameFromFile({ ...t, image: t.image ?? null }))))
-      if (!('mochila' in t)) return lido
+      const comBolsa = bolsaDoArquivo(lido)
+      if (!('mochila' in t)) return comBolsa
       const mochila = readCarriedItems(t.mochila)
-      if (mochila !== undefined) return { ...lido, mochila }
-      const { mochila: _descartada, ...semMochila } = lido
+      if (mochila !== undefined) return { ...comBolsa, mochila }
+      const { mochila: _descartada, ...semMochila } = comBolsa
       return semMochila
     }),
     // Prop.layer ausente fica undefined. MOBÍLIA: `mobilia` ausente continua

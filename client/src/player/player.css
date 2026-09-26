@@ -3900,3 +3900,52 @@ button.pp-colecao__casa:focus-visible {
     bottom: calc(156px + env(safe-area-inset-bottom, 0px));
   }
 }
+
+/*
+ * MOEDAS E TROCA: o cartão da oferta do mestre usa a pele do recado, mas mora
+ * embaixo, para não brigar com o recado no alto. Linguagem de minimapa: fundo
+ * chapado, linha fina clara, sem ornamento.
+ */
+.pp-troca {
+  top: auto;
+  bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+  z-index: 26;
+}
+
+.pp-troca__acoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.pp-troca__contra {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.pp-troca__itens {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 6px 8px;
+  border: 1px solid var(--lb-color-line-panel, rgba(255, 255, 255, 0.18));
+  border-radius: 6px;
+}
+
+.pp-troca__item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+}
+
+.pp-troca__pagar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+}

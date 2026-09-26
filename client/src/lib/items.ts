@@ -108,6 +108,18 @@ export interface ItemChange {
    * lado sem o outro. A banca continua no mapa.
    */
   venda?: { pinId: string; itemId: string }
+  /**
+   * MOEDAS E TROCA: a bolsa nova INTEIRA de cada ficha envolvida, na MESMA
+   * mudança das mochilas — pagar e trocar nunca gravam um lado sem o outro.
+   * Zero tira o campo (ausente === bolsa vazia). Ausente = nenhuma bolsa muda.
+   */
+  bolsas?: BolsaUpdate[]
+}
+
+/** A bolsa nova de uma ficha (MOEDAS E TROCA). */
+export interface BolsaUpdate {
+  tokenId: string
+  moedas: number
 }
 
 /** "Tirar" do mestre: o item sai da mochila da ficha e some (a chave usada). `null` = a ficha não o tem. */
@@ -171,17 +183,32 @@ export function applyItemChange(map: MapData, change: ItemChange): MapData {
   return applyBackpacksAndPins(vendido, change)
 }
 
-/** As mochilas e o pino que sai ou volta; nada mudando, o MESMO mapa. */
+/** A ficha com a mochila nova; vazia tira o campo. */
+function withBackpack(token: Token, mochila: CarriedItem[]): Token {
+  if (mochila.length > 0) return { ...token, mochila }
+  const { mochila: _vazia, ...semMochila } = token
+  return semMochila
+}
+
+/** A ficha com a bolsa nova; zero (ou valor que não é moeda) tira o campo. */
+function withPurse(token: Token, moedas: number): Token {
+  if (Number.isInteger(moedas) && moedas > 0) return { ...token, moedas }
+  const { moedas: _vazia, ...semBolsa } = token
+  return semBolsa
+}
+
+/** As mochilas, as bolsas e o pino que sai ou volta; nada mudando, o MESMO mapa. */
 function applyBackpacksAndPins(map: MapData, change: ItemChange): MapData {
   const byToken = new Map(change.mochilas.map((update) => [update.tokenId, update.mochila]))
+  const bolsaByToken = new Map((change.bolsas ?? []).map((update) => [update.tokenId, update.moedas]))
   let tokensChanged = false
   const tokens = map.tokens.map((token) => {
     const mochila = byToken.get(token.id)
-    if (mochila === undefined) return token
+    const moedas = bolsaByToken.get(token.id)
+    if (mochila === undefined && moedas === undefined) return token
     tokensChanged = true
-    if (mochila.length > 0) return { ...token, mochila }
-    const { mochila: _vazia, ...semMochila } = token
-    return semMochila
+    const comMochila = mochila === undefined ? token : withBackpack(token, mochila)
+    return moedas === undefined ? comMochila : withPurse(comMochila, moedas)
   })
   const removePinId = change.removePinId
   const pinGone = removePinId !== undefined && map.pins.some((p) => p.id === removePinId)
