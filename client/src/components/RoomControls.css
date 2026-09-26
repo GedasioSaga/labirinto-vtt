@@ -33,6 +33,16 @@
   flex-direction: column;
 }
 
+/* Depois de uma frase, o interruptor seguinte ganha mais um degrau de respiro:
+   com o vão de 4 px só, a frase ficava tão perto do rótulo de baixo quanto do
+   dela (~6 px e ~10 px) e se lia como legenda de qualquer um dos dois. Agora
+   ~6 px a prendem ao dela e ~14 px a separam do próximo. Só onde há frase:
+   dois interruptores sem frase continuam no passo curto. Margem, não padding
+   no rótulo: o alvo do interruptor não muda de tamanho. */
+.lb-room-switch + * {
+  margin-top: var(--lb-space-1);
+}
+
 /* O que se ACRESCENTA à sala, abaixo do que ela é: uma lista quieta, separada
    do resto por uma linha fina, como as seções vazias do Figma. */
 .lb-room-extras {

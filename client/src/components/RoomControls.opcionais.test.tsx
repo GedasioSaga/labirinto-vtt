@@ -57,6 +57,7 @@ function props(overrides: Partial<RoomControlsProps> = {}): RoomControlsProps {
     raioDeVisao: null,
     onRaioDeVisaoChange: vi.fn(),
     hazard: { kind: null, roomCount: 1, canAdvance: false, onKindChange: vi.fn(), onAdvance: vi.fn() },
+    conveyor: { direction: null, stepCells: 3, canAdvance: false, onChange: vi.fn(), onAdvance: vi.fn() },
     onAddMobilia: vi.fn(),
     onCreateRoomInside: vi.fn(),
     ...overrides,
@@ -69,7 +70,7 @@ function render(p: RoomControlsProps, key = 'salao'): RoomControlsProps {
 }
 
 /** Os opcionais, na ordem em que o mestre os lê. */
-const OPCIONAIS = ['Ao entrar, o jogador lê', 'Nota do mestre', 'Facção', 'Raio de visão aqui', 'Perigo', 'Mobília'] as const
+const OPCIONAIS = ['Ao entrar, o jogador lê', 'Nota do mestre', 'Facção', 'Raio de visão aqui', 'Perigo', 'Esteira', 'Mobília'] as const
 
 /** A linha "+" de um opcional recolhido (o botão cujo texto é o nome do campo). */
 function linha(rotulo: string): HTMLButtonElement | null {
@@ -195,6 +196,10 @@ describe('RoomControls: opcional vazio = uma linha com "+"', () => {
     act(() => linhaObrigatoria('Perigo').click())
     expect(document.activeElement?.getAttribute('role')).toBe('radio')
     expect(document.activeElement?.textContent).toBe('Nenhum')
+    act(() => linhaObrigatoria('Esteira').click())
+    expect(document.activeElement?.getAttribute('role')).toBe('radio')
+    expect(document.activeElement?.textContent).toBe('Nenhuma')
+    expect(document.activeElement?.closest('[role="radiogroup"]')?.getAttribute('aria-label')).toBe('Esteira na sala')
     act(() => linhaObrigatoria('Mobília').click())
     expect(document.activeElement?.textContent).toBe('Catre')
     expect(document.activeElement?.closest('[role="group"]')?.getAttribute('aria-label')).toBe('Pôr mobília na sala')
@@ -208,9 +213,10 @@ describe('RoomControls: opcional vazio = uma linha com "+"', () => {
         faccao: 'Guarda Carmesim',
         raioDeVisao: 700,
         hazard: { kind: 'fogo', roomCount: 1, canAdvance: true, onKindChange: vi.fn(), onAdvance: vi.fn() },
+        conveyor: { direction: 'leste', stepCells: 2, canAdvance: true, onChange: vi.fn(), onAdvance: vi.fn() },
       }),
     )
-    for (const rotulo of ['Ao entrar, o jogador lê', 'Nota do mestre', 'Facção', 'Raio de visão aqui', 'Perigo']) {
+    for (const rotulo of ['Ao entrar, o jogador lê', 'Nota do mestre', 'Facção', 'Raio de visão aqui', 'Perigo', 'Esteira']) {
       expect(linha(rotulo), rotulo).toBeNull()
     }
     expect((campo('Ao entrar, o jogador lê') as HTMLTextAreaElement).value).toBe('Cheiro de pão.')
@@ -219,6 +225,14 @@ describe('RoomControls: opcional vazio = uma linha com "+"', () => {
     const fogo = container.querySelector('[role="radiogroup"][aria-label="Perigo na sala"] [aria-checked="true"]')
     expect(fogo?.textContent).toBe('Fogo')
     expect(fogo?.closest('[hidden]')).toBeNull()
+    // Esteira ligada: a direção marcada, o passo e o "Avançar esteiras" à mão, sem o "+".
+    const leste = container.querySelector('[role="radiogroup"][aria-label="Esteira na sala"] [aria-checked="true"]')
+    expect(leste?.textContent).toBe('Leste')
+    expect(leste?.closest('[hidden]')).toBeNull()
+    expect((campo('Passo (casas)') as HTMLSelectElement).value).toBe('2')
+    const avancar = [...container.querySelectorAll('button')].find((b) => b.textContent === 'Avançar esteiras')
+    expect(avancar?.closest('[hidden]')).toBeNull()
+    expect(avancar?.disabled).toBe(false)
     expect(linha('Mobília')).not.toBeNull()
   })
 
@@ -247,14 +261,16 @@ describe('RoomControls: opcional vazio = uma linha com "+"', () => {
     expect(document.activeElement).toBe(nome)
   })
 
-  it('esvaziar um campo aberto não o fecha debaixo do cursor: apagar o texto, "Nenhum" no perigo', () => {
+  it('esvaziar um campo aberto não o fecha debaixo do cursor: apagar o texto, "Nenhum" no perigo, "Nenhuma" na esteira', () => {
     const fogo = { kind: 'fogo', roomCount: 1, canAdvance: true, onKindChange: vi.fn(), onAdvance: vi.fn() } as const
-    const p = props({ notaDoMestre: 'Mímico na panela.', hazard: fogo })
+    const esteira = { direction: 'sul', stepCells: 3, canAdvance: true, onChange: vi.fn(), onAdvance: vi.fn() } as const
+    const p = props({ notaDoMestre: 'Mímico na panela.', hazard: fogo, conveyor: esteira })
     render(p)
     const nota = campo('Nota do mestre')
     act(() => nota.focus())
-    // O mestre apagou o texto todo (a store devolve a nota vazia) e o perigo voltou a "Nenhum".
-    render({ ...p, notaDoMestre: '', hazard: { ...fogo, kind: null } })
+    // O mestre apagou o texto todo (a store devolve a nota vazia), o perigo voltou a
+    // "Nenhum" e a esteira a "Nenhuma".
+    render({ ...p, notaDoMestre: '', hazard: { ...fogo, kind: null }, conveyor: { ...esteira, direction: null } })
     expect(linha('Nota do mestre')).toBeNull()
     expect(campo('Nota do mestre')).toBe(nota)
     expect(nota.closest('[hidden]')).toBeNull()
@@ -263,6 +279,21 @@ describe('RoomControls: opcional vazio = uma linha com "+"', () => {
     const nenhum = container.querySelector('[role="radiogroup"][aria-label="Perigo na sala"] [aria-checked="true"]')
     expect(nenhum?.textContent).toBe('Nenhum')
     expect(nenhum?.closest('[hidden]')).toBeNull()
+    expect(linha('Esteira')).toBeNull()
+    const nenhuma = container.querySelector('[role="radiogroup"][aria-label="Esteira na sala"] [aria-checked="true"]')
+    expect(nenhuma?.textContent).toBe('Nenhuma')
+    expect(nenhuma?.closest('[hidden]')).toBeNull()
+  })
+
+  it('a esteira aberta pelo "+" liga de verdade: escolher a direção chama a store com o passo de sempre', () => {
+    const p = render(props())
+    act(() => linhaObrigatoria('Esteira').click())
+    const norte = [...container.querySelectorAll('[role="radiogroup"][aria-label="Esteira na sala"] [role="radio"]')].find(
+      (r) => r.textContent === 'Norte',
+    )
+    if (!(norte instanceof HTMLButtonElement)) throw new Error('a esteira aberta não oferece "Norte"')
+    act(() => norte.click())
+    expect(p.conveyor?.onChange).toHaveBeenCalledWith({ direction: 'norte', stepCells: 3 })
   })
 
   it('aberto pelo "+" e ainda vazio, fica aberto; outra sala no painel volta ao que está gravado', () => {
@@ -310,6 +341,7 @@ describe('RoomControls: opcional vazio = uma linha com "+"', () => {
         onFaccaoChange: undefined,
         onRaioDeVisaoChange: undefined,
         hazard: undefined,
+        conveyor: undefined,
         onAddMobilia: undefined,
         onCreateRoomInside: undefined,
       }),
