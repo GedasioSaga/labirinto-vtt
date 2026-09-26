@@ -882,3 +882,37 @@ a fumaça antes de cada instalador.
 
 Fábrica retomada com 1 feature por vez + a lane de UX/UI (no máximo 2 agentes ao mesmo tempo); limite da sessão
 checado com `npx ccusage@latest blocks --active`.
+
+### 26/09/2026, 12h35 — passar rente à quina e congelar fichas
+
+> "Uma coisa, eu quero que vocÊ adcione uma feature especial para os jogadores, veja, para eles passarem uma quina,
+> eles tem que fazer isso aqui [Image #1], e bom, eu gostaria que desse para eles fazerem tipo isso [Image #2], eu
+> gostaria poder congelar os tokens do jogadores."
+
+Imagem 1: a ficha contorna a quina em "L" (anda reto, depois vira). Imagem 2: a ficha passa na diagonal raspando a
+ponta da parede. Causa: `client/src/lib/collision.ts` conta encostar na ponta do segmento como colisão.
+
+Fila (logo depois de `modo-por-saida`, antes de `zona-oculta-sem-buraco-3` e `parede-parcial`):
+1. `passar-rente-a-quina`: movimento que só toca a ponta livre de uma parede passa; continua bloqueado atravessar
+   a emenda de duas paredes que se encontram no mesmo ponto (canto de sala) e passar por porta fechada.
+2. `congelar-ficha`: o mestre congela/descongela a ficha de um jogador (e todas de uma vez); o servidor da sala
+   recusa movimento de ficha congelada; o jogador vê que está congelado; o mestre ainda move a ficha.
+
+> "coloca as duas novas na 0.4.3 também"
+
+A 0.4.3 espera `modo-por-saida`, `passar-rente-a-quina` e `congelar-ficha` (lote de 6 features desde a 0.4.2).
+
+### 26/09/2026, 12h50 — inventário do jogador estilo Resident Evil 3
+
+> "Sabe o que seria legal tambem: 1- No UX/UI, na parte de jogador ele ter acesso a um inventario estilo esse:?
+> [Image #3], do lado direito ficaria os itens que ele tem, no esquerdo a foto dele, em uma parte ficaria condição
+> dele, se ele ta bem ou mal."
+
+Imagem: tela de itens do RE3 (retrato da Jill no canto, faixa "Condition: Caution" com eletrocardiograma, arma
+equipada, grade de itens à direita com quantidade, item grande no centro com descrição e pergunta Sim/Não).
+Existe hoje: `mochila` (itens da ficha), moedas (troca-de-itens) e vida (`vida.atual/max`, que pode ficar escondida
+do jogador). Fila: `inventario-estilo-re` depois de `congelar-ficha`, fora da 0.4.3.
+
+> "Pode ser só na versaão 0.4.4, sem pressa."
+
+`inventario-estilo-re` fica para a 0.4.4 (a fábrica publica o resto da fila no fim do run).
