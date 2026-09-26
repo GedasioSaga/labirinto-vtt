@@ -1,7 +1,7 @@
 import type { Token } from '../types/map'
 import { PIN_TRAVEL_MAX_TOKENS } from '../net/protocol'
 import { readContract } from './tokenLoan'
-import { isNear } from './travelTogether'
+import { isNear, NEAR_SQUARES } from './travelTogether'
 import type { Point } from './tokenSize'
 
 /**
@@ -42,6 +42,43 @@ export function pinTravelGroupOf<T extends Point>(mine: readonly T[], isHelper: 
   const own = mine.filter((token) => !isHelper(token))
   if (own.length > 0) return pinTravelGroup(own, pin, grid)
   return pinTravelGroup(mine, pin, grid).slice(0, 1)
+}
+
+/**
+ * Folga, em casas, das fichas escolhidas entre o pedido e o "Deixar ir": cada
+ * uma continua valendo até esta distância além de onde estava a escolhida mais
+ * longe do pino no pedido. A mesma medida do grupo (`NEAR_SQUARES`).
+ */
+export const PIN_TRAVEL_CHOSEN_SLACK_CELLS = NEAR_SQUARES
+
+/** Até quantos px do pino as escolhidas de um pedido valem no "Deixar ir": a mais longe delas no pedido, mais a folga. */
+export function pinTravelChosenReach(chosen: readonly Point[], pin: Point, grid: number): number {
+  const farthest = Math.max(0, ...chosen.map((token) => Math.hypot(token.x - pin.x, token.y - pin.y)))
+  return farthest + PIN_TRAVEL_CHOSEN_SLACK_CELLS * grid
+}
+
+/**
+ * O "Deixar ir" de um pedido com fichas escolhidas: as de `chosenIds` entre
+ * `mine` que ainda estão a até `reach` px do pino (`pinTravelChosenReach` do
+ * pedido), da mais perto para a mais longe — a primeira vai à frente.
+ *
+ * Não refaz o grupo (`pinTravelGroupOf`): ele é medido da ficha mais perto do
+ * pino, e uma que ficou de fora (ou a própria escolhida da frente) chegar mais
+ * perto o encolheria — o pedido que o jogador não desfez seria recusado sem ele
+ * ter feito nada. As fichas de onde se escolhe são as mesmas do grupo: com
+ * ficha própria na mão, ajudante contratado (`isHelper`) não é escolha.
+ */
+export function pinTravelChosenWithin<T extends Point & { id: string }>(
+  mine: readonly T[],
+  isHelper: (token: T) => boolean,
+  pin: Point,
+  chosenIds: ReadonlySet<string>,
+  reach: number,
+): T[] {
+  const own = mine.filter((token) => !isHelper(token))
+  const pool = own.length > 0 ? own : mine
+  const distanceOf = (token: T): number => Math.hypot(token.x - pin.x, token.y - pin.y)
+  return pool.filter((token) => chosenIds.has(token.id) && distanceOf(token) <= reach).sort((a, b) => distanceOf(a) - distanceOf(b))
 }
 
 /** Uma caixa do "Quem passa?": a ficha e o nome dela. */

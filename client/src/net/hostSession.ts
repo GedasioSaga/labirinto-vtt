@@ -74,7 +74,7 @@ import { gatherSpots, pinClearance, type KeepClear, type SeatHold } from '../lib
 import { visibleTokens } from '../lib/layers'
 import type { SavedSceneMemory, SavedSeat, SavedSeatExploration } from '../lib/savedTable'
 import { companionSpots, companionsNear, entourageNear, entourageSeats, type Companion, type Seat } from '../lib/travelTogether'
-import { pinTravelGroupOf } from '../lib/pinTravelers'
+import { pinTravelChosenReach, pinTravelChosenWithin, pinTravelGroupOf } from '../lib/pinTravelers'
 import {
   MAX_PENDING_POINT_ACTIONS_PER_PLAYER,
   POINT_ACTION_MIN_INTERVAL_MS,
@@ -2202,6 +2202,12 @@ interface PendingTravel {
   heldApproval?: true
   /** ESCOLHER FICHAS NO PINO: as fichas que o jogador escolheu. O "Deixar ir" confere todas de novo. */
   tokenIds?: string[]
+  /**
+   * Com `tokenIds`: até quantos px do pino as escolhidas valem no "Deixar ir"
+   * (`pinTravelChosenReach`, medido no pedido). É por ela, e não pelo grupo
+   * de agora, que o "Deixar ir" confere as escolhidas.
+   */
+  chosenReach?: number
   /**
    * Quem barrava o par do outro lado no aviso que o mestre LEU (ausente = o
    * aviso não falava de barra). Barra de outra pessoa na hora do "Deixar ir"
@@ -6468,6 +6474,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
    * ESCOLHER FICHAS NO PINO: com `tokenIds`, passam só as fichas escolhidas, e
    * cada uma tem de estar no grupo do pino (`chosenTravelers`). Uma que não
    * esteja — escondida, de outro jogador, longe, inventada — é o mesmo `unavailable`.
+   * No "Deixar ir" (`chosenReach`, a folga medida no pedido), cada escolhida
+   * vale se ainda está a até essa distância do pino, e não pelo grupo de agora.
    */
   function validTravel(
     playerId: string,
@@ -6477,6 +6485,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     withKey = false,
     passaCadeado = false,
     tokenIds?: readonly string[],
+    chosenReach?: number,
   ): TravelCheck {
     const unavailable: TravelCheck = { ok: false, reason: 'unavailable' }
     const from = sceneFor(playerId, world)
@@ -6528,7 +6537,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       if (token === null || Math.hypot(t.x - pin.x, t.y - pin.y) < Math.hypot(token.x - pin.x, token.y - pin.y)) token = t
     }
     if (token === null) return { ok: false, reason: 'far' }
-    const chosen = tokenIds === undefined ? undefined : chosenTravelers(playerId, view.map.tokens, pin, from.map.grid, tokenIds)
+    const chosen = tokenIds === undefined ? undefined : chosenTravelers(playerId, view.map.tokens, pin, from.map.grid, tokenIds, chosenReach)
     if (chosen === null) return unavailable
     const chosenIds = new Set((chosen ?? []).map((t) => t.id))
     // Trancada: ninguém passa sozinho. Cai no mesmo `unavailable` de todo o
@@ -6605,13 +6614,25 @@ export function createHostSession(options: HostSessionOptions): HostSession {
    * Só com ajudantes na mão o grupo é só o mais perto: os outros seguem por
    * `loanedFollowers` de qualquer jeito, então pedir para deixar um deles
    * (ou pôr outro à frente) é recusado em vez de ser ignorado em silêncio.
+   * Com `reach` (o "Deixar ir"), a conta é a da folga do pedido
+   * (`pinTravelChosenWithin`): a ficha que ficou de fora, ou a da frente,
+   * chegar mais perto do pino não derruba o pedido.
    */
-  function chosenTravelers(playerId: string, seen: readonly Token[], pin: Pin, grid: number, tokenIds: readonly string[]): Token[] | null {
+  function chosenTravelers(
+    playerId: string,
+    seen: readonly Token[],
+    pin: Pin,
+    grid: number,
+    tokenIds: readonly string[],
+    reach: number | undefined,
+  ): Token[] | null {
     const wanted = new Set(tokenIds)
     const owned = new Set(ownership[playerId] ?? [])
     const loaned = loansFor(playerId)
     const mine = seen.filter((t) => owned.has(t.id))
-    const picked = pinTravelGroupOf(mine, (t) => loaned.has(t.id), pin, grid).filter((t) => wanted.has(t.id))
+    const isHelper = (t: Token): boolean => loaned.has(t.id)
+    const picked =
+      reach === undefined ? pinTravelGroupOf(mine, isHelper, pin, grid).filter((t) => wanted.has(t.id)) : pinTravelChosenWithin(mine, isHelper, pin, wanted, reach)
     return picked.length === wanted.size ? picked : null
   }
 
@@ -6728,7 +6749,10 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       ...embarque,
     }
     if (trancada) pending.trancada = true
-    if (msg.tokenIds !== undefined) pending.tokenIds = [...msg.tokenIds]
+    if (msg.tokenIds !== undefined && travel.chosen !== undefined) {
+      pending.tokenIds = [...msg.tokenIds]
+      pending.chosenReach = pinTravelChosenReach(travel.chosen, travel.pin, travel.from.map.grid)
+    }
     if (barra !== undefined) pending.barradaPorId = barra.playerId
     pendingTravels.set(playerId, pending)
     // Caiu em pedido só por causa da barra: o jogador leu "Passando…" (ninguém
@@ -6915,7 +6939,11 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     // Casa livre junto do par: quem passou antes pelo mesmo pino já está no
     // mapa (o integrador aplica cada passagem antes da próxima), então o
     // "Deixar todos" e o pino livre põem cada um numa casa.
-    const spot = arrivalSpot(travel.to.map, travel.partner, travel.token.size, travel.token.id)
+    // A procura só enxerga as fichas que ele verá ali (o recorte, com a ficha
+    // em cima do pino par): a casa pulada não pode contar o NPC da zona oculta.
+    const pisoDoPar = pisoDe(travel.partner) === 0 ? undefined : pisoDe(travel.partner)
+    const seen = seenOnArrival(playerId, travel.to.map, travel.token, { x: travel.partner.x, y: travel.partner.y, piso: pisoDoPar }, new Set([travel.token.id]))
+    const spot = arrivalSpot(seen, travel.partner, travel.token.size, travel.token.id)
     // A cena dele passa a ser a de destino a partir daqui: é ela que o
     // próximo broadcast manda, com a memória que ele tem DELA.
     currentScene.set(playerId, sceneKey(travel.to))
@@ -6990,8 +7018,11 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const mine = doPisoDe(lead, from, onBoardTokens(from)).filter((t) => owned.has(t.id))
     const chosenIds = chosen === undefined ? null : new Set(chosen.map((t) => t.id))
     const near = chosenIds === null ? entourageNear(lead, mine, from.grid) : mine.filter((t) => t.id !== lead.id && chosenIds.has(t.id))
+    if (near.length === 0) return []
     const keepClear = pin === null ? [] : pinClearance(pin)
-    const seats = entourageSeats(to, transfer, [{ x: transfer.x, y: transfer.y, size: lead.size }, ...taken], near.map((t) => t.size), keepClear)
+    const going = new Set([lead.id, ...near.map((t) => t.id)])
+    const destination = seenOnArrival(transfer.playerId, to, lead, transfer, going)
+    const seats = entourageSeats(destination, transfer, [{ x: transfer.x, y: transfer.y, size: lead.size }, ...taken], near.map((t) => t.size), keepClear)
     const entourage: EntourageSeat[] = []
     const used: Seat[] = []
     near.forEach((token, index) => {
@@ -7002,6 +7033,38 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     })
     if (entourage.length > 0) transfer.entourage = entourage
     return used
+  }
+
+  /**
+   * `to` como `playerId` o encontra ao chegar: só com as fichas que o recorte
+   * dele mostra (`filterMapForPlayer`), com `lead` já em `at` (a casa de
+   * chegada, ou o pino par enquanto ela não foi escolhida) — é a visão dela
+   * que conta. Ficha oculta, secreta, na camada
+   * escondida, em zona oculta, sob teto fechado ou fora da visão não ocupa
+   * casa: se empurrasse quem chega, a casa pulada (sem parede, sem ficha à
+   * vista) contaria ao jogador que tem algo ali. O recorte é a fonte única; um
+   * filtro próprio aqui cobriria só parte das regras. `going` (quem viaja
+   * agora) sai do mapa: no pino par da mesma cena, a casa de onde a ficha sai
+   * não é obstáculo para ela mesma.
+   */
+  function seenOnArrival(playerId: string, to: MapData, lead: Token, at: { x: number; y: number; piso?: number }, going: ReadonlySet<string>): MapData {
+    const others = to.tokens.filter((t) => !going.has(t.id))
+    const landed: Token = { ...lead, x: at.x, y: at.y, piso: at.piso }
+    const view = filterMapForPlayer(
+      { ...to, tokens: [...others, landed] },
+      playerId,
+      ownership,
+      tokenRadiusIn(playerId, to),
+      undefined,
+      undefined,
+      pinAudiences,
+      undefined,
+      loansFor(playerId),
+      undefined,
+      secretReveals,
+    )
+    const inView = new Set(view.map.tokens.map((t) => t.id))
+    return { ...to, tokens: others.filter((t) => inView.has(t.id)) }
   }
 
   /**
@@ -7609,7 +7672,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
    * de agora. `null` quando o pedido em si não passa mais.
    */
   const companionsOf = (pending: PendingTravel, world: HostWorld): { travel: ValidTravel; near: Companion[] } | null => {
-    const check = validTravel(pending.playerId, pending.pinId, pending.exitId, world, false, pending.trancada === true, pending.tokenIds)
+    const check = validTravel(pending.playerId, pending.pinId, pending.exitId, world, false, pending.trancada === true, pending.tokenIds, pending.chosenReach)
     if (!check.ok) return null
     const { travel } = check
     const fromMap = travel.from.map
@@ -8116,7 +8179,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       const world = toWorld(source)
       // Pedido pelo pino trancado: o "Liberar uma vez" do mestre passa pelo
       // cadeado; o pedido comum de um pino trancado depois continua recusado.
-      const check = validTravel(pending.playerId, pending.pinId, pending.exitId, world, false, pending.trancada === true, pending.tokenIds)
+      const check = validTravel(pending.playerId, pending.pinId, pending.exitId, world, false, pending.trancada === true, pending.tokenIds, pending.chosenReach)
       // A ficha saiu de perto do pino enquanto o mestre decidia: ninguém é
       // levado de longe; o jogador lê que precisa chegar mais perto.
       if (!check.ok) return reply(record.clientId, { type: 'pin.travel.rejected', reason: check.reason })
