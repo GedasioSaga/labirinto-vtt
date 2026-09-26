@@ -6987,9 +6987,13 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const seen = view.map.pins.find((p) => p.id === pin.id)
     if (seen === undefined || seen.soMarco === true) return reject('unavailable')
     const owned = new Set(ownership[playerId] ?? [])
+    // Espiar é VER: só ficha que é olho do jogador serve. Ajudante emprestado
+    // "sem visão" anda, mas não enxerga (a regra de `playerEyeTokens`).
+    const loans = loansFor(playerId)
     // "Encostado" é a regra de sempre do pino (`tokenReachesPin`), a mesma do
     // pedido de passagem e do cartão ("Chegue mais perto").
-    if (!view.map.tokens.some((t) => owned.has(t.id) && tokenReachesPin(t, pin, from.map.grid))) return reject('unavailable')
+    const olhoEncostado = view.map.tokens.some((t) => owned.has(t.id) && loans.get(t.id)?.visao !== false && tokenReachesPin(t, pin, from.map.grid))
+    if (!olhoEncostado) return reject('unavailable')
     const scenes = allScenes(world)
     const travel = resolvePinTravel(pin, from.sceneId, travelLookup(scenes), SAIDA_PRINCIPAL)
     if (travel.status !== 'ligado') return reject('unavailable')

@@ -209,6 +209,34 @@ describe('hostSession: espiar pela passagem', () => {
     expect(JSON.stringify(r.outbound)).not.toContain('view')
   })
 
+  /**
+   * A Ana longe da grade (500 px: vê o pino, mas não encosta) e um ajudante
+   * emprestado a ela encostado na grade, com o acordo de visão dado.
+   */
+  function comAjudante(visao: boolean) {
+    const w = mundo({ heroi: { x: 700, y: 200 } })
+    const salao = w.open.map
+    const comNpc: HostWorld = { ...w, open: { ...w.open, map: { ...salao, tokens: [...salao.tokens, ficha('npc', 240, 200)] } } }
+    const t = mesa(comNpc)
+    t.s.lendToken(t.ana.playerId, 'npc', { tarefa: 'olhar pela grade', minutos: 30, visao })
+    return t
+  }
+
+  it('SEGURANÇA — ajudante emprestado SEM visão encostado no pino não espia: anda, mas não enxerga', () => {
+    const t = comAjudante(false)
+    const r = t.espiar('grade')
+    expect(recusa(r)).toBe('unavailable')
+    expect(r.pinPeek).toBeUndefined()
+    expect(JSON.stringify(r.outbound)).not.toContain('view')
+  })
+
+  it('ajudante emprestado COM visão encostado no pino espia pela Ana', () => {
+    const t = comAjudante(true)
+    const r = t.espiar('grade')
+    expect(r.outbound[0]?.msg.type).toBe('pin.peek.view')
+    expect(r.pinPeek?.playerId).toBe(t.ana.playerId)
+  })
+
   it('quem não tem ficha não espia; conexão que nem entrou recebe not_joined', () => {
     const t = mesa()
     expect(recusa(t.s.handleMessage('c2', { type: 'pin.peek', pinId: 'grade' }, t.w))).toBe('unavailable')
