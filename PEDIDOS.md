@@ -837,3 +837,31 @@ cortada, botões amontoados, rolagem horizontal). `wf_8cc61d20-52f`: designer-op
 
 Resultado (25/09, 14h40): 10 features em `main` (`4cc5042`) e a 0.3.0 publicada: https://github.com/GedasioSaga/labirinto-vtt/releases/tag/v0.3.0
 (`Labirinto_0.3.0_x64-setup.exe` e `Labirinto_0.3.0_x64_en-US.msi`, state uploaded; tag em `76b6a3a`).
+
+### 25/09/2026, 22h35 — publicar o que já está feito, depois fábrica de 2 em 2 com analista de UX/UI
+
+> "O que vocÊ vai fazer é o seguinte, você vai rapidamente adicionar essas features já feitas no programa principal,
+> vai dar push e vai criar o instalador e depois disso, você vai fazer o seguinte, de 2 features em duas features você
+> vai adicionando no programa principalm não precisamos mais de pressa ou seja você vai fazer o seguinte, em um workflow
+> você vai trabalhar de 2 em 2 features, acho que está em handoff ou em pedidos.md não sei, mas comece pelo mais
+> complexos e depois de terminar todos os complexos vá para os faceis, mas sempre trabalhe só em 2 features ao mesmo
+> tempo, toda vez que você adicionar 4 features você da um push e gera um instalador, você vai passando de versão em
+> versão, 0.4.1, 0.4.2 e assim por diante, e junto as essas duas features eu quero um analista de ux/ui, porque veja, o
+> painel de controle geral de criar mapas ele é bom porém da para melhorar tudo em si, é muito opção para rolar e tal e
+> eu acho que da para melhora, use o gauntle-loop e procure um referencia forte."
+
+Fila:
+1. Terminar a junção em `auto/juntar` (merge de `auto/int-t-pequenas-b` pela metade), juntar com `main`, provar,
+   push e instalador **0.4.0** (autorizado neste pedido).
+2. Fábrica de 2 em 2 (complexas primeiro, depois fáceis), sempre 2 peças ao mesmo tempo; a cada 4 integradas:
+   push + instalador 0.4.1, 0.4.2, ...
+3. Em paralelo às 2 peças: analista de UX/UI do painel lateral de criar mapas (muita rolagem, opções demais),
+   gauntlet com referência forte nomeada.
+
+### 25/09/2026, 22h50 — modo automático, simular conta 5x
+
+> "Ligue o modo automatico e leve em consideração que eu quero que você simule está em uma conta 5x, então use o só o
+> Opus5.5 a vontade, porém só 2 a 3 subagentes simutaneos, boa sorte."
+
+Regra: só Opus; no máximo 3 agentes ao mesmo tempo no total (fábrica com trava global de 3 vagas: 2 peças + 1 lane
+de UX/UI; integração e publicação esperam vaga).
