@@ -223,9 +223,10 @@ export interface HostBridgeDeps {
   /**
    * "Passar para pede" do pedido pelo pino trancado: trocar o modo do pino
    * `pinId` (na cena de fundo `sceneId`, quando vier; ausente = a aberta).
+   * Com `exitId`, muda só o modo daquela saída extra (MODO POR SAÍDA).
    * Sem este retorno a linha do pedido trancado não oferece "Passar para pede".
    */
-  setPinPassage?: (pinId: string, passagem: PinPassage, sceneId?: string) => void
+  setPinPassage?: (pinId: string, passagem: PinPassage, sceneId?: string, exitId?: string) => void
   /** "Ir lá" do aviso de chegada: abrir `sceneId` no editor com (`x`, `y`) no centro, no `piso` onde a ficha chegou. */
   onGoToScene?: (sceneId: string, x: number, y: number, piso: number) => void
   visionRadius?: number
@@ -2116,8 +2117,10 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       return
     }
     if (result.applyPinPassage !== undefined) {
-      const { pinId, passagem, sceneId } = result.applyPinPassage
-      deps.setPinPassage?.(pinId, passagem, sceneId)
+      const { pinId, passagem, sceneId, exitId } = result.applyPinPassage
+      // Pelo pino (a principal), a chamada de sempre; `exitId` só vai quando é uma saída extra.
+      if (exitId === undefined) deps.setPinPassage?.(pinId, passagem, sceneId)
+      else deps.setPinPassage?.(pinId, passagem, sceneId, exitId)
     }
     if (result.applyTransfer === undefined) {
       // Recusa da revalidação (o token andou, o pino sumiu, a porta foi

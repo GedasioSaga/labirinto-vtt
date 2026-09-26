@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { MapData, Pin, PinDestination, PinPassage, Stair, Token } from '../types/map'
+import type { ExitPassage, MapData, Pin, PinDestination, PinPassage, Stair, Token } from '../types/map'
 import {
   buildingOfStair,
   buildPartnerStair,
@@ -54,6 +54,7 @@ import {
   arrivalPoint,
   arrivalSpot,
   isArrivalOnly,
+  isExitPassage,
   leadsToScene,
   linkBack,
   linkWithinScene,
@@ -627,6 +628,8 @@ export interface PinExitTravel {
   id: string
   rotulo: string
   travel: PinTravel
+  /** MODO POR SAÍDA: o modo próprio da saída extra. Ausente = como a principal. */
+  passagem?: ExitPassage
 }
 
 /**
@@ -638,7 +641,12 @@ export function pinExitsTravelOf(state: SceneState, liveMap: MapData, pin: Pin):
   const lookup = sceneLookup(state, liveMap)
   const saidas = travelExitsOf(pin)
   if (saidas.length === 0) return [{ id: SAIDA_PRINCIPAL, rotulo: pin.rotulo ?? '', travel: resolvePinTravel(pin, state.activeSceneId, lookup) }]
-  return saidas.map((saida) => ({ id: saida.id, rotulo: saida.rotulo, travel: resolvePinTravel(pin, state.activeSceneId, lookup, saida.id) }))
+  return saidas.map((saida) => {
+    const linha: PinExitTravel = { id: saida.id, rotulo: saida.rotulo, travel: resolvePinTravel(pin, state.activeSceneId, lookup, saida.id) }
+    // MODO POR SAÍDA: o modo próprio da extra, para o painel mostrar a escolha certa.
+    if (saida.id !== SAIDA_PRINCIPAL && isExitPassage(saida.passagem)) linha.passagem = saida.passagem
+    return linha
+  })
 }
 
 /** Pinos de viagem da cena aberta que não levam a lugar nenhum: o canvas os desenha apagados. */

@@ -47,6 +47,7 @@ import { canPay, isCoinAmount, ownTradeToken, purseToward, TRADE_ITEMS_MAX } fro
 import { lojaParaJogador } from '../lib/loja'
 import { fitsTokenPhotoSend } from '../lib/tokenPhoto'
 import { isPlayerSafePinImage, passageOf } from '../lib/pins'
+import { playerExitPassageOf } from '../lib/pinTravel'
 import { MAX_ACTIVE_SIGNALS, SIGNAL_COLOR_PATTERN, SIGNAL_TTL_MS, type DestinationMark, type SignalMark } from '../lib/signals'
 import {
   LASER_MAX_POINTS_PER_MESSAGE,
@@ -3792,7 +3793,8 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       // O pino livre agenda o envio (e o aviso "Passando…") antes de chamar `send`: a tela da mesa sai aqui.
       if (isTable || state.status !== 'playing' || pinId.length === 0 || state.travel?.phase === 'waiting') return false
       const pin = state.map?.pins.find((p) => p.id === pinId)
-      const passagem = pin === undefined ? 'pede' : passageOf(pin)
+      // MODO POR SAÍDA: numa encruzilhada vale o modo da saída escolhida.
+      const passagem = pin === undefined ? 'pede' : playerExitPassageOf(pin, exitId)
       // Livre, ou trancado que a chave da mochila abre (CHAVE ABRE PORTA): ninguém decide, a passagem é direta.
       const direct = pin !== undefined && (passagem === 'livre' || (passagem === 'trancada' && typeof pin.chave === 'string' && pin.chave !== ''))
       // Passe: quem tem o passe vai direto, como no livre. O cliente não sabe

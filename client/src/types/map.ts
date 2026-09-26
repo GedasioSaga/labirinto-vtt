@@ -416,7 +416,21 @@ export interface PinExitLabel {
    * `soIda` de cada saída junto) já volta ausente do disco (`lib/mapFile.ts`).
    */
   soIda?: true
+  /**
+   * MODO POR SAÍDA: como o jogador passa por ESTA saída. Ausente = o modo do
+   * pino (`Pin.passagem`), que é o da principal — mapa gravado antes disto
+   * abre igual, sem linha de migração (`readPinExits` confere a forma). No
+   * mapa do mestre só a saída EXTRA o grava; no recorte do jogador
+   * (`lib/fogFilter.ts`) ele vai só quando difere do modo do pino.
+   */
+  passagem?: ExitPassage
 }
+
+/**
+ * Os modos que uma saída pode ter por conta própria. O passe fica de fora: o
+ * item e as fichas que abrem a catraca são do pino inteiro (`Pin.passe`).
+ */
+export type ExitPassage = Extract<PinPassage, 'pede' | 'livre' | 'trancada'>
 
 /**
  * ENCRUZILHADA (G8): uma saída EXTRA do pino de viagem. A saída principal

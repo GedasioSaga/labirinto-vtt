@@ -124,10 +124,10 @@ import { ShortcutsDialog } from './components/ShortcutsDialog'
 import { ExportImageDialog } from './components/ExportImageDialog'
 import { imageExportFileName, type ImageExportOptions, type MapImageExporter } from './lib/mapImageExport'
 import { saveMapImage } from './lib/mapImageSave'
-import type { DoorKind, DoorSide, DrawingCap, DrawingDash, MapData, Pin, PinBlockReason, PinPassage, Region, Token, Wall } from './types/map'
+import type { DoorKind, DoorSide, DrawingCap, DrawingDash, ExitPassage, MapData, Pin, PinBlockReason, PinPassage, Region, Token, Wall } from './types/map'
 import { passageOf } from './lib/pins'
 import { passItemOf, passTokenOptions, withPassItem, withPassToken } from './lib/pinPass'
-import { isArrivalOnly } from './lib/pinTravel'
+import { isArrivalOnly, isExitPassage, setExitPassage } from './lib/pinTravel'
 import { pinAttachOptions } from './lib/pinAttach'
 import { leverDoorOptions, linkedDoorOf } from './lib/lever'
 import { lockDoorOptions } from './lib/pinLock'
@@ -628,12 +628,15 @@ function App() {
         hideToken: hideTokenFromRequest,
         // "Passar para pede" do pedido pelo pino trancado: o pino muda de modo
         // na cena dele (de fundo quando o jogador estava lá), como o painel faria.
-        setPinPassage: (pinId, passagem, sceneId) => {
+        // MODO POR SAÍDA: com `exitId`, só aquela saída extra passa a pedir.
+        setPinPassage: (pinId, passagem, sceneId, exitId) => {
+          const patchFor = (pin: Pin | undefined) =>
+            exitId === undefined ? { passagem } : pin === undefined || !isExitPassage(passagem) ? {} : setExitPassage(pin, exitId, passagem)
           if (sceneId !== undefined) {
-            useAdventureStore.getState().updateBackgroundScene(sceneId, (m) => mapFactory.updatePin(m, pinId, { passagem }))
+            useAdventureStore.getState().updateBackgroundScene(sceneId, (m) => mapFactory.updatePin(m, pinId, patchFor(m.pins.find((p) => p.id === pinId))))
             return
           }
-          useMapStore.getState().updatePin(pinId, { passagem })
+          useMapStore.getState().updatePin(pinId, patchFor(useMapStore.getState().map.pins.find((p) => p.id === pinId)))
         },
         // ITEM PEGÁVEL: o pino pego sai e as mochilas mudam, já validados pela
         // sessão. Vale para TODO passo do desfazer da cena, aberta ou de fundo
@@ -1915,6 +1918,12 @@ function App() {
       // par da outra cena fica como está.
       passage: passageOf(pin),
       onPassageChange: (passagem: PinPassage) => useMapStore.getState().updatePin(pin.id, { passagem }),
+      // MODO POR SAÍDA: o modo de uma saída extra, com desfazer. Lido de novo
+      // na store na hora da troca: o painel pode estar atrás de um desfazer.
+      onExitPassageChange: (exitId: string, passagem: ExitPassage | undefined) => {
+        const atual = useMapStore.getState().map.pins.find((p) => p.id === pin.id)
+        if (atual !== undefined) useMapStore.getState().updatePin(pin.id, setExitPassage(atual, exitId, passagem))
+      },
       // CHAVE ABRE PORTA: "Abre com" do pino trancado, com desfazer; "" tira a chave.
       keyName: pin.abreCom ?? '',
       onKeyChange: (nome: string) => useMapStore.getState().updatePin(pin.id, { abreCom: readDoorKey(nome) }),
