@@ -24,6 +24,7 @@ import {
   memoryBlockedRings,
   noiseCueForPlayer,
   ownTokensInView,
+  pinCardForPlayer,
   pinClueForPlayer,
   planOfWholeMap,
   playerBlockedRings,
@@ -72,9 +73,11 @@ import { pinTravelGroupOf } from '../lib/pinTravelers'
 import {
   MAX_PENDING_POINT_ACTIONS_PER_PLAYER,
   POINT_ACTION_MIN_INTERVAL_MS,
+  hiddenCluesAt,
   isPointInsideMap,
   roomNameAt,
   type PointActionAnswer,
+  type PointActionClue,
   type PointActionKind,
 } from '../lib/pointActions'
 import { tokenSizeInSquares } from '../lib/tokenSize'
@@ -804,6 +807,12 @@ export interface PointActionRequest {
   sceneName: string
   /** `true` quando a cena do ponto não é a aberta no editor. */
   background: boolean
+  /**
+   * Só no REVISTAR, e só quando há: as pistas ocultas da sala do ponto
+   * (`hiddenCluesAt`), que a linha da Caixa oferece como "Entregar: …".
+   * Leitura do mestre, como o resto deste pedido.
+   */
+  pistas?: PointActionClue[]
 }
 
 /**
@@ -1785,6 +1794,19 @@ export interface HostSession {
   pinAudience(pinId: string): string[] | null
   /** Todas as listas, por pino, para o painel do mestre. Pino de "Todos" não aparece. */
   pinAudiences(): Record<string, string[]>
+  /**
+   * "MOSTRAR AGORA A…": o cartão do pino `pinId` (`pin.show`) só para este
+   * jogador, mesmo longe do pino. Só vale com ele conectado, jogando e na
+   * cena ONDE O PINO ESTÁ — pino de outra cena não sai, nem por id. Pino com
+   * "Só estes" ganha o jogador na lista (o pino passa a aparecer no mapa dele
+   * quando estiver à vista); pino de "Todos" continua de todos. Oculto para
+   * jogadores sai (é a pista que o mestre entrega de propósito, como no
+   * "Entregar pista…" do Revistar) sem entrar no mapa de ninguém; viagem e
+   * alavanca não viram cartão (`pinCardForPlayer`). Conta como RECEBIDO no
+   * painel Pistas e entra no caderno dele (`clue.added`). Não envia
+   * snapshot: o integrador faz o broadcast. `outbound` vazio = nada saiu.
+   */
+  showPin(playerId: string, pinId: string, source: HostMapSource): HostResult
   /**
    * PAINEL PISTAS: por pino, quem recebeu e quem leu. Recebeu é para sempre
    * nesta sessão — esconder o pino depois não desfaz o que o jogador já leu
@@ -5231,23 +5253,25 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const requestId = randomId()
     pendingPointActions.set(requestId, { playerId, action: msg.action })
     const point = { x: msg.x, y: msg.y }
-    return {
-      outbound: [],
-      pointAction: {
-        requestId,
-        playerId,
-        playerName: record.name,
-        color: signalColor(playerId),
-        action: msg.action,
-        x: point.x,
-        y: point.y,
-        // PISOS: a sala do piso de quem pediu; o mapa inteiro daria a menor sala de outro piso no mesmo x/y.
-        roomName: roomNameAt(floorMapOf(playerId, map), point),
-        sceneId: scene.sceneId,
-        sceneName: scene.name,
-        background: scene !== world.open && scene.sceneId !== null,
-      },
+    // PISOS: a sala do piso de quem pediu; o mapa inteiro daria a menor sala de outro piso no mesmo x/y.
+    const floorMap = floorMapOf(playerId, map)
+    const request: PointActionRequest = {
+      requestId,
+      playerId,
+      playerName: record.name,
+      color: signalColor(playerId),
+      action: msg.action,
+      x: point.x,
+      y: point.y,
+      roomName: roomNameAt(floorMap, point),
+      sceneId: scene.sceneId,
+      sceneName: scene.name,
+      background: scene !== world.open && scene.sceneId !== null,
     }
+    // REVISTAR: o que o mestre escondeu na sala vira "Entregar: …" na linha dele.
+    const pistas = msg.action === 'revistar' ? hiddenCluesAt(floorMap, point) : []
+    if (pistas.length > 0) request.pistas = pistas
+    return { outbound: [], pointAction: request }
   }
 
   const forgetPointActionsOf = (playerId: string): void => {
@@ -7959,6 +7983,38 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       const all: Record<string, string[]> = {}
       for (const pinId of pinAudiences.keys()) all[pinId] = audienceOf(pinId) ?? []
       return all
+    },
+
+    showPin(playerId, pinId, source) {
+      const clientId = players.get(playerId)?.clientId ?? null
+      if (clientId === null || statusOf(playerId) !== 'playing') return { outbound: [] }
+      // A cena DELE, não a aberta no editor: o id de um pino de outra cena não
+      // pode virar cartão (seria contar ao jogador o que há do outro lado).
+      const map = sceneFor(playerId, toWorld(source))?.map
+      const pin = map?.pins.find((p) => p.id === pinId)
+      if (map === undefined || pin === undefined) return { outbound: [] }
+      const card = pinCardForPlayer(pin)
+      if (card === null) return { outbound: [] }
+      const audience = pinAudiences.get(pinId)
+      if (audience !== undefined) {
+        audience.add(playerId)
+        // O pino pode entrar no recorte dele agora: todos refazem no próximo broadcast.
+        viewEpoch += 1
+      }
+      addToSet(pinReceived, pinId, playerId)
+      const outbound: Outbound[] = [{ clientId, msg: { type: 'pin.show', pin: card } }]
+      // MINHAS PISTAS: a pista entregue fica no caderno dele, como a lida no
+      // mapa — pelo mesmo recorte do cartão (`pinClueForPlayer`), e a mesma
+      // chave: ler depois o pino no mapa não duplica a pista.
+      const content = pinClueForPlayer(pin)
+      if (content !== null) {
+        const peca = pecaDoPino(pin)
+        const clue = rememberClue(playerId, `pino|${map.id}|${pin.id}`, content, undefined, peca)
+        outbound.push({ clientId, msg: { type: 'clue.added', clue } })
+        const colecoes = rememberPiece(playerId, peca, clue.id)
+        if (colecoes !== null) outbound.push({ clientId, msg: colecoes })
+      }
+      return { outbound }
     },
 
     pinClues() {

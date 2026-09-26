@@ -66,7 +66,7 @@ export function lerLojaDoArquivo(value: unknown): LojaItem[] | undefined {
  * jogador chama de novo sobre o que chegou pela rede: o mapa do snapshot não
  * é conferido campo a campo, e item torto não pode quebrar a tela.
  */
-export function lojaParaJogador(pin: Pin): LojaItem[] | null {
+export function lojaParaJogador(pin: Pick<Pin, 'kind' | 'loja'>): LojaItem[] | null {
   if (pin.kind === 'viagem' || pin.kind === 'alavanca') return null
   const itens = (lerLojaDoArquivo(pin.loja) ?? []).filter((item) => item.nome.trim() !== '')
   return itens.length === 0 ? null : itens

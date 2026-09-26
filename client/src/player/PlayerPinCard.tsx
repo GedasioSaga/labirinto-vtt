@@ -23,8 +23,15 @@ import type { PinTravelChoice } from '../lib/pinTravelers'
 
 const NO_TRAVELERS: readonly PinTravelChoice[] = []
 
+/**
+ * O que o cartão lê do pino: o pino do mapa, ou o cartão que o mestre mostrou
+ * ("Mostrar agora a…", `PinCard`), que chega SEM posição. A posição é
+ * opcional aqui de propósito: o cartão nunca usa onde o pino está.
+ */
+type PinDoCartao = Omit<Pin, 'x' | 'y'> & Partial<Pick<Pin, 'x' | 'y'>>
+
 interface PlayerPinCardProps {
-  pin: Pin
+  pin: PinDoCartao
   onClose: () => void
   /**
    * Pino de viagem: manda o pedido de passagem ao mestre (já confirmado aqui).
@@ -99,7 +106,7 @@ interface PlayerPinCardProps {
 const TEXTO_LONGE = 'Chegue mais perto para passar'
 
 /** Nome da cabeça do pino para quem não vê o desenho: o que ela mostra no mapa. */
-function nomeDaCabeca(pin: Pin): string {
+function nomeDaCabeca(pin: PinDoCartao): string {
   if (pin.kind === 'viagem') return 'passagem'
   if (pin.kind === 'alavanca') return 'alavanca'
   if (isPinIcon(pin.icon)) return PIN_ICON_LABELS[pin.icon].toLocaleLowerCase('pt-BR')
@@ -130,7 +137,7 @@ const AVISO_SO_IDA = 'Não dá para voltar por este caminho.'
  * cartão sem foto, é ela a imagem do cartão. Tem nome para o leitor de tela:
  * o símbolo diz algo ("baú", "armadilha") que o rótulo do cartão não diz.
  */
-export function CabecaDoPino({ pin }: { pin: Pin }) {
+export function CabecaDoPino({ pin }: { pin: PinDoCartao }) {
   const viagem = pin.kind === 'viagem'
   // A alavanca, como a passagem, desenha o próprio símbolo, nunca o escolhido.
   const alavanca = pin.kind === 'alavanca'

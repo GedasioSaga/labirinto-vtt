@@ -332,6 +332,13 @@ export interface HostBridge {
    */
   setPinAudience(pinId: string, playerIds: readonly string[] | null): void
   /**
+   * "Mostrar agora a…": o cartão do pino abre sozinho na tela deste jogador.
+   * `true` = saiu; `false` = não deu (ele saiu da cena, caiu, o pino sumiu ou
+   * ficou oculto); `null` = sala fechada. Com "Só estes", ele entra na lista:
+   * snapshot na hora e o painel recebe a lista nova.
+   */
+  showPin(playerId: string, pinId: string): boolean | null
+  /**
    * "Revelar para…" da ficha secreta, escada secreta ou zona oculta: só
    * `playerIds` a recebem; `null` ou `[]` = segredo de todos. Snapshot na hora —
    * quem descobriu vê sem recarregar, e o desmarcado perde no mesmo pacote.
@@ -1755,6 +1762,26 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   }
 
   /**
+   * "ENTREGAR PISTA…" do Revistar: o cartão do pino oculto abre só em quem
+   * revistou (o mesmo `showPin` do "Mostrar agora a…"), e o pedido dele fica
+   * respondido ("Feito"). O mestre lê no aviso se saiu — ou por que não: a
+   * linha pode ter esperado enquanto o jogador saía da cena ou caía.
+   */
+  const deliverClue = (request: PointActionRequest, pinId: string) => {
+    if (session === null) return
+    const shown = session.showPin(request.playerId, pinId, world())
+    answerPointAction(request.requestId, 'seen')
+    if (shown.outbound.length === 0) {
+      useToastStore.getState().push('error', `Não deu para entregar a pista a ${request.playerName}: saiu desta cena ou perdeu a conexão.`)
+      return
+    }
+    broadcastNow()
+    void dispatch(shown)
+    notifyPinAudiencesIfChanged()
+    useToastStore.getState().push('info', `Cartão aberto na tela de ${request.playerName}.`)
+  }
+
+  /**
    * AÇÃO NO PONTO: "Fabi quer Procurar — Ferreiro" na Caixa (grupo
    * "Pedidos"), esperando o mestre. "Ir lá" leva ao ponto e deixa a linha;
    * "Nada aqui" e "Feito" respondem só a quem pediu. O × vale "Feito": a
@@ -1764,9 +1791,15 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   const askPointAction = (request: PointActionRequest) => {
     const goTo = deps.onPointActionGo
     const irLa = goTo === undefined ? [] : [{ label: 'Ir lá', mantem: true, run: () => goTo(request) }]
+    // REVISTAR: um "Entregar: Carta" por pista oculta da sala (`hiddenCluesAt`).
+    const entregar = (request.pistas ?? []).map((pista) => ({
+      label: `Entregar: ${pista.label}`,
+      run: () => deliverClue(request, pista.pinId),
+    }))
     const toastId = useToastStore.getState().push('instrucao', pointActionMasterText(request), null, {
       actions: [
         ...irLa,
+        ...entregar,
         { label: 'Nada aqui', run: () => answerPointAction(request.requestId, 'nothing') },
         { label: 'Feito', run: () => answerPointAction(request.requestId, 'seen') },
       ],
@@ -2726,6 +2759,18 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       session.setPinAudience(pinId, playerIds)
       broadcastNow()
       notifyPinAudiencesIfChanged()
+    },
+
+    showPin(playerId, pinId) {
+      if (session === null) return null
+      const result = session.showPin(playerId, pinId, world())
+      if (result.outbound.length === 0) return false
+      // O mapa com a lista nova sai antes do cartão: o pino (se à vista) já
+      // está no mapa dela quando o cartão abre.
+      broadcastNow()
+      void dispatch(result)
+      notifyPinAudiencesIfChanged()
+      return true
     },
 
     setSecretReveal(itemId, playerIds) {
