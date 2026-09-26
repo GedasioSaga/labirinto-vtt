@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState, type KeyboardEvent } from 'react'
+import { useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
 import type { RoomMeta, TipoMobilia } from '../types/map'
 import { NOME_COM_ARTIGO, ROTULO_MOBILIA, TIPOS_MOBILIA } from '../lib/mobilia'
 import { MIN_ROOM_DIMENSION } from '../lib/roomOps'
@@ -8,6 +8,7 @@ import { FACCAO_MAX_LENGTH } from '../lib/faccoes'
 import { VISION_RADIUS_MAX, VISION_RADIUS_MIN, VISION_RADIUS_STEP } from '../net/hostSession'
 import { Toggle } from './Toggle'
 import { HazardControls, type HazardControlsProps } from './HazardControls'
+import './RoomControls.css'
 
 /** Passo dos botões do painel: deitar ou pôr em pé, o giro que mais se faz num mapa de masmorra. */
 const QUARTO_DE_VOLTA = 90
@@ -238,6 +239,8 @@ function parseVisionRadiusText(text: string): number | null | undefined {
 interface RoomVisionRadiusFieldProps {
   raioDeVisao: number | null
   onRaioDeVisaoChange: (raio: number | null) => void
+  /** Id da frase que explica o campo: vem de fora porque a linha "+" do opcional também a lê. */
+  hintId: string
 }
 
 /**
@@ -247,9 +250,8 @@ interface RoomVisionRadiusFieldProps {
  * Esc desiste. O painel remonta a cada sala, então o número digitado e não
  * confirmado vai para a sala DESTE campo ao desmontar.
  */
-function RoomVisionRadiusField({ raioDeVisao, onRaioDeVisaoChange }: RoomVisionRadiusFieldProps) {
+function RoomVisionRadiusField({ raioDeVisao, onRaioDeVisaoChange, hintId }: RoomVisionRadiusFieldProps) {
   const inputId = useId()
-  const hintId = `${inputId}-dica`
   const [draft, setDraftState] = useState<string | null>(null)
   const draftRef = useRef<string | null>(null)
   const setDraft = (text: string | null) => {
@@ -316,6 +318,92 @@ function RoomVisionRadiusField({ raioDeVisao, onRaioDeVisaoChange }: RoomVisionR
   )
 }
 
+/** O "+" das linhas de opcional: só desenho (quem dá nome à linha é o texto dela), no traço da família de `icons.tsx`. */
+function PlusGlyph() {
+  return (
+    <span className="lb-room-opt__plus" aria-hidden="true">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" focusable="false">
+        <path d="M12 5v14M5 12h14" />
+      </svg>
+    </span>
+  )
+}
+
+/** O primeiro controle que o teclado alcança dentro do campo recém-aberto. */
+const CONTROLE_FOCAVEL = 'input:not([disabled]), textarea:not([disabled]), select:not([disabled]), button:not([disabled])'
+
+/** Texto com letra de verdade: só espaço não conta como preenchido. */
+function temTexto(texto: string | undefined): boolean {
+  return (texto ?? '').trim() !== ''
+}
+
+interface OpcionalDaSalaProps {
+  /** O nome do campo, igual ao rótulo que ele mostra aberto: a linha e o campo são a mesma coisa. */
+  rotulo: string
+  /** Já tem valor: nasce aberto, e abre sozinho se o valor chegar depois (um desfazer, por exemplo). */
+  preenchido: boolean
+  /** A frase que explica o campo, lida também pela linha "+" antes de abrir. */
+  dicaId?: string
+  children: ReactNode
+}
+
+/**
+ * Opcional da Sala no molde do Figma UI3 ("Click Add stroke in the Stroke
+ * section"): vazio, é UMA linha com "+"; o "+" abre o campo de verdade já com
+ * o foco nele, para a próxima tecla ir para o campo. Com valor, nasce aberto.
+ *
+ * Fechado, o campo continua no DOM sob `hidden` (o molde de
+ * `CollapsibleSection`): fora da vista e da ordem de Tab, mas com a frase que
+ * o explica no mesmo lugar, ligada ao campo e à linha "+" por
+ * `aria-describedby`. Aberto uma vez, fica aberto até a sala sair do painel,
+ * mesmo esvaziado: apagar o texto (ou escolher "Nenhum" no perigo) não pode
+ * sumir com o campo debaixo do cursor. O painel remonta a cada sala (`key` em
+ * `PropertiesPanel`), e aí volta a valer o que está gravado.
+ */
+function OpcionalDaSala({ rotulo, preenchido, dicaId, children }: OpcionalDaSalaProps) {
+  const corpoId = `${useId()}-corpo`
+  const corpoRef = useRef<HTMLDivElement>(null)
+  const [aberto, setAberto] = useState(preenchido)
+  // Valor que chega com o campo fechado (um desfazer) abre o campo — ajuste de
+  // estado no próprio render, o molde do React para estado que segue uma prop.
+  if (preenchido && !aberto) setAberto(true)
+  // Só o clique no "+" leva o foco: o valor que chega por fora abre o campo
+  // sem roubar o foco de quem está em outro lugar.
+  const focarAoAbrir = useRef(false)
+
+  // Antes da pintura: o botão "+" some neste mesmo commit, e o foco não pode
+  // ficar um quadro no `body` (o anel piscaria e a tecla seguinte se perderia).
+  useLayoutEffect(() => {
+    if (!aberto || !focarAoAbrir.current) return
+    focarAoAbrir.current = false
+    corpoRef.current?.querySelector<HTMLElement>(CONTROLE_FOCAVEL)?.focus()
+  }, [aberto])
+
+  return (
+    <div className="lb-room-opt">
+      {!aberto && (
+        <button
+          type="button"
+          className="lb-room-opt__add"
+          aria-expanded={false}
+          aria-controls={corpoId}
+          aria-describedby={dicaId}
+          onClick={() => {
+            focarAoAbrir.current = true
+            setAberto(true)
+          }}
+        >
+          <span>{rotulo}</span>
+          <PlusGlyph />
+        </button>
+      )}
+      <div id={corpoId} ref={corpoRef} className="lb-room-opt__body" hidden={!aberto}>
+        {children}
+      </div>
+    </div>
+  )
+}
+
 /** Por que a Sala retangular torta está sem largura/altura, e como tê-las de volta. */
 const NOTA_SALA_TORTA = 'Largura e altura voltam quando a sala fica reta: 0°, 90°, 180° ou −90°.'
 
@@ -338,6 +426,14 @@ const NOTA_SALA_TORTA = 'Largura e altura voltam quando a sala fica reta: 0°, 9
  * A Rotação vale para toda Sala, de qualquer forma, e é o par numérico da
  * alça de girar do mapa (`pixi/roomRotateGesture.ts`): os dois terminam em
  * `lib/mapFactory.ts` → `rotateRegion`, então nunca divergem.
+ *
+ * ORDEM DA TAREFA (o painel de propriedades do Figma UI3, aba Design): o que
+ * se mexe logo depois de desenhar vem primeiro — Nome, Largura | Altura numa
+ * linha, Rotação —, depois os interruptores do que o jogador vê, e por último
+ * o que se ACRESCENTA à sala (texto ao entrar, nota, facção, raio de visão,
+ * perigo, mobília, sala dentro), cada um vazio numa linha só com "+"
+ * (`OpcionalDaSala`). Até 26/09/2026 Largura, Altura e Rotação moravam depois
+ * de todos esses, a 8–10 giros de roda do topo em 1280x800.
  */
 export function RoomControls({
   name,
@@ -386,7 +482,20 @@ export function RoomControls({
   const faccaoId = `${baseId}-faccao`
   const faccaoHintId = `${baseId}-faccao-hint`
   const faccaoListId = `${baseId}-faccao-lista`
+  const raioHintId = `${baseId}-raio-de-visao-hint`
   const mobiliaLabelId = `${baseId}-mobilia`
+  const showNameToggle = nameHiddenFromPlayers !== undefined && onNameHiddenFromPlayersChange !== undefined
+  const showRoof = roof !== undefined && onRoofChange !== undefined
+  const showComodo = onComodoChange !== undefined
+  const showDark = dark !== undefined && onDarkChange !== undefined
+  const hasExtras =
+    onTextoAoEntrarChange !== undefined ||
+    onNotaDoMestreChange !== undefined ||
+    onFaccaoChange !== undefined ||
+    onRaioDeVisaoChange !== undefined ||
+    hazard !== undefined ||
+    onAddMobilia !== undefined ||
+    onCreateRoomInside !== undefined
   return (
     <section className="lb-section">
       <h2 className="lb-eyebrow">Sala</h2>
@@ -404,115 +513,8 @@ export function RoomControls({
         <input id="lb-room-name" className="lb-input" value={name} onChange={(event) => onNameChange(event.target.value)} />
       </div>
 
-      {nameHiddenFromPlayers !== undefined && onNameHiddenFromPlayersChange !== undefined && (
-        <Toggle
-          label="Jogadores veem o nome"
-          checked={!nameHiddenFromPlayers}
-          onChange={(visible) => onNameHiddenFromPlayersChange(!visible)}
-        />
-      )}
-
-      {roof !== undefined && onRoofChange !== undefined && (
-        <>
-          <Toggle label="Teto fechado para jogadores" checked={roof} onChange={onRoofChange} describedBy={roofHintId} />
-          <p className="lb-field__hint" id={roofHintId}>
-            De fora o jogador vê só a silhueta do prédio; ele entra e o teto abre. Você continua vendo tudo.
-          </p>
-        </>
-      )}
-
-      {onComodoChange !== undefined && (
-        <>
-          <Toggle label="Cômodo: aparece só depois de visto" checked={comodo === true} onChange={onComodoChange} describedBy={comodoHintId} />
-          <p className="lb-field__hint" id={comodoHintId}>
-            O jogador não vê este cômodo até entrar ou olhar pela porta. Depois ele fica lembrado, mais apagado, com os pinos de
-            dentro.
-          </p>
-        </>
-      )}
-
-      {onTextoAoEntrarChange !== undefined && (
-        <div className="lb-field">
-          <label className="lb-label" htmlFor={enterTextId}>
-            Ao entrar, o jogador lê
-          </label>
-          <textarea
-            id={enterTextId}
-            className="lb-input lb-textarea"
-            rows={3}
-            maxLength={ROOM_TEXT_MAX_LENGTH}
-            value={textoAoEntrar ?? ''}
-            aria-describedby={enterHintId}
-            onChange={(event) => onTextoAoEntrarChange(event.target.value)}
-          />
-          <p className="lb-field__hint" id={enterHintId}>
-            Aparece só para quem entra, na primeira vez. Tocar no nome da sala mostra de novo.
-          </p>
-        </div>
-      )}
-
-      {onNotaDoMestreChange !== undefined && (
-        <div className="lb-field">
-          <label className="lb-label" htmlFor={noteId}>
-            Nota do mestre
-          </label>
-          <textarea
-            id={noteId}
-            className="lb-input lb-textarea"
-            rows={3}
-            maxLength={ROOM_TEXT_MAX_LENGTH}
-            value={notaDoMestre ?? ''}
-            aria-describedby={noteHintId}
-            onChange={(event) => onNotaDoMestreChange(event.target.value)}
-          />
-          <p className="lb-field__hint" id={noteHintId}>
-            Só você lê. Nunca vai para a tela dos jogadores.
-          </p>
-        </div>
-      )}
-
-      {onFaccaoChange !== undefined && (
-        <div className="lb-field">
-          <label className="lb-label" htmlFor={faccaoId}>
-            Facção
-          </label>
-          <input
-            id={faccaoId}
-            className="lb-input"
-            maxLength={FACCAO_MAX_LENGTH}
-            value={faccao ?? ''}
-            placeholder={faccaoHerdada}
-            list={faccaoListId}
-            aria-describedby={faccaoHintId}
-            onChange={(event) => onFaccaoChange(event.target.value)}
-          />
-          <datalist id={faccaoListId}>
-            {(faccoesConhecidas ?? []).map((nome) => (
-              <option key={nome} value={nome} />
-            ))}
-          </datalist>
-          <p className="lb-field__hint" id={faccaoHintId}>
-            {faccaoHerdada !== undefined && (faccao ?? '').trim() === ''
-              ? `Herda do distrito: ${faccaoHerdada}. Só você vê.`
-              : 'Quem manda aqui. Só você vê; as salas de dentro herdam.'}
-          </p>
-        </div>
-      )}
-
-      {hazard !== undefined && <HazardControls {...hazard} />}
-      {dark !== undefined && onDarkChange !== undefined && (
-        <>
-          <Toggle label="Sala escura" checked={dark} onChange={onDarkChange} describedBy={darkHintId} />
-          <p className="lb-field__hint" id={darkHintId}>
-            Aqui dentro o jogador só vê a casa em volta da ficha e o que uma Luz ilumina. Você continua vendo tudo.
-          </p>
-        </>
-      )}
-
-      {onRaioDeVisaoChange !== undefined && <RoomVisionRadiusField raioDeVisao={raioDeVisao ?? null} onRaioDeVisaoChange={onRaioDeVisaoChange} />}
-
       {shape === 'rect' && axisAligned && (
-        <>
+        <div className="lb-room-dims">
           <div className="lb-field">
             <label className="lb-label" htmlFor="lb-room-width">
               Largura
@@ -548,7 +550,7 @@ export function RoomControls({
               <span className="lb-inputgroup__suffix">px</span>
             </div>
           </div>
-        </>
+        </div>
       )}
 
       <RoomRotationField
@@ -559,31 +561,170 @@ export function RoomControls({
         note={shape === 'rect' && !axisAligned ? NOTA_SALA_TORTA : undefined}
       />
 
-      {onAddMobilia !== undefined && (
-        <div className="lb-field">
-          <span className="lb-label" id={mobiliaLabelId}>
-            Mobília
-          </span>
-          <div className="lb-mobilia" role="group" aria-label="Pôr mobília na sala" aria-describedby={mobiliaLabelId}>
-            {TIPOS_MOBILIA.map((tipo) => (
-              <button
-                key={tipo}
-                type="button"
-                className="lb-btn lb-mobilia__option"
-                title={`Pôr ${NOME_COM_ARTIGO[tipo]} no centro da sala`}
-                onClick={() => onAddMobilia(tipo)}
-              >
-                {ROTULO_MOBILIA[tipo]}
-              </button>
-            ))}
-          </div>
+      {(showNameToggle || showRoof || showComodo || showDark) && (
+        <div className="lb-room-switches">
+          {showNameToggle && (
+            <Toggle
+              label="Jogadores veem o nome"
+              checked={!nameHiddenFromPlayers}
+              onChange={(visible) => onNameHiddenFromPlayersChange(!visible)}
+            />
+          )}
+
+          {showRoof && (
+            <div className="lb-room-switch">
+              <Toggle label="Teto fechado para jogadores" checked={roof} onChange={onRoofChange} describedBy={roofHintId} />
+              <p className="lb-field__hint" id={roofHintId}>
+                De fora o jogador vê só a silhueta do prédio; ele entra e o teto abre. Você continua vendo tudo.
+              </p>
+            </div>
+          )}
+
+          {showComodo && (
+            <div className="lb-room-switch">
+              <Toggle label="Cômodo: aparece só depois de visto" checked={comodo === true} onChange={onComodoChange} describedBy={comodoHintId} />
+              <p className="lb-field__hint" id={comodoHintId}>
+                O jogador não vê este cômodo até entrar ou olhar pela porta. Depois ele fica lembrado, mais apagado, com os pinos de
+                dentro.
+              </p>
+            </div>
+          )}
+
+          {showDark && (
+            <div className="lb-room-switch">
+              <Toggle label="Sala escura" checked={dark} onChange={onDarkChange} describedBy={darkHintId} />
+              <p className="lb-field__hint" id={darkHintId}>
+                Aqui dentro o jogador só vê a casa em volta da ficha e o que uma Luz ilumina. Você continua vendo tudo.
+              </p>
+            </div>
+          )}
         </div>
       )}
 
-      {onCreateRoomInside !== undefined && (
-        <button type="button" className="lb-btn lb-btn--block" onClick={onCreateRoomInside}>
-          Criar sala dentro
-        </button>
+      {hasExtras && (
+        <div className="lb-room-extras">
+          {onTextoAoEntrarChange !== undefined && (
+            <OpcionalDaSala rotulo="Ao entrar, o jogador lê" preenchido={temTexto(textoAoEntrar)} dicaId={enterHintId}>
+              <div className="lb-field">
+                <label className="lb-label" htmlFor={enterTextId}>
+                  Ao entrar, o jogador lê
+                </label>
+                <textarea
+                  id={enterTextId}
+                  className="lb-input lb-textarea"
+                  rows={3}
+                  maxLength={ROOM_TEXT_MAX_LENGTH}
+                  value={textoAoEntrar ?? ''}
+                  aria-describedby={enterHintId}
+                  onChange={(event) => onTextoAoEntrarChange(event.target.value)}
+                />
+                <p className="lb-field__hint" id={enterHintId}>
+                  Aparece só para quem entra, na primeira vez. Tocar no nome da sala mostra de novo.
+                </p>
+              </div>
+            </OpcionalDaSala>
+          )}
+
+          {onNotaDoMestreChange !== undefined && (
+            <OpcionalDaSala rotulo="Nota do mestre" preenchido={temTexto(notaDoMestre)} dicaId={noteHintId}>
+              <div className="lb-field">
+                <label className="lb-label" htmlFor={noteId}>
+                  Nota do mestre
+                </label>
+                <textarea
+                  id={noteId}
+                  className="lb-input lb-textarea"
+                  rows={3}
+                  maxLength={ROOM_TEXT_MAX_LENGTH}
+                  value={notaDoMestre ?? ''}
+                  aria-describedby={noteHintId}
+                  onChange={(event) => onNotaDoMestreChange(event.target.value)}
+                />
+                <p className="lb-field__hint" id={noteHintId}>
+                  Só você lê. Nunca vai para a tela dos jogadores.
+                </p>
+              </div>
+            </OpcionalDaSala>
+          )}
+
+          {onFaccaoChange !== undefined && (
+            // A facção herdada do distrito também conta como valor: a sala TEM
+            // dono, e o campo aberto é o que mostra de quem ela herda.
+            <OpcionalDaSala rotulo="Facção" preenchido={temTexto(faccao) || faccaoHerdada !== undefined} dicaId={faccaoHintId}>
+              <div className="lb-field">
+                <label className="lb-label" htmlFor={faccaoId}>
+                  Facção
+                </label>
+                <input
+                  id={faccaoId}
+                  className="lb-input"
+                  maxLength={FACCAO_MAX_LENGTH}
+                  value={faccao ?? ''}
+                  placeholder={faccaoHerdada}
+                  list={faccaoListId}
+                  aria-describedby={faccaoHintId}
+                  onChange={(event) => onFaccaoChange(event.target.value)}
+                />
+                <datalist id={faccaoListId}>
+                  {(faccoesConhecidas ?? []).map((nome) => (
+                    <option key={nome} value={nome} />
+                  ))}
+                </datalist>
+                <p className="lb-field__hint" id={faccaoHintId}>
+                  {faccaoHerdada !== undefined && (faccao ?? '').trim() === ''
+                    ? `Herda do distrito: ${faccaoHerdada}. Só você vê.`
+                    : 'Quem manda aqui. Só você vê; as salas de dentro herdam.'}
+                </p>
+              </div>
+            </OpcionalDaSala>
+          )}
+
+          {onRaioDeVisaoChange !== undefined && (
+            <OpcionalDaSala rotulo="Raio de visão aqui" preenchido={raioDeVisao !== undefined && raioDeVisao !== null} dicaId={raioHintId}>
+              <RoomVisionRadiusField raioDeVisao={raioDeVisao ?? null} onRaioDeVisaoChange={onRaioDeVisaoChange} hintId={raioHintId} />
+            </OpcionalDaSala>
+          )}
+
+          {hazard !== undefined && (
+            <OpcionalDaSala rotulo="Perigo" preenchido={hazard.kind !== null}>
+              <HazardControls {...hazard} />
+            </OpcionalDaSala>
+          )}
+
+          {onAddMobilia !== undefined && (
+            // Ação, não valor: nunca nasce aberta. O "+" mostra os três móveis.
+            <OpcionalDaSala rotulo="Mobília" preenchido={false}>
+              <div className="lb-field">
+                <span className="lb-label" id={mobiliaLabelId}>
+                  Mobília
+                </span>
+                <div className="lb-mobilia" role="group" aria-label="Pôr mobília na sala" aria-describedby={mobiliaLabelId}>
+                  {TIPOS_MOBILIA.map((tipo) => (
+                    <button
+                      key={tipo}
+                      type="button"
+                      className="lb-btn lb-mobilia__option"
+                      title={`Pôr ${NOME_COM_ARTIGO[tipo]} no centro da sala`}
+                      onClick={() => onAddMobilia(tipo)}
+                    >
+                      {ROTULO_MOBILIA[tipo]}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </OpcionalDaSala>
+          )}
+
+          {onCreateRoomInside !== undefined && (
+            // Já é UMA ação: a linha "+" age na hora (arma a ferramenta Sala
+            // com esta sala como mãe), sem campo a abrir. `--acao`: o alvo não
+            // encolhe — era um botão de 34 px de altura.
+            <button type="button" className="lb-room-opt__add lb-room-opt__add--acao" onClick={onCreateRoomInside}>
+              <span>Criar sala dentro</span>
+              <PlusGlyph />
+            </button>
+          )}
+        </div>
       )}
     </section>
   )

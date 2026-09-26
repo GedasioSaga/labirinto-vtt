@@ -1,0 +1,140 @@
+/*
+ * RoomControls — o bloco da Sala no formato do painel de propriedades do
+ * Figma UI3 (aba Design, camada selecionada): o que se mexe logo depois de
+ * desenhar vem primeiro, os números andam em par, e o opcional vazio é UMA
+ * linha com "+" que abre o campo de verdade ("Click Add stroke in the Stroke
+ * section", help.figma.com). Primitivas (`.lb-field`, `.lb-input`, `.lb-switch`,
+ * o anel de foco) vêm de main.css, como em SelectionHeader.css. Só
+ * `var(--lb-*)` de theme.ts — zero hex, zero sombra solta.
+ */
+
+/* Largura | Altura numa linha só (o W | H do Figma). `minmax(0, 1fr)`: sem ele o
+   campo de número não encolhe abaixo da largura intrínseca e a linha vaza do
+   rail de 264 px — o mesmo cuidado de `.lb-health`. */
+.lb-room-dims {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--lb-space-2);
+}
+
+/* Os quatro interruptores da sala lidos como UM grupo: entre eles, menos
+   respiro que entre campos (a linha do interruptor já tem folga própria). */
+.lb-room-switches {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-1);
+}
+
+/* Interruptor + a frase que explica: a frase colada embaixo do rótulo dela,
+   e não a meio caminho do interruptor seguinte. Rótulo e frase continuam
+   irmãos, na ordem de antes. */
+.lb-room-switch {
+  display: flex;
+  flex-direction: column;
+}
+
+/* O que se ACRESCENTA à sala, abaixo do que ela é: uma lista quieta, separada
+   do resto por uma linha fina, como as seções vazias do Figma. */
+.lb-room-extras {
+  display: flex;
+  flex-direction: column;
+  padding-top: var(--lb-space-1);
+  border-top: 1px solid var(--lb-color-line);
+}
+
+/* A linha "+": a linha inteira é o botão (alvo largo). A margem negativa deixa
+   o texto alinhado aos rótulos de cima e o fundo do hover transbordar um
+   pouco para os lados, dentro do respiro da seção; o "+" termina na mesma
+   coluna dos trilhos dos interruptores. */
+.lb-room-opt__add {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--lb-space-3);
+  /* Botão não estica sozinho como um bloco: a largura é a da coluna mais o
+     transbordo das duas margens negativas. */
+  width: calc(100% + 2 * var(--lb-space-2));
+  /* 28 px: a lista de acréscimos é para varrer com o olho, não para ler; acima
+     do mínimo de 24 px da WCAG 2.5.8, na largura inteira da coluna. */
+  min-height: 28px;
+  margin: 0 calc(-1 * var(--lb-space-2));
+  padding: 0 var(--lb-space-2);
+  border: 0;
+  border-radius: var(--lb-radius-sm);
+  background: transparent;
+  /* Opcional vazio lê mais apagado que o que já está preenchido (o título
+     cinza das seções vazias do Figma); o ponteiro o acende. */
+  color: var(--lb-color-parchment-dim);
+  font-family: inherit;
+  font-size: var(--lb-font-size-md);
+  line-height: var(--lb-font-leading-tight);
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background var(--lb-motion-fast) var(--lb-motion-ease),
+    color var(--lb-motion-fast) var(--lb-motion-ease);
+}
+
+/* "Criar sala dentro" era um `.lb-btn` de 34 px: virou linha "+", mas o alvo
+   não encolhe (invariante do painel). */
+.lb-room-opt__add--acao {
+  min-height: 34px;
+}
+
+.lb-room-opt__add:hover {
+  background: var(--lb-color-stone-hover);
+  color: var(--lb-color-parchment);
+}
+
+.lb-room-opt__add:active {
+  background: var(--lb-color-stone-sunken);
+}
+
+.lb-room-opt__plus {
+  flex: none;
+  display: grid;
+  place-items: center;
+  color: var(--lb-color-parchment-faint);
+  transition:
+    color var(--lb-motion-fast) var(--lb-motion-ease),
+    transform var(--lb-motion-fast) var(--lb-motion-ease);
+}
+
+.lb-room-opt__plus svg {
+  display: block;
+}
+
+/* O "+" em latão diz "isto acrescenta" quando o ponteiro ou o foco chegam. */
+.lb-room-opt__add:hover .lb-room-opt__plus,
+.lb-room-opt__add:focus-visible .lb-room-opt__plus {
+  color: var(--lb-color-brass);
+}
+
+/* Apertar responde na hora (Emil: encolher um pouco no `:active`). */
+.lb-room-opt__add:active .lb-room-opt__plus {
+  transform: scale(0.9);
+}
+
+/* O campo aberto no meio da lista: um respiro em volta para não encostar nas
+   linhas "+" vizinhas. Abre de uma vez, sem animação — abrir campo é gesto
+   frequente, e animar só atrasaria a digitação. */
+.lb-room-opt__body {
+  padding: var(--lb-space-1) 0 var(--lb-space-2);
+}
+
+/* `hidden` vence qualquer `display` de autor que um dia caia aqui (o mesmo
+   cuidado de `.lb-collapsible__body[hidden]` em main.css). */
+.lb-room-opt__body[hidden] {
+  display: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lb-room-opt__add,
+  .lb-room-opt__plus {
+    transition: none;
+  }
+
+  .lb-room-opt__add:active .lb-room-opt__plus {
+    transform: none;
+  }
+}
