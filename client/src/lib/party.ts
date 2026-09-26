@@ -10,6 +10,7 @@ import { roomsAt } from './roomNesting'
 import type { DestinationMark } from './signals'
 import { tokenFillColor } from './tokenColor'
 import { entourageNear } from './travelTogether'
+import { isCoinAmount, moedasDe } from './troca'
 
 /**
  * O PAINEL GRUPO (aba Jogo): uma linha por jogador, com a cor da ficha, onde
@@ -44,6 +45,8 @@ export interface PartyMember {
   travelPending: boolean
   /** O que as fichas dele carregam, em qualquer cena aberta (ITEM PEGÁVEL). */
   mochila: PartyItem[]
+  /** MOEDAS E TROCA: a bolsa da ficha da linha (`token`). Ausente = zero. */
+  moedas?: number
   /** MARCA "VAMOS PARA CÁ" dele, em px de mundo da cena `sceneId`. Ausente = não marcou. */
   destination?: { x: number; y: number }
   /**
@@ -107,8 +110,15 @@ export interface PartyItem extends CarriedItem {
   sceneId: string | null
 }
 
-/** O que o mestre faz com a mochila no Grupo: tirar um item, devolvê-lo ao chão, ou dar um novo. */
-export type PartyItemAction = { kind: 'tirar'; item: PartyItem } | { kind: 'devolver'; item: PartyItem } | { kind: 'dar'; member: PartyMember; nome: string }
+/**
+ * O que o mestre faz com a mochila no Grupo: tirar um item, devolvê-lo ao
+ * chão, dar um novo — ou acertar a bolsa da ficha da linha (`moedas`).
+ */
+export type PartyItemAction =
+  | { kind: 'tirar'; item: PartyItem }
+  | { kind: 'devolver'; item: PartyItem }
+  | { kind: 'dar'; member: PartyMember; nome: string }
+  | { kind: 'moedas'; member: PartyMember; moedas: number }
 
 /** Um ponto de chegada do "Mandar para…": um pino de viagem da cena de destino. */
 export interface PartyArrival {
@@ -188,13 +198,15 @@ function sceneById(world: HostWorld, sceneId: string | null): HostScene | undefi
  * "Dar", ou para o pino devolvido quando o id do item já é de outro pino.
  */
 export function partyItemChange(world: HostWorld, action: PartyItemAction, freshId: string): AppliedItems | null {
-  const sceneId = action.kind === 'dar' ? action.member.sceneId : action.item.sceneId
-  const tokenId = action.kind === 'dar' ? action.member.token?.id : action.item.tokenId
+  const onMember = action.kind === 'dar' || action.kind === 'moedas'
+  const sceneId = onMember ? action.member.sceneId : action.item.sceneId
+  const tokenId = onMember ? action.member.token?.id : action.item.tokenId
   const scene = sceneById(world, sceneId)
   const token = tokenId === undefined ? undefined : scene?.map.tokens.find((t) => t.id === tokenId)
   if (scene === undefined || token === undefined) return null
   let change: ItemChange | null
   if (action.kind === 'dar') change = giveNewItemChange(token, action.nome, freshId)
+  else if (action.kind === 'moedas') change = isCoinAmount(action.moedas) ? { mochilas: [], bolsas: [{ tokenId: token.id, moedas: action.moedas }] } : null
   else if (action.kind === 'tirar') change = removeItemChange(token, action.item.id)
   else change = dropItemChange(scene.map, token, action.item.id, freshId)
   if (change === null) return null
@@ -234,6 +246,8 @@ export function partyMembers(players: PlayerInfo[], world: HostWorld): PartyMemb
       travelPending: player.travelPending === true,
       mochila: backpackOf(player, world),
     }
+    const moedas = token === null ? 0 : moedasDe(token)
+    if (moedas > 0) member.moedas = moedas
     if (!player.connected && player.disconnectedAt !== undefined) member.offlineSince = player.disconnectedAt
     if (player.destination !== undefined) member.destination = { x: player.destination.x, y: player.destination.y }
     const away = awayTokensOf(player, world)

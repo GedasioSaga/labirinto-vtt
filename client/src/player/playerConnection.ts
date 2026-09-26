@@ -7,8 +7,13 @@ import { cleanFloorLabel } from '../lib/buildingFloors'
 import { readPlayerClock, type PlayerClock } from '../lib/campaignClock'
 import { lerPortasPorAtravessar } from '../lib/portasPorAtravessar'
 import {
+  COINS_GIVE_REJECTIONS,
   DOOR_REQUEST_REJECTIONS,
   ITEM_GIVE_REJECTIONS,
+  parseHostTradeMessage,
+  type CoinsGiveRejection,
+  type TradeClosedResult,
+  type TradeOfferMessage,
   NAME_MAX_LENGTH,
   NAME_MIN_LENGTH,
   PLAYER_MESSAGE_MAX_BYTES,
@@ -38,6 +43,7 @@ import {
 } from '../net/protocol'
 import { ACEITA_GZIP, criarEntradaEmOrdem } from '../net/pacoteComprimido'
 import { carriedItemsOf, cleanItemName, itemOfPin } from '../lib/items'
+import { canPay, isCoinAmount, ownTradeToken, purseToward, TRADE_ITEMS_MAX } from '../lib/troca'
 import { lojaParaJogador } from '../lib/loja'
 import { fitsTokenPhotoSend } from '../lib/tokenPhoto'
 import { isPlayerSafePinImage, passageOf } from '../lib/pins'
@@ -253,6 +259,12 @@ export interface PlayerState {
   item?: ItemNotice
   /** LOJA COM PREÇOS: o último "Quero" — esperando o mestre, a resposta dele ou a recusa do host. A resposta some sozinha. */
   compra?: CompraNotice
+  /**
+   * MOEDAS E TROCA: a oferta do mestre aberta, e onde ela está. Fica até o
+   * jogador responder e a troca acabar; o fim (`done`, `refused`...) some
+   * sozinho depois de `TRADE_CLOSED_TTL_MS`.
+   */
+  troca?: TradeOfferState
   /** ALAVANCA: a resposta ao "Puxar a alavanca". Some sozinha; `id` novo repete o aviso. */
   lever?: { id: number; phase: LeverPhase }
   /** FECHADURA COM SEGREDO: a última tentativa, no pino `pinId`, e a resposta do host. */
@@ -648,6 +660,19 @@ export type ItemNotice =
   | { id: number; phase: 'denied' }
   | { id: number; phase: 'rejected'; reason: PinTakeRejection }
   | { id: number; phase: 'give_rejected'; reason: ItemGiveRejection }
+  | { id: number; phase: 'coins_rejected'; reason: CoinsGiveRejection }
+
+/**
+ * MOEDAS E TROCA: `open` espera a resposta dele; `answered` e `countered`
+ * esperam o host ou o mestre; o resto é como a troca acabou.
+ */
+export type TradePhase = 'open' | 'answered' | 'countered' | TradeClosedResult
+
+/** A oferta do mestre como a tela a mostra. `id` novo remonta o cartão. */
+export interface TradeOfferState extends Omit<TradeOfferMessage, 'type'> {
+  id: number
+  phase: TradePhase
+}
 
 /**
  * LOJA COM PREÇOS: onde está o "Quero". `sent` espera o mestre (sem prazo:
@@ -889,6 +914,22 @@ export interface PlayerConnection {
    */
   giveItem(itemId: string, toTokenId: string): boolean
   /**
+   * MOEDAS E TROCA — "Pagar a…": `moedas` à ficha `toTokenId`. `false` (e nada
+   * sai) quando não joga, o valor não é inteiro positivo, as fichas dele não
+   * somam tanto, ou o socket caiu. Quem confere de verdade é o host.
+   */
+  giveCoins(toTokenId: string, moedas: number): boolean
+  /** Aceita (`true`) ou recusa a oferta aberta. `false` sem oferta esperando resposta. */
+  answerTrade(accept: boolean): boolean
+  /**
+   * Contrapropõe à oferta aberta: em vez do pedido, os itens `itemIds` e
+   * `moedas` da ficha da oferta. `false` (e nada sai) sem oferta aberta,
+   * contraproposta vazia, ou com o que ele não tem.
+   */
+  counterTrade(itemIds: readonly string[], moedas: number): boolean
+  /** Fecha o cartão da troca que já acabou. */
+  dismissTrade(): void
+  /**
    * AÇÃO NO PONTO (px de mundo): pede ao mestre para Procurar/Escutar/
    * Espiar/Revistar ali. `false` se não está jogando, o ponto não é finito,
    * cai fora do mapa ou o socket não está aberto.
@@ -1087,6 +1128,8 @@ export const HIDE_NOTICE_TTL_MS = DOOR_REQUEST_NOTICE_TTL_MS
 export const ITEM_NOTICE_TTL_MS = 4000
 /** LOJA: quanto a resposta ao "Quero" ("está com você", "O mestre não vendeu") fica na tela. O enviado fica até a resposta. */
 export const COMPRA_NOTICE_TTL_MS = ITEM_NOTICE_TTL_MS
+/** MOEDAS E TROCA: quanto o "Troca feita" (ou recusada, desfeita) fica no cartão antes de sumir. */
+export const TRADE_CLOSED_TTL_MS = 5000
 /** Quanto tempo o aviso da alavanca ("Você puxou a alavanca") fica na tela: recado curto, como o da porta. */
 export const LEVER_NOTICE_TTL_MS = DOOR_NOTICE_TTL_MS
 /** Quanto tempo o aviso do teste secreto ("Resultado enviado ao mestre") fica na tela. Curto como o da porta. */
@@ -1835,6 +1878,51 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     const atual = state.compra
     if (atual === undefined || atual.phase !== 'sent') return
     showCompra({ ...atual, id: nextNoticeId++, phase, nome: nome ?? atual.nome })
+  }
+
+  let tradeTimer: ReturnType<typeof setTimeout> | null = null
+
+  function clearTradeTimer(): void {
+    if (tradeTimer !== null) clearTimeout(tradeTimer)
+    tradeTimer = null
+  }
+
+  /** MOEDAS E TROCA: o cartão na fase nova. Troca que acabou some sozinha; a aberta espera. */
+  function showTrade(troca: TradeOfferState): void {
+    clearTradeTimer()
+    setState({ troca })
+    if (troca.phase === 'open' || troca.phase === 'answered' || troca.phase === 'countered') return
+    tradeTimer = setTimeout(() => {
+      tradeTimer = null
+      setState({ troca: undefined })
+    }, TRADE_CLOSED_TTL_MS)
+  }
+
+  /** O cartão fora da tela (queda, sem ficha, sala fechada): a oferta morreu no host junto. */
+  function forgetTrade(): void {
+    clearTradeTimer()
+    if (state.troca !== undefined) setState({ troca: undefined })
+  }
+
+  /** A mensagem da troca que chegou do host, já validada. Fim de OUTRA oferta não mexe no cartão. */
+  function receiveTrade(data: unknown): void {
+    if (state.status !== 'playing') return
+    const msg = parseHostTradeMessage(data)
+    if (msg === null) return
+    if (msg.type === 'trade.offer') {
+      const { type: _type, ...offer } = msg
+      showTrade({ ...offer, id: nextNoticeId++, phase: 'open' })
+      return
+    }
+    const atual = state.troca
+    if (atual === undefined || atual.offerId !== msg.offerId) return
+    showTrade({ ...atual, id: nextNoticeId++, phase: msg.result })
+  }
+
+  /** As fichas dele no mapa que ele tem agora. */
+  function ownTokensNow(): Token[] {
+    const own = state.ownTokens ?? []
+    return (state.map?.tokens ?? []).filter((t) => own.includes(t.id))
   }
 
   let callTimer: ReturnType<typeof setTimeout> | null = null
@@ -2746,10 +2834,13 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
           clearCompraTimer()
           setState({ compra: undefined })
         }
+        // TROCA: a oferta também morre no host com a queda — o cartão ofereceria o que ninguém espera.
+        forgetTrade()
         return
       case 'lobby.waiting':
         arrivalFromMapId = null
         arrivalTokenId = null
+        forgetTrade()
         clearSignalTimers()
         clearLaserTimer()
         clearPlayerLasers()
@@ -3284,6 +3375,17 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         showItemNotice({ id: nextNoticeId++, phase: 'give_rejected', reason })
         return
       }
+      case 'coins.give.rejected': {
+        if (state.status !== 'playing') return
+        const reason = COINS_GIVE_REJECTIONS.find((r) => r === data.reason)
+        if (reason === undefined) return
+        showItemNotice({ id: nextNoticeId++, phase: 'coins_rejected', reason })
+        return
+      }
+      case 'trade.offer':
+      case 'trade.closed':
+        receiveTrade(data)
+        return
       case 'pin.lever.answer': {
         if (state.status !== 'playing' || data.answer !== 'pulled') return
         showLeverNotice('pulled')
@@ -3404,6 +3506,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         clearTravelTimer()
         clearItemTimer()
         clearCompraTimer()
+        forgetTrade()
         clearLeverTimer()
         clearHazardNotice()
         clearCallTimer()
@@ -3863,6 +3966,47 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       const carrying = (state.map?.tokens ?? []).some((t) => own.includes(t.id) && carriedItemsOf(t).some((item) => item.id === itemId))
       if (!carrying) return false
       return send({ type: 'item.give', itemId, toTokenId })
+    },
+
+    giveCoins(toTokenId, moedas) {
+      if (state.status !== 'playing' || toTokenId.length === 0 || !isCoinAmount(moedas) || moedas === 0) return false
+      // Uma ficha só paga, e a ENCOSTADA no colega: o host não junta bolsas nem cobra da ficha longe.
+      const map = state.map
+      if (map === undefined) return false
+      const alvo = map.tokens.find((t) => t.id === toTokenId)
+      if (purseToward(ownTokensNow(), alvo, map.grid) < moedas) return false
+      return send({ type: 'coins.give', toTokenId, moedas })
+    },
+
+    answerTrade(accept) {
+      const troca = state.troca
+      if (state.status !== 'playing' || troca?.phase !== 'open') return false
+      if (!send({ type: 'trade.answer', offerId: troca.offerId, answer: accept ? 'accept' : 'refuse' })) return false
+      showTrade({ ...troca, id: nextNoticeId++, phase: 'answered' })
+      return true
+    },
+
+    counterTrade(itemIds, moedas) {
+      const troca = state.troca
+      if (state.status !== 'playing' || troca?.phase !== 'open' || !isCoinAmount(moedas)) return false
+      const ask = { itemIds: [...new Set(itemIds)], moedas }
+      if (ask.itemIds.length === 0 && moedas === 0) return false
+      // O host recusa (invalid_message) acima do teto, e esse erro some em jogo:
+      // o cartão ficaria em 'countered' para sempre. Barra aqui, antes do envio.
+      if (ask.itemIds.length > TRADE_ITEMS_MAX) return false
+      // Só a ficha da oferta paga: o host não junta mochilas de fichas diferentes.
+      const ficha = ownTradeToken(state.map?.tokens ?? [], state.ownTokens ?? [], troca.tokenId)
+      if (ficha === undefined || !canPay(ficha, ask)) return false
+      if (!send({ type: 'trade.counter', offerId: troca.offerId, itemIds: ask.itemIds, moedas })) return false
+      showTrade({ ...troca, id: nextNoticeId++, phase: 'countered' })
+      return true
+    },
+
+    dismissTrade() {
+      const phase = state.troca?.phase
+      // A aberta não se fecha sem resposta: o mestre ficaria esperando para sempre.
+      if (phase === undefined || phase === 'open' || phase === 'answered' || phase === 'countered') return
+      forgetTrade()
     },
 
     pullLever(pinId) {
