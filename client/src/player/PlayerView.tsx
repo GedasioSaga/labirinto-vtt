@@ -86,6 +86,8 @@ import {
 import { drawPlayerMeasure, drawPlayerTokenDrag } from './drawPlayerMeasure'
 import { resolveTokenRelease } from './tokenRelease'
 import { findTapTarget, holdBecomesSignal, type TapTarget } from './tapTarget'
+import { drawSharedRoute, sharedRouteLabel } from './drawSharedRoute'
+import type { SharedRoute } from './playerConnection'
 import { createTokenGlides, stepGlides, syncGlide, type TokenGlides } from './tokenGlide'
 import { applyTokenTouch, prepareTokenLayer } from './tokenTouch'
 import { findTappedOtherToken } from './tokenCard'
@@ -178,6 +180,14 @@ interface PlayerViewProps {
    * câmera. A medida é só desta tela — nada vai pelo socket.
    */
   measureArmed?: boolean
+  /**
+   * A medida ficou solta na tela (o dedo saiu, com início e fim diferentes):
+   * os dois pontos em px de mundo, para o "Mostrar a…". `null` quando ela sai
+   * ou quando um toque novo começa outra. Só chama quando muda.
+   */
+  onMeasureSettle?: (points: RegionPoint[] | null) => void
+  /** Caminho que um colega mostrou com a régua: tracejado na cor dele, com a etiqueta "caminho do …". */
+  sharedRoute?: SharedRoute
   /** Toque curto numa porta: pede ao mestre para abrir/fechar (o mestre valida). */
   onDoorToggle?: (wallId: string) => void
   /** Toque curto num pino: abre o cartão do ponto de interesse. */
@@ -907,6 +917,12 @@ interface Scene {
   measure: PlayerMeasureState
   /** Última medida desenhada (pontos de tela + rótulo); igual = nada a repintar. */
   lastMeasureKey: string | null
+  /** Última medida solta avisada por `onMeasureSettle` (pontos de mundo); `null` = nenhuma, `''` = nada avisado ainda. */
+  lastSettledKey: string | null
+  /** Caminho de um colega, em espaço de tela como a régua (espessura fixa em qualquer zoom). */
+  routeLayer: Graphics
+  /** Último caminho desenhado (id + pontos de tela); igual = nada a repintar. */
+  lastRouteKey: string | null
   /**
    * Rastro do PRÓPRIO laser, desenhado na hora (sem esperar a volta pela
    * rede). Mora aqui pela mesma razão da régua: muda a cada passo do dedo.
@@ -1201,6 +1217,8 @@ export function PlayerView({
   destinationArmed = false,
   onDestination,
   measureArmed = false,
+  onMeasureSettle,
+  sharedRoute,
   onDoorToggle,
   onPinOpen,
   onTokenOpen,
@@ -1230,6 +1248,7 @@ export function PlayerView({
   const revisitNoteRef = useRef<HTMLDivElement | null>(null)
   /** O que esta tela já viu de cada cena, para saber o que mudou na volta (`revisitChanges.ts`). */
   const revisitMemoryRef = useRef(createRevisitMemory())
+  const routeLabelRef = useRef<HTMLDivElement | null>(null)
   const sceneRef = useRef<Scene | null>(null)
   const latest = {
     map,
@@ -1254,6 +1273,8 @@ export function PlayerView({
     destinationArmed,
     onDestination,
     measureArmed,
+    onMeasureSettle,
+    sharedRoute,
     onDoorToggle,
     onPinOpen,
     onTokenOpen,
@@ -1307,6 +1328,7 @@ export function PlayerView({
    * texto o encontram, e ele fica nítido em qualquer zoom.
    */
   function syncMeasure(scene: Scene): void {
+    reportSettledMeasure(scene)
     const measure = scene.measure.measure
     const label = measureLabelRef.current
     const announcer = measureAnnouncerRef.current
@@ -1408,6 +1430,55 @@ export function PlayerView({
     const reach = drag.reach?.map((p) => measureWorldToScreen(scene.camera, p)) ?? null
     drawPlayerTokenDrag(scene.tokenDragLayer, start, end, reach)
     if (label) showScreenLabel(scene, label, drag.label, end)
+  }
+
+  /**
+   * Avisa a tela de cima quando a medida fica solta (o dedo saiu, com início e
+   * fim diferentes) ou deixa de existir: é ela que oferece "Mostrar a…". Só
+   * chama quando os pontos de mundo mudam — o ticker passa aqui a cada quadro.
+   */
+  function reportSettledMeasure(scene: Scene): void {
+    const measure = scene.measure.measure
+    const settled = measure !== null && !measure.dragging && (measure.start.x !== measure.end.x || measure.start.y !== measure.end.y) ? measure : null
+    const key = settled === null ? null : JSON.stringify([settled.start, settled.end])
+    if (key === scene.lastSettledKey) return
+    scene.lastSettledKey = key
+    latestRef.current.onMeasureSettle?.(settled === null ? null : [{ x: settled.start.x, y: settled.start.y }, { x: settled.end.x, y: settled.end.y }])
+  }
+
+  /**
+   * Pinta o caminho que um colega mostrou (tracejado no canvas + etiqueta no
+   * DOM, perto da chegada). Chamada no ticker, como a régua: zoom e arrasto de
+   * câmera mudam a posição de tela sem mudar o caminho. A chave evita repintar.
+   */
+  function syncSharedRoute(scene: Scene): void {
+    const route = latestRef.current.sharedRoute
+    const label = routeLabelRef.current
+    if (route === undefined) {
+      if (scene.lastRouteKey === null) return
+      scene.lastRouteKey = null
+      scene.routeLayer.clear()
+      if (label) {
+        label.textContent = ''
+        label.hidden = true
+      }
+      return
+    }
+    const points = route.points.map((p) => measureWorldToScreen(scene.camera, p))
+    const key = JSON.stringify([route.id, points])
+    if (key === scene.lastRouteKey) return
+    scene.lastRouteKey = key
+    drawSharedRoute(scene.routeLayer, points, route.color)
+    const end = points[points.length - 1]
+    if (!label || end === undefined) return
+    const text = sharedRouteLabel(route.from)
+    if (label.textContent !== text) label.textContent = text
+    // A cor já passou pelo `#rrggbb` do parser: vai direto para a borda.
+    label.style.borderColor = route.color
+    label.hidden = false
+    const x = Math.min(Math.max(0, end.x + MEASURE_LABEL_OFFSET_PX), scene.app.screen.width - label.offsetWidth)
+    const y = Math.min(Math.max(0, end.y + MEASURE_LABEL_OFFSET_PX), scene.app.screen.height - label.offsetHeight)
+    label.style.transform = `translate(${Math.round(x)}px, ${Math.round(y)}px)`
   }
 
   function applyMeasureEvent(scene: Scene, event: PlayerMeasureEvent): void {
@@ -2117,7 +2188,10 @@ export function PlayerView({
       // Anotações pessoais logo acima do mapa (e da névoa: a nota é de quem a pôs) e abaixo de régua e sinais.
       const personalNotesLayer = new Container()
       personalNotesLayer.eventMode = 'none'
-      app.stage.addChild(world, revisitLayer, personalNotesLayer, pulseLayer, measureLayer, tokenDragLayer, signalsLayer, laserLayer)
+      // Caminho de um colega sob a própria régua: medir por cima dele não esconde a medida.
+      const routeLayer = new Graphics()
+      routeLayer.eventMode = 'none'
+      app.stage.addChild(world, revisitLayer, personalNotesLayer, pulseLayer, routeLayer, measureLayer, tokenDragLayer, signalsLayer, laserLayer)
       app.stage.eventMode = 'static'
       app.stage.hitArea = app.screen
 
@@ -2221,6 +2295,11 @@ export function PlayerView({
         measureLayer,
         measure: withMeasureArmed(MEASURE_OFF, latestRef.current.measureArmed),
         lastMeasureKey: null,
+        // '' não é chave de medida nenhuma: o primeiro quadro avisa "sem medida",
+        // e a tela de cima esquece a de uma cena (ou montagem) anterior.
+        lastSettledKey: '',
+        routeLayer,
+        lastRouteKey: null,
         ownLaser: NO_OWN_LASER,
         tokenDragLayer,
         lastTokenDragKey: null,
@@ -2383,6 +2462,9 @@ export function PlayerView({
         syncTokenDrag(scene)
       }
       app.ticker.add(tickMeasure)
+      // Idem para o caminho de um colega.
+      const tickSharedRoute = () => syncSharedRoute(scene)
+      app.ticker.add(tickSharedRoute)
 
       // Leva cada ficha em deslize um passo adiante; parada, não custa nada.
       // Mexe só na posição de quem anda: o resto da cena não é refeito.
@@ -2781,6 +2863,7 @@ export function PlayerView({
         app.ticker.remove(tickLaser)
         app.ticker.remove(tickPlayerLasers)
         app.ticker.remove(tickMeasure)
+        app.ticker.remove(tickSharedRoute)
         app.ticker.remove(tickTokenGlides)
         app.ticker.remove(tickTokenTurns)
         app.ticker.remove(tickPulse)
@@ -2831,6 +2914,12 @@ export function PlayerView({
     el.dataset.laserOn = String(laser?.on ?? false)
     el.dataset.laserPoints = String(laser?.points.length ?? 0)
   }, [laser])
+
+  useEffect(() => {
+    // Para o e2e: quantos pontos do caminho de um colega estão na tela (o desenho é do ticker).
+    const el = containerRef.current
+    if (el) el.dataset.sharedRoutePoints = String(sharedRoute?.points.length ?? 0)
+  }, [sharedRoute])
 
   useEffect(() => {
     const scene = sceneRef.current
@@ -2903,6 +2992,8 @@ export function PlayerView({
       {/* MAPA LEMBRADO: "Mudou desde a sua última visita" junto ao trecho que pisca; escrito por startRevisitPulse.
           `aria-live` educado: é um aviso por volta ao trecho, não um fluxo contínuo. */}
       <div ref={revisitNoteRef} className="pp-measure-label pp-revisit-note" data-testid="revisit-note" aria-live="polite" aria-atomic="true" hidden />
+      {/* Etiqueta do caminho de um colega, escrita pelo ticker (syncSharedRoute). O aviso com "Dispensar" é da tela de cima. */}
+      <div ref={routeLabelRef} className="pp-measure-label pp-route-label" hidden />
     </>
   )
 }

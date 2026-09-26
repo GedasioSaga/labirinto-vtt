@@ -37,6 +37,7 @@ import { triggersWithRegions, type PlayerAreaTrigger } from './areaTriggers'
 import { isDarkAt, periodOfHour, type PlayerClock } from './campaignClock'
 import { noiseDirection, type NoiseDirection } from './noise'
 import { setaDoAbalo, type AbaloSeta } from './abalo'
+import { faceRangeCellsOrNull, isFaceInReach, tokenAsVulto } from './tokenVulto'
 
 /**
  * Recorte do mapa que um jogador pode receber. Tudo que sai daqui vai pela
@@ -2985,6 +2986,12 @@ export function filterMapForGroup(
       : new Map<string, WatchAlert>()
 
   const sentTokenIds = new Set(playerTokens.map((t) => t.id))
+  // VULTO ("Rostos só de perto: N casas"): ficha alheia além de N casas de
+  // todas as fichas do jogador sai sem rosto — nem o nome (de trabalho,
+  // público ou do dono), nem foto, nem cor. Depois do filtro de névoa: o vulto
+  // só troca o rosto de quem já sai, nunca traz ninguém de volta.
+  const faceRange = faceRangeCellsOrNull(map.faceRangeCells)
+  const isFaceless = (t: Token): boolean => faceRange !== null && !owned.has(t.id) && !isFaceInReach(t, ownTokens, map, faceRange)
   // Ficha que o MESTRE esconde deste jogador (oculta, secreta ou na camada
   // Fichas escondida). A tocha presa nela fica no centro dela e anda com ela:
   // enviar a luz, mesmo sem o vínculo, entregaria a posição e o trajeto do NPC.
@@ -3030,8 +3037,10 @@ export function filterMapForGroup(
   // Ficha disfarçada pelo mestre (outro nome ou nenhum) também não: a marca diria quem está por trás.
   // Sem `companionOf` (tela da mesa), nenhuma sai marcada — e `companion` do mapa do mestre nunca passa.
   // Vulto também não: a marca poria o nome do dono no rótulo que o vulto tirou.
+  // Ficha sem rosto (`isFaceless`) sai montada do zero por `tokenAsVulto`: nada da ficha real passa.
   const tokens = playerTokens
     .map((t) => {
+      if (isFaceless(t)) return tokenAsVulto(t)
       const seen = withoutMasterMarks(withoutNpcMark(tokenForPlayer(tokenAsSeenByPlayer(owned.has(t.id) ? t : withoutBackpack(t), owned.has(t.id)))))
       if (isShadow(t)) return withCompanionMark(asShadow(seen), undefined)
       const mark = tokenPublicNameMode(t.publicName) === 'same' ? companionOf?.get(t.id) : undefined

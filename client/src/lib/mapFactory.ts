@@ -14,6 +14,7 @@ import {
   withoutRotationNoise, type RotationTrig,
 } from './roomRotation'
 import { defaultMeasurementModeForShape } from './measurement'
+import { faceRangeCellsOrNull } from './tokenVulto'
 import { moveBlocos, type Bloco } from './floorBlocks'
 import { apagarBlocosDoChao } from './floorTool'
 import { DEFAULT_FLOOR_STYLE } from './mapFile'
@@ -2042,5 +2043,18 @@ export function setSceneDark(map: MapData, dark: boolean): MapData {
   if ((map.dark === true) === dark) return map
   if (dark) return { ...map, dark: true }
   const { dark: _antes, ...rest } = map
+  return rest
+}
+
+/**
+ * "Rostos só de perto": `cells` de 1 a 99 liga a opção da cena; `null` (ou
+ * valor fora da faixa) desliga e TIRA o campo do mapa, para o arquivo gravar
+ * como a cena de sempre (`lib/tokenVulto.ts`).
+ */
+export function setFaceRangeCells(map: MapData, cells: number | null): MapData {
+  const valid = faceRangeCellsOrNull(cells)
+  if (valid !== null) return { ...map, faceRangeCells: valid }
+  if (!('faceRangeCells' in map)) return map
+  const { faceRangeCells: _desligada, ...rest } = map
   return rest
 }

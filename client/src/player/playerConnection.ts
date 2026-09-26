@@ -51,6 +51,7 @@ import {
   AWAY_NOTES_MAX,
   CALL_TEXT_MAX_LENGTH,
   NOTEBOOK_MAX_NOTES,
+  ROUTE_MIN_POINTS,
   isCallReason,
   parseAbalo,
   parseCallReply,
@@ -67,6 +68,7 @@ import {
   parsePartyUpdate,
   parsePointActionReply,
   parseRoomText,
+  parseRouteMessage,
   parseSceneAlarm,
   parseSceneAlarmEnd,
   parseSceneNote,
@@ -415,6 +417,16 @@ export interface PlayerState {
    * snapshot da volta provar que a sala está viva de novo; a tela nunca os mostra.
    */
   keptNotebook?: { clues: ClueEntry[]; notes: NoteEntry[] }
+  /** Caminho da régua, "Mostrar a…": esperando a lista, ou os colegas da mesma cena. */
+  routePeers?: CluePeers
+  /** Caminho da régua: o último envio e a resposta do host. */
+  routeShow?: ClueShow
+  /**
+   * O caminho que um colega da cena mostrou com a régua. Fica até o jogador
+   * dispensar (`dismissSharedRoute`), até `SHARED_ROUTE_TTL_MS` ou até trocar
+   * de cena; um caminho novo toma o lugar do que estava.
+   */
+  sharedRoute?: SharedRoute
   rev: number
   playerId?: string
   /** Motivo quando `status === 'error'`: razão do mestre ou 'connection_lost'. */
@@ -505,6 +517,14 @@ export interface OwnWait {
   who?: string
   where?: string
   until: number
+}
+
+/** Caminho de um colega: `points` em px de mundo, já sem zona oculta e sala secreta (o host tira). `id` novo = outro caminho. */
+export interface SharedRoute {
+  id: number
+  from: string
+  color: string
+  points: RegionPoint[]
 }
 
 export interface ClueShow {
@@ -831,6 +851,14 @@ export interface PlayerConnection {
    * volta assim que o mestre responder. `false` também quando não estava fora.
    */
   setAway(away: boolean): boolean
+  /** Caminho da régua, "Mostrar a…": pede ao host quem está na mesma cena (a mesma lista das pistas). */
+  askRoutePeers(): boolean
+  /** Manda o traço medido (px de mundo) ao colega `to`. `false` com menos de 2 pontos, fora do jogo ou com o socket caído. */
+  showRoute(to: string, points: readonly RegionPoint[]): boolean
+  /** A medida mudou ou saiu: a lista de colegas e o resultado do envio perdem o sentido. */
+  resetRouteShare(): void
+  /** Apaga o caminho que um colega mostrou. */
+  dismissSharedRoute(): void
   /** Abre um socket novo (reconectar), reaproveitando o resumeToken guardado. */
   reconnect(): void
   /**
@@ -950,6 +978,13 @@ export const TOKEN_ACTION_NOTICE_TTL_MS = 5000
  * não a tela — mesmo teto do "Você chegou". Some antes se ele fechar.
  */
 export const WAIT_ENDED_NOTICE_TTL_MS = 60_000
+/**
+ * Quanto tempo o caminho que um colega mostrou fica no mapa sem ser
+ * dispensado: o bastante para ir andando por ele, e não para sempre.
+ */
+export const SHARED_ROUTE_TTL_MS = 120_000
+/** O que o caminho da régua deixa na tela: lista de colegas, resultado do envio e o caminho recebido. */
+const NO_ROUTE: Pick<PlayerState, 'routePeers' | 'routeShow' | 'sharedRoute'> = { routePeers: undefined, routeShow: undefined, sharedRoute: undefined }
 const SOCKET_OPEN = 1
 /** Mede o tamanho em bytes do que vai pelo socket (o servidor conta bytes, não caracteres). */
 const utf8 = new TextEncoder()
@@ -1424,6 +1459,36 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     }, PASSAGE_OPENED_NOTICE_TTL_MS)
     const still = watched.filter((pinId) => !opened.includes(pinId))
     return { passageWatch: still.length === 0 ? undefined : still, passageOpened: { id: nextNoticeId++ } }
+  }
+
+  let sharedRouteTimer: ReturnType<typeof setTimeout> | null = null
+
+  function clearSharedRouteTimer(): void {
+    if (sharedRouteTimer !== null) clearTimeout(sharedRouteTimer)
+    sharedRouteTimer = null
+  }
+
+  /**
+   * CAMINHO DA RÉGUA. O traço de um colega só aparece com o mapa na tela, e
+   * some sozinho depois de `SHARED_ROUTE_TTL_MS`; o resultado do envio só vale
+   * para o envio que ainda espera, ao mesmo colega.
+   */
+  function handleRouteMessage(data: unknown): void {
+    if (state.status !== 'playing') return
+    const msg = parseRouteMessage(data)
+    if (msg === null) return
+    if (msg.type === 'route.shown') {
+      clearSharedRouteTimer()
+      const id = nextNoticeId++
+      setState({ sharedRoute: { id, from: msg.from, color: msg.color, points: msg.points } })
+      sharedRouteTimer = setTimeout(() => {
+        sharedRouteTimer = null
+        if (state.sharedRoute?.id === id) setState({ sharedRoute: undefined })
+      }, SHARED_ROUTE_TTL_MS)
+      return
+    }
+    if (state.routeShow?.phase !== 'sending' || state.routeShow.to !== msg.to) return
+    setState({ routeShow: { to: msg.to, phase: msg.ok ? 'ok' : msg.reason === 'too_soon' ? 'too_soon' : 'failed' } })
   }
 
   let travelTimer: ReturnType<typeof setTimeout> | null = null
@@ -2274,12 +2339,14 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       }
       case 'clue.peers': {
         // Só quem pediu espera a lista: resposta atrasada de um cartão já fechado não reabre nada.
-        // A mesma pergunta serve ao cartão da pista e ao "Mostrar meu mapa a…": cada um só se estava esperando.
+        // A mesma pergunta serve ao cartão da pista, ao "Mostrar meu mapa a…" e à
+        // régua: cada um só recebe a sua se estava esperando.
         const ready: CluePeers = { phase: 'ready', names: msg.names }
         const patch: Partial<PlayerState> = {}
         if (state.cluePeers?.phase === 'loading') patch.cluePeers = ready
         if (state.mapPeers?.phase === 'loading') patch.mapPeers = ready
-        if (patch.cluePeers !== undefined || patch.mapPeers !== undefined) setState(patch)
+        if (state.routePeers?.phase === 'loading') patch.routePeers = ready
+        if (patch.cluePeers !== undefined || patch.mapPeers !== undefined || patch.routePeers !== undefined) setState(patch)
         return
       }
       case 'clue.show.result':
@@ -2362,6 +2429,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         clearMarkTimer()
         clearTokenAction()
         clearWaitEndedTimer()
+        clearSharedRouteTimer()
         // O teste secreto sai junto: sem mapa não há cartão; o host manda de novo, logo depois do próximo mapa, o que ele ainda não respondeu.
         // Da espera só se sai por snapshot inteiro: patch nenhum parte dela.
         received = null
@@ -2418,6 +2486,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
           waitEnded: undefined,
           waitingTokens: undefined,
           ...NO_PASSAGE_WATCH,
+          ...NO_ROUTE,
         })
         return
       case 'scene.changed':
@@ -2437,11 +2506,13 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         clearNoiseTimer()
         clearLockTimer()
         clearMarkTimer()
+        clearSharedRouteTimer()
         // A porta tocada ficou na cena de antes: o "Trancada" e os botões dele perdem o sentido.
         // O ponto do toque longo era da cena de antes: a época vira.
         // A lista de "Mostrar meu mapa a…" era de quem estava na cena de antes; a fechadura e a marca também.
-        // As marcas de "me avise" também: o id do pino era de lá.
-        setState({ doorRequest: undefined, turnNotice: undefined, hazardNotice: undefined, noise: undefined, mapPeers: undefined, mapShare: undefined, lockAnswer: undefined, markPlace: undefined, sceneEpoch: state.sceneEpoch + 1, ...NO_PASSAGE_WATCH })
+        // As marcas de "me avise" também: o id do pino era de lá. E o caminho
+        // de um colega e a lista da régua (os pontos eram do mapa de lá).
+        setState({ doorRequest: undefined, turnNotice: undefined, hazardNotice: undefined, noise: undefined, mapPeers: undefined, mapShare: undefined, lockAnswer: undefined, markPlace: undefined, sceneEpoch: state.sceneEpoch + 1, ...NO_PASSAGE_WATCH, ...NO_ROUTE })
         {
           // TEXTO DE CHEGADA: o da cena nova, ou nenhum — o cartão da cena de
           // antes não fica aberto por cima de outro lugar.
@@ -2587,6 +2658,10 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       case 'token.action.rejected':
         // Sem mapa na tela não há pedido esperando (a espera do lobby já o apagou).
         if (state.status === 'playing') handleTokenActionMessage(data)
+        return
+      case 'route.shown':
+      case 'route.show.result':
+        handleRouteMessage(data)
         return
       case 'room.text': {
         // Mesma regra do recado: só quem joga tem tela de cartão.
@@ -2908,8 +2983,9 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         clearTokenAction()
         clearWaitEndedTimer()
         clearPassageOpenedTimer()
+        clearSharedRouteTimer()
         wantsBack = false
-        setState({ status: 'closed', away: undefined, playerLasers: undefined, doorNotice: undefined, doorRequest: undefined, moveNotice: undefined, turnNotice: undefined, travel: undefined, item: undefined, lever: undefined, hazardNotice: undefined, call: undefined, reconnecting: undefined, pointNotice: undefined, noise: undefined, secretCheck: undefined, secretCheckNotice: undefined, mapShared: undefined, tokenAction: undefined, wait: undefined, waitEnded: undefined, ...NO_PASSAGE_WATCH })
+        setState({ status: 'closed', away: undefined, playerLasers: undefined, doorNotice: undefined, doorRequest: undefined, moveNotice: undefined, turnNotice: undefined, travel: undefined, item: undefined, lever: undefined, hazardNotice: undefined, call: undefined, reconnecting: undefined, pointNotice: undefined, noise: undefined, secretCheck: undefined, secretCheckNotice: undefined, mapShared: undefined, tokenAction: undefined, wait: undefined, waitEnded: undefined, ...NO_PASSAGE_WATCH, ...NO_ROUTE })
         return
       case 'session.replaced':
         // A sessão foi para outra aba (ou aparelho). O resume FICA: é o mesmo
@@ -3013,6 +3089,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     clearTokenAction()
     clearWaitEndedTimer()
     clearPassageOpenedTimer()
+    clearSharedRouteTimer()
     const current = socket
     socket = null
     current?.close()
@@ -3032,7 +3109,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       clues: state.clues ?? state.keptNotebook?.clues ?? [],
       notes: state.notebook ?? state.keptNotebook?.notes ?? [],
     }
-    setState({ keptNotebook, status: 'connecting', error: undefined, rev: -1, map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, partyTokens: undefined, concealed: undefined, glimpses: undefined, elsewhere: undefined, peek: undefined, sceneName: undefined, place: undefined, destinations: undefined, hazards: undefined, hazardNotice: undefined, gatilhos: undefined, andares: undefined, relogio: undefined, turn: undefined, signals: undefined, laser: undefined, playerLasers: undefined, doorNotice: undefined, doorRequest: undefined, moveNotice: undefined, turnNotice: undefined, travel: undefined, note: undefined, arrival: undefined, alarm: undefined, item: undefined, lever: undefined, roomText: undefined, notebook: undefined, unreadNotes: undefined, clues: undefined, colecoes: undefined, shownClue: undefined, cluePeers: undefined, clueShow: undefined, paused: undefined, call: undefined, reconnecting: undefined, pointNotice: undefined, noise: undefined, secretCheck: undefined, secretCheckNotice: undefined, mapPeers: undefined, mapShare: undefined, mapShared: undefined, tokenAction: undefined, wait: undefined, waitEnded: undefined, waitingTokens: undefined, away: undefined, ...NO_PASSAGE_WATCH })
+    setState({ keptNotebook, status: 'connecting', error: undefined, rev: -1, map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, partyTokens: undefined, concealed: undefined, glimpses: undefined, elsewhere: undefined, peek: undefined, sceneName: undefined, place: undefined, destinations: undefined, hazards: undefined, hazardNotice: undefined, gatilhos: undefined, andares: undefined, relogio: undefined, turn: undefined, signals: undefined, laser: undefined, playerLasers: undefined, doorNotice: undefined, doorRequest: undefined, moveNotice: undefined, turnNotice: undefined, travel: undefined, note: undefined, arrival: undefined, alarm: undefined, item: undefined, lever: undefined, roomText: undefined, notebook: undefined, unreadNotes: undefined, clues: undefined, colecoes: undefined, shownClue: undefined, cluePeers: undefined, clueShow: undefined, paused: undefined, call: undefined, reconnecting: undefined, pointNotice: undefined, noise: undefined, secretCheck: undefined, secretCheckNotice: undefined, mapPeers: undefined, mapShare: undefined, mapShared: undefined, tokenAction: undefined, wait: undefined, waitEnded: undefined, waitingTokens: undefined, away: undefined, ...NO_PASSAGE_WATCH, ...NO_ROUTE })
     open()
   }
 
@@ -3472,6 +3549,28 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       if (state.waitEnded === undefined) return
       clearWaitEndedTimer()
       setState({ waitEnded: undefined })
+    },
+
+    askRoutePeers() {
+      if (state.status !== 'playing' || !send({ type: 'clue.peers' })) return false
+      setState({ routePeers: { phase: 'loading' }, routeShow: undefined })
+      return true
+    },
+
+    showRoute(to, points) {
+      if (state.status !== 'playing' || points.length < ROUTE_MIN_POINTS) return false
+      if (!send({ type: 'route.show', to, points: points.map((p) => ({ x: p.x, y: p.y })) })) return false
+      setState({ routeShow: { to, phase: 'sending' } })
+      return true
+    },
+
+    resetRouteShare() {
+      if (state.routePeers !== undefined || state.routeShow !== undefined) setState({ routePeers: undefined, routeShow: undefined })
+    },
+
+    dismissSharedRoute() {
+      clearSharedRouteTimer()
+      if (state.sharedRoute !== undefined) setState({ sharedRoute: undefined })
     },
 
     setOwnTokenName(tokenId, name) {

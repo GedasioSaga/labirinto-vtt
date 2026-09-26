@@ -36,6 +36,7 @@ import { useFollowPlayer } from './stores/useFollowPlayer'
 import { useArrivalTextSettings } from './stores/useArrivalTextSettings'
 import { subscribeToPlayerWorldChanges } from './stores/playerWorldSubscription'
 import { playSignalSound } from './lib/signalSound'
+import { faceRangeCellsOrNull } from './lib/tokenVulto'
 import { createSignalRouter } from './net/chamadoDeFundo'
 import { tableSceneKey, type AppliedMove, type PinClueState, type PlayerInfo, type SecretCheckState } from './net/hostSession'
 import { tableScreenUrl } from './lib/tableScreen'
@@ -467,6 +468,7 @@ function App() {
   const setSceneFloor = useMapStore((state) => state.setSceneFloor)
   const setSceneVisionCells = useMapStore((state) => state.setSceneVisionCells)
   const setSceneDark = useMapStore((state) => state.setSceneDark)
+  const setFaceRangeCells = useMapStore((state) => state.setFaceRangeCells)
   const setScenarioLink = useMapStore((state) => state.setScenarioLink)
   const updateTextLabel = useMapStore((state) => state.updateTextLabel)
   const setTextFontFamily = useMapStore((state) => state.setTextFontFamily)
@@ -2541,6 +2543,10 @@ function App() {
               onVisionCellsChange: setSceneVisionCells,
               dark: map.dark === true,
               onDarkChange: setSceneDark,
+            }}
+            faceRange={{
+              faceRangeCells: faceRangeCellsOrNull(map.faceRangeCells),
+              onFaceRangeCellsChange: setFaceRangeCells,
             }}
             gridAlign={{
               backgroundFilename:

@@ -70,6 +70,7 @@ export function propsDoPainel(ficha: Token | null, extra: Partial<PainelProps> =
       onGridSettingsChange: nada,
     },
     mapScale: { scale: map.scale, onScaleChange: nada, measurementMode: map.measurementMode, onMeasurementModeChange: nada, gridShape: map.gridShape },
+    faceRange: { faceRangeCells: null, onFaceRangeCellsChange: nada },
     gridAlign: {
       backgroundFilename: null,
       imageWidth: null,

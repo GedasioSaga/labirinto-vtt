@@ -10,6 +10,7 @@ import { MapSizeControls, type MapSizeControlsProps } from './MapSizeControls'
 import { ArrivalTextControls, type ArrivalTextControlsProps } from './ArrivalTextControls'
 import { SceneFloorControls, type SceneFloorControlsProps } from './SceneFloorControls'
 import { SceneVisionControls, type SceneVisionControlsProps } from './SceneVisionControls'
+import { FaceRangeControls, type FaceRangeControlsProps } from './FaceRangeControls'
 import { FEATURES } from '../lib/features'
 
 export interface MapSettingsProps {
@@ -18,6 +19,8 @@ export interface MapSettingsProps {
   mapScale: MapScaleControlsProps
   /** "Visão nesta cena": alcance da visão dos jogadores nesta cena, em quadrados. */
   sceneVision: SceneVisionControlsProps
+  /** "Rostos só de perto" da cena. Ausente, a seção não aparece (quem monta a janela sem mapa de sessão). */
+  faceRange?: FaceRangeControlsProps
   scenarioLink: ScenarioLinkControlsProps
   /** Passo máximo e ocupação da cena; ausente, a seção não aparece. */
   movement?: MovementControlsProps
@@ -59,6 +62,7 @@ export function MapSettingsDialog({
   gridAlign,
   mapScale,
   sceneVision,
+  faceRange,
   scenarioLink,
   movement,
   mapSize,
@@ -149,6 +153,7 @@ export function MapSettingsDialog({
           {arrivalText && <ArrivalTextControls {...arrivalText} />}
           {sceneFloor && <SceneFloorControls {...sceneFloor} />}
           <SceneVisionControls {...sceneVision} />
+          {faceRange !== undefined && <FaceRangeControls {...faceRange} />}
           {showScenarioLink && <ScenarioLinkControls {...scenarioLink} />}
         </div>
       </div>

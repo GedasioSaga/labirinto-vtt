@@ -1430,6 +1430,12 @@ export interface MapData {
    *  É do mestre: não sai no recorte do jogador (`lib/fogFilter.ts`).
    *  `undefined` === false (cena clara, como sempre) — sem linha de migração. */
   dark?: boolean
+  /** "Rostos só de perto: N casas" — opção da CENA. Ficha que não é do
+   *  jogador, além de N casas (no modo de medição do mapa) de todas as fichas
+   *  dele, sai do recorte como "Vulto": sem nome, foto, cor nem marca
+   *  (`lib/tokenVulto.ts`, `lib/fogFilter.ts`). Inteiro de 1 a 99;
+   *  `undefined` = desligada (a cena de sempre) — sem linha de migração. */
+  faceRangeCells?: number
   ownerId: string | null
   scenarioLink: string | null
   /** Passo máximo e ocupação das fichas dos jogadores. `undefined` = livre. */

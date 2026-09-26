@@ -290,6 +290,13 @@ export type { OwnTokenElsewhere }
  * tem (o número e o id da pista do caderno). Nunca a cena, o pino ou a posição
  * de peça nenhuma, e `inteira` (a frase) só com todas juntas. O recorte nunca
  * leva `Pin.colecao`. Jogador antigo cai no `default` e ignora.
+ *
+ * O CAMINHO DA RÉGUA é aditivo pelo mesmo critério: `route.show` (jogador ->
+ * mestre: o traço medido e o nome do colega), e na volta `route.shown` (ao
+ * colega, com `from` + `color`, sem os pontos de zona oculta e sala secreta) e
+ * `route.show.result` (a quem mediu). A lista de colegas é a mesma
+ * `clue.peers`. Mestre antigo responde `error invalid_message`; jogador antigo
+ * ignora as duas.
  */
 export const PROTOCOL_VERSION = 1
 
@@ -376,6 +383,10 @@ export const SECRET_CHECK_RESULT_MAX = 999
 export const VIEW_RESYNC_MIN_INTERVAL_MS = 1000
 /** Quantos recados a fila de quem está fora do ar guarda por jogador. Passou, sai o mais antigo. */
 export const AWAY_NOTES_MAX = 20
+/** Traço do caminho da régua: menos de 2 pontos não é caminho. */
+export const ROUTE_MIN_POINTS = 2
+/** Teto de pontos do traço: sobra para uma régua com dobras, pouco para desenhar a planta ponto a ponto. */
+export const ROUTE_MAX_POINTS = 20
 
 const JOIN_CODE_PATTERN = /^[A-Z0-9]{6}$/
 
@@ -727,6 +738,16 @@ export interface AwayMessage {
   away: boolean
 }
 
+/**
+ * CAMINHO DA RÉGUA: mostrar o traço medido (px de mundo) ao colega de nome
+ * `to`. Nada de nome nem cor de quem manda: o host põe os dois pela conexão.
+ */
+export interface RouteShowMessage {
+  type: 'route.show'
+  to: string
+  points: RegionPoint[]
+}
+
 export type PlayerMessage =
   | MarkPlaceMessage
   | PinAnswerMessage
@@ -764,6 +785,7 @@ export type PlayerMessage =
   | WaitSetMessage
   | WaitClearMessage
   | AwayMessage
+  | RouteShowMessage
 
 /**
  * Por que a alavanca não moveu nada. `unavailable` junta pino inexistente, no
@@ -1053,6 +1075,28 @@ export interface SceneAlarmMessage {
   text: string
 }
 
+/**
+ * Um colega da mesma cena mostrou um caminho: pode passar pelo que quem recebe
+ * ainda não viu (a névoa dele cobre a planta), mas nunca por zona oculta ativa
+ * nem sala secreta. `from`/`color` como no laser.
+ */
+export interface RouteShownMessage {
+  type: 'route.shown'
+  from: string
+  color: string
+  points: RegionPoint[]
+}
+
+/** O caminho chegou (`ok`) ou não ao colega `to`. Mesma regra de `clue.show.result`: motivo só quando não revela a cena. */
+export interface RouteShowResultMessage {
+  type: 'route.show.result'
+  to: string
+  ok: boolean
+  reason?: ClueShowRefusal
+}
+
+export type RouteHostMessage = RouteShownMessage | RouteShowResultMessage
+
 /** Fim do alarme `id`: o jogador tira o aviso SÓ se ainda for este (um fim atrasado não apaga o novo). */
 export interface SceneAlarmEndMessage {
   type: 'scene.alarm.end'
@@ -1285,6 +1329,7 @@ export type HostMessage =
   | WaitHostMessage
   // VOLTO JÁ: o estado que o host guarda. `travelPending`: o pedido dele ainda espera o mestre.
   | { type: 'away'; away: boolean; travelPending?: true }
+  | RouteHostMessage
   | { type: 'kicked' }
   | { type: 'room.closed' }
   // A mesma pessoa entrou por outra aba (ou aparelho) com o resume desta
@@ -2108,6 +2153,50 @@ export function parseMarkPlaceResult(value: unknown): MarkPlaceResultMessage | n
   return { type: 'mark.place.result', ok: false, reason: known }
 }
 
+/** O traço do caminho: `ROUTE_MIN_POINTS` a `ROUTE_MAX_POINTS` pontos finitos. Devolve cópia só com `x`/`y`. */
+function parseRoutePoints(points: unknown): RegionPoint[] | null {
+  if (!Array.isArray(points) || points.length < ROUTE_MIN_POINTS || points.length > ROUTE_MAX_POINTS) return null
+  const parsed: RegionPoint[] = []
+  for (const point of points) {
+    if (!isRecord(point) || !isFiniteNumber(point.x) || !isFiniteNumber(point.y)) return null
+    parsed.push({ x: point.x, y: point.y })
+  }
+  return parsed
+}
+
+/**
+ * Valida as mensagens do CAMINHO DA RÉGUA que o jogador recebe. Nome fora do
+ * teto, cor fora de `#rrggbb` (vai direto para o desenho) ou traço malformado
+ * recusam a mensagem inteira. Devolve cópia só com os campos conhecidos.
+ */
+export function parseRouteMessage(value: unknown): RouteHostMessage | null {
+  if (!isRecord(value)) return null
+  switch (value.type) {
+    case 'route.shown': {
+      const { from, color } = value
+      const points = parseRoutePoints(value.points)
+      if (points === null || !isRoomName(from)) return null
+      if (typeof color !== 'string' || !LASER_COLOR_PATTERN.test(color)) return null
+      return { type: 'route.shown', from, color, points }
+    }
+    case 'route.show.result': {
+      const { to, ok, reason } = value
+      if (!isRoomName(to) || typeof ok !== 'boolean' || (reason !== undefined && typeof reason !== 'string')) return null
+      // Motivo que este jogador não conhece (mestre mais novo) vira a recusa comum.
+      return !ok && reason === 'too_soon' ? { type: 'route.show.result', to, ok, reason } : { type: 'route.show.result', to, ok }
+    }
+    default:
+      return null
+  }
+}
+
+function parseRouteShow(obj: Record<string, unknown>): RouteShowMessage | null {
+  const { to } = obj
+  const points = parseRoutePoints(obj.points)
+  if (points === null || !isRoomName(to)) return null
+  return { type: 'route.show', to, points }
+}
+
 /**
  * Valida mensagem vinda do jogador. Aceita o objeto já desserializado ou a
  * string JSON crua do transporte. Devolve um objeto novo só com os campos
@@ -2209,6 +2298,8 @@ export function parsePlayerMessage(raw: unknown): PlayerMessage | null {
       return { type: 'wait.clear' }
     case 'away':
       return typeof value.away === 'boolean' ? { type: 'away', away: value.away } : null
+    case 'route.show':
+      return parseRouteShow(value)
     default:
       return null
   }

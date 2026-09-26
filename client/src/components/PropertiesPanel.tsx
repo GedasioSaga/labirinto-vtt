@@ -50,6 +50,7 @@ import { WallLineStyleField, WallStyleControls, type WallStyleControlsProps } fr
 import { StairControls, type StairControlsProps } from './StairControls'
 import { RoomControls, type RoomControlsProps } from './RoomControls'
 import type { MapScaleControlsProps } from './MapScaleControls'
+import type { FaceRangeControlsProps } from './FaceRangeControls'
 import type { GridAlignControlsProps } from './GridAlignControls'
 import type { MapSizeControlsProps } from './MapSizeControls'
 import { ItemTransformControls, type ItemTransformControlsProps } from './ItemTransformControls'
@@ -116,6 +117,8 @@ interface PropertiesPanelProps {
   mapScale: MapScaleControlsProps
   /** "Visão nesta cena", na janela Configurações do mapa. */
   sceneVision: SceneVisionControlsProps
+  /** "Rostos só de perto" da cena, na janela Configurações do mapa. */
+  faceRange: FaceRangeControlsProps
   gridAlign: GridAlignControlsProps
   layers: LayersPanelProps
   selection: SelectionControlsProps
@@ -259,6 +262,7 @@ export function PropertiesPanel({
   grid,
   mapScale,
   sceneVision,
+  faceRange,
   gridAlign,
   layers,
   selection,
@@ -350,6 +354,7 @@ export function PropertiesPanel({
           gridAlign={gridAlign}
           mapScale={mapScale}
           sceneVision={sceneVision}
+          faceRange={faceRange}
           scenarioLink={scenarioLink}
           movement={movement}
           mapSize={{ width: mapWidth, height: mapHeight, onApply: onMapSizeApply }}

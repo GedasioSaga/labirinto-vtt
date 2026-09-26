@@ -19,6 +19,7 @@ import { PlayerTokenCard } from './PlayerTokenCard'
 import { tokenActionNoticeText, tokenActionReply } from './tokenCard'
 import { PlayerClueCard } from './PlayerClues'
 import { mapSharedNoticeText } from './PlayerMapShare'
+import { PlayerRouteShare, PlayerSharedRouteNotice } from './PlayerRouteShare'
 import { coverBounds } from './playerCamera'
 import { PlayerZoomControls } from './PlayerZoomControls'
 import { PlayerSceneName } from './PlayerSceneName'
@@ -623,6 +624,8 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
   const [destinationArmed, setDestinationArmed] = useState(false)
   /** Régua do jogador ligada. Só o liga/desliga mora aqui; a medida em si é do PlayerView (local ao gesto). */
   const [measureArmed, setMeasureArmed] = useState(false)
+  /** A medida solta na tela (px de mundo), para o "Mostrar a…"; `null` = nenhuma. Quem avisa é o PlayerView. */
+  const [measuredRoute, setMeasuredRoute] = useState<RegionPoint[] | null>(null)
   /** Laser do jogador ligado. O rastro em si é do PlayerView (local ao gesto) e do socket. */
   const [laserArmed, setLaserArmed] = useState(false)
   /** Pino aberto no cartão; `null` = cartão fechado. */
@@ -879,6 +882,16 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
   const startWait = useCallback((minutes: number, who: string, where: string) => connection.startWait(minutes, who, where), [connection])
   const stopWait = useCallback(() => connection.stopWait(), [connection])
   const closeWaitEnded = useCallback(() => connection.dismissWaitEnded(), [connection])
+  // Caminho da régua: medida nova (ou nenhuma) — a lista de colegas e o "mostrado a…" eram da anterior.
+  const settleMeasure = useCallback(
+    (points: RegionPoint[] | null) => {
+      setMeasuredRoute(points)
+      connection.resetRouteShare()
+    },
+    [connection],
+  )
+  const askRoutePeers = useCallback(() => connection.askRoutePeers(), [connection])
+  const dismissSharedRoute = useCallback(() => connection.dismissSharedRoute(), [connection])
   /** Painel e barra do jogador: a câmera lê, na hora, o que eles cobrem do mapa. */
   const panelRef = useRef<HTMLElement | null>(null)
   const barRef = useRef<HTMLDivElement | null>(null)
@@ -969,6 +982,8 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
               setDestinationArmed(false)
             }}
             measureArmed={measureArmed}
+            onMeasureSettle={settleMeasure}
+            sharedRoute={state.sharedRoute}
             laserArmed={laserArmed}
             ownLaserColor={ownLaserColor}
             onLaserMove={(x, y) => connection.laserMove(x, y)}
@@ -1309,6 +1324,22 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
           onClose={closeMark}
           escapeCloses={noCardOnTop && !clueCardOpen}
         />
+        {/* CAMINHO DA RÉGUA: "Mostrar a…" com uma medida solta, e o aviso do
+            caminho que um colega mostrou. Acima dos avisos de baixo, sem cobri-los.
+            Olhando outro andar, a medida solta é do andar atual: o "Mostrar a…" espera a volta. */}
+        {((measureArmed && measuredRoute !== null && otherFloor === null) || state.sharedRoute) && (
+          <div className="pp-route-dock">
+            {state.sharedRoute && <PlayerSharedRouteNotice key={state.sharedRoute.id} from={state.sharedRoute.from} onDismiss={dismissSharedRoute} />}
+            {measureArmed && measuredRoute !== null && otherFloor === null && (
+              <PlayerRouteShare
+                peers={state.routePeers}
+                result={state.routeShow}
+                onAskPeers={askRoutePeers}
+                onShow={(name) => connection.showRoute(name, measuredRoute)}
+              />
+            )}
+          </div>
+        )}
         {state.travel && (
           <p key={state.travel.id} className="pp-notice pp-notice--travel" role="status" aria-live="polite">
             {travelNoticeText(state.travel)}
