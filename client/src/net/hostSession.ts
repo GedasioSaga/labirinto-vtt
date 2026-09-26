@@ -6521,9 +6521,27 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const pin = from.map.pins.find((p) => p.id === msg.pinId)
     if (pin === undefined || pin.kind !== 'viagem' || !isDaVista(pin.daVista) || isArrivalOnly(pin)) return reject('unavailable')
     // Memória só LIDA, e só se já existe: espiar não cria nem reordena lembrança nenhuma.
+    // O resto é o recorte de `validTravel`: raio por ficha, empréstimos, salas e segredos.
     const memory = existingMemory(playerId, from.map)
-    const view = filterMapForPlayer(from.map, playerId, ownership, radiusFor(playerId), memory?.exp, memory?.doors, pinAudiences)
-    if (!view.map.pins.some((p) => p.id === pin.id)) return reject('unavailable')
+    const view = filterMapForPlayer(
+      from.map,
+      playerId,
+      ownership,
+      tokenRadiusIn(playerId, from.map),
+      memory?.exp,
+      memory?.doors,
+      pinAudiences,
+      undefined,
+      loansFor(playerId),
+      memory?.seenRooms,
+      secretReveals,
+      undefined,
+      undefined,
+      memory?.plan,
+    )
+    // MARCO visto de longe não dá vista: a mesma recusa da passagem (`validTravel`).
+    const seen = view.map.pins.find((p) => p.id === pin.id)
+    if (seen === undefined || seen.soMarco === true) return reject('unavailable')
     const owned = new Set(ownership[playerId] ?? [])
     const grid = from.map.grid
     const encostada = view.map.tokens.some(

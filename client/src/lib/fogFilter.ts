@@ -29,7 +29,7 @@ import { DOOR_REACH_CELLS, distanceToWall, tokenRadiusOf, tokenReachesDoor } fro
 import { darkVision, type Darkness } from './darkness'
 import { ancestorsOf, NESTING_TOLERANCE, pointInPolygonInclusive, pointOnPolygonBorder, subtreeIds } from './roomNesting'
 import { roomHasRoof, roomIsComodo } from './roomOps'
-import { ehPiso, mapaDoPiso, pisoDe } from './pisos'
+import { comPiso, ehPiso, mapaDoPiso, pisoDe } from './pisos'
 import { rotatePointAround, rotationTrig } from './roomRotation'
 import { clampRoomText, hasEnterText } from './roomText'
 import { hazardRooms, hazardsOf, obscuringRoomRings, visionRadiusAt, type PlayerHazard } from './hazards'
@@ -4093,7 +4093,9 @@ function wallRunsSeen(seg: EspiadaParede, seen: (p: RegionPoint) => boolean, ste
 export function espiadaPeloPino(map: MapData, par: Pin, casas: number): Espiada {
   const grid = map.grid
   const raio = clampDaVista(casas) * grid
-  const olho: Token = { id: OLHO_ID, characterId: null, name: '', x: par.x, y: par.y, size: 1, image: null }
+  // PISOS: o olho fica no piso do par. O recorte só leva o piso do olho, então
+  // o alçapão do 1º piso mostra o 1º piso — nada do térreo nem do de cima.
+  const olho = comPiso<Token>({ id: OLHO_ID, characterId: null, name: '', x: par.x, y: par.y, size: 1, image: null }, pisoDe(par))
   const view = filterMapForPlayer({ ...map, tokens: [...map.tokens, olho] }, OLHO_DONO, { [OLHO_DONO]: [OLHO_ID] }, raio)
   const rel = (p: RegionPoint): RegionPoint => ({ x: p.x - par.x, y: p.y - par.y })
   const inCircle = (p: RegionPoint) => Math.hypot(p.x, p.y) <= raio + ESPIADA_BORDA_PX
