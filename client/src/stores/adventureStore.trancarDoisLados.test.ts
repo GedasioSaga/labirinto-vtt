@@ -28,11 +28,12 @@ vi.mock('@tauri-apps/api/path', () => ({
   dirname: vi.fn(async (path: string) => path.slice(0, path.lastIndexOf('/'))),
 }))
 
-const { useAdventureStore, subscribeToTravelLinks } = await import('./adventureStore')
+const { useAdventureStore, subscribeToTravelLinks, pinExitsTravelOf } = await import('./adventureStore')
 const { useMapStore } = await import('./mapStore')
 const { useSessionStore } = await import('./sessionStore')
 const { createEmptyMap } = await import('../lib/mapFactory')
 const { passageOf } = await import('../lib/pins')
+const { exitPassageOf, setExitPassage } = await import('../lib/pinTravel')
 const { subscribeToPlayerWorldChanges } = await import('./playerWorldSubscription')
 
 // O guardião da mão dupla, ligado como o App liga.
@@ -153,5 +154,88 @@ describe('trancar os dois lados', () => {
   it('pino que não existe: false', () => {
     montar()
     expect(useAdventureStore.getState().setPassageBothSides('nao-existe', true)).toBe(false)
+  })
+})
+
+/**
+ * MODO POR SAÍDA: a encruzilhada pode ter uma extra "Livre" ou "Trancada" por
+ * conta própria. O botão vale para o pino INTEIRO — nenhuma saída fica
+ * abrindo com "Destrancar os dois lados" à vista, nem trancada depois de o
+ * texto dizer que tudo "volta a pedir a você".
+ */
+describe('trancar os dois lados com modo por saída', () => {
+  /** O Vale com a porta "a" (principal na Cripta) e a extra "Escada" no Poço. */
+  function encruzilhada(): { vale: string; cripta: string; par: string; poco: string; par2: string; escada: string } {
+    const m = montar()
+    const poco = useAdventureStore.getState().createScene('Poço', null)
+    useAdventureStore.getState().switchScene(m.vale)
+    const par2 = useAdventureStore.getState().linkPinToNewArrival('a', poco, null)
+    if (par2 === null) throw new Error('segunda saída não ligou')
+    const escada = pinoAberto('a').saidas?.[0]?.id
+    if (escada === undefined) throw new Error('a extra não nasceu')
+    return { ...m, poco, par2, escada }
+  }
+
+  function modoDaExtra(pinId: string, exitId: string, passagem: 'livre' | 'pede' | 'trancada'): void {
+    useMapStore.getState().updatePin(pinId, setExitPassage(pinoAberto(pinId), exitId, passagem))
+  }
+
+  it('trancar: a extra "Livre" deste pino passa a ficar trancada', () => {
+    const m = encruzilhada()
+    modoDaExtra('a', m.escada, 'livre')
+    expect(exitPassageOf(pinoAberto('a'), m.escada)).toBe('livre')
+    expect(useAdventureStore.getState().setPassageBothSides('a', true)).toBe(true)
+    expect(exitPassageOf(pinoAberto('a'), 'principal')).toBe('trancada')
+    expect(exitPassageOf(pinoAberto('a'), m.escada)).toBe('trancada')
+    // O modo próprio sai: a extra volta a seguir a principal.
+    expect(pinoAberto('a').saidas?.[0]?.passagem).toBeUndefined()
+    expect(pinoDoFundo(m.poco, m.par2).passagem).toBe('trancada')
+  })
+
+  it('destrancar: a extra "Trancada" por conta própria volta a pedir', () => {
+    const m = encruzilhada()
+    useAdventureStore.getState().setPassageBothSides('a', true)
+    modoDaExtra('a', m.escada, 'trancada')
+    expect(useAdventureStore.getState().setPassageBothSides('a', false)).toBe(true)
+    expect(exitPassageOf(pinoAberto('a'), 'principal')).toBe('pede')
+    expect(exitPassageOf(pinoAberto('a'), m.escada)).toBe('pede')
+    expect(pinoDoFundo(m.cripta, m.par).passagem).toBe('pede')
+  })
+
+  it('pino sem extras: trancar não inventa "saidas"', () => {
+    montar()
+    expect(useAdventureStore.getState().setPassageBothSides('a', true)).toBe(true)
+    expect(pinoAberto('a').passagem).toBe('trancada')
+    expect(pinoAberto('a').saidas).toBeUndefined()
+  })
+
+  it('o par que volta por uma extra "Livre": trancar tranca a volta, e o painel lê isso', () => {
+    const m = montar()
+    // O par na Cripta também é encruzilhada: a principal já trancada, e a
+    // volta ao Vale pela "Escada" livre por conta própria.
+    useAdventureStore.getState().updateBackgroundScene(m.cripta, (map) => ({
+      ...map,
+      pins: map.pins.map((p) =>
+        p.id === m.par ? { ...p, passagem: 'trancada' as const, saidas: [{ id: 'volta', rotulo: 'Escada', destino: { sceneId: m.vale, pinId: 'a' }, passagem: 'livre' as const }] } : p,
+      ),
+    }))
+    const painel = () => pinExitsTravelOf(useAdventureStore.getState(), useMapStore.getState().map, pinoAberto('a'))
+    expect(painel()[0]?.modoDaVolta).toBe('livre')
+    expect(useAdventureStore.getState().setPassageBothSides('a', true)).toBe(true)
+    expect(exitPassageOf(pinoDoFundo(m.cripta, m.par), 'volta')).toBe('trancada')
+    expect(painel()[0]?.modoDaVolta).toBe('trancada')
+  })
+
+  it('a extra do par que leva a OUTRO lugar guarda o modo dela', () => {
+    const m = montar()
+    useAdventureStore.getState().updateBackgroundScene(m.cripta, (map) => ({
+      ...map,
+      pins: map.pins.map((p) =>
+        p.id === m.par ? { ...p, saidas: [{ id: 'fora', rotulo: 'Túnel', destino: { sceneId: 'longe', pinId: 'z' }, passagem: 'livre' as const }] } : p,
+      ),
+    }))
+    expect(useAdventureStore.getState().setPassageBothSides('a', true)).toBe(true)
+    expect(pinoDoFundo(m.cripta, m.par).passagem).toBe('trancada')
+    expect(exitPassageOf(pinoDoFundo(m.cripta, m.par), 'fora')).toBe('livre')
   })
 })

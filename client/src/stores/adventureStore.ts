@@ -53,6 +53,8 @@ import {
   addExit,
   arrivalPoint,
   arrivalSpot,
+  backPassageOf,
+  extrasFollowingMain,
   isArrivalOnly,
   isExitPassage,
   leadsToScene,
@@ -630,6 +632,8 @@ export interface PinExitTravel {
   travel: PinTravel
   /** MODO POR SAÍDA: o modo próprio da saída extra. Ausente = como a principal. */
   passagem?: ExitPassage
+  /** Ligada: como o jogador passa pelo par de volta a este pino (a volta pode ser uma extra com modo próprio). */
+  modoDaVolta?: PinPassage
 }
 
 /**
@@ -645,6 +649,9 @@ export function pinExitsTravelOf(state: SceneState, liveMap: MapData, pin: Pin):
     const linha: PinExitTravel = { id: saida.id, rotulo: saida.rotulo, travel: resolvePinTravel(pin, state.activeSceneId, lookup, saida.id) }
     // MODO POR SAÍDA: o modo próprio da extra, para o painel mostrar a escolha certa.
     if (saida.id !== SAIDA_PRINCIPAL && isExitPassage(saida.passagem)) linha.passagem = saida.passagem
+    if (linha.travel.status === 'ligado' && state.activeSceneId !== null) {
+      linha.modoDaVolta = backPassageOf(linha.travel.partner, { sceneId: state.activeSceneId, pinId: pin.id })
+    }
     return linha
   })
 }
@@ -1617,9 +1624,11 @@ export const useAdventureStore = create<AdventureState>()((set, get) => ({
     const live = useMapStore.getState().map
     const pin = live.pins.find((p) => p.id === pinId)
     if (pin === undefined) return false
+    const { activeSceneId } = get()
+    if (activeSceneId === null) return false
     const lookup = sceneLookup(get(), live)
     const pares = travelExitsOf(pin).flatMap((saida) => {
-      const travel = resolvePinTravel(pin, get().activeSceneId, lookup, saida.id)
+      const travel = resolvePinTravel(pin, activeSceneId, lookup, saida.id)
       return travel.status === 'ligado' ? [{ sceneId: travel.sceneId, pinId: travel.partner.id }] : []
     })
     if (pares.length === 0) return false
@@ -1628,8 +1637,19 @@ export const useAdventureStore = create<AdventureState>()((set, get) => ({
     // passagem fechou as duas pontas. Destrancar não mexe no motivo, que fica
     // guardado para a próxima vez, como no painel.
     const patchDoPar = trancar ? { passagem, motivo: pin.motivo } : { passagem }
-    for (const par of pares) get().updateBackgroundScene(par.sceneId, (map) => mapFactory.updatePin(map, par.pinId, patchDoPar))
-    useMapStore.getState().updatePin(pinId, { passagem })
+    // MODO POR SAÍDA: a volta do par pode ser uma extra com modo próprio; ela
+    // passa a seguir a principal que acabou de ser gravada. As outras saídas
+    // do par (que levam a outro lugar) ficam como estão.
+    const aqui: PinDestination = { sceneId: activeSceneId, pinId }
+    const doPar = (map: MapData, parId: string): MapData => {
+      const par = map.pins.find((p) => p.id === parId)
+      const saidas = par === undefined ? undefined : extrasFollowingMain(par, (saida) => sameDestination(saida.destino, aqui))
+      return mapFactory.updatePin(map, parId, saidas === undefined ? patchDoPar : { ...patchDoPar, saidas })
+    }
+    for (const par of pares) get().updateBackgroundScene(par.sceneId, (map) => doPar(map, par.pinId))
+    // Deste lado, o pino inteiro: nenhuma extra fica aberta (ou trancada) por conta própria.
+    const saidas = extrasFollowingMain(pin)
+    useMapStore.getState().updatePin(pinId, saidas === undefined ? { passagem } : { passagem, saidas })
     return true
   },
 

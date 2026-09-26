@@ -20,6 +20,11 @@ export interface PinTravelExitView {
   travel: PinTravel
   /** MODO POR SAÍDA: o modo próprio da saída extra. Ausente = como a principal. */
   passagem?: ExitPassage
+  /**
+   * Ligada: como o jogador passa pelo PAR de volta a este pino — a volta pode
+   * ser uma extra do par com modo próprio. Ausente = o modo do pino par.
+   */
+  modoDaVolta?: PinPassage
 }
 
 export interface PinTravelControlsProps {
@@ -770,10 +775,14 @@ interface DoisLadosProps {
  * falta. Sem saída ligada não há outro lado, e o botão não aparece.
  */
 function DoisLados({ passage, exits, onChange }: DoisLadosProps) {
-  const ligadas = exits.flatMap((exit) => (exit.travel.status === 'ligado' ? [exit.travel] : []))
+  const ligadas = exits.flatMap((exit) => (exit.travel.status === 'ligado' ? [{ exit, travel: exit.travel }] : []))
   if (ligadas.length === 0) return null
-  const trancados = passage === 'trancada' && ligadas.every((travel) => passageOf(travel.partner) === 'trancada')
-  const cenas = [...new Set(ligadas.map((travel) => travel.sceneName))].join(', ')
+  // MODO POR SAÍDA: "trancados" só quando nenhuma saída abre por conta
+  // própria — nem a extra deste pino, nem a volta do par.
+  const trancados =
+    passage === 'trancada' &&
+    ligadas.every(({ exit, travel }) => (exit.passagem ?? passage) === 'trancada' && (exit.modoDaVolta ?? passageOf(travel.partner)) === 'trancada')
+  const cenas = [...new Set(ligadas.map(({ travel }) => travel.sceneName))].join(', ')
   const deLa = ligadas.length === 1 ? `o de ${cenas}` : `os de ${cenas}`
   return (
     <>

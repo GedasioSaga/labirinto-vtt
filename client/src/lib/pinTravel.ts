@@ -197,6 +197,37 @@ export function setExitPassage(pin: Pin, exitId: string, passagem: ExitPassage |
   }
 }
 
+/**
+ * "Trancar/Destrancar os dois lados" vale para o pino INTEIRO: as saídas
+ * extras que `escolhe` aceita perdem o modo próprio e voltam a seguir a
+ * principal — uma "Escada" livre deixada assim continuaria abrindo com o
+ * pino "trancado". Devolve `undefined` quando nenhuma delas tinha modo
+ * próprio: não há o que gravar em `saidas`.
+ */
+export function extrasFollowingMain(pin: Pin, escolhe: (saida: PinExit) => boolean = () => true): PinExit[] | undefined {
+  const extras = pin.saidas ?? []
+  if (!extras.some((saida) => saida.passagem !== undefined && escolhe(saida))) return undefined
+  return extras.map((saida) => {
+    if (saida.passagem === undefined || !escolhe(saida)) return saida
+    const { passagem: _tirada, ...semModo } = saida
+    return semModo
+  })
+}
+
+/**
+ * Como o jogador passa pelo PAR de volta a `destino` (este pino): o modo da
+ * saída do par que leva até aqui — o par também pode ser uma encruzilhada, e
+ * a volta pode ser uma extra com modo próprio. Só é "trancada" se TODA saída
+ * de volta estiver trancada; par que não volta responde o modo do pino.
+ */
+export function backPassageOf(partner: Pin, destino: PinDestination): PinPassage {
+  const modos = travelExitsOf(partner)
+    .filter((saida) => sameDestination(saida.destino, destino))
+    .map((saida) => exitPassageOf(partner, saida.id))
+  if (modos.length === 0) return passageOf(partner)
+  return modos.find((modo) => modo !== 'trancada') ?? 'trancada'
+}
+
 /** As saídas que levam a algum lugar, na ordem: a principal primeiro. Só pino de VIAGEM tem saída. */
 export function travelExitsOf(pin: Pin): TravelExit[] {
   if (pin.kind !== 'viagem') return []
