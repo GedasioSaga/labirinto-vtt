@@ -13,8 +13,10 @@ import type { HostMessage } from './protocol'
  *
  * O vão não é dado novo na rede — é parede a menos. O que se cobra aqui:
  *  - o vão aberto dos dois lados deixa a ficha passar (o host aceita);
- *  - a MEMÓRIA dela (Armazém explorado, Gabi longe dali) já chega com o vão,
- *    junto com o resto das paredes lembradas;
+ *  - a MEMÓRIA dela (Armazém explorado, Gabi longe dali) mostra a divisa como
+ *    ela a viu (memória sem spoiler: o vão aberto longe dela não chega pela
+ *    rede), junto com o resto das paredes lembradas; o vão chega quando ela
+ *    volta a ver a divisa;
  *  - e nada do que ela não viu vem junto: nem a bancada, nem o nome da
  *    Oficina, nem a parede que caiu num lugar que ela nunca explorou.
  */
@@ -95,7 +97,7 @@ describe('hostSession: o mestre abre um vão entre dois prédios no meio da sess
     expect(r.outbound).toEqual([{ clientId: 'c1', msg: { type: 'token.move.accepted', reqId: 'm2', x: 800, y: 160 } }])
   })
 
-  it('a memória dela mostra o vão novo junto com as paredes lembradas, e nada que ela não viu', () => {
+  it('a memória dela mostra a divisa como ela viu (o vão só chega quando ela volta a ver), e nada que ela não viu', () => {
     const inicio = doisPredios(GABI_NO_ARMAZEM)
     const s = gabiNaMesa(inicio)
     s.broadcast(inicio) // Gabi vê o Armazém: vira memória.
@@ -106,11 +108,18 @@ describe('hostSession: o mestre abre um vão entre dois prédios no meio da sess
     expect(divisaFechadaEm(lembrado.map.walls, 160)).toBe(true)
 
     const aberto = abrirVaoDosDoisLados(longe, 'a1', { x: 512, y: 160 }, GRADE).map
-    const snap = snapshotDe(s.broadcast(aberto).outbound)
+    const saida = s.broadcast(aberto).outbound.filter((m) => m.clientId === 'c1')
+    // Memória sem spoiler: a divisa lembrada é a que ela viu. O vão aberto
+    // longe dela pode nem gerar tela nova; se gera, é um snapshot igual ao lembrado.
+    const snap = saida.length === 0 ? lembrado : snapshotDe(saida)
 
-    expect(divisaFechadaEm(snap.map.walls, 160)).toBe(false)
+    expect(divisaFechadaEm(snap.map.walls, 160)).toBe(true)
     expect(divisaFechadaEm(snap.map.walls, 64)).toBe(true)
     expect(divisaFechadaEm(snap.map.walls, 256)).toBe(true)
+    // Nenhum pedaço novo da divisa (os ids que o corte criou) sai para ela.
+    const idsDoCorte = aberto.walls.filter((w) => !inicio.walls.some((v) => v.id === w.id)).map((w) => w.id)
+    expect(idsDoCorte.length).toBeGreaterThan(0)
+    expect(snap.map.walls.filter((w) => idsDoCorte.includes(w.id))).toEqual([])
     // As outras paredes lembradas do Armazém continuam lá.
     const lembradasForaDaDivisa = (walls: readonly Wall[]) => walls.filter((w) => w.regionId === 'r-armazem' && w.regionEdgeIndex !== 1).map((w) => w.id).sort()
     expect(lembradasForaDaDivisa(snap.map.walls)).toEqual(['a0', 'a2', 'a3'])
@@ -123,6 +132,12 @@ describe('hostSession: o mestre abre um vão entre dois prédios no meio da sess
     expect(snap.map.regions.map((r) => r.id)).toEqual(['r-armazem'])
     // A memória não cresce com o vão: ela não estava lá para ver.
     expect(snap.explored).toEqual(lembrado.explored)
+
+    // De volta ao Armazém, ela vê a divisa: aí o vão chega, e o resto segue de pé.
+    const devolta = snapshotDe(s.broadcast(comGabiEm(aberto, GABI_NO_ARMAZEM)).outbound)
+    expect(divisaFechadaEm(devolta.map.walls, 160)).toBe(false)
+    expect(divisaFechadaEm(devolta.map.walls, 64)).toBe(true)
+    expect(divisaFechadaEm(devolta.map.walls, 256)).toBe(true)
   })
 
   it('SEGURANÇA: parede que desaba onde ela nunca esteve não revela nada do que há ali', () => {
