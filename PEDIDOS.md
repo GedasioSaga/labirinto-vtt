@@ -933,3 +933,11 @@ Fila da 0.4.4 (depois de `inventario-estilo-re`):
 2. `rotina-npc-fluida`: a rotina do NPC vira uma "macro" que roda sozinha (sem o mestre apertar a cada passo) e o
    jogador vê o token deslizar pelo caminho, sem teleporte.
 Depois: `zona-oculta-sem-buraco-3`, `parede-parcial`.
+
+### 27/09/2026, madrugada — lista de Cenas ilegível
+
+> "[Image #2] da para melohrar essa ux e ui ? não consigo ler nada ?"
+
+Imagem: seção CENAS do painel, nomes cortados em "S...", "Bar...", "Cav...", "C..." porque a contagem de tokens e os
+botões (lápis, seta, quadrado, "...") comem a largura e o recuo das subcenas come mais; botões "+ Nova cena", "Visão
+geral", "Corte da torre" quebram em 2-3 linhas. Vira a próxima peça de UX: `cenas-legiveis` (antes da moldura).
