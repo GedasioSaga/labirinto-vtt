@@ -941,3 +941,10 @@ Depois: `zona-oculta-sem-buraco-3`, `parede-parcial`.
 Imagem: seção CENAS do painel, nomes cortados em "S...", "Bar...", "Cav...", "C..." porque a contagem de tokens e os
 botões (lápis, seta, quadrado, "...") comem a largura e o recuo das subcenas come mais; botões "+ Nova cena", "Visão
 geral", "Corte da torre" quebram em 2-3 linhas. Vira a próxima peça de UX: `cenas-legiveis` (antes da moldura).
+
+### 27/09/2026, madrugada — mais devagar
+
+> "Ta indo muito rápido, precisar ser mais lento, vai com mais calma"
+
+Ritmo novo: 1 agente por vez (não 2). Termina o que está rodando (conserto do inventário, peça cenas-legiveis) sem
+disparar nada novo em paralelo; cada item passa pelo usuário antes do próximo começar.
