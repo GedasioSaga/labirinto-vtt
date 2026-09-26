@@ -116,6 +116,7 @@ import { applyRoofCut } from './roofCut'
 import { rotuloDaFicha } from '../lib/encontroMarcado'
 import { createRevisitMemory, observeRevisit } from './revisitChanges'
 import { REVISIT_NOTE, REVISIT_PAD_PX, drawRevisitPulse } from './revisitPulse'
+import { EMPTY_LAST_SEEN, LAST_SEEN_LAYER_LABEL, forgetExpired, lastSeenLabel, liveGhosts, rememberSnapshot, type LastSeenGhost, type LastSeenMemory } from './lastSeen'
 
 /** Pedido de "leve a câmera até este ponto" (Minhas notas e os pontos conhecidos da aba Lugares). */
 export interface FocusPointRequest {
@@ -420,7 +421,7 @@ interface TokenView {
   loadSeq: number
 }
 
-function tokenRadius(token: Token, grid: number): number {
+function tokenRadius(token: Pick<Token, 'size'>, grid: number): number {
   return Math.max((grid / 2) * token.size, 4)
 }
 
@@ -688,6 +689,66 @@ export function tokenViewKey(token: Token, grid: number, own: boolean, turn = fa
   return JSON.stringify([token.name, token.size, grid, own, tokenPhotoRef(token) !== null, token.color ?? null, healthKey, tokenConditionsOf(token), turn, watchAlertOf(token), waiting, token.companion ?? null])
 }
 
+/**
+ * ÚLTIMO AVISTAMENTO (`lastSeen.ts`): contorno tracejado e apagado, sem foto
+ * nem cor, no ponto em que a ficha foi vista pela última vez — lê como
+ * lembrança, nunca como a ficha de verdade. Traço e seta em px de TELA.
+ */
+const GHOST_COLOR = 0xd1d5db
+const GHOST_ALPHA = 0.6
+const GHOST_LINE_PX = 1.5
+const GHOST_DASHES = 12
+/** Parte de cada trecho do círculo que é traço; o resto é vão. */
+const GHOST_DASH_FILL = 0.55
+/** Seta da direção em que a ficha andava: folga até o contorno, comprimento e meia largura. */
+const GHOST_ARROW_GAP_PX = 3
+const GHOST_ARROW_LENGTH_PX = 6
+const GHOST_ARROW_HALF_WIDTH_PX = 4
+const GHOST_LABEL_ALPHA = 0.8
+
+interface GhostView {
+  wrapper: Container
+  outline: Graphics
+  arrow: Graphics
+  label: Text
+  /** Raio, zoom e direção desenhados por último: igual = nada a repintar. */
+  key: string | null
+}
+
+function createGhostView(): GhostView {
+  const wrapper = new Container()
+  const outline = new Graphics()
+  const arrow = new Graphics()
+  const label = new Text({ text: '', style: { fontSize: LABEL_FONT_SIZE, fill: TOKEN_NAME_FILL_COLOR, stroke: { color: TOKEN_NAME_OUTLINE_COLOR, width: 3 } } })
+  label.anchor.set(0.5, 0)
+  label.alpha = GHOST_LABEL_ALPHA
+  wrapper.addChild(outline, arrow, label)
+  return { wrapper, outline, arrow, label, key: null }
+}
+
+function paintGhostView(view: GhostView, ghost: LastSeenGhost, grid: number, cameraScale: number): void {
+  const radius = tokenRadius(ghost, grid)
+  view.label.position.set(0, radius + TOKEN_LABEL_GAP)
+  const key = `${radius}@${cameraScale}@${ghost.heading ?? 'sem-direcao'}`
+  if (key === view.key) return
+  view.key = key
+  const px = 1 / cameraScale
+  const step = (2 * Math.PI) / GHOST_DASHES
+  view.outline.clear()
+  for (let k = 0; k < GHOST_DASHES; k += 1) {
+    const from = k * step
+    view.outline.moveTo(Math.cos(from) * radius, Math.sin(from) * radius).arc(0, 0, radius, from, from + step * GHOST_DASH_FILL)
+  }
+  view.outline.stroke({ width: GHOST_LINE_PX * px, color: GHOST_COLOR, alpha: GHOST_ALPHA })
+  view.arrow.clear()
+  view.arrow.visible = ghost.heading !== null
+  if (ghost.heading === null) return
+  const base = radius + GHOST_ARROW_GAP_PX * px
+  const half = GHOST_ARROW_HALF_WIDTH_PX * px
+  view.arrow.poly([base, -half, base + GHOST_ARROW_LENGTH_PX * px, 0, base, half]).fill({ color: GHOST_COLOR, alpha: GHOST_ALPHA })
+  view.arrow.rotation = ghost.heading
+}
+
 interface Scene {
   app: Application
   world: Container
@@ -801,6 +862,12 @@ interface Scene {
   roofCut: Graphics
   lastRoofCut: RegionPoint[][] | null
   peekedRoofsCount: number
+  /** Contornos do último avistamento (`lastSeen.ts`): logo abaixo das fichas, sem toque. */
+  lastSeen: Container
+  lastSeenMemory: LastSeenMemory
+  /** Reaproveitada por id, como a da ficha: `Text` não se destrói durante a sessão. */
+  ghostViews: Map<string, GhostView>
+  lastSeenCount: number
   tokens: Container
   tokenViews: Map<string, TokenView>
   /** Fichas deslizando do ponto antigo ao novo; o ticker as leva até lá. */
@@ -1552,6 +1619,42 @@ export function PlayerView({
     return region !== null && hasEnterText(region.room) ? region.id : null
   }
 
+  /**
+   * Contornos do último avistamento neste instante: cria ou reusa a view de
+   * cada um, atualiza o "há N s", esconde os que venceram e publica quantos
+   * estão na tela em `data-last-seen-count`.
+   */
+  function syncLastSeen(scene: Scene, now: number): void {
+    const { map: currentMap, settings: currentSettings } = latestRef.current
+    scene.lastSeenMemory = forgetExpired(scene.lastSeenMemory, now)
+    const live = liveGhosts(scene.lastSeenMemory, now)
+    const liveIds = new Set(live.map((ghost) => ghost.tokenId))
+    for (const [id, view] of scene.ghostViews) {
+      if (!liveIds.has(id)) view.wrapper.visible = false
+    }
+    for (const ghost of live) {
+      let view = scene.ghostViews.get(ghost.tokenId)
+      if (view === undefined) {
+        view = createGhostView()
+        scene.lastSeen.addChild(view.wrapper)
+        scene.ghostViews.set(ghost.tokenId, view)
+      }
+      paintGhostView(view, ghost, currentMap.grid, scene.camera.scale)
+      const text = lastSeenLabel(ghost, now, currentSettings.showNames)
+      if (view.label.text !== text) view.label.text = text
+      // O "há N s" é a razão do contorno: aparece mesmo com os nomes desligados.
+      sizeTokenLabel(view.label, scene.camera.scale, true)
+      view.wrapper.position.set(ghost.x, ghost.y)
+      view.wrapper.visible = true
+    }
+    scene.lastSeenCount = live.length
+    // Contagem para o e2e escrita aqui, por todo caminho que sincroniza (pacote,
+    // ticker e zoom): senão um zoom que vence o contorno deixa o DOM atrasado.
+    const el = containerRef.current
+    const count = String(live.length)
+    if (el && el.dataset.lastSeenCount !== count) el.dataset.lastSeenCount = count
+  }
+
   /** Só o zoom (ou a resolução) mudou: nada de chão ou névoa. */
   function redrawZoomLayers(scene: Scene): void {
     redrawGridLayer(scene)
@@ -1569,6 +1672,7 @@ export function PlayerView({
       syncFacingNib(view, scene.camera.scale)
       placeCompanionLabel(view)
     }
+    syncLastSeen(scene, Date.now())
   }
 
   function redraw(scene: Scene): void {
@@ -1744,6 +1848,11 @@ export function PlayerView({
       concealed: currentConcealed,
     })
     if (changed.length > 0) startRevisitPulse(scene, changed, currentMap.id)
+
+    // Ficha alheia que saiu do pacote vira contorno; a que voltou apaga o dela; cena nova zera.
+    const wallNow = Date.now()
+    scene.lastSeenMemory = rememberSnapshot(scene.lastSeenMemory, currentMap, own, wallNow)
+    syncLastSeen(scene, wallNow)
 
     // Contagens para o e2e: canvas WebGL não é legível pelo DOM.
     const el = containerRef.current
@@ -1922,6 +2031,9 @@ export function PlayerView({
       const peekMask = new Graphics()
       const pins = new Container()
       const marks = new Graphics()
+      const lastSeen = new Container()
+      lastSeen.label = LAST_SEEN_LAYER_LABEL
+      lastSeen.eventMode = 'none'
       const tokens = new Container()
       prepareTokenLayer(tokens)
       // Mesma ordem do editor, de baixo para cima; tudo da planta fica sob a
@@ -1977,6 +2089,8 @@ export function PlayerView({
         // já viu (lib/fogFilter.ts), e no escuro lembrado ele continua legível.
         marks,
         pins,
+        // Lembrança abaixo das fichas: a ficha que volta cobre o próprio contorno.
+        lastSeen,
         tokens,
       )
       const signalsLayer = new Container()
@@ -2084,6 +2198,10 @@ export function PlayerView({
         roofCut,
         lastRoofCut: null,
         peekedRoofsCount: 0,
+        lastSeen,
+        lastSeenMemory: EMPTY_LAST_SEEN,
+        ghostViews: new Map(),
+        lastSeenCount: 0,
         tokens,
         tokenViews: new Map(),
         tokenGlides: createTokenGlides(),
@@ -2316,6 +2434,13 @@ export function PlayerView({
         if (label && !label.hidden) placeRevisitNote(scene, label, onScreen[0])
       }
       app.ticker.add(tickRevisit)
+
+      // "Há N s" anda com o relógio e o contorno vence sozinho; sem contorno, não custa nada.
+      const tickLastSeen = () => {
+        if (scene.lastSeenMemory.ghosts.size === 0 && scene.lastSeenCount === 0) return
+        syncLastSeen(scene, Date.now())
+      }
+      app.ticker.add(tickLastSeen)
 
       const sendSignalAt = (screenX: number, screenY: number) => {
         const point = scene.world.toLocal({ x: screenX, y: screenY })

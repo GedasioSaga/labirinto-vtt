@@ -111,6 +111,7 @@ import { LOCK_ANSWER_MAX_LENGTH } from '../lib/pinLock'
 import { TOKEN_ACTION_TEXT_MAX_LENGTH, type TokenAction } from '../lib/tokenActions'
 import { tokenCardName, type TokenActionNotice } from './tokenCard'
 import { ESPERA_ONDE_MAX_LENGTH, isWaitMinutes, type FimDaEspera } from '../lib/encontroMarcado'
+import { lembrarCena, type CenaLembrada } from './meuCaderno'
 
 /**
  * Cliente WebSocket do jogador, sem React e sem DOM: o socket e o storage são
@@ -399,6 +400,21 @@ export interface PlayerState {
    * meio-tempo não vira aviso de queda. Ausente no resto do tempo.
    */
   away?: true
+  /**
+   * LEVAR O MAPA PARA CASA: as cenas por onde ele passou nesta conexão, na
+   * ordem da primeira chegada, com a última memória que o host mandou de cada
+   * uma (`meuCaderno.ts`). Só a planta e as fichas DELE; nada pedido ao host.
+   * O lobby e o fim da sala não apagam: é justamente ao fim que ele baixa.
+   */
+  knownScenes?: CenaLembrada[]
+  /**
+   * LEVAR O CADERNO PARA CASA depois de uma queda: o "Reconectar" zera
+   * `clues` e `notebook` (o `clues.book`/`notes.book` da volta é quem manda),
+   * mas se a sala não voltar — o mestre fechou o app — as pistas e os recados
+   * sumiriam do aparelho. Ficam aqui, só para o arquivo, até o primeiro
+   * snapshot da volta provar que a sala está viva de novo; a tela nunca os mostra.
+   */
+  keptNotebook?: { clues: ClueEntry[]; notes: NoteEntry[] }
   rev: number
   playerId?: string
   /** Motivo quando `status === 'error'`: razão do mestre ou 'connection_lost'. */
@@ -2109,9 +2125,11 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     arrivalFromMapId = null
     const arrivalFocus = atalho ? { seq: (state.arrivalFocus?.seq ?? 0) + 1, tokenId: arrivedToken(next, ownTokens) } : state.arrivalFocus
     arrivalTokenId = null
+    const knownScenes = lembrarCena(state.knownScenes ?? [], { map: next, vision, explored, concealed, ownTokens })
     // `sceneName` entra SEMPRE, inclusive `undefined`: snapshot sem nome apaga o selo da cena anterior.
     // O mapa chegou: quem pedia ficha já tem uma, e o pedido termina aqui.
-    setState({ status: 'playing', rev, map: next, vision, explored, ownTokens, partyTokens, concealed, glimpses, hazards, gatilhos, andares, relogio, turn: turnOnMap, sceneName, place, places, elsewhere, peek, waitingTokens, error: undefined, seatClaim: undefined, arrivalFocus, ...passageWatchAfter(next) })
+    // A sala está viva: as pistas e os recados voltam a vir do host, e o guardado da queda sai.
+    setState({ status: 'playing', rev, map: next, vision, explored, ownTokens, partyTokens, concealed, glimpses, hazards, gatilhos, andares, relogio, turn: turnOnMap, sceneName, place, places, elsewhere, peek, waitingTokens, error: undefined, seatClaim: undefined, arrivalFocus, knownScenes, keptNotebook: undefined, ...passageWatchAfter(next) })
   }
 
   /**
@@ -3009,7 +3027,12 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     received = null
     // As marcas de "me avise" saem: a volta pode cair em outra cena. O Volto
     // já também: quem diz se ele segue fora é o host, na retomada.
-    setState({ status: 'connecting', error: undefined, rev: -1, map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, partyTokens: undefined, concealed: undefined, glimpses: undefined, elsewhere: undefined, peek: undefined, sceneName: undefined, place: undefined, destinations: undefined, hazards: undefined, hazardNotice: undefined, gatilhos: undefined, andares: undefined, relogio: undefined, turn: undefined, signals: undefined, laser: undefined, playerLasers: undefined, doorNotice: undefined, doorRequest: undefined, moveNotice: undefined, turnNotice: undefined, travel: undefined, note: undefined, arrival: undefined, alarm: undefined, item: undefined, lever: undefined, roomText: undefined, notebook: undefined, unreadNotes: undefined, clues: undefined, colecoes: undefined, shownClue: undefined, cluePeers: undefined, clueShow: undefined, paused: undefined, call: undefined, reconnecting: undefined, pointNotice: undefined, noise: undefined, secretCheck: undefined, secretCheckNotice: undefined, mapPeers: undefined, mapShare: undefined, mapShared: undefined, tokenAction: undefined, wait: undefined, waitEnded: undefined, waitingTokens: undefined, away: undefined, ...NO_PASSAGE_WATCH })
+    // Segundo "Reconectar" seguido: `clues` já está vazio, e o guardado da primeira queda continua valendo.
+    const keptNotebook = {
+      clues: state.clues ?? state.keptNotebook?.clues ?? [],
+      notes: state.notebook ?? state.keptNotebook?.notes ?? [],
+    }
+    setState({ keptNotebook, status: 'connecting', error: undefined, rev: -1, map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, partyTokens: undefined, concealed: undefined, glimpses: undefined, elsewhere: undefined, peek: undefined, sceneName: undefined, place: undefined, destinations: undefined, hazards: undefined, hazardNotice: undefined, gatilhos: undefined, andares: undefined, relogio: undefined, turn: undefined, signals: undefined, laser: undefined, playerLasers: undefined, doorNotice: undefined, doorRequest: undefined, moveNotice: undefined, turnNotice: undefined, travel: undefined, note: undefined, arrival: undefined, alarm: undefined, item: undefined, lever: undefined, roomText: undefined, notebook: undefined, unreadNotes: undefined, clues: undefined, colecoes: undefined, shownClue: undefined, cluePeers: undefined, clueShow: undefined, paused: undefined, call: undefined, reconnecting: undefined, pointNotice: undefined, noise: undefined, secretCheck: undefined, secretCheckNotice: undefined, mapPeers: undefined, mapShare: undefined, mapShared: undefined, tokenAction: undefined, wait: undefined, waitEnded: undefined, waitingTokens: undefined, away: undefined, ...NO_PASSAGE_WATCH })
     open()
   }
 

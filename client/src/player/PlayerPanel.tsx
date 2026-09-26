@@ -238,7 +238,15 @@ interface PlayerPanelProps {
   onStopWait?: () => void
   /** VOLTO JÁ: sair da mesa por um instante. Sem ele, o botão não aparece. */
   onStepAway?: () => void
+  /**
+   * "Baixar meu caderno": gera o arquivo no aparelho e devolve o nome dele.
+   * Lança quando não deu (o aviso vai para a aba). Ausente = sem o botão.
+   */
+  onDownloadNotebook?: () => string
 }
+
+/** Resultado do último "Baixar meu caderno", para a aba dizer o que houve. */
+type DownloadResult = { ok: true; fileName: string } | { ok: false; reason: string }
 
 export function PlayerPanel({
   characters,
@@ -288,6 +296,7 @@ export function PlayerPanel({
   onStartWait,
   onStopWait,
   onStepAway,
+  onDownloadNotebook,
 }: PlayerPanelProps) {
   const tabs = onRollDice === undefined ? PANEL_TABS_NO_DICE : PANEL_TABS
   const drawerScreen = useSyncExternalStore(subscribeDrawerScreen, isDrawerScreen, () => false)
@@ -449,6 +458,16 @@ export function PlayerPanel({
   const [nameDraft, setNameDraft] = useState(myTokenName)
   const [photoError, setPhotoError] = useState<string | null>(null)
   const [photoBusy, setPhotoBusy] = useState(false)
+  const [download, setDownload] = useState<DownloadResult | null>(null)
+
+  function downloadNotebook() {
+    if (onDownloadNotebook === undefined) return
+    try {
+      setDownload({ ok: true, fileName: onDownloadNotebook() })
+    } catch (erro) {
+      setDownload({ ok: false, reason: erro instanceof Error ? erro.message : 'erro desconhecido' })
+    }
+  }
 
   // O nome mandado pelo mestre manda: trocar de personagem, ou o mestre
   // renomear o seu, recarrega o rascunho. Enquanto a pessoa digita nada muda
@@ -772,6 +791,27 @@ export function PlayerPanel({
                       Minhas notas
                     </h2>
                     <PersonalNoteList notes={personalNotes} onFocus={focusNote} onRemove={onRemoveNote} />
+                  </section>
+                )}
+                {onDownloadNotebook !== undefined && (
+                  <section className="pp-section" aria-labelledby={`${panelId}-home`}>
+                    <h2 id={`${panelId}-home`} className="pp-heading">
+                      Levar para casa
+                    </h2>
+                    <p className="pp-empty">Um arquivo com os mapas que você conhece, suas pistas e os recados. Abre sem internet e sem o mestre.</p>
+                    <button type="button" className="pp-button" onClick={downloadNotebook}>
+                      Baixar meu caderno
+                    </button>
+                    {download?.ok === true && (
+                      <p className="pp-empty" role="status">
+                        Baixado: {download.fileName}
+                      </p>
+                    )}
+                    {download?.ok === false && (
+                      <p className="pp-error" role="alert">
+                        Não deu para baixar: {download.reason}
+                      </p>
+                    )}
                   </section>
                 )}
               </>
