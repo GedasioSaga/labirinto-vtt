@@ -140,7 +140,7 @@ describe('dentro da sala secreta: a ficha vê o próprio cômodo', () => {
     const map = mansao([ficha('ana', 825, 275)])
     const explorado = createExploration({ width: map.width * map.grid, height: map.height * map.grid, grid: map.grid })
     markAll(explorado)
-    const lembrou = filterMapForPlayer(map, 'p1', ownership, RADIUS, explorado, undefined, undefined, undefined, undefined, undefined, new Set(['r-secreto']))
+    const lembrou = filterMapForPlayer(map, 'p1', ownership, RADIUS, explorado, undefined, undefined, undefined, undefined, undefined, undefined, new Set(['r-secreto']))
     expect(lembrou.map.regions.find((r) => r.id === 'r-secreto')?.room?.name).toBe('Quarto Secreto')
     expect(lembrou.map.pins.map((p) => p.id)).toContain('pino-chegada')
     expect(lembrou.occupiedSecretRooms).toEqual([])
@@ -185,7 +185,7 @@ describe('sala secreta com teto: descoberta não arranca o teto', () => {
       undefined,
       undefined,
       undefined,
-      undefined,
+      undefined, undefined,
       undefined,
       new Set(['r-cab']),
     )

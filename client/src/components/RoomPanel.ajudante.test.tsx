@@ -20,7 +20,7 @@ const ROOM = { code: 'AJUD01', urls: ['http://10.0.0.2:7777'], qrSvg: '<svg/>' }
 const IDLE: TunnelState = { kind: 'idle' }
 
 function jogador(overrides: Partial<PlayerInfo>): PlayerInfo {
-  return { clientId: 'c1', playerId: 'p1', name: 'Duda', status: 'playing', connected: true, tokenIds: ['arco'], visionRadius: 700, ...overrides }
+  return { clientId: 'c1', playerId: 'p1', name: 'Duda', status: 'playing', connected: true, tokenIds: ['arco'], visionRadius: 700, visionFactor: 1, ...overrides }
 }
 
 describe('RoomPanel: emprestar ficha como ajudante', () => {
@@ -59,6 +59,8 @@ describe('RoomPanel: emprestar ficha como ajudante', () => {
           onLend={onLend}
           onKick={noop}
           onVisionRadiusChange={noop}
+          onVisionFactorChange={noop}
+          clues={{ rows: [], onCenter: noop, onToggle: noop }}
           onRevealPlan={noop}
           onHidePlan={noop}
         />,

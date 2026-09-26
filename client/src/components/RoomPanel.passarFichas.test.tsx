@@ -18,8 +18,8 @@ const TOKENS = [
   { id: 'f-lirio', name: 'Lírio' },
 ]
 
-const FABIO_FORA: PlayerInfo = { clientId: null, playerId: 'p-fabio', name: 'Fábio', status: 'playing', connected: false, tokenIds: ['f-escudo'], visionRadius: 700 }
-const ANA: PlayerInfo = { clientId: 'c1', playerId: 'p-ana', name: 'Ana', status: 'playing', connected: true, tokenIds: ['f-lirio'], visionRadius: 700 }
+const FABIO_FORA: PlayerInfo = { clientId: null, playerId: 'p-fabio', name: 'Fábio', status: 'playing', connected: false, tokenIds: ['f-escudo'], visionRadius: 700, visionFactor: 1 }
+const ANA: PlayerInfo = { clientId: 'c1', playerId: 'p-ana', name: 'Ana', status: 'playing', connected: true, tokenIds: ['f-lirio'], visionRadius: 700, visionFactor: 1 }
 
 let container: HTMLDivElement
 let root: Root
@@ -53,6 +53,8 @@ function render(players: PlayerInfo[], onHandOver: ((playerId: string, heirId: s
         onUnassign={noop}
         onKick={noop}
         onVisionRadiusChange={noop}
+        onVisionFactorChange={noop}
+        clues={{ rows: [], onCenter: noop, onToggle: noop }}
         onRevealPlan={noop}
         onHidePlan={noop}
         onDismiss={noop}

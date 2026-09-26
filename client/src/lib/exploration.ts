@@ -413,15 +413,6 @@ function zonesOnRow(exp: Exploration, row: number, zones: readonly ZoneBox[]): Z
   return zones.filter((z) => z.maxY >= y0 && z.minY <= y1)
 }
 
-/** A célula toca alguma das zonas (já filtradas pela linha em `zonesOnRow`). */
-function cellTouchesZones(exp: Exploration, col: number, row: number, rowZones: readonly ZoneBox[]): boolean {
-  const x0 = col * exp.cell
-  const x1 = x0 + exp.cell
-  const y0 = row * exp.cell
-  const y1 = y0 + exp.cell
-  return rowZones.some((z) => z.maxX >= x0 && z.minX <= x1 && ringTouchesRect(z.ring, x0, y0, x1, y1))
-}
-
 /**
  * Marca só as células INTEIRAS dentro de algum anel: a borda de cima, o meio e
  * a borda de baixo da célula (logo, os 4 cantos, o centro e os pontos médios

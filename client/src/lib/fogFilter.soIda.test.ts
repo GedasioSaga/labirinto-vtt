@@ -50,7 +50,7 @@ const soIda = (entries: [string, string[]][]): OneWayExits => new Map(entries.ma
 
 describe('fogFilter: passagem só de ida', () => {
   it('pino de uma saída com o par só de chegada sai com semVolta, e nada do destino', () => {
-    const view = filterMapForPlayer(mapaCom([CALHA]), 'p1', POSSE, RAIO, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, soIda([['calha', [SAIDA_PRINCIPAL]]]))
+    const view = filterMapForPlayer(mapaCom([CALHA]), 'p1', POSSE, RAIO, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, soIda([['calha', [SAIDA_PRINCIPAL]]]))
     expect(view.map.pins).toHaveLength(1)
     expect(view.map.pins[0].semVolta).toBe(true)
     expect(view.map.pins[0].destino).toBeUndefined()
@@ -67,13 +67,13 @@ describe('fogFilter: passagem só de ida', () => {
 
   it('marca gravada no pino do mestre (arquivo à mão) não atravessa: quem decide é o host', () => {
     const forjado: Pin = { ...CALHA, semVolta: true }
-    const view = filterMapForPlayer(mapaCom([forjado]), 'p1', POSSE, RAIO, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, soIda([]))
+    const view = filterMapForPlayer(mapaCom([forjado]), 'p1', POSSE, RAIO, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, soIda([]))
     expect(view.map.pins.map((p) => p.id)).toEqual(['calha'])
     expect(view.map.pins[0].semVolta).toBeUndefined()
   })
 
   it('encruzilhada: só a saída cujo par é chegada oculta ganha soIda; o pino não ganha semVolta', () => {
-    const view = filterMapForPlayer(mapaCom([CRUZ]), 'p1', POSSE, RAIO, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, soIda([['cruz', ['saida_poco']]]))
+    const view = filterMapForPlayer(mapaCom([CRUZ]), 'p1', POSSE, RAIO, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, soIda([['cruz', ['saida_poco']]]))
     const pino = view.map.pins[0]
     expect(pino.escolhas).toEqual([
       { id: SAIDA_PRINCIPAL, rotulo: 'Porta da cripta' },
@@ -85,7 +85,7 @@ describe('fogFilter: passagem só de ida', () => {
 
   it('pino fora da visão não sai — nem a marca de só ida dele', () => {
     const longe: Pin = { ...CALHA, x: 900, y: 900 }
-    const view = filterMapForPlayer(mapaCom([longe]), 'p1', POSSE, RAIO, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, soIda([['calha', [SAIDA_PRINCIPAL]]]))
+    const view = filterMapForPlayer(mapaCom([longe]), 'p1', POSSE, RAIO, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, soIda([['calha', [SAIDA_PRINCIPAL]]]))
     expect(view.map.pins).toEqual([])
     expect(JSON.stringify(view)).not.toContain('semVolta')
   })

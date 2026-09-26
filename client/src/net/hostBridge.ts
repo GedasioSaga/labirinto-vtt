@@ -1998,7 +1998,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
         'info',
         `${transfer.playerName} atravessou para outro ponto de ${transfer.toSceneName}`,
         CHEGADA_TOAST_MS,
-        goTo === undefined ? {} : { actions: [{ label: 'Ir lá', run: () => goTo(transfer.toSceneId, transfer.x, transfer.y) }] },
+        goTo === undefined ? {} : { actions: [{ label: 'Ir lá', run: () => goTo(transfer.toSceneId, transfer.x, transfer.y, transfer.piso ?? 0) }] },
       )
   }
 

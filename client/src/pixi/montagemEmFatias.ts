@@ -32,7 +32,7 @@ const PRIMEIRA_FATIA: ReadonlySet<ShapesLayer> = new Set<ShapesLayer>(['floor', 
  * tarefa longa de novo.
  */
 const FATIAS_SEGUINTES: readonly (readonly ShapesLayer[])[] = [
-  ['floorSelection', 'perigos', 'drawings', 'hazards', 'areaTriggers'],
+  ['floorSelection', 'perigos', 'drawings', 'hazards', 'areaTriggers', 'faccoes'],
   ['roomNames'],
   ['lights', 'watchCones', 'patrolRoutes'],
   ['concealZones', 'pins', 'textLabels', 'handles', 'areaOutline'],

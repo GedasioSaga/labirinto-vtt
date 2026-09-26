@@ -109,7 +109,7 @@ describe('os "Ir lá" até uma ficha levam o piso dela', () => {
 
   it('painel Grupo: a linha de quem está no 1º piso diz o piso da ficha (o "Ir lá" usa este número)', () => {
     const world = { open: { sceneId: null, name: 'Vale', map: editor().map }, background: [] }
-    const base = { clientId: 'c', name: 'x', status: 'playing' as const, connected: true, visionRadius: 700 }
+    const base = { clientId: 'c', name: 'x', status: 'playing' as const, connected: true, visionRadius: 700, visionFactor: 1 }
     const [lia, grog] = partyMembers(
       [
         { ...base, playerId: 'p-lia', name: 'Lia', tokenIds: ['lia'] },

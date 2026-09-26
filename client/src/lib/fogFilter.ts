@@ -1575,7 +1575,7 @@ export function planOfWholeMap(map: MapData): PlanMemory {
     stairs: byId(map.stairs),
     pins: byId(map.pins ?? []),
   }
-  const { map: shown } = filterMapForPlayer({ ...map, hiddenLayers: [] }, '', {}, 0, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, everything)
+  const { map: shown } = filterMapForPlayer({ ...map, hiddenLayers: [] }, '', {}, 0, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, everything)
   return {
     walls: keepSent(everything.walls, shown.walls),
     floor: keepSent(everything.floor, shown.floor),

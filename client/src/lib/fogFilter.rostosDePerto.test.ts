@@ -33,7 +33,8 @@ function salao(tokens: Token[], faceRangeCells?: number, measurementMode?: Measu
 }
 
 function recorte(map: MapData, posse: Record<string, string[]> = POSSE) {
-  return filterMapForPlayer(map, 'p1', posse, 700, undefined, undefined, undefined, undefined, undefined, MARCAS)
+  // `companions` é o 17º parâmetro (a lista cresceu com as junções).
+  return filterMapForPlayer(map, 'p1', posse, 700, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, MARCAS)
 }
 
 function fichaNoRecorte(map: MapData, id: string, posse?: Record<string, string[]>): Token | undefined {

@@ -29,7 +29,7 @@ function salao(tokens: Token[], concealZones: ConcealZone[] = []) {
 }
 
 function recorte(tokens: Token[], concealZones: ConcealZone[] = []) {
-  return filterMapForPlayer(salao(tokens, concealZones), 'p1', POSSE, 700, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, MARCAS)
+  return filterMapForPlayer(salao(tokens, concealZones), 'p1', POSSE, 700, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, MARCAS)
 }
 
 function fichaNoRecorte(tokens: Token[], id: string, concealZones: ConcealZone[] = []): Token | undefined {
@@ -89,7 +89,7 @@ describe('filterMapForPlayer: marca de companheiro', () => {
   it('disfarce numa ficha só: a outra ficha do Caio, sem disfarce, continua com a marca', () => {
     const posse = { ...POSSE, p2: ['caio', 'caio-2'] }
     const mapa = salao([ficha('duda', 'Duda', 100, 100), ficha('caio', 'Ladino', 300, 100), ficha('caio-2', 'Corvo', 400, 100, { publicName: 'Pássaro' })])
-    const view = filterMapForPlayer(mapa, 'p1', posse, 700, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, MARCAS)
+    const view = filterMapForPlayer(mapa, 'p1', posse, 700, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, MARCAS)
     const tokens = new Map(view.map.tokens.map((t) => [t.id, t]))
     expect(tokens.get('caio')?.companion).toEqual({ name: 'Caio', color: signalColor('p2') })
     expect(tokens.get('caio-2')?.name).toBe('Pássaro')

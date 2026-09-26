@@ -132,6 +132,11 @@ describe('PinControls: a loja no painel do pino', () => {
           onChooseImage={() => {}}
           onClearImage={() => {}}
           onDelete={() => {}}
+          marco={false}
+          onMarcoChange={() => {}}
+          lerDePerto={null}
+          onLerDePertoChange={() => {}}
+          iconChoice={null}
           loja={{ pinId: 'botica', loja: null, onChange: () => {} }}
         />,
       ),
