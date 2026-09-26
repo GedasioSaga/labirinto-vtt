@@ -10,6 +10,7 @@ import { PinIconControls, type PinIconControlsProps } from './PinIconControls'
 import { PinLockControls, type PinLockControlsProps } from './PinLockControls'
 import { PinLojaControls, type PinLojaControlsProps } from './PinLojaControls'
 import { PinLeverArt, PinTravelArt } from './PinSymbolArt'
+import { PinCabinControls, type PinCabinControlsProps } from './PinCabinControls'
 import { PinTravelControls, type PinTravelControlsProps } from './PinTravelControls'
 import { Toggle } from './Toggle'
 
@@ -102,6 +103,11 @@ export interface PinControlsProps {
    * `pinId` reinicia os campos ao trocar de pino.
    */
   loja?: (PinLojaControlsProps & { pinId: string }) | null
+  /**
+   * CABINE CONTÍNUA do pino aberto: a próxima parada ("!"/"?") ou o par em
+   * outra cena (viagem), e o apito. `null` = sem pino aberto, ou chegada oculta.
+   */
+  cabin?: PinCabinControlsProps | null
 }
 
 /** Id fixo: só existe um pino aberto no painel por vez (o mesmo molde de `lb-pin-description`). */
@@ -311,6 +317,7 @@ export function PinControls({
   lock = null,
   colecao = null,
   loja = null,
+  cabin = null,
 }: PinControlsProps) {
   const viagem = kind === 'viagem'
   const alavanca = kind === 'alavanca'
@@ -423,6 +430,7 @@ export function PinControls({
           {colecao !== null && <PinColecaoControls {...colecao} />}
           {/* Também é o que o pino É para o jogador: a banca que ele vê no cartão. */}
           {!viagem && !alavanca && loja !== null && <PinLojaControlsFor loja={loja} />}
+          {cabin !== null && <PinCabinControls {...cabin} />}
           {/* Ação de MESA, não de edição do pino: fica logo depois do que o
               pino é, antes da imagem e do excluir. */}
           {gather !== null && <GatherControlsFor gather={gather} />}

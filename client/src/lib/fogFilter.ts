@@ -3202,6 +3202,8 @@ export function filterMapForGroup(
   // recebe só se a cena dele está escura, à parte (`clockForPlayer`).
   // NÍVEL DE ALERTA da cena: é do mestre, e sai junto — "caçada" no pacote
   // contaria ao jogador o que a cena já sabe dele.
+  // ESTEIRA: regra do mestre (sala, direção, passo) — nunca sai. O jogador vê só
+  // a própria ficha onde a esteira a largou, pelo recorte de fichas de sempre.
   const {
     hazards: _masterHazards,
     gatilhos: _masterTriggers,
@@ -3209,6 +3211,7 @@ export function filterMapForGroup(
     andar: _masterFloor,
     externa: _masterOutdoor,
     alerta: _masterAlert,
+    conveyors: _masterConveyors,
     ...mapWithoutHazards
   } = map
 

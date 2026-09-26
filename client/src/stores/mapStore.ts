@@ -38,6 +38,9 @@ import { advanceHazard as advanceHazardOnMap, setRoomHazard as setRoomHazardOnMa
 import { setSelectionSecret as setSelectionSecretOnMap } from '../lib/batchSecret'
 import { setRegionTrigger as setRegionTriggerOnMap, setRegionTriggerRevealed as setRegionTriggerRevealedOnMap } from '../lib/areaTriggers'
 import { setArrivalText as setArrivalTextOnMap } from '../lib/arrivalText'
+import { advanceConveyors as advanceConveyorsOnMap, setRoomConveyor as setRoomConveyorOnMap, type ConveyorSetting } from '../lib/conveyors'
+import type { OwnerVisionRadii } from '../lib/imposedOccupancy'
+import { setPinCabin as setPinCabinOnMap } from '../lib/cabins'
 
 /** Ferramentas que criam Sala: mantêm o "Criar sala dentro" armado. */
 const ROOM_TOOLS: ReadonlySet<string> = new Set(['room', 'roomCircle', 'roomPolygon', 'roomFree'])
@@ -797,6 +800,15 @@ interface MapStoreState {
   setRoomDark: (id: string, dark: boolean) => void
   /** "Raio de visão aqui" da Sala; `null` volta ao raio do jogador. Com histórico. */
   setRoomVisionRadius: (id: string, raio: number | null) => void
+  /** ESTEIRA — liga a esteira da Sala (direção e passo), troca ou desliga (`null`). Com histórico. */
+  setRoomConveyor: (roomId: string, setting: ConveyorSetting | null) => void
+  /**
+   * ESTEIRA — "Avançar esteiras": todas as esteiras da cena empurram as fichas. Com histórico; ninguém anda = nada grava.
+   * `radii`: o raio de visão do dono de cada ficha na sala aberta (`ownerVisionRadii`); sem sala, omitir.
+   */
+  advanceConveyors: (radii?: OwnerVisionRadii) => void
+  /** CABINE CONTÍNUA — liga o pino à próxima parada da cena, troca ou desliga (`null`). Com histórico. */
+  setPinCabin: (pinId: string, targetId: string | null) => void
   /** A5 — "Oculto para jogadores" de Token/Região/Objeto/Escada/Desenho. Com histórico. */
   setItemSecret: (kind: mapFactory.SecretKind, id: string, secret: boolean) => void
   /** "Oculto para jogadores" EM LOTE: todos os itens da seleção que aceitam
@@ -1958,6 +1970,20 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
     setRoomVisionRadius: (id, raio) => {
       if (mapFactory.setRoomVisionRadius(get().map, id, raio) === get().map) return
       withHistory((map) => mapFactory.setRoomVisionRadius(map, id, raio))
+    },
+    setRoomConveyor: (roomId, setting) => {
+      // Um id só para as duas chamadas: a conferência e a gravação criam a MESMA esteira.
+      const id = crypto.randomUUID()
+      if (setRoomConveyorOnMap(get().map, roomId, setting, () => id) === get().map) return
+      withHistory((map) => setRoomConveyorOnMap(map, roomId, setting, () => id))
+    },
+    advanceConveyors: (radii) => {
+      if (advanceConveyorsOnMap(get().map, radii) === get().map) return
+      withHistory((map) => advanceConveyorsOnMap(map, radii))
+    },
+    setPinCabin: (pinId, targetId) => {
+      if (setPinCabinOnMap(get().map, pinId, targetId) === get().map) return
+      withHistory((map) => setPinCabinOnMap(map, pinId, targetId))
     },
     setItemSecret: (kind, id, secret) => {
       if (mapFactory.setItemSecret(get().map, kind, id, secret) === get().map) return
