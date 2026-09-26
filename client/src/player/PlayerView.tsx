@@ -728,7 +728,7 @@ function createGhostView(): GhostView {
 
 function paintGhostView(view: GhostView, ghost: LastSeenGhost, grid: number, cameraScale: number): void {
   const radius = tokenRadius(ghost, grid)
-  view.label.position.set(0, radius + TOKEN_LABEL_GAP)
+  view.label.position.set(0, tokenLabelTop(radius, false))
   const key = `${radius}@${cameraScale}@${ghost.heading ?? 'sem-direcao'}`
   if (key === view.key) return
   view.key = key
