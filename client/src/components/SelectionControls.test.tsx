@@ -68,6 +68,46 @@ describe('SelectionControls — Oculto para jogadores em lote', () => {
   it('sem o prop (um item só, ou nada que aceite): nenhuma caixa', () => {
     render(base)
     expect(caixa()).toBeNull()
-    expect(container.textContent).toContain('Apagar 4 itens selecionados')
+    expect(container.textContent).toContain('Adicionar token')
+  })
+})
+
+/**
+ * O "Apagar" mora na faixa do topo (`SelectionHeader`). Aqui, com seleção, não
+ * pode repetir (dois botões com o mesmo nome quebram o modo estrito das
+ * jornadas); sem seleção fica o "Nada selecionado" desabilitado, que as
+ * jornadas leem para saber que o clique no vazio desmarcou.
+ */
+describe('SelectionControls — o Apagar saiu para a faixa da seleção', () => {
+  let container: HTMLDivElement
+  let root: Root
+
+  beforeEach(() => {
+    Reflect.set(globalThis, 'IS_REACT_ACT_ENVIRONMENT', true)
+    container = document.createElement('div')
+    document.body.appendChild(container)
+    root = createRoot(container)
+  })
+
+  afterEach(() => {
+    act(() => root.unmount())
+    container.remove()
+  })
+
+  const botoes = () => Array.from(container.querySelectorAll('button')).map((b) => b.textContent)
+
+  it('com seleção: só "Adicionar token", nenhum "Apagar" nem "Nada selecionado"', () => {
+    act(() =>
+      root.render(<SelectionControls selection={{ kind: 'region', count: 1 }} defaultTokenName="Token 1" onAddToken={() => {}} onRemoveSelected={() => {}} />),
+    )
+    expect(botoes()).toEqual(['Adicionar token'])
+    expect(container.querySelector('h2')?.textContent).toBe('Seleção')
+  })
+
+  it('sem seleção: "Nada selecionado", desabilitado, depois de "Adicionar token"', () => {
+    act(() => root.render(<SelectionControls selection={null} defaultTokenName="Token 1" onAddToken={() => {}} onRemoveSelected={() => {}} />))
+    expect(botoes()).toEqual(['Adicionar token', 'Nada selecionado'])
+    const nada = Array.from(container.querySelectorAll('button')).find((b) => b.textContent === 'Nada selecionado')
+    expect(nada?.disabled).toBe(true)
   })
 })
