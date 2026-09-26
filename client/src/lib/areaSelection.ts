@@ -29,6 +29,7 @@ import { stairSpiralCircle } from './stairs'
 import { carryAttachedPins, carryPinsByTokenSteps } from './pinAttach'
 import { carrierIdOf, followStep } from './carry'
 import { mapaDoPiso, pisoDe } from './pisos'
+import { leaveVehiclesLeftBehind, withRiders } from './vehicle'
 
 // ─────────────────────────────────────────────────────────────
 // Geometria genérica: todo tipo de entidade do mapa se reduz a um destes 5
@@ -593,7 +594,11 @@ export function moveAreaSelection(map: MapData, selection: AreaSelection, dx: nu
   if (selection.tokens.length > 0) {
     const tokenIds = new Set(selection.tokens)
     const movedTokenIds = next.tokens.filter((t) => tokenIds.has(t.id) && canInteract(t)).map((t) => t.id)
-    const movedIds = new Set(movedTokenIds)
+    // VEÍCULO: o veículo da seleção leva quem está a bordo, esteja ou não na
+    // seleção — cada um anda UMA vez, o passo inteiro (vai dentro do veículo).
+    // Quem só vai a bordo tem o trajeto checado nas paredes de ANTES (`map`),
+    // como a ficha levada: barrado, fica e desce do veículo.
+    const movedIds = withRiders(map, new Set(movedTokenIds), dx, dy)
     // Tocha presa na ficha vai junto; a luz que também estava na seleção já andou acima.
     const movedLightIds = new Set(next.lights.filter((l) => selection.lights.includes(l.id) && canInteract(l)).map((l) => l.id))
     // LEVAR FICHA JUNTO: a ficha levada que NÃO está na seleção acompanha quem
@@ -615,8 +620,10 @@ export function moveAreaSelection(map: MapData, selection: AreaSelection, dx: nu
     // em área, então não há risco de somar o delta duas vezes. A ficha levada
     // não está em `movedIds` (`follows` a exclui), então o pino dela anda uma
     // vez só, pelo passo real dela.
-    for (const tokenId of movedTokenIds) next = carryAttachedPins(next, tokenId, dx, dy)
+    for (const tokenId of movedIds) next = carryAttachedPins(next, tokenId, dx, dy)
     next = carryPinsByTokenSteps(next, tokensBefore, followerIds)
+    // O passageiro que andou sem o seu veículo desce dele.
+    if (dx !== 0 || dy !== 0) next = leaveVehiclesLeftBehind({ ...next, tokens: tokensBefore }, next, movedIds)
   }
 
   if (selection.props.length > 0) {

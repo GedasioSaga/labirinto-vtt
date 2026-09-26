@@ -1037,6 +1037,19 @@ export interface TokenWatch {
 }
 
 /**
+ * VEÍCULO COM LUGARES (cesto, bote, vagonete): a ficha leva até `lugares`
+ * outras fichas da mesma cena. Quem está a bordo anda junto com ela e
+ * atravessa o pino junto (`lib/vehicle.ts`).
+ */
+export interface TokenVehicle {
+  /** Quantas fichas cabem, de 1 a `VEHICLE_SEATS_MAX`. */
+  lugares: number
+  /** Ids das fichas a bordo, na ordem em que embarcaram. Ausente = vazio,
+   *  sem linha de migração: quem lê do disco é `readTokenVehicle`. */
+  passageiros?: string[]
+}
+
+/**
  * Marca de alerta do guarda que o JOGADOR recebe: "?" desconfia (viu alguém
  * na borda do olhar), "!" viu. Montada pelo recorte, nunca gravada no mapa.
  */
@@ -1191,6 +1204,13 @@ export interface Token extends PlayerSecret, NoPiso {
    *  recebe; o mapa do mestre nunca o guarda (o recorte apaga o que vier dele).
    *  Ausente = NPC ou a própria ficha. */
   companion?: TokenCompanion
+  /**
+   * VEÍCULO: a ficha é um cesto/bote/vagonete com lugares. Ausente = ficha
+   * comum, sem linha de migração. O mapa do disco passa por `readTokenVehicle`
+   * (`lib/mapFile.ts`). NÃO atravessa para o jogador: a lista de passageiros
+   * entregaria ficha que a névoa ou o mestre escondem (`lib/fogFilter.ts`).
+   */
+  veiculo?: TokenVehicle
 }
 
 /** Quem joga com a ficha: nome do jogador e a cor de sinal dele (`#rrggbb`, `lib/signals.ts`). */

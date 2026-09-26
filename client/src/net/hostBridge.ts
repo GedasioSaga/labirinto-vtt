@@ -18,6 +18,7 @@ import {
   type SavedTable,
 } from '../lib/savedTable'
 import type { ChamadaAceita, MovimentoDeCabine } from '../lib/cabine'
+import { holdAlongSeats } from '../lib/gatherParty'
 import {
   createHostSession,
   ownTokenIdsOf,
@@ -1206,6 +1207,13 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     const current = world()
     const result = session.broadcast(current)
     void dispatch(result)
+    // No broadcast, `scene.changed` só sai para quem foi levado a bordo ou
+    // pelo "Levar para…": o pedido de passagem dele morreu na sessão, e o
+    // aviso do mestre e o selo da lista vão junto.
+    if (result.outbound.some((o) => o.msg.type === 'scene.changed')) {
+      pruneTravelToasts()
+      notifyPlayersIfChanged()
+    }
     announceHazardEntries(result.hazardEntries ?? [])
     announceTriggerEntries(result.triggerEntries ?? [])
     announceGuardSightings(current)
@@ -2071,7 +2079,12 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     const apply = transfer.fromSceneId === transfer.toSceneId ? moveWithinScene : deps.applyTransfer
     if (apply === undefined) return false
     const { companions = [], junto, entourage, ...alone } = transfer
-    if (!apply(alone)) return false
+    // VEÍCULO: quem vem a bordo da principal (`adventureStore.transferToken`)
+    // não senta na casa já dada a quem atravessa depois dela, logo abaixo.
+    const current = world()
+    const from = [current.open, ...current.background].find((scene) => scene.sceneId === transfer.fromSceneId)
+    const hold = from === undefined ? alone.hold : holdAlongSeats(alone.hold, [...companions, ...(junto ?? []), ...(entourage ?? [])], from.map)
+    if (!apply(hold === undefined ? alone : { ...alone, hold })) return false
     // Ausente é o caso comum (ninguém acompanha), não falha.
     for (const companion of companions) apply({ ...alone, tokenId: companion.tokenId, x: companion.x, y: companion.y })
     for (const carried of junto ?? []) apply({ ...alone, tokenId: carried.tokenId, x: carried.x, y: carried.y })
