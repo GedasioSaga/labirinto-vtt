@@ -28,6 +28,7 @@ import {
   PartyDestinationMark,
   PartyGiveForm,
   PartyNoteForm,
+  PartyPurse,
   PartySendForm,
   playerNoteFeedbackText,
   useNoteFeedback,
@@ -1524,6 +1525,7 @@ function PlayerRow({
           <TokenChips player={player} tokens={admin.tokens} onUnassign={admin.onUnassign} />
         </div>
         {member !== undefined && <PartyBackpack member={member} onItem={party?.onItem} />}
+        {member !== undefined && <PartyPurse member={member} onItem={party?.onItem} onTrade={party?.onTrade} />}
         {member !== undefined && <PartyDestinationMark member={member} onViewDestination={party?.onViewDestination} />}
         {member !== undefined && <PartyAwayTokens member={member} onBring={party?.onBring} />}
         <div className="lb-player__line lb-player__line--acoes">

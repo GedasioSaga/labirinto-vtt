@@ -58,6 +58,8 @@ import { selectedTokenColor } from '../lib/tokenColor'
 import { tokenReachesPin } from '../lib/doorReach'
 import { buildTokenPhotoData } from '../lib/tokenPhoto'
 import { carriedItemsOf, giveTargets } from '../lib/items'
+import { moedasDe, ownTradeToken, purseToward } from '../lib/troca'
+import { PlayerTradeCard } from './PlayerTradeCard'
 import { itemNoticeText } from './itemNotice'
 import { compraNoticeText } from './compraNotice'
 import { HIDE_NOTICE_TEXT } from './hideNotice'
@@ -809,13 +811,30 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
   const partyTokens = state.partyTokens ?? NO_TOKENS
   // ITEM PEGÁVEL: "Comigo" é a mochila das fichas dele; "Dar a…" oferece só
   // fichas de COLEGAS encostadas numa delas — NPC do mestre o host recusaria.
+  // MOEDAS E TROCA: a bolsa do painel é a da ficha dele que mais tem — o host
+  // não junta bolsas de fichas diferentes num pagamento só. Cada colega leva a
+  // bolsa que o paga de verdade: a da ficha dele ENCOSTADA no colega.
   const backpack = useMemo(() => {
-    if (!map) return { items: [], colleagues: [] }
+    if (!map) return { items: [], colleagues: [], moedas: 0 }
+    const own = map.tokens.filter((t) => ownTokens.includes(t.id))
+    const colleagues = giveTargets(map, ownTokens, partyTokens).map((colleague) => ({
+      ...colleague,
+      moedas: purseToward(own, map.tokens.find((t) => t.id === colleague.tokenId), map.grid),
+    }))
     return {
-      items: map.tokens.filter((t) => ownTokens.includes(t.id)).flatMap(carriedItemsOf),
-      colleagues: giveTargets(map, ownTokens, partyTokens),
+      items: own.flatMap(carriedItemsOf),
+      colleagues,
+      moedas: own.reduce((maior, t) => Math.max(maior, moedasDe(t)), 0),
     }
   }, [map, ownTokens, partyTokens])
+
+  // MOEDAS E TROCA: a contraproposta sai da ficha da OFERTA — o host não junta
+  // mochilas nem bolsas de fichas diferentes, então o formulário só oferece dela.
+  const trocaTokenId = state.troca?.tokenId
+  const tradeStock = useMemo(() => {
+    const ficha = !map || trocaTokenId === undefined ? undefined : ownTradeToken(map.tokens, ownTokens, trocaTokenId)
+    return ficha === undefined ? { items: [], moedas: 0 } : { items: carriedItemsOf(ficha), moedas: moedasDe(ficha) }
+  }, [map, ownTokens, trocaTokenId])
 
   // A cor do próprio laser: a da ficha (a mesma que os outros veem, escolhida
   // pelo host); ficha sem cor, o azul "este é o seu" da tela do jogador.
@@ -1175,7 +1194,11 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
             connection.resetClueShare()
             setOpenClueId(clueId)
           }}
-          backpack={{ ...backpack, onGive: (itemId, toTokenId) => void connection.giveItem(itemId, toTokenId) }}
+          backpack={{
+            ...backpack,
+            onGive: (itemId, toTokenId) => void connection.giveItem(itemId, toTokenId),
+            onPay: (toTokenId, moedas) => void connection.giveCoins(toTokenId, moedas),
+          }}
           letter={{ peers: state.letterPeers, status: state.letterSend, onAskPeers: askLetterPeers, onSend: sendLetter }}
           onRollDice={(request) => connection.rollDice(request)}
           elsewhere={state.elsewhere}
@@ -1440,6 +1463,19 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
             text={state.roomText.text}
             onClose={closeRoomText}
             escapeCloses={noCardOnTop && !clueCardOpen}
+          />
+        )}
+        {state.troca && (
+          // MOEDAS E TROCA: a oferta do mestre, embaixo, sem brigar com o recado no alto.
+          // `key` no offerId: oferta nova remonta o cartão (a contraproposta aberta não sobra).
+          <PlayerTradeCard
+            key={state.troca.offerId}
+            troca={state.troca}
+            mochila={tradeStock.items}
+            moedas={tradeStock.moedas}
+            onAnswer={(accept) => void connection.answerTrade(accept)}
+            onCounter={(itemIds, moedas) => void connection.counterTrade(itemIds, moedas)}
+            onDismiss={() => connection.dismissTrade()}
           />
         )}
         {state.paused && (
