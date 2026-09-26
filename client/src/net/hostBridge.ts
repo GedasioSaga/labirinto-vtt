@@ -2,6 +2,7 @@ import type { InvokeArgs } from '@tauri-apps/api/core'
 import type { UnlistenFn } from '@tauri-apps/api/event'
 import { useToastStore, type ToastAction, type ToastResposta } from '../stores/toastStore'
 import type { MapData, PinPassage, RegionPoint, Token } from '../types/map'
+import { NO_OWNER_RADII, type OwnerVisionRadii } from '../lib/imposedOccupancy'
 import { LASER_MAX_POINTS_PER_MESSAGE, LASER_SEND_INTERVAL_MS } from '../lib/laser'
 import { pointActionMasterText, type PointActionAnswer } from '../lib/pointActions'
 import type { StoredToken } from '../lib/storedTokens'
@@ -305,6 +306,11 @@ export interface HostBridge {
   lendToken(playerId: string, tokenId: string, terms: LoanTerms): void
   kick(clientId: string): Promise<void>
   players(): PlayerInfo[]
+  /**
+   * MOVIMENTO IMPOSTO: o raio que o host aplica a cada ficha com dono, neste
+   * `map` (`HostSession.tokenVisionRadii`). Sala fechada = nenhum raio.
+   */
+  tokenVisionRadii(map: MapData): OwnerVisionRadii
   /** Jogadores com conexão viva agora (0 com a sala fechada): quem cai se o mestre fechar o app. */
   connectedPlayerCount(): number
   room(): RoomInfo | null
@@ -374,8 +380,9 @@ export interface HostBridge {
    * (sala fechada, destino ou ficha sumiram): o painel avisa e fica aberto.
    * `gatherAt`: "Reunir o grupo aqui" — chega nessa casa, com o aviso de
    * reunião; a montaria e o familiar, nas casas que o plano deu a eles.
+   * `tokenId`: a cabine contínua ao par leva ESTA ficha dele (`hostSession.sendPlayer`).
    */
-  sendPlayer(playerId: string, toSceneId: string, pinId: string | null, gatherAt?: GatherArrival): boolean
+  sendPlayer(playerId: string, toSceneId: string, pinId: string | null, gatherAt?: GatherArrival, tokenId?: string): boolean
   /**
    * "Trazer" do painel Grupo: a ficha `tokenId` do jogador, que ficou em
    * outra cena, vem para o lado dele. Não é viagem: sem "Você chegou" e fora
@@ -2820,9 +2827,9 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       return result.mapGiven.roomIds.length
     },
 
-    sendPlayer(playerId, toSceneId, pinId, gatherAt) {
+    sendPlayer(playerId, toSceneId, pinId, gatherAt, tokenId) {
       if (session === null) return false
-      const result = session.sendPlayer(playerId, toSceneId, pinId, world(), gatherAt)
+      const result = session.sendPlayer(playerId, toSceneId, pinId, world(), gatherAt, tokenId)
       const transfer = result.applyTransfer
       // Mesmo caminho do "Deixar ir" (`answerTravel`): a ficha muda de cena
       // antes do `scene.changed` sair, e o snapshot da cena nova vem atrás.
@@ -3119,6 +3126,10 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
 
     players() {
       return playerList()
+    },
+
+    tokenVisionRadii(map) {
+      return session === null ? NO_OWNER_RADII : session.tokenVisionRadii(map)
     },
 
     connectedPlayerCount() {

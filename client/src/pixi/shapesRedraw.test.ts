@@ -60,6 +60,7 @@ function setup() {
     hazards: spy('hazards'),
     areaTriggers: spy('areaTriggers'),
     faccoes: spy('faccoes'),
+    conveyors: spy('conveyors'),
     roomNames: spy('roomNames'),
     walls: spy('walls'),
     stairs: spy('stairs'),
@@ -338,6 +339,32 @@ describe('createShapesRedrawer', () => {
     // Desligar apaga (uma pintura), e depois a sala anda sem repintar a facção.
     expect(redraw(snapshot(movido))).toEqual(['faccoes'])
     expect(redraw(snapshot(moveRegion(movido, 'r1', 10, 0)))).not.toContain('faccoes')
+  })
+
+  it('esteira e cabine (camada conveyors) repintam quando a esteira, a sala, o pino da cabine ou o zoom mudam', () => {
+    const { redraw, take } = setup()
+    const map: MapData = { ...buildMap(), conveyors: [{ id: 'e1', roomId: 'r1', direction: 'sul', stepCells: 3 }] }
+    expect(redraw(snapshot(map))).toContain('conveyors')
+    take()
+    expect(redraw(snapshot(map))).toEqual([])
+    // A esteira troca de direção: só a camada dela repinta.
+    const norte: MapData = { ...map, conveyors: [{ id: 'e1', roomId: 'r1', direction: 'norte', stepCells: 3 }] }
+    expect(redraw(snapshot(norte))).toEqual(['conveyors'])
+    // A sala da esteira se move: as setas seguem a sala.
+    expect(redraw(snapshot(moveRegion(norte, 'r1', 10, 0)))).toContain('conveyors')
+    take()
+    // Cabine ligada entre dois pinos, sem esteira: a linha aparece.
+    const semEsteira = createEmptyMap('cab', 'Cabine', 10, 10, 50)
+    redraw(snapshot(semEsteira))
+    take()
+    const comCabine: MapData = {
+      ...semEsteira,
+      pins: [
+        { id: 'a1', x: 25, y: 25, kind: 'exclamacao', description: '', image: null, cabineContinua: 'a2' },
+        { id: 'a2', x: 225, y: 25, kind: 'exclamacao', description: '', image: null },
+      ],
+    }
+    expect(redraw(snapshot(comCabine))).toEqual(['conveyors', 'pins'])
   })
 
   it('camada de texto pintada pede a sincronização da resolução dos Text', () => {

@@ -68,6 +68,10 @@ import { mapChangeCause, selectAlignableUnitCount, useMapStore } from './stores/
 import { roomHazardState } from './lib/hazards'
 import { areaTriggerOfRegion } from './lib/areaTriggers'
 import { saveMapToAppData, saveMapToPath, pickMapJsonToOpen, openMapFile, openMapFileFirst, mapDirFor, defaultMapsDir, type OpenedMapFile } from './lib/mapFileIO'
+import { canAdvanceImposed, roomConveyorState } from './lib/conveyors'
+import { cabinOf, cabinTargets, cabinTargetsOfPar } from './lib/cabins'
+import { avancarMovimentoImposto, ownerFromPlayers } from './stores/avancarMovimentoImposto'
+import { NO_OWNER_RADII, type OwnerVisionRadii } from './lib/imposedOccupancy'
 import {
   applyItemsInScene,
   hasUnsavedWork,
@@ -1317,6 +1321,24 @@ function App() {
   const selectedRoomHazard = selectedRegion?.room ? roomHazardState(map, selectedRegion.id) : null
   // GATILHO DE ÁREA da Região/Sala selecionada (`null` = sem gatilho).
   const selectedRegionTrigger = selectedRegion ? areaTriggerOfRegion(map, selectedRegion.id) : null
+  // ESTEIRA e CABINE: com "Fichas ocupam espaço", só segura a ficha quem o
+  // dono dela enxerga com o raio que o host APLICA a ela neste mapa ("Visão
+  // nesta cena", fator, hora do relógio: `tokenVisionRadii`), nunca o de base.
+  // Sem sala aberta (ponte ainda não criada) ninguém tem dono.
+  const conveyorRadiiIn = (target: MapData): OwnerVisionRadii => hostBridgeRef.current?.tokenVisionRadii(target) ?? NO_OWNER_RADII
+  const conveyorRadii = conveyorRadiiIn(map)
+  // UM AVANÇAR (botão "Avançar esteiras" e "Próximo apito" da Agenda): esteiras
+  // e cabines desta cena, e a cabine que leva ao par — a ficha de jogador pela
+  // sessão ("Mandar para…" com a ficha exata), a sem dono pelo "Levar para…".
+  const avancarEsteiras = () => {
+    // O raio de AGORA: o "Próximo apito" pode ter mudado a hora neste mesmo clique.
+    avancarMovimentoImposto(conveyorRadiiIn(useMapStore.getState().map), {
+      ownerOf: ownerFromPlayers(roomPlayers),
+      sendPlayer: (playerId, sceneId, pinId, tokenId) => hostBridgeRef.current?.sendPlayer(playerId, sceneId, pinId, undefined, tokenId) ?? false,
+    })
+  }
+  // ESTEIRA da Sala selecionada: direção, passo e se "Avançar esteiras" move alguém.
+  const selectedRoomConveyor = selectedRegion?.room ? roomConveyorState(map, selectedRegion.id, conveyorRadii) : null
   const selectedLight = singleSelection?.kind === 'light' ? map.lights.find((l) => l.id === singleSelection.id) ?? null : null
   const selectedStair = singleSelection?.kind === 'stair' ? map.stairs.find((s) => s.id === singleSelection.id) ?? null : null
   const selectedFloorIndex = singleSelection?.kind === 'floor' ? map.floor.findIndex((p) => p.id === singleSelection.id) : -1
@@ -2446,6 +2468,7 @@ function App() {
                   onChange={(agenda) => useAdventureStore.getState().setAgenda(agenda)}
                   cenas={scenesPanel}
                   onAlarm={soarAlarme}
+                  onApito={avancarEsteiras}
                 />
               )}
               </>
@@ -2946,6 +2969,16 @@ function App() {
                   : undefined,
               // MOBÍLIA DESENHADA: móvel no centro da sala, no giro dela, selecionado.
               onAddMobilia: porMobiliaNaSala(selectedRegion),
+              conveyor:
+                selectedRegion && selectedRoomConveyor
+                  ? {
+                      direction: selectedRoomConveyor.direction,
+                      stepCells: selectedRoomConveyor.stepCells,
+                      canAdvance: selectedRoomConveyor.canAdvance,
+                      onChange: (setting) => useMapStore.getState().setRoomConveyor(selectedRegion.id, setting),
+                      onAdvance: avancarEsteiras,
+                    }
+                  : undefined,
             }}
             playerSecret={
               secretTarget && {
@@ -3092,6 +3125,22 @@ function App() {
                   : null,
               // ALAVANCA: a porta que ela abre (desta cena, de qualquer sala) e o "Acionar agora" do mestre.
               lever: selectedPin && selectedPin.kind === 'alavanca' ? leverPanel(selectedPin) : null,
+              // CABINE CONTÍNUA: o "!"/"?" leva ao próximo pino da cena; o de
+              // viagem leva ao PAR (outra cena). A chegada oculta não leva de volta; a alavanca não é parada.
+              cabin:
+                selectedPin && selectedPin.soChegada !== true && selectedPin.kind !== 'alavanca'
+                  ? {
+                      target: cabinOf(map, selectedPin.id),
+                      targets:
+                        selectedPin.kind === 'viagem'
+                          ? cabinTargetsOfPar(pinExitsTravelOf({ adventure, activeSceneId, cache: sceneCache }, map, selectedPin))
+                          : cabinTargets(map, selectedPin.id),
+                      emptyHint: selectedPin.kind === 'viagem' ? 'Ligue este pino a um par em outra cena para a cabine levar até lá.' : undefined,
+                      canAdvance: canAdvanceImposed(map, conveyorRadii),
+                      onChange: (targetId) => useMapStore.getState().setPinCabin(selectedPin.id, targetId),
+                      onAdvance: avancarEsteiras,
+                    }
+                  : null,
             }}
             pinIcon={{
               // Mesma ligação dupla do tipo logo acima: com um pino aberto, o

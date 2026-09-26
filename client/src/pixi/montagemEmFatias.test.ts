@@ -56,6 +56,7 @@ function espioes(pintadas: ShapesLayer[]): Record<ShapesLayer, () => void> {
     hazards: spy('hazards'),
     areaTriggers: spy('areaTriggers'),
     faccoes: spy('faccoes'),
+    conveyors: spy('conveyors'),
     roomNames: spy('roomNames'),
     walls: spy('walls'),
     stairs: spy('stairs'),

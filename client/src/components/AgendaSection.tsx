@@ -42,6 +42,12 @@ export interface AgendaSectionProps {
   cenas?: readonly SceneListItem[]
   /** Soa o alarme de um evento que disparou. Ausente = sala fechada: o alarme não soa e a Caixa diz isso. */
   onAlarm?: SoarAlarme
+  /**
+   * O APITO move o movimento imposto: a cada "Próximo apito", as esteiras e as
+   * cabines andam uma vez (o mesmo Avançar do "Avançar esteiras"). "Próximo
+   * dia" não chama: pular à Aurora não é um apito. Ausente = só a hora anda.
+   */
+  onApito?: () => void
 }
 
 const AVISO_NA_CAIXA = { grupo: GRUPO_DA_AGENDA, sempreEmCaixa: true } as const
@@ -253,7 +259,7 @@ function EventoForm({ agora, cenas, onMarcar }: EventoFormProps) {
  * momento de um evento, ele vai para a Caixa ("Agenda") — o título nunca vai ao
  * jogador; o alarme do evento, se houver, soa só nesse momento.
  */
-export function AgendaSection({ agenda, onChange, cenas = [], onAlarm }: AgendaSectionProps) {
+export function AgendaSection({ agenda, onChange, cenas = [], onAlarm, onApito }: AgendaSectionProps) {
   const atual = agenda ?? novaAgenda()
 
   const levarA = (momento: MomentoDaMesa) => {
@@ -276,7 +282,15 @@ export function AgendaSection({ agenda, onChange, cenas = [], onAlarm }: AgendaS
           Agora: {formatarMomento(atual.agora)}
         </p>
         <div className="lb-cenas__acoes">
-          <button type="button" className="lb-btn" title="Avança a hora da mesa um apito" onClick={() => levarA(proximoApito(atual.agora))}>
+          <button
+            type="button"
+            className="lb-btn"
+            title={onApito === undefined ? 'Avança a hora da mesa um apito' : 'Avança a hora da mesa um apito e move as esteiras e cabines da cena'}
+            onClick={() => {
+              levarA(proximoApito(atual.agora))
+              onApito?.()
+            }}
+          >
             Próximo apito
           </button>
           <button type="button" className="lb-btn lb-btn--ghost" title="Vai à Aurora do dia seguinte" onClick={() => levarA(proximoDia(atual.agora))}>

@@ -4,6 +4,7 @@ import { selectionSingle, type SelectionSet } from '../lib/selectionModel'
 import { pinSizeScale } from '../lib/pins'
 import { resolveHighlightedRegionId } from './drawRegions'
 import { hazardsOf } from '../lib/hazards'
+import { conveyorsOf } from '../lib/conveyors'
 import { tokenWatchOf } from '../lib/npcWatch'
 import { tokenPatrolOf } from '../lib/npcPatrol'
 
@@ -24,6 +25,7 @@ export const SHAPES_LAYERS = [
   'hazards',
   'areaTriggers',
   'faccoes',
+  'conveyors',
   'roomNames',
   'walls',
   'stairs',
@@ -135,6 +137,12 @@ export function shapesLayerDeps(layer: ShapesLayer, snapshot: ShapesSnapshot): r
     case 'faccoes':
       // FILTRO "QUEM MANDA AQUI": desligado, arrastar sala não repinta a camada.
       return snapshot.filtroFaccoes === true ? ['filtro', map.regions, hidden] : ['sem filtro']
+    case 'conveyors':
+      // ESTEIRA e CABINE: setas na sala, linha de pino a pino e anel no pino
+      // de viagem. Traço de 1 px de tela, então o zoom também repinta.
+      return conveyorsOf(map).length === 0 && !map.pins.some((p) => p.cabineContinua !== undefined)
+        ? ['sem esteira']
+        : [map.conveyors, map.regions, map.pins, hidden, map.grid, cameraScale, rendererResolution]
     case 'roomNames':
       return [map.regions, hidden, map.grid]
     case 'walls':
