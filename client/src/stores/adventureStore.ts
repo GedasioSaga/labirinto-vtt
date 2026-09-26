@@ -68,6 +68,7 @@ import {
   sameDestination,
   setArrivalOnly,
   setExitDestination,
+  setExitPassage,
   travelExitOf,
   travelExitsOf,
   travelLinkChanges,
@@ -1632,7 +1633,7 @@ export const useAdventureStore = create<AdventureState>()((set, get) => ({
       return travel.status === 'ligado' ? [{ sceneId: travel.sceneId, pinId: travel.partner.id }] : []
     })
     if (pares.length === 0) return false
-    const passagem: PinPassage = trancar ? 'trancada' : 'pede'
+    const passagem: ExitPassage = trancar ? 'trancada' : 'pede'
     // Trancar leva o motivo deste lado ("Desabou") ao outro: o que fechou a
     // passagem fechou as duas pontas. Destrancar não mexe no motivo, que fica
     // guardado para a próxima vez, como no painel.
@@ -1641,9 +1642,19 @@ export const useAdventureStore = create<AdventureState>()((set, get) => ({
     // passa a seguir a principal que acabou de ser gravada. As outras saídas
     // do par (que levam a outro lugar) ficam como estão.
     const aqui: PinDestination = { sceneId: activeSceneId, pinId }
+    const voltaParaCa = (saida: { destino: PinDestination }): boolean => sameDestination(saida.destino, aqui)
     const doPar = (map: MapData, parId: string): MapData => {
       const par = map.pins.find((p) => p.id === parId)
-      const saidas = par === undefined ? undefined : extrasFollowingMain(par, (saida) => sameDestination(saida.destino, aqui))
+      if (par === undefined) return map
+      const voltas = travelExitsOf(par).filter(voltaParaCa)
+      if (voltas.length > 0 && voltas.every((saida) => saida.id !== SAIDA_PRINCIPAL)) {
+        // A principal do par leva a OUTRO lugar: o modo e o motivo dela
+        // (a porta da Cripta trancada porque "Desabou") não são desta
+        // ligação. Só as extras que voltam para cá mudam.
+        const comVoltas = voltas.reduce((atual: Pin, saida) => ({ ...atual, ...setExitPassage(atual, saida.id, passagem) }), par)
+        return mapFactory.updatePin(map, parId, { saidas: comVoltas.saidas })
+      }
+      const saidas = extrasFollowingMain(par, voltaParaCa)
       return mapFactory.updatePin(map, parId, saidas === undefined ? patchDoPar : { ...patchDoPar, saidas })
     }
     for (const par of pares) get().updateBackgroundScene(par.sceneId, (map) => doPar(map, par.pinId))

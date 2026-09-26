@@ -238,4 +238,47 @@ describe('trancar os dois lados com modo por saída', () => {
     expect(pinoDoFundo(m.cripta, m.par).passagem).toBe('trancada')
     expect(exitPassageOf(pinoDoFundo(m.cripta, m.par), 'fora')).toBe('livre')
   })
+
+  /**
+   * O par volta só por uma EXTRA: a principal dele leva a outro lugar (o
+   * Túnel desabado, trancado de propósito). O botão mexe só na volta.
+   */
+  function parQueVoltaPorExtra(): { vale: string; cripta: string; par: string } {
+    const m = montar({ motivo: 'alagada' })
+    useAdventureStore.getState().updateBackgroundScene(m.cripta, (map) => ({
+      ...map,
+      pins: map.pins.map((p) =>
+        p.id === m.par
+          ? {
+              ...p,
+              destino: { sceneId: 'longe', pinId: 'z' },
+              passagem: 'trancada' as const,
+              motivo: 'desabou' as const,
+              saidas: [{ id: 'volta', rotulo: 'Volta', destino: { sceneId: m.vale, pinId: 'a' } }],
+            }
+          : p,
+      ),
+    }))
+    return m
+  }
+
+  it('destrancar com a volta do par numa extra: a principal dele, trancada para outro lugar, continua trancada', () => {
+    const m = parQueVoltaPorExtra()
+    expect(useAdventureStore.getState().setPassageBothSides('a', false)).toBe(true)
+    expect(exitPassageOf(pinoDoFundo(m.cripta, m.par), 'volta')).toBe('pede')
+    expect(pinoDoFundo(m.cripta, m.par).passagem).toBe('trancada')
+    expect(pinoDoFundo(m.cripta, m.par).motivo).toBe('desabou')
+  })
+
+  it('trancar com a volta do par numa extra: tranca a volta e não troca o motivo da principal dele', () => {
+    const m = parQueVoltaPorExtra()
+    useAdventureStore.getState().updateBackgroundScene(m.cripta, (map) => ({
+      ...map,
+      pins: map.pins.map((p) => (p.id === m.par ? { ...p, passagem: 'livre' as const } : p)),
+    }))
+    expect(useAdventureStore.getState().setPassageBothSides('a', true)).toBe(true)
+    expect(exitPassageOf(pinoDoFundo(m.cripta, m.par), 'volta')).toBe('trancada')
+    expect(pinoDoFundo(m.cripta, m.par).passagem).toBe('livre')
+    expect(pinoDoFundo(m.cripta, m.par).motivo).toBe('desabou')
+  })
 })
