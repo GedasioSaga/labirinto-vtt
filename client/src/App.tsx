@@ -18,6 +18,7 @@ import { convertFileSrc, invoke, isTauri } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { createHostBridge, type HostBridge, type RoomInfo, type TunnelState } from './net/hostBridge'
 import { hostPlayerChanges } from './net/playerChanges'
+import { setPinPassageFromRequest } from './net/pinPassageFromRequest'
 import { useSignalStore } from './stores/signalStore'
 import { goToPointAction } from './stores/pointActionGo'
 import { useAwayTokensStore } from './stores/awayTokensStore'
@@ -127,7 +128,7 @@ import { saveMapImage } from './lib/mapImageSave'
 import type { DoorKind, DoorSide, DrawingCap, DrawingDash, ExitPassage, MapData, Pin, PinBlockReason, PinPassage, Region, Token, Wall } from './types/map'
 import { passageOf } from './lib/pins'
 import { passItemOf, passTokenOptions, withPassItem, withPassToken } from './lib/pinPass'
-import { isArrivalOnly, isExitPassage, setExitPassage } from './lib/pinTravel'
+import { isArrivalOnly, setExitPassage } from './lib/pinTravel'
 import { pinAttachOptions } from './lib/pinAttach'
 import { leverDoorOptions, linkedDoorOf } from './lib/lever'
 import { lockDoorOptions } from './lib/pinLock'
@@ -628,16 +629,9 @@ function App() {
         hideToken: hideTokenFromRequest,
         // "Passar para pede" do pedido pelo pino trancado: o pino muda de modo
         // na cena dele (de fundo quando o jogador estava lá), como o painel faria.
-        // MODO POR SAÍDA: com `exitId`, só aquela saída extra passa a pedir.
-        setPinPassage: (pinId, passagem, sceneId, exitId) => {
-          const patchFor = (pin: Pin | undefined) =>
-            exitId === undefined ? { passagem } : pin === undefined || !isExitPassage(passagem) ? {} : setExitPassage(pin, exitId, passagem)
-          if (sceneId !== undefined) {
-            useAdventureStore.getState().updateBackgroundScene(sceneId, (m) => mapFactory.updatePin(m, pinId, patchFor(m.pins.find((p) => p.id === pinId))))
-            return
-          }
-          useMapStore.getState().updatePin(pinId, patchFor(useMapStore.getState().map.pins.find((p) => p.id === pinId)))
-        },
+        // MODO POR SAÍDA: com `exitId`, só aquela saída extra passa a pedir
+        // (`net/pinPassageFromRequest.ts`, provado em `hostBridge.modoPorSaida.test.ts`).
+        setPinPassage: setPinPassageFromRequest,
         // ITEM PEGÁVEL: o pino pego sai e as mochilas mudam, já validados pela
         // sessão. Vale para TODO passo do desfazer da cena, aberta ou de fundo
         // (`applyItemsInScene`): um Ctrl+Z do mestre não devolve a chave ao
