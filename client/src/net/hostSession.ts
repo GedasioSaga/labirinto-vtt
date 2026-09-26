@@ -5744,7 +5744,9 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       secretReveals,
       undefined,
       undefined,
-      memory.plan,
+      // Sem memória da planta, como o recorte que vai ao jogador (`snapshotFor`):
+      // a passagem se decide pelo mesmo explorado que a tela dele mostra.
+      undefined,
     )
     const seen = view.map.pins.find((p) => p.id === pinId)
     if (seen === undefined) return unavailable

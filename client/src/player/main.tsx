@@ -956,7 +956,14 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
   const openPointMenu = pointMenu !== null && pointMenu.sceneEpoch === state.sceneEpoch ? pointMenu : null
 
   // Queda com volta automática: a tela de baixo fica (esmaecida), o véu por cima.
-  const reconnecting = state.reconnecting && <ReconnectingOverlay info={state.reconnecting} onRetry={() => connection.retryNow()} />
+  // O véu cobre o Painel: o "Guardar meu caderno" do fim de sessão vem nele.
+  const reconnecting = state.reconnecting && (
+    <ReconnectingOverlay
+      info={state.reconnecting}
+      onRetry={() => connection.retryNow()}
+      onDownloadNotebook={hasNotebookContent(state) ? downloadNotebook : undefined}
+    />
+  )
   const closeArrival = useCallback(() => connection.dismissArrival(), [connection])
 
   // VOLTO JÁ: fora da mesa, a tela é só o aviso e o "Voltar" — o mapa não fica

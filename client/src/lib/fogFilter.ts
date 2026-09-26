@@ -1683,6 +1683,33 @@ function recallItems<T extends { id: string }>(
   return { items, plan }
 }
 
+/**
+ * MEMÓRIA SEM SPOILER na SAÍDA. Com memória da planta (`memoryMode`), cada item
+ * sai na versão que `recallItems` escolheu — a vista agora, a lembrada, ou a
+ * nunca vista que `unseenOk` deixa — e NÃO sai se ela não escolheu nenhuma; o
+ * apagado que ele ainda lembra entra no fim. `alsoCurrent`: item que a regra
+ * do tipo manda por outro caminho (marco, escada, cômodo lembrado, chão
+ * recortado pelo pincel) sai na versão de agora. Sem memória, a lista do mapa.
+ */
+function recalledList<T extends { id: string }>(
+  all: readonly T[],
+  recalled: Recalled<T>,
+  memoryMode: boolean,
+  alsoCurrent: (item: T) => boolean = () => false,
+): T[] {
+  if (!memoryMode) return [...all]
+  const byId = new Map(recalled.items.map(({ item }) => [item.id, item]))
+  const present = new Set(all.map((item) => item.id))
+  return [
+    ...all.flatMap((current) => {
+      const version = byId.get(current.id)
+      if (version !== undefined) return [version]
+      return alsoCurrent(current) ? [current] : []
+    }),
+    ...recalled.items.filter(({ item }) => !present.has(item.id)).map(({ item }) => item),
+  ]
+}
+
 /** Passo das amostras de visão ao longo de uma parede, em células da grade. */
 const WALL_SAMPLE_STEP_CELLS = 1
 
@@ -2771,9 +2798,11 @@ export function filterMapForGroup(
   /**
    * Planta estática: visível agora, ou lembrada (`recallItems`). Nunca usar
    * para entidade dinâmica. Sem memória da planta (`remembered` ausente), vale
-   * a regra antiga: o explorado sozinho mostra o presente. Alimenta `plan`
-   * (a memória DEPOIS deste recorte) — o que sai para a TELA continua pelas
-   * regras de sempre (`isPointKnown`/`isShapeKnown`, cômodo incluso), abaixo.
+   * a regra antiga: o explorado sozinho mostra o presente, e o que sai para a
+   * TELA segue `isPointKnown`/`isShapeKnown` (cômodo incluso), abaixo. Com
+   * memória, a TELA recebe a versão que `recallItems` escolheu
+   * (`recalledList`), com as regras de cada tipo por cima; e `plan` é a
+   * memória DEPOIS deste recorte.
    */
   const memoryMode = remembered !== undefined
   const exploredPoint = (point: RegionPoint): boolean => !memoryMode && isPointExploredOpen(point)
@@ -3091,7 +3120,8 @@ export function filterMapForGroup(
    */
   // O cone pelo vão e a espiada devolvem o chão do prédio do mesmo jeito: só nas células deles.
   const floorCells = peekCells.length === 0 && glimpseCells.length === 0 ? shownCells : [...new Set([...shownCells, ...peekCells, ...glimpseCells])]
-  const playerFloor = map.floor.flatMap((f): FloorPiece[] => {
+  // MEMÓRIA SEM SPOILER: com memória, o chão sai na versão lembrada (`floor`); o recortado pelo pincel é o de agora.
+  const playerFloor = recalledList(map.floor, floor, memoryMode, (f) => hiddenFloorIds.has(f.id)).flatMap((f): FloorPiece[] => {
     if (f.hidden) return []
     if (!hiddenFloorIds.has(f.id)) return [f]
     const clipped = floorCells.length > 0 ? floorInCells(f, floorCells) : null
@@ -3233,6 +3263,8 @@ export function filterMapForGroup(
   // Para o pino PRESO a uma ficha (ver `pins`, abaixo): as fichas da cena e as
   // que este recorte entrega.
   const mapTokenIds = new Set(map.tokens.map((t) => t.id))
+  /** Pinos que a memória da planta devolveu (vistos agora, lembrados ou nunca vistos que podem sair): é o "conhecido" com memória. */
+  const recalledPinIds = new Set(pins.items.map(({ item }) => item.id))
   const deliveredTokenIds = new Set(playerTokens.map((t) => t.id))
   const watchable = watchTargets ?? owned
   const seenTargets = new Set(playerTokens.filter((t) => watchable.has(t.id)).map((t) => t.id))
@@ -3266,10 +3298,10 @@ export function filterMapForGroup(
   const veiledTokenIds = new Set(
     veils.length === 0 ? [] : map.tokens.filter((t) => !sentTokenIds.has(t.id) && veilsAt({ x: t.x, y: t.y }).length > 0).map((t) => t.id),
   )
-  const playerStairs =visibleStairs(map.stairs, hiddenLayers).filter((s) => {
+  const playerStairs =visibleStairs(recalledList(map.stairs, stairs, memoryMode), hiddenLayers).filter((s) => {
     const first = s.segments[0]
     if (s.hidden || secretFromPlayer(s) || first === undefined || stairSamples(s).some(inHiddenPlace)) return false
-    return isPointKnown({ x: (first.x1 + first.x2) / 2, y: (first.y1 + first.y2) / 2 })
+    return memoryMode || isPointKnown({ x: (first.x1 + first.x2) / 2, y: (first.y1 + first.y2) / 2 })
   })
   // ESCADA QUE LEVA A OUTRO ANDAR: o pino dela vai SÓ junto com a escada — a
   // mesma regra que decide a escada decide o pino, e nunca a do ponto do pino.
@@ -3365,8 +3397,10 @@ export function filterMapForGroup(
     fog: { mode: map.fog.mode, revealed: [] },
     background: map.background.type === 'image' ? { type: 'image', src: '' } : map.background,
     tokens,
-    markers: map.markers.filter((m) => !inHiddenPlace({ x: m.cx, y: m.cy }) && isPointKnown({ x: m.cx, y: m.cy })),
-    lines: map.lines.filter((l) => !l.points.some(inHiddenPlace) && !l.points.some(inConcealZone) && isShapeKnown(l.points, { points: l.points, closed: l.closed })),
+    markers: recalledList(map.markers, markers, memoryMode).filter((m) => !inHiddenPlace({ x: m.cx, y: m.cy }) && (memoryMode || isPointKnown({ x: m.cx, y: m.cy }))),
+    lines: recalledList(map.lines, lines, memoryMode).filter(
+      (l) => !l.points.some(inHiddenPlace) && !l.points.some(inConcealZone) && (memoryMode || isShapeKnown(l.points, { points: l.points, closed: l.closed })),
+    ),
     // Luz: ver `playerLights`/`sentLights` (teto fechado, tocha presa na ficha,
     // outro piso, fumaça, luz apagada pelo estado, vista de longe).
     lights: sentLights,
@@ -3377,15 +3411,16 @@ export function filterMapForGroup(
     props: visibleProps(map.props, hiddenLayers)
       .filter((p) => !p.hidden && !p.secret && !propSamplePoints(p).some(inHiddenPlace) && isVisible({ x: p.x, y: p.y }))
       .map(propForPlayer),
-    drawings: visibleDrawings(map.drawings, hiddenLayers).filter((d) => {
+    drawings: visibleDrawings(recalledList(map.drawings, drawings, memoryMode), hiddenLayers).filter((d) => {
       if (d.secret) return false
       const samples = drawingSamplePoints(d)
       if (samples.some(inHiddenPlace)) return false
       // Traço com uma ponta na zona desenharia o que ela esconde.
       if (isStrokeDrawing(d) && samples.some(inConcealZone)) return false
-      return isShapeKnown(samples, drawingOutline(d))
+      return memoryMode || isShapeKnown(samples, drawingOutline(d))
     }),
-    regions: visibleRegions(map.regions, hiddenLayers)
+    // Cômodo lembrado sai pela regra dele, na versão de agora (`recalledList`).
+    regions: visibleRegions(recalledList(map.regions, regions, memoryMode, (r) => knownComodoIds.has(r.id)), hiddenLayers)
       .filter((r) => {
         if (regionHiddenByMaster(r)) return false
         // Teto fechado: o "conhecido" é medido NO CONTORNO, nunca no interior
@@ -3394,12 +3429,12 @@ export function filterMapForGroup(
         // interior do teto fechado continua escondido mesmo pintado (`brushedRoom`).
         if (closedRoofIds.has(r.id)) {
           const contour = contourSamples(r.points)
-          return isShapeKnown(contour, { points: contour.length > 0 ? [...contour, contour[0]] : contour, closed: false })
+          return memoryMode || isShapeKnown(contour, { points: contour.length > 0 ? [...contour, contour[0]] : contour, closed: false })
         }
         // Cômodo: o não visto nem aparece; o lembrado sai inteiro, visto ou não agora.
         if (unseenComodoIds.has(r.id)) return false
         if (knownComodoIds.has(r.id)) return true
-        return isShapeKnown(interiorSamples(r.points, r.points), { points: r.points, closed: true })
+        return memoryMode || isShapeKnown(interiorSamples(r.points, r.points), { points: r.points, closed: true })
       })
       .map(withoutSecretMark)
       .map(regionForPlayer)
@@ -3502,7 +3537,9 @@ export function filterMapForGroup(
     // Marco que chegou SÓ por ser marco (nem à vista, nem explorado) sai com
     // `soMarco`: ver de longe não é estar lá, e a passagem por ele não vale
     // (`validTravel` lê a marca neste mesmo recorte).
-    pins: (map.pins ?? []).flatMap((p) => {
+    // MEMÓRIA SEM SPOILER: com memória, o pino sai na versão lembrada (`pins`);
+    // marco e pino de escada seguem a regra deles, na versão de agora.
+    pins: recalledList(map.pins ?? [], pins, memoryMode, (p) => p.marco === true || p.escadaId !== undefined).flatMap((p) => {
       if (isArrivalOnly(p)) return []
       if (!pinReachesPlayer(pinAudiences, p.id, playerId)) return []
       // Pino de escada: a escada manda (ver `playerStairIds`); o segredo do próprio pino também.
@@ -3519,7 +3556,7 @@ export function filterMapForGroup(
       if (p.presoA !== undefined && outroPisoTokenIds.has(p.presoA)) return []
       const point = { x: p.x, y: p.y }
       if (inHiddenPlace(point)) return []
-      const known = isPointKnown(point)
+      const known = memoryMode ? recalledPinIds.has(p.id) : isPointKnown(point)
       const reached = p.marco === true ? !hiddenByZone(point) : known
       if (!reached) return []
       return [pinForPlayer(p, ownTokens, map.grid, canReadPin(p, pinReaders, map.grid, hiddenByZone), known, oneWayExits?.get(p.id))]
@@ -3680,10 +3717,10 @@ export function filterMapForGroup(
   /**
    * A MEMÓRIA DA PLANTA depois deste recorte (`PlayerMapView.plan`): cada tipo
    * de item passa pelo próprio `recallItems` (acima), que decide sozinho o que
-   * entra, o que sai e o que a lembrança esquece. Separado do `filtered` de
-   * cima de propósito: o que vai para a TELA agora segue as regras ricas de
-   * sempre (cômodo, cadeado, pino com "quem vê"/marco/escada); o `plan` é só o
-   * que o chamador guarda para alimentar o próximo recorte como `remembered`.
+   * entra, o que sai e o que a lembrança esquece. A TELA usa a mesma escolha
+   * (`recalledList`) sob as regras ricas de sempre (cômodo, cadeado, pino com
+   * "quem vê"/marco/escada); o `plan` é o que o chamador guarda para
+   * alimentar o próximo recorte como `remembered`.
    */
   const plan: PlanMemory = {
     walls: walls.plan,

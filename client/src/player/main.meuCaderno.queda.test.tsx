@@ -1,9 +1,11 @@
 /**
  * LEVAR O CADERNO PARA CASA quando o mestre FECHA O APP em vez de encerrar a
- * sala: o socket cai sem `room.closed` e a página vai para "A conexão com o
- * mestre caiu." É o fim de sessão mais comum, e o "Guardar meu caderno" tem de
- * estar lá também — inclusive depois de um "Reconectar" que não achou a sala,
- * quando a conexão já zerou as pistas e os recados da tela.
+ * sala: o socket cai sem `room.closed`. Quem já estava na sala não vai para
+ * "A conexão com o mestre caiu." — a RECONEXÃO AUTOMÁTICA segura a mesa sob o
+ * véu "Reconectando…", que cobre o Painel. É o fim de sessão mais comum, e o
+ * "Guardar meu caderno" tem de estar no véu (depois de 30 s fora, junto do
+ * "Reconectar") — inclusive depois de um "Reconectar" que não achou a sala ou
+ * que abriu e ninguém respondeu.
  *
  * Só o que o jsdom não tem é trocado: a `PlayerView` (Pixi pede WebGL), o
  * `WebSocket` (um falso faz o papel do mestre) e o download do navegador.
@@ -11,6 +13,7 @@
 import { act } from 'react'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { createEmptyMap } from '../lib/mapFactory'
+import { MANUAL_RECONNECT_AFTER_MS, RECONNECT_ATTEMPT_TIMEOUT_MS } from './playerConnection'
 
 vi.mock('./PlayerView', () => ({
   OWN_TOKEN_CSS: '#4ea1ff',
@@ -128,11 +131,27 @@ async function ultimoHtml(quantos: number): Promise<string> {
   return (await baixados[quantos - 1]?.blob.text()) ?? ''
 }
 
+/** O véu "Reconectando…" por cima da mesa: o caderno tem de estar nele, não no Painel coberto. */
+function veu(): HTMLElement {
+  const achado = document.querySelector<HTMLElement>('.pp-reconnecting')
+  if (achado === null) throw new Error('sem o véu Reconectando…')
+  return achado
+}
+
 describe('main.tsx: o caderno vai para casa mesmo quando o mestre fecha o app', () => {
-  it('conexão caída: "Guardar meu caderno" baixa a cena, a pista e o recado', async () => {
-    mestreFechaOApp()
-    expect(document.body.textContent).toContain('A conexão com o mestre caiu.')
-    act(() => botao('Guardar meu caderno').click())
+  it('conexão caída: "Guardar meu caderno" no véu baixa a cena, a pista e o recado', async () => {
+    vi.useFakeTimers()
+    try {
+      mestreFechaOApp()
+      expect(veu().textContent).toContain('Reconectando…')
+      // 30 s fora: o véu passa a oferecer o "Reconectar" e o caderno.
+      act(() => {
+        vi.advanceTimersByTime(MANUAL_RECONNECT_AFTER_MS)
+      })
+      act(() => botao('Guardar meu caderno', veu()).click())
+    } finally {
+      vi.useRealTimers()
+    }
 
     const html = await ultimoHtml(1)
     expect(html).toContain('Cena 1')
@@ -140,17 +159,16 @@ describe('main.tsx: o caderno vai para casa mesmo quando o mestre fecha o app', 
     expect(html).toContain('Encontre-me na torre.')
     expect(html).toContain('A guarda troca à meia-noite.')
     expect(html).not.toContain('Capataz')
-    expect(document.body.textContent).toContain(`Baixado: ${baixados[0]?.nome}`)
+    expect(veu().textContent).toContain(`Baixado: ${baixados[0]?.nome}`)
   })
 
   it('"Reconectar" que não acha a sala: o caderno ainda leva a pista e o recado', async () => {
     const antes = MestreFalso.ultimo
-    act(() => botao('Reconectar').click())
+    act(() => botao('Reconectar', veu()).click())
     expect(MestreFalso.ultimo).not.toBe(antes)
     // A sala não voltou: o socket novo cai sem nunca abrir.
     mestreFechaOApp()
-    expect(document.body.textContent).toContain('A conexão com o mestre caiu.')
-    act(() => botao('Guardar meu caderno').click())
+    act(() => botao('Guardar meu caderno', veu()).click())
 
     const html = await ultimoHtml(2)
     expect(html).toContain('Cena 1')
@@ -158,16 +176,19 @@ describe('main.tsx: o caderno vai para casa mesmo quando o mestre fecha o app', 
     expect(html).toContain('A guarda troca à meia-noite.')
   })
 
-  it('"Reconectar" que abre mas ninguém responde: a tela de sala muda também oferece o caderno', async () => {
+  it('"Reconectar" que abre mas ninguém responde: o véu continua oferecendo o caderno', async () => {
     vi.useFakeTimers()
     try {
-      act(() => botao('Reconectar').click())
+      const antes = MestreFalso.ultimo
+      act(() => botao('Reconectar', veu()).click())
+      expect(MestreFalso.ultimo).not.toBe(antes)
       act(() => mestre().abre())
+      // Ninguém manda o `welcome`: a tentativa é abandonada no prazo.
       act(() => {
-        vi.advanceTimersByTime(8_000)
+        vi.advanceTimersByTime(RECONNECT_ATTEMPT_TIMEOUT_MS)
       })
-      expect(document.body.textContent).toContain(`A sala ${CODE} não respondeu.`)
-      act(() => botao('Guardar meu caderno').click())
+      expect(veu().textContent).toContain('Reconectando…')
+      act(() => botao('Guardar meu caderno', veu()).click())
     } finally {
       vi.useRealTimers()
     }
