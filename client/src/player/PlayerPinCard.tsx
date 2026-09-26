@@ -141,6 +141,13 @@ const FECHADA_SEM_PASSAR = 'Não dá para passar por aqui agora.'
 /** A trancada que aceita tentativas: quem abre é o mestre. */
 const SO_O_MESTRE_ABRE = 'Só o mestre pode abrir.'
 
+/** Os rótulos das saídas em português corrido: "Porta", "Porta e Poço", "Porta, Poço e Grade". */
+function juntarRotulos(saidas: readonly PinExitLabel[]): string {
+  const rotulos = saidas.map((saida) => saida.rotulo)
+  if (rotulos.length <= 1) return rotulos.join('')
+  return `${rotulos.slice(0, -1).join(', ')} e ${rotulos[rotulos.length - 1]}`
+}
+
 /** Etiqueta da passagem cujo par é a chegada oculta (mão única). */
 const ETIQUETA_SO_IDA = 'Só ida'
 /** O que a pergunta de confirmação acrescenta numa passagem só de ida. */
@@ -485,6 +492,14 @@ export function PlayerPinCard({
   // O PORQUÊ da passagem fechada ("Desabou"). Valor desconhecido (host de
   // versão futura) cai no "Está trancada" de sempre, sem mostrar o cru.
   const motivo = blockReasonOf(pin)
+  // MODO POR SAÍDA: pino trancado (sem a chave) com uma saída que abre por
+  // conta própria. `trancada` fica falso (nem todas fecham), mas o motivo e o
+  // "Me avise" são do PINO: o host manda o motivo (`blockReasonOf`) e o aviso
+  // dispara quando o pino abre (`passageWatchAfter`). O motivo vem junto do
+  // nome das saídas trancadas, para o jogador saber QUAL está fechada.
+  const pinoFechadoMisturado = modosMisturados && viagem && !trancadaComSegredo && passagem === 'trancada' && chaveDoPino === null
+  const saidasFechadas = pinoFechadoMisturado ? juntarRotulos(escolhas.filter((saida) => modoDaSaida(saida) === 'trancada')) : ''
+  const podeVigiar = (trancada && chave === null) || pinoFechadoMisturado
   // ESPIAR: vale também com a porta trancada — olhar pela grade não é passar.
   const podeEspiar = viagem && isDaVista(pin.daVista) && onPeek !== undefined
   // A barra que um jogador desta cena pôs: o recorte só a marca para quem está deste lado.
@@ -598,7 +613,14 @@ export function PlayerPinCard({
             )}
           </p>
         )}
-        {trancada && chave === null && onWatch !== undefined && (
+        {pinoFechadoMisturado && motivo !== null && (
+          // Sem motivo, o "Trancada" no botão da saída já basta.
+          <p className="pp-pincard__locked">
+            {saidasFechadas}: <strong className="pp-pincard__reason">{PIN_BLOCK_REASON_LABELS[motivo]}.</strong>{' '}
+            {pin.mudo === true ? FECHADA_SEM_PASSAR : SO_O_MESTRE_ABRE}
+          </p>
+        )}
+        {podeVigiar && onWatch !== undefined && (
           // Botão de alternar: o rótulo fica o mesmo e o estado mora no
           // `aria-pressed` (e na frase logo abaixo, para quem enxerga).
           <>

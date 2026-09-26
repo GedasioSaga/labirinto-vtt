@@ -160,6 +160,55 @@ describe('PlayerPinCard: modo por saída', () => {
     expect(chamar).toHaveBeenCalledTimes(1)
   })
 
+  /**
+   * O MOTIVO ("Desabou") é do pino trancado: o host manda com uma extra livre
+   * ao lado (`blockReasonOf` só olha o pino). O cartão mostra junto do nome da
+   * saída trancada, para o jogador saber QUAL está fechada. "Me avise" segue a
+   * mesma regra: o aviso (`passageWatchAfter`) dispara quando o PINO abre.
+   */
+  function renderComVigia(pin: Pin, onWatch: (on: boolean) => void): void {
+    act(() => root.render(<PlayerPinCard pin={pin} stairs={[]} onClose={() => {}} onRequestTravel={() => {}} onWatch={onWatch} />))
+  }
+  const motivo = (): string | null => container.querySelector('.pp-pincard__reason')?.textContent ?? null
+  const fechada = (): string => container.querySelector('.pp-pincard__locked')?.textContent ?? ''
+
+  it('pino trancado com motivo e uma saída livre: o motivo aparece junto da saída trancada', () => {
+    renderComVigia({ ...TRANCADO_COM_LIVRE, motivo: 'desabou' }, () => {})
+    expect(motivo()).toBe('Desabou.')
+    expect(fechada()).toBe('Porta: Desabou. Só o mestre pode abrir.')
+    expect(saidas().map((b) => b.textContent)).toEqual(['Porta Trancada', 'Escada Livre'])
+  })
+
+  it('pino trancado com motivo, duas saídas trancadas e uma livre: o motivo nomeia as duas', () => {
+    const pin: Pin = { ...TRANCADO_COM_LIVRE, motivo: 'desabou', escolhas: [...(TRANCADO_COM_LIVRE.escolhas ?? []), { id: 'saida_poco', rotulo: 'Poço' }] }
+    renderComVigia(pin, () => {})
+    expect(fechada()).toBe('Porta e Poço: Desabou. Só o mestre pode abrir.')
+  })
+
+  it('pino trancado MUDO com motivo e uma saída livre: o motivo diz que não dá para passar', () => {
+    renderComVigia({ ...TRANCADO_COM_LIVRE, mudo: true, motivo: 'desabou' }, () => {})
+    expect(fechada()).toBe('Porta: Desabou. Não dá para passar por aqui agora.')
+  })
+
+  it('pino trancado com uma saída livre: "Me avise quando der" vigia o pino', () => {
+    const onWatch = vi.fn()
+    renderComVigia({ ...TRANCADO_COM_LIVRE, motivo: 'desabou' }, onWatch)
+    act(() => botao('Me avise quando der')?.click())
+    expect(onWatch).toHaveBeenCalledWith(true)
+  })
+
+  it('pino trancado com uma saída livre e a chave na mochila: nem motivo nem "Me avise"', () => {
+    renderComVigia({ ...TRANCADO_COM_LIVRE, motivo: 'desabou', chave: 'Chave de ferro' }, () => {})
+    expect(motivo()).toBeNull()
+    expect(botao('Me avise quando der')).toBeUndefined()
+  })
+
+  it('pino que pede com uma saída trancada: sem motivo e sem "Me avise" (o pino não está trancado)', () => {
+    renderComVigia({ ...CRUZ, motivo: 'desabou' }, () => {})
+    expect(motivo()).toBeNull()
+    expect(botao('Me avise quando der')).toBeUndefined()
+  })
+
   it('controle: todas as saídas no mesmo modo, o cartão é o de sempre (sem etiqueta de modo)', () => {
     render({ ...CRUZ, escolhas: [{ id: 'principal', rotulo: 'Porta' }, { id: 'saida_torre', rotulo: 'Escada' }] })
     expect(saidas().map((b) => b.textContent)).toEqual(['Porta', 'Escada'])
