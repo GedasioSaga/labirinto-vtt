@@ -687,12 +687,14 @@ export function PropertiesPanel({
             gestos de mesa. Rotação e "Oculto no editor", raros numa ficha
             redonda, ficam no Avançado recolhido da própria seção. `key`: outra
             ficha selecionada faz o Avançado nascer de novo, fechado — ou aberto,
-            se ELA estiver girada ou oculta no editor. */}
+            se ELA estiver girada ou oculta no editor. O título diz o que as
+            duas linhas à vista fazem: "Token" já abre a ficha, no Nome, e um
+            título repetido não diz onde o mestre está (peça ux-ficha-grupos). */}
         {selectedToken && (
           <ToolPropertiesSection group="itemTransform" groups={groups}>
             <ItemTransformControls
               key={`transformacao-${selectedToken.id}`}
-              title="Token"
+              title="Trava e visibilidade"
               rotation={selectedToken.rotation ?? 0}
               locked={!!selectedToken.locked}
               hidden={!!selectedToken.hidden}
@@ -710,20 +712,26 @@ export function PropertiesPanel({
             <TokenColorControls color={selectedTokenColor(selectedToken)} {...tokenColor} />
             {/* `tokenPhotoRef`: foto escolhida pelo JOGADOR vive em `imageData` — sem isto o painel ofereceria "Escolher imagem..." num token que já tem foto. */}
             <TokenImageControls image={tokenPhotoRef(selectedToken)} {...tokenImage} />
-            {/* "Ficha de NPC" e "Ficha de jogador" em par: as duas dizem de quem
-                é a ficha, e fecham os fixos. */}
-            <TokenNpcControls npc={selectedToken.npc === true} {...tokenNpc} />
-            <TokenPlayerCharacterControls playerCharacter={selectedToken.playerCharacter === true} {...tokenPlayerCharacter} />
-            {/* Os opcionais de comportamento, uma linha cada enquanto vazios: o
-                que o NPC faz na cena (vigia, patrulha), quem vai com quem
+            {/* COMPORTAMENTO (peça ux-ficha-grupos): o que a ficha faz na mesa
+                mora junto, sob UM título, como cada grupo do painel Design do
+                Figma UI3 — e não mais em linhas soltas entre a foto e o piso.
+                Primeiro de quem é a ficha ("Ficha de NPC" e "Ficha de
+                jogador"), depois os opcionais, uma linha cada enquanto vazios:
+                o que o NPC faz na cena (vigia, patrulha), quem vai com quem
                 (levar junto, veículo), o que muda com o mundo (rotina) e a luz
-                que a ficha carrega. */}
-            <TokenWatchControls watch={readTokenWatch(selectedToken.vigia)} {...tokenWatch} />
-            <TokenPatrolControls patrol={readTokenPatrol(selectedToken.patrulha)} {...tokenPatrol} />
-            <TokenCarryControls tokenId={selectedToken.id} {...tokenCarry} />
-            {tokenVehicle !== undefined && <TokenVehicleControls vehicle={vehicleOf(selectedToken)} {...tokenVehicle} />}
-            {rotinaDaFicha}
-            <TokenLightsControls {...tokenLights} />
+                que a ficha carrega. O grupo não se recolhe: cada linha continua
+                à vista e a um clique, como antes (TokenControls.css). */}
+            <section className="lb-section lb-token-grupo">
+              <h2 className="lb-eyebrow">Comportamento</h2>
+              <TokenNpcControls npc={selectedToken.npc === true} {...tokenNpc} />
+              <TokenPlayerCharacterControls playerCharacter={selectedToken.playerCharacter === true} {...tokenPlayerCharacter} />
+              <TokenWatchControls watch={readTokenWatch(selectedToken.vigia)} {...tokenWatch} />
+              <TokenPatrolControls patrol={readTokenPatrol(selectedToken.patrulha)} {...tokenPatrol} />
+              <TokenCarryControls tokenId={selectedToken.id} {...tokenCarry} />
+              {tokenVehicle !== undefined && <TokenVehicleControls vehicle={vehicleOf(selectedToken)} {...tokenVehicle} />}
+              {rotinaDaFicha}
+              <TokenLightsControls {...tokenLights} />
+            </section>
             {/* Onde a ficha está e para onde vai, por último. */}
             {pisos !== undefined && (
               <PisoControls key={`piso-${selectedToken.id}`} piso={pisoDe(selectedToken)} onPisoChange={(piso) => pisos.onTokenPisoChange(selectedToken.id, piso)} />

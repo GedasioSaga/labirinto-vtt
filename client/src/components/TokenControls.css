@@ -206,22 +206,31 @@ button.lb-token-opt__head:active .lb-token-opt__sinal {
 
 /* O interruptor que liga um comportamento da ficha ("Esta ficha vigia",
    "Esta ficha é um veículo") é a linha inteira: o rótulo todo é o alvo
-   (`Toggle`), com os 34 px das outras linhas da ficha. */
-.lb-token-linha > .lb-switch {
+   (`Toggle`), com os 34 px das outras linhas da ficha. No grupo
+   "Comportamento", todo interruptor é linha: também "Ficha de NPC" e "Ficha
+   de jogador", que fora dele eram de 30. */
+.lb-token-linha > .lb-switch,
+.lb-token-grupo > .lb-section > .lb-switch {
   min-height: 34px;
 }
 
 /* Desligado, o rótulo lê apagado como o das linhas "+" vazias (o título cinza
    das seções vazias do Figma): na lista de opcionais, o que a ficha não usa
-   recua e o que ela usa acende. O ponteiro e o foco também acendem. */
-.lb-token-linha > .lb-switch > span:first-child {
+   recua e o que ela usa acende. O ponteiro e o foco também acendem. A regra
+   vale para o grupo inteiro: linha de um mesmo grupo não muda de peso sem
+   motivo. */
+.lb-token-linha > .lb-switch > span:first-child,
+.lb-token-grupo > .lb-section > .lb-switch > span:first-child {
   color: var(--lb-color-parchment-dim);
   transition: color var(--lb-motion-fast) var(--lb-motion-ease);
 }
 
 .lb-token-linha > .lb-switch:has(.lb-switch__input:checked) > span:first-child,
 .lb-token-linha > .lb-switch:has(.lb-switch__input:focus-visible) > span:first-child,
-.lb-token-linha > .lb-switch:hover > span:first-child {
+.lb-token-linha > .lb-switch:hover > span:first-child,
+.lb-token-grupo > .lb-section > .lb-switch:has(.lb-switch__input:checked) > span:first-child,
+.lb-token-grupo > .lb-section > .lb-switch:has(.lb-switch__input:focus-visible) > span:first-child,
+.lb-token-grupo > .lb-section > .lb-switch:hover > span:first-child {
   color: var(--lb-color-parchment);
 }
 
@@ -256,19 +265,41 @@ button.lb-token-opt__head:active .lb-token-opt__sinal {
   padding-right: 0;
 }
 
-/* ------------------------------------------------ Ficha de NPC com a outra */
+/* ------------------------------------ grupo com título (Comportamento) */
 
-/* "Ficha de NPC" e "Ficha de jogador" (o bloco seguinte, que o
-   PropertiesPanel monta logo abaixo) dizem de quem é a ficha: um par de
-   chaves, sem divisória nem respiro de bloco entre elas, no passo de 12 px
-   dos interruptores. */
-.lb-section.lb-token-chaves {
-  padding-bottom: 0;
+/* O que a ficha faz na mesa mora junto, sob UM título (peça ux-ficha-grupos):
+   no painel Design do Figma UI3 cada grupo tem o seu, e linha solta entre
+   dois blocos não diz de quem é. Cada linha continua sendo a seção dela (o
+   componente não sabe que está num grupo); aqui ela perde o respiro próprio e
+   a divisória, que passam a ser do grupo: uma divisória em cima do título e as
+   linhas numa lista, no passo de 38 px (34 de alvo e 4 de vão).
+
+   Embaixo, os 4 px que cada linha solta já tinha, e não os 16 das outras
+   seções: a linha é texto sem caixa, e o texto mora uns 10 px acima da borda
+   do alvo — à vista, o fim do grupo fica a uns 14 px da divisória, perto dos
+   16 do botão de uma seção. Com isso o título cabe no que as divisórias entre
+   as linhas soltas gastavam, e a ficha não cresce. */
+.lb-section.lb-token-grupo {
+  gap: var(--lb-space-1);
+  padding-bottom: var(--lb-space-1);
 }
 
-.lb-section.lb-token-chaves + .lb-section {
+/* Do título à primeira linha, os 12 px de toda seção: o vão de 4 e mais 8. */
+.lb-token-grupo > .lb-eyebrow {
+  margin-bottom: var(--lb-space-2);
+}
+
+/* Três classes: vence `.lb-section + .lb-section` de main.css, que entra
+   depois desta folha na cascata, e o respiro das linhas acima. */
+.lb-section.lb-token-grupo > .lb-section {
+  padding: 0;
   border-top: 0;
-  padding-top: var(--lb-space-3);
+}
+
+/* O corpo aberto de uma linha de campo (a Rotina com turnos) termina nos
+   mesmos 12 px das outras: no grupo ela não tem mais o respiro de 8. */
+.lb-token-grupo > .lb-token-linha--campo > .lb-token-linha__corpo {
+  padding-bottom: var(--lb-space-3);
 }
 
 /* ---------------------------------------------------------- Cor da ficha */
@@ -339,7 +370,8 @@ button.lb-token-opt__head:active .lb-token-opt__sinal {
   .lb-token-opt__barra,
   .lb-token-cor,
   .lb-token-cor__disco,
-  .lb-token-linha > .lb-switch > span:first-child {
+  .lb-token-linha > .lb-switch > span:first-child,
+  .lb-token-grupo > .lb-section > .lb-switch > span:first-child {
     transition: none;
   }
 

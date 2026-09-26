@@ -15,8 +15,9 @@ export interface TokenLightsControlsProps {
  * dela. Sem luz na ficha, não aparece.
  *
  * Seção própria, o último dos opcionais de comportamento da ficha (peça
- * ficha-em-ordem-de-tarefa): com o respiro e a divisória das outras linhas,
- * e não encostado na borda do painel.
+ * ficha-em-ordem-de-tarefa), dentro do grupo "Comportamento" (peça
+ * ux-ficha-grupos): o respiro e a divisória são do grupo, como os das outras
+ * linhas.
  */
 export function TokenLightsControls({ lights, onSelectLight, onDetach }: TokenLightsControlsProps) {
   if (lights.length === 0) return null
