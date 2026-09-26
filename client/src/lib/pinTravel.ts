@@ -241,13 +241,33 @@ export function leadsTo(pin: Pin, destino: PinDestination): boolean {
 }
 
 /** O que muda num pino quando uma saída dele muda: vai direto para `updatePin`. */
-export type ExitPatch = Partial<Pick<Pin, 'destino' | 'rotulo' | 'saidas'>>
+export type ExitPatch = Partial<Pick<Pin, 'destino' | 'rotulo' | 'saidas' | 'passagem'>>
+
+/**
+ * A primeira extra sobe para o lugar da principal levando o MODO dela: o modo
+ * da principal é o do pino, então o modo próprio da extra vira o do pino. As
+ * extras que ficam e seguiam a principal sem modo próprio ganham o modo
+ * antigo por escrito, para a troca do pino não mudar como se passa por elas.
+ * Extra promovida sem modo próprio já seguia o pino: nada muda no modo.
+ */
+function promoteFirstExit(pin: Pin, primeira: PinExit, resto: PinExit[]): ExitPatch {
+  const rotulo = primeira.rotulo === '' ? undefined : primeira.rotulo
+  const modoAntigo = passageOf(pin)
+  const modoNovo = isExitPassage(primeira.passagem) ? primeira.passagem : modoAntigo
+  const saidas = resto.length === 0 ? undefined : resto
+  if (modoNovo === modoAntigo) return { destino: primeira.destino, rotulo, saidas }
+  const restoComModo = resto.map((saida) =>
+    isExitPassage(saida.passagem) || !isExitPassage(modoAntigo) ? saida : { ...saida, passagem: modoAntigo },
+  )
+  return { destino: primeira.destino, rotulo, passagem: modoNovo, saidas: restoComModo.length === 0 ? undefined : restoComModo }
+}
 
 /**
  * Liga a saída `exitId` a `destino`, ou a desliga (`null`). Desligar a
- * principal de uma encruzilhada faz a primeira extra subir para o lugar dela:
- * a principal é a que o cliente antigo pede, e um pino com saídas extras e
- * sem principal deixaria esse jogador sem porta nenhuma.
+ * principal de uma encruzilhada faz a primeira extra subir para o lugar dela,
+ * com o modo dela (`promoteFirstExit`): a principal é a que o cliente antigo
+ * pede, e um pino com saídas extras e sem principal deixaria esse jogador sem
+ * porta nenhuma.
  * Não confere o tipo do pino: quem desliga o par de um pino que deixou de ser
  * de viagem ainda precisa achar a ligação crua.
  */
@@ -257,7 +277,7 @@ export function setExitDestination(pin: Pin, exitId: string, destino: PinDestina
     if (destino !== null) return { destino }
     const [primeira, ...resto] = extras
     if (primeira === undefined) return { destino: null }
-    return { destino: primeira.destino, rotulo: primeira.rotulo === '' ? undefined : primeira.rotulo, saidas: resto.length === 0 ? undefined : resto }
+    return promoteFirstExit(pin, primeira, resto)
   }
   if (!extras.some((saida) => saida.id === exitId)) return {}
   if (destino === null) {

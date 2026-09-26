@@ -2,7 +2,16 @@ import { describe, expect, it } from 'vitest'
 import type { Pin } from '../types/map'
 import { deserializeMap, serializeMap } from './mapFile'
 import { createEmptyMap, updatePin } from './mapFactory'
-import { acceptsLockedExitRequest, exitPassageOf, playerExitPassageOf, readPinExits, sameExits, setExitPassage } from './pinTravel'
+import {
+  acceptsLockedExitRequest,
+  exitPassageOf,
+  playerExitPassageOf,
+  readPinExits,
+  sameExits,
+  setExitDestination,
+  setExitPassage,
+  unlinkFromScene,
+} from './pinTravel'
 
 /**
  * MODO POR SAÍDA da encruzilhada: cada saída extra pode ser livre, pedir ou
@@ -96,5 +105,64 @@ describe('pinTravel: modo por saída', () => {
     const torto = { passagem: 'trancada', escolhas: [{ id: 'y', rotulo: 'Y', passagem: 'aberta' }] }
     // O cast imita o pacote de um host de versão futura: o tipo não deixa escrever o valor torto.
     expect(playerExitPassageOf(torto as unknown as Pick<Pin, 'passagem' | 'escolhas'>, 'y')).toBe('trancada')
+  })
+})
+
+describe('pinTravel: modo por saída ao desligar a principal', () => {
+  // Pino livre, principal para a Cripta; o Poço (primeira extra) foi trancado pelo mestre.
+  const LIVRE_COM_POCO_TRANCADO: Pin = {
+    ...CRUZ,
+    passagem: 'livre',
+    saidas: [
+      { id: 'saida_poco', rotulo: 'Poço', destino: { sceneId: 'scene_d', pinId: 'd' }, passagem: 'trancada' },
+      { id: 'saida_ponte', rotulo: 'Ponte', destino: { sceneId: 'scene_e', pinId: 'e' } },
+    ],
+  }
+  const desligarPrincipal = (pin: Pin): Pin => ({ ...pin, ...setExitDestination(pin, 'principal', null) })
+
+  it('a extra promovida leva o modo dela: o Poço trancado continua trancado', () => {
+    const promovido = desligarPrincipal(LIVRE_COM_POCO_TRANCADO)
+    expect(promovido.destino).toEqual({ sceneId: 'scene_d', pinId: 'd' })
+    expect(exitPassageOf(promovido, 'principal')).toBe('trancada')
+    expect(acceptsLockedExitRequest(promovido, 'principal')).toBe(true)
+  })
+
+  it('o contrário: pino trancado com extra livre faz a promovida ficar livre', () => {
+    const trancado: Pin = {
+      ...CRUZ,
+      passagem: 'trancada',
+      saidas: [{ id: 'saida_torre', rotulo: 'Torre', destino: { sceneId: 'scene_c', pinId: 'c' }, passagem: 'livre' }],
+    }
+    const promovido = desligarPrincipal(trancado)
+    expect(exitPassageOf(promovido, 'principal')).toBe('livre')
+    expect(promovido.saidas).toBeUndefined()
+  })
+
+  it('a extra que fica e seguia a principal guarda o modo antigo por escrito', () => {
+    const promovido = desligarPrincipal(LIVRE_COM_POCO_TRANCADO)
+    expect(promovido.saidas).toEqual([{ id: 'saida_ponte', rotulo: 'Ponte', destino: { sceneId: 'scene_e', pinId: 'e' }, passagem: 'livre' }])
+    expect(exitPassageOf(promovido, 'saida_ponte')).toBe('livre')
+  })
+
+  it('extra promovida sem modo próprio já seguia o pino: o modo do pino não muda', () => {
+    const semModo: Pin = { ...CRUZ, passagem: 'trancada', saidas: [{ id: 'saida_ponte', rotulo: 'Ponte', destino: { sceneId: 'scene_e', pinId: 'e' } }] }
+    const patch = setExitDestination(semModo, 'principal', null)
+    expect('passagem' in patch).toBe(false)
+    expect(exitPassageOf({ ...semModo, ...patch }, 'principal')).toBe('trancada')
+  })
+
+  it('apagar a cena da principal (unlinkFromScene) promove o Poço com o modo trancado', () => {
+    const map = { ...createEmptyMap('m', 'M', 5, 5, 64), pins: [LIVRE_COM_POCO_TRANCADO] }
+    const depois = unlinkFromScene(map, 'scene_b').pins[0]
+    expect(depois.destino).toEqual({ sceneId: 'scene_d', pinId: 'd' })
+    expect(exitPassageOf(depois, 'principal')).toBe('trancada')
+    expect(exitPassageOf(depois, 'saida_ponte')).toBe('livre')
+  })
+
+  it('updatePin: a promoção com troca de modo é mudança gravada no mapa', () => {
+    const map = { ...createEmptyMap('m', 'M', 5, 5, 64), pins: [LIVRE_COM_POCO_TRANCADO] }
+    const depois = updatePin(map, 'cruz', setExitDestination(LIVRE_COM_POCO_TRANCADO, 'principal', null))
+    expect(depois).not.toBe(map)
+    expect(depois.pins[0].passagem).toBe('trancada')
   })
 })
