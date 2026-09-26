@@ -1860,6 +1860,14 @@ export interface HostSession {
   /** Com `source` de uma aventura, cada jogador que joga vem com o nome da cena onde está. */
   listPlayers(source?: HostMapSource): PlayerInfo[]
   /**
+   * MOVIMENTO IMPOSTO: o raio de visão que o host APLICA agora, neste `map`, a
+   * cada ficha com dono na sala — o mesmo de `occupantsSeenBy` (`tokenRadiusIn`:
+   * "Visão nesta cena", fator do jogador, hora do relógio e a emprestada com o
+   * raio do dono). Não é `PlayerInfo.visionRadius`, que é só o de base. Ficha
+   * de dois donos fica com o MENOR; ficha sem dono fica de fora.
+   */
+  tokenVisionRadii(map: MapData): Map<string, number>
+  /**
    * COMPANHEIROS: `party.update` para cada jogador conectado cuja lista MUDOU
    * desde o último envio àquela conexão. A lista é dele: os outros jogadores,
    * cada um 'aqui' (mesma cena), 'longe' (outra cena, ou ainda sem ficha) ou
@@ -8402,6 +8410,19 @@ export function createHostSession(options: HostSessionOptions): HostSession {
         outbound.push({ clientId, msg })
       }
       return { outbound, porFaixa }
+    },
+
+    tokenVisionRadii(map) {
+      const radii = new Map<string, number>()
+      for (const playerId of players.keys()) {
+        const radiusOf = tokenRadiusIn(playerId, map)
+        for (const tokenId of ownership[playerId] ?? []) {
+          const radius = radiusOf(tokenId)
+          const current = radii.get(tokenId)
+          radii.set(tokenId, current === undefined ? radius : Math.min(current, radius))
+        }
+      }
+      return radii
     },
 
     listPlayers(source) {

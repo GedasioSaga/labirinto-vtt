@@ -230,8 +230,8 @@ function runConveyors(map: MapData, live: readonly LiveConveyor[], radii: OwnerV
  * ANTES do Avançar, então uma esteira que despeja em outra não encadeia no
  * mesmo clique. Ninguém se mexe: devolve o MESMO mapa.
  *
- * `radii` é o raio de visão do dono de cada ficha na sala (`ownerVisionRadii`
- * sobre os jogadores do host): com "Fichas ocupam espaço", só segura quem esse
+ * `radii` é o raio de visão que o host aplica a cada ficha com dono
+ * (`HostSession.tokenVisionRadii`): com "Fichas ocupam espaço", só segura quem esse
  * raio alcança. Sem sala aberta, ninguém tem dono e o raio cobre o mapa.
  *
  * Só o que fica NESTA cena. Quem a cabine do pino de viagem leva ao par (outra

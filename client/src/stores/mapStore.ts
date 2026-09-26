@@ -804,7 +804,7 @@ interface MapStoreState {
   setRoomConveyor: (roomId: string, setting: ConveyorSetting | null) => void
   /**
    * ESTEIRA — "Avançar esteiras": todas as esteiras da cena empurram as fichas. Com histórico; ninguém anda = nada grava.
-   * `radii`: o raio de visão do dono de cada ficha na sala aberta (`ownerVisionRadii`); sem sala, omitir.
+   * `radii`: o raio que o host aplica a cada ficha com dono na sala aberta (`HostSession.tokenVisionRadii`); sem sala, omitir.
    */
   advanceConveyors: (radii?: OwnerVisionRadii) => void
   /** CABINE CONTÍNUA — liga o pino à próxima parada da cena, troca ou desliga (`null`). Com histórico. */

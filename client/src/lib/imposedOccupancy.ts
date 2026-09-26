@@ -12,39 +12,20 @@ import { findOccupant } from './movementRules'
  * do jogador parar antes dela, no chão vazio, contaria que existe alguém ali.
  *
  * "Enxerga" é o recorte de `filterMapForGroup` com a própria ficha como único
- * olho e o raio do DONO dela na sala (`OwnerVisionRadii`, o `radiusFor` do
- * host); a fumaça continua cortando (`visionRadiusAt`). Ficha sem dono na sala
+ * olho e o raio que o host APLICA a ela no mapa (`OwnerVisionRadii`, de
+ * `HostSession.tokenVisionRadii`: "Visão nesta cena", fator do jogador e hora
+ * do relógio já entram ali — `filterMapForGroup` não os aplica sozinho); a
+ * fumaça continua cortando (`visionRadiusAt`). Ficha sem dono na sala
  * (NPC, ou mapa sem sala aberta) enxerga o mapa inteiro. As outras fichas do
  * mesmo dono não entram: veem a mais, nunca a menos, então ficar só com esta
  * ficha nunca faz segurar quem ele não vê.
  */
 
-/** Raio de visão do dono de cada ficha, por id de ficha, em px. Ficha sem dono fica de fora. */
+/** Raio de visão efetivo de cada ficha com dono, por id de ficha, em px (`HostSession.tokenVisionRadii`). Ficha sem dono fica de fora. */
 export type OwnerVisionRadii = ReadonlyMap<string, number>
 
 /** Sem sala aberta: ninguém tem dono, todo mundo enxerga o mapa inteiro. */
 export const NO_OWNER_RADII: OwnerVisionRadii = new Map()
-
-/** Um jogador da sala como o host o lista (`PlayerInfo`): as fichas dele e o raio efetivo. */
-export interface RadiusOwner {
-  tokenIds: readonly string[]
-  visionRadius: number
-}
-
-/**
- * Os raios da sala por ficha. Ficha de dois donos fica com o MENOR raio:
- * segura só quem todos os donos enxergam.
- */
-export function ownerVisionRadii(players: readonly RadiusOwner[]): Map<string, number> {
-  const radii = new Map<string, number>()
-  for (const player of players) {
-    for (const tokenId of player.tokenIds) {
-      const current = radii.get(tokenId)
-      radii.set(tokenId, current === undefined ? player.visionRadius : Math.min(current, player.visionRadius))
-    }
-  }
-  return radii
-}
 
 /** Raio que alcança qualquer ponto do mapa: a diagonal inteira, em px. */
 function wholeMapRadius(map: MapData): number {

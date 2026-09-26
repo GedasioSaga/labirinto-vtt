@@ -70,7 +70,7 @@ import { saveMapToAppData, saveMapToPath, pickMapJsonToOpen, openMapFile, openMa
 import { canAdvanceImposed, roomConveyorState } from './lib/conveyors'
 import { cabinOf, cabinTargets, cabinTargetsOfPar } from './lib/cabins'
 import { avancarMovimentoImposto, ownerFromPlayers } from './stores/avancarMovimentoImposto'
-import { ownerVisionRadii } from './lib/imposedOccupancy'
+import { NO_OWNER_RADII, type OwnerVisionRadii } from './lib/imposedOccupancy'
 import {
   applyItemsInScene,
   hasUnsavedWork,
@@ -1321,13 +1321,17 @@ function App() {
   // GATILHO DE ÁREA da Região/Sala selecionada (`null` = sem gatilho).
   const selectedRegionTrigger = selectedRegion ? areaTriggerOfRegion(map, selectedRegion.id) : null
   // ESTEIRA e CABINE: com "Fichas ocupam espaço", só segura a ficha quem o
-  // dono dela enxerga com o raio que o host aplica a ele (`radiusFor`).
-  const conveyorRadii = ownerVisionRadii(roomPlayers)
+  // dono dela enxerga com o raio que o host APLICA a ela neste mapa ("Visão
+  // nesta cena", fator, hora do relógio: `tokenVisionRadii`), nunca o de base.
+  // Sem sala aberta (ponte ainda não criada) ninguém tem dono.
+  const conveyorRadiiIn = (target: MapData): OwnerVisionRadii => hostBridgeRef.current?.tokenVisionRadii(target) ?? NO_OWNER_RADII
+  const conveyorRadii = conveyorRadiiIn(map)
   // UM AVANÇAR (botão "Avançar esteiras" e "Próximo apito" da Agenda): esteiras
   // e cabines desta cena, e a cabine que leva ao par — a ficha de jogador pela
   // sessão ("Mandar para…" com a ficha exata), a sem dono pelo "Levar para…".
   const avancarEsteiras = () => {
-    avancarMovimentoImposto(conveyorRadii, {
+    // O raio de AGORA: o "Próximo apito" pode ter mudado a hora neste mesmo clique.
+    avancarMovimentoImposto(conveyorRadiiIn(useMapStore.getState().map), {
       ownerOf: ownerFromPlayers(roomPlayers),
       sendPlayer: (playerId, sceneId, pinId, tokenId) => hostBridgeRef.current?.sendPlayer(playerId, sceneId, pinId, undefined, tokenId) ?? false,
     })
