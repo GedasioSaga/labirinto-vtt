@@ -109,6 +109,16 @@ describe('pino no modo passe, no cliente do jogador', () => {
     expect(notice && travelNoticeText(notice)).toBe('Aguardando o mestre…')
   })
 
+  it('catraca barrada do outro lado (TRANCAR PASSAGEM): o host avisa que espera o mestre, e "Conferindo o passe…" vira "Aguardando o mestre…"', () => {
+    const { connection, socket } = jogando('passe')
+    expect(connection.requestTravel('catraca')).toBe(true)
+    vi.advanceTimersByTime(FREE_PASSAGE_BEAT_MS)
+    socket.receive({ type: 'pin.travel.pending' })
+    const notice = connection.getState().travel
+    expect(notice).toMatchObject({ phase: 'waiting', direct: false, passe: false })
+    expect(notice && travelNoticeText(notice)).toBe('Aguardando o mestre…')
+  })
+
   it('pino livre segue dizendo "Passando…"', () => {
     const { connection } = jogando('livre')
     expect(connection.requestTravel('catraca')).toBe(true)

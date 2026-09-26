@@ -504,6 +504,7 @@ export type HideNotice = { id: number; phase: 'waiting'; tokenId: string } | { i
 export type TravelNotice =
   /**
    * `direct`: o pino é livre, ninguém decide — só falta a resposta do host.
+   * Vira `false` com `pin.travel.pending`: a passagem estava barrada e o pedido espera o mestre.
    * `passe`: pino no modo passe; o host confere se a ficha tem o passe. O
    * cliente não sabe (o que abre a catraca nunca chega ao recorte).
    * `cancelling`: o jogador tocou "Desistir" e a confirmação do host ainda
@@ -769,6 +770,13 @@ export interface PlayerConnection {
    * se não está jogando ou o socket não está aberto.
    */
   changeFloor(tokenId: string, stairId: string): boolean
+  /**
+   * Corre (`on`) ou tira o ferrolho da porta, do lado da ficha dele. O host
+   * decide; a marca volta no recorte. `false` se não está jogando ou o socket não está aberto.
+   */
+  barDoor(wallId: string, on: boolean): boolean
+  /** Barra (`on`) ou desbarra o pino de viagem onde a ficha dele está encostada. Mesmas recusas de `barDoor`. */
+  barPin(pinId: string, on: boolean): boolean
   /**
    * Nome novo do PRÓPRIO token: aplica na hora e envia. `false` quando o token
    * não é dele, não está no mapa, o nome não cabe ou o socket não está aberto.
@@ -2779,6 +2787,17 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         // Reunido pelo mestre: outro aviso, porque ele não foi levado sozinho.
         showTravelAnswer({ id: nextNoticeId++, phase: data.by === 'gather' ? 'gathered' : data.by === 'master' ? 'moved' : 'arrived' })
         return
+      case 'pin.travel.pending':
+        // A passagem livre virou pedido ao mestre (barrada do outro lado):
+        // "Passando…" mentiria. Só vale com o pedido no ar — aviso atrasado,
+        // depois da resposta, não reabre a espera.
+        if (state.status !== 'playing' || state.travel?.phase !== 'waiting') return
+        // Sem `clearTravelTimer`: a espera não tem prazo, e o único timer possível
+        // aqui seria o da batida da passagem livre, que já disparou (é ele que manda o pedido).
+        // Nem "Passando…" nem "Conferindo o passe…": o host já disse que é pedido ao
+        // mestre. `cancelling` segue o do pedido no ar (o "Desistir" já tocado continua valendo).
+        setState({ travel: { ...state.travel, id: nextNoticeId++, direct: false, passe: false } })
+        return
       case 'pin.travel.denied': {
         if (state.status !== 'playing') return
         // Motivo estragado não segura a recusa: ele não passou, e lê o "não deixou" de sempre.
@@ -3544,6 +3563,14 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     changeFloor(tokenId, stairId) {
       if (state.status !== 'playing' || tokenId.length === 0 || stairId.length === 0) return false
       return send({ type: 'token.piso', tokenId, stairId })
+    },
+    barDoor(wallId, on) {
+      if (state.status !== 'playing' || wallId.length === 0) return false
+      return send({ type: 'door.bar', wallId, on })
+    },
+    barPin(pinId, on) {
+      if (state.status !== 'playing' || pinId.length === 0) return false
+      return send({ type: 'pin.bar', pinId, on })
     },
 
     requestTravel(pinId, exitId, tokenIds) {

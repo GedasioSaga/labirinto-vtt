@@ -3852,3 +3852,51 @@ button.pp-colecao__casa:focus-visible {
     transition: none;
   }
 }
+
+/*
+ * FERROLHO DO JOGADOR: aparece com a ficha encostada numa porta. Canto de
+ * baixo à esquerda (o zoom é o da direita, os avisos no meio), na pele do zoom:
+ * pedra com filete de latão, um controle por cima do mapa. 44 px: alvo do dedo.
+ * No celular sobe acima da pilha de avisos do meio, que ali ocupa a largura.
+ */
+.pp-ferrolho {
+  position: fixed;
+  left: 12px;
+  bottom: calc(24px + env(safe-area-inset-bottom, 0px));
+  z-index: 10;
+  min-height: 44px;
+  padding: 0 16px;
+  font-family: var(--lb-font-sans, system-ui, sans-serif);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--lb-color-parchment, #eceae4);
+  background: var(--lb-color-stone-raised, #232328);
+  border: 1px solid var(--lb-color-brass, #e0a44a);
+  border-radius: 999px;
+  box-shadow: var(--lb-shadow-float, 0 8px 24px rgba(0, 0, 0, 0.45));
+  cursor: pointer;
+}
+
+.pp-ferrolho:focus-visible {
+  outline: 2px solid var(--lb-color-brass, #e0a44a);
+  outline-offset: 2px;
+}
+
+/* Esperando o host: diz o que está acontecendo, sem convidar outro toque. */
+.pp-ferrolho:disabled {
+  color: var(--lb-color-parchment-dim, #a9a7a0);
+  border-color: var(--lb-color-line-panel, rgba(255, 255, 255, 0.18));
+  cursor: default;
+}
+
+@media (hover: hover) {
+  .pp-ferrolho:hover:not(:disabled) {
+    background: var(--lb-color-stone, rgba(19, 19, 23, 0.94));
+  }
+}
+
+@media (max-width: 699px) {
+  .pp-ferrolho {
+    bottom: calc(156px + env(safe-area-inset-bottom, 0px));
+  }
+}
