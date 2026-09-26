@@ -18,7 +18,7 @@ const MOCHILA: CarriedItem[] = [
 ]
 
 function oferta(extra: Partial<TradeOfferState> = {}): TradeOfferState {
-  return { id: 1, offerId: 'o1', de: 'Zulmira', dou: { itens: ['Xarope'], moedas: 0 }, peco: { itens: [{ id: 'faca', nome: 'Faca' }], moedas: 3 }, phase: 'open', ...extra }
+  return { id: 1, offerId: 'o1', tokenId: 'bruno', de: 'Zulmira', dou: { itens: ['Xarope'], moedas: 0 }, peco: { itens: [{ id: 'faca', nome: 'Faca' }], moedas: 3 }, phase: 'open', ...extra }
 }
 
 describe('cartão da oferta', () => {

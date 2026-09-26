@@ -43,7 +43,7 @@ import type { RemoteLaser } from '../lib/laser'
 import { selectedTokenColor } from '../lib/tokenColor'
 import { buildTokenPhotoData } from '../lib/tokenPhoto'
 import { carriedItemsOf, giveTargets } from '../lib/items'
-import { moedasDe } from '../lib/troca'
+import { moedasDe, ownTradeToken } from '../lib/troca'
 import { PlayerTradeCard } from './PlayerTradeCard'
 import { itemNoticeText } from './itemNotice'
 import { compraNoticeText } from './compraNotice'
@@ -762,6 +762,14 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
     }
   }, [map, ownTokens, partyTokens])
 
+  // MOEDAS E TROCA: a contraproposta sai da ficha da OFERTA — o host não junta
+  // mochilas nem bolsas de fichas diferentes, então o formulário só oferece dela.
+  const trocaTokenId = state.troca?.tokenId
+  const tradeStock = useMemo(() => {
+    const ficha = !map || trocaTokenId === undefined ? undefined : ownTradeToken(map.tokens, ownTokens, trocaTokenId)
+    return ficha === undefined ? { items: [], moedas: 0 } : { items: carriedItemsOf(ficha), moedas: moedasDe(ficha) }
+  }, [map, ownTokens, trocaTokenId])
+
   // A cor do próprio laser: a da ficha (a mesma que os outros veem, escolhida
   // pelo host); ficha sem cor, o azul "este é o seu" da tela do jogador.
   const ownLaserColor = useMemo(() => {
@@ -1174,8 +1182,8 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
           <PlayerTradeCard
             key={state.troca.offerId}
             troca={state.troca}
-            mochila={backpack.items}
-            moedas={backpack.moedas}
+            mochila={tradeStock.items}
+            moedas={tradeStock.moedas}
             onAnswer={(accept) => void connection.answerTrade(accept)}
             onCounter={(itemIds, moedas) => void connection.counterTrade(itemIds, moedas)}
             onDismiss={() => connection.dismissTrade()}

@@ -101,6 +101,15 @@ export function cleanTradeTerms(raw: TradeProposal): TradeProposal | null {
   return { de: cleanTradeFrom(raw.de), dou: { itens, moedas: raw.dou.moedas }, peco: { itemIds, moedas: raw.peco.moedas } }
 }
 
+/**
+ * A ficha da oferta no mapa que o jogador tem agora, só se é dele. É ela que
+ * paga a contraproposta: o host não junta mochilas nem bolsas de fichas
+ * diferentes. `undefined` = não é dele, ou não está no mapa dele.
+ */
+export function ownTradeToken(tokens: readonly Token[], ownTokens: readonly string[], tokenId: string): Token | undefined {
+  return ownTokens.includes(tokenId) ? tokens.find((t) => t.id === tokenId) : undefined
+}
+
 /** A ficha tem cada item pedido (pelo id) e as moedas pedidas. */
 export function canPay(token: Token, ask: TradeAsk): boolean {
   const carried = new Set(carriedItemsOf(token).map((item) => item.id))

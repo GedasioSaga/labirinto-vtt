@@ -6,6 +6,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createEmptyMap } from '../lib/mapFactory'
 import type { MapData } from '../types/map'
+import { ownTradeToken } from '../lib/troca'
 import { itemNoticeText } from './itemNotice'
 import { createPlayerConnection, TRADE_CLOSED_TTL_MS, type SocketLike } from './playerConnection'
 
@@ -36,7 +37,7 @@ function mapa(): MapData {
   }
 }
 
-function jogando() {
+function jogando(map: MapData = mapa(), ownTokens: string[] = ['bruno']) {
   const sockets: FakeSocket[] = []
   const connection = createPlayerConnection({
     url: 'ws://host/ws',
@@ -53,12 +54,12 @@ function jogando() {
   if (!socket) throw new Error('socket não criado')
   socket.open()
   socket.receive({ type: 'welcome', playerId: 'p1', resumeToken: 'tok', name: 'Bruno' })
-  socket.receive({ type: 'snapshot', rev: 1, map: mapa(), vision: [], ownTokens: ['bruno'], concealed: [] })
+  socket.receive({ type: 'snapshot', rev: 1, map, vision: [], ownTokens, concealed: [] })
   if (connection.getState().status !== 'playing') throw new Error('esperava jogando')
   return { connection, socket }
 }
 
-const OFERTA = { type: 'trade.offer', offerId: 'o1', de: 'Zulmira', dou: { itens: ['Xarope'], moedas: 0 }, peco: { itens: [{ id: 'faca', nome: 'Faca' }], moedas: 3 } }
+const OFERTA = { type: 'trade.offer', offerId: 'o1', tokenId: 'bruno', de: 'Zulmira', dou: { itens: ['Xarope'], moedas: 0 }, peco: { itens: [{ id: 'faca', nome: 'Faca' }], moedas: 3 } }
 
 describe('Pagar no cliente do jogador', () => {
   beforeEach(() => vi.useFakeTimers())
@@ -132,5 +133,51 @@ describe('Oferta do mestre no cliente do jogador', () => {
     socket.receive(OFERTA)
     socket.receive({ type: 'trade.closed', offerId: 'outra', result: 'cancelled' })
     expect(connection.getState().troca?.phase).toBe('open')
+  })
+
+  it('Contrapropor confere a FICHA DA OFERTA: item ou moedas da outra ficha dele nem saem', () => {
+    // Bruno segura também o Cavalo (emprestado), com a Sela e 20 moedas.
+    const cavalo = { id: 'cavalo', characterId: null, name: 'Cavalo', x: 140, y: 100, size: 1, image: null, moedas: 20, mochila: [{ id: 'sela', nome: 'Sela' }] }
+    const { connection, socket } = jogando({ ...mapa(), tokens: [...mapa().tokens, cavalo] }, ['bruno', 'cavalo'])
+    socket.receive(OFERTA)
+    expect(connection.getState().troca?.tokenId).toBe('bruno')
+    const antes = socket.sent.length
+    expect(connection.counterTrade(['sela'], 0)).toBe(false)
+    expect(connection.counterTrade([], 9)).toBe(false)
+    expect(socket.sent.length).toBe(antes)
+    expect(connection.getState().troca?.phase).toBe('open')
+    expect(connection.counterTrade(['vela'], 5)).toBe(true)
+    expect(socket.sent).toContainEqual({ type: 'trade.counter', offerId: 'o1', itemIds: ['vela'], moedas: 5 })
+  })
+
+  it('a ficha da oferta sumiu do mapa dele: Contrapropor nem sai; o "unavailable" do host fecha o cartão enviado', () => {
+    const { connection, socket } = jogando()
+    socket.receive(OFERTA)
+    expect(connection.counterTrade(['vela'], 1)).toBe(true)
+    expect(connection.getState().troca?.phase).toBe('countered')
+    socket.receive({ type: 'trade.closed', offerId: 'o1', result: 'unavailable' })
+    expect(connection.getState().troca?.phase).toBe('unavailable')
+    connection.dismissTrade()
+    expect(connection.getState().troca).toBeUndefined()
+    const outra = jogando({ ...mapa(), tokens: [] })
+    outra.socket.receive(OFERTA)
+    expect(outra.connection.counterTrade(['vela'], 1)).toBe(false)
+    expect(outra.connection.getState().troca?.phase).toBe('open')
+  })
+
+  it('oferta sem a ficha (tokenId) não abre o cartão', () => {
+    const { connection, socket } = jogando()
+    const { tokenId: _semFicha, ...semFicha } = OFERTA
+    socket.receive(semFicha)
+    expect(connection.getState().troca).toBeUndefined()
+  })
+})
+
+describe('ownTradeToken: a ficha da oferta no mapa dele', () => {
+  it('só a ficha dele, presente no mapa', () => {
+    const tokens = mapa().tokens
+    expect(ownTradeToken(tokens, ['bruno'], 'bruno')?.id).toBe('bruno')
+    expect(ownTradeToken(tokens, [], 'bruno')).toBeUndefined()
+    expect(ownTradeToken(tokens, ['bruno', 'cavalo'], 'cavalo')).toBeUndefined()
   })
 })

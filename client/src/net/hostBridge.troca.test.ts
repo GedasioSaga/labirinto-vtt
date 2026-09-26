@@ -98,7 +98,7 @@ describe('hostBridge: oferta de troca do mestre', () => {
     const offerId = m.ofertaEnviada()
     expect(m.sent()).toContainEqual({
       clientId: 'c1',
-      msg: { type: 'trade.offer', offerId, de: 'Zulmira', dou: { itens: ['Xarope'], moedas: 0 }, peco: { itens: [{ id: 'faca', nome: 'Faca de rede' }], moedas: 3 } },
+      msg: { type: 'trade.offer', offerId, tokenId: 'bruno', de: 'Zulmira', dou: { itens: ['Xarope'], moedas: 0 }, peco: { itens: [{ id: 'faca', nome: 'Faca de rede' }], moedas: 3 } },
     })
     const [linha] = m.pedidos()
     expect(linha?.text).toBe('Oferta a Bruno (Zulmira): Xarope por Faca de rede e 3 moedas')

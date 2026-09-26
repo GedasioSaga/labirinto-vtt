@@ -5,9 +5,9 @@ import type { TradePhase, TradeOfferState } from './playerConnection'
 
 export interface PlayerTradeCardProps {
   troca: TradeOfferState
-  /** O que as fichas dele carregam: a contraproposta escolhe daqui. */
+  /** O que a ficha da oferta carrega: a contraproposta escolhe daqui. */
   mochila: CarriedItem[]
-  /** A bolsa das fichas dele (a maior: uma ficha só paga). */
+  /** A bolsa da ficha da oferta (é ela que paga). */
   moedas: number
   onAnswer(accept: boolean): void
   onCounter(itemIds: string[], moedas: number): void

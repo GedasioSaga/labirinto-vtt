@@ -4050,8 +4050,10 @@ export function createHostSession(options: HostSessionOptions): HostSession {
 
   /**
    * A contraproposta: o que ele dá no lugar do pedido, conferido na ficha da
-   * oferta (itens da mochila dela, moedas da bolsa dela). Vazia, ou com o que
-   * ele não tem, morre em silêncio; boa, espera o mestre.
+   * oferta (itens da mochila dela, moedas da bolsa dela). Vazia morre em
+   * silêncio (o cliente nem a manda); boa, espera o mestre. A ficha da oferta
+   * não paga, ou saiu da cena dele: a troca fecha `unavailable` e o mestre lê
+   * que não deu — calar deixaria o cartão dele em "enviada" para sempre.
    */
   function handleTradeCounter(clientId: string, msg: TradeCounterMessage, world: HostWorld): HostResult {
     const playerId = byClient.get(clientId)
@@ -4061,7 +4063,13 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const counter: TradeAsk = { itemIds: [...new Set(msg.itemIds)], moedas: msg.moedas }
     if (counter.itemIds.length === 0 && counter.moedas === 0) return { outbound: [] }
     const found = tradeTokenNow(trade, world)
-    if (found === null || !canPay(found.token, counter)) return { outbound: [] }
+    if (found === null || !canPay(found.token, counter)) {
+      pendingTrades.delete(trade.offerId)
+      return {
+        outbound: [{ clientId, msg: { type: 'trade.closed', offerId: trade.offerId, result: 'unavailable' } }],
+        tradeUpdate: tradeUpdateOf(trade, 'failed', askText(found?.token, counter)),
+      }
+    }
     trade.counter = counter
     return { outbound: [], tradeUpdate: tradeUpdateOf(trade, 'countered', askText(found.token, counter)) }
   }
@@ -5089,7 +5097,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
         outbound: [
           {
             clientId: record.clientId,
-            msg: { type: 'trade.offer', offerId, de: terms.de, dou: { itens: [...terms.dou.itens], moedas: terms.dou.moedas }, peco: { itens, moedas: terms.peco.moedas } },
+            msg: { type: 'trade.offer', offerId, tokenId, de: terms.de, dou: { itens: [...terms.dou.itens], moedas: terms.dou.moedas }, peco: { itens, moedas: terms.peco.moedas } },
           },
         ],
         offerId,

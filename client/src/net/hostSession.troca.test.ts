@@ -110,9 +110,10 @@ describe('protocolo: moedas e troca', () => {
   })
 
   it('o jogador só aceita a oferta bem formada e guarda só os campos conhecidos', () => {
-    const certa = { type: 'trade.offer', offerId: 'o1', de: 'Zulmira', dou: { itens: ['Xarope'], moedas: 0 }, peco: { itens: [{ id: 'faca', nome: 'Faca' }], moedas: 3 }, cena: 'Mansão' }
-    expect(parseHostTradeMessage(certa)).toEqual({ type: 'trade.offer', offerId: 'o1', de: 'Zulmira', dou: { itens: ['Xarope'], moedas: 0 }, peco: { itens: [{ id: 'faca', nome: 'Faca' }], moedas: 3 } })
+    const certa = { type: 'trade.offer', offerId: 'o1', tokenId: 'bruno', de: 'Zulmira', dou: { itens: ['Xarope'], moedas: 0 }, peco: { itens: [{ id: 'faca', nome: 'Faca' }], moedas: 3 }, cena: 'Mansão' }
+    expect(parseHostTradeMessage(certa)).toEqual({ type: 'trade.offer', offerId: 'o1', tokenId: 'bruno', de: 'Zulmira', dou: { itens: ['Xarope'], moedas: 0 }, peco: { itens: [{ id: 'faca', nome: 'Faca' }], moedas: 3 } })
     expect(parseHostTradeMessage({ ...certa, dou: { itens: 'Xarope', moedas: 0 } })).toBeNull()
+    expect(parseHostTradeMessage({ ...certa, tokenId: '' })).toBeNull()
     expect(parseHostTradeMessage({ type: 'trade.closed', offerId: 'o1', result: 'done' })).toEqual({ type: 'trade.closed', offerId: 'o1', result: 'done' })
     expect(parseHostTradeMessage({ type: 'trade.closed', offerId: 'o1', result: 'sei-la' })).toBeNull()
   })
@@ -171,7 +172,7 @@ describe('Oferta do mestre', () => {
     expect(r.outbound).toEqual([
       {
         clientId: 'c2',
-        msg: { type: 'trade.offer', offerId: r.offerId, de: 'Zulmira', dou: { itens: ['Xarope'], moedas: 0 }, peco: { itens: [{ id: 'faca', nome: 'Faca de rede' }], moedas: 3 } },
+        msg: { type: 'trade.offer', offerId: r.offerId, tokenId: 'bruno', de: 'Zulmira', dou: { itens: ['Xarope'], moedas: 0 }, peco: { itens: [{ id: 'faca', nome: 'Faca de rede' }], moedas: 3 } },
       },
     ])
     expect(JSON.stringify(r.outbound)).not.toContain('Mansão')
@@ -240,11 +241,9 @@ describe('Oferta do mestre', () => {
     expect(t.s.isTradePending(offerId)).toBe(false)
   })
 
-  it('contraproposta com o que ele não tem é ignorada; o mestre recusa a boa', () => {
+  it('o mestre recusa a contraproposta boa', () => {
     const t = mesa()
     const offerId = ofertaAoBruno(t)
-    const torta = t.s.handleMessage('c2', { type: 'trade.counter', offerId, itemIds: ['espada'], moedas: 0 }, t.world)
-    expect(torta.tradeUpdate).toBeUndefined()
     t.s.handleMessage('c2', { type: 'trade.counter', offerId, itemIds: [], moedas: 2 }, t.world)
     const r = t.s.refuseTradeCounter(offerId)
     expect(r.outbound).toEqual([{ clientId: 'c2', msg: { type: 'trade.closed', offerId, result: 'refused' } }])
@@ -276,5 +275,43 @@ describe('Oferta do mestre', () => {
     expect(r.outbound).toEqual([{ clientId: 'c2', msg: { type: 'trade.closed', offerId, result: 'unavailable' } }])
     expect(r.applyItems).toBeUndefined()
     expect(r.tradeUpdate?.kind).toBe('failed')
+  })
+
+  it('contraproposta que a ficha da oferta não paga: "unavailable" ao Bruno e o mestre lê que não deu', () => {
+    const t = mesa()
+    const offerId = ofertaAoBruno(t)
+    const r = t.s.handleMessage('c2', { type: 'trade.counter', offerId, itemIds: ['espada'], moedas: 0 }, t.world)
+    expect(r.outbound).toEqual([{ clientId: 'c2', msg: { type: 'trade.closed', offerId, result: 'unavailable' } }])
+    expect(r.applyItems).toBeUndefined()
+    expect(r.tradeUpdate).toEqual({ offerId, playerName: 'Bruno', de: 'Zulmira', kind: 'failed', oferta: 'Xarope', pedido: 'espada' })
+    expect(t.s.isTradePending(offerId)).toBe(false)
+  })
+
+  it('Bruno com duas fichas contrapropõe com item da OUTRA: a troca fecha "unavailable", nada muda', () => {
+    const cavalo = token('cavalo', 300, 200, { moedas: 20, mochila: [{ id: 'sela', nome: 'Sela' }] })
+    const t = mesa(mansao([...mansao().tokens, cavalo]))
+    t.s.assignToken(t.ids.Bruno ?? '', 'cavalo')
+    const offerId = ofertaAoBruno(t)
+    const r = t.s.handleMessage('c2', { type: 'trade.counter', offerId, itemIds: ['sela'], moedas: 0 }, t.world)
+    expect(r.outbound).toEqual([{ clientId: 'c2', msg: { type: 'trade.closed', offerId, result: 'unavailable' } }])
+    expect(r.applyItems).toBeUndefined()
+    expect(r.tradeUpdate?.kind).toBe('failed')
+    expect(t.s.isTradePending(offerId)).toBe(false)
+  })
+
+  it('a ficha da oferta saiu da cena antes da contraproposta: "unavailable", sem nome de cena', () => {
+    const t = mesa()
+    const offerId = ofertaAoBruno(t)
+    const [cena] = t.world.background
+    if (cena === undefined) throw new Error('sem cena')
+    const semBruno: HostWorld = {
+      ...t.world,
+      background: [{ ...cena, map: { ...cena.map, tokens: cena.map.tokens.filter((tk) => tk.id !== 'bruno') } }],
+    }
+    const r = t.s.handleMessage('c2', { type: 'trade.counter', offerId, itemIds: ['vela'], moedas: 1 }, semBruno)
+    expect(r.outbound).toEqual([{ clientId: 'c2', msg: { type: 'trade.closed', offerId, result: 'unavailable' } }])
+    expect(r.tradeUpdate?.kind).toBe('failed')
+    expect(JSON.stringify(r.outbound)).not.toContain('Mansão')
+    expect(t.s.isTradePending(offerId)).toBe(false)
   })
 })

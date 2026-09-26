@@ -544,12 +544,14 @@ export interface TradeCounterMessage {
 /**
  * A OFERTA do mestre, só à conexão de quem é a ficha. `de` é o texto que o
  * mestre escreveu (quem oferece); `dou` são nomes de itens novos e moedas;
- * `peco` são itens que ESTE jogador já carrega (id e nome) e moedas. Nunca
- * leva cena, ficha de outro nem id de NPC.
+ * `peco` são itens que ESTE jogador já carrega (id e nome) e moedas.
+ * `tokenId` é a ficha DELE que a oferta cobra (a que paga a contraproposta).
+ * Nunca leva cena, ficha de outro nem id de NPC.
  */
 export interface TradeOfferMessage {
   type: 'trade.offer'
   offerId: string
+  tokenId: string
   de: string
   dou: { itens: string[]; moedas: number }
   peco: { itens: CarriedItem[]; moedas: number }
@@ -1874,7 +1876,7 @@ function parseTradeAsk(value: unknown): TradeOfferMessage['peco'] | null {
 /**
  * MOEDAS E TROCA: valida a oferta e o fim da troca que o jogador recebe.
  * Forma errada recusa a mensagem inteira; a cópia leva só os campos
- * conhecidos — cena, ficha ou id de NPC que viessem juntos ficam para trás.
+ * conhecidos — cena, ficha de outro ou id de NPC que viessem juntos ficam para trás.
  */
 export function parseHostTradeMessage(value: unknown): TradeOfferMessage | TradeClosedMessage | null {
   if (!isRecord(value) || !isBoundedString(value.offerId, 1, REQ_ID_MAX_LENGTH)) return null
@@ -1883,10 +1885,11 @@ export function parseHostTradeMessage(value: unknown): TradeOfferMessage | Trade
     return result === undefined ? null : { type: 'trade.closed', offerId: value.offerId, result }
   }
   if (value.type !== 'trade.offer' || !isBoundedString(value.de, 1, TRADE_FROM_MAX_LENGTH)) return null
+  if (!isBoundedString(value.tokenId, 1, REQ_ID_MAX_LENGTH)) return null
   const dou = parseTradeGive(value.dou)
   const peco = parseTradeAsk(value.peco)
   if (dou === null || peco === null) return null
-  return { type: 'trade.offer', offerId: value.offerId, de: value.de, dou, peco }
+  return { type: 'trade.offer', offerId: value.offerId, tokenId: value.tokenId, de: value.de, dou, peco }
 }
 
 export function isCallReason(value: unknown): value is CallReason {
