@@ -1654,8 +1654,17 @@ export const useAdventureStore = create<AdventureState>()((set, get) => ({
         const comVoltas = voltas.reduce((atual: Pin, saida) => ({ ...atual, ...setExitPassage(atual, saida.id, passagem) }), par)
         return mapFactory.updatePin(map, parId, { saidas: comVoltas.saidas })
       }
-      const saidas = extrasFollowingMain(par, voltaParaCa)
-      return mapFactory.updatePin(map, parId, saidas === undefined ? patchDoPar : { ...patchDoPar, saidas })
+      // A volta é a principal: o modo do pino muda. As extras do par sem modo
+      // próprio que levam a OUTRO lugar seguiam esse modo; ganham o antigo por
+      // escrito, como em `promoteExtraExit`, para o Túnel não trancar junto.
+      const modoAntigo = passageOf(par)
+      const semVolta = extrasFollowingMain(par, voltaParaCa) ?? par.saidas ?? []
+      const guardaModo = modoAntigo !== passagem && isExitPassage(modoAntigo)
+      const saidas = semVolta.map((saida) =>
+        guardaModo && !voltaParaCa(saida) && !isExitPassage(saida.passagem) ? { ...saida, passagem: modoAntigo } : saida,
+      )
+      const mudou = saidas.some((saida, i) => saida !== par.saidas?.[i])
+      return mapFactory.updatePin(map, parId, mudou ? { ...patchDoPar, saidas } : patchDoPar)
     }
     for (const par of pares) get().updateBackgroundScene(par.sceneId, (map) => doPar(map, par.pinId))
     // Deste lado, o pino inteiro: nenhuma extra fica aberta (ou trancada) por conta própria.

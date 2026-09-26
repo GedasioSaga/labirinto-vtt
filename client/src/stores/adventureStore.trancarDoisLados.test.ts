@@ -281,4 +281,41 @@ describe('trancar os dois lados com modo por saída', () => {
     expect(pinoDoFundo(m.cripta, m.par).passagem).toBe('livre')
     expect(pinoDoFundo(m.cripta, m.par).motivo).toBe('desabou')
   })
+
+  /**
+   * O par volta pela PRINCIPAL, e tem uma extra "Túnel" SEM modo próprio que
+   * leva a outro lugar: ela seguia o modo do pino. O botão muda o modo do
+   * pino, mas a passagem pelo Túnel não é desta ligação e não pode mudar.
+   */
+  function parComTunelSemModo(passagem: 'livre' | 'trancada'): { vale: string; cripta: string; par: string } {
+    const m = montar()
+    useAdventureStore.getState().updateBackgroundScene(m.cripta, (map) => ({
+      ...map,
+      pins: map.pins.map((p) =>
+        p.id === m.par ? { ...p, passagem, saidas: [{ id: 'fora', rotulo: 'Túnel', destino: { sceneId: 'longe', pinId: 'z' } }] } : p,
+      ),
+    }))
+    return m
+  }
+
+  it('trancar com a volta do par na principal: a extra sem modo que leva a outro lugar continua livre', () => {
+    const m = parComTunelSemModo('livre')
+    expect(exitPassageOf(pinoDoFundo(m.cripta, m.par), 'fora')).toBe('livre')
+    expect(useAdventureStore.getState().setPassageBothSides('a', true)).toBe(true)
+    expect(pinoDoFundo(m.cripta, m.par).passagem).toBe('trancada')
+    expect(exitPassageOf(pinoDoFundo(m.cripta, m.par), 'fora')).toBe('livre')
+  })
+
+  it('destrancar com a volta do par na principal: o Túnel trancado sem modo próprio continua trancado', () => {
+    const m = parComTunelSemModo('trancada')
+    expect(useAdventureStore.getState().setPassageBothSides('a', false)).toBe(true)
+    expect(pinoDoFundo(m.cripta, m.par).passagem).toBe('pede')
+    expect(exitPassageOf(pinoDoFundo(m.cripta, m.par), 'fora')).toBe('trancada')
+  })
+
+  it('o modo do par não muda: a extra sem modo que leva a outro lugar não ganha chave por escrito', () => {
+    const m = parComTunelSemModo('trancada')
+    expect(useAdventureStore.getState().setPassageBothSides('a', true)).toBe(true)
+    expect(pinoDoFundo(m.cripta, m.par).saidas?.[0]?.passagem).toBeUndefined()
+  })
 })
