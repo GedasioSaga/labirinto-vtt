@@ -1133,7 +1133,8 @@
  * o latão translúcido do pairar deixaria o chão aparecer por dentro do botão.
  */
 .pp-toggle,
-.pp-mine {
+.pp-mine,
+.pp-bag {
   box-sizing: border-box;
   display: inline-flex;
   align-items: center;
@@ -1165,14 +1166,16 @@
 /* Pairar só onde existe ponteiro que paira: no celular o hover grudava depois do toque. */
 @media (hover: hover) {
   .pp-toggle:hover,
-  .pp-mine:hover {
+  .pp-mine:hover,
+  .pp-bag:hover {
     background-image: linear-gradient(var(--lb-color-brass-soft, rgba(224, 164, 74, 0.14)), var(--lb-color-brass-soft, rgba(224, 164, 74, 0.14)));
   }
 }
 
 /* O dedo pegou: afunda NA HORA (sem transição na ida) e volta em 110 ms. */
 .pp-toggle:active,
-.pp-mine:active {
+.pp-mine:active,
+.pp-bag:active {
   transform: scale(0.97);
   background-color: var(--lb-color-stone-sunken, #141417);
   transition-duration: 0ms;
@@ -1188,7 +1191,8 @@
   transform: rotate(180deg);
 }
 
-.pp-mine__icon {
+.pp-mine__icon,
+.pp-bag__icon {
   flex: none;
 }
 
@@ -1420,12 +1424,14 @@
 
   .pp-toggle,
   .pp-mine,
+  .pp-bag,
   .pp-toggle__chevron {
     transition: none;
   }
 
   .pp-toggle:active,
-  .pp-mine:active {
+  .pp-mine:active,
+  .pp-bag:active {
     transform: none;
   }
 }
@@ -4092,4 +4098,745 @@ button.pp-colecao__casa:focus-visible {
   align-items: center;
   gap: 6px;
   margin-top: 4px;
+}
+
+/* ==================================== INVENTÁRIO ESTILO RESIDENT EVIL (tecla I) */
+
+/*
+ * A tecla I (ou "Inventário" na barra) "pausa" a mesa como o menu do RE3: um
+ * véu escuro sobre o mapa inteiro — o mapa continua lá atrás, apagado — e o
+ * inventário flutua sobre ele, sem janela nem sombra de cartão. Retrato e
+ * condição à esquerda, o item escolhido no meio, a grade à direita.
+ *
+ * Acima dos cartões (30) e abaixo do alarme e da reconexão (40), que precisam
+ * continuar à vista; começa abaixo da faixa do alarme, quando há.
+ */
+.pp-inv {
+  position: fixed;
+  inset: 0;
+  top: var(--pp-alarm-space, 0px);
+  z-index: 35;
+  display: flex;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 24px 16px calc(24px + env(safe-area-inset-bottom, 0px));
+  background: rgba(6, 6, 8, 0.84);
+  animation: pp-inv-veu 160ms ease-out;
+}
+
+/* `margin: auto` centra quando cabe e, quando não cabe, deixa rolar desde o
+   alto (o `align-items: center` cortaria o topo numa tela baixa). */
+.pp-inv__quadro {
+  box-sizing: border-box;
+  width: min(1040px, 100%);
+  margin: auto;
+  display: grid;
+  gap: 20px;
+  font-family: var(--lb-font-sans, system-ui, sans-serif);
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--lb-color-parchment, #eceae4);
+  transform-origin: 50% 40%;
+  animation: pp-inv-in 190ms var(--lb-motion-ease, cubic-bezier(0.2, 0.8, 0.2, 1));
+}
+
+/* Aberto pela tecla: entra pronto. Movimento em resposta a tecla só atrasa. */
+.pp-inv[data-instant],
+.pp-inv[data-instant] .pp-inv__quadro {
+  animation: none;
+}
+
+@keyframes pp-inv-veu {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes pp-inv-in {
+  from {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.pp-inv__topo {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--lb-color-line-strong, rgba(255, 255, 255, 0.16));
+}
+
+.pp-inv__titulo {
+  margin: 0;
+  font-family: var(--lb-font-utility, 'Bahnschrift', system-ui, sans-serif);
+  font-size: var(--lb-font-size-xl, 20px);
+  font-weight: 600;
+  letter-spacing: var(--lb-font-tracking-wide, 0.06em);
+}
+
+.pp-inv__fechar {
+  min-height: 44px;
+  padding: 0 18px;
+}
+
+.pp-inv__nada {
+  margin: 0;
+  color: var(--lb-color-parchment-dim, #a2a09a);
+}
+
+/* Três colunas no computador: ficha | item escolhido | grade. A ordem do DOM
+   é ficha → grade → item: o Tab escolhe na grade e depois age. */
+.pp-inv__corpo {
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr) 408px;
+  grid-template-areas: 'ficha detalhe grade';
+  gap: 32px;
+  align-items: start;
+}
+
+.pp-inv__ficha {
+  grid-area: ficha;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
+  align-content: start;
+}
+
+.pp-inv__lado-grade {
+  grid-area: grade;
+  width: 100%;
+  max-width: 408px;
+}
+
+/* ------------------------------------------------------------ a ficha */
+
+.pp-inv__fichas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.pp-inv__ficha-botao {
+  min-height: 44px;
+  padding: 0 14px;
+  font: inherit;
+  font-weight: 600;
+  color: var(--lb-color-parchment-dim, #a2a09a);
+  background: transparent;
+  border: 1px solid var(--lb-color-line-strong, rgba(255, 255, 255, 0.16));
+  border-radius: var(--lb-radius-md, 9px);
+  cursor: pointer;
+}
+
+.pp-inv__ficha-botao[aria-pressed='true'] {
+  color: var(--lb-color-parchment, #eceae4);
+  border-color: var(--lb-color-parchment, #eceae4);
+}
+
+.pp-inv__retrato {
+  box-sizing: border-box;
+  aspect-ratio: 1;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  background: var(--lb-color-stone-sunken, #141417);
+  border: 1px solid var(--lb-color-line-strong, rgba(255, 255, 255, 0.16));
+  border-radius: var(--lb-radius-sm, 6px);
+}
+
+.pp-inv__foto {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* Sem foto: a ficha como ela é no mapa — o disco na cor dela, com a inicial. */
+.pp-inv__monograma {
+  box-sizing: border-box;
+  width: 58%;
+  aspect-ratio: 1;
+  display: grid;
+  place-items: center;
+  font-family: var(--lb-font-utility, 'Bahnschrift', system-ui, sans-serif);
+  font-size: 64px;
+  font-weight: 600;
+  line-height: 1;
+  color: var(--pp-inv-ficha, #4ea1ff);
+  border: 3px solid var(--pp-inv-ficha, #4ea1ff);
+  border-radius: 50%;
+}
+
+.pp-inv__semfoto {
+  margin: 0;
+  font-size: 13px;
+  color: var(--lb-color-parchment-faint, #858480);
+}
+
+.pp-inv__nome {
+  margin: 0;
+  font-size: var(--lb-font-size-lg, 15px);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+/*
+ * A FAIXA DA CONDIÇÃO — o ECG do RE, o único enfeite da tela: o poço escuro
+ * com linhas de varredura de monitor, tingido pela cor do estado, o traço
+ * apagado inteiro e a cabeça acesa que corre por ele. A cor vem da MESMA
+ * constante da barra sob a ficha (`HEALTH_BAR_COLORS`, `--pp-inv-vida`
+ * escrito pelo componente); o ritmo muda com o estado, então a cor nunca é a
+ * pista sozinha.
+ */
+.pp-inv-ecg {
+  --pp-inv-vida: var(--lb-color-parchment-faint, #858480);
+  --pp-inv-ciclo: 2.6s;
+  display: grid;
+  gap: 2px;
+  padding: 8px 12px 10px;
+  border: 1px solid var(--lb-color-line-strong, rgba(255, 255, 255, 0.16));
+  border-color: color-mix(in srgb, var(--pp-inv-vida) 45%, transparent);
+  border-radius: var(--lb-radius-sm, 6px);
+  background-color: var(--lb-color-stone-sunken, #141417);
+  background-color: color-mix(in srgb, var(--pp-inv-vida) 8%, var(--lb-color-stone-sunken, #141417));
+  background-image: repeating-linear-gradient(to bottom, rgba(255, 255, 255, 0.04) 0 1px, transparent 1px 3px);
+}
+
+.pp-inv-ecg--caution {
+  --pp-inv-ciclo: 1.9s;
+}
+
+.pp-inv-ecg--danger {
+  --pp-inv-ciclo: 1.25s;
+}
+
+.pp-inv-ecg__linha {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+  color: var(--pp-inv-vida);
+  /* O brilho de fósforo: o traço acende o poço em volta dele. */
+  filter: drop-shadow(0 0 3px color-mix(in srgb, var(--pp-inv-vida) 60%, transparent));
+}
+
+.pp-inv-ecg__traco,
+.pp-inv-ecg__rastro,
+.pp-inv-ecg__cabeca {
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.pp-inv-ecg__traco {
+  stroke-width: 1.5;
+  opacity: 0.35;
+}
+
+/* `pathLength` 100 no traço: os tracejados abaixo são porcentagem do caminho.
+   A cabeça (16) e o rastro (44, mais apagado) nascem antes do começo e somem
+   depois do fim, na mesma velocidade: a volta ao começo não pisca. */
+.pp-inv-ecg__rastro {
+  stroke-width: 1.8;
+  opacity: 0.55;
+  stroke-dasharray: 44 200;
+  animation: pp-inv-ecg-rastro var(--pp-inv-ciclo) linear infinite;
+}
+
+.pp-inv-ecg__cabeca {
+  stroke-width: 2.4;
+  stroke-dasharray: 16 200;
+  animation: pp-inv-ecg-cabeca var(--pp-inv-ciclo) linear infinite;
+}
+
+@keyframes pp-inv-ecg-cabeca {
+  from {
+    stroke-dashoffset: 16;
+  }
+  to {
+    stroke-dashoffset: -128;
+  }
+}
+
+@keyframes pp-inv-ecg-rastro {
+  from {
+    stroke-dashoffset: 44;
+  }
+  to {
+    stroke-dashoffset: -100;
+  }
+}
+
+/* Oculta: pontilhado parado, "sem leitura" — nunca a linha reta, que leria como morte. */
+.pp-inv-ecg--oculta .pp-inv-ecg__traco {
+  stroke-dasharray: 1.5 6;
+  opacity: 0.9;
+}
+
+.pp-inv-ecg--oculta .pp-inv-ecg__linha {
+  filter: none;
+}
+
+.pp-inv-ecg__estado {
+  margin: 0;
+  font-family: var(--lb-font-utility, 'Bahnschrift', system-ui, sans-serif);
+  font-size: var(--lb-font-size-xl, 20px);
+  font-weight: 600;
+  line-height: 1.15;
+  color: var(--pp-inv-vida);
+}
+
+.pp-inv-ecg--oculta .pp-inv-ecg__estado {
+  color: var(--lb-color-parchment-dim, #a2a09a);
+}
+
+.pp-inv-ecg__nota {
+  margin: 0;
+  font-size: 13px;
+  color: var(--lb-color-parchment-dim, #a2a09a);
+}
+
+/* As condições de mesa (as pastilhas em cima da ficha): a cor da pastilha e o nome. */
+.pp-inv__marcas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pp-inv__marca {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px 3px 7px;
+  font-size: 13px;
+  border: 1px solid var(--lb-color-line-strong, rgba(255, 255, 255, 0.16));
+  border-radius: var(--lb-radius-full, 999px);
+}
+
+.pp-inv__marca-cor {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.6);
+}
+
+/* ------------------------------------------------------------ a grade */
+
+.pp-inv__grade {
+  display: grid;
+  gap: 8px;
+}
+
+.pp-inv__fila {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.pp-inv__vaga,
+.pp-inv__vazia {
+  min-width: 0;
+  aspect-ratio: 1;
+}
+
+.pp-inv__item {
+  position: relative;
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  justify-items: center;
+  align-items: center;
+  gap: 2px;
+  padding: 12px 6px 7px;
+  font: inherit;
+  color: var(--lb-color-parchment-dim, #a2a09a);
+  background: var(--lb-color-stone, rgba(19, 19, 23, 0.94));
+  border: 1px solid var(--lb-color-line-strong, rgba(255, 255, 255, 0.16));
+  border-radius: var(--lb-radius-sm, 6px);
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform var(--lb-motion-fast, 110ms) var(--lb-motion-ease, ease);
+}
+
+@media (hover: hover) {
+  .pp-inv__item:hover {
+    color: var(--lb-color-parchment, #eceae4);
+    border-color: var(--lb-color-line-divider, rgba(255, 255, 255, 0.26));
+  }
+}
+
+.pp-inv__item:active {
+  transform: scale(0.97);
+  transition-duration: 0ms;
+}
+
+/* A vaga escolhida: o quadro claro do RE (pergaminho, não latão — o latão é
+   foco e ação). Borda dupla por sombra de dentro: nada pula de lugar. */
+.pp-inv__vaga[aria-selected='true'] > .pp-inv__item {
+  color: var(--lb-color-parchment, #eceae4);
+  background: var(--lb-color-stone-raised, #232328);
+  border-color: var(--lb-color-parchment, #eceae4);
+  box-shadow: inset 0 0 0 1px var(--lb-color-parchment, #eceae4);
+}
+
+.pp-inv :focus-visible {
+  outline: 2px solid var(--lb-color-brass, #e0a44a);
+  outline-offset: 2px;
+}
+
+.pp-inv__glifo {
+  width: 28px;
+  height: 28px;
+}
+
+.pp-inv__rotulo {
+  max-width: 100%;
+  font-size: var(--lb-font-size-sm, 11.5px);
+  line-height: 1.2;
+  text-align: center;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+}
+
+.pp-inv__qtd {
+  position: absolute;
+  top: 4px;
+  right: 7px;
+  font-family: var(--lb-font-utility, 'Bahnschrift', system-ui, sans-serif);
+  font-size: 13px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--lb-color-parchment, #eceae4);
+}
+
+/* A vaga vazia: o X do RE, em linha fina e recuado da borda. Só desenho. */
+.pp-inv__vazia {
+  box-sizing: border-box;
+  padding: 24%;
+  border: 1px solid var(--lb-color-line, rgba(255, 255, 255, 0.08));
+  border-radius: var(--lb-radius-sm, 6px);
+  background-origin: content-box;
+  background-clip: content-box;
+  background-image:
+    linear-gradient(
+      to top right,
+      transparent calc(50% - 0.75px),
+      var(--lb-color-line-strong, rgba(255, 255, 255, 0.16)) calc(50% - 0.75px) calc(50% + 0.75px),
+      transparent calc(50% + 0.75px)
+    ),
+    linear-gradient(
+      to bottom right,
+      transparent calc(50% - 0.75px),
+      var(--lb-color-line-strong, rgba(255, 255, 255, 0.16)) calc(50% - 0.75px) calc(50% + 0.75px),
+      transparent calc(50% + 0.75px)
+    );
+}
+
+/* --------------------------------------------------- o item escolhido */
+
+.pp-inv__detalhe {
+  grid-area: detalhe;
+  display: grid;
+  grid-template-columns: 88px minmax(0, 1fr);
+  column-gap: 16px;
+  align-content: start;
+}
+
+.pp-inv__detalhe-glifo {
+  box-sizing: border-box;
+  width: 88px;
+  aspect-ratio: 1;
+  display: grid;
+  place-items: center;
+  color: var(--lb-color-parchment, #eceae4);
+  background: var(--lb-color-stone-sunken, #141417);
+  border: 1px solid var(--lb-color-line-strong, rgba(255, 255, 255, 0.16));
+  border-radius: var(--lb-radius-sm, 6px);
+}
+
+.pp-inv__detalhe-glifo svg {
+  width: 48px;
+  height: 48px;
+}
+
+.pp-inv__detalhe-corpo {
+  min-width: 0;
+  display: grid;
+  gap: 6px;
+  align-content: start;
+}
+
+.pp-inv__detalhe-nome {
+  margin: 0;
+  padding-bottom: 8px;
+  font-size: var(--lb-font-size-lg, 15px);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+  border-bottom: 1px solid var(--lb-color-line-strong, rgba(255, 255, 255, 0.16));
+}
+
+.pp-inv__detalhe-texto,
+.pp-inv__convite,
+.pp-inv__motivo {
+  margin: 0;
+  font-size: 13px;
+  color: var(--lb-color-parchment-dim, #a2a09a);
+  max-width: 44ch;
+}
+
+.pp-inv__convite {
+  grid-column: 1 / -1;
+}
+
+.pp-inv__motivo {
+  color: var(--lb-color-parchment-faint, #858480);
+}
+
+.pp-inv__passo {
+  display: grid;
+  justify-items: start;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.pp-inv__acoes,
+.pp-inv__colegas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pp-inv__acao {
+  min-height: 44px;
+  padding: 0 16px;
+}
+
+/* "Não" e "Voltar": o caminho de saída, sem o latão da ação. */
+.pp-inv__acao--nao {
+  color: var(--lb-color-parchment, #eceae4);
+  border-color: var(--lb-color-line-divider, rgba(255, 255, 255, 0.26));
+}
+
+.pp-inv__pergunta {
+  margin: 0;
+  font-size: 14px;
+}
+
+.pp-inv__campo {
+  display: grid;
+  gap: 4px;
+  width: min(160px, 100%);
+}
+
+/* Montada desde o começo (a primeira mensagem também fala) e com altura
+   reservada: o resultado chega sem empurrar nada. */
+.pp-inv__status {
+  grid-column: 1 / -1;
+  min-height: 1.45em;
+  margin: 12px 0 0;
+  font-size: 13px;
+}
+
+.pp-inv__status--erro {
+  color: var(--lb-color-ember, #e2645a);
+}
+
+/* ----------------------------------------------------- as teclas */
+
+.pp-inv__teclas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+  margin: 0;
+  padding: 12px 0 0;
+  list-style: none;
+  font-size: 12px;
+  color: var(--lb-color-parchment-faint, #858480);
+  border-top: 1px solid var(--lb-color-line, rgba(255, 255, 255, 0.08));
+}
+
+.pp-inv__teclas kbd,
+.pp-bag__key {
+  box-sizing: border-box;
+  display: inline-block;
+  min-width: 1.7em;
+  margin-right: 4px;
+  padding: 0 5px;
+  font-family: var(--lb-font-utility, 'Bahnschrift', system-ui, sans-serif);
+  font-size: 11.5px;
+  line-height: 1.6;
+  text-align: center;
+  color: var(--lb-color-parchment-dim, #a2a09a);
+  border: 1px solid var(--lb-color-line-strong, rgba(255, 255, 255, 0.16));
+  border-radius: 4px;
+}
+
+/* A tecla no botão da barra, na tinta do latão dele. */
+.pp-bag__key {
+  margin: 0 0 0 2px;
+  color: inherit;
+  border-color: currentColor;
+  opacity: 0.7;
+}
+
+/* Sem teclado à mão (celular, tablet), as teclas só ocupariam lugar. */
+@media (hover: none) {
+  .pp-inv__teclas,
+  .pp-bag__key {
+    display: none;
+  }
+}
+
+/* Tela média: a ficha à esquerda, a grade e o item empilhados à direita. */
+@media (max-width: 999px) {
+  .pp-inv__corpo {
+    grid-template-columns: 220px minmax(0, 1fr);
+    grid-template-areas:
+      'ficha grade'
+      'ficha detalhe';
+    gap: 24px 28px;
+  }
+}
+
+/* Celular: uma coluna — retrato pequeno ao lado do nome e da faixa, a grade
+   de 4 colunas na largura toda, o item escolhido embaixo. */
+@media (max-width: 699px) {
+  .pp-inv {
+    padding: 12px 16px calc(16px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .pp-inv__quadro {
+    gap: 16px;
+    margin: 0 auto auto;
+  }
+
+  .pp-inv__corpo {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      'ficha'
+      'grade'
+      'detalhe';
+    gap: 20px;
+  }
+
+  /* Sem vão entre fileiras: fileira vazia (sem troca de ficha, sem condições)
+     não pode somar espaço. Quem existe traz a própria margem. */
+  .pp-inv__ficha {
+    grid-template-columns: 88px minmax(0, 1fr);
+    grid-template-areas:
+      'fichas fichas'
+      'retrato nome'
+      'retrato ecg'
+      'semfoto semfoto'
+      'marcas marcas';
+    column-gap: 12px;
+    row-gap: 0;
+  }
+
+  .pp-inv__fichas {
+    grid-area: fichas;
+    margin-bottom: 10px;
+  }
+
+  .pp-inv__retrato {
+    grid-area: retrato;
+    align-self: start;
+  }
+
+  .pp-inv__semfoto {
+    grid-area: semfoto;
+    margin-top: 8px;
+  }
+
+  .pp-inv__nome {
+    grid-area: nome;
+    align-self: end;
+    margin-bottom: 6px;
+  }
+
+  .pp-inv-ecg {
+    grid-area: ecg;
+  }
+
+  .pp-inv__marcas {
+    grid-area: marcas;
+    margin-top: 10px;
+  }
+
+  .pp-inv__monograma {
+    font-size: 30px;
+    border-width: 2px;
+  }
+
+  .pp-inv-ecg__estado {
+    font-size: 17px;
+  }
+
+  .pp-inv__lado-grade {
+    max-width: none;
+  }
+
+  .pp-inv__detalhe {
+    grid-template-columns: 64px minmax(0, 1fr);
+    column-gap: 12px;
+  }
+
+  .pp-inv__detalhe-glifo {
+    width: 64px;
+  }
+
+  .pp-inv__detalhe-glifo svg {
+    width: 36px;
+    height: 36px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pp-inv,
+  .pp-inv__quadro {
+    animation: none;
+  }
+
+  /* O traço fica inteiro e aceso, parado: a condição se lê do mesmo jeito. */
+  .pp-inv-ecg__rastro,
+  .pp-inv-ecg__cabeca {
+    display: none;
+  }
+
+  .pp-inv-ecg__traco {
+    opacity: 1;
+  }
+
+  .pp-inv__item {
+    transition: none;
+  }
+
+  .pp-inv__item:active {
+    transform: none;
+  }
 }
