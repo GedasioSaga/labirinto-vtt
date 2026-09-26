@@ -460,6 +460,7 @@ function ConditionStrip({ condition, owner }: { condition: InventoryCondition; o
         <path className="pp-inv-ecg__traco" d={path} />
         {!hidden && (
           <>
+            <path className="pp-inv-ecg__halo" d={path} pathLength={100} />
             <path className="pp-inv-ecg__rastro" d={path} pathLength={100} />
             <path className="pp-inv-ecg__cabeca" d={path} pathLength={100} />
           </>

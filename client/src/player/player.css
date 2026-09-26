@@ -4120,7 +4120,12 @@ button.pp-colecao__casa:focus-visible {
   overflow-y: auto;
   overscroll-behavior: contain;
   padding: 24px 16px calc(24px + env(safe-area-inset-bottom, 0px));
-  background: rgba(6, 6, 8, 0.84);
+  /* Quase fechado: a 0,84 o painel e os nomes das fichas liam por trás das
+     colunas e brigavam com a grade, e a 0,94 os nomes ainda apareciam entre o
+     palco e o texto do item (fotos de 26/09). Sem desfoque de fundo de
+     propósito: o Pixi redesenha a cada quadro, e o desfoque seria refeito
+     junto, o tempo todo, no celular. */
+  background: rgba(6, 6, 8, 0.97);
   animation: pp-inv-veu 160ms ease-out;
 }
 
@@ -4325,17 +4330,26 @@ button.pp-colecao__casa:focus-visible {
   height: auto;
   overflow: visible;
   color: var(--pp-inv-vida);
-  /* O brilho de fósforo: o traço acende o poço em volta dele. */
-  filter: drop-shadow(0 0 3px color-mix(in srgb, var(--pp-inv-vida) 60%, transparent));
 }
 
 .pp-inv-ecg__traco,
+.pp-inv-ecg__halo,
 .pp-inv-ecg__rastro,
 .pp-inv-ecg__cabeca {
   fill: none;
   stroke: currentColor;
   stroke-linecap: round;
   stroke-linejoin: round;
+}
+
+/* O brilho de fósforo em volta da cabeça: um traço largo e translúcido que
+   corre junto. Sem `filter` de sombra — no SVG animado o filtro seria refeito
+   a cada quadro, enquanto o inventário estiver aberto. */
+.pp-inv-ecg__halo {
+  stroke-width: 7;
+  opacity: 0.18;
+  stroke-dasharray: 16 200;
+  animation: pp-inv-ecg-cabeca var(--pp-inv-ciclo) linear infinite;
 }
 
 .pp-inv-ecg__traco {
@@ -4381,10 +4395,6 @@ button.pp-colecao__casa:focus-visible {
 .pp-inv-ecg--oculta .pp-inv-ecg__traco {
   stroke-dasharray: 1.5 6;
   opacity: 0.9;
-}
-
-.pp-inv-ecg--oculta .pp-inv-ecg__linha {
-  filter: none;
 }
 
 .pp-inv-ecg__estado {
@@ -4556,29 +4566,36 @@ button.pp-colecao__casa:focus-visible {
 
 /* --------------------------------------------------- o item escolhido */
 
+/* No computador, o item escolhido é o palco do meio — a tela de examinar do
+   RE: a caixa larga com o desenho grande, e embaixo o nome, a linha e o que
+   dá para fazer. Nas telas menores ele encolhe para o lado do texto. */
 .pp-inv__detalhe {
   grid-area: detalhe;
   display: grid;
-  grid-template-columns: 88px minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
+  row-gap: 16px;
   column-gap: 16px;
   align-content: start;
 }
 
 .pp-inv__detalhe-glifo {
   box-sizing: border-box;
-  width: 88px;
-  aspect-ratio: 1;
+  width: 100%;
+  aspect-ratio: 16 / 10;
   display: grid;
   place-items: center;
   color: var(--lb-color-parchment, #eceae4);
-  background: var(--lb-color-stone-sunken, #141417);
+  /* A luz de examinar: o item aceso no meio, a caixa apagando nas bordas. */
+  background: radial-gradient(ellipse at 50% 45%, var(--lb-color-stone-raised, #232328) 0%, var(--lb-color-stone-sunken, #141417) 72%);
   border: 1px solid var(--lb-color-line-strong, rgba(255, 255, 255, 0.16));
   border-radius: var(--lb-radius-sm, 6px);
 }
 
+/* Traço fino no desenho grande: o 1,5 da vaga, ampliado três vezes, viraria risco de pincel. */
 .pp-inv__detalhe-glifo svg {
-  width: 48px;
-  height: 48px;
+  width: 72px;
+  height: 72px;
+  stroke-width: 0.75;
 }
 
 .pp-inv__detalhe-corpo {
@@ -4721,6 +4738,22 @@ button.pp-colecao__casa:focus-visible {
       'ficha detalhe';
     gap: 24px 28px;
   }
+
+  .pp-inv__detalhe {
+    grid-template-columns: 88px minmax(0, 1fr);
+    row-gap: 0;
+  }
+
+  .pp-inv__detalhe-glifo {
+    width: 88px;
+    aspect-ratio: 1;
+  }
+
+  .pp-inv__detalhe-glifo svg {
+    width: 48px;
+    height: 48px;
+    stroke-width: 1;
+  }
 }
 
 /* Celular: uma coluna — retrato pequeno ao lado do nome e da faixa, a grade
@@ -4728,6 +4761,11 @@ button.pp-colecao__casa:focus-visible {
 @media (max-width: 699px) {
   .pp-inv {
     padding: 12px 16px calc(16px + env(safe-area-inset-bottom, 0px));
+  }
+
+  /* Celular em pé: não há teclado para as setas, e a linha só empurraria o resto. */
+  .pp-inv__teclas {
+    display: none;
   }
 
   .pp-inv__quadro {
@@ -4813,6 +4851,7 @@ button.pp-colecao__casa:focus-visible {
   .pp-inv__detalhe-glifo svg {
     width: 36px;
     height: 36px;
+    stroke-width: 1.2;
   }
 }
 
@@ -4823,6 +4862,7 @@ button.pp-colecao__casa:focus-visible {
   }
 
   /* O traço fica inteiro e aceso, parado: a condição se lê do mesmo jeito. */
+  .pp-inv-ecg__halo,
   .pp-inv-ecg__rastro,
   .pp-inv-ecg__cabeca {
     display: none;
