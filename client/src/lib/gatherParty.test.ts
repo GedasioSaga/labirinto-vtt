@@ -12,8 +12,9 @@ import { describe, expect, it } from 'vitest'
 import type { HostWorld } from '../net/hostSession'
 import type { MapData, Token, Wall } from '../types/map'
 import { applyGatherPlan, gatherCandidates, gatherGroups, gatherSpots, holdAlongSeats, pinClearance, planGather, vehicleRiderSpots, type GatherPlan } from './gatherParty'
-import { createEmptyMap } from './mapFactory'
+import { createEmptyMap, setTokenPosition } from './mapFactory'
 import type { PartyMember } from './party'
+import { passengerIdsOf } from './vehicle'
 
 const GRADE = 50
 /** Centro de uma casa. */
@@ -508,5 +509,84 @@ describe('holdAlongSeats: as casas de quem atravessa junto com a ficha principal
     const reuniao = { seats: [], keepClear: [] }
     expect(holdAlongSeats(reuniao, [], partida)).toBe(reuniao)
     expect(holdAlongSeats(undefined, [{ tokenId: 'sumiu', x: 7, y: 7 }], partida)).toBeUndefined()
+  })
+})
+
+describe('veículo que já está na cena do pino: quem vai a bordo sem estar marcado chega em casa livre', () => {
+  // A Duda leva o bote no salão, com um NPC a bordo que o mestre não marcou; a Bia e o Caio andam a pé.
+  const bote = (npcEm: { x: number; y: number }): Token[] => [
+    { ...ficha('bote', casa(4, 4)), veiculo: { lugares: 2, passageiros: ['npc'] } },
+    ficha('npc', npcEm),
+    ficha('bia', casa(2, 9)),
+    ficha('caio', casa(15, 9)),
+  ]
+  const noSalao = (tokens: Token[], walls: Wall[] = []): HostWorld => ({ open: { sceneId: 'salao', name: 'Salão', map: mapa({ tokens, walls }) }, background: [] })
+  const membro = (playerId: string, name: string, token: Token): PartyMember => ({
+    playerId,
+    name,
+    connected: true,
+    sceneId: 'salao',
+    sceneName: null,
+    travelPending: false,
+    mochila: [],
+    token: { id: token.id, color: '#3cff00', x: token.x, y: token.y },
+  })
+  /** Reúne Duda, Bia e Caio no pino e aplica o passo local como o editor (`setTokenPositions`: uma ficha por vez). */
+  const reunir = (mundo: HostWorld) => {
+    const porId = (id: string): Token => {
+      const token = mundo.open.map.tokens.find((t) => t.id === id)
+      if (token === undefined) throw new Error(`ficha ${id} fora do salão`)
+      return token
+    }
+    const plano = planGather([membro('p1', 'Duda', porId('bote')), membro('p2', 'Bia', porId('bia')), membro('p3', 'Caio', porId('caio'))], mundo, PINO)
+    let depois = mundo.open.map
+    const falhou = applyGatherPlan(plano, {
+      sceneId: 'salao',
+      bringFromOtherScene: () => false,
+      placeInScene: (posicoes) => {
+        depois = posicoes.reduce((acc, p) => setTokenPosition(acc, p.id, p.x, p.y), depois)
+      },
+    })
+    const onde = (id: string): { x: number; y: number } => {
+      const token = depois.tokens.find((t) => t.id === id)
+      if (token === undefined) throw new Error(`ficha ${id} sumiu`)
+      return { x: token.x, y: token.y }
+    }
+    return { plano, falhou, depois, onde }
+  }
+  const empilhadas = (map: MapData): string[] => {
+    const porCasa = new Map<string, string[]>()
+    for (const t of map.tokens) porCasa.set(`${t.x}|${t.y}`, [...(porCasa.get(`${t.x}|${t.y}`) ?? []), t.id])
+    return [...porCasa.values()].filter((ids) => ids.length > 1).map((ids) => ids.join('+'))
+  }
+
+  it.each([
+    ['à esquerda, embaixo (cairia em cima da Bia)', casa(3, 5)],
+    ['à direita, embaixo (cairia em cima do Caio)', casa(5, 5)],
+    ['logo embaixo (cairia na casa do pino)', casa(4, 5)],
+  ])('NPC %s: ninguém empilhado, nada na casa do pino, e ele continua a bordo ao lado do bote', (_caso, npcEm) => {
+    const { plano, falhou, depois, onde } = reunir(noSalao(bote(npcEm)))
+    expect(falhou).toEqual([])
+    expect(plano.leftOut).toEqual([])
+    expect(plano.moves.map((m) => m.tokenId)).toEqual(['bote', 'bia', 'caio'])
+    expect(empilhadas(depois)).toEqual([])
+    expect(depois.tokens.filter((t) => t.x === PINO.x && t.y === PINO.y).map((t) => t.id)).toEqual([])
+    // Arrastado pelo bote: o mesmo afastamento de antes, e ainda a bordo.
+    const doBote = onde('bote')
+    expect(onde('npc')).toEqual({ x: doBote.x + npcEm.x - casa(4, 4).x, y: doBote.y + npcEm.y - casa(4, 4).y })
+    expect(passengerIdsOf(depois, 'bote')).toEqual(['npc'])
+    // A casa onde o NPC chega fica guardada para quem atravessa antes do passo local.
+    expect(plano.hold.seats).toContainEqual({ ...onde('npc'), size: 1 })
+  })
+
+  it('o Gui, marcado e a bordo, tem casa própria em volta do pino: o NPC não marcado não cai nela', () => {
+    const gui = ficha('gui', casa(5, 4))
+    const tokens: Token[] = [{ ...ficha('bote', casa(4, 4)), veiculo: { lugares: 2, passageiros: ['gui', 'npc'] } }, gui, ficha('npc', casa(4, 5)), ficha('bia', casa(2, 9)), ficha('caio', casa(15, 9))]
+    const mundo = noSalao(tokens)
+    const plano = planGather([membro('p1', 'Duda', tokens[0]), membro('p4', 'Gui', gui)], mundo, PINO)
+    const depois = [...plano.moves].reduce((acc, m) => setTokenPosition(acc, m.tokenId, m.x, m.y), mundo.open.map)
+    expect(plano.leftOut).toEqual([])
+    expect(empilhadas(depois)).toEqual([])
+    expect(depois.tokens.filter((t) => t.x === PINO.x && t.y === PINO.y).map((t) => t.id)).toEqual([])
   })
 })

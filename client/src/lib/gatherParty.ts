@@ -7,7 +7,7 @@ import { compileFloor } from './floorSdf'
 import type { PartyMember } from './party'
 import { PIN_HEAD_OFFSET, PIN_HEAD_RADIUS } from './pins'
 import { seatTokenCenter, tokenSizeInSquares, type Point } from './tokenSize'
-import { vehicleCarrying } from './vehicle'
+import { passengersOf, vehicleCarrying, withRiders } from './vehicle'
 
 /**
  * REUNIR O GRUPO AQUI (G5) — a parte pura: ONDE cada ficha assenta em volta
@@ -98,6 +98,11 @@ export function seatIsTaken(map: MapData, p: Point, size: number, movingTokenIds
   return overlapsSeated(seatedTokens(map, movingTokenIds), p, size, map.grid)
 }
 
+/** `true` = uma ficha de `size` casas em `p` cobriria algum círculo de `keepClear`. */
+function coversKeepClear(keepClear: readonly KeepClear[], p: Point, size: number, grid: number): boolean {
+  return keepClear.some((c) => Math.hypot(c.x - p.x, c.y - p.y) < (size * grid) / 2 + c.radius)
+}
+
 /**
  * As casas livres em volta de `pin`, uma para cada tamanho de ficha em
  * `sizes` (na mesma ordem). `null` = não coube até `GATHER_MAX_RING`.
@@ -138,6 +143,20 @@ interface SeatFinder {
   take(seat: Point, size: number): void
   /** A casa livre mais perto do ponto (já marcada como ocupada); `null` = não coube até `GATHER_MAX_RING`. */
   takeNearest(size: number): Point | null
+  /**
+   * `takeNearest` de quem leva outras fichas junto: a casa só serve se cada
+   * uma de `companions(casa)` também cabe (`fits`; a que `stays` só precisa
+   * não ter ficha em cima). A casa e as delas ficam ocupadas juntas; as delas
+   * não são checadas umas contra as outras (andam em bloco, como estavam).
+   * Devolve a casa e as das que vão junto; `null` = não coube até `GATHER_MAX_RING`.
+   */
+  takeNearestWith(size: number, companions: (seat: Point) => Companion[] | null): { seat: Point; along: Companion[] } | null
+}
+
+/** Uma ficha que vai junto com a que senta: onde ela fica e se só fica onde está. */
+interface Companion extends Seated {
+  /** `true` = não anda (a parede a barrou): vale onde está, sem checar o caminho até o pino. */
+  stays: boolean
 }
 
 function seatFinder(map: MapData, pin: Point, movingTokenIds: ReadonlySet<string>, keepClear: readonly KeepClear[]): SeatFinder {
@@ -169,24 +188,29 @@ function seatFinder(map: MapData, pin: Point, movingTokenIds: ReadonlySet<string
   }
 
   const taken = seatedTokens(map, movingTokenIds)
-  const coversKeepClear = (p: Point, size: number): boolean => keepClear.some((c) => Math.hypot(c.x - p.x, c.y - p.y) < (size * grid) / 2 + c.radius)
 
-  const fits = (seat: Point, size: number): boolean => reachable(seat) && !overlapsSeated(taken, seat, size, grid) && !coversKeepClear(seat, size)
+  const fits = (seat: Point, size: number): boolean => reachable(seat) && !overlapsSeated(taken, seat, size, grid) && !coversKeepClear(keepClear, seat, size, grid)
   const take = (seat: Point, size: number): void => {
     taken.push({ point: seat, size })
+  }
+  const companionFits = (c: Companion): boolean => (c.stays ? !overlapsSeated(taken, c.point, c.size, grid) : fits(c.point, c.size))
+  const takeNearestWith = (size: number, companions: (seat: Point) => Companion[] | null): { seat: Point; along: Companion[] } | null => {
+    for (const cell of cells) {
+      const seat = map.gridShape === 'square' ? seatTokenCenter(cell, cell, grid, size) : cell
+      if (!fits(seat, size)) continue
+      const along = companions(seat)
+      if (along === null || !along.every(companionFits)) continue
+      take(seat, size)
+      for (const c of along) take(c.point, c.size)
+      return { seat, along }
+    }
+    return null
   }
   return {
     fits,
     take,
-    takeNearest: (size) => {
-      for (const cell of cells) {
-        const seat = map.gridShape === 'square' ? seatTokenCenter(cell, cell, grid, size) : cell
-        if (!fits(seat, size)) continue
-        take(seat, size)
-        return seat
-      }
-      return null
-    },
+    takeNearest: (size) => takeNearestWith(size, () => [])?.seat ?? null,
+    takeNearestWith,
   }
 }
 
@@ -447,6 +471,34 @@ function entourageSpots(map: MapData, center: Point, pin: Point, tokens: readonl
 }
 
 /**
+ * VEÍCULO QUE SÓ ANDA NA CENA DO PINO: onde fica cada passageiro `riders` (a
+ * bordo e não marcado) quando o veículo `vehicle` assenta em `seat`. O passo
+ * local o arrasta pelo mesmo deslocamento (`moveTokenWithVehicle`) sem olhar
+ * casa ocupada; por isso a reunião escolhe a casa do veículo em que o arrasto
+ * cai em casa livre. Quem a parede barra (`withRiders`) fica onde está e desce
+ * do veículo: `stays`.
+ *
+ * `null` = a casa não serve para o veículo: um passageiro cobriria o pino
+ * (`pinClearance`) ou cairia em cima de quem fica; com `allFollow`, também
+ * quando alguém ficaria para trás.
+ */
+function localRiderSeats(map: MapData, vehicle: Token, riders: readonly Token[], seat: Point, pin: Point, allFollow: boolean): Companion[] | null {
+  if (riders.length === 0) return []
+  const dx = seat.x - vehicle.x
+  const dy = seat.y - vehicle.y
+  const follows = withRiders(map, new Set([vehicle.id]), dx, dy)
+  if (allFollow && riders.some((rider) => !follows.has(rider.id))) return null
+  const along = riders.map((rider): Companion => {
+    const size = tokenSizeInSquares(rider)
+    return follows.has(rider.id) ? { point: { x: rider.x + dx, y: rider.y + dy }, size, stays: false } : { point: { x: rider.x, y: rider.y }, size, stays: true }
+  })
+  const clear = pinClearance(pin)
+  const stayers = along.filter((c) => c.stays)
+  const blocked = along.some((c) => !c.stays && (coversKeepClear(clear, c.point, c.size, map.grid) || overlapsSeated(stayers, c.point, c.size, map.grid)))
+  return blocked ? null : along
+}
+
+/**
  * Plano da reunião dos `members` marcados em volta de `pin`, que mora na cena
  * ABERTA (é nela que o mestre clicou no pino). Quem já está na cena só anda;
  * quem está em outra viaja. Ficha que não coube fica de fora do plano — menos
@@ -456,6 +508,12 @@ function entourageSpots(map: MapData, center: Point, pin: Point, tokens: readonl
  * colada à do dono. Os donos sentam PRIMEIRO, todos em volta do pino; o
  * séquito depois, em volta de cada dono — o pônei não toma de um jogador a
  * casa perto do pino.
+ *
+ * VEÍCULO QUE JÁ ESTÁ NA CENA DO PINO: quem vai a bordo sem estar marcado
+ * (NPC, jogador que o mestre não marcou) anda arrastado pelo veículo, no
+ * mesmo afastamento. O veículo só senta numa casa em que esse arrasto cai em
+ * casa livre, fora do pino e das casas dos outros (`localRiderSeats`), e essas
+ * casas entram em `hold` como as de todo mundo.
  */
 export function planGather(members: readonly PartyMember[], world: HostWorld, pin: Point): GatherPlan {
   const openMap = world.open.map
@@ -476,22 +534,29 @@ export function planGather(members: readonly PartyMember[], world: HostWorld, pi
   // O veículo que também viaja no plano, da mesma cena, leva a ficha junto.
   const carriedBy = (j: (typeof joining)[number]): string | undefined =>
     j.vehicle !== null && joining.some((other) => other.travels && other.token.id === j.vehicle && other.member.sceneId === j.member.sceneId) ? j.vehicle : undefined
-  // Quem já está na cena vai sair do lugar, com o séquito: as casas de onde saem não contam como ocupadas.
-  const moving = new Set(joining.filter((j) => !j.travels).flatMap((j) => [j.token, ...j.entourage].map((t) => t.id)))
-  const spots = gatherSpots(
-    openMap,
-    pin,
-    joining.map((j) => tokenSizeInSquares(j.token)),
-    moving,
-  )
+  // VEÍCULO QUE SÓ ANDA: quem vai a bordo dele sem estar marcado anda arrastado
+  // pelo veículo no passo local (`moveTokenWithVehicle`), sem casa própria.
+  const joiningIds = new Set(joining.map((j) => j.token.id))
+  const riders = joining.map((j) => (j.travels ? [] : passengersOf(openMap, j.token.id).filter((r) => !joiningIds.has(r.id))))
+  // Quem já está na cena vai sair do lugar, com o séquito e quem vai a bordo: as casas de onde saem não contam como ocupadas.
+  const moving = new Set([
+    ...joining.filter((j) => !j.travels).flatMap((j) => [j.token, ...j.entourage].map((t) => t.id)),
+    ...riders.flat().map((r) => r.id),
+  ])
+  const seats = seatFinder(openMap, pin, moving, [])
   const taken: Seated[] = []
-  const seated = new Set<string>()
-  joining.forEach((j, index) => {
-    const spot = spots[index] ?? null
-    if (spot === null) return
-    taken.push({ point: spot, size: tokenSizeInSquares(j.token) })
-    seated.add(j.token.id)
+  const spots = joining.map((j, index) => {
+    const size = tokenSizeInSquares(j.token)
+    const aboard = riders[index] ?? []
+    // Primeiro a casa em que todos a bordo acompanham; sem ela, a em que quem a parede barra fica e desce.
+    const found =
+      seats.takeNearestWith(size, (seat) => localRiderSeats(openMap, j.token, aboard, seat, pin, true)) ??
+      (aboard.length === 0 ? null : seats.takeNearestWith(size, (seat) => localRiderSeats(openMap, j.token, aboard, seat, pin, false)))
+    if (found === null) return null
+    taken.push({ point: found.seat, size }, ...found.along.map((c) => ({ point: c.point, size: c.size })))
+    return found.seat
   })
+  const seated = new Set(joining.filter((_j, index) => (spots[index] ?? null) !== null).map((j) => j.token.id))
   const moves: GatherMove[] = []
   const leftOut: string[] = []
   const ridesAlong: GatherRider[] = []
