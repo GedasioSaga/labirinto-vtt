@@ -1,4 +1,4 @@
-import type { HazardKind, MapData, MarcaRumo, RegionPoint } from '../types/map'
+import type { HazardKind, MapData, MarcaRumo, PinCard, RegionPoint } from '../types/map'
 import type { PlayerHazard } from '../lib/hazards'
 import type { PlayerAreaTrigger } from '../lib/areaTriggers'
 import type { PlayerClock } from '../lib/campaignClock'
@@ -7,9 +7,9 @@ import type { ExploredWire } from '../lib/exploration'
 import type { TokenMoveLanding, TokenMoveRejection } from '../lib/moveValidation'
 import type { PlayerConfronto } from '../lib/confronto'
 import { LASER_MAX_POINTS_PER_MESSAGE } from '../lib/laser'
+import { isPinIcon, isPlayerSafePinImage } from '../lib/pins'
 import { isTokenPhotoData } from '../lib/tokenPhoto'
 import { ROOM_TEXT_MAX_LENGTH } from '../lib/roomText'
-import { isPlayerSafePinImage } from '../lib/pins'
 import { CLUEBOOK_MAX_CLUES, CLUE_TEXT_MAX_LENGTH, CLUE_TITLE_MAX_LENGTH } from '../lib/clues'
 import { isPointActionKind, isPointActionRejection, type PointActionAnswer, type PointActionKind, type PointActionRejection } from '../lib/pointActions'
 import { isLetterVia, LETTER_TEXT_MAX_LENGTH, type LetterVia } from '../lib/correio'
@@ -318,6 +318,10 @@ export type { OwnTokenElsewhere }
  * `Pin.loja` do snapshot, já recortada pela névoa. Nem o pedido nem a
  * resposta levam nome ou id de cena. Mestre antigo responde `error
  * invalid_message`; jogador antigo ignora a resposta e o campo novo.
+ *
+ * `pin.show` (mestre -> jogador) é o "MOSTRAR AGORA A…", aditivo pelo mesmo
+ * critério: jogador antigo ignora. Leva só o cartão (`PinCard`), nunca a
+ * posição do pino nem o destino, e só para o jogador escolhido.
  */
 export const PROTOCOL_VERSION = 1
 
@@ -1068,6 +1072,12 @@ export interface AbaloMessage {
   seta?: AbaloSeta
 }
 
+/** "Mostrar agora a…": o cartão de um ponto de interesse, aberto sozinho na tela de quem recebe. */
+export interface PinShowMessage {
+  type: 'pin.show'
+  pin: PinCard
+}
+
 /** Um recado guardado no caderno do jogador. Nada da cena: só o que ele leu e quando. */
 export interface NoteEntry {
   id: string
@@ -1512,6 +1522,7 @@ export type HostMessage =
   // VOLTO JÁ: o estado que o host guarda. `travelPending`: o pedido dele ainda espera o mestre.
   | { type: 'away'; away: boolean; travelPending?: true }
   | RouteHostMessage
+  | PinShowMessage
   | { type: 'kicked' }
   | { type: 'room.closed' }
   // A mesma pessoa entrou por outra aba (ou aparelho) com o resume desta
@@ -1745,6 +1756,25 @@ function isNoteTime(value: unknown): value is number {
 
 function isAbaloSeta(value: unknown): value is AbaloSeta {
   return typeof value === 'string' && ABALO_SETAS.some((seta) => seta === value)
+}
+
+/**
+ * Valida o `pin.show` que o jogador recebe. Devolve cópia só com os campos do
+ * cartão. Pino de viagem, tipo ou símbolo desconhecido e forma errada recusam
+ * a mensagem inteira; imagem em texto que não é data URL vira `null` — o
+ * `<img>` do jogador nunca recebe caminho do disco do mestre nem outro esquema.
+ */
+export function parsePinShow(value: unknown): PinShowMessage | null {
+  if (!isRecord(value) || value.type !== 'pin.show' || !isRecord(value.pin)) return null
+  const { id, kind, icon, description, image } = value.pin
+  if (!isBoundedString(id, 1, REQ_ID_MAX_LENGTH)) return null
+  if (kind !== 'exclamacao' && kind !== 'interrogacao') return null
+  if (typeof description !== 'string') return null
+  if (image !== null && typeof image !== 'string') return null
+  if (icon !== undefined && !isPinIcon(icon)) return null
+  const pin: PinCard = { id, kind, description, image: isPlayerSafePinImage(image) ? image : null }
+  if (icon !== undefined) pin.icon = icon
+  return { type: 'pin.show', pin }
 }
 
 /**

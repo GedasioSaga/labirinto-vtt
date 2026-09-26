@@ -1,4 +1,4 @@
-import type { ConcealZone, DoorState, Drawing, FloorPiece, HazardKind, LayerId, Light, MapData, MapLine, MapMarker, Pin, Region, RegionPoint, Stair, Token, TokenCompanion, TokenContract, Wall, WatchAlert } from '../types/map'
+import type { ConcealZone, DoorState, Drawing, FloorPiece, HazardKind, LayerId, Light, MapData, MapLine, MapMarker, Pin, PinCard, Region, RegionPoint, Stair, Token, TokenCompanion, TokenContract, Wall, WatchAlert } from '../types/map'
 import { cellCenter, cellKeyAt, cellRunRects, concealedPieces, REVEAL_BRUSH_CELL, unveiledCellsOf } from './concealBrush'
 import { isTokenPhotoData } from './tokenPhoto'
 import { tokenAsSeenByPlayer, tokenPublicNameMode } from './tokenPublicName'
@@ -4322,4 +4322,36 @@ export function noiseCueForPlayer(
     nearestDistance = distance
   }
   return nearest === null ? null : noiseDirection(nearest, point, map.grid)
+}
+
+/**
+ * "MOSTRAR AGORA A…": o cartão que o mestre abre na tela de um jogador. É o
+ * recorte do cartão, não do mapa: vai o texto INTEIRO e a imagem mesmo com o
+ * pino na névoa ou "só de perto" e a ficha longe — mostrar é o mestre
+ * entregando a pista de propósito. Por isso mesmo não vai a POSIÇÃO: o pino
+ * pode estar numa sala que o jogador nunca viu, e o cartão não diz onde.
+ *
+ * O pino OCULTO PARA JOGADORES sai também: é a carta escondida na gaveta que
+ * o mestre entrega a quem revistou ("Entregar pista…"). Quem decide é sempre
+ * o mestre — jogador nenhum consegue pedir um cartão por id.
+ *
+ * `null` (nada sai):
+ * - pino de viagem (e a chegada oculta): o cartão de passagem é do mapa, e
+ *   mostrá-lo longe ofereceria passar por onde o jogador não está;
+ * - alavanca: o cartão dela é o botão de puxar, que só vale de perto.
+ *
+ * LISTA DO QUE VAI, como em `pinForPlayer`: campo desconhecido não atravessa —
+ * nem o nome e a nota do mestre, nem item, loja, fechadura ou coleção.
+ */
+export function pinCardForPlayer(pin: Pin): PinCard | null {
+  if (isArrivalOnly(pin)) return null
+  if (pin.kind !== 'exclamacao' && pin.kind !== 'interrogacao') return null
+  const card: PinCard = {
+    id: pin.id,
+    kind: pin.kind,
+    description: pin.description,
+    image: isPlayerSafePinImage(pin.image) ? pin.image : null,
+  }
+  if (isPinIcon(pin.icon)) card.icon = pin.icon
+  return card
 }
