@@ -1390,6 +1390,171 @@ body {
   color: var(--lb-color-parchment-dim);
 }
 
+/* ---------------------------------------------------- dicas sob demanda (P3) */
+
+/* A frase que explica um controle do painel (ligada a ele por
+   aria-describedby) sai do fluxo e vira balão: lib/dicaDoPainel.ts marca
+   data-dica, abre ao pairar na linha ou ao chegar nela pelo teclado, e mede
+   x/y. `position: fixed` porque o containing block é o .lb-panel (tem
+   backdrop-filter): o corpo que rola não corta o balão, e nada abaixo da linha
+   se mexe quando ele abre. Fechado, some da vista mas não do DOM: o leitor de
+   tela continua lendo a frase como descrição do controle. Aviso de estado,
+   motivo de controle desligado e frase do Avançado ficam no fluxo, sem
+   data-dica. `pointer-events: none`: o balão cobre a linha de baixo, e o clique
+   seguinte tem de cair no controle, não nele (mesmo cuidado do .lb-tip). */
+.lb-inspector__body .lb-field__hint[data-dica] {
+  position: fixed;
+  top: var(--lb-dica-y, 0);
+  left: var(--lb-dica-x, 0);
+  z-index: 15;
+  width: max-content;
+  max-width: var(--lb-dica-max, calc(var(--lb-layout-rail-width) - 2 * var(--lb-space-4)));
+  margin: 0;
+  padding: var(--lb-space-2) var(--lb-space-3);
+  border: 1px solid var(--lb-color-line-strong);
+  border-radius: var(--lb-radius-md);
+  /* Um degrau acima da pedra do painel: o balão se lê como camada por cima. */
+  background: var(--lb-color-stone-raised);
+  box-shadow: var(--lb-shadow-md);
+  color: var(--lb-color-parchment);
+  font-size: var(--lb-font-size-sm);
+  line-height: var(--lb-font-leading-normal);
+  text-wrap: pretty;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.lb-inspector__body .lb-field__hint[data-dica='aberta'] {
+  visibility: visible;
+}
+
+/* Seta: quadrado girado com duas bordas, como a do .lb-tip, apontando o começo
+   do rótulo da linha (--lb-dica-seta vem medido). */
+.lb-inspector__body .lb-field__hint[data-dica]::before {
+  content: '';
+  position: absolute;
+  left: var(--lb-dica-seta, var(--lb-space-3));
+  width: 8px;
+  height: 8px;
+  margin-left: -4px;
+  background: var(--lb-color-stone-raised);
+  border: 1px solid var(--lb-color-line-strong);
+  transform: rotate(45deg);
+}
+
+.lb-inspector__body .lb-field__hint[data-dica-lado='abaixo']::before {
+  top: -5px;
+  border-right: 0;
+  border-bottom: 0;
+}
+
+.lb-inspector__body .lb-field__hint[data-dica-lado='acima']::before {
+  bottom: -5px;
+  border-top: 0;
+  border-left: 0;
+}
+
+/* Linha com duas frases: só o balão encostado nela leva a seta. */
+.lb-inspector__body .lb-field__hint[data-dica-lado='pilha']::before {
+  display: none;
+}
+
+/* Só o PRIMEIRO balão de um passeio de ponteiro entra com movimento: esmaece e
+   sai de junto da linha em 110 ms. O vizinho, aberto em seguida, e o que o
+   teclado abre aparecem já no lugar (o script não põe data-dica-entrada). */
+.lb-inspector__body .lb-field__hint[data-dica='aberta'][data-dica-entrada] {
+  transform-origin: var(--lb-dica-seta, var(--lb-space-3)) top;
+  animation: lb-dica-entra var(--lb-motion-fast) var(--lb-motion-ease);
+}
+
+.lb-inspector__body .lb-field__hint[data-dica-lado='acima'][data-dica-entrada] {
+  transform-origin: var(--lb-dica-seta, var(--lb-space-3)) bottom;
+  animation-name: lb-dica-entra-de-baixo;
+}
+
+@keyframes lb-dica-entra {
+  from {
+    opacity: 0;
+    transform: translateY(-3px) scale(0.97);
+  }
+}
+
+@keyframes lb-dica-entra-de-baixo {
+  from {
+    opacity: 0;
+    transform: translateY(3px) scale(0.97);
+  }
+}
+
+/* O "?" discreto da linha que tem frase, logo depois do rótulo. `'?' / ''`: o
+   texto alternativo vazio tira o "?" do nome acessível, então o interruptor
+   continua "Travado" (e não "Travado?") para o leitor de tela e para as
+   jornadas. `display: inline`, e não um bloco em linha: assim o "?" é
+   pontuação colada à última palavra, a quebra antes dele não é permitida, e
+   ele nunca desce sozinho para a linha de baixo do rótulo ("Teto fechado para
+   jogadores" enche a linha). O anel é a borda da caixa em linha; o padding em
+   em da própria letra dá o mesmo anel no rótulo de campo e no de interruptor. */
+label.lb-switch[data-dica-linha] > span:first-child::after,
+[data-dica-linha] > .lb-label:first-child::after {
+  content: '?' / '';
+  display: inline;
+  margin-left: var(--lb-space-1);
+  padding: 0.05em 0.42em;
+  border: 1px solid var(--lb-color-line-strong);
+  border-radius: var(--lb-radius-full);
+  font-family: var(--lb-font-utility);
+  font-size: var(--lb-font-size-xs);
+  font-weight: var(--lb-font-weight-semibold);
+  color: var(--lb-color-parchment-faint);
+  vertical-align: 0.08em;
+  transition:
+    color var(--lb-motion-fast) var(--lb-motion-ease),
+    border-color var(--lb-motion-fast) var(--lb-motion-ease);
+}
+
+/* Rótulo de interruptor que ganhou o "?" e não coube numa linha: as duas
+   linhas saem do mesmo tamanho, e não uma palavra sozinha com o "?" embaixo. */
+label.lb-switch[data-dica-linha] > span:first-child {
+  text-wrap: balance;
+}
+
+/* Ponteiro ou foco na linha: o "?" acende um degrau, antes de o balão abrir.
+   Linha aberta fica de fora: com o ponteiro em cima, esta regra (mais
+   específica pelo :hover) venceria o latão da regra de baixo. */
+label.lb-switch[data-dica-linha]:not([data-dica-linha='aberta']):hover > span:first-child::after,
+label.lb-switch[data-dica-linha]:not([data-dica-linha='aberta']):focus-within > span:first-child::after,
+[data-dica-linha]:not([data-dica-linha='aberta']):hover > .lb-label:first-child::after,
+[data-dica-linha]:not([data-dica-linha='aberta']):focus-within > .lb-label:first-child::after {
+  color: var(--lb-color-parchment-dim);
+  border-color: var(--lb-color-parchment-faint);
+}
+
+/* Balão aberto: o "?" da linha fica em latão, o par dele. */
+label.lb-switch[data-dica-linha='aberta'] > span:first-child::after,
+[data-dica-linha='aberta'] > .lb-label:first-child::after {
+  color: var(--lb-color-brass);
+  border-color: var(--lb-color-brass);
+}
+
+/* RoomControls.css dá um degrau a mais depois do interruptor que tem frase,
+   para a frase não se ler como legenda do de baixo. Com a frase no balão, o
+   próximo interruptor volta ao passo curto do grupo. */
+.lb-room-switch:has(> .lb-field__hint[data-dica]) + * {
+  margin-top: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lb-inspector__body .lb-field__hint[data-dica='aberta'][data-dica-entrada],
+  .lb-inspector__body .lb-field__hint[data-dica-lado='acima'][data-dica-entrada] {
+    animation: none;
+  }
+
+  label.lb-switch[data-dica-linha] > span:first-child::after,
+  [data-dica-linha] > .lb-label:first-child::after {
+    transition: none;
+  }
+}
+
 /* Erro junto ao campo (tamanho do mapa, rótulo do andar do prédio): diz o que
    corrigir, sem apagar o que foi digitado. Mesma letra da dica, em brasa. */
 .lb-field__error {
