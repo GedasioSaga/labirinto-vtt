@@ -6991,11 +6991,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     // pedido de passagem e do cartão ("Chegue mais perto").
     if (!view.map.tokens.some((t) => owned.has(t.id) && tokenReachesPin(t, pin, from.map.grid))) return reject('unavailable')
     const scenes = allScenes(world)
-    const lookup = (sceneId: string): TravelScene | null => {
-      const scene = scenes.find((s) => s.sceneId === sceneId)
-      return scene === undefined ? null : { name: scene.name, map: scene.map }
-    }
-    const travel = resolvePinTravel(pin, from.sceneId, lookup, SAIDA_PRINCIPAL)
+    const travel = resolvePinTravel(pin, from.sceneId, travelLookup(scenes), SAIDA_PRINCIPAL)
     if (travel.status !== 'ligado') return reject('unavailable')
     const to = scenes.find((s) => s.sceneId === travel.sceneId)
     if (to === undefined || to.sceneId === null) return reject('unavailable')
