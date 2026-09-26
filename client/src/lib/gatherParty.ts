@@ -190,6 +190,27 @@ function seatFinder(map: MapData, pin: Point, movingTokenIds: ReadonlySet<string
   }
 }
 
+/** Uma casa já dada a uma ficha que ainda não chegou nela: ninguém mais senta ali. */
+export interface HeldSeat {
+  x: number
+  y: number
+  /** Tamanho da ficha, em casas. */
+  size: number
+}
+
+/**
+ * O que o "Reunir o grupo aqui" guarda para si enquanto as travessias
+ * acontecem, uma por vez: as casas que o plano já deu (a todo o grupo,
+ * séquito incluído) e o pino da reunião (`pinClearance`). Quem vem a bordo de
+ * um veículo, e a travessia põe em volta dele, não senta em nenhuma: na hora,
+ * ainda estão vazias as casas de quem chega depois do veículo e de quem já
+ * está na cena e só assenta no fim.
+ */
+export interface SeatHold {
+  seats: readonly HeldSeat[]
+  keepClear: readonly KeepClear[]
+}
+
 /** Um passageiro que chega com o veículo: o afastamento que tinha dele na cena de origem, em px, e o tamanho em casas. */
 export interface ArrivingRider {
   dx: number
@@ -214,15 +235,20 @@ export interface ArrivingRider {
  * `keepClear`: o que nenhum passageiro cobre — a casa e a cabeça dos pinos de
  * viagem do destino (`pinClearance`), que o veículo chega colado a um deles.
  * Afastamento que cairia em cima do pino também não vale.
+ *
+ * `held`: casas já dadas a fichas que ainda não chegaram (`SeatHold`): contam
+ * como ocupadas, como se a ficha já estivesse lá.
  */
 export function vehicleRiderSpots(
   map: MapData,
   vehicle: Point & { size: number },
   riders: readonly ArrivingRider[],
   keepClear: readonly KeepClear[] = [],
+  held: readonly HeldSeat[] = [],
 ): Point[] {
   const seats = seatFinder(map, vehicle, new Set(), keepClear)
   seats.take(vehicle, vehicle.size)
+  for (const seat of held) seats.take({ x: seat.x, y: seat.y }, seat.size)
   const reach = GATHER_MAX_RING * map.grid
   return riders.map((rider) => {
     const kept = { x: vehicle.x + rider.dx, y: vehicle.y + rider.dy }
@@ -283,6 +309,8 @@ export interface GatherPlan {
   leftOut: string[]
   /** Sem casa, mas vem a bordo de um veículo que tem: chega com ele, sem casa reservada. */
   ridesAlong: GatherRider[]
+  /** O que cada travessia leva junto para quem vem a bordo não sentar na casa de outro (`SeatHold`). */
+  hold: SeatHold
 }
 
 /** Um jogador da lista "Reunir o grupo aqui": só quem tem ficha em alguma cena. */
@@ -479,7 +507,9 @@ export function planGather(members: readonly PartyMember[], world: HostWorld, pi
   // solta o vínculo (`adventureStore.transferToken`): a reunião desfaria o
   // que o mestre prendeu.
   const along = (move: GatherMove): number => (broughtBy(move).length === 0 ? 0 : 1)
-  return { moves: [...moves].sort((a, b) => along(a) - along(b)), leftOut, ridesAlong }
+  // Depois do séquito: `entourageSpots` pôs em `taken` as casas dele também.
+  const hold: SeatHold = { seats: taken.map((seat) => ({ x: seat.point.x, y: seat.point.y, size: seat.size })), keepClear: pinClearance(pin) }
+  return { moves: [...moves].sort((a, b) => along(a) - along(b)), leftOut, ridesAlong, hold }
 }
 
 /**
@@ -531,7 +561,7 @@ export function applyGatherPlan(plan: GatherPlan, effects: GatherEffects): strin
       broughtAlong.add(move.tokenId)
       continue
     }
-    const at: GatherArrival = move.entourage === undefined ? { x: move.x, y: move.y } : { x: move.x, y: move.y, entourage: move.entourage }
+    const at: GatherArrival = { x: move.x, y: move.y, hold: plan.hold, ...(move.entourage === undefined ? {} : { entourage: move.entourage }) }
     const ok = effects.sceneId !== null && effects.bringFromOtherScene(move.playerId, effects.sceneId, at)
     if (ok) arrived.add(move.tokenId)
     else failed.push(move.name)

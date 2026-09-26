@@ -111,7 +111,7 @@ async function mesa() {
     getWorld: () => hostWorldOf(useAdventureStore.getState(), useMapStore.getState().map),
     applyMove: () => undefined,
     applyDoor: () => undefined,
-    applyTransfer: ({ tokenId, fromSceneId, toSceneId, x, y }) => useAdventureStore.getState().transferToken(tokenId, fromSceneId, toSceneId, x, y),
+    applyTransfer: ({ tokenId, fromSceneId, toSceneId, x, y, piso, hold }) => useAdventureStore.getState().transferToken(tokenId, fromSceneId, toSceneId, x, y, piso, hold),
     onPlayersChange: vi.fn(),
     now: () => 0,
   })
@@ -508,6 +508,62 @@ describe('veículo com lugares: o cesto leva o Gui e mais 1, recusa o 3º, e os 
     expect(gx).toBeLessThan(x2)
     expect(gy).toBeGreaterThan(y1)
     expect(gy).toBeLessThan(y2)
+    t.desligar()
+    await t.bridge.stop()
+  })
+
+  it('"Reunir o grupo" num pino apertado com mais gente: quem chega a bordo não senta na casa de quem viaja depois', async () => {
+    const t = await mesa()
+    const duda = t.entra('c-duda', 'Duda')
+    t.bridge.assignToken(duda, 'cesto')
+    const bia = t.bridge.players().find((p) => p.name === 'Bia')?.playerId ?? ''
+    const caio = t.bridge.players().find((p) => p.name === 'Caio')?.playerId ?? ''
+    // A Bia vai a bordo, uma casa à direita do cesto: o afastamento dela cai na casa que o plano dá ao Caio.
+    useMapStore.getState().setVehiclePassenger('cesto', 'bia', true)
+    // Um nicho de três casas em a07: a da fogueira, a do meio e a da direita.
+    const [x1, x2, y1, y2] = [10 * 64, 13 * 64, 8 * 64, 9 * 64]
+    useAdventureStore.getState().updateBackgroundScene(t.a07, (map) => ({
+      ...map,
+      walls: [
+        ...map.walls,
+        ...[
+          [x1, y1, x2, y1],
+          [x2, y1, x2, y2],
+          [x2, y2, x1, y2],
+          [x1, y2, x1, y1],
+        ].map(([ax, ay, bx, by], i) => ({ id: `nicho-${i}`, x1: ax, y1: ay, x2: bx, y2: by, blocksLight: true, blocksMove: true, door: null })),
+      ],
+    }))
+    expect(useAdventureStore.getState().switchScene(t.a07)).toBe(true)
+    const FOGUEIRA: Pin = { id: 'fogueira', x: 10 * 64 + 32, y: 8 * 64 + 32, kind: 'exclamacao', description: 'Fogueira', image: null }
+    useMapStore.getState().addPin(FOGUEIRA)
+    const world = hostWorldOf(useAdventureStore.getState(), useMapStore.getState().map)
+    const ordem = [duda, caio, bia]
+    const members = partyMembers(t.bridge.players(), world)
+      .filter((m) => ordem.includes(m.playerId))
+      .sort((a, b) => ordem.indexOf(a.playerId) - ordem.indexOf(b.playerId))
+    const plan = planGather(members, world, FOGUEIRA)
+    expect(plan.leftOut).toEqual([])
+    expect(plan.moves.map((m) => [m.tokenId, m.x, m.y])).toEqual([
+      ['cesto', 11 * 64 + 32, 8 * 64 + 32],
+      ['caio', 12 * 64 + 32, 8 * 64 + 32],
+    ])
+    expect(plan.ridesAlong.map((r) => [r.tokenId, r.carriedBy])).toEqual([['bia', 'cesto']])
+
+    const failed = applyGatherPlan(plan, {
+      sceneId: world.open.sceneId,
+      bringFromOtherScene: (playerId, sceneId, at) => t.bridge.sendPlayer(playerId, sceneId, null, at),
+      placeInScene: (positions) => useMapStore.getState().setTokenPositions(positions),
+    })
+
+    expect(failed).toEqual([])
+    const noA07 = posicoes(t.a07)
+    // O Caio na casa dele, e a Bia fora dela: nenhuma ficha empilhada em cima de outra (a de baixo sumia).
+    expect(noA07.caio).toEqual([12 * 64 + 32, 8 * 64 + 32])
+    expect(noA07.bia).not.toEqual(noA07.caio)
+    // Sem casa livre fora da fogueira, a Bia fica dentro do cesto — ainda a bordo, dentro do nicho.
+    expect(noA07.bia).toEqual(noA07.cesto)
+    expect(passengerIdsOf(useMapStore.getState().map, 'cesto')).toEqual(['bia'])
     t.desligar()
     await t.bridge.stop()
   })

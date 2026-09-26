@@ -181,6 +181,7 @@ describe('o vínculo da ficha levada que muda de cena sem quem a leva', () => {
     const plan = {
       leftOut: [],
       ridesAlong: [],
+      hold: { seats: [], keepClear: [] },
       moves: [
         { playerId: 'p-ana', name: 'Ana', tokenId: 'grog', travels: true, x: 10, y: 10 },
         { playerId: 'p-bia', name: 'Bia', tokenId: 'lia', travels: true, x: 20, y: 10, vemCom: 'grog' },

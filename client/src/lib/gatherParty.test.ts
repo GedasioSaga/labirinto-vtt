@@ -328,6 +328,87 @@ describe('veículo no "Reunir o grupo": quem vai a bordo de um veículo que tamb
       expect(falhou).toEqual(['Duda', 'Gui'])
     })
 
+    describe('com mais gente no pino: quem chega a bordo não senta na casa de outro membro', () => {
+      /** Corredor que começa na casa do pino (coluna 10) e fecha na linha x = `fim` casas. */
+      const corredorAte = (fim: number): Wall[] => {
+        const x2 = fim * GRADE
+        return [parede('n', 500, 250, x2, 250), parede('l', x2, 250, x2, 300), parede('s', x2, 300, 500, 300), parede('o', 500, 300, 500, 250)]
+      }
+      const caio = ficha('caio', casa(8, 8))
+      const lia = ficha('lia', casa(9, 8))
+      const mundoCorredor = (fim: number, noSalao: Token[] = []): HostWorld => ({
+        open: { sceneId: 'salao', name: 'Salão', map: mapa({ walls: corredorAte(fim), tokens: noSalao }) },
+        background: [{ sceneId: 'cripta', name: 'Cripta', map: mapa({ tokens: [{ ...bote, veiculo: { lugares: 2, passageiros: ['remo'] } }, remo, caio, lia] }) }],
+      })
+      const doCaio = membro('p3', 'Caio', caio)
+      const daLia = membro('p4', 'Lia', lia)
+      /** Onde a travessia do bote põe o Gui (`adventureStore.transferToken`), com o que a reunião guardou. */
+      const guiNaTravessia = (plano: GatherPlan, salao: MapData): { x: number; y: number } | undefined => {
+        const doBote = plano.moves.find((m) => m.tokenId === 'bote')
+        if (doBote === undefined) return undefined
+        const [casaDoGui] = vehicleRiderSpots(salao, { x: doBote.x, y: doBote.y, size: 1 }, [{ dx: remo.x - bote.x, dy: remo.y - bote.y, size: 1 }], plano.hold.keepClear, plano.hold.seats)
+        return casaDoGui
+      }
+
+      it('o plano guarda a casa de cada membro e o pino, e cada travessia leva isso junto', () => {
+        const plano = planGather([dona, doCaio, gui], mundoCorredor(13), PINO)
+        expect(plano.moves.map((m) => [m.tokenId, m.x, m.y])).toEqual([
+          ['bote', casa(11, 5).x, casa(11, 5).y],
+          ['caio', casa(12, 5).x, casa(12, 5).y],
+        ])
+        expect(plano.ridesAlong.map((r) => r.tokenId)).toEqual(['remo'])
+        expect(plano.hold).toEqual({
+          seats: [
+            { ...casa(11, 5), size: 1 },
+            { ...casa(12, 5), size: 1 },
+          ],
+          keepClear: pinClearance(PINO),
+        })
+        const chegadas: unknown[] = []
+        applyGatherPlan(plano, {
+          sceneId: 'salao',
+          bringFromOtherScene: (_playerId, _sceneId, at) => {
+            chegadas.push(at.hold)
+            return true
+          },
+          placeInScene: () => undefined,
+        })
+        expect(chegadas).toEqual([plano.hold, plano.hold])
+      })
+
+      it('o Caio viaja depois do bote: o afastamento do Gui cai na casa dele, e o Gui fica dentro do bote', () => {
+        // Três casas: a do pino, a do bote e a do Caio. O Gui estava uma casa à direita do bote.
+        const mundo = mundoCorredor(13)
+        const plano = planGather([dona, doCaio, gui], mundo, PINO)
+        expect(guiNaTravessia(plano, mundo.open.map)).toEqual(casa(11, 5))
+      })
+
+      it('o Caio já está no salão e só assenta no fim: a casa dele também fica guardada', () => {
+        const caioAqui = ficha('caio', casa(12, 5))
+        const mundo = mundoCorredor(13, [caioAqui])
+        const plano = planGather([dona, { ...membro('p3', 'Caio', caioAqui), sceneId: 'salao' }, gui], mundo, PINO)
+        expect(plano.moves.map((m) => [m.tokenId, m.travels, m.x, m.y])).toEqual([
+          ['bote', true, casa(11, 5).x, casa(11, 5).y],
+          ['caio', false, casa(12, 5).x, casa(12, 5).y],
+        ])
+        // Sem o Caio no mapa (a travessia vê o salão como ficará): a casa dele continua guardada.
+        expect(guiNaTravessia(plano, mapa({ walls: corredorAte(13) }))).toEqual(casa(11, 5))
+      })
+
+      it('sobra uma casa livre perto do bote: o Gui senta nela, não na do Caio nem na da Lia', () => {
+        // Cinco casas: pino, bote, Caio, Lia — e a da ponta, longe demais do pino, mas a três casas do bote.
+        const mundo = mundoCorredor(15)
+        const plano = planGather([dona, doCaio, daLia, gui], mundo, PINO)
+        expect(plano.leftOut).toEqual([])
+        expect(plano.moves.map((m) => [m.tokenId, m.x])).toEqual([
+          ['bote', casa(11, 5).x],
+          ['caio', casa(12, 5).x],
+          ['lia', casa(13, 5).x],
+        ])
+        expect(guiNaTravessia(plano, mundo.open.map)).toEqual(casa(14, 5))
+      })
+    })
+
     it('fora do bote, ou com o bote também sem casa: o Gui fica mesmo de fora', () => {
       const semBordo = planGather([dona, gui], mundoApertado(cubiculo, []), PINO)
       expect(semBordo.leftOut).toEqual(['Gui'])
@@ -369,6 +450,13 @@ describe('vehicleRiderSpots: onde quem vai a bordo assenta quando o veículo che
   it('ficha já na casa do afastamento: o passageiro assenta na mais perto livre', () => {
     const map = mapa({ tokens: [ficha('rocha', { x: PINO.x + GRADE, y: PINO.y })] })
     expect(vehicleRiderSpots(map, { ...PINO, size: 1 }, [{ dx: GRADE, dy: 0, size: 1 }])).toEqual([{ x: PINO.x, y: PINO.y - GRADE }])
+  })
+
+  it('casa já dada a quem ainda não chegou: o passageiro não senta nela', () => {
+    const chegada = { ...PINO, size: 1 }
+    const aDireita = [{ dx: GRADE, dy: 0, size: 1 }]
+    expect(vehicleRiderSpots(mapa(), chegada, aDireita)).toEqual([{ x: PINO.x + GRADE, y: PINO.y }])
+    expect(vehicleRiderSpots(mapa(), chegada, aDireita, [], [{ x: PINO.x + GRADE, y: PINO.y, size: 1 }])).toEqual([{ x: PINO.x, y: PINO.y - GRADE }])
   })
 
   it('sem casa livre nenhuma: fica na casa do próprio veículo, dentro do mapa', () => {

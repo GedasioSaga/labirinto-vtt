@@ -16,7 +16,7 @@ import { singleSceneWorld, travelPinsClearance, type AppliedItems, type HostScen
 import { applyItemChange } from '../lib/items'
 import { carrierIdOf, withoutCarrier } from '../lib/carry'
 import { leaveVehicle, passengersOf } from '../lib/vehicle'
-import { vehicleRiderSpots } from '../lib/gatherParty'
+import { vehicleRiderSpots, type SeatHold } from '../lib/gatherParty'
 import { tokenSizeInSquares } from '../lib/tokenSize'
 import type { Bounds, Camera, Point } from '../pixi/world'
 import * as mapFactory from '../lib/mapFactory'
@@ -375,9 +375,11 @@ interface AdventureState {
    * ver `transferToken` abaixo. `false` quando não deu (cena fora do ar,
    * token que já não está lá, mesma cena). PISOS NA MESMA CENA: `piso` é o
    * piso da cena de destino onde ele chega; ausente = o térreo — o piso da
-   * cena de partida não vale na outra cena.
+   * cena de partida não vale na outra cena. VEÍCULO no "Reunir o grupo aqui":
+   * `hold` são as casas que a reunião já deu e o pino dela — quem vem a bordo
+   * não senta em nenhuma (`SeatHold`).
    */
-  transferToken: (tokenId: string, fromSceneId: string, toSceneId: string, x: number, y: number, piso?: number) => boolean
+  transferToken: (tokenId: string, fromSceneId: string, toSceneId: string, x: number, y: number, piso?: number, hold?: SeatHold) => boolean
   /**
    * "Levar para…" da ficha SEM DONO (NPC, monstro): leva o token `tokenId` da
    * cena aberta para `toSceneId`, na ponta do pino de viagem `pinId` (`null` =
@@ -1640,7 +1642,7 @@ export const useAdventureStore = create<AdventureState>()((set, get) => ({
     return true
   },
 
-  transferToken: (tokenId, fromSceneId, toSceneId, x, y, piso) => {
+  transferToken: (tokenId, fromSceneId, toSceneId, x, y, piso, hold) => {
     const { activeSceneId, cache, dirty } = get()
     if (activeSceneId === null || fromSceneId === toSceneId) return false
     const read = (sceneId: string): SceneHistory | null => {
@@ -1661,14 +1663,16 @@ export const useAdventureStore = create<AdventureState>()((set, get) => ({
     // dele, quando a casa serve; senão, na casa livre mais perto do veículo —
     // nunca fora do mapa, do outro lado de uma parede ou em cima de um pino de
     // viagem (o veículo chega colado ao par). PISOS: todos chegam no piso do
-    // veículo, e só a planta desse piso barra (`mapaDoPiso`).
+    // veículo, e só a planta desse piso barra (`mapaDoPiso`). No "Reunir o
+    // grupo aqui", nem na casa que a reunião deu a outro, nem no pino dela.
     const riders = passengersOf(from.map, tokenId)
     const planta = mapaDoPiso(to.map, piso ?? 0)
     const seats = vehicleRiderSpots(
       planta,
       { x, y, size: tokenSizeInSquares(token) },
       riders.map((p) => ({ dx: p.x - token.x, dy: p.y - token.y, size: tokenSizeInSquares(p) })),
-      travelPinsClearance(planta),
+      [...travelPinsClearance(planta), ...(hold?.keepClear ?? [])],
+      hold?.seats ?? [],
     )
     const arrive = (t: Token, at: Point): Token => comPiso({ ...arrivingLink(t, to.map), x: at.x, y: at.y }, piso)
     const travelers: Token[] = [arrive(token, { x, y }), ...riders.map((p, index) => arrive(p, seats[index]))]

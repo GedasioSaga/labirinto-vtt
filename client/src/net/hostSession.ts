@@ -64,7 +64,7 @@ import { carriedItemsOf, cleanItemName, itemOfPin, tokenReachesPin, tokensTouch,
 import { itemAVenda } from '../lib/loja'
 import { selectedTokenColor } from '../lib/tokenColor'
 import { arrivalSpot, arrivalSpotWithoutPin, exitLabelsOf, freeSeatNear, isArrivalOnly, oneWayExitsOf, resolvePinTravel, SAIDA_PRINCIPAL, sameDestination, travelExitOf, type TravelScene } from '../lib/pinTravel'
-import { gatherSpots, pinClearance, type KeepClear } from '../lib/gatherParty'
+import { gatherSpots, pinClearance, type KeepClear, type SeatHold } from '../lib/gatherParty'
 import { visibleTokens } from '../lib/layers'
 import type { SavedSceneMemory, SavedSeat, SavedSeatExploration } from '../lib/savedTable'
 import { companionSpots, companionsNear, entourageNear, entourageSeats, type Companion, type Seat } from '../lib/travelTogether'
@@ -605,6 +605,13 @@ export interface AppliedTransfer {
    * integrador as move pela mesma store, depois desta. Ausente = só ela.
    */
   entourage?: EntourageSeat[]
+  /**
+   * VEÍCULO no "Reunir o grupo aqui": as casas que a reunião já deu e o pino
+   * dela. O integrador as passa à travessia (`adventureStore.transferToken`):
+   * quem vem a bordo não senta em cima de quem chega depois. Ausente = nada
+   * guardado. Nada disto vai ao jogador.
+   */
+  hold?: SeatHold
 }
 
 /** Um ajudante que atravessa junto com o dono, e onde ele assenta na cena de destino. */
@@ -661,6 +668,8 @@ export interface GatherArrival {
   x: number
   y: number
   entourage?: readonly EntourageSeat[]
+  /** VEÍCULO: as casas do plano e o pino da reunião, que quem vem a bordo não toma (`SeatHold`). Ausente = nada guardado. */
+  hold?: SeatHold
 }
 
 /**
@@ -7504,6 +7513,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
         // PISOS: no piso do pino escolhido; centro da cena e "Reunir", térreo.
         ...(pin === null || pisoDe(pin) === 0 ? {} : { piso: pisoDe(pin) }),
         ...(companions.length > 0 ? { companions } : {}),
+        ...(gatherAt?.hold === undefined ? {} : { hold: gatherAt.hold }),
       }
       // "Reunir o grupo aqui" já escolheu a casa de cada ficha do grupo inteiro,
       // séquito incluído (`lib/gatherParty.ts`): sentar o séquito agora tomaria
