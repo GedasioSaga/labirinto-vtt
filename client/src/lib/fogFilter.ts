@@ -1377,6 +1377,8 @@ interface TokenCut {
  * - `emprestada`: só a deste recorte (`cut.lentNpc`); a gravada no mapa nunca.
  * - `locked`: só na ficha do DONO, e só travada (o cadeado da tela dele); na
  *   de outro diria quem o mestre está segurando.
+ * - `congelado`: a mesma regra do `locked` — só na do DONO e só `true` (o
+ *   floco e o aviso "Congelado pelo mestre"; `lib/congelar.ts`).
  * - `piso`: o da ficha (só as do piso do recorte chegam aqui, então não conta
  *   nada de outro piso); a escada da tela dele decide subir ou descer por ele.
  * - `companion`: só a marca deste recorte (`cut.companion`, nome e cor de quem
@@ -1421,6 +1423,8 @@ function tokenForPlayer(token: Token, cut: TokenCut): Token {
   // jogador, onde vira o cadeado da tela dele. Na de outro (colega, NPC que o
   // mestre segura) ela diria quem o mestre está segurando.
   if (cut.isOwner && token.locked === true) forPlayer.locked = true
+  // CONGELAR FICHA: mesma mão da trava — só na do dono; na de outro diria quem o mestre congelou.
+  if (cut.isOwner && token.congelado === true) forPlayer.congelado = true
   // PISOS NA MESMA CENA: a escada da tela dele (`escadaDaFicha`) lê o piso da
   // ficha para saber se sobe ou desce. Só vai piso válido e fora do térreo
   // (térreo é o campo ausente, como no arquivo — `comPiso`).
