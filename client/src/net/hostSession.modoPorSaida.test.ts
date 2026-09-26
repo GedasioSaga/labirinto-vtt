@@ -167,6 +167,15 @@ describe('hostSession: modo por saída', () => {
     expect(r.applyPinPassage).toEqual({ pinId: 'cruz', passagem: 'pede', exitId: 'saida_poco' })
   })
 
+  it('"Passar para pede" pela extra que HERDA do pino trancado troca o modo do PINO, como antes da feature', () => {
+    const t = mesa({ pino: 'trancada' })
+    const pedido = t.pedir('saida_torre').travelRequest
+    if (pedido === undefined) throw new Error('o pedido deveria valer')
+    const r = t.s.approveLockedTravelAsAsk(pedido.requestId, t.w)
+    expect(r.applyTransfer).toMatchObject({ toSceneId: TORRE })
+    expect(r.applyPinPassage).toEqual({ pinId: 'cruz', passagem: 'pede' })
+  })
+
   it('SEGURANÇA — o snapshot leva o modo de cada saída e nada da outra cena', () => {
     const t = mesa({ torre: 'livre', poco: 'trancada' })
     const snap = t.snapshot.outbound.find((o) => o.clientId === 'c1' && o.msg.type === 'snapshot')?.msg

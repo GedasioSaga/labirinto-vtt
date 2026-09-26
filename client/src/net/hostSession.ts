@@ -69,7 +69,7 @@ import { tokenHasPass } from '../lib/pinPass'
 import { carriedItemsOf, cleanItemName, itemOfPin, tokenReachesPin, tokensTouch, type ItemChange } from '../lib/items'
 import { itemAVenda } from '../lib/loja'
 import { selectedTokenColor } from '../lib/tokenColor'
-import { acceptsLockedExitRequest, arrivalSpot, arrivalSpotWithoutPin, exitLabelsOf, exitPassageOf, freeSeatNear, isArrivalOnly, oneWayExitsOf, resolvePinTravel, SAIDA_PRINCIPAL, sameDestination, travelExitOf, type TravelScene } from '../lib/pinTravel'
+import { acceptsLockedExitRequest, arrivalSpot, arrivalSpotWithoutPin, exitLabelsOf, exitPassageOf, freeSeatNear, isArrivalOnly, isExitPassage, oneWayExitsOf, resolvePinTravel, SAIDA_PRINCIPAL, sameDestination, travelExitOf, type TravelScene } from '../lib/pinTravel'
 import { gatherSpots, pinClearance, type KeepClear, type SeatHold } from '../lib/gatherParty'
 import { visibleTokens } from '../lib/layers'
 import type { SavedSceneMemory, SavedSeat, SavedSeatExploration } from '../lib/savedTable'
@@ -8216,11 +8216,15 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       // muda a cena dele para a de destino.
       const world = toWorld(source)
       const from = pending.trancada === true ? sceneFor(pending.playerId, world) : null
+      // MODO POR SAÍDA: só a extra trancada POR CONTA PRÓPRIA passa a pedir
+      // sozinha. A que herdava o cadeado do pino abre o pino inteiro, como
+      // antes das saídas terem modo.
+      const pin = from?.map.pins.find((p) => p.id === pending.pinId)
+      const saida = pending.exitId === SAIDA_PRINCIPAL ? undefined : pin?.saidas?.find((s) => s.id === pending.exitId)
       const result = api.approveTravel(requestId, source)
       if (from === null || from.sceneId === null || result.applyTransfer === undefined) return result
       const passage: AppliedPinPassage = { pinId: pending.pinId, passagem: 'pede' }
-      // MODO POR SAÍDA: o pedido veio por uma saída extra — é ELA que passa a pedir.
-      if (pending.exitId !== SAIDA_PRINCIPAL) passage.exitId = pending.exitId
+      if (saida !== undefined && isExitPassage(saida.passagem)) passage.exitId = saida.id
       if (from.sceneId !== world.open.sceneId) passage.sceneId = from.sceneId
       return { ...result, applyPinPassage: passage }
     },
