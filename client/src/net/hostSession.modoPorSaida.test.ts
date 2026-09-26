@@ -148,6 +148,16 @@ describe('hostSession: modo por saída', () => {
     expect(recusa(outra.pedir('principal'))).toBe('unavailable')
   })
 
+  it('barrar segue o modo do PINO: trancado com uma extra livre recusa; pino que pede com uma extra trancada aceita', () => {
+    // O cartão do jogador (`PlayerPinCard`) só oferece "Barrar a passagem" nessa mesma regra.
+    const barrar = (t: ReturnType<typeof mesa>): HostResult => t.s.handleMessage('c1', { type: 'pin.bar', pinId: 'cruz', on: true }, t.w)
+    const trancado = barrar(mesa({ pino: 'trancada', torre: 'livre' }))
+    expect(trancado.outbound).toEqual([])
+    expect(trancado.trancaAviso).toBeUndefined()
+    const pede = barrar(mesa({ poco: 'trancada' }))
+    expect(pede.trancaAviso).toMatchObject({ playerName: 'Ana', alvo: 'passagem', acao: 'trancou' })
+  })
+
   it('"Passar para pede" do pedido pela saída trancada troca o modo DAQUELA saída, não o do pino', () => {
     const t = mesa({ pino: 'livre', poco: 'trancada' })
     const pedido = t.pedir('saida_poco').travelRequest

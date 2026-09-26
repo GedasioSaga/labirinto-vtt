@@ -431,13 +431,18 @@ export function PlayerPinCard({
   const modos = encruzilhada ? escolhas.map(modoDaSaida) : [passagem]
   const modosMisturados = modos.some((modo) => modo !== modos[0])
   const trancada = viagem && modos.every((modo) => modo === 'trancada') && !trancadaComSegredo
+  // Barrar e chamar a cabine são gestos do PINO, não de uma saída: o host
+  // (`handlePinBar`, `handleCabineCall`) recusa quando o modo do PINO é
+  // trancada, mesmo numa encruzilhada com uma extra livre. O cartão segue a
+  // mesma regra para não oferecer botão que nunca faz nada.
+  const pinoTrancado = trancada || (viagem && passagem === 'trancada')
   // CABINE DE TRANSPORTE: só se passa com a cabine AQUI (e livre) — longe,
   // chamada ou ocupada, o host recusaria. A frase não diz onde a cabine está
   // nem quem está nela: o recorte nem sabe. Longe, oferece chamá-la. Fechada
   // com segredo também não chama: primeiro a combinação.
   const cabine = cabineDoPino
   const semCabine = cabine !== undefined && cabine !== 'aqui'
-  const podeChamar = !trancada && !trancadaComSegredo && cabine === 'longe' && !chamou && onChamarCabine !== undefined
+  const podeChamar = !pinoTrancado && !trancadaComSegredo && cabine === 'longe' && !chamou && onChamarCabine !== undefined
   // CHAVE ABRE PORTA: o host só manda `chave` a quem encosta no pino com o
   // item. O mapa chega da rede sem conferência campo a campo: só texto vale.
   // A chave abre o pino TRANCADO (o host só a manda nele): numa encruzilhada
@@ -488,7 +493,7 @@ export function PlayerPinCard({
   // isso o texto não diz "você" — seria falso para quem não barrou.
   const barrada = viagem && pin.barradaDaqui === true
   // Fechada (a chave ou com segredo) já não passa ninguém: barrar não muda nada.
-  const podeBarrar = viagem && !trancada && !trancadaComSegredo && onBarrar !== undefined
+  const podeBarrar = viagem && !pinoTrancado && !trancadaComSegredo && onBarrar !== undefined
   // ITEM PEGÁVEL: o nome vem no recorte, numa cópia limpa (`lib/fogFilter.ts`).
   const item = itemOfPin(pin)
   // SÓ IDA: o par é a chegada oculta. No pino de uma saída vem em `semVolta`;

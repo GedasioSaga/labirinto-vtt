@@ -110,6 +110,56 @@ describe('PlayerPinCard: modo por saída', () => {
     expect(pedir).toHaveBeenCalledWith('saida_torre')
   })
 
+  /**
+   * Barrar e chamar a cabine são do PINO, não da saída: o host
+   * (`handlePinBar`, `handleCabineCall` em `net/hostSession.ts`) recusa em
+   * silêncio quando o modo do pino é trancada, mesmo com uma extra livre. O
+   * cartão não pode oferecer um botão que nunca faz nada.
+   */
+  function renderComGestos(pin: Pin, onBarrar: (on: boolean) => void, onChamarCabine: () => boolean): void {
+    act(() =>
+      root.render(
+        <PlayerPinCard pin={pin} stairs={[]} onClose={() => {}} onRequestTravel={() => {}} onBarrar={onBarrar} onChamarCabine={onChamarCabine} />,
+      ),
+    )
+  }
+
+  const TRANCADO_COM_LIVRE: Pin = {
+    ...CRUZ,
+    passagem: 'trancada',
+    escolhas: [
+      { id: 'principal', rotulo: 'Porta' },
+      { id: 'saida_torre', rotulo: 'Escada', passagem: 'livre' },
+    ],
+  }
+
+  it('pino trancado com uma saída livre: não oferece "Barrar a passagem"', () => {
+    const barrar = vi.fn()
+    renderComGestos(TRANCADO_COM_LIVRE, barrar, () => true)
+    // A encruzilhada continua lá, com a saída livre dizendo o modo dela.
+    expect(saidas().map((b) => b.textContent)).toEqual(['Porta Trancada', 'Escada Livre'])
+    expect(botao('Barrar a passagem')).toBeUndefined()
+    expect(barrar).not.toHaveBeenCalled()
+  })
+
+  it('pino trancado com uma saída livre e a cabine longe: não oferece "Chamar a cabine"', () => {
+    const chamar = vi.fn(() => true)
+    renderComGestos({ ...TRANCADO_COM_LIVRE, cabine: 'longe' }, () => {}, chamar)
+    expect(container.textContent).toContain('Fechar')
+    expect(botao('Chamar a cabine')).toBeUndefined()
+    expect(chamar).not.toHaveBeenCalled()
+  })
+
+  it('pino que pede com uma saída trancada: "Barrar a passagem" e "Chamar a cabine" seguem valendo', () => {
+    const barrar = vi.fn()
+    const chamar = vi.fn(() => true)
+    renderComGestos({ ...CRUZ, cabine: 'longe' }, barrar, chamar)
+    act(() => botao('Barrar a passagem')?.click())
+    expect(barrar).toHaveBeenCalledWith(true)
+    act(() => botao('Chamar a cabine')?.click())
+    expect(chamar).toHaveBeenCalledTimes(1)
+  })
+
   it('controle: todas as saídas no mesmo modo, o cartão é o de sempre (sem etiqueta de modo)', () => {
     render({ ...CRUZ, escolhas: [{ id: 'principal', rotulo: 'Porta' }, { id: 'saida_torre', rotulo: 'Escada' }] })
     expect(saidas().map((b) => b.textContent)).toEqual(['Porta', 'Escada'])
