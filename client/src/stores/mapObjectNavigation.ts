@@ -1,6 +1,8 @@
 import { mapObjectKey, mapObjectOf, type MapObjectEntry } from '../lib/mapObjects'
+import { pisoDe } from '../lib/pisos'
 import { placeBounds } from '../lib/placeTree'
 import type { Bounds, Point } from '../pixi/world'
+import type { MapData, NoPiso } from '../types/map'
 import { EMPTY_SELECTION, selectionOfItem, type SelectionItem } from '../lib/selectionModel'
 import { useAdventureStore } from './adventureStore'
 import { useFollowStore } from './followStore'
@@ -20,6 +22,14 @@ function selectionTarget(entry: MapObjectEntry): SelectionItem | { pinId: string
     case 'pin':
       return { pinId: entry.id }
   }
+}
+
+/** O piso do objeto da lista; objeto que não está mais no mapa: `null`. */
+function pisoDoObjeto(map: MapData, entry: MapObjectEntry): number | null {
+  const lista: readonly (NoPiso & { id: string })[] =
+    entry.kind === 'room' ? map.regions : entry.kind === 'door' ? map.walls : entry.kind === 'token' ? map.tokens : entry.kind === 'text' ? map.drawings : map.pins
+  const item = lista.find((candidato) => candidato.id === entry.id)
+  return item === undefined ? null : pisoDe(item)
 }
 
 /**
@@ -60,6 +70,11 @@ function goToFreshObject(fresh: MapObjectEntry, focus: Point, bounds: Bounds): v
 
   // Escolher para onde olhar desliga o Seguir, como o "Ir lá" do Grupo em outro jogador.
   useFollowStore.getState().stop()
+  // PISOS NA MESMA CENA: o editor mostra um piso só; o objeto de outro piso
+  // estaria selecionado e invisível. Vai ao piso dele ANTES de selecionar
+  // (trocar de piso limpa a seleção).
+  const piso = pisoDoObjeto(store.map, fresh)
+  if (piso !== null) store.setPisoAtivo(piso)
 
   if (fresh.blockedReason !== null) {
     // Camada travada/oculta: o clique do mapa também não pegaria. A seleção de

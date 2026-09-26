@@ -138,14 +138,14 @@ describe('filterMapForPlayer — cômodo lembrado', () => {
     const semLembranca = filterMapForPlayer(casa({ bruno: NO_CORREDOR }), 'bruno', OWNERSHIP, RADIUS)
     expect(ids(semLembranca.map.regions)).toEqual(['corredor'])
 
-    const view = filterMapForPlayer(casa({ bruno: NO_CORREDOR }), 'bruno', OWNERSHIP, RADIUS, undefined, undefined, undefined, undefined, new Set(['sala']))
+    const view = filterMapForPlayer(casa({ bruno: NO_CORREDOR }), 'bruno', OWNERSHIP, RADIUS, undefined, undefined, undefined, undefined, undefined, new Set(['sala']))
     expect(ids(view.map.regions)).toEqual(['corredor', 'sala'])
     expect(ids(view.map.pins)).toEqual(['armario-do-corredor', 'pino-da-sala'])
     expect(view.rememberedRooms.map((r) => r.id).sort()).toEqual(['corredor', 'sala'])
   })
 
   it('quarto lido fica com baú, cama e carta tocáveis, sem ficha alheia e sem o pino secreto', () => {
-    const view = filterMapForPlayer(casa(), 'bruno', OWNERSHIP, RADIUS, undefined, undefined, undefined, undefined, new Set(['quarto']))
+    const view = filterMapForPlayer(casa(), 'bruno', OWNERSHIP, RADIUS, undefined, undefined, undefined, undefined, undefined, new Set(['quarto']))
     expect(ids(view.map.regions)).toEqual(['quarto', 'sala'])
     const pinos = view.map.pins.filter((p) => ['bau', 'cama', 'carta'].includes(p.id))
     expect(ids(pinos)).toEqual(['bau', 'cama', 'carta'])
@@ -173,7 +173,7 @@ describe('filterMapForPlayer — cômodo lembrado', () => {
         { x: 320, y: 690 },
       ],
     }
-    const view = filterMapForPlayer(casa({ extra: { concealZones: [zona] } }), 'bruno', OWNERSHIP, RADIUS, undefined, undefined, undefined, undefined, new Set(['quarto']))
+    const view = filterMapForPlayer(casa({ extra: { concealZones: [zona] } }), 'bruno', OWNERSHIP, RADIUS, undefined, undefined, undefined, undefined, undefined, new Set(['quarto']))
     expect(ids(view.map.pins).filter((id) => ['bau', 'cama', 'carta'].includes(id))).toEqual(['bau', 'carta'])
     expect(JSON.stringify(view.map)).not.toContain('descricao-cama')
   })
@@ -192,10 +192,10 @@ describe('filterMapForPlayer — cômodo lembrado', () => {
     })
     const lembrado = new Set(['quarto'])
     // A régua: a mesma planta com Sala comum não manda o quarto escondido.
-    const comum = filterMapForPlayer(casa({ modo: 'nenhum', extra: { concealZones: [zona(false)] } }), 'bruno', OWNERSHIP, RADIUS, undefined, undefined, undefined, undefined, lembrado)
+    const comum = filterMapForPlayer(casa({ modo: 'nenhum', extra: { concealZones: [zona(false)] } }), 'bruno', OWNERSHIP, RADIUS, undefined, undefined, undefined, undefined, undefined, lembrado)
     expect(ids(comum.map.regions)).toEqual(['sala'])
 
-    const view = filterMapForPlayer(casa({ extra: { concealZones: [zona(false)] } }), 'bruno', OWNERSHIP, RADIUS, undefined, undefined, undefined, undefined, lembrado)
+    const view = filterMapForPlayer(casa({ extra: { concealZones: [zona(false)] } }), 'bruno', OWNERSHIP, RADIUS, undefined, undefined, undefined, undefined, undefined, lembrado)
     expect(ids(view.map.regions)).toEqual(['sala'])
     const json = JSON.stringify(view.map)
     expect(json).not.toContain('"quarto"')
@@ -204,7 +204,7 @@ describe('filterMapForPlayer — cômodo lembrado', () => {
     expect(view.rememberedRooms.map((r) => r.id)).toEqual(['sala'])
 
     // O mestre revela a zona: a lembrança antiga volta, com o polígono inteiro.
-    const revelada = filterMapForPlayer(casa({ extra: { concealZones: [zona(true)] } }), 'bruno', OWNERSHIP, RADIUS, undefined, undefined, undefined, undefined, lembrado)
+    const revelada = filterMapForPlayer(casa({ extra: { concealZones: [zona(true)] } }), 'bruno', OWNERSHIP, RADIUS, undefined, undefined, undefined, undefined, undefined, lembrado)
     expect(ids(revelada.map.regions)).toEqual(['quarto', 'sala'])
     expect(revelada.map.regions.find((r) => r.id === 'quarto')?.points).toEqual(QUARTO)
   })
@@ -226,7 +226,7 @@ describe('filterMapForPlayer — cômodo lembrado', () => {
     }
     const map = casa({ bruno: { x: 900, y: 900 } })
     const comPredio: MapData = { ...map, regions: [predio, ...map.regions] }
-    const view = filterMapForPlayer(comPredio, 'bruno', OWNERSHIP, RADIUS, undefined, undefined, undefined, undefined, new Set(['sala', 'corredor', 'quarto']))
+    const view = filterMapForPlayer(comPredio, 'bruno', OWNERSHIP, RADIUS, undefined, undefined, undefined, undefined, undefined, new Set(['sala', 'corredor', 'quarto']))
     expect(ids(view.map.regions)).toEqual(['predio'])
     expect(view.rememberedRooms).toEqual([])
     const json = JSON.stringify(view.map)
@@ -241,7 +241,7 @@ describe('filterMapForPlayer — cômodo lembrado', () => {
       ...map,
       regions: map.regions.map((r) => (r.id === 'corredor' && r.room ? { ...r, room: { ...r.room, roof: true } } : r)),
     }
-    const view = filterMapForPlayer(comOsDois, 'bruno', OWNERSHIP, RADIUS, undefined, undefined, undefined, undefined, new Set(['corredor']))
+    const view = filterMapForPlayer(comOsDois, 'bruno', OWNERSHIP, RADIUS, undefined, undefined, undefined, undefined, undefined, new Set(['corredor']))
     const corredor = view.map.regions.find((r) => r.id === 'corredor')
     expect(corredor?.room?.roof).toBe(true)
     expect(view.rememberedRooms.map((r) => r.id)).toEqual(['sala'])
@@ -279,11 +279,11 @@ describe('filterMapForPlayer — cômodo lembrado', () => {
     }
     const lembrado = new Set(['quarto'])
     // A régua: com Sala comum a porta da sala secreta nunca saiu.
-    const comum = filterMapForPlayer(planta('nenhum'), 'bruno', OWNERSHIP, RADIUS, undefined, undefined, undefined, undefined, lembrado)
+    const comum = filterMapForPlayer(planta('nenhum'), 'bruno', OWNERSHIP, RADIUS, undefined, undefined, undefined, undefined, undefined, lembrado)
     expect(ids(comum.map.walls)).toContain('quarto-s')
     expect(ids(comum.map.walls)).not.toContain('divisoria-porta-secreta')
 
-    const view = filterMapForPlayer(planta('comodo'), 'bruno', OWNERSHIP, RADIUS, undefined, undefined, undefined, undefined, lembrado)
+    const view = filterMapForPlayer(planta('comodo'), 'bruno', OWNERSHIP, RADIUS, undefined, undefined, undefined, undefined, undefined, lembrado)
     // O quarto lembrado continua chegando, com a porta dele...
     expect(ids(view.map.regions)).toEqual(['quarto'])
     expect(ids(view.map.walls)).toContain('porta-quarto')
@@ -350,11 +350,11 @@ describe('filterMapForPlayer — prédio de teto dentro de cômodo lembrado', ()
 
   it('SEGURANÇA: entrar na casa não entrega o quarto de porta fechada só porque o pátio é lembrado', () => {
     // A régua: com o pátio Sala comum, o quarto nunca saiu.
-    const comum = filterMapForPlayer(patioComCasa('nenhum'), 'bruno', OWNERSHIP, RADIUS, undefined, undefined, undefined, undefined, lembraPatio).map
+    const comum = filterMapForPlayer(patioComCasa('nenhum'), 'bruno', OWNERSHIP, RADIUS, undefined, undefined, undefined, undefined, undefined, lembraPatio).map
     expect(ids(comum.regions)).toEqual(['casa', 'patio'])
     expect(comum.pins).toEqual([])
 
-    const view = filterMapForPlayer(patioComCasa('comodo'), 'bruno', OWNERSHIP, RADIUS, undefined, undefined, undefined, undefined, lembraPatio)
+    const view = filterMapForPlayer(patioComCasa('comodo'), 'bruno', OWNERSHIP, RADIUS, undefined, undefined, undefined, undefined, undefined, lembraPatio)
     expect(ids(view.map.regions)).toEqual(['casa', 'patio'])
     expect(view.map.pins).toEqual([])
     const json = JSON.stringify(view.map)
@@ -364,12 +364,12 @@ describe('filterMapForPlayer — prédio de teto dentro de cômodo lembrado', ()
   })
 
   it('o pátio lembrado leva o polígono da casa para o host não marcar explorado lá dentro (aberta ou fechada)', () => {
-    const aberta = filterMapForPlayer(patioComCasa('comodo'), 'bruno', OWNERSHIP, RADIUS, undefined, undefined, undefined, undefined, lembraPatio)
+    const aberta = filterMapForPlayer(patioComCasa('comodo'), 'bruno', OWNERSHIP, RADIUS, undefined, undefined, undefined, undefined, undefined, lembraPatio)
     expect(aberta.rememberedRooms.map((r) => r.id)).toEqual(['patio'])
     expect(aberta.rememberedRooms[0]?.roomsInside).toEqual([CASA_DE_TETO, QUARTO_DA_CASA])
 
     const naRua = { ...patioComCasa('comodo'), tokens: [ficha('ficha-bruno', { x: 200, y: 300 })] }
-    const fechada = filterMapForPlayer(naRua, 'bruno', OWNERSHIP, RADIUS, undefined, undefined, undefined, undefined, lembraPatio)
+    const fechada = filterMapForPlayer(naRua, 'bruno', OWNERSHIP, RADIUS, undefined, undefined, undefined, undefined, undefined, lembraPatio)
     expect(fechada.rememberedRooms.map((r) => r.id)).toEqual(['patio'])
     expect(fechada.rememberedRooms[0]?.roomsInside).toEqual([CASA_DE_TETO, QUARTO_DA_CASA])
   })
@@ -380,6 +380,7 @@ describe('filterMapForPlayer — prédio de teto dentro de cômodo lembrado', ()
       'bruno',
       OWNERSHIP,
       RADIUS,
+      undefined,
       undefined,
       undefined,
       undefined,
@@ -471,7 +472,7 @@ describe('filterMapForPlayer — Sala comum dentro de cômodo lembrado', () => {
   })
 
   it('controle: de FORA do pátio, só pela lembrança, o pino do pátio sai e o da casa não', () => {
-    const lembrado = filterMapForPlayer(patioComCasaComum({ x: 950, y: 950 }), 'bruno', OWNERSHIP, RADIUS, undefined, undefined, undefined, undefined, new Set(['patio']))
+    const lembrado = filterMapForPlayer(patioComCasaComum({ x: 950, y: 950 }), 'bruno', OWNERSHIP, RADIUS, undefined, undefined, undefined, undefined, undefined, new Set(['patio']))
     expect(ids(lembrado.map.regions)).toEqual(['patio'])
     expect(ids(lembrado.map.pins)).toEqual(['pino-no-patio'])
   })
@@ -492,7 +493,7 @@ describe('filterMapForPlayer — Sala comum dentro de cômodo lembrado', () => {
   })
 
   it('SEGURANÇA: Casa > Quarto de fora, só pela lembrança da casa, o quarto trancado e a carta continuam fora', () => {
-    const view = filterMapForPlayer(casaComQuartoComum({ x: 950, y: 950 }), 'bruno', OWNERSHIP, RADIUS, undefined, undefined, undefined, undefined, new Set(['casa']))
+    const view = filterMapForPlayer(casaComQuartoComum({ x: 950, y: 950 }), 'bruno', OWNERSHIP, RADIUS, undefined, undefined, undefined, undefined, undefined, new Set(['casa']))
     expect(ids(view.map.regions)).toEqual(['casa'])
     expect(ids(view.map.pins)).toEqual(['pino-da-frente'])
     const json = JSON.stringify(view.map)
@@ -574,7 +575,7 @@ describe('filterMapForPlayer — Sala grande dentro de cômodo lembrado', () => 
   const NO_GALPAO = { x: 450, y: 400 }
 
   it('SEGURANÇA: galpão de teto aberto com 64% do pátio não entrega o depósito trancado pela lembrança do pátio', () => {
-    const view = filterMapForPlayer(patioComGalpao('teto', NO_GALPAO), 'bruno', OWNERSHIP, RADIUS, undefined, undefined, undefined, undefined, new Set(['patio']))
+    const view = filterMapForPlayer(patioComGalpao('teto', NO_GALPAO), 'bruno', OWNERSHIP, RADIUS, undefined, undefined, undefined, undefined, undefined, new Set(['patio']))
     expect(ids(view.map.regions)).toEqual(['galpao', 'patio'])
     expect(view.map.pins).toEqual([])
     expect(JSON.stringify(view.map)).not.toContain('o-cofre')
@@ -582,7 +583,7 @@ describe('filterMapForPlayer — Sala grande dentro de cômodo lembrado', () => 
   })
 
   it('SEGURANÇA: galpão Sala comum com 64% do pátio também não', () => {
-    const view = filterMapForPlayer(patioComGalpao('nenhum', NO_GALPAO), 'bruno', OWNERSHIP, RADIUS, undefined, undefined, undefined, undefined, new Set(['patio']))
+    const view = filterMapForPlayer(patioComGalpao('nenhum', NO_GALPAO), 'bruno', OWNERSHIP, RADIUS, undefined, undefined, undefined, undefined, undefined, new Set(['patio']))
     expect(ids(view.map.regions)).toEqual(['galpao', 'patio'])
     expect(view.map.pins).toEqual([])
     expect(JSON.stringify(view.map)).not.toContain('o-cofre')

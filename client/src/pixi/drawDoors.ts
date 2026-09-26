@@ -23,6 +23,15 @@ export const DOOR_THICKNESS_SCREEN_PX = 5
 export const DOOR_OPEN_OUTLINE_SCREEN_PX = 1.5
 
 /**
+ * PORTAS POR ATRAVESSAR (só na tela do jogador): ponto claro no meio da porta
+ * cujo outro lado ainda está na névoa para ele. Raio em px de TELA, menor que
+ * a meia espessura da porta, para caber dentro do retângulo em qualquer zoom:
+ * marca discreta de minimapa, sem ícone nem halo.
+ */
+export const DOOR_TO_CROSS_COLOR = 0xf4ead8
+export const DOOR_TO_CROSS_DOT_SCREEN_PX = 1.5
+
+/**
  * Renderer da camada 'portas' — ver `lib/layers.ts:wallLayer`. Recebe a MESMA
  * lista de walls já filtrada por `visibleWalls` que `drawWalls.ts` recebe; o
  * loop ignora toda `wall.door === null`. A linha da parede com porta não é
@@ -39,9 +48,20 @@ export const DOOR_OPEN_OUTLINE_SCREEN_PX = 1.5
  * parede) e o editor desenha igual às outras, como antes. PORTA SECRETA
  * (`door.secret`) também não chega ao jogador como porta (vira parede em
  * fogFilter.ts); no editor sai tracejada (`traceSecretDashes`).
+ *
+ * `toCross` (PORTAS POR ATRAVESSAR, só o jogador passa): ids das portas que
+ * levam o ponto claro no meio. O editor não passa e desenha como sempre.
  */
-export function drawDoors(graphics: Graphics, walls: Wall[], selectedWallId: string | null = null, cameraScale = 1, rendererResolution = 1): void {
+export function drawDoors(
+  graphics: Graphics,
+  walls: Wall[],
+  selectedWallId: string | null = null,
+  cameraScale = 1,
+  rendererResolution = 1,
+  toCross: ReadonlySet<string> = NO_DOORS_TO_CROSS,
+): void {
   graphics.clear()
+  const dotRadius = DOOR_TO_CROSS_DOT_SCREEN_PX / (Number.isFinite(cameraScale) && cameraScale > 0 ? cameraScale : 1)
   const thicknessPixel = pixelGrid(cameraScale, rendererResolution, DOOR_THICKNESS_SCREEN_PX)
   const thickness = strokeWidthInWorld(thicknessPixel)
   const outlineWidth = strokeWidthInWorld(pixelGrid(cameraScale, rendererResolution, DOOR_OPEN_OUTLINE_SCREEN_PX))
@@ -92,8 +112,12 @@ export function drawDoors(graphics: Graphics, walls: Wall[], selectedWallId: str
       traceOneSideArrow(graphics, cx, cy, ux, uy, sign, thickness / 2 + gap, arrowLength, Math.min(halfLength, arrowLength * 0.7))
       graphics.fill({ color })
     }
+
+    if (door.secret !== true && toCross.has(wall.id)) graphics.circle(cx, cy, dotRadius).fill({ color: DOOR_TO_CROSS_COLOR })
   }
 }
+
+const NO_DOORS_TO_CROSS: ReadonlySet<string> = new Set()
 
 /**
  * PORTA DE UM LADO (`door.opensFrom`), só no editor — o jogador nunca recebe o

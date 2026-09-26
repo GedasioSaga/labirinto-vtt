@@ -3,10 +3,12 @@ import type { ChangeEvent, ComponentProps, FormEvent, KeyboardEvent as ReactKeyb
 import type { OwnWait, StorageLike } from './playerConnection'
 import { PlayerBackpack } from './PlayerBackpack'
 import { NAME_MAX_LENGTH, type ClueEntry, type NoteEntry, type PartyMember, type PartyWhere, type OwnTokenElsewhere } from '../net/protocol'
-import type { Pin, RegionPoint } from '../types/map'
-import { PlayerNotebook } from './PlayerNotebook'
+import type { Pin, RegionPoint, TokenContract } from '../types/map'
+import { loanLabel } from '../lib/tokenLoan'
+import { formatNoteTime, PlayerNotebook } from './PlayerNotebook'
 import { PlayerClueList, PlayerColecaoList } from './PlayerClues'
 import type { ColecaoProgresso } from '../lib/colecao'
+import { PlayerLetterForm, type PlayerLetterFormProps } from './PlayerLetterForm'
 // `PlayerPlacesTab` e não `PlayerPlaces`: no Windows o nome colidiria com `playerPlaces.ts` (a parte pura).
 import { PlayerPlacesTab } from './PlayerPlacesTab'
 import type { VisitedPlace } from './playerPlaces'
@@ -90,7 +92,14 @@ const PARTY_WHERE_LABEL: Record<PartyWhere, string> = { aqui: 'aqui', longe: 'em
 export interface PlayerCharacter {
   id: string
   name: string
+  /** AJUDANTE CONTRATADO: o acordo da ficha emprestada pelo mestre. Ausente = personagem do jogador. */
+  contrato?: TokenContract
+  /** NPC EMPRESTADO: NPC do mestre dado a este jogador sem acordo. Anda com ele, mas nome e foto não são dele. */
+  emprestada?: boolean
 }
+
+/** O que o jogador lê embaixo do NPC que o mestre lhe deu, no lugar do formulário de nome e foto. */
+const LENT_NPC_LABEL = 'Emprestado pelo mestre'
 
 type PanelTab = 'jogo' | 'caderno' | 'lugares' | 'dados'
 
@@ -153,6 +162,16 @@ export function savePlayerSettings(storage: StorageLike | null, settings: Player
   }
 }
 
+/** ESCONDER-SE: o "Esconder" do personagem próprio. Quem decide é o mestre. */
+export interface PlayerHideControls {
+  /** A ficha dele está oculta para os outros jogadores (o mestre deixou). */
+  hidden: boolean
+  /** O pedido espera o mestre. */
+  waiting: boolean
+  /** "Esconder": pede ao mestre, pelo socket, que a ficha suma dos outros. */
+  onRequest: (tokenId: string) => void
+}
+
 interface PlayerPanelProps {
   characters: PlayerCharacter[]
   /** Cor CSS da bolinha: a mesma do token do jogador no canvas. */
@@ -179,6 +198,8 @@ interface PlayerPanelProps {
   onRenameToken: (tokenId: string, name: string) => void
   /** Foto nova do próprio token. Rejeita (lança) quando a imagem não serve, e o aviso vai para a tela. */
   onChangeTokenPhoto: (tokenId: string, file: File) => Promise<void>
+  /** ESCONDER-SE. Ausente (tela antiga, teste) = sem o botão. */
+  hide?: PlayerHideControls
   /** O painel e a barra de cima: a câmera mede o que eles cobrem para centrar a ficha no que sobra. */
   panelRef?: RefObject<HTMLElement | null>
   barRef?: RefObject<HTMLDivElement | null>
@@ -202,6 +223,8 @@ interface PlayerPanelProps {
    * de afirmar que ele está sozinho.
    */
   party?: PartyMember[]
+  /** CORREIO: o formulário "Bilhete". Ausente (tela antiga, teste) = a seção não aparece. */
+  letter?: PlayerLetterFormProps
   /** LUGARES: os pinos do recorte da cena (o que a névoa esconde nem chega aqui). */
   pins?: readonly Pin[]
   /** LUGARES: por onde ele já passou, na ordem da primeira visita. */
@@ -266,6 +289,7 @@ export function PlayerPanel({
   onClearDestination,
   onRenameToken,
   onChangeTokenPhoto,
+  hide,
   panelRef,
   barRef,
   notebook,
@@ -276,6 +300,7 @@ export function PlayerPanel({
   colecoes = NO_COLECOES,
   backpack,
   party,
+  letter,
   pins = NO_PINS,
   places = NO_PLACES,
   currentPlace,
@@ -450,11 +475,14 @@ export function PlayerPanel({
     onToggleLaser()
   }
 
-  const first = characters[0]
-  // O personagem editável é o primeiro da lista: é quase sempre o único, e
-  // "qual dos meus" só faria sentido com uma escolha na tela que ninguém pediu.
-  const myTokenId = first?.id ?? null
-  const myTokenName = first?.name ?? ''
+  // O personagem editável é o primeiro PRÓPRIO da lista: é quase sempre o
+  // único, e "qual dos meus" só faria sentido com uma escolha na tela que
+  // ninguém pediu. Ajudante e NPC emprestados nunca são editáveis (o NPC é do mestre).
+  const mine = characters.find((character) => character.contrato === undefined && character.emprestada !== true)
+  // Centralizar e "Minha ficha": o personagem próprio; só com o ajudante, ele.
+  const first = mine ?? characters[0]
+  const myTokenId = mine?.id ?? null
+  const myTokenName = mine?.name ?? ''
   const [nameDraft, setNameDraft] = useState(myTokenName)
   const [photoError, setPhotoError] = useState<string | null>(null)
   const [photoBusy, setPhotoBusy] = useState(false)
@@ -584,6 +612,9 @@ export function PlayerPanel({
                         <span className="pp-dot" style={{ background: characterColor }} aria-hidden="true" />
                         <span className="pp-character__name">{character.name}</span>
                       </button>
+                      {/* Fora do botão: o aria-label dele cobriria o texto do acordo. */}
+                      {character.contrato !== undefined && <p className="pp-character__deal">{loanLabel(character.contrato, formatNoteTime)}</p>}
+                      {character.emprestada === true && <p className="pp-character__deal">{LENT_NPC_LABEL}</p>}
                     </li>
                   ))}
                   {/* Fichas dele em outra cena: tocar troca a cena da tela. Só a
@@ -677,7 +708,7 @@ export function PlayerPanel({
               </section>
             )}
 
-            {first !== undefined && (
+            {mine !== undefined && (
               <section className="pp-section" aria-labelledby={`${panelId}-me`}>
                 <h2 id={`${panelId}-me`} className="pp-heading">
                   Meu personagem
@@ -709,6 +740,24 @@ export function PlayerPanel({
                     {photoError}
                   </p>
                 )}
+                {/* Esconder é pedido: quem decide é o mestre, e só ele revela de novo. */}
+                {hide !== undefined &&
+                  (hide.hidden ? (
+                    <p className="pp-empty">Escondida: os outros jogadores não veem sua ficha. Só o mestre revela.</p>
+                  ) : (
+                    <button type="button" className="pp-button" disabled={hide.waiting} onClick={() => hide.onRequest(mine.id)}>
+                      {hide.waiting ? 'Aguardando o mestre…' : 'Esconder'}
+                    </button>
+                  ))}
+              </section>
+            )}
+
+            {letter !== undefined && (
+              <section className="pp-section" aria-labelledby={`${panelId}-letter`}>
+                <h2 id={`${panelId}-letter`} className="pp-heading">
+                  Bilhete
+                </h2>
+                <PlayerLetterForm {...letter} />
               </section>
             )}
 

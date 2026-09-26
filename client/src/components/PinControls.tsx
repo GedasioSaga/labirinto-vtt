@@ -8,6 +8,7 @@ import { GatherControls, type GatherControlsProps } from './GatherControls'
 import { PinColecaoControls, type PinColecaoControlsProps } from './PinColecaoControls'
 import { PinIconControls, type PinIconControlsProps } from './PinIconControls'
 import { PinLockControls, type PinLockControlsProps } from './PinLockControls'
+import { PinLojaControls, type PinLojaControlsProps } from './PinLojaControls'
 import { PinLeverArt, PinTravelArt } from './PinSymbolArt'
 import { PinTravelControls, type PinTravelControlsProps } from './PinTravelControls'
 import { Toggle } from './Toggle'
@@ -96,6 +97,11 @@ export interface PinControlsProps {
    * nenhum pino aberto: não há peça para editar.
    */
   colecao?: PinColecaoControlsProps | null
+  /**
+   * LOJA COM PREÇOS do pino aberto ("!"/"?"). `null` = nenhum pino aberto.
+   * `pinId` reinicia os campos ao trocar de pino.
+   */
+  loja?: (PinLojaControlsProps & { pinId: string }) | null
 }
 
 /** Id fixo: só existe um pino aberto no painel por vez (o mesmo molde de `lb-pin-description`). */
@@ -304,6 +310,7 @@ export function PinControls({
   iconChoice,
   lock = null,
   colecao = null,
+  loja = null,
 }: PinControlsProps) {
   const viagem = kind === 'viagem'
   const alavanca = kind === 'alavanca'
@@ -414,6 +421,8 @@ export function PinControls({
           {lock !== null && <PinLockControls {...lock} />}
           {/* Também é o que o pino É para o jogador: uma peça de coleção. */}
           {colecao !== null && <PinColecaoControls {...colecao} />}
+          {/* Também é o que o pino É para o jogador: a banca que ele vê no cartão. */}
+          {!viagem && !alavanca && loja !== null && <PinLojaControlsFor loja={loja} />}
           {/* Ação de MESA, não de edição do pino: fica logo depois do que o
               pino é, antes da imagem e do excluir. */}
           {gather !== null && <GatherControlsFor gather={gather} />}
@@ -505,6 +514,12 @@ function PinReachControls({ marco, onMarcoChange, lerDePerto, onLerDePertoChange
 function PinTravelControlsFor({ travel }: { travel: PinTravelControlsProps & { pinId: string } }) {
   const { pinId, ...props } = travel
   return <PinTravelControls key={pinId} {...props} />
+}
+
+/** A chave é o pino: os campos de uma banca não seguem abertos na de outro pino. */
+function PinLojaControlsFor({ loja }: { loja: PinLojaControlsProps & { pinId: string } }) {
+  const { pinId, ...props } = loja
+  return <PinLojaControls key={pinId} {...props} />
 }
 
 /** A chave é o pino: a lista de reunião aberta num pino não reaparece aberta em outro. */

@@ -4,6 +4,8 @@ import { PixiCanvas } from './pixi/PixiCanvas'
 import { ZoomHud } from './components/ZoomHud'
 import { DiceDock } from './components/DiceDock'
 import { useDiceStore } from './stores/diceStore'
+import { PisoHud } from './components/PisoHud'
+import { temPisos } from './lib/pisos'
 import { Toast } from './components/Toast'
 import { useToastStore, type ToastKind } from './stores/toastStore'
 import { ensinaOQueFazer } from './lib/erroQueEnsina'
@@ -51,6 +53,7 @@ import type { TravelLogEntry } from './lib/travelLog'
 import { withStoredTokens } from './lib/storedTokens'
 import { loadSavedExploration, loadSavedTable, savedTableSummary, storeSavedExploration, storeSavedTable, type TableStorage } from './lib/savedTable'
 import { applyGatherPlan, gatherCandidates, planGather, sendCandidates } from './lib/gatherParty'
+import { comConfronto, iniciarConfronto, proximaVez } from './lib/confronto'
 import { RailTabs, type RailTab } from './components/RailTabs'
 import { ask } from '@tauri-apps/plugin-dialog'
 import { criarPedidoDeFechar } from './lib/avisoAoFechar'
@@ -82,6 +85,14 @@ import {
 } from './stores/adventureStore'
 import { ScenesSection } from './components/ScenesSection'
 import { AgendaSection } from './components/AgendaSection'
+import { WorldStateSection } from './components/WorldStateSection'
+import { EstadoDaLuz, EstadoDaPorta, EstadoDaZona, EstadoDoPino } from './components/DependeDoEstadoControls'
+import { PinCabineControls } from './components/PinCabineControls'
+import { ocupantesDasCabines } from './lib/cabine'
+import { UNNAMED_SCENE } from './lib/adventure'
+import { PerigoDaSalaControls } from './components/PerigoDaSalaControls'
+import { RotinaDaFichaControls } from './components/RotinaDaFichaControls'
+import { amarradosPorEstado, type AmarraDeEstado } from './lib/estadoDoMundo'
 import { MapObjectsSection } from './components/MapObjectsSection'
 import { MarcasDaCena } from './components/MarcasDaCena'
 import { PlaceTreeSection } from './components/PlaceTreeSection'
@@ -122,6 +133,7 @@ import * as mapFactory from './lib/mapFactory'
 import { readDoorKey, setDoorKey } from './lib/doorKey'
 import { countEntitiesByLayer } from './lib/layers'
 import { roomDimensions } from './lib/roomOps'
+import { porMobiliaNaSala } from './stores/mobiliaNaSala'
 import type { GridAlignResult } from './lib/gridAlign'
 import { relevantPropertyGroups } from './lib/toolProperties'
 import { EMPTY_SELECTION, selectionOfItem, selectionSingle, selectionToAreaSelection } from './lib/selectionModel'
@@ -186,6 +198,19 @@ function unlockAndOpenDoorFromRequest(wallId: string, sceneId?: string): void {
   const store = useMapStore.getState()
   const wall = store.map.walls.find((w) => w.id === wallId)
   if (wall?.door) store.setWallDoor(wallId, { ...wall.door, open: true, locked: false })
+}
+
+/**
+ * "Deixar" do MESTRE ao pedido de esconder-se: liga "Oculto para jogadores"
+ * na ficha, na cena dela (de fundo quando o jogador está lá). Decisão do
+ * mestre, passo do Ctrl+Z dele — o mesmo toggle que o painel da ficha liga.
+ */
+function hideTokenFromRequest(tokenId: string, sceneId?: string): void {
+  if (sceneId !== undefined) {
+    useAdventureStore.getState().updateBackgroundScene(sceneId, (m) => mapFactory.setItemSecret(m, 'token', tokenId, true))
+    return
+  }
+  useMapStore.getState().setItemSecret('token', tokenId, true)
 }
 
 function pararDeOuvir(unlisten: (() => void) | undefined): void {
@@ -364,6 +389,8 @@ function App() {
   const showGrid = useMapStore((state) => state.map.showGrid)
   const setShowGrid = useMapStore((state) => state.setShowGrid)
   const map = useMapStore((state) => state.map)
+  const pisoAtivo = useMapStore((state) => state.pisoAtivo)
+  const mapaTemPisos = useMemo(() => temPisos(map), [map])
   const loadMap = useMapStore((state) => state.loadMap)
   const setBackground = useMapStore((state) => state.setBackground)
   const activeTool = useMapStore((state) => state.activeTool)
@@ -590,6 +617,8 @@ function App() {
         applyCaravanMoves,
         // "Destrancar e abrir" do mestre ao pedido da porta trancada (passo do Ctrl+Z dele).
         unlockAndOpenDoor: unlockAndOpenDoorFromRequest,
+        // "Deixar" do mestre ao pedido de esconder-se (passo do Ctrl+Z dele).
+        hideToken: hideTokenFromRequest,
         // "Passar para pede" do pedido pelo pino trancado: o pino muda de modo
         // na cena dele (de fundo quando o jogador estava lá), como o painel faria.
         setPinPassage: (pinId, passagem, sceneId) => {
@@ -607,12 +636,19 @@ function App() {
           applyItemsInScene(change)
         },
         // "Deixar ir": o token troca de cena fora do desfazer das duas (ver `transferToken`).
-        applyTransfer: ({ tokenId, fromSceneId, toSceneId, x, y }) =>
-          useAdventureStore.getState().transferToken(tokenId, fromSceneId, toSceneId, x, y),
+        applyTransfer: ({ tokenId, fromSceneId, toSceneId, x, y, piso }) =>
+          useAdventureStore.getState().transferToken(tokenId, fromSceneId, toSceneId, x, y, piso),
+        // CABINE DE TRANSPORTE: quem passou pela parada levou a cabine junto.
+        applyCabine: ({ cabineId, parada }) => {
+          useAdventureStore.getState().moverCabine(cabineId, parada)
+        },
+        // CABINE DE TRANSPORTE: um jogador chamou a cabine — a chamada entra na fila da aventura.
+        applyChamadaDeCabine: (chamada) => useAdventureStore.getState().chamarCabine(chamada),
         // "Ir lá" do aviso de chegada: o editor vai à cena, com a ficha no centro
         // (mesmo caminho do "Ir lá" do painel Grupo, que também serve à cena já aberta).
-        onGoToScene: (sceneId, x, y) => {
-          useAdventureStore.getState().goToPoint(sceneId, { x, y })
+        // PISOS: no piso onde ela chegou (o do pino par).
+        onGoToScene: (sceneId, x, y, piso) => {
+          useAdventureStore.getState().goToPointNoPiso(sceneId, { x, y }, piso)
         },
         // "Ir lá" da ação no ponto: centra no ponto e o marca com o anel do jogador.
         onPointActionGo: goToPointAction,
@@ -687,7 +723,10 @@ function App() {
       }),
     [],
   )
-  // "Onde estou": o nome para os jogadores mora na aventura, não no mapa. Trocar só ele também reenvia o recorte.
+  // ESTADO DO MUNDO: qualquer troca na aventura reenvia o recorte — nome ("onde
+  // estou"), CABINE DE TRANSPORTE (mestre ou viagem: quem está numa parada lê
+  // "aqui/longe" de novo) e comporta (estados) inclusos, sem esperar outra
+  // edição do mapa.
   useEffect(
     () =>
       useAdventureStore.subscribe((state, previous) => {
@@ -832,7 +871,8 @@ function App() {
               onGoTo: (member) => {
                 // "Ir lá" em OUTRO jogador é o mestre escolhendo a vista: desliga o seguir.
                 useFollowStore.getState().irAteJogador(member.playerId)
-                if (member.token !== null) useAdventureStore.getState().goToPoint(member.sceneId, { x: member.token.x, y: member.token.y })
+                // PISOS: e o editor no piso da ficha (ausente = térreo).
+                if (member.token !== null) useAdventureStore.getState().goToPointNoPiso(member.sceneId, { x: member.token.x, y: member.token.y }, member.token.piso ?? 0)
               },
               onSend: (playerId, sceneId, pinId) => hostBridgeRef.current?.sendPlayer(playerId, sceneId, pinId) ?? false,
               // ITEM PEGÁVEL: tirar, devolver ao chão ou dar, gravado na cena
@@ -870,6 +910,24 @@ function App() {
             }}
             // Mapa solto não tem para onde viajar: o diário só aparece com aventura aberta.
             travelLog={adventure === null ? undefined : { entries: travelLog, onUndo: undoTravel }}
+            // CONFRONTO da cena aberta. Grava como mudança de MESA
+            // (`applyPlayerChange`): fora do Ctrl+Z do editor, e o host manda
+            // a faixa nova no broadcast que toda mudança do mapa dispara.
+            confronto={{
+              fichas: map.tokens.map((t) => ({ id: t.id, nome: t.name })),
+              confronto: map.confronto,
+              onIniciar: (fila, passo) => {
+                const novo = iniciarConfronto(fila, passo)
+                if (novo !== null) useMapStore.getState().applyPlayerChange((m) => comConfronto(m, novo))
+              },
+              onProximaVez: () => {
+                const atual = useMapStore.getState().map
+                if (atual.confronto === undefined) return
+                const proximo = proximaVez(atual.confronto, new Set(atual.tokens.map((t) => t.id)))
+                useMapStore.getState().applyPlayerChange((m) => comConfronto(m, proximo))
+              },
+              onEncerrar: () => useMapStore.getState().applyPlayerChange((m) => comConfronto(m, undefined)),
+            }}
             clock={{
               hour: clockHour,
               outdoor: map.externa === true,
@@ -900,9 +958,11 @@ function App() {
             onStopTunnel={() => void hostBridgeRef.current?.stopTunnel()}
             onAssign={(playerId, tokenId) => hostBridgeRef.current?.assignToken(playerId, tokenId)}
             onUnassign={(playerId, tokenId) => hostBridgeRef.current?.unassignToken(playerId, tokenId)}
+            onLend={(playerId, tokenId, terms) => hostBridgeRef.current?.lendToken(playerId, tokenId, terms)}
             onKick={(clientId) => void hostBridgeRef.current?.kick(clientId)}
             onStoreTokens={(playerId) => hostBridgeRef.current?.storeTokens(playerId)}
             onDismiss={(playerId) => hostBridgeRef.current?.dismissPlayer(playerId)}
+            onHandOver={(playerId, heirId) => hostBridgeRef.current?.handOverPlayer(playerId, heirId)}
             onLendTokens={(ownerId, borrowerId) => hostBridgeRef.current?.lendTokens(ownerId, borrowerId)}
             onEndLoans={(ownerId) => hostBridgeRef.current?.endLoans(ownerId)}
             onVisionRadiusChange={(playerId, radius) => hostBridgeRef.current?.setVisionRadius(playerId, radius)}
@@ -1263,6 +1323,8 @@ function App() {
   // A5 — zona aberta no painel. Some sozinha se o Ctrl+Z tirar a zona do mapa.
   const selectedConcealZoneId = useMapStore((state) => state.selectedConcealZoneId)
   const selectedConcealZone = map.concealZones.find((z) => z.id === selectedConcealZoneId) ?? null
+  // ESTADO DO MUNDO: "Depende do estado" amarra o elemento aberto; a aventura sabe o valor atual do estado.
+  const amarrarAoEstado = (amarra: AmarraDeEstado) => useAdventureStore.getState().amarrarAoEstado(amarra)
   // Pino aberto no painel. Some sozinho se o Ctrl+Z tirar o pino do mapa.
   const selectedPinId = useMapStore((state) => state.selectedPinId)
   const selectedPin = map.pins.find((p) => p.id === selectedPinId) ?? null
@@ -2376,6 +2438,93 @@ function App() {
               )}
               </>
             }
+            // ESTADO DO MUNDO: só com aventura (o estado cruza cenas). O jogador recebe o efeito pelo broadcast de sempre.
+            worldState={
+              adventure === null ? undefined : (
+                <WorldStateSection
+                  estados={adventure.estados ?? []}
+                  // Conta só quando há estado: sem estado, nenhuma passada pelas cenas.
+                  amarrados={(adventure.estados ?? []).length === 0 ? new Map() : amarradosPorEstado(sceneMaps({ adventure, activeSceneId, cache: sceneCache }, map).values())}
+                  onCriar={(nome, valores) => useAdventureStore.getState().criarEstadoDoMundo(nome, valores)}
+                  // ROTINA DO NPC: a troca é também o apito. Ficha na mão de um jogador (a dele ou o ajudante) não é arrancada.
+                  onTrocar={(estadoId, valor) =>
+                    useAdventureStore.getState().trocarEstadoDoMundo(estadoId, valor, new Set(roomPlayers.flatMap((player) => player.tokenIds)))
+                  }
+                />
+              )
+            }
+            // ESTADO DO MUNDO: "Depende do estado" do elemento aberto no painel —
+            // é daqui que a regra `porEstado` nasce, sem editar o map.json à mão.
+            estadoDaPorta={
+              adventure === null || selectedWall === null ? undefined : (
+                <EstadoDaPorta wall={selectedWall} estados={adventure.estados ?? []} onAmarrar={amarrarAoEstado} />
+              )
+            }
+            // Só o pino de VIAGEM tem passagem para o estado mudar — e só ele
+            // pode ser parada de cabine (elevador, cesto), que mora na aventura.
+            estadoDoPino={
+              adventure === null || selectedPin?.kind !== 'viagem' ? undefined : (
+                <>
+                  <EstadoDoPino pin={selectedPin} estados={adventure.estados ?? []} onAmarrar={amarrarAoEstado} />
+                  {activeSceneId !== null && (
+                    <PinCabineControls
+                      cabines={adventure.cabines ?? []}
+                      parada={{ sceneId: activeSceneId, pinId: selectedPin.id }}
+                      nomeDaCena={(sceneId) => adventure.scenes.find((entry) => entry.id === sceneId)?.name ?? UNNAMED_SCENE}
+                      onCriar={(nome) => {
+                        useAdventureStore.getState().criarCabine(nome, selectedPin.id)
+                      }}
+                      onEscolher={(cabineId) => {
+                        useAdventureStore.getState().definirParadaDeCabine(selectedPin.id, cabineId)
+                      }}
+                      onTrazer={(cabineId) => {
+                        useAdventureStore.getState().moverCabine(cabineId, { sceneId: activeSceneId, pinId: selectedPin.id })
+                      }}
+                      onAtender={(cabineId) => {
+                        useAdventureStore.getState().atenderChamada(cabineId)
+                      }}
+                      onLimparFila={(cabineId) => {
+                        useAdventureStore.getState().limparFilaDaCabine(cabineId)
+                      }}
+                      ocupantes={ocupantesDasCabines(roomPlayers)}
+                    />
+                  )}
+                </>
+              )
+            }
+            estadoDaZona={
+              adventure === null || selectedConcealZone === null ? undefined : (
+                <EstadoDaZona zone={selectedConcealZone} estados={adventure.estados ?? []} onAmarrar={amarrarAoEstado} />
+              )
+            }
+            perigoDaSala={
+              selectedRegion?.room === undefined ? undefined : (
+                <PerigoDaSalaControls
+                  map={map}
+                  salaId={selectedRegion.id}
+                  onPor={(tipo) => useMapStore.getState().porPerigoNaSala(selectedRegion.id, tipo)}
+                  onAvancar={(perigoId) => useMapStore.getState().avancarPerigo(perigoId)}
+                  onApagar={(perigoId) => useMapStore.getState().apagarPerigo(perigoId)}
+                />
+              )
+            }
+            estadoDaLuz={
+              adventure === null || selectedLight === null ? undefined : (
+                <EstadoDaLuz light={selectedLight} estados={adventure.estados ?? []} onAmarrar={amarrarAoEstado} />
+              )
+            }
+            // ROTINA DO NPC: o posto da ficha em cada valor do estado; gravar entra no Ctrl+Z.
+            rotinaDaFicha={
+              adventure === null || activeSceneId === null || selectedToken === null ? undefined : (
+                <RotinaDaFichaControls
+                  token={selectedToken}
+                  estados={adventure.estados ?? []}
+                  cenas={adventure.scenes}
+                  cenaAberta={activeSceneId}
+                  onChange={(rotina) => useMapStore.getState().setTokenRotina(selectedToken.id, rotina)}
+                />
+              )
+            }
             objects={
               <>
                 <MapObjectsSection
@@ -2783,6 +2932,8 @@ function App() {
                       },
                     }
                   : undefined,
+              // MOBÍLIA DESENHADA: móvel no centro da sala, no giro dela, selecionado.
+              onAddMobilia: porMobiliaNaSala(selectedRegion),
             }}
             playerSecret={
               secretTarget && {
@@ -2900,6 +3051,15 @@ function App() {
                       onChange: (item) => useMapStore.getState().updatePin(selectedPin.id, { item: item ?? undefined }),
                     }
                   : null,
+              // LOJA COM PREÇOS: só com um pino "!"/"?" aberto. O "Quero" do jogador chega na caixa Pedidos.
+              loja:
+                selectedPin && selectedPin.kind !== 'viagem' && selectedPin.kind !== 'alavanca'
+                  ? {
+                      pinId: selectedPin.id,
+                      loja: selectedPin.loja ?? null,
+                      onChange: (loja) => useMapStore.getState().updatePin(selectedPin.id, { loja }),
+                    }
+                  : null,
               // PRESO À FICHA: só o pino de viagem (a prancha do navio, a porta da carroça).
               attachment:
                 selectedPin && selectedPin.kind === 'viagem'
@@ -2962,6 +3122,14 @@ function App() {
               // "Leva a…": `null` sem escada selecionada ou fora de uma aventura (a seção some).
               travel: selectedStair === null ? null : stairTravelPanel({ adventure, activeSceneId, cache: sceneCache }, map, selectedStair),
             }}
+            pisos={{
+              // PISOS NA MESMA CENA: as duas passam por `withHistory` — piso errado se desfaz com Ctrl+Z.
+              onTokenPisoChange: (tokenId, piso) => useMapStore.getState().setTokenPiso(tokenId, piso),
+              onStairPisosChange: (stairId, mudanca) => useMapStore.getState().setStairPisos(stairId, mudanca),
+              pisoAtivo,
+              onEditarPiso: (piso) => useMapStore.getState().setPisoAtivo(piso),
+              onLevarSelecaoAoPiso: (piso) => useMapStore.getState().moverSelecaoAoPiso(piso),
+            }}
             polygonSides={{
               sides: polygonSides,
               onSidesChange: setPolygonSides,
@@ -3010,6 +3178,8 @@ function App() {
       </div>
 
       <ZoomHud scale={cameraScale} onReset={() => setResetZoomRequest((n) => n + 1)} />
+      {/* PISOS NA MESMA CENA: só aparece quando a cena tem pisos (ou o mestre já saiu do térreo) — mapa de um piso não ganha controle à toa. */}
+      {(pisoAtivo !== 0 || mapaTemPisos) && <PisoHud piso={pisoAtivo} onPisoChange={(piso) => useMapStore.getState().setPisoAtivo(piso)} />}
       {shortcutsOpen && <ShortcutsDialog onClose={() => setShortcutsOpen(false)} />}
       {exportImageState !== null && (
         <ExportImageDialog

@@ -5,6 +5,7 @@ import { carriedItemsOf, dropItemChange, giveNewItemChange, removeItemChange, ty
 import { visibleTokens } from './layers'
 import { pinSummary } from './pins'
 import { cleanExitLabel, travelDestinationOf } from './pinTravel'
+import { mapaDoPiso, pisoDe } from './pisos'
 import { roomsAt } from './roomNesting'
 import type { DestinationMark } from './signals'
 import { tokenFillColor } from './tokenColor'
@@ -24,6 +25,8 @@ export interface PartyToken {
   color: string
   x: number
   y: number
+  /** PISOS NA MESMA CENA: o piso da ficha (o "Ir lá" leva o editor a ele). Ausente = o térreo. Só o mestre lê. */
+  piso?: number
 }
 
 export interface PartyMember {
@@ -210,6 +213,12 @@ function entourageOf(player: PlayerInfo, lead: Token, scene: HostScene): string[
   return entourageNear(lead, own, map.grid).map((t) => t.id)
 }
 
+/** A ficha na linha do Grupo. PISOS: térreo não leva o campo, como no arquivo. */
+function partyTokenOf(token: Token): PartyToken {
+  const piso = pisoDe(token)
+  return { id: token.id, color: cssColor(tokenFillColor(token)), x: token.x, y: token.y, ...(piso === 0 ? {} : { piso }) }
+}
+
 /** As linhas do Grupo, na ordem de chegada que a ponte já dá. */
 export function partyMembers(players: PlayerInfo[], world: HostWorld): PartyMember[] {
   return players.map((player) => {
@@ -221,7 +230,7 @@ export function partyMembers(players: PlayerInfo[], world: HostWorld): PartyMemb
       connected: player.connected,
       sceneId: player.sceneId ?? null,
       sceneName: player.sceneName ?? null,
-      token: token === null ? null : { id: token.id, color: cssColor(tokenFillColor(token)), x: token.x, y: token.y },
+      token: token === null ? null : partyTokenOf(token),
       travelPending: player.travelPending === true,
       mochila: backpackOf(player, world),
     }
@@ -431,11 +440,13 @@ export interface SceneRoom {
 /** Sala sem nome ainda vira atalho: o mestre precisa conseguir escolher quem está lá. */
 export const UNNAMED_ROOM_LABEL = 'Sala sem nome'
 
-/** As Salas da ficha do membro, no mapa da cena dele. */
+/** As Salas da ficha do membro, no mapa da cena dele — só as do PISO da ficha. */
 function roomsOfMember(member: PartyMember, world: HostWorld): SceneRoom[] {
   const scene = allScenes(world).find((s) => s.sceneId === member.sceneId)
   if (scene === undefined || member.token === null) return []
-  return roomsAt(scene.map.regions, member.token).map((region) => {
+  // PISOS: a Adega do térreo embaixo da ficha no 1º piso não é onde ela está.
+  const regions = mapaDoPiso(scene.map, pisoDe(member.token)).regions
+  return roomsAt(regions, member.token).map((region) => {
     // `roomsAt` só devolve Sala; o `?? ''` é para o tipo, que não sabe disso.
     const name = (region.room?.name ?? '').trim()
     return { id: region.id, name: name === '' ? UNNAMED_ROOM_LABEL : name }

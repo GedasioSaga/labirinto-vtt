@@ -15,7 +15,6 @@ import {
   conditionBadgeLayout,
   isTokenCondition,
   toggleTokenCondition,
-  tokenConditionsForPlayer,
   tokenConditionsOf,
 } from './tokenConditions'
 
@@ -142,26 +141,8 @@ describe('condição no arquivo do mapa', () => {
   })
 })
 
-describe('tokenConditionsForPlayer — o recorte do campo novo', () => {
-  it('ficha limpa atravessa como está (mesma instância)', () => {
-    const limpa = ficha('a', { conditions: ['caido', 'dormindo'] })
-    expect(tokenConditionsForPlayer(limpa)).toBe(limpa)
-    const sem = ficha('b')
-    expect(tokenConditionsForPlayer(sem)).toBe(sem)
-  })
-
-  it('só os ids da lista chegam ao jogador: texto do mestre escondido no campo não atravessa', () => {
-    const suja = { ...ficha('a'), conditions: ['atordoado', 'o mestre sabe que é o traidor'] as unknown as TokenCondition[] }
-    const recorte = tokenConditionsForPlayer(suja)
-    expect(recorte.conditions).toEqual(['atordoado'])
-    expect(JSON.stringify(recorte)).not.toContain('traidor')
-  })
-
-  it('campo sem nada que valha some, em vez de viajar vazio ou cru', () => {
-    const suja = { ...ficha('a'), conditions: ['nada disso'] as unknown as TokenCondition[] }
-    expect('conditions' in tokenConditionsForPlayer(suja)).toBe(false)
-  })
-})
+// O recorte do campo (só os ids da lista atravessam) é provado no recorte
+// inteiro: `fogFilter.condicoes.test.ts`.
 
 describe('conditionBadgeLayout — onde as marcas ficam, em cima da ficha', () => {
   const RAIO_DA_FICHA = 23

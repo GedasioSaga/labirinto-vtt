@@ -48,6 +48,8 @@ import { TokenLightsControls, type TokenLightsControlsProps } from './TokenLight
 import { TokenSeenBy, type TokenSeenByProps } from './TokenSeenBy'
 import { WallLineStyleField, WallStyleControls, type WallStyleControlsProps } from './WallStyleControls'
 import { StairControls, type StairControlsProps } from './StairControls'
+import { LevarAoPisoControls, PisoControls } from './PisoControls'
+import { pisoDe } from '../lib/pisos'
 import { RoomControls, type RoomControlsProps } from './RoomControls'
 import type { MapScaleControlsProps } from './MapScaleControls'
 import type { FaceRangeControlsProps } from './FaceRangeControls'
@@ -80,6 +82,22 @@ import type { ReactNode } from 'react'
 interface PropertiesPanelProps {
   /** Seção "Cenas" da aventura, montada por quem sabe da aventura (App). */
   scenes?: ReactNode
+  /** Seção "Estado do mundo" da aventura (Maré, Giro…), logo abaixo das Cenas. Ausente no mapa solto. */
+  worldState?: ReactNode
+  /**
+   * ESTADO DO MUNDO — "Depende do estado" da porta, do pino de viagem, da zona
+   * oculta e da luz selecionados, cada um dentro da seção do seu elemento.
+   * Montados pelo App (`DependeDoEstadoControls.tsx`), que sabe da aventura;
+   * ausentes no mapa solto.
+   */
+  estadoDaPorta?: ReactNode
+  estadoDoPino?: ReactNode
+  estadoDaZona?: ReactNode
+  estadoDaLuz?: ReactNode
+  /** PERIGO QUE SE ALASTRA — bloco "Perigo" da Sala selecionada (`PerigoDaSalaControls.tsx`), montado pelo App. */
+  perigoDaSala?: ReactNode
+  /** ROTINA DO NPC da ficha selecionada (`RotinaDaFichaControls.tsx`), montada pelo App; ausente no mapa solto. */
+  rotinaDaFicha?: ReactNode
   /** Seção "Objetos do mapa" (busca e "Ir até lá"), montada pelo App, que sabe da câmera e da seleção. */
   objects?: ReactNode
   mapName: string
@@ -212,6 +230,11 @@ interface PropertiesPanelProps {
     Required<Pick<LightControlsProps, 'onVistaDeLongeChange'>>
   selectedStair: Stair | null
   stairControls: Omit<StairControlsProps, 'direction' | 'shape'>
+  /**
+   * PISOS NA MESMA CENA: "Piso" da ficha e da escada, e "Leva ao piso" da
+   * escada. Ausente = sem os campos (quem monta o painel sem essa ligação).
+   */
+  pisos?: PisosWiring
   polygonSides: PolygonSidesControlsProps
   /** Chão por peças — peça selecionada (`null` = nenhuma) e seus controles. */
   selectedFloorPiece: FloorPiece | null
@@ -238,12 +261,31 @@ interface PropertiesPanelProps {
   territorio?: TerritorioControlsProps
 }
 
+/** PISOS NA MESMA CENA — as gravações do painel, por id (a seleção quem sabe é o painel). */
+export interface PisosWiring {
+  onTokenPisoChange: (tokenId: string, piso: number) => void
+  onStairPisosChange: (stairId: string, mudanca: { piso?: number; levaAoPiso?: number | null }) => void
+  /** O piso em edição no editor (o que o canvas mostra e onde o mestre constrói). */
+  pisoAtivo: number
+  /** "Editar o 1º piso" da escada: leva o editor ao outro lado dela. */
+  onEditarPiso: (piso: number) => void
+  /** "Levar ao piso" da seleção inteira; o editor vai junto. */
+  onLevarSelecaoAoPiso: (piso: number) => void
+}
+
 /**
  * Inspetor da coluna esquerda: identidade do mapa aberto e as seções de
  * propriedade. Só compõe — cada seção é responsável pelos próprios controles.
  */
 export function PropertiesPanel({
   scenes,
+  worldState,
+  estadoDaPorta,
+  estadoDoPino,
+  estadoDaZona,
+  estadoDaLuz,
+  perigoDaSala,
+  rotinaDaFicha,
   objects,
   mapName,
   mapWidth,
@@ -305,6 +347,7 @@ export function PropertiesPanel({
   lightControls,
   selectedStair,
   stairControls,
+  pisos,
   polygonSides,
   selectedFloorPiece,
   floorPieceControls,
@@ -400,11 +443,13 @@ export function PropertiesPanel({
               raioDeVisao={selectedRegion.room.raioDeVisao ?? null}
               {...room}
             />
+            {perigoDaSala}
           </ToolPropertiesSection>
         )}
         {concealZone && (
           <ToolPropertiesSection group="concealZone" groups={groups}>
             <ConcealZoneControls {...concealZone} />
+            {estadoDaZona}
           </ToolPropertiesSection>
         )}
         <ToolPropertiesSection group="revealBrush" groups={groups}>
@@ -418,6 +463,7 @@ export function PropertiesPanel({
               passagem, a alavanca): a grade de ícones não faria nada nelas,
               então `iconChoice` fica nulo para as duas. */}
           <PinControls {...pin} iconChoice={pinKindShowsIcon(pin.kind) ? { ...pinIcon, pinSelected } : null} />
+          {estadoDoPino}
         </ToolPropertiesSection>
         {playerSecret && (
           <ToolPropertiesSection group="playerVisibility" groups={groups}>
@@ -515,6 +561,7 @@ export function PropertiesPanel({
         {selectedWall && (
           <ToolPropertiesSection group="wallDoor" groups={groups}>
             <WallDoorControls door={selectedWall.door} {...wallDoor} />
+            {selectedWall.door !== null && estadoDaPorta}
           </ToolPropertiesSection>
         )}
         <ToolPropertiesSection group="doorKind" groups={groups}>
@@ -577,6 +624,10 @@ export function PropertiesPanel({
             {/* `tokenPhotoRef`: foto escolhida pelo JOGADOR vive em `imageData` — sem isto o painel ofereceria "Escolher imagem..." num token que já tem foto. */}
             <TokenImageControls image={tokenPhotoRef(selectedToken)} {...tokenImage} />
             <TokenNpcControls npc={selectedToken.npc === true} {...tokenNpc} />
+            {rotinaDaFicha}
+            {pisos !== undefined && (
+              <PisoControls key={`piso-${selectedToken.id}`} piso={pisoDe(selectedToken)} onPisoChange={(piso) => pisos.onTokenPisoChange(selectedToken.id, piso)} />
+            )}
             {/* `key`: outra ficha selecionada reabre fechado, sem a escolha da anterior.
                 Prefixada: o nome acima já usa o id puro, e chave repetida entre
                 irmãos deixa o campo Nome da ficha anterior no painel. */}
@@ -615,16 +666,32 @@ export function PropertiesPanel({
               vistaDeLonge={selectedLight.vistaDeLonge === true}
               {...lightControls}
             />
+            {estadoDaLuz}
           </ToolPropertiesSection>
         )}
         {selectedStair && (
           <ToolPropertiesSection group="stairControls" groups={groups}>
             <StairControls direction={selectedStair.direction} shape={selectedStair.shape} {...stairControls} />
+            {pisos !== undefined && (
+              <PisoControls
+                key={`piso-${selectedStair.id}`}
+                piso={pisoDe(selectedStair)}
+                onPisoChange={(piso) => pisos.onStairPisosChange(selectedStair.id, { piso })}
+                levaAoPiso={selectedStair.levaAoPiso ?? null}
+                onLevaAoPisoChange={(levaAoPiso) => pisos.onStairPisosChange(selectedStair.id, { levaAoPiso })}
+                pisoAtivo={pisos.pisoAtivo}
+                onEditarPiso={pisos.onEditarPiso}
+              />
+            )}
           </ToolPropertiesSection>
         )}
         <ToolPropertiesSection group="selection" groups={groups}>
           <AreaSelectionControls {...areaSelection} />
           <AlignDistributeControls {...alignDistribute} />
+          {/* PISOS NA MESMA CENA: parede, sala, chão, luz, objeto, desenho — tudo sobe ou desce um piso por aqui. */}
+          {pisos !== undefined && selection.selection !== null && (
+            <LevarAoPisoControls pisoAtivo={pisos.pisoAtivo} onLevar={pisos.onLevarSelecaoAoPiso} />
+          )}
           <SelectionControls {...selection} />
         </ToolPropertiesSection>
         {/* Cenas da aventura: depois do bloco da ferramenta e do objeto, junto das
@@ -632,6 +699,7 @@ export function PropertiesPanel({
             que é o nome do que está na mão ou do que acabou de ser desenhado
             (task-jornada-sala-livre.spec.ts, teste 3). */}
         {scenes}
+        {worldState}
         {/* Os objetos DA cena aberta, logo abaixo das cenas. Sem grupo de
             ferramenta: é navegação, como as Cenas, e nasce recolhida — com uma
             ferramenta de desenho na mão ela é só uma linha de título. Antes de

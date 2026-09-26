@@ -36,6 +36,8 @@ interface Chegado {
   name: string
   x: number
   y: number
+  /** PISOS NA MESMA CENA: o piso onde a ficha chegou (0 = térreo). */
+  piso: number
 }
 
 interface CartaoDaCena {
@@ -47,10 +49,11 @@ interface CartaoDaCena {
 
 /**
  * Devolve a função que a ponte chama a cada viagem concluída. `goTo` ausente
- * = sem "Ir lá" (a ponte sem editor para onde ir).
+ * = sem "Ir lá" (a ponte sem editor para onde ir). `goTo` recebe o piso de
+ * chegada: só a câmera deixaria o editor no piso de antes.
  */
 export function createArrivalAnnouncer(
-  goTo: ((sceneId: string, x: number, y: number) => void) | undefined,
+  goTo: ((sceneId: string, x: number, y: number, piso: number) => void) | undefined,
   duracaoMs: number = CHEGADA_TOAST_MS,
 ): (transfer: AppliedTransfer) => void {
   const cartoes = new Map<string, CartaoDaCena>()
@@ -78,7 +81,7 @@ export function createArrivalAnnouncer(
         'info',
         textoDeChegada(nomes, sceneName),
         duracaoMs,
-        goTo === undefined ? {} : { actions: [{ label: 'Ir lá', run: () => goTo(sceneId, ultimo.x, ultimo.y) }] },
+        goTo === undefined ? {} : { actions: [{ label: 'Ir lá', run: () => goTo(sceneId, ultimo.x, ultimo.y, ultimo.piso) }] },
       )
     cartoes.set(sceneId, { toastId, sceneName, chegados })
   }
@@ -102,7 +105,8 @@ export function createArrivalAnnouncer(
     const chegados = new Map(cartao?.chegados ?? [])
     // Chegou de novo: vai para o fim da lista (é a chegada mais recente), sem repetir o nome.
     chegados.delete(transfer.playerId)
-    chegados.set(transfer.playerId, { name: transfer.playerName, x: transfer.x, y: transfer.y })
+    // Térreo não leva o campo (`AppliedTransfer.piso` ausente).
+    chegados.set(transfer.playerId, { name: transfer.playerName, x: transfer.x, y: transfer.y, piso: transfer.piso ?? 0 })
     if (cartao !== undefined) useToastStore.getState().dismiss(cartao.toastId)
     mostrar(transfer.toSceneId, transfer.toSceneName, chegados)
     cenaDe.set(transfer.playerId, transfer.toSceneId)

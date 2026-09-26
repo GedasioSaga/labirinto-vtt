@@ -5,12 +5,14 @@ import type { PlayerClock } from '../lib/campaignClock'
 import { isMarcaRumo, MARCA_TEXTO_MAX, normalizarTextoDaMarca } from '../lib/marcas'
 import type { ExploredWire } from '../lib/exploration'
 import type { TokenMoveLanding, TokenMoveRejection } from '../lib/moveValidation'
+import type { PlayerConfronto } from '../lib/confronto'
 import { LASER_MAX_POINTS_PER_MESSAGE } from '../lib/laser'
 import { isTokenPhotoData } from '../lib/tokenPhoto'
 import { ROOM_TEXT_MAX_LENGTH } from '../lib/roomText'
 import { isPlayerSafePinImage } from '../lib/pins'
 import { CLUEBOOK_MAX_CLUES, CLUE_TEXT_MAX_LENGTH, CLUE_TITLE_MAX_LENGTH } from '../lib/clues'
 import { isPointActionKind, isPointActionRejection, type PointActionAnswer, type PointActionKind, type PointActionRejection } from '../lib/pointActions'
+import { isLetterVia, LETTER_TEXT_MAX_LENGTH, type LetterVia } from '../lib/correio'
 import { MAX_DESTINATION_MARKS, SIGNAL_COLOR_PATTERN, type DestinationMark } from '../lib/signals'
 import { MASTER_ROLLER_NAME, parseDiceRequest, type DiceRequest, type DiceRollEntry } from '../lib/dice'
 import { isNoiseDirection, type NoiseDirection } from '../lib/noise'
@@ -68,6 +70,8 @@ export type { OwnTokenElsewhere }
  * `pin.travel.cancel` (jogador desiste) e `pin.travel.cancelled` (o pedido
  * saiu da espera: ele desistiu ou a ficha se afastou do pino) seguem a mesma
  * regra, e a volta leva só o motivo.
+ * `tokenIds` no pedido (quais fichas dele passam) segue a mesma regra: mestre
+ * antigo descarta o campo e leva o grupo de sempre.
  *
  * `scene.note` (mestre -> jogador) é o RECADO POR CENA, aditivo pelo mesmo
  * critério: jogador antigo cai no `default` e ignora. Leva só o texto e um id,
@@ -155,6 +159,16 @@ export type { OwnTokenElsewhere }
  * `point.action` (jogador -> mestre) e, na volta, `point.action.answer` e
  * `point.action.rejected` são as AÇÕES NO PONTO, aditivas pelo mesmo critério.
  * A volta vai só a quem pediu e nunca leva sala, cena nem ponto.
+ * O CORREIO DE BILHETES é aditivo pelo mesmo critério. Do jogador:
+ * `letter.peers` (a quem posso escrever?) e `letter.send` (o bilhete, para um
+ * colega pelo nome na sala). Do mestre: `letter.peers` (os nomes) e
+ * `letter.send.result` (saiu para o mestre ou não). O bilhete ENTREGUE chega
+ * como `scene.note` com `from` e `via` a mais, e fica no caderno de recados:
+ * jogador antigo lê o texto como recado do mestre. Entregue com ele fora do
+ * ar ou aguardando sem ficha, chega pelo `notes.book` com o id em `unread`,
+ * que o jogador antigo ignora. Nenhuma delas leva cena,
+ * posição ou o destino do bilhete que ainda espera o mestre.
+ *
  * `snapshot.sceneName` (e `delta.sceneName`) é o "ONDE ESTOU", aditivo pelo
  * mesmo critério: o NOME PARA OS JOGADORES da cena onde o jogador está, só
  * quando o mestre escreveu um. Nunca o nome interno da cena, nunca o de outra
@@ -297,6 +311,13 @@ export type { OwnTokenElsewhere }
  * `route.show.result` (a quem mediu). A lista de colegas é a mesma
  * `clue.peers`. Mestre antigo responde `error invalid_message`; jogador antigo
  * ignora as duas.
+ *
+ * A LOJA COM PREÇOS é aditiva pelo mesmo critério: `pin.buy` (jogador ->
+ * mestre, o id do pino e o da mercadoria) e, na volta, `pin.buy.rejected` e
+ * `pin.buy.answer` (vendido, com o nome; ou não). A mercadoria viaja no
+ * `Pin.loja` do snapshot, já recortada pela névoa. Nem o pedido nem a
+ * resposta levam nome ou id de cena. Mestre antigo responde `error
+ * invalid_message`; jogador antigo ignora a resposta e o campo novo.
  */
 export const PROTOCOL_VERSION = 1
 
@@ -410,7 +431,17 @@ export interface JoinMessage {
    * tela e recebe a cena que o mestre escolheu (que pode ser outra que a dele).
    */
   tableKey?: string
+  /**
+   * PACOTE COMPRIMIDO: o que este cliente sabe abrir. Com `'gzip'`, o mestre
+   * manda a mensagem grande (o mapa) no envelope `{"gz":...}`
+   * (`net/pacoteComprimido.ts`). Ausente = texto, como sempre; mestre antigo
+   * ignora o campo.
+   */
+  accept?: JoinAccept[]
 }
+
+/** Compressões que o jogador pode declarar no `join`. */
+export type JoinAccept = 'gzip'
 
 /** O jogador sabe aplicar `patch` (ver o topo do arquivo). Sem ela, só `snapshot`. */
 export interface ViewPatchesMessage {
@@ -512,6 +543,29 @@ export interface PinTravelRequestMessage {
    * Aditivo: ausente vale a saída principal, e é o que o cliente antigo manda.
    */
   exitId?: string
+  /**
+   * ESCOLHER FICHAS NO PINO: quais fichas DELE passam (1 a
+   * `PIN_TRAVEL_MAX_TOKENS` ids, sem repetir). O host confere cada uma: dele,
+   * no recorte dele e no grupo do pino (`lib/pinTravelers.ts`). Aditivo:
+   * ausente vale o grupo de sempre (a mais perto do pino e as dele a até 2
+   * casas dela), e é o que o cliente antigo manda.
+   */
+  tokenIds?: string[]
+}
+
+/** Teto da lista `tokenIds` do pedido de passagem: fichas de um jogador que passam juntas. */
+export const PIN_TRAVEL_MAX_TOKENS = 8
+
+/**
+ * CABINE DE TRANSPORTE: "Chamar a cabine" pela parada `pinId` da cena em que
+ * o jogador está, que diz "a cabine não está aqui". Só o id do pino: qual
+ * cabine é, o jogador nem sabe. O host valida e, se valer, a chamada entra na
+ * fila e o mestre é avisado. Não tem resposta: a parada passa a dizer
+ * "chamada" no próximo recorte.
+ */
+export interface CabineCallMessage {
+  type: 'cabine.call'
+  pinId: string
 }
 
 /**
@@ -581,6 +635,18 @@ export interface PinTakeMessage {
 }
 
 /**
+ * LOJA COM PREÇOS: "Quero" a mercadoria `itemId` da banca `pinId`, na cena
+ * onde o jogador está. Só os ids: o nome e o preço que o mestre lê saem do
+ * mapa DELE, nunca do que o jogador mandasse. A volta é `pin.buy.rejected`
+ * (o host recusou antes de perguntar) ou `pin.buy.answer` (o mestre decidiu).
+ */
+export interface PinBuyMessage {
+  type: 'pin.buy'
+  pinId: string
+  itemId: string
+}
+
+/**
  * CHAVE ABRE PORTA: o jogador usa a chave que carrega na porta trancada
  * `wallId`. Só a porta: o host acha a chave na mochila das fichas dele
  * encostadas nela — o jogador não escolhe item nem diz nome.
@@ -631,6 +697,19 @@ export interface PointActionMessage {
   action: PointActionKind
   x: number
   y: number
+}
+
+/** CORREIO: a quem posso escrever? A resposta é `letter.peers` com os nomes na sala. */
+export interface LetterPeersRequestMessage {
+  type: 'letter.peers'
+}
+
+/** CORREIO: o bilhete para o colega de nome `to`, pelo meio `via`. Vai ao mestre, não direto ao colega. */
+export interface LetterSendMessage {
+  type: 'letter.send'
+  to: string
+  via: LetterVia
+  text: string
 }
 
 /**
@@ -748,6 +827,31 @@ export interface RouteShowMessage {
   points: RegionPoint[]
 }
 
+/**
+ * PISOS NA MESMA CENA — o jogador toca "Subir"/"Descer" com a ficha `tokenId`
+ * encostada na escada `stairId`. Só os dois ids: o piso de destino quem diz é
+ * a escada no mapa do mestre (`net/hostSession.ts`), nunca o jogador. Aditiva
+ * pelo critério de `door.toggle`: mestre antigo responde `invalid_message`.
+ */
+export interface TokenPisoMessage {
+  type: 'token.piso'
+  tokenId: string
+  stairId: string
+}
+
+/**
+ * ESCONDER-SE: o jogador pede ao mestre para a PRÓPRIA ficha sumir dos outros
+ * jogadores. Só o id: quem decide é o mestre ("Deixar"/"Não"), e aceito o
+ * mestre liga "Oculto para jogadores" na ficha. Recusa volta em
+ * `token.hide.rejected`; aceito não tem resposta — a ficha chega com `secret`
+ * no snapshot do dono. Aditiva pelo critério de sempre: mestre antigo
+ * responde `error invalid_message`, que o jogador ignora.
+ */
+export interface TokenHideRequestMessage {
+  type: 'token.hide.request'
+  tokenId: string
+}
+
 export type PlayerMessage =
   | MarkPlaceMessage
   | PinAnswerMessage
@@ -764,15 +868,20 @@ export type PlayerMessage =
   | TokenEditMessage
   | PinTravelRequestMessage
   | PinTakeMessage
+  | PinBuyMessage
   | ItemGiveMessage
   | PinTravelCancelMessage
+  | CabineCallMessage
   | PlayerLaserMessage
   | ClueReadMessage
   | CluePeersRequestMessage
   | ClueShowMessage
+  | TokenPisoMessage
   | CallRaiseMessage
   | CallLowerMessage
   | PointActionMessage
+  | LetterPeersRequestMessage
+  | LetterSendMessage
   | DiceRollMessage
   | PinLeverMessage
   | DoorPeekMessage
@@ -786,6 +895,18 @@ export type PlayerMessage =
   | WaitClearMessage
   | AwayMessage
   | RouteShowMessage
+  | TokenHideRequestMessage
+
+/**
+ * Por que o pedido de esconder-se não virou ficha escondida. `denied`: o
+ * mestre disse "Não". Os outros são do host, antes de perguntar: `pending`
+ * (já há um esperando), `too_soon` (insistiu antes do intervalo) e
+ * `unavailable` — genérico de propósito, para ficha que não é dele, que não
+ * existe, que já está escondida ou cena pausada: um motivo por caso ensinaria ids.
+ */
+export type TokenHideRejection = 'denied' | 'pending' | 'too_soon' | 'unavailable'
+
+export const TOKEN_HIDE_REJECTIONS: readonly TokenHideRejection[] = ['denied', 'pending', 'too_soon', 'unavailable']
 
 /**
  * Por que a alavanca não moveu nada. `unavailable` junta pino inexistente, no
@@ -805,6 +926,17 @@ export const PIN_LEVER_REJECTIONS: readonly PinLeverRejection[] = ['unavailable'
 export type PinTakeRejection = 'unavailable' | 'far' | 'pending'
 
 export const PIN_TAKE_REJECTIONS: readonly PinTakeRejection[] = ['unavailable', 'far', 'pending']
+
+/**
+ * Por que o host não levou o "Quero" ao mestre. `unavailable` junta banca
+ * inexistente, no escuro, oculta, em outra cena, mercadoria inventada e que
+ * acabou — um motivo por caso diria o que existe no escuro. `far`: nenhuma
+ * ficha dele na banca. `pending`: um pedido de compra dele já espera.
+ * `too_soon`: pediu de novo antes do intervalo mínimo.
+ */
+export type PinBuyRejection = 'unavailable' | 'far' | 'pending' | 'too_soon'
+
+export const PIN_BUY_REJECTIONS: readonly PinBuyRejection[] = ['unavailable', 'far', 'pending', 'too_soon']
 
 /** Por que o "Dar a…" não valeu: colega longe, ou item/ficha que não servem. */
 export type ItemGiveRejection = 'unavailable' | 'far'
@@ -917,6 +1049,9 @@ export interface SceneNoteMessage {
   at?: number
   /** Recado só para este jogador (ninguém mais na sala recebeu). Ausente = recado da cena. */
   onlyYou?: true
+  /** CORREIO: bilhete de um colega (nome na sala). Vem sempre junto de `via`; os dois ausentes = recado do mestre. */
+  from?: string
+  via?: LetterVia
 }
 
 /**
@@ -938,12 +1073,21 @@ export interface NoteEntry {
   id: string
   text: string
   at: number
+  /** CORREIO: quem escreveu o bilhete e por onde veio. Ausentes = recado do mestre. */
+  from?: string
+  via?: LetterVia
 }
 
 /** O caderno inteiro do jogador, do mais antigo ao mais novo, mandado quando ele entra ou volta. */
 export interface NotebookMessage {
   type: 'notes.book'
   notes: NoteEntry[]
+  /**
+   * CORREIO: ids (entre os de `notes`) do que chegou sem o jogador ver —
+   * bilhete entregue com ele fora do ar ou aguardando sem ficha. O cliente
+   * acende o não lido deles. Ausente = o caderno é só história.
+   */
+  unread?: string[]
 }
 
 /** Recados que chegaram à cena do jogador enquanto ele estava fora do ar, do mais antigo ao mais novo. */
@@ -1165,6 +1309,33 @@ export interface SecretCheckClosedMessage {
  * `table_full`: já há `MAX_TABLE_SCREENS` telas da mesa na sala (`hostSession.ts`).
  * `bad_table_key`: tela da mesa sem a chave do link da TV, ou com outra.
  */
+/** CORREIO: os colegas da sala, pelo nome. Nada de cena nem de status: só o nome. */
+export interface LetterPeersMessage {
+  type: 'letter.peers'
+  names: string[]
+}
+
+/**
+ * Por que o bilhete não saiu, quando o motivo não conta nada de ninguém:
+ * `too_soon` = outro bilhete saiu há pouco; `full` = o mestre ainda não
+ * respondeu aos bilhetes que esperam. Ausente = "não saiu", sem dizer por quê.
+ */
+export type LetterSendRefusal = 'too_soon' | 'full'
+
+/** O bilhete chegou ao MESTRE (`ok`) ou não. Se ele entrega ou intercepta, o remetente não fica sabendo. */
+export interface LetterSendResultMessage {
+  type: 'letter.send.result'
+  to: string
+  ok: boolean
+  reason?: LetterSendRefusal
+}
+
+export type LetterHostMessage = LetterPeersMessage | LetterSendResultMessage
+
+/**
+ * `table_full`: já há `MAX_TABLE_SCREENS` telas da mesa na sala (`hostSession.ts`).
+ * `bad_table_key`: tela da mesa sem a chave do link da TV, ou com outra.
+ */
 export type HostErrorReason = 'bad_code' | 'invalid_message' | 'not_joined' | 'already_joined' | 'table_full' | 'bad_table_key'
 
 /**
@@ -1239,6 +1410,8 @@ export type HostMessage =
   // deste recorte (`turnForPlayer`). Ausente = ninguém que o jogador vê.
   // `partyTokens` (ITEM PEGÁVEL): das fichas que ele recebeu, as de OUTROS jogadores — o "Dar a…" não oferece NPC.
   // `hazards` (ZONA DE PERIGO): só o que o jogador enxerga agora, e só quando há algum (`PlayerMapView.hazards`).
+  // `confronto`: a faixa do confronto da cena DELE, já recortada (`lib/confronto.ts`).
+  // Ausente = sem confronto nesta cena.
   // `sceneName`: o NOME PARA OS JOGADORES da cena onde ele está ("Onde estou").
   // Ausente = a cena não tem nome público (ou mapa solto, ou mestre antigo).
   // `place`/`places`: LUGARES, ids do host para as memórias dele (ver o topo).
@@ -1250,8 +1423,10 @@ export type HostMessage =
   // `elsewhere` (MINHAS FICHAS EM OUTRAS CENAS): as fichas dele em outra cena.
   // `peek`: aditivo — só sai com uma ficha do jogador no vão de porta aberta de prédio de teto fechado.
   // `waiting` (ENCONTRO MARCADO): ver o comentário acima de `HostMessage`.
-  | { type: 'snapshot'; rev: number; map: MapData; vision: RegionPoint[][]; explored: ExploredWire; ownTokens: string[]; concealed: RegionPoint[][]; turn?: string; partyTokens?: string[]; hazards?: PlayerHazard[]; sceneName?: string; place?: string; places?: string[]; gatilhos?: PlayerAreaTrigger[]; andares?: FloorsWire; relogio?: PlayerClock; glimpses?: RegionPoint[][]; elsewhere?: OwnTokenElsewhere[]; peek?: RoofPeek; waiting?: string[] }
-  | { type: 'delta'; rev: number; map: MapData; vision: RegionPoint[][]; explored: ExploredWire; ownTokens: string[]; concealed: RegionPoint[][]; turn?: string; partyTokens?: string[]; hazards?: PlayerHazard[]; sceneName?: string; place?: string; places?: string[]; gatilhos?: PlayerAreaTrigger[]; andares?: FloorsWire; relogio?: PlayerClock; glimpses?: RegionPoint[][]; elsewhere?: OwnTokenElsewhere[]; peek?: RoofPeek; waiting?: string[] }
+  // `porAtravessar` (PORTAS POR ATRAVESSAR): ids de portas que JÁ vão em `map.walls` com um lado ainda na névoa
+  // para ele (`PlayerMapView.portasPorAtravessar`), só quando há alguma. Jogador antigo ignora; mestre antigo não manda.
+  | { type: 'snapshot'; rev: number; map: MapData; vision: RegionPoint[][]; explored: ExploredWire; ownTokens: string[]; concealed: RegionPoint[][]; turn?: string; partyTokens?: string[]; hazards?: PlayerHazard[]; confronto?: PlayerConfronto; sceneName?: string; place?: string; places?: string[]; gatilhos?: PlayerAreaTrigger[]; andares?: FloorsWire; relogio?: PlayerClock; glimpses?: RegionPoint[][]; elsewhere?: OwnTokenElsewhere[]; peek?: RoofPeek; waiting?: string[]; porAtravessar?: string[] }
+  | { type: 'delta'; rev: number; map: MapData; vision: RegionPoint[][]; explored: ExploredWire; ownTokens: string[]; concealed: RegionPoint[][]; turn?: string; partyTokens?: string[]; hazards?: PlayerHazard[]; sceneName?: string; place?: string; places?: string[]; gatilhos?: PlayerAreaTrigger[]; andares?: FloorsWire; relogio?: PlayerClock; glimpses?: RegionPoint[][]; elsewhere?: OwnTokenElsewhere[]; peek?: RoofPeek; waiting?: string[]; porAtravessar?: string[] }
   // Só o que mudou desde a tela `base` desta conexão (ver o topo do arquivo).
   | ({ type: 'patch'; rev: number; base: number } & ViewPatch)
   // ZONA DE PERIGO: a ficha DESTE jogador entrou num perigo. Só o tipo — nem a sala, nem a zona.
@@ -1272,11 +1447,17 @@ export type HostMessage =
   | { type: 'door.toggle.rejected'; wallId: string; reason: DoorToggleRejection; key?: string }
   | { type: 'door.request.rejected'; wallId: string; reason: DoorRequestRejection }
   | { type: 'door.request.answer'; answer: DoorRequestAnswer }
+  // ESCONDER-SE: só a quem pediu. Aceito não tem mensagem: a ficha chega com `secret` no snapshot dele.
+  | { type: 'token.hide.rejected'; reason: TokenHideRejection }
   | { type: 'pin.travel.rejected'; reason: PinTravelRejection }
   // ITEM PEGÁVEL. `nome` só no `taken`: o jogador lê o que agora carrega.
   | { type: 'pin.take.rejected'; reason: PinTakeRejection }
   | { type: 'pin.take.answer'; answer: 'taken'; nome: string }
   | { type: 'pin.take.answer'; answer: 'denied' }
+  // LOJA COM PREÇOS, só a quem pediu. `nome` só no `sold`: o que agora está na mochila dele.
+  | { type: 'pin.buy.rejected'; reason: PinBuyRejection }
+  | { type: 'pin.buy.answer'; answer: 'sold'; nome: string }
+  | { type: 'pin.buy.answer'; answer: 'denied' }
   | { type: 'item.give.rejected'; reason: ItemGiveRejection }
   // ALAVANCA. `pulled` não diz qual porta nem se abriu ou fechou: a porta
   // ligada pode estar fora da vista, e o jogador só vê o que o recorte mostra.
@@ -1316,6 +1497,7 @@ export type HostMessage =
   // a resposta: nem o ponto, nem a sala, nem a cena que o mestre leu.
   | { type: 'point.action.answer'; action: PointActionKind; answer: PointActionAnswer }
   | { type: 'point.action.rejected'; reason: PointActionRejection }
+  | LetterHostMessage
   | DiceRolledMessage
   | SeatOptionsMessage
   // Só a quem pediu a ficha; a aceitação chega como o mapa, com a ficha dele.
@@ -1353,6 +1535,15 @@ function isFiniteNumber(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value)
 }
 
+/**
+ * PACOTE COMPRIMIDO: do `accept` do `join`, só o que o mestre sabe mandar.
+ * Malformado ou sem nada conhecido = ausente: o `accept` nunca derruba a entrada.
+ */
+function parseJoinAccept(raw: unknown): { accept?: JoinAccept[] } {
+  if (!Array.isArray(raw) || !raw.includes('gzip')) return {}
+  return { accept: ['gzip'] }
+}
+
 function parseJoin(obj: Record<string, unknown>): JoinMessage | null {
   const { code, name, resume, role, tableKey } = obj
   if (typeof code !== 'string' || !JOIN_CODE_PATTERN.test(code)) return null
@@ -1360,17 +1551,18 @@ function parseJoin(obj: Record<string, unknown>): JoinMessage | null {
   const trimmed = name.trim()
   // `length` conta unidades UTF-16 (emoji = 2): é o limite que o jogador vê no input.
   if (trimmed.length < NAME_MIN_LENGTH || trimmed.length > NAME_MAX_LENGTH) return null
+  const accept = parseJoinAccept(obj.accept)
   if (role !== undefined) {
     // Tela da mesa nunca retoma sessão de jogador: com `resume` junto, a mensagem cai inteira.
     if (role !== 'table' || resume !== undefined) return null
     // Sem chave a mensagem passa: quem recusa é a sessão (`bad_table_key`), para a TV dizer o que falta.
-    if (tableKey === undefined) return { type: 'join', code, name: trimmed, role }
+    if (tableKey === undefined) return { type: 'join', code, name: trimmed, role, ...accept }
     if (!isBoundedString(tableKey, 1, TABLE_KEY_MAX_LENGTH)) return null
-    return { type: 'join', code, name: trimmed, role, tableKey }
+    return { type: 'join', code, name: trimmed, role, tableKey, ...accept }
   }
-  if (resume === undefined) return { type: 'join', code, name: trimmed }
+  if (resume === undefined) return { type: 'join', code, name: trimmed, ...accept }
   if (!isBoundedString(resume, 1, RESUME_TOKEN_MAX_LENGTH)) return null
-  return { type: 'join', code, name: trimmed, resume }
+  return { type: 'join', code, name: trimmed, resume, ...accept }
 }
 
 function parseTokenMove(obj: Record<string, unknown>): TokenMoveMessage | null {
@@ -1400,11 +1592,34 @@ function parseSignal(obj: Record<string, unknown>): SignalMessage | null {
  * saída principal (o jogador escolheu uma porta e iria por outra).
  */
 function parseTravelRequest(obj: Record<string, unknown>): PinTravelRequestMessage | null {
-  const { pinId, exitId } = obj
+  const { pinId, exitId, tokenIds } = obj
   if (!isBoundedString(pinId, 1, REQ_ID_MAX_LENGTH)) return null
-  if (exitId === undefined) return { type: 'pin.travel.request', pinId }
-  if (!isBoundedString(exitId, 1, REQ_ID_MAX_LENGTH)) return null
-  return { type: 'pin.travel.request', pinId, exitId }
+  const message: PinTravelRequestMessage = { type: 'pin.travel.request', pinId }
+  if (exitId !== undefined) {
+    if (!isBoundedString(exitId, 1, REQ_ID_MAX_LENGTH)) return null
+    message.exitId = exitId
+  }
+  if (tokenIds !== undefined) {
+    const ids = parseTravelTokenIds(tokenIds)
+    if (ids === null) return null
+    message.tokenIds = ids
+  }
+  return message
+}
+
+/**
+ * A lista de fichas do pedido: 1 a `PIN_TRAVEL_MAX_TOKENS` ids curtos, sem
+ * repetir. Fora disso a mensagem inteira é recusada — cair calado no grupo de
+ * sempre levaria justamente quem o jogador NÃO escolheu.
+ */
+function parseTravelTokenIds(value: unknown): string[] | null {
+  if (!Array.isArray(value) || value.length === 0 || value.length > PIN_TRAVEL_MAX_TOKENS) return null
+  const ids: string[] = []
+  for (const id of value) {
+    if (!isBoundedString(id, 1, REQ_ID_MAX_LENGTH) || ids.includes(id)) return null
+    ids.push(id)
+  }
+  return ids
 }
 
 export function isDoorRequestHow(value: unknown): value is DoorRequestHow {
@@ -1511,12 +1726,17 @@ export function parseSceneNote(value: unknown): SceneNoteMessage | null {
   const { id, text, at } = value
   if (!isBoundedString(id, 1, REQ_ID_MAX_LENGTH)) return null
   if (!isBoundedString(text, 1, NOTE_MAX_LENGTH)) return null
+  const sender = parseLetterSender(value)
+  if (sender === null) return null
+  const note: SceneNoteMessage = { type: 'scene.note', id, text }
+  if (at !== undefined) {
+    // Presente e fora da forma recusa inteiro, como o resto: hora torta no caderno é pior que recado nenhum.
+    if (!isNoteTime(at)) return null
+    note.at = at
+  }
   // Só `true` marca: qualquer outro valor é recado comum, sem faixa.
-  const onlyYou = value.onlyYou === true ? { onlyYou: true as const } : {}
-  if (at === undefined) return { type: 'scene.note', id, text, ...onlyYou }
-  // Presente e fora da forma recusa inteiro, como o resto: hora torta no caderno é pior que recado nenhum.
-  if (!isNoteTime(at)) return null
-  return { type: 'scene.note', id, text, at, ...onlyYou }
+  if (value.onlyYou === true) note.onlyYou = true
+  return sender === undefined ? note : { ...note, ...sender }
 }
 
 function isNoteTime(value: unknown): value is number {
@@ -1544,11 +1764,25 @@ export function parseAbalo(value: unknown): AbaloMessage | null {
   return parsed
 }
 
+/**
+ * CORREIO: `from` e `via` do bilhete entregue. `undefined` = nenhum dos dois
+ * (recado do mestre); `null` = um só, nome fora da forma ou meio desconhecido —
+ * recusa o recado inteiro, como a cor do laser: remetente pela metade mentiria.
+ */
+function parseLetterSender(value: Record<string, unknown>): { from: string; via: LetterVia } | null | undefined {
+  const { from, via } = value
+  if (from === undefined && via === undefined) return undefined
+  if (!isRoomName(from) || !isLetterVia(via)) return null
+  return { from, via }
+}
+
 function parseNoteEntry(value: unknown): NoteEntry | null {
   if (!isRecord(value)) return null
   const { id, text, at } = value
   if (!isBoundedString(id, 1, REQ_ID_MAX_LENGTH) || !isBoundedString(text, 1, NOTE_MAX_LENGTH) || !isNoteTime(at)) return null
-  return { id, text, at }
+  const sender = parseLetterSender(value)
+  if (sender === null) return null
+  return sender === undefined ? { id, text, at } : { id, text, at, ...sender }
 }
 
 /**
@@ -1678,7 +1912,17 @@ export function parseNotebook(value: unknown): NotebookMessage | null {
     if (entry === null) return null
     parsed.push(entry)
   }
-  return { type: 'notes.book', notes: parsed }
+  const { unread } = value
+  if (unread === undefined) return { type: 'notes.book', notes: parsed }
+  if (!Array.isArray(unread) || unread.length > NOTEBOOK_MAX_NOTES) return null
+  // Só vale marcar o que está no caderno: id solto não acende ponto de nada.
+  const known = new Set(parsed.map((entry) => entry.id))
+  const marked: string[] = []
+  for (const id of unread) {
+    if (!isBoundedString(id, 1, REQ_ID_MAX_LENGTH)) return null
+    if (known.has(id)) marked.push(id)
+  }
+  return { type: 'notes.book', notes: parsed, unread: marked }
 }
 
 /**
@@ -1842,6 +2086,41 @@ export function parseMapShareMessage(value: unknown): MapShareHostMessage | null
   }
 }
 
+/** Lista de nomes na sala, até `CLUE_PEERS_MAX`; um nome ruim recusa a lista inteira. */
+function parseRoomNames(value: unknown): string[] | null {
+  if (!Array.isArray(value) || value.length > CLUE_PEERS_MAX) return null
+  const parsed: string[] = []
+  for (const name of value) {
+    if (!isRoomName(name)) return null
+    parsed.push(name)
+  }
+  return parsed
+}
+
+/**
+ * Valida as mensagens do CORREIO que o jogador recebe (a entrega vem por
+ * `parseSceneNote`). Mesma regra de MINHAS PISTAS: forma errada recusa a
+ * mensagem inteira, e sai só com os campos conhecidos.
+ */
+export function parseLetterMessage(value: unknown): LetterHostMessage | null {
+  if (!isRecord(value)) return null
+  switch (value.type) {
+    case 'letter.peers': {
+      const names = parseRoomNames(value.names)
+      return names === null ? null : { type: 'letter.peers', names }
+    }
+    case 'letter.send.result': {
+      const { to, ok, reason } = value
+      if (!isRoomName(to) || typeof ok !== 'boolean' || (reason !== undefined && typeof reason !== 'string')) return null
+      // Motivo que este jogador não conhece (mestre mais novo) vira a recusa comum.
+      if (ok || (reason !== 'too_soon' && reason !== 'full')) return { type: 'letter.send.result', to, ok }
+      return { type: 'letter.send.result', to, ok, reason }
+    }
+    default:
+      return null
+  }
+}
+
 /**
  * Pedido de ação sobre uma ficha. Ação fora da lista, texto que não é texto ou
  * acima do teto recusam a mensagem inteira. Texto só de espaço vale como sem
@@ -1949,6 +2228,19 @@ export function parseWaitHostMessage(value: unknown): WaitHostMessage | null {
   }
   if (reason === 'met') return colega === undefined ? null : { type: 'wait.ended', reason, who: colega }
   return colega === undefined ? { type: 'wait.ended', reason } : { type: 'wait.ended', reason, who: colega }
+}
+
+/**
+ * CORREIO: o bilhete do jogador. Texto aparado entre 1 e
+ * `LETTER_TEXT_MAX_LENGTH`, meio conhecido e nome na forma da sala; qualquer
+ * outra coisa recusa a mensagem inteira.
+ */
+function parseLetterSend(obj: Record<string, unknown>): LetterSendMessage | null {
+  const { to, via, text } = obj
+  if (!isRoomName(to) || !isLetterVia(via) || typeof text !== 'string') return null
+  const trimmed = text.trim()
+  if (trimmed.length < 1 || trimmed.length > LETTER_TEXT_MAX_LENGTH) return null
+  return { type: 'letter.send', to, via, text: trimmed }
 }
 
 /** Cor do laser repassado: `#rrggbb`, a forma que `Token.color` grava. */
@@ -2241,6 +2533,8 @@ export function parsePlayerMessage(raw: unknown): PlayerMessage | null {
       return parseTravelRequest(value)
     case 'pin.travel.cancel':
       return { type: 'pin.travel.cancel' }
+    case 'cabine.call':
+      return isBoundedString(value.pinId, 1, REQ_ID_MAX_LENGTH) ? { type: 'cabine.call', pinId: value.pinId } : null
     case 'laser':
       // Só o corpo: `from`/`color` mandados pelo jogador são jogados fora — o
       // nome e a cor quem põe é o host, pela conexão e pela ficha dele.
@@ -2253,6 +2547,10 @@ export function parsePlayerMessage(raw: unknown): PlayerMessage | null {
       return isBoundedString(value.clueId, 1, REQ_ID_MAX_LENGTH) && isRoomName(value.to) ? { type: 'clue.show', clueId: value.clueId, to: value.to } : null
     case 'pin.take':
       return isBoundedString(value.pinId, 1, REQ_ID_MAX_LENGTH) ? { type: 'pin.take', pinId: value.pinId } : null
+    case 'pin.buy':
+      return isBoundedString(value.pinId, 1, REQ_ID_MAX_LENGTH) && isBoundedString(value.itemId, 1, REQ_ID_MAX_LENGTH)
+        ? { type: 'pin.buy', pinId: value.pinId, itemId: value.itemId }
+        : null
     case 'item.give':
       return isBoundedString(value.itemId, 1, REQ_ID_MAX_LENGTH) && isBoundedString(value.toTokenId, 1, REQ_ID_MAX_LENGTH)
         ? { type: 'item.give', itemId: value.itemId, toTokenId: value.toTokenId }
@@ -2265,6 +2563,10 @@ export function parsePlayerMessage(raw: unknown): PlayerMessage | null {
       return isPointActionKind(value.action) && isFiniteNumber(value.x) && isFiniteNumber(value.y)
         ? { type: 'point.action', action: value.action, x: value.x, y: value.y }
         : null
+    case 'letter.peers':
+      return { type: 'letter.peers' }
+    case 'letter.send':
+      return parseLetterSend(value)
     case 'dice.roll': {
       // Só o pedido: resultado, total e nome mandados pelo jogador são jogados fora.
       const request = parseDiceRequest(value)
@@ -2300,6 +2602,12 @@ export function parsePlayerMessage(raw: unknown): PlayerMessage | null {
       return typeof value.away === 'boolean' ? { type: 'away', away: value.away } : null
     case 'route.show':
       return parseRouteShow(value)
+    case 'token.piso':
+      return isBoundedString(value.tokenId, 1, REQ_ID_MAX_LENGTH) && isBoundedString(value.stairId, 1, REQ_ID_MAX_LENGTH)
+        ? { type: 'token.piso', tokenId: value.tokenId, stairId: value.stairId }
+        : null
+    case 'token.hide.request':
+      return isBoundedString(value.tokenId, 1, REQ_ID_MAX_LENGTH) ? { type: 'token.hide.request', tokenId: value.tokenId } : null
     default:
       return null
   }

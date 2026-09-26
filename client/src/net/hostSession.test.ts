@@ -325,6 +325,62 @@ describe('hostSession', () => {
     expect(JSON.stringify(toC1)).not.toContain('"ladino"')
   })
 
+  it('SEGURANÇA: o guarda na zona oculta anda com a tocha afastada dele à vista — nenhum snapshot leva a tocha', () => {
+    const s = newSession()
+    // Zona 260..360 x 220..300 com o guarda dentro; a tocha presa nele ficou
+    // 100 px abaixo, fora da zona e na sala do herói.
+    const zona = { id: 'zona', name: 'nome-zona', revealed: false, points: [{ x: 260, y: 220 }, { x: 360, y: 220 }, { x: 360, y: 300 }, { x: 260, y: 300 }] }
+    const map: MapData = {
+      ...twoRooms(),
+      tokens: [...twoRooms().tokens, token('guarda', 300, 250)],
+      concealZones: [zona],
+      lights: [{ id: 'tocha-do-guarda', x: 300, y: 350, radius: 80, color: '#f00', intensity: 1, attachedTokenId: 'guarda' }],
+    }
+    const p1 = welcomeOf(s.handleMessage('c1', { type: 'join', code: CODE, name: 'Ana' }, map).outbound)
+    s.assignToken(p1.playerId, 'heroi')
+    const andou = setTokenPosition(map, 'guarda', 330, 260)
+    expect(andou.lights[0]).toMatchObject({ x: 330, y: 360 })
+    for (const mapa of [map, andou]) {
+      const toC1 = s.broadcast(mapa).outbound.find((o) => o.clientId === 'c1')?.msg
+      if (toC1?.type !== 'snapshot') throw new Error('esperava snapshot para c1')
+      expect(toC1.map.lights).toEqual([])
+      expect(JSON.stringify(toC1)).not.toContain('guarda')
+    }
+  })
+
+  it('SEGURANÇA: NPC oculto ou secreto anda com a tocha no centro, à vista do herói — nenhum snapshot leva a tocha; a do NPC comum chega', () => {
+    const s = newSession()
+    // Todos na sala do herói (x < 500), em plena vista dele.
+    const map: MapData = {
+      ...twoRooms(),
+      tokens: [
+        ...twoRooms().tokens,
+        { ...token('fantasma', 250, 300), hidden: true },
+        { ...token('assassino', 300, 300), secret: true },
+        token('guia', 350, 300),
+      ],
+      lights: [
+        { id: 'tocha-do-fantasma', x: 250, y: 300, radius: 80, color: '#f00', intensity: 1, attachedTokenId: 'fantasma' },
+        { id: 'tocha-do-assassino', x: 300, y: 300, radius: 80, color: '#f00', intensity: 1, attachedTokenId: 'assassino' },
+        { id: 'tocha-do-guia', x: 350, y: 300, radius: 80, color: '#f00', intensity: 1, attachedTokenId: 'guia' },
+      ],
+    }
+    const p1 = welcomeOf(s.handleMessage('c1', { type: 'join', code: CODE, name: 'Ana' }, map).outbound)
+    s.assignToken(p1.playerId, 'heroi')
+    const andou = setTokenPosition(setTokenPosition(setTokenPosition(map, 'fantasma', 250, 360), 'assassino', 300, 360), 'guia', 350, 360)
+    // No mapa do mestre as três tochas andaram: é esse passo que vazaria.
+    expect(andou.lights.map((l) => l.y)).toEqual([360, 360, 360])
+    for (const mapa of [map, andou]) {
+      const toC1 = s.broadcast(mapa).outbound.find((o) => o.clientId === 'c1')?.msg
+      if (toC1?.type !== 'snapshot') throw new Error('esperava snapshot para c1')
+      // Controle: a tocha do NPC que o mestre NÃO esconde chega, com o vínculo.
+      expect(toC1.map.lights.map((l) => l.id)).toEqual(['tocha-do-guia'])
+      expect(toC1.map.lights[0]).toMatchObject({ x: 350, attachedTokenId: 'guia' })
+      const json = JSON.stringify(toC1)
+      for (const vazado of ['fantasma', 'assassino', '"x":250', '"x":300']) expect(json).not.toContain(vazado)
+    }
+  })
+
   it('move atravessando parede é rejeitado com wall', () => {
     const s = newSession()
     const map = twoRooms()
@@ -466,12 +522,15 @@ describe('hostSession', () => {
       expect(isPointExplored(explored, { x: 150, y: 200 })).toBe(true)
     })
 
-    it('kick zera: o jogador que volta começa sem memória', () => {
+    it('kick zera: o jogador que volta (com outra ficha) começa sem memória', () => {
       const s = smallSession()
       joinPlaying(s, 'c1', mapAt(200, 200))
       s.broadcast(mapAt(200, 200))
       s.kick('c1')
-      joinPlaying(s, 'c2', mapAt(200, 800))
+      // MEMÓRIA POR FICHA: a do herói é do herói e fica (hostSession.memoriaPorFicha.test.ts);
+      // o que o kick zera é a do JOGADOR, então ele volta com a ficha que nunca viu a sala.
+      const again = welcomeOf(s.handleMessage('c2', { type: 'join', code: CODE, name: 'Ana' }, mapAt(200, 800)).outbound)
+      s.assignToken(again.playerId, 'ladino')
       const { explored, msg } = snapshotTo(s.broadcast(mapAt(200, 800)), 'c2')
       expect(isPointExplored(explored, { x: 200, y: 200 })).toBe(false)
       expect(msg.map.regions).toEqual([])

@@ -52,7 +52,7 @@ export const useInitiativeStore = create<InitiativeState>()((set, get) => ({
     const hasTurn = turn !== null && turn.mapId === mapId && turn.tokenId === fromId
     if (!hasValue && !hasTurn) return
     let nextValues = values
-    if (hasValue) {
+    if (current !== undefined && hasValue) {
       const { [fromId]: value, ...rest } = current
       nextValues = { ...values, [mapId]: { ...rest, [toId]: value } }
     }

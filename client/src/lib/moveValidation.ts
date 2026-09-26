@@ -5,6 +5,7 @@ import { pointInRing } from './floorContour'
 import { compileFloor, pieceBounds, type CompiledFloor } from './floorSdf'
 import { playerHiddenRings } from './fogFilter'
 import { clampToMaxStep, findOccupant, tokensOccupy } from './movementRules'
+import { cabeNoPasso, casasDoTrajeto, fichaDaVez } from './confronto'
 
 /**
  * Validação autoritativa de movimento de token (modo jogador). O servidor/host
@@ -21,7 +22,9 @@ export interface TokenMoveRequest {
 
 /**
  * `occupied`: a cena liga "Fichas ocupam espaço" e o destino cai sobre outra ficha ('Lugar ocupado').
- * `not_your_turn`: a cena tem iniciativa e a ficha pedida não é a da vez.
+ * `not_your_turn`: a cena tem iniciativa e a ficha pedida não é a da vez, ou
+ * há CONFRONTO na cena (`lib/confronto.ts`) e a ficha está na fila fora da vez.
+ * `too_far`: CONFRONTO — o trajeto passa do que resta do passo.
  */
 export type TokenMoveRejection =
   | 'unknown_token'
@@ -32,6 +35,7 @@ export type TokenMoveRejection =
   | 'wall'
   | 'outside_floor'
   | 'occupied'
+  | 'too_far'
 
 /**
  * Por que o movimento aceito parou em outro lugar que não o pedido.
@@ -40,8 +44,9 @@ export type TokenMoveRejection =
  */
 export type TokenMoveLanding = 'nearest_floor'
 
+/** `casas`: só quando o movimento conta no passo do confronto — é o que o host soma ao gasto da vez. */
 export type TokenMoveResult =
-  | { ok: true; x: number; y: number; landing?: TokenMoveLanding }
+  | { ok: true; x: number; y: number; landing?: TokenMoveLanding; casas?: number }
   | { ok: false; reason: TokenMoveRejection }
 
 export interface TokenMoveOptions {
@@ -59,6 +64,8 @@ export interface TokenMoveOptions {
    * host (mestre) nunca espera a vez.
    */
   turnTokenId?: string | null
+  /** Casas que a ficha da vez já andou nesta vez (confronto). Ausente = 0. */
+  gastoNaVez?: number
 }
 
 /** Fração da célula entre amostras do trajeto: garante corredor de 1/4 de célula detectado. */
@@ -282,6 +289,26 @@ function pathStaysOnFloor(map: MapData, compiled: CompiledFloor, fromX: number, 
   return true
 }
 
+/**
+ * As travas que seguram a ficha de um JOGADOR, qualquer que seja o jeito de
+ * andar: o passo (`validateTokenMove`) e a troca de piso pela escada
+ * (`handleTokenPiso` no host). Cadeado do mestre, vez da iniciativa
+ * (`turnTokenId` ausente ou `null` = sem iniciativa aqui) e vez do CONFRONTO
+ * (só prende ficha que está na fila). O mestre não passa por aqui.
+ */
+export function travaDaFichaDoJogador(
+  map: Pick<MapData, 'confronto'>,
+  token: Pick<Token, 'id' | 'locked'>,
+  turnTokenId: string | null | undefined,
+): 'locked' | 'not_your_turn' | null {
+  if (token.locked) return 'locked'
+  const turn = turnTokenId ?? null
+  if (turn !== null && turn !== token.id) return 'not_your_turn'
+  const confronto = map.confronto
+  if (confronto !== undefined && confronto.fila.includes(token.id) && fichaDaVez(confronto) !== token.id) return 'not_your_turn'
+  return null
+}
+
 export function validateTokenMove(
   map: MapData,
   request: TokenMoveRequest,
@@ -294,10 +321,14 @@ export function validateTokenMove(
   if (!options.isHost) {
     const owned = ownership[request.playerId] ?? [] // jogador sem entrada no mapa de posse não possui nada
     if (!owned.includes(token.id)) return { ok: false, reason: 'not_owner' }
-    if (token.locked) return { ok: false, reason: 'locked' }
-    const turn = options.turnTokenId ?? null // ausente = sem iniciativa nesta cena
-    if (turn !== null && turn !== token.id) return { ok: false, reason: 'not_your_turn' }
+    const trava = travaDaFichaDoJogador(map, token, options.turnTokenId)
+    if (trava !== null) return { ok: false, reason: trava }
   }
+
+  // CONFRONTO: o passo conta só para pedido de jogador e só para ficha da
+  // fila (a vez já foi checada acima); o mestre e quem está fora da fila andam livres.
+  const confronto = options.isHost ? undefined : map.confronto
+  const naFila = confronto !== undefined && confronto.fila.includes(token.id)
 
   if (!isInsideMap(map, request.x, request.y)) return { ok: false, reason: 'outside_map' }
 
@@ -328,13 +359,18 @@ export function validateTokenMove(
     if (!pathStaysOnFloor(map, compiled, a.x, a.y, b.x, b.y)) return { ok: false, reason: 'outside_floor' }
   }
 
-  // Por último: "Lugar ocupado" só depois de saber que o caminho existe, senão
+  // "Lugar ocupado" só depois de saber que o caminho existe, senão
   // a recusa diria que há alguém atrás de uma parede.
   if (!options.isHost && tokensOccupy(map) && findOccupant(options.occupants ?? map.tokens, token.id, to, map.grid) !== undefined) {
     return { ok: false, reason: 'occupied' }
   }
 
-  return { ok: true, x: to.x, y: to.y }
+  if (confronto === undefined || !naFila) return { ok: true, x: to.x, y: to.y }
+  // O passo é medido no MESMO trajeto que acabou de passar (o vão da porta
+  // aberta conta), na régua do mapa.
+  const casas = casasDoTrajeto(map, path)
+  if (!cabeNoPasso(confronto.passo, options.gastoNaVez ?? 0, casas)) return { ok: false, reason: 'too_far' }
+  return { ok: true, x: to.x, y: to.y, casas }
 }
 
 /**

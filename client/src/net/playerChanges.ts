@@ -4,7 +4,8 @@ import { useMapStore } from '../stores/mapStore'
 import type { MapData, MarcaNoLugar } from '../types/map'
 import { openPinLock } from '../lib/pinLock'
 import { adicionarMarca, apagarMarca } from '../lib/marcas'
-import type { AppliedLock, AppliedMark, AppliedTokenEdit } from './hostSession'
+import { comFichaNoPiso } from '../lib/pisos'
+import type { AppliedLock, AppliedMark, AppliedPiso, AppliedTokenEdit } from './hostSession'
 
 /**
  * O que o JOGADOR muda no mapa do mestre (movimento, porta, nome/foto da
@@ -70,6 +71,11 @@ function removeMark(markId: string): MapTransform {
   return (map) => apagarMarca(map, markId)
 }
 
+/** PISOS NA MESMA CENA: a ficha sobe ou desce pela escada, no mesmo ponto. Térreo tira o campo. */
+function setTokenPiso(tokenId: string, piso: number): MapTransform {
+  return (map) => comFichaNoPiso(map, tokenId, piso)
+}
+
 /** `sceneId` ausente = a cena aberta no editor; presente = uma cena de fundo. */
 function applyToScene(sceneId: string | undefined, transform: MapTransform): void {
   if (sceneId === undefined) useMapStore.getState().applyPlayerChange(transform)
@@ -111,4 +117,5 @@ export const hostPlayerChanges = {
   applyLock: (lock: AppliedLock): void => applyToScene(lock.sceneId, openLock(lock.pinId)),
   applyMark: (mark: AppliedMark): void => applyToScene(mark.sceneId, placeMark(mark.marca)),
   removeMark: removeMarkWhereItIs,
+  applyPiso: ({ tokenId, piso, sceneId }: AppliedPiso): void => applyToScene(sceneId, setTokenPiso(tokenId, piso)),
 }

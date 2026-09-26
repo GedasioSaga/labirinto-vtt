@@ -19,14 +19,17 @@ const MOVE_NOTICE_TEXT: Record<TokenMoveRejection, string> = {
   wall: 'Parede no caminho',
   outside_floor: 'Fora do chão',
   not_owner: 'Essa ficha não é sua',
-  locked: 'O mestre travou essa ficha',
+  // FICHA SEGURADA PELO MESTRE: a jogadora achava que o app tinha travado.
+  // O cadeado na própria ficha (`pixi/drawTokenLock.ts`) diz o mesmo antes do arrasto.
+  locked: 'O mestre segurou sua ficha',
   outside_map: 'Fora do mapa',
   unknown_token: 'Essa ficha não está mais aqui',
   // "Fichas ocupam espaço": não diz QUEM está lá.
   occupied: 'Lugar ocupado',
-  // A vez tem aviso próprio (`turnNotice`, "Espere sua vez"); este texto só
-  // existe porque o registro cobre todo motivo.
+  // A vez da iniciativa tem aviso próprio (`turnNotice`, "Espere sua vez"); o
+  // CONFRONTO na cena (`lib/confronto.ts`) usa este mesmo texto.
   not_your_turn: 'Espere sua vez',
+  too_far: 'Além do seu passo',
 }
 
 export function moveNoticeText(reason: TokenMoveRejection): string {

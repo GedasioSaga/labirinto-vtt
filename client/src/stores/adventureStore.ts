@@ -17,6 +17,8 @@ import { applyItemChange } from '../lib/items'
 import { carrierIdOf, withoutCarrier } from '../lib/carry'
 import type { Bounds, Camera, Point } from '../pixi/world'
 import * as mapFactory from '../lib/mapFactory'
+import { moverNaCena, planejarRotina, type CenaDaRotina } from '../lib/rotinaDoNpc'
+import { comPiso, pisoDe } from '../lib/pisos'
 import {
   ADVENTURE_VERSION,
   baseName,
@@ -34,6 +36,15 @@ import {
   type SceneEntry,
 } from '../lib/adventure'
 import type { AgendaDaCampanha } from '../lib/agendaDaCampanha'
+import {
+  aplicarEstadoNoMapa,
+  comValorAtual,
+  contarMudancas,
+  novoEstadoDoMundo,
+  type AmarraDeEstado,
+  type ResumoDaTroca,
+} from '../lib/estadoDoMundo'
+import { comCabineEm, comChamada, comParada, novaCabine, proximaChamada, semFila, type ChamadaAceita } from '../lib/cabine'
 import {
   addExit,
   arrivalPoint,
@@ -126,6 +137,8 @@ export interface CarriedToken {
   /** Onde a ficha assentou na cena de destino. */
   x: number
   y: number
+  /** PISOS NA MESMA CENA: o piso onde ela chegou (o do pino). Ausente = o térreo. O "Ir lá" vai a ele. */
+  piso?: number
 }
 
 export interface CameraRequest {
@@ -272,10 +285,17 @@ interface AdventureState {
   goToPoint: (sceneId: string | null, point: Point, fit?: Bounds) => boolean
   /**
    * LISTA "PINOS": abre a cena `sceneId` (`null` = mapa solto) com a câmera no
-   * pino `pinId` e ele selecionado no painel. `false` quando o pino não existe
-   * mais ali ou a cena não abre — aí nada muda.
+   * pino `pinId`, o editor no piso dele e ele selecionado no painel. `false`
+   * quando o pino não existe mais ali ou a cena não abre — aí nada muda.
    */
   goToPin: (sceneId: string | null, pinId: string) => boolean
+  /**
+   * PISOS NA MESMA CENA — "Ir lá" até uma FICHA: o `goToPoint` de sempre e o
+   * editor no `piso` dela. Só a câmera deixava o editor no piso de antes (ou
+   * no térreo, que `loadMap` põe ao trocar de cena), com a ficha invisível
+   * no centro da tela. `false` (e o piso intacto) quando o `goToPoint` não foi.
+   */
+  goToPointNoPiso: (sceneId: string | null, point: Point, piso: number) => boolean
   /** Muda uma cena de FUNDO sem passar pelo desfazer da cena aberta. */
   updateBackgroundScene: (sceneId: string, updater: (map: MapData) => MapData) => void
   /**
@@ -350,9 +370,11 @@ interface AdventureState {
    * O jogador atravessou: tira o token `tokenId` da cena `fromSceneId` e o
    * põe em (`x`, `y`) da cena `toSceneId`. FORA DO DESFAZER nas duas pontas —
    * ver `transferToken` abaixo. `false` quando não deu (cena fora do ar,
-   * token que já não está lá, mesma cena).
+   * token que já não está lá, mesma cena). PISOS NA MESMA CENA: `piso` é o
+   * piso da cena de destino onde ele chega; ausente = o térreo — o piso da
+   * cena de partida não vale na outra cena.
    */
-  transferToken: (tokenId: string, fromSceneId: string, toSceneId: string, x: number, y: number) => boolean
+  transferToken: (tokenId: string, fromSceneId: string, toSceneId: string, x: number, y: number, piso?: number) => boolean
   /**
    * "Levar para…" da ficha SEM DONO (NPC, monstro): leva o token `tokenId` da
    * cena aberta para `toSceneId`, na ponta do pino de viagem `pinId` (`null` =
@@ -361,6 +383,61 @@ interface AdventureState {
    * (mapa solto, cena fora do ar, pino ou ficha que sumiu, mesma cena).
    */
   carryToken: (tokenId: string, toSceneId: string, pinId: string | null) => CarriedToken | null
+  /**
+   * ESTADO DO MUNDO: cria "Maré" com os valores de `valores` ("alta, baixa"),
+   * o primeiro como atual. Devolve o id, ou `null` no mapa solto, sem nome ou
+   * sem valor. Muda só a aventura (pede Salvar).
+   */
+  criarEstadoDoMundo: (nome: string, valores: string) => string | null
+  /**
+   * ESTADO DO MUNDO: põe `estadoId` em `valor` e grava o efeito em cada porta,
+   * pino e zona amarrados, na cena aberta e em todas as de fundo que abriram.
+   * Mudança de MESA: fora do Ctrl+Z do mestre nas duas pontas. Devolve quantos
+   * elementos mudaram e em quantas cenas; `null` quando o estado não existe ou
+   * o valor não é dele (nada muda).
+   * ROTINA DO NPC: é também o APITO — cada ficha com posto em `valor` vai para
+   * ele, dentro da cena ou para outra (`transferToken`), também fora do Ctrl+Z.
+   * `fixas`: fichas que um jogador segura; ficam onde estão.
+   */
+  trocarEstadoDoMundo: (estadoId: string, valor: string, fixas?: ReadonlySet<string>) => ResumoDaTroca | null
+  /**
+   * ESTADO DO MUNDO: "Depende do estado" de um elemento da cena ABERTA (o
+   * painel de propriedades só mostra ela). Grava a regra e já põe o elemento
+   * no efeito do valor atual do estado, pelo `useMapStore.amarrarAoEstado`
+   * (com histórico). Estado que não existe na aventura: só grava a regra.
+   */
+  amarrarAoEstado: (amarra: AmarraDeEstado) => void
+  /**
+   * CABINE DE TRANSPORTE: cria a cabine `nome` com o pino de viagem `pinId` da
+   * cena ABERTA como primeira parada, e a cabine nele. Devolve o id, ou `null`
+   * no mapa solto, sem nome ou com pino que não é de viagem. Muda só a
+   * aventura (pede Salvar), fora do Ctrl+Z da cena.
+   */
+  criarCabine: (nome: string, pinId: string) => string | null
+  /**
+   * CABINE DE TRANSPORTE: o pino `pinId` da cena aberta passa a ser parada de
+   * `cabineId` (`null` = de nenhuma). `false` quando nada muda.
+   */
+  definirParadaDeCabine: (pinId: string, cabineId: string | null) => boolean
+  /**
+   * CABINE DE TRANSPORTE: a cabine passa a estar em `parada` (uma das dela):
+   * "Trazer a cabine para cá" do mestre e a viagem de quem passou (`applyCabine`
+   * da ponte). `false` quando não dá ou ela já está lá.
+   */
+  moverCabine: (cabineId: string, parada: PinDestination) => boolean
+  /**
+   * CABINE DE TRANSPORTE: a chamada que o host aceitou entra no fim da fila
+   * (`chamadaDeCabine` da ponte). `false` quando não entra: a parada já está
+   * na fila, a cabine já está lá, a cabine ou a parada não existem.
+   */
+  chamarCabine: (chamada: ChamadaAceita) => boolean
+  /**
+   * CABINE DE TRANSPORTE: "Atender a próxima chamada" — a cabine vai à parada
+   * da primeira chamada da fila, que sai dela. `false` com a fila vazia.
+   */
+  atenderChamada: (cabineId: string) => boolean
+  /** CABINE DE TRANSPORTE: "Limpar a fila". `false` quando não havia chamada. */
+  limparFilaDaCabine: (cabineId: string) => boolean
   /** Há cena de fundo ou lista de cenas esperando gravação? (A cena aberta é o `useSessionStore` que diz.) */
   hasPendingScenes: () => boolean
   /**
@@ -647,7 +724,15 @@ export function hostWorldOf(state: SceneState, liveMap: MapData): HostWorld {
     const slot = state.cache[entry.id]
     if (slot !== undefined && slot.status === 'ok') background.push({ sceneId: entry.id, name: entry.name, ...publicNameOf(entry), map: slot.map, ...planOf(planKnownByAll) })
   }
-  return { open, background }
+  // CABINE DE TRANSPORTE: aventura sem cabine serve o mundo de sempre, sem a chave.
+  const cabines = state.adventure.cabines
+  return cabines === undefined ? { open, background } : { open, background, cabines }
+}
+
+/** A cena aberta (mapa vivo) e as de fundo que abriram, cada uma com o id dela na aventura. */
+function cenasCarregadas(activeSceneId: string, live: MapData, cache: Record<string, SceneSlot>): CenaDaRotina[] {
+  const fundo = Object.entries(cache).flatMap(([sceneId, slot]) => (slot.status === 'ok' ? [{ sceneId, map: slot.map }] : []))
+  return [{ sceneId: activeSceneId, map: live }, ...fundo]
 }
 
 /** As cenas de fundo que `hostWorldOf` serve (só slot 'ok') mudaram de conjunto? */
@@ -695,11 +780,17 @@ function withoutToken(history: SceneHistory, tokenId: string): SceneHistory {
   return { map: drop(history.map), past: history.past.map(drop), future: history.future.map(drop) }
 }
 
-/** A ficha `fromId` passa a se chamar `toId`, e a tocha presa nela vai junto. */
+/**
+ * A ficha `fromId` passa a se chamar `toId`, e o que o mapa guarda pelo id
+ * dela vai junto: a tocha presa nela e as fichas que ela leva.
+ */
 function renameToken(map: MapData, fromId: string, toId: string): MapData {
   return {
     ...map,
-    tokens: map.tokens.map((t) => (t.id === fromId ? { ...t, id: toId } : t)),
+    tokens: map.tokens.map((t) => {
+      const renamed = t.id === fromId ? { ...t, id: toId } : t
+      return renamed.levadoPor === fromId ? { ...renamed, levadoPor: toId } : renamed
+    }),
     lights: map.lights.map((l) => (l.attachedTokenId === fromId ? { ...l, attachedTokenId: toId } : l)),
   }
 }
@@ -712,7 +803,9 @@ function renameToken(map: MapData, fromId: string, toId: string): MapData {
  * id porque é por ele que a sessão sabe de qual jogador ela é, e o que chamou
  * a travessia (`carryToken`, "Deixar ir", "Reunir o grupo") segue apontando
  * para ela. Tudo que é guardado pelo id da de destino vai junto para o id
- * novo: a tocha presa (aqui), a seleção e a iniciativa (em `transferToken`).
+ * novo: o que mora no mapa (a tocha presa e as fichas que ela leva) aqui, em
+ * `renameToken`; o que mora FORA dele (a seleção e a iniciativa) em
+ * `transferToken`, com `residentId`.
  */
 function withToken(history: SceneHistory, token: Token): { history: SceneHistory; residentId: string | null } {
   const steps = [history.map, ...history.past, ...history.future]
@@ -720,6 +813,22 @@ function withToken(history: SceneHistory, token: Token): { history: SceneHistory
   const residentId = clash ? crypto.randomUUID() : null
   const put = (map: MapData): MapData => mapFactory.addToken(residentId === null ? map : renameToken(map, token.id, residentId), token)
   return { history: { map: put(history.map), past: history.past.map(put), future: history.future.map(put) }, residentId }
+}
+
+/**
+ * A ficha que já estava no mapa `mapId` trocou `fromId` por `toId` (ver
+ * `withToken`). A iniciativa é guardada por mapa + id: o valor e a vez dela
+ * vão com ela, e a que chegou entra sem nenhum dos dois. Se o mapa é o que
+ * está aberto (`inEditor`), a seleção dela também segue a ficha.
+ */
+function renameResidentOutsideMap(mapId: string, fromId: string, toId: string, inEditor: boolean): void {
+  useInitiativeStore.getState().renameToken(mapId, fromId, toId)
+  if (!inEditor) return
+  const { selection } = useMapStore.getState()
+  if (!selectionHas(selection, { kind: 'token', id: fromId })) return
+  // `setState`, não `setSelection`: é a MESMA seleção com o id novo, e não
+  // pode soltar o pino ou a zona que estão abertos no painel.
+  useMapStore.setState({ selection: selection.map((item) => (item.kind === 'token' && item.id === fromId ? { kind: 'token', id: toId } : item)) })
 }
 
 /**
@@ -1194,9 +1303,17 @@ export const useAdventureStore = create<AdventureState>()((set, get) => ({
     const scene = pinScenesOf(get(), useMapStore.getState().map).find((s) => s.sceneId === sceneId)
     const pin = scene?.pins.find((p) => p.id === pinId)
     if (pin === undefined) return false
-    if (!get().goToPoint(sceneId, pinFocusPoint(pin))) return false
-    // Depois da troca: carregar a cena nova no editor não pode apagar a seleção.
+    // PISOS NA MESMA CENA: pino de outro piso estaria selecionado e invisível.
+    if (!get().goToPointNoPiso(sceneId, pinFocusPoint(pin), pisoDe(pin))) return false
+    // Depois da troca de cena e de piso: as duas limpam a seleção.
     useMapStore.getState().setSelectedPin(pinId)
+    return true
+  },
+
+  goToPointNoPiso: (sceneId, point, piso) => {
+    if (!get().goToPoint(sceneId, point)) return false
+    // Depois da troca de cena: `loadMap` acabou de pôr o térreo.
+    useMapStore.getState().setPisoAtivo(piso)
     return true
   },
 
@@ -1223,6 +1340,111 @@ export const useAdventureStore = create<AdventureState>()((set, get) => ({
     const past = slot.past.map(transform)
     const future = slot.future.map(transform)
     set({ cache: { ...cache, [sceneId]: { ...slot, map, past, future } }, dirty: { ...dirty, [sceneId]: true } })
+  },
+
+  criarEstadoDoMundo: (nome, valores) => {
+    const { adventure } = get()
+    if (adventure === null) return null
+    const estado = novoEstadoDoMundo(nome, valores)
+    if (estado === null) return null
+    set({ adventure: { ...adventure, estados: [...(adventure.estados ?? []), estado] }, structureDirty: true })
+    return estado.id
+  },
+
+  trocarEstadoDoMundo: (estadoId, valor, fixas) => {
+    const { adventure, activeSceneId, cache } = get()
+    // Aventura aberta sempre tem cena aberta (`open`, `createScene`): sem ela não há onde tocar.
+    if (adventure === null || activeSceneId === null) return null
+    const estados = comValorAtual(adventure.estados ?? [], estadoId, valor)
+    if (estados === null) return null
+    // Conta e planeja ANTES de aplicar: depois, cada elemento já está no efeito e a conta daria zero.
+    const cenas = cenasCarregadas(activeSceneId, useMapStore.getState().map, cache)
+    const movimentos = planejarRotina(cenas, estadoId, valor, fixas)
+    const mexidas = new Set(movimentos.flatMap((m) => [m.de, m.para]))
+    const porCena = cenas.map((cena) => contarMudancas(cena.map, estadoId, valor))
+    const cenasMudadas = cenas.filter((cena, i) => porCena[i] > 0 || mexidas.has(cena.sceneId)).length
+    const resumo: ResumoDaTroca = {
+      elementos: porCena.reduce((soma, n) => soma + n, 0),
+      cenas: cenasMudadas,
+      ...(movimentos.length === 0 ? {} : { fichas: movimentos.length }),
+    }
+    // Id de ficha é único na aventura: o mesmo `transform` serve a toda cena.
+    const transform = (map: MapData) => moverNaCena(aplicarEstadoNoMapa(map, estadoId, valor), movimentos)
+    useMapStore.getState().applyPlayerChange(transform)
+    for (const sceneId of Object.keys(cache)) get().applyPlayerChangeToBackgroundScene(sceneId, transform)
+    for (const m of movimentos) {
+      if (m.de === m.para || !get().transferToken(m.tokenId, m.de, m.para, m.x, m.y) || m.de !== activeSceneId) continue
+      // Saiu da cena aberta: a seleção não pode apontar para ela (o mesmo cuidado de `carryToken`).
+      const item: SelectionItem = { kind: 'token', id: m.tokenId }
+      const { selection, setSelection } = useMapStore.getState()
+      if (selectionHas(selection, item)) setSelection(removeSelectionItem(selection, item))
+    }
+    set({ adventure: { ...adventure, estados }, structureDirty: true })
+    return resumo
+  },
+
+  amarrarAoEstado: (amarra) => {
+    const estadoId = amarra.regra?.estadoId
+    const estado = estadoId === undefined ? undefined : get().adventure?.estados?.find((e) => e.id === estadoId)
+    useMapStore.getState().amarrarAoEstado(amarra, estado === undefined ? null : estado.atual)
+  },
+
+  criarCabine: (nome, pinId) => {
+    const { adventure, activeSceneId } = get()
+    if (adventure === null || activeSceneId === null) return null
+    const pin = useMapStore.getState().map.pins.find((p) => p.id === pinId)
+    if (pin === undefined || pin.kind !== 'viagem') return null
+    const parada = { sceneId: activeSceneId, pinId }
+    const cabine = novaCabine(nome, parada)
+    if (cabine === null) return null
+    // O pino que já era parada de outra cabine sai dela: uma parada, uma cabine.
+    const antes = adventure.cabines ?? []
+    const semEla = comParada(antes, parada, null) ?? antes
+    set({ adventure: { ...adventure, cabines: [...semEla, cabine] }, structureDirty: true })
+    return cabine.id
+  },
+
+  definirParadaDeCabine: (pinId, cabineId) => {
+    const { adventure, activeSceneId } = get()
+    if (adventure === null || activeSceneId === null) return false
+    const cabines = comParada(adventure.cabines ?? [], { sceneId: activeSceneId, pinId }, cabineId)
+    if (cabines === null) return false
+    set({ adventure: { ...adventure, cabines }, structureDirty: true })
+    return true
+  },
+
+  moverCabine: (cabineId, parada) => {
+    const { adventure } = get()
+    if (adventure === null) return false
+    const cabines = comCabineEm(adventure.cabines ?? [], cabineId, parada)
+    if (cabines === null) return false
+    set({ adventure: { ...adventure, cabines }, structureDirty: true })
+    return true
+  },
+
+  chamarCabine: ({ cabineId, chamada }) => {
+    const { adventure } = get()
+    if (adventure === null) return false
+    const cabines = comChamada(adventure.cabines ?? [], cabineId, chamada)
+    if (cabines === null) return false
+    set({ adventure: { ...adventure, cabines }, structureDirty: true })
+    return true
+  },
+
+  atenderChamada: (cabineId) => {
+    const { adventure } = get()
+    if (adventure === null) return false
+    const proxima = proximaChamada(adventure.cabines ?? [], cabineId)
+    return proxima === null ? false : get().moverCabine(cabineId, proxima.parada)
+  },
+
+  limparFilaDaCabine: (cabineId) => {
+    const { adventure } = get()
+    if (adventure === null) return false
+    const cabines = semFila(adventure.cabines ?? [], cabineId)
+    if (cabines === null) return false
+    set({ adventure: { ...adventure, cabines }, structureDirty: true })
+    return true
   },
 
   linkPinToNewArrival: (pinId, sceneId, exitId = SAIDA_PRINCIPAL) => {
@@ -1393,7 +1615,7 @@ export const useAdventureStore = create<AdventureState>()((set, get) => ({
     return true
   },
 
-  transferToken: (tokenId, fromSceneId, toSceneId, x, y) => {
+  transferToken: (tokenId, fromSceneId, toSceneId, x, y, piso) => {
     const { activeSceneId, cache, dirty } = get()
     if (activeSceneId === null || fromSceneId === toSceneId) return false
     const read = (sceneId: string): SceneHistory | null => {
@@ -1410,7 +1632,7 @@ export const useAdventureStore = create<AdventureState>()((set, get) => ({
     if (from === null || to === null || token === undefined) return false
 
     const leaving = withoutToken(from, tokenId)
-    const { history: arriving, residentId } = withToken(to, { ...arrivingLink(token, to.map), x, y })
+    const { history: arriving, residentId } = withToken(to, comPiso({ ...arrivingLink(token, to.map), x, y }, piso))
     const nextCache: Record<string, SceneSlot> = { ...cache }
     const nextDirty: Record<string, true> = { ...dirty }
     let openScene: SceneHistory | null = null
@@ -1431,16 +1653,7 @@ export const useAdventureStore = create<AdventureState>()((set, get) => ({
     // A cena aberta troca mapa E histórico juntos, sem `withHistory`: a
     // travessia não é um passo do mestre para o Ctrl+Z desfazer.
     if (openScene !== null) useMapStore.setState({ map: openScene.map, past: openScene.past, future: openScene.future })
-    // A ficha que já estava na cena aberta trocou de id: a seleção dela vai junto.
-    if (residentId !== null && toSceneId === activeSceneId) {
-      const renamed = useMapStore
-        .getState()
-        .selection.map((item) => (item.kind === 'token' && item.id === tokenId ? { ...item, id: residentId } : item))
-      useMapStore.setState({ selection: renamed })
-    }
-    // A iniciativa é guardada por mapa + id: o valor e a vez da que já estava
-    // vão com ela para o id novo, e a que chegou entra sem nenhum dos dois.
-    if (residentId !== null) useInitiativeStore.getState().renameToken(to.map.id, tokenId, residentId)
+    if (residentId !== null) renameResidentOutsideMap(to.map.id, tokenId, residentId, toSceneId === activeSceneId)
     return true
   },
 
@@ -1457,12 +1670,12 @@ export const useAdventureStore = create<AdventureState>()((set, get) => ({
     if (pin === undefined) return null
     // O mesmo assento de quem atravessa pelo "Mandar para…" (`hostSession.sendPlayer`).
     const spot = pin === null ? arrivalPoint(slot.map) : arrivalSpot(slot.map, pin, token.size)
-    if (!get().transferToken(tokenId, activeSceneId, toSceneId, spot.x, spot.y)) return null
+    if (!get().transferToken(tokenId, activeSceneId, toSceneId, spot.x, spot.y, pin?.piso)) return null
     // A ficha já não está no mapa aberto: a seleção não pode apontar para ela.
     const item: SelectionItem = { kind: 'token', id: tokenId }
     const { selection, setSelection } = useMapStore.getState()
     if (selectionHas(selection, item)) setSelection(removeSelectionItem(selection, item))
-    return { tokenName: token.name, sceneId: toSceneId, sceneName: entry.name, x: spot.x, y: spot.y }
+    return { tokenName: token.name, sceneId: toSceneId, sceneName: entry.name, x: spot.x, y: spot.y, ...(pin === null || pisoDe(pin) === 0 ? {} : { piso: pisoDe(pin) }) }
   },
 
   hasPendingScenes: () => {

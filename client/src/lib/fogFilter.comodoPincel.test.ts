@@ -65,7 +65,7 @@ function cena(regions: Region[]): MapData {
   }
 }
 
-const pintado = (mapa: MapData): MapData => paintRevealBrush(mapa, TRACO, RAIO_PINCEL, 'revelar').map
+const pintado = (mapa: MapData): MapData => paintRevealBrush(mapa, TRACO, RAIO_PINCEL, 'revelar', 0).map
 
 describe('cômodo lembrado + pincel de revelar', () => {
   it('SEGURANÇA: cômodo dentro da zona NÃO sai quando o traço do pincel passa por ele — com visão longa ou curta', () => {

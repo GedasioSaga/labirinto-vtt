@@ -1,5 +1,7 @@
 import type { MapData } from '../types/map'
 import { lerAgenda, type AgendaDaCampanha } from './agendaDaCampanha'
+import { estadosDoArquivo, type EstadoDoMundo } from './estadoDoMundo'
+import { cabinesDoArquivo, type CabineDeTransporte } from './cabine'
 
 /**
  * AVENTURA: várias cenas (mapas) numa pasta só. Cada cena continua sendo um
@@ -53,6 +55,20 @@ export interface Adventure {
    * antiga abre. Só do mestre: o host não serve nada daqui ao jogador.
    */
   agenda?: AgendaDaCampanha
+  /**
+   * ESTADO DO MUNDO: os estados nomeados ("Maré: alta | baixa") e o valor
+   * atual de cada um. Mora aqui porque cruza cenas; a regra de cada porta, pino
+   * e zona mora no arquivo da cena (`porEstado`). Só do mestre: a aventura
+   * nunca vai pela rede. Ausente = aventura antiga, que grava sem a chave.
+   */
+  estados?: EstadoDoMundo[]
+  /**
+   * CABINE DE TRANSPORTE: elevador, paternoster, cesto — as paradas e onde a
+   * cabine está (`lib/cabine.ts`). Mora aqui porque cruza cenas e tem uma
+   * posição só. Ao jogador vai só "aqui/longe" na parada que ele vê
+   * (`lib/fogFilter.ts`). Ausente = aventura antiga, que grava sem a chave.
+   */
+  cabines?: CabineDeTransporte[]
 }
 
 /** Nome de cena vazio vira este, em vez de uma entrada sem nome na lista. */
@@ -205,12 +221,18 @@ export function parseAdventure(json: string): Adventure {
   if (scenes.length === 0) throw new Error('adventure.json inválido: nenhuma cena')
 
   const startSceneId = typeof parsed.startSceneId === 'string' && seen.has(parsed.startSceneId) ? parsed.startSceneId : scenes[0].id
+  // ESTADO DO MUNDO: campo novo e opcional. Aventura antiga não ganha a chave.
+  const estados = estadosDoArquivo(parsed.estados)
+  // CABINE DE TRANSPORTE: idem — sem a chave, a aventura continua sem ela.
+  const cabines = cabinesDoArquivo(parsed.cabines)
   const adventure: Adventure = {
     version: typeof parsed.version === 'number' ? parsed.version : ADVENTURE_VERSION,
     id: typeof parsed.id === 'string' && parsed.id.length > 0 ? parsed.id : `adv_${crypto.randomUUID()}`,
     name: typeof parsed.name === 'string' ? parsed.name : scenes[0].name,
     startSceneId,
     scenes: sanitizeSceneParents(scenes),
+    ...(estados === undefined ? {} : { estados }),
+    ...(cabines === undefined ? {} : { cabines }),
   }
   // Agenda ausente ou ilegível: a aventura abre sem o campo, igual a uma antiga.
   const agenda = lerAgenda(parsed.agenda)

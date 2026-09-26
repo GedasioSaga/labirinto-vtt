@@ -74,6 +74,13 @@ describe('initiativeStore', () => {
     expect(values['mapa-cripta']).toEqual({ machado: 3 })
   })
 
+  it('a vez de ficha sem valor também segue o id novo (vez posta à mão)', () => {
+    useInitiativeStore.getState().setTurn({ mapId: 'mapa-ponte', tokenId: 'orc' })
+    useInitiativeStore.getState().renameToken('mapa-ponte', 'orc', 'orc-2')
+    expect(useInitiativeStore.getState().turn).toEqual({ mapId: 'mapa-ponte', tokenId: 'orc-2' })
+    expect(useInitiativeStore.getState().values).toEqual({})
+  })
+
   it('trocar o id de ficha sem valor nem vez não mexe em nada', () => {
     montar()
     startTurn('mapa-ponte', FICHAS)

@@ -19,7 +19,8 @@ import { visibleDrawings, visibleLights, visibleProps, visibleRegions, visibleSt
 import { visionSegments } from '../lib/visibility'
 import { tokenReachesDoor } from '../lib/doorReach'
 import { findStairPinAt } from '../lib/selectionHitTest'
-import { findPinAt, pinSizeScale, pinTapTolerance } from '../lib/pins'
+import { findPinAt, findPinsAt, pinSizeScale, pinTapTolerance } from '../lib/pins'
+import { escolhaDoToque } from './pinChooser'
 import { visiblePins } from '../lib/layers'
 import { createPinsRenderer } from '../pixi/drawPins'
 import { drawMarcas } from '../pixi/drawMarcas'
@@ -45,6 +46,7 @@ import { drawWalls } from '../pixi/drawWalls'
 import { drawDoors } from '../pixi/drawDoors'
 import { drawMapLines, drawMapMarkers } from '../pixi/drawMapLines'
 import { createRegionsRenderer } from '../pixi/drawRegions'
+import { drawPerigos } from '../pixi/drawPerigos'
 import { createLightsRenderer } from '../pixi/drawLights'
 import { drawFarLights, farLightPoints } from '../pixi/drawFarLights'
 import { drawDrawings } from '../pixi/drawDrawings'
@@ -60,12 +62,15 @@ import { readTokenHealth } from '../lib/tokenHealth'
 import { drawTokenHealthBar, HEALTH_BAR_LABEL, tokenLabelTop } from '../pixi/drawTokenHealth'
 import { fitPhotoSprite, textureFromDataUrl } from '../pixi/tokenPhotoSprite'
 import { isTokenPhotoData, tokenPhotoRef } from '../lib/tokenPhoto'
+import { playerTokenAlpha } from '../lib/tokenHiding'
 import { tokenConditionsOf } from '../lib/tokenConditions'
 import { CONDITION_MARKS_LABEL, drawTokenConditions } from '../pixi/drawTokenConditions'
 import { watchAlertOf } from '../lib/npcWatch'
 import { WATCH_ALERT_LABEL, drawWatchAlert } from '../pixi/drawNpcWatch'
+import { TOKEN_LOCK_LABEL, drawTokenLock } from '../pixi/drawTokenLock'
 import { createRoomNamesRenderer, findRoomLabelAt, tokenLabelObstacles, type LabelObstacle } from '../pixi/drawRoomNames'
 import { hasEnterText } from '../lib/roomText'
+import { regioesComContagem } from '../lib/portasPorAtravessar'
 import { createTextLabelsRenderer } from '../pixi/drawTextLabels'
 import { isDegenerateRegion } from '../pixi/shapes'
 import { createDestinationsRenderer, createSignalsRenderer } from '../pixi/drawSignals'
@@ -142,6 +147,8 @@ interface PlayerViewProps {
   glimpses?: RegionPoint[][]
   /** Espiada pela porta aberta: o telhado desses prédios sai recortado pela visão de quem está no vão. */
   peek?: RoofPeek
+  /** PORTAS POR ATRAVESSAR: portas com o outro lado ainda na névoa (o host já recortou); ganham um ponto claro. */
+  porAtravessar?: readonly string[]
   ownTokens: string[]
   /** INICIATIVA: a ficha da vez (sempre uma de `map.tokens`), que ganha o anel da vez. */
   turnTokenId?: string | null
@@ -194,6 +201,12 @@ interface PlayerViewProps {
   onPinOpen?: (pinId: string) => void
   /** Toque curto numa ficha ALHEIA: abre o cartão dela, com as ações que viram pedido ao mestre. */
   onTokenOpen?: (tokenId: string) => void
+  /**
+   * Toque curto onde há MAIS DE UM pino (cravados no mesmo ponto, ou colados
+   * dentro da folga do dedo): os ids, do mais perto ao mais longe, para o
+   * jogador escolher. Ausente = abre o mais perto, como `onPinOpen`.
+   */
+  onPinsChoose?: (pinIds: string[]) => void
   /** Toque curto no nome de uma Sala cujo texto já chegou: reabre o texto da sala. */
   onRoomOpen?: (regionId: string) => void
   /** BILHETE NO LUGAR: toque curto num bilhete deixado no chão abre o cartão dele. */
@@ -424,6 +437,8 @@ interface TokenView {
   marks: Graphics
   /** Balão do guarda (?, !) — só chega a marca, nunca o cone (`lib/fogFilter.ts`). */
   alert: Graphics
+  /** Cadeado da ficha que o mestre segura (`pixi/drawTokenLock.ts`) — só na PRÓPRIA ficha. */
+  lock: Graphics
   key: string
   /** Referência já carregada em `photo`: sem isto, todo snapshot recarregaria a mesma foto. */
   loadedPhoto: string | null
@@ -509,6 +524,8 @@ export function paintTokenView(view: TokenView, token: Token, grid: number, own:
   drawTokenConditions(view.marks, tokenConditionsOf(token), radius, grid)
   // OLHOS DO GUARDA: a marca que o recorte pôs no guarda que este jogador vê.
   drawWatchAlert(view.alert, watchAlertOf(token), radius)
+  // FICHA SEGURADA PELO MESTRE: o cadeado diz por que ela não anda antes do arrasto.
+  drawTokenLock(view.lock, ownLocked(token, own), radius)
   view.hasHealth = health !== null
   // Só o texto: onde o nome fica depende do bico, da barra e do zoom (`syncFacingNib`).
   // ENCONTRO MARCADO: a marca "esperando" vai no próprio nome — o mapa fica o
@@ -642,7 +659,9 @@ export function createTokenView(token: Token, grid: number, own: boolean, turn =
   marks.label = CONDITION_MARKS_LABEL
   const alert = new Graphics()
   alert.label = WATCH_ALERT_LABEL
-  wrapper.addChild(photoMask, photo, body, ring, bar, facingNib, label, companionLabel, marks, alert)
+  const lock = new Graphics()
+  lock.label = TOKEN_LOCK_LABEL
+  wrapper.addChild(photoMask, photo, body, ring, bar, facingNib, label, companionLabel, marks, alert, lock)
   applyTokenTouch(wrapper, own)
   const view: TokenView = {
     wrapper,
@@ -663,6 +682,7 @@ export function createTokenView(token: Token, grid: number, own: boolean, turn =
     label,
     marks,
     alert,
+    lock,
     key: tokenViewKey(token, grid, own, turn, waiting),
     loadedPhoto: null,
     loadSeq: 0,
@@ -696,7 +716,31 @@ export function tokenViewKey(token: Token, grid: number, own: boolean, turn = fa
   // A marca do guarda também: sem ela o "!" ficaria na tela depois de ele perder o jogador de vista.
   // `waiting` idem: a marca "esperando" (ENCONTRO MARCADO) entra e sai sem o nome mudar.
   // A marca de companheiro também: a ficha que deixa de ser de jogador (ou passa a ser) repinta na hora.
-  return JSON.stringify([token.name, token.size, grid, own, tokenPhotoRef(token) !== null, token.color ?? null, healthKey, tokenConditionsOf(token), turn, watchAlertOf(token), waiting, token.companion ?? null])
+  // A trava da própria ficha também: sem ela o cadeado ficaria depois de o mestre soltar.
+  return JSON.stringify([
+    token.name,
+    token.size,
+    grid,
+    own,
+    tokenPhotoRef(token) !== null,
+    token.color ?? null,
+    healthKey,
+    tokenConditionsOf(token),
+    turn,
+    watchAlertOf(token),
+    waiting,
+    token.companion ?? null,
+    ownLocked(token, own),
+  ])
+}
+
+/**
+ * A ficha do próprio jogador está segura pelo mestre. Na de outro a trava não
+ * conta: o recorte (`lib/fogFilter.ts`) já não a manda, e se escapasse não
+ * viraria cadeado.
+ */
+function ownLocked(token: Token, own: boolean): boolean {
+  return own && token.locked === true
 }
 
 /**
@@ -775,6 +819,9 @@ interface Scene {
   floorRenderer: ReturnType<typeof createFloorRenderer>
   regions: Container
   regionsRenderer: ReturnType<typeof createRegionsRenderer>
+  /** PERIGO QUE SE ALASTRA: fogo, água e cinza das salas que o jogador vê agora. */
+  perigos: Graphics
+  lastPerigosKey: string | null
   drawings: Graphics
   stairs: Graphics
   lastDrawingsKey: string | null
@@ -1191,6 +1238,8 @@ const NO_HAZARDS: readonly PlayerHazard[] = []
 const NO_TRIGGERS: readonly PlayerAreaTrigger[] = []
 /** Referência estável: sem ninguém esperando, o redesenho não dispara à toa. */
 const NO_WAITING: readonly string[] = []
+/** Mesmo motivo, para as portas por atravessar. */
+const NO_DOORS_TO_CROSS: readonly string[] = []
 
 export function PlayerView({
   map,
@@ -1201,6 +1250,7 @@ export function PlayerView({
   gatilhos = NO_TRIGGERS,
   glimpses = NO_CONCEALED,
   peek,
+  porAtravessar = NO_DOORS_TO_CROSS,
   ownTokens,
   turnTokenId = null,
   waitingTokens = NO_WAITING,
@@ -1222,6 +1272,7 @@ export function PlayerView({
   onDoorToggle,
   onPinOpen,
   onTokenOpen,
+  onPinsChoose,
   onRoomOpen,
   onMarkOpen,
   laser,
@@ -1259,6 +1310,7 @@ export function PlayerView({
     hazards,
     gatilhos,
     peek,
+    porAtravessar,
     ownTokens,
     turnTokenId,
     waitingTokens,
@@ -1278,6 +1330,7 @@ export function PlayerView({
     onDoorToggle,
     onPinOpen,
     onTokenOpen,
+    onPinsChoose,
     onRoomOpen,
     onMarkOpen,
     laser,
@@ -1526,19 +1579,20 @@ export function PlayerView({
 
   /** Mesmo desenho do editor (linha clara fina, porta retângulo), em px de tela. */
   function redrawWallsLayer(scene: Scene): void {
-    const { map: currentMap, vision: currentVision, explored: currentExplored } = latestRef.current
+    const { map: currentMap, vision: currentVision, explored: currentExplored, porAtravessar: toCross } = latestRef.current
     // Só a planta perto da ficha e a já vista: o resto está debaixo do preto
     // (`playerCulling.ts`). Mesma entrada devolve o mesmo recorte: o zoom não refaz.
     const drawn = scene.culler.cull(currentMap, currentVision, currentExplored).walls
     const walls = wallsOnVisibleLayers(drawn, currentMap.hiddenLayers)
     const { scale } = scene.camera
     const res = scene.app.renderer.resolution
-    const key = JSON.stringify([walls, scale, res])
+    const key = JSON.stringify([walls, scale, res, toCross])
     if (key === scene.lastWallsKey) return
     scene.lastWallsKey = key
     scene.wallsDrawn = walls.length
     drawWalls(scene.walls, walls, null, scale, res)
-    drawDoors(scene.doors, walls, null, scale, res)
+    // PORTAS POR ATRAVESSAR: o ponto claro na porta com o outro lado na névoa.
+    drawDoors(scene.doors, walls, null, scale, res, new Set(toCross))
   }
 
   /**
@@ -1678,6 +1732,24 @@ export function PlayerView({
   }
 
   /**
+   * TODOS os pinos sob o ponto da TELA, do mais perto ao mais longe, com a
+   * mesma folga de dedo de `pinAtScreen` (o pino como está desenhado, crescido
+   * no zoom afastado). Só o toque curto pergunta por eles: com dois pinos no
+   * mesmo ponto, o de baixo deixa de ser inalcançável.
+   */
+  function pinsAtScreen(scene: Scene, screenX: number, screenY: number): string[] {
+    const map = latestRef.current.map
+    const point = scene.world.toLocal({ x: screenX, y: screenY })
+    const scale = scene.camera.scale
+    const ids = findPinsAt(visiblePins(map.pins ?? [], map.hiddenLayers), point, pinTapTolerance(DOOR_TAP_TOLERANCE_PX, scale), pinSizeScale(scale)).map(
+      (pin) => pin.id,
+    )
+    // O pino invisível da escada que leva a outro andar entra por último, como em `pinAtScreen`.
+    const stairPin = findStairPinAt({ stairs: map.stairs, pins: map.pins ?? [], hiddenLayers: map.hiddenLayers }, point, DOOR_TAP_TOLERANCE_PX / scale)
+    return stairPin === null || ids.includes(stairPin.id) ? ids : [...ids, stairPin.id]
+  }
+
+  /**
    * TEXTO DA SALA: Sala cujo NOME está sob o ponto da tela e cujo texto já
    * chegou ao jogador. A caixa do rótulo é medida com todas as Salas (o rótulo
    * desvia das filhas) e com as fichas (o rótulo sai de baixo delas), como no
@@ -1686,7 +1758,8 @@ export function PlayerView({
   function roomTextAtScreen(scene: Scene, screenX: number, screenY: number): string | null {
     const map = latestRef.current.map
     const point = scene.world.toLocal({ x: screenX, y: screenY })
-    const region = findRoomLabelAt(visibleRegions(map.regions, map.hiddenLayers), point, map.grid, scene.camera.scale, roomLabelObstacles(map))
+    // Mesmos rótulos do desenho (o prédio com a contagem de cômodos): a caixa do toque é a do nome desenhado.
+    const region = findRoomLabelAt(regioesComContagem(visibleRegions(map.regions, map.hiddenLayers)), point, map.grid, scene.camera.scale, roomLabelObstacles(map))
     return region !== null && hasEnterText(region.room) ? region.id : null
   }
 
@@ -1779,6 +1852,12 @@ export function PlayerView({
 
     const regions = visibleRegions(currentMap.regions, hidden)
     scene.regionsRenderer.draw(scene.regions, regions)
+    // Sem perigo à vista a chave é vazia: não serializa as salas a cada quadro à toa.
+    const perigosKey = currentMap.perigos === undefined ? '' : JSON.stringify([currentMap.perigos, regions.map((r) => [r.id, r.points])])
+    if (perigosKey !== scene.lastPerigosKey) {
+      scene.lastPerigosKey = perigosKey
+      drawPerigos(scene.perigos, regions, currentMap.perigos ?? [])
+    }
 
     const drawings = visibleDrawings(currentMap.drawings, hidden)
     const drawingsKey = JSON.stringify(drawings)
@@ -1809,7 +1888,8 @@ export function PlayerView({
       scene.grid.visible = hasFloor
     }
 
-    scene.roomNamesRenderer.draw(scene.roomNames, regions, currentMap.grid, scene.camera.scale, roomLabelObstacles(currentMap))
+    // PORTAS POR ATRAVESSAR: o prédio mostra quantos cômodos dele o jogador já viu (contados do próprio recorte).
+    scene.roomNamesRenderer.draw(scene.roomNames, regioesComContagem(regions), currentMap.grid, scene.camera.scale, roomLabelObstacles(currentMap))
     scene.textLabelsRenderer.draw(scene.textLabels, drawings)
     scene.roomNames.visible = currentSettings.showNames
     scene.textLabels.visible = currentSettings.showNames
@@ -1897,6 +1977,8 @@ export function PlayerView({
       placeCompanionLabel(view)
       if (view.facing !== null) facingCount += 1
       if (view.companionColor !== null || view.companionLabel.text !== '') companionsCount += 1
+      // Esconder-se: a própria ficha escondida sai esmaecida (`lib/tokenHiding.ts`).
+      view.wrapper.alpha = playerTokenAlpha(token, isOwn)
       view.wrapper.visible = true
       // A ficha sob o dedo é do arrasto (abaixo): não desliza atrás dele.
       const animate = sameScene && !reducedMotion && token.id !== draggedId
@@ -2074,6 +2156,7 @@ export function PlayerView({
       const floor = new Graphics()
       const mapLines = new Graphics()
       const regions = new Container()
+      const perigos = new Graphics()
       const drawings = new Graphics()
       const props = new Graphics()
       const propImages = new Container()
@@ -2116,6 +2199,8 @@ export function PlayerView({
         floor,
         mapLines,
         regions,
+        // PERIGO QUE SE ALASTRA: sobre o chão da sala, sob a névoa (a sala tomada só chega à vista).
+        perigos,
         gridMask,
         grid,
         drawings,
@@ -2210,6 +2295,8 @@ export function PlayerView({
         floorRenderer: createFloorRenderer(),
         regions,
         regionsRenderer: createRegionsRenderer(),
+        perigos,
+        lastPerigosKey: null,
         drawings,
         stairs,
         lastDrawingsKey: null,
@@ -2746,9 +2833,14 @@ export function PlayerView({
           // toque RÁPIDO, não o demorado. O dedo que sobrou de uma pinça nunca é toque.
           if (!drag.canTap) return
           if (Math.hypot(drag.lastX - drag.startX, drag.lastY - drag.startY) > SIGNAL_LONG_PRESS_TOLERANCE_PX) return
-          const target = tapTargetAtScreen(scene, drag.startX, drag.startY)
-          if (target.kind === 'pin') {
-            latestRef.current.onPinOpen?.(target.pinId)
+          // Mais de um pino sob o dedo: o jogador escolhe ("Aqui há 2 coisas").
+          const escolha = escolhaDoToque(pinsAtScreen(scene, drag.startX, drag.startY))
+          if (escolha.tipo === 'escolher' && latestRef.current.onPinsChoose !== undefined) {
+            latestRef.current.onPinsChoose(escolha.pinIds)
+            return
+          }
+          if (escolha.tipo !== 'nada') {
+            latestRef.current.onPinOpen?.(escolha.tipo === 'abrir' ? escolha.pinId : escolha.pinIds[0])
             return
           }
           // Bilhete depois do pino (o pino é desenhado por cima) e antes da porta.
@@ -2764,6 +2856,7 @@ export function PlayerView({
             latestRef.current.onTokenOpen?.(tokenId)
             return
           }
+          const target = tapTargetAtScreen(scene, drag.startX, drag.startY)
           if (target.kind === 'door') {
             latestRef.current.onDoorToggle?.(target.doorId)
             return
@@ -2898,7 +2991,7 @@ export function PlayerView({
   useEffect(() => {
     const scene = sceneRef.current
     if (scene) redraw(scene)
-  }, [map, vision, explored, concealed, glimpses, hazards, gatilhos, peek, ownTokens, waitingTokens, turnTokenId, settings])
+  }, [map, vision, explored, concealed, glimpses, hazards, gatilhos, peek, porAtravessar, ownTokens, waitingTokens, turnTokenId, settings])
 
   useEffect(() => {
     // Contagem para o e2e (o desenho em si é do ticker); muda quando chega ou expira um sinal.

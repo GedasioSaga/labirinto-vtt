@@ -65,7 +65,7 @@ const TRACO: RegionPoint[] = [
 const RAIO_PINCEL = 25
 const DONO = { ana: ['tok-lanterna'] }
 
-const pintado = (mapa: MapData): MapData => paintRevealBrush(mapa, TRACO, RAIO_PINCEL, 'revelar').map
+const pintado = (mapa: MapData): MapData => paintRevealBrush(mapa, TRACO, RAIO_PINCEL, 'revelar', 0).map
 const preto = (pecas: RegionPoint[][], p: RegionPoint): boolean => pecas.some((peca) => pointInRing(p, peca))
 
 describe('fogFilter + pincel de revelar', () => {
@@ -115,7 +115,7 @@ describe('fogFilter + pincel de revelar', () => {
   })
 
   it('esconder de volta com o mesmo traço devolve o preto e tira a Sentinela', () => {
-    const escondido = paintRevealBrush(pintado(cena()), TRACO, RAIO_PINCEL, 'esconder').map
+    const escondido = paintRevealBrush(pintado(cena()), TRACO, RAIO_PINCEL, 'esconder', 0).map
     const view = filterMapForPlayer(escondido, 'ana', DONO, RAIO_VISAO)
     expect(view.map.tokens.map((t) => t.id)).toEqual(['tok-lanterna'])
     expect(preto(view.concealed, { x: 700, y: 451 })).toBe(true)
@@ -300,7 +300,7 @@ describe('fogFilter + pincel: forma e parede que só em parte caem no pedaço pi
       [false, true],
     ])
     expect(semPincel.every(fora)).toBe(true)
-    const view = filterMapForPlayer(paintRevealBrush(mapa, [{ x: 650, y: 200 }], RAIO_PINCEL, 'revelar').map, 'ana', DONO, RAIO_VISAO)
+    const view = filterMapForPlayer(paintRevealBrush(mapa, [{ x: 650, y: 200 }], RAIO_PINCEL, 'revelar', 0).map, 'ana', DONO, RAIO_VISAO)
     const pintado = view.map.walls.filter((w) => !fora(w))
     expect(view.map.walls).toHaveLength(3)
     expect(pintado).toHaveLength(1)

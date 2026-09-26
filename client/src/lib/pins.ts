@@ -469,19 +469,44 @@ export function isPlayerSafePinImage(image: string | null): image is string {
  * afastado, e não o de tamanho de mundo.
  */
 export function findPinAt(pins: readonly Pin[], point: RegionPoint, tolerance = 0, sizeScale = 1): Pin | null {
+  for (let i = pins.length - 1; i >= 0; i--) {
+    if (pinHit(pins[i], point, tolerance, sizeScale)) return pins[i]
+  }
+  return null
+}
+
+/**
+ * O ponto cai na cabeça ou na haste do pino, com a folga `tolerance`.
+ * `sizeScale` é o fator do desenho (`pinSizeScale`): o pino como ele APARECE.
+ */
+function pinHit(pin: Pin, point: RegionPoint, tolerance: number, sizeScale: number): boolean {
   const headRadius = PIN_HEAD_RADIUS * sizeScale
   const headOffset = PIN_HEAD_OFFSET * sizeScale
   const height = PIN_HEIGHT * sizeScale
+  const dx = point.x - pin.x
+  const dy = point.y - pin.y
+  // Cabeça: círculo em torno do centro dela.
+  if (Math.hypot(dx, dy + headOffset) <= headRadius + tolerance) return true
+  // Haste: faixa vertical entre a ponta e a base da cabeça.
+  return Math.abs(dx) <= headRadius / 2 + tolerance && dy <= tolerance && dy >= -height - tolerance
+}
+
+/**
+ * TODOS os pinos sob o ponto, do mais perto ao mais longe (distância até o
+ * centro da cabeça); no empate — dois pinos cravados no mesmo ponto — o de
+ * cima primeiro, como em `findPinAt`. É o que deixa o toque do jogador
+ * alcançar o pino de baixo: com um só, `findPinAt` escondia o outro para sempre.
+ * `sizeScale` como em `findPinAt`.
+ */
+export function findPinsAt(pins: readonly Pin[], point: RegionPoint, tolerance = 0, sizeScale = 1): Pin[] {
+  const headOffset = PIN_HEAD_OFFSET * sizeScale
+  const hits: { pin: Pin; distance: number }[] = []
   for (let i = pins.length - 1; i >= 0; i--) {
     const pin = pins[i]
-    const dx = point.x - pin.x
-    const dy = point.y - pin.y
-    // Cabeça: círculo em torno do centro dela.
-    if (Math.hypot(dx, dy + headOffset) <= headRadius + tolerance) return pin
-    // Haste: faixa vertical entre a ponta e a base da cabeça.
-    if (Math.abs(dx) <= headRadius / 2 + tolerance && dy <= tolerance && dy >= -height - tolerance) return pin
+    if (pinHit(pin, point, tolerance, sizeScale)) hits.push({ pin, distance: Math.hypot(point.x - pin.x, point.y - pin.y + headOffset) })
   }
-  return null
+  // `sort` é estável: no empate fica a ordem de cima para baixo montada acima.
+  return hits.sort((a, b) => a.distance - b.distance).map((hit) => hit.pin)
 }
 
 /** Teto do nome só do mestre: é um rótulo ao lado do pino, não um texto. */

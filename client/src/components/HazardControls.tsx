@@ -1,6 +1,6 @@
 import { useId } from 'react'
 import type { HazardKind } from '../types/map'
-import { HAZARD_COLORS, HAZARD_KINDS, HAZARD_LABELS } from '../lib/hazards'
+import { HAZARD_COLORS, HAZARD_KINDS, HAZARD_LABELS, hazardEffectHint } from '../lib/hazards'
 
 export interface HazardControlsProps {
   /** O perigo que toma a Sala selecionada; `null` = nenhum. */
@@ -39,6 +39,8 @@ function HazardSwatch({ kind }: { kind: HazardKind | null }) {
  */
 export function HazardControls({ kind, roomCount, canAdvance, onKindChange, onAdvance }: HazardControlsProps) {
   const hintId = `${useId()}-perigo`
+  // Fumaça e vapor mudam o que os jogadores veem: o mestre lê isso antes de pintar a sala.
+  const effect = kind === null ? null : hazardEffectHint(kind)
   return (
     <div className="lb-field">
       <span className="lb-label">Perigo</span>
@@ -71,6 +73,7 @@ export function HazardControls({ kind, roomCount, canAdvance, onKindChange, onAd
           <p className="lb-field__hint" id={hintId}>
             {`${HAZARD_LABELS[kind]} em ${roomCount === 1 ? '1 sala' : `${roomCount} salas`}. `}
             {canAdvance ? 'Avança pelas portas abertas.' : 'Nenhuma porta aberta leva o perigo adiante.'}
+            {effect === null ? null : ` ${effect}`}
           </p>
         </>
       )}

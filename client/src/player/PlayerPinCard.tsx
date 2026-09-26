@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import type { Pin, PinExitLabel, PinPassage, Stair, StairDirection } from '../types/map'
+import type { LojaItem, Pin, PinExitLabel, PinPassage, Stair, StairDirection } from '../types/map'
 import {
   PIN_BLOCK_REASON_LABELS,
   PIN_GLYPH,
@@ -10,12 +10,18 @@ import {
   passageOf,
 } from '../lib/pins'
 import { itemOfPin } from '../lib/items'
+import { lojaParaJogador, textoDoEstoque } from '../lib/loja'
+import { compraNoticeText } from './compraNotice'
+import type { CompraNotice } from './playerConnection'
 import { stairTravelLabel } from '../lib/stairTravel'
 import { PinLeverArt, PinSymbolArt, PinTravelArt } from '../components/PinSymbolArt'
 import { unreadExitLabels } from '../lib/pinTravel'
 import type { LockAnswerPhase } from './playerConnection'
 import { PlayerLockPad } from './PlayerLockPad'
 import { PASS_CHECK_TEXT } from './travelNotice'
+import type { PinTravelChoice } from '../lib/pinTravelers'
+
+const NO_TRAVELERS: readonly PinTravelChoice[] = []
 
 interface PlayerPinCardProps {
   pin: Pin
@@ -23,17 +29,37 @@ interface PlayerPinCardProps {
   /**
    * Pino de viagem: manda o pedido de passagem ao mestre (já confirmado aqui).
    * Ausente = o cartão não oferece passar, só lê. `exitId` é a saída escolhida
-   * numa encruzilhada; no pino de uma saída ele não vem.
+   * numa encruzilhada; no pino de uma saída ele não vem. `tokenIds` são as
+   * fichas marcadas no "Quem passa?"; sem a escolha (uma ficha só), não vem.
    */
-  onRequestTravel?: (exitId?: string) => void
+  onRequestTravel?: (exitId?: string, tokenIds?: string[]) => void
+  /**
+   * ESCOLHER FICHAS NO PINO: as fichas do jogador que podem passar por este
+   * pino (`lib/pinTravelers.ts`), a da frente primeiro. Com duas ou mais, a
+   * pergunta de confirmar ganha "Quem passa?", com todas marcadas.
+   */
+  travelers?: readonly PinTravelChoice[]
   /** Já há um pedido esperando o mestre: não dá para pedir de novo. */
   travelWaiting?: boolean
   /** ITEM PEGÁVEL: "Pegar" o item do pino. Ausente = o cartão não oferece pegar. */
   onTakeItem?: () => void
   /** Já há um "Pegar" esperando o mestre: o botão fica desligado. */
   takeWaiting?: boolean
+  /**
+   * CABINE DE TRANSPORTE: "Chamar a cabine" pela parada sem ela. `true` = o
+   * chamado saiu (a conexão estava de pé). Ausente = o cartão não oferece chamar.
+   */
+  onChamarCabine?: () => boolean
   /** ALAVANCA: "Puxar a alavanca". Ausente = o cartão só lê. Só vale no pino do tipo alavanca. */
   onPullLever?: () => void
+  /**
+   * LOJA COM PREÇOS: manda o "Quero" da mercadoria `itemId` ao mestre. O
+   * cartão fica aberto (quem compra continua olhando a banca). Ausente = a
+   * lista aparece, mas sem "Quero".
+   */
+  onBuy?: (itemId: string) => void
+  /** O último "Quero" NESTA banca e onde ele está; ausente = nenhum. */
+  compra?: CompraNotice
   /**
    * As escadas do recorte. OBRIGATÓRIO: quando o pino é a passagem de uma
    * ESCADA que leva a outro andar (`Pin.escadaId`), o cartão acha a escada
@@ -104,7 +130,7 @@ const AVISO_SO_IDA = 'Não dá para voltar por este caminho.'
  * cartão sem foto, é ela a imagem do cartão. Tem nome para o leitor de tela:
  * o símbolo diz algo ("baú", "armadilha") que o rótulo do cartão não diz.
  */
-function CabecaDoPino({ pin }: { pin: Pin }) {
+export function CabecaDoPino({ pin }: { pin: Pin }) {
   const viagem = pin.kind === 'viagem'
   // A alavanca, como a passagem, desenha o próprio símbolo, nunca o escolhido.
   const alavanca = pin.kind === 'alavanca'
@@ -225,7 +251,10 @@ export function PlayerPinCard({
   travelWaiting = false,
   onTakeItem,
   takeWaiting = false,
+  onChamarCabine,
   onPullLever,
+  onBuy,
+  compra,
   stairs,
   onRead,
   onTryLock,
@@ -233,8 +262,19 @@ export function PlayerPinCard({
   watching = false,
   onWatch,
   longe = false,
+  travelers = NO_TRAVELERS,
 }: PlayerPinCardProps) {
   const cardRef = useRef<HTMLDivElement | null>(null)
+  /**
+   * CABINE DE TRANSPORTE: o chamado saiu deste cartão. Some o botão (um toque,
+   * um chamado) até o recorte dizer "chamada"; se a parada deixar de dizer
+   * "longe" (a cabine chegou, foi chamada), volta a valer só o recorte.
+   */
+  const [chamou, setChamou] = useState(false)
+  const cabineDoPino = pin.kind === 'viagem' ? pin.cabine : undefined
+  useEffect(() => {
+    if (cabineDoPino !== 'longe') setChamou(false)
+  }, [cabineDoPino])
   const closeRef = useRef<HTMLButtonElement | null>(null)
   const confirmRef = useRef<HTMLButtonElement | null>(null)
   const askRef = useRef<HTMLButtonElement | null>(null)
@@ -248,6 +288,12 @@ export function PlayerPinCard({
   const [ultimaSaida, setUltimaSaida] = useState<string | null>(null)
   /** Para onde o foco volta depois de abrir ou fechar a pergunta; `null` = não mexe. */
   const [focusTarget, setFocusTarget] = useState<'confirm' | 'cancel' | 'ask' | null>(null)
+  /**
+   * ESCOLHER FICHAS NO PINO: as fichas DESMARCADAS no "Quem passa?". Guardar
+   * as de fora, e não as de dentro, deixa marcada a ficha que chega perto do
+   * pino com a pergunta aberta — ela é do grupo que passaria.
+   */
+  const [deFora, setDeFora] = useState<ReadonlySet<string>>(() => new Set())
 
   useEffect(() => {
     // Quem chegou pelo teclado segue com o foco: abrir a pergunta o leva ao
@@ -345,6 +391,13 @@ export function PlayerPinCard({
   const fechadura = pin.fechadura
   const trancadaComSegredo = viagem && fechadura !== undefined
   const trancada = viagem && passagem === 'trancada' && !trancadaComSegredo
+  // CABINE DE TRANSPORTE: só se passa com a cabine AQUI (e livre) — longe,
+  // chamada ou ocupada, o host recusaria. A frase não diz onde a cabine está
+  // nem quem está nela: o recorte nem sabe. Longe, oferece chamá-la. Fechada
+  // com segredo também não chama: primeiro a combinação.
+  const cabine = cabineDoPino
+  const semCabine = cabine !== undefined && cabine !== 'aqui'
+  const podeChamar = !trancada && !trancadaComSegredo && cabine === 'longe' && !chamou && onChamarCabine !== undefined
   // CHAVE ABRE PORTA: o host só manda `chave` a quem encosta no pino com o
   // item. O mapa chega da rede sem conferência campo a campo: só texto vale.
   const chave = trancada && typeof pin.chave === 'string' && pin.chave !== '' ? pin.chave : null
@@ -353,9 +406,15 @@ export function PlayerPinCard({
   // esteve lá — o host recusa a passagem, então o cartão nem oferece.
   const naoChegou = viagem && !trancada && !trancadaComSegredo && pin.soMarco === true
   // Muda só abre com a chave; a que aceita tentativas vira pedido ao mestre.
-  // Com segredo, só a combinação abre.
+  // Com segredo, só a combinação abre. Cabine longe, chamada ou ocupada também
+  // bloqueia, como a trancada.
   const podePedir =
-    viagem && !trancadaComSegredo && (!muda || chave !== null) && !naoChegou && onRequestTravel !== undefined
+    viagem &&
+    !trancadaComSegredo &&
+    (!muda || chave !== null) &&
+    !naoChegou &&
+    !semCabine &&
+    onRequestTravel !== undefined
   // Escada: o sentido vem da escada do recorte (`lib/fogFilter.ts` só manda o pino junto com ela).
   const stairDirection: StairDirection | undefined =
     viagem && pin.escadaId !== undefined ? stairs.find((s) => s.id === pin.escadaId)?.direction : undefined
@@ -389,7 +448,22 @@ export function PlayerPinCard({
   // numa encruzilhada, por saída (`soIda`). O destino continua sem aparecer.
   const semVolta = viagem && !encruzilhada && pin.semVolta === true
   const saidaSoIda = (saida: PinExitLabel | null): boolean => (saida === null ? semVolta : saida.soIda === true)
+  // LOJA COM PREÇOS: relida aqui — o mapa da rede não é conferido campo a
+  // campo, e mercadoria torta não pode quebrar o cartão. `null` = sem banca.
+  const mercadorias = lojaParaJogador(pin)
+  // ESCOLHER FICHAS NO PINO: só com duas ou mais há o que escolher.
+  const escolheFichas = travelers.length > 1
+  const marcadas = travelers.filter((f) => !deFora.has(f.id)).map((f) => f.id)
+  const alternarFicha = (id: string) => {
+    setDeFora((antes) => {
+      const depois = new Set(antes)
+      if (!depois.delete(id)) depois.add(id)
+      return depois
+    })
+  }
   const perguntar = (saida: PinExitLabel | null) => {
+    // Cada pergunta começa com o grupo inteiro marcado.
+    setDeFora(new Set())
     setConfirming({ saida })
     if (saida !== null) setUltimaSaida(saida.id)
     setFocusTarget(saidaSoIda(saida) ? 'cancel' : 'confirm')
@@ -421,6 +495,7 @@ export function PlayerPinCard({
               Pino "só de perto" visto de longe: "Chegue mais perto para ler". */}
           <p className="pp-pincard__text">{escada ?? textoDoCartao}</p>
         </div>
+        {mercadorias !== null && <PlayerLoja mercadorias={mercadorias} onBuy={onBuy} compra={compra} />}
         {item !== null && (
           // Pegar não pede confirmação: no modo "pede" o mestre ainda decide, e
           // no livre o item só troca do chão para a mochila — "Dar a…" desfaz.
@@ -482,6 +557,29 @@ export function PlayerPinCard({
             {TEXTO_DA_FECHADURA[lockPhase]}
           </p>
         )}
+        {!trancada && cabine === 'longe' && (
+          <p className="pp-pincard__locked" role="status">
+            {chamou ? 'A cabine não está aqui. Você chamou a cabine.' : 'A cabine não está aqui. Não dá para passar agora.'}
+          </p>
+        )}
+        {!trancada && cabine === 'chamada' && <p className="pp-pincard__locked">A cabine foi chamada para cá. Espere ela chegar.</p>}
+        {!trancada && cabine === 'ocupada' && <p className="pp-pincard__locked">A cabine está aqui, mas alguém já embarcou. Espere ela voltar.</p>}
+        {/* A mesma moldura de estado: diz onde a cabine está, sem convidar toque. */}
+        {!trancada && cabine === 'aqui' && <p className="pp-pincard__locked">A cabine está aqui.</p>}
+        {podeChamar && (
+          <button
+            type="button"
+            className="pp-pincard__travel"
+            onClick={() => {
+              if (onChamarCabine === undefined || !onChamarCabine()) return
+              setChamou(true)
+              // O botão some: o foco não pode cair no nada — vai ao "Fechar".
+              closeRef.current?.focus()
+            }}
+          >
+            Chamar a cabine
+          </button>
+        )}
         {podePedir && confirming === null && !encruzilhada && (
           <button
             ref={askRef}
@@ -534,17 +632,36 @@ export function PlayerPinCard({
             <p id={`pp-travel-ask-${pin.id}`} className="pp-pincard__question">
               {pergunta}
             </p>
+            {escolheFichas && (
+              // Uma caixa por ficha, todas marcadas: é quem passaria sem escolher.
+              <fieldset className="pp-pincard__travelers">
+                <legend>Quem passa?</legend>
+                {travelers.map((ficha) => (
+                  <label key={ficha.id} className="pp-pincard__traveler">
+                    <input type="checkbox" checked={!deFora.has(ficha.id)} onChange={() => alternarFicha(ficha.id)} />
+                    <span>{ficha.name}</span>
+                  </label>
+                ))}
+              </fieldset>
+            )}
             <div className="pp-pincard__choices">
               <button
                 ref={confirmRef}
                 type="button"
                 className="pp-pincard__travel"
-                disabled={longe}
+                // Longe do pino ou ninguém marcado: o pedido não sai.
+                disabled={longe || (escolheFichas && marcadas.length === 0)}
                 onClick={() => {
                   const saida = confirming.saida
+                  if (escolheFichas && marcadas.length === 0) return
                   setConfirming(null)
-                  if (saida === null) onRequestTravel()
-                  else onRequestTravel(saida.id)
+                  // Sem escolha, o pedido sai com os mesmos argumentos de antes.
+                  if (!escolheFichas) {
+                    if (saida === null) onRequestTravel()
+                    else onRequestTravel(saida.id)
+                    return
+                  }
+                  onRequestTravel(saida?.id, marcadas)
                 }}
               >
                 {textos.confirmar}
@@ -568,5 +685,59 @@ export function PlayerPinCard({
         </button>
       </div>
     </div>
+  )
+}
+
+interface PlayerLojaProps {
+  mercadorias: readonly LojaItem[]
+  onBuy?: (itemId: string) => void
+  compra?: CompraNotice
+}
+
+/**
+ * LOJA COM PREÇOS: a banca no cartão. Uma linha por mercadoria — nome, preço,
+ * estoque ("Acabou" quando não há) e "Quero". O "Quero" diz no nome acessível
+ * QUAL mercadoria ("Quero Xarope de tosse"): uma lista de botões iguais não
+ * diria nada a quem navega por leitor de tela. Com um pedido esperando o
+ * mestre, nenhum "Quero" liga: um pedido por vez, como o host exige.
+ */
+function PlayerLoja({ mercadorias, onBuy, compra }: PlayerLojaProps) {
+  const esperando = compra?.phase === 'sent'
+  return (
+    <section className="pp-loja" aria-labelledby="pp-loja-titulo">
+      <h3 id="pp-loja-titulo" className="pp-loja__titulo">
+        Mercadorias
+      </h3>
+      <ul className="pp-loja__lista" aria-label="Mercadorias">
+        {mercadorias.map((mercadoria) => {
+          const estoque = textoDoEstoque(mercadoria)
+          return (
+            <li key={mercadoria.id} className="pp-loja__item">
+              <span className="pp-loja__nome">{mercadoria.nome}</span>
+              {mercadoria.preco.trim() !== '' && <span className="pp-loja__preco">{mercadoria.preco}</span>}
+              {estoque !== null && (
+                <span className={mercadoria.estoque === 0 ? 'pp-loja__estoque pp-loja__estoque--acabou' : 'pp-loja__estoque'}>{estoque}</span>
+              )}
+              {onBuy !== undefined && (
+                <button
+                  type="button"
+                  className="pp-loja__quero"
+                  aria-label={`Quero ${mercadoria.nome}`}
+                  disabled={esperando || mercadoria.estoque === 0}
+                  onClick={() => onBuy(mercadoria.id)}
+                >
+                  Quero
+                </button>
+              )}
+            </li>
+          )
+        })}
+      </ul>
+      {compra !== undefined && (
+        <p className={compra.phase === 'sold' ? 'pp-loja__status pp-loja__status--ok' : 'pp-loja__status'} role="status">
+          {compraNoticeText(compra)}
+        </p>
+      )}
+    </section>
   )
 }

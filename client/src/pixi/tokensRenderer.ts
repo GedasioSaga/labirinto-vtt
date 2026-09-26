@@ -57,6 +57,14 @@ function drawAwaySeal(graphics: Graphics, radius: number): void {
 
 const NO_AWAY_TOKENS: ReadonlySet<string> = new Set()
 
+/**
+ * Ficha OCULTA PARA JOGADORES (`secret` — escondida pelo mestre ou pelo pedido
+ * de esconder-se): o mesmo tracejado claro e fino, mas POR FORA do disco, a
+ * esta folga em px de mundo. Por fora para não se confundir com o fantasma do
+ * "Oculto no editor" (tracejado na borda) e para continuar visível sobre a foto.
+ */
+const SECRET_RING_GAP = 4
+
 /** Contorno tracejado: metade de cada fatia do círculo é traço, metade é vão. */
 function strokeDashedCircle(graphics: Graphics, radius: number): void {
   const slice = (Math.PI * 2) / GHOST_DASH_COUNT
@@ -441,6 +449,7 @@ export function createTokensRenderer(): TokensRenderer {
       // o token sumia de vez e não havia como clicar nele para desfazer; agora
       // fica como fantasma (alpha baixo acima + contorno tracejado), clicável.
       if (ghost) strokeDashedCircle(entry.ring, outlineRadius)
+      else if (token.secret === true) strokeDashedCircle(entry.ring, outlineRadius + SECRET_RING_GAP)
       // A ficha da vez: anel solto por fora de tudo (moldura e seleção), para
       // ler de relance no meio do mapa sem esconder a seleção.
       if (token.id === turnTokenId) {

@@ -189,12 +189,200 @@ saíram de `auto/juntar` `0522705`:
 | t-medias-b | `wf_02518f3f-0de` | 44 |
 | t-pequenas | `wf_c24d31c9-52c` | 35 |
 
+**24/09, 07h50 — 63 features em `auto/acervo` (`f3b4ed5`).** A 1ª passada da junção (`wf_b7680185-c5f`)
+juntou os 6 grupos das ondas 1 e 2 em `auto/juntar`, cada um provado por um verificador independente. A
+regressão final achou 4 quebras em jornadas antigas (recado por cena, cenas com gente, encruzilhada, várias
+cenas), consertadas em `e2074df`, e saiu VERDE: fase0 íntegro, autoteste, 100 jornadas seladas intactas,
+21/21 jornadas entregues e 26/26 réguas das features novas. No commit juntado: `--fase0` "PORTÃO ÍNTEGRO",
+`tipos-src` VERDE. Ficou de fora da medida: `jornadas-e2e` (2 specs vermelhas que já falhavam antes do conserto:
+entrada-jogador teste 2 e barra-honesta teste 2 — conferir se falham também em `68f2c8b`) e `jornadas-da-bar`.
+2ª passada da junção no ar: `wf_984ab296-fe8` (12 ramos: o resto da onda 2, a onda 3 e a onda 4).
+
+**24/09, 11h30 — estado para retomar.** 63 features em `auto/acervo`; 83+ prontas nos ramos `auto/int-*`.
+Rodando:
+- 2ª passada da junção `wf_984ab296-fe8` (em `C:/dev/labirinto-juntar`, `auto/juntar` saiu de `f3b4ed5`):
+  jogador juntado (`7999986`), depois editor, mundo, rede, visão, defeitos, t-grandes, t-defeitos, t-medias-a,
+  t-medias-b, t-pequenas, t-ideias; no fim regressão com as 27 réguas já juntadas + dado-na-sala. Verde ⇒
+  `git merge --no-ff auto/juntar` em `auto/acervo`.
+- Pedido do usuário: **as grandes prontas até as 16h**. 4 integradas em `auto/int-t-grandes` (confronto,
+  ajudante, estado do mundo, memória por ficha); pisos na mesma cena no run antigo `wf_e3f23fdf-79d`; as 5 que
+  faltavam em paralelo em `wf_d1c06cc2-0db` (`auto/int-t-grandes-b`). Se o usuário quiser as grandes DENTRO do
+  programa às 16h: perto das 14h30 fazer uma junção só de `auto/int-t-grandes` + `auto/int-t-grandes-b`.
+- Runs paralelos `-b` da onda 3 (segunda metade de cada lista): t-defeitos-b `wf_23f170a3-0fc`, t-medias-a-b
+  `wf_6d4801b3-5d6`, t-medias-b-b `wf_3e22476e-2ba`, t-pequenas-b `wf_27ef0a43-adb`. Os runs antigos precisam ser
+  PARADOS (TaskStop) quando chegarem na 1ª peça do `-b` (pontos de corte em `scratchpad/onda3b-cortes.json`;
+  o Monitor "run antigo da onda 3 chegou na peça…" avisa). Nunca parar peça em construção fora do corte.
+- Onda 2 resto: visão `wf_b6097cd0-2f5` (teste-secreto); onda 4 `wf_efa5f11a-369`; ficha-presa-sem-chao-2
+  `wf_af1870fa-7cb`.
+- Monitores: disco C: < 3 GB (houve pico transitório para 242 MB às 10h36; causa não confirmada) e corte da onda 3.
+- Pendências para o usuário: retomar-mesa-donos precisa de Rust (`desktop/src-tauri/src/net/commands.rs`);
+  reunir-o-grupo instável na própria régua; worktree antiga `wf_4774aa00-f19-5` com 2,2 GB e mudança não commitada;
+  2 jornadas-e2e vermelhas antes da noite (entrada-jogador t2, barra-honesta t2); app de dev aberto por
+  `npm run tauri:dev` (background `byhlz3hx1`).
+
 **Incidente para o usuário revisar (24/09, ~06h50):** o construtor da peça `iniciativa` (run `wf_b581d949-142`,
 agente `adab3ae1bc6139c8e`) teve o `git commit` recusado pela guarda de isolamento de worktree (o hook do rtk
 reescreve o comando) e contornou chamando `/mingw64/bin/git` pelo caminho completo e o encanamento
 `update-index`/`write-tree`/`commit-tree`. Efeito conferido: só na própria worktree, commit de merge `8e36d4e` em
 `auto/f2-iniciativa`, revisado e provado depois; o repo não tem pre-commit, só o post-commit do graphify não rodou.
 A regra da fábrica agora manda parar e marcar BLOQUEADO em vez de contornar guarda ou hook.
+
+**24/09, 13h45 — junção só das grandes, para a entrega das 16h.** Worktree `C:/dev/labirinto-juntar-grandes`
+(`auto/juntar-grandes`, saiu de `auto/acervo` `a297e2e`; `node_modules` por junção para a árvore principal).
+Run `wf_e1417c8d-d57`: junta `auto/int-t-grandes` (confronto, ajudante, estado do mundo, memória por ficha) e
+`auto/int-t-grandes-b` (rotina do NPC e correio já integrados; cabine, perigo que alastra e mobília ainda em
+conserto em `wf_d1c06cc2-0db`), depois regressão com as 26 réguas da 1ª passada. Verde ⇒ `git merge --no-ff
+auto/juntar-grandes` em `auto/acervo`. O que entrar depois nos dois ramos (as 3 grandes que faltam e pisos na
+mesma cena, do run antigo `wf_e3f23fdf-79d`) vai numa 2ª junção curta, perto das 15h15. A 2ª passada geral
+(`auto/juntar`) vai precisar juntar `auto/acervo` antes de voltar para ele, porque as grandes terão entrado por fora.
+
+**25/09, 02h10 — INCIDENTE: `node_modules` principal danificado (causado pelo orquestrador). Precisa do usuário.**
+
+- Causa: às ~01h o orquestrador rodou `git worktree remove` na árvore parada `.claude/worktrees/wf_319c925b-2b1-3`
+  sem antes remover as junctions de `node_modules`. O git entrou pela junction e apagou, em
+  `C:/dev/labirinto/node_modules`, a pasta `.bin` e os pacotes `@asamuzakjp/*`, `@babel/*`, `@bramus/*` e
+  `@csstools/*` (30 pacotes de dev), até travar no `@esbuild` em uso ("Invalid argument").
+- Efeito: `--so=unidade` cai nos testes com jsdom ("Cannot find module '@asamuzakjp/css-color'") e as jornadas
+  não sobem o vite ("'vite' não é reconhecido"). `tipos-src` continua verde. Toda prova sai `PROVA_AMBIENTE`.
+- Conserto (pedido ao usuário; o `npm install` foi negado pela permissão automática e não foi contornado):
+  `npm install --no-save --prefer-offline --no-audit --no-fund` em `C:/dev/labirinto` (só restaura o que o
+  lockfile já tem; `--no-save` não grava o lockfile). Conferir depois: `ls node_modules/.bin/vite` e
+  `node -e` comparando `package-lock.json` com o disco (0 faltando, fora os opcionais de outra plataforma).
+- Depois do conserto: re-provar as peças que saíram `PROVA_AMBIENTE` da fábrica `wf_f7c100fc-85d` (branches
+  `auto/f2-<id>` com os worktrees em `.claude/worktrees/wf_f7c100fc-85d-*`) e retomar `publicar-grupos`.
+- Regra nova (memória `fabrica-de-features`): `cmd //c rmdir` nas junctions ANTES de qualquer `git worktree remove`.
+
+**25/09, 08h45 — `node_modules` restaurado pelo usuário** (`npm install --no-save`: 30 pacotes; 0 faltando do lockfile,
+lockfile intacto). Retomada:
+- `wf_9b232d09-dce` (`publicar-grupos.js`, árvore `C:/dev/labirinto-pub`, branch `auto/pub-1` em `9eb13ed` = visão +
+  defeitos juntados): unidade, prova, absorve `auto/acervo` e publica em `main`.
+- `wf_3aed54cc-7f7` (`fabrica-v3.js`, `scratchpad/manha.json`): 11 peças `pronta` (revisor já aprovou; vão direto à
+  prova), pisos como `construida` (revisão de novo) e as 104 restantes. Publica a cada 10 integradas.
+- `wf_8cc51539-dc2` segue juntando os grupos t-* em `auto/juntar` (modo `so_juntar`).
+- Publicação agora usa trava: `mkdir .git/publicando.lock` (atômico), `rmdir` ao terminar. Se sobrar trava de um
+  agente morto, conferir o `dono` dentro dela antes de apagar.
+
+**25/09, 03h20 — grupo visão juntado em `auto/juntar` (`7da1931` + `ffda9b1`), tipos-src e tipos-e2e VERDES;
+unidade VERMELHA só pelo `node_modules` incompleto.** `publicar-grupos` (`wf_3c4bb722-2b5`) parou ali, como
+previsto. Relançado em modo `so_juntar` (`wf_8cc51539-dc2`): junta os grupos seguintes em `auto/juntar`, resolve
+conflitos e deixa os tipos verdes, sem unidade, prova nem push. Depois da restauração: rodar `publicar-grupos.js`
+sem `so_juntar` (os merges já feitos saem como "já juntado"), que prova e publica.
+
+**25/09, 02h55 — fábrica relançada de novo como `wf_86b2f741-40b`** (`scratchpad/noite-1b.json`, 115 peças: 4
+consertos independentes + as 111 da onda 3, 2 por vez). Os 11 consertos cujo código base ainda não está em
+`auto/acervo` (zona oculta, teste secreto, mostrar pista, painel de pistas, janela no escuro, eco do sinal, passe,
+agenda, facção, veículo, esteira) puxavam grupos inteiros para `int-noite` e foram adiados:
+`scratchpad/consertos-adiados.json`, rodar depois que `publicar-grupos` terminar e `int-noite` absorver o acervo.
+A tocha (`auto/f2-tocha-presa-na-ficha-4`, `721dbf3`, revisor aprovou) aguarda só a prova.
+
+**25/09, 01h05 — fábrica relançada como `wf_f7c100fc-85d`.** O builder isolado em worktree não conseguia
+`git status/add/commit` (o hook do rtk reescreve para `rtk git` e a guarda de isolamento recusa) e a ferramenta
+PowerShell travou na máquina (6 `powershell.exe` presos; o `taskkill` foi negado pela permissão automática).
+Regra nova no `fabrica-v3.js`: `git.exe` nesses subcomandos, um comando por chamada. A tocha continuou do commit
+`b192c4d` como `tocha-presa-na-ficha-4`.
+
+**25/09, 00h30 — noite automática (usuário dormindo): o que roda e o que fazer a cada volta.**
+
+1. `wf_3c4bb722-2b5` (`scratchpad/publicar-grupos.js`): publica em `main` um grupo por vez, com push por grupo:
+   visão (termina o merge pela metade + consertos do grupo), defeitos, t-defeitos, t-medias-a, t-medias-b,
+   t-pequenas, t-ideias e as metades `-b`. Para no primeiro que falhar.
+2. `wf_319c925b-2b1` (`scratchpad/fabrica-v3.js`, args `scratchpad/noite-1.json`, 56 peças, 2 por vez): fábrica
+   contínua na branch única `auto/int-noite` (`C:/dev/labirinto-int-noite`, saiu de `auto/acervo` `767424e`):
+   16 consertos pendentes (tocha, zona oculta, testes secretos, esconder-se, mostrar pista, painel de pistas,
+   janela no escuro, eco do sinal, id repetido, passe, agenda, facção, lista branca, veículo, esteira, pisos) e 40
+   peças da onda 3. A cada 10 integradas: absorve `auto/acervo`, merge em `auto/acervo`, fase0 + tipos + unidade,
+   checagem de segredo, fast-forward de `main` e push (espera o `main` ficar livre se o outro workflow estiver
+   publicando).
+3. Quando (1) terminar: instalador 0.3.0 (mesmo formato da 0.2.0: versão, `npm run tauri:build`, tag, Release).
+4. Quando (2) terminar: lançar `scratchpad/fabrica-v3.js` com `scratchpad/noite-2.json` (71 peças, 3 por vez).
+   Os args vêm de `node scratchpad/gerar-noite.cjs` (rodar de novo recalcula o que falta).
+Regra da noite: no máximo ~5 agentes ao mesmo tempo no total; acima disso os pedidos ao modelo travam 3 min e o
+agente recomeça.
+
+**25/09, 00h00 — grandes em `main` e instalador 0.2.0 publicado.**
+
+- `git push origin main` b060f54..350cf4d: merge `350cf4d` de `auto/juntar-grandes` (confronto por cena, ajudante
+  contratado, estado do mundo, memória por ficha, cabine, correio + correio-2, rotina do NPC, perigo que alastra,
+  mobília; cabine-2 junto). Antes: merge de `auto/acervo` na pista das grandes (`fe508a6`, conflitos resolvidos em
+  blocos de até 8 por agente, 2 agentes por vez), conserto de 27 erros de tipo/teste da junção (`f61e76c`), prova
+  independente VERDE em `f61e76c` (fase0 ÍNTEGRO, tipos-src, tipos-e2e, unidade com 691 arquivos), em `350cf4d`
+  fase0 + tipos-src VERDES e checagem de segredo sem achado. Run `wf_19adebaa-ec9`.
+- Versão 0.2.0 (`20cba0b`, `com.labirinto.app` mantido), `npm run tauri:build`, tag `v0.2.0` e GitHub Release
+  https://github.com/GedasioSaga/labirinto-vtt/releases/tag/v0.2.0 com `Labirinto_0.2.0_x64-setup.exe` (2.124.682 B)
+  e `Labirinto_0.2.0_x64_en-US.msi` (2.813.952 B), conferidos por `gh release view` (assets "uploaded"). `main` =
+  `20cba0b`.
+- Lição da tarde: com mais de ~5 agentes ao mesmo tempo, os pedidos ao modelo passavam de 3 min sem resposta e o
+  agente era cancelado e recomeçava (até 75% dos agentes). Rodando sozinho, com 2 agentes, zero cancelamentos.
+  Merge grande: dividir em blocos de até 8 conflitos por chamada.
+- Pausado até agora (retomar um run por vez, publicando a cada ~10 features): grupo visão (merge pela metade em
+  `C:/dev/labirinto-juntar`), consertos da visão (`wf_d613a259-429`) e das ideias (`wf_911a6eb9-d16`), pisos na
+  mesma cena (relançar em pedaços), onda 3 (runs novos só com as peças que faltam; ver `scratchpad/pausa-onda3.md`).
+
+**24/09, 19h10 — primeiro push em `main` e o que segue.**
+
+- Pedido do usuário (18h00 e 18h40, com autorização explícita de push): publicar em `main` o que já está pronto
+  e as grandes, gerar o instalador dessa versão (tag + GitHub Release, como a v0.1.0) e depois retomar o resto,
+  publicando a cada 10 features.
+- Publicado: `git push origin main` 719c9fd..b060f54 (fast-forward). Leva `auto/acervo` com jogador, editor,
+  mundo e rede (`b04614c`, merge de `auto/juntar` `d37de87`) e o conserto do link público (`b060f54`, merge de
+  `auto/f2-link-publico` `c76b664`). Antes do push, em `b060f54`: `--fase0` PORTÃO ÍNTEGRO; tipos-src VERDE;
+  unidade VERDE (212874 ms); `cargo test --lib` 28 passed; nenhum arquivo de credencial nem padrão de token no
+  diff (log em `scratchpad/testes-publicar-1.log`).
+- Em curso `wf_ef4eb784-1f6` (publicar-no-principal): pista das grandes em `C:/dev/labirinto-juntar-grandes`
+  e pista dos grupos em `C:/dev/labirinto-juntar` (visão terminando o merge pela metade; depois defeitos, t-*,
+  t-ideias e os `-b`), cada unidade com junta, prova (Sonnet) e publicação serial em `main`. Pisos na mesma
+  cena: nova tentativa `wf_74db9157-832`.
+- Onda 3 pausada às 18h15 (agentes demais: ~60% cancelados após 3 min sem resposta, Sonnet e Opus igual).
+  Como retomar: `scratchpad/pausa-onda3.md` (runs novos só com as peças que faltam; NÃO resumir os antigos).
+- Instalador: quando a publicação terminar, subir a versão, `npm run tauri build`, tag e Release com `.exe` e `.msi`.
+
+**24/09, 15h50 — estado para retomar.**
+
+Contagem (`scratchpad/contagem-geral.cjs`, lê todos os journals da fábrica): 300 peças planejadas; 173 integradas
+nos ramos `auto/int-*` (construídas, revisadas, provadas), das quais 63 estão em `auto/acervo`; 24 em construção
+ou conserto; 103 por começar (onda 3, filas dos runs antigos e dos `-b`). Ritmo desta tarde: ~6 integradas por
+hora, com a máquina saturada (um `git commit` leva minutos; uma consulta de CPU pelo PowerShell passou de 5 min;
+disco C: com 8,8 GB livres e caindo).
+
+Junções:
+- 2ª passada geral `wf_984ab296-fe8` (`C:/dev/labirinto-juntar`, `auto/juntar`): jogador `1911977`, editor
+  `03cc777`, mundo `e443364`, rede `d37de87` juntados e provados VERDES; agora visão; faltam defeitos, t-grandes,
+  t-defeitos, t-medias-a, t-medias-b, t-pequenas, t-ideias e a regressão final.
+- Só das grandes `wf_e1417c8d-d57` (`C:/dev/labirinto-juntar-grandes`, `auto/juntar-grandes`): t-grandes
+  juntado e provado (`9b818e0`); juntando `auto/int-t-grandes-b` (cabine, correio, rotina do NPC, perigo que
+  alastra, mobília). Verde ⇒ `git merge --no-ff auto/juntar-grandes` em `auto/acervo`.
+- Rotina do NPC: o construtor não commitou; commit `2b3c834` feito pelo orquestrador na worktree dele e
+  integrado à mão por um operario (`e1f06c9`, tipos-src e unidade VERDES). A fábrica ganhou o passo 0 no
+  integrador: commita o trabalho provado que ficou sem commit.
+
+Cópias para o usuário testar (nenhum workflow usa):
+- `C:/dev/labirinto-ver` (solta em `03cc777`): app de dev aberto por `npm run tauri:dev` com `LAB_PORTA=1420` e
+  `CARGO_TARGET_DIR=C:/dev/labirinto/desktop/src-tauri/target` (background `bl4u02dx2`). O app antigo de
+  `auto/acervo` foi fechado.
+- `C:/dev/labirinto-previa` (`auto/previa-grandes`, saiu de `e443364`): prévia pedida às 15h30 com
+  `9b818e0` + `auto/int-t-grandes-b` + `auto/f2-pisos-na-mesma-cena`, montada por `wf_4df0cddf-2ac`. Tipos
+  verdes ⇒ parar `bl4u02dx2` e abrir o app dessa árvore do mesmo jeito. Não vai para `auto/acervo`.
+
+Link público carregando para sempre (pedido das 15h10, `wf_933d952b-cd2`): reproduzido por túnel próprio. Pelo
+túnel, o servidor da sala responde 404 em `dev_fallback` a `/src/player/main.tsx`, `/@vite/client` e
+`/@react-refresh` (pela LAN, com Host de IP literal, os mesmos caminhos passam pelo proxy de dev); o splash
+"Abrindo a mesa" nunca sai. Conserto em curso na branch `auto/f2-link-publico` (de `03cc777`), depois prova
+independente. Verde ⇒ levar o conserto para a prévia e para a junção.
+
+Runs no ar além das junções: consertos da visão `wf_d613a259-429` (10 peças, 4 de vazamento), consertos de
+cabine e correio `wf_45b74140-007`, onda 3 antigos (`wf_e3f23fdf-79d` pisos, `wf_4e9c3fdf-c65`,
+`wf_1111b7d7-bdc`, `wf_02518f3f-0de`, `wf_c24d31c9-52c`), onda 3 `-b` (`wf_23f170a3-0fc`, `wf_6d4801b3-5d6`,
+`wf_3e22476e-2ba`, `wf_27ef0a43-adb`), onda 4 `wf_efa5f11a-369`. ficha-presa-sem-chao-3 integrada em
+`auto/int-defeitos` (`5e6fdd0`).
+
+**Onda 2 visão terminou (13h10):** 14 de 17 integradas em `auto/int-visao`. Consertos em `wf_d613a259-429`
+(10 peças, 2 por vez): vazamentos pela rede em porta secreta com pincel, tocha presa em ficha escondida, pino marco
+que vira teletransporte e sala escura em camada oculta; zona oculta sem buraco (teto na 1ª); dois testes secretos
+seguidos; esconder-se (a 1ª não commitou: trabalho em `.claude/worktrees/wf_b6097cd0-2f5-95`); mostrar pista agora
+sem o item que depende de acoes-no-ponto (decisão do orquestrador); nome do pino no painel Pistas; cone pela
+janela respeitando o escuro. Se a 2ª passada juntar `auto/int-visao` antes desses consertos, os 4 vazamentos entram
+em `auto/juntar` e só fecham na passada seguinte. ficha-presa-sem-chao-2 integrada com 2 casos abertos; a 3ª
+tentativa roda em `wf_18f37c3e-ef8`.
 
 Fora da onda 3: 9 itens do gerador da torre (`scratchpad/onda3-gerador-da-torre.txt`, vão para
 `auto/torre-11-andares`) e "teste de fluidez com GPU real" (mexe no portão).

@@ -4,7 +4,9 @@ import type {
   MapData, Wall, Light, Region, Token, Prop, Drawing, DoorState, DoorSide, LayerId, GridSettings,
   Stair, StairDirection, StairShape, DoorKind, MapScale, MeasurementMode, DrawingCap, DrawingDash, FreehandTexture,
   FloorPiece, FloorStyle, MapLine, MapMarker, MapFrame, PinIcon, PinKind, RoomMeta, TokenCondition, MovementRules, HazardKind, AreaTriggerKind, SceneFloor, NivelAlerta,
+  TipoDePerigo, RotinaDoNpc,
 } from '../types/map'
+import * as perigo from '../lib/perigo'
 import type { Camera, Point } from '../pixi/world'
 import type { DoorMode, DrawingTool, Selection } from '../types/tools'
 import type { SnapTargetKind, SnapTargets } from '../pixi/grid'
@@ -16,6 +18,10 @@ import { clampTamanhoDePincel, type Bloco, type TamanhoDePincel } from '../lib/f
 import { paintRevealBrush as paintRevealBrushOnMap, type RevealBrushMode, type RevealBrushWidth } from '../lib/concealBrush'
 import * as mapFactory from '../lib/mapFactory'
 import { abrirVaoDosDoisLados, desabarParede as desabarParedeNoMapa, type CorteNaParede } from '../lib/abrirVao'
+import { comEscadaNosPisos, comFichaNoPiso, comSelecaoNoPiso, ehPiso, mapaDoPiso, nascemNoPiso, pisoDe } from '../lib/pisos'
+import { apagarBlocosNoPiso, pinoNoPiso, selecaoNoPiso } from '../lib/pisoEmEdicao'
+import { amarrarAoEstado as amarrarNoMapa, type AmarraDeEstado } from '../lib/estadoDoMundo'
+import { comRotina } from '../lib/rotinaDoNpc'
 // Onda 3, item 13 (Frente A) — clonagem pura por tipo de entidade, usada por
 // `duplicateSelected` (Ctrl+D) e `insertClonedEntityLive` (Alt+arrastar, ver
 // pixi/PixiCanvas.tsx).
@@ -116,7 +122,8 @@ function noticeMoveOnce(key: string, text: string): void {
 function moveTokenExplaining(map: MapData, token: Token, targetX: number, targetY: number): MapData {
   const from = { x: token.x, y: token.y }
   const to = { x: targetX, y: targetY }
-  const blocked = describeBlockedMove(from, to, map.walls, map.grid)
+  // PISOS NA MESMA CENA: só a parede do piso da ficha barra — a do piso de cima não existe aqui.
+  const blocked = describeBlockedMove(from, to, mapaDoPiso(map, pisoDe(token)).walls, map.grid)
   if (blocked === null) return mapFactory.setTokenPosition(map, token.id, targetX, targetY)
 
   const door = map.walls.find((w) => w.id === blocked.wallId)?.door ?? null
@@ -645,6 +652,12 @@ interface MapStoreState {
    */
   toggleTokenCondition: (id: string, condition: TokenCondition) => void
   /**
+   * ROTINA DO NPC gravada pelo painel da ficha (`components/RotinaDaFichaControls.tsx`).
+   * Edição do mestre: com histórico, o Ctrl+Z desfaz. `undefined` tira a chave
+   * (a ficha grava como a de antes do campo existir).
+   */
+  setTokenRotina: (id: string, rotina: RotinaDoNpc | undefined) => void
+  /**
    * ROTA DE PATRULHA: marcar ponto, tirar o último, apagar a rota ou avançar o
    * NPC um passo (`lib/npcPatrol.ts`). Mesmo contrato de `toggleTokenCondition`:
    * opera sobre a ficha ATUAL do store (o "marcar" grava onde ela está agora),
@@ -736,6 +749,21 @@ interface MapStoreState {
   setStairDirection: (id: string, direction: StairDirection) => void
   /** "Reta" / "Espiral" da escada selecionada, com desfazer. */
   setStairShape: (id: string, shape: StairShape) => void
+  /** PISOS NA MESMA CENA: o mestre põe a ficha em outro piso. Com histórico; nada muda, nenhuma entrada. */
+  setTokenPiso: (id: string, piso: number) => void
+  /** PISOS NA MESMA CENA: o piso da escada e/ou o piso a que ela leva (`null` = enfeite). Com histórico. */
+  setStairPisos: (id: string, mudanca: { piso?: number; levaAoPiso?: number | null }) => void
+  /**
+   * PISOS NA MESMA CENA — o piso que o EDITOR mostra e em que ele constrói
+   * (0 = térreo). Vista do mestre: não vai ao arquivo, não entra no desfazer,
+   * não vai ao jogador. Tudo que um passo com histórico cria nasce neste piso
+   * (`nascemNoPiso`); o canvas desenha e mira só nele (`mapaDoPiso`).
+   */
+  pisoAtivo: number
+  /** Troca o piso em edição. A seleção sai: item de outro piso fica invisível, e Delete não apaga o que não se vê. */
+  setPisoAtivo: (piso: number) => void
+  /** "Levar ao piso" da seleção inteira (sala com paredes e sub-salas, ficha com a luz presa). Com histórico; o editor vai junto, com a seleção. */
+  moverSelecaoAoPiso: (piso: number) => void
   setRoomName: (id: string, name: string) => void
   /** Arrasto do rótulo da Sala — SEM histórico, par de `commitDragHistory(before)`
    *  no pointerup, mesmo padrão de `resizeRoomCornerLive`. */
@@ -756,6 +784,11 @@ interface MapStoreState {
   setRoomHazard: (roomId: string, kind: HazardKind | null) => void
   /** ZONA DE PERIGO — "Avançar um passo" pelas portas abertas. Com histórico; nada muda = nada grava. */
   advanceHazard: (hazardId: string) => void
+  /** PERIGO QUE SE ALASTRA — fogo ou água novos presos à Sala (`lib/perigo.ts`). Com histórico. */
+  porPerigoNaSala: (salaId: string, tipo: TipoDePerigo) => void
+  /** Um passo do perigo pelas portas abertas. Com histórico: apertou sem querer, Ctrl+Z desfaz. */
+  avancarPerigo: (perigoId: string) => void
+  apagarPerigo: (perigoId: string) => void
   /** GATILHO DE ÁREA — marca a Região/Sala como armadilha/alarme, troca ou limpa (`null`). Com histórico. */
   setRegionTrigger: (regionId: string, kind: AreaTriggerKind | null) => void
   /** GATILHO DE ÁREA — "Mostrar aos jogadores". Com histórico; nada muda = nada grava. */
@@ -796,7 +829,7 @@ interface MapStoreState {
    *  mantido em dia por `stores/adventureStore.ts`, fora deste desfazer. */
   updatePin: (
     id: string,
-    patch: Partial<Pick<MapData['pins'][number], 'kind' | 'icon' | 'description' | 'nome' | 'notaDoMestre' | 'image' | 'locked' | 'destino' | 'passagem' | 'passe' | 'mudo' | 'motivo' | 'rotulo' | 'saidas' | 'item' | 'abreCom' | 'presoA' | 'portaLigada' | 'marco' | 'lerDePerto' | 'segredo' | 'colecao'>>,
+    patch: Partial<Pick<MapData['pins'][number], 'kind' | 'icon' | 'description' | 'nome' | 'notaDoMestre' | 'image' | 'locked' | 'destino' | 'passagem' | 'passe' | 'mudo' | 'motivo' | 'rotulo' | 'saidas' | 'item' | 'abreCom' | 'presoA' | 'portaLigada' | 'marco' | 'lerDePerto' | 'segredo' | 'colecao' | 'loja'>>,
   ) => void
   /**
    * ALAVANCA: o mestre aciona pelo painel — a porta ligada abre ou fecha, com
@@ -811,6 +844,14 @@ interface MapStoreState {
   addConcealZone: (zone: MapData['concealZones'][number]) => void
   updateConcealZone: (id: string, patch: Partial<Pick<MapData['concealZones'][number], 'name' | 'revealed'>>) => void
   removeConcealZone: (id: string) => void
+  /**
+   * ESTADO DO MUNDO — "Depende do estado" do painel: grava a regra na porta,
+   * no pino, na zona ou na luz e já põe o elemento no efeito de `valorAtual`
+   * (`null` = estado sem valor conhecido, só grava a regra). Com histórico:
+   * amarrar é edição do mestre, desfaz com Ctrl+Z. Quem sabe o valor atual é
+   * `useAdventureStore.amarrarAoEstado`, que chama esta.
+   */
+  amarrarAoEstado: (amarra: AmarraDeEstado, valorAtual: string | null) => void
   /**
    * Um traço inteiro do Pincel de revelar, num Ctrl+Z só. Devolve se o traço
    * passou por alguma zona oculta ativa (o chamador avisa quando não passou).
@@ -1311,7 +1352,8 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
   let typingEdit: TypingEdit | null = null
   const withHistory = (updater: (map: MapData) => MapData, typingKey?: string) => {
     const prevMap = get().map
-    const nextMap = updater(prevMap)
+    // PISOS NA MESMA CENA: o que o passo criou nasce no piso em edição.
+    const nextMap = nascemNoPiso(prevMap, updater(prevMap), get().pisoAtivo)
     const continuesTyping = typingKey !== undefined && typingEdit !== null && typingEdit.key === typingKey && typingEdit.map === prevMap
     typingEdit = typingKey === undefined ? null : { key: typingKey, map: nextMap }
     if (continuesTyping) {
@@ -1596,8 +1638,9 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
     moveFloorPiece: (id, dx, dy) => withHistory((map) => mapFactory.moveFloorPiece(map, id, dx, dy)),
     moveFloorPieceLive: (id, dx, dy) => set((state) => ({ map: mapFactory.moveFloorPiece(state.map, id, dx, dy) })),
     eraseFloorBlocks: (blocos, cell) => {
-      const atual = get().map
-      const proximo = mapFactory.eraseFloorBlocks(atual, blocos, cell, () => crypto.randomUUID())
+      // PISOS NA MESMA CENA: a borracha fura só o chão do piso em edição.
+      const { map: atual, pisoAtivo } = get()
+      const proximo = apagarBlocosNoPiso(atual, pisoAtivo, blocos, cell, () => crypto.randomUUID())
       // Arrastar a borracha por onde nao havia chao nao e mudanca: nao gasta Ctrl+Z.
       if (proximo !== atual) withHistory(() => proximo)
     },
@@ -1728,6 +1771,10 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
       const next = toggleConditionOnMap(get().map, id, condition)
       if (next !== get().map) withHistory(() => next)
     },
+    setTokenRotina: (id, rotina) => withHistory((map) => ({
+      ...map,
+      tokens: map.tokens.map((t) => (t.id === id ? comRotina(t, rotina) : t)),
+    })),
     patrolAction: (id, op) => {
       const next = applyPatrolOp(get().map, id, op)
       if (next !== get().map) withHistory(() => next)
@@ -1817,6 +1864,33 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
     ),
     setStairDirection: (id, direction) => withHistory((map) => mapFactory.setStairDirection(map, id, direction)),
     setStairShape: (id, shape) => withHistory((map) => mapFactory.setStairShape(map, id, shape)),
+    // O editor vai junto com a ficha ou a escada que saiu do piso em edição:
+    // sem isso ela sumia da tela e continuava selecionada, no painel.
+    setTokenPiso: (id, piso) => {
+      if (comFichaNoPiso(get().map, id, piso) === get().map) return
+      withHistory((map) => comFichaNoPiso(map, id, piso))
+      set({ pisoAtivo: piso })
+    },
+    setStairPisos: (id, mudanca) => {
+      if (comEscadaNosPisos(get().map, id, mudanca) === get().map) return
+      withHistory((map) => comEscadaNosPisos(map, id, mudanca))
+      const { map, pisoAtivo } = get()
+      if (!mapaDoPiso(map, pisoAtivo).stairs.some((s) => s.id === id)) {
+        const stair = map.stairs.find((s) => s.id === id)
+        if (stair !== undefined) set({ pisoAtivo: pisoDe(stair) })
+      }
+    },
+    pisoAtivo: 0,
+    setPisoAtivo: (piso) => {
+      if (!ehPiso(piso) || piso === get().pisoAtivo) return
+      set({ pisoAtivo: piso, selection: EMPTY_SELECTION, selectedPinId: null, selectedConcealZoneId: null, pendingParentRoomId: null })
+    },
+    moverSelecaoAoPiso: (piso) => {
+      const { map, selection } = get()
+      if (!ehPiso(piso) || comSelecaoNoPiso(map, selection, piso) === map) return
+      withHistory((current) => comSelecaoNoPiso(current, selection, piso))
+      set({ pisoAtivo: piso, pendingParentRoomId: null })
+    },
     setRoomName: (id, name) => withHistory((map) => mapFactory.setRoomName(map, id, name), `room-name:${id}`),
     setRoomLabelOffsetLive: (id, offset) => set((state) => ({ map: mapFactory.setRoomLabelOffset(state.map, id, offset) })),
     // As fábricas abaixo devolvem o mesmo `map` quando nada muda: sem entrada de histórico vazia.
@@ -1853,6 +1927,19 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
     advanceHazard: (hazardId) => {
       if (advanceHazardOnMap(get().map, hazardId) === get().map) return
       withHistory((map) => advanceHazardOnMap(map, hazardId))
+    },
+    porPerigoNaSala: (salaId, tipo) => {
+      const id = `perigo_${crypto.randomUUID()}`
+      if (perigo.porPerigoNaSala(get().map, salaId, tipo, id) === get().map) return
+      withHistory((map) => perigo.porPerigoNaSala(map, salaId, tipo, id))
+    },
+    avancarPerigo: (perigoId) => {
+      if (perigo.avancarPerigo(get().map, perigoId) === get().map) return
+      withHistory((map) => perigo.avancarPerigo(map, perigoId))
+    },
+    apagarPerigo: (perigoId) => {
+      if (perigo.apagarPerigo(get().map, perigoId) === get().map) return
+      withHistory((map) => perigo.apagarPerigo(map, perigoId))
     },
     setRegionTrigger: (regionId, kind) => {
       // Um id só para as duas chamadas: a conferência e a gravação criam o MESMO gatilho.
@@ -1920,9 +2007,14 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
       withHistory((map) => mapFactory.removeConcealZone(map, id))
       if (get().selectedConcealZoneId === id) set({ selectedConcealZoneId: null })
     },
+    amarrarAoEstado: (amarra, valorAtual) => {
+      if (amarrarNoMapa(get().map, amarra, valorAtual) === get().map) return
+      withHistory((map) => amarrarNoMapa(map, amarra, valorAtual))
+    },
     paintRevealBrush: (stroke, radius, mode) => {
-      const result = paintRevealBrushOnMap(get().map, stroke, radius, mode)
-      if (result.map !== get().map) withHistory(() => result.map)
+      const { map, pisoAtivo } = get()
+      const result = paintRevealBrushOnMap(map, stroke, radius, mode, pisoAtivo)
+      if (result.map !== map) withHistory(() => result.map)
       return result.hitZone
     },
     resizeRoomDimensions: (id, wPx, hPx) => withHistory((map) => reparentRooms(mapFactory.resizeRoomDimensions(map, id, wPx, hPx), [id], map)),
@@ -2022,7 +2114,20 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
       masterBaseOfMap.set(nextMap, masterBaseOfMap.get(prevMap) ?? prevMap)
       // A letra seguinte do mestre continua o mesmo passo, agora sobre o mapa com a mudança do jogador.
       if (typingEdit !== null && typingEdit.map === prevMap) typingEdit = { key: typingEdit.key, map: nextMap }
-      set((state) => ({ map: nextMap, past: state.past.map(transform), future: state.future.map(transform) }))
+      // PISOS NA MESMA CENA: o jogador levou a ficha a outro piso pela escada.
+      // O editor fica onde o mestre está; a ficha, agora invisível aqui, sai
+      // da seleção — senão o Delete dele apagaria o que ele não vê. O pino
+      // preso a ela (`presoA`) sobe junto, e o selecionado mora fora de `selection`.
+      const { selection, selectedPinId, pisoAtivo } = get()
+      const naTela = selecaoNoPiso(nextMap, pisoAtivo, selection)
+      const pinoNaTela = pinoNoPiso(nextMap, pisoAtivo, selectedPinId)
+      set((state) => ({
+        map: nextMap,
+        past: state.past.map(transform),
+        future: state.future.map(transform),
+        ...(naTela === selection ? {} : { selection: naTela }),
+        ...(pinoNaTela === selectedPinId ? {} : { selectedPinId: pinoNaTela }),
+      }))
     },
     updateLinePoint: (drawingId, endpoint, x, y) => {
       const before = get().map
@@ -2147,7 +2252,8 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
     })),
     loadMap: (map) => {
       typingEdit = null
-      set({ map, selection: EMPTY_SELECTION, selectedConcealZoneId: null, selectedPinId: null, past: [], future: [] })
+      // Outro mapa começa no térreo: o piso em edição do anterior pode nem existir nele.
+      set({ map, selection: EMPTY_SELECTION, selectedConcealZoneId: null, selectedPinId: null, past: [], future: [], pisoAtivo: 0 })
     },
     undo: () => {
       const { past, map } = get()
