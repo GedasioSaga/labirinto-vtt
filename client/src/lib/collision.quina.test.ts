@@ -81,3 +81,69 @@ describe('passar rente à quina', () => {
     expect(resolveTokenMove(abaixoDaQuina, acimaDaQuina, [pontaSolta, outra])).toEqual(abaixoDaQuina)
   })
 })
+
+// O dedo do jogador não solta no pixel exato: a ficha cai onde ele soltou,
+// arredondada, sem encaixe no centro da casa. Soltar 1 px para dentro faz o
+// traço cortar a parede a 1 px da ponta — isso ainda é raspar a ponta.
+describe('passar rente à quina: soltura fora do pixel exato', () => {
+  const grade = 64
+
+  it('soltar 1 px para dentro da diagonal ainda passa', () => {
+    const solto = { x: 95, y: 31 }
+    expect(resolveTokenMove(abaixoDaQuina, solto, [pontaSolta], grade)).toEqual(solto)
+    expect(findTokenPath(abaixoDaQuina, solto, [pontaSolta], grade)).toEqual([abaixoDaQuina, solto])
+  })
+
+  it('qualquer soltura a até 8 px do centro da casa diagonal passa', () => {
+    const recusadas: string[] = []
+    for (let dx = -8; dx <= 8; dx += 1) {
+      for (let dy = -8; dy <= 8; dy += 1) {
+        const solto = { x: acimaDaQuina.x + dx, y: acimaDaQuina.y + dy }
+        if (findTokenPath(abaixoDaQuina, solto, [pontaSolta], grade) === null) recusadas.push(`${solto.x},${solto.y}`)
+      }
+    }
+    expect(recusadas).toEqual([])
+  })
+
+  it('com a parede continuando depois da quina, nenhuma dessas solturas passa', () => {
+    const continuacao = wall('continua', 64, 64, 64, 128)
+    const aceitas: string[] = []
+    for (let dx = -8; dx <= 8; dx += 1) {
+      for (let dy = -8; dy <= 8; dy += 1) {
+        const solto = { x: acimaDaQuina.x + dx, y: acimaDaQuina.y + dy }
+        if (findTokenPath(abaixoDaQuina, solto, [pontaSolta, continuacao], grade) !== null) aceitas.push(`${solto.x},${solto.y}`)
+      }
+    }
+    expect(aceitas).toEqual([])
+  })
+
+  it('canto de sala: sair pela quina desviando 1 px para qualquer lado continua bloqueado', () => {
+    const baixo = wall('baixo', 0, 64, 64, 64)
+    const dentro = { x: 32, y: 32 }
+    for (const solto of [{ x: 97, y: 95 }, { x: 95, y: 97 }, { x: 96, y: 96 }]) {
+      expect(resolveTokenMove(dentro, solto, [pontaSolta, baixo], grade)).toEqual(dentro)
+    }
+  })
+
+  it('por fora do L, desviando 1 px para dentro, passa', () => {
+    const baixo = wall('baixo', 0, 64, 64, 64)
+    const solto = { x: 95, y: 31 }
+    expect(resolveTokenMove(abaixoDaQuina, solto, [pontaSolta, baixo], grade)).toEqual(solto)
+  })
+
+  it('cortar a parede longe da ponta (mais de 1/4 da casa) continua bloqueado', () => {
+    // Cruza x = 64 em y ≈ 42,7: 21 px acima da ponta.
+    expect(resolveTokenMove(abaixoDaQuina, { x: 80, y: 16 }, [pontaSolta], grade)).toEqual(abaixoDaQuina)
+    // Cruza x = 64 em y = 48: 16 px da ponta, exatamente a folga — ainda raspa.
+    expect(resolveTokenMove(abaixoDaQuina, { x: 96, y: 0 }, [pontaSolta], grade)).toEqual({ x: 96, y: 0 })
+  })
+
+  it('toquinho de parede curto não vira passagem: cruzar o meio dele bloqueia', () => {
+    const toco = wall('toco', 64, 56, 64, 72)
+    expect(resolveTokenMove({ x: 32, y: 64 }, { x: 96, y: 64 }, [toco], grade)).toEqual({ x: 32, y: 64 })
+  })
+
+  it('terminar o passo em cima da parede, perto da ponta, continua bloqueado', () => {
+    expect(resolveTokenMove(abaixoDaQuina, { x: 64, y: 60 }, [pontaSolta], grade)).toEqual(abaixoDaQuina)
+  })
+})

@@ -64,25 +64,37 @@ function distanceToSegment(p: Point, a: Point, b: Point): number {
   return Math.hypot(p.x - (a.x + dx * t), p.y - (a.y + dy * t))
 }
 
-function isStrictlyInside(from: Point, to: Point, p: Point): boolean {
-  const atEnd = (q: Point): boolean => q.x === p.x && q.y === p.y
-  return onSegment(from, to, p) && !atEnd(from) && !atEnd(to)
-}
+/**
+ * Folga do raspão, em fração da célula: o traço que corta a parede a até 1/4
+ * de casa da ponta ainda conta como raspar a ponta. A ficha do jogador cai onde
+ * o dedo soltou (sem encaixe no centro da casa), então exigir o pixel exato da
+ * diagonal recusava quase todo gesto real.
+ */
+const GRAZE_CELL_FRACTION = 1 / 4
+/** Nunca mais que 1/4 do comprimento da parede: o meio de um toco curto continua barrando. */
+const GRAZE_WALL_FRACTION = 1 / 4
 
 /**
  * Como o traço toca a parede: `null` não toca; `'crosses'` cruza ou encosta
- * de verdade; um Ponto = só raspa a PONTA da parede (a ponta cai no meio do
- * traço e o resto da parede fica de um lado só). Terminar o passo em cima da
- * parede ou andar ao longo dela continua sendo `'crosses'`.
+ * de verdade; um Ponto = só raspa a PONTA da parede (corta a parede a até
+ * `graze` px da ponta). Terminar o passo em cima da parede ou andar ao longo
+ * dela continua sendo `'crosses'`.
  */
-function wallContact(from: Point, to: Point, wall: Wall): Point | 'crosses' | null {
+function wallContact(from: Point, to: Point, wall: Wall, graze: number): Point | 'crosses' | null {
   const a = { x: wall.x1, y: wall.y1 }
   const b = { x: wall.x2, y: wall.y2 }
   if (!segmentsIntersect(from, to, a, b)) return null
   const sideA = orientation(from, to, a)
   const sideB = orientation(from, to, b)
-  if (sideA === 0 && sideB !== 0 && isStrictlyInside(from, to, a)) return a
-  if (sideB === 0 && sideA !== 0 && isStrictlyInside(from, to, b)) return b
+  // Ao longo da parede (colinear) ou começando/terminando em cima dela.
+  if (sideA === sideB) return 'crosses'
+  if (orientation(a, b, from) === 0 || orientation(a, b, to) === 0) return 'crosses'
+  // Onde o traço corta a parede, medido a partir de `a` ao longo dela.
+  const length = Math.hypot(b.x - a.x, b.y - a.y)
+  const fromA = (sideA / (sideA - sideB)) * length
+  const tolerance = Math.min(graze, length * GRAZE_WALL_FRACTION)
+  if (fromA <= tolerance) return a
+  if (length - fromA <= tolerance) return b
   return 'crosses'
 }
 
@@ -129,11 +141,11 @@ const DOOR_EDGE_INSET = 2
  * grade, onde as paredes terminam), a menos que outra parede emendada naquela
  * quina feche o outro lado.
  */
-function isPathClear(from: Point, to: Point, walls: readonly Wall[]): boolean {
+function isPathClear(from: Point, to: Point, walls: readonly Wall[], graze: number): boolean {
   const blockers = walls.filter(blocksPassage)
   const tips: Point[] = []
   for (const wall of blockers) {
-    const contact = wallContact(from, to, wall)
+    const contact = wallContact(from, to, wall, graze)
     if (contact === 'crosses') return false
     if (contact !== null) tips.push(contact)
   }
@@ -172,14 +184,15 @@ function doorWaypoint(from: Point, to: Point, door: Wall, slack: number): Point 
  * Trajeto do token: `[from, to]` se o traço reto está livre; `[from, vão, to]`
  * se passa pelo vão de uma porta aberta sem cruzar parede nos dois trechos;
  * `null` se bloqueado. `doorSlack` é a folga além da ponta do vão (use a
- * célula do mapa).
+ * célula do mapa); a folga do raspão na ponta da parede sai dela também.
  */
 export function findTokenPath(from: Point, to: Point, walls: readonly Wall[], doorSlack: number = DEFAULT_DOOR_SLACK): Point[] | null {
-  if (isPathClear(from, to, walls)) return [from, to]
+  const graze = doorSlack * GRAZE_CELL_FRACTION
+  if (isPathClear(from, to, walls, graze)) return [from, to]
   for (const wall of walls) {
     if (!isDoorPassable(wall.door)) continue
     const via = doorWaypoint(from, to, wall, doorSlack)
-    if (via !== null && isPathClear(from, via, walls) && isPathClear(via, to, walls)) return [from, via, to]
+    if (via !== null && isPathClear(from, via, walls, graze) && isPathClear(via, to, walls, graze)) return [from, via, to]
   }
   return null
 }

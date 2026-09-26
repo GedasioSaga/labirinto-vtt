@@ -34,6 +34,22 @@ describe('passar rente à quina: pedido do jogador', () => {
   })
 })
 
+describe('passar rente à quina: soltura real do jogador (sem encaixe no centro da casa)', () => {
+  it('soltar 1 px para dentro da diagonal é aceito', () => {
+    expect(validateTokenMove(mapa([pontaSolta]), { playerId: 'p1', tokenId: 't1', x: 95, y: 31 }, ownership)).toEqual({ ok: true, x: 95, y: 31 })
+  })
+
+  it('soltar alguns px para dentro, perto do centro da casa, é aceito', () => {
+    expect(validateTokenMove(mapa([pontaSolta]), { playerId: 'p1', tokenId: 't1', x: 90, y: 30 }, ownership)).toEqual({ ok: true, x: 90, y: 30 })
+  })
+
+  it('com a parede continuando depois da quina, soltar fora do pixel exato recusa com wall', () => {
+    for (const [x, y] of [[95, 31], [97, 33], [90, 30]]) {
+      expect(validateTokenMove(mapa([pontaSolta, continuacao]), { playerId: 'p1', tokenId: 't1', x, y }, ownership)).toEqual({ ok: false, reason: 'wall' })
+    }
+  })
+})
+
 describe('passar rente à quina: arrasto do mestre', () => {
   it('ponta solta não barra o arrasto', () => {
     expect(describeBlockedMove({ x: 32, y: 96 }, { x: 96, y: 32 }, [pontaSolta], 64)).toBeNull()
