@@ -1,6 +1,6 @@
-import type { MapData, Pin, PinDestination, PinExit, PinExitLabel } from '../types/map'
+import type { ExitPassage, MapData, Pin, PinDestination, PinExit, PinExitLabel, PinPassage } from '../types/map'
 import { gatherSpots, seatIsTaken } from './gatherParty'
-import { PIN_HEAD_OFFSET, PIN_HEAD_RADIUS, PIN_HEIGHT, pinSummary } from './pins'
+import { PIN_HEAD_OFFSET, PIN_HEAD_RADIUS, PIN_HEIGHT, passageOf, pinSummary } from './pins'
 import { SCENE_TRAIL_SEPARATOR } from './adventure'
 import { seatTokenCenter } from './tokenSize'
 import { snapPointForTarget } from '../pixi/tokenInteraction'
@@ -104,6 +104,8 @@ export interface TravelExit {
   id: string
   rotulo: string
   destino: PinDestination
+  /** MODO POR SAÍDA: o modo próprio da saída extra (a principal nunca tem: o dela é o do pino). */
+  passagem?: ExitPassage
 }
 
 /** O rótulo como o disco e o painel o guardam: texto, sem espaço nas pontas, no teto. */
@@ -128,9 +130,71 @@ export function readPinExits(value: unknown): PinExit[] | undefined {
     const lido = readPinDestination(destino)
     if (lido === null) continue
     vistos.add(id)
-    saidas.push({ id, rotulo: cleanExitLabel(rotulo), destino: lido })
+    const saida: PinExit = { id, rotulo: cleanExitLabel(rotulo), destino: lido }
+    // MODO POR SAÍDA: só um modo da lista volta; o resto (o passe, texto
+    // torto) volta AUSENTE — a saída segue o modo da principal.
+    const passagem = (item as Record<string, unknown>).passagem // objeto não-nulo acima; o valor é conferido na linha seguinte
+    if (isExitPassage(passagem)) saida.passagem = passagem
+    saidas.push(saida)
   }
   return saidas.length === 0 ? undefined : saidas
+}
+
+/** Os modos que uma saída pode ter por conta própria, na ordem do painel do mestre. */
+export const EXIT_PASSAGE_ORDER: readonly ExitPassage[] = ['pede', 'livre', 'trancada']
+
+/** Guarda de leitura do modo de uma saída: arquivo editado à mão ou host de versão futura não vale. */
+export function isExitPassage(value: unknown): value is ExitPassage {
+  return EXIT_PASSAGE_ORDER.some((passage) => passage === value)
+}
+
+/**
+ * MODO POR SAÍDA — como o jogador passa pela saída `exitId` (ausente = a
+ * principal). A principal é o modo do pino; a extra usa o dela e, sem modo
+ * próprio (ou com um torto), o da principal. Id que não é saída deste pino
+ * também responde o do pino: quem recusa a saída inventada é o host, depois.
+ */
+export function exitPassageOf(pin: Pin, exitId: string = SAIDA_PRINCIPAL): PinPassage {
+  if (exitId === SAIDA_PRINCIPAL) return passageOf(pin)
+  const propria = (pin.saidas ?? []).find((saida) => saida.id === exitId)?.passagem
+  return isExitPassage(propria) ? propria : passageOf(pin)
+}
+
+/**
+ * O mesmo, lido do pino que o JOGADOR recebeu: o modo vem em `escolhas[]`
+ * (só quando difere do pino). O pacote chega da rede sem conferência campo a
+ * campo: modo torto cai no do pino.
+ */
+export function playerExitPassageOf(pin: Pick<Pin, 'passagem' | 'escolhas'>, exitId?: string): PinPassage {
+  const propria = exitId === undefined ? undefined : (pin.escolhas ?? []).find((saida) => saida.id === exitId)?.passagem
+  return isExitPassage(propria) ? propria : passageOf(pin)
+}
+
+/** Pedido pela saída `exitId` trancada que aceita tentativas: trancada e o pino sem a marca `mudo`. */
+export function acceptsLockedExitRequest(pin: Pin, exitId: string = SAIDA_PRINCIPAL): boolean {
+  return exitPassageOf(pin, exitId) === 'trancada' && pin.mudo !== true
+}
+
+/** O que muda num pino quando o modo de uma saída muda: vai direto para `updatePin`. */
+export type ExitPassagePatch = Partial<Pick<Pin, 'passagem' | 'saidas'>>
+
+/**
+ * Grava o modo da saída `exitId`. Na principal é o modo do pino (`undefined`
+ * = "pede", o de sempre). Na extra, `undefined` TIRA a chave: a saída volta a
+ * seguir a principal. Saída que não é deste pino não muda nada.
+ */
+export function setExitPassage(pin: Pin, exitId: string, passagem: ExitPassage | undefined): ExitPassagePatch {
+  if (exitId === SAIDA_PRINCIPAL) return { passagem }
+  const extras = pin.saidas ?? []
+  if (!extras.some((saida) => saida.id === exitId)) return {}
+  return {
+    saidas: extras.map((saida) => {
+      if (saida.id !== exitId) return saida
+      if (passagem !== undefined) return { ...saida, passagem }
+      const { passagem: _tirada, ...semModo } = saida
+      return semModo
+    }),
+  }
 }
 
 /** As saídas que levam a algum lugar, na ordem: a principal primeiro. Só pino de VIAGEM tem saída. */
@@ -223,12 +287,15 @@ export function renameExit(pin: Pin, exitId: string, rotulo: string): ExitPatch 
   return { saidas: extras.map((saida) => (saida.id === exitId ? { ...saida, rotulo: limpo } : saida)) }
 }
 
-/** Mesmas saídas, mesmos rótulos: o que `updatePin` usa para não empilhar desfazer vazio. */
+/** Mesmas saídas, mesmos rótulos, mesmos modos: o que `updatePin` usa para não empilhar desfazer vazio. */
 export function sameExits(a: Pin, b: Pin): boolean {
   if ((a.rotulo ?? '') !== (b.rotulo ?? '')) return false
   const x = a.saidas ?? []
   const y = b.saidas ?? []
-  return x.length === y.length && x.every((saida, i) => saida.id === y[i].id && saida.rotulo === y[i].rotulo && sameDestination(saida.destino, y[i].destino))
+  return (
+    x.length === y.length &&
+    x.every((saida, i) => saida.id === y[i].id && saida.rotulo === y[i].rotulo && saida.passagem === y[i].passagem && sameDestination(saida.destino, y[i].destino))
+  )
 }
 
 /** As ligações CRUAS do pino (sem conferir tipo nem forma), com o id de cada saída. */

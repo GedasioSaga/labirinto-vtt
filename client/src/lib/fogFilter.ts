@@ -1,4 +1,4 @@
-import type { ConcealZone, DoorState, Drawing, FloorPiece, HazardKind, LayerId, Light, MapData, MapLine, MapMarker, Pin, PinCard, Region, RegionPoint, Stair, Token, TokenCompanion, TokenContract, Wall, WatchAlert } from '../types/map'
+import type { ConcealZone, DoorState, Drawing, FloorPiece, HazardKind, LayerId, Light, MapData, MapLine, MapMarker, Pin, PinCard, PinExitLabel, Region, RegionPoint, Stair, Token, TokenCompanion, TokenContract, Wall, WatchAlert } from '../types/map'
 import { cellCenter, cellKeyAt, cellRunRects, concealedPieces, unveiledCellsOf } from './concealBrush'
 import { REVEAL_BRUSH_CELL } from './revealBrushCell'
 import { isTokenPhotoData } from './tokenPhoto'
@@ -16,7 +16,7 @@ import { drawingLayer, regionLayer, stairLayer, visibleDrawings, visibleLights, 
 import { blockReasonOf, isPinIcon, isPinReadDistance, isPlayerSafePinImage, passageOf } from './pins'
 import { CLUE_TITLE_ONLY_IMAGE, clampClueText, clueTitleFrom } from './clues'
 import { propPlayerImage, propPlayerLabel } from './propPlayerLook'
-import { exitLabelsOf, isArrivalOnly, travelExitsOf, unreadExitLabels, type OneWayExits } from './pinTravel'
+import { exitLabelsOf, exitPassageOf, isArrivalOnly, isExitPassage, travelExitsOf, unreadExitLabels, type OneWayExits } from './pinTravel'
 import { publicLockOf } from './pinLock'
 import { cabineNaParada, type CabineDeTransporte } from './cabine'
 import { withoutAttachment } from './lightAttachment'
@@ -4203,6 +4203,9 @@ export function espiadaPeloPino(map: MapData, par: Pin, casas: number, limites: 
  * - `semVolta` (pino de uma saída) e `escolhas[].soIda` (encruzilhada) VÃO
  *   só quando o host marcou a saída em `oneWay`: dizem que não há volta por
  *   ali, nunca para onde se vai.
+ * - `escolhas[].passagem` (MODO POR SAÍDA) VAI só quando o modo da saída
+ *   difere do pino: diz se aquela porta abre, pede ou está trancada — nada
+ *   da outra cena. `mudo` vai também quando alguma saída é trancada.
  * - `abreCom` NUNCA (CHAVE ABRE PORTA): o jogador não descobre que pinos uma
  *   chave abre. Em troca, `chave` — o nome do item que ELE já carrega — sai só
  *   no pino trancado que uma ficha dele, encostada, abre (`ownTokens`: as
@@ -4258,7 +4261,12 @@ function pinForPlayer(pin: Pin, ownTokens: readonly Token[], grid: number, reada
   // Pino trancado MUDO: a marca vai, para o cartão não oferecer "Pedir ao
   // mestre" que o host recusaria. Em qualquer outro modo ela não diz nada e
   // fica de fora (sobra de quando o pino era trancado).
-  if (pin.mudo === true && passageOf(pin) === 'trancada') forPlayer.mudo = true
+  // MODO POR SAÍDA: a saída trancada numa encruzilhada que não é trancada
+  // também precisa da marca — o cartão desliga só o botão dela.
+  const escolhas = exitLabelsOf(pin)
+  const encruzilhada = escolhas.length > 1
+  const algumaSaidaTrancada = encruzilhada && escolhas.some((saida) => exitPassageOf(pin, saida.id) === 'trancada')
+  if (pin.mudo === true && (passageOf(pin) === 'trancada' || algumaSaidaTrancada)) forPlayer.mudo = true
   // MOTIVO DO BLOQUEIO: só do pino de viagem trancado, e só um valor da lista.
   // Motivo guardado num pino reaberto é plano do mestre para depois — não sai.
   const motivo = blockReasonOf(pin)
@@ -4275,11 +4283,19 @@ function pinForPlayer(pin: Pin, ownTokens: readonly Token[], grid: number, reada
   // SÓ IDA: um booleano por saída, e só com o que o HOST mandou marcar
   // (`oneWay`, de `oneWayExitsOf`). `semVolta` gravado no pino do mestre
   // (arquivo editado à mão) não é lido: o recorte é lista do que vai.
+  // MODO POR SAÍDA: o modo vai por saída só quando difere do pino — o
+  // pacote da encruzilhada de um modo só fica o de sempre. O modo diz se a
+  // porta abre, nunca para onde ela leva; vai também de longe da placa, como
+  // o `passagem` do pino.
   const soIda = (exitId: string): boolean => oneWay !== undefined && oneWay.has(exitId)
-  const escolhas = exitLabelsOf(pin)
-  if (escolhas.length > 1) {
+  const modoDoPino = passageOf(pin)
+  if (encruzilhada) {
     const visiveis = readable ? escolhas : unreadExitLabels(escolhas)
-    forPlayer.escolhas = visiveis.map((saida) => (soIda(saida.id) ? { ...saida, soIda: true } : saida))
+    forPlayer.escolhas = visiveis.map((saida) => {
+      const paraJogador: PinExitLabel = soIda(saida.id) ? { ...saida, soIda: true } : saida
+      const modo = exitPassageOf(pin, saida.id)
+      return modo !== modoDoPino && isExitPassage(modo) ? { ...paraJogador, passagem: modo } : paraJogador
+    })
   }
   if (escolhas.length === 1 && soIda(escolhas[0].id)) forPlayer.semVolta = true
   // ITEM PEGÁVEL: o cartão precisa do nome e de saber se pede ao mestre.

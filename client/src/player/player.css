@@ -1784,6 +1784,16 @@
   margin: 6px 16px 0 52px;
 }
 
+/* MODO POR SAÍDA: "Livre", "Pede ao mestre", "Trancada" no botão de cada
+   saída quando os modos se misturam. Mais leve que o "Só ida": é o estado da
+   porta, dito em texto, sem moldura que dispute com ela. */
+.pp-pincard__mode {
+  font-size: 12px;
+  font-weight: 600;
+  opacity: 0.8;
+  white-space: nowrap;
+}
+
 /* "Me avise quando der": botão de alternar, secundário ao texto — linha fina,
    sem fundo. Ligado, a borda e o texto vão ao latão (o estado não é só cor:
    a frase de baixo diz "Você recebe um aviso"). */

@@ -1,11 +1,11 @@
 import { useRef, useState, type KeyboardEvent, type MouseEvent } from 'react'
 import type { PinTravel, TravelPinOption, TravelSceneOption } from '../lib/pinTravel'
-import { EXIT_EXTRA_MAX_COUNT, EXIT_LABEL_MAX_LENGTH, isArrivalOnly, travelExitsOf, travelPlaceName, travelSceneLabel } from '../lib/pinTravel'
+import { EXIT_EXTRA_MAX_COUNT, EXIT_LABEL_MAX_LENGTH, EXIT_PASSAGE_ORDER, isArrivalOnly, isExitPassage, travelExitsOf, travelPlaceName, travelSceneLabel } from '../lib/pinTravel'
 import { PIN_BLOCK_REASON_LABELS, PIN_BLOCK_REASON_NONE_LABEL, PIN_BLOCK_REASON_ORDER, PIN_PASSAGE_LABELS, PIN_PASSAGE_ORDER, passageOf } from '../lib/pins'
 import { SCENE_FILTER_MIN, sceneSearchSummary, sceneSearchWords, searchScenes } from '../lib/sceneSearch'
 import { ITEM_NAME_MAX_LENGTH } from '../lib/items'
 import type { PassTokenOption } from '../lib/pinPass'
-import type { PinBlockReason, PinPassage } from '../types/map'
+import type { ExitPassage, PinBlockReason, PinPassage } from '../types/map'
 import { clampDaVista, DA_VISTA_MAX_CASAS, DA_VISTA_MIN_CASAS, DA_VISTA_PADRAO_CASAS, ESPIAR_DURACAO_MS } from '../lib/espiar'
 import { ChevronDownIcon } from './icons'
 import { DoorKeyField } from './WallDoorControls'
@@ -18,6 +18,8 @@ export interface PinTravelExitView {
   rotulo: string
   /** Para onde ela leva agora. */
   travel: PinTravel
+  /** MODO POR SAÍDA: o modo próprio da saída extra. Ausente = como a principal. */
+  passagem?: ExitPassage
 }
 
 export interface PinTravelControlsProps {
@@ -45,9 +47,14 @@ export interface PinTravelControlsProps {
   onRename: (exitId: string, rotulo: string) => void
   /** Leva a visão do mestre pela saída — o mesmo que o clique com Selecionar faz pela principal. */
   onGo: (exitId: string) => void
-  /** Como o jogador passa por ESTE pino (o par tem o seu). Vale para todas as saídas. */
+  /** Como o jogador passa por ESTE pino (o par tem o seu). Vale para a principal e para as saídas sem modo próprio. */
   passage: PinPassage
   onPassageChange: (passage: PinPassage) => void
+  /**
+   * MODO POR SAÍDA: grava o modo da saída EXTRA `exitId` (`undefined` = como a
+   * principal). Só numa encruzilhada; sem ele, o painel não oferece a escolha.
+   */
+  onExitPassageChange?: (exitId: string, passagem: ExitPassage | undefined) => void
   /** CHAVE ABRE PORTA: o "Abre com" do pino trancado ("" = sem chave). */
   keyName?: string
   /**
@@ -140,6 +147,50 @@ const EFEITO_DA_PASSAGEM: Record<PinPassage, string> = {
 const EFEITO_TRANCADA_COM_PEDIDO = 'Ninguém passa sozinho; o jogador pode pedir e você decide.'
 
 const TENTATIVAS_ID = 'lb-pin-travel-attempts'
+const MODO_DA_SAIDA_ID = 'lb-pin-travel-exit-passage'
+
+/** O valor da opção "Como a principal" no `<select>`: a ausência do modo próprio. */
+const COMO_A_PRINCIPAL = ''
+
+interface ModoDaSaidaProps {
+  id: string
+  /** O modo próprio da saída; `undefined` = como a principal. */
+  passagem: ExitPassage | undefined
+  /** O modo da principal (o do pino), dito na opção "Como a principal". */
+  principal: PinPassage
+  onChange: (passagem: ExitPassage | undefined) => void
+}
+
+/**
+ * MODO POR SAÍDA — "Passagem desta saída" de uma saída extra. Um `<select>`,
+ * e não o segmented da "Passagem": são até onze saídas empilhadas no poço, e
+ * quatro linhas por saída empurrariam o resto do painel para longe.
+ */
+function ModoDaSaida({ id, passagem, principal, onChange }: ModoDaSaidaProps) {
+  return (
+    <div className="lb-travel__exit-passage">
+      <label className="lb-label" htmlFor={id}>
+        Passagem desta saída
+      </label>
+      <select
+        id={id}
+        className="lb-input"
+        value={passagem ?? COMO_A_PRINCIPAL}
+        onChange={(event) => {
+          const valor = event.target.value
+          onChange(isExitPassage(valor) ? valor : undefined)
+        }}
+      >
+        <option value={COMO_A_PRINCIPAL}>Como a principal ({PIN_PASSAGE_LABELS[principal]})</option>
+        {EXIT_PASSAGE_ORDER.map((option) => (
+          <option key={option} value={option}>
+            {PIN_PASSAGE_LABELS[option]}
+          </option>
+        ))}
+      </select>
+    </div>
+  )
+}
 
 /** Foco depois do render: quem o recebe pode ter acabado de nascer (ou de trocar de pino). */
 function focarDepois(achar: () => HTMLElement | null | undefined): void {
@@ -210,6 +261,7 @@ export function PinTravelControls({
   onGo,
   passage,
   onPassageChange,
+  onExitPassageChange,
   keyName = '',
   onKeyChange,
   acceptsAttempts = true,
@@ -448,6 +500,16 @@ export function PinTravelControls({
                 </div>
                 {exit.travel.status === 'ligado' && (
                   <MaoUnica id={`${MAO_UNICA_ID}-${index}`} travel={exit.travel} onChange={(on) => onOneWayChange(exit.id, on)} />
+                )}
+                {/* MODO POR SAÍDA: a principal segue a "Passagem" do pino, lá
+                    embaixo; cada extra pode ter a sua. */}
+                {index > 0 && onExitPassageChange !== undefined && (
+                  <ModoDaSaida
+                    id={`${MODO_DA_SAIDA_ID}-${index}`}
+                    passagem={exit.passagem}
+                    principal={passage}
+                    onChange={(passagem) => onExitPassageChange(exit.id, passagem)}
+                  />
                 )}
               </li>
             ))}
