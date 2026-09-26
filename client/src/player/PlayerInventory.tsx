@@ -52,18 +52,34 @@ type Step =
   | { kind: 'confirmar-pagar'; colleague: InventoryColleague; quanto: number; payer: InventoryPayer | undefined }
 
 /**
- * Um pedido esperando o mapa novo. No pagamento, `totalAntes` é a SOMA das
- * bolsas de todas as fichas dele: o `coins.give` não diz de qual ficha sai, e
- * o host pode cobrar de outra que não a aberta — conferir só a aberta dava
- * "a mesa não respondeu" num pagamento feito, e convidava a pagar de novo.
+ * Um pedido esperando o mapa novo. No pagamento, `bolsasAntes` é a bolsa de
+ * CADA ficha dele na hora do pedido: o `coins.give` não diz de qual ficha sai,
+ * e o host pode cobrar de outra que não a aberta — conferir só a aberta dava
+ * "a mesa não respondeu" num pagamento feito, e convidava a pagar de novo. E a
+ * soma das bolsas não serve: ela cai também quando uma ficha com moedas sai do
+ * recorte (o mestre a esconde, encerra o empréstimo, dispensa o ajudante, ela
+ * muda de piso) — dava "pagou" sem ninguém ter pago, e a recusa do host, que
+ * chega depois, ficava sem pedido para mostrar.
  */
 type Pending =
   | { kind: 'dar'; tokenId: string; itemId: string; nome: string; para: string; noticeId: number | null }
-  | { kind: 'pagar'; quanto: number; totalAntes: number; para: string; noticeId: number | null }
+  | { kind: 'pagar'; quanto: number; bolsasAntes: ReadonlyMap<string, number>; para: string; noticeId: number | null }
 
-/** Quantas moedas as fichas dele no mapa carregam juntas. */
-function totalDeMoedas(characters: readonly InventoryCharacter[]): number {
-  return characters.reduce((soma, c) => soma + c.moedas, 0)
+/** A bolsa de cada ficha dele no mapa, por `tokenId`. */
+function bolsasPorFicha(characters: readonly InventoryCharacter[]): ReadonlyMap<string, number> {
+  return new Map(characters.map((c) => [c.tokenId, c.moedas]))
+}
+
+/**
+ * O host cobrou: uma ficha que estava no recorte na hora do pedido, e continua
+ * nele, tem exatamente `quanto` moedas a menos. Ficha que saiu do recorte não
+ * conta — sumir não é pagar.
+ */
+function pagouDeUmaBolsa(antes: ReadonlyMap<string, number>, agora: readonly InventoryCharacter[], quanto: number): boolean {
+  return agora.some((c) => {
+    const moedasAntes = antes.get(c.tokenId)
+    return moedasAntes !== undefined && moedasAntes - c.moedas === quanto
+  })
 }
 
 interface Outcome {
@@ -186,12 +202,13 @@ export function PlayerInventory({ characters, onGive, onPay, notice, onClose, in
     if (document.activeElement === null || document.activeElement === document.body) (slotRef.current ?? closeRef.current)?.focus()
   }, [slots])
 
-  // Deu certo: o mapa novo chegou sem o item, ou com menos moedas somando as
-  // bolsas de todas as fichas dele (o host escolhe de qual sai).
+  // Deu certo: o mapa novo chegou sem o item, ou com `quanto` moedas a menos
+  // numa das bolsas dele (o host escolhe de qual sai). Ficha que saiu do
+  // recorte não é pagamento: o pedido segue esperando a recusa ou o prazo.
   useEffect(() => {
     if (pending === null) return
     if (pending.kind === 'pagar') {
-      if (totalDeMoedas(characters) >= pending.totalAntes) return
+      if (!pagouDeUmaBolsa(pending.bolsasAntes, characters, pending.quanto)) return
       setOutcome({ tone: 'ok', text: `Você pagou ${moedasLabel(pending.quanto)} a ${pending.para}.` })
       setPending(null)
       return
@@ -278,7 +295,7 @@ export function PlayerInventory({ characters, onGive, onPay, notice, onClose, in
     if (!onPay(colleague.tokenId, quanto)) {
       setOutcome({ tone: 'erro', text: 'Não deu para enviar. Confira a conexão e tente de novo.' })
     } else {
-      setPending({ kind: 'pagar', quanto, totalAntes: totalDeMoedas(characters), para: colleague.name, noticeId: notice?.id ?? null })
+      setPending({ kind: 'pagar', quanto, bolsasAntes: bolsasPorFicha(characters), para: colleague.name, noticeId: notice?.id ?? null })
     }
     focusNext.current = 'vaga'
   }

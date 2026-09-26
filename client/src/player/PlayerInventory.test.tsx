@@ -320,6 +320,28 @@ describe('PlayerInventory', () => {
       expect(status()).toBe('Você pagou 3 moedas a Diego.')
     })
 
+    it('o mestre encerra o empréstimo do Carlos antes de o host cobrar: ficha que sai do recorte não é pagamento, e o "short" do host ainda aparece', () => {
+      const onPay = vi.fn(() => true)
+      render(mesa(20, 2), { onPay })
+      // A Jill só tem 2: os 3 saem pela ficha do Carlos.
+      act(() => botao('Carlos').click())
+      act(() => botao('Pagar a…').click())
+      const campo = dialogo().querySelector<HTMLInputElement>('input[type="number"]')
+      if (campo === null) throw new Error('sem o campo de moedas')
+      digita(campo, '3')
+      act(() => botao('Diego').click())
+      act(() => botao('Sim').click())
+      expect(onPay).toHaveBeenCalledWith('diego', 3)
+      // O mapa novo chega antes da resposta: o Carlos voltou ao mestre, saiu das
+      // fichas dele e a bolsa não viaja mais. A soma cai de 22 para 2 — e ninguém pagou.
+      const semCarlos = personagens([ficha('carlos', 'Carlos', 100, { y: 150 }), { ...jill, moedas: 2 }, diego], ['jill'])
+      render(semCarlos, { onPay })
+      expect(status()).toBe('Pagando 3 moedas a Diego…')
+      // O host só acha a Jill encostada, com 2, e recusa: a recusa é deste pedido.
+      render(semCarlos, { onPay, notice: { id: 1, phase: 'coins_rejected', reason: 'short' } })
+      expect(status()).toBe('A sua ficha ao lado dele não tem tantas moedas')
+    })
+
     it('quando quem paga é a própria ficha aberta, a pergunta não fala de outra bolsa', () => {
       render(mesa(2))
       pagaTresAoDiego()
