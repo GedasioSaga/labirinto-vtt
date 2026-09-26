@@ -1116,7 +1116,7 @@ export const MOVE_NOTICE_TTL_MS = 2500
 export const MOVE_NOTICE_TEXT: Record<TokenMoveLanding, string> = {
   nearest_floor: 'O chão sumiu debaixo da ficha: ela foi para o chão mais perto',
 }
-const MOVE_REJECTIONS: readonly TokenMoveRejection[] = ['unknown_token', 'not_owner', 'locked', 'outside_map', 'wall', 'outside_floor', 'occupied', 'too_far']
+const MOVE_REJECTIONS: readonly TokenMoveRejection[] = ['unknown_token', 'not_owner', 'locked', 'congelado', 'outside_map', 'wall', 'outside_floor', 'occupied', 'too_far']
 
 function isMoveRejection(value: unknown): value is TokenMoveRejection {
   return MOVE_REJECTIONS.some((reason) => reason === value)
@@ -3001,7 +3001,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       case 'pin.travel.rejected': {
         if (state.status !== 'playing') return
         const { reason } = data
-        if (reason !== 'unavailable' && reason !== 'pending' && reason !== 'too_soon' && reason !== 'far') return
+        if (reason !== 'unavailable' && reason !== 'pending' && reason !== 'too_soon' && reason !== 'far' && reason !== 'congelado') return
         showTravelAnswer({ id: nextNoticeId++, phase: 'rejected', reason })
         return
       }

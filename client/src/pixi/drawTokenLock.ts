@@ -33,6 +33,18 @@ const LOCK_SHACKLE_RADIUS = 0.26
 const LOCK_LEAN_OUT = 0.35
 
 /**
+ * A pastilha do canto de cima à ESQUERDA da ficha — o lugar do cadeado e do
+ * floco da ficha congelada (`drawTokenFrozen.ts`): centro e raio, em px da
+ * ficha. `null` com raio de ficha inválido (nada a desenhar).
+ */
+export function cornerBadgeOf(tokenRadius: number): { cx: number; cy: number; r: number } | null {
+  if (!Number.isFinite(tokenRadius) || tokenRadius <= 0) return null
+  const r = Math.max(LOCK_RADIUS_MIN, tokenRadius * LOCK_RADIUS_FRACTION)
+  const lean = (tokenRadius + r * LOCK_LEAN_OUT) * Math.SQRT1_2
+  return { cx: -lean, cy: -lean, r }
+}
+
+/**
  * O cadeado, sentado na diagonal de cima à ESQUERDA da ficha: o topo é das
  * pastilhas de condição (`drawTokenConditions.ts`) e a diagonal da direita é
  * do balão do guarda (`drawNpcWatch.ts`). Limpa antes de desenhar; `false`
@@ -40,11 +52,9 @@ const LOCK_LEAN_OUT = 0.35
  */
 export function drawTokenLock(graphics: Graphics, locked: boolean, tokenRadius: number): void {
   graphics.clear()
-  if (!locked || !Number.isFinite(tokenRadius) || tokenRadius <= 0) return
-  const r = Math.max(LOCK_RADIUS_MIN, tokenRadius * LOCK_RADIUS_FRACTION)
-  const lean = (tokenRadius + r * LOCK_LEAN_OUT) * Math.SQRT1_2
-  const cx = -lean
-  const cy = -lean
+  const badge = locked ? cornerBadgeOf(tokenRadius) : null
+  if (badge === null) return
+  const { cx, cy, r } = badge
   graphics.circle(cx, cy, r).fill({ color: LOCK_BADGE_FILL }).stroke({ width: r * LOCK_OUTLINE_FRACTION, color: INK })
   // Alça: meia-volta por cima do corpo. O `moveTo` antes do arco: sem ele o
   // traço sai da origem da ficha até o começo do arco (medido no teste).

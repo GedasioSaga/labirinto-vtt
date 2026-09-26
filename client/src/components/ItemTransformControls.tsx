@@ -15,6 +15,13 @@ export interface ItemTransformControlsProps {
   onRotationChange?: (rotation: number) => void
   locked: boolean
   onLockedChange: (locked: boolean) => void
+  /**
+   * CONGELAR FICHA: o interruptor "Congelado", logo abaixo do "Travado". Só a
+   * ficha liga — Objeto, Sala e Região não têm jogador que as mova. Ausente
+   * (junto de `onCongeladoChange`) omite a linha, mesmo mecanismo de `secret`.
+   */
+  congelado?: boolean
+  onCongeladoChange?: (congelado: boolean) => void
   /** Ausente (junto de onHiddenChange) pra entidade cujo render IGNORA
    *  `hidden` — é o caso de Region: `pixi/drawRegions.ts` desenha sem
    *  consultar o campo, então o interruptor ali seria um controle morto, que
@@ -48,6 +55,9 @@ export const ROTACAO_DA_FICHA_HINT = 'Gira a foto da ficha. Sem foto, o disco fi
 
 /** "Oculto no editor" é arrumação do mestre: a ficha vira fantasma no editor (`tokensRenderer.ts`), e segue clicável. */
 export const OCULTO_NO_EDITOR_HINT = 'No editor, a ficha vira um fantasma transparente, ainda clicável.'
+
+/** O que separa "Congelado" do "Travado" logo acima: este segura o mestre também; aquele, só o jogador. */
+export const CONGELADO_HINT = 'O jogador não move esta ficha; você continua movendo.'
 
 interface CampoDeRotacaoProps {
   id: string
@@ -98,6 +108,8 @@ export function ItemTransformControls({
   onRotationChange,
   locked,
   onLockedChange,
+  congelado,
+  onCongeladoChange,
   hidden,
   onHiddenChange,
   secret,
@@ -105,6 +117,7 @@ export function ItemTransformControls({
   reveal = null,
   rarosNoAvancado = false,
 }: ItemTransformControlsProps) {
+  const congeladoHintId = useId()
   // React.useId(): duas seções deste componente podem coexistir no DOM em
   // teoria (ex.: um dia mostrar Token e Prop juntos) — id fixo duplicaria
   // `htmlFor`/`id` e quebraria o clique no <label>. useId() gera um id único
@@ -139,6 +152,15 @@ export function ItemTransformControls({
       <h2 className="lb-eyebrow">{title}</h2>
       {!rarosNoAvancado && campoDeRotacao()}
       <Toggle label="Travado" checked={locked} onChange={onLockedChange} />
+      {congelado !== undefined && onCongeladoChange !== undefined && (
+        // O porquê fica à vista: sem ele, "Congelado" e "Travado" leriam como a mesma coisa.
+        <div className="lb-item-transform__congelado">
+          <Toggle label="Congelado" checked={congelado} onChange={onCongeladoChange} describedBy={congeladoHintId} />
+          <p id={congeladoHintId} className="lb-field__hint">
+            {CONGELADO_HINT}
+          </p>
+        </div>
+      )}
       {!rarosNoAvancado && chaveOcultoNoEditor()}
       {secret !== undefined && onSecretChange !== undefined && (
         <Toggle label="Oculto para jogadores" checked={secret} onChange={onSecretChange} />

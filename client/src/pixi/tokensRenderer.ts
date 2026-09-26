@@ -13,6 +13,8 @@ import { useToastStore } from '../stores/toastStore'
 import { screenLabelSizing } from './screenLabel'
 import { tokenConditionsOf } from '../lib/tokenConditions'
 import { CONDITION_MARKS_LABEL, drawTokenConditions } from './drawTokenConditions'
+import { estaCongelada } from '../lib/congelar'
+import { drawFrostBadge } from './drawTokenFrozen'
 
 /** Token "Oculto no editor": fantasma bem transparente, mas ainda clicável. */
 const HIDDEN_TOKEN_GHOST_ALPHA = 0.3
@@ -467,6 +469,10 @@ export function createTokensRenderer(): TokensRenderer {
       const visual = entry.sprite ?? entry.graphics
       if (visual !== null) visual.alpha = away ? AWAY_TOKEN_ALPHA : 1
       if (away) drawAwaySeal(entry.ring, outlineRadius)
+      // CONGELAR FICHA: o floco no alto à esquerda — depois do "Congelar todos"
+      // o mestre vê quem está segurado sem abrir painel. No anel, como o selo:
+      // sem slot novo no wrapper. Travada também: no editor não há cadeado.
+      if (estaCongelada(token)) drawFrostBadge(entry.ring, outlineRadius)
 
       entry.label.text = token.name
       applyLabelSizing(entry.label)

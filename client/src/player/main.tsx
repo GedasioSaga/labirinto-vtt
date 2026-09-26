@@ -68,7 +68,8 @@ import { hazardNoticeText } from '../lib/hazards'
 import { tableCodeFromSearch, tableKeyFromSearch } from '../lib/tableScreen'
 import { TableApp } from './TableScreen'
 import { readContract } from '../lib/tokenLoan'
-import { pinTravelChoices, type PinTravelChoice } from '../lib/pinTravelers'
+import { passagemCongelada, pinTravelChoices, type PinTravelChoice } from '../lib/pinTravelers'
+import { avisoDeCongelado } from './congeladoNotice'
 import { letterTitle, type LetterVia } from '../lib/correio'
 import { findKnownPath } from '../lib/knownPath'
 import type { Pin, Stair } from '../types/map'
@@ -888,6 +889,14 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
     () => (!map || openPin === null || openPin.kind !== 'viagem' ? NO_TRAVELERS : pinTravelChoices(map.tokens, ownTokens, openPin, map.grid)),
     [map, openPin, ownTokens],
   )
+  // CONGELAR FICHA: só fichas dele congeladas encostam no pino aberto — a
+  // mesma conta do host. Recalculada a cada snapshot: descongelar acende o botão.
+  const openPinCongelado = useMemo(
+    () => map !== undefined && openPin !== null && openPin.kind === 'viagem' && passagemCongelada(map.tokens, ownTokens, openPin, map.grid),
+    [map, openPin, ownTokens],
+  )
+  // CONGELAR FICHA: o aviso fixo da tela, das fichas DELE que vieram no recorte.
+  const avisoCongelado = useMemo(() => (map === undefined ? null : avisoDeCongelado(map.tokens, ownTokens)), [map, ownTokens])
   // BARRAR A PASSAGEM: só com uma ficha dele encostada no pino aberto — a mesma conta do host.
   const alcancaPinoAberto =
     openPin !== null && map !== undefined && map.tokens.some((t) => ownTokens.includes(t.id) && tokenAlcancaPino(t, openPin, map.grid))
@@ -1281,6 +1290,7 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
             watching={(state.passageWatch ?? []).includes(openPin.id)}
             onWatch={(on) => connection.watchPassage(openPin.id, on)}
             longe={openPinFar}
+            congelado={openPinCongelado}
             travelers={pinTravelers}
             onRequestTravel={(exitId, tokenIds) => {
               // Pedido enviado, o cartão sai: a espera fica no aviso de baixo,
@@ -1482,6 +1492,13 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
           // Fixo enquanto durar a pausa: é o que explica por que a ficha volta ao lugar.
           <p className="pp-notice pp-notice--pause" role="status" aria-live="polite">
             O mestre está com o outro grupo
+          </p>
+        )}
+        {!state.paused && avisoCongelado !== null && (
+          // CONGELAR FICHA: fixo enquanto o mestre segura a ficha dele, no lugar
+          // da pausa — com a cena pausada, o aviso dela já diz que nada anda.
+          <p className="pp-notice pp-notice--congelado" role="status" aria-live="polite">
+            {avisoCongelado}
           </p>
         )}
         <PlayerCallButton call={state.call} onRaise={(reason, text) => connection.raiseHand(reason, text)} onLower={() => connection.lowerHand()} />

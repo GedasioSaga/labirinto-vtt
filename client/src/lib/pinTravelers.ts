@@ -1,5 +1,6 @@
-import type { Token } from '../types/map'
+import type { Pin, Token } from '../types/map'
 import { PIN_TRAVEL_MAX_TOKENS } from '../net/protocol'
+import { tokenReachesPin } from './items'
 import { readContract } from './tokenLoan'
 import { isNear, NEAR_SQUARES } from './travelTogether'
 import type { Point } from './tokenSize'
@@ -81,6 +82,9 @@ export function pinTravelChosenWithin<T extends Point & { id: string }>(
   return pool.filter((token) => chosenIds.has(token.id) && distanceOf(token) <= reach).sort((a, b) => distanceOf(a) - distanceOf(b))
 }
 
+/** O ajudante contratado chega com o acordo na ficha (`contrato`): é por ele que a tela o reconhece. */
+const isHelper = (token: Token): boolean => readContract(token.contrato) !== undefined
+
 /** Uma caixa do "Quem passa?": a ficha e o nome dela. */
 export interface PinTravelChoice {
   id: string
@@ -92,9 +96,26 @@ export interface PinTravelChoice {
  * `ownIds` que estão em `tokens` (o recorte do jogador). O ajudante contratado
  * (com `contrato`) não é caixa — ele segue o jogador sozinho —, e só com
  * ajudantes na mão a caixa é uma só, a do mais perto, como no host.
+ * CONGELAR FICHA: a congelada também não é caixa — o host recusa o pedido
+ * que a escolhe, e conta o grupo sem ela (`validTravel`).
  */
 export function pinTravelChoices(tokens: readonly Token[], ownIds: readonly string[], pin: Point, grid: number): PinTravelChoice[] {
   const owned = new Set(ownIds)
+  const mine = tokens.filter((t) => owned.has(t.id) && t.congelado !== true)
+  return pinTravelGroupOf(mine, isHelper, pin, grid).map((t) => ({ id: t.id, name: t.name }))
+}
+
+/**
+ * CONGELAR FICHA — a passagem fica apagada no cartão: das fichas do jogador
+ * que podem ir à frente (as próprias; só com ajudantes na mão, eles), as que
+ * encostam no pino estão TODAS congeladas. A mesma conta do host
+ * (`validTravel`, que recusa com `congelado`). Ninguém encostado não é caso
+ * de congelado: é o "Chegue mais perto".
+ */
+export function passagemCongelada(tokens: readonly Token[], ownIds: readonly string[], pin: Pick<Pin, 'x' | 'y'>, grid: number): boolean {
+  const owned = new Set(ownIds)
   const mine = tokens.filter((t) => owned.has(t.id))
-  return pinTravelGroupOf(mine, (t) => readContract(t.contrato) !== undefined, pin, grid).map((t) => ({ id: t.id, name: t.name }))
+  const proprias = mine.filter((t) => !isHelper(t))
+  const encostadas = (proprias.length > 0 ? proprias : mine).filter((t) => tokenReachesPin(t, pin, grid))
+  return encostadas.length > 0 && encostadas.every((t) => t.congelado === true)
 }

@@ -47,6 +47,7 @@ import { giftScenesOf, RoomPanel, roomPanelTokensOf } from './components/RoomPan
 import { hostCluesProps } from './components/CluesSection'
 import { LivePlayerMirror } from './components/PlayerMirror'
 import { masterDestinationMarks, partyDestinations, partyItemChange, partyMembers, peopleByScene } from './lib/party'
+import { congelamentoDaMesa } from './lib/congelar'
 import { jogadoresDoCorte } from './lib/corteDaTorre'
 import { useDestinationStore } from './stores/destinationStore'
 import { useCenaQueEspera } from './stores/useCenaQueEspera'
@@ -859,6 +860,8 @@ function App() {
     if (!isTauri()) return mapPanel
     const world = roomPanelWorld()
     const members = partyMembers(roomPlayers, world)
+    // CONGELAR FICHA: toda ficha na mão de um jogador — a própria, a emprestada, o ajudante.
+    const fichasDeJogador = roomPlayers.flatMap((player) => player.tokenIds)
     return (
       <RailTabs
         active={railTab}
@@ -907,6 +910,17 @@ function App() {
               },
               // "Trazer" a ficha que ficou em outra cena: sem sala não há sessão que saiba do dono.
               onBring: room === null ? undefined : (playerId, tokenId) => hostBridgeRef.current?.bringToken(playerId, tokenId) ?? false,
+              // CONGELAR FICHA: mudança de MESA em toda cena carregada (fora do
+              // Ctrl+Z). A cena de fundo não passa pelo `useMapStore`: o recorte
+              // novo sai por aqui, como no `onItem`.
+              congelar: {
+                ...congelamentoDaMesa(fichasDeJogador, world),
+                onChange: (congelar) => {
+                  if (congelar) useAdventureStore.getState().congelarFichas(new Set(fichasDeJogador), true)
+                  else useAdventureStore.getState().descongelarTodas()
+                  hostBridgeRef.current?.notifyMapChanged()
+                },
+              },
             }}
             initiative={{
               tokens: map.tokens.map((token) => ({ id: token.id, name: token.name })),
@@ -2912,6 +2926,9 @@ function App() {
             tokenTransform={{
               onRotationChange: (rotation) => selectedToken && updateToken(selectedToken.id, { rotation }),
               onLockedChange: (locked) => selectedToken && updateToken(selectedToken.id, { locked }),
+              // CONGELAR FICHA: o mesmo caminho do "Travado" (Ctrl+Z desfaz), e o
+              // jogador recebe o floco no broadcast que toda mudança do mapa dispara.
+              onCongeladoChange: (congelado) => selectedToken && updateToken(selectedToken.id, { congelado }),
               onHiddenChange: (hidden) => selectedToken && updateToken(selectedToken.id, { hidden }),
               onSecretChange: (secret) => selectedToken && useMapStore.getState().setItemSecret('token', selectedToken.id, secret),
               reveal: selectedToken ? secretRevealFor(selectedToken.id) : null,

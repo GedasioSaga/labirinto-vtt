@@ -21,6 +21,7 @@ import type { LockAnswerPhase } from './playerConnection'
 import { PlayerLockPad } from './PlayerLockPad'
 import { PASS_CHECK_TEXT } from './travelNotice'
 import type { PinTravelChoice } from '../lib/pinTravelers'
+import { TEXTO_CONGELADO } from '../lib/congelar'
 
 const NO_TRAVELERS: readonly PinTravelChoice[] = []
 
@@ -103,6 +104,12 @@ interface PlayerPinCardProps {
    * "Chegue mais perto para passar" até a ficha chegar.
    */
   longe?: boolean
+  /**
+   * CONGELAR FICHA: a ficha que passaria está congelada pelo mestre — o host
+   * recusaria. A passagem fica apagada com "Congelado pelo mestre", que vence
+   * o "Chegue mais perto": chegar perto não adiantaria.
+   */
+  congelado?: boolean
   /**
    * ESPIAR PELA PASSAGEM: pino de viagem que "dá vista" ganha o botão
    * "Espiar". Ausente = o cartão não oferece. Quem confere se a ficha está
@@ -292,6 +299,7 @@ export function PlayerPinCard({
   watching = false,
   onWatch,
   longe = false,
+  congelado = false,
   travelers = NO_TRAVELERS,
   onPeek,
   peekWaiting = false,
@@ -518,6 +526,9 @@ export function PlayerPinCard({
   // LOJA COM PREÇOS: relida aqui — o mapa da rede não é conferido campo a
   // campo, e mercadoria torta não pode quebrar o cartão. `null` = sem banca.
   const mercadorias = lojaParaJogador(pin)
+  // Por que a passagem fica apagada: a ficha congelada (chegar perto não
+  // adiantaria) ou longe do pino. `null` = nada segura o pedido aqui.
+  const semPassar = congelado ? TEXTO_CONGELADO : longe ? TEXTO_LONGE : null
   // ESCOLHER FICHAS NO PINO: só com duas ou mais há o que escolher.
   const escolheFichas = travelers.length > 1
   const marcadas = travelers.filter((f) => !deFora.has(f.id)).map((f) => f.id)
@@ -682,15 +693,15 @@ export function PlayerPinCard({
             ref={askRef}
             type="button"
             className="pp-pincard__travel"
-            disabled={travelWaiting || longe}
+            disabled={travelWaiting || semPassar !== null}
             onClick={() => perguntar(null)}
           >
-            {travelWaiting ? textos.esperando : longe ? TEXTO_LONGE : textos.botao}
+            {travelWaiting ? textos.esperando : (semPassar ?? textos.botao)}
           </button>
         )}
         {/* Encruzilhada ou pergunta aberta: o botão não tem onde dizer, então a moldura de estado diz. */}
-        {podePedir && longe && !travelWaiting && (encruzilhada || confirming !== null) && (
-          <p className="pp-pincard__locked">{TEXTO_LONGE}</p>
+        {podePedir && semPassar !== null && !travelWaiting && (encruzilhada || confirming !== null) && (
+          <p className="pp-pincard__locked">{semPassar}</p>
         )}
         {podePedir && confirming === null && encruzilhada && (
           // Uma saída por botão, na ordem do mestre. Esperando o mestre, todas
@@ -706,7 +717,7 @@ export function PlayerPinCard({
                     type="button"
                     className="pp-pincard__travel"
                     // MODO POR SAÍDA: trancada num pino mudo não pede nada — o host recusaria.
-                    disabled={travelWaiting || longe || saidaMuda(saida)}
+                    disabled={travelWaiting || semPassar !== null || saidaMuda(saida)}
                     onClick={() => perguntar(saida)}
                   >
                     {saida.rotulo}
@@ -754,8 +765,8 @@ export function PlayerPinCard({
                 ref={confirmRef}
                 type="button"
                 className="pp-pincard__travel"
-                // Longe do pino ou ninguém marcado: o pedido não sai.
-                disabled={longe || (escolheFichas && marcadas.length === 0)}
+                // Longe do pino, congelada ou ninguém marcado: o pedido não sai.
+                disabled={semPassar !== null || (escolheFichas && marcadas.length === 0)}
                 onClick={() => {
                   const saida = confirming.saida
                   if (escolheFichas && marcadas.length === 0) return

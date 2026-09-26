@@ -1135,8 +1135,12 @@ export type DoorRequestAnswer = 'opened' | 'denied'
  * `far`: o pino está no recorte dele, mas nenhuma ficha dele encosta no pino
  * (`lib/doorReach.ts`, `tokenReachesPin`). Só sai para pino que ele já vê, e
  * antes de olhar o outro lado: não diz se o pino leva a algum lugar.
+ * `congelado`: CONGELAR FICHA — só fichas DELE congeladas encostam no pino, ou
+ * ele escolheu uma, ou uma congelada iria presa a quem passa (a bordo,
+ * levada). Sai no lugar do `far` (mesma altura, antes do outro lado) ou no fim,
+ * com a viagem já válida; também no "Deixar ir" de pedido feito antes de congelar.
  */
-export type PinTravelRejection = 'unavailable' | 'pending' | 'too_soon' | 'far'
+export type PinTravelRejection = 'unavailable' | 'pending' | 'too_soon' | 'far' | 'congelado'
 
 /**
  * Por que o pedido de passagem saiu da espera sem resposta do mestre:

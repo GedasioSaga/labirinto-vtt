@@ -47,7 +47,20 @@ export interface PartySectionProps {
    * formulário fica). Ausente = sala fechada: a linha fica sem o botão.
    */
   onTrade?(member: PartyMember, proposta: TradeProposal): TradeProposeResult
+  /**
+   * CONGELAR FICHA — "Congelar todos" e "Descongelar todos" no alto do Grupo.
+   * `todas`: toda ficha de jogador já está congelada (some o "Congelar todos");
+   * `alguma`: há ficha congelada em cena (aparece o "Descongelar todos").
+   * `onChange(true)` congela, `false` solta (`lib/congelar.ts`,
+   * `congelamentoDaMesa`). Ausente = sem os botões.
+   */
+  congelar?: { todas: boolean; alguma: boolean; onChange(congelar: boolean): void }
 }
+
+/** Os botões do alto do Grupo e a marca da linha de quem o mestre congelou. */
+export const CONGELAR_TODOS_LABEL = 'Congelar todos'
+export const DESCONGELAR_TODOS_LABEL = 'Descongelar todos'
+export const CONGELADO_TAG = 'congelado'
 
 export const PARTY_ITEM_FAILED = 'Não deu: a ficha ou o item mudou. Tente de novo.'
 

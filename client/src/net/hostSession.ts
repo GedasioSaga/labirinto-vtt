@@ -88,6 +88,7 @@ import {
 import { tokenSizeInSquares } from '../lib/tokenSize'
 import { linkedDoorOf } from '../lib/lever'
 import { carriedBy, carrierIdOf } from '../lib/carry'
+import { congeladaPresaA, estaCongelada, podeAcompanhar, semAsCongeladas } from '../lib/congelar'
 import { companionArrivals, type CarriedArrival } from '../lib/carryArrival'
 import { VISION_FACTOR_DEFAULT, clampVisionFactor, playerVisionRadius, readSceneVisionCells } from '../lib/sceneVision'
 import { isLockClosed, lockAccepts } from '../lib/pinLock'
@@ -555,6 +556,13 @@ export interface TravelCancelled {
 }
 
 /**
+ * CONGELAR FICHA: o pedido de passagem que saiu da espera porque o mestre
+ * congelou quem iria (`HostResult.frozenTravels`). O jogador já leu a recusa
+ * `congelado`; o integrador tira a linha da Caixa. Só o mestre lê.
+ */
+export type FrozenTravel = Omit<TravelCancelled, 'reason'>
+
+/**
  * JOGADOR TRANCA: o aviso curto do mestre quando alguém corre ou tira o
  * ferrolho de uma porta, ou barra ou desbarra uma passagem. Só o mestre lê.
  */
@@ -977,6 +985,13 @@ export interface HostResult {
   applyItems?: AppliedItems
   /** O pedido saiu da espera sem o mestre responder: o integrador tira a linha dele da Caixa. */
   travelCancelled?: TravelCancelled
+  /**
+   * CONGELAR FICHA: pedidos que o mestre congelou no meio da espera (a ficha
+   * de quem pede, uma escolhida, ou uma presa a quem passa). O "Deixar ir" já
+   * recusaria: saem da espera no broadcast, a recusa `congelado` vai em
+   * `outbound`, e o integrador tira as linhas da Caixa. Ausente = nenhum.
+   */
+  frozenTravels?: FrozenTravel[]
   /**
    * VOLTO JÁ: o "Deixar ir" não levou ninguém porque o jogador está fora da
    * mesa. O pedido segue esperando, e o integrador diz isso ao mestre.
@@ -2325,7 +2340,7 @@ interface ValidTravel {
  * nenhuma ficha dele encosta; `unavailable`: qualquer outra falha, com o
  * mesmo motivo genérico de sempre.
  */
-type TravelCheck = { ok: true; travel: ValidTravel } | { ok: false; reason: 'far' | 'unavailable' }
+type TravelCheck = { ok: true; travel: ValidTravel } | { ok: false; reason: 'far' | 'unavailable' | 'congelado' }
 
 /**
  * O que uma FICHA lembra de um mapa (MEMÓRIA POR FICHA): células exploradas e
@@ -5107,6 +5122,11 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       gastoNaVez: gastoNaVez(scene.map),
     })
     if (!result.ok) return reply(clientId, { type: 'token.move.rejected', reqId: msg.reqId, reason: result.reason })
+    // CONGELAR FICHA: a própria ficha congelada já voltou pela trava do passo
+    // (`travaDaFichaDoJogador`). Quem iria PRESO a ela — a bordo do veículo,
+    // levado — anda junto no mapa do mestre (`setTokenPosition`): congelado
+    // ali, o passo inteiro não vale. Depois da posse: a ficha de outro já leu `not_owner`.
+    if (congeladaPresaA(scene.map, [msg.tokenId]) !== null) return reply(clientId, { type: 'token.move.rejected', reqId: msg.reqId, reason: 'congelado' })
     // CONFRONTO: o passo aceito conta no passo máximo da vez.
     if (result.casas !== undefined) gastarNaVez(scene.map, msg.tokenId, result.casas)
     // `landing` só leva o motivo; o ponto já passou pelo recorte em `validateTokenMove`
@@ -5156,6 +5176,30 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     if (pending === undefined || record === undefined) return null
     pendingTravels.delete(playerId)
     return { requestId: pending.requestId, playerId, playerName: record.name, reason }
+  }
+
+  /**
+   * CONGELAR FICHA — os pedidos que o mestre congelou no meio da espera: a
+   * conta é a do "Deixar ir" (`validTravel`, com os mesmos argumentos de
+   * `approveTravel`), e só o motivo `congelado` solta — o resto continua
+   * esperando o mestre, como sempre. O jogador lê a recusa agora, em vez de
+   * esperar um clique que não o levaria. Sem ficha congelada em cena nenhuma
+   * não confere nada: é o caso de quase todo broadcast.
+   */
+  function dropFrozenTravels(world: HostWorld): { outbound: Outbound[]; frozen: FrozenTravel[] } {
+    const outbound: Outbound[] = []
+    const frozen: FrozenTravel[] = []
+    if (pendingTravels.size === 0 || !allScenes(world).some((scene) => scene.map.tokens.some(estaCongelada))) return { outbound, frozen }
+    for (const pending of [...pendingTravels.values()]) {
+      const check = validTravel(pending.playerId, pending.pinId, pending.exitId, world, false, pending.trancada === true, pending.tokenIds, pending.chosenReach)
+      if (check.ok || check.reason !== 'congelado') continue
+      pendingTravels.delete(pending.playerId)
+      const record = players.get(pending.playerId)
+      if (record === undefined) continue
+      frozen.push({ requestId: pending.requestId, playerId: pending.playerId, playerName: record.name })
+      if (record.clientId !== null) outbound.push({ clientId: record.clientId, msg: { type: 'pin.travel.rejected', reason: 'congelado' } })
+    }
+    return { outbound, frozen }
   }
 
   /**
@@ -6378,6 +6422,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     // As travas do passo seguram a escada também: cadeado do mestre, vez da
     // iniciativa e vez do confronto (senão a ficha "foge" de piso sem gastar passo).
     if (travaDaFichaDoJogador(map, token, turnTokenIdOn(options.getTurn?.() ?? null, map)) !== null) return { outbound: [] }
+    // CONGELAR FICHA: nem levando ficha congelada — ela subiria junto (`comFichaNoPiso`).
+    if (congeladaPresaA(map, [token.id]) !== null) return { outbound: [] }
     const escada = escadaDaFicha({ stairs: [stair], grid: map.grid }, token)
     if (escada === null) return { outbound: [] }
     return { outbound: [], applyPiso: { tokenId: token.id, piso: escada.destino, ...backgroundSceneId(scene, world) } }
@@ -6490,6 +6536,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     chosenReach?: number,
   ): TravelCheck {
     const unavailable: TravelCheck = { ok: false, reason: 'unavailable' }
+    const congelado: TravelCheck = { ok: false, reason: 'congelado' }
     const from = sceneFor(playerId, world)
     if (from === null || from.sceneId === null) return unavailable
     const fromSceneId = from.sceneId
@@ -6533,13 +6580,23 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     // atravessa a de centro mais perto. AJUDANTE CONTRATADO: só conta o
     // personagem do jogador (`travelCandidates`) — o ajudante perto do pino
     // não leva a cena do jogador sem ele; só com o ajudante na mão é ele que vai.
-    const near = travelCandidates(playerId, mine).filter((t) => tokenReachesPin(t, pin, from.map.grid))
+    // CONGELAR FICHA: congelada não vai à frente. Lida no mapa do MESTRE, nunca
+    // no recorte. Só congeladas encostadas no pino: a recusa diz por quê — a
+    // ficha é dele e está no recorte dele, então o motivo não conta nada novo.
+    const congelada = (id: string): boolean => from.map.tokens.some((t) => t.id === id && estaCongelada(t))
+    const alcancam = travelCandidates(playerId, mine).filter((t) => tokenReachesPin(t, pin, from.map.grid))
+    const near = alcancam.filter((t) => !congelada(t.id))
     let token: Token | null = null
     for (const t of near) {
       if (token === null || Math.hypot(t.x - pin.x, t.y - pin.y) < Math.hypot(token.x - pin.x, token.y - pin.y)) token = t
     }
-    if (token === null) return { ok: false, reason: 'far' }
-    const chosen = tokenIds === undefined ? undefined : chosenTravelers(playerId, view.map.tokens, pin, from.map.grid, tokenIds, chosenReach)
+    if (token === null) return alcancam.length > 0 ? congelado : { ok: false, reason: 'far' }
+    // CONGELAR FICHA: escolher no "Quem passa?" uma ficha DELE congelada recusa
+    // o pedido inteiro — ele pediu aquela. O grupo do pino se conta sem as
+    // congeladas, como as caixas do cartão (`pinTravelChoices`).
+    if (tokenIds !== undefined && tokenIds.some((id) => owned.has(id) && congelada(id))) return congelado
+    const soltas = view.map.tokens.filter((t) => !congelada(t.id))
+    const chosen = tokenIds === undefined ? undefined : chosenTravelers(playerId, soltas, pin, from.map.grid, tokenIds, chosenReach)
     if (chosen === null) return unavailable
     const chosenIds = new Set((chosen ?? []).map((t) => t.id))
     // Trancada: ninguém passa sozinho. Cai no mesmo `unavailable` de todo o
@@ -6558,8 +6615,9 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     if (exitPassageOf(pin, exitId) === 'trancada') {
       if (withKey) {
         // Com escolha, só uma das escolhidas abre: a chave de quem fica não leva ninguém.
+        // CONGELAR FICHA: nem a congelada, que não passa.
         const nearIds = new Set(
-          mine.filter((t) => (chosen === undefined || chosenIds.has(t.id)) && tokenReachesPin(t, pin, from.map.grid)).map((t) => t.id),
+          mine.filter((t) => !congelada(t.id) && (chosen === undefined || chosenIds.has(t.id)) && tokenReachesPin(t, pin, from.map.grid)).map((t) => t.id),
         )
         const found = keyForPin(pin, from.map.tokens.filter((t) => nearIds.has(t.id)))
         if (found !== null) keyHolder = { token: found.token, nome: found.item.nome }
@@ -6587,11 +6645,31 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const base = { from: { ...from, sceneId: fromSceneId }, to: { ...to, sceneId: to.sceneId }, pin, partner: travel.partner }
     const cabine = cabineAposViagem(world.cabines, { sceneId: fromSceneId, pinId: pin.id }, { sceneId: to.sceneId, pinId: travel.partner.id })
     const escolha = chosen === undefined ? {} : { chosen }
-    if (keyHolder !== null) return { ok: true, travel: { ...base, token: keyHolder.token, key: keyHolder.nome, cabine, ...escolha } }
+    // CONGELAR FICHA: por último, quando a viagem já passou em tudo — quem iria
+    // PRESO a quem passa (a bordo, levado) e está congelado não fica para trás
+    // sozinho: o pedido inteiro não passa.
+    const pronta = (viagem: ValidTravel): TravelCheck => (congeladaPresaNaPassagem(playerId, from.map, viagem.token, viagem.chosen) === null ? { ok: true, travel: viagem } : congelado)
+    if (keyHolder !== null) return pronta({ ...base, token: keyHolder.token, key: keyHolder.nome, cabine, ...escolha })
     // Com escolha, vai à frente a escolhida mais perto do pino (o grupo já vem nessa ordem).
     const first = chosen?.[0]
-    if (first !== undefined) return { ok: true, travel: { ...base, token: first, cabine, ...escolha } }
-    return { ok: true, travel: { ...base, token, cabine } }
+    if (first !== undefined) return pronta({ ...base, token: first, cabine, ...escolha })
+    return pronta({ ...base, token, cabine })
+  }
+
+  /**
+   * CONGELAR FICHA — a primeira ficha congelada que a passagem levaria PRESA:
+   * a bordo ou levada pela ficha da frente (`lead`), pelo séquito dela (as
+   * escolhidas, ou as dele a até 2 casas) ou pelo ajudante emprestado — a
+   * mesma gente de `transferResult`. O séquito e o ajudante congelados não
+   * entram na conta: eles só ficam (`semAsCongeladas`). `null` = pode passar.
+   */
+  function congeladaPresaNaPassagem(playerId: string, from: MapData, lead: Token, chosen: readonly Token[] | undefined): Token | null {
+    const loaned = loansFor(playerId)
+    const soltas = semAsCongeladas(from)
+    const owned = new Set((ownership[playerId] ?? []).filter((id) => !loaned.has(id)))
+    const sequito = chosen ?? entourageNear(lead, doPisoDe(lead, soltas, onBoardTokens(soltas)).filter((t) => owned.has(t.id)), soltas.grid)
+    const ajudantes = soltas.tokens.filter((t) => t.id !== lead.id && loaned.has(t.id))
+    return congeladaPresaA(from, [lead.id, ...sequito.map((t) => t.id), ...ajudantes.map((t) => t.id)])
   }
 
   /**
@@ -6960,7 +7038,11 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     // centrar se o aviso disser. A ficha é dele (`validTravel`): nada vaza.
     const atalho = travel.from.sceneId === travel.to.sceneId
     const changed = sceneChangedFor(travel.to.map)
-    const companions = loanedFollowers(playerId, travel.from.map, travel.to.map, travel.token, spot)
+    // CONGELAR FICHA: a passagem é pedido do jogador (o "Deixar ir" só o
+    // aprova), então quem só acompanha — ajudante e séquito — e está congelado
+    // fica. A da frente e quem vai preso a ela já passaram por `validTravel`.
+    const acompanham = semAsCongeladas(travel.from.map)
+    const companions = loanedFollowers(playerId, acompanham, travel.to.map, travel.token, spot)
     const along = carriedAlong(playerId, travel.token.id, travel.from, travel.to, spot, world, 'master')
     const applyTransfer: AppliedTransfer = {
       ...along.transfer,
@@ -6976,7 +7058,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       ...(pisoDe(travel.partner) === 0 ? {} : { piso: pisoDe(travel.partner) }),
       ...(companions.length > 0 ? { companions } : {}),
     }
-    withEntourage(applyTransfer, travel.from.map, travel.token, travel.to.map, carriedSeats(applyTransfer, travel.from.map), travel.partner, travel.chosen)
+    withEntourage(applyTransfer, acompanham, travel.token, travel.to.map, carriedSeats(applyTransfer, travel.from.map), travel.partner, travel.chosen)
     withoutCarriedInEntourage(applyTransfer)
     return {
       outbound: [{ clientId, msg: atalho ? { ...changed, tokenId: travel.token.id } : changed }, ...along.outbound],
@@ -7685,7 +7767,9 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     // que o mestre escondeu, ou de camada oculta, não está no tabuleiro para
     // ninguém — não conta no "(N)" e não é levada para a outra cena.
     // PISOS: só quem está no piso de quem pediu; a colada no andar de cima fica.
-    const onBoard = doPisoDe(travel.token, fromMap, visibleTokens(fromMap.tokens, fromMap.hiddenLayers).filter((t) => t.hidden !== true))
+    // CONGELAR FICHA: ficha congelada nunca atravessa por pino — nem a do
+    // colega que iria junto, nem quem leva uma congelada presa. Não conta no "(N)".
+    const onBoard = doPisoDe(travel.token, fromMap, visibleTokens(fromMap.tokens, fromMap.hiddenLayers).filter((t) => t.hidden !== true && podeAcompanhar(fromMap, t)))
     const candidates = [...players.values()].flatMap((record) => {
       if (record.playerId === pending.playerId || record.clientId === null || statusOf(record.playerId) !== 'playing') return []
       // A cena DELE, pela mesma regra do broadcast: ficha esquecida no Salão
@@ -8284,6 +8368,10 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       })
       const taken: Seat[] = [leader, ...leadEntourage, ...companionSeats]
       const results: HostResult[] = [lead]
+      // CONGELAR FICHA: o séquito de cada companheiro sai de quem pode ir junto
+      // (`podeAcompanhar`): a coruja congelada da Bia fica, e a montaria que
+      // leva uma congelada a bordo também.
+      const acompanham: MapData = { ...travel.from.map, tokens: travel.from.map.tokens.filter((t) => podeAcompanhar(travel.from.map, t)) }
       near.forEach((companion, index) => {
         const spot = spots[index] ?? null
         const record = players.get(companion.playerId)
@@ -8304,7 +8392,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
           x: spot.x,
           y: spot.y,
         }
-        taken.push(...withEntourage(applyTransfer, travel.from.map, companion.token, travel.to.map, taken, travel.partner))
+        taken.push(...withEntourage(applyTransfer, acompanham, companion.token, travel.to.map, taken, travel.partner))
         // Sem `by`: para ele é a mesma chegada de quem pediu, "Você chegou".
         results.push({ outbound: [{ clientId: record.clientId, msg: { type: 'scene.changed' } }], applyTransfer })
       })
@@ -9176,6 +9264,9 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       }
       // Prazo vencido antes do mapa: o recado da volta chega e o snapshot já sai sem o ajudante.
       const outbound: Outbound[] = expireDue(world)
+      // CONGELAR FICHA: o pedido que o mestre congelou sai da espera já neste envio.
+      const congelados = dropFrozenTravels(world)
+      outbound.push(...congelados.outbound)
       for (const [clientId, playerId] of byClient) {
         if (statusOf(playerId) !== 'playing') {
           // Fora de jogo a tela dele não tem recorte: quando voltar, o envio refaz.
@@ -9244,6 +9335,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       const triggerEntries = triggerEntriesIn(world)
       return {
         outbound,
+        ...(congelados.frozen.length === 0 ? {} : { frozenTravels: congelados.frozen }),
         ...(hazards.entries.length === 0 ? {} : { hazardEntries: hazards.entries }),
         ...(triggerEntries.length === 0 ? {} : { triggerEntries }),
         // ENCONTRO MARCADO: a espera de alguém acabou no recorte (voltou ao lugar).

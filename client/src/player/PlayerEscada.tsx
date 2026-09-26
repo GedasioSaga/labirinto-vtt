@@ -42,8 +42,8 @@ interface Alvo {
  */
 function fichaTravada(token: Token, { turn, confronto, paused }: TravasDaTela): boolean {
   if (paused) return true
-  // Cadeado do mestre.
-  if (token.locked === true) return true
+  // Cadeado do mestre, e a ficha que ele congelou (CONGELAR FICHA).
+  if (token.locked === true || token.congelado === true) return true
   // Iniciativa: vez de outra ficha nesta cena.
   if (turn !== undefined && turn !== token.id) return true
   // Confronto: só prende ficha da fila; `vez` null é a vez de alguém que ele não vê.

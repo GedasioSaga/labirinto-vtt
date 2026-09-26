@@ -15,6 +15,7 @@ import { passageOf } from '../lib/pins'
 import { singleSceneWorld, travelPinsClearance, type AppliedItems, type HostScene, type HostWorld } from '../net/hostSession'
 import { applyItemChange } from '../lib/items'
 import { carrierIdOf, withoutCarrier } from '../lib/carry'
+import { congelarNoMapa, descongelarTudoNoMapa } from '../lib/congelar'
 import { leaveVehicle, passengersOf } from '../lib/vehicle'
 import { vehicleRiderSpots, type SeatHold } from '../lib/gatherParty'
 import { withPlayerVisibleTokens } from '../lib/pinTravel'
@@ -448,6 +449,16 @@ interface AdventureState {
   atenderChamada: (cabineId: string) => boolean
   /** CABINE DE TRANSPORTE: "Limpar a fila". `false` quando não havia chamada. */
   limparFilaDaCabine: (cabineId: string) => boolean
+  /**
+   * CONGELAR FICHA — o "Congelar todos" do Grupo: liga (`true`) ou desliga
+   * `congelado` nas fichas `ids`, na cena aberta e em toda cena de fundo que
+   * abriu. Mudança de MESA, no molde da troca do estado do mundo: fora do
+   * Ctrl+Z (desfazer um traço não descongela ninguém) e a cena de fundo fica
+   * pendente de Salvar. Mapa solto: só a cena aberta.
+   */
+  congelarFichas: (ids: ReadonlySet<string>, congelado: boolean) => void
+  /** "Descongelar todos": nenhuma ficha congelada em cena carregada nenhuma, de quem quer que seja. Mudança de mesa, como acima. */
+  descongelarTodas: () => void
   /** Há cena de fundo ou lista de cenas esperando gravação? (A cena aberta é o `useSessionStore` que diz.) */
   hasPendingScenes: () => boolean
   /**
@@ -900,6 +911,18 @@ function sceneToOpenInstead(state: Pick<AdventureState, 'adventure' | 'cache' | 
   const index = scenes.findIndex((entry) => entry.id === goneSceneId)
   const ordered = [...scenes.slice(index + 1), ...scenes.slice(0, Math.max(index, 0)).reverse()]
   return ordered.find((entry) => opens(entry.id))?.id ?? null
+}
+
+/**
+ * Mudança de MESA em toda cena carregada — a aberta e as de fundo —, no molde
+ * de `trocarEstadoDoMundo`: `transform` entra no mapa E em todo passo do
+ * desfazer de cada cena, então o Ctrl+Z do mestre não a desfaz, e a cena de
+ * fundo que mudou fica pendente de Salvar. Id de ficha é único na aventura:
+ * o mesmo `transform` serve a toda cena. Mapa solto: só a aberta.
+ */
+function mudarNaMesa(get: () => AdventureState, transform: (map: MapData) => MapData): void {
+  useMapStore.getState().applyPlayerChange(transform)
+  for (const sceneId of Object.keys(get().cache)) get().applyPlayerChangeToBackgroundScene(sceneId, transform)
 }
 
 /**
@@ -1490,6 +1513,10 @@ export const useAdventureStore = create<AdventureState>()((set, get) => ({
     set({ adventure: { ...adventure, cabines }, structureDirty: true })
     return true
   },
+
+  congelarFichas: (ids, congelado) => mudarNaMesa(get, (map) => congelarNoMapa(map, ids, congelado)),
+
+  descongelarTodas: () => mudarNaMesa(get, descongelarTudoNoMapa),
 
   linkPinToNewArrival: (pinId, sceneId, exitId = SAIDA_PRINCIPAL) => {
     const { activeSceneId, cache } = get()
