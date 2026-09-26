@@ -1372,7 +1372,9 @@ interface TokenCut {
  *   está na mesa); a gravada no mapa do mestre nunca.
  * Ficam de fora, entre outros: `vigia`, `patrulha` (por onde o NPC vai passar),
  * `rotina` (os postos, com a cena de cada um), `levadoPor` (aponta para ficha
- * que o recorte pode ter escondido), `npc`, `playerCharacter` (diria quais
+ * que o recorte pode ter escondido), `veiculo` (lugares e a lista de quem vai
+ * a bordo: o id entregaria ficha que a névoa ou o mestre escondem — de TODA
+ * ficha, a do dono inclusive), `npc`, `playerCharacter` (diria quais
  * fichas estão sem dono), `hidden` (ficha oculta nem chega aqui) e
  * `characterId` (vínculo do mestre; o jogador recebe `null`).
  */

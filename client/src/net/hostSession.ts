@@ -1468,6 +1468,9 @@ export interface HostSession {
    * ESTÁ — mas só para quem a tela mudou desde o último que recebeu, e a quem
    * sabe aplicar só o que mudou nela (`patch`). `rev` sobe a cada chamada,
    * mande ou não.
+   * Quem foi parar em outra cena da aventura sem passar pela sessão (a bordo
+   * de um veículo, "Levar para…") recebe antes `scene.changed` `by: 'master'`
+   * e perde o pedido de passagem que tinha na cena de antes.
    */
   broadcast(source: HostMapSource): HostResult
   /**
@@ -2510,6 +2513,11 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   // quando ele tem token em mais de uma cena — sem isto, o mestre trocar a
   // cena do editor mudaria a cena do jogador junto.
   const currentScene = new Map<string, string>()
+  // Por playerId: a cena da AVENTURA (sceneId) que o jogador sabe que é a
+  // dele — a do último recorte mandado, ou a do último `scene.changed`. Quando
+  // a ficha dele aparece em outra sem que a sessão tenha avisado (veículo,
+  // "Levar para…"), o broadcast avisa. Mapa solto e espera não entram.
+  const toldScene = new Map<string, string>()
   // Por playerId: o pedido de passagem que espera o mestre (no máximo um).
   const pendingTravels = new Map<string, PendingTravel>()
   /**
@@ -3212,6 +3220,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
    */
   const viewFor = (playerId: string, world: HostWorld, arrived: 'on_change' | 'always'): HostMessage[] => {
     const scene = sceneFor(playerId, world)
+    if (scene === null) toldScene.delete(playerId)
+    else tellScene(playerId, scene)
     if (scene === null) {
       noteSceneOf.set(playerId, null)
       lastViews.delete(playerId)
@@ -3233,6 +3243,27 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     else lastViews.delete(playerId)
     const note = arrivalNote(playerId, scene.sceneId, arrived)
     return note === null ? view : [...view, noteMessage(note)]
+  }
+
+  /** A cena que o jogador passa a saber que é a dele (a do recorte ou do `scene.changed` que acabou de sair). Mapa solto não entra. */
+  function tellScene(playerId: string, scene: HostScene): void {
+    if (scene.sceneId === null) toldScene.delete(playerId)
+    else toldScene.set(playerId, scene.sceneId)
+  }
+
+  /**
+   * LEVADO SEM PASSAR PELA SESSÃO: a ficha do jogador está agora noutra cena
+   * da aventura que não a do último recorte dele, e ninguém avisou — foi a
+   * bordo de um veículo, ou por outro caminho do editor. O pedido de passagem
+   * da cena de antes morre aqui (o pino ficou lá), como no "Mandar para…".
+   * `true` = o jogador precisa do `scene.changed` antes do recorte novo.
+   */
+  const carriedAway = (playerId: string, world: HostWorld): boolean => {
+    const told = toldScene.get(playerId)
+    const scene = sceneFor(playerId, world)
+    if (told === undefined || scene === null || scene.sceneId === null || scene.sceneId === told) return false
+    pendingTravels.delete(playerId)
+    return true
   }
 
   /**
@@ -3872,6 +3903,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     lastViews.delete(playerId)
     // Sem ficha não há quem espere: a tela dele volta à espera do lobby, sem a marca.
     if (waits.delete(playerId)) viewEpoch += 1
+    // A ficha nova, em qualquer cena, é entrada vinda da espera — não "levado".
+    toldScene.delete(playerId)
     const clientId = players.get(playerId)?.clientId ?? null // registro ausente = jogador expulso: não há a quem avisar
     if (!wasPlaying || clientId === null) return []
     lostSecretCheckCard.add(playerId)
@@ -4450,6 +4483,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     for (const [tokenId, loan] of [...helperLoans]) if (loan.playerId === playerId) helperLoans.delete(tokenId)
     memories.delete(playerId)
     currentScene.delete(playerId)
+    toldScene.delete(playerId)
     forgetTravelsOf(playerId)
     // O Volto já morre com o jogador: o id não volta a existir.
     awayPlayers.delete(playerId)
@@ -6117,6 +6151,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       if (!leavesWithCarried(owner, from, carriedIds, world)) continue
       moved.add(owner)
       currentScene.set(owner, sceneKey(to))
+      // O `scene.changed` sai daqui: o broadcast seguinte não o repete.
+      tellScene(owner, to)
       const hadPending = pendingTravels.delete(owner)
       const clientId = players.get(owner)?.clientId ?? null // null = caiu: reconecta já na cena nova
       if (clientId === null) continue
@@ -6183,6 +6219,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     // A cena dele passa a ser a de destino a partir daqui: é ela que o
     // próximo broadcast manda, com a memória que ele tem DELA.
     currentScene.set(playerId, sceneKey(travel.to))
+    // O `scene.changed` sai daqui: o broadcast seguinte não o repete.
+    tellScene(playerId, travel.to)
     forgetSentView(playerId)
     lastViews.delete(playerId)
     // No atalho o mapa do jogador é o mesmo: ele só sabe qual das fichas dele
@@ -7301,6 +7339,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
         // Não coube em volta do pino: fica onde está, com o pedido dele se tinha.
         if (spot === null || record === undefined || record.clientId === null) return
         currentScene.set(companion.playerId, sceneKey(travel.to))
+        // O `scene.changed` sai daqui: o broadcast seguinte não o repete.
+        tellScene(companion.playerId, travel.to)
         // O pedido que ele tinha (para esta escada ou outra) se resolve aqui: ele já foi.
         pendingTravels.delete(companion.playerId)
         const applyTransfer: AppliedTransfer = {
@@ -7440,6 +7480,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       const spot = gatherAt ?? (pin === null ? arrivalSpotWithoutPin(to.map, token.size, token.id) : arrivalSpot(to.map, pin, token.size, token.id))
       currentScene.set(playerId, sceneKey(to))
       forgetSentView(playerId)
+      // O `scene.changed` sai daqui: o broadcast seguinte não o repete.
+      tellScene(playerId, to)
       // O pedido que ele tinha na cena de antes perde o sentido: o pino ficou lá.
       pendingTravels.delete(playerId)
       const by = gatherAt === undefined ? 'master' : 'gather'
@@ -7487,6 +7529,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       // Alguém parou na casa dela enquanto isso: volta ao lado, sem empilhar (a de baixo sumia).
       const spot = freeSeatNear(to.map, { x: back.x, y: back.y }, token.size, tokenId)
       currentScene.set(playerId, sceneKey(to))
+      // O `scene.changed` sai daqui: o broadcast seguinte não o repete.
+      tellScene(playerId, to)
       // O pedido que ele tinha na cena de antes perde o sentido: o pino ficou lá.
       pendingTravels.delete(playerId)
       const applyTransfer: AppliedTransfer = {
@@ -7597,6 +7641,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
         if (playerId === undefined || record === undefined || spot === undefined) return
         // A cena dele passa a ser a cidade; o pedido que ele tinha ficou no mapa-mundi.
         currentScene.set(playerId, sceneKey(to))
+        // O `scene.changed` sai daqui: o broadcast seguinte não o repete.
+        tellScene(playerId, to)
         pendingTravels.delete(playerId)
         const first = !told.has(playerId)
         told.add(playerId)
@@ -8111,6 +8157,17 @@ export function createHostSession(options: HostSessionOptions): HostSession {
         }
         // CORREIO: no ar e jogando, o ponto do Caderno já está na tela dele; o aviso passa a ser do cliente.
         unseenLetters.delete(playerId)
+        // Levado a bordo de um veículo (ou por outro caminho que não passou pela
+        // sessão): a troca ANTES do mapa, senão o movimento ainda sem resposta
+        // (x/y da cena de antes) cai no mapa novo. O recorte da cena de antes
+        // não vale para a nova: ela vai inteira.
+        const landed = sceneFor(playerId, world)
+        if (landed !== null && carriedAway(playerId, world)) {
+          forgetSentView(playerId)
+          lastViews.delete(playerId)
+          outbound.push({ clientId, msg: sceneChangedFor(landed.map, 'master') })
+        }
+        if (landed !== null) tellScene(playerId, landed)
         // SÓ A CENA QUE MUDOU: um passo no Salão não refaz o recorte de quem
         // está na Cripta. O recorte dele sairia igual ao que já está na tela.
         if (viewUnchanged(playerId, world)) continue

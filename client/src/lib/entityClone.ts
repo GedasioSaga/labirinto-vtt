@@ -190,11 +190,17 @@ export function cloneRoomDescendants(
  * trás de um Ctrl+D multiplicaria espaço em disco sem motivo — dois Tokens
  * apontando pro mesmo arquivo é seguro porque a imagem é só LIDA no render
  * (`pixi/tokensRenderer.ts`), nunca escrita a partir do editor.
+ *
+ * VEÍCULO: a cópia leva os lugares e sai VAZIA — quem está a bordo continua
+ * só no original, senão a mesma ficha ocuparia lugar em dois cestos.
  */
 export function cloneToken(token: Token, offset: Offset): Token {
   // A cópia nasce solta: dois feridos presos à mesma ficha seria um vínculo
-  // que o mestre não pediu (LEVAR FICHA JUNTO, `lib/carry.ts`).
-  return { ...withoutCarrier(token), id: crypto.randomUUID(), x: token.x + offset.dx, y: token.y + offset.dy }
+  // que o mestre não pediu (LEVAR FICHA JUNTO, `lib/carry.ts`). VEÍCULO: a
+  // cópia leva os lugares, não os passageiros.
+  const clone: Token = { ...withoutCarrier(token), id: crypto.randomUUID(), x: token.x + offset.dx, y: token.y + offset.dy }
+  if (token.veiculo !== undefined) clone.veiculo = { lugares: token.veiculo.lugares }
+  return clone
 }
 
 // ─────────────────────────────────────────────────────────────

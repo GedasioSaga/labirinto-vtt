@@ -145,3 +145,63 @@ describe('distributeSelectionItems', () => {
     expect(distributeSelectionItems(map, TRES.slice(0, 2), 'horizontal')).toBe(map)
   })
 })
+
+describe('veículo na seleção: quem está a bordo anda UMA vez só', () => {
+  function ficha(id: string, x: number, y: number, extra: Partial<Token> = {}): Token {
+    return { id, characterId: null, name: id, x, y, size: 1, image: null, ...extra }
+  }
+
+  /** Cesto de 2 lugares em (320,320) com o Gui a bordo em (256,400) — o repro do revisor. */
+  function cestoComGui(extra: Token[] = []): MapData {
+    const base = createEmptyMap('a06', 'Poço', 20, 20, 64)
+    const cesto = ficha('cesto', 320, 320, { veiculo: { lugares: 2, passageiros: ['gui'] } })
+    return { ...base, tokens: [cesto, ficha('gui', 256, 400), ...extra] }
+  }
+
+  const x = (map: MapData, id: string) => map.tokens.find((t) => t.id === id)?.x
+  const aBordo = (map: MapData) => map.tokens.find((t) => t.id === 'cesto')?.veiculo?.passageiros
+
+  const CESTO_E_GUI: SelectionItem[] = [
+    { kind: 'token', id: 'cesto' },
+    { kind: 'token', id: 'gui' },
+  ]
+
+  it('alinhar à esquerda o cesto e o Gui: cada um vai para a borda uma vez e o Gui continua a bordo', () => {
+    const next = alignSelectionItems(cestoComGui(), CESTO_E_GUI, 'left')
+    expect(x(next, 'gui')).toBe(256)
+    expect(x(next, 'cesto')).toBe(256)
+    expect(aBordo(next)).toEqual(['gui'])
+  })
+
+  it('distribuir com o cesto no meio e o Gui na ponta: o Gui fica parado e continua a bordo', () => {
+    const base = cestoComGui([ficha('bia', 100, 100)])
+    const map: MapData = { ...base, tokens: base.tokens.map((t) => (t.id === 'gui' ? { ...t, x: 500 } : t.id === 'cesto' ? { ...t, x: 200 } : t)) }
+    const next = distributeSelectionItems(map, [...CESTO_E_GUI, { kind: 'token', id: 'bia' }], 'horizontal')
+    expect(x(next, 'bia')).toBe(100)
+    expect(x(next, 'cesto')).toBe(300)
+    expect(x(next, 'gui')).toBe(500)
+    expect(aBordo(next)).toEqual(['gui'])
+  })
+
+  it('o cesto alinhado SEM o Gui na seleção ainda leva o Gui junto', () => {
+    const map = cestoComGui([ficha('bia', 128, 100)])
+    const next = alignSelectionItems(map, [{ kind: 'token', id: 'cesto' }, { kind: 'token', id: 'bia' }], 'left')
+    expect(x(next, 'cesto')).toBe(128)
+    expect(x(next, 'gui')).toBe(64)
+    expect(aBordo(next)).toEqual(['gui'])
+  })
+
+  it('o Gui alinhado SEM o cesto desce dele, como no arrasto', () => {
+    const map = cestoComGui([ficha('bia', 128, 100)])
+    const next = alignSelectionItems(map, [{ kind: 'token', id: 'gui' }, { kind: 'token', id: 'bia' }], 'left')
+    expect(x(next, 'gui')).toBe(128)
+    expect(x(next, 'cesto')).toBe(320)
+    expect(aBordo(next)).toBeUndefined()
+  })
+
+  it('cesto e Gui já alinhados devolvem o MESMO mapa (nenhum passo vazio no desfazer)', () => {
+    const base = cestoComGui()
+    const map: MapData = { ...base, tokens: base.tokens.map((t) => (t.id === 'cesto' ? { ...t, x: 256 } : t)) }
+    expect(alignSelectionItems(map, CESTO_E_GUI, 'left')).toBe(map)
+  })
+})

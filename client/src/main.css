@@ -2534,6 +2534,28 @@ body {
   overflow-y: auto;
 }
 
+/* VEÍCULO (TokenVehicleControls): menos | número | mais numa fila; a lista de
+   quem embarca reusa a do "Reunir o grupo" (.lb-gather__*). */
+.lb-vehicle__seats {
+  display: flex;
+  align-items: center;
+  gap: var(--lb-space-2);
+}
+
+.lb-vehicle__count {
+  min-width: 2ch;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  color: var(--lb-color-parchment);
+}
+
+/* Cheio: quem está fora não embarca, e o cursor não promete o clique. */
+.lb-vehicle__item--off,
+.lb-vehicle__item--off .lb-gather__check {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
 /* Abas Mapa | Sala no topo do rail (só no Tauri). Visual do segmented. */
 .lb-railtabs {
   display: grid;

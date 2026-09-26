@@ -127,6 +127,7 @@ import { pinAttachOptions } from './lib/pinAttach'
 import { leverDoorOptions, linkedDoorOf } from './lib/lever'
 import { lockDoorOptions } from './lib/pinLock'
 import { pinColecaoPanel } from './components/pinColecaoPanel'
+import { vehicleSeatOptions } from './lib/vehicle'
 import type { Screen } from './types/screen'
 import { createMapScreen, parentScreen } from './lib/navigation'
 import * as mapFactory from './lib/mapFactory'
@@ -2852,6 +2853,15 @@ function App() {
                 ? { watch: hostBridgeRef.current.watchPlayerScreens, read: hostBridgeRef.current.tokenSeenBy }
                 : undefined
             }
+            tokenVehicle={{
+              options: selectedToken ? vehicleSeatOptions(map, selectedToken.id) : [],
+              // Os dois passam pelo histórico e leem o mapa ATUAL da store:
+              // dois cliques seguidos nunca decidem sobre uma cópia velha.
+              onSeatsChange: (lugares) => selectedToken && useMapStore.getState().setVehicleSeats(selectedToken.id, lugares),
+              onPassengerChange: (tokenId, aBordo) => {
+                if (selectedToken) useMapStore.getState().setVehiclePassenger(selectedToken.id, tokenId, aBordo)
+              },
+            }}
             tokenTransform={{
               onRotationChange: (rotation) => selectedToken && updateToken(selectedToken.id, { rotation }),
               onLockedChange: (locked) => selectedToken && updateToken(selectedToken.id, { locked }),

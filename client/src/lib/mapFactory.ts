@@ -24,11 +24,12 @@ import { sameLock } from './pinLock'
 import { samePinPass } from './pinPass'
 import { sameColecao } from './colecao'
 import { sameLoja } from './loja'
-import { moveTokenCarryingLights, withoutAttachment } from './lightAttachment'
+import { withoutAttachment } from './lightAttachment'
 import { seatStairPins, withoutStairPins } from './stairTravel'
 import { carryAttachedPins, carryPinsByTokenSteps } from './pinAttach'
 import { carrierIdOf, followStep } from './carry'
 import { mapaDoPiso, pisoDe } from './pisos'
+import { leaveVehicle, moveTokenWithVehicle, passengerIdsOf } from './vehicle'
 import {
   resizeRectDrawing, resizeEllipseDrawing, resizePolygonDrawing, resizePropBox, resizeCircleDrawingRadius,
   type Corner, type ResizeModifiers,
@@ -662,12 +663,17 @@ export function addToken(map: MapData, token: Token): MapData {
   return { ...map, tokens: [...map.tokens, token] }
 }
 
-/** Apagar a ficha solta a tocha que ela carregava: a luz fica onde está. */
+/**
+ * Apagar a ficha solta a tocha que ela carregava: a luz fica onde está. E
+ * tira a ficha do veículo que a levava — o id não fica ocupando lugar, nem
+ * "embarca" sozinho uma ficha de mesmo id que chegue depois.
+ */
 export function removeToken(map: MapData, tokenId: string): MapData {
   const carried = map.lights.some((l) => l.attachedTokenId === tokenId)
+  const withoutRide = leaveVehicle(map, tokenId)
   return {
-    ...map,
-    tokens: map.tokens.filter((t) => t.id !== tokenId),
+    ...withoutRide,
+    tokens: withoutRide.tokens.filter((t) => t.id !== tokenId),
     lights: carried ? map.lights.map((l) => (l.attachedTokenId === tokenId ? withoutAttachment(l) : l)) : map.lights,
   }
 }
@@ -684,21 +690,32 @@ export function removeToken(map: MapData, tokenId: string): MapData {
  * (`followStep`): parede no caminho dela a deixa para trás, mesmo que quem
  * leva tenha passado. PISOS: só a planta do piso DELA (`mapaDoPiso`) barra —
  * no 1º piso, a parede do térreo não é parede. Ficha inexistente: mapa intocado.
+ *
+ * VEÍCULO (`lib/vehicle.ts`): quem está a bordo anda o MESMO deslocamento,
+ * sem trajeto próprio (vai dentro do veículo), com a tocha e o pino presos
+ * nele; o passageiro que anda sozinho desce.
  */
 export function setTokenPosition(map: MapData, tokenId: string, x: number, y: number): MapData {
   const moving = map.tokens.find((t) => t.id === tokenId)
   if (moving === undefined) return map
   const dx = x - moving.x
   const dy = y - moving.y
-  const follows = (t: Token): boolean => (dx !== 0 || dy !== 0) && t.id !== tokenId && carrierIdOf(t) === tokenId
-  const withLights = moveTokenCarryingLights(map, tokenId, x, y)
-  const moved: MapData = {
-    ...withLights,
-    tokens: withLights.tokens.map((t) => (follows(t) ? followStep(mapaDoPiso(map, pisoDe(t)), t, dx, dy) : t)),
+  // VEÍCULO: o grupo que anda o deslocamento inteiro é a ficha e quem está a bordo dela.
+  const group = new Set([tokenId, ...passengerIdsOf(map, tokenId)])
+  const follows = (t: Token): boolean => {
+    const carrierId = carrierIdOf(t)
+    return (dx !== 0 || dy !== 0) && !group.has(t.id) && carrierId !== null && group.has(carrierId)
   }
+  const withVehicle = moveTokenWithVehicle(map, tokenId, x, y)
+  const moved: MapData = {
+    ...withVehicle,
+    tokens: withVehicle.tokens.map((t) => (follows(t) ? followStep(mapaDoPiso(map, pisoDe(t)), t, dx, dy) : t)),
+  }
+  let pinned = moved
+  for (const id of group) pinned = carryAttachedPins(pinned, id, dx, dy)
   // O pino preso à ficha LEVADA anda o passo real dela (zero se a parede a barrou).
   const followerIds = new Set(map.tokens.filter(follows).map((t) => t.id))
-  return carryPinsByTokenSteps(carryAttachedPins(moved, tokenId, dx, dy), map.tokens, followerIds)
+  return carryPinsByTokenSteps(pinned, map.tokens, followerIds)
 }
 
 /**

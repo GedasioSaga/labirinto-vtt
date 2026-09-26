@@ -1,8 +1,9 @@
-import type { ConcealZone, DoorState, FloorStyle, Light, MapData, Prop, Region } from '../types/map'
+import type { ConcealZone, DoorState, FloorStyle, Light, MapData, Prop, Region, Token } from '../types/map'
 import { isEfeitoNaLuz, isEfeitoNaPorta, isEfeitoNaZona, regraDePinoDoArquivo, regraDoArquivo } from './estadoDoMundo'
 import { propPlayerImage, propPlayerLabel } from './propPlayerLook'
 import { readDoorKey } from './doorKey'
 import { lerMarcasDoArquivo } from './marcas'
+import { readTokenVehicle, withoutVehicleField } from './vehicle'
 import { linkLooseWallsToRooms } from './roomLink'
 import {
   cleanPinName,
@@ -109,6 +110,13 @@ function doorKeyFromFile(door: DoorState): DoorState {
   const abreCom = readDoorKey(door.abreCom)
   const { abreCom: _cru, ...semChave } = door
   return abreCom === undefined ? semChave : { ...semChave, abreCom }
+}
+
+/** VEÍCULO do disco: forma certa fica limpa; torta some e a ficha volta a ser comum. */
+function tokenVehicleFromFile(token: Token): Token {
+  if (!('veiculo' in token)) return token
+  const veiculo = readTokenVehicle(token.veiculo)
+  return veiculo === undefined ? withoutVehicleField(token) : { ...token, veiculo }
 }
 
 /** Lista de valores simples (ids de camada): só a forma de lista é garantida. */
@@ -333,8 +341,10 @@ function deserializeMapFields(json: string): MapData {
     // do host. Arquivo que o traga (editado à mão) perde o campo na leitura.
     // `emprestada` (NPC emprestado) também é marca de FIO: mesma limpeza.
     // `rotina` (ROTINA DO NPC): rotina torta some e a ficha volta a ser a de sempre; ausente continua ausente.
+    // VEÍCULO (`veiculo`): mesmo tratamento da mochila — ausente continua
+    // ausente, forma torta some e a ficha volta a ser comum (`readTokenVehicle`).
     tokens: entityList(parsed.tokens).map((t) => {
-      const lido = fichaComRotinaDoArquivo(withoutLentMark(withoutContract(tokenPublicNameFromFile({ ...t, image: t.image ?? null }))))
+      const lido = tokenVehicleFromFile(fichaComRotinaDoArquivo(withoutLentMark(withoutContract(tokenPublicNameFromFile({ ...t, image: t.image ?? null })))))
       if (!('mochila' in t)) return lido
       const mochila = readCarriedItems(t.mochila)
       if (mochila !== undefined) return { ...lido, mochila }

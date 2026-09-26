@@ -1188,6 +1188,13 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     const current = world()
     const result = session.broadcast(current)
     void dispatch(result)
+    // No broadcast, `scene.changed` só sai para quem foi levado a bordo ou
+    // pelo "Levar para…": o pedido de passagem dele morreu na sessão, e o
+    // aviso do mestre e o selo da lista vão junto.
+    if (result.outbound.some((o) => o.msg.type === 'scene.changed')) {
+      pruneTravelToasts()
+      notifyPlayersIfChanged()
+    }
     announceHazardEntries(result.hazardEntries ?? [])
     announceTriggerEntries(result.triggerEntries ?? [])
     announceGuardSightings(current)
