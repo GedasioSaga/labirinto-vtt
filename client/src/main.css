@@ -2556,6 +2556,13 @@ body {
   opacity: 0.55;
 }
 
+/* Longe do veículo: o motivo na própria linha, discreto, sem competir com o nome. */
+.lb-vehicle__far {
+  flex: none;
+  font-size: 0.85em;
+  color: var(--lb-color-parchment-dim);
+}
+
 /* Abas Mapa | Sala no topo do rail (só no Tauri). Visual do segmented. */
 .lb-railtabs {
   display: grid;

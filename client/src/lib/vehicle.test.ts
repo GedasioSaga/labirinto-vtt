@@ -73,7 +73,8 @@ describe('embarcar: o cesto leva o Gui e mais 1 e recusa o 3º', () => {
   })
 
   it('embarcar noutro veículo desce do primeiro: ninguém ocupa dois lugares', () => {
-    const bote = ficha('bote', 500, 500, { veiculo: { lugares: 4 } })
+    // O bote encostado no Gui, do outro lado do cesto: embarcar exige estar perto.
+    const bote = ficha('bote', 216, 300, { veiculo: { lugares: 4 } })
     const noCesto = embarcar(cena([bote]), 'gui')
     const result = boardVehicle(noCesto, 'bote', 'gui')
     expect(result.ok).toBe(true)
@@ -95,6 +96,45 @@ describe('embarcar: o cesto leva o Gui e mais 1 e recusa o 3º', () => {
   it('último a descer apaga a lista em vez de gravar []', () => {
     const vazio = leaveVehicle(embarcar(cena(), 'gui'), 'gui')
     expect(vazio.tokens.find((t) => t.id === 'cesto')?.veiculo).toEqual({ lugares: 2 })
+  })
+})
+
+describe('embarcar exige proximidade: sobe quem está perto do veículo', () => {
+  // Grade de 64 px; o cesto (1 casa) em 300,300. "Perto" = no máximo uma casa
+  // livre entre a borda do veículo e a da ficha.
+  it('encostada (do lado ou na diagonal) e com uma casa de folga embarca; com duas casas de folga é recusada com "longe" e o mapa não muda', () => {
+    const map = cena([ficha('diag', 364, 364), ficha('folga', 300, 428), ficha('longe', 300, 492)])
+    expect(boardVehicle(map, 'cesto', 'diag').ok).toBe(true)
+    expect(boardVehicle(map, 'cesto', 'folga').ok).toBe(true)
+    expect(boardVehicle(map, 'cesto', 'longe')).toEqual({ ok: false, motivo: 'longe' })
+    expect(vehicleCarrying(map, 'longe')).toBeNull()
+  })
+
+  it('a ficha do outro lado da cena não embarca, mesmo com lugar sobrando', () => {
+    const map = cena([ficha('longe', 1200, 1200)])
+    expect(boardVehicle(map, 'cesto', 'longe')).toEqual({ ok: false, motivo: 'longe' })
+    expect(passengerIdsOf(map, 'cesto')).toEqual([])
+  })
+
+  it('no outro piso, mesmo em cima do cesto, não embarca', () => {
+    const map = cena([ficha('alto', 300, 300, { piso: 1 })])
+    expect(boardVehicle(map, 'cesto', 'alto')).toEqual({ ok: false, motivo: 'longe' })
+    expect(boardVehicle(map, 'cesto', 'gui').ok).toBe(true)
+  })
+
+  it('veículo de 2 casas: a folga conta da borda dele, não do centro', () => {
+    // O bote ocupa 2x2 casas com o centro em 640,640 (bordas em 576 e 704).
+    const bote = ficha('bote', 640, 640, { size: 2, veiculo: { lugares: 4 } })
+    const map = cena([bote, ficha('remo', 800, 640), ficha('ancora', 864, 640)])
+    expect(boardVehicle(map, 'bote', 'remo').ok).toBe(true)
+    expect(boardVehicle(map, 'bote', 'ancora')).toEqual({ ok: false, motivo: 'longe' })
+  })
+
+  it('quem já está a bordo e ficou longe (mapa de arquivo) continua a bordo: embarcar de novo devolve o mesmo mapa', () => {
+    const map = cena([ficha('longe', 1200, 1200)])
+    const comLonge: MapData = { ...map, tokens: map.tokens.map((t) => (t.id === 'cesto' ? { ...t, veiculo: { lugares: 2, passageiros: ['longe'] } } : t)) }
+    const denovo = boardVehicle(comLonge, 'cesto', 'longe')
+    expect(denovo.ok && denovo.map).toBe(comLonge)
   })
 })
 
@@ -223,11 +263,17 @@ describe('as opções do painel', () => {
   it('lista as fichas da cena menos o próprio veículo; cheio, quem está fora fica indisponível', () => {
     const cheio = embarcar(embarcar(cena(), 'gui'), 'bia')
     expect(vehicleSeatOptions(cheio, 'cesto')).toEqual([
-      { id: 'gui', nome: 'Gui', aBordo: true, disponivel: true },
-      { id: 'bia', nome: 'bia', aBordo: true, disponivel: true },
-      { id: 'caio', nome: 'caio', aBordo: false, disponivel: false },
+      { id: 'gui', nome: 'Gui', aBordo: true, disponivel: true, longe: false },
+      { id: 'bia', nome: 'bia', aBordo: true, disponivel: true, longe: false },
+      { id: 'caio', nome: 'caio', aBordo: false, disponivel: false, longe: false },
     ])
     expect(vehicleSeatOptions(embarcar(cena(), 'gui'), 'cesto').map((o) => o.disponivel)).toEqual([true, true, true])
+  })
+
+  it('a ficha longe do veículo aparece indisponível e marcada "longe", mesmo com lugar sobrando', () => {
+    const opcoes = vehicleSeatOptions(cena([ficha('longe', 1200, 1200)]), 'cesto')
+    expect(opcoes.find((o) => o.id === 'longe')).toEqual({ id: 'longe', nome: 'longe', aBordo: false, disponivel: false, longe: true })
+    expect(opcoes.find((o) => o.id === 'gui')).toEqual({ id: 'gui', nome: 'Gui', aBordo: false, disponivel: true, longe: false })
   })
 })
 

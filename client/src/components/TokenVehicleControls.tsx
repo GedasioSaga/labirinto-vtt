@@ -21,7 +21,8 @@ export interface TokenVehicleControlsProps {
  *
  * Interruptor nativo (`Toggle`) para ligar; ligado, menos/mais para os
  * lugares (menos para em quem já está a bordo) e uma caixa nativa por ficha
- * da cena. Cheio, quem está fora fica indisponível e o texto diz por quê.
+ * da cena. Cheio, quem está fora fica indisponível e o texto diz por quê; a
+ * ficha longe do veículo também, com "longe do veículo" na linha dela.
  * Cada clique passa pelo histórico, então Ctrl+Z desfaz.
  */
 export function TokenVehicleControls({ vehicle, options, onSeatsChange, onPassengerChange }: TokenVehicleControlsProps) {
@@ -74,6 +75,8 @@ export function TokenVehicleControls({ vehicle, options, onSeatsChange, onPassen
                         onChange={(event) => onPassengerChange(option.id, event.target.checked)}
                       />
                       <span className="lb-party__name">{option.nome}</span>
+                      {/* Embarcar exige proximidade: o mestre traz a ficha para perto antes. */}
+                      {option.longe && <span className="lb-vehicle__far"> — longe do veículo</span>}
                     </label>
                   </li>
                 ))}

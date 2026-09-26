@@ -210,9 +210,18 @@ export interface ArrivingRider {
  * outro lado do pino. Sem casa livre nenhuma, o passageiro fica na casa do
  * próprio veículo — dentro dele —, nunca fora do mapa. Na mesma ordem de
  * `riders`.
+ *
+ * `keepClear`: o que nenhum passageiro cobre — a casa e a cabeça dos pinos de
+ * viagem do destino (`pinClearance`), que o veículo chega colado a um deles.
+ * Afastamento que cairia em cima do pino também não vale.
  */
-export function vehicleRiderSpots(map: MapData, vehicle: Point & { size: number }, riders: readonly ArrivingRider[]): Point[] {
-  const seats = seatFinder(map, vehicle, new Set(), [])
+export function vehicleRiderSpots(
+  map: MapData,
+  vehicle: Point & { size: number },
+  riders: readonly ArrivingRider[],
+  keepClear: readonly KeepClear[] = [],
+): Point[] {
+  const seats = seatFinder(map, vehicle, new Set(), keepClear)
   seats.take(vehicle, vehicle.size)
   const reach = GATHER_MAX_RING * map.grid
   return riders.map((rider) => {

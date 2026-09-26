@@ -1,5 +1,7 @@
 import type { MapData, Token, TokenVehicle } from '../types/map'
 import { carryAttachedLights, moveTokenCarryingLights } from './lightAttachment'
+import { pisoDe } from './pisos'
+import { tokenSizeInSquares } from './tokenSize'
 
 /**
  * VEÍCULO COM LUGARES (cesto, bote, vagonete) — regras puras, compartilhadas
@@ -94,27 +96,51 @@ export function leaveVehicle(map: MapData, tokenId: string): MapData {
   return changed ? { ...map, tokens } : map
 }
 
+/**
+ * Quantas casas LIVRES cabem entre a borda do veículo e a da ficha que
+ * embarca: encostada (0) ou com uma casa de folga. Mais longe que isso ela
+ * não sobe — o mestre traz a ficha para perto antes, como na mesa.
+ */
+export const VEHICLE_BOARD_REACH_CELLS = 1
+/** Folga, em casas, para ficha solta fora da grade não perder o embarque por um pixel. */
+const BOARD_REACH_EPSILON_CELLS = 0.01
+
+/**
+ * A ficha `token` está perto do veículo `vehicle` para embarcar: no mesmo
+ * piso e com no máximo `VEHICLE_BOARD_REACH_CELLS` casas entre as bordas das
+ * duas (distância de xadrez, a diagonal conta como do lado). Os tamanhos
+ * contam: num bote de 2 casas a folga começa na borda dele, não no centro.
+ */
+export function isNearVehicle(map: Pick<MapData, 'grid'>, vehicle: Token, token: Token): boolean {
+  if (pisoDe(vehicle) !== pisoDe(token)) return false
+  const centers = Math.max(Math.abs(token.x - vehicle.x), Math.abs(token.y - vehicle.y)) / map.grid
+  const gap = centers - (tokenSizeInSquares(vehicle) + tokenSizeInSquares(token)) / 2
+  return gap <= VEHICLE_BOARD_REACH_CELLS + BOARD_REACH_EPSILON_CELLS
+}
+
 /** Por que o embarque não aconteceu. */
-export type BoardRefusal = 'cheio' | 'sem-veiculo' | 'sem-ficha' | 'propria' | 'e-veiculo'
+export type BoardRefusal = 'cheio' | 'longe' | 'sem-veiculo' | 'sem-ficha' | 'propria' | 'e-veiculo'
 
 export type BoardResult = { ok: true; map: MapData } | { ok: false; motivo: BoardRefusal }
 
 /**
  * Põe a ficha `tokenId` a bordo do veículo `vehicleId`. Recusa com o motivo,
- * sem mexer no mapa: veículo cheio, ficha que não é veículo, a própria ficha,
- * outro veículo, ficha que não está na cena. Quem já está a bordo: o mesmo
- * mapa. Quem estava noutro veículo desce dele antes (um lugar por ficha).
+ * sem mexer no mapa: veículo cheio, ficha longe do veículo (`isNearVehicle`),
+ * ficha que não é veículo, a própria ficha, outro veículo, ficha que não está
+ * na cena. Quem já está a bordo: o mesmo mapa, mesmo longe (mapa de arquivo).
+ * Quem estava noutro veículo desce dele antes (um lugar por ficha).
  */
 export function boardVehicle(map: MapData, vehicleId: string, tokenId: string): BoardResult {
   const vehicleToken = map.tokens.find((t) => t.id === vehicleId)
   const vehicle = vehicleToken === undefined ? null : vehicleOf(vehicleToken)
-  if (vehicle === null) return { ok: false, motivo: 'sem-veiculo' }
+  if (vehicleToken === undefined || vehicle === null) return { ok: false, motivo: 'sem-veiculo' }
   if (tokenId === vehicleId) return { ok: false, motivo: 'propria' }
   const passenger = map.tokens.find((t) => t.id === tokenId)
   if (passenger === undefined) return { ok: false, motivo: 'sem-ficha' }
   if (vehicleOf(passenger) !== null) return { ok: false, motivo: 'e-veiculo' }
   const aboard = passengerIdsOf(map, vehicleId)
   if (aboard.includes(tokenId)) return { ok: true, map }
+  if (!isNearVehicle(map, vehicleToken, passenger)) return { ok: false, motivo: 'longe' }
   if (aboard.length >= vehicle.lugares) return { ok: false, motivo: 'cheio' }
   return { ok: true, map: withVehicle(leaveVehicle(map, tokenId), vehicleId, buildVehicle(vehicle.lugares, [...aboard, tokenId])) }
 }
@@ -228,8 +254,10 @@ export interface VehicleSeatOption {
   id: string
   nome: string
   aBordo: boolean
-  /** Dá para marcar ou desmarcar: quem está a bordo sempre; quem está fora, só com lugar livre. */
+  /** Dá para marcar ou desmarcar: quem está a bordo sempre; quem está fora, só perto do veículo e com lugar livre. */
   disponivel: boolean
+  /** Fora do veículo e longe dele (`isNearVehicle`): o painel diz por que não sobe. */
+  longe: boolean
 }
 
 /**
@@ -239,13 +267,14 @@ export interface VehicleSeatOption {
 export function vehicleSeatOptions(map: MapData, vehicleId: string): VehicleSeatOption[] {
   const vehicleToken = map.tokens.find((t) => t.id === vehicleId)
   const vehicle = vehicleToken === undefined ? null : vehicleOf(vehicleToken)
-  if (vehicle === null) return []
+  if (vehicleToken === undefined || vehicle === null) return []
   const aboard = passengerIdsOf(map, vehicleId)
   const cheio = aboard.length >= vehicle.lugares
   return map.tokens
     .filter((t) => t.id !== vehicleId && vehicleOf(t) === null)
     .map((t) => {
       const aBordo = aboard.includes(t.id)
-      return { id: t.id, nome: t.name.trim() === '' ? 'Ficha sem nome' : t.name, aBordo, disponivel: aBordo || !cheio }
+      const longe = !aBordo && !isNearVehicle(map, vehicleToken, t)
+      return { id: t.id, nome: t.name.trim() === '' ? 'Ficha sem nome' : t.name, aBordo, disponivel: aBordo || (!cheio && !longe), longe }
     })
 }

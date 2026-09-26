@@ -81,7 +81,8 @@ function mesa(nomes: string[], mundo: HostWorld): Mesa {
 }
 
 function snapshotDe(r: HostResult, nome: string): Extract<HostMessage, { type: 'snapshot' }> {
-  const msg = r.outbound.find((o) => o.clientId === `c-${nome}`)?.msg
+  // Quem mudou de cena sem passar pela sessão recebe antes o `scene.changed`.
+  const msg = r.outbound.find((o) => o.clientId === `c-${nome}` && o.msg.type === 'snapshot')?.msg
   if (msg?.type !== 'snapshot') throw new Error(`esperava snapshot para ${nome}`)
   return msg
 }

@@ -45,7 +45,8 @@ function entra(s: ReturnType<typeof createHostSession>, clientId: string, nome: 
 }
 
 function snapshotPara(r: HostResult, clientId: string): Extract<HostMessage, { type: 'snapshot' }> {
-  const msg = r.outbound.find((o) => o.clientId === clientId)?.msg
+  // Quem mudou de cena sem passar pela sessão recebe antes o `scene.changed`.
+  const msg = r.outbound.find((o) => o.clientId === clientId && o.msg.type === 'snapshot')?.msg
   if (msg?.type !== 'snapshot') throw new Error(`esperava snapshot, veio ${msg?.type ?? 'nada'}`)
   return msg
 }

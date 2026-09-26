@@ -12,7 +12,7 @@ import {
   type StairTravelProps,
 } from '../lib/stairTravel'
 import { passageOf } from '../lib/pins'
-import { singleSceneWorld, type AppliedItems, type HostScene, type HostWorld } from '../net/hostSession'
+import { singleSceneWorld, travelPinsClearance, type AppliedItems, type HostScene, type HostWorld } from '../net/hostSession'
 import { applyItemChange } from '../lib/items'
 import { carrierIdOf, withoutCarrier } from '../lib/carry'
 import { leaveVehicle, passengersOf } from '../lib/vehicle'
@@ -1659,13 +1659,16 @@ export const useAdventureStore = create<AdventureState>()((set, get) => ({
     // VEÍCULO: quem está a bordo atravessa junto e chega ainda a bordo (os
     // ids de quem viaja não mudam). Cada um no afastamento que tinha em volta
     // dele, quando a casa serve; senão, na casa livre mais perto do veículo —
-    // nunca fora do mapa nem do outro lado de uma parede. PISOS: todos chegam
-    // no piso do veículo, e só a planta desse piso barra (`mapaDoPiso`).
+    // nunca fora do mapa, do outro lado de uma parede ou em cima de um pino de
+    // viagem (o veículo chega colado ao par). PISOS: todos chegam no piso do
+    // veículo, e só a planta desse piso barra (`mapaDoPiso`).
     const riders = passengersOf(from.map, tokenId)
+    const planta = mapaDoPiso(to.map, piso ?? 0)
     const seats = vehicleRiderSpots(
-      mapaDoPiso(to.map, piso ?? 0),
+      planta,
       { x, y, size: tokenSizeInSquares(token) },
       riders.map((p) => ({ dx: p.x - token.x, dy: p.y - token.y, size: tokenSizeInSquares(p) })),
+      travelPinsClearance(planta),
     )
     const arrive = (t: Token, at: Point): Token => comPiso({ ...arrivingLink(t, to.map), x: at.x, y: at.y }, piso)
     const travelers: Token[] = [arrive(token, { x, y }), ...riders.map((p, index) => arrive(p, seats[index]))]

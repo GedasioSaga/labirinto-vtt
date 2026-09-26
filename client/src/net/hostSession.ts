@@ -255,6 +255,19 @@ function sceneChangedFor(to: MapData, by?: 'master' | 'gather'): Extract<HostMes
 }
 
 /** As cenas como a ligação de um pino de viagem as enxerga (`resolvePinTravel`). */
+/**
+ * Os círculos que a ficha que chega colada a um pino não cobre: casa e cabeça
+ * de cada pino de viagem que o jogador pode tocar. Vale para a ficha trazida
+ * pelo "Trazer" (quem acabou de chegar pela ponte está colado ao pino par, e
+ * o anel em volta dele passa pela casa do pino) e para quem chega a bordo de
+ * um veículo (`adventureStore.transferToken`). Pino secreto, oculto no editor
+ * ou só de chegada fica de fora: o lugar onde a ficha senta não pode entregar
+ * um pino que o jogador não vê.
+ */
+export function travelPinsClearance(map: MapData): KeepClear[] {
+  return map.pins.filter((p) => p.kind === 'viagem' && p.secret !== true && p.hidden !== true && !isArrivalOnly(p)).flatMap(pinClearance)
+}
+
 function travelLookup(scenes: readonly HostScene[]): (sceneId: string) => TravelScene | null {
   return (sceneId) => {
     const scene = scenes.find((s) => s.sceneId === sceneId)
@@ -6252,16 +6265,6 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       ...(travel.cabine === null ? {} : { applyCabine: travel.cabine }),
     }
   }
-
-  /**
-   * Os círculos que a ficha trazida pelo "Trazer" não cobre: casa e cabeça de
-   * cada pino de viagem que o jogador pode tocar — quem acabou de chegar pela
-   * ponte está colado ao pino par, e o anel em volta dele passa pela casa do
-   * pino. Pino secreto, oculto no editor ou só de chegada fica de fora: o
-   * lugar onde a ficha senta não pode entregar um pino que o jogador não vê.
-   */
-  const travelPinsClearance = (map: MapData): KeepClear[] =>
-    map.pins.filter((p) => p.kind === 'viagem' && p.secret !== true && p.hidden !== true && !isArrivalOnly(p)).flatMap(pinClearance)
 
   /** As fichas do mapa que estão no tabuleiro para os jogadores: fora camada oculta e o que o mestre escondeu. */
   const onBoardTokens = (map: MapData): Token[] => visibleTokens(map.tokens, map.hiddenLayers).filter((t) => t.hidden !== true)

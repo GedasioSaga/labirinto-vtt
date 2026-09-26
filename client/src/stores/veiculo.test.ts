@@ -36,7 +36,7 @@ const { useMapStore } = await import('./mapStore')
 const { useSessionStore } = await import('./sessionStore')
 const { levarFichaPara } = await import('./levarFicha')
 const { useToastStore } = await import('./toastStore')
-const { createEmptyMap, addPin } = await import('../lib/mapFactory')
+const { createEmptyMap, addPin, addToken } = await import('../lib/mapFactory')
 const { arrivalSpot } = await import('../lib/pinTravel')
 const { passengerIdsOf } = await import('../lib/vehicle')
 const { createHostBridge, BROADCAST_THROTTLE_MS } = await import('../net/hostBridge')
@@ -180,19 +180,23 @@ describe('veículo com lugares: o cesto leva o Gui e mais 1, recusa o 3º, e os 
     expect(tokens.find((t) => t.id === 'bia')?.x).toBe(384)
   })
 
-  it('levado pelo pino, o cesto chega em a07 com o Gui e a Bia no afastamento que tinham; o Caio fica em a06', () => {
+  it('levado pelo pino, o cesto chega em a07 com o Gui e a Bia ao lado; o Caio fica em a06', () => {
     const { a06, a07 } = montarAventura()
     useMapStore.getState().setVehiclePassenger('cesto', 'gui', true)
     useMapStore.getState().setVehiclePassenger('cesto', 'bia', true)
     const chegada = arrivalSpot(mapaDaCena(a07), SAIDA, 1)
+    // O cesto chega à esquerda da boca do poço (a casa de cima cobriria a cabeça do pino).
+    expect(chegada).toEqual({ x: 1440, y: 928 })
 
     expect(levarFichaPara('cesto', a07, 'saida')).toBe(true)
 
     expect(tokensDaCena(a06).map((t) => t.id)).toEqual(['caio'])
+    // O Gui mantém o afastamento (uma casa à esquerda). A Bia, uma casa à
+    // direita, cairia em cima da boca do poço: senta na casa livre de cima.
     expect(posicoes(a07)).toEqual({
       cesto: [chegada.x, chegada.y],
       gui: [chegada.x - 64, chegada.y],
-      bia: [chegada.x + 64, chegada.y],
+      bia: [chegada.x, chegada.y - 64],
     })
     // Chegam ainda a bordo: o cesto segue levando os dois em a07.
     expect(passengerIdsOf(mapaDaCena(a07), 'cesto')).toEqual(['gui', 'bia'])
@@ -337,11 +341,15 @@ describe('veículo com lugares: o cesto leva o Gui e mais 1, recusa o 3º, e os 
     // O pedido do poço ficou em a06: sai da sessão e do painel do mestre.
     expect(t.bridge.players().find((p) => p.name === 'Gui')?.travelPending).toBeUndefined()
     expect(pedidoDoGui()).toBe(false)
-    // O broadcast seguinte não repete a troca.
+    // O broadcast seguinte não repete a troca: um rato aparece colado ao Gui,
+    // em a07, e ele recebe só o mapa novo.
     const depois = t.enviados.length
-    useMapStore.getState().addToken(ficha('rato', 'Rato', 64, 64))
+    const [guiX, guiY] = posicoes(t.a07).gui
+    useAdventureStore.getState().updateBackgroundScene(t.a07, (map) => addToken(map, ficha('rato', 'Rato', guiX, guiY + 64)))
+    t.bridge.notifyMapChanged()
     await esperarSnapshot()
     expect(trocaEMapa(t.enviados, 'c-gui', depois)).toEqual([{ type: 'snapshot' }])
+    expect(ultimoSnapshot(t.enviados, 'c-gui')).toContain('"rato"')
     t.desligar()
     await t.bridge.stop()
   })
@@ -364,41 +372,56 @@ describe('veículo com lugares: o cesto leva o Gui e mais 1, recusa o 3º, e os 
     await t.bridge.stop()
   })
 
-  it('pino na borda de a07: quem vai a bordo chega dentro do mapa, numa casa livre ao lado do cesto, mesmo quem embarcou longe', () => {
-    const { a07 } = montarAventura()
+  it('embarcar exige proximidade: a ficha do outro lado de a06 é recusada e fica; quem está ao lado do cesto sobe', () => {
+    const { a06 } = montarAventura()
+    useMapStore.getState().addToken(ficha('longe', 'Longe', 1800, 1200))
+    expect(useMapStore.getState().setVehiclePassenger('cesto', 'longe', true)).toBe(false)
+    expect(useMapStore.getState().setVehiclePassenger('cesto', 'gui', true)).toBe(true)
+    expect(passengerIdsOf(useMapStore.getState().map, 'cesto')).toEqual(['gui'])
+    // A recusa não gasta passo do desfazer: o Ctrl+Z desfaz o embarque do Gui.
+    useMapStore.getState().undo()
+    expect(passengerIdsOf(useMapStore.getState().map, 'cesto')).toEqual([])
+    expect(tokensDaCena(a06).map((t) => t.id)).toContain('longe')
+  })
+
+  it('pino na borda de a07: quem vai a bordo chega dentro do mapa, numa casa livre ao lado do cesto', () => {
+    const { a06, a07 } = montarAventura()
     // a07 tem 30x20 casas de 64 px (1920 x 1280); a borda é o pino na coluna 0.
     const BORDA: Pin = { id: 'borda', x: 0, y: 600, kind: 'viagem', description: 'Beira', image: null, destino: null }
     useAdventureStore.getState().updateBackgroundScene(a07, (map) => addPin(map, BORDA))
-    useMapStore.getState().addToken(ficha('longe', 'Longe', 1800, 1200))
     // O Gui está uma casa à esquerda do cesto: o mesmo afastamento cairia fora do mapa.
     useMapStore.getState().setVehiclePassenger('cesto', 'gui', true)
-    useMapStore.getState().setVehiclePassenger('cesto', 'longe', true)
+    useMapStore.getState().setVehiclePassenger('cesto', 'bia', true)
+    // O cesto chega na casa de cima da do pino: a cabeça dele fica tocável.
     const chegada = arrivalSpot(mapaDaCena(a07), BORDA, 1)
-    expect(chegada).toEqual({ x: 32, y: 608 })
+    expect(chegada).toEqual({ x: 32, y: 544 })
 
     expect(levarFichaPara('cesto', a07, 'borda')).toBe(true)
 
-    // A casa de cima (a primeira do anel) e a da direita (a da esquerda é fora do mapa).
-    expect(posicoes(a07)).toEqual({ cesto: [32, 608], gui: [32, 544], longe: [96, 608] })
-    expect(passengerIdsOf(mapaDaCena(a07), 'cesto')).toEqual(['gui', 'longe'])
+    // O Gui na casa de cima do cesto (a primeira do anel; a da esquerda é fora do mapa); a Bia mantém o lado.
+    expect(posicoes(a07)).toEqual({ cesto: [32, 544], gui: [32, 480], bia: [96, 544] })
+    expect(passengerIdsOf(mapaDaCena(a07), 'cesto')).toEqual(['gui', 'bia'])
+    expect(tokensDaCena(a06).map((t) => t.id)).toEqual(['caio'])
   })
 
-  it('pino com parede ao lado: o passageiro não chega do outro lado da parede', () => {
+  it('pino com parede ao lado: o passageiro não chega do outro lado da parede nem em cima do pino', () => {
     const { a07 } = montarAventura()
-    // Parede de cima a baixo em x = 1472, a linha da grade colada à esquerda da casa da boca do poço.
+    // Parede de cima a baixo em x = 1408, a linha da grade colada à esquerda da casa onde o cesto chega.
     useAdventureStore.getState().updateBackgroundScene(a07, (map) => ({
       ...map,
-      walls: [...map.walls, { id: 'muro', x1: 1472, y1: 0, x2: 1472, y2: 1280, blocksLight: true, blocksMove: true, door: null }],
+      walls: [...map.walls, { id: 'muro', x1: 1408, y1: 0, x2: 1408, y2: 1280, blocksLight: true, blocksMove: true, door: null }],
     }))
     useMapStore.getState().setVehiclePassenger('cesto', 'gui', true)
     useMapStore.getState().setVehiclePassenger('cesto', 'bia', true)
+    // A casa de cima do pino cobriria a cabeça dele: o cesto chega à esquerda da boca do poço.
     const chegada = arrivalSpot(mapaDaCena(a07), SAIDA, 1)
-    expect(chegada).toEqual({ x: 1504, y: 928 })
+    expect(chegada).toEqual({ x: 1440, y: 928 })
 
     expect(levarFichaPara('cesto', a07, 'saida')).toBe(true)
 
-    // O Gui (uma casa à esquerda) iria para trás do muro: senta na casa de cima. A Bia mantém o lado.
-    expect(posicoes(a07)).toEqual({ cesto: [1504, 928], gui: [1504, 864], bia: [1568, 928] })
+    // O Gui (uma casa à esquerda) iria para trás do muro: senta na casa de cima.
+    // A Bia (uma casa à direita) iria para a casa da boca do poço: senta na de baixo.
+    expect(posicoes(a07)).toEqual({ cesto: [1440, 928], gui: [1440, 864], bia: [1440, 992] })
   })
 
   it('"Reunir o grupo" com a dona do cesto antes do Gui a bordo: os dois chegam, sem falha, cada um na casa reservada', async () => {

@@ -11,7 +11,7 @@
 import { describe, expect, it } from 'vitest'
 import type { HostWorld } from '../net/hostSession'
 import type { MapData, Token, Wall } from '../types/map'
-import { applyGatherPlan, gatherCandidates, gatherGroups, gatherSpots, planGather, vehicleRiderSpots, type GatherPlan } from './gatherParty'
+import { applyGatherPlan, gatherCandidates, gatherGroups, gatherSpots, pinClearance, planGather, vehicleRiderSpots, type GatherPlan } from './gatherParty'
 import { createEmptyMap } from './mapFactory'
 import type { PartyMember } from './party'
 
@@ -328,5 +328,15 @@ describe('vehicleRiderSpots: onde quem vai a bordo assenta quando o veículo che
       walls: [parede('n', 0, 250, 50, 250), parede('s', 0, 300, 50, 300), parede('l', 50, 250, 50, 300)],
     })
     expect(vehicleRiderSpots(map, veiculo, [{ dx: GRADE, dy: 0, size: 1 }])).toEqual([{ x: veiculo.x, y: veiculo.y }])
+  })
+
+  it('o pino de viagem do destino fica livre: quem ia sentar na casa dele assenta na casa livre mais perto do veículo', () => {
+    // O veículo chegou na casa de cima do pino; o Gui, logo abaixo dele, cairia em cima do pino.
+    const chegada = { ...casa(10, 4), size: 1 }
+    const abaixo = [{ dx: 0, dy: GRADE, size: 1 }]
+    expect(vehicleRiderSpots(mapa(), chegada, abaixo)).toEqual([PINO])
+    expect(vehicleRiderSpots(mapa(), chegada, abaixo, pinClearance(PINO))).toEqual([casa(10, 3)])
+    // O afastamento que não encosta no pino continua valendo.
+    expect(vehicleRiderSpots(mapa(), chegada, [{ dx: -GRADE, dy: 0, size: 1 }], pinClearance(PINO))).toEqual([casa(9, 4)])
   })
 })

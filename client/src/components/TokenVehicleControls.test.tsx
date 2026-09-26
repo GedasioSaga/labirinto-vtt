@@ -48,9 +48,9 @@ function caixa(nome: string): HTMLInputElement {
 }
 
 const CHEIO: VehicleSeatOption[] = [
-  { id: 'gui', nome: 'Gui', aBordo: true, disponivel: true },
-  { id: 'bia', nome: 'Bia', aBordo: true, disponivel: true },
-  { id: 'caio', nome: 'Caio', aBordo: false, disponivel: false },
+  { id: 'gui', nome: 'Gui', aBordo: true, disponivel: true, longe: false },
+  { id: 'bia', nome: 'Bia', aBordo: true, disponivel: true, longe: false },
+  { id: 'caio', nome: 'Caio', aBordo: false, disponivel: false, longe: false },
 ]
 
 describe('TokenVehicleControls', () => {
@@ -76,8 +76,8 @@ describe('TokenVehicleControls', () => {
   it('marcar e desmarcar pedem o embarque e a descida daquela ficha', () => {
     const onPassengerChange = vi.fn()
     const options: VehicleSeatOption[] = [
-      { id: 'gui', nome: 'Gui', aBordo: true, disponivel: true },
-      { id: 'caio', nome: 'Caio', aBordo: false, disponivel: true },
+      { id: 'gui', nome: 'Gui', aBordo: true, disponivel: true, longe: false },
+      { id: 'caio', nome: 'Caio', aBordo: false, disponivel: true, longe: false },
     ]
     render(<TokenVehicleControls vehicle={{ lugares: 2, passageiros: ['gui'] }} options={options} onSeatsChange={vi.fn()} onPassengerChange={onPassengerChange} />)
     act(() => caixa('Caio').click())
@@ -100,6 +100,25 @@ describe('TokenVehicleControls', () => {
     expect(botao('Mais um lugar').disabled).toBe(true)
     act(() => botao('Menos um lugar').click())
     expect(onSeatsChange).toHaveBeenLastCalledWith(VEHICLE_SEATS_MAX - 1)
+  })
+
+  it('embarcar exige proximidade: a ficha longe do veículo fica indisponível e diz por quê; com lugar sobrando, não é "Cheio"', () => {
+    const onPassengerChange = vi.fn()
+    const options: VehicleSeatOption[] = [
+      { id: 'gui', nome: 'Gui', aBordo: false, disponivel: true, longe: false },
+      { id: 'caio', nome: 'Caio', aBordo: false, disponivel: false, longe: true },
+    ]
+    render(<TokenVehicleControls vehicle={{ lugares: 2 }} options={options} onSeatsChange={vi.fn()} onPassengerChange={onPassengerChange} />)
+    expect(caixa('Caio').disabled).toBe(true)
+    expect(caixa('Gui').disabled).toBe(false)
+    const linhaDoCaio = [...container.querySelectorAll('label')].find((l) => l.textContent?.trim().startsWith('Caio'))
+    expect(linhaDoCaio?.textContent).toContain('longe do veículo')
+    const linhaDoGui = [...container.querySelectorAll('label')].find((l) => l.textContent?.trim().startsWith('Gui'))
+    expect(linhaDoGui?.textContent).toBe('Gui')
+    expect(container.textContent).toContain('0 de 2 lugares ocupados.')
+    expect(container.textContent).not.toContain('Cheio')
+    act(() => caixa('Caio').click())
+    expect(onPassengerChange).not.toHaveBeenCalled()
   })
 
   it('desligar pede null; sem outras fichas na cena, diz que não há quem embarcar', () => {
