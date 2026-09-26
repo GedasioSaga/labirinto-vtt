@@ -1175,6 +1175,17 @@ export interface Token extends PlayerSecret, NoPiso {
   /** Token não pode ser movido/editado. `undefined` === false (comportamento
    *  idêntico ao de hoje) — sem linha de migração. */
   locked?: boolean
+  /**
+   * CONGELAR FICHA: o mestre segura a ficha contra o JOGADOR. O servidor da
+   * sala recusa todo pedido de jogador que a moveria — o passo, a escada, a
+   * passagem pelo pino, e de carona (a bordo ou levada) — e o mestre continua
+   * movendo à vontade. Diferente de `locked`, trava do editor que segura o
+   * mestre também. `undefined` === false, sem linha de migração; descongelar
+   * APAGA o campo. Quem lê do disco passa por `estaCongelada` (`lib/congelar.ts`).
+   * Atravessa só para o DONO da ficha (`lib/fogFilter.ts`), onde vira o floco
+   * e o aviso "Congelado pelo mestre".
+   */
+  congelado?: boolean
   /** Não renderiza NO EDITOR — organização de cena para o próprio mestre.
    *  NÃO significa "invisível para o jogador": este app não tem segunda
    *  tela/modo jogador, então essa promessa não existe. `undefined` === false

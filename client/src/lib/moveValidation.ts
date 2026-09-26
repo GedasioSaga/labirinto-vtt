@@ -25,11 +25,14 @@ export interface TokenMoveRequest {
  * `not_your_turn`: a cena tem iniciativa e a ficha pedida não é a da vez, ou
  * há CONFRONTO na cena (`lib/confronto.ts`) e a ficha está na fila fora da vez.
  * `too_far`: CONFRONTO — o trajeto passa do que resta do passo.
+ * `congelado`: CONGELAR FICHA — o mestre congelou a ficha (`Token.congelado`),
+ * ou uma que iria presa a ela (a bordo, levada; a sessão confere, `lib/congelar.ts`).
  */
 export type TokenMoveRejection =
   | 'unknown_token'
   | 'not_owner'
   | 'locked'
+  | 'congelado'
   | 'not_your_turn'
   | 'outside_map'
   | 'wall'
@@ -292,16 +295,19 @@ function pathStaysOnFloor(map: MapData, compiled: CompiledFloor, fromX: number, 
 /**
  * As travas que seguram a ficha de um JOGADOR, qualquer que seja o jeito de
  * andar: o passo (`validateTokenMove`) e a troca de piso pela escada
- * (`handleTokenPiso` no host). Cadeado do mestre, vez da iniciativa
- * (`turnTokenId` ausente ou `null` = sem iniciativa aqui) e vez do CONFRONTO
- * (só prende ficha que está na fila). O mestre não passa por aqui.
+ * (`handleTokenPiso` no host). Cadeado do mestre, ficha CONGELADA pelo mestre
+ * (o cadeado vence: segura mais), vez da iniciativa (`turnTokenId` ausente ou
+ * `null` = sem iniciativa aqui) e vez do CONFRONTO (só prende ficha que está
+ * na fila). O mestre não passa por aqui. `=== true` e não `estaCongelada`
+ * (`lib/congelar.ts`): aquele arquivo puxa este, e o import daria volta.
  */
 export function travaDaFichaDoJogador(
   map: Pick<MapData, 'confronto'>,
-  token: Pick<Token, 'id' | 'locked'>,
+  token: Pick<Token, 'id' | 'locked' | 'congelado'>,
   turnTokenId: string | null | undefined,
-): 'locked' | 'not_your_turn' | null {
+): 'locked' | 'congelado' | 'not_your_turn' | null {
   if (token.locked) return 'locked'
+  if (token.congelado === true) return 'congelado'
   const turn = turnTokenId ?? null
   if (turn !== null && turn !== token.id) return 'not_your_turn'
   const confronto = map.confronto
