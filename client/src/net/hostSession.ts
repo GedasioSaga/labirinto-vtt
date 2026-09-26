@@ -6558,10 +6558,15 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const to = scenes.find((s) => s.sceneId === travel.sceneId)
     if (to === undefined || to.sceneId === null) return reject('unavailable')
 
+    // A visão de LÁ limita a espiada: o raio que este jogador teria chegando
+    // ("Visão nesta cena", fator dele, noite na cena externa — `radiusIn`).
+    // Ficha de jogador (qualquer dono) não vai: seria a posição de quem está
+    // em outra cena. Raio zero é não ver nada: recusa, como o jogador faria.
+    const comDono = new Set(Object.values(ownership).flat())
+    const espiada = espiadaPeloPino(to.map, travel.partner, pin.daVista, { visao: radiusIn(playerId, to.map), comDono })
     // Recorte acima do que o jogador aceita (pincel muito picado, parede demais)
     // seria jogado fora lá, com o mestre avisado de uma espiada que não houve.
-    const espiada = espiadaPeloPino(to.map, travel.partner, pin.daVista)
-    if (!espiadaCabe(espiada)) return reject('unavailable')
+    if (espiada.raio <= 0 || !espiadaCabe(espiada)) return reject('unavailable')
 
     const description = pin.description.trim()
     return {

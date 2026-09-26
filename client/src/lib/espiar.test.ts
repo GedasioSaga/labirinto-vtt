@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { createEmptyMap } from './mapFactory'
 import { deserializeMap, serializeMap } from './mapFile'
-import { espiadaPeloPino, filterMapForPlayer } from './fogFilter'
+import { espiadaPeloPino, filterMapForPlayer, type EspiadaLimites } from './fogFilter'
 import { DA_VISTA_MAX_CASAS, ESPIADA_MAX_FICHAS, espiadaCabe, isDaVista, parseEspiada, type Espiada } from './espiar'
 import type { MapData, Pin, Token, Wall } from '../types/map'
 
@@ -14,6 +14,8 @@ import type { MapData, Pin, Token, Wall } from '../types/map'
 
 const GRID = 50
 const PAR = { x: 500, y: 500 }
+/** Sem limite da cena de lá: vale só o "Dá vista" (os limites têm testes próprios em `espiar.recorte.test.ts`). */
+const LIVRE: EspiadaLimites = { visao: Infinity, comDono: new Set() }
 
 function ficha(id: string, x: number, y: number, extra: Partial<Token> = {}): Token {
   return { id, characterId: null, name: `nome-${id}`, x, y, size: 1, image: null, ...extra }
@@ -71,7 +73,7 @@ function cripta(): { map: MapData; par: Pin } {
 describe('espiadaPeloPino: o recorte do outro lado', () => {
   it('mostra a ficha à vista em volta do par, em coordenadas relativas ao par', () => {
     const { map, par } = cripta()
-    const espiada = espiadaPeloPino(map, par, 3)
+    const espiada = espiadaPeloPino(map, par, 3, LIVRE)
     expect(espiada.tokens).toEqual([{ x: 0, y: -80, size: 1, color: '#c0392b' }])
     expect(espiada.raio).toBe(3 * GRID)
     expect(espiada.grid).toBe(GRID)
@@ -80,19 +82,19 @@ describe('espiadaPeloPino: o recorte do outro lado', () => {
 
   it('SEGURANÇA — ficha fora do raio, atrás da parede, secreta, oculta ou em zona oculta NÃO chega', () => {
     const { map, par } = cripta()
-    const texto = JSON.stringify(espiadaPeloPino(map, par, 3))
+    const texto = JSON.stringify(espiadaPeloPino(map, par, 3, LIVRE))
     for (const id of ['npc-longe', 'npc-atras', 'npc-secreto', 'npc-oculto', 'npc-zona', 'npc-perto']) {
       // Nem o id da ficha viaja: o jogador recebe um ponto colorido, não quem é.
       expect(texto).not.toContain(id)
     }
     // Controle: sem a parede, a ficha de trás aparece — é a parede que a tira.
     const semParede: MapData = { ...map, walls: map.walls.filter((w) => w.id !== 'muro-perto') }
-    expect(espiadaPeloPino(semParede, par, 3).tokens).toContainEqual({ x: 120, y: 0, size: 1, color: expect.any(String) })
+    expect(espiadaPeloPino(semParede, par, 3, LIVRE).tokens).toContainEqual({ x: 120, y: 0, size: 1, color: expect.any(String) })
   })
 
   it('SEGURANÇA — nem o nome da cena, nem o id do mapa, nem pino, zona ou nome de ficha saem', () => {
     const { map, par } = cripta()
-    const texto = JSON.stringify(espiadaPeloPino(map, par, 3))
+    const texto = JSON.stringify(espiadaPeloPino(map, par, 3, LIVRE))
     for (const segredo of ['Cripta Rubra', 'mapa-cripta', 'Tesouro do fundo', 'Boca do poço', 'Esconderijo do capataz', 'zona-1', 'nome-npc-perto', 'cena-salao']) {
       expect(texto).not.toContain(segredo)
     }
@@ -100,7 +102,7 @@ describe('espiadaPeloPino: o recorte do outro lado', () => {
 
   it('a parede sai cortada no círculo do raio, e a de longe não sai', () => {
     const { map, par } = cripta()
-    const espiada = espiadaPeloPino(map, par, 3)
+    const espiada = espiadaPeloPino(map, par, 3, LIVRE)
     // Uma parede e uma porta, nada da de x = 900.
     expect(espiada.walls.length).toBe(1)
     const [muro] = espiada.walls
@@ -123,7 +125,7 @@ describe('espiadaPeloPino: o recorte do outro lado', () => {
     const portaAtras = parede('porta-atras', 590, 420, 610, 420, { door: { open: true, locked: false, kind: 'normal' } }) // relativo (90, −80)..(110, −80)
     const comMuro: MapData = { ...map, walls: [...map.walls, paredeAtras, portaAtras] }
 
-    const espiada = espiadaPeloPino(comMuro, par, 3)
+    const espiada = espiadaPeloPino(comMuro, par, 3, LIVRE)
     // Só o muro de perto e a porta de baixo — igual ao cenário sem as peças escondidas.
     expect(espiada.walls.length).toBe(1)
     expect(espiada.walls[0]?.x1).toBe(60)
@@ -132,7 +134,7 @@ describe('espiadaPeloPino: o recorte do outro lado', () => {
 
     // Controle: sem o muro de perto, as duas aparecem — é o muro que as tira.
     const semMuro: MapData = { ...comMuro, walls: comMuro.walls.filter((w) => w.id !== 'muro-perto') }
-    const aberta = espiadaPeloPino(semMuro, par, 3)
+    const aberta = espiadaPeloPino(semMuro, par, 3, LIVRE)
     expect(aberta.walls).toContainEqual(expect.objectContaining({ x1: 120, x2: 120 }))
     expect(aberta.doors).toContainEqual({ x1: 90, y1: -80, x2: 110, y2: -80, open: true })
   })
@@ -158,11 +160,11 @@ describe('espiadaPeloPino: o recorte do outro lado', () => {
       ],
     }
     const comMuro: MapData = { ...map, regions: [predio] }
-    expect(espiadaPeloPino(comMuro, par, 3).roofs).toEqual([])
+    expect(espiadaPeloPino(comMuro, par, 3, LIVRE).roofs).toEqual([])
 
     // Controle: sem o muro, o olho alcança o prédio e o contorno sai, relativo ao par.
     const semMuro: MapData = { ...comMuro, walls: comMuro.walls.filter((w) => w.id !== 'muro-perto') }
-    const aberta = espiadaPeloPino(semMuro, par, 3)
+    const aberta = espiadaPeloPino(semMuro, par, 3, LIVRE)
     expect(aberta.roofs.length).toBe(1)
     const [teto] = aberta.roofs
     if (teto === undefined) throw new Error('esperava o teto do prédio')
@@ -173,7 +175,7 @@ describe('espiadaPeloPino: o recorte do outro lado', () => {
 
   it('a porta à vista sai com o estado dela; a zona oculta sai só como geometria para pintar de preto', () => {
     const { map, par } = cripta()
-    const espiada = espiadaPeloPino(map, par, 3)
+    const espiada = espiadaPeloPino(map, par, 3, LIVRE)
     expect(espiada.doors).toEqual([{ x1: -80, y1: 80, x2: -20, y2: 80, open: false }])
     expect(espiada.concealed.length).toBe(1)
     // O canto da zona dentro do raio vai como está; o de fora (−150,−150) fica no corte.
@@ -183,7 +185,7 @@ describe('espiadaPeloPino: o recorte do outro lado', () => {
 
   it('SEGURANÇA — zona oculta sai cortada no círculo: nenhum ponto dela passa do raio', () => {
     const { map, par } = cripta()
-    const espiada = espiadaPeloPino(map, par, 3)
+    const espiada = espiadaPeloPino(map, par, 3, LIVRE)
     expect(espiada.concealed.length).toBe(1)
     for (const p of espiada.concealed.flat()) expect(Math.hypot(p.x, p.y)).toBeLessThanOrEqual(3 * GRID + 1)
   })
@@ -211,7 +213,7 @@ describe('espiadaPeloPino: o recorte do outro lado', () => {
         },
       ],
     }
-    const espiada = espiadaPeloPino(map, par, 3)
+    const espiada = espiadaPeloPino(map, par, 3, LIVRE)
     expect(espiada.concealed.length).toBeGreaterThan(0)
     expect(espiadaCabe(espiada)).toBe(true)
     expect(parseEspiada(JSON.parse(JSON.stringify(espiada)) as unknown)).toEqual(espiada)
@@ -237,16 +239,16 @@ describe('espiadaPeloPino: o recorte do outro lado', () => {
     const base: MapData = { ...createEmptyMap('m', 'Cripta', 40, 20, GRID), pins: [par], concealZones: [zonaLonge] }
     // Controle: o recorte do jogador de lá leva esse trecho na visão.
     expect(filterMapForPlayer({ ...base, hiddenLayers: ['tokens'] }, 'p1', {}, 700).vision.length).toBeGreaterThan(0)
-    const espiada = espiadaPeloPino({ ...base, hiddenLayers: ['tokens'] }, par, 3)
+    const espiada = espiadaPeloPino({ ...base, hiddenLayers: ['tokens'] }, par, 3, LIVRE)
     expect(espiada.vision).toEqual([])
     expect(espiada.concealed).toEqual([])
   })
 
   it('raio maior alcança a ficha de 5,6 casas; o teto de casas vale', () => {
     const { map, par } = cripta()
-    expect(espiadaPeloPino(map, par, DA_VISTA_MAX_CASAS).tokens).toContainEqual({ x: 0, y: 280, size: 1, color: expect.any(String) })
+    expect(espiadaPeloPino(map, par, DA_VISTA_MAX_CASAS, LIVRE).tokens).toContainEqual({ x: 0, y: 280, size: 1, color: expect.any(String) })
     // Pedido acima do teto é cortado no teto, nunca vira a cena inteira.
-    expect(espiadaPeloPino(map, par, 999).raio).toBe(DA_VISTA_MAX_CASAS * GRID)
+    expect(espiadaPeloPino(map, par, 999, LIVRE).raio).toBe(DA_VISTA_MAX_CASAS * GRID)
   })
 })
 
@@ -286,7 +288,7 @@ describe('isDaVista e o disco', () => {
 describe('parseEspiada: o que o jogador aceita', () => {
   it('aceita o recorte do host e devolve só os campos conhecidos', () => {
     const { map, par } = cripta()
-    const espiada = espiadaPeloPino(map, par, 3)
+    const espiada = espiadaPeloPino(map, par, 3, LIVRE)
     const cru = JSON.parse(JSON.stringify({ ...espiada, nome: 'Cripta Rubra' })) as unknown
     const lido = parseEspiada(cru)
     expect(lido).toEqual(espiada)

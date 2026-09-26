@@ -4074,6 +4074,13 @@ function wallRunsSeen(seg: EspiadaParede, seen: (p: RegionPoint) => boolean, ste
   return runs
 }
 
+/** O que a cena de LÁ impõe à espiada (`espiadaPeloPino`). */
+export interface EspiadaLimites {
+  /** Raio de visão, em px, de quem espia se estivesse na cena de lá. */
+  visao: number
+  /** Ids das fichas com dono (jogador): ficam fora do recorte. */
+  comDono: ReadonlySet<string>
+}
 
 /**
  * ESPIAR PELA PASSAGEM — o recorte do outro lado, visto de cima do pino `par`
@@ -4089,10 +4096,19 @@ function wallRunsSeen(seg: EspiadaParede, seen: (p: RegionPoint) => boolean, ste
  * Depois, o que vai pela rede é só geometria RELATIVA ao par e pontos
  * coloridos: nem nome ou id de cena, mapa, ficha, pino ou zona. Tudo cortado no
  * círculo do raio — a planta do mapa comum vai inteira, a daqui não.
+ *
+ * O raio é o MENOR entre o "Dá vista" do pino e `limites.visao` — o raio que
+ * quem espia teria estando LÁ ("Visão nesta cena", fator de visão, noite na
+ * cena externa). Espiar nunca vê mais longe do que chegar veria. Visão que não
+ * é número positivo vira raio 0: nada.
+ *
+ * Ficha com dono (`limites.comDono`) não sai: jogador em outra cena não tem a
+ * posição nem a cor (que diz de quem é) entregues a quem espia.
  */
-export function espiadaPeloPino(map: MapData, par: Pin, casas: number): Espiada {
+export function espiadaPeloPino(map: MapData, par: Pin, casas: number, limites: EspiadaLimites): Espiada {
   const grid = map.grid
-  const raio = clampDaVista(casas) * grid
+  const visao = Number.isNaN(limites.visao) ? 0 : Math.max(0, limites.visao)
+  const raio = Math.min(clampDaVista(casas) * grid, visao)
   // PISOS: o olho fica no piso do par. O recorte só leva o piso do olho, então
   // o alçapão do 1º piso mostra o 1º piso — nada do térreo nem do de cima.
   const olho = comPiso<Token>({ id: OLHO_ID, characterId: null, name: '', x: par.x, y: par.y, size: 1, image: null }, pisoDe(par))
@@ -4130,7 +4146,7 @@ export function espiadaPeloPino(map: MapData, par: Pin, casas: number): Espiada 
   }
 
   const tokens = view.map.tokens
-    .filter((t) => t.id !== OLHO_ID)
+    .filter((t) => t.id !== OLHO_ID && !limites.comDono.has(t.id))
     .map((t) => ({ t, p: rel({ x: t.x, y: t.y }) }))
     // O pincel também deixa ver ficha longe daqui: só o que está no círculo.
     .filter(({ p }) => inCircle(p))
