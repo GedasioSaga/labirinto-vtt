@@ -2334,7 +2334,10 @@ export function filterMapForGroup(
   const unveiledShown = zones.map((zone) =>
     [...zone.unveiled].filter((key) => {
       const center = cellCenter(key)
-      return center !== null && pointInRing(center, zone.ring) && !inConcealZone(center) && !inRoomHiddenFromPlayer(center)
+      // `inClosedRoof`, e não `roofHides` (via `inRoomHiddenFromPlayer`): o
+      // preto da zona entra no escuro, que vem antes da visão de onde sai o
+      // cone de quem espia pela porta. Célula pintada sob teto fica preta.
+      return center !== null && pointInRing(center, zone.ring) && !inConcealZone(center) && !inSecretRoom(center) && !inClosedRoof(center)
     }),
   )
   const shownCells = [...new Set(unveiledShown.flat())]
@@ -2379,7 +2382,11 @@ export function filterMapForGroup(
     const lights = visibleLights(map.lights, hiddenLayers).filter((l) => {
       const at = { x: l.x, y: l.y }
       // ESTADO DO MUNDO: luz apagada não ilumina.
-      return !l.hidden && l.apagada !== true && Number.isFinite(l.radius) && l.radius > 0 && !inRoomHiddenFromPlayer(at) && !hiddenByZone(at) && !carriedByHidden(l)
+      // Teto por `inClosedRoof`, e não por `roofHides`: o cone de quem espia
+      // pela porta sai da visão, e a visão precisa DESTE escuro — usar
+      // `roofHides` aqui lia a constante antes de ela existir (TDZ). Luz sob
+      // teto fechado fica fora do escuro mesmo espiada: nada vaza.
+      return !l.hidden && l.apagada !== true && Number.isFinite(l.radius) && l.radius > 0 && !inSecretRoom(at) && !inClosedRoof(at) && !hiddenByZone(at) && !carriedByHidden(l)
     })
     return {
       sceneDark: map.dark === true,
