@@ -691,6 +691,35 @@ describe('playerConnection: pedido de passagem', () => {
       expect(socket.sent.slice(antes)).toEqual([{ type: 'pin.travel.request', pinId: 'escada' }])
     })
 
+    it('passagem barrada do outro lado: o host avisa que espera o mestre e "Passando…" vira "Aguardando o mestre…"', () => {
+      vi.useFakeTimers()
+      const { connection, socket } = comPinoLivre()
+      connection.requestTravel('escada')
+      vi.advanceTimersByTime(FREE_PASSAGE_BEAT_MS)
+      expect(connection.getState().travel).toMatchObject({ phase: 'waiting', direct: true })
+      socket.receive({ type: 'pin.travel.pending' })
+      expect(connection.getState().travel).toMatchObject({ phase: 'waiting', direct: false })
+      // Continua esperando (não some sozinho) e ainda segura um segundo pedido.
+      vi.advanceTimersByTime(TRAVEL_NOTICE_TTL_MS)
+      expect(connection.getState().travel).toMatchObject({ phase: 'waiting', direct: false })
+      expect(connection.requestTravel('escada')).toBe(false)
+      // O "Não" do mestre chega a quem já lia "Aguardando o mestre…", não a quem lia "Passando…".
+      socket.receive({ type: 'pin.travel.denied' })
+      expect(connection.getState().travel?.phase).toBe('denied')
+    })
+
+    it('aviso de espera sem pedido no ar (atrasado, depois da resposta) é ignorado', () => {
+      vi.useFakeTimers()
+      const { connection, socket } = comPinoLivre()
+      socket.receive({ type: 'pin.travel.pending' })
+      expect(connection.getState().travel).toBeUndefined()
+      connection.requestTravel('escada')
+      vi.advanceTimersByTime(FREE_PASSAGE_BEAT_MS)
+      socket.receive({ type: 'pin.travel.denied' })
+      socket.receive({ type: 'pin.travel.pending' })
+      expect(connection.getState().travel?.phase).toBe('denied')
+    })
+
     it('pino sem modo (mapa antigo) continua pedindo na hora, com "esperando o mestre"', () => {
       const { connection, socket } = jogando()
       connection.requestTravel('escada')

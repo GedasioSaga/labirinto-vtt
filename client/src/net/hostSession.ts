@@ -21,6 +21,7 @@ import {
   filterMapForGroup,
   filterMapForPlayer,
   giftableRoomsOf,
+  marcarTrancasParaJogador,
   memoryBlockedRings,
   noiseCueForPlayer,
   ownTokensInView,
@@ -42,6 +43,7 @@ import {
   type PlayerClueContent,
   type PlayerMapView,
   type SceneAlarm,
+  type TrancasDaCena,
 } from '../lib/fogFilter'
 import { faixaDoAbalo, type AbaloContagem, type AbaloFaixa, type AbaloOrigem, type AbaloTextos } from '../lib/abalo'
 import { MASTER_ROLLER_NAME, rollDice, secureRollDie, type DiceRequest, type HostDiceRoll, type RollDie } from '../lib/dice'
@@ -56,7 +58,8 @@ import { travaDaFichaDoJogador, validateTokenMove } from '../lib/moveValidation'
 import { tokensOccupy } from '../lib/movementRules'
 import { escadaDaFicha, mapaDoPiso, pisoDe } from '../lib/pisos'
 import { confrontoParaJogador, fichaDaVez } from '../lib/confronto'
-import { doorOpensFrom, tokenInDoorway, tokenReachesDoor } from '../lib/doorReach'
+import { distanceToWall, doorOpensFrom, tokenInDoorway, tokenReachesDoor } from '../lib/doorReach'
+import { fichaDoLadoAlcanca, ladoDaPorta, tokenAlcancaPino, type LadoDaPorta } from '../lib/ferrolho'
 import { keyForDoor, keyForPin } from '../lib/doorKey'
 import { DESTINATION_MIN_INTERVAL_MS, SIGNAL_MIN_INTERVAL_MS, SIGNAL_NEUTRAL_COLOR, signalColor, type DestinationMark } from '../lib/signals'
 import { acceptsLockedRequest, passageOf, pinSummary } from '../lib/pins'
@@ -101,6 +104,7 @@ import {
   type DoorRequestRejection,
   type DestinationMessage,
   type DiceRollMessage,
+  type DoorBarMessage,
   type DoorToggleMessage,
   type DoorToggleRejection,
   type DoorUseKeyMessage,
@@ -128,6 +132,7 @@ import {
   type LetterSendMessage,
   type PlayerMessage,
   type PinTravelRejection,
+  type PinBarMessage,
   type PinTravelRequestMessage,
   type PlayerLaserMessage,
   type PointActionMessage,
@@ -481,6 +486,11 @@ export interface TravelRequest {
    * frente primeiro — o mestre lê quais vão. Ausente = pedido sem escolha.
    */
   tokenNames?: string[]
+  /**
+   * A passagem está BARRADA do outro lado por este jogador (o nome na sala):
+   * o pedido é uma disputa, e "Deixar ir" quebra a barra. Ausente = sem barra.
+   */
+  barradaPor?: string
 }
 
 /**
@@ -517,6 +527,34 @@ export interface TravelCancelled {
   playerId: string
   playerName: string
   reason: PinTravelCancelReason
+}
+
+/**
+ * JOGADOR TRANCA: o aviso curto do mestre quando alguém corre ou tira o
+ * ferrolho de uma porta, ou barra ou desbarra uma passagem. Só o mestre lê.
+ */
+export interface TrancaAviso {
+  playerName: string
+  alvo: 'porta' | 'passagem'
+  acao: 'trancou' | 'destrancou'
+  /** Só da passagem: como o mestre chama o pino (a descrição dele ou, sem descrição, o resumo). */
+  rotulo?: string
+  /** Só quando a cena é de FUNDO: o nome que o mestre lê. */
+  sceneName?: string
+}
+
+/**
+ * DISPUTA NA PORTA: alguém tentou abrir, do outro lado, a porta que um
+ * jogador trancou com o ferrolho. Vai para a Caixa de Pedidos ("Arrombar" /
+ * "Aguenta"). Nada disto vai ao jogador: ele só leu "Trancada".
+ */
+export interface BarDispute {
+  requestId: string
+  playerName: string
+  /** Quem correu o ferrolho, pelo nome na sala. */
+  barrerName: string
+  /** Só quando a cena é de FUNDO: o nome que o mestre lê. */
+  sceneName?: string
 }
 
 /**
@@ -899,6 +937,13 @@ export interface HostResult {
   travelHeld?: TravelRequest
   /** CORREIO: bilhete aceito, à espera do mestre. O integrador pergunta "Entregar" ou "Interceptar". */
   letter?: LetterRequest
+  /**
+   * Um jogador trancou ou destrancou porta ou passagem: o integrador avisa o
+   * mestre e manda o recorte novo (a marca de quem está do lado da tranca).
+   */
+  trancaAviso?: TrancaAviso
+  /** Tentativa do outro lado de uma porta com ferrolho: o integrador põe na Caixa de Pedidos. */
+  barDispute?: BarDispute
   /**
    * O mestre deixou ir, ou o pino é livre (aí vem de `handleMessage`): o
    * integrador move o token entre as cenas ANTES de despachar `outbound`.
@@ -1480,6 +1525,13 @@ export interface HostSession {
    */
   broadcast(source: HostMapSource): HostResult
   /**
+   * O mapa do mestre mudou: o ferrolho de porta que ficou aberta, trancada
+   * pelo mestre ou apagada sai de vez, em toda cena. Chamado a CADA mudança,
+   * antes do broadcast (que espera o intervalo): abrir e fechar a porta dentro
+   * dele não pode devolver o ferrolho. `source` só é lido com algum ferrolho de pé.
+   */
+  podarFerrolhos(source: () => HostMapSource): void
+  /**
    * Laser do mestre para todo jogador conectado e jogando (quem aguarda não
    * tem mapa onde desenhar). Com `source`, só para quem está na cena aberta —
    * o mestre aponta no mapa que ele vê.
@@ -1575,6 +1627,8 @@ export interface HostSession {
    * "Deixar ir": revalida o pedido contra o mundo de AGORA (o token pode ter
    * andado, o pino sumido) e devolve `applyTransfer` + `scene.changed` ao
    * dono. Pedido que já não existe (jogador saiu, já decidido) não faz nada.
+   * Passagem barrada do outro lado por quem o aviso não nomeava: não passa —
+   * devolve `travelRequest` novo (a disputa), que o integrador põe na Caixa.
    */
   approveTravel(requestId: string, source: HostMapSource): HostResult
   /**
@@ -1712,6 +1766,16 @@ export interface HostSession {
   denySeatClaim(requestId: string): HostResult
   /** O pedido de ficha ainda espera o mestre? `false` depois de respondido, ou quando quem pediu caiu ou ganhou ficha. */
   isSeatClaimPending(requestId: string): boolean
+  /**
+   * DISPUTA NA PORTA: `force` = "Arrombar" (o ferrolho sai e a porta abre:
+   * `applyDoor`); `false` = "Aguenta" (nada muda). Revalida contra o mundo de
+   * AGORA: ferrolho que já saiu (quem trancou abriu) não abre nada. Disputa
+   * que já não existe também não. Quem PEDIU (Bater/Forçar/Usar chave) lê a
+   * resposta como na porta do mestre: `door.request.answer` opened/denied.
+   */
+  answerBarDispute(requestId: string, force: boolean, source: HostMapSource): HostResult
+  /** A disputa ainda espera o mestre? `false` depois de respondida, ou quando quem tentou caiu. */
+  isBarDisputePending(requestId: string): boolean
   /**
    * "Mandar para…" do painel Grupo: o MESTRE leva o jogador, sem pedido, para
    * `toSceneId` — no pino de viagem `pinId` daquela cena ou, com `null`, no
@@ -2034,6 +2098,12 @@ interface PendingTravel {
   heldApproval?: true
   /** ESCOLHER FICHAS NO PINO: as fichas que o jogador escolheu. O "Deixar ir" confere todas de novo. */
   tokenIds?: string[]
+  /**
+   * Quem barrava o par do outro lado no aviso que o mestre LEU (ausente = o
+   * aviso não falava de barra). Barra de outra pessoa na hora do "Deixar ir"
+   * é disputa que o mestre não viu: o consentimento não cobre quebrá-la.
+   */
+  barradaPorId?: string
 }
 
 /** Pedido da porta trancada à espera do mestre. Um por jogador. `mapId`: a `sceneKey` da cena da porta. */
@@ -2075,6 +2145,34 @@ interface PendingPurchase {
   itemId: string
   tokenId: string
   mapId: string
+}
+
+/** Ferrolho corrido por um jogador: de que lado da porta, e quem (o nome que o mestre lê na disputa). */
+interface Ferrolho {
+  playerId: string
+  playerName: string
+  lado: LadoDaPorta
+}
+
+/** Barra de um jogador num pino de viagem da cena dele. */
+interface Barra {
+  playerId: string
+  playerName: string
+}
+
+/** Disputa na porta à espera do mestre. Uma por jogador que tentou. */
+interface PendingBarDispute {
+  requestId: string
+  playerId: string
+  /** `MapData.id` da cena da porta: a chave das trancas, como a da memória. */
+  mapId: string
+  wallId: string
+  /**
+   * Ele PEDIU (Bater/Forçar/Usar chave), não só tocou. Na porta do mestre o
+   * toque nunca vira pedido: só quem pediu lê "Pedido enviado", "ainda espera
+   * o mestre" e a resposta — senão o texto contaria que não foi o mestre.
+   */
+  pedido: boolean
 }
 
 /** Pedido que passou em tudo: de onde, para onde, por qual pino e com qual token. */
@@ -2140,6 +2238,11 @@ interface PlayerMemory extends SceneMemory {
   planMarked: boolean
   /** Ids das marcas de jogador (bilhete no lugar) que ele já recebeu: só estas voltam pelo explorado. */
   marcas: Set<string>
+  /**
+   * Pinos que o jogador viu BARRADOS da última vez que os teve na visão. Na
+   * névoa o pino sai com esta barra, não a de agora (`marcarTrancasParaJogador`).
+   */
+  pinosBarrados: Set<string>
   /** Visão enviada no último snapshot: é o que o jogador está vendo agora na tela. */
   vision: RegionPoint[][]
   /** Fichas de OUTROS jogadores no último snapshot (`partyTokens`): os colegas que ele vê agora. */
@@ -2339,6 +2442,8 @@ function restoredMemoryOf(scene: SavedSceneMemory): Omit<PlayerMemory, 'place'> 
     doors,
     doorSeen: new Map(),
     marcas: new Set(),
+    // A barra lembrada não vai para a mesa: é estado da sessão, e a sessão nova começa sem barra.
+    pinosBarrados: new Set(),
     vision: [],
     party: [],
     covered: [],
@@ -2809,6 +2914,14 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   // sala: colega chegou, saiu da cena, prazo passou): quem já tinha recebido o
   // recorte ainda vê a marca, e o integrador manda outro.
   let waitsEndedInViews = false
+  // JOGADOR TRANCA — por cena (`MapData.id`, a chave da memória): o ferrolho
+  // de cada porta (por id da parede) e a barra de cada pino de viagem. Estado
+  // de jogo, como o pedido de passagem: vive na sessão, nunca no mapa do
+  // mestre nem no disco. Só entra chave de parede/pino que existe na cena.
+  const ferrolhos = new Map<string, Map<string, Ferrolho>>()
+  const barras = new Map<string, Map<string, Barra>>()
+  // Por playerId: a disputa na porta que espera o mestre (no máximo uma; morre com a conexão).
+  const pendingBarDisputes = new Map<string, PendingBarDispute>()
   let rev = 0
   // ZONA DE PERIGO: em que zona estava cada ficha de JOGADOR no último
   // broadcast, por cena (chave `sceneKey`). É daqui que sai "entrou agora".
@@ -2922,6 +3035,95 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   const inRoomOrder = (chosen: ReadonlySet<string>): string[] =>
     [...players.values()].sort((a, b) => a.joinedAt - b.joinedAt).flatMap((p) => (chosen.has(p.playerId) ? [p.playerId] : []))
 
+  /**
+   * O ferrolho da porta, se ainda vale: a porta existe, está fechada e o
+   * mestre não a trancou. Porta aberta (pelo mestre, pelo editor) ou trancada
+   * pelo mestre desfaz o ferrolho de vez — fechar de novo não o traz de volta.
+   */
+  const ferrolhoAtivo = (map: MapData, wall: Wall): Ferrolho | undefined => {
+    const daCena = ferrolhos.get(map.id)
+    const ferrolho = daCena?.get(wall.id)
+    if (daCena === undefined || ferrolho === undefined) return undefined
+    if (wall.door !== null && !wall.door.open && !wall.door.locked) return ferrolho
+    daCena.delete(wall.id)
+    return undefined
+  }
+
+  /**
+   * A tranca mudou por um gesto (não pelo mapa): o recorte de quem está na
+   * cena muda sem nenhuma entrada do recálculo mudar (`ViewInputs`) — a marca
+   * "do meu lado" e a barra entram no recorte de TODOS, como o "Quem vê".
+   */
+  const trancasMudaram = (): void => {
+    viewEpoch += 1
+  }
+
+  const tirarFerrolho = (mapId: string, wallId: string): void => {
+    if (ferrolhos.get(mapId)?.delete(wallId) === true) trancasMudaram()
+  }
+
+  const correrFerrolho = (mapId: string, wallId: string, ferrolho: Ferrolho): void => {
+    const daCena = ferrolhos.get(mapId) ?? new Map<string, Ferrolho>()
+    daCena.set(wallId, ferrolho)
+    ferrolhos.set(mapId, daCena)
+    trancasMudaram()
+  }
+
+  /** Põe (`barra`) ou tira (`null`) a barra do pino `pinId` da cena `mapId`. */
+  const mudarBarra = (mapId: string, pinId: string, barra: Barra | null): void => {
+    const daCena = barras.get(mapId) ?? new Map<string, Barra>()
+    barras.set(mapId, daCena)
+    if (barra !== null) daCena.set(pinId, barra)
+    else if (!daCena.delete(pinId)) return
+    trancasMudaram()
+  }
+
+  /** A barra do pino, se ainda vale: o pino existe na cena e é de viagem. */
+  const barraAtiva = (map: MapData, pinId: string): Barra | undefined => {
+    const daCena = barras.get(map.id)
+    const barra = daCena?.get(pinId)
+    if (daCena === undefined || barra === undefined) return undefined
+    if (map.pins.some((p) => p.id === pinId && p.kind === 'viagem')) return barra
+    daCena.delete(pinId)
+    return undefined
+  }
+
+  /** As trancas que valem AGORA nesta cena, só com o que o recorte precisa: lado do ferrolho e pino barrado. */
+  const trancasDe = (map: MapData): TrancasDaCena => {
+    const lados = new Map<string, LadoDaPorta>()
+    for (const wallId of [...(ferrolhos.get(map.id)?.keys() ?? [])]) {
+      const wall = map.walls.find((w) => w.id === wallId)
+      const ferrolho = wall === undefined ? undefined : ferrolhoAtivo(map, wall)
+      // Porta que sumiu: sai daqui sem subir a época — o mapa já mudou, e o recorte já refaz.
+      if (ferrolho === undefined) ferrolhos.get(map.id)?.delete(wallId)
+      else lados.set(wallId, ferrolho.lado)
+    }
+    const barrados = new Set<string>()
+    for (const pinId of [...(barras.get(map.id)?.keys() ?? [])]) {
+      if (barraAtiva(map, pinId) !== undefined) barrados.add(pinId)
+    }
+    return { ferrolhos: lados, pinosBarrados: barrados }
+  }
+
+  /**
+   * Tira o ferrolho de toda porta que o mestre abriu, trancou ou apagou, em
+   * TODA cena do mundo — com gente nela ou não. `ferrolhoAtivo` só poda quando
+   * alguém pergunta pela porta, e ninguém pergunta por uma cena vazia: sem
+   * esta varredura, a porta aberta e fechada de novo pelo mestre devolvia o
+   * ferrolho a quem voltasse.
+   */
+  const podarFerrolhosDe = (world: HostWorld): void => {
+    for (const scene of allScenes(world)) {
+      const daCena = ferrolhos.get(sceneKey(scene))
+      if (daCena === undefined) continue
+      for (const wallId of [...daCena.keys()]) {
+        const wall = scene.map.walls.find((w) => w.id === wallId)
+        if (wall === undefined) daCena.delete(wallId)
+        else ferrolhoAtivo(scene.map, wall)
+      }
+    }
+  }
+
   /** "Quem vê" do pino na ordem da sala. `null` = Todos. */
   const audienceOf = (pinId: string): string[] | null => {
     const chosen = pinAudiences.get(pinId)
@@ -3024,6 +3226,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       seen: blankExploration(dimsOf(map)),
       planMarked: false,
       marcas: new Set(),
+      pinosBarrados: new Set(),
       vision: [],
       party: [],
       covered: [],
@@ -3621,6 +3824,15 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     for (const m of view.map.marcas ?? []) memory.marcas.add(m.id)
     const sent = new Set(view.map.tokens.map((t) => t.id))
     const ownTokens = (ownership[playerId] ?? []).filter((id) => sent.has(id))
+    // JOGADOR TRANCA: a marca do ferrolho e da barra entra DEPOIS de lembrar as
+    // portas (não vira memória) e só para quem está do lado da tranca.
+    const trancas = trancasDe(map)
+    // A barra do pino à vista vira lembrança; o pino na névoa sai com a lembrada.
+    for (const pinId of view.visiblePinIds) {
+      if (trancas.pinosBarrados.has(pinId)) memory.pinosBarrados.add(pinId)
+      else memory.pinosBarrados.delete(pinId)
+    }
+    const recorte = marcarTrancasParaJogador(view, new Set(ownTokens), trancas, memory.pinosBarrados)
     // ENCONTRO MARCADO: a espera DESTE jogador se resolve antes da marca: a que acabou agora não sai marcada.
     const waitEnded = settleWait(playerId, map.id, view)
     const waiting = waitingTokensForPlayer(view, waitingTokenIds())
@@ -3641,7 +3853,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const base: Extract<HostMessage, { type: 'snapshot' }> = {
       type: 'snapshot',
       rev,
-      map: view.map,
+      map: recorte,
       vision: view.vision,
       explored,
       ownTokens,
@@ -4500,6 +4712,9 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     lastPisoChangeAt.delete(playerId)
     pendingDoors.delete(playerId)
     lastDoorRequestAt.delete(playerId)
+    // A disputa na porta morre com ele; o ferrolho e a barra que ele deixou
+    // ficam: são coisas do mundo, não da conexão.
+    pendingBarDisputes.delete(playerId)
     pendingHides.delete(playerId)
     lastHideRequestAt.delete(playerId)
     lastTokenPhotoAt.delete(playerId)
@@ -5345,12 +5560,20 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       return seen.key === null ? reject('locked') : reply(clientId, { type: 'door.toggle.rejected', wallId: msg.wallId, reason: 'locked', key: seen.key })
     }
     if (!seen.near) return reject('far')
+    // FERROLHO de um jogador: do outro lado, "Trancada" — o mesmo motivo da
+    // porta do mestre — e a tentativa vira disputa na Caixa. Do lado dele,
+    // abrir é tirar o ferrolho e abrir (só se a porta abrir de fato, abaixo).
+    const ferrolho = ferrolhoAtivo(scene.map, seen.wall)
+    if (ferrolho !== undefined && !fichaDoLadoAlcanca(seen.nearTokens, seen.wall, ferrolho.lado, scene.map.grid)) {
+      return barDisputeFor(clientId, playerId, scene, world, seen.wall.id, ferrolho)
+    }
     // PORTA DE UM LADO: para ABRIR, uma ficha dele encostada precisa estar do
     // lado que abre (`DoorState.opensFrom`; a parede é a do mestre, o lado
     // nunca sai no recorte). Fechar vale dos dois lados.
     if (!seen.door.open && !seen.nearTokens.some((t) => doorOpensFrom(seen.wall, t))) return reject('wrong_side')
     // FECHAR com uma ficha no vão é blocked: a porta desceria em cima dela.
     if (seen.door.open && seen.inDoorway) return reject('blocked')
+    if (ferrolho !== undefined) tirarFerrolho(scene.map.id, seen.wall.id)
 
     // Cena de fundo: o aviso do mestre diz também em que cena a porta mudou.
     const background = backgroundSceneId(scene, world)
@@ -5379,8 +5602,16 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const seen = doorSeenBy(playerId, scene.map, msg.wallId, world)
     if (seen === null) return reject('not_visible')
     if (!seen.near) return reject('far')
-    // Destrancada (o mestre ou um colega chegou antes): abre como o toque abriria.
-    if (!seen.door.locked) return { outbound: [], applyDoor: { wallId: seen.wall.id, open: true, ...backgroundSceneId(scene, world), playerId, playerName: record.name } }
+    // Destrancada (o mestre ou um colega chegou antes): abre como o toque abriria —
+    // inclusive o FERROLHO de um jogador, que chave nenhuma tira do outro lado.
+    if (!seen.door.locked) {
+      const ferrolho = ferrolhoAtivo(scene.map, seen.wall)
+      if (ferrolho !== undefined) {
+        if (!fichaDoLadoAlcanca(seen.nearTokens, seen.wall, ferrolho.lado, scene.map.grid)) return barDisputeFor(clientId, playerId, scene, world, seen.wall.id, ferrolho)
+        tirarFerrolho(scene.map.id, seen.wall.id)
+      }
+      return { outbound: [], applyDoor: { wallId: seen.wall.id, open: true, ...backgroundSceneId(scene, world), playerId, playerName: record.name } }
+    }
     if (seen.key === null) return reject('locked')
 
     const used: DoorKeyUse = { playerId, playerName: record.name, itemName: seen.key }
@@ -5390,6 +5621,123 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       outbound: [],
       applyDoor: { wallId: seen.wall.id, open: true, unlock: true, ...backgroundSceneId(scene, world), playerId, playerName: record.name },
       doorKeyUsed: used,
+    }
+  }
+
+  /** Só quando a cena é de fundo: o nome que o mestre lê no aviso (a aberta e o mapa solto não levam). */
+  const backgroundSceneName = (scene: HostScene, world: HostWorld): { sceneName?: string } =>
+    backgroundSceneId(scene, world).sceneId === undefined ? {} : { sceneName: scene.name }
+
+  /**
+   * Abre a DISPUTA NA PORTA de quem tentou do outro lado de um ferrolho, para
+   * a Caixa do mestre. `null` = já há uma dele esperando (insistir não vira
+   * outra linha) ou ele saiu da sala.
+   */
+  const abrirDisputa = (playerId: string, scene: HostScene, world: HostWorld, wallId: string, ferrolho: Ferrolho, pedido: boolean): BarDispute | null => {
+    const record = players.get(playerId)
+    if (record === undefined || pendingBarDisputes.has(playerId)) return null
+    const requestId = randomId()
+    pendingBarDisputes.set(playerId, { requestId, playerId, mapId: sceneKey(scene), wallId, pedido })
+    return { requestId, playerName: record.name, barrerName: ferrolho.playerName, ...backgroundSceneName(scene, world) }
+  }
+
+  /**
+   * Tentativa do outro lado de uma porta com ferrolho: o jogador lê
+   * "Trancada" — o MESMO motivo da porta trancada pelo mestre, que não diz se
+   * foi o mestre ou um colega — e o mestre recebe a disputa. Com uma disputa
+   * dele esperando, insistir só repete o "Trancada".
+   */
+  function barDisputeFor(clientId: string, playerId: string, scene: HostScene, world: HostWorld, wallId: string, ferrolho: Ferrolho): HostResult {
+    const locked = reply(clientId, { type: 'door.toggle.rejected', wallId, reason: 'locked' })
+    const disputa = abrirDisputa(playerId, scene, world, wallId, ferrolho, false)
+    return disputa === null ? locked : { ...locked, barDispute: disputa }
+  }
+
+  /**
+   * JOGADOR CORRE (OU TIRA) O FERROLHO. Mesma autoridade de abrir a porta
+   * (`doorSeenBy`: visível agora, destrancada pelo mestre, ficha dele
+   * encostada), e o lado é o da ficha dele mais perto da porta. Porta aberta
+   * fecha junto (a não ser com alguém no vão). Já trancada por outro, do outro
+   * lado: "Trancada". Tirar só vale do lado do ferrolho.
+   */
+  function handleDoorBar(clientId: string, msg: DoorBarMessage, world: HostWorld): HostResult {
+    const playerId = byClient.get(clientId)
+    if (playerId === undefined) return reply(clientId, { type: 'error', reason: 'not_joined' })
+    const record = players.get(playerId)
+    if (record === undefined || statusOf(playerId) !== 'playing') return { outbound: [] }
+    const scene = sceneFor(playerId, world)
+    // Cena pausada: nada se mexe, nem o ferrolho (mesma regra do toque na porta).
+    if (scene === null || inPausedScene(scene)) return { outbound: [] }
+    if (!withinDoorLimit(lastDoorToggleAt, playerId)) return { outbound: [] }
+
+    const reject = (reason: DoorToggleRejection): HostResult => reply(clientId, { type: 'door.toggle.rejected', wallId: msg.wallId, reason })
+
+    const seen = doorSeenBy(playerId, scene.map, msg.wallId, world)
+    if (seen === null) return reject('not_visible')
+    if (seen.door.locked) return reject('locked')
+    if (!seen.near) return reject('far')
+    const { wall } = seen
+    const grid = scene.map.grid
+    const ferrolho = ferrolhoAtivo(scene.map, wall)
+    const doMeuLado = (lado: LadoDaPorta): boolean => fichaDoLadoAlcanca(seen.nearTokens, wall, lado, grid)
+    const aviso = (acao: TrancaAviso['acao']): TrancaAviso => ({ playerName: record.name, alvo: 'porta', acao, ...backgroundSceneName(scene, world) })
+    if (!msg.on) {
+      if (ferrolho === undefined) return { outbound: [] }
+      // Do outro lado: responde "Trancada" em vez de calar — o botão que
+      // espera resposta não fica preso em "Tirando o ferrolho…".
+      if (!doMeuLado(ferrolho.lado)) return reject('locked')
+      tirarFerrolho(sceneKey(scene), wall.id)
+      return { outbound: [], trancaAviso: aviso('destrancou') }
+    }
+    if (ferrolho !== undefined) return doMeuLado(ferrolho.lado) ? { outbound: [] } : reject('locked')
+    // Fechar em cima de quem está no vão não vale, como no toque.
+    if (seen.door.open && seen.inDoorway) return reject('blocked')
+    // O lado da ficha mais perto; a que está no vão (sem lado) não decide.
+    const porPerto = [...seen.nearTokens].sort((a, b) => distanceToWall(a, wall) - distanceToWall(b, wall))
+    const lado = porPerto.map((t) => ladoDaPorta(wall, t)).find((l): l is LadoDaPorta => l !== null)
+    if (lado === undefined) return reject('far')
+    correrFerrolho(sceneKey(scene), wall.id, { playerId, playerName: record.name, lado })
+    const result: HostResult = { outbound: [], trancaAviso: aviso('trancou') }
+    if (seen.door.open) result.applyDoor = { wallId: wall.id, open: false, ...backgroundSceneId(scene, world), playerId, playerName: record.name }
+    return result
+  }
+
+  /**
+   * JOGADOR BARRA (OU DESBARRA) A PASSAGEM. O pino é de viagem, está NA CENA
+   * DELE e no recorte que ele vê agora, não está trancado pelo mestre, e uma
+   * ficha dele está encostada nele (`tokenAlcancaPino`). Qualquer falha morre
+   * em silêncio: o cartão só oferece o botão quando tudo isso vale, e um id
+   * adivinhado não descobre nada. Só com aventura: mapa solto não tem viagem.
+   */
+  function handlePinBar(clientId: string, msg: PinBarMessage, world: HostWorld): HostResult {
+    const playerId = byClient.get(clientId)
+    if (playerId === undefined) return reply(clientId, { type: 'error', reason: 'not_joined' })
+    const record = players.get(playerId)
+    if (record === undefined || statusOf(playerId) !== 'playing') return { outbound: [] }
+    const scene = sceneFor(playerId, world)
+    if (scene === null || scene.sceneId === null || inPausedScene(scene)) return { outbound: [] }
+    if (!withinDoorLimit(lastDoorToggleAt, playerId)) return { outbound: [] }
+    const map = scene.map
+    const pin = map.pins.find((p) => p.id === msg.pinId && p.kind === 'viagem')
+    if (pin === undefined || passageOf(pin) === 'trancada') return { outbound: [] }
+    const memory = memoryFor(playerId, map, world)
+    const view = filterMapForPlayer(map, playerId, ownership, tokenRadiusIn(playerId, map), memory.exp, memory.doors, pinAudiences, undefined, loansFor(playerId), memory.seenRooms)
+    if (!view.map.pins.some((p) => p.id === pin.id)) return { outbound: [] }
+    const owned = new Set(ownership[playerId] ?? [])
+    if (!view.map.tokens.some((t) => owned.has(t.id) && tokenAlcancaPino(t, pin, map.grid))) return { outbound: [] }
+    const barrada = barraAtiva(map, pin.id) !== undefined
+    if (msg.on === barrada) return { outbound: [] }
+    mudarBarra(sceneKey(scene), pin.id, msg.on ? { playerId, playerName: record.name } : null)
+    const description = pin.description.trim()
+    return {
+      outbound: [],
+      trancaAviso: {
+        playerName: record.name,
+        alvo: 'passagem',
+        acao: msg.on ? 'trancou' : 'destrancou',
+        rotulo: description === '' ? pinSummary(pin) : description,
+        ...backgroundSceneName(scene, world),
+      },
     }
   }
 
@@ -5415,7 +5763,31 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     if (pendingDoors.has(playerId)) return reject('pending')
     const seen = doorSeenBy(playerId, scene.map, msg.wallId, world)
     if (seen === null) return reject('not_visible')
-    if (!seen.door.locked) return reject('not_locked')
+    if (!seen.door.locked) {
+      // FERROLHO do outro lado: para ele a porta leu "Trancada" (o mesmo texto
+      // da do mestre), então o "Bater"/"Forçar" é a disputa na Caixa — nunca o
+      // "abre com um toque", que contaria que não foi o mestre quem trancou.
+      const ferrolho = ferrolhoAtivo(scene.map, seen.wall)
+      if (ferrolho !== undefined && !fichaDoLadoAlcanca(seen.nearTokens, seen.wall, ferrolho.lado, scene.map.grid)) {
+        // Longe: o "Chegue mais perto" da porta que o mestre trancou, palavra por palavra.
+        if (!seen.near) return reject('far')
+        // A tela dele já diz "Pedido enviado". A disputa que só o TOQUE abriu
+        // não é pedido: nesta porta ela vira o pedido (a Caixa já tem a linha);
+        // em outra porta dá lugar a esta. Só um pedido de verdade esperando
+        // responde "ainda espera o mestre", como na porta do mestre.
+        const anterior = pendingBarDisputes.get(playerId)
+        if (anterior !== undefined && !anterior.pedido) {
+          if (anterior.mapId === sceneKey(scene) && anterior.wallId === seen.wall.id) {
+            anterior.pedido = true
+            return { outbound: [] }
+          }
+          pendingBarDisputes.delete(playerId)
+        }
+        const disputa = abrirDisputa(playerId, scene, world, seen.wall.id, ferrolho, true)
+        return disputa === null ? reject('pending') : { outbound: [], barDispute: disputa }
+      }
+      return reject('not_locked')
+    }
     if (!seen.near) return reject('far')
 
     const requestId = randomId()
@@ -5981,17 +6353,25 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const check = validTravel(playerId, msg.pinId, exitId, world, true, trancada, msg.tokenIds)
     if (!check.ok) return reject(check.reason)
     const { travel } = check
+    // BARRADA do outro lado (um jogador barrou o par): nada vai direto — nem
+    // livre, nem passe, nem chave —, vira pedido ao mestre, que decide a
+    // disputa. O jogador lê a espera de sempre; quem barrou e a barra ficam só
+    // no aviso do mestre.
+    const barra = barraAtiva(travel.to.map, travel.partner.id)
     // Livre: passou em tudo que o pedido passaria (névoa, token na cena, pino
     // ligado, limites, nenhum pendente) e vai direto, sem esperar o mestre —
     // ele só lê o aviso de chegada que o integrador mostra com a transferência.
     const passagem = passageOf(travel.pin)
-    if (passagem === 'livre') return transferResult(playerId, clientId, record.name, travel, world)
+    if (passagem === 'livre' && barra === undefined) return transferResult(playerId, clientId, record.name, travel, world)
     // Passe: quem carrega o passe vai direto, como no livre; quem não, pede.
     // O passe é conferido na ficha do MAPA DO MESTRE (a mochila de verdade),
     // nunca no que o cliente diz ter. Deixar alguém ir depois não muda o
     // modo do pino: a catraca segue fechada para os outros.
     const semPasse = passagem === 'passe' && !travelTokenHasPass(travel)
-    if (passagem === 'passe' && !semPasse) return transferResult(playerId, clientId, record.name, travel, world)
+    if (passagem === 'passe' && !semPasse && barra === undefined) return transferResult(playerId, clientId, record.name, travel, world)
+    // O jogador esperava passar sem o mestre (livre, passe ou chave) e caiu em
+    // pedido só por causa da barra.
+    const iaDireto = passagem === 'livre' || (passagem === 'passe' && !semPasse) || travel.key !== undefined
     const requestId = randomId()
     // CABINE DE TRANSPORTE: `validTravel` já garantiu a cabine AQUI (e livre).
     // Quem pede embarca: é o ocupante até o mestre responder.
@@ -6007,7 +6387,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const pinLabel = saida !== undefined ? saida.rotulo : description === '' ? pinSummary(travel.pin) : description
     // CHAVE ABRE PORTA: trancado, mas a ficha encostada carrega o "Abre com".
     // Passa como no livre, e o mestre recebe o aviso de quem abriu e com quê.
-    if (travel.key !== undefined) {
+    if (travel.key !== undefined && barra === undefined) {
       const used: PinKeyUse = { playerId, playerName: record.name, itemName: travel.key, pinLabel }
       // `travel.from` é cópia (sceneId garantido): a cena de fundo se reconhece pelo id, não pela identidade.
       if (travel.from.sceneId !== world.open.sceneId) used.sceneName = travel.from.name
@@ -6031,6 +6411,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     if (travel.chosen !== undefined) {
       travelRequest.tokenNames = travel.chosen.map((t) => travel.from.map.tokens.find((own) => own.id === t.id)?.name ?? t.name)
     }
+    // Barrada do outro lado: o mestre lê quem barrou, e o "Deixar ir" dele quebra a barra.
+    if (barra !== undefined) travelRequest.barradaPor = barra.playerName
     // `fromSceneId` e `requestedAt`: a idade e a distância AGORA que a Caixa de Pedidos relê.
     // `request`: o aviso que o mestre leu, que volta a ele se o "Deixar ir" esperar o Volto já.
     const pending: PendingTravel = {
@@ -6047,8 +6429,13 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     }
     if (trancada) pending.trancada = true
     if (msg.tokenIds !== undefined) pending.tokenIds = [...msg.tokenIds]
+    if (barra !== undefined) pending.barradaPorId = barra.playerId
     pendingTravels.set(playerId, pending)
-    return { outbound: [], travelRequest: { ...travelRequest } }
+    // Caiu em pedido só por causa da barra: o jogador leu "Passando…" (ninguém
+    // decide) e agora espera o mestre. Avisa só isso — nem quem barrou, nem que
+    // há barra — para a tela trocar para "Aguardando o mestre…".
+    const outbound: Outbound[] = barra !== undefined && iaDireto ? [{ clientId, msg: { type: 'pin.travel.pending' } }] : []
+    return { outbound, travelRequest: { ...travelRequest } }
   }
 
   /** A ficha que viaja carrega o passe do pino? Lida no mapa do mestre, não no recorte. */
@@ -6219,6 +6606,10 @@ export function createHostSession(options: HostSessionOptions): HostSession {
    * do ponto de antes do atalho.
    */
   function transferResult(playerId: string, clientId: string, playerName: string, travel: ValidTravel, world: HostWorld): HostResult {
+    // Quem sai pela passagem barrada do LADO DELE tira a barra para passar; e
+    // quem chega por uma barrada do outro lado (o mestre deixou) a quebrou.
+    mudarBarra(sceneKey(travel.from), travel.pin.id, null)
+    mudarBarra(sceneKey(travel.to), travel.partner.id, null)
     // Casa livre junto do par: quem passou antes pelo mesmo pino já está no
     // mapa (o integrador aplica cada passagem antes da próxima), então o
     // "Deixar todos" e o pino livre põem cada um numa casa.
@@ -6794,6 +7185,9 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   const findPendingTokenAction = (requestId: string): PendingTokenAction | undefined =>
     [...pendingTokenActions.values()].find((pending) => pending.requestId === requestId)
 
+  const findPendingBarDispute = (requestId: string): PendingBarDispute | undefined =>
+    [...pendingBarDisputes.values()].find((pending) => pending.requestId === requestId)
+
   /**
    * Casas entre a ficha do jogador mais perto e o pino do pedido, no mapa de
    * AGORA da cena onde ele pediu. Lê o mapa do mestre (não o recorte da
@@ -6948,6 +7342,10 @@ export function createHostSession(options: HostSessionOptions): HostSession {
         return handleDoorUseKey(clientId, msg, world)
       case 'door.peek':
         return handleDoorPeek(clientId, msg, world)
+      case 'door.bar':
+        return handleDoorBar(clientId, msg, world)
+      case 'pin.bar':
+        return handlePinBar(clientId, msg, world)
       case 'token.edit':
         return handleTokenEdit(clientId, msg, world)
       case 'pin.travel.request':
@@ -7266,6 +7664,17 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       // jogador pede de novo.
       const sameDestination = travel.to.sceneId === pending.toSceneId && travel.partner.id === pending.partnerId
       if (!sameDestination) return reply(record.clientId, { type: 'pin.travel.rejected', reason: 'unavailable' })
+      // Barrada do outro lado por alguém que o aviso NÃO nomeava (a barra veio
+      // depois do pedido, ou quem barrou trocou): o "Deixar ir" não cobre
+      // quebrá-la. O pedido volta à Caixa como disputa, com id novo — o
+      // consentimento velho morre — e a idade de antes. O jogador segue
+      // esperando, sem ler barra nem nome.
+      const barra = barraAtiva(travel.to.map, travel.partner.id)
+      if (barra !== undefined && barra.playerId !== pending.barradaPorId) {
+        const request: TravelRequest = { ...pending.request, requestId: randomId(), barradaPor: barra.playerName }
+        pendingTravels.set(pending.playerId, { ...pending, requestId: request.requestId, request, barradaPorId: barra.playerId })
+        return { outbound: [], travelRequest: { ...request } }
+      }
       return transferResult(pending.playerId, record.clientId, record.name, travel, world)
     },
 
@@ -7390,6 +7799,32 @@ export function createHostSession(options: HostSessionOptions): HostSession {
 
     isDoorRequestPending(requestId) {
       return findPendingDoor(requestId) !== undefined
+    },
+
+    answerBarDispute(requestId, force, source) {
+      const pending = findPendingBarDispute(requestId)
+      if (pending === undefined) return { outbound: [] }
+      pendingBarDisputes.delete(pending.playerId)
+      const record = players.get(pending.playerId)
+      const clientId = record?.clientId ?? null // null = saiu: não há a quem avisar
+      // A resposta volta a quem PEDIU, com a mesma mensagem da porta do
+      // mestre (sem nome de ninguém). Só o toque não é pedido: lá o toque
+      // nunca recebe resposta, e aqui também não.
+      const avisar = (answer: 'opened' | 'denied'): Outbound[] =>
+        pending.pedido && clientId !== null ? [{ clientId, msg: { type: 'door.request.answer', answer } }] : []
+      if (!force) return { outbound: avisar('denied') }
+      const world = toWorld(source)
+      // A cena da PORTA, não a do jogador agora nem a aberta no editor.
+      const scene = allScenes(world).find((s) => sceneKey(s) === pending.mapId)
+      const wall = scene?.map.walls.find((w) => w.id === pending.wallId)
+      // Quem trancou já abriu, o mestre abriu ou trancou, a porta sumiu, quem forçava saiu: não há o que arrombar.
+      if (scene === undefined || wall === undefined || record === undefined || ferrolhoAtivo(scene.map, wall) === undefined) return { outbound: [] }
+      tirarFerrolho(sceneKey(scene), wall.id)
+      return { outbound: avisar('opened'), applyDoor: { wallId: wall.id, open: true, ...backgroundSceneId(scene, world), playerId: pending.playerId, playerName: record.name } }
+    },
+
+    isBarDisputePending(requestId) {
+      return findPendingBarDispute(requestId) !== undefined
     },
 
     travelRequestStatus(requestId, source) {
@@ -7781,6 +8216,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       if (!awayPlayers.has(playerId)) pendingTravels.delete(playerId)
       // Idem o pedido de ação: a tela de quem volta não tem mais o "Aguardando".
       pendingTokenActions.delete(playerId)
+      // E a disputa na porta: quem forçava já não está lá para a porta abrir na frente dele.
+      pendingBarDisputes.delete(playerId)
       // O gesto morre com a conexão; quem o via apaga a ponta sozinho (REMOTE_LASER_IDLE_MS).
       laserRecipients.delete(playerId)
       // Mesmo para a porta: "Destrancar e abrir" depois da queda não abre nada.
@@ -8174,10 +8611,17 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       if (scene.sceneId !== null) dropPlanGrants(playerId, scene.sceneId)
     },
 
+    podarFerrolhos(source) {
+      if (![...ferrolhos.values()].some((daCena) => daCena.size > 0)) return
+      podarFerrolhosDe(toWorld(source()))
+    },
+
     broadcast(source) {
       const world = toWorld(source)
       rev += 1
       waitsEndedInViews = false
+      // Antes dos recortes, e em toda cena: quem está longe da porta também não pode herdar ferrolho morto.
+      podarFerrolhosDe(world)
       // Confronto encerrado: o gasto daquela cena não pode passar para o próximo.
       for (const scene of allScenes(world)) {
         if (scene.map.confronto === undefined) gastoDaVez.delete(scene.map.id)

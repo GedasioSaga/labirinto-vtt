@@ -184,6 +184,15 @@ export interface DoorState {
    * 'left'/'right' voltam (`lib/mapFile.ts`).
    */
   opensFrom?: DoorSide
+  /**
+   * FERROLHO DO JOGADOR — só existe no RECORTE, nunca no mapa do mestre nem no
+   * disco: um jogador correu o ferrolho desta porta, e quem recebe está do
+   * MESMO lado (o ferrolho mora na sessão do host, `net/hostSession.ts`). É o
+   * que faz a tela dele oferecer "Tirar o ferrolho". Do outro lado a porta
+   * chega como sempre, sem este campo (`lib/fogFilter.ts`). `undefined` ===
+   * sem ferrolho deste lado; nunca vem do disco, então sem linha de migração.
+   */
+  ferrolhoDoMeuLado?: true
 }
 
 /**
@@ -630,6 +639,15 @@ export interface Pin extends PlayerSecret, NoPiso {
    * de `passagem`, NUNCA sai no recorte do jogador.
    */
   passe?: PinPass
+  /**
+   * BARRA DO JOGADOR — só existe no RECORTE, nunca no mapa do mestre nem no
+   * disco: um jogador desta cena barrou a passagem deste lado (a barra mora na
+   * sessão do host, `net/hostSession.ts`). Chega a quem joga nesta cena e vê o
+   * pino, para o cartão dizer "barrada" e oferecer "Tirar a barra"; quem está
+   * na cena do outro lado não recebe nada (`lib/fogFilter.ts`). `undefined` ===
+   * sem barra; nunca vem do disco, então sem linha de migração.
+   */
+  barradaDaqui?: true
   /**
    * Só do pino de viagem com VÁRIAS saídas: como o mestre chama a saída
    * principal (a de `destino`) — "Porta da cripta". Ausente = sem nome; o

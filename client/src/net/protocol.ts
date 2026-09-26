@@ -319,6 +319,15 @@ export type { OwnTokenElsewhere }
  * resposta levam nome ou id de cena. Mestre antigo responde `error
  * invalid_message`; jogador antigo ignora a resposta e o campo novo.
  *
+ * TRANCAR PORTA OU PASSAGEM é aditivo pelo mesmo critério: `door.bar` e
+ * `pin.bar` (jogador -> mestre). Na volta, a recusa da porta é o
+ * `door.toggle.rejected` de sempre, e o resultado chega no recorte
+ * (`DoorState.ferrolhoDoMeuLado`, `Pin.barradaDaqui`), só a quem está do lado
+ * de quem trancou. A única mensagem nova de volta é `pin.travel.pending`: a
+ * passagem livre barrada do outro lado virou pedido ao mestre, e quem tentou
+ * passar lê "Aguardando o mestre…" (sem nome nem motivo). Jogador antigo a
+ * ignora. Mestre antigo responde `error invalid_message`.
+ *
  * `pin.show` (mestre -> jogador) é o "MOSTRAR AGORA A…", aditivo pelo mesmo
  * critério: jogador antigo ignora. Leva só o cartão (`PinCard`), nunca a
  * posição do pino nem o destino, e só para o jogador escolhido.
@@ -856,6 +865,33 @@ export interface TokenHideRequestMessage {
   tokenId: string
 }
 
+/**
+ * JOGADOR TRANCA PORTA: `on: true` corre o ferrolho da porta `wallId` do lado
+ * da ficha dele (o host fecha a porta se estiver aberta); `on: false` tira.
+ * O host valida como no `door.toggle`, e a recusa volta no mesmo
+ * `door.toggle.rejected` — o jogador lê "Trancada" ou "Longe demais".
+ *
+ * Aditiva pelo mesmo critério de `door.toggle`: mestre antigo responde
+ * `error invalid_message` (o jogador só não tranca nada).
+ */
+export interface DoorBarMessage {
+  type: 'door.bar'
+  wallId: string
+  on: boolean
+}
+
+/**
+ * JOGADOR BARRA A PASSAGEM: `on: true` barra o pino de viagem `pinId` da cena
+ * dele (a ficha encostada nele); `on: false` tira a barra. Quem vier do outro
+ * lado vira pedido ao mestre. Recusa é silenciosa: o cartão só oferece o botão
+ * com a ficha encostada, e a barra aparece (ou não) no próximo recorte.
+ */
+export interface PinBarMessage {
+  type: 'pin.bar'
+  pinId: string
+  on: boolean
+}
+
 export type PlayerMessage =
   | MarkPlaceMessage
   | PinAnswerMessage
@@ -869,6 +905,8 @@ export type PlayerMessage =
   | DoorToggleMessage
   | DoorRequestMessage
   | DoorUseKeyMessage
+  | DoorBarMessage
+  | PinBarMessage
   | TokenEditMessage
   | PinTravelRequestMessage
   | PinTakeMessage
@@ -1479,6 +1517,10 @@ export type HostMessage =
   | { type: 'pin.travel.cancelled'; reason: PinTravelCancelReason }
   | PinAnswerResultMessage
   | MarkPlaceResultMessage
+  // A passagem livre caiu em pedido ao mestre (barrada do outro lado): o
+  // jogador troca "Passando…" por "Aguardando o mestre…". Não diz por quê nem
+  // quem barrou. Aditivo: jogador antigo ignora e continua lendo "Passando…".
+  | { type: 'pin.travel.pending' }
   // `by: 'master'`: o mestre levou o jogador sem pedido ("Mandar para…" do
   // painel Grupo). Aditivo: jogador antigo ignora o campo e lê "Você chegou".
   // `by: 'gather'`: também sem pedido, mas pelo "Reunir o grupo aqui" de um
@@ -2557,6 +2599,10 @@ export function parsePlayerMessage(raw: unknown): PlayerMessage | null {
       return isBoundedString(value.wallId, 1, REQ_ID_MAX_LENGTH) ? { type: 'door.useKey', wallId: value.wallId } : null
     case 'door.peek':
       return isBoundedString(value.wallId, 1, REQ_ID_MAX_LENGTH) ? { type: 'door.peek', wallId: value.wallId } : null
+    case 'door.bar':
+      return isBoundedString(value.wallId, 1, REQ_ID_MAX_LENGTH) && typeof value.on === 'boolean' ? { type: 'door.bar', wallId: value.wallId, on: value.on } : null
+    case 'pin.bar':
+      return isBoundedString(value.pinId, 1, REQ_ID_MAX_LENGTH) && typeof value.on === 'boolean' ? { type: 'pin.bar', pinId: value.pinId, on: value.on } : null
     case 'token.edit':
       return parseTokenEdit(value)
     case 'pin.travel.request':
