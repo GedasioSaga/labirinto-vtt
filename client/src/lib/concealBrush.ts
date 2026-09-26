@@ -21,8 +21,10 @@ import { pisoDe } from './pisos'
  * `unveiledCellsOf` e devolve o preto que sobra com `concealedPieces`.
  */
 
-/** Lado da célula do pincel, em px de mundo. Faz parte do formato do arquivo: mudar invalida o que já foi pintado. */
-export const REVEAL_BRUSH_CELL = 10
+import { REVEAL_BRUSH_CELL } from './revealBrushCell'
+
+/** Lado da célula do pincel, em px de mundo (mora em `revealBrushCell.ts`, módulo folha, por causa do ciclo de imports). */
+export { REVEAL_BRUSH_CELL }
 
 /** O que o arrasto faz: revelar o pedaço pintado ou esconder de volta. */
 export type RevealBrushMode = 'revelar' | 'esconder'
