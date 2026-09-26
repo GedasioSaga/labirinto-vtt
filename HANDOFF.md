@@ -633,3 +633,66 @@ nesta noite em `4e0988d`.)
 - G13: o `party.update` a mais nos caminhos de expulsar e "Mandar para…".
 - As 53 sugestões do passeio que pedem decisão de produto (hierarquia de cenas, tipos novos de porta e de
   ícone, catálogo de objetos de quarto, notas do mestre no pino).
+
+## Retomar a fábrica (26/09/2026, 13h45 — pausada no limite do bloco de 5 h)
+
+- Run `wf_dbce3495-806` (script `fabrica-v5.js` no scratchpad da sessão 1a317118), parado com 18 min restantes no bloco.
+  Na mesma sessão: `Workflow({scriptPath, resumeFromRunId: "wf_dbce3495-806", args})` com os mesmos args (a fila
+  com as 6 features está no último launch da sessão 76afb150). Sessão nova: relançar com os mesmos args e
+  `base_branch` nas branches abaixo.
+- Estado: `auto/int-fase2` parado em `a638ccd` (10:58), sem nada novo integrado; `auto/f2-modo-por-saida-wt`
+  (13:03) e `auto/f2-passar-rente-a-quina` (13:27) em andamento, não integradas.
+- 0.4.3 = modo-por-saida + passar-rente-a-quina + congelar-ficha (`publicar_a_cada: 6`); 0.4.4 = inventario-estilo-re,
+  zona-oculta-sem-buraco-3, parede-parcial.
+- Ritmo: 1 feature + 1 lane UX, `vagas_agentes: 2`, só Opus; vigiar `npx ccusage@latest blocks --active`.
+
+## Gauntlet leve no lugar da fábrica (26/09/2026, noite)
+
+Pedido: "continue fazendo as features e a parte de ux/ui, mas agora use o gauntlet-lite". O main thread conduz com
+`Agent` (sem Workflow), no máximo 2 agentes ao mesmo tempo. Ledger das rodadas:
+`C:/Users/gedasio.filho/AppData/Local/Temp/claude/C--dev-labirinto/c22bdc26-e26e-43fd-bcda-2b0d000c3791/scratchpad/gauntlet-ledger.jsonl`.
+
+### Estado atual
+
+- `modo-por-saida` (bar: nenhuma, modo refutação), worktree `.claude/worktrees/wf_dbce3495-806-1`, branch
+  `auto/f2-modo-por-saida-wt` em `d50b539`. Cinco gaps do revisor fechados, um por rodada: `60a3e42`, `9304483`,
+  `ec0bb36`, `90021fe` e `d50b539`. Confirmação fresca: DE PÉ (VENCE), integração em `auto/int-fase2` disparada 21h45. Baixo novo: promoção reativa abreCom/motivo guardados (`pinTravel.ts:303`).
+  Pendências conhecidas e aceitas:
+  - a combinação não abre uma extra com 'trancada' próprio (`pinLock.ts:145`);
+  - num pino livre, uma extra trancada não usa a chave nem o motivo;
+  - num par em 'passe', o modo não é gravado na extra.
+- UX `ficha-em-ordem-de-tarefa` (bar: painel Design do Figma UI3), worktree `.claude/worktrees/wf_dbce3495-806-4`,
+  branch `auto/ux-ficha-em-ordem-de-tarefa-v6` em `739d084`. Crítico cego A/B e swap: os dois escolheram o depois (VENCE). Integrar depois do merge de modo-por-saida. Gap que resta contra o Figma: cabeçalho TOKEN duplicado, raros (NPC/jogador, vigia, patrulha, levar junto, veículo) soltos sem grupo, Avançado com 2 itens só — candidata a próxima rodada de UX. Imagens em
+  `scratchpad/cego-ficha/`.
+- `modo-por-saida` integrado em `auto/int-fase2` = `bd8fa7a` (tsc exit 0; vitest 39 arquivos/270 testes). UX ficha integrada = `df4c54a` (tsc 0; vitest 53 arquivos/406 testes). `passar-rente-a-quina-2`: DE PÉ (181 testes); integrado = `5e5b7fc` (tsc 0; vitest 35 arquivos/418 testes). Pendentes: baixo `collision.ts:155` (pilar <11 px sem ímã não barra diagonal — regressão), médio pré-existente `collision.ts:184` (traço pelo vão da emenda à mão entra na sala). Próximo: `congelar-ficha`; rodada 2 de UX (`auto/ux-ficha-grupos`, worktree `C:/dev/labirinto-ux-ficha-grupos`) disparada 22h.
+- `passar-rente-a-quina`: branch `auto/f2-passar-rente-a-quina-2` em `a89841e`, sem revisão nesta sessão.
+
+### Próximos passos
+
+1. Se a confirmação sair "DE PÉ", integrar `modo-por-saida` em `auto/int-fase2` (worktree `C:/dev/labirinto-int-fase2`).
+2. Se o swap do crítico confirmar "depois vence", integrar `ux-ficha-em-ordem-de-tarefa-v6`.
+3. Revisor de refutação em `passar-rente-a-quina-2`, um gap por rodada, e depois integrar.
+4. Construir `congelar-ficha` (PEDIDOS.md, 26/09 12h35).
+5. Publicar a 0.4.3: suíte inteira uma vez, fumaça do build, instalador.
+6. Próximas peças de UX, pela ordem do laudo: `mapa-inteiro-enxuto`, `moldura-do-painel-enxuta`. A `barra-de-acoes-no-alto`
+   espera o sim do usuário.
+
+### Critério de pronto
+
+- Feature: revisor fresco devolve "DE PÉ", sem achado médio novo.
+- UX: 2 críticos cegos com a ordem invertida escolhem o "depois".
+- Nos dois casos: vitest da área verde e `rtk proxy npx tsc --noEmit` com exit 0 no commit integrado.
+
+### Evidência
+
+- `modo-por-saida` `d50b539`: vitest, 22 arquivos e 136 testes verdes; tsc exit 0 (relatório do builder).
+- `ux-ficha` `739d084`: vitest, 18 arquivos e 117 testes verdes; tsc exit 0. Sonda no app 1280x800:
+  - conteúdo da ficha de 2948 para 2186 px;
+  - rodas: Cor de 12 para 3, Imagem de 13 para 4, Travado de 5 para 2;
+  - soma da lista fechada de 78 para 53;
+  - INP do "+" de Condições: 48 ms; tarefa longa: 0 ms.
+- Não verificado: Playwright, suíte inteira, exe desktop.
+- UX rodada 2 `ux-ficha-grupos` `35457c0`: críticos cegos A/B e swap escolheram o depois (VENCE); integrado em `auto/int-fase2` = `f8af68a` (tsc 0; vitest 78/78 da área). Gap restante contra o Figma: a ficha do token carrega seções do documento inteiro abaixo de y≈1260 (Seleção, Cenas, Pinos...) — próxima peça de UX (`mapa-inteiro-enxuto`).
+- `congelar-ficha`: worktree `C:/dev/labirinto-congelar-ficha`, branch `auto/f2-congelar-ficha` de `f8af68a`, programador-frontend disparado 23h10 (bloco com 38 min restantes; commits incrementais).
+- `congelar-ficha`: rodada 1 segurança DE PÉ / correção DERRUBADA parcial (passagem por pino); rodada 2 `e7d4716` (congelar solta pedido pendente; "Deixar todos" deixa a congelada) confirmação fresca DE PÉ. Integrado em `auto/int-fase2` = `c0d19e4` (tsc 0; vitest congel+hostSession 165 arquivos/1435 testes; 1 falha intermitente na 1ª rodada, verde nas 2 seguintes). Baixos aceitos: Congelar todos só cenas carregadas; marca do Grupo só ficha principal; travada+congelada com 2 mensagens; motivo 'congelado' revela congelada alheia a bordo; "(N)" velho até o clique; dropFrozenTravels roda validTravel por broadcast enquanto houver congelada (hostSession.ts:5192).
+- Próximo: publicar 0.4.3 (suíte inteira 1x, fumaça do build, instalador, push) a partir de `c0d19e4`.
