@@ -8,6 +8,7 @@ import { FACCAO_MAX_LENGTH } from '../lib/faccoes'
 import { VISION_RADIUS_MAX, VISION_RADIUS_MIN, VISION_RADIUS_STEP } from '../net/hostSession'
 import { Toggle } from './Toggle'
 import { HazardControls, type HazardControlsProps } from './HazardControls'
+import { ConveyorControls, type ConveyorControlsProps } from './ConveyorControls'
 
 /** Passo dos botões do painel: deitar ou pôr em pé, o giro que mais se faz num mapa de masmorra. */
 const QUARTO_DE_VOLTA = 90
@@ -93,6 +94,8 @@ export interface RoomControlsProps {
   hazard?: HazardControlsProps
   /** MOBÍLIA DESENHADA: põe um móvel do tipo no centro da sala (`lib/mobilia.ts`). Ausente omite a seção. */
   onAddMobilia?: (tipo: TipoMobilia) => void
+  /** ESTEIRA da sala (direção, passo e o Avançar). Ausente omite o bloco. */
+  conveyor?: ConveyorControlsProps
 }
 
 interface RoomRotationFieldProps {
@@ -374,6 +377,7 @@ export function RoomControls({
   onCreateRoomInside,
   hazard,
   onAddMobilia,
+  conveyor,
 }: RoomControlsProps) {
   const baseId = useId()
   const roofHintId = `${baseId}-roof-hint`
@@ -510,6 +514,8 @@ export function RoomControls({
       )}
 
       {onRaioDeVisaoChange !== undefined && <RoomVisionRadiusField raioDeVisao={raioDeVisao ?? null} onRaioDeVisaoChange={onRaioDeVisaoChange} />}
+
+      {conveyor !== undefined && <ConveyorControls {...conveyor} />}
 
       {shape === 'rect' && axisAligned && (
         <>

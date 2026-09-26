@@ -32,7 +32,9 @@ const PRIMEIRA_FATIA: ReadonlySet<ShapesLayer> = new Set<ShapesLayer>(['floor', 
  * tarefa longa de novo.
  */
 const FATIAS_SEGUINTES: readonly (readonly ShapesLayer[])[] = [
-  ['floorSelection', 'perigos', 'drawings', 'hazards', 'areaTriggers', 'faccoes'],
+  // ESTEIRA e CABINE (`conveyors`) vão com as outras marcas de chão: fora da lista,
+  // a camada ficava escondida para sempre depois de trocar para um andar denso.
+  ['floorSelection', 'perigos', 'drawings', 'hazards', 'areaTriggers', 'faccoes', 'conveyors'],
   ['roomNames'],
   ['lights', 'watchCones', 'patrolRoutes'],
   ['concealZones', 'pins', 'textLabels', 'handles', 'areaOutline'],

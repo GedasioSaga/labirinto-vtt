@@ -785,6 +785,17 @@ export interface Pin extends PlayerSecret, NoPiso {
    * loja, sem migração.
    */
   loja?: LojaItem[]
+  /**
+   * CABINE CONTÍNUA (paternoster). No pino "!"/"?": o id do PRÓXIMO pino desta
+   * cena; no pino de viagem: o id do PAR em outra cena. A cada "Avançar
+   * esteiras" (e a cada "Próximo apito"), a ficha parada na casa deste pino é
+   * levada até lá (`lib/cabins.ts`). Ausente = pino sem cabine, sem migração;
+   * o disco só aceita texto não vazio (`readCabin`). NUNCA sai no recorte do
+   * jogador (`lib/fogFilter.ts` copia o pino por lista do que vai): diria onde
+   * fica a próxima parada antes de ele chegar lá. Não confundir com `cabine`,
+   * a CABINE DE TRANSPORTE chamada pelo jogador, que mora na aventura.
+   */
+  cabineContinua?: string
 }
 
 /**
@@ -878,6 +889,26 @@ export interface AreaTrigger {
   regionId: string
   /** `true` = o mestre mostrou aos jogadores. Nasce `false`. */
   revealed: boolean
+}
+
+/** Para onde a esteira empurra. Norte é para cima na tela (y menor). */
+export type ConveyorDirection = 'norte' | 'sul' | 'leste' | 'oeste'
+
+/**
+ * MOVIMENTO IMPOSTO — esteira (ou corrente) numa SALA (`Region` com `room`):
+ * a cada "Avançar esteiras" do mestre, a ficha que está na sala anda
+ * `stepCells` casas na `direction`, parando na parede (`lib/conveyors.ts` →
+ * `advanceConveyors`). Uma sala tem no máximo uma esteira.
+ *
+ * O jogador NUNCA recebe este objeto (`lib/fogFilter.ts` tira o campo do
+ * recorte): ele vê só a própria ficha onde a esteira a largou.
+ */
+export interface Conveyor {
+  id: string
+  roomId: string
+  direction: ConveyorDirection
+  /** Casas por Avançar, inteiro de 1 a `MAX_CONVEYOR_STEP`. */
+  stepCells: number
 }
 
 export interface Region extends PlayerSecret, NoPiso {
@@ -1669,6 +1700,13 @@ export interface MapData {
    * voltar a calmo tira o campo. NUNCA sai no recorte do jogador.
    */
   alerta?: NivelAlerta
+  /**
+   * ESTEIRAS (movimento imposto). `undefined` === nenhuma — mesmo padrão de
+   * `hazards`: mapa de antes abre igual, a última removida tira o campo.
+   * Leitura segura em `lib/conveyors.ts` → `readConveyors`. NUNCA sai no
+   * recorte do jogador.
+   */
+  conveyors?: Conveyor[]
 }
 
 export type TipoDePerigo = 'fogo' | 'agua'

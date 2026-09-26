@@ -1714,8 +1714,19 @@ export interface HostSession {
    * escolhida livre por `lib/gatherParty.ts`), `pinId` é ignorado e o aviso
    * sai como `by: 'gather'`. O séquito vem nas casas de `gatherAt.entourage`,
    * mas só a ficha que é séquito de verdade (dele, no tabuleiro, a até 2 casas).
+   *
+   * `tokenId` é a CABINE CONTÍNUA ao par (`lib/cabins.ts`): leva ESTA ficha
+   * dele, na cena onde ela está, e não a primeira da cena dele. Ficha que não
+   * é dele: nada.
    */
-  sendPlayer(playerId: string, toSceneId: string, pinId: string | null, source: HostMapSource, gatherAt?: GatherArrival): HostResult
+  sendPlayer(
+    playerId: string,
+    toSceneId: string,
+    pinId: string | null,
+    source: HostMapSource,
+    gatherAt?: GatherArrival,
+    tokenId?: string,
+  ): HostResult
   /**
    * "Desfazer" do diário de viagens: devolve a ficha `tokenId` do jogador à
    * cena `back.sceneId`, na casa (`back.x`, `back.y`) de onde ela saiu. Mesmo
@@ -1848,6 +1859,14 @@ export interface HostSession {
   forgetView(clientId: string): void
   /** Com `source` de uma aventura, cada jogador que joga vem com o nome da cena onde está. */
   listPlayers(source?: HostMapSource): PlayerInfo[]
+  /**
+   * MOVIMENTO IMPOSTO: o raio de visão que o host APLICA agora, neste `map`, a
+   * cada ficha com dono na sala — o mesmo de `occupantsSeenBy` (`tokenRadiusIn`:
+   * "Visão nesta cena", fator do jogador, hora do relógio e a emprestada com o
+   * raio do dono). Não é `PlayerInfo.visionRadius`, que é só o de base. Ficha
+   * de dois donos fica com o MENOR; ficha sem dono fica de fora.
+   */
+  tokenVisionRadii(map: MapData): Map<string, number>
   /**
    * COMPANHEIROS: `party.update` para cada jogador conectado cuja lista MUDOU
    * desde o último envio àquela conexão. A lista é dele: os outros jogadores,
@@ -7416,18 +7435,24 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       return pendingLetters.has(letterId)
     },
 
-    sendPlayer(playerId, toSceneId, pinId, source, gatherAt) {
+    sendPlayer(playerId, toSceneId, pinId, source, gatherAt, tokenId) {
       const record = players.get(playerId)
       if (record === undefined || statusOf(playerId) !== 'playing') return { outbound: [] }
+      const owned = ownership[playerId] ?? []
+      // A ficha exata (a cabine leva quem está nela): só se for dele.
+      if (tokenId !== undefined && !owned.includes(tokenId)) return { outbound: [] }
       const world = toWorld(source)
-      const from = sceneFor(playerId, world)
+      const from =
+        tokenId === undefined ? sceneFor(playerId, world) : (allScenes(world).find((scene) => scene.map.tokens.some((t) => t.id === tokenId)) ?? null)
       if (from === null || from.sceneId === null || from.sceneId === toSceneId) return { outbound: [] }
       const to = allScenes(world).find((scene) => scene.sceneId === toSceneId)
       if (to === undefined || to.sceneId === null) return { outbound: [] }
-      // A primeira ficha dele NESTA cena, na ordem em que o mestre as deu:
-      // quem tem duas fichas espalhadas não arrasta a outra cena junto.
-      const owned = ownership[playerId] ?? []
-      const here = owned.map((id) => from.map.tokens.find((t) => t.id === id)).filter((t): t is Token => t !== undefined)
+      // Sem `tokenId`, a primeira ficha dele NESTA cena, na ordem em que o
+      // mestre as deu: quem tem duas fichas espalhadas não arrasta a outra cena junto.
+      // Com `tokenId` (cabine ao par), só ela.
+      const here = (tokenId === undefined ? owned : [tokenId])
+        .map((id) => from.map.tokens.find((t) => t.id === id))
+        .filter((t): t is Token => t !== undefined)
       // AJUDANTE CONTRATADO: vai o personagem, não o ajudante emprestado (a mesma
       // regra do pino em `validTravel`) — o ajudante emprestado antes do personagem
       // fica primeiro na lista de posse. Só com o ajudante na mão é ele que vai.
@@ -8385,6 +8410,19 @@ export function createHostSession(options: HostSessionOptions): HostSession {
         outbound.push({ clientId, msg })
       }
       return { outbound, porFaixa }
+    },
+
+    tokenVisionRadii(map) {
+      const radii = new Map<string, number>()
+      for (const playerId of players.keys()) {
+        const radiusOf = tokenRadiusIn(playerId, map)
+        for (const tokenId of ownership[playerId] ?? []) {
+          const radius = radiusOf(tokenId)
+          const current = radii.get(tokenId)
+          radii.set(tokenId, current === undefined ? radius : Math.min(current, radius))
+        }
+      }
+      return radii
     },
 
     listPlayers(source) {
