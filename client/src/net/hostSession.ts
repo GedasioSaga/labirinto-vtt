@@ -17,6 +17,7 @@ import {
   comCabineParaJogador,
   diceRollForPlayer,
   emptyPlanMemory,
+  espiadaPeloPino,
   filterFloorMemory,
   filterMapForGroup,
   filterMapForPlayer,
@@ -47,6 +48,7 @@ import {
 } from '../lib/fogFilter'
 import { faixaDoAbalo, type AbaloContagem, type AbaloFaixa, type AbaloOrigem, type AbaloTextos } from '../lib/abalo'
 import { MASTER_ROLLER_NAME, rollDice, secureRollDie, type DiceRequest, type HostDiceRoll, type RollDie } from '../lib/dice'
+import { ESPIAR_DURACAO_MS, ESPIAR_INTERVALO_MIN_MS, espiadaCabe, isDaVista } from '../lib/espiar'
 import { MS_POR_MINUTO, type FimDaEspera, type MinhaEspera } from '../lib/encontroMarcado'
 import { CLUEBOOK_MAX_CLUES } from '../lib/clues'
 import { visionRadiusAtHour } from '../lib/campaignClock'
@@ -131,6 +133,8 @@ import {
   type PinTravelCancelReason,
   type LetterSendMessage,
   type PlayerMessage,
+  type PinPeekRejection,
+  type PinPeekRequestMessage,
   type PinTravelRejection,
   type PinBarMessage,
   type PinTravelRequestMessage,
@@ -607,6 +611,19 @@ export interface TokenActionRequest {
 }
 
 /**
+ * ESPIAR PELA PASSAGEM, como o MESTRE lê: quem olhou, por qual pino e para
+ * qual cena. Nada disto vai ao jogador — ele recebeu só o recorte.
+ */
+export interface PeekNotice {
+  playerId: string
+  playerName: string
+  /** Como o mestre chama o pino: a descrição dele ou, sem descrição, o resumo. */
+  pinLabel: string
+  toSceneId: string
+  toSceneName: string
+}
+
+/**
  * O mestre deixou ir: tirar `tokenId` da cena `fromSceneId` e pô-lo em
  * (`x`, `y`) da cena `toSceneId`, no pino par. Quem aplica é o integrador
  * (`adventureStore.transferToken`), fora do desfazer das duas cenas.
@@ -959,6 +976,8 @@ export interface HostResult {
   travelHeld?: TravelRequest
   /** CORREIO: bilhete aceito, à espera do mestre. O integrador pergunta "Entregar" ou "Interceptar". */
   letter?: LetterRequest
+  /** ESPIAR: o jogador olhou pela passagem. O integrador avisa o mestre, que decide se alguém do outro lado percebe. */
+  pinPeek?: PeekNotice
   /**
    * Um jogador trancou ou destrancou porta ou passagem: o integrador avisa o
    * mestre e manda o recorte novo (a marca de quem está do lado da tranca).
@@ -2704,6 +2723,9 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   // também o ponto e se os colegas já receberam, para o "Sinalizar" do menu
   // estender aos colegas o sinal que o toque longo mandou só ao mestre.
   const lastSignal = new Map<string, { at: number; x: number; y: number; relayed: boolean }>()
+  // ESPIAR — por playerId: a última espiada (ou tentativa). Sobrevive ao
+  // disconnect, como o limite do pedido de passagem; só o kick apaga.
+  const lastPeekAt = new Map<string, number>()
   // Por playerId: mesmo limite para o pedido de abrir/fechar porta.
   const lastDoorToggleAt = new Map<string, number>()
   // Por playerId: a última rolagem de dado (DICE_ROLL_MIN_INTERVAL_MS). Reconectar não zera.
@@ -6910,6 +6932,98 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   }
 
   /**
+   * ESPIAR PELA PASSAGEM. Autoridade é aqui, no molde do pedido de passagem
+   * (`validTravel`): o pino existe na cena do jogador e está no RECORTE dele
+   * agora (névoa, "quem vê", secreto), é de viagem, dá vista, não é chegada
+   * oculta e a saída principal está ligada; e uma ficha dele, do recorte, está
+   * ENCOSTADA no pino (`tokenReachesPin`, a regra de sempre). Trancada
+   * deixa espiar: é olhar pela grade, não passar.
+   *
+   * O recorte do outro lado sai de `espiadaPeloPino` (a mesma névoa de
+   * sempre, com o olho no pino par) e vai SÓ a quem pediu. Nenhuma memória é
+   * lida nem escrita para a cena de lá: chegar depois é chegar pela primeira vez.
+   * Qualquer falha responde o mesmo `unavailable`.
+   */
+  function handlePeek(clientId: string, msg: PinPeekRequestMessage, world: HostWorld): HostResult {
+    const playerId = byClient.get(clientId)
+    if (playerId === undefined) return reply(clientId, { type: 'error', reason: 'not_joined' })
+    const record = players.get(playerId)
+    const reject = (reason: PinPeekRejection): HostResult => reply(clientId, { type: 'pin.peek.rejected', pinId: msg.pinId, reason })
+    // Quem está no Volto, ou numa cena pausada, não espia: o mesmo filtro do
+    // pedido de passagem, antes do limite (despausar não esbarra num "cedo demais").
+    if (record === undefined || statusOf(playerId) !== 'playing' || awayPlayers.has(playerId)) return reject('unavailable')
+    if (inPausedScene(sceneFor(playerId, world))) return reject('unavailable')
+    // Limite ANTES de validar, como o da passagem: o recorte da névoa é a
+    // parte cara, e o mapa fica do tamanho do número de jogadores.
+    const at = now()
+    const last = lastPeekAt.get(playerId)
+    if (last !== undefined && at - last < ESPIAR_INTERVALO_MIN_MS) return reject('too_soon')
+    lastPeekAt.set(playerId, at)
+
+    const from = sceneFor(playerId, world)
+    if (from === null || from.sceneId === null) return reject('unavailable')
+    const pin = from.map.pins.find((p) => p.id === msg.pinId)
+    if (pin === undefined || pin.kind !== 'viagem' || !isDaVista(pin.daVista) || isArrivalOnly(pin)) return reject('unavailable')
+    // Memória só LIDA, e só se já existe: espiar não cria nem reordena lembrança nenhuma.
+    // O resto é o recorte de `validTravel`: raio por ficha, empréstimos, salas e segredos.
+    const memory = existingMemory(playerId, from.map)
+    const view = filterMapForPlayer(
+      from.map,
+      playerId,
+      ownership,
+      tokenRadiusIn(playerId, from.map),
+      memory?.exp,
+      memory?.doors,
+      pinAudiences,
+      undefined,
+      loansFor(playerId),
+      memory?.seenRooms,
+      secretReveals,
+      undefined,
+      undefined,
+      memory?.plan,
+    )
+    // MARCO visto de longe não dá vista: a mesma recusa da passagem (`validTravel`).
+    const seen = view.map.pins.find((p) => p.id === pin.id)
+    if (seen === undefined || seen.soMarco === true) return reject('unavailable')
+    const owned = new Set(ownership[playerId] ?? [])
+    // "Encostado" é a regra de sempre do pino (`tokenReachesPin`), a mesma do
+    // pedido de passagem e do cartão ("Chegue mais perto").
+    if (!view.map.tokens.some((t) => owned.has(t.id) && tokenReachesPin(t, pin, from.map.grid))) return reject('unavailable')
+    const scenes = allScenes(world)
+    const lookup = (sceneId: string): TravelScene | null => {
+      const scene = scenes.find((s) => s.sceneId === sceneId)
+      return scene === undefined ? null : { name: scene.name, map: scene.map }
+    }
+    const travel = resolvePinTravel(pin, from.sceneId, lookup, SAIDA_PRINCIPAL)
+    if (travel.status !== 'ligado') return reject('unavailable')
+    const to = scenes.find((s) => s.sceneId === travel.sceneId)
+    if (to === undefined || to.sceneId === null) return reject('unavailable')
+
+    // A visão de LÁ limita a espiada: o raio que este jogador teria chegando
+    // ("Visão nesta cena", fator dele, noite na cena externa — `radiusIn`).
+    // Ficha de jogador (qualquer dono) não vai: seria a posição de quem está
+    // em outra cena. Raio zero é não ver nada: recusa, como o jogador faria.
+    const comDono = new Set(Object.values(ownership).flat())
+    const espiada = espiadaPeloPino(to.map, travel.partner, pin.daVista, { visao: radiusIn(playerId, to.map), comDono })
+    // Recorte acima do que o jogador aceita (pincel muito picado, parede demais)
+    // seria jogado fora lá, com o mestre avisado de uma espiada que não houve.
+    if (espiada.raio <= 0 || !espiadaCabe(espiada)) return reject('unavailable')
+
+    const description = pin.description.trim()
+    return {
+      outbound: [{ clientId, msg: { type: 'pin.peek.view', pinId: pin.id, durationMs: ESPIAR_DURACAO_MS, view: espiada } }],
+      pinPeek: {
+        playerId,
+        playerName: record.name,
+        pinLabel: description === '' ? pinSummary(pin) : description,
+        toSceneId: to.sceneId,
+        toSceneName: to.name,
+      },
+    }
+  }
+
+  /**
    * MINHAS PISTAS — o jogador abriu o cartão do pino. Só vale pino do ÚLTIMO
    * recorte mandado a ele, da cena onde ele está AGORA, e que o mestre não
    * escondeu desde então: pino secreto, oculto, no escuro, em zona oculta ou de
@@ -7262,6 +7376,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   const forgetTravelsOf = (playerId: string): void => {
     pendingTravels.delete(playerId)
     lastTravelRequestByPlayer.delete(playerId)
+    lastPeekAt.delete(playerId)
     for (const key of [...lastTravelRequestAt.keys()]) {
       if (key.startsWith(`${playerId}|`)) lastTravelRequestAt.delete(key)
     }
@@ -7400,6 +7515,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
         return handleTokenEdit(clientId, msg, world)
       case 'pin.travel.request':
         return handleTravelRequest(clientId, msg, world)
+      case 'pin.peek':
+        return handlePeek(clientId, msg, world)
       case 'pin.travel.cancel':
         return handleTravelCancel(clientId)
       case 'cabine.call':

@@ -76,6 +76,7 @@ import {
   parsePartyUpdate,
   parsePinShow,
   parsePointActionReply,
+  parsePeekHostMessage,
   parseRoomText,
   parseRouteMessage,
   parseSceneAlarm,
@@ -92,6 +93,7 @@ import {
   type OwnTokenElsewhere,
   type PartyMember,
   type PointActionReply,
+  type PinPeekRejection,
   type WaitSetMessage,
   isSeatClaimState,
   isSecretCheckResult,
@@ -106,6 +108,7 @@ import { DICE_FEED_MAX, parseDiceRequest, type DiceRequest, type DiceRollEntry }
 import { MARCA_TEXTO_MAX, normalizarTextoDaMarca } from '../lib/marcas'
 import type { ColecaoProgresso } from '../lib/colecao'
 import type { AbaloSeta } from '../lib/abalo'
+import { isDaVista, type Espiada } from '../lib/espiar'
 import { CLUEBOOK_MAX_CLUES } from '../lib/clues'
 import type { TokenMoveLanding, TokenMoveRejection } from '../lib/moveValidation'
 import type { RoofPeek } from '../lib/fogFilter'
@@ -467,6 +470,13 @@ export interface PlayerState {
    * de cena; um caminho novo toma o lugar do que estava.
    */
   sharedRoute?: SharedRoute
+  /**
+   * ESPIAR PELA PASSAGEM: esperando o host, o recorte do outro lado na tela
+   * (some sozinho em `durationMs`), ou a recusa. O recorte NUNCA entra em
+   * `map`, `vision` nem `explored`: é olhar, não lembrar. (`peek` é o olhar
+   * pela porta, que chega no snapshot; este é o do pino que dá vista.)
+   */
+  pinPeek?: PeekState
   rev: number
   playerId?: string
   /** Motivo quando `status === 'error'`: razão do mestre ou 'connection_lost'. */
@@ -553,6 +563,17 @@ export type MarkPlaceIntent = { tipo: 'bilhete'; texto: string } | { tipo: 'seta
 
 /** Quanto a marca espera a resposta do host. Mestre antigo nunca responde: sem o teto, o "Deixando…" ficaria para sempre. */
 export const MARK_PLACE_TIMEOUT_MS = 5000
+/** Onde está a espiada. `id` novo = outra espiada (a tela reinicia a contagem). */
+export type PeekState =
+  | { id: number; phase: 'waiting'; pinId: string }
+  | { id: number; phase: 'showing'; pinId: string; view: Espiada; durationMs: number }
+  | { id: number; phase: 'rejected'; pinId: string; reason: PeekFailure }
+
+/**
+ * Por que a espiada não apareceu: a recusa do host, ou `failed` — a resposta
+ * chegou ilegível ou não chegou a tempo (`PEEK_WAIT_TIMEOUT_MS`).
+ */
+export type PeekFailure = PinPeekRejection | 'failed'
 
 export type CluePeers = { phase: 'loading' } | { phase: 'ready'; names: string[] }
 
@@ -1001,6 +1022,15 @@ export interface PlayerConnection {
   resetRouteShare(): void
   /** Apaga o caminho que um colega mostrou. */
   dismissSharedRoute(): void
+  /**
+   * ESPIAR PELA PASSAGEM pelo pino `pinId`. `false` (e nada sai) quando não
+   * joga, o pino não está no mapa dele, não é de viagem ou não dá vista, já há
+   * uma espiada em curso ou o socket não está aberto. Quem decide se a ficha
+   * está encostada é o host.
+   */
+  peek(pinId: string): boolean
+  /** Fecha o recorte (ou a recusa) antes do tempo. */
+  dismissPeek(): void
   /** Abre um socket novo (reconectar), reaproveitando o resumeToken guardado. */
   reconnect(): void
   /**
@@ -1131,6 +1161,13 @@ export const WAIT_ENDED_NOTICE_TTL_MS = 60_000
 export const SHARED_ROUTE_TTL_MS = 120_000
 /** O que o caminho da régua deixa na tela: lista de colegas, resultado do envio e o caminho recebido. */
 const NO_ROUTE: Pick<PlayerState, 'routePeers' | 'routeShow' | 'sharedRoute'> = { routePeers: undefined, routeShow: undefined, sharedRoute: undefined }
+/** Quanto tempo a recusa do espiar ("Não dá para espiar daqui") fica na tela: curta, como a da porta. */
+export const PEEK_NOTICE_TTL_MS = 2500
+/**
+ * Quanto o "Olhando…" espera a resposta do host. Na LAN ela vem em milissegundos;
+ * passado isto, o pedido se perdeu e o botão volta, em vez de travar até trocar de cena.
+ */
+export const PEEK_WAIT_TIMEOUT_MS = 8000
 const SOCKET_OPEN = 1
 /** Mede o tamanho em bytes do que vai pelo socket (o servidor conta bytes, não caracteres). */
 const utf8 = new TextEncoder()
@@ -1659,6 +1696,48 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     }
     if (state.routeShow?.phase !== 'sending' || state.routeShow.to !== msg.to) return
     setState({ routeShow: { to: msg.to, phase: msg.ok ? 'ok' : msg.reason === 'too_soon' ? 'too_soon' : 'failed' } })
+  }
+
+  let peekTimer: ReturnType<typeof setTimeout> | null = null
+
+  function clearPeekTimer(): void {
+    if (peekTimer !== null) clearTimeout(peekTimer)
+    peekTimer = null
+  }
+
+  /** Põe `next` na tela e agenda a saída dele em `ms`. */
+  function showPeek(next: PeekState, ms: number): void {
+    clearPeekTimer()
+    setState({ pinPeek: next })
+    peekTimer = setTimeout(() => {
+      peekTimer = null
+      if (state.pinPeek?.id === next.id) setState({ pinPeek: undefined })
+    }, ms)
+  }
+
+  /** O "Olhando…" não termina bem: aviso curto e o botão de volta. */
+  function failPeek(pinId: string): void {
+    showPeek({ id: nextNoticeId++, phase: 'rejected', pinId, reason: 'failed' }, PEEK_NOTICE_TTL_MS)
+  }
+
+  /** Mostra o recorte ou a recusa e agenda a saída. Só a espiada que ESTE jogador pediu, pelo mesmo pino. */
+  function handlePeekMessage(data: Record<string, unknown>): void {
+    const waiting = state.pinPeek
+    if (state.status !== 'playing' || waiting?.phase !== 'waiting') return
+    const msg = parsePeekHostMessage(data)
+    if (msg === null) {
+      // Resposta ao pedido em curso, mas ilegível (recorte acima dos tetos,
+      // forma errada): não fica "Olhando…" para sempre.
+      if (data.pinId === waiting.pinId) failPeek(waiting.pinId)
+      return
+    }
+    if (waiting.pinId !== msg.pinId) return
+    const id = nextNoticeId++
+    if (msg.type === 'pin.peek.view') {
+      showPeek({ id, phase: 'showing', pinId: msg.pinId, view: msg.view, durationMs: msg.durationMs }, msg.durationMs)
+      return
+    }
+    showPeek({ id, phase: 'rejected', pinId: msg.pinId, reason: msg.reason }, PEEK_NOTICE_TTL_MS)
   }
 
   let travelTimer: ReturnType<typeof setTimeout> | null = null
@@ -2760,9 +2839,12 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
           confronto: undefined,
           letterPeers: undefined,
           letterSend: undefined,
+          // Sem mapa, a espiada pelo pino também sai.
+          pinPeek: undefined,
           ...NO_PASSAGE_WATCH,
           ...NO_ROUTE,
         })
+        clearPeekTimer()
         return
       case 'scene.changed':
         // O mestre deixou passar. Tudo o que era da cena de antes perde o
@@ -2795,9 +2877,16 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
           const chegada = parseArrivalText(data.chegada)
           setState({ arrival: chegada === null ? undefined : { id: nextNoticeId++, text: chegada } })
         }
+        // A espiada era do pino de lá: atravessou, ela perde o sentido.
+        clearPeekTimer()
+        setState({ pinPeek: undefined })
         // Levado pelo mestre, "Você chegou" mentiria: ele não pediu para ir.
         // Reunido pelo mestre: outro aviso, porque ele não foi levado sozinho.
         showTravelAnswer({ id: nextNoticeId++, phase: data.by === 'gather' ? 'gathered' : data.by === 'master' ? 'moved' : 'arrived' })
+        return
+      case 'pin.peek.view':
+      case 'pin.peek.rejected':
+        handlePeekMessage(data)
         return
       case 'pin.travel.pending':
         // A passagem livre virou pedido ao mestre (barrada do outro lado):
@@ -3329,8 +3418,9 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         clearWaitEndedTimer()
         clearPassageOpenedTimer()
         clearSharedRouteTimer()
+        clearPeekTimer()
         wantsBack = false
-        setState({ status: 'closed', away: undefined, hide: undefined, playerLasers: undefined, doorNotice: undefined, doorRequest: undefined, moveNotice: undefined, turnNotice: undefined, travel: undefined, item: undefined, compra: undefined, lever: undefined, hazardNotice: undefined, call: undefined, reconnecting: undefined, pointNotice: undefined, noise: undefined, secretCheck: undefined, secretCheckNotice: undefined, mapShared: undefined, tokenAction: undefined, wait: undefined, waitEnded: undefined, ...NO_PASSAGE_WATCH, ...NO_ROUTE })
+        setState({ status: 'closed', away: undefined, hide: undefined, playerLasers: undefined, doorNotice: undefined, doorRequest: undefined, moveNotice: undefined, turnNotice: undefined, travel: undefined, item: undefined, compra: undefined, lever: undefined, hazardNotice: undefined, call: undefined, reconnecting: undefined, pointNotice: undefined, noise: undefined, secretCheck: undefined, secretCheckNotice: undefined, mapShared: undefined, tokenAction: undefined, wait: undefined, waitEnded: undefined, pinPeek: undefined, ...NO_PASSAGE_WATCH, ...NO_ROUTE })
         return
       case 'session.replaced':
         // A sessão foi para outra aba (ou aparelho). O resume FICA: é o mesmo
@@ -3346,7 +3436,8 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         clearHideTimer()
         clearReconnectTimers()
         stopPing()
-        setState({ status: 'replaced', hide: undefined, doorNotice: undefined, doorRequest: undefined, travel: undefined, call: undefined, reconnecting: undefined })
+        clearPeekTimer()
+        setState({ status: 'replaced', hide: undefined, doorNotice: undefined, doorRequest: undefined, travel: undefined, call: undefined, reconnecting: undefined, pinPeek: undefined })
         return
       case 'error': {
         const reason = typeof data.reason === 'string' ? data.reason : 'unknown'
@@ -3449,6 +3540,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     clearWaitEndedTimer()
     clearPassageOpenedTimer()
     clearSharedRouteTimer()
+    clearPeekTimer()
     const current = socket
     socket = null
     current?.close()
@@ -3468,7 +3560,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       clues: state.clues ?? state.keptNotebook?.clues ?? [],
       notes: state.notebook ?? state.keptNotebook?.notes ?? [],
     }
-    setState({ keptNotebook, status: 'connecting', hide: undefined, compra: undefined, porAtravessar: undefined, letterPeers: undefined, letterSend: undefined, error: undefined, rev: -1, map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, partyTokens: undefined, concealed: undefined, glimpses: undefined, elsewhere: undefined, peek: undefined, sceneName: undefined, place: undefined, destinations: undefined, hazards: undefined, hazardNotice: undefined, gatilhos: undefined, andares: undefined, relogio: undefined, turn: undefined, signals: undefined, laser: undefined, playerLasers: undefined, doorNotice: undefined, doorRequest: undefined, moveNotice: undefined, turnNotice: undefined, travel: undefined, note: undefined, arrival: undefined, alarm: undefined, item: undefined, lever: undefined, roomText: undefined, notebook: undefined, unreadNotes: undefined, clues: undefined, colecoes: undefined, shownClue: undefined, shownPin: undefined, cluePeers: undefined, clueShow: undefined, paused: undefined, call: undefined, reconnecting: undefined, pointNotice: undefined, noise: undefined, secretCheck: undefined, secretCheckNotice: undefined, mapPeers: undefined, mapShare: undefined, mapShared: undefined, tokenAction: undefined, wait: undefined, waitEnded: undefined, waitingTokens: undefined, away: undefined, ...NO_PASSAGE_WATCH, ...NO_ROUTE })
+    setState({ keptNotebook, status: 'connecting', hide: undefined, compra: undefined, porAtravessar: undefined, letterPeers: undefined, letterSend: undefined, error: undefined, rev: -1, map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, partyTokens: undefined, concealed: undefined, glimpses: undefined, elsewhere: undefined, peek: undefined, pinPeek: undefined, sceneName: undefined, place: undefined, destinations: undefined, hazards: undefined, hazardNotice: undefined, gatilhos: undefined, andares: undefined, relogio: undefined, turn: undefined, signals: undefined, laser: undefined, playerLasers: undefined, doorNotice: undefined, doorRequest: undefined, moveNotice: undefined, turnNotice: undefined, travel: undefined, note: undefined, arrival: undefined, alarm: undefined, item: undefined, lever: undefined, roomText: undefined, notebook: undefined, unreadNotes: undefined, clues: undefined, colecoes: undefined, shownClue: undefined, shownPin: undefined, cluePeers: undefined, clueShow: undefined, paused: undefined, call: undefined, reconnecting: undefined, pointNotice: undefined, noise: undefined, secretCheck: undefined, secretCheckNotice: undefined, mapPeers: undefined, mapShare: undefined, mapShared: undefined, tokenAction: undefined, wait: undefined, waitEnded: undefined, waitingTokens: undefined, away: undefined, ...NO_PASSAGE_WATCH, ...NO_ROUTE })
     open()
   }
 
@@ -3693,6 +3785,29 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     resetMarkPlace() {
       clearMarkTimer()
       if (state.markPlace !== undefined) setState({ markPlace: undefined })
+    },
+
+    peek(pinId) {
+      if (state.status !== 'playing') return false
+      // Uma espiada por vez: esperando, ou com o recorte ainda na tela.
+      if (state.pinPeek !== undefined && state.pinPeek.phase !== 'rejected') return false
+      const pin = state.map?.pins.find((p) => p.id === pinId)
+      if (pin === undefined || pin.kind !== 'viagem' || !isDaVista(pin.daVista)) return false
+      if (!send({ type: 'pin.peek', pinId })) return false
+      clearPeekTimer()
+      const id = nextNoticeId++
+      setState({ pinPeek: { id, phase: 'waiting', pinId } })
+      // Sem resposta a tempo (o pedido ou a resposta se perdeu): o botão volta.
+      peekTimer = setTimeout(() => {
+        peekTimer = null
+        if (state.pinPeek?.id === id && state.pinPeek.phase === 'waiting') failPeek(pinId)
+      }, PEEK_WAIT_TIMEOUT_MS)
+      return true
+    },
+
+    dismissPeek() {
+      clearPeekTimer()
+      if (state.pinPeek !== undefined) setState({ pinPeek: undefined })
     },
 
     laserMove(x, y) {

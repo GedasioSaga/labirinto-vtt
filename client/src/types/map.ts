@@ -723,6 +723,15 @@ export interface Pin extends PlayerSecret, NoPiso {
    */
   soMarco?: true
   /**
+   * Só do pino de viagem: "Dá vista (N casas)" — grade, fresta, boca do poço.
+   * Com a ficha encostada, o jogador espia o outro lado da saída PRINCIPAL por
+   * alguns segundos, até N casas em volta do pino par, sem guardar na memória
+   * (`lib/espiar.ts`). Ausente = não dá vista, que é todo pino gravado antes
+   * deste campo. SAI no recorte do jogador: o cartão precisa oferecer "Espiar",
+   * e o número de casas não diz nada da outra cena.
+   */
+  daVista?: number
+  /**
    * SÓ NO RECORTE DO JOGADOR, e só quando o pino tem mais de uma saída: o id e
    * o rótulo de cada uma, na ordem (a principal primeiro). O mestre nunca grava
    * este campo; `lib/fogFilter.ts` o monta a partir de `rotulo` e `saidas`.

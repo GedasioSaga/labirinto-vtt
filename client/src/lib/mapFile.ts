@@ -17,6 +17,7 @@ import { readPinLock } from './pinLock'
 import { readPinColecao } from './colecao'
 import { cleanExitLabel, readPinDestination, readPinExits } from './pinTravel'
 import { readSceneVisionCells } from './sceneVision'
+import { isDaVista } from './espiar'
 import { tokenPublicNameFromFile } from './tokenPublicName'
 import { readPinAttachment } from './pinAttach'
 import { readMovementRules } from './movementRules'
@@ -455,6 +456,9 @@ function deserializeMapFields(json: string): MapData {
       // `longe` e `soMarco` são só do recorte do jogador, como `escolhas`.
       longe: undefined,
       soMarco: undefined,
+      // ESPIAR: "Dá vista" é campo NOVO e OPCIONAL. Só inteiro dentro da faixa
+      // vale; o resto volta AUSENTE — na dúvida, o pino não deixa espiar.
+      daVista: isDaVista(p.daVista) ? p.daVista : undefined,
       escolhas: undefined,
       // ITEM PEGÁVEL: campo NOVO e OPCIONAL. Forma errada volta ausente (o
       // pino só deixa de ser pegável); `livre` só vale `true` (`readPinItem`).
