@@ -1,7 +1,7 @@
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { SelectionControls } from './SelectionControls'
+import { SelectionHeader, deleteLabelFor } from './SelectionHeader'
 import { WallDoorControls } from './WallDoorControls'
 import { StairControls } from './StairControls'
 import { DrawingStyleControls, type DrawingStyleControlsProps } from './DrawingStyleControls'
@@ -31,14 +31,27 @@ function buttonByText(text: string): HTMLButtonElement | undefined {
   return [...container.querySelectorAll('button')].find((b) => b.textContent === text)
 }
 
-describe('SelectionControls — botão Apagar', () => {
+// O "Apagar" saiu de SelectionControls para a faixa da seleção (SelectionHeader):
+// o texto do botão continua o mesmo, letra por letra.
+describe('SelectionHeader — botão Apagar', () => {
+  const renderHeader = (kind: 'stair' | 'token') =>
+    render(
+      <SelectionHeader
+        identity={{ icon: kind, type: kind === 'stair' ? 'Escada' : 'Token', name: null }}
+        deleteLabel={deleteLabelFor({ kind, count: 1 })}
+        onDelete={vi.fn()}
+        actions={[]}
+        actionsHint={null}
+      />,
+    )
+
   it('escada: "Apagar escada selecionada"', () => {
-    render(<SelectionControls selection={{ kind: 'stair', count: 1 }} defaultTokenName="Token 1" onAddToken={vi.fn()} onRemoveSelected={vi.fn()} />)
+    renderHeader('stair')
     expect(buttonByText('Apagar escada selecionada')).toBeDefined()
   })
 
   it('token: "Apagar token selecionado"', () => {
-    render(<SelectionControls selection={{ kind: 'token', count: 1 }} defaultTokenName="Token 1" onAddToken={vi.fn()} onRemoveSelected={vi.fn()} />)
+    renderHeader('token')
     expect(buttonByText('Apagar token selecionado')).toBeDefined()
   })
 })
