@@ -865,3 +865,20 @@ Fila:
 
 Regra: só Opus; no máximo 3 agentes ao mesmo tempo no total (fábrica com trava global de 3 vagas: 2 peças + 1 lane
 de UX/UI; integração e publicação esperam vaga).
+
+### 26/09/2026, 07h20 — tela branca na 0.4.0
+
+> "erro critico, resolve isso a versão 0.4.0 veio bugada, resolve rápido e faz o instalador da 0.4.1 com esse fix."
+
+Feito: causa `ReferenceError: Cannot access 'Ye' before initialization` no bundle de produção (ciclo de imports:
+`fogFilter.ts` calculava constante de topo com `REVEAL_BRUSH_CELL` de `concealBrush.ts`). A constante foi para o
+módulo folha `client/src/lib/revealBrushCell.ts` (`d2b841f`^). 0.4.1 publicada com teste de fumaça do build
+(verde; com o código da 0.4.0 fica VERMELHO com o mesmo erro). A fábrica passa a numerar a partir de 0.4.2 e roda
+a fumaça antes de cada instalador.
+
+### 26/09/2026, manhã — mais devagar
+
+> "vá mais lento, você está gastando muitos tokens, ao invés de 2 features e um ux/ui, bote 1 feature e um ux/ui, e fique checando o limite da sessão atual."
+
+Fábrica retomada com 1 feature por vez + a lane de UX/UI (no máximo 2 agentes ao mesmo tempo); limite da sessão
+checado com `npx ccusage@latest blocks --active`.
