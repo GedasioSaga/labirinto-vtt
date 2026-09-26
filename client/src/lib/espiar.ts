@@ -29,13 +29,6 @@ export const ESPIAR_DURACAO_MAX_MS = 30_000
 export const ESPIAR_INTERVALO_MIN_MS = ESPIAR_DURACAO_MS
 
 /**
- * "Encostado": a borda da ficha a até esta distância do pino, em casas. Com a
- * ficha de 1 casa, o centro dela até 1,5 casa do pino — a casa do lado, mesmo
- * na diagonal.
- */
-export const ESPIAR_ALCANCE_CASAS = 1
-
-/**
  * Tetos do que o jogador aceita num recorte, abaixo de um host hostil enchendo
  * a tela. O host confere os MESMOS tetos antes de mandar (`espiadaCabe`): o que
  * passaria daqui ele recusa, em vez de mandar um recorte que o jogador jogaria fora.

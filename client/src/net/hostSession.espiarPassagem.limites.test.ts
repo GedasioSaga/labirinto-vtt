@@ -145,3 +145,32 @@ describe('hostSession: a espiada não entrega jogador de outra cena', () => {
     expect(texto).not.toContain('ficha-bia')
   })
 })
+
+describe('hostSession: a espiada para junto com o resto das ações do jogador', () => {
+  it('cena do jogador pausada ("O mestre está com o outro grupo"): recusa, sem recorte e sem aviso ao mestre', () => {
+    const w = mundo()
+    const t = mesa(w)
+    t.s.setScenePaused(SALAO, true, w)
+    const r = t.espiar()
+    expect(r.outbound.map((o) => o.msg)).toEqual([{ type: 'pin.peek.rejected', pinId: 'grade', reason: 'unavailable' }])
+    expect(r.pinPeek).toBeUndefined()
+    // Despausada, a recusa não vira "cedo demais": a pausa não gastou a vez.
+    t.s.setScenePaused(SALAO, false, w)
+    const depois = t.espiar()
+    expect(depois.outbound[0]?.msg.type).toBe('pin.peek.view')
+    expect(depois.pinPeek?.toSceneId).toBe(CRIPTA)
+  })
+
+  it('jogador no "Volto": recusa, sem recorte e sem aviso ao mestre', () => {
+    const w = mundo()
+    const t = mesa(w)
+    t.s.handleMessage('c1', { type: 'away', away: true }, w)
+    const r = t.espiar()
+    expect(r.outbound.map((o) => o.msg)).toEqual([{ type: 'pin.peek.rejected', pinId: 'grade', reason: 'unavailable' }])
+    expect(r.pinPeek).toBeUndefined()
+    t.s.handleMessage('c1', { type: 'away', away: false }, w)
+    const depois = t.espiar()
+    expect(depois.outbound[0]?.msg.type).toBe('pin.peek.view')
+    expect(depois.pinPeek?.toSceneId).toBe(CRIPTA)
+  })
+})
