@@ -416,7 +416,21 @@ export interface PinExitLabel {
    * `soIda` de cada saída junto) já volta ausente do disco (`lib/mapFile.ts`).
    */
   soIda?: true
+  /**
+   * MODO POR SAÍDA: como o jogador passa por ESTA saída. Ausente = o modo do
+   * pino (`Pin.passagem`), que é o da principal — mapa gravado antes disto
+   * abre igual, sem linha de migração (`readPinExits` confere a forma). No
+   * mapa do mestre só a saída EXTRA o grava; no recorte do jogador
+   * (`lib/fogFilter.ts`) ele vai só quando difere do modo do pino.
+   */
+  passagem?: ExitPassage
 }
+
+/**
+ * Os modos que uma saída pode ter por conta própria. O passe fica de fora: o
+ * item e as fichas que abrem a catraca são do pino inteiro (`Pin.passe`).
+ */
+export type ExitPassage = Extract<PinPassage, 'pede' | 'livre' | 'trancada'>
 
 /**
  * ENCRUZILHADA (G8): uma saída EXTRA do pino de viagem. A saída principal
@@ -722,6 +736,15 @@ export interface Pin extends PlayerSecret, NoPiso {
    * botão. O mestre nunca grava este campo.
    */
   soMarco?: true
+  /**
+   * Só do pino de viagem: "Dá vista (N casas)" — grade, fresta, boca do poço.
+   * Com a ficha encostada, o jogador espia o outro lado da saída PRINCIPAL por
+   * alguns segundos, até N casas em volta do pino par, sem guardar na memória
+   * (`lib/espiar.ts`). Ausente = não dá vista, que é todo pino gravado antes
+   * deste campo. SAI no recorte do jogador: o cartão precisa oferecer "Espiar",
+   * e o número de casas não diz nada da outra cena.
+   */
+  daVista?: number
   /**
    * SÓ NO RECORTE DO JOGADOR, e só quando o pino tem mais de uma saída: o id e
    * o rótulo de cada uma, na ordem (a principal primeiro). O mestre nunca grava
@@ -1152,6 +1175,18 @@ export interface Token extends PlayerSecret, NoPiso {
   /** Token não pode ser movido/editado. `undefined` === false (comportamento
    *  idêntico ao de hoje) — sem linha de migração. */
   locked?: boolean
+  /**
+   * CONGELAR FICHA: o mestre segura a ficha contra o JOGADOR. O servidor da
+   * sala recusa todo pedido de jogador que a moveria — o passo, a escada, a
+   * passagem pelo pino, e de carona (a bordo ou levada) — e o mestre continua
+   * movendo à vontade. Diferente de `locked`, trava do editor que segura o
+   * mestre também. `undefined` === false, sem linha de migração; o
+   * "Descongelar todos" apaga o campo, o interruptor da ficha grava `false`
+   * (como o Travado). Quem lê do disco passa por `estaCongelada` (`lib/congelar.ts`).
+   * Atravessa só para o DONO da ficha (`lib/fogFilter.ts`), onde vira o floco
+   * e o aviso "Congelado pelo mestre".
+   */
+  congelado?: boolean
   /** Não renderiza NO EDITOR — organização de cena para o próprio mestre.
    *  NÃO significa "invisível para o jogador": este app não tem segunda
    *  tela/modo jogador, então essa promessa não existe. `undefined` === false
@@ -1166,6 +1201,10 @@ export interface Token extends PlayerSecret, NoPiso {
    *  viaja com a ficha. `undefined` === vazia, sem migração. O jogador só
    *  recebe a mochila da PRÓPRIA ficha (`lib/fogFilter.ts`). */
   mochila?: CarriedItem[]
+  /** BOLSA: moedas que a ficha carrega (MOEDAS E TROCA, `lib/troca.ts`).
+   *  Inteiro positivo; `undefined` === zero, sem migração. Viaja com a ficha,
+   *  e o jogador só recebe a bolsa da PRÓPRIA ficha (`lib/fogFilter.ts`). */
+  moedas?: number
   /** AJUDANTE CONTRATADO — o acordo como o jogador que SEGURA a ficha
    *  emprestada o lê. Campo de FIO, nunca do arquivo: o acordo mora na sessão
    *  do host junto da posse (`net/hostSession.ts`), o recorte põe este campo só

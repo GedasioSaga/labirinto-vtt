@@ -68,6 +68,7 @@ import { CONDITION_MARKS_LABEL, drawTokenConditions } from '../pixi/drawTokenCon
 import { watchAlertOf } from '../lib/npcWatch'
 import { WATCH_ALERT_LABEL, drawWatchAlert } from '../pixi/drawNpcWatch'
 import { TOKEN_LOCK_LABEL, drawTokenLock } from '../pixi/drawTokenLock'
+import { TOKEN_FROST_LABEL, drawTokenFrozen } from '../pixi/drawTokenFrozen'
 import { createRoomNamesRenderer, findRoomLabelAt, tokenLabelObstacles, type LabelObstacle } from '../pixi/drawRoomNames'
 import { hasEnterText } from '../lib/roomText'
 import { regioesComContagem } from '../lib/portasPorAtravessar'
@@ -439,6 +440,8 @@ interface TokenView {
   alert: Graphics
   /** Cadeado da ficha que o mestre segura (`pixi/drawTokenLock.ts`) — só na PRÓPRIA ficha. */
   lock: Graphics
+  /** Floco da ficha que o mestre congelou (`pixi/drawTokenFrozen.ts`) — só na PRÓPRIA ficha, no canto do cadeado. */
+  frost: Graphics
   key: string
   /** Referência já carregada em `photo`: sem isto, todo snapshot recarregaria a mesma foto. */
   loadedPhoto: string | null
@@ -526,6 +529,8 @@ export function paintTokenView(view: TokenView, token: Token, grid: number, own:
   drawWatchAlert(view.alert, watchAlertOf(token), radius)
   // FICHA SEGURADA PELO MESTRE: o cadeado diz por que ela não anda antes do arrasto.
   drawTokenLock(view.lock, ownLocked(token, own), radius)
+  // CONGELAR FICHA: o floco diz o mesmo da ficha congelada (o cadeado, que segura mais, vence o canto).
+  drawTokenFrozen(view.frost, ownFrozen(token, own), radius)
   view.hasHealth = health !== null
   // Só o texto: onde o nome fica depende do bico, da barra e do zoom (`syncFacingNib`).
   // ENCONTRO MARCADO: a marca "esperando" vai no próprio nome — o mapa fica o
@@ -661,7 +666,9 @@ export function createTokenView(token: Token, grid: number, own: boolean, turn =
   alert.label = WATCH_ALERT_LABEL
   const lock = new Graphics()
   lock.label = TOKEN_LOCK_LABEL
-  wrapper.addChild(photoMask, photo, body, ring, bar, facingNib, label, companionLabel, marks, alert, lock)
+  const frost = new Graphics()
+  frost.label = TOKEN_FROST_LABEL
+  wrapper.addChild(photoMask, photo, body, ring, bar, facingNib, label, companionLabel, marks, alert, frost, lock)
   applyTokenTouch(wrapper, own)
   const view: TokenView = {
     wrapper,
@@ -683,6 +690,7 @@ export function createTokenView(token: Token, grid: number, own: boolean, turn =
     marks,
     alert,
     lock,
+    frost,
     key: tokenViewKey(token, grid, own, turn, waiting),
     loadedPhoto: null,
     loadSeq: 0,
@@ -717,6 +725,7 @@ export function tokenViewKey(token: Token, grid: number, own: boolean, turn = fa
   // `waiting` idem: a marca "esperando" (ENCONTRO MARCADO) entra e sai sem o nome mudar.
   // A marca de companheiro também: a ficha que deixa de ser de jogador (ou passa a ser) repinta na hora.
   // A trava da própria ficha também: sem ela o cadeado ficaria depois de o mestre soltar.
+  // O congelado idem: sem ele o floco ficaria depois de o mestre descongelar.
   return JSON.stringify([
     token.name,
     token.size,
@@ -731,6 +740,7 @@ export function tokenViewKey(token: Token, grid: number, own: boolean, turn = fa
     waiting,
     token.companion ?? null,
     ownLocked(token, own),
+    ownFrozen(token, own),
   ])
 }
 
@@ -741,6 +751,14 @@ export function tokenViewKey(token: Token, grid: number, own: boolean, turn = fa
  */
 function ownLocked(token: Token, own: boolean): boolean {
   return own && token.locked === true
+}
+
+/**
+ * A ficha do próprio jogador está CONGELADA pelo mestre, e não travada — as
+ * duas no mesmo canto, e o cadeado segura mais. Na de outro, como a trava, não conta.
+ */
+function ownFrozen(token: Token, own: boolean): boolean {
+  return own && token.congelado === true && !ownLocked(token, own)
 }
 
 /**

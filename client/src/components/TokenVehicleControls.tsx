@@ -2,6 +2,7 @@ import { useId } from 'react'
 import type { TokenVehicle } from '../types/map'
 import { VEHICLE_SEATS_DEFAULT, VEHICLE_SEATS_MAX, VEHICLE_SEATS_MIN, type VehicleSeatOption } from '../lib/vehicle'
 import { Toggle } from './Toggle'
+import './TokenControls.css'
 
 export interface TokenVehicleControlsProps {
   /** Veículo da ficha selecionada, já lido (`vehicleOf`); `null` = ficha comum. */
@@ -24,16 +25,20 @@ export interface TokenVehicleControlsProps {
  * da cena. Cheio, quem está fora fica indisponível e o texto diz por quê; a
  * ficha longe do veículo também, com "longe do veículo" na linha dela.
  * Cada clique passa pelo histórico, então Ctrl+Z desfaz.
+ *
+ * UMA linha, sem título (peça ficha-em-ordem-de-tarefa, no molde das linhas
+ * de opcional do Figma UI3): o interruptor já diz o que é o bloco. Desligado,
+ * é a linha de 34 px das outras chaves da ficha; ligado, lugares e "A bordo"
+ * aparecem embaixo e o interruptor não sai do lugar (TokenControls.css).
  */
 export function TokenVehicleControls({ vehicle, options, onSeatsChange, onPassengerChange }: TokenVehicleControlsProps) {
   const statusId = useId()
   const ocupados = options.filter((option) => option.aBordo).length
   return (
-    <section className="lb-section">
-      <h2 className="lb-eyebrow">Veículo</h2>
+    <section className="lb-section lb-token-linha">
       <Toggle label="Esta ficha é um veículo" checked={vehicle !== null} onChange={(on) => onSeatsChange(on ? VEHICLE_SEATS_DEFAULT : null)} />
       {vehicle !== null && (
-        <>
+        <div className="lb-token-linha__corpo">
           <span className="lb-label">Lugares</span>
           <div className="lb-vehicle__seats">
             <button
@@ -89,7 +94,7 @@ export function TokenVehicleControls({ vehicle, options, onSeatsChange, onPassen
           )}
           {/* O mestre precisa saber o que sai para a mesa e o que fica com ele. */}
           <span className="lb-label">Quem joga não vê a lista: vê as fichas andando juntas.</span>
-        </>
+        </div>
       )}
     </section>
   )

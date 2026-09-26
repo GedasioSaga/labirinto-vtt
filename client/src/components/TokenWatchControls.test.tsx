@@ -53,9 +53,34 @@ const NORTE_60: TokenWatch = { direcao: 270, abertura: 60, alcance: 9 }
 describe('TokenWatchControls', () => {
   it('ficha comum: interruptor desligado e nenhuma escolha de cone à vista', () => {
     render(<TokenWatchControls watch={null} onWatchChange={vi.fn()} />)
-    expect(container.querySelector('h2')?.textContent).toBe('Vigia')
     expect(interruptor().checked).toBe(false)
     expect(container.querySelectorAll('[role="radiogroup"]')).toHaveLength(0)
+  })
+
+  it('desligada é UMA linha: sem título, só o interruptor "Esta ficha vigia"', () => {
+    render(<TokenWatchControls watch={null} onWatchChange={vi.fn()} />)
+    expect(container.querySelector('h2')).toBeNull()
+    const rotulo = container.querySelector('label.lb-switch')
+    expect(rotulo?.textContent?.trim()).toBe('Esta ficha vigia')
+    // A linha de opcional da ficha (TokenControls.css): o interruptor é tudo o que ela tem.
+    expect(container.querySelector('section')?.classList.contains('lb-token-linha')).toBe(true)
+    expect(container.querySelector('section')?.children).toHaveLength(1)
+  })
+
+  it('ligada: as escolhas aparecem embaixo do interruptor, que continua o primeiro da linha', () => {
+    render(<TokenWatchControls watch={NORTE_60} onWatchChange={vi.fn()} />)
+    const secao = container.querySelector('section')
+    expect(secao?.firstElementChild?.matches('label.lb-switch')).toBe(true)
+    const corpo = secao?.querySelector('.lb-token-linha__corpo')
+    expect(corpo?.contains(grupo('Para onde olha'))).toBe(true)
+    expect(corpo?.contains(grupo('Alcance'))).toBe(true)
+  })
+
+  it('ligada: as oito direções numa fila que cabe no rail (grade de oito colunas)', () => {
+    render(<TokenWatchControls watch={NORTE_60} onWatchChange={vi.fn()} />)
+    const direcoes = grupo('Para onde olha')
+    expect(direcoes.classList.contains('lb-token-direcoes')).toBe(true)
+    expect(direcoes.querySelectorAll('[role="radio"]')).toHaveLength(8)
   })
 
   it('ligar o interruptor pede a vigia padrão', () => {

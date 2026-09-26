@@ -2,7 +2,8 @@ import { useEffect, useId, useRef, useState, type FormEvent, type KeyboardEvent 
 import { ITEM_NAME_MAX_LENGTH } from '../lib/items'
 import { awayTokenLabel, awayTokenName, type PartyDestination, type PartyItemAction, type PartyMember } from '../lib/party'
 import { SceneSendForm } from './SceneSendForm'
-import type { PlayerNoteDelivery } from '../net/hostSession'
+import type { PlayerNoteDelivery, TradeProposeRefusal, TradeProposeResult } from '../net/hostSession'
+import { MOEDAS_MAX, moedasLabel, TRADE_FROM_MAX_LENGTH, TRADE_ITEMS_MAX, type TradeProposal } from '../lib/troca'
 import { NOTE_FEEDBACK_MS, NoteForm } from './ScenesSection'
 
 export interface PartySectionProps {
@@ -40,9 +41,38 @@ export interface PartySectionProps {
    * sala fechada: o aviso aparece sem o botão.
    */
   onBring?(playerId: string, tokenId: string): boolean
+  /**
+   * MOEDAS E TROCA — "Propor troca…" confirmado: a oferta vai ao jogador da
+   * linha. Devolve `sent` ou o motivo de não ter saído (a linha avisa e o
+   * formulário fica). Ausente = sala fechada: a linha fica sem o botão.
+   */
+  onTrade?(member: PartyMember, proposta: TradeProposal): TradeProposeResult
+  /**
+   * CONGELAR FICHA — "Congelar todos" e "Descongelar todos" no alto do Grupo.
+   * `todas`: toda ficha de jogador já está congelada (some o "Congelar todos");
+   * `alguma`: há ficha congelada em cena (aparece o "Descongelar todos").
+   * `onChange(true)` congela, `false` solta (`lib/congelar.ts`,
+   * `congelamentoDaMesa`). Ausente = sem os botões.
+   */
+  congelar?: { todas: boolean; alguma: boolean; onChange(congelar: boolean): void }
 }
 
+/** Os botões do alto do Grupo e a marca da linha de quem o mestre congelou. */
+export const CONGELAR_TODOS_LABEL = 'Congelar todos'
+export const DESCONGELAR_TODOS_LABEL = 'Descongelar todos'
+export const CONGELADO_TAG = 'congelado'
+
 export const PARTY_ITEM_FAILED = 'Não deu: a ficha ou o item mudou. Tente de novo.'
+
+/** O que a linha diz quando a oferta não saiu. */
+export const PARTY_TRADE_REFUSAL_TEXT: Record<TradeProposeRefusal, string> = {
+  pending: 'Já há uma oferta esperando este jogador.',
+  short: 'A ficha não tem o que você pede.',
+  offline: 'O jogador está fora do ar agora.',
+  too_many: `Até ${TRADE_ITEMS_MAX} itens de cada lado da troca.`,
+  hidden: 'A ficha está escondida do jogador: mostre-a antes de propor a troca.',
+  unavailable: 'Não deu: a ficha mudou. Tente de novo.',
+}
 /** O que a linha diz quando o jogador pôs a marca "vamos para cá". */
 export const DESTINATION_MARKED_LABEL = 'destino marcado'
 export const VIEW_DESTINATION_LABEL = 'Ver'
@@ -527,5 +557,250 @@ export function PartyBackpack({ member, onItem }: PartyBackpackProps) {
       <p className="lb-player__note">{`Mochila: ${member.mochila.length}`}</p>
       <BackpackList member={member} onItem={onItem} />
     </>
+  )
+}
+
+/** Valor de um campo de moedas: vazio é zero; só inteiro de 0 ao teto vale. `null` = torto. */
+function coinField(raw: string): number | null {
+  if (raw.trim() === '') return 0
+  const value = Number(raw)
+  return Number.isInteger(value) && value >= 0 && value <= MOEDAS_MAX ? value : null
+}
+
+/** Esc fecha o formulário sem enviar e não chega ao canvas (lá Esc troca a ferramenta). */
+function escCloses(onClose: () => void) {
+  return (event: KeyboardEvent<HTMLFormElement>) => {
+    if (event.key !== 'Escape') return
+    event.preventDefault()
+    event.stopPropagation()
+    onClose()
+  }
+}
+
+interface PartyPurseProps {
+  member: PartyMember
+  onItem: PartySectionProps['onItem']
+  onTrade: PartySectionProps['onTrade']
+}
+
+/**
+ * MOEDAS E TROCA na linha do Grupo: a bolsa da ficha, "Moedas…" (acerta o
+ * valor) e "Propor troca…" (a oferta ao jogador). Um formulário por vez na
+ * linha; fechar devolve o foco ao botão que o abriu. Sem ficha, nada; sem
+ * `onItem` nem `onTrade`, só o valor (e só quando há moeda).
+ */
+export function PartyPurse({ member, onItem, onTrade }: PartyPurseProps) {
+  const [open, setOpen] = useState<'moedas' | 'troca' | null>(null)
+  const coinsRef = useRef<HTMLButtonElement | null>(null)
+  const tradeRef = useRef<HTMLButtonElement | null>(null)
+  const moedas = member.moedas ?? 0
+  if (member.token === null || (onItem === undefined && onTrade === undefined && moedas === 0)) return null
+
+  const close = () => {
+    const opener = open === 'moedas' ? coinsRef.current : tradeRef.current
+    setOpen(null)
+    requestAnimationFrame(() => {
+      if (opener?.isConnected) opener.focus()
+    })
+  }
+  const toggle = (kind: 'moedas' | 'troca') => setOpen((current) => (current === kind ? null : kind))
+
+  return (
+    <>
+      <div className="lb-player__line lb-player__line--acoes">
+        <span className="lb-player__note">{moedas === 0 ? 'Bolsa vazia' : `Bolsa: ${moedasLabel(moedas)}`}</span>{' '}
+        {onItem !== undefined && (
+          <button type="button" ref={coinsRef} className="lb-btn lb-btn--compact" aria-label={`Moedas de ${member.name}`} aria-expanded={open === 'moedas'} onClick={() => toggle('moedas')}>
+            Moedas…
+          </button>
+        )}
+        {onTrade !== undefined && (
+          <button type="button" ref={tradeRef} className="lb-btn lb-btn--compact" aria-label={`Propor troca a ${member.name}`} aria-expanded={open === 'troca'} onClick={() => toggle('troca')}>
+            Propor troca…
+          </button>
+        )}
+      </div>
+      {open === 'moedas' && onItem !== undefined && <CoinsForm member={member} onItem={onItem} onClose={close} />}
+      {open === 'troca' && onTrade !== undefined && <TradeForm member={member} onTrade={onTrade} onClose={close} />}
+    </>
+  )
+}
+
+interface CoinsFormProps {
+  member: PartyMember
+  onItem(action: PartyItemAction): boolean
+  onClose(): void
+}
+
+/** "Moedas…": o valor da bolsa, já preenchido com o de agora. Enter salva; Esc cancela; não deu, o valor fica. */
+function CoinsForm({ member, onItem, onClose }: CoinsFormProps) {
+  const fieldId = useId()
+  const [valor, setValor] = useState(String(member.moedas ?? 0))
+  const [failed, setFailed] = useState(false)
+  const fieldRef = useRef<HTMLInputElement | null>(null)
+  const moedas = coinField(valor)
+
+  useEffect(() => {
+    fieldRef.current?.focus()
+    fieldRef.current?.select()
+  }, [])
+
+  const submit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    if (moedas === null) return
+    if (onItem({ kind: 'moedas', member, moedas })) onClose()
+    else setFailed(true)
+  }
+
+  return (
+    <form className="lb-party__send" aria-label={`Moedas de ${member.name}`} onSubmit={submit} onKeyDown={escCloses(onClose)}>
+      <label className="lb-label" htmlFor={fieldId}>
+        Moedas de {member.name}
+      </label>
+      <input
+        id={fieldId}
+        ref={fieldRef}
+        type="number"
+        inputMode="numeric"
+        min={0}
+        max={MOEDAS_MAX}
+        step={1}
+        className="lb-input"
+        value={valor}
+        onChange={(event) => {
+          setValor(event.target.value)
+          setFailed(false)
+        }}
+      />
+      {moedas === null && (
+        <p className="lb-room__error" role="alert">
+          Use um número inteiro de 0 a {MOEDAS_MAX}.
+        </p>
+      )}
+      {failed && (
+        <p className="lb-room__error" role="alert">
+          {PARTY_ITEM_FAILED}
+        </p>
+      )}
+      <div className="lb-party__actions">
+        <button type="button" className="lb-btn lb-btn--ghost" onClick={onClose}>
+          Cancelar
+        </button>
+        <button type="submit" className="lb-btn lb-btn--primary" disabled={moedas === null}>
+          Salvar moedas
+        </button>
+      </div>
+    </form>
+  )
+}
+
+interface TradeFormProps {
+  member: PartyMember
+  onTrade(member: PartyMember, proposta: TradeProposal): TradeProposeResult
+  onClose(): void
+}
+
+/**
+ * "Propor troca…": quem oferece (a Zulmira; vazio é "Mestre"), o que dá
+ * (itens novos, separados por vírgula, e moedas) e o que pede (itens da
+ * mochila da ficha da linha e moedas). "Propor" fica indisponível sem nada
+ * dos dois lados. Não saiu: o formulário fica, com o motivo.
+ */
+function TradeForm({ member, onTrade, onClose }: TradeFormProps) {
+  const ids = { de: useId(), itens: useId(), douMoedas: useId(), pecoMoedas: useId() }
+  const [de, setDe] = useState('')
+  const [itens, setItens] = useState('')
+  const [douMoedas, setDouMoedas] = useState('')
+  const [pecoMoedas, setPecoMoedas] = useState('')
+  const [pedidos, setPedidos] = useState<string[]>([])
+  const [refusal, setRefusal] = useState<TradeProposeRefusal | null>(null)
+  const firstRef = useRef<HTMLInputElement | null>(null)
+  const tokenId = member.token?.id
+  const mochila = member.mochila.filter((item) => item.tokenId === tokenId)
+  const dou = coinField(douMoedas)
+  const peco = coinField(pecoMoedas)
+  const nomes = itens
+    .split(',')
+    .map((nome) => nome.trim())
+    .filter((nome) => nome !== '')
+  const vazia = nomes.length === 0 && pedidos.length === 0 && (dou ?? 0) === 0 && (peco ?? 0) === 0
+  const torta = dou === null || peco === null
+  // O mesmo teto que o host cobra: avisar aqui evita um "não deu" depois.
+  const demais = nomes.length > TRADE_ITEMS_MAX || pedidos.length > TRADE_ITEMS_MAX
+
+  useEffect(() => {
+    firstRef.current?.focus()
+  }, [])
+
+  const togglePedido = (id: string) => {
+    setRefusal(null)
+    setPedidos((atual) => (atual.includes(id) ? atual.filter((x) => x !== id) : [...atual, id]))
+  }
+
+  const submit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    if (vazia || demais || dou === null || peco === null) return
+    const result = onTrade(member, { de: de.trim(), dou: { itens: nomes, moedas: dou }, peco: { itemIds: pedidos, moedas: peco } })
+    if (result === 'sent') onClose()
+    else setRefusal(result)
+  }
+
+  const edit = (set: (value: string) => void) => (event: { target: { value: string } }) => {
+    set(event.target.value)
+    setRefusal(null)
+  }
+
+  return (
+    <form className="lb-party__send" aria-label={`Troca com ${member.name}`} onSubmit={submit} onKeyDown={escCloses(onClose)}>
+      <label className="lb-label" htmlFor={ids.de}>
+        Quem oferece (opcional)
+      </label>
+      <input id={ids.de} ref={firstRef} name="de" type="text" className="lb-input" placeholder="Mestre" maxLength={TRADE_FROM_MAX_LENGTH} value={de} onChange={edit(setDe)} />
+      <label className="lb-label" htmlFor={ids.itens}>
+        Dá itens (separe por vírgula)
+      </label>
+      <input id={ids.itens} name="dou-itens" type="text" className="lb-input" value={itens} onChange={edit(setItens)} />
+      <label className="lb-label" htmlFor={ids.douMoedas}>
+        Dá moedas
+      </label>
+      <input id={ids.douMoedas} name="dou-moedas" type="number" inputMode="numeric" min={0} max={MOEDAS_MAX} step={1} className="lb-input" value={douMoedas} onChange={edit(setDouMoedas)} />
+      {mochila.length > 0 && (
+        <fieldset className="lb-party__troca-pede">
+          <legend className="lb-label">Pede da mochila de {member.name}</legend>
+          {mochila.map((item) => (
+            <label key={item.id} className="lb-player__note">
+              <input type="checkbox" value={item.id} checked={pedidos.includes(item.id)} onChange={() => togglePedido(item.id)} /> {item.nome}
+            </label>
+          ))}
+        </fieldset>
+      )}
+      <label className="lb-label" htmlFor={ids.pecoMoedas}>
+        Pede moedas (tem {member.moedas ?? 0})
+      </label>
+      <input id={ids.pecoMoedas} name="peco-moedas" type="number" inputMode="numeric" min={0} max={MOEDAS_MAX} step={1} className="lb-input" value={pecoMoedas} onChange={edit(setPecoMoedas)} />
+      {torta && (
+        <p className="lb-room__error" role="alert">
+          Moedas: use um número inteiro de 0 a {MOEDAS_MAX}.
+        </p>
+      )}
+      {demais && refusal === null && (
+        <p className="lb-room__error" role="alert">
+          {PARTY_TRADE_REFUSAL_TEXT.too_many}
+        </p>
+      )}
+      {refusal !== null && (
+        <p className="lb-room__error" role="alert">
+          {PARTY_TRADE_REFUSAL_TEXT[refusal]}
+        </p>
+      )}
+      <div className="lb-party__actions">
+        <button type="button" className="lb-btn lb-btn--ghost" onClick={onClose}>
+          Cancelar
+        </button>
+        <button type="submit" className="lb-btn lb-btn--primary" disabled={vazia || torta || demais}>
+          Propor
+        </button>
+      </div>
+    </form>
   )
 }

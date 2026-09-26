@@ -18,6 +18,7 @@ import { PlayerPinChooser } from './PlayerPinChooser'
 import { ARRIVAL_CARD_TITLE, PlayerNoteCard } from './PlayerNoteCard'
 import { formatNoteTime } from './PlayerNotebook'
 import { PlayerMarkCard } from './PlayerMarkCard'
+import { PlayerPeek } from './PlayerPeek'
 import { PlayerFerrolho } from './PlayerFerrolho'
 import { acaoDeFerrolho, tokenAlcancaPino } from '../lib/ferrolho'
 import { PlayerTokenCard } from './PlayerTokenCard'
@@ -57,6 +58,8 @@ import { selectedTokenColor } from '../lib/tokenColor'
 import { tokenReachesPin } from '../lib/doorReach'
 import { buildTokenPhotoData } from '../lib/tokenPhoto'
 import { carriedItemsOf, giveTargets } from '../lib/items'
+import { moedasDe, ownTradeToken, purseToward } from '../lib/troca'
+import { PlayerTradeCard } from './PlayerTradeCard'
 import { itemNoticeText } from './itemNotice'
 import { compraNoticeText } from './compraNotice'
 import { HIDE_NOTICE_TEXT } from './hideNotice'
@@ -65,7 +68,8 @@ import { hazardNoticeText } from '../lib/hazards'
 import { tableCodeFromSearch, tableKeyFromSearch } from '../lib/tableScreen'
 import { TableApp } from './TableScreen'
 import { readContract } from '../lib/tokenLoan'
-import { pinTravelChoices, type PinTravelChoice } from '../lib/pinTravelers'
+import { passagemCongelada, pinTravelChoices, type PinTravelChoice } from '../lib/pinTravelers'
+import { avisoDeCongelado } from './congeladoNotice'
 import { letterTitle, type LetterVia } from '../lib/correio'
 import { findKnownPath } from '../lib/knownPath'
 import type { Pin, Stair } from '../types/map'
@@ -808,13 +812,30 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
   const partyTokens = state.partyTokens ?? NO_TOKENS
   // ITEM PEGÁVEL: "Comigo" é a mochila das fichas dele; "Dar a…" oferece só
   // fichas de COLEGAS encostadas numa delas — NPC do mestre o host recusaria.
+  // MOEDAS E TROCA: a bolsa do painel é a da ficha dele que mais tem — o host
+  // não junta bolsas de fichas diferentes num pagamento só. Cada colega leva a
+  // bolsa que o paga de verdade: a da ficha dele ENCOSTADA no colega.
   const backpack = useMemo(() => {
-    if (!map) return { items: [], colleagues: [] }
+    if (!map) return { items: [], colleagues: [], moedas: 0 }
+    const own = map.tokens.filter((t) => ownTokens.includes(t.id))
+    const colleagues = giveTargets(map, ownTokens, partyTokens).map((colleague) => ({
+      ...colleague,
+      moedas: purseToward(own, map.tokens.find((t) => t.id === colleague.tokenId), map.grid),
+    }))
     return {
-      items: map.tokens.filter((t) => ownTokens.includes(t.id)).flatMap(carriedItemsOf),
-      colleagues: giveTargets(map, ownTokens, partyTokens),
+      items: own.flatMap(carriedItemsOf),
+      colleagues,
+      moedas: own.reduce((maior, t) => Math.max(maior, moedasDe(t)), 0),
     }
   }, [map, ownTokens, partyTokens])
+
+  // MOEDAS E TROCA: a contraproposta sai da ficha da OFERTA — o host não junta
+  // mochilas nem bolsas de fichas diferentes, então o formulário só oferece dela.
+  const trocaTokenId = state.troca?.tokenId
+  const tradeStock = useMemo(() => {
+    const ficha = !map || trocaTokenId === undefined ? undefined : ownTradeToken(map.tokens, ownTokens, trocaTokenId)
+    return ficha === undefined ? { items: [], moedas: 0 } : { items: carriedItemsOf(ficha), moedas: moedasDe(ficha) }
+  }, [map, ownTokens, trocaTokenId])
 
   // A cor do próprio laser: a da ficha (a mesma que os outros veem, escolhida
   // pelo host); ficha sem cor, o azul "este é o seu" da tela do jogador.
@@ -868,6 +889,14 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
     () => (!map || openPin === null || openPin.kind !== 'viagem' ? NO_TRAVELERS : pinTravelChoices(map.tokens, ownTokens, openPin, map.grid)),
     [map, openPin, ownTokens],
   )
+  // CONGELAR FICHA: só fichas dele congeladas encostam no pino aberto — a
+  // mesma conta do host. Recalculada a cada snapshot: descongelar acende o botão.
+  const openPinCongelado = useMemo(
+    () => map !== undefined && openPin !== null && openPin.kind === 'viagem' && passagemCongelada(map.tokens, ownTokens, openPin, map.grid),
+    [map, openPin, ownTokens],
+  )
+  // CONGELAR FICHA: o aviso fixo da tela, das fichas DELE que vieram no recorte.
+  const avisoCongelado = useMemo(() => (map === undefined ? null : avisoDeCongelado(map.tokens, ownTokens)), [map, ownTokens])
   // BARRAR A PASSAGEM: só com uma ficha dele encostada no pino aberto — a mesma conta do host.
   const alcancaPinoAberto =
     openPin !== null && map !== undefined && map.tokens.some((t) => ownTokens.includes(t.id) && tokenAlcancaPino(t, openPin, map.grid))
@@ -884,6 +913,8 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
   const closeAwayNotes = useCallback(() => connection.dismissAwayNotes(), [connection])
   const awayNotes = state.awayNotes ?? NO_NOTES
   const closeActionReply = useCallback(() => connection.dismissTokenAction(), [connection])
+  // Estável: o quadro do espiar religa o Escape quando `onClose` muda.
+  const closePeek = useCallback(() => connection.dismissPeek(), [connection])
   // Estável: o painel marca o Caderno como lido num efeito que depende dela.
   const readNotebook = useCallback(() => connection.markNotebookRead(), [connection])
   // MINHAS PISTAS: abrir o cartão do pino é ler — o host guarda a pista no Caderno.
@@ -1172,7 +1203,11 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
             connection.resetClueShare()
             setOpenClueId(clueId)
           }}
-          backpack={{ ...backpack, onGive: (itemId, toTokenId) => void connection.giveItem(itemId, toTokenId) }}
+          backpack={{
+            ...backpack,
+            onGive: (itemId, toTokenId) => void connection.giveItem(itemId, toTokenId),
+            onPay: (toTokenId, moedas) => void connection.giveCoins(toTokenId, moedas),
+          }}
           letter={{ peers: state.letterPeers, status: state.letterSend, onAskPeers: askLetterPeers, onSend: sendLetter }}
           onRollDice={(request) => connection.rollDice(request)}
           elsewhere={state.elsewhere}
@@ -1255,6 +1290,7 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
             watching={(state.passageWatch ?? []).includes(openPin.id)}
             onWatch={(on) => connection.watchPassage(openPin.id, on)}
             longe={openPinFar}
+            congelado={openPinCongelado}
             travelers={pinTravelers}
             onRequestTravel={(exitId, tokenIds) => {
               // Pedido enviado, o cartão sai: a espera fica no aviso de baixo,
@@ -1278,9 +1314,34 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
             // LOJA COM PREÇOS: o cartão fica aberto — quem compra continua olhando a banca, e o pedido aparece nela.
             onBuy={(itemId) => connection.buy(openPin.id, itemId)}
             compra={state.compra?.pinId === openPin.id ? state.compra : undefined}
+            peekWaiting={state.pinPeek?.phase === 'waiting'}
+            onPeek={() => {
+              // ESPIAR: o cartão sai para o quadro do outro lado tomar o lugar
+              // dele; a recusa, se vier, aparece no aviso de baixo.
+              if (connection.peek(openPin.id)) setOpenPinId(null)
+            }}
             // O cartão fica aberto: a barra aparece (ou some) nele quando o recorte novo chega.
             onBarrar={alcancaPinoAberto ? (on) => connection.barPin(openPin.id, on) : undefined}
           />
+        )}
+        {/* ESPIAR PELA PASSAGEM: o recorte do outro lado, por alguns segundos. Nunca entra no mapa. */}
+        {state.pinPeek?.phase === 'showing' && (
+          <PlayerPeek
+            key={state.pinPeek.id}
+            view={state.pinPeek.view}
+            durationMs={state.pinPeek.durationMs}
+            onClose={closePeek}
+            floorColor={state.map.floorStyle.fillColor}
+          />
+        )}
+        {state.pinPeek?.phase === 'rejected' && (
+          <p key={state.pinPeek.id} className="pp-notice" role="status" aria-live="polite">
+            {state.pinPeek.reason === 'too_soon'
+              ? 'Espere um instante para espiar de novo.'
+              : state.pinPeek.reason === 'failed'
+                ? 'Não deu para ver o outro lado. Tente de novo.'
+                : 'Não dá para espiar daqui. Encoste a ficha na passagem.'}
+          </p>
         )}
         {/* AGIR SOBRE UMA FICHA: o cartão da ficha alheia. Enviado, ele sai: a
             espera e a resposta ficam no aviso de baixo, e o mapa volta à vista. */}
@@ -1414,10 +1475,30 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
             escapeCloses={noCardOnTop && !clueCardOpen}
           />
         )}
+        {state.troca && (
+          // MOEDAS E TROCA: a oferta do mestre, embaixo, sem brigar com o recado no alto.
+          // `key` no offerId: oferta nova remonta o cartão (a contraproposta aberta não sobra).
+          <PlayerTradeCard
+            key={state.troca.offerId}
+            troca={state.troca}
+            mochila={tradeStock.items}
+            moedas={tradeStock.moedas}
+            onAnswer={(accept) => void connection.answerTrade(accept)}
+            onCounter={(itemIds, moedas) => void connection.counterTrade(itemIds, moedas)}
+            onDismiss={() => connection.dismissTrade()}
+          />
+        )}
         {state.paused && (
           // Fixo enquanto durar a pausa: é o que explica por que a ficha volta ao lugar.
           <p className="pp-notice pp-notice--pause" role="status" aria-live="polite">
             O mestre está com o outro grupo
+          </p>
+        )}
+        {!state.paused && avisoCongelado !== null && (
+          // CONGELAR FICHA: fixo enquanto o mestre segura a ficha dele, no lugar
+          // da pausa — com a cena pausada, o aviso dela já diz que nada anda.
+          <p className="pp-notice pp-notice--congelado" role="status" aria-live="polite">
+            {avisoCongelado}
           </p>
         )}
         <PlayerCallButton call={state.call} onRaise={(reason, text) => connection.raiseHand(reason, text)} onLower={() => connection.lowerHand()} />

@@ -198,8 +198,8 @@ interface PropertiesPanelProps {
    * bordo. Ausente = sem o controle (quem monta o painel sem essa ligação).
    */
   tokenVehicle?: Omit<TokenVehicleControlsProps, 'vehicle'>
-  /** F3, contrato do agente C4 — rotação/travar/ocultar do Token selecionado. */
-  tokenTransform: Omit<ItemTransformControlsProps, 'title' | 'rotation' | 'locked' | 'hidden' | 'secret'>
+  /** F3, contrato do agente C4 — rotação/travar/ocultar do Token selecionado. `onCongeladoChange`: o "Congelado" (CONGELAR FICHA). */
+  tokenTransform: Omit<ItemTransformControlsProps, 'title' | 'rotation' | 'locked' | 'congelado' | 'hidden' | 'secret'>
   /** "Ficha de jogador" do Token selecionado: entra na lista de quem chega sem personagem. */
   tokenPlayerCharacter: Omit<TokenPlayerCharacterControlsProps, 'playerCharacter'>
   selectedTextLabel: Extract<Drawing, { kind: 'text' }> | null
@@ -655,6 +655,13 @@ export function PropertiesPanel({
             <PropPlayerControls label={selectedProp.playerLabel ?? ''} showImage={selectedProp.playerImage !== undefined} {...propPlayer} />
           </ToolPropertiesSection>
         )}
+        {/* A FICHA NA ORDEM DO FIGMA UI3 (peça ficha-em-ordem-de-tarefa):
+            primeiro os fixos, o que toda ficha tem e o mestre mexe (quem é,
+            vida, tamanho, condições, travar e esconder, cor, foto, de quem é);
+            depois os opcionais de comportamento, uma linha cada enquanto
+            vazios (vigia, patrulha, levar junto, veículo, rotina, luzes); por
+            último onde ela está (piso) e para onde vai (levar para…). O que a
+            ficha já tem nasce aberto no lugar dele. */}
         {selectedToken && (
           <ToolPropertiesSection group="tokenImage" groups={groups}>
             {/* Primeiro: é a pergunta que o mestre faz em voz alta no meio da cena. */}
@@ -671,50 +678,62 @@ export function PropertiesPanel({
                 quer dizer em seguida que ele é grande — e o tamanho manda no
                 que a peça cobre na grade, então vem antes da aparência (cor, foto). */}
             <TokenSizeControls size={selectedTokenSize(selectedToken)} {...tokenSize} />
-            {/* Entre quem a ficha é (nome, tamanho) e como ela se parece (cor,
-                foto): a condição é o controle de MESA, mexido a cada rodada, e
-                fica à vista sem rolar. Cor e foto são de preparação. */}
+            {/* O controle de MESA, mexido a cada rodada: uma linha "+" enquanto
+                a ficha não tem marca, à vista sem rolar. */}
             <TokenConditionControls conditions={tokenConditionsOf(selectedToken)} {...tokenCondition} />
           </ToolPropertiesSection>
         )}
-        {/* Girar, travar e esconder logo depois das condições: também são gestos
-            de mesa, e moravam na 14ª rolagem, depois de todo o bloco de preparação. */}
+        {/* Travar e esconder dos jogadores logo depois das condições: também são
+            gestos de mesa. Rotação e "Oculto no editor", raros numa ficha
+            redonda, ficam no Avançado recolhido da própria seção. `key`: outra
+            ficha selecionada faz o Avançado nascer de novo, fechado — ou aberto,
+            se ELA estiver girada ou oculta no editor. O título diz o que as
+            duas linhas à vista fazem: "Token" já abre a ficha, no Nome, e um
+            título repetido não diz onde o mestre está (peça ux-ficha-grupos). */}
         {selectedToken && (
           <ToolPropertiesSection group="itemTransform" groups={groups}>
             <ItemTransformControls
-              title="Token"
+              key={`transformacao-${selectedToken.id}`}
+              title="Trava e visibilidade"
               rotation={selectedToken.rotation ?? 0}
               locked={!!selectedToken.locked}
+              congelado={selectedToken.congelado === true}
               hidden={!!selectedToken.hidden}
               secret={!!selectedToken.secret}
               {...tokenTransform}
+              rarosNoAvancado
             />
           </ToolPropertiesSection>
         )}
         {selectedToken && (
           <ToolPropertiesSection group="tokenImage" groups={groups}>
-            {/* Vigia logo depois da condição e do Travado: também é controle de
-                MESA (o guarda vira para a porta no meio da cena), não de preparação. */}
-            <TokenWatchControls watch={readTokenWatch(selectedToken.vigia)} {...tokenWatch} />
-            {/* Patrulha junto da vigia: as duas dizem o que o NPC faz na cena. */}
-            <TokenPatrolControls patrol={readTokenPatrol(selectedToken.patrulha)} {...tokenPatrol} />
-            {/* Levar junto também é controle de MESA: o aliado cai no meio da
-                cena e alguém o carrega até a saída. */}
-            <TokenCarryControls tokenId={selectedToken.id} {...tokenCarry} />
-            {/* Veículo depois da vigia: também é controle de MESA (quem sobe no
-                cesto muda no meio da cena), não de preparação. */}
-            {tokenVehicle !== undefined && <TokenVehicleControls vehicle={vehicleOf(selectedToken)} {...tokenVehicle} />}
             {/* Antes da imagem: a cor é o caminho de um clique, a foto é o de
                 abrir o disco. Quem só quer separar aliado de inimigo não
                 precisa passar pelo controle caro para chegar no barato. */}
             <TokenColorControls color={selectedTokenColor(selectedToken)} {...tokenColor} />
             {/* `tokenPhotoRef`: foto escolhida pelo JOGADOR vive em `imageData` — sem isto o painel ofereceria "Escolher imagem..." num token que já tem foto. */}
             <TokenImageControls image={tokenPhotoRef(selectedToken)} {...tokenImage} />
-            <TokenNpcControls npc={selectedToken.npc === true} {...tokenNpc} />
-            {/* "Ficha de jogador" ao lado de "Ficha de NPC": as duas dizem de quem
-                é a ficha, e são de preparação — não entre os gestos de mesa. */}
-            <TokenPlayerCharacterControls playerCharacter={selectedToken.playerCharacter === true} {...tokenPlayerCharacter} />
-            {rotinaDaFicha}
+            {/* COMPORTAMENTO (peça ux-ficha-grupos): o que a ficha faz na mesa
+                mora junto, sob UM título, como cada grupo do painel Design do
+                Figma UI3 — e não mais em linhas soltas entre a foto e o piso.
+                Primeiro de quem é a ficha ("Ficha de NPC" e "Ficha de
+                jogador"), depois os opcionais, uma linha cada enquanto vazios:
+                o que o NPC faz na cena (vigia, patrulha), quem vai com quem
+                (levar junto, veículo), o que muda com o mundo (rotina) e a luz
+                que a ficha carrega. O grupo não se recolhe: cada linha continua
+                à vista e a um clique, como antes (TokenControls.css). */}
+            <section className="lb-section lb-token-grupo">
+              <h2 className="lb-eyebrow">Comportamento</h2>
+              <TokenNpcControls npc={selectedToken.npc === true} {...tokenNpc} />
+              <TokenPlayerCharacterControls playerCharacter={selectedToken.playerCharacter === true} {...tokenPlayerCharacter} />
+              <TokenWatchControls watch={readTokenWatch(selectedToken.vigia)} {...tokenWatch} />
+              <TokenPatrolControls patrol={readTokenPatrol(selectedToken.patrulha)} {...tokenPatrol} />
+              <TokenCarryControls tokenId={selectedToken.id} {...tokenCarry} />
+              {tokenVehicle !== undefined && <TokenVehicleControls vehicle={vehicleOf(selectedToken)} {...tokenVehicle} />}
+              {rotinaDaFicha}
+              <TokenLightsControls {...tokenLights} />
+            </section>
+            {/* Onde a ficha está e para onde vai, por último. */}
             {pisos !== undefined && (
               <PisoControls key={`piso-${selectedToken.id}`} piso={pisoDe(selectedToken)} onPisoChange={(piso) => pisos.onTokenPisoChange(selectedToken.id, piso)} />
             )}
@@ -730,7 +749,6 @@ export function PropertiesPanel({
                 onCarry={(sceneId, pinId) => tokenSceneCarry.onCarry(selectedToken.id, sceneId, pinId)}
               />
             )}
-            <TokenLightsControls {...tokenLights} />
           </ToolPropertiesSection>
         )}
         {selectedLight && (

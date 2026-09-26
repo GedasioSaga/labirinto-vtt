@@ -1,4 +1,6 @@
-import type { HazardKind, MapData, MarcaRumo, PinCard, RegionPoint } from '../types/map'
+import type { CarriedItem, HazardKind, MapData, MarcaRumo, PinCard, RegionPoint } from '../types/map'
+import { cleanItemName } from '../lib/items'
+import { isCoinAmount, TRADE_FROM_MAX_LENGTH, TRADE_ITEMS_MAX } from '../lib/troca'
 import type { PlayerHazard } from '../lib/hazards'
 import type { PlayerAreaTrigger } from '../lib/areaTriggers'
 import type { PlayerClock } from '../lib/campaignClock'
@@ -24,6 +26,7 @@ import { COLECAO_MAX_PARTES, COLECAO_NOME_MAX_LENGTH, COLECOES_MAX, type Colecao
 
 import { isTokenAction, isTokenActionRejection, TOKEN_ACTION_REPLY_MAX_LENGTH, TOKEN_ACTION_TEXT_MAX_LENGTH, type TokenAction, type TokenActionRejection } from '../lib/tokenActions'
 import { ESPERA_ONDE_MAX_LENGTH, isFimDaEsperaMotivo, isWaitMinutes, type FimDaEspera, type MinhaEspera } from '../lib/encontroMarcado'
+import { ESPIAR_DURACAO_MAX_MS, parseEspiada, type Espiada } from '../lib/espiar'
 
 export type { OwnTokenElsewhere }
 
@@ -331,6 +334,20 @@ export type { OwnTokenElsewhere }
  * `pin.show` (mestre -> jogador) é o "MOSTRAR AGORA A…", aditivo pelo mesmo
  * critério: jogador antigo ignora. Leva só o cartão (`PinCard`), nunca a
  * posição do pino nem o destino, e só para o jogador escolhido.
+ *
+ * ESPIAR PELA PASSAGEM é aditivo pelo mesmo critério: `pin.peek` (jogador ->
+ * mestre, só o id do pino) e, na volta e só a quem pediu, `pin.peek.view` (o
+ * recorte do outro lado, relativo ao pino par, e quanto tempo mostrar) ou
+ * `pin.peek.rejected` (motivo genérico). Nenhuma delas leva nome ou id de cena,
+ * de mapa, do pino par ou de ficha de lá (`lib/espiar.ts`). Mestre antigo
+ * responde `error invalid_message`; jogador antigo ignora as duas.
+ *
+ * MOEDAS E TROCA ENTRE FICHAS, aditivas pelo mesmo critério: `coins.give`,
+ * `trade.answer` e `trade.counter` (jogador -> mestre) e, na volta,
+ * `coins.give.rejected`, `trade.offer` e `trade.closed`, sempre só à conexão
+ * do jogador envolvido. A bolsa viaja no token do PRÓPRIO jogador
+ * (`Token.moedas`); a de outro nunca sai (`lib/fogFilter.ts`). A oferta leva
+ * o nome que o mestre escreveu e o que ESTE jogador carrega — nunca cena.
  */
 export const PROTOCOL_VERSION = 1
 
@@ -592,6 +609,15 @@ export interface PinTravelCancelMessage {
 }
 
 /**
+ * ESPIAR PELA PASSAGEM: o jogador pede para olhar pelo pino `pinId` da cena em
+ * que está. Só o id: o host confere o resto (pino que dá vista, ficha encostada).
+ */
+export interface PinPeekRequestMessage {
+  type: 'pin.peek'
+  pinId: string
+}
+
+/**
  * LASER DO JOGADOR: a mesma forma do laser do mestre (lote de pontos em px de
  * mundo, ou `off` ao soltar). Nada de nome nem cor: quem é o host sabe pela
  * conexão, e a cor é a da ficha — o jogador não pode se passar por outro.
@@ -685,6 +711,59 @@ export interface ItemGiveMessage {
   type: 'item.give'
   itemId: string
   toTokenId: string
+}
+
+/**
+ * MOEDAS E TROCA — "Pagar a…": `moedas` da bolsa de uma ficha dele à ficha
+ * `toTokenId`, de um colega encostado. Qual ficha dele paga o host escolhe
+ * (a encostada que tem o bastante): o jogador só diz a quem e quanto.
+ */
+export interface CoinsGiveMessage {
+  type: 'coins.give'
+  toTokenId: string
+  moedas: number
+}
+
+/** A resposta à oferta `offerId` do mestre: aceita ou recusa. */
+export interface TradeAnswerMessage {
+  type: 'trade.answer'
+  offerId: string
+  answer: 'accept' | 'refuse'
+}
+
+/**
+ * A contraproposta à oferta `offerId`: em vez do que o mestre pediu, o
+ * jogador dá os itens `itemIds` da mochila da ficha da oferta e `moedas`.
+ * Quem decide é o mestre.
+ */
+export interface TradeCounterMessage {
+  type: 'trade.counter'
+  offerId: string
+  itemIds: string[]
+  moedas: number
+}
+
+/**
+ * A OFERTA do mestre, só à conexão de quem é a ficha. `de` é o texto que o
+ * mestre escreveu (quem oferece); `dou` são nomes de itens novos e moedas;
+ * `peco` são itens que ESTE jogador já carrega (id e nome) e moedas.
+ * `tokenId` é a ficha DELE que a oferta cobra (a que paga a contraproposta).
+ * Nunca leva cena, ficha de outro nem id de NPC.
+ */
+export interface TradeOfferMessage {
+  type: 'trade.offer'
+  offerId: string
+  tokenId: string
+  de: string
+  dou: { itens: string[]; moedas: number }
+  peco: { itens: CarriedItem[]; moedas: number }
+}
+
+/** A troca `offerId` acabou, e como. Só a quem ela foi oferecida. */
+export interface TradeClosedMessage {
+  type: 'trade.closed'
+  offerId: string
+  result: TradeClosedResult
 }
 
 /** O jogador levanta a mão. `text` ausente = só o motivo. */
@@ -913,7 +992,11 @@ export type PlayerMessage =
   | PinBuyMessage
   | ItemGiveMessage
   | PinTravelCancelMessage
+  | CoinsGiveMessage
+  | TradeAnswerMessage
+  | TradeCounterMessage
   | CabineCallMessage
+  | PinPeekRequestMessage
   | PlayerLaserMessage
   | ClueReadMessage
   | CluePeersRequestMessage
@@ -1013,6 +1096,25 @@ export interface SecretCheckAnswerMessage {
 export type DoorToggleRejection = 'locked' | 'far' | 'not_visible' | 'wrong_side' | 'blocked'
 
 /**
+ * Por que o "Pagar a…" não valeu: `short` = a bolsa das fichas dele encostadas
+ * não tem o bastante; `far` = colega longe; `unavailable` = ficha que não é de
+ * colega, que ele não vê ou a própria — o mesmo motivo para os três.
+ */
+export type CoinsGiveRejection = 'unavailable' | 'far' | 'short'
+
+export const COINS_GIVE_REJECTIONS: readonly CoinsGiveRejection[] = ['unavailable', 'far', 'short']
+
+/**
+ * Como a troca acabou, para quem a recebeu: `done` (itens e moedas já
+ * trocaram de lado), `refused` (ele recusou, ou o mestre recusou a
+ * contraproposta), `cancelled` (o mestre desistiu) e `unavailable` (ele não
+ * tem mais o que pagar, ou a ficha mudou).
+ */
+export type TradeClosedResult = 'done' | 'refused' | 'cancelled' | 'unavailable'
+
+export const TRADE_CLOSED_RESULTS: readonly TradeClosedResult[] = ['done', 'refused', 'cancelled', 'unavailable']
+
+/**
  * Por que o host não levou o pedido da porta trancada ao mestre. `pending`: um
  * pedido de porta dele já espera; `not_locked`: a porta abre com o toque.
  * Porta inexistente ou no escuro respondem o mesmo `not_visible` do toque.
@@ -1033,8 +1135,12 @@ export type DoorRequestAnswer = 'opened' | 'denied'
  * `far`: o pino está no recorte dele, mas nenhuma ficha dele encosta no pino
  * (`lib/doorReach.ts`, `tokenReachesPin`). Só sai para pino que ele já vê, e
  * antes de olhar o outro lado: não diz se o pino leva a algum lugar.
+ * `congelado`: CONGELAR FICHA — só fichas DELE congeladas encostam no pino, ou
+ * ele escolheu uma, ou uma congelada iria presa a quem passa (a bordo,
+ * levada). Sai no lugar do `far` (mesma altura, antes do outro lado) ou no fim,
+ * com a viagem já válida; também no "Deixar ir" de pedido feito antes de congelar.
  */
-export type PinTravelRejection = 'unavailable' | 'pending' | 'too_soon' | 'far'
+export type PinTravelRejection = 'unavailable' | 'pending' | 'too_soon' | 'far' | 'congelado'
 
 /**
  * Por que o pedido de passagem saiu da espera sem resposta do mestre:
@@ -1066,6 +1172,18 @@ export type MarkPlaceRefusal = 'unavailable' | 'full' | 'too_soon'
 
 /** A resposta do host a `mark.place`: ficou (`ok`) ou não, com o motivo. */
 export type MarkPlaceResultMessage = { type: 'mark.place.result'; ok: true } | { type: 'mark.place.result'; ok: false; reason: MarkPlaceRefusal }
+
+/**
+ * Por que o host não deixou espiar. Genérico pelo mesmo motivo da passagem:
+ * pino sem vista, longe, no escuro ou sem par respondem todos `unavailable`.
+ * `too_soon`: espiou há pouco.
+ */
+export type PinPeekRejection = 'unavailable' | 'too_soon'
+
+/** ESPIAR, na volta e só a quem pediu: o recorte do outro lado, ou a recusa. */
+export type PeekHostMessage =
+  | { type: 'pin.peek.view'; pinId: string; durationMs: number; view: Espiada }
+  | { type: 'pin.peek.rejected'; pinId: string; reason: PinPeekRejection }
 
 // Mestre -> jogador
 /** Laser do mestre: lote de pontos (px de mundo) desde o último envio, ou `off` ao soltar. */
@@ -1507,6 +1625,10 @@ export type HostMessage =
   | { type: 'pin.buy.answer'; answer: 'sold'; nome: string }
   | { type: 'pin.buy.answer'; answer: 'denied' }
   | { type: 'item.give.rejected'; reason: ItemGiveRejection }
+  // MOEDAS E TROCA, só a quem pagou ou a quem a oferta foi feita.
+  | { type: 'coins.give.rejected'; reason: CoinsGiveRejection }
+  | TradeOfferMessage
+  | TradeClosedMessage
   // ALAVANCA. `pulled` não diz qual porta nem se abriu ou fechou: a porta
   // ligada pode estar fora da vista, e o jogador só vê o que o recorte mostra.
   | { type: 'pin.lever.answer'; answer: 'pulled' }
@@ -1565,6 +1687,7 @@ export type HostMessage =
   | { type: 'away'; away: boolean; travelPending?: true }
   | RouteHostMessage
   | PinShowMessage
+  | PeekHostMessage
   | { type: 'kicked' }
   | { type: 'room.closed' }
   // A mesma pessoa entrou por outra aba (ou aparelho) com o resume desta
@@ -2315,6 +2438,26 @@ function parseLetterSend(obj: Record<string, unknown>): LetterSendMessage | null
   return { type: 'letter.send', to, via, text: trimmed }
 }
 
+/**
+ * Valida o que o jogador recebe do ESPIAR. Mesma regra do caderno: forma
+ * errada, recorte ruim (`parseEspiada`) ou tempo fora de (0, teto] recusam a
+ * mensagem inteira; devolve só os campos conhecidos — um nome de cena que
+ * viesse junto fica para trás. Motivo de recusa desconhecido vira o genérico.
+ */
+export function parsePeekHostMessage(value: unknown): PeekHostMessage | null {
+  if (!isRecord(value)) return null
+  const { pinId } = value
+  if (!isBoundedString(pinId, 1, REQ_ID_MAX_LENGTH)) return null
+  if (value.type === 'pin.peek.rejected') {
+    return { type: 'pin.peek.rejected', pinId, reason: value.reason === 'too_soon' ? 'too_soon' : 'unavailable' }
+  }
+  if (value.type !== 'pin.peek.view') return null
+  const { durationMs } = value
+  if (!isFiniteNumber(durationMs) || durationMs <= 0 || durationMs > ESPIAR_DURACAO_MAX_MS) return null
+  const view = parseEspiada(value.view)
+  return view === null ? null : { type: 'pin.peek.view', pinId, durationMs, view }
+}
+
 /** Cor do laser repassado: `#rrggbb`, a forma que `Token.color` grava. */
 const LASER_COLOR_PATTERN = /^#[0-9a-f]{6}$/i
 
@@ -2611,6 +2754,8 @@ export function parsePlayerMessage(raw: unknown): PlayerMessage | null {
       return { type: 'pin.travel.cancel' }
     case 'cabine.call':
       return isBoundedString(value.pinId, 1, REQ_ID_MAX_LENGTH) ? { type: 'cabine.call', pinId: value.pinId } : null
+    case 'pin.peek':
+      return isBoundedString(value.pinId, 1, REQ_ID_MAX_LENGTH) ? { type: 'pin.peek', pinId: value.pinId } : null
     case 'laser':
       // Só o corpo: `from`/`color` mandados pelo jogador são jogados fora — o
       // nome e a cor quem põe é o host, pela conexão e pela ficha dele.
@@ -2631,6 +2776,16 @@ export function parsePlayerMessage(raw: unknown): PlayerMessage | null {
       return isBoundedString(value.itemId, 1, REQ_ID_MAX_LENGTH) && isBoundedString(value.toTokenId, 1, REQ_ID_MAX_LENGTH)
         ? { type: 'item.give', itemId: value.itemId, toTokenId: value.toTokenId }
         : null
+    case 'coins.give':
+      return isBoundedString(value.toTokenId, 1, REQ_ID_MAX_LENGTH) && isCoinAmount(value.moedas) && value.moedas > 0
+        ? { type: 'coins.give', toTokenId: value.toTokenId, moedas: value.moedas }
+        : null
+    case 'trade.answer':
+      return isBoundedString(value.offerId, 1, REQ_ID_MAX_LENGTH) && (value.answer === 'accept' || value.answer === 'refuse')
+        ? { type: 'trade.answer', offerId: value.offerId, answer: value.answer }
+        : null
+    case 'trade.counter':
+      return parseTradeCounter(value)
     case 'call.raise':
       return parseCallRaise(value)
     case 'call.lower':
@@ -2687,6 +2842,65 @@ export function parsePlayerMessage(raw: unknown): PlayerMessage | null {
     default:
       return null
   }
+}
+
+/** Lista de ids de item: até `TRADE_ITEMS_MAX`, cada um id válido. `null` = forma torta. */
+function parseItemIds(value: unknown): string[] | null {
+  if (!Array.isArray(value) || value.length > TRADE_ITEMS_MAX) return null
+  const ids: string[] = []
+  for (const id of value) {
+    if (!isBoundedString(id, 1, REQ_ID_MAX_LENGTH)) return null
+    ids.push(id)
+  }
+  return ids
+}
+
+/** Contraproposta: a oferta, os ids dos itens e as moedas. Quem confere se ele os tem é o host. */
+function parseTradeCounter(obj: Record<string, unknown>): TradeCounterMessage | null {
+  const itemIds = parseItemIds(obj.itemIds)
+  if (!isBoundedString(obj.offerId, 1, REQ_ID_MAX_LENGTH) || itemIds === null || !isCoinAmount(obj.moedas)) return null
+  return { type: 'trade.counter', offerId: obj.offerId, itemIds, moedas: obj.moedas }
+}
+
+/** Um lado "dou" da oferta, como o jogador o recebe: nomes limpos e moedas. */
+function parseTradeGive(value: unknown): TradeOfferMessage['dou'] | null {
+  if (!isRecord(value) || !Array.isArray(value.itens) || value.itens.length > TRADE_ITEMS_MAX || !isCoinAmount(value.moedas)) return null
+  const itens: string[] = []
+  for (const nome of value.itens) {
+    if (typeof nome !== 'string' || cleanItemName(nome) === '') return null
+    itens.push(cleanItemName(nome))
+  }
+  return { itens, moedas: value.moedas }
+}
+
+/** O lado "peço": itens da mochila dele (id e nome) e moedas. */
+function parseTradeAsk(value: unknown): TradeOfferMessage['peco'] | null {
+  if (!isRecord(value) || !Array.isArray(value.itens) || value.itens.length > TRADE_ITEMS_MAX || !isCoinAmount(value.moedas)) return null
+  const itens: CarriedItem[] = []
+  for (const item of value.itens) {
+    if (!isRecord(item) || !isBoundedString(item.id, 1, REQ_ID_MAX_LENGTH) || typeof item.nome !== 'string' || cleanItemName(item.nome) === '') return null
+    itens.push({ id: item.id, nome: cleanItemName(item.nome) })
+  }
+  return { itens, moedas: value.moedas }
+}
+
+/**
+ * MOEDAS E TROCA: valida a oferta e o fim da troca que o jogador recebe.
+ * Forma errada recusa a mensagem inteira; a cópia leva só os campos
+ * conhecidos — cena, ficha de outro ou id de NPC que viessem juntos ficam para trás.
+ */
+export function parseHostTradeMessage(value: unknown): TradeOfferMessage | TradeClosedMessage | null {
+  if (!isRecord(value) || !isBoundedString(value.offerId, 1, REQ_ID_MAX_LENGTH)) return null
+  if (value.type === 'trade.closed') {
+    const result = TRADE_CLOSED_RESULTS.find((known) => known === value.result)
+    return result === undefined ? null : { type: 'trade.closed', offerId: value.offerId, result }
+  }
+  if (value.type !== 'trade.offer' || !isBoundedString(value.de, 1, TRADE_FROM_MAX_LENGTH)) return null
+  if (!isBoundedString(value.tokenId, 1, REQ_ID_MAX_LENGTH)) return null
+  const dou = parseTradeGive(value.dou)
+  const peco = parseTradeAsk(value.peco)
+  if (dou === null || peco === null) return null
+  return { type: 'trade.offer', offerId: value.offerId, tokenId: value.tokenId, de: value.de, dou, peco }
 }
 
 export function isCallReason(value: unknown): value is CallReason {

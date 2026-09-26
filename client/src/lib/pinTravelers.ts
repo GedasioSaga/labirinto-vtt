@@ -1,7 +1,8 @@
-import type { Token } from '../types/map'
+import type { Pin, Token } from '../types/map'
 import { PIN_TRAVEL_MAX_TOKENS } from '../net/protocol'
+import { tokenReachesPin } from './items'
 import { readContract } from './tokenLoan'
-import { isNear } from './travelTogether'
+import { isNear, NEAR_SQUARES } from './travelTogether'
 import type { Point } from './tokenSize'
 
 /**
@@ -44,6 +45,46 @@ export function pinTravelGroupOf<T extends Point>(mine: readonly T[], isHelper: 
   return pinTravelGroup(mine, pin, grid).slice(0, 1)
 }
 
+/**
+ * Folga, em casas, das fichas escolhidas entre o pedido e o "Deixar ir": cada
+ * uma continua valendo até esta distância além de onde estava a escolhida mais
+ * longe do pino no pedido. A mesma medida do grupo (`NEAR_SQUARES`).
+ */
+export const PIN_TRAVEL_CHOSEN_SLACK_CELLS = NEAR_SQUARES
+
+/** Até quantos px do pino as escolhidas de um pedido valem no "Deixar ir": a mais longe delas no pedido, mais a folga. */
+export function pinTravelChosenReach(chosen: readonly Point[], pin: Point, grid: number): number {
+  const farthest = Math.max(0, ...chosen.map((token) => Math.hypot(token.x - pin.x, token.y - pin.y)))
+  return farthest + PIN_TRAVEL_CHOSEN_SLACK_CELLS * grid
+}
+
+/**
+ * O "Deixar ir" de um pedido com fichas escolhidas: as de `chosenIds` entre
+ * `mine` que ainda estão a até `reach` px do pino (`pinTravelChosenReach` do
+ * pedido), da mais perto para a mais longe — a primeira vai à frente.
+ *
+ * Não refaz o grupo (`pinTravelGroupOf`): ele é medido da ficha mais perto do
+ * pino, e uma que ficou de fora (ou a própria escolhida da frente) chegar mais
+ * perto o encolheria — o pedido que o jogador não desfez seria recusado sem ele
+ * ter feito nada. As fichas de onde se escolhe são as mesmas do grupo: com
+ * ficha própria na mão, ajudante contratado (`isHelper`) não é escolha.
+ */
+export function pinTravelChosenWithin<T extends Point & { id: string }>(
+  mine: readonly T[],
+  isHelper: (token: T) => boolean,
+  pin: Point,
+  chosenIds: ReadonlySet<string>,
+  reach: number,
+): T[] {
+  const own = mine.filter((token) => !isHelper(token))
+  const pool = own.length > 0 ? own : mine
+  const distanceOf = (token: T): number => Math.hypot(token.x - pin.x, token.y - pin.y)
+  return pool.filter((token) => chosenIds.has(token.id) && distanceOf(token) <= reach).sort((a, b) => distanceOf(a) - distanceOf(b))
+}
+
+/** O ajudante contratado chega com o acordo na ficha (`contrato`): é por ele que a tela o reconhece. */
+const isHelper = (token: Token): boolean => readContract(token.contrato) !== undefined
+
 /** Uma caixa do "Quem passa?": a ficha e o nome dela. */
 export interface PinTravelChoice {
   id: string
@@ -55,9 +96,26 @@ export interface PinTravelChoice {
  * `ownIds` que estão em `tokens` (o recorte do jogador). O ajudante contratado
  * (com `contrato`) não é caixa — ele segue o jogador sozinho —, e só com
  * ajudantes na mão a caixa é uma só, a do mais perto, como no host.
+ * CONGELAR FICHA: a congelada também não é caixa — o host recusa o pedido
+ * que a escolhe, e conta o grupo sem ela (`validTravel`).
  */
 export function pinTravelChoices(tokens: readonly Token[], ownIds: readonly string[], pin: Point, grid: number): PinTravelChoice[] {
   const owned = new Set(ownIds)
+  const mine = tokens.filter((t) => owned.has(t.id) && t.congelado !== true)
+  return pinTravelGroupOf(mine, isHelper, pin, grid).map((t) => ({ id: t.id, name: t.name }))
+}
+
+/**
+ * CONGELAR FICHA — a passagem fica apagada no cartão: das fichas do jogador
+ * que podem ir à frente (as próprias; só com ajudantes na mão, eles), as que
+ * encostam no pino estão TODAS congeladas. A mesma conta do host
+ * (`validTravel`, que recusa com `congelado`). Ninguém encostado não é caso
+ * de congelado: é o "Chegue mais perto".
+ */
+export function passagemCongelada(tokens: readonly Token[], ownIds: readonly string[], pin: Pick<Pin, 'x' | 'y'>, grid: number): boolean {
+  const owned = new Set(ownIds)
   const mine = tokens.filter((t) => owned.has(t.id))
-  return pinTravelGroupOf(mine, (t) => readContract(t.contrato) !== undefined, pin, grid).map((t) => ({ id: t.id, name: t.name }))
+  const proprias = mine.filter((t) => !isHelper(t))
+  const encostadas = (proprias.length > 0 ? proprias : mine).filter((t) => tokenReachesPin(t, pin, grid))
+  return encostadas.length > 0 && encostadas.every((t) => t.congelado === true)
 }

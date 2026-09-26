@@ -1,5 +1,6 @@
 import type { DoorToggleRejection } from '../net/protocol'
 import type { TokenMoveLanding, TokenMoveRejection } from '../lib/moveValidation'
+import { TEXTO_CONGELADO } from '../lib/congelar'
 import { MOVE_NOTICE_TEXT as LANDING_NOTICE_TEXT } from './playerConnection'
 
 /** Recusa do mestre ao toque na porta, em uma linha curta. */
@@ -22,6 +23,8 @@ const MOVE_NOTICE_TEXT: Record<TokenMoveRejection, string> = {
   // FICHA SEGURADA PELO MESTRE: a jogadora achava que o app tinha travado.
   // O cadeado na própria ficha (`pixi/drawTokenLock.ts`) diz o mesmo antes do arrasto.
   locked: 'O mestre segurou sua ficha',
+  // CONGELAR FICHA: a mesma frase do aviso fixo da tela e do floco na ficha.
+  congelado: TEXTO_CONGELADO,
   outside_map: 'Fora do mapa',
   unknown_token: 'Essa ficha não está mais aqui',
   // "Fichas ocupam espaço": não diz QUEM está lá.

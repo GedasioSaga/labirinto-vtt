@@ -3,7 +3,7 @@ import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import type { EstadoDoMundo } from '../lib/estadoDoMundo'
 import type { RotinaDoNpc, Token } from '../types/map'
-import { RotinaDaFichaControls } from './RotinaDaFichaControls'
+import { ROTINA_HINT, ROTINA_SEM_ESTADO, RotinaDaFichaControls } from './RotinaDaFichaControls'
 import { trocaText } from './WorldStateSection'
 
 describe('trocaText: o aviso do apito conta as fichas que foram ao posto', () => {
@@ -73,6 +73,34 @@ describe('RotinaDaFichaControls: a rotina da ficha no painel do mestre', () => {
     render(tobias(), [])
     expect(container.textContent).toContain('Estado do mundo')
     expect(container.querySelector('select')).toBeNull()
+  })
+
+  it('sem estado é UMA linha apagada: "Rotina" e o que falta no lugar da lista, nada clicável', () => {
+    render(tobias(), [])
+    const secao = container.querySelector('section')
+    expect(secao?.classList.contains('lb-token-linha')).toBe(true)
+    const linha = secao?.querySelector('.lb-token-par--vazio')
+    expect(linha?.querySelector('.lb-label')?.textContent).toBe('Rotina')
+    expect(linha?.textContent).toContain(ROTINA_SEM_ESTADO)
+    expect(secao?.querySelector('button, select, input')).toBeNull()
+  })
+
+  it('com estado e sem rotina, é UMA linha: "Rotina por" ao lado da lista, com a frase do que ela faz ligada à lista', () => {
+    render(tobias())
+    const secao = container.querySelector('section')
+    expect(secao?.classList.contains('lb-token-linha')).toBe(true)
+    const par = secao?.querySelector('.lb-token-par')
+    expect(par?.contains(lista('Rotina por'))).toBe(true)
+    expect(secao?.querySelector('ul')).toBeNull()
+    const dica = document.getElementById(lista('Rotina por').getAttribute('aria-describedby') ?? 'sem-id')
+    expect(dica?.textContent).toBe(ROTINA_HINT)
+  })
+
+  it('com rotina, os turnos aparecem embaixo da linha da lista', () => {
+    render(tobias({ estadoId: 'apito', postos: [] }))
+    const secao = container.querySelector('section')
+    expect(secao?.firstElementChild?.contains(lista('Rotina por'))).toBe(true)
+    expect(secao?.querySelector('.lb-token-linha__corpo ul')?.querySelectorAll('li')).toHaveLength(3)
   })
 
   it('escolher o estado começa a rotina sem posto nenhum', () => {

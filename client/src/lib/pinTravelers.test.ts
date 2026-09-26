@@ -1,7 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import type { Token } from '../types/map'
 import { PIN_TRAVEL_MAX_TOKENS } from '../net/protocol'
-import { pinTravelChoices, pinTravelGroup, pinTravelGroupOf } from './pinTravelers'
+import {
+  PIN_TRAVEL_CHOSEN_SLACK_CELLS,
+  pinTravelChoices,
+  pinTravelChosenReach,
+  pinTravelChosenWithin,
+  pinTravelGroup,
+  pinTravelGroupOf,
+} from './pinTravelers'
 
 /**
  * ESCOLHER FICHAS NO PINO — a conta pura, a mesma no cartão do jogador (quais
@@ -78,5 +85,34 @@ describe('pinTravelGroupOf: o grupo que o cartão oferece e o host aceita', () =
     const fichas = [ficha('aj-longe', casa(8, 6)), ficha('aj-perto', casa(10, 6))]
     expect(pinTravelGroupOf(fichas, ehAjudante, PINO, GRADE).map((t) => t.id)).toEqual(['aj-perto'])
     expect(pinTravelGroupOf([], ehAjudante, PINO, GRADE)).toEqual([])
+  })
+})
+
+describe('pinTravelChosenWithin: o "Deixar ir" confere as escolhidas pela folga do pedido', () => {
+  const nenhumAjudante = () => false
+
+  it('a folga é a escolhida mais longe no pedido mais 2 casas; sem escolhidas, só a folga', () => {
+    const coruja = ficha('coruja', { x: PINO.x + 150, y: PINO.y })
+    expect(pinTravelChosenReach([ficha('bruno', { x: PINO.x + 50, y: PINO.y }), coruja], PINO, GRADE)).toBe(150 + PIN_TRAVEL_CHOSEN_SLACK_CELLS * GRADE)
+    expect(pinTravelChosenReach([], PINO, GRADE)).toBe(PIN_TRAVEL_CHOSEN_SLACK_CELLS * GRADE)
+  })
+
+  it('outra ficha dele colada no pino não encolhe a escolha: as escolhidas dentro da folga passam, da mais perto para a mais longe', () => {
+    const fichas = [ficha('coruja', casa(11, 8)), ficha('cao', casa(10, 4)), ficha('bruno', casa(9, 6))]
+    const alcance = pinTravelChosenReach([ficha('b', casa(9, 6)), ficha('c', casa(11, 8))], PINO, GRADE)
+    expect(pinTravelChosenWithin(fichas, nenhumAjudante, PINO, new Set(['coruja', 'bruno']), alcance).map((t) => t.id)).toEqual(['bruno', 'coruja'])
+  })
+
+  it('escolhida além da folga, ou que não está entre as fichas dele, fica de fora (quem chama recusa o pedido)', () => {
+    const fichas = [ficha('coruja', casa(16, 8)), ficha('bruno', casa(9, 6))]
+    const alcance = pinTravelChosenReach([ficha('b', casa(9, 6)), ficha('c', casa(11, 8))], PINO, GRADE)
+    expect(pinTravelChosenWithin(fichas, nenhumAjudante, PINO, new Set(['coruja', 'bruno', 'sumiu']), alcance).map((t) => t.id)).toEqual(['bruno'])
+  })
+
+  it('com ficha própria na mão, o ajudante contratado não é escolha; só com ajudantes, ele é', () => {
+    const ehAjudante = (t: Token) => t.id.startsWith('aj')
+    const alcance = 10 * GRADE
+    expect(pinTravelChosenWithin([ficha('aj', casa(10, 6)), ficha('bruno', casa(9, 6))], ehAjudante, PINO, new Set(['aj']), alcance)).toEqual([])
+    expect(pinTravelChosenWithin([ficha('aj', casa(10, 6))], ehAjudante, PINO, new Set(['aj']), alcance).map((t) => t.id)).toEqual(['aj'])
   })
 })

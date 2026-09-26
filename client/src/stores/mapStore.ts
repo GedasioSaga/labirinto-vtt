@@ -640,11 +640,13 @@ interface MapStoreState {
    * `health` (barra de vida) entra pelo mesmo caminho: cada número confirmado
    * no painel é um Ctrl+Z, e `null` tira a barra da ficha. `vigia` (olhos do
    * guarda), `npc` (marca de NPC) e `publicName` ("Nome para os jogadores")
-   * também: são conteúdo do mapa, Ctrl+Z desfaz.
+   * também: são conteúdo do mapa, Ctrl+Z desfaz. `congelado` (CONGELAR FICHA,
+   * o interruptor ao lado do "Travado") desfaz como a trava; o "Congelar
+   * todos" do Grupo é mudança de mesa (`adventureStore.congelarFichas`).
    */
   updateToken: (
     id: string,
-    patch: Partial<Pick<Token, 'rotation' | 'locked' | 'hidden' | 'color' | 'size' | 'health' | 'vigia' | 'npc' | 'publicName' | 'playerCharacter'>>,
+    patch: Partial<Pick<Token, 'rotation' | 'locked' | 'congelado' | 'hidden' | 'color' | 'size' | 'health' | 'vigia' | 'npc' | 'publicName' | 'playerCharacter'>>,
   ) => void
   /**
    * CONDIÇÃO NA FICHA: marca a condição se ela não está na ficha, desmarca se
@@ -853,7 +855,7 @@ interface MapStoreState {
    *  mantido em dia por `stores/adventureStore.ts`, fora deste desfazer. */
   updatePin: (
     id: string,
-    patch: Partial<Pick<MapData['pins'][number], 'kind' | 'icon' | 'description' | 'nome' | 'notaDoMestre' | 'image' | 'locked' | 'destino' | 'passagem' | 'passe' | 'mudo' | 'motivo' | 'rotulo' | 'saidas' | 'item' | 'abreCom' | 'presoA' | 'portaLigada' | 'marco' | 'lerDePerto' | 'segredo' | 'colecao' | 'loja'>>,
+    patch: Partial<Pick<MapData['pins'][number], 'kind' | 'icon' | 'description' | 'nome' | 'notaDoMestre' | 'image' | 'locked' | 'destino' | 'passagem' | 'passe' | 'mudo' | 'motivo' | 'rotulo' | 'saidas' | 'item' | 'abreCom' | 'presoA' | 'portaLigada' | 'marco' | 'lerDePerto' | 'segredo' | 'colecao' | 'loja' | 'daVista'>>,
   ) => void
   /**
    * ALAVANCA: o mestre aciona pelo painel — a porta ligada abre ou fecha, com

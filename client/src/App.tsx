@@ -18,6 +18,7 @@ import { convertFileSrc, invoke, isTauri } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { createHostBridge, type HostBridge, type RoomInfo, type TunnelState } from './net/hostBridge'
 import { hostPlayerChanges } from './net/playerChanges'
+import { setPinPassageFromRequest } from './net/pinPassageFromRequest'
 import { useSignalStore } from './stores/signalStore'
 import { goToPointAction } from './stores/pointActionGo'
 import { useAwayTokensStore } from './stores/awayTokensStore'
@@ -46,6 +47,7 @@ import { giftScenesOf, RoomPanel, roomPanelTokensOf } from './components/RoomPan
 import { hostCluesProps } from './components/CluesSection'
 import { LivePlayerMirror } from './components/PlayerMirror'
 import { masterDestinationMarks, partyDestinations, partyItemChange, partyMembers, peopleByScene } from './lib/party'
+import { congelamentoDaMesa } from './lib/congelar'
 import { jogadoresDoCorte } from './lib/corteDaTorre'
 import { useDestinationStore } from './stores/destinationStore'
 import { useCenaQueEspera } from './stores/useCenaQueEspera'
@@ -124,15 +126,16 @@ import { ShortcutsDialog } from './components/ShortcutsDialog'
 import { ExportImageDialog } from './components/ExportImageDialog'
 import { imageExportFileName, type ImageExportOptions, type MapImageExporter } from './lib/mapImageExport'
 import { saveMapImage } from './lib/mapImageSave'
-import type { DoorKind, DoorSide, DrawingCap, DrawingDash, MapData, Pin, PinBlockReason, PinPassage, Region, Token, Wall } from './types/map'
+import type { DoorKind, DoorSide, DrawingCap, DrawingDash, ExitPassage, MapData, Pin, PinBlockReason, PinPassage, Region, Token, Wall } from './types/map'
 import { passageOf } from './lib/pins'
 import { passItemOf, passTokenOptions, withPassItem, withPassToken } from './lib/pinPass'
-import { isArrivalOnly } from './lib/pinTravel'
+import { isArrivalOnly, setExitPassage } from './lib/pinTravel'
 import { pinAttachOptions } from './lib/pinAttach'
 import { leverDoorOptions, linkedDoorOf } from './lib/lever'
 import { lockDoorOptions } from './lib/pinLock'
 import { pinColecaoPanel } from './components/pinColecaoPanel'
 import { vehicleSeatOptions } from './lib/vehicle'
+import { isDaVista } from './lib/espiar'
 import type { Screen } from './types/screen'
 import { createMapScreen, parentScreen } from './lib/navigation'
 import * as mapFactory from './lib/mapFactory'
@@ -627,13 +630,9 @@ function App() {
         hideToken: hideTokenFromRequest,
         // "Passar para pede" do pedido pelo pino trancado: o pino muda de modo
         // na cena dele (de fundo quando o jogador estava lá), como o painel faria.
-        setPinPassage: (pinId, passagem, sceneId) => {
-          if (sceneId !== undefined) {
-            useAdventureStore.getState().updateBackgroundScene(sceneId, (m) => mapFactory.updatePin(m, pinId, { passagem }))
-            return
-          }
-          useMapStore.getState().updatePin(pinId, { passagem })
-        },
+        // MODO POR SAÍDA: com `exitId`, só aquela saída extra passa a pedir
+        // (`net/pinPassageFromRequest.ts`, provado em `hostBridge.modoPorSaida.test.ts`).
+        setPinPassage: setPinPassageFromRequest,
         // ITEM PEGÁVEL: o pino pego sai e as mochilas mudam, já validados pela
         // sessão. Vale para TODO passo do desfazer da cena, aberta ou de fundo
         // (`applyItemsInScene`): um Ctrl+Z do mestre não devolve a chave ao
@@ -861,6 +860,8 @@ function App() {
     if (!isTauri()) return mapPanel
     const world = roomPanelWorld()
     const members = partyMembers(roomPlayers, world)
+    // CONGELAR FICHA: toda ficha na mão de um jogador — a própria, a emprestada, o ajudante.
+    const fichasDeJogador = roomPlayers.flatMap((player) => player.tokenIds)
     return (
       <RailTabs
         active={railTab}
@@ -897,6 +898,11 @@ function App() {
               onToggleMirror: (member) => setMirrorId((current) => (current === member.playerId ? null : member.playerId)),
               // Recado para um jogador só: sem sala não há quem leia.
               onNote: room === null ? undefined : (playerId, text) => hostBridgeRef.current?.playerNote(playerId, text) ?? null,
+              // MOEDAS E TROCA: a oferta vai pela sessão, só ao jogador da linha; sem sala não há quem responda.
+              onTrade:
+                room === null
+                  ? undefined
+                  : (member, proposta) => (member.token === null ? 'unavailable' : (hostBridgeRef.current?.proposeTrade(member.playerId, member.token.id, proposta) ?? 'unavailable')),
               // "Ver" da marca "vamos para cá": a mesma ida do "Ir lá", até a marca e não até a ficha.
               onViewDestination: (member) => {
                 if (member.playerId !== followingId) useFollowStore.getState().stop()
@@ -904,6 +910,17 @@ function App() {
               },
               // "Trazer" a ficha que ficou em outra cena: sem sala não há sessão que saiba do dono.
               onBring: room === null ? undefined : (playerId, tokenId) => hostBridgeRef.current?.bringToken(playerId, tokenId) ?? false,
+              // CONGELAR FICHA: mudança de MESA em toda cena carregada (fora do
+              // Ctrl+Z). A cena de fundo não passa pelo `useMapStore`: o recorte
+              // novo sai por aqui, como no `onItem`.
+              congelar: {
+                ...congelamentoDaMesa(fichasDeJogador, world),
+                onChange: (congelar) => {
+                  if (congelar) useAdventureStore.getState().congelarFichas(new Set(fichasDeJogador), true)
+                  else useAdventureStore.getState().descongelarTodas()
+                  hostBridgeRef.current?.notifyMapChanged()
+                },
+              },
             }}
             initiative={{
               tokens: map.tokens.map((token) => ({ id: token.id, name: token.name })),
@@ -1909,6 +1926,12 @@ function App() {
       // par da outra cena fica como está.
       passage: passageOf(pin),
       onPassageChange: (passagem: PinPassage) => useMapStore.getState().updatePin(pin.id, { passagem }),
+      // MODO POR SAÍDA: o modo de uma saída extra, com desfazer. Lido de novo
+      // na store na hora da troca: o painel pode estar atrás de um desfazer.
+      onExitPassageChange: (exitId: string, passagem: ExitPassage | undefined) => {
+        const atual = useMapStore.getState().map.pins.find((p) => p.id === pin.id)
+        if (atual !== undefined) useMapStore.getState().updatePin(pin.id, setExitPassage(atual, exitId, passagem))
+      },
       // CHAVE ABRE PORTA: "Abre com" do pino trancado, com desfazer; "" tira a chave.
       keyName: pin.abreCom ?? '',
       onKeyChange: (nome: string) => useMapStore.getState().updatePin(pin.id, { abreCom: readDoorKey(nome) }),
@@ -1941,6 +1964,9 @@ function App() {
         useAdventureStore.getState().setPassageBothSides(pin.id, trancar)
       },
       arrivalOnly: isArrivalOnly(pin),
+      // ESPIAR: "Dá vista" é do pino desta cena, com desfazer como o modo de passagem.
+      daVista: isDaVista(pin.daVista) ? pin.daVista : null,
+      onDaVistaChange: (casas: number | null) => useMapStore.getState().updatePin(pin.id, { daVista: casas ?? undefined }),
     }
   }
 
@@ -2900,6 +2926,9 @@ function App() {
             tokenTransform={{
               onRotationChange: (rotation) => selectedToken && updateToken(selectedToken.id, { rotation }),
               onLockedChange: (locked) => selectedToken && updateToken(selectedToken.id, { locked }),
+              // CONGELAR FICHA: o mesmo caminho do "Travado" (Ctrl+Z desfaz), e o
+              // jogador recebe o floco no broadcast que toda mudança do mapa dispara.
+              onCongeladoChange: (congelado) => selectedToken && updateToken(selectedToken.id, { congelado }),
               onHiddenChange: (hidden) => selectedToken && updateToken(selectedToken.id, { hidden }),
               onSecretChange: (secret) => selectedToken && useMapStore.getState().setItemSecret('token', selectedToken.id, secret),
               reveal: selectedToken ? secretRevealFor(selectedToken.id) : null,

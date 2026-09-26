@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { MapData, Pin, PinDestination, PinPassage, Stair, Token } from '../types/map'
+import type { ExitPassage, MapData, Pin, PinDestination, PinPassage, Stair, Token } from '../types/map'
 import {
   buildingOfStair,
   buildPartnerStair,
@@ -15,6 +15,7 @@ import { passageOf } from '../lib/pins'
 import { singleSceneWorld, travelPinsClearance, type AppliedItems, type HostScene, type HostWorld } from '../net/hostSession'
 import { applyItemChange } from '../lib/items'
 import { carrierIdOf, withoutCarrier } from '../lib/carry'
+import { congelarNoMapa, descongelarTudoNoMapa } from '../lib/congelar'
 import { leaveVehicle, passengersOf } from '../lib/vehicle'
 import { vehicleRiderSpots, type SeatHold } from '../lib/gatherParty'
 import { withPlayerVisibleTokens } from '../lib/pinTravel'
@@ -53,7 +54,10 @@ import {
   addExit,
   arrivalPoint,
   arrivalSpot,
+  backPassageOf,
+  extrasFollowingMain,
   isArrivalOnly,
+  isExitPassage,
   leadsToScene,
   linkBack,
   linkWithinScene,
@@ -65,6 +69,7 @@ import {
   sameDestination,
   setArrivalOnly,
   setExitDestination,
+  setExitPassage,
   travelExitOf,
   travelExitsOf,
   travelLinkChanges,
@@ -444,6 +449,16 @@ interface AdventureState {
   atenderChamada: (cabineId: string) => boolean
   /** CABINE DE TRANSPORTE: "Limpar a fila". `false` quando não havia chamada. */
   limparFilaDaCabine: (cabineId: string) => boolean
+  /**
+   * CONGELAR FICHA — o "Congelar todos" do Grupo: liga (`true`) ou desliga
+   * `congelado` nas fichas `ids`, na cena aberta e em toda cena de fundo que
+   * abriu. Mudança de MESA, no molde da troca do estado do mundo: fora do
+   * Ctrl+Z (desfazer um traço não descongela ninguém) e a cena de fundo fica
+   * pendente de Salvar. Mapa solto: só a cena aberta.
+   */
+  congelarFichas: (ids: ReadonlySet<string>, congelado: boolean) => void
+  /** "Descongelar todos": nenhuma ficha congelada em cena carregada nenhuma, de quem quer que seja. Mudança de mesa, como acima. */
+  descongelarTodas: () => void
   /** Há cena de fundo ou lista de cenas esperando gravação? (A cena aberta é o `useSessionStore` que diz.) */
   hasPendingScenes: () => boolean
   /**
@@ -627,6 +642,10 @@ export interface PinExitTravel {
   id: string
   rotulo: string
   travel: PinTravel
+  /** MODO POR SAÍDA: o modo próprio da saída extra. Ausente = como a principal. */
+  passagem?: ExitPassage
+  /** Ligada: como o jogador passa pelo par de volta a este pino (a volta pode ser uma extra com modo próprio). */
+  modoDaVolta?: PinPassage
 }
 
 /**
@@ -638,7 +657,15 @@ export function pinExitsTravelOf(state: SceneState, liveMap: MapData, pin: Pin):
   const lookup = sceneLookup(state, liveMap)
   const saidas = travelExitsOf(pin)
   if (saidas.length === 0) return [{ id: SAIDA_PRINCIPAL, rotulo: pin.rotulo ?? '', travel: resolvePinTravel(pin, state.activeSceneId, lookup) }]
-  return saidas.map((saida) => ({ id: saida.id, rotulo: saida.rotulo, travel: resolvePinTravel(pin, state.activeSceneId, lookup, saida.id) }))
+  return saidas.map((saida) => {
+    const linha: PinExitTravel = { id: saida.id, rotulo: saida.rotulo, travel: resolvePinTravel(pin, state.activeSceneId, lookup, saida.id) }
+    // MODO POR SAÍDA: o modo próprio da extra, para o painel mostrar a escolha certa.
+    if (saida.id !== SAIDA_PRINCIPAL && isExitPassage(saida.passagem)) linha.passagem = saida.passagem
+    if (linha.travel.status === 'ligado' && state.activeSceneId !== null) {
+      linha.modoDaVolta = backPassageOf(linha.travel.partner, { sceneId: state.activeSceneId, pinId: pin.id })
+    }
+    return linha
+  })
 }
 
 /** Pinos de viagem da cena aberta que não levam a lugar nenhum: o canvas os desenha apagados. */
@@ -884,6 +911,18 @@ function sceneToOpenInstead(state: Pick<AdventureState, 'adventure' | 'cache' | 
   const index = scenes.findIndex((entry) => entry.id === goneSceneId)
   const ordered = [...scenes.slice(index + 1), ...scenes.slice(0, Math.max(index, 0)).reverse()]
   return ordered.find((entry) => opens(entry.id))?.id ?? null
+}
+
+/**
+ * Mudança de MESA em toda cena carregada — a aberta e as de fundo —, no molde
+ * de `trocarEstadoDoMundo`: `transform` entra no mapa E em todo passo do
+ * desfazer de cada cena, então o Ctrl+Z do mestre não a desfaz, e a cena de
+ * fundo que mudou fica pendente de Salvar. Id de ficha é único na aventura:
+ * o mesmo `transform` serve a toda cena. Mapa solto: só a aberta.
+ */
+function mudarNaMesa(get: () => AdventureState, transform: (map: MapData) => MapData): void {
+  useMapStore.getState().applyPlayerChange(transform)
+  for (const sceneId of Object.keys(get().cache)) get().applyPlayerChangeToBackgroundScene(sceneId, transform)
 }
 
 /**
@@ -1475,6 +1514,10 @@ export const useAdventureStore = create<AdventureState>()((set, get) => ({
     return true
   },
 
+  congelarFichas: (ids, congelado) => mudarNaMesa(get, (map) => congelarNoMapa(map, ids, congelado)),
+
+  descongelarTodas: () => mudarNaMesa(get, descongelarTudoNoMapa),
+
   linkPinToNewArrival: (pinId, sceneId, exitId = SAIDA_PRINCIPAL) => {
     const { activeSceneId, cache } = get()
     const live = useMapStore.getState().map
@@ -1609,19 +1652,51 @@ export const useAdventureStore = create<AdventureState>()((set, get) => ({
     const live = useMapStore.getState().map
     const pin = live.pins.find((p) => p.id === pinId)
     if (pin === undefined) return false
+    const { activeSceneId } = get()
+    if (activeSceneId === null) return false
     const lookup = sceneLookup(get(), live)
     const pares = travelExitsOf(pin).flatMap((saida) => {
-      const travel = resolvePinTravel(pin, get().activeSceneId, lookup, saida.id)
+      const travel = resolvePinTravel(pin, activeSceneId, lookup, saida.id)
       return travel.status === 'ligado' ? [{ sceneId: travel.sceneId, pinId: travel.partner.id }] : []
     })
     if (pares.length === 0) return false
-    const passagem: PinPassage = trancar ? 'trancada' : 'pede'
+    const passagem: ExitPassage = trancar ? 'trancada' : 'pede'
     // Trancar leva o motivo deste lado ("Desabou") ao outro: o que fechou a
     // passagem fechou as duas pontas. Destrancar não mexe no motivo, que fica
     // guardado para a próxima vez, como no painel.
     const patchDoPar = trancar ? { passagem, motivo: pin.motivo } : { passagem }
-    for (const par of pares) get().updateBackgroundScene(par.sceneId, (map) => mapFactory.updatePin(map, par.pinId, patchDoPar))
-    useMapStore.getState().updatePin(pinId, { passagem })
+    // MODO POR SAÍDA: a volta do par pode ser uma extra com modo próprio; ela
+    // passa a seguir a principal que acabou de ser gravada. As outras saídas
+    // do par (que levam a outro lugar) ficam como estão.
+    const aqui: PinDestination = { sceneId: activeSceneId, pinId }
+    const voltaParaCa = (saida: { destino: PinDestination }): boolean => sameDestination(saida.destino, aqui)
+    const doPar = (map: MapData, parId: string): MapData => {
+      const par = map.pins.find((p) => p.id === parId)
+      if (par === undefined) return map
+      const voltas = travelExitsOf(par).filter(voltaParaCa)
+      if (voltas.length > 0 && voltas.every((saida) => saida.id !== SAIDA_PRINCIPAL)) {
+        // A principal do par leva a OUTRO lugar: o modo e o motivo dela
+        // (a porta da Cripta trancada porque "Desabou") não são desta
+        // ligação. Só as extras que voltam para cá mudam.
+        const comVoltas = voltas.reduce((atual: Pin, saida) => ({ ...atual, ...setExitPassage(atual, saida.id, passagem) }), par)
+        return mapFactory.updatePin(map, parId, { saidas: comVoltas.saidas })
+      }
+      // A volta é a principal: o modo do pino muda. As extras do par sem modo
+      // próprio que levam a OUTRO lugar seguiam esse modo; ganham o antigo por
+      // escrito, como em `promoteExtraExit`, para o Túnel não trancar junto.
+      const modoAntigo = passageOf(par)
+      const semVolta = extrasFollowingMain(par, voltaParaCa) ?? par.saidas ?? []
+      const guardaModo = modoAntigo !== passagem && isExitPassage(modoAntigo)
+      const saidas = semVolta.map((saida) =>
+        guardaModo && !voltaParaCa(saida) && !isExitPassage(saida.passagem) ? { ...saida, passagem: modoAntigo } : saida,
+      )
+      const mudou = saidas.some((saida, i) => saida !== par.saidas?.[i])
+      return mapFactory.updatePin(map, parId, mudou ? { ...patchDoPar, saidas } : patchDoPar)
+    }
+    for (const par of pares) get().updateBackgroundScene(par.sceneId, (map) => doPar(map, par.pinId))
+    // Deste lado, o pino inteiro: nenhuma extra fica aberta (ou trancada) por conta própria.
+    const saidas = extrasFollowingMain(pin)
+    useMapStore.getState().updatePin(pinId, saidas === undefined ? { passagem } : { passagem, saidas })
     return true
   },
 

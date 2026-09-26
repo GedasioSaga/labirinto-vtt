@@ -63,6 +63,24 @@ describe('TokenVehicleControls', () => {
     expect(onSeatsChange).toHaveBeenCalledWith(VEHICLE_SEATS_DEFAULT)
   })
 
+  it('ficha comum é UMA linha: sem título "Veículo", só o interruptor', () => {
+    render(<TokenVehicleControls vehicle={null} options={CHEIO} onSeatsChange={vi.fn()} onPassengerChange={vi.fn()} />)
+    const secao = container.querySelector('section')
+    expect(secao?.querySelector('h2')).toBeNull()
+    expect(secao?.classList.contains('lb-token-linha')).toBe(true)
+    expect(secao?.children).toHaveLength(1)
+    expect(secao?.firstElementChild?.matches('label.lb-switch')).toBe(true)
+  })
+
+  it('veículo: lugares e "A bordo" aparecem embaixo do interruptor, que não sai do lugar', () => {
+    render(<TokenVehicleControls vehicle={{ lugares: 2, passageiros: ['gui'] }} options={CHEIO} onSeatsChange={vi.fn()} onPassengerChange={vi.fn()} />)
+    const secao = container.querySelector('section')
+    expect(secao?.firstElementChild?.matches('label.lb-switch')).toBe(true)
+    const corpo = secao?.querySelector('.lb-token-linha__corpo')
+    expect(corpo?.contains(botao('Mais um lugar'))).toBe(true)
+    expect(corpo?.contains(caixa('Gui'))).toBe(true)
+  })
+
   it('cheio: Gui e Bia marcados, Caio indisponível com o motivo à vista', () => {
     render(<TokenVehicleControls vehicle={{ lugares: 2, passageiros: ['gui', 'bia'] }} options={CHEIO} onSeatsChange={vi.fn()} onPassengerChange={vi.fn()} />)
     expect(caixa('Gui').checked).toBe(true)

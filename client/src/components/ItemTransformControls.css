@@ -1,0 +1,45 @@
+/*
+ * ItemTransformControls — só o modo "raros no Avançado" (a ficha, peça
+ * ficha-em-ordem-de-tarefa). O Avançado mora DENTRO da seção da transformação,
+ * como a última linha dela ("Rotation" e o ajuste fino no mesmo bloco, no
+ * painel Design do Figma UI3), e não numa seção irmã com divisória. Sem o
+ * respiro de seção própria: quem dá o espaço é o passo de 12 px da seção de
+ * fora. O cabeçalho vira alvo de 34 px na largura inteira (a altura do
+ * `.lb-btn` e das linhas "+" da ficha), acima dos 24 px do cabeçalho de seção
+ * recolhível. Só `var(--lb-*)` de theme.ts.
+ *
+ * ESPECIFICIDADE: main.tsx importa o App antes de main.css, então esta folha
+ * entra ANTES dela na cascata. Por isso três classes no seletor: vencem
+ * `.lb-section` e `.lb-section + .lb-section` de lá sem depender da ordem.
+ */
+
+.lb-section.lb-item-transform--raros > .lb-collapsible {
+  padding: 0;
+  border-top: 0;
+}
+
+.lb-section.lb-item-transform--raros > .lb-collapsible .lb-collapsible__toggle {
+  min-height: 34px;
+}
+
+/* A frase de cada campo do Avançado fica no fluxo (quem abriu veio ler), colada
+   ao campo dela e longe do seguinte: 4 px acima dela, os 12 px do corpo entre
+   um campo e o outro. */
+.lb-section.lb-item-transform--raros .lb-advanced__item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-1);
+}
+
+/* Duas linhas no rail de 264 px: sem palavra sozinha na segunda. */
+.lb-section.lb-item-transform--raros .lb-advanced__item > .lb-field__hint {
+  text-wrap: pretty;
+}
+
+/* Abrir e fechar é gesto frequente: só a seta gira, em 110 ms (main.css); com
+   movimento reduzido, nem ela. */
+@media (prefers-reduced-motion: reduce) {
+  .lb-section.lb-item-transform--raros > .lb-collapsible .lb-collapsible__chevron {
+    transition: none;
+  }
+}

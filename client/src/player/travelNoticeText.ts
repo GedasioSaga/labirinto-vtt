@@ -1,4 +1,5 @@
 import type { TravelNotice } from './playerConnection'
+import { TEXTO_CONGELADO } from '../lib/congelar'
 
 /**
  * Enquanto o host confere o passe (pino no modo `passe`). O mesmo texto no
@@ -34,6 +35,8 @@ export function travelNoticeText(notice: TravelNotice): string {
       if (notice.reason === 'pending') return 'Seu pedido anterior ainda espera o mestre'
       if (notice.reason === 'too_soon') return 'Espere um pouco antes de pedir de novo'
       if (notice.reason === 'far') return 'Chegue mais perto da passagem'
+      // CONGELAR FICHA: a mesma frase do aviso fixo e do floco, e o que ela barra aqui.
+      if (notice.reason === 'congelado') return `${TEXTO_CONGELADO}: não dá para passar agora`
       return 'Não dá para passar por aqui agora'
   }
 }

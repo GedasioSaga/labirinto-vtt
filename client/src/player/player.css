@@ -1784,6 +1784,16 @@
   margin: 6px 16px 0 52px;
 }
 
+/* MODO POR SAÍDA: "Livre", "Pede ao mestre", "Trancada" no botão de cada
+   saída quando os modos se misturam. Mais leve que o "Só ida": é o estado da
+   porta, dito em texto, sem moldura que dispute com ela. */
+.pp-pincard__mode {
+  font-size: 12px;
+  font-weight: 600;
+  opacity: 0.8;
+  white-space: nowrap;
+}
+
 /* "Me avise quando der": botão de alternar, secundário ao texto — linha fina,
    sem fundo. Ligado, a borda e o texto vão ao latão (o estado não é só cor:
    a frase de baixo diz "Você recebe um aviso"). */
@@ -2061,6 +2071,14 @@
 .pp-notice--pause {
   bottom: 112px;
   border-color: var(--lb-color-brass, #e0a44a);
+}
+
+/* CONGELAR FICHA: o aviso fixo da ficha congelada mora no lugar do da pausa
+   (os dois nunca saem juntos: com a cena pausada, vale o dela), com a borda
+   azul-gelo do floco que a ficha ganha no mapa (`pixi/drawTokenFrozen.ts`). */
+.pp-notice--congelado {
+  bottom: 112px;
+  border-color: #9fd0ff;
 }
 
 /* Ação no ponto: acima da viagem e da pausa, para os avisos não se cobrirem. */
@@ -2566,6 +2584,132 @@
 .pp-note__close:focus-visible {
   outline: 2px solid var(--lb-color-brass, #e0a44a);
   outline-offset: 2px;
+}
+
+/*
+ * ESPIAR PELA PASSAGEM: o quadro redondo do outro lado, no alto e no meio como
+ * o recado (o mapa continua à vista). Minimapa: chão chapado, parede em linha
+ * fina clara, porta curta, fichas em ponto; em volta, o preto da névoa.
+ */
+.pp-peek {
+  position: fixed;
+  top: 12px;
+  left: 50%;
+  z-index: 26;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  width: min(300px, calc(100% - 24px));
+  padding: 12px 14px;
+  font-family: var(--lb-font-sans, system-ui, sans-serif);
+  color: var(--lb-color-parchment, #eceae4);
+  background: var(--lb-color-stone, #131317);
+  border: 1px solid var(--lb-color-line-panel, rgba(255, 255, 255, 0.18));
+  border-radius: 8px;
+  box-shadow: var(--lb-shadow-float, 0 8px 24px rgba(0, 0, 0, 0.45));
+  animation: pp-note-in 160ms ease-out;
+}
+
+.pp-peek__title {
+  align-self: flex-start;
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--lb-color-brass, #e0a44a);
+}
+
+.pp-peek__view {
+  display: block;
+  width: min(240px, 100%);
+  aspect-ratio: 1;
+}
+
+.pp-peek__fog {
+  fill: #050506;
+}
+
+.pp-peek__roof {
+  fill: #2a2a30;
+  stroke: #eceae4;
+}
+
+.pp-peek__concealed {
+  fill: #000;
+}
+
+.pp-peek__wall {
+  stroke: #eceae4;
+  stroke-linecap: square;
+}
+
+/* Porta: retângulo pequeno — o traço grosso e curto, de ponta reta. Aberta, só o contorno claro. */
+.pp-peek__door {
+  stroke: #eceae4;
+  stroke-linecap: butt;
+}
+
+.pp-peek__door--open {
+  stroke: #8f8c85;
+}
+
+.pp-peek__token {
+  stroke: #050506;
+  stroke-width: 2px;
+  vector-effect: non-scaling-stroke;
+}
+
+.pp-peek__eye {
+  fill: none;
+  stroke: var(--lb-color-brass, #e0a44a);
+  stroke-width: 2px;
+  vector-effect: non-scaling-stroke;
+}
+
+.pp-peek__rim {
+  fill: none;
+  stroke: var(--lb-color-line-panel, rgba(255, 255, 255, 0.18));
+  stroke-width: 1px;
+  vector-effect: non-scaling-stroke;
+}
+
+/* O tempo que falta: a barra encolhe até sumir, junto com o quadro. */
+.pp-peek__timer {
+  width: 100%;
+  height: 2px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+
+.pp-peek__timer-bar {
+  display: block;
+  height: 100%;
+  background: var(--lb-color-brass, #e0a44a);
+  transform-origin: left center;
+  animation-name: pp-peek-timer;
+  animation-timing-function: linear;
+  animation-fill-mode: forwards;
+}
+
+@keyframes pp-peek-timer {
+  from {
+    transform: scaleX(1);
+  }
+  to {
+    transform: scaleX(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pp-peek {
+    animation: none;
+  }
+  .pp-peek__timer-bar {
+    animation: none;
+  }
 }
 
 /* ================================================ abas do painel e Caderno */
@@ -3899,4 +4043,53 @@ button.pp-colecao__casa:focus-visible {
   .pp-ferrolho {
     bottom: calc(156px + env(safe-area-inset-bottom, 0px));
   }
+}
+
+/*
+ * MOEDAS E TROCA: o cartão da oferta do mestre usa a pele do recado, mas mora
+ * embaixo, para não brigar com o recado no alto. Linguagem de minimapa: fundo
+ * chapado, linha fina clara, sem ornamento.
+ */
+.pp-troca {
+  top: auto;
+  bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+  z-index: 26;
+}
+
+.pp-troca__acoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.pp-troca__contra {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.pp-troca__itens {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 6px 8px;
+  border: 1px solid var(--lb-color-line-panel, rgba(255, 255, 255, 0.18));
+  border-radius: 6px;
+}
+
+.pp-troca__item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+}
+
+.pp-troca__pagar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
 }

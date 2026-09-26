@@ -109,6 +109,26 @@ describe('PinTravelControls: trancar os dois lados', () => {
     expect(botao()?.textContent).toBe('Destrancar os dois lados')
   })
 
+  it('modo por saída: extra "Livre" deste pino ainda abre, então o botão oferece trancar', () => {
+    const escadaLivre: PinTravelExitView = { ...ligada('s2', 'Poço', par('p2', 'trancada')), passagem: 'livre' }
+    const onBothSidesChange = vi.fn()
+    act(() => root.render(<PinTravelControls {...props('trancada', [ligada('principal', 'Cripta', par('p1', 'trancada')), escadaLivre], onBothSidesChange)} />))
+    expect(botao()?.textContent).toBe('Trancar os dois lados')
+    act(() => botao()?.click())
+    expect(onBothSidesChange).toHaveBeenCalledWith(true)
+  })
+
+  it('modo por saída: a volta do par por uma extra "Livre" ainda abre, então o botão oferece trancar', () => {
+    const voltaLivre: PinTravelExitView = { ...ligada('principal', 'Cripta', par('p1', 'trancada')), modoDaVolta: 'livre' }
+    act(() => root.render(<PinTravelControls {...props('trancada', [voltaLivre], () => {})} />))
+    expect(botao()?.textContent).toBe('Trancar os dois lados')
+
+    const voltaTrancada: PinTravelExitView = { ...voltaLivre, modoDaVolta: 'trancada' }
+    const extraTrancada: PinTravelExitView = { ...ligada('s2', 'Poço', par('p2', 'trancada')), passagem: 'trancada', modoDaVolta: 'trancada' }
+    act(() => root.render(<PinTravelControls {...props('trancada', [voltaTrancada, extraTrancada], () => {})} />))
+    expect(botao()?.textContent).toBe('Destrancar os dois lados')
+  })
+
   it('sem destino: não há outro lado, o botão não aparece', () => {
     act(() => root.render(<PinTravelControls {...props('pede', [{ id: 'principal', rotulo: '', travel: { status: 'sem-destino' } }], () => {})} />))
     expect(container.querySelector('[role="radiogroup"]')).not.toBeNull()
