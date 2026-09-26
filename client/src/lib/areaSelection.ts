@@ -596,7 +596,9 @@ export function moveAreaSelection(map: MapData, selection: AreaSelection, dx: nu
     const movedTokenIds = next.tokens.filter((t) => tokenIds.has(t.id) && canInteract(t)).map((t) => t.id)
     // VEÍCULO: o veículo da seleção leva quem está a bordo, esteja ou não na
     // seleção — cada um anda UMA vez, o passo inteiro (vai dentro do veículo).
-    const movedIds = withRiders(next, new Set(movedTokenIds))
+    // Quem só vai a bordo tem o trajeto checado nas paredes de ANTES (`map`),
+    // como a ficha levada: barrado, fica e desce do veículo.
+    const movedIds = withRiders(map, new Set(movedTokenIds), dx, dy)
     // Tocha presa na ficha vai junto; a luz que também estava na seleção já andou acima.
     const movedLightIds = new Set(next.lights.filter((l) => selection.lights.includes(l.id) && canInteract(l)).map((l) => l.id))
     // LEVAR FICHA JUNTO: a ficha levada que NÃO está na seleção acompanha quem

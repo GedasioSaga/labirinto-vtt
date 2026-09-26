@@ -11,7 +11,7 @@
 import { describe, expect, it } from 'vitest'
 import type { HostWorld } from '../net/hostSession'
 import type { MapData, Token, Wall } from '../types/map'
-import { applyGatherPlan, gatherCandidates, gatherGroups, gatherSpots, pinClearance, planGather, vehicleRiderSpots, type GatherPlan } from './gatherParty'
+import { applyGatherPlan, gatherCandidates, gatherGroups, gatherSpots, holdAlongSeats, pinClearance, planGather, vehicleRiderSpots, type GatherPlan } from './gatherParty'
 import { createEmptyMap } from './mapFactory'
 import type { PartyMember } from './party'
 
@@ -475,5 +475,38 @@ describe('vehicleRiderSpots: onde quem vai a bordo assenta quando o veículo che
     expect(vehicleRiderSpots(mapa(), chegada, abaixo, pinClearance(PINO))).toEqual([casa(10, 3)])
     // O afastamento que não encosta no pino continua valendo.
     expect(vehicleRiderSpots(mapa(), chegada, [{ dx: -GRADE, dy: 0, size: 1 }], pinClearance(PINO))).toEqual([casa(9, 4)])
+  })
+})
+
+describe('holdAlongSeats: as casas de quem atravessa junto com a ficha principal', () => {
+  const partida = mapa({ tokens: [ficha('ponei', casa(1, 1)), ficha('urso', casa(2, 1), 2)] })
+
+  it('soma ao que a reunião já guardava, com o tamanho de cada um no mapa de partida', () => {
+    const reuniao = { seats: [{ x: 10, y: 10, size: 1 }], keepClear: pinClearance(PINO) }
+    const along = [
+      { tokenId: 'ponei', x: 100, y: 100 },
+      { tokenId: 'urso', x: 200, y: 200 },
+    ]
+    expect(holdAlongSeats(reuniao, along, partida)).toEqual({
+      seats: [
+        { x: 10, y: 10, size: 1 },
+        { x: 100, y: 100, size: 1 },
+        { x: 200, y: 200, size: 2 },
+      ],
+      keepClear: pinClearance(PINO),
+    })
+  })
+
+  it('sem reunião, guarda só as de quem vai junto; quem não está na partida não guarda casa', () => {
+    expect(holdAlongSeats(undefined, [{ tokenId: 'ponei', x: 100, y: 100 }, { tokenId: 'sumiu', x: 7, y: 7 }], partida)).toEqual({
+      seats: [{ x: 100, y: 100, size: 1 }],
+      keepClear: [],
+    })
+  })
+
+  it('ninguém junto: o que veio, pela mesma referência', () => {
+    const reuniao = { seats: [], keepClear: [] }
+    expect(holdAlongSeats(reuniao, [], partida)).toBe(reuniao)
+    expect(holdAlongSeats(undefined, [{ tokenId: 'sumiu', x: 7, y: 7 }], partida)).toBeUndefined()
   })
 })

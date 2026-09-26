@@ -6,7 +6,7 @@
  * cobrada de ponta a ponta em `stores/veiculo.test.ts`.
  */
 import { describe, expect, it } from 'vitest'
-import type { Light, MapData, Token } from '../types/map'
+import type { Light, MapData, Token, Wall } from '../types/map'
 import { createEmptyMap, removeToken, setTokenPosition } from './mapFactory'
 import { cloneToken } from './entityClone'
 import {
@@ -213,6 +213,52 @@ describe('andar o grupo da seleção (setas, arrasto em área) com o veículo', 
     const map = embarcar(cena(), 'gui')
     expect(moveTokensWithVehicles(map, new Set(['gui']), 0, 0)).toBe(map)
     expect(moveTokensWithVehicles(map, new Set(['fantasma']), 5, 5)).toBe(map)
+  })
+})
+
+describe('o passageiro não atravessa parede quando o veículo anda dentro da cena', () => {
+  // Grade de 64. O cesto na casa (4,4); o Gui a bordo na de cima, (4,3); a Bia
+  // a bordo na de baixo, (4,5). Um muro de uma casa em x = 320, só na linha do
+  // Gui: o cesto e a Bia passam para a direita, o Gui não.
+  const MURO: Wall = { id: 'muro', x1: 320, y1: 192, x2: 320, y2: 256, blocksLight: true, blocksMove: true, door: null }
+
+  function corredor(): MapData {
+    const cesto = ficha('cesto', 288, 288, { name: 'Cesto', veiculo: { lugares: 2, passageiros: ['gui', 'bia'] } })
+    return { ...createEmptyMap('a06', 'Poço', 20, 20, 64), walls: [MURO], tokens: [cesto, ficha('gui', 288, 224), ficha('bia', 288, 352)] }
+  }
+
+  it('o cesto anda para a direita: o Gui, barrado pelo muro, fica onde estava e desce; a Bia vai junto e segue a bordo', () => {
+    const andou = moveTokenWithVehicle(corredor(), 'cesto', 352, 288)
+    expect(posicao(andou, 'cesto')).toEqual([352, 288])
+    expect(posicao(andou, 'gui')).toEqual([288, 224])
+    expect(posicao(andou, 'bia')).toEqual([352, 352])
+    expect(passengerIdsOf(andou, 'cesto')).toEqual(['bia'])
+  })
+
+  it('pelo setTokenPosition (arrasto do mestre e passo do jogador dono do cesto): a tocha do Gui fica com ele', () => {
+    const tocha: Light = { id: 'tocha', x: 288, y: 224, radius: 200, color: '#ffcc66', intensity: 1, attachedTokenId: 'gui' }
+    const map = { ...corredor(), lights: [tocha] }
+    const andou = setTokenPosition(map, 'cesto', 352, 288)
+    expect(posicao(andou, 'gui')).toEqual([288, 224])
+    expect(andou.lights.map((l) => [l.x, l.y])).toEqual([[288, 224]])
+    expect(passengerIdsOf(andou, 'cesto')).toEqual(['bia'])
+  })
+
+  it('as setas com o cesto selecionado: a mesma regra; o Gui mandado junto pelo mestre anda', () => {
+    const soCesto = moveTokensWithVehicles(corredor(), new Set(['cesto']), 64, 0)
+    expect(posicao(soCesto, 'gui')).toEqual([288, 224])
+    expect(posicao(soCesto, 'bia')).toEqual([352, 352])
+    expect(passengerIdsOf(soCesto, 'cesto')).toEqual(['bia'])
+    // Selecionado junto, quem o mandou foi o mestre: anda, e segue a bordo.
+    const comGui = moveTokensWithVehicles(corredor(), new Set(['cesto', 'gui']), 64, 0)
+    expect(posicao(comGui, 'gui')).toEqual([352, 224])
+    expect(passengerIdsOf(comGui, 'cesto')).toEqual(['gui', 'bia'])
+  })
+
+  it('sem muro no caminho, todos andam e ninguém desce', () => {
+    const livre = moveTokenWithVehicle({ ...corredor(), walls: [] }, 'cesto', 352, 288)
+    expect(posicao(livre, 'gui')).toEqual([352, 224])
+    expect(passengerIdsOf(livre, 'cesto')).toEqual(['gui', 'bia'])
   })
 })
 

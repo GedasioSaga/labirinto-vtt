@@ -1,6 +1,7 @@
 import type { MapData, Token, TokenVehicle } from '../types/map'
+import { followStep } from './carry'
 import { carryAttachedLights, moveTokenCarryingLights } from './lightAttachment'
-import { pisoDe } from './pisos'
+import { mapaDoPiso, pisoDe } from './pisos'
 import { tokenSizeInSquares } from './tokenSize'
 
 /**
@@ -11,7 +12,8 @@ import { tokenSizeInSquares } from './tokenSize'
  *
  * O veículo é uma ficha com `veiculo`; os passageiros são outras fichas DA
  * MESMA CENA, guardadas pelo id na lista dele. Quem está a bordo anda junto
- * com o veículo; andar sozinho é descer. Veículo não embarca em veículo.
+ * com o veículo, sem atravessar parede (barrado, fica e desce); andar sozinho
+ * é descer. Veículo não embarca em veículo.
  */
 
 export const VEHICLE_SEATS_MIN = 1
@@ -171,9 +173,24 @@ export function withoutVehicleField(token: Token): Token {
 }
 
 /**
+ * O passageiro `rider` consegue andar (dx, dy) junto com o veículo em `map`
+ * (o mapa ANTES do passo)? A mesma regra da ficha levada (`followStep`, que é
+ * a do passo do jogador sem posse, vez nem ocupação): parede, porta fechada ou
+ * secreta, fora do chão e fora do mapa barram. PISOS: só a planta do piso
+ * dele (`mapaDoPiso`). Validar só o passo do veículo deixava quem vai a bordo
+ * atravessar a parede do corredor e enxergar de dentro de uma sala que
+ * ninguém alcançou — ou pousar numa sala secreta.
+ */
+function riderFollows(map: MapData, rider: Token, dx: number, dy: number): boolean {
+  const stepped = followStep(mapaDoPiso(map, pisoDe(rider)), rider, dx, dy)
+  return stepped.x === rider.x + dx && stepped.y === rider.y + dy
+}
+
+/**
  * Põe a ficha em (x, y) com a regra do veículo: o VEÍCULO leva quem está a
- * bordo (e as tochas presas neles) pelo mesmo deslocamento; o PASSAGEIRO que
- * anda sozinho desce. Ficha comum: só ela e a tocha dela, como sempre.
+ * bordo (e as tochas presas neles) pelo mesmo deslocamento — quem a parede
+ * barra (`riderFollows`) fica onde está e desce; o PASSAGEIRO que anda
+ * sozinho desce. Ficha comum: só ela e a tocha dela, como sempre.
  */
 export function moveTokenWithVehicle(map: MapData, tokenId: string, x: number, y: number): MapData {
   const token = map.tokens.find((t) => t.id === tokenId)
@@ -185,15 +202,16 @@ export function moveTokenWithVehicle(map: MapData, tokenId: string, x: number, y
   }
   const dx = x - token.x
   const dy = y - token.y
-  const riders = new Set(aboard)
-  return {
+  const moving = withRiders(map, new Set([tokenId]), dx, dy)
+  const next: MapData = {
     ...map,
     tokens: map.tokens.map((t) => {
       if (t.id === tokenId) return { ...t, x, y }
-      return riders.has(t.id) ? { ...t, x: t.x + dx, y: t.y + dy } : t
+      return moving.has(t.id) ? { ...t, x: t.x + dx, y: t.y + dy } : t
     }),
-    lights: carryAttachedLights(map.lights, new Set([tokenId, ...aboard]), dx, dy),
+    lights: carryAttachedLights(map.lights, moving, dx, dy),
   }
+  return leaveVehiclesLeftBehind(map, next, moving)
 }
 
 /**
@@ -212,7 +230,7 @@ export function moveTokensWithVehicles(
   skipLights?: ReadonlySet<string>,
 ): MapData {
   if (dx === 0 && dy === 0) return map
-  const moving = withRiders(map, tokenIds)
+  const moving = withRiders(map, tokenIds, dx, dy)
   if (moving.size === 0) return map
   const next: MapData = {
     ...map,
@@ -223,28 +241,38 @@ export function moveTokensWithVehicles(
 }
 
 /**
- * O grupo que anda junto: as fichas `tokenIds` que existem na cena e quem
- * está a bordo de cada veículo entre elas (esteja ou não em `tokenIds`).
+ * O grupo que anda (dx, dy) junto em `map` (o mapa ANTES do passo): as fichas
+ * `tokenIds` que existem na cena e quem está a bordo de cada veículo entre
+ * elas. O passageiro que também está em `tokenIds` anda (quem o mandou foi o
+ * mestre); o que só vai a bordo anda se o trajeto DELE é livre
+ * (`riderFollows`) — barrado, fica de fora e desce (`leaveVehiclesLeftBehind`).
  */
-export function withRiders(map: MapData, tokenIds: ReadonlySet<string>): Set<string> {
+export function withRiders(map: MapData, tokenIds: ReadonlySet<string>, dx: number, dy: number): Set<string> {
   const moving = new Set<string>()
+  const still = dx === 0 && dy === 0
   for (const token of map.tokens) {
     if (!tokenIds.has(token.id)) continue
     moving.add(token.id)
-    for (const rider of passengerIdsOf(map, token.id)) moving.add(rider)
+    for (const rider of passengersOf(map, token.id)) {
+      if (still || tokenIds.has(rider.id) || riderFollows(map, rider, dx, dy)) moving.add(rider.id)
+    }
   }
   return moving
 }
 
 /**
- * Depois que o grupo `moving` andou (`before` é o mapa de ANTES do passo): o
- * passageiro que andou sem o seu veículo desce dele. Ninguém desceu: `next`.
+ * Depois que o grupo `moving` andou (`before` é o mapa de ANTES do passo):
+ * desce do veículo o passageiro que andou sem ele, e o que ficou para trás
+ * quando o veículo andou (a parede o barrou). Ninguém desceu: `next`.
  */
 export function leaveVehiclesLeftBehind(before: MapData, next: MapData, moving: ReadonlySet<string>): MapData {
   let result = next
   for (const id of moving) {
     const carrier = vehicleCarrying(before, id)
     if (carrier !== null && !moving.has(carrier.id)) result = leaveVehicle(result, id)
+    for (const rider of passengerIdsOf(before, id)) {
+      if (!moving.has(rider)) result = leaveVehicle(result, rider)
+    }
   }
   return result
 }

@@ -692,21 +692,24 @@ export function removeToken(map: MapData, tokenId: string): MapData {
  * no 1º piso, a parede do térreo não é parede. Ficha inexistente: mapa intocado.
  *
  * VEÍCULO (`lib/vehicle.ts`): quem está a bordo anda o MESMO deslocamento,
- * sem trajeto próprio (vai dentro do veículo), com a tocha e o pino presos
- * nele; o passageiro que anda sozinho desce.
+ * com a tocha e o pino presos nele, se o trajeto DELE é livre pela mesma
+ * regra da ficha levada — barrado pela parede, fica onde está e desce. É o
+ * que segura o passageiro quando o jogador dono do veículo anda pela rede: a
+ * sessão valida só o passo do veículo. O passageiro que anda sozinho desce.
  */
 export function setTokenPosition(map: MapData, tokenId: string, x: number, y: number): MapData {
   const moving = map.tokens.find((t) => t.id === tokenId)
   if (moving === undefined) return map
   const dx = x - moving.x
   const dy = y - moving.y
-  // VEÍCULO: o grupo que anda o deslocamento inteiro é a ficha e quem está a bordo dela.
-  const group = new Set([tokenId, ...passengerIdsOf(map, tokenId)])
+  const withVehicle = moveTokenWithVehicle(map, tokenId, x, y)
+  // VEÍCULO: o grupo que anda o deslocamento inteiro é a ficha e quem continua
+  // a bordo dela — o passageiro que a parede barrou já desceu e ficou.
+  const group = new Set([tokenId, ...passengerIdsOf(withVehicle, tokenId)])
   const follows = (t: Token): boolean => {
     const carrierId = carrierIdOf(t)
     return (dx !== 0 || dy !== 0) && !group.has(t.id) && carrierId !== null && group.has(carrierId)
   }
-  const withVehicle = moveTokenWithVehicle(map, tokenId, x, y)
   const moved: MapData = {
     ...withVehicle,
     tokens: withVehicle.tokens.map((t) => (follows(t) ? followStep(mapaDoPiso(map, pisoDe(t)), t, dx, dy) : t)),

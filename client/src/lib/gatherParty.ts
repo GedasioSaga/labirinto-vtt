@@ -211,6 +211,24 @@ export interface SeatHold {
   keepClear: readonly KeepClear[]
 }
 
+/**
+ * VEÍCULO QUE ATRAVESSA ACOMPANHADO: `hold` mais as casas que a travessia já
+ * deu a quem vai junto com a ficha principal (ajudante emprestado, ficha
+ * levada, montaria e familiar). Essas fichas chegam DEPOIS da principal, cada
+ * uma na casa pré-calculada, sem checar de novo: quem vem a bordo não pode
+ * sentar ali antes, senão as duas empilham e a de baixo some. O tamanho de
+ * cada uma vem do mapa de partida `from`; quem não está lá não atravessa e
+ * não guarda casa. Nada a guardar: `hold` como veio.
+ */
+export function holdAlongSeats(hold: SeatHold | undefined, along: readonly EntourageSeat[], from: MapData): SeatHold | undefined {
+  const seats = along.flatMap((seat): HeldSeat[] => {
+    const token = from.tokens.find((t) => t.id === seat.tokenId)
+    return token === undefined ? [] : [{ x: seat.x, y: seat.y, size: tokenSizeInSquares(token) }]
+  })
+  if (seats.length === 0) return hold
+  return { seats: [...(hold?.seats ?? []), ...seats], keepClear: hold?.keepClear ?? [] }
+}
+
 /** Um passageiro que chega com o veículo: o afastamento que tinha dele na cena de origem, em px, e o tamanho em casas. */
 export interface ArrivingRider {
   dx: number

@@ -17,6 +17,7 @@ import { applyItemChange } from '../lib/items'
 import { carrierIdOf, withoutCarrier } from '../lib/carry'
 import { leaveVehicle, passengersOf } from '../lib/vehicle'
 import { vehicleRiderSpots, type SeatHold } from '../lib/gatherParty'
+import { withPlayerVisibleTokens } from '../lib/pinTravel'
 import { tokenSizeInSquares } from '../lib/tokenSize'
 import type { Bounds, Camera, Point } from '../pixi/world'
 import * as mapFactory from '../lib/mapFactory'
@@ -1665,10 +1666,13 @@ export const useAdventureStore = create<AdventureState>()((set, get) => ({
     // viagem (o veículo chega colado ao par). PISOS: todos chegam no piso do
     // veículo, e só a planta desse piso barra (`mapaDoPiso`). No "Reunir o
     // grupo aqui", nem na casa que a reunião deu a outro, nem no pino dela.
+    // Ficha secreta ou escondida pelo mestre não ocupa casa
+    // (`withPlayerVisibleTokens`): desviar dela contaria ao jogador que há
+    // algo invisível ali.
     const riders = passengersOf(from.map, tokenId)
     const planta = mapaDoPiso(to.map, piso ?? 0)
     const seats = vehicleRiderSpots(
-      planta,
+      withPlayerVisibleTokens(planta),
       { x, y, size: tokenSizeInSquares(token) },
       riders.map((p) => ({ dx: p.x - token.x, dy: p.y - token.y, size: tokenSizeInSquares(p) })),
       [...travelPinsClearance(planta), ...(hold?.keepClear ?? [])],
