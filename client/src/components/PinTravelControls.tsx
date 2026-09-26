@@ -63,9 +63,10 @@ export interface PinTravelControlsProps {
    */
   onKeyChange?: (nome: string) => void
   /**
-   * Só vale com "Trancada": o jogador pode "Pedir ao mestre" (ligada, o
-   * padrão) ou a passagem é muda (desligada) — nenhum pedido chega.
-   * Ausente = ligada. Sem `onAcceptsAttemptsChange`, o botão não aparece.
+   * Só vale com "Trancada" — a do pino ou a de uma saída extra: o jogador
+   * pode "Pedir ao mestre" (ligada, o padrão) ou a passagem é muda
+   * (desligada) — nenhum pedido chega. Ausente = ligada. Sem
+   * `onAcceptsAttemptsChange`, o botão não aparece.
    */
   acceptsAttempts?: boolean
   onAcceptsAttemptsChange?: (on: boolean) => void
@@ -146,7 +147,26 @@ const EFEITO_DA_PASSAGEM: Record<PinPassage, string> = {
 /** Trancada que aceita tentativas: o jogador ainda pode pedir. */
 const EFEITO_TRANCADA_COM_PEDIDO = 'Ninguém passa sozinho; o jogador pode pedir e você decide.'
 
+/** O mesmo, dito das saídas extras trancadas quando o pino está em outro modo. */
+const EFEITO_SAIDA_TRANCADA_COM_PEDIDO = 'Nas saídas trancadas, ninguém passa sozinho; o jogador pode pedir e você decide.'
+const EFEITO_SAIDA_TRANCADA_MUDA = 'Nas saídas trancadas, ninguém passa, e nenhum pedido chega a você.'
+
 const TENTATIVAS_ID = 'lb-pin-travel-attempts'
+
+/** "Aceita tentativas": ligada, o jogador pode pedir pela passagem trancada; desligada, ela é muda. */
+function AceitaTentativas({ on, onChange }: { on: boolean; onChange: (on: boolean) => void }) {
+  return (
+    <button
+      type="button"
+      className="lb-btn lb-btn--ghost lb-btn--block"
+      aria-pressed={on}
+      aria-describedby={TENTATIVAS_ID}
+      onClick={() => onChange(!on)}
+    >
+      Aceita tentativas
+    </button>
+  )
+}
 const MODO_DA_SAIDA_ID = 'lb-pin-travel-exit-passage'
 
 /** O valor da opção "Como a principal" no `<select>`: a ausência do modo próprio. */
@@ -298,6 +318,8 @@ export function PinTravelControls({
   const escolhaAbre = algumaAbre || podeCriar
   const aberta = escolha !== null
   const encruzilhada = exits.length > 1
+  /** Alguma saída EXTRA trancada por conta própria: a marca `mudo` do pino vale para ela. */
+  const extraTrancada = exits.some((exit) => exit.passagem === 'trancada')
   const principal = exits[0]
   const mostraBusca = scenes.length >= SCENE_FILTER_MIN
   const buscando = mostraBusca && sceneSearchWords(busca).length > 0
@@ -547,19 +569,23 @@ export function PinTravelControls({
       {passage === 'trancada' && onAcceptsAttemptsChange !== undefined && (
         // O mesmo botão de alternar da "Mão única" (`aria-pressed`), logo
         // abaixo do modo que ele qualifica.
-        <button
-          type="button"
-          className="lb-btn lb-btn--ghost lb-btn--block"
-          aria-pressed={acceptsAttempts}
-          aria-describedby={TENTATIVAS_ID}
-          onClick={() => onAcceptsAttemptsChange(!acceptsAttempts)}
-        >
-          Aceita tentativas
-        </button>
+        <AceitaTentativas on={acceptsAttempts} onChange={onAcceptsAttemptsChange} />
       )}
       <p id={passage === 'trancada' ? TENTATIVAS_ID : undefined} className="lb-travel__hint">
         {passage === 'trancada' && acceptsAttempts ? EFEITO_TRANCADA_COM_PEDIDO : EFEITO_DA_PASSAGEM[passage]}
       </p>
+      {/* MODO POR SAÍDA: a marca `mudo` é do pino e cala também a saída
+          EXTRA trancada — inclusive a que sobrou de quando o pino era
+          trancado. Com o pino em outro modo, o botão aparece quando alguma
+          extra está trancada, para o mestre ver e mudar o que vale para ela. */}
+      {passage !== 'trancada' && extraTrancada && onAcceptsAttemptsChange !== undefined && (
+        <>
+          <AceitaTentativas on={acceptsAttempts} onChange={onAcceptsAttemptsChange} />
+          <p id={TENTATIVAS_ID} className="lb-travel__hint">
+            {acceptsAttempts ? EFEITO_SAIDA_TRANCADA_COM_PEDIDO : EFEITO_SAIDA_TRANCADA_MUDA}
+          </p>
+        </>
+      )}
       {/* CHAVE ABRE PORTA: quem carrega o item passa sem pedir, e você lê o aviso. */}
       {passage === 'trancada' && onKeyChange !== undefined && (
         <DoorKeyField value={keyName} onChange={onKeyChange} placeholder="Nome do item (vazio: sem chave)" />

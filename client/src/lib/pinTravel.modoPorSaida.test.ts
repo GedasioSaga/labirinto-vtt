@@ -10,6 +10,7 @@ import {
   sameExits,
   setExitDestination,
   setExitPassage,
+  travelExitsOf,
   unlinkFromScene,
 } from './pinTravel'
 
@@ -157,6 +158,58 @@ describe('pinTravel: modo por saída ao desligar a principal', () => {
     expect(depois.destino).toEqual({ sceneId: 'scene_d', pinId: 'd' })
     expect(exitPassageOf(depois, 'principal')).toBe('trancada')
     expect(exitPassageOf(depois, 'saida_ponte')).toBe('livre')
+  })
+
+  // Catraca: principal para a Cripta, Torre livre por conta própria, Ponte seguindo o passe do pino.
+  const PASSE_COM_TORRE_LIVRE: Pin = {
+    ...CRUZ,
+    passagem: 'passe',
+    saidas: [
+      { id: 'saida_torre', rotulo: 'Torre', destino: { sceneId: 'scene_c', pinId: 'c' }, passagem: 'livre' },
+      { id: 'saida_ponte', rotulo: 'Ponte', destino: { sceneId: 'scene_e', pinId: 'e' } },
+    ],
+  }
+
+  it('pino de passe: a extra que seguia o passe continua pedindo o passe, e a livre continua livre', () => {
+    const promovido = desligarPrincipal(PASSE_COM_TORRE_LIVRE)
+    expect(exitPassageOf(promovido, 'principal')).toBe('passe')
+    expect(exitPassageOf(promovido, 'saida_torre')).toBe('livre')
+    // Quem subiu foi a Ponte, a que seguia o pino; a Torre fica como extra.
+    expect(promovido.destino).toEqual({ sceneId: 'scene_e', pinId: 'e' })
+    expect(promovido.rotulo).toBe('Ponte')
+    expect(promovido.saidas).toEqual([{ id: 'saida_torre', rotulo: 'Torre', destino: { sceneId: 'scene_c', pinId: 'c' }, passagem: 'livre' }])
+    // Nenhuma saída do pino ficou livre sem o mestre ter escolhido livre para ela.
+    expect(travelExitsOf(promovido).map((s) => [s.rotulo, exitPassageOf(promovido, s.id)])).toEqual([
+      ['Ponte', 'passe'],
+      ['Torre', 'livre'],
+    ])
+  })
+
+  it('pino de passe em que toda extra tem modo próprio: sobe a primeira, com o modo dela', () => {
+    const todasComModo: Pin = {
+      ...PASSE_COM_TORRE_LIVRE,
+      saidas: [
+        { id: 'saida_torre', rotulo: 'Torre', destino: { sceneId: 'scene_c', pinId: 'c' }, passagem: 'livre' },
+        { id: 'saida_poco', rotulo: 'Poço', destino: { sceneId: 'scene_d', pinId: 'd' }, passagem: 'trancada' },
+      ],
+    }
+    const promovido = desligarPrincipal(todasComModo)
+    expect(promovido.destino).toEqual({ sceneId: 'scene_c', pinId: 'c' })
+    expect(exitPassageOf(promovido, 'principal')).toBe('livre')
+    expect(exitPassageOf(promovido, 'saida_poco')).toBe('trancada')
+  })
+
+  it('pino de passe cuja primeira extra segue o pino: sobe ela, e o passe fica', () => {
+    const primeiraSegue: Pin = {
+      ...PASSE_COM_TORRE_LIVRE,
+      saidas: [...(PASSE_COM_TORRE_LIVRE.saidas ?? [])].reverse(),
+    }
+    const patch = setExitDestination(primeiraSegue, 'principal', null)
+    expect('passagem' in patch).toBe(false)
+    const promovido = { ...primeiraSegue, ...patch }
+    expect(promovido.destino).toEqual({ sceneId: 'scene_e', pinId: 'e' })
+    expect(exitPassageOf(promovido, 'principal')).toBe('passe')
+    expect(exitPassageOf(promovido, 'saida_torre')).toBe('livre')
   })
 
   it('updatePin: a promoção com troca de modo é mudança gravada no mapa', () => {

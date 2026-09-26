@@ -99,6 +99,40 @@ describe('PinTravelControls: modo por saída', () => {
     expect(container.querySelector('[role="radiogroup"]')).not.toBeNull()
   })
 
+  const alternarTentativas = (): HTMLButtonElement | null =>
+    [...container.querySelectorAll('button')].find((b) => b.textContent === 'Aceita tentativas') ?? null
+
+  it('pino que pede com uma extra trancada e a marca muda que sobrou: o painel mostra "Aceita tentativas" desligada e deixa ligar', () => {
+    const onAcceptsAttemptsChange = vi.fn()
+    const exits = [ligada('principal', 'Cripta'), ligada('saida_poco', 'Poço', 'trancada')]
+    const base = props('pede', exits, () => {})
+    act(() => root.render(<PinTravelControls {...base} acceptsAttempts={false} onAcceptsAttemptsChange={onAcceptsAttemptsChange} />))
+    const botao = alternarTentativas()
+    expect(botao?.getAttribute('aria-pressed')).toBe('false')
+    const efeito = document.getElementById(botao?.getAttribute('aria-describedby') ?? '')
+    expect(efeito?.textContent).toBe('Nas saídas trancadas, ninguém passa, e nenhum pedido chega a você.')
+    // O modo do pino continua dito como sempre.
+    expect(container.textContent).toContain('O jogador pede e você decide se ele passa.')
+    act(() => botao?.click())
+    expect(onAcceptsAttemptsChange).toHaveBeenCalledWith(true)
+    act(() => root.render(<PinTravelControls {...base} acceptsAttempts onAcceptsAttemptsChange={onAcceptsAttemptsChange} />))
+    expect(alternarTentativas()?.getAttribute('aria-pressed')).toBe('true')
+    expect(container.textContent).toContain('Nas saídas trancadas, ninguém passa sozinho; o jogador pode pedir e você decide.')
+  })
+
+  it('sem extra trancada, com o pino em outro modo: "Aceita tentativas" não aparece', () => {
+    const exits = [ligada('principal', 'Cripta'), ligada('saida_torre', 'Torre', 'livre')]
+    act(() => root.render(<PinTravelControls {...props('pede', exits, () => {})} acceptsAttempts={false} onAcceptsAttemptsChange={() => {}} />))
+    expect(alternarTentativas()).toBeNull()
+    expect(seletores()).toHaveLength(1)
+  })
+
+  it('pino trancado com extra trancada: um botão só', () => {
+    const exits = [ligada('principal', 'Cripta'), ligada('saida_poco', 'Poço', 'trancada')]
+    act(() => root.render(<PinTravelControls {...props('trancada', exits, () => {})} onAcceptsAttemptsChange={() => {}} />))
+    expect([...container.querySelectorAll('button')].filter((b) => b.textContent === 'Aceita tentativas')).toHaveLength(1)
+  })
+
   it('sem onExitPassageChange: o painel não oferece a escolha', () => {
     const exits = [ligada('principal', 'Cripta'), ligada('saida_torre', 'Torre')]
     act(() => root.render(<PinTravelControls {...props('pede', exits, undefined)} />))

@@ -244,28 +244,47 @@ export function leadsTo(pin: Pin, destino: PinDestination): boolean {
 export type ExitPatch = Partial<Pick<Pin, 'destino' | 'rotulo' | 'saidas' | 'passagem'>>
 
 /**
- * A primeira extra sobe para o lugar da principal levando o MODO dela: o modo
- * da principal é o do pino, então o modo próprio da extra vira o do pino. As
- * extras que ficam e seguiam a principal sem modo próprio ganham o modo
- * antigo por escrito, para a troca do pino não mudar como se passa por elas.
- * Extra promovida sem modo próprio já seguia o pino: nada muda no modo.
+ * Qual extra sobe para o lugar da principal. Em regra, a primeira. No pino
+ * de PASSE (a catraca), se a primeira tem modo próprio e alguma outra ainda
+ * segue o pino, sobe a primeira que segue o pino: o passe não é modo de
+ * saída (`ExitPassage`), então não dá para gravá-lo por escrito nas extras
+ * que ficam — trocar o modo do pino abriria a catraca delas.
  */
-function promoteFirstExit(pin: Pin, primeira: PinExit, resto: PinExit[]): ExitPatch {
-  const rotulo = primeira.rotulo === '' ? undefined : primeira.rotulo
+function exitToPromote(modoAntigo: PinPassage, extras: readonly PinExit[]): PinExit | undefined {
+  const [primeira] = extras
+  if (primeira === undefined || modoAntigo !== 'passe' || !isExitPassage(primeira.passagem)) return primeira
+  return extras.find((saida) => !isExitPassage(saida.passagem)) ?? primeira
+}
+
+/**
+ * Uma extra (`exitToPromote`) sobe para o lugar da principal levando o MODO
+ * dela: o modo da principal é o do pino, então o modo próprio da extra vira o
+ * do pino. As extras que ficam e seguiam a principal sem modo próprio ganham
+ * o modo antigo por escrito, para a troca do pino não mudar como se passa por
+ * elas. Extra promovida sem modo próprio já seguia o pino: nada muda no modo.
+ * As outras extras ficam na ordem em que estavam.
+ */
+function promoteExtraExit(pin: Pin, extras: readonly PinExit[]): ExitPatch {
   const modoAntigo = passageOf(pin)
-  const modoNovo = isExitPassage(primeira.passagem) ? primeira.passagem : modoAntigo
+  const promovida = exitToPromote(modoAntigo, extras)
+  if (promovida === undefined) return { destino: null }
+  const resto = extras.filter((saida) => saida !== promovida)
+  const rotulo = promovida.rotulo === '' ? undefined : promovida.rotulo
+  const modoNovo = isExitPassage(promovida.passagem) ? promovida.passagem : modoAntigo
   const saidas = resto.length === 0 ? undefined : resto
-  if (modoNovo === modoAntigo) return { destino: primeira.destino, rotulo, saidas }
+  if (modoNovo === modoAntigo) return { destino: promovida.destino, rotulo, saidas }
+  // Aqui o modo antigo só é 'passe' se nenhuma extra que fica segue o pino
+  // (`exitToPromote`): todas têm modo próprio e passam intactas.
   const restoComModo = resto.map((saida) =>
     isExitPassage(saida.passagem) || !isExitPassage(modoAntigo) ? saida : { ...saida, passagem: modoAntigo },
   )
-  return { destino: primeira.destino, rotulo, passagem: modoNovo, saidas: restoComModo.length === 0 ? undefined : restoComModo }
+  return { destino: promovida.destino, rotulo, passagem: modoNovo, saidas: restoComModo.length === 0 ? undefined : restoComModo }
 }
 
 /**
  * Liga a saída `exitId` a `destino`, ou a desliga (`null`). Desligar a
- * principal de uma encruzilhada faz a primeira extra subir para o lugar dela,
- * com o modo dela (`promoteFirstExit`): a principal é a que o cliente antigo
+ * principal de uma encruzilhada faz uma extra (em regra a primeira) subir
+ * para o lugar dela, com o modo dela (`promoteExtraExit`): a principal é a que o cliente antigo
  * pede, e um pino com saídas extras e sem principal deixaria esse jogador sem
  * porta nenhuma.
  * Não confere o tipo do pino: quem desliga o par de um pino que deixou de ser
@@ -275,9 +294,7 @@ export function setExitDestination(pin: Pin, exitId: string, destino: PinDestina
   const extras = pin.saidas ?? []
   if (exitId === SAIDA_PRINCIPAL) {
     if (destino !== null) return { destino }
-    const [primeira, ...resto] = extras
-    if (primeira === undefined) return { destino: null }
-    return promoteFirstExit(pin, primeira, resto)
+    return promoteExtraExit(pin, extras)
   }
   if (!extras.some((saida) => saida.id === exitId)) return {}
   if (destino === null) {
