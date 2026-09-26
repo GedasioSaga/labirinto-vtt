@@ -147,3 +147,61 @@ describe('passar rente à quina: soltura fora do pixel exato', () => {
     expect(resolveTokenMove(abaixoDaQuina, { x: 64, y: 60 }, [pontaSolta], grade)).toEqual(abaixoDaQuina)
   })
 })
+
+// Emenda desenhada à mão quase nunca fica exata: o ímã do editor gruda ponta em
+// ponta, não ponta no corpo de outra parede. A parede que passa um pouco da
+// outra, ou que para a 2 px dela, continua sendo uma sala fechada.
+describe('passar rente à quina: emenda desenhada à mão, fora do pixel exato', () => {
+  const grade = 64
+
+  it('parede de baixo da sala que passa 8 px da parede do lado: passo reto perto do canto bloqueia', () => {
+    const lado = wall('lado', 64, 0, 64, 72)
+    const baixo = wall('baixo', 56, 64, 192, 64)
+    const de = { x: 70, y: 32 }
+    expect(findTokenPath(de, { x: 70, y: 96 }, [lado, baixo], grade)).toBeNull()
+    expect(resolveTokenMove(de, { x: 70, y: 96 }, [lado, baixo], grade)).toEqual(de)
+  })
+
+  it('T com a parede parando 2 px antes da outra: passo reto perto da emenda bloqueia', () => {
+    const lado = wall('lado', 64, 0, 64, 128)
+    const baixo = wall('baixo', 66, 64, 192, 64)
+    const de = { x: 76, y: 32 }
+    expect(findTokenPath(de, { x: 76, y: 96 }, [lado, baixo], grade)).toBeNull()
+    expect(resolveTokenMove(de, { x: 76, y: 96 }, [lado, baixo], grade)).toEqual(de)
+  })
+
+  it('canto de sala com 2 px de fresta: sair pela quina na diagonal bloqueia', () => {
+    const baixo = wall('baixo', 0, 64, 62, 64)
+    const dentro = { x: 32, y: 32 }
+    expect(findTokenPath(dentro, { x: 96, y: 96 }, [pontaSolta, baixo], grade)).toBeNull()
+    expect(resolveTokenMove(dentro, { x: 96, y: 96 }, [pontaSolta, baixo], grade)).toEqual(dentro)
+  })
+
+  it('duas paredes que se cruzam passando um pouco uma da outra: entrar pela diagonal no cruzamento bloqueia', () => {
+    const lado = wall('lado', 64, 0, 64, 72)
+    const baixo = wall('baixo', 56, 64, 192, 64)
+    expect(findTokenPath(abaixoDaQuina, acimaDaQuina, [lado, baixo], grade)).toBeNull()
+    expect(resolveTokenMove(abaixoDaQuina, acimaDaQuina, [lado, baixo], grade)).toEqual(abaixoDaQuina)
+  })
+
+  it('canto exato em L, mesmo passo reto: continua bloqueado', () => {
+    const lado = wall('lado', 64, 0, 64, 64)
+    const baixo = wall('baixo', 64, 64, 192, 64)
+    expect(findTokenPath({ x: 70, y: 32 }, { x: 70, y: 96 }, [lado, baixo], grade)).toBeNull()
+  })
+
+  it('por fora de um L cuja parede passa 3 px da outra, raspar a quina externa ainda passa', () => {
+    const baixo = wall('baixo', 0, 64, 67, 64)
+    const solto = { x: 95, y: 31 }
+    expect(findTokenPath(abaixoDaQuina, solto, [pontaSolta, baixo], grade)).toEqual([abaixoDaQuina, solto])
+    expect(resolveTokenMove(abaixoDaQuina, solto, [pontaSolta, baixo], grade)).toEqual(solto)
+  })
+
+  it('ponta solta com outra parede descendo do corpo, longe da ponta, ainda passa', () => {
+    const baixo = wall('baixo', 56, 64, 192, 64)
+    const pendurada = wall('pendurada', 80, 64, 80, 128)
+    const de = { x: 70, y: 32 }
+    const para = { x: 70, y: 96 }
+    expect(findTokenPath(de, para, [baixo, pendurada], grade)).toEqual([de, para])
+  })
+})

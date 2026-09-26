@@ -50,6 +50,23 @@ describe('passar rente à quina: soltura real do jogador (sem encaixe no centro 
   })
 })
 
+describe('passar rente à quina: emenda desenhada à mão não vira passagem', () => {
+  // A parede de baixo da sala passa 8 px da parede do lado: o canto não é exato.
+  const lado = wall('lado', 64, 0, 64, 72)
+  const baixo = wall('baixo', 56, 64, 192, 64)
+
+  it('pedido do jogador atravessando a parede de baixo perto do canto recusa com wall', () => {
+    const map = { ...mapa([lado, baixo]), tokens: [token('t1', 70, 32)] }
+    expect(validateTokenMove(map, { playerId: 'p1', tokenId: 't1', x: 70, y: 96 }, ownership)).toEqual({ ok: false, reason: 'wall' })
+  })
+
+  it('arrasto do mestre atravessando a parede de baixo perto do canto barra', () => {
+    const blocked = describeBlockedMove({ x: 70, y: 32 }, { x: 70, y: 96 }, [lado, baixo], 64)
+    expect(blocked?.reason).toBe('wall')
+    expect(['lado', 'baixo']).toContain(blocked?.wallId)
+  })
+})
+
 describe('passar rente à quina: arrasto do mestre', () => {
   it('ponta solta não barra o arrasto', () => {
     expect(describeBlockedMove({ x: 32, y: 96 }, { x: 96, y: 32 }, [pontaSolta], 64)).toBeNull()
