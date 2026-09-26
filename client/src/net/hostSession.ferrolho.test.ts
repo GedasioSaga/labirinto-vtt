@@ -344,6 +344,119 @@ describe('hostSession: ferrolho diante do pedido, da chave e da tela guardada', 
 })
 
 // ---------------------------------------------------------------------------
+// O CAMINHO DA TELA: o toque mostra "Trancada", e só então Bruno aperta Bater,
+// Forçar ou Usar chave. Cada passo precisa responder o MESMO que responderia
+// na porta que o mestre trancou — texto diferente conta a Bruno que não foi o
+// mestre quem trancou.
+
+/** Toca a porta e depois pede (Bater/Forçar/Usar chave), como a tela faz: as duas respostas. */
+function tocarEPedir(s: HostSession, map: MapData, how: 'knock' | 'force' | 'key') {
+  const toque = s.handleMessage('c2', { type: 'door.toggle', wallId: 'porta' }, map)
+  const pedido = s.handleMessage('c2', { type: 'door.request', wallId: 'porta', how }, map)
+  return { toque, pedido }
+}
+
+describe('hostSession: ferrolho pelo caminho da tela (toque, depois Bater)', () => {
+  it('Bruno toca, lê "Trancada" e aperta "Bater": o pedido sai ("Pedido enviado"), nunca "ainda espera o mestre", e a Caixa guarda uma linha só', () => {
+    const map = corredor()
+    const { s } = anaTrancou(map)
+    const { toque, pedido } = tocarEPedir(s, map, 'knock')
+    const disputa = toque.barDispute
+    if (disputa === undefined) throw new Error('esperava a disputa no toque')
+    expect(pedido.outbound).toEqual([])
+    expect(pedido.barDispute).toBeUndefined()
+    expect(s.isBarDisputePending(disputa.requestId)).toBe(true)
+    // O segundo pedido, esse sim, espera o mestre — como na porta do mestre.
+    const de_novo = s.handleMessage('c2', { type: 'door.request', wallId: 'porta', how: 'force' }, map)
+    expect(de_novo.outbound).toEqual([{ clientId: 'c2', msg: { type: 'door.request.rejected', wallId: 'porta', reason: 'pending' } }])
+    expect(de_novo.barDispute).toBeUndefined()
+  })
+
+  it('SEGURANÇA: toque e depois Bater/Forçar/Usar chave respondem palavra por palavra o que a porta trancada pelo mestre responde', () => {
+    for (const how of ['knock', 'force', 'key'] as const) {
+      const map = corredor()
+      const ferrolho = tocarEPedir(anaTrancou(map).s, map, how)
+      const doMestre = corredor({ locked: true })
+      const mestre = tocarEPedir(mesa(doMestre).s, doMestre, how)
+      expect(ferrolho.toque.outbound).toEqual(mestre.toque.outbound)
+      expect(ferrolho.pedido.outbound).toEqual(mestre.pedido.outbound)
+      expect(JSON.stringify(ferrolho.pedido.outbound)).not.toContain('pending')
+    }
+  })
+
+  it('disputa aberta só pelo toque em OUTRA porta não vira "seu pedido anterior": o Bater nesta porta abre a disputa dela', () => {
+    // Duas portas na mesma parede: a de cima (200–300) e a de baixo (400–500).
+    const duas = (bruno: [number, number], ana: [number, number]): MapData => ({
+      ...corredor(),
+      walls: [
+        parede('norte', 500, 0, 500, 200),
+        parede('porta', 500, 200, 500, 300, { open: false, locked: false, kind: 'normal' }),
+        parede('meio', 500, 300, 500, 400),
+        parede('porta2', 500, 400, 500, 500, { open: false, locked: false, kind: 'normal' }),
+      ],
+      tokens: [ficha('ficha-ana', 'Heroina', ana[0], ana[1]), ficha('ficha-bruno', 'Guarda', bruno[0], bruno[1])],
+    })
+    const cima = duas([550, 250], [450, 250])
+    const { s } = mesa(cima)
+    expect(s.handleMessage('c1', { type: 'door.bar', wallId: 'porta', on: true }, cima).trancaAviso?.acao).toBe('trancou')
+    const baixo = duas([550, 450], [450, 450])
+    expect(s.handleMessage('c1', { type: 'door.bar', wallId: 'porta2', on: true }, baixo).trancaAviso?.acao).toBe('trancou')
+    const toque = s.handleMessage('c2', { type: 'door.toggle', wallId: 'porta' }, duas([550, 250], [450, 450]))
+    const primeira = toque.barDispute
+    if (primeira === undefined) throw new Error('esperava a disputa do toque')
+    const bater = s.handleMessage('c2', { type: 'door.request', wallId: 'porta2', how: 'knock' }, baixo)
+    expect(bater.outbound).toEqual([])
+    expect(bater.barDispute?.barrerName).toBe('Ana')
+    expect(s.isBarDisputePending(bater.barDispute?.requestId ?? '')).toBe(true)
+    // Uma disputa por jogador: a do toque sai da Caixa.
+    expect(s.isBarDisputePending(primeira.requestId)).toBe(false)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// A RESPOSTA DO MESTRE volta a quem bateu, como na porta que o mestre trancou:
+// "O mestre abriu" no "Arrombar", "O mestre disse não" no "Aguenta".
+
+describe('hostSession: a resposta da disputa chega a quem bateu', () => {
+  it('"Aguenta": Bruno lê "O mestre disse não", igual à porta do mestre; SEGURANÇA: sem nome de quem trancou', () => {
+    const map = corredor()
+    const { s } = anaTrancou(map)
+    const disputa = tocarEPedir(s, map, 'knock').toque.barDispute
+    if (disputa === undefined) throw new Error('esperava a disputa')
+    const r = s.answerBarDispute(disputa.requestId, false, map)
+    expect(r.outbound).toEqual([{ clientId: 'c2', msg: { type: 'door.request.answer', answer: 'denied' } }])
+    expect(r.applyDoor).toBeUndefined()
+    expect(JSON.stringify(r.outbound)).not.toContain('Ana')
+    // A porta do mestre, mesmo gesto e mesma recusa: a mesma mensagem.
+    const doMestre = corredor({ locked: true })
+    const m = mesa(doMestre)
+    const pedido = tocarEPedir(m.s, doMestre, 'knock').pedido.doorRequest
+    if (pedido === undefined) throw new Error('esperava o pedido')
+    expect(m.s.denyDoorRequest(pedido.requestId).outbound).toEqual(r.outbound)
+  })
+
+  it('"Arrombar": a porta abre e Bruno lê "O mestre abriu", igual à porta do mestre', () => {
+    const map = corredor()
+    const { s, bruno } = anaTrancou(map)
+    const bater = s.handleMessage('c2', { type: 'door.request', wallId: 'porta', how: 'force' }, map).barDispute
+    if (bater === undefined) throw new Error('esperava a disputa')
+    const r = s.answerBarDispute(bater.requestId, true, map)
+    expect(r.outbound).toEqual([{ clientId: 'c2', msg: { type: 'door.request.answer', answer: 'opened' } }])
+    expect(r.applyDoor).toEqual({ wallId: 'porta', open: true, playerId: bruno, playerName: 'Bruno' })
+  })
+
+  it('só o toque, sem Bater: a resposta não traz aviso (na porta do mestre o toque nunca vira pedido), só a porta muda', () => {
+    const map = corredor()
+    const { s, bruno } = anaTrancou(map)
+    const disputa = s.handleMessage('c2', { type: 'door.toggle', wallId: 'porta' }, map).barDispute
+    if (disputa === undefined) throw new Error('esperava a disputa')
+    const r = s.answerBarDispute(disputa.requestId, true, map)
+    expect(r.outbound).toEqual([])
+    expect(r.applyDoor).toEqual({ wallId: 'porta', open: true, playerId: bruno, playerName: 'Bruno' })
+  })
+})
+
+// ---------------------------------------------------------------------------
 // PASSAGEM (pino de viagem)
 
 const SALAO = 'cena-salao'

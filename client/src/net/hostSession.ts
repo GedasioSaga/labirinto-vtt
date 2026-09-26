@@ -1770,7 +1770,8 @@ export interface HostSession {
    * DISPUTA NA PORTA: `force` = "Arrombar" (o ferrolho sai e a porta abre:
    * `applyDoor`); `false` = "Aguenta" (nada muda). Revalida contra o mundo de
    * AGORA: ferrolho que já saiu (quem trancou abriu) não abre nada. Disputa
-   * que já não existe também não.
+   * que já não existe também não. Quem PEDIU (Bater/Forçar/Usar chave) lê a
+   * resposta como na porta do mestre: `door.request.answer` opened/denied.
    */
   answerBarDispute(requestId: string, force: boolean, source: HostMapSource): HostResult
   /** A disputa ainda espera o mestre? `false` depois de respondida, ou quando quem tentou caiu. */
@@ -2166,6 +2167,12 @@ interface PendingBarDispute {
   /** `MapData.id` da cena da porta: a chave das trancas, como a da memória. */
   mapId: string
   wallId: string
+  /**
+   * Ele PEDIU (Bater/Forçar/Usar chave), não só tocou. Na porta do mestre o
+   * toque nunca vira pedido: só quem pediu lê "Pedido enviado", "ainda espera
+   * o mestre" e a resposta — senão o texto contaria que não foi o mestre.
+   */
+  pedido: boolean
 }
 
 /** Pedido que passou em tudo: de onde, para onde, por qual pino e com qual token. */
@@ -5626,11 +5633,11 @@ export function createHostSession(options: HostSessionOptions): HostSession {
    * a Caixa do mestre. `null` = já há uma dele esperando (insistir não vira
    * outra linha) ou ele saiu da sala.
    */
-  const abrirDisputa = (playerId: string, scene: HostScene, world: HostWorld, wallId: string, ferrolho: Ferrolho): BarDispute | null => {
+  const abrirDisputa = (playerId: string, scene: HostScene, world: HostWorld, wallId: string, ferrolho: Ferrolho, pedido: boolean): BarDispute | null => {
     const record = players.get(playerId)
     if (record === undefined || pendingBarDisputes.has(playerId)) return null
     const requestId = randomId()
-    pendingBarDisputes.set(playerId, { requestId, playerId, mapId: sceneKey(scene), wallId })
+    pendingBarDisputes.set(playerId, { requestId, playerId, mapId: sceneKey(scene), wallId, pedido })
     return { requestId, playerName: record.name, barrerName: ferrolho.playerName, ...backgroundSceneName(scene, world) }
   }
 
@@ -5642,7 +5649,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
    */
   function barDisputeFor(clientId: string, playerId: string, scene: HostScene, world: HostWorld, wallId: string, ferrolho: Ferrolho): HostResult {
     const locked = reply(clientId, { type: 'door.toggle.rejected', wallId, reason: 'locked' })
-    const disputa = abrirDisputa(playerId, scene, world, wallId, ferrolho)
+    const disputa = abrirDisputa(playerId, scene, world, wallId, ferrolho, false)
     return disputa === null ? locked : { ...locked, barDispute: disputa }
   }
 
@@ -5764,8 +5771,19 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       if (ferrolho !== undefined && !fichaDoLadoAlcanca(seen.nearTokens, seen.wall, ferrolho.lado, scene.map.grid)) {
         // Longe: o "Chegue mais perto" da porta que o mestre trancou, palavra por palavra.
         if (!seen.near) return reject('far')
-        // A tela dele já diz "Pedido enviado"; com a disputa de antes esperando, "ainda espera o mestre".
-        const disputa = abrirDisputa(playerId, scene, world, seen.wall.id, ferrolho)
+        // A tela dele já diz "Pedido enviado". A disputa que só o TOQUE abriu
+        // não é pedido: nesta porta ela vira o pedido (a Caixa já tem a linha);
+        // em outra porta dá lugar a esta. Só um pedido de verdade esperando
+        // responde "ainda espera o mestre", como na porta do mestre.
+        const anterior = pendingBarDisputes.get(playerId)
+        if (anterior !== undefined && !anterior.pedido) {
+          if (anterior.mapId === sceneKey(scene) && anterior.wallId === seen.wall.id) {
+            anterior.pedido = true
+            return { outbound: [] }
+          }
+          pendingBarDisputes.delete(playerId)
+        }
+        const disputa = abrirDisputa(playerId, scene, world, seen.wall.id, ferrolho, true)
         return disputa === null ? reject('pending') : { outbound: [], barDispute: disputa }
       }
       return reject('not_locked')
@@ -7787,16 +7805,22 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       const pending = findPendingBarDispute(requestId)
       if (pending === undefined) return { outbound: [] }
       pendingBarDisputes.delete(pending.playerId)
-      if (!force) return { outbound: [] }
+      const record = players.get(pending.playerId)
+      const clientId = record?.clientId ?? null // null = saiu: não há a quem avisar
+      // A resposta volta a quem PEDIU, com a mesma mensagem da porta do
+      // mestre (sem nome de ninguém). Só o toque não é pedido: lá o toque
+      // nunca recebe resposta, e aqui também não.
+      const avisar = (answer: 'opened' | 'denied'): Outbound[] =>
+        pending.pedido && clientId !== null ? [{ clientId, msg: { type: 'door.request.answer', answer } }] : []
+      if (!force) return { outbound: avisar('denied') }
       const world = toWorld(source)
       // A cena da PORTA, não a do jogador agora nem a aberta no editor.
       const scene = allScenes(world).find((s) => sceneKey(s) === pending.mapId)
       const wall = scene?.map.walls.find((w) => w.id === pending.wallId)
-      const record = players.get(pending.playerId)
       // Quem trancou já abriu, o mestre abriu ou trancou, a porta sumiu, quem forçava saiu: não há o que arrombar.
       if (scene === undefined || wall === undefined || record === undefined || ferrolhoAtivo(scene.map, wall) === undefined) return { outbound: [] }
       tirarFerrolho(sceneKey(scene), wall.id)
-      return { outbound: [], applyDoor: { wallId: wall.id, open: true, ...backgroundSceneId(scene, world), playerId: pending.playerId, playerName: record.name } }
+      return { outbound: avisar('opened'), applyDoor: { wallId: wall.id, open: true, ...backgroundSceneId(scene, world), playerId: pending.playerId, playerName: record.name } }
     },
 
     isBarDisputePending(requestId) {
