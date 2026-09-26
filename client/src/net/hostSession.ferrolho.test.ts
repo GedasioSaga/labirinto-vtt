@@ -219,6 +219,49 @@ describe('hostSession: ferrolho na porta', () => {
     expect(portaNoRecorte(snapshotPara(s, 'c1', map))).toEqual({ open: false, locked: false, kind: 'normal' })
     expect(s.handleMessage('c2', { type: 'door.toggle', wallId: 'porta' }, map).applyDoor).toEqual({ wallId: 'porta', open: true, playerId: bruno, playerName: 'Bruno' })
   })
+
+  it('com o corredor vazio, o mestre abre e fecha a porta pelo editor: o ferrolho não volta quando os dois retornam', () => {
+    const poco = createEmptyMap('mapa-poco', 'Poço', 20, 10, 50)
+    // Corredor aberto no editor; o Poço de fundo. `noCorredor` diz onde estão as duas fichas.
+    const mundoCom = (porta: Partial<DoorState>, noCorredor: boolean): HostWorld => {
+      const c = corredor(porta)
+      return {
+        open: { sceneId: 'cena-corredor', name: 'Corredor', map: noCorredor ? c : { ...c, tokens: [] } },
+        background: [{ sceneId: 'cena-poco', name: 'Poço', map: { ...poco, tokens: noCorredor ? [] : c.tokens } }],
+      }
+    }
+    const aqui = mundoCom({}, true)
+    const { s, bruno } = mesa(aqui)
+    transmitir(s, aqui)
+    expect(s.handleMessage('c1', { type: 'door.bar', wallId: 'porta', on: true }, aqui).trancaAviso?.acao).toBe('trancou')
+    // Os dois descem ao Poço; ninguém no corredor, e o mestre abre e fecha a porta.
+    transmitir(s, mundoCom({}, false))
+    transmitir(s, mundoCom({ open: true }, false))
+    transmitir(s, mundoCom({}, false))
+    const volta = mundoCom({}, true)
+    expect(portaNoRecorte(snapshotPara(s, 'c1', volta))).toEqual({ open: false, locked: false, kind: 'normal' })
+    const r = s.handleMessage('c2', { type: 'door.toggle', wallId: 'porta' }, volta)
+    expect(r.barDispute).toBeUndefined()
+    expect(r.applyDoor).toEqual({ wallId: 'porta', open: true, playerId: bruno, playerName: 'Bruno' })
+  })
+
+  it('o mestre abre e fecha a porta entre dois broadcasts: "podarFerrolhos" vê a porta aberta e o ferrolho não volta', () => {
+    const map = corredor()
+    const { s, bruno } = anaTrancou(map)
+    // O mapa passou pela porta aberta sem broadcast nenhum no meio (o intervalo do host).
+    s.podarFerrolhos(() => corredor({ open: true }))
+    const r = s.handleMessage('c2', { type: 'door.toggle', wallId: 'porta' }, map)
+    expect(r.barDispute).toBeUndefined()
+    expect(r.applyDoor).toEqual({ wallId: 'porta', open: true, playerId: bruno, playerName: 'Bruno' })
+  })
+
+  it('"podarFerrolhos" com a porta ainda fechada não mexe no ferrolho', () => {
+    const map = corredor()
+    const { s } = anaTrancou(map)
+    s.podarFerrolhos(() => map)
+    expect(portaNoRecorte(snapshotPara(s, 'c1', map))?.ferrolhoDoMeuLado).toBe(true)
+    expect(s.handleMessage('c2', { type: 'door.toggle', wallId: 'porta' }, map).barDispute?.barrerName).toBe('Ana')
+  })
 })
 
 // ---------------------------------------------------------------------------
@@ -241,6 +284,20 @@ describe('hostSession: ferrolho diante do pedido, da chave e da tela guardada', 
     const de_novo = s.handleMessage('c2', { type: 'door.request', wallId: 'porta', how: 'force' }, map)
     expect(de_novo.barDispute).toBeUndefined()
     expect(de_novo.outbound).toEqual([{ clientId: 'c2', msg: { type: 'door.request.rejected', wallId: 'porta', reason: 'pending' } }])
+  })
+
+  it('Bruno se afasta da porta do ferrolho e toca "Bater": lê "Chegue mais perto", como na porta que o mestre trancou; SEGURANÇA: nunca o "abre com um toque"', () => {
+    const map = corredor()
+    const { s } = anaTrancou(map)
+    const bruno_longe: MapData = { ...map, tokens: [ficha('ficha-ana', 'Heroina', 450, 250), ficha('ficha-bruno', 'Guarda', 700, 250)] }
+    const bater = s.handleMessage('c2', { type: 'door.request', wallId: 'porta', how: 'knock' }, bruno_longe)
+    expect(bater.outbound).toEqual([{ clientId: 'c2', msg: { type: 'door.request.rejected', wallId: 'porta', reason: 'far' } }])
+    expect(bater.barDispute).toBeUndefined()
+    expect(bater.doorRequest).toBeUndefined()
+    // A porta que o MESTRE trancou, com as fichas nos mesmos lugares: a mesma resposta, palavra por palavra.
+    const doMestre: MapData = { ...corredor({ locked: true }), tokens: bruno_longe.tokens }
+    const m = mesa(doMestre)
+    expect(m.s.handleMessage('c2', { type: 'door.request', wallId: 'porta', how: 'knock' }, doMestre).outbound).toEqual(bater.outbound)
   })
 
   it('Bruno tenta "Usar chave" na porta do ferrolho: a porta não abre, ele lê "Trancada" e a tentativa vira disputa', () => {

@@ -60,7 +60,12 @@ async function mesa(portaAberta = false) {
   entra('c2', 'Bruno', 'ficha-bruno')
   bridge.notifyMapChanged()
   vi.runOnlyPendingTimers()
-  return { emit, applyDoor }
+  /** O mestre abre ou fecha a porta pelo editor: a store muda e o App avisa a ponte. */
+  const mestreMexeNaPorta = (open: boolean) => {
+    porta = { ...porta, open }
+    bridge.notifyMapChanged()
+  }
+  return { emit, applyDoor, mestreMexeNaPorta }
 }
 
 const pedidos = () => useToastStore.getState().toasts.filter((t) => t.grupo === 'Pedidos')
@@ -256,6 +261,100 @@ describe('hostBridge: ferrolho do jogador', () => {
     expect(disputa.actions?.some((a) => a.emLote === true)).toBe(false)
     disputa.actions?.find((a) => a.label === 'Passa (quebra a barra)')?.run()
     expect(applyTransfer).toHaveBeenCalledWith(expect.objectContaining({ tokenId: 'ficha-bruno', toSceneId: 'cena-b' }))
+  })
+
+  it('barra posta com o pedido já na Caixa: "Deixar ir com quem está perto" também não leva ninguém e o pedido volta como disputa', async () => {
+    const naCripta = new Set<string>(['ficha-ana'])
+    const escada = (id: string, x: number, description: string, sceneId: string, pinId: string): Pin => ({
+      id,
+      x,
+      y: 200,
+      kind: 'viagem',
+      description,
+      image: null,
+      destino: { sceneId, pinId },
+    })
+    const noSalao = [ficha('ficha-bruno', 'Guarda', 250, 200), ficha('ficha-caio', 'Batedor', 350, 200)]
+    const world = (): HostWorld => ({
+      open: {
+        sceneId: 'cena-a',
+        name: 'Salão',
+        map: {
+          ...createEmptyMap('mapa-a', 'A', 40, 10, 50),
+          tokens: noSalao.filter((t) => !naCripta.has(t.id)),
+          pins: [escada('escada-a', 300, 'Escada que desce', 'cena-b', 'escada-b')],
+        },
+      },
+      background: [
+        {
+          sceneId: 'cena-b',
+          name: 'Cripta',
+          map: {
+            ...createEmptyMap('mapa-b', 'B', 40, 10, 50),
+            tokens: [...naCripta].map((id) => ficha(id, id, id === 'ficha-ana' ? 950 : 1050, 200)),
+            pins: [escada('escada-b', 1000, 'Escada que sobe', 'cena-a', 'escada-a')],
+          },
+        },
+      ],
+    })
+    const handlers = new Map<string, (event: { payload: unknown }) => void>()
+    const invoke = vi.fn(async (cmd: string, _args?: unknown) => (cmd === 'net_start_room' ? ROOM : undefined))
+    const listen = vi.fn(async (name: string, handler: (event: { payload: unknown }) => void) => {
+      handlers.set(name, handler)
+      return vi.fn()
+    })
+    const applyTransfer = vi.fn((transfer: AppliedTransfer) => {
+      naCripta.add(transfer.tokenId)
+      return true
+    })
+    let t = 0
+    const bridge = createHostBridge({ invoke, listen, getMap: () => world().open.map, getWorld: world, applyMove: vi.fn(), applyDoor: vi.fn(), applyTransfer, now: () => t })
+    await bridge.start()
+    const emit = (payload: unknown) => {
+      t += 1000
+      handlers.get('net:message')?.({ payload })
+    }
+    for (const { clientId, name, tokenId } of [
+      { clientId: 'c1', name: 'Ana', tokenId: 'ficha-ana' },
+      { clientId: 'c2', name: 'Bruno', tokenId: 'ficha-bruno' },
+      { clientId: 'c3', name: 'Caio', tokenId: 'ficha-caio' },
+    ]) {
+      emit({ clientId, msg: { type: 'join', code: ROOM.code, name } })
+      const player = bridge.players().find((p) => p.name === name)
+      if (player === undefined) throw new Error(`${name} deveria ter entrado`)
+      bridge.assignToken(player.playerId, tokenId)
+    }
+    bridge.notifyMapChanged()
+    vi.runOnlyPendingTimers()
+
+    emit({ clientId: 'c2', msg: { type: 'pin.travel.request', pinId: 'escada-a' } })
+    const [pedido] = pedidos()
+    if (pedido === undefined) throw new Error('esperava o pedido na caixa')
+    const junto = pedido.actions?.find((a) => a.label === 'Deixar ir com quem está perto (1)')
+    if (junto === undefined) throw new Error('o pedido deveria oferecer ir com quem está perto')
+    emit({ clientId: 'c1', msg: { type: 'pin.bar', pinId: 'escada-b', on: true } })
+    junto.run()
+    expect(applyTransfer).not.toHaveBeenCalled()
+    // Ninguém pode ficar esperando sem ter onde o mestre responder.
+    const [disputa] = pedidos()
+    if (disputa === undefined) throw new Error('o pedido não pode sumir da Caixa: esperava a disputa')
+    expect(disputa.id).not.toBe(pedido.id)
+    expect(disputa.text).toBe('Bruno quer passar por Escada que desce → Cripta (barrada do outro lado por Ana)')
+    expect(disputa.actions?.map((a) => a.label)).toEqual(['Passa (quebra a barra)', 'A barra aguenta'])
+    disputa.actions?.find((a) => a.label === 'Passa (quebra a barra)')?.run()
+    expect(applyTransfer.mock.calls.map(([transfer]) => transfer.tokenId)).toEqual(['ficha-bruno'])
+  })
+
+  it('o mestre abre e fecha a porta no editor mais rápido que o broadcast: o ferrolho não volta, e Bruno abre sem disputa', async () => {
+    const { emit, applyDoor, mestreMexeNaPorta } = await mesa()
+    emit('net:message', { clientId: 'c1', msg: { type: 'door.bar', wallId: 'porta', on: true } })
+    // Os dois gestos caem no mesmo intervalo do broadcast: nenhum recorte sai no meio.
+    mestreMexeNaPorta(true)
+    mestreMexeNaPorta(false)
+    vi.runOnlyPendingTimers()
+    emit('net:message', { clientId: 'c2', msg: { type: 'door.toggle', wallId: 'porta' } })
+    expect(applyDoor).toHaveBeenCalledWith('porta', true)
+    expect(pedidos()).toEqual([])
   })
 
   it('o × vale "Aguenta": a porta fica fechada', async () => {

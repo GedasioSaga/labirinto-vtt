@@ -2031,6 +2031,10 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     if (lead === undefined || lead.applyTransfer === undefined) {
       // Pedido que já morreu, ou recusa da revalidação: ninguém foi.
       if (lead !== undefined) void dispatch(lead)
+      // Barrada do outro lado depois do aviso: como no "Deixar ir"
+      // (`answerTravel`), o pedido volta à Caixa como disputa. Sem isso o
+      // jogador seguia "Aguardando o mestre…" e o mestre não tinha onde responder.
+      if (lead?.travelRequest !== undefined) askTravel(lead.travelRequest)
       notifyPlayersIfChanged()
       return
     }
@@ -2801,6 +2805,9 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       // uma edição seguinte (no mesmo intervalo do broadcast) seja comparada
       // com a memória de antes do Ctrl+Z.
       if (cause === 'history') followCaravans('history')
+      // Cada mudança, não só a que sobra no fim do intervalo: a porta aberta e
+      // fechada de novo nele desfaz o ferrolho do jogador mesmo assim.
+      session?.podarFerrolhos(world)
       scheduleBroadcast()
     },
 

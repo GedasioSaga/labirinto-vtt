@@ -1525,6 +1525,13 @@ export interface HostSession {
    */
   broadcast(source: HostMapSource): HostResult
   /**
+   * O mapa do mestre mudou: o ferrolho de porta que ficou aberta, trancada
+   * pelo mestre ou apagada sai de vez, em toda cena. Chamado a CADA mudança,
+   * antes do broadcast (que espera o intervalo): abrir e fechar a porta dentro
+   * dele não pode devolver o ferrolho. `source` só é lido com algum ferrolho de pé.
+   */
+  podarFerrolhos(source: () => HostMapSource): void
+  /**
    * Laser do mestre para todo jogador conectado e jogando (quem aguarda não
    * tem mapa onde desenhar). Com `source`, só para quem está na cena aberta —
    * o mestre aponta no mapa que ele vê.
@@ -3089,6 +3096,25 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       if (barraAtiva(map, pinId) !== undefined) barrados.add(pinId)
     }
     return { ferrolhos: lados, pinosBarrados: barrados }
+  }
+
+  /**
+   * Tira o ferrolho de toda porta que o mestre abriu, trancou ou apagou, em
+   * TODA cena do mundo — com gente nela ou não. `ferrolhoAtivo` só poda quando
+   * alguém pergunta pela porta, e ninguém pergunta por uma cena vazia: sem
+   * esta varredura, a porta aberta e fechada de novo pelo mestre devolvia o
+   * ferrolho a quem voltasse.
+   */
+  const podarFerrolhosDe = (world: HostWorld): void => {
+    for (const scene of allScenes(world)) {
+      const daCena = ferrolhos.get(sceneKey(scene))
+      if (daCena === undefined) continue
+      for (const wallId of [...daCena.keys()]) {
+        const wall = scene.map.walls.find((w) => w.id === wallId)
+        if (wall === undefined) daCena.delete(wallId)
+        else ferrolhoAtivo(scene.map, wall)
+      }
+    }
   }
 
   /** "Quem vê" do pino na ordem da sala. `null` = Todos. */
@@ -5735,7 +5761,9 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       // da do mestre), então o "Bater"/"Forçar" é a disputa na Caixa — nunca o
       // "abre com um toque", que contaria que não foi o mestre quem trancou.
       const ferrolho = ferrolhoAtivo(scene.map, seen.wall)
-      if (ferrolho !== undefined && seen.near && !fichaDoLadoAlcanca(seen.nearTokens, seen.wall, ferrolho.lado, scene.map.grid)) {
+      if (ferrolho !== undefined && !fichaDoLadoAlcanca(seen.nearTokens, seen.wall, ferrolho.lado, scene.map.grid)) {
+        // Longe: o "Chegue mais perto" da porta que o mestre trancou, palavra por palavra.
+        if (!seen.near) return reject('far')
         // A tela dele já diz "Pedido enviado"; com a disputa de antes esperando, "ainda espera o mestre".
         const disputa = abrirDisputa(playerId, scene, world, seen.wall.id, ferrolho)
         return disputa === null ? reject('pending') : { outbound: [], barDispute: disputa }
@@ -8559,10 +8587,17 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       if (scene.sceneId !== null) dropPlanGrants(playerId, scene.sceneId)
     },
 
+    podarFerrolhos(source) {
+      if (![...ferrolhos.values()].some((daCena) => daCena.size > 0)) return
+      podarFerrolhosDe(toWorld(source()))
+    },
+
     broadcast(source) {
       const world = toWorld(source)
       rev += 1
       waitsEndedInViews = false
+      // Antes dos recortes, e em toda cena: quem está longe da porta também não pode herdar ferrolho morto.
+      podarFerrolhosDe(world)
       // Confronto encerrado: o gasto daquela cena não pode passar para o próximo.
       for (const scene of allScenes(world)) {
         if (scene.map.confronto === undefined) gastoDaVez.delete(scene.map.id)
