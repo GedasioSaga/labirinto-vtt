@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import { createEmptyMap } from '../lib/mapFactory'
-import type { Pin, PinPassage, Token } from '../types/map'
+import type { MapData, Pin, PinPassage, Token } from '../types/map'
 import { createHostSession, type AppliedTransfer, type HostResult, type HostWorld } from './hostSession'
-import type { HostMessage } from './protocol'
+import { PIN_TRAVEL_MAX_TOKENS, type HostMessage } from './protocol'
+import { pinTravelChoices } from '../lib/pinTravelers'
+import { snapPointForTarget } from '../pixi/tokenInteraction'
 
 /**
  * ESCOLHER FICHAS NO PINO (relato do Enzo): com duas fichas perto do pino, o
@@ -52,6 +54,8 @@ function mesa(passagem: PinPassage = 'pede') {
     gato: { cena: ESTRADA, ...casa(10, 6) },
   }
   const patch: Record<string, Partial<Token>> = {}
+  /** O que a Vila tem além do chão vazio: zona oculta, prédio com teto, camada escondida. */
+  const vila: Partial<MapData> = {}
   const fichasEm = (cena: string) => Object.entries(onde).filter(([, p]) => p.cena === cena).map(([id, p]) => ficha(id, p, patch[id]))
   const world = (): HostWorld => ({
     open: {
@@ -63,7 +67,7 @@ function mesa(passagem: PinPassage = 'pede') {
       {
         sceneId: VILA,
         name: 'Vila Cinzenta',
-        map: { ...createEmptyMap('mapa-vila', 'Planta', 40, 12, GRADE), tokens: fichasEm(VILA), pins: [ponte('ponte-b', PONTE_B, ESTRADA, 'ponte-a', passagem)] },
+        map: { ...createEmptyMap('mapa-vila', 'Planta', 40, 12, GRADE), ...vila, tokens: fichasEm(VILA), pins: [ponte('ponte-b', PONTE_B, ESTRADA, 'ponte-a', passagem)] },
       },
     ],
   })
@@ -88,7 +92,7 @@ function mesa(passagem: PinPassage = 'pede') {
     if (r.travelRequest === undefined) throw new Error('o pedido deveria valer')
     return s.approveTravel(r.travelRequest.requestId, world())
   }
-  return { s, onde, patch, world, pede, aprova }
+  return { s, onde, patch, vila, world, pede, aprova }
 }
 
 /** Quem atravessa: a ficha principal e o séquito dela. */
@@ -249,5 +253,272 @@ describe('hostSession: só ajudantes na mão, não há o que escolher', () => {
   it('pedido com o mais perto (o que o cartão oferece) vale, e os dois atravessam', () => {
     const t = mesaDeAjudantes()
     expect(quemPassaComAjudantes(t.aprova(t.pede(['carregador'])).applyTransfer)).toEqual(['carregador', 'guia'])
+  })
+})
+
+/*
+ * CONSERTOS DA VERSÃO ANTIGA (branch auto/f2-escolher-fichas-no-pino), portados
+ * para a conta atual: onde as companheiras assentam, o "Deixar ir" e o teto.
+ */
+
+/** Quadrado de 40 px em volta do centro da casa: cobre a ficha dela e nenhuma outra casa. */
+const quadrado = (p: { x: number; y: number }) => [
+  { x: p.x - 20, y: p.y - 20 },
+  { x: p.x + 20, y: p.y - 20 },
+  { x: p.x + 20, y: p.y + 20 },
+  { x: p.x - 20, y: p.y + 20 },
+]
+
+/** Bruno e a coruja passam para a Vila; `prepara` mexe na mesa antes do pedido. */
+function passaBrunoECoruja(prepara: (t: ReturnType<typeof mesa>) => void = () => {}): AppliedTransfer {
+  const t = mesa()
+  prepara(t)
+  const chegada = t.aprova(t.pede(['bruno', 'coruja'])).applyTransfer
+  if (chegada === undefined) throw new Error('Bruno e a coruja deveriam passar')
+  return chegada
+}
+
+/** A casa em que a coruja (a companheira) assentou. */
+function casaDaCoruja(transfer: AppliedTransfer): { x: number; y: number } {
+  const seat = transfer.entourage?.find((e) => e.tokenId === 'coruja')
+  if (seat === undefined) throw new Error('a coruja deveria ir junto')
+  return { x: seat.x, y: seat.y }
+}
+
+describe('hostSession: a casa da companheira não conta o que o jogador não vê', () => {
+  it('NPC em zona oculta na casa que seria da coruja não a empurra: a casa pulada entregaria o NPC', () => {
+    const livre = passaBrunoECoruja()
+    const alvo = casaDaCoruja(livre)
+    const r = passaBrunoECoruja((t) => {
+      t.onde.npc = { cena: VILA, ...alvo }
+      t.vila.concealZones = [{ id: 'z', name: 'Porão', revealed: false, points: quadrado(alvo) }]
+    })
+    expect(casaDaCoruja(r)).toEqual(alvo)
+    expect({ x: r.x, y: r.y }).toEqual({ x: livre.x, y: livre.y })
+  })
+
+  it('NPC em zona oculta na casa que seria de Bruno, o da frente, também não o empurra', () => {
+    const livre = passaBrunoECoruja()
+    const alvo = { x: livre.x, y: livre.y }
+    const r = passaBrunoECoruja((t) => {
+      t.onde.npc = { cena: VILA, ...alvo }
+      t.vila.concealZones = [{ id: 'z', name: 'Porão', revealed: false, points: quadrado(alvo) }]
+    })
+    expect({ x: r.x, y: r.y }).toEqual(alvo)
+  })
+
+  it('CONTROLE: com a zona revelada, o NPC à vista continua ocupando a casa que seria de Bruno', () => {
+    const livre = passaBrunoECoruja()
+    const alvo = { x: livre.x, y: livre.y }
+    const r = passaBrunoECoruja((t) => {
+      t.onde.npc = { cena: VILA, ...alvo }
+      t.vila.concealZones = [{ id: 'z', name: 'Porão', revealed: true, points: quadrado(alvo) }]
+    })
+    expect(r.tokenId).toBe('bruno')
+    expect({ x: r.x, y: r.y }).not.toEqual(alvo)
+  })
+
+  it('NPC sob teto fechado também não empurra: o interior do prédio não vaza pela casa pulada', () => {
+    const livre = passaBrunoECoruja()
+    const alvo = casaDaCoruja(livre)
+    const r = passaBrunoECoruja((t) => {
+      t.onde.npc = { cena: VILA, ...alvo }
+      t.vila.regions = [
+        { id: 'casa', points: quadrado(alvo), tag: '', fillColor: '#123', fillPattern: 'solid', data: {}, room: { shape: 'rect', name: 'Casa', roof: true } },
+      ]
+    })
+    expect(casaDaCoruja(r)).toEqual(alvo)
+  })
+
+  it('com a camada Fichas escondida na Vila, o NPC não ocupa casa', () => {
+    const livre = passaBrunoECoruja()
+    const alvo = casaDaCoruja(livre)
+    const r = passaBrunoECoruja((t) => {
+      t.onde.npc = { cena: VILA, ...alvo }
+      t.vila.hiddenLayers = ['tokens']
+    })
+    expect(casaDaCoruja(r)).toEqual(alvo)
+  })
+
+  it('ficha escondida ou secreta pelo mestre não empurra a coruja', () => {
+    const livre = passaBrunoECoruja()
+    const alvo = casaDaCoruja(livre)
+    for (const escondida of [{ hidden: true }, { secret: true }]) {
+      const r = passaBrunoECoruja((t) => {
+        t.onde.npc = { cena: VILA, ...alvo }
+        t.patch.npc = escondida
+      })
+      expect(casaDaCoruja(r)).toEqual(alvo)
+    }
+  })
+
+  it('CONTROLE: com a zona revelada o NPC está à vista e a coruja senta em outra casa', () => {
+    const livre = passaBrunoECoruja()
+    const alvo = casaDaCoruja(livre)
+    const r = passaBrunoECoruja((t) => {
+      t.onde.npc = { cena: VILA, ...alvo }
+      t.vila.concealZones = [{ id: 'z', name: 'Porão', revealed: true, points: quadrado(alvo) }]
+    })
+    expect(r.entourage).toHaveLength(1)
+    expect(casaDaCoruja(r)).not.toEqual(alvo)
+  })
+
+  it('o recorte que Bruno recebe na Vila depois de chegar continua sem o NPC da zona oculta', () => {
+    const t = mesa()
+    const alvo = casaDaCoruja(passaBrunoECoruja())
+    t.onde.npc = { cena: VILA, ...alvo }
+    t.vila.concealZones = [{ id: 'z', name: 'Porão', revealed: false, points: quadrado(alvo) }]
+    const chegada = t.aprova(t.pede(['bruno', 'coruja'])).applyTransfer
+    if (chegada === undefined) throw new Error('Bruno e a coruja deveriam passar')
+    t.onde.bruno = { cena: VILA, x: chegada.x, y: chegada.y }
+    t.onde.coruja = { cena: VILA, ...casaDaCoruja(chegada) }
+    const mapas = t.s
+      .broadcast(t.world())
+      .outbound.flatMap((o) => (o.clientId === 'c1' && (o.msg.type === 'snapshot' || o.msg.type === 'delta') ? [o.msg.map] : []))
+    const ultimo = mapas.at(-1)
+    expect(ultimo?.tokens.map((tk) => tk.id)).toContain('coruja')
+    expect(ultimo?.tokens.map((tk) => tk.id)).not.toContain('npc')
+  })
+
+  it('grade hexagonal: a coruja assenta no centro de um hexágono (a procura do "Reunir o grupo")', () => {
+    const r = passaBrunoECoruja((t) => {
+      t.vila.gridShape = 'hex'
+    })
+    const seat = casaDaCoruja(r)
+    const centro = snapPointForTarget('token', 'hex', seat.x, seat.y, GRADE)
+    expect(seat.x).toBeCloseTo(centro.x, 6)
+    expect(seat.y).toBeCloseTo(centro.y, 6)
+    expect(Math.hypot(seat.x - r.x, seat.y - r.y)).toBeGreaterThan(GRADE / 2)
+  })
+
+  it('coruja de 2 casas assenta na quina (linha da grade), sem cobrir Bruno', () => {
+    const r = passaBrunoECoruja((t) => {
+      t.patch.coruja = { size: 2 }
+    })
+    const seat = casaDaCoruja(r)
+    expect(seat.x % GRADE).toBe(0)
+    expect(seat.y % GRADE).toBe(0)
+    expect(Math.hypot(seat.x - r.x, seat.y - r.y)).toBeGreaterThanOrEqual(1.5 * GRADE * 0.9)
+  })
+})
+
+describe('hostSession: o "Deixar ir" confere as escolhidas pela folga do pedido', () => {
+  it('o cão, fora da escolha, chegar mais perto do pino não derruba Bruno e a coruja', () => {
+    const t = mesa()
+    const pedido = t.pede(['bruno', 'coruja'])
+    // Colado no pino: vira a ficha mais perto, e o grupo medido dele deixaria a coruja de fora.
+    t.onde.cao = { cena: ESTRADA, ...casa(10, 4) }
+    expect(quemPassa(t.aprova(pedido).applyTransfer)).toEqual(['bruno', 'coruja'])
+  })
+
+  it('Bruno, o da frente, dar um passo para o pino não deixa a coruja de fora', () => {
+    const t = mesa()
+    const pedido = t.pede(['bruno', 'coruja'])
+    t.onde.bruno = { cena: ESTRADA, ...casa(10, 4) }
+    expect(quemPassa(t.aprova(pedido).applyTransfer)).toEqual(['bruno', 'coruja'])
+  })
+
+  it('CONTROLE: a coruja que se afastou além da folga derruba o pedido inteiro, sem mover ninguém', () => {
+    const t = mesa()
+    const pedido = t.pede(['bruno', 'coruja'])
+    t.onde.coruja = { cena: ESTRADA, ...casa(16, 8) }
+    const r = t.aprova(pedido)
+    expect(r.applyTransfer).toBeUndefined()
+    expect(para(r, 'c1')).toEqual([{ type: 'pin.travel.rejected', reason: 'unavailable' }])
+  })
+
+  it('só a coruja escolhida: o cão chegar colado ao pino não a derruba, e ele não passa junto', () => {
+    const t = mesa()
+    const pedido = t.pede(['coruja'])
+    t.onde.cao = { cena: ESTRADA, ...casa(10, 4) }
+    expect(quemPassa(t.aprova(pedido).applyTransfer)).toEqual(['coruja'])
+  })
+})
+
+/**
+ * Teto do pedido: Bruno com 10 fichas junto do pino. O cartão oferece as
+ * `PIN_TRAVEL_MAX_TOKENS` mais perto, e o host aceita exatamente essas.
+ */
+function mesaCheia() {
+  const casas = [casa(10, 6), casa(9, 6), casa(11, 6), casa(10, 7), casa(9, 7), casa(11, 7), casa(8, 6), casa(12, 6), casa(10, 8), casa(9, 8)]
+  const tokens = casas.map((p, i) => ficha(`f${i}`, p))
+  const world = (): HostWorld => ({
+    open: {
+      sceneId: ESTRADA,
+      name: 'Estrada Real',
+      map: { ...createEmptyMap('mapa-estrada', 'Aventura', 40, 12, GRADE), tokens, pins: [ponte('ponte-a', PONTE_A, VILA, 'ponte-b', 'pede')] },
+    },
+    background: [
+      {
+        sceneId: VILA,
+        name: 'Vila Cinzenta',
+        map: { ...createEmptyMap('mapa-vila', 'Planta', 40, 12, GRADE), tokens: [], pins: [ponte('ponte-b', PONTE_B, ESTRADA, 'ponte-a', 'pede')] },
+      },
+    ],
+  })
+  let agora = 1_000_000
+  let n = 0
+  const s = createHostSession({ code: CODE, visionRadius: 700, now: () => agora, randomId: () => `id-${(n += 1)}` })
+  const bruno = welcomeOf(s.handleMessage('c1', { type: 'join', code: CODE, name: 'Bruno' }, world()).outbound).playerId
+  for (const t of tokens) s.assignToken(bruno, t.id)
+  s.broadcast(world())
+  const pede = (tokenIds: string[]): HostResult => {
+    agora += PAUSA_MS
+    return s.handleMessage('c1', { type: 'pin.travel.request', pinId: 'ponte-a', tokenIds }, world())
+  }
+  return { world, tokens, pede }
+}
+
+describe('hostSession: as candidatas do pino param no teto do pedido', () => {
+  it(`o cartão oferece as ${PIN_TRAVEL_MAX_TOKENS} mais perto, e o host aceita justamente essas`, () => {
+    const t = mesaCheia()
+    const pino = t.world().open.map.pins[0]
+    if (pino === undefined) throw new Error('sem pino')
+    const caixas = pinTravelChoices(t.tokens, t.tokens.map((tk) => tk.id), pino, GRADE).map((c) => c.id)
+    expect(caixas).toHaveLength(PIN_TRAVEL_MAX_TOKENS)
+    expect(caixas).not.toContain('f8')
+    expect(caixas).not.toContain('f9')
+    const r = t.pede(caixas)
+    expect(r.travelRequest?.tokenNames).toHaveLength(PIN_TRAVEL_MAX_TOKENS)
+  })
+
+  it('a nona, além do teto, recusa o pedido: ela não está entre as candidatas', () => {
+    const t = mesaCheia()
+    const r = t.pede(['f0', 'f1', 'f2', 'f3', 'f4', 'f5', 'f6', 'f8'])
+    expect(r.travelRequest).toBeUndefined()
+    expect(para(r, 'c1')).toEqual([{ type: 'pin.travel.rejected', reason: 'unavailable' }])
+  })
+})
+
+/**
+ * Atalho na MESMA cena: a ponte leva à outra ponta da própria Estrada. A
+ * coruja pode estar em pé justo na casa que o assentamento daria a ela.
+ */
+function mesaMesmaCena(coruja: { x: number; y: number }) {
+  const tokens = [ficha('bruno', casa(11, 6)), ficha('coruja', coruja)]
+  const pins = [
+    ponte('ponte-a', PONTE_A, ESTRADA, 'ponte-b', 'livre'),
+    ponte('ponte-b', casa(14, 5), ESTRADA, 'ponte-a', 'livre'),
+  ]
+  const world = (): HostWorld => ({
+    open: { sceneId: ESTRADA, name: 'Estrada Real', map: { ...createEmptyMap('mapa-estrada', 'Aventura', 40, 12, GRADE), tokens, pins } },
+    background: [],
+  })
+  const s = createHostSession({ code: CODE, visionRadius: 700, now: () => 1_000_000, randomId: () => 'id-1' })
+  const bruno = welcomeOf(s.handleMessage('c1', { type: 'join', code: CODE, name: 'Bruno' }, world()).outbound).playerId
+  for (const t of tokens) s.assignToken(bruno, t.id)
+  s.broadcast(world())
+  const chegada = s.handleMessage('c1', { type: 'pin.travel.request', pinId: 'ponte-a', tokenIds: ['bruno', 'coruja'] }, world()).applyTransfer
+  if (chegada === undefined) throw new Error('Bruno e a coruja deveriam passar direto')
+  return chegada
+}
+
+describe('hostSession: pino par na mesma cena', () => {
+  it('a casa de onde a coruja sai não conta como ocupada para ela mesma', () => {
+    const longe = mesaMesmaCena(casa(9, 7))
+    const alvo = casaDaCoruja(longe)
+    const r = mesaMesmaCena(alvo)
+    expect(casaDaCoruja(r)).toEqual(alvo)
+    expect({ x: r.x, y: r.y }).toEqual({ x: longe.x, y: longe.y })
   })
 })
