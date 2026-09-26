@@ -704,3 +704,16 @@ Pedido: "continue fazendo as features e a parte de ux/ui, mas agora use o gauntl
 - `inventario-estilo-re`: `a8e6d9c` + `e51bdaa` em `auto/f2-inventario-estilo-re` (46 testes novos; área 221/46 arquivos; tsc 0; INP abrir 48-64 ms, uma abertura a frio 192 ms). Fotos em `C:/dev/inventario-evidencia/`, referência RE3 em `C:/dev/inventario-ref/`. Nada novo enviado ao jogador (lê fogFilter.ts:1402-1414). Críticos cegos A/B e swap (régua manual RE3): final vence. Revisor de segurança: 6 afirmações de pé (nada novo ao jogador, vida oculta não vaza, sem XSS); 1 médio de correção: "Pagar a…" com 2 fichas próprias confere a bolsa errada (PlayerInventory.tsx:182, host cobra pela ordem em hostSession.ts:6272), dá "mesa não respondeu" e risco de pagar 2x. Rodada 2 de conserto disparada no mesmo builder. Depois: confirmação fresca e integrar. Gap restante: visor do item vazio (ícone fino, descrição "Na sua mochila"). Decisões abertas ao usuário: duplicação com "Comigo", cortes 50/25, atalho I.
 - UX `cenas-legiveis` (pedido 27/09 "não consigo ler nada"): designer-opus em `C:/dev/labirinto-ux-cenas` (branch `auto/ux-cenas-legiveis` de `11499ed`).
 - Ritmo (27/09, pedido): 1 agente por vez; nada novo começa sem o usuário ver o resultado do anterior.
+
+## Goal ativo (27/09, `/goal`)
+
+> "Contruir todas as features do Pedidos, Handoff e as que eu solicitei separadamente, além de cada uma desses loops, ter uma melhoria de Design tanto como jogador e para mestre."
+
+Como roda: 1 agente por vez (pedido "vai com mais calma"), sem esperar o usuário entre itens (o goal manda seguir).
+Cada volta = 1 feature (gauntlet: builder → teste da área → revisor/crítico cego → conserto 1 gap por rodada →
+integrar em `auto/int-fase2`) + 1 melhoria de design do mestre + 1 do jogador (crítico cego A/B + swap, em sequência).
+Fila de features: `inventario-estilo-re` (conserto do Pagar em curso) → `acervo-em-pastas` → `rotina-npc-fluida` →
+`zona-oculta-sem-buraco-3` → `parede-parcial` → depois varrer PEDIDOS.md/HANDOFF (seções C e D, achados baixos) por
+itens ainda abertos. Design mestre: `cenas-legiveis` (em curso) → `moldura-do-painel-enxuta` (Acervo vazio em 1 linha)
+→ Espaço nos botões do painel. Design jogador: visor do item do inventário com descrição → próximos pela tela do jogador.
+Publicar 0.4.4 ao fechar as 5 features (suíte 1x, fumaça, instalador, push como na 0.4.3).
