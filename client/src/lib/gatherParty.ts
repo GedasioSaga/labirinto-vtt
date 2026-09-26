@@ -263,10 +263,26 @@ export interface GatherMove {
   entourage?: EntourageSeat[]
 }
 
+/**
+ * Quem não coube em volta do pino mas vai A BORDO de um veículo que coube e
+ * viaja da mesma cena: a travessia do veículo o traz de qualquer jeito
+ * (`adventureStore.transferToken` leva todo passageiro), e ele assenta onde
+ * ela o põe, em volta do veículo. Não é "sem casa": a ficha não fica onde estava.
+ */
+export interface GatherRider {
+  playerId: string
+  name: string
+  tokenId: string
+  /** O veículo que o traz: está em `moves`, com casa. */
+  carriedBy: string
+}
+
 export interface GatherPlan {
   moves: GatherMove[]
   /** Nomes de quem não coube em volta do pino: o mestre é avisado, e a ficha fica onde estava. */
   leftOut: string[]
+  /** Sem casa, mas vem a bordo de um veículo que tem: chega com ele, sem casa reservada. */
+  ridesAlong: GatherRider[]
 }
 
 /** Um jogador da lista "Reunir o grupo aqui": só quem tem ficha em alguma cena. */
@@ -387,7 +403,8 @@ function entourageSpots(map: MapData, center: Point, pin: Point, tokens: readonl
 /**
  * Plano da reunião dos `members` marcados em volta de `pin`, que mora na cena
  * ABERTA (é nela que o mestre clicou no pino). Quem já está na cena só anda;
- * quem está em outra viaja. Ficha que não coube fica de fora do plano.
+ * quem está em outra viaja. Ficha que não coube fica de fora do plano — menos
+ * a que vai a bordo de um veículo que coube: essa vem com ele (`ridesAlong`).
  *
  * MONTARIA E FAMILIAR (`PartyMember.entourageIds`) vêm junto, numa casa
  * colada à do dono. Os donos sentam PRIMEIRO, todos em volta do pino; o
@@ -422,20 +439,27 @@ export function planGather(members: readonly PartyMember[], world: HostWorld, pi
     moving,
   )
   const taken: Seated[] = []
+  const seated = new Set<string>()
   joining.forEach((j, index) => {
     const spot = spots[index] ?? null
-    if (spot !== null) taken.push({ point: spot, size: tokenSizeInSquares(j.token) })
+    if (spot === null) return
+    taken.push({ point: spot, size: tokenSizeInSquares(j.token) })
+    seated.add(j.token.id)
   })
   const moves: GatherMove[] = []
   const leftOut: string[] = []
+  const ridesAlong: GatherRider[] = []
   joining.forEach((j, index) => {
     const spot = spots[index] ?? null
+    const vehicle = carriedBy(j)
     if (spot === null) {
-      leftOut.push(j.member.name)
+      // O veículo que tem casa atravessa com todo passageiro a bordo: dizer
+      // "ficou onde estava" de quem vai nele seria falso.
+      if (vehicle !== undefined && seated.has(vehicle)) ridesAlong.push({ playerId: j.member.playerId, name: j.member.name, tokenId: j.token.id, carriedBy: vehicle })
+      else leftOut.push(j.member.name)
       return
     }
     const vemCom = carrierTravelingAlong(j, joining)
-    const vehicle = carriedBy(j)
     const move: GatherMove = {
       playerId: j.member.playerId,
       name: j.member.name,
@@ -455,7 +479,7 @@ export function planGather(members: readonly PartyMember[], world: HostWorld, pi
   // solta o vínculo (`adventureStore.transferToken`): a reunião desfaria o
   // que o mestre prendeu.
   const along = (move: GatherMove): number => (broughtBy(move).length === 0 ? 0 : 1)
-  return { moves: [...moves].sort((a, b) => along(a) - along(b)), leftOut }
+  return { moves: [...moves].sort((a, b) => along(a) - along(b)), leftOut, ridesAlong }
 }
 
 /**
@@ -521,6 +545,9 @@ export function applyGatherPlan(plan: GatherPlan, effects: GatherEffects): strin
       ...(move.travels ? [] : (move.entourage ?? [])).map((seat) => ({ id: seat.tokenId, x: seat.x, y: seat.y })),
     ])
   if (local.length > 0) effects.placeInScene(local)
+  // Sem casa reservada, quem vai a bordo só chega se o veículo chegou (e aí
+  // fica onde a travessia o pôs); se o veículo não veio, ele também não.
+  for (const rider of plan.ridesAlong) if (!arrived.has(rider.carriedBy)) failed.push(rider.name)
   return failed
 }
 

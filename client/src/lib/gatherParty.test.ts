@@ -289,6 +289,55 @@ describe('veículo no "Reunir o grupo": quem vai a bordo de um veículo que tamb
     expect(ordem).toEqual(['viaja p1', 'viaja p2'])
     expect(falhou).toEqual(['Duda', 'Gui'])
   })
+
+  describe('pino apertado: a última casa vai para o bote e o Gui fica sem casa', () => {
+    // Um cubículo de duas casas: a do pino e a da direita (a única que serve).
+    const cubiculo = [parede('n', 500, 250, 600, 250), parede('l', 600, 250, 600, 300), parede('s', 600, 300, 500, 300), parede('o', 500, 300, 500, 250)]
+    // Um cubículo só com a casa do pino: nenhuma casa serve.
+    const poco = [parede('n', 500, 250, 550, 250), parede('l', 550, 250, 550, 300), parede('s', 550, 300, 500, 300), parede('o', 500, 300, 500, 250)]
+    const mundoApertado = (paredes: Wall[], passageiros: string[]): HostWorld => ({
+      ...mundoComBote(passageiros),
+      open: { sceneId: 'salao', name: 'Salão', map: mapa({ walls: paredes }) },
+    })
+
+    it('a bordo do bote que tem casa: o Gui vem junto e não entra no "sem casa livre"', () => {
+      const plano = planGather([dona, gui], mundoApertado(cubiculo, ['remo']), PINO)
+      expect(plano.leftOut).toEqual([])
+      expect(plano.moves.map((m) => [m.tokenId, m.travels, m.x, m.y])).toEqual([['bote', true, casa(11, 5).x, casa(11, 5).y]])
+      expect(plano.ridesAlong).toEqual([{ playerId: 'p2', name: 'Gui', tokenId: 'remo', carriedBy: 'bote' }])
+    })
+
+    it('o bote chegou: o Gui chegou com ele, sem falha e sem andar para casa nenhuma', () => {
+      const plano = planGather([dona, gui], mundoApertado(cubiculo, ['remo']), PINO)
+      const ordem: string[] = []
+      const falhou = applyGatherPlan(plano, {
+        sceneId: 'salao',
+        bringFromOtherScene: (playerId) => {
+          ordem.push(`viaja ${playerId}`)
+          return true
+        },
+        placeInScene: (posicoes) => ordem.push(`anda ${posicoes.map((p) => p.id).join(' ')}`),
+      })
+      expect(falhou).toEqual([])
+      expect(ordem).toEqual(['viaja p1'])
+    })
+
+    it('o bote não pôde vir: o Gui também não veio, e o mestre fica sabendo dos dois', () => {
+      const plano = planGather([dona, gui], mundoApertado(cubiculo, ['remo']), PINO)
+      const falhou = applyGatherPlan(plano, { sceneId: 'salao', bringFromOtherScene: () => false, placeInScene: () => undefined })
+      expect(falhou).toEqual(['Duda', 'Gui'])
+    })
+
+    it('fora do bote, ou com o bote também sem casa: o Gui fica mesmo de fora', () => {
+      const semBordo = planGather([dona, gui], mundoApertado(cubiculo, []), PINO)
+      expect(semBordo.leftOut).toEqual(['Gui'])
+      expect(semBordo.ridesAlong).toEqual([])
+      const semCasa = planGather([dona, gui], mundoApertado(poco, ['remo']), PINO)
+      expect(semCasa.leftOut).toEqual(['Duda', 'Gui'])
+      expect(semCasa.moves).toEqual([])
+      expect(semCasa.ridesAlong).toEqual([])
+    })
+  })
 })
 
 describe('vehicleRiderSpots: onde quem vai a bordo assenta quando o veículo chega', () => {
