@@ -54,6 +54,7 @@ import { withStoredTokens } from './lib/storedTokens'
 import { loadSavedExploration, loadSavedTable, savedTableSummary, storeSavedExploration, storeSavedTable, type TableStorage } from './lib/savedTable'
 import { applyGatherPlan, gatherCandidates, planGather, sendCandidates } from './lib/gatherParty'
 import { comConfronto, iniciarConfronto, proximaVez } from './lib/confronto'
+import { canShowPinNow, showPinNowCandidates, showPinNowWithNotice } from './components/ShowPinNowControls'
 import { RailTabs, type RailTab } from './components/RailTabs'
 import { ask } from '@tauri-apps/plugin-dialog'
 import { criarPedidoDeFechar } from './lib/avisoAoFechar'
@@ -1967,6 +1968,17 @@ function App() {
     if (failed.length > 0) useToastStore.getState().push('error', `Não deu para trazer: ${failed.join(', ')}. A cena ou a ficha mudou; tente de novo.`)
   }
 
+  /**
+   * "Mostrar agora a…" no painel do pino `pinId`: o cartão abre sozinho na
+   * tela do jogador. O mestre lê no aviso que saiu — ou que não deu, porque a
+   * lista pode ter ficado aberta enquanto ele saía da cena ou caía.
+   */
+  const handleShowPinNow = (pinId: string, playerId: string) => {
+    const bridge = hostBridgeRef.current
+    if (bridge === null) return
+    showPinNowWithNotice(bridge, pinId, playerId, (kind, text) => useToastStore.getState().push(kind, text))
+  }
+
   /** Assinatura que a barra de ações e o clique da ferramenta Token já usam:
    *  cria e esquece. Onde a peça nasce e por quê: `stores/criarToken.ts`. */
   const handleAddToken = (name: string, at?: { x: number; y: number }) => {
@@ -3041,6 +3053,15 @@ function App() {
                       pinId: selectedPin.id,
                       candidates: gatherListFor(selectedPin),
                       onGather: (playerIds) => handleGather(selectedPin.id, playerIds),
+                    }
+                  : null,
+              // "Mostrar agora a…": regra de quando aparece em `canShowPinNow`.
+              showNow:
+                selectedPin && canShowPinNow(selectedPin, room !== null)
+                  ? {
+                      pinId: selectedPin.id,
+                      candidates: showPinNowCandidates(partyMembers(roomPlayers, roomPanelWorld()), roomPanelWorld().open.sceneId),
+                      onShow: (playerId) => handleShowPinNow(selectedPin.id, playerId),
                     }
                   : null,
               description: selectedPin?.description ?? null,

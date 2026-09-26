@@ -833,6 +833,21 @@ export interface LojaItem {
 }
 
 /**
+ * "MOSTRAR AGORA A…": o cartão de um ponto de interesse que o mestre abre
+ * direto na tela de um jogador. É só o conteúdo do cartão — sem posição (o
+ * pino pode estar onde o jogador nunca viu), sem destino e sem regra do
+ * mestre. Quem monta é `pinCardForPlayer` (`lib/fogFilter.ts`); só "!" e "?"
+ * viram cartão mostrado — viagem e alavanca nunca.
+ */
+export interface PinCard {
+  id: string
+  kind: Extract<PinKind, 'exclamacao' | 'interrogacao'>
+  icon?: PinIcon
+  description: string
+  image: string | null
+}
+
+/**
  * A5 — área desenhada pelo mestre que o jogador não vê: tudo que tem ponto
  * amostrado dentro dela fica fora do recorte e o jogador pinta preto por cima.
  * Não bloqueia a visão (a zona esconde conteúdo, não é parede).

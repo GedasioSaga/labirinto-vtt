@@ -32,7 +32,7 @@ export function cleanItemName(raw: string): string {
  * O item do pino, quando ele é pegável: nome não vazio e pino "!"/"?" (a
  * passagem e a alavanca não vão para a mochila). `null` = pino que só se lê.
  */
-export function itemOfPin(pin: Pin): PinItem | null {
+export function itemOfPin(pin: Pick<Pin, 'kind' | 'item'>): PinItem | null {
   if (pin.kind === 'viagem' || pin.kind === 'alavanca' || pin.item === undefined) return null
   const nome = cleanItemName(pin.item.nome)
   if (nome === '') return null
