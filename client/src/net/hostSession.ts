@@ -1073,10 +1073,11 @@ export interface TradeUpdate {
  * Por que a oferta do mestre não saiu: `pending` = já há uma oferta
  * esperando este jogador; `short` = a ficha não tem o que se pede;
  * `offline` = o jogador está fora do ar ou sem mapa; `too_many` = mais de
- * `TRADE_ITEMS_MAX` itens de um lado; `unavailable` = oferta vazia, ficha que
- * não é dele ou que sumiu.
+ * `TRADE_ITEMS_MAX` itens de um lado; `hidden` = o mestre escondeu a ficha
+ * dele (a oferta contaria que ela existe e o que carrega); `unavailable` =
+ * oferta vazia, ficha que não é dele ou que sumiu.
  */
-export type TradeProposeRefusal = 'pending' | 'short' | 'offline' | 'too_many' | 'unavailable'
+export type TradeProposeRefusal = 'pending' | 'short' | 'offline' | 'too_many' | 'hidden' | 'unavailable'
 
 /** O que a tela do mestre lê da oferta: saiu, ou o motivo de não sair. */
 export type TradeProposeResult = 'sent' | TradeProposeRefusal
@@ -6161,6 +6162,15 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     return scene === undefined || token === undefined ? null : { token, scene }
   }
 
+  /**
+   * A ficha `tokenId` está escondida do jogador (escondida pelo mestre ou numa
+   * camada oculta): a mesma regra que a tira do recorte dele (`sceneOfOwnToken`).
+   * Oferta ou troca por ela contaria que existe e o que carrega.
+   */
+  function hiddenFromPlayer(scene: HostScene, tokenId: string): boolean {
+    return !visibleTokens(scene.map.tokens, scene.map.hiddenLayers).some((t) => t.id === tokenId && t.hidden !== true)
+  }
+
   /** O nome do que se pede, lido na mochila da ficha (o jogador lê o que já tem). */
   function askText(token: Token | undefined, ask: TradeAsk): string {
     const mochila = token === undefined ? [] : carriedItemsOf(token)
@@ -6188,7 +6198,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   function closeTradeWith(trade: PendingTrade, ask: TradeAsk, clientId: string, world: HostWorld): HostResult & { failed: boolean } {
     pendingTrades.delete(trade.offerId)
     const found = tradeTokenNow(trade, world)
-    const change = found === null ? null : tradeChange(found.token, trade.terms.dou, ask, randomId)
+    // Escondida depois da oferta: nada troca de mão, e o "done" não conta que ela ainda existe.
+    const change = found === null || hiddenFromPlayer(found.scene, trade.tokenId) ? null : tradeChange(found.token, trade.terms.dou, ask, randomId)
     const closed = (result: TradeClosedResult): Outbound[] => [{ clientId, msg: { type: 'trade.closed', offerId: trade.offerId, result } }]
     if (found === null || change === null) return { outbound: closed('unavailable'), failed: true }
     return { outbound: closed('done'), applyItems: { ...backgroundSceneId(found.scene, world), ...change }, failed: false }
@@ -6236,7 +6247,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const counter: TradeAsk = { itemIds: [...new Set(msg.itemIds)], moedas: msg.moedas }
     if (counter.itemIds.length === 0 && counter.moedas === 0) return { outbound: [] }
     const found = tradeTokenNow(trade, world)
-    if (found === null || !canPay(found.token, counter)) {
+    if (found === null || hiddenFromPlayer(found.scene, trade.tokenId) || !canPay(found.token, counter)) {
       pendingTrades.delete(trade.offerId)
       return {
         outbound: [{ clientId, msg: { type: 'trade.closed', offerId: trade.offerId, result: 'unavailable' } }],
@@ -7774,6 +7785,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       const scene = allScenes(world).find((s) => s.map.tokens.some((t) => t.id === tokenId))
       const token = scene?.map.tokens.find((t) => t.id === tokenId)
       if (scene === undefined || token === undefined) return refuse('unavailable')
+      if (hiddenFromPlayer(scene, tokenId)) return refuse('hidden')
       if (!canPay(token, terms.peco)) return refuse('short')
       const offerId = randomId()
       pendingTrades.set(offerId, { offerId, playerId, tokenId, mapId: sceneKey(scene), terms })

@@ -16,11 +16,24 @@ import { RoomPanel } from './RoomPanel'
 
 const IDLE: TunnelState = { kind: 'idle' }
 const noop = (): void => {}
-const handlers = { onStart: noop, onStop: noop, onStartTunnel: noop, onStopTunnel: noop, onAssign: noop, onUnassign: noop, onKick: noop, onVisionRadiusChange: noop, onRevealPlan: noop, onHidePlan: noop }
+const handlers = {
+  onStart: noop,
+  onStop: noop,
+  onStartTunnel: noop,
+  onStopTunnel: noop,
+  onAssign: noop,
+  onUnassign: noop,
+  onKick: noop,
+  onVisionRadiusChange: noop,
+  onVisionFactorChange: noop,
+  onRevealPlan: noop,
+  onHidePlan: noop,
+  clues: { rows: [], onCenter: noop, onToggle: noop },
+}
 
 function jogadorDe(member: PartyMember): PlayerInfo {
   const tokenIds = member.token === null ? [] : [member.token.id]
-  return { clientId: 'c-' + member.playerId, playerId: member.playerId, name: member.name, status: 'playing', connected: member.connected, tokenIds, visionRadius: 700 }
+  return { clientId: 'c-' + member.playerId, playerId: member.playerId, name: member.name, status: 'playing', connected: member.connected, tokenIds, visionRadius: 700, visionFactor: 1 }
 }
 
 const BRUNO: PartyMember = {
@@ -137,5 +150,14 @@ describe('Grupo: moedas e troca do mestre', () => {
     act(() => botao('Propor').click())
     expect(container.querySelector('form[aria-label="Troca com Bruno"]')).not.toBeNull()
     expect(container.querySelector('[role="alert"]')?.textContent).toBe(PARTY_TRADE_REFUSAL_TEXT.pending)
+  })
+
+  it('ficha escondida do jogador: o mestre lê que precisa mostrá-la antes', () => {
+    render(() => true, () => 'hidden')
+    act(() => botao('Propor troca a Bruno').click())
+    digita('form[aria-label="Troca com Bruno"] input[name="peco-moedas"]', '1')
+    act(() => botao('Propor').click())
+    expect(container.querySelector('form[aria-label="Troca com Bruno"]')).not.toBeNull()
+    expect(container.querySelector('[role="alert"]')?.textContent).toBe('A ficha está escondida do jogador: mostre-a antes de propor a troca.')
   })
 })

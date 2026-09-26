@@ -60,10 +60,12 @@ function mesa(map: MapData = mansao()) {
     ids[nome] = joined.playerId
     s.assignToken(joined.playerId, ficha)
   }
-  s.broadcast(world)
+  // O primeiro envio depois das fichas: o seguinte, com o mesmo mundo, é pulado (`lastViews`).
+  const inicio = s.broadcast(world)
   return {
     s,
     ids,
+    inicio,
     get world() {
       return world
     },
@@ -122,7 +124,7 @@ describe('protocolo: moedas e troca', () => {
 describe('recorte: a bolsa só chega ao dono', () => {
   it('SEGURANÇA: Diego recebe as próprias moedas; ninguém recebe a bolsa de outro nem a do NPC', () => {
     const t = mesa()
-    const envio = t.s.broadcast(t.world)
+    const envio = t.inicio
     const doDiego = snapshotFor(envio, 'c1')
     expect(doDiego.map.tokens.find((tk) => tk.id === 'diego')?.moedas).toBe(10)
     const brunoVistoPeloDiego = doDiego.map.tokens.find((tk) => tk.id === 'bruno')
@@ -329,5 +331,78 @@ describe('Oferta do mestre', () => {
     expect(r.tradeUpdate?.kind).toBe('failed')
     expect(JSON.stringify(r.outbound)).not.toContain('Mansão')
     expect(t.s.isTradePending(offerId)).toBe(false)
+  })
+})
+
+/** O mundo com a ficha `id` escondida pelo mestre ("Esconder do jogador"). */
+function comFichaEscondida(world: HostWorld, id: string): HostWorld {
+  const [cena] = world.background
+  if (cena === undefined) throw new Error('sem cena')
+  const tokens = cena.map.tokens.map((tk) => (tk.id === id ? { ...tk, hidden: true } : tk))
+  return { ...world, background: [{ ...cena, map: { ...cena.map, tokens } }] }
+}
+
+describe('SEGURANÇA: a ficha que o mestre escondeu não entra na troca', () => {
+  /** Bruno tem também a Mula, que o mestre escondeu dele, com o Ídolo e 40 moedas. */
+  function mesaComMula() {
+    const mula = token('mula', 300, 200, { hidden: true, moedas: 40, mochila: [{ id: 'idolo', nome: 'Ídolo de ouro' }] })
+    const t = mesa(mansao([...mansao().tokens, mula]))
+    t.s.assignToken(t.ids.Bruno ?? '', 'mula')
+    return t
+  }
+
+  it('o recorte do Bruno não leva a Mula, nem o Ídolo, nem as 40 moedas', () => {
+    const t = mesaComMula()
+    const doBruno = snapshotFor(t.inicio, 'c2')
+    expect(doBruno.map.tokens.find((tk) => tk.id === 'bruno')?.moedas).toBe(5)
+    expect(doBruno.map.tokens.some((tk) => tk.id === 'mula')).toBe(false)
+    expect(JSON.stringify(doBruno)).not.toContain('Ídolo')
+  })
+
+  it('oferta pela ficha escondida não sai: motivo "hidden", nada chega ao Bruno', () => {
+    const t = mesaComMula()
+    const r = t.s.proposeTrade(t.ids.Bruno ?? '', 'mula', { de: 'Zulmira', dou: { itens: ['Xarope'], moedas: 0 }, peco: { itemIds: ['idolo'], moedas: 40 } }, t.world)
+    expect(r).toEqual({ outbound: [], offerId: null, refusal: 'hidden' })
+    // Controle: a ficha visível dele ainda recebe oferta.
+    const visivel = t.s.proposeTrade(t.ids.Bruno ?? '', 'bruno', OFERTA, t.world)
+    expect(visivel.offerId).toEqual(expect.any(String))
+    expect(JSON.stringify(visivel.outbound)).not.toContain('Ídolo')
+  })
+
+  it('o mestre escondeu a ficha depois de propor: aceitar fecha "unavailable" e nada troca de mão', () => {
+    const t = mesa()
+    const offerId = ofertaAoBruno(t)
+    const r = t.s.handleMessage('c2', { type: 'trade.answer', offerId, answer: 'accept' }, comFichaEscondida(t.world, 'bruno'))
+    expect(r.outbound).toEqual([{ clientId: 'c2', msg: { type: 'trade.closed', offerId, result: 'unavailable' } }])
+    expect(r.applyItems).toBeUndefined()
+    expect(r.tradeUpdate?.kind).toBe('failed')
+    expect(t.s.isTradePending(offerId)).toBe(false)
+  })
+
+  it('escondida antes da contraproposta: "unavailable"; escondida antes do "Aceitar" do mestre: também', () => {
+    const t = mesa()
+    const offerId = ofertaAoBruno(t)
+    const contra = t.s.handleMessage('c2', { type: 'trade.counter', offerId, itemIds: ['vela'], moedas: 1 }, comFichaEscondida(t.world, 'bruno'))
+    expect(contra.outbound).toEqual([{ clientId: 'c2', msg: { type: 'trade.closed', offerId, result: 'unavailable' } }])
+    expect(contra.applyItems).toBeUndefined()
+
+    const outra = ofertaAoBruno(t)
+    const boa = t.s.handleMessage('c2', { type: 'trade.counter', offerId: outra, itemIds: ['vela'], moedas: 1 }, t.world)
+    expect(boa.tradeUpdate?.kind).toBe('countered')
+    const aceito = t.s.acceptTradeCounter(outra, comFichaEscondida(t.world, 'bruno'))
+    expect(aceito.outbound).toEqual([{ clientId: 'c2', msg: { type: 'trade.closed', offerId: outra, result: 'unavailable' } }])
+    expect(aceito.applyItems).toBeUndefined()
+    expect(aceito.tradeUpdate?.kind).toBe('failed')
+  })
+
+  it('Pagar não sai da bolsa da ficha escondida: Diego só com ela encostada ouve "far"', () => {
+    // Diego longe do Bruno; o Corvo dele, escondido pelo mestre, encostado no Bruno com 30 moedas.
+    const base = mansao().tokens.map((tk) => (tk.id === 'diego' ? { ...tk, x: 800 } : tk))
+    const corvo = token('corvo', 180, 200, { hidden: true, moedas: 30 })
+    const t = mesa(mansao([...base, corvo]))
+    t.s.assignToken(t.ids.Diego ?? '', 'corvo')
+    const r = t.s.handleMessage('c1', { type: 'coins.give', toTokenId: 'bruno', moedas: 3 }, t.world)
+    expect(r.applyItems).toBeUndefined()
+    expect(r.outbound).toEqual([{ clientId: 'c1', msg: { type: 'coins.give.rejected', reason: 'far' } }])
   })
 })

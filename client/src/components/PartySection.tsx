@@ -57,6 +57,7 @@ export const PARTY_TRADE_REFUSAL_TEXT: Record<TradeProposeRefusal, string> = {
   short: 'A ficha não tem o que você pede.',
   offline: 'O jogador está fora do ar agora.',
   too_many: `Até ${TRADE_ITEMS_MAX} itens de cada lado da troca.`,
+  hidden: 'A ficha está escondida do jogador: mostre-a antes de propor a troca.',
   unavailable: 'Não deu: a ficha mudou. Tente de novo.',
 }
 /** O que a linha diz quando o jogador pôs a marca "vamos para cá". */
