@@ -1,6 +1,7 @@
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { TRADE_ITEMS_MAX } from '../lib/troca'
 import type { CarriedItem } from '../types/map'
 import { PlayerBackpack } from './PlayerBackpack'
 import type { TradeOfferState } from './playerConnection'
@@ -89,6 +90,32 @@ describe('cartão da oferta', () => {
     })
     act(() => botao('Enviar contraproposta').click())
     expect(onCounter).toHaveBeenCalledWith(['vela'], 1)
+  })
+
+  it('Contrapropor com mais itens que o teto: avisa e Enviar fica indisponível; desmarcar um libera', () => {
+    const onCounter = vi.fn()
+    const muitos: CarriedItem[] = Array.from({ length: TRADE_ITEMS_MAX + 1 }, (_, i) => ({ id: `item${i}`, nome: `Item ${i}` }))
+    act(() => root.render(<PlayerTradeCard troca={oferta()} mochila={muitos} moedas={5} onAnswer={() => {}} onCounter={onCounter} onDismiss={() => {}} />))
+    act(() => botao('Contrapropor').click())
+    const caixas = Array.from(container.querySelectorAll<HTMLInputElement>('input[type="checkbox"]'))
+    expect(caixas.length).toBe(TRADE_ITEMS_MAX + 1)
+    for (const caixa of caixas) act(() => caixa.click())
+    expect(container.querySelector('[role="alert"]')?.textContent).toBe(`Até ${TRADE_ITEMS_MAX} itens na contraproposta.`)
+    expect(botao('Enviar contraproposta').disabled).toBe(true)
+    const form = container.querySelector('form')
+    if (form === null) throw new Error('sem formulário')
+    act(() => form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })))
+    expect(onCounter).not.toHaveBeenCalled()
+    const ultima = caixas[caixas.length - 1]
+    if (ultima === undefined) throw new Error('sem caixa')
+    act(() => ultima.click())
+    expect(container.querySelector('[role="alert"]')).toBeNull()
+    expect(botao('Enviar contraproposta').disabled).toBe(false)
+    act(() => botao('Enviar contraproposta').click())
+    expect(onCounter).toHaveBeenCalledWith(
+      muitos.slice(0, TRADE_ITEMS_MAX).map((item) => item.id),
+      0,
+    )
   })
 
   it('contraproposta enviada e troca feita viram texto, sem botões de resposta', () => {

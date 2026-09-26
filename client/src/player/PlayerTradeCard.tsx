@@ -1,5 +1,5 @@
 import { useId, useState, type FormEvent } from 'react'
-import { MOEDAS_MAX, tradeSideText } from '../lib/troca'
+import { MOEDAS_MAX, TRADE_ITEMS_MAX, tradeSideText } from '../lib/troca'
 import type { CarriedItem } from '../types/map'
 import type { TradePhase, TradeOfferState } from './playerConnection'
 
@@ -118,12 +118,14 @@ function CounterForm({ mochila, moedas, onSend, onBack }: CounterFormProps) {
   const coins = coinsFrom(valor, Math.min(moedas, MOEDAS_MAX))
   const vazio = marcados.length === 0 && (coins === null || coins === 0)
   const invalido = coins === null
+  // O mesmo teto que o host cobra: acima dele a contraproposta não chegaria ao mestre.
+  const demais = marcados.length > TRADE_ITEMS_MAX
 
   const toggle = (id: string) => setMarcados((atual) => (atual.includes(id) ? atual.filter((x) => x !== id) : [...atual, id]))
 
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    if (vazio || coins === null) return
+    if (vazio || demais || coins === null) return
     onSend(marcados, coins)
   }
 
@@ -148,11 +150,16 @@ function CounterForm({ mochila, moedas, onSend, onBack }: CounterFormProps) {
           Use um número inteiro até {moedas}
         </p>
       )}
+      {demais && (
+        <p className="pp-note__hint" role="alert">
+          Até {TRADE_ITEMS_MAX} itens na contraproposta.
+        </p>
+      )}
       <div className="pp-troca__acoes">
         <button type="button" className="pp-button" onClick={onBack}>
           Voltar
         </button>
-        <button type="submit" className="pp-button" disabled={vazio || invalido}>
+        <button type="submit" className="pp-button" disabled={vazio || invalido || demais}>
           Enviar contraproposta
         </button>
       </div>

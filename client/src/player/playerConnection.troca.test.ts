@@ -6,7 +6,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createEmptyMap } from '../lib/mapFactory'
 import type { MapData } from '../types/map'
-import { ownTradeToken } from '../lib/troca'
+import { ownTradeToken, TRADE_ITEMS_MAX } from '../lib/troca'
 import { itemNoticeText } from './itemNotice'
 import { createPlayerConnection, TRADE_CLOSED_TTL_MS, type SocketLike } from './playerConnection'
 
@@ -204,6 +204,22 @@ describe('Oferta do mestre no cliente do jogador', () => {
     outra.socket.receive(OFERTA)
     expect(outra.connection.counterTrade(['vela'], 1)).toBe(false)
     expect(outra.connection.getState().troca?.phase).toBe('open')
+  })
+
+  it('Contrapropor com mais itens do que o host aceita (TRADE_ITEMS_MAX) nem sai e o cartão segue aberto', () => {
+    const muitos = Array.from({ length: TRADE_ITEMS_MAX + 1 }, (_, i) => ({ id: `item${i}`, nome: `Item ${i}` }))
+    const cheio: MapData = { ...mapa(), tokens: mapa().tokens.map((t) => ({ ...t, mochila: muitos })) }
+    const { connection, socket } = jogando(cheio)
+    socket.receive(OFERTA)
+    const antes = socket.sent.length
+    expect(connection.counterTrade(muitos.map((item) => item.id), 0)).toBe(false)
+    expect(socket.sent.length).toBe(antes)
+    expect(connection.getState().troca?.phase).toBe('open')
+    // No teto exato ainda vai: o host aceita até TRADE_ITEMS_MAX.
+    const noTeto = muitos.slice(0, TRADE_ITEMS_MAX).map((item) => item.id)
+    expect(connection.counterTrade(noTeto, 0)).toBe(true)
+    expect(socket.sent).toContainEqual({ type: 'trade.counter', offerId: 'o1', itemIds: noTeto, moedas: 0 })
+    expect(connection.getState().troca?.phase).toBe('countered')
   })
 
   it('oferta sem a ficha (tokenId) não abre o cartão', () => {

@@ -42,7 +42,7 @@ import {
 } from '../net/protocol'
 import { ACEITA_GZIP, criarEntradaEmOrdem } from '../net/pacoteComprimido'
 import { carriedItemsOf, cleanItemName, itemOfPin } from '../lib/items'
-import { canPay, isCoinAmount, ownTradeToken, purseToward } from '../lib/troca'
+import { canPay, isCoinAmount, ownTradeToken, purseToward, TRADE_ITEMS_MAX } from '../lib/troca'
 import { lojaParaJogador } from '../lib/loja'
 import { fitsTokenPhotoSend } from '../lib/tokenPhoto'
 import { isPlayerSafePinImage, passageOf } from '../lib/pins'
@@ -2750,6 +2750,9 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       if (state.status !== 'playing' || troca?.phase !== 'open' || !isCoinAmount(moedas)) return false
       const ask = { itemIds: [...new Set(itemIds)], moedas }
       if (ask.itemIds.length === 0 && moedas === 0) return false
+      // O host recusa (invalid_message) acima do teto, e esse erro some em jogo:
+      // o cartão ficaria em 'countered' para sempre. Barra aqui, antes do envio.
+      if (ask.itemIds.length > TRADE_ITEMS_MAX) return false
       // Só a ficha da oferta paga: o host não junta mochilas de fichas diferentes.
       const ficha = ownTradeToken(state.map?.tokens ?? [], state.ownTokens ?? [], troca.tokenId)
       if (ficha === undefined || !canPay(ficha, ask)) return false
