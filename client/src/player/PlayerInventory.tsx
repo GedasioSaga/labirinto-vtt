@@ -12,10 +12,13 @@ import {
   emptySlotCount,
   gridMove,
   hiddenConditionLine,
+  payerFor,
+  payerLine,
   slotLine,
   type InventoryCharacter,
   type InventoryColleague,
   type InventoryCondition,
+  type InventoryPayer,
   type InventorySlot,
   type ItemGlyph,
 } from './inventario'
@@ -45,11 +48,23 @@ type Step =
   | { kind: 'dar' }
   | { kind: 'confirmar-dar'; colleague: InventoryColleague }
   | { kind: 'pagar' }
-  | { kind: 'confirmar-pagar'; colleague: InventoryColleague; quanto: number }
+  /** `payer`: de qual bolsa o host vai tirar (`payerFor`) — pode não ser a da ficha aberta. */
+  | { kind: 'confirmar-pagar'; colleague: InventoryColleague; quanto: number; payer: InventoryPayer | undefined }
 
+/**
+ * Um pedido esperando o mapa novo. No pagamento, `totalAntes` é a SOMA das
+ * bolsas de todas as fichas dele: o `coins.give` não diz de qual ficha sai, e
+ * o host pode cobrar de outra que não a aberta — conferir só a aberta dava
+ * "a mesa não respondeu" num pagamento feito, e convidava a pagar de novo.
+ */
 type Pending =
   | { kind: 'dar'; tokenId: string; itemId: string; nome: string; para: string; noticeId: number | null }
-  | { kind: 'pagar'; tokenId: string; quanto: number; moedasAntes: number; para: string; noticeId: number | null }
+  | { kind: 'pagar'; quanto: number; totalAntes: number; para: string; noticeId: number | null }
+
+/** Quantas moedas as fichas dele no mapa carregam juntas. */
+function totalDeMoedas(characters: readonly InventoryCharacter[]): number {
+  return characters.reduce((soma, c) => soma + c.moedas, 0)
+}
 
 interface Outcome {
   tone: 'ok' | 'erro'
@@ -171,18 +186,20 @@ export function PlayerInventory({ characters, onGive, onPay, notice, onClose, in
     if (document.activeElement === null || document.activeElement === document.body) (slotRef.current ?? closeRef.current)?.focus()
   }, [slots])
 
-  // Deu certo: o mapa novo chegou sem o item (ou com menos moedas).
+  // Deu certo: o mapa novo chegou sem o item, ou com menos moedas somando as
+  // bolsas de todas as fichas dele (o host escolhe de qual sai).
   useEffect(() => {
     if (pending === null) return
-    const dono = characters.find((c) => c.tokenId === pending.tokenId)
-    if (dono === undefined) return
-    if (pending.kind === 'dar' && !dono.slots.some((s) => s.itemIds.includes(pending.itemId))) {
-      setOutcome({ tone: 'ok', text: `${pending.nome} foi para ${pending.para}.` })
-      setPending(null)
-    } else if (pending.kind === 'pagar' && dono.moedas < pending.moedasAntes) {
+    if (pending.kind === 'pagar') {
+      if (totalDeMoedas(characters) >= pending.totalAntes) return
       setOutcome({ tone: 'ok', text: `Você pagou ${moedasLabel(pending.quanto)} a ${pending.para}.` })
       setPending(null)
+      return
     }
+    const dono = characters.find((c) => c.tokenId === pending.tokenId)
+    if (dono === undefined || dono.slots.some((s) => s.itemIds.includes(pending.itemId))) return
+    setOutcome({ tone: 'ok', text: `${pending.nome} foi para ${pending.para}.` })
+    setPending(null)
   }, [characters, pending])
 
   // O host recusou: o aviso novo é deste pedido.
@@ -261,7 +278,7 @@ export function PlayerInventory({ characters, onGive, onPay, notice, onClose, in
     if (!onPay(colleague.tokenId, quanto)) {
       setOutcome({ tone: 'erro', text: 'Não deu para enviar. Confira a conexão e tente de novo.' })
     } else {
-      setPending({ kind: 'pagar', tokenId: character.tokenId, quanto, moedasAntes: character.moedas, para: colleague.name, noticeId: notice?.id ?? null })
+      setPending({ kind: 'pagar', quanto, totalAntes: totalDeMoedas(characters), para: colleague.name, noticeId: notice?.id ?? null })
     }
     focusNext.current = 'vaga'
   }
@@ -378,7 +395,7 @@ export function PlayerInventory({ characters, onGive, onPay, notice, onClose, in
                         focusNext.current = 'sim'
                       }}
                       onChoosePay={(colleague, quanto) => {
-                        setStep({ kind: 'confirmar-pagar', colleague, quanto })
+                        setStep({ kind: 'confirmar-pagar', colleague, quanto, payer: payerFor(colleague, quanto) })
                         focusNext.current = 'sim'
                       }}
                       onConfirm={() => {
@@ -585,11 +602,18 @@ function Actions({ slot, character, step, valor, busy, refs, onValor, onStart, o
 
   if (step.kind === 'confirmar-dar' || step.kind === 'confirmar-pagar') {
     const pergunta = step.kind === 'confirmar-dar' ? `Dar ${slot.nome} a ${step.colleague.name}?` : `Pagar ${moedasLabel(step.quanto)} a ${step.colleague.name}?`
+    // O host cobra de outra ficha dele (vem antes no mapa e tem saldo): a pergunta diz, antes do Sim.
+    const outraBolsa = step.kind === 'confirmar-pagar' && step.payer !== undefined && step.payer.tokenId !== character.tokenId ? payerLine(step.payer) : null
     return (
-      <div className="pp-inv__passo" role="group" aria-labelledby={questionId}>
+      <div className="pp-inv__passo" role="group" aria-labelledby={questionId} aria-describedby={outraBolsa === null ? undefined : reasonId}>
         <p id={questionId} className="pp-inv__pergunta">
           {pergunta}
         </p>
+        {outraBolsa !== null && (
+          <p id={reasonId} className="pp-inv__motivo pp-inv__bolsa">
+            {outraBolsa}
+          </p>
+        )}
         <div className="pp-inv__acoes">
           <button ref={refs.yesRef} type="button" className="pp-button pp-inv__acao" onClick={onConfirm}>
             Sim

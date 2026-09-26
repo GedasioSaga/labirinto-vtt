@@ -4631,6 +4631,12 @@ button.pp-colecao__casa:focus-visible {
   color: var(--lb-color-parchment-faint, #858480);
 }
 
+/* "Sai da bolsa de Carlos.": dinheiro saindo de outra ficha que não a aberta
+   — tinta cheia, lida antes do Sim. */
+.pp-inv__bolsa {
+  color: var(--lb-color-parchment, #eceae4);
+}
+
 .pp-inv__passo {
   display: grid;
   justify-items: start;

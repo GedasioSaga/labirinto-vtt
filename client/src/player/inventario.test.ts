@@ -11,6 +11,7 @@ import {
   inventoryCondition,
   inventorySlots,
   itemGlyph,
+  payerFor,
   slotLine,
 } from './inventario'
 
@@ -194,12 +195,42 @@ describe('inventoryCharacters: só as fichas do próprio jogador, com o que ele 
 
   it('colegas são fichas de OUTROS jogadores encostadas NESTA ficha: NPC e colega longe ficam de fora', () => {
     const [eu] = inventoryCharacters(mapa([jill, diego, npc, longe]), ['jill'], ['diego', 'bruno'], '#4ea1ff')
-    expect(eu.colleagues).toEqual([{ tokenId: 'diego', name: 'Diego' }])
+    expect(eu.colleagues.map((c) => ({ tokenId: c.tokenId, name: c.name }))).toEqual([{ tokenId: 'diego', name: 'Diego' }])
   })
 
   it('SEGURANÇA: nada de pontos de vida sai daqui — só o estado', () => {
     const [eu] = inventoryCharacters(mapa([jill]), ['jill'], [], '#4ea1ff')
     expect(eu).not.toHaveProperty('health')
     expect(JSON.stringify(eu)).not.toMatch(/"current"|"max"|shownToPlayers/)
+  })
+})
+
+describe('quem paga o "Pagar a…": a mesma escolha do host', () => {
+  // O host (`handleCoinsGive`, net/hostSession.ts) cobra da PRIMEIRA ficha do
+  // jogador, na ordem do mapa, encostada no colega e com moedas bastantes — o
+  // `coins.give` não diz de qual ficha sai. Aqui: o ajudante Carlos (20)
+  // vem ANTES da Jill (5) no mapa, e os dois encostam no Diego.
+  const carlos = ficha('carlos', 'Carlos', 100, { y: 150, emprestada: true, moedas: 20 })
+  const jill = ficha('jill', 'Jill', 100, { moedas: 5 })
+  const diego = ficha('diego', 'Diego', 150, { y: 125 })
+
+  function colegaDaJill(tokens: Token[]) {
+    const eu = inventoryCharacters(mapa(tokens), ['jill', 'carlos'], ['diego'], '#4ea1ff').find((c) => c.tokenId === 'jill')
+    const colega = eu?.colleagues[0]
+    if (colega === undefined) throw new Error('a Jill deveria ter o Diego como colega')
+    return colega
+  }
+
+  it('cada colega traz as fichas DELE que o pagam, na ordem do mapa — também as que não são a aberta', () => {
+    expect(colegaDaJill([carlos, jill, diego]).payers).toEqual([
+      { tokenId: 'carlos', name: 'Carlos', editable: false, moedas: 20 },
+      { tokenId: 'jill', name: 'Jill', editable: true, moedas: 5 },
+    ])
+  })
+
+  it('paga a primeira com o bastante; sem ninguém com o bastante, ninguém paga', () => {
+    expect(payerFor(colegaDaJill([carlos, jill, diego]), 3)?.tokenId).toBe('carlos')
+    expect(payerFor(colegaDaJill([carlos, jill, diego]), 21)).toBeUndefined()
+    expect(payerFor(colegaDaJill([{ ...carlos, moedas: 2 }, jill, diego]), 3)?.tokenId).toBe('jill')
   })
 })

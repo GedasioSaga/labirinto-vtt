@@ -133,10 +133,35 @@ export function gridMove(index: number, key: string, count: number, ctrl: boolea
   }
 }
 
+/** Uma ficha DELE que o host pode cobrar ao pagar um colega. */
+export interface InventoryPayer {
+  tokenId: string
+  name: string
+  /** O personagem próprio: a frase diz "sua bolsa". */
+  editable: boolean
+  moedas: number
+}
+
 /** Um colega a quem dar ou pagar: ficha de outro jogador encostada NESTA ficha. */
 export interface InventoryColleague {
   tokenId: string
   name: string
+  /**
+   * As fichas DELE encostadas neste colega, na ordem do mapa — a ordem em que
+   * o host procura quem paga (`handleCoinsGive`, net/hostSession.ts). Inclui
+   * fichas que não são a aberta: o `coins.give` não diz de qual ficha sai.
+   */
+  payers: InventoryPayer[]
+}
+
+/**
+ * De qual bolsa o host tira `quanto` moedas para este colega: a PRIMEIRA ficha
+ * dele, na ordem do mapa, encostada no colega e com saldo bastante — a mesma
+ * procura de `handleCoinsGive`. `undefined` = ninguém encostado tem tanto (o
+ * host responderia "short").
+ */
+export function payerFor(colleague: Pick<InventoryColleague, 'payers'>, quanto: number): InventoryPayer | undefined {
+  return colleague.payers.find((payer) => payer.moedas >= quanto)
 }
 
 /** Uma ficha do jogador como o inventário a mostra. */
@@ -167,6 +192,15 @@ export function inventoryCharacters(map: MapData, ownTokenIds: readonly string[]
     return token === undefined ? [] : [token]
   })
   const party = map.tokens.filter((t) => partyTokenIds.includes(t.id) && !ownTokenIds.includes(t.id))
+  // Na ORDEM DO MAPA, e não na de `ownTokenIds`: é a ordem em que o host procura quem paga.
+  const ownInMapOrder = map.tokens.filter((t) => ownTokenIds.includes(t.id))
+  const colleagueOf = (colleague: Token): InventoryColleague => ({
+    tokenId: colleague.id,
+    name: colleague.name,
+    payers: ownInMapOrder
+      .filter((t) => tokensTouch(t, colleague, map.grid))
+      .map((t) => ({ tokenId: t.id, name: t.name, editable: isOwnCharacter(t), moedas: moedasDe(t) })),
+  })
   const lista = own.map((token): InventoryCharacter => {
     const foto = tokenPhotoRef(token)
     return {
@@ -174,16 +208,26 @@ export function inventoryCharacters(map: MapData, ownTokenIds: readonly string[]
       name: token.name,
       photo: isTokenPhotoData(foto) ? foto : null,
       color: selectedTokenColor(token) ?? fallbackColor,
-      editable: token.contrato === undefined && token.emprestada !== true,
+      editable: isOwnCharacter(token),
       condition: inventoryCondition(token),
       conditions: tokenConditionsOf(token),
       slots: inventorySlots(token),
       moedas: moedasDe(token),
-      colleagues: party.filter((t) => tokensTouch(token, t, map.grid)).map((t) => ({ tokenId: t.id, name: t.name })),
+      colleagues: party.filter((t) => tokensTouch(token, t, map.grid)).map(colleagueOf),
     }
   })
   // A própria primeiro; ajudante e NPC emprestado depois, na ordem em que chegaram.
   return [...lista.filter((c) => c.editable), ...lista.filter((c) => !c.editable)]
+}
+
+/** O personagem PRÓPRIO: nem ajudante contratado nem NPC emprestado. */
+function isOwnCharacter(token: Pick<Token, 'contrato' | 'emprestada'>): boolean {
+  return token.contrato === undefined && token.emprestada !== true
+}
+
+/** A frase da pergunta Sim/Não quando o dinheiro sai de outra bolsa que não a da ficha aberta. */
+export function payerLine(payer: Pick<InventoryPayer, 'name' | 'editable'>): string {
+  return payer.editable ? 'Sai da sua bolsa.' : `Sai da bolsa de ${payer.name}.`
 }
 
 /** Quem a frase chama de "sua": a ficha própria. A emprestada vai pelo nome. */

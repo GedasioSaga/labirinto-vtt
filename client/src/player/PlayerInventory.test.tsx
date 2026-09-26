@@ -280,6 +280,54 @@ describe('PlayerInventory', () => {
     expect(onPay).toHaveBeenCalledWith('diego', 5)
   })
 
+  describe('"Pagar a…" com duas fichas dele encostadas no colega: quem paga é quem o host escolhe', () => {
+    // O `coins.give` não diz de qual ficha sai: o host cobra da PRIMEIRA ficha
+    // do jogador, na ordem do mapa, encostada no colega e com saldo. A Jill (5)
+    // está aberta; o ajudante Carlos (20) vem antes no mapa e também encosta no Diego.
+    const carlos = ficha('carlos', 'Carlos', 100, { y: 150, emprestada: true, moedas: 20 })
+    const jill = ficha('jill', 'Jill', 100, { moedas: 5 })
+    const diego = ficha('diego', 'Diego', 150, { y: 125 })
+    const mesa = (moedasDoCarlos: number, moedasDaJill = 5) => personagens([{ ...carlos, moedas: moedasDoCarlos }, { ...jill, moedas: moedasDaJill }, diego], ['jill', 'carlos'])
+
+    function pagaTresAoDiego(): void {
+      expect(dialogo().querySelector('[role="grid"]')?.getAttribute('aria-label')).toBe('Itens de Jill')
+      act(() => botao('Pagar a…').click())
+      const campo = dialogo().querySelector<HTMLInputElement>('input[type="number"]')
+      if (campo === null) throw new Error('sem o campo de moedas')
+      digita(campo, '3')
+      act(() => botao('Diego').click())
+    }
+
+    it('a pergunta Sim/Não diz de qual bolsa sai quando não é a da ficha aberta', () => {
+      render(mesa(20))
+      pagaTresAoDiego()
+      expect(detalhe()).toContain('Pagar 3 moedas a Diego?')
+      expect(detalhe()).toContain('Sai da bolsa de Carlos.')
+    })
+
+    it('o host cobrou do Carlos: o pagamento conta como feito, e nunca vira "a mesa não respondeu"', () => {
+      vi.useFakeTimers()
+      const onPay = vi.fn(() => true)
+      render(mesa(20), { onPay })
+      pagaTresAoDiego()
+      act(() => botao('Sim').click())
+      expect(onPay).toHaveBeenCalledWith('diego', 3)
+      render(mesa(17), { onPay })
+      expect(status()).toBe('Você pagou 3 moedas a Diego.')
+      act(() => {
+        vi.advanceTimersByTime(10_000)
+      })
+      expect(status()).toBe('Você pagou 3 moedas a Diego.')
+    })
+
+    it('quando quem paga é a própria ficha aberta, a pergunta não fala de outra bolsa', () => {
+      render(mesa(2))
+      pagaTresAoDiego()
+      expect(detalhe()).toContain('Pagar 3 moedas a Diego?')
+      expect(detalhe()).not.toContain('Sai da bolsa')
+    })
+  })
+
   it('Esc fecha; com a pergunta aberta, Esc só volta um passo', () => {
     const onClose = vi.fn()
     render(personagens([JILL, DIEGO], ['jill']), { onClose })
