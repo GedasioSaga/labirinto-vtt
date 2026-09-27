@@ -1123,7 +1123,11 @@
   font-weight: 600;
 }
 
-.pp-button:hover:not(:disabled):not([aria-disabled='true']) {
+/* O indisponível (`disabled` ou `aria-disabled`) não acende. Um `:not()` só,
+   com a lista: ele vale o argumento mais forte, e a regra fica em (0,3,0).
+   Dois `:not()` somavam (0,4,0) e passavam na frente do pairar do interruptor
+   ligado, que ganha desta só por vir depois. */
+.pp-button:hover:not(:disabled, [aria-disabled='true']) {
   background: var(--lb-color-brass-soft, rgba(224, 164, 74, 0.14));
 }
 
