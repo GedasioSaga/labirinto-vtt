@@ -78,7 +78,8 @@ describe('mapStore: abrirVaoAqui e desabarParede', () => {
     useMapStore.getState().desabarParede('o3')
     expect(useMapStore.getState().map).toBe(travado)
     expect(useMapStore.getState().past).toHaveLength(0)
-    expect(useToastStore.getState().toasts.map((t) => t.text)).toEqual([PAREDE_TRAVADA_SEGURA_O_VAO_TEXT, PAREDE_TRAVADA_SEGURA_O_VAO_TEXT])
+    // Os dois gestos dão o mesmo aviso simples; o segundo se funde no primeiro em vez de empilhar.
+    expect(useToastStore.getState().toasts.map((t) => t.text)).toEqual([PAREDE_TRAVADA_SEGURA_O_VAO_TEXT])
   })
 
   it('divisa comum não avisa nada', () => {
