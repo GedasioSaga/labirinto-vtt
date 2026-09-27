@@ -411,7 +411,7 @@ export function PropertiesPanel({
     <div className="lb-panel lb-inspector">
       <header className="lb-inspector__head">
         <span className="lb-inspector__mark" aria-hidden="true">
-          <LabyrinthMark size={20} />
+          <LabyrinthMark size={16} />
         </span>
         <span className="lb-inspector__id">
           <h1 className="lb-inspector__wordmark">Labirinto</h1>

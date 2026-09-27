@@ -103,6 +103,7 @@ const {
   moverNoAcervo,
   recolherPastaNoAcervo,
   apagarPastaDoAcervo,
+  ehPastaPadrao,
   ACERVO_NAO_LIDO,
   SEM_FOTO_PARA_SALVAR,
   PASTA_NAO_ENCONTRADA,
@@ -547,6 +548,22 @@ describe('pastas do acervo', () => {
 
     expect(repetida.nome).toBe('NPCs (2)')
     expect(vazia.nome).toBe('Pasta nova')
+  })
+
+  it('as três padrão se reconhecem pelo id; a pasta do mestre não passa por padrão nem com o nome idêntico', async () => {
+    // Sem a "NPCs" padrão, a do mestre fica com o nome exato, sem o " (2)": só o `id` as separa.
+    await apagarPastaDoAcervo('npcs')
+    const criada = await criarPastaNoAcervo('NPCs')
+
+    const reaberto = await listarAcervo()
+
+    expect(criada.nome).toBe('NPCs')
+    expect(reaberto.pastas.map((pasta) => [pasta.nome, ehPastaPadrao(pasta)])).toEqual([
+      ['Veículos', true],
+      ['Jogadores', true],
+      ['NPCs', false],
+    ])
+    expect(ehPastaPadrao(criada)).toBe(false)
   })
 
   it('mover o token para uma pasta fica gravado: ao reabrir, ele está dentro dela', async () => {
