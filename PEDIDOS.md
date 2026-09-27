@@ -997,3 +997,20 @@ LIGADA por padrão (campo ausente = pode espiar), para não quebrar mapa salvo n
 desliga na porta que quiser. O host recusa a espiada em porta desligada (não confiar só no botão do jogador), e o
 botão "Espiar pela porta" some para o jogador nessa porta. A regra é do mestre: não vai no recorte do jogador além
 do necessário para esconder o botão. Fila: logo depois do design do jogador da 0.4.4, antes do release 0.4.4.
+
+### 27/09/2026, fim da tarde — pino só com a imagem, sem a haste
+
+> "[Image #9] esses pinos, coloca opção de aparecer sem aparte de baixo só a imagem."
+
+Imagem: pino do mapa (círculo amarelo com "!" e a haste escura embaixo). Pedido: opção no pino para aparecer só o
+círculo com a imagem, sem a haste. Opção do mestre por pino, ausente = com haste (mapas salvos não mudam). Fila:
+depois da opção "Jogador pode espiar" (os dois mexem em `types/map.ts` e `lib/mapFile.ts`).
+
+### 27/09/2026, fim da tarde — parede livre e opção de arredondar
+
+> "[Image #11]coloque a opção parede para podermos fazer uma parede tipo sala livre e bote a opção de arredondar [Image #10]"
+
+Imagem 11: botão da ferramenta de sala (ícone de pentágono) com a setinha de variações. Imagem 10: grade com uma
+sala quadrada e uma forma redonda ao lado. Pedido: (1) na ferramenta de sala livre, uma variação "Parede", para
+traçar ponto a ponto uma parede solta, do jeito da sala livre, sem criar sala; (2) opção de arredondar (cantos/
+traçado curvo). Fila: depois do pino.
