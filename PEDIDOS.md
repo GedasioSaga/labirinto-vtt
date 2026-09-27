@@ -916,3 +916,35 @@ do jogador). Fila: `inventario-estilo-re` depois de `congelar-ficha`, fora da 0.
 > "Pode ser só na versaão 0.4.4, sem pressa."
 
 `inventario-estilo-re` fica para a 0.4.4 (a fábrica publica o resto da fila no fim do run).
+
+### 27/09/2026, madrugada — acervo em pastas e rotina de NPC fluida (0.4.4)
+
+> "Uma feature que eu quero na 0.4.4: [Image #1] Nessa parte de Tokens, quero que de para ajeitar os tokens em Npcs,
+> Veiculos, Jogadores e qualquer outra categoria em pastas, assim fica mais facil, eu gostaria tambem que desse mais uma
+> refinada no sistema de rotina no npc que eu tenho que apertar para o npc se mexer, eu imagino uma macro sabe? algo bem
+> fluido ao invés para o jogador parecer que o token ta teleportando."
+
+Imagem: seção "ACERVO DE TOKENS" do painel do mestre, lista longa de cartões (Cervo, Vagn, Ryoko, Cavaleiro sem
+Al..., Devorador de Al..., Aira, Polvora, Leo, Jimboy, Dorian...), cada um com foto redonda e "×".
+
+Fila da 0.4.4 (depois de `inventario-estilo-re`):
+1. `acervo-em-pastas`: o mestre organiza o acervo de tokens em pastas (NPCs, Veículos, Jogadores e pastas que ele
+   mesmo cria); mover token entre pastas, recolher pasta, pasta persiste com o acervo.
+2. `rotina-npc-fluida`: a rotina do NPC vira uma "macro" que roda sozinha (sem o mestre apertar a cada passo) e o
+   jogador vê o token deslizar pelo caminho, sem teleporte.
+Depois: `zona-oculta-sem-buraco-3`, `parede-parcial`.
+
+### 27/09/2026, madrugada — lista de Cenas ilegível
+
+> "[Image #2] da para melohrar essa ux e ui ? não consigo ler nada ?"
+
+Imagem: seção CENAS do painel, nomes cortados em "S...", "Bar...", "Cav...", "C..." porque a contagem de tokens e os
+botões (lápis, seta, quadrado, "...") comem a largura e o recuo das subcenas come mais; botões "+ Nova cena", "Visão
+geral", "Corte da torre" quebram em 2-3 linhas. Vira a próxima peça de UX: `cenas-legiveis` (antes da moldura).
+
+### 27/09/2026, madrugada — mais devagar
+
+> "Ta indo muito rápido, precisar ser mais lento, vai com mais calma"
+
+Ritmo novo: 1 agente por vez (não 2). Termina o que está rodando (conserto do inventário, peça cenas-legiveis) sem
+disparar nada novo em paralelo; cada item passa pelo usuário antes do próximo começar.
