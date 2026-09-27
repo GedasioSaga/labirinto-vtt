@@ -1044,3 +1044,13 @@ empilhados (`pixi/drawStairs.ts`), que leem como "seta para baixo". Pedido: dese
 Direção: a do minimapa RE (degraus como linhas finas paralelas dentro do retângulo da escada, traço fino, sem
 hachura nem parede grossa, ver memória do estilo RE); o sentido sobe/desce continua legível sem virar seta.
 Mesmo desenho no mestre e no jogador. Fila: próximo designer livre, depois do cartão do Grupo.
+
+### 27/09/2026, noite — chat dos jogadores: da sala e global
+
+> "Na parte direita dos jogadores para os jogadores que estiverem na mesma sala eu quero que você crie um chat para eles conversarem, esse chat deve da para pagar um jogador com @, enviar imagem e videos e ficarem salvos no local, e tambem faça um chat global."
+
+Pedido: chat na lateral direita da tela do jogador (`player.html`). Dois canais: um só para quem está na mesma
+sala e um global. Marcar jogador com @, mandar imagem e vídeo, histórico salvo no local. Mexe no protocolo e no
+que o jogador recebe: passa por revisão de segurança (tamanho e tipo de arquivo, texto hostil, quem recebe o
+quê). Detalhes em aberto perguntados ao usuário antes do plano. Fila: depois dos 3 agentes em curso, antes da
+escada.
