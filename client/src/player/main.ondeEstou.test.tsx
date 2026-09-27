@@ -137,12 +137,15 @@ describe('main.tsx: faixa "Onde estou" de ponta a ponta', () => {
     expect(faixa().textContent).toBe('Fora das salas')
   })
 
-  it('mora na coluna do canto de cima à direita, logo abaixo do selo da cena', () => {
+  it('mora na coluna do canto de cima à direita, e a cena entra no mesmo selo: um "Onde estou" só', () => {
     rev += 1
-    act(() => mestre().manda({ type: 'snapshot', rev, map: mapa(50, 50), vision: [], ownTokens: ['gabi'], concealed: [], sceneName: 'Farol' }))
+    act(() => mestre().manda({ type: 'snapshot', rev, map: mapa(50, 50), vision: [], ownTokens: ['gabi'], concealed: [], sceneName: 'Casa do porto' }))
     const canto = faixa().parentElement
     expect(canto?.className).toBe('pp-canto')
-    expect(canto?.querySelector('.pp-scene-name')?.nextElementSibling).toBe(faixa())
+    // Antes eram dois, um embaixo do outro: o selo da cena e a faixa da sala.
+    expect(canto?.querySelectorAll('.pp-where')).toHaveLength(1)
+    expect(canto?.querySelector('.pp-scene-name')).toBeNull()
+    expect(faixa().getAttribute('aria-label')).toBe('Onde estou: Casa do porto · Farol › Farol, piso 5 › Sala do Faroleiro. Centralizar Gabi')
   })
 
   it('tocar na faixa pede à câmera para centralizar a ficha', () => {

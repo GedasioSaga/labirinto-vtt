@@ -656,10 +656,11 @@
 }
 
 /*
- * CANTO DE CIMA À DIREITA (`main.tsx`): abas de andar, selo da cena, "Onde
- * estou" e confronto numa coluna só, alinhada à direita, com o vão do tema
- * entre um e outro — como a pilha de botões do Google Maps sob a busca. Antes
- * cada selo se prendia sozinho em top 12 / right 12 e um cobria o outro.
+ * CANTO DE CIMA À DIREITA (`main.tsx`): abas de andar, "Onde estou" (a cena e
+ * a sala, num selo só) e confronto numa coluna só, alinhada à direita, com o
+ * vão do tema entre um e outro — como a pilha de botões do Google Maps sob a
+ * busca. Antes cada selo se prendia sozinho em top 12 / right 12 e um cobria
+ * o outro.
  * Nenhum filho se posiciona: quem mora no canto é a coluna. Longe do painel
  * (esquerda) e da faixa da vez (centro); desce junto com a faixa do alarme.
  * O vão entre os selos não pega toque: o arrasto do mapa passa por ele.
@@ -2570,46 +2571,6 @@
 }
 
 /*
- * "Onde estou": o nome público da cena, na coluna do canto de cima à DIREITA
- * (`.pp-canto`; o painel mora à esquerda, o recado no meio, o zoom embaixo).
- * Placa de minimapa: fundo escuro chapado, linha fina clara, texto curto.
- * Abaixo do painel e do cartão de pino (que cobrem o selo quando abertos) e
- * sem pegar toque: o arrasto que começa em cima dele continua sendo arrasto
- * do mapa. Nome longo termina em reticências, sem empurrar nada.
- */
-.pp-scene-name {
-  pointer-events: none;
-  box-sizing: border-box;
-  max-width: min(240px, 100%);
-  margin: 0;
-  padding: 6px 12px;
-  font-family: var(--lb-font-sans, system-ui, sans-serif);
-  line-height: 1.25;
-  text-align: right;
-  color: var(--lb-color-parchment, #eceae4);
-  background: var(--lb-color-stone, rgba(19, 19, 23, 0.94));
-  border: 1px solid var(--lb-color-line-panel, rgba(255, 255, 255, 0.12));
-  border-radius: 6px;
-}
-
-.pp-scene-name__label {
-  display: block;
-  font-size: 11px;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--lb-color-parchment-faint, #858480);
-}
-
-.pp-scene-name__value {
-  display: block;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 15px;
-  font-weight: 600;
-}
-
-/*
  * "Tela acesa": o celular não apaga a tela durante a sessão. Selo discreto no
  * canto de baixo à ESQUERDA (o zoom mora embaixo à direita, os avisos no
  * meio): texto pequeno e apagado, ponto fixo sem pulsar — é estado, não
@@ -3982,13 +3943,15 @@ button.pp-colecao__casa:focus-visible {
 /* =============================================== faixa "Onde estou" */
 
 /*
- * FAIXA "ONDE ESTOU" (`PlayerWhereAmI`): prédio › piso › cômodo da Sala onde
- * está a ficha. Mora na coluna do canto de cima à direita (`.pp-canto`), logo
- * abaixo das abas de andar e do selo da cena: quem se prende ao canto é a
- * coluna, não a faixa. Linguagem de minimapa: pedra chapada, filete claro
- * fino, sem textura. Abaixo do painel e dos cartões: é informação, nunca tapa
- * o que o jogador abriu. O cômodo nunca encolhe; quem cede largura são as
- * salas de fora (reticências). A coluna não pega toque; a faixa, sim.
+ * FAIXA "ONDE ESTOU" (`PlayerWhereAmI`): a cena e o caminho da Sala onde está
+ * a ficha, num selo só — "Casa do porto · Farol › piso 5 › cômodo". Antes o
+ * nome da cena tinha um selo próprio, logo acima deste. Mora na coluna do
+ * canto de cima à direita (`.pp-canto`), logo abaixo das abas de andar: quem
+ * se prende ao canto é a coluna, não a faixa. Linguagem de minimapa: pedra
+ * chapada, filete claro fino, sem textura. Abaixo do painel e dos cartões: é
+ * informação, nunca tapa o que o jogador abriu. O cômodo nunca encolhe; quem
+ * cede largura são a cena e as salas de fora (reticências). A coluna não pega
+ * toque; a faixa, sim.
  */
 .pp-where {
   box-sizing: border-box;
@@ -4017,6 +3980,13 @@ button.pp-colecao__casa:focus-visible {
     transform var(--lb-motion-fast, 110ms) var(--lb-motion-ease, ease);
 }
 
+/* Sem ficha no mapa a faixa só diz a cena: não é botão, não há o que
+   centralizar. Não pega toque, para o arrasto que começa nela ser do mapa.
+   Depois de `.pp-where` para vencer na mesma especificidade. */
+.pp-where--static {
+  pointer-events: none;
+}
+
 .pp-where__who {
   flex: none;
   padding-right: 6px;
@@ -4026,8 +3996,9 @@ button.pp-colecao__casa:focus-visible {
   border-right: 1px solid var(--lb-color-line-panel, rgba(255, 255, 255, 0.18));
 }
 
-/* As salas de fora encolhem com reticências; o separador e o cômodo não. */
-.pp-where__step {
+/* A cena e as salas de fora encolhem com reticências; o separador e o cômodo não. */
+.pp-where__step,
+.pp-where__scene {
   min-width: 0;
   overflow: hidden;
   white-space: nowrap;
@@ -4044,6 +4015,13 @@ button.pp-colecao__casa:focus-visible {
 .pp-where__step--outside {
   font-weight: 400;
   color: var(--lb-color-parchment-dim, #a2a09a);
+}
+
+/* Fora das salas (ou sem ficha no mapa) a cena é o lugar mais preciso que se
+   sabe: ganha o destaque que seria do cômodo. */
+.pp-where__scene--here {
+  font-weight: 600;
+  color: var(--lb-color-parchment, #eceae4);
 }
 
 .pp-where__sep {

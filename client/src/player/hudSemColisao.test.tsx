@@ -311,7 +311,8 @@ describe('canto de cima à direita', () => {
   // confronto moravam todos em top 12 / right 12, um por cima do outro. Em
   // 390 x 844 a barra cobria as abas e o selo, o alarme cobria o selo, e o
   // confronto descia para cima do "Chamar o mestre", do aviso e do ferrolho.
-  const FILHOS = ['.pp-floors', '.pp-scene-name', '.pp-where', '.pp-confronto']
+  // O selo da cena e o "Onde estou" viraram um selo só (`.pp-where`).
+  const FILHOS = ['.pp-floors', '.pp-where', '.pp-confronto']
   const POSICAO = ['position', 'top', 'right', 'bottom', 'left', 'inset', 'transform']
 
   it('uma coluna só, presa ao canto, com o vão do tema entre os selos e descendo com o alarme', async () => {
@@ -346,6 +347,10 @@ describe('canto de cima à direita', () => {
     const css = await lerPlayerCss()
     expect(regraBase(css, '.pp-floors').get('pointer-events')).toBe('auto')
     expect(regraBase(css, '.pp-where').get('pointer-events')).toBe('auto')
+  })
+
+  it('sem ficha no mapa o "Onde estou" só diz a cena e não pega toque: o arrasto que começa nele é do mapa', async () => {
+    expect(regraBase(await lerPlayerCss(), '.pp-where--static').get('pointer-events')).toBe('none')
   })
 })
 

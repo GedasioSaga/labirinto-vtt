@@ -31,7 +31,6 @@ import { mapSharedNoticeText } from './PlayerMapShare'
 import { PlayerRouteShare, PlayerSharedRouteNotice } from './PlayerRouteShare'
 import { coverBounds } from './playerCamera'
 import { PlayerZoomControls } from './PlayerZoomControls'
-import { PlayerSceneName } from './PlayerSceneName'
 import { PlayerScreenAwake } from './PlayerScreenAwake'
 import { useScreenWakeLock } from './screenWakeLock'
 import { PlayerWhereAmI } from './PlayerWhereAmI'
@@ -1294,17 +1293,15 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
         <DiceFeed rolls={state.diceRolls ?? NO_DICE_ROLLS} className="pp-dice-feed" />
         <PlayerScreenAwake active={screenAwake} />
         {/*
-          CANTO DE CIMA À DIREITA: abas de andar, selo da cena, "Onde estou" e
-          confronto numa coluna só, um embaixo do outro. Antes cada um se
-          prendia sozinho no mesmo canto e um cobria o outro. Depois do painel
-          no DOM: o Tab segue a leitura (painel no alto à esquerda, esta coluna
-          no alto à direita, zoom embaixo à direita).
+          CANTO DE CIMA À DIREITA: abas de andar, "Onde estou" (a cena e a
+          sala, num selo só) e confronto numa coluna só, um embaixo do outro.
+          Antes cada um se prendia sozinho no mesmo canto e um cobria o outro.
+          Depois do painel no DOM: o Tab segue a leitura (painel no alto à
+          esquerda, esta coluna no alto à direita, zoom embaixo à direita).
         */}
         <div className="pp-canto">
           {state.andares && <PlayerFloorTabs andares={state.andares} selected={floorTab ?? state.andares.atual} onSelect={setFloorTab} />}
-          {/* Selo da cena: só com nome público na cena; não é controle, fica fora da ordem do Tab. */}
-          <PlayerSceneName name={state.sceneName} />
-          <PlayerWhereAmI where={where} showTokenName={ownTokens.length > 1} onFocus={focusToken} />
+          <PlayerWhereAmI sceneName={state.sceneName} where={where} showTokenName={ownTokens.length > 1} onFocus={focusToken} />
           {/* CONFRONTO na cena dele: de quem é a vez e o que resta do passo. */}
           {state.confronto && <ConfrontoFaixa confronto={state.confronto} tokens={state.map.tokens} />}
         </div>
