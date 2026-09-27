@@ -3081,9 +3081,10 @@ export function filterMapForGroup(
    * Parede de dentro do prédio espiado, no pacote. Só o trecho que o cone VÊ:
    * a amostra na própria reta cai na borda do anel (o raio para nela), então a
    * pergunta é feita também a `DOOR_VISION_PROBE` px de cada lado. Porta de
-   * dentro vista sai inteira, com o estado real — ela é pequena, e cortá-la
-   * mudaria o id que o toque usa. Parede que nenhum raio de quem espia acerta
-   * nem é amostrada (`peekTouchesWall`): prédio grande tem muita parede longe
+   * dentro vista sai inteira, aberta ou fechada como está — ela é pequena, e
+   * cortá-la mudaria o id que o toque usa —, mas sem cadeado nem chave: olhar
+   * não conta que está trancada, igual à porta vista de fora. Parede que
+   * nenhum raio de quem espia acerta nem é amostrada (`peekTouchesWall`): prédio grande tem muita parede longe
    * do cone.
    */
   const peekedWallForPlayer = (w: Wall): Wall[] => {
@@ -3091,7 +3092,7 @@ export function filterMapForGroup(
     if (w.door !== null) {
       if (inConcealZone(wallMidpoint(w)) || !doorSamples(w, DOOR_VISION_PROBE).some((p) => seenByPeek(p) && isVisible(p))) return []
       visibleDoorIds.push(w.id)
-      return [w]
+      return [{ ...w, door: withoutLock(w.door) }]
     }
     if (!peekTouchesWall(w)) return []
     const len = Math.hypot(w.x2 - w.x1, w.y2 - w.y1)

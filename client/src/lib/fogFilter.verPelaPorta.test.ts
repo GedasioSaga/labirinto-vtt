@@ -188,6 +188,30 @@ describe('filterMapForPlayer — ver pela porta aberta de prédio fechado', () =
     expect(view.peek).toBe(null)
   })
 
+  it('SEGURANÇA: porta interna trancada vista pela espiada sai sem cadeado e sem chave', () => {
+    // A divisória ganha uma porta fechada e trancada bem na frente do vão da casa.
+    const base = vila(NO_VAO)
+    const map: MapData = {
+      ...base,
+      walls: [
+        ...base.walls.filter((w) => w.id !== 'divisoria'),
+        parede('divisoria-a', 200, 400, 380, 400, { regionId: 'sala-da-frente' }),
+        parede('porta-interna', 380, 400, 420, 400, {
+          regionId: 'sala-da-frente',
+          door: { open: false, locked: true, kind: 'normal', abreCom: 'chave-do-porao' },
+        }),
+        parede('divisoria-b', 420, 400, 600, 400, { regionId: 'sala-da-frente' }),
+      ],
+    }
+    const view = filterMapForPlayer(map, 'p1', OWNERSHIP, RADIUS)
+
+    const portas = view.map.walls.filter((w) => w.id === 'porta-interna')
+    expect(portas.length).toBeGreaterThan(0)
+    // O jogador não pode saber que está trancada só de olhar: o cadeado é descoberto ao tentar abrir.
+    expect(portas.every((w) => w.door?.locked === false)).toBe(true)
+    expect(JSON.stringify(view.map)).not.toContain('chave-do-porao')
+  })
+
   it('a espiada é de quem está no vão: outro jogador na rua não recebe nada de dentro', () => {
     const map = { ...vila(NO_VAO), tokens: [...vila(NO_VAO).tokens, ficha('ficha-bruno', 800, 900)] }
     const view = filterMapForPlayer(map, 'p2', { p1: ['heroi'], p2: ['ficha-bruno'] }, RADIUS)

@@ -245,6 +245,27 @@ describe("hostSession: 'Espiar' pela porta fechada", () => {
     expect(JSON.stringify(deVolta)).not.toContain('escrivao')
   })
 
+  it('SEGURANÇA: porta aberta responde igual trancada ou não — o pedido de espiar não denuncia o cadeado', () => {
+    const abertas: DoorState[] = [
+      { open: true, locked: false, kind: 'normal' },
+      // Mapa antigo ou estado do mundo: aberta e trancada ao mesmo tempo.
+      { open: true, locked: true, kind: 'normal' },
+      { open: true, locked: true, kind: 'normal', semEspiar: true },
+    ]
+    for (const porta of abertas) {
+      const relogio = { agora: 1_000 }
+      const map = escritorio(porta)
+      const { s } = mesa(map, relogio)
+      s.broadcast(map)
+      for (const clientId of ['c-ana', 'c-caio']) {
+        const pedido = s.handleMessage(clientId, { type: 'door.peek', wallId: 'porta' }, map)
+        relogio.agora += 1_000
+        expect(pedido.peek).toBeUndefined()
+        expect(pedido.outbound).toEqual([])
+      }
+    }
+  })
+
   it('parede sem porta ou id inventado: not_visible, sem aviso ao mestre', () => {
     const relogio = { agora: 1_000 }
     const map = escritorio()

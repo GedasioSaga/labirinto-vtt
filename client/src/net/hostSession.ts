@@ -5425,7 +5425,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const view = filterMapForPlayer(map, playerId, ownership, radiusFor(playerId, map), memory.exp, memory.doors, pinAudiences, undefined, loansFor(playerId), undefined, secretReveals)
     // Porta secreta nunca entra aqui: para o jogador ela é parede (`lib/fogFilter.ts`).
     if (!view.visibleDoorIds.includes(wall.id)) return reject('not_visible')
-    if (wall.door.open && !wall.door.locked) return { outbound: [] }
+    // Aberta, trancada ou não, responde igual: o jogador a recebe aberta e sem cadeado, e o pedido não pode contar o resto.
+    if (wall.door.open) return { outbound: [] }
     // Depois da visibilidade: porta que ele não vê recusa como qualquer parede, sem dizer que é porta.
     if (wall.door.semEspiar === true) return reject('no_peek')
     const owned = new Set(ownership[playerId] ?? [])
