@@ -99,8 +99,14 @@ const {
   trazerDoAcervo,
   itensDoIndice,
   fotoSobrouNoDisco,
+  criarPastaNoAcervo,
+  moverNoAcervo,
+  recolherPastaNoAcervo,
+  apagarPastaDoAcervo,
   ACERVO_NAO_LIDO,
   SEM_FOTO_PARA_SALVAR,
+  PASTA_NAO_ENCONTRADA,
+  ITEM_NAO_ENCONTRADO,
 } = await import('./tokenLibrary')
 
 /** Índice já gravado, no formato novo (nome do arquivo, não caminho). */
@@ -485,5 +491,188 @@ describe('operações em sequência não atropelam umas às outras', () => {
 
     expect(resultados.map((resultado) => resultado.status)).toEqual(['rejected', 'fulfilled'])
     expect(itensGravados().map((item) => item.nome).sort()).toEqual(['Goblin', 'NPC 0'])
+  })
+})
+
+/**
+ * PASTAS DO ACERVO (turno da noite, 26/09/2026): o mestre separa a estante em
+ * NPCs, Veículos, Jogadores e pastas dele. A pasta mora no MESMO `acervo.json`
+ * dos itens — e por isso toda gravação (salvar, apagar, renomear) tem de levar
+ * as pastas junto, ou o primeiro "Salvar no acervo" depois de organizar
+ * desfazia a organização inteira, calado.
+ */
+function pastasGravadas(): { id: string; nome: string; recolhida?: boolean }[] | undefined {
+  const bruto = textos.get(INDICE)
+  if (bruto === undefined) return undefined
+  return (JSON.parse(bruto) as { pastas?: { id: string; nome: string; recolhida?: boolean }[] }).pastas
+}
+
+function pastaDoItemGravado(id: string): string | null | undefined {
+  const bruto = textos.get(INDICE)
+  if (bruto === undefined) return undefined
+  const item = (JSON.parse(bruto) as { itens: { id: string; pasta?: string | null }[] }).itens.find((outro) => outro.id === id)
+  return item?.pasta ?? null
+}
+
+describe('pastas do acervo', () => {
+  it('acervo novo (sem índice) já abre com as pastas NPCs, Veículos e Jogadores', async () => {
+    const acervo = await listarAcervo()
+
+    expect(acervo.pastas.map((pasta) => pasta.nome)).toEqual(['NPCs', 'Veículos', 'Jogadores'])
+    expect(acervo.pastas.every((pasta) => !pasta.recolhida)).toBe(true)
+  })
+
+  it('índice de antes das pastas abre com as três padrão e todo item fora de pasta', async () => {
+    semearAcervo(2)
+
+    const acervo = await listarAcervo()
+
+    expect(acervo.pastas.map((pasta) => pasta.nome)).toEqual(['NPCs', 'Veículos', 'Jogadores'])
+    expect(acervo.itens.map((item) => item.pasta)).toEqual([null, null])
+  })
+
+  it('pasta criada continua lá ao reabrir o acervo, depois das padrão', async () => {
+    const criada = await criarPastaNoAcervo('Chefes')
+
+    const reaberto = await listarAcervo()
+
+    expect(criada.nome).toBe('Chefes')
+    expect(reaberto.pastas.map((pasta) => pasta.nome)).toEqual(['NPCs', 'Veículos', 'Jogadores', 'Chefes'])
+    expect(reaberto.pastas.find((pasta) => pasta.nome === 'Chefes')?.id).toBe(criada.id)
+  })
+
+  it('nome de pasta repetido ganha sufixo, e nome vazio vira "Pasta nova"', async () => {
+    const repetida = await criarPastaNoAcervo('NPCs')
+    const vazia = await criarPastaNoAcervo('   ')
+
+    expect(repetida.nome).toBe('NPCs (2)')
+    expect(vazia.nome).toBe('Pasta nova')
+  })
+
+  it('mover o token para uma pasta fica gravado: ao reabrir, ele está dentro dela', async () => {
+    semearAcervo(2)
+
+    await moverNoAcervo('id-1', 'veiculos')
+    const reaberto = await listarAcervo()
+
+    expect(reaberto.itens.find((item) => item.id === 'id-1')?.pasta).toBe('veiculos')
+    expect(reaberto.itens.find((item) => item.id === 'id-0')?.pasta).toBeNull()
+    expect(pastaDoItemGravado('id-1')).toBe('veiculos')
+  })
+
+  it('mover de uma pasta para outra, e depois para fora de pasta', async () => {
+    semearAcervo(1)
+    const chefes = await criarPastaNoAcervo('Chefes')
+
+    await moverNoAcervo('id-0', 'npcs')
+    await moverNoAcervo('id-0', chefes.id)
+    expect((await listarAcervo()).itens[0].pasta).toBe(chefes.id)
+
+    await moverNoAcervo('id-0', null)
+    expect((await listarAcervo()).itens[0].pasta).toBeNull()
+  })
+
+  it('mover para pasta que não existe recusa sem regravar o índice', async () => {
+    semearAcervo(1)
+    const antes = textos.get(INDICE)
+
+    await expect(moverNoAcervo('id-0', 'pasta-fantasma')).rejects.toThrow(PASTA_NAO_ENCONTRADA)
+    expect(textos.get(INDICE)).toBe(antes)
+  })
+
+  it('mover token que já saiu do acervo recusa com a frase de item não encontrado', async () => {
+    semearAcervo(1)
+
+    await expect(moverNoAcervo('id-sumido', 'npcs')).rejects.toThrow(ITEM_NAO_ENCONTRADO)
+  })
+
+  it('salvar, renomear e apagar OUTRO token não desfazem a organização em pastas', async () => {
+    semearAcervo(3)
+    const chefes = await criarPastaNoAcervo('Chefes')
+    await moverNoAcervo('id-0', chefes.id)
+    await moverNoAcervo('id-1', 'jogadores')
+
+    await salvarNoAcervo(tokenComFoto)
+    await renomearNoAcervo('id-0', 'Rei Goblin')
+    await apagarDoAcervo('id-2')
+
+    const reaberto = await listarAcervo()
+    expect(reaberto.pastas.map((pasta) => pasta.nome)).toEqual(['NPCs', 'Veículos', 'Jogadores', 'Chefes'])
+    expect(reaberto.itens.find((item) => item.id === 'id-0')).toMatchObject({ nome: 'Rei Goblin', pasta: chefes.id })
+    expect(reaberto.itens.find((item) => item.id === 'id-1')?.pasta).toBe('jogadores')
+    expect(reaberto.itens.find((item) => item.nome === 'Goblin')?.pasta).toBeNull()
+  })
+
+  it('pasta recolhida continua recolhida ao reabrir, e expandir desfaz', async () => {
+    await recolherPastaNoAcervo('npcs', true)
+    expect((await listarAcervo()).pastas.find((pasta) => pasta.id === 'npcs')?.recolhida).toBe(true)
+
+    await recolherPastaNoAcervo('npcs', false)
+    expect((await listarAcervo()).pastas.find((pasta) => pasta.id === 'npcs')?.recolhida).toBe(false)
+  })
+
+  it('apagar a pasta devolve os tokens dela para fora de pasta, sem apagar nenhum', async () => {
+    semearAcervo(2)
+    await moverNoAcervo('id-0', 'veiculos')
+    await moverNoAcervo('id-1', 'veiculos')
+
+    await apagarPastaDoAcervo('veiculos')
+    const reaberto = await listarAcervo()
+
+    expect(reaberto.pastas.map((pasta) => pasta.nome)).toEqual(['NPCs', 'Jogadores'])
+    expect(reaberto.itens.map((item) => [item.id, item.pasta])).toEqual([
+      ['id-0', null],
+      ['id-1', null],
+    ])
+    expect(pastasGravadas()?.map((pasta) => pasta.id)).toEqual(['npcs', 'jogadores'])
+  })
+
+  it('pasta padrão apagada não volta sozinha ao reabrir', async () => {
+    await apagarPastaDoAcervo('npcs')
+    await apagarPastaDoAcervo('veiculos')
+    await apagarPastaDoAcervo('jogadores')
+
+    expect((await listarAcervo()).pastas).toEqual([])
+  })
+
+  it('token gravado numa pasta que não existe mais é lido como fora de pasta', async () => {
+    textos.set(
+      INDICE,
+      JSON.stringify({
+        versao: 2,
+        pastas: [{ id: 'npcs', nome: 'NPCs' }, { semId: true }],
+        itens: [
+          { id: 'a', nome: 'Orc', tamanho: 1, arquivo: 'token_a.webp', pasta: 'apagada-a-mao' },
+          { id: 'b', nome: 'Elfo', tamanho: 1, arquivo: 'token_b.webp', pasta: 'npcs' },
+        ],
+      }),
+    )
+
+    const acervo = await listarAcervo()
+
+    expect(acervo.pastas.map((pasta) => pasta.id)).toEqual(['npcs'])
+    expect(acervo.itens.map((item) => item.pasta)).toEqual([null, 'npcs'])
+  })
+
+  it('com a leitura falhando, criar, mover, recolher e apagar pasta param antes de escrever', async () => {
+    semearAcervo(2)
+    const antes = textos.get(INDICE)
+    leituraFalhaEm.add(INDICE)
+
+    await expect(criarPastaNoAcervo('Chefes')).rejects.toThrow(ACERVO_NAO_LIDO)
+    await expect(moverNoAcervo('id-0', 'npcs')).rejects.toThrow(ACERVO_NAO_LIDO)
+    await expect(recolherPastaNoAcervo('npcs', true)).rejects.toThrow(ACERVO_NAO_LIDO)
+    await expect(apagarPastaDoAcervo('npcs')).rejects.toThrow(ACERVO_NAO_LIDO)
+    expect(textos.get(INDICE)).toBe(antes)
+  })
+
+  it('criar pasta e mover disparados juntos: os dois ficam gravados', async () => {
+    semearAcervo(1)
+
+    const [criada] = await Promise.all([criarPastaNoAcervo('Chefes'), moverNoAcervo('id-0', 'npcs')])
+
+    const reaberto = await listarAcervo()
+    expect(reaberto.pastas.map((pasta) => pasta.id)).toContain(criada.id)
+    expect(reaberto.itens[0].pasta).toBe('npcs')
   })
 })
