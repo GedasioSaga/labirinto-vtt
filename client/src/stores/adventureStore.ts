@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { ExitPassage, MapData, Pin, PinDestination, PinPassage, Stair, Token } from '../types/map'
+import type { ExitPassage, Light, MapData, Pin, PinDestination, PinPassage, Stair, Token } from '../types/map'
 import {
   buildingOfStair,
   buildPartnerStair,
@@ -822,6 +822,40 @@ interface SceneHistory {
 function withoutToken(history: SceneHistory, tokenId: string): SceneHistory {
   const drop = (map: MapData): MapData => (map.tokens.some((t) => t.id === tokenId) ? mapFactory.removeToken(map, tokenId) : map)
   return { map: drop(history.map), past: history.past.map(drop), future: history.future.map(drop) }
+}
+
+/*
+ * TOCHA PRESA NA FICHA atravessa com ela. Apagar a ficha solta a tocha e a
+ * deixa onde está (`mapFactory.removeToken`), mas na travessia a ficha não
+ * some: a tocha ficaria acesa na origem, no lugar de onde ela saiu, e ela
+ * chegaria a uma cena escura enxergando só a própria casa. Como a ficha, a
+ * tocha sai de todo passo do histórico da origem (um Ctrl+Z não a acende de
+ * volta lá) e entra em todo passo do histórico do destino.
+ */
+
+/** As tochas presas em `departing[i]`, já na casa de `arriving[i]`: o mesmo afastamento e o piso de quem chega. */
+function torchesOf(map: MapData, departing: readonly Token[], arriving: readonly Token[]): Light[] {
+  return departing.flatMap((before, index) => {
+    const after = arriving[index]
+    return map.lights
+      .filter((l) => l.attachedTokenId === before.id)
+      .map((l) => comPiso({ ...l, x: l.x + after.x - before.x, y: l.y + after.y - before.y }, pisoDe(after)))
+  })
+}
+
+function withoutLights(history: SceneHistory, lightIds: ReadonlySet<string>): SceneHistory {
+  const drop = (map: MapData): MapData => (map.lights.some((l) => lightIds.has(l.id)) ? { ...map, lights: map.lights.filter((l) => !lightIds.has(l.id)) } : map)
+  return { map: drop(history.map), past: history.past.map(drop), future: history.future.map(drop) }
+}
+
+/** Luz de mesmo id no destino (cena copiada) fica com o dela; a tocha que chega ganha id novo. */
+function withLights(history: SceneHistory, lights: readonly Light[]): SceneHistory {
+  if (lights.length === 0) return history
+  const steps = [history.map, ...history.past, ...history.future]
+  const taken = (id: string): boolean => steps.some((map) => map.lights.some((l) => l.id === id))
+  const arriving = lights.map((l) => (taken(l.id) ? { ...l, id: crypto.randomUUID() } : l))
+  const put = (map: MapData): MapData => ({ ...map, lights: [...map.lights, ...arriving] })
+  return { map: put(history.map), past: history.past.map(put), future: history.future.map(put) }
 }
 
 /**
@@ -1807,8 +1841,11 @@ export const useAdventureStore = create<AdventureState>()((set, get) => ({
     )
     const arrive = (t: Token, at: Point): Token => comPiso({ ...arrivingLink(t, to.map), x: at.x, y: at.y }, piso)
     const travelers: Token[] = [arrive(token, { x, y }), ...riders.map((p, index) => arrive(p, seats[index]))]
-    const leaving = travelers.reduce((history, traveler) => withoutToken(history, traveler.id), from)
-    const { history: arriving, renamedResidents } = withTokens(to, travelers)
+    const torches = torchesOf(from.map, [token, ...riders], travelers)
+    const leaving = travelers.reduce((history, traveler) => withoutToken(history, traveler.id), withoutLights(from, new Set(torches.map((l) => l.id))))
+    const { history: withTravelers, renamedResidents } = withTokens(to, travelers)
+    // Depois de `withTokens`: a troca de id de quem já estava leva as tochas DELE, não as que chegam.
+    const arriving = withLights(withTravelers, torches)
     const nextCache: Record<string, SceneSlot> = { ...cache }
     const nextDirty: Record<string, true> = { ...dirty }
     let openScene: SceneHistory | null = null
