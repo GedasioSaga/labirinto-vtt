@@ -948,3 +948,22 @@ geral", "Corte da torre" quebram em 2-3 linhas. Vira a próxima peça de UX: `ce
 
 Ritmo novo: 1 agente por vez (não 2). Termina o que está rodando (conserto do inventário, peça cenas-legiveis) sem
 disparar nada novo em paralelo; cada item passa pelo usuário antes do próximo começar.
+
+### 27/09/2026, fim da tarde — botão "Espiar pela porta" gigante
+
+> "[Image #4] Espiar pela porta? quando eu coloque iessa porta eu não vi nenhuma opção de poder espiar pela porta e porque quando o jogador se aproxima fica tão... grande?"
+
+Imagem: tela do jogador com um cartão escuro alto e vazio, só "Espiar pela porta" no topo. Causa: o botão
+(`PeekDoorButton.tsx`) e o quadro da espiada (`PlayerPeek.tsx`) usavam a mesma classe `.pp-peek`; a regra do quadro
+(`top: 12px`, `width: 300px`, coluna) somava com a do botão (`bottom: 112px`) e esticava o botão numa placa de
+300x720 px sobre o mapa. Conserto já feito no design do jogador da 0.4.4 (`e3648446`, classe própria `.pp-espiar`).
+Sobre a opção: espiar não tem liga/desliga do mestre; qualquer porta fechada (trancada também) pode ser espiada
+quando a ficha do jogador encosta nela. Se o mestre quiser escolher porta por porta, vira pedido novo.
+
+### 27/09/2026, fim da tarde — gaveta "Painel" do jogador cortada
+
+> "[Image #5] Tem que melhorar isso aqui tambem viu."
+
+Imagem: gaveta do jogador aberta (abas Painel, Minha ficha, Inventário). A gaveta (~275 px) é mais estreita que a
+fileira de abas (~355 px); os campos Nome, Foto ("Nenhum ... escolhido"), Por quem e Onde passam da borda direita
+e ficam cortados. Entra no design do jogador da 0.4.4 (`ux-hud-jogador`).
