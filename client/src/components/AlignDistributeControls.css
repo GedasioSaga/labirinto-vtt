@@ -1,14 +1,15 @@
 /* Alinhar e distribuir: uma fileira de ícones por família. O separador entre
    alinhar na horizontal (esquerda/centro/direita) e na vertical (topo/meio/base)
-   é só espaço, sem traço, para não somar linha ao painel. */
+   é só espaço, sem traço, para não somar linha ao painel. Entre os ícones, o
+   meio vão dos botões sem moldura do painel, nas duas direções. */
 .lb-align__row {
   display: flex;
   flex-wrap: wrap;
-  gap: 2px;
+  gap: calc(var(--lb-control-gap) / 2);
 }
 
 .lb-align__row + .lb-align__row {
-  margin-top: var(--lb-space-1);
+  margin-top: calc(var(--lb-control-gap) / 2);
 }
 
 .lb-align__row .lb-iconbtn:nth-child(3):not(:last-child) {

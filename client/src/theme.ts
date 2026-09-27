@@ -127,6 +127,19 @@ export const theme = {
     edgeGap: '16px',
   },
 
+  /**
+   * Linhas de botões do painel (bar: painel Design do Figma UI3): um vão só
+   * entre controles vizinhos com moldura ou texto; entre ícones sem moldura, a
+   * metade. O alvo mínimo é o de 24 px da WCAG 2.5.8 para ponteiro fino; o
+   * toque continua subindo a 44 px onde a tela já faz isso.
+   */
+  control: {
+    /** Vão entre dois controles vizinhos numa linha de botões. */
+    gap: '8px',
+    /** Altura (e largura, no botão só-ícone) mínima do alvo de clique. */
+    min: '24px',
+  },
+
   radius: {
     sm: '6px',
     md: '9px',
