@@ -1014,3 +1014,12 @@ Imagem 11: botão da ferramenta de sala (ícone de pentágono) com a setinha de 
 sala quadrada e uma forma redonda ao lado. Pedido: (1) na ferramenta de sala livre, uma variação "Parede", para
 traçar ponto a ponto uma parede solta, do jeito da sala livre, sem criar sala; (2) opção de arredondar (cantos/
 traçado curvo). Fila: depois do pino.
+
+### 27/09/2026, fim da tarde — avisos "camada travada" empilhados, parede não seleciona
+
+> "[Image #12] que bug é esse? não posso nem selecionar a parede?"
+
+Imagem: 6 avisos iguais, "A camada Paredes está travada", um embaixo do outro. Causa: a camada Paredes estava
+travada pelo cadeado da lista Camadas (travar só acontece por ali), e cada clique numa parede empilhava um aviso
+novo, sem jeito rápido de desfazer. Consertado em `241efd5e`: aviso repetido renova no lugar (um só na tela) e o
+aviso de camada travada ganhou o botão "Destravar", que só destrava.
