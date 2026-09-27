@@ -7,6 +7,11 @@
  * ficha agora?" a cada redraw e a cada quadro do ticker. Os casos em que a
  * ficha NÃO desliza são decididos por quem chama (`animate: false`): troca de
  * cena, ficha que acabou de aparecer, a ficha sob o dedo e movimento reduzido.
+ *
+ * Movimento solto sai rápido e assenta devagar. Passos emendados (a rotina do
+ * NPC manda um passo curto antes do deslize anterior terminar) seguem em
+ * velocidade constante: recomeçar o "sai rápido, assenta devagar" a cada passo
+ * faria a ficha frear e arrancar.
  */
 
 /** Duração do deslize: dentro da faixa de 150-250 ms pedida pela feature. */
@@ -27,6 +32,8 @@ export interface GlideTrack {
   toY: number
   /** Instante de início, no mesmo relógio de `now` (performance.now()). */
   start: number
+  /** Emendado num deslize em curso: velocidade constante, sem o "assenta devagar". */
+  linear?: true
 }
 
 /** Fichas em deslize agora, por id. Ficha parada não tem entrada. */
@@ -45,7 +52,8 @@ function easeOutQuad(t: number): number {
 export function glidePosition(track: GlideTrack, now: number): GlidePoint & { done: boolean } {
   const elapsed = now - track.start
   if (elapsed >= TOKEN_GLIDE_MS) return { x: track.toX, y: track.toY, done: true }
-  const k = easeOutQuad(Math.max(0, elapsed) / TOKEN_GLIDE_MS)
+  const t = Math.max(0, elapsed) / TOKEN_GLIDE_MS
+  const k = track.linear ? t : easeOutQuad(t)
   return { x: track.fromX + (track.toX - track.fromX) * k, y: track.fromY + (track.toY - track.fromY) * k, done: false }
 }
 
@@ -63,7 +71,8 @@ export interface GlideSync {
  * Novo alvo de uma ficha, vindo do mapa. Devolve onde desenhá-la agora.
  * Alvo igual ao do deslize em curso não recomeça nada (um movimento chega em
  * até três redraws: otimista, aceito, snapshot); alvo novo no meio do caminho
- * parte de onde a ficha está desenhada, sem voltar.
+ * parte de onde a ficha está desenhada, sem voltar, e emenda em velocidade
+ * constante.
  */
 export function syncGlide(glides: TokenGlides, id: string, sync: GlideSync): GlidePoint {
   const { shown, target, now, animate } = sync
@@ -81,8 +90,14 @@ export function syncGlide(glides: TokenGlides, id: string, sync: GlideSync): Gli
     glides.delete(id)
     return { x: target.x, y: target.y }
   }
-  glides.set(id, { fromX: shown.x, fromY: shown.y, toX: target.x, toY: target.y, start: now })
-  return { x: shown.x, y: shown.y }
+  // Emendando: parte de onde o deslize em curso está AGORA, não do último quadro
+  // desenhado — senão a ficha perde o trecho entre o quadro e a chegada do passo.
+  const emenda = current === undefined ? null : glidePosition(current, now)
+  const from = emenda !== null && !emenda.done ? emenda : shown
+  const track: GlideTrack = { fromX: from.x, fromY: from.y, toX: target.x, toY: target.y, start: now }
+  if (from === emenda) track.linear = true
+  glides.set(id, track)
+  return { x: from.x, y: from.y }
 }
 
 /**

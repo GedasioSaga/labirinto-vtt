@@ -135,4 +135,65 @@ describe('RotinaDaFichaControls: a rotina da ficha no painel do mestre', () => {
     escolher(lista('Rotina por'), '')
     expect(recebidas).toEqual([undefined])
   })
+
+  describe('"Andar sozinha": a rotina vira macro', () => {
+    let pedidos: boolean[]
+
+    beforeEach(() => {
+      pedidos = []
+    })
+
+    function renderAndando(token: Token, andando: boolean): void {
+      act(() =>
+        root.render(
+          <RotinaDaFichaControls
+            token={token}
+            estados={[APITO]}
+            cenas={CENAS}
+            cenaAberta="capela"
+            onChange={(r) => recebidas.push(r)}
+            andando={andando}
+            onAndar={(ligar) => pedidos.push(ligar)}
+          />,
+        ),
+      )
+    }
+
+    const comPostos: RotinaDoNpc = {
+      estadoId: 'apito',
+      postos: [
+        { valor: 'Aurora', sceneId: 'capela', x: 1, y: 1 },
+        { valor: 'Meio', sceneId: 'conf', x: 2, y: 2 },
+      ],
+    }
+
+    it('parada: "Andar sozinha" pede para ligar', () => {
+      renderAndando(tobias(comPostos), false)
+      const andar = botao('Andar sozinha')
+      expect(andar.getAttribute('aria-pressed')).toBe('false')
+      act(() => andar.click())
+      expect(pedidos).toEqual([true])
+      // Ligar não mexe na rotina gravada.
+      expect(recebidas).toEqual([])
+    })
+
+    it('andando: o mesmo botão diz que está andando e pede para parar', () => {
+      renderAndando(tobias(comPostos), true)
+      const andar = botao('Andar sozinha')
+      expect(andar.getAttribute('aria-pressed')).toBe('true')
+      expect(andar.textContent).toContain('Parar')
+      act(() => andar.click())
+      expect(pedidos).toEqual([false])
+    })
+
+    it('sem posto gravado não há para onde andar: botão apagado', () => {
+      renderAndando(tobias({ estadoId: 'apito', postos: [] }), false)
+      expect(botao('Andar sozinha').disabled).toBe(true)
+    })
+
+    it('sem quem ligue (painel sem o relógio da rotina), o botão não aparece', () => {
+      render(tobias(comPostos))
+      expect(Array.from(container.querySelectorAll('button')).some((b) => b.getAttribute('aria-label') === 'Andar sozinha')).toBe(false)
+    })
+  })
 })
