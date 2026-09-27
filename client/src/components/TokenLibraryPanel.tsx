@@ -9,7 +9,7 @@ import {
 } from 'react'
 import { createPortal } from 'react-dom'
 import { convertFileSrc } from '@tauri-apps/api/core'
-import type { ItemDoAcervoNaTela, PastaDoAcervo } from '../lib/tokenLibrary'
+import { ehPastaPadrao, type ItemDoAcervoNaTela, type PastaDoAcervo } from '../lib/tokenLibrary'
 import { ChevronDownIcon, FolderIcon } from './icons'
 
 export interface TokenLibraryPanelProps {
@@ -289,14 +289,15 @@ export function TokenLibraryPanel({
     setNovaPasta(null)
   }
 
-  // Vazio, o acervo é uma faixa só: o que falta e como encher. As pastas (as
-  // três padrão já nascem no disco) e o "+ Nova pasta" esperam o primeiro
-  // token — cabeçalhos vazios em pilha brigavam com a frase que ensina.
+  // Vazio, o acervo é uma faixa só: o que falta e como encher. As três pastas
+  // padrão (já nascem no disco, todas vazias) esperam o primeiro token —
+  // cabeçalhos vazios em pilha brigavam com a frase que ensina. O "+ Nova
+  // pasta" fica, e a pasta que o mestre cria traz a estante inteira: é a mesma
+  // vista de depois do primeiro token (a pasta dele não pula quando o token
+  // chega), e a "NPCs" à mostra explica o "NPCs (2)" de quem digitou esse nome.
   const vazio = itens.length === 0
-  // O campo de nova pasta aberto some junto quando o último token sai; ajustado
-  // no render (e não num efeito) para não piscar um quadro com o campo órfão.
-  if (vazio && novaPasta !== null) setNovaPasta(null)
-  const organizado = podeOrganizar && pastas.length > 0 && !vazio
+  const temPastaDoMestre = pastas.some((pasta) => !ehPastaPadrao(pasta))
+  const organizado = podeOrganizar && pastas.length > 0 && (!vazio || temPastaDoMestre)
   const soltos = organizado ? itens.filter((item) => item.pasta === null) : itens
   // "Sem pasta" aparece vazio só durante o arrasto de um token que ESTÁ numa
   // pasta: é o lugar de soltá-lo para tirá-lo de lá.
@@ -472,7 +473,7 @@ export function TokenLibraryPanel({
     <section className={vazio ? 'lb-section lb-acervo--vazio' : 'lb-section'} ref={raizRef}>
       <div className="lb-acervo__topo">
         <h2 className="lb-eyebrow">Acervo de tokens</h2>
-        {podeOrganizar && !vazio && novaPasta === null && (
+        {podeOrganizar && novaPasta === null && (
           <button type="button" className="lb-acervo__nova-pasta" onClick={() => setNovaPasta('')}>
             + Nova pasta
           </button>

@@ -9,6 +9,10 @@ import { ACERVO_COMO_ENCHER, ACERVO_VAZIO, TokenLibraryPanel, type TokenLibraryP
  * Explorer do VS Code sem pasta aberta — uma linha que diz o que falta e como
  * resolver. Antes eram dois parágrafos soltos (o segundo com quatro linhas)
  * e, embaixo, as três pastas padrão vazias brigando com eles.
+ *
+ * O "+ Nova pasta" fica na linha do título mesmo vazio, como o "+" de seção do
+ * Explorer: organizar a estante antes do primeiro token é trabalho legítimo, e
+ * a pasta criada tem de aparecer.
  */
 
 /** Uma linha do rail (232 px de texto a 11,5 px) leva ~40-43 caracteres: a dica cabe na segunda. */
@@ -39,6 +43,9 @@ const PASTAS: PastaDoAcervo[] = [
   { id: 'veiculos', nome: 'Veículos', recolhida: false },
   { id: 'jogadores', nome: 'Jogadores', recolhida: false },
 ]
+
+/** Pasta que o mestre criou: `id` aleatório, como o que `criarPastaNoAcervo` dá. */
+const CHEFES: PastaDoAcervo = { id: '3f9c2a71-8d4e-4b6a-9c1f-5e7d2b8a0c64', nome: 'Chefes', recolhida: false }
 
 const GOBLIN = item('g', 'Goblin', null)
 
@@ -71,6 +78,35 @@ function botoes(): string[] {
   return [...container.querySelectorAll<HTMLButtonElement>('button')].map((el) => el.getAttribute('aria-label') ?? el.textContent?.trim() ?? '')
 }
 
+/** Nomes das pastas à vista, na ordem da tela. */
+function pastasNaTela(): (string | null)[] {
+  return [...container.querySelectorAll('[data-acervo-pasta]')].map((el) => el.getAttribute('aria-label'))
+}
+
+function campoNovaPasta(): HTMLInputElement | null {
+  return container.querySelector<HTMLInputElement>('input[aria-label="Nome da nova pasta"]')
+}
+
+/** Clica no "+ Nova pasta" e devolve o campo que ele abre. */
+function abrirNovaPasta(): HTMLInputElement {
+  const botao = [...container.querySelectorAll<HTMLButtonElement>('button')].find((el) => el.textContent?.trim() === '+ Nova pasta')
+  if (botao === undefined) throw new Error('sem "+ Nova pasta" no acervo')
+  act(() => botao.click())
+  const campo = campoNovaPasta()
+  if (campo === null) throw new Error('o campo "Nome da nova pasta" não abriu')
+  return campo
+}
+
+/** Digita como a pessoa: o React só vê a troca pelo setter nativo seguido do evento `input`. */
+function digitar(campo: HTMLInputElement, texto: string) {
+  const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set
+  if (setter === undefined) throw new Error('o jsdom não expôs o setter de value')
+  act(() => {
+    setter.call(campo, texto)
+    campo.dispatchEvent(new Event('input', { bubbles: true }))
+  })
+}
+
 describe('acervo vazio numa faixa só', () => {
   it('um parágrafo: o que falta, com o texto de sempre, e como encher, curto e ainda falando de foto', () => {
     montar()
@@ -86,14 +122,33 @@ describe('acervo vazio numa faixa só', () => {
     expect(container.querySelectorAll('p.lb-acervo__vazio')).toHaveLength(0)
   })
 
-  it('vazio, as pastas padrão e o "+ Nova pasta" saem de cena, e a seção fica mais justa', () => {
+  it('vazio, as pastas padrão saem de cena, o "+ Nova pasta" fica na linha do título e a seção fica mais justa', () => {
     montar()
-    expect(container.querySelectorAll('[data-acervo-pasta]')).toHaveLength(0)
-    expect(botoes()).not.toContain('+ Nova pasta')
+    expect(pastasNaTela()).toEqual([])
+    const topo = container.querySelector('.lb-acervo__topo')
+    if (topo === null) throw new Error('sem a linha do título do acervo')
+    // Título e ação na mesma linha, como o "+" de seção do Explorer.
+    expect([...topo.children].map((el) => el.textContent?.trim())).toEqual(['Acervo de tokens', '+ Nova pasta'])
     expect(secao().classList.contains('lb-acervo--vazio')).toBe(true)
   })
 
-  it('com o primeiro token, as pastas e o "+ Nova pasta" voltam e o estado vazio some', () => {
+  it('vazio, criar pasta funciona: o nome vai para a gravação e a pasta criada aparece', () => {
+    const props = montar()
+    const campo = abrirNovaPasta()
+    digitar(campo, 'Chefes')
+    act(() => campo.form?.requestSubmit())
+    expect(props.onCriarPasta).toHaveBeenCalledWith('Chefes')
+    expect(campoNovaPasta()).toBeNull()
+    // O App grava, relê o disco e devolve a estante com a pasta nova no fim.
+    montar({ pastas: [...PASTAS, CHEFES] })
+    // Com uma pasta do mestre, a estante aparece inteira — a mesma vista de
+    // depois do primeiro token. "Sem pasta" não: não há token solto.
+    expect(pastasNaTela()).toEqual(['NPCs', 'Veículos', 'Jogadores', 'Chefes'])
+    expect(container.querySelectorAll('.lb-acervo__vazio-estado')).toHaveLength(1)
+    expect(botoes()).toContain('+ Nova pasta')
+  })
+
+  it('com o primeiro token, as pastas voltam, o "+ Nova pasta" segue lá e o estado vazio some', () => {
     montar({ itens: [GOBLIN] })
     expect(container.querySelectorAll('[data-acervo-pasta]').length).toBeGreaterThan(0)
     expect(botoes()).toContain('+ Nova pasta')
@@ -107,14 +162,12 @@ describe('acervo vazio numa faixa só', () => {
     expect(container.querySelector('.lb-acervo__vazio-estado')).not.toBeNull()
   })
 
-  it('se o acervo esvazia com o campo de nova pasta aberto, o campo fecha junto', () => {
+  it('se o acervo esvazia com o campo de nova pasta aberto, o campo fica, com o que já foi digitado', () => {
     montar({ itens: [GOBLIN] })
-    const novaPasta = [...container.querySelectorAll<HTMLButtonElement>('button')].find((el) => el.textContent?.trim() === '+ Nova pasta')
-    if (novaPasta === undefined) throw new Error('sem "+ Nova pasta" com token no acervo')
-    act(() => novaPasta.click())
-    expect(container.querySelector('input[aria-label="Nome da nova pasta"]')).not.toBeNull()
+    digitar(abrirNovaPasta(), 'Chefes')
     montar({ itens: [] })
-    expect(container.querySelector('input[aria-label="Nome da nova pasta"]')).toBeNull()
+    // Esvaziar a estante não é motivo para jogar fora o nome que a pessoa digitava.
+    expect(campoNovaPasta()?.value).toBe('Chefes')
     expect(container.querySelector('.lb-acervo__vazio-estado')).not.toBeNull()
   })
 })

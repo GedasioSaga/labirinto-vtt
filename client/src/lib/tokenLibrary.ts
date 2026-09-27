@@ -173,6 +173,15 @@ function pastasPadrao(): PastaDoAcervo[] {
   return PASTAS_PADRAO.map((pasta) => ({ ...pasta }))
 }
 
+/**
+ * A pasta é uma das três com que a estante nasce? Pelo `id`, nunca pelo nome:
+ * o mestre pode criar a sua "NPCs" (que vira "NPCs (2)"), e o `id` dela é
+ * aleatório (`criarPastaNoAcervo`).
+ */
+export function ehPastaPadrao(pasta: PastaDoAcervo): boolean {
+  return PASTAS_PADRAO.some((padrao) => padrao.id === pasta.id)
+}
+
 /** Começo de TODO aviso desta tela: o usuário reconhece o assunto na primeira linha. */
 const AVISO = 'Não foi possível ler o acervo de tokens'
 
