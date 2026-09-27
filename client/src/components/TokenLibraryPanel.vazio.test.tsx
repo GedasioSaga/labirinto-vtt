@@ -148,6 +148,13 @@ describe('acervo vazio numa faixa só', () => {
     expect(botoes()).toContain('+ Nova pasta')
   })
 
+  it('vazio, a pasta do mestre conta pelo id: mesmo com o nome "NPCs", a estante aparece inteira', () => {
+    // Nome idêntico ao de uma padrão; só o `id` (aleatório, como o de `criarPastaNoAcervo`) diz que é do mestre.
+    const npcsDoMestre: PastaDoAcervo = { id: '9b2e4f60-1c7a-4d38-a5e2-7f0c3b6d9e18', nome: 'NPCs', recolhida: false }
+    montar({ pastas: [...PASTAS, npcsDoMestre] })
+    expect(pastasNaTela()).toEqual(['NPCs', 'Veículos', 'Jogadores', 'NPCs'])
+  })
+
   it('com o primeiro token, as pastas voltam, o "+ Nova pasta" segue lá e o estado vazio some', () => {
     montar({ itens: [GOBLIN] })
     expect(container.querySelectorAll('[data-acervo-pasta]').length).toBeGreaterThan(0)
@@ -169,5 +176,25 @@ describe('acervo vazio numa faixa só', () => {
     // Esvaziar a estante não é motivo para jogar fora o nome que a pessoa digitava.
     expect(campoNovaPasta()?.value).toBe('Chefes')
     expect(container.querySelector('.lb-acervo__vazio-estado')).not.toBeNull()
+  })
+
+  it('se o recarregar falha na leitura com o campo de nova pasta aberto, o campo fecha; a estante só vazia não o fecha', () => {
+    montar()
+    digitar(abrirNovaPasta(), 'Chefes')
+    // Sem token e sem pasta nenhuma, mas com o disco lido: ainda dá para criar.
+    montar({ pastas: [] })
+    expect(campoNovaPasta()?.value).toBe('Chefes')
+    // O que `recarregar` põe na tela quando a leitura falha (tokenLibraryStore):
+    // nada lido, nada a organizar. O "Criar" só colheria a recusa de
+    // `criarPastaNoAcervo` (ACERVO_NAO_LIDO).
+    montar({ itens: [], pastas: [], podeOrganizar: false, aviso: 'Não foi possível ler o acervo de tokens: arquivo sumiu.' })
+    expect(campoNovaPasta()).toBeNull()
+    expect(botoes()).not.toContain('Criar')
+    expect(botoes()).not.toContain('+ Nova pasta')
+    // Fechou, e não só se escondeu: a leitura seguinte, que dá certo, não traz
+    // de volta o campo velho (que, com `autoFocus`, roubaria o foco).
+    montar()
+    expect(campoNovaPasta()).toBeNull()
+    expect(botoes()).toContain('+ Nova pasta')
   })
 })

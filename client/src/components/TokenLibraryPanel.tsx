@@ -289,6 +289,12 @@ export function TokenLibraryPanel({
     setNovaPasta(null)
   }
 
+  // Sem o disco lido não há onde gravar a pasta (`criarPastaNoAcervo` recusa em
+  // `exigirLeitura`): um recarregar que falha com o campo aberto o fecha junto.
+  // Ajustado no render (e não num efeito) para não piscar um quadro com o campo
+  // órfão.
+  if (!podeOrganizar && novaPasta !== null) setNovaPasta(null)
+
   // Vazio, o acervo é uma faixa só: o que falta e como encher. As três pastas
   // padrão (já nascem no disco, todas vazias) esperam o primeiro token —
   // cabeçalhos vazios em pilha brigavam com a frase que ensina. O "+ Nova

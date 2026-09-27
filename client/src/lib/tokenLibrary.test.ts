@@ -550,12 +550,19 @@ describe('pastas do acervo', () => {
     expect(vazia.nome).toBe('Pasta nova')
   })
 
-  it('as três padrão se reconhecem pelo id; a pasta do mestre não passa por padrão nem com o mesmo nome', async () => {
+  it('as três padrão se reconhecem pelo id; a pasta do mestre não passa por padrão nem com o nome idêntico', async () => {
+    // Sem a "NPCs" padrão, a do mestre fica com o nome exato, sem o " (2)": só o `id` as separa.
+    await apagarPastaDoAcervo('npcs')
     const criada = await criarPastaNoAcervo('NPCs')
 
     const reaberto = await listarAcervo()
 
-    expect(reaberto.pastas.map((pasta) => ehPastaPadrao(pasta))).toEqual([true, true, true, false])
+    expect(criada.nome).toBe('NPCs')
+    expect(reaberto.pastas.map((pasta) => [pasta.nome, ehPastaPadrao(pasta)])).toEqual([
+      ['Veículos', true],
+      ['Jogadores', true],
+      ['NPCs', false],
+    ])
     expect(ehPastaPadrao(criada)).toBe(false)
   })
 
