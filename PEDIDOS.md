@@ -1034,3 +1034,13 @@ cortado; "Bolsa vazia" solta ao lado de "Moedas…"; 9 ações ("Propor troca…
 "Mandar para…", "Dar item…", "Recado", "Dar o que o grupo viu", "Emprestar como ajudante…" e um "…") em linhas
 quebradas ao acaso, parte como botão e parte como texto solto, sem grupo nem ordem. Pedido: redesenhar o cartão
 (design do mestre). Fila: próximo designer livre, arquivos `PartySection.tsx` e as regras dele no `main.css`.
+
+### 27/09/2026, fim da tarde — escada parece seta, não escada
+
+> "[Image #14] Essa escada, gostaria mudasse o design dela para parecer uma escada mesmo aqui parece só uams seta apontando"
+
+Imagem (cópia em `C:/dev/hud-evidencia/pedido-14-escada.png`): a escada do mapa desenhada como chevrons dourados
+empilhados (`pixi/drawStairs.ts`), que leem como "seta para baixo". Pedido: desenho que pareça escada de verdade.
+Direção: a do minimapa RE (degraus como linhas finas paralelas dentro do retângulo da escada, traço fino, sem
+hachura nem parede grossa, ver memória do estilo RE); o sentido sobe/desce continua legível sem virar seta.
+Mesmo desenho no mestre e no jogador. Fila: próximo designer livre, depois do cartão do Grupo.
