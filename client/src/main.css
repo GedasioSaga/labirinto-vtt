@@ -3697,6 +3697,7 @@ label.lb-switch[data-dica-linha='aberta'] > span:first-child::after,
 
 .lb-acervo--na-pasta .lb-acervo__item {
   gap: var(--lb-space-2);
+  row-gap: var(--lb-control-gap);
   padding: var(--lb-space-1) var(--lb-space-2);
 }
 
