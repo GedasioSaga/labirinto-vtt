@@ -50,11 +50,13 @@ export const ACERVO_VAZIO = 'Nenhum token no acervo ainda.'
  * Como a estante enche, dito no estado vazio (achado 12 do passeio de
  * 20/09/2026). "Adicionar token" põe a peça no MAPA, sem foto, e o acervo só
  * guarda token COM foto (`guardarNoAcervo` recusa sem ela) — quem adicionava
- * um token esperava vê-lo aqui e só lia "Nenhum token". A frase nomeia os
- * botões pelo rótulo que eles têm na tela.
+ * um token esperava vê-lo aqui e só lia "Nenhum token". Cabe numa linha do
+ * rail (moldura enxuta, 27/09/2026: o estado vazio é uma faixa de até duas
+ * linhas, como o Explorer do VS Code sem pasta). O passo a passo mora na ficha
+ * do token, em "Imagem do token": "Escolher imagem..." e "Salvar no acervo",
+ * que sem foto responde por que não dá (`SEM_FOTO_PARA_SALVAR`).
  */
-export const ACERVO_COMO_ENCHER =
-  'O acervo guarda tokens com foto: selecione um token no mapa, escolha uma imagem para ele e clique em “Salvar no acervo”.'
+export const ACERVO_COMO_ENCHER = 'Salve um token com foto para vê-lo aqui.'
 
 /** Nome do grupo dos tokens que não estão em pasta nenhuma — e do destino que os tira de lá. */
 const SEM_PASTA = 'Sem pasta'
@@ -287,7 +289,14 @@ export function TokenLibraryPanel({
     setNovaPasta(null)
   }
 
-  const organizado = podeOrganizar && pastas.length > 0
+  // Vazio, o acervo é uma faixa só: o que falta e como encher. As pastas (as
+  // três padrão já nascem no disco) e o "+ Nova pasta" esperam o primeiro
+  // token — cabeçalhos vazios em pilha brigavam com a frase que ensina.
+  const vazio = itens.length === 0
+  // O campo de nova pasta aberto some junto quando o último token sai; ajustado
+  // no render (e não num efeito) para não piscar um quadro com o campo órfão.
+  if (vazio && novaPasta !== null) setNovaPasta(null)
+  const organizado = podeOrganizar && pastas.length > 0 && !vazio
   const soltos = organizado ? itens.filter((item) => item.pasta === null) : itens
   // "Sem pasta" aparece vazio só durante o arrasto de um token que ESTÁ numa
   // pasta: é o lugar de soltá-lo para tirá-lo de lá.
@@ -460,10 +469,10 @@ export function TokenLibraryPanel({
   }
 
   return (
-    <section className="lb-section" ref={raizRef}>
+    <section className={vazio ? 'lb-section lb-acervo--vazio' : 'lb-section'} ref={raizRef}>
       <div className="lb-acervo__topo">
         <h2 className="lb-eyebrow">Acervo de tokens</h2>
-        {podeOrganizar && novaPasta === null && (
+        {podeOrganizar && !vazio && novaPasta === null && (
           <button type="button" className="lb-acervo__nova-pasta" onClick={() => setNovaPasta('')}>
             + Nova pasta
           </button>
@@ -498,11 +507,12 @@ export function TokenLibraryPanel({
           </div>
         </form>
       )}
-      {itens.length === 0 && (
-        <>
-          <p className="lb-acervo__vazio">{ACERVO_VAZIO}</p>
-          <p className="lb-acervo__vazio">{ACERVO_COMO_ENCHER}</p>
-        </>
+      {vazio && (
+        // Um parágrafo só: a primeira frase diz o que falta, a segunda como
+        // encher — cada uma na sua linha do rail.
+        <p className="lb-acervo__vazio-estado">
+          <span>{ACERVO_VAZIO}</span> <span>{ACERVO_COMO_ENCHER}</span>
+        </p>
       )}
       {organizado ? (
         <div className="lb-acervo__pastas">

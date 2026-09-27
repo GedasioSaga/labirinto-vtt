@@ -1208,11 +1208,18 @@ body {
   padding-bottom: var(--lb-space-1);
 }
 
+/* Uma faixa só, como a barra de título do painel do Figma: marca, nome e a
+   engrenagem na mesma linha de 44 px (borda incluída). Com o padding de 16 em
+   volta, o cabeçalho levava 69 px da coluna antes do primeiro controle.
+   Direita com 8: a engrenagem já traz o próprio respiro no alvo de 36 px. */
 .lb-inspector__head {
   display: flex;
+  flex: none;
   align-items: center;
-  gap: var(--lb-space-3);
-  padding: var(--lb-space-4);
+  gap: var(--lb-space-2);
+  box-sizing: border-box;
+  block-size: 44px;
+  padding: 0 var(--lb-space-2) 0 var(--lb-space-4);
   border-bottom: 1px solid var(--lb-color-line);
 }
 
@@ -1220,9 +1227,9 @@ body {
   flex: none;
   display: grid;
   place-items: center;
-  width: 34px;
-  height: 34px;
-  border-radius: var(--lb-radius-md);
+  width: 24px;
+  height: 24px;
+  border-radius: var(--lb-radius-sm);
   background: var(--lb-color-brass-soft);
   color: var(--lb-color-brass);
 }
@@ -1247,6 +1254,7 @@ body {
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: var(--lb-font-size-sm);
+  line-height: var(--lb-font-leading-tight);
   color: var(--lb-color-parchment-faint);
 }
 
@@ -1286,7 +1294,7 @@ body {
   justify-content: space-between;
   gap: var(--lb-space-2);
   width: 100%;
-  min-height: 24px;
+  min-height: 44px;
   padding: 0;
   border: 0;
   border-radius: var(--lb-radius-sm);
@@ -1322,6 +1330,28 @@ body {
    mostrando o corpo inteiro. */
 .lb-collapsible__body[hidden] {
   display: none;
+}
+
+/* Moldura enxuta (painel de camadas do Figma, Explorer do VS Code): a seção
+   recolhível começa no próprio botão, que é o alvo inteiro de 44 px, sem os
+   16 px de respiro em cima. Aberta, a distância até o corpo não muda
+   (16 + 24 + 12 antes, 0 + 44 + 8 agora); recolhida, a seção é só o botão:
+   44 px em vez de 57. */
+.lb-collapsible {
+  padding-top: 0;
+  gap: var(--lb-space-2);
+}
+
+.lb-collapsible:has(> .lb-collapsible__heading > .lb-collapsible__toggle[aria-expanded='false']) {
+  padding-bottom: 0;
+}
+
+/* O fio entre seções vira sombra por dentro: a mesma linha de
+   `.lb-section + .lb-section`, sem o pixel de layout que a borda somava a cada
+   título da pilha. */
+.lb-section + .lb-collapsible {
+  border-top: 0;
+  box-shadow: inset 0 1px 0 var(--lb-color-line);
 }
 
 /* Acesso rápido da grade dentro de Camadas: interruptores mais baixos que o
@@ -3473,6 +3503,29 @@ label.lb-switch[data-dica-linha='aberta'] > span:first-child::after,
 
 .lb-acervo__aviso {
   color: var(--lb-color-ember);
+}
+
+/* Acervo vazio numa faixa só (moldura enxuta; bar: Explorer do VS Code sem
+   pasta aberta). O título e a frase ficam a 8 px, e não aos 12 de seção: é um
+   bloco só. A frase de cima diz o que falta, um tom mais clara; a de baixo,
+   como encher. Uma linha do rail cada. */
+.lb-acervo--vazio {
+  gap: var(--lb-space-2);
+}
+
+.lb-acervo__vazio-estado {
+  margin: 0;
+  font-size: var(--lb-font-size-sm);
+  line-height: var(--lb-font-leading-normal);
+  color: var(--lb-color-parchment-faint);
+}
+
+.lb-acervo__vazio-estado > span {
+  display: block;
+}
+
+.lb-acervo__vazio-estado > :first-child {
+  color: var(--lb-color-parchment-dim);
 }
 
 /* PASTAS DO ACERVO (26/09/2026): o cabeçalho de cada pasta segue o desenho de

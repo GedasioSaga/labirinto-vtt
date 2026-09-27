@@ -2546,6 +2546,9 @@ function App() {
                 towerPlayers={roomPlayers.length === 0 ? undefined : jogadoresDoCorte(roomPlayers)}
                 // Revisor da aventura: o conserto entra no desfazer da cena aberta, ou marca a de fundo para salvar.
                 onFix={consertarNaAventura}
+                // Mesma regra de "Chão do mapa" e "Camadas" (PropertiesPanel): aberta só com
+                // Selecionar e nada selecionado, para a lista não empurrar a ficha do item.
+                defaultOpen={activeTool === 'select' && selection.length === 0}
               />
               {/* Todos os pinos da aventura pelo nome só do mestre: tocar abre a cena com o pino selecionado. */}
               <PinsSection

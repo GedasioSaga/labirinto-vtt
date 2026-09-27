@@ -128,6 +128,13 @@ export interface ScenesSectionProps {
    * — também no mapa solto, que tem os mesmos pinos e fichas. Ausente = sem o botão.
    */
   onFix?: (sceneId: string, conserto: Conserto) => boolean
+  /**
+   * Nasce aberta? Vale só enquanto o mestre nunca abriu nem fechou a seção à
+   * mão (a escolha dele fica lembrada). O App passa a mesma regra de "Chão do
+   * mapa" e "Camadas" (`mapSectionsOpenByDefault` no PropertiesPanel): aberta
+   * só com Selecionar e nada selecionado. Ausente = aberta.
+   */
+  defaultOpen?: boolean
 }
 
 /** Um jogador na lista do "Revelar planta para…". */
@@ -948,6 +955,7 @@ export function ScenesSection({
   onTogglePlanKnown,
   players,
   onRevealPlanFor,
+  defaultOpen = true,
 }: ScenesSectionProps) {
   const waiting = useWaitingMinutes(waitingSince)
   const [editing, setEditing] = useState<Editing>(null)
@@ -1472,7 +1480,7 @@ export function ScenesSection({
   const inputLabel = editing?.kind === 'create' ? 'Nome da nova cena' : 'Novo nome da cena'
 
   return (
-    <CollapsibleSection id="scenes" title="Cenas" defaultOpen>
+    <CollapsibleSection id="scenes" title="Cenas" defaultOpen={defaultOpen}>
       {showFilter && (
         <div className="lb-cenas__filtro">
           <label className="lb-label" htmlFor={filterId}>
