@@ -1,4 +1,5 @@
 import type { Region, RegionPoint, Wall } from '../types/map'
+import { ancestorsOf, pointOnPolygonBorder } from './roomNesting'
 
 /**
  * Vínculo Sala ↔ Parede. Uma aresta `i` (de `points[i]` a `points[i+1]`) pode
@@ -340,4 +341,43 @@ export function linkLooseWallsToRooms(regions: readonly Region[], walls: Wall[])
     return { ...wall, regionId: hits[0].regionId, regionEdgeIndex: hits[0].edge }
   })
   return changed ? out : walls
+}
+
+/**
+ * PAREDE PARCIAL: parede que o mestre acabou de desenhar e cai inteira sobre
+ * o lado de uma Sala (mesma regra da migração acima, que o arquivo já aplica
+ * ao abrir) nasce vinculada àquela aresta, como um pedaço cortado por porta.
+ * Assim o trecho acompanha a Sala quando ela é arrastada ou redimensionada,
+ * conta como parede dela para o piso. Fora de aresta volta a mesma referência.
+ *
+ * Também fica SOLTO:
+ *  - traço que corre sobre o contorno de OUTRA Sala (divisa, mesmo quando a
+ *    vizinha tem o lado partido em duas arestas; muro do prédio de que a Sala
+ *    é cômodo): é das duas, e arrastar ou apagar uma não pode levá-lo. No
+ *    prédio de teto é pior — o recorte trata parede de cômodo como mobília de
+ *    dentro (`fogFilter.ts`, `interiorRoofOf`) e a fachada sumiria da rua;
+ *  - Sala secreta, ou dentro de secreta ou oculta: o mestre pode estar
+ *    fechando o corredor de fora rente ao muro dela.
+ * Nos dois, vinculado, o traço sumiria do recorte do jogador com o host ainda
+ * barrando ali — parede invisível, a pista exata do esconderijo.
+ *
+ * Vinculado, o trecho se edita como qualquer pedaço da Sala: selecionado
+ * mostra as alças dela, arrastado leva a Sala, e morre com ela — era o que
+ * acontecia de qualquer jeito ao reabrir o arquivo. Encurtar: "Abrir vão
+ * aqui"; traço que caiu no lado sem querer: Ctrl+Z.
+ */
+export function linkDrawnWallToRoom(regions: readonly Region[], wall: Wall): Wall {
+  const linked = linkLooseWallsToRooms(regions, [wall])[0]
+  const room = regions.find((r) => r.id === linked.regionId)
+  if (room === undefined) return wall
+  // Cada ponto no contorno de alguma outra Sala: a divisa pode ser de duas vizinhas empilhadas.
+  const others = regions.filter((r) => r.id !== room.id && r.room !== undefined && r.points.length >= 3)
+  if (wallSamples(wall).every((p) => others.some((r) => pointOnPolygonBorder(p, r.points)))) return wall
+  const vanishesForPlayer = room.secret === true || ancestorsOf(regions, room.id).some((a) => a.secret === true || a.hidden === true)
+  return vanishesForPlayer ? wall : linked
+}
+
+/** Pontas, meio e quartos do traço: o bastante para saber se ele corre sobre um contorno. */
+function wallSamples(wall: Wall): RegionPoint[] {
+  return [0, 0.25, 0.5, 0.75, 1].map((t) => ({ x: wall.x1 + (wall.x2 - wall.x1) * t, y: wall.y1 + (wall.y2 - wall.y1) * t }))
 }

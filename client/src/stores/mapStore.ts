@@ -20,6 +20,7 @@ import * as mapFactory from '../lib/mapFactory'
 import { abrirVaoDosDoisLados, desabarParede as desabarParedeNoMapa, type CorteNaParede } from '../lib/abrirVao'
 import { comEscadaNosPisos, comFichaNoPiso, comSelecaoNoPiso, ehPiso, mapaDoPiso, nascemNoPiso, pisoDe } from '../lib/pisos'
 import { apagarBlocosNoPiso, pinoNoPiso, selecaoNoPiso } from '../lib/pisoEmEdicao'
+import { linkDrawnWallToRoom } from '../lib/roomLink'
 import { amarrarAoEstado as amarrarNoMapa, type AmarraDeEstado } from '../lib/estadoDoMundo'
 import { comRotina } from '../lib/rotinaDoNpc'
 // Onda 3, item 13 (Frente A) — clonagem pura por tipo de entidade, usada por
@@ -1652,7 +1653,9 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
       if (replacements.length === 1 && replacements[0] === drawing) return
       withHistory((m) => mapFactory.replaceDrawingWithMany(m, drawingId, replacements))
     },
-    addWall: (wall) => withHistory((map) => mapFactory.addWall(map, wall)),
+    // Trecho desenhado sobre o lado de uma Sala do piso em edição vira parede
+    // dela (parede parcial); a Sala de outro piso, ali embaixo, não conta.
+    addWall: (wall) => withHistory((map) => mapFactory.addWall(map, linkDrawnWallToRoom(mapaDoPiso(map, get().pisoAtivo).regions, wall))),
     removeWall: (id) => withHistory((map) => mapFactory.removeWall(map, id)),
     addLight: (light) => withHistory((map) => mapFactory.addLight(map, light)),
     removeLight: (id) => withHistory((map) => mapFactory.removeLight(map, id)),
