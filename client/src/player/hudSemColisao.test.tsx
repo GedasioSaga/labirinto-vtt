@@ -195,3 +195,44 @@ describe('rolagens acima do chamar o mestre', () => {
     expect(feed.get('max-width')).toBeDefined()
   })
 })
+
+describe('aviso da porta trancada no celular', () => {
+  // Em 390 x 844 a pílula centrada encolhia até 195 px e, com os botões de
+  // 44 px, virava um bolo de três a quatro linhas por cima do "Chamar o mestre"
+  // e do zoom.
+  const FILETE = 2
+
+  it('vira uma faixa presa à borda de baixo, da coluna da esquerda até o zoom, sem cobri-lo', async () => {
+    const css = await lerPlayerCss()
+    const aviso = regraNaMidia(css, CELULAR, '.pp-notice--door')
+    const zoom = regraBase(css, '.pp-zoom')
+    expect(aviso.get('left')).toBe(regraBase(css, '.pp-ferrolho').get('left'))
+    expect(aviso.get('transform')).toBe('none')
+    const bordaEsquerdaDoZoom = px(zoom.get('right')) + px('var(--lb-control-touch)') + FILETE
+    expect(px(aviso.get('right'))).toBeGreaterThanOrEqual(bordaEsquerdaDoZoom + px('var(--lb-control-gap)'))
+    // A entrada não pode puxar a faixa para o meio (o keyframe dos avisos centrados usa translate(-50%)).
+    expect(aviso.get('animation') ?? '').not.toContain('pp-notice-in')
+  })
+
+  it('duas linhas de botões de toque cabem entre o rodapé e a mão do chamado', async () => {
+    const css = await lerPlayerCss()
+    const aviso = regraNaMidia(css, CELULAR, '.pp-notice--door')
+    const [cima = '', , baixo = cima] = (aviso.get('padding') ?? '').split(/\s+/)
+    const vao = px(aviso.get('gap'))
+    const altura = px(cima) + 2 * px('var(--lb-control-touch)') + vao + px(baixo) + FILETE
+    expect(vao).toBeGreaterThanOrEqual(px('var(--lb-control-gap)'))
+    expect(px(aviso.get('bottom')) + altura).toBeLessThanOrEqual(px(regraBase(css, '.pp-call').get('bottom')) - px('var(--lb-control-gap)'))
+  })
+
+  it('os pedidos ao mestre ficam só com o vão da faixa: a margem do "Desistir" não empurra a segunda linha', async () => {
+    const acao = regraNaMidia(await lerPlayerCss(), CELULAR, '.pp-notice--door .pp-notice__action')
+    expect(acao.get('margin-left')).toBe('0')
+  })
+
+  it('as insígnias do canto (hora do dia, tela acesa) saem de baixo da faixa enquanto ela está aberta', async () => {
+    const css = await lerPlayerCss()
+    const sob = (insignia: string) => regraNaMidia(css, CELULAR, `body:has(.pp-notice--door) ${insignia}`)
+    expect(sob('.pp-clock').get('opacity')).toBe('0')
+    expect(sob('.pp-awake').get('opacity')).toBe('0')
+  })
+})

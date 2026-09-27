@@ -791,6 +791,56 @@
   outline-offset: 2px;
 }
 
+/*
+ * No celular a pílula centrada encolhia até 195 px e, com os botões de toque,
+ * virava um bolo de três a quatro linhas por cima do "Chamar o mestre" e do
+ * zoom. Aqui ela é uma faixa presa à borda de baixo, da coluna da esquerda até
+ * o zoom: duas linhas de botões, abaixo da mão do chamado. O raio acompanha o
+ * dos botões (metade do alvo mais o respiro), para a faixa de duas linhas não
+ * virar um estádio. Entra subindo, sem o translate(-50%) dos avisos centrados.
+ * A hora do dia e a "Tela acesa" moram nesse canto e só informam: saem de
+ * baixo da faixa enquanto a porta pede uma decisão, e voltam quando ela fecha.
+ */
+@media (max-width: 699px) {
+  .pp-notice--door {
+    left: 12px;
+    right: calc(12px + var(--lb-control-touch, 44px) + 2px + var(--lb-control-gap, 8px));
+    bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+    max-width: none;
+    transform: none;
+    justify-content: flex-start;
+    gap: var(--lb-control-gap, 8px);
+    padding: 4px 4px 4px 14px;
+    border-radius: calc(var(--lb-control-touch, 44px) / 2 + 4px);
+    animation: pp-espiar-in 160ms ease-out;
+  }
+
+  .pp-notice--door .pp-notice__action {
+    margin-left: 0;
+  }
+
+  .pp-clock,
+  .pp-awake {
+    transition: opacity 160ms ease-out;
+  }
+
+  body:has(.pp-notice--door) .pp-clock,
+  body:has(.pp-notice--door) .pp-awake {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pp-notice--door {
+    animation: none;
+  }
+
+  .pp-clock,
+  .pp-awake {
+    transition: none;
+  }
+}
+
 /* Conexão voltando sozinha: o mapa fica embaixo, esmaecido, e o véu segura o toque. */
 .pp-reconnecting {
   position: fixed;
