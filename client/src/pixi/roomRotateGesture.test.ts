@@ -157,6 +157,19 @@ describe('alça de girar numa sala 3 x 4 (lado ímpar): o quarto de volta pelo a
     expect(useMapStore.getState().past).toHaveLength(1)
   })
 
+  it('dois arrastos, até 30° e depois até 90°: a segunda soltura põe a sala na grade', () => {
+    const primeiro = createRoomRotateGesture()
+    expect(primeiro.begin('sala', ALCA_3X4, 1)).toBe(true)
+    expect(primeiro.move(noArco3x4(30), true)?.rotation).toBe(30)
+    expect(primeiro.finish()).toBe(true)
+    const segundo = createRoomRotateGesture()
+    expect(segundo.begin('sala', noArco3x4(30), 1)).toBe(true)
+    expect(segundo.move(noArco3x4(90), true)?.rotation).toBe(90)
+    expect(segundo.finish()).toBe(true)
+    expect(sala().points).toEqual(PELO_BOTAO)
+    expect(useMapStore.getState().past).toHaveLength(2)
+  })
+
   it('Esc depois de chegar a 90° de 15 em 15: a sala volta exatamente aonde estava, sem histórico', () => {
     const gesto = createRoomRotateGesture()
     gesto.begin('sala', ALCA_3X4, 1)

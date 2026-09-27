@@ -69,6 +69,27 @@ describe('mapStore — girar sala pelo painel', () => {
     expect(useMapStore.getState().past).toHaveLength(2)
   })
 
+  it('sala 3 x 4 pelo campo de 30° para 90°: fica na grade, no mesmo lugar do botão +90°; e de volta a 0° pelo 30°, no lugar exato', () => {
+    const tresPorQuatro = salaTresPorQuatro()
+    carregar(tresPorQuatro)
+    useMapStore.getState().rotateRoom('sala', 90)
+    const peloBotao = sala().points
+    carregar(tresPorQuatro)
+    useMapStore.getState().setRoomRotation('sala', 30)
+    useMapStore.getState().setRoomRotation('sala', 90)
+    expect(sala().room?.rotation).toBe(90)
+    for (const p of sala().points) expect(Number.isInteger(p.x / 64) && Number.isInteger(p.y / 64), `canto ${p.x},${p.y} fora da grade`).toBe(true)
+    for (const w of useMapStore.getState().map.walls) {
+      expect([w.x1, w.y1, w.x2, w.y2].every((v) => Number.isInteger(v / 64)), `parede ${w.id} fora da grade`).toBe(true)
+    }
+    expect(sala().points).toEqual(peloBotao)
+    useMapStore.getState().setRoomRotation('sala', 30)
+    useMapStore.getState().setRoomRotation('sala', 0)
+    expect(sala().points).toEqual(tresPorQuatro.regions[0].points)
+    expect(useMapStore.getState().map.walls).toEqual(tresPorQuatro.walls)
+    expect(useMapStore.getState().past).toHaveLength(4)
+  })
+
   it('digitar o ângulo em que a sala já está não gasta entrada de histórico', () => {
     useMapStore.getState().setRoomRotation('sala', 0)
     useMapStore.getState().setRoomRotation('sala', 360)
@@ -146,6 +167,57 @@ describe('mapStore — girar sala pela alça (arrasto)', () => {
     ])
     expect(sala().points).toEqual(peloBotao)
     expect(useMapStore.getState().past).toHaveLength(1)
+  })
+
+  it('sala 3 x 4 em dois arrastos (até 30°, solta; depois até 90°, solta) fica na grade, com um Ctrl+Z por arrasto', () => {
+    const tresPorQuatro = salaTresPorQuatro()
+    carregar(tresPorQuatro)
+    for (let i = 0; i < 2; i += 1) useMapStore.getState().rotateRoomLive('sala', 15)
+    useMapStore.getState().finishRoomRotationLive(tresPorQuatro, 'sala')
+    useMapStore.getState().commitDragHistory(tresPorQuatro)
+    const aTrinta = useMapStore.getState().map
+    expect(sala().room?.rotation).toBe(30)
+    for (let i = 0; i < 4; i += 1) useMapStore.getState().rotateRoomLive('sala', 15)
+    useMapStore.getState().finishRoomRotationLive(aTrinta, 'sala')
+    useMapStore.getState().commitDragHistory(aTrinta)
+    expect(sala().room?.rotation).toBe(90)
+    for (const p of sala().points) expect(Number.isInteger(p.x / 64) && Number.isInteger(p.y / 64), `canto ${p.x},${p.y} fora da grade`).toBe(true)
+    for (const w of useMapStore.getState().map.walls) {
+      expect([w.x1, w.y1, w.x2, w.y2].every((v) => Number.isInteger(v / 64)), `parede ${w.id} fora da grade`).toBe(true)
+    }
+    expect(useMapStore.getState().past).toHaveLength(2)
+    useMapStore.getState().undo()
+    expect(useMapStore.getState().map).toBe(aTrinta)
+  })
+
+  it('sala desenhada fora da grade (Alt) arrastada até 30° e de volta a 0°, em dois arrastos: volta ao lugar exato', () => {
+    const { region, walls } = buildRoomFromDraft('sala', ['w0', 'w1', 'w2', 'w3'], { x: 10, y: 10 }, { x: 202, y: 266 })
+    const deslocada = mapFactory.addRoom(mapFactory.createEmptyMap('m', 'M', 30, 20, 64), region, walls)
+    carregar(deslocada)
+    useMapStore.getState().rotateRoomLive('sala', 30)
+    useMapStore.getState().finishRoomRotationLive(deslocada, 'sala')
+    useMapStore.getState().commitDragHistory(deslocada)
+    const aTrinta = useMapStore.getState().map
+    useMapStore.getState().rotateRoomLive('sala', -30)
+    useMapStore.getState().finishRoomRotationLive(aTrinta, 'sala')
+    useMapStore.getState().commitDragHistory(aTrinta)
+    expect(roomRotationOf(sala().room)).toBe(0)
+    expect(sala().points).toEqual(deslocada.regions[0].points)
+    expect(useMapStore.getState().map.walls).toEqual(deslocada.walls)
+  })
+
+  it('sala 3 x 4 arrastada 0° → −30° → 90° → −30° → 0°, um arrasto por trecho: volta ao lugar exato, com as paredes', () => {
+    const tresPorQuatro = salaTresPorQuatro()
+    carregar(tresPorQuatro)
+    for (const passo of [-30, 120, -120, 30]) {
+      const antes = useMapStore.getState().map
+      useMapStore.getState().rotateRoomLive('sala', passo)
+      useMapStore.getState().finishRoomRotationLive(antes, 'sala')
+      useMapStore.getState().commitDragHistory(antes)
+    }
+    expect(roomRotationOf(sala().room)).toBe(0)
+    expect(sala().points).toEqual(tresPorQuatro.regions[0].points)
+    expect(useMapStore.getState().map.walls).toEqual(tresPorQuatro.walls)
   })
 
   it('Esc depois de arrastar a sala 3 x 4 até 90° gira de volta ao ponto de partida exato, sem histórico', () => {
