@@ -986,3 +986,14 @@ Imagem: pílula "Passar o ferrolho" no jogador. O botão tranca, do lado da fich
 (o outro lado não abre); quem trancou vê o botão de desfazer. "Passar" lê como "atravessar" e "ferrolho" é palavra
 rara. Vira rótulo simples sem "ferrolho" (ex.: "Trancar deste lado" / "Destrancar"), sem colidir com o "Trancada"
 do mestre. Mandado ao designer do HUD do jogador (0.4.4).
+
+### 27/09/2026, fim da tarde — mestre escolhe, porta por porta, se dá para espiar
+
+> "pronto, eu quero que na parte do meu controle eu poça colocar a porta para ter essa opção."
+
+Hoje espiar não tem liga/desliga: toda porta fechada (trancada também) pode ser espiada quando a ficha encosta.
+Pedido: nas propriedades da porta, no painel do mestre, uma opção "Jogador pode espiar". Decisão: a opção vem
+LIGADA por padrão (campo ausente = pode espiar), para não quebrar mapa salvo nem mesa em andamento; o mestre
+desliga na porta que quiser. O host recusa a espiada em porta desligada (não confiar só no botão do jogador), e o
+botão "Espiar pela porta" some para o jogador nessa porta. A regra é do mestre: não vai no recorte do jogador além
+do necessário para esconder o botão. Fila: logo depois do design do jogador da 0.4.4, antes do release 0.4.4.
