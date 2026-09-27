@@ -1054,3 +1054,10 @@ sala e um global. Marcar jogador com @, mandar imagem e vídeo, histórico salvo
 que o jogador recebe: passa por revisão de segurança (tamanho e tipo de arquivo, texto hostil, quem recebe o
 quê). Detalhes em aberto perguntados ao usuário antes do plano. Fila: depois dos 3 agentes em curso, antes da
 escada.
+
+Respostas do usuário (27/09, noite):
+- "Mesma sala" = mesma cena/mapa: conversa quem está no mesmo mapa aberto, qualquer cômodo. Global = todos da mesa.
+- Mestre lê tudo (chat de cada cena, só leitura) e escreve no global.
+- Histórico (texto, imagens, vídeos) salvo no PC do mestre, numa pasta junto da mesa; jogador que volta vê de novo.
+- Limite: imagem 5 MB, vídeo 25 MB.
+- "@" = marcar um jogador (quem é marcado ganha destaque/aviso).
