@@ -4211,6 +4211,12 @@ button.pp-colecao__casa:focus-visible {
   border-radius: 999px;
   box-shadow: var(--lb-shadow-float, 0 8px 24px rgba(0, 0, 0, 0.45));
   cursor: pointer;
+  /* Sem o retângulo azul de canto reto que o navegador do celular pinta no toque:
+     quem responde ao dedo é o afundar do `:active`, como no zoom e na escada. */
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    background-color var(--lb-motion-fast, 110ms) var(--lb-motion-ease, ease),
+    transform var(--lb-motion-fast, 110ms) var(--lb-motion-ease, ease);
   display: inline-flex;
   flex-direction: column;
   align-items: center;
@@ -4244,6 +4250,18 @@ button.pp-colecao__casa:focus-visible {
 @media (hover: hover) {
   .pp-ferrolho:hover:not(:disabled) {
     background: var(--lb-color-stone, rgba(19, 19, 23, 0.94));
+  }
+}
+
+/* Afunda na hora do toque; esperando o host (desligado), não. */
+.pp-ferrolho:active:not(:disabled) {
+  transform: scale(0.97);
+  transition-duration: 0ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pp-ferrolho {
+    transition: none;
   }
 }
 

@@ -154,6 +154,21 @@ describe('Espiar pela porta: pílula, não placa', () => {
   })
 })
 
+describe('ferrolho: aperta como o zoom e a escada', () => {
+  // Na foto em 390 (celular, toque), o ferrolho tocado ganhava o realce padrão
+  // do navegador: um retângulo azul de canto reto por cima da pílula.
+  it('sem o realce azul do toque: afunda um pouco ao apertar e volta com calma', async () => {
+    const css = await lerPlayerCss()
+    const ferrolho = regraBase(css, '.pp-ferrolho')
+    expect(ferrolho.get('-webkit-tap-highlight-color')).toBe('transparent')
+    expect(ferrolho.get('transition')).toContain('transform')
+    const apertado = regraBase(css, '.pp-ferrolho:active:not(:disabled)')
+    expect(apertado.get('transform')).toBe('scale(0.97)')
+    expect(apertado.get('transition-duration')).toBe('0ms')
+    expect(regraNaMidia(css, '(prefers-reduced-motion: reduce)', '.pp-ferrolho').get('transition')).toBe('none')
+  })
+})
+
 describe('alvos de toque no celular', () => {
   // Os controles do HUD que mediam menos de 44 px em 390 x 844 (abas 44x36,
   // "Onde estou" 110x36, botões do aviso da porta 32, motivos do chamado 32,
