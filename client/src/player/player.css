@@ -4152,6 +4152,22 @@ button.pp-colecao__casa:focus-visible {
   border-radius: 999px;
   box-shadow: var(--lb-shadow-float, 0 8px 24px rgba(0, 0, 0, 0.45));
   cursor: pointer;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+/*
+ * Reserva de largura: o rótulo de espera ("Trancando…") é mais curto que o de
+ * repouso ("Trancar deste lado"). A cópia invisível e sem altura do rótulo de
+ * repouso segura a pílula na mesma largura enquanto o host responde, sem pulo.
+ */
+.pp-ferrolho::after {
+  content: attr(data-reserva);
+  height: 0;
+  overflow: hidden;
+  visibility: hidden;
 }
 
 .pp-ferrolho:focus-visible {

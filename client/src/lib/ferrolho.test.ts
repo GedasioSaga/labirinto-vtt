@@ -5,8 +5,8 @@ import { acaoDeFerrolho, ladoDaPorta, tokenAlcancaPino } from './ferrolho'
 
 /**
  * FERROLHO DO JOGADOR, a conta pura: de que lado da porta está uma ficha, se
- * ela alcança um pino, e o que o botão da tela do jogador oferece ("Passar o
- * ferrolho" ou "Tirar o ferrolho") para a porta mais perto que ele alcança.
+ * ela alcança um pino, e o que o botão da tela do jogador oferece ("Trancar
+ * deste lado" ou "Destrancar deste lado") para a porta mais perto que ele alcança.
  */
 
 function parede(id: string, x1: number, y1: number, x2: number, y2: number, door: DoorState | null = null): Wall {

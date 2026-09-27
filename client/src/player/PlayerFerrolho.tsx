@@ -13,16 +13,21 @@ interface PlayerFerrolhoProps {
   onAct: (wallId: string, on: boolean) => void
 }
 
+/**
+ * O rótulo fala o que o jogador vê acontecer, não o nome da peça: "ferrolho"
+ * confundia ("como assim passar ferrolho?"). "Deste lado" diz o que a regra
+ * faz — só quem está do lado de quem trancou destranca.
+ */
 function rotulo(acao: AcaoDeFerrolho): string {
-  if (acao.acao === 'tirar') return 'Tirar o ferrolho'
-  return acao.aberta ? 'Fechar e passar o ferrolho' : 'Passar o ferrolho'
+  if (acao.acao === 'tirar') return 'Destrancar deste lado'
+  return acao.aberta ? 'Fechar e trancar deste lado' : 'Trancar deste lado'
 }
 
 /**
  * JOGADOR TRANCA A PORTA: um botão só, acima dos avisos, que aparece com a
  * ficha encostada numa porta que o mestre não trancou. Do lado de quem trancou
- * vira "Tirar o ferrolho". Depois do toque ele espera no próprio botão
- * (desligado, "Passando o ferrolho…") até chegar a resposta: o recorte novo
+ * vira "Destrancar deste lado". Depois do toque ele espera no próprio botão
+ * (desligado, "Trancando…") até chegar a resposta: o recorte novo
  * (com a porta mudada) ou o aviso de recusa de sempre.
  */
 export function PlayerFerrolho({ acao, revisao, onAct }: PlayerFerrolhoProps) {
@@ -35,13 +40,16 @@ export function PlayerFerrolho({ acao, revisao, onAct }: PlayerFerrolhoProps) {
     <button
       type="button"
       className="pp-ferrolho"
+      // O CSS desenha uma cópia invisível do rótulo de repouso: "Trancando…" é
+      // mais curto e, sem ela, a pílula encolheria no toque.
+      data-reserva={rotulo(acao)}
       disabled={ocupado}
       onClick={() => {
         setEsperando({ chave, revisao })
         onAct(acao.wallId, acao.acao === 'passar')
       }}
     >
-      {ocupado ? (acao.acao === 'passar' ? 'Passando o ferrolho…' : 'Tirando o ferrolho…') : rotulo(acao)}
+      {ocupado ? (acao.acao === 'passar' ? 'Trancando…' : 'Destrancando…') : rotulo(acao)}
     </button>
   )
 }
