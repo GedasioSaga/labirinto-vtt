@@ -712,6 +712,13 @@ interface ActionsProps {
  * O que dá para fazer com a vaga: "Dar a…" num item, "Pagar a…" na bolsa. Os
  * dois só com colega encostado — sem ninguém, o botão fica desligado e a
  * frase ao lado diz como ligar. Escolhido o colega, a pergunta do RE: Sim/Não.
+ *
+ * "Dar a quem?", "Pagar" e a pergunta final têm a mesma forma, como a janela
+ * de comandos do RE3: duas fileiras da altura de um botão. Em cima, o que se
+ * pergunta (ou o campo de moedas) e, no canto direito, o "Voltar"; embaixo,
+ * as respostas — os colegas, ou Sim e Não. A zona mede o mesmo nos três
+ * passos e cabe inteira na tela de um celular em pé, então o foco que cai
+ * nela ao entrar no passo não rola a página nem arrasta a grade junto.
  */
 function Actions({ slot, character, step, valor, busy, refs, onValor, onStart, onChooseGive, onChoosePay, onConfirm, onBack }: ActionsProps) {
   const reasonId = useId()
@@ -726,15 +733,17 @@ function Actions({ slot, character, step, valor, busy, refs, onValor, onStart, o
     const outraBolsa = step.kind === 'confirmar-pagar' && step.payer !== undefined && step.payer.tokenId !== character.tokenId ? payerLine(step.payer) : null
     return (
       <div className="pp-inv__passo" role="group" aria-labelledby={questionId} aria-describedby={outraBolsa === null ? undefined : reasonId}>
-        <p id={questionId} className="pp-inv__pergunta">
-          {pergunta}
-        </p>
-        {outraBolsa !== null && (
-          <p id={reasonId} className="pp-inv__motivo pp-inv__bolsa">
-            {outraBolsa}
+        <div className="pp-inv__passo-topo">
+          <p id={questionId} className="pp-inv__pergunta">
+            {pergunta}
           </p>
-        )}
-        <div className="pp-inv__acoes">
+          {outraBolsa !== null && (
+            <p id={reasonId} className="pp-inv__motivo pp-inv__bolsa">
+              {outraBolsa}
+            </p>
+          )}
+        </div>
+        <div className="pp-inv__passo-escolhas">
           <button ref={refs.yesRef} type="button" className="pp-button pp-inv__acao" onClick={onConfirm}>
             Sim
           </button>
@@ -746,11 +755,6 @@ function Actions({ slot, character, step, valor, busy, refs, onValor, onStart, o
     )
   }
 
-  // No "Dar a quem?" e no "Pagar", o "Voltar" sobe para a fileira de cima,
-  // sempre no mesmo canto, e o que recebe o foco ao entrar no passo (o
-  // primeiro colega, o campo de moedas) mora nessa mesma fileira: numa tela
-  // de celular a fileira de baixo já passa da borda, e focar lá rolaria a
-  // página e arrastaria a grade junto.
   if (step.kind === 'dar') {
     return (
       <div className="pp-inv__passo">
@@ -758,6 +762,11 @@ function Actions({ slot, character, step, valor, busy, refs, onValor, onStart, o
           <p id={questionId} className="pp-inv__pergunta">
             Dar a quem?
           </p>
+          <button type="button" className="pp-button pp-inv__acao pp-inv__acao--nao" onClick={onBack}>
+            Voltar
+          </button>
+        </div>
+        <div className="pp-inv__passo-escolhas">
           <ul className="pp-inv__colegas" aria-labelledby={questionId}>
             {character.colleagues.map((colleague, i) => (
               <li key={colleague.tokenId}>
@@ -767,9 +776,6 @@ function Actions({ slot, character, step, valor, busy, refs, onValor, onStart, o
               </li>
             ))}
           </ul>
-          <button type="button" className="pp-button pp-inv__acao pp-inv__acao--nao" onClick={onBack}>
-            Voltar
-          </button>
         </div>
       </div>
     )
@@ -803,26 +809,28 @@ function Actions({ slot, character, step, valor, busy, refs, onValor, onStart, o
             Voltar
           </button>
         </div>
-        {!valido ? (
-          <p className="pp-error" role="alert">
-            Use um número inteiro de 1 a {character.moedas}
-          </p>
-        ) : (
-          <>
-            <p id={questionId} className="pp-inv__pergunta">
-              Pagar a quem?
+        <div className="pp-inv__passo-escolhas">
+          {!valido ? (
+            <p className="pp-error" role="alert">
+              Use um número inteiro de 1 a {character.moedas}
             </p>
-            <ul className="pp-inv__colegas" aria-labelledby={questionId}>
-              {character.colleagues.map((colleague) => (
-                <li key={colleague.tokenId}>
-                  <button type="button" className="pp-button pp-inv__acao" onClick={() => onChoosePay(colleague, quanto)}>
-                    {colleague.name}
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </>
-        )}
+          ) : (
+            <>
+              <p id={questionId} className="pp-inv__pergunta">
+                Pagar a quem?
+              </p>
+              <ul className="pp-inv__colegas" aria-labelledby={questionId}>
+                {character.colleagues.map((colleague) => (
+                  <li key={colleague.tokenId}>
+                    <button type="button" className="pp-button pp-inv__acao" onClick={() => onChoosePay(colleague, quanto)}>
+                      {colleague.name}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+        </div>
       </div>
     )
   }
@@ -851,10 +859,12 @@ function Actions({ slot, character, step, valor, busy, refs, onValor, onStart, o
 }
 
 /**
- * O molde da caixa de ações: o passo "Pagar", o mais alto, desenhado sem
- * tinta na mesma célula dos passos de verdade. A caixa fica com a altura dele
- * em todos os passos, e trocar de passo não empurra nada. O texto vem do CSS
- * (`data-texto`), fora do texto da página e do leitor de tela.
+ * O molde da caixa de ações: o passo "Pagar", o mais largo (o campo e o
+ * "Voltar" em cima; "Pagar a quem?" e os colegas embaixo), desenhado sem
+ * tinta na mesma célula dos passos de verdade. Numa coluna estreita é ele que
+ * quebra primeiro, então a caixa fica com a altura dele em todos os passos, e
+ * trocar de passo não empurra nada. O texto vem do CSS (`data-texto`), fora do
+ * texto da página e do leitor de tela.
  */
 function StepMold({ colleagues }: { colleagues: readonly InventoryColleague[] }) {
   return (
@@ -867,15 +877,17 @@ function StepMold({ colleagues }: { colleagues: readonly InventoryColleague[] })
           </span>
           <span className="pp-button pp-inv__acao pp-inv__acao--nao" data-texto="Voltar" />
         </span>
-        <span className="pp-inv__pergunta" data-texto="Pagar a quem?" />
-        <span className="pp-inv__colegas">
-          {/* Sem colega, um botão vazio guarda a fileira: quando alguém encosta,
-              a caixa já tem o tamanho certo e nada pula. */}
-          {colleagues.length === 0 ? (
-            <span className="pp-button pp-inv__acao" />
-          ) : (
-            colleagues.map((colleague) => <span key={colleague.tokenId} className="pp-button pp-inv__acao" data-texto={colleague.name} />)
-          )}
+        <span className="pp-inv__passo-escolhas">
+          <span className="pp-inv__pergunta" data-texto="Pagar a quem?" />
+          <span className="pp-inv__colegas">
+            {/* Sem colega, um botão vazio guarda a fileira: quando alguém encosta,
+                a caixa já tem o tamanho certo e nada pula. */}
+            {colleagues.length === 0 ? (
+              <span className="pp-button pp-inv__acao" />
+            ) : (
+              colleagues.map((colleague) => <span key={colleague.tokenId} className="pp-button pp-inv__acao" data-texto={colleague.name} />)
+            )}
+          </span>
         </span>
       </div>
     </div>

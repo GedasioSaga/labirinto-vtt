@@ -4601,7 +4601,8 @@ button.pp-colecao__casa:focus-visible {
 /* No computador, o item escolhido é a coluna do meio — a tela de examinar do
    RE: o palco com o objeto grande e, embaixo, a placa com o nome, o fio e o
    texto, e depois o que dá para fazer. No tablet o palco vai para o lado da
-   placa; no celular ele fica na largura toda, mais baixo. */
+   placa e das ações; no celular ele estreita ao lado da placa, na coluna do
+   retrato, e as ações ficam embaixo na largura toda. */
 .pp-inv__detalhe {
   grid-area: detalhe;
   display: grid;
@@ -4783,11 +4784,13 @@ button.pp-colecao__casa:focus-visible {
   gap: var(--lb-space-2, 8px);
 }
 
-/* A fileira de cima do "Dar a quem?" e do "Pagar": a pergunta ou o campo à
-   esquerda, os colegas do "Dar" no meio e o "Voltar" à direita, no mesmo
-   canto nos dois. Tudo alinhado pelo topo: quando os colegas não cabem numa
-   linha, quebram dentro do meio, e o "Voltar" não desce atrás deles. */
-.pp-inv__passo-topo {
+/* As duas fileiras do "Dar a quem?", do "Pagar" e da pergunta final, cada
+   uma da altura de um botão. Em cima, a pergunta ou o campo à esquerda e o
+   "Voltar" à direita, no mesmo canto nos passos que o têm; embaixo, as
+   respostas. Tudo alinhado pelo topo: quando os colegas não cabem numa linha,
+   quebram para baixo, e nada acima deles se mexe. */
+.pp-inv__passo-topo,
+.pp-inv__passo-escolhas {
   justify-self: stretch;
   display: flex;
   flex-wrap: wrap;
@@ -4795,15 +4798,20 @@ button.pp-colecao__casa:focus-visible {
   gap: var(--lb-space-2, 8px);
 }
 
-.pp-inv__passo-topo > .pp-inv__pergunta {
+/* Texto solto na fileira — a pergunta, a bolsa, o aviso de valor — fica no
+   meio da altura de um botão, na linha dos botões ao lado dele. */
+.pp-inv__passo-topo > .pp-inv__pergunta,
+.pp-inv__passo-topo > .pp-inv__motivo,
+.pp-inv__passo-escolhas > .pp-inv__pergunta,
+.pp-inv__passo-escolhas > .pp-error {
   display: flex;
   align-items: center;
   min-height: 44px;
 }
 
-/* Base zero: a lista nunca empurra o "Voltar" para a linha de baixo; cresce
-   no espaço que sobra e quebra por dentro. */
-.pp-inv__passo-topo > .pp-inv__colegas {
+/* Base zero: a lista cresce no espaço que sobra ao lado de "Pagar a quem?" e
+   quebra por dentro, em vez de descer inteira para uma terceira fileira. */
+.pp-inv__passo-escolhas > .pp-inv__colegas {
   flex: 1 1 0;
   min-width: 0;
 }
@@ -5039,22 +5047,50 @@ button.pp-colecao__casa:focus-visible {
     max-width: none;
   }
 
-  /* Uma coluna de novo: o palco na largura toda, mais baixo. A 2/1 o "Dar a…"
-     ficava cortado na borda de baixo de um celular de 844 px; a 5/2 a placa de
-     três linhas e a ação cabem inteiras, e o objeto ainda enche o palco. */
+  /* O palco ao lado da placa, na coluna de 88 px do retrato, e as ações na
+     largura toda embaixo. Com o palco na largura toda (5/2, 143 px de altura),
+     o inventário passava 122 px da borda de um celular de 844: o destinatário
+     do "Pagar" caía fora da tela, e escolhê-lo rolava a página e levava a
+     grade junto. Assim tudo — grade, placa, as duas fileiras e o resultado —
+     cabe numa tela só, como no RE3. */
   .pp-inv__detalhe {
-    grid-template-columns: minmax(0, 1fr);
+    grid-template-columns: 88px minmax(0, 1fr);
+    grid-template-areas:
+      'palco placa'
+      'passos passos';
+    column-gap: var(--lb-space-3, 12px);
     row-gap: var(--lb-space-3, 12px);
   }
 
-  .pp-inv__palco {
-    aspect-ratio: 5 / 2;
+  /* A placa e as ações entram direto na grade do detalhe. */
+  .pp-inv__detalhe-corpo {
+    display: contents;
   }
 
-  /* No palco baixo, 58% da altura deixava a chave com 64 px num palco de 358:
-     o desenho sobe para três quartos da altura, ainda centrado na largura. */
+  /* Sem proporção fixa: o palco estica até a altura da placa. */
+  .pp-inv__palco {
+    grid-area: palco;
+    align-self: stretch;
+    aspect-ratio: auto;
+  }
+
+  .pp-inv__placa {
+    grid-area: placa;
+  }
+
+  /* O vão até a placa já vem da grade. */
+  .pp-inv__passos {
+    grid-area: passos;
+    margin-top: 0;
+  }
+
+  /* No palco estreito e alto, 58% da largura deixaria o objeto menor que o da
+     vaga: o desenho vai a três quartos da largura, e o viewBox quadrado o
+     centra na altura. */
   .pp-inv__palco-glifo {
     top: 12%;
+    left: 12%;
+    width: 76%;
     height: 76%;
   }
 }

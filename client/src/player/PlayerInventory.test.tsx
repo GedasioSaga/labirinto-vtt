@@ -591,20 +591,42 @@ describe('PlayerInventory', () => {
     noLugar()
   })
 
-  it('ao entrar em "Pagar" e em "Dar a quem?", o foco cai na primeira fileira do passo, a do "Voltar": num celular a fileira de baixo já passa da borda, e focar lá rolaria a página e arrastaria a grade', () => {
+  it('Dar, Pagar e a pergunta final têm a mesma forma, duas fileiras: em cima o que se pergunta (e o "Voltar"), embaixo as respostas; o molde que reserva a altura tem essa forma também', () => {
     render(personagens([JILL, DIEGO], ['jill']))
-    const naFileiraDoVoltar = () => {
-      const topo = botao('Voltar').closest('.pp-inv__passo-topo')
-      expect(topo).not.toBeNull()
-      expect(document.activeElement?.closest('.pp-inv__passo-topo')).toBe(topo)
-    }
+    const vivo = () => Array.from(dialogo().querySelectorAll('.pp-inv__passo')).find((passo) => passo.closest('.pp-inv__molde') === null)
+    const fileiras = (passo: Element | null | undefined) => Array.from(passo?.children ?? []).map((filho) => filho.className)
+    const respostas = () => Array.from(vivo()?.querySelectorAll('.pp-inv__passo-escolhas button') ?? []).map((b) => b.textContent)
+    const forma: Record<string, unknown> = {}
+    act(() => botao('Pagar a…').click())
+    forma.pagar = [fileiras(vivo()), respostas()]
+    act(() => botao('Diego').click())
+    forma.confirmarPagar = [fileiras(vivo()), respostas()]
+    act(() => botao('Não').click())
+    act(() => vaga('Chave do Escudo').click())
+    act(() => botao('Dar a…').click())
+    forma.dar = [fileiras(vivo()), respostas()]
+    act(() => botao('Diego').click())
+    forma.confirmarDar = [fileiras(vivo()), respostas()]
+    forma.molde = fileiras(dialogo().querySelector('.pp-inv__molde .pp-inv__passo'))
+    const DUAS = ['pp-inv__passo-topo', 'pp-inv__passo-escolhas']
+    expect(forma).toEqual({
+      pagar: [DUAS, ['Diego']],
+      confirmarPagar: [DUAS, ['Sim', 'Não']],
+      dar: [DUAS, ['Diego']],
+      confirmarDar: [DUAS, ['Sim', 'Não']],
+      molde: DUAS,
+    })
+  })
+
+  it('ao entrar em "Pagar" e em "Dar a quem?", o foco cai na primeira resposta do passo: o campo, na fileira de cima do Pagar; o primeiro colega, na fileira de baixo do Dar (que a zona inteira cabe na tela de um celular, só o navegador prova)', () => {
+    render(personagens([JILL, DIEGO], ['jill']))
     act(() => botao('Pagar a…').click())
     expect(document.activeElement).toBeInstanceOf(HTMLInputElement)
-    naFileiraDoVoltar()
+    expect(document.activeElement?.closest('.pp-inv__passo-topo')).toBe(botao('Voltar').closest('.pp-inv__passo-topo'))
     act(() => botao('Voltar').click())
     act(() => vaga('Chave do Escudo').click())
     act(() => botao('Dar a…').click())
     expect(document.activeElement).toBe(botao('Diego'))
-    naFileiraDoVoltar()
+    expect(document.activeElement?.closest('.pp-inv__passo-escolhas')).not.toBeNull()
   })
 })
