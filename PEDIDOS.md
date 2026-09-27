@@ -1067,3 +1067,17 @@ Segunda rodada de respostas (27/09, noite, depois do plano em `docs/plano-chat.m
 - Quem chega numa cena vê as últimas 200 mensagens dela.
 - Mestre: envia imagem/vídeo no global, pode ser marcado com @mestre, pode apagar mensagem ou mídia.
 - Disco: sem limite por mesa.
+
+### 27/09/2026, noite — quando o limite voltar: fila, bugs, depois design/animação/otimização
+
+> "O que você vai fazer é o seguinte, jaja o limite do programa vai estourar contudo quando voltar, você vai continuar fazendo as features que eu disse e ajeitar os bugs e depois disso vai esquecer as features em outras branchs e vai focar a noite toda em design, animação e optimização, tudo na main."
+
+Ordem, tudo direto na main (feature por feature, commit por feature testada, push + instalador a cada 5):
+1. Terminar as features pedidas: cartão do Grupo, chat (fatias A-D de `docs/plano-chat.md`), escada, pino sem haste.
+2. Consertar os bugs abertos: ferrolho do jogador some sem aviso (`hostSession.ts:3200`), checagem morta em
+   `fogFilter.ts:4577` e comentário 4549-4550, `closeIfLocked` dentro de `withoutLock`, sobras do HUD do jogador
+   (gaveta em 390, barra estoura em 320, `role=status` duplicado, texto velho do ferrolho).
+3. Depois: features que vivem em outras branches (lotes antigos 0.4.5/0.4.6: g13, pilar, pinlock, dropFrozen,
+   iniciativa, ficha suave, zona oculta, pincel) ficam de fora. A noite toda vai para design, animação e
+   otimização, na main.
+Noite = esta sessão conduzida pelo main thread; o noite-runner continua encerrado.
