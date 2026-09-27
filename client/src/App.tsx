@@ -2494,6 +2494,8 @@ function App() {
                 }}
                 // Visão geral: a cena aberta pelo mapa vivo, as de fundo pelo cache (fichas de jogador que andam aparecem na hora).
                 maps={sceneMaps({ adventure, activeSceneId, cache: sceneCache }, map)}
+                // A miniatura da cena aberta mostra o andar que o editor mostra.
+                pisoAberto={pisoAtivo}
                 // Mesmas linhas do painel Grupo: quem está em cada cena e os pedidos que esperam.
                 people={scenePeople()}
                 // Há quanto tempo cada cena com gente espera o mestre ('há N min').

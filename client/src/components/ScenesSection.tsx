@@ -42,6 +42,8 @@ export interface ScenesSectionProps {
    * miniaturas. Ausente = sem o botão.
    */
   maps?: ReadonlyMap<string, MapData>
+  /** O piso em edição na cena aberta: a miniatura dela na Visão geral mostra esse andar. Ausente = térreo. */
+  pisoAberto?: number
   /**
    * Quem está em cada cena e quantos pedidos esperam lá (`peopleByScene`).
    * Ausente ou vazio = sala fechada ou mapa solto: a linha fica só com o nome.
@@ -937,6 +939,7 @@ export function ScenesSection({
   onNote,
   onQuake,
   maps,
+  pisoAberto,
   onDuplicate,
   onShift,
   onDelete,
@@ -1859,7 +1862,7 @@ export function ScenesSection({
         />
       )}
       {overviewOpen && canOverview && maps !== undefined && (
-        <SceneOverviewDialog scenes={tree.map((row) => row.entry)} maps={maps} onPick={pickFromOverview} onClose={closeOverview} />
+        <SceneOverviewDialog scenes={tree.map((row) => row.entry)} maps={maps} pisoAberto={pisoAberto} onPick={pickFromOverview} onClose={closeOverview} />
       )}
       {towerOpen && maps !== undefined && onGoToPoint !== undefined && canTower && (
         <CorteDaTorreDialog

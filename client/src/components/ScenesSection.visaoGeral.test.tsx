@@ -8,7 +8,7 @@ import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createEmptyMap } from '../lib/mapFactory'
 import type { SceneListItem } from '../stores/adventureStore'
-import type { MapData } from '../types/map'
+import type { MapData, Token } from '../types/map'
 import { ScenesSection } from './ScenesSection'
 
 const CENAS: SceneListItem[] = [
@@ -99,6 +99,16 @@ describe('ScenesSection: "Visão geral"', () => {
     act(() => miniatura('Salão')?.click())
     expect(onSelect).not.toHaveBeenCalled()
     expect(janela()).toBeNull()
+  })
+
+  it('o piso em edição chega à janela: a miniatura da cena aberta mostra aquele andar', () => {
+    const ficha = (id: string, piso: number): Token => ({ id, characterId: null, name: id, x: 100, y: 100, size: 1, image: null, color: '#ff5a00', piso })
+    const salao = { ...createEmptyMap('map_salao', 'Salão', 20, 16, 50), tokens: [ficha('Embaixo', 0), ficha('Em cima', 1)] }
+    const maps = new Map<string, MapData>([...MAPAS, ['s-salao', salao]])
+    act(() => root.render(<ScenesSection scenes={CENAS} onSelect={vi.fn()} onCreate={() => {}} onRename={() => {}} maps={maps} pisoAberto={1} />))
+    abrir()
+    const fichas = Array.from(miniatura('Salão')?.querySelectorAll('circle title') ?? []).map((t) => t.textContent)
+    expect(fichas).toEqual(['Em cima'])
   })
 
   it('Esc fecha sem trocar de cena e devolve o foco ao botão', () => {

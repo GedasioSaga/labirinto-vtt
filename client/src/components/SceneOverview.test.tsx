@@ -117,6 +117,20 @@ describe('SceneOverviewDialog', () => {
     expect(miniatura('Salão').querySelector('circle')).toBeNull()
   })
 
+  it('cena com pisos: a aberta mostra o piso em edição; as outras, o térreo, onde abrem', () => {
+    const embaixo: Token = { ...LANTERNA, id: 'tok-embaixo', name: 'Embaixo', x: 125 }
+    const emCima: Token = { ...LANTERNA, id: 'tok-em-cima', name: 'Em cima', piso: 1 }
+    const mapas = new Map<string, MapData>([
+      ['s-salao', cena('map_salao', 'Salão', '#1e8c8c', [embaixo, emCima])],
+      ['s-cripta', cena('map_cripta', 'Cripta', '#8c1e8c', [embaixo, emCima])],
+      ['s-poco', cena('map_poco', 'Poço', '#444444')],
+    ])
+    act(() => root.render(<SceneOverviewDialog scenes={CENAS} maps={mapas} pisoAberto={1} onPick={vi.fn()} onClose={vi.fn()} />))
+    const fichas = (nome: string) => Array.from(miniatura(nome).querySelectorAll('circle title')).map((t) => t.textContent)
+    expect(fichas('Salão')).toEqual(['Em cima'])
+    expect(fichas('Cripta')).toEqual(['Embaixo'])
+  })
+
   it('clicar numa miniatura pede para abrir aquela cena', () => {
     const { onPick, onClose } = render()
     act(() => miniatura('Cripta').click())
