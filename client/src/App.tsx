@@ -112,7 +112,18 @@ import { PinsSection } from './components/PinsSection'
 import { pinDirectory } from './lib/pinDirectory'
 import { pickBackgroundImage, importBackgroundImage, pickImageFile, importPinImage, importTokenImage, buildTokenSharedPhoto } from './lib/imageImport'
 import { useTokenLibraryStore } from './stores/tokenLibraryStore'
-import { apagarDoAcervo, fotoSobrouNoDisco, salvarNoAcervo, trazerDoAcervo, type ItemDoAcervoNaTela } from './lib/tokenLibrary'
+import {
+  apagarDoAcervo,
+  apagarPastaDoAcervo,
+  criarPastaNoAcervo,
+  fotoSobrouNoDisco,
+  moverNoAcervo,
+  recolherPastaNoAcervo,
+  salvarNoAcervo,
+  trazerDoAcervo,
+  type ItemDoAcervoNaTela,
+  type PastaDoAcervo,
+} from './lib/tokenLibrary'
 import { colocarPecaDoAcervo, criarToken, marcarFichaNpc, type TamanhoDaVista } from './stores/criarToken'
 import { setPropImageShownToPlayers, setPropLabelForPlayers } from './stores/propPlayerLook'
 import { mudarRaioDeVisaoDaSala, mudarVistaDeLonge } from './stores/visaoDeLonge'
@@ -568,6 +579,8 @@ function App() {
   // execução e reler só depois de gravar (salvar/apagar). Ver `stores/tokenLibraryStore.ts`.
   const acervoItens = useTokenLibraryStore((state) => state.itens)
   const acervoAviso = useTokenLibraryStore((state) => state.aviso)
+  const acervoPastas = useTokenLibraryStore((state) => state.pastas)
+  const acervoPodeOrganizar = useTokenLibraryStore((state) => state.podeOrganizar)
   useEffect(() => {
     void useTokenLibraryStore.getState().recarregar()
   }, [])
@@ -1754,6 +1767,57 @@ function App() {
       await apagarDoAcervo(item.id)
     } catch (err) {
       reportFileError(fotoSobrouNoDisco(err) ? `apagar do disco a foto de ${item.nome}` : 'apagar o token do acervo', err)
+    } finally {
+      await useTokenLibraryStore.getState().recarregar()
+    }
+  }
+
+  /**
+   * ACERVO — pastas. Criar e apagar pasta relêem o disco no fim, como apagar
+   * token: o nome final ("Chefes (2)") e os tokens que voltam para "Sem pasta"
+   * são decididos na gravação, não aqui.
+   *
+   * Mover e recolher são ADIANTADOS na tela (`marcarPasta`, `marcarRecolhida`):
+   * o token pula de pasta no soltar e o chevron gira no clique. Só a falha
+   * relê o disco, para a tela voltar ao que ficou gravado; reler a cada
+   * sucesso faria dois movimentos seguidos piscarem, o primeiro voltando do
+   * disco antes de o segundo ser gravado.
+   */
+  const handleCriarPasta = async (nome: string) => {
+    try {
+      await criarPastaNoAcervo(nome)
+    } catch (err) {
+      reportFileError('criar a pasta no acervo', err)
+    } finally {
+      await useTokenLibraryStore.getState().recarregar()
+    }
+  }
+
+  const handleMoverNoAcervo = async (item: ItemDoAcervoNaTela, pasta: string | null) => {
+    useTokenLibraryStore.getState().marcarPasta(item.id, pasta)
+    try {
+      await moverNoAcervo(item.id, pasta)
+    } catch (err) {
+      reportFileError(`mover ${item.nome} de pasta`, err)
+      await useTokenLibraryStore.getState().recarregar()
+    }
+  }
+
+  const handleRecolherPasta = async (pasta: PastaDoAcervo, recolhida: boolean) => {
+    useTokenLibraryStore.getState().marcarRecolhida(pasta.id, recolhida)
+    try {
+      await recolherPastaNoAcervo(pasta.id, recolhida)
+    } catch (err) {
+      reportFileError(recolhida ? `recolher a pasta ${pasta.nome}` : `abrir a pasta ${pasta.nome}`, err)
+      await useTokenLibraryStore.getState().recarregar()
+    }
+  }
+
+  const handleApagarPasta = async (pasta: PastaDoAcervo) => {
+    try {
+      await apagarPastaDoAcervo(pasta.id)
+    } catch (err) {
+      reportFileError(`apagar a pasta ${pasta.nome}`, err)
     } finally {
       await useTokenLibraryStore.getState().recarregar()
     }
@@ -3195,10 +3259,16 @@ function App() {
             pinSelected={selectedPin !== null}
             tokenLibrary={{
               itens: acervoItens,
+              pastas: acervoPastas,
               aviso: acervoAviso,
+              podeOrganizar: acervoPodeOrganizar,
               onPlace: (item) => void handlePlaceFromLibrary(item),
               onDropOnMap: handleDropFromLibrary,
               onDelete: (item) => void handleDeleteFromLibrary(item),
+              onCriarPasta: (nome) => void handleCriarPasta(nome),
+              onMover: (item, pasta) => void handleMoverNoAcervo(item, pasta),
+              onRecolherPasta: (pasta, recolhida) => void handleRecolherPasta(pasta, recolhida),
+              onApagarPasta: (pasta) => void handleApagarPasta(pasta),
             }}
             territorio={{
               filtroLigado: filtroFaccoes,

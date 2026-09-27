@@ -3475,6 +3475,197 @@ label.lb-switch[data-dica-linha='aberta'] > span:first-child::after,
   color: var(--lb-color-ember);
 }
 
+/* PASTAS DO ACERVO (26/09/2026): o cabeçalho de cada pasta segue o desenho de
+   .lb-collapsible__toggle — chevron que gira, nome, e aqui a contagem —, porque
+   é o mesmo gesto de recolher que o rail já ensina. */
+.lb-acervo__topo {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--lb-space-2);
+}
+
+.lb-acervo__nova-pasta {
+  flex: none;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--lb-color-parchment-dim);
+  font-family: inherit;
+  font-size: var(--lb-font-size-sm);
+  cursor: pointer;
+}
+
+.lb-acervo__nova-pasta:hover {
+  color: var(--lb-color-brass);
+}
+
+.lb-acervo__form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-2);
+}
+
+.lb-acervo__form-acoes {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--lb-space-2);
+}
+
+.lb-acervo__pastas {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-2);
+}
+
+/* A pasta inteira é o alvo do soltar: a borda transparente reserva o espaço do
+   realce, para a lista não pular 1 px quando o token passa por cima. */
+.lb-acervo__pasta {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-2);
+  padding: var(--lb-space-1);
+  border: 1px solid transparent;
+  border-radius: var(--lb-radius-md);
+}
+
+.lb-acervo__pasta[data-alvo='dentro'] {
+  border-color: var(--lb-color-brass);
+  background: var(--lb-color-brass-soft);
+}
+
+/* O cabeçalho é a faixa mais forte da coluna: o olho acha o grupo antes do
+   cartão de cada token. */
+.lb-acervo__pasta-topo {
+  display: flex;
+  align-items: center;
+  gap: var(--lb-space-2);
+  padding: 0 var(--lb-space-1);
+  border-radius: var(--lb-radius-sm);
+  background: var(--lb-color-stone-raised);
+}
+
+.lb-acervo__pasta-botao {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: var(--lb-space-2);
+  min-width: 0;
+  padding: var(--lb-space-1) 0;
+  border: 0;
+  background: none;
+  color: var(--lb-color-parchment);
+  font-family: inherit;
+  font-size: var(--lb-font-size-md);
+  font-weight: var(--lb-font-weight-semibold);
+  text-align: left;
+  cursor: pointer;
+}
+
+.lb-acervo__pasta-botao:hover,
+.lb-acervo__pasta-botao:hover .lb-acervo__chevron {
+  color: var(--lb-color-brass);
+}
+
+.lb-acervo__pasta-nome {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lb-acervo__chevron {
+  display: inline-flex;
+  color: var(--lb-color-parchment-faint);
+  transition: transform var(--lb-motion-fast) var(--lb-motion-ease);
+}
+
+.lb-acervo__pasta-botao[aria-expanded='false'] .lb-acervo__chevron {
+  transform: rotate(-90deg);
+}
+
+.lb-acervo__contagem {
+  flex: none;
+  margin-left: auto;
+  color: var(--lb-color-parchment-faint);
+  font-size: var(--lb-font-size-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+/* "Sem pasta" não recolhe: é um título, não um botão. */
+.lb-acervo__pasta-titulo {
+  margin: 0;
+  padding: var(--lb-space-1) 0;
+  color: var(--lb-color-parchment-dim);
+  font-size: var(--lb-font-size-sm);
+}
+
+/* O fio à esquerda desce do chevron até o último token: diz onde a pasta
+   acaba sem precisar de uma caixa em volta. Dentro da pasta a linha é mais
+   baixa, para caber mais tokens na coluna estreita no meio do jogo; o respiro
+   lateral menor devolve ao nome o que o recuo do fio tirou. */
+.lb-acervo--na-pasta {
+  gap: var(--lb-space-1);
+  margin-left: 7px;
+  padding-left: var(--lb-space-2);
+  border-left: 2px solid var(--lb-color-line-strong);
+}
+
+.lb-acervo--na-pasta .lb-acervo__item {
+  gap: var(--lb-space-2);
+  padding: var(--lb-space-1) var(--lb-space-2);
+}
+
+.lb-acervo__confirma--pasta {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.lb-acervo__mover {
+  display: inline-flex;
+  flex: none;
+  padding: 0 var(--lb-space-1);
+  border: 0;
+  background: none;
+  color: var(--lb-color-parchment-faint);
+  cursor: pointer;
+}
+
+.lb-acervo__mover:hover,
+.lb-acervo__mover[aria-expanded='true'] {
+  color: var(--lb-color-brass);
+}
+
+/* O menu "Mover" abre embaixo do nome, na largura da linha: na coluna estreita
+   do rail os destinos não cabem ao lado dele. */
+.lb-acervo__item--movendo {
+  flex-wrap: wrap;
+}
+
+.lb-acervo__destinos {
+  display: flex;
+  flex-basis: 100%;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--lb-space-2);
+}
+
+.lb-acervo__destino {
+  padding: var(--lb-space-1) var(--lb-space-2);
+  border: 1px solid var(--lb-color-line);
+  border-radius: var(--lb-radius-sm);
+  background: var(--lb-color-stone-raised);
+  color: var(--lb-color-parchment);
+  font-family: inherit;
+  font-size: var(--lb-font-size-sm);
+  cursor: pointer;
+}
+
+.lb-acervo__destino:hover {
+  border-color: var(--lb-color-brass);
+  color: var(--lb-color-brass);
+}
+
 /* Cenas da aventura (aba Mapa): mesma linha de cartão do acervo, com a cena
    aberta marcada pela borda de latão — o destaque que o leitor de tela lê é
    o `aria-current` do botão. */
