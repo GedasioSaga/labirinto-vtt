@@ -8,7 +8,7 @@ import type {
 } from '../types/map'
 import * as perigo from '../lib/perigo'
 import type { Camera, Point } from '../pixi/world'
-import type { DoorMode, DrawingTool, Selection } from '../types/tools'
+import type { DoorMode, DrawingTool, RoomFreeKind, Selection } from '../types/tools'
 import type { SnapTargetKind, SnapTargets } from '../pixi/grid'
 import type { RoomCorner } from '../lib/roomOps'
 import type { Corner, ResizeModifiers } from '../lib/objectTransform'
@@ -345,6 +345,19 @@ interface MapStoreState {
    *  `doorKind`/`eraseMode`. */
   doorMode: DoorMode
   setDoorMode: (mode: DoorMode) => void
+  /** O que o traçado da ferramenta "Sala livre" cria: a sala de sempre
+   *  (`'sala'`, o padrão — comportamento idêntico ao de antes deste campo) ou
+   *  só as paredes do traçado (`'parede'` → `addWalls`), com a linha podendo
+   *  ficar aberta. Preferência de ferramenta, sem histórico e fora do
+   *  map.json, mesma classe de `doorMode`/`polygonSides`. */
+  roomFreeKind: RoomFreeKind
+  setRoomFreeKind: (kind: RoomFreeKind) => void
+  /** Liga o arredondar da Sala livre (sala ou parede): cada canto do traçado
+   *  vira uma curva suave de trechos retos curtos (`lib/arredondarTracado`).
+   *  Mesma classe de preferência de `roomFreeKind`; desligado (o padrão)
+   *  mantém os cantos vivos de hoje. */
+  roomFreeRounded: boolean
+  setRoomFreeRounded: (rounded: boolean) => void
   /** Pincel de revelar: o que o PRÓXIMO arrasto faz (Alt inverte) e a largura
    *  do traço em quadrados. Preferência de ferramenta, sem histórico e fora do
    *  map.json, mesma classe de `doorMode`. */
@@ -506,6 +519,10 @@ interface MapStoreState {
    */
   setSnapEnabled: (enabled: boolean) => void
   addWall: (wall: Wall) => void
+  /** Várias paredes num passo só de histórico: o traçado da Parede livre
+   *  (Sala livre no modo "Parede") é UM desenho, e um Ctrl+Z tira todos os
+   *  trechos de uma vez. Lista vazia não mexe no mapa. */
+  addWalls: (walls: Wall[]) => void
   removeWall: (id: string) => void
   addLight: (light: Light) => void
   removeLight: (id: string) => void
@@ -1452,6 +1469,8 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
     wallLineStyle: undefined,
     doorKind: 'normal',
     doorMode: 'porta',
+    roomFreeKind: 'sala',
+    roomFreeRounded: false,
     revealBrushMode: 'revelar',
     // Um quadrado de largura: o corredor recém-andado, que é o pedido.
     revealBrushWidth: 1,
@@ -1628,6 +1647,8 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
     setWallLineStyle: (lineStyle) => set({ wallLineStyle: lineStyle }),
     setDoorKind: (kind) => set({ doorKind: kind }),
     setDoorMode: (mode) => set({ doorMode: mode }),
+    setRoomFreeKind: (kind) => set({ roomFreeKind: kind }),
+    setRoomFreeRounded: (rounded) => set({ roomFreeRounded: rounded }),
     setRevealBrushMode: (mode) => set({ revealBrushMode: mode }),
     setRevealBrushWidth: (width) => set({ revealBrushWidth: width }),
     setDrawCap: (cap) => set({ drawCap: cap }),
@@ -1658,6 +1679,16 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
     // Trecho desenhado sobre o lado de uma Sala do piso em edição vira parede
     // dela (parede parcial); a Sala de outro piso, ali embaixo, não conta.
     addWall: (wall) => withHistory((map) => mapFactory.addWall(map, linkDrawnWallToRoom(mapaDoPiso(map, get().pisoAtivo).regions, wall))),
+    addWalls: (walls) => {
+      // Traçado vazio não gasta entrada de undo que não desfaz nada.
+      if (walls.length === 0) return
+      withHistory((map) => {
+        // Mesma regra do `addWall`, trecho a trecho: o que cair sobre o lado
+        // de uma Sala do piso em edição vira parede dela.
+        const regions = mapaDoPiso(map, get().pisoAtivo).regions
+        return walls.reduce((next, wall) => mapFactory.addWall(next, linkDrawnWallToRoom(regions, wall)), map)
+      })
+    },
     removeWall: (id) => withHistory((map) => mapFactory.removeWall(map, id)),
     addLight: (light) => withHistory((map) => mapFactory.addLight(map, light)),
     removeLight: (id) => withHistory((map) => mapFactory.removeLight(map, id)),

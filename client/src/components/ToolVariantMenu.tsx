@@ -1,6 +1,6 @@
 import { useId, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { DoorKind, FloorPiece, FreehandTexture, Region, Wall } from '../types/map'
-import type { DrawingTool } from '../types/tools'
+import type { DrawingTool, RoomFreeKind } from '../types/tools'
 import type { StairSizePreset } from '../lib/stairs'
 import type { FloorShapeKind } from '../lib/floorTool'
 import type { TamanhoDePincel } from '../lib/floorBlocks'
@@ -40,6 +40,10 @@ export interface ToolVariantBindings {
   floorPolygonSides: { value: number; onChange: (value: number) => void }
   /** Lado do pincel de blocos, em blocos (1, 2 ou 3). */
   floorBrushSize: { value: TamanhoDePincel; onChange: (value: TamanhoDePincel) => void }
+  /** Sala livre — o traçado vira sala ou só paredes. */
+  roomFreeKind: { value: RoomFreeKind; onChange: (value: RoomFreeKind) => void }
+  /** Sala livre — cantos arredondados (sala e parede). */
+  roomFreeRounded: { value: boolean; onChange: (value: boolean) => void }
   /** Botão Desenho — forma ativa (`value` = ferramenta ativa) e a ação que troca de ferramenta. */
   drawShape: { value: DrawingTool; onChange: (value: DrawingTool) => void }
 }
@@ -204,6 +208,10 @@ function GroupOptions({
       return <>{renderOptions(group.options, bindings.floorPolygonSides.value, bindings.floorPolygonSides.onChange, onPicked)}</>
     case 'floorBrushSize':
       return <>{renderOptions(group.options, bindings.floorBrushSize.value, bindings.floorBrushSize.onChange, onPicked)}</>
+    case 'roomFreeKind':
+      return <>{renderOptions(group.options, bindings.roomFreeKind.value, bindings.roomFreeKind.onChange, onPicked)}</>
+    case 'roomFreeRounded':
+      return <>{renderOptions(group.options, bindings.roomFreeRounded.value, bindings.roomFreeRounded.onChange, onPicked)}</>
     case 'drawShape':
       return <>{renderOptions(group.options, bindings.drawShape.value, bindings.drawShape.onChange, onPicked, iconFor)}</>
     default:

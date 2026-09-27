@@ -471,6 +471,10 @@ function App() {
   const setDoorKind = useMapStore((state) => state.setDoorKind)
   const doorMode = useMapStore((state) => state.doorMode)
   const setDoorMode = useMapStore((state) => state.setDoorMode)
+  const roomFreeKind = useMapStore((state) => state.roomFreeKind)
+  const setRoomFreeKind = useMapStore((state) => state.setRoomFreeKind)
+  const roomFreeRounded = useMapStore((state) => state.roomFreeRounded)
+  const setRoomFreeRounded = useMapStore((state) => state.setRoomFreeRounded)
   const revealBrushMode = useMapStore((state) => state.revealBrushMode)
   const setRevealBrushMode = useMapStore((state) => state.setRevealBrushMode)
   const revealBrushWidth = useMapStore((state) => state.revealBrushWidth)
@@ -2480,6 +2484,8 @@ function App() {
             floorOp: { value: floorOp, onChange: setFloorOp },
             floorPolygonSides: { value: floorPolygonSides, onChange: setFloorPolygonSides },
             floorBrushSize: { value: floorBrushSize, onChange: setFloorBrushSize },
+            roomFreeKind: { value: roomFreeKind, onChange: setRoomFreeKind },
+            roomFreeRounded: { value: roomFreeRounded, onChange: setRoomFreeRounded },
             drawShape: { value: activeTool, onChange: setActiveTool },
           }}
         />

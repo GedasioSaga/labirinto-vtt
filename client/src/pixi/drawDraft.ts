@@ -5,6 +5,7 @@ import { SELECTION_COLOR } from './constants'
 import { computeStairSteps } from '../lib/stairs'
 import { computeMarkerStroke, computePencilSegments, type BrushTexture } from '../lib/brushTexture'
 import { computeDashSegments, dashGeometry } from '../lib/dashPattern'
+import { arredondarTracado } from '../lib/arredondarTracado'
 
 /** A ponta que os drafts de linha e curva usam — ver `drawLineDraft` abaixo:
  *  o preview sempre foi `round` e continua sendo, então o padrão do traço
@@ -41,17 +42,22 @@ export function drawStairDraft(graphics: Graphics, start: Point, end: Point, ste
   }
 }
 
-export function drawRegionDraft(graphics: Graphics, points: Point[], cursor: Point | null): void {
+/**
+ * Preview do traçado ponto a ponto (Região e Sala livre): linha aberta até o
+ * cursor e um ponto grudável em cada clique. `arredondar` (Sala livre com
+ * "Arredondar" ligado) mostra a linha já com os cantos em curva — a MESMA
+ * `arredondarTracado` que vai gerar as paredes —, mas os pontos continuam nos
+ * cliques, que é onde a pessoa mira o próximo. Desligado, é a linha de sempre.
+ */
+export function drawRegionDraft(graphics: Graphics, points: Point[], cursor: Point | null, arredondar = false): void {
   graphics.clear()
   if (points.length === 0) return
 
-  const [first, ...rest] = points
+  const linha = cursor ? [...points, cursor] : points
+  const [first, ...rest] = arredondar ? arredondarTracado(linha, false) : linha
   graphics.moveTo(first.x, first.y)
   for (const point of rest) {
     graphics.lineTo(point.x, point.y)
-  }
-  if (cursor) {
-    graphics.lineTo(cursor.x, cursor.y)
   }
   graphics.stroke({ width: 2, color: SELECTION_COLOR, alpha: 0.8 })
 

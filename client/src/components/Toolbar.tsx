@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ComponentType, type CSSProperties, type ReactNode } from 'react'
 import type { DrawingTool } from '../types/tools'
 import { theme } from '../theme'
-import { TOOLBAR_SLOTS, TOOL_CLUSTERS, TOOL_HINTS, TOOL_LABELS, clusterIdOf, type ToolbarSlot } from './labels'
+import { ROOM_FREE_WALL_HINT, TOOLBAR_SLOTS, TOOL_CLUSTERS, TOOL_HINTS, TOOL_LABELS, clusterIdOf, type ToolbarSlot } from './labels'
 import { TOOL_SHORTCUTS } from '../lib/keymap'
 import { placeHint, type HintPlacement } from './hintPlacement'
 import {
@@ -322,7 +322,11 @@ export function Toolbar({ activeTool, onSelectTool, lastDrawingTool, variantBind
     // barra volta a falar só da ferramenta ativa.
     if (variantChoice && !toolHasVariantAxis(activeTool, variantChoice.storeKey)) setVariantChoice(null)
   }
-  const hint = hintDismissed ? undefined : TOOL_HINTS[activeTool]
+  // A Sala livre em "Criar: Parede" faz o mesmo traçado com outro fim (2 pontos,
+  // linha aberta, sem sala): a dica acompanha o modo escolhido na setinha.
+  const toolHint =
+    activeTool === 'roomFree' && variantBindings.roomFreeKind.value === 'parede' ? ROOM_FREE_WALL_HINT : TOOL_HINTS[activeTool]
+  const hint = hintDismissed ? undefined : toolHint
   /** O que a barra diz sobre a escolha, recalculado do valor corrente do eixo. */
   const echo = variantChoice ? variantEcho(variantChoice.storeKey, readVariantValue(variantBindings, variantChoice.storeKey)) : null
   const dockRef = useRef<HTMLDivElement>(null)

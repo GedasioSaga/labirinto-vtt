@@ -34,18 +34,25 @@ function bindings(activeTool: DrawingTool, onSelectTool: (tool: DrawingTool) => 
     floorOp: { value: 'add', onChange: vi.fn() },
     floorPolygonSides: { value: 6, onChange: vi.fn() },
   floorBrushSize: { value: 1, onChange: vi.fn() },
+    roomFreeKind: { value: 'sala', onChange: vi.fn() },
+    roomFreeRounded: { value: false, onChange: vi.fn() },
     drawShape: { value: activeTool, onChange: onSelectTool },
   }
 }
 
-function render(activeTool: DrawingTool, lastDrawingTool: DrawingTool, onSelectTool = vi.fn()) {
+function render(
+  activeTool: DrawingTool,
+  lastDrawingTool: DrawingTool,
+  onSelectTool = vi.fn(),
+  overrides: Partial<ToolVariantBindings> = {},
+) {
   act(() =>
     root.render(
       <Toolbar
         activeTool={activeTool}
         onSelectTool={onSelectTool}
         lastDrawingTool={lastDrawingTool}
-        variantBindings={bindings(activeTool, onSelectTool)}
+        variantBindings={{ ...bindings(activeTool, onSelectTool), ...overrides }}
       />,
     ),
   )
@@ -137,5 +144,49 @@ describe('Toolbar — dica de ferramenta sem atalho', () => {
   it('ferramenta com atalho continua com a letra entre parênteses', () => {
     render('line', 'brush')
     expect(desenho().getAttribute('data-tip')).toBe('Desenho: Linha (L)')
+  })
+})
+
+describe('Toolbar — Sala livre: Parede e Arredondar', () => {
+  const menuDaSalaLivre = () => document.body.querySelector('[role="group"][aria-label="Opções de Sala livre"]')
+  const radiosDe = (grupo: string) =>
+    Array.from(menuDaSalaLivre()?.querySelectorAll<HTMLButtonElement>(`[role="radiogroup"][aria-label="${grupo}"] [role="radio"]`) ?? [])
+
+  it('a setinha da Sala livre oferece Criar (Sala ou Parede) e Arredondar, acima do preenchimento', () => {
+    render('roomFree', 'brush')
+    act(() => buttonsNamed('Opções de Sala livre')[0].click())
+
+    const radiogroups = Array.from(menuDaSalaLivre()?.querySelectorAll('[role="radiogroup"]') ?? []).map((g) => g.getAttribute('aria-label'))
+    expect(radiogroups).toEqual(['Criar', 'Arredondar', 'Preenchimento'])
+    expect(radiosDe('Criar').map((r) => r.getAttribute('aria-label'))).toEqual(['Sala', 'Parede'])
+    expect(radiosDe('Arredondar').map((r) => r.getAttribute('aria-label'))).toEqual(['Desligado', 'Ligado'])
+    // O padrão é o de hoje: Sala, cantos vivos.
+    expect(radiosDe('Criar').map((r) => r.getAttribute('aria-checked'))).toEqual(['true', 'false'])
+    expect(radiosDe('Arredondar').map((r) => r.getAttribute('aria-checked'))).toEqual(['true', 'false'])
+  })
+
+  it('escolher Parede e ligar Arredondar escreve nas preferências e fecha o menu', () => {
+    const roomFreeKind: ToolVariantBindings['roomFreeKind'] = { value: 'sala', onChange: vi.fn() }
+    const roomFreeRounded: ToolVariantBindings['roomFreeRounded'] = { value: false, onChange: vi.fn() }
+    render('roomFree', 'brush', vi.fn(), { roomFreeKind, roomFreeRounded })
+
+    act(() => buttonsNamed('Opções de Sala livre')[0].click())
+    const parede = radiosDe('Criar').find((r) => r.getAttribute('aria-label') === 'Parede')
+    act(() => parede?.click())
+    expect(roomFreeKind.onChange).toHaveBeenCalledWith('parede')
+    expect(menuDaSalaLivre()).toBeNull()
+
+    act(() => buttonsNamed('Opções de Sala livre')[0].click())
+    const ligado = radiosDe('Arredondar').find((r) => r.getAttribute('aria-label') === 'Ligado')
+    act(() => ligado?.click())
+    expect(roomFreeRounded.onChange).toHaveBeenCalledWith(true)
+  })
+
+  it('no modo Parede, a dica ensina a traçar parede (linha aberta, 2 pontos), não sala', () => {
+    render('roomFree', 'brush', vi.fn(), { roomFreeKind: { value: 'parede', onChange: vi.fn() } })
+    const dica = document.body.querySelector('.lb-hint')?.textContent ?? ''
+    expect(dica).toContain('parede')
+    expect(dica).toContain('2 pontos')
+    expect(dica).not.toContain('sala')
   })
 })

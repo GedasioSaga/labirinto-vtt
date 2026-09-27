@@ -1,4 +1,4 @@
-import type { DrawingTool } from '../types/tools'
+import type { DrawingTool, RoomFreeKind } from '../types/tools'
 import type { DoorKind, FloorPiece, FreehandTexture, Region, Wall } from '../types/map'
 import type { StairSizePreset } from './stairs'
 import type { FloorShapeKind } from './floorTool'
@@ -62,6 +62,10 @@ export type ToolVariantGroup =
   | { storeKey: 'floorOp'; label: string; options: ToolVariantOption<FloorPiece['op']>[] }
   | { storeKey: 'floorPolygonSides'; label: string; options: ToolVariantOption<number>[] }
   | { storeKey: 'floorBrushSize'; label: string; options: ToolVariantOption<TamanhoDePincel>[] }
+  /** Sala livre: o traçado vira sala ou só paredes. */
+  | { storeKey: 'roomFreeKind'; label: string; options: ToolVariantOption<RoomFreeKind>[] }
+  /** Sala livre: cantos vivos ou arredondados (vale para sala e para parede). */
+  | { storeKey: 'roomFreeRounded'; label: string; options: ToolVariantOption<boolean>[] }
   /** Forma do botão "Desenho": escolher ATIVA a ferramenta (não é preferência da próxima entidade). */
   | { storeKey: 'drawShape'; label: string; options: ToolVariantOption<DrawingTool>[] }
 
@@ -121,6 +125,31 @@ const REGION_FILL_PATTERN_GROUP: ToolVariantGroup = {
   options: [
     { id: 'solid', label: 'Sólido', value: 'solid', description: 'Preenchimento uniforme — aparência padrão.' },
     { id: 'hatch', label: 'Hachurado', value: 'hatch', description: 'Preenchimento em linhas diagonais.' },
+  ],
+}
+
+/** O que o traçado ponto a ponto da Sala livre cria. "Sala" é o de sempre. */
+const ROOM_FREE_KIND_GROUP: ToolVariantGroup = {
+  storeKey: 'roomFreeKind',
+  label: 'Criar',
+  options: [
+    { id: 'sala', label: 'Sala', value: 'sala', description: 'Sala com parede em todos os lados — padrão.' },
+    { id: 'parede', label: 'Parede', value: 'parede', description: 'Só as paredes, sem sala; a linha pode ficar aberta.' },
+  ],
+}
+
+/**
+ * Arredondar os cantos do traçado da Sala livre — sala ou parede. Liga/desliga
+ * em dois rádios, e não num interruptor, porque o menu inteiro é feito de
+ * grupos de rádio (`ToolVariantMenu`): um controle diferente só aqui pediria
+ * teclado e anúncio próprios para dizer a mesma coisa.
+ */
+const ROOM_FREE_ROUNDED_GROUP: ToolVariantGroup = {
+  storeKey: 'roomFreeRounded',
+  label: 'Arredondar',
+  options: [
+    { id: 'cantos-vivos', label: 'Desligado', value: false, description: 'Cantos vivos, do jeito que foram clicados.' },
+    { id: 'arredondado', label: 'Ligado', value: true, description: 'Cada canto vira uma curva suave.' },
   ],
 }
 
@@ -261,10 +290,17 @@ export const TOOL_VARIANTS: Partial<Record<DrawingTool, ToolVariantEntry>> = {
   // 3 Salas) E número de lados (só ela lê `polygonSides` —
   // PropertiesPanel.tsx: `activeTool === 'roomPolygon'`).
   roomPolygon: { available: true, tool: 'roomPolygon', groups: [REGION_FILL_PATTERN_GROUP, POLYGON_SIDES_GROUP] },
-  // Sala livre: mesma preferência `regionFillPattern` das outras três Salas
-  // (o commit dela em pixi/PixiCanvas.tsx lê do mesmo store). Sem eixo de
-  // número de lados — quem escolhe os lados aqui é o clique do usuário.
-  roomFree: { available: true, tool: 'roomFree', groups: [REGION_FILL_PATTERN_GROUP] },
+  // Sala livre: o que o traçado cria (sala ou só paredes) e se os cantos
+  // arredondam vêm primeiro; o preenchimento é a mesma preferência
+  // `regionFillPattern` das outras três Salas (o commit dela em
+  // pixi/PixiCanvas.tsx lê do mesmo store) e não vale no modo Parede, que
+  // não cria sala. Sem eixo de número de lados — quem escolhe os lados aqui
+  // é o clique do usuário.
+  roomFree: {
+    available: true,
+    tool: 'roomFree',
+    groups: [ROOM_FREE_KIND_GROUP, ROOM_FREE_ROUNDED_GROUP, REGION_FILL_PATTERN_GROUP],
+  },
 
   // ---- Fase 5: as 3 variantes abaixo saíram de available:false pra true —
   // schema/render já existiam (F4-0/agentes de feature), só faltava a
@@ -371,6 +407,9 @@ const VARIANT_ECHO_SUBJECT: Partial<Record<ToolVariantStoreKey, string>> = {
   floorPolygonSides: 'Próxima peça de chão',
   // Não é a "próxima peça": é o tamanho com que o pincel pinta, agora.
   floorBrushSize: 'Pincel de blocos',
+  // "Sala livre cria: Sala" repetiria a palavra; o sujeito é o traçado.
+  roomFreeKind: 'Traçado vira',
+  roomFreeRounded: 'Arredondar',
 }
 
 /** Todos os grupos por eixo — a barra precisa achar o RÓTULO da opção a partir
@@ -387,6 +426,8 @@ const GROUP_BY_STORE_KEY: Record<ToolVariantStoreKey, ToolVariantGroup> = {
   floorOp: FLOOR_OP_GROUP,
   floorPolygonSides: FLOOR_POLYGON_SIDES_GROUP,
   floorBrushSize: FLOOR_BRUSH_SIZE_GROUP,
+  roomFreeKind: ROOM_FREE_KIND_GROUP,
+  roomFreeRounded: ROOM_FREE_ROUNDED_GROUP,
   drawShape: DRAWING_SHAPE_GROUP,
 }
 

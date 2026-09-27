@@ -63,6 +63,7 @@ describe('TOOL_VARIANTS', () => {
       'doorKind', 'wallKind', 'regionFillPattern', 'polygonSides',
       'stairSizePreset', 'drawTexture', 'eraseMode',
       'floorShapeKind', 'floorOp', 'floorPolygonSides', 'floorBrushSize',
+      'roomFreeKind', 'roomFreeRounded',
     ]
     for (const entry of readyToolVariants()) {
       for (const group of entry.groups) {
@@ -121,6 +122,17 @@ describe('TOOL_VARIANTS', () => {
       expect(option.value).toBeGreaterThanOrEqual(3)
       expect(option.value).toBeLessThanOrEqual(12)
     }
+  })
+
+  it('roomFree tem os eixos Criar (sala ou parede) e Arredondar, além do preenchimento', () => {
+    const entry = TOOL_VARIANTS.roomFree
+    if (!entry || !entry.available) throw new Error('roomFree deveria estar disponível')
+    expect(entry.groups.map((g) => g.storeKey)).toEqual(['roomFreeKind', 'roomFreeRounded', 'regionFillPattern'])
+
+    const criar = entry.groups.find((g) => g.storeKey === 'roomFreeKind')
+    const arredondar = entry.groups.find((g) => g.storeKey === 'roomFreeRounded')
+    expect(criar?.options.map((o) => o.value)).toEqual(['sala', 'parede'])
+    expect(arredondar?.options.map((o) => o.value)).toEqual([false, true])
   })
 
   it('line está marcada como indisponível (Linha/Curva é escolha de Forma no botão Desenho, sem eixo próprio)', () => {

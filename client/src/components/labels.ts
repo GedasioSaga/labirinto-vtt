@@ -113,6 +113,15 @@ export const TOOL_HINTS: Partial<Record<DrawingTool, string>> = {
 }
 
 /**
+ * Dica da Sala livre quando a setinha está em "Criar: Parede". O traçado é o
+ * mesmo da Sala livre, mas o fim é outro: 2 pontos já bastam, a linha pode
+ * ficar aberta e nada de sala nasce — a dica de `TOOL_HINTS.roomFree` ("mín. 3
+ * cantos", "para a entrada, use Porta") ensinaria o gesto errado.
+ */
+export const ROOM_FREE_WALL_HINT =
+  'Clique ponto a ponto para traçar a parede. Duplo clique ou Enter termina (mín. 2 pontos); termine no primeiro ponto para fechar o contorno. Backspace/Ctrl+Z tira o último ponto, Esc cancela.'
+
+/**
  * Botão da barra que agrupa várias ferramentas (plano de 15/09/2026, fatia 2).
  * O nome acessível é fixo (`label`); o ícone e o `data-tip` mostram a forma
  * que o clique vai ativar.

@@ -143,7 +143,11 @@ import {
   normalizeDraftPolygonPoints,
   isValidFreeRoomDraft,
   buildFreeRoomFromPoints,
+  normalizeFreeWallDraft,
+  isValidFreeWallDraft,
+  buildFreeWallsFromPoints,
 } from '../lib/drawingFactory'
+import { arredondarTracado } from '../lib/arredondarTracado'
 import { createPropsRenderer } from './drawProps'
 import { createConcealZonesRenderer } from './drawConcealZones'
 import { drawHazardAreas } from './drawHazards'
@@ -2929,9 +2933,21 @@ export function PixiCanvas({
        *
        * O MESMO traçado serve a duas ferramentas (`usaTracadoPontoAPonto`), e é
        * só aqui que elas se separam: Região vira uma Region pelada, Sala livre
-       * vira Sala com parede em toda aresta.
+       * vira Sala com parede em toda aresta. A Sala livre no modo Parede
+       * (`roomFreeKind`) sai por `finishFreeWall`: só paredes, sem sala, e a
+       * linha pode ficar aberta — por isso lá o mínimo é 2 pontos, não 3.
+       *
+       * "Arredondar" (`roomFreeRounded`) só vale para a Sala livre: os cantos
+       * clicados viram curva ANTES de a sala nascer, então as paredes e os
+       * vértices dela já saem com a curva. A Região continua reta.
        */
       const finishRegion = () => {
+        const { activeTool, roomFreeKind, roomFreeRounded } = useMapStore.getState()
+        if (activeTool === 'roomFree' && roomFreeKind === 'parede') {
+          finishFreeWall()
+          return
+        }
+
         const points = normalizeDraftPolygonPoints(regionDraftPoints)
 
         if (points.length < 3) {
@@ -2939,8 +2955,33 @@ export function PixiCanvas({
           return
         }
 
-        if (useMapStore.getState().activeTool === 'roomFree') commitFreeRoom(points)
+        if (activeTool === 'roomFree') commitFreeRoom(roomFreeRounded ? arredondarTracado(points, true) : points)
         else commitRegion(points)
+        regionDraftPoints = []
+        draftGraphics.clear()
+      }
+
+      /**
+       * Fim do traçado da Sala livre no modo Parede: as paredes soltas, uma por
+       * trecho, iguais às da ferramenta Parede (mesmo `wallKind`, bloqueiam luz
+       * e movimento). Terminar no primeiro ponto fecha o contorno; terminar em
+       * qualquer outro deixa a linha aberta.
+       *
+       * Todas entram num `addWalls` só, então o desenho inteiro é UM passo de
+       * desfazer. A ferramenta continua na mão, como na Parede: quem traça
+       * parede costuma traçar a próxima logo em seguida, e aqui não há nome de
+       * sala para editar nem sala recém-nascida para arrastar.
+       */
+      const finishFreeWall = () => {
+        const { points, closed } = normalizeFreeWallDraft(regionDraftPoints)
+        if (!isValidFreeWallDraft(points)) {
+          clearDrafts()
+          return
+        }
+
+        const { roomFreeRounded, wallKind, addWalls } = useMapStore.getState()
+        const tracado = roomFreeRounded ? arredondarTracado(points, closed) : points
+        addWalls(buildFreeWallsFromPoints(() => crypto.randomUUID(), tracado, closed, wallKind))
         regionDraftPoints = []
         draftGraphics.clear()
       }
@@ -3069,6 +3110,18 @@ export function PixiCanvas({
         drawPathDraft(draftGraphics, pathDraftPoints, cursor, pathColor, pathWidthCells * map.grid)
       }
 
+      /**
+       * Prévia do traçado ponto a ponto (Região e Sala livre): pontos já
+       * clicados + cursor. Com "Arredondar" ligado na Sala livre, a linha já
+       * sai com os cantos em curva — a mesma conta que `finishRegion` e
+       * `finishFreeWall` aplicam no fim, para a prévia não prometer uma forma
+       * e o mapa receber outra. A Região não arredonda.
+       */
+      const drawRegionDraftPreview = (cursor: Point | null) => {
+        const { activeTool, roomFreeRounded } = useMapStore.getState()
+        drawRegionDraft(draftGraphics, regionDraftPoints, cursor, activeTool === 'roomFree' && roomFreeRounded)
+      }
+
       /** Rascunho feito clique a clique aberto: Região, Área poligonal, Caminho ou Chão corredor. */
       const hasPointDraft = () =>
         regionDraftPoints.length > 0 || polygonDraftPoints.length > 0 || pathDraftPoints.length > 0 || corridorDraftPoints.length > 0
@@ -3079,8 +3132,9 @@ export function PixiCanvas({
        * ou quando não há rascunho aberto nela.
        *
        * Os mínimos não são inventados aqui: são os mesmos de `finishRegion`
-       * (3), `isValidPolygonDraft` (3), `isValidPathDraft` (2) e do corredor,
-       * que precisa de dois pontos para ter comprimento.
+       * (3), `isValidFreeWallDraft` (2, a Sala livre no modo Parede),
+       * `isValidPolygonDraft` (3), `isValidPathDraft` (2) e do corredor, que
+       * precisa de dois pontos para ter comprimento.
        */
       /**
        * A ferramenta termina por duplo clique/Enter? É a lista das que
@@ -3106,7 +3160,9 @@ export function PixiCanvas({
         }
         if (usaTracadoPontoAPonto(tool)) {
           const tem = normalizeDraftPolygonPoints(regionDraftPoints).length
-          return tem > 0 ? { tem, minimo: 3, oQue: tool === 'roomFree' ? 'A sala' : 'A região' } : null
+          if (tem === 0) return null
+          if (tool === 'roomFree' && useMapStore.getState().roomFreeKind === 'parede') return { tem, minimo: 2, oQue: 'A parede' }
+          return { tem, minimo: 3, oQue: tool === 'roomFree' ? 'A sala' : 'A região' }
         }
         return null
       }
@@ -3203,7 +3259,7 @@ export function PixiCanvas({
         draftGraphics.clear()
         if (regionDraftPoints.length > 0) {
           regionDraftPoints = regionDraftPoints.slice(0, -1)
-          if (regionDraftPoints.length > 0) drawRegionDraft(draftGraphics, regionDraftPoints, cursor)
+          if (regionDraftPoints.length > 0) drawRegionDraftPreview(cursor)
         }
         if (polygonDraftPoints.length > 0) {
           polygonDraftPoints = polygonDraftPoints.slice(0, -1)
@@ -4540,7 +4596,7 @@ export function PixiCanvas({
             draftGraphics.clear()
           } else {
             regionDraftPoints = [...regionDraftPoints, start]
-            drawRegionDraft(draftGraphics, regionDraftPoints, null)
+            drawRegionDraftPreview(null)
           }
         }
 
@@ -5000,7 +5056,7 @@ export function PixiCanvas({
               // prévia de polígono liga ponto a ponto, sem fechar sozinha).
               drawRegionDraft(draftGraphics, rect, rect[0])
             } else if (regionDraftPoints.length > 0) {
-              drawRegionDraft(draftGraphics, regionDraftPoints, cursor)
+              drawRegionDraftPreview(cursor)
             }
           }
           // A régua também não muda `mode` (pointerdown da ferramenta Medir),
@@ -5683,7 +5739,7 @@ export function PixiCanvas({
           const worldPoint = toWorldPoint(event.global.x, event.global.y)
           const { map } = useMapStore.getState()
           const cursor = applySnap(worldPoint, map.grid, 'wall', event.altKey)
-          drawRegionDraft(draftGraphics, regionDraftPoints, cursor)
+          drawRegionDraftPreview(cursor)
         }
 
         if (useMapStore.getState().activeTool === 'path' && pathDraftPoints.length > 0) {

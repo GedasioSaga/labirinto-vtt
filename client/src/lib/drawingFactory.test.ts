@@ -12,6 +12,9 @@ import {
   normalizeDraftPolygonPoints,
   isValidFreeRoomDraft,
   buildFreeRoomFromPoints,
+  normalizeFreeWallDraft,
+  isValidFreeWallDraft,
+  buildFreeWallsFromPoints,
   DEFAULT_ROOM_NAME,
   nextDefaultRoomName,
   syncRoomNameSequence,
@@ -484,6 +487,142 @@ describe('buildFreeRoomFromPoints (Sala de formato livre)', () => {
     expect(region.fillPattern).toBe('solid')
     expect(typeof region.fillColor).toBe('string')
     expect(walls).toHaveLength(CANTOS.length)
+  })
+})
+
+describe('normalizeFreeWallDraft (Parede livre)', () => {
+  it('linha aberta: os pontos passam intactos e o traçado não fecha', () => {
+    const pontos = [
+      { x: 0, y: 0 },
+      { x: 100, y: 0 },
+      { x: 100, y: 100 },
+    ]
+    expect(normalizeFreeWallDraft(pontos)).toEqual({ points: pontos, closed: false })
+  })
+
+  it('clicar de volta no primeiro ponto fecha o contorno, sem repetir o canto', () => {
+    const pontos = [
+      { x: 0, y: 0 },
+      { x: 100, y: 0 },
+      { x: 100, y: 100 },
+      { x: 0, y: 0 },
+    ]
+    expect(normalizeFreeWallDraft(pontos)).toEqual({
+      points: [
+        { x: 0, y: 0 },
+        { x: 100, y: 0 },
+        { x: 100, y: 100 },
+      ],
+      closed: true,
+    })
+  })
+
+  it('ir e voltar ao primeiro ponto (A, B, A) não é contorno: vira a linha A-B aberta', () => {
+    const pontos = [
+      { x: 0, y: 0 },
+      { x: 100, y: 0 },
+      { x: 0, y: 0 },
+    ]
+    expect(normalizeFreeWallDraft(pontos)).toEqual({
+      points: [
+        { x: 0, y: 0 },
+        { x: 100, y: 0 },
+      ],
+      closed: false,
+    })
+  })
+
+  it('ponto clicado duas vezes no mesmo lugar não vira parede de comprimento zero', () => {
+    const pontos = [
+      { x: 0, y: 0 },
+      { x: 100, y: 0 },
+      { x: 100, y: 0 },
+    ]
+    expect(normalizeFreeWallDraft(pontos)).toEqual({
+      points: [
+        { x: 0, y: 0 },
+        { x: 100, y: 0 },
+      ],
+      closed: false,
+    })
+  })
+
+  it('lista vazia continua vazia e aberta', () => {
+    expect(normalizeFreeWallDraft([])).toEqual({ points: [], closed: false })
+  })
+})
+
+describe('isValidFreeWallDraft', () => {
+  it('menos de 2 pontos não é parede', () => {
+    expect(isValidFreeWallDraft([])).toBe(false)
+    expect(isValidFreeWallDraft([{ x: 0, y: 0 }])).toBe(false)
+  })
+
+  it('2 pontos já é uma parede', () => {
+    expect(isValidFreeWallDraft([{ x: 0, y: 0 }, { x: 64, y: 0 }])).toBe(true)
+  })
+})
+
+describe('buildFreeWallsFromPoints (Parede livre)', () => {
+  const PONTOS: Point[] = [
+    { x: 64, y: 64 },
+    { x: 320, y: 64 },
+    { x: 320, y: 256 },
+    { x: 128, y: 320 },
+  ]
+  const idsEmOrdem = (): (() => string) => {
+    let proximo = 0
+    return () => `w${proximo++}`
+  }
+
+  it('linha aberta: uma parede por trecho, sem a que voltaria ao começo', () => {
+    const walls = buildFreeWallsFromPoints(idsEmOrdem(), PONTOS, false, 'interior')
+
+    expect(walls).toHaveLength(PONTOS.length - 1)
+    walls.forEach((wall, i) => {
+      const de = PONTOS[i]
+      const para = PONTOS[i + 1]
+      expect([wall.x1, wall.y1, wall.x2, wall.y2]).toEqual([de.x, de.y, para.x, para.y])
+    })
+  })
+
+  it('contorno fechado: uma parede a mais, do último ponto de volta ao primeiro', () => {
+    const walls = buildFreeWallsFromPoints(idsEmOrdem(), PONTOS, true, 'interior')
+
+    expect(walls).toHaveLength(PONTOS.length)
+    const ultima = walls[walls.length - 1]
+    expect([ultima.x1, ultima.y1, ultima.x2, ultima.y2]).toEqual([PONTOS[3].x, PONTOS[3].y, PONTOS[0].x, PONTOS[0].y])
+  })
+
+  it('cada trecho é parede comum, igual à ferramenta Parede: bloqueia luz e movimento, sem porta e sem sala', () => {
+    const walls = buildFreeWallsFromPoints(idsEmOrdem(), PONTOS, false, 'interior')
+
+    expect(walls.map((wall) => wall.id)).toEqual(['w0', 'w1', 'w2'])
+    for (const wall of walls) {
+      expect(wall.blocksLight).toBe(true)
+      expect(wall.blocksMove).toBe(true)
+      expect(wall.door).toBeNull()
+      expect(wall.wallKind).toBe('interior')
+      expect(wall.regionId).toBeUndefined()
+      expect(wall.regionEdgeIndex).toBeUndefined()
+    }
+  })
+
+  it('sem wallKind: igual à Parede sem preferência (campo ausente, lido como externa)', () => {
+    const walls = buildFreeWallsFromPoints(idsEmOrdem(), PONTOS, false)
+
+    expect(walls).toHaveLength(PONTOS.length - 1)
+    for (const wall of walls) expect(wall.wallKind).toBeUndefined()
+  })
+
+  it('"fechado" com só 2 pontos não duplica a parede de ida e volta', () => {
+    const walls = buildFreeWallsFromPoints(idsEmOrdem(), [PONTOS[0], PONTOS[1]], true)
+    expect(walls).toHaveLength(1)
+  })
+
+  it('menos de 2 pontos não cria parede nenhuma', () => {
+    expect(buildFreeWallsFromPoints(idsEmOrdem(), [], false)).toEqual([])
+    expect(buildFreeWallsFromPoints(idsEmOrdem(), [{ x: 0, y: 0 }], true)).toEqual([])
   })
 })
 

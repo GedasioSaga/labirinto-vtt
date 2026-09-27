@@ -305,6 +305,50 @@ export function buildFreeRoomFromPoints(
   return { region, walls: buildRoomEdgeWalls(region.id, vertices, wallIds) }
 }
 
+/**
+ * Traçado da Sala livre no modo "Criar: Parede", já limpo para virar parede.
+ * Mesma limpeza de `normalizeDraftPolygonPoints` (duplo clique repetindo o
+ * último ponto, clique de volta no primeiro), com uma diferença que só existe
+ * aqui: na Sala o fechamento é sempre implícito, na Parede ele é uma ESCOLHA.
+ * Terminar exatamente no primeiro ponto é o gesto de "fechar o contorno";
+ * terminar em qualquer outro lugar deixa a linha aberta.
+ *
+ * Voltar ao primeiro ponto com só um ponto no meio (A, B, A) não é contorno —
+ * seria a parede A-B duas vezes, uma em cima da outra —, então vira a linha
+ * A-B aberta. Igualdade exata pelo mesmo motivo de `normalizeDraftPolygonPoints`:
+ * os pontos saem todos do mesmo `applySnap` do clique.
+ */
+export function normalizeFreeWallDraft(points: Point[]): { points: Point[]; closed: boolean } {
+  const normalized = normalizeDraftPolygonPoints(points)
+  const first = points[0]
+  const last = points[points.length - 1]
+  const endsOnFirst = points.length > 1 && first.x === last.x && first.y === last.y
+  return { points: normalized, closed: endsOnFirst && normalized.length >= 3 }
+}
+
+/** Uma parede precisa de 2 pontos distintos; menos que isso não tem comprimento. */
+export function isValidFreeWallDraft(points: Point[]): boolean {
+  return points.length >= 2
+}
+
+/**
+ * As paredes soltas do traçado da Sala livre no modo Parede: uma por trecho,
+ * mais a que volta do último ponto ao primeiro quando o contorno foi fechado.
+ * Cada trecho sai de `buildWallFromDraft`, a MESMA receita da ferramenta
+ * Parede — bloqueia luz e movimento, sem porta, sem sala dona (`regionId`) —,
+ * para que um trecho traçado aqui não se distinga em nada de um desenhado lá.
+ *
+ * `points` já deve ter passado por `normalizeFreeWallDraft`. Com só 2 pontos,
+ * `closed` é ignorado: a parede de volta seria a mesma parede ao contrário.
+ * `newId` é chamado uma vez por parede, na ordem do traçado.
+ */
+export function buildFreeWallsFromPoints(newId: () => string, points: Point[], closed: boolean, wallKind?: Wall['wallKind']): Wall[] {
+  if (!isValidFreeWallDraft(points)) return []
+  const walls = points.slice(1).map((end, i) => buildWallFromDraft(newId(), points[i], end, wallKind))
+  if (closed && points.length >= 3) walls.push(buildWallFromDraft(newId(), points[points.length - 1], points[0], wallKind))
+  return walls
+}
+
 export function isValidFreehandDraft(points: Point[]): boolean {
   return points.length >= 2
 }

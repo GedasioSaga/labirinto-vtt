@@ -52,6 +52,15 @@ export type DrawingTool =
  */
 export type DoorMode = 'porta' | 'vao'
 
+/**
+ * O que o traçado ponto a ponto da ferramenta "Sala livre" cria:
+ *  - 'sala' — a sala de sempre (região fechada com parede em todo lado);
+ *  - 'parede' — só as paredes do traçado, sem sala; a linha pode ficar aberta.
+ *
+ * Preferência de FERRAMENTA, fora do map.json — mesma classe de `DoorMode`.
+ */
+export type RoomFreeKind = 'sala' | 'parede'
+
 export type SelectionKind = 'token' | 'wall' | 'light' | 'region' | 'stair' | 'prop' | 'drawing' | 'floor'
 
 export interface Selection {
