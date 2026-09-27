@@ -1123,7 +1123,7 @@
   font-weight: 600;
 }
 
-.pp-button:hover:not(:disabled) {
+.pp-button:hover:not(:disabled):not([aria-disabled='true']) {
   background: var(--lb-color-brass-soft, rgba(224, 164, 74, 0.14));
 }
 
@@ -1196,7 +1196,10 @@
   flex: none;
 }
 
-.pp-button:disabled {
+/* `aria-disabled` tem a mesma pele: é o indisponível que continua focável
+   (o destinatário do "Pagar" com o valor que não vale). */
+.pp-button:disabled,
+.pp-button[aria-disabled='true'] {
   cursor: not-allowed;
   border-color: var(--lb-color-line-panel, rgba(255, 255, 255, 0.12));
   color: var(--lb-color-parchment-faint, #6d6c68);
@@ -4798,15 +4801,25 @@ button.pp-colecao__casa:focus-visible {
   gap: var(--lb-space-2, 8px);
 }
 
-/* Texto solto na fileira — a pergunta, a bolsa, o aviso de valor — fica no
-   meio da altura de um botão, na linha dos botões ao lado dele. */
+/* Texto solto na fileira — a pergunta, a bolsa — fica no meio da altura de um
+   botão, na linha dos botões ao lado dele. */
 .pp-inv__passo-topo > .pp-inv__pergunta,
 .pp-inv__passo-topo > .pp-inv__motivo,
-.pp-inv__passo-escolhas > .pp-inv__pergunta,
-.pp-inv__passo-escolhas > .pp-error {
+.pp-inv__passo-escolhas > .pp-inv__pergunta {
   display: flex;
   align-items: center;
   min-height: 44px;
+}
+
+/* O aviso de valor do "Pagar": uma linha só dele, embaixo dos colegas, que o
+   molde reserva em todos os passos. Errar o valor escreve nela sem tirar da
+   tela o campo, a pergunta nem o destinatário, e sem mover nada. Sem
+   animação: o texto troca a cada tecla. */
+.pp-inv__aviso {
+  flex: 1 0 100%;
+  min-height: calc(1em * var(--lb-font-leading-normal, 1.45));
+  font-size: var(--lb-font-size-md, 13px);
+  line-height: var(--lb-font-leading-normal, 1.45);
 }
 
 /* Base zero: a lista cresce no espaço que sobra ao lado de "Pagar a quem?" e
