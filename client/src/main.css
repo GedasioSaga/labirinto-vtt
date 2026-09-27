@@ -3493,8 +3493,10 @@ label.lb-switch[data-dica-linha='aberta'] > span:first-child::after,
   flex-wrap: wrap;
   align-items: center;
   gap: var(--lb-space-2);
-  /* Cena dentro de cena: um degrau de recuo por nível (`--lb-cena-nivel`, do ScenesSection). */
-  margin-left: calc(var(--lb-space-3) * var(--lb-cena-nivel, 0));
+  /* Cena dentro de cena: um degrau de recuo por nível (`--lb-cena-nivel`, do
+     ScenesSection). Degrau curto, como no Explorer do VS Code: cada pixel de
+     recuo sai da largura do nome. */
+  margin-left: calc(var(--lb-space-2) * var(--lb-cena-nivel, 0));
   padding: var(--lb-space-2) var(--lb-space-3);
   border: 1px solid var(--lb-color-line);
   border-radius: var(--lb-radius-md);
@@ -4057,6 +4059,295 @@ label.lb-switch[data-dica-linha='aberta'] > span:first-child::after,
   gap: var(--lb-space-1);
 }
 
+/* ---- Linha da cena (bar: painel de camadas do Figma, Explorer do VS Code)
+   A primeira linha do item é nome | info | controles. O nome fica com a
+   largura (o nome inteiro mora no title); a info à direita traz só o que se lê
+   de relance. Nas cenas fechadas, os controles flutuam sobre o fim da linha e
+   só aparecem no hover e no foco do teclado: em repouso ficam com opacity 0 —
+   nunca display nem visibility, e cada botão mantém o pointer-events — para o
+   Tab e o clique direto continuarem alcançando cada botão. Na cena aberta têm
+   linha própria, sempre à vista. Sem animação: hover de linha e foco de
+   teclado são ações de alta frequência, e movimento ali só atrasa. */
+.lb-cenas__item:has(> .lb-cenas__linha) {
+  /* O fundo que a faixa de controles copia para cobrir o fim do nome. */
+  --lb-cena-fundo: var(--lb-color-stone-solid);
+  /* Vão lateral de 8px, não 12: cada pixel daqui sai da largura do nome. */
+  padding: var(--lb-space-2);
+}
+
+.lb-cenas__item[data-enter='true'] {
+  --lb-cena-fundo: var(--lb-color-stone-raised);
+}
+
+.lb-cenas__item[data-movida='true'] {
+  /* O latão translúcido da cena recém-movida, sobre o fundo opaco: a faixa
+     precisa esconder o texto que passa por baixo dela. */
+  --lb-cena-fundo: linear-gradient(var(--lb-color-brass-soft), var(--lb-color-brass-soft)) var(--lb-color-stone-solid);
+}
+
+/* O nome é a linha inteira (ver o ::after abaixo): com foco de teclado, o anel
+   contorna o cartão, não só as letras. */
+.lb-cenas__item:has(> .lb-cenas__linha > .lb-cenas__nome:focus-visible) {
+  box-shadow: var(--lb-shadow-focus);
+}
+
+.lb-cenas__linha {
+  position: relative;
+  display: flex;
+  flex-basis: 100%;
+  align-items: center;
+  gap: var(--lb-space-1);
+  min-width: 0;
+  /* A altura dos botões da faixa: a linha não pula quando eles aparecem. */
+  min-height: var(--lb-space-6);
+}
+
+/* Do tamanho do texto, encolhendo com reticências quando falta espaço: um nome
+   curto deixa o meio da linha livre para o clique. */
+.lb-cenas__linha > .lb-cenas__nome {
+  flex: 0 1 auto;
+}
+
+/* A linha inteira abre a cena, não só as letras. O ::after se estende até a
+   borda do cartão (o contêiner dele é a .lb-cenas__linha, então o overflow do
+   nome não o corta); seta da pasta, info e controles ficam por cima. */
+.lb-cenas__linha > .lb-cenas__nome::after {
+  content: '';
+  position: absolute;
+  inset: calc(var(--lb-space-2) * -1);
+}
+
+.lb-cenas__linha > .lb-cenas__nome:disabled::after {
+  content: none;
+}
+
+.lb-cenas__linha > .lb-cenas__nome:focus-visible {
+  box-shadow: none;
+}
+
+.lb-cenas__linha > .lb-cenas__pasta {
+  position: relative;
+  z-index: 1;
+}
+
+.lb-cenas__info {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: var(--lb-space-1);
+  margin-left: auto;
+}
+
+/* A contagem é nota de rodapé, não manchete: ícone e número em cinza, na letra,
+   no tamanho e na cor da contagem da lista de mapas (.lb-maplist__meta), para
+   os dois números se lerem igual. O "tokens" continua para o leitor de tela
+   (.lb-sr-only). */
+.lb-cenas__info .lb-cenas__conta {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: calc(var(--lb-space-1) / 2);
+  color: var(--lb-color-parchment-faint);
+  font-family: var(--lb-font-utility);
+  font-size: var(--lb-font-size-sm);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.lb-cenas__info .lb-cenas__espera {
+  font-size: var(--lb-font-size-xs);
+}
+
+.lb-cenas__info .lb-cenas__espera--longa {
+  padding: 0 var(--lb-space-1);
+}
+
+/* Selos do estado que só o botão mostrava (pausada, planta de todos): ficam à
+   vista quando os controles se escondem. */
+.lb-cenas__selo {
+  color: var(--lb-color-parchment-faint);
+  font-size: var(--lb-font-size-sm);
+  line-height: 1;
+}
+
+.lb-cenas__selo--pausa {
+  color: var(--lb-color-brass);
+}
+
+/* Na cena aberta os próprios botões mostram o estado, sempre à vista. */
+.lb-cenas__item--ativa .lb-cenas__selo {
+  display: none;
+}
+
+/* Cena fechada: a faixa de controles pousa sobre o fim da linha, com o fundo do
+   cartão e um degradê que apaga o fim do nome por baixo dela. A faixa em si
+   deixa o clique passar (o nome segue clicável até os botões); os botões não. */
+.lb-cenas__item:not(.lb-cenas__item--ativa) > .lb-cenas__linha > .lb-cenas__controles {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  padding-left: var(--lb-space-1);
+  background: var(--lb-cena-fundo);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.lb-cenas__item:not(.lb-cenas__item--ativa) > .lb-cenas__linha > .lb-cenas__controles::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 100%;
+  bottom: 0;
+  width: var(--lb-space-4);
+  background: var(--lb-cena-fundo);
+  /* Na máscara só o alfa conta: a cor opaca da ponta é indiferente. */
+  mask-image: linear-gradient(to right, transparent, var(--lb-color-ink));
+  pointer-events: none;
+}
+
+/* Aparece com o mouse sobre o cartão, com o foco de teclado em qualquer peça da
+   linha e enquanto um dos botões está com o formulário ou o menu aberto. */
+.lb-cenas__item:hover > .lb-cenas__linha > .lb-cenas__controles,
+.lb-cenas__item > .lb-cenas__linha:has(:focus-visible) > .lb-cenas__controles,
+.lb-cenas__item > .lb-cenas__linha > .lb-cenas__controles:has([aria-expanded='true']) {
+  opacity: 1;
+}
+
+.lb-cenas__item > .lb-cenas__linha > .lb-cenas__controles:empty {
+  display: none;
+}
+
+/* Arrastando uma cena, o mouse passa por cima de todas: nenhuma faixa acende. */
+html.lb-arrastando-cena .lb-cenas__item:not(.lb-cenas__item--ativa) > .lb-cenas__linha > .lb-cenas__controles {
+  opacity: 0;
+}
+
+/* Cena aberta: nome e info na primeira linha; os controles, sempre à vista, na
+   segunda, alinhados à direita. O nome com base 0 cresce sem empurrar a info
+   para baixo. */
+.lb-cenas__item--ativa > .lb-cenas__linha {
+  flex-wrap: wrap;
+}
+
+.lb-cenas__item--ativa > .lb-cenas__linha > .lb-cenas__nome {
+  flex: 1 1 0;
+}
+
+.lb-cenas__item--ativa > .lb-cenas__linha > .lb-cenas__controles {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-basis: 100%;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+/* Os botões da faixa: ícones de 24px sem borda, como as ações de uma linha do
+   Explorer; o nome acessível e o title dizem o que cada um faz. */
+.lb-cenas__linha > .lb-cenas__controles > button {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: var(--lb-space-6);
+  height: var(--lb-space-6);
+  padding: 0;
+  border: 0;
+  border-radius: var(--lb-radius-sm);
+  background: none;
+  color: var(--lb-color-parchment-dim);
+  font-family: inherit;
+  font-size: var(--lb-font-size-md);
+  line-height: 1;
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.lb-cenas__linha > .lb-cenas__controles > button:hover:not(:disabled):not([aria-pressed='true']) {
+  background: var(--lb-color-stone-hover);
+  color: var(--lb-color-parchment);
+}
+
+.lb-cenas__linha > .lb-cenas__controles > button:active:not(:disabled):not([aria-pressed='true']) {
+  background: var(--lb-color-stone-sunken);
+}
+
+/* O anel de foco por cima do vizinho. */
+.lb-cenas__linha > .lb-cenas__controles > button:focus-visible {
+  position: relative;
+  z-index: 1;
+}
+
+.lb-cenas__linha > .lb-cenas__controles > button[aria-expanded='true'] {
+  color: var(--lb-color-brass);
+}
+
+.lb-cenas__linha > .lb-cenas__controles > button[aria-pressed='true'] {
+  background: var(--lb-color-brass);
+  color: var(--lb-color-ink);
+}
+
+.lb-cenas__linha > .lb-cenas__controles > button[aria-pressed='true']:hover:not(:disabled) {
+  background: var(--lb-color-brass-bright);
+}
+
+.lb-cenas__linha > .lb-cenas__controles > button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Tela de toque: os controles descem para a linha de baixo, sempre à vista, e
+   os selos saem (os botões já mostram o estado). Vale também para o notebook
+   com tela de toque (any-pointer: coarse), que tem hover pelo mouse: lá um
+   toque no fim da linha cairia num botão ainda invisível, e a cena seria
+   pausada ou teria a planta mostrada sem o mestre ver no que tocou. */
+@media (hover: none), (any-pointer: coarse) {
+  .lb-cenas__item > .lb-cenas__linha {
+    flex-wrap: wrap;
+  }
+
+  /* Com a sala aberta a faixa chega a 7 botões de 44px, mais largos que o
+     cartão: quebram em mais de uma linha, alinhados à direita, em vez de vazar
+     pela esquerda. */
+  .lb-cenas__item > .lb-cenas__linha > .lb-cenas__controles {
+    flex-wrap: wrap;
+  }
+
+  .lb-cenas__item > .lb-cenas__linha > .lb-cenas__nome {
+    flex: 1 1 0;
+  }
+
+  .lb-cenas__item:not(.lb-cenas__item--ativa) > .lb-cenas__linha > .lb-cenas__controles {
+    position: relative;
+    flex-basis: 100%;
+    justify-content: flex-end;
+    padding-left: 0;
+    background: none;
+    opacity: 1;
+  }
+
+  .lb-cenas__item:not(.lb-cenas__item--ativa) > .lb-cenas__linha > .lb-cenas__controles::before {
+    content: none;
+  }
+
+  /* Alvo de dedo, o mesmo mínimo de 44px dos botões da tela do jogador; o
+     ícone continua do mesmo tamanho. */
+  .lb-cenas__linha > .lb-cenas__controles > button {
+    width: 44px;
+    height: 44px;
+  }
+
+  .lb-cenas__selo {
+    display: none;
+  }
+}
+
 /* ---- Cenas em pastas (região > cidade > bairro > casa) */
 
 /* Os fios da árvore: um traço fino e claro no meio de cada degrau de recuo,
@@ -4067,14 +4358,14 @@ label.lb-switch[data-dica-linha='aberta'] > span:first-child::after,
   position: absolute;
   top: calc(var(--lb-space-2) * -1 - 1px);
   bottom: -1px;
-  left: calc(var(--lb-space-3) * var(--lb-cena-nivel) * -1 - 1px);
-  width: calc(var(--lb-space-3) * var(--lb-cena-nivel));
-  /* Pixel inteiro (6 a 7 de cada degrau de 12): em meio pixel o fio sai borrado em dois. */
+  left: calc(var(--lb-space-2) * var(--lb-cena-nivel) * -1 - 1px);
+  width: calc(var(--lb-space-2) * var(--lb-cena-nivel));
+  /* Pixel inteiro (4 a 5 de cada degrau de 8): em meio pixel o fio sai borrado em dois. */
   background: repeating-linear-gradient(
     to right,
-    transparent 0 calc(var(--lb-space-3) / 2),
-    var(--lb-color-line-strong) calc(var(--lb-space-3) / 2) calc(var(--lb-space-3) / 2 + 1px),
-    transparent calc(var(--lb-space-3) / 2 + 1px) var(--lb-space-3)
+    transparent 0 calc(var(--lb-space-2) / 2),
+    var(--lb-color-line-strong) calc(var(--lb-space-2) / 2) calc(var(--lb-space-2) / 2 + 1px),
+    transparent calc(var(--lb-space-2) / 2 + 1px) var(--lb-space-2)
   );
   pointer-events: none;
 }
@@ -4243,15 +4534,44 @@ html.lb-arrastando-cena * {
   cursor: grabbing !important;
 }
 
-/* "+ Nova cena" e "Visão geral" dividem a linha; sozinho, o primeiro ocupa tudo. */
+/* O rodapé é uma faixa segmentada numa linha só: "+ Nova cena", "Visão geral"
+   e "Corte da torre" dividem a largura; sozinho, o primeiro ocupa tudo. Com
+   vão entre os três e o padding do .lb-btn, "Corte da torre" caía numa segunda
+   linha na largura padrão do painel. */
 .lb-cenas__rodape {
   display: flex;
-  gap: var(--lb-space-2);
 }
 
 .lb-cenas__rodape > .lb-btn {
-  flex: 1 1 0;
+  flex: 1 1 auto;
   min-width: 0;
+  padding: 0 var(--lb-space-1);
+  font-size: var(--lb-font-size-sm);
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+/* As bordas vizinhas se sobrepõem: um fio só entre dois segmentos. */
+.lb-cenas__rodape > .lb-btn + .lb-btn {
+  margin-left: -1px;
+}
+
+.lb-cenas__rodape > .lb-btn:not(:first-child) {
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+}
+
+.lb-cenas__rodape > .lb-btn:not(:last-child) {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+/* O segmento sob o mouse ou com foco sobe: a borda e o anel dele não ficam
+   por baixo do vizinho. */
+.lb-cenas__rodape > .lb-btn:hover,
+.lb-cenas__rodape > .lb-btn:focus-visible {
+  position: relative;
+  z-index: 1;
 }
 
 /* Visão geral das cenas (SceneOverview.tsx): uma miniatura por cena, a aberta

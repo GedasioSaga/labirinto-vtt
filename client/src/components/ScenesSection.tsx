@@ -14,7 +14,7 @@ import { CollapsibleSection } from './CollapsibleSection'
 import { SceneOverviewDialog } from './SceneOverview'
 import { CorteDaTorreDialog } from './CorteDaTorre'
 import type { CorteJogador } from '../lib/corteDaTorre'
-import { ChevronDownIcon, CloseIcon, MoveIntoIcon, SearchIcon } from './icons'
+import { ChevronDownIcon, CloseIcon, MoveIntoIcon, SearchIcon, TokenIcon } from './icons'
 import { useSceneDrag, type SceneDrag } from './sceneDrag'
 import { SceneAlarmControls, type ActiveAlarmView } from './SceneAlarmControls'
 import { NOTE_MAX_LENGTH } from '../net/protocol'
@@ -757,6 +757,23 @@ function tokenLabel(count: number | null): string {
   return count === 1 ? '1 token' : `${count} tokens`
 }
 
+/** A frase da espera: no título do selo e, repetida, no do nome (no hover a faixa de ações cobre o selo). */
+function esperaTitle(minutes: number): string {
+  return `Esperando você ${rotuloDeEspera(minutes)} · Ctrl+J abre a que espera mais`
+}
+
+/**
+ * O título do nome: o nome inteiro (a linha pode cortá-lo) e, embaixo, por
+ * que a cena não abre ou há quanto tempo ela espera o mestre.
+ */
+function nameTitle(scene: SceneListItem, minutesWaiting: number | undefined): string {
+  const lines = [scene.name]
+  const unavailable = unavailableTitle(scene)
+  if (unavailable !== undefined) lines.push(unavailable)
+  else if (minutesWaiting !== undefined) lines.push(esperaTitle(minutesWaiting))
+  return lines.join('\n')
+}
+
 /**
  * A segunda linha do item: uma bolinha por jogador na cena (cor da ficha,
  * nome no rótulo e no título — o mouse em cima diz quem é) e o selo dos
@@ -856,8 +873,31 @@ function insideCountLabel(count: number): string {
 function SceneEspera({ minutes }: { minutes: number }) {
   const label = rotuloDeEspera(minutes)
   return (
-    <span className={`lb-cenas__espera${esperaLonga(minutes) ? ' lb-cenas__espera--longa' : ''}`} title={`Esperando você ${label} · Ctrl+J abre a que espera mais`}>
+    <span className={`lb-cenas__espera${esperaLonga(minutes) ? ' lb-cenas__espera--longa' : ''}`} title={esperaTitle(minutes)}>
       {label}
+    </span>
+  )
+}
+
+/**
+ * A contagem de tokens, discreta: ícone + número, como o contador de um
+ * explorador de arquivos. O "tokens" continua lá para o leitor de tela e no
+ * título; a cena que não abre mostra o motivo por extenso.
+ */
+function SceneTokens({ scene }: { scene: SceneListItem }) {
+  if (scene.loading === true || scene.tokenCount === null) {
+    return (
+      <span className="lb-cenas__conta" title={unavailableTitle(scene)}>
+        {scene.loading === true ? 'carregando…' : tokenLabel(scene.tokenCount)}
+      </span>
+    )
+  }
+  const count = scene.tokenCount
+  return (
+    <span className="lb-cenas__conta" title={tokenLabel(count)}>
+      <TokenIcon size={12} />
+      {count}
+      <span className="lb-sr-only">{count === 1 ? ' token' : ' tokens'}</span>
     </span>
   )
 }
@@ -865,9 +905,15 @@ function SceneEspera({ minutes }: { minutes: number }) {
 /**
  * "Cenas", no topo da aba Mapa: as cenas da aventura, a aberta destacada
  * (`aria-current`), "+ Nova cena", renomear e a "Visão geral" (miniaturas de
- * todas as cenas com as fichas, `SceneOverview.tsx`). O nome da cena é o botão
- * inteiro — trocar de cena é um clique —, e a contagem de tokens fica FORA
- * dele, para o nome acessível do botão ser só o nome da cena.
+ * todas as cenas com as fichas, `SceneOverview.tsx`).
+ *
+ * A LINHA DA CENA segue o painel de camadas do Figma e o Explorer do VS Code:
+ * nome | info | controles. O nome fica com a largura (o nome inteiro mora no
+ * título); a info traz os selos do estado, a espera e a contagem como ícone +
+ * número; os controles flutuam sobre o fim da linha e só aparecem no hover e
+ * no foco do teclado — na cena aberta têm linha própria, sempre à vista. A
+ * linha inteira abre a cena, e a contagem fica FORA do botão do nome, para o
+ * nome acessível dele ser só o nome da cena.
  *
  * CENAS EM PASTAS: cena dentro de cena (região > cidade > bairro > casa) vira
  * árvore — recuo e fio claro por nível, seta para recolher (a pasta recolhida
@@ -1508,149 +1554,164 @@ export function ScenesSection({
               data-enter={enterTarget?.entry.id === scene.id ? 'true' : undefined}
               onPointerDown={(event) => onRowPointerDown(scene.id, event)}
             >
-              {hasFolders &&
-                !filtering &&
-                (isFolder ? (
-                  // A seta abre e fecha a pasta sem trocar de cena; o nome continua sendo o clique que troca.
-                  <button
-                    type="button"
-                    className="lb-cenas__pasta"
-                    data-cena-pasta={scene.id}
-                    aria-expanded={!collapsedFolder}
-                    aria-label={`Cenas dentro de ${scene.name}`}
-                    title={collapsedFolder ? insideCountLabel(subtreeEnd(index) - index - 1) : 'Esconder as cenas de dentro'}
-                    onClick={() => toggleFolder(scene.id)}
-                  >
-                    <ChevronDownIcon size={14} />
-                  </button>
-                ) : (
-                  <span className="lb-cenas__recuo" aria-hidden="true" />
-                ))}
-              <button
-                type="button"
-                className="lb-cenas__nome"
-                data-cena-nome={scene.id}
-                aria-current={scene.active ? 'true' : undefined}
-                aria-describedby={trail.length > 0 ? pathId : undefined}
-                disabled={!scene.available}
-                title={unavailableTitle(scene)}
-                onClick={() => {
-                  if (drag.swallowClick()) return
-                  onSelect(scene.id)
-                }}
-              >
-                {scene.name}
-              </button>
-              <span className="lb-cenas__conta">{scene.loading === true ? 'carregando…' : tokenLabel(scene.tokenCount)}</span>
-              {minutesWaiting !== undefined && <SceneEspera minutes={minutesWaiting} />}
-              {scene.active && scene.renamable && editing === null && (
+              <div className="lb-cenas__linha">
+                {hasFolders &&
+                  !filtering &&
+                  (isFolder ? (
+                    // A seta abre e fecha a pasta sem trocar de cena; o nome continua sendo o clique que troca.
+                    <button
+                      type="button"
+                      className="lb-cenas__pasta"
+                      data-cena-pasta={scene.id}
+                      aria-expanded={!collapsedFolder}
+                      aria-label={`Cenas dentro de ${scene.name}`}
+                      title={collapsedFolder ? insideCountLabel(subtreeEnd(index) - index - 1) : 'Esconder as cenas de dentro'}
+                      onClick={() => toggleFolder(scene.id)}
+                    >
+                      <ChevronDownIcon size={14} />
+                    </button>
+                  ) : (
+                    <span className="lb-cenas__recuo" aria-hidden="true" />
+                  ))}
                 <button
                   type="button"
-                  className="lb-cenas__renomear"
-                  aria-label={`Renomear ${scene.name}`}
-                  title="Renomear"
-                  onClick={() => startEditing({ kind: 'rename', sceneId: scene.id }, scene.name, scene.publicName)}
-                >
-                  ✎
-                </button>
-              )}
-              {/* Na cena aberta, como o renomear; montado também com o formulário aberto: é para ele que o foco volta. */}
-              {scene.active && onMove !== undefined && scene.id !== '' && (
-                <button
-                  type="button"
-                  className="lb-cenas__renomear lb-cenas__mover-btn"
-                  aria-label={`Mover ${scene.name} para…`}
-                  aria-expanded={moving === scene.id}
-                  title="Mover para dentro de outra cena"
-                  onClick={() => (moving === scene.id ? closeMove() : startMove(scene.id))}
-                >
-                  <MoveIntoIcon size={14} />
-                </button>
-              )}
-              {/* Montado também com o campo aberto: é para ele que o foco volta. */}
-              {onNote !== undefined && scene.id !== '' && (
-                <button
-                  type="button"
-                  className="lb-cenas__recado-btn"
-                  aria-label={`Recado para ${scene.name}`}
-                  aria-expanded={noting === scene.id}
-                  title="Recado: só quem está nesta cena lê"
+                  className="lb-cenas__nome"
+                  data-cena-nome={scene.id}
+                  aria-current={scene.active ? 'true' : undefined}
+                  aria-describedby={trail.length > 0 ? pathId : undefined}
                   disabled={!scene.available}
-                  onClick={() => (noting === scene.id ? closeNote() : startNote(scene.id))}
-                >
-                  {/* Glifo, como o ✎ do renomear: sete linhas repetindo "Recado"
-                      poluem a lista. O nome vai no rótulo acessível e no título. */}
-                  <span aria-hidden="true">✉</span>
-                </button>
-              )}
-              {/* ABALO: montado também com o formulário aberto, como o Recado — é para ele que o foco volta. */}
-              {onQuake !== undefined && scene.id !== '' && (
-                <button
-                  type="button"
-                  className="lb-cenas__recado-btn"
-                  aria-label={`Abalo a partir de ${scene.name}`}
-                  aria-expanded={quaking === scene.id}
-                  title="Abalo: um texto por distância para todas as cenas"
-                  disabled={!scene.available}
-                  onClick={() => (quaking === scene.id ? closeQuake() : startQuake(scene.id))}
-                >
-                  <span aria-hidden="true">≋</span>
-                </button>
-              )}
-              {/* Mapa solto (`id` vazio) não tem cena para pausar. O nome
-                  acessível é o mesmo ligado ou desligado; o estado vai em
-                  `aria-pressed`, como pede um botão alternável. */}
-              {onTogglePause !== undefined && scene.id !== '' && (
-                <button
-                  type="button"
-                  className="lb-cenas__pausar"
-                  aria-label={`Pausar ${scene.name}`}
-                  aria-pressed={isPaused}
-                  title={isPaused ? 'Pausada: quem está aqui espera. Clique para soltar' : 'Pausar: quem está nesta cena espera você'}
-                  disabled={!scene.available}
-                  onClick={() => onTogglePause(scene.id, !isPaused)}
-                >
-                  <span aria-hidden="true">⏸</span>
-                </button>
-              )}
-              {onTogglePlanKnown !== undefined && scene.id !== '' && (
-                <button
-                  type="button"
-                  className="lb-cenas__recado-btn"
-                  aria-label={`Planta de ${scene.name}`}
-                  aria-expanded={planning === scene.id}
-                  title={scene.planKnownByAll === true ? 'Planta: conhecida por todos' : 'Planta: quem conhece esta cena'}
-                  onClick={() => (planning === scene.id ? closePlan() : startPlan(scene.id))}
-                >
-                  {/* ▦ cheio quando a cena é conhecida por todos: o estado se lê sem abrir. */}
-                  <span aria-hidden="true">{scene.planKnownByAll === true ? '▦' : '▢'}</span>
-                </button>
-              )}
-              {hasSceneMenu && scene.id !== '' && (
-                <button
-                  ref={(node) => {
-                    if (node === null) menuTriggers.current.delete(scene.id)
-                    else menuTriggers.current.set(scene.id, node)
-                  }}
-                  type="button"
-                  className="lb-cenas__mais"
-                  aria-label={`Mais ações de ${scene.name}`}
-                  title="Duplicar, mover ou apagar"
-                  aria-haspopup="menu"
-                  aria-expanded={menuOpen}
-                  aria-controls={menuOpen ? menuId : undefined}
+                  title={nameTitle(scene, minutesWaiting)}
                   onClick={() => {
-                    if (menuOpen) {
-                      setMenuFor(null)
-                      return
-                    }
-                    setDeleting(null)
-                    setMenuFor(scene.id)
+                    if (drag.swallowClick()) return
+                    onSelect(scene.id)
                   }}
                 >
-                  <span aria-hidden="true">…</span>
+                  {scene.name}
                 </button>
-              )}
+                {/* O que se lê de relance, à direita do nome: selos do estado, a espera e a contagem. */}
+                <span className="lb-cenas__info">
+                  {isPaused && scene.id !== '' && <span className="lb-cenas__selo lb-cenas__selo--pausa" aria-hidden="true">⏸</span>}
+                  {onTogglePlanKnown !== undefined && scene.id !== '' && scene.planKnownByAll === true && (
+                    <span className="lb-cenas__selo lb-cenas__selo--planta" aria-hidden="true">
+                      ▦
+                    </span>
+                  )}
+                  {minutesWaiting !== undefined && <SceneEspera minutes={minutesWaiting} />}
+                  <SceneTokens scene={scene} />
+                </span>
+                {/* Na cena aberta as ações têm linha própria, sempre à vista; nas outras flutuam
+                    sobre o fim da linha e aparecem no hover e no foco do teclado (main.css). */}
+                <span className="lb-cenas__controles">
+                  {scene.active && scene.renamable && editing === null && (
+                    <button
+                      type="button"
+                      className="lb-cenas__renomear"
+                      aria-label={`Renomear ${scene.name}`}
+                      title="Renomear"
+                      onClick={() => startEditing({ kind: 'rename', sceneId: scene.id }, scene.name, scene.publicName)}
+                    >
+                      ✎
+                    </button>
+                  )}
+                  {/* Na cena aberta, como o renomear; montado também com o formulário aberto: é para ele que o foco volta. */}
+                  {scene.active && onMove !== undefined && scene.id !== '' && (
+                    <button
+                      type="button"
+                      className="lb-cenas__renomear lb-cenas__mover-btn"
+                      aria-label={`Mover ${scene.name} para…`}
+                      aria-expanded={moving === scene.id}
+                      title="Mover para dentro de outra cena"
+                      onClick={() => (moving === scene.id ? closeMove() : startMove(scene.id))}
+                    >
+                      <MoveIntoIcon size={14} />
+                    </button>
+                  )}
+                  {/* Montado também com o campo aberto: é para ele que o foco volta. */}
+                  {onNote !== undefined && scene.id !== '' && (
+                    <button
+                      type="button"
+                      className="lb-cenas__recado-btn"
+                      aria-label={`Recado para ${scene.name}`}
+                      aria-expanded={noting === scene.id}
+                      title="Recado: só quem está nesta cena lê"
+                      disabled={!scene.available}
+                      onClick={() => (noting === scene.id ? closeNote() : startNote(scene.id))}
+                    >
+                      {/* Glifo, como o ✎ do renomear: sete linhas repetindo "Recado"
+                          poluem a lista. O nome vai no rótulo acessível e no título. */}
+                      <span aria-hidden="true">✉</span>
+                    </button>
+                  )}
+                  {/* ABALO: montado também com o formulário aberto, como o Recado — é para ele que o foco volta. */}
+                  {onQuake !== undefined && scene.id !== '' && (
+                    <button
+                      type="button"
+                      className="lb-cenas__recado-btn"
+                      aria-label={`Abalo a partir de ${scene.name}`}
+                      aria-expanded={quaking === scene.id}
+                      title="Abalo: um texto por distância para todas as cenas"
+                      disabled={!scene.available}
+                      onClick={() => (quaking === scene.id ? closeQuake() : startQuake(scene.id))}
+                    >
+                      <span aria-hidden="true">≋</span>
+                    </button>
+                  )}
+                  {/* Mapa solto (`id` vazio) não tem cena para pausar. O nome
+                      acessível é o mesmo ligado ou desligado; o estado vai em
+                      `aria-pressed`, como pede um botão alternável. */}
+                  {onTogglePause !== undefined && scene.id !== '' && (
+                    <button
+                      type="button"
+                      className="lb-cenas__pausar"
+                      aria-label={`Pausar ${scene.name}`}
+                      aria-pressed={isPaused}
+                      title={isPaused ? 'Pausada: quem está aqui espera. Clique para soltar' : 'Pausar: quem está nesta cena espera você'}
+                      disabled={!scene.available}
+                      onClick={() => onTogglePause(scene.id, !isPaused)}
+                    >
+                      <span aria-hidden="true">⏸</span>
+                    </button>
+                  )}
+                  {onTogglePlanKnown !== undefined && scene.id !== '' && (
+                    <button
+                      type="button"
+                      className="lb-cenas__recado-btn"
+                      aria-label={`Planta de ${scene.name}`}
+                      aria-expanded={planning === scene.id}
+                      title={scene.planKnownByAll === true ? 'Planta: conhecida por todos' : 'Planta: quem conhece esta cena'}
+                      onClick={() => (planning === scene.id ? closePlan() : startPlan(scene.id))}
+                    >
+                      {/* ▦ cheio quando a cena é conhecida por todos: o estado se lê sem abrir. */}
+                      <span aria-hidden="true">{scene.planKnownByAll === true ? '▦' : '▢'}</span>
+                    </button>
+                  )}
+                  {hasSceneMenu && scene.id !== '' && (
+                    <button
+                      ref={(node) => {
+                        if (node === null) menuTriggers.current.delete(scene.id)
+                        else menuTriggers.current.set(scene.id, node)
+                      }}
+                      type="button"
+                      className="lb-cenas__mais"
+                      aria-label={`Mais ações de ${scene.name}`}
+                      title="Duplicar, mover ou apagar"
+                      aria-haspopup="menu"
+                      aria-expanded={menuOpen}
+                      aria-controls={menuOpen ? menuId : undefined}
+                      onClick={() => {
+                        if (menuOpen) {
+                          setMenuFor(null)
+                          return
+                        }
+                        setDeleting(null)
+                        setMenuFor(scene.id)
+                      }}
+                    >
+                      <span aria-hidden="true">…</span>
+                    </button>
+                  )}
+                </span>
+              </div>
               {menuOpen && (
                 <SceneMenu
                   id={menuId}
