@@ -591,20 +591,99 @@ describe('PlayerInventory', () => {
     noLugar()
   })
 
-  it('ao entrar em "Pagar" e em "Dar a quem?", o foco cai na primeira fileira do passo, a do "Voltar": num celular a fileira de baixo já passa da borda, e focar lá rolaria a página e arrastaria a grade', () => {
+  it('Dar, Pagar e a pergunta final têm a mesma forma, duas fileiras: em cima o que se pergunta (e o "Voltar"), embaixo as respostas; o molde que reserva a altura tem essa forma também', () => {
     render(personagens([JILL, DIEGO], ['jill']))
-    const naFileiraDoVoltar = () => {
-      const topo = botao('Voltar').closest('.pp-inv__passo-topo')
-      expect(topo).not.toBeNull()
-      expect(document.activeElement?.closest('.pp-inv__passo-topo')).toBe(topo)
-    }
+    const vivo = () => Array.from(dialogo().querySelectorAll('.pp-inv__passo')).find((passo) => passo.closest('.pp-inv__molde') === null)
+    const fileiras = (passo: Element | null | undefined) => Array.from(passo?.children ?? []).map((filho) => filho.className)
+    const respostas = () => Array.from(vivo()?.querySelectorAll('.pp-inv__passo-escolhas button') ?? []).map((b) => b.textContent)
+    const forma: Record<string, unknown> = {}
+    act(() => botao('Pagar a…').click())
+    forma.pagar = [fileiras(vivo()), respostas()]
+    act(() => botao('Diego').click())
+    forma.confirmarPagar = [fileiras(vivo()), respostas()]
+    act(() => botao('Não').click())
+    act(() => vaga('Chave do Escudo').click())
+    act(() => botao('Dar a…').click())
+    forma.dar = [fileiras(vivo()), respostas()]
+    act(() => botao('Diego').click())
+    forma.confirmarDar = [fileiras(vivo()), respostas()]
+    forma.molde = fileiras(dialogo().querySelector('.pp-inv__molde .pp-inv__passo'))
+    const DUAS = ['pp-inv__passo-topo', 'pp-inv__passo-escolhas']
+    expect(forma).toEqual({
+      pagar: [DUAS, ['Diego']],
+      confirmarPagar: [DUAS, ['Sim', 'Não']],
+      dar: [DUAS, ['Diego']],
+      confirmarDar: [DUAS, ['Sim', 'Não']],
+      molde: DUAS,
+    })
+  })
+
+  it('ao entrar em "Pagar" e em "Dar a quem?", o foco cai na primeira resposta do passo: o campo, na fileira de cima do Pagar; o primeiro colega, na fileira de baixo do Dar (que a zona inteira cabe na tela de um celular, só o navegador prova)', () => {
+    render(personagens([JILL, DIEGO], ['jill']))
     act(() => botao('Pagar a…').click())
     expect(document.activeElement).toBeInstanceOf(HTMLInputElement)
-    naFileiraDoVoltar()
+    expect(document.activeElement?.closest('.pp-inv__passo-topo')).toBe(botao('Voltar').closest('.pp-inv__passo-topo'))
     act(() => botao('Voltar').click())
     act(() => vaga('Chave do Escudo').click())
     act(() => botao('Dar a…').click())
     expect(document.activeElement).toBe(botao('Diego'))
-    naFileiraDoVoltar()
+    expect(document.activeElement?.closest('.pp-inv__passo-escolhas')).not.toBeNull()
+  })
+
+  it('"Pagar" com um valor que não vale: o aviso ganha uma linha só dele embaixo dos colegas, e o campo, "Pagar a quem?" e o Diego (indisponível, com o aviso como motivo) ficam na tela enquanto o jogador corrige; tocar no Diego não tira o foco do campo; a fileira tem a mesma forma no valor bom, no ruim e no molde', () => {
+    const onPay = vi.fn(() => true)
+    render(personagens([JILL, DIEGO], ['jill']), { onPay })
+    act(() => botao('Pagar a…').click())
+    const campo = dialogo().querySelector<HTMLInputElement>('input[type="number"]')
+    if (campo === null) throw new Error('sem o campo de moedas')
+    const vivo = () => Array.from(dialogo().querySelectorAll('.pp-inv__passo')).find((passo) => passo.closest('.pp-inv__molde') === null)
+    const escolhas = (passo: Element | null | undefined) => Array.from(passo?.querySelector('.pp-inv__passo-escolhas')?.children ?? []).map((filho) => filho.className)
+    const comValorBom = escolhas(vivo())
+    digita(campo, '99')
+    // O destinatário continua na tela enquanto se corrige o valor.
+    const diego = botao('Diego')
+    const aviso = vivo()?.querySelector('[role="alert"]')
+    expect(aviso?.textContent).toBe('Use um número inteiro de 1 a 15')
+    expect(detalhe()).toContain('Pagar a quem?')
+    // Indisponível, com o aviso como motivo — no botão e no campo. `aria-disabled`,
+    // e não `disabled`: o botão desligado de verdade não pega foco, e o toque
+    // nele jogava o foco do campo para fora da janela.
+    expect(diego.getAttribute('aria-disabled')).toBe('true')
+    expect(diego.disabled).toBe(false)
+    expect(aviso?.id).toBeTruthy()
+    expect(diego.getAttribute('aria-describedby')).toBe(aviso?.id)
+    expect(campo.getAttribute('aria-describedby')).toBe(aviso?.id)
+    expect(campo.getAttribute('aria-invalid')).toBe('true')
+    // Nada entra nem sai da fileira: só o texto do aviso muda.
+    expect(escolhas(vivo())).toEqual(comValorBom)
+    expect(escolhas(dialogo().querySelector('.pp-inv__molde .pp-inv__passo'))).toEqual(comValorBom)
+    // O dedo no destinatário com o valor ruim não leva o foco do campo (no
+    // celular o teclado fica aberto) ...
+    const toque = new MouseEvent('mousedown', { bubbles: true, cancelable: true })
+    act(() => {
+      diego.dispatchEvent(toque)
+    })
+    expect(toque.defaultPrevented).toBe(true)
+    // ... e o clique, de dedo ou de Enter com o foco nele, não pergunta nem
+    // paga: devolve o foco ao campo, que é onde está o conserto.
+    act(() => diego.focus())
+    expect(document.activeElement).toBe(diego)
+    act(() => diego.click())
+    expect(detalhe()).not.toContain('Pagar 99')
+    expect(onPay).not.toHaveBeenCalled()
+    expect(document.activeElement).toBe(campo)
+    // Corrigido, o aviso some sem sair do lugar (a região viva é a mesma) e o Diego volta a valer.
+    digita(campo, '5')
+    expect(vivo()?.querySelector('[role="alert"]')).toBe(aviso)
+    expect(aviso?.textContent).toBe('')
+    expect(campo.hasAttribute('aria-describedby')).toBe(false)
+    expect(botao('Diego').hasAttribute('aria-disabled')).toBe(false)
+    const toqueBom = new MouseEvent('mousedown', { bubbles: true, cancelable: true })
+    act(() => {
+      botao('Diego').dispatchEvent(toqueBom)
+    })
+    expect(toqueBom.defaultPrevented).toBe(false)
+    act(() => botao('Diego').click())
+    expect(detalhe()).toContain('Pagar 5 moedas a Diego?')
   })
 })

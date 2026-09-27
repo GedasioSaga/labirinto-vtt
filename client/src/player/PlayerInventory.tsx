@@ -519,7 +519,7 @@ export function PlayerInventory({ characters, onGive, onPay, notice, onClose, in
                         }}
                         onBack={back}
                       />
-                      <StepMold colleagues={character.colleagues} />
+                      <StepMold colleagues={character.colleagues} moedas={character.moedas} />
                     </div>
                   </div>
                 </>
@@ -712,11 +712,28 @@ interface ActionsProps {
  * O que dá para fazer com a vaga: "Dar a…" num item, "Pagar a…" na bolsa. Os
  * dois só com colega encostado — sem ninguém, o botão fica desligado e a
  * frase ao lado diz como ligar. Escolhido o colega, a pergunta do RE: Sim/Não.
+ *
+ * "Dar a quem?", "Pagar" e a pergunta final têm a mesma forma, como a janela
+ * de comandos do RE3: duas fileiras da altura de um botão. Em cima, o que se
+ * pergunta (ou o campo de moedas) e, no canto direito, o "Voltar"; embaixo,
+ * as respostas — os colegas, ou Sim e Não. A zona mede o mesmo nos três
+ * passos e cabe inteira na tela de um celular em pé, então o foco que cai
+ * nela ao entrar no passo não rola a página nem arrasta a grade junto.
+ *
+ * No "Pagar", um valor que não vale não tira nada da tela: o aviso escreve
+ * numa linha reservada embaixo dos colegas, e os colegas ficam indisponíveis,
+ * com o aviso como motivo, até o valor voltar a valer. `aria-disabled`, e não
+ * `disabled`, como no zoom do mapa: o botão desligado de verdade não pega
+ * foco, e o toque nele jogava o foco do campo para fora da janela (no
+ * celular, fechando o teclado). Aqui o toque não sai do campo, e o clique —
+ * de dedo ou de Enter — não pergunta nem paga: devolve o foco ao campo, que
+ * é onde está o conserto.
  */
 function Actions({ slot, character, step, valor, busy, refs, onValor, onStart, onChooseGive, onChoosePay, onConfirm, onBack }: ActionsProps) {
   const reasonId = useId()
   const questionId = useId()
   const fieldId = useId()
+  const avisoId = useId()
   const pagar = slot.kind === 'moedas'
   const semColega = character.colleagues.length === 0
 
@@ -726,15 +743,17 @@ function Actions({ slot, character, step, valor, busy, refs, onValor, onStart, o
     const outraBolsa = step.kind === 'confirmar-pagar' && step.payer !== undefined && step.payer.tokenId !== character.tokenId ? payerLine(step.payer) : null
     return (
       <div className="pp-inv__passo" role="group" aria-labelledby={questionId} aria-describedby={outraBolsa === null ? undefined : reasonId}>
-        <p id={questionId} className="pp-inv__pergunta">
-          {pergunta}
-        </p>
-        {outraBolsa !== null && (
-          <p id={reasonId} className="pp-inv__motivo pp-inv__bolsa">
-            {outraBolsa}
+        <div className="pp-inv__passo-topo">
+          <p id={questionId} className="pp-inv__pergunta">
+            {pergunta}
           </p>
-        )}
-        <div className="pp-inv__acoes">
+          {outraBolsa !== null && (
+            <p id={reasonId} className="pp-inv__motivo pp-inv__bolsa">
+              {outraBolsa}
+            </p>
+          )}
+        </div>
+        <div className="pp-inv__passo-escolhas">
           <button ref={refs.yesRef} type="button" className="pp-button pp-inv__acao" onClick={onConfirm}>
             Sim
           </button>
@@ -746,11 +765,6 @@ function Actions({ slot, character, step, valor, busy, refs, onValor, onStart, o
     )
   }
 
-  // No "Dar a quem?" e no "Pagar", o "Voltar" sobe para a fileira de cima,
-  // sempre no mesmo canto, e o que recebe o foco ao entrar no passo (o
-  // primeiro colega, o campo de moedas) mora nessa mesma fileira: numa tela
-  // de celular a fileira de baixo já passa da borda, e focar lá rolaria a
-  // página e arrastaria a grade junto.
   if (step.kind === 'dar') {
     return (
       <div className="pp-inv__passo">
@@ -758,6 +772,11 @@ function Actions({ slot, character, step, valor, busy, refs, onValor, onStart, o
           <p id={questionId} className="pp-inv__pergunta">
             Dar a quem?
           </p>
+          <button type="button" className="pp-button pp-inv__acao pp-inv__acao--nao" onClick={onBack}>
+            Voltar
+          </button>
+        </div>
+        <div className="pp-inv__passo-escolhas">
           <ul className="pp-inv__colegas" aria-labelledby={questionId}>
             {character.colleagues.map((colleague, i) => (
               <li key={colleague.tokenId}>
@@ -767,9 +786,6 @@ function Actions({ slot, character, step, valor, busy, refs, onValor, onStart, o
               </li>
             ))}
           </ul>
-          <button type="button" className="pp-button pp-inv__acao pp-inv__acao--nao" onClick={onBack}>
-            Voltar
-          </button>
         </div>
       </div>
     )
@@ -796,6 +812,7 @@ function Actions({ slot, character, step, valor, busy, refs, onValor, onStart, o
               step={1}
               value={valor}
               aria-invalid={!valido}
+              aria-describedby={valido ? undefined : avisoId}
               onChange={(event) => onValor(event.target.value)}
             />
           </div>
@@ -803,26 +820,38 @@ function Actions({ slot, character, step, valor, busy, refs, onValor, onStart, o
             Voltar
           </button>
         </div>
-        {!valido ? (
-          <p className="pp-error" role="alert">
-            Use um número inteiro de 1 a {character.moedas}
+        <div className="pp-inv__passo-escolhas">
+          <p id={questionId} className="pp-inv__pergunta">
+            Pagar a quem?
           </p>
-        ) : (
-          <>
-            <p id={questionId} className="pp-inv__pergunta">
-              Pagar a quem?
-            </p>
-            <ul className="pp-inv__colegas" aria-labelledby={questionId}>
-              {character.colleagues.map((colleague) => (
-                <li key={colleague.tokenId}>
-                  <button type="button" className="pp-button pp-inv__acao" onClick={() => onChoosePay(colleague, quanto)}>
-                    {colleague.name}
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </>
-        )}
+          <ul className="pp-inv__colegas" aria-labelledby={questionId}>
+            {character.colleagues.map((colleague) => (
+              <li key={colleague.tokenId}>
+                <button
+                  type="button"
+                  className="pp-button pp-inv__acao"
+                  aria-disabled={valido ? undefined : true}
+                  aria-describedby={valido ? undefined : avisoId}
+                  onMouseDown={(event) => {
+                    if (!valido) event.preventDefault()
+                  }}
+                  onClick={() => {
+                    if (valido) onChoosePay(colleague, quanto)
+                    else refs.fieldRef.current?.focus()
+                  }}
+                >
+                  {colleague.name}
+                </button>
+              </li>
+            ))}
+          </ul>
+          {/* Montado desde a entrada no passo, vazio enquanto o valor vale: o
+              leitor de tela anuncia o aviso quando o texto chega, e a linha
+              já está reservada, então ele não empurra nada. */}
+          <p id={avisoId} className="pp-error pp-inv__aviso" role="alert">
+            {valido ? '' : avisoDeValor(character.moedas)}
+          </p>
+        </div>
       </div>
     )
   }
@@ -850,13 +879,21 @@ function Actions({ slot, character, step, valor, busy, refs, onValor, onStart, o
   )
 }
 
+/** O aviso do "Pagar" quando o valor não vale; o molde reserva a linha dele com o mesmo texto. */
+function avisoDeValor(moedas: number): string {
+  return `Use um número inteiro de 1 a ${moedas}`
+}
+
 /**
- * O molde da caixa de ações: o passo "Pagar", o mais alto, desenhado sem
- * tinta na mesma célula dos passos de verdade. A caixa fica com a altura dele
- * em todos os passos, e trocar de passo não empurra nada. O texto vem do CSS
- * (`data-texto`), fora do texto da página e do leitor de tela.
+ * O molde da caixa de ações: o passo "Pagar", o mais largo (o campo e o
+ * "Voltar" em cima; "Pagar a quem?", os colegas e a linha do aviso de valor
+ * embaixo), desenhado sem tinta na mesma célula dos passos de verdade. Numa
+ * coluna estreita é ele que quebra primeiro, então a caixa fica com a altura
+ * dele em todos os passos, e trocar de passo ou errar o valor não empurra
+ * nada. O texto vem do CSS (`data-texto`), fora do texto da página e do leitor
+ * de tela.
  */
-function StepMold({ colleagues }: { colleagues: readonly InventoryColleague[] }) {
+function StepMold({ colleagues, moedas }: { colleagues: readonly InventoryColleague[]; moedas: number }) {
   return (
     <div className="pp-inv__molde" aria-hidden="true">
       <div className="pp-inv__passo">
@@ -867,15 +904,18 @@ function StepMold({ colleagues }: { colleagues: readonly InventoryColleague[] })
           </span>
           <span className="pp-button pp-inv__acao pp-inv__acao--nao" data-texto="Voltar" />
         </span>
-        <span className="pp-inv__pergunta" data-texto="Pagar a quem?" />
-        <span className="pp-inv__colegas">
-          {/* Sem colega, um botão vazio guarda a fileira: quando alguém encosta,
-              a caixa já tem o tamanho certo e nada pula. */}
-          {colleagues.length === 0 ? (
-            <span className="pp-button pp-inv__acao" />
-          ) : (
-            colleagues.map((colleague) => <span key={colleague.tokenId} className="pp-button pp-inv__acao" data-texto={colleague.name} />)
-          )}
+        <span className="pp-inv__passo-escolhas">
+          <span className="pp-inv__pergunta" data-texto="Pagar a quem?" />
+          <span className="pp-inv__colegas">
+            {/* Sem colega, um botão vazio guarda a fileira: quando alguém encosta,
+                a caixa já tem o tamanho certo e nada pula. */}
+            {colleagues.length === 0 ? (
+              <span className="pp-button pp-inv__acao" />
+            ) : (
+              colleagues.map((colleague) => <span key={colleague.tokenId} className="pp-button pp-inv__acao" data-texto={colleague.name} />)
+            )}
+          </span>
+          <span className="pp-error pp-inv__aviso" data-texto={avisoDeValor(moedas)} />
         </span>
       </div>
     </div>
