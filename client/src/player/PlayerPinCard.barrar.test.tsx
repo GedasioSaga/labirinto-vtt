@@ -61,6 +61,20 @@ describe('PlayerPinCard: barrar a passagem', () => {
     expect(onBarrar).toHaveBeenCalledWith(false)
   })
 
+  it('barrar é o secundário da coluna, com moldura própria, e o "Fechar" continua por último', () => {
+    render(pino(), vi.fn())
+    const barrar = botao('Barrar a passagem')
+    if (barrar === undefined) throw new Error('esperava o botão de barrar')
+    // Com a moldura do "Fechar" em linha, ele esticava de borda a borda do cartão.
+    expect(barrar.className).toBe('pp-pincard__barrar')
+    const botoes = [...container.querySelectorAll('button')]
+    expect(botoes.at(-1)?.textContent).toBe('Fechar')
+    expect(botoes.at(-2)).toBe(barrar)
+
+    render(pino({ barradaDaqui: true }), vi.fn())
+    expect(botao('Tirar a barra')?.className).toBe('pp-pincard__barrar')
+  })
+
   it('longe do pino, ou pino trancado pelo mestre: nada de barrar', () => {
     render(pino())
     expect(botao('Barrar a passagem')).toBeUndefined()

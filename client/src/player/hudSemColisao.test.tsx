@@ -168,6 +168,11 @@ describe('alvos de toque no celular', () => {
     ['.pp-call .pp-input', false],
     ['.pp-call .pp-button', false],
     ['.pp-pincard__close', false],
+    // Os botões da coluna do cartão do pino ("Pedir para passar", "Me avise
+    // quando der", "Barrar a passagem") mediam 40: a mesma altura para todos.
+    ['.pp-pincard__travel', false],
+    ['.pp-pincard__watch', false],
+    ['.pp-pincard__barrar', false],
   ]
 
   it.each(ALVOS)('%s tem o alvo de toque do tema no celular', async (seletor, soIcone) => {
@@ -175,6 +180,58 @@ describe('alvos de toque no celular', () => {
     expect(regra.get('min-height') ?? 'sem min-height').toContain('--lb-control-touch')
     expect(px(regra.get('min-height'))).toBeGreaterThanOrEqual(44)
     if (soIcone) expect(px(regra.get('min-width'))).toBeGreaterThanOrEqual(44)
+  })
+})
+
+describe('cartão do pino: uma coluna de botões', () => {
+  // Em 390 x 844 o "Barrar a passagem" usava a moldura do "Fechar" em linha:
+  // esticava de borda a borda, mais largo que o "Pedir para passar", e o
+  // "Fechar" ficava sozinho no canto. Agora os botões formam uma coluna só, na
+  // mesma margem: o primário cheio, o secundário de contorno e o Fechar
+  // discreto por último.
+  /** A margem lateral de um `margin: cima lados baixo`. */
+  const lados = (margem: string | undefined): string => (margem ?? '').split(/\s+/)[1] ?? ''
+
+  it('"Barrar a passagem" é secundário de contorno, com a largura, a margem e a altura do "Pedir para passar"', async () => {
+    const css = await lerPlayerCss()
+    const pedir = regraBase(css, '.pp-pincard__travel')
+    const barrar = regraBase(css, '.pp-pincard__barrar')
+    expect(barrar.get('align-self')).toBe('stretch')
+    expect(barrar.get('margin')).toBe(pedir.get('margin'))
+    expect(barrar.get('padding')).toBe(pedir.get('padding'))
+    expect(barrar.get('border-radius')).toBe(pedir.get('border-radius'))
+    expect(barrar.get('background')).toBe('transparent')
+    expect(barrar.get('border') ?? '').toMatch(/^1px solid /)
+    expect(barrar.get('border') ?? '').toContain('--lb-color-line-panel')
+  })
+
+  it('o "Fechar" vem por último, discreto, nas mesmas laterais da coluna', async () => {
+    const css = await lerPlayerCss()
+    const fechar = regraBase(css, '.pp-pincard__close')
+    expect(fechar.get('align-self')).toBe('stretch')
+    expect(lados(fechar.get('margin'))).toBe(lados(regraBase(css, '.pp-pincard__travel').get('margin')))
+    expect(fechar.get('border') ?? '').toContain('transparent')
+    expect(fechar.get('color')).toContain('--lb-color-parchment-dim')
+  })
+
+  it('"Voltar" e "Cancelar", ao lado de um primário, seguem de contorno e com o texto claro', async () => {
+    const emLinha = regraBase(await lerPlayerCss(), '.pp-pincard__close--inline')
+    expect(emLinha.get('align-self')).toBe('auto')
+    expect(emLinha.get('margin')).toBe('0')
+    expect(emLinha.get('border-color')).toContain('--lb-color-line-panel')
+    expect(emLinha.get('color')).toMatch(/--lb-color-parchment[,)]/)
+  })
+
+  it('a cabeça do pino abre a linha de título, com o texto embaixo, na largura toda, com ou sem foto', async () => {
+    const css = await lerPlayerCss()
+    const corpo = regraBase(css, '.pp-pincard__body')
+    expect(corpo.get('flex-wrap')).toBe('wrap')
+    expect(corpo.get('align-items')).toBe('center')
+    expect(regraBase(css, '.pp-pincard--compacto .pp-pincard__body').get('flex-direction') ?? 'row').toBe('row')
+    const titulo = regraBase(css, '.pp-pincard__title')
+    expect(titulo.get('min-width')).toBe('0')
+    expect(titulo.get('overflow-wrap')).toBe('anywhere')
+    expect(regraBase(css, '.pp-pincard__text').get('flex-basis')).toBe('100%')
   })
 })
 

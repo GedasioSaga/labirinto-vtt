@@ -1,14 +1,16 @@
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import type { Pin } from '../types/map'
+import type { Pin, Stair } from '../types/map'
 import { PlayerPinCard } from './PlayerPinCard'
 
 /*
  * CARTÃO DE PINO COMPACTO — simulação de 7 jogadores, cenário vila*: o pino sem
  * imagem abria com um retângulo escuro de 190 px em cima do texto, e o jogador
- * lia aquilo como imagem quebrada. Sem imagem, o cartão é só glifo, texto e
- * botões; com imagem, fica como era (foto em cima, texto embaixo).
+ * lia aquilo como imagem quebrada. Sem imagem, o cartão é só a linha de título
+ * (a cabeça do pino e o nome dele), o texto e os botões; com imagem, a foto vem
+ * em cima e o resto igual. A cabeça sozinha no topo lia como ícone perdido: o
+ * nome ao lado faz dela o título do cartão.
  *
  * O jsdom não tem layout: o que se prova aqui é a ESTRUTURA que a folha de
  * estilo arruma — o que existe no cartão, em que ordem e com que nome para o
@@ -27,7 +29,7 @@ function pino(parcial: Partial<Pin> = {}): Pin {
 
 type Props = Parameters<typeof PlayerPinCard>[0]
 
-describe('PlayerPinCard: sem imagem, só glifo, texto e botões; com imagem, igual a hoje', () => {
+describe('PlayerPinCard: sem imagem, título, texto e botões; com imagem, a foto em cima', () => {
   let container: HTMLDivElement
   let root: Root
 
@@ -55,19 +57,31 @@ describe('PlayerPinCard: sem imagem, só glifo, texto e botões; com imagem, igu
     return Array.from(cartao.children).map((filho) => filho.className)
   }
 
-  it('pino sem imagem abre compacto: nenhum retângulo de imagem, o cartão começa pela cabeça do pino e o texto', () => {
+  it('pino sem imagem abre compacto: nenhum retângulo de imagem, o cartão começa pela linha de título e o texto', () => {
     const cartao = abre(pino())
 
     expect(cartao.querySelector('img')).toBeNull()
     expect(cartao.classList.contains('pp-pincard--compacto')).toBe(true)
     expect(ordem(cartao)).toEqual(['pp-pincard__body', 'pp-pincard__close'])
 
-    // A cabeça vem antes do texto: é a imagem que a jornada mede ACIMA da descrição.
-    const [cabeca, texto] = Array.from(cartao.children[0].children)
+    // A cabeça vem antes do texto: é a imagem que a jornada mede ACIMA da
+    // descrição. O nome ao lado dela é o título do cartão.
+    const [cabeca, titulo, texto] = Array.from(cartao.children[0].children)
     expect(cabeca.getAttribute('role')).toBe('img')
     expect(cabeca.getAttribute('aria-label')).toBe('Símbolo do pino: exclamação')
     expect(cabeca.textContent).toBe('!')
+    expect(titulo.className).toBe('pp-pincard__title')
+    expect(titulo.textContent).toBe('Ponto de interesse')
     expect(texto.textContent).toBe(DESCRICAO)
+  })
+
+  it('o título diz o que o pino é: o nome do símbolo, Passagem, Escada ou Alavanca', () => {
+    const titulo = (pin: Pin, extra: Partial<Props> = {}) => abre(pin, extra).querySelector('.pp-pincard__title')?.textContent
+    expect(titulo(pino({ icon: 'bau' }))).toBe('Baú')
+    expect(titulo(pino({ kind: 'viagem' }))).toBe('Passagem')
+    expect(titulo(pino({ kind: 'alavanca' }))).toBe('Alavanca')
+    const escada: Stair = { id: 'escada', shape: 'straight', direction: 'up', segments: [{ x1: 0, y1: 0, x2: 0, y2: -80 }], stepWidth: 40 }
+    expect(titulo(pino({ kind: 'viagem', escadaId: 'escada' }), { stairs: [escada] })).toBe('Escada')
   })
 
   it('pino sem imagem e sem descrição: compacto, com a frase de sempre no lugar do texto', () => {
@@ -81,7 +95,7 @@ describe('PlayerPinCard: sem imagem, só glifo, texto e botões; com imagem, igu
     expect(cartao.querySelector('.pp-pincard__text')?.textContent).toBe('O mestre ainda não escreveu nada sobre este ponto.')
   })
 
-  it('pino com imagem: igual a hoje — a foto em cima, depois a cabeça do pino ao lado do texto', () => {
+  it('pino com imagem: a foto em cima, depois a linha de título e o texto', () => {
     const cartao = abre(pino({ image: FOTO }))
 
     expect(cartao.classList.contains('pp-pincard--compacto')).toBe(false)
@@ -92,6 +106,7 @@ describe('PlayerPinCard: sem imagem, só glifo, texto e botões; com imagem, igu
     expect(foto.getAttribute('alt')).toBe('Imagem deixada pelo mestre neste ponto de interesse')
     const corpo = cartao.children[1]
     expect(corpo.querySelector('[role="img"]')?.getAttribute('aria-label')).toBe('Símbolo do pino: exclamação')
+    expect(corpo.querySelector('.pp-pincard__title')?.textContent).toBe('Ponto de interesse')
     expect(corpo.querySelector('.pp-pincard__text')?.textContent).toBe(DESCRICAO)
   })
 

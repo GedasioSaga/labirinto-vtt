@@ -1607,23 +1607,36 @@
   border-radius: 14px 14px 0 0;
 }
 
+/*
+ * LINHA DE TÍTULO: a cabeça do pino — a mesma que o jogador acabou de tocar no
+ * mapa — e o nome dele ("Baú", "Passagem") numa linha; o texto quebra para a
+ * linha de baixo, na largura toda. Sozinha no topo, a cabeça lia como ícone
+ * perdido; com o nome ao lado, é o título do cartão. Igual com ou sem foto.
+ */
 .pp-pincard__body {
   display: flex;
-  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: 10px;
+  row-gap: 8px;
   padding: 14px 16px 4px;
 }
 
 /*
  * SEM IMAGEM, CARTÃO COMPACTO: nada de área reservada para a foto que não
- * existe. A cabeça do pino — a mesma que o jogador acabou de tocar no mapa —
- * sobe para o lugar da imagem, e o texto vem logo embaixo, na largura toda.
- * Com foto, o corpo segue em linha (cabeça ao lado do texto), como sempre.
+ * existe; a linha de título abre o cartão, com um respiro a mais da borda.
  */
 .pp-pincard--compacto .pp-pincard__body {
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 8px;
   padding-top: 16px;
+}
+
+.pp-pincard__title {
+  flex: 1 1 0;
+  min-width: 0;
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
 }
 
 /* A mesma cabeça do pino no mapa ("!", "?" ou o símbolo escolhido): liga o cartão ao que foi tocado. */
@@ -1650,27 +1663,52 @@
 }
 
 .pp-pincard__text {
+  flex-basis: 100%;
   margin: 0;
   font-size: 15px;
   line-height: 1.5;
   white-space: pre-wrap;
 }
 
+/*
+ * "Fechar": a última linha da coluna de botões, nas mesmas laterais do "Pedir
+ * para passar", mas discreta — sem moldura, texto apagado. Sair não compete
+ * com a ação do cartão; a linha acende só no hover.
+ */
 .pp-pincard__close {
-  align-self: flex-end;
-  margin: 10px 12px 12px;
+  align-self: stretch;
+  margin: 8px 12px 12px;
   padding: 8px 18px;
   font: inherit;
   font-size: 15px;
-  color: var(--lb-color-parchment, #eceae4);
+  color: var(--lb-color-parchment-dim, #a9a7a0);
   background: transparent;
-  border: 1px solid var(--lb-color-line-panel, rgba(255, 255, 255, 0.18));
+  border: 1px solid transparent;
   border-radius: 999px;
   cursor: pointer;
+  transition:
+    background-color 120ms ease-out,
+    color 120ms ease-out,
+    transform 100ms ease-out;
 }
 
 .pp-pincard__close:hover {
+  color: var(--lb-color-parchment, #eceae4);
   background: rgba(255, 255, 255, 0.06);
+}
+
+.pp-pincard__close:active {
+  transform: scale(0.97);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pp-pincard__close {
+    transition: none;
+  }
+
+  .pp-pincard__close:active {
+    transform: none;
+  }
 }
 
 /*
@@ -1886,9 +1924,11 @@
   border-radius: 999px;
 }
 
+/* Na borda do texto: com a linha de título, o texto começa rente à margem do
+   cartão, não mais depois da cabeça do pino. */
 .pp-pincard__oneway--card {
   align-self: flex-start;
-  margin: 6px 16px 0 52px;
+  margin: 6px 16px 0;
 }
 
 /* MODO POR SAÍDA: "Livre", "Pede ao mestre", "Trancada" no botão de cada
@@ -1901,10 +1941,13 @@
   white-space: nowrap;
 }
 
-/* "Me avise quando der": botão de alternar, secundário ao texto — linha fina,
-   sem fundo. Ligado, a borda e o texto vão ao latão (o estado não é só cor:
-   a frase de baixo diz "Você recebe um aviso"). */
-.pp-pincard__watch {
+/* SECUNDÁRIOS DA COLUNA: "Me avise quando der" e "Barrar a passagem" — linha
+   fina, sem fundo, com a largura, a margem e a altura do "Pedir para passar"
+   logo acima. O "Me avise" é de alternar: ligado, a borda e o texto vão ao
+   latão (o estado não é só cor: a frase de baixo diz "Você recebe um aviso").
+   O "Barrar" troca o próprio texto ("Tirar a barra"), então fica sem latão. */
+.pp-pincard__watch,
+.pp-pincard__barrar {
   align-self: stretch;
   margin: 10px 12px 0;
   padding: 10px 18px;
@@ -1919,11 +1962,13 @@
   transition: border-color 120ms ease-out, color 120ms ease-out, transform 100ms ease-out;
 }
 
-.pp-pincard__watch:hover {
+.pp-pincard__watch:hover,
+.pp-pincard__barrar:hover {
   border-color: var(--lb-color-parchment-dim, #a9a7a0);
 }
 
-.pp-pincard__watch:active {
+.pp-pincard__watch:active,
+.pp-pincard__barrar:active {
   transform: scale(0.98);
 }
 
@@ -1932,14 +1977,21 @@
   border-color: var(--lb-color-brass, #e0a44a);
 }
 
-.pp-pincard__watch:focus-visible {
+.pp-pincard__watch:focus-visible,
+.pp-pincard__barrar:focus-visible {
   outline: 2px solid var(--lb-color-brass, #e0a44a);
   outline-offset: 2px;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .pp-pincard__watch {
+  .pp-pincard__watch,
+  .pp-pincard__barrar {
     transition: none;
+  }
+
+  .pp-pincard__watch:active,
+  .pp-pincard__barrar:active {
+    transform: none;
   }
 }
 
@@ -2163,9 +2215,13 @@
   margin: 0;
 }
 
+/* "Voltar" e "Cancelar" ao lado de um primário: aqui a saída é uma das duas
+   escolhas, não a última linha do cartão — segue de contorno e texto claro. */
 .pp-pincard__close--inline {
   align-self: auto;
   margin: 0;
+  color: var(--lb-color-parchment, #eceae4);
+  border-color: var(--lb-color-line-panel, rgba(255, 255, 255, 0.18));
 }
 
 /* Aviso da viagem: acima do aviso da porta, para os dois nunca se cobrirem. */
@@ -3994,8 +4050,9 @@ button.pp-colecao__casa:focus-visible {
 /* Celular: tudo o que o dedo toca por cima do mapa tem o alvo de 44 px do tema.
    As abas de andar e o "Onde estou" mediam 36; os botões do aviso da porta, 32;
    os motivos, o campo e os botões do chamado, 32 a 38; o "Fechar" dos cartões,
-   40. Fica depois das regras de cada controle para vencer na mesma
-   especificidade. */
+   40; a coluna do cartão do pino ("Pedir para passar", "Me avise quando der",
+   "Barrar a passagem"), 40. Fica depois das regras de cada controle para vencer
+   na mesma especificidade. */
 @media (max-width: 699px) {
   .pp-floors__tab,
   .pp-where,
@@ -4003,7 +4060,10 @@ button.pp-colecao__casa:focus-visible {
   .pp-call__reason,
   .pp-call .pp-input,
   .pp-call .pp-button,
-  .pp-pincard__close {
+  .pp-pincard__close,
+  .pp-pincard__travel,
+  .pp-pincard__watch,
+  .pp-pincard__barrar {
     min-height: var(--lb-control-touch, 44px);
   }
 

@@ -485,6 +485,9 @@ export function PlayerPinCard({
   const stairDirection: StairDirection | undefined =
     viagem && pin.escadaId !== undefined ? stairs.find((s) => s.id === pin.escadaId)?.direction : undefined
   const escada = stairDirection !== undefined ? stairTravelLabel(stairDirection) : null
+  // O nome ao lado da cabeça faz dela o título do cartão: sozinha no topo, ela
+  // lia como ícone perdido. Diz o que o pino é, nas palavras do mapa.
+  const titulo = escada !== null ? 'Escada' : viagem ? 'Passagem' : alavanca ? 'Alavanca' : icone !== null ? PIN_ICON_LABELS[icone] : 'Ponto de interesse'
   // A chave vence o modo: escada trancada com a chave na mochila também vira
   // "Usar <chave>" — o host deixa passar (`hostSession`), então o cartão não
   // pode esconder o gesto. Sem chave, a trancada que aceita tentativas pede ao
@@ -584,6 +587,7 @@ export function PlayerPinCard({
         {escada === null && foto !== null && <img className="pp-pincard__image" src={foto} alt={altDaImagem} />}
         <div className="pp-pincard__body">
           <CabecaDoPino pin={pin} />
+          <p className="pp-pincard__title">{titulo}</p>
           {/* Escada: só o sentido. O pino dela não tem texto do mestre, e "o
               mestre ainda não escreveu nada" leria como ponto de interesse vazio.
               Pino "só de perto" visto de longe: "Chegue mais perto para ler". */}
@@ -798,8 +802,9 @@ export function PlayerPinCard({
         )}
         {podeBarrar && confirming === null && (
           // Barrar não interrompe o mestre nem troca de cena: vai num toque, sem
-          // pergunta. O outro lado só descobre ao tentar passar.
-          <button type="button" className="pp-pincard__close pp-pincard__close--inline" onClick={() => onBarrar(!barrada)}>
+          // pergunta. O outro lado só descobre ao tentar passar. Secundário de
+          // contorno, na coluna do "Pedir para passar", acima do Fechar.
+          <button type="button" className="pp-pincard__barrar" onClick={() => onBarrar(!barrada)}>
             {barrada ? 'Tirar a barra' : 'Barrar a passagem'}
           </button>
         )}
