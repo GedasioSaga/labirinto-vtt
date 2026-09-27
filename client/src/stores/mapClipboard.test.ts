@@ -210,6 +210,95 @@ describe('copiar, colar e recortar', () => {
   })
 })
 
+describe('colado em outra cena, o objeto preserva o estilo', () => {
+  const CHAO_SALAO = '#1e8c8c'
+  const CHAO_CRIPTA = '#8c1e8c'
+
+  function comChao(map: MapData, cor: string): MapData {
+    return mapFactory.setFloorStyle(map, { fillColor: cor })
+  }
+
+  /** Caminho sem cor própria: no Salão ele é da cor do chão do Salão. */
+  function caminho(id: string, cx: number): MapData['floor'][number] {
+    return { id, shape: { kind: 'rect', cx, cy: 100, w: 100, h: 100 }, op: 'add', modifiers: {} }
+  }
+
+  function copiarChao(ids: string[]): void {
+    useMapStore.getState().setSelection(ids.map((id) => ({ kind: 'floor' as const, id })))
+    expect(useMapStore.getState().copySelected()).toBe(true)
+  }
+
+  function coladas(): MapData['floor'] {
+    return useMapStore.getState().map.floor
+  }
+
+  beforeEach(() => {
+    const salaoComChao = mapFactory.addFloorPiece(comChao(salao(), CHAO_SALAO), caminho('chao-salao', 100))
+    useMapStore.setState({ map: salaoComChao, past: [], future: [], selection: EMPTY_SELECTION, activeTool: 'select', clipboard: null })
+  })
+
+  it('pedaço de chão sem cor própria, colado numa cena de chão de outra cor, continua com a cor do chão de onde veio', () => {
+    copiarChao(['chao-salao'])
+    useMapStore.getState().loadMap(comChao(cripta(), CHAO_CRIPTA))
+    expect(useMapStore.getState().pasteClipboardAt({ x: 500, y: 400 })).toBe(true)
+    expect(coladas()).toHaveLength(1)
+    expect(coladas()[0]?.fillColor).toBe(CHAO_SALAO)
+    // O chão da Cripta continua o dela: colar não repinta o mapa de destino.
+    expect(useMapStore.getState().map.floorStyle.fillColor).toBe(CHAO_CRIPTA)
+  })
+
+  it('pedaço de chão com cor própria leva a cor dele, não a do chão de origem', () => {
+    useMapStore.setState({ map: mapFactory.addFloorPiece(useMapStore.getState().map, { ...caminho('chao-pintado', 400), fillColor: '#d2b41e' }) })
+    copiarChao(['chao-pintado'])
+    useMapStore.getState().loadMap(comChao(cripta(), CHAO_CRIPTA))
+    useMapStore.getState().pasteClipboardAt({ x: 500, y: 400 })
+    expect(coladas()[0]?.fillColor).toBe('#d2b41e')
+  })
+
+  it('colado numa cena com o mesmo chão, o pedaço continua sem cor própria (segue o chão do mapa)', () => {
+    copiarChao(['chao-salao'])
+    useMapStore.getState().loadMap(comChao(cripta(), CHAO_SALAO))
+    useMapStore.getState().pasteClipboardAt({ x: 500, y: 400 })
+    expect(coladas()).toHaveLength(1)
+    expect(coladas()[0]?.fillColor).toBeUndefined()
+  })
+
+  it('colado no mesmo mapa (Ctrl+C e Ctrl+V na mesma cena), o pedaço continua sem cor própria', () => {
+    copiarChao(['chao-salao'])
+    useMapStore.getState().pasteClipboardAt({ x: 500, y: 400 })
+    const copia = coladas().find((p) => p.id !== 'chao-salao')
+    expect(copia).toBeDefined()
+    expect(copia?.fillColor).toBeUndefined()
+  })
+
+  it('no mesmo mapa, trocar a cor do chão entre Ctrl+X e Ctrl+V não congela a cor antiga no pedaço', () => {
+    useMapStore.getState().setSelection([{ kind: 'floor', id: 'chao-salao' }])
+    expect(useMapStore.getState().cutSelected()).toBe(true)
+    useMapStore.setState({ map: comChao(useMapStore.getState().map, CHAO_CRIPTA) })
+    useMapStore.getState().pasteClipboardAt({ x: 500, y: 400 })
+    expect(coladas()).toHaveLength(1)
+    expect(coladas()[0]?.fillColor).toBeUndefined()
+  })
+
+  it('buraco de chão (apagar) colado em outra cena não ganha cor: ele não pinta nada', () => {
+    const buraco = { ...caminho('buraco', 700), op: 'subtract' as const }
+    useMapStore.setState({ map: mapFactory.addFloorPiece(useMapStore.getState().map, buraco) })
+    copiarChao(['buraco'])
+    useMapStore.getState().loadMap(comChao(cripta(), CHAO_CRIPTA))
+    useMapStore.getState().pasteClipboardAt({ x: 500, y: 400 })
+    expect(coladas()[0]?.op).toBe('subtract')
+    expect(coladas()[0]?.fillColor).toBeUndefined()
+  })
+
+  it('recortado e colado em outra cena, o pedaço também leva a cor do chão de onde saiu', () => {
+    useMapStore.getState().setSelection([{ kind: 'floor', id: 'chao-salao' }])
+    expect(useMapStore.getState().cutSelected()).toBe(true)
+    useMapStore.getState().loadMap(comChao(cripta(), CHAO_CRIPTA))
+    useMapStore.getState().pasteClipboardAt({ x: 500, y: 400 })
+    expect(coladas()[0]?.fillColor).toBe(CHAO_SALAO)
+  })
+})
+
 describe('runClipboardShortcut (o que o teclado do editor chama)', () => {
   beforeEach(() => {
     useMapStore.setState({ map: salao(), past: [], future: [], selection: EMPTY_SELECTION, activeTool: 'select', clipboard: null })

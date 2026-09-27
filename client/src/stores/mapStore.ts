@@ -1241,7 +1241,7 @@ function cloneSelectionInto(
     const cloned = cloneSelectedEntity(source, item, offset)
     if (!cloned) continue
     const named = keepRoomNames ? withSourceRoomName(cloned, source, item.id) : cloned
-    next = addClonedEntity(next, withoutMissingParent(named, next))
+    next = addClonedEntity(next, withoutMissingParent(withSourceFloorColor(named, source, next), next))
     if (cloned.kind === 'region') {
       sources[cloned.entity.id] = item.id
       const inner = cloneRoomDescendants(source.regions, source.walls, item.id, cloned.entity.id, offset)
@@ -1263,6 +1263,22 @@ function withSourceRoomName(cloned: CloneableEntity, source: MapData, sourceId: 
   const original = source.regions.find((r) => r.id === sourceId)?.room
   if (original === undefined) return cloned
   return { kind: 'region', entity: { ...cloned.entity, room: { ...cloned.entity.room, name: original.name } } }
+}
+
+/**
+ * Pedaço de chão sem cor própria pinta com a cor do chão do MAPA
+ * (`floorStyle.fillColor`, ver drawFloor). Colado numa cena de chão de outra
+ * cor, ele trocaria de cor sozinho — então leva a cor de onde veio. Buraco
+ * (`subtract`) não pinta nada e fica como está. No MESMO mapa não fixa nada:
+ * `source` é o mapa da hora do Ctrl+C, e a cor do chão trocada depois vale
+ * para o pedaço colado como vale para o resto do chão.
+ */
+function withSourceFloorColor(cloned: CloneableEntity, source: MapData, target: MapData): CloneableEntity {
+  if (source.id === target.id) return cloned
+  if (cloned.kind !== 'floor' || cloned.entity.op !== 'add' || cloned.entity.fillColor !== undefined) return cloned
+  const color = source.floorStyle.fillColor
+  if (color === target.floorStyle.fillColor) return cloned
+  return { kind: 'floor', entity: { ...cloned.entity, fillColor: color } }
 }
 
 /**
