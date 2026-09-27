@@ -512,6 +512,19 @@ function naFilaDoIndice<T>(operacao: () => Promise<T>): Promise<T> {
   return resultado
 }
 
+/**
+ * `listarAcervo` pela fila: a leitura só começa depois das gravações já pedidas.
+ *
+ * É a porta da TELA (`recarregar` da store). Fora da fila, a releitura podia ler
+ * o índice de antes de um movimento que ainda gravava e devolver o token para a
+ * pasta antiga na tela (achado em revisão, 27/09/2026). As operações daqui de
+ * dentro continuam chamando `listarAcervo` direto: elas já rodam NA fila, e
+ * esperar a própria fila seria esperar a si mesmas para sempre.
+ */
+export function listarAcervoNaFila(): Promise<AcervoCarregado> {
+  return naFilaDoIndice(listarAcervo)
+}
+
 /** O que é resposta de agora (`imagemNoDisco`, `caminho`) não vira dado gravado. */
 function semCampoDeTela(item: ItemDoAcervoNaTela): ItemDoAcervo {
   return { id: item.id, nome: item.nome, tamanho: item.tamanho, arquivo: item.arquivo, pasta: item.pasta }
