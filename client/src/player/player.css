@@ -1753,6 +1753,21 @@
   line-height: 1.4;
 }
 
+/* O item no chão: o nome usa a frase da pergunta, que nasceu dentro da moldura
+   de 12 px do "confirmar" e aqui ficava colada na borda do cartão. Ele alinha
+   com o texto de cima (o corpo tem 16 px de cada lado), no mesmo passo de
+   10 px entre as peças do cartão, e o "Pegar" estica como o "Puxar a
+   alavanca" e os outros botões de ação. */
+.pp-pincard__item {
+  display: flex;
+  flex-direction: column;
+}
+
+.pp-pincard__item .pp-pincard__question {
+  margin: 10px var(--lb-space-4, 16px) 0;
+  overflow-wrap: anywhere;
+}
+
 /* Passagem trancada: frase, não botão — não há o que tocar. A mesma moldura
    de linha fina da pergunta, para ler como estado da porta e não como erro. */
 .pp-pincard__locked {
@@ -4171,6 +4186,23 @@ button.pp-colecao__casa:focus-visible {
   }
 }
 
+/* Com o inventário aberto, o resto da página sai de cena (`coverBackground`):
+   inerte já na abertura e invisível logo depois que o véu termina de cobrir a
+   tela. Sumir antes faria o mapa piscar por baixo do véu que ainda está
+   entrando. Com `visibility`, e não `display`, o fundo guarda o tamanho: o
+   enquadramento do mapa mede a tela por ele. `!important` porque é um estado
+   da página inteira: a transição própria de um componente, declarada depois
+   ou mais específica, não pode antecipar nem atrasar o sumiço. */
+[data-pp-inv-fundo] {
+  visibility: hidden !important;
+  transition: visibility 0s linear var(--lb-motion-base, 170ms) !important;
+}
+
+/* Aberto pela tecla, ou chegou com o inventário já aberto: some na hora. */
+[data-pp-inv-fundo='ja'] {
+  transition: none !important;
+}
+
 .pp-inv__topo {
   display: flex;
   align-items: center;
@@ -4717,26 +4749,102 @@ button.pp-colecao__casa:focus-visible {
   color: var(--lb-color-parchment, #eceae4);
 }
 
+/* A caixa das ações, como a janela de comandos do RE3: o passo de verdade e o
+   molde do passo mais alto (`StepMold`) dividem a mesma célula, e a caixa fica
+   sempre com a altura do molde. Trocar de passo troca só o miolo: o detalhe
+   não cresce, e o quadro, centrado na tela, não sobe nem desce com ele. */
+.pp-inv__passos {
+  display: grid;
+  margin-top: var(--lb-space-1, 4px);
+}
+
+/* `align-self: start`: o passo de verdade fica com a própria altura, em cima,
+   em vez de esticar até a do molde. */
+.pp-inv__passos > * {
+  grid-area: 1 / 1;
+  align-self: start;
+  min-width: 0;
+}
+
+/* Ocupa lugar e não aparece nem responde; o texto dele vem do CSS, fora do
+   texto da página. */
+.pp-inv__molde {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.pp-inv__molde [data-texto]::before {
+  content: attr(data-texto);
+}
+
 .pp-inv__passo {
   display: grid;
   justify-items: start;
-  gap: 8px;
-  margin-top: 6px;
+  gap: var(--lb-space-2, 8px);
+}
+
+/* A fileira de cima do "Dar a quem?" e do "Pagar": a pergunta ou o campo à
+   esquerda, os colegas do "Dar" no meio e o "Voltar" à direita, no mesmo
+   canto nos dois. Tudo alinhado pelo topo: quando os colegas não cabem numa
+   linha, quebram dentro do meio, e o "Voltar" não desce atrás deles. */
+.pp-inv__passo-topo {
+  justify-self: stretch;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--lb-space-2, 8px);
+}
+
+.pp-inv__passo-topo > .pp-inv__pergunta {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+}
+
+/* Base zero: a lista nunca empurra o "Voltar" para a linha de baixo; cresce
+   no espaço que sobra e quebra por dentro. */
+.pp-inv__passo-topo > .pp-inv__colegas {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.pp-inv__passo-topo > .pp-inv__acao--nao {
+  margin-left: auto;
+}
+
+/* Um nome comprido quebra dentro do próprio botão em vez de vazar por cima
+   do "Voltar". */
+.pp-inv__colegas .pp-inv__acao {
+  max-width: 100%;
+  overflow-wrap: anywhere;
 }
 
 .pp-inv__acoes,
 .pp-inv__colegas {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: var(--lb-space-2, 8px);
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
+/* O item da lista mede o botão, sem a sobra da linha de texto em volta:
+   a fileira tem a mesma altura no passo e no molde. */
+.pp-inv__colegas > li {
+  display: flex;
+}
+
+/* `border-box`: o botão e a peça do molde, que é um `span`, medem igual. */
 .pp-inv__acao {
+  box-sizing: border-box;
   min-height: 44px;
   padding: 0 16px;
+}
+
+.pp-inv__molde .pp-inv__acao {
+  display: inline-flex;
+  align-items: center;
 }
 
 /* "Não" e "Voltar": o caminho de saída, sem o latão da ação. */
@@ -4748,21 +4856,31 @@ button.pp-colecao__casa:focus-visible {
 .pp-inv__pergunta {
   margin: 0;
   font-size: 14px;
+  line-height: var(--lb-font-leading-normal, 1.45);
 }
 
+/* "Quantas moedas" ao lado do campo, na altura do "Voltar": o campo pede
+   dois ou três algarismos, e a fileira inteira cabe numa linha só. */
 .pp-inv__campo {
-  display: grid;
-  gap: 4px;
-  width: min(160px, 100%);
+  display: flex;
+  align-items: center;
+  gap: var(--lb-space-2, 8px);
 }
 
-/* Montada desde o começo (a primeira mensagem também fala) e com altura
-   reservada: o resultado chega sem empurrar nada. */
+.pp-inv__campo .pp-input {
+  width: 4.5em;
+  min-height: 44px;
+}
+
+/* Montada desde o começo (a primeira mensagem também fala) e com duas linhas
+   reservadas, porque "A mesa não respondeu…" quebra na coluna do detalhe: o
+   resultado chega sem empurrar nada. */
 .pp-inv__status {
   grid-column: 1 / -1;
-  min-height: 1.45em;
+  min-height: calc(2em * var(--lb-font-leading-normal, 1.45));
   margin: 12px 0 0;
   font-size: 13px;
+  line-height: var(--lb-font-leading-normal, 1.45);
 }
 
 .pp-inv__status--erro {
@@ -4968,5 +5086,10 @@ button.pp-colecao__casa:focus-visible {
 
   .pp-inv__palco[data-entrada] .pp-inv__palco-objeto {
     animation: none;
+  }
+
+  /* O véu entra pronto, então o fundo sai junto, sem esperar a entrada dele. */
+  [data-pp-inv-fundo] {
+    transition: none !important;
   }
 }

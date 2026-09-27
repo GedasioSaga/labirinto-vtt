@@ -95,6 +95,27 @@ export function inventorySlots(token: Pick<Token, 'mochila' | 'moedas'>): Invent
   return slots
 }
 
+/**
+ * A ordem que a tela mostra, estável entre um mapa e o próximo. A ordem
+ * natural (`inventorySlots`) muda sozinha: a bolsa só existe com saldo e entra
+ * na frente de tudo, e uma vaga de mesmo nome acompanha o primeiro exemplar
+ * que resta (dar a primeira de duas Ervas manda a Erva para depois da Chave).
+ * `anterior` são as chaves na ordem que a grade já mostrou: quem continua fica
+ * na mesma ordem, quem saiu libera o lugar (a grade fecha o vão sem trocar
+ * ninguém de posição relativa) e quem chegou entra no fim, na ordem natural.
+ */
+export function stableSlotOrder(anterior: readonly string[] | undefined, slots: readonly InventorySlot[]): InventorySlot[] {
+  if (anterior === undefined) return [...slots]
+  const porChave = new Map(slots.map((slot) => [slot.key, slot]))
+  const conhecidas = new Set(anterior)
+  const mantidas = anterior.flatMap((key) => {
+    const slot = porChave.get(key)
+    return slot === undefined ? [] : [slot]
+  })
+  const novas = slots.filter((slot) => !conhecidas.has(slot.key))
+  return [...mantidas, ...novas]
+}
+
 /** Colunas da grade, em qualquer largura: as setas contam com elas. */
 export const INVENTORY_COLUMNS = 4
 /** A grade nunca mostra menos que duas fileiras — o desenho da mochila do RE. */

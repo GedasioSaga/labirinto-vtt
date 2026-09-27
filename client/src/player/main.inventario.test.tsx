@@ -131,11 +131,14 @@ describe('main.tsx: o inventário de ponta a ponta', () => {
     expect(aberto).not.toBeNull()
     expect(aberto?.querySelector('[role="grid"]')?.getAttribute('aria-label')).toBe('Itens de Jill')
     expect(aberto?.querySelector('.pp-inv-ecg')?.getAttribute('aria-label')).toBe('Condição: Perigo')
+    // A barra, o painel e o mapa ficam atrás do véu: inertes enquanto ele está aberto.
+    expect(abrir.closest('[inert]')).not.toBeNull()
   })
 
   it('Esc fecha e o foco volta ao botão da barra', () => {
     tecla('Escape')
     expect(inventario()).toBeNull()
+    expect(botaoDoInventario().closest('[inert]')).toBeNull()
     expect(document.activeElement).toBe(botaoDoInventario())
   })
 
