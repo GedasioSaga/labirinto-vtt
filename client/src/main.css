@@ -4592,6 +4592,20 @@ html.lb-arrastando-cena .lb-cenas__item:not(.lb-cenas__item--ativa) > .lb-cenas_
   }
 }
 
+/* "Andar sozinha": ligada, fica em latão, o "ativo" do arquivo. */
+.lb-rotina__andar {
+  align-self: flex-start;
+  margin-top: var(--lb-space-2);
+}
+
+/* Ligada fica latão também sob o cursor: logo depois do clique o mouse ainda
+   está em cima, e o hover do ghost apagava o "está andando". */
+.lb-rotina__andar[aria-pressed='true'],
+.lb-rotina__andar[aria-pressed='true']:hover:not(:disabled) {
+  border-color: rgba(224, 164, 74, 0.28);
+  color: var(--lb-color-brass);
+}
+
 /* ---- Cenas em pastas (região > cidade > bairro > casa) */
 
 /* Os fios da árvore: um traço fino e claro no meio de cada degrau de recuo,

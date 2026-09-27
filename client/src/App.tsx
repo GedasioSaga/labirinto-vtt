@@ -51,6 +51,7 @@ import { congelamentoDaMesa } from './lib/congelar'
 import { jogadoresDoCorte } from './lib/corteDaTorre'
 import { useDestinationStore } from './stores/destinationStore'
 import { useCenaQueEspera } from './stores/useCenaQueEspera'
+import { useRotinaAndandoStore } from './stores/rotinaAndandoStore'
 import type { TravelLogEntry } from './lib/travelLog'
 import { withStoredTokens } from './lib/storedTokens'
 import { loadSavedExploration, loadSavedTable, savedTableSummary, storeSavedExploration, storeSavedTable, type TableStorage } from './lib/savedTable'
@@ -1059,6 +1060,11 @@ function App() {
   useEffect(() => {
     useDestinationStore.getState().setMarks(masterDestinationMarks(roomPlayers, openSceneId))
   }, [roomPlayers, openSceneId])
+  // ROTINA ANDANDO: quem anda sozinho agora; ficha na mão de um jogador (a dele ou o ajudante) não anda.
+  const rotinasAndando = useRotinaAndandoStore((state) => state.andando)
+  useEffect(() => {
+    useRotinaAndandoStore.getState().setFixas(new Set(roomPlayers.flatMap((player) => player.tokenIds)))
+  }, [roomPlayers])
   useFollowPlayer(roomPlayers, () => hostWorldOf({ adventure, activeSceneId, cache: sceneCache }, map))
   // FACÇÃO E ALERTA: o filtro "Quem manda aqui" é da vista do mestre; a legenda sai das salas da cena aberta.
   const filtroFaccoes = useTerritorioStore((state) => state.filtroLigado)
@@ -2651,6 +2657,13 @@ function App() {
                   cenas={adventure.scenes}
                   cenaAberta={activeSceneId}
                   onChange={(rotina) => useMapStore.getState().setTokenRotina(selectedToken.id, rotina)}
+                  // ROTINA ANDANDO: a ficha anda sozinha de posto em posto até o mestre parar.
+                  andando={rotinasAndando.has(selectedToken.id)}
+                  onAndar={(ligar) => {
+                    const rotinas = useRotinaAndandoStore.getState()
+                    if (ligar) rotinas.ligar(selectedToken.id)
+                    else rotinas.desligar(selectedToken.id)
+                  }}
                 />
               )
             }

@@ -22,7 +22,7 @@ import { withPlayerVisibleTokens } from '../lib/pinTravel'
 import { tokenSizeInSquares } from '../lib/tokenSize'
 import type { Bounds, Camera, Point } from '../pixi/world'
 import * as mapFactory from '../lib/mapFactory'
-import { moverNaCena, planejarRotina, type CenaDaRotina } from '../lib/rotinaDoNpc'
+import { moverNaCena, planejarRotina, type CenaDaRotina, type MovimentoDaRotina } from '../lib/rotinaDoNpc'
 import { comPiso, mapaDoPiso, pisoDe } from '../lib/pisos'
 import {
   ADVENTURE_VERSION,
@@ -411,6 +411,17 @@ interface AdventureState {
    * `fixas`: fichas que um jogador segura; ficam onde estão.
    */
   trocarEstadoDoMundo: (estadoId: string, valor: string, fixas?: ReadonlySet<string>) => ResumoDaTroca | null
+  /**
+   * ROTINA ANDANDO: a cena aberta e as de fundo que abriram, onde a rotina
+   * procura a ficha e os postos. Sem aventura aberta: nenhuma.
+   */
+  cenasDaRotina: () => CenaDaRotina[]
+  /**
+   * ROTINA ANDANDO: aplica um tique da rotina com a mecânica do apito —
+   * mudança de mesa dentro da cena, `transferToken` para outra —, fora do
+   * Ctrl+Z do mestre.
+   */
+  moverFichasDaRotina: (movimentos: readonly MovimentoDaRotina[]) => void
   /**
    * ESTADO DO MUNDO: "Depende do estado" de um elemento da cena ABERTA (o
    * painel de propriedades só mostra ela). Grava a regra e já põe o elemento
@@ -923,6 +934,17 @@ function sceneToOpenInstead(state: Pick<AdventureState, 'adventure' | 'cache' | 
 function mudarNaMesa(get: () => AdventureState, transform: (map: MapData) => MapData): void {
   useMapStore.getState().applyPlayerChange(transform)
   for (const sceneId of Object.keys(get().cache)) get().applyPlayerChangeToBackgroundScene(sceneId, transform)
+}
+
+/** Os movimentos da rotina que trocam de cena, cada um por `transferToken`. */
+function levarParaOutraCena(get: () => AdventureState, movimentos: readonly MovimentoDaRotina[], activeSceneId: string): void {
+  for (const m of movimentos) {
+    if (m.de === m.para || !get().transferToken(m.tokenId, m.de, m.para, m.x, m.y) || m.de !== activeSceneId) continue
+    // Saiu da cena aberta: a seleção não pode apontar para ela (o mesmo cuidado de `carryToken`).
+    const item: SelectionItem = { kind: 'token', id: m.tokenId }
+    const { selection, setSelection } = useMapStore.getState()
+    if (selectionHas(selection, item)) setSelection(removeSelectionItem(selection, item))
+  }
 }
 
 /**
@@ -1439,15 +1461,22 @@ export const useAdventureStore = create<AdventureState>()((set, get) => ({
     const transform = (map: MapData) => moverNaCena(aplicarEstadoNoMapa(map, estadoId, valor), movimentos)
     useMapStore.getState().applyPlayerChange(transform)
     for (const sceneId of Object.keys(cache)) get().applyPlayerChangeToBackgroundScene(sceneId, transform)
-    for (const m of movimentos) {
-      if (m.de === m.para || !get().transferToken(m.tokenId, m.de, m.para, m.x, m.y) || m.de !== activeSceneId) continue
-      // Saiu da cena aberta: a seleção não pode apontar para ela (o mesmo cuidado de `carryToken`).
-      const item: SelectionItem = { kind: 'token', id: m.tokenId }
-      const { selection, setSelection } = useMapStore.getState()
-      if (selectionHas(selection, item)) setSelection(removeSelectionItem(selection, item))
-    }
+    levarParaOutraCena(get, movimentos, activeSceneId)
     set({ adventure: { ...adventure, estados }, structureDirty: true })
     return resumo
+  },
+
+  cenasDaRotina: () => {
+    const { adventure, activeSceneId, cache } = get()
+    if (adventure === null || activeSceneId === null) return []
+    return cenasCarregadas(activeSceneId, useMapStore.getState().map, cache)
+  },
+
+  moverFichasDaRotina: (movimentos) => {
+    const { activeSceneId } = get()
+    if (activeSceneId === null || movimentos.length === 0) return
+    mudarNaMesa(get, (map) => moverNaCena(map, movimentos))
+    levarParaOutraCena(get, movimentos, activeSceneId)
   },
 
   amarrarAoEstado: (amarra) => {
