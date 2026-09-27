@@ -977,3 +977,12 @@ ponto.", "Pedir para passar" (pílula latão, largura cheia), "Barrar a passagem
 esquerda do cartão e não alinha com a de cima), "Fechar" sozinho à direita. Causa visível: "Barrar a passagem" usa as
 classes do Fechar (`pp-pincard__close pp-pincard__close--inline`, `PlayerPinCard.tsx:802`). Entra no design do
 jogador da 0.4.4 (`ux-hud-jogador`), mandado ao designer.
+
+### 27/09/2026, fim da tarde — "Passar o ferrolho" confuso
+
+> "[Image #8] como assim passar ferrolho?"
+
+Imagem: pílula "Passar o ferrolho" no jogador. O botão tranca, do lado da ficha, uma porta que o mestre não trancou
+(o outro lado não abre); quem trancou vê o botão de desfazer. "Passar" lê como "atravessar" e "ferrolho" é palavra
+rara. Vira rótulo simples sem "ferrolho" (ex.: "Trancar deste lado" / "Destrancar"), sem colidir com o "Trancada"
+do mestre. Mandado ao designer do HUD do jogador (0.4.4).
