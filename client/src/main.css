@@ -2220,8 +2220,17 @@ label.lb-switch[data-dica-linha='aberta'] > span:first-child::after,
   min-height: 20px;
 }
 
-/* A linha das ações quebra em vez de vazar do painel se a fonte vier mais larga. */
+/* A linha das ações quebra em vez de vazar do painel se a fonte vier mais larga;
+   o vão entre botões é o mesmo do painel todo, na horizontal e na vertical. */
 .lb-player__line--acoes {
+  flex-wrap: wrap;
+  gap: var(--lb-control-gap);
+}
+
+/* Na coluna de 212 px o nome e as fichas não cabem lado a lado: as fichas
+   descem para a linha de baixo (encostadas à direita pelo margin-left: auto)
+   em vez de cortar o nome em "A…". */
+.lb-player__line:has(> .lb-player__tokens) {
   flex-wrap: wrap;
   row-gap: var(--lb-space-1);
 }
@@ -2286,7 +2295,9 @@ label.lb-switch[data-dica-linha='aberta'] > span:first-child::after,
 
 .lb-player__tokens {
   display: flex;
-  gap: var(--lb-space-1);
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--lb-control-gap);
   flex: 0 1 auto;
   min-width: 0;
   margin-left: auto;
@@ -2339,16 +2350,15 @@ label.lb-switch[data-dica-linha='aberta'] > span:first-child::after,
   color: var(--lb-color-ember);
 }
 
+/* As ações do jogador quebram de linha no vão do painel em vez de espremer o
+   respiro dos botões para caber numa linha só (o "Dar item…" e o "Recado"
+   ficavam fora da coluna). */
 .lb-player__actions {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: var(--lb-space-1);
+  gap: var(--lb-control-gap);
   min-width: 0;
-}
-
-/* Em 212 px as três ações e o "…" dividem a linha: o respiro lateral encolhe. */
-.lb-player__actions > .lb-btn {
-  padding: 0 6px;
 }
 
 /* O "…" da linha: o mesmo traço do menu da lista Cenas, na altura dos botões da linha. */
@@ -2397,7 +2407,7 @@ label.lb-switch[data-dica-linha='aberta'] > span:first-child::after,
 .lb-player__quick {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--lb-space-1);
+  gap: var(--lb-control-gap);
 }
 
 /* Rótulo comprido ("Biblioteca · Atribuir Livro") quebra dentro do botão em
@@ -3391,10 +3401,15 @@ label.lb-switch[data-dica-linha='aberta'] > span:first-child::after,
   list-style: none;
 }
 
+/* A linha quebra: a pergunta de apagar e o menu "Mover" descem para baixo do
+   nome, na largura da linha, porque na coluna estreita do rail não cabem ao
+   lado dele. */
 .lb-acervo__item {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--lb-space-3);
+  row-gap: var(--lb-control-gap);
   padding: var(--lb-space-2) var(--lb-space-3);
   border: 1px solid var(--lb-color-line);
   border-radius: var(--lb-radius-md);
@@ -3423,6 +3438,7 @@ label.lb-switch[data-dica-linha='aberta'] > span:first-child::after,
 .lb-acervo__nome {
   flex: 1;
   min-width: 0;
+  min-height: var(--lb-control-min);
   padding: 0;
   border: 0;
   background: none;
@@ -3471,7 +3487,11 @@ label.lb-switch[data-dica-linha='aberta'] > span:first-child::after,
 }
 
 .lb-acervo__apagar {
+  display: inline-grid;
+  place-items: center;
   flex: none;
+  min-width: var(--lb-control-min);
+  min-height: var(--lb-control-min);
   padding: 0 var(--lb-space-2);
   border: 0;
   background: none;
@@ -3485,13 +3505,23 @@ label.lb-switch[data-dica-linha='aberta'] > span:first-child::after,
   color: var(--lb-color-ember);
 }
 
-/* A pergunta ocupa a linha inteira: os dois botões precisam caber lado a lado
-   na coluna estreita do rail, e o nome do item continua visível acima deles. */
+/* A pergunta ocupa a linha inteira, embaixo do nome do item, que continua à
+   vista. Os dois botões dividem a linha quando cabem; senão cada um fica numa,
+   no vão do painel, sem vazar da coluna. */
 .lb-acervo__confirma {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--lb-space-2);
-  flex: none;
+  gap: var(--lb-control-gap);
+  flex: 1 1 100%;
+  min-width: 0;
+}
+
+/* Nome comprido no botão de apagar quebra em duas linhas equilibradas em vez
+   de ganhar reticência: o nome ali é a última chance de ver o engano. */
+.lb-acervo__confirma > .lb-btn {
+  flex: 1 1 auto;
+  min-width: 0;
+  text-wrap: balance;
 }
 
 .lb-acervo__vazio,
@@ -3540,6 +3570,7 @@ label.lb-switch[data-dica-linha='aberta'] > span:first-child::after,
 
 .lb-acervo__nova-pasta {
   flex: none;
+  min-height: var(--lb-control-min);
   padding: 0;
   border: 0;
   background: none;
@@ -3562,7 +3593,7 @@ label.lb-switch[data-dica-linha='aberta'] > span:first-child::after,
 .lb-acervo__form-acoes {
   display: flex;
   justify-content: flex-end;
-  gap: var(--lb-space-2);
+  gap: var(--lb-control-gap);
 }
 
 .lb-acervo__pastas {
@@ -3677,6 +3708,10 @@ label.lb-switch[data-dica-linha='aberta'] > span:first-child::after,
 .lb-acervo__mover {
   display: inline-flex;
   flex: none;
+  align-items: center;
+  justify-content: center;
+  min-width: var(--lb-control-min);
+  min-height: var(--lb-control-min);
   padding: 0 var(--lb-space-1);
   border: 0;
   background: none;
@@ -3689,21 +3724,18 @@ label.lb-switch[data-dica-linha='aberta'] > span:first-child::after,
   color: var(--lb-color-brass);
 }
 
-/* O menu "Mover" abre embaixo do nome, na largura da linha: na coluna estreita
-   do rail os destinos não cabem ao lado dele. */
-.lb-acervo__item--movendo {
-  flex-wrap: wrap;
-}
-
+/* O menu "Mover" abre embaixo do nome, na largura da linha (a linha do item
+   já quebra: ver `.lb-acervo__item`). */
 .lb-acervo__destinos {
   display: flex;
   flex-basis: 100%;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--lb-space-2);
+  gap: var(--lb-control-gap);
 }
 
 .lb-acervo__destino {
+  min-height: var(--lb-control-min);
   padding: var(--lb-space-1) var(--lb-space-2);
   border: 1px solid var(--lb-color-line);
   border-radius: var(--lb-radius-sm);
@@ -4490,6 +4522,14 @@ html.lb-arrastando-cena .lb-cenas__item:not(.lb-cenas__item--ativa) > .lb-cenas_
   flex-basis: 100%;
   flex-wrap: wrap;
   justify-content: flex-end;
+}
+
+/* Entre os ícones da faixa, meio vão do painel: sem moldura, eles não encostam
+   um no outro e os sete ainda cabem numa linha da coluna de 212 px
+   (7 × 24 + 6 × 4 = 192). As regras da cena aberta e da fechada só dizem onde
+   a faixa fica; o vão é este nas duas. */
+.lb-cenas__linha > .lb-cenas__controles {
+  gap: calc(var(--lb-control-gap) / 2);
 }
 
 /* Os botões da faixa: ícones de 24px sem borda, como as ações de uma linha do

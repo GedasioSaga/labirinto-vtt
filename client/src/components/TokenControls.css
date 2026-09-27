@@ -305,11 +305,13 @@ button.lb-token-opt__head:active .lb-token-opt__sinal {
 /* ---------------------------------------------------------- Cor da ficha */
 
 /* As seis amostras numa linha só, repartindo a largura que sobra do rótulo:
-   `minmax(0, 1fr)` mantém as colunas iguais. */
+   `minmax(0, 1fr)` mantém as colunas iguais. Entre elas, o meio vão dos ícones
+   sem moldura do painel: o fundo do hover de uma não encosta no da vizinha. */
 .lb-token-cores {
   flex: 1 1 auto;
   display: grid;
   grid-template-columns: repeat(6, minmax(0, 1fr));
+  column-gap: calc(var(--lb-control-gap) / 2);
   min-width: 0;
 }
 
