@@ -4,6 +4,7 @@
  * de fundo, com a mesma mecânica do apito (mudança de mesa, fora do Ctrl+Z).
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { OpenedMapFile, SceneLoad } from '../lib/mapFileIO'
 import type { MapData, Token } from '../types/map'
 
 vi.mock('@tauri-apps/plugin-fs', () => ({
@@ -27,12 +28,17 @@ vi.mock('@tauri-apps/api/path', () => ({
   dirname: vi.fn(async (path: string) => path.slice(0, path.lastIndexOf('/'))),
 }))
 
-const { useAdventureStore } = await import('./adventureStore')
+const { useAdventureStore, hasUnsavedWork } = await import('./adventureStore')
 const { useMapStore } = await import('./mapStore')
-const { useSessionStore } = await import('./sessionStore')
+const { useSessionStore, subscribeToDirtyFlag } = await import('./sessionStore')
 const { useRotinaAndandoStore } = await import('./rotinaAndandoStore')
 const { createEmptyMap } = await import('../lib/mapFactory')
+const { deserializeMap, serializeMap } = await import('../lib/mapFile')
+const { parseAdventure, serializeAdventure } = await import('../lib/adventure')
 const { ESPERA_NO_POSTO_MS, PASSO_DA_ROTINA_MS, passoEmPx } = await import('../lib/rotinaAndando')
+
+// Como na raiz do App: sem esta assinatura, `isDirty` não acompanha o mapa.
+subscribeToDirtyFlag()
 
 const GRID = 50
 const PASSO = passoEmPx(GRID)
@@ -179,5 +185,75 @@ describe('cena trocada', () => {
     expect(useMapStore.getState().selection).toEqual([])
     expect(fichaDe(fundo(m.capela), 'tobias')).toEqual(expect.objectContaining({ x: 400, y: 300 }))
     expect(useRotinaAndandoStore.getState().andando.has('tobias')).toBe(true)
+  })
+})
+
+/** O mapa como volta do disco: outro objeto, mesmo conteúdo. */
+function doDisco(map: MapData): MapData {
+  return deserializeMap(serializeMap(map))
+}
+
+/**
+ * A MESMA aventura relida do disco, como o "Abrir" a traz: mesma pasta, mesmos
+ * ids, e o Tobias com a rotina gravada — só não pode voltar andando.
+ */
+function relida(conf: string): OpenedMapFile {
+  const { adventure } = useAdventureStore.getState()
+  if (adventure === null) throw new Error('sem aventura')
+  const aberta = doDisco(useMapStore.getState().map)
+  return {
+    path: `C:/aventuras/capela/scenes/${conf}/map.json`,
+    map: aberta,
+    adventure: parseAdventure(serializeAdventure(adventure)),
+    adventureDir: 'C:/aventuras/capela',
+    activeSceneId: conf,
+    scenes: adventure.scenes.map((entry): SceneLoad => ({ entry, status: 'ok', map: entry.id === conf ? aberta : doDisco(fundo(entry.id)) })),
+    changedSceneIds: [],
+    adventureChanged: false,
+    legacySources: [],
+  }
+}
+
+describe('abrir outro mapa desliga a rotina', () => {
+  it('reabrir a mesma aventura: a ficha volta parada, o relógio não corre e nada fica por salvar', () => {
+    const m = montar()
+    useRotinaAndandoStore.getState().ligar('tobias')
+    vi.advanceTimersByTime(PASSO_DA_ROTINA_MS)
+    void useAdventureStore.getState().open(relida(m.conf))
+    expect(useRotinaAndandoStore.getState().andando.size).toBe(0)
+    expect(vi.getTimerCount()).toBe(0)
+    vi.advanceTimersByTime(10 * PASSO_DA_ROTINA_MS)
+    expect(fichaDe(useMapStore.getState().map, 'tobias')).toEqual(expect.objectContaining({ x: 100 + PASSO, y: 100 }))
+    expect(useSessionStore.getState().isDirty).toBe(false)
+    expect(hasUnsavedWork()).toBe(false)
+  })
+
+  it('mapa solto, sem aventura, pasta nem cenas: desliga na hora', () => {
+    montar()
+    useRotinaAndandoStore.getState().ligar('tobias')
+    vi.advanceTimersByTime(PASSO_DA_ROTINA_MS)
+    const solto: OpenedMapFile = {
+      path: 'C:/mapas/solto.json',
+      map: createEmptyMap('map_solto', 'Solto', 20, 20, GRID),
+      adventure: null,
+      adventureDir: null,
+      activeSceneId: null,
+      scenes: [],
+      changedSceneIds: [],
+      adventureChanged: false,
+      legacySources: [],
+    }
+    void useAdventureStore.getState().open(solto)
+    expect(useRotinaAndandoStore.getState().andando.size).toBe(0)
+    expect(vi.getTimerCount()).toBe(0)
+  })
+
+  it('mapa novo (a aventura volta ao vazio): desliga na hora', () => {
+    montar()
+    useRotinaAndandoStore.getState().ligar('tobias')
+    vi.advanceTimersByTime(PASSO_DA_ROTINA_MS)
+    useAdventureStore.getState().reset()
+    expect(useRotinaAndandoStore.getState().andando.size).toBe(0)
+    expect(vi.getTimerCount()).toBe(0)
   })
 })

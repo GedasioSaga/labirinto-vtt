@@ -1,7 +1,7 @@
 /// <reference types="vite/client" />
 import { create } from 'zustand'
 import { darPassoDaRotina, desligarRotina, ligarRotina, PASSO_DA_ROTINA_MS, type RotinasAndando } from '../lib/rotinaAndando'
-import { useAdventureStore } from './adventureStore'
+import { subscribeToOpenings, useAdventureStore } from './adventureStore'
 
 /**
  * ROTINA ANDANDO no editor do mestre: quem está com a rotina ligada e o
@@ -61,6 +61,11 @@ export const useRotinaAndandoStore = create<RotinaAndandoState>()((set, get) => 
   }
 })
 
+// Toda abertura (outro mapa, ou a mesma aventura de novo) começa sem ninguém
+// andando: a rotina ligada é da sessão que saiu. A troca de cena não passa por
+// aqui — a ficha segue andando na cena de fundo.
+const pararAoAbrir = subscribeToOpenings(() => useRotinaAndandoStore.getState().reset())
+
 // Em `npm run dev`, editar este módulo (ou o que ele importa) o troca por um novo,
 // com o store zerado; sem isto o relógio do módulo velho seguia andando a ficha com
 // o botão já dizendo "Andar sozinha". O Vite só roda o `dispose` de quem aceita a
@@ -68,6 +73,7 @@ export const useRotinaAndandoStore = create<RotinaAndandoState>()((set, get) => 
 // que passa a usar o store novo.
 import.meta.hot?.accept(() => import.meta.hot?.invalidate())
 import.meta.hot?.dispose(() => {
+  pararAoAbrir()
   if (relogio !== null) clearInterval(relogio)
   relogio = null
 })

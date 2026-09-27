@@ -2093,6 +2093,10 @@ function App() {
 
   /** Roda o mesmo salvamento de `handleSave` e só depois troca para o menu — sem diálogo. */
   const handleGoHome = async () => {
+    // Sair para o menu encerra a sessão de jogo: as rotinas param ANTES de
+    // salvar, senão um passo depois da gravação sujava o mapa (o "Abrir" do
+    // menu avisava trabalho não salvo) e os jogadores seguiam vendo o NPC andar.
+    useRotinaAndandoStore.getState().reset()
     try {
       await persistMap()
       useToastStore.getState().push('info', MAP_SAVED_TEXT)

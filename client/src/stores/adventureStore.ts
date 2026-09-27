@@ -1059,6 +1059,30 @@ function withEmptyScene(
  */
 let openGeneration = 0
 
+/** Quem esquece a sessão de jogo a cada abertura (ver `subscribeToOpenings`). */
+const openingListeners = new Set<() => void>()
+
+/**
+ * Avisa `onOpen` a cada abertura (`open`, `reset`): outro mapa entra no
+ * editor, ou o MESMO de novo — mesma pasta, mesmos ids, que por isso o estado
+ * não distingue. É para o que é da sessão de jogo e não do arquivo (a rotina
+ * andando), que não pode passar de uma abertura para a outra. O aviso sai antes
+ * de o mapa novo entrar. Devolve o cancelamento.
+ */
+export function subscribeToOpenings(onOpen: () => void): () => void {
+  openingListeners.add(onOpen)
+  return () => {
+    openingListeners.delete(onOpen)
+  }
+}
+
+/** Começa uma abertura: o que ainda chegar da anterior é descartado e quem assina `subscribeToOpenings` fica sabendo. */
+function beginOpening(): number {
+  openGeneration += 1
+  for (const onOpen of openingListeners) onOpen()
+  return openGeneration
+}
+
 /**
  * Janela que junta as cenas de fundo que chegam quase juntas numa troca de
  * estado só. Curta para o mestre não perceber a espera; longa o bastante para
@@ -1142,13 +1166,12 @@ export const useAdventureStore = create<AdventureState>()((set, get) => ({
 
   reset: () => {
     // O que ainda chegar da aventura anterior não é deste mapa.
-    openGeneration += 1
+    beginOpening()
     set({ ...EMPTY })
   },
 
   open: (opened) => {
-    openGeneration += 1
-    const generation = openGeneration
+    const generation = beginOpening()
     if (opened.adventure === null || opened.activeSceneId === null) {
       set({ ...EMPTY })
       showInEditor(opened.map, [], [])
