@@ -3921,6 +3921,28 @@ button.pp-colecao__casa:focus-visible {
   }
 }
 
+/* Celular: tudo o que o dedo toca por cima do mapa tem o alvo de 44 px do tema.
+   As abas de andar e o "Onde estou" mediam 36; os botões do aviso da porta, 32;
+   os motivos, o campo e os botões do chamado, 32 a 38; o "Fechar" dos cartões,
+   40. Fica depois das regras de cada controle para vencer na mesma
+   especificidade. */
+@media (max-width: 699px) {
+  .pp-floors__tab,
+  .pp-where,
+  .pp-notice__action,
+  .pp-call__reason,
+  .pp-call .pp-input,
+  .pp-call .pp-button,
+  .pp-pincard__close {
+    min-height: var(--lb-control-touch, 44px);
+  }
+
+  .pp-notice__close {
+    min-width: var(--lb-control-touch, 44px);
+    min-height: var(--lb-control-touch, 44px);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .pp-where {
     transition: none;

@@ -55,13 +55,18 @@ function blocosDaMidia(css: string, condicao: string): string[] {
   return blocos
 }
 
+/** A lista de seletores de uma regra (`a,\n b {`) contém o seletor exato. */
+function temSeletor(seletores: string, seletor: string): boolean {
+  return seletores.split(',').some((um) => um.trim() === seletor)
+}
+
 /** Regras de nível de topo (fora de qualquer `@media`) com o seletor exato. */
 function regraBase(css: string, seletor: string): Regra {
   let texto = semComentarios(css)
   for (const condicao of new Set([...texto.matchAll(/@media ([^{]+) \{/g)].map(([, c]) => c))) {
     for (const bloco of blocosDaMidia(texto, condicao)) texto = texto.replace(`@media ${condicao} {${bloco}}`, '')
   }
-  const achadas = [...texto.matchAll(/([^{}]+)\{([^{}]*)\}/g)].filter(([, seletores]) => seletores.trim() === seletor)
+  const achadas = [...texto.matchAll(/([^{}]+)\{([^{}]*)\}/g)].filter(([, seletores]) => temSeletor(seletores, seletor))
   if (achadas.length === 0) throw new Error(`o player.css não tem a regra "${seletor}" fora de @media`)
   return new Map(achadas.flatMap(([, , corpo]) => [...declaracoes(corpo)]))
 }
@@ -69,7 +74,7 @@ function regraBase(css: string, seletor: string): Regra {
 /** Regra com o seletor exato dentro de `@media <condicao>` (as declarações de todos os blocos, a última vence). */
 function regraNaMidia(css: string, condicao: string, seletor: string): Regra {
   const achadas = blocosDaMidia(css, condicao).flatMap((bloco) =>
-    [...bloco.matchAll(/([^{}]+)\{([^{}]*)\}/g)].filter(([, seletores]) => seletores.trim() === seletor),
+    [...bloco.matchAll(/([^{}]+)\{([^{}]*)\}/g)].filter(([, seletores]) => temSeletor(seletores, seletor)),
   )
   if (achadas.length === 0) throw new Error(`o player.css não tem "${seletor}" dentro de @media ${condicao}`)
   return new Map(achadas.flatMap(([, , corpo]) => [...declaracoes(corpo)]))
@@ -146,5 +151,29 @@ describe('Espiar pela porta: pílula, não placa', () => {
     expect(px(espiar.get('bottom'))).toBeGreaterThanOrEqual(px(ferrolho.get('bottom')) + alturaDoFerrolho + px('var(--lb-control-gap)'))
     // A entrada não pode puxar a pílula para o meio (o keyframe dos avisos centrados usa translate(-50%)).
     expect(espiar.get('animation') ?? '').not.toContain('pp-notice-in')
+  })
+})
+
+describe('alvos de toque no celular', () => {
+  // Os controles do HUD que mediam menos de 44 px em 390 x 844 (abas 44x36,
+  // "Onde estou" 110x36, botões do aviso da porta 32, motivos do chamado 32,
+  // campo 34, "Chamar"/"Cancelar" 38, "Fechar" do cartão 40). `true` = botão
+  // só-ícone, que precisa dos 44 px também na largura.
+  const ALVOS: ReadonlyArray<readonly [string, boolean]> = [
+    ['.pp-floors__tab', false],
+    ['.pp-where', false],
+    ['.pp-notice__action', false],
+    ['.pp-notice__close', true],
+    ['.pp-call__reason', false],
+    ['.pp-call .pp-input', false],
+    ['.pp-call .pp-button', false],
+    ['.pp-pincard__close', false],
+  ]
+
+  it.each(ALVOS)('%s tem o alvo de toque do tema no celular', async (seletor, soIcone) => {
+    const regra = regraNaMidia(await lerPlayerCss(), CELULAR, seletor)
+    expect(regra.get('min-height') ?? 'sem min-height').toContain('--lb-control-touch')
+    expect(px(regra.get('min-height'))).toBeGreaterThanOrEqual(44)
+    if (soIcone) expect(px(regra.get('min-width'))).toBeGreaterThanOrEqual(44)
   })
 })
