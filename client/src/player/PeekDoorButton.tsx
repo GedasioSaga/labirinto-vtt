@@ -41,7 +41,7 @@ export function PeekDoorButton({ map, ownTokens, onPeek }: PeekDoorButtonProps) 
   const wallId = peekableDoorId(map, ownTokens)
   if (wallId === null) return null
   return (
-    <button type="button" className="pp-peek" onClick={() => onPeek(wallId)}>
+    <button type="button" className="pp-espiar" onClick={() => onPeek(wallId)}>
       Espiar pela porta
     </button>
   )

@@ -138,6 +138,8 @@ export const theme = {
     gap: '8px',
     /** Altura (e largura, no botão só-ícone) mínima do alvo de clique. */
     min: '24px',
+    /** Alvo mínimo para o dedo: controles do jogador no celular (44 px, Apple HIG). */
+    touch: '44px',
   },
 
   radius: {

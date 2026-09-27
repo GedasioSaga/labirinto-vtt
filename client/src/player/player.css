@@ -2196,14 +2196,17 @@
 }
 
 /* "Espiar pela porta": pílula acima dos dois avisos, só com a ficha encostada
-   numa porta fechada. Alvo de toque de 44 px; foco no latão, como o resto. */
-.pp-peek {
+   numa porta fechada. Alvo de toque de 44 px; foco no latão, como o resto.
+   Classe própria: com a `.pp-peek` do cartão do espiar (PlayerPeek, no alto)
+   o botão herdava top e largura e virava uma placa de 300 x 720 px sobre o
+   mapa, por cima das abas de andar, da barra e do "Chamar o mestre". */
+.pp-espiar {
   position: fixed;
   bottom: 112px;
   left: 50%;
   transform: translateX(-50%);
   z-index: 20;
-  min-height: 44px;
+  min-height: var(--lb-control-touch, 44px);
   padding: 10px 18px;
   font-family: var(--lb-font-sans, system-ui, sans-serif);
   font-size: 15px;
@@ -2216,13 +2219,36 @@
   animation: pp-notice-in 160ms ease-out;
 }
 
-.pp-peek:hover {
+.pp-espiar:hover {
   border-color: var(--lb-color-brass, #e0a44a);
 }
 
-.pp-peek:focus-visible {
+.pp-espiar:focus-visible {
   outline: 2px solid var(--lb-color-brass, #e0a44a);
   outline-offset: 2px;
+}
+
+/* No celular os avisos do meio ocupam a largura e o "Chamar o mestre" mora à
+   direita: a pílula vai para a coluna da esquerda, logo acima do ferrolho
+   (as duas são ações da porta em que a ficha encosta). */
+@media (max-width: 699px) {
+  .pp-espiar {
+    left: 12px;
+    bottom: calc(156px + var(--lb-control-touch, 44px) + var(--lb-control-gap, 8px) + env(safe-area-inset-bottom, 0px));
+    transform: none;
+    animation: pp-espiar-in 160ms ease-out;
+  }
+}
+
+@keyframes pp-espiar-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 
 /* "Desistir" dentro do aviso de espera: secundário (contorno), para não competir com a espera. */
@@ -2259,7 +2285,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .pp-peek {
+  .pp-espiar {
     animation: none;
   }
 }
