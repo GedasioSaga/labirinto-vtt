@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState, useSyncExternalStore } from 'react'
+import { useEffect, useId, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react'
 import type { ChangeEvent, ComponentProps, FormEvent, KeyboardEvent as ReactKeyboardEvent, MouseEvent, RefObject } from 'react'
 import type { OwnWait, StorageLike } from './playerConnection'
 import { PlayerBackpack } from './PlayerBackpack'
@@ -85,6 +85,8 @@ const EXPLORED_BRIGHTNESS_STEP = 0.05
 // Grade desligada por padrão: o mapa do jogador segue o minimapa limpo do editor.
 export const DEFAULT_PLAYER_SETTINGS: PlayerViewSettings = { exploredBrightness: 0.55, showGrid: false, showNames: true }
 export const PLAYER_SETTINGS_KEY = 'labirinto.jogador.ajustes'
+/** Variável CSS (no painel) com a largura da barra de cima: `player.css` não deixa o cartão mais estreito que o cabeçalho dele. */
+export const BAR_WIDTH_VAR = '--pp-bar-w'
 
 /** Como cada estado do companheiro aparece escrito: é o texto que o jogador lê. */
 const PARTY_WHERE_LABEL: Record<PartyWhere, string> = { aqui: 'aqui', longe: 'em outro lugar', fora: 'fora' }
@@ -347,6 +349,8 @@ export function PlayerPanel({
   const photoFieldId = useId()
   const ownPanelRef = useRef<HTMLElement | null>(null)
   const asideRef = panelRef ?? ownPanelRef
+  const ownBarRef = useRef<HTMLDivElement | null>(null)
+  const barElRef = barRef ?? ownBarRef
   const toggleRef = useRef<HTMLButtonElement | null>(null)
   /** Gaveta aberta pelo teclado: o foco entra nela quando ela aparece (não antes, escondida ela não recebe foco). */
   const focusIntoDrawer = useRef(false)
@@ -384,6 +388,24 @@ export function PlayerPanel({
     focusIntoDrawer.current = false
     asideRef.current?.querySelector<HTMLElement>('button:not(:disabled), input')?.focus()
   }, [open, asideRef])
+
+  // A barra é o cabeçalho do cartão, mas é `fixed`, fora dele: a largura dela
+  // vai para `--pp-bar-w`, e o cartão nunca fica mais estreito que ela. O
+  // observador acompanha o ponto de recado, a fonte que chega e o "Minha ficha"
+  // que aparece com a primeira ficha.
+  useLayoutEffect(() => {
+    const bar = barElRef.current
+    const panel = asideRef.current
+    if (bar === null || panel === null) return
+    const apply = () => panel.style.setProperty(BAR_WIDTH_VAR, `${bar.offsetWidth}px`)
+    apply()
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(apply)
+    observer?.observe(bar)
+    return () => {
+      observer?.disconnect()
+      panel.style.removeProperty(BAR_WIDTH_VAR)
+    }
+  }, [barElRef, asideRef])
 
   // Escape é da gaveta, que cobre o mapa. Na coluna do notebook ele fica para
   // a régua e os cartões: fechar o painel de brinde ao sair do "Medir" seria surpresa.
@@ -545,7 +567,7 @@ export function PlayerPanel({
       {/* A barra fica FORA do painel: recolhido, ele some e ela continua no
           mesmo lugar (aberto, ela é o cabeçalho dele). Primeiro no DOM: o Tab
           passa por ela antes do conteúdo do painel, na ordem da leitura. */}
-      <div ref={barRef} className={open ? 'pp-bar' : 'pp-bar pp-bar--alone'}>
+      <div ref={barElRef} className={open ? 'pp-bar' : 'pp-bar pp-bar--alone'}>
         <button
           ref={toggleRef}
           type="button"

@@ -348,3 +348,46 @@ describe('canto de cima à direita', () => {
     expect(regraBase(css, '.pp-where').get('pointer-events')).toBe('auto')
   })
 })
+
+describe('gaveta do painel: da largura da barra e das abas, com teto na janela', () => {
+  // Em 390 a gaveta tinha uns 275 px e a barra de cima (Painel, Minha ficha,
+  // Inventário) uns 355: a barra passava da gaveta. Nome, Foto ("Nenhum arquivo
+  // escolhido"), Por quem e Onde passavam da borda direita, e em 1280 a fileira
+  // de abas rolava de lado. A largura fixa era menor que a fileira de abas.
+  const TETO = 'calc(100% - 2 * var(--pp-edge))'
+
+  it('cresce até caber a fileira de abas, nunca mais estreita que a barra nem mais larga que a janela', async () => {
+    const painel = regraBase(await lerPlayerCss(), '.pp-panel')
+    expect(painel.get('width')).toBe('max-content')
+    expect(painel.get('min-width')).toContain('var(--pp-bar-w')
+    expect(painel.get('min-width')).toContain('248px')
+    // `min-width` vence `max-width`: o teto mora dentro do próprio piso.
+    expect(painel.get('min-width')).toContain(TETO)
+    expect(painel.get('max-width')).toBe(TETO)
+  })
+
+  it('no celular só o piso sobe; a largura continua a das abas e o teto o mesmo', async () => {
+    const gaveta = regraNaMidia(await lerPlayerCss(), CELULAR, '.pp-panel')
+    expect(gaveta.get('width')).toBeUndefined()
+    expect(gaveta.get('min-width')).toContain('280px')
+    expect(gaveta.get('min-width')).toContain('var(--pp-bar-w')
+    expect(gaveta.get('min-width')).toContain(TETO)
+  })
+
+  it('o conteúdo das abas não estica a gaveta', async () => {
+    expect(regraBase(await lerPlayerCss(), '.pp-tabpanel').get('contain')).toBe('inline-size')
+  })
+
+  it.each(['.pp-panel .pp-input', '.pp-panel .pp-file'])('%s encolhe com a gaveta e nunca passa da borda', async (seletor) => {
+    const campo = regraBase(await lerPlayerCss(), seletor)
+    expect(campo.get('min-width')).toBe('0')
+    expect(campo.get('max-width')).toBe('100%')
+  })
+
+  it('o seletor de arquivo é contido: "Nenhum arquivo escolhido" não vira o mínimo da coluna', async () => {
+    const arquivo = regraBase(await lerPlayerCss(), '.pp-file')
+    expect(arquivo.get('contain')).toBe('inline-size')
+    expect(arquivo.get('overflow')).toBe('hidden')
+    expect(arquivo.get('white-space')).toBe('nowrap')
+  })
+})

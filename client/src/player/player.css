@@ -468,9 +468,14 @@
   left: var(--pp-edge);
   z-index: 10;
   box-sizing: border-box;
-  /* A mesma caixa de 274 px de antes (248 de conteúdo): o que as outras telas
-     medem em volta do painel continua valendo. */
-  width: calc(248px + 2 * var(--pp-pad) + 2px);
+  /* Piso: a caixa de 274 px de antes (248 de conteúdo) ou a barra, que é o
+     cabeçalho do cartão (`--pp-bar-w`, medida em `PlayerPanel`), a que for
+     maior. A fileira de abas alarga o resto; o conteúdo das abas é contido e
+     não estica. Teto: a janela menos a margem. O teto mora dentro do piso
+     porque `min-width` vence `max-width`. */
+  width: max-content;
+  min-width: min(calc(max(248px, var(--pp-bar-w, 0px)) + 2 * var(--pp-pad) + 2px), calc(100% - 2 * var(--pp-edge)));
+  max-width: calc(100% - 2 * var(--pp-edge));
   max-height: calc(100% - 2 * var(--pp-edge) - var(--pp-alarm-space, 0px));
   display: flex;
   flex-direction: column;
@@ -1403,9 +1408,14 @@
   border-color: var(--lb-color-brass, #e0a44a);
 }
 
-/* O seletor de arquivo do navegador não se estiliza por dentro; só o botão dele. */
+/* O seletor de arquivo do navegador não se estiliza por dentro; só o botão dele.
+   Contido: sem isso, a largura natural dele (uns 306 px com "Nenhum arquivo
+   escolhido") vira o mínimo da coluna e passa da borda da gaveta. */
 .pp-file {
   width: 100%;
+  contain: inline-size;
+  overflow: hidden;
+  white-space: nowrap;
   font: inherit;
   color: var(--lb-color-parchment-dim, #a2a09a);
 }
@@ -1423,6 +1433,13 @@
 
 .pp-file::file-selector-button:hover {
   border-color: var(--lb-color-brass, #e0a44a);
+}
+
+/* Na gaveta, campo nenhum dita a largura: encolhe com ela e nunca passa da borda. */
+.pp-panel .pp-input,
+.pp-panel .pp-file {
+  min-width: 0;
+  max-width: 100%;
 }
 
 .pp-error {
@@ -1496,10 +1513,12 @@
   outline-offset: 2px;
 }
 
-/* Celular: o painel é gaveta (começa fechada, `PlayerPanel`) e usa quase a largura toda. */
+/* Celular: o painel é gaveta (começa fechada, `PlayerPanel`). Só o piso sobe,
+   para 280 de conteúdo; a largura continua a da barra e das abas, e o teto o
+   mesmo: a janela menos a margem. */
 @media (max-width: 699px) {
   .pp-panel {
-    width: min(calc(280px + 2 * var(--pp-pad) + 2px), calc(100% - 2 * var(--pp-edge)));
+    min-width: min(calc(max(280px, var(--pp-bar-w, 0px)) + 2 * var(--pp-pad) + 2px), calc(100% - 2 * var(--pp-edge)));
   }
 }
 
@@ -2939,9 +2958,11 @@
   }
 }
 
+/* O conteúdo das abas não alarga a gaveta: ela segue a barra e a fileira de abas. */
 .pp-tabpanel {
   display: grid;
   gap: 14px;
+  contain: inline-size;
 }
 
 /* `display: grid` acima venceria o `hidden` do navegador: a aba inativa precisa sumir de verdade. */
