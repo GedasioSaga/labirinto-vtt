@@ -1174,7 +1174,6 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
             onZoomLimitsChange={setZoomLimits}
           />
         )}
-        {state.andares && <PlayerFloorTabs andares={state.andares} selected={floorTab ?? state.andares.atual} onSelect={setFloorTab} />}
         <PlayerPanel
           panelRef={panelRef}
           barRef={barRef}
@@ -1293,11 +1292,22 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
         />
         {/* DADO ROLADO NA SALA: as últimas rolagens da mesa, sobre o mapa, acima do zoom. Não é controle: fora da ordem do Tab. */}
         <DiceFeed rolls={state.diceRolls ?? NO_DICE_ROLLS} className="pp-dice-feed" />
-        {/* "Onde estou": só com nome público na cena; não é controle, fica fora da ordem do Tab. */}
-        <PlayerSceneName name={state.sceneName} />
         <PlayerScreenAwake active={screenAwake} />
-        {/* Depois do painel no DOM: o Tab segue a leitura (painel no alto à esquerda, faixa no alto à direita, zoom embaixo à direita). */}
-        <PlayerWhereAmI where={where} showTokenName={ownTokens.length > 1} onFocus={focusToken} />
+        {/*
+          CANTO DE CIMA À DIREITA: abas de andar, selo da cena, "Onde estou" e
+          confronto numa coluna só, um embaixo do outro. Antes cada um se
+          prendia sozinho no mesmo canto e um cobria o outro. Depois do painel
+          no DOM: o Tab segue a leitura (painel no alto à esquerda, esta coluna
+          no alto à direita, zoom embaixo à direita).
+        */}
+        <div className="pp-canto">
+          {state.andares && <PlayerFloorTabs andares={state.andares} selected={floorTab ?? state.andares.atual} onSelect={setFloorTab} />}
+          {/* Selo da cena: só com nome público na cena; não é controle, fica fora da ordem do Tab. */}
+          <PlayerSceneName name={state.sceneName} />
+          <PlayerWhereAmI where={where} showTokenName={ownTokens.length > 1} onFocus={focusToken} />
+          {/* CONFRONTO na cena dele: de quem é a vez e o que resta do passo. */}
+          {state.confronto && <ConfrontoFaixa confronto={state.confronto} tokens={state.map.tokens} />}
+        </div>
         <PlayerZoomControls canZoomIn={zoomLimits.canZoomIn} canZoomOut={zoomLimits.canZoomOut} onZoom={requestZoomStep} />
         <PlayerTurnBanner turn={state.turn} ownTokens={ownTokens} tokens={state.map.tokens} />
         {/* PISOS NA MESMA CENA: só com a ficha dele encostada numa escada que liga pisos, e fora das travas do passo. */}
@@ -1309,8 +1319,6 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
           paused={state.paused === true}
           onTrocar={(tokenId, stairId) => connection.changeFloor(tokenId, stairId)}
         />
-        {/* CONFRONTO na cena dele: de quem é a vez e o que resta do passo. */}
-        {state.confronto && <ConfrontoFaixa confronto={state.confronto} tokens={state.map.tokens} />}
         {noteDraft && (
           <PersonalNoteDraft
             onSave={(text) => {

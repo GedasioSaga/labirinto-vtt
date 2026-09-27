@@ -137,6 +137,14 @@ describe('main.tsx: faixa "Onde estou" de ponta a ponta', () => {
     expect(faixa().textContent).toBe('Fora das salas')
   })
 
+  it('mora na coluna do canto de cima à direita, logo abaixo do selo da cena', () => {
+    rev += 1
+    act(() => mestre().manda({ type: 'snapshot', rev, map: mapa(50, 50), vision: [], ownTokens: ['gabi'], concealed: [], sceneName: 'Farol' }))
+    const canto = faixa().parentElement
+    expect(canto?.className).toBe('pp-canto')
+    expect(canto?.querySelector('.pp-scene-name')?.nextElementSibling).toBe(faixa())
+  })
+
   it('tocar na faixa pede à câmera para centralizar a ficha', () => {
     const antes = camera.seq
     act(() => faixa().click())

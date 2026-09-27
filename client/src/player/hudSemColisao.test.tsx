@@ -236,3 +236,58 @@ describe('aviso da porta trancada no celular', () => {
     expect(sob('.pp-awake').get('opacity')).toBe('0')
   })
 })
+
+/** Todas as regras com o seletor exato, em qualquer `@media` (sem lançar quando não há nenhuma). */
+function emQualquerMidia(css: string, seletor: string): Regra[] {
+  const condicoes = new Set([...semComentarios(css).matchAll(/@media ([^{]+) \{/g)].map(([, condicao]) => condicao))
+  return [...condicoes].flatMap((condicao) =>
+    blocosDaMidia(css, condicao).flatMap((bloco) =>
+      [...bloco.matchAll(/([^{}]+)\{([^{}]*)\}/g)]
+        .filter(([, seletores]) => temSeletor(seletores, seletor))
+        .map(([, , corpo]) => declaracoes(corpo)),
+    ),
+  )
+}
+
+describe('canto de cima à direita', () => {
+  // Em 1280 x 800 as abas de andar, o selo da cena, o "Onde estou" e o
+  // confronto moravam todos em top 12 / right 12, um por cima do outro. Em
+  // 390 x 844 a barra cobria as abas e o selo, o alarme cobria o selo, e o
+  // confronto descia para cima do "Chamar o mestre", do aviso e do ferrolho.
+  const FILHOS = ['.pp-floors', '.pp-scene-name', '.pp-where', '.pp-confronto']
+  const POSICAO = ['position', 'top', 'right', 'bottom', 'left', 'inset', 'transform']
+
+  it('uma coluna só, presa ao canto, com o vão do tema entre os selos e descendo com o alarme', async () => {
+    const canto = regraBase(await lerPlayerCss(), '.pp-canto')
+    expect(canto.get('position')).toBe('fixed')
+    expect(canto.get('right')).toBe('12px')
+    expect(canto.get('top')).toContain('--pp-alarm-space')
+    expect(canto.get('display')).toBe('flex')
+    expect(canto.get('flex-direction')).toBe('column')
+    expect(canto.get('align-items')).toBe('flex-end')
+    expect(canto.get('gap')).toContain('--lb-control-gap')
+    // O arrasto que começa no vão entre os selos continua sendo arrasto do mapa.
+    expect(canto.get('pointer-events')).toBe('none')
+  })
+
+  it('no celular desce para baixo da barra: borda, filete, respiro, alvo de toque e o vão', async () => {
+    const canto = regraNaMidia(await lerPlayerCss(), CELULAR, '.pp-canto')
+    const fundoDaBarra = 12 + 1 + 12 + px('var(--lb-control-touch)')
+    expect(px(canto.get('top'))).toBeGreaterThanOrEqual(fundoDaBarra + px('var(--lb-control-gap)'))
+    expect(canto.get('top')).toContain('--pp-alarm-space')
+  })
+
+  it.each(FILHOS)('%s não se posiciona sozinho: segue a coluna, em qualquer tela', async (seletor) => {
+    const css = await lerPlayerCss()
+    const base = regraBase(css, seletor)
+    expect(POSICAO.filter((propriedade) => base.has(propriedade))).toEqual([])
+    const nasMidias = emQualquerMidia(css, seletor).flatMap((regra) => POSICAO.filter((propriedade) => regra.has(propriedade)))
+    expect(nasMidias).toEqual([])
+  })
+
+  it('as abas de andar e o "Onde estou" voltam a pegar o toque dentro da coluna', async () => {
+    const css = await lerPlayerCss()
+    expect(regraBase(css, '.pp-floors').get('pointer-events')).toBe('auto')
+    expect(regraBase(css, '.pp-where').get('pointer-events')).toBe('auto')
+  })
+})
