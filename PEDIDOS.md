@@ -967,3 +967,13 @@ quando a ficha do jogador encosta nela. Se o mestre quiser escolher porta por po
 Imagem: gaveta do jogador aberta (abas Painel, Minha ficha, Inventário). A gaveta (~275 px) é mais estreita que a
 fileira de abas (~355 px); os campos Nome, Foto ("Nenhum ... escolhido"), Por quem e Onde passam da borda direita
 e ficam cortados. Entra no design do jogador da 0.4.4 (`ux-hud-jogador`).
+
+### 27/09/2026, fim da tarde — cartão do pino do jogador estranho
+
+> "[Image #6] ux/ui disso ta estranho."
+
+Imagem: cartão do pino no jogador: ícone de porta sozinho no topo, "O mestre ainda não escreveu nada sobre este
+ponto.", "Pedir para passar" (pílula latão, largura cheia), "Barrar a passagem" (pílula de contorno que passa da borda
+esquerda do cartão e não alinha com a de cima), "Fechar" sozinho à direita. Causa visível: "Barrar a passagem" usa as
+classes do Fechar (`pp-pincard__close pp-pincard__close--inline`, `PlayerPinCard.tsx:802`). Entra no design do
+jogador da 0.4.4 (`ux-hud-jogador`), mandado ao designer.
