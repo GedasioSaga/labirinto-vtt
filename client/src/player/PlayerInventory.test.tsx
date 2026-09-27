@@ -3,7 +3,7 @@ import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createEmptyMap } from '../lib/mapFactory'
 import type { Token } from '../types/map'
-import { inventoryCharacters, type InventoryCharacter } from './inventario'
+import { inventoryCharacters, type InventoryCharacter, type ItemTexts } from './inventario'
 import type { ItemNotice } from './playerConnection'
 import { PlayerInventory } from './PlayerInventory'
 
@@ -45,6 +45,7 @@ interface Handlers {
   onClose?: () => void
   notice?: ItemNotice
   instant?: boolean
+  itemTexts?: ItemTexts
 }
 
 describe('PlayerInventory', () => {
@@ -74,6 +75,7 @@ describe('PlayerInventory', () => {
           onClose={handlers.onClose ?? (() => {})}
           notice={handlers.notice}
           instant={handlers.instant}
+          itemTexts={handlers.itemTexts}
         />,
       ),
     )
@@ -179,12 +181,12 @@ describe('PlayerInventory', () => {
     render(personagens([JILL, DIEGO], ['jill']))
     expect(document.activeElement).toBe(vaga('Moedas: 15'))
     expect(selecionadas()).toEqual(['Moedas: 15'])
-    expect(detalhe()).toContain('15 moedas na sua bolsa.')
+    expect(detalhe()).toContain('15 moedas para pagar um colega ou oferecer numa troca.')
     tecla('ArrowRight')
     expect(document.activeElement).toBe(vaga('Erva verde, 2 unidades'))
     expect(selecionadas()).toEqual(['Erva verde, 2 unidades'])
     expect(detalhe()).toContain('Erva verde')
-    expect(detalhe()).toContain('2 na sua mochila.')
+    expect(detalhe()).toContain('2 unidades. Para usar, avise o mestre: o efeito é com ele.')
     tecla('End')
     expect(document.activeElement).toBe(vaga('Chave do Escudo'))
     tecla('Home')
@@ -192,6 +194,69 @@ describe('PlayerInventory', () => {
     // A vaga escolhida é a única parada do Tab na grade.
     expect(vaga('Moedas: 15').tabIndex).toBe(0)
     expect(vaga('Chave do Escudo').tabIndex).toBe(-1)
+  })
+
+  describe('o visor do item escolhido: o objeto no palco, o nome e o texto do item', () => {
+    const TEXTO_DA_CHAVE = 'Uma chave pesada, com um escudo gravado.'
+
+    function palco(): HTMLElement {
+      const achado = dialogo().querySelector<HTMLElement>('.pp-inv__palco')
+      if (achado === null) throw new Error('sem o palco do item')
+      return achado
+    }
+
+    function descricao(): HTMLElement {
+      const achado = dialogo().querySelector<HTMLElement>('.pp-inv__detalhe-texto')
+      if (achado === null) throw new Error('sem o texto do item')
+      return achado
+    }
+
+    it('o texto que o mestre escreveu no item, lido quando ele ainda estava no chão', () => {
+      render(personagens([JILL, DIEGO], ['jill']), { itemTexts: new Map([['chave-1', TEXTO_DA_CHAVE]]) })
+      act(() => vaga('Chave do Escudo').click())
+      expect(dialogo().querySelector('h3.pp-inv__detalhe-nome')?.textContent).toBe('Chave do Escudo')
+      expect(descricao().textContent).toBe(TEXTO_DA_CHAVE)
+      expect(descricao().classList.contains('pp-inv__detalhe-texto--derivado')).toBe(false)
+    })
+
+    it('sem o texto do mestre: o que dá para fazer com o item, pelo tipo; nunca "na sua mochila"', () => {
+      render(personagens([JILL, DIEGO], ['jill']))
+      act(() => vaga('Chave do Escudo').click())
+      expect(descricao().textContent).toBe('Se for a chave certa, abre uma passagem trancada: encoste a ficha nela e use pelo cartão da passagem.')
+      expect(descricao().classList.contains('pp-inv__detalhe-texto--derivado')).toBe(true)
+      for (const rotulo of ['Moedas: 15', 'Erva verde, 2 unidades', 'Chave do Escudo']) {
+        act(() => vaga(rotulo).click())
+        expect(detalhe()).not.toMatch(/mochila|bolsa/i)
+      }
+    })
+
+    it('o objeto ocupa o palco, fora da leitura de tela: o nome logo abaixo já diz o que é', () => {
+      render(personagens([JILL, DIEGO], ['jill']))
+      expect(palco().getAttribute('aria-hidden')).toBe('true')
+      expect(palco().querySelector('svg')).not.toBeNull()
+      act(() => vaga('Chave do Escudo').click())
+      expect(palco().querySelector('svg')).not.toBeNull()
+    })
+
+    it('a vaga escolhida aponta para o texto do item: o leitor de tela lê o que é ao chegar nela', () => {
+      render(personagens([JILL, DIEGO], ['jill']), { itemTexts: new Map([['chave-1', TEXTO_DA_CHAVE]]) })
+      tecla('End')
+      const alvo = vaga('Chave do Escudo').getAttribute('aria-describedby')
+      expect(alvo).toBe(descricao().id)
+      expect(document.getElementById(alvo ?? '')?.textContent).toBe(TEXTO_DA_CHAVE)
+      expect(vaga('Moedas: 15').hasAttribute('aria-describedby')).toBe(false)
+    })
+
+    it('clicar numa vaga traz o objeto com movimento; pelas setas ele só troca', () => {
+      render(personagens([JILL, DIEGO], ['jill']))
+      // Abrir já é a entrada do inventário inteiro: o palco não anima de novo.
+      expect(palco().hasAttribute('data-entrada')).toBe(false)
+      act(() => vaga('Chave do Escudo').click())
+      expect(palco().getAttribute('data-entrada')).toBe('clique')
+      tecla('ArrowLeft')
+      expect(selecionadas()).toEqual(['Erva verde, 2 unidades'])
+      expect(palco().hasAttribute('data-entrada')).toBe(false)
+    })
   })
 
   it('Enter na vaga leva às ações do item', () => {

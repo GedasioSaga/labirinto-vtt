@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { createEmptyMap } from '../lib/mapFactory'
-import type { MapData, Token } from '../types/map'
+import { buildPin, createEmptyMap } from '../lib/mapFactory'
+import type { MapData, Pin, Token } from '../types/map'
 import {
   CONDITION_WORDS,
   INVENTORY_COLUMNS,
@@ -12,7 +12,10 @@ import {
   inventorySlots,
   itemGlyph,
   payerFor,
-  slotLine,
+  rememberItemTexts,
+  slotDescription,
+  slotFallbackLine,
+  type ItemTexts,
 } from './inventario'
 
 /**
@@ -134,11 +137,51 @@ describe('grade de 4 colunas', () => {
   })
 })
 
-describe('slotLine: a linha que descreve a vaga escolhida', () => {
-  it('fala da própria ficha como "sua" e da ficha emprestada pelo nome', () => {
+/**
+ * O VISOR DO ITEM: o texto que o mestre escreveu no pino. O "Pegar" põe na
+ * mochila um item com o MESMO id do pino (e tira o pino do mapa), e a mochila
+ * que chega ao jogador é só `{ id, nome }` — então a descrição fica na memória
+ * do cliente, lida enquanto o pino estava à vista, e volta pelo id do item.
+ */
+describe('o texto do item no visor: o do mestre, ou um útil pelo tipo', () => {
+  const NADA: ItemTexts = new Map()
+  const pino = (id: string, extra: Partial<Pin> = {}): Pin => ({ ...buildPin(id, { x: 100, y: 100 }, 'exclamacao'), ...extra })
+  const chaveLida = pino('chave-1', { description: 'Uma chave pesada, com um escudo gravado.', item: { nome: 'Chave do Escudo' } })
+
+  it('guarda a descrição dos pinos de ITEM pelo id do pino, aparada; pino que só se lê e passagem ficam de fora', () => {
+    const memoria = rememberItemTexts(NADA, [
+      { ...chaveLida, description: '  Uma chave pesada, com um escudo gravado.\n' },
+      pino('placa', { description: 'Bem-vindo à vila.' }),
+      pino('porta', { kind: 'viagem', description: 'Uma porta de ferro.', item: { nome: 'Porta' } }),
+      pino('balde', { description: '   ', item: { nome: 'Balde' } }),
+    ])
+    expect([...memoria]).toEqual([['chave-1', 'Uma chave pesada, com um escudo gravado.']])
+  })
+
+  it('o que o jogador já leu fica: o pino visto de longe (sem texto) e o devolvido ao chão sem texto não apagam', () => {
+    const lida = rememberItemTexts(NADA, [chaveLida])
+    const deLonge = rememberItemTexts(lida, [{ ...chaveLida, description: '', longe: true }])
+    expect(deLonge).toBe(lida)
+    expect(deLonge.get('chave-1')).toBe('Uma chave pesada, com um escudo gravado.')
+  })
+
+  it('o mestre reescreveu: o texto novo vale, sem mexer na memória antiga', () => {
+    const lida = rememberItemTexts(NADA, [chaveLida])
+    const nova = rememberItemTexts(lida, [{ ...chaveLida, description: 'A chave, agora enferrujada.' }])
+    expect(nova.get('chave-1')).toBe('A chave, agora enferrujada.')
+    expect(lida.get('chave-1')).toBe('Uma chave pesada, com um escudo gravado.')
+  })
+
+  it('nada novo: a MESMA memória, para a tela não redesenhar à toa', () => {
+    const lida = rememberItemTexts(NADA, [chaveLida])
+    expect(rememberItemTexts(lida, [chaveLida])).toBe(lida)
+    expect(rememberItemTexts(lida, [])).toBe(lida)
+  })
+
+  it('slotDescription: o texto do mestre de qualquer item da vaga; a bolsa e o item sem texto não têm', () => {
     const [bolsa, erva, chave] = inventorySlots(
       ficha('a', 'Jill', 100, {
-        moedas: 1,
+        moedas: 3,
         mochila: [
           { id: 'e1', nome: 'Erva verde' },
           { id: 'e2', nome: 'Erva verde' },
@@ -146,10 +189,45 @@ describe('slotLine: a linha que descreve a vaga escolhida', () => {
         ],
       }),
     )
-    expect(slotLine(bolsa, { name: 'Jill', editable: true })).toBe('1 moeda na sua bolsa.')
-    expect(slotLine(erva, { name: 'Jill', editable: true })).toBe('2 na sua mochila.')
-    expect(slotLine(chave, { name: 'Jill', editable: true })).toBe('Na sua mochila.')
-    expect(slotLine(chave, { name: 'Carlos', editable: false })).toBe('Na mochila de Carlos.')
+    const memoria = rememberItemTexts(NADA, [pino('e2', { description: 'Cura um ferimento leve.', item: { nome: 'Erva verde' } })])
+    expect(slotDescription(erva, memoria)).toBe('Cura um ferimento leve.')
+    expect(slotDescription(chave, memoria)).toBeNull()
+    expect(slotDescription(bolsa, memoria)).toBeNull()
+  })
+
+  it('slotFallbackLine: sem o texto do mestre, o que dá para fazer com o item — pelo tipo e pela quantidade', () => {
+    const vagas = inventorySlots(
+      ficha('a', 'Jill', 100, {
+        moedas: 15,
+        mochila: [
+          { id: 'e1', nome: 'Erva verde' },
+          { id: 'e2', nome: 'Erva verde' },
+          { id: 'c1', nome: 'Chave do Escudo' },
+          { id: 'm1', nome: 'Mapa do esgoto' },
+          { id: 'f1', nome: 'Faca de combate' },
+          { id: 'p1', nome: 'Poção de cura' },
+          { id: 'i1', nome: 'Isqueiro' },
+        ],
+      }),
+    )
+    const linha = (nome: string) => {
+      const vaga = vagas.find((v) => v.nome === nome)
+      if (vaga === undefined) throw new Error(`sem a vaga ${nome}`)
+      return slotFallbackLine(vaga)
+    }
+    expect(linha('Moedas')).toBe('15 moedas para pagar um colega ou oferecer numa troca.')
+    expect(linha('Erva verde')).toBe('2 unidades. Para usar, avise o mestre: o efeito é com ele.')
+    expect(linha('Chave do Escudo')).toBe('Se for a chave certa, abre uma passagem trancada: encoste a ficha nela e use pelo cartão da passagem.')
+    expect(linha('Mapa do esgoto')).toBe('Para ler o que está escrito, peça ao mestre.')
+    expect(linha('Faca de combate')).toBe('Para atacar, avise o mestre: o dano é com ele.')
+    expect(linha('Poção de cura')).toBe('Para usar, avise o mestre: o efeito é com ele.')
+    expect(linha('Isqueiro')).toBe('Para usar, diga ao mestre o que quer fazer com ele.')
+  })
+
+  it('nunca a linha genérica "na sua mochila": o retrato já diz de quem é', () => {
+    const vagas = inventorySlots(ficha('a', 'Jill', 100, { moedas: 1, mochila: [{ id: 'x', nome: 'Coisa' }, { id: 'y', nome: 'Coisa' }] }))
+    for (const vaga of vagas) expect(slotFallbackLine(vaga)).not.toMatch(/mochila|bolsa/i)
+    expect(slotFallbackLine(vagas[0])).toBe('1 moeda para pagar um colega ou oferecer numa troca.')
   })
 })
 

@@ -4566,55 +4566,135 @@ button.pp-colecao__casa:focus-visible {
 
 /* --------------------------------------------------- o item escolhido */
 
-/* No computador, o item escolhido é o palco do meio — a tela de examinar do
-   RE: a caixa larga com o desenho grande, e embaixo o nome, a linha e o que
-   dá para fazer. Nas telas menores ele encolhe para o lado do texto. */
+/* No computador, o item escolhido é a coluna do meio — a tela de examinar do
+   RE: o palco com o objeto grande e, embaixo, a placa com o nome, o fio e o
+   texto, e depois o que dá para fazer. No tablet o palco vai para o lado da
+   placa; no celular ele fica na largura toda, mais baixo. */
 .pp-inv__detalhe {
   grid-area: detalhe;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  row-gap: 16px;
-  column-gap: 16px;
+  row-gap: var(--lb-space-4, 16px);
+  column-gap: var(--lb-space-4, 16px);
   align-content: start;
 }
 
-.pp-inv__detalhe-glifo {
+/* O palco: o objeto sozinho no escuro, sob uma luz de lampião que vem do
+   alto — o latão fraco sobre a pedra, que apaga nas bordas. */
+.pp-inv__palco {
+  position: relative;
   box-sizing: border-box;
   width: 100%;
   aspect-ratio: 16 / 10;
-  display: grid;
-  place-items: center;
+  overflow: hidden;
   color: var(--lb-color-parchment, #eceae4);
-  /* A luz de examinar: o item aceso no meio, a caixa apagando nas bordas. */
-  background: radial-gradient(ellipse at 50% 45%, var(--lb-color-stone-raised, #232328) 0%, var(--lb-color-stone-sunken, #141417) 72%);
+  background:
+    radial-gradient(ellipse 55% 60% at 50% 30%, var(--lb-color-brass-soft, rgba(224, 164, 74, 0.14)), transparent),
+    radial-gradient(ellipse at 50% 45%, var(--lb-color-stone-raised, #232328) 0%, var(--lb-color-stone-sunken, #141417) 72%);
   border: 1px solid var(--lb-color-line-strong, rgba(255, 255, 255, 0.16));
   border-radius: var(--lb-radius-sm, 6px);
 }
 
-/* Traço fino no desenho grande: o 1,5 da vaga, ampliado três vezes, viraria risco de pincel. */
-.pp-inv__detalhe-glifo svg {
-  width: 72px;
-  height: 72px;
-  stroke-width: 0.75;
+/* A camada que entra quando a vaga muda (a chave do React a remonta). */
+.pp-inv__palco-objeto {
+  position: absolute;
+  inset: 0;
+}
+
+/* O desenho ocupa 58% da altura do palco, no meio. Largura e altura em
+   porcentagem porque o SVG não estica entre as bordas como um bloco; o viewBox
+   quadrado centra o desenho na caixa. O traço da vaga (1,5), ampliado quatro
+   vezes, viraria pincel: 0,9 dá um contorno firme, e o latão fraco preenche as
+   formas fechadas — um objeto aceso, não um risco. */
+.pp-inv__palco-glifo {
+  position: absolute;
+  top: 21%;
+  left: 21%;
+  width: 58%;
+  height: 58%;
+  fill: var(--lb-color-brass-soft, rgba(224, 164, 74, 0.14));
+  stroke-width: 0.9;
+}
+
+/* Quantos: no canto do palco, como o número no canto da vaga do RE. */
+.pp-inv__palco-qtd {
+  position: absolute;
+  right: var(--lb-space-3, 12px);
+  bottom: var(--lb-space-2, 8px);
+  font-family: var(--lb-font-utility, 'Bahnschrift', system-ui, sans-serif);
+  font-size: var(--lb-font-size-xl, 20px);
+  font-weight: var(--lb-font-weight-semibold, 600);
+  font-variant-numeric: tabular-nums;
+  line-height: var(--lb-font-leading-tight, 1.2);
+}
+
+/* Escolhido pelo clique, o objeto chega ao palco: surge e assenta. Pela seta
+   ou pelo Enter a troca é seca — quem percorre a grade pelo teclado não espera. */
+.pp-inv__palco[data-entrada='clique'] .pp-inv__palco-objeto {
+  animation: pp-inv-palco-entra var(--lb-motion-base, 170ms) var(--lb-motion-ease, cubic-bezier(0.2, 0.8, 0.2, 1));
+}
+
+@keyframes pp-inv-palco-entra {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 
 .pp-inv__detalhe-corpo {
   min-width: 0;
   display: grid;
-  gap: 6px;
+  gap: var(--lb-space-2, 8px);
   align-content: start;
 }
 
-.pp-inv__detalhe-nome {
-  margin: 0;
-  padding-bottom: 8px;
-  font-size: var(--lb-font-size-lg, 15px);
-  font-weight: 600;
-  overflow-wrap: anywhere;
-  border-bottom: 1px solid var(--lb-color-line-strong, rgba(255, 255, 255, 0.16));
+/* A placa do RE3: caixa de borda fina, o nome como cabeçalho, um fio e o texto. */
+.pp-inv__placa {
+  min-width: 0;
+  display: grid;
+  gap: var(--lb-space-2, 8px);
+  padding: var(--lb-space-3, 12px) var(--lb-space-4, 16px) var(--lb-space-4, 16px);
+  background: var(--lb-color-stone, rgba(19, 19, 23, 0.94));
+  border: 1px solid var(--lb-color-line-strong, rgba(255, 255, 255, 0.16));
+  border-radius: var(--lb-radius-sm, 6px);
 }
 
-.pp-inv__detalhe-texto,
+/* O fio sob o nome é traço solto, não contorno: vai na linha de divisor, que se
+   sustenta sozinha (a borda da placa, mais fraca, só fecha a forma). */
+.pp-inv__detalhe-nome {
+  margin: 0;
+  padding-bottom: var(--lb-space-2, 8px);
+  font-size: var(--lb-font-size-xl, 20px);
+  font-weight: var(--lb-font-weight-semibold, 600);
+  letter-spacing: var(--lb-font-tracking-tight, -0.01em);
+  line-height: var(--lb-font-leading-tight, 1.2);
+  color: var(--lb-color-parchment, #eceae4);
+  overflow-wrap: anywhere;
+  border-bottom: 1px solid var(--lb-color-line-divider, rgba(255, 255, 255, 0.26));
+}
+
+/* O texto do mestre em tinta cheia; a linha derivada do tipo, mais fraca.
+   Três linhas reservadas, como a caixa fixa do RE: o quadro é centrado na
+   altura, e um texto de duas linhas depois de um de três puxava o inventário
+   inteiro — grade, retrato, tudo — 11 px para baixo a cada troca de vaga. */
+.pp-inv__detalhe-texto {
+  margin: 0;
+  max-width: 52ch;
+  min-height: calc(3em * var(--lb-font-leading-normal, 1.45));
+  font-size: var(--lb-font-size-lg, 15px);
+  line-height: var(--lb-font-leading-normal, 1.45);
+  color: var(--lb-color-parchment, #eceae4);
+  overflow-wrap: anywhere;
+}
+
+.pp-inv__detalhe-texto--derivado {
+  color: var(--lb-color-parchment-dim, #a2a09a);
+}
+
 .pp-inv__convite,
 .pp-inv__motivo {
   margin: 0;
@@ -4745,20 +4825,16 @@ button.pp-colecao__casa:focus-visible {
     gap: 24px 28px;
   }
 
+  /* O palco à esquerda, a placa e as ações à direita: embaixo da grade não
+     cabe o palco largo sem empurrar as ações para fora da tela. */
   .pp-inv__detalhe {
-    grid-template-columns: 88px minmax(0, 1fr);
+    grid-template-columns: minmax(0, 5fr) minmax(0, 6fr);
     row-gap: 0;
+    align-items: start;
   }
 
-  .pp-inv__detalhe-glifo {
-    width: 88px;
-    aspect-ratio: 1;
-  }
-
-  .pp-inv__detalhe-glifo svg {
-    width: 48px;
-    height: 48px;
-    stroke-width: 1;
+  .pp-inv__palco {
+    aspect-ratio: 4 / 3;
   }
 }
 
@@ -4845,19 +4921,23 @@ button.pp-colecao__casa:focus-visible {
     max-width: none;
   }
 
+  /* Uma coluna de novo: o palco na largura toda, mais baixo. A 2/1 o "Dar a…"
+     ficava cortado na borda de baixo de um celular de 844 px; a 5/2 a placa de
+     três linhas e a ação cabem inteiras, e o objeto ainda enche o palco. */
   .pp-inv__detalhe {
-    grid-template-columns: 64px minmax(0, 1fr);
-    column-gap: 12px;
+    grid-template-columns: minmax(0, 1fr);
+    row-gap: var(--lb-space-3, 12px);
   }
 
-  .pp-inv__detalhe-glifo {
-    width: 64px;
+  .pp-inv__palco {
+    aspect-ratio: 5 / 2;
   }
 
-  .pp-inv__detalhe-glifo svg {
-    width: 36px;
-    height: 36px;
-    stroke-width: 1.2;
+  /* No palco baixo, 58% da altura deixava a chave com 64 px num palco de 358:
+     o desenho sobe para três quartos da altura, ainda centrado na largura. */
+  .pp-inv__palco-glifo {
+    top: 12%;
+    height: 76%;
   }
 }
 
@@ -4884,5 +4964,9 @@ button.pp-colecao__casa:focus-visible {
 
   .pp-inv__item:active {
     transform: none;
+  }
+
+  .pp-inv__palco[data-entrada] .pp-inv__palco-objeto {
+    animation: none;
   }
 }

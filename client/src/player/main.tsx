@@ -23,7 +23,7 @@ import { PlayerFerrolho } from './PlayerFerrolho'
 import { acaoDeFerrolho, tokenAlcancaPino } from '../lib/ferrolho'
 import { PlayerTokenCard } from './PlayerTokenCard'
 import { PlayerInventory } from './PlayerInventory'
-import { inventoryCharacters } from './inventario'
+import { inventoryCharacters, rememberItemTexts, type ItemTexts } from './inventario'
 import { isEditableTarget } from '../lib/keymap'
 import { tokenActionNoticeText, tokenActionReply } from './tokenCard'
 import { PlayerClueCard } from './PlayerClues'
@@ -845,6 +845,15 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
   const inventoryList = useMemo(() => (map ? inventoryCharacters(map, ownTokens, partyTokens, OWN_TOKEN_CSS) : []), [map, ownTokens, partyTokens])
   const canOpenInventory = inventoryList.length > 0
   const [inventory, setInventory] = useState<{ instant: boolean } | null>(null)
+  // O texto do mestre no visor do item. O recorte só traz a descrição do pino
+  // enquanto ele está no chão (e só de perto, se o mestre a guardou para perto);
+  // o "Pegar" tira o pino e a mochila chega só com { id, nome }. Então o cliente
+  // guarda o que o jogador já leu, pelo id do pino, que é o id do item na mochila.
+  const [itemTexts, setItemTexts] = useState<ItemTexts>(() => new Map())
+  const pins = map?.pins
+  useEffect(() => {
+    if (pins !== undefined) setItemTexts((memory) => rememberItemTexts(memory, pins))
+  }, [pins])
   const closeInventory = useCallback(() => setInventory(null), [])
   // Sem ficha dele no mapa (viajou, o mestre tirou), o inventário fecha — e não reabre sozinho depois.
   useEffect(() => {
@@ -1397,6 +1406,7 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
             onClose={closeInventory}
             onGive={(itemId, toTokenId) => connection.giveItem(itemId, toTokenId)}
             onPay={(toTokenId, moedas) => connection.giveCoins(toTokenId, moedas)}
+            itemTexts={itemTexts}
           />
         )}
         {/* MINHAS PISTAS: a pista reaberta do Caderno, com "Mostrar para…".

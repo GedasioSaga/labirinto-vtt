@@ -14,13 +14,15 @@ import {
   hiddenConditionLine,
   payerFor,
   payerLine,
-  slotLine,
+  slotDescription,
+  slotFallbackLine,
   type InventoryCharacter,
   type InventoryColleague,
   type InventoryCondition,
   type InventoryPayer,
   type InventorySlot,
   type ItemGlyph,
+  type ItemTexts,
 } from './inventario'
 
 /** Sem resposta da mesa nesse tempo, a espera vira aviso: nada gira para sempre (o host descarta pedido rápido demais sem responder). */
@@ -41,7 +43,12 @@ interface PlayerInventoryProps {
   onClose: () => void
   /** Aberto pelo teclado (tecla I): entra sem animação — movimento em resposta a tecla só atrasa. */
   instant?: boolean
+  /** O texto que o mestre escreveu em cada item, lido enquanto ele estava no chão (`rememberItemTexts`). */
+  itemTexts?: ItemTexts
 }
+
+/** Sem memória de textos: todo item cai na linha do que dá para fazer com ele. */
+const NO_TEXTS: ItemTexts = new Map()
 
 type Step =
   | { kind: 'idle' }
@@ -104,8 +111,9 @@ const IDLE: Step = { kind: 'idle' }
  * Enter leva às ações, Esc volta um passo (ou fecha), o Tab não sai, e fechar
  * devolve o foco a quem abriu.
  */
-export function PlayerInventory({ characters, onGive, onPay, notice, onClose, instant = false }: PlayerInventoryProps) {
+export function PlayerInventory({ characters, onGive, onPay, notice, onClose, instant = false, itemTexts = NO_TEXTS }: PlayerInventoryProps) {
   const titleId = useId()
+  const textId = useId()
   const dialogRef = useRef<HTMLDivElement | null>(null)
   const closeRef = useRef<HTMLButtonElement | null>(null)
   const slotRef = useRef<HTMLButtonElement | null>(null)
@@ -132,6 +140,11 @@ export function PlayerInventory({ characters, onGive, onPay, notice, onClose, in
   const [valor, setValor] = useState('1')
   const [pending, setPending] = useState<Pending | null>(null)
   const [outcome, setOutcome] = useState<Outcome | null>(null)
+  // Como a vaga atual foi escolhida. Só o clique traz o objeto ao palco com
+  // movimento: pela seta ou pelo Enter a troca é imediata, porque animação em
+  // resposta a tecla só atrasa quem está percorrendo a grade.
+  const [via, setVia] = useState<'clique' | null>(null)
+  const descricao = selected === undefined ? null : slotDescription(selected, itemTexts)
 
   const stepRef = useRef(step)
   stepRef.current = step
@@ -252,6 +265,7 @@ export function PlayerInventory({ characters, onGive, onPay, notice, onClose, in
       // muda na tela, então nenhum desenho vem — o foco vai já.
       if (slots[at]?.key !== selected?.key) {
         select(at)
+        setVia(null)
         focusNext.current = 'acao'
         return
       }
@@ -263,6 +277,7 @@ export function PlayerInventory({ characters, onGive, onPay, notice, onClose, in
     if (next === null) return
     event.preventDefault()
     select(next)
+    setVia(null)
     focusNext.current = 'vaga'
   }
 
@@ -273,6 +288,7 @@ export function PlayerInventory({ characters, onGive, onPay, notice, onClose, in
     lastIndex.current = 0
     setStep(IDLE)
     setOutcome(null)
+    setVia(null)
   }
 
   function confirmGive(colleague: InventoryColleague) {
@@ -369,7 +385,9 @@ export function PlayerInventory({ characters, onGive, onPay, notice, onClose, in
                 slots={slots}
                 index={index}
                 slotRef={slotRef}
+                describedBy={textId}
                 onSelect={(at) => {
+                  if (slots[at]?.key !== selected?.key) setVia('clique')
                   select(at)
                   focusNext.current = 'vaga'
                 }}
@@ -382,12 +400,21 @@ export function PlayerInventory({ characters, onGive, onPay, notice, onClose, in
                 <p className="pp-inv__convite">Nada na mochila. Itens que você pegar no mapa aparecem aqui.</p>
               ) : (
                 <>
-                  <div className="pp-inv__detalhe-glifo" aria-hidden="true">
-                    <Glyph kind={selected.glyph} />
+                  {/* O palco de examinar do RE: o objeto grande sob a luz do lampião. Só desenho — o nome e o texto abaixo dizem o mesmo ao leitor de tela. */}
+                  <div className="pp-inv__palco" aria-hidden="true" data-entrada={via ?? undefined}>
+                    <div key={selected.key} className="pp-inv__palco-objeto">
+                      <Glyph kind={selected.glyph} className="pp-inv__palco-glifo" />
+                    </div>
+                    {(selected.kind === 'moedas' || selected.quantidade > 1) && <span className="pp-inv__palco-qtd">{selected.quantidade}</span>}
                   </div>
                   <div className="pp-inv__detalhe-corpo">
-                    <h3 className="pp-inv__detalhe-nome">{selected.nome}</h3>
-                    <p className="pp-inv__detalhe-texto">{slotLine(selected, character)}</p>
+                    {/* A placa do RE: caixa de borda fina, o nome no alto, um fio e o texto. Sem o texto do mestre, a linha do que dá para fazer, em tinta mais fraca. */}
+                    <div className="pp-inv__placa">
+                      <h3 className="pp-inv__detalhe-nome">{selected.nome}</h3>
+                      <p id={textId} className={descricao === null ? 'pp-inv__detalhe-texto pp-inv__detalhe-texto--derivado' : 'pp-inv__detalhe-texto'}>
+                        {descricao ?? slotFallbackLine(selected)}
+                      </p>
+                    </div>
                     <Actions
                       slot={selected}
                       character={character}
@@ -511,6 +538,8 @@ interface GridProps {
   slots: InventorySlot[]
   index: number
   slotRef: RefObject<HTMLButtonElement | null>
+  /** O id do texto do visor: a vaga escolhida aponta para ele, e o leitor de tela lê o que o item é ao chegar nela. */
+  describedBy: string
   onSelect: (at: number) => void
   onKeyDown: (event: ReactKeyboardEvent<HTMLButtonElement>, at: number) => void
 }
@@ -525,7 +554,7 @@ function slotLabel(slot: InventorySlot): string {
  * A grade: 4 colunas em qualquer largura. As vagas vazias (o X do RE) só
  * completam o desenho — fora da árvore de acessibilidade e fora do foco.
  */
-function Grid({ owner, slots, index, slotRef, onSelect, onKeyDown }: GridProps) {
+function Grid({ owner, slots, index, slotRef, describedBy, onSelect, onKeyDown }: GridProps) {
   const cells: (InventorySlot | null)[] = [...slots, ...Array.from({ length: emptySlotCount(slots.length) }, () => null)]
   const rows: (InventorySlot | null)[][] = []
   for (let at = 0; at < cells.length; at += INVENTORY_COLUMNS) rows.push(cells.slice(at, at + INVENTORY_COLUMNS))
@@ -562,6 +591,7 @@ function Grid({ owner, slots, index, slotRef, onSelect, onKeyDown }: GridProps) 
                     className="pp-inv__item"
                     tabIndex={chosen ? 0 : -1}
                     aria-label={slotLabel(slot)}
+                    aria-describedby={chosen ? describedBy : undefined}
                     onClick={() => onSelect(at)}
                     onKeyDown={(event) => onKeyDown(event, at)}
                   >
@@ -739,8 +769,10 @@ function Actions({ slot, character, step, valor, busy, refs, onValor, onStart, o
 }
 
 /**
- * O desenho da vaga, em traço fino como os ícones da barra ("Minha ficha"):
- * no lugar da foto do item do RE, que a mesa não tem. O nome vem sempre junto.
+ * O desenho do item, no lugar da foto do RE, que a mesa não tem. Na vaga ele
+ * tem o traço fino dos ícones da barra ("Minha ficha"); no palco do visor o
+ * CSS o amplia, afina o traço na proporção e dá corpo às formas fechadas.
+ * O nome vem sempre junto.
  */
 function Glyph({ kind, className }: { kind: ItemGlyph; className?: string }) {
   return (

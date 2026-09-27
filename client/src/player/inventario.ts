@@ -1,5 +1,5 @@
-import type { MapData, Token, TokenCondition } from '../types/map'
-import { tokensTouch } from '../lib/items'
+import type { MapData, Pin, Token, TokenCondition } from '../types/map'
+import { itemOfPin, tokensTouch } from '../lib/items'
 import { healthFraction, healthState, readTokenHealth, type HealthState } from '../lib/tokenHealth'
 import { tokenConditionsOf } from '../lib/tokenConditions'
 import { selectedTokenColor } from '../lib/tokenColor'
@@ -233,11 +233,62 @@ export function payerLine(payer: Pick<InventoryPayer, 'name' | 'editable'>): str
 /** Quem a frase chama de "sua": a ficha própria. A emprestada vai pelo nome. */
 type Owner = Pick<InventoryCharacter, 'name' | 'editable'>
 
-/** A linha do item escolhido: quantos e onde. */
-export function slotLine(slot: InventorySlot, owner: Owner): string {
-  if (slot.kind === 'moedas') return `${moedasLabel(slot.quantidade)} ${owner.editable ? 'na sua bolsa' : `na bolsa de ${owner.name}`}.`
-  const onde = owner.editable ? 'na sua mochila' : `na mochila de ${owner.name}`
-  return slot.quantidade > 1 ? `${slot.quantidade} ${onde}.` : `${onde.charAt(0).toUpperCase()}${onde.slice(1)}.`
+/**
+ * O que o jogador LEU de cada item, pelo id: o texto que o mestre escreveu no
+ * pino (`description`). O "Pegar" tira o pino do mapa e põe na mochila um item
+ * com o MESMO id, e a mochila chega ao jogador só como `{ id, nome }` — então
+ * o texto só existe no cliente, lido enquanto o pino estava à vista.
+ */
+export type ItemTexts = ReadonlyMap<string, string>
+
+/**
+ * Soma à memória o texto dos pinos de ITEM (`itemOfPin`) que chegaram agora.
+ * Texto vazio não apaga: o pino "só de perto" visto de longe chega vazio e
+ * marcado `longe`, e o devolvido ao chão volta sem texto — o que o jogador já
+ * leu continua dele. Texto novo (o mestre reescreveu) vale numa memória nova;
+ * sem nada novo, a MESMA memória volta, para a tela não redesenhar à toa.
+ */
+export function rememberItemTexts(memory: ItemTexts, pins: readonly Pin[]): ItemTexts {
+  let next: Map<string, string> | null = null
+  for (const pin of pins) {
+    if (itemOfPin(pin) === null) continue
+    const texto = pin.description.trim()
+    if (texto === '' || (next ?? memory).get(pin.id) === texto) continue
+    next ??= new Map(memory)
+    next.set(pin.id, texto)
+  }
+  return next ?? memory
+}
+
+/** O texto do mestre para a vaga: o do primeiro item dela que o jogador leu. A bolsa não tem pino. */
+export function slotDescription(slot: InventorySlot, memory: ItemTexts): string | null {
+  if (slot.kind === 'moedas') return null
+  for (const id of slot.itemIds) {
+    const texto = memory.get(id)
+    if (texto !== undefined) return texto
+  }
+  return null
+}
+
+/**
+ * Sem o texto do mestre, o que dá para FAZER com a vaga — pelo tipo do item,
+ * que é o que o jogador tem na mão. Nada de "na sua mochila": o retrato ao
+ * lado já diz de quem é. E nada que o app não faça: usar um item é com o
+ * mestre, e a chave só age pelo cartão da passagem trancada.
+ */
+const FALLBACK_BY_GLYPH: Readonly<Record<Exclude<ItemGlyph, 'moedas'>, string>> = {
+  chave: 'Se for a chave certa, abre uma passagem trancada: encoste a ficha nela e use pelo cartão da passagem.',
+  papel: 'Para ler o que está escrito, peça ao mestre.',
+  erva: 'Para usar, avise o mestre: o efeito é com ele.',
+  frasco: 'Para usar, avise o mestre: o efeito é com ele.',
+  arma: 'Para atacar, avise o mestre: o dano é com ele.',
+  item: 'Para usar, diga ao mestre o que quer fazer com ele.',
+}
+
+export function slotFallbackLine(slot: InventorySlot): string {
+  if (slot.kind === 'moedas' || slot.glyph === 'moedas') return `${moedasLabel(slot.quantidade)} para pagar um colega ou oferecer numa troca.`
+  const uso = FALLBACK_BY_GLYPH[slot.glyph]
+  return slot.quantidade > 1 ? `${slot.quantidade} unidades. ${uso}` : uso
 }
 
 /** A caixa do desenho do ECG (`viewBox` da faixa), em unidades do SVG. */
