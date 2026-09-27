@@ -17,7 +17,9 @@ const EDGE_GAP_PX = 8
  * Clique direito na porta (gestos rápidos do editor, 22/09/2026): Abrir/Fechar
  * e Trancar/Destrancar ali mesmo, com qualquer ferramenta na mão. Destrancar
  * custava 4-5 gestos — Selecionar, clicar na porta, achar o interruptor no
- * painel, voltar à ferramenta.
+ * painel, voltar à ferramenta. "Não deixar espiar" / "Deixar espiar" é o
+ * interruptor "Jogador pode espiar" do painel (`DoorState.semEspiar`); some na
+ * porta secreta, como lá.
  *
  * Mesmo molde do menu "…" da cena (`ScenesSection`): o foco entra no primeiro
  * item, setas andam com volta, Home/End vão às pontas, Esc fecha sem mudar nada
@@ -72,9 +74,15 @@ export function DoorContextMenu({ wallId, x, y, onClose }: DoorContextMenuProps)
     useMapStore.getState().setDoorLocked(wallId, !door.locked)
     onClose()
   }
+  const toggleSemEspiar = () => {
+    useMapStore.getState().setDoorSemEspiar(wallId, door.semEspiar !== true)
+    onClose()
+  }
   const items = [
     { label: door.open ? 'Fechar' : 'Abrir', onSelect: toggleOpen },
     { label: door.locked ? 'Destrancar' : 'Trancar', onSelect: toggleLocked },
+    // Porta secreta: para o jogador é parede, não há o que espiar (o painel também esconde).
+    ...(door.secret === true ? [] : [{ label: door.semEspiar === true ? 'Deixar espiar' : 'Não deixar espiar', onSelect: toggleSemEspiar }]),
   ]
 
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {

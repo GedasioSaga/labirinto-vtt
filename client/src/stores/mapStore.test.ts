@@ -1435,6 +1435,28 @@ describe('mapStore addDoorOnWall/setWallDoorKind/setDoorLocked (F2)', () => {
     expect(useMapStore.getState().past.length).toBe(pastLengthBefore + 1)
   })
 
+  it('setDoorSemEspiar marca a porta que o jogador não espia, com histórico; desfazer e desmarcar tiram o campo', () => {
+    useMapStore.getState().addDoorOnWall('w1', { x: 100, y: 40 }, 'normal')
+    const doorId = useMapStore.getState().map.walls.find((w) => w.door !== null)?.id
+    expect(doorId).toBeDefined()
+    if (!doorId) return
+    const portaAtual = () => useMapStore.getState().map.walls.find((w) => w.id === doorId)?.door
+    const pastLengthBefore = useMapStore.getState().past.length
+
+    useMapStore.getState().setDoorSemEspiar(doorId, true)
+    expect(portaAtual()?.semEspiar).toBe(true)
+    expect(useMapStore.getState().past.length).toBe(pastLengthBefore + 1)
+
+    useMapStore.getState().undo()
+    expect(portaAtual()).not.toHaveProperty('semEspiar')
+
+    useMapStore.getState().setDoorSemEspiar(doorId, true)
+    useMapStore.getState().setDoorSemEspiar(doorId, false)
+    // Desmarcar tira o campo (ausente = pode espiar), não grava `false`.
+    expect(portaAtual()).not.toHaveProperty('semEspiar')
+    expect(portaAtual()?.locked).toBe(false)
+  })
+
   it('turnWallIntoDoor ("Virar porta" do painel): porta de tamanho padrão no MEIO, parede partida, vínculo com a sala mantido e porta selecionada', () => {
     useMapStore.setState({
       map: { ...useMapStore.getState().map, walls: [] },

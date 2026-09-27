@@ -10,6 +10,8 @@ export interface WallDoorControlsProps {
   /** `DoorState.locked` existe no schema desde sempre e nunca teve UI (grep:
    *  só tipo e teste) — este é o primeiro leitor/escritor com interface. */
   onToggleLocked: () => void
+  /** Liga/desliga `DoorState.semEspiar`: desligado, o jogador não espia por esta porta (quem recusa é o host). */
+  onToggleSemEspiar: () => void
   /** Liga/desliga `DoorState.secret`: para o jogador a porta vira parede comum. */
   onToggleSecret: () => void
   /** "Revelar passagem": tira o segredo da porta e o oculto da sala ligada, num clique. */
@@ -74,8 +76,12 @@ export function DoorKeyField({
  * PORTA SECRETA: "Secreta" esconde a porta dos jogadores (chega a eles como
  * parede); com ela ligada aparece "Revelar passagem", o gesto de mesa de
  * mostrar a passagem — desliga o segredo da porta e da sala do outro lado.
+ *
+ * "Jogador pode espiar": ligado (o padrão), a ficha encostada espia pela porta
+ * fechada, trancada ou não; desligado, o host recusa. Some na porta secreta:
+ * para o jogador ela é parede, e não há o que espiar.
  */
-export function WallDoorControls({ door, onToggleDoor, onToggleOpen, onToggleLocked, onToggleSecret, onRevealPassage, onKeyChange, onOpensFromChange }: WallDoorControlsProps) {
+export function WallDoorControls({ door, onToggleDoor, onToggleOpen, onToggleLocked, onToggleSemEspiar, onToggleSecret, onRevealPassage, onKeyChange, onOpensFromChange }: WallDoorControlsProps) {
   const secret = door?.secret === true
   const secretHintId = `${useId()}-secreta`
   return (
@@ -88,6 +94,7 @@ export function WallDoorControls({ door, onToggleDoor, onToggleOpen, onToggleLoc
         <div className="lb-field">
           <Toggle label="Aberta" checked={door.open} onChange={onToggleOpen} />
           <Toggle label="Trancada" checked={door.locked} onChange={onToggleLocked} />
+          {!secret && <Toggle label="Jogador pode espiar" checked={door.semEspiar !== true} onChange={onToggleSemEspiar} />}
           <Toggle label="Secreta" checked={secret} onChange={onToggleSecret} describedBy={secretHintId} />
           <p id={secretHintId} className="lb-field__hint">
             {secret ? 'Os jogadores veem só a parede.' : 'Para os jogadores, vira parede até você revelar.'}

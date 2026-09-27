@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { createExploration, markAll } from './exploration'
 import { filterMapForPlayer } from './fogFilter'
 import { createEmptyMap } from './mapFactory'
 import type { ConcealZone, DoorState, MapData, Region, Wall } from '../types/map'
@@ -190,5 +191,48 @@ describe('fogFilter: porta secreta', () => {
     const view = filterMapForPlayer(map, 'p', { p: ['t'] }, 400)
     expect(view.map.walls.map((w) => w.id)).toEqual(['n1~pincel0', 'pn', 'n2~pincel0'])
     expect(view.map.walls.find((w) => w.id === 'pn')?.door).toEqual({ open: false, locked: false, kind: 'normal' })
+  })
+})
+
+/**
+ * PORTA QUE O JOGADOR NÃO ESPIA (`DoorState.semEspiar`): a marca chega só na
+ * porta que o jogador já recebe, e só para a tela dele esconder o "Espiar" —
+ * quem recusa é o host. Nunca nasce em porta que ele não vê, e porta secreta
+ * continua saindo como parede, sem o campo.
+ */
+describe('fogFilter: porta que o jogador não espia', () => {
+  it('porta à vista leva a marca; o cadeado continua do mestre', () => {
+    const view = filterMapForPlayer(corredor({ open: false, locked: true, kind: 'normal', semEspiar: true }), 'p', { p: ['t'] }, 400)
+    expect(view.map.walls.find((w) => w.id === 'pn')?.door).toEqual({ open: false, locked: false, kind: 'normal', semEspiar: true })
+    expect(view.visibleDoorIds).toEqual(['pn'])
+  })
+
+  it('sem a marca (ausente ou false) a porta sai sem o campo', () => {
+    for (const door of [{ open: false, locked: false, kind: 'normal' }, { open: false, locked: false, kind: 'normal', semEspiar: false }] satisfies DoorState[]) {
+      const view = filterMapForPlayer(corredor(door), 'p', { p: ['t'] }, 400)
+      expect(view.map.walls.find((w) => w.id === 'pn')?.door).toEqual({ open: false, locked: false, kind: 'normal' })
+      expect(JSON.stringify(view.map)).not.toContain('semEspiar')
+    }
+  })
+
+  it('SEGURANÇA: porta secreta marcada sai como parede, sem o campo', () => {
+    const view = filterMapForPlayer(corredor(porta({ semEspiar: true })), 'p', { p: ['t'] }, 400)
+    expect(view.map.walls.every((w) => w.door === null)).toBe(true)
+    expect(view.visibleDoorIds).toEqual([])
+    expect(JSON.stringify(view.map)).not.toContain('semEspiar')
+  })
+
+  it('SEGURANÇA: porta explorada e nunca vista não ganha o campo', () => {
+    const map: MapData = {
+      ...corredor(porta()),
+      // Longe da Gabi (fora do raio de 400 px): só o explorado a mostra.
+      walls: [parede('longe', 0, 100, 50, 100, { door: { open: false, locked: true, kind: 'normal', semEspiar: true } })],
+    }
+    const explorado = createExploration(map)
+    markAll(explorado)
+    const view = filterMapForPlayer(map, 'p', { p: ['t'] }, 400, explorado)
+    expect(view.visibleDoorIds).toEqual([])
+    expect(view.map.walls.find((w) => w.id === 'longe')?.door).toEqual({ open: false, locked: false, kind: 'normal' })
+    expect(JSON.stringify(view.map)).not.toContain('semEspiar')
   })
 })

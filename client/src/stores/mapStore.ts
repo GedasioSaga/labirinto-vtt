@@ -751,6 +751,8 @@ interface MapStoreState {
   setDoorSecret: (wallId: string, secret: boolean) => void
   /** Porta de um lado: 'left'/'right' só abre de lá, `null` dos dois (mapFactory.setDoorOpensFrom). Com histórico. */
   setDoorOpensFrom: (wallId: string, side: DoorSide | null) => void
+  /** Liga/desliga `DoorState.semEspiar` (`true` = o jogador não espia por esta porta; mapFactory.setDoorSemEspiar). Com histórico. */
+  setDoorSemEspiar: (wallId: string, semEspiar: boolean) => void
   /** "Revelar passagem": tira o segredo da porta e o oculto da sala ligada
    *  (mapFactory.revealSecretPassage). Um passo de histórico só. */
   revealSecretPassage: (wallId: string) => void
@@ -1905,6 +1907,7 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
     setDoorLocked: (wallId, locked) => withHistory((map) => mapFactory.setDoorLocked(map, wallId, locked)),
     setDoorSecret: (wallId, secret) => withHistory((map) => mapFactory.setDoorSecret(map, wallId, secret)),
     setDoorOpensFrom: (wallId, side) => withHistory((map) => mapFactory.setDoorOpensFrom(map, wallId, side)),
+    setDoorSemEspiar: (wallId, semEspiar) => withHistory((map) => mapFactory.setDoorSemEspiar(map, wallId, semEspiar)),
     revealSecretPassage: (wallId) => withHistory((map) => mapFactory.revealSecretPassage(map, wallId)),
     turnWallIntoDoor: (wallId) => {
       const { map, doorKind } = get()

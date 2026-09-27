@@ -3299,7 +3299,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         // Aviso sem mapa na tela não tem onde aparecer.
         if (state.status !== 'playing') return
         const { reason } = data
-        if (reason !== 'locked' && reason !== 'far' && reason !== 'not_visible' && reason !== 'wrong_side' && reason !== 'blocked') return
+        if (reason !== 'locked' && reason !== 'far' && reason !== 'not_visible' && reason !== 'wrong_side' && reason !== 'blocked' && reason !== 'no_peek') return
         if (typeof data.wallId !== 'string' || data.wallId.length === 0) return
         // A chave só vale no "Trancada" e só como texto curto: é o nome de um item da mochila.
         const key = reason === 'locked' ? cleanItemName(typeof data.key === 'string' ? data.key : '') : ''

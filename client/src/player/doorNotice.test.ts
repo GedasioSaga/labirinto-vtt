@@ -14,6 +14,8 @@ describe('doorNotice: a recusa da porta em uma linha', () => {
       wrong_side: 'Não abre deste lado',
       // porta-nao-fecha-em-cima: fechar com alguém no vão.
       blocked: 'Tem alguém no vão da porta',
+      // Porta que o mestre marcou sem espiar: só que não dá, nada do outro lado.
+      no_peek: 'Não dá para espiar aqui',
     })
   })
 })

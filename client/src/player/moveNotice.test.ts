@@ -21,4 +21,8 @@ describe('recusa do movimento em uma linha', () => {
     expect(latestActionNotice({ id: 5, reason: 'far' }, { id: 4, reason: 'wall' })).toEqual({ id: 5, text: 'Chegue mais perto da porta' })
     expect(latestActionNotice({ id: 5, reason: 'far' }, { id: 6, reason: 'wall' })).toEqual({ id: 6, text: 'Parede no caminho' })
   })
+
+  it('porta que o mestre marcou sem espiar: a mesma frase do aviso da porta', () => {
+    expect(latestActionNotice({ id: 7, reason: 'no_peek' }, undefined)).toEqual({ id: 7, text: 'Não dá para espiar aqui' })
+  })
 })

@@ -4068,7 +4068,12 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     return { messages: [snapshot, ...waitEnded, ...roomTextCardsFor(playerId, map.id, view)], settled }
   }
 
-  /** A porta que o jogador espia AGORA nesta cena, ou nada. Prazo vencido apaga o registro. */
+  /**
+   * A porta que o jogador espia AGORA nesta cena, ou nada. Prazo vencido apaga
+   * o registro. Porta que o mestre marcou sem espiar (`DoorState.semEspiar`) no
+   * meio da espiada também: o cone fecha no próximo recorte, e desmarcar não o
+   * traz de volta — o jogador pede de novo.
+   */
   const peekingFor = (playerId: string, scene: HostScene): ReadonlySet<string> | undefined => {
     const peek = peeks.get(playerId)
     if (peek === undefined) return undefined
@@ -4076,7 +4081,13 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       peeks.delete(playerId)
       return undefined
     }
-    return peek.sceneKey === sceneKey(scene) ? new Set([peek.wallId]) : undefined
+    if (peek.sceneKey !== sceneKey(scene)) return undefined
+    const wall = scene.map.walls.find((w) => w.id === peek.wallId)
+    if (wall !== undefined && wall.door !== null && wall.door.semEspiar === true) {
+      peeks.delete(playerId)
+      return undefined
+    }
+    return new Set([peek.wallId])
   }
 
   /**
@@ -5387,7 +5398,10 @@ export function createHostSession(options: HostSessionOptions): HostSession {
    * do `door.toggle` (e o mesmo limite por jogador): porta visível para ele
    * agora e token perto. Trancada NÃO recusa — espiar pela fechadura é
    * justamente o que se faz numa porta trancada. Porta aberta não tem o que
-   * espiar e não faz nada. Aceito, a visão DELE atravessa a porta por
+   * espiar e não faz nada. Porta que o mestre marcou sem espiar
+   * (`DoorState.semEspiar`) recusa com `no_peek`, que só diz "não dá para
+   * espiar aqui" — nada do outro lado, nem do cadeado; o jogador já recebe a
+   * marca na porta que vê. Aceito, a visão DELE atravessa a porta por
    * `PEEK_DURATION_MS` (`peekingFor`); a porta do mestre não muda.
    */
   function handleDoorPeek(clientId: string, msg: DoorPeekMessage, world: HostWorld): HostResult {
@@ -5403,7 +5417,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     if (last !== undefined && at - last < DOOR_TOGGLE_MIN_INTERVAL_MS) return { outbound: [] }
     lastDoorToggleAt.set(playerId, at)
 
-    const reject = (reason: 'far' | 'not_visible'): HostResult => reply(clientId, { type: 'door.toggle.rejected', wallId: msg.wallId, reason })
+    const reject = (reason: 'far' | 'not_visible' | 'no_peek'): HostResult => reply(clientId, { type: 'door.toggle.rejected', wallId: msg.wallId, reason })
     const wall = map.walls.find((w) => w.id === msg.wallId)
     if (wall === undefined || wall.door === null) return reject('not_visible')
     const memory = memoryFor(playerId, map, world)
@@ -5412,6 +5426,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     // Porta secreta nunca entra aqui: para o jogador ela é parede (`lib/fogFilter.ts`).
     if (!view.visibleDoorIds.includes(wall.id)) return reject('not_visible')
     if (wall.door.open && !wall.door.locked) return { outbound: [] }
+    // Depois da visibilidade: porta que ele não vê recusa como qualquer parede, sem dizer que é porta.
+    if (wall.door.semEspiar === true) return reject('no_peek')
     const owned = new Set(ownership[playerId] ?? [])
     const near = view.map.tokens.some((t) => owned.has(t.id) && tokenReachesDoor(t, wall, map.grid))
     if (!near) return reject('far')

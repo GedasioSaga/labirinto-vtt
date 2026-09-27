@@ -3817,10 +3817,16 @@ export function filterMapForGroup(
  * `opensFrom` (PORTA DE UM LADO) também: o lado que abre é regra do mestre — o
  * jogador descobre tentando, e quem decide é o host (`net/hostSession.ts`),
  * com a porta do mapa do mestre. `abreCom` já sai antes, em `withoutLock`.
+ * `semEspiar` (o mestre não deixa espiar por esta porta) vai, e só como `true`:
+ * a tela do jogador esconde o "Espiar pela porta" em vez de oferecer um botão
+ * que o host vai recusar. Quem recusa continua sendo o host. A porta que o
+ * jogador nunca viu chega por `unseenDoor`, sem o campo, e a secreta sai como
+ * parede antes de chegar aqui.
  */
 function doorForPlayer(door: DoorState): DoorState {
   const forPlayer: DoorState = { open: door.open, locked: door.locked, kind: door.kind }
   if (door.secret !== undefined) forPlayer.secret = door.secret
+  if (door.semEspiar === true) forPlayer.semEspiar = true
   return forPlayer
 }
 

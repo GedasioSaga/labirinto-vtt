@@ -171,6 +171,7 @@ describe('classificarDicas — quais frases viram balão', () => {
         onToggleDoor: () => {},
         onToggleOpen: () => {},
         onToggleLocked: () => {},
+        onToggleSemEspiar: () => {},
         onToggleSecret: () => {},
         onRevealPassage: () => {},
         onOpensFromChange: () => {},

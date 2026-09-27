@@ -8,6 +8,7 @@ const DOOR_NOTICE_TEXT: Record<DoorToggleRejection, string> = {
   not_visible: 'Você não vê essa porta daqui',
   wrong_side: 'Não dá para abrir por este lado',
   blocked: 'Tem alguém no vão da porta',
+  no_peek: 'Não dá para espiar aqui',
 }
 
 /** Os três jeitos de pedir ao mestre, na ordem dos botões. */

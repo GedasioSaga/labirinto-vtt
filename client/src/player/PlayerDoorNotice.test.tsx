@@ -41,6 +41,12 @@ describe('PlayerDoorNotice (aviso da porta na tela do jogador)', () => {
     expect(botoes()).toEqual([])
   })
 
+  it('porta que o mestre marcou sem espiar: "Não dá para espiar aqui", uma linha só, sem botões', () => {
+    act(() => root.render(<PlayerDoorNotice notice={{ id: 3, reason: 'no_peek', wallId: 'escritorio' }} onRequest={vi.fn()} onClose={vi.fn()} />))
+    expect(container.textContent).toBe('Não dá para espiar aqui')
+    expect(botoes()).toEqual([])
+  })
+
   it('textos da resposta do pedido', () => {
     expect(doorRequestText('sent')).toBe('Pedido enviado')
     expect(doorRequestText('opened')).toBe('O mestre abriu')

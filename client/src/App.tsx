@@ -464,6 +464,7 @@ function App() {
   const setDoorLocked = useMapStore((state) => state.setDoorLocked)
   const setDoorSecret = useMapStore((state) => state.setDoorSecret)
   const setDoorOpensFrom = useMapStore((state) => state.setDoorOpensFrom)
+  const setDoorSemEspiar = useMapStore((state) => state.setDoorSemEspiar)
   const revealSecretPassage = useMapStore((state) => state.revealSecretPassage)
   const turnWallIntoDoor = useMapStore((state) => state.turnWallIntoDoor)
   const doorKind = useMapStore((state) => state.doorKind)
@@ -1554,6 +1555,12 @@ function App() {
   const handleToggleLocked = () => {
     if (!selectedWall || !selectedWall.door) return
     setDoorLocked(selectedWall.id, !selectedWall.door.locked)
+  }
+
+  /** "Jogador pode espiar": o interruptor mostra o contrário do campo (ligado = sem `semEspiar`). */
+  const handleToggleSemEspiar = () => {
+    if (!selectedWall || !selectedWall.door) return
+    setDoorSemEspiar(selectedWall.id, selectedWall.door.semEspiar !== true)
   }
 
   const handleToggleSecret = () => {
@@ -2894,6 +2901,7 @@ function App() {
               onToggleDoor: handleToggleDoor,
               onToggleOpen: handleToggleOpen,
               onToggleLocked: handleToggleLocked,
+              onToggleSemEspiar: handleToggleSemEspiar,
               onToggleSecret: handleToggleSecret,
               onRevealPassage: handleRevealPassage,
               onKeyChange: handleDoorKeyChange,

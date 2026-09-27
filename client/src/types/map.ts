@@ -185,6 +185,18 @@ export interface DoorState {
    */
   opensFrom?: DoorSide
   /**
+   * PORTA QUE O JOGADOR NÃO ESPIA — o mestre desligou "Jogador pode espiar"
+   * (`components/WallDoorControls.tsx`): a ficha encostada não espia por esta
+   * porta. Quem recusa é o host (`net/hostSession.ts`, motivo `no_peek`), e
+   * marcar no meio de uma espiada fecha o cone na hora. O recorte leva só o
+   * `true`, e só na porta que o jogador já recebe, para a tela dele esconder o
+   * "Espiar pela porta" (`lib/fogFilter.ts`); porta secreta sai como parede,
+   * sem o campo. `undefined` === dá para espiar, como toda porta antes da
+   * opção existir, sem linha de migração; do disco só `true` volta
+   * (`lib/mapFile.ts`).
+   */
+  semEspiar?: boolean
+  /**
    * FERROLHO DO JOGADOR — só existe no RECORTE, nunca no mapa do mestre nem no
    * disco: um jogador correu o ferrolho desta porta, e quem recebe está do
    * MESMO lado (o ferrolho mora na sessão do host, `net/hostSession.ts`). É o

@@ -9,4 +9,6 @@ export const DOOR_NOTICE_TEXT: Record<DoorToggleRejection, string> = {
   wrong_side: 'Não abre deste lado',
   // Fechar com alguém no vão: a porta desceria em cima da ficha.
   blocked: 'Tem alguém no vão da porta',
+  // Porta que o mestre marcou sem espiar: nada do outro lado, nem o porquê.
+  no_peek: 'Não dá para espiar aqui',
 }

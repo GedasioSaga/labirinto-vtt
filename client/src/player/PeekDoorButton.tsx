@@ -4,8 +4,9 @@ import type { MapData } from '../types/map'
 /**
  * A porta FECHADA que o jogador pode espiar agora: encostada numa ficha dele
  * (a mesma conta de alcance do host, `tokenReachesDoor`). Trancada vale —
- * espiar pela fechadura é o caso. Com mais de uma, a mais perto de alguma
- * ficha. `null` = nenhuma.
+ * espiar pela fechadura é o caso. Porta que o mestre marcou sem espiar
+ * (`DoorState.semEspiar`) fica de fora; quem recusa de fato é o host. Com mais
+ * de uma, a mais perto de alguma ficha. `null` = nenhuma.
  */
 export function peekableDoorId(map: MapData, ownTokens: readonly string[]): string | null {
   const own = new Set(ownTokens)
@@ -13,7 +14,7 @@ export function peekableDoorId(map: MapData, ownTokens: readonly string[]): stri
   let best: string | null = null
   let bestDistance = Number.POSITIVE_INFINITY
   for (const wall of map.walls) {
-    if (wall.door === null || (wall.door.open && !wall.door.locked)) continue
+    if (wall.door === null || (wall.door.open && !wall.door.locked) || wall.door.semEspiar === true) continue
     for (const token of tokens) {
       if (!tokenReachesDoor(token, wall, map.grid)) continue
       const distance = distanceToWall(token, wall)

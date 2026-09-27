@@ -1265,6 +1265,20 @@ export function setDoorOpensFrom(map: MapData, wallId: string, side: DoorSide | 
 }
 
 /**
+ * "Jogador pode espiar" desligado: `true` liga `DoorState.semEspiar` (o host
+ * recusa espiar por esta porta); `false` tira o campo (`undefined` === dá para
+ * espiar, como sempre). O resto da porta não muda — nem aberta, nem trancada.
+ * Parede inexistente ou sem porta: mesma referência.
+ */
+export function setDoorSemEspiar(map: MapData, wallId: string, semEspiar: boolean): MapData {
+  const wall = map.walls.find((w) => w.id === wallId)
+  if (!wall || !wall.door) return map
+  const { semEspiar: _anterior, ...plain } = wall.door
+  const door: DoorState = semEspiar ? { ...plain, semEspiar: true } : plain
+  return { ...map, walls: map.walls.map((w) => (w.id === wallId ? { ...w, door } : w)) }
+}
+
+/**
  * "Revelar passagem" — um clique desliga o segredo da porta E o oculto
  * ("Oculto para jogadores", `Region.secret`) da sala ligada a ela: a sala a
  * que a porta pertence (`regionId`) e toda sala oculta cujo contorno passa

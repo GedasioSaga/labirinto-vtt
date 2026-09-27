@@ -3,9 +3,9 @@
  * e o `glimpses` do snapshot vira estado (a tela abre o telhado ali). Campo
  * aditivo: ausente vale sem cone; malformado derruba o snapshot inteiro.
  */
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { createEmptyMap } from '../lib/mapFactory'
-import { createPlayerConnection, type SocketLike } from './playerConnection'
+import { createPlayerConnection, DOOR_NOTICE_TTL_MS, type SocketLike } from './playerConnection'
 
 class FakeSocket implements SocketLike {
   readyState = 0
@@ -67,6 +67,21 @@ describe('espiar no cliente do jogador', () => {
     expect(connection.peekDoor('porta')).toBe(true)
     expect(socket.sent.at(-1)).toEqual({ type: 'door.peek', wallId: 'porta' })
     expect(connection.peekDoor('')).toBe(false)
+  })
+
+  it('recusa no_peek (porta que o mestre marcou sem espiar) vira o aviso da porta, e some sozinho', () => {
+    vi.useFakeTimers()
+    try {
+      const { connection, socket } = conectado()
+      socket.receive(snapshot(1))
+      socket.receive({ type: 'door.toggle.rejected', wallId: 'porta', reason: 'no_peek' })
+      expect(connection.getState().doorNotice).toMatchObject({ reason: 'no_peek', wallId: 'porta' })
+      // Não é o "Trancada": não há pedido ao mestre a escolher, o aviso sai como o "Longe".
+      vi.advanceTimersByTime(DOOR_NOTICE_TTL_MS + 1)
+      expect(connection.getState().doorNotice).toBeUndefined()
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('glimpses do snapshot viram estado; ausente = sem cone; malformado derruba o snapshot', () => {

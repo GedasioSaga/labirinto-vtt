@@ -86,7 +86,7 @@ export function propsDoPainel(ficha: Token | null, extra: Partial<PainelProps> =
     scenarioLink: { scenarioLink: null, onScenarioLinkChange: nada },
     sceneVision: { visionCells: undefined, onVisionCellsChange: nada },
     selectedWall: null,
-    wallDoor: { onToggleDoor: nada, onToggleOpen: nada, onToggleLocked: nada, onToggleSecret: nada, onRevealPassage: nada, onOpensFromChange: nada },
+    wallDoor: { onToggleDoor: nada, onToggleOpen: nada, onToggleLocked: nada, onToggleSemEspiar: nada, onToggleSecret: nada, onRevealPassage: nada, onOpensFromChange: nada },
     doorKind: { kind: 'normal', onKindChange: nada },
     doorMode: { mode: 'porta', onModeChange: nada },
     wallStyle: { wallKind: undefined, onWallKindChange: nada },

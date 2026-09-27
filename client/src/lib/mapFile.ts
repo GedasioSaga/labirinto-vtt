@@ -242,9 +242,11 @@ function roomVisionRadiusFromFile(region: Region): Region {
  * outro valor sai do objeto, e a porta abre como porta comum — como sempre foi.
  * `opensFrom` (porta de um lado) é campo NOVO pelo mesmo critério: só
  * 'left'/'right' voltam; qualquer outro valor sai, e a porta abre dos dois lados.
+ * `semEspiar` (porta que o jogador não espia) segue o `secret`: só `true`
+ * volta; o resto sai, e a porta deixa espiar — como sempre foi.
  */
 function doorFromFile(door: DoorState): DoorState {
-  const { secret, opensFrom, porEstado, ...rest } = doorKeyFromFile(door)
+  const { secret, opensFrom, porEstado, semEspiar, ...rest } = doorKeyFromFile(door)
   // `door` vem de JSON.parse: o tipo declarado não garante o valor, por isso a checagem de runtime.
   const side: unknown = opensFrom
   const withKind: DoorState = { ...rest, kind: rest.kind ?? 'normal' }
@@ -252,7 +254,8 @@ function doorFromFile(door: DoorState): DoorState {
   const regra = regraDoArquivo(porEstado, isEfeitoNaPorta)
   const withRule: DoorState = regra === undefined ? withKind : { ...withKind, porEstado: regra }
   const withSecret: DoorState = secret === true ? { ...withRule, secret: true } : withRule
-  return side === 'left' || side === 'right' ? { ...withSecret, opensFrom: side } : withSecret
+  const withPeek: DoorState = semEspiar === true ? { ...withSecret, semEspiar: true } : withSecret
+  return side === 'left' || side === 'right' ? { ...withPeek, opensFrom: side } : withPeek
 }
 
 /** Zona oculta lida do disco: só a regra do ESTADO DO MUNDO passa por conferência; ausente continua ausente. */

@@ -6,6 +6,9 @@ import { deserializeMap, serializeMap } from './mapFile'
  * PORTA SECRETA no disco: `DoorState.secret` é campo novo e opcional. Só `true`
  * volta do arquivo; qualquer outro valor volta AUSENTE (porta comum, como
  * sempre), e mapa antigo não ganha o campo.
+ *
+ * PORTA QUE O JOGADOR NÃO ESPIA (`DoorState.semEspiar`) segue a mesma regra:
+ * ausente = dá para espiar, como toda porta antes da opção existir.
  */
 const parede = (door: string): string => `{"id": "w", "x1": 0, "y1": 0, "x2": 50, "y2": 0, "blocksLight": true, "blocksMove": true, "door": ${door}}`
 
@@ -30,5 +33,29 @@ describe('mapFile: porta secreta', () => {
     const antigo = deserializeMap(`{"id": "antigo", "walls": [${parede('{"open": true, "locked": false}')}]}`)
     expect(antigo.walls[0]?.door).toEqual({ open: true, locked: false, kind: 'normal' })
     expect(serializeMap(antigo)).not.toContain('secret')
+  })
+})
+
+describe('mapFile: porta que o jogador não espia', () => {
+  it('true vai e volta do disco', () => {
+    const map = {
+      ...createEmptyMap('map_e', 'E', 5, 5, 64),
+      walls: [{ id: 'w', x1: 0, y1: 0, x2: 50, y2: 0, blocksLight: true, blocksMove: true, door: { open: false, locked: true, kind: 'normal' as const, semEspiar: true } }],
+    }
+    expect(deserializeMap(serializeMap(map)).walls[0]?.door).toEqual({ open: false, locked: true, kind: 'normal', semEspiar: true })
+  })
+
+  it('valor fora da forma volta AUSENTE', () => {
+    for (const valor of ['false', '"true"', '1', 'null', '{}']) {
+      const lido = deserializeMap(`{"id": "torto", "walls": [${parede(`{"open": false, "locked": false, "kind": "normal", "semEspiar": ${valor}}`)}]}`)
+      expect(lido.walls[0]?.door, `semEspiar: ${valor}`).toEqual({ open: false, locked: false, kind: 'normal' })
+      expect(serializeMap(lido), `semEspiar: ${valor}`).not.toContain('semEspiar')
+    }
+  })
+
+  it('porta antiga abre sem o campo e grava sem ele', () => {
+    const antigo = deserializeMap(`{"id": "antigo", "walls": [${parede('{"open": false, "locked": true}')}]}`)
+    expect(antigo.walls[0]?.door).toEqual({ open: false, locked: true, kind: 'normal' })
+    expect(serializeMap(antigo)).not.toContain('semEspiar')
   })
 })

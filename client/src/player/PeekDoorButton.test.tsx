@@ -35,6 +35,12 @@ describe('peekableDoorId', () => {
   it('duas portas ao alcance: a mais perto da ficha', () => {
     expect(peekableDoorId(mapa([porta(FECHADA, 500), porta(FECHADA, 440)], [ficha('ana', 460)]), ['ana'])).toBe('porta-440')
   })
+
+  it('porta que o mestre marcou sem espiar: pula, e vale a próxima ao alcance', () => {
+    const semEspiar: DoorState = { ...FECHADA, semEspiar: true }
+    expect(peekableDoorId(mapa([porta(semEspiar)], [ficha('ana', 460)]), ['ana'])).toBeNull()
+    expect(peekableDoorId(mapa([porta(FECHADA, 500), porta(semEspiar, 440)], [ficha('ana', 460)]), ['ana'])).toBe('porta-500')
+  })
 })
 
 describe('PeekDoorButton', () => {
@@ -66,5 +72,10 @@ describe('PeekDoorButton', () => {
     act(() => root.render(<PeekDoorButton map={mapa([porta(FECHADA)], [ficha('ana', 100)])} ownTokens={['ana']} onPeek={vi.fn()} />))
     expect(container.querySelector('button')).toBeNull()
     expect(container.textContent).toBe('')
+  })
+
+  it('encostada em porta sem espiar: nenhum botão', () => {
+    act(() => root.render(<PeekDoorButton map={mapa([porta({ ...FECHADA, semEspiar: true })], [ficha('ana', 460)])} ownTokens={['ana']} onPeek={vi.fn()} />))
+    expect(container.querySelector('button')).toBeNull()
   })
 })

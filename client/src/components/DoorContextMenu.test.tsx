@@ -40,10 +40,10 @@ describe('DoorContextMenu', () => {
   const itens = (): HTMLButtonElement[] => Array.from(container.querySelectorAll<HTMLButtonElement>('[role="menuitem"]'))
   const item = (nome: string): HTMLButtonElement | undefined => itens().find((el) => el.textContent === nome)
 
-  it('porta trancada: oferece Abrir e Destrancar, com o foco já no primeiro item', () => {
+  it('porta trancada: oferece Abrir, Destrancar e Não deixar espiar, com o foco já no primeiro item', () => {
     abrir(() => {})
     expect(container.querySelector('[role="menu"]')?.getAttribute('aria-label')).toBe('Porta')
-    expect(itens().map((el) => el.textContent)).toEqual(['Abrir', 'Destrancar'])
+    expect(itens().map((el) => el.textContent)).toEqual(['Abrir', 'Destrancar', 'Não deixar espiar'])
     expect(document.activeElement).toBe(itens()[0])
   })
 
@@ -71,20 +71,43 @@ describe('DoorContextMenu', () => {
   it('porta aberta: Fechar fecha; Trancar numa aberta tranca e fecha junto', () => {
     useMapStore.setState({ map: { ...useMapStore.getState().map, walls: [porta({ ...TRANCADA, open: true, locked: false })] } })
     abrir(() => {})
-    expect(itens().map((el) => el.textContent)).toEqual(['Fechar', 'Trancar'])
+    expect(itens().map((el) => el.textContent)).toEqual(['Fechar', 'Trancar', 'Não deixar espiar'])
     act(() => item('Trancar')?.click())
     expect(portaNoMapa()).toEqual({ ...TRANCADA, open: false, locked: true })
   })
 
+  it('Não deixar espiar marca a porta (um passo do desfazer) e fecha; marcada, o item vira Deixar espiar', () => {
+    const onClose = vi.fn<() => void>()
+    abrir(onClose)
+    act(() => item('Não deixar espiar')?.click())
+    expect(portaNoMapa()).toEqual({ ...TRANCADA, semEspiar: true })
+    expect(useMapStore.getState().past).toHaveLength(1)
+    expect(onClose).toHaveBeenCalledTimes(1)
+    // O `onClose` de mentira não desmonta: o menu relê a porta do store.
+    expect(itens().map((el) => el.textContent)).toEqual(['Abrir', 'Destrancar', 'Deixar espiar'])
+    act(() => item('Deixar espiar')?.click())
+    expect(portaNoMapa()).toEqual(TRANCADA)
+  })
+
+  it('porta secreta: sem o item de espiar (para o jogador é parede)', () => {
+    useMapStore.setState({ map: { ...useMapStore.getState().map, walls: [porta({ ...TRANCADA, secret: true })] } })
+    abrir(() => {})
+    expect(itens().map((el) => el.textContent)).toEqual(['Abrir', 'Destrancar'])
+  })
+
   it('setas andam entre os itens, com volta', () => {
     abrir(() => {})
-    const [primeiro, segundo] = itens()
+    const [primeiro, segundo, terceiro] = itens()
     act(() => {
       primeiro.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }))
     })
     expect(document.activeElement).toBe(segundo)
     act(() => {
       segundo.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }))
+    })
+    expect(document.activeElement).toBe(terceiro)
+    act(() => {
+      terceiro.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }))
     })
     expect(document.activeElement).toBe(primeiro)
   })

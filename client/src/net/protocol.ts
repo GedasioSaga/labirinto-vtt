@@ -1092,8 +1092,11 @@ export interface SecretCheckAnswerMessage {
  * um lado, `DoorState.opensFrom`) é aditivo: jogador antigo descarta o motivo
  * desconhecido e só não vê o aviso; a porta não abre do mesmo jeito. `blocked`:
  * fechar com uma ficha que ele VÊ no vão (nunca diz qual). Também aditivo.
+ * `no_peek`: o "Espiar pela porta" numa porta que o mestre marcou sem espiar
+ * (`DoorState.semEspiar`) — só "não dá para espiar aqui", nada do outro lado.
+ * Aditivo como os outros.
  */
-export type DoorToggleRejection = 'locked' | 'far' | 'not_visible' | 'wrong_side' | 'blocked'
+export type DoorToggleRejection = 'locked' | 'far' | 'not_visible' | 'wrong_side' | 'blocked' | 'no_peek'
 
 /**
  * Por que o "Pagar a…" não valeu: `short` = a bolsa das fichas dele encostadas

@@ -194,6 +194,57 @@ describe("hostSession: 'Espiar' pela porta fechada", () => {
     expect(JSON.stringify(depois)).not.toContain('escrivao')
   })
 
+  it('porta que o mestre marcou sem espiar: recusa no_peek, nada de dentro; desmarcada, volta a espiar', () => {
+    const relogio = { agora: 1_000 }
+    const semEspiar = escritorio({ ...PORTA, semEspiar: true })
+    const { s, ids } = mesa(semEspiar, relogio)
+    const antes = snapshotDe(s.broadcast(semEspiar).outbound, 'c-ana')
+    // O jogador sabe da marca só para esconder o botão; o cadeado continua do mestre.
+    expect(antes.map.walls.find((w) => w.id === 'porta')?.door).toEqual({ ...PORTA_NO_JOGADOR, semEspiar: true })
+    expect(JSON.stringify(antes)).not.toContain('escrivao')
+
+    // Ana está encostada: o motivo é a porta, não a distância.
+    const pedido = s.handleMessage('c-ana', { type: 'door.peek', wallId: 'porta' }, semEspiar)
+    expect(pedido.peek).toBeUndefined()
+    expect(pedido.applyDoor).toBeUndefined()
+    expect(pedido.outbound).toEqual([{ clientId: 'c-ana', msg: { type: 'door.toggle.rejected', wallId: 'porta', reason: 'no_peek' } }])
+    relogio.agora += 100
+    const depois = s.broadcast(semEspiar).outbound.filter((m) => m.clientId === 'c-ana')
+    expect(depois).toEqual([])
+    expect(JSON.stringify(depois)).not.toContain('escrivao')
+
+    // O mestre desmarca: a mesma porta volta a deixar espiar (passado o limite entre pedidos).
+    relogio.agora += 1_000
+    const livre = escritorio()
+    const denovo = s.handleMessage('c-ana', { type: 'door.peek', wallId: 'porta' }, livre)
+    expect(denovo.peek).toEqual({ playerId: ids.ana, playerName: 'Ana', wallId: 'porta' })
+    relogio.agora += 100
+    expect(fichasDe(snapshotDe(s.broadcast(livre).outbound, 'c-ana'))).toEqual(['ana', 'bia', 'caio', 'escrivao'])
+  })
+
+  it('o mestre marca a porta sem espiar no meio da espiada: o cone fecha na hora', () => {
+    const relogio = { agora: 1_000 }
+    const livre = escritorio()
+    const { s } = mesa(livre, relogio)
+    s.broadcast(livre)
+    expect(s.handleMessage('c-ana', { type: 'door.peek', wallId: 'porta' }, livre).peek).toBeDefined()
+    relogio.agora += 100
+    expect(fichasDe(snapshotDe(s.broadcast(livre).outbound, 'c-ana'))).toEqual(['ana', 'bia', 'caio', 'escrivao'])
+
+    // Ainda dentro dos 5 s.
+    relogio.agora += 100
+    const semEspiar = escritorio({ ...PORTA, semEspiar: true })
+    const daAna = snapshotDe(s.broadcast(semEspiar).outbound, 'c-ana')
+    expect(fichasDe(daAna)).toEqual(['ana', 'bia', 'caio'])
+    expect(JSON.stringify(daAna)).not.toContain('escrivao')
+    expect(daAna.glimpses?.length ?? 0).toBe(0)
+
+    // Desmarcar de novo não ressuscita a espiada cortada.
+    relogio.agora += 100
+    const deVolta = s.broadcast(livre).outbound.filter((m) => m.clientId === 'c-ana')
+    expect(JSON.stringify(deVolta)).not.toContain('escrivao')
+  })
+
   it('parede sem porta ou id inventado: not_visible, sem aviso ao mestre', () => {
     const relogio = { agora: 1_000 }
     const map = escritorio()
