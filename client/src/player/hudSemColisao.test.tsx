@@ -177,3 +177,21 @@ describe('alvos de toque no celular', () => {
     if (soIcone) expect(px(regra.get('min-width'))).toBeGreaterThanOrEqual(44)
   })
 })
+
+describe('rolagens acima do chamar o mestre', () => {
+  // Em 390 x 844 a rolagem mais nova ficava a 124 px do rodapé, atrás da mão
+  // (z 22 sobre z 12), e a caixa de 260 px cruzava o aviso da porta.
+  it('a lista começa acima da coluna do chamado: a mão e a linha do aviso ("O mestre viu", "Esperando o mestre")', async () => {
+    const css = await lerPlayerCss()
+    const feed = regraBase(css, '.pp-dice-feed')
+    const chamado = regraBase(css, '.pp-call')
+    const linha = px('var(--lb-control-touch)') + px('var(--lb-control-gap)')
+    expect(px(feed.get('bottom'))).toBeGreaterThanOrEqual(px(chamado.get('bottom')) + 2 * linha)
+  })
+
+  it('a caixa encolhe até a rolagem mais larga, sem largura fixa, com teto', async () => {
+    const feed = regraBase(await lerPlayerCss(), '.pp-dice-feed')
+    expect(feed.get('width') ?? 'auto').toBe('auto')
+    expect(feed.get('max-width')).toBeDefined()
+  })
+})

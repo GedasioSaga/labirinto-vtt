@@ -3656,16 +3656,24 @@ button.pp-colecao__casa:focus-visible {
 
 /*
  * DADO ROLADO NA SALA: as últimas rolagens da mesa no canto de baixo à
- * direita, empilhadas acima do zoom (44 px × 2 + borda, a 24 px do rodapé).
- * Acima da gaveta do painel (z 10): no celular, quem rola pela gaveta vê o
- * resultado chegar sem fechá-la. Só texto: o toque atravessa para o mapa.
+ * direita, empilhadas acima do "Chamar o mestre" (o chamado fica sobre o zoom,
+ * a 127 px do rodapé). A lista reserva as duas linhas da coluna do chamado, a
+ * mão e o aviso ("O mestre viu", "Esperando o mestre"), cada uma com o alvo de
+ * toque e o vão do tema; antes ela começava a 124 px, atrás da mão. Acima da
+ * gaveta do painel (z 10): no celular, quem rola pela gaveta vê o resultado
+ * chegar sem fechá-la. A caixa encolhe até a rolagem mais larga, para não
+ * cruzar o aviso da porta à esquerda. Só texto: o toque atravessa para o mapa.
  */
 .pp-dice-feed {
   position: fixed;
   right: 12px;
-  bottom: calc(24px + 90px + 10px + env(safe-area-inset-bottom, 0px));
+  bottom: calc(
+    24px + 91px + 12px + var(--lb-control-touch, 44px) + var(--lb-control-gap, 8px) +
+      var(--lb-control-touch, 44px) + var(--lb-control-gap, 8px) + env(safe-area-inset-bottom, 0px)
+  );
   z-index: 12;
-  width: min(260px, calc(100% - 24px));
+  width: auto;
+  max-width: min(260px, calc(100% - 24px));
   pointer-events: none;
 }
 
