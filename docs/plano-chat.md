@@ -61,10 +61,13 @@ Costuras: `PlayerMessage` `protocol.ts:974-1023`, `HostMessage` `:1574`, `parseP
 
 Donos: `programador-frontend` (A, B, D, TS da C); `programador-rust` (rota, magic, testes Rust); `engenheiro-desktop` revisa o comando IPC novo. Revisão de segurança dedicada depois de A e depois de C.
 
-## 6. Em aberto
+## 6. Decisões do usuário (27/09, depois do plano)
 
-- `.mov`/HEVC do iPhone.
-- Mídia acessível a quem tiver o id (128 bits, só chega a quem tem direito ao canal).
-- Cota em disco por mesa; mestre apagar mensagem/mídia.
-- Quem chega numa cena vê a conversa anterior (proposta: sim).
-- Mestre envia mídia no global; `@mestre`.
+- `.mov` aceito: marca `qt  ` entra na lista de bytes mágicos. Vídeo que o navegador não tocar mostra "baixar".
+- Quem chega numa cena vê as últimas 200 mensagens dela.
+- Mestre envia imagem e vídeo no global (mesmos limites).
+- `@mestre` vale: a mensagem fica destacada para o mestre.
+- Mestre apaga mensagem ou mídia: some para todos e sai do disco (reescreve o JSONL do canal, apaga o arquivo de mídia).
+- Sem cota de disco por mesa. Continua a taxa de envio (1 ticket em andamento, 10 por 10 min).
+
+Em aberto: mídia acessível a quem tiver o id (128 bits, só chega a quem tem direito ao canal).

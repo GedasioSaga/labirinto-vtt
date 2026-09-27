@@ -1061,3 +1061,9 @@ Respostas do usuário (27/09, noite):
 - Histórico (texto, imagens, vídeos) salvo no PC do mestre, numa pasta junto da mesa; jogador que volta vê de novo.
 - Limite: imagem 5 MB, vídeo 25 MB.
 - "@" = marcar um jogador (quem é marcado ganha destaque/aviso).
+
+Segunda rodada de respostas (27/09, noite, depois do plano em `docs/plano-chat.md`):
+- Vídeo `.mov` do iPhone: aceitar.
+- Quem chega numa cena vê as últimas 200 mensagens dela.
+- Mestre: envia imagem/vídeo no global, pode ser marcado com @mestre, pode apagar mensagem ou mídia.
+- Disco: sem limite por mesa.
