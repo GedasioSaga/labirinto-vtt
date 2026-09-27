@@ -1023,3 +1023,14 @@ Imagem: 6 avisos iguais, "A camada Paredes está travada", um embaixo do outro. 
 travada pelo cadeado da lista Camadas (travar só acontece por ali), e cada clique numa parede empilhava um aviso
 novo, sem jeito rápido de desfazer. Consertado em `241efd5e`: aviso repetido renova no lugar (um só na tela) e o
 aviso de camada travada ganhou o botão "Destravar", que só destrava.
+
+### 27/09/2026, fim da tarde — cartão do jogador no Grupo (mestre) bagunçado
+
+> "[Image #13] Melhora esse design..."
+
+Imagem (cópia em `C:/dev/hud-evidencia/pedido-13-cartao-grupo.png`): cartão de um jogador na seção Grupo do
+painel do mestre (`components/PartySection.tsx`). Cabeçalho "Saga · Uptown · Remover Vagn" com o nome da ficha
+cortado; "Bolsa vazia" solta ao lado de "Moedas…"; 9 ações ("Propor troca…", "Ir lá", "Seguir", "Ver tela",
+"Mandar para…", "Dar item…", "Recado", "Dar o que o grupo viu", "Emprestar como ajudante…" e um "…") em linhas
+quebradas ao acaso, parte como botão e parte como texto solto, sem grupo nem ordem. Pedido: redesenhar o cartão
+(design do mestre). Fila: próximo designer livre, arquivos `PartySection.tsx` e as regras dele no `main.css`.
