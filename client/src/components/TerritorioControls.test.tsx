@@ -1,6 +1,7 @@
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { classificarDicas } from '../lib/dicaDoPainel'
 import { TerritorioControls, type TerritorioControlsProps } from './TerritorioControls'
 import { RoomControls, type RoomControlsProps } from './RoomControls'
 
@@ -8,6 +9,11 @@ import { RoomControls, type RoomControlsProps } from './RoomControls'
  * FACÇÃO E ALERTA, lado do mestre: o bloco "Território" (filtro "Quem manda
  * aqui", legenda das facções e o alerta da cena) e o campo "Facção" no painel
  * da Sala.
+ *
+ * Peça mapa-inteiro-enxuto (laudo do painel, rodada 2): o alerta é o
+ * segmentado do projeto (`.lb-seg`, rádios com nome), sem o rádio nativo azul
+ * de 13 px; e a frase de estado "Nenhuma sala tem facção" explica o
+ * interruptor que ela afeta, como dica sob demanda, em vez de ocupar a coluna.
  */
 
 let container: HTMLDivElement
@@ -48,11 +54,33 @@ function interruptor(rotulo: string): HTMLInputElement {
   return input
 }
 
-function radio(rotulo: string): HTMLInputElement {
-  const label = [...container.querySelectorAll('label')].find((l) => l.textContent?.trim() === rotulo)
-  const input = label?.querySelector('input[type="radio"]')
-  if (!(input instanceof HTMLInputElement)) throw new Error(`sem a opção "${rotulo}"`)
-  return input
+/** O grupo do alerta da cena: um `radiogroup` de verdade, não um fieldset de rádios nativos. */
+function grupoDoAlerta(): HTMLElement {
+  const grupo = container.querySelector<HTMLElement>('[role="radiogroup"]')
+  if (grupo === null) throw new Error('o alerta da cena não é um grupo de rádios (role="radiogroup")')
+  return grupo
+}
+
+/** Nome acessível do grupo: o texto do rótulo apontado por `aria-labelledby`, ou o `aria-label`. */
+function nomeDoGrupo(grupo: HTMLElement): string {
+  const ids = (grupo.getAttribute('aria-labelledby') ?? '').split(/\s+/).filter((id) => id !== '')
+  if (ids.length === 0) return grupo.getAttribute('aria-label') ?? ''
+  return ids.map((id) => document.getElementById(id)?.textContent?.trim() ?? '').join(' ')
+}
+
+function opcao(rotulo: string): HTMLButtonElement {
+  const botao = [...grupoDoAlerta().querySelectorAll<HTMLButtonElement>('button[role="radio"]')].find((b) => b.textContent?.trim() === rotulo)
+  if (botao === undefined) throw new Error(`sem a opção "${rotulo}" no alerta da cena`)
+  return botao
+}
+
+/** As frases que o controle aponta em `aria-describedby`, na ordem. */
+function descricoes(controle: Element): HTMLElement[] {
+  return (controle.getAttribute('aria-describedby') ?? '')
+    .split(/\s+/)
+    .filter((id) => id !== '')
+    .map((id) => document.getElementById(id))
+    .filter((frase): frase is HTMLElement => frase !== null)
 }
 
 describe('TerritorioControls', () => {
@@ -72,32 +100,51 @@ describe('TerritorioControls', () => {
     expect(amostra instanceof HTMLElement ? amostra.style.backgroundColor : '').toBe('rgb(192, 80, 77)')
   })
 
-  it('sem facção nenhuma, diz onde escolher uma', () => {
+  it('sem facção nenhuma, a frase que diz onde escolher uma explica o "Quem manda aqui" (dica sob demanda, não linha da coluna)', () => {
     renderTerritorio({ legenda: [] })
-    expect(container.textContent).toContain('Nenhuma sala tem facção')
     expect(container.querySelector('[data-testid="legenda-faccao"]')).toBeNull()
+    const semFaccao = descricoes(interruptor('Quem manda aqui')).find((frase) => frase.textContent?.includes('Nenhuma sala tem facção'))
+    expect(semFaccao, 'a frase de estado tem de ficar ligada ao interruptor que ela explica').toBeDefined()
+    expect(semFaccao?.textContent).toContain('campo Facção do painel da Sala')
+    expect(semFaccao?.classList.contains('lb-field__hint')).toBe(true)
+    expect(classificarDicas(container).sobDemanda, 'ligada a um controle ativo, a frase vira balão e sai do fluxo').toContain(semFaccao)
   })
 
-  it('o alerta da cena é um grupo de três opções, com a atual marcada', () => {
+  it('com facções, a frase de estado some e o interruptor explica só o que ele faz', () => {
+    renderTerritorio()
+    expect(container.textContent).not.toContain('Nenhuma sala tem facção')
+    expect(descricoes(interruptor('Quem manda aqui')).map((frase) => frase.textContent)).toEqual([
+      'Pinta cada sala e distrito com a cor da facção. Só no seu editor.',
+    ])
+  })
+
+  it('o alerta da cena é o segmentado do projeto: três rádios com nome, a atual marcada, nenhum rádio nativo', () => {
     renderTerritorio({ alerta: 'atento' })
-    const grupo = container.querySelector('fieldset')
-    expect(grupo?.querySelector('legend')?.textContent).toBe('Alerta da cena')
-    expect(radio('Calmo').checked).toBe(false)
-    expect(radio('Atento').checked).toBe(true)
-    expect(radio('Caçada').checked).toBe(false)
+    const grupo = grupoDoAlerta()
+    expect(nomeDoGrupo(grupo)).toBe('Alerta da cena')
+    expect(grupo.classList.contains('lb-seg')).toBe(true)
+    const opcoes = [...grupo.querySelectorAll<HTMLButtonElement>('button[role="radio"]')]
+    expect(opcoes.map((b) => b.textContent?.trim())).toEqual(['Calmo', 'Atento', 'Caçada'])
+    expect(opcoes.every((b) => b.type === 'button' && b.classList.contains('lb-seg__option'))).toBe(true)
+    expect(opcoes.map((b) => b.getAttribute('aria-checked'))).toEqual(['false', 'true', 'false'])
+    expect(container.querySelectorAll('input[type="radio"]'), 'rádio nativo (13 px, azul do navegador) não entra na coluna').toHaveLength(0)
   })
 
   it('escolher Caçada sobe o alerta', () => {
     const props = renderTerritorio()
-    act(() => radio('Caçada').click())
+    act(() => opcao('Caçada').click())
     expect(props.onAlertaChange).toHaveBeenCalledWith('cacada')
   })
 
-  it('o painel diz que facção e alerta nunca vão para os jogadores', () => {
+  it('o painel diz que facção e alerta nunca vão para os jogadores; a linha dessa dica é o campo, com o "?" logo depois do rótulo', () => {
     renderTerritorio()
-    const grupo = container.querySelector('fieldset')
-    const dica = document.getElementById(grupo?.getAttribute('aria-describedby') ?? '')
+    const grupo = grupoDoAlerta()
+    const [dica] = descricoes(grupo)
     expect(dica?.textContent).toMatch(/jogadores não/i)
+    const campo = grupo.closest<HTMLElement>('.lb-field')
+    expect(campo, 'rótulo e segmentado moram no mesmo campo').not.toBeNull()
+    expect(campo?.firstElementChild?.classList.contains('lb-label')).toBe(true)
+    expect(classificarDicas(container).linhas.get(campo as HTMLElement)).toEqual([dica])
   })
 })
 

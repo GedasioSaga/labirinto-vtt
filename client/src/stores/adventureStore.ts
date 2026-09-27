@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { ExitPassage, MapData, Pin, PinDestination, PinPassage, Stair, Token } from '../types/map'
+import type { ExitPassage, Light, MapData, Pin, PinDestination, PinPassage, Stair, Token } from '../types/map'
 import {
   buildingOfStair,
   buildPartnerStair,
@@ -22,7 +22,7 @@ import { withPlayerVisibleTokens } from '../lib/pinTravel'
 import { tokenSizeInSquares } from '../lib/tokenSize'
 import type { Bounds, Camera, Point } from '../pixi/world'
 import * as mapFactory from '../lib/mapFactory'
-import { moverNaCena, planejarRotina, type CenaDaRotina } from '../lib/rotinaDoNpc'
+import { moverNaCena, planejarRotina, type CenaDaRotina, type MovimentoDaRotina } from '../lib/rotinaDoNpc'
 import { comPiso, mapaDoPiso, pisoDe } from '../lib/pisos'
 import {
   ADVENTURE_VERSION,
@@ -411,6 +411,17 @@ interface AdventureState {
    * `fixas`: fichas que um jogador segura; ficam onde estão.
    */
   trocarEstadoDoMundo: (estadoId: string, valor: string, fixas?: ReadonlySet<string>) => ResumoDaTroca | null
+  /**
+   * ROTINA ANDANDO: a cena aberta e as de fundo que abriram, onde a rotina
+   * procura a ficha e os postos. Sem aventura aberta: nenhuma.
+   */
+  cenasDaRotina: () => CenaDaRotina[]
+  /**
+   * ROTINA ANDANDO: aplica um tique da rotina com a mecânica do apito —
+   * mudança de mesa dentro da cena, `transferToken` para outra —, fora do
+   * Ctrl+Z do mestre.
+   */
+  moverFichasDaRotina: (movimentos: readonly MovimentoDaRotina[]) => void
   /**
    * ESTADO DO MUNDO: "Depende do estado" de um elemento da cena ABERTA (o
    * painel de propriedades só mostra ela). Grava a regra e já põe o elemento
@@ -813,6 +824,40 @@ function withoutToken(history: SceneHistory, tokenId: string): SceneHistory {
   return { map: drop(history.map), past: history.past.map(drop), future: history.future.map(drop) }
 }
 
+/*
+ * TOCHA PRESA NA FICHA atravessa com ela. Apagar a ficha solta a tocha e a
+ * deixa onde está (`mapFactory.removeToken`), mas na travessia a ficha não
+ * some: a tocha ficaria acesa na origem, no lugar de onde ela saiu, e ela
+ * chegaria a uma cena escura enxergando só a própria casa. Como a ficha, a
+ * tocha sai de todo passo do histórico da origem (um Ctrl+Z não a acende de
+ * volta lá) e entra em todo passo do histórico do destino.
+ */
+
+/** As tochas presas em `departing[i]`, já na casa de `arriving[i]`: o mesmo afastamento e o piso de quem chega. */
+function torchesOf(map: MapData, departing: readonly Token[], arriving: readonly Token[]): Light[] {
+  return departing.flatMap((before, index) => {
+    const after = arriving[index]
+    return map.lights
+      .filter((l) => l.attachedTokenId === before.id)
+      .map((l) => comPiso({ ...l, x: l.x + after.x - before.x, y: l.y + after.y - before.y }, pisoDe(after)))
+  })
+}
+
+function withoutLights(history: SceneHistory, lightIds: ReadonlySet<string>): SceneHistory {
+  const drop = (map: MapData): MapData => (map.lights.some((l) => lightIds.has(l.id)) ? { ...map, lights: map.lights.filter((l) => !lightIds.has(l.id)) } : map)
+  return { map: drop(history.map), past: history.past.map(drop), future: history.future.map(drop) }
+}
+
+/** Luz de mesmo id no destino (cena copiada) fica com o dela; a tocha que chega ganha id novo. */
+function withLights(history: SceneHistory, lights: readonly Light[]): SceneHistory {
+  if (lights.length === 0) return history
+  const steps = [history.map, ...history.past, ...history.future]
+  const taken = (id: string): boolean => steps.some((map) => map.lights.some((l) => l.id === id))
+  const arriving = lights.map((l) => (taken(l.id) ? { ...l, id: crypto.randomUUID() } : l))
+  const put = (map: MapData): MapData => ({ ...map, lights: [...map.lights, ...arriving] })
+  return { map: put(history.map), past: history.past.map(put), future: history.future.map(put) }
+}
+
 /**
  * A ficha `fromId` passa a se chamar `toId`, e o que o mapa guarda pelo id
  * dela vai junto: a tocha presa nela, as fichas que ela leva e o lugar dela
@@ -923,6 +968,17 @@ function sceneToOpenInstead(state: Pick<AdventureState, 'adventure' | 'cache' | 
 function mudarNaMesa(get: () => AdventureState, transform: (map: MapData) => MapData): void {
   useMapStore.getState().applyPlayerChange(transform)
   for (const sceneId of Object.keys(get().cache)) get().applyPlayerChangeToBackgroundScene(sceneId, transform)
+}
+
+/** Os movimentos da rotina que trocam de cena, cada um por `transferToken`. */
+function levarParaOutraCena(get: () => AdventureState, movimentos: readonly MovimentoDaRotina[], activeSceneId: string): void {
+  for (const m of movimentos) {
+    if (m.de === m.para || !get().transferToken(m.tokenId, m.de, m.para, m.x, m.y) || m.de !== activeSceneId) continue
+    // Saiu da cena aberta: a seleção não pode apontar para ela (o mesmo cuidado de `carryToken`).
+    const item: SelectionItem = { kind: 'token', id: m.tokenId }
+    const { selection, setSelection } = useMapStore.getState()
+    if (selectionHas(selection, item)) setSelection(removeSelectionItem(selection, item))
+  }
 }
 
 /**
@@ -1037,6 +1093,30 @@ function withEmptyScene(
  */
 let openGeneration = 0
 
+/** Quem esquece a sessão de jogo a cada abertura (ver `subscribeToOpenings`). */
+const openingListeners = new Set<() => void>()
+
+/**
+ * Avisa `onOpen` a cada abertura (`open`, `reset`): outro mapa entra no
+ * editor, ou o MESMO de novo — mesma pasta, mesmos ids, que por isso o estado
+ * não distingue. É para o que é da sessão de jogo e não do arquivo (a rotina
+ * andando), que não pode passar de uma abertura para a outra. O aviso sai antes
+ * de o mapa novo entrar. Devolve o cancelamento.
+ */
+export function subscribeToOpenings(onOpen: () => void): () => void {
+  openingListeners.add(onOpen)
+  return () => {
+    openingListeners.delete(onOpen)
+  }
+}
+
+/** Começa uma abertura: o que ainda chegar da anterior é descartado e quem assina `subscribeToOpenings` fica sabendo. */
+function beginOpening(): number {
+  openGeneration += 1
+  for (const onOpen of openingListeners) onOpen()
+  return openGeneration
+}
+
 /**
  * Janela que junta as cenas de fundo que chegam quase juntas numa troca de
  * estado só. Curta para o mestre não perceber a espera; longa o bastante para
@@ -1120,13 +1200,12 @@ export const useAdventureStore = create<AdventureState>()((set, get) => ({
 
   reset: () => {
     // O que ainda chegar da aventura anterior não é deste mapa.
-    openGeneration += 1
+    beginOpening()
     set({ ...EMPTY })
   },
 
   open: (opened) => {
-    openGeneration += 1
-    const generation = openGeneration
+    const generation = beginOpening()
     if (opened.adventure === null || opened.activeSceneId === null) {
       set({ ...EMPTY })
       showInEditor(opened.map, [], [])
@@ -1439,15 +1518,22 @@ export const useAdventureStore = create<AdventureState>()((set, get) => ({
     const transform = (map: MapData) => moverNaCena(aplicarEstadoNoMapa(map, estadoId, valor), movimentos)
     useMapStore.getState().applyPlayerChange(transform)
     for (const sceneId of Object.keys(cache)) get().applyPlayerChangeToBackgroundScene(sceneId, transform)
-    for (const m of movimentos) {
-      if (m.de === m.para || !get().transferToken(m.tokenId, m.de, m.para, m.x, m.y) || m.de !== activeSceneId) continue
-      // Saiu da cena aberta: a seleção não pode apontar para ela (o mesmo cuidado de `carryToken`).
-      const item: SelectionItem = { kind: 'token', id: m.tokenId }
-      const { selection, setSelection } = useMapStore.getState()
-      if (selectionHas(selection, item)) setSelection(removeSelectionItem(selection, item))
-    }
+    levarParaOutraCena(get, movimentos, activeSceneId)
     set({ adventure: { ...adventure, estados }, structureDirty: true })
     return resumo
+  },
+
+  cenasDaRotina: () => {
+    const { adventure, activeSceneId, cache } = get()
+    if (adventure === null || activeSceneId === null) return []
+    return cenasCarregadas(activeSceneId, useMapStore.getState().map, cache)
+  },
+
+  moverFichasDaRotina: (movimentos) => {
+    const { activeSceneId } = get()
+    if (activeSceneId === null || movimentos.length === 0) return
+    mudarNaMesa(get, (map) => moverNaCena(map, movimentos))
+    levarParaOutraCena(get, movimentos, activeSceneId)
   },
 
   amarrarAoEstado: (amarra) => {
@@ -1755,8 +1841,11 @@ export const useAdventureStore = create<AdventureState>()((set, get) => ({
     )
     const arrive = (t: Token, at: Point): Token => comPiso({ ...arrivingLink(t, to.map), x: at.x, y: at.y }, piso)
     const travelers: Token[] = [arrive(token, { x, y }), ...riders.map((p, index) => arrive(p, seats[index]))]
-    const leaving = travelers.reduce((history, traveler) => withoutToken(history, traveler.id), from)
-    const { history: arriving, renamedResidents } = withTokens(to, travelers)
+    const torches = torchesOf(from.map, [token, ...riders], travelers)
+    const leaving = travelers.reduce((history, traveler) => withoutToken(history, traveler.id), withoutLights(from, new Set(torches.map((l) => l.id))))
+    const { history: withTravelers, renamedResidents } = withTokens(to, travelers)
+    // Depois de `withTokens`: a troca de id de quem já estava leva as tochas DELE, não as que chegam.
+    const arriving = withLights(withTravelers, torches)
     const nextCache: Record<string, SceneSlot> = { ...cache }
     const nextDirty: Record<string, true> = { ...dirty }
     let openScene: SceneHistory | null = null

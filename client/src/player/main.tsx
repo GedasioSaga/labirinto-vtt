@@ -22,6 +22,9 @@ import { PlayerPeek } from './PlayerPeek'
 import { PlayerFerrolho } from './PlayerFerrolho'
 import { acaoDeFerrolho, tokenAlcancaPino } from '../lib/ferrolho'
 import { PlayerTokenCard } from './PlayerTokenCard'
+import { PlayerInventory } from './PlayerInventory'
+import { inventoryCharacters, rememberItemTexts, stableSlotOrder, type ItemTexts } from './inventario'
+import { isEditableTarget } from '../lib/keymap'
 import { tokenActionNoticeText, tokenActionReply } from './tokenCard'
 import { PlayerClueCard } from './PlayerClues'
 import { mapSharedNoticeText } from './PlayerMapShare'
@@ -837,6 +840,56 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
     return ficha === undefined ? { items: [], moedas: 0 } : { items: carriedItemsOf(ficha), moedas: moedasDe(ficha) }
   }, [map, ownTokens, trocaTokenId])
 
+  // INVENTÁRIO ESTILO RE: as fichas DELE no mapa da tela, lidas do recorte que
+  // já chegou (nada novo atravessa para o jogador por causa desta tela).
+  // A grade não embaralha: o host acrescenta no fim e põe a bolsa na frente só
+  // quando há saldo, então a tela lembra a ordem que já mostrou (por ficha,
+  // nesta sessão) e só acrescenta no fim o que é novo. Um ref, e não estado:
+  // gravar a ordem não deve pedir outra renderização.
+  const slotOrder = useRef(new Map<string, readonly string[]>())
+  const inventoryList = useMemo(
+    () =>
+      (map ? inventoryCharacters(map, ownTokens, partyTokens, OWN_TOKEN_CSS) : []).map((character) => ({
+        ...character,
+        slots: stableSlotOrder(slotOrder.current.get(character.tokenId), character.slots),
+      })),
+    [map, ownTokens, partyTokens],
+  )
+  useEffect(() => {
+    for (const character of inventoryList) slotOrder.current.set(character.tokenId, character.slots.map((slot) => slot.key))
+  }, [inventoryList])
+  const canOpenInventory = inventoryList.length > 0
+  const [inventory, setInventory] = useState<{ instant: boolean } | null>(null)
+  // O texto do mestre no visor do item. O recorte só traz a descrição do pino
+  // enquanto ele está no chão (e só de perto, se o mestre a guardou para perto);
+  // o "Pegar" tira o pino e a mochila chega só com { id, nome }. Então o cliente
+  // guarda o que o jogador já leu, pelo id do pino, que é o id do item na mochila.
+  const [itemTexts, setItemTexts] = useState<ItemTexts>(() => new Map())
+  const pins = map?.pins
+  useEffect(() => {
+    if (pins !== undefined) setItemTexts((memory) => rememberItemTexts(memory, pins))
+  }, [pins])
+  const closeInventory = useCallback(() => setInventory(null), [])
+  // Sem ficha dele no mapa (viajou, o mestre tirou), o inventário fecha — e não reabre sozinho depois.
+  useEffect(() => {
+    if (!canOpenInventory) setInventory(null)
+  }, [canOpenInventory])
+  // A tecla I abre e fecha, como o "Inventário" da barra. Nunca dentro de campo
+  // de texto, com Ctrl/Alt/Cmd (atalho do navegador) nem por cima de outro cartão modal.
+  useEffect(() => {
+    if (!canOpenInventory) return
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== 'i' && event.key !== 'I') return
+      if (event.ctrlKey || event.altKey || event.metaKey || event.repeat) return
+      const alvo = event.target
+      if (alvo instanceof HTMLElement && isEditableTarget(alvo.tagName, alvo instanceof HTMLInputElement ? alvo.type : undefined, alvo.isContentEditable)) return
+      const outroCartao = document.querySelector('[aria-modal="true"]:not(.pp-inv__quadro)') !== null
+      setInventory((aberto) => (aberto !== null ? null : outroCartao ? null : { instant: true }))
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [canOpenInventory])
+
   // A cor do próprio laser: a da ficha (a mesma que os outros veem, escolhida
   // pelo host); ficha sem cor, o azul "este é o seu" da tela do jogador.
   const ownLaserColor = useMemo(() => {
@@ -1236,6 +1289,7 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
             setLaserArmed(false)
           }}
           onDownloadNotebook={downloadNotebook}
+          onOpenInventory={canOpenInventory ? (byKeyboard) => setInventory({ instant: byKeyboard }) : undefined}
         />
         {/* DADO ROLADO NA SALA: as últimas rolagens da mesa, sobre o mapa, acima do zoom. Não é controle: fora da ordem do Tab. */}
         <DiceFeed rolls={state.diceRolls ?? NO_DICE_ROLLS} className="pp-dice-feed" />
@@ -1354,6 +1408,20 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
             onSend={(action, text) => {
               if (connection.requestTokenAction(openToken.id, action, text)) setOpenTokenId(null)
             }}
+          />
+        )}
+        {/* INVENTÁRIO (tecla I): acima dos cartões e dos avisos, abaixo do alarme e da
+            reconexão. "Dar a…" e "Pagar a…" são as mesmas mensagens do "Comigo"; a
+            recusa do host (`state.item`) aparece dentro dele, porque o aviso de baixo fica atrás do véu. */}
+        {inventory !== null && canOpenInventory && (
+          <PlayerInventory
+            characters={inventoryList}
+            instant={inventory.instant}
+            notice={state.item}
+            onClose={closeInventory}
+            onGive={(itemId, toTokenId) => connection.giveItem(itemId, toTokenId)}
+            onPay={(toTokenId, moedas) => connection.giveCoins(toTokenId, moedas)}
+            itemTexts={itemTexts}
           />
         )}
         {/* MINHAS PISTAS: a pista reaberta do Caderno, com "Mostrar para…".

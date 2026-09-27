@@ -411,7 +411,7 @@ export function PropertiesPanel({
     <div className="lb-panel lb-inspector">
       <header className="lb-inspector__head">
         <span className="lb-inspector__mark" aria-hidden="true">
-          <LabyrinthMark size={20} />
+          <LabyrinthMark size={16} />
         </span>
         <span className="lb-inspector__id">
           <h1 className="lb-inspector__wordmark">Labirinto</h1>
@@ -800,10 +800,13 @@ export function PropertiesPanel({
         {objects}
         {/* FACÇÃO E ALERTA do mapa inteiro. Mesmo grupo das Camadas (é filtro
             de vista e estado da cena, não ferramenta), antes de "Chão do mapa"
-            para Camadas continuar o último título da coluna. */}
+            para Camadas continuar o último título da coluna. Nasce fechada
+            mesmo sem seleção (peça mapa-inteiro-enxuto): o mestre mexe nela
+            durante o jogo, não na primeira tela do mapa; a escolha dele fica
+            lembrada (`lb-section:territorio`). */}
         {territorio !== undefined && (
           <ToolPropertiesSection group="layers" groups={groups}>
-            <CollapsibleSection id="territorio" title="Território" defaultOpen={mapSectionsOpenByDefault}>
+            <CollapsibleSection id="territorio" title="Território" defaultOpen={false}>
               <TerritorioControls {...territorio} />
             </CollapsibleSection>
           </ToolPropertiesSection>

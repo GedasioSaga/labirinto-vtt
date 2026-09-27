@@ -12,7 +12,7 @@ import {
 import { buildRoomFromDraft } from './drawingFactory'
 import { placeNewRoom } from './roomNesting'
 import { isAxisAlignedRect, roomDimensions } from './roomOps'
-import { roomCentroid } from './roomRotation'
+import { roomCentroid, roomRotationOf, rotationDelta } from './roomRotation'
 
 /**
  * GIRAR SALA, lado da função pura. O giro é gravado nos PONTOS: estes testes
@@ -326,5 +326,167 @@ describe('rotateRegion — quarto de volta numa sala ímpar continua na grade', 
     const girado = rotateRegion(map, 'casa', 90)
     tudoNaGrade(girado)
     expect(sala(girado, 'quarto').room?.rotation).toBe(90)
+  })
+})
+
+describe('rotateRegion — chegar ao quarto de volta passando por um ângulo livre', () => {
+  /** Sala de `largura` x `altura` quadrados de 64 px, com o canto de cima à esquerda em (576, 256). */
+  function salaDe(largura: number, altura: number): MapData {
+    const { region, walls } = buildRoomFromDraft('sala', ['w0', 'w1', 'w2', 'w3'], { x: 576, y: 256 }, { x: 576 + largura * 64, y: 256 + altura * 64 })
+    return addRoom(createEmptyMap('m', 'M', 30, 20, 64), region, walls)
+  }
+
+  const naGrade = (v: number): boolean => Number.isInteger(v / 64)
+
+  function tudoNaGrade(map: MapData, quando: string): void {
+    for (const r of map.regions) {
+      for (const p of r.points) expect(naGrade(p.x) && naGrade(p.y), `${quando}: canto ${p.x},${p.y} de ${r.id} fora da grade`).toBe(true)
+    }
+    for (const w of map.walls.filter((parede) => parede.regionId !== undefined)) {
+      expect([w.x1, w.y1, w.x2, w.y2].every(naGrade), `${quando}: parede ${w.id} fora da grade`).toBe(true)
+    }
+  }
+
+  const girarPor = (map: MapData, passos: number[], id = 'sala'): MapData => passos.reduce((m, graus) => rotateRegion(m, id, graus), map)
+
+  it('30° e depois o resto até 90°, −90° ou 180°: na grade qualquer que seja a paridade dos lados', () => {
+    const caminhos: Array<{ passos: number[]; fim: number }> = [
+      { passos: [30, 60], fim: 90 },
+      { passos: [-30, -60], fim: -90 },
+      { passos: [45, 135], fim: 180 },
+      { passos: [37, 90, -37], fim: 90 },
+    ]
+    for (const [largura, altura] of [[3, 4], [4, 3], [1, 2], [2, 5], [3, 3], [2, 6]]) {
+      for (const { passos, fim } of caminhos) {
+        const map = girarPor(salaDe(largura, altura), passos)
+        const quando = `${largura}x${altura} por ${passos.join(', ')}`
+        expect(sala(map).room?.rotation, quando).toBe(fim)
+        tudoNaGrade(map, quando)
+        paredesNasArestas(map, 'sala')
+        expect(isAxisAlignedRect(sala(map).points), quando).toBe(true)
+      }
+    }
+  })
+
+  it('a sala anda no máximo meia casa em cada eixo, e 0° → 30° → 90° cai onde o botão +90° poria', () => {
+    const antes = roomCentroid(sala(salaDe(3, 4)).points)
+    const porLivre = girarPor(salaDe(3, 4), [30, 60])
+    const depois = roomCentroid(sala(porLivre).points)
+    expect(Math.abs(depois.x - antes.x)).toBeLessThanOrEqual(32)
+    expect(Math.abs(depois.y - antes.y)).toBeLessThanOrEqual(32)
+    expect(sala(porLivre).points).toEqual(sala(rotateRegion(salaDe(3, 4), 'sala', 90)).points)
+  })
+
+  it('ida e volta exata por ângulo livre: 0 → 30 → 90 → 30 → 0, e a volta inteira de 45 em 45', () => {
+    for (const [largura, altura] of [[3, 4], [4, 3], [1, 2]]) {
+      const antes = salaDe(largura, altura)
+      expect(girarPor(antes, [30, 60, -60, -30])).toEqual(antes)
+      expect(girarPor(antes, [-30, -60, 60, 30])).toEqual(antes)
+      const volta = girarPor(antes, [45, 45, 45, 45, 45, 45, 45, 45])
+      expect(volta).toEqual(antes)
+    }
+  })
+
+  it('a sub-sala vai junto e também fica na grade', () => {
+    let map = createEmptyMap('m', 'M', 30, 20, 64)
+    const casa = buildRoomFromDraft('casa', ['c0', 'c1', 'c2', 'c3'], { x: 576, y: 256 }, { x: 768, y: 512 })
+    map = addRoom(map, casa.region, casa.walls)
+    const quarto = placeNewRoom(map.regions, map.walls, buildRoomFromDraft('quarto', ['q0', 'q1', 'q2', 'q3'], { x: 576, y: 256 }, { x: 640, y: 320 }), null)
+    map = addRoom(map, quarto.region, quarto.walls)
+    const girado = girarPor(map, [30, 60], 'casa')
+    tudoNaGrade(girado, 'casa 3x4 com quarto')
+    expect(sala(girado, 'quarto').room?.rotation).toBe(90)
+  })
+
+  it('sala em L com os cantos na grade: 30° e depois 60° fica na grade, e a volta é exata', () => {
+    const pontos = [
+      { x: 576, y: 256 }, { x: 768, y: 256 }, { x: 768, y: 320 },
+      { x: 640, y: 320 }, { x: 640, y: 448 }, { x: 576, y: 448 },
+    ]
+    const emL: Region = { id: 'l', points: pontos, tag: '', fillColor: '#000', fillPattern: 'solid', data: {}, room: { shape: 'polygon', name: 'L' } }
+    const antes = addRoom(createEmptyMap('m', 'M', 30, 20, 64), emL, [])
+    const girado = girarPor(antes, [30, 60], 'l')
+    tudoNaGrade(girado, 'L')
+    expect(girarPor(girado, [-60, -30], 'l')).toEqual(antes)
+  })
+
+  /** Tetraminó em L: centróide a 3/4 de casa, então a meia volta em volta dele sai da grade. */
+  function tetraminoL(): MapData {
+    const emL: Region = {
+      id: 'sala',
+      points: [
+        { x: 576, y: 256 }, { x: 640, y: 256 }, { x: 640, y: 384 },
+        { x: 704, y: 384 }, { x: 704, y: 448 }, { x: 576, y: 448 },
+      ],
+      tag: '', fillColor: '#000', fillPattern: 'solid', data: {}, room: { shape: 'polygon', name: 'L' },
+    }
+    return addRoom(createEmptyMap('m', 'M', 30, 20, 64), emL, [])
+  }
+
+  /** Leva a sala a cada ângulo da lista pelo caminho curto, como o campo faz. */
+  const irPara = (map: MapData, angulos: number[]): MapData =>
+    angulos.reduce((m, alvo) => rotateRegion(m, 'sala', rotationDelta(roomRotationOf(sala(m).room), alvo)), map)
+
+  it('o L chega pelo ângulo livre a +90°, −90° ou 180° onde o botão poria; o retângulo, a +90° vindo de 0°', () => {
+    const caminhos = [
+      { passos: [30, 60], botao: 90 },
+      { passos: [-30, -60], botao: -90 },
+      { passos: [30, 150], botao: 180 },
+      { passos: [-30, -150], botao: 180 },
+    ]
+    for (const { passos, botao } of caminhos) {
+      expect(sala(girarPor(tetraminoL(), passos)).points, `L por ${passos.join(', ')}`).toEqual(sala(rotateRegion(tetraminoL(), 'sala', botao)).points)
+    }
+    for (const antes of [salaDe(3, 4), salaDe(4, 3), salaDe(2, 5)]) {
+      expect(sala(girarPor(antes, [30, 60])).points).toEqual(sala(rotateRegion(antes, 'sala', 90)).points)
+      expect(sala(girarPor(antes, [30, 150])).points).toEqual(sala(rotateRegion(antes, 'sala', 180)).points)
+    }
+  })
+
+  it('ida e volta por ângulo livre é exata de qualquer quarto de volta a qualquer outro, por qualquer lado', () => {
+    const livres = [-150, -120, -60, -30, 30, 60, 120, 150]
+    const quartos = [0, 90, -90, 180]
+    const formas = [salaDe(3, 4), salaDe(4, 3), salaDe(1, 2), salaDe(2, 5), salaDe(3, 3), tetraminoL()]
+    for (const [f, forma] of formas.entries()) {
+      for (const partida of quartos) {
+        const antes = rotateRegion(forma, 'sala', partida)
+        for (const chegada of quartos.filter((q) => q !== partida)) {
+          for (const ida of livres) {
+            for (const volta of livres) {
+              const quando = `forma ${f}: ${partida} → ${ida} → ${chegada} → ${volta} → ${partida}`
+              const la = irPara(antes, [ida, chegada])
+              tudoNaGrade(la, quando)
+              expect(irPara(la, [volta, partida]), quando).toEqual(antes)
+            }
+          }
+        }
+      }
+    }
+  })
+
+  it('sala desenhada fora da grade do mapa (Alt), com lados de casas inteiras: não é puxada para a grade, e a ida e volta é exata', () => {
+    const { region, walls } = buildRoomFromDraft('sala', ['w0', 'w1', 'w2', 'w3'], { x: 10, y: 10 }, { x: 202, y: 266 })
+    const deslocada = addRoom(createEmptyMap('m', 'M', 30, 20, 64), region, walls)
+    expect(girarPor(deslocada, [30, -30])).toEqual(deslocada)
+    expect(girarPor(deslocada, [30, 60, -60, -30])).toEqual(deslocada)
+    const antes = roomCentroid(sala(deslocada).points)
+    const depois = roomCentroid(sala(girarPor(deslocada, [30, 60])).points)
+    expect(depois.x).toBeCloseTo(antes.x, 9)
+    expect(depois.y).toBeCloseTo(antes.y, 9)
+  })
+
+  it('sala com lado fora da grade (200 x 150) segue girando em volta do centro, como antes', () => {
+    const { region, walls } = buildRoomFromDraft('sala', ['w0', 'w1', 'w2', 'w3'], { x: 576, y: 256 }, { x: 776, y: 406 })
+    const torta = addRoom(createEmptyMap('m', 'M', 30, 20, 64), region, walls)
+    const antes = roomCentroid(sala(torta).points)
+    const depois = roomCentroid(sala(girarPor(torta, [30, 60])).points)
+    expect(depois.x).toBeCloseTo(antes.x, 9)
+    expect(depois.y).toBeCloseTo(antes.y, 9)
+  })
+
+  it('grade hexagonal não tem linha reta para alinhar: o giro segue em volta do centro', () => {
+    const hex: MapData = { ...salaDe(3, 4), gridShape: 'hex' }
+    const antes = roomCentroid(sala(hex).points)
+    expect(roomCentroid(sala(girarPor(hex, [30, 60])).points)).toEqual(antes)
   })
 })

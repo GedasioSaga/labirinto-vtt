@@ -255,6 +255,90 @@ function ganhaDe(
   return novo.flanco > atual.flanco + FOLGA_DO_EMPATE
 }
 
+/** O ângulo é um quarto de volta (0°, ±90°, 180°)? */
+export function isQuarterAngle(degrees: number): boolean {
+  const angulo = normalizeRotation(degrees)
+  return angulo === 0 || angulo === 90 || angulo === -90 || angulo === 180
+}
+
+/**
+ * Quanto deslocar uma sala que CHEGOU a um quarto de volta vindo de um ângulo
+ * livre (a 30°, o campo pede 90°; ou o segundo arrasto da alça) para os
+ * cantos caírem na grade do mapa.
+ *
+ * O giro por ângulo livre é sempre em volta do centróide, e giros seguidos em
+ * volta do mesmo ponto somam um só: 0° → 30° → 90° dá o mesmo que +90° em
+ * volta do centro — numa sala 3 x 4, meia casa fora da grade nos dois eixos
+ * (numa sala em L, qualquer fração). `rotationPivot` não resolve: o giro que
+ * falta não é um quarto de volta, e o canto 0 da sala torta já não diz onde a
+ * grade estava. A referência passa a ser a grade do mapa, múltiplos de `grid`
+ * a partir da origem — a mesma do ímã do desenho (`snapToGrid`).
+ *
+ * Desfaz o giro do trecho (um quarto de volta em volta do centro, o pivô de
+ * todo giro livre) para achar a sala de partida com os cantos na grade, e
+ * desloca a sala até onde o botão daria o mesmo giro a partir dela
+ * (`rotationPivot`): numa sala em L, 0° → 30° → 90° cai onde o botão +90°
+ * poria, e a ida e volta (0° → 30° → 90° → 30° → 0°, ou por meia volta) é
+ * exata porque a do botão é.
+ *
+ * Com o centro no meio de uma aresta da grade (retângulo 3 x 4, 1 x 2), o
+ * quarto de volta deixa todos os cantos a meia casa nos dois eixos, e desfazer
+ * +90° ou −90° dá cantos na grade: os pontos não dizem de onde a sala saiu, e
+ * o ângulo livre do meio do caminho também não (0° → −30° → 90° e
+ * 180° → 150° → 90° passam do mesmo lado). Aí vale uma regra que não depende
+ * do caminho: a 0° ou 180° a sala anda meia casa para a direita e para baixo,
+ * a ±90° para a esquerda e para cima.
+ * Esse trecho é sempre de ±90° e o da volta cai no mesmo caso, com a partida
+ * do outro par de ângulos — então a volta desfaz a ida. A 90° vindo de 0°,
+ * fica onde o botão +90° poria.
+ *
+ * A sala desenhada fora da grade (Alt) não tem partida na grade: fica onde o
+ * giro a deixou e volta exatamente aonde estava. Os pontos não guardam de onde
+ * o trecho saiu: a sala fora da grade que, desfeito algum quarto de volta em
+ * volta do centro, cai nela é tratada como vinda da grade e vai para ela (meia
+ * casa num retângulo; num L com o centro a 3/8 de casa, um quarto de casa num
+ * eixo só). Ângulo fora do quarto de
+ * volta, grade inválida, sala vazia, já na grade ou sem partida na grade (lado
+ * de 150 px numa grade de 64, canto em 10, 10): {0, 0}.
+ */
+export function quarterAngleGridShift(points: readonly RegionPoint[], roomRotation: number, grid: number): Ponto {
+  const nada = { x: 0, y: 0 }
+  if (!isQuarterAngle(roomRotation)) return nada
+  if (!Number.isFinite(grid) || grid <= 0 || points.length === 0) return nada
+  if (cantosNaGrade(points, grid)) return nada
+  const partidas = partidasNaGrade(points, roomRotation, grid)
+  if (partidas.length === 0) return nada
+  if (partidas.length > 1) {
+    const angulo = normalizeRotation(roomRotation)
+    const meia = angulo === 0 || angulo === 180 ? grid / 2 : -grid / 2
+    return { x: Math.round((points[0].x + meia) / grid) * grid - points[0].x, y: Math.round((points[0].y + meia) / grid) * grid - points[0].y }
+  }
+  const [partida] = partidas
+  const pivo = rotationPivot(partida.points, partida.angulo, partida.giro, grid)
+  const pelo = rotatePointAround(partida.points[0], pivo, rotationTrig(partida.giro))
+  // O canto do botão está na grade (`rotationPivot`): arredondar só tira o ruído da conta.
+  return { x: Math.round(pelo.x / grid) * grid - points[0].x, y: Math.round(pelo.y / grid) * grid - points[0].y }
+}
+
+function cantosNaGrade(points: readonly RegionPoint[], grid: number): boolean {
+  return points.every((p) => ehMultiplo(p.x, grid) && ehMultiplo(p.y, grid))
+}
+
+/**
+ * As salas de onde o trecho pode ter saído: cada quarto de volta em volta do
+ * centro que põe os cantos na grade, com o ângulo em que ela estava e o giro
+ * até agora. A de verdade está sempre entre elas; mais de uma só acontece com
+ * +90° e −90° juntos (centro no meio de uma aresta da grade).
+ */
+function partidasNaGrade(points: readonly RegionPoint[], roomRotation: number, grid: number): { points: RegionPoint[]; angulo: number; giro: number }[] {
+  const centro = roomCentroid(points)
+  return [90, -90, 180].flatMap((desfaz) => {
+    const candidata = points.map((p) => rotatePointAround(p, centro, rotationTrig(desfaz)))
+    if (!cantosNaGrade(candidata, grid)) return []
+    return [{ points: candidata, angulo: normalizeRotation(roomRotation + desfaz), giro: normalizeRotation(-desfaz) }]
+  })
+}
+
 /**
  * Direção de `point` vista do pivô, em graus. Com y para baixo, crescer é
  * andar no sentido horário — o mesmo sinal do giro, então a diferença entre

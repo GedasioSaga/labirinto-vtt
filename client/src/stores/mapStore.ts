@@ -20,6 +20,7 @@ import * as mapFactory from '../lib/mapFactory'
 import { abrirVaoDosDoisLados, desabarParede as desabarParedeNoMapa, type CorteNaParede } from '../lib/abrirVao'
 import { comEscadaNosPisos, comFichaNoPiso, comSelecaoNoPiso, ehPiso, mapaDoPiso, nascemNoPiso, pisoDe } from '../lib/pisos'
 import { apagarBlocosNoPiso, pinoNoPiso, selecaoNoPiso } from '../lib/pisoEmEdicao'
+import { linkDrawnWallToRoom } from '../lib/roomLink'
 import { amarrarAoEstado as amarrarNoMapa, type AmarraDeEstado } from '../lib/estadoDoMundo'
 import { comRotina } from '../lib/rotinaDoNpc'
 // Onda 3, item 13 (Frente A) — clonagem pura por tipo de entidade, usada por
@@ -1241,7 +1242,7 @@ function cloneSelectionInto(
     const cloned = cloneSelectedEntity(source, item, offset)
     if (!cloned) continue
     const named = keepRoomNames ? withSourceRoomName(cloned, source, item.id) : cloned
-    next = addClonedEntity(next, withoutMissingParent(named, next))
+    next = addClonedEntity(next, withoutMissingParent(withSourceFloorColor(named, source, next), next))
     if (cloned.kind === 'region') {
       sources[cloned.entity.id] = item.id
       const inner = cloneRoomDescendants(source.regions, source.walls, item.id, cloned.entity.id, offset)
@@ -1263,6 +1264,22 @@ function withSourceRoomName(cloned: CloneableEntity, source: MapData, sourceId: 
   const original = source.regions.find((r) => r.id === sourceId)?.room
   if (original === undefined) return cloned
   return { kind: 'region', entity: { ...cloned.entity, room: { ...cloned.entity.room, name: original.name } } }
+}
+
+/**
+ * Pedaço de chão sem cor própria pinta com a cor do chão do MAPA
+ * (`floorStyle.fillColor`, ver drawFloor). Colado numa cena de chão de outra
+ * cor, ele trocaria de cor sozinho — então leva a cor de onde veio. Buraco
+ * (`subtract`) não pinta nada e fica como está. No MESMO mapa não fixa nada:
+ * `source` é o mapa da hora do Ctrl+C, e a cor do chão trocada depois vale
+ * para o pedaço colado como vale para o resto do chão.
+ */
+function withSourceFloorColor(cloned: CloneableEntity, source: MapData, target: MapData): CloneableEntity {
+  if (source.id === target.id) return cloned
+  if (cloned.kind !== 'floor' || cloned.entity.op !== 'add' || cloned.entity.fillColor !== undefined) return cloned
+  const color = source.floorStyle.fillColor
+  if (color === target.floorStyle.fillColor) return cloned
+  return { kind: 'floor', entity: { ...cloned.entity, fillColor: color } }
 }
 
 /**
@@ -1636,7 +1653,9 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
       if (replacements.length === 1 && replacements[0] === drawing) return
       withHistory((m) => mapFactory.replaceDrawingWithMany(m, drawingId, replacements))
     },
-    addWall: (wall) => withHistory((map) => mapFactory.addWall(map, wall)),
+    // Trecho desenhado sobre o lado de uma Sala do piso em edição vira parede
+    // dela (parede parcial); a Sala de outro piso, ali embaixo, não conta.
+    addWall: (wall) => withHistory((map) => mapFactory.addWall(map, linkDrawnWallToRoom(mapaDoPiso(map, get().pisoAtivo).regions, wall))),
     removeWall: (id) => withHistory((map) => mapFactory.removeWall(map, id)),
     addLight: (light) => withHistory((map) => mapFactory.addLight(map, light)),
     removeLight: (id) => withHistory((map) => mapFactory.removeLight(map, id)),

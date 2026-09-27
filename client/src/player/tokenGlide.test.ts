@@ -83,6 +83,46 @@ describe('deslize da ficha na tela do jogador', () => {
     expect(stepGlides(glides, 10)).toEqual([])
   })
 
+  it('passos seguidos (rotina do NPC andando): a ficha anda em velocidade constante, sem frear e arrancar a cada passo', () => {
+    // A rotina manda um passo curto a cada tique; cada um chega antes do deslize anterior terminar.
+    const glides = createTokenGlides()
+    const PASSO_PX = 20
+    const TIQUE_MS = 200
+    const QUADRO_MS = 16
+    // O passo chega pela rede entre um quadro e outro, não no quadro.
+    const ATRASO_MS = 5
+    const passos = 6
+    let shown = { x: 0, y: 0 }
+    let chegados = 0
+    const velocidades: number[] = []
+    for (let t = 0; t <= passos * TIQUE_MS + TOKEN_GLIDE_MS; t += QUADRO_MS) {
+      // O que estava na tela no quadro anterior: a velocidade que o jogador vê é de quadro a quadro.
+      const anterior = shown
+      // Redraw de cada passo que chegou desde o quadro anterior, no instante em que chegou.
+      while (chegados < passos && chegados * TIQUE_MS + ATRASO_MS <= t) {
+        chegados += 1
+        shown = syncGlide(glides, 'tobias', { shown, target: { x: chegados * PASSO_PX, y: 0 }, now: (chegados - 1) * TIQUE_MS + ATRASO_MS, animate: true })
+      }
+      const quadro = stepGlides(glides, t).find((q) => q.id === 'tobias') ?? shown
+      // Do segundo passo ao último: o trecho em que a ficha deveria só andar.
+      if (t >= TIQUE_MS + QUADRO_MS && t < (passos - 1) * TIQUE_MS) velocidades.push((quadro.x - anterior.x) / QUADRO_MS)
+      shown = { x: quadro.x, y: quadro.y }
+    }
+    expect(shown).toEqual({ x: passos * PASSO_PX, y: 0 })
+    // Nunca para no meio do caminho...
+    expect(Math.min(...velocidades)).toBeGreaterThan(0)
+    // ...e não dá tranco: a mais rápida não passa de 1,5x a mais lenta.
+    expect(Math.max(...velocidades) / Math.min(...velocidades)).toBeLessThan(1.5)
+  })
+
+  it('movimento solto (um só) continua saindo rápido e assentando devagar', () => {
+    const glides = createTokenGlides()
+    syncGlide(glides, 'tok-bruno', { shown: ORIGEM, target: DESTINO, now: 0, animate: true })
+    const inicio = stepGlides(glides, 24)[0].x - ORIGEM.x
+    const fim = DESTINO.x - stepGlides(glides, TOKEN_GLIDE_MS - 24)[0].x
+    expect(inicio).toBeGreaterThan(fim * 2)
+  })
+
   it('cada ficha desliza por conta própria', () => {
     const glides = createTokenGlides()
     syncGlide(glides, 'a', { shown: { x: 0, y: 0 }, target: { x: 100, y: 0 }, now: 0, animate: true })

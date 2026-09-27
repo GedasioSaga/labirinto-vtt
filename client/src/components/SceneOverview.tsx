@@ -50,10 +50,10 @@ function viewBoxOf(frame: ArtFrame): string {
 /**
  * O mapa da cena em miniatura. `memo` pelo `MapData`: a store é imutável, então
  * a miniatura só redesenha quando AQUELA cena muda — uma ficha andando no
- * Salão não redesenha a Cripta.
+ * Salão não redesenha a Cripta. `piso`: o andar que o editor mostra dela.
  */
-const SceneThumbnail = memo(function SceneThumbnail({ map }: { map: MapData }) {
-  const art = useMemo(() => sceneArt(map), [map])
+const SceneThumbnail = memo(function SceneThumbnail({ map, piso }: { map: MapData; piso: number }) {
+  const art = useMemo(() => sceneArt(map, piso), [map, piso])
   if (art === null) return <span className="lb-visao__falta">Mapa sem área para mostrar</span>
   const fundo = art.mapRect ?? art.frame
   return (
@@ -166,6 +166,12 @@ export interface SceneOverviewDialogProps {
   scenes: readonly SceneListItem[]
   /** O mapa de cada cena que abriu (`sceneMaps`, adventureStore.ts), pelo id da lista. */
   maps: ReadonlyMap<string, MapData>
+  /**
+   * PISOS NA MESMA CENA: o piso em edição na cena aberta — a miniatura dela
+   * mostra esse andar. As outras mostram o térreo, onde abrem (`loadMap`
+   * volta o editor ao piso 0). Ausente = térreo.
+   */
+  pisoAberto?: number
   /** Clique numa miniatura. Quem chama troca de cena (ou não, se já é a aberta) e fecha. */
   onPick: (sceneId: string) => void
   onClose: () => void
@@ -180,7 +186,7 @@ export interface SceneOverviewDialogProps {
  * Janela modal por portal no `body`, como "Configurações do mapa": o painel
  * lateral usa `backdrop-filter`, que prenderia a janela na coluna de 264 px.
  */
-export function SceneOverviewDialog({ scenes, maps, onPick, onClose }: SceneOverviewDialogProps) {
+export function SceneOverviewDialog({ scenes, maps, pisoAberto = 0, onPick, onClose }: SceneOverviewDialogProps) {
   const titleId = useId()
   const hintId = useId()
   const dialogRef = useRef<HTMLDivElement>(null)
@@ -283,7 +289,7 @@ export function SceneOverviewDialog({ scenes, maps, onPick, onClose }: SceneOver
                     {!scene.available ? (
                       <span className="lb-visao__falta">Arquivo não encontrado</span>
                     ) : map ? (
-                      <SceneThumbnail map={map} />
+                      <SceneThumbnail map={map} piso={scene.active ? pisoAberto : 0} />
                     ) : (
                       <span className="lb-visao__falta">Sem prévia</span>
                     )}

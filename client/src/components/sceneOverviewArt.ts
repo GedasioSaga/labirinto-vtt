@@ -2,6 +2,7 @@ import type { FloorPiece, MapData, Wall } from '../types/map'
 import { buildFloorOutline, type FloorPolygon } from '../lib/floorContour'
 import { isHidden } from '../lib/itemTransform'
 import { isLayerVisible, visibleRegions, visibleTokens, visibleWalls } from '../lib/layers'
+import { mapaDoPiso } from '../lib/pisos'
 import { tokenFillColor } from '../lib/tokenColor'
 import { DOOR_COLOR, DOOR_LENGTH_RATIO, DOOR_LOCKED_COLOR } from '../pixi/drawDoors'
 import { buildColorLayers, type FloorColorLayer } from '../pixi/drawFloor'
@@ -243,8 +244,14 @@ function doorPath(wall: Wall, thickness: number): string {
  * A miniatura de `map`, ou `null` quando não há o que desenhar (mapa sem
  * dimensão válida e sem nada dentro). Respeita as camadas ocultas do editor:
  * a miniatura mostra o que o mestre veria ao abrir a cena.
+ *
+ * PISOS NA MESMA CENA: o editor mostra um piso por vez, então a miniatura
+ * também — `piso` (o térreo, onde a cena abre, por padrão). Sem o recorte, as
+ * paredes e as fichas de dois andares saíam sobrepostas num desenho que não
+ * existe em tela nenhuma. Cena de um piso só: `mapaDoPiso` devolve o mesmo mapa.
  */
-export function sceneArt(map: MapData): SceneArt | null {
+export function sceneArt(scene: MapData, piso = 0): SceneArt | null {
+  const map = mapaDoPiso(scene, piso)
   const hidden = map.hiddenLayers
   const bounds = mapBoundsRect(map)
   const mapRect = bounds ? { x: bounds.minX, y: bounds.minY, width: bounds.maxX - bounds.minX, height: bounds.maxY - bounds.minY } : null

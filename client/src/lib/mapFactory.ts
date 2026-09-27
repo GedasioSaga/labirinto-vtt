@@ -10,8 +10,8 @@ import { simplifyPolygon, chaikinSmooth } from './regionSmoothing'
 import { edgesCoveredByParent, findContainingRoom, insertIndexAfterSubtree, pointOnPolygonBorder, subtreeIds } from './roomNesting'
 import { isAxisAlignedRect, rectCornerShift, resizeRoomCorner, resizeRoomDimensions as resizeRoomDimensionsPoints, type RoomCorner } from './roomOps'
 import {
-  normalizeRotation, roomCentroid, roomRotationOf, rotatePointAround, rotateVector, rotationDelta, rotationPivot, rotationTrig,
-  withoutRotationNoise, type RotationTrig,
+  isQuarterAngle, normalizeRotation, quarterAngleGridShift, roomCentroid, roomRotationOf, rotatePointAround, rotateVector, rotationDelta,
+  rotationPivot, rotationTrig, withoutRotationNoise, type RotationTrig,
 } from './roomRotation'
 import { defaultMeasurementModeForShape } from './measurement'
 import { faceRangeCellsOrNull } from './tokenVulto'
@@ -543,7 +543,9 @@ export type PivoDoGiro = 'grade' | 'centro'
  * `moveRegion`. Giro nulo (0°, 360°) ou região inexistente devolve `map` pela
  * mesma referência, para `commitDragHistory` não gravar entrada vazia.
  *
- * `pivo`: `'grade'` (botão, campo) usa `rotationPivot`; `'centro'` (cada
+ * `pivo`: `'grade'` (botão, campo) usa `rotationPivot`, e a sala que sai de
+ * um ângulo livre e chega a um quarto de volta (o campo de 30° para 90°) vai
+ * para a grade do mapa (`landOnGridAtQuarterAngle`); `'centro'` (cada
  * quadro do arrasto) gira sempre em volta do centróide, mesmo num passo de
  * exatos 90° — senão o passo de volta do Esc e o `alignQuarterTurnToGrid` do
  * soltar, que contam com o centro parado, deixam a sala fora do lugar.
@@ -553,10 +555,11 @@ export function rotateRegion(map: MapData, regionId: string, degrees: number, pi
   const turn = normalizeRotation(degrees)
   if (!region || turn === 0 || region.points.length === 0) return map
 
+  const anguloAntes = roomRotationOf(region.room)
   const trig = rotationTrig(turn)
   const pivot = pivo === 'centro'
     ? roomCentroid(region.points)
-    : rotationPivot(region.points, roomRotationOf(region.room), turn, map.grid)
+    : rotationPivot(region.points, anguloAntes, turn, map.grid)
   const ids = subtreeIds(map.regions, regionId)
   const vertexCount = new Map<string, number>()
   let walls = map.walls
@@ -567,7 +570,7 @@ export function rotateRegion(map: MapData, regionId: string, degrees: number, pi
     walls = syncLinkedWallsToPoints(walls, r.id, r.points, points)
     return r.room ? { ...r, points, room: rotateRoomMeta(r.room, turn, trig) } : { ...r, points }
   })
-  return {
+  const girado: MapData = {
     ...map,
     regions,
     walls: walls.map((wall) => {
@@ -578,6 +581,32 @@ export function rotateRegion(map: MapData, regionId: string, degrees: number, pi
       return rotateWallAround(wall, pivot, trig)
     }),
   }
+  return pivo === 'grade' && !isQuarterAngle(anguloAntes) ? landOnGridAtQuarterAngle(girado, regionId) : girado
+}
+
+/**
+ * A sala saiu de um ângulo livre: se chegou a um quarto de volta e tinha saído
+ * da grade do mapa (a desenhada fora dela com Alt fica onde está), desloca a
+ * subárvore de volta à grade (`quarterAngleGridShift`) e tira o ruído de
+ * conta que o giro deixou — numa
+ * sala em L o centróide não cai em meia casa, e o canto chega a
+ * 716.7999999999996. Só na grade quadrada: hex e triângulo não têm linha reta
+ * para alinhar. Nada a deslocar devolve `map` pela mesma referência.
+ */
+function landOnGridAtQuarterAngle(map: MapData, regionId: string): MapData {
+  const region = map.regions.find((r) => r.id === regionId)
+  if (!region || map.gridShape !== 'square') return map
+  const desvio = quarterAngleGridShift(region.points, roomRotationOf(region.room), map.grid)
+  if (desvio.x === 0 && desvio.y === 0) return map
+  const movido = moveRegion(map, regionId, desvio.x, desvio.y)
+  const ids = subtreeIds(movido.regions, regionId)
+  return {
+    ...movido,
+    regions: movido.regions.map((r) =>
+      ids.has(r.id) ? { ...r, points: r.points.map((p) => ({ x: withoutRotationNoise(p.x), y: withoutRotationNoise(p.y) })) } : r,
+    ),
+    walls: movido.walls.map((w) => (w.regionId !== undefined && ids.has(w.regionId) ? wallWithoutRotationNoise(w) : w)),
+  }
 }
 
 /**
@@ -587,6 +616,9 @@ export function rotateRegion(map: MapData, regionId: string, degrees: number, pi
  * deixa — numa sala 3 x 4, a meia casa da grade. Girar em volta de outro pivô
  * é o mesmo giro mais um deslocamento, então basta deslocar a subárvore pelo
  * que falta para ela ficar onde o botão +90° a poria (`rotationPivot`).
+ * Arrasto que começou num ângulo livre e soltou num quarto de volta (a 30°,
+ * arrastada até 90°) vai para a grade do mapa, como o campo
+ * (`landOnGridAtQuarterAngle`).
  * `before` é o mapa de antes do gesto; sem quarto de volta, ou com a sala já
  * no lugar, devolve `map` pela mesma referência.
  */
@@ -595,6 +627,7 @@ export function alignQuarterTurnToGrid(map: MapData, regionId: string, before: M
   const agora = map.regions.find((r) => r.id === regionId)
   if (!antes || !agora || antes.points.length === 0) return map
   const anguloAntes = roomRotationOf(antes.room)
+  if (!isQuarterAngle(anguloAntes)) return landOnGridAtQuarterAngle(map, regionId)
   const turn = rotationDelta(anguloAntes, roomRotationOf(agora.room))
   if (turn !== 90 && turn !== -90 && turn !== 180) return map
   const centro = roomCentroid(antes.points)

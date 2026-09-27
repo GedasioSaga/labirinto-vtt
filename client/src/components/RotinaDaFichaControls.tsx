@@ -22,6 +22,10 @@ export interface RotinaDaFichaControlsProps {
   cenaAberta: string
   /** A rotina nova; `undefined` tira a rotina da ficha. */
   onChange: (rotina: RotinaDoNpc | undefined) => void
+  /** A ficha está andando sozinha de posto em posto (`useRotinaAndandoStore`). */
+  andando?: boolean
+  /** Liga (`true`) ou desliga a rotina andando; sem ele, o botão não aparece. */
+  onAndar?: (ligar: boolean) => void
 }
 
 /** "Confessionário 77" — ou "esta cena", que é o que o mestre olha agora. */
@@ -42,8 +46,11 @@ function ondeFica(posto: PostoDaRotina, cenas: RotinaDaFichaControlsProps['cenas
  * de opcional do Figma UI3): "Rotina por" à esquerda e a lista à direita, como
  * "Vai junto de"; sem estado na aventura, a linha fica apagada e diz o que
  * falta no lugar da lista. Com rotina, os turnos aparecem embaixo da linha.
+ *
+ * "Andar sozinha" vira a rotina em macro: a ficha anda de posto em posto, na
+ * ordem dos turnos, passo a passo e em loop, até o mestre tocar "Parar".
  */
-export function RotinaDaFichaControls({ token, estados, cenas, cenaAberta, onChange }: RotinaDaFichaControlsProps) {
+export function RotinaDaFichaControls({ token, estados, cenas, cenaAberta, onChange, andando = false, onAndar }: RotinaDaFichaControlsProps) {
   const baseId = useId()
   const rotina = token.rotina
   if (estados.length === 0 && rotina === undefined) {
@@ -130,6 +137,19 @@ export function RotinaDaFichaControls({ token, estados, cenas, cenaAberta, onCha
               )
             })}
           </ul>
+          {onAndar !== undefined && (
+            <button
+              type="button"
+              className="lb-btn lb-btn--ghost lb-rotina__andar"
+              aria-label="Andar sozinha"
+              aria-pressed={andando}
+              // Sem posto gravado não há para onde andar.
+              disabled={rotina.postos.length === 0}
+              onClick={() => onAndar(!andando)}
+            >
+              {andando ? 'Parar' : 'Andar sozinha'}
+            </button>
+          )}
         </div>
       )}
     </section>

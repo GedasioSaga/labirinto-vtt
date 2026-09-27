@@ -18,7 +18,7 @@ import { isTokenPhotoData, tokenPhotoRef } from './tokenPhoto'
  * em vez de reinventar os três.
  *
  * O que fica no disco:
- *   <appData>/tokens/acervo.json          índice: id, nome, tamanho, arquivo
+ *   <appData>/tokens/acervo.json          índice: pastas + itens (id, nome, tamanho, arquivo, pasta)
  *   <appData>/tokens/token_<id>*.png|webp a foto, pelo pipeline de imageImport
  *
  * A imagem passa por `importTokenImage` (o MESMO importador de "Escolher
@@ -47,8 +47,12 @@ const ARQUIVO_DO_INDICE = 'acervo.json'
 const ARQUIVO_INVALIDO = 'acervo.json.invalido'
 /** Cópia do índice tirada antes de CADA gravação — ver `guardarIndiceAnterior`. */
 const ARQUIVO_ANTERIOR = 'acervo.json.anterior'
-/** Versão do formato do índice; `acervo.json` de versão futura é lido como os campos que conhecemos. */
-const VERSAO_DO_INDICE = 1
+/**
+ * Versão do formato do índice; `acervo.json` de versão futura é lido como os
+ * campos que conhecemos. A 2 (26/09/2026) trouxe as pastas; índice da 1 abre
+ * com as pastas padrão e todo item fora de pasta.
+ */
+const VERSAO_DO_INDICE = 2
 
 /** Item como ele fica GRAVADO no `acervo.json`. */
 export interface ItemDoAcervo {
@@ -69,11 +73,32 @@ export interface ItemDoAcervo {
    * abrindo: `caminhoDaImagem` reconhece os dois formatos.
    */
   arquivo: string
+  /**
+   * `id` da pasta onde o token mora, ou `null` quando ele está fora de pasta.
+   * Pasta que não existe mais no índice é lida como `null`: o token volta para
+   * fora de pasta em vez de sumir da tela dentro de um grupo que ninguém vê.
+   */
+  pasta: string | null
+}
+
+/**
+ * Pasta da estante — NPCs, Veículos, Jogadores e as que o mestre criar.
+ *
+ * Mora no MESMO `acervo.json` dos itens, e não num arquivo à parte: um índice
+ * só é uma gravação só, então não existe o meio-termo "a pasta foi apagada mas
+ * os tokens ainda apontam para ela" depois de uma queda de luz.
+ */
+export interface PastaDoAcervo {
+  id: string
+  nome: string
+  /** Recolhida no painel. Fica gravada: o mestre reabre a estante do jeito que deixou. */
+  recolhida: boolean
 }
 
 /** O que `itensDoIndice` extrai do texto: o que ele entende, e o que ele preserva sem entender. */
 export interface IndiceLido {
   itens: ItemDoAcervo[]
+  pastas: PastaDoAcervo[]
   /** Itens que este código não reconhece e regrava intactos — ver `itensDoIndice`. */
   ignorados: unknown[]
 }
@@ -112,13 +137,49 @@ export interface AcervoCarregado {
    * único caminho possível.
    */
   lido: boolean
+  pastas: PastaDoAcervo[]
   /** Itens do índice que este código não reconhece; voltam intactos na gravação. */
   ignorados: unknown[]
 }
 
+/** Pasta como ela fica no disco: `recolhida` só aparece quando é verdade. */
+interface PastaGravada {
+  id: string
+  nome: string
+  recolhida?: true
+}
+
+/** Item como ele fica no disco: `pasta` só aparece quando o token está numa. */
+type ItemGravado = Omit<ItemDoAcervo, 'pasta'> & { pasta?: string }
+
 interface IndiceGravado {
   versao: number
-  itens: ItemDoAcervo[]
+  pastas?: PastaGravada[]
+  itens: ItemGravado[]
+}
+
+/**
+ * As pastas com que toda estante nasce (pedido do usuário, 26/09/2026). Os
+ * `id`s são fixos e legíveis para o `acervo.json` continuar dando para
+ * consertar à mão; as pastas que o mestre cria ganham `id` aleatório.
+ */
+const PASTAS_PADRAO: readonly PastaDoAcervo[] = [
+  { id: 'npcs', nome: 'NPCs', recolhida: false },
+  { id: 'veiculos', nome: 'Veículos', recolhida: false },
+  { id: 'jogadores', nome: 'Jogadores', recolhida: false },
+]
+
+function pastasPadrao(): PastaDoAcervo[] {
+  return PASTAS_PADRAO.map((pasta) => ({ ...pasta }))
+}
+
+/**
+ * A pasta é uma das três com que a estante nasce? Pelo `id`, nunca pelo nome:
+ * o mestre pode criar a sua "NPCs" (que vira "NPCs (2)"), e o `id` dela é
+ * aleatório (`criarPastaNoAcervo`).
+ */
+export function ehPastaPadrao(pasta: PastaDoAcervo): boolean {
+  return PASTAS_PADRAO.some((padrao) => padrao.id === pasta.id)
 }
 
 /** Começo de TODO aviso desta tela: o usuário reconhece o assunto na primeira linha. */
@@ -162,15 +223,39 @@ function falha(acao: string, causa: unknown): Error {
   return new Error(`${acao}: ${motivoEmPortugues(causa)}`)
 }
 
-/** Item do JSON que tem os quatro campos, com o tipo certo em cada um. */
-function itemValido(valor: ItemDoAcervo | undefined): ItemDoAcervo | null {
+/**
+ * Item do JSON que tem os quatro campos, com o tipo certo em cada um. A pasta
+ * só vale se estiver em `pastas`; qualquer outra coisa é "fora de pasta".
+ */
+function itemValido(valor: ItemGravado | undefined, pastas: ReadonlySet<string>): ItemDoAcervo | null {
   if (!valor || typeof valor !== 'object') return null
-  const { id, nome, tamanho, arquivo } = valor
+  const { id, nome, tamanho, arquivo, pasta } = valor
   if (typeof id !== 'string' || id.length === 0) return null
   if (typeof nome !== 'string') return null
   if (typeof arquivo !== 'string' || arquivo.length === 0) return null
   const medida = typeof tamanho === 'number' && Number.isFinite(tamanho) && tamanho > 0 ? tamanho : 1
-  return { id, nome, tamanho: medida, arquivo }
+  return { id, nome, tamanho: medida, arquivo, pasta: typeof pasta === 'string' && pastas.has(pasta) ? pasta : null }
+}
+
+/**
+ * `pastas` do JSON → lista de pastas. Índice SEM o campo (o de antes das
+ * pastas) ganha as padrão; índice COM o campo vale como está — inclusive vazio,
+ * porque pasta padrão que o mestre apagou não pode voltar sozinha ao reabrir.
+ * Pasta sem `id` ou sem nome sai fora, e `id` repetido vale a primeira vez.
+ */
+function pastasValidas(valor: unknown): PastaDoAcervo[] {
+  if (!Array.isArray(valor)) return pastasPadrao()
+  const pastas: PastaDoAcervo[] = []
+  const vistos = new Set<string>()
+  for (const bruto of valor as Partial<PastaGravada>[]) {
+    if (!bruto || typeof bruto !== 'object') continue
+    const { id, nome, recolhida } = bruto
+    if (typeof id !== 'string' || id.length === 0 || vistos.has(id)) continue
+    if (typeof nome !== 'string') continue
+    vistos.add(id)
+    pastas.push({ id, nome, recolhida: recolhida === true })
+  }
+  return pastas
 }
 
 /**
@@ -187,10 +272,12 @@ export function itensDoIndice(texto: string): IndiceLido | null {
     return null
   }
   if (!lido || typeof lido !== 'object' || !Array.isArray(lido.itens)) return null
+  const pastas = pastasValidas(lido.pastas)
+  const idsDasPastas = new Set(pastas.map((pasta) => pasta.id))
   const itens: ItemDoAcervo[] = []
   const ignorados: unknown[] = []
   for (const bruto of lido.itens) {
-    const item = itemValido(bruto)
+    const item = itemValido(bruto, idsDasPastas)
     // Item quebrado sai fora sozinho; o resto do acervo continua abrindo, que
     // é o oposto de "perdi todos os meus NPCs por causa de uma linha". Mas ele
     // sai fora só da LISTA, não do arquivo: guardado aqui, volta inteiro na
@@ -200,11 +287,31 @@ export function itensDoIndice(texto: string): IndiceLido | null {
     if (item !== null) itens.push(item)
     else ignorados.push(bruto)
   }
-  return { itens, ignorados }
+  return { itens, pastas, ignorados }
 }
 
-function serializarIndice(itens: readonly ItemDoAcervo[], ignorados: readonly unknown[]): string {
-  const indice: IndiceGravado = { versao: VERSAO_DO_INDICE, itens: [...itens, ...(ignorados as ItemDoAcervo[])] }
+/** O que vai para o disco. Campo com valor "nenhum" fica de fora, para o arquivo seguir legível à mão. */
+function itemGravado({ pasta, ...resto }: ItemDoAcervo): ItemGravado {
+  return pasta === null ? resto : { ...resto, pasta }
+}
+
+function pastaGravada({ id, nome, recolhida }: PastaDoAcervo): PastaGravada {
+  return recolhida ? { id, nome, recolhida: true } : { id, nome }
+}
+
+/** O índice inteiro, do jeito que cada operação o regrava. */
+interface ConteudoDoIndice {
+  itens: readonly ItemDoAcervo[]
+  pastas: readonly PastaDoAcervo[]
+  ignorados: readonly unknown[]
+}
+
+function serializarIndice({ itens, pastas, ignorados }: ConteudoDoIndice): string {
+  const indice: IndiceGravado = {
+    versao: VERSAO_DO_INDICE,
+    pastas: pastas.map(pastaGravada),
+    itens: [...itens.map(itemGravado), ...(ignorados as ItemGravado[])],
+  }
   return JSON.stringify(indice, null, 2)
 }
 
@@ -220,16 +327,16 @@ export async function listarAcervo(): Promise<AcervoCarregado> {
     const caminho = await join(pasta, ARQUIVO_DO_INDICE)
     // Pasta ainda sem índice é a primeira execução, não uma leitura que falhou:
     // `lido` continua verdadeiro e o primeiro "Salvar no acervo" pode gravar.
-    if (!(await exists(caminho))) return { itens: [], aviso: null, lido: true, ignorados: [] }
+    if (!(await exists(caminho))) return { itens: [], aviso: null, lido: true, pastas: pastasPadrao(), ignorados: [] }
     texto = await readTextFile(caminho)
   } catch (erro) {
-    return { itens: [], aviso: `${AVISO}: ${motivoEmPortugues(erro)}.`, lido: false, ignorados: [] }
+    return { itens: [], aviso: `${AVISO}: ${motivoEmPortugues(erro)}.`, lido: false, pastas: [], ignorados: [] }
   }
 
   const indice = itensDoIndice(texto)
   if (indice === null) {
     await guardarIndiceInvalido(texto)
-    return { itens: [], aviso: AVISO_ILEGIVEL, lido: true, ignorados: [] }
+    return { itens: [], aviso: AVISO_ILEGIVEL, lido: true, pastas: pastasPadrao(), ignorados: [] }
   }
 
   const naTela: ItemDoAcervoNaTela[] = []
@@ -244,7 +351,7 @@ export async function listarAcervo(): Promise<AcervoCarregado> {
     }
     naTela.push({ ...item, imagemNoDisco, caminho })
   }
-  return { itens: naTela, aviso: null, lido: true, ignorados: indice.ignorados }
+  return { itens: naTela, aviso: null, lido: true, pastas: indice.pastas, ignorados: indice.ignorados }
 }
 
 /**
@@ -361,13 +468,16 @@ async function gravarTokenNoAcervo(
     throw falha('guardar a imagem do token no acervo', erro)
   }
 
+  // Token novo entra FORA de pasta: é onde o mestre procura o que acabou de
+  // guardar, e escolher a pasta por ele seria adivinhar.
   const item: ItemDoAcervo = {
     id,
     nome: uniqueMapName(nomeBase, acervo.itens.map((outro) => outro.nome)),
     tamanho,
     arquivo,
+    pasta: null,
   }
-  await gravarIndice([...acervo.itens.map(semCampoDeTela), item], 'guardar o token no acervo', acervo.ignorados)
+  await gravarIndice({ ...acervo, itens: [...acervo.itens.map(semCampoDeTela), item] }, 'guardar o token no acervo')
   return item
 }
 
@@ -411,17 +521,35 @@ function naFilaDoIndice<T>(operacao: () => Promise<T>): Promise<T> {
   return resultado
 }
 
-/** O que é resposta de agora (`imagemNoDisco`, `caminho`) não vira dado gravado. */
-function semCampoDeTela(item: ItemDoAcervoNaTela): ItemDoAcervo {
-  return { id: item.id, nome: item.nome, tamanho: item.tamanho, arquivo: item.arquivo }
+/**
+ * `listarAcervo` pela fila: a leitura só começa depois das gravações já pedidas.
+ *
+ * É a porta da TELA (`recarregar` da store). Fora da fila, a releitura podia ler
+ * o índice de antes de um movimento que ainda gravava e devolver o token para a
+ * pasta antiga na tela (achado em revisão, 27/09/2026). As operações daqui de
+ * dentro continuam chamando `listarAcervo` direto: elas já rodam NA fila, e
+ * esperar a própria fila seria esperar a si mesmas para sempre.
+ */
+export function listarAcervoNaFila(): Promise<AcervoCarregado> {
+  return naFilaDoIndice(listarAcervo)
 }
 
-async function gravarIndice(itens: readonly ItemDoAcervo[], acao: string, ignorados: readonly unknown[]): Promise<void> {
+/** O que é resposta de agora (`imagemNoDisco`, `caminho`) não vira dado gravado. */
+function semCampoDeTela(item: ItemDoAcervoNaTela): ItemDoAcervo {
+  return { id: item.id, nome: item.nome, tamanho: item.tamanho, arquivo: item.arquivo, pasta: item.pasta }
+}
+
+/**
+ * Regrava o índice INTEIRO — itens, pastas e ignorados. Quem chama passa o
+ * acervo que leu com a parte que mudou trocada: esquecer as pastas aqui era
+ * desfazer a organização do mestre no primeiro "Salvar no acervo".
+ */
+async function gravarIndice(conteudo: ConteudoDoIndice, acao: string): Promise<void> {
   try {
     const caminho = await caminhoDoIndice()
     await ensureDir(await pastaDoAcervo())
     await guardarIndiceAnterior(caminho)
-    await writeTextFileSafely(caminho, serializarIndice(itens, ignorados))
+    await writeTextFileSafely(caminho, serializarIndice(conteudo))
   } catch (erro) {
     throw falha(acao, erro)
   }
@@ -517,7 +645,7 @@ export async function apagarDoAcervo(id: string): Promise<void> {
     const acervo = await listarAcervo()
     exigirLeitura(acervo, 'apagar o token do acervo')
     const restantes = acervo.itens.filter((item) => item.id !== id)
-    await gravarIndice(restantes.map(semCampoDeTela), 'apagar o token do acervo', acervo.ignorados)
+    await gravarIndice({ ...acervo, itens: restantes.map(semCampoDeTela) }, 'apagar o token do acervo')
     return acervo.itens.find((item) => item.id === id)
   })
 
@@ -565,11 +693,99 @@ async function trocarNomeNoIndice(id: string, nome: string): Promise<ItemDoAcerv
   const outros = acervo.itens.filter((item) => item.id !== id)
   const renomeado: ItemDoAcervo = { ...semCampoDeTela(alvo), nome: uniqueMapName(base, outros.map((item) => item.nome)) }
   await gravarIndice(
-    acervo.itens.map((item) => (item.id === id ? renomeado : semCampoDeTela(item))),
+    { ...acervo, itens: acervo.itens.map((item) => (item.id === id ? renomeado : semCampoDeTela(item))) },
     'renomear o token do acervo',
-    acervo.ignorados,
   )
   return renomeado
+}
+
+export const PASTA_NAO_ENCONTRADA = 'esta pasta não está mais no acervo'
+
+/** Nome que a pasta ganha quando o mestre confirma o campo vazio. */
+const NOME_DE_PASTA_PADRAO = 'Pasta nova'
+
+/**
+ * Cria uma pasta no fim da lista. Nome repetido ganha o mesmo sufixo numérico
+ * dos tokens ("NPCs (2)"): duas pastas com o mesmo nome não dão para
+ * distinguir na hora de escolher o destino de "Mover para".
+ */
+export function criarPastaNoAcervo(nome: string): Promise<PastaDoAcervo> {
+  return naFilaDoIndice(async () => {
+    const acervo = await listarAcervo()
+    exigirLeitura(acervo, 'criar a pasta no acervo')
+    const base = nome.trim().length > 0 ? nome.trim() : NOME_DE_PASTA_PADRAO
+    const pasta: PastaDoAcervo = {
+      id: crypto.randomUUID(),
+      nome: uniqueMapName(base, acervo.pastas.map((outra) => outra.nome)),
+      recolhida: false,
+    }
+    await gravarIndice(
+      { ...acervo, itens: acervo.itens.map(semCampoDeTela), pastas: [...acervo.pastas, pasta] },
+      'criar a pasta no acervo',
+    )
+    return pasta
+  })
+}
+
+/** Põe o token na pasta `pasta`, ou fora de pasta com `null`. */
+export function moverNoAcervo(id: string, pasta: string | null): Promise<ItemDoAcervo> {
+  return naFilaDoIndice(async () => {
+    const acervo = await listarAcervo()
+    exigirLeitura(acervo, 'mover o token no acervo')
+    const alvo = acervo.itens.find((item) => item.id === id)
+    if (!alvo) throw new Error(ITEM_NAO_ENCONTRADO)
+    // A pasta pode ter sido apagada entre o menu abrir e o clique: recusar é
+    // melhor que gravar um token apontando para o nada, que a próxima leitura
+    // jogaria para fora de pasta sem ninguém ter pedido.
+    if (pasta !== null && !acervo.pastas.some((outra) => outra.id === pasta)) throw new Error(PASTA_NAO_ENCONTRADA)
+    const movido: ItemDoAcervo = { ...semCampoDeTela(alvo), pasta }
+    if (alvo.pasta === pasta) return movido
+    await gravarIndice(
+      { ...acervo, itens: acervo.itens.map((item) => (item.id === id ? movido : semCampoDeTela(item))) },
+      'mover o token no acervo',
+    )
+    return movido
+  })
+}
+
+/** Recolhe (`true`) ou expande (`false`) a pasta, e deixa gravado. */
+export function recolherPastaNoAcervo(id: string, recolhida: boolean): Promise<void> {
+  return naFilaDoIndice(async () => {
+    const acervo = await listarAcervo()
+    exigirLeitura(acervo, 'recolher a pasta do acervo')
+    const alvo = acervo.pastas.find((pasta) => pasta.id === id)
+    if (!alvo) throw new Error(PASTA_NAO_ENCONTRADA)
+    if (alvo.recolhida === recolhida) return
+    await gravarIndice(
+      {
+        ...acervo,
+        itens: acervo.itens.map(semCampoDeTela),
+        pastas: acervo.pastas.map((pasta) => (pasta.id === id ? { ...pasta, recolhida } : pasta)),
+      },
+      'recolher a pasta do acervo',
+    )
+  })
+}
+
+/**
+ * Apaga a pasta, e SÓ a pasta: os tokens dela voltam para fora de pasta. Apagar
+ * os tokens junto transformaria um gesto de arrumação em perda de fichas.
+ * Pasta que já não existe é pedido já cumprido — nada a gravar.
+ */
+export function apagarPastaDoAcervo(id: string): Promise<void> {
+  return naFilaDoIndice(async () => {
+    const acervo = await listarAcervo()
+    exigirLeitura(acervo, 'apagar a pasta do acervo')
+    if (!acervo.pastas.some((pasta) => pasta.id === id)) return
+    await gravarIndice(
+      {
+        ...acervo,
+        itens: acervo.itens.map((item) => ({ ...semCampoDeTela(item), pasta: item.pasta === id ? null : item.pasta })),
+        pastas: acervo.pastas.filter((pasta) => pasta.id !== id),
+      },
+      'apagar a pasta do acervo',
+    )
+  })
 }
 
 export const IMAGEM_SUMIU_DO_ACERVO =

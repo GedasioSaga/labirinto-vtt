@@ -1208,11 +1208,18 @@ body {
   padding-bottom: var(--lb-space-1);
 }
 
+/* Uma faixa só, como a barra de título do painel do Figma: marca, nome e a
+   engrenagem na mesma linha de 44 px (borda incluída). Com o padding de 16 em
+   volta, o cabeçalho levava 69 px da coluna antes do primeiro controle.
+   Direita com 8: a engrenagem já traz o próprio respiro no alvo de 36 px. */
 .lb-inspector__head {
   display: flex;
+  flex: none;
   align-items: center;
-  gap: var(--lb-space-3);
-  padding: var(--lb-space-4);
+  gap: var(--lb-space-2);
+  box-sizing: border-box;
+  block-size: 44px;
+  padding: 0 var(--lb-space-2) 0 var(--lb-space-4);
   border-bottom: 1px solid var(--lb-color-line);
 }
 
@@ -1220,9 +1227,9 @@ body {
   flex: none;
   display: grid;
   place-items: center;
-  width: 34px;
-  height: 34px;
-  border-radius: var(--lb-radius-md);
+  width: 24px;
+  height: 24px;
+  border-radius: var(--lb-radius-sm);
   background: var(--lb-color-brass-soft);
   color: var(--lb-color-brass);
 }
@@ -1247,6 +1254,7 @@ body {
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: var(--lb-font-size-sm);
+  line-height: var(--lb-font-leading-tight);
   color: var(--lb-color-parchment-faint);
 }
 
@@ -1286,7 +1294,7 @@ body {
   justify-content: space-between;
   gap: var(--lb-space-2);
   width: 100%;
-  min-height: 24px;
+  min-height: 44px;
   padding: 0;
   border: 0;
   border-radius: var(--lb-radius-sm);
@@ -1322,6 +1330,28 @@ body {
    mostrando o corpo inteiro. */
 .lb-collapsible__body[hidden] {
   display: none;
+}
+
+/* Moldura enxuta (painel de camadas do Figma, Explorer do VS Code): a seção
+   recolhível começa no próprio botão, que é o alvo inteiro de 44 px, sem os
+   16 px de respiro em cima. Aberta, a distância até o corpo não muda
+   (16 + 24 + 12 antes, 0 + 44 + 8 agora); recolhida, a seção é só o botão:
+   44 px em vez de 57. */
+.lb-collapsible {
+  padding-top: 0;
+  gap: var(--lb-space-2);
+}
+
+.lb-collapsible:has(> .lb-collapsible__heading > .lb-collapsible__toggle[aria-expanded='false']) {
+  padding-bottom: 0;
+}
+
+/* O fio entre seções vira sombra por dentro: a mesma linha de
+   `.lb-section + .lb-section`, sem o pixel de layout que a borda somava a cada
+   título da pilha. */
+.lb-section + .lb-collapsible {
+  border-top: 0;
+  box-shadow: inset 0 1px 0 var(--lb-color-line);
 }
 
 /* Acesso rápido da grade dentro de Camadas: interruptores mais baixos que o
@@ -1599,30 +1629,6 @@ label.lb-switch[data-dica-linha='aberta'] > span:first-child::after,
   height: 12px;
   border: 1px solid var(--lb-color-line);
   border-radius: 2px;
-}
-
-.lb-territorio__alerta {
-  display: flex;
-  flex-direction: column;
-  gap: var(--lb-space-2);
-  margin: 0;
-  padding: 0;
-  border: 0;
-}
-
-.lb-territorio__niveis {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--lb-space-3);
-}
-
-.lb-territorio__nivel {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--lb-space-1);
-  font-size: var(--lb-font-size-sm);
-  color: var(--lb-color-parchment);
-  cursor: pointer;
 }
 
 /* Engrenagem do cabeçalho do inspetor: empurrada para a direita do nome. */
@@ -2214,8 +2220,17 @@ label.lb-switch[data-dica-linha='aberta'] > span:first-child::after,
   min-height: 20px;
 }
 
-/* A linha das ações quebra em vez de vazar do painel se a fonte vier mais larga. */
+/* A linha das ações quebra em vez de vazar do painel se a fonte vier mais larga;
+   o vão entre botões é o mesmo do painel todo, na horizontal e na vertical. */
 .lb-player__line--acoes {
+  flex-wrap: wrap;
+  gap: var(--lb-control-gap);
+}
+
+/* Na coluna de 212 px o nome e as fichas não cabem lado a lado: as fichas
+   descem para a linha de baixo (encostadas à direita pelo margin-left: auto)
+   em vez de cortar o nome em "A…". */
+.lb-player__line:has(> .lb-player__tokens) {
   flex-wrap: wrap;
   row-gap: var(--lb-space-1);
 }
@@ -2280,7 +2295,9 @@ label.lb-switch[data-dica-linha='aberta'] > span:first-child::after,
 
 .lb-player__tokens {
   display: flex;
-  gap: var(--lb-space-1);
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--lb-control-gap);
   flex: 0 1 auto;
   min-width: 0;
   margin-left: auto;
@@ -2333,16 +2350,15 @@ label.lb-switch[data-dica-linha='aberta'] > span:first-child::after,
   color: var(--lb-color-ember);
 }
 
+/* As ações do jogador quebram de linha no vão do painel em vez de espremer o
+   respiro dos botões para caber numa linha só (o "Dar item…" e o "Recado"
+   ficavam fora da coluna). */
 .lb-player__actions {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: var(--lb-space-1);
+  gap: var(--lb-control-gap);
   min-width: 0;
-}
-
-/* Em 212 px as três ações e o "…" dividem a linha: o respiro lateral encolhe. */
-.lb-player__actions > .lb-btn {
-  padding: 0 6px;
 }
 
 /* O "…" da linha: o mesmo traço do menu da lista Cenas, na altura dos botões da linha. */
@@ -2391,7 +2407,7 @@ label.lb-switch[data-dica-linha='aberta'] > span:first-child::after,
 .lb-player__quick {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--lb-space-1);
+  gap: var(--lb-control-gap);
 }
 
 /* Rótulo comprido ("Biblioteca · Atribuir Livro") quebra dentro do botão em
@@ -3385,10 +3401,15 @@ label.lb-switch[data-dica-linha='aberta'] > span:first-child::after,
   list-style: none;
 }
 
+/* A linha quebra: a pergunta de apagar e o menu "Mover" descem para baixo do
+   nome, na largura da linha, porque na coluna estreita do rail não cabem ao
+   lado dele. */
 .lb-acervo__item {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--lb-space-3);
+  row-gap: var(--lb-control-gap);
   padding: var(--lb-space-2) var(--lb-space-3);
   border: 1px solid var(--lb-color-line);
   border-radius: var(--lb-radius-md);
@@ -3417,6 +3438,7 @@ label.lb-switch[data-dica-linha='aberta'] > span:first-child::after,
 .lb-acervo__nome {
   flex: 1;
   min-width: 0;
+  min-height: var(--lb-control-min);
   padding: 0;
   border: 0;
   background: none;
@@ -3465,7 +3487,11 @@ label.lb-switch[data-dica-linha='aberta'] > span:first-child::after,
 }
 
 .lb-acervo__apagar {
+  display: inline-grid;
+  place-items: center;
   flex: none;
+  min-width: var(--lb-control-min);
+  min-height: var(--lb-control-min);
   padding: 0 var(--lb-space-2);
   border: 0;
   background: none;
@@ -3479,13 +3505,23 @@ label.lb-switch[data-dica-linha='aberta'] > span:first-child::after,
   color: var(--lb-color-ember);
 }
 
-/* A pergunta ocupa a linha inteira: os dois botões precisam caber lado a lado
-   na coluna estreita do rail, e o nome do item continua visível acima deles. */
+/* A pergunta ocupa a linha inteira, embaixo do nome do item, que continua à
+   vista. Os dois botões dividem a linha quando cabem; senão cada um fica numa,
+   no vão do painel, sem vazar da coluna. */
 .lb-acervo__confirma {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--lb-space-2);
-  flex: none;
+  gap: var(--lb-control-gap);
+  flex: 1 1 100%;
+  min-width: 0;
+}
+
+/* Nome comprido no botão de apagar quebra em duas linhas equilibradas em vez
+   de ganhar reticência: o nome ali é a última chance de ver o engano. */
+.lb-acervo__confirma > .lb-btn {
+  flex: 1 1 auto;
+  min-width: 0;
+  text-wrap: balance;
 }
 
 .lb-acervo__vazio,
@@ -3497,6 +3533,223 @@ label.lb-switch[data-dica-linha='aberta'] > span:first-child::after,
 
 .lb-acervo__aviso {
   color: var(--lb-color-ember);
+}
+
+/* Acervo vazio numa faixa só (moldura enxuta; bar: Explorer do VS Code sem
+   pasta aberta). O título e a frase ficam a 8 px, e não aos 12 de seção: é um
+   bloco só. A frase de cima diz o que falta, um tom mais clara; a de baixo,
+   como encher. Uma linha do rail cada. */
+.lb-acervo--vazio {
+  gap: var(--lb-space-2);
+}
+
+.lb-acervo__vazio-estado {
+  margin: 0;
+  font-size: var(--lb-font-size-sm);
+  line-height: var(--lb-font-leading-normal);
+  color: var(--lb-color-parchment-faint);
+}
+
+.lb-acervo__vazio-estado > span {
+  display: block;
+}
+
+.lb-acervo__vazio-estado > :first-child {
+  color: var(--lb-color-parchment-dim);
+}
+
+/* PASTAS DO ACERVO (26/09/2026): o cabeçalho de cada pasta segue o desenho de
+   .lb-collapsible__toggle — chevron que gira, nome, e aqui a contagem —, porque
+   é o mesmo gesto de recolher que o rail já ensina. */
+.lb-acervo__topo {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--lb-space-2);
+}
+
+.lb-acervo__nova-pasta {
+  flex: none;
+  min-height: var(--lb-control-min);
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--lb-color-parchment-dim);
+  font-family: inherit;
+  font-size: var(--lb-font-size-sm);
+  cursor: pointer;
+}
+
+.lb-acervo__nova-pasta:hover {
+  color: var(--lb-color-brass);
+}
+
+.lb-acervo__form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-2);
+}
+
+.lb-acervo__form-acoes {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--lb-control-gap);
+}
+
+.lb-acervo__pastas {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-2);
+}
+
+/* A pasta inteira é o alvo do soltar: a borda transparente reserva o espaço do
+   realce, para a lista não pular 1 px quando o token passa por cima. */
+.lb-acervo__pasta {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-2);
+  padding: var(--lb-space-1);
+  border: 1px solid transparent;
+  border-radius: var(--lb-radius-md);
+}
+
+.lb-acervo__pasta[data-alvo='dentro'] {
+  border-color: var(--lb-color-brass);
+  background: var(--lb-color-brass-soft);
+}
+
+/* O cabeçalho é a faixa mais forte da coluna: o olho acha o grupo antes do
+   cartão de cada token. */
+.lb-acervo__pasta-topo {
+  display: flex;
+  align-items: center;
+  gap: var(--lb-space-2);
+  padding: 0 var(--lb-space-1);
+  border-radius: var(--lb-radius-sm);
+  background: var(--lb-color-stone-raised);
+}
+
+.lb-acervo__pasta-botao {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: var(--lb-space-2);
+  min-width: 0;
+  padding: var(--lb-space-1) 0;
+  border: 0;
+  background: none;
+  color: var(--lb-color-parchment);
+  font-family: inherit;
+  font-size: var(--lb-font-size-md);
+  font-weight: var(--lb-font-weight-semibold);
+  text-align: left;
+  cursor: pointer;
+}
+
+.lb-acervo__pasta-botao:hover,
+.lb-acervo__pasta-botao:hover .lb-acervo__chevron {
+  color: var(--lb-color-brass);
+}
+
+.lb-acervo__pasta-nome {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lb-acervo__chevron {
+  display: inline-flex;
+  color: var(--lb-color-parchment-faint);
+  transition: transform var(--lb-motion-fast) var(--lb-motion-ease);
+}
+
+.lb-acervo__pasta-botao[aria-expanded='false'] .lb-acervo__chevron {
+  transform: rotate(-90deg);
+}
+
+.lb-acervo__contagem {
+  flex: none;
+  margin-left: auto;
+  color: var(--lb-color-parchment-faint);
+  font-size: var(--lb-font-size-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+/* "Sem pasta" não recolhe: é um título, não um botão. */
+.lb-acervo__pasta-titulo {
+  margin: 0;
+  padding: var(--lb-space-1) 0;
+  color: var(--lb-color-parchment-dim);
+  font-size: var(--lb-font-size-sm);
+}
+
+/* O fio à esquerda desce do chevron até o último token: diz onde a pasta
+   acaba sem precisar de uma caixa em volta. Dentro da pasta a linha é mais
+   baixa, para caber mais tokens na coluna estreita no meio do jogo; o respiro
+   lateral menor devolve ao nome o que o recuo do fio tirou. */
+.lb-acervo--na-pasta {
+  gap: var(--lb-space-1);
+  margin-left: 7px;
+  padding-left: var(--lb-space-2);
+  border-left: 2px solid var(--lb-color-line-strong);
+}
+
+.lb-acervo--na-pasta .lb-acervo__item {
+  gap: var(--lb-space-2);
+  row-gap: var(--lb-control-gap);
+  padding: var(--lb-space-1) var(--lb-space-2);
+}
+
+.lb-acervo__confirma--pasta {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.lb-acervo__mover {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  min-width: var(--lb-control-min);
+  min-height: var(--lb-control-min);
+  padding: 0 var(--lb-space-1);
+  border: 0;
+  background: none;
+  color: var(--lb-color-parchment-faint);
+  cursor: pointer;
+}
+
+.lb-acervo__mover:hover,
+.lb-acervo__mover[aria-expanded='true'] {
+  color: var(--lb-color-brass);
+}
+
+/* O menu "Mover" abre embaixo do nome, na largura da linha (a linha do item
+   já quebra: ver `.lb-acervo__item`). */
+.lb-acervo__destinos {
+  display: flex;
+  flex-basis: 100%;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--lb-control-gap);
+}
+
+.lb-acervo__destino {
+  min-height: var(--lb-control-min);
+  padding: var(--lb-space-1) var(--lb-space-2);
+  border: 1px solid var(--lb-color-line);
+  border-radius: var(--lb-radius-sm);
+  background: var(--lb-color-stone-raised);
+  color: var(--lb-color-parchment);
+  font-family: inherit;
+  font-size: var(--lb-font-size-sm);
+  cursor: pointer;
+}
+
+.lb-acervo__destino:hover {
+  border-color: var(--lb-color-brass);
+  color: var(--lb-color-brass);
 }
 
 /* Cenas da aventura (aba Mapa): mesma linha de cartão do acervo, com a cena
@@ -3517,8 +3770,10 @@ label.lb-switch[data-dica-linha='aberta'] > span:first-child::after,
   flex-wrap: wrap;
   align-items: center;
   gap: var(--lb-space-2);
-  /* Cena dentro de cena: um degrau de recuo por nível (`--lb-cena-nivel`, do ScenesSection). */
-  margin-left: calc(var(--lb-space-3) * var(--lb-cena-nivel, 0));
+  /* Cena dentro de cena: um degrau de recuo por nível (`--lb-cena-nivel`, do
+     ScenesSection). Degrau curto, como no Explorer do VS Code: cada pixel de
+     recuo sai da largura do nome. */
+  margin-left: calc(var(--lb-space-2) * var(--lb-cena-nivel, 0));
   padding: var(--lb-space-2) var(--lb-space-3);
   border: 1px solid var(--lb-color-line);
   border-radius: var(--lb-radius-md);
@@ -4081,6 +4336,317 @@ label.lb-switch[data-dica-linha='aberta'] > span:first-child::after,
   gap: var(--lb-space-1);
 }
 
+/* ---- Linha da cena (bar: painel de camadas do Figma, Explorer do VS Code)
+   A primeira linha do item é nome | info | controles. O nome fica com a
+   largura (o nome inteiro mora no title); a info à direita traz só o que se lê
+   de relance. Nas cenas fechadas, os controles flutuam sobre o fim da linha e
+   só aparecem no hover e no foco do teclado: em repouso ficam com opacity 0 —
+   nunca display nem visibility, e cada botão mantém o pointer-events — para o
+   Tab e o clique direto continuarem alcançando cada botão. Na cena aberta têm
+   linha própria, sempre à vista. Sem animação: hover de linha e foco de
+   teclado são ações de alta frequência, e movimento ali só atrasa. */
+.lb-cenas__item:has(> .lb-cenas__linha) {
+  /* O fundo que a faixa de controles copia para cobrir o fim do nome. */
+  --lb-cena-fundo: var(--lb-color-stone-solid);
+  /* Vão lateral de 8px, não 12: cada pixel daqui sai da largura do nome. */
+  padding: var(--lb-space-2);
+}
+
+.lb-cenas__item[data-enter='true'] {
+  --lb-cena-fundo: var(--lb-color-stone-raised);
+}
+
+.lb-cenas__item[data-movida='true'] {
+  /* O latão translúcido da cena recém-movida, sobre o fundo opaco: a faixa
+     precisa esconder o texto que passa por baixo dela. */
+  --lb-cena-fundo: linear-gradient(var(--lb-color-brass-soft), var(--lb-color-brass-soft)) var(--lb-color-stone-solid);
+}
+
+/* O nome é a linha inteira (ver o ::after abaixo): com foco de teclado, o anel
+   contorna o cartão, não só as letras. */
+.lb-cenas__item:has(> .lb-cenas__linha > .lb-cenas__nome:focus-visible) {
+  box-shadow: var(--lb-shadow-focus);
+}
+
+.lb-cenas__linha {
+  position: relative;
+  display: flex;
+  flex-basis: 100%;
+  align-items: center;
+  gap: var(--lb-space-1);
+  min-width: 0;
+  /* A altura dos botões da faixa: a linha não pula quando eles aparecem. */
+  min-height: var(--lb-space-6);
+}
+
+/* Do tamanho do texto, encolhendo com reticências quando falta espaço: um nome
+   curto deixa o meio da linha livre para o clique. */
+.lb-cenas__linha > .lb-cenas__nome {
+  flex: 0 1 auto;
+}
+
+/* A linha inteira abre a cena, não só as letras. O ::after se estende até a
+   borda do cartão (o contêiner dele é a .lb-cenas__linha, então o overflow do
+   nome não o corta); seta da pasta, info e controles ficam por cima. */
+.lb-cenas__linha > .lb-cenas__nome::after {
+  content: '';
+  position: absolute;
+  inset: calc(var(--lb-space-2) * -1);
+}
+
+.lb-cenas__linha > .lb-cenas__nome:disabled::after {
+  content: none;
+}
+
+.lb-cenas__linha > .lb-cenas__nome:focus-visible {
+  box-shadow: none;
+}
+
+.lb-cenas__linha > .lb-cenas__pasta {
+  position: relative;
+  z-index: 1;
+}
+
+.lb-cenas__info {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: var(--lb-space-1);
+  margin-left: auto;
+}
+
+/* A contagem é nota de rodapé, não manchete: ícone e número em cinza, na letra,
+   no tamanho e na cor da contagem da lista de mapas (.lb-maplist__meta), para
+   os dois números se lerem igual. O "tokens" continua para o leitor de tela
+   (.lb-sr-only). */
+.lb-cenas__info .lb-cenas__conta {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: calc(var(--lb-space-1) / 2);
+  color: var(--lb-color-parchment-faint);
+  font-family: var(--lb-font-utility);
+  font-size: var(--lb-font-size-sm);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.lb-cenas__info .lb-cenas__espera {
+  font-size: var(--lb-font-size-xs);
+}
+
+.lb-cenas__info .lb-cenas__espera--longa {
+  padding: 0 var(--lb-space-1);
+}
+
+/* Selos do estado que só o botão mostrava (pausada, planta de todos): ficam à
+   vista quando os controles se escondem. */
+.lb-cenas__selo {
+  color: var(--lb-color-parchment-faint);
+  font-size: var(--lb-font-size-sm);
+  line-height: 1;
+}
+
+.lb-cenas__selo--pausa {
+  color: var(--lb-color-brass);
+}
+
+/* Na cena aberta os próprios botões mostram o estado, sempre à vista. */
+.lb-cenas__item--ativa .lb-cenas__selo {
+  display: none;
+}
+
+/* Cena fechada: a faixa de controles pousa sobre o fim da linha, com o fundo do
+   cartão e um degradê que apaga o fim do nome por baixo dela. A faixa em si
+   deixa o clique passar (o nome segue clicável até os botões); os botões não. */
+.lb-cenas__item:not(.lb-cenas__item--ativa) > .lb-cenas__linha > .lb-cenas__controles {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  padding-left: var(--lb-space-1);
+  background: var(--lb-cena-fundo);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.lb-cenas__item:not(.lb-cenas__item--ativa) > .lb-cenas__linha > .lb-cenas__controles::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 100%;
+  bottom: 0;
+  width: var(--lb-space-4);
+  background: var(--lb-cena-fundo);
+  /* Na máscara só o alfa conta: a cor opaca da ponta é indiferente. */
+  mask-image: linear-gradient(to right, transparent, var(--lb-color-ink));
+  pointer-events: none;
+}
+
+/* Aparece com o mouse sobre o cartão, com o foco de teclado em qualquer peça da
+   linha e enquanto um dos botões está com o formulário ou o menu aberto. */
+.lb-cenas__item:hover > .lb-cenas__linha > .lb-cenas__controles,
+.lb-cenas__item > .lb-cenas__linha:has(:focus-visible) > .lb-cenas__controles,
+.lb-cenas__item > .lb-cenas__linha > .lb-cenas__controles:has([aria-expanded='true']) {
+  opacity: 1;
+}
+
+.lb-cenas__item > .lb-cenas__linha > .lb-cenas__controles:empty {
+  display: none;
+}
+
+/* Arrastando uma cena, o mouse passa por cima de todas: nenhuma faixa acende. */
+html.lb-arrastando-cena .lb-cenas__item:not(.lb-cenas__item--ativa) > .lb-cenas__linha > .lb-cenas__controles {
+  opacity: 0;
+}
+
+/* Cena aberta: nome e info na primeira linha; os controles, sempre à vista, na
+   segunda, alinhados à direita. O nome com base 0 cresce sem empurrar a info
+   para baixo. */
+.lb-cenas__item--ativa > .lb-cenas__linha {
+  flex-wrap: wrap;
+}
+
+.lb-cenas__item--ativa > .lb-cenas__linha > .lb-cenas__nome {
+  flex: 1 1 0;
+}
+
+.lb-cenas__item--ativa > .lb-cenas__linha > .lb-cenas__controles {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-basis: 100%;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+/* Entre os ícones da faixa, meio vão do painel: sem moldura, eles não encostam
+   um no outro e os sete ainda cabem numa linha da coluna de 212 px
+   (7 × 24 + 6 × 4 = 192). As regras da cena aberta e da fechada só dizem onde
+   a faixa fica; o vão é este nas duas. */
+.lb-cenas__linha > .lb-cenas__controles {
+  gap: calc(var(--lb-control-gap) / 2);
+}
+
+/* Os botões da faixa: ícones de 24px sem borda, como as ações de uma linha do
+   Explorer; o nome acessível e o title dizem o que cada um faz. */
+.lb-cenas__linha > .lb-cenas__controles > button {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: var(--lb-space-6);
+  height: var(--lb-space-6);
+  padding: 0;
+  border: 0;
+  border-radius: var(--lb-radius-sm);
+  background: none;
+  color: var(--lb-color-parchment-dim);
+  font-family: inherit;
+  font-size: var(--lb-font-size-md);
+  line-height: 1;
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.lb-cenas__linha > .lb-cenas__controles > button:hover:not(:disabled):not([aria-pressed='true']) {
+  background: var(--lb-color-stone-hover);
+  color: var(--lb-color-parchment);
+}
+
+.lb-cenas__linha > .lb-cenas__controles > button:active:not(:disabled):not([aria-pressed='true']) {
+  background: var(--lb-color-stone-sunken);
+}
+
+/* O anel de foco por cima do vizinho. */
+.lb-cenas__linha > .lb-cenas__controles > button:focus-visible {
+  position: relative;
+  z-index: 1;
+}
+
+.lb-cenas__linha > .lb-cenas__controles > button[aria-expanded='true'] {
+  color: var(--lb-color-brass);
+}
+
+.lb-cenas__linha > .lb-cenas__controles > button[aria-pressed='true'] {
+  background: var(--lb-color-brass);
+  color: var(--lb-color-ink);
+}
+
+.lb-cenas__linha > .lb-cenas__controles > button[aria-pressed='true']:hover:not(:disabled) {
+  background: var(--lb-color-brass-bright);
+}
+
+.lb-cenas__linha > .lb-cenas__controles > button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Tela de toque: os controles descem para a linha de baixo, sempre à vista, e
+   os selos saem (os botões já mostram o estado). Vale também para o notebook
+   com tela de toque (any-pointer: coarse), que tem hover pelo mouse: lá um
+   toque no fim da linha cairia num botão ainda invisível, e a cena seria
+   pausada ou teria a planta mostrada sem o mestre ver no que tocou. */
+@media (hover: none), (any-pointer: coarse) {
+  .lb-cenas__item > .lb-cenas__linha {
+    flex-wrap: wrap;
+  }
+
+  /* Com a sala aberta a faixa chega a 7 botões de 44px, mais largos que o
+     cartão: quebram em mais de uma linha, alinhados à direita, em vez de vazar
+     pela esquerda. */
+  .lb-cenas__item > .lb-cenas__linha > .lb-cenas__controles {
+    flex-wrap: wrap;
+  }
+
+  .lb-cenas__item > .lb-cenas__linha > .lb-cenas__nome {
+    flex: 1 1 0;
+  }
+
+  .lb-cenas__item:not(.lb-cenas__item--ativa) > .lb-cenas__linha > .lb-cenas__controles {
+    position: relative;
+    flex-basis: 100%;
+    justify-content: flex-end;
+    padding-left: 0;
+    background: none;
+    opacity: 1;
+  }
+
+  .lb-cenas__item:not(.lb-cenas__item--ativa) > .lb-cenas__linha > .lb-cenas__controles::before {
+    content: none;
+  }
+
+  /* Alvo de dedo, o mesmo mínimo de 44px dos botões da tela do jogador; o
+     ícone continua do mesmo tamanho. */
+  .lb-cenas__linha > .lb-cenas__controles > button {
+    width: 44px;
+    height: 44px;
+  }
+
+  .lb-cenas__selo {
+    display: none;
+  }
+}
+
+/* "Andar sozinha": ligada, fica em latão, o "ativo" do arquivo. */
+.lb-rotina__andar {
+  align-self: flex-start;
+  margin-top: var(--lb-space-2);
+}
+
+/* Ligada fica latão também sob o cursor: logo depois do clique o mouse ainda
+   está em cima, e o hover do ghost apagava o "está andando". */
+.lb-rotina__andar[aria-pressed='true'],
+.lb-rotina__andar[aria-pressed='true']:hover:not(:disabled) {
+  border-color: rgba(224, 164, 74, 0.28);
+  color: var(--lb-color-brass);
+}
+
 /* ---- Cenas em pastas (região > cidade > bairro > casa) */
 
 /* Os fios da árvore: um traço fino e claro no meio de cada degrau de recuo,
@@ -4091,14 +4657,14 @@ label.lb-switch[data-dica-linha='aberta'] > span:first-child::after,
   position: absolute;
   top: calc(var(--lb-space-2) * -1 - 1px);
   bottom: -1px;
-  left: calc(var(--lb-space-3) * var(--lb-cena-nivel) * -1 - 1px);
-  width: calc(var(--lb-space-3) * var(--lb-cena-nivel));
-  /* Pixel inteiro (6 a 7 de cada degrau de 12): em meio pixel o fio sai borrado em dois. */
+  left: calc(var(--lb-space-2) * var(--lb-cena-nivel) * -1 - 1px);
+  width: calc(var(--lb-space-2) * var(--lb-cena-nivel));
+  /* Pixel inteiro (4 a 5 de cada degrau de 8): em meio pixel o fio sai borrado em dois. */
   background: repeating-linear-gradient(
     to right,
-    transparent 0 calc(var(--lb-space-3) / 2),
-    var(--lb-color-line-strong) calc(var(--lb-space-3) / 2) calc(var(--lb-space-3) / 2 + 1px),
-    transparent calc(var(--lb-space-3) / 2 + 1px) var(--lb-space-3)
+    transparent 0 calc(var(--lb-space-2) / 2),
+    var(--lb-color-line-strong) calc(var(--lb-space-2) / 2) calc(var(--lb-space-2) / 2 + 1px),
+    transparent calc(var(--lb-space-2) / 2 + 1px) var(--lb-space-2)
   );
   pointer-events: none;
 }
@@ -4267,15 +4833,44 @@ html.lb-arrastando-cena * {
   cursor: grabbing !important;
 }
 
-/* "+ Nova cena" e "Visão geral" dividem a linha; sozinho, o primeiro ocupa tudo. */
+/* O rodapé é uma faixa segmentada numa linha só: "+ Nova cena", "Visão geral"
+   e "Corte da torre" dividem a largura; sozinho, o primeiro ocupa tudo. Com
+   vão entre os três e o padding do .lb-btn, "Corte da torre" caía numa segunda
+   linha na largura padrão do painel. */
 .lb-cenas__rodape {
   display: flex;
-  gap: var(--lb-space-2);
 }
 
 .lb-cenas__rodape > .lb-btn {
-  flex: 1 1 0;
+  flex: 1 1 auto;
   min-width: 0;
+  padding: 0 var(--lb-space-1);
+  font-size: var(--lb-font-size-sm);
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+/* As bordas vizinhas se sobrepõem: um fio só entre dois segmentos. */
+.lb-cenas__rodape > .lb-btn + .lb-btn {
+  margin-left: -1px;
+}
+
+.lb-cenas__rodape > .lb-btn:not(:first-child) {
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+}
+
+.lb-cenas__rodape > .lb-btn:not(:last-child) {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+/* O segmento sob o mouse ou com foco sobe: a borda e o anel dele não ficam
+   por baixo do vizinho. */
+.lb-cenas__rodape > .lb-btn:hover,
+.lb-cenas__rodape > .lb-btn:focus-visible {
+  position: relative;
+  z-index: 1;
 }
 
 /* Visão geral das cenas (SceneOverview.tsx): uma miniatura por cena, a aberta

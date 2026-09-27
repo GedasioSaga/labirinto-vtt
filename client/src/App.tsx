@@ -51,6 +51,7 @@ import { congelamentoDaMesa } from './lib/congelar'
 import { jogadoresDoCorte } from './lib/corteDaTorre'
 import { useDestinationStore } from './stores/destinationStore'
 import { useCenaQueEspera } from './stores/useCenaQueEspera'
+import { useRotinaAndandoStore } from './stores/rotinaAndandoStore'
 import type { TravelLogEntry } from './lib/travelLog'
 import { withStoredTokens } from './lib/storedTokens'
 import { loadSavedExploration, loadSavedTable, savedTableSummary, storeSavedExploration, storeSavedTable, type TableStorage } from './lib/savedTable'
@@ -112,7 +113,18 @@ import { PinsSection } from './components/PinsSection'
 import { pinDirectory } from './lib/pinDirectory'
 import { pickBackgroundImage, importBackgroundImage, pickImageFile, importPinImage, importTokenImage, buildTokenSharedPhoto } from './lib/imageImport'
 import { useTokenLibraryStore } from './stores/tokenLibraryStore'
-import { apagarDoAcervo, fotoSobrouNoDisco, salvarNoAcervo, trazerDoAcervo, type ItemDoAcervoNaTela } from './lib/tokenLibrary'
+import {
+  apagarDoAcervo,
+  apagarPastaDoAcervo,
+  criarPastaNoAcervo,
+  fotoSobrouNoDisco,
+  moverNoAcervo,
+  recolherPastaNoAcervo,
+  salvarNoAcervo,
+  trazerDoAcervo,
+  type ItemDoAcervoNaTela,
+  type PastaDoAcervo,
+} from './lib/tokenLibrary'
 import { colocarPecaDoAcervo, criarToken, marcarFichaNpc, type TamanhoDaVista } from './stores/criarToken'
 import { setPropImageShownToPlayers, setPropLabelForPlayers } from './stores/propPlayerLook'
 import { mudarRaioDeVisaoDaSala, mudarVistaDeLonge } from './stores/visaoDeLonge'
@@ -568,6 +580,8 @@ function App() {
   // execução e reler só depois de gravar (salvar/apagar). Ver `stores/tokenLibraryStore.ts`.
   const acervoItens = useTokenLibraryStore((state) => state.itens)
   const acervoAviso = useTokenLibraryStore((state) => state.aviso)
+  const acervoPastas = useTokenLibraryStore((state) => state.pastas)
+  const acervoPodeOrganizar = useTokenLibraryStore((state) => state.podeOrganizar)
   useEffect(() => {
     void useTokenLibraryStore.getState().recarregar()
   }, [])
@@ -1046,6 +1060,11 @@ function App() {
   useEffect(() => {
     useDestinationStore.getState().setMarks(masterDestinationMarks(roomPlayers, openSceneId))
   }, [roomPlayers, openSceneId])
+  // ROTINA ANDANDO: quem anda sozinho agora; ficha na mão de um jogador (a dele ou o ajudante) não anda.
+  const rotinasAndando = useRotinaAndandoStore((state) => state.andando)
+  useEffect(() => {
+    useRotinaAndandoStore.getState().setFixas(new Set(roomPlayers.flatMap((player) => player.tokenIds)))
+  }, [roomPlayers])
   useFollowPlayer(roomPlayers, () => hostWorldOf({ adventure, activeSceneId, cache: sceneCache }, map))
   // FACÇÃO E ALERTA: o filtro "Quem manda aqui" é da vista do mestre; a legenda sai das salas da cena aberta.
   const filtroFaccoes = useTerritorioStore((state) => state.filtroLigado)
@@ -1760,6 +1779,57 @@ function App() {
   }
 
   /**
+   * ACERVO — pastas. Criar e apagar pasta relêem o disco no fim, como apagar
+   * token: o nome final ("Chefes (2)") e os tokens que voltam para "Sem pasta"
+   * são decididos na gravação, não aqui.
+   *
+   * Mover e recolher são ADIANTADOS na tela (`marcarPasta`, `marcarRecolhida`):
+   * o token pula de pasta no soltar e o chevron gira no clique. Só a falha
+   * relê o disco, para a tela voltar ao que ficou gravado; reler a cada
+   * sucesso faria dois movimentos seguidos piscarem, o primeiro voltando do
+   * disco antes de o segundo ser gravado.
+   */
+  const handleCriarPasta = async (nome: string) => {
+    try {
+      await criarPastaNoAcervo(nome)
+    } catch (err) {
+      reportFileError('criar a pasta no acervo', err)
+    } finally {
+      await useTokenLibraryStore.getState().recarregar()
+    }
+  }
+
+  const handleMoverNoAcervo = async (item: ItemDoAcervoNaTela, pasta: string | null) => {
+    useTokenLibraryStore.getState().marcarPasta(item.id, pasta)
+    try {
+      await moverNoAcervo(item.id, pasta)
+    } catch (err) {
+      reportFileError(`mover ${item.nome} de pasta`, err)
+      await useTokenLibraryStore.getState().recarregar()
+    }
+  }
+
+  const handleRecolherPasta = async (pasta: PastaDoAcervo, recolhida: boolean) => {
+    useTokenLibraryStore.getState().marcarRecolhida(pasta.id, recolhida)
+    try {
+      await recolherPastaNoAcervo(pasta.id, recolhida)
+    } catch (err) {
+      reportFileError(recolhida ? `recolher a pasta ${pasta.nome}` : `abrir a pasta ${pasta.nome}`, err)
+      await useTokenLibraryStore.getState().recarregar()
+    }
+  }
+
+  const handleApagarPasta = async (pasta: PastaDoAcervo) => {
+    try {
+      await apagarPastaDoAcervo(pasta.id)
+    } catch (err) {
+      reportFileError(`apagar a pasta ${pasta.nome}`, err)
+    } finally {
+      await useTokenLibraryStore.getState().recarregar()
+    }
+  }
+
+  /**
    * Imagem do cartão do ponto de interesse. Diferente do token e da Peça, o
    * que entra no mapa é a imagem EMBUTIDA (data URL) e não o caminho do
    * arquivo: é a única forma de ela chegar à tela do jogador sem abrir o disco
@@ -2023,6 +2093,10 @@ function App() {
 
   /** Roda o mesmo salvamento de `handleSave` e só depois troca para o menu — sem diálogo. */
   const handleGoHome = async () => {
+    // Sair para o menu encerra a sessão de jogo: as rotinas param ANTES de
+    // salvar, senão um passo depois da gravação sujava o mapa (o "Abrir" do
+    // menu avisava trabalho não salvo) e os jogadores seguiam vendo o NPC andar.
+    useRotinaAndandoStore.getState().reset()
     try {
       await persistMap()
       useToastStore.getState().push('info', MAP_SAVED_TEXT)
@@ -2420,6 +2494,8 @@ function App() {
                 }}
                 // Visão geral: a cena aberta pelo mapa vivo, as de fundo pelo cache (fichas de jogador que andam aparecem na hora).
                 maps={sceneMaps({ adventure, activeSceneId, cache: sceneCache }, map)}
+                // A miniatura da cena aberta mostra o andar que o editor mostra.
+                pisoAberto={pisoAtivo}
                 // Mesmas linhas do painel Grupo: quem está em cada cena e os pedidos que esperam.
                 people={scenePeople()}
                 // Há quanto tempo cada cena com gente espera o mestre ('há N min').
@@ -2482,6 +2558,9 @@ function App() {
                 towerPlayers={roomPlayers.length === 0 ? undefined : jogadoresDoCorte(roomPlayers)}
                 // Revisor da aventura: o conserto entra no desfazer da cena aberta, ou marca a de fundo para salvar.
                 onFix={consertarNaAventura}
+                // Mesma regra de "Chão do mapa" e "Camadas" (PropertiesPanel): aberta só com
+                // Selecionar e nada selecionado, para a lista não empurrar a ficha do item.
+                defaultOpen={activeTool === 'select' && selection.length === 0}
               />
               {/* Todos os pinos da aventura pelo nome só do mestre: tocar abre a cena com o pino selecionado. */}
               <PinsSection
@@ -2584,6 +2663,13 @@ function App() {
                   cenas={adventure.scenes}
                   cenaAberta={activeSceneId}
                   onChange={(rotina) => useMapStore.getState().setTokenRotina(selectedToken.id, rotina)}
+                  // ROTINA ANDANDO: a ficha anda sozinha de posto em posto até o mestre parar.
+                  andando={rotinasAndando.has(selectedToken.id)}
+                  onAndar={(ligar) => {
+                    const rotinas = useRotinaAndandoStore.getState()
+                    if (ligar) rotinas.ligar(selectedToken.id)
+                    else rotinas.desligar(selectedToken.id)
+                  }}
                 />
               )
             }
@@ -3195,10 +3281,16 @@ function App() {
             pinSelected={selectedPin !== null}
             tokenLibrary={{
               itens: acervoItens,
+              pastas: acervoPastas,
               aviso: acervoAviso,
+              podeOrganizar: acervoPodeOrganizar,
               onPlace: (item) => void handlePlaceFromLibrary(item),
               onDropOnMap: handleDropFromLibrary,
               onDelete: (item) => void handleDeleteFromLibrary(item),
+              onCriarPasta: (nome) => void handleCriarPasta(nome),
+              onMover: (item, pasta) => void handleMoverNoAcervo(item, pasta),
+              onRecolherPasta: (pasta, recolhida) => void handleRecolherPasta(pasta, recolhida),
+              onApagarPasta: (pasta) => void handleApagarPasta(pasta),
             }}
             territorio={{
               filtroLigado: filtroFaccoes,

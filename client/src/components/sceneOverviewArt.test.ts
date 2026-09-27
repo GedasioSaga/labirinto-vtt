@@ -144,6 +144,30 @@ describe('sceneArt: miniatura de uma cena', () => {
     expect(quadro?.x).toBe(0)
   })
 
+  it('cena com pisos: a miniatura mostra UM piso, como o editor — o térreo por padrão, o pedido quando há', () => {
+    const chaoDoAndar = { id: 'chao-andar', shape: { kind: 'rect' as const, cx: 800, cy: 400, w: 200, h: 200 }, op: 'add' as const, modifiers: {}, piso: 1 }
+    const base = cripta([ficha('embaixo', 100, 100), ficha('em-cima', 800, 100, { piso: 1 })], {
+      walls: [parede('terreo', 100, 600, 400, 600), { ...parede('andar', 100, 700, 400, 700), piso: 1 }],
+    })
+    const mapa = { ...base, floor: [...base.floor, chaoDoAndar] }
+
+    const terreo = sceneArt(mapa)
+    expect(terreo?.tokens.map((t) => t.id)).toEqual(['embaixo'])
+    const paredesDoTerreo = (terreo?.walls ?? []).map((w) => w.d).join('')
+    expect(paredesDoTerreo).toContain('M100 600L400 600')
+    expect(paredesDoTerreo).not.toContain('M100 700L400 700')
+
+    const andar = sceneArt(mapa, 1)
+    expect(andar?.tokens.map((t) => t.id)).toEqual(['em-cima'])
+    const paredesDoAndar = (andar?.walls ?? []).map((w) => w.d).join('')
+    expect(paredesDoAndar).toContain('M100 700L400 700')
+    expect(paredesDoAndar).not.toContain('M100 600L400 600')
+    // Só o chão do andar (200 x 200 em volta de 800, 400), não o retângulo do térreo.
+    const chao = caixaDoPath(andar?.floor[0]?.d ?? '')
+    expect(chao.x1).toBeGreaterThan(650)
+    expect(chao.y1).toBeGreaterThan(250)
+  })
+
   it('mapa sem área desenhável e sem nada dentro: não há miniatura a desenhar', () => {
     expect(sceneArt(createEmptyMap('zero', 'Nada', 0, 0, GRADE))).toBeNull()
   })
