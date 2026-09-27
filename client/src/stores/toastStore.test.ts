@@ -111,6 +111,52 @@ describe('toastStore (frente A, onda 2 — item 12: notificação)', () => {
     expect(useToastStore.getState().toasts).toHaveLength(1)
   })
 
+  // ── aviso repetido não empilha (27/09/2026) ─────────────────────────────
+  // O mestre clicava 6 vezes numa parede de camada travada e ganhava 6 cópias
+  // de "A camada Paredes está travada", uma embaixo da outra.
+
+  it('o mesmo aviso simples repetido fica UM só na tela, com o mesmo id', () => {
+    const id1 = useToastStore.getState().push('info', 'A camada Paredes está travada')
+    const id2 = useToastStore.getState().push('info', 'A camada Paredes está travada')
+    expect(id2).toBe(id1)
+    expect(useToastStore.getState().toasts).toHaveLength(1)
+  })
+
+  it('o aviso repetido renova o prazo: conta do último clique, não do primeiro', () => {
+    vi.useFakeTimers()
+    useToastStore.getState().push('info', 'repetido')
+    vi.advanceTimersByTime(3000)
+    useToastStore.getState().push('info', 'repetido')
+    vi.advanceTimersByTime(3000) // 6000 ms do primeiro, 3000 do segundo
+    expect(useToastStore.getState().toasts).toHaveLength(1)
+    vi.advanceTimersByTime(1000)
+    expect(useToastStore.getState().toasts).toHaveLength(0)
+  })
+
+  it('mesmo texto com kind diferente continua sendo outro aviso', () => {
+    useToastStore.getState().push('info', 'x')
+    useToastStore.getState().push('error', 'x')
+    expect(useToastStore.getState().toasts).toHaveLength(2)
+  })
+
+  it('aviso com botões não se funde com outro de mesmo texto sem chave: pode ser outra pergunta', () => {
+    const run = () => {}
+    useToastStore.getState().push('info', 'Grog quer passar', null, { actions: [{ label: 'Deixar', run }] })
+    useToastStore.getState().push('info', 'Grog quer passar', null, { actions: [{ label: 'Deixar', run }] })
+    expect(useToastStore.getState().toasts).toHaveLength(2)
+  })
+
+  it('aviso com a mesma chave troca no lugar: um só, com os botões do último', () => {
+    const primeiro = () => {}
+    const ultimo = () => {}
+    const id1 = useToastStore.getState().push('info', 'travada', undefined, { chave: 'k', actions: [{ label: 'Destravar', run: primeiro }] })
+    const id2 = useToastStore.getState().push('info', 'travada', undefined, { chave: 'k', actions: [{ label: 'Destravar', run: ultimo }] })
+    expect(id2).toBe(id1)
+    const toasts = useToastStore.getState().toasts
+    expect(toasts).toHaveLength(1)
+    expect(toasts[0].actions?.[0].run).toBe(ultimo)
+  })
+
   it('dismiss manual antes do timer cancela a auto-dispensa (não dispara dismiss duas vezes sobre um id reciclado)', () => {
     vi.useFakeTimers()
     const id = useToastStore.getState().push('info', 'dispensado na mão')

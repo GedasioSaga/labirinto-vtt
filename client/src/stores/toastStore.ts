@@ -116,9 +116,15 @@ export interface ToastMessage {
    * aviso novo.
    */
   detalhe?: () => string
+  /**
+   * Identidade do aviso para não empilhar cópias: um `push` com a mesma chave
+   * de um aviso ainda na tela troca aquele no lugar (mesmo id, prazo renovado).
+   * Ausente = só o aviso simples (sem extras) se funde, por tipo e texto.
+   */
+  chave?: string
 }
 
-/** Extras de `push`: botões, o que o × faz, o grupo, se ele abre a caixa sozinho, o campo de resposta, a urgência e a linha viva. */
+/** Extras de `push`: botões, o que o × faz, o grupo, se ele abre a caixa sozinho, o campo de resposta, a urgência, a linha viva e a chave. */
 export interface ToastExtras {
   actions?: ToastAction[]
   onDismiss?: () => void
@@ -127,6 +133,23 @@ export interface ToastExtras {
   resposta?: ToastResposta | ToastReplyField
   urgente?: boolean
   detalhe?: () => string
+  chave?: string
+}
+
+/**
+ * O aviso já na tela que este `push` repete, ou `undefined`. Com chave, vale
+ * a chave. Sem chave, só o aviso simples: dois avisos com botões e o mesmo
+ * texto podem ser duas perguntas diferentes, e fundir perderia uma resposta.
+ */
+function avisoRepetido(toasts: readonly ToastMessage[], novo: ToastMessage): ToastMessage | undefined {
+  if (novo.chave !== undefined) return toasts.find((toast) => toast.chave === novo.chave)
+  if (!ehSimples(novo)) return undefined
+  return toasts.find((toast) => ehSimples(toast) && toast.kind === novo.kind && toast.text === novo.text)
+}
+
+/** Aviso simples = exatamente `{ id, kind, text }`: `push` só grava um extra quando ele existe. */
+function ehSimples(toast: ToastMessage): boolean {
+  return Object.keys(toast).length === 3
 }
 
 interface ToastState {
@@ -176,9 +199,8 @@ export const useToastStore = create<ToastState>()((set, get) => ({
   toasts: [],
 
   push: (kind, text, durationMs = DEFAULT_DURATION_MS[kind], extras = {}) => {
-    const id = crypto.randomUUID()
     // Os extras só entram quando existem: o aviso simples continua exatamente `{ id, kind, text }`.
-    const toast: ToastMessage = { id, kind, text }
+    const toast: ToastMessage = { id: '', kind, text }
     if (extras.actions !== undefined && extras.actions.length > 0) toast.actions = extras.actions
     if (extras.onDismiss !== undefined) toast.onDismiss = extras.onDismiss
     if (extras.grupo !== undefined) toast.grupo = extras.grupo
@@ -186,7 +208,19 @@ export const useToastStore = create<ToastState>()((set, get) => ({
     if (extras.resposta !== undefined) toast.resposta = extras.resposta
     if (extras.urgente === true) toast.urgente = true
     if (extras.detalhe !== undefined) toast.detalhe = extras.detalhe
-    set((state) => ({ toasts: [...state.toasts, toast] }))
+    if (extras.chave !== undefined) toast.chave = extras.chave
+    // Repetido: troca no lugar, com o id de antes e o prazo contando de novo.
+    const repetido = avisoRepetido(get().toasts, toast)
+    const id = repetido?.id ?? crypto.randomUUID()
+    toast.id = id
+    if (repetido !== undefined) {
+      const timer = timers.get(id)
+      if (timer !== undefined) clearTimeout(timer)
+      timers.delete(id)
+      set((state) => ({ toasts: state.toasts.map((atual) => (atual.id === id ? toast : atual)) }))
+    } else {
+      set((state) => ({ toasts: [...state.toasts, toast] }))
+    }
     if (durationMs !== null) {
       timers.set(
         id,

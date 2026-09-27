@@ -195,8 +195,8 @@ import { botaoDireitoEhDaParede, ligarMenuDaParede, type MenuDaParede } from './
 import {
   visibleWalls, visibleRegions, visibleStairs, visibleLights, visibleDrawings, visibleTokens, visibleProps, visiblePins,
   canInteractInLayer, isLayerLocked, wallLayer, regionLayer, stairLayer, lightLayer, tokenLayer, propLayer, drawingLayer,
-  LAYER_LABELS,
 } from '../lib/layers'
+import { avisarCamadaTravada } from '../lib/avisoCamadaTravada'
 import { isValidStairDraft, buildStairFromDraft, stairStepWidthForPreset } from '../lib/stairs'
 // `eraseDecisionForRegion` saiu da lista de propósito: a borracha "Só uma
 // parte" decide Região/Sala por `circleTouchesRegionOutline` (contorno, não
@@ -4036,7 +4036,7 @@ export function PixiCanvas({
         const lockedLayer = camadaTravadaNoPiso(map, useMapStore.getState().pisoAtivo, worldPoint)
         if (lockedLayer !== null) {
           mode = 'idle'
-          useToastStore.getState().push('info', `A camada ${LAYER_LABELS[lockedLayer]} está travada`)
+          avisarCamadaTravada(lockedLayer)
           lastPoint = { x: event.global.x, y: event.global.y }
           updateCursor()
           return
