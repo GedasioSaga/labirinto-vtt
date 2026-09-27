@@ -21,6 +21,7 @@ import { DEFAULT_FLOOR_STYLE } from './mapFile'
 import { sameDestination, sameExits } from './pinTravel'
 import { passageOf } from './pins'
 import { sameLock } from './pinLock'
+import { closeIfLocked } from './doorLock'
 import { samePinPass } from './pinPass'
 import { sameColecao } from './colecao'
 import { sameLoja } from './loja'
@@ -1232,7 +1233,7 @@ export function setDoorLocked(map: MapData, wallId: string, locked: boolean): Ma
   return {
     ...map,
     walls: map.walls.map((w) =>
-      w.id === wallId && w.door ? { ...w, door: { ...w.door, locked, open: locked ? false : w.door.open } } : w,
+      w.id === wallId && w.door ? { ...w, door: closeIfLocked({ ...w.door, locked }) } : w,
     ),
   }
 }

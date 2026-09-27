@@ -3,6 +3,7 @@ import { readMoedas } from './troca'
 import { isEfeitoNaLuz, isEfeitoNaPorta, isEfeitoNaZona, regraDePinoDoArquivo, regraDoArquivo } from './estadoDoMundo'
 import { propPlayerImage, propPlayerLabel } from './propPlayerLook'
 import { readDoorKey } from './doorKey'
+import { closeIfLocked } from './doorLock'
 import { lerMarcasDoArquivo } from './marcas'
 import { readTokenVehicle, withoutVehicleField } from './vehicle'
 import { linkLooseWallsToRooms } from './roomLink'
@@ -244,12 +245,14 @@ function roomVisionRadiusFromFile(region: Region): Region {
  * 'left'/'right' voltam; qualquer outro valor sai, e a porta abre dos dois lados.
  * `semEspiar` (porta que o jogador não espia) segue o `secret`: só `true`
  * volta; o resto sai, e a porta deixa espiar — como sempre foi.
+ * Aberta E trancada (mapa salvo antes da regra) volta fechada (`closeIfLocked`):
+ * o host já a tratava assim, e o jogador não pode vê-la aberta sem passar.
  */
 function doorFromFile(door: DoorState): DoorState {
   const { secret, opensFrom, porEstado, semEspiar, ...rest } = doorKeyFromFile(door)
   // `door` vem de JSON.parse: o tipo declarado não garante o valor, por isso a checagem de runtime.
   const side: unknown = opensFrom
-  const withKind: DoorState = { ...rest, kind: rest.kind ?? 'normal' }
+  const withKind: DoorState = closeIfLocked({ ...rest, kind: rest.kind ?? 'normal' })
   // ESTADO DO MUNDO: regra torta some e a porta volta a ser a de sempre; ausente continua ausente.
   const regra = regraDoArquivo(porEstado, isEfeitoNaPorta)
   const withRule: DoorState = regra === undefined ? withKind : { ...withKind, porEstado: regra }
