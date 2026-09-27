@@ -473,4 +473,138 @@ describe('PlayerInventory', () => {
     render(personagens([JILL, DIEGO], ['jill']), { instant: true })
     expect(document.querySelector('.pp-inv')?.hasAttribute('data-instant')).toBe(true)
   })
+
+  describe('o véu isola o inventário: o resto da página fica inerte e some enquanto ele está aberto', () => {
+    function solto(classe = ''): HTMLDivElement {
+      const el = document.createElement('div')
+      if (classe !== '') el.className = classe
+      document.body.appendChild(el)
+      return el
+    }
+
+    it('abrir deixa inerte tudo o que está fora do véu; fechar devolve', () => {
+      const cartao = solto('pp-pincard')
+      render(personagens([JILL, DIEGO], ['jill']))
+      const veu = document.querySelector('.pp-inv')
+      expect(cartao.hasAttribute('inert')).toBe(true)
+      expect(cartao.getAttribute('data-pp-inv-fundo')).toBe('')
+      expect(container.hasAttribute('inert')).toBe(true)
+      expect(veu?.hasAttribute('inert')).toBe(false)
+      expect(veu?.hasAttribute('data-pp-inv-fundo')).toBe(false)
+      act(() => root.render(<></>))
+      expect(cartao.hasAttribute('inert')).toBe(false)
+      expect(cartao.hasAttribute('data-pp-inv-fundo')).toBe(false)
+      expect(container.hasAttribute('inert')).toBe(false)
+      cartao.remove()
+    })
+
+    it('na raiz do app, só os irmãos do véu ficam inertes: o alarme do mestre e o aviso de reconexão continuam livres', async () => {
+      const raiz = solto()
+      raiz.id = 'root'
+      const barra = document.createElement('div')
+      barra.className = 'pp-bar'
+      const alarme = document.createElement('div')
+      alarme.className = 'pp-alarm'
+      raiz.append(barra, alarme)
+      render(personagens([JILL, DIEGO], ['jill']))
+      expect(raiz.hasAttribute('inert')).toBe(false)
+      expect(barra.hasAttribute('inert')).toBe(true)
+      expect(alarme.hasAttribute('inert')).toBe(false)
+      // Chegam depois da abertura: a conexão caiu (fica à vista, por cima do véu)
+      // e um aviso novo (vai para trás do véu, já escondido, sem esperar o fade).
+      const reconectando = document.createElement('div')
+      reconectando.className = 'pp-reconnecting'
+      const aviso = document.createElement('p')
+      aviso.className = 'pp-notice'
+      raiz.append(reconectando, aviso)
+      await act(async () => {})
+      expect(reconectando.hasAttribute('inert')).toBe(false)
+      expect(aviso.hasAttribute('inert')).toBe(true)
+      expect(aviso.getAttribute('data-pp-inv-fundo')).toBe('ja')
+      act(() => root.render(<></>))
+      expect(barra.hasAttribute('inert')).toBe(false)
+      expect(aviso.hasAttribute('inert')).toBe(false)
+      raiz.remove()
+    })
+
+    it('quem já era inerte antes continua inerte depois de fechar', () => {
+      const ja = solto()
+      ja.setAttribute('inert', '')
+      render(personagens([JILL, DIEGO], ['jill']))
+      expect(ja.hasAttribute('data-pp-inv-fundo')).toBe(false)
+      act(() => root.render(<></>))
+      expect(ja.hasAttribute('inert')).toBe(true)
+      ja.remove()
+    })
+
+    it('aberto pelo teclado, o fundo sai de cena na hora, sem esperar o véu', () => {
+      render(personagens([JILL, DIEGO], ['jill']), { instant: true })
+      expect(container.getAttribute('data-pp-inv-fundo')).toBe('ja')
+    })
+
+    it('o Esc é do inventário: nenhum outro ouvinte da página recebe a tecla', () => {
+      const onClose = vi.fn()
+      const outro = vi.fn()
+      document.addEventListener('keydown', outro)
+      window.addEventListener('keydown', outro)
+      try {
+        render(personagens([JILL, DIEGO], ['jill']), { onClose })
+        tecla('Escape')
+        expect(onClose).toHaveBeenCalledTimes(1)
+        expect(outro).not.toHaveBeenCalled()
+      } finally {
+        document.removeEventListener('keydown', outro)
+        window.removeEventListener('keydown', outro)
+      }
+    })
+  })
+
+  it('ver o item, "Dar a quem?", "Pagar" e a pergunta trocam só o miolo da caixa de ações: a caixa (altura reservada) e a linha do resultado ficam no lugar', () => {
+    render(personagens([JILL, DIEGO], ['jill']))
+    const caixa = dialogo().querySelector('.pp-inv__passos')
+    const linha = dialogo().querySelector('[role="status"]')
+    expect(caixa).not.toBeNull()
+    const noLugar = () => {
+      expect(dialogo().querySelector('.pp-inv__passos')).toBe(caixa)
+      expect(dialogo().querySelector('[role="status"]')).toBe(linha)
+    }
+    // Pagar: o campo e o "Voltar" dividem a primeira fileira; os colegas ficam na segunda.
+    act(() => botao('Pagar a…').click())
+    noLugar()
+    const campo = dialogo().querySelector<HTMLInputElement>('input[type="number"]')
+    if (campo === null) throw new Error('sem o campo de moedas')
+    digita(campo, '5')
+    const topoPagar = campo.closest('.pp-inv__passo-topo')
+    expect(topoPagar).not.toBeNull()
+    expect(botao('Voltar').closest('.pp-inv__passo-topo')).toBe(topoPagar)
+    noLugar()
+    act(() => botao('Diego').click())
+    expect(detalhe()).toContain('Pagar 5 moedas a Diego?')
+    noLugar()
+    act(() => botao('Não').click())
+    // Dar: a pergunta e o "Voltar" na mesma fileira.
+    act(() => vaga('Chave do Escudo').click())
+    act(() => botao('Dar a…').click())
+    const pergunta = Array.from(dialogo().querySelectorAll('.pp-inv__pergunta')).find((p) => p.textContent === 'Dar a quem?')
+    expect(pergunta?.closest('.pp-inv__passo-topo')).not.toBeNull()
+    expect(botao('Voltar').closest('.pp-inv__passo-topo')).toBe(pergunta?.closest('.pp-inv__passo-topo'))
+    noLugar()
+  })
+
+  it('ao entrar em "Pagar" e em "Dar a quem?", o foco cai na primeira fileira do passo, a do "Voltar": num celular a fileira de baixo já passa da borda, e focar lá rolaria a página e arrastaria a grade', () => {
+    render(personagens([JILL, DIEGO], ['jill']))
+    const naFileiraDoVoltar = () => {
+      const topo = botao('Voltar').closest('.pp-inv__passo-topo')
+      expect(topo).not.toBeNull()
+      expect(document.activeElement?.closest('.pp-inv__passo-topo')).toBe(topo)
+    }
+    act(() => botao('Pagar a…').click())
+    expect(document.activeElement).toBeInstanceOf(HTMLInputElement)
+    naFileiraDoVoltar()
+    act(() => botao('Voltar').click())
+    act(() => vaga('Chave do Escudo').click())
+    act(() => botao('Dar a…').click())
+    expect(document.activeElement).toBe(botao('Diego'))
+    naFileiraDoVoltar()
+  })
 })

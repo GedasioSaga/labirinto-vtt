@@ -15,6 +15,7 @@ import {
   rememberItemTexts,
   slotDescription,
   slotFallbackLine,
+  stableSlotOrder,
   type ItemTexts,
 } from './inventario'
 
@@ -84,6 +85,66 @@ describe('inventorySlots: a bolsa primeiro, depois os itens juntados por nome', 
     expect(inventorySlots(ficha('a', 'Jill', 100, { mochila: [{ id: 'x', nome: 'Faca' }] })).map((s) => s.kind)).toEqual(['item'])
     expect(inventorySlots(ficha('a', 'Jill', 100, { moedas: 0 }))).toEqual([])
     expect(inventorySlots(ficha('a', 'Jill', 100))).toEqual([])
+  })
+})
+
+describe('stableSlotOrder: quem já está na grade não sai do lugar', () => {
+  const ERVA_1 = { id: 'erva-1', nome: 'Erva verde' }
+  const ERVA_2 = { id: 'erva-2', nome: 'Erva verde' }
+  const CHAVE = { id: 'chave-1', nome: 'Chave do Escudo' }
+  const FACA = { id: 'faca-1', nome: 'Faca' }
+
+  const vagas = (extra: Partial<Token>) => inventorySlots(ficha('a', 'Jill', 100, extra))
+  const nomes = (slots: { nome: string }[]) => slots.map((s) => s.nome)
+  const chaves = (slots: { key: string }[]) => slots.map((s) => s.key)
+
+  it('sem ordem lembrada (a primeira vez), vale a ordem natural', () => {
+    const agora = vagas({ moedas: 15, mochila: [ERVA_1, CHAVE] })
+    expect(stableSlotOrder(undefined, agora)).toEqual(agora)
+  })
+
+  it('moedas que chegam entram no fim, sem empurrar os itens para a direita', () => {
+    const antes = vagas({ mochila: [ERVA_1, CHAVE] })
+    const agora = vagas({ moedas: 5, mochila: [ERVA_1, CHAVE] })
+    expect(nomes(agora)).toEqual(['Moedas', 'Erva verde', 'Chave do Escudo'])
+    expect(nomes(stableSlotOrder(chaves(antes), agora))).toEqual(['Erva verde', 'Chave do Escudo', 'Moedas'])
+  })
+
+  it('dar a primeira de duas Ervas não manda a Erva para depois da Chave; a vaga traz a quantidade nova', () => {
+    const antes = vagas({ mochila: [ERVA_1, CHAVE, ERVA_2] })
+    const agora = vagas({ mochila: [CHAVE, ERVA_2] })
+    expect(nomes(agora)).toEqual(['Chave do Escudo', 'Erva verde'])
+    const mostrada = stableSlotOrder(chaves(antes), agora)
+    expect(mostrada.map((s) => [s.nome, s.quantidade, s.itemIds])).toEqual([
+      ['Erva verde', 1, ['erva-2']],
+      ['Chave do Escudo', 1, ['chave-1']],
+    ])
+  })
+
+  it('quem saiu libera o lugar: a grade fecha o vão e os outros seguem na mesma ordem', () => {
+    const lembrada = ['item:Chave do Escudo', 'item:Erva verde', 'item:Faca']
+    const agora = vagas({ mochila: [FACA, ERVA_2] })
+    expect(nomes(stableSlotOrder(lembrada, agora))).toEqual(['Erva verde', 'Faca'])
+  })
+
+  it('a bolsa gasta até zero sai; moedas que voltam entram no fim, como item novo', () => {
+    const antes = vagas({ moedas: 3, mochila: [CHAVE, FACA] })
+    const semMoedas = stableSlotOrder(chaves(antes), vagas({ mochila: [CHAVE, FACA] }))
+    expect(nomes(semMoedas)).toEqual(['Chave do Escudo', 'Faca'])
+    const deVolta = stableSlotOrder(chaves(semMoedas), vagas({ moedas: 2, mochila: [CHAVE, FACA] }))
+    expect(nomes(deVolta)).toEqual(['Chave do Escudo', 'Faca', 'Moedas'])
+  })
+
+  it('vários novos de uma vez entram no fim, na ordem natural entre eles', () => {
+    const antes = vagas({ mochila: [CHAVE] })
+    const agora = vagas({ moedas: 4, mochila: [CHAVE, FACA, ERVA_1] })
+    expect(nomes(stableSlotOrder(chaves(antes), agora))).toEqual(['Chave do Escudo', 'Moedas', 'Faca', 'Erva verde'])
+  })
+
+  it('aplicar de novo com a própria ordem não muda nada', () => {
+    const antes = vagas({ mochila: [ERVA_1, CHAVE] })
+    const mostrada = stableSlotOrder(chaves(antes), vagas({ moedas: 5, mochila: [CHAVE, ERVA_2, FACA] }))
+    expect(stableSlotOrder(chaves(mostrada), mostrada)).toEqual(mostrada)
   })
 })
 

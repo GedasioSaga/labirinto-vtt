@@ -23,7 +23,7 @@ import { PlayerFerrolho } from './PlayerFerrolho'
 import { acaoDeFerrolho, tokenAlcancaPino } from '../lib/ferrolho'
 import { PlayerTokenCard } from './PlayerTokenCard'
 import { PlayerInventory } from './PlayerInventory'
-import { inventoryCharacters, rememberItemTexts, type ItemTexts } from './inventario'
+import { inventoryCharacters, rememberItemTexts, stableSlotOrder, type ItemTexts } from './inventario'
 import { isEditableTarget } from '../lib/keymap'
 import { tokenActionNoticeText, tokenActionReply } from './tokenCard'
 import { PlayerClueCard } from './PlayerClues'
@@ -842,7 +842,22 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
 
   // INVENTÁRIO ESTILO RE: as fichas DELE no mapa da tela, lidas do recorte que
   // já chegou (nada novo atravessa para o jogador por causa desta tela).
-  const inventoryList = useMemo(() => (map ? inventoryCharacters(map, ownTokens, partyTokens, OWN_TOKEN_CSS) : []), [map, ownTokens, partyTokens])
+  // A grade não embaralha: o host acrescenta no fim e põe a bolsa na frente só
+  // quando há saldo, então a tela lembra a ordem que já mostrou (por ficha,
+  // nesta sessão) e só acrescenta no fim o que é novo. Um ref, e não estado:
+  // gravar a ordem não deve pedir outra renderização.
+  const slotOrder = useRef(new Map<string, readonly string[]>())
+  const inventoryList = useMemo(
+    () =>
+      (map ? inventoryCharacters(map, ownTokens, partyTokens, OWN_TOKEN_CSS) : []).map((character) => ({
+        ...character,
+        slots: stableSlotOrder(slotOrder.current.get(character.tokenId), character.slots),
+      })),
+    [map, ownTokens, partyTokens],
+  )
+  useEffect(() => {
+    for (const character of inventoryList) slotOrder.current.set(character.tokenId, character.slots.map((slot) => slot.key))
+  }, [inventoryList])
   const canOpenInventory = inventoryList.length > 0
   const [inventory, setInventory] = useState<{ instant: boolean } | null>(null)
   // O texto do mestre no visor do item. O recorte só traz a descrição do pino

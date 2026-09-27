@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type ReactNode, type RefObject } from 'react'
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type ReactNode, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import { HEALTH_BAR_COLORS } from '../pixi/drawTokenHealth'
 import { TOKEN_CONDITION_LABELS, TOKEN_CONDITION_SYMBOLS } from '../lib/tokenConditions'
@@ -30,6 +30,12 @@ export const INVENTORY_PENDING_TIMEOUT_MS = 10_000
 
 /** Controles do inventário por onde o Tab circula; as vagas fora da escolhida saem (a grade é UMA parada do Tab). */
 const FOCUSABLE = 'button:not(:disabled):not([tabindex="-1"]), input:not(:disabled)'
+
+/** Livres por cima do véu: o alarme do mestre e o aviso de conexão caída (z 40; o véu começa logo abaixo do alarme). */
+const ACIMA_DO_VEU = '.pp-alarm, .pp-reconnecting'
+
+/** A raiz do app, onde os dois de cima nascem: ela nunca fica inerte inteira, só os outros filhos dela. */
+const RAIZ_DO_APP = '#root'
 
 interface PlayerInventoryProps {
   /** As fichas DELE no mapa da tela (`inventoryCharacters`), a própria primeiro. */
@@ -89,6 +95,53 @@ function pagouDeUmaBolsa(antes: ReadonlyMap<string, number>, agora: readonly Inv
   })
 }
 
+/**
+ * Tira de cena o que fica atrás do véu, como a pausa do RE: cada pedaço da
+ * página fora do inventário ganha `inert` (clique, foco e leitor de tela não
+ * chegam lá) e `data-pp-inv-fundo`, que o CSS esconde quando o véu termina de
+ * cobrir — ou na hora (`'ja'`), para o que abriu pelo teclado ou chegou com ele
+ * aberto (um aviso, um cartão). Quem já era inerte fica como estava, e a
+ * volta desfaz só o que foi marcado aqui.
+ */
+function coverBackground(veil: Element, instant: boolean): () => void {
+  const marked = new Set<Element>()
+  const observers: MutationObserver[] = []
+
+  function mark(el: Element, now: boolean): void {
+    if (el.hasAttribute('inert')) return
+    el.setAttribute('inert', '')
+    el.setAttribute('data-pp-inv-fundo', now ? 'ja' : '')
+    marked.add(el)
+  }
+
+  // O véu e os avisos de cima ficam livres; quem os contém é descido, para marcar só os irmãos deles.
+  function place(el: Element, now: boolean): void {
+    if (el === veil || el.matches(ACIMA_DO_VEU)) return
+    if (el.matches(RAIZ_DO_APP) || el.contains(veil) || el.querySelector(ACIMA_DO_VEU) !== null) descend(el, now)
+    else mark(el, now)
+  }
+
+  function descend(container: Element, now: boolean): void {
+    for (const child of Array.from(container.children)) place(child, now)
+    const observer = new MutationObserver((records) => {
+      for (const record of records) {
+        for (const node of Array.from(record.addedNodes)) if (node instanceof Element) place(node, true)
+      }
+    })
+    observer.observe(container, { childList: true })
+    observers.push(observer)
+  }
+
+  descend(document.body, instant)
+  return () => {
+    for (const observer of observers) observer.disconnect()
+    for (const el of marked) {
+      el.removeAttribute('inert')
+      el.removeAttribute('data-pp-inv-fundo')
+    }
+  }
+}
+
 interface Outcome {
   tone: 'ok' | 'erro'
   text: string
@@ -114,6 +167,7 @@ const IDLE: Step = { kind: 'idle' }
 export function PlayerInventory({ characters, onGive, onPay, notice, onClose, instant = false, itemTexts = NO_TEXTS }: PlayerInventoryProps) {
   const titleId = useId()
   const textId = useId()
+  const veilRef = useRef<HTMLDivElement | null>(null)
   const dialogRef = useRef<HTMLDivElement | null>(null)
   const closeRef = useRef<HTMLButtonElement | null>(null)
   const slotRef = useRef<HTMLButtonElement | null>(null)
@@ -156,17 +210,29 @@ export function PlayerInventory({ characters, onGive, onPay, notice, onClose, in
     focusNext.current = 'acao'
   }, [])
 
-  // Abrir: o foco entra na vaga escolhida (sem nada, no "Fechar"). Fechar: volta a quem abriu.
-  useEffect(() => {
+  // Abrir: o resto da página sai de cena (inerte, e escondido quando o véu
+  // cobre). Fechar: tudo volta, e o foco a quem abriu. Efeito de layout porque
+  // marca antes do primeiro desenho (nada pisca por cima do véu) e, ao fechar,
+  // devolve o foco antes de o véu sair da página, depois de desfazer o inerte
+  // (quem abriu estava atrás do véu). `instant` só diz como a abertura entra.
+  useLayoutEffect(() => {
     const opener = document.activeElement
-    ;(slotRef.current ?? closeRef.current)?.focus()
+    const veil = veilRef.current
+    const uncover = veil === null ? null : coverBackground(veil, instant)
     return () => {
+      uncover?.()
       if (opener instanceof HTMLElement && opener.isConnected) opener.focus()
     }
   }, [])
 
-  // Esc volta um passo ou fecha; Tab circula só aqui dentro. No documento, antes da
-  // janela: a gaveta do painel e os modos do mapa ouvem o Esc na janela e não fecham junto.
+  // O foco entra na vaga escolhida (sem nada, no "Fechar").
+  useEffect(() => {
+    ;(slotRef.current ?? closeRef.current)?.focus()
+  }, [])
+
+  // Esc volta um passo ou fecha; Tab circula só aqui dentro. Na captura do
+  // documento, antes de todo o resto: nenhum outro ouvinte vê o Esc — nem os
+  // cartões e a gaveta que ficaram atrás do véu, nem os modos do mapa na janela.
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
@@ -191,8 +257,8 @@ export function PlayerInventory({ characters, onGive, onPay, notice, onClose, in
         first.focus()
       }
     }
-    document.addEventListener('keydown', onKeyDown)
-    return () => document.removeEventListener('keydown', onKeyDown)
+    document.addEventListener('keydown', onKeyDown, true)
+    return () => document.removeEventListener('keydown', onKeyDown, true)
   }, [back])
 
   // O foco que o passo pediu, depois do desenho que o montou.
@@ -325,6 +391,7 @@ export function PlayerInventory({ characters, onGive, onPay, notice, onClose, in
 
   return createPortal(
     <div
+      ref={veilRef}
       className="pp-inv"
       data-instant={instant ? '' : undefined}
       onClick={(event) => {
@@ -415,39 +482,45 @@ export function PlayerInventory({ characters, onGive, onPay, notice, onClose, in
                         {descricao ?? slotFallbackLine(selected)}
                       </p>
                     </div>
-                    <Actions
-                      slot={selected}
-                      character={character}
-                      step={step}
-                      valor={valor}
-                      busy={pending !== null}
-                      refs={{ actionRef, colleagueRef, yesRef, fieldRef }}
-                      onValor={setValor}
-                      onStart={() => {
-                        setOutcome(null)
-                        if (selected.kind === 'moedas') {
-                          setValor('1')
-                          setStep({ kind: 'pagar' })
-                          focusNext.current = 'campo'
-                        } else {
-                          setStep({ kind: 'dar' })
-                          focusNext.current = 'colega'
-                        }
-                      }}
-                      onChooseGive={(colleague) => {
-                        setStep({ kind: 'confirmar-dar', colleague })
-                        focusNext.current = 'sim'
-                      }}
-                      onChoosePay={(colleague, quanto) => {
-                        setStep({ kind: 'confirmar-pagar', colleague, quanto, payer: payerFor(colleague, quanto) })
-                        focusNext.current = 'sim'
-                      }}
-                      onConfirm={() => {
-                        if (step.kind === 'confirmar-dar') confirmGive(step.colleague)
-                        else if (step.kind === 'confirmar-pagar') confirmPay(step.colleague, step.quanto)
-                      }}
-                      onBack={back}
-                    />
+                    {/* A caixa das ações tem sempre a altura do passo mais alto, como a
+                        janela de comandos do RE3: trocar "Dar a…" por "Dar a quem?" ou
+                        "Pagar" troca só o miolo, e nem o texto nem a grade saem do lugar. */}
+                    <div className="pp-inv__passos">
+                      <Actions
+                        slot={selected}
+                        character={character}
+                        step={step}
+                        valor={valor}
+                        busy={pending !== null}
+                        refs={{ actionRef, colleagueRef, yesRef, fieldRef }}
+                        onValor={setValor}
+                        onStart={() => {
+                          setOutcome(null)
+                          if (selected.kind === 'moedas') {
+                            setValor('1')
+                            setStep({ kind: 'pagar' })
+                            focusNext.current = 'campo'
+                          } else {
+                            setStep({ kind: 'dar' })
+                            focusNext.current = 'colega'
+                          }
+                        }}
+                        onChooseGive={(colleague) => {
+                          setStep({ kind: 'confirmar-dar', colleague })
+                          focusNext.current = 'sim'
+                        }}
+                        onChoosePay={(colleague, quanto) => {
+                          setStep({ kind: 'confirmar-pagar', colleague, quanto, payer: payerFor(colleague, quanto) })
+                          focusNext.current = 'sim'
+                        }}
+                        onConfirm={() => {
+                          if (step.kind === 'confirmar-dar') confirmGive(step.colleague)
+                          else if (step.kind === 'confirmar-pagar') confirmPay(step.colleague, step.quanto)
+                        }}
+                        onBack={back}
+                      />
+                      <StepMold colleagues={character.colleagues} />
+                    </div>
                   </div>
                 </>
               )}
@@ -673,24 +746,31 @@ function Actions({ slot, character, step, valor, busy, refs, onValor, onStart, o
     )
   }
 
+  // No "Dar a quem?" e no "Pagar", o "Voltar" sobe para a fileira de cima,
+  // sempre no mesmo canto, e o que recebe o foco ao entrar no passo (o
+  // primeiro colega, o campo de moedas) mora nessa mesma fileira: numa tela
+  // de celular a fileira de baixo já passa da borda, e focar lá rolaria a
+  // página e arrastaria a grade junto.
   if (step.kind === 'dar') {
     return (
       <div className="pp-inv__passo">
-        <p id={questionId} className="pp-inv__pergunta">
-          Dar a quem?
-        </p>
-        <ul className="pp-inv__colegas" aria-labelledby={questionId}>
-          {character.colleagues.map((colleague, i) => (
-            <li key={colleague.tokenId}>
-              <button ref={i === 0 ? refs.colleagueRef : undefined} type="button" className="pp-button pp-inv__acao" onClick={() => onChooseGive(colleague)}>
-                {colleague.name}
-              </button>
-            </li>
-          ))}
-        </ul>
-        <button type="button" className="pp-button pp-inv__acao pp-inv__acao--nao" onClick={onBack}>
-          Voltar
-        </button>
+        <div className="pp-inv__passo-topo">
+          <p id={questionId} className="pp-inv__pergunta">
+            Dar a quem?
+          </p>
+          <ul className="pp-inv__colegas" aria-labelledby={questionId}>
+            {character.colleagues.map((colleague, i) => (
+              <li key={colleague.tokenId}>
+                <button ref={i === 0 ? refs.colleagueRef : undefined} type="button" className="pp-button pp-inv__acao" onClick={() => onChooseGive(colleague)}>
+                  {colleague.name}
+                </button>
+              </li>
+            ))}
+          </ul>
+          <button type="button" className="pp-button pp-inv__acao pp-inv__acao--nao" onClick={onBack}>
+            Voltar
+          </button>
+        </div>
       </div>
     )
   }
@@ -700,23 +780,28 @@ function Actions({ slot, character, step, valor, busy, refs, onValor, onStart, o
     const valido = Number.isInteger(quanto) && quanto >= 1 && quanto <= character.moedas
     return (
       <div className="pp-inv__passo">
-        <div className="pp-inv__campo">
-          <label className="pp-label" htmlFor={fieldId}>
-            Quantas moedas
-          </label>
-          <input
-            ref={refs.fieldRef}
-            id={fieldId}
-            className="pp-input"
-            type="number"
-            inputMode="numeric"
-            min={1}
-            max={character.moedas}
-            step={1}
-            value={valor}
-            aria-invalid={!valido}
-            onChange={(event) => onValor(event.target.value)}
-          />
+        <div className="pp-inv__passo-topo">
+          <div className="pp-inv__campo">
+            <label className="pp-label" htmlFor={fieldId}>
+              Quantas moedas
+            </label>
+            <input
+              ref={refs.fieldRef}
+              id={fieldId}
+              className="pp-input"
+              type="number"
+              inputMode="numeric"
+              min={1}
+              max={character.moedas}
+              step={1}
+              value={valor}
+              aria-invalid={!valido}
+              onChange={(event) => onValor(event.target.value)}
+            />
+          </div>
+          <button type="button" className="pp-button pp-inv__acao pp-inv__acao--nao" onClick={onBack}>
+            Voltar
+          </button>
         </div>
         {!valido ? (
           <p className="pp-error" role="alert">
@@ -738,9 +823,6 @@ function Actions({ slot, character, step, valor, busy, refs, onValor, onStart, o
             </ul>
           </>
         )}
-        <button type="button" className="pp-button pp-inv__acao pp-inv__acao--nao" onClick={onBack}>
-          Voltar
-        </button>
       </div>
     )
   }
@@ -764,6 +846,38 @@ function Actions({ slot, character, step, valor, busy, refs, onValor, onStart, o
           {pagar ? 'Para pagar, encoste a sua ficha na de um colega.' : 'Para dar, encoste a sua ficha na de um colega.'}
         </p>
       )}
+    </div>
+  )
+}
+
+/**
+ * O molde da caixa de ações: o passo "Pagar", o mais alto, desenhado sem
+ * tinta na mesma célula dos passos de verdade. A caixa fica com a altura dele
+ * em todos os passos, e trocar de passo não empurra nada. O texto vem do CSS
+ * (`data-texto`), fora do texto da página e do leitor de tela.
+ */
+function StepMold({ colleagues }: { colleagues: readonly InventoryColleague[] }) {
+  return (
+    <div className="pp-inv__molde" aria-hidden="true">
+      <div className="pp-inv__passo">
+        <span className="pp-inv__passo-topo">
+          <span className="pp-inv__campo">
+            <span className="pp-label" data-texto="Quantas moedas" />
+            <span className="pp-input" />
+          </span>
+          <span className="pp-button pp-inv__acao pp-inv__acao--nao" data-texto="Voltar" />
+        </span>
+        <span className="pp-inv__pergunta" data-texto="Pagar a quem?" />
+        <span className="pp-inv__colegas">
+          {/* Sem colega, um botão vazio guarda a fileira: quando alguém encosta,
+              a caixa já tem o tamanho certo e nada pula. */}
+          {colleagues.length === 0 ? (
+            <span className="pp-button pp-inv__acao" />
+          ) : (
+            colleagues.map((colleague) => <span key={colleague.tokenId} className="pp-button pp-inv__acao" data-texto={colleague.name} />)
+          )}
+        </span>
+      </div>
     </div>
   )
 }
