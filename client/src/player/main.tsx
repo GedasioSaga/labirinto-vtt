@@ -5,7 +5,7 @@ import { JOIN_CODE_LENGTH, NAME_MAX_LENGTH, type ClueEntry, type NoteEntry } fro
 import { latestActionNotice } from './moveNotice'
 import { ConfrontoFaixa } from './ConfrontoFaixa'
 import { themeCss } from '../theme'
-import { createPlayerConnection, hasUnreadNotes, RESUME_STORAGE_KEY } from './playerConnection'
+import { chatOf, createPlayerConnection, hasUnreadNotes, RESUME_STORAGE_KEY } from './playerConnection'
 import { pedeGzip } from '../net/pacoteComprimido'
 import type { PlayerConnection, PlayerState, SeatClaimNotice, SocketLike, StorageLike } from './playerConnection'
 import type { SeatOption } from '../net/protocol'
@@ -1088,6 +1088,8 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
     // não há quem ande, e o menu do toque longo vem sem o item.
     const playingMap = state.map
     const walkerId = ownTokens.flatMap((id) => playingMap.tokens.filter((t) => t.id === id)).at(0)?.id ?? null
+    // CHAT: só de quem joga com ficha; sem ela, a aba nem aparece.
+    const chatLog = chatOf(state)
     // Cartão de pista na tela: o Escape é dele, e um toque não pode fechar também o recado.
     const clueCardOpen = openClue !== null || (state.shownClue !== undefined && semPinoNaTela)
     // Cartão do pino (ou a escolha entre pinos) ou da ficha aberto: o Escape é dele, e não fecha junto os cartões de baixo.
@@ -1268,9 +1270,9 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
           }}
           letter={{ peers: state.letterPeers, status: state.letterSend, onAskPeers: askLetterPeers, onSend: sendLetter }}
           chat={
-            state.chat === undefined
+            chatLog === undefined
               ? undefined
-              : { log: state.chat, unread: state.chatUnread, status: state.chatSend, selfName: state.selfName, onSend: sendChat, onRead: readChat }
+              : { log: chatLog, unread: state.chatUnread, status: state.chatSend, selfName: state.selfName, onSend: sendChat, onRead: readChat }
           }
           onRollDice={(request) => connection.rollDice(request)}
           elsewhere={state.elsewhere}

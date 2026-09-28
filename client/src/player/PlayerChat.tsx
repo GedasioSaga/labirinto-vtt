@@ -32,7 +32,7 @@ export interface PlayerChatProps {
 }
 
 /** Respostas do mestre que devolvem a mensagem ao campo. */
-type Refusal = 'too_soon' | 'no_scene' | 'failed'
+type Refusal = 'too_soon' | 'no_scene' | 'not_seated' | 'failed'
 
 /** Avisos da própria tela, antes de a mensagem sair. */
 type LocalAlert = 'empty' | 'long' | 'offline'
@@ -40,6 +40,7 @@ type LocalAlert = 'empty' | 'long' | 'offline'
 const REFUSAL_TEXT: Record<Refusal, string> = {
   too_soon: 'Espere um instante e mande de novo.',
   no_scene: 'Você não está em nenhuma cena agora. Fale no Global.',
+  not_seated: 'Você está sem ficha agora: o chat volta quando o mestre te der uma.',
   failed: 'O mestre não aceitou a mensagem. Tente de novo.',
 }
 
@@ -67,7 +68,7 @@ const MENTION_QUERY = /(?<![\p{L}\p{N}\p{M}])@([^\s@]*)$/u
 const COMBINING_MARKS = /\p{M}/gu
 
 function isRefusal(phase: ChatSend['phase'] | undefined): phase is Refusal {
-  return phase === 'too_soon' || phase === 'no_scene' || phase === 'failed'
+  return phase === 'too_soon' || phase === 'no_scene' || phase === 'not_seated' || phase === 'failed'
 }
 
 /** A menção sendo digitada: onde está o "@" e o que veio depois dele. */

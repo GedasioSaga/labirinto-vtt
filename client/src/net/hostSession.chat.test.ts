@@ -1,9 +1,10 @@
 /**
  * CHAT DOS JOGADORES (texto e @). Dois canais: 'cena' (quem tem a ficha na
- * mesma cena) e 'global' (a mesa inteira, até quem aguarda sem ficha). O host
- * limpa o texto, refaz as menções, segura a rajada e guarda as últimas 200 de
- * cada canal em memória. O jogador nunca recebe a chave da cena: só 'cena' ou
- * 'global'. Plano: docs/plano-chat.md (fatia A).
+ * mesma cena) e 'global' (quem joga com ficha, em qualquer cena). Quem aguarda
+ * sem ficha não lê nem escreve. O host limpa o texto, refaz as menções, segura
+ * a rajada e guarda as últimas 200 de cada canal em memória. O jogador nunca
+ * recebe a chave da cena: só 'cena' ou 'global'. Plano: docs/plano-chat.md
+ * (fatia A).
  */
 import { describe, expect, it } from 'vitest'
 import { createEmptyMap } from '../lib/mapFactory'
@@ -33,6 +34,12 @@ function cripta(tokens: Token[]): HostScene {
 const mundo: HostWorld = {
   open: salao([ficha('lanterna', 100, 100), ficha('tocha', 150, 100)]),
   background: [cripta([ficha('machado', 200, 100)])],
+}
+
+/** O mesmo mundo com a foice na Cripta: a ficha que o mestre dá a quem chega. */
+const comFoice: HostWorld = {
+  open: salao([ficha('lanterna', 100, 100), ficha('tocha', 150, 100)]),
+  background: [cripta([ficha('machado', 200, 100), ficha('foice', 250, 100)])],
 }
 
 /** O que nunca pode chegar ao jogador pelo chat: chave, id e nome da cena. */
@@ -65,7 +72,14 @@ function mesa() {
     if (token === undefined) throw new Error(`sem resume de ${name}`)
     return token
   }
-  return { s, relogio, resume, ana }
+  return { s, relogio, resume, ana, dora }
+}
+
+/** O playerId que o `welcome` deste resultado deu. */
+function idDoWelcome(r: HostResult): string {
+  const welcome = r.outbound[0]?.msg
+  if (welcome?.type !== 'welcome') throw new Error('esperava welcome')
+  return welcome.playerId
 }
 
 type Sessao = ReturnType<typeof createHostSession>
@@ -151,57 +165,76 @@ describe('chat: canais', () => {
     semCena(daCripta)
   })
 
-  it('global chega à mesa inteira, até a quem aguarda; a tela da mesa não recebe nem fala', () => {
+  it('global chega a quem joga, em qualquer cena; quem aguarda sem ficha não fala nem ouve, e a tela da mesa também não', () => {
     const { s } = mesa()
     s.handleMessage('tv1', { type: 'join', code: CODE, name: 'Mesa', role: 'table', tableKey: TABLE_KEY }, mundo)
-    const r = fala(s, 'c3', 'global', 'Posso entrar?')
-    expect(quemRecebe(r, 'chat.msg')).toEqual(['c1', 'c2', 'c3', 'c4'])
+    expect(fala(s, 'c3', 'global', 'Posso entrar?').outbound).toEqual([
+      { clientId: 'c3', msg: { type: 'chat.send.result', reqId: 'r1', ok: false, reason: 'not_seated' } },
+    ])
+    const r = fala(s, 'c2', 'global', 'Alguém no Salão?')
+    expect(quemRecebe(r, 'chat.msg')).toEqual(['c1', 'c2', 'c4'])
     expect(r.outbound.find((o) => o.msg.type === 'chat.msg')?.msg).toEqual({
       type: 'chat.msg',
       channel: 'global',
-      msg: { id: expect.any(String), at: 0, from: 'Caio', text: 'Posso entrar?', mentions: [] },
+      msg: { id: expect.any(String), at: 0, from: 'Bruno', text: 'Alguém no Salão?', mentions: [] },
     })
+    expect(para(r, 'c3')).toBe('[]')
     expect(para(r, 'tv1')).toBe('[]')
     expect(fala(s, 'tv1', 'global', 'sou a TV').outbound).toEqual([{ clientId: 'tv1', msg: { type: 'error', reason: 'not_joined' } }])
     expect(fala(s, 'c99', 'global', 'quem sou eu').outbound).toEqual([{ clientId: 'c99', msg: { type: 'error', reason: 'not_joined' } }])
     semCena(r)
   })
 
-  it('quem entra depois recebe o global guardado; aguardando, a cena não vem (o welcome já a começa vazia)', () => {
+  it('quem entra sem ficha não recebe o global; ao ganhar a ficha, recebe a história dele uma vez', () => {
     const { s } = mesa()
-    fala(s, 'c3', 'global', 'Posso entrar?')
+    fala(s, 'c2', 'global', 'Alguém no Salão?')
     fala(s, 'c1', 'cena', 'segredo do salão')
-    const eva = s.handleMessage('c5', { type: 'join', code: CODE, name: 'Eva' }, mundo)
-    expect(historicoDe(eva, 'c5', 'global').map((linha) => linha.text)).toEqual(['Posso entrar?'])
-    expect(historicos(eva)).toBe(1)
-    expect(JSON.stringify(eva.outbound)).not.toContain('segredo do salão')
-    semCena(eva)
+    const entrou = s.handleMessage('c5', { type: 'join', code: CODE, name: 'Eva' }, mundo)
+    expect(historicos(entrou, 'c5')).toBe(0)
+    expect(JSON.stringify(entrou.outbound)).not.toContain('Alguém no Salão?')
+    s.assignToken(idDoWelcome(entrou), 'foice')
+    const ganhou = s.broadcast(comFoice)
+    expect(historicoDe(ganhou, 'c5', 'global').map((linha) => linha.text)).toEqual(['Alguém no Salão?'])
+    expect(historicos(ganhou, 'c5')).toBe(1)
+    expect(JSON.stringify(ganhou.outbound)).not.toContain('segredo do salão')
+    semCena(ganhou)
+    expect(historicos(s.broadcast(comFoice), 'c5')).toBe(0)
   })
 
-  it('quem aguarda sem ficha só tem o global: falar na cena volta "sem cena" e não chega a ninguém', () => {
+  it('quem aguarda sem ficha não tem chat: falar em qualquer canal volta "sem ficha" e não chega a ninguém; ao voltar, nada vem', () => {
     const { s, resume } = mesa()
     fala(s, 'c1', 'cena', 'segredo do salão')
-    expect(fala(s, 'c3', 'cena', 'e eu?').outbound).toEqual([
-      { clientId: 'c3', msg: { type: 'chat.send.result', reqId: 'r1', ok: false, reason: 'no_scene' } },
-    ])
+    fala(s, 'c2', 'global', 'Alguém no Salão?')
+    const canais: Canal[] = ['cena', 'global']
+    for (const canal of canais) {
+      expect(fala(s, 'c3', canal, 'e eu?').outbound).toEqual([
+        { clientId: 'c3', msg: { type: 'chat.send.result', reqId: 'r1', ok: false, reason: 'not_seated' } },
+      ])
+    }
     s.disconnect('c3')
     const volta = s.handleMessage('c9', { type: 'join', code: CODE, name: 'Caio', resume: resume('Caio') }, mundo)
     expect(historicos(volta)).toBe(0)
     expect(JSON.stringify(volta.outbound)).not.toContain('segredo do salão')
+    expect(JSON.stringify(volta.outbound)).not.toContain('Alguém no Salão?')
   })
 })
 
 describe('chat: só o que mudou', () => {
-  it('sem nada guardado, entrar, voltar, trocar de cena e perder a ficha não mandam chat.history', () => {
+  it('sem nada guardado, entrar, voltar, ganhar a ficha, trocar de cena e perder a ficha não mandam chat.history', () => {
     const { s, resume } = mesa()
-    expect(historicos(s.handleMessage('c5', { type: 'join', code: CODE, name: 'Eva' }, mundo))).toBe(0)
+    const eva = s.handleMessage('c5', { type: 'join', code: CODE, name: 'Eva' }, mundo)
+    expect(historicos(eva)).toBe(0)
     s.disconnect('c4')
     expect(historicos(s.handleMessage('c9', { type: 'join', code: CODE, name: 'Dora', resume: resume('Dora') }, mundo))).toBe(0)
+    const evaId = idDoWelcome(eva)
+    s.assignToken(evaId, 'foice')
+    expect(historicos(s.broadcast(comFoice))).toBe(0)
     const desceu: HostWorld = {
       open: salao([ficha('lanterna', 100, 100)]),
-      background: [cripta([ficha('machado', 200, 100), ficha('tocha', 250, 100)])],
+      background: [cripta([ficha('machado', 200, 100), ficha('tocha', 250, 100), ficha('foice', 300, 100)])],
     }
     expect(historicos(s.broadcast(desceu))).toBe(0)
+    s.unassignToken(evaId, 'foice')
     const semTocha: HostWorld = { open: salao([ficha('lanterna', 100, 100)]), background: [cripta([ficha('machado', 200, 100)])] }
     expect(historicos(s.broadcast(semTocha))).toBe(0)
   })
@@ -244,10 +277,6 @@ describe('chat: troca de cena', () => {
   it('"Olhar por…" a ficha dele em outra cena também traz a história de lá', () => {
     const { s, ana } = mesa()
     fala(s, 'c2', 'cena', 'na cripta')
-    const comFoice: HostWorld = {
-      open: salao([ficha('lanterna', 100, 100), ficha('tocha', 150, 100)]),
-      background: [cripta([ficha('machado', 200, 100), ficha('foice', 250, 100)])],
-    }
     s.assignToken(ana, 'foice')
     expect(s.broadcast(comFoice).outbound.filter((o) => o.msg.type === 'chat.history')).toEqual([])
     const r = s.handleMessage('c1', { type: 'view.switch', tokenId: 'foice' }, comFoice)
@@ -267,6 +296,18 @@ describe('chat: troca de cena', () => {
     ])
   })
 
+  it('perdeu a ficha: a lista do global esvazia, o global para de chegar e falar volta "sem ficha"', () => {
+    const { s, dora } = mesa()
+    fala(s, 'c2', 'global', 'Alguém no Salão?')
+    s.unassignToken(dora, 'tocha')
+    const r = s.broadcast(mundo)
+    expect(r.outbound.filter((o) => o.msg.type === 'chat.history')).toEqual([
+      { clientId: 'c4', msg: { type: 'chat.history', channel: 'global', messages: [] } },
+    ])
+    expect(quemRecebe(fala(s, 'c1', 'global', 'cadê a Dora?'), 'chat.msg')).toEqual(['c1', 'c2'])
+    expect(resultadoDe(fala(s, 'c4', 'global', 'fui tirada', [], 'r2'))).toEqual({ ok: false, reason: 'not_seated' })
+  })
+
   it('trocou de cena e o snapshot ainda não saiu: a história nova chega antes da linha', () => {
     const { s } = mesa()
     fala(s, 'c2', 'cena', 'na cripta')
@@ -280,6 +321,16 @@ describe('chat: troca de cena', () => {
     expect(historicoDe(r, 'c4', 'cena').map((linha) => linha.text)).toEqual(['na cripta'])
     expect(quemRecebe(r, 'chat.msg')).toEqual(['c2', 'c4'])
     semCena(r)
+  })
+
+  it('ganhou a ficha e o snapshot ainda não saiu: a história do global chega antes da linha nova', () => {
+    const { s } = mesa()
+    fala(s, 'c2', 'global', 'Alguém no Salão?')
+    const entrou = s.handleMessage('c5', { type: 'join', code: CODE, name: 'Eva' }, mundo)
+    s.assignToken(idDoWelcome(entrou), 'foice')
+    const r = fala(s, 'c1', 'global', 'Bem-vinda', [], 'r2', comFoice)
+    expect(r.outbound.filter((o) => o.clientId === 'c5').map((o) => o.msg.type)).toEqual(['chat.history', 'chat.msg'])
+    expect(historicoDe(r, 'c5', 'global').map((linha) => linha.text)).toEqual(['Alguém no Salão?'])
   })
 })
 

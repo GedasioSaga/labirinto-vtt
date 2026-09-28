@@ -271,6 +271,11 @@ describe('PlayerChat', () => {
     render({ onSend, status: { reqId: 'c4', channel: 'cena', phase: 'failed' } })
     expect(alerta()).toBe('O mestre não aceitou a mensagem. Tente de novo.')
     expect(campo().value).toBe('segunda')
+
+    tecla('Enter')
+    render({ onSend, status: { reqId: 'c5', channel: 'cena', phase: 'not_seated' } })
+    expect(alerta()).toBe('Você está sem ficha agora: o chat volta quando o mestre te der uma.')
+    expect(campo().value).toBe('segunda')
   })
 
   it('sem conexão, o texto fica; vazio, pede a mensagem e não manda', () => {

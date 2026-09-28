@@ -665,11 +665,11 @@ export interface ChatUnread {
   readonly global: readonly string[]
 }
 
-/** CHAT: a mensagem que saiu por último. `too_soon` e `no_scene` são os motivos de recusa que a tela explica. */
+/** CHAT: a mensagem que saiu por último. `too_soon`, `no_scene` e `not_seated` são os motivos de recusa que a tela explica. */
 export interface ChatSend {
   reqId: string
   channel: ChatChannel
-  phase: 'sending' | 'ok' | 'too_soon' | 'no_scene' | 'failed'
+  phase: 'sending' | 'ok' | 'too_soon' | 'no_scene' | 'not_seated' | 'failed'
 }
 
 const EMPTY_CHAT_LOG: ChatLog = { cena: [], global: [] }
@@ -1080,8 +1080,8 @@ export interface PlayerConnection {
    * CHAT: manda `text`, limpo como o host limpa, ao canal, com os nomes que ele
    * menciona (o host confere com o texto). Um envio por vez: o próximo espera a
    * resposta em `chatSend`. `false` (e nada sai) com texto vazio depois de
-   * limpo ou acima de `CHAT_TEXT_MAX_LENGTH`, menção torta, a cena sem estar
-   * jogando, antes de entrar na sala ou com o socket caído.
+   * limpo ou acima de `CHAT_TEXT_MAX_LENGTH`, menção torta, fora de 'playing'
+   * (sem ficha não há chat, em canal nenhum) ou com o socket caído.
    */
   sendChat(channel: ChatChannel, text: string, mentions: readonly string[]): boolean
   /** CHAT: o jogador viu o canal; as menções novas dele apagam. Sem menção nova, não avisa ninguém. */
@@ -1505,6 +1505,11 @@ export function hasUnreadNotes(state: PlayerState): boolean {
 export function hasChatMention(state: PlayerState): boolean {
   const unread = state.chatUnread
   return unread !== undefined && (unread.cena.length > 0 || unread.global.length > 0)
+}
+
+/** CHAT: as conversas, só para quem joga (com ficha). Quem aguarda o mestre não tem chat: a aba nem aparece. */
+export function chatOf(state: PlayerState): ChatLog | undefined {
+  return state.status === 'playing' ? state.chat : undefined
 }
 
 /** `extra` no fim de `list`, sem repetir id; passou de `max`, saem os mais antigos. */
@@ -3084,6 +3089,9 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
           confronto: undefined,
           letterPeers: undefined,
           letterSend: undefined,
+          // Sem ficha não há chat: o envio no ar sai junto (a recusa que vier
+          // depois não acha quem a espera, e não aparece quando a ficha voltar).
+          chatSend: undefined,
           // Sem mapa, a espiada pelo pino também sai.
           pinPeek: undefined,
           ...NO_PASSAGE_WATCH,
@@ -4308,9 +4316,8 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       const clean = cleanChatText(text)
       if (clean === '' || clean.length > CHAT_TEXT_MAX_LENGTH || !isChatMentionList(mentions)) return false
       if (state.chatSend?.phase === 'sending') return false
-      // A cena é a da ficha: quem aguarda o mestre (sem ficha, sem cena) só fala no Global.
-      const canTalk = channel === 'cena' ? state.status === 'playing' : state.status === 'playing' || state.status === 'waiting'
-      if (!canTalk) return false
+      // Sem ficha não há chat, em canal nenhum: o host recusaria com `not_seated`.
+      if (state.status !== 'playing') return false
       const reqId = `c${nextReqId++}`
       if (!send({ type: 'chat.send', reqId, channel, text: clean, mentions: [...mentions] })) return false
       setState({ chatSend: { reqId, channel, phase: 'sending' } })

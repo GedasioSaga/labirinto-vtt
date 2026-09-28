@@ -178,7 +178,9 @@ export type { OwnTokenElsewhere }
  * Do mestre: `chat.history` (as últimas mensagens de um canal, a quem entra ou
  * troca de cena), `chat.msg` (uma mensagem nova) e `chat.send.result` (saiu ou
  * não). Nenhuma delas leva cena, chave de cena nem id de jogador: o canal
- * `cena` é sempre "a cena onde está a sua ficha". Mestre antigo responde
+ * `cena` é sempre "a cena onde está a sua ficha". Chat é de quem joga com
+ * ficha: quem aguarda o mestre não recebe nenhum dos dois canais, e o
+ * `chat.send` dele volta `not_seated`. Mestre antigo responde
  * `error invalid_message` ao `chat.send`; jogador antigo ignora as três.
  *
  * `snapshot.sceneName` (e `delta.sceneName`) é o "ONDE ESTOU", aditivo pelo
@@ -1553,9 +1555,10 @@ export interface ChatMsgMessage {
 
 /**
  * Por que a mensagem não saiu: `too_soon` = rápido demais; `no_scene` = a
- * ficha não está em cena nenhuma (só o Global vale). Ausente = "não saiu".
+ * ficha não está em cena nenhuma (só o Global vale); `not_seated` = sem
+ * ficha: quem aguarda o mestre não tem chat. Ausente = "não saiu".
  */
-export type ChatSendRefusal = 'too_soon' | 'no_scene'
+export type ChatSendRefusal = 'too_soon' | 'no_scene' | 'not_seated'
 
 /** A mensagem de `reqId` saiu (`ok`) ou não. */
 export interface ChatSendResultMessage {
@@ -2432,7 +2435,7 @@ export function parseChatMessage(value: unknown): ChatHostMessage | null {
       const { reqId, ok, reason } = value
       if (!isBoundedString(reqId, 1, REQ_ID_MAX_LENGTH) || typeof ok !== 'boolean') return null
       if (reason !== undefined && typeof reason !== 'string') return null
-      if (ok || (reason !== 'too_soon' && reason !== 'no_scene')) return { type: 'chat.send.result', reqId, ok }
+      if (ok || (reason !== 'too_soon' && reason !== 'no_scene' && reason !== 'not_seated')) return { type: 'chat.send.result', reqId, ok }
       return { type: 'chat.send.result', reqId, ok, reason }
     }
     default:

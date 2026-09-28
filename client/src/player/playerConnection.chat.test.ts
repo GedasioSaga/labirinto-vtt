@@ -7,7 +7,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import { createEmptyMap } from '../lib/mapFactory'
-import { createPlayerConnection, hasChatMention, type SocketLike } from './playerConnection'
+import { chatOf, createPlayerConnection, hasChatMention, type SocketLike } from './playerConnection'
 
 class FakeSocket implements SocketLike {
   readyState = 0
@@ -235,6 +235,7 @@ describe('chat no cliente: mandar', () => {
     const casos: Array<{ reason?: string; phase: string }> = [
       { reason: 'too_soon', phase: 'too_soon' },
       { reason: 'no_scene', phase: 'no_scene' },
+      { reason: 'not_seated', phase: 'not_seated' },
       { reason: 'quota', phase: 'failed' },
       { phase: 'failed' },
     ]
@@ -270,13 +271,31 @@ describe('chat no cliente: mandar', () => {
     expect(connection.sendChat('global', 'x'.repeat(1000), nomes(33))).toBe(true)
   })
 
-  it('aguardando sem ficha: a cena não sai, o global sai', () => {
+  it('aguardando sem ficha: nada sai, e a tela nem tem o chat', () => {
     const { connection, socket } = conectado()
     socket.sent = []
     expect(connection.getState().status).toBe('waiting')
     expect(connection.sendChat('cena', 'oi', [])).toBe(false)
-    expect(connection.sendChat('global', 'oi', [])).toBe(true)
-    expect(socket.sent).toEqual([{ type: 'chat.send', reqId: expect.any(String), channel: 'global', text: 'oi', mentions: [] }])
+    expect(connection.sendChat('global', 'oi', [])).toBe(false)
+    expect(socket.sent).toEqual([])
+    expect(connection.getState().chatSend).toBeUndefined()
+    expect(chatOf(connection.getState())).toBeUndefined()
+  })
+
+  it('jogando, a tela tem as duas listas; perdeu a última ficha, o chat some da tela com o envio no ar', () => {
+    const { connection, socket } = comChat()
+    expect(chatOf(connection.getState())).toEqual({ cena: [], global: [] })
+    expect(connection.sendChat('cena', 'oi', [])).toBe(true)
+    const reqId = ultimoReqId(socket.sent)
+    socket.receive({ type: 'lobby.waiting' })
+    expect(connection.getState().status).toBe('waiting')
+    expect(chatOf(connection.getState())).toBeUndefined()
+    // A recusa que chega depois não fica guardada para aparecer quando a ficha voltar.
+    socket.receive({ type: 'chat.send.result', reqId, ok: false, reason: 'not_seated' })
+    expect(connection.getState().chatSend).toBeUndefined()
+    socket.sent = []
+    expect(connection.sendChat('global', 'oi', [])).toBe(false)
+    expect(socket.sent).toEqual([])
   })
 
   it('a queda esquece o envio no ar e guarda a conversa até o host mandar de novo', () => {

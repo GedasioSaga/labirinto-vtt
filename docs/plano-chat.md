@@ -65,6 +65,7 @@ Donos: `programador-frontend` (A, B, D, TS da C); `programador-rust` (rota, magi
 
 - `.mov` aceito: marca `qt  ` entra na lista de bytes mágicos. Vídeo que o navegador não tocar mostra "baixar".
 - Quem chega numa cena vê as últimas 200 mensagens dela.
+- Risco aceito: a história da cena mostra a quem chega depois quem falou ali (decisão do usuário: quem chega vê as últimas 200).
 - Mestre envia imagem e vídeo no global (mesmos limites).
 - `@mestre` vale: a mensagem fica destacada para o mestre.
 - Mestre apaga mensagem ou mídia: some para todos e sai do disco (reescreve o JSONL do canal, apaga o arquivo de mídia).
