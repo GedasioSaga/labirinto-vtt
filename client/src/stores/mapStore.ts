@@ -15,6 +15,7 @@ import type { Corner, ResizeModifiers } from '../lib/objectTransform'
 import type { StairSizePreset } from '../lib/stairs'
 import { FLOOR_LAYER, clampFloorPolygonSides, type FloorShapeKind } from '../lib/floorTool'
 import { clampTamanhoDePincel, type Bloco, type TamanhoDePincel } from '../lib/floorBlocks'
+import type { CamadaDoChao } from '../lib/camadasDoChao'
 import { paintRevealBrush as paintRevealBrushOnMap, type RevealBrushMode, type RevealBrushWidth } from '../lib/concealBrush'
 import * as mapFactory from '../lib/mapFactory'
 import { abrirVaoDosDoisLados, desabarParede as desabarParedeNoMapa, type CorteNaParede } from '../lib/abrirVao'
@@ -420,6 +421,10 @@ interface MapStoreState {
    *  preferência de sessão dos três acima. */
   floorBrushSize: TamanhoDePincel
   setFloorBrushSize: (tamanho: number) => void
+  /** Camada da próxima peça de chão (Chão, Mar, Grama...) — vira a cor da
+   *  peça ao criar (`lib/camadasDoChao.ts`). Preferência de sessão. */
+  floorCamada: CamadaDoChao
+  setFloorCamada: (camada: CamadaDoChao) => void
   /** Recorta um Drawing freehand/curve/line pela parte dentro do círculo
    *  (center, radius) — COM histórico, 0 a N `Drawing` novos (ver
    *  `eraseFromDrawing`, lib/eraseGeometry.ts). Sem efeito (nenhuma entrada
@@ -1484,6 +1489,7 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
     floorOp: 'add',
     floorPolygonSides: 6,
     floorBrushSize: 1,
+    floorCamada: 'chao',
     regionFillColor: '#3a7ad0',
     // Marrom, igual ao chão do mapa novo (minimapa do RE4): Sala nova não nasce azul.
     roomFillColor: '#a8776a',
@@ -1665,6 +1671,7 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
     setFloorOp: (op) => set({ floorOp: op }),
     setFloorPolygonSides: (sides) => set({ floorPolygonSides: clampFloorPolygonSides(sides) }),
     setFloorBrushSize: (tamanho) => set({ floorBrushSize: clampTamanhoDePincel(tamanho) }),
+    setFloorCamada: (camada) => set({ floorCamada: camada }),
     erasePartOfDrawing: (drawingId, center, radius) => {
       const { map } = get()
       const drawing = map.drawings.find((d) => d.id === drawingId)

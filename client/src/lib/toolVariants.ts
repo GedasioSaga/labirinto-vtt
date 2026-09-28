@@ -3,6 +3,7 @@ import type { DoorKind, FloorPiece, FreehandTexture, Region, Wall } from '../typ
 import type { StairSizePreset } from './stairs'
 import type { FloorShapeKind } from './floorTool'
 import { TAMANHOS_DE_PINCEL, type TamanhoDePincel } from './floorBlocks'
+import { CAMADAS_DO_CHAO, type CamadaDoChao } from './camadasDoChao'
 import { TOOL_SHORTCUTS } from './keymap'
 
 /**
@@ -83,6 +84,8 @@ export type ToolVariantGroup = (
   | { storeKey: 'floorOp'; label: string; options: ToolVariantOption<FloorPiece['op']>[] }
   | { storeKey: 'floorPolygonSides'; label: string; options: ToolVariantOption<number>[] }
   | { storeKey: 'floorBrushSize'; label: string; options: ToolVariantOption<TamanhoDePincel>[] }
+  /** Chão por camada: a próxima peça nasce Mar, Grama... (vira a cor dela). */
+  | { storeKey: 'floorCamada'; label: string; options: ToolVariantOption<CamadaDoChao>[] }
   /** Sala livre: o traçado vira sala ou só paredes. */
   | { storeKey: 'roomFreeKind'; label: string; options: ToolVariantOption<RoomFreeKind>[] }
   /** Sala livre: cantos vivos ou arredondados (vale para sala e para parede). */
@@ -253,6 +256,17 @@ const FLOOR_BRUSH_SIZE_GROUP: ToolVariantGroup = {
   })),
 }
 
+/**
+ * Camada da próxima peça (pedido de 28/09/2026: "um chão é mar e outro é
+ * chão normal"). A peça nasce com a cor da camada; quem fica por cima é a
+ * ordem, que "Camadas do chão" no painel mostra e muda.
+ */
+const FLOOR_CAMADA_GROUP: ToolVariantGroup = {
+  storeKey: 'floorCamada',
+  label: 'Camada',
+  options: CAMADAS_DO_CHAO.map((camada) => ({ id: camada.id, label: camada.label, value: camada.id, description: camada.description })),
+}
+
 const FLOOR_OP_GROUP: ToolVariantGroup = {
   storeKey: 'floorOp',
   label: 'Operação',
@@ -351,7 +365,7 @@ export const TOOL_VARIANTS: Partial<Record<DrawingTool, ToolVariantEntry>> = {
   floor: {
     available: true,
     tool: 'floor',
-    groups: [FLOOR_SHAPE_GROUP, FLOOR_BRUSH_SIZE_GROUP, FLOOR_OP_GROUP, FLOOR_POLYGON_SIDES_GROUP],
+    groups: [FLOOR_SHAPE_GROUP, FLOOR_CAMADA_GROUP, FLOOR_BRUSH_SIZE_GROUP, FLOOR_OP_GROUP, FLOOR_POLYGON_SIDES_GROUP],
   },
 
   // ---- pedida pelo usuário, capacidade existe mas SEM eixo próprio ------
@@ -444,6 +458,7 @@ const VARIANT_ECHO_SUBJECT: Partial<Record<ToolVariantStoreKey, string>> = {
   floorPolygonSides: 'Próxima peça de chão',
   // Não é a "próxima peça": é o tamanho com que o pincel pinta, agora.
   floorBrushSize: 'Pincel de blocos',
+  floorCamada: 'Próxima peça de chão',
   // "Sala livre cria: Sala" repetiria a palavra; o sujeito é o traçado.
   roomFreeKind: 'Traçado vira',
   roomFreeRounded: 'Arredondar',
@@ -463,6 +478,7 @@ const GROUP_BY_STORE_KEY: Record<ToolVariantStoreKey, ToolVariantGroup> = {
   floorOp: FLOOR_OP_GROUP,
   floorPolygonSides: FLOOR_POLYGON_SIDES_GROUP,
   floorBrushSize: FLOOR_BRUSH_SIZE_GROUP,
+  floorCamada: FLOOR_CAMADA_GROUP,
   roomFreeKind: ROOM_FREE_KIND_GROUP,
   roomFreeRounded: ROOM_FREE_ROUNDED_GROUP,
   drawShape: DRAWING_SHAPE_GROUP,

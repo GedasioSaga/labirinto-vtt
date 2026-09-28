@@ -4,6 +4,7 @@ import type { DrawingTool, RoomFreeKind } from '../types/tools'
 import type { StairSizePreset } from '../lib/stairs'
 import type { FloorShapeKind } from '../lib/floorTool'
 import type { TamanhoDePincel } from '../lib/floorBlocks'
+import type { CamadaDoChao } from '../lib/camadasDoChao'
 import type { ToolVariantGroup, ToolVariantOption, ToolVariantStoreKey } from '../lib/toolVariants'
 
 /**
@@ -40,6 +41,8 @@ export interface ToolVariantBindings {
   floorPolygonSides: { value: number; onChange: (value: number) => void }
   /** Lado do pincel de blocos, em blocos (1, 2 ou 3). */
   floorBrushSize: { value: TamanhoDePincel; onChange: (value: TamanhoDePincel) => void }
+  /** Camada da próxima peça de chão (Chão, Mar, Grama...). */
+  floorCamada: { value: CamadaDoChao; onChange: (value: CamadaDoChao) => void }
   /** Sala livre — o traçado vira sala ou só paredes. */
   roomFreeKind: { value: RoomFreeKind; onChange: (value: RoomFreeKind) => void }
   /** Sala livre — cantos arredondados (sala e parede). */
@@ -218,6 +221,8 @@ function GroupOptions({
       return <>{renderOptions(group.options, bindings.floorPolygonSides.value, bindings.floorPolygonSides.onChange, onPicked)}</>
     case 'floorBrushSize':
       return <>{renderOptions(group.options, bindings.floorBrushSize.value, bindings.floorBrushSize.onChange, onPicked)}</>
+    case 'floorCamada':
+      return <>{renderOptions(group.options, bindings.floorCamada.value, bindings.floorCamada.onChange, onPicked)}</>
     case 'roomFreeKind':
       return <>{renderOptions(group.options, bindings.roomFreeKind.value, bindings.roomFreeKind.onChange, onPicked)}</>
     case 'roomFreeRounded':

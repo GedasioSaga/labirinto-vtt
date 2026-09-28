@@ -1440,6 +1440,36 @@ body {
   height: 28px;
 }
 
+/* Camadas do chão: o nome é botão (seleciona a peça no mapa), com cara de
+   texto da lista de camadas; a peça selecionada ganha o latão. */
+.lb-floor-layers__pick {
+  padding: 0;
+  border: 0;
+  background: none;
+  text-align: left;
+  cursor: pointer;
+}
+
+.lb-floor-layers__pick[aria-pressed='true'] {
+  color: var(--lb-color-brass);
+}
+
+.lb-floor-layers__swatch {
+  flex: 0 0 auto;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 1px solid var(--lb-color-line);
+  border-radius: 4px;
+  background: none;
+  cursor: pointer;
+}
+
+.lb-floor-layers__swatch--hole {
+  background: #000;
+  cursor: default;
+}
+
 /* Linha de explicação abaixo de um campo (modo de medição, link de cenário). */
 .lb-field__hint {
   margin: 0;

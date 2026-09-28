@@ -67,6 +67,7 @@ import { AreaSelectionControls, type AreaSelectionControlsProps } from './AreaSe
 import { AlignDistributeControls, type AlignDistributeControlsProps } from './AlignDistributeControls'
 import { FloorPieceControls, type FloorPieceControlsProps } from './FloorPieceControls'
 import { FloorStyleControls, type FloorStyleControlsProps } from './FloorStyleControls'
+import { FloorLayersList, type FloorLayersListProps } from './FloorLayersList'
 import { PlayerSecretControls, type PlayerSecretControlsProps } from './PlayerSecretControls'
 import { AreaTriggerControls, type AreaTriggerControlsProps } from './AreaTriggerControls'
 import { ConcealZoneControls, type ConcealZoneControlsProps } from './ConcealZoneControls'
@@ -249,6 +250,8 @@ interface PropertiesPanelProps {
   floorPieceControls: Omit<FloorPieceControlsProps, 'piece' | 'floorFillColor'>
   /** Chão por peças — estilo do chão do mapa (a conversão da imagem fica no menu da ActionBar). */
   floorStyle: FloorStyleControlsProps
+  /** "Camadas do chão": peças do chão com cor, trava e ordem. Ausente = sem a seção. */
+  floorLayers?: FloorLayersListProps
   /** A5 — "Oculto para jogadores" da Região/Escada/Desenho selecionado; `null` = nenhum. */
   playerSecret: PlayerSecretControlsProps | null
   /** GATILHO DE ÁREA da Região/Sala selecionada; `null` = nenhuma região selecionada. */
@@ -361,6 +364,7 @@ export function PropertiesPanel({
   selectedFloorPiece,
   floorPieceControls,
   floorStyle,
+  floorLayers,
   playerSecret,
   areaTrigger,
   concealZone,
@@ -818,6 +822,11 @@ export function PropertiesPanel({
           <CollapsibleSection id="floor" title="Chão do mapa" defaultOpen={mapSectionsOpenByDefault}>
             <FloorStyleControls {...floorStyle} />
           </CollapsibleSection>
+          {floorLayers !== undefined && floorLayers.floor.length > 0 && (
+            <CollapsibleSection id="floor-layers" title="Camadas do chão" defaultOpen>
+              <FloorLayersList {...floorLayers} />
+            </CollapsibleSection>
+          )}
         </ToolPropertiesSection>
         <ToolPropertiesSection group="layers" groups={groups}>
           <CollapsibleSection id="layers" title="Camadas" defaultOpen={mapSectionsOpenByDefault}>

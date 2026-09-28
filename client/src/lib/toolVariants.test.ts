@@ -62,7 +62,7 @@ describe('TOOL_VARIANTS', () => {
     const validKeys: ToolVariantGroup['storeKey'][] = [
       'doorKind', 'wallKind', 'regionFillPattern', 'polygonSides',
       'stairSizePreset', 'drawTexture', 'eraseMode',
-      'floorShapeKind', 'floorOp', 'floorPolygonSides', 'floorBrushSize',
+      'floorShapeKind', 'floorOp', 'floorPolygonSides', 'floorBrushSize', 'floorCamada',
       'roomFreeKind', 'roomFreeRounded',
     ]
     for (const entry of readyToolVariants()) {

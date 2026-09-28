@@ -563,6 +563,8 @@ function App() {
   const setFloorPolygonSides = useMapStore((state) => state.setFloorPolygonSides)
   const floorBrushSize = useMapStore((state) => state.floorBrushSize)
   const setFloorBrushSize = useMapStore((state) => state.setFloorBrushSize)
+  const floorCamada = useMapStore((state) => state.floorCamada)
+  const setFloorCamada = useMapStore((state) => state.setFloorCamada)
   const updateFloorPiece = useMapStore((state) => state.updateFloorPiece)
   const reorderFloorPiece = useMapStore((state) => state.reorderFloorPiece)
   const setFloorStyle = useMapStore((state) => state.setFloorStyle)
@@ -2488,6 +2490,7 @@ function App() {
             floorOp: { value: floorOp, onChange: setFloorOp },
             floorPolygonSides: { value: floorPolygonSides, onChange: setFloorPolygonSides },
             floorBrushSize: { value: floorBrushSize, onChange: setFloorBrushSize },
+            floorCamada: { value: floorCamada, onChange: setFloorCamada },
             roomFreeKind: { value: roomFreeKind, onChange: setRoomFreeKind },
             roomFreeRounded: { value: roomFreeRounded, onChange: setRoomFreeRounded },
             drawShape: { value: activeTool, onChange: setActiveTool },
@@ -3376,6 +3379,15 @@ function App() {
               onFrameChange: (frame) => setMapFrame(frame),
               defaultFrameRect: { x: 0, y: 0, w: map.width * map.grid, h: map.height * map.grid },
               hasFloorContent: map.floor.length > 0 || map.lines.length > 0 || map.markers.length > 0,
+            }}
+            floorLayers={{
+              floor: map.floor,
+              floorFillColor: map.floorStyle.fillColor,
+              selectedPieceId: selectedFloorPiece?.id ?? null,
+              onSelect: (id) => setSelection(selectionOfItem({ kind: 'floor', id })),
+              onToggleLock: (id, locked) => updateFloorPiece(id, { locked: locked || undefined }),
+              onColorChange: (id, color) => updateFloorPiece(id, { fillColor: color }),
+              onReorder: (id, delta) => reorderFloorPiece(id, delta),
             }}
           />,
         )}

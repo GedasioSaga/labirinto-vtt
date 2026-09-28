@@ -32,7 +32,8 @@ function flatten(ring: RegionPoint[]): number[] {
  * aqui é só a pintura por dentro dele.
  */
 export interface FloorColorLayer {
-  color: string
+  /** `null` = a cor do chão do mapa, resolvida na hora de pintar. */
+  color: string | null
   polygons: FloorPolygon[]
 }
 
@@ -60,7 +61,7 @@ export function paintFloor(
 ): void {
   graphics.clear()
   fillPolygons(graphics, polygons, style.fillColor)
-  for (const layer of colorLayers) fillPolygons(graphics, layer.polygons, layer.color)
+  for (const layer of colorLayers) fillPolygons(graphics, layer.polygons, layer.color ?? style.fillColor)
   if (style.strokeColor && style.strokeWidth > 0) {
     const stroke = new Color(style.strokeColor).toNumber()
     for (const polygon of polygons) {
@@ -84,14 +85,19 @@ export function paintFloor(
  * As peças 'subtract' que vêm DEPOIS entram no cálculo: um buraco aberto em
  * cima do caminho tem de abrir na cor dele também, senão a borracha deixaria a
  * cor flutuando sobre o vazio.
+ *
+ * Peça SEM cor que vem depois de uma colorida também vira camada (cor `null`,
+ * a do chão do mapa): senão o Chão desenhado por cima do Mar ficaria por baixo
+ * dele. Antes da primeira colorida não precisa — a base já pinta essas.
  */
 export function buildColorLayers(floor: FloorPiece[], step: number | undefined): FloorColorLayer[] {
   const layers: FloorColorLayer[] = []
   for (let i = 0; i < floor.length; i += 1) {
     const piece = floor[i]
-    if (piece.hidden || piece.op !== 'add' || piece.fillColor === undefined) continue
+    if (piece.hidden || piece.op !== 'add') continue
+    if (piece.fillColor === undefined && layers.length === 0) continue
     const buracosDepois = floor.slice(i + 1).filter((p) => p.op === 'subtract' && !p.hidden)
-    layers.push({ color: piece.fillColor, polygons: buildFloorOutline([piece, ...buracosDepois], { step }) })
+    layers.push({ color: piece.fillColor ?? null, polygons: buildFloorOutline([piece, ...buracosDepois], { step }) })
   }
   return layers
 }
@@ -116,7 +122,8 @@ function strokeRings(graphics: Graphics, polygons: FloorPolygon[], width: number
 export function drawFloorDraft(graphics: Graphics, piece: FloorPiece, fillColor: string): void {
   graphics.clear()
   const polygons = isolatedOutline(piece, DRAFT_SAMPLE_STEP)
-  const fill = piece.op === 'add' ? new Color(fillColor).toNumber() : SUBTRACT_DRAFT_COLOR
+  // A cor própria da peça (camada Mar, Grama...) vale também na prévia.
+  const fill = piece.op === 'add' ? new Color(piece.fillColor ?? fillColor).toNumber() : SUBTRACT_DRAFT_COLOR
   for (const polygon of polygons) {
     graphics.poly(flatten(polygon.outer), true).fill({ color: fill, alpha: DRAFT_ALPHA })
     for (const hole of polygon.holes) graphics.poly(flatten(hole), true).cut()

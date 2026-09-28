@@ -34,6 +34,7 @@ function bindings(activeTool: DrawingTool, onSelectTool: (tool: DrawingTool) => 
     floorOp: { value: 'add', onChange: vi.fn() },
     floorPolygonSides: { value: 6, onChange: vi.fn() },
   floorBrushSize: { value: 1, onChange: vi.fn() },
+  floorCamada: { value: 'chao', onChange: vi.fn() },
     roomFreeKind: { value: 'sala', onChange: vi.fn() },
     roomFreeRounded: { value: false, onChange: vi.fn() },
     drawShape: { value: activeTool, onChange: onSelectTool },

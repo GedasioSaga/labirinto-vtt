@@ -526,6 +526,15 @@ export function UnlockIcon(props: IconProps) {
   )
 }
 
+/** Divisa para cima — "Subir" na lista de camadas do chão. */
+export function ChevronUpIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M6 15l6-6 6 6" />
+    </Icon>
+  )
+}
+
 /** Divisa para baixo — cabeçalho de seção recolhível (o CSS gira quando fechada). */
 export function ChevronDownIcon(props: IconProps) {
   return (

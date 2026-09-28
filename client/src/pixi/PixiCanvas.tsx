@@ -74,6 +74,7 @@ import {
   pincelDeBlocosApaga,
 } from '../lib/floorTool'
 import { blocosDoTraco, buildBlocosShape, chaveDoBloco, type Bloco } from '../lib/floorBlocks'
+import { corDaCamada, pecaNaCamada } from '../lib/camadasDoChao'
 
 /** Referência estável: camada oculta não força recalcular o contorno a cada redraw. */
 const EMPTY_FLOOR: FloorPiece[] = []
@@ -2842,14 +2843,14 @@ export function PixiCanvas({
        * `piece: null` = arrasto ainda pequeno demais para virar peça.
        */
       const floorDraftFromDrag = (start: Point, rawEnd: Point, shiftKey: boolean, altKey: boolean) => {
-        const { map, floorShapeKind, floorOp, floorPolygonSides } = useMapStore.getState()
+        const { map, floorShapeKind, floorOp, floorPolygonSides, floorCamada } = useMapStore.getState()
         // Corredor, pincel e balde não nascem de um arrasto de dois pontos — o
         // tipo (`isFloorDragShape`) é quem garante que eles não chegam abaixo.
         if (!isFloorDragShape(floorShapeKind)) return null
         const snapped = applySnap(rawEnd, map.grid, 'wall', altKey)
         const end = floorShapeKind === 'polygon' ? snapped : constrainDraft(start, snapped, floorShapeKind, { shift: shiftKey, alt: altKey })
         const result = buildFloorShapeFromDrag(floorShapeKind, start, end, floorPolygonSides)
-        const piece = result ? buildFloorPiece('draft', result.shape, floorOp, result.rotation) : null
+        const piece = result ? pecaNaCamada(buildFloorPiece('draft', result.shape, floorOp, result.rotation), floorCamada) : null
         const dimension: DimensionDraft =
           floorShapeKind === 'rect'
             ? { tool: 'rect', start, end }
@@ -2868,11 +2869,11 @@ export function PixiCanvas({
        */
       const acumularBlocos = (de: Point, ate: Point) => {
         if (!blocoCells) return
-        const { map, floorBrushSize } = useMapStore.getState()
+        const { map, floorBrushSize, floorCamada } = useMapStore.getState()
         for (const bloco of blocosDoTraco(de, ate, blocoCellSize, floorBrushSize)) {
           blocoCells.set(chaveDoBloco(bloco.col, bloco.row), bloco)
         }
-        drawBlocosDraft(draftGraphics, [...blocoCells.values()], blocoCellSize, map.floorStyle.fillColor, blocoApagando)
+        drawBlocosDraft(draftGraphics, [...blocoCells.values()], blocoCellSize, corDaCamada(floorCamada) ?? map.floorStyle.fillColor, blocoApagando)
       }
 
       /** Fecha o traço do pincel: uma peça nova (pintando) ou um apagar (botão direito ou Subtrair). */
@@ -2891,7 +2892,8 @@ export function PixiCanvas({
         // O traço inteiro é UMA peça: é ela que o painel seleciona para ganhar
         // cor própria, e é por isso que dois caminhos têm duas cores.
         const shape = buildBlocosShape(cell, cells)
-        if (shape) useMapStore.getState().addFloorPiece(buildFloorPiece(crypto.randomUUID(), shape, 'add'))
+        const { addFloorPiece, floorCamada } = useMapStore.getState()
+        if (shape) addFloorPiece(pecaNaCamada(buildFloorPiece(crypto.randomUUID(), shape, 'add'), floorCamada))
       }
 
       /**
@@ -2900,7 +2902,7 @@ export function PixiCanvas({
        * repetir o defeito da porta sem parede, então a tela responde.
        */
       const encherAreaFechada = (point: Point) => {
-        const { map, pisoAtivo, addFloorPiece } = useMapStore.getState()
+        const { map, pisoAtivo, addFloorPiece, floorCamada } = useMapStore.getState()
         const piece = baldeNoPiso(map, pisoAtivo, point, () => crypto.randomUUID())
         if (!piece) {
           useToastStore
@@ -2908,19 +2910,19 @@ export function PixiCanvas({
             .push('info', 'Nada para encher aqui: o balde só enche área fechada, e esta escapa pela borda do mapa (ou já tem chão).')
           return
         }
-        addFloorPiece(piece)
+        addFloorPiece(pecaNaCamada(piece, floorCamada))
       }
 
       /** Prévia do corredor: pontos já clicados + cursor; com 1 ponto só marca o ponto. */
       const drawCorridorDraft = (cursor: Point | null) => {
-        const { map, floorOp } = useMapStore.getState()
+        const { map, floorOp, floorCamada } = useMapStore.getState()
         const points = cursor ? [...corridorDraftPoints, cursor] : corridorDraftPoints
         const shape = buildCorridorShape(points, map.grid * FLOOR_CORRIDOR_WIDTH_RATIO)
         if (!shape) {
           drawRegionDraft(draftGraphics, corridorDraftPoints, null)
           return
         }
-        drawFloorDraft(draftGraphics, buildFloorPiece('draft', shape, floorOp), map.floorStyle.fillColor)
+        drawFloorDraft(draftGraphics, pecaNaCamada(buildFloorPiece('draft', shape, floorOp), floorCamada), map.floorStyle.fillColor)
       }
 
       /**
@@ -3043,9 +3045,9 @@ export function PixiCanvas({
 
       /** Duplo clique ou Enter: vira peça se houver 2+ pontos distintos; sempre limpa o rascunho. */
       const finishCorridor = () => {
-        const { map, floorOp, addFloorPiece } = useMapStore.getState()
+        const { map, floorOp, floorCamada, addFloorPiece } = useMapStore.getState()
         const shape = buildCorridorShape(corridorDraftPoints, map.grid * FLOOR_CORRIDOR_WIDTH_RATIO)
-        if (shape) addFloorPiece(buildFloorPiece(crypto.randomUUID(), shape, floorOp))
+        if (shape) addFloorPiece(pecaNaCamada(buildFloorPiece(crypto.randomUUID(), shape, floorOp), floorCamada))
         corridorDraftPoints = []
         draftGraphics.clear()
       }

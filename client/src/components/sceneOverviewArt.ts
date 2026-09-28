@@ -308,7 +308,7 @@ export function sceneArt(scene: MapData, piso = 0): SceneArt | null {
     if (base !== '') floor.push({ key: 'chao', d: base, color: map.floorStyle.fillColor })
     outline.layers.forEach((layer, index) => {
       const d = polygonsPath(layer.polygons)
-      if (d !== '') floor.push({ key: `caminho-${index}`, d, color: layer.color })
+      if (d !== '') floor.push({ key: `caminho-${index}`, d, color: layer.color ?? map.floorStyle.fillColor })
     })
     const { strokeColor, strokeWidth } = map.floorStyle
     if (strokeColor && strokeWidth > 0 && base !== '') floorEdge = { key: 'contorno', d: base, color: strokeColor }

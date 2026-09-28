@@ -1089,3 +1089,14 @@ Noite = esta sessão conduzida pelo main thread; o noite-runner continua encerra
 - Chat: o painel fica no topo esquerdo, e o plano dizia à direita. Mover?
 - Jogador sem ficha no mapa: o botão "Inventário" fica apagado com "sem ficha no mapa"?
 - `e2e/task-jornada-companheiros-do-jogador.spec.ts` põe Bruno a 161 px da escada (o alcance é 75 px). O teste não foi editado (regra); precisa de ajuste seu.
+### 28/09/2026, tarde: chão travável e chão por camada
+
+> "Perfeito agora o seguinte, você vai constuir essas seguintes features, mas só construir, usando opus 5.5 , não vai usar gauntlet, vocÊ só vai fazer. 1-[Image #16] o chão, eu quero que de para travar o chão para ele não mudar de lugar e gostaria de poder colocar o chão por camada, exemplo [Image #17] um chão é mar e outro é chão normal. Faz isso rápido, só constroi."
+
+- Imagem 16: botão da ferramenta Chão na barra. Imagem 17: um chão verde em cima e um chão azul (mar) embaixo, lado a lado.
+- Fila: (1) travar peça de chão para ela não sair do lugar; (2) chão por camada: peças de chão com cores diferentes empilhadas (mar embaixo, chão normal por cima).
+- Sem gauntlet, só Opus, rápido.
+
+> "Aproveita e faça um sistema simples de camada por chão quero pode escolher o chão que fica em cima de qual."
+
+- Mesmo lote: lista "Camadas do chão" no painel, com subir/descer por peça para escolher qual chão fica por cima.
