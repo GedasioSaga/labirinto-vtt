@@ -5602,7 +5602,15 @@ export function PixiCanvas({
           }
           // Mesmo stepWidth que o pointerup vai gravar (stairSizePreset) — o
           // preview do arrasto já mostra o tamanho real do preset escolhido.
-          drawStairDraft(draftGraphics, stairDraftStart, end, stairStepWidthForPreset(stairSizePreset, map.grid))
+          // Câmera e resolução iguais às de paintStairs: traço fino igual ao da gravada.
+          drawStairDraft(
+            draftGraphics,
+            stairDraftStart,
+            end,
+            stairStepWidthForPreset(stairSizePreset, map.grid),
+            camera.scale,
+            app.renderer.resolution,
+          )
           // Onda 2, item 16 (Frente C) — número ao vivo.
           dimensionLabelRenderer.show(
             angleIndicatorContainer,

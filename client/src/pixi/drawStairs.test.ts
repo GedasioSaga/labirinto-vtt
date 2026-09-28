@@ -225,6 +225,30 @@ describe('drawStairs — seleção como contorno por fora', () => {
   })
 })
 
+describe('drawStairs — opacidade de rascunho (prévia do arrasto, drawDraft.ts)', () => {
+  /** A camada sem a opacidade: ação, cor, espessura e o caminho cru (a espiral usa `circle`). */
+  const desenho = (pintura: Pintura) => ({
+    acao: pintura.action,
+    cor: pintura.data.style.color,
+    largura: pintura.action === 'stroke' ? pintura.data.style.width : null,
+    caminho: pintura.data.path.instructions,
+  })
+
+  it.each([
+    { nome: 'lance reto', escada: buildStair() },
+    { nome: 'espiral', escada: buildStair({ shape: 'spiral' }) },
+  ])('$nome: `opacity` multiplica a opacidade de toda camada, realce incluso, sem mexer no desenho', ({ escada }) => {
+    const cheia = new Graphics()
+    const meia = new Graphics()
+    drawStairs(cheia, [escada], 's1')
+    drawStairs(meia, [escada], 's1', 1, 1, 0.5)
+    expect(pinturas(meia).map(desenho)).toEqual(pinturas(cheia).map(desenho))
+    expect(pinturas(cheia).some((pintura) => pintura.data.style.color === SELECTION_COLOR)).toBe(true)
+    const opacidadesCheias = pinturas(cheia).map((pintura) => pintura.data.style.alpha)
+    pinturas(meia).forEach((pintura, i) => expect(pintura.data.style.alpha).toBeCloseTo(opacidadesCheias[i] * 0.5, 9))
+  })
+})
+
 // --------------------------------------------------------------------------
 // A MEDIDA DA JORNADA, EM CIMA DO DESENHO
 //

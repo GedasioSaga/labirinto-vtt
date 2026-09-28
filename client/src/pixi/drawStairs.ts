@@ -42,6 +42,12 @@ export function treadAlpha(climb: number): number {
  * anel em `SELECTION_COLOR` de `SELECTION_OUTLINE_SCREEN_PX` por fora da placa
  * (mesma regra de drawWalls.ts); `cameraScale` mantém o anel com espessura
  * fixa na tela.
+ *
+ * `opacity` multiplica a opacidade de toda camada, realce incluso. É o que a
+ * prévia do arrasto (drawDraft.ts) usa para mostrar ESTE MESMO desenho como
+ * rascunho: ela divide o Graphics com as outras prévias, então não dá para
+ * esmaecer o Graphics inteiro. Com `alpha` de container o Pixi também só
+ * multiplica instrução por instrução, então o resultado na tela é o mesmo.
  */
 export function drawStairs(
   graphics: Graphics,
@@ -49,6 +55,7 @@ export function drawStairs(
   selectedStairId: string | null = null,
   cameraScale = 1,
   rendererResolution = 1,
+  opacity = 1,
 ): void {
   graphics.clear()
   const pixel = pixelGrid(cameraScale, rendererResolution, STROKE_WEIGHT.hairline)
@@ -60,7 +67,7 @@ export function drawStairs(
 
   // O realce vai por baixo de TODA escada, espiral ou reta.
   const selectedSpiral = spirals.find((entry) => entry.stair.id === selectedStairId)
-  if (selectedSpiral) strokeSpiral(graphics, selectedSpiral.plan, hairline + sobra, 'realce')
+  if (selectedSpiral) strokeSpiral(graphics, selectedSpiral.plan, hairline + sobra, 'realce', opacity)
 
   const planned = stairs.filter((stair) => stair.shape !== 'spiral').map((stair) => ({
     stair,
@@ -74,34 +81,35 @@ export function drawStairs(
     const ringWidth = selectionOutlineWidth(scale)
     for (const flight of selected.flights) {
       graphics.poly(ringQuad(flight, ringWidth / 2), true)
-      graphics.stroke({ width: ringWidth, color: SELECTION_COLOR, join: 'miter' })
+      graphics.stroke({ width: ringWidth, color: SELECTION_COLOR, alpha: opacity, join: 'miter' })
     }
   }
 
-  for (const flight of planned.flatMap((entry) => entry.flights)) paintFlight(graphics, flight)
+  for (const flight of planned.flatMap((entry) => entry.flights)) paintFlight(graphics, flight, opacity)
 
-  for (const { plan } of spirals) strokeSpiral(graphics, plan, hairline, 'escada')
+  for (const { plan } of spirals) strokeSpiral(graphics, plan, hairline, 'escada', opacity)
 }
 
 /** Placa, patamar, degraus e moldura de um lance reto, nesta ordem. */
-function paintFlight(graphics: Graphics, flight: StairFlight): void {
+function paintFlight(graphics: Graphics, flight: StairFlight, opacity: number): void {
   graphics.poly(flight.plate, true)
-  graphics.fill({ color: STAIR_PLATE_COLOR })
+  graphics.fill({ color: STAIR_PLATE_COLOR, alpha: opacity })
 
   if (flight.landing !== null) {
     graphics.poly(flight.landing, true)
-    graphics.fill({ color: STAIR_LANDING_COLOR })
+    graphics.fill({ color: STAIR_LANDING_COLOR, alpha: opacity })
   }
 
   // Todos os degraus num stroke só: nenhum se sobrepõe a outro, então o alpha
   // não dobra em lugar nenhum.
+  const railAlpha = STAIR_RAIL_ALPHA * opacity
   if (flight.treads.length > 0) {
     for (const tread of flight.treads) tracePath(graphics, tread)
-    graphics.stroke({ width: flight.treadWidth, color: STAIR_COLOR, alpha: STAIR_RAIL_ALPHA, cap: 'butt' })
+    graphics.stroke({ width: flight.treadWidth, color: STAIR_COLOR, alpha: railAlpha, cap: 'butt' })
   }
 
   graphics.poly(flight.frame, true)
-  graphics.stroke({ width: flight.frameWidth, color: STAIR_COLOR, alpha: STAIR_RAIL_ALPHA, join: 'miter' })
+  graphics.stroke({ width: flight.frameWidth, color: STAIR_COLOR, alpha: railAlpha, join: 'miter' })
 }
 
 /** A placa empurrada `offset` para fora em cada lado: a linha central do anel de seleção. */
@@ -129,17 +137,22 @@ function planSpirals(stairs: readonly Stair[]): { stair: Stair; plan: SpiralPlan
  * e um raio por degrau. Todo traço tem a MESMA espessura (`width`) —
  * "raios finos", sem galão que engorda. Na cor da escada, o contorno leva o
  * tom da viga e o raio clareia rumo ao alto; no realce, tudo sai na cor dele.
+ * `opacity` multiplica tudo, como em `drawStairs`.
  */
-function strokeSpiral(graphics: Graphics, plan: SpiralPlan, width: number, pen: 'escada' | 'realce'): void {
+function strokeSpiral(graphics: Graphics, plan: SpiralPlan, width: number, pen: 'escada' | 'realce', opacity: number): void {
   graphics.circle(plan.center.x, plan.center.y, plan.radius)
   graphics.circle(plan.center.x, plan.center.y, plan.postRadius)
-  graphics.stroke(pen === 'escada' ? { width, color: STAIR_COLOR, alpha: STAIR_RAIL_ALPHA } : { width, color: SELECTION_COLOR })
+  graphics.stroke(
+    pen === 'escada'
+      ? { width, color: STAIR_COLOR, alpha: STAIR_RAIL_ALPHA * opacity }
+      : { width, color: SELECTION_COLOR, alpha: opacity },
+  )
   for (const spoke of plan.spokes) {
     tracePath(graphics, [spoke.from, spoke.to])
     graphics.stroke(
       pen === 'escada'
-        ? { width, color: STAIR_COLOR, alpha: treadAlpha(spoke.climb), cap: 'butt' }
-        : { width, color: SELECTION_COLOR, cap: 'round' },
+        ? { width, color: STAIR_COLOR, alpha: treadAlpha(spoke.climb) * opacity, cap: 'butt' }
+        : { width, color: SELECTION_COLOR, alpha: opacity, cap: 'round' },
     )
   }
 }

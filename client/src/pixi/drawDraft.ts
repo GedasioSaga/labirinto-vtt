@@ -2,7 +2,8 @@ import { Color, type Graphics } from 'pixi.js'
 import type { Point } from './world'
 import type { DrawingCap, DrawingDash } from '../types/map'
 import { SELECTION_COLOR } from './constants'
-import { computeStairSteps } from '../lib/stairs'
+import { buildStairFromDraft } from '../lib/stairs'
+import { drawStairs } from './drawStairs'
 import { computeMarkerStroke, computePencilSegments, type BrushTexture } from '../lib/brushTexture'
 import { computeDashSegments, dashGeometry } from '../lib/dashPattern'
 import { tracadoDaSalaLivre } from '../lib/tracadoDaSalaLivre'
@@ -30,17 +31,35 @@ export function drawWallDraft(graphics: Graphics, start: Point, end: Point): voi
   graphics.moveTo(start.x, start.y).lineTo(end.x, end.y).stroke({ width: 4, color: SELECTION_COLOR, alpha: 0.8 })
 }
 
-// start/end = clique inicial e ponto de arrasto atual do lance de escada.
-// Mesmo esqueleto de drawWallDraft, mas já mostra os degraus procedurais
-// (computeStairSteps, mesma função pura que drawStairs.ts usa no render
-// final) em vez de uma linha única — o preview do arrasto já parece uma
-// escada, não só um traço reto que "vira" escada de surpresa ao soltar.
-export function drawStairDraft(graphics: Graphics, start: Point, end: Point, stepWidth: number): void {
-  graphics.clear()
-  graphics.moveTo(start.x, start.y).lineTo(end.x, end.y).stroke({ width: 1, color: SELECTION_COLOR, alpha: 0.5 })
-  for (const step of computeStairSteps({ x1: start.x, y1: start.y, x2: end.x, y2: end.y }, stepWidth)) {
-    graphics.moveTo(step.x1, step.y1).lineTo(step.x2, step.y2).stroke({ width: 3, color: SELECTION_COLOR, alpha: 0.8 })
-  }
+/**
+ * Opacidade da prévia da escada: a mesma de `drawPathDraft` ("a MESMA faixa
+ * que vai nascer, só que translúcida"). Fica acima de `SECRET_ITEM_ALPHA`
+ * (0,5) de propósito, para o rascunho não se ler como escada secreta.
+ */
+export const STAIR_DRAFT_ALPHA = 0.7
+
+/** Id da escada de mentira que a prévia pinta; nunca vai para o mapa nem é selecionada. */
+const STAIR_DRAFT_ID = 'rascunho-da-escada'
+
+/**
+ * Prévia do arrasto da Escada: `start` é o clique, `end` o ponto atual do
+ * arrasto. Monta a escada com o MESMO `buildStairFromDraft` que o pointerup do
+ * PixiCanvas grava e pinta com o MESMO `drawStairs` do mapa, só mais apagada
+ * (`STAIR_DRAFT_ALPHA`): o que o mestre vê arrastando é o que fica ao soltar.
+ * `cameraScale` e `rendererResolution` são os do mapa, para o traço fino sair
+ * igual ao da gravada em qualquer zoom. `drawStairs` já limpa o Graphics, e
+ * arrasto de comprimento zero não desenha nada, como a gravada.
+ */
+export function drawStairDraft(
+  graphics: Graphics,
+  start: Point,
+  end: Point,
+  stepWidth: number,
+  cameraScale = 1,
+  rendererResolution = 1,
+): void {
+  const stair = buildStairFromDraft(STAIR_DRAFT_ID, start, end, stepWidth)
+  drawStairs(graphics, [stair], null, cameraScale, rendererResolution, STAIR_DRAFT_ALPHA)
 }
 
 /**
