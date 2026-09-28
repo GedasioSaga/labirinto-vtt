@@ -4556,11 +4556,15 @@ export interface TrancasDaCena {
  * `filterMapForPlayer` (e depois de o host lembrar as portas: a marca não
  * entra na memória de portas vistas).
  *
- * - Porta: `ferrolhoDoMeuLado` só se a porta está na visão AGORA, fechada e
- *   destrancada pelo mestre, e uma ficha dele (do recorte: camada oculta e
- *   ficha escondida já saíram) ALCANÇA a porta do lado do ferrolho — o mesmo
- *   critério com que o host aceita tirá-lo ou abrir. Do outro lado a porta
- *   sai como sempre — a tentativa de abrir é que conta a ele que está trancada.
+ * - Porta: `ferrolhoDoMeuLado` só se a porta está na visão AGORA, fechada, e
+ *   uma ficha dele (do recorte: camada oculta e ficha escondida já saíram)
+ *   ALCANÇA a porta do lado do ferrolho — o mesmo critério com que o host
+ *   aceita tirá-lo ou abrir. A porta trancada pelo mestre não se distingue
+ *   aqui: o recorte nunca traz cadeado (`withoutLock`: a trancada sai fechada
+ *   e destrancada). Quem a filtra é o host, que não põe em `trancas` o
+ *   ferrolho de porta trancada (`ferrolhoAtivo`, em `net/hostSession.ts`).
+ *   Do outro lado a porta sai como sempre — a tentativa de abrir é que conta
+ *   a ele que está trancada.
  * - Pino: `barradaDaqui` em pino que já saiu no recorte, e como a porta: o
  *   pino na visão AGORA (`visiblePinIds`) leva a barra de agora; o que saiu só
  *   por explorado (névoa) leva a barra LEMBRADA (`barrasLembradas`, a última
@@ -4584,7 +4588,7 @@ export function marcarTrancasParaJogador(
   const walls = map.walls.map((wall) => {
     const lado = trancas.ferrolhos.get(wall.id)
     const door = wall.door
-    if (lado === undefined || door === null || door.open || door.locked || !visiveis.has(wall.id)) return wall
+    if (lado === undefined || door === null || door.open || !visiveis.has(wall.id)) return wall
     // O mesmo critério do host (`fichaDoLadoAlcanca`): só ficha que ALCANÇA a porta conta.
     if (!fichaDoLadoAlcanca(fichas, wall, lado, map.grid)) return wall
     mudouParede = true
