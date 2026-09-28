@@ -4,11 +4,11 @@ import { TOOL_VARIANTS, type ToolVariantEntry, type ToolVariantGroup } from '../
 
 /**
  * Como o menu de Chão se divide em duas colunas — a regra que tira o popover
- * mais alto do app (4 grupos, 18 opções, 1110px numa janela de 800) de dentro
+ * mais alto do app (5 grupos, 24 opções) de dentro
  * de uma coluna só.
  *
  * Os grupos vêm do CATÁLOGO DE VERDADE, não de um duplo escrito à mão: é a
- * única forma de este teste ficar vermelho quando alguém acrescentar um quinto
+ * única forma de este teste ficar vermelho quando alguém acrescentar um sexto
  * eixo ao Chão e a divisão deixar de fechar. O que ele fixa é a REGRA (ordem
  * preservada, grupo inteiro, pesos equilibrados), não a aparência — quem mede
  * pixel é `e2e/task-jornada-menu-cabe-na-janela.spec.ts`.
@@ -27,12 +27,12 @@ describe('dividirEmColunas', () => {
   it('parte o menu de Chão ao meio, com o mesmo peso dos dois lados', () => {
     const colunas = dividirEmColunas(gruposDe('floor'), 2)
     expect(rotulos(colunas)).toEqual([
-      ['Forma', 'Tamanho do pincel'],
-      ['Operação', 'Lados do polígono'],
+      ['Forma', 'Camada'],
+      ['Tamanho do pincel', 'Operação', 'Lados do polígono'],
     ])
-    // 18 opções, 9 de cada lado — a mesma divisão que o balanceador de colunas
-    // do navegador escolhe quando se pede a ele.
-    expect(pesos(colunas)).toEqual([9, 9])
+    // 24 opções, 12 de cada lado, desde que a Camada entrou no Chão
+    // (28/09/2026).
+    expect(pesos(colunas)).toEqual([12, 12])
   })
 
   it('não parte um grupo ao meio: título e opções migram juntos', () => {
