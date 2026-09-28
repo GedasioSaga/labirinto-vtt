@@ -1100,3 +1100,15 @@ Noite = esta sessão conduzida pelo main thread; o noite-runner continua encerra
 > "Aproveita e faça um sistema simples de camada por chão quero pode escolher o chão que fica em cima de qual."
 
 - Mesmo lote: lista "Camadas do chão" no painel, com subir/descer por peça para escolher qual chão fica por cima.
+
+### 28/09/2026, tarde: chão fora do mapa e balde de tinta
+
+> "Ok perfeito, agora o faça o seuginte, [Image #18] o chão ele está ultrapassando o limite do mapa que eu coloca no incio da configuração e as vezes o chão fica em cima das salas o que não é para acontecer, resolve rápido"
+
+- Imagem 18: visão do jogador com faixa verde e cantos azuis (Mar) fora do mapa, e um quadrado verde girado com escada perto do token.
+- (1) Chão para no limite do mapa: feito em `2017c7e7` (editor, jogador, miniatura).
+- (2) Chão por cima das salas: não reproduzido. O quadrado verde da imagem é a sala "Cemiterio" (`#224d05`), não chão; o chão já é desenhado por baixo das salas no editor, no jogador e na miniatura. Aguardando um print de onde acontece.
+
+> "[Image #19] outra coisa, acho que da para criar a ferramenta balde de tinta para pintar essa situação de uma vez, crie rápido"
+
+- Feito: o balde do Chão (forma "Balde") para em parede, linha de mapa, borda de sala e borda do mapa, e pinta a área de uma vez (commit `feat(floor): paint bucket stops at walls, lines, rooms and the map edge`).

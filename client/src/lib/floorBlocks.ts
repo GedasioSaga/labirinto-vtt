@@ -31,11 +31,11 @@ export function clampTamanhoDePincel(tamanho: number): TamanhoDePincel {
 }
 
 /**
- * Teto de células que um gesto do balde enche de uma vez. Existe para o balde
- * clicado numa área que parece fechada mas é enorme não travar a aba enquanto
- * a busca anda: acima disto o gesto é recusado como qualquer área aberta.
+ * Teto de células que um gesto do balde enche de uma vez. A borda do mapa já
+ * fecha qualquer área; o teto existe para o mapa gigante não travar a aba
+ * enquanto a busca anda: acima disto o gesto é recusado.
  */
-const TETO_DO_BALDE = 20000
+const TETO_DO_BALDE = 250000
 
 export function chaveDoBloco(col: number, row: number): string {
   return `${col},${row}`
@@ -266,19 +266,90 @@ export function tirarBlocosDasPecas(
   return mudou ? saida : null
 }
 
+/** Traço que o balde não atravessa (parede, linha do mapa, borda de sala), em px de mundo. */
+export interface Barreira {
+  x1: number
+  y1: number
+  x2: number
+  y2: number
+}
+
+/** Passagem de uma célula para a vizinha: `true` quando alguma barreira corta. */
+export type PassagemCortada = (de: Bloco, para: Bloco) => boolean
+
+const nadaCorta: PassagemCortada = () => false
+
+function orientacao(ax: number, ay: number, bx: number, by: number, cx: number, cy: number): number {
+  const valor = (bx - ax) * (cy - ay) - (by - ay) * (cx - ax)
+  return Math.abs(valor) < 1e-9 ? 0 : Math.sign(valor)
+}
+
+function noSegmento(ax: number, ay: number, bx: number, by: number, px: number, py: number): boolean {
+  return Math.min(ax, bx) - 1e-9 <= px && px <= Math.max(ax, bx) + 1e-9 && Math.min(ay, by) - 1e-9 <= py && py <= Math.max(ay, by) + 1e-9
+}
+
+/** Os dois segmentos se tocam, ponta encostada inclusive: barreira que só encosta também segura. */
+function segmentosSeTocam(a: Barreira, b: Barreira): boolean {
+  const o1 = orientacao(a.x1, a.y1, a.x2, a.y2, b.x1, b.y1)
+  const o2 = orientacao(a.x1, a.y1, a.x2, a.y2, b.x2, b.y2)
+  const o3 = orientacao(b.x1, b.y1, b.x2, b.y2, a.x1, a.y1)
+  const o4 = orientacao(b.x1, b.y1, b.x2, b.y2, a.x2, a.y2)
+  if (o1 !== o2 && o3 !== o4) return true
+  if (o1 === 0 && noSegmento(a.x1, a.y1, a.x2, a.y2, b.x1, b.y1)) return true
+  if (o2 === 0 && noSegmento(a.x1, a.y1, a.x2, a.y2, b.x2, b.y2)) return true
+  if (o3 === 0 && noSegmento(b.x1, b.y1, b.x2, b.y2, a.x1, a.y1)) return true
+  return o4 === 0 && noSegmento(b.x1, b.y1, b.x2, b.y2, a.x2, a.y2)
+}
+
+/**
+ * Quais passagens entre células vizinhas as barreiras cortam. A passagem é o
+ * segmento de centro a centro: se ele cruza a barreira, o balde não passa.
+ * Qualquer caminho de um lado ao outro de uma barreira fechada cruza ela em
+ * algum desses segmentos, então parede em diagonal também não vaza.
+ *
+ * Cada barreira só testa as passagens da caixa em volta dela, e não o mapa
+ * inteiro: o custo segue o tamanho da barreira, não o do mapa.
+ */
+export function passagensCortadas(barreiras: readonly Barreira[], cell: number, colunas: number, linhas: number): PassagemCortada {
+  if (barreiras.length === 0 || !(cell > 0)) return nadaCorta
+  const cortadas = new Set<string>()
+  for (const barreira of barreiras) {
+    if (barreira.x1 === barreira.x2 && barreira.y1 === barreira.y2) continue
+    const c0 = Math.max(0, Math.floor(Math.min(barreira.x1, barreira.x2) / cell) - 1)
+    const c1 = Math.min(colunas - 1, Math.floor(Math.max(barreira.x1, barreira.x2) / cell) + 1)
+    const r0 = Math.max(0, Math.floor(Math.min(barreira.y1, barreira.y2) / cell) - 1)
+    const r1 = Math.min(linhas - 1, Math.floor(Math.max(barreira.y1, barreira.y2) / cell) + 1)
+    for (let col = c0; col <= c1; col += 1) {
+      for (let row = r0; row <= r1; row += 1) {
+        const x = (col + 0.5) * cell
+        const y = (row + 0.5) * cell
+        if (segmentosSeTocam(barreira, { x1: x, y1: y, x2: x + cell, y2: y })) cortadas.add(`${chaveDoBloco(col, row)}d`)
+        if (segmentosSeTocam(barreira, { x1: x, y1: y, x2: x, y2: y + cell })) cortadas.add(`${chaveDoBloco(col, row)}b`)
+      }
+    }
+  }
+  if (cortadas.size === 0) return nadaCorta
+  return (de, para) => {
+    // Chave da passagem = célula de cima/esquerda + direção ('d' direita, 'b' baixo).
+    if (de.row === para.row) return cortadas.has(`${chaveDoBloco(Math.min(de.col, para.col), de.row)}d`)
+    return cortadas.has(`${chaveDoBloco(de.col, Math.min(de.row, para.row))}b`)
+  }
+}
+
 /**
  * Células vazias alcançáveis a partir de `inicio`, dentro dos limites do mapa.
+ * A busca para no chão que já existe, na borda do mapa e em toda passagem que
+ * `cortada` diz que uma barreira corta.
  *
- * `null` quando a área NÃO é fechada: ou a busca escapou pela borda do mapa
- * (não há parede ali, então o vazio segue para fora), ou passou de
- * `TETO_DO_BALDE` células. Devolver `null` em vez de encher meio mapa é a
- * diferença entre "o balde encheu o cômodo" e "o balde comeu o mapa".
+ * `null` quando o início está fora do mapa ou em cima de chão, ou quando a
+ * área passa de `TETO_DO_BALDE` células.
  */
 export function areaFechadaAPartirDe(
   temChao: (col: number, row: number) => boolean,
   inicio: Bloco,
   colunas: number,
   linhas: number,
+  cortada: PassagemCortada = nadaCorta,
 ): Bloco[] | null {
   if (inicio.col < 0 || inicio.row < 0 || inicio.col >= colunas || inicio.row >= linhas) return null
   if (temChao(inicio.col, inicio.row)) return null
@@ -301,10 +372,10 @@ export function areaFechadaAPartirDe(
     for (const [dc, dr] of vizinhos) {
       const col = atual.col + dc
       const row = atual.row + dr
-      // Sair do mapa é a prova de que a área não é fechada: ali não há parede.
-      if (col < 0 || row < 0 || col >= colunas || row >= linhas) return null
+      // A borda do mapa fecha a área como uma parede.
+      if (col < 0 || row < 0 || col >= colunas || row >= linhas) continue
       const chave = chaveDoBloco(col, row)
-      if (vistos.has(chave) || temChao(col, row)) continue
+      if (vistos.has(chave) || temChao(col, row) || cortada(atual, { col, row })) continue
       vistos.add(chave)
       fila.push({ col, row })
     }

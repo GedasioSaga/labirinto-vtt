@@ -4,7 +4,9 @@ import {
   blocoNoPonto,
   buildBlocosShape,
   centroDoBloco,
+  passagensCortadas,
   tirarBlocosDasPecas,
+  type Barreira,
   type Bloco,
 } from './floorBlocks'
 import { compileFloor, pieceDistance } from './floorSdf'
@@ -244,13 +246,32 @@ export function apagarBlocosDoChao(
 }
 
 /**
- * Peça de chão que o balde cria ao clicar em `point` — `null` quando não há o
- * que encher: a área já tem chão, ou ela não é fechada (ver
- * `areaFechadaAPartirDe`, que chama de aberta tudo que escapa pela borda do
- * mapa, onde não existe parede nenhuma).
+ * Traços que o balde não atravessa: cada parede, cada trecho de linha do mapa
+ * (fechando a volta na linha fechada) e cada lado de sala ou região.
+ */
+function barreirasDoBalde(map: Partial<Pick<MapData, 'walls' | 'lines' | 'regions'>>): Barreira[] {
+  const barreiras: Barreira[] = (map.walls ?? []).map((w) => ({ x1: w.x1, y1: w.y1, x2: w.x2, y2: w.y2 }))
+  const contorno = (pontos: readonly Point[], fechado: boolean) => {
+    const total = fechado ? pontos.length : pontos.length - 1
+    for (let i = 0; i < total; i += 1) {
+      const a = pontos[i]
+      const b = pontos[(i + 1) % pontos.length]
+      barreiras.push({ x1: a.x, y1: a.y, x2: b.x, y2: b.y })
+    }
+  }
+  for (const linha of map.lines ?? []) contorno(linha.points, linha.closed)
+  for (const regiao of map.regions ?? []) contorno(regiao.points, true)
+  return barreiras
+}
+
+/**
+ * Peça de chão que o balde cria ao clicar em `point`: enche a área até o chão
+ * que já existe, as paredes, as linhas do mapa, a borda das salas e a borda do
+ * mapa. `null` quando não há o que encher: clique fora do mapa, em cima de
+ * chão, ou área grande demais (ver `areaFechadaAPartirDe`).
  */
 export function baldeNoPonto(
-  map: Pick<MapData, 'floor' | 'grid' | 'width' | 'height'>,
+  map: Pick<MapData, 'floor' | 'grid' | 'width' | 'height'> & Partial<Pick<MapData, 'walls' | 'lines' | 'regions'>>,
   point: Point,
   novoId: () => string,
 ): FloorPiece | null {
@@ -261,7 +282,8 @@ export function baldeNoPonto(
     const centro = centroDoBloco({ col, row }, cell)
     return compilado.sample(centro.x, centro.y) < 0
   }
-  const area = areaFechadaAPartirDe(temChao, blocoNoPonto(point.x, point.y, cell), map.width, map.height)
+  const cortada = passagensCortadas(barreirasDoBalde(map), cell, map.width, map.height)
+  const area = areaFechadaAPartirDe(temChao, blocoNoPonto(point.x, point.y, cell), map.width, map.height, cortada)
   if (area === null) return null
   const shape = buildBlocosShape(cell, area)
   return shape ? buildFloorPiece(novoId(), shape, 'add') : null

@@ -182,8 +182,14 @@ describe('balde — só enche área fechada', () => {
     }
   })
 
-  it('clicar FORA do anel não enche nada: a área escapa pela borda do mapa', () => {
-    expect(baldeNoPonto(mapa([anel()]), centroDoBloco({ col: 20, row: 15 }, CELL), () => 'x')).toBeNull()
+  it('clicar FORA do anel enche até a borda do mapa, sem entrar no miolo', () => {
+    const piece = baldeNoPonto(mapa([anel()]), centroDoBloco({ col: 20, row: 15 }, CELL), () => 'fora')
+    expect(piece).not.toBeNull()
+    const compilado = compileFloor([anel(), ...(piece ? [piece] : [])])
+    const canto = centroDoBloco({ col: 0, row: 0 }, CELL)
+    expect(compilado.sample(canto.x, canto.y)).toBeLessThan(0)
+    const miolo = centroDoBloco({ col: 8, row: 6 }, CELL)
+    expect(compilado.sample(miolo.x, miolo.y)).toBeGreaterThan(0)
   })
 
   it('clicar em cima de chão que já existe não enche nada', () => {
@@ -191,8 +197,8 @@ describe('balde — só enche área fechada', () => {
   })
 
   it('a busca por área fechada para na borda do mapa, e não na primeira célula vazia', () => {
-    // Sem nenhum chão, TUDO escapa — o teto de células nunca chega a ser testado.
-    expect(areaFechadaAPartirDe(() => false, { col: 5, row: 5 }, 30, 20)).toBeNull()
+    // Sem nenhum chão, a borda do mapa fecha a área: o mapa inteiro.
+    expect(areaFechadaAPartirDe(() => false, { col: 5, row: 5 }, 30, 20)).toHaveLength(600)
     // Um buraco de 1 célula cercado por chão é a menor área fechada possível.
     const cercado = areaFechadaAPartirDe((col, row) => !(col === 5 && row === 5), { col: 5, row: 5 }, 30, 20)
     expect(cercado).toEqual([{ col: 5, row: 5 }])

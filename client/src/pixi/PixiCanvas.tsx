@@ -2898,9 +2898,10 @@ export function PixiCanvas({
       }
 
       /**
-       * Balde: enche de chão a área fechada em volta do clique. Área aberta (o
-       * vazio escapa pela borda do mapa) não tem o que encher — e calar seria
-       * repetir o defeito da porta sem parede, então a tela responde.
+       * Balde: enche de chão a área em volta do clique, até o chão que já
+       * existe, as paredes, as linhas do mapa, a borda das salas e a borda do
+       * mapa. Sem nada para encher, calar seria repetir o defeito da porta sem
+       * parede, então a tela responde.
        */
       const encherAreaFechada = (point: Point) => {
         const { map, pisoAtivo, addFloorPiece, floorCamada } = useMapStore.getState()
@@ -2908,7 +2909,7 @@ export function PixiCanvas({
         if (!piece) {
           useToastStore
             .getState()
-            .push('info', 'Nada para encher aqui: o balde só enche área fechada, e esta escapa pela borda do mapa (ou já tem chão).')
+            .push('info', 'Nada para encher aqui: o clique caiu em cima de chão ou fora do mapa.')
           return
         }
         addFloorPiece(pecaNaCamada(piece, floorCamada))
