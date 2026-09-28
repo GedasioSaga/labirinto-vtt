@@ -910,3 +910,20 @@ Publicar 0.4.4 ao fechar as 5 features (suíte 1x, fumaça, instalador, push com
 - `rtk proxy npx tsc --noEmit`: ok.
 - vitest da área: 75 arquivos, 947/947.
 - Navegador (scratchpad): `marquee-ctrl-meio.png` (laço tracejado começando dentro da Sala 1), `marquee-ctrl.png` (5 itens selecionados: Sala 2 + 4 paredes), `marquee-ctrl-selecionado.png` (Ctrl+arrasto em cima da Sala 2 já selecionada moveu o grupo), `marquee-sem-ctrl.png` (sem Ctrl, o arrasto move a Sala 1).
+
+### 28/09/2026, fim de tarde: release v0.4.7
+
+- Release: https://github.com/GedasioSaga/labirinto-vtt/releases/tag/v0.4.7, com `Labirinto_0.4.7_x64-setup.exe` (2278407 B) e `Labirinto_0.4.7_x64_en-US.msi` (2965504 B).
+- Conteúdo: balde de tinta no Pincel (`6f17294d`), estilo do título da sala (`cd645400`), Ctrl solta o arrasto das guias (`a9a163c2`), Ctrl abre o laço em cima de sala (`346316c5`).
+- Bump `af406835` (5 arquivos de versão). Tag anotada `v0.4.7` em `af406835`. origin/main `ecd628df..af406835`.
+- O primeiro build falhou com disco cheio ("Espaço insuficiente no disco", os error 112). `cargo clean --profile dev` em `desktop/src-tauri` apagou `target/debug` (6,2 GiB de cache, regenerável) e o segundo build passou. O disco segue apertado: 4 GB livres depois da limpeza.
+- A escada espiral parcial voltou do stash, fora de commit (4 arquivos). Diff idêntico ao backup `scratchpad/escada-parcial-backup/escada-047.patch`.
+- Contagem de features para o próximo instalador: 0 de 5.
+
+## Evidência
+- `rtk proxy npx tsc --noEmit`: 0 erros. tsc e2e: 0 erros.
+- gitleaks `v0.4.6..HEAD`: 14 commits, no leaks.
+- Suíte completa com o build rodando junto: 10172/10173. A falha foi `hostSession.custoCom7` (tempo). Sozinho: 1/1 verde.
+- Build: `exit=0`, 2 bundles.
+- Fumaça do exe: ProductVersion 0.4.7; a janela "Labirinto" responde após 10 s.
+- Não feito: teste do instalador instalado e e2e `task-jornada-*`.
