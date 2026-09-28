@@ -1118,3 +1118,9 @@ Noite = esta sessão conduzida pelo main thread; o noite-runner continua encerra
 > "Perfeito, cria o 0.4.6"
 
 - Release 0.4.6 com as 4 features do chão desde a 0.4.5 (travar peça, camadas, borda do mapa, balde). Escada espiral parcial fica fora.
+
+### 28/09/2026, tarde: balde no Pincel
+
+> "Acho que você não entendeu, não era para fazer na forma de chão mas sim na forma de pincel, pode fazer ali no pincel ?"
+
+- O balde de tinta vai para o Pincel do botão Desenho: modo "Balde" enche de uma vez uma área fechada com a cor do desenho. O Balde do Chão continua (pedido de 15/09/2026).
