@@ -2,11 +2,9 @@ import { describe, expect, it } from 'vitest'
 import {
   isValidStairDraft,
   buildStairFromDraft,
-  computeStairSteps,
   computeStairPlan,
   stairStepWidthForPreset,
   stairSizePresetForStepWidth,
-  STAIR_STEP_SPACING,
   STAIR_SIZE_PRESET_RATIO,
   STAIR_TREAD_WIDTH_AT_FOOT,
   STAIR_TREAD_WIDTH_AT_TOP,
@@ -87,38 +85,6 @@ describe('stairSizePresetForStepWidth', () => {
     const legacyStepWidth = 1
     expect(stairSizePresetForStepWidth(legacyStepWidth, 64)).toBeUndefined()
     expect(Object.values(STAIR_SIZE_PRESET_RATIO)).toEqual([0.5, 1, 2])
-  })
-})
-
-describe('computeStairSteps', () => {
-  it('segmento de comprimento zero não gera degrau nenhum', () => {
-    const segment: StairSegment = { x1: 10, y1: 10, x2: 10, y2: 10 }
-    expect(computeStairSteps(segment, 20)).toEqual([])
-  })
-
-  it('gera degraus igualmente espaçados, perpendiculares ao lance, cobrindo as duas pontas', () => {
-    // comprimento 32 == 2x STAIR_STEP_SPACING (16) -> 2 passos -> 3 degraus (t=0, 0.5, 1)
-    const segment: StairSegment = { x1: 0, y1: 0, x2: 2 * STAIR_STEP_SPACING, y2: 0 }
-    const steps = computeStairSteps(segment, 20)
-    expect(steps).toHaveLength(3)
-
-    // segmento horizontal -> perpendicular é vertical: cada degrau é uma
-    // linha vertical (mesmo x nas duas pontas), centrada em y=0, largura=stepWidth
-    for (const [i, step] of steps.entries()) {
-      const expectedX = i * STAIR_STEP_SPACING
-      expect(step.x1).toBeCloseTo(expectedX)
-      expect(step.x2).toBeCloseTo(expectedX)
-      expect(step.y1).toBeCloseTo(10)
-      expect(step.y2).toBeCloseTo(-10)
-    }
-  })
-
-  it('lance curto (menor que STAIR_STEP_SPACING) ainda produz pelo menos 1 passo (2 degraus)', () => {
-    const segment: StairSegment = { x1: 0, y1: 0, x2: 4, y2: 0 }
-    const steps = computeStairSteps(segment, 10)
-    expect(steps).toHaveLength(2)
-    expect(steps[0].x1).toBeCloseTo(0)
-    expect(steps[1].x1).toBeCloseTo(4)
   })
 })
 

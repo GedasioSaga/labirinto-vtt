@@ -81,61 +81,6 @@ export function stairSizePresetForStepWidth(stepWidth: number, grid: number): St
   return match?.[0]
 }
 
-/** Espaçamento (px de mundo) entre degraus ao longo do lance — puramente
- *  visual, não afeta jogo/colisão (escada não bloqueia nem restringe hoje,
- *  mesmo padrão de Prop). 16px dá 4 degraus por célula de grid default (64px),
- *  densidade legível sem virar rabisco em lance curto. */
-export const STAIR_STEP_SPACING = 16
-
-export interface StairStepLine {
-  x1: number
-  y1: number
-  x2: number
-  y2: number
-}
-
-/**
- * Linhas perpendiculares dos degraus de um StairSegment — geometria pura, sem
- * nada de Pixi. Hoje só `pixi/drawDraft.ts` usa: é o esqueleto da prévia
- * enquanto o arrasto acontece. A escada solta no mapa é outro desenho: o lance
- * de minimapa de `planStairFlight` (`pixi/stairFlight.ts`), com placa, degraus
- * finos e patamar no topo. A prévia ainda segue este pente reto.
- *
- * Um degrau em cada ponta do lance (t=0 e t=1) mais um a cada
- * STAIR_STEP_SPACING entre elas, sempre espaçados igualmente (divide o
- * comprimento pelo nº de passos, não corta em pedaços de tamanho fixo com
- * sobra no fim). Segmento de comprimento zero devolve lista vazia — não há
- * lance pra desenhar degrau nenhum.
- */
-export function computeStairSteps(segment: StairSegment, stepWidth: number): StairStepLine[] {
-  const dx = segment.x2 - segment.x1
-  const dy = segment.y2 - segment.y1
-  const length = Math.hypot(dx, dy)
-  if (length === 0) return []
-
-  const ux = dx / length
-  const uy = dy / length
-  // perpendicular unitário (rotação de 90° do vetor de avanço)
-  const px = -uy
-  const py = ux
-  const halfWidth = stepWidth / 2
-
-  const stepCount = Math.max(1, Math.round(length / STAIR_STEP_SPACING))
-  const steps: StairStepLine[] = []
-  for (let i = 0; i <= stepCount; i += 1) {
-    const t = i / stepCount
-    const cx = segment.x1 + ux * length * t
-    const cy = segment.y1 + uy * length * t
-    steps.push({
-      x1: cx + px * halfWidth,
-      y1: cy + py * halfWidth,
-      x2: cx - px * halfWidth,
-      y2: cy - py * halfWidth,
-    })
-  }
-  return steps
-}
-
 /**
  * LANCE EM GALÃO (17/09/2026) — desenho aposentado do mapa, mantido como
  * geometria de referência.
