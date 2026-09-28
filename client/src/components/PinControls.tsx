@@ -90,6 +90,13 @@ export interface PinControlsProps {
    */
   iconChoice: PinIconControlsProps | null
   /**
+   * "Só o círculo, sem haste" do pino ABERTO (`Pin.semHaste`), de qualquer
+   * tipo: é do pino, não preferência do próximo. Ausente `onSemHasteChange` =
+   * sem o controle (quem não grava a escolha não oferece o interruptor).
+   */
+  semHaste?: boolean
+  onSemHasteChange?: (semHaste: boolean) => void
+  /**
    * FECHADURA COM SEGREDO do pino aberto no painel (qualquer tipo). `null` =
    * nenhum pino aberto: não há fechadura para editar.
    */
@@ -321,6 +328,8 @@ export function PinControls({
   attachment = null,
   lever = null,
   iconChoice,
+  semHaste = false,
+  onSemHasteChange,
   lock = null,
   colecao = null,
   loja = null,
@@ -364,6 +373,16 @@ export function PinControls({
       {alavanca && description !== null && lever !== null && <PinLeverControls {...lever} />}
       {description !== null && (
         <>
+          {/* A forma do pino no mapa, logo depois do tipo e do ícone (ou do
+              destino/porta ligada): é aparência, e vem antes do texto. */}
+          {onSemHasteChange !== undefined && (
+            <>
+              <Toggle label="Só o círculo, sem haste" checked={semHaste} onChange={onSemHasteChange} describedBy="lb-pin-sem-haste-hint" />
+              <span id="lb-pin-sem-haste-hint" className="lb-label">
+                Os jogadores também veem o pino assim.
+              </span>
+            </>
+          )}
           {/* Antes da descrição: é o que o MESTRE lê (sete "?" iguais no mapa
               do crime); a descrição, logo abaixo, é o que o jogador lê. */}
           {onNomeChange !== undefined && (

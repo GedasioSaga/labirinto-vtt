@@ -455,10 +455,10 @@ export function isPlayerSafePinImage(image: string | null): image is string {
 /**
  * Pino sob o ponto do mundo, do desenhado por último para o primeiro (o de
  * cima ganha). A área de toque é a cabeça mais a haste: um retângulo alto e
- * estreito com a bola em cima, engordado por `tolerance` para o dedo — no
- * celular o alvo real é o dedo, não o desenho. `sizeScale` é o mesmo fator do
- * desenho (`pinSizeScale`): o alvo é o pino como ele APARECE, crescido no zoom
- * afastado, e não o de tamanho de mundo.
+ * estreito com a bola em cima (no pino `semHaste`, só a bola), engordado por
+ * `tolerance` para o dedo — no celular o alvo real é o dedo, não o desenho.
+ * `sizeScale` é o mesmo fator do desenho (`pinSizeScale`): o alvo é o pino
+ * como ele APARECE, crescido no zoom afastado, e não o de tamanho de mundo.
  */
 export function findPinAt(pins: readonly Pin[], point: RegionPoint, tolerance = 0, sizeScale = 1): Pin | null {
   for (let i = pins.length - 1; i >= 0; i--) {
@@ -468,8 +468,9 @@ export function findPinAt(pins: readonly Pin[], point: RegionPoint, tolerance = 
 }
 
 /**
- * O ponto cai na cabeça ou na haste do pino, com a folga `tolerance`.
- * `sizeScale` é o fator do desenho (`pinSizeScale`): o pino como ele APARECE.
+ * O ponto cai na cabeça ou na haste do pino (só na cabeça, sem haste), com a
+ * folga `tolerance`. `sizeScale` é o fator do desenho (`pinSizeScale`): o pino
+ * como ele APARECE.
  */
 function pinHit(pin: Pin, point: RegionPoint, tolerance: number, sizeScale: number): boolean {
   const headRadius = PIN_HEAD_RADIUS * sizeScale
@@ -479,6 +480,9 @@ function pinHit(pin: Pin, point: RegionPoint, tolerance: number, sizeScale: numb
   const dy = point.y - pin.y
   // Cabeça: círculo em torno do centro dela.
   if (Math.hypot(dx, dy + headOffset) <= headRadius + tolerance) return true
+  // Sem haste, o vão até a ponta é chão: tocar ali não abre o pino (nem
+  // esconde o pino de baixo), senão o alvo seria um retângulo que ninguém vê.
+  if (pin.semHaste === true) return false
   // Haste: faixa vertical entre a ponta e a base da cabeça.
   return Math.abs(dx) <= headRadius / 2 + tolerance && dy <= tolerance && dy >= -height - tolerance
 }

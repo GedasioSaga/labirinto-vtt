@@ -736,6 +736,17 @@ export interface Pin extends PlayerSecret, NoPiso {
    */
   lerDePerto?: number
   /**
+   * SÓ O CÍRCULO, SEM HASTE: o pino aparece só com a cabeça (o círculo com o
+   * glifo ou o ícone), sem a haste escura embaixo. É só forma: a ponta continua
+   * em `x`/`y` e a cabeça fica exatamente onde estava — ligar e desligar não
+   * move nada, e névoa, "ler de perto" e viagem medem do mesmo ponto. O toque
+   * acompanha o desenho (só a cabeça, `lib/pins.ts`). Ausente = o pino de
+   * sempre, com haste, sem migração. O disco só aceita `true`
+   * (`lib/mapFile.ts`). VAI ao jogador (`lib/fogFilter.ts`): o mapa dele usa o
+   * mesmo desenho e o mesmo toque, e a marca não conta nada da cena.
+   */
+  semHaste?: true
+  /**
    * SÓ NO RECORTE DO JOGADOR: o pino é "só de perto" e a ficha dele está
    * longe, então a descrição e a imagem ficaram no host. O cartão diz "Chegue
    * mais perto para ler". O mestre nunca grava este campo.

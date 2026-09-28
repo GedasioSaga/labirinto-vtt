@@ -3222,6 +3222,11 @@ function App() {
               lerDePerto: selectedPin?.lerDePerto ?? null,
               onLerDePertoChange: (casas) =>
                 selectedPin && useMapStore.getState().updatePin(selectedPin.id, { lerDePerto: casas ?? undefined }),
+              // "Só o círculo, sem haste": a mesma regra do marco — ligar grava
+              // `true`, desligar grava AUSENTE (o pino de sempre, com haste).
+              semHaste: selectedPin?.semHaste === true,
+              onSemHasteChange: (semHaste) =>
+                selectedPin && useMapStore.getState().updatePin(selectedPin.id, { semHaste: semHaste ? true : undefined }),
               // FECHADURA COM SEGREDO: a combinação fica neste mapa; o host confere a tentativa.
               lock: selectedPin
                 ? {

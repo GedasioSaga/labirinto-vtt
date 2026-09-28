@@ -73,7 +73,8 @@ const TRAVEL_LINE_UNLINKED = 0x8a8478
  * em `pin.x`/`pin.y`, que é o que o mestre clicou) com o glifo dentro da
  * cabeça. Desenhado por código, como a escada (`drawStairs.ts`) — nada de
  * sprite: o mapa inteiro é vetor e o pino precisa continuar legível em
- * qualquer zoom.
+ * qualquer zoom. No pino "só o círculo" (`semHaste`) a haste não é desenhada:
+ * a ponta continua sendo `pin.x`/`pin.y` e a cabeça fica no mesmo lugar.
  *
  * Um `Graphics` para todos os pinos e um `Text` por id que NUNCA é destruído
  * durante a sessão: `Text` destruído antes de ser renderizado derruba o Pixi
@@ -217,10 +218,16 @@ export function createPinsRenderer(options: PinsRendererOptions = {}): PinsRende
           .stroke({ width: SELECTED_RING_WIDTH * k, color: SELECTION_COLOR })
       }
       // Haste: da ponta cravada até o meio da cabeça, para a gota ler como uma peça só.
-      graphics
-        .moveTo(pin.x, pin.y)
-        .lineTo(pin.x, pin.y - (PIN_HEIGHT - PIN_HEAD_RADIUS) * k)
-        .stroke({ width: (PIN_OUTLINE_WIDTH + 2) * k, color: PIN_OUTLINE, cap: 'round' })
+      // O pino "só o círculo" (`semHaste`) pula a haste e NADA mais muda: a
+      // cabeça fica no mesmo `headY`, então ligar e desligar não faz o pino
+      // saltar em nenhum zoom, e o anel de seleção, o glifo e o nome seguem a
+      // cabeça como sempre.
+      if (pin.semHaste !== true) {
+        graphics
+          .moveTo(pin.x, pin.y)
+          .lineTo(pin.x, pin.y - (PIN_HEIGHT - PIN_HEAD_RADIUS) * k)
+          .stroke({ width: (PIN_OUTLINE_WIDTH + 2) * k, color: PIN_OUTLINE, cap: 'round' })
+      }
 
       // Com símbolo (escolhido, ou a passagem do pino de viagem), é ELE que
       // ocupa a cabeça: o glifo sai de cena (invisível, nunca destruído) em

@@ -4233,6 +4233,9 @@ export function espiadaPeloPino(map: MapData, par: Pin, casas: number, limites: 
  * - `passe` (o item e as fichas que abrem a catraca) NUNCA: diria o que abre
  *   a passagem e quem já pode passar. Quem confere é o host, na ficha do
  *   mapa do mestre (`net/hostSession.ts`).
+ * - `semHaste` ("só o círculo") VAI, e só `true`: é a forma do pino, e o
+ *   jogador desenha e toca o pino com o mesmo renderer e o mesmo `findPinAt`
+ *   do mestre. Não diz nada da cena.
  */
 function pinForPlayer(pin: Pin, ownTokens: readonly Token[], grid: number, readable: boolean, known: boolean, oneWay?: ReadonlySet<string>): Pin {
   // LISTA DO QUE VAI, e não "copia tudo e apaga o que não pode": campo que o
@@ -4262,6 +4265,9 @@ function pinForPlayer(pin: Pin, ownTokens: readonly Token[], grid: number, reada
   // mas só um dos nomes conhecidos (texto livre de arquivo editado à mão não
   // atravessa) e nunca no pino de viagem, que desenha a passagem.
   if (pin.kind !== 'viagem' && isPinIcon(pin.icon)) forPlayer.icon = pin.icon
+  // Só o círculo: o mapa do jogador tira a haste igual ao do mestre. Só `true`
+  // atravessa — valor torto de arquivo editado à mão fica no host.
+  if (pin.semHaste === true) forPlayer.semHaste = true
   if (pin.locked !== undefined) forPlayer.locked = pin.locked
   if (pin.hidden !== undefined) forPlayer.hidden = pin.hidden
   if (pin.secret !== undefined) forPlayer.secret = pin.secret

@@ -1890,13 +1890,14 @@ export function addPin(map: MapData, pin: Pin): MapData {
 }
 
 /**
- * Tipo, símbolo, descrição, nota do mestre, imagem, trava e destino (pino de viagem) do pino.
+ * Tipo, símbolo, forma (com ou sem haste), descrição, nota do mestre, imagem,
+ * trava e destino (pino de viagem) do pino.
  * Id inexistente ou nada mudando devolve o mesmo `map`.
  */
 export function updatePin(
   map: MapData,
   id: string,
-  patch: Partial<Pick<Pin, 'kind' | 'icon' | 'description' | 'nome' | 'notaDoMestre' | 'image' | 'locked' | 'destino' | 'passagem' | 'passe' | 'mudo' | 'motivo' | 'rotulo' | 'saidas' | 'item' | 'abreCom' | 'presoA' | 'portaLigada' | 'marco' | 'lerDePerto' | 'segredo' | 'colecao' | 'loja' | 'daVista'>>,
+  patch: Partial<Pick<Pin, 'kind' | 'icon' | 'semHaste' | 'description' | 'nome' | 'notaDoMestre' | 'image' | 'locked' | 'destino' | 'passagem' | 'passe' | 'mudo' | 'motivo' | 'rotulo' | 'saidas' | 'item' | 'abreCom' | 'presoA' | 'portaLigada' | 'marco' | 'lerDePerto' | 'segredo' | 'colecao' | 'loja' | 'daVista'>>,
 ): MapData {
   const pin = map.pins.find((p) => p.id === id)
   if (!pin) return map
@@ -1912,6 +1913,9 @@ export function updatePin(
     // `icon` também é opcional: `undefined` é "sem símbolo", e tirar o símbolo
     // de um pino que nunca teve não pode empurrar entrada vazia no histórico.
     next.icon === pin.icon &&
+    // Sem haste: opcional, só `true` liga. Desligar o que nunca foi ligado
+    // (`undefined` sobre ausente) não é mudança.
+    next.semHaste === pin.semHaste &&
     next.description === pin.description &&
     // Nome só do mestre: opcional, `undefined` = sem nome.
     next.nome === pin.nome &&
