@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState, type FormEvent, type KeyboardEvent } from 'react'
+import { Fragment, useEffect, useId, useRef, useState, type FormEvent, type KeyboardEvent } from 'react'
 import { ITEM_NAME_MAX_LENGTH } from '../lib/items'
 import { awayTokenLabel, awayTokenName, type PartyDestination, type PartyItemAction, type PartyMember } from '../lib/party'
 import { SceneSendForm } from './SceneSendForm'
@@ -520,21 +520,42 @@ function BackpackList({ member, onItem }: BackpackListProps) {
   )
 }
 
+/** Um pedaço da linha de estado; `vazia` é a bolsa ou a mochila sem nada, que desce de tom. */
+interface StatusPart {
+  texto: string
+  vazia: boolean
+}
+
 /**
  * O estado do jogador numa linha do Grupo, de relance: sem ficha no mapa, a
  * bolsa e a mochila com os nomes (ITEM PEGÁVEL, MOEDAS E TROCA). Uma linha
  * só, que quebra em vez de cortar: o nome do item é o que o mestre procura.
- * Bolsa vazia e mochila vazia não dizem nada. Mexer nelas fica no "…"
+ * Com ficha na cena, bolsa e mochila sempre se dizem, e a vazia vem um tom
+ * abaixo (`lb-player__vazio`): sem a linha, o mestre não distingue "não leva
+ * nada" de "a linha sumiu". Sem ficha na cena não há bolsa; a mochila só
+ * aparece se uma ficha de outra cena levar algo. Mexer nelas fica no "…"
  * (`PartyBag`).
  */
 export function PartyStatus({ member }: { member: PartyMember }) {
-  const partes: string[] = []
-  if (member.token === null) partes.push('sem ficha no mapa')
+  const comFicha = member.token !== null
+  const partes: StatusPart[] = []
+  if (!comFicha) partes.push({ texto: 'sem ficha no mapa', vazia: false })
   const moedas = member.moedas ?? 0
-  if (moedas > 0) partes.push(`Bolsa: ${moedasLabel(moedas)}`)
-  if (member.mochila.length > 0) partes.push(`Mochila: ${member.mochila.length} — ${member.mochila.map((item) => item.nome).join(', ')}`)
+  if (moedas > 0) partes.push({ texto: `Bolsa: ${moedasLabel(moedas)}`, vazia: false })
+  else if (comFicha) partes.push({ texto: 'Bolsa vazia', vazia: true })
+  if (member.mochila.length > 0) partes.push({ texto: `Mochila: ${member.mochila.length} — ${member.mochila.map((item) => item.nome).join(', ')}`, vazia: false })
+  else if (comFicha) partes.push({ texto: 'Mochila vazia', vazia: true })
   if (partes.length === 0) return null
-  return <p className="lb-player__note lb-player__estado">{partes.join(' · ')}</p>
+  return (
+    <p className="lb-player__note lb-player__estado">
+      {partes.map((parte, i) => (
+        <Fragment key={parte.texto}>
+          {i > 0 && ' · '}
+          {parte.vazia ? <span className="lb-player__vazio">{parte.texto}</span> : parte.texto}
+        </Fragment>
+      ))}
+    </p>
+  )
 }
 
 /** Valor de um campo de moedas: vazio é zero; só inteiro de 0 ao teto vale. `null` = torto. */

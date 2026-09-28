@@ -212,7 +212,7 @@ describe('aba Jogo compacta: 7 jogadores, 1 aguardando', () => {
     expect(secao.querySelectorAll('li').length).toBe(6)
     // Um cartão por pessoa: nada de a mesma mesa em duas listas.
     for (const nome of NOMES) expect(cartoes(nome).length).toBe(1)
-    expect(secao.textContent).toContain('1 jogador esperando personagem')
+    expect(secao.textContent).toContain('1 esperando personagem')
 
     const gina = cartao('Gina')
     expect(secao.contains(gina)).toBe(true)

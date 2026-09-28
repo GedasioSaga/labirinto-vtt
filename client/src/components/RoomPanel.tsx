@@ -361,10 +361,12 @@ export function waitingNow(player: PlayerInfo): boolean {
 /**
  * O toast de "Ana entrou" dura 10 s e o mestre costuma estar desenhando. Esta
  * linha é o que sobra depois dele: aberta a aba Jogo, diz de cara que alguém
- * continua parado esperando, sem o mestre ter de ler card por card.
+ * continua parado esperando, sem o mestre ter de ler card por card. Curta, sem
+ * "jogadores", para caber ao lado do título "Grupo" no trilho de 240 px sem
+ * reticência; quem são, os cartões logo abaixo dizem.
  */
 export function waitingLabel(count: number): string {
-  return count === 1 ? '1 jogador esperando personagem' : `${count} jogadores esperando personagem`
+  return `${count} esperando personagem`
 }
 
 /** A contagem ao lado do título "Grupo": quem espera, se alguém espera; senão, quantos são. */

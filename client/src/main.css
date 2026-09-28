@@ -1944,6 +1944,14 @@ label.lb-switch[data-dica-linha='aberta'] > span:first-child::after,
   min-width: 0;
 }
 
+/* O título não cede largura à contagem: o `overflow-wrap: anywhere` do
+   .lb-room (para nome comprido de jogador) baixa o min-content dele a uma
+   letra, e em 262 px ele encolhia junto com a contagem e quebrava em "GRUP/O". */
+.lb-party__head > .lb-eyebrow {
+  flex: none;
+  white-space: nowrap;
+}
+
 .lb-party__count {
   min-width: 0;
   overflow: hidden;
@@ -2316,6 +2324,12 @@ label.lb-switch[data-dica-linha='aberta'] > span:first-child::after,
 .lb-player__estado {
   overflow-wrap: anywhere;
   color: var(--lb-color-parchment-dim);
+}
+
+/* "Bolsa vazia", "Mochila vazia": ditas para o mestre não confundir vazio com
+   linha sumida, mas no tom da nota, abaixo do que a ficha de fato leva. */
+.lb-player__vazio {
+  color: var(--lb-color-parchment-faint);
 }
 
 /* A mochila no "…" do cartão (pedido 13): cada item com o nome numa linha e

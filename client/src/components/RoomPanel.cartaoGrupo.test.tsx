@@ -6,7 +6,7 @@ import { partyDestinations, partyMembers } from '../lib/party'
 import type { TunnelState } from '../net/hostBridge'
 import type { HostWorld, PlayerInfo, PlayerNoteDelivery, TradeProposeResult } from '../net/hostSession'
 import type { Token } from '../types/map'
-import { GROUP_VIEW_LABEL, RoomPanel, roomPanelTokensOf, type GiftScene } from './RoomPanel'
+import { GROUP_VIEW_LABEL, groupCountLabel, RoomPanel, roomPanelTokensOf, type GiftScene } from './RoomPanel'
 
 /*
  * CARTÃO DO JOGADOR NO GRUPO (pedido 13, "melhora esse design"): o mestre bate
@@ -21,13 +21,22 @@ function ficha(id: string, name: string, color: string, extra: Partial<Token> = 
   return { id, characterId: null, name, x: 100, y: 100, size: 1, image: null, color, ...extra }
 }
 
-/** Bruno joga no Salão com o Machado, que leva uma corda e 5 moedas; a Cripta é para onde mandar. */
-function mundo(): HostWorld {
-  const salao = { ...createEmptyMap('m-salao', 'Casa', 20, 12, 50), tokens: [ficha('machado', 'Machado', '#ff5a00', { mochila: [{ id: 'corda', nome: 'Corda' }], moedas: 5 })] }
+/**
+ * Bruno joga no Salão com o Machado, que leva uma corda e 5 moedas; a Cripta é
+ * para onde mandar. `extra` põe mais fichas no Salão.
+ */
+function mundo(extra: Token[] = []): HostWorld {
+  const salao = { ...createEmptyMap('m-salao', 'Casa', 20, 12, 50), tokens: [ficha('machado', 'Machado', '#ff5a00', { mochila: [{ id: 'corda', nome: 'Corda' }], moedas: 5 }), ...extra] }
   return { open: { sceneId: 's-salao', name: SALAO, map: salao }, background: [{ sceneId: 's-cripta', name: 'Cripta', map: createEmptyMap('m-cripta', 'Casa', 20, 12, 50) }] }
 }
 
 const BRUNO: PlayerInfo = { clientId: 'c-bruno', playerId: 'p-bruno', name: 'Bruno', status: 'playing', connected: true, tokenIds: ['machado'], visionRadius: 700, visionFactor: 1, sceneId: 's-salao', sceneName: SALAO }
+/** Saga joga no Salão com o Vagner, que não leva nada: nem moeda, nem item. */
+const SAGA: PlayerInfo = { ...BRUNO, clientId: 'c-saga', playerId: 'p-saga', name: 'Saga', tokenIds: ['vagner'] }
+const VAGNER = ficha('vagner', 'Vagner', '#3cff00')
+/** Carla joga no Salão com o Cajado: 3 moedas na bolsa e a mochila vazia. */
+const CARLA: PlayerInfo = { ...BRUNO, clientId: 'c-carla', playerId: 'p-carla', name: 'Carla', tokenIds: ['cajado'] }
+const CAJADO = ficha('cajado', 'Cajado', '#2a4dff', { moedas: 3 })
 const IDLE: TunnelState = { kind: 'idle' }
 /** Uma Sala na Cripta: o bastante para "Dar um mapa a Bruno" aparecer no "…". */
 const CENAS_DE_PAPEL: GiftScene[] = [{ sceneId: 's-cripta', name: 'Cripta', rooms: [{ id: 'r-porao', name: 'Porão' }] }]
@@ -54,8 +63,8 @@ describe('cartão do jogador no Grupo: ações agrupadas por intenção', () => 
     container.remove()
   })
 
-  function render(): void {
-    const world = mundo()
+  function render(jogadores: PlayerInfo[] = [BRUNO], extra: Token[] = []): void {
+    const world = mundo(extra)
     const noop = (): void => {}
     const onNote = (): PlayerNoteDelivery => 'sent'
     const onTrade = (): TradeProposeResult => 'sent'
@@ -63,10 +72,10 @@ describe('cartão do jogador no Grupo: ações agrupadas por intenção', () => 
       root.render(
         <RoomPanel
           room={{ code: 'CARTAO', urls: [], qrSvg: '<svg/>' }}
-          players={[BRUNO]}
+          players={jogadores}
           tokens={roomPanelTokensOf(world)}
           party={{
-            members: partyMembers([BRUNO], world),
+            members: partyMembers(jogadores, world),
             destinations: partyDestinations(world),
             onGoTo: noop,
             onSend: () => true,
@@ -196,6 +205,24 @@ describe('cartão do jogador no Grupo: ações agrupadas por intenção', () => 
     expect(estado?.querySelector('button')).toBeNull()
   })
 
+  it('bolsa e mochila vazias também se dizem, um tom abaixo: sem a linha, o mestre não sabe se está vazia ou se sumiu', () => {
+    render([BRUNO, SAGA, CARLA], [VAGNER, CAJADO])
+    const vazios = (estado: Element | null): string[] => Array.from(estado?.querySelectorAll('.lb-player__vazio') ?? []).map((el) => el.textContent ?? '')
+
+    const daSaga = linha('Saga').querySelector('.lb-player__estado')
+    expect(daSaga?.textContent).toBe('Bolsa vazia · Mochila vazia')
+    expect(vazios(daSaga)).toEqual(['Bolsa vazia', 'Mochila vazia'])
+
+    // Metade cheia, metade vazia: só a vazia desce de tom.
+    const daCarla = linha('Carla').querySelector('.lb-player__estado')
+    expect(daCarla?.textContent).toBe('Bolsa: 3 moedas · Mochila vazia')
+    expect(vazios(daCarla)).toEqual(['Mochila vazia'])
+
+    const doBruno = linha('Bruno').querySelector('.lb-player__estado')
+    expect(doBruno?.textContent).toBe('Bolsa: 5 moedas · Mochila: 1 — Corda')
+    expect(vazios(doBruno)).toEqual([])
+  })
+
   it('Ir lá, Seguir e Ver tela ficam juntos, num grupo com nome', () => {
     render()
     const acompanhar = linha('Bruno').querySelector('[role="group"][aria-label="Acompanhar Bruno"]')
@@ -297,5 +324,55 @@ describe('cartão do jogador no Grupo: ações agrupadas por intenção', () => 
       mais.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, detail: 1 }))
     })
     expect(painelDe(mais).hasAttribute('data-instant')).toBe(false)
+  })
+})
+
+/**
+ * O main.css como está no disco (mesmo caminho de `Toggle.test.tsx`): o Vitest
+ * troca todo `.css` importado por string vazia, e `new URL(..., import.meta.url)`
+ * vira endereço de asset no jsdom.
+ */
+async function lerMainCss(): Promise<string> {
+  const { readFileSync } = await vi.importActual<{ readFileSync(caminho: string, codificacao: 'utf8'): string }>('node:fs')
+  const { fileURLToPath } = await vi.importActual<{ fileURLToPath(url: string): string }>('node:url')
+  const { dirname, join } = await vi.importActual<{ dirname(caminho: string): string; join(...partes: string[]): string }>('node:path')
+  return readFileSync(join(dirname(fileURLToPath(import.meta.url)), '..', 'main.css'), 'utf8')
+}
+
+/** As declarações da PRIMEIRA regra cujo seletor é exatamente `seletor`: propriedade → valor. */
+function regra(css: string, seletor: string): Map<string, string> {
+  const semComentarios = css.replace(/\/\*[\s\S]*?\*\//g, '')
+  for (const [, seletores, corpo] of semComentarios.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+    if (seletores.trim() !== seletor) continue
+    return new Map(
+      corpo
+        .split(';')
+        .map((declaracao) => declaracao.split(':'))
+        .filter((partes) => partes.length >= 2)
+        .map(([propriedade, ...valor]) => [propriedade.trim(), valor.join(':').trim()]),
+    )
+  }
+  throw new Error(`o main.css não tem a regra "${seletor}"`)
+}
+
+/*
+ * O CABEÇALHO DO GRUPO numa linha só, no trilho de 240 a 320 px. Em 262 px, com
+ * gente esperando, "GRUPO" quebrava em "GRUP/O" e a contagem saía cortada em
+ * "3 jogadores esperando persona…". O jsdom não faz layout, então a prova aqui
+ * tem duas metades: o texto da contagem (curto o bastante para caber) e a regra
+ * do main.css (o título não cede largura). A largura medida fica nos prints.
+ */
+describe('cabeçalho do Grupo: título e contagem numa linha', () => {
+  it('quem espera cabe ao lado do título: "N esperando personagem"; quem são, os cartões logo abaixo dizem', () => {
+    expect(groupCountLabel(3, 3)).toBe('3 esperando personagem')
+    expect(groupCountLabel(3, 1)).toBe('1 esperando personagem')
+    expect(groupCountLabel(3, 0)).toBe('3 jogadores')
+    expect(groupCountLabel(1, 0)).toBe('1 jogador')
+  })
+
+  it('no main.css, o título "Grupo" não encolhe nem quebra: o overflow-wrap do painel da sala é para nome de jogador, não para ele', async () => {
+    const titulo = regra(await lerMainCss(), '.lb-party__head > .lb-eyebrow')
+    expect(titulo.get('flex'), 'encolhendo, o título divide a falta de espaço com a contagem e quebra no meio da palavra').toBe('none')
+    expect(titulo.get('white-space')).toBe('nowrap')
   })
 })
