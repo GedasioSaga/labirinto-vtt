@@ -7708,8 +7708,17 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     return scene === null ? null : sceneKey(scene)
   }
 
-  /** Cópia para a rede: a linha guardada nunca é o objeto que sai. */
-  const copyChatEntry = (entry: ChatEntry): ChatEntry => ({ ...entry, mentions: [...entry.mentions] })
+  /**
+   * A cópia da linha que vai para `playerId`: a guardada nunca é o objeto que
+   * sai, e cada um só fica sabendo da própria menção (quem mais foi marcado, e
+   * o `@mestre`, não chega a jogador). Um jogador chamado "mestre" não é
+   * marcado pelo `@mestre`: no empate o nome é do mestre (`findMentions`).
+   */
+  const chatEntryFor = (entry: ChatEntry, playerId: string): ChatEntry => {
+    const name = players.get(playerId)?.name
+    if (name === undefined || name.toLowerCase() === CHAT_MASTER_MENTION || !entry.mentions.includes(name)) return { ...entry, mentions: [] }
+    return { ...entry, mentions: [name] }
+  }
 
   const sceneChat = (key: string): ChatEntry[] => {
     const existing = sceneChats.get(key)
@@ -7741,7 +7750,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const previous = sent === undefined || sent === null ? undefined : sceneChats.get(sent)
     const shown = previous === undefined ? 0 : previous.length
     if (messages.length === 0 && shown === 0) return []
-    return [{ clientId, msg: { type: 'chat.history', channel: 'cena', messages: messages.map(copyChatEntry) } }]
+    return [{ clientId, msg: { type: 'chat.history', channel: 'cena', messages: messages.map((entry) => chatEntryFor(entry, playerId)) } }]
   }
 
   const syncChatScenes = (world: HostWorld): Outbound[] =>
@@ -7759,7 +7768,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     else chatGlobalSent.delete(clientId)
     // A lista guardada nunca esvazia: 0 linhas = ele nunca viu nenhuma.
     if (globalChat.length === 0) return []
-    return [{ clientId, msg: { type: 'chat.history', channel: 'global', messages: seated ? globalChat.map(copyChatEntry) : [] } }]
+    return [{ clientId, msg: { type: 'chat.history', channel: 'global', messages: seated ? globalChat.map((entry) => chatEntryFor(entry, playerId)) : [] } }]
   }
 
   const syncChatGlobal = (): Outbound[] =>
@@ -7771,7 +7780,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
    * aguarda sem ficha não tem chat: o que ele manda volta `not_seated`. O
    * texto já vem limpo do `parsePlayerMessage`. As menções são refeitas aqui:
    * só vale o `@Nome` que está no texto, foi declarado pelo cliente e é de um
-   * jogador que ouve o canal (ou o mestre). A rajada é por jogador.
+   * jogador que ouve o canal (ou o mestre), e cada um recebe só a sua. A
+   * rajada é por jogador.
    */
   function handleChatSend(clientId: string, msg: ChatSendMessage, world: HostWorld): HostResult {
     const playerId = byClient.get(clientId)
@@ -7799,7 +7809,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const entry: ChatEntry = { id: randomId(), at, from: sender.name, text: msg.text, mentions }
     keepChatEntry(scene === null ? globalChat : sceneChat(scene), entry)
     for (const [otherClient, otherId] of byClient) {
-      if (hears(otherId)) outbound.push({ clientId: otherClient, msg: { type: 'chat.msg', channel: msg.channel, msg: copyChatEntry(entry) } })
+      if (hears(otherId)) outbound.push({ clientId: otherClient, msg: { type: 'chat.msg', channel: msg.channel, msg: chatEntryFor(entry, otherId) } })
     }
     outbound.push({ clientId, msg: { type: 'chat.send.result', reqId: msg.reqId, ok: true } })
     return { outbound }

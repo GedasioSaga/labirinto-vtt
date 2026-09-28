@@ -1528,8 +1528,9 @@ export type LetterHostMessage = LetterPeersMessage | LetterSendResultMessage
 
 /**
  * CHAT: uma mensagem como todos a leem. `from` é o nome do jogador na sala;
- * `mentions` são os nomes (ou `mestre`) que o host confirmou. Nunca leva a
- * cena nem o id de quem falou.
+ * `mentions` são os nomes (ou `mestre`) que o host confirmou, e a cópia que
+ * vai a cada jogador leva só o nome dele, se foi marcado. Nunca leva a cena
+ * nem o id de quem falou.
  */
 export interface ChatEntry {
   id: string

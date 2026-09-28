@@ -125,6 +125,13 @@ function linhaDe(r: HostResult): Linha {
   return comoLinha(msg.msg)
 }
 
+/** A linha que o `chat.msg` deste resultado levou a `clientId`: cada um recebe a sua cópia. */
+function linhaPara(r: HostResult, clientId: string): Linha {
+  const msg: unknown = r.outbound.find((o) => o.clientId === clientId && o.msg.type === 'chat.msg')?.msg
+  if (typeof msg !== 'object' || msg === null || !('msg' in msg)) throw new Error(`esperava chat.msg para ${clientId}`)
+  return comoLinha(msg.msg)
+}
+
 /** O resultado do envio para quem mandou. */
 function resultadoDe(r: HostResult): { ok: boolean; reason?: unknown } {
   const msg: unknown = r.outbound.find((o) => o.msg.type === 'chat.send.result')?.msg
@@ -356,20 +363,58 @@ describe('chat: história', () => {
 })
 
 describe('chat: menções refeitas pelo host', () => {
-  it('nome que não existe cai; na cena, colega de outra cena cai; @mestre fica', () => {
+  it('cada um recebe só a própria menção: a dos colegas, o nome que não existe e o @mestre não chegam a jogador', () => {
     const { s } = mesa()
     const cena = fala(s, 'c1', 'cena', '@Dora @Bruno @Zé @mestre olhem isto', ['Dora', 'Bruno', 'Zé', 'mestre'])
-    expect(linhaDe(cena).mentions).toEqual(['Dora', 'mestre'])
-    const global = fala(s, 'c1', 'global', '@bruno e @Zé, venham; @Mestre também', ['Bruno', 'Zé', 'mestre'], 'r2')
-    expect(linhaDe(global).mentions).toEqual(['Bruno', 'mestre'])
+    expect(linhaPara(cena, 'c4').mentions).toEqual(['Dora'])
+    expect(linhaPara(cena, 'c1').mentions).toEqual([])
+    const global = fala(s, 'c1', 'global', '@bruno e @Zé, venham; @Mestre e @dora também', ['Bruno', 'Zé', 'mestre', 'Dora'], 'r2')
+    expect(linhaPara(global, 'c2').mentions).toEqual(['Bruno'])
+    expect(linhaPara(global, 'c4').mentions).toEqual(['Dora'])
+    expect(linhaPara(global, 'c1').mentions).toEqual([])
+  })
+
+  it('na cena, colega de outra cena cai: quando ele sobe, a história não o marca', () => {
+    const { s } = mesa()
+    fala(s, 'c1', 'cena', '@Bruno @Dora venham', ['Bruno', 'Dora'])
+    // Bruno sobe da Cripta para o Salão.
+    const subiu: HostWorld = {
+      open: salao([ficha('lanterna', 100, 100), ficha('tocha', 150, 100), ficha('machado', 200, 100)]),
+      background: [cripta([])],
+    }
+    expect(historicoDe(s.broadcast(subiu), 'c2', 'cena').map((linha) => linha.mentions)).toEqual([[]])
+  })
+
+  it('na história também: quem volta recebe só a própria menção, na cena e no global', () => {
+    const { s, resume } = mesa()
+    fala(s, 'c1', 'cena', 'Oi @Dora e @mestre', ['Dora', 'mestre'])
+    fala(s, 'c2', 'global', '@Ana e @Dora, venham', ['Ana', 'Dora'], 'r2')
+    s.disconnect('c4')
+    const dora = s.handleMessage('c9', { type: 'join', code: CODE, name: 'Dora', resume: resume('Dora') }, mundo)
+    expect(historicoDe(dora, 'c9', 'cena').map((linha) => linha.mentions)).toEqual([['Dora']])
+    expect(historicoDe(dora, 'c9', 'global').map((linha) => linha.mentions)).toEqual([['Dora']])
+    s.disconnect('c1')
+    const ana = s.handleMessage('c8', { type: 'join', code: CODE, name: 'Ana', resume: resume('Ana') }, mundo)
+    expect(historicoDe(ana, 'c8', 'cena').map((linha) => linha.mentions)).toEqual([[]])
+    expect(historicoDe(ana, 'c8', 'global').map((linha) => linha.mentions)).toEqual([['Ana']])
+  })
+
+  it('jogador chamado "mestre" não é marcado pelo @mestre, que é do mestre', () => {
+    const { s } = mesa()
+    const entrou = s.handleMessage('c5', { type: 'join', code: CODE, name: 'mestre' }, comFoice)
+    s.assignToken(idDoWelcome(entrou), 'foice')
+    const r = fala(s, 'c1', 'global', '@mestre olha isto', ['mestre'], 'r1', comFoice)
+    expect(linhaPara(r, 'c5').mentions).toEqual([])
   })
 
   it('só vale o @ que está no texto: declarada sem @, a própria, e @ no meio de palavra caem', () => {
     const { s } = mesa()
-    expect(linhaDe(fala(s, 'c1', 'global', 'Oi, @Ana aqui', ['Bruno', 'Ana'])).mentions).toEqual([])
-    expect(linhaDe(fala(s, 'c4', 'global', 'ana@Bruno.com e @Brunoca', ['Bruno'], 'r2')).mentions).toEqual([])
+    const semArroba = fala(s, 'c1', 'global', 'Oi, @Ana aqui', ['Bruno', 'Ana'])
+    expect(linhaPara(semArroba, 'c1').mentions).toEqual([])
+    expect(linhaPara(semArroba, 'c2').mentions).toEqual([])
+    expect(linhaPara(fala(s, 'c4', 'global', 'ana@Bruno.com e @Brunoca', ['Bruno'], 'r2'), 'c2').mentions).toEqual([])
     // Mencionada no texto mas não declarada: o cliente não quis marcar.
-    expect(linhaDe(fala(s, 'c2', 'global', 'fala, @Ana', [], 'r3')).mentions).toEqual([])
+    expect(linhaPara(fala(s, 'c2', 'global', 'fala, @Ana', [], 'r3'), 'c1').mentions).toEqual([])
   })
 })
 
