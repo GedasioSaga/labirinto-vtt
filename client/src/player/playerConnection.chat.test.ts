@@ -314,4 +314,28 @@ describe('chat no cliente: mandar', () => {
     expect(connection.getState().status).toBe('playing')
     expect(connection.getState().chatSend?.phase).toBe('failed')
   })
+
+  it('com outro pedido no ar, o invalid_message pode ser dele: o chat espera a própria resposta', () => {
+    const { connection, socket } = comChat()
+    expect(connection.sendLetter('Bruno', 'pombo', 'Te espero.')).toBe(true)
+    expect(connection.sendChat('global', 'oi', [])).toBe(true)
+    const reqId = ultimoReqId(socket.sent)
+    socket.receive({ type: 'error', reason: 'invalid_message' })
+    expect(connection.getState().status).toBe('playing')
+    expect(connection.getState().chatSend).toEqual({ reqId, channel: 'global', phase: 'sending' })
+    // A carta respondeu: agora o chat está sozinho no ar, e o erro seguinte é dele.
+    socket.receive({ type: 'letter.send.result', to: 'Bruno', ok: true })
+    socket.receive({ type: 'error', reason: 'invalid_message' })
+    expect(connection.getState().chatSend).toEqual({ reqId, channel: 'global', phase: 'failed' })
+  })
+
+  it('com outro pedido no ar, a resposta do próprio envio ainda chega e vale', () => {
+    const { connection, socket } = comChat()
+    expect(connection.sendLetter('Bruno', 'pombo', 'Te espero.')).toBe(true)
+    expect(connection.sendChat('global', 'oi', [])).toBe(true)
+    const reqId = ultimoReqId(socket.sent)
+    socket.receive({ type: 'error', reason: 'invalid_message' })
+    socket.receive({ type: 'chat.send.result', reqId, ok: true })
+    expect(connection.getState().chatSend).toEqual({ reqId, channel: 'global', phase: 'ok' })
+  })
 })

@@ -1,7 +1,7 @@
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import type { ChatChannel } from '../lib/chat'
+import { CHAT_TEXT_MAX_LENGTH, type ChatChannel } from '../lib/chat'
 import type { ChatEntry, PartyMember } from '../net/protocol'
 import { PlayerChat } from './PlayerChat'
 import type { ChatLog, ChatSend, ChatUnread } from './playerConnection'
@@ -301,6 +301,30 @@ describe('PlayerChat', () => {
     expect(alerta()).toBe('Escreva a mensagem antes de mandar.')
     expect(document.activeElement).toBe(campo())
     expect(enviados).toBe(1)
+  })
+
+  it('o contador e o aviso de texto longo falam em caracteres, no singular e no plural', () => {
+    let enviados = 0
+    render({
+      onSend: () => {
+        enviados += 1
+        return true
+      },
+    })
+    const contador = (): string | null => container.querySelector('.pc-count')?.textContent ?? null
+    digitar('a'.repeat(CHAT_TEXT_MAX_LENGTH - 2))
+    expect(contador()).toBe('Faltam 2 caracteres')
+    digitar('a'.repeat(CHAT_TEXT_MAX_LENGTH - 1))
+    expect(contador()).toBe('Falta 1 caractere')
+    digitar('a'.repeat(CHAT_TEXT_MAX_LENGTH))
+    expect(contador()).toBe('Faltam 0 caracteres')
+    digitar('a'.repeat(CHAT_TEXT_MAX_LENGTH + 1))
+    expect(contador()).toBe('Passou 1 caractere do limite')
+    digitar('a'.repeat(CHAT_TEXT_MAX_LENGTH + 3))
+    expect(contador()).toBe('Passou 3 caracteres do limite')
+    tecla('Enter')
+    expect(alerta()).toBe(`Passou de ${CHAT_TEXT_MAX_LENGTH} caracteres. Corte um pouco e mande de novo.`)
+    expect(enviados).toBe(0)
   })
 
   it('à vista e com marca no canal, avisa que leu; escondida, não', () => {

@@ -1557,7 +1557,8 @@ export interface ChatMsgMessage {
 /**
  * Por que a mensagem não saiu: `too_soon` = rápido demais; `no_scene` = a
  * ficha não está em cena nenhuma (só o Global vale); `not_seated` = sem
- * ficha: quem aguarda o mestre não tem chat. Ausente = "não saiu".
+ * ficha: quem aguarda o mestre não tem chat. Ausente = "não saiu" (é o que
+ * volta ao `chat.send` torto de quem entrou, se o `reqId` dá para ler).
  */
 export type ChatSendRefusal = 'too_soon' | 'no_scene' | 'not_seated'
 
@@ -2988,6 +2989,25 @@ export function parsePlayerMessage(raw: unknown): PlayerMessage | null {
     default:
       return null
   }
+}
+
+/**
+ * O `reqId` de um `chat.send` que o `parsePlayerMessage` recusou, quando dá
+ * para lê-lo: o host responde `chat.send.result` recusado a esse pedido, e o
+ * chat do jogador sabe que foi AQUELA mensagem. Sem `reqId` legível, `null`:
+ * vale o `invalid_message` de sempre.
+ */
+export function chatSendReqIdOf(raw: unknown): string | null {
+  let value: unknown = raw
+  if (typeof raw === 'string') {
+    try {
+      value = JSON.parse(raw)
+    } catch {
+      return null
+    }
+  }
+  if (!isRecord(value) || value.type !== 'chat.send') return null
+  return isBoundedString(value.reqId, 1, REQ_ID_MAX_LENGTH) ? value.reqId : null
 }
 
 /** Lista de ids de item: até `TRADE_ITEMS_MAX`, cada um id válido. `null` = forma torta. */

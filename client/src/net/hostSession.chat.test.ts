@@ -472,24 +472,45 @@ describe('chat: texto', () => {
     ])
   })
 
-  it('vazio depois de limpo, acima de 1000, canal desconhecido ou pedido torto: invalid_message', () => {
+  it('chat.send torto de quem entrou, com reqId legível, volta como chat.send.result recusado: vazio depois de limpo, acima de 1000, canal desconhecido, campo torto', () => {
     const { s } = mesa()
-    const invalido = [{ clientId: 'c1', msg: { type: 'error', reason: 'invalid_message' } }]
-    expect(fala(s, 'c1', 'global', ' \u202E\u0000 \n ').outbound).toEqual(invalido)
-    expect(fala(s, 'c1', 'global', 'x'.repeat(1001)).outbound).toEqual(invalido)
+    const recusado = (reqId: string) => [{ clientId: 'c1', msg: { type: 'chat.send.result', reqId, ok: false } }]
+    expect(fala(s, 'c1', 'global', ' \u202E\u0000 \n ').outbound).toEqual(recusado('r1'))
+    expect(fala(s, 'c1', 'global', 'x'.repeat(1001), [], 'r2').outbound).toEqual(recusado('r2'))
     for (const torto of [
-      { type: 'chat.send', reqId: 'r1', channel: 'sala', text: 'oi', mentions: [] },
+      { type: 'chat.send', reqId: 'r3', channel: 'sala', text: 'oi', mentions: [] },
+      { type: 'chat.send', reqId: 'r3', channel: 'global', text: 'oi' },
+      { type: 'chat.send', reqId: 'r3', channel: 'global', text: 'oi', mentions: 'Bruno' },
+      { type: 'chat.send', reqId: 'r3', channel: 'global', text: 42, mentions: [] },
+      { type: 'chat.send', reqId: 'r3', channel: 'global', text: 'oi', mentions: [7] },
+      { type: 'chat.send', reqId: 'r3', channel: 'global', text: 'oi', mentions: Array.from({ length: 40 }, () => 'Bruno') },
+    ]) {
+      expect(s.handleMessage('c1', torto, mundo).outbound).toEqual(recusado('r3'))
+      // Pelo fio o pedido chega como a string JSON crua: a mesma resposta.
+      expect(s.handleMessage('c1', JSON.stringify(torto), mundo).outbound).toEqual(recusado('r3'))
+    }
+    // Quem aguarda também recebe a recusa daquele envio, sem motivo.
+    expect(s.handleMessage('c3', { type: 'chat.send', reqId: 'r5', channel: 'global', text: 42, mentions: [] }, mundo).outbound).toEqual([
+      { clientId: 'c3', msg: { type: 'chat.send.result', reqId: 'r5', ok: false } },
+    ])
+    // No teto, passa inteiro.
+    expect(linhaDe(fala(s, 'c1', 'global', 'x'.repeat(1000), [], 'r4')).text).toHaveLength(1000)
+  })
+
+  it('sem reqId legível, JSON quebrado, outro tipo torto ou conexão que não entrou: continua invalid_message', () => {
+    const { s } = mesa()
+    const invalido = (clientId: string) => [{ clientId, msg: { type: 'error', reason: 'invalid_message' } }]
+    for (const torto of [
       { type: 'chat.send', reqId: '', channel: 'global', text: 'oi', mentions: [] },
       { type: 'chat.send', reqId: 'r'.repeat(65), channel: 'global', text: 'oi', mentions: [] },
-      { type: 'chat.send', reqId: 'r1', channel: 'global', text: 'oi' },
-      { type: 'chat.send', reqId: 'r1', channel: 'global', text: 'oi', mentions: 'Bruno' },
-      { type: 'chat.send', reqId: 'r1', channel: 'global', text: 42, mentions: [] },
-      { type: 'chat.send', reqId: 'r1', channel: 'global', text: 'oi', mentions: [7] },
-      { type: 'chat.send', reqId: 'r1', channel: 'global', text: 'oi', mentions: Array.from({ length: 40 }, () => 'Bruno') },
+      { type: 'chat.send', reqId: 7, channel: 'global', text: 'oi', mentions: [] },
+      { type: 'chat.send', channel: 'global', text: 'oi', mentions: [] },
+      { type: 'letter.send', reqId: 'r1' },
     ]) {
-      expect(s.handleMessage('c1', torto, mundo).outbound).toEqual(invalido)
+      expect(s.handleMessage('c1', torto, mundo).outbound).toEqual(invalido('c1'))
     }
-    // No teto, passa inteiro.
-    expect(linhaDe(fala(s, 'c1', 'global', 'x'.repeat(1000))).text).toHaveLength(1000)
+    expect(s.handleMessage('c1', '{"type":"chat.send","reqId":"r1"', mundo).outbound).toEqual(invalido('c1'))
+    // Quem nem entrou continua levando o erro que a ponte usa para derrubar a conexão.
+    expect(s.handleMessage('c9', { type: 'chat.send', reqId: 'r1', channel: 'global', text: 42, mentions: [] }, mundo).outbound).toEqual(invalido('c9'))
   })
 })

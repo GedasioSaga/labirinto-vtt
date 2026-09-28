@@ -2950,6 +2950,26 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     setState({ chat: withChatChannel(log, msg.channel, next), chatUnread: withUnreadChannel(base, msg.channel, [...base[msg.channel], entry.id]) })
   }
 
+  /**
+   * Algum pedido além do chat espera a resposta do host: passo no ar, carta,
+   * pista, mapa, rota, cadeado, marca ou espiada. Um `invalid_message` que
+   * chega agora pode ser dele. Espera por decisão do mestre (chamada, viagem,
+   * ação, esconder) não conta: o erro de um pedido torto vem logo depois dele.
+   * Pedido sem resposta (porta, sinal, nota) não dá para saber.
+   */
+  function hasOtherRequestInFlight(): boolean {
+    return (
+      pending.size > 0 ||
+      state.letterSend?.phase === 'sending' ||
+      state.clueShow?.phase === 'sending' ||
+      state.mapShare?.phase === 'sending' ||
+      state.routeShow?.phase === 'sending' ||
+      state.lockAnswer?.phase === 'sending' ||
+      state.markPlace?.phase === 'sending' ||
+      state.pinPeek?.phase === 'waiting'
+    )
+  }
+
   function handleMessage(raw: unknown): void {
     if (typeof raw !== 'string') return
     let data: unknown
@@ -3718,9 +3738,10 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
           setState({ status: 'kicked', reconnecting: undefined })
           return
         }
-        // CHAT: o host recusa um `chat.send` torto com `invalid_message`, sem
-        // resposta própria: é o envio no ar que falhou, não a sessão.
-        if (reason === 'invalid_message' && state.chatSend?.phase === 'sending') {
+        // CHAT: o host de hoje recusa um `chat.send` torto com `chat.send.result`
+        // recusado; o de antes, com `invalid_message`, sem dizer de qual pedido.
+        // Só com o chat sozinho no ar o erro é dele: falhou o envio, não a sessão.
+        if (reason === 'invalid_message' && state.chatSend?.phase === 'sending' && !hasOtherRequestInFlight()) {
           setState({ chatSend: { ...state.chatSend, phase: 'failed' } })
           return
         }

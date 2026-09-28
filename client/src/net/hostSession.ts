@@ -93,6 +93,7 @@ import { companionArrivals, type CarriedArrival } from '../lib/carryArrival'
 import { VISION_FACTOR_DEFAULT, clampVisionFactor, playerVisionRadius, readSceneVisionCells } from '../lib/sceneVision'
 import { isLockClosed, lockAccepts } from '../lib/pinLock'
 import {
+  chatSendReqIdOf,
   parsePlayerMessage,
   type AwayMessage,
   type CabineCallMessage,
@@ -8010,6 +8011,18 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     }
   }
 
+  /**
+   * Mensagem que não passou na validação. `chat.send` torto de quem já entrou,
+   * com `reqId` legível, ganha `chat.send.result` recusado: o chat dele sabe
+   * que foi aquele envio, e o erro não cai em outro pedido no ar. O resto é
+   * `invalid_message`, que a ponte usa para derrubar quem nem entrou.
+   */
+  function refuseMalformed(clientId: string, raw: unknown): HostResult {
+    const reqId = byClient.has(clientId) ? chatSendReqIdOf(raw) : null
+    if (reqId === null) return reply(clientId, { type: 'error', reason: 'invalid_message' })
+    return reply(clientId, { type: 'chat.send.result', reqId, ok: false })
+  }
+
   /** Cada mensagem já validada vai ao seu tratador. */
   function routeMessage(clientId: string, msg: PlayerMessage, world: HostWorld): HostResult {
     switch (msg.type) {
@@ -8128,7 +8141,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
 
     handleMessage(clientId, raw, source) {
       const msg = parsePlayerMessage(raw)
-      if (msg === null) return reply(clientId, { type: 'error', reason: 'invalid_message' })
+      if (msg === null) return refuseMalformed(clientId, raw)
       const world = toWorld(source)
       // Prazo vencido vale ANTES do pedido: o ajudante que já voltou ao mestre não anda mais.
       const expired = expireDue(world)

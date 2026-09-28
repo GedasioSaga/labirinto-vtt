@@ -46,7 +46,7 @@ const REFUSAL_TEXT: Record<Refusal, string> = {
 
 const LOCAL_ALERT_TEXT: Record<LocalAlert, string> = {
   empty: 'Escreva a mensagem antes de mandar.',
-  long: `Passou de ${CHAT_TEXT_MAX_LENGTH} letras. Corte um pouco e mande de novo.`,
+  long: `Passou de ${CHAT_TEXT_MAX_LENGTH} caracteres. Corte um pouco e mande de novo.`,
   offline: 'Sem conexão com o mestre. Tente de novo.',
 }
 
@@ -55,7 +55,7 @@ const LOG_LABEL: Record<ChatChannel, string> = { cena: 'Mensagens da cena', glob
 const EMPTY_TEXT: Record<ChatChannel, string> = { cena: 'Ninguém falou na cena ainda.', global: 'Ninguém falou no Global ainda.' }
 const FIELD_LABEL: Record<ChatChannel, string> = { cena: 'Mensagem para a cena', global: 'Mensagem para o Global' }
 
-/** O contador aparece quando faltam menos letras que isto (três quartos do limite já usados). */
+/** O contador aparece quando faltam menos caracteres que isto (três quartos do limite já usados). */
 const COUNTER_FROM = 250
 
 /** Até esta distância do fim, em px, o log acompanha a mensagem nova; mais acima, quem lê não é empurrado. */
@@ -104,10 +104,14 @@ function keepInView(list: HTMLElement, item: HTMLElement): void {
   else if (bottom > list.scrollTop + list.clientHeight) list.scrollTop = bottom - list.clientHeight
 }
 
+/**
+ * Conta como o `maxLength` do campo e o mestre contam (`length`, unidades
+ * UTF-16): um emoji pode valer 2.
+ */
 function counterText(left: number): string | null {
   if (left >= COUNTER_FROM) return null
-  if (left >= 0) return `Faltam ${left} ${left === 1 ? 'letra' : 'letras'}`
-  return `Passou ${-left} ${left === -1 ? 'letra' : 'letras'} do limite`
+  if (left >= 0) return left === 1 ? 'Falta 1 caractere' : `Faltam ${left} caracteres`
+  return `Passou ${-left} ${left === -1 ? 'caractere' : 'caracteres'} do limite`
 }
 
 export function PlayerChat({ log, unread, status, selfName, party, visible, onSend, onRead }: PlayerChatProps) {
