@@ -783,8 +783,12 @@ export function freeSeatNear(map: MapData, point: { x: number; y: number }, toke
   return free ?? point
 }
 
-/** O ponto que a câmera centraliza ao chegar por um pino: o meio do desenho, não a ponta cravada. */
+/**
+ * O ponto que a câmera centraliza ao chegar por um pino: o meio do desenho, não
+ * a ponta cravada. Sem haste, o desenho é só a cabeça, e o meio é o centro dela.
+ */
 export function pinFocusPoint(pin: Pin): { x: number; y: number } {
+  if (pin.semHaste === true) return { x: pin.x, y: pin.y - PIN_HEAD_OFFSET }
   return { x: pin.x, y: pin.y - PIN_HEIGHT / 2 }
 }
 
