@@ -6,7 +6,9 @@ import { ROTATION_SHIFT_STEP } from '../lib/roomRotation'
 import { ROOM_TEXT_MAX_LENGTH } from '../lib/roomText'
 import { FACCAO_MAX_LENGTH } from '../lib/faccoes'
 import { VISION_RADIUS_MAX, VISION_RADIUS_MIN, VISION_RADIUS_STEP } from '../net/hostSession'
+import type { RoomLabelStyle, RoomLabelStylePatch } from '../lib/roomLabelStyle'
 import { Toggle } from './Toggle'
+import { RoomLabelStyleControls } from './RoomLabelStyleControls'
 import { HazardControls, type HazardControlsProps } from './HazardControls'
 import { ConveyorControls, type ConveyorControlsProps } from './ConveyorControls'
 import './RoomControls.css'
@@ -33,6 +35,10 @@ export interface RoomControlsProps {
    *  ("Jogadores veem o nome", ligado por padrão). Ausente omite o toggle. */
   nameHiddenFromPlayers?: boolean
   onNameHiddenFromPlayersChange?: (hidden: boolean) => void
+  /** ESTILO DO TÍTULO — plaquinha, tamanho, cor e orientação do nome no mapa
+   *  (`lib/roomLabelStyle.ts`). Sem `onLabelStyleChange` o bloco não aparece. */
+  labelStyle?: RoomLabelStyle
+  onLabelStyleChange?: (patch: RoomLabelStylePatch) => void
   /** TETO DE CONSTRUÇÃO — `RoomMeta.roof`. Aqui o toggle é DIRETO ("Teto
    *  fechado para jogadores", desligado por padrão): o irmão acima mostra o
    *  inverso porque o padrão dele é "ligado", e inverter os dois deixaria um
@@ -443,6 +449,8 @@ export function RoomControls({
   onNameChange,
   nameHiddenFromPlayers,
   onNameHiddenFromPlayersChange,
+  labelStyle,
+  onLabelStyleChange,
   roof,
   onRoofChange,
   comodo,
@@ -517,6 +525,10 @@ export function RoomControls({
         </label>
         <input id="lb-room-name" className="lb-input" value={name} onChange={(event) => onNameChange(event.target.value)} />
       </div>
+
+      {labelStyle !== undefined && onLabelStyleChange !== undefined && (
+        <RoomLabelStyleControls style={labelStyle} onChange={onLabelStyleChange} />
+      )}
 
       {shape === 'rect' && axisAligned && (
         <div className="lb-room-dims">

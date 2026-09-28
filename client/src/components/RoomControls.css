@@ -17,6 +17,21 @@
   gap: var(--lb-space-2);
 }
 
+/* Estilo do título: fundo, tamanho, cor e orientação logo abaixo do Nome,
+   lidos como um grupo só — o mesmo respiro curto dos interruptores. */
+.lb-room-title {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-2);
+}
+
+/* "Padrão" encostado na amostra de cor, os dois na ponta direita da linha. */
+.lb-room-title__color {
+  display: flex;
+  align-items: center;
+  gap: var(--lb-space-2);
+}
+
 /* Os quatro interruptores da sala lidos como UM grupo: entre eles, menos
    respiro que entre campos (a linha do interruptor já tem folga própria). */
 .lb-room-switches {

@@ -31,6 +31,7 @@ import { carryAttachedPins, carryPinsByTokenSteps } from './pinAttach'
 import { carrierIdOf, followStep } from './carry'
 import { mapaDoPiso, pisoDe } from './pisos'
 import { leaveVehicle, moveTokenWithVehicle, passengerIdsOf } from './vehicle'
+import { withRoomLabelStyle, type RoomLabelStylePatch } from './roomLabelStyle'
 import {
   resizeRectDrawing, resizeEllipseDrawing, resizePolygonDrawing, resizePropBox, resizeCircleDrawingRadius,
   type Corner, type ResizeModifiers,
@@ -1738,6 +1739,26 @@ export function setRoomNameHiddenFromPlayers(map: MapData, id: string, hidden: b
   return {
     ...map,
     regions: map.regions.map((r) => (r.id === id && r.room ? { ...r, room: { ...r.room, nameHiddenFromPlayers: hidden } } : r)),
+  }
+}
+
+/** ESTILO DO TÍTULO — plaquinha, tamanho, cor e orientação do nome da Sala.
+ * Mesmo contrato de `setRoomNameHiddenFromPlayers`: região comum, id
+ * inexistente ou nada mudando devolve o mesmo `map`. */
+export function setRoomLabelStyle(map: MapData, id: string, patch: RoomLabelStylePatch): MapData {
+  const region = map.regions.find((r) => r.id === id)
+  if (!region || !region.room) return map
+  const before = region.room
+  const after = withRoomLabelStyle(before, patch)
+  if (
+    after.labelPlate === before.labelPlate &&
+    after.labelScale === before.labelScale &&
+    after.labelColor === before.labelColor &&
+    after.labelVertical === before.labelVertical
+  ) return map
+  return {
+    ...map,
+    regions: map.regions.map((r) => (r.id === id ? { ...r, room: after } : r)),
   }
 }
 

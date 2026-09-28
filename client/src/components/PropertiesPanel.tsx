@@ -77,6 +77,7 @@ import type { PinIconControlsProps } from './PinIconControls'
 import { TokenLibraryPanel, type TokenLibraryPanelProps } from './TokenLibraryPanel'
 import { isAxisAlignedRect, roomDimensions } from '../lib/roomOps'
 import { roomRotationOf } from '../lib/roomRotation'
+import { roomLabelStyleOf } from '../lib/roomLabelStyle'
 import { pinKindShowsIcon } from '../lib/pins'
 import { DEFAULT_TEXT_FONT_FAMILY } from '../lib/drawingFactory'
 import { panelHeadingTool, type PropertyGroupId } from '../lib/toolProperties'
@@ -222,6 +223,7 @@ interface PropertiesPanelProps {
     | 'rotation'
     | 'locked'
     | 'nameHiddenFromPlayers'
+    | 'labelStyle'
     | 'roof'
     | 'comodo'
     | 'textoAoEntrar'
@@ -490,6 +492,7 @@ export function PropertiesPanel({
               rotation={roomRotationOf(selectedRegion.room)}
               locked={!!selectedRegion.locked}
               nameHiddenFromPlayers={!!selectedRegion.room.nameHiddenFromPlayers}
+              labelStyle={roomLabelStyleOf(selectedRegion.room)}
               roof={!!selectedRegion.room.roof}
               comodo={selectedRegion.room.comodo === true}
               textoAoEntrar={selectedRegion.room.textoAoEntrar ?? ''}

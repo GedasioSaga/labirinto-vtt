@@ -16,6 +16,7 @@ import {
   isPinReadDistance,
 } from './pins'
 import { readPinLock } from './pinLock'
+import { sanitizeRoomLabelStyle } from './roomLabelStyle'
 import { readPinColecao } from './colecao'
 import { cleanExitLabel, readPinDestination, readPinExits } from './pinTravel'
 import { readSceneVisionCells } from './sceneVision'
@@ -228,6 +229,14 @@ function alertaField(raw: unknown): Pick<MapData, 'alerta'> {
  * passa como veio; o resto (texto, `null`, zero, negativo) SAI em vez de virar
  * o raio de visão que o recorte do jogador usa (`lib/fogFilter.ts`).
  */
+/** ESTILO DO TÍTULO — campo de plaquinha/tamanho/cor/orientação sem forma
+ *  válida sai; o título volta ao visual de sempre naquele eixo. */
+function roomLabelStyleFromFile(region: Region): Region {
+  const room = region.room
+  if (!room || typeof room !== 'object') return region
+  return { ...region, room: sanitizeRoomLabelStyle(room) }
+}
+
 function roomVisionRadiusFromFile(region: Region): Region {
   const room = region.room
   if (!room || typeof room !== 'object' || !('raioDeVisao' in room)) return region
@@ -342,7 +351,7 @@ function deserializeMapFields(json: string): MapData {
     // inalterado — `room` ausente fica undefined (região comum); o ângulo do
     // giro da sala passa como veio, desde que seja número (`roomRotationFromFile`)
     regions: entityList(parsed.regions).map((r) =>
-      roomVisionRadiusFromFile(roomFaccaoFromFile(roomDarkFromFile(roomTextsFromFile(roomRotationFromFile({ ...r, fillColor: r.fillColor ?? '#3a7ad0', fillPattern: r.fillPattern ?? 'solid' }))))),
+      roomLabelStyleFromFile(roomVisionRadiusFromFile(roomFaccaoFromFile(roomDarkFromFile(roomTextsFromFile(roomRotationFromFile({ ...r, fillColor: r.fillColor ?? '#3a7ad0', fillPattern: r.fillPattern ?? 'solid' })))))),
     ),
     // MUDA de cru para .map(): Token.image é obrigatório.
     // `imageData` (a cópia embutida que viaja até o jogador) NÃO ganha linha

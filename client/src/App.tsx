@@ -3079,6 +3079,7 @@ function App() {
               onNameChange: (name) => selectedRegion && setRoomName(selectedRegion.id, name),
               onNameHiddenFromPlayersChange: (hidden) =>
                 selectedRegion && useMapStore.getState().setRoomNameHiddenFromPlayers(selectedRegion.id, hidden),
+              onLabelStyleChange: (patch) => selectedRegion && useMapStore.getState().setRoomLabelStyle(selectedRegion.id, patch),
               onRoofChange: (roof) => selectedRegion && useMapStore.getState().setRoomRoof(selectedRegion.id, roof),
               onComodoChange: (comodo) => selectedRegion && useMapStore.getState().setRoomComodo(selectedRegion.id, comodo),
               onTextoAoEntrarChange: (textoAoEntrar) => selectedRegion && useMapStore.getState().setRoomTexts(selectedRegion.id, { textoAoEntrar }),

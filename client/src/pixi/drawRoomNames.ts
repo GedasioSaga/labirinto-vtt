@@ -2,6 +2,7 @@ import { Container, Graphics, Text } from 'pixi.js'
 import type { Region, RegionPoint } from '../types/map'
 import { pointInPolygonInclusive } from '../lib/roomNesting'
 import { roomCentroid } from '../lib/roomRotation'
+import { roomLabelStyleOf } from '../lib/roomLabelStyle'
 import { screenLabelSizing } from './screenLabel'
 
 export interface RoomNamesRenderer {
@@ -40,10 +41,13 @@ const MAX_FONT_SIZE = 28
  * o único acento do mapa, e a etiqueta não disputa a cena com ele.
  */
 const LABEL_PLATE_COLOR = 0xc9c1ac
-/** Tinta do nome sobre a plaquinha — o mesmo quase-preto do fundo do app
- *  (`--lb-color-ink`, theme.ts). Letra escura sobre pedra clara não precisa do
- *  contorno que segurava a letra branca: o fio some junto com o problema. */
-const LABEL_FILL = 0x121214
+/* Tinta padrão do nome: `ROOM_LABEL_DEFAULT_COLOR` (lib/roomLabelStyle.ts), o
+ * mesmo quase-preto do fundo do app. Letra escura sobre pedra clara não precisa
+ * do contorno que segurava a letra branca: o fio some junto com o problema. A
+ * cor, a plaquinha, o tamanho e a orientação agora são escolha do mestre por
+ * sala (`RoomMeta.label*`). */
+/** Título vertical: lido de baixo para cima, como lombada de livro na estante. */
+const VERTICAL_LABEL_ROTATION = -Math.PI / 2
 /** Respiro dos lados da plaquinha, em múltiplos do tamanho da fonte. */
 const PLATE_PAD_X_PER_FONT = 0.35
 /** Altura da plaquinha: a linha de texto ocupa ~1,2 da fonte, o resto é respiro. */
@@ -80,6 +84,11 @@ export function roomLabelAnchor(points: readonly RegionPoint[]): { x: number; y:
 
 export function roomLabelFontSize(grid: number): number {
   return Math.min(MAX_FONT_SIZE, Math.max(MIN_FONT_SIZE, grid * FONT_SIZE_PER_GRID))
+}
+
+/** Fonte do título DESTA sala: a do grid vezes o tamanho escolhido pelo mestre. */
+export function roomLabelFontSizeFor(region: Region, grid: number): number {
+  return roomLabelFontSize(grid) * roomLabelStyleOf(region.room).scale
 }
 
 /** Onde o rótulo é desenhado: âncora da sala mais o deslocamento arrastado
@@ -129,14 +138,22 @@ interface LabelHalfExtents {
  * renomear. Aqui a largura do texto vem da estimativa, porque hit-test roda
  * fora do Pixi; como a estimativa fica acima do real, o alvo cobre a pílula.
  */
-function labelHalfExtents(name: string, fontSize: number): LabelHalfExtents {
+function labelHalfExtents(name: string, fontSize: number, vertical = false): LabelHalfExtents {
   const plate = roomLabelPlateSize(estimateRoomLabelTextWidth(name, fontSize), fontSize)
-  return { halfWidth: plate.width / 2, halfHeight: plate.height / 2 }
+  return oriented({ halfWidth: plate.width / 2, halfHeight: plate.height / 2 }, vertical)
 }
 
 /** Só as letras do nome, sem a folga da pílula: é ficha em cima DELAS que tira o nome do lugar. */
-function labelTextHalfExtents(name: string, fontSize: number): LabelHalfExtents {
-  return { halfWidth: estimateRoomLabelTextWidth(name, fontSize) / 2, halfHeight: (fontSize * LABEL_TEXT_HEIGHT_PER_FONT) / 2 }
+function labelTextHalfExtents(name: string, fontSize: number, vertical = false): LabelHalfExtents {
+  return oriented(
+    { halfWidth: estimateRoomLabelTextWidth(name, fontSize) / 2, halfHeight: (fontSize * LABEL_TEXT_HEIGHT_PER_FONT) / 2 },
+    vertical,
+  )
+}
+
+/** Título vertical ocupa a caixa deitada, com largura e altura trocadas. */
+function oriented(half: LabelHalfExtents, vertical: boolean): LabelHalfExtents {
+  return vertical ? { halfWidth: half.halfHeight, halfHeight: half.halfWidth } : half
 }
 
 function grown(half: LabelHalfExtents, by: number): LabelHalfExtents {
@@ -400,7 +417,8 @@ export function roomLabelPositionAvoidingChildren(
   if (name === '') return roomLabelAnchor(region.points)
   const children = childRoomsOf(regions, region.id)
   if (children.length === 0) return roomLabelAnchor(region.points)
-  return freeRoomLabelAnchor(region.points, children, labelHalfExtents(name, roomLabelFontSize(grid)))
+  const vertical = roomLabelStyleOf(region.room).vertical
+  return freeRoomLabelAnchor(region.points, children, labelHalfExtents(name, roomLabelFontSizeFor(region, grid), vertical))
 }
 
 /**
@@ -428,11 +446,12 @@ export function roomLabelPositionAvoidingTokens(
   if (tokens.length === 0 || region.room?.labelOffset) return base
   const name = region.room?.name.trim() ?? ''
   if (name === '' || region.points.length < 3) return base
-  const fontSize = roomLabelFontSize(grid)
-  const letters = labelTextHalfExtents(name, fontSize)
+  const fontSize = roomLabelFontSizeFor(region, grid)
+  const vertical = roomLabelStyleOf(region.room).vertical
+  const letters = labelTextHalfExtents(name, fontSize, vertical)
   if (!tokens.some((box) => overlapsBox(base.x, base.y, letters, box))) return base
 
-  const half = labelHalfExtents(name, fontSize)
+  const half = labelHalfExtents(name, fontSize, vertical)
   const gap = fontSize * LABEL_EDGE_GAP_PER_FONT
   const blocked = [...boxesOf(childRoomsOf(regions, region.id)), ...tokens]
   const top = topEdgeLabelPoint(region.points, base.x, base.y, half, gap)
@@ -458,11 +477,14 @@ export function roomLabelBounds(
 ): { minX: number; minY: number; maxX: number; maxY: number } | null {
   const name = region.room?.name.trim() ?? ''
   if (name === '') return null
-  const sizing = screenLabelSizing(roomLabelFontSize(grid), cameraScale)
+  const baseFontSize = roomLabelFontSizeFor(region, grid)
+  const sizing = screenLabelSizing(baseFontSize, cameraScale)
   if (!sizing.visible) return null
-  const fontSize = roomLabelFontSize(grid) * sizing.scale
+  const fontSize = baseFontSize * sizing.scale
   const center = roomLabelPositionAvoidingTokens(region, regions, grid, tokens)
-  const { halfWidth, halfHeight } = labelHalfExtents(name, fontSize)
+  // Sem plaquinha o alvo continua do tamanho dela: pegar o nome para arrastar
+  // não pode ficar mais difícil porque o fundo sumiu.
+  const { halfWidth, halfHeight } = labelHalfExtents(name, fontSize, roomLabelStyleOf(region.room).vertical)
   return { minX: center.x - halfWidth, minY: center.y - halfHeight, maxX: center.x + halfWidth, maxY: center.y + halfHeight }
 }
 
@@ -526,13 +548,16 @@ export function createRoomNamesRenderer(): RoomNamesRenderer {
   const plateCache = new Map<string, Graphics>()
   const styledKey = new Map<string, string>()
   const plateKey = new Map<string, string>()
+  /** Fonte e plaquinha de cada sala no último `draw`: o tamanho agora é por
+   *  sala, e o zoom (`setCameraScale`) reescala sem refazer o `draw`. */
+  const fontSizeById = new Map<string, number>()
+  const plateOnById = new Map<string, boolean>()
   /** Nomes desenhados no último `draw` (os demais ficam invisíveis). */
   let namedIds = new Set<string>()
-  let lastFontSize = roomLabelFontSize(0)
   let lastCameraScale = 1
 
-  function applySizing(id: string, fontSize: number): void {
-    const sizing = screenLabelSizing(fontSize, lastCameraScale)
+  function applySizing(id: string): void {
+    const sizing = screenLabelSizing(fontSizeById.get(id) ?? roomLabelFontSize(0), lastCameraScale)
     const textObj = cache.get(id)
     if (textObj) {
       textObj.scale.set(sizing.scale)
@@ -541,7 +566,7 @@ export function createRoomNamesRenderer(): RoomNamesRenderer {
     const plate = plateCache.get(id)
     if (plate) {
       plate.scale.set(sizing.scale)
-      plate.visible = sizing.visible
+      plate.visible = sizing.visible && plateOnById.get(id) !== false
     }
   }
 
@@ -554,6 +579,8 @@ export function createRoomNamesRenderer(): RoomNamesRenderer {
       textObj.destroy()
       cache.delete(id)
       styledKey.delete(id)
+      fontSizeById.delete(id)
+      plateOnById.delete(id)
     }
     for (const [id, plate] of plateCache) {
       if (keep.has(id)) continue
@@ -566,7 +593,7 @@ export function createRoomNamesRenderer(): RoomNamesRenderer {
 
   function setCameraScale(cameraScale: number): void {
     lastCameraScale = cameraScale
-    for (const id of namedIds) applySizing(id, lastFontSize)
+    for (const id of namedIds) applySizing(id)
   }
 
   function draw(container: Container, regions: Region[], grid: number, cameraScale?: number, tokens: readonly LabelObstacle[] = []): void {
@@ -575,9 +602,11 @@ export function createRoomNamesRenderer(): RoomNamesRenderer {
     namedIds = new Set(named.map((r) => r.id))
     forgetRoomsOutside(namedIds)
 
-    const fontSize = roomLabelFontSize(grid)
-    lastFontSize = fontSize
     for (const region of named) {
+      const style = roomLabelStyleOf(region.room)
+      const fontSize = roomLabelFontSizeFor(region, grid)
+      fontSizeById.set(region.id, fontSize)
+      plateOnById.set(region.id, style.plate)
       let textObj = cache.get(region.id)
       if (!textObj) {
         textObj = new Text()
@@ -603,34 +632,44 @@ export function createRoomNamesRenderer(): RoomNamesRenderer {
       // do Pixi (26) coincide com grid ~86,7 e o nome nasceria com o tamanho
       // errado sem nunca ser corrigido.
       const hiddenFromPlayers = !!region.room?.nameHiddenFromPlayers
-      const key = `${fontSize}|${hiddenFromPlayers}`
+      const key = `${fontSize}|${hiddenFromPlayers}|${style.color}`
       if (styledKey.get(region.id) !== key) {
         styledKey.set(region.id, key)
         textObj.style = {
           fontSize,
           fontStyle: hiddenFromPlayers ? 'italic' : 'normal',
-          fill: LABEL_FILL,
+          fill: style.color,
           align: 'center',
         }
       }
+      const rotation = style.vertical ? VERTICAL_LABEL_ROTATION : 0
+      textObj.rotation = rotation
+      plate.rotation = rotation
 
       // A plaquinha nasce do texto que ela carrega: medida quando o Pixi
       // consegue medir, estimada quando não (teste de unidade roda em jsdom,
       // que não tem canvas 2D — medir ali estoura, sonda de 21/09/2026).
       // Redesenhar só quando o tamanho muda: `draw` roda a cada mexida no mapa.
-      const size = roomLabelPlateSize(measuredTextWidth(textObj) ?? estimateRoomLabelTextWidth(textObj.text, fontSize), fontSize)
-      const plateShape = `${size.width}|${size.height}`
-      if (plateKey.get(region.id) !== plateShape) {
-        plateKey.set(region.id, plateShape)
+      // Sem plaquinha: nem mede o texto, só esvazia o desenho (o `visible` sai
+      // de `applySizing`, que também respeita a escolha).
+      if (style.plate) {
+        const size = roomLabelPlateSize(measuredTextWidth(textObj) ?? estimateRoomLabelTextWidth(textObj.text, fontSize), fontSize)
+        const plateShape = `${size.width}|${size.height}`
+        if (plateKey.get(region.id) !== plateShape) {
+          plateKey.set(region.id, plateShape)
+          plate.clear()
+          plate.roundRect(-size.width / 2, -size.height / 2, size.width, size.height, size.radius).fill({ color: LABEL_PLATE_COLOR })
+        }
+      } else if (plateKey.get(region.id) !== 'none') {
+        plateKey.set(region.id, 'none')
         plate.clear()
-        plate.roundRect(-size.width / 2, -size.height / 2, size.width, size.height, size.radius).fill({ color: LABEL_PLATE_COLOR })
       }
       plate.position.set(position.x, position.y)
 
       const alpha = hiddenFromPlayers ? HIDDEN_NAME_ALPHA : 1
       textObj.alpha = alpha
       plate.alpha = alpha
-      applySizing(region.id, fontSize)
+      applySizing(region.id)
     }
 
     // Toda plaquinha desce para o fundo do container: com duas salas coladas,

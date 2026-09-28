@@ -16,6 +16,7 @@ import type { StairSizePreset } from '../lib/stairs'
 import { FLOOR_LAYER, clampFloorPolygonSides, type FloorShapeKind } from '../lib/floorTool'
 import { clampTamanhoDePincel, type Bloco, type TamanhoDePincel } from '../lib/floorBlocks'
 import type { CamadaDoChao } from '../lib/camadasDoChao'
+import type { RoomLabelStylePatch } from '../lib/roomLabelStyle'
 import { paintRevealBrush as paintRevealBrushOnMap, type RevealBrushMode, type RevealBrushWidth } from '../lib/concealBrush'
 import * as mapFactory from '../lib/mapFactory'
 import { inserirPinturaDeBalde, type BrushMode } from '../lib/baldeDeTinta'
@@ -821,6 +822,9 @@ interface MapStoreState {
   setRoomLabelOffsetLive: (id: string, offset: { x: number; y: number }) => void
   /** A5 — "Jogadores veem o nome" (invertido: `true` esconde). Com histórico. */
   setRoomNameHiddenFromPlayers: (id: string, hidden: boolean) => void
+  /** ESTILO DO TÍTULO — plaquinha, tamanho, cor e orientação do nome. Com
+   *  histórico; arrastar o tamanho ou a cor vira um passo só de Ctrl+Z. */
+  setRoomLabelStyle: (id: string, patch: RoomLabelStylePatch) => void
   /** TETO DE CONSTRUÇÃO — liga/desliga `RoomMeta.roof` da Sala, com histórico. */
   setRoomRoof: (id: string, roof: boolean) => void
   /** CÔMODO LEMBRADO — liga/desliga `RoomMeta.comodo` da Sala, com histórico (ligar desliga o teto). */
@@ -2011,6 +2015,13 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
     setRoomNameHiddenFromPlayers: (id, hidden) => {
       if (mapFactory.setRoomNameHiddenFromPlayers(get().map, id, hidden) === get().map) return
       withHistory((map) => mapFactory.setRoomNameHiddenFromPlayers(map, id, hidden))
+    },
+    setRoomLabelStyle: (id, patch) => {
+      if (mapFactory.setRoomLabelStyle(get().map, id, patch) === get().map) return
+      // Só o slider e o seletor de cor emendam: liga/desliga é um passo cada.
+      const continuous = patch.plate === undefined && patch.vertical === undefined
+      const typingKey = continuous ? `room-label-style:${id}:${Object.keys(patch).sort().join(',')}` : undefined
+      withHistory((map) => mapFactory.setRoomLabelStyle(map, id, patch), typingKey)
     },
     setRoomRoof: (id, roof) => {
       if (mapFactory.setRoomRoof(get().map, id, roof) === get().map) return

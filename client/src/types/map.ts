@@ -303,6 +303,18 @@ export interface RoomMeta {
   /** A5 — o jogador recebe a Sala com `name = ''` (`lib/fogFilter.ts`).
    *  `undefined` === false (jogadores veem o nome), sem migração. */
   nameHiddenFromPlayers?: boolean
+  /** ESTILO DO TÍTULO — `false` tira a plaquinha clara de trás do nome.
+   *  `undefined` === com plaquinha (o visual de sempre), sem migração. */
+  labelPlate?: boolean
+  /** Multiplicador da fonte do título (`ROOM_LABEL_SCALE_MIN`..`MAX` em
+   *  `lib/roomLabelStyle.ts`). `undefined` === 1. */
+  labelScale?: number
+  /** Cor do texto do título, `#rrggbb`. `undefined` === o grafite de sempre. */
+  labelColor?: string
+  /** `true` escreve o título de baixo para cima, girado 90°.
+   *  `undefined` === horizontal. `lib/mapFile.ts` descarta valor inválido
+   *  dos quatro campos. */
+  labelVertical?: boolean
   /** TETO DE CONSTRUÇÃO — "Teto fechado para jogadores". Com o teto ligado o
    *  jogador recebe só o POLÍGONO da Sala (a silhueta do prédio, pintada
    *  chapada por `player/PlayerView.tsx`) e NADA do interior: prop, desenho,
