@@ -186,7 +186,7 @@ import {
 import { clampTokenActionReply, distanceInCells, type TokenAction, type TokenActionRejection } from '../lib/tokenActions'
 import { diffView, isEmptyViewPatch, type PlayerViewContent } from './viewPatch'
 import { LETTER_PENDING_MAX_PER_PLAYER, LETTER_SEND_MIN_INTERVAL_MS, type LetterVia } from '../lib/correio'
-import { CHAT_HISTORY_MAX, CHAT_MASTER_MENTION, findMentions, takeChatTurn } from '../lib/chat'
+import { CHAT_HISTORY_MAX, CHAT_MASTER_MENTION, findMentions, nameSkeleton, takeChatTurn } from '../lib/chat'
 import { readArrivalText } from '../lib/arrivalText'
 import { caravanCity, caravanMembers, caravanRegroup, caravanSize, caravanStep, isWorldMap, landingSpots, type CaravanMemory } from '../lib/caravan'
 
@@ -2527,9 +2527,13 @@ function inheritMemory(target: SceneMemory, source: SceneMemory, forbidden: read
   }
 }
 
-/** Chave de comparação do nome: sem maiúsculas e sem espaços. */
+/**
+ * Chave de comparação do nome: o esqueleto (`nameSkeleton`, `lib/chat.ts`),
+ * sem maiúsculas, espaços, invisíveis nem letra de outro alfabeto disfarçada
+ * de latina.
+ */
 function normalizeName(name: string): string {
-  return name.toLowerCase().replace(/\s+/g, '')
+  return nameSkeleton(name)
 }
 
 /** O ponto cai dentro de algum anel com área (anel degenerado não conta). */
@@ -4425,9 +4429,9 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   }
 
   /**
-   * O nome vai no `from` do sinal: nome igual ao de OUTRO jogador (sem
-   * maiúsculas nem espaços) ganha ' (2)', ' (3)'... O próprio jogador (resume)
-   * não conflita consigo.
+   * O nome vai no `from` do sinal: nome que se lê igual ao de OUTRO jogador
+   * (mesmo esqueleto: `normalizeName`) ganha ' (2)', ' (3)'... O próprio
+   * jogador (resume) não conflita consigo.
    */
   const uniqueName = (wanted: string, playerId: string): string => {
     const taken = new Set([...players.values()].filter((p) => p.playerId !== playerId).map((p) => normalizeName(p.name)))
@@ -4843,8 +4847,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     if (msg.code !== options.code) return reply(clientId, { type: 'error', reason: 'bad_code' })
 
     const resumed = msg.resume === undefined ? undefined : [...players.values()].find((p) => p.resumeToken === msg.resume)
-    // Quem está FORA com o mesmo nome (sem maiúsculas nem espaços): talvez
-    // seja a mesma pessoa, noutro aparelho. Só o mestre decide; até lá entra
+    // Quem está FORA com o mesmo nome (mesmo esqueleto: `normalizeName`):
+    // talvez seja a mesma pessoa, noutro aparelho. Só o mestre decide; até lá entra
     // como pessoa nova ("Ana (2)"), sem nada da Ana.
     const lookalike = resumed === undefined ? [...players.values()].find((p) => p.clientId === null && normalizeName(p.name) === normalizeName(msg.name)) : undefined
     const record: PlayerRecord = resumed ?? {

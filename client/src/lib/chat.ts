@@ -38,8 +38,77 @@ const CARRIAGE_RETURNS = /\r\n?/g
  */
 const UNSAFE_CHARS = /[\u0000-\u0009\u000B-\u001F\u007F-\u009F\u061C\u200B-\u200F\u2028\u2029\u202A-\u202E\u2060-\u2064\u2066-\u2069\uFEFF]/g
 
-/** Tabulação e quebra de linha, em qualquer sequência: no nome, viram um espaço só. */
-const NAME_BREAKS = /[\r\n\t]+/g
+/**
+ * Tabulação, quebra de linha e o branco do Braille (U+2800, cela sem pontos:
+ * parece espaço, mas para o Unicode não é espaço nem invisível), em qualquer
+ * sequência: no nome, viram um espaço só.
+ */
+const NAME_BLANKS = /[\r\n\t\u{2800}]+/gu
+
+/**
+ * O que o Unicode manda não desenhar (Default_Ignorable_Code_Point): hífen
+ * suave, junção de grafemas, preenchimentos do hangul, seletores de variação,
+ * separador de vogal do mongol, as tags (U+E0000-E007F) e os invisíveis do
+ * `UNSAFE_CHARS`. Num nome, só servem para fazer um nome passar por outro.
+ */
+const DEFAULT_IGNORABLE = /\p{Default_Ignorable_Code_Point}/gu
+
+/** Acento e as demais marcas combinantes que a normalização não juntou à letra. */
+const COMBINING_MARKS = /\p{M}/gu
+
+/** Espaço de qualquer tipo e o branco do Braille: o esqueleto do nome não tem nenhum. */
+const SKELETON_BLANKS = /[\s\u{2800}]/gu
+
+/**
+ * Letras cirílicas e gregas que se desenham como uma latina, já em minúscula
+ * (o esqueleto passa por `toLowerCase` antes). Cada uma vira a latina que a
+ * maiúscula dela imita, porque o nome começa com maiúscula: o en cirílico
+ * (U+043D) vira "h", e o mi grego (U+03BC), "m". O ge cirílico (U+0433) e o
+ * gama grego (U+03B3), cuja maiúscula não imita nenhuma latina, viram a que a
+ * minúscula imita ("r" e "y"). Lista curta de propósito: a tabela inteira
+ * do Unicode, as trocas dentro do próprio latim (I e l, rn e m) e o palochka
+ * (U+04CF, que imita I e l ao mesmo tempo) ficam de fora.
+ */
+const CONFUSABLE_LATIN: ReadonlyMap<string, string> = new Map([
+  // Cirílico
+  ['\u{0430}', 'a'],
+  ['\u{0432}', 'b'],
+  ['\u{0433}', 'r'],
+  ['\u{0435}', 'e'],
+  ['\u{043A}', 'k'],
+  ['\u{043C}', 'm'],
+  ['\u{043D}', 'h'],
+  ['\u{043E}', 'o'],
+  ['\u{0440}', 'p'],
+  ['\u{0441}', 'c'],
+  ['\u{0442}', 't'],
+  ['\u{0443}', 'y'],
+  ['\u{0445}', 'x'],
+  ['\u{0455}', 's'],
+  ['\u{0456}', 'i'],
+  ['\u{0458}', 'j'],
+  ['\u{04AF}', 'y'],
+  ['\u{04BB}', 'h'],
+  ['\u{0501}', 'd'],
+  ['\u{051B}', 'q'],
+  ['\u{051D}', 'w'],
+  // Grego
+  ['\u{03B1}', 'a'],
+  ['\u{03B2}', 'b'],
+  ['\u{03B3}', 'y'],
+  ['\u{03B5}', 'e'],
+  ['\u{03B6}', 'z'],
+  ['\u{03B7}', 'h'],
+  ['\u{03B9}', 'i'],
+  ['\u{03BA}', 'k'],
+  ['\u{03BC}', 'm'],
+  ['\u{03BD}', 'n'],
+  ['\u{03BF}', 'o'],
+  ['\u{03C1}', 'p'],
+  ['\u{03C4}', 't'],
+  ['\u{03C5}', 'y'],
+  ['\u{03C7}', 'x'],
+])
 
 /** `@` que começa uma menção: no início ou depois de algo que não continua um nome. */
 const MENTION_AT = /(?<![\p{L}\p{N}\p{M}])@/gu
@@ -61,22 +130,43 @@ export function cleanChatText(raw: string): string {
 }
 
 /**
- * O nome de quem entra na sala, limpo como o texto do chat: controles, bidi e
- * invisíveis somem. Nome é uma linha só: quebra de linha e tabulação viram
- * espaço. Vazio aqui é nome que não entra.
+ * O nome de quem entra na sala. Controles, bidi e tudo o que o Unicode manda
+ * não desenhar (`DEFAULT_IGNORABLE`) somem; quebra de linha, tabulação e o
+ * branco do Braille viram espaço, porque nome é uma linha só. Depois vem a
+ * normalização NFKC: a letra larga (U+FF21) vira a comum e o acento escrito à
+ * parte volta para a letra. Os invisíveis saem antes dela: um que estivesse
+ * entre a letra e o acento impediria a junção. A normalização pode esticar o
+ * nome (uma ligadura vira várias letras), então o teto de tamanho vale para o
+ * que sai daqui. Vazio aqui é nome que não entra.
  */
 export function cleanPlayerName(raw: string): string {
-  return raw.replace(NAME_BREAKS, ' ').replace(UNSAFE_CHARS, '').trim()
+  return raw.replace(NAME_BLANKS, ' ').replace(UNSAFE_CHARS, '').replace(DEFAULT_IGNORABLE, '').normalize('NFKC').trim()
 }
 
 /**
- * Quem falou, como a linha mostra. O jogador que entrou com o nome "Mestre"
- * ganha " (jogador)": a fala dele não se passa pela do mestre. É a regra do
+ * A chave que diz se dois nomes são o mesmo para quem lê: sem invisíveis, sem
+ * maiúsculas, sem espaço de tipo nenhum, sem marca combinante solta e com a
+ * letra cirílica ou grega trocada pela latina que ela imita. A normalização é
+ * NFKC, não NFKD: "José" e "Jose" continuam nomes diferentes. Serve só para
+ * comparar; o nome que aparece é sempre o que foi digitado.
+ */
+export function nameSkeleton(name: string): string {
+  // O minúsculo vem antes de tirar as marcas: o I turco com ponto (U+0130) vira "i" mais um ponto combinante.
+  const folded = name.replace(DEFAULT_IGNORABLE, '').normalize('NFKC').toLowerCase().replace(COMBINING_MARKS, '')
+  // Fora do mapa é o caso comum: a letra fica como está.
+  return Array.from(folded, (char) => CONFUSABLE_LATIN.get(char) ?? char).join('').replace(SKELETON_BLANKS, '')
+}
+
+/**
+ * Quem falou, como a linha mostra. O jogador que entrou com um nome que se lê
+ * "Mestre" ganha " (jogador)": a fala dele não se passa pela do mestre. A
+ * comparação é pelo esqueleto (`nameSkeleton`), para que um invisível, a letra
+ * larga ou a letra cirílica ou grega não tirem a marca. É a regra do
  * `rollerLabel` (`lib/dice.ts`). Quando o mestre falar no chat (fatia D), a
  * fala dele precisa de marca própria, como `roll.master`: o nome não basta.
  */
 export function chatSpeakerLabel(from: string): string {
-  return from.trim().toLowerCase() === CHAT_MASTER_MENTION ? `${from} (jogador)` : from
+  return nameSkeleton(from) === nameSkeleton(CHAT_MASTER_MENTION) ? `${from} (jogador)` : from
 }
 
 /**

@@ -4,6 +4,7 @@
  * só pede (quantidade, dado, modificador) e recebe o resultado de volta, igual
  * a todo mundo — assim ninguém rola "20" na própria máquina.
  */
+import { nameSkeleton } from './chat'
 
 /** Os dados da mesa. Outro número de lados não existe no pedido nem na volta. */
 export const DICE_SIDES = [4, 6, 8, 10, 12, 20] as const
@@ -122,10 +123,13 @@ export function formatDiceTotal(total: number): string {
 }
 
 /**
- * Quem rolou, como a lista mostra. O jogador que entrou com o nome "Mestre"
- * ganha " (jogador)": a rolagem dele não se passa pela do mestre.
+ * Quem rolou, como a lista mostra. O jogador que entrou com um nome que se lê
+ * "Mestre" ganha " (jogador)": a rolagem dele não se passa pela do mestre. A
+ * comparação é pelo esqueleto (`nameSkeleton`, `lib/chat.ts`), a mesma do
+ * `chatSpeakerLabel`: invisível, letra larga ou letra cirílica ou grega não
+ * tiram a marca.
  */
 export function rollerLabel(roll: DiceRollEntry): string {
   if (roll.master === true) return MASTER_ROLLER_NAME
-  return roll.from.trim().toLowerCase() === MASTER_ROLLER_NAME.toLowerCase() ? `${roll.from} (jogador)` : roll.from
+  return nameSkeleton(roll.from) === nameSkeleton(MASTER_ROLLER_NAME) ? `${roll.from} (jogador)` : roll.from
 }

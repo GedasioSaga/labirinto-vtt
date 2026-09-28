@@ -90,4 +90,11 @@ describe('dice: quem rolou', () => {
     expect(rollerLabel({ ...base, from: 'mestre' })).toBe('mestre (jogador)')
     expect(rollerLabel({ ...base, from: 'Mestre' })).toBe('Mestre (jogador)')
   })
+
+  it('nem com um invisível colado, letra cirílica ou grega ou letra larga no nome', () => {
+    for (const from of ['Mestre\u{00AD}', 'Mestre\u{034F}', 'Mestre\u{3164}', 'Mestre\u{FE0F}', 'Mestre\u{180E}', 'M\u{0435}stre', '\u{039C}estre', '\u{FF2D}estre']) {
+      expect(rollerLabel({ ...base, from })).toBe(`${from} (jogador)`)
+    }
+    expect(rollerLabel({ ...base, from: 'Mestrado' })).toBe('Mestrado')
+  })
 })

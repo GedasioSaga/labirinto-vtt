@@ -315,21 +315,47 @@ describe('chat no cliente: mandar', () => {
     expect(connection.getState().chatSend?.phase).toBe('failed')
   })
 
-  it('com outro pedido no ar, o invalid_message pode ser dele: o chat espera a própria resposta', () => {
+  it('com outro pedido no ar, o invalid_message pode ser dele: o chat espera a carta responder e então falha', () => {
     const { connection, socket } = comChat()
     expect(connection.sendLetter('Bruno', 'pombo', 'Te espero.')).toBe(true)
     expect(connection.sendChat('global', 'oi', [])).toBe(true)
     const reqId = ultimoReqId(socket.sent)
+    // Mestre antigo: não conhece `chat.send` e responde um erro só, sem dizer de qual pedido.
     socket.receive({ type: 'error', reason: 'invalid_message' })
     expect(connection.getState().status).toBe('playing')
     expect(connection.getState().chatSend).toEqual({ reqId, channel: 'global', phase: 'sending' })
-    // A carta respondeu: agora o chat está sozinho no ar, e o erro seguinte é dele.
+    // A carta respondeu: o erro não era dela. Não vem outro erro, e o chat não fica "Enviando…" para sempre.
     socket.receive({ type: 'letter.send.result', to: 'Bruno', ok: true })
+    expect(connection.getState().chatSend).toEqual({ reqId, channel: 'global', phase: 'failed' })
+    expect(connection.sendChat('global', 'de novo', [])).toBe(true)
+    expect(connection.getState().chatSend?.phase).toBe('sending')
+  })
+
+  it('o chat saiu antes da carta e o erro chegou com as duas no ar: a carta recusada também solta o chat', () => {
+    const { connection, socket } = comChat()
+    expect(connection.sendChat('cena', 'oi', [])).toBe(true)
+    const reqId = ultimoReqId(socket.sent)
+    expect(connection.sendLetter('Bruno', 'pombo', 'Te espero.')).toBe(true)
     socket.receive({ type: 'error', reason: 'invalid_message' })
+    expect(connection.getState().chatSend?.phase).toBe('sending')
+    socket.receive({ type: 'letter.send.result', to: 'Bruno', ok: false, reason: 'full' })
+    expect(connection.getState().letterSend?.phase).toBe('full')
+    expect(connection.getState().chatSend).toEqual({ reqId, channel: 'cena', phase: 'failed' })
+  })
+
+  it('o outro pedido sai do ar sem resposta (o jogador desistiu de mostrar a pista): o chat, sozinho, fica com o erro', () => {
+    const { connection, socket } = comChat()
+    socket.receive({ type: 'clue.added', clue: { id: 'c1', title: 'Bilhete', text: 'Na torre.', image: null, at: 1000 } })
+    expect(connection.showClue('c1', 'Bruno')).toBe(true)
+    expect(connection.sendChat('global', 'oi', [])).toBe(true)
+    const reqId = ultimoReqId(socket.sent)
+    socket.receive({ type: 'error', reason: 'invalid_message' })
+    expect(connection.getState().chatSend?.phase).toBe('sending')
+    connection.resetClueShare()
     expect(connection.getState().chatSend).toEqual({ reqId, channel: 'global', phase: 'failed' })
   })
 
-  it('com outro pedido no ar, a resposta do próprio envio ainda chega e vale', () => {
+  it('com outro pedido no ar, a resposta do próprio envio ainda chega e vale; o envio seguinte não herda o erro', () => {
     const { connection, socket } = comChat()
     expect(connection.sendLetter('Bruno', 'pombo', 'Te espero.')).toBe(true)
     expect(connection.sendChat('global', 'oi', [])).toBe(true)
@@ -337,5 +363,10 @@ describe('chat no cliente: mandar', () => {
     socket.receive({ type: 'error', reason: 'invalid_message' })
     socket.receive({ type: 'chat.send.result', reqId, ok: true })
     expect(connection.getState().chatSend).toEqual({ reqId, channel: 'global', phase: 'ok' })
+    // O chat de antes já teve a resposta dele: o novo espera a própria, mesmo quando a carta responde.
+    expect(connection.sendChat('global', 'dois', [])).toBe(true)
+    const segundo = ultimoReqId(socket.sent)
+    socket.receive({ type: 'letter.send.result', to: 'Bruno', ok: true })
+    expect(connection.getState().chatSend).toEqual({ reqId: segundo, channel: 'global', phase: 'sending' })
   })
 })

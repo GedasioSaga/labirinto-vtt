@@ -1541,6 +1541,12 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
   const storage = isTable ? null : options.storage
   const listeners = new Set<() => void>()
   const pending = new Map<string, PendingMove>()
+  /**
+   * CHAT com mestre antigo: `reqId` do envio que estava no ar quando chegou um
+   * `invalid_message` junto com outro pedido. O erro podia ser de qualquer um
+   * dos dois; quem decide é `failChatLeftAlone`. `null` = nada esperando.
+   */
+  let chatInvalidReqId: string | null = null
   let walk: Walk | null = null
   let state: PlayerState = { status: 'connecting', rev: -1, sceneEpoch: 0 }
   // A última tela do mestre, sem o otimista (ver `ReceivedView`); `null` = nenhuma.
@@ -2334,7 +2340,26 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     const leftGame = state.status === 'playing' && patch.status !== undefined && patch.status !== 'playing'
     state = { ...state, ...patch }
     if (leftGame) state = { ...state, sceneEpoch: state.sceneEpoch + 1 }
+    failChatLeftAlone()
     for (const listener of listeners) listener()
+  }
+
+  /**
+   * O `invalid_message` guardado em `chatInvalidReqId` ganha dono quando
+   * nenhum outro pedido está mais no ar (respondeu, com ok ou erro; venceu o
+   * prazo; ou o jogador desistiu): era do chat, e o mestre antigo não manda
+   * outra resposta ao `chat.send`. Sem isto o envio ficaria "Enviando…" para
+   * sempre, e `sendChat` recusaria todo envio seguinte. Chamada só por
+   * `setState` (toda mudança passa por ele), antes de avisar quem escuta.
+   */
+  function failChatLeftAlone(): void {
+    if (chatInvalidReqId === null) return
+    const sending = state.chatSend
+    if (sending?.phase === 'sending' && sending.reqId === chatInvalidReqId) {
+      if (hasOtherRequestInFlight()) return
+      state = { ...state, chatSend: { ...sending, phase: 'failed' } }
+    }
+    chatInvalidReqId = null
   }
 
   /** Próxima tentativa agendada, virada do "Reconectar" e prazo da tentativa no ar. */
@@ -3741,9 +3766,13 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         // CHAT: o host de hoje recusa um `chat.send` torto com `chat.send.result`
         // recusado; o de antes, com `invalid_message`, sem dizer de qual pedido.
         // Só com o chat sozinho no ar o erro é dele: falhou o envio, não a sessão.
-        if (reason === 'invalid_message' && state.chatSend?.phase === 'sending' && !hasOtherRequestInFlight()) {
-          setState({ chatSend: { ...state.chatSend, phase: 'failed' } })
-          return
+        // Com outro pedido junto, o chat espera o outro sair do ar (`failChatLeftAlone`).
+        if (reason === 'invalid_message' && state.chatSend?.phase === 'sending') {
+          if (!hasOtherRequestInFlight()) {
+            setState({ chatSend: { ...state.chatSend, phase: 'failed' } })
+            return
+          }
+          chatInvalidReqId = state.chatSend.reqId
         }
         // Mensagem inválida durante o jogo não derruba a sessão.
         if (reason === 'invalid_message' && state.status === 'playing') return

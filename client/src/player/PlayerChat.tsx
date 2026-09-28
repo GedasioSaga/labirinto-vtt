@@ -150,6 +150,7 @@ export function PlayerChat({ log, unread, status, selfName, party, visible, onSe
       ? REFUSAL_TEXT[status.phase]
       : null
   const shownAlert = localAlert === null ? refusal : LOCAL_ALERT_TEXT[localAlert]
+  // De propósito em unidades UTF-16 (um emoji vale 2): o host conta igual (`isBoundedString`), então não divergem.
   const counter = counterText(CHAT_TEXT_MAX_LENGTH - draft.length)
   const describedBy = [hintId, counter === null ? '' : countId, shownAlert === null ? '' : alertId].filter((id) => id !== '').join(' ')
 

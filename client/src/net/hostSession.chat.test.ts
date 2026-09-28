@@ -472,6 +472,26 @@ describe('chat: texto', () => {
     ])
   })
 
+  it('nome que só difere por invisível, letra larga ou letra cirílica ou grega é o mesmo nome: quem chega depois ganha " (2)"', () => {
+    const { s } = mesa()
+    const nomeQueEntra = (clientId: string, name: string) => s.handleMessage(clientId, { type: 'join', code: CODE, name }, comFoice).outbound[0]?.msg
+    // O hífen suave some na limpeza; a letra larga vira a comum.
+    expect(nomeQueEntra('c5', 'Ana\u{00AD}')).toMatchObject({ type: 'welcome', name: 'Ana (2)' })
+    expect(nomeQueEntra('c6', '\u{FF24}ora')).toMatchObject({ type: 'welcome', name: 'Dora (2)' })
+    // Letra de outro alfabeto é letra de verdade: fica como foi digitada, mas conta como a latina que imita.
+    expect(nomeQueEntra('c7', '\u{0412}runo')).toMatchObject({ type: 'welcome', name: '\u{0412}runo (2)' })
+    expect(nomeQueEntra('c8', 'C\u{03B1}io')).toMatchObject({ type: 'welcome', name: 'C\u{03B1}io (2)' })
+  })
+
+  it('nome só de preenchimento invisível ou de branco do Braille não entra, nem o que a normalização estica além do teto', () => {
+    const { s } = mesa()
+    const recusado = (clientId: string) => [{ clientId, msg: { type: 'error', reason: 'invalid_message' } }]
+    expect(s.handleMessage('c5', { type: 'join', code: CODE, name: '\u{3164}\u{115F}\u{FFA0}' }, comFoice).outbound).toEqual(recusado('c5'))
+    expect(s.handleMessage('c6', { type: 'join', code: CODE, name: '\u{2800}\u{2800}' }, comFoice).outbound).toEqual(recusado('c6'))
+    // Cada U+FDFA vira 18 letras na normalização: duas passam das 32 do nome.
+    expect(s.handleMessage('c7', { type: 'join', code: CODE, name: '\u{FDFA}'.repeat(2) }, comFoice).outbound).toEqual(recusado('c7'))
+  })
+
   it('chat.send torto de quem entrou, com reqId legível, volta como chat.send.result recusado: vazio depois de limpo, acima de 1000, canal desconhecido, campo torto', () => {
     const { s } = mesa()
     const recusado = (reqId: string) => [{ clientId: 'c1', msg: { type: 'chat.send.result', reqId, ok: false } }]
