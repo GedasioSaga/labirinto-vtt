@@ -872,3 +872,16 @@ Publicar 0.4.4 ao fechar as 5 features (suíte 1x, fumaça, instalador, push com
 - `rtk proxy npx tsc --noEmit`: 0 erros.
 - `vitest run` em baldeDeTinta, toolVariants, components/, mapStore.pincel, mapStore, drawDrawings: 190 arquivos, 1325/1325 verdes.
 - Navegador (porta 1420): quadrado feito à mão com o Pincel, Modo Balde, clique no meio: só o interior do quadrado encheu. Print em scratchpad `balde-pincel.png`.
+
+### 28/09 17:50 — estilo do título da Sala (`cd645400`)
+
+- Feature 2 de 5 desde a 0.4.6.
+- Cada Sala ganhou 4 campos opcionais no `room`: `labelPlate`, `labelScale` (0,5 a 1,5), `labelColor` (#rrggbb) e `labelVertical`. Undefined = visual de sempre; o `mapFile` descarta valor inválido. Lógica pura em `client/src/lib/roomLabelStyle.ts`.
+- Painel da Sala, logo abaixo do Nome: grupo "Título no mapa" com interruptor "Fundo do título", slider "Tamanho do título" (50-150%), "Cor do título" (botão "Padrão" só fora do padrão) e Horizontal/Vertical (`client/src/components/RoomLabelStyleControls.tsx`).
+- Desenho em `client/src/pixi/drawRoomNames.ts`: fonte por sala, cor no `fill`, texto e plaquinha giram -90°; sem fundo a plaquinha some, mas o alvo de clique continua do tamanho dela.
+- Desfazer: slider e cor fundem numa etapa só (typingKey); fundo e orientação são etapas separadas.
+
+## Evidência
+- `rtk proxy npx tsc --noEmit`: ok.
+- vitest da área (roomLabelStyle, drawRoomNames, mapFactory, mapFile, RoomControls, RoomLabelStyleControls, PropertiesPanel, mapStore): 102 arquivos, 891/891.
+- Navegador: `titulo-antes.png` (controles sob o Nome, plaquinha padrão) e `titulo-depois.png` (sem fundo, 65%, #f2d16b, vertical, botão Padrão visível) no scratchpad. Um Ctrl+Z depois das quatro mudanças desfez só a última (Vertical voltou a `aria-checked="false"`).
