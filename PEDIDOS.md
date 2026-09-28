@@ -1141,3 +1141,10 @@ Noite = esta sessão conduzida pelo main thread; o noite-runner continua encerra
 
 - Imagem 23: retângulo tracejado de seleção de área, começando no escuro e cobrindo uma área azul (sala/caminho).
 - Fila: (1) com Ctrl segurado, arrastar em cima de sala ou caminho abre a seleção de área em vez de mover a peça.
+- Feito: Ctrl abre o laço em cima de sala em `346316c5`.
+
+### 28/09/2026, fim de tarde: release 0.4.7
+
+> "Perfeito, agora pode lançar a versão 0.4.7"
+
+- Fila: (1) bump 0.4.7, portão (tsc, suíte, gitleaks), build, fumaça, tag, push, release com .exe e .msi. Escada espiral parcial fica fora.
