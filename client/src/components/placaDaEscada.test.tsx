@@ -1,14 +1,16 @@
 /**
- * A placa da escada nos dois desenhos que a mostram fora do mapa: o
- * `StairIcon` (barra de ferramentas a 18 px, faixa da seleção a 16 px) e a
- * miniatura do campo "Sentido" no painel da escada. Os dois falam a língua do
- * mapa (`pixi/stairFlight.ts`): placa retangular, degraus finos de trilho a
- * trilho e um patamar sem degrau no TOPO. Nada de galão, zigue-zague ou seta:
- * o lance antigo se lia como seta (swap cego de 28/09).
+ * A escada nos dois desenhos que a mostram fora do mapa.
  *
- * O teste lê a geometria que o SVG desenha: a única `rect` é a placa, e todo
- * traço de `path` precisa ser um degrau atravessando a placa de um trilho ao
- * outro. O patamar é o vão entre o último degrau e a borda do topo.
+ * A miniatura do campo "Sentido" fala a língua do mapa (`pixi/stairFlight.ts`):
+ * placa retangular, degraus finos de trilho a trilho e um patamar sem degrau
+ * no TOPO. Nada de galão ou seta: o lance antigo se lia como seta (swap cego
+ * de 28/09). O teste lê a geometria que o SVG desenha: a única `rect` é a
+ * placa, e todo traço de `path` precisa ser um degrau atravessando a placa de
+ * um trilho ao outro. O patamar é o vão entre o último degrau e a borda do topo.
+ *
+ * O `StairIcon` (barra a 18 px, seleção a 16 px) NÃO é a placa: sem rótulo ao
+ * lado, a placa vista de cima lia como documento, lista ou bateria e perdeu o
+ * swap cego de 28/09 (2 a 0) para o perfil de degraus visto de lado.
  */
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
@@ -156,7 +158,7 @@ function viewBoxDe(svg: SVGSVGElement): [number, number, number, number] {
   return [partes[0], partes[1], partes[2], partes[3]]
 }
 
-describe('placa da escada: o StairIcon e a miniatura do Sentido falam a língua do mapa', () => {
+describe('escada fora do mapa: StairIcon em perfil, miniatura do Sentido em placa', () => {
   let container: HTMLDivElement
   let root: Root
 
@@ -193,7 +195,6 @@ describe('placa da escada: o StairIcon e a miniatura do Sentido falam a língua 
   }
 
   const CASOS: { nome: string; montar: () => SVGSVGElement; eixo: Eixo; topo: PontaDoTopo }[] = [
-    { nome: 'StairIcon (barra e seleção)', montar: iconeDaBarra, eixo: 'y', topo: 'inicio' },
     { nome: 'Sentido "Sobe": patamar na ponta do arrasto', montar: () => miniaturaDoSentido('Sobe'), eixo: 'x', topo: 'fim' },
     { nome: 'Sentido "Desce": patamar no começo do arrasto', montar: () => miniaturaDoSentido('Desce'), eixo: 'x', topo: 'inicio' },
   ]
@@ -255,9 +256,33 @@ describe('placa da escada: o StairIcon e a miniatura do Sentido falam a língua 
     })
   })
 
-  it('na barra a placa fica em pé, para não se confundir com a Parede (deitada)', () => {
-    const { placa } = lerDesenho(iconeDaBarra())
-    expect(placa.h).toBeGreaterThan(placa.w)
+  it('na barra o StairIcon é o perfil de degraus: um traço aberto que sobe em escada, sem placa', () => {
+    const svg = iconeDaBarra()
+    const formas = Array.from(svg.querySelectorAll('*')).map((el) => el.tagName.toLowerCase())
+    expect(formas).toEqual(['path'])
+    const d = svg.querySelector('path')?.getAttribute('d') ?? ''
+    expect(d).not.toMatch(/[zZ]/)
+    const tracos = tracosDe(d)
+    // Alterna subida (vertical, y diminui) e pisada (horizontal, x aumenta), começando pela subida.
+    expect(tracos.length).toBeGreaterThanOrEqual(6)
+    tracos.forEach((t, i) => {
+      const subida = i % 2 === 0
+      if (subida) {
+        expect(Math.abs(t.x2 - t.x1), `espelho torto: ${JSON.stringify(t)}`).toBeLessThan(TOLERANCIA)
+        expect(t.y2).toBeLessThan(t.y1)
+      } else {
+        expect(Math.abs(t.y2 - t.y1), `pisada torta: ${JSON.stringify(t)}`).toBeLessThan(TOLERANCIA)
+        expect(t.x2).toBeGreaterThan(t.x1)
+      }
+    })
+    // Degraus iguais e legíveis a 16 px: a silhueta é uma diagonal de degraus, não um rabisco.
+    const alturas = tracos.filter((_, i) => i % 2 === 0).map((t) => t.y1 - t.y2)
+    const larguras = tracos.filter((_, i) => i % 2 === 1).map((t) => t.x2 - t.x1)
+    for (const passo of [...alturas, ...larguras]) expect(passo).toBeGreaterThanOrEqual(PASSO_MINIMO)
+    expect(Math.max(...alturas) - Math.min(...alturas)).toBeLessThan(TOLERANCIA)
+    expect(Math.max(...larguras) - Math.min(...larguras)).toBeLessThan(TOLERANCIA)
+    expect(svg.getAttribute('stroke')).toBe('currentColor')
+    expect(svg.getAttribute('fill')).toBe('none')
   })
 
   it('no Sentido a placa deita, e "Desce" é o desenho de "Sobe" espelhado', () => {
