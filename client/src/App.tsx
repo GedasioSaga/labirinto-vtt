@@ -548,6 +548,8 @@ function App() {
   const drawTexture = useMapStore((state) => state.drawTexture)
   const lastDrawingTool = useMapStore((state) => state.lastDrawingTool)
   const setDrawTexture = useMapStore((state) => state.setDrawTexture)
+  const brushMode = useMapStore((state) => state.brushMode)
+  const setBrushMode = useMapStore((state) => state.setBrushMode)
   const eraseMode = useMapStore((state) => state.eraseMode)
   const setEraseMode = useMapStore((state) => state.setEraseMode)
   const stairSizePreset = useMapStore((state) => state.stairSizePreset)
@@ -2485,6 +2487,7 @@ function App() {
             polygonSides: { value: polygonSides, onChange: setPolygonSides },
             stairSizePreset: { value: stairSizePreset, onChange: setStairSizePreset },
             drawTexture: { value: drawTexture, onChange: setDrawTexture },
+            brushMode: { value: brushMode, onChange: setBrushMode },
             eraseMode: { value: eraseMode, onChange: setEraseMode },
             floorShapeKind: { value: floorShapeKind, onChange: setFloorShapeKind },
             floorOp: { value: floorOp, onChange: setFloorOp },

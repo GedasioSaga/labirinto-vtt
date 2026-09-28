@@ -18,6 +18,7 @@ import { clampTamanhoDePincel, type Bloco, type TamanhoDePincel } from '../lib/f
 import type { CamadaDoChao } from '../lib/camadasDoChao'
 import { paintRevealBrush as paintRevealBrushOnMap, type RevealBrushMode, type RevealBrushWidth } from '../lib/concealBrush'
 import * as mapFactory from '../lib/mapFactory'
+import { inserirPinturaDeBalde, type BrushMode } from '../lib/baldeDeTinta'
 import { abrirVaoDosDoisLados, desabarParede as desabarParedeNoMapa, type CorteNaParede } from '../lib/abrirVao'
 import { comEscadaNosPisos, comFichaNoPiso, comSelecaoNoPiso, ehPiso, mapaDoPiso, nascemNoPiso, pisoDe } from '../lib/pisos'
 import { apagarBlocosNoPiso, pinoNoPiso, selecaoNoPiso } from '../lib/pisoEmEdicao'
@@ -382,6 +383,11 @@ interface MapStoreState {
    *  Fase 4) — preferência de ferramenta, mesma classe de `drawCap`. */
   drawTexture: FreehandTexture
   setDrawTexture: (texture: FreehandTexture) => void
+  /** Modo do Pincel: 'traco' desenha traço livre, 'balde' enche de uma vez a
+   *  área fechada clicada (`lib/baldeDeTinta.ts`). Preferência de sessão, mesma
+   *  classe de `drawTexture`. */
+  brushMode: BrushMode
+  setBrushMode: (mode: BrushMode) => void
   /** Última forma de desenho ativada (Pincel a Polígono) — o botão "Desenho"
    *  da barra mostra o ícone dela e a reativa no clique. Preferência de
    *  sessão, mesma classe de `drawTexture`: não vai para o mapa nem para o
@@ -447,6 +453,9 @@ interface MapStoreState {
   setWallKind: (kind: NonNullable<Wall['wallKind']>) => void
   setDoorKind: (kind: DoorKind) => void
   addDrawing: (drawing: Drawing) => void
+  /** Tinta do balde do Pincel: entra por baixo dos traços, logo depois da
+   *  última tinta (`inserirPinturaDeBalde`). */
+  pintarComBalde: (pintura: Drawing) => void
   removeDrawing: (id: string) => void
   setCamera: (camera: Camera) => void
   /** Substitui o conjunto inteiro — clique simples (`selectionOfItem`),
@@ -1482,6 +1491,7 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
     drawCap: 'round',
     drawDash: 'solid',
     drawTexture: 'pen',
+    brushMode: 'traco',
     lastDrawingTool: 'brush',
     stairSizePreset: 'medium',
     eraseMode: 'objeto',
@@ -1660,6 +1670,7 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
     setDrawCap: (cap) => set({ drawCap: cap }),
     setDrawDash: (dash) => set({ drawDash: dash }),
     setDrawTexture: (texture) => set({ drawTexture: texture }),
+    setBrushMode: (mode) => set({ brushMode: mode }),
     setDrawingTexture: (id, texture) => withHistory((map) => ({
       ...map,
       drawings: map.drawings.map((d) => (d.id === id && d.kind === 'freehand' ? { ...d, texture } : d)),
@@ -1888,6 +1899,7 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
       props: map.props.map((p) => (p.id === id ? { ...p, ...patch } : p)),
     })),
     addDrawing: (drawing) => withHistory((map) => mapFactory.addDrawing(map, drawing)),
+    pintarComBalde: (pintura) => withHistory((map) => ({ ...map, drawings: inserirPinturaDeBalde(map.drawings, pintura) })),
     removeDrawing: (id) => withHistory((map) => mapFactory.removeDrawing(map, id)),
     setShowGrid: (show) => withHistory((map) => mapFactory.setShowGrid(map, show)),
     setGridShape: (shape) => withHistory((map) => mapFactory.setGridShape(map, shape)),

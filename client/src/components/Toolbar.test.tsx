@@ -29,6 +29,7 @@ function bindings(activeTool: DrawingTool, onSelectTool: (tool: DrawingTool) => 
     polygonSides: { value: 6, onChange: vi.fn() },
     stairSizePreset: { value: 'medium', onChange: vi.fn() },
     drawTexture: { value: 'pen', onChange: vi.fn() },
+    brushMode: { value: 'traco', onChange: vi.fn() },
     eraseMode: { value: 'objeto', onChange: vi.fn() },
     floorShapeKind: { value: 'rect', onChange: vi.fn() },
     floorOp: { value: 'add', onChange: vi.fn() },
@@ -96,13 +97,13 @@ describe('Toolbar — botão Desenho', () => {
     expect(onSelectTool).toHaveBeenCalledWith('rect')
   })
 
-  it('a setinha abre "Opções de Desenho" com Forma (7, com ícone) e, no Pincel, Textura do traço', () => {
+  it('a setinha abre "Opções de Desenho" com Forma (7, com ícone) e, no Pincel, Modo e Textura do traço', () => {
     render('brush', 'brush')
     act(() => buttonsNamed('Opções de Desenho')[0].click())
     const menu = document.body.querySelector('[role="group"][aria-label="Opções de Desenho"]')
     expect(menu).not.toBeNull()
     const radiogroups = Array.from(menu?.querySelectorAll('[role="radiogroup"]') ?? []).map((g) => g.getAttribute('aria-label'))
-    expect(radiogroups).toEqual(['Forma', 'Textura do traço'])
+    expect(radiogroups).toEqual(['Forma', 'Modo', 'Textura do traço'])
     const shapes = menu?.querySelectorAll('[role="radiogroup"][aria-label="Forma"] [role="radio"]') ?? []
     expect(Array.from(shapes).map((r) => r.getAttribute('aria-label'))).toEqual([
       'Pincel', 'Linha', 'Curva', 'Círculo', 'Elipse', 'Retângulo', 'Polígono',

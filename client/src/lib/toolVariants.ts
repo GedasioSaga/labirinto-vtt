@@ -5,6 +5,7 @@ import type { FloorShapeKind } from './floorTool'
 import { TAMANHOS_DE_PINCEL, type TamanhoDePincel } from './floorBlocks'
 import { CAMADAS_DO_CHAO, type CamadaDoChao } from './camadasDoChao'
 import { TOOL_SHORTCUTS } from './keymap'
+import type { BrushMode } from './baldeDeTinta'
 
 /**
  * Catálogo de dados puro (sem JSX, sem store) da feature N1 do usuário
@@ -79,6 +80,7 @@ export type ToolVariantGroup = (
   | { storeKey: 'polygonSides'; label: string; options: ToolVariantOption<number>[] }
   | { storeKey: 'stairSizePreset'; label: string; options: ToolVariantOption<StairSizePreset>[] }
   | { storeKey: 'drawTexture'; label: string; options: ToolVariantOption<FreehandTexture>[] }
+  | { storeKey: 'brushMode'; label: string; options: ToolVariantOption<BrushMode>[] }
   | { storeKey: 'eraseMode'; label: string; options: ToolVariantOption<'objeto' | 'parte'>[] }
   | { storeKey: 'floorShapeKind'; label: string; options: ToolVariantOption<FloorShapeKind>[] }
   | { storeKey: 'floorOp'; label: string; options: ToolVariantOption<FloorPiece['op']>[] }
@@ -311,6 +313,17 @@ const BRUSH_TEXTURE_GROUP: ToolVariantGroup = {
   ],
 }
 
+/** Modo do Pincel: traçar ou encher de uma vez a área fechada clicada
+ *  (`lib/baldeDeTinta.ts`). A textura só vale para o traço. */
+const BRUSH_MODE_GROUP: ToolVariantGroup = {
+  storeKey: 'brushMode',
+  label: 'Modo',
+  options: [
+    { id: 'traco', label: 'Traço livre', value: 'traco', description: 'Arraste para desenhar à mão livre.' },
+    { id: 'balde', label: 'Balde', value: 'balde', description: 'Clique dentro de uma área fechada para enchê-la de uma vez com a cor do desenho.' },
+  ],
+}
+
 /** Modo de gesto da Borracha — 'objeto' é o comportamento de hoje (remove a
  *  entidade inteira sob o cursor); 'parte' recorta freehand/curve/line e
  *  decide remove/mantém pros kinds sem recorte possível (ver
@@ -356,7 +369,7 @@ export const TOOL_VARIANTS: Partial<Record<DrawingTool, ToolVariantEntry>> = {
   // ---- Fase 5: as 3 variantes abaixo saíram de available:false pra true —
   // schema/render já existiam (F4-0/agentes de feature), só faltava a
   // preferência de store + o grupo neste catálogo. Ver ROADMAP.md Fase 5. ---
-  brush: { available: true, tool: 'brush', groups: [BRUSH_TEXTURE_GROUP] },
+  brush: { available: true, tool: 'brush', groups: [BRUSH_MODE_GROUP, BRUSH_TEXTURE_GROUP] },
   eraser: { available: true, tool: 'eraser', groups: [ERASE_MODE_GROUP] },
   stair: { available: true, tool: 'stair', groups: [STAIR_SIZE_GROUP] },
 
@@ -451,6 +464,7 @@ const VARIANT_ECHO_SUBJECT: Partial<Record<ToolVariantStoreKey, string>> = {
   polygonSides: 'Próximo polígono',
   stairSizePreset: 'Próxima escada',
   drawTexture: 'Próximo traço',
+  brushMode: 'Pincel',
   // Não é "próxima" coisa nenhuma: é o modo com que a ferramenta apaga.
   eraseMode: 'Borracha',
   floorShapeKind: 'Próxima peça de chão',
@@ -473,6 +487,7 @@ const GROUP_BY_STORE_KEY: Record<ToolVariantStoreKey, ToolVariantGroup> = {
   polygonSides: POLYGON_SIDES_GROUP,
   stairSizePreset: STAIR_SIZE_GROUP,
   drawTexture: BRUSH_TEXTURE_GROUP,
+  brushMode: BRUSH_MODE_GROUP,
   eraseMode: ERASE_MODE_GROUP,
   floorShapeKind: FLOOR_SHAPE_GROUP,
   floorOp: FLOOR_OP_GROUP,

@@ -194,6 +194,7 @@ import { drawGuides } from './drawGuides'
 import { cloneEntity, type CloneableEntity } from '../lib/entityClone'
 import { placeNewRoom, subtreeIds } from '../lib/roomNesting'
 import { useToastStore } from '../stores/toastStore'
+import { baldeDeTintaNoPonto } from '../lib/baldeDeTinta'
 import { AVISO_PINCEL_SEM_ZONA, CORRIDOR_DISCARDED_TEXT, STAIR_CLICK_WITHOUT_DRAG_TEXT } from '../components/labels'
 import { WallGestureMenuHost } from '../components/WallGestureMenuHost'
 import { botaoDireitoEhDaParede, ligarMenuDaParede, type MenuDaParede } from './wallGesture'
@@ -3638,6 +3639,16 @@ export function PixiCanvas({
               useMapStore.getState().setActiveTool('select')
             }
           })()
+          return
+        }
+
+        if (activeTool === 'brush' && useMapStore.getState().brushMode === 'balde') {
+          // Balde do Pincel: um clique enche a área fechada de uma vez. Só o
+          // que está no piso em edição cerca a tinta.
+          const { drawColor, pintarComBalde } = useMapStore.getState()
+          const pintura = baldeDeTintaNoPonto(doPisoEmEdicao(map), worldPoint, drawColor, crypto.randomUUID())
+          if (pintura) pintarComBalde(pintura)
+          else useToastStore.getState().push('info', 'Nada para encher aqui: clique dentro do mapa, fora dos traços.')
           return
         }
 

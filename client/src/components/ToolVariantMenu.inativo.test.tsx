@@ -28,6 +28,7 @@ function bindings(roomFreeKind: RoomFreeKind): ToolVariantBindings {
     polygonSides: { value: 6, onChange: vi.fn() },
     stairSizePreset: { value: 'medium', onChange: vi.fn() },
     drawTexture: { value: 'pen', onChange: vi.fn() },
+    brushMode: { value: 'traco', onChange: vi.fn() },
     eraseMode: { value: 'objeto', onChange: vi.fn() },
     floorShapeKind: { value: 'rect', onChange: vi.fn() },
     floorOp: { value: 'add', onChange: vi.fn() },

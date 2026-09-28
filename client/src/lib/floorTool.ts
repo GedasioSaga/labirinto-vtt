@@ -249,7 +249,7 @@ export function apagarBlocosDoChao(
  * Traços que o balde não atravessa: cada parede, cada trecho de linha do mapa
  * (fechando a volta na linha fechada) e cada lado de sala ou região.
  */
-function barreirasDoBalde(map: Partial<Pick<MapData, 'walls' | 'lines' | 'regions'>>): Barreira[] {
+export function barreirasDoBalde(map: Partial<Pick<MapData, 'walls' | 'lines' | 'regions'>>): Barreira[] {
   const barreiras: Barreira[] = (map.walls ?? []).map((w) => ({ x1: w.x1, y1: w.y1, x2: w.x2, y2: w.y2 }))
   const contorno = (pontos: readonly Point[], fechado: boolean) => {
     const total = fechado ? pontos.length : pontos.length - 1

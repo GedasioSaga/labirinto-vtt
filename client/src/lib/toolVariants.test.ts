@@ -61,7 +61,7 @@ describe('TOOL_VARIANTS', () => {
   it('storeKey de cada grupo é um dos eixos confirmados (dossiê F4 + Fase 5)', () => {
     const validKeys: ToolVariantGroup['storeKey'][] = [
       'doorKind', 'wallKind', 'regionFillPattern', 'polygonSides',
-      'stairSizePreset', 'drawTexture', 'eraseMode',
+      'stairSizePreset', 'drawTexture', 'brushMode', 'eraseMode',
       'floorShapeKind', 'floorOp', 'floorPolygonSides', 'floorBrushSize', 'floorCamada',
       'roomFreeKind', 'roomFreeRounded',
     ]
@@ -171,11 +171,12 @@ describe('TOOL_VARIANTS', () => {
     expect(entry.groups[0].options.map((o) => o.value)).toEqual(['small', 'medium', 'large'])
   })
 
-  it('brush tem exatamente as 3 texturas de traço (pen/pencil/marker)', () => {
+  it('brush tem o Modo (traço livre/balde) e as 3 texturas de traço (pen/pencil/marker)', () => {
     const entry = TOOL_VARIANTS.brush
     if (!entry || !entry.available) throw new Error('brush deveria estar disponível (Fase 5)')
-    expect(entry.groups).toHaveLength(1)
-    expect(entry.groups[0].options.map((o) => o.value)).toEqual(['pen', 'pencil', 'marker'])
+    expect(entry.groups).toHaveLength(2)
+    expect(entry.groups[0].options.map((o) => o.value)).toEqual(['traco', 'balde'])
+    expect(entry.groups[1].options.map((o) => o.value)).toEqual(['pen', 'pencil', 'marker'])
   })
 
   it('eraser tem exatamente os 2 modos (objeto/parte)', () => {
@@ -199,8 +200,8 @@ describe('DRAWING_SHAPE_GROUP e drawingClusterGroups (botão Desenho)', () => {
     }
   })
 
-  it("drawingClusterGroups('brush') tem Forma + Textura do traço; ('line') tem só Forma", () => {
-    expect(drawingClusterGroups('brush').map((g) => g.label)).toEqual(['Forma', 'Textura do traço'])
+  it("drawingClusterGroups('brush') tem Forma + Modo + Textura do traço; ('line') tem só Forma", () => {
+    expect(drawingClusterGroups('brush').map((g) => g.label)).toEqual(['Forma', 'Modo', 'Textura do traço'])
     expect(drawingClusterGroups('line').map((g) => g.label)).toEqual(['Forma'])
   })
 

@@ -5,6 +5,7 @@ import type { StairSizePreset } from '../lib/stairs'
 import type { FloorShapeKind } from '../lib/floorTool'
 import type { TamanhoDePincel } from '../lib/floorBlocks'
 import type { CamadaDoChao } from '../lib/camadasDoChao'
+import type { BrushMode } from '../lib/baldeDeTinta'
 import type { ToolVariantGroup, ToolVariantOption, ToolVariantStoreKey } from '../lib/toolVariants'
 
 /**
@@ -33,6 +34,7 @@ export interface ToolVariantBindings {
   stairSizePreset: { value: StairSizePreset; onChange: (value: StairSizePreset) => void }
   /** Fase 5 — textura do PRÓXIMO traço livre (pincel). */
   drawTexture: { value: FreehandTexture; onChange: (value: FreehandTexture) => void }
+  brushMode: { value: BrushMode; onChange: (value: BrushMode) => void }
   /** Fase 5 — modo de gesto da Borracha. */
   eraseMode: { value: 'objeto' | 'parte'; onChange: (value: 'objeto' | 'parte') => void }
   /** Chão por peças — forma, operação e lados da PRÓXIMA peça. */
@@ -211,6 +213,8 @@ function GroupOptions({
       return <>{renderOptions(group.options, bindings.stairSizePreset.value, bindings.stairSizePreset.onChange, onPicked)}</>
     case 'drawTexture':
       return <>{renderOptions(group.options, bindings.drawTexture.value, bindings.drawTexture.onChange, onPicked)}</>
+    case 'brushMode':
+      return <>{renderOptions(group.options, bindings.brushMode.value, bindings.brushMode.onChange, onPicked)}</>
     case 'eraseMode':
       return <>{renderOptions(group.options, bindings.eraseMode.value, bindings.eraseMode.onChange, onPicked)}</>
     case 'floorShapeKind':
