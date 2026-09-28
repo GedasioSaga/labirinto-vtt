@@ -688,6 +688,22 @@ export function classifyMarqueeGesture(rect: AreaRect, cameraScale: number, shif
   return shiftKey ? 'add' : 'replace'
 }
 
+/**
+ * Ctrl (Cmd no Mac) no aperto do botão esquerdo abre o laço de seleção mesmo
+ * em cima de sala, caminho ou qualquer peça: num mapa cheio quase não sobra
+ * vazio para começar o retângulo. Exceção: em cima do que JÁ está selecionado
+ * o gesto continua sendo mover (livre das guias, `isFreeMoveModifier` em
+ * `alignmentGuides.ts`), para "selecionar e arrastar com Ctrl" seguir valendo.
+ */
+export function ctrlStartsMarquee(
+  event: { ctrlKey: boolean; metaKey: boolean; button: number },
+  pressedOnSelected: boolean,
+): boolean {
+  if (event.button !== 0) return false
+  if (!event.ctrlKey && !event.metaKey) return false
+  return !pressedOnSelected
+}
+
 /** Onde cabe a dica "Espaço ou botão do meio move a vista" DENTRO do
  *  retângulo em curso, em coordenadas de MUNDO (é lá que o marquee é
  *  desenhado). `visible: false` quando o retângulo é pequeno demais pra

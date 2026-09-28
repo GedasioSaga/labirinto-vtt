@@ -218,7 +218,7 @@ import { tokenRadiusOf } from '../lib/doorReach'
 // pra resize por canto de Drawing rect/ellipse/polygon, Token e Prop.
 import { drawingBoundingBox, tokenBoundingBox, propBoundingBox, resizeTokenSize, type Corner } from '../lib/objectTransform'
 // N3 "ferramenta de seleção de área" — geometria pura de marquee + mover grupo.
-import { selectEntitiesInArea, areaSelectionBounds, classifyMarqueeGesture, type AreaRect } from '../lib/areaSelection'
+import { selectEntitiesInArea, areaSelectionBounds, classifyMarqueeGesture, ctrlStartsMarquee, type AreaRect } from '../lib/areaSelection'
 import { drawSelectionMarquee, drawAreaSelectionOutline, createMarqueeHintRenderer } from './drawSelectionMarquee'
 // Onda 4, item 24 — modelo canônico de seleção (lib/selectionModel.ts).
 // `useMapStore.getState().selection` agora é um SelectionSet (conjunto);
@@ -2114,6 +2114,9 @@ export function PixiCanvas({
       // (coordenadas de mundo), e o snapshot/último-ponto do arrasto do grupo
       // já fechado, mesmo padrão de bodyDragLastPoint/roomCornerDragSnapshot.
       let areaMarqueeStart: Point | null = null
+      // Peça sob o cursor quando o laço abriu com Ctrl em cima dela: um
+      // Ctrl+clique parado a seleciona, como o clique comum (pointerup).
+      let areaMarqueeClickItem: SelectionItem | null = null
       let areaSelectionDragBefore: MapData | null = null
       let areaSelectionDragLastPoint: Point | null = null
       // A4 — arrasto do rótulo da Sala. Offset absoluto a partir do ponto e
@@ -4054,6 +4057,26 @@ export function PixiCanvas({
           }
         }
 
+        // Ctrl (Cmd) segurado: o laço de seleção abre mesmo em cima de sala,
+        // caminho, pino ou zona — o mapa cheio quase não deixa vazio para
+        // começar o retângulo. Em cima do que já está selecionado o gesto segue
+        // sendo mover livre das guias (`ctrlStartsMarquee`). Depois das alças
+        // e do arrasto de grupo de propósito: esses só pegam o que já está
+        // selecionado.
+        if (activeTool === 'select' && isFreeMoveModifier(event)) {
+          const ctrlHit = findSelectableAt(clickSelectMap(map), worldPoint) ?? floorHitAt(map, worldPoint)
+          const pressedOnSelected = ctrlHit ? selectionHas(selection, { kind: ctrlHit.kind, id: ctrlHit.id }) : false
+          if (ctrlStartsMarquee(event, pressedOnSelected)) {
+            const travada = camadaTravadaNoPiso(map, useMapStore.getState().pisoAtivo, worldPoint) !== null
+            areaMarqueeClickItem = ctrlHit && !travada ? { kind: ctrlHit.kind, id: ctrlHit.id } : null
+            mode = 'area-marquee-drag'
+            areaMarqueeStart = worldPoint
+            lastPoint = { x: event.global.x, y: event.global.y }
+            updateCursor()
+            return
+          }
+        }
+
         // Pino antes do hit-test geral: ele é desenhado POR CIMA de tudo, e o
         // que está por cima é o que o dedo acerta. Fica fora de `selection`
         // (igual à zona oculta), então abre o painel — e, destravado, o gesto
@@ -4301,6 +4324,7 @@ export function PixiCanvas({
           } else if (activeTool === 'select') {
             mode = 'area-marquee-drag'
             areaMarqueeStart = worldPoint
+            areaMarqueeClickItem = null
           } else {
             // Nenhuma ferramenta de desenho chega aqui (todas saem com
             // `return` bem acima); sobra a Selecionar. Este ramo é a rede de
@@ -4687,7 +4711,10 @@ export function PixiCanvas({
           const rect: AreaRect = { x1: areaMarqueeStart.x, y1: areaMarqueeStart.y, x2: worldPoint.x, y2: worldPoint.y }
           const gesture = classifyMarqueeGesture(rect, camera.scale, event.shiftKey)
           const store = useMapStore.getState()
-          if (gesture === 'click') {
+          if (gesture === 'click' && areaMarqueeClickItem !== null) {
+            const item = areaMarqueeClickItem
+            store.setSelection(event.shiftKey ? toggleSelectionItem(store.selection, item) : selectionOnClick(store.map, item))
+          } else if (gesture === 'click') {
             if (!event.shiftKey && store.selection.length > 0) store.setSelection(EMPTY_SELECTION)
             // A zona aberta pelo Selecionar (ver `findConcealZoneForSelect` no
             // pointerdown) fecha no clique no vazio, como fecha na ferramenta Zona.
@@ -4753,6 +4780,7 @@ export function PixiCanvas({
         resizingPropCorner = null
         resizingPropSnapshot = null
         areaMarqueeStart = null
+        areaMarqueeClickItem = null
         areaSelectionDragBefore = null
         areaSelectionDragLastPoint = null
         tokenDragSnapshot = null

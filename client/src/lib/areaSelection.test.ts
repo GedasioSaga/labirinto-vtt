@@ -7,6 +7,7 @@ import {
   isAreaSelectionEmpty,
   EMPTY_AREA_SELECTION,
   classifyMarqueeGesture,
+  ctrlStartsMarquee,
   marqueeHintPlacement,
 } from './areaSelection'
 import type { Wall, Region, Light, Token, Prop, Stair, Drawing, LayerId } from '../types/map'
@@ -280,6 +281,31 @@ describe('classifyMarqueeGesture', () => {
   it('escala de câmera inválida não trava o gesto: cai em 1', () => {
     expect(classifyMarqueeGesture({ x1: 0, y1: 0, x2: 200, y2: 0 }, 0, false)).toBe('replace')
     expect(classifyMarqueeGesture({ x1: 0, y1: 0, x2: 200, y2: 0 }, Number.NaN, false)).toBe('replace')
+  })
+})
+
+describe('ctrlStartsMarquee', () => {
+  const botao = { ctrlKey: false, metaKey: false, button: 0 }
+
+  it('Ctrl em cima de peça não selecionada abre o laço', () => {
+    expect(ctrlStartsMarquee({ ...botao, ctrlKey: true }, false)).toBe(true)
+  })
+
+  it('Cmd no Mac vale igual ao Ctrl', () => {
+    expect(ctrlStartsMarquee({ ...botao, metaKey: true }, false)).toBe(true)
+  })
+
+  it('sem Ctrl, o aperto em cima da peça segue sendo selecionar e mover', () => {
+    expect(ctrlStartsMarquee(botao, false)).toBe(false)
+  })
+
+  it('Ctrl em cima do que já está selecionado segue movendo livre', () => {
+    expect(ctrlStartsMarquee({ ...botao, ctrlKey: true }, true)).toBe(false)
+  })
+
+  it('só o botão esquerdo: o do meio continua movendo a vista', () => {
+    expect(ctrlStartsMarquee({ ...botao, ctrlKey: true, button: 1 }, false)).toBe(false)
+    expect(ctrlStartsMarquee({ ...botao, ctrlKey: true, button: 2 }, false)).toBe(false)
   })
 })
 
