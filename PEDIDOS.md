@@ -1133,3 +1133,11 @@ Noite = esta sessão conduzida pelo main thread; o noite-runner continua encerra
 - Imagem 21: título "Ancora Prateada" numa pílula bege com texto escuro, sobre fundo marrom.
 - Imagem 22: peça selecionada (quadrado com alças e alça de girar) com as linhas amarelas de alinhamento com as outras peças.
 - Fila: (1) título: tirar o fundo, diminuir a fonte, escolher a cor, horizontal ou vertical; (2) segurar Ctrl ao arrastar desliga o alinhamento e a peça anda livre.
+- Feito: título em `cd645400`, Ctrl livre em `a9a163c2`.
+
+### 28/09/2026, fim de tarde: Ctrl para selecionar área em cima de sala
+
+> "Por enquanto só quero mais uma coisa [Image #23] sabe essa parte de selecionar tudo, em cima do caminho e em cima de sala não funciona e eu eu quero a mesma coisa, caso eu aperte ctrl ele eu vou poder selicionar tudo mesmo em cima de sala."
+
+- Imagem 23: retângulo tracejado de seleção de área, começando no escuro e cobrindo uma área azul (sala/caminho).
+- Fila: (1) com Ctrl segurado, arrastar em cima de sala ou caminho abre a seleção de área em vez de mover a peça.
