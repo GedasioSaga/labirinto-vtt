@@ -845,3 +845,10 @@ Publicar 0.4.4 ao fechar as 5 features (suíte 1x, fumaça, instalador, push com
 - 809bb34d feat(floor): paint floor by layer and choose which floor sits on top (Camada no menu do Chão + lista Camadas do chão com subir/descer)
 - Evidência: tsc limpo; vitest 75 arquivos/867 testes verdes; navegador após reload: Mar por cima, Subir Chão põe o Chão por cima; peça travada não arrasta.
 - Pendente: 4 arquivos de escada parciais seguem fora de commit. Push/instalador no ritmo de 5 features.
+
+### 28/09/2026, tarde: chão na borda do mapa e balde de tinta
+
+- `2017c7e7` fix(floor): o chão para na borda do mapa no editor, na tela do jogador e na miniatura (recorte do contorno por `mapFloorClip` em `client/src/lib/floorContour.ts`). Teste `client/src/lib/floorContour.clip.test.ts` 3/3.
+- "Chão por cima das salas": não reproduzido. O quadrado verde da imagem 18 é a sala "Cemiterio" (`#224d05`). O chão já é desenhado por baixo das salas nas três telas. Aguardando um print do usuário.
+- Balde de tinta: o balde do Chão (forma "Balde") para em parede, linha do mapa, borda de sala e borda do mapa (`passagensCortadas` em `client/src/lib/floorBlocks.ts`, `barreirasDoBalde` em `client/src/lib/floorTool.ts`). Teste `client/src/lib/floorBlocks.balde.test.ts` nasceu vermelho (6/7), depois verde. Evidência: vitest `floorBlocks pisoEmEdicao hostSession.espiar fogFilter.janelaGrade floorContour` 8 arquivos 81/81; tsc 0. Mapa real (100x100, 1159 paredes, 78 salas): 7124 células em 20 ms.
+- Não testado no browser. É a 4ª feature desde a 0.4.5; push e instalador na 5ª.
