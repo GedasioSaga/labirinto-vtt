@@ -1,5 +1,5 @@
 import type { FloorPiece, MapData, Wall } from '../types/map'
-import { buildFloorOutline, type FloorPolygon } from '../lib/floorContour'
+import { buildFloorOutline, mapFloorClip, type FloorClip, type FloorPolygon } from '../lib/floorContour'
 import { isHidden } from '../lib/itemTransform'
 import { isLayerVisible, visibleRegions, visibleTokens, visibleWalls } from '../lib/layers'
 import { mapaDoPiso } from '../lib/pisos'
@@ -178,6 +178,7 @@ function groupInto<T extends { key: string; d: string }>(groups: Map<string, T>,
 
 interface FloorOutline {
   step: number
+  clipKey: string
   polygons: FloorPolygon[]
   layers: FloorColorLayer[]
 }
@@ -190,10 +191,11 @@ interface FloorOutline {
  */
 const floorOutlines = new WeakMap<FloorPiece[], FloorOutline>()
 
-function floorOutlineOf(floor: FloorPiece[], step: number): FloorOutline {
+function floorOutlineOf(floor: FloorPiece[], step: number, clip: FloorClip | undefined): FloorOutline {
+  const clipKey = clip ? `${clip.maxX}x${clip.maxY}` : ''
   const cached = floorOutlines.get(floor)
-  if (cached && cached.step === step) return cached
-  const outline = { step, polygons: buildFloorOutline(floor, { step }), layers: buildColorLayers(floor, step) }
+  if (cached && cached.step === step && cached.clipKey === clipKey) return cached
+  const outline = { step, clipKey, polygons: buildFloorOutline(floor, { step, clip }), layers: buildColorLayers(floor, step, clip) }
   floorOutlines.set(floor, outline)
   return outline
 }
@@ -258,7 +260,7 @@ export function sceneArt(scene: MapData, piso = 0): SceneArt | null {
   const content = emptyBox()
 
   const floorVisible = isLayerVisible(hidden, 'salas') && map.floor.length > 0
-  const outline = floorVisible ? floorOutlineOf(map.floor, floorStepFor(map, mapRect)) : null
+  const outline = floorVisible ? floorOutlineOf(map.floor, floorStepFor(map, mapRect), mapFloorClip(map)) : null
   if (outline) {
     for (const polygon of outline.polygons) for (const p of polygon.outer) grow(content, p.x, p.y)
   }

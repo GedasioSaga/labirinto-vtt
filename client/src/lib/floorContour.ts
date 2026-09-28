@@ -20,6 +20,25 @@ export interface ContourOptions {
   step?: number
   /** Desvio máximo aceito na simplificação, em px de mundo. 0 desliga. */
   tolerance?: number
+  /**
+   * Retângulo do mapa, em px de mundo. Chão fora dele é cortado: a névoa do
+   * jogador só cobre o mapa, então chão além da borda aparecia descoberto.
+   */
+  clip?: FloorClip
+}
+
+export interface FloorClip {
+  minX: number
+  minY: number
+  maxX: number
+  maxY: number
+}
+
+/** Retângulo do mapa como recorte do chão; `undefined` se o mapa não tem tamanho. */
+export function mapFloorClip(map: { width: number; height: number; grid: number }): FloorClip | undefined {
+  const maxX = map.width * map.grid
+  const maxY = map.height * map.grid
+  return maxX > 0 && maxY > 0 ? { minX: 0, minY: 0, maxX, maxY } : undefined
 }
 
 const DEFAULT_STEP = 2
@@ -215,6 +234,14 @@ function sampleAcrossSeam(sample: CompiledFloor['sample'], x: number, y: number,
   return across ? -SEAM_ZERO : value
 }
 
+function intersectBounds(a: FloorClip, b: FloorClip): FloorClip | null {
+  const minX = Math.max(a.minX, b.minX)
+  const minY = Math.max(a.minY, b.minY)
+  const maxX = Math.min(a.maxX, b.maxX)
+  const maxY = Math.min(a.maxY, b.maxY)
+  return minX < maxX && minY < maxY ? { minX, minY, maxX, maxY } : null
+}
+
 function boundingDiagonal(ring: RegionPoint[]): number {
   let minX = Infinity
   let minY = Infinity
@@ -234,7 +261,8 @@ export function extractFloorRings(pieces: FloorPiece[], options: ContourOptions 
   const step = options.step ?? DEFAULT_STEP
   const tolerance = options.tolerance ?? DEFAULT_TOLERANCE
   const compiled = compileFloor(pieces)
-  const { bounds } = compiled
+  const { clip } = options
+  const bounds = clip && compiled.bounds ? intersectBounds(compiled.bounds, clip) : compiled.bounds
   if (!bounds) return []
 
   // Moldura de 2 amostras fora do chão: garante borda da grade positiva.
@@ -243,6 +271,19 @@ export function extractFloorRings(pieces: FloorPiece[], options: ContourOptions 
   const cols = Math.ceil((bounds.maxX - originX) / step) + 3
   const rows = Math.ceil((bounds.maxY - originY) / step) + 3
   const values = sampleFloorGrid(compiled, originX, originY, cols, rows, step)
+  // Interseção de campos de distância: o maior valor vence, e a borda do mapa
+  // vira contorno interpolado como qualquer outra borda do chão.
+  if (clip) {
+    for (let j = 0; j < rows; j += 1) {
+      const y = originY + j * step
+      for (let i = 0; i < cols; i += 1) {
+        const x = originX + i * step
+        const outside = Math.max(clip.minX - x, x - clip.maxX, clip.minY - y, y - clip.maxY)
+        const k = j * cols + i
+        if (outside > values[k]) values[k] = outside
+      }
+    }
+  }
   for (let i = 0; i < cols; i += 1) {
     values[i] = 1
     values[(rows - 1) * cols + i] = 1

@@ -22,6 +22,7 @@ import { findStairPinAt } from '../lib/selectionHitTest'
 import { findPinAt, findPinsAt, pinSizeScale, pinTapTolerance } from '../lib/pins'
 import { escolhaDoToque } from './pinChooser'
 import { visiblePins } from '../lib/layers'
+import { mapFloorClip } from '../lib/floorContour'
 import { createPinsRenderer } from '../pixi/drawPins'
 import { drawMarcas } from '../pixi/drawMarcas'
 import { acharBilheteEm } from '../lib/marcas'
@@ -1049,7 +1050,7 @@ function redrawFloor(scene: Scene, map: MapData): void {
   } else {
     scene.raster.texture = Texture.EMPTY
     // Mesma regra do editor (PixiCanvas redrawShapes): chão na camada 'salas'.
-    scene.floorRenderer.draw(scene.floor, hidden.includes('salas') ? [] : map.floor, map.floorStyle)
+    scene.floorRenderer.draw(scene.floor, hidden.includes('salas') ? [] : map.floor, map.floorStyle, mapFloorClip(map))
     if (!hidden.includes('paredes')) drawMapLines(scene.mapLines, map.lines)
     if (!hidden.includes('portas')) drawMapMarkers(scene.mapLines, map.markers)
   }

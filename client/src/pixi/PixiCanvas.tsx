@@ -74,6 +74,7 @@ import {
   pincelDeBlocosApaga,
 } from '../lib/floorTool'
 import { blocosDoTraco, buildBlocosShape, chaveDoBloco, type Bloco } from '../lib/floorBlocks'
+import { mapFloorClip } from '../lib/floorContour'
 import { corDaCamada, pecaNaCamada } from '../lib/camadasDoChao'
 
 /** Referência estável: camada oculta não força recalcular o contorno a cada redraw. */
@@ -1318,7 +1319,7 @@ export function PixiCanvas({
           redrawMapRaster(map)
         } else {
           clearMapRaster()
-          floorRenderer.draw(floorGraphics, map.hiddenLayers.includes('salas') ? EMPTY_FLOOR : map.floor, map.floorStyle)
+          floorRenderer.draw(floorGraphics, map.hiddenLayers.includes('salas') ? EMPTY_FLOOR : map.floor, map.floorStyle, mapFloorClip(map))
         }
       }
 

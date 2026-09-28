@@ -1,10 +1,11 @@
 import { Color, type Graphics } from 'pixi.js'
 import type { FloorPiece, FloorStyle, RegionPoint } from '../types/map'
-import { buildFloorOutline, type FloorPolygon } from '../lib/floorContour'
+import { buildFloorOutline, type FloorClip, type FloorPolygon } from '../lib/floorContour'
 import { SELECTION_COLOR, STROKE_WEIGHT } from './constants'
 
 export interface FloorRenderer {
-  draw: (graphics: Graphics, floor: FloorPiece[], style: FloorStyle, selectedPieceId?: string | null) => void
+  /** `clip` = retângulo do mapa; chão fora dele não é pintado (ver `mapFloorClip`). */
+  draw: (graphics: Graphics, floor: FloorPiece[], style: FloorStyle, clip?: FloorClip) => void
   /** Contorno da peça selecionada, isolada das outras; `null` limpa. */
   drawSelection: (graphics: Graphics, piece: FloorPiece | null, step?: number) => void
   /** Polígonos do último `draw` (cache por referência): a hachura e a máscara do piso reusam sem recalcular. */
@@ -90,14 +91,14 @@ export function paintFloor(
  * a do chão do mapa): senão o Chão desenhado por cima do Mar ficaria por baixo
  * dele. Antes da primeira colorida não precisa — a base já pinta essas.
  */
-export function buildColorLayers(floor: FloorPiece[], step: number | undefined): FloorColorLayer[] {
+export function buildColorLayers(floor: FloorPiece[], step: number | undefined, clip?: FloorClip): FloorColorLayer[] {
   const layers: FloorColorLayer[] = []
   for (let i = 0; i < floor.length; i += 1) {
     const piece = floor[i]
     if (piece.hidden || piece.op !== 'add') continue
     if (piece.fillColor === undefined && layers.length === 0) continue
     const buracosDepois = floor.slice(i + 1).filter((p) => p.op === 'subtract' && !p.hidden)
-    layers.push({ color: piece.fillColor ?? null, polygons: buildFloorOutline([piece, ...buracosDepois], { step }) })
+    layers.push({ color: piece.fillColor ?? null, polygons: buildFloorOutline([piece, ...buracosDepois], { step, clip }) })
   }
   return layers
 }
@@ -139,6 +140,7 @@ export function drawFloorDraft(graphics: Graphics, piece: FloorPiece, fillColor:
 export function createFloorRenderer(): FloorRenderer {
   let lastFloor: FloorPiece[] | null = null
   let lastStep: number | undefined
+  let lastClipKey = ''
   let polygons: FloorPolygon[] = []
   let colorLayers: FloorColorLayer[] = []
 
@@ -148,12 +150,14 @@ export function createFloorRenderer(): FloorRenderer {
   let lastSelectedStep: number | undefined
   let selectedPolygons: FloorPolygon[] = []
 
-  function draw(graphics: Graphics, floor: FloorPiece[], style: FloorStyle): void {
-    if (floor !== lastFloor || style.sampleStep !== lastStep) {
-      polygons = buildFloorOutline(floor, { step: style.sampleStep })
-      colorLayers = buildColorLayers(floor, style.sampleStep)
+  function draw(graphics: Graphics, floor: FloorPiece[], style: FloorStyle, clip?: FloorClip): void {
+    const clipKey = clip ? `${clip.minX},${clip.minY},${clip.maxX},${clip.maxY}` : ''
+    if (floor !== lastFloor || style.sampleStep !== lastStep || clipKey !== lastClipKey) {
+      polygons = buildFloorOutline(floor, { step: style.sampleStep, clip })
+      colorLayers = buildColorLayers(floor, style.sampleStep, clip)
       lastFloor = floor
       lastStep = style.sampleStep
+      lastClipKey = clipKey
     }
     paintFloor(graphics, polygons, style, colorLayers)
   }
