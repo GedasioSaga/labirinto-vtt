@@ -1124,3 +1124,12 @@ Noite = esta sessão conduzida pelo main thread; o noite-runner continua encerra
 > "Acho que você não entendeu, não era para fazer na forma de chão mas sim na forma de pincel, pode fazer ali no pincel ?"
 
 - O balde de tinta vai para o Pincel do botão Desenho: modo "Balde" enche de uma vez uma área fechada com a cor do desenho. O Balde do Chão continua (pedido de 15/09/2026).
+- Feito em `6f17294d`.
+
+### 28/09/2026, fim de tarde: título das salas e guia de alinhamento
+
+> "Pronto as proximas feature são essas: [Image #21] eu quero poder tirar o fundo do titulos, dimunir a fonte do titulo, escolher a cor do titulo e ecolocar na horizontal ou vertical. [Image #22] e nisso que diz se ta alinhado com os outros, as vezes é inconvenhiente pois trava o movimento então veja se eu aperta ctrl e mover ele não fica nisso ele se move livre."
+
+- Imagem 21: título "Ancora Prateada" numa pílula bege com texto escuro, sobre fundo marrom.
+- Imagem 22: peça selecionada (quadrado com alças e alça de girar) com as linhas amarelas de alinhamento com as outras peças.
+- Fila: (1) título: tirar o fundo, diminuir a fonte, escolher a cor, horizontal ou vertical; (2) segurar Ctrl ao arrastar desliga o alinhamento e a peça anda livre.
