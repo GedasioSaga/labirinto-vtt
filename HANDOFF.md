@@ -885,3 +885,15 @@ Publicar 0.4.4 ao fechar as 5 features (suíte 1x, fumaça, instalador, push com
 - `rtk proxy npx tsc --noEmit`: ok.
 - vitest da área (roomLabelStyle, drawRoomNames, mapFactory, mapFile, RoomControls, RoomLabelStyleControls, PropertiesPanel, mapStore): 102 arquivos, 891/891.
 - Navegador: `titulo-antes.png` (controles sob o Nome, plaquinha padrão) e `titulo-depois.png` (sem fundo, 65%, #f2d16b, vertical, botão Padrão visível) no scratchpad. Um Ctrl+Z depois das quatro mudanças desfez só a última (Vertical voltou a `aria-checked="false"`).
+
+### 28/09 17:52 — Ctrl solta o arrasto das guias (`a9a163c2`)
+
+- Feature 3 de 5 desde a 0.4.6.
+- Ctrl (Cmd no Mac) segurado durante o arrasto pula `computeAlignment` nos 8 modos de arrasto de `client/src/pixi/PixiCanvas.tsx` (token, prop, ponta de parede, ponto de região, corpo de parede, corpo de região, corpo de escada, corpo de linha) e também o ímã de vértice da ponta de parede. Snap de grade continua no Alt; Ctrl+Alt solta os dois.
+- Lógica pura em `client/src/lib/alignmentGuides.ts`: `isFreeMoveModifier(event)` e `alignUnlessFree(point, candidates, free)`.
+- Vale no meio do arrasto: apertar Ctrl some a guia na hora; soltar Ctrl volta a grudar.
+
+## Evidência
+- `rtk proxy npx tsc --noEmit`: ok.
+- vitest `src/lib/alignmentGuides.test.ts src/pixi`: 73 arquivos, 868/868.
+- Navegador: `ctrl-sem.png` (sala 2 arrastada até a coluna da sala 1, guia amarela vertical na borda esquerda), `ctrl-com.png` (mesmo arrasto com Ctrl, sem guia) e `ctrl-solto.png` (Ctrl solto, guia volta) no scratchpad.
