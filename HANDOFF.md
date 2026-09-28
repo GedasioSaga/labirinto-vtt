@@ -897,3 +897,16 @@ Publicar 0.4.4 ao fechar as 5 features (suíte 1x, fumaça, instalador, push com
 - `rtk proxy npx tsc --noEmit`: ok.
 - vitest `src/lib/alignmentGuides.test.ts src/pixi`: 73 arquivos, 868/868.
 - Navegador: `ctrl-sem.png` (sala 2 arrastada até a coluna da sala 1, guia amarela vertical na borda esquerda), `ctrl-com.png` (mesmo arrasto com Ctrl, sem guia) e `ctrl-solto.png` (Ctrl solto, guia volta) no scratchpad.
+
+### 28/09 18:05 — Ctrl abre o laço em cima de sala (`346316c5`)
+
+- Feature 4 de 5 desde a 0.4.6.
+- Ferramenta Selecionar + Ctrl (Cmd no Mac) no aperto do botão esquerdo, em cima de sala, caminho, pino ou zona **não selecionados**: abre o laço de seleção de área (`area-marquee-drag`) em vez de mover a peça. Ctrl+Shift soma à seleção.
+- Exceção: em cima do que já está selecionado o gesto continua sendo mover, livre das guias (feature 3). Alças e arrasto de grupo continuam com prioridade.
+- Ctrl+clique parado em cima de uma peça a seleciona (`selectionOnClick`, expande grupo); com Shift alterna. Peça em camada travada: o clique limpa a seleção.
+- Lógica pura: `ctrlStartsMarquee(event, pressedOnSelected)` em `client/src/lib/areaSelection.ts`. Ramo novo em `client/src/pixi/PixiCanvas.tsx`, logo depois das alças e do arrasto de grupo, antes do hit-test de pino; `areaMarqueeClickItem` guarda a peça do Ctrl+clique.
+
+## Evidência
+- `rtk proxy npx tsc --noEmit`: ok.
+- vitest da área: 75 arquivos, 947/947.
+- Navegador (scratchpad): `marquee-ctrl-meio.png` (laço tracejado começando dentro da Sala 1), `marquee-ctrl.png` (5 itens selecionados: Sala 2 + 4 paredes), `marquee-ctrl-selecionado.png` (Ctrl+arrasto em cima da Sala 2 já selecionada moveu o grupo), `marquee-sem-ctrl.png` (sem Ctrl, o arrasto move a Sala 1).
