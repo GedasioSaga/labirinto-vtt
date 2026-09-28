@@ -27,6 +27,7 @@ import { lojaParaJogador } from './loja'
 import { keyForPin } from './doorKey'
 import { computeVisibility, hasLineOfSight, visionSegments, wallLetsSightThrough, type Segment } from './visibility'
 import { isDoorPassable } from './collision'
+import { closeIfLocked } from './doorLock'
 import { DOOR_REACH_CELLS, distanceToWall, tokenRadiusOf, tokenReachesDoor } from './doorReach'
 import { darkVision, type Darkness } from './darkness'
 import { ancestorsOf, NESTING_TOLERANCE, pointInPolygonInclusive, pointOnPolygonBorder, subtreeIds } from './roomNesting'
@@ -1529,9 +1530,12 @@ function unseenDoor(door: DoorState): DoorState {
  * A porta como o jogador a vê: aberta ou fechada, nunca trancada — e sem o
  * "Abre com" (CHAVE ABRE PORTA): o jogador nunca descobre que portas uma chave
  * abre. Quem tem a chave só lê o nome dela na recusa do toque (`hostSession`).
+ * Aberta E trancada (mapa ou lembrança de antes da regra) fecha antes de o
+ * cadeado sair (`closeIfLocked`): o host já a trata como fechada
+ * (`isDoorPassable`), e sem isso o jogador a receberia aberta e destrancada.
  */
 function withoutLock(door: DoorState): DoorState {
-  const { abreCom: _chave, ...semChave } = door
+  const { abreCom: _chave, ...semChave } = closeIfLocked(door)
   return { ...semChave, locked: false }
 }
 
