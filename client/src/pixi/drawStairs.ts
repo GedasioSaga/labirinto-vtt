@@ -1,45 +1,47 @@
 import type { Graphics } from 'pixi.js'
-import type { Stair, StairSegment } from '../types/map'
-import { SELECTION_COLOR, STAIR_COLOR, STROKE_WEIGHT } from './constants'
-import { alignToPixel, pixelGrid, strokeWidthInWorld, type PixelGrid } from './pixelAlign'
-import { computeSpiralPlan, computeStairPlan, type SpiralPlan, type StairPlan, type StairTread } from '../lib/stairs'
+import type { Stair } from '../types/map'
+import { SELECTION_COLOR, STAIR_COLOR, STAIR_LANDING_COLOR, STAIR_PLATE_COLOR, STROKE_WEIGHT } from './constants'
+import { pixelGrid, strokeWidthInWorld } from './pixelAlign'
+import { computeSpiralPlan, type SpiralPlan } from '../lib/stairs'
+import { planStairFlight, type Quad, type StairFlight } from './stairFlight'
 import type { Point } from './world'
 import { selectionOutlineWidth } from './drawWalls'
 
-/** Tom do degrau no pé do lance — o degrau de baixo afunda na sombra, o de cima pega a luz. */
+/** Tom do raio da ESPIRAL no pé do lance: o raio de baixo afunda na sombra, o de cima pega a luz. */
 export const STAIR_TREAD_ALPHA_AT_FOOT = 0.55
 export const STAIR_TREAD_ALPHA_AT_TOP = 1
 
-/** Viga lateral logo abaixo da parede (que é alpha 1) — é borda de escada, não parede. */
+/** Degrau, moldura e contorno da espiral: logo abaixo da parede (que é alpha 1). É escada, não parede. */
 export const STAIR_RAIL_ALPHA = 0.85
 
-/** Piso do degrau em px de TELA: de longe o lance vira um borrão, mas nunca some. */
-const MIN_TREAD_SCREEN_PX = 1
-
-/** `climb` (0 no pé do lance, 1 no topo) em opacidade de degrau. */
+/** `climb` (0 no pé do lance, 1 no topo) em opacidade de raio da espiral. */
 export function treadAlpha(climb: number): number {
   return STAIR_TREAD_ALPHA_AT_FOOT + (STAIR_TREAD_ALPHA_AT_TOP - STAIR_TREAD_ALPHA_AT_FOOT) * climb
 }
 
 /**
- * Escada RETA renderizada procedural (não é sprite), na gramática do minimapa
- * de Resident Evil: traço fino sobre chão chapado, uma cor só, nada de massa.
+ * Escada renderizada procedural (não é sprite), na gramática do minimapa de
+ * Resident Evil: cor chapada, traço fino, nada de sombra nem gradiente.
  *
- *   - VIGA LATERAL: os dois lados do lance como traço de 1 px de TELA, como a
- *     parede. É o que delimita o lance e faz o resto se ler como degrau.
- *   - DEGRAU: galão (V) apontando ladeira acima, geometria de `lib/stairs.ts`.
- *     Engorda (largura vem do plano) e clareia (`treadAlpha` aqui) rumo ao topo.
+ * LANCE RETO (geometria em stairFlight.ts), pintado em quatro camadas:
+ *   - PLACA: o retângulo da escada, chapado em `STAIR_PLATE_COLOR`. Dá à linha
+ *     clara do degrau o mesmo contraste em chão claro e em chão escuro.
+ *   - PATAMAR: piso chapado no TOPO do lance, em `STAIR_LANDING_COLOR`.
+ *   - DEGRAUS: linhas finas paralelas de moldura a moldura, que se apertam
+ *     perto do pé e se abrem rumo ao topo.
+ *   - MOLDURA: o contorno do lance, 1 px de tela, como a parede.
  *
- * As três pistas dizem a mesma coisa, então subir e descer viram desenhos
- * espelhados em vez de "a mesma escada com a setinha do outro lado" (queixa de
- * 17/09/2026: "como eu sei que essa escada vai para cima ou para baixo?").
- * Nenhuma delas muda colisão ou névoa: escada continua sendo só desenho.
+ * O sentido se lê pelo patamar e pelo ritmo dos degraus, as duas pistas
+ * apontando para o mesmo lado; o contorno é um retângulo sem cunha, então o
+ * desenho não vira seta. Responde às queixas de 17/09/2026 ("como eu sei que
+ * essa escada vai para cima ou para baixo?") e de 27/09/2026 ("parece só uma
+ * seta apontando"). Nada disso muda colisão ou névoa: escada é só desenho.
  *
- * Mesmo esqueleto de drawWalls.ts — `graphics.clear()` e redesenha tudo a cada
- * chamada, sem cache de estado. A escada selecionada tem o lance inteiro traçado
- * POR BAIXO em `SELECTION_COLOR` (`SELECTION_OUTLINE_SCREEN_PX` de cada lado,
- * mesma regra de drawWalls.ts): a cor real da escada continua visível por cima,
- * e `cameraScale` mantém o contorno com espessura fixa na tela.
+ * Mesmo esqueleto de drawWalls.ts: `graphics.clear()` e redesenha tudo a cada
+ * chamada, sem cache de estado. A escada selecionada ganha, ANTES do resto, um
+ * anel em `SELECTION_COLOR` de `SELECTION_OUTLINE_SCREEN_PX` por fora da placa
+ * (mesma regra de drawWalls.ts); `cameraScale` mantém o anel com espessura
+ * fixa na tela.
  */
 export function drawStairs(
   graphics: Graphics,
@@ -62,39 +64,54 @@ export function drawStairs(
 
   const planned = stairs.filter((stair) => stair.shape !== 'spiral').map((stair) => ({
     stair,
-    plans: stair.segments
-      .map((segment) => {
-        const plan = computeStairPlan(segment, stair.stepWidth, stair.direction)
-        return plan === null ? null : { plan, rails: alignRails(plan.rails, segment, pixel) }
-      })
-      .filter((entry): entry is PlannedSegment => entry !== null),
+    flights: stair.segments
+      .map((segment) => planStairFlight(segment, stair.stepWidth, stair.direction, cameraScale, rendererResolution))
+      .filter((flight): flight is StairFlight => flight !== null),
   }))
 
   const selected = planned.find((entry) => entry.stair.id === selectedStairId)
   if (selected) {
-    // Cada traço ganha a MESMA sobra (drawWalls.ts: `style.width + 2 * outline`),
-    // então o realce acompanha o lance em vez de engrossar tudo até virar bloco.
-    for (const { plan, rails } of selected.plans) {
-      for (const rail of rails) tracePath(graphics, rail)
-      graphics.stroke({ width: strokeWidthInWorld(pixel) + sobra, color: SELECTION_COLOR, cap: 'round' })
-      for (const tread of plan.treads) {
-        tracePath(graphics, tread.points)
-        graphics.stroke({ width: treadWidth(tread, scale) + sobra, color: SELECTION_COLOR, join: 'round', cap: 'round' })
-      }
+    const ringWidth = selectionOutlineWidth(scale)
+    for (const flight of selected.flights) {
+      graphics.poly(ringQuad(flight, ringWidth / 2), true)
+      graphics.stroke({ width: ringWidth, color: SELECTION_COLOR, join: 'miter' })
     }
   }
 
-  for (const { plan, rails } of planned.flatMap((entry) => entry.plans)) {
-    for (const rail of rails) tracePath(graphics, rail)
-    graphics.stroke({ width: strokeWidthInWorld(pixel), color: STAIR_COLOR, alpha: STAIR_RAIL_ALPHA, cap: 'butt' })
-
-    for (const tread of plan.treads) {
-      tracePath(graphics, tread.points)
-      graphics.stroke({ width: treadWidth(tread, scale), color: STAIR_COLOR, alpha: treadAlpha(tread.climb), join: 'round', cap: 'round' })
-    }
-  }
+  for (const flight of planned.flatMap((entry) => entry.flights)) paintFlight(graphics, flight)
 
   for (const { plan } of spirals) strokeSpiral(graphics, plan, hairline, 'escada')
+}
+
+/** Placa, patamar, degraus e moldura de um lance reto, nesta ordem. */
+function paintFlight(graphics: Graphics, flight: StairFlight): void {
+  graphics.poly(flight.plate, true)
+  graphics.fill({ color: STAIR_PLATE_COLOR })
+
+  if (flight.landing !== null) {
+    graphics.poly(flight.landing, true)
+    graphics.fill({ color: STAIR_LANDING_COLOR })
+  }
+
+  // Todos os degraus num stroke só: nenhum se sobrepõe a outro, então o alpha
+  // não dobra em lugar nenhum.
+  if (flight.treads.length > 0) {
+    for (const tread of flight.treads) tracePath(graphics, tread)
+    graphics.stroke({ width: flight.treadWidth, color: STAIR_COLOR, alpha: STAIR_RAIL_ALPHA, cap: 'butt' })
+  }
+
+  graphics.poly(flight.frame, true)
+  graphics.stroke({ width: flight.frameWidth, color: STAIR_COLOR, alpha: STAIR_RAIL_ALPHA, join: 'miter' })
+}
+
+/** A placa empurrada `offset` para fora em cada lado: a linha central do anel de seleção. */
+function ringQuad(flight: StairFlight, offset: number): Quad {
+  const push = (corner: Point, alongSign: number, acrossSign: number): Point => ({
+    x: corner.x + (alongSign * flight.along.x + acrossSign * flight.across.x) * offset,
+    y: corner.y + (alongSign * flight.along.y + acrossSign * flight.across.y) * offset,
+  })
+  const [a, b, c, d] = flight.plate
+  return [push(a, -1, -1), push(b, 1, -1), push(c, 1, 1), push(d, -1, 1)]
 }
 
 /** As espirais que têm lance para desenhar, com a geometria de cada uma. */
@@ -127,30 +144,8 @@ function strokeSpiral(graphics: Graphics, plan: SpiralPlan, width: number, pen: 
   }
 }
 
-interface PlannedSegment {
-  plan: StairPlan
-  rails: [Point, Point][]
-}
-
-/** Espessura do degrau em px de mundo, com piso de 1 px de tela. */
-function treadWidth(tread: StairTread, cameraScale: number): number {
-  return Math.max(tread.width, MIN_TREAD_SCREEN_PX / cameraScale)
-}
-
 function tracePath(graphics: Graphics, points: readonly Point[]): void {
   const [first, ...rest] = points
   graphics.moveTo(first.x, first.y)
   for (const point of rest) graphics.lineTo(point.x, point.y)
-}
-
-/**
- * Lance horizontal/vertical com as vigas laterais no pixel físico inteiro
- * (pixelAlign.ts; exige `world.position` alinhado) — é o tratamento que a linha
- * central do desenho antigo recebia, agora na borda, que é o traço fino que
- * sobrou. Lance na diagonal fica como está: não há eixo para casar.
- */
-function alignRails(rails: StairPlan['rails'], segment: StairSegment, pixel: PixelGrid): [Point, Point][] {
-  if (segment.y1 === segment.y2) return rails.map((rail) => rail.map((p) => ({ x: p.x, y: alignToPixel(p.y, pixel) })) as [Point, Point])
-  if (segment.x1 === segment.x2) return rails.map((rail) => rail.map((p) => ({ x: alignToPixel(p.x, pixel), y: p.y })) as [Point, Point])
-  return rails.map((rail) => [...rail] as [Point, Point])
 }

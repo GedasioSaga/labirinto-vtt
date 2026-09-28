@@ -6,10 +6,30 @@ export const SELECTION_COLOR = 0xffdd55
  * contra o fundo escuro do canvas (0x2b2b2b, ver PixiCanvas.tsx). */
 export const ANGLE_INDICATOR_COLOR = 0xaaaaaa
 
-/** Cor de traço dos degraus de escada (drawStairs.ts) — bege claro, perto do
- * cinza de WALL_COLOR['exterior'] (drawWalls.ts) mas visivelmente distinto,
- * pra não confundir lance de escada com parede num relance à tela. */
+/** Cor de traço dos degraus e da moldura da escada (drawStairs.ts) — bege
+ * claro, perto do cinza de WALL_COLOR['exterior'] (drawWalls.ts) mas
+ * visivelmente distinto, pra não confundir lance de escada com parede num
+ * relance à tela. */
 export const STAIR_COLOR = 0xc9b896
+
+/**
+ * Placa chapada por baixo do lance (drawStairs.ts): o retângulo da escada,
+ * onde os degraus são desenhados. Mesma família de CORNER_HANDLE_KEYLINE_COLOR
+ * — um passo abaixo do fundo do canvas (0x2b2b2b) — e não uma cor nova. Dá à
+ * linha clara do degrau o MESMO contraste em chão claro e em chão escuro, como
+ * no minimapa de Resident Evil (linha clara sobre cor chapada). Fica a 13 do
+ * fundo por canal, abaixo do limiar de 24 com que a jornada da escada separa
+ * tinta de chão: para quem mede, a placa é chão, não degrau.
+ */
+export const STAIR_PLATE_COLOR = 0x1e1e1e
+
+/**
+ * Patamar chapado no TOPO do lance (drawStairs.ts): é ele que diz para que lado
+ * a escada sobe, sem seta. Tom médio entre a placa e STAIR_COLOR (40% do
+ * caminho), para ler como piso e não como degrau largo: fica a 68 da placa, 55
+ * do fundo do canvas e 77 do degrau pintado sobre a placa, por canal.
+ */
+export const STAIR_LANDING_COLOR = 0x625c4e
 
 /**
  * Escala única de peso de traço pro canvas (feedback F4, 31/08/2026: "tudo
