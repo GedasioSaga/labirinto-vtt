@@ -9,6 +9,7 @@ import { formatNoteTime, PlayerNotebook } from './PlayerNotebook'
 import { PlayerClueList, PlayerColecaoList } from './PlayerClues'
 import type { ColecaoProgresso } from '../lib/colecao'
 import { PlayerLetterForm, type PlayerLetterFormProps } from './PlayerLetterForm'
+import { PlayerChat, type PlayerChatProps } from './PlayerChat'
 // `PlayerPlacesTab` e não `PlayerPlaces`: no Windows o nome colidiria com `playerPlaces.ts` (a parte pura).
 import { PlayerPlacesTab } from './PlayerPlacesTab'
 import type { VisitedPlace } from './playerPlaces'
@@ -103,7 +104,7 @@ export interface PlayerCharacter {
 /** O que o jogador lê embaixo do NPC que o mestre lhe deu, no lugar do formulário de nome e foto. */
 const LENT_NPC_LABEL = 'Emprestado pelo mestre'
 
-type PanelTab = 'jogo' | 'caderno' | 'lugares' | 'dados'
+type PanelTab = 'jogo' | 'caderno' | 'lugares' | 'dados' | 'chat'
 
 const PANEL_TABS: { id: PanelTab; label: string }[] = [
   { id: 'jogo', label: 'Jogo' },
@@ -113,6 +114,11 @@ const PANEL_TABS: { id: PanelTab; label: string }[] = [
 ]
 /** Tela sem quem role (teste, integrador antigo): as abas de antes. */
 const PANEL_TABS_NO_DICE = PANEL_TABS.filter((item) => item.id !== 'dados')
+/** CHAT: a última aba, que só existe depois que o mestre dá as boas-vindas (`welcome`). */
+const CHAT_TAB: { id: PanelTab; label: string } = { id: 'chat', label: 'Chat' }
+
+/** O que o Painel repassa à aba Chat: o Grupo vem de `party`, e "à vista" sai da aba escolhida com o painel aberto. */
+export type PlayerPanelChat = Omit<PlayerChatProps, 'party' | 'visible'>
 
 /** Tela antiga ou teste sem Lugares: listas vazias estáveis, sem objeto novo a cada render. */
 const NO_PINS: readonly Pin[] = []
@@ -227,6 +233,8 @@ interface PlayerPanelProps {
   party?: PartyMember[]
   /** CORREIO: o formulário "Bilhete". Ausente (tela antiga, teste) = a seção não aparece. */
   letter?: PlayerLetterFormProps
+  /** CHAT: a aba "Chat". Ausente (antes do `welcome` do mestre, tela antiga, teste) = a aba não aparece. */
+  chat?: PlayerPanelChat
   /** LUGARES: os pinos do recorte da cena (o que a névoa esconde nem chega aqui). */
   pins?: readonly Pin[]
   /** LUGARES: por onde ele já passou, na ordem da primeira visita. */
@@ -309,6 +317,7 @@ export function PlayerPanel({
   backpack,
   party,
   letter,
+  chat,
   pins = NO_PINS,
   places = NO_PLACES,
   currentPlace,
@@ -332,7 +341,8 @@ export function PlayerPanel({
   onDownloadNotebook,
   onOpenInventory,
 }: PlayerPanelProps) {
-  const tabs = onRollDice === undefined ? PANEL_TABS_NO_DICE : PANEL_TABS
+  const baseTabs = onRollDice === undefined ? PANEL_TABS_NO_DICE : PANEL_TABS
+  const tabs = chat === undefined ? baseTabs : [...baseTabs, CHAT_TAB]
   const drawerScreen = useSyncExternalStore(subscribeDrawerScreen, isDrawerScreen, () => false)
   // Um estado por forma: a coluna do notebook nasce aberta e a gaveta do
   // celular nasce fechada. Atravessar o corte (girar o celular, estreitar a
@@ -341,7 +351,11 @@ export function PlayerPanel({
   const [columnOpen, setColumnOpen] = useState(true)
   const [drawerOpen, setDrawerOpen] = useState(false)
   const open = drawerScreen ? drawerOpen : columnOpen
-  const [tab, setTab] = useState<PanelTab>('jogo')
+  const [chosenTab, setTab] = useState<PanelTab>('jogo')
+  // O chat some quando o mestre reinicia a sessão: quem estava na aba dele volta ao Jogo.
+  const tab: PanelTab = chosenTab === 'chat' && chat === undefined ? 'jogo' : chosenTab
+  const chatUnread = chat?.unread
+  const chatMention = chatUnread !== undefined && (chatUnread.cena.length > 0 || chatUnread.global.length > 0)
   const tabButtons = useRef<Partial<Record<PanelTab, HTMLButtonElement | null>>>({})
   const panelId = useId()
   const brightnessId = useId()
@@ -583,7 +597,7 @@ export function PlayerPanel({
             <path d="M2 3.5 5 6.5 8 3.5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
           Painel
-          {notebookUnread && <UnreadDot />}
+          {(notebookUnread || chatMention) && <UnreadDot label={panelDotLabel(notebookUnread, chatMention)} />}
         </button>
         {first !== undefined && (
           <button type="button" className="pp-mine" onClick={() => focusToken(first.id)}>
@@ -635,6 +649,7 @@ export function PlayerPanel({
               >
                 {item.label}
                 {item.id === 'caderno' && notebookUnread && <UnreadDot />}
+                {item.id === 'chat' && chatMention && <UnreadDot label=" (menção nova no chat)" />}
               </button>
             ))}
           </div>
@@ -937,17 +952,30 @@ export function PlayerPanel({
               </section>
             </div>
           )}
+
+          {/* Montada mesmo escondida, como a aba Jogo: o rascunho e o canal escolhido ficam para quando ele voltar. */}
+          {chat !== undefined && (
+            <div role="tabpanel" id={`${panelId}-panel-chat`} aria-labelledby={`${panelId}-tab-chat`} className="pp-tabpanel" hidden={tab !== 'chat'}>
+              <PlayerChat {...chat} party={party} visible={open && tab === 'chat'} />
+            </div>
+          )}
         </div>
       </aside>
     </>
   )
 }
 
-/** Ponto de "recado novo". O texto escondido dá o aviso a quem usa leitor de tela. */
-function UnreadDot() {
+/** Ponto de aviso novo. O texto escondido dá o aviso a quem usa leitor de tela. */
+function UnreadDot({ label = ' (recado novo)' }: { label?: string }) {
   return (
     <span className="pp-unread">
-      <span className="pp-visually-hidden"> (recado novo)</span>
+      <span className="pp-visually-hidden">{label}</span>
     </span>
   )
+}
+
+/** O ponto do botão "Painel" junta os dois avisos; o texto escondido diz quais. */
+function panelDotLabel(notebook: boolean, chat: boolean): string {
+  if (notebook && chat) return ' (recado novo e menção nova no chat)'
+  return chat ? ' (menção nova no chat)' : ' (recado novo)'
 }

@@ -73,6 +73,7 @@ import { readContract } from '../lib/tokenLoan'
 import { passagemCongelada, pinTravelChoices, type PinTravelChoice } from '../lib/pinTravelers'
 import { avisoDeCongelado } from './congeladoNotice'
 import { letterTitle, type LetterVia } from '../lib/correio'
+import type { ChatChannel } from '../lib/chat'
 import { findKnownPath } from '../lib/knownPath'
 import type { Pin, Stair } from '../types/map'
 import { loadPlaceNames, savePlaceName, withPlaceName, type VisitedPlace } from './playerPlaces'
@@ -1048,6 +1049,12 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
     connection.askLetterPeers()
   }, [connection])
   const sendLetter = useCallback((to: string, via: LetterVia, text: string) => connection.sendLetter(to, via, text), [connection])
+  // CHAT: a aba "Chat" do Painel.
+  const sendChat = useCallback(
+    (channel: ChatChannel, text: string, mentions: readonly string[]) => connection.sendChat(channel, text, mentions),
+    [connection],
+  )
+  const readChat = useCallback((channel: ChatChannel) => connection.markChatRead(channel), [connection])
   /** Painel e barra do jogador: a câmera lê, na hora, o que eles cobrem do mapa. */
   const panelRef = useRef<HTMLElement | null>(null)
   const barRef = useRef<HTMLDivElement | null>(null)
@@ -1260,6 +1267,11 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
             onPay: (toTokenId, moedas) => void connection.giveCoins(toTokenId, moedas),
           }}
           letter={{ peers: state.letterPeers, status: state.letterSend, onAskPeers: askLetterPeers, onSend: sendLetter }}
+          chat={
+            state.chat === undefined
+              ? undefined
+              : { log: state.chat, unread: state.chatUnread, status: state.chatSend, selfName: state.selfName, onSend: sendChat, onRead: readChat }
+          }
           onRollDice={(request) => connection.rollDice(request)}
           elsewhere={state.elsewhere}
           // A câmera da cena nova é a da chegada (`PlayerView`, mapa novo): a mesma da viagem.

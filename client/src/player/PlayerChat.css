@@ -1,0 +1,251 @@
+/*
+ * CHAT DOS JOGADORES (fatia A): a aba "Chat" do Painel. Mesmo visual do
+ * painel, com os tokens --lb-* e os mesmos fallbacks de player.css, e todo
+ * alvo de toque com 44 px.
+ */
+
+.pc-chat {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+.pc-channels {
+  display: flex;
+  gap: 6px;
+}
+
+.pc-channel {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 44px;
+  padding: 6px 10px;
+  border: 1px solid var(--lb-color-line-panel, rgba(255, 255, 255, 0.12));
+  border-radius: var(--lb-radius-md, 9px);
+  background: var(--lb-color-stone-raised, #232328);
+  color: var(--lb-color-parchment-dim, #a2a09a);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background-color var(--lb-motion-fast, 110ms) var(--lb-motion-ease, ease),
+    border-color var(--lb-motion-fast, 110ms) var(--lb-motion-ease, ease),
+    color var(--lb-motion-fast, 110ms) var(--lb-motion-ease, ease),
+    transform var(--lb-motion-fast, 110ms) var(--lb-motion-ease, ease);
+}
+
+.pc-channel[aria-pressed='true'] {
+  border-color: var(--lb-color-brass, #e0a44a);
+  background: var(--lb-color-brass-soft, rgba(224, 164, 74, 0.14));
+  color: var(--lb-color-brass-bright, #f3ba66);
+}
+
+@media (hover: hover) {
+  .pc-channel:hover {
+    border-color: var(--lb-color-brass, #e0a44a);
+    color: var(--lb-color-parchment, #eceae4);
+  }
+
+  .pc-channel[aria-pressed='true']:hover {
+    color: var(--lb-color-brass-bright, #f3ba66);
+  }
+}
+
+.pc-channel:active {
+  transform: scale(0.97);
+  transition-duration: 0ms;
+}
+
+/* O mesmo ponto do Caderno (.pp-unread), dentro do botão do canal. */
+.pc-unread {
+  display: inline-block;
+  flex: none;
+  width: 8px;
+  height: 8px;
+  margin-left: 6px;
+  vertical-align: middle;
+  border-radius: 50%;
+  background: var(--lb-color-brass, #e0a44a);
+}
+
+.pc-log {
+  min-height: 9rem;
+  max-height: min(40vh, 320px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 8px;
+  border: 1px solid var(--lb-color-line-panel, rgba(255, 255, 255, 0.12));
+  border-radius: var(--lb-radius-md, 9px);
+  background: var(--lb-color-stone-sunken, #141417);
+}
+
+.pc-log__empty {
+  padding: 4px 2px;
+}
+
+.pc-list {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pc-msg {
+  min-width: 0;
+  padding: 2px 0 2px 6px;
+  border-left: 3px solid transparent;
+  border-radius: 0 var(--lb-radius-sm, 6px) var(--lb-radius-sm, 6px) 0;
+}
+
+.pc-msg--me {
+  border-left-color: var(--lb-color-brass, #e0a44a);
+  background: var(--lb-color-brass-soft, rgba(224, 164, 74, 0.14));
+}
+
+.pc-msg__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 8px;
+  margin: 0;
+  font-size: 12px;
+  color: var(--lb-color-parchment-dim, #a2a09a);
+}
+
+.pc-msg__from {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-weight: 600;
+  color: var(--lb-color-parchment, #eceae4);
+}
+
+.pc-msg__time {
+  font-variant-numeric: tabular-nums;
+}
+
+.pc-msg__tag {
+  font-weight: 600;
+  color: var(--lb-color-brass-bright, #f3ba66);
+}
+
+/* Quebras de linha do jogador valem; palavra ou link sem fim quebra em qualquer ponto em vez de alargar o painel. */
+.pc-msg__text {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: var(--lb-color-parchment, #eceae4);
+}
+
+.pc-form {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.pc-field {
+  position: relative;
+  min-width: 0;
+}
+
+.pc-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 8px;
+}
+
+.pc-chat .pc-input {
+  min-height: 44px;
+  max-height: 10em;
+  resize: vertical;
+  font: inherit;
+  line-height: 1.4;
+}
+
+.pc-chat .pc-send {
+  min-height: 44px;
+  min-width: 6rem;
+}
+
+.pc-chat .pc-send:disabled {
+  cursor: progress;
+}
+
+.pc-count {
+  font-size: 12px;
+}
+
+/* Sugestões de @: abrem para cima do campo, que fica no pé do painel. */
+.pc-suggest {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 4px);
+  left: 0;
+  z-index: 2;
+  max-height: 196px;
+  overflow-y: auto;
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  border: 1px solid var(--lb-color-line-panel, rgba(255, 255, 255, 0.12));
+  border-radius: var(--lb-radius-md, 9px);
+  background: var(--lb-color-stone-raised, #232328);
+  box-shadow: var(--lb-shadow-float, 0 8px 24px rgba(0, 0, 0, 0.45));
+  animation: pc-suggest-in 120ms ease-out;
+}
+
+@keyframes pc-suggest-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+
+.pc-suggest__option {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 10px;
+  border-radius: var(--lb-radius-sm, 6px);
+  overflow-wrap: anywhere;
+  color: var(--lb-color-parchment, #eceae4);
+  cursor: pointer;
+}
+
+.pc-suggest__option[aria-selected='true'] {
+  background: var(--lb-color-brass-soft, rgba(224, 164, 74, 0.14));
+  color: var(--lb-color-brass-bright, #f3ba66);
+}
+
+@media (hover: hover) {
+  .pc-suggest__option:not([aria-selected='true']):hover {
+    background: var(--lb-color-stone-hover, #2c2c33);
+  }
+}
+
+.pc-suggest__none {
+  padding: 10px;
+  color: var(--lb-color-parchment-dim, #a2a09a);
+}
+
+/* Abaixo de 16 px o Safari do iPhone dá zoom no campo ao focar. */
+@media (pointer: coarse) {
+  .pc-chat .pc-input {
+    font-size: 16px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pc-channel {
+    transition: none;
+  }
+
+  .pc-channel:active {
+    transform: none;
+  }
+
+  .pc-suggest {
+    animation: none;
+  }
+}

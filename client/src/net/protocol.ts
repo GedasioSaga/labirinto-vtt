@@ -15,6 +15,7 @@ import { ROOM_TEXT_MAX_LENGTH } from '../lib/roomText'
 import { CLUEBOOK_MAX_CLUES, CLUE_TEXT_MAX_LENGTH, CLUE_TITLE_MAX_LENGTH } from '../lib/clues'
 import { isPointActionKind, isPointActionRejection, type PointActionAnswer, type PointActionKind, type PointActionRejection } from '../lib/pointActions'
 import { isLetterVia, LETTER_TEXT_MAX_LENGTH, type LetterVia } from '../lib/correio'
+import { CHAT_HISTORY_MAX, CHAT_TEXT_MAX_LENGTH, cleanChatText, isChatChannel, type ChatChannel } from '../lib/chat'
 import { MAX_DESTINATION_MARKS, SIGNAL_COLOR_PATTERN, type DestinationMark } from '../lib/signals'
 import { MASTER_ROLLER_NAME, parseDiceRequest, type DiceRequest, type DiceRollEntry } from '../lib/dice'
 import { isNoiseDirection, type NoiseDirection } from '../lib/noise'
@@ -171,6 +172,14 @@ export type { OwnTokenElsewhere }
  * ar ou aguardando sem ficha, chega pelo `notes.book` com o id em `unread`,
  * que o jogador antigo ignora. Nenhuma delas leva cena,
  * posição ou o destino do bilhete que ainda espera o mestre.
+ *
+ * O CHAT DOS JOGADORES é aditivo pelo mesmo critério. Do jogador: `chat.send`
+ * (a mensagem, no canal `cena` ou `global`, com os nomes que ela menciona).
+ * Do mestre: `chat.history` (as últimas mensagens de um canal, a quem entra ou
+ * troca de cena), `chat.msg` (uma mensagem nova) e `chat.send.result` (saiu ou
+ * não). Nenhuma delas leva cena, chave de cena nem id de jogador: o canal
+ * `cena` é sempre "a cena onde está a sua ficha". Mestre antigo responde
+ * `error invalid_message` ao `chat.send`; jogador antigo ignora as três.
  *
  * `snapshot.sceneName` (e `delta.sceneName`) é o "ONDE ESTOU", aditivo pelo
  * mesmo critério: o NOME PARA OS JOGADORES da cena onde o jogador está, só
@@ -805,6 +814,19 @@ export interface LetterSendMessage {
 }
 
 /**
+ * CHAT: a mensagem no canal `channel`. `mentions` são os nomes que o jogador
+ * marcou com `@`; o host confere cada um contra o texto e contra quem pode
+ * ouvir no canal, e descarta o resto. `reqId` volta no `chat.send.result`.
+ */
+export interface ChatSendMessage {
+  type: 'chat.send'
+  reqId: string
+  channel: ChatChannel
+  text: string
+  mentions: string[]
+}
+
+/**
  * MARCA "VAMOS PARA CÁ": põe (ou move) a marca do jogador no ponto, em px de
  * mundo da cena dele; `clear` tira. Sem nome nem cor: quem é e de que cor o
  * host sabe pela conexão e pela ficha.
@@ -1007,6 +1029,7 @@ export type PlayerMessage =
   | PointActionMessage
   | LetterPeersRequestMessage
   | LetterSendMessage
+  | ChatSendMessage
   | DiceRollMessage
   | PinLeverMessage
   | DoorPeekMessage
@@ -1502,6 +1525,49 @@ export interface LetterSendResultMessage {
 export type LetterHostMessage = LetterPeersMessage | LetterSendResultMessage
 
 /**
+ * CHAT: uma mensagem como todos a leem. `from` é o nome do jogador na sala;
+ * `mentions` são os nomes (ou `mestre`) que o host confirmou. Nunca leva a
+ * cena nem o id de quem falou.
+ */
+export interface ChatEntry {
+  id: string
+  at: number
+  from: string
+  text: string
+  mentions: string[]
+}
+
+/** CHAT: as últimas mensagens do canal, a quem entra na sala ou troca de cena. Troca a lista inteira. */
+export interface ChatHistoryMessage {
+  type: 'chat.history'
+  channel: ChatChannel
+  messages: ChatEntry[]
+}
+
+/** CHAT: uma mensagem nova no canal, para todos que o ouvem (quem falou inclusive). */
+export interface ChatMsgMessage {
+  type: 'chat.msg'
+  channel: ChatChannel
+  msg: ChatEntry
+}
+
+/**
+ * Por que a mensagem não saiu: `too_soon` = rápido demais; `no_scene` = a
+ * ficha não está em cena nenhuma (só o Global vale). Ausente = "não saiu".
+ */
+export type ChatSendRefusal = 'too_soon' | 'no_scene'
+
+/** A mensagem de `reqId` saiu (`ok`) ou não. */
+export interface ChatSendResultMessage {
+  type: 'chat.send.result'
+  reqId: string
+  ok: boolean
+  reason?: ChatSendRefusal
+}
+
+export type ChatHostMessage = ChatHistoryMessage | ChatMsgMessage | ChatSendResultMessage
+
+/**
  * `table_full`: já há `MAX_TABLE_SCREENS` telas da mesa na sala (`hostSession.ts`).
  * `bad_table_key`: tela da mesa sem a chave do link da TV, ou com outra.
  */
@@ -1675,6 +1741,7 @@ export type HostMessage =
   | { type: 'point.action.answer'; action: PointActionKind; answer: PointActionAnswer }
   | { type: 'point.action.rejected'; reason: PointActionRejection }
   | LetterHostMessage
+  | ChatHostMessage
   | DiceRolledMessage
   | SeatOptionsMessage
   // Só a quem pediu a ficha; a aceitação chega como o mapa, com a ficha dele.
@@ -2145,8 +2212,16 @@ export function parseNotesAway(value: unknown): NotesAwayMessage | null {
 const NAME_SUFFIX_ROOM = 8
 
 /** Nome de jogador como o host o manda (com o sufixo de nome repetido). */
-function isRoomName(value: unknown): value is string {
+export function isRoomName(value: unknown): value is string {
   return isBoundedString(value, NAME_MIN_LENGTH, NAME_MAX_LENGTH + NAME_SUFFIX_ROOM)
+}
+
+/** Teto de menções numa mensagem do CHAT: o Grupo inteiro mais o mestre. */
+export const CHAT_MENTIONS_MAX = PARTY_MAX_MEMBERS + 1
+
+/** Lista de menções do CHAT: até `CHAT_MENTIONS_MAX` nomes na forma da sala. */
+export function isChatMentionList(value: unknown): value is string[] {
+  return Array.isArray(value) && value.length <= CHAT_MENTIONS_MAX && value.every(isRoomName)
 }
 
 /** Teto da lista de colegas: bem acima de uma mesa real, abaixo de um host hostil inflando a tela. */
@@ -2319,6 +2394,52 @@ export function parseLetterMessage(value: unknown): LetterHostMessage | null {
   }
 }
 
+/** Uma linha do CHAT: forma errada vira `null`; sai só com os campos conhecidos. */
+function parseChatEntry(value: unknown): ChatEntry | null {
+  if (!isRecord(value)) return null
+  const { id, at, from, text, mentions } = value
+  if (!isBoundedString(id, 1, REQ_ID_MAX_LENGTH) || !isFiniteNumber(at) || !isRoomName(from)) return null
+  if (!isBoundedString(text, 1, CHAT_TEXT_MAX_LENGTH) || !isChatMentionList(mentions)) return null
+  return { id, at, from, text, mentions: [...mentions] }
+}
+
+/**
+ * Valida as mensagens do CHAT que o jogador recebe. `chat.msg` torta recusa a
+ * mensagem inteira; no `chat.history`, a linha torta cai sozinha e o resto
+ * fica (no máximo `CHAT_HISTORY_MAX`, as mais novas). Sai só com os campos
+ * conhecidos: uma cena que viesse junto fica para trás. Motivo de recusa
+ * desconhecido vira a recusa comum.
+ */
+export function parseChatMessage(value: unknown): ChatHostMessage | null {
+  if (!isRecord(value)) return null
+  switch (value.type) {
+    case 'chat.history': {
+      const { channel, messages } = value
+      if (!isChatChannel(channel) || !Array.isArray(messages)) return null
+      const parsed: ChatEntry[] = []
+      for (const item of messages.slice(-CHAT_HISTORY_MAX)) {
+        const entry = parseChatEntry(item)
+        if (entry !== null) parsed.push(entry)
+      }
+      return { type: 'chat.history', channel, messages: parsed }
+    }
+    case 'chat.msg': {
+      const { channel } = value
+      const msg = parseChatEntry(value.msg)
+      return isChatChannel(channel) && msg !== null ? { type: 'chat.msg', channel, msg } : null
+    }
+    case 'chat.send.result': {
+      const { reqId, ok, reason } = value
+      if (!isBoundedString(reqId, 1, REQ_ID_MAX_LENGTH) || typeof ok !== 'boolean') return null
+      if (reason !== undefined && typeof reason !== 'string') return null
+      if (ok || (reason !== 'too_soon' && reason !== 'no_scene')) return { type: 'chat.send.result', reqId, ok }
+      return { type: 'chat.send.result', reqId, ok, reason }
+    }
+    default:
+      return null
+  }
+}
+
 /**
  * Pedido de ação sobre uma ficha. Ação fora da lista, texto que não é texto ou
  * acima do teto recusam a mensagem inteira. Texto só de espaço vale como sem
@@ -2439,6 +2560,21 @@ function parseLetterSend(obj: Record<string, unknown>): LetterSendMessage | null
   const trimmed = text.trim()
   if (trimmed.length < 1 || trimmed.length > LETTER_TEXT_MAX_LENGTH) return null
   return { type: 'letter.send', to, via, text: trimmed }
+}
+
+/**
+ * CHAT: a mensagem do jogador. Texto de 1 a `CHAT_TEXT_MAX_LENGTH` que não
+ * fica vazio depois de limpo (`cleanChatText`), canal conhecido, `reqId` e
+ * menções na forma da sala; qualquer outra coisa recusa a mensagem inteira.
+ * Sai com o texto já limpo: controles e bidi não passam daqui.
+ */
+function parseChatSend(obj: Record<string, unknown>): ChatSendMessage | null {
+  const { reqId, channel, text, mentions } = obj
+  if (!isBoundedString(reqId, 1, REQ_ID_MAX_LENGTH) || !isChatChannel(channel)) return null
+  if (!isBoundedString(text, 1, CHAT_TEXT_MAX_LENGTH) || !isChatMentionList(mentions)) return null
+  const clean = cleanChatText(text)
+  if (clean === '') return null
+  return { type: 'chat.send', reqId, channel, text: clean, mentions: [...mentions] }
 }
 
 /**
@@ -2801,6 +2937,8 @@ export function parsePlayerMessage(raw: unknown): PlayerMessage | null {
       return { type: 'letter.peers' }
     case 'letter.send':
       return parseLetterSend(value)
+    case 'chat.send':
+      return parseChatSend(value)
     case 'dice.roll': {
       // Só o pedido: resultado, total e nome mandados pelo jogador são jogados fora.
       const request = parseDiceRequest(value)

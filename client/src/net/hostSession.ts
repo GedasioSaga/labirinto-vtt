@@ -96,6 +96,9 @@ import {
   parsePlayerMessage,
   type AwayMessage,
   type CabineCallMessage,
+  type ChatEntry,
+  type ChatSendMessage,
+  type ChatSendRefusal,
   type ClueEntry,
   type ClueReadMessage,
   type ClueShowMessage,
@@ -182,6 +185,7 @@ import {
 import { clampTokenActionReply, distanceInCells, type TokenAction, type TokenActionRejection } from '../lib/tokenActions'
 import { diffView, isEmptyViewPatch, type PlayerViewContent } from './viewPatch'
 import { LETTER_PENDING_MAX_PER_PLAYER, LETTER_SEND_MIN_INTERVAL_MS, type LetterVia } from '../lib/correio'
+import { CHAT_HISTORY_MAX, CHAT_MASTER_MENTION, findMentions, takeChatTurn } from '../lib/chat'
 import { readArrivalText } from '../lib/arrivalText'
 import { caravanCity, caravanMembers, caravanRegroup, caravanSize, caravanStep, isWorldMap, landingSpots, type CaravanMemory } from '../lib/caravan'
 
@@ -3000,6 +3004,16 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   // tela de espera. Saem como `unread` no caderno da volta até ele voltar jogando:
   // sem isso o bilhete chegava mudo.
   const unseenLetters = new Map<string, Set<string>>()
+  // CHAT DOS JOGADORES — as últimas `CHAT_HISTORY_MAX` de cada canal, só em
+  // memória (a fatia B grava em disco). A cena é pela chave (`sceneKey`), que
+  // nunca sai para o jogador: ele só lê 'cena' ou 'global'.
+  const globalChat: ChatEntry[] = []
+  const sceneChats = new Map<string, ChatEntry[]>()
+  // Por playerId: o relógio do ritmo de envio (`takeChatTurn`). Só o kick apaga.
+  const chatPace = new Map<string, number>()
+  // Por clientId: a cena do último `chat.history` de 'cena' que a conexão
+  // recebeu (`null` = nenhuma). Diferente da de agora, sai a história da nova.
+  const chatSceneSent = new Map<string, string | null>()
   // MARCA "VAMOS PARA CÁ" — por playerId: a marca dele e a cena (`sceneKey`)
   // e o piso onde a pôs. Uma por jogador; fica até ele tirar, perder a ficha
   // ou sair daquela cena ou piso (`pruneDestinations`). Sobrevive a
@@ -4807,6 +4821,11 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     outbound.push(...pausedUpdate(clientId, playerId, world))
     // Quem volta (resume) para uma cena com alarme o recebe de novo, depois do mapa.
     outbound.push(...syncAlarms(world))
+    // CHAT: o `welcome` começa as duas listas vazias no jogador; só sai a
+    // história que tem linha, o global e o da cena dele (só o que mudou).
+    chatSceneSent.delete(clientId)
+    if (globalChat.length > 0) outbound.push({ clientId, msg: { type: 'chat.history', channel: 'global', messages: globalChat.map(copyChatEntry) } })
+    outbound.push(...chatSceneUpdate(clientId, playerId, world))
     return outbound
   }
 
@@ -4838,6 +4857,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     if (replaced !== null) {
       byClient.delete(replaced)
       pausedSent.delete(replaced)
+      chatSceneSent.delete(replaced)
       lastPartySent.delete(replaced)
       lastSeatOptionsSent.delete(replaced)
       replacedOut.push({ clientId: replaced, msg: { type: 'session.replaced' } })
@@ -4936,6 +4956,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     for (const [letterId, letter] of [...pendingLetters]) if (letter.toPlayerId === playerId) pendingLetters.delete(letterId)
     lastLetterAt.delete(playerId)
     unseenLetters.delete(playerId)
+    // O que ele disse no chat fica na história; o ritmo dele, não.
+    chatPace.delete(playerId)
     placeCounters.delete(playerId)
     lastDiceRollAt.delete(playerId)
     destinations.delete(playerId)
@@ -7519,6 +7541,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     rev += 1
     const outbound: Outbound[] = cancelled === null ? [] : [{ clientId, msg: { type: 'pin.travel.cancelled', reason: 'player' } }]
     for (const view of viewFor(playerId, world, 'on_change')) outbound.push({ clientId, msg: view })
+    // O chat da cena é o da cena que ele passou a olhar.
+    outbound.push(...chatSceneUpdate(clientId, playerId, world))
     return cancelled === null ? { outbound } : { outbound, travelCancelled: cancelled }
   }
 
@@ -7669,6 +7693,88 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const letter: LetterRequest = { letterId: randomId(), fromName: sender.name, toName: target.name, via: msg.via, text: msg.text }
     pendingLetters.set(letter.letterId, { ...letter, fromPlayerId: playerId, toPlayerId: target.playerId })
     return { ...reply(clientId, { type: 'letter.send.result', to: msg.to, ok: true }), letter }
+  }
+
+  /** A chave da cena em que o chat de `playerId` fala: `null` = sem cena (aguardando, ou sem ficha em cena nenhuma). */
+  const chatSceneOf = (playerId: string, world: HostWorld): string | null => {
+    if (statusOf(playerId) !== 'playing') return null
+    const scene = sceneFor(playerId, world)
+    return scene === null ? null : sceneKey(scene)
+  }
+
+  /** Cópia para a rede: a linha guardada nunca é o objeto que sai. */
+  const copyChatEntry = (entry: ChatEntry): ChatEntry => ({ ...entry, mentions: [...entry.mentions] })
+
+  const sceneChat = (key: string): ChatEntry[] => {
+    const existing = sceneChats.get(key)
+    if (existing !== undefined) return existing
+    const created: ChatEntry[] = []
+    sceneChats.set(key, created)
+    return created
+  }
+
+  const keepChatEntry = (list: ChatEntry[], entry: ChatEntry): void => {
+    list.push(entry)
+    if (list.length > CHAT_HISTORY_MAX) list.splice(0, list.length - CHAT_HISTORY_MAX)
+  }
+
+  /**
+   * A história de 'cena' da conexão, se a cena dela mudou desde a última que
+   * recebeu (entrou, trocou de cena, "Olhar por…", perdeu a ficha) e se isso
+   * muda o que ele vê: a lista nova tem linha, ou a dele tinha (a nova, vazia,
+   * a apaga). Sem cena, a lista vem vazia. A chave da cena fica aqui: sai só 'cena'.
+   */
+  const chatSceneUpdate = (clientId: string, playerId: string, world: HostWorld): Outbound[] => {
+    const key = chatSceneOf(playerId, world)
+    // `undefined` = conexão nova, que o `welcome` começou vazia: nunca é igual à cena de agora.
+    const sent = chatSceneSent.get(clientId)
+    if (sent === key) return []
+    chatSceneSent.set(clientId, key)
+    const messages = key === null ? [] : (sceneChats.get(key) ?? [])
+    // A lista guardada nunca esvazia: a cena de antes sem linha é a lista dele vazia.
+    const previous = sent === undefined || sent === null ? undefined : sceneChats.get(sent)
+    const shown = previous === undefined ? 0 : previous.length
+    if (messages.length === 0 && shown === 0) return []
+    return [{ clientId, msg: { type: 'chat.history', channel: 'cena', messages: messages.map(copyChatEntry) } }]
+  }
+
+  const syncChatScenes = (world: HostWorld): Outbound[] =>
+    [...byClient].flatMap(([clientId, playerId]) => chatSceneUpdate(clientId, playerId, world))
+
+  /**
+   * CHAT DOS JOGADORES. 'cena' chega a quem tem a ficha na mesma cena que
+   * quem fala; 'global', a todo jogador conectado (até quem aguarda). O texto
+   * já vem limpo do `parsePlayerMessage`. As menções são refeitas aqui: só
+   * vale o `@Nome` que está no texto, foi declarado pelo cliente e é de um
+   * jogador que ouve o canal (ou o mestre). A rajada é por jogador.
+   */
+  function handleChatSend(clientId: string, msg: ChatSendMessage, world: HostWorld): HostResult {
+    const playerId = byClient.get(clientId)
+    const sender = playerId === undefined ? undefined : players.get(playerId)
+    if (playerId === undefined || sender === undefined) return reply(clientId, { type: 'error', reason: 'not_joined' })
+    const refuse = (reason: ChatSendRefusal): HostResult =>
+      reply(clientId, { type: 'chat.send.result', reqId: msg.reqId, ok: false, reason })
+    // `null` = o canal é o global.
+    const scene = msg.channel === 'global' ? null : chatSceneOf(playerId, world)
+    if (msg.channel === 'cena' && scene === null) return refuse('no_scene')
+    const at = now()
+    const pace = takeChatTurn(chatPace.get(playerId), at)
+    if (pace === null) return refuse('too_soon')
+    chatPace.set(playerId, pace)
+    const hears = (otherId: string): boolean => scene === null || chatSceneOf(otherId, world) === scene
+    const names = [...players.values()].filter((other) => other.playerId !== playerId && hears(other.playerId)).map((other) => other.name)
+    const declared = new Set(msg.mentions.map((name) => name.toLowerCase()))
+    const mentions = findMentions(msg.text, [...names, CHAT_MASTER_MENTION]).filter((name) => declared.has(name.toLowerCase()))
+    // O mundo pode já ter mudado sem o broadcast ter saído (a ponte o agenda):
+    // quem trocou de cena recebe a história da nova ANTES da linha nova.
+    const outbound: Outbound[] = syncChatScenes(world)
+    const entry: ChatEntry = { id: randomId(), at, from: sender.name, text: msg.text, mentions }
+    keepChatEntry(scene === null ? globalChat : sceneChat(scene), entry)
+    for (const [otherClient, otherId] of byClient) {
+      if (hears(otherId)) outbound.push({ clientId: otherClient, msg: { type: 'chat.msg', channel: msg.channel, msg: copyChatEntry(entry) } })
+    }
+    outbound.push({ clientId, msg: { type: 'chat.send.result', reqId: msg.reqId, ok: true } })
+    return { outbound }
   }
 
   const findPendingTravel = (requestId: string): PendingTravel | undefined =>
@@ -7972,6 +8078,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
         return handleLetterSend(clientId, msg)
       case 'token.piso':
         return handleTokenPiso(clientId, msg, world)
+      case 'chat.send':
+        return handleChatSend(clientId, msg, world)
     }
   }
 
@@ -8852,6 +8960,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       if (playerId === undefined) return
       byClient.delete(clientId)
       pausedSent.delete(clientId)
+      chatSceneSent.delete(clientId)
       sentViews.delete(clientId)
       patchClients.delete(clientId)
       const record = players.get(playerId)
@@ -8899,6 +9008,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       if (playerId === undefined) return { outbound: [] }
       byClient.delete(clientId)
       pausedSent.delete(clientId)
+      chatSceneSent.delete(clientId)
       lastSeatOptionsSent.delete(clientId)
       ownershipRev += 1
       forgetSentView(playerId)
@@ -9334,6 +9444,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       }
       // ALARME: quem chegou numa cena com alarme passa a ver; quem saiu de todas, o fim.
       outbound.push(...syncAlarms(world))
+      // CHAT: quem mudou de cena (ou ganhou, ou perdeu a ficha) recebe a história da cena de agora.
+      outbound.push(...syncChatScenes(world))
       // Depois dos mapas: a visão nova decide que marca cada um já conhece, e
       // quem mudou de cena perde as da cena de antes.
       outbound.push(...destinationUpdates(world))

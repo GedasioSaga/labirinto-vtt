@@ -67,8 +67,11 @@ import {
   NOTEBOOK_MAX_NOTES,
   ROUTE_MIN_POINTS,
   isCallReason,
+  isChatMentionList,
+  isRoomName,
   parseAbalo,
   parseCallReply,
+  parseChatMessage,
   parseClueMessage,
   parseColecoesMessage,
   parseDestinationsMessage,
@@ -94,6 +97,7 @@ import {
   parseWaitHostMessage,
   type CallRaiseMessage,
   type CallReason,
+  type ChatEntry,
   type ClueEntry,
   type MarkPlaceRefusal,
   type NoteEntry,
@@ -123,6 +127,7 @@ import { parsePlayerConfronto, type PlayerConfronto } from '../lib/confronto'
 import { hasEnterText } from '../lib/roomText'
 import { isPointInsideMap, POINT_NOTICE_TTL_MS, type PointActionKind, type PointNotice } from '../lib/pointActions'
 import { LETTER_TEXT_MAX_LENGTH, type LetterVia } from '../lib/correio'
+import { CHAT_HISTORY_MAX, CHAT_TEXT_MAX_LENGTH, cleanChatText, type ChatChannel } from '../lib/chat'
 import { SCENE_PUBLIC_NAME_MAX_LENGTH } from '../lib/adventure'
 import { TOKEN_GLIDE_MS } from './tokenGlide'
 import { parseSnapshotPlaces, VIEW_RESYNC_MIN_INTERVAL_MS, type SnapshotPlaces } from '../net/protocol'
@@ -392,6 +397,17 @@ export interface PlayerState {
   /** CORREIO: o último bilhete mandado e a resposta do host (chegou ao mestre ou não). */
   letterSend?: LetterSend
   /**
+   * CHAT: o nome dele na sala, como o host o deu no `welcome` (com o sufixo de
+   * nome repetido: "Ana (2)"). É o nome que as menções do host usam.
+   */
+  selfName?: string
+  /** CHAT: as conversas da cena e do Global. Ausente até o `welcome`, que começa as duas vazias. */
+  chat?: ChatLog
+  /** CHAT: as menções a ele que ainda não viu, por canal. Acendem o ponto na aba Chat e no Painel. */
+  chatUnread?: ChatUnread
+  /** CHAT: a última mensagem mandada e a resposta do host. */
+  chatSend?: ChatSend
+  /**
    * "ONDE ESTOU": o nome para os jogadores da cena onde ele está, do último
    * snapshot. Ausente = a cena não tem nome público, e o selo não aparece.
    */
@@ -631,6 +647,67 @@ export interface LetterSend {
   via: LetterVia
   /** `ok` = chegou ao MESTRE (entregar é com ele); `too_soon` e `full`, os motivos que o host conta. */
   phase: 'sending' | 'ok' | 'failed' | 'too_soon' | 'full'
+}
+
+/**
+ * CHAT: as mensagens de cada canal, da mais antiga à mais nova, no máximo
+ * `CHAT_HISTORY_MAX` em cada. 'cena' é a da ficha dele agora (o host troca a
+ * lista inteira quando ela muda); 'global', a mesa inteira.
+ */
+export interface ChatLog {
+  readonly cena: readonly ChatEntry[]
+  readonly global: readonly ChatEntry[]
+}
+
+/** CHAT: ids das mensagens novas de cada canal que o mencionam e ele ainda não viu. */
+export interface ChatUnread {
+  readonly cena: readonly string[]
+  readonly global: readonly string[]
+}
+
+/** CHAT: a mensagem que saiu por último. `too_soon` e `no_scene` são os motivos de recusa que a tela explica. */
+export interface ChatSend {
+  reqId: string
+  channel: ChatChannel
+  phase: 'sending' | 'ok' | 'too_soon' | 'no_scene' | 'failed'
+}
+
+const EMPTY_CHAT_LOG: ChatLog = { cena: [], global: [] }
+const NO_CHAT_UNREAD: ChatUnread = { cena: [], global: [] }
+
+/** O registro do chat com a lista de `channel` trocada por `list`. */
+function withChatChannel(log: ChatLog, channel: ChatChannel, list: readonly ChatEntry[]): ChatLog {
+  return channel === 'cena' ? { ...log, cena: list } : { ...log, global: list }
+}
+
+/** As marcas do chat com as de `channel` trocadas por `ids`. */
+function withUnreadChannel(unread: ChatUnread, channel: ChatChannel, ids: readonly string[]): ChatUnread {
+  return channel === 'cena' ? { ...unread, cena: ids } : { ...unread, global: ids }
+}
+
+/**
+ * As marcas depois que a lista de `channel` virou `list`: só fica a das
+ * mensagens que continuam nela (a que saiu pelo teto ou com a troca de cena
+ * não tem mais o que mostrar). Nada saiu = o mesmo objeto.
+ */
+function unreadKeptIn(unread: ChatUnread | undefined, channel: ChatChannel, list: readonly ChatEntry[]): ChatUnread | undefined {
+  if (unread === undefined || unread[channel].length === 0) return unread
+  const present = new Set(list.map((entry) => entry.id))
+  const ids = unread[channel].filter((id) => present.has(id))
+  return ids.length === unread[channel].length ? unread : withUnreadChannel(unread, channel, ids)
+}
+
+/**
+ * As marcas depois do `chat.history` de `channel`: fica a das mensagens que
+ * continuam na lista e volta a de `before` (as de antes do último `welcome`)
+ * cuja mensagem voltou nela. A história em si nunca acende marca nova.
+ */
+function unreadAfterHistory(unread: ChatUnread | undefined, before: readonly string[], channel: ChatChannel, list: readonly ChatEntry[]): ChatUnread | undefined {
+  const kept = unreadKeptIn(unread, channel, list)
+  const base = kept ?? NO_CHAT_UNREAD
+  const present = new Set(list.map((entry) => entry.id))
+  const back = before.filter((id) => present.has(id) && !base[channel].includes(id))
+  return back.length === 0 ? kept : withUnreadChannel(base, channel, [...base[channel], ...back])
 }
 
 export interface ClueShow {
@@ -999,6 +1076,16 @@ export interface PlayerConnection {
    * texto vazio ou acima de `LETTER_TEXT_MAX_LENGTH`, ou com o socket caído.
    */
   sendLetter(to: string, via: LetterVia, text: string): boolean
+  /**
+   * CHAT: manda `text`, limpo como o host limpa, ao canal, com os nomes que ele
+   * menciona (o host confere com o texto). Um envio por vez: o próximo espera a
+   * resposta em `chatSend`. `false` (e nada sai) com texto vazio depois de
+   * limpo ou acima de `CHAT_TEXT_MAX_LENGTH`, menção torta, a cena sem estar
+   * jogando, antes de entrar na sala ou com o socket caído.
+   */
+  sendChat(channel: ChatChannel, text: string, mentions: readonly string[]): boolean
+  /** CHAT: o jogador viu o canal; as menções novas dele apagam. Sem menção nova, não avisa ninguém. */
+  markChatRead(channel: ChatChannel): void
   /**
    * DADO ROLADO NA SALA: pede a rolagem ao host (quem rola é ele; o resultado
    * volta em `diceRolls`, igual para a mesa). `false` (e nada sai) com pedido
@@ -1414,6 +1501,12 @@ export function hasUnreadNotes(state: PlayerState): boolean {
   return (state.unreadNotes ?? []).some((id) => !onCard.has(id))
 }
 
+/** Há menção a ele no chat que ainda não viu? Acende o ponto na aba Chat e no Painel. */
+export function hasChatMention(state: PlayerState): boolean {
+  const unread = state.chatUnread
+  return unread !== undefined && (unread.cena.length > 0 || unread.global.length > 0)
+}
+
 /** `extra` no fim de `list`, sem repetir id; passou de `max`, saem os mais antigos. */
 function appendNotes(list: NoteEntry[], extra: NoteEntry[], max: number): NoteEntry[] {
   const known = new Set(list.map((entry) => entry.id))
@@ -1454,6 +1547,13 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
    * volta em vez de mostrar a tela de ausente de novo.
    */
   let wantsBack = false
+  /**
+   * CHAT: as marcas de antes do último `welcome`, por canal. A conexão nova
+   * começa as listas vazias e o host só manda a história que tem linha: a
+   * marca volta com a primeira história do canal dela, se a mensagem estiver
+   * lá, e morre com ela se não estiver.
+   */
+  let chatUnreadBeforeWelcome: ChatUnread = NO_CHAT_UNREAD
   let socket: SocketLike | null = null
   let pingTimer: ReturnType<typeof setInterval> | null = null
   const isHidden = options.isHidden ?? (() => false)
@@ -2377,6 +2477,8 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
 
   /** O socket atual morreu (com ou sem `close`): volta sozinho, ou explica na tela. */
   function handleSocketLost(): void {
+    // CHAT: a resposta do envio no ar morreu com o socket; "Enviando…" mentiria para sempre.
+    if (state.chatSend !== undefined) setState({ chatSend: undefined })
     if (sessionOver()) return
     if (state.reconnecting !== undefined) {
       // A tentativa falhou (a rede ainda não voltou): a próxima espera mais.
@@ -2805,6 +2907,44 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     setState({ letterSend: { ...sending, phase: msg.ok ? 'ok' : (msg.reason ?? 'failed') } })
   }
 
+  /**
+   * CHAT: `chat.history` troca a lista inteira do canal (entrou, voltou ou
+   * trocou de cena); `chat.msg` soma uma linha, e só ela acende a menção (a
+   * história é o que ele já teve a chance de ver; ela só devolve a marca que
+   * ele tinha antes do `welcome`). A resposta de um envio que não é o que
+   * espera não muda nada.
+   */
+  function handleChatMessage(data: unknown): void {
+    const msg = parseChatMessage(data)
+    if (msg === null) return
+    if (msg.type === 'chat.send.result') {
+      const sending = state.chatSend
+      if (sending?.phase !== 'sending' || sending.reqId !== msg.reqId) return
+      setState({ chatSend: { ...sending, phase: msg.ok ? 'ok' : (msg.reason ?? 'failed') } })
+      return
+    }
+    const log = state.chat ?? EMPTY_CHAT_LOG
+    if (msg.type === 'chat.history') {
+      const before = chatUnreadBeforeWelcome[msg.channel]
+      chatUnreadBeforeWelcome = withUnreadChannel(chatUnreadBeforeWelcome, msg.channel, [])
+      setState({ chat: withChatChannel(log, msg.channel, msg.messages), chatUnread: unreadAfterHistory(state.chatUnread, before, msg.channel, msg.messages) })
+      return
+    }
+    const entry = msg.msg
+    const list = log[msg.channel]
+    // A mesma linha duas vezes (a história e a mensagem se cruzaram) aparece uma vez só.
+    if (list.some((known) => known.id === entry.id)) return
+    const next = [...list, entry].slice(-CHAT_HISTORY_MAX)
+    const kept = unreadKeptIn(state.chatUnread, msg.channel, next)
+    const mentionsMe = state.selfName !== undefined && entry.mentions.includes(state.selfName)
+    if (!mentionsMe) {
+      setState({ chat: withChatChannel(log, msg.channel, next), chatUnread: kept })
+      return
+    }
+    const base = kept ?? NO_CHAT_UNREAD
+    setState({ chat: withChatChannel(log, msg.channel, next), chatUnread: withUnreadChannel(base, msg.channel, [...base[msg.channel], entry.id]) })
+  }
+
   function handleMessage(raw: unknown): void {
     if (typeof raw !== 'string') return
     let data: unknown
@@ -2829,7 +2969,20 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         // O pedido de ficha morre no host com a queda: a espera dele mentiria para sempre.
         // A lista de fichas livres também: o host conta o que mandou POR CONEXÃO,
         // e a desta começa vazia; a velha mostraria como livre a ficha de outro.
-        setState({ playerId: data.playerId, status: state.status === 'playing' ? 'playing' : 'waiting', reconnecting: undefined, seatClaim: undefined, seatOptions: undefined })
+        // O chat idem: as duas listas recomeçam vazias e o host só manda a
+        // história que tem linha. As marcas esperam a história do canal delas.
+        chatUnreadBeforeWelcome = state.chatUnread ?? NO_CHAT_UNREAD
+        setState({
+          playerId: data.playerId,
+          status: state.status === 'playing' ? 'playing' : 'waiting',
+          reconnecting: undefined,
+          seatClaim: undefined,
+          seatOptions: undefined,
+          chat: EMPTY_CHAT_LOG,
+          chatUnread: undefined,
+          // CHAT: o nome da sala ("Ana (2)") é o que as menções do host usam.
+          ...(isRoomName(data.name) ? { selfName: data.name } : {}),
+        })
         // LOJA: o "Quero" também morre no host com a queda — esperando, travaria os botões para sempre.
         if (state.compra?.phase === 'sent') {
           clearCompraTimer()
@@ -3121,6 +3274,11 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       case 'letter.peers':
       case 'letter.send.result':
         handleLetterMessage(data)
+        return
+      case 'chat.history':
+      case 'chat.msg':
+      case 'chat.send.result':
+        handleChatMessage(data)
         return
       case 'dice.rolled': {
         // Vale também aguardando, como o caderno: a rolagem é da mesa, não da cena.
@@ -3552,6 +3710,12 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
           setState({ status: 'kicked', reconnecting: undefined })
           return
         }
+        // CHAT: o host recusa um `chat.send` torto com `invalid_message`, sem
+        // resposta própria: é o envio no ar que falhou, não a sessão.
+        if (reason === 'invalid_message' && state.chatSend?.phase === 'sending') {
+          setState({ chatSend: { ...state.chatSend, phase: 'failed' } })
+          return
+        }
         // Mensagem inválida durante o jogo não derruba a sessão.
         if (reason === 'invalid_message' && state.status === 'playing') return
         // Já estava na sala e o host não a conhece mais: ele a deu como caída
@@ -3659,12 +3823,14 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     received = null
     // As marcas de "me avise" saem: a volta pode cair em outra cena. O Volto
     // já também: quem diz se ele segue fora é o host, na retomada.
+    // O chat fica, como na volta automática: o `welcome` zera as listas e as
+    // menções não lidas voltam com a história do canal delas.
     // Segundo "Reconectar" seguido: `clues` já está vazio, e o guardado da primeira queda continua valendo.
     const keptNotebook = {
       clues: state.clues ?? state.keptNotebook?.clues ?? [],
       notes: state.notebook ?? state.keptNotebook?.notes ?? [],
     }
-    setState({ keptNotebook, status: 'connecting', hide: undefined, compra: undefined, porAtravessar: undefined, letterPeers: undefined, letterSend: undefined, error: undefined, rev: -1, map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, partyTokens: undefined, concealed: undefined, glimpses: undefined, elsewhere: undefined, peek: undefined, pinPeek: undefined, sceneName: undefined, place: undefined, destinations: undefined, hazards: undefined, hazardNotice: undefined, gatilhos: undefined, andares: undefined, relogio: undefined, turn: undefined, signals: undefined, laser: undefined, playerLasers: undefined, doorNotice: undefined, doorRequest: undefined, moveNotice: undefined, turnNotice: undefined, travel: undefined, note: undefined, arrival: undefined, alarm: undefined, item: undefined, lever: undefined, roomText: undefined, notebook: undefined, unreadNotes: undefined, clues: undefined, colecoes: undefined, shownClue: undefined, shownPin: undefined, cluePeers: undefined, clueShow: undefined, paused: undefined, call: undefined, reconnecting: undefined, pointNotice: undefined, noise: undefined, secretCheck: undefined, secretCheckNotice: undefined, mapPeers: undefined, mapShare: undefined, mapShared: undefined, tokenAction: undefined, wait: undefined, waitEnded: undefined, waitingTokens: undefined, away: undefined, ...NO_PASSAGE_WATCH, ...NO_ROUTE })
+    setState({ keptNotebook, status: 'connecting', hide: undefined, compra: undefined, porAtravessar: undefined, letterPeers: undefined, letterSend: undefined, selfName: undefined, chatSend: undefined, error: undefined, rev: -1, map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, partyTokens: undefined, concealed: undefined, glimpses: undefined, elsewhere: undefined, peek: undefined, pinPeek: undefined, sceneName: undefined, place: undefined, destinations: undefined, hazards: undefined, hazardNotice: undefined, gatilhos: undefined, andares: undefined, relogio: undefined, turn: undefined, signals: undefined, laser: undefined, playerLasers: undefined, doorNotice: undefined, doorRequest: undefined, moveNotice: undefined, turnNotice: undefined, travel: undefined, note: undefined, arrival: undefined, alarm: undefined, item: undefined, lever: undefined, roomText: undefined, notebook: undefined, unreadNotes: undefined, clues: undefined, colecoes: undefined, shownClue: undefined, shownPin: undefined, cluePeers: undefined, clueShow: undefined, paused: undefined, call: undefined, reconnecting: undefined, pointNotice: undefined, noise: undefined, secretCheck: undefined, secretCheckNotice: undefined, mapPeers: undefined, mapShare: undefined, mapShared: undefined, tokenAction: undefined, wait: undefined, waitEnded: undefined, waitingTokens: undefined, away: undefined, ...NO_PASSAGE_WATCH, ...NO_ROUTE })
     open()
   }
 
@@ -4136,6 +4302,25 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       if (!send({ type: 'letter.send', to, via, text: limpo })) return false
       setState({ letterSend: { to, via, phase: 'sending' } })
       return true
+    },
+
+    sendChat(channel, text, mentions) {
+      const clean = cleanChatText(text)
+      if (clean === '' || clean.length > CHAT_TEXT_MAX_LENGTH || !isChatMentionList(mentions)) return false
+      if (state.chatSend?.phase === 'sending') return false
+      // A cena é a da ficha: quem aguarda o mestre (sem ficha, sem cena) só fala no Global.
+      const canTalk = channel === 'cena' ? state.status === 'playing' : state.status === 'playing' || state.status === 'waiting'
+      if (!canTalk) return false
+      const reqId = `c${nextReqId++}`
+      if (!send({ type: 'chat.send', reqId, channel, text: clean, mentions: [...mentions] })) return false
+      setState({ chatSend: { reqId, channel, phase: 'sending' } })
+      return true
+    },
+
+    markChatRead(channel) {
+      const unread = state.chatUnread
+      if (unread === undefined || unread[channel].length === 0) return
+      setState({ chatUnread: withUnreadChannel(unread, channel, []) })
     },
 
     rollDice(request) {
