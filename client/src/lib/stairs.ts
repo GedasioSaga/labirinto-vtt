@@ -96,15 +96,16 @@ export interface StairStepLine {
 
 /**
  * Linhas perpendiculares dos degraus de um StairSegment — geometria pura, sem
- * nada de Pixi. Hoje só `pixi/drawDraft.ts` usa: é o esqueleto do preview
- * enquanto o arrasto acontece. O render final (`pixi/drawStairs.ts`) passou a
- * pedir `computeStairPlan`, que devolve o lance com vigas e degraus em galão —
- * o preview segue um pente reto, e a escada solta vira o desenho de verdade.
- * Um degrau em cada ponta do
- * lance (t=0 e t=1) mais um a cada STAIR_STEP_SPACING entre elas, sempre
- * espaçados igualmente (divide o comprimento pelo nº de passos, não corta em
- * pedaços de tamanho fixo com sobra no fim). Segmento de comprimento zero
- * devolve lista vazia — não há lance pra desenhar degrau nenhum.
+ * nada de Pixi. Hoje só `pixi/drawDraft.ts` usa: é o esqueleto da prévia
+ * enquanto o arrasto acontece. A escada solta no mapa é outro desenho: o lance
+ * de minimapa de `planStairFlight` (`pixi/stairFlight.ts`), com placa, degraus
+ * finos e patamar no topo. A prévia ainda segue este pente reto.
+ *
+ * Um degrau em cada ponta do lance (t=0 e t=1) mais um a cada
+ * STAIR_STEP_SPACING entre elas, sempre espaçados igualmente (divide o
+ * comprimento pelo nº de passos, não corta em pedaços de tamanho fixo com
+ * sobra no fim). Segmento de comprimento zero devolve lista vazia — não há
+ * lance pra desenhar degrau nenhum.
  */
 export function computeStairSteps(segment: StairSegment, stepWidth: number): StairStepLine[] {
   const dx = segment.x2 - segment.x1
@@ -136,32 +137,21 @@ export function computeStairSteps(segment: StairSegment, stepWidth: number): Sta
 }
 
 /**
- * PROPORÇÕES DO LANCE — o que faz a escada se ler como escada e dizer o lado.
+ * LANCE EM GALÃO (17/09/2026) — desenho aposentado do mapa, mantido como
+ * geometria de referência.
  *
- * Queixa do mestre (17/09/2026): "como eu sei que essa escada vai para cima ou
- * para baixo? como eu sei que isso é uma escada... ta meio feio". O desenho
- * antigo era um pente de traços de 2 px com chão vazio no meio, mais uma setinha
- * de 10 px que trocava de ponta: 3,6% dos pixels de diferença entre subir e
- * descer, e degrau nenhum no meio do lance.
+ * Queixa do mestre em 17/09: "como eu sei que essa escada vai para cima ou
+ * para baixo? como eu sei que isso é uma escada... ta meio feio". A resposta
+ * daquele dia foi um lance entre duas vigas com degraus em galão: o bico do
+ * degrau avançava ladeira acima (`STAIR_TREAD_NOSE_RATIO`), o traço engordava
+ * (`STAIR_TREAD_WIDTH_AT_FOOT` -> `..._AT_TOP`) e o tom clareava rumo ao topo.
  *
- * O desenho novo é um LANCE ENTRE DUAS VIGAS com degraus em galão — o degrau
- * tem um bico que avança ladeira acima (`STAIR_TREAD_NOSE_RATIO`), como o nariz
- * de uma pisada. Três pistas, todas dizendo a mesma coisa, para ninguém precisar
- * decorar código nenhum:
- *
- *   1. todo degrau APONTA para o alto do lance;
- *   2. o degrau ENGORDA ladeira acima (`STAIR_TREAD_WIDTH_AT_FOOT` ->
- *      `..._AT_TOP`) — é o que se vê olhando um lance de cima: as pisadas de
- *      cima aparecem inteiras, as de baixo somem atrás delas;
- *   3. o TOM clareia ladeira acima (quem aplica é o renderer,
- *      `pixi/drawStairs.ts`) — o pé do lance afunda na sombra.
- *
- * Subir e descer viram desenhos espelhados, e não "a mesma escada com a seta do
- * outro lado". Continua sendo a gramática do minimapa de Resident Evil: fio de
- * cabelo e traço fino sobre chão chapado, uma cor só, nada de massa preta.
- * Também não é hachura: hachura é textura paralela preenchendo área para dizer
- * "material"; aqui cada traço é UM degrau, no espaçamento de degrau, dentro de
- * duas vigas que delimitam o lance.
+ * Em 28/09 o galão perdeu no swap cego: lia-se como seta, não como escada. O
+ * mapa passou a desenhar o lance de minimapa de `planStairFlight`
+ * (`pixi/stairFlight.ts`): placa chapada, degraus finos que se apertam rumo ao
+ * pé e patamar marcando o topo. Nenhum código de produção chama
+ * `computeStairPlan` hoje; ela só fica porque `pixi/stairFlight.test.ts`
+ * confere nela a convenção de pé e topo.
  *
  * Tudo em proporção de `stepWidth`, nunca em px fixo: um lance Grande (2
  * células) ganha degrau proporcionalmente maior em vez de virar um pente de
@@ -181,6 +171,12 @@ export const STAIR_TREAD_NOSE_RATIO = 0.75
 export const STAIR_TREAD_WIDTH_AT_FOOT = 0.045
 /** ... e do degrau mais alto. */
 export const STAIR_TREAD_WIDTH_AT_TOP = 0.11
+/**
+ * Teto de intervalos entre degraus. Largura minúscula (0,05 px num lance de
+ * 256) pedia 15 mil degraus e 1e-9 pedia centenas de bilhões; o teto segura a
+ * conta no mesmo valor que `pixi/stairFlight.ts` usa para o lance do mapa.
+ */
+export const STAIR_PLAN_MAX_INTERVALS = 256
 
 const lerp = (from: number, to: number, t: number): number => from + (to - from) * t
 
@@ -204,18 +200,22 @@ export interface StairPlan {
 }
 
 /**
- * Geometria completa de um lance, em px de mundo — pura, sem nada de Pixi, para
- * `pixi/drawStairs.ts` desenhar e para o teste medir os mesmos pixels que a
- * jornada mede.
+ * Geometria do lance em galão, em px de mundo — pura, sem nada de Pixi. O mapa
+ * não desenha mais com ela (ver o bloco LANCE EM GALÃO acima).
  *
  * `direction` decide qual PONTA do segmento é o alto: 'up' sobe no sentido do
  * traço (topo em x2,y2), 'down' desce no sentido do traço (topo em x1,y1) — a
- * mesma convenção geométrica que a seta antiga usava para escolher em que ponta
- * nascer, agora dita pelo desenho inteiro.
+ * mesma convenção que `planStairFlight` segue para pôr o patamar.
  *
- * Segmento de comprimento zero devolve `null`: não há lance para planejar.
+ * Devolve `null` quando não há lance para planejar: segmento de comprimento
+ * zero, ponta NaN ou infinita, ou largura que não forma lance (0, negativa,
+ * NaN, infinita). Largura 0 chegava a travar o app: a conta de degraus dava
+ * Infinity e o laço nunca terminava. Largura positiva minúscula ainda desenha,
+ * com no máximo `STAIR_PLAN_MAX_INTERVALS` intervalos.
  */
 export function computeStairPlan(segment: StairSegment, stepWidth: number, direction: StairDirection): StairPlan | null {
+  if (!(stepWidth > 0) || !Number.isFinite(stepWidth)) return null
+
   const ascends = direction === 'up'
   const foot: Point = ascends ? { x: segment.x1, y: segment.y1 } : { x: segment.x2, y: segment.y2 }
   const top: Point = ascends ? { x: segment.x2, y: segment.y2 } : { x: segment.x1, y: segment.y1 }
@@ -223,7 +223,7 @@ export function computeStairPlan(segment: StairSegment, stepWidth: number, direc
   const dx = top.x - foot.x
   const dy = top.y - foot.y
   const length = Math.hypot(dx, dy)
-  if (length === 0) return null
+  if (!(length > 0) || !Number.isFinite(length)) return null
 
   const ux = dx / length
   const uy = dy / length
@@ -242,7 +242,7 @@ export function computeStairPlan(segment: StairSegment, stepWidth: number, direc
   // ponta do segmento, e o pé começa no zero.
   const nose = Math.min(STAIR_TREAD_NOSE_RATIO * half, length)
   const run = length - nose
-  const count = Math.max(1, Math.round(run / (STAIR_TREAD_SPACING_RATIO * stepWidth)))
+  const count = Math.min(STAIR_PLAN_MAX_INTERVALS, Math.max(1, Math.round(run / (STAIR_TREAD_SPACING_RATIO * stepWidth))))
   const pitch = run / count
 
   const treads: StairTread[] = []

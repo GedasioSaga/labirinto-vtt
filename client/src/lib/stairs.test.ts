@@ -10,6 +10,7 @@ import {
   STAIR_SIZE_PRESET_RATIO,
   STAIR_TREAD_WIDTH_AT_FOOT,
   STAIR_TREAD_WIDTH_AT_TOP,
+  STAIR_PLAN_MAX_INTERVALS,
   type StairTread,
 } from './stairs'
 import type { StairSegment } from '../types/map'
@@ -225,4 +226,64 @@ describe('computeStairPlan', () => {
       expect(bico.y).toBeGreaterThan(ladoA.y)
     }
   })
+})
+
+describe('computeStairPlan com medida que não forma lance (laço sem fim, 28/09)', () => {
+  const horizontal = (length: number): StairSegment => ({ x1: 0, y1: 0, x2: length, y2: 0 })
+
+  /**
+   * Com largura 0 a conta de degraus dava Infinity e o `for` empurrava degrau
+   * até a memória acabar. O timeout do vitest roda num setTimeout e não
+   * interrompe laço síncrono: sozinho ele não salva o processo. A trava conta
+   * os `push` enquanto a função roda e lança erro passado o teto, então o
+   * vermelho chega em milissegundos em vez de travar a suíte.
+   */
+  const TETO_DE_PUSH = 100_000
+  const TIMEOUT_MS = 2_000
+  function semLacoSemFim<T>(planejar: () => T): T {
+    const pushOriginal = Array.prototype.push
+    let chamadas = 0
+    Array.prototype.push = function (this: unknown[], ...itens: unknown[]): number {
+      chamadas += 1
+      if (chamadas > TETO_DE_PUSH) throw new Error(`laço sem fim: mais de ${TETO_DE_PUSH} push`)
+      return pushOriginal.apply(this, itens)
+    }
+    try {
+      return planejar()
+    } finally {
+      Array.prototype.push = pushOriginal
+    }
+  }
+
+  it('largura 0 não forma lance: devolve null sem travar', () => {
+    expect(semLacoSemFim(() => computeStairPlan(horizontal(256), 0, 'up'))).toBeNull()
+    expect(semLacoSemFim(() => computeStairPlan(horizontal(256), 0, 'down'))).toBeNull()
+  }, TIMEOUT_MS)
+
+  it('largura negativa devolve null em vez de um lance com as vigas trocadas', () => {
+    expect(semLacoSemFim(() => computeStairPlan(horizontal(256), -64, 'up'))).toBeNull()
+    expect(semLacoSemFim(() => computeStairPlan(horizontal(256), -0.5, 'down'))).toBeNull()
+  }, TIMEOUT_MS)
+
+  it('largura NaN ou infinita devolve null em vez de coordenada NaN', () => {
+    for (const largura of [Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY]) {
+      expect(semLacoSemFim(() => computeStairPlan(horizontal(256), largura, 'up'))).toBeNull()
+    }
+  }, TIMEOUT_MS)
+
+  it('ponta do segmento NaN ou infinita devolve null', () => {
+    for (const ponta of [Number.NaN, Number.POSITIVE_INFINITY]) {
+      expect(semLacoSemFim(() => computeStairPlan({ x1: 0, y1: 0, x2: ponta, y2: 0 }, 64, 'up'))).toBeNull()
+    }
+  }, TIMEOUT_MS)
+
+  it('largura minúscula ainda desenha, com um teto de degraus e o topo no lugar', () => {
+    expect(STAIR_PLAN_MAX_INTERVALS).toBeGreaterThan(0)
+    for (const largura of [0.05, 1e-9]) {
+      const plan = semLacoSemFim(() => computeStairPlan(horizontal(256), largura, 'up'))
+      if (!plan) throw new Error('lance válido devolveu null')
+      expect(plan.treads.length).toBeLessThanOrEqual(STAIR_PLAN_MAX_INTERVALS + 1)
+      expect(plan.treads[plan.treads.length - 1].points[1].x).toBeCloseTo(256)
+    }
+  }, TIMEOUT_MS)
 })
