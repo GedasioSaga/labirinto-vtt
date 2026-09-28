@@ -1,6 +1,6 @@
 import type { Graphics } from 'pixi.js'
 import type { Stair } from '../types/map'
-import { SELECTION_COLOR, STAIR_COLOR, STAIR_LANDING_COLOR, STAIR_PLATE_COLOR, STROKE_WEIGHT } from './constants'
+import { SELECTION_COLOR, STAIR_COLOR, STAIR_PLATE_COLOR, STROKE_WEIGHT } from './constants'
 import { pixelGrid, strokeWidthInWorld } from './pixelAlign'
 import { computeSpiralPlan, type SpiralPlan } from '../lib/stairs'
 import { planStairFlight, type Quad, type StairFlight } from './stairFlight'
@@ -14,6 +14,18 @@ export const STAIR_TREAD_ALPHA_AT_TOP = 1
 /** Degrau, moldura e contorno da espiral: logo abaixo da parede (que é alpha 1). É escada, não parede. */
 export const STAIR_RAIL_ALPHA = 0.85
 
+/**
+ * PLACA: o próprio chão um tom mais escuro, não um furo nele. Opaca, a placa
+ * virava um buraco preto no chão claro e chamava mais atenção que a parede
+ * (queixa de 28/09/2026). Nesta opacidade, em todo chão que o app pinta, a
+ * placa se separa do chão menos que a parede interna e o degrau se separa da
+ * placa pelo menos tanto quanto a parede interna do chão (drawStairs.test.ts).
+ */
+export const STAIR_PLATE_ALPHA = 0.25
+
+/** PATAMAR: `STAIR_COLOR` nesta opacidade por cima da placa, um tom entre a placa e o degrau em qualquer chão. */
+export const STAIR_LANDING_ALPHA = 0.4
+
 /** `climb` (0 no pé do lance, 1 no topo) em opacidade de raio da espiral. */
 export function treadAlpha(climb: number): number {
   return STAIR_TREAD_ALPHA_AT_FOOT + (STAIR_TREAD_ALPHA_AT_TOP - STAIR_TREAD_ALPHA_AT_FOOT) * climb
@@ -24,9 +36,12 @@ export function treadAlpha(climb: number): number {
  * Resident Evil: cor chapada, traço fino, nada de sombra nem gradiente.
  *
  * LANCE RETO (geometria em stairFlight.ts), pintado em quatro camadas:
- *   - PLACA: o retângulo da escada, chapado em `STAIR_PLATE_COLOR`. Dá à linha
- *     clara do degrau o mesmo contraste em chão claro e em chão escuro.
- *   - PATAMAR: piso chapado no TOPO do lance, em `STAIR_LANDING_COLOR`.
+ *   - PLACA: o retângulo da escada, `STAIR_PLATE_COLOR` a `STAIR_PLATE_ALPHA`:
+ *     o próprio chão, chapado, um tom mais escuro. Em chão claro dá à linha
+ *     clara do degrau o fundo de que ela precisa; em chão escuro quase some, e
+ *     o degrau carrega o desenho sozinho.
+ *   - PATAMAR: piso no TOPO do lance, `STAIR_COLOR` a `STAIR_LANDING_ALPHA`
+ *     por cima da placa: mais claro que a placa, mais escuro que o degrau.
  *   - DEGRAUS: linhas finas paralelas de moldura a moldura, que se apertam
  *     perto do pé e se abrem rumo ao topo.
  *   - MOLDURA: o contorno do lance, 1 px de tela, como a parede.
@@ -93,11 +108,11 @@ export function drawStairs(
 /** Placa, patamar, degraus e moldura de um lance reto, nesta ordem. */
 function paintFlight(graphics: Graphics, flight: StairFlight, opacity: number): void {
   graphics.poly(flight.plate, true)
-  graphics.fill({ color: STAIR_PLATE_COLOR, alpha: opacity })
+  graphics.fill({ color: STAIR_PLATE_COLOR, alpha: STAIR_PLATE_ALPHA * opacity })
 
   if (flight.landing !== null) {
     graphics.poly(flight.landing, true)
-    graphics.fill({ color: STAIR_LANDING_COLOR, alpha: opacity })
+    graphics.fill({ color: STAIR_COLOR, alpha: STAIR_LANDING_ALPHA * opacity })
   }
 
   // Todos os degraus num stroke só: nenhum se sobrepõe a outro, então o alpha

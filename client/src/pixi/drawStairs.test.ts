@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import { Graphics } from 'pixi.js'
 import { drawStairs, STAIR_RAIL_ALPHA } from './drawStairs'
-import { SELECTION_COLOR, STAIR_COLOR, STAIR_LANDING_COLOR, STAIR_PLATE_COLOR } from './constants'
+import { SELECTION_COLOR, STAIR_COLOR, STAIR_PLATE_COLOR } from './constants'
+import { WALL_COLOR, WALL_INTERIOR_ALPHA } from './drawWalls'
 import type { Point } from './world'
 import type { Stair, StairDirection } from '../types/map'
+import { DEFAULT_FLOOR_STYLE, LEGACY_FLOOR_STYLE } from '../lib/mapFile'
 
 function buildStair(overrides: Partial<Stair> = {}): Stair {
   return {
@@ -139,7 +141,7 @@ describe('drawStairs — o lance é uma placa com degraus, não uma seta', () =>
     drawStairs(g, [buildStair()], null)
     expect(pinturas(g).map((p) => [p.action, p.data.style.color])).toEqual([
       ['fill', STAIR_PLATE_COLOR],
-      ['fill', STAIR_LANDING_COLOR],
+      ['fill', STAIR_COLOR],
       ['stroke', STAIR_COLOR],
       ['stroke', STAIR_COLOR],
     ])
@@ -415,14 +417,87 @@ function fotografar(direction: StairDirection, origem: Point = { x: 0, y: 0 }): 
 }
 
 describe('drawStairs — cores que funcionam em chão claro e escuro', () => {
-  it('a placa é chão para quem mede: fica a no máximo LIMIAR_CANAL do fundo do canvas', () => {
-    expect(distanciaCanal(STAIR_PLATE_COLOR, COR_DO_FUNDO)).toBeLessThanOrEqual(LIMIAR_CANAL)
+  it('a placa é chão para quem mede: sobre o canvas fica a no máximo LIMIAR_CANAL dele', () => {
+    expect(distanciaCanal(tonsSobre(COR_DO_FUNDO).placa, COR_DO_FUNDO)).toBeLessThanOrEqual(LIMIAR_CANAL)
+  })
+})
+
+// --------------------------------------------------------------------------
+// O MIOLO PESA MENOS QUE A PAREDE
+//
+// Queixa de 28/09/2026: a placa em #1e1e1e chapado pesava no chão claro —
+// chamava mais atenção que a parede e lia como buraco preto. A régua é o
+// contraste WCAG (luminância relativa) do tom que cada camada deixa na tela
+// sobre o chão, com a cor e a opacidade lidas das instruções que `drawStairs`
+// deixa no Graphics. Em cada chão que o app pinta de verdade:
+//   - PESO: a placa se separa do chão MENOS que a parede interna, a parede mais
+//     fraca do mapa (WALL_COLOR a WALL_INTERIOR_ALPHA). Escada é desenho no
+//     chão, não um furo nele.
+//   - LEITURA: o degrau se separa da placa PELO MENOS tanto quanto a parede
+//     interna se separa do chão. Tirar o peso não pode apagar o degrau.
+// --------------------------------------------------------------------------
+
+const deHex = (css: string): number => Number.parseInt(css.slice(1), 16)
+
+const CHAOS_DE_REFERENCIA = [
+  { nome: 'terracota do mapa novo', chao: deHex(DEFAULT_FLOOR_STYLE.fillColor) },
+  { nome: 'verde do mapa antigo', chao: deHex(LEGACY_FLOOR_STYLE.fillColor) },
+  // Cinzas das recriações de minimapa (lib/__fixtures__/hazardTower.ts e andar6.ts).
+  { nome: 'cinza #3a3a3a', chao: 0x3a3a3a },
+  { nome: 'cinza #2b2b2b, o mesmo do canvas vazio', chao: COR_DO_FUNDO },
+]
+
+/** Luminância relativa (WCAG 2.x) de uma cor 0xRRGGBB. */
+function luminancia(cor: number): number {
+  const linear = (deslocamento: number) => {
+    const s = canal(cor, deslocamento) / 255
+    return s <= 0.04045 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4
+  }
+  return 0.2126 * linear(16) + 0.7152 * linear(8) + 0.0722 * linear(0)
+}
+
+/** Razão de contraste WCAG: 1 para cores iguais, 21 para preto contra branco. */
+function contraste(a: number, b: number): number {
+  const [clara, escura] = [luminancia(a), luminancia(b)].sort((x, y) => y - x)
+  return (clara + 0.05) / (escura + 0.05)
+}
+
+/** Quanto a parede interna se separa do chão: o teto do peso da placa e o piso da leitura do degrau. */
+function contrasteDaParedeInterna(chao: number): number {
+  return contraste(misturar(chao, WALL_COLOR, WALL_INTERIOR_ALPHA), chao)
+}
+
+/**
+ * O tom que placa, patamar e degrau deixam na tela sobre `chao`, com a cor e a
+ * opacidade que o Graphics realmente recebeu (ordem: placa, patamar, degraus,
+ * moldura). Patamar e degrau caem em cima da placa.
+ */
+function tonsSobre(chao: number): { placa: number; patamar: number; degrau: number } {
+  const g = new Graphics()
+  drawStairs(g, [buildStair()], null)
+  const [placa, patamar, degraus] = pinturas(g)
+  const naPlaca = misturar(chao, placa.data.style.color, placa.data.style.alpha)
+  return {
+    placa: naPlaca,
+    patamar: misturar(naPlaca, patamar.data.style.color, patamar.data.style.alpha),
+    degrau: misturar(naPlaca, degraus.data.style.color, degraus.data.style.alpha),
+  }
+}
+
+describe('drawStairs — o miolo pesa menos que a parede, em todo chão', () => {
+  it.each(CHAOS_DE_REFERENCIA)('$nome: a placa se separa do chão menos que a parede interna', ({ chao }) => {
+    expect(contraste(tonsSobre(chao).placa, chao)).toBeLessThan(contrasteDaParedeInterna(chao))
   })
 
-  it('o patamar se separa da placa e do degrau: é um terceiro tom, não um degrau largo', () => {
-    expect(distanciaCanal(STAIR_LANDING_COLOR, STAIR_PLATE_COLOR)).toBeGreaterThan(LIMIAR_CANAL)
-    const degrauSobreAPlaca = misturar(STAIR_PLATE_COLOR, STAIR_COLOR, STAIR_RAIL_ALPHA)
-    expect(distanciaCanal(STAIR_LANDING_COLOR, degrauSobreAPlaca)).toBeGreaterThan(LIMIAR_CANAL)
+  it.each(CHAOS_DE_REFERENCIA)('$nome: o degrau se separa da placa pelo menos tanto quanto a parede interna do chão', ({ chao }) => {
+    const { placa, degrau } = tonsSobre(chao)
+    expect(contraste(degrau, placa)).toBeGreaterThanOrEqual(contrasteDaParedeInterna(chao))
+  })
+
+  it.each(CHAOS_DE_REFERENCIA)('$nome: o patamar é um terceiro tom, longe da placa e do degrau', ({ chao }) => {
+    const { placa, patamar, degrau } = tonsSobre(chao)
+    expect(distanciaCanal(patamar, placa)).toBeGreaterThan(LIMIAR_CANAL)
+    expect(distanciaCanal(patamar, degrau)).toBeGreaterThan(LIMIAR_CANAL)
   })
 })
 
@@ -449,7 +524,8 @@ describe('drawStairs — o que o mestre vê sem selecionar nada', () => {
   })
 
   it('o fundo da medida continua sendo chão: canvas ou placa, nunca degrau nem patamar', () => {
-    expect([COR_DO_FUNDO, STAIR_PLATE_COLOR]).toContain(fundoDe(sobe))
-    expect([COR_DO_FUNDO, STAIR_PLATE_COLOR]).toContain(fundoDe(desce))
+    const placaNoCanvas = tonsSobre(COR_DO_FUNDO).placa
+    expect([COR_DO_FUNDO, placaNoCanvas]).toContain(fundoDe(sobe))
+    expect([COR_DO_FUNDO, placaNoCanvas]).toContain(fundoDe(desce))
   })
 })
