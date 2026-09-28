@@ -1418,21 +1418,25 @@ function App() {
   // selecionado. Substitui os `show*` booleanos espalhados que existiam antes
   // desta fase (dossiê F4: Grade/Medição/Alinhar grade/Camadas/Cenário
   // renderizavam SEMPRE, empurrando Medição pra fora da viewport).
-  const propertyGroups = relevantPropertyGroups(activeTool, {
-    wall: selectedWall !== null,
-    wallHasDoor: selectedWall?.door != null,
-    prop: selectedProp !== null,
-    token: selectedToken !== null,
-    textLabel: selectedTextLabel !== null,
-    region: selectedRegion !== null,
-    regionIsRoom: selectedRegion?.room !== undefined,
-    light: selectedLight !== null,
-    stair: selectedStair !== null,
-    drawingKind: selectedDrawing && selectedDrawing.kind !== 'text' ? selectedDrawing.kind : null,
-    floorPiece: selectedFloorPiece !== null,
-    concealZone: selectedConcealZone !== null,
-    pin: selectedPin !== null,
-  })
+  const propertyGroups = relevantPropertyGroups(
+    activeTool,
+    {
+      wall: selectedWall !== null,
+      wallHasDoor: selectedWall?.door != null,
+      prop: selectedProp !== null,
+      token: selectedToken !== null,
+      textLabel: selectedTextLabel !== null,
+      region: selectedRegion !== null,
+      regionIsRoom: selectedRegion?.room !== undefined,
+      light: selectedLight !== null,
+      stair: selectedStair !== null,
+      drawingKind: selectedDrawing && selectedDrawing.kind !== 'text' ? selectedDrawing.kind : null,
+      floorPiece: selectedFloorPiece !== null,
+      concealZone: selectedConcealZone !== null,
+      pin: selectedPin !== null,
+    },
+    { roomFreeKind },
+  )
 
   /**
    * "Chão a partir da imagem de fundo": lê os pixels da MESMA imagem que

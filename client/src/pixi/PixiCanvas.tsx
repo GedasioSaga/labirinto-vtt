@@ -143,11 +143,10 @@ import {
   normalizeDraftPolygonPoints,
   isValidFreeRoomDraft,
   buildFreeRoomFromPoints,
-  normalizeFreeWallDraft,
   isValidFreeWallDraft,
   buildFreeWallsFromPoints,
 } from '../lib/drawingFactory'
-import { arredondarTracado } from '../lib/arredondarTracado'
+import { tracadoDaSalaLivre } from '../lib/tracadoDaSalaLivre'
 import { createPropsRenderer } from './drawProps'
 import { createConcealZonesRenderer } from './drawConcealZones'
 import { drawHazardAreas } from './drawHazards'
@@ -2939,7 +2938,9 @@ export function PixiCanvas({
        *
        * "Arredondar" (`roomFreeRounded`) só vale para a Sala livre: os cantos
        * clicados viram curva ANTES de a sala nascer, então as paredes e os
-       * vértices dela já saem com a curva. A Região continua reta.
+       * vértices dela já saem com a curva. A Região continua reta. O contorno
+       * gravado sai de `tracadoDaSalaLivre`, a mesma função que a prévia
+       * (`drawRegionDraftPreview`) desenha durante o traço.
        */
       const finishRegion = () => {
         const { activeTool, roomFreeKind, roomFreeRounded } = useMapStore.getState()
@@ -2955,7 +2956,7 @@ export function PixiCanvas({
           return
         }
 
-        if (activeTool === 'roomFree') commitFreeRoom(roomFreeRounded ? arredondarTracado(points, true) : points)
+        if (activeTool === 'roomFree') commitFreeRoom(tracadoDaSalaLivre(regionDraftPoints, 'sala', roomFreeRounded).pontos)
         else commitRegion(points)
         regionDraftPoints = []
         draftGraphics.clear()
@@ -2973,15 +2974,14 @@ export function PixiCanvas({
        * sala para editar nem sala recém-nascida para arrastar.
        */
       const finishFreeWall = () => {
-        const { points, closed } = normalizeFreeWallDraft(regionDraftPoints)
-        if (!isValidFreeWallDraft(points)) {
+        const { roomFreeRounded, wallKind, addWalls } = useMapStore.getState()
+        const { pontos, fechado } = tracadoDaSalaLivre(regionDraftPoints, 'parede', roomFreeRounded)
+        if (!isValidFreeWallDraft(pontos)) {
           clearDrafts()
           return
         }
 
-        const { roomFreeRounded, wallKind, addWalls } = useMapStore.getState()
-        const tracado = roomFreeRounded ? arredondarTracado(points, closed) : points
-        addWalls(buildFreeWallsFromPoints(() => crypto.randomUUID(), tracado, closed, wallKind))
+        addWalls(buildFreeWallsFromPoints(() => crypto.randomUUID(), pontos, fechado, wallKind))
         regionDraftPoints = []
         draftGraphics.clear()
       }
@@ -3112,14 +3112,15 @@ export function PixiCanvas({
 
       /**
        * Prévia do traçado ponto a ponto (Região e Sala livre): pontos já
-       * clicados + cursor. Com "Arredondar" ligado na Sala livre, a linha já
-       * sai com os cantos em curva — a mesma conta que `finishRegion` e
-       * `finishFreeWall` aplicam no fim, para a prévia não prometer uma forma
-       * e o mapa receber outra. A Região não arredonda.
+       * clicados + cursor. Com "Arredondar" ligado na Sala livre, a prévia
+       * desenha o contorno de `tracadoDaSalaLivre` — a MESMA função que
+       * `finishRegion` e `finishFreeWall` gravam no fim —, para a prévia não
+       * prometer uma forma e o mapa receber outra. A Região não arredonda.
        */
       const drawRegionDraftPreview = (cursor: Point | null) => {
-        const { activeTool, roomFreeRounded } = useMapStore.getState()
-        drawRegionDraft(draftGraphics, regionDraftPoints, cursor, activeTool === 'roomFree' && roomFreeRounded)
+        const { activeTool, roomFreeKind, roomFreeRounded } = useMapStore.getState()
+        const salaLivre = activeTool === 'roomFree' ? { modo: roomFreeKind, arredondar: roomFreeRounded } : null
+        drawRegionDraft(draftGraphics, regionDraftPoints, cursor, salaLivre)
       }
 
       /** Rascunho feito clique a clique aberto: Região, Área poligonal, Caminho ou Chão corredor. */

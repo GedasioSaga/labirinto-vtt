@@ -43,14 +43,35 @@ export interface ToolVariantOption<V> {
 }
 
 /**
+ * Quando um grupo inteiro deixa de valer por causa de outra escolha do mesmo
+ * menu. O grupo continua no lugar de sempre, esmaecido, com `motivo` escrito
+ * logo abaixo do título — convenção do catálogo de interação para Menu ("ação
+ * que não se aplica agora aparece esmaecida no lugar de sempre") e Botão
+ * ("desabilitado com o motivo por perto"). Sumir com o grupo faria o menu
+ * mudar de forma a cada troca de modo, e a pessoa não saberia onde foi parar.
+ *
+ * Hoje só o Preenchimento da Sala livre usa isto: no modo Parede o traçado
+ * não cria sala, então não há o que preencher.
+ */
+export interface ToolVariantGroupInativo {
+  /** O eixo cujo valor desliga o grupo. */
+  storeKey: 'roomFreeKind'
+  /** Com este valor no eixo, o grupo fica esmaecido. */
+  value: RoomFreeKind
+  /** Por que não vale, e como voltar a valer — frase curta, texto de tela. */
+  motivo: string
+}
+
+/**
  * Um eixo de variante dentro de uma ferramenta (uma ferramenta pode ter mais
  * de um — `roomPolygon` tem `regionFillPattern` E `polygonSides`). `storeKey`
  * é o nome do par valor/ação em `mapStore.ts` que esta variante edita — é
  * também o discriminante que `ToolVariantMenu` usa para resolver o binding
  * certo sem `as` (o tipo de `options` já amarra o tipo de `value` esperado
- * por cada `storeKey`).
+ * por cada `storeKey`). `inativoQuando`, opcional, diz quando o grupo inteiro
+ * não vale (ver `ToolVariantGroupInativo`).
  */
-export type ToolVariantGroup =
+export type ToolVariantGroup = (
   | { storeKey: 'doorKind'; label: string; options: ToolVariantOption<DoorKind>[] }
   | { storeKey: 'wallKind'; label: string; options: ToolVariantOption<NonNullable<Wall['wallKind']>>[] }
   | { storeKey: 'regionFillPattern'; label: string; options: ToolVariantOption<Region['fillPattern']>[] }
@@ -68,6 +89,7 @@ export type ToolVariantGroup =
   | { storeKey: 'roomFreeRounded'; label: string; options: ToolVariantOption<boolean>[] }
   /** Forma do botão "Desenho": escolher ATIVA a ferramenta (não é preferência da próxima entidade). */
   | { storeKey: 'drawShape'; label: string; options: ToolVariantOption<DrawingTool>[] }
+) & { inativoQuando?: ToolVariantGroupInativo }
 
 /** Ferramenta com variante PRONTA — schema e ação de store já existem. */
 export interface ToolVariantReady {
@@ -151,6 +173,21 @@ const ROOM_FREE_ROUNDED_GROUP: ToolVariantGroup = {
     { id: 'cantos-vivos', label: 'Desligado', value: false, description: 'Cantos vivos, do jeito que foram clicados.' },
     { id: 'arredondado', label: 'Ligado', value: true, description: 'Cada canto vira uma curva suave.' },
   ],
+}
+
+/**
+ * O Preenchimento da Sala livre: a MESMA preferência `regionFillPattern` das
+ * outras Salas, mas esmaecido no modo Parede, que só cria paredes soltas — não
+ * nasce sala para preencher. Fica no lugar em vez de sumir (ver
+ * `ToolVariantGroupInativo`).
+ */
+const ROOM_FREE_FILL_PATTERN_GROUP: ToolVariantGroup = {
+  ...REGION_FILL_PATTERN_GROUP,
+  inativoQuando: {
+    storeKey: 'roomFreeKind',
+    value: 'parede',
+    motivo: 'Parede solta não tem preenchimento. Só vale ao criar Sala.',
+  },
 }
 
 /**
@@ -293,13 +330,13 @@ export const TOOL_VARIANTS: Partial<Record<DrawingTool, ToolVariantEntry>> = {
   // Sala livre: o que o traçado cria (sala ou só paredes) e se os cantos
   // arredondam vêm primeiro; o preenchimento é a mesma preferência
   // `regionFillPattern` das outras três Salas (o commit dela em
-  // pixi/PixiCanvas.tsx lê do mesmo store) e não vale no modo Parede, que
-  // não cria sala. Sem eixo de número de lados — quem escolhe os lados aqui
-  // é o clique do usuário.
+  // pixi/PixiCanvas.tsx lê do mesmo store) e fica esmaecido, com o motivo, no
+  // modo Parede, que não cria sala (`ROOM_FREE_FILL_PATTERN_GROUP`). Sem eixo
+  // de número de lados — quem escolhe os lados aqui é o clique do usuário.
   roomFree: {
     available: true,
     tool: 'roomFree',
-    groups: [ROOM_FREE_KIND_GROUP, ROOM_FREE_ROUNDED_GROUP, REGION_FILL_PATTERN_GROUP],
+    groups: [ROOM_FREE_KIND_GROUP, ROOM_FREE_ROUNDED_GROUP, ROOM_FREE_FILL_PATTERN_GROUP],
   },
 
   // ---- Fase 5: as 3 variantes abaixo saíram de available:false pra true —

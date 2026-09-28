@@ -20,7 +20,7 @@
  * meu escopo de arquivos nesta fase).
  */
 import type { Drawing } from '../types/map'
-import type { DrawingTool } from '../types/tools'
+import type { DrawingTool, RoomFreeKind } from '../types/tools'
 
 export type PropertyGroupId =
   | 'drawingStyle'
@@ -197,10 +197,17 @@ export function panelHeadingTool(activeTool: DrawingTool, hasSelection: boolean)
  * configuração do mapa e saem do painel. `selection` (SelectionControls) fica de fora dessa
  * regra: tem o botão "Adicionar token", que não depende de haver seleção —
  * escondê-la removeria a única forma de adicionar token pelo painel.
+ *
+ * `preferencias` é o que a ferramenta armada vai criar, quando isso muda o
+ * painel. Hoje só a Sala livre: no modo Parede ela cria parede solta, que não
+ * tem cor de Região nem preenchimento, então `regionStyle` e `fill` saem.
+ * `wallStyle` também não entra — Janela, Espessura e Ponta não chegam à parede
+ * solta, e controle que não faz nada é pior que controle nenhum.
  */
 export function relevantPropertyGroups(
   activeTool: DrawingTool,
   selection: ToolPropertiesSelection = EMPTY_SELECTION,
+  preferencias: { roomFreeKind?: RoomFreeKind } = {},
 ): Set<PropertyGroupId> {
   const {
     wall = false,
@@ -243,13 +250,14 @@ export function relevantPropertyGroups(
   }
 
   // Região/Sala: cor + hachurado (RegionStyleControls, já existe) — mesma
-  // condição de `showRegionStyle`, PropertiesPanel.tsx:110-115.
+  // condição de `showRegionStyle`, PropertiesPanel.tsx:110-115. A Sala livre
+  // só conta no modo Sala: no modo Parede ela não cria região nenhuma.
   const showRegionGroup =
     activeTool === 'region' ||
     activeTool === 'room' ||
     activeTool === 'roomCircle' ||
     activeTool === 'roomPolygon' ||
-    activeTool === 'roomFree' ||
+    (activeTool === 'roomFree' && preferencias.roomFreeKind !== 'parede') ||
     region
   if (showRegionGroup) groups.add('regionStyle')
 

@@ -1,4 +1,4 @@
-import { useId, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { createContext, useContext, useId, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { DoorKind, FloorPiece, FreehandTexture, Region, Wall } from '../types/map'
 import type { DrawingTool, RoomFreeKind } from '../types/tools'
 import type { StairSizePreset } from '../lib/stairs'
@@ -89,6 +89,14 @@ export interface ToolVariantMenuProps {
 }
 
 /**
+ * O grupo inteiro não vale agora (`inativoQuando`, em lib/toolVariants.ts): as
+ * opções dele ficam `disabled` de uma vez, como dentro de um
+ * `<fieldset disabled>`. Contexto em vez de prop para não costurar um
+ * `disabled` por cada `case` de `GroupOptions`.
+ */
+const GrupoInativo = createContext(false)
+
+/**
  * Uma opção de rádio. O nome acessível é SÓ o rótulo (`aria-label`), e a
  * descrição vai para `aria-describedby`: se a descrição entrasse no nome,
  * "Linha" casaria com "... linha reta" e um seletor `exact` falharia (D10).
@@ -104,6 +112,7 @@ function VariantOption<V>({
   icon?: ReactNode
   onPick: () => void
 }) {
+  const inativo = useContext(GrupoInativo)
   const descId = useId()
   const description = (
     <span id={descId} className="lb-toolvariant-menu__option-desc">
@@ -118,6 +127,7 @@ function VariantOption<V>({
       aria-label={option.label}
       aria-describedby={descId}
       className={icon ? 'lb-toolvariant-menu__option lb-toolvariant-menu__option--icon' : 'lb-toolvariant-menu__option'}
+      disabled={inativo}
       onClick={onPick}
     >
       {icon ? (
@@ -217,6 +227,55 @@ function GroupOptions({
     default:
       return null
   }
+}
+
+/**
+ * Um eixo do menu: título, opções e, quando outra escolha do mesmo menu
+ * desliga o eixo (`inativoQuando`), as opções esmaecidas no lugar de sempre
+ * com o motivo escrito logo abaixo delas — a frase de apoio do app
+ * (`lb-field__hint`, a mesma do "Distribuir precisa de 3 ou mais itens" em
+ * AlignDistributeControls), ligada ao grupo por `aria-describedby`.
+ *
+ * `disabled` de verdade, não só a cor: a opção esmaecida não recebe clique nem
+ * foco, então a preferência que não vale não muda por acidente. Ela continua
+ * mostrando qual foi a última escolha, porque é essa que volta a valer quando
+ * o eixo que desligou o grupo mudar de novo.
+ */
+function VariantGroup({
+  group,
+  bindings,
+  onPicked,
+  iconFor,
+}: {
+  group: ToolVariantGroup
+  bindings: ToolVariantBindings
+  onPicked: () => void
+  iconFor?: (tool: DrawingTool) => ReactNode
+}) {
+  const motivoId = useId()
+  const regra = group.inativoQuando
+  const inativo = regra !== undefined && readVariantValue(bindings, regra.storeKey) === regra.value
+  return (
+    <div className="lb-toolvariant-menu__group">
+      <h3 className="lb-eyebrow">{group.label}</h3>
+      <div
+        className="lb-toolvariant-menu__options"
+        role="radiogroup"
+        aria-label={group.label}
+        aria-disabled={inativo || undefined}
+        aria-describedby={inativo ? motivoId : undefined}
+      >
+        <GrupoInativo.Provider value={inativo}>
+          <GroupOptions group={group} bindings={bindings} onPicked={onPicked} iconFor={iconFor} />
+        </GrupoInativo.Provider>
+      </div>
+      {inativo && (
+        <p id={motivoId} className="lb-field__hint lb-toolvariant-menu__motivo">
+          {regra.motivo}
+        </p>
+      )}
+    </div>
+  )
 }
 
 /**
@@ -359,20 +418,16 @@ export function ToolVariantMenu({ title, groups, bindings, onClose, onChoose, ic
         // — sem isso a segunda coluna abriria com um risco solto no topo.
         <div className="lb-toolvariant-menu__coluna" key={grupos[0]?.storeKey ?? indice}>
           {grupos.map((group) => (
-            <div className="lb-toolvariant-menu__group" key={group.storeKey}>
-              <h3 className="lb-eyebrow">{group.label}</h3>
-              <div className="lb-toolvariant-menu__options" role="radiogroup" aria-label={group.label}>
-                <GroupOptions
-                  group={group}
-                  bindings={bindings}
-                  onPicked={() => {
-                    onChoose?.(group.storeKey)
-                    onClose()
-                  }}
-                  iconFor={iconFor}
-                />
-              </div>
-            </div>
+            <VariantGroup
+              key={group.storeKey}
+              group={group}
+              bindings={bindings}
+              onPicked={() => {
+                onChoose?.(group.storeKey)
+                onClose()
+              }}
+              iconFor={iconFor}
+            />
           ))}
         </div>
       ))}

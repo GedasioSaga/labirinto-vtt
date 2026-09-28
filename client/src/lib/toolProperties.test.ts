@@ -88,6 +88,25 @@ describe('relevantPropertyGroups — casos concretos do pedido do usuário (F4-N
     }
   })
 
+  it('Sala livre no modo Sala: mostra fill e regionStyle, como as outras salas', () => {
+    for (const groups of [groupsOf('roomFree'), relevantPropertyGroups('roomFree', undefined, { roomFreeKind: 'sala' })]) {
+      expect(groups.has('fill')).toBe(true)
+      expect(groups.has('regionStyle')).toBe(true)
+    }
+  })
+
+  it('Sala livre no modo Parede: some o painel de Região e o preenchimento — parede solta não tem nenhum dos dois', () => {
+    const groups = relevantPropertyGroups('roomFree', undefined, { roomFreeKind: 'parede' })
+    expect(groups.has('fill')).toBe(false)
+    expect(groups.has('regionStyle')).toBe(false)
+  })
+
+  it('Sala livre no modo Parede com uma Região selecionada: o painel continua sendo o da Região selecionada', () => {
+    const groups = relevantPropertyGroups('roomFree', { region: true }, { roomFreeKind: 'parede' })
+    expect(groups.has('fill')).toBe(true)
+    expect(groups.has('regionStyle')).toBe(true)
+  })
+
   it('ferramenta Selecionar + Região selecionada: mostra fill e regionStyle', () => {
     const groups = groupsOf('select', { region: true })
     expect(groups.has('fill')).toBe(true)

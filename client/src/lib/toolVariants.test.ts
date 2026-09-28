@@ -135,6 +135,24 @@ describe('TOOL_VARIANTS', () => {
     expect(arredondar?.options.map((o) => o.value)).toEqual([false, true])
   })
 
+  it('na Sala livre, o preenchimento fica esmaecido no modo Parede e diz por quê', () => {
+    const entry = TOOL_VARIANTS.roomFree
+    if (!entry || !entry.available) throw new Error('roomFree deveria estar disponível')
+    const preenchimento = entry.groups.find((g) => g.storeKey === 'regionFillPattern')
+    expect(preenchimento?.inativoQuando).toMatchObject({ storeKey: 'roomFreeKind', value: 'parede' })
+    expect(preenchimento?.inativoQuando?.motivo.trim()).not.toBe('')
+  })
+
+  it('na Região e nas outras salas o preenchimento vale sempre', () => {
+    for (const tool of ['region', 'room', 'roomCircle', 'roomPolygon'] as const) {
+      const entry = TOOL_VARIANTS[tool]
+      if (!entry || !entry.available) throw new Error(`${tool} deveria estar disponível`)
+      const preenchimento = entry.groups.find((g) => g.storeKey === 'regionFillPattern')
+      expect(preenchimento).toBeDefined()
+      expect(preenchimento?.inativoQuando).toBeUndefined()
+    }
+  })
+
   it('line está marcada como indisponível (Linha/Curva é escolha de Forma no botão Desenho, sem eixo próprio)', () => {
     const entry = TOOL_VARIANTS.line
     expect(entry?.available).toBe(false)

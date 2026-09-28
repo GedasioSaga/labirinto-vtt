@@ -1170,6 +1170,34 @@ body {
   color: var(--lb-color-brass);
 }
 
+/* Grupo que não vale agora (Preenchimento da Sala livre no modo Parede): as
+   opções ficam no lugar de sempre, esmaecidas como o `.lb-seg__option` que não
+   se aplica. A escolha guardada continua marcada — é ela que volta a valer
+   quando o grupo voltar —, mas só pelo contorno, sem o latão de "ativo": latão
+   aceso numa opção que não faz nada agora prometeria o que não acontece.
+   Fundo transparente também no hover (como o `.lb-btn:disabled`): o realce de
+   passar o mouse diria "clique aqui". */
+.lb-toolvariant-menu__option:disabled {
+  background: transparent;
+  color: var(--lb-color-parchment-faint);
+  cursor: not-allowed;
+}
+
+.lb-toolvariant-menu__option[aria-checked='true']:disabled {
+  background: transparent;
+  border-color: var(--lb-color-line-strong);
+}
+
+/* Por que o grupo está esmaecido: a frase de apoio do app (`lb-field__hint`)
+   logo abaixo das opções, recuada como o texto delas para ler como parte do
+   grupo, e não como título do próximo. O seletor composto é de propósito: o
+   `.lb-field__hint { margin: 0 }` vem depois no arquivo com o mesmo peso e
+   apagaria o respiro entre as opções e a frase. */
+.lb-toolvariant-menu__options + .lb-toolvariant-menu__motivo {
+  margin-top: var(--lb-space-1);
+  padding-inline: var(--lb-space-2);
+}
+
 .lb-toolvariant-menu__option-desc {
   font-size: var(--lb-font-size-xs);
   color: var(--lb-color-parchment-faint);
