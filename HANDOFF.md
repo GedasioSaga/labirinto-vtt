@@ -852,3 +852,12 @@ Publicar 0.4.4 ao fechar as 5 features (suíte 1x, fumaça, instalador, push com
 - "Chão por cima das salas": não reproduzido. O quadrado verde da imagem 18 é a sala "Cemiterio" (`#224d05`). O chão já é desenhado por baixo das salas nas três telas. Aguardando um print do usuário.
 - Balde de tinta: o balde do Chão (forma "Balde") para em parede, linha do mapa, borda de sala e borda do mapa (`passagensCortadas` em `client/src/lib/floorBlocks.ts`, `barreirasDoBalde` em `client/src/lib/floorTool.ts`). Teste `client/src/lib/floorBlocks.balde.test.ts` nasceu vermelho (6/7), depois verde. Evidência: vitest `floorBlocks pisoEmEdicao hostSession.espiar fogFilter.janelaGrade floorContour` 8 arquivos 81/81; tsc 0. Mapa real (100x100, 1159 paredes, 78 salas): 7124 células em 20 ms.
 - Não testado no browser. É a 4ª feature desde a 0.4.5; push e instalador na 5ª.
+
+### 28/09/2026, tarde: release v0.4.6
+
+- Publicado: https://github.com/GedasioSaga/labirinto-vtt/releases/tag/v0.4.6 com `Labirinto_0.4.6_x64-setup.exe` (2275174 B) e `Labirinto_0.4.6_x64_en-US.msi` (2961408 B). Conteúdo: travar peça de chão (`ecbe47e7`), camadas do chão (`809bb34d`), chão para na borda do mapa (`2017c7e7`), balde de tinta (`ee778b85`).
+- Bump `e8ef2b1c` (5 arquivos de versão). Tag anotada `v0.4.6` em `ecd628df`; o build saiu de `e8ef2b1c`, e a única diferença entre os dois é o teste `client/src/components/ToolVariantMenu.colunas.test.ts`. origin/main `94c0be98..ecd628df`.
+- `ecd628df` test(menu): o teste de colunas esperava 4 grupos no menu do Chão; com a Camada são 5 grupos e 24 opções, divididos 12/12 (`[Forma, Camada]` e `[Tamanho do pincel, Operação, Lados do polígono]`).
+- Evidência: gitleaks `v0.4.5..HEAD`, 10 commits, no leaks. tsc e tsc e2e 0 erros. Suíte completa com o build rodando junto: 10125/10127. As 2 falhas: o teste de colunas acima (corrigido) e `hostSession.custoCom7` (126 ms contra 100, tempo). Os dois sozinhos: 8/8 verdes. Build `exit=0`. Smoke do exe: versão 0.4.6, janela "Labirinto" responde após 10 s.
+- Não feito: e2e `task-jornada-menu-cabe-na-janela` (o menu do Chão ficou mais alto com a Camada), teste do instalador instalado.
+- A escada espiral parcial voltou do stash, fora de commit (4 arquivos); diff idêntico ao backup `scratchpad/escada-parcial-backup/escada.patch`.
