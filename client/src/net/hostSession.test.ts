@@ -690,6 +690,10 @@ describe('hostSession', () => {
     it('SEGURANÇA: porta explorada fora da visão manda o último estado visto; ao voltar a ver, o real', () => {
       const s = sessionWithRadius(SMALL_RADIUS)
       const closed = { open: false, locked: false, kind: 'normal' as const }
+      // Aberta e destrancada: aberta e trancada sai fechada em todo caminho
+      // (fogFilter.portaAbertaTrancada.test.ts), e aqui o que se prova é outra
+      // coisa, a lembrança contra o estado real.
+      const opened = { open: true, locked: false, kind: 'normal' as const }
       const at = (heroY: number, door: Wall['door']): MapData => ({
         ...createEmptyMap('m-porta', 'M', 25, 25, 40),
         walls: [wall('porta', 400, 500, 500, 500, door)],
@@ -699,17 +703,16 @@ describe('hostSession', () => {
       const doorOf = (msg: HostMessage) => (msg.type === 'snapshot' ? msg.map.walls.find((w) => w.id === 'porta')?.door : undefined)
 
       expect(doorOf(snapshotTo(s.broadcast(at(420, closed)), 'c1').msg)).toEqual(closed)
-      // Herói longe (a 400 px, raio 150): o mestre abre e tranca a porta.
-      const away = snapshotTo(s.broadcast(at(100, { open: true, locked: true, kind: 'normal' })), 'c1').msg
+      // Herói longe (a 400 px, raio 150): o mestre abre a porta.
+      const away = snapshotTo(s.broadcast(at(100, opened)), 'c1').msg
       expect(doorOf(away)).toEqual(closed)
       expect(JSON.stringify(away)).not.toContain('"open":true')
-      // De volta perto da porta: o estado real aparece — aberta, e sem o
-      // cadeado, que nunca vai ao jogador (porta trancada vira pedido).
-      const back = snapshotTo(s.broadcast(at(420, { open: true, locked: true, kind: 'normal' })), 'c1').msg
-      expect(doorOf(back)).toEqual({ open: true, locked: false, kind: 'normal' })
+      // De volta perto da porta: o estado real aparece — aberta.
+      const back = snapshotTo(s.broadcast(at(420, opened)), 'c1').msg
+      expect(doorOf(back)).toEqual(opened)
       // Longe de novo com a porta fechada pelo mestre: fica a lembrança "aberta".
       const awayAgain = snapshotTo(s.broadcast(at(100, closed)), 'c1').msg
-      expect(doorOf(awayAgain)).toEqual({ open: true, locked: false, kind: 'normal' })
+      expect(doorOf(awayAgain)).toEqual(opened)
     })
   })
 
