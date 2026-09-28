@@ -122,7 +122,8 @@ export function reorderFloorPiece(map: MapData, pieceId: string, delta: number):
 
 export function moveFloorPiece(map: MapData, pieceId: string, dx: number, dy: number): MapData {
   const piece = map.floor.find((p) => p.id === pieceId)
-  if (!piece) return map
+  // Peça travada não sai do lugar (pedido de 28/09/2026), venha o arrasto de onde vier.
+  if (!piece || piece.locked) return map
   const { shape } = piece
   const moved: FloorPiece['shape'] =
     shape.kind === 'corridor'

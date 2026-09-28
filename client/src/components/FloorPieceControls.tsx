@@ -181,6 +181,10 @@ export function FloorPieceControls({
     <section className="lb-section">
       <h2 className="lb-eyebrow">Peça de chão · {SHAPE_TITLES[piece.shape.kind]}</h2>
 
+      {/* Travada, a peça não arrasta nem responde ao clique no mapa; destrava
+          aqui ou pelo cadeado em "Camadas do chão". */}
+      <Toggle label="Travar peça" checked={piece.locked === true} onChange={(checked) => onChange({ locked: checked || undefined })} />
+
       <div className="lb-field">
         <span className="lb-label">Operação</span>
         <div className="lb-seg" role="radiogroup" aria-label="Operação da peça de chão">
