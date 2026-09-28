@@ -330,15 +330,21 @@ export function TokenIcon(props: IconProps) {
 }
 
 /**
- * Perfil de escada vista de lado — degraus ascendentes em zigue-zague único.
- * Distingue de `WallIcon` (fiadas horizontais de tijolo) e de `DungeonMapIcon`
- * (retângulo com divisão em L): aqui não há nenhum contorno fechado, só a
- * diagonal de degraus subindo da esquerda pra direita.
+ * Escada vista de cima, como o mapa a desenha (`pixi/stairFlight.ts`): placa
+ * em pé, três degraus finos de trilho a trilho e o patamar no topo. No mapa o
+ * patamar é chapado; aqui ele é o trecho da placa SEM degrau, porque a família
+ * é de contorno e bloco preenchido quebraria a leitura (ver `Icon`).
+ *
+ * Em pé de propósito: `WallIcon` é uma placa deitada com fiadas e
+ * `DungeonMapIcon` um quadrado com divisão em L; a escada fica sendo a única
+ * placa alta da barra. O patamar tem mais que o dobro do vão de um degrau —
+ * com vãos parecidos a placa lia como listra uniforme, sem topo nenhum.
  */
 export function StairIcon(props: IconProps) {
   return (
     <Icon {...props}>
-      <path d="M4 20v-4h4v-4h4v-4h4v-4h4" />
+      <rect x="6.5" y="3.5" width="11" height="17" rx="1" />
+      <path d="M6.5 10.75h11M6.5 14h11M6.5 17.25h11" />
     </Icon>
   )
 }

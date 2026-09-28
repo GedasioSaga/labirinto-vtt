@@ -55,37 +55,59 @@ const SHAPE_LABELS: Record<(typeof SHAPE_ORDER)[number], string> = {
   spiral: 'Espiral',
 }
 
-/** Degraus da miniatura: base no lance, e o traço engorda e clareia rumo ao topo. */
-const ART_TREADS = [
-  { base: 2, width: 0.9, opacity: 0.55 },
-  { base: 6, width: 1.2, opacity: 0.66 },
-  { base: 10, width: 1.5, opacity: 0.78 },
-  { base: 14, width: 1.8, opacity: 0.89 },
-  { base: 18, width: 2.1, opacity: 1 },
-]
+/** Largura do viewBox da miniatura; a altura é 24, a mesma dos ícones da barra, desenhada a 18 px. */
+const ART_VIEWBOX_WIDTH = 48
+
+/** Placa deitada, centrada no viewBox (41 x 13): "Desce" espelha só os degraus. */
+const ART_PLATE = { x: 3.5, y: 5.5, width: 41, height: 13 }
+
+/** 4 unidades = 3 px a 18 px, o vão em que o mapa ainda desenha degrau (`MIN_TREAD_GAP_SCREEN_PX`). */
+const ART_TREAD_PITCH = 4
+
+/** Sete degraus deixam 13 unidades de patamar: quadrado, como no mapa, e mais que o triplo do vão. */
+const ART_TREAD_COUNT = 7
+
+/** Degraus de "Sobe", do pé para o topo: o primeiro a um vão da borda esquerda da placa. */
+const ART_TREADS_UP = Array.from({ length: ART_TREAD_COUNT }, (_, i) => ART_PLATE.x + (i + 1) * ART_TREAD_PITCH)
 
 /**
- * Miniatura do lance como o mapa desenha (`pixi/drawStairs.ts`): duas vigas
- * finas, degraus em galão apontando ladeira acima, engordando e clareando rumo
- * ao topo. "Sobe" aponta para a ponta do arrasto, "Desce" para o começo — o
- * mesmo desenho espelhado, que é justamente o que o mestre precisa reconhecer
- * no mapa sem abrir painel nenhum.
+ * Miniatura do lance como o mapa desenha (`pixi/stairFlight.ts`): placa de
+ * moldura fina, muitos degraus finos de trilho a trilho e o patamar quadrado
+ * marcando o topo. No mapa o patamar é chapado; aqui é o trecho da placa sem
+ * degrau, porque a miniatura segue a família de contorno de `icons.tsx` (cor
+ * do texto, traço de 1,6 no viewBox de altura 24 desenhado a 18 px = 1,2 px, o
+ * mesmo da barra). "Sobe" põe o patamar na ponta do arrasto (direita), "Desce"
+ * no começo (esquerda): o mesmo desenho espelhado, que é o que o mestre precisa
+ * reconhecer no mapa sem abrir painel nenhum.
  *
- * Esquemática de propósito: a miniatura sempre deita na horizontal, enquanto o
- * lance no mapa segue o arrasto (pode estar na vertical ou na diagonal). O que
- * ela ensina é a leitura — o degrau aponta para o alto —, não a orientação
- * daquela escada. Mesmo padrão de `GridShapePicker`: o controle mostra o que
- * controla.
+ * Longa e cheia de degraus de propósito: numa placa curta com três ou quatro
+ * barras e um vão vazio na ponta, o olho lê bateria, não escada. Esquemática
+ * também de propósito: sempre deitada, enquanto o lance no mapa segue o arrasto
+ * (vertical, diagonal). O que ela ensina é a leitura — o patamar é o alto —,
+ * não a orientação daquela escada. Os degraus ficam com passo igual porque o
+ * aperto de perspectiva do mapa (`STAIR_PERSPECTIVE_RATIO`) poria o vão do pé
+ * abaixo dos 3 px, e o patamar já diz sozinho onde é o topo. Mesmo padrão de
+ * `GridShapePicker`: o controle mostra o que controla.
  */
 function StairDirectionArt({ direction }: { direction: StairDirection }) {
+  const treads = direction === 'up' ? ART_TREADS_UP : ART_TREADS_UP.map((x) => ART_VIEWBOX_WIDTH - x)
+  const railTop = ART_PLATE.y
+  const railBottom = ART_PLATE.y + ART_PLATE.height
   return (
-    <svg width="34" height="26" viewBox="0 0 26 24" fill="none" stroke="currentColor" aria-hidden="true">
-      <g transform={direction === 'up' ? undefined : 'translate(26 0) scale(-1 1)'} strokeLinecap="round" strokeLinejoin="round">
-        <path d="M2 6H23M2 18H23" strokeWidth="0.8" opacity="0.85" />
-        {ART_TREADS.map(({ base, width, opacity }) => (
-          <path key={base} d={`M${base} 6L${base + 4.5} 12L${base} 18`} strokeWidth={width} opacity={opacity} />
-        ))}
-      </g>
+    <svg
+      width="36"
+      height="18"
+      viewBox={`0 0 ${ART_VIEWBOX_WIDTH} 24`}
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.6}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <rect x={ART_PLATE.x} y={railTop} width={ART_PLATE.width} height={ART_PLATE.height} rx="1" />
+      <path d={treads.map((x) => `M${x} ${railTop}V${railBottom}`).join('')} />
     </svg>
   )
 }
@@ -193,8 +215,9 @@ export function StairControls({ direction, onDirectionChange, shape, onShapeChan
     <section className="lb-section">
       <h2 className="lb-eyebrow">Escada</h2>
       {/* Segmento Sobe | Desce (auditoria 14/09): o toggle "Sobe (desmarcado =
-          desce)" pedia para ler a regra antes de clicar. A miniatura (17/09) é
-          o desenho que vai para o mapa: a escolha e o resultado na mesma tela. */}
+          desce)" pedia para ler a regra antes de clicar. A miniatura é a placa
+          que vai para o mapa, com o patamar no topo (28/09; antes era um galão
+          que se lia como seta): a escolha e o resultado na mesma tela. */}
       <div className="lb-field">
         <span className="lb-label">Sentido</span>
         <div className="lb-seg" role="radiogroup" aria-label="Sentido da escada">
