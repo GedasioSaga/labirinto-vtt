@@ -1081,3 +1081,11 @@ Ordem, tudo direto na main (feature por feature, commit por feature testada, pus
    iniciativa, ficha suave, zona oculta, pincel) ficam de fora. A noite toda vai para design, animação e
    otimização, na main.
 Noite = esta sessão conduzida pelo main thread; o noite-runner continua encerrado.
+
+### Perguntas abertas para o usuário (28/09, madrugada; nada disto foi feito sem resposta)
+
+- Chat: a história da cena mostra a quem chega depois quem falou ali (mantido: "quem chega vê as últimas 200"). Ok assim?
+- Chat: jogador que se chama "Mestre" pode ser confundido com `@mestre`. Proibir esse nome, ou marcar " (jogador)"?
+- Chat: o painel fica no topo esquerdo, e o plano dizia à direita. Mover?
+- Jogador sem ficha no mapa: o botão "Inventário" fica apagado com "sem ficha no mapa"?
+- `e2e/task-jornada-companheiros-do-jogador.spec.ts` põe Bruno a 161 px da escada (o alcance é 75 px). O teste não foi editado (regra); precisa de ajuste seu.
