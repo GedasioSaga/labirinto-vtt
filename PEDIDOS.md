@@ -1112,3 +1112,9 @@ Noite = esta sessão conduzida pelo main thread; o noite-runner continua encerra
 > "[Image #19] outra coisa, acho que da para criar a ferramenta balde de tinta para pintar essa situação de uma vez, crie rápido"
 
 - Feito: o balde do Chão (forma "Balde") para em parede, linha de mapa, borda de sala e borda do mapa, e pinta a área de uma vez (commit `feat(floor): paint bucket stops at walls, lines, rooms and the map edge`).
+
+### 28/09/2026, tarde: versão 0.4.6
+
+> "Perfeito, cria o 0.4.6"
+
+- Release 0.4.6 com as 4 features do chão desde a 0.4.5 (travar peça, camadas, borda do mapa, balde). Escada espiral parcial fica fora.
