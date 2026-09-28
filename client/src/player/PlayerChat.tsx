@@ -1,6 +1,6 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import type { ChangeEvent, FormEvent, KeyboardEvent as ReactKeyboardEvent, SyntheticEvent } from 'react'
-import { CHAT_CHANNELS, CHAT_MASTER_MENTION, CHAT_TEXT_MAX_LENGTH, cleanChatText, findMentions, type ChatChannel } from '../lib/chat'
+import { CHAT_CHANNELS, CHAT_MASTER_MENTION, CHAT_TEXT_MAX_LENGTH, chatSpeakerLabel, cleanChatText, findMentions, type ChatChannel } from '../lib/chat'
 import type { ChatEntry, PartyMember } from '../net/protocol'
 import { formatNoteTime } from './PlayerNotebook'
 import type { ChatLog, ChatSend, ChatUnread } from './playerConnection'
@@ -377,12 +377,15 @@ export function PlayerChat({ log, unread, status, selfName, party, visible, onSe
   )
 }
 
-/** Uma fala: quem, a hora e o texto, este só como texto do React. A que me menciona se destaca. */
+/**
+ * Uma fala: quem (o jogador chamado "Mestre" com " (jogador)"), a hora e o
+ * texto, este só como texto do React. A que me menciona se destaca.
+ */
 function ChatLine({ entry, mine }: { entry: ChatEntry; mine: boolean }) {
   return (
     <li className={mine ? 'pc-msg pc-msg--me' : 'pc-msg'}>
       <p className="pc-msg__meta">
-        <span className="pc-msg__from">{entry.from}</span>
+        <span className="pc-msg__from">{chatSpeakerLabel(entry.from)}</span>
         <time className="pc-msg__time">{formatNoteTime(entry.at)}</time>
         {mine && (
           <span className="pc-msg__tag">

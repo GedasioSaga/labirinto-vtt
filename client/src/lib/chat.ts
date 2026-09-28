@@ -30,10 +30,16 @@ export const CHAT_MASTER_MENTION = 'mestre'
 const CARRIAGE_RETURNS = /\r\n?/g
 
 /**
- * Controles C0 (menos a quebra de linha), DEL, C1 e os marcadores bidi que
- * viram o texto do avesso na tela dos outros (U+202A-202E e U+2066-2069).
+ * Controles C0 (menos a quebra de linha), DEL e C1; as marcas bidi que viram
+ * o texto do avesso na tela dos outros (U+061C, U+200E-200F, U+202A-202E e
+ * U+2066-2069); e os invisíveis que escondem ou colam letras: largura zero
+ * (U+200B-200D), U+2060-2064, BOM (U+FEFF) e os separadores de linha e de
+ * parágrafo (U+2028, U+2029), que quebram a linha por fora do `\n`.
  */
-const UNSAFE_CHARS = /[\u0000-\u0009\u000B-\u001F\u007F-\u009F\u202A-\u202E\u2066-\u2069]/g
+const UNSAFE_CHARS = /[\u0000-\u0009\u000B-\u001F\u007F-\u009F\u061C\u200B-\u200F\u2028\u2029\u202A-\u202E\u2060-\u2064\u2066-\u2069\uFEFF]/g
+
+/** Tabulação e quebra de linha, em qualquer sequência: no nome, viram um espaço só. */
+const NAME_BREAKS = /[\r\n\t]+/g
 
 /** `@` que começa uma menção: no início ou depois de algo que não continua um nome. */
 const MENTION_AT = /(?<![\p{L}\p{N}\p{M}])@/gu
@@ -52,6 +58,25 @@ export function isChatChannel(value: unknown): value is ChatChannel {
  */
 export function cleanChatText(raw: string): string {
   return raw.replace(CARRIAGE_RETURNS, '\n').replace(/\t/g, ' ').replace(UNSAFE_CHARS, '').trim()
+}
+
+/**
+ * O nome de quem entra na sala, limpo como o texto do chat: controles, bidi e
+ * invisíveis somem. Nome é uma linha só: quebra de linha e tabulação viram
+ * espaço. Vazio aqui é nome que não entra.
+ */
+export function cleanPlayerName(raw: string): string {
+  return raw.replace(NAME_BREAKS, ' ').replace(UNSAFE_CHARS, '').trim()
+}
+
+/**
+ * Quem falou, como a linha mostra. O jogador que entrou com o nome "Mestre"
+ * ganha " (jogador)": a fala dele não se passa pela do mestre. É a regra do
+ * `rollerLabel` (`lib/dice.ts`). Quando o mestre falar no chat (fatia D), a
+ * fala dele precisa de marca própria, como `roll.master`: o nome não basta.
+ */
+export function chatSpeakerLabel(from: string): string {
+  return from.trim().toLowerCase() === CHAT_MASTER_MENTION ? `${from} (jogador)` : from
 }
 
 /**

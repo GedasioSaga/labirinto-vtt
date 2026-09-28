@@ -15,7 +15,7 @@ import { ROOM_TEXT_MAX_LENGTH } from '../lib/roomText'
 import { CLUEBOOK_MAX_CLUES, CLUE_TEXT_MAX_LENGTH, CLUE_TITLE_MAX_LENGTH } from '../lib/clues'
 import { isPointActionKind, isPointActionRejection, type PointActionAnswer, type PointActionKind, type PointActionRejection } from '../lib/pointActions'
 import { isLetterVia, LETTER_TEXT_MAX_LENGTH, type LetterVia } from '../lib/correio'
-import { CHAT_HISTORY_MAX, CHAT_TEXT_MAX_LENGTH, cleanChatText, isChatChannel, type ChatChannel } from '../lib/chat'
+import { CHAT_HISTORY_MAX, CHAT_TEXT_MAX_LENGTH, cleanChatText, cleanPlayerName, isChatChannel, type ChatChannel } from '../lib/chat'
 import { MAX_DESTINATION_MARKS, SIGNAL_COLOR_PATTERN, type DestinationMark } from '../lib/signals'
 import { MASTER_ROLLER_NAME, parseDiceRequest, type DiceRequest, type DiceRollEntry } from '../lib/dice'
 import { isNoiseDirection, type NoiseDirection } from '../lib/noise'
@@ -1798,21 +1798,22 @@ function parseJoin(obj: Record<string, unknown>): JoinMessage | null {
   const { code, name, resume, role, tableKey } = obj
   if (typeof code !== 'string' || !JOIN_CODE_PATTERN.test(code)) return null
   if (typeof name !== 'string') return null
-  const trimmed = name.trim()
+  // Controles, bidi e invisíveis saem antes do teto: o nome vai ao chat, ao Grupo e à rolagem dos outros.
+  const cleanName = cleanPlayerName(name)
   // `length` conta unidades UTF-16 (emoji = 2): é o limite que o jogador vê no input.
-  if (trimmed.length < NAME_MIN_LENGTH || trimmed.length > NAME_MAX_LENGTH) return null
+  if (cleanName.length < NAME_MIN_LENGTH || cleanName.length > NAME_MAX_LENGTH) return null
   const accept = parseJoinAccept(obj.accept)
   if (role !== undefined) {
     // Tela da mesa nunca retoma sessão de jogador: com `resume` junto, a mensagem cai inteira.
     if (role !== 'table' || resume !== undefined) return null
     // Sem chave a mensagem passa: quem recusa é a sessão (`bad_table_key`), para a TV dizer o que falta.
-    if (tableKey === undefined) return { type: 'join', code, name: trimmed, role, ...accept }
+    if (tableKey === undefined) return { type: 'join', code, name: cleanName, role, ...accept }
     if (!isBoundedString(tableKey, 1, TABLE_KEY_MAX_LENGTH)) return null
-    return { type: 'join', code, name: trimmed, role, tableKey, ...accept }
+    return { type: 'join', code, name: cleanName, role, tableKey, ...accept }
   }
-  if (resume === undefined) return { type: 'join', code, name: trimmed, ...accept }
+  if (resume === undefined) return { type: 'join', code, name: cleanName, ...accept }
   if (!isBoundedString(resume, 1, RESUME_TOKEN_MAX_LENGTH)) return null
-  return { type: 'join', code, name: trimmed, resume, ...accept }
+  return { type: 'join', code, name: cleanName, resume, ...accept }
 }
 
 function parseTokenMove(obj: Record<string, unknown>): TokenMoveMessage | null {

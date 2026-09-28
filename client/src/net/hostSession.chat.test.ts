@@ -439,12 +439,37 @@ describe('chat: rajada', () => {
   })
 })
 
+/** Texto pelos códigos: invisível escrito direto no arquivo não se vê na revisão. */
+function codigos(...pontos: number[]): string {
+  return String.fromCharCode(...pontos)
+}
+
 describe('chat: texto', () => {
   it('bidi e controle saem, a quebra de linha fica, o tab vira espaço e as pontas são aparadas', () => {
     const { s } = mesa()
     const sujo = '  Oi\u202E mundo\u2066!\u0000\u0007\r\nlinha\u00852\tfim\u2069\u202A\u007F  '
     expect(linhaDe(fala(s, 'c1', 'global', sujo)).text).toBe('Oi mundo!\nlinha2 fim')
     expect(linhaDe(fala(s, 'c4', 'global', 'um\rdois\r\ntres', [], 'r2')).text).toBe('um\ndois\ntres')
+  })
+
+  it('caracteres invisíveis também saem: largura zero, BOM, marca árabe e separadores de linha', () => {
+    const { s } = mesa()
+    const invisivel = `A${codigos(0x200b)}n${codigos(0x200c)}a${codigos(0x200d)} ${codigos(0x200e)}o${codigos(0x200f)}i${codigos(0x2060)}!${codigos(0x2061, 0x2062, 0x2063, 0x2064, 0xfeff, 0x061c)} fim${codigos(0x2028)}de${codigos(0x2029)}tudo`
+    expect(linhaDe(fala(s, 'c1', 'global', invisivel)).text).toBe('Ana oi! fimdetudo')
+    // Só invisível é mensagem vazia: não chega a ninguém.
+    expect(quemRecebe(fala(s, 'c1', 'global', codigos(0x200b, 0xfeff, 0x2060), [], 'r2'), 'chat.msg')).toEqual([])
+  })
+
+  it('o nome de quem entra passa pela mesma limpeza: sem invisível nem bidi, quebra de linha vira espaço, e só invisível não entra', () => {
+    const { s } = mesa()
+    const entrou = s.handleMessage('c5', { type: 'join', code: CODE, name: ` E${codigos(0x200b)}va${codigos(0x202e, 0x2060)} ` }, comFoice)
+    expect(entrou.outbound[0]?.msg).toMatchObject({ type: 'welcome', name: 'Eva' })
+    s.assignToken(idDoWelcome(entrou), 'foice')
+    expect(linhaDe(fala(s, 'c5', 'global', 'cheguei', [], 'r1', comFoice)).from).toBe('Eva')
+    expect(s.handleMessage('c6', { type: 'join', code: CODE, name: 'Zé\r\nMestre' }, comFoice).outbound[0]?.msg).toMatchObject({ type: 'welcome', name: 'Zé Mestre' })
+    expect(s.handleMessage('c7', { type: 'join', code: CODE, name: codigos(0x200b, 0xfeff) }, comFoice).outbound).toEqual([
+      { clientId: 'c7', msg: { type: 'error', reason: 'invalid_message' } },
+    ])
   })
 
   it('vazio depois de limpo, acima de 1000, canal desconhecido ou pedido torto: invalid_message', () => {

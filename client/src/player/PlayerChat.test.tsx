@@ -150,6 +150,12 @@ describe('PlayerChat', () => {
     expect(container.querySelector('[role="log"]')?.textContent).not.toContain('na cripta')
   })
 
+  it('jogador chamado "Mestre" aparece como "Mestre (jogador)": a fala dele não se passa pela do mestre', () => {
+    render({ log: { cena: [linha('c1', 'Mestre', 'sou eu'), linha('c2', 'MESTRE', 'eu também'), linha('c3', 'Mestrado', 'e eu')], global: [] } })
+    const quem = Array.from(container.querySelectorAll('.pc-msg__from')).map((f) => f.textContent)
+    expect(quem).toEqual(['Mestre (jogador)', 'MESTRE (jogador)', 'Mestrado'])
+  })
+
   it('mensagem que me menciona fica destacada e diz "(menciona você)"; a dos outros não', () => {
     render({ log: { cena: [linha('c1', 'Bruno', '@Ana abre a porta', ['Ana']), linha('c2', 'Bruno', '@Caio vem', ['Caio'])], global: [] } })
     const itens = Array.from(container.querySelectorAll('li.pc-msg'))
