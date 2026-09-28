@@ -861,3 +861,14 @@ Publicar 0.4.4 ao fechar as 5 features (suíte 1x, fumaça, instalador, push com
 - Evidência: gitleaks `v0.4.5..HEAD`, 10 commits, no leaks. tsc e tsc e2e 0 erros. Suíte completa com o build rodando junto: 10125/10127. As 2 falhas: o teste de colunas acima (corrigido) e `hostSession.custoCom7` (126 ms contra 100, tempo). Os dois sozinhos: 8/8 verdes. Build `exit=0`. Smoke do exe: versão 0.4.6, janela "Labirinto" responde após 10 s.
 - Não feito: e2e `task-jornada-menu-cabe-na-janela` (o menu do Chão ficou mais alto com a Camada), teste do instalador instalado.
 - A escada espiral parcial voltou do stash, fora de commit (4 arquivos); diff idêntico ao backup `scratchpad/escada-parcial-backup/escada.patch`.
+
+### 28/09 17:25 — balde de tinta no Pincel (`6f17294d`)
+
+- Pedido: "não era para fazer na forma de chão mas sim na forma de pincel". O Balde do chão continua; agora o Pincel (Desenho > setinha > Modo) tem "Traço livre" e "Balde".
+- Lógica: `client/src/lib/baldeDeTinta.ts` (BFS em grade + contorno com buracos por ponte). Barreiras: parede, linha, borda de sala (`barreirasDoBalde` exportado de `floorTool.ts`) e todo traço desenhado; tinta anterior de balde não barra. A pintura é polígono cheio, `width: 0`, inserido por baixo dos traços (`inserirPinturaDeBalde`). Clique em `PixiCanvas.tsx`, no pointerdown do brush.
+- Feature 1 de 5 desde a 0.4.6 (push + instalador a cada 5).
+
+## Evidência
+- `rtk proxy npx tsc --noEmit`: 0 erros.
+- `vitest run` em baldeDeTinta, toolVariants, components/, mapStore.pincel, mapStore, drawDrawings: 190 arquivos, 1325/1325 verdes.
+- Navegador (porta 1420): quadrado feito à mão com o Pincel, Modo Balde, clique no meio: só o interior do quadrado encheu. Print em scratchpad `balde-pincel.png`.
