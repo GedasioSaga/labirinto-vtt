@@ -69,6 +69,22 @@ export function computeAlignment(
 }
 
 /**
+ * Ctrl (Cmd no Mac) segurado durante o arrasto: o objeto anda livre, sem
+ * grudar no alinhamento dos outros. A guia prendia o movimento justo quando
+ * a pessoa queria deixar o objeto a poucos pixels de outro. O snap de grade
+ * continua sendo do Alt, então Ctrl+Alt solta os dois.
+ */
+export function isFreeMoveModifier(event: { ctrlKey: boolean; metaKey: boolean }): boolean {
+  return event.ctrlKey || event.metaKey
+}
+
+/** `computeAlignment`, ou o ponto intacto e nenhuma guia quando `free`. */
+export function alignUnlessFree(point: Point, candidates: AlignmentCandidate[], free: boolean): AlignmentResult {
+  if (free) return { point: { ...point }, guides: [] }
+  return computeAlignment(point, candidates)
+}
+
+/**
  * Bordas e centro do mapa como candidatos de alinhamento. Como cada eixo é
  * testado de forma independente em `computeAlignment` (eixo X só olha
  * `candidate.x`, eixo Y só `candidate.y`), os 4 cantos + o centro bastam pra

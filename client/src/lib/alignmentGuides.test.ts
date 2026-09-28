@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import {
+  alignUnlessFree,
   computeAlignment,
+  isFreeMoveModifier,
   mapBoundsCandidates,
   gridAlignmentCandidates,
   nearbyCandidates,
@@ -167,5 +169,26 @@ describe('nearbyCandidates', () => {
     const semFiltro = computeAlignment(point, candidates)
     const comFiltro = computeAlignment(point, nearbyCandidates(point, candidates))
     expect(comFiltro).toEqual(semFiltro)
+  })
+})
+
+describe('alignUnlessFree — Ctrl solta o arrasto das guias', () => {
+  const perto = [{ x: 103, y: 97 }]
+
+  it('sem Ctrl gruda igual a computeAlignment', () => {
+    expect(alignUnlessFree({ x: 100, y: 100 }, perto, false)).toEqual(computeAlignment({ x: 100, y: 100 }, perto))
+  })
+
+  it('com Ctrl o ponto fica onde o ponteiro está e nenhuma guia aparece', () => {
+    const ponto = { x: 100, y: 100 }
+    const result = alignUnlessFree(ponto, perto, true)
+    expect(result).toEqual({ point: { x: 100, y: 100 }, guides: [] })
+    expect(result.point).not.toBe(ponto)
+  })
+
+  it('Ctrl ou Cmd contam; Shift e Alt não', () => {
+    expect(isFreeMoveModifier({ ctrlKey: true, metaKey: false })).toBe(true)
+    expect(isFreeMoveModifier({ ctrlKey: false, metaKey: true })).toBe(true)
+    expect(isFreeMoveModifier({ ctrlKey: false, metaKey: false })).toBe(false)
   })
 })

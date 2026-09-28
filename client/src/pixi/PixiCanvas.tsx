@@ -186,7 +186,7 @@ import { drawEditHandles, circleDrawingRadiusHandle } from './drawEditHandles'
 // Área de clique das alças no mesmo tamanho de TELA do desenho, em qualquer zoom.
 import { findBoxCornerHandleAt, findRoomCornerHandleAt, findVertexHandleAt, isOnRadiusHandle } from '../lib/handleHitArea'
 import { regionEdgeMidpoints } from '../lib/roomLink'
-import { computeAlignment, mapBoundsCandidates } from '../lib/alignmentGuides'
+import { alignUnlessFree, isFreeMoveModifier, mapBoundsCandidates } from '../lib/alignmentGuides'
 import { drawGuides } from './drawGuides'
 // Onda 3, item 13 (Frente A) — clonagem pura por tipo de entidade, usada só
 // pelo Alt+arrastar (Ctrl+D chama `duplicateSelected`, que já embute a
@@ -5098,7 +5098,7 @@ export function PixiCanvas({
           const candidates = doPisoEmEdicao(map).tokens
             .filter((token) => token.id !== draggingTokenId)
             .map((token) => ({ x: token.x, y: token.y }))
-          const result = computeAlignment(snapped, candidates)
+          const result = alignUnlessFree(snapped, candidates, isFreeMoveModifier(event))
           drawGuides(guidesGraphics, result.guides, computeViewport())
           useMapStore.getState().moveTokenLive(draggingTokenId, result.point.x, result.point.y)
           // Quantos quadrados a ficha já andou, enquanto o botão está apertado.
@@ -5168,7 +5168,7 @@ export function PixiCanvas({
               { x: prop.x, y: prop.y - prop.height / 2 },
               { x: prop.x, y: prop.y + prop.height / 2 },
             ])
-          const result = computeAlignment(snapped, candidates)
+          const result = alignUnlessFree(snapped, candidates, isFreeMoveModifier(event))
           drawGuides(guidesGraphics, result.guides, computeViewport())
           useMapStore.getState().movePropLive(draggingPropId, result.point.x, result.point.y)
           return
@@ -5201,7 +5201,9 @@ export function PixiCanvas({
           // visualmente (Dossiê F4, "bug1 canto-aberto"/"não-fecha").
           // `excludeWallId` (selectionHitTest.ts) evita que a própria parede em
           // arrasto (inclusive a OUTRA ponta dela) vire candidata espúria.
-          const magnet = findNearestExistingVertex(doPisoEmEdicao(map), worldPoint, VERTEX_MAGNET_TOLERANCE, draggingWallPointId)
+          // Ctrl solta o ímã junto com as guias: a ponta anda livre.
+          const livre = isFreeMoveModifier(event)
+          const magnet = livre ? null : findNearestExistingVertex(doPisoEmEdicao(map), worldPoint, VERTEX_MAGNET_TOLERANCE, draggingWallPointId)
           if (magnet) {
             drawGuides(guidesGraphics, [], computeViewport())
             useMapStore.getState().updateWallPoint(draggingWallPointId, draggingWallPointIndex, magnet.x, magnet.y)
@@ -5211,7 +5213,7 @@ export function PixiCanvas({
           const candidates = doPisoEmEdicao(map).walls
             .filter((wall) => wall.id !== draggingWallPointId)
             .flatMap((wall) => [{ x: wall.x1, y: wall.y1 }, { x: wall.x2, y: wall.y2 }])
-          const result = computeAlignment(snapped, candidates)
+          const result = alignUnlessFree(snapped, candidates, livre)
           drawGuides(guidesGraphics, result.guides, computeViewport())
           useMapStore.getState().updateWallPoint(draggingWallPointId, draggingWallPointIndex, result.point.x, result.point.y)
           return
@@ -5224,7 +5226,7 @@ export function PixiCanvas({
           const candidates = doPisoEmEdicao(map).regions
             .filter((region) => region.id !== draggingRegionId)
             .flatMap((region) => region.points)
-          const result = computeAlignment(snapped, candidates)
+          const result = alignUnlessFree(snapped, candidates, isFreeMoveModifier(event))
           drawGuides(guidesGraphics, result.guides, computeViewport())
           useMapStore.getState().updateRegionPoint(draggingRegionId, draggingRegionPointIndex, result.point.x, result.point.y)
           return
@@ -5270,7 +5272,7 @@ export function PixiCanvas({
               const candidates = doPisoEmEdicao(map).walls
                 .filter((w) => w.id !== draggingWallBodyId && (wall.regionId === undefined || w.regionId !== wall.regionId))
                 .flatMap((w) => [{ x: w.x1, y: w.y1 }, { x: w.x2, y: w.y2 }])
-              const result = computeAlignment(tentativeAnchor, candidates)
+              const result = alignUnlessFree(tentativeAnchor, candidates, isFreeMoveModifier(event))
               drawGuides(guidesGraphics, result.guides, computeViewport())
               useMapStore.getState().moveWallLive(draggingWallBodyId, result.point.x - wall.x1, result.point.y - wall.y1)
             }
@@ -5311,7 +5313,7 @@ export function PixiCanvas({
               const candidates = doPisoEmEdicao(map).regions
                 .filter((r) => !moving.has(r.id))
                 .flatMap((r) => r.points)
-              const result = computeAlignment(tentativeAnchor, candidates)
+              const result = alignUnlessFree(tentativeAnchor, candidates, isFreeMoveModifier(event))
               drawGuides(guidesGraphics, result.guides, computeViewport())
               useMapStore.getState().moveRegionLive(draggingRegionBodyId, result.point.x - anchor.x, result.point.y - anchor.y)
             }
@@ -5343,7 +5345,7 @@ export function PixiCanvas({
                 ...doPisoEmEdicao(map).walls.flatMap((w) => [{ x: w.x1, y: w.y1 }, { x: w.x2, y: w.y2 }]),
                 ...mapBoundsCandidates(map),
               ]
-              const result = computeAlignment(tentativeAnchor, candidates)
+              const result = alignUnlessFree(tentativeAnchor, candidates, isFreeMoveModifier(event))
               drawGuides(guidesGraphics, result.guides, computeViewport())
               useMapStore.getState().moveStairLive(draggingStairBodyId, result.point.x - anchor.x1, result.point.y - anchor.y1)
             }
@@ -5421,7 +5423,7 @@ export function PixiCanvas({
                 ...doPisoEmEdicao(map).walls.flatMap((w) => [{ x: w.x1, y: w.y1 }, { x: w.x2, y: w.y2 }]),
                 ...mapBoundsCandidates(map),
               ]
-              const result = computeAlignment(tentativeAnchor, candidates)
+              const result = alignUnlessFree(tentativeAnchor, candidates, isFreeMoveModifier(event))
               drawGuides(guidesGraphics, result.guides, computeViewport())
               useMapStore.getState().moveDrawingLive(draggingLineBodyId, result.point.x - drawing.x1, result.point.y - drawing.y1)
             } else {
