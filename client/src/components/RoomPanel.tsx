@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useId, useRef, useState, type FormEvent, type KeyboardEvent, type RefObject } from 'react'
+import { Fragment, useEffect, useId, useRef, useState, type FormEvent, type KeyboardEvent, type ReactNode, type RefObject } from 'react'
 import { partyPresenceLabel, type PartyMember } from '../lib/party'
 import {
   MAX_SCENE_MEMORIES_PER_PLAYER,
@@ -24,12 +24,12 @@ import { SecretCheckSection, type SecretCheckSectionProps } from './SecretCheckS
 import {
   PartyActions,
   PartyAwayTokens,
-  PartyBackpack,
+  PartyBag,
   PartyDestinationMark,
-  PartyGiveForm,
   PartyNoteForm,
-  PartyPurse,
   PartySendForm,
+  PartyStatus,
+  partyBagVisible,
   CONGELADO_TAG,
   CONGELAR_TODOS_LABEL,
   DESCONGELAR_TODOS_LABEL,
@@ -766,7 +766,7 @@ function GiveMapControls({ player, scenes, onGiveMap }: GiveMapControlsProps) {
       <button
         ref={openButtonRef}
         type="button"
-        className="lb-btn lb-btn--ghost"
+        className="lb-btn lb-btn--compact"
         aria-expanded={open}
         aria-controls={open ? `${baseId}-form` : undefined}
         onClick={() => (open ? close() : setOpen(true))}
@@ -846,6 +846,12 @@ interface HelperLoanControlsProps {
   tokens: RoomPanelToken[]
   owners: ReadonlyMap<string, string>
   onLend(playerId: string, tokenId: string, terms: LoanTerms): void
+  /**
+   * Botão discreto (ghost): no card de quem espera, fica abaixo dos "Atribuir",
+   * que são a ação do momento. No "…" ele é uma ação entre pares e vai sólido:
+   * ghost ali parecia texto solto.
+   */
+  quiet?: boolean
 }
 
 /**
@@ -857,7 +863,7 @@ interface HelperLoanControlsProps {
  * Distinto do `LoanControls` (empréstimo da ficha de quem SAIU da mesa): aqui
  * é o mestre contratando um NPC/ficha livre como ajudante de um jogador ATIVO.
  */
-function HelperLoanControls({ player, tokens, owners, onLend }: HelperLoanControlsProps) {
+function HelperLoanControls({ player, tokens, owners, onLend, quiet = false }: HelperLoanControlsProps) {
   const [open, setOpen] = useState(false)
   const [tokenId, setTokenId] = useState('')
   const [tarefa, setTarefa] = useState('')
@@ -898,7 +904,13 @@ function HelperLoanControls({ player, tokens, owners, onLend }: HelperLoanContro
 
   if (!open) {
     return (
-      <button ref={openerRef} type="button" className="lb-btn lb-btn--ghost lb-btn--compact" aria-expanded={false} onClick={() => setOpen(true)}>
+      <button
+        ref={openerRef}
+        type="button"
+        className={quiet ? 'lb-btn lb-btn--ghost lb-btn--compact' : 'lb-btn lb-btn--compact'}
+        aria-expanded={false}
+        onClick={() => setOpen(true)}
+      >
         Emprestar como ajudante…
       </button>
     )
@@ -1223,32 +1235,40 @@ function PlayerName({ player }: { player: PlayerInfo }) {
 }
 
 /**
- * As fichas do jogador: cada uma com "Remover …" (o botão de sempre, texto à
- * vista — é por ele que o mestre e o teste acham a ficha certa) e, se ela foi
- * emprestada como AJUDANTE CONTRATADO, o prazo logo antes.
+ * As fichas do jogador, numa linha própria: cada uma num chip com o nome
+ * inteiro (quebra em vez de cortar, porque é pelo nome que o mestre acha o
+ * personagem) e um "×" pequeno no canto que tira a ficha. É o chip de cargo do
+ * menu de membro do Discord: remover fica à mão, mas longe das ações de mesa
+ * (pedido 13). O nome acessível continua "Remover …", pelo qual o mestre e o
+ * teste acham a ficha certa. Emprestada como AJUDANTE CONTRATADO, o prazo vem
+ * logo antes.
  */
 function TokenChips({ player, tokens, onUnassign }: { player: PlayerInfo } & Pick<PlayerAdminProps, 'tokens' | 'onUnassign'>) {
   if (player.tokenIds.length === 0) return null
   return (
-    <span className="lb-player__tokens">
-      {player.tokenIds.map((tokenId) => {
-        const name = tokenName(tokens, tokenId)
-        const contrato = player.loans?.[tokenId]
-        return (
-          <Fragment key={tokenId}>
-            {contrato !== undefined && <span className="lb-player__note">{loanBadge(name, contrato)}</span>}
-            <button
-              type="button"
-              className="lb-btn lb-btn--ghost lb-btn--compact"
-              aria-label={`Remover ${name}`}
-              onClick={() => onUnassign(player.playerId, tokenId)}
-            >
-              Remover {name}
-            </button>
-          </Fragment>
-        )
-      })}
-    </span>
+    <div className="lb-player__line lb-player__line--fichas">
+      <span className="lb-player__tokens">
+        {player.tokenIds.map((tokenId) => {
+          const name = tokenName(tokens, tokenId)
+          const contrato = player.loans?.[tokenId]
+          const remover = `Remover ${name}`
+          return (
+            <Fragment key={tokenId}>
+              {contrato !== undefined && <span className="lb-player__note">{loanBadge(name, contrato)}</span>}
+              <span className="lb-chip">
+                <span className="lb-chip__label">{name}</span>
+                <button type="button" className="lb-chip__remove" aria-label={remover} title={remover} onClick={() => onUnassign(player.playerId, tokenId)}>
+                  <svg aria-hidden="true" focusable="false" viewBox="0 0 12 12">
+                    <path d="M3 3l6 6M9 3l-6 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" fill="none" />
+                  </svg>
+                  <span className="lb-sr-only">{remover}</span>
+                </button>
+              </span>
+            </Fragment>
+          )
+        })}
+      </span>
+    </div>
   )
 }
 
@@ -1322,11 +1342,16 @@ interface MoreToggleProps {
   /** O que tem dentro, para quem para o ponteiro no "…". */
   title: string
   buttonRef: RefObject<HTMLButtonElement | null>
-  onToggle(): void
+  /** `instant`: aberto pelo teclado, o painel aparece sem animação. */
+  onToggle(instant: boolean): void
   onClose(): void
 }
 
-/** O "…" da linha: o mesmo glifo e o mesmo peso do menu da lista Cenas. */
+/**
+ * O "…" da linha: o mesmo glifo e o mesmo peso do menu da lista Cenas. Enter
+ * e Espaço num botão disparam um clique sem contagem (`detail` 0): quem abre
+ * pelo teclado vê o painel na hora; a animação é só para o mouse.
+ */
 function MoreToggle({ player, open, panelId, title, buttonRef, onToggle, onClose }: MoreToggleProps) {
   return (
     <button
@@ -1337,7 +1362,7 @@ function MoreToggle({ player, open, panelId, title, buttonRef, onToggle, onClose
       title={title}
       aria-expanded={open}
       aria-controls={open ? panelId : undefined}
-      onClick={onToggle}
+      onClick={(event) => onToggle(event.detail === 0)}
       onKeyDown={(event) => {
         if (open) closeOnEscape(event, onClose)
       }}
@@ -1350,42 +1375,87 @@ function MoreToggle({ player, open, panelId, title, buttonRef, onToggle, onClose
 interface MorePanelProps extends PlayerAdminProps {
   player: PlayerInfo
   id: string
-  /** Outra ficha e raio de visão. Quem aguarda já tem os dois à vista no cartão: lá o "Mais" é só o resto. */
+  /** Outra ficha, ajudante e raio de visão. Quem aguarda já tem os três à vista no cartão: lá o "Mais" é só o resto. */
   withSetup: boolean
+  /** Aberto pelo teclado: aparece sem animação. */
+  instant: boolean
+  /** "Mochila e bolsa" (`PartyBag`); ausente = sem a seção. */
+  bag?: ReactNode
+  /** "Dar o que o grupo viu" e o aviso dele, no alto de "Visão e mapa"; ausente = sem o botão. */
+  groupView?: ReactNode
   onClose(): void
 }
 
+/** Uma seção do "…": título curto e divisória, como no menu de membro do Discord. */
+function MoreSection({ id, title, children }: { id: string; title: string; children: ReactNode }) {
+  const titleId = `${id}-titulo`
+  return (
+    <div className="lb-player__secao" role="group" aria-labelledby={titleId}>
+      <p id={titleId} className="lb-player__secao-titulo">
+        {title}
+      </p>
+      {children}
+    </div>
+  )
+}
+
 /**
- * O "Mais": o que o mestre usa pouco — outra ficha, raio de visão, planta e
- * Expulsar. Um aberto por vez, então a dica da planta aparece uma vez só.
+ * O "…" guarda o que o mestre usa de vez em quando, em seções com título
+ * (pedido 13; a referência é o menu de membro do Discord): "Mochila e bolsa",
+ * "Visão e mapa" e "Ficha". Expulsar vem por último e separado, porque derruba
+ * alguém. Um aberto por vez, então a dica da planta aparece uma vez só.
  */
-function MorePanel({ player, id, withSetup, onClose, ...admin }: MorePanelProps) {
+function MorePanel({ player, id, withSetup, instant, bag, groupView, onClose, ...admin }: MorePanelProps) {
   const hintId = `${id}-dica`
   const clientId = player.clientId
+  // Sem ficha livre para dar e sem ajudante, a seção seria só um título.
+  const fichaVisivel = withSetup && (assignListTokens(admin.tokens, player, admin.owners).length > 0 || admin.onLend !== undefined)
   return (
-    <div id={id} className="lb-player__panel" role="group" aria-label={`Mais de ${player.name}`} onKeyDown={(event) => closeOnEscape(event, onClose)}>
-      {withSetup && <AssignControls player={player} tokens={admin.tokens} owners={admin.owners} onAssign={admin.onAssign} />}
-      {withSetup && <VisionFields player={player} onVisionRadiusChange={admin.onVisionRadiusChange} onVisionFactorChange={admin.onVisionFactorChange} />}
-      <div className="lb-player__plan">
-        <button type="button" className="lb-btn lb-btn--compact" aria-describedby={hintId} onClick={() => admin.onRevealPlan(player.playerId)}>
-          Revelar planta
-        </button>
-        <button type="button" className="lb-btn lb-btn--compact" onClick={() => admin.onHidePlan(player.playerId)}>
-          Esconder de novo
-        </button>
-      </div>
-      <p id={hintId} className="lb-field__hint">
-        {PLAN_HINT}
-      </p>
-      {admin.onShareMap !== undefined && <ShareMapControls player={player} players={admin.roster} onShareMap={admin.onShareMap} />}
-      {admin.onGiveMap !== undefined && admin.giftScenes !== undefined && admin.giftScenes.length > 0 && (
-        <GiveMapControls player={player} scenes={admin.giftScenes} onGiveMap={admin.onGiveMap} />
+    <div
+      id={id}
+      className="lb-player__panel"
+      role="group"
+      aria-label={`Mais de ${player.name}`}
+      data-instant={instant ? '' : undefined}
+      onKeyDown={(event) => closeOnEscape(event, onClose)}
+    >
+      {bag !== undefined && (
+        <MoreSection id={`${id}-bolsa`} title="Mochila e bolsa">
+          {bag}
+        </MoreSection>
+      )}
+      <MoreSection id={`${id}-visao`} title="Visão e mapa">
+        {groupView}
+        {withSetup && <VisionFields player={player} onVisionRadiusChange={admin.onVisionRadiusChange} onVisionFactorChange={admin.onVisionFactorChange} />}
+        <div className="lb-player__plan">
+          <button type="button" className="lb-btn lb-btn--compact" aria-describedby={hintId} onClick={() => admin.onRevealPlan(player.playerId)}>
+            Revelar planta
+          </button>
+          <button type="button" className="lb-btn lb-btn--compact" onClick={() => admin.onHidePlan(player.playerId)}>
+            Esconder de novo
+          </button>
+        </div>
+        <p id={hintId} className="lb-field__hint">
+          {PLAN_HINT}
+        </p>
+        {admin.onShareMap !== undefined && <ShareMapControls player={player} players={admin.roster} onShareMap={admin.onShareMap} />}
+        {admin.onGiveMap !== undefined && admin.giftScenes !== undefined && admin.giftScenes.length > 0 && (
+          <GiveMapControls player={player} scenes={admin.giftScenes} onGiveMap={admin.onGiveMap} />
+        )}
+      </MoreSection>
+      {fichaVisivel && (
+        <MoreSection id={`${id}-ficha`} title="Ficha">
+          <AssignControls player={player} tokens={admin.tokens} owners={admin.owners} onAssign={admin.onAssign} />
+          {admin.onLend !== undefined && <HelperLoanControls player={player} tokens={admin.tokens} owners={admin.owners} onLend={admin.onLend} />}
+        </MoreSection>
       )}
       {/* Desconectado não tem Expulsar: não há conexão para derrubar. */}
       {clientId !== null && (
-        <button type="button" className="lb-btn lb-btn--danger lb-btn--compact lb-player__kick" onClick={() => admin.onKick(clientId)}>
-          Expulsar
-        </button>
+        <div className="lb-player__perigo">
+          <button type="button" className="lb-btn lb-btn--danger lb-btn--compact lb-player__kick" onClick={() => admin.onKick(clientId)}>
+            Expulsar
+          </button>
+        </div>
       )}
     </div>
   )
@@ -1394,7 +1464,9 @@ function MorePanel({ player, id, withSetup, onClose, ...admin }: MorePanelProps)
 interface PlayerCardProps extends PlayerAdminProps {
   player: PlayerInfo
   moreOpen: boolean
-  onToggleMore(): void
+  /** O "…" aberto agora veio do teclado: aparece sem animação. */
+  moreInstant: boolean
+  onToggleMore(instant: boolean): void
   onCloseMore(): void
 }
 
@@ -1414,7 +1486,7 @@ function useMore(player: PlayerInfo, onCloseMore: () => void) {
  * a lista e o raio de visão à vista (o mestre acerta a lanterna antes de dar
  * a ficha). Planta e Expulsar ficam no "Mais".
  */
-function WaitingCard({ player, moreOpen, onToggleMore, onCloseMore, ...admin }: PlayerCardProps) {
+function WaitingCard({ player, moreOpen, moreInstant, onToggleMore, onCloseMore, ...admin }: PlayerCardProps) {
   const more = useMore(player, onCloseMore)
   return (
     <div className="lb-field lb-player lb-player--waiting">
@@ -1424,7 +1496,6 @@ function WaitingCard({ player, moreOpen, onToggleMore, onCloseMore, ...admin }: 
         <span className="lb-player__status" aria-hidden="true">
           aguardando
         </span>{' '}
-        <TokenChips player={player} tokens={admin.tokens} onUnassign={admin.onUnassign} />
         <MoreToggle
           player={player}
           open={moreOpen}
@@ -1435,10 +1506,11 @@ function WaitingCard({ player, moreOpen, onToggleMore, onCloseMore, ...admin }: 
           onClose={more.close}
         />
       </div>
+      <TokenChips player={player} tokens={admin.tokens} onUnassign={admin.onUnassign} />
       <AssignControls player={player} tokens={admin.tokens} owners={admin.owners} onAssign={admin.onAssign} />
-      {admin.onLend !== undefined && <HelperLoanControls player={player} tokens={admin.tokens} owners={admin.owners} onLend={admin.onLend} />}
+      {admin.onLend !== undefined && <HelperLoanControls player={player} tokens={admin.tokens} owners={admin.owners} onLend={admin.onLend} quiet />}
       <VisionFields player={player} onVisionRadiusChange={admin.onVisionRadiusChange} onVisionFactorChange={admin.onVisionFactorChange} />
-      {moreOpen && <MorePanel {...admin} player={player} id={more.panelId} withSetup={false} onClose={more.close} />}
+      {moreOpen && <MorePanel {...admin} player={player} id={more.panelId} withSetup={false} instant={moreInstant} onClose={more.close} />}
     </div>
   )
 }
@@ -1450,9 +1522,6 @@ interface PlayerRowProps extends PlayerCardProps {
   sendOpen: boolean
   sendFormId: string
   onToggleSend(opener: HTMLElement): void
-  giveOpen: boolean
-  giveFormId: string
-  onToggleGive(opener: HTMLElement): void
   /** "Recado" aberto nesta linha: o campo mora dentro dela. */
   noteOpen: boolean
   noteFormId: string
@@ -1472,9 +1541,11 @@ interface PlayerRowProps extends PlayerCardProps {
 }
 
 /**
- * Uma linha por jogador em jogo, todas da mesma altura: bolinha na cor da
- * ficha, nome, status e cena, as fichas e as ações de mesa. O raro (outra
- * ficha, raio, planta, Expulsar) fica no "Mais".
+ * Uma linha por jogador em jogo, lida de cima para baixo: bolinha na cor da
+ * ficha, nome e cena; as fichas, cada uma num chip com o "×" de tirar; bolsa e
+ * mochila numa frase; as ações de toda cena ("Acompanhar", depois "Mandar
+ * para…" e "Recado") e o "…". O resto (mochila e bolsa, visão e mapa, outra
+ * ficha, Expulsar) mora no "…" (pedido 13).
  */
 function PlayerRow({
   player,
@@ -1483,9 +1554,6 @@ function PlayerRow({
   sendOpen,
   sendFormId,
   onToggleSend,
-  giveOpen,
-  giveFormId,
-  onToggleGive,
   noteOpen,
   noteFormId,
   onToggleNote,
@@ -1497,6 +1565,7 @@ function PlayerRow({
   now,
   players,
   moreOpen,
+  moreInstant,
   onToggleMore,
   onCloseMore,
   ...admin
@@ -1504,6 +1573,21 @@ function PlayerRow({
   const more = useMore(player, onCloseMore)
   const token = member?.token ?? null
   const where = member?.sceneName ?? null
+  const bag = member !== undefined && party !== undefined && partyBagVisible(member, party) ? <PartyBag member={member} party={party} /> : undefined
+  // Só quem joga tem cena: quem aguarda não tem onde receber o que o grupo viu.
+  const groupView =
+    onGiveGroupView !== undefined && player.status === 'playing' ? (
+      <>
+        <button type="button" className="lb-btn lb-btn--compact" onClick={onGiveGroupView}>
+          {GROUP_VIEW_LABEL}
+        </button>
+        {groupViewFeedback !== null && (
+          <p className="lb-player__note" role="status">
+            {groupViewFeedback}
+          </p>
+        )}
+      </>
+    ) : undefined
   const presence = partyPresenceLabel(presenceOf(player), now)
   // A presença só aparece na exceção ("fora"): em 212 px, "online" em seis linhas
   // cortaria a cena, que é o que o mestre procura aqui. "online" fica para o leitor.
@@ -1527,10 +1611,9 @@ function PlayerRow({
           </span>{' '}
           {/* CONGELAR FICHA: o mestre não guarda de cabeça quem ele segurou. */}
           {member?.congelado === true && <span className="lb-player__congelado">{CONGELADO_TAG}</span>}
-          <TokenChips player={player} tokens={admin.tokens} onUnassign={admin.onUnassign} />
         </div>
-        {member !== undefined && <PartyBackpack member={member} onItem={party?.onItem} />}
-        {member !== undefined && <PartyPurse member={member} onItem={party?.onItem} onTrade={party?.onTrade} />}
+        <TokenChips player={player} tokens={admin.tokens} onUnassign={admin.onUnassign} />
+        {member !== undefined && <PartyStatus member={member} />}
         {member !== undefined && <PartyDestinationMark member={member} onViewDestination={party?.onViewDestination} />}
         {member !== undefined && <PartyAwayTokens member={member} onBring={party?.onBring} />}
         <div className="lb-player__line lb-player__line--acoes">
@@ -1541,27 +1624,16 @@ function PlayerRow({
               sendOpen={sendOpen}
               sendFormId={sendFormId}
               onToggleSend={onToggleSend}
-              giveOpen={giveOpen}
-              giveFormId={giveFormId}
-              onToggleGive={onToggleGive}
               noteOpen={noteOpen}
               noteFormId={noteFormId}
               onToggleNote={onToggleNote}
             />
           )}
-          {member !== undefined && token === null && <span className="lb-player__note">sem ficha no mapa</span>}
-          {/* Só quem joga tem cena: quem aguarda não tem onde receber o que o grupo viu. */}
-          {onGiveGroupView !== undefined && player.status === 'playing' && (
-            <button type="button" className="lb-btn lb-btn--ghost lb-btn--compact" onClick={onGiveGroupView}>
-              {GROUP_VIEW_LABEL}
-            </button>
-          )}
-          {admin.onLend !== undefined && <HelperLoanControls player={player} tokens={admin.tokens} owners={admin.owners} onLend={admin.onLend} />}
           <MoreToggle
             player={player}
             open={moreOpen}
             panelId={more.panelId}
-            title="Outra ficha, raio de visão, planta e Expulsar"
+            title="Mochila, bolsa, visão, mapa, outra ficha e Expulsar"
             buttonRef={more.buttonRef}
             onToggle={onToggleMore}
             onClose={more.close}
@@ -1573,11 +1645,6 @@ function PlayerRow({
         {noteFeedback !== null && (
           <p className="lb-party__recado-aviso" role="status">
             {noteFeedback}
-          </p>
-        )}
-        {groupViewFeedback !== null && (
-          <p className="lb-player__note" role="status">
-            {groupViewFeedback}
           </p>
         )}
         {player.borrowedFrom !== undefined && <p className="lb-player__note">Jogando também a ficha de {player.borrowedFrom.join(', ')}.</p>}
@@ -1592,7 +1659,7 @@ function PlayerRow({
           onLendTokens={admin.onLendTokens}
           onEndLoans={admin.onEndLoans}
         />
-        {moreOpen && <MorePanel {...admin} player={player} id={more.panelId} withSetup onClose={more.close} />}
+        {moreOpen && <MorePanel {...admin} player={player} id={more.panelId} withSetup instant={moreInstant} bag={bag} groupView={groupView} onClose={more.close} />}
       </div>
     </li>
   )
@@ -1656,9 +1723,9 @@ function CongelarAMesa({ todas, alguma, onChange }: NonNullable<PartySectionProp
 function GroupRoster({ players, party, onGiveGroupView, ...rest }: GroupRosterProps) {
   const headingId = useId()
   const sendFormId = useId()
-  const giveFormId = useId()
   const noteFormId = useId()
   const [moreId, setMoreId] = useState<string | null>(null)
+  const [moreInstant, setMoreInstant] = useState(false)
   const send = usePartySend()
   const note = useNoteFeedback()
   const groupView = useGroupViewFeedback()
@@ -1668,12 +1735,15 @@ function GroupRoster({ players, party, onGiveGroupView, ...rest }: GroupRosterPr
   const waiting = players.filter(waitingNow)
   const inPlay = players.filter((player) => !waitingNow(player))
   const sending = send.sendingId === null ? undefined : members.get(send.sendingId)
-  const giving = send.givingId === null ? undefined : members.get(send.givingId)
   const cardProps = (player: PlayerInfo): PlayerCardProps => ({
     ...admin,
     player,
     moreOpen: moreId === player.playerId,
-    onToggleMore: () => setMoreId((current) => (current === player.playerId ? null : player.playerId)),
+    moreInstant,
+    onToggleMore: (instant) => {
+      setMoreInstant(instant)
+      setMoreId((current) => (current === player.playerId ? null : player.playerId))
+    },
     onCloseMore: () => setMoreId(null),
   })
 
@@ -1703,9 +1773,6 @@ function GroupRoster({ players, party, onGiveGroupView, ...rest }: GroupRosterPr
               sendOpen={send.sendingId === player.playerId}
               sendFormId={sendFormId}
               onToggleSend={(opener) => send.toggle(player.playerId, opener)}
-              giveOpen={send.givingId === player.playerId}
-              giveFormId={giveFormId}
-              onToggleGive={(opener) => send.toggle(player.playerId, opener, 'give')}
               noteOpen={send.notingId === player.playerId}
               noteFormId={noteFormId}
               onToggleNote={(opener) => {
@@ -1732,7 +1799,6 @@ function GroupRoster({ players, party, onGiveGroupView, ...rest }: GroupRosterPr
         </ul>
       )}
       {sending !== undefined && sending.token !== null && party !== undefined && <PartySendForm member={sending} party={party} formId={sendFormId} onClose={send.close} />}
-      {giving !== undefined && giving.token !== null && party !== undefined && <PartyGiveForm member={giving} party={party} formId={giveFormId} onClose={send.close} />}
     </section>
   )
 }

@@ -6,9 +6,10 @@ import type { LoanTerms, PlayerInfo } from '../net/hostSession'
 import { RoomPanel, type RoomPanelToken } from './RoomPanel'
 
 /**
- * AJUDANTE CONTRATADO no painel do mestre: "Emprestar como ajudante…" no card
- * do jogador escolhe a ficha livre, a tarefa, o prazo e se ele vê pelos olhos
- * do NPC. A ficha emprestada aparece no card com "ajudante até 21:30".
+ * AJUDANTE CONTRATADO no painel do mestre: "Emprestar como ajudante…", no "…"
+ * do card do jogador (seção "Ficha", pedido 13), escolhe a ficha livre, a
+ * tarefa, o prazo e se ele vê pelos olhos do NPC. A ficha emprestada aparece
+ * no card com "ajudante até 21:30".
  */
 const TOKENS: RoomPanelToken[] = [
   { id: 'arco', name: 'Arco' },
@@ -74,6 +75,14 @@ describe('RoomPanel: emprestar ficha como ajudante', () => {
     return achado
   }
 
+  /** Abre o "…" do card da Duda e o formulário do ajudante, que mora nele. */
+  function abrirEmprestimo(): void {
+    const mais = container.querySelector<HTMLButtonElement>('button[aria-label="Mais de Duda"]')
+    if (mais === null) throw new Error('o card da Duda não tem "…"')
+    act(() => mais.click())
+    act(() => botao('Emprestar como ajudante…').click())
+  }
+
   function campo<T extends HTMLElement>(rotulo: string, tipo: { new (): T; prototype: T }): T {
     const label = Array.from(container.querySelectorAll('label')).find((l) => (l.textContent ?? '').trim() === rotulo)
     const id = label?.getAttribute('for')
@@ -93,7 +102,7 @@ describe('RoomPanel: emprestar ficha como ajudante', () => {
 
   it('empresta o Tiziu à Duda com tarefa, 30 minutos e sem os olhos dele', () => {
     render([jogador({})])
-    act(() => botao('Emprestar como ajudante…').click())
+    abrirEmprestimo()
     const ficha = campo('Ficha do ajudante', HTMLSelectElement)
     // Só fichas livres: a Duda já tem o Arco.
     expect(Array.from(ficha.options).map((o) => o.value)).toEqual(['tiziu', 'machado'])
@@ -109,7 +118,7 @@ describe('RoomPanel: emprestar ficha como ajudante', () => {
 
   it('"Até eu tirar" e "vê com os olhos dele" marcados viram prazo nulo e visão', () => {
     render([jogador({})])
-    act(() => botao('Emprestar como ajudante…').click())
+    abrirEmprestimo()
     muda(campo('Prazo', HTMLSelectElement), 'manual')
     act(() => campo('Vê com os olhos dele', HTMLInputElement).click())
     act(() => botao('Emprestar').click())
@@ -118,7 +127,7 @@ describe('RoomPanel: emprestar ficha como ajudante', () => {
 
   it('Cancelar fecha sem emprestar', () => {
     render([jogador({})])
-    act(() => botao('Emprestar como ajudante…').click())
+    abrirEmprestimo()
     act(() => botao('Cancelar').click())
     expect(onLend).not.toHaveBeenCalled()
     expect(() => campo('Tarefa', HTMLInputElement)).toThrow()

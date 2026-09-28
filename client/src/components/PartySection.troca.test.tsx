@@ -9,9 +9,10 @@ import { PARTY_TRADE_REFUSAL_TEXT } from './PartySection'
 import { RoomPanel } from './RoomPanel'
 
 /**
- * MOEDAS E TROCA no Grupo do mestre: a linha mostra a bolsa, "Moedas…" acerta
- * o valor e "Propor troca…" monta a oferta — quem oferece, o que dá (itens
- * novos e moedas) e o que pede (itens da mochila dele e moedas).
+ * MOEDAS E TROCA no Grupo do mestre: a linha mostra a bolsa e, no "…" dela
+ * (seção "Mochila e bolsa", pedido 13), "Moedas…" acerta o valor e "Propor
+ * troca…" monta a oferta — quem oferece, o que dá (itens novos e moedas) e o
+ * que pede (itens da mochila dele e moedas).
  */
 
 const IDLE: TunnelState = { kind: 'idle' }
@@ -67,11 +68,13 @@ describe('Grupo: moedas e troca do mestre', () => {
     container.remove()
   })
 
+  /** Monta o Grupo e abre o "…" da linha de Bruno, onde moram "Moedas…" e "Propor troca…". */
   function render(onItem: (action: PartyItemAction) => boolean, onTrade: (member: PartyMember, proposta: TradeProposal) => TradeProposeResult): void {
     const party = { members: [BRUNO], destinations: [], onGoTo: noop, onSend: () => true, onItem, onTrade }
     act(() =>
       root.render(<RoomPanel room={{ code: 'TROCA1', urls: [], qrSvg: '<svg/>' }} players={[jogadorDe(BRUNO)]} tokens={[{ id: 'bruno', name: 'Bruno' }]} party={party} tunnel={IDLE} {...handlers} />),
     )
+    act(() => botao('Mais de Bruno').click())
   }
 
   function botao(nome: string): HTMLButtonElement {

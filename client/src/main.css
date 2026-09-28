@@ -2227,9 +2227,8 @@ label.lb-switch[data-dica-linha='aberta'] > span:first-child::after,
   gap: var(--lb-control-gap);
 }
 
-/* Na coluna de 212 px o nome e as fichas não cabem lado a lado: as fichas
-   descem para a linha de baixo (encostadas à direita pelo margin-left: auto)
-   em vez de cortar o nome em "A…". */
+/* As fichas têm linha própria, logo abaixo do nome (pedido 13): com duas ou
+   três, elas quebram de linha em vez de cortar o nome em "A…". */
 .lb-player__line:has(> .lb-player__tokens) {
   flex-wrap: wrap;
   row-gap: var(--lb-space-1);
@@ -2283,14 +2282,49 @@ label.lb-switch[data-dica-linha='aberta'] > span:first-child::after,
   color: var(--lb-color-parchment-faint);
 }
 
-/* A mochila na linha do jogador: um item por linha, sem o poço da lista do Grupo. */
+/* Bolsa e mochila de relance (pedido 13): um tom acima da nota, porque é o
+   que o mestre procura na linha, e o nome comprido de item quebra em vez de
+   vazar da coluna. */
+.lb-player__estado {
+  overflow-wrap: anywhere;
+  color: var(--lb-color-parchment-dim);
+}
+
+/* A mochila no "…" do cartão (pedido 13): cada item com o nome numa linha e
+   "Tirar" e "Devolver ao chão" na de baixo, sempre — soltos na mesma linha,
+   cada nome quebrava num ponto diferente. O fio à esquerda diz onde a mochila
+   acaba: "Dar item…", "Moedas…" e "Propor troca…", abaixo e fora do fio, valem
+   para a bolsa inteira, não para o último item. */
 .lb-party__mochila {
   display: flex;
   flex-direction: column;
-  gap: var(--lb-space-1);
+  gap: var(--lb-space-2);
   margin: 0;
-  padding: 0;
+  padding: 0 0 0 var(--lb-space-2);
+  border-left: 2px solid var(--lb-color-line-strong);
   list-style: none;
+}
+
+.lb-party__coisa {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--lb-space-1);
+  min-width: 0;
+}
+
+.lb-party__coisa-nome {
+  max-width: 100%;
+  font-size: var(--lb-font-size-sm);
+  line-height: var(--lb-font-leading-tight);
+  color: var(--lb-color-parchment);
+  overflow-wrap: anywhere;
+}
+
+.lb-party__coisa-acoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--lb-control-gap);
 }
 
 .lb-player__tokens {
@@ -2303,37 +2337,51 @@ label.lb-switch[data-dica-linha='aberta'] > span:first-child::after,
   margin-left: auto;
 }
 
-/* A ficha do jogador: pílula de linha fina com o nome e o × que a tira dele. */
+/* Na linha própria, as fichas começam na margem do nome e ocupam a coluna. */
+.lb-player__line--fichas > .lb-player__tokens {
+  flex: 1 1 auto;
+  justify-content: flex-start;
+  margin-left: 0;
+}
+
+/* A ficha do jogador, como o chip de cargo no menu de membro do Discord
+   (pedido 13): o nome inteiro, que quebra em vez de virar "Vagner Montan…",
+   e no fim o × que a tira dele. Canto de 6 px em vez de pílula: com o nome
+   em duas linhas, a pílula virava um ovo. */
 .lb-chip {
   display: inline-flex;
   align-items: center;
-  gap: 2px;
+  gap: var(--lb-space-1);
   min-width: 0;
-  height: 20px;
+  max-width: 100%;
   padding-left: var(--lb-space-2);
   border: 1px solid var(--lb-color-line-strong);
-  border-radius: var(--lb-radius-full);
+  border-radius: var(--lb-radius-sm);
+  background: var(--lb-color-stone-raised);
   font-size: var(--lb-font-size-sm);
-  color: var(--lb-color-parchment-dim);
+  font-weight: var(--lb-font-weight-medium);
+  line-height: var(--lb-font-leading-tight);
+  color: var(--lb-color-parchment);
 }
 
 .lb-chip__label {
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  padding: var(--lb-space-1) 0;
+  overflow-wrap: anywhere;
 }
 
-/* 18 px dentro da pílula: nenhum outro alvo a menos de 12 px do centro (WCAG 2.5.8, exceção de espaçamento). */
+/* 24 px, o alvo mínimo da casa (WCAG 2.5.8), encostado na borda direita do
+   chip: no hover, a ponta do chip inteira fica da cor de perigo. */
 .lb-chip__remove {
   display: inline-grid;
   place-items: center;
   flex: none;
-  width: 18px;
-  height: 18px;
+  align-self: stretch;
+  width: var(--lb-control-min);
+  min-height: var(--lb-control-min);
   padding: 0;
   border: 0;
-  border-radius: var(--lb-radius-full);
+  border-radius: 0 calc(var(--lb-radius-sm) - 1px) calc(var(--lb-radius-sm) - 1px) 0;
   background: transparent;
   color: var(--lb-color-parchment-faint);
   font: inherit;
@@ -2341,7 +2389,13 @@ label.lb-switch[data-dica-linha='aberta'] > span:first-child::after,
   cursor: pointer;
   transition:
     background var(--lb-motion-fast) var(--lb-motion-ease),
-    color var(--lb-motion-fast) var(--lb-motion-ease);
+    color var(--lb-motion-fast) var(--lb-motion-ease),
+    transform var(--lb-motion-fast) var(--lb-motion-ease);
+}
+
+.lb-chip__remove > svg {
+  width: 12px;
+  height: 12px;
 }
 
 /* Tirar a ficha manda o jogador de volta à espera: o × avisa na cor de perigo. */
@@ -2350,8 +2404,22 @@ label.lb-switch[data-dica-linha='aberta'] > span:first-child::after,
   color: var(--lb-color-ember);
 }
 
+.lb-chip__remove:active {
+  transform: scale(0.97);
+}
+
+/* "Ir lá", "Seguir" e "Ver tela" (acompanhar o jogador) ocupam a linha
+   inteira; "Mandar para…", "Recado" e o "…" descem juntos para a de baixo. */
+.lb-player__olhar {
+  display: flex;
+  flex: 1 1 100%;
+  flex-wrap: wrap;
+  gap: var(--lb-control-gap);
+  min-width: 0;
+}
+
 /* As ações do jogador quebram de linha no vão do painel em vez de espremer o
-   respiro dos botões para caber numa linha só (o "Dar item…" e o "Recado"
+   respiro dos botões para caber numa linha só ("Mandar para…" e "Recado"
    ficavam fora da coluna). */
 .lb-player__actions {
   display: flex;
@@ -2380,13 +2448,18 @@ label.lb-switch[data-dica-linha='aberta'] > span:first-child::after,
   cursor: pointer;
   transition:
     border-color var(--lb-motion-fast) var(--lb-motion-ease),
-    color var(--lb-motion-fast) var(--lb-motion-ease);
+    color var(--lb-motion-fast) var(--lb-motion-ease),
+    transform var(--lb-motion-fast) var(--lb-motion-ease);
 }
 
 .lb-player__mais:hover,
 .lb-player__mais[aria-expanded='true'] {
   border-color: var(--lb-color-brass);
   color: var(--lb-color-brass);
+}
+
+.lb-player__mais:active {
+  transform: scale(0.97);
 }
 
 /* Quem espera personagem: filete de latão à esquerda — a mesma marca de
@@ -2430,7 +2503,12 @@ label.lb-switch[data-dica-linha='aberta'] > span:first-child::after,
   flex: none;
 }
 
-.lb-player__pick > .lb-input {
+/* Lista que age ao escolher tem a altura e a letra dos botões compactos: o
+   "Atribuir token" na linha e o "Passar o mapa de … a" solto na seção do "…"
+   (pedido 13), que com os 38 px de fábrica era o único campo grande entre
+   botões de 24. O flex só vale na linha; na coluna da seção não há sobra. */
+.lb-player__pick > .lb-input,
+.lb-player__secao > .lb-input {
   flex: 1 1 auto;
   min-width: 0;
   min-height: 26px;
@@ -2463,10 +2541,59 @@ label.lb-switch[data-dica-linha='aberta'] > span:first-child::after,
   }
 }
 
+/* Aberto pelo teclado (Enter ou Espaço no "…"), o painel aparece de uma vez:
+   quem navega por tecla já sabe de onde ele veio e não espera a entrada. */
+.lb-player__panel[data-instant] {
+  animation: none;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .lb-player__panel {
     animation: none;
   }
+
+  .lb-chip__remove:active,
+  .lb-player__mais:active {
+    transform: none;
+  }
+}
+
+/* O "…" em seções, como o menu de membro do Discord (pedido 13): o título
+   diz do que é cada grupo, a divisória separa, e o que é destrutivo fica no
+   fim, sozinho. */
+.lb-player__secao {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-2);
+  min-width: 0;
+}
+
+.lb-player__secao + .lb-player__secao,
+.lb-player__perigo {
+  padding-top: var(--lb-space-2);
+  border-top: 1px solid var(--lb-color-line);
+}
+
+.lb-player__secao-titulo {
+  margin: 0;
+  font-size: var(--lb-font-size-xs);
+  font-weight: var(--lb-font-weight-semibold);
+  line-height: var(--lb-font-leading-tight);
+  letter-spacing: var(--lb-font-tracking-wide);
+  color: var(--lb-color-parchment-dim);
+}
+
+/* Na coluna da seção quem dá o ritmo é o vão dela: a margem de 1em que o
+   parágrafo traz de fábrica abria um buraco sob o seletor de mapa. */
+.lb-player__secao > p {
+  margin: 0;
+}
+
+/* Botão solto na seção ("Dar o que o grupo viu", "Dar um mapa a…",
+   "Emprestar como ajudante…") tem a largura do rótulo e encosta na margem,
+   como os da linha: esticado na coluna, parecia uma barra. */
+.lb-player__secao > .lb-btn {
+  align-self: flex-start;
 }
 
 .lb-player__plan {

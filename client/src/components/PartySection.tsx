@@ -138,15 +138,16 @@ export function sendDestinationsFor(member: PartyMember, destinations: PartyDest
 }
 
 /**
- * Os formulários de uma linha do Grupo: "Mandar para…" e "Dar item…" abaixo
- * da lista, o "Recado" dentro da própria linha.
+ * Os formulários de uma linha do Grupo: "Mandar para…" abaixo da lista, o
+ * "Recado" dentro da própria linha. O "Dar item…" mora no "…" do cartão
+ * (`PartyBag`), com a mochila e a bolsa.
  */
-export type PartyFormKind = 'send' | 'give' | 'note'
+export type PartyFormKind = 'send' | 'note'
 
 /**
- * O "Mandar para…", o "Dar item…" e o "Recado" do Grupo: um formulário por
- * vez (abrir um fecha o outro), e o foco volta ao botão que o abriu ao
- * terminar ou cancelar (quem abriu pode ter saído da lista).
+ * O "Mandar para…" e o "Recado" do Grupo: um formulário por vez (abrir um
+ * fecha o outro), e o foco volta ao botão que o abriu ao terminar ou cancelar
+ * (quem abriu pode ter saído da lista).
  */
 export function usePartySend() {
   const [open, setOpen] = useState<{ kind: PartyFormKind; playerId: string } | null>(null)
@@ -171,9 +172,8 @@ export function usePartySend() {
   }
 
   const sendingId = open?.kind === 'send' ? open.playerId : null
-  const givingId = open?.kind === 'give' ? open.playerId : null
   const notingId = open?.kind === 'note' ? open.playerId : null
-  return { sendingId, givingId, notingId, toggle, close }
+  return { sendingId, notingId, toggle, close }
 }
 
 /**
@@ -200,10 +200,6 @@ interface PartyActionsProps {
   sendOpen: boolean
   sendFormId: string
   onToggleSend(opener: HTMLElement): void
-  /** "Dar item…" aberto para este jogador. */
-  giveOpen: boolean
-  giveFormId: string
-  onToggleGive(opener: HTMLElement): void
   /** "Recado" aberto para este jogador. */
   noteOpen: boolean
   noteFormId: string
@@ -211,88 +207,83 @@ interface PartyActionsProps {
 }
 
 /**
- * As ações de mesa de uma linha do Grupo: ir ver ("Ir lá"), a câmera
- * acompanhar ("Seguir"), ver a tela dele ("Ver tela"), trazer ou levar o
- * jogador ("Mandar para…"), dar um item ("Dar item…", quando quem monta grava
- * mochila) e o "Recado" que só ele lê. São as que o mestre usa a cada cena:
- * ficam sempre à vista, nunca no "Mais". Sem ficha no mapa, só o "Recado"
- * (ele chega quando o mapa do jogador aparecer).
+ * As ações de toda cena numa linha do Grupo, em dois grupos por intenção.
+ * "Acompanhar": ir ver ("Ir lá"), a câmera ir junto ("Seguir") e ver a tela
+ * dele ("Ver tela"). Depois, agir sobre ele: trazer ou levar ("Mandar para…")
+ * e o "Recado" que só ele lê. Dar, trocar e mexer na mochila são de vez em
+ * quando e moram no "…" do cartão (`PartyBag`): com tudo à vista, o cartão
+ * virava uma pilha de botões em que o mestre não achava nada (pedido 13). Sem
+ * ficha no mapa, só o "Recado" (ele chega quando o mapa do jogador aparecer).
  */
-export function PartyActions({ member, party, sendOpen, sendFormId, onToggleSend, giveOpen, giveFormId, onToggleGive, noteOpen, noteFormId, onToggleNote }: PartyActionsProps) {
-  const { onGoTo, onToggleFollow, followingId = null, onToggleMirror, mirroringId = null, onItem, onNote } = party
+export function PartyActions({ member, party, sendOpen, sendFormId, onToggleSend, noteOpen, noteFormId, onToggleNote }: PartyActionsProps) {
+  const { onGoTo, onToggleFollow, followingId = null, onToggleMirror, mirroringId = null, onNote } = party
   const hasToken = member.token !== null
   const targets = hasToken ? sendDestinationsFor(member, party.destinations) : []
   const following = member.playerId === followingId
   if (!hasToken && onNote === undefined) return null
   return (
-    <div className="lb-player__actions">
+    <>
       {hasToken && (
-        <button type="button" className="lb-btn lb-btn--compact" onClick={() => onGoTo(member)}>
-          Ir lá
-        </button>
+        <div className="lb-player__olhar" role="group" aria-label={`Acompanhar ${member.name}`}>
+          <button type="button" className="lb-btn lb-btn--compact" onClick={() => onGoTo(member)}>
+            Ir lá
+          </button>
+          {onToggleFollow !== undefined && (
+            // Ligado ganha o destaque do "Laser" da mesma aba: um botão de modo, não uma ação de uma vez.
+            <button
+              type="button"
+              className={following ? 'lb-btn lb-btn--compact lb-btn--primary' : 'lb-btn lb-btn--compact'}
+              aria-pressed={following}
+              onClick={() => onToggleFollow(member)}
+            >
+              {FOLLOW_LABEL}
+            </button>
+          )}
+          {/* Desconectado não tem tela: o botão abriria um espelho vazio. */}
+          {onToggleMirror !== undefined && member.connected && (
+            <button
+              type="button"
+              className="lb-btn lb-btn--compact"
+              aria-label={mirrorLabel(member.name)}
+              aria-expanded={member.playerId === mirroringId}
+              aria-haspopup="dialog"
+              onClick={() => onToggleMirror(member)}
+            >
+              {MIRROR_LABEL}
+            </button>
+          )}
+        </div>
       )}
-      {hasToken && onToggleFollow !== undefined && (
-        // Ligado ganha o destaque do "Laser" da mesma aba: um botão de modo, não uma ação de uma vez.
-        <button
-          type="button"
-          className={following ? 'lb-btn lb-btn--compact lb-btn--primary' : 'lb-btn lb-btn--compact'}
-          aria-pressed={following}
-          onClick={() => onToggleFollow(member)}
-        >
-          {FOLLOW_LABEL}
-        </button>
+      {(targets.length > 0 || onNote !== undefined) && (
+        <div className="lb-player__actions">
+          {targets.length > 0 && (
+            <button
+              type="button"
+              className="lb-btn lb-btn--compact"
+              aria-expanded={sendOpen}
+              aria-controls={sendOpen ? sendFormId : undefined}
+              onClick={(event) => onToggleSend(event.currentTarget)}
+            >
+              {SEND_TO_LABEL}
+            </button>
+          )}
+          {onNote !== undefined && (
+            // Montado também com o campo aberto: é para ele que o foco volta.
+            <button
+              type="button"
+              className={noteOpen ? 'lb-btn lb-btn--compact lb-btn--primary' : 'lb-btn lb-btn--compact'}
+              aria-label={`${NOTE_LABEL} para ${member.name}`}
+              aria-expanded={noteOpen}
+              aria-controls={noteOpen ? noteFormId : undefined}
+              title="Recado: só este jogador lê"
+              onClick={(event) => onToggleNote(event.currentTarget)}
+            >
+              {NOTE_LABEL}
+            </button>
+          )}
+        </div>
       )}
-      {/* Desconectado não tem tela: o botão abriria um espelho vazio. */}
-      {hasToken && onToggleMirror !== undefined && member.connected && (
-        <button
-          type="button"
-          className="lb-btn lb-btn--compact"
-          aria-label={mirrorLabel(member.name)}
-          aria-expanded={member.playerId === mirroringId}
-          aria-haspopup="dialog"
-          onClick={() => onToggleMirror(member)}
-        >
-          {MIRROR_LABEL}
-        </button>
-      )}
-      {targets.length > 0 && (
-        <button
-          type="button"
-          className="lb-btn lb-btn--compact"
-          aria-expanded={sendOpen}
-          aria-controls={sendOpen ? sendFormId : undefined}
-          onClick={(event) => onToggleSend(event.currentTarget)}
-        >
-          {SEND_TO_LABEL}
-        </button>
-      )}
-      {hasToken && onItem !== undefined && (
-        <button
-          type="button"
-          className="lb-btn lb-btn--compact"
-          aria-label={`Dar item a ${member.name}`}
-          aria-expanded={giveOpen}
-          aria-controls={giveOpen ? giveFormId : undefined}
-          onClick={(event) => onToggleGive(event.currentTarget)}
-        >
-          Dar item…
-        </button>
-      )}
-      {onNote !== undefined && (
-        // Montado também com o campo aberto: é para ele que o foco volta.
-        <button
-          type="button"
-          className={noteOpen ? 'lb-btn lb-btn--compact lb-btn--primary' : 'lb-btn lb-btn--compact'}
-          aria-label={`${NOTE_LABEL} para ${member.name}`}
-          aria-expanded={noteOpen}
-          aria-controls={noteOpen ? noteFormId : undefined}
-          title="Recado: só este jogador lê"
-          onClick={(event) => onToggleNote(event.currentTarget)}
-        >
-          {NOTE_LABEL}
-        </button>
-      )}
-    </div>
+    </>
   )
 }
 
@@ -368,7 +359,7 @@ interface GiveFormProps {
 }
 
 /**
- * "Dar item…" do mestre, logo abaixo da lista, no molde do "Mandar para…":
+ * "Dar item…" do mestre, no "…" do cartão, em "Mochila e bolsa" (`PartyBag`):
  * um campo com rótulo, já com o foco; "Dar" fica indisponível com o campo
  * vazio; Enter dá (é um `<form>`); Esc cancela. Não deu: o texto fica.
  */
@@ -435,18 +426,6 @@ function GiveForm({ member, onGive, onClose }: GiveFormProps) {
   )
 }
 
-/** O formulário do "Dar item…" de um jogador, logo abaixo da lista do Grupo. Sem `onItem`, nada. */
-export function PartyGiveForm({ member, party, formId, onClose }: PartySendFormProps) {
-  const { onItem } = party
-  if (onItem === undefined) return null
-  return (
-    <div id={formId}>
-      {/* `key`: trocar de jogador reabre o campo vazio, sem o texto do anterior. */}
-      <GiveForm key={member.playerId} member={member} onGive={(target, nome) => onItem({ kind: 'dar', member: target, nome })} onClose={onClose} />
-    </div>
-  )
-}
-
 interface PartyAwayTokensProps {
   member: PartyMember
   onBring: PartySectionProps['onBring']
@@ -502,8 +481,10 @@ interface BackpackListProps {
 /**
  * A mochila de um jogador, item por item, com o que o mestre faz com cada um:
  * "Tirar" (a chave usada some) e "Devolver ao chão" (vira pino pegável onde a
- * ficha está). O nome acessível diz o item e de quem é: com sete jogadores,
- * "Tirar" sozinho não diz qual.
+ * ficha está). O nome do item fica numa linha e as duas ações na de baixo,
+ * sempre: na coluna do "…" nome e botões não cabem lado a lado, e soltos na
+ * mesma linha cada item quebrava num ponto diferente. O nome acessível diz o
+ * item e de quem é: com sete jogadores, "Tirar" sozinho não diz qual.
  */
 function BackpackList({ member, onItem }: BackpackListProps) {
   const [failed, setFailed] = useState(false)
@@ -512,19 +493,21 @@ function BackpackList({ member, onItem }: BackpackListProps) {
     <>
       <ul className="lb-party__mochila" aria-label={`Mochila de ${member.name}`}>
         {member.mochila.map((item) => (
-          <li key={`${item.tokenId}:${item.id}`} className="lb-player__line lb-player__line--acoes">
-            <span className="lb-player__note">{item.nome}</span>{' '}
-            <button type="button" className="lb-btn lb-btn--compact" aria-label={`Tirar ${item.nome} de ${member.name}`} onClick={() => run({ kind: 'tirar', item })}>
-              Tirar
-            </button>
-            <button
-              type="button"
-              className="lb-btn lb-btn--compact"
-              aria-label={`Devolver ao chão ${item.nome} de ${member.name}`}
-              onClick={() => run({ kind: 'devolver', item })}
-            >
-              Devolver ao chão
-            </button>
+          <li key={`${item.tokenId}:${item.id}`} className="lb-party__coisa">
+            <span className="lb-party__coisa-nome">{item.nome}</span>{' '}
+            <span className="lb-party__coisa-acoes">
+              <button type="button" className="lb-btn lb-btn--compact" aria-label={`Tirar ${item.nome} de ${member.name}`} onClick={() => run({ kind: 'tirar', item })}>
+                Tirar
+              </button>
+              <button
+                type="button"
+                className="lb-btn lb-btn--compact"
+                aria-label={`Devolver ao chão ${item.nome} de ${member.name}`}
+                onClick={() => run({ kind: 'devolver', item })}
+              >
+                Devolver ao chão
+              </button>
+            </span>
           </li>
         ))}
       </ul>
@@ -537,27 +520,21 @@ function BackpackList({ member, onItem }: BackpackListProps) {
   )
 }
 
-interface PartyBackpackProps {
-  member: PartyMember
-  onItem: PartySectionProps['onItem']
-}
-
 /**
- * ITEM PEGÁVEL na linha do Grupo: quem tem o quê, de relance. Mochila vazia
- * não ocupa linha. Sem `onItem` (quem monta não grava mochila), só o resumo
- * com os nomes; com ele, a contagem e, por item, Tirar e Devolver ao chão.
+ * O estado do jogador numa linha do Grupo, de relance: sem ficha no mapa, a
+ * bolsa e a mochila com os nomes (ITEM PEGÁVEL, MOEDAS E TROCA). Uma linha
+ * só, que quebra em vez de cortar: o nome do item é o que o mestre procura.
+ * Bolsa vazia e mochila vazia não dizem nada. Mexer nelas fica no "…"
+ * (`PartyBag`).
  */
-export function PartyBackpack({ member, onItem }: PartyBackpackProps) {
-  if (member.mochila.length === 0) return null
-  if (onItem === undefined) {
-    return <p className="lb-player__note">{`Mochila: ${member.mochila.length} — ${member.mochila.map((item) => item.nome).join(', ')}`}</p>
-  }
-  return (
-    <>
-      <p className="lb-player__note">{`Mochila: ${member.mochila.length}`}</p>
-      <BackpackList member={member} onItem={onItem} />
-    </>
-  )
+export function PartyStatus({ member }: { member: PartyMember }) {
+  const partes: string[] = []
+  if (member.token === null) partes.push('sem ficha no mapa')
+  const moedas = member.moedas ?? 0
+  if (moedas > 0) partes.push(`Bolsa: ${moedasLabel(moedas)}`)
+  if (member.mochila.length > 0) partes.push(`Mochila: ${member.mochila.length} — ${member.mochila.map((item) => item.nome).join(', ')}`)
+  if (partes.length === 0) return null
+  return <p className="lb-player__note lb-player__estado">{partes.join(' · ')}</p>
 }
 
 /** Valor de um campo de moedas: vazio é zero; só inteiro de 0 ao teto vale. `null` = torto. */
@@ -577,51 +554,103 @@ function escCloses(onClose: () => void) {
   }
 }
 
-interface PartyPurseProps {
+/** Se o "…" do cartão tem a seção "Mochila e bolsa": há item para tirar, ou ficha para dar, acertar a bolsa ou propor troca. */
+export function partyBagVisible(member: PartyMember, { onItem, onTrade }: Pick<PartySectionProps, 'onItem' | 'onTrade'>): boolean {
+  if (onItem !== undefined && member.mochila.length > 0) return true
+  return member.token !== null && (onItem !== undefined || onTrade !== undefined)
+}
+
+/** O formulário aberto em "Mochila e bolsa"; um por vez. */
+type BagForm = 'dar' | 'moedas' | 'troca'
+
+interface PartyBagProps {
   member: PartyMember
-  onItem: PartySectionProps['onItem']
-  onTrade: PartySectionProps['onTrade']
+  party: Pick<PartySectionProps, 'onItem' | 'onTrade'>
 }
 
 /**
- * MOEDAS E TROCA na linha do Grupo: a bolsa da ficha, "Moedas…" (acerta o
- * valor) e "Propor troca…" (a oferta ao jogador). Um formulário por vez na
- * linha; fechar devolve o foco ao botão que o abriu. Sem ficha, nada; sem
- * `onItem` nem `onTrade`, só o valor (e só quando há moeda).
+ * "Mochila e bolsa", no "…" do cartão (pedido 13): por item, "Tirar" e
+ * "Devolver ao chão"; depois "Dar item…", "Moedas…" (acerta o valor) e
+ * "Propor troca…" (a oferta ao jogador). São de vez em quando: à vista, cada
+ * cartão ganhava uma pilha de botões que o mestre quase nunca usa. Um
+ * formulário por vez; Enter, Cancelar ou Esc fecham e devolvem o foco ao
+ * botão que o abriu. Sem ficha, só a mochila (ITEM PEGÁVEL, MOEDAS E TROCA).
  */
-export function PartyPurse({ member, onItem, onTrade }: PartyPurseProps) {
-  const [open, setOpen] = useState<'moedas' | 'troca' | null>(null)
-  const coinsRef = useRef<HTMLButtonElement | null>(null)
-  const tradeRef = useRef<HTMLButtonElement | null>(null)
-  const moedas = member.moedas ?? 0
-  if (member.token === null || (onItem === undefined && onTrade === undefined && moedas === 0)) return null
+export function PartyBag({ member, party }: PartyBagProps) {
+  const { onItem, onTrade } = party
+  const [open, setOpen] = useState<BagForm | null>(null)
+  const openerRef = useRef<HTMLElement | null>(null)
+  const formId = useId()
+  const hasToken = member.token !== null
 
   const close = () => {
-    const opener = open === 'moedas' ? coinsRef.current : tradeRef.current
+    const opener = openerRef.current
+    openerRef.current = null
     setOpen(null)
     requestAnimationFrame(() => {
       if (opener?.isConnected) opener.focus()
     })
   }
-  const toggle = (kind: 'moedas' | 'troca') => setOpen((current) => (current === kind ? null : kind))
-
+  const toggle = (kind: BagForm, opener: HTMLElement) => {
+    if (open === kind) {
+      close()
+      return
+    }
+    openerRef.current = opener
+    setOpen(kind)
+  }
   return (
     <>
-      <div className="lb-player__line lb-player__line--acoes">
-        <span className="lb-player__note">{moedas === 0 ? 'Bolsa vazia' : `Bolsa: ${moedasLabel(moedas)}`}</span>{' '}
-        {onItem !== undefined && (
-          <button type="button" ref={coinsRef} className="lb-btn lb-btn--compact" aria-label={`Moedas de ${member.name}`} aria-expanded={open === 'moedas'} onClick={() => toggle('moedas')}>
-            Moedas…
-          </button>
-        )}
-        {onTrade !== undefined && (
-          <button type="button" ref={tradeRef} className="lb-btn lb-btn--compact" aria-label={`Propor troca a ${member.name}`} aria-expanded={open === 'troca'} onClick={() => toggle('troca')}>
-            Propor troca…
-          </button>
-        )}
-      </div>
-      {open === 'moedas' && onItem !== undefined && <CoinsForm member={member} onItem={onItem} onClose={close} />}
-      {open === 'troca' && onTrade !== undefined && <TradeForm member={member} onTrade={onTrade} onClose={close} />}
+      {onItem !== undefined && member.mochila.length > 0 && <BackpackList member={member} onItem={onItem} />}
+      {hasToken && (onItem !== undefined || onTrade !== undefined) && (
+        <div className="lb-player__line lb-player__line--acoes">
+          {onItem !== undefined && (
+            <button
+              type="button"
+              className="lb-btn lb-btn--compact"
+              aria-label={`Dar item a ${member.name}`}
+              aria-expanded={open === 'dar'}
+              aria-controls={open === 'dar' ? formId : undefined}
+              onClick={(event) => toggle('dar', event.currentTarget)}
+            >
+              Dar item…
+            </button>
+          )}
+          {onItem !== undefined && (
+            <button
+              type="button"
+              className="lb-btn lb-btn--compact"
+              aria-label={`Moedas de ${member.name}`}
+              aria-expanded={open === 'moedas'}
+              aria-controls={open === 'moedas' ? formId : undefined}
+              onClick={(event) => toggle('moedas', event.currentTarget)}
+            >
+              Moedas…
+            </button>
+          )}
+          {onTrade !== undefined && (
+            <button
+              type="button"
+              className="lb-btn lb-btn--compact"
+              aria-label={`Propor troca a ${member.name}`}
+              aria-expanded={open === 'troca'}
+              aria-controls={open === 'troca' ? formId : undefined}
+              onClick={(event) => toggle('troca', event.currentTarget)}
+            >
+              Propor troca…
+            </button>
+          )}
+        </div>
+      )}
+      {open !== null && (
+        <div id={formId}>
+          {open === 'dar' && onItem !== undefined && (
+            <GiveForm member={member} onGive={(target, nome) => onItem({ kind: 'dar', member: target, nome })} onClose={close} />
+          )}
+          {open === 'moedas' && onItem !== undefined && <CoinsForm member={member} onItem={onItem} onClose={close} />}
+          {open === 'troca' && onTrade !== undefined && <TradeForm member={member} onTrade={onTrade} onClose={close} />}
+        </div>
+      )}
     </>
   )
 }
