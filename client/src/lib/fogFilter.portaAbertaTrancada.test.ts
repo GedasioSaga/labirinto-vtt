@@ -7,8 +7,9 @@ import { createEmptyMap } from './mapFactory'
 /**
  * PORTA ABERTA E TRANCADA no recorte do jogador. Ela não deveria existir
  * (`closeIfLocked` fecha a porta ao trancar e ao carregar mapa antigo), mas o
- * recorte não confia nisso: a lembrança do host (`seenDoors`) guarda a porta
- * vista inteira, do mapa do mestre. O host a trata como FECHADA
+ * recorte não confia nisso, nem na lembrança (`seenDoors`): o host guarda ali a
+ * porta já recortada, mas o teste passa a do mapa do mestre, inteira, para
+ * provar que o corte vale também nela. O host a trata como FECHADA
  * (`isDoorPassable`: não passa ninguém nem a visão), então o jogador a recebe
  * fechada — sem cadeado e sem chave, como toda porta — em cada caminho por
  * onde uma porta sai: à vista, lembrada, apagada pelo mestre mas lembrada, e
@@ -61,7 +62,11 @@ function salao(heroi: { x: number; y: number }, porta: DoorState | null): MapDat
   return { ...createEmptyMap('m', 'M', 25, 25, 40), tokens: [ficha('heroi', heroi)], walls }
 }
 
-/** Um jogador com memória, como o host guarda: explorado, portas vistas (inteiras, do mapa do mestre) e planta lembrada. */
+/**
+ * Um jogador com memória: explorado, portas vistas e planta lembrada. As portas
+ * vistas saem do mapa do mestre, inteiras (o host guarda a do recorte): o pior
+ * caso para o corte.
+ */
 function jogador(): (map: MapData) => PlayerMapView {
   const exp = createExploration({ width: 1000, height: 1000, grid: 40 })
   const doors = new Map<string, DoorState>()

@@ -3037,7 +3037,8 @@ export function filterMapForGroup(
     const known = (p: RegionPoint): boolean => isPointExploredOpen(p) || (comodoCounts && !inHiddenPlace(p) && inKnownComodo(p))
     if (!doorSamples(w, probe).some(known)) return []
     const rememberedDoor = seenDoors?.get(w.id)
-    // A lembrada vem do mapa do mestre (`hostSession` guarda a porta vista inteira): passa pelo mesmo corte.
+    // A lembrada já é a porta que o jogador recebeu (`hostSession` guarda a do recorte), mas o chamador
+    // pode guardar outra coisa: passa pelo mesmo corte.
     return [{ ...w, door: doorForPlayer(rememberedDoor === undefined ? unseenDoor(door) : withoutLock(rememberedDoor)) }]
   }
 
