@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { Graphics } from 'pixi.js'
 import type { Prop } from '../types/map'
 import { drawPropSilhouettes, PROP_SILHOUETTE_EDGE_ALPHA, PROP_SILHOUETTE_EDGE_COLOR } from './drawPropSilhouettes'
-import { tracosDoGlifo } from '../lib/mobilia'
+import { LADOS_DA_ELIPSE, tracosDoGlifo } from '../lib/mobilia'
 
 /**
  * MOBÍLIA DESENHADA na tela do jogador: o móvel com tipo ganha, por cima da
@@ -32,6 +32,22 @@ function pathPoints(instruction: Instruction | undefined, action: 'moveTo' | 'li
       if (typeof x !== 'number' || typeof y !== 'number') throw new Error(`${action} sem ponto`)
       return { x, y }
     })
+}
+
+/** Vértices do polígono da silhueta (o `poly` do primeiro traço). */
+function silhouettePoints(g: Graphics): { x: number; y: number }[] {
+  const contorno = strokes(g)[0]
+  if (contorno?.action !== 'stroke') throw new Error('esperava stroke')
+  const poly = contorno.data.path.instructions.find((i) => i.action === 'poly')
+  const plano: unknown = poly?.data[0]
+  if (!Array.isArray(plano)) throw new Error('silhueta sem poly')
+  const pontos: { x: number; y: number }[] = []
+  for (let i = 0; i + 1 < plano.length; i += 2) {
+    const [x, y]: unknown[] = [plano[i], plano[i + 1]]
+    if (typeof x !== 'number' || typeof y !== 'number') throw new Error('poly sem ponto')
+    pontos.push({ x, y })
+  }
+  return pontos
 }
 
 function movel(extra: Partial<Prop> = {}): Prop {
@@ -85,6 +101,26 @@ describe('drawPropSilhouettes — glifo da mobília', () => {
     expect(contar('mesa')).toBe(tracosDoGlifo('mesa', 60, 60).length)
     expect(contar('bau')).toBe(tracosDoGlifo('bau', 60, 60).length)
     expect(tracosDoGlifo('mesa', 60, 60)).not.toEqual(tracosDoGlifo('catre', 60, 60))
+  })
+
+  it('caixa e cadeira: silhueta retangular e o glifo de cada uma', () => {
+    for (const mobilia of ['caixa', 'cadeira'] as const) {
+      const g = new Graphics()
+      drawPropSilhouettes(g, [movel({ mobilia, width: 32, height: 32 })], 1, 1)
+      expect(silhouettePoints(g)).toHaveLength(4)
+      expect(pathPoints(strokes(g)[1], 'moveTo')).toHaveLength(tracosDoGlifo(mobilia, 32, 32).length)
+    }
+  })
+
+  it('barril: silhueta redonda, cada ponto na elipse inscrita no retângulo', () => {
+    const g = new Graphics()
+    drawPropSilhouettes(g, [movel({ mobilia: 'barril', width: 28, height: 28 })], 1, 1)
+    const pontos = silhouettePoints(g)
+    expect(pontos).toHaveLength(LADOS_DA_ELIPSE)
+    for (const p of pontos) expect(Math.hypot(p.x - 250, p.y - 200)).toBeCloseTo(14, 6)
+    expect(fills(g)).toHaveLength(1)
+    // A tampa vai por cima, no mesmo fio fino.
+    expect(pathPoints(strokes(g)[1], 'moveTo')).toHaveLength(tracosDoGlifo('barril', 28, 28).length)
   })
 
   it('objeto comum (sem tipo) continua só com o contorno', () => {

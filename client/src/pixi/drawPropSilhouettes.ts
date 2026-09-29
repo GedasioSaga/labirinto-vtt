@@ -1,7 +1,7 @@
 import type { Graphics } from 'pixi.js'
 import type { Prop } from '../types/map'
 import { rotatePointAround, rotationTrig } from '../lib/roomRotation'
-import { tracosDoGlifo } from '../lib/mobilia'
+import { ehMovelRedondo, pontosDaElipse, tracosDoGlifo } from '../lib/mobilia'
 import { WALL_COLOR } from './drawWalls'
 import { alignToPixel, pixelGrid, strokeWidthInWorld, type PixelGrid } from './pixelAlign'
 
@@ -86,6 +86,21 @@ function silhouetteCorners(prop: PropSilhouette, grid: PixelGrid): number[] {
 }
 
 /**
+ * Móvel redondo (barril): a elipse inscrita no retângulo, girada com o objeto.
+ * Curva não tem borda reta a encostar no pixel, então fica sem `alignToPixel`.
+ */
+function roundSilhouettePoints(prop: PropSilhouette): number[] {
+  const trig = rotationTrig(prop.rotation ?? 0)
+  const center = { x: prop.x, y: prop.y }
+  const points: number[] = []
+  for (const offset of pontosDaElipse(prop.width, prop.height)) {
+    const p = rotatePointAround({ x: prop.x + offset.x, y: prop.y + offset.y }, center, trig)
+    points.push(p.x, p.y)
+  }
+  return points
+}
+
+/**
  * MOBÍLIA DESENHADA: os traços do glifo do móvel (`lib/mobilia.ts`), girados
  * com o objeto, num traço só no mesmo fio fino e claro do contorno — o glifo
  * nunca pesa mais que a borda do próprio móvel. Objeto comum não tem glifo.
@@ -121,8 +136,9 @@ export function drawPropSilhouettes(
   let drawn = 0
   for (const prop of props) {
     if (!hasDrawableGeometry(prop)) continue
+    const outline = ehMovelRedondo(prop.mobilia) ? roundSilhouettePoints(prop) : silhouetteCorners(prop, grid)
     graphics
-      .poly(silhouetteCorners(prop, grid), true)
+      .poly(outline, true)
       .fill({ color: PROP_SILHOUETTE_FILL_COLOR, alpha: PROP_SILHOUETTE_FILL_ALPHA })
       .stroke({ width: edgeWidth, color: PROP_SILHOUETTE_EDGE_COLOR, alpha: PROP_SILHOUETTE_EDGE_ALPHA, join: 'miter' })
     strokeFurnitureGlyph(graphics, prop, edgeWidth)

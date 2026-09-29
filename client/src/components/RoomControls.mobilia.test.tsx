@@ -4,8 +4,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { RoomControls, type RoomControlsProps } from './RoomControls'
 
 /**
- * MOBÍLIA DESENHADA, lado do PAINEL: a sala selecionada oferece "Catre",
- * "Mesa" e "Baú". Cada botão pede o móvel daquele tipo; sem quem ponha o
+ * MOBÍLIA DESENHADA, lado do PAINEL: a sala selecionada oferece "Barril",
+ * "Caixa", "Baú", "Cama", "Mesa" e "Cadeira". Cada botão pede o móvel daquele tipo; sem quem ponha o
  * móvel (painel montado sem mapa), a seção não aparece.
  */
 
@@ -55,23 +55,23 @@ function botao(texto: string): HTMLButtonElement {
 }
 
 describe('RoomControls — Mobília', () => {
-  it('mostra Catre, Mesa e Baú, e cada um pede o móvel do seu tipo', () => {
+  it('mostra os seis móveis, e cada um pede o móvel do seu tipo', () => {
     const onAddMobilia = vi.fn()
     render({ onAddMobilia })
     expect(grupoMobilia()).not.toBeNull()
-    expect([...(grupoMobilia()?.querySelectorAll('button') ?? [])].map((b) => b.textContent)).toEqual(['Catre', 'Mesa', 'Baú'])
+    const nomes = ['Barril', 'Caixa', 'Baú', 'Cama', 'Mesa', 'Cadeira']
+    expect([...(grupoMobilia()?.querySelectorAll('button') ?? [])].map((b) => b.textContent)).toEqual(nomes)
 
-    act(() => botao('Catre').click())
-    act(() => botao('Mesa').click())
-    act(() => botao('Baú').click())
-    expect(onAddMobilia.mock.calls).toEqual([['catre'], ['mesa'], ['bau']])
+    for (const nome of nomes) act(() => botao(nome).click())
+    expect(onAddMobilia.mock.calls).toEqual([['barril'], ['caixa'], ['bau'], ['catre'], ['mesa'], ['cadeira']])
   })
 
   it('são botões de verdade (teclado e leitor de tela), com o que fazem no nome', () => {
     render({ onAddMobilia: vi.fn() })
-    const catre = botao('Catre')
-    expect(catre.type).toBe('button')
-    expect(catre.getAttribute('title')).toBe('Pôr um catre no centro da sala')
+    const cama = botao('Cama')
+    expect(cama.type).toBe('button')
+    expect(cama.getAttribute('title')).toBe('Pôr uma cama no centro da sala')
+    expect(botao('Barril').getAttribute('title')).toBe('Pôr um barril no centro da sala')
   })
 
   it('sem quem ponha o móvel, a seção não aparece', () => {

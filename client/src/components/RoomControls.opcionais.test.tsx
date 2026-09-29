@@ -201,7 +201,7 @@ describe('RoomControls: opcional vazio = uma linha com "+"', () => {
     expect(document.activeElement?.textContent).toBe('Nenhuma')
     expect(document.activeElement?.closest('[role="radiogroup"]')?.getAttribute('aria-label')).toBe('Esteira na sala')
     act(() => linhaObrigatoria('Mobília').click())
-    expect(document.activeElement?.textContent).toBe('Catre')
+    expect(document.activeElement?.textContent).toBe('Barril')
     expect(document.activeElement?.closest('[role="group"]')?.getAttribute('aria-label')).toBe('Pôr mobília na sala')
   })
 

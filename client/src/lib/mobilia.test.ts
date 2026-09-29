@@ -1,23 +1,39 @@
 import { describe, expect, it } from 'vitest'
-import { criarMovel, ehTipoMobilia, propMobiliaFromFile, ROTULO_MOBILIA, TIPOS_MOBILIA, tracosDoGlifo } from './mobilia'
+import {
+  criarMovel,
+  ehMovelRedondo,
+  ehTipoMobilia,
+  LADOS_DA_ELIPSE,
+  NOME_COM_ARTIGO,
+  pontosDaElipse,
+  propMobiliaFromFile,
+  ROTULO_MOBILIA,
+  TIPOS_MOBILIA,
+  tracosDoGlifo,
+} from './mobilia'
 import type { Prop } from '../types/map'
 
 /**
- * MOBÍLIA DESENHADA — o catálogo (catre, mesa, baú), o móvel que o painel da
+ * MOBÍLIA DESENHADA — o catálogo (barril, caixa, baú, cama, mesa, cadeira), o móvel que o painel da
  * sala põe no mapa e o glifo de cada tipo, tudo sem Pixi.
  */
 
 const GRADE = 40
 
 describe('catálogo da mobília', () => {
-  it('tem catre, mesa e baú, com o nome que o painel mostra', () => {
-    expect([...TIPOS_MOBILIA]).toEqual(['catre', 'mesa', 'bau'])
-    expect(ROTULO_MOBILIA).toEqual({ catre: 'Catre', mesa: 'Mesa', bau: 'Baú' })
+  it('tem barril, caixa, baú, cama, mesa e cadeira, nessa ordem, com o nome que o painel mostra', () => {
+    expect([...TIPOS_MOBILIA]).toEqual(['barril', 'caixa', 'bau', 'catre', 'mesa', 'cadeira'])
+    expect(TIPOS_MOBILIA.map((tipo) => ROTULO_MOBILIA[tipo])).toEqual(['Barril', 'Caixa', 'Baú', 'Cama', 'Mesa', 'Cadeira'])
+  })
+
+  it('a cama guarda o id antigo do catre: mapa salvo com catre abre com a cama', () => {
+    expect(ehTipoMobilia('catre')).toBe(true)
+    expect(ROTULO_MOBILIA.catre).toBe('Cama')
+    expect(NOME_COM_ARTIGO.catre).toBe('uma cama')
   })
 
   it('reconhece só os tipos do catálogo', () => {
-    expect(ehTipoMobilia('catre')).toBe(true)
-    expect(ehTipoMobilia('bau')).toBe(true)
+    for (const tipo of ['barril', 'caixa', 'bau', 'catre', 'mesa', 'cadeira']) expect(ehTipoMobilia(tipo)).toBe(true)
     expect(ehTipoMobilia('dragão')).toBe(false)
     expect(ehTipoMobilia(undefined)).toBe(false)
     expect(ehTipoMobilia(3)).toBe(false)
@@ -39,6 +55,36 @@ describe('criarMovel — o móvel que o painel da sala põe', () => {
     expect(bau.height).toBeGreaterThan(0)
     expect(bau.height).toBeLessThan(GRADE)
   })
+
+  it('barril, caixa e cadeira são quadrados e cabem numa casa, a cadeira o menor deles', () => {
+    for (const tipo of ['barril', 'caixa', 'cadeira'] as const) {
+      const movel = criarMovel(tipo, { x: 0, y: 0 }, GRADE, tipo)
+      expect(movel.width).toBe(movel.height)
+      expect(movel.width).toBeGreaterThan(0)
+      expect(movel.width).toBeLessThan(GRADE)
+    }
+    const cadeira = criarMovel('cadeira', { x: 0, y: 0 }, GRADE, 'c')
+    expect(cadeira.width).toBeLessThan(criarMovel('barril', { x: 0, y: 0 }, GRADE, 'b').width)
+    expect(cadeira.width).toBeLessThan(criarMovel('caixa', { x: 0, y: 0 }, GRADE, 'x').width)
+  })
+})
+
+describe('silhueta redonda', () => {
+  it('só o barril é redondo', () => {
+    expect(TIPOS_MOBILIA.filter((tipo) => ehMovelRedondo(tipo))).toEqual(['barril'])
+    expect(ehMovelRedondo(undefined)).toBe(false)
+  })
+
+  it('pontosDaElipse: cada ponto na elipse inscrita, começando à direita', () => {
+    const pontos = pontosDaElipse(60, 40)
+    expect(pontos).toHaveLength(LADOS_DA_ELIPSE)
+    expect(pontos[0].x).toBeCloseTo(30, 9)
+    expect(pontos[0].y).toBeCloseTo(0, 9)
+    for (const p of pontos) expect((p.x / 30) ** 2 + (p.y / 20) ** 2).toBeCloseTo(1, 9)
+    // Um quarto de volta adiante é o ponto de baixo (y cresce para baixo na tela).
+    expect(pontos[LADOS_DA_ELIPSE / 4].x).toBeCloseTo(0, 9)
+    expect(pontos[LADOS_DA_ELIPSE / 4].y).toBeCloseTo(20, 9)
+  })
 })
 
 describe('tracosDoGlifo — os traços finos dentro da silhueta', () => {
@@ -50,8 +96,38 @@ describe('tracosDoGlifo — os traços finos dentro da silhueta', () => {
     expect(mesa.length).toBeGreaterThan(0)
     expect(bau.length).toBeGreaterThan(0)
     // Mesmo tamanho, desenho diferente: o jogador distingue um do outro.
-    expect(tracosDoGlifo('catre', 60, 60)).not.toEqual(tracosDoGlifo('mesa', 60, 60))
-    expect(tracosDoGlifo('mesa', 60, 60)).not.toEqual(tracosDoGlifo('bau', 60, 60))
+    const desenhos = TIPOS_MOBILIA.map((tipo) => JSON.stringify(tracosDoGlifo(tipo, 60, 60)))
+    expect(new Set(desenhos).size).toBe(TIPOS_MOBILIA.length)
+  })
+
+  it('caixa: o X de canto a canto', () => {
+    expect(tracosDoGlifo('caixa', 40, 40)).toEqual([
+      { x1: -20, y1: -20, x2: 20, y2: 20 },
+      { x1: 20, y1: -20, x2: -20, y2: 20 },
+    ])
+  })
+
+  it('cadeira: o encosto é uma linha de lado a lado no terço de cima', () => {
+    const [encosto, ...resto] = tracosDoGlifo('cadeira', 40, 40)
+    expect(resto).toEqual([])
+    expect(encosto.x1).toBe(-20)
+    expect(encosto.x2).toBe(20)
+    expect(encosto.y1).toBe(encosto.y2)
+    expect(encosto.y1).toBeLessThan(-20 + 40 / 3)
+    expect(encosto.y1).toBeGreaterThan(-20)
+  })
+
+  it('barril: a borda da tampa é um anel fechado, menor que a silhueta e centrado', () => {
+    const tampa = tracosDoGlifo('barril', 40, 40)
+    expect(tampa.length).toBeGreaterThan(8)
+    tampa.forEach((t, i) => {
+      const proximo = tampa[(i + 1) % tampa.length]
+      expect(t.x2).toBeCloseTo(proximo.x1, 9)
+      expect(t.y2).toBeCloseTo(proximo.y1, 9)
+      const raio = Math.hypot(t.x1, t.y1)
+      expect(raio).toBeGreaterThan(5)
+      expect(raio).toBeLessThan(20)
+    })
   })
 
   it('todo traço cabe dentro do retângulo do móvel (centro na origem)', () => {

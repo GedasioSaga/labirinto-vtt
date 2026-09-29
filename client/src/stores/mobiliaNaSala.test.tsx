@@ -8,8 +8,8 @@ import type { Region } from '../types/map'
 
 /**
  * MOBÍLIA DESENHADA, do BOTÃO ao MAPA: o painel da sala DE VERDADE, com a
- * mesma ligação que o App passa (`porMobiliaNaSala`), e o clique em "Catre"
- * põe no mapa um catre no centro da sala, no giro dela, já selecionado.
+ * mesma ligação que o App passa (`porMobiliaNaSala`), e o clique em "Cama"
+ * põe no mapa uma cama no centro da sala, no giro dela, já selecionado.
  */
 
 const GRADE = 50
@@ -82,9 +82,9 @@ function clicar(texto: string): void {
 }
 
 describe('Mobília: do botão da sala ao mapa', () => {
-  it('clicar em "Catre" põe o catre no centro da sala, no giro dela, e o deixa selecionado', () => {
+  it('clicar em "Cama" põe a cama no centro da sala, no giro dela, e o deixa selecionado', () => {
     renderPainel(sala())
-    clicar('Catre')
+    clicar('Cama')
 
     const { map, selection } = useMapStore.getState()
     expect(map.props).toEqual([

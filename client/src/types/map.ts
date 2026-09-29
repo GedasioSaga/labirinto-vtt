@@ -1364,7 +1364,7 @@ export interface Prop extends PlayerSecret, NoPiso {
 }
 
 /** Móveis do catálogo da mobília desenhada (`lib/mobilia.ts`). */
-export type TipoMobilia = 'catre' | 'mesa' | 'bau'
+export type TipoMobilia = 'barril' | 'caixa' | 'bau' | 'catre' | 'mesa' | 'cadeira'
 
 export interface DrawingPoint {
   x: number

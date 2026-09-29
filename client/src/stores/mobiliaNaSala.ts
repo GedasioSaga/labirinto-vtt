@@ -5,9 +5,9 @@ import { selectionOfItem } from '../lib/selectionModel'
 import type { Region, TipoMobilia } from '../types/map'
 
 /**
- * MOBÍLIA DESENHADA — o que o botão "Catre"/"Mesa"/"Baú" do painel da sala
- * faz no mapa. O móvel nasce no centro da sala, deitado no giro dela, e fica
- * selecionado para o mestre arrastar e girar pelos controles de sempre do
+ * MOBÍLIA DESENHADA — o que cada botão de móvel do painel da sala (Barril,
+ * Caixa, Baú, Cama, Mesa, Cadeira) faz no mapa. O móvel nasce no centro da
+ * sala, deitado no giro dela, e fica selecionado para o mestre arrastar e girar pelos controles de sempre do
  * objeto. Um passo só no desfazer (`addProp`).
  *
  * Fora do App para a ligação ser testada de ponta a ponta com o painel de

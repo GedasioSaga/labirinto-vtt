@@ -470,14 +470,15 @@ body {
   letter-spacing: var(--lb-font-tracking-wide);
 }
 
-/* Mobília da sala: Catre | Mesa | Baú dividem a linha em partes iguais. */
+/* Mobília da sala: seis móveis em duas linhas de três colunas iguais
+   (Barril | Caixa | Baú, Cama | Mesa | Cadeira). */
 .lb-mobilia {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: var(--lb-space-2);
 }
 
 .lb-mobilia__option {
-  flex: 1;
   min-width: 0;
 }
 
