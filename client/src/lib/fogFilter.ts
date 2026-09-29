@@ -21,7 +21,7 @@ import { publicLockOf } from './pinLock'
 import { cabineNaParada, type CabineDeTransporte } from './cabine'
 import { withoutAttachment } from './lightAttachment'
 import { marcaParaJogador } from './marcas'
-import { normalizarCorDoMovel } from './mobilia'
+import { normalizarCorDoMovel, normalizarVistaDoMovel } from './mobilia'
 import { itemOfPin, readCarriedItems, tokenReachesPin } from './items'
 import { readMoedas } from './troca'
 import { lojaParaJogador } from './loja'
@@ -4534,6 +4534,10 @@ function propForPlayer(prop: MapData['props'][number]): MapData['props'][number]
     if (cor !== undefined) forPlayer.mobiliaCor = cor
     const corDaLinha = normalizarCorDoMovel(prop.mobiliaCorDaLinha)
     if (corDaLinha !== undefined) forPlayer.mobiliaCorDaLinha = corDaLinha
+    // A VISTA também: cadeira ou baú de lado chega de lado. Só `'lado'` num tipo
+    // com vista vira campo; de frente (o padrão) ou num tipo sem vista, nada.
+    const vista = normalizarVistaDoMovel(prop.mobilia, prop.mobiliaVista)
+    if (vista !== undefined) forPlayer.mobiliaVista = vista
   }
   // OBJETO COM RÓTULO OU IMAGEM: só chega aqui objeto que o jogador enxerga
   // (oculto, secreto, sob teto fechado e fora da visão já saíram acima), então

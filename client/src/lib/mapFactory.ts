@@ -1,7 +1,7 @@
 import type {
   MapData, Wall, Light, Region, Token, Prop, Drawing, DoorState, DoorSide, LayerId, GridSettings,
   Stair, StairDirection, StairShape, DoorKind, MapScale, MeasurementMode, FloorPiece, FloorStyle, MapLine, MapMarker, MapFrame,
-  ConcealZone, Pin, PinIcon, PinKind, RoomMeta, MovementRules, SceneFloor, NivelAlerta, TipoMobilia,
+  ConcealZone, Pin, PinIcon, PinKind, RoomMeta, MovementRules, SceneFloor, NivelAlerta, TipoMobilia, VistaMobilia,
 } from '../types/map'
 import type { Point } from '../pixi/world'
 import { alertaDaCena, limitarFaccao } from './faccoes'
@@ -28,7 +28,10 @@ import { sameLoja } from './loja'
 import { withoutAttachment } from './lightAttachment'
 import { seatStairPins, withoutStairPins } from './stairTravel'
 import { carryAttachedPins, carryPinsByTokenSteps } from './pinAttach'
-import { comAparenciaDoMovel, mesmaAparenciaDoMovel, movelComOutroTipo, type AparenciaDoMovelPatch } from './mobilia'
+import {
+  aceitaVista, comAparenciaDoMovel, mesmaAparenciaDoMovel, movelComOutraVista, movelComOutroTipo, vistaDoMovel,
+  type AparenciaDoMovelPatch,
+} from './mobilia'
 import { carrierIdOf, followStep } from './carry'
 import { mapaDoPiso, pisoDe } from './pisos'
 import { leaveVehicle, moveTokenWithVehicle, passengerIdsOf } from './vehicle'
@@ -853,6 +856,19 @@ export function trocarTipoDoMovel(map: MapData, propId: string, tipo: TipoMobili
   const alvo = map.props.find((p) => p.id === propId)
   if (alvo?.mobilia === undefined || alvo.mobilia === tipo) return map
   return { ...map, props: map.props.map((p) => (p === alvo ? movelComOutroTipo(p, tipo, map.grid) : p)) }
+}
+
+/**
+ * "Vista" do painel do móvel (Frente | Lado), só nos tipos com vista
+ * (`TIPOS_COM_VISTA`): o tamanho vai para o padrão da vista nova na grade do
+ * mapa; centro, giro, camada, cores, trava e rótulo ficam (`movelComOutraVista`).
+ * A mesma vista, tipo sem vista ou id que não existe devolvem o MESMO mapa — a
+ * store usa isso para não empilhar passo vazio no desfazer.
+ */
+export function trocarVistaDoMovel(map: MapData, propId: string, vista: VistaMobilia): MapData {
+  const alvo = map.props.find((p) => p.id === propId)
+  if (alvo === undefined || !aceitaVista(alvo.mobilia) || vistaDoMovel(alvo) === vista) return map
+  return { ...map, props: map.props.map((p) => (p === alvo ? movelComOutraVista(p, vista, map.grid) : p)) }
 }
 
 /**

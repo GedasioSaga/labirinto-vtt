@@ -4,7 +4,7 @@ import { criarMovel } from '../lib/mobilia'
 import type { Prop } from '../types/map'
 
 /**
- * PROPRIEDADES DO MÓVEL no desfazer: trocar o tipo é um passo; arrastar no
+ * PROPRIEDADES DO MÓVEL no desfazer: trocar o tipo ou a vista é um passo; arrastar no
  * seletor de cor é um passo só (não um por cor que passou embaixo do dedo);
  * "Preencher" e "Padrão" são um passo cada. O que não muda nada não entra.
  */
@@ -94,5 +94,48 @@ describe('Móvel: "Preencher" e cores no desfazer', () => {
     useMapStore.getState().setAparenciaDoMovel('m1', { cor: null })
     expect(useMapStore.getState().map).toBe(antes)
     expect(passos()).toBe(0)
+  })
+})
+
+describe('Móvel: trocar a vista', () => {
+  const CADEIRA: Prop = { ...criarMovel('cadeira', { x: 120, y: 80 }, GRADE, 'c1'), rotation: 90, layer: 'decoracao', mobiliaCor: '#8b4513' }
+
+  beforeEach(() => prepararMapa([CADEIRA, MESA]))
+
+  it('a cadeira vira de lado no mesmo centro e giro, no tamanho de lado, num passo do desfazer', () => {
+    useMapStore.getState().trocarVistaDoMovel('c1', 'lado')
+    expect(movel()).toEqual({ ...CADEIRA, mobiliaVista: 'lado', width: 0.5 * GRADE, height: 0.75 * GRADE })
+    expect(passos()).toBe(1)
+
+    useMapStore.getState().undo()
+    expect(movel()).toEqual(CADEIRA)
+  })
+
+  it('de lado e de volta à frente: dois passos, e a cadeira volta a ser a de antes', () => {
+    useMapStore.getState().trocarVistaDoMovel('c1', 'lado')
+    useMapStore.getState().trocarVistaDoMovel('c1', 'frente')
+    expect(movel()).toEqual(CADEIRA)
+    expect(passos()).toBe(2)
+  })
+
+  it('a mesma vista, tipo sem vista, objeto de imagem ou id que não existe: nada muda e nada entra no desfazer', () => {
+    const deImagem: Prop = { id: 'img', src: 'x.png', x: 0, y: 0, width: 50, height: 50, linkedMapPath: null }
+    prepararMapa([CADEIRA, MESA, deImagem])
+    const antes = useMapStore.getState().map
+
+    useMapStore.getState().trocarVistaDoMovel('c1', 'frente')
+    useMapStore.getState().trocarVistaDoMovel('m1', 'lado')
+    useMapStore.getState().trocarVistaDoMovel('img', 'lado')
+    useMapStore.getState().trocarVistaDoMovel('sumiu', 'lado')
+    expect(useMapStore.getState().map).toBe(antes)
+    expect(passos()).toBe(0)
+  })
+
+  it('trocar para um tipo sem vista tira a vista', () => {
+    useMapStore.getState().trocarVistaDoMovel('c1', 'lado')
+    useMapStore.getState().trocarTipoDoMovel('c1', 'mesa')
+    expect(movel()?.mobilia).toBe('mesa')
+    expect(movel()).not.toHaveProperty('mobiliaVista')
+    expect(passos()).toBe(2)
   })
 })

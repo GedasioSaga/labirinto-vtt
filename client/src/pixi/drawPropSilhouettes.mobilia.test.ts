@@ -8,7 +8,7 @@ import {
   PROP_SILHOUETTE_FILL_ALPHA,
   PROP_SILHOUETTE_FILL_COLOR,
 } from './drawPropSilhouettes'
-import { LADOS_DA_ELIPSE, tracosDoGlifo } from '../lib/mobilia'
+import { contornoDeLado, LADOS_DA_ELIPSE, tracosDoGlifo } from '../lib/mobilia'
 
 /**
  * MOBÍLIA DESENHADA na tela do jogador: o móvel com tipo ganha, por cima da
@@ -205,5 +205,80 @@ describe('drawPropSilhouettes — preencher e cor do móvel', () => {
     drawPropSilhouettes(g, [movel({ mobilia: undefined, mobiliaPreenchido: false, mobiliaCor: '#8b4513' })], 1, 1)
     expect(estilo(fills(g)[0])).toEqual({ color: PROP_SILHOUETTE_FILL_COLOR, alpha: PROP_SILHOUETTE_FILL_ALPHA })
     expect(strokes(g)).toHaveLength(1)
+  })
+})
+
+/** Contorno de lado do tipo, centrado na origem (o teste falha alto se vier nulo). */
+function contornoDe(tipo: 'cadeira' | 'bau', largura: number, altura: number): { x: number; y: number }[] {
+  const contorno = contornoDeLado(tipo, largura, altura)
+  if (contorno === null) throw new Error(`${tipo} devia ter contorno de lado`)
+  return contorno
+}
+
+/** `p` a no máximo meio pixel de (x, y): o contorno de lado encosta no pixel como o retângulo. */
+function pertoDe(p: { x: number; y: number }, x: number, y: number): boolean {
+  return Math.abs(p.x - x) <= 0.5 + 1e-9 && Math.abs(p.y - y) <= 0.5 + 1e-9
+}
+
+describe('drawPropSilhouettes — vista de lado', () => {
+  it('cadeira de lado: o contorno é o perfil em L e as pernas vêm do glifo de lado', () => {
+    const g = new Graphics()
+    expect(drawPropSilhouettes(g, [movel({ mobilia: 'cadeira', mobiliaVista: 'lado', width: 32, height: 48 })], 1, 1)).toBe(1)
+
+    const esperado = contornoDe('cadeira', 32, 48)
+    const pontos = silhouettePoints(g)
+    expect(pontos).toHaveLength(esperado.length)
+    pontos.forEach((p, i) => expect(pertoDe(p, 250 + esperado[i].x, 200 + esperado[i].y), `ponto ${i}`).toBe(true))
+
+    const pernas = tracosDoGlifo('cadeira', 32, 48, 'lado')
+    const inicios = pathPoints(strokes(g)[1], 'moveTo')
+    expect(inicios).toHaveLength(pernas.length)
+    inicios.forEach((p, i) => {
+      expect(p.x).toBeCloseTo(250 + pernas[i].x1, 6)
+      expect(p.y).toBeCloseTo(200 + pernas[i].y1, 6)
+    })
+  })
+
+  it('a cadeira sem vista continua o retângulo de sempre', () => {
+    const g = new Graphics()
+    drawPropSilhouettes(g, [movel({ mobilia: 'cadeira', width: 32, height: 48 })], 1, 1)
+    expect(silhouettePoints(g)).toHaveLength(4)
+  })
+
+  it('baú de lado: a tampa em arco sobe até o meio do topo, e o glifo é o de lado', () => {
+    const g = new Graphics()
+    drawPropSilhouettes(g, [movel({ mobilia: 'bau', mobiliaVista: 'lado', width: 36, height: 36 })], 1, 1)
+    const pontos = silhouettePoints(g)
+    expect(pontos).toHaveLength(contornoDe('bau', 36, 36).length)
+    expect(pontos.some((p) => pertoDe(p, 250, 182))).toBe(true)
+    expect(pathPoints(strokes(g)[1], 'moveTo')).toHaveLength(tracosDoGlifo('bau', 36, 36, 'lado').length)
+  })
+
+  it('girada 90°, a cadeira de lado gira junto no sentido horário', () => {
+    const g = new Graphics()
+    drawPropSilhouettes(g, [movel({ mobilia: 'cadeira', mobiliaVista: 'lado', width: 32, height: 48, rotation: 90 })], 1, 1)
+    const esperado = contornoDe('cadeira', 32, 48)
+    const pontos = silhouettePoints(g)
+    expect(pontos).toHaveLength(esperado.length)
+    // Horário na tela (y para baixo): (u, v) vira (−v, u).
+    pontos.forEach((p, i) => expect(pertoDe(p, 250 - esperado[i].y, 200 + esperado[i].x), `ponto ${i}`).toBe(true))
+  })
+
+  it('de longe (zoom pequeno) o arco do baú não repete ponto seguido: o traço do Pixi divide pelo tamanho do segmento', () => {
+    const g = new Graphics()
+    drawPropSilhouettes(g, [movel({ mobilia: 'bau', mobiliaVista: 'lado', width: 38.4, height: 38.4 })], 0.1, 1)
+    const pontos = silhouettePoints(g)
+    expect(pontos.length).toBeGreaterThanOrEqual(3)
+    pontos.forEach((p, i) => {
+      const seguinte = pontos[(i + 1) % pontos.length]
+      expect(p.x === seguinte.x && p.y === seguinte.y, `ponto ${i}`).toBe(false)
+    })
+  })
+
+  it('mesa com vista de lado no arquivo: a vista não vale, retângulo e glifo de frente', () => {
+    const g = new Graphics()
+    drawPropSilhouettes(g, [movel({ mobilia: 'mesa', mobiliaVista: 'lado', width: 60, height: 40 })], 1, 1)
+    expect(silhouettePoints(g)).toHaveLength(4)
+    expect(pathPoints(strokes(g)[1], 'moveTo')).toHaveLength(tracosDoGlifo('mesa', 60, 40).length)
   })
 })

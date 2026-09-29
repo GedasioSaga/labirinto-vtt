@@ -2,7 +2,7 @@ import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createEmptyMap } from '../lib/mapFactory'
-import { criarMovel } from '../lib/mobilia'
+import { criarMovel, TIPOS_MOBILIA } from '../lib/mobilia'
 import { EMPTY_SELECTION } from '../lib/selectionModel'
 import { relevantPropertyGroups } from '../lib/toolProperties'
 import { useMapStore } from '../stores/mapStore'
@@ -14,7 +14,7 @@ import { propsDoPainel } from './propertiesPanelTestProps'
 /*
  * PROPRIEDADES DO MÓVEL, na costura com o `PropertiesPanel` de verdade: com um
  * móvel desenhado selecionado, o cabeçalho diz o que ele é ("Mesa") e a seção
- * "Móvel" (Tipo, Preencher, Cor, Cor da linha) vem antes de "Objeto". Objeto de
+ * "Móvel" (Tipo, Vista na cadeira e no baú, Preencher, Cor, Cor da linha) vem antes de "Objeto". Objeto de
  * imagem continua como estava: "Peça", sem seção "Móvel".
  */
 
@@ -27,12 +27,14 @@ describe('painel de propriedades — o móvel selecionado', () => {
   let root: Root
   const onTipoChange = vi.fn<MobiliaControlsProps['onTipoChange']>()
   const onAparenciaChange = vi.fn<MobiliaControlsProps['onAparenciaChange']>()
+  const onVistaChange = vi.fn<MobiliaControlsProps['onVistaChange']>()
 
   beforeEach(() => {
     Reflect.set(globalThis, 'IS_REACT_ACT_ENVIRONMENT', true)
     window.localStorage.clear()
     onTipoChange.mockClear()
     onAparenciaChange.mockClear()
+    onVistaChange.mockClear()
     useMapStore.setState({
       map: { ...createEmptyMap('m1', 'Casa', 30, 20, 64), props: [MESA, DE_IMAGEM] },
       camera: { x: 0, y: 0, scale: 1 },
@@ -60,7 +62,7 @@ describe('painel de propriedades — o móvel selecionado', () => {
             groups: relevantPropertyGroups('select', { prop: true }),
             selection: { selection: { kind: 'prop', count: 1 }, defaultTokenName: 'Token 1', onAddToken: nada, onRemoveSelected: nada },
             selectedProp: prop,
-            propMobilia: { onTipoChange, onAparenciaChange },
+            propMobilia: { onTipoChange, onAparenciaChange, onVistaChange },
           })}
         />,
       ),
@@ -81,6 +83,9 @@ describe('painel de propriedades — o móvel selecionado', () => {
   const botoes = (nome: string) => Array.from(container.querySelectorAll('button')).filter((b) => texto(b) === nome)
   /** `a` vem antes de `b` no documento. */
   const antes = (a: Node | null, b: Node | null) => a !== null && b !== null && (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0
+  /** O grupo "Vista" (Frente | Lado) e uma opção dele pelo texto. */
+  const vista = () => container.querySelector<HTMLElement>('[role="radiogroup"][aria-label="Vista"]')
+  const opcao = (nome: string) => Array.from(vista()?.querySelectorAll<HTMLButtonElement>('[role="radio"]') ?? []).find((b) => texto(b) === nome) ?? null
 
   /** Troca o valor como a pessoa troca: setter nativo + o evento que o React ouve em cada controle. */
   function escolhe(alvo: HTMLElement | null, valor: string): void {
@@ -159,6 +164,31 @@ describe('painel de propriedades — o móvel selecionado', () => {
     expect(corDaLinha instanceof HTMLInputElement ? corDaLinha.disabled : null).toBe(false)
   })
 
+  it('"Vista" só aparece para cadeira e baú', () => {
+    const comVista = TIPOS_MOBILIA.filter((tipo) => {
+      renderObjeto(criarMovel(tipo, { x: 300, y: 200 }, 64, 'c1'))
+      return vista() !== null
+    })
+    expect(comVista).toEqual(['bau', 'cadeira'])
+  })
+
+  it('a cadeira: "Vista" vem entre "Tipo" e "Preencher", marca Frente e o clique em Lado manda a vista', () => {
+    renderObjeto(criarMovel('cadeira', { x: 300, y: 200 }, 64, 'c1'))
+    expect(antes(campo('Tipo'), vista())).toBe(true)
+    expect(antes(vista(), interruptor('Preencher'))).toBe(true)
+    expect(opcao('Frente')?.getAttribute('aria-checked')).toBe('true')
+    expect(opcao('Lado')?.getAttribute('aria-checked')).toBe('false')
+
+    act(() => opcao('Lado')?.click())
+    expect(onVistaChange).toHaveBeenCalledWith('c1', 'lado')
+  })
+
+  it('a cadeira de lado: "Vista" marca Lado', () => {
+    renderObjeto({ ...criarMovel('cadeira', { x: 300, y: 200 }, 64, 'c1'), mobiliaVista: 'lado' })
+    expect(opcao('Lado')?.getAttribute('aria-checked')).toBe('true')
+    expect(opcao('Frente')?.getAttribute('aria-checked')).toBe('false')
+  })
+
   it('objeto de imagem: cabeçalho "Peça" e nada de seção "Móvel"', () => {
     renderObjeto(DE_IMAGEM)
     expect(cabecalho()).toBe('Peça')
@@ -166,5 +196,6 @@ describe('painel de propriedades — o móvel selecionado', () => {
     expect(h2('Móvel')).toBeNull()
     expect(campo('Tipo')).toBeNull()
     expect(interruptor('Preencher')).toBeNull()
+    expect(vista()).toBeNull()
   })
 })

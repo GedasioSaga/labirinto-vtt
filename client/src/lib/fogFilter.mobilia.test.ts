@@ -161,4 +161,20 @@ describe('filterMapForPlayer — mobília desenhada', () => {
     expect(filterMapForPlayer(secreto(false), 'ana', POSSE, RAIO).map.props).toEqual([{ ...CATRE_DA_ANA, x: 450, y: 250, width: 40, height: 40 }])
     semRastroDoMovel(filterMapForPlayer(secreto(true), 'ana', POSSE, RAIO).map)
   })
+
+  it('a cadeira de lado chega de lado à Ana; "frente" gravada ou vista num tipo sem vista não vira campo', () => {
+    const { map: out } = filterMapForPlayer(mapa({ mobilia: 'cadeira', mobiliaVista: 'lado' }), 'ana', POSSE, RAIO)
+    expect(out.props).toEqual([{ ...CATRE_DA_ANA, mobilia: 'cadeira', mobiliaVista: 'lado' }])
+
+    const semVista: Partial<Prop>[] = [{ mobiliaVista: 'lado' }, { mobilia: 'cadeira', mobiliaVista: 'frente' }]
+    for (const extra of semVista) {
+      const props = filterMapForPlayer(mapa(extra), 'ana', POSSE, RAIO).map.props
+      expect(props, JSON.stringify(extra)).toHaveLength(1)
+      expect(props[0], JSON.stringify(extra)).not.toHaveProperty('mobiliaVista')
+    }
+  })
+
+  it('cadeira de lado escondida não manda a vista', () => {
+    semRastroDoMovel(filterMapForPlayer(mapa({ mobilia: 'cadeira', mobiliaVista: 'lado', secret: true }), 'ana', POSSE, RAIO).map)
+  })
 })

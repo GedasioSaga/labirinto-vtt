@@ -1,20 +1,28 @@
 import { describe, expect, it } from 'vitest'
 import {
+  aceitaVista,
   comAparenciaDoMovel,
+  contornoDeLado,
   criarMovel,
   ehMovelRedondo,
   ehTipoMobilia,
   LADOS_DA_ELIPSE,
+  movelComOutraVista,
   movelComOutroTipo,
   NOME_COM_ARTIGO,
   normalizarCorDoMovel,
+  normalizarVistaDoMovel,
   pontosDaElipse,
   propMobiliaFromFile,
   ROTULO_MOBILIA,
+  ROTULO_VISTA,
+  TIPOS_COM_VISTA,
   TIPOS_MOBILIA,
   tracosDoGlifo,
+  vistaDoMovel,
+  VISTAS_MOBILIA,
 } from './mobilia'
-import type { Prop } from '../types/map'
+import type { Prop, TipoMobilia } from '../types/map'
 
 /**
  * MOBÍLIA DESENHADA — o catálogo (barril, caixa, baú, cama, mesa, cadeira), o móvel que a ferramenta
@@ -194,6 +202,31 @@ describe('propMobiliaFromFile — leitura do arquivo', () => {
     // Objeto comum com os campos (arquivo editado à mão): também somem.
     expect(propMobiliaFromFile({ ...base, mobiliaCorDaLinha: '#c0392b' })).toEqual(base)
   })
+
+  it('a cadeira de lado passa igual (mesmo objeto)', () => {
+    const deLado: Prop = { ...base, mobilia: 'cadeira', mobiliaVista: 'lado' }
+    expect(propMobiliaFromFile(deLado)).toBe(deLado)
+  })
+
+  it('vista torta, "frente" gravada ou vista num tipo sem vista: o campo some e o móvel fica', () => {
+    const torta = JSON.parse(JSON.stringify({ ...base, mobilia: 'cadeira', mobiliaVista: 'diagonal' })) as Prop // arquivo editado à mão: a vista mente de propósito
+    const casos: [Prop, TipoMobilia][] = [
+      [torta, 'cadeira'],
+      [{ ...base, mobilia: 'bau', mobiliaVista: 'frente' }, 'bau'],
+      [{ ...base, mobilia: 'mesa', mobiliaVista: 'lado' }, 'mesa'],
+    ]
+    for (const [movel, tipo] of casos) {
+      const lido = propMobiliaFromFile(movel)
+      expect(lido, tipo).toEqual({ ...base, mobilia: tipo })
+      expect(lido, tipo).not.toHaveProperty('mobiliaVista')
+    }
+  })
+
+  it('sem tipo válido, a vista some junto', () => {
+    const torto = JSON.parse(JSON.stringify({ ...base, mobilia: 'trono', mobiliaVista: 'lado' })) as Prop // arquivo editado à mão
+    expect(propMobiliaFromFile(torto)).toEqual(base)
+    expect(propMobiliaFromFile(torto)).not.toHaveProperty('mobiliaVista')
+  })
 })
 
 describe('normalizarCorDoMovel — só cor #rrggbb entra', () => {
@@ -236,6 +269,14 @@ describe('movelComOutroTipo — o "Tipo" do painel', () => {
     expect({ x: cama.x, y: cama.y, rotation: cama.rotation }).toEqual({ x: 300, y: 200, rotation: 90 })
     expect({ width: cama.width, height: cama.height }).toEqual({ width: GRADE, height: 2 * GRADE })
   })
+
+  it('a vista de lado some num tipo sem vista e fica num tipo com vista (com o tamanho de lado dele)', () => {
+    const cadeiraDeLado = movelComOutraVista(criarMovel('cadeira', { x: 300, y: 200 }, GRADE, 'c1'), 'lado', GRADE)
+    expect(movelComOutroTipo(cadeiraDeLado, 'mesa', GRADE)).not.toHaveProperty('mobiliaVista')
+    const bau = movelComOutroTipo(cadeiraDeLado, 'bau', GRADE)
+    expect(bau.mobiliaVista).toBe('lado')
+    expect({ width: bau.width, height: bau.height }).toEqual({ width: 0.6 * GRADE, height: 0.6 * GRADE })
+  })
 })
 
 describe('comAparenciaDoMovel — "Preencher", "Cor" e "Cor da linha"', () => {
@@ -266,5 +307,155 @@ describe('comAparenciaDoMovel — "Preencher", "Cor" e "Cor da linha"', () => {
   it('o que não veio no pedido não muda', () => {
     const pintada = comAparenciaDoMovel(mesa, { preenchido: false, cor: '#8b4513' })
     expect(comAparenciaDoMovel(pintada, { corDaLinha: '#c0392b' })).toEqual({ ...pintada, mobiliaCorDaLinha: '#c0392b' })
+  })
+})
+
+/** Contorno de lado de um tipo que aceita vista (o teste falha alto se vier nulo). */
+function contornoDe(tipo: TipoMobilia, largura: number, altura: number): { x: number; y: number }[] {
+  const contorno = contornoDeLado(tipo, largura, altura)
+  if (contorno === null) throw new Error(`${tipo} devia ter contorno de lado`)
+  return contorno
+}
+
+describe('vista do móvel — frente ou lado, só na cadeira e no baú', () => {
+  it('só cadeira e baú aceitam vista; as vistas são Frente e Lado, nessa ordem', () => {
+    expect([...TIPOS_COM_VISTA]).toEqual(['cadeira', 'bau'])
+    expect(TIPOS_MOBILIA.filter((tipo) => aceitaVista(tipo))).toEqual(['bau', 'cadeira'])
+    expect(aceitaVista(undefined)).toBe(false)
+    expect(VISTAS_MOBILIA.map((vista) => ROTULO_VISTA[vista])).toEqual(['Frente', 'Lado'])
+  })
+
+  it('normalizarVistaDoMovel: só "lado" num tipo com vista fica; o resto vira ausente', () => {
+    expect(normalizarVistaDoMovel('cadeira', 'lado')).toBe('lado')
+    expect(normalizarVistaDoMovel('bau', 'lado')).toBe('lado')
+    for (const valor of ['frente', 'LADO', ' lado', '', 1, null, undefined, {}, ['lado']]) {
+      expect(normalizarVistaDoMovel('cadeira', valor), JSON.stringify(valor)).toBeUndefined()
+    }
+    expect(normalizarVistaDoMovel('mesa', 'lado')).toBeUndefined()
+    expect(normalizarVistaDoMovel(undefined, 'lado')).toBeUndefined()
+  })
+
+  it('vistaDoMovel: ausente é frente; "lado" num tipo sem vista também é frente', () => {
+    expect(vistaDoMovel({ mobilia: 'cadeira' })).toBe('frente')
+    expect(vistaDoMovel({ mobilia: 'cadeira', mobiliaVista: 'lado' })).toBe('lado')
+    expect(vistaDoMovel({ mobilia: 'mesa', mobiliaVista: 'lado' })).toBe('frente')
+  })
+})
+
+describe('movelComOutraVista — a "Vista" do painel', () => {
+  const cadeira: Prop = {
+    ...criarMovel('cadeira', { x: 300, y: 200 }, GRADE, 'c1'),
+    rotation: 90,
+    layer: 'decoracao',
+    locked: true,
+    hidden: true,
+    playerLabel: 'Cadeira do capitão',
+    mobiliaPreenchido: false,
+    mobiliaCor: '#8b4513',
+    mobiliaCorDaLinha: '#c0392b',
+  }
+
+  it('de lado grava "lado" e o tamanho vai para o de lado; centro, giro, camada, cores e o resto ficam', () => {
+    expect(movelComOutraVista(cadeira, 'lado', GRADE)).toEqual({ ...cadeira, mobiliaVista: 'lado', width: 0.5 * GRADE, height: 0.75 * GRADE })
+  })
+
+  it('de volta à frente o campo some e o tamanho volta ao de frente', () => {
+    const deVolta = movelComOutraVista(movelComOutraVista(cadeira, 'lado', GRADE), 'frente', GRADE)
+    expect(deVolta).toEqual(cadeira)
+    expect(deVolta).not.toHaveProperty('mobiliaVista')
+  })
+
+  it('o baú de lado é mais estreito que o de frente, com a mesma altura', () => {
+    const bau = criarMovel('bau', { x: 300, y: 200 }, GRADE, 'b1')
+    const deLado = movelComOutraVista(bau, 'lado', GRADE)
+    expect(deLado.width).toBeLessThan(bau.width)
+    expect(deLado.height).toBe(bau.height)
+  })
+
+  it('tipo sem vista devolve o mesmo móvel', () => {
+    const mesa = criarMovel('mesa', { x: 300, y: 200 }, GRADE, 'm1')
+    expect(movelComOutraVista(mesa, 'lado', GRADE)).toBe(mesa)
+  })
+})
+
+describe('desenho de lado — cadeira em L e baú com a tampa em arco', () => {
+  it('a cadeira e o baú de lado desenham outra coisa; os outros tipos ignoram a vista', () => {
+    for (const tipo of TIPOS_MOBILIA) {
+      if (aceitaVista(tipo)) {
+        expect(tracosDoGlifo(tipo, 40, 60, 'lado'), tipo).not.toEqual(tracosDoGlifo(tipo, 40, 60, 'frente'))
+        expect(contornoDeLado(tipo, 40, 60), tipo).not.toBeNull()
+      } else {
+        expect(tracosDoGlifo(tipo, 40, 60, 'lado'), tipo).toEqual(tracosDoGlifo(tipo, 40, 60))
+        expect(contornoDeLado(tipo, 40, 60), tipo).toBeNull()
+      }
+    }
+    expect(tracosDoGlifo('cadeira', 40, 60, 'frente')).toEqual(tracosDoGlifo('cadeira', 40, 60))
+  })
+
+  it('a cadeira de lado é um L: o encosto sobe numa ponta, o assento atravessa e tem uma perna em cada lado', () => {
+    const contorno = contornoDe('cadeira', 40, 60)
+    expect(contorno).toHaveLength(6)
+    const topo = Math.min(...contorno.map((p) => p.y))
+    expect(topo).toBe(-30)
+    // Só o encosto chega ao topo, e ele fica numa ponta (a esquerda).
+    for (const p of contorno.filter((q) => q.y === topo)) expect(p.x).toBeLessThan(0)
+    // Na outra ponta só há o assento, bem abaixo do topo.
+    const pontaDoAssento = contorno.filter((p) => p.x === 20)
+    expect(pontaDoAssento.length).toBeGreaterThan(0)
+    for (const p of pontaDoAssento) expect(p.y).toBeGreaterThan(topo + 20)
+    const baseDoAssento = Math.max(...contorno.map((p) => p.y))
+    expect(baseDoAssento).toBeLessThan(30)
+
+    const pernas = tracosDoGlifo('cadeira', 40, 60, 'lado').filter((t) => t.x1 === t.x2)
+    expect(pernas).toHaveLength(2)
+    for (const perna of pernas) {
+      expect(Math.min(perna.y1, perna.y2)).toBeCloseTo(baseDoAssento, 9)
+      expect(Math.max(perna.y1, perna.y2)).toBe(30)
+    }
+    expect(pernas.map((p) => Math.sign(p.x1)).sort((a, b) => a - b)).toEqual([-1, 1])
+  })
+
+  it('o baú de lado tem a tampa em arco sobre o corpo e a costura entre os dois', () => {
+    const contorno = contornoDe('bau', 36, 36)
+    expect(contorno).toContainEqual({ x: -18, y: 18 })
+    expect(contorno).toContainEqual({ x: 18, y: 18 })
+    const maisAlto = contorno.reduce((a, b) => (b.y < a.y ? b : a))
+    expect(maisAlto.x).toBeCloseTo(0, 9)
+    expect(maisAlto.y).toBeCloseTo(-18, 9)
+    expect(contorno.length).toBeGreaterThan(8)
+    // Arco, não caixa: nenhum canto quadrado no topo.
+    expect(contorno.some((p) => Math.abs(p.x) > 17.9 && p.y < -17.9)).toBe(false)
+
+    const [costura, ...resto] = tracosDoGlifo('bau', 36, 36, 'lado')
+    expect(resto).toEqual([])
+    expect(costura.y1).toBe(costura.y2)
+    expect([costura.x1, costura.x2]).toEqual([-18, 18])
+    // A costura começa onde o arco encosta na parede do corpo.
+    expect(contorno.some((p) => p.x === -18 && Math.abs(p.y - costura.y1) < 1e-9)).toBe(true)
+  })
+
+  it('todo ponto de lado fica dentro da caixa do móvel', () => {
+    for (const tipo of TIPOS_COM_VISTA) {
+      const pontos = [
+        ...contornoDe(tipo, 40, 80),
+        ...tracosDoGlifo(tipo, 40, 80, 'lado').flatMap((t) => [
+          { x: t.x1, y: t.y1 },
+          { x: t.x2, y: t.y2 },
+        ]),
+      ]
+      expect(pontos.length, tipo).toBeGreaterThan(0)
+      for (const p of pontos) {
+        expect(Math.abs(p.x), tipo).toBeLessThanOrEqual(20 + 1e-9)
+        expect(Math.abs(p.y), tipo).toBeLessThanOrEqual(40 + 1e-9)
+      }
+    }
+  })
+
+  it('tamanho não desenhável ou tipo sem vista não tem contorno de lado', () => {
+    expect(contornoDeLado('cadeira', 0, 40)).toBeNull()
+    expect(contornoDeLado('bau', Number.NaN, 40)).toBeNull()
+    expect(contornoDeLado('mesa', 40, 40)).toBeNull()
+    expect(contornoDeLado(undefined, 40, 40)).toBeNull()
+    expect(tracosDoGlifo('cadeira', 0, 40, 'lado')).toEqual([])
   })
 })

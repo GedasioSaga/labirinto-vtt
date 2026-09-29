@@ -84,3 +84,30 @@ describe('mapFile: preencher e cores do móvel', () => {
     for (const campo of ['mobiliaPreenchido', 'mobiliaCor', 'mobiliaCorDaLinha']) expect(objetoComum, campo).not.toHaveProperty(campo)
   })
 })
+
+describe('mapFile: vista do móvel (frente ou lado)', () => {
+  it('a cadeira de lado vai e volta do disco; de frente grava sem o campo', () => {
+    const [cadeira] = deserializeMap(serializeMap(comMovel({ mobilia: 'cadeira', mobiliaVista: 'lado' }))).props
+    expect(cadeira.mobiliaVista).toBe('lado')
+    expect(serializeMap(comMovel({ mobilia: 'cadeira' }))).not.toContain('mobiliaVista')
+  })
+
+  it('vista inválida no arquivo vira ausente, e a cadeira fica', () => {
+    for (const valor of ['"frente"', '"LADO"', '"diagonal"', '1', 'null', '{}', '[]']) {
+      const [cadeira] = deserializeMap(`{"id": "torto", "props": [${objeto(`, "mobilia": "cadeira", "mobiliaVista": ${valor}`)}]}`).props
+      expect(cadeira.mobilia, valor).toBe('cadeira')
+      expect(cadeira, valor).not.toHaveProperty('mobiliaVista')
+    }
+  })
+
+  it('vista num tipo que não aceita vista some; sem tipo válido, some junto', () => {
+    for (const tipo of ['mesa', 'catre']) {
+      const [movel] = deserializeMap(`{"id": "torto", "props": [${objeto(`, "mobilia": "${tipo}", "mobiliaVista": "lado"`)}]}`).props
+      expect(movel.mobilia, tipo).toBe(tipo)
+      expect(movel, tipo).not.toHaveProperty('mobiliaVista')
+    }
+    const [objetoComum] = deserializeMap(`{"id": "torto", "props": [${objeto(', "mobilia": "trono", "mobiliaVista": "lado"')}]}`).props
+    expect(objetoComum).not.toHaveProperty('mobilia')
+    expect(objetoComum).not.toHaveProperty('mobiliaVista')
+  })
+})

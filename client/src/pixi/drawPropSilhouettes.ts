@@ -1,7 +1,14 @@
 import type { Graphics } from 'pixi.js'
 import type { Prop } from '../types/map'
 import { rotatePointAround, rotationTrig } from '../lib/roomRotation'
-import { ehMovelRedondo, normalizarCorDoMovel, pontosDaElipse, tracosDoGlifo } from '../lib/mobilia'
+import {
+  contornoDeLado,
+  ehMovelRedondo,
+  normalizarCorDoMovel,
+  pontosDaElipse,
+  tracosDoGlifo,
+  vistaDoMovel,
+} from '../lib/mobilia'
 import { parseHexColor } from '../lib/tokenColor'
 import { WALL_COLOR } from './drawWalls'
 import { alignToPixel, pixelGrid, strokeWidthInWorld, type PixelGrid } from './pixelAlign'
@@ -41,6 +48,11 @@ import { alignToPixel, pixelGrid, strokeWidthInWorld, type PixelGrid } from './p
  * espessura. Cor que não seja `#rrggbb`/`#rgb` vale como ausente (o arquivo e a
  * rede já filtram, mas o desenho não confia: `Color` do Pixi lança com string
  * torta e derrubaria o quadro). Objeto comum ignora esses campos.
+ *
+ * Cadeira e baú com "Vista" de lado (`mobiliaVista: 'lado'`) trocam o
+ * retângulo pelo PERFIL do móvel (`contornoDeLado`: a cadeira em L, o baú com a
+ * tampa em arco) e o glifo pelo de lado, com o mesmo giro, as mesmas cores e o
+ * mesmo fio. Nos outros tipos a vista não vale (`vistaDoMovel`).
  */
 export const PROP_SILHOUETTE_FILL_COLOR = 0x000000
 export const PROP_SILHOUETTE_FILL_ALPHA = 0.35
@@ -54,7 +66,7 @@ const PROP_OWN_COLOR_ALPHA = 1
 /** O que a silhueta usa do objeto: a geometria, o tipo e a aparência do móvel, nunca a imagem. */
 export type PropSilhouette = Pick<
   Prop,
-  'x' | 'y' | 'width' | 'height' | 'rotation' | 'mobilia' | 'mobiliaPreenchido' | 'mobiliaCor' | 'mobiliaCorDaLinha'
+  'x' | 'y' | 'width' | 'height' | 'rotation' | 'mobilia' | 'mobiliaPreenchido' | 'mobiliaCor' | 'mobiliaCorDaLinha' | 'mobiliaVista'
 >
 
 /** Cor e opacidade de uma metade do desenho, no formato que `fill`/`stroke` recebem. */
@@ -99,33 +111,70 @@ function hasDrawableGeometry(prop: PropSilhouette): boolean {
   )
 }
 
+/** Menos pontos que isto não fecha área: o polígono vira risco ou ponto. */
+const MIN_POLYGON_POINTS = 3
+
+type Point = { x: number; y: number }
+
+/** Cantos do retângulo do objeto, centrado na origem, no sentido horário a partir do canto de cima à esquerda. */
+function rectangleOffsets(width: number, height: number): Point[] {
+  const hw = width / 2
+  const hh = height / 2
+  return [
+    { x: -hw, y: -hh },
+    { x: hw, y: -hh },
+    { x: hw, y: hh },
+    { x: -hw, y: hh },
+  ]
+}
+
 /**
- * Cantos do retângulo girado em volta do centro, positivo = horário na tela: o
- * mesmo giro do sprite do editor (âncora no meio). `rotationTrig` é exato nos
- * quartos de volta — com `Math.cos(π/2)` (6e-17, não 0) os cantos da cama
- * girada 90° caíam em pixels vizinhos e o móvel entortava.
- *
- * Retângulo alinhado aos eixos encosta cada borda no pixel físico: sem isso o
- * contorno de 1 px cai entre dois pixels e vira 2 px cinza (`pixelAlign.ts`).
- * Girado em outro ângulo, a borda é diagonal e não há pixel a encostar.
+ * Tira o ponto igual ao anterior e, no fim, o último enquanto for igual ao
+ * primeiro (o polígono é fechado): o traço do Pixi (`buildLine`) divide pelo
+ * tamanho de cada segmento, e segmento de tamanho zero vira NaN no quadro. De
+ * longe o arco do baú de lado cai várias vezes no mesmo pixel.
  */
-function silhouetteCorners(prop: PropSilhouette, grid: PixelGrid): number[] {
+function withoutRepeatedNeighbours(points: readonly Point[]): Point[] {
+  const kept: Point[] = []
+  for (const p of points) {
+    const last = kept.length === 0 ? null : kept[kept.length - 1]
+    if (last === null || last.x !== p.x || last.y !== p.y) kept.push(p)
+  }
+  while (kept.length > 1 && kept[0].x === kept[kept.length - 1].x && kept[0].y === kept[kept.length - 1].y) kept.pop()
+  return kept
+}
+
+function flatten(points: readonly Point[]): number[] {
+  return points.flatMap((p) => [p.x, p.y])
+}
+
+/**
+ * Polígono da silhueta girado em volta do centro, positivo = horário na tela:
+ * o mesmo giro do sprite do editor (âncora no meio). `rotationTrig` é exato nos
+ * quartos de volta — com `Math.cos(π/2)` (6e-17, não 0) os cantos da cama
+ * girada 90° caíam em pixels vizinhos e o móvel entortava. O polígono é o
+ * retângulo do objeto ou, no móvel de lado, o perfil (`contornoDeLado`).
+ *
+ * Alinhado aos eixos, cada vértice encosta no pixel físico: sem isso o contorno
+ * de 1 px cai entre dois pixels e vira 2 px cinza (`pixelAlign.ts`). Girado em
+ * outro ângulo, a borda é diagonal e não há pixel a encostar. O perfil de lado,
+ * depois de encostar, perde os vértices que caíram no mesmo pixel; se de tão
+ * pequeno sobrar menos que um triângulo, sai sem encostar (o retângulo segue
+ * como sempre foi).
+ */
+function silhouettePolygon(prop: PropSilhouette, grid: PixelGrid): number[] {
   const trig = rotationTrig(prop.rotation ?? 0)
   const center = { x: prop.x, y: prop.y }
-  const hw = prop.width / 2
-  const hh = prop.height / 2
+  const sideOutline = vistaDoMovel(prop) === 'lado' ? contornoDeLado(prop.mobilia, prop.width, prop.height) : null
+  const rotated = (sideOutline ?? rectangleOffsets(prop.width, prop.height)).map((offset) =>
+    rotatePointAround({ x: prop.x + offset.x, y: prop.y + offset.y }, center, trig),
+  )
   const axisAligned = trig.sin === 0 || trig.cos === 0
-  const corners: number[] = []
-  for (const [dx, dy] of [
-    [-hw, -hh],
-    [hw, -hh],
-    [hw, hh],
-    [-hw, hh],
-  ]) {
-    const p = rotatePointAround({ x: prop.x + dx, y: prop.y + dy }, center, trig)
-    corners.push(axisAligned ? alignToPixel(p.x, grid) : p.x, axisAligned ? alignToPixel(p.y, grid) : p.y)
-  }
-  return corners
+  if (!axisAligned) return flatten(rotated)
+  const aligned = rotated.map((p) => ({ x: alignToPixel(p.x, grid), y: alignToPixel(p.y, grid) }))
+  if (sideOutline === null) return flatten(aligned)
+  const distinct = withoutRepeatedNeighbours(aligned)
+  return flatten(distinct.length >= MIN_POLYGON_POINTS ? distinct : rotated)
 }
 
 /**
@@ -144,14 +193,15 @@ function roundSilhouettePoints(prop: PropSilhouette): number[] {
 }
 
 /**
- * MOBÍLIA DESENHADA: os traços do glifo do móvel (`lib/mobilia.ts`), girados
+ * MOBÍLIA DESENHADA: os traços do glifo do móvel (`lib/mobilia.ts`, o de
+ * frente ou o de lado conforme a vista), girados
  * com o objeto, num traço só no mesmo fio fino do contorno (e na mesma cor,
  * `edge`) — o glifo nunca pesa mais que a borda do próprio móvel. Objeto comum
  * não tem glifo.
  */
 function strokeFurnitureGlyph(graphics: Graphics, prop: PropSilhouette, edgeWidth: number, edge: SilhouettePaint): void {
   if (prop.mobilia === undefined) return
-  const segments = tracosDoGlifo(prop.mobilia, prop.width, prop.height)
+  const segments = tracosDoGlifo(prop.mobilia, prop.width, prop.height, vistaDoMovel(prop))
   if (segments.length === 0) return
   const trig = rotationTrig(prop.rotation ?? 0)
   const center = { x: prop.x, y: prop.y }
@@ -181,7 +231,7 @@ export function drawPropSilhouettes(
   for (const prop of props) {
     if (!hasDrawableGeometry(prop)) continue
     const style = silhouetteStyle(prop)
-    const outline = ehMovelRedondo(prop.mobilia) ? roundSilhouettePoints(prop) : silhouetteCorners(prop, grid)
+    const outline = ehMovelRedondo(prop.mobilia) ? roundSilhouettePoints(prop) : silhouettePolygon(prop, grid)
     graphics.poly(outline, true)
     if (style.fill !== null) graphics.fill(style.fill)
     graphics.stroke({ width: edgeWidth, color: style.edge.color, alpha: style.edge.alpha, join: 'miter' })

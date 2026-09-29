@@ -386,7 +386,9 @@ function deserializeMapFields(json: string): MapData {
     // ausente; tipo fora do catálogo some e o objeto fica (`propMobiliaFromFile`).
     // A aparência do móvel (`mobiliaPreenchido`, `mobiliaCor`, `mobiliaCorDaLinha`)
     // é nova e opcional: ausente abre como sempre; cor que não seja `#rrggbb`/`#rgb`
-    // some, e objeto sem tipo de móvel perde os três campos.
+    // some, e objeto sem tipo de móvel perde os três campos. A VISTA (`mobiliaVista`)
+    // idem: só `'lado'` num tipo com vista (cadeira, baú) fica; o resto some e o
+    // móvel abre de frente.
     // OBJETO COM RÓTULO OU IMAGEM: os dois campos são novos e opcionais —
     // ausente continua ausente. Presente, só na forma de `propPlayerLook.ts`
     // (rótulo curto, imagem em data URL); o resto sai em vez de ir parar na

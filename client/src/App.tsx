@@ -505,6 +505,7 @@ function App() {
   const updateToken = useMapStore((state) => state.updateToken)
   const updateProp = useMapStore((state) => state.updateProp)
   const trocarTipoDoMovel = useMapStore((state) => state.trocarTipoDoMovel)
+  const trocarVistaDoMovel = useMapStore((state) => state.trocarVistaDoMovel)
   const setAparenciaDoMovel = useMapStore((state) => state.setAparenciaDoMovel)
   const setGridOffset = useMapStore((state) => state.setGridOffset)
   const setGridCellSize = useMapStore((state) => state.setGridCellSize)
@@ -2962,9 +2963,13 @@ function App() {
                 )
               },
             }}
-            // Tipo e aparência do móvel: cada troca é um passo do Ctrl+Z, e o
-            // arrastar num seletor de cor vira um passo só (`mapStore`).
-            propMobilia={{ onTipoChange: trocarTipoDoMovel, onAparenciaChange: setAparenciaDoMovel }}
+            // Tipo, vista e aparência do móvel: cada troca é um passo do Ctrl+Z,
+            // e o arrastar num seletor de cor vira um passo só (`mapStore`).
+            propMobilia={{
+              onTipoChange: trocarTipoDoMovel,
+              onVistaChange: trocarVistaDoMovel,
+              onAparenciaChange: setAparenciaDoMovel,
+            }}
             selectedToken={selectedToken}
             tokenName={{
               onNameChange: (name) => selectedToken && useMapStore.getState().renameToken(selectedToken.id, name),

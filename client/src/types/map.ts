@@ -1362,6 +1362,12 @@ export interface Prop extends PlayerSecret, NoPiso {
   /** Cor do contorno e do glifo do móvel, `#rrggbb` como `mobiliaCor`. Ausente =
    *  o fio claro translúcido de sempre; presente = a cor, opaca, mesma espessura. */
   mobiliaCorDaLinha?: string
+  /** "Vista" do móvel: `'lado'` desenha o perfil (a cadeira em L, o baú com a
+   *  tampa em arco) na pegada de lado. Ausente = de frente, o desenho de sempre
+   *  — sem linha de migração; só o `'lado'` é gravado. Vale só nos tipos com
+   *  vista (`TIPOS_COM_VISTA` em `lib/mobilia.ts`): em outro tipo some na leitura
+   *  e na travessia, e o desenho ignora. Vai ao jogador junto do tipo. */
+  mobiliaVista?: VistaMobilia
   /** "Rótulo para jogadores": nome curto escrito na silhueta que o jogador vê
    *  ("Guarda-roupa"). Ausente = só a silhueta, como antes deste campo — sem
    *  linha de migração. ATRAVESSA para o jogador só junto com o objeto, aparado
@@ -1377,6 +1383,9 @@ export interface Prop extends PlayerSecret, NoPiso {
 
 /** Móveis do catálogo da mobília desenhada (`lib/mobilia.ts`). */
 export type TipoMobilia = 'barril' | 'caixa' | 'bau' | 'catre' | 'mesa' | 'cadeira'
+
+/** Vista de um móvel com vista (`lib/mobilia.ts`): de frente (o padrão) ou de lado. */
+export type VistaMobilia = 'frente' | 'lado'
 
 export interface DrawingPoint {
   x: number
