@@ -1157,3 +1157,4 @@ Noite = esta sessão conduzida pelo main thread; o noite-runner continua encerra
 - Imagem 24 (bug, `scratchpad/bug-chao-antes.png`): token Saga acima de uma porta entre dois pilares redondos. Abaixo da linha da porta tudo fica preto; só o cone de visão mostra o chão pintado (verde e azul). A metade de baixo dos pilares, o nome "Porto" e a memória cinza da névoa somem.
 - Imagem 25 (esperado, `scratchpad/bug-chao-esperado.png`): mesma cena sem o chão pintado. Pilares inteiros, cone de visão cinza claro, área explorada em cinza escuro, nome "Porto" visível.
 - Fila: (1) chão pintado não cobre sala, pilar, nome nem a memória da névoa; (2) objetos iniciais: Barril, Caixa, Baú, Cama, Mesa, Cadeira.
+- Feito: objetos iniciais em `82612a94`.

@@ -927,3 +927,20 @@ Publicar 0.4.4 ao fechar as 5 features (suíte 1x, fumaça, instalador, push com
 - Build: `exit=0`, 2 bundles.
 - Fumaça do exe: ProductVersion 0.4.7; a janela "Labirinto" responde após 10 s.
 - Não feito: teste do instalador instalado e e2e `task-jornada-*`.
+
+### 28/09/2026, noite: objetos iniciais na mobília
+
+- Commit `82612a94`. A seção Mobília do painel da sala agora tem seis botões em duas linhas de três: Barril, Caixa, Baú, Cama, Mesa, Cadeira.
+- O antigo "Catre" virou "Cama" só no rótulo; o id segue `catre`, então mapa salvo abre igual.
+- Desenho no estilo minimapa, só silhueta chapada e fio fino:
+  - barril: silhueta redonda (`pontosDaElipse`, 32 lados) com o anel da tampa;
+  - caixa: X de canto a canto;
+  - cadeira: linha do encosto no terço de cima.
+- Arquivos: `client/src/lib/mobilia.ts` (catálogo, tamanhos, glifos), `client/src/pixi/drawPropSilhouettes.ts` (silhueta redonda), `client/src/main.css` (`.lb-mobilia` em grade de 3).
+- Feature 1 de 5 desde a 0.4.7.
+- Ainda aberto: o bug do chão pintado cobrindo pilar, nome e memória da névoa (debugador investigando). Os arquivos `client/e2e/zzprobe-chao.spec.ts` e `client/src/lib/zzprobe_chao.test.ts` são sondas dele e não entram em commit.
+
+## Evidência
+- `rtk proxy npx tsc --noEmit`: só o erro da sonda do debugador (`zzprobe_chao.test.ts`, `node:fs`), fora do commit.
+- vitest da área: 15 arquivos, 100/100.
+- Navegador em 1420: mapa novo, Sala 1, os seis botões clicados. Prints em `.playwright-mcp/mobilia-6.png` (os seis móveis na sala) e `.playwright-mcp/mobilia-painel.png` (grade 3x2). Console: só o 404 do favicon.
