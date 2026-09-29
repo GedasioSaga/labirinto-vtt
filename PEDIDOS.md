@@ -1159,3 +1159,5 @@ Noite = esta sessão conduzida pelo main thread; o noite-runner continua encerra
 - Fila: (1) chão pintado não cobre sala, pilar, nome nem a memória da névoa; (2) objetos iniciais: Barril, Caixa, Baú, Cama, Mesa, Cadeira.
 - Feito: objetos iniciais em `82612a94`.
 - Feito: chão cobrindo a visão em `cb32ed47`.
+- 28/09/2026, noite: "Eu quero que você publique essa versão logo mesmo não tendo 4-5 features faça a versã 0.4.7.1"
+- Feito: release v0.4.7.1 em https://github.com/GedasioSaga/labirinto-vtt/releases/tag/v0.4.7.1

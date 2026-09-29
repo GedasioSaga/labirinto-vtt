@@ -959,3 +959,22 @@ Publicar 0.4.4 ao fechar as 5 features (suíte 1x, fumaça, instalador, push com
 - `rtk proxy npx vitest run src/lib/fogFilter src/lib/exploration`: 91 arquivos, 729/729.
 - Debugador, suítes fog/exploration/hostSession/PlayerView/drawFloor/culling/visibility: 2266 passam, 1 timeout (`hostSession.custoCom7`, 5331 ms com CPU cheia; sozinho passa 1/1).
 - Prints do debugador no scratchpad: `chao-fix-antes.png` (chão cru, 2 regiões) e `chao-fix-depois.png` (cone cinza, sem chão cru, 6 regiões e 1 rótulo).
+
+### 28/09/2026, noite: release v0.4.7.1
+
+- Pedido do usuário: publicar logo, mesmo sem as 5 features de costume.
+- O release contém a mobília inicial (`82612a94`) e a correção do chão que cobria a visão (`cb32ed47`).
+- Versão: `0.4.7+1` em semver, nos 5 arquivos de sempre, commit `1559ab46`. O bundler MSI converte para `0.4.7.1`. Os instaladores foram renomeados para `0.4.7.1` no release.
+- Tag anotada `v0.4.7.1`. Push da main (`364a142b..1559ab46`) e da tag, sem force.
+- Release: https://github.com/GedasioSaga/labirinto-vtt/releases/tag/v0.4.7.1
+- Escada parcial: ficou em stash durante o build e voltou depois, sem commit. O diff ficou idêntico ao backup `escada-0471.patch` (43765 bytes, `cmp` sem diferença).
+- Contagem zerada: 0 de 5 desde a 0.4.7.1.
+
+## Evidência
+- gitleaks `v0.4.7..HEAD`: 7 commits, no leaks found.
+- `rtk proxy npx tsc --noEmit`: exit 0.
+- `rtk proxy npx vitest run` (suíte completa): 1198 arquivos, 10186/10186.
+- `npm run tauri:build`: BUILD_EXIT=0, 2 bundles, 4m19s.
+- MSI: Property ProductVersion = `0.4.7.1`. `labirinto.exe`: ProductVersion `0.4.7+1`.
+- Smoke: `labirinto.exe` ficou vivo por 10 s, com Responding=True e título "Labirinto". O processo foi encerrado pelo PID.
+- Assets: `Labirinto_0.4.7.1_x64-setup.exe` com 2278951 bytes e `Labirinto_0.4.7.1_x64_en-US.msi` com 2965504 bytes.
