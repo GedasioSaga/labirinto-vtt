@@ -5,6 +5,7 @@
  */
 
 import type { ReactNode } from 'react'
+import type { TipoMobilia } from '../types/map'
 
 interface IconProps {
   size?: number
@@ -255,6 +256,78 @@ export function PropIcon(props: IconProps) {
       <ellipse cx="12" cy="18.4" rx="5.6" ry="1.6" />
     </Icon>
   )
+}
+
+/**
+ * Objetos (a mobília desenhada): um baú visto de frente — tampa abaulada, a
+ * junta da tampa e o fecho. De frente, e não de cima como os móveis da setinha
+ * (`MobiliaIcon`), para o botão ler como "objeto" antes de ler como um móvel só.
+ */
+export function ObjetosIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M4 10V8.5A3.5 3.5 0 0 1 7.5 5h9A3.5 3.5 0 0 1 20 8.5V18a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1z" />
+      <path d="M4 10h16" />
+      <path d="M12 10v3.5" />
+    </Icon>
+  )
+}
+
+/**
+ * Um móvel visto de cima, com a silhueta e os poucos traços finos que o mapa
+ * desenha nele (`tracosDoGlifo`, lib/mobilia.ts), nas mesmas proporções: a
+ * opção da setinha lembra o que o clique vai pôr.
+ */
+export function MobiliaIcon({ tipo, ...props }: IconProps & { tipo: TipoMobilia }) {
+  return <Icon {...props}>{glifoDoMovel(tipo)}</Icon>
+}
+
+function glifoDoMovel(tipo: TipoMobilia): ReactNode {
+  switch (tipo) {
+    case 'barril':
+      return (
+        <>
+          <circle cx="12" cy="12" r="7.5" />
+          <circle cx="12" cy="12" r="4.5" />
+        </>
+      )
+    case 'caixa':
+      return (
+        <>
+          <rect x="5" y="5" width="14" height="14" />
+          <path d="M5 5l14 14M19 5L5 19" />
+        </>
+      )
+    case 'bau':
+      return (
+        <>
+          <rect x="3" y="7" width="18" height="10" />
+          <path d="M3 10.5h18M12 10.5V13" />
+        </>
+      )
+    case 'catre':
+      return (
+        <>
+          <rect x="7" y="2" width="10" height="20" />
+          <rect x="8.2" y="3.2" width="7.6" height="3.6" />
+          <path d="M7 10.4h10" />
+        </>
+      )
+    case 'mesa':
+      return (
+        <>
+          <rect x="2" y="7" width="20" height="10" />
+          <rect x="3.8" y="8.8" width="16.4" height="6.4" />
+        </>
+      )
+    case 'cadeira':
+      return (
+        <>
+          <rect x="6" y="6" width="12" height="12" />
+          <path d="M6 9.4h12" />
+        </>
+      )
+  }
 }
 
 export function BrushIcon(props: IconProps) {

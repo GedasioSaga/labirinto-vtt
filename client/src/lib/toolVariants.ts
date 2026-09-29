@@ -1,11 +1,12 @@
 import type { DrawingTool, RoomFreeKind } from '../types/tools'
-import type { DoorKind, FloorPiece, FreehandTexture, Region, Wall } from '../types/map'
+import type { DoorKind, FloorPiece, FreehandTexture, Region, TipoMobilia, Wall } from '../types/map'
 import type { StairSizePreset } from './stairs'
 import type { FloorShapeKind } from './floorTool'
 import { TAMANHOS_DE_PINCEL, type TamanhoDePincel } from './floorBlocks'
 import { CAMADAS_DO_CHAO, type CamadaDoChao } from './camadasDoChao'
 import { TOOL_SHORTCUTS } from './keymap'
 import type { BrushMode } from './baldeDeTinta'
+import { NOME_COM_ARTIGO, ROTULO_MOBILIA, TIPOS_MOBILIA } from './mobilia'
 
 /**
  * Catálogo de dados puro (sem JSX, sem store) da feature N1 do usuário
@@ -92,6 +93,8 @@ export type ToolVariantGroup = (
   | { storeKey: 'roomFreeKind'; label: string; options: ToolVariantOption<RoomFreeKind>[] }
   /** Sala livre: cantos vivos ou arredondados (vale para sala e para parede). */
   | { storeKey: 'roomFreeRounded'; label: string; options: ToolVariantOption<boolean>[] }
+  /** Objetos: o móvel que o próximo clique no mapa põe (Barril, Mesa...). */
+  | { storeKey: 'mobiliaTipo'; label: string; options: ToolVariantOption<TipoMobilia>[] }
   /** Forma do botão "Desenho": escolher ATIVA a ferramenta (não é preferência da próxima entidade). */
   | { storeKey: 'drawShape'; label: string; options: ToolVariantOption<DrawingTool>[] }
 ) & { inativoQuando?: ToolVariantGroupInativo }
@@ -269,6 +272,22 @@ const FLOOR_CAMADA_GROUP: ToolVariantGroup = {
   options: CAMADAS_DO_CHAO.map((camada) => ({ id: camada.id, label: camada.label, value: camada.id, description: camada.description })),
 }
 
+/**
+ * O móvel que o próximo clique da ferramenta Objetos põe no mapa, na ordem do
+ * catálogo (`TIPOS_MOBILIA`). Preferência de sessão, como a camada do chão:
+ * escolher aqui não muda móvel nenhum já posto.
+ */
+const MOBILIA_TIPO_GROUP: ToolVariantGroup = {
+  storeKey: 'mobiliaTipo',
+  label: 'Objeto',
+  options: TIPOS_MOBILIA.map((tipo) => ({
+    id: tipo,
+    label: ROTULO_MOBILIA[tipo],
+    value: tipo,
+    description: `Clique no mapa para pôr ${NOME_COM_ARTIGO[tipo]}.`,
+  })),
+}
+
 const FLOOR_OP_GROUP: ToolVariantGroup = {
   storeKey: 'floorOp',
   label: 'Operação',
@@ -381,6 +400,10 @@ export const TOOL_VARIANTS: Partial<Record<DrawingTool, ToolVariantEntry>> = {
     groups: [FLOOR_SHAPE_GROUP, FLOOR_CAMADA_GROUP, FLOOR_BRUSH_SIZE_GROUP, FLOOR_OP_GROUP, FLOOR_POLYGON_SIDES_GROUP],
   },
 
+  // Objetos: o catálogo (lib/mobilia.ts) e o móvel no mapa já existiam; a
+  // setinha escolhe qual deles o clique põe (stores/mobiliaNoPonto.ts).
+  mobilia: { available: true, tool: 'mobilia', groups: [MOBILIA_TIPO_GROUP] },
+
   // ---- pedida pelo usuário, capacidade existe mas SEM eixo próprio ------
   line: {
     available: false,
@@ -476,6 +499,7 @@ const VARIANT_ECHO_SUBJECT: Partial<Record<ToolVariantStoreKey, string>> = {
   // "Sala livre cria: Sala" repetiria a palavra; o sujeito é o traçado.
   roomFreeKind: 'Traçado vira',
   roomFreeRounded: 'Arredondar',
+  mobiliaTipo: 'Próximo objeto',
 }
 
 /** Todos os grupos por eixo — a barra precisa achar o RÓTULO da opção a partir
@@ -496,6 +520,7 @@ const GROUP_BY_STORE_KEY: Record<ToolVariantStoreKey, ToolVariantGroup> = {
   floorCamada: FLOOR_CAMADA_GROUP,
   roomFreeKind: ROOM_FREE_KIND_GROUP,
   roomFreeRounded: ROOM_FREE_ROUNDED_GROUP,
+  mobiliaTipo: MOBILIA_TIPO_GROUP,
   drawShape: DRAWING_SHAPE_GROUP,
 }
 

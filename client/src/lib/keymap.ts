@@ -150,6 +150,10 @@ export const TOOL_SHORTCUTS: Record<DrawingTool, string> = {
   // Z fica reservada ao Ctrl+Z). String vazia = `buildToolByLetter` pula, e a
   // ferramenta fica alcançável pelo botão da barra, ao lado do Chão.
   path: '',
+  // Objetos (mobília) nasce SEM letra, como o Caminho: não sobrou nenhuma livre
+  // (F é "enquadrar tudo" e Z fica reservada ao Ctrl+Z). A barra o alcança, no
+  // grupo só dele.
+  mobilia: '',
 }
 
 /** Ferramentas escondidas por flag: a letra delas fica na tabela, mas não aciona nada. */

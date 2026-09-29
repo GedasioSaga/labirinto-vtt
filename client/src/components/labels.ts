@@ -39,6 +39,7 @@ export const TOOL_LABELS: Partial<Record<DrawingTool, string>> = {
   concealZone: 'Zona oculta',
   revealBrush: 'Pincel de revelar',
   pin: 'Pino',
+  mobilia: 'Objetos',
 }
 
 export interface SelectionNoun {
@@ -110,6 +111,7 @@ export const TOOL_HINTS: Partial<Record<DrawingTool, string>> = {
   revealBrush:
     'Arraste sobre uma zona oculta para mostrar aos jogadores só o pedaço pintado. Segure Alt (ou escolha Esconder no painel) para esconder de volta.',
   pin: 'Clique no mapa para cravar um ponto de interesse. No painel, escolha o ícone (baú, armadilha, chave...), escreva a descrição e escolha a imagem que o jogador vê ao tocar nele.',
+  mobilia: 'Escolha o objeto na setinha e clique no mapa. Depois arraste com Selecionar.',
 }
 
 /**
@@ -159,6 +161,10 @@ export const TOOLBAR_SLOTS: ToolbarSlot[][] = [
   // O Pincel de revelar mora colado na Zona oculta: só age dentro de uma, e é
   // ali que o mestre procura "como mostro só um pedaço".
   ['wall', 'door', 'light', 'region', 'room', 'roomCircle', 'roomPolygon', 'roomFree', 'floor', 'path', 'stair', 'prop', 'concealZone', 'revealBrush'],
+  // Objetos (a mobília desenhada) numa parte só dele, pedido do usuário: o
+  // móvel não é construção nem anotação, e o separador dos dois lados é o que
+  // faz o mestre achá-lo de relance. A Peça (imagem) segue na construção.
+  ['mobilia'],
   // Pino fica com Texto/Medir: os três são anotação por cima da planta, não construção.
   ['cluster:drawing', 'text', 'pin', 'measure', 'eraser'],
 ]

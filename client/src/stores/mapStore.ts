@@ -4,7 +4,7 @@ import type {
   MapData, Wall, Light, Region, Token, Prop, Drawing, DoorState, DoorSide, LayerId, GridSettings,
   Stair, StairDirection, StairShape, DoorKind, MapScale, MeasurementMode, DrawingCap, DrawingDash, FreehandTexture,
   FloorPiece, FloorStyle, MapLine, MapMarker, MapFrame, PinIcon, PinKind, RoomMeta, TokenCondition, MovementRules, HazardKind, AreaTriggerKind, SceneFloor, NivelAlerta,
-  TipoDePerigo, RotinaDoNpc,
+  TipoDePerigo, RotinaDoNpc, TipoMobilia,
 } from '../types/map'
 import * as perigo from '../lib/perigo'
 import type { Camera, Point } from '../pixi/world'
@@ -432,6 +432,11 @@ interface MapStoreState {
    *  peça ao criar (`lib/camadasDoChao.ts`). Preferência de sessão. */
   floorCamada: CamadaDoChao
   setFloorCamada: (camada: CamadaDoChao) => void
+  /** Objetos (mobília): o móvel que o próximo clique da ferramenta põe no mapa
+   *  (`stores/mobiliaNoPonto.ts`). Preferência de sessão, fora do mapa e do
+   *  desfazer — mesma classe de `floorCamada`. */
+  mobiliaTipo: TipoMobilia
+  setMobiliaTipo: (tipo: TipoMobilia) => void
   /** Recorta um Drawing freehand/curve/line pela parte dentro do círculo
    *  (center, radius) — COM histórico, 0 a N `Drawing` novos (ver
    *  `eraseFromDrawing`, lib/eraseGeometry.ts). Sem efeito (nenhuma entrada
@@ -1504,6 +1509,7 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
     floorPolygonSides: 6,
     floorBrushSize: 1,
     floorCamada: 'chao',
+    mobiliaTipo: 'mesa',
     regionFillColor: '#3a7ad0',
     // Marrom, igual ao chão do mapa novo (minimapa do RE4): Sala nova não nasce azul.
     roomFillColor: '#a8776a',
@@ -1687,6 +1693,7 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
     setFloorPolygonSides: (sides) => set({ floorPolygonSides: clampFloorPolygonSides(sides) }),
     setFloorBrushSize: (tamanho) => set({ floorBrushSize: clampTamanhoDePincel(tamanho) }),
     setFloorCamada: (camada) => set({ floorCamada: camada }),
+    setMobiliaTipo: (tipo) => set({ mobiliaTipo: tipo }),
     erasePartOfDrawing: (drawingId, center, radius) => {
       const { map } = get()
       const drawing = map.drawings.find((d) => d.id === drawingId)

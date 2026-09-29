@@ -203,6 +203,7 @@ import {
   canInteractInLayer, isLayerLocked, wallLayer, regionLayer, stairLayer, lightLayer, tokenLayer, propLayer, drawingLayer,
 } from '../lib/layers'
 import { avisarCamadaTravada } from '../lib/avisoCamadaTravada'
+import { porMovelNoPonto } from '../stores/mobiliaNoPonto'
 import { isValidStairDraft, buildStairFromDraft, stairStepWidthForPreset } from '../lib/stairs'
 // `eraseDecisionForRegion` saiu da lista de propósito: a borracha "Só uma
 // parte" decide Região/Sala por `circleTouchesRegionOutline` (contorno, não
@@ -3601,6 +3602,18 @@ export function PixiCanvas({
         // token"). Clique sobre um token existente segue o fluxo de sempre.
         if (activeTool === 'token' && findSelectableAt(clickSelectMap(map), worldPoint)?.kind !== 'token') {
           tokenPlacementPoint = applySnap(worldPoint, map.grid, 'token', event.altKey)
+          return
+        }
+
+        if (activeTool === 'mobilia') {
+          // Objetos: o móvel da setinha nasce no clique, com o MESMO encaixe da
+          // Peça (os dois são objeto do mapa; Alt inverte). Giro da sala,
+          // seleção, camada e o passo do desfazer moram em `porMovelNoPonto`.
+          // Só o botão esquerdo põe, como no Balde: um clique só, sem arrasto,
+          // e o direito não pode largar um móvel por baixo do menu do navegador.
+          if (event.button === 0) {
+            porMovelNoPonto(useMapStore.getState().mobiliaTipo, applySnap(worldPoint, map.grid, 'prop', event.altKey))
+          }
           return
         }
 

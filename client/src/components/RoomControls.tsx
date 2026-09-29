@@ -1,6 +1,5 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
-import type { RoomMeta, TipoMobilia } from '../types/map'
-import { NOME_COM_ARTIGO, ROTULO_MOBILIA, TIPOS_MOBILIA } from '../lib/mobilia'
+import type { RoomMeta } from '../types/map'
 import { MIN_ROOM_DIMENSION } from '../lib/roomOps'
 import { ROTATION_SHIFT_STEP } from '../lib/roomRotation'
 import { ROOM_TEXT_MAX_LENGTH } from '../lib/roomText'
@@ -99,8 +98,6 @@ export interface RoomControlsProps {
   onCreateRoomInside?: () => void
   /** ZONA DE PERIGO da sala (fogo, fumaça, vapor, água). Ausente omite o bloco. */
   hazard?: HazardControlsProps
-  /** MOBÍLIA DESENHADA: põe um móvel do tipo no centro da sala (`lib/mobilia.ts`). Ausente omite a seção. */
-  onAddMobilia?: (tipo: TipoMobilia) => void
   /** ESTEIRA da sala (direção, passo e o Avançar). Ausente omite o bloco. */
   conveyor?: ConveyorControlsProps
 }
@@ -440,7 +437,7 @@ const NOTA_SALA_TORTA = 'Largura e altura voltam quando a sala fica reta: 0°, 9
  * se mexe logo depois de desenhar vem primeiro — Nome, Largura | Altura numa
  * linha, Rotação —, depois os interruptores do que o jogador vê, e por último
  * o que se ACRESCENTA à sala (texto ao entrar, nota, facção, raio de visão,
- * perigo, esteira, mobília, sala dentro), cada um vazio numa linha só com "+"
+ * perigo, esteira, sala dentro), cada um vazio numa linha só com "+"
  * (`OpcionalDaSala`). Até 26/09/2026 Largura, Altura e Rotação moravam depois
  * de todos esses, a 8–10 giros de roda do topo em 1280x800.
  */
@@ -480,7 +477,6 @@ export function RoomControls({
   parentName,
   onCreateRoomInside,
   hazard,
-  onAddMobilia,
   conveyor,
 }: RoomControlsProps) {
   const baseId = useId()
@@ -495,7 +491,6 @@ export function RoomControls({
   const faccaoHintId = `${baseId}-faccao-hint`
   const faccaoListId = `${baseId}-faccao-lista`
   const raioHintId = `${baseId}-raio-de-visao-hint`
-  const mobiliaLabelId = `${baseId}-mobilia`
   const showNameToggle = nameHiddenFromPlayers !== undefined && onNameHiddenFromPlayersChange !== undefined
   const showRoof = roof !== undefined && onRoofChange !== undefined
   const showComodo = onComodoChange !== undefined
@@ -507,7 +502,6 @@ export function RoomControls({
     onRaioDeVisaoChange !== undefined ||
     hazard !== undefined ||
     conveyor !== undefined ||
-    onAddMobilia !== undefined ||
     onCreateRoomInside !== undefined
   return (
     <section className="lb-section">
@@ -713,30 +707,6 @@ export function RoomControls({
             // linha "+"; com esteira ligada nasce aberta, com o Avançar à mão.
             <OpcionalDaSala rotulo="Esteira" preenchido={conveyor.direction !== null}>
               <ConveyorControls {...conveyor} />
-            </OpcionalDaSala>
-          )}
-
-          {onAddMobilia !== undefined && (
-            // Ação, não valor: nunca nasce aberta. O "+" mostra os três móveis.
-            <OpcionalDaSala rotulo="Mobília" preenchido={false}>
-              <div className="lb-field">
-                <span className="lb-label" id={mobiliaLabelId}>
-                  Mobília
-                </span>
-                <div className="lb-mobilia" role="group" aria-label="Pôr mobília na sala" aria-describedby={mobiliaLabelId}>
-                  {TIPOS_MOBILIA.map((tipo) => (
-                    <button
-                      key={tipo}
-                      type="button"
-                      className="lb-btn lb-mobilia__option"
-                      title={`Pôr ${NOME_COM_ARTIGO[tipo]} no centro da sala`}
-                      onClick={() => onAddMobilia(tipo)}
-                    >
-                      {ROTULO_MOBILIA[tipo]}
-                    </button>
-                  ))}
-                </div>
-              </div>
             </OpcionalDaSala>
           )}
 

@@ -14,14 +14,14 @@ import {
 import type { Prop } from '../types/map'
 
 /**
- * MOBÍLIA DESENHADA — o catálogo (barril, caixa, baú, cama, mesa, cadeira), o móvel que o painel da
- * sala põe no mapa e o glifo de cada tipo, tudo sem Pixi.
+ * MOBÍLIA DESENHADA — o catálogo (barril, caixa, baú, cama, mesa, cadeira), o móvel que a ferramenta
+ * Objetos põe no mapa e o glifo de cada tipo, tudo sem Pixi.
  */
 
 const GRADE = 40
 
 describe('catálogo da mobília', () => {
-  it('tem barril, caixa, baú, cama, mesa e cadeira, nessa ordem, com o nome que o painel mostra', () => {
+  it('tem barril, caixa, baú, cama, mesa e cadeira, nessa ordem, com o nome que a setinha mostra', () => {
     expect([...TIPOS_MOBILIA]).toEqual(['barril', 'caixa', 'bau', 'catre', 'mesa', 'cadeira'])
     expect(TIPOS_MOBILIA.map((tipo) => ROTULO_MOBILIA[tipo])).toEqual(['Barril', 'Caixa', 'Baú', 'Cama', 'Mesa', 'Cadeira'])
   })
@@ -40,7 +40,7 @@ describe('catálogo da mobília', () => {
   })
 })
 
-describe('criarMovel — o móvel que o painel da sala põe', () => {
+describe('criarMovel — o móvel que a ferramenta Objetos põe', () => {
   it('é um objeto sem imagem, com o tipo, no centro pedido e do tamanho padrão em casas da grade', () => {
     const catre = criarMovel('catre', { x: 250, y: 300 }, GRADE, 'movel-1')
     expect(catre).toEqual({ id: 'movel-1', src: '', x: 250, y: 300, width: GRADE, height: 2 * GRADE, linkedMapPath: null, mobilia: 'catre' })

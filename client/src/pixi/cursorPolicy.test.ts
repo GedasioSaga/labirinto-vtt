@@ -85,6 +85,7 @@ const ALL_TOOLS: DrawingTool[] = [
   'floor',
   'concealZone',
   'revealBrush',
+  'mobilia',
 ]
 
 const ALL_HOVER_KINDS: HoverKind[] = ['none', 'selectable', 'resize-corner', 'vertex', 'radius', 'area-selection', 'rotate']
@@ -123,8 +124,8 @@ describe('resolveCursor — exaustividade', () => {
     }
   })
 
-  it('cobre TODAS as 25 ferramentas (idle) sem lançar e devolve cursor CSS válido', () => {
-    expect(ALL_TOOLS).toHaveLength(25)
+  it('cobre TODAS as 26 ferramentas (idle) sem lançar e devolve cursor CSS válido', () => {
+    expect(ALL_TOOLS).toHaveLength(26)
     for (const activeTool of ALL_TOOLS) {
       const cursor = resolveCursor(baseInput({ activeTool }))
       expect(VALID_CSS_CURSORS.has(cursor), `tool "${activeTool}" devolveu cursor desconhecido: "${cursor}"`).toBe(true)
@@ -144,14 +145,14 @@ describe('resolveCursor — ferramentas de criação (idle): crosshair', () => {
   const creationTools: DrawingTool[] = [
     'wall', 'door', 'light', 'region', 'room', 'roomCircle', 'roomPolygon', 'roomFree',
     'stair', 'prop', 'brush', 'line', 'circle', 'ellipse', 'rect', 'polygon',
-    'curve', 'text', 'measure', 'floor', 'concealZone', 'revealBrush',
+    'curve', 'text', 'measure', 'floor', 'concealZone', 'revealBrush', 'mobilia',
   ]
 
   it.each(creationTools)('%s ocioso é crosshair — mira de precisão pra colocar algo novo', (activeTool) => {
     expect(resolveCursor(baseInput({ activeTool }))).toBe('crosshair')
   })
 
-  it('as 22 ferramentas de criação são exatamente DrawingTool menos select/token/eraser', () => {
+  it('as 23 ferramentas de criação são exatamente DrawingTool menos select/token/eraser', () => {
     const naoCriacao = new Set(['select', 'token', 'eraser'])
     const criacaoDoModulo = ALL_TOOLS.filter((tool) => !naoCriacao.has(tool))
     expect(criacaoDoModulo.sort()).toEqual([...creationTools].sort())

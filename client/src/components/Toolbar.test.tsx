@@ -36,6 +36,7 @@ function bindings(activeTool: DrawingTool, onSelectTool: (tool: DrawingTool) => 
     floorPolygonSides: { value: 6, onChange: vi.fn() },
   floorBrushSize: { value: 1, onChange: vi.fn() },
   floorCamada: { value: 'chao', onChange: vi.fn() },
+    mobiliaTipo: { value: 'mesa', onChange: vi.fn() },
     roomFreeKind: { value: 'sala', onChange: vi.fn() },
     roomFreeRounded: { value: false, onChange: vi.fn() },
     drawShape: { value: activeTool, onChange: onSelectTool },
@@ -133,9 +134,9 @@ describe('Toolbar — botão Desenho', () => {
 })
 
 describe('Toolbar — dica de ferramenta sem atalho', () => {
-  // Sala livre e Caminho nasceram sem letra (lib/keymap.ts). A dica dizia
+  // Sala livre, Caminho e Objetos nasceram sem letra (lib/keymap.ts). A dica dizia
   // "Sala: Sala livre ()": o parêntese vazio sugeria um atalho que não existe.
-  it.each<DrawingTool>(['roomFree', 'path'])('%s: a dica não tem parêntese vazio', (tool) => {
+  it.each<DrawingTool>(['roomFree', 'path', 'mobilia'])('%s: a dica não tem parêntese vazio', (tool) => {
     render(tool, 'brush')
     const dicas = Array.from(document.body.querySelectorAll<HTMLElement>('[data-tip]')).map((el) => el.getAttribute('data-tip') ?? '')
     const daFerramenta = dicas.filter((dica) => dica.includes(TOOL_LABELS[tool] ?? tool))
@@ -190,5 +191,68 @@ describe('Toolbar — Sala livre: Parede e Arredondar', () => {
     expect(dica).toContain('parede')
     expect(dica).toContain('2 pontos')
     expect(dica).not.toContain('sala')
+  })
+})
+
+describe('Toolbar — Objetos (a mobília numa parte só dela)', () => {
+  const objetos = () => {
+    const [button] = buttonsNamed('Objetos')
+    if (!button) throw new Error('botão Objetos ausente')
+    return button
+  }
+  const menuDeObjetos = () => document.body.querySelector('[role="group"][aria-label="Opções de Objetos"]')
+  const radiosDoObjeto = () =>
+    Array.from(menuDeObjetos()?.querySelectorAll<HTMLButtonElement>('[role="radiogroup"][aria-label="Objeto"] [role="radio"]') ?? [])
+
+  it('1 botão "Objetos" com 1 setinha, num grupo só dele entre a construção e o Desenho', () => {
+    render('select', 'brush')
+    expect(buttonsNamed('Objetos')).toHaveLength(1)
+    expect(buttonsNamed('Opções de Objetos')).toHaveLength(1)
+    const grupo = objetos().closest('.lb-toolbar__group')
+    if (!grupo) throw new Error('grupo do botão Objetos ausente')
+    expect(grupo.querySelectorAll('.lb-toolvariant-anchor')).toHaveLength(1)
+    expect(grupo.querySelector('.lb-toolbar__sep')).not.toBeNull()
+    // A Peça (imagem) segue na construção, logo antes; o Desenho vem logo depois, com o separador dele.
+    expect(grupo.previousElementSibling?.querySelector('button[aria-label="Peça"]')).not.toBeNull()
+    const seguinte = grupo.nextElementSibling
+    expect(seguinte?.querySelector('button[aria-label="Desenho"]')).not.toBeNull()
+    expect(seguinte?.querySelector('.lb-toolbar__sep')).not.toBeNull()
+  })
+
+  it('a setinha abre "Opções de Objetos" com os 6 móveis, cada um com o próprio desenho, e Mesa marcada', () => {
+    render('select', 'brush')
+    act(() => buttonsNamed('Opções de Objetos')[0].click())
+    expect(Array.from(menuDeObjetos()?.querySelectorAll('[role="radiogroup"]') ?? []).map((g) => g.getAttribute('aria-label'))).toEqual(['Objeto'])
+    const radios = radiosDoObjeto()
+    expect(radios.map((r) => r.getAttribute('aria-label'))).toEqual(['Barril', 'Caixa', 'Baú', 'Cama', 'Mesa', 'Cadeira'])
+    const desenhos = radios.map((r) => r.querySelector('svg')?.innerHTML ?? '')
+    expect(desenhos.every((svg) => svg !== '')).toBe(true)
+    expect(new Set(desenhos).size).toBe(6)
+    expect(radios.map((r) => r.getAttribute('aria-checked'))).toEqual(['false', 'false', 'false', 'false', 'true', 'false'])
+  })
+
+  it('escolher Barril muda a preferência, fecha o menu, não troca de ferramenta, e a barra ecoa "Próximo objeto Barril"', () => {
+    const mobiliaTipo: ToolVariantBindings['mobiliaTipo'] = { value: 'mesa', onChange: vi.fn() }
+    const onSelectTool = render('select', 'brush', vi.fn(), { mobiliaTipo })
+    act(() => buttonsNamed('Opções de Objetos')[0].click())
+    const barril = radiosDoObjeto().find((r) => r.getAttribute('aria-label') === 'Barril')
+    act(() => barril?.click())
+    expect(mobiliaTipo.onChange).toHaveBeenCalledWith('barril')
+    expect(menuDeObjetos()).toBeNull()
+    expect(onSelectTool).not.toHaveBeenCalled()
+    // O App grava a escolha no mapStore e a barra re-renderiza com o valor novo.
+    render('select', 'brush', onSelectTool, { mobiliaTipo: { value: 'barril', onChange: mobiliaTipo.onChange } })
+    const balao = document.body.querySelector('.lb-hint')?.textContent ?? ''
+    expect(balao).toContain('Próximo objeto')
+    expect(balao).toContain('Barril')
+  })
+
+  it('o botão ativa a ferramenta; ativa, fica pressionada e a dica ensina o clique no mapa', () => {
+    const onSelectTool = render('select', 'brush')
+    act(() => objetos().click())
+    expect(onSelectTool).toHaveBeenCalledWith('mobilia')
+    render('mobilia', 'brush', onSelectTool)
+    expect(objetos().getAttribute('aria-pressed')).toBe('true')
+    expect(document.body.querySelector('.lb-hint')?.textContent).toContain('clique no mapa')
   })
 })

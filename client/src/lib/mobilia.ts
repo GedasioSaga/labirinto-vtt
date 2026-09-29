@@ -6,16 +6,16 @@ import type { Prop, TipoMobilia } from '../types/map'
  * objeto (`pixi/drawPropSilhouettes.ts`) e, por cima, poucos traços finos que
  * dizem o que o móvel é. Nada de imagem, sombra, hachura ou gradiente.
  *
- * Aqui mora só o que não depende de Pixi: o catálogo, o móvel que o painel da
- * sala põe no mapa e a geometria do glifo (testados sem tela).
+ * Aqui mora só o que não depende de Pixi: o catálogo, o móvel que a ferramenta
+ * Objetos põe no mapa e a geometria do glifo (testados sem tela).
  *
  * A cama guarda o id antigo `catre`: mapas salvos com o catre abrem com a cama.
  */
 
-/** Ordem em que o painel da sala oferece os móveis. */
+/** Ordem em que a setinha da ferramenta Objetos oferece os móveis. */
 export const TIPOS_MOBILIA: readonly TipoMobilia[] = ['barril', 'caixa', 'bau', 'catre', 'mesa', 'cadeira']
 
-/** Nome que o painel mostra em cada botão. */
+/** Nome que a setinha mostra em cada opção. */
 export const ROTULO_MOBILIA: Readonly<Record<TipoMobilia, string>> = {
   barril: 'Barril',
   caixa: 'Caixa',
@@ -25,7 +25,7 @@ export const ROTULO_MOBILIA: Readonly<Record<TipoMobilia, string>> = {
   cadeira: 'Cadeira',
 }
 
-/** Artigo + nome, para a dica do botão ("Pôr uma cama no centro da sala"). */
+/** Artigo + nome, para a dica de cada opção ("Clique no mapa para pôr uma cama."). */
 export const NOME_COM_ARTIGO: Readonly<Record<TipoMobilia, string>> = {
   barril: 'um barril',
   caixa: 'uma caixa',

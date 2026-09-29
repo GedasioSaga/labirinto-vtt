@@ -1,5 +1,5 @@
 import { createContext, useContext, useId, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import type { DoorKind, FloorPiece, FreehandTexture, Region, Wall } from '../types/map'
+import type { DoorKind, FloorPiece, FreehandTexture, Region, TipoMobilia, Wall } from '../types/map'
 import type { DrawingTool, RoomFreeKind } from '../types/tools'
 import type { StairSizePreset } from '../lib/stairs'
 import type { FloorShapeKind } from '../lib/floorTool'
@@ -7,6 +7,10 @@ import type { TamanhoDePincel } from '../lib/floorBlocks'
 import type { CamadaDoChao } from '../lib/camadasDoChao'
 import type { BrushMode } from '../lib/baldeDeTinta'
 import type { ToolVariantGroup, ToolVariantOption, ToolVariantStoreKey } from '../lib/toolVariants'
+import { MobiliaIcon } from './icons'
+
+/** Tamanho do desenho do móvel ao lado de cada opção de Objetos — o mesmo dos ícones do grupo Forma. */
+const MOBILIA_ICON_SIZE = 16
 
 /**
  * Binding de valor/ação por eixo de variante (`ToolVariantGroup['storeKey']`)
@@ -49,6 +53,8 @@ export interface ToolVariantBindings {
   roomFreeKind: { value: RoomFreeKind; onChange: (value: RoomFreeKind) => void }
   /** Sala livre — cantos arredondados (sala e parede). */
   roomFreeRounded: { value: boolean; onChange: (value: boolean) => void }
+  /** Objetos — o móvel que o próximo clique no mapa põe. */
+  mobiliaTipo: { value: TipoMobilia; onChange: (value: TipoMobilia) => void }
   /** Botão Desenho — forma ativa (`value` = ferramenta ativa) e a ação que troca de ferramenta. */
   drawShape: { value: DrawingTool; onChange: (value: DrawingTool) => void }
 }
@@ -89,7 +95,11 @@ export interface ToolVariantMenuProps {
    * fica na tela é a barra — então a barra é que fala.
    */
   onChoose?: (storeKey: ToolVariantStoreKey) => void
-  /** Ícone de cada opção do grupo Forma (`drawShape`). Os outros grupos não têm ícone. */
+  /**
+   * Ícone de cada opção do grupo Forma (`drawShape`). Fora dele, só o grupo
+   * Objeto (`mobiliaTipo`) tem ícone, e esse o menu desenha sozinho: é o móvel
+   * de cima (`MobiliaIcon`), não o ícone de uma ferramenta da barra.
+   */
   iconFor?: (tool: DrawingTool) => ReactNode
 }
 
@@ -231,6 +241,14 @@ function GroupOptions({
       return <>{renderOptions(group.options, bindings.roomFreeKind.value, bindings.roomFreeKind.onChange, onPicked)}</>
     case 'roomFreeRounded':
       return <>{renderOptions(group.options, bindings.roomFreeRounded.value, bindings.roomFreeRounded.onChange, onPicked)}</>
+    case 'mobiliaTipo':
+      return (
+        <>
+          {renderOptions(group.options, bindings.mobiliaTipo.value, bindings.mobiliaTipo.onChange, onPicked, (tipo) => (
+            <MobiliaIcon tipo={tipo} size={MOBILIA_ICON_SIZE} />
+          ))}
+        </>
+      )
     case 'drawShape':
       return <>{renderOptions(group.options, bindings.drawShape.value, bindings.drawShape.onChange, onPicked, iconFor)}</>
     default:

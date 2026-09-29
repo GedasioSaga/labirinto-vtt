@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest'
-import { DRAWING_SHAPE_GROUP, drawingClusterGroups, readyToolVariants, TOOL_VARIANTS, type ToolVariantGroup } from './toolVariants'
+import {
+  DRAWING_SHAPE_GROUP,
+  drawingClusterGroups,
+  readyToolVariants,
+  TOOL_VARIANTS,
+  toolHasVariantAxis,
+  variantEcho,
+  type ToolVariantGroup,
+} from './toolVariants'
 import { TOOL_SHORTCUTS } from './keymap'
 import { DRAWING_TOOLS } from '../components/labels'
 import type { DrawingTool } from '../types/tools'
@@ -10,7 +18,7 @@ import type { DrawingTool } from '../types/tools'
 const ALL_TOOLS: DrawingTool[] = [
   'select', 'wall', 'door', 'light', 'region', 'room', 'roomCircle', 'roomPolygon', 'roomFree',
   'stair', 'token', 'prop', 'brush', 'line', 'circle', 'ellipse', 'rect', 'polygon',
-  'curve', 'text', 'measure', 'eraser', 'floor',
+  'curve', 'text', 'measure', 'eraser', 'floor', 'mobilia',
 ]
 
 describe('TOOL_VARIANTS', () => {
@@ -63,7 +71,7 @@ describe('TOOL_VARIANTS', () => {
       'doorKind', 'wallKind', 'regionFillPattern', 'polygonSides',
       'stairSizePreset', 'drawTexture', 'brushMode', 'eraseMode',
       'floorShapeKind', 'floorOp', 'floorPolygonSides', 'floorBrushSize', 'floorCamada',
-      'roomFreeKind', 'roomFreeRounded',
+      'roomFreeKind', 'roomFreeRounded', 'mobiliaTipo',
     ]
     for (const entry of readyToolVariants()) {
       for (const group of entry.groups) {
@@ -184,6 +192,27 @@ describe('TOOL_VARIANTS', () => {
     if (!entry || !entry.available) throw new Error('eraser deveria estar disponível (Fase 5)')
     expect(entry.groups).toHaveLength(1)
     expect(entry.groups[0].options.map((o) => o.value)).toEqual(['objeto', 'parte'])
+  })
+
+  it('Objetos oferece os 6 móveis na ordem do catálogo, com o nome que o mestre lê', () => {
+    const entry = TOOL_VARIANTS.mobilia
+    if (!entry || !entry.available) throw new Error('mobilia deveria estar disponível')
+    expect(entry.groups).toHaveLength(1)
+    const [grupo] = entry.groups
+    expect(grupo.storeKey).toBe('mobiliaTipo')
+    expect(grupo.label).toBe('Objeto')
+    expect(grupo.options.map((o) => o.value)).toEqual(['barril', 'caixa', 'bau', 'catre', 'mesa', 'cadeira'])
+    expect(grupo.options.map((o) => o.label)).toEqual(['Barril', 'Caixa', 'Baú', 'Cama', 'Mesa', 'Cadeira'])
+    expect(grupo.options[3].description).toBe('Clique no mapa para pôr uma cama.')
+  })
+
+  it('a escolha de Objetos ecoa na barra só com a ferramenta Objetos', () => {
+    expect(variantEcho('mobiliaTipo', 'mesa')).toEqual({ subject: 'Próximo objeto', value: 'Mesa' })
+    expect(variantEcho('mobiliaTipo', 'catre')).toEqual({ subject: 'Próximo objeto', value: 'Cama' })
+    // Valor fora do catálogo não inventa rótulo.
+    expect(variantEcho('mobiliaTipo', 'trono')).toBeNull()
+    expect(toolHasVariantAxis('mobilia', 'mobiliaTipo')).toBe(true)
+    expect(toolHasVariantAxis('prop', 'mobiliaTipo')).toBe(false)
   })
 })
 

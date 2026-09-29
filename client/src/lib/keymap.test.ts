@@ -51,18 +51,19 @@ describe('resolveShortcut — letras de ferramenta', () => {
     ['pin', 'Y'],
   ]
 
-  it('TOOL_SHORTCUTS cobre exatamente as 26 ferramentas esperadas, sem duplicar letra', () => {
-    // Do laço saem QUATRO: token, que continua na tabela mesmo escondida;
+  it('TOOL_SHORTCUTS cobre exatamente as 28 ferramentas esperadas, sem duplicar letra', () => {
+    // Do laço saem CINCO: token, que continua na tabela mesmo escondida;
     // roomFree, que ficou SEM letra na integração de 17/09/2026 — ela e o Pino
     // escolheram 'Y' em árvores separadas, e duas ferramentas na mesma letra
-    // fariam o índice perder uma em silêncio; e Caminho e Pincel de revelar,
-    // que chegaram quando já não sobrava letra nenhuma (F é "enquadrar tudo",
-    // Z fica com o Ctrl+Z).
-    expect(Object.keys(TOOL_SHORTCUTS)).toHaveLength(ALL_TOOLS.length + 4)
+    // fariam o índice perder uma em silêncio; e Caminho, Pincel de revelar e
+    // Objetos, que chegaram quando já não sobrava letra nenhuma (F é
+    // "enquadrar tudo", Z fica com o Ctrl+Z).
+    expect(Object.keys(TOOL_SHORTCUTS)).toHaveLength(ALL_TOOLS.length + 5)
     expect(TOOL_SHORTCUTS.token).toBe('K')
     expect(TOOL_SHORTCUTS.roomFree).toBe('')
     expect(TOOL_SHORTCUTS.path).toBe('')
     expect(TOOL_SHORTCUTS.revealBrush).toBe('')
+    expect(TOOL_SHORTCUTS.mobilia).toBe('')
     const letters = Object.values(TOOL_SHORTCUTS).filter((l) => l.length > 0)
     expect(new Set(letters).size).toBe(letters.length)
   })
@@ -79,6 +80,13 @@ describe('resolveShortcut — letras de ferramenta', () => {
     // Controle positivo do mesmo índice: quem TEM letra continua alcançável,
     // senão este teste passaria com um índice vazio.
     expect(porLetra.get('i')).toBe('floor')
+  })
+
+  it('Objetos também não tem letra: só a barra o alcança', () => {
+    const porLetra = buildToolByLetter(new Set())
+    expect([...porLetra.values()]).not.toContain('mobilia')
+    // Controle positivo: o índice não está vazio, a Peça segue na letra dela.
+    expect(porLetra.get('b')).toBe('prop')
   })
 
   it('k devolve null: a ferramenta Token está escondida', () => {

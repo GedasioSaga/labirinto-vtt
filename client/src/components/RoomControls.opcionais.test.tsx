@@ -58,7 +58,6 @@ function props(overrides: Partial<RoomControlsProps> = {}): RoomControlsProps {
     onRaioDeVisaoChange: vi.fn(),
     hazard: { kind: null, roomCount: 1, canAdvance: false, onKindChange: vi.fn(), onAdvance: vi.fn() },
     conveyor: { direction: null, stepCells: 3, canAdvance: false, onChange: vi.fn(), onAdvance: vi.fn() },
-    onAddMobilia: vi.fn(),
     onCreateRoomInside: vi.fn(),
     ...overrides,
   }
@@ -70,7 +69,7 @@ function render(p: RoomControlsProps, key = 'salao'): RoomControlsProps {
 }
 
 /** Os opcionais, na ordem em que o mestre os lê. */
-const OPCIONAIS = ['Ao entrar, o jogador lê', 'Nota do mestre', 'Facção', 'Raio de visão aqui', 'Perigo', 'Esteira', 'Mobília'] as const
+const OPCIONAIS = ['Ao entrar, o jogador lê', 'Nota do mestre', 'Facção', 'Raio de visão aqui', 'Perigo', 'Esteira'] as const
 
 /** A linha "+" de um opcional recolhido (o botão cujo texto é o nome do campo). */
 function linha(rotulo: string): HTMLButtonElement | null {
@@ -185,7 +184,7 @@ describe('RoomControls: opcional vazio = uma linha com "+"', () => {
     expect(p.onNotaDoMestreChange).toHaveBeenLastCalledWith('Mímico na panela.')
   })
 
-  it('o foco vai para o controle de cada campo: caixa de texto, número, o perigo marcado, o primeiro móvel', () => {
+  it('o foco vai para o controle de cada campo: caixa de texto, número, o perigo marcado, a esteira marcada', () => {
     render(props())
     act(() => linhaObrigatoria('Ao entrar, o jogador lê').click())
     expect(document.activeElement).toBe(campo('Ao entrar, o jogador lê'))
@@ -200,12 +199,9 @@ describe('RoomControls: opcional vazio = uma linha com "+"', () => {
     expect(document.activeElement?.getAttribute('role')).toBe('radio')
     expect(document.activeElement?.textContent).toBe('Nenhuma')
     expect(document.activeElement?.closest('[role="radiogroup"]')?.getAttribute('aria-label')).toBe('Esteira na sala')
-    act(() => linhaObrigatoria('Mobília').click())
-    expect(document.activeElement?.textContent).toBe('Barril')
-    expect(document.activeElement?.closest('[role="group"]')?.getAttribute('aria-label')).toBe('Pôr mobília na sala')
   })
 
-  it('campo com valor nasce aberto, sem a linha "+"; a mobília (ação, não valor) continua recolhida', () => {
+  it('campo com valor nasce aberto, sem a linha "+"', () => {
     render(
       props({
         textoAoEntrar: 'Cheiro de pão.',
@@ -233,7 +229,16 @@ describe('RoomControls: opcional vazio = uma linha com "+"', () => {
     const avancar = [...container.querySelectorAll('button')].find((b) => b.textContent === 'Avançar esteiras')
     expect(avancar?.closest('[hidden]')).toBeNull()
     expect(avancar?.disabled).toBe(false)
-    expect(linha('Mobília')).not.toBeNull()
+  })
+
+  it('a mobília saiu do painel da Sala: os móveis moram na ferramenta Objetos da barra (28/09/2026)', () => {
+    render(props())
+    expect(linha('Mobília')).toBeNull()
+    expect(container.textContent).not.toContain('Mobília')
+    expect(container.querySelector('[aria-label="Pôr mobília na sala"]')).toBeNull()
+    for (const movel of ['Barril', 'Caixa', 'Baú', 'Cama', 'Mesa', 'Cadeira']) {
+      expect(linha(movel), movel).toBeNull()
+    }
   })
 
   it('só espaço não conta como texto: a linha continua recolhida', () => {
@@ -342,7 +347,6 @@ describe('RoomControls: opcional vazio = uma linha com "+"', () => {
         onRaioDeVisaoChange: undefined,
         hazard: undefined,
         conveyor: undefined,
-        onAddMobilia: undefined,
         onCreateRoomInside: undefined,
       }),
     )

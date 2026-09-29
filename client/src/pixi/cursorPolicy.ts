@@ -210,6 +210,8 @@ const CREATION_TOOLS = new Set<DrawingTool>([
   'path',
   'concealZone',
   'revealBrush',
+  // Objetos: o clique põe um móvel novo no ponto.
+  'mobilia',
 ])
 
 function resizeCursorForCorner(corner: ResizeCorner | null): string {

@@ -470,18 +470,6 @@ body {
   letter-spacing: var(--lb-font-tracking-wide);
 }
 
-/* Mobília da sala: seis móveis em duas linhas de três colunas iguais
-   (Barril | Caixa | Baú, Cama | Mesa | Cadeira). */
-.lb-mobilia {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: var(--lb-space-2);
-}
-
-.lb-mobilia__option {
-  min-width: 0;
-}
-
 /* --------------------------------------------------------- switch (checkbox) */
 
 .lb-switch {

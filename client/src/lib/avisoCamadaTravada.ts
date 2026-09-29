@@ -21,3 +21,22 @@ function destravar(layer: LayerId): void {
   const { map, toggleLayerLock } = useMapStore.getState()
   if (map.lockedLayers.includes(layer)) toggleLayerLock(layer)
 }
+
+/**
+ * O gesto ia criar um item numa camada oculta (ferramenta Objetos,
+ * `stores/mobiliaNoPonto.ts`): o item nasceria invisível e o clique pareceria
+ * não ter pegado. Mesmo formato do aviso de camada travada — um aviso só por
+ * camada e o "Mostrar" ali mesmo, sem ir atrás do olho na lista de Camadas.
+ */
+export function avisarCamadaOculta(layer: LayerId): void {
+  useToastStore.getState().push('info', `A camada ${LAYER_LABELS[layer]} está oculta`, undefined, {
+    chave: `camada-oculta:${layer}`,
+    actions: [{ label: 'Mostrar', run: () => mostrar(layer) }],
+  })
+}
+
+/** Só mostra: o botão velho de um aviso não pode ocultar de novo o que já voltou a aparecer. */
+function mostrar(layer: LayerId): void {
+  const { map, toggleLayerVisibility } = useMapStore.getState()
+  if (map.hiddenLayers.includes(layer)) toggleLayerVisibility(layer)
+}

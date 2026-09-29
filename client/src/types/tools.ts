@@ -38,6 +38,12 @@ export type DrawingTool =
    */
   | 'revealBrush'
   | 'pin'
+  /**
+   * Objetos: a mobília desenhada (Barril, Caixa, Baú, Cama, Mesa, Cadeira).
+   * O móvel escolhido na setinha (`mobiliaTipo`, no mapStore) nasce onde o
+   * mestre clica (`stores/mobiliaNoPonto.ts`).
+   */
+  | 'mobilia'
 
 /**
  * O que o clique da ferramenta "Porta" abre na parede:

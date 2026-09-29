@@ -154,7 +154,6 @@ import * as mapFactory from './lib/mapFactory'
 import { readDoorKey, setDoorKey } from './lib/doorKey'
 import { countEntitiesByLayer } from './lib/layers'
 import { roomDimensions } from './lib/roomOps'
-import { porMobiliaNaSala } from './stores/mobiliaNaSala'
 import type { GridAlignResult } from './lib/gridAlign'
 import { relevantPropertyGroups } from './lib/toolProperties'
 import { EMPTY_SELECTION, selectionOfItem, selectionSingle, selectionToAreaSelection } from './lib/selectionModel'
@@ -567,6 +566,8 @@ function App() {
   const setFloorBrushSize = useMapStore((state) => state.setFloorBrushSize)
   const floorCamada = useMapStore((state) => state.floorCamada)
   const setFloorCamada = useMapStore((state) => state.setFloorCamada)
+  const mobiliaTipo = useMapStore((state) => state.mobiliaTipo)
+  const setMobiliaTipo = useMapStore((state) => state.setMobiliaTipo)
   const updateFloorPiece = useMapStore((state) => state.updateFloorPiece)
   const reorderFloorPiece = useMapStore((state) => state.reorderFloorPiece)
   const setFloorStyle = useMapStore((state) => state.setFloorStyle)
@@ -2494,6 +2495,7 @@ function App() {
             floorPolygonSides: { value: floorPolygonSides, onChange: setFloorPolygonSides },
             floorBrushSize: { value: floorBrushSize, onChange: setFloorBrushSize },
             floorCamada: { value: floorCamada, onChange: setFloorCamada },
+            mobiliaTipo: { value: mobiliaTipo, onChange: setMobiliaTipo },
             roomFreeKind: { value: roomFreeKind, onChange: setRoomFreeKind },
             roomFreeRounded: { value: roomFreeRounded, onChange: setRoomFreeRounded },
             drawShape: { value: activeTool, onChange: setActiveTool },
@@ -3117,8 +3119,6 @@ function App() {
                       },
                     }
                   : undefined,
-              // MOBÍLIA DESENHADA: móvel no centro da sala, no giro dela, selecionado.
-              onAddMobilia: porMobiliaNaSala(selectedRegion),
               conveyor:
                 selectedRegion && selectedRoomConveyor
                   ? {
