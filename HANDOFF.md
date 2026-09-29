@@ -978,3 +978,17 @@ Publicar 0.4.4 ao fechar as 5 features (suíte 1x, fumaça, instalador, push com
 - MSI: Property ProductVersion = `0.4.7.1`. `labirinto.exe`: ProductVersion `0.4.7+1`.
 - Smoke: `labirinto.exe` ficou vivo por 10 s, com Responding=True e título "Labirinto". O processo foi encerrado pelo PID.
 - Assets: `Labirinto_0.4.7.1_x64-setup.exe` com 2278951 bytes e `Labirinto_0.4.7.1_x64_en-US.msi` com 2965504 bytes.
+
+### 28/09/2026, noite: borda da sombra lisa longe do jogador (`cb1c8b97`)
+
+- Pedido do usuário: a sombra saía em degraus longe do token e ficava lisa perto dele (prints 28 e 29).
+- Causa raiz: `client/src/lib/exploration.ts` (`rememberRing`) para de guardar contorno quando a memória passa de `MAX_MEMORY_VERTICES` (4000). Com grid 64 e célula de 16 px isso acontece depois de uns 50 a 100 passos. Dali em diante sobra só o bitset, e `PlayerView.redrawFog` desenhava um retângulo por trecho de linha: escadinha de 1 célula. Perto do token o polígono liso da visão cobria a borda.
+- Correção: `forEachExploredNotch` em `exploration.ts` tapa cada canto côncavo da escadinha com o triângulo entre pontas de células vistas por inteiro. Nunca revela área não vista. `PlayerView.tsx` põe os triângulos no mesmo `knownMask`. Formato do fio e do save não mudou.
+- Sobra conhecida: um degrau onde o anel tem vértice reflexo solto (poço de 1 célula), deixado de propósito para não mostrar área não vista. Não foi reproduzido no Pixi real com mesa hospedada; o print é a geometria da máscara.
+
+## Evidência
+- Teste novo `client/src/lib/exploration.borda.test.ts` (8): com a função vazia 4 falharam pelo motivo certo (75, 62, 62 e 75 pontos descobertos). Depois, 8/8.
+- `rtk proxy npx vitest run src/lib/exploration.borda.test.ts src/lib/exploration.test.ts`: 2 arquivos, 58/58.
+- Agente: vitest em exploration*, savedTable.exploracao, PlayerView*, playerCulling: 33 arquivos, 214/214. `rtk proxy npx tsc --noEmit`: exit 0.
+- Custo medido: 1,25 ms com 160 mil células, 2,9 ms com 1 milhão (só quando visão ou memória muda).
+- Prints: `scratchpad/sombra-antes.png` (escadinha) e `scratchpad/sombra-depois.png` (lisa).

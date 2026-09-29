@@ -1161,3 +1161,9 @@ Noite = esta sessão conduzida pelo main thread; o noite-runner continua encerra
 - Feito: chão cobrindo a visão em `cb32ed47`.
 - 28/09/2026, noite: "Eu quero que você publique essa versão logo mesmo não tendo 4-5 features faça a versã 0.4.7.1"
 - Feito: release v0.4.7.1 em https://github.com/GedasioSaga/labirinto-vtt/releases/tag/v0.4.7.1
+- 28/09/2026, noite: "Ok, vamos fazer uma mudança, eu quero que os objetos fiquem aqui [Image #27] numa parte só deles, e eu quero que eles tenham propriedades deles e que a gente possoa mudar de cor, sim verdade e seria legal para alguns itens tipo cadeira ou bau ter uma versão de frente e uma de lado, eu imagino propriedades como preencher, mudar de cor e afins." (Image #27 = barra de ferramentas de baixo.)
+  - Fila: (1) ferramenta Objetos na barra, fora do painel da sala; (2) propriedades do objeto: preencher, cor e afins; (3) versão de frente e de lado para cadeira e baú.
+- 28/09/2026, noite: "Aproveita tambem e ajeita esse bug aqui [Image #28] fica assim a sombra e quando eu me aproximo fica normal [Image #29]" (Image #28 = borda da sombra/névoa em degraus, serrilhada, longe do token; Image #29 = perto do token "Saga" a borda fica lisa.)
+  - Fila: bug da borda da sombra serrilhada longe do jogador (entra junto da fila de Objetos, em paralelo, arquivos separados).
+- 28/09/2026, noite: "Quando terminar lance a versão 1.4.7.2, lembre-se não use gauntlet-loop"
+  - Leitura: "1.4.7.2" tratado como 0.4.7.2 (sequência da 0.4.7.1; pular para 1.x seria salto de versão maior). Release depois das 3 partes de Objetos + bug da sombra. Sem gauntlet.
