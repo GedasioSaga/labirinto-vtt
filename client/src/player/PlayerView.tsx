@@ -7,7 +7,7 @@ import type { RoofPeek } from '../lib/fogFilter'
 import { rasterizeMinimap, hexToRgb } from '../lib/minimapRaster'
 import type { Rgb } from '../lib/minimapRaster'
 import { compileFloor } from '../lib/floorSdf'
-import { countExploredCells, forEachExploredRun } from '../lib/exploration'
+import { countExploredCells, forEachExploredNotch, forEachExploredRun } from '../lib/exploration'
 import type { Exploration } from '../lib/exploration'
 import { computeAlignedGridLines } from '../lib/gridAlign'
 import { roomHasRoof } from '../lib/roomOps'
@@ -1096,6 +1096,13 @@ function redrawFog(scene: Scene, map: MapData, vision: RegionPoint[][], explored
     // proibida, que não tem contorno guardado.
     forEachExploredRun(explored, (row, colStart, colEnd) => {
       scene.knownMask.rect(colStart * cell, row * cell, (colEnd - colStart) * cell, cell)
+      runs += 1
+    })
+    // Sem contorno guardado (teto de vértices, área proibida, gravação antiga)
+    // os retângulos saem em escadinha longe do jogador: tapa os dentes da
+    // borda diagonal até as pontas das células vistas.
+    forEachExploredNotch(explored, (ax, ay, bx, by, cx, cy) => {
+      scene.knownMask.poly([ax, ay, bx, by, cx, cy], true)
       runs += 1
     })
     if (runs > 0) scene.knownMask.fill({ color: 0xffffff })

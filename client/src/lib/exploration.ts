@@ -853,6 +853,94 @@ export function forEachExploredRun(exp: Exploration, visit: (row: number, colSta
   }
 }
 
+/**
+ * Degrau mais comprido (em células) que ainda conta como escadinha de borda
+ * diagonal. Acima disso é parede reta de verdade e o canto fica em ângulo reto.
+ */
+const MAX_NOTCH_STEP = 12
+
+/** Célula fora do mapa conta como não explorada (sem dar a volta de linha). */
+function isCellSetSafe(exp: Exploration, col: number, row: number): boolean {
+  if (col < 0 || row < 0 || col >= exp.cols || row >= exp.rows) return false
+  return isCellSet(exp, col, row)
+}
+
+/**
+ * Comprimento do degrau que sai do canto côncavo ao longo de uma borda do
+ * bitset: anda enquanto o lado de dentro (`in`) está explorado e o de fora
+ * (`out`) não. Devolve 0 quando o degrau não termina num canto convexo (a
+ * borda vira para fora, ou é longo demais), e aí o dente não é preenchido.
+ */
+function notchStep(exp: Exploration, col: number, row: number, dCol: number, dRow: number, inCol: number, inRow: number): number {
+  let length = 0
+  while (length <= MAX_NOTCH_STEP) {
+    const c = col + dCol * length
+    const r = row + dRow * length
+    const inside = isCellSetSafe(exp, c + inCol, r + inRow)
+    const outside = isCellSetSafe(exp, c, r)
+    if (inside && !outside) {
+      length += 1
+      continue
+    }
+    return !inside && !outside && length > 0 ? length : 0
+  }
+  return 0
+}
+
+/**
+ * Os dentes da escadinha do bitset, para a borda da memória sair lisa quando
+ * não há contorno guardado (passou de MAX_MEMORY_VERTICES, zona oculta perto,
+ * "Revelar planta", gravação antiga sem `rings`).
+ *
+ * Em cada canto CÔNCAVO do bitset (3 das 4 células em volta exploradas) cujos
+ * dois degraus terminam em canto CONVEXO e um deles tem 1 célula — o desenho
+ * de uma reta digital —, devolve o triângulo canto-ponta-ponta que tapa o
+ * dente. A borda passa então pelas pontas das células exploradas: nunca sai
+ * da área que o jogador viu inteira (ponta é canto de célula vista inteira) e
+ * fica a menos de uma célula da borda de verdade, como perto dele.
+ *
+ * Canto de sala (degrau longo dos dois lados) e buraco de uma célula (degrau
+ * que não termina em ponta) ficam como estão. Coordenadas em px do mundo.
+ */
+export function forEachExploredNotch(
+  exp: Exploration,
+  visit: (ax: number, ay: number, bx: number, by: number, cx: number, cy: number) => void,
+): void {
+  const { cell, cols, rows } = exp
+  // Canto côncavo só existe onde uma das duas linhas muda de estado: olha só
+  // as pontas dos trechos, não o mapa inteiro.
+  const edges: number[][] = Array.from({ length: rows }, () => [])
+  forEachExploredRun(exp, (row, colStart, colEnd) => {
+    if (colStart > 0) edges[row].push(colStart)
+    if (colEnd < cols) edges[row].push(colEnd)
+  })
+  const candidates = new Set<number>()
+  for (let y = 1; y < rows; y += 1) {
+    if (edges[y - 1].length === 0 && edges[y].length === 0) continue
+    candidates.clear()
+    for (const x of edges[y - 1]) candidates.add(x)
+    for (const x of edges[y]) candidates.add(x)
+    for (const x of candidates) {
+      const tl = isCellSet(exp, x - 1, y - 1)
+      const tr = isCellSet(exp, x, y - 1)
+      const bl = isCellSet(exp, x - 1, y)
+      const br = isCellSet(exp, x, y)
+      const count = Number(tl) + Number(tr) + Number(bl) + Number(br)
+      if (count !== 3) continue
+      // (sx, sy): do canto para a célula não explorada.
+      const sx = !tr || !br ? 1 : -1
+      const sy = !bl || !br ? 1 : -1
+      const col = sx > 0 ? x : x - 1
+      const row = sy > 0 ? y : y - 1
+      const across = notchStep(exp, col, row, sx, 0, 0, -sy)
+      if (across === 0) continue
+      const down = notchStep(exp, col, row, 0, sy, -sx, 0)
+      if (down === 0 || Math.min(across, down) !== 1) continue
+      visit(x * cell, y * cell, (x + sx * across) * cell, y * cell, x * cell, (y + sy * down) * cell)
+    }
+  }
+}
+
 /** Quantidade de células exploradas (para `data-explored-cells` e testes). */
 export function countExploredCells(exp: Exploration): number {
   let total = 0
