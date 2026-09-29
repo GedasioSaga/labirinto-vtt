@@ -1036,3 +1036,61 @@ Publicar 0.4.4 ao fechar as 5 features (suíte 1x, fumaça, instalador, push com
   - 6 Ctrl+Z voltam tudo;
   - 0 erros no console.
   - Prints: `scratchpad/moveis-cor.png`, `moveis-sem-preencher.png`, `moveis-painel.png`.
+
+### 29/09/2026: vista de frente e de lado para cadeira e baú (`6ae0c289`)
+
+- Pedido do usuário: cadeira e baú com uma versão de frente e outra de lado. É a feature 3 de 3 do pedido de Objetos; com ela as 3 partes estão prontas.
+- Campo opcional novo: `Prop.mobiliaVista?: 'frente' | 'lado'`.
+  - Só `'lado'` é gravado. Sem o campo, o desenho é o de hoje.
+  - `TIPOS_COM_VISTA = ['cadeira','bau']` em `lib/mobilia.ts`. Para outro tipo ganhar vista, basta entrar na lista.
+  - `normalizarVistaDoMovel` limpa o valor na leitura do arquivo e na passagem para o jogador.
+- Desenho de lado:
+  - cadeira em L, com 2 pernas no glifo;
+  - baú com a tampa em arco e a costura entre tampa e corpo.
+  - Usa as mesmas cores e o mesmo Preencher da feature 2, e o giro vale por cima.
+- Tamanho de lado: cadeira 0,5×0,75 casa; baú 0,6×0,6 (de frente é 1×0,6).
+  - Trocar a vista volta ao tamanho padrão do par tipo+vista. Um redimensionamento manual se perde.
+  - Trocar a vista é 1 passo no desfazer.
+- Painel: "Vista" (Frente | Lado) fica logo depois de "Tipo" e aparece só para cadeira e baú.
+- Visto fora do escopo: a moldura e as alças de seleção ignoram o giro (`propBoundingBox`, `lib/objectTransform.ts:259`).
+  - Numa peça não quadrada girada 90°, a moldura fica em pé enquanto o desenho fica deitado.
+  - Já acontecia antes com a mesa e com o baú de frente.
+
+## Evidência
+- `rtk proxy npx tsc --noEmit`: exit 0 (rodado por mim).
+- `rtk proxy npx vitest run` nos 10 arquivos da área de móvel: 10 arquivos, 156/156 (rodado por mim).
+- Agente:
+  - área: 6 arquivos, 111/111;
+  - vizinhos: 23 arquivos, 488/488.
+- Navegador (:1420), roteiro do agente:
+  - cadeira de Lado mais alta, com o centro no lugar;
+  - Ctrl+Z e Ctrl+Y funcionam;
+  - baú de Lado mais estreito, com tampa em arco;
+  - tudo legível a 50%;
+  - giro de 90° deita o L.
+- Prints: `scratchpad/moveis-vista-cadeira.png`, `moveis-vista-bau.png`, `moveis-vista-painel.png`, `vista-zoom50.png`, `vista-giro90.png`.
+
+### 29/09/2026, madrugada: release v0.4.7.2 (`f70970eb`)
+
+- Pedido do usuário: "lance a versão 1.4.7.2". Foi lido como 0.4.7.2, que é a sequência da 0.4.7.1; 1.4.7.2 pularia a versão maior. O usuário foi avisado.
+- Entraram 4 mudanças:
+  - Objetos na barra de baixo (`751b6cf8`);
+  - propriedades do móvel (`d7e6c64b`);
+  - vista de frente e de lado para cadeira e baú (`6ae0c289`);
+  - borda da sombra lisa longe do jogador (`cb1c8b97`).
+- Versão bumpada nos 5 arquivos como `0.4.7+2`. A tag é `v0.4.7.2` (anotada) e o identificador continua `com.labirinto.app`.
+- Release: https://github.com/GedasioSaga/labirinto-vtt/releases/tag/v0.4.7.2
+- Os 4 arquivos parciais da escada (stairs) ficaram fora do build e do commit: stash antes, pop depois.
+
+## Evidência
+- `rtk proxy npx tsc --noEmit` (com a escada em stash): exit 0.
+- `rtk proxy npx vitest run` completo: 1200 de 1201 arquivos e 10300 de 10301 testes.
+  - A única falha foi `hostSession.custoCom7` ("expected 138.738 to be less than 100"), que mede tempo e oscila com a CPU carregada. Rodado sozinho, passou 1/1.
+- `npm run tauri:build`: exit 0 em 2m23s, com 2 bundles.
+- Smoke: `labirinto.exe` ficou vivo, com título "Labirinto".
+- gitleaks nos 9 commits desde a 0.4.7.1: no leaks found.
+- Push da main (`f70970eb`) e da tag `v0.4.7.2`: OK.
+- Assets no GitHub:
+  - `Labirinto_0.4.7.2_x64-setup.exe`: 2281437 bytes, sha256 `c7c0251b800ff9d1c6c027cc8f261dec3f1a7171a52d4a99589864984156e7be`;
+  - `Labirinto_0.4.7.2_x64_en-US.msi`: 2969600 bytes, sha256 `7f6f940c138af47c9a1383535912dac60e1bc43007abdacccba9b0021e0f0d1d`.
+- Escada restaurada idêntica: `cmp` entre o patch de backup e `rtk proxy git diff` depois do pop deu igual.
