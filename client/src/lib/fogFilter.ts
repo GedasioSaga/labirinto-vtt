@@ -2910,6 +2910,27 @@ export function filterMapForGroup(
   // que está bloqueado justamente por causa do teto. Ver `contourSamples`.
   const regionSamples = (r: Region): RegionPoint[] =>
     closedRoofIds.has(r.id) ? contourSamples(r.points) : interiorSamples(r.points, r.points)
+  /**
+   * SALA VISTA PELA FRESTA: o cone que entra pela porta numa sala larga e
+   * baixa não alcança o centróide nem os cantos puxados (`regionSamples`), e a
+   * Sala não saía — o jogador via o chão cru dentro do cone, sem cor, sem nome
+   * e sem memória dela. Mesma régua do cômodo (`ringReachesInto`): vértice ou
+   * meio de aresta do anel ESTRITAMENTE dentro; em cima da parede não conta,
+   * senão a sala do outro lado vazaria. Teto fechado segue só o contorno.
+   */
+  const ringEntersRegion = (r: Region): boolean => {
+    if (closedRoofIds.has(r.id)) return false
+    const room = boxRooms([r])[0]
+    if (room === undefined) return false
+    return rings.some(
+      (b) =>
+        b.maxX >= room.minX &&
+        b.minX <= room.maxX &&
+        b.maxY >= room.minY &&
+        b.minY <= room.maxY &&
+        ringReachesInto(b.ring, room, (p) => !hiddenByZone(p) && !inHiddenPlace(p)),
+    )
+  }
   const regions = recallItems(map.regions, remembered?.regions, {
     // DENTRO DA SALA SECRETA: a secreta aberta para ESTE jogador (ficha dentro,
     // ou já descoberta por ele) é Sala comum para ele (`isClosedSecret`).
@@ -2920,7 +2941,7 @@ export function filterMapForGroup(
     // dentro de outro prédio de teto: tudo isso é interior. Ver `swallowedByClosedRoof`.
     placeOk: (r) =>
       !underRoofIds.has(r.id) && !brokenRoofIds.has(r.id) && !swallowedByClosedRoof(r) && outsideZones(regionSamples(r)).length > 0,
-    seenNow: (r) => isShapeVisible(regionSamples(r)) || comodoSeenShape(regionSamples(r)),
+    seenNow: (r) => isShapeVisible(regionSamples(r)) || comodoSeenShape(regionSamples(r)) || ringEntersRegion(r),
     unseenOk: (r) => exploredShape(regionSamples(r)),
   })
   /** Versão ATUAL de cada região: o nome que o mestre esconde agora não volta pela memória. */
@@ -3491,7 +3512,7 @@ export function filterMapForGroup(
         // Cômodo: o não visto nem aparece; o lembrado sai inteiro, visto ou não agora.
         if (unseenComodoIds.has(r.id)) return false
         if (knownComodoIds.has(r.id)) return true
-        return memoryMode || isShapeKnown(interiorSamples(r.points, r.points), { points: r.points, closed: true })
+        return memoryMode || isShapeKnown(interiorSamples(r.points, r.points), { points: r.points, closed: true }) || ringEntersRegion(r)
       })
       .map(withoutSecretMark)
       .map(regionForPlayer)

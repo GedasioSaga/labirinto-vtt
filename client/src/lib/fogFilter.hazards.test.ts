@@ -84,12 +84,14 @@ describe('filterMapForPlayer — zona de perigo', () => {
     expect(fumo.hazards.map((h) => h.kind)).toEqual(['fumaca'])
   })
 
-  it('encostada na parede de um salão enfumaçado: o salão ainda não se desenha, mas o host sabe que Ana está na fumaça', () => {
+  it('encostada na parede de um salão enfumaçado: o salão se desenha pela visão que entra, a fumaça não, e o host sabe que Ana está na fumaça', () => {
     const salao = sala('salao', 0, 1500)
     const map = torre({ regions: [salao], tokens: [ficha('ana', 400, 20)], hazards: [zona('z1', 'fumaca', ['salao'])] })
     const view = filterMapForPlayer({ ...map, walls: [] }, 'p1', DONOS, RAIO)
-    // A visão de 2 quadrados não alcança amostra do salão: nem ele nem o polígono do perigo saem (seria a planta dele).
-    expect(view.map.regions).toEqual([])
+    // A visão de 2 quadrados não alcança amostra do salão, mas entra nele: o
+    // salão sai (SALA VISTA PELA FRESTA, `fogFilter.salaPelaFresta.test.ts`);
+    // o polígono do perigo, não.
+    expect(view.map.regions.map((r) => r.id)).toEqual(['salao'])
     expect(view.hazards).toEqual([])
     expect(view.hazardsHere).toEqual([{ tokenId: 'ana', kind: 'fumaca' }])
   })
