@@ -1350,6 +1350,18 @@ export interface Prop extends PlayerSecret, NoPiso {
    *  fora do catálogo vindo do disco some na leitura (`deserializeMap`).
    *  Vai ao jogador junto do móvel que ele enxerga: o tipo É o desenho. */
   mobilia?: TipoMobilia
+  /** "Preencher" do móvel: `false` = só o contorno fino e o glifo, fundo
+   *  transparente. Ausente (ou `true`) = preenchido, a silhueta chapada de
+   *  sempre; só o `false` é gravado, o `true` some na leitura e na edição.
+   *  Vale só com `mobilia`; vai ao jogador junto do tipo. */
+  mobiliaPreenchido?: boolean
+  /** Cor do preenchimento do móvel, sempre `#rrggbb` minúsculo (`lib/mobilia.ts`
+   *  normaliza e recusa o resto na leitura e na travessia). Ausente = o preto
+   *  translúcido de sempre; presente = chapado na cor, opaco. Só com `mobilia`. */
+  mobiliaCor?: string
+  /** Cor do contorno e do glifo do móvel, `#rrggbb` como `mobiliaCor`. Ausente =
+   *  o fio claro translúcido de sempre; presente = a cor, opaca, mesma espessura. */
+  mobiliaCorDaLinha?: string
   /** "Rótulo para jogadores": nome curto escrito na silhueta que o jogador vê
    *  ("Guarda-roupa"). Ausente = só a silhueta, como antes deste campo — sem
    *  linha de migração. ATRAVESSA para o jogador só junto com o objeto, aparado

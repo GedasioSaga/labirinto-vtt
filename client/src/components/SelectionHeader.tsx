@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, useState, type KeyboardEvent, type ReactElement, type ReactNode } from 'react'
 import type { Drawing, FloorPiece, Light, Prop, Region, Stair, Token, Wall } from '../types/map'
+import { ROTULO_MOBILIA } from '../lib/mobilia'
 import { PISO_MAX, PISO_MIN, nomeDoPiso } from '../lib/pisos'
 import type { SelectionSummary } from './SelectionControls'
 import { deleteSelectionLabel } from './labels'
@@ -82,8 +83,11 @@ export function selectionIdentity(summary: SelectionSummary, items: SelectedItem
       return { icon: 'light', type: 'Luz', name: null }
     case 'stair':
       return { icon: 'stair', type: 'Escada', name: null }
-    case 'prop':
-      return { icon: 'prop', type: 'Peça', name: null }
+    case 'prop': {
+      // Móvel desenhado diz o que é ("Mesa", "Baú"), como a setinha da ferramenta Objetos o chama.
+      const mobilia = items.prop?.mobilia
+      return { icon: 'prop', type: mobilia !== undefined ? ROTULO_MOBILIA[mobilia] : 'Peça', name: null }
+    }
     case 'drawing':
       // Rótulo de texto se chama pelo que diz; a primeira linha basta para achar.
       return items.textLabel !== null

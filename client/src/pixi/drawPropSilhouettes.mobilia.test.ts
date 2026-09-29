@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import { Graphics } from 'pixi.js'
 import type { Prop } from '../types/map'
-import { drawPropSilhouettes, PROP_SILHOUETTE_EDGE_ALPHA, PROP_SILHOUETTE_EDGE_COLOR } from './drawPropSilhouettes'
+import {
+  drawPropSilhouettes,
+  PROP_SILHOUETTE_EDGE_ALPHA,
+  PROP_SILHOUETTE_EDGE_COLOR,
+  PROP_SILHOUETTE_FILL_ALPHA,
+  PROP_SILHOUETTE_FILL_COLOR,
+} from './drawPropSilhouettes'
 import { LADOS_DA_ELIPSE, tracosDoGlifo } from '../lib/mobilia'
 
 /**
@@ -126,6 +132,78 @@ describe('drawPropSilhouettes — glifo da mobília', () => {
   it('objeto comum (sem tipo) continua só com o contorno', () => {
     const g = new Graphics()
     drawPropSilhouettes(g, [movel({ mobilia: undefined })], 1, 1)
+    expect(strokes(g)).toHaveLength(1)
+  })
+})
+
+/** Cor e alfa de uma instrução de fill ou stroke. */
+function estilo(instruction: Instruction | undefined): { color: number; alpha: number } {
+  if (instruction === undefined || instruction.action === 'texture') throw new Error('esperava fill ou stroke')
+  return { color: instruction.data.style.color, alpha: instruction.data.style.alpha }
+}
+
+describe('drawPropSilhouettes — preencher e cor do móvel', () => {
+  it('sem os campos, a aparência de sempre: fundo escuro translúcido, fio claro', () => {
+    const g = new Graphics()
+    drawPropSilhouettes(g, [movel()], 1, 1)
+    expect(estilo(fills(g)[0])).toEqual({ color: PROP_SILHOUETTE_FILL_COLOR, alpha: PROP_SILHOUETTE_FILL_ALPHA })
+    for (const traco of strokes(g)) expect(estilo(traco)).toEqual({ color: PROP_SILHOUETTE_EDGE_COLOR, alpha: PROP_SILHOUETTE_EDGE_ALPHA })
+  })
+
+  it('"Preencher" desligado: nenhum fill, só o contorno e o glifo', () => {
+    const g = new Graphics()
+    expect(drawPropSilhouettes(g, [movel({ mobiliaPreenchido: false })], 1, 1)).toBe(1)
+    expect(fills(g)).toHaveLength(0)
+    expect(strokes(g)).toHaveLength(2)
+    // O contorno continua sendo a silhueta inteira.
+    expect(silhouettePoints(g)).toHaveLength(4)
+  })
+
+  it('cor própria: o fundo fica chapado nessa cor, o fio continua o de sempre', () => {
+    const g = new Graphics()
+    drawPropSilhouettes(g, [movel({ mobiliaCor: '#8b4513' })], 1, 1)
+    expect(fills(g)).toHaveLength(1)
+    expect(estilo(fills(g)[0])).toEqual({ color: 0x8b4513, alpha: 1 })
+    for (const traco of strokes(g)) expect(estilo(traco)).toEqual({ color: PROP_SILHOUETTE_EDGE_COLOR, alpha: PROP_SILHOUETTE_EDGE_ALPHA })
+  })
+
+  it('cor da linha própria: contorno E glifo nessa cor, na mesma espessura fina', () => {
+    const g = new Graphics()
+    drawPropSilhouettes(g, [movel({ mobiliaCorDaLinha: '#c0392b' })], 1, 1)
+    const tracos = strokes(g)
+    expect(tracos).toHaveLength(2)
+    for (const traco of tracos) {
+      expect(estilo(traco)).toEqual({ color: 0xc0392b, alpha: 1 })
+      if (traco?.action !== 'stroke') throw new Error('esperava stroke')
+      expect(traco.data.style.width).toBeCloseTo(1, 6)
+    }
+    expect(estilo(fills(g)[0])).toEqual({ color: PROP_SILHOUETTE_FILL_COLOR, alpha: PROP_SILHOUETTE_FILL_ALPHA })
+  })
+
+  it('sem preencher e com cor da linha: só o fio colorido', () => {
+    const g = new Graphics()
+    drawPropSilhouettes(g, [movel({ mobiliaPreenchido: false, mobiliaCor: '#8b4513', mobiliaCorDaLinha: '#c0392b' })], 1, 1)
+    expect(fills(g)).toHaveLength(0)
+    for (const traco of strokes(g)) expect(estilo(traco).color).toBe(0xc0392b)
+  })
+
+  it('cor torta (não é #rrggbb) não derruba o desenho: vale a aparência de sempre', () => {
+    const g = new Graphics()
+    expect(() => drawPropSilhouettes(g, [movel({ mobiliaCor: 'vermelho', mobiliaCorDaLinha: 'url(x)' })], 1, 1)).not.toThrow()
+    expect(estilo(fills(g)[0])).toEqual({ color: PROP_SILHOUETTE_FILL_COLOR, alpha: PROP_SILHOUETTE_FILL_ALPHA })
+    for (const traco of strokes(g)) expect(estilo(traco)).toEqual({ color: PROP_SILHOUETTE_EDGE_COLOR, alpha: PROP_SILHOUETTE_EDGE_ALPHA })
+  })
+
+  it('#rgb curto vale como a cor longa', () => {
+    const g = new Graphics()
+    drawPropSilhouettes(g, [movel({ mobiliaCor: '#A50' })], 1, 1)
+    expect(estilo(fills(g)[0]).color).toBe(0xaa5500)
+  })
+
+  it('objeto comum ignora os campos do móvel: silhueta de sempre, sem glifo', () => {
+    const g = new Graphics()
+    drawPropSilhouettes(g, [movel({ mobilia: undefined, mobiliaPreenchido: false, mobiliaCor: '#8b4513' })], 1, 1)
+    expect(estilo(fills(g)[0])).toEqual({ color: PROP_SILHOUETTE_FILL_COLOR, alpha: PROP_SILHOUETTE_FILL_ALPHA })
     expect(strokes(g)).toHaveLength(1)
   })
 })

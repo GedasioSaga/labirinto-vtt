@@ -1,7 +1,8 @@
 import type { Graphics } from 'pixi.js'
 import type { Prop } from '../types/map'
 import { rotatePointAround, rotationTrig } from '../lib/roomRotation'
-import { ehMovelRedondo, pontosDaElipse, tracosDoGlifo } from '../lib/mobilia'
+import { ehMovelRedondo, normalizarCorDoMovel, pontosDaElipse, tracosDoGlifo } from '../lib/mobilia'
+import { parseHexColor } from '../lib/tokenColor'
 import { WALL_COLOR } from './drawWalls'
 import { alignToPixel, pixelGrid, strokeWidthInWorld, type PixelGrid } from './pixelAlign'
 
@@ -33,6 +34,13 @@ import { alignToPixel, pixelGrid, strokeWidthInWorld, type PixelGrid } from './p
  * No chão padrão (#a8776a) o móvel sai #6d4d45 com o fio em volta — contraste
  * de ~2:1 com o chão e ~2,8:1 do fio contra o móvel. Discreto de propósito:
  * parede e porta continuam sendo o que o olho lê primeiro.
+ *
+ * O MÓVEL (objeto com `mobilia`) pode mudar as duas metades pelo painel: sem
+ * "Preencher" o fundo some e fica só o fio com o glifo; "Cor" pinta o fundo
+ * chapado e opaco nessa cor; "Cor da linha" pinta contorno e glifo, na mesma
+ * espessura. Cor que não seja `#rrggbb`/`#rgb` vale como ausente (o arquivo e a
+ * rede já filtram, mas o desenho não confia: `Color` do Pixi lança com string
+ * torta e derrubaria o quadro). Objeto comum ignora esses campos.
  */
 export const PROP_SILHOUETTE_FILL_COLOR = 0x000000
 export const PROP_SILHOUETTE_FILL_ALPHA = 0.35
@@ -40,9 +48,44 @@ export const PROP_SILHOUETTE_EDGE_COLOR = WALL_COLOR
 export const PROP_SILHOUETTE_EDGE_ALPHA = 0.5
 /** Espessura do contorno em px de TELA, a mesma em qualquer zoom (como a parede). */
 export const PROP_SILHOUETTE_EDGE_SCREEN_PX = 1
+/** Cor escolhida pelo mestre sai chapada: opaca, sem a transparência do padrão. */
+const PROP_OWN_COLOR_ALPHA = 1
 
-/** O que a silhueta usa do objeto: a geometria e o tipo de móvel, nunca a imagem. */
-export type PropSilhouette = Pick<Prop, 'x' | 'y' | 'width' | 'height' | 'rotation' | 'mobilia'>
+/** O que a silhueta usa do objeto: a geometria, o tipo e a aparência do móvel, nunca a imagem. */
+export type PropSilhouette = Pick<
+  Prop,
+  'x' | 'y' | 'width' | 'height' | 'rotation' | 'mobilia' | 'mobiliaPreenchido' | 'mobiliaCor' | 'mobiliaCorDaLinha'
+>
+
+/** Cor e opacidade de uma metade do desenho, no formato que `fill`/`stroke` recebem. */
+interface SilhouettePaint {
+  color: number
+  alpha: number
+}
+
+/** `fill: null` = "Preencher" desligado: só o contorno e o glifo. */
+interface SilhouetteStyle {
+  fill: SilhouettePaint | null
+  edge: SilhouettePaint
+}
+
+const DEFAULT_FILL: SilhouettePaint = { color: PROP_SILHOUETTE_FILL_COLOR, alpha: PROP_SILHOUETTE_FILL_ALPHA }
+const DEFAULT_EDGE: SilhouettePaint = { color: PROP_SILHOUETTE_EDGE_COLOR, alpha: PROP_SILHOUETTE_EDGE_ALPHA }
+
+/** A cor própria do móvel, ou `null` se ausente ou torta (vale o padrão). */
+function ownPaint(value: unknown): SilhouettePaint | null {
+  const color = parseHexColor(normalizarCorDoMovel(value))
+  return color === null ? null : { color, alpha: PROP_OWN_COLOR_ALPHA }
+}
+
+/** Aparência de um objeto: a de sempre, ou a que o mestre deu ao móvel. */
+function silhouetteStyle(prop: PropSilhouette): SilhouetteStyle {
+  if (prop.mobilia === undefined) return { fill: DEFAULT_FILL, edge: DEFAULT_EDGE }
+  return {
+    fill: prop.mobiliaPreenchido === false ? null : (ownPaint(prop.mobiliaCor) ?? DEFAULT_FILL),
+    edge: ownPaint(prop.mobiliaCorDaLinha) ?? DEFAULT_EDGE,
+  }
+}
 
 /** Posição e tamanho finitos, tamanho positivo: o resto não tem o que pintar. */
 function hasDrawableGeometry(prop: PropSilhouette): boolean {
@@ -102,10 +145,11 @@ function roundSilhouettePoints(prop: PropSilhouette): number[] {
 
 /**
  * MOBÍLIA DESENHADA: os traços do glifo do móvel (`lib/mobilia.ts`), girados
- * com o objeto, num traço só no mesmo fio fino e claro do contorno — o glifo
- * nunca pesa mais que a borda do próprio móvel. Objeto comum não tem glifo.
+ * com o objeto, num traço só no mesmo fio fino do contorno (e na mesma cor,
+ * `edge`) — o glifo nunca pesa mais que a borda do próprio móvel. Objeto comum
+ * não tem glifo.
  */
-function strokeFurnitureGlyph(graphics: Graphics, prop: PropSilhouette, edgeWidth: number): void {
+function strokeFurnitureGlyph(graphics: Graphics, prop: PropSilhouette, edgeWidth: number, edge: SilhouettePaint): void {
   if (prop.mobilia === undefined) return
   const segments = tracosDoGlifo(prop.mobilia, prop.width, prop.height)
   if (segments.length === 0) return
@@ -116,7 +160,7 @@ function strokeFurnitureGlyph(graphics: Graphics, prop: PropSilhouette, edgeWidt
     const end = rotatePointAround({ x: prop.x + segment.x2, y: prop.y + segment.y2 }, center, trig)
     graphics.moveTo(start.x, start.y).lineTo(end.x, end.y)
   }
-  graphics.stroke({ width: edgeWidth, color: PROP_SILHOUETTE_EDGE_COLOR, alpha: PROP_SILHOUETTE_EDGE_ALPHA, cap: 'butt' })
+  graphics.stroke({ width: edgeWidth, color: edge.color, alpha: edge.alpha, cap: 'butt' })
 }
 
 /**
@@ -136,12 +180,12 @@ export function drawPropSilhouettes(
   let drawn = 0
   for (const prop of props) {
     if (!hasDrawableGeometry(prop)) continue
+    const style = silhouetteStyle(prop)
     const outline = ehMovelRedondo(prop.mobilia) ? roundSilhouettePoints(prop) : silhouetteCorners(prop, grid)
-    graphics
-      .poly(outline, true)
-      .fill({ color: PROP_SILHOUETTE_FILL_COLOR, alpha: PROP_SILHOUETTE_FILL_ALPHA })
-      .stroke({ width: edgeWidth, color: PROP_SILHOUETTE_EDGE_COLOR, alpha: PROP_SILHOUETTE_EDGE_ALPHA, join: 'miter' })
-    strokeFurnitureGlyph(graphics, prop, edgeWidth)
+    graphics.poly(outline, true)
+    if (style.fill !== null) graphics.fill(style.fill)
+    graphics.stroke({ width: edgeWidth, color: style.edge.color, alpha: style.edge.alpha, join: 'miter' })
+    strokeFurnitureGlyph(graphics, prop, edgeWidth, style.edge)
     drawn += 1
   }
   return drawn

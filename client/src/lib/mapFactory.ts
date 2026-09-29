@@ -1,7 +1,7 @@
 import type {
   MapData, Wall, Light, Region, Token, Prop, Drawing, DoorState, DoorSide, LayerId, GridSettings,
   Stair, StairDirection, StairShape, DoorKind, MapScale, MeasurementMode, FloorPiece, FloorStyle, MapLine, MapMarker, MapFrame,
-  ConcealZone, Pin, PinIcon, PinKind, RoomMeta, MovementRules, SceneFloor, NivelAlerta,
+  ConcealZone, Pin, PinIcon, PinKind, RoomMeta, MovementRules, SceneFloor, NivelAlerta, TipoMobilia,
 } from '../types/map'
 import type { Point } from '../pixi/world'
 import { alertaDaCena, limitarFaccao } from './faccoes'
@@ -28,6 +28,7 @@ import { sameLoja } from './loja'
 import { withoutAttachment } from './lightAttachment'
 import { seatStairPins, withoutStairPins } from './stairTravel'
 import { carryAttachedPins, carryPinsByTokenSteps } from './pinAttach'
+import { comAparenciaDoMovel, mesmaAparenciaDoMovel, movelComOutroTipo, type AparenciaDoMovelPatch } from './mobilia'
 import { carrierIdOf, followStep } from './carry'
 import { mapaDoPiso, pisoDe } from './pisos'
 import { leaveVehicle, moveTokenWithVehicle, passengerIdsOf } from './vehicle'
@@ -840,6 +841,31 @@ export function setPropLayer(map: MapData, propId: string, layer: Prop['layer'])
     ...map,
     props: map.props.map((p) => (p.id === propId ? { ...p, layer } : p)),
   }
+}
+
+/**
+ * "Tipo" do painel do móvel: troca o tipo no lugar (`movelComOutroTipo`), no
+ * tamanho padrão do tipo novo na grade do mapa. Objeto que não é móvel, id que
+ * não existe ou o mesmo tipo devolvem o MESMO mapa — a store usa isso para não
+ * empilhar passo vazio no desfazer.
+ */
+export function trocarTipoDoMovel(map: MapData, propId: string, tipo: TipoMobilia): MapData {
+  const alvo = map.props.find((p) => p.id === propId)
+  if (alvo?.mobilia === undefined || alvo.mobilia === tipo) return map
+  return { ...map, props: map.props.map((p) => (p === alvo ? movelComOutroTipo(p, tipo, map.grid) : p)) }
+}
+
+/**
+ * "Preencher", "Cor" e "Cor da linha" do painel do móvel (`comAparenciaDoMovel`).
+ * Objeto que não é móvel, id que não existe ou pedido que não muda nada (cor
+ * torta, "Preencher" já ligado, "Padrão" sem cor própria) devolvem o MESMO mapa.
+ */
+export function setAparenciaDoMovel(map: MapData, propId: string, patch: AparenciaDoMovelPatch): MapData {
+  const alvo = map.props.find((p) => p.id === propId)
+  if (alvo?.mobilia === undefined) return map
+  const pintado = comAparenciaDoMovel(alvo, patch)
+  if (mesmaAparenciaDoMovel(pintado, alvo)) return map
+  return { ...map, props: map.props.map((p) => (p === alvo ? pintado : p)) }
 }
 
 export function setShowGrid(map: MapData, showGrid: boolean): MapData {

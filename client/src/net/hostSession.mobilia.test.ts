@@ -80,6 +80,20 @@ describe('hostSession — mobília desenhada no pacote do jogador', () => {
     expect(JSON.stringify(doBruno)).not.toContain('movel-catre')
   })
 
+  it('a cor e o "Preencher" que o mestre muda chegam no pacote da Ana no envio seguinte', () => {
+    const map = quartel()
+    const s = mesa(map)
+    expect(snapshotPara(s.broadcast(map), 'c1').map.props).toEqual([CATRE])
+
+    const pintado = quartel({ mobiliaPreenchido: false, mobiliaCor: '#8b4513', mobiliaCorDaLinha: '#c0392b' })
+    const r = s.broadcast(pintado)
+    expect(snapshotPara(r, 'c1').map.props).toEqual([{ ...CATRE, mobiliaPreenchido: false, mobiliaCor: '#8b4513', mobiliaCorDaLinha: '#c0392b' }])
+    // Para o Bruno a tela não mudou (ele não vê o dormitório): nada, ou nada com a cor.
+    const doBruno = JSON.stringify(r.outbound.filter((o) => o.clientId === 'c2'))
+    expect(doBruno).not.toContain('8b4513')
+    expect(doBruno).not.toContain('c0392b')
+  })
+
   it('"Oculto para jogadores": o catre sai do pacote da Ana no envio seguinte, com tipo e tudo', () => {
     const map = quartel()
     const s = mesa(map)

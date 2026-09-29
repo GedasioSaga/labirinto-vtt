@@ -1,0 +1,25 @@
+/*
+ * MobiliaControls — a seção "Móvel" do objeto selecionado. Primitivas
+ * (`.lb-section`, `.lb-field`, `.lb-label`, `.lb-swatch`, `.lb-btn`) vêm de
+ * main.css; aqui só o encaixe das cores. Só `var(--lb-*)` de theme.ts.
+ *
+ * ESPECIFICIDADE: main.tsx importa o App antes de main.css, então esta folha
+ * entra ANTES dela na cascata. Por isso a classe da linha no seletor da amostra
+ * inerte: vence `.lb-swatch:hover` de lá sem depender da ordem.
+ */
+
+/* "Padrão" encostado na amostra de cor, os dois na ponta direita da linha (o
+   mesmo arranjo da "Cor do título" da Sala). */
+.lb-mobilia__color {
+  display: flex;
+  align-items: center;
+  gap: var(--lb-space-2);
+}
+
+/* A "Cor" sem "Preencher": a amostra continua mostrando a cor guardada, apagada
+   como o interruptor desligado de main.css, e sem o realce de passar o mouse. */
+.lb-mobilia__color > .lb-swatch:disabled {
+  opacity: 0.5;
+  border-color: var(--lb-color-line-strong);
+  cursor: not-allowed;
+}

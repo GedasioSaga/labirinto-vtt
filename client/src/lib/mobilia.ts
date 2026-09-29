@@ -187,12 +187,106 @@ export function tracosDoGlifo(tipo: TipoMobilia, largura: number, altura: number
 }
 
 /**
+ * O "Tipo" do painel: o mesmo móvel com outro tipo. Centro, giro, camada,
+ * trava, ocultos, piso, rótulo e aparência ficam; o tamanho vai para o padrão
+ * do tipo novo (o da mesa não serve para o barril). `x`/`y` são o centro, então
+ * o tamanho novo não tira o móvel do lugar.
+ */
+export function movelComOutroTipo(prop: Prop, tipo: TipoMobilia, grade: number): Prop {
+  const tamanho = TAMANHO_EM_CASAS[tipo]
+  return { ...prop, mobilia: tipo, width: tamanho.largura * grade, height: tamanho.altura * grade }
+}
+
+/** Cor que o móvel aceita: `#rgb` ou `#rrggbb`, sem nada em volta. */
+const COR_DO_MOVEL = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i
+
+/**
+ * A cor do móvel na forma única que o mapa guarda: `#rrggbb` minúsculo (`#rgb`
+ * vira `#rrggbb`). Qualquer outra coisa — nome de cor, `url(...)`, número,
+ * espaço em volta — vira `undefined`. É a mesma porta na leitura do arquivo, na
+ * edição, na travessia para o jogador e no desenho: o valor acaba no Pixi e no
+ * `<input type="color">`, então só passa o que é cor de fato.
+ */
+export function normalizarCorDoMovel(valor: unknown): string | undefined {
+  if (typeof valor !== 'string') return undefined
+  const achado = COR_DO_MOVEL.exec(valor)
+  if (achado === null) return undefined
+  const digitos = achado[1].toLowerCase()
+  return digitos.length === 3 ? `#${Array.from(digitos, (d) => d + d).join('')}` : `#${digitos}`
+}
+
+/**
+ * Pedido de aparência vindo do painel. Chave ausente = não mexe; `preenchido:
+ * true` e cor `null` = volta ao padrão (o campo sai do objeto).
+ */
+export interface AparenciaDoMovelPatch {
+  preenchido?: boolean
+  cor?: string | null
+  corDaLinha?: string | null
+}
+
+interface AparenciaDoMovel {
+  preenchido: boolean
+  cor: string | undefined
+  corDaLinha: string | undefined
+}
+
+/** `prop` com a aparência na forma que o mapa guarda: cada campo só quando foge do padrão. */
+function comAparenciaGravada(prop: Prop, aparencia: AparenciaDoMovel): Prop {
+  const { mobiliaPreenchido: _preenchido, mobiliaCor: _cor, mobiliaCorDaLinha: _corDaLinha, ...semAparencia } = prop
+  return {
+    ...semAparencia,
+    ...(aparencia.preenchido ? {} : { mobiliaPreenchido: false }),
+    ...(aparencia.cor === undefined ? {} : { mobiliaCor: aparencia.cor }),
+    ...(aparencia.corDaLinha === undefined ? {} : { mobiliaCorDaLinha: aparencia.corDaLinha }),
+  }
+}
+
+/** A cor depois do pedido: sem pedido fica a de antes, `null` tira, cor torta é ignorada (fica a de antes). */
+function corDepoisDoPedido(antes: string | undefined, pedido: string | null | undefined): string | undefined {
+  if (pedido === undefined) return antes
+  if (pedido === null) return undefined
+  return normalizarCorDoMovel(pedido) ?? antes
+}
+
+/**
+ * "Preencher", "Cor" e "Cor da linha" do painel aplicados ao móvel. Cor torta
+ * não apaga a cor que havia: o pedido é ignorado, como o arquivo faria.
+ */
+export function comAparenciaDoMovel(prop: Prop, patch: AparenciaDoMovelPatch): Prop {
+  return comAparenciaGravada(prop, {
+    preenchido: patch.preenchido ?? prop.mobiliaPreenchido !== false,
+    cor: corDepoisDoPedido(prop.mobiliaCor, patch.cor),
+    corDaLinha: corDepoisDoPedido(prop.mobiliaCorDaLinha, patch.corDaLinha),
+  })
+}
+
+/** Os dois objetos têm a mesma aparência de móvel ("Preencher", "Cor", "Cor da linha"). */
+export function mesmaAparenciaDoMovel(a: Prop, b: Prop): boolean {
+  return a.mobiliaPreenchido === b.mobiliaPreenchido && a.mobiliaCor === b.mobiliaCor && a.mobiliaCorDaLinha === b.mobiliaCorDaLinha
+}
+
+/** Objeto comum: tira o tipo e a aparência de móvel, se houver (sem tipo, a aparência não tem o que pintar). */
+function semNadaDeMovel(prop: Prop): Prop {
+  if (!('mobilia' in prop) && !('mobiliaPreenchido' in prop) && !('mobiliaCor' in prop) && !('mobiliaCorDaLinha' in prop)) return prop
+  const { mobilia: _tipo, mobiliaPreenchido: _preenchido, mobiliaCor: _cor, mobiliaCorDaLinha: _corDaLinha, ...comum } = prop
+  return comum
+}
+
+/**
  * Leitura do disco: tipo do catálogo fica; qualquer outro valor (arquivo
  * editado à mão, versão futura com móvel que esta não conhece) some, e o
- * objeto continua no mapa como objeto comum. Sem o campo, passa igual.
+ * objeto continua no mapa como objeto comum, sem a aparência de móvel. Com
+ * tipo válido, a aparência passa pela mesma porta da edição: "Preencher" só
+ * guarda o desligado, cor só `#rrggbb` normalizada (a torta some). Sem nada a
+ * consertar, devolve o mesmo objeto.
  */
 export function propMobiliaFromFile(prop: Prop): Prop {
-  if (!('mobilia' in prop) || ehTipoMobilia(prop.mobilia)) return prop
-  const { mobilia: _descartada, ...resto } = prop
-  return resto
+  if (!ehTipoMobilia(prop.mobilia)) return semNadaDeMovel(prop)
+  const lido = comAparenciaGravada(prop, {
+    preenchido: prop.mobiliaPreenchido !== false,
+    cor: normalizarCorDoMovel(prop.mobiliaCor),
+    corDaLinha: normalizarCorDoMovel(prop.mobiliaCorDaLinha),
+  })
+  return mesmaAparenciaDoMovel(lido, prop) ? prop : lido
 }

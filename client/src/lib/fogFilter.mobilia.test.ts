@@ -80,6 +80,41 @@ describe('filterMapForPlayer — mobília desenhada', () => {
     }
   })
 
+  it('cor, cor da linha e "Preencher" desligado chegam à Ana: ela vê o móvel como o mestre', () => {
+    const { map: out } = filterMapForPlayer(mapa({ mobiliaPreenchido: false, mobiliaCor: '#8b4513', mobiliaCorDaLinha: '#c0392b' }), 'ana', POSSE, RAIO)
+    expect(out.props).toEqual([{ ...CATRE_DA_ANA, mobiliaPreenchido: false, mobiliaCor: '#8b4513', mobiliaCorDaLinha: '#c0392b' }])
+  })
+
+  it('só a cor sai sozinha: o que o mestre não mudou não vira campo no pacote', () => {
+    const { map: out } = filterMapForPlayer(mapa({ mobiliaCor: '#8b4513' }), 'ana', POSSE, RAIO)
+    expect(out.props).toEqual([{ ...CATRE_DA_ANA, mobiliaCor: '#8b4513' }])
+  })
+
+  it('cor torta no mapa do mestre não atravessa; cor curta chega longa e minúscula', () => {
+    const torta = filterMapForPlayer(mapa({ mobiliaCor: 'url(javascript:x)', mobiliaCorDaLinha: '#12345' }), 'ana', POSSE, RAIO).map
+    expect(torta.props).toEqual([CATRE_DA_ANA])
+    const curta = filterMapForPlayer(mapa({ mobiliaCor: '#A50' }), 'ana', POSSE, RAIO).map
+    expect(curta.props[0]?.mobiliaCor).toBe('#aa5500')
+  })
+
+  it('"Preencher" ligado (o padrão) não vira campo no pacote', () => {
+    const { map: out } = filterMapForPlayer(mapa({ mobiliaPreenchido: true }), 'ana', POSSE, RAIO)
+    expect(out.props[0]).not.toHaveProperty('mobiliaPreenchido')
+  })
+
+  it('móvel escondido não manda a cor para ninguém', () => {
+    const colorido = { mobiliaCor: '#8b4513', mobiliaCorDaLinha: '#c0392b' }
+    for (const out of [
+      filterMapForPlayer(mapa({ ...colorido, secret: true }), 'ana', POSSE, RAIO).map,
+      filterMapForPlayer(mapa({ ...colorido, hidden: true }), 'ana', POSSE, RAIO).map,
+      filterMapForPlayer(mapa(colorido), 'bruno', POSSE, RAIO).map,
+    ]) {
+      semRastroDoMovel(out)
+      expect(JSON.stringify(out)).not.toContain('8b4513')
+      expect(JSON.stringify(out)).not.toContain('c0392b')
+    }
+  })
+
   it('objeto comum continua saindo sem o campo', () => {
     const { map: out } = filterMapForPlayer(mapa({ mobilia: undefined }), 'ana', POSSE, RAIO)
     expect(out.props).toHaveLength(1)

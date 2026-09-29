@@ -21,6 +21,7 @@ import { publicLockOf } from './pinLock'
 import { cabineNaParada, type CabineDeTransporte } from './cabine'
 import { withoutAttachment } from './lightAttachment'
 import { marcaParaJogador } from './marcas'
+import { normalizarCorDoMovel } from './mobilia'
 import { itemOfPin, readCarriedItems, tokenReachesPin } from './items'
 import { readMoedas } from './troca'
 import { lojaParaJogador } from './loja'
@@ -4521,7 +4522,19 @@ function propForPlayer(prop: MapData['props'][number]): MapData['props'][number]
   // MOBÍLIA DESENHADA: o tipo é o desenho que a tela do jogador pinta por cima
   // da silhueta. Só chega aqui o móvel que ele enxerga (o filtro acima tirou o
   // resto), então o tipo não diz nada que a silhueta na tela já não diga.
-  if (prop.mobilia !== undefined) forPlayer.mobilia = prop.mobilia
+  if (prop.mobilia !== undefined) {
+    forPlayer.mobilia = prop.mobilia
+    // A APARÊNCIA do móvel ("Preencher", "Cor", "Cor da linha") vai junto: o
+    // jogador vê o móvel como o mestre pintou. Só o que difere do padrão vira
+    // campo, e a cor passa de novo pela porta de `lib/mobilia.ts` (só `#rrggbb`),
+    // como o rótulo passa pela de `propPlayerLook.ts`: a travessia não confia no
+    // mapa do mestre, e à rede só vai o que o desenho sabe pintar.
+    if (prop.mobiliaPreenchido === false) forPlayer.mobiliaPreenchido = false
+    const cor = normalizarCorDoMovel(prop.mobiliaCor)
+    if (cor !== undefined) forPlayer.mobiliaCor = cor
+    const corDaLinha = normalizarCorDoMovel(prop.mobiliaCorDaLinha)
+    if (corDaLinha !== undefined) forPlayer.mobiliaCorDaLinha = corDaLinha
+  }
   // OBJETO COM RÓTULO OU IMAGEM: só chega aqui objeto que o jogador enxerga
   // (oculto, secreto, sob teto fechado e fora da visão já saíram acima), então
   // o nome e a cópia pequena vão junto dele e de mais nenhum. Passam pela regra

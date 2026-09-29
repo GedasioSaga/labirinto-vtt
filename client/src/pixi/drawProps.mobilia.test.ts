@@ -97,6 +97,42 @@ describe('createPropsRenderer — mobília desenhada', () => {
     expect(largurasDosTracos(container)).toEqual([1 / MAX_SCALE, 1 / MAX_SCALE])
   })
 
+  it('cor e cor da linha do móvel valem no editor, iguais às da tela do jogador', () => {
+    const container = new Container()
+    createPropsRenderer().draw(container, [movel({ mobiliaCor: '#8b4513', mobiliaCorDaLinha: '#c0392b' })], null, ZOOM_1)
+    const [desenho] = desenhosDoMovel(container)
+    const cores = (desenho?.context.instructions ?? []).map((i) => (i.action === 'texture' ? null : [i.action, i.data.style.color, i.data.style.alpha]))
+    expect(cores).toEqual([
+      ['fill', 0x8b4513, 1],
+      ['stroke', 0xc0392b, 1],
+      ['stroke', 0xc0392b, 1],
+    ])
+  })
+
+  it('"Preencher" desligado no editor: só contorno e glifo', () => {
+    const container = new Container()
+    createPropsRenderer().draw(container, [movel({ mobiliaPreenchido: false })], null, ZOOM_1)
+    const acoes = desenhosDoMovel(container)[0]?.context.instructions.map((i) => i.action) ?? []
+    expect(acoes).toEqual(['stroke', 'stroke'])
+  })
+
+  it('trocar a cor redesenha o mesmo móvel na cor nova, sem duplicar', () => {
+    const container = new Container()
+    const renderer = createPropsRenderer()
+    renderer.draw(container, [movel()], null, ZOOM_1)
+    renderer.draw(container, [movel({ mobiliaCor: '#2e8b57' })], null, ZOOM_1)
+    const desenhos = desenhosDoMovel(container)
+    expect(desenhos).toHaveLength(1)
+    const fill = desenhos[0]?.context.instructions.find((i) => i.action === 'fill')
+    expect(fill?.action === 'fill' ? fill.data.style.color : null).toBe(0x2e8b57)
+  })
+
+  it('com cor própria, "Oculto para jogadores" continua meio transparente por cima', () => {
+    const container = new Container()
+    createPropsRenderer().draw(container, [movel({ secret: true, mobiliaCor: '#8b4513' })], null, ZOOM_1)
+    expect(desenhosDoMovel(container)[0]?.alpha).toBe(SECRET_ITEM_ALPHA)
+  })
+
   it('selecionado ganha o destaque de seleção de sempre', () => {
     const container = new Container()
     createPropsRenderer().draw(container, [movel()], 'catre', ZOOM_1)

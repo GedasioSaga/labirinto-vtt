@@ -1,10 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import {
+  comAparenciaDoMovel,
   criarMovel,
   ehMovelRedondo,
   ehTipoMobilia,
   LADOS_DA_ELIPSE,
+  movelComOutroTipo,
   NOME_COM_ARTIGO,
+  normalizarCorDoMovel,
   pontosDaElipse,
   propMobiliaFromFile,
   ROTULO_MOBILIA,
@@ -168,5 +171,100 @@ describe('propMobiliaFromFile — leitura do arquivo', () => {
     const lido = propMobiliaFromFile(torto)
     expect(lido).toEqual(base)
     expect(lido).not.toHaveProperty('mobilia')
+  })
+
+  it('aparência válida fica; móvel sem aparência passa igual (mesmo objeto)', () => {
+    const pintado: Prop = { ...base, mobilia: 'mesa', mobiliaPreenchido: false, mobiliaCor: '#8b4513', mobiliaCorDaLinha: '#c0392b' }
+    expect(propMobiliaFromFile(pintado)).toEqual(pintado)
+    const simples: Prop = { ...base, mobilia: 'mesa' }
+    expect(propMobiliaFromFile(simples)).toBe(simples)
+  })
+
+  it('cor torta some, cor curta ou maiúscula normaliza, "Preencher" só guarda o desligado', () => {
+    const torto = JSON.parse(
+      JSON.stringify({ ...base, mobilia: 'mesa', mobiliaPreenchido: 'nao', mobiliaCor: 'vermelho', mobiliaCorDaLinha: '#C0392B' }),
+    ) as Prop // arquivo editado à mão: os tipos mentem de propósito
+    expect(propMobiliaFromFile(torto)).toEqual({ ...base, mobilia: 'mesa', mobiliaCorDaLinha: '#c0392b' })
+    expect(propMobiliaFromFile({ ...base, mobilia: 'mesa', mobiliaPreenchido: true })).toEqual({ ...base, mobilia: 'mesa' })
+  })
+
+  it('sem tipo válido, a aparência de móvel some junto', () => {
+    const torto = JSON.parse(JSON.stringify({ ...base, mobilia: 'trono', mobiliaPreenchido: false, mobiliaCor: '#8b4513' })) as Prop // arquivo editado à mão
+    expect(propMobiliaFromFile(torto)).toEqual(base)
+    // Objeto comum com os campos (arquivo editado à mão): também somem.
+    expect(propMobiliaFromFile({ ...base, mobiliaCorDaLinha: '#c0392b' })).toEqual(base)
+  })
+})
+
+describe('normalizarCorDoMovel — só cor #rrggbb entra', () => {
+  it('aceita #rrggbb e #rgb e devolve sempre #rrggbb minúsculo', () => {
+    expect(normalizarCorDoMovel('#8b4513')).toBe('#8b4513')
+    expect(normalizarCorDoMovel('#8B4513')).toBe('#8b4513')
+    expect(normalizarCorDoMovel('#A50')).toBe('#aa5500')
+  })
+
+  it('qualquer outra coisa vira ausente', () => {
+    for (const valor of ['vermelho', '#12345', '#1234567', '#ggg', ' #8b4513', '8b4513', 'url(javascript:x)', '', 12, null, undefined, {}, ['#8b4513']]) {
+      expect(normalizarCorDoMovel(valor), JSON.stringify(valor)).toBeUndefined()
+    }
+  })
+})
+
+describe('movelComOutroTipo — o "Tipo" do painel', () => {
+  const mesa: Prop = {
+    ...criarMovel('mesa', { x: 300, y: 200 }, GRADE, 'm1'),
+    rotation: 90,
+    layer: 'decoracao',
+    locked: true,
+    hidden: true,
+    secret: true,
+    piso: 1,
+    playerLabel: 'Mesa do capitão',
+    mobiliaPreenchido: false,
+    mobiliaCor: '#8b4513',
+    mobiliaCorDaLinha: '#c0392b',
+  }
+
+  it('troca o tipo e o tamanho pelo padrão do tipo novo; o resto fica', () => {
+    const bau = movelComOutroTipo(mesa, 'bau', GRADE)
+    const padrao = criarMovel('bau', { x: 0, y: 0 }, GRADE, 'x')
+    expect(bau).toEqual({ ...mesa, mobilia: 'bau', width: padrao.width, height: padrao.height })
+  })
+
+  it('o centro e o giro não mudam, mesmo com o tamanho novo', () => {
+    const cama = movelComOutroTipo(mesa, 'catre', GRADE)
+    expect({ x: cama.x, y: cama.y, rotation: cama.rotation }).toEqual({ x: 300, y: 200, rotation: 90 })
+    expect({ width: cama.width, height: cama.height }).toEqual({ width: GRADE, height: 2 * GRADE })
+  })
+})
+
+describe('comAparenciaDoMovel — "Preencher", "Cor" e "Cor da linha"', () => {
+  const mesa = criarMovel('mesa', { x: 0, y: 0 }, GRADE, 'm1')
+
+  it('"Preencher" desligado grava false; religado volta à ausência (o padrão)', () => {
+    const vazada = comAparenciaDoMovel(mesa, { preenchido: false })
+    expect(vazada.mobiliaPreenchido).toBe(false)
+    const cheia = comAparenciaDoMovel(vazada, { preenchido: true })
+    expect(cheia).toEqual(mesa)
+    expect(cheia).not.toHaveProperty('mobiliaPreenchido')
+  })
+
+  it('cor válida grava normalizada; null volta ao padrão (tira o campo)', () => {
+    const pintada = comAparenciaDoMovel(mesa, { cor: '#8B4513', corDaLinha: '#A50' })
+    expect(pintada.mobiliaCor).toBe('#8b4513')
+    expect(pintada.mobiliaCorDaLinha).toBe('#aa5500')
+    const padrao = comAparenciaDoMovel(pintada, { cor: null, corDaLinha: null })
+    expect(padrao).toEqual(mesa)
+  })
+
+  it('cor torta não entra: o campo fica como estava', () => {
+    const pintada = comAparenciaDoMovel(mesa, { cor: '#8b4513' })
+    expect(comAparenciaDoMovel(pintada, { cor: 'url(javascript:x)' }).mobiliaCor).toBe('#8b4513')
+    expect(comAparenciaDoMovel(mesa, { corDaLinha: 'vermelho' })).not.toHaveProperty('mobiliaCorDaLinha')
+  })
+
+  it('o que não veio no pedido não muda', () => {
+    const pintada = comAparenciaDoMovel(mesa, { preenchido: false, cor: '#8b4513' })
+    expect(comAparenciaDoMovel(pintada, { corDaLinha: '#c0392b' })).toEqual({ ...pintada, mobiliaCorDaLinha: '#c0392b' })
   })
 })

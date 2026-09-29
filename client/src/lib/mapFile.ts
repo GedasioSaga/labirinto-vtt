@@ -384,6 +384,9 @@ function deserializeMapFields(json: string): MapData {
     }),
     // Prop.layer ausente fica undefined. MOBÍLIA: `mobilia` ausente continua
     // ausente; tipo fora do catálogo some e o objeto fica (`propMobiliaFromFile`).
+    // A aparência do móvel (`mobiliaPreenchido`, `mobiliaCor`, `mobiliaCorDaLinha`)
+    // é nova e opcional: ausente abre como sempre; cor que não seja `#rrggbb`/`#rgb`
+    // some, e objeto sem tipo de móvel perde os três campos.
     // OBJETO COM RÓTULO OU IMAGEM: os dois campos são novos e opcionais —
     // ausente continua ausente. Presente, só na forma de `propPlayerLook.ts`
     // (rótulo curto, imagem em data URL); o resto sai em vez de ir parar na

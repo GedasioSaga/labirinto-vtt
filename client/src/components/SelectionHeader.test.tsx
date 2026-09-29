@@ -2,7 +2,7 @@ import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { PISO_MAX, PISO_MIN } from '../lib/pisos'
-import type { Drawing, Region, Token, Wall } from '../types/map'
+import type { Drawing, Prop, Region, Token, Wall } from '../types/map'
 import { TOOL_LABELS } from './labels'
 import {
   SelectionHeader,
@@ -63,6 +63,14 @@ describe('selectionIdentity — o que a faixa diz', () => {
 
   it('vários itens: a faixa conta quantos', () => {
     expect(selectionIdentity({ kind: 'token', count: 3 }, NADA)).toEqual({ icon: 'several', type: 'Seleção', name: '3 itens' })
+  })
+
+  it('móvel desenhado se chama pelo tipo ("Mesa", "Cama"); objeto de imagem continua "Peça"', () => {
+    const deImagem: Prop = { id: 'o', src: 'x.png', x: 0, y: 0, width: 40, height: 40, linkedMapPath: null }
+    const movel = (mobilia: Prop['mobilia']): Prop => ({ ...deImagem, src: '', mobilia })
+    expect(selectionIdentity({ kind: 'prop', count: 1 }, { ...NADA, prop: movel('mesa') })).toEqual({ icon: 'prop', type: 'Mesa', name: null })
+    expect(selectionIdentity({ kind: 'prop', count: 1 }, { ...NADA, prop: movel('catre') }).type).toBe('Cama')
+    expect(selectionIdentity({ kind: 'prop', count: 1 }, { ...NADA, prop: deImagem }).type).toBe('Peça')
   })
 
   it('o tipo repete, letra por letra, o botão da ferramenta que cria a coisa', () => {

@@ -17,6 +17,7 @@ import { FLOOR_LAYER, clampFloorPolygonSides, type FloorShapeKind } from '../lib
 import { clampTamanhoDePincel, type Bloco, type TamanhoDePincel } from '../lib/floorBlocks'
 import type { CamadaDoChao } from '../lib/camadasDoChao'
 import type { RoomLabelStylePatch } from '../lib/roomLabelStyle'
+import type { AparenciaDoMovelPatch } from '../lib/mobilia'
 import { paintRevealBrush as paintRevealBrushOnMap, type RevealBrushMode, type RevealBrushWidth } from '../lib/concealBrush'
 import * as mapFactory from '../lib/mapFactory'
 import { inserirPinturaDeBalde, type BrushMode } from '../lib/baldeDeTinta'
@@ -757,6 +758,13 @@ interface MapStoreState {
    *  junto — evita continuar "editando" algo que a UI não deixa mais mover. */
   toggleLayerLock: (id: LayerId) => void
   setPropLayer: (id: string, layer: Prop['layer']) => void
+  /** PROPRIEDADES DO MÓVEL — "Tipo" do painel: troca o tipo no lugar, tamanho
+   *  padrão do tipo novo. Um passo no desfazer; o que não muda nada não entra. */
+  trocarTipoDoMovel: (id: string, tipo: TipoMobilia) => void
+  /** PROPRIEDADES DO MÓVEL — "Preencher", "Cor" e "Cor da linha". Arrastar no
+   *  seletor de uma cor emenda num passo só (como a cor do título da Sala);
+   *  "Preencher" e "Padrão" são um passo cada; o que não muda nada não entra. */
+  setAparenciaDoMovel: (id: string, patch: AparenciaDoMovelPatch) => void
   setWallDoor: (id: string, door: DoorState | null) => void
   setWallKindForWall: (id: string, kind: Wall['wallKind']) => void
   /** `kind` decide tanto `door.kind` da porta nova quanto o comprimento do
@@ -1946,6 +1954,19 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
       }
     },
     setPropLayer: (id, layer) => withHistory((map) => mapFactory.setPropLayer(map, id, layer)),
+    trocarTipoDoMovel: (id, tipo) => {
+      if (mapFactory.trocarTipoDoMovel(get().map, id, tipo) === get().map) return
+      withHistory((map) => mapFactory.trocarTipoDoMovel(map, id, tipo))
+    },
+    setAparenciaDoMovel: (id, patch) => {
+      if (mapFactory.setAparenciaDoMovel(get().map, id, patch) === get().map) return
+      // Só o seletor de UMA cor emenda (o arrasto manda uma cor por quadro, como o
+      // da cor do título da Sala); "Preencher" e "Padrão" (null) são um passo cada.
+      const chaves = Object.keys(patch)
+      const arrastoDeCor = chaves.length === 1 && (typeof patch.cor === 'string' || typeof patch.corDaLinha === 'string')
+      const typingKey = arrastoDeCor ? `prop-mobilia:${id}:${chaves[0]}` : undefined
+      withHistory((map) => mapFactory.setAparenciaDoMovel(map, id, patch), typingKey)
+    },
     setWallDoor: (id, door) => withHistory((map) => mapFactory.setWallDoor(map, id, door)),
     setWallKindForWall: (id, kind) => withHistory((map) => mapFactory.setWallKindForWall(map, id, kind)),
     setWallThicknessForWall: (id, thickness) => withHistory((map) => mapFactory.setWallThicknessForWall(map, id, thickness)),

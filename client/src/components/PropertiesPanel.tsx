@@ -59,6 +59,7 @@ import type { FaceRangeControlsProps } from './FaceRangeControls'
 import type { GridAlignControlsProps } from './GridAlignControls'
 import type { MapSizeControlsProps } from './MapSizeControls'
 import { ItemTransformControls, type ItemTransformControlsProps } from './ItemTransformControls'
+import { MobiliaControls, type MobiliaControlsProps } from './MobiliaControls'
 import { ToolPropertiesSection } from './ToolPropertiesSection'
 import { LineCapControls, type LineCapControlsProps } from './LineCapControls'
 import { LineShapeControls, type LineShapeControlsProps } from './LineShapeControls'
@@ -165,6 +166,8 @@ interface PropertiesPanelProps {
   propTransform: Omit<ItemTransformControlsProps, 'title' | 'rotation' | 'locked' | 'hidden' | 'secret'>
   /** "Rótulo para jogadores" e "Mostrar imagem ao jogador" do Objeto selecionado. */
   propPlayer: Omit<PropPlayerControlsProps, 'label' | 'showImage'>
+  /** Seção "Móvel" (tipo e aparência) — só aparece quando o Objeto selecionado é um móvel desenhado. */
+  propMobilia: Omit<MobiliaControlsProps, 'prop'>
   selectedToken: Token | null
   tokenName: Omit<TokenNameControlsProps, 'name' | 'publicName'>
   tokenImage: Omit<TokenImageControlsProps, 'image'>
@@ -334,6 +337,7 @@ export function PropertiesPanel({
   onSetPropLayer,
   propTransform,
   propPlayer,
+  propMobilia,
   selectedToken,
   tokenName,
   tokenImage,
@@ -650,6 +654,7 @@ export function PropertiesPanel({
         {doorSelected && wallStyleSection}
         {selectedProp && (
           <ToolPropertiesSection group="itemTransform" groups={groups}>
+            <MobiliaControls prop={selectedProp} {...propMobilia} />
             <ItemTransformControls
               title="Objeto"
               rotation={selectedProp.rotation ?? 0}
