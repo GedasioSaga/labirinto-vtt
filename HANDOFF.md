@@ -992,3 +992,17 @@ Publicar 0.4.4 ao fechar as 5 features (suíte 1x, fumaça, instalador, push com
 - Agente: vitest em exploration*, savedTable.exploracao, PlayerView*, playerCulling: 33 arquivos, 214/214. `rtk proxy npx tsc --noEmit`: exit 0.
 - Custo medido: 1,25 ms com 160 mil células, 2,9 ms com 1 milhão (só quando visão ou memória muda).
 - Prints: `scratchpad/sombra-antes.png` (escadinha) e `scratchpad/sombra-depois.png` (lisa).
+
+### 29/09/2026, madrugada: ferramenta Objetos na barra (`751b6cf8`)
+
+- Pedido do usuário: objetos numa parte só deles na barra de baixo, fora do painel da sala. Feature 1 de 3 (depois: propriedades, vista frente/lado). Contagem: 1 de 5 desde a 0.4.7.1 (mais o fix da sombra `cb1c8b97`).
+- DrawingTool `'mobilia'`, rótulo "Objetos", grupo próprio em `TOOLBAR_SLOTS` entre construção e Desenho. Setinha "Objeto" com 6 opções; `mobiliaTipo` no mapStore é preferência de sessão (padrão 'mesa'), fora do map.json e do desfazer.
+- Clique esquerdo: `porMovelNoPonto` (`client/src/stores/mobiliaNoPonto.ts`) põe o móvel no ponto, com `applySnap(ponto, grid, 'prop', altKey)`, giro da Sala onde cai, seleciona e mantém a ferramenta. Camada Objetos travada ou oculta bloqueia com aviso ("Destravar"/"Mostrar").
+- Saíram: seção Mobília do `RoomControls`, `onAddMobilia` no `App.tsx`, `stores/mobiliaNaSala.ts` e testes dele. Sem atalho de tecla (nenhuma letra livre que faça sentido; motivo comentado em `keymap.ts`).
+- Visto fora do escopo: o `undo` (`mapStore.ts:~2404`) não limpa a seleção (painel continua em "Peça" após Ctrl+Z, vale para toda ferramenta de criação); a dica fica atrás do menu aberto das setinhas (`Toolbar.tsx:~564`).
+
+## Evidência
+- `rtk proxy npx tsc --noEmit`: exit 0 (rodado por mim depois do agente).
+- `rtk proxy npx vitest run src/stores/mobiliaNoPonto.test.ts src/pixi/PixiCanvas.objetos.test.tsx src/components/Toolbar.test.tsx src/components/RoomControls.opcionais.test.tsx`: 4 arquivos, 50/50.
+- Agente: 31 arquivos da área, 481/481.
+- Navegador (localhost:1420): grupo próprio visível, menu com 6 opções, Mesa posta e selecionada, eco "Próximo objeto Mesa", Ctrl+Z tira em 1 passo. Prints `scratchpad/objetos-barra.png`, `objetos-mesa.png`, `objetos-desfeito.png`, `objetos-barril.png`.
