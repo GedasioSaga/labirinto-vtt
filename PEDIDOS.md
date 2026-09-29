@@ -1148,3 +1148,12 @@ Noite = esta sessão conduzida pelo main thread; o noite-runner continua encerra
 > "Perfeito, agora pode lançar a versão 0.4.7"
 
 - Fila: (1) bump 0.4.7, portão (tsc, suíte, gitleaks), build, fumaça, tag, push, release com .exe e .msi. Escada espiral parcial fica fora.
+- Feito: release v0.4.7 publicada (https://github.com/GedasioSaga/labirinto-vtt/releases/tag/v0.4.7).
+
+### 28/09/2026, noite: chão cobrindo a visão e objetos iniciais
+
+> "[Image #24] Ajeita esse bug é para ficar assim [Image #25]. E outra coisa, ta na hora tambem de adicionar alguns objetos aqui uma lista de objetos iniciais que seriam interessantes(Barril, Caixa, Baú, Cama, Mesa, Cadeira)"
+
+- Imagem 24 (bug, `scratchpad/bug-chao-antes.png`): token Saga acima de uma porta entre dois pilares redondos. Abaixo da linha da porta tudo fica preto; só o cone de visão mostra o chão pintado (verde e azul). A metade de baixo dos pilares, o nome "Porto" e a memória cinza da névoa somem.
+- Imagem 25 (esperado, `scratchpad/bug-chao-esperado.png`): mesma cena sem o chão pintado. Pilares inteiros, cone de visão cinza claro, área explorada em cinza escuro, nome "Porto" visível.
+- Fila: (1) chão pintado não cobre sala, pilar, nome nem a memória da névoa; (2) objetos iniciais: Barril, Caixa, Baú, Cama, Mesa, Cadeira.
