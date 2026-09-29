@@ -1006,3 +1006,33 @@ Publicar 0.4.4 ao fechar as 5 features (suíte 1x, fumaça, instalador, push com
 - `rtk proxy npx vitest run src/stores/mobiliaNoPonto.test.ts src/pixi/PixiCanvas.objetos.test.tsx src/components/Toolbar.test.tsx src/components/RoomControls.opcionais.test.tsx`: 4 arquivos, 50/50.
 - Agente: 31 arquivos da área, 481/481.
 - Navegador (localhost:1420): grupo próprio visível, menu com 6 opções, Mesa posta e selecionada, eco "Próximo objeto Mesa", Ctrl+Z tira em 1 passo. Prints `scratchpad/objetos-barra.png`, `objetos-mesa.png`, `objetos-desfeito.png`, `objetos-barril.png`.
+
+### 29/09/2026, madrugada: propriedades do móvel no painel (`d7e6c64b`)
+
+- Pedido do usuário: objetos com propriedades próprias, "preencher, mudar de cor e afins". Feature 2 de 3 (depois: vista frente/lado). Contagem: 2 de 5 desde a 0.4.7.1, mais o fix da sombra `cb1c8b97`.
+- O painel do objeto ganhou a seção "Móvel", a primeira do painel, com quatro controles:
+  - "Tipo": troca o tipo no lugar e leva o tamanho ao padrão do tipo novo;
+  - "Preencher";
+  - "Cor";
+  - "Cor da linha", com botão "Padrão".
+  O cabeçalho agora mostra o nome do tipo ("Mesa", "Baú") no lugar de "Peça". Componente novo: `client/src/components/MobiliaControls.tsx`.
+- Campos opcionais novos no Prop: `mobiliaPreenchido` (só `false` é gravado), `mobiliaCor` e `mobiliaCorDaLinha` (sempre `#rrggbb`). Se o campo falta, o móvel sai como antes, então não há migração.
+- `normalizarCorDoMovel` (`lib/mobilia.ts`, regex ancorada) limpa a cor em três pontos: no `deserializeMap`, no `propForPlayer` (`fogFilter.ts`) e no desenho.
+- Desfazer: arrastar a cor conta como um passo só (chave `prop-mobilia:<id>:<campo>`); trocar o tipo também é um passo.
+- Pendências que já existiam, fora do escopo:
+  - "Mostrar imagem ao jogador" ainda aparece para móvel;
+  - `propForPlayer` não valida o tipo do móvel;
+  - depois de desfazer a criação, a seleção fica órfã e o cabeçalho mostra "Peça".
+- Tela do jogador via LAN não foi aberta no navegador. A travessia está coberta por teste.
+
+## Evidência
+- `rtk proxy npx tsc --noEmit`: exit 0 (rodado por mim).
+- `rtk proxy npx vitest run` nos 12 arquivos da área de móvel (mobilia, mobiliaPropriedades, mobiliaNoPonto, drawPropSilhouettes.mobilia, drawProps.mobilia, mapFile.mobilia, fogFilter.mobilia, hostSession.mobilia, PropertiesPanel.mobilia, SelectionHeader, ItemTransformControls, propPlayerLook): 11 arquivos, 130/130 (rodado por mim).
+- O agente rodou 67 arquivos da área e vizinhos: 474/474.
+- Navegador (:1420), roteiro feito pelo agente:
+  - Mesa marrom com linha amarela;
+  - Preencher desligado mostra o chão por dentro;
+  - troca para Baú mantém o centro;
+  - 6 Ctrl+Z voltam tudo;
+  - 0 erros no console.
+  - Prints: `scratchpad/moveis-cor.png`, `moveis-sem-preencher.png`, `moveis-painel.png`.
