@@ -1158,3 +1158,4 @@ Noite = esta sessão conduzida pelo main thread; o noite-runner continua encerra
 - Imagem 25 (esperado, `scratchpad/bug-chao-esperado.png`): mesma cena sem o chão pintado. Pilares inteiros, cone de visão cinza claro, área explorada em cinza escuro, nome "Porto" visível.
 - Fila: (1) chão pintado não cobre sala, pilar, nome nem a memória da névoa; (2) objetos iniciais: Barril, Caixa, Baú, Cama, Mesa, Cadeira.
 - Feito: objetos iniciais em `82612a94`.
+- Feito: chão cobrindo a visão em `cb32ed47`.

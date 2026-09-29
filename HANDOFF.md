@@ -944,3 +944,18 @@ Publicar 0.4.4 ao fechar as 5 features (suíte 1x, fumaça, instalador, push com
 - `rtk proxy npx tsc --noEmit`: só o erro da sonda do debugador (`zzprobe_chao.test.ts`, `node:fs`), fora do commit.
 - vitest da área: 15 arquivos, 100/100.
 - Navegador em 1420: mapa novo, Sala 1, os seis botões clicados. Prints em `.playwright-mcp/mobilia-6.png` (os seis móveis na sala) e `.playwright-mcp/mobilia-painel.png` (grade 3x2). Console: só o 404 do favicon.
+
+### 28/09/2026, noite: chão pintado não cobre mais a visão (`cb32ed47`)
+
+- Bug: na tela do jogador, o chão pintado aparecia cru dentro do cone de visão, no lugar da cor da Sala, da metade de baixo dos pilares, do nome ("Porto") e da memória cinza da névoa.
+- Causa: em `client/src/lib/fogFilter.ts`, a Sala só contava como vista quando o cone batia num dos pontos de amostra do interior (centro e cantos puxados para dentro). Um cone estreito entrando por uma porta numa Sala larga e baixa não batia em nenhum, a Sala não ia para o jogador e o chão de baixo ficava exposto.
+- Correção: `ringEntersRegion` conta a Sala como vista quando um anel de visão entra de fato nela (respeitando telhado fechado, zona escondida e lugar escondido). Entra no `seenNow` das regiões e no filtro final sem memória.
+- Efeito colateral aceito: o salão enfumaçado agora se desenha pela visão que entra; o polígono da fumaça continua escondido (`fogFilter.hazards.test.ts`, título atualizado).
+- Teste novo `client/src/lib/fogFilter.salaPelaFresta.test.ts` (4 casos): porta aberta mostra a Sala com cor e nome; igual com chão pintado; com memória a Sala fica lembrada depois que o token sai; porta fechada não mostra.
+- Feature 2 de 5 desde a 0.4.7.
+
+## Evidência
+- `rtk proxy npx tsc --noEmit`: exit 0.
+- `rtk proxy npx vitest run src/lib/fogFilter src/lib/exploration`: 91 arquivos, 729/729.
+- Debugador, suítes fog/exploration/hostSession/PlayerView/drawFloor/culling/visibility: 2266 passam, 1 timeout (`hostSession.custoCom7`, 5331 ms com CPU cheia; sozinho passa 1/1).
+- Prints do debugador no scratchpad: `chao-fix-antes.png` (chão cru, 2 regiões) e `chao-fix-depois.png` (cone cinza, sem chão cru, 6 regiões e 1 rótulo).
