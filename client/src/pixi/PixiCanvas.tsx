@@ -191,10 +191,23 @@ import { regionEdgeMidpoints } from '../lib/roomLink'
 import { isFreeMoveModifier } from '../lib/alignmentGuides'
 // Pedido 3 (guias estilo Figma): o que anda encaixa pela CAIXA (borda e
 // centro) das vizinhas, com tolerância em px de tela. Fatia 1: a sala; fatia
-// 2: todo arrasto de corpo e de ponto.
-import { SMART_GUIDE_SCREEN_PX, dragBoxWithGuides, dragPointWithGuides, guideModeForDrag, pointBox, sameGuides, screenPxToWorld, type SmartGuide } from '../lib/smartGuides'
+// 2: todo arrasto de corpo e de ponto; fatia 3: espaçamento igual e o número
+// de cada vão.
+import {
+  SMART_GUIDE_SCREEN_PX,
+  dragBoxWithGuides,
+  dragPointWithGuides,
+  gapEnds,
+  guideModeForDrag,
+  pointBox,
+  sameOverlay,
+  screenPxToWorld,
+  type GapMark,
+  type GuideOverlay,
+} from '../lib/smartGuides'
 import { guideBoxOfProp, guideBoxOfSelection, guideBoxOfStair, guideBoxesForDrag, guidePointsForDrag, type GuideBoxesOptions, type GuidePointKind } from '../lib/guideBoxes'
 import { drawSmartGuides } from './drawSmartGuides'
+import { createGuideLabelPool, type GuideLabel } from './drawGuideLabels'
 import { passengerIdsOf } from '../lib/vehicle'
 import { carriedBy } from '../lib/carry'
 // Onda 3, item 13 (Frente A) — clonagem pura por tipo de entidade, usada só
@@ -875,6 +888,8 @@ export function PixiCanvas({
       const draftGraphics = new Graphics()
       const angleIndicatorContainer = new Container()
       const guidesGraphics = new Graphics()
+      // Pedido 3, fatia 3: o número de cada vão medido, por cima da cota.
+      const guideLabelsContainer = new Container()
       // N3 "ferramenta de seleção de área": contorno sólido do grupo já
       // fechado (segue o mapa, redesenhado junto de redrawShapes) e o
       // marquee tracejado vivo durante o arrasto (desenhado direto no
@@ -922,6 +937,7 @@ export function PixiCanvas({
         areaMarqueeGraphics,
         angleIndicatorContainer,
         guidesGraphics,
+        guideLabelsContainer,
       )
       // DESEMPENHO (invariante): nenhum filho do `world` recebe evento do Pixi.
       // Os quatro ouvintes (pointerdown, pointerup, pointerupoutside,
@@ -942,11 +958,18 @@ export function PixiCanvas({
       // Graphics e Text; com grupo próprio, só os dele (hover de 40 passos,
       // 400 salas: 497 → 57 ms de script, mesma medição).
       hoverGraphics.enableRenderGroup()
+      // A guia e os números do vão NÃO têm grupo próprio: eles mudam junto com
+      // a peça arrastada, que já refaz os lotes do mapa no mesmo quadro, e
+      // presos no encaixe não mudam (`showGuides`). Grupo a mais seria custo
+      // sem ganho medido (arrasto até o vão igual: 0 tarefa longa, p95 16,8 ms).
       // 17/09/2026 — arrastar no vazio virou marquee (era pan). A dica que
       // conta por onde o pan foi mora DENTRO do retângulo em curso; entra no
       // `world` DEPOIS de todas as camadas acima, por cima de todas elas, que
       // é o lugar de uma dica.
       const marqueeHint = createMarqueeHintRenderer(world)
+      // Os números das cotas nascem aqui, escondidos: criar Text e medir a fonte
+      // no meio do arrasto seria engasgo (ver `createGuideLabelPool`).
+      const guideLabels = createGuideLabelPool(guideLabelsContainer)
 
       let camera: Camera = useMapStore.getState().camera
       // `world` sempre em pixel físico inteiro: o alinhamento dos traços finos
@@ -2275,8 +2298,8 @@ export function PixiCanvas({
       // Arrasto de ponto com guias (ponta, vértice, ficha): as candidatas do
       // gesto, montadas no pointerdown. Vazia fora do gesto.
       let pointGuideBoxes: AreaBounds[] = []
-      // O que `guidesGraphics` mostra agora, e em que zoom (ver `showGuides`).
-      let guidesShown: SmartGuide[] = []
+      // O que a camada das guias mostra agora (guias e vãos), e em que zoom (ver `showGuides`).
+      let guidesShown: GuideOverlay = { guides: [], gaps: [] }
       let guidesShownScale = 0
       let draggingLineId: string | null = null
       let draggingLinePointIndex: 0 | 1 = 0
@@ -2592,24 +2615,40 @@ export function PixiCanvas({
       }
 
       /**
-       * Desenha as guias só quando elas mudam (ou o zoom muda). Presa no
-       * encaixe, a peça recebe dezenas de pointermove com a mesma guia:
-       * redesenhar o Graphics no grupo do mapa refaria os lotes do mapa
-       * inteiro a cada um (a medição do `hoverGraphics`, acima).
+       * O número de cada vão, na unidade do mapa (a mesma régua da ferramenta
+       * Medir, por `dimensionLabel`), no meio da cota.
        */
-      const showGuides = (guides: SmartGuide[]): void => {
-        if (camera.scale === guidesShownScale && sameGuides(guides, guidesShown)) return
-        drawSmartGuides(guidesGraphics, guides, camera.scale, app.renderer.resolution)
-        guidesShown = guides
+      const gapLabels = (gaps: readonly GapMark[]): GuideLabel[] => {
+        const { map } = useMapStore.getState()
+        return gaps.map((gap) => {
+          const { start, end } = gapEnds(gap)
+          return {
+            at: { x: (start.x + end.x) / 2, y: (start.y + end.y) / 2 },
+            text: dimensionLabel({ tool: 'line', start, end }, map.grid, map.gridShape, map.scale),
+          }
+        })
+      }
+
+      /**
+       * Desenha as guias e os vãos só quando eles mudam (ou o zoom muda). Presa
+       * no encaixe, a peça recebe dezenas de pointermove com a mesma guia:
+       * refazer a cota e o texto a cada um seria trabalho jogado fora.
+       */
+      const showGuides = (overlay: GuideOverlay): void => {
+        if (camera.scale === guidesShownScale && sameOverlay(overlay, guidesShown)) return
+        drawSmartGuides(guidesGraphics, overlay, camera.scale, app.renderer.resolution)
+        guideLabels.show(gapLabels(overlay.gaps), camera.scale, app.renderer.resolution)
+        guidesShown = overlay
         guidesShownScale = camera.scale
       }
 
-      /** Fim do gesto: a guia some da tela, e as candidatas dele também. */
+      /** Fim do gesto: a guia e os números somem da tela, e as candidatas dele também. */
       const endGuides = (): void => {
         bodyGuideDrag = null
         pointGuideBoxes = []
         guidesGraphics.clear()
-        guidesShown = []
+        guideLabels.hide()
+        guidesShown = { guides: [], gaps: [] }
       }
 
       /**
@@ -2695,7 +2734,7 @@ export function PixiCanvas({
           tolerance: screenPxToWorld(SMART_GUIDE_SCREEN_PX, camera.scale),
           mode: guideModeForDrag({ free: isFreeMoveModifier(event), altKey: event.altKey, gridBySetting: grid !== null && snapTargets[grid] }),
         })
-        showGuides(result.guides)
+        showGuides({ guides: result.guides, gaps: result.gaps })
         const now = drag.mover.anchor()
         // A peça pode sumir no meio do gesto (Ctrl+Z pelo teclado): não há o que mover.
         if (now === null) return
@@ -2855,7 +2894,8 @@ export function PixiCanvas({
           tolerance: screenPxToWorld(SMART_GUIDE_SCREEN_PX, camera.scale),
           mode: guideModeForDrag({ free: isFreeMoveModifier(event), altKey: event.altKey, gridBySetting: useMapStore.getState().snapTargets[gridTarget] }),
         })
-        showGuides(result.guides)
+        // Ponto não mede vão (fatia 3 é do arrasto de corpo): só a guia.
+        showGuides({ guides: result.guides, gaps: [] })
         return result.point
       }
 
@@ -5741,7 +5781,7 @@ export function PixiCanvas({
           const livre = isFreeMoveModifier(event)
           const magnet = livre ? null : findNearestExistingVertex(doPisoEmEdicao(map), worldPoint, VERTEX_MAGNET_TOLERANCE, draggingWallPointId)
           if (magnet) {
-            showGuides([])
+            showGuides({ guides: [], gaps: [] })
             useMapStore.getState().updateWallPoint(draggingWallPointId, draggingWallPointIndex, magnet.x, magnet.y)
             return
           }

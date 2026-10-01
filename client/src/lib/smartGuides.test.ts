@@ -7,12 +7,16 @@ import {
   SMART_GUIDE_SCREEN_PX,
   dragBoxWithGuides,
   dragPointWithGuides,
+  gapEnds,
   guideModeForDrag,
   pointBox,
   sameGuides,
+  sameOverlay,
   screenPxToWorld,
   snapBox,
+  type GapMark,
   type GuideMode,
+  type GuideOverlay,
   type SmartGuide,
 } from './smartGuides'
 import type { Drawing, MapData, Region } from '../types/map'
@@ -55,7 +59,7 @@ describe('snapBox — encaixe por borda e por centro da caixa', () => {
 
   it('a 7 px com tolerância 6 não encaixa nem desenha guia', () => {
     const resultado = snapBox(caixa(107, 200, 207, 300), [caixa(0, 0, 100, 100)], 6)
-    expect(resultado).toEqual({ dx: 0, dy: 0, guides: [] })
+    expect(resultado).toEqual({ dx: 0, dy: 0, guides: [], gaps: [] })
   })
 
   it('empate de distância: borda com borda vence centro com centro', () => {
@@ -101,9 +105,16 @@ describe('snapBox — encaixe por borda e por centro da caixa', () => {
   })
 
   it('sem vizinha, ou tolerância inválida, a caixa fica onde está', () => {
-    expect(snapBox(caixa(0, 0, 10, 10), [], 6)).toEqual({ dx: 0, dy: 0, guides: [] })
+    expect(snapBox(caixa(0, 0, 10, 10), [], 6)).toEqual({ dx: 0, dy: 0, guides: [], gaps: [] })
     for (const tolerancia of [Number.NaN, -1]) {
-      expect(snapBox(caixa(102, 0, 202, 100), [caixa(0, 0, 100, 100)], tolerancia)).toEqual({ dx: 0, dy: 0, guides: [] })
+      expect(snapBox(caixa(102, 0, 202, 100), [caixa(0, 0, 100, 100)], tolerancia)).toEqual({ dx: 0, dy: 0, guides: [], gaps: [] })
+      // Também com os vãos ligados: tolerância que não serve não encaixa nada.
+      expect(snapBox(caixa(153, 10, 253, 30), [caixa(0, 0, 100, 100), caixa(300, 0, 400, 100)], tolerancia, { gaps: true })).toEqual({
+        dx: 0,
+        dy: 0,
+        guides: [],
+        gaps: [],
+      })
     }
   })
 })
@@ -132,7 +143,7 @@ describe('dragBoxWithGuides — posição pelo delta TOTAL do gesto', () => {
 
   it("'free' (Ctrl): o delta cru, sem encaixe e sem guia", () => {
     const r = dragBoxWithGuides({ startBounds: inicio, startPointer: ponteiroInicial, pointer: { x: 153, y: 50 }, others: [vizinha], tolerance: 6, mode: 'free' })
-    expect(r).toEqual({ offsetX: 3, offsetY: 0, guides: [] })
+    expect(r).toEqual({ offsetX: 3, offsetY: 0, guides: [], gaps: [] })
   })
 
   it("'gridExact' (a grade manda): nunca move por guia, mas mostra a guia quando o alinhamento é exato", () => {
@@ -240,7 +251,7 @@ describe('seleção de vários itens — a caixa da união encaixa, e a própria
   it('3 px de arrasto não prende a seleção na posição de onde ela saiu', () => {
     if (inicio === null) throw new Error('a seleção do teste tem caixa')
     const r = dragBoxWithGuides({ startBounds: inicio, startPointer: { x: 120, y: 500 }, pointer: { x: 123, y: 500 }, others: outras, tolerance: 6, mode: 'snap' })
-    expect(r).toEqual({ offsetX: 3, offsetY: 0, guides: [] })
+    expect(r).toEqual({ offsetX: 3, offsetY: 0, guides: [], gaps: [] })
   })
 })
 
@@ -277,5 +288,197 @@ describe('guideModeForDrag — quem manda no gesto: guia, grade ou ninguém', ()
   ]
   it.each(casos)('%o -> %s', (entrada, esperado) => {
     expect(guideModeForDrag(entrada)).toBe(esperado)
+  })
+})
+
+/**
+ * FATIA 3: espaçamento igual e a medida dos vãos. Fileiras em y = 0..100; a
+ * peça movida é baixa (y = 10..30), para nenhuma altura dela alinhar com as
+ * vizinhas e o teste olhar só o eixo x.
+ */
+describe('snapBox com os vãos — espaçamento igual (fatia 3)', () => {
+  const A = caixa(0, 0, 100, 100)
+  const B = caixa(300, 0, 400, 100)
+  const comVaos = { gaps: true }
+
+  it('entre duas vizinhas: centraliza, e os dois vãos iguais saem medidos', () => {
+    const r = snapBox(caixa(153, 10, 253, 30), [A, B], 6, comVaos)
+    expect(r.dx).toBe(-3)
+    expect(r.dy).toBe(0)
+    expect(r.guides).toEqual([])
+    expect(r.gaps).toEqual([
+      { axis: 'x', from: 100, to: 150, at: 20 },
+      { axis: 'x', from: 250, to: 300, at: 20 },
+    ])
+  })
+
+  it('depois da última da fileira: repete o vão que já existe entre as duas de antes', () => {
+    const r = snapBox(caixa(297, 10, 377, 30), [caixa(0, 0, 100, 100), caixa(150, 0, 250, 100)], 6, comVaos)
+    expect(r.dx).toBe(3)
+    // O vão da peça primeiro; o vão repetido, na altura das duas vizinhas.
+    expect(r.gaps).toEqual([
+      { axis: 'x', from: 250, to: 300, at: 20 },
+      { axis: 'x', from: 100, to: 150, at: 50 },
+    ])
+  })
+
+  it('antes da primeira da fileira: repete o vão das duas de depois', () => {
+    const r = snapBox(caixa(23, 10, 103, 30), [caixa(150, 0, 250, 100), caixa(300, 0, 400, 100)], 6, comVaos)
+    expect(r.dx).toBe(-3)
+    expect(r.gaps).toEqual([
+      { axis: 'x', from: 100, to: 150, at: 20 },
+      { axis: 'x', from: 250, to: 300, at: 50 },
+    ])
+  })
+
+  it('a fileira inteira de vãos iguais aparece, do vão da peça ao mais longe', () => {
+    const fileira = [caixa(0, 0, 100, 100), caixa(150, 0, 250, 100), caixa(300, 0, 400, 100)]
+    const r = snapBox(caixa(453, 10, 533, 30), fileira, 6, comVaos)
+    expect(r.dx).toBe(-3)
+    expect(r.gaps).toEqual([
+      { axis: 'x', from: 400, to: 450, at: 20 },
+      { axis: 'x', from: 250, to: 300, at: 50 },
+      { axis: 'x', from: 100, to: 150, at: 50 },
+    ])
+  })
+
+  it('caixa fora da fileira (sem sobreposição no outro eixo) não conta', () => {
+    const foraDaFileira = caixa(0, 200, 100, 300)
+    const r = snapBox(caixa(297, 10, 377, 30), [foraDaFileira, caixa(150, 0, 250, 100)], 6, comVaos)
+    expect(r).toEqual({ dx: 0, dy: 0, guides: [], gaps: [] })
+  })
+
+  it('coluna: o mesmo no eixo y', () => {
+    const r = snapBox(caixa(10, 153, 30, 253), [caixa(0, 0, 100, 100), caixa(0, 300, 100, 400)], 6, comVaos)
+    expect(r.dx).toBe(0)
+    expect(r.dy).toBe(-3)
+    expect(r.gaps).toEqual([
+      { axis: 'y', from: 100, to: 150, at: 20 },
+      { axis: 'y', from: 250, to: 300, at: 20 },
+    ])
+  })
+
+  it('empate de ajuste entre alinhamento (+3) e espaçamento (-3): vence o alinhamento', () => {
+    // Fora da fileira, com a borda esquerda a 3 px da borda direita do movido.
+    const alinhavel = caixa(256, 500, 356, 600)
+    const r = snapBox(caixa(153, 10, 253, 30), [A, B, alinhavel], 6, comVaos)
+    expect(r.dx).toBe(3)
+    expect(r.guides).toEqual([{ axis: 'x', position: 256, from: 20, to: 550, marks: [20, 550] }])
+    // Os vãos da fileira (56 e 44) não ficaram iguais: só a medida até a alinhada.
+    expect(r.gaps).toEqual([{ axis: 'y', from: 30, to: 500, at: 256 }])
+  })
+
+  it('espaçamento mais perto que o alinhamento (3 contra 4): vence o espaçamento', () => {
+    const r = snapBox(caixa(153, 10, 253, 30), [A, B, caixa(257, 500, 357, 600)], 6, comVaos)
+    expect(r.dx).toBe(-3)
+    expect(r.guides).toEqual([])
+    expect(r.gaps).toHaveLength(2)
+  })
+
+  it('sem a opção (o arrasto de ponto), nada de espaçamento nem de medida', () => {
+    expect(snapBox(caixa(153, 10, 253, 30), [A, B], 6)).toEqual({ dx: 0, dy: 0, guides: [], gaps: [] })
+    expect(snapBox(caixa(104, 200, 204, 300), [caixa(0, 0, 100, 100)], 6).gaps).toEqual([])
+  })
+})
+
+describe('snapBox com os vãos — a medida até a peça alinhada (fatia 3)', () => {
+  const comVaos = { gaps: true }
+
+  it('borda com borda e a vizinha em cima: o vão vertical entre as duas, ao longo da guia', () => {
+    const r = snapBox(caixa(104, 200, 204, 300), [caixa(0, 0, 100, 100)], 6, comVaos)
+    expect(r.dx).toBe(-4)
+    expect(r.gaps).toEqual([{ axis: 'y', from: 100, to: 200, at: 100 }])
+  })
+
+  it('mesma largura (borda, centro e borda alinhados): a medida corre pela guia do centro', () => {
+    const r = snapBox(caixa(103, 300, 203, 400), [caixa(100, 0, 200, 100)], 6, comVaos)
+    expect(r.guides.map((g) => g.position)).toEqual([100, 150, 200])
+    expect(r.gaps).toEqual([{ axis: 'y', from: 100, to: 300, at: 150 }])
+  })
+
+  it('várias alinhadas na mesma guia: mede só até a mais perto', () => {
+    const r = snapBox(caixa(0, 3, 100, 103), [caixa(300, 20, 400, 80), caixa(650, 30, 750, 70)], 6, comVaos)
+    expect(r.dy).toBe(-3)
+    expect(r.guides).toEqual([{ axis: 'y', position: 50, from: 50, to: 700, marks: [50, 350, 700] }])
+    expect(r.gaps).toEqual([{ axis: 'x', from: 100, to: 300, at: 50 }])
+  })
+
+  it('encostada na alinhada (vão zero) ou sobreposta no outro eixo: sem medida', () => {
+    const r = snapBox(caixa(103, 0, 203, 100), [caixa(0, 0, 100, 100)], 6, comVaos)
+    expect(r.dx).toBe(-3)
+    expect(r.guides.length).toBeGreaterThan(0)
+    expect(r.gaps).toEqual([])
+  })
+
+  it('a medida que já é um vão do espaçamento não sai repetida', () => {
+    // Mesma altura da fileira: alinha em y E centraliza em x; o vão até a
+    // alinhada mais perto (A) é o mesmo vão esquerdo do espaçamento.
+    const r = snapBox(caixa(153, 0, 253, 100), [caixa(0, 0, 100, 100), caixa(300, 0, 400, 100)], 6, comVaos)
+    expect(r.dx).toBe(-3)
+    expect(r.dy).toBe(0)
+    expect(r.gaps).toEqual([
+      { axis: 'x', from: 100, to: 150, at: 50 },
+      { axis: 'x', from: 250, to: 300, at: 50 },
+    ])
+  })
+})
+
+describe('dragBoxWithGuides — espaçamento igual no arrasto de corpo (fatia 3)', () => {
+  const fileira = [caixa(0, 0, 100, 100), caixa(300, 0, 400, 100)]
+  // Já centralizada entre as duas: vãos de 50 e 50.
+  const inicio = caixa(150, 10, 250, 30)
+  const ponteiroInicial = { x: 200, y: 20 }
+  const arrasta = (dx: number, mode: GuideMode) =>
+    dragBoxWithGuides({ startBounds: inicio, startPointer: ponteiroInicial, pointer: { x: 200 + dx, y: 20 }, others: fileira, tolerance: 6, mode })
+
+  it('deriva: presa no espaçamento, a peça solta assim que o cursor passa da tolerância e daí acompanha o cursor', () => {
+    for (let passo = 1; passo <= 10; passo += 1) {
+      const r = arrasta(passo, 'snap')
+      if (passo <= 6) {
+        expect(r.offsetX).toBe(0)
+        expect(r.gaps).toHaveLength(2)
+      } else {
+        expect(r.offsetX).toBe(passo)
+        expect(r.gaps).toEqual([])
+      }
+    }
+  })
+
+  it("'gridExact' (a grade manda): mostra os vãos só quando já são iguais, sem mover a peça", () => {
+    expect(arrasta(0, 'gridExact')).toMatchObject({ offsetX: 0, gaps: [{ from: 100, to: 150 }, { from: 250, to: 300 }] })
+    expect(arrasta(EXACT_ALIGNMENT_WORLD_PX / 2, 'gridExact')).toMatchObject({ offsetX: EXACT_ALIGNMENT_WORLD_PX / 2 })
+    expect(arrasta(EXACT_ALIGNMENT_WORLD_PX / 2, 'gridExact').gaps).toHaveLength(2)
+    expect(arrasta(2, 'gridExact')).toEqual({ offsetX: 2, offsetY: 0, guides: [], gaps: [] })
+  })
+
+  it("'free' (Ctrl): sem encaixe e sem medida", () => {
+    expect(arrasta(3, 'free')).toEqual({ offsetX: 3, offsetY: 0, guides: [], gaps: [] })
+  })
+})
+
+describe('gapEnds — as duas pontas do vão em px de mundo', () => {
+  it("'x' corre na horizontal, na altura `at`; 'y' na vertical", () => {
+    expect(gapEnds({ axis: 'x', from: 100, to: 150, at: 20 })).toEqual({ start: { x: 100, y: 20 }, end: { x: 150, y: 20 } })
+    expect(gapEnds({ axis: 'y', from: 100, to: 200, at: 150 })).toEqual({ start: { x: 150, y: 100 }, end: { x: 150, y: 200 } })
+  })
+})
+
+describe('sameOverlay — guias e vãos do passo anterior servem de novo?', () => {
+  const guia: SmartGuide = { axis: 'x', position: 150, from: 50, to: 330, marks: [50, 330] }
+  const vao: GapMark = { axis: 'y', from: 100, to: 300, at: 150 }
+  const quadro: GuideOverlay = { guides: [guia], gaps: [vao] }
+
+  it('mesmas guias e mesmos vãos, em objetos novos: iguais', () => {
+    expect(sameOverlay(quadro, { guides: [{ ...guia, marks: [50, 330] }], gaps: [{ ...vao }] })).toBe(true)
+    expect(sameOverlay({ guides: [], gaps: [] }, { guides: [], gaps: [] })).toBe(true)
+  })
+
+  it('qualquer diferença num vão ou numa guia pede redesenho', () => {
+    expect(sameOverlay(quadro, { guides: [guia], gaps: [] })).toBe(false)
+    expect(sameOverlay(quadro, { guides: [guia], gaps: [{ ...vao, axis: 'x' }] })).toBe(false)
+    expect(sameOverlay(quadro, { guides: [guia], gaps: [{ ...vao, from: 101 }] })).toBe(false)
+    expect(sameOverlay(quadro, { guides: [guia], gaps: [{ ...vao, to: 301 }] })).toBe(false)
+    expect(sameOverlay(quadro, { guides: [guia], gaps: [{ ...vao, at: 151 }] })).toBe(false)
+    expect(sameOverlay(quadro, { guides: [{ ...guia, position: 151 }], gaps: [vao] })).toBe(false)
   })
 })

@@ -36,6 +36,16 @@
  *      `lib/toqueDeAlt.ts`: toque curto endireita, segurar além da janela
  *      mede, e clique ou arrasto no meio cancelam os dois. Nada aqui lê o Alt
  *      do teclado; o arrasto só lê o `altKey` do próprio evento de ponteiro.
+ *
+ * Fatia 3, só no arrasto de CORPO (`SnapOptions.gaps`): ESPAÇAMENTO IGUAL —
+ * a peça também encaixa onde os vãos da fileira ficam iguais — e a MEDIDA
+ * dos vãos (`GapMark`), que o canvas escreve em unidade do mapa. A medida só
+ * aparece com encaixe ativo: o valor de cada vão igual e, com a guia de um
+ * eixo, o vão no outro eixo até a peça alinhada mais perto. Medida
+ * permanente para toda vizinha vira poluição; ela só aparece quando
+ * significa alguma coisa, como no Excalidraw. Por eixo vence o menor ajuste,
+ * e no empate o alinhamento vence o espaçamento. O arrasto de ponto não tem
+ * nada disso: um ponto no meio de duas salas não é fileira.
  */
 import type { AreaBounds } from './areaSelection'
 import type { Point } from './selectionHitTest'
@@ -85,17 +95,62 @@ export interface SmartGuide {
   marks: number[]
 }
 
-/** Ajuste que leva a caixa ao encaixe, e as guias já na posição encaixada. */
-export interface BoxSnap {
+/**
+ * Vão MEDIDO entre duas peças (fatia 3): o segmento de `from` a `to` no eixo
+ * `axis`, na altura `at` do outro eixo. `axis: 'x'` é o vão na horizontal
+ * (segmento deitado em y = `at`); `'y'`, na vertical (em pé em x = `at`).
+ * Mesma convenção da guia: o eixo é o do encaixe que o produziu.
+ */
+export interface GapMark {
+  axis: GuideAxis
+  from: number
+  to: number
+  at: number
+}
+
+/** O que o arrasto desenha por cima do mapa: as guias de alinhamento e os vãos medidos. */
+export interface GuideOverlay {
+  guides: SmartGuide[]
+  gaps: GapMark[]
+}
+
+/** Ajuste que leva a caixa ao encaixe, e as guias e os vãos já na posição encaixada. */
+export interface BoxSnap extends GuideOverlay {
   dx: number
   dy: number
-  guides: SmartGuide[]
 }
+
+export interface SnapOptions {
+  /** Espaçamento igual e a medida dos vãos (fatia 3): só no arrasto de corpo. */
+  gaps: boolean
+}
+
+const ALIGNMENT_ONLY: SnapOptions = { gaps: false }
+const BODY_SNAP: SnapOptions = { gaps: true }
+
+/**
+ * Teto de vãos iguais seguidos que a fileira mostra para cada lado da peça.
+ * Uma fileira de 1000 ladrilhos iguais faria o passo andar a fileira inteira a
+ * cada pointermove; o canvas também não escreve mais que 8 números.
+ */
+const MAX_EQUAL_GAPS_PER_SIDE = 8
 
 type Anchors = readonly [number, number, number]
 
 function anchorsOf(box: AreaBounds, axis: GuideAxis): Anchors {
   return axis === 'x' ? [box.minX, (box.minX + box.maxX) / 2, box.maxX] : [box.minY, (box.minY + box.maxY) / 2, box.maxY]
+}
+
+function crossAxis(axis: GuideAxis): GuideAxis {
+  return axis === 'x' ? 'y' : 'x'
+}
+
+function low(box: AreaBounds, axis: GuideAxis): number {
+  return axis === 'x' ? box.minX : box.minY
+}
+
+function high(box: AreaBounds, axis: GuideAxis): number {
+  return axis === 'x' ? box.maxX : box.maxY
 }
 
 /** Centro da caixa no OUTRO eixo: o ponto onde ela encosta numa guia deste eixo. */
@@ -192,20 +247,249 @@ function axisGuides(moving: AreaBounds, others: readonly AreaBounds[], axis: Gui
 }
 
 /**
- * Encaixa `moving` nas âncoras de `others` que estão a até `tolerance` (px de
- * mundo), eixo a eixo. `dx`/`dy` são o AJUSTE a somar na caixa; as guias já
- * descrevem a posição encaixada.
+ * As duas caixas se sobrepõem no OUTRO eixo, e por isso estão na mesma
+ * fileira (eixo x) ou coluna (eixo y)? Só encostar não conta: duas salas
+ * empilhadas, uma tocando a outra, não são fileira.
  */
-export function snapBox(moving: AreaBounds, others: readonly AreaBounds[], tolerance: number): BoxSnap {
-  const dx = axisDelta(moving, others, 'x', tolerance)
-  const dy = axisDelta(moving, others, 'y', tolerance)
-  if (dx === null && dy === null) return { dx: 0, dy: 0, guides: [] }
+function sameRow(a: AreaBounds, b: AreaBounds, axis: GuideAxis): boolean {
+  const cross = crossAxis(axis)
+  return low(a, cross) < high(b, cross) - SAME_POSITION_EPSILON && low(b, cross) < high(a, cross) - SAME_POSITION_EPSILON
+}
+
+/**
+ * A vizinha logo ANTES de `of` no eixo, entre as caixas da fileira: a que
+ * termina mais tarde entre as que terminam antes de `of` começar, e que divide
+ * fileira com `of`. Caixa que cruza `of` no eixo (a sala que contém o objeto
+ * arrastado, por exemplo) não fica antes nem depois.
+ */
+function neighborBefore(of: AreaBounds, row: readonly AreaBounds[], axis: GuideAxis): AreaBounds | null {
+  let best: AreaBounds | null = null
+  for (const box of row) {
+    if (box === of || high(box, axis) > low(of, axis) + SAME_POSITION_EPSILON || !sameRow(box, of, axis)) continue
+    if (best === null || high(box, axis) > high(best, axis)) best = box
+  }
+  return best
+}
+
+/** O espelho de `neighborBefore`: a vizinha logo DEPOIS de `of`. */
+function neighborAfter(of: AreaBounds, row: readonly AreaBounds[], axis: GuideAxis): AreaBounds | null {
+  let best: AreaBounds | null = null
+  for (const box of row) {
+    if (box === of || low(box, axis) < high(of, axis) - SAME_POSITION_EPSILON || !sameRow(box, of, axis)) continue
+    if (best === null || low(box, axis) < low(best, axis)) best = box
+  }
+  return best
+}
+
+function rowOf(moving: AreaBounds, others: readonly AreaBounds[], axis: GuideAxis): AreaBounds[] {
+  return others.filter((box) => sameRow(box, moving, axis))
+}
+
+/**
+ * Ajuste do eixo que deixa os vãos da fileira iguais, ou `null` se nenhum cai
+ * na tolerância. Três jeitos, todos com as vizinhas IMEDIATAS (como o Figma):
+ * centralizar entre a vizinha de antes e a de depois; repetir, depois da de
+ * antes, o vão que ela já tem com a anterior a ela; e o espelho disso antes da
+ * de depois. Vão de zero (encostar) é o encaixe de borda com borda, não daqui.
+ */
+function spacingDelta(moving: AreaBounds, others: readonly AreaBounds[], axis: GuideAxis, tolerance: number): number | null {
+  const row = rowOf(moving, others, axis)
+  // Espaçamento compara dois vãos: com menos de duas vizinhas não há o que repetir.
+  if (row.length < 2) return null
+  const size = high(moving, axis) - low(moving, axis)
+  const previous = neighborBefore(moving, row, axis)
+  const next = neighborAfter(moving, row, axis)
+  const deltas: number[] = []
+  if (previous !== null && next !== null) {
+    const gap = (low(next, axis) - high(previous, axis) - size) / 2
+    if (gap > SAME_POSITION_EPSILON) deltas.push(high(previous, axis) + gap - low(moving, axis))
+  }
+  const beforePrevious = previous === null ? null : neighborBefore(previous, row, axis)
+  if (previous !== null && beforePrevious !== null) {
+    const gap = low(previous, axis) - high(beforePrevious, axis)
+    if (gap > SAME_POSITION_EPSILON) deltas.push(high(previous, axis) + gap - low(moving, axis))
+  }
+  const afterNext = next === null ? null : neighborAfter(next, row, axis)
+  if (next !== null && afterNext !== null) {
+    const gap = low(afterNext, axis) - high(next, axis)
+    if (gap > SAME_POSITION_EPSILON) deltas.push(low(next, axis) - gap - high(moving, axis))
+  }
+  let best: number | null = null
+  for (const delta of deltas) {
+    // `!(<=)` e não `>`: tolerância NaN não encaixa nada.
+    if (!(Math.abs(delta) <= tolerance)) continue
+    if (best === null || Math.abs(delta) < Math.abs(best)) best = delta
+  }
+  return best
+}
+
+/**
+ * Ajuste de um eixo: o alinhamento (borda e centro) e, com os vãos ligados, o
+ * espaçamento igual. Vence o menor; no empate, o alinhamento, que é o encaixe
+ * que fecha parede com parede.
+ */
+function axisSnap(moving: AreaBounds, others: readonly AreaBounds[], axis: GuideAxis, tolerance: number, options: SnapOptions): number | null {
+  const aligned = axisDelta(moving, others, axis, tolerance)
+  if (!options.gaps) return aligned
+  const spaced = spacingDelta(moving, others, axis, tolerance)
+  if (spaced === null) return aligned
+  if (aligned === null) return spaced
+  return Math.abs(spaced) < Math.abs(aligned) - SAME_POSITION_EPSILON ? spaced : aligned
+}
+
+function sameGap(a: number, b: number): boolean {
+  return Math.abs(a - b) <= SAME_POSITION_EPSILON
+}
+
+/**
+ * O vão de `first` (antes) até `second` (depois), medido no meio da faixa que
+ * as duas dividem no outro eixo. As duas são sempre da mesma fileira
+ * (`neighborBefore`/`neighborAfter` só devolvem quem divide fileira), então a
+ * faixa nunca é vazia.
+ */
+function gapBetween(first: AreaBounds, second: AreaBounds, axis: GuideAxis): GapMark {
+  const cross = crossAxis(axis)
+  const shared = (Math.max(low(first, cross), low(second, cross)) + Math.min(high(first, cross), high(second, cross))) / 2
+  return { axis, from: high(first, axis), to: low(second, axis), at: shared }
+}
+
+/** Os vãos iguais a `gap` em sequência, de `start` para trás na fileira. */
+function equalGapsBefore(start: AreaBounds, gap: number, row: readonly AreaBounds[], axis: GuideAxis): GapMark[] {
+  const marks: GapMark[] = []
+  let current = start
+  while (marks.length < MAX_EQUAL_GAPS_PER_SIDE) {
+    const previous = neighborBefore(current, row, axis)
+    if (previous === null || !sameGap(low(current, axis) - high(previous, axis), gap)) break
+    marks.push(gapBetween(previous, current, axis))
+    current = previous
+  }
+  return marks
+}
+
+/** O espelho de `equalGapsBefore`: de `start` para a frente. */
+function equalGapsAfter(start: AreaBounds, gap: number, row: readonly AreaBounds[], axis: GuideAxis): GapMark[] {
+  const marks: GapMark[] = []
+  let current = start
+  while (marks.length < MAX_EQUAL_GAPS_PER_SIDE) {
+    const next = neighborAfter(current, row, axis)
+    if (next === null || !sameGap(low(next, axis) - high(current, axis), gap)) break
+    marks.push(gapBetween(current, next, axis))
+    current = next
+  }
+  return marks
+}
+
+/** Intercala as duas listas: o vão de cada lado da peça vem antes dos mais longe, e ganha número primeiro. */
+function interleave(left: readonly GapMark[], right: readonly GapMark[]): GapMark[] {
+  const marks: GapMark[] = []
+  for (let i = 0; i < Math.max(left.length, right.length); i += 1) {
+    if (i < left.length) marks.push(left[i])
+    if (i < right.length) marks.push(right[i])
+  }
+  return marks
+}
+
+/**
+ * Os vãos iguais que a caixa JÁ encaixada forma na fileira do eixo: os dois
+ * lados dela quando está centralizada, e de cada lado a sequência de vãos
+ * iguais ao dela (a fileira inteira de salas espaçadas por igual aparece).
+ */
+function spacingMarks(moving: AreaBounds, others: readonly AreaBounds[], axis: GuideAxis): GapMark[] {
+  const row = rowOf(moving, others, axis)
+  const previous = neighborBefore(moving, row, axis)
+  const next = neighborAfter(moving, row, axis)
+  const left = previous === null ? 0 : low(moving, axis) - high(previous, axis)
+  const right = next === null ? 0 : low(next, axis) - high(moving, axis)
+  const centered = previous !== null && next !== null && left > SAME_POSITION_EPSILON && sameGap(left, right)
+  const leftRun = previous !== null && left > SAME_POSITION_EPSILON ? equalGapsBefore(previous, left, row, axis) : []
+  const rightRun = next !== null && right > SAME_POSITION_EPSILON ? equalGapsAfter(next, right, row, axis) : []
+  const leftMarks = previous !== null && (centered || leftRun.length > 0) ? [gapBetween(previous, moving, axis), ...leftRun] : []
+  const rightMarks = next !== null && (centered || rightRun.length > 0) ? [gapBetween(moving, next, axis), ...rightRun] : []
+  return interleave(leftMarks, rightMarks)
+}
+
+/**
+ * Onde duas caixas alinham no eixo, para a medida correr pela guia: o centro,
+ * se os centros alinham (a medida no meio das duas); senão a primeira borda
+ * alinhada. `null` = não alinham.
+ */
+function alignedPosition(mine: Anchors, theirs: Anchors): number | null {
+  if (Math.abs(theirs[CENTER_ANCHOR] - mine[CENTER_ANCHOR]) <= SAME_POSITION_EPSILON) return theirs[CENTER_ANCHOR]
+  for (const their of theirs) {
+    if (mine.some((anchor) => Math.abs(their - anchor) <= SAME_POSITION_EPSILON)) return their
+  }
+  return null
+}
+
+/**
+ * Com a guia do eixo `axis`, o vão no OUTRO eixo até a peça alinhada mais
+ * perto: a sala que encaixou pela borda com a de cima mostra a distância
+ * vertical entre as duas. Encostada ou sobreposta no outro eixo não tem vão.
+ */
+function alignedGap(moving: AreaBounds, others: readonly AreaBounds[], axis: GuideAxis): GapMark | null {
+  const cross = crossAxis(axis)
+  const mine = anchorsOf(moving, axis)
+  let best: { other: AreaBounds; distance: number; at: number } | null = null
+  for (const other of others) {
+    const at = alignedPosition(mine, anchorsOf(other, axis))
+    if (at === null) continue
+    const distance = Math.max(low(other, cross) - high(moving, cross), low(moving, cross) - high(other, cross))
+    if (!(distance > SAME_POSITION_EPSILON)) continue
+    if (best === null || distance < best.distance) best = { other, distance, at }
+  }
+  if (best === null) return null
+  const otherFirst = high(best.other, cross) <= low(moving, cross)
+  const [first, second] = otherFirst ? [best.other, moving] : [moving, best.other]
+  return { axis: cross, from: high(first, cross), to: low(second, cross), at: best.at }
+}
+
+function sameSpan(a: GapMark, b: GapMark): boolean {
+  return a.axis === b.axis && sameGap(a.from, b.from) && sameGap(a.to, b.to)
+}
+
+/**
+ * As medidas da caixa JÁ encaixada, nos eixos que encaixaram: primeiro os
+ * vãos iguais, depois a medida até a alinhada. A medida que repete um vão
+ * igual (a mesma vizinha, o mesmo vão) sai uma vez só, sem dois números
+ * iguais um em cima do outro.
+ */
+function gapMarks(moving: AreaBounds, others: readonly AreaBounds[], axes: readonly GuideAxis[]): GapMark[] {
+  const marks = axes.flatMap((axis) => spacingMarks(moving, others, axis))
+  for (const axis of axes) {
+    const mark = alignedGap(moving, others, axis)
+    if (mark !== null && !marks.some((existing) => sameSpan(existing, mark))) marks.push(mark)
+  }
+  return marks
+}
+
+/**
+ * Encaixa `moving` nas âncoras de `others` que estão a até `tolerance` (px de
+ * mundo), eixo a eixo — e, com `options.gaps`, também no espaçamento igual.
+ * `dx`/`dy` são o AJUSTE a somar na caixa; as guias e os vãos já descrevem a
+ * posição encaixada.
+ */
+export function snapBox(moving: AreaBounds, others: readonly AreaBounds[], tolerance: number, options: SnapOptions = ALIGNMENT_ONLY): BoxSnap {
+  const dx = axisSnap(moving, others, 'x', tolerance, options)
+  const dy = axisSnap(moving, others, 'y', tolerance, options)
+  if (dx === null && dy === null) return { dx: 0, dy: 0, guides: [], gaps: [] }
   const snapped = translate(moving, dx ?? 0, dy ?? 0)
+  // Só os eixos que encaixaram: num eixo sem encaixe nada está alinhado nem espaçado por igual.
+  const axes: GuideAxis[] = []
+  if (dx !== null) axes.push('x')
+  if (dy !== null) axes.push('y')
   return {
     dx: dx ?? 0,
     dy: dy ?? 0,
-    guides: [...(dx === null ? [] : axisGuides(snapped, others, 'x')), ...(dy === null ? [] : axisGuides(snapped, others, 'y'))],
+    guides: axes.flatMap((axis) => axisGuides(snapped, others, axis)),
+    gaps: options.gaps ? gapMarks(snapped, others, axes) : [],
   }
+}
+
+/** As duas pontas do vão em px de mundo: quem escreve o número mede de uma à outra. */
+export function gapEnds(gap: GapMark): { start: Point; end: Point } {
+  return gap.axis === 'x'
+    ? { start: { x: gap.from, y: gap.at }, end: { x: gap.to, y: gap.at } }
+    : { start: { x: gap.at, y: gap.from }, end: { x: gap.at, y: gap.to } }
 }
 
 /**
@@ -226,6 +510,19 @@ export function sameGuides(a: readonly SmartGuide[], b: readonly SmartGuide[]): 
       guide.marks.length === other.marks.length &&
       guide.marks.every((mark, i) => mark === other.marks[i])
     )
+  })
+}
+
+/**
+ * As mesmas guias e os mesmos vãos? O motivo de `sameGuides`, agora também
+ * para os números: refazer a pílula e o texto a cada pointermove preso no
+ * encaixe é trabalho jogado fora.
+ */
+export function sameOverlay(a: GuideOverlay, b: GuideOverlay): boolean {
+  if (!sameGuides(a.guides, b.guides) || a.gaps.length !== b.gaps.length) return false
+  return a.gaps.every((gap, index) => {
+    const other = b.gaps[index]
+    return gap.axis === other.axis && gap.from === other.from && gap.to === other.to && gap.at === other.at
   })
 }
 
@@ -268,11 +565,10 @@ export interface BoxDragInput {
   mode: GuideMode
 }
 
-/** Deslocamento TOTAL da peça desde o pointerdown (não o passo deste evento). */
-export interface BoxDrag {
+/** Deslocamento TOTAL da peça desde o pointerdown (não o passo deste evento), com as guias e os vãos. */
+export interface BoxDrag extends GuideOverlay {
   offsetX: number
   offsetY: number
-  guides: SmartGuide[]
 }
 
 /**
@@ -281,17 +577,21 @@ export interface BoxDrag {
  * cada pequeno movimento do cursor: a peça grudava e o cursor ia se afastando
  * dela, a guia "grudenta" clássica. Com o total, a peça solta assim que o
  * cursor passa da tolerância.
+ *
+ * Arrasto de corpo: encaixa também no espaçamento igual e mede os vãos
+ * (fatia 3), com as mesmas regras de grade e de Ctrl da guia.
  */
 export function dragBoxWithGuides(input: BoxDragInput): BoxDrag {
   const offsetX = input.pointer.x - input.startPointer.x
   const offsetY = input.pointer.y - input.startPointer.y
-  if (input.mode === 'free') return { offsetX, offsetY, guides: [] }
+  if (input.mode === 'free') return { offsetX, offsetY, guides: [], gaps: [] }
   const tentative = translate(input.startBounds, offsetX, offsetY)
   if (input.mode === 'gridExact') {
-    return { offsetX, offsetY, guides: snapBox(tentative, input.others, EXACT_ALIGNMENT_WORLD_PX).guides }
+    const exact = snapBox(tentative, input.others, EXACT_ALIGNMENT_WORLD_PX, BODY_SNAP)
+    return { offsetX, offsetY, guides: exact.guides, gaps: exact.gaps }
   }
-  const snap = snapBox(tentative, input.others, input.tolerance)
-  return { offsetX: offsetX + snap.dx, offsetY: offsetY + snap.dy, guides: snap.guides }
+  const snap = snapBox(tentative, input.others, input.tolerance, BODY_SNAP)
+  return { offsetX: offsetX + snap.dx, offsetY: offsetY + snap.dy, guides: snap.guides, gaps: snap.gaps }
 }
 
 /**

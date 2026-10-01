@@ -1,12 +1,12 @@
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { Container, EventBoundary, FederatedPointerEvent, Graphics } from 'pixi.js'
+import { Container, EventBoundary, FederatedPointerEvent, Graphics, Text } from 'pixi.js'
 import { createEmptyMap } from '../lib/mapFactory'
 import { useMapStore } from '../stores/mapStore'
 import type { Camera } from './world'
 import type { Drawing, FloorPiece, MapData, Prop, Region, Stair, Token, Wall } from '../types/map'
-import { SMART_GUIDE_COLOR } from './constants'
+import { SMART_GUIDE_COLOR, SMART_GUIDE_LABEL_COLOR } from './constants'
 import { PixiCanvas } from './PixiCanvas'
 import { snapToHexVertex } from './tokenInteraction'
 
@@ -645,5 +645,121 @@ describe('PixiCanvas — guias em todo arrasto de corpo e de ponto (pedido 3, fa
       expect(atual().tokens.find((t) => t.id === 'andando')).toMatchObject({ x: 805, y: 600 })
       expect(guiaMagenta()).toBeNull()
     })
+  })
+})
+
+/**
+ * FATIA 3: espaçamento igual e o número de cada vão. A peça encaixa onde os
+ * vãos da fileira ficam iguais, e a pílula magenta escreve o vão na unidade
+ * do mapa (grade de 64 e 1,5 m por célula: 128 px = "3,0 m"). O número só
+ * existe com encaixe ativo e some ao soltar.
+ */
+describe('PixiCanvas — espaçamento igual e o número dos vãos (pedido 3, fatia 3)', () => {
+  /** Fileira em y = 500..628: A e B com 128 px de vão; M à direita, 216 px depois de B. */
+  const A = sala('a', 100, 500, 228, 628)
+  const B = sala('b', 356, 500, 484, 628)
+  const M = sala('m', 700, 500, 828, 628)
+  /** Perto do canto de M, longe do nome (que mora no meio). */
+  const PEGA_EM_M = { x: 710, y: 510 }
+
+  function visivel(no: Container): boolean {
+    let atual: Container | null = no
+    while (atual !== null) {
+      if (!atual.visible) return false
+      atual = atual.parent
+    }
+    return true
+  }
+
+  /** Os números dos vãos na tela agora: o texto de cada pílula magenta visível. */
+  function numerosNaTela(): string[] {
+    const numeros: string[] = []
+    for (const no of descendentes(stage())) {
+      if (!(no instanceof Graphics) || !no.context.instructions.some((i) => i.action === 'fill' && i.data.style.color === SMART_GUIDE_LABEL_COLOR)) continue
+      const rotulo = no.parent
+      if (rotulo === null || !visivel(rotulo)) continue
+      const texto = rotulo.children.find((c): c is Text => c instanceof Text)
+      if (texto !== undefined) numeros.push(texto.text)
+    }
+    return numeros
+  }
+
+  function quantosTextos(): number {
+    return descendentes(stage()).filter((no) => no instanceof Text).length
+  }
+
+  it('a sala que chega a 3 px do vão da fileira encaixa nele, os dois vãos iguais ganham número, e ao soltar o número some', async () => {
+    prepara(mapa([A, B, M]))
+    await monta()
+    const textosAntes = quantosTextos()
+    ponteiro('pointerdown', PEGA_EM_M)
+    // -85: a borda esquerda de M vai a 615, a 3 px de 612 (= 484 + 128).
+    ponteiro('pointermove', { x: PEGA_EM_M.x - 85, y: PEGA_EM_M.y })
+    expect(caixaDa('m').minX).toBe(612)
+    expect(numerosNaTela()).toEqual(['3,0 m', '3,0 m'])
+    // O pool de números é fixo: o arrasto não cria Text nenhum.
+    expect(quantosTextos()).toBe(textosAntes)
+    ponteiro('pointerup', { x: PEGA_EM_M.x - 85, y: PEGA_EM_M.y })
+    expect(caixaDa('m').minX).toBe(612)
+    expect(numerosNaTela()).toEqual([])
+    expect(guiaMagenta()).toBeNull()
+  })
+
+  it('passando da tolerância a sala solta do espaçamento e acompanha o cursor; sobra só a distância até a vizinha alinhada', async () => {
+    prepara(mapa([A, B, M]))
+    await monta()
+    ponteiro('pointerdown', PEGA_EM_M)
+    ponteiro('pointermove', { x: PEGA_EM_M.x - 85, y: PEGA_EM_M.y })
+    expect(numerosNaTela()).toEqual(['3,0 m', '3,0 m'])
+    // -95: a borda vai a 605, a 7 px do vão igual. M continua na altura de A e
+    // B (alinhada em y), e a medida até a alinhada mais perto continua: 121 px
+    // até B = 1,89 célula = 2,8 m.
+    ponteiro('pointermove', { x: PEGA_EM_M.x - 95, y: PEGA_EM_M.y })
+    expect(caixaDa('m').minX).toBe(605)
+    expect(numerosNaTela()).toEqual(['2,8 m'])
+  })
+
+  it('a sala que encaixa pela borda com a de cima mostra a distância vertical entre as duas', async () => {
+    await monta()
+    // +543: a borda esquerda de MOVEL vai a 643, a 3 px da borda esquerda de ALVO (640).
+    arrasta(543, 0)
+    expect(caixaDa('movel').minX).toBe(640)
+    // ALVO acaba em y = 300, MOVEL começa em 500: 200 px = 3,125 células = 4,7 m.
+    expect(numerosNaTela()).toEqual(['4,7 m'])
+  })
+
+  it('com Ctrl a sala anda livre: nem encaixe nem número', async () => {
+    prepara(mapa([A, B, M]))
+    await monta()
+    ponteiro('pointerdown', PEGA_EM_M)
+    ponteiro('pointermove', { x: PEGA_EM_M.x - 85, y: PEGA_EM_M.y }, { ctrl: true })
+    expect(caixaDa('m').minX).toBe(615)
+    expect(numerosNaTela()).toEqual([])
+  })
+
+  it('arrasto de PONTO (a ponta de uma parede) tem a guia, mas não mede vão', async () => {
+    const solta: Wall = { id: 'solta', x1: 100, y1: 500, x2: 300, y2: 500, blocksLight: true, blocksMove: true, door: null }
+    prepara(mapa([ALVO], [solta]))
+    await monta()
+    act(() => useMapStore.setState({ selection: [{ kind: 'wall', id: 'solta' }] }))
+    ponteiro('pointerdown', { x: 300, y: 500 })
+    ponteiro('pointermove', { x: 803, y: 450 })
+    expect(useMapStore.getState().map.walls[0]).toMatchObject({ x2: 800, y2: 450 })
+    expect(guiaMagenta()).not.toBeNull()
+    expect(numerosNaTela()).toEqual([])
+  })
+
+  it('grade ligada e sem Alt: a grade manda, mas o número aparece quando os vãos JÁ são iguais', async () => {
+    // Fileira na grade de 64: A' e B' com 128 de vão; M' a 192 de B'.
+    const A2 = sala('a', 128, 512, 256, 640)
+    const B2 = sala('b', 384, 512, 512, 640)
+    const M2 = sala('m', 704, 512, 832, 640)
+    prepara(mapa([A2, B2, M2]), true)
+    await monta()
+    ponteiro('pointerdown', { x: 714, y: 522 })
+    // -64: uma célula para a esquerda, e o vão B'→M' fica 128, igual ao de A'→B'.
+    ponteiro('pointermove', { x: 650, y: 522 })
+    expect(caixaDa('m').minX).toBe(640)
+    expect(numerosNaTela()).toEqual(['3,0 m', '3,0 m'])
   })
 })

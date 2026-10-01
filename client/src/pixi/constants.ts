@@ -9,6 +9,16 @@ export const SELECTION_COLOR = 0xffdd55
  */
 export const SMART_GUIDE_COLOR = 0xff4fd8
 
+/**
+ * Pílula do número do vão (pedido 3, fatia 3, `drawGuideLabels.ts`): o mesmo
+ * magenta da guia (matiz 313°, saturação 100%), mais fundo. Texto branco de 11
+ * px sobre o magenta da linha dava 2,9:1 de contraste, abaixo dos 4,5:1 da
+ * WCAG AA para texto pequeno; nesta luminância dá 4,75:1. Preenchimento cheio
+ * também pesa mais que o fio de 1 px: no mesmo tom claro a pílula gritaria
+ * mais que a guia que ela mede.
+ */
+export const SMART_GUIDE_LABEL_COLOR = 0xd600a8
+
 /** Cor do indicador de ângulo mostrado durante o arrasto de Parede/Linha — cinza
  * claro discreto, pra não competir com o draft em SELECTION_COLOR nem sumir
  * contra o fundo escuro do canvas (0x2b2b2b, ver PixiCanvas.tsx). */
