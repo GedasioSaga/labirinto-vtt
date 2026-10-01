@@ -2,7 +2,7 @@ import type { MapData, Region, RegionPoint, Wall } from '../types/map'
 import { abrirTrecho } from './abrirVao'
 import { canInteractInLayer, regionLayer, wallLayer } from './layers'
 import { pisoDe } from './pisos'
-import { ancestorsOf, pointInPolygonInclusive, pointOnPolygonBorder } from './roomNesting'
+import { NESTING_TOLERANCE, ancestorsOf, pointInPolygonInclusive, pointOnPolygonBorder } from './roomNesting'
 
 /**
  * ABRIR A SALA PARA O CORREDOR — pedido 4 de 30/09/2026: "um botão que
@@ -230,6 +230,32 @@ function lugarDe(p: Ponto, pontos: readonly Ponto[]): Lugar {
   return pointInPolygonInclusive(p, pontos) ? 'dentro' : 'fora'
 }
 
+/** Retângulo alinhado aos eixos, em px. */
+interface Caixa {
+  minX: number
+  minY: number
+  maxX: number
+  maxY: number
+}
+
+/** O retângulo da borda alargado por `margem` de cada lado. Laço e não `Math.min(...xs)`:
+ *  Sala livre desenhada à mão pode ter pontos demais para virar argumentos. */
+function caixaDaBorda(borda: Borda, margem: number): Caixa {
+  const caixa: Caixa = { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity }
+  for (const p of borda.pontos) {
+    caixa.minX = Math.min(caixa.minX, p.x)
+    caixa.minY = Math.min(caixa.minY, p.y)
+    caixa.maxX = Math.max(caixa.maxX, p.x)
+    caixa.maxY = Math.max(caixa.maxY, p.y)
+  }
+  return { minX: caixa.minX - margem, minY: caixa.minY - margem, maxX: caixa.maxX + margem, maxY: caixa.maxY + margem }
+}
+
+/** O retângulo da parede encosta no da caixa? */
+function paredeNaCaixa(w: Wall, c: Caixa): boolean {
+  return Math.max(w.x1, w.x2) >= c.minX && Math.min(w.x1, w.x2) <= c.maxX && Math.max(w.y1, w.y2) >= c.minY && Math.min(w.y1, w.y2) <= c.maxY
+}
+
 // ─── Onde cada linha encosta ────────────────────────────────────────────────
 
 /**
@@ -378,8 +404,14 @@ function escolherNoCiclo(ligacoes: readonly (CorredorQueEncosta | null)[]): Corr
 function corredoresQueEncostam(map: MapData, sala: Region, borda: Borda): CorredorQueEncosta[] {
   const folga = ENCOSTE_TOLERANCIA_CELULAS * map.grid
   const piso = pisoDe(sala)
+  // Só a vizinhança da Sala passa pela régua da borda: o painel refaz esta conta
+  // a cada quadro do arrasto da Sala, e medir toda parede de um mapa de 14 mil
+  // custava ~8 ms (Sala de 4 lados) a ~55 ms (redonda de 32) por quadro. Parede
+  // fora da caixa não encosta nem esticada (`folga`), nem pela tolerância da
+  // borda (`NESTING_TOLERANCE`, de `lugarDe`).
+  const vizinhanca = caixaDaBorda(borda, folga + NESTING_TOLERANCE)
   const encostes = map.walls
-    .filter((w) => w.regionId === undefined && pisoDe(w) === piso)
+    .filter((w) => w.regionId === undefined && pisoDe(w) === piso && paredeNaCaixa(w, vizinhanca))
     .flatMap((w) => {
       const encoste = encosteDa(w, borda, folga)
       return encoste === null ? [] : [encoste]

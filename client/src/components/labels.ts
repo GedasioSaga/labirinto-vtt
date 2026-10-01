@@ -290,6 +290,28 @@ export function avisoDaSalaQueNaoAbriu(motivo: Exclude<MotivoDaAbertura, 'ok'>, 
 }
 
 /**
+ * A linha "Abrir para o corredor" do painel da Sala. A conta aparece mesmo com
+ * um corredor só: é o que o mestre confere antes de clicar (a imagem 4 tem
+ * duas linhas e é UM corredor), e com três ou mais linhas perto é como ele vê
+ * que o par saiu certo. Concorda com o número, como o aviso do clique.
+ */
+export function rotuloAbrirParaOCorredor(corredores: number): string {
+  return corredores === 1 ? 'Abrir para o corredor (1)' : `Abrir para os corredores (${corredores})`
+}
+
+/**
+ * Por que a linha "Abrir para o corredor" está desabilitada, escrito embaixo
+ * dela. Curto, porque mora no painel; o aviso longo (`SALA_*_NAO_ABRE_TEXT`) é
+ * o do clique recusado. A trava pode ser da Sala ou da camada Salas
+ * (`bloqueioDaSala` não separa as duas), então a frase nomeia as duas.
+ */
+export const MOTIVO_SALA_TRAVADA_SEM_VAO = 'Sala travada, ela ou a camada Salas: destrave para abrir o vão.'
+
+/** O mesmo, numa Sala secreta ou dentro de sala secreta ou oculta (`bloqueioDaSala`). */
+export const MOTIVO_SALA_SECRETA_SEM_VAO =
+  'Sala secreta, ou dentro de sala secreta ou oculta: o vão mostraria o esconderijo aos jogadores. Revele a sala para abrir.'
+
+/**
  * Aviso do "Endireitar" (pedido 5: Alt tocado com uma linha selecionada) quando
  * parte da seleção ficou como estava. Sem aviso no sucesso: a linha reta já
  * está na tela, e um balão a cada Alt seria barulho. Preso nas duas pontas não

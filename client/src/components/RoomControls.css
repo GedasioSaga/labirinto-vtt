@@ -140,6 +140,21 @@
   transform: scale(0.9);
 }
 
+/* Indisponível ("Abrir para o corredor" numa Sala travada ou secreta): fica no
+   lugar, esmaecido, com o motivo escrito embaixo, e não acende nem afunda,
+   porque o clique não faz nada — a pele do `.lb-btn:disabled`. Vem depois do
+   pairar e do aperto para vencer na mesma especificidade. */
+.lb-room-opt__add:disabled {
+  background: transparent;
+  color: var(--lb-color-parchment-faint);
+  cursor: not-allowed;
+}
+
+.lb-room-opt__add:disabled .lb-room-opt__plus {
+  color: var(--lb-color-parchment-faint);
+  transform: none;
+}
+
 /* O campo aberto no meio da lista: um respiro em volta para não encostar nas
    linhas "+" vizinhas. Abre de uma vez, sem animação — abrir campo é gesto
    frequente, e animar só atrasaria a digitação. */

@@ -235,6 +235,8 @@ interface PropertiesPanelProps {
     | 'dark'
     | 'faccao'
     | 'raioDeVisao'
+    // O painel passa o id da Sala selecionada; o resto do "Abrir para o corredor" vem da store.
+    | 'salaId'
   > &
     // Obrigatória aqui (opcional no RoomControls): sem ela o campo "Raio de
     // visão aqui" some do painel, e esquecê-la no App tem de quebrar o tipo.
@@ -494,6 +496,7 @@ export function PropertiesPanel({
               // Rotação vai para a sala DELE, não para a que o clique no mapa
               // acabou de escolher (ver `RoomRotationField`).
               key={selectedRegion.id}
+              salaId={selectedRegion.id}
               name={selectedRegion.room.name}
               shape={selectedRegion.room.shape}
               axisAligned={isAxisAlignedRect(selectedRegion.points)}

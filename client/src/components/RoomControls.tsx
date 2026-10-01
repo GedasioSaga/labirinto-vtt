@@ -4,8 +4,11 @@ import { MIN_ROOM_DIMENSION } from '../lib/roomOps'
 import { ROTATION_SHIFT_STEP } from '../lib/roomRotation'
 import { ROOM_TEXT_MAX_LENGTH } from '../lib/roomText'
 import { FACCAO_MAX_LENGTH } from '../lib/faccoes'
+import type { bloqueioDaSala } from '../lib/abrirCorredor'
 import { VISION_RADIUS_MAX, VISION_RADIUS_MIN, VISION_RADIUS_STEP } from '../net/hostSession'
 import type { RoomLabelStyle, RoomLabelStylePatch } from '../lib/roomLabelStyle'
+import { selectBloqueioParaAbrir, selectCorredoresParaAbrir, useMapStore } from '../stores/mapStore'
+import { MOTIVO_SALA_SECRETA_SEM_VAO, MOTIVO_SALA_TRAVADA_SEM_VAO, rotuloAbrirParaOCorredor } from './labels'
 import { Toggle } from './Toggle'
 import { RoomLabelStyleControls } from './RoomLabelStyleControls'
 import { HazardControls, type HazardControlsProps } from './HazardControls'
@@ -96,6 +99,10 @@ export interface RoomControlsProps {
   parentName?: string
   /** "Criar sala dentro": arma a ferramenta Sala com esta sala como mãe. Ausente omite o botão. */
   onCreateRoomInside?: () => void
+  /** Id da Sala no mapa. Liga a linha "Abrir para o corredor", que lê a store
+   *  direto (a conta e o motivo) e chama `abrirSalaParaCorredores`: quem monta
+   *  o painel só diz de que Sala ele é. Ausente omite a linha. */
+  salaId?: string
   /** ZONA DE PERIGO da sala (fogo, fumaça, vapor, água). Ausente omite o bloco. */
   hazard?: HazardControlsProps
   /** ESTEIRA da sala (direção, passo e o Avançar). Ausente omite o bloco. */
@@ -335,6 +342,73 @@ function PlusGlyph() {
   )
 }
 
+/** O desenho da linha "Abrir para o corredor": uma parede com um vão no meio, vista
+ *  de cima, no traço do "+". Mora no mesmo encaixe dele (`.lb-room-opt__plus`), para
+ *  ter a mesma coluna, a mesma cor e o mesmo aperto. Só desenho, como o "+". */
+function VaoGlyph() {
+  return (
+    <span className="lb-room-opt__plus" aria-hidden="true">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" focusable="false">
+        <path d="M3 12h6M15 12h6M9 8v8M15 8v8" />
+      </svg>
+    </span>
+  )
+}
+
+/** A frase embaixo da linha desabilitada, por bloqueio da Sala. `Record`: bloqueio
+ *  novo em `lib/abrirCorredor.ts` sem frase aqui não compila. */
+const MOTIVO_SEM_VAO: Record<NonNullable<ReturnType<typeof bloqueioDaSala>>, string> = {
+  secreta: MOTIVO_SALA_SECRETA_SEM_VAO,
+  travada: MOTIVO_SALA_TRAVADA_SEM_VAO,
+}
+
+interface AbrirParaOCorredorProps {
+  /** Corredores (par de linhas) que o clique abre; a linha só é montada com 1 ou mais. */
+  corredores: number
+  /** Sala secreta ou travada: a linha fica desabilitada, com o motivo escrito. */
+  bloqueio: ReturnType<typeof bloqueioDaSala>
+  onAbrir: () => void
+}
+
+/**
+ * "Abrir para o corredor" (pedido 4 de 30/09/2026): a parede da Sala abre entre
+ * as duas linhas de cada corredor que encosta nela e as linhas param na borda
+ * (`lib/abrirCorredor.ts`), num passo só de Ctrl+Z. É UMA ação, como "Criar sala
+ * dentro" logo acima: a linha inteira é o botão, com o alvo de 34 px.
+ *
+ * Sala secreta ou travada: a linha fica no lugar, desabilitada, com o motivo
+ * escrito embaixo e ligado a ela por `aria-describedby`. Porta ou parede
+ * travada no caminho só aparecem no clique, que recusa e diz por quê
+ * (`mapStore.abrirSalaParaCorredores`).
+ *
+ * Sem animação de entrada nem de saída: a linha aparece ao selecionar a Sala
+ * (gesto de toda hora) e some com o próprio clique, quando o vão já está no
+ * mapa e o aviso diz o que mudou — movimento ali só atrasaria.
+ */
+function AbrirParaOCorredor({ corredores, bloqueio, onAbrir }: AbrirParaOCorredorProps) {
+  const motivoId = `${useId()}-motivo`
+  const motivo = bloqueio === null ? null : MOTIVO_SEM_VAO[bloqueio]
+  return (
+    <div className="lb-room-opt">
+      <button
+        type="button"
+        className="lb-room-opt__add lb-room-opt__add--acao"
+        disabled={motivo !== null}
+        aria-describedby={motivo === null ? undefined : motivoId}
+        onClick={onAbrir}
+      >
+        <span>{rotuloAbrirParaOCorredor(corredores)}</span>
+        <VaoGlyph />
+      </button>
+      {motivo !== null && (
+        <p className="lb-field__hint" id={motivoId}>
+          {motivo}
+        </p>
+      )}
+    </div>
+  )
+}
+
 /** O primeiro controle que o teclado alcança dentro do campo recém-aberto. */
 const CONTROLE_FOCAVEL = 'input:not([disabled]), textarea:not([disabled]), select:not([disabled]), button:not([disabled])'
 
@@ -438,8 +512,11 @@ const NOTA_SALA_TORTA = 'Largura e altura voltam quando a sala fica reta: 0°, 9
  * linha, Rotação —, depois os interruptores do que o jogador vê, e por último
  * o que se ACRESCENTA à sala (texto ao entrar, nota, facção, raio de visão,
  * perigo, esteira, sala dentro), cada um vazio numa linha só com "+"
- * (`OpcionalDaSala`). Até 26/09/2026 Largura, Altura e Rotação moravam depois
- * de todos esses, a 8–10 giros de roda do topo em 1280x800.
+ * (`OpcionalDaSala`). As duas ações fecham a lista, cada uma numa linha:
+ * "Criar sala dentro" e, só quando há corredor encostando, "Abrir para o
+ * corredor" — a última, para sumir e aparecer sem mexer nas outras.
+ * Até 26/09/2026 Largura, Altura e Rotação moravam depois de todos esses, a
+ * 8–10 giros de roda do topo em 1280x800.
  */
 export function RoomControls({
   name,
@@ -476,9 +553,15 @@ export function RoomControls({
   locked,
   parentName,
   onCreateRoomInside,
+  salaId,
   hazard,
   conveyor,
 }: RoomControlsProps) {
+  // "Abrir para o corredor" lê a store direto: a conta muda quando o mestre
+  // desenha ou mexe numa linha com o painel aberto, sem passar pelo App.
+  const corredoresParaAbrir = useMapStore((state) => (salaId === undefined ? 0 : selectCorredoresParaAbrir(state, salaId)))
+  const bloqueioParaAbrir = useMapStore((state) => (salaId === undefined ? null : selectBloqueioParaAbrir(state, salaId)))
+  const abrirSalaParaCorredores = useMapStore((state) => state.abrirSalaParaCorredores)
   const baseId = useId()
   const roofHintId = `${baseId}-roof-hint`
   const comodoHintId = `${baseId}-comodo-hint`
@@ -502,6 +585,7 @@ export function RoomControls({
     onRaioDeVisaoChange !== undefined ||
     hazard !== undefined ||
     conveyor !== undefined ||
+    corredoresParaAbrir > 0 ||
     onCreateRoomInside !== undefined
   return (
     <section className="lb-section">
@@ -718,6 +802,20 @@ export function RoomControls({
               <span>Criar sala dentro</span>
               <PlusGlyph />
             </button>
+          )}
+
+          {salaId !== undefined && corredoresParaAbrir > 0 && (
+            // Some quando não há o que abrir — Sala sem corredor, ou com tudo
+            // já aberto: botão na tela sempre faz alguma coisa. Por último de
+            // propósito: visto no app, acima de "Criar sala dentro" o clique
+            // fazia a linha sumir e "Criar sala dentro" subir para debaixo do
+            // ponteiro (um segundo clique armaria a ferramenta Sala); aqui,
+            // sumir ou aparecer não mexe em linha nenhuma.
+            <AbrirParaOCorredor
+              corredores={corredoresParaAbrir}
+              bloqueio={bloqueioParaAbrir}
+              onAbrir={() => abrirSalaParaCorredores(salaId)}
+            />
           )}
         </div>
       )}

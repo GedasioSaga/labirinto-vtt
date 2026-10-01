@@ -22,7 +22,7 @@ import { paintRevealBrush as paintRevealBrushOnMap, type RevealBrushMode, type R
 import * as mapFactory from '../lib/mapFactory'
 import { inserirPinturaDeBalde, type BrushMode } from '../lib/baldeDeTinta'
 import { abrirVaoDosDoisLados, desabarParede as desabarParedeNoMapa, type CorteNaParede } from '../lib/abrirVao'
-import { abrirSalaParaCorredores as abrirSalaParaCorredoresNoMapa, bloqueioDaSala } from '../lib/abrirCorredor'
+import { abrirSalaParaCorredores as abrirSalaParaCorredoresNoMapa, bloqueioDaSala, corredoresDaSala } from '../lib/abrirCorredor'
 import { comEscadaNosPisos, comFichaNoPiso, comSelecaoNoPiso, ehPiso, mapaDoPiso, nascemNoPiso, pisoDe } from '../lib/pisos'
 import { apagarBlocosNoPiso, pinoNoPiso, selecaoNoPiso } from '../lib/pisoEmEdicao'
 import { linkDrawnWallToRoom } from '../lib/roomLink'
@@ -2559,6 +2559,57 @@ export function selectEndireitarMudaria(state: Pick<MapStoreState, 'map' | 'sele
   const mudaria = endireitarMudariaAlgo(state.map, state.selection)
   ultimoEndireitarMudaria = { map: state.map, selection: state.selection, mudaria }
   return mudaria
+}
+
+/** O que a linha "Abrir para o corredor" do painel da Sala mostra, e de qual mapa e Sala saiu. */
+interface AberturaNoPainel {
+  map: MapData
+  salaId: string
+  corredores: number
+  bloqueio: ReturnType<typeof bloqueioDaSala>
+}
+
+/** Última resposta de `selectCorredoresParaAbrir` / `selectBloqueioParaAbrir`. */
+let ultimaAberturaNoPainel: AberturaNoPainel | null = null
+
+/**
+ * A conta e o motivo da linha "Abrir para o corredor" numa passada só, com a
+ * última resposta guardada. Mesmo cuidado de `selectEndireitarMudaria`: o
+ * zustand reavalia o seletor a cada `set()`, o `setCamera` do pan inclusive,
+ * e a conta passa por toda parede do piso (`lib/abrirCorredor.ts`). Ela só
+ * depende do mapa e da Sala, então com os dois iguais vale a última resposta;
+ * quando o mapa muda a cada quadro (a Sala arrastada), o que segura o custo é
+ * a lib medir contra a borda só as paredes perto dela.
+ */
+function aberturaNoPainel(map: MapData, salaId: string): AberturaNoPainel {
+  const ultima = ultimaAberturaNoPainel
+  if (ultima !== null && ultima.map === map && ultima.salaId === salaId) return ultima
+  const sala = map.regions.find((r) => r.id === salaId)
+  const nova: AberturaNoPainel = {
+    map,
+    salaId,
+    corredores: corredoresDaSala(map, salaId).length,
+    bloqueio: sala === undefined ? null : bloqueioDaSala(map, sala),
+  }
+  ultimaAberturaNoPainel = nova
+  return nova
+}
+
+/**
+ * Quantos corredores o "Abrir para o corredor" ainda abre na Sala
+ * (`components/RoomControls.tsx`): CORREDORES, par de linhas, e não paredes, e
+ * só os que têm o que fazer — 0 faz a linha sumir. Conta também os que a Sala
+ * travada ou secreta recusaria: aí a linha aparece desabilitada, com o motivo
+ * (`selectBloqueioParaAbrir`). Seletor de número: o painel só re-renderiza
+ * quando a conta muda.
+ */
+export function selectCorredoresParaAbrir(state: Pick<MapStoreState, 'map'>, salaId: string): number {
+  return aberturaNoPainel(state.map, salaId).corredores
+}
+
+/** Por que a Sala não abriria para o corredor ('secreta' ou 'travada', `lib/abrirCorredor.bloqueioDaSala`), ou `null`. */
+export function selectBloqueioParaAbrir(state: Pick<MapStoreState, 'map'>, salaId: string): ReturnType<typeof bloqueioDaSala> {
+  return aberturaNoPainel(state.map, salaId).bloqueio
 }
 
 /** O pedaço da store que diz de onde veio o `map` atual. */
