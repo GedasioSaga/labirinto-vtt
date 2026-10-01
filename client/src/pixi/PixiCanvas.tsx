@@ -192,8 +192,8 @@ import { isFreeMoveModifier } from '../lib/alignmentGuides'
 // Pedido 3 (guias estilo Figma): o que anda encaixa pela CAIXA (borda e
 // centro) das vizinhas, com tolerância em px de tela. Fatia 1: a sala; fatia
 // 2: todo arrasto de corpo e de ponto.
-import { SMART_GUIDE_SCREEN_PX, dragBoxWithGuides, dragPointWithGuides, guideModeForDrag, sameGuides, screenPxToWorld, type SmartGuide } from '../lib/smartGuides'
-import { guideBoxOfProp, guideBoxOfStair, guideBoxesForDrag, guidePointsForDrag, type GuideBoxesOptions, type GuidePointKind } from '../lib/guideBoxes'
+import { SMART_GUIDE_SCREEN_PX, dragBoxWithGuides, dragPointWithGuides, guideModeForDrag, pointBox, sameGuides, screenPxToWorld, type SmartGuide } from '../lib/smartGuides'
+import { guideBoxOfProp, guideBoxOfSelection, guideBoxOfStair, guideBoxesForDrag, guidePointsForDrag, type GuideBoxesOptions, type GuidePointKind } from '../lib/guideBoxes'
 import { drawSmartGuides } from './drawSmartGuides'
 import { passengerIdsOf } from '../lib/vehicle'
 import { carriedBy } from '../lib/carry'
@@ -318,6 +318,13 @@ interface BodyGuideDrag {
   boxes: AreaBounds[]
   /** A grade do gesto (`snapTargets`, que o Alt inverte); `null` = o gesto nunca teve grade. */
   gridTarget: SnapTargetKind | null
+  /**
+   * Em que ponto a grade vale. 'pointer': nos dois ponteiros, e a peça anda em
+   * células inteiras (parede, sala, escada, desenho, chão). 'anchor': no
+   * destino da âncora, que cai no vértice — o objeto, cujo CENTRO sempre caiu
+   * na grade; pelo delta dos ponteiros, o objeto fora da grade ficava fora.
+   */
+  gridOn: 'pointer' | 'anchor'
   mover: GuideMover
 }
 
@@ -2651,23 +2658,39 @@ export function PixiCanvas({
         const startAnchor = mover.anchor()
         if (startBounds === null || startAnchor === null) return null
         const boxes = guideBoxesForDrag(useMapStore.getState().map, guideSearch(moving))
-        return { startPointer: pointer, startBounds, startAnchor, boxes, gridTarget, mover }
+        return { startPointer: pointer, startBounds, startAnchor, boxes, gridTarget, gridOn: 'pointer', mover }
       }
 
       /**
-       * Um passo do arrasto de corpo com guias. A grade do gesto vale para os
-       * DOIS ponteiros (o do pointerdown e o de agora): o delta entre dois
-       * pontos da grade é um número inteiro de células, também em hex e
-       * triângulo — `applySnap` é de ponto, e aplicado ao delta daria passo
-       * errado ali. Quem manda (guia, grade ou nada) é `guideModeForDrag`.
+       * Os dois pontos cujo delta é o deslocamento do gesto, já com a grade.
+       * 'pointer': a grade vale para os DOIS ponteiros (o do pointerdown e o de
+       * agora), e o delta entre dois pontos da grade é um número inteiro de
+       * células, também em hex e triângulo — `applySnap` é de ponto, e aplicado
+       * ao delta daria passo errado ali. 'anchor': a grade vale para onde a
+       * âncora iria pelo delta cru, e o delta é o que a leva até lá.
+       */
+      const gesturePoints = (drag: BodyGuideDrag, worldPoint: Point, altKey: boolean): { startPointer: Point; pointer: Point } => {
+        const grid = drag.gridTarget
+        if (grid === null) return { startPointer: drag.startPointer, pointer: worldPoint }
+        const gridSize = useMapStore.getState().map.grid
+        if (drag.gridOn === 'anchor') {
+          const destino = { x: drag.startAnchor.x + worldPoint.x - drag.startPointer.x, y: drag.startAnchor.y + worldPoint.y - drag.startPointer.y }
+          return { startPointer: drag.startAnchor, pointer: applySnap(destino, gridSize, grid, altKey) }
+        }
+        return { startPointer: applySnap(drag.startPointer, gridSize, grid, altKey), pointer: applySnap(worldPoint, gridSize, grid, altKey) }
+      }
+
+      /**
+       * Um passo do arrasto de corpo com guias, pelo deslocamento TOTAL do
+       * gesto (`gesturePoints`). Quem manda (guia, grade ou nada) é
+       * `guideModeForDrag`.
        */
       const moveBodyWithGuides = (drag: BodyGuideDrag, worldPoint: Point, event: GuideKeys): void => {
-        const { map, snapTargets } = useMapStore.getState()
+        const { snapTargets } = useMapStore.getState()
         const grid = drag.gridTarget
         const result = dragBoxWithGuides({
           startBounds: drag.startBounds,
-          startPointer: grid === null ? drag.startPointer : applySnap(drag.startPointer, map.grid, grid, event.altKey),
-          pointer: grid === null ? worldPoint : applySnap(worldPoint, map.grid, grid, event.altKey),
+          ...gesturePoints(drag, worldPoint, event.altKey),
           others: drag.boxes,
           tolerance: screenPxToWorld(SMART_GUIDE_SCREEN_PX, camera.scale),
           mode: guideModeForDrag({ free: isFreeMoveModifier(event), altKey: event.altKey, gridBySetting: grid !== null && snapTargets[grid] }),
@@ -2740,11 +2763,15 @@ export function PixiCanvas({
         })
       }
 
-      /** Objeto: a caixa é a do desenho girado (`guideBoxOfProp`), e o ponto pego continua sob o cursor. */
+      /**
+       * Objeto: a caixa é a do desenho girado (`guideBoxOfProp`). Sem grade, o
+       * ponto pego continua sob o cursor; com ela, o CENTRO (a âncora) cai no
+       * vértice, como sempre caiu (decisão c de `smartGuides.ts`: a grade manda).
+       */
       const startPropGuideDrag = (propId: string, pointer: Point): BodyGuideDrag | null => {
         const propNow = () => useMapStore.getState().map.props.find((p) => p.id === propId)
         const prop = propNow()
-        return startBodyGuideDrag(pointer, prop === undefined ? null : guideBoxOfProp(prop), { props: [propId] }, 'prop', {
+        const drag = startBodyGuideDrag(pointer, prop === undefined ? null : guideBoxOfProp(prop), { props: [propId] }, 'prop', {
           anchor: () => {
             const atual = propNow()
             return atual === undefined ? null : { x: atual.x, y: atual.y }
@@ -2754,6 +2781,7 @@ export function PixiCanvas({
             if (atual !== undefined) useMapStore.getState().movePropLive(propId, atual.x + dx, atual.y + dy)
           },
         })
+        return drag === null ? null : { ...drag, gridOn: 'anchor' }
       }
 
       /**
@@ -2776,20 +2804,26 @@ export function PixiCanvas({
       }
 
       /**
-       * Seleção de vários (laço, Shift+clique ou grupo): a caixa é a da união.
-       * `moveSelectionLive` move tudo pelo mesmo passo, e a âncora é o passo
-       * já dado — não há uma peça só para ler. Este arrasto nunca teve grade.
+       * Seleção de vários (laço, Shift+clique ou grupo): a caixa é a união do
+       * que anda, medida como as vizinhas (`guideBoxOfSelection`: sem o item
+       * travado, com o objeto girado e a placa da escada). `moveSelectionLive`
+       * move tudo pelo mesmo passo, e a âncora é o passo já dado — não há uma
+       * peça só para ler. Este arrasto nunca teve grade.
        */
       const startSelectionGuideDrag = (pointer: Point): BodyGuideDrag | null => {
-        const { map, selection } = useMapStore.getState()
+        const { map, selection, pisoAtivo } = useMapStore.getState()
+        const box = guideBoxOfSelection(map, selectionToAreaSelection(selection), pisoAtivo)
         let andou: Point = { x: 0, y: 0 }
-        return startBodyGuideDrag(pointer, areaSelectionBounds(doPisoEmEdicao(map), selectionToAreaSelection(selection)), {}, null, {
+        const drag = startBodyGuideDrag(pointer, box ?? pointBox(pointer), {}, null, {
           anchor: () => andou,
           move: (dx, dy) => {
             useMapStore.getState().moveSelectionLive(dx, dy)
             andou = { x: andou.x + dx, y: andou.y + dy }
           },
         })
+        // Sem caixa (só fichas e luzes, que não são guia de ninguém): a seleção
+        // anda pelo gesto, sem candidata e sem guia.
+        return drag !== null && box === null ? { ...drag, boxes: [] } : drag
       }
 
       /**

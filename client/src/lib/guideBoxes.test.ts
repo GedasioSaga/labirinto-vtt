@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import { createEmptyMap } from './mapFactory'
 import { EMPTY_AREA_SELECTION, type AreaBounds, type AreaSelection } from './areaSelection'
-import { guideBoxesForDrag, guidePointsForDrag } from './guideBoxes'
+import { guideBoxOfSelection, guideBoxesForDrag, guidePointsForDrag } from './guideBoxes'
 import { pointBox } from './smartGuides'
 import { planStairFlight } from '../pixi/stairFlight'
-import type { Drawing, MapData, Prop, Region, Stair, StairDirection, StairSegment, Token, Wall } from '../types/map'
+import type { Drawing, Light, MapData, Prop, Region, Stair, StairDirection, StairSegment, Token, Wall } from '../types/map'
 
 function sala(id: string, minX: number, minY: number, maxX: number, maxY: number, extra: Partial<Region> = {}): Region {
   return {
@@ -264,5 +264,64 @@ describe('guideBoxesForDrag — a caixa é a da peça como ela aparece no mapa',
     for (const stepWidth of [Number.NaN, Number.POSITIVE_INFINITY, -10, 0]) {
       expect(caixasDe([], [lance([{ x1: 100, y1: 200, x2: 100, y2: 400 }], { stepWidth })])).toEqual([{ minX: 100, minY: 200, maxX: 100, maxY: 400 }])
     }
+  })
+})
+
+/**
+ * A caixa da SELEÇÃO arrastada tem de ser medida com a mesma régua das
+ * vizinhas: senão a borda que encaixa é uma que não se vê (achado sobre o
+ * 54b1e31e). E só soma o que `moveAreaSelection` de fato move.
+ */
+describe('guideBoxOfSelection — a caixa do que anda na seleção de vários', () => {
+  const selecao = (extra: Partial<AreaSelection>): AreaSelection => ({ ...EMPTY_AREA_SELECTION, ...extra })
+  // Mesa de 4 x 1 células (256 x 64) girada um quarto de volta: o desenho vai de
+  // x = 168 a 232; o retângulo sem giro iria de 72 a 328 (1,5 célula de cada lado).
+  const mesaEmPe: Prop = { id: 'mesa-em-pe', src: '', x: 200, y: 600, width: 256, height: 64, linkedMapPath: null, mobilia: 'mesa', rotation: 90 }
+
+  it('objeto girado e escada medem o desenho (guideBoxOfProp, guideBoxOfStair), não a geometria do laço', () => {
+    const map: MapData = { ...mapa(), props: [mesaEmPe] }
+    expect(guideBoxOfSelection(map, selecao({ props: ['mesa-em-pe'] }), 0)).toEqual({ minX: 168, minY: 472, maxX: 232, maxY: 728 })
+    expect(guideBoxOfSelection(map, selecao({ stairs: ['escada'] }), 0)).toEqual(ESCADA)
+  })
+
+  it('sala, parede solta e desenho pela conta do laço, e a seleção dá a união', () => {
+    expect(guideBoxOfSelection(mapa(), selecao({ regions: ['outra'], walls: ['parede-solta'], drawings: ['linha'] }), 0)).toEqual({ minX: 100, minY: 100, maxX: 900, maxY: 650 })
+  })
+
+  it('item travado não anda (moveAreaSelection o pula): fica fora da caixa, seja sala, parede, objeto ou escada', () => {
+    const base = mapa()
+    const map: MapData = {
+      ...base,
+      regions: base.regions.map((r) => (r.id === 'outra' ? { ...r, locked: true } : r)),
+      walls: base.walls.map((w) => (w.id === 'parede-solta' ? { ...w, locked: true } : w)),
+      props: base.props.map((p) => (p.id === 'bau-selecionado' ? { ...p, locked: true } : p)),
+      stairs: [{ ...escada, locked: true }],
+    }
+    const tudo = selecao({ regions: ['outra'], walls: ['parede-solta'], props: ['bau-selecionado', 'bau'], stairs: ['escada'] })
+    expect(guideBoxOfSelection(map, tudo, 0)).toEqual(BAU)
+  })
+
+  it('ficha e luz não contam (não são guia de ninguém): só elas não dão caixa, e ao lado de uma linha a caixa é a da linha', () => {
+    const ficha: Token = { id: 'ficha', characterId: null, name: 'ficha', x: 2000, y: 2000, size: 1, image: null }
+    const luz: Light = { id: 'luz', x: 3000, y: 100, radius: 200, color: '#ffcc66', intensity: 1 }
+    const map: MapData = { ...mapa(), tokens: [ficha], lights: [luz] }
+    expect(guideBoxOfSelection(map, selecao({ tokens: ['ficha'], lights: ['luz'] }), 0)).toBeNull()
+    expect(guideBoxOfSelection(map, selecao({ tokens: ['ficha'], lights: ['luz'], drawings: ['linha'] }), 0)).toEqual(LINHA)
+  })
+
+  it('sala leva as sub-salas (moveRegion), e a parede de sala leva a sala inteira (moveWall)', () => {
+    // Sub-sala que passa da borda da mãe (x até 400): a caixa vai até onde ela vai.
+    const map: MapData = { ...mapa(), regions: [sala('mae', 100, 100, 300, 300), sala('filha', 250, 150, 400, 250, { parentId: 'mae' }), sala('outra', 500, 100, 700, 300)] }
+    expect(guideBoxOfSelection(map, selecao({ regions: ['mae'] }), 0)).toEqual({ minX: 100, minY: 100, maxX: 400, maxY: 300 })
+    expect(guideBoxOfSelection(mapa(), selecao({ walls: ['parede-da-outra'] }), 0)).toEqual(OUTRA)
+  })
+
+  it('o que não se vê não conta: camada oculta, outro piso, região sem polígono e mão livre sem ponto', () => {
+    const semPonto: Drawing = { id: 'vazio', kind: 'freehand', points: [], color: '#ffffff', width: 2 }
+    const map: MapData = { ...mapa(), drawings: [linha, semPonto] }
+    expect(guideBoxOfSelection({ ...map, hiddenLayers: ['objetos'] }, selecao({ props: ['bau'] }), 0)).toBeNull()
+    expect(guideBoxOfSelection(map, selecao({ regions: ['outro-piso'] }), 0)).toBeNull()
+    expect(guideBoxOfSelection(map, selecao({ regions: ['outro-piso'] }), 1)).toEqual({ minX: 800, minY: 100, maxX: 900, maxY: 200 })
+    expect(guideBoxOfSelection(map, selecao({ regions: ['degenerada'], drawings: ['vazio'] }), 0)).toBeNull()
   })
 })

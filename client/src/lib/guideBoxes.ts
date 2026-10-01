@@ -18,9 +18,12 @@
  * O arrasto de PONTO (fatia 2) soma às caixas os pontos que elas não cobrem
  * (`guidePointsForDrag`): a ponta de cada parede, o vértice de cada sala, o
  * centro de cada ficha.
+ *
+ * A seleção de vários arrastada mede com a mesma régua (`guideBoxOfSelection`).
  */
 import type { MapData, Prop, Stair } from '../types/map'
 import { boundsOfDrawing, boundsOfRegion, boundsOfWall, type AreaBounds, type AreaSelection } from './areaSelection'
+import { canInteract } from './itemTransform'
 import { visibleDrawings, visibleProps, visibleRegions, visibleStairs, visibleTokens, visibleWalls } from './layers'
 import { ehMovelRedondo } from './mobilia'
 import { mapaDoPiso } from './pisos'
@@ -184,6 +187,77 @@ export function guideBoxesForDrag(map: MapData, options: GuideBoxesOptions): Are
   }
 
   return boxes
+}
+
+/**
+ * A caixa do que ANDA quando a seleção de vários é arrastada, com a régua das
+ * vizinhas (`guideBoxesForDrag`): o objeto girado, a placa da escada, e a sala,
+ * a parede e o desenho pela conta do laço. Com a régua do laço
+ * (`areaSelectionBounds`), o objeto em pé encaixava pela borda do retângulo
+ * deitado, onde não há nada, e a guia aparecia ali.
+ *
+ * Só entra o que `moveAreaSelection` move de fato. O item travado fica onde
+ * está: somado, a seleção encaixava pela borda dele e só o resto andava, por
+ * um passo que alinhava o que ficou parado. A sala anda com as sub-salas
+ * (`moveRegion`), e a parede de sala leva a sala inteira (`moveWall`), mesmo
+ * fora da seleção. Ficha e luz não entram, como não entram entre as vizinhas;
+ * nem o que não se vê: camada oculta, outro piso, região sem polígono.
+ *
+ * `null` = nada na seleção tem caixa (só fichas e luzes, por exemplo): ela
+ * anda sem guia.
+ */
+export function guideBoxOfSelection(map: MapData, selection: AreaSelection, piso: number): AreaBounds | null {
+  const doPiso = mapaDoPiso(map, piso)
+  const hidden = doPiso.hiddenLayers
+  const boxes: AreaBounds[] = []
+  const add = (box: AreaBounds | null): void => {
+    if (box !== null && isFiniteBox(box)) boxes.push(box)
+  }
+
+  const selectedRegions = new Set(selection.regions)
+  const selectedWalls = new Set(selection.walls)
+  const roots = new Set<string>()
+  for (const region of doPiso.regions) {
+    if (selectedRegions.has(region.id) && canInteract(region)) roots.add(region.id)
+  }
+  for (const wall of doPiso.walls) {
+    if (wall.regionId !== undefined && selectedWalls.has(wall.id) && canInteract(wall)) roots.add(wall.regionId)
+  }
+  const movingRegions = new Set<string>()
+  for (const id of roots) {
+    for (const inner of subtreeIds(doPiso.regions, id)) movingRegions.add(inner)
+  }
+
+  // Mesma conta das vizinhas: a parede de sala desenhada repetiria a caixa da sala.
+  const roomsWithBox = new Set<string>()
+  for (const region of visibleRegions(doPiso.regions, hidden)) {
+    if (!movingRegions.has(region.id) || isDegenerateRegion(region.points)) continue
+    roomsWithBox.add(region.id)
+    add(boundsOfRegion(region))
+  }
+  for (const wall of visibleWalls(doPiso.walls, hidden)) {
+    const moves =
+      wall.regionId === undefined
+        ? selectedWalls.has(wall.id) && canInteract(wall)
+        : movingRegions.has(wall.regionId) && !roomsWithBox.has(wall.regionId)
+    if (moves) add(boundsOfWall(wall))
+  }
+
+  const selectedDrawings = new Set(selection.drawings)
+  // Desenho não tem trava (types/map.ts): `moveAreaSelection` move todos.
+  for (const drawing of visibleDrawings(doPiso.drawings, hidden)) {
+    if (selectedDrawings.has(drawing.id)) add(boundsOfDrawing(drawing))
+  }
+  const selectedProps = new Set(selection.props)
+  for (const prop of visibleProps(doPiso.props, hidden)) {
+    if (selectedProps.has(prop.id) && canInteract(prop)) add(guideBoxOfProp(prop))
+  }
+  const selectedStairs = new Set(selection.stairs)
+  for (const stair of visibleStairs(doPiso.stairs, hidden)) {
+    if (selectedStairs.has(stair.id) && canInteract(stair)) add(guideBoxOfStair(stair))
+  }
+
+  return boxes.reduce<AreaBounds | null>((union, box) => (union === null ? box : unionBox(union, box)), null)
 }
 
 /**

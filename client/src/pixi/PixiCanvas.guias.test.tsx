@@ -481,6 +481,56 @@ describe('PixiCanvas — guias em todo arrasto de corpo e de ponto (pedido 3, fa
       expect(atual().drawings.map((d) => (d.kind === 'line' ? d.x1 : null))).toEqual([100, 140])
     })
 
+    it('seleção com objeto girado: encaixa pela borda que se vê, e a borda do retângulo sem giro (1,5 célula fora) não prende', async () => {
+      // Mesa de 4 x 1 células em pé: o desenho vai de x = 168 a 232; sem o giro, iria de 72 a 328.
+      const mesa: Prop = { id: 'mesa', src: '', x: 200, y: 600, width: 256, height: 64, linkedMapPath: null, mobilia: 'mesa', rotation: 90 }
+      prepara(mapaCom({ props: [mesa], drawings: [linha('linha', 220, 500, 220, 700)] }))
+      await monta()
+      act(() => useMapStore.setState({ selection: [{ kind: 'prop', id: 'mesa' }, { kind: 'drawing', id: 'linha' }] }))
+      ponteiro('pointerdown', { x: 200, y: 600 })
+      // Borda direita do desenho em 643, a 3 px da borda esquerda da sala (640).
+      ponteiro('pointermove', { x: 611, y: 600 })
+      expect(atual().props[0]).toMatchObject({ x: 608, y: 600 })
+      const caixa = guiaMagenta()?.getLocalBounds()
+      expect(Math.abs(((caixa?.minX ?? 0) + (caixa?.maxX ?? 0)) / 2 - 640)).toBeLessThan(1)
+      // A borda esquerda do retângulo SEM giro iria a 963, a 3 px da borda direita
+      // da sala (960). Ali não se vê nada: nada encaixa e não há guia.
+      ponteiro('pointermove', { x: 1091, y: 600 })
+      expect(atual().props[0]).toMatchObject({ x: 1091, y: 600 })
+      expect(guiaMagenta()).toBeNull()
+    })
+
+    it('seleção com sala travada e objeto solto: só o objeto anda, e a caixa que encaixa é só a dele', async () => {
+      const travada: Region = { ...sala('travada', 100, 400, 300, 500), locked: true }
+      // Caixa de 128 a 256 em x.
+      const caixote: Prop = { id: 'caixote', src: '', x: 192, y: 640, width: 128, height: 128, linkedMapPath: null, mobilia: 'caixa' }
+      prepara({ ...mapa([ALVO, travada]), props: [caixote] })
+      await monta()
+      act(() => useMapStore.setState({ selection: [{ kind: 'region', id: 'travada' }, { kind: 'prop', id: 'caixote' }] }))
+      ponteiro('pointerdown', { x: 192, y: 640 })
+      // Borda esquerda do caixote em 643, a 3 px da borda esquerda da sala (640).
+      ponteiro('pointermove', { x: 707, y: 640 })
+      expect(atual().props[0]).toMatchObject({ x: 704, y: 640 })
+      expect(guiaMagenta()).not.toBeNull()
+      // Somada à sala travada, a caixa iria até 300 + 663 = 963, a 3 px de 960;
+      // mas a sala não anda, e o caixote (de 791 a 919) não encaixa em nada.
+      ponteiro('pointermove', { x: 855, y: 640 })
+      expect(atual().props[0]).toMatchObject({ x: 855, y: 640 })
+      expect(guiaMagenta()).toBeNull()
+      expect(caixaDa('travada')).toEqual({ minX: 100, maxX: 300, minY: 400, maxY: 500 })
+    })
+
+    it('seleção só de fichas (que não são guia de ninguém): anda pelo gesto, sem encaixe e sem guia', async () => {
+      prepara(mapaCom({ tokens: [ficha('a', 200, 600), ficha('b', 300, 600)] }))
+      await monta()
+      act(() => useMapStore.setState({ selection: [{ kind: 'token', id: 'a' }, { kind: 'token', id: 'b' }] }))
+      ponteiro('pointerdown', { x: 250, y: 600 })
+      // O meio da fileira (250) vai a 803, a 3 px do centro da sala: ficha não encaixa em sala.
+      ponteiro('pointermove', { x: 803, y: 600 })
+      expect(atual().tokens.map((t) => t.x)).toEqual([753, 853])
+      expect(guiaMagenta()).toBeNull()
+    })
+
     describe('grade do objeto × guia', () => {
       // Caixa 128 x 128 com o centro num vértice da grade (192, 576): caixa de 128 a 256.
       // Móvel (desenhado em silhueta): objeto com imagem pediria o Tauri para carregá-la.
@@ -505,6 +555,38 @@ describe('PixiCanvas — guias em todo arrasto de corpo e de ponto (pedido 3, fa
         ponteiro('pointerdown', { x: 150, y: 530 })
         ponteiro('pointermove', { x: 794, y: 530 }, { alt: true })
         expect(atual().props[0]).toMatchObject({ x: 833, y: 576 })
+        expect(guiaMagenta()).not.toBeNull()
+      })
+
+      // Grade de 50 e o cenário do achado: objeto 40 x 40 com o centro FORA da
+      // grade, em (37, 52), pego em (40, 55).
+      const torto: Prop = { id: 'torto', src: '', x: 37, y: 52, width: 40, height: 40, linkedMapPath: null, mobilia: 'caixa' }
+
+      it('objeto fora da grade, grade de objeto ligada: o centro cai no vértice (a grade vale para o centro, não para o ponteiro)', async () => {
+        prepara({ ...mapa([ALVO_A_1_PX]), grid: 50, props: [torto] })
+        act(() => useMapStore.setState({ snapTargets: { token: false, wall: false, prop: true } }))
+        await monta()
+        ponteiro('pointerdown', { x: 40, y: 55 })
+        // Com o delta entre os dois ponteiros na grade, o centro ia para (87, 52) e ficava fora dela para sempre.
+        ponteiro('pointermove', { x: 90, y: 55 })
+        expect(atual().props[0]).toMatchObject({ x: 100, y: 50 })
+        ponteiro('pointerup', { x: 90, y: 55 })
+        expect(atual().props[0]).toMatchObject({ x: 100, y: 50 })
+        act(() => useMapStore.getState().undo())
+        expect(atual().props[0]).toMatchObject({ x: 37, y: 52 })
+      })
+
+      it('grade de objeto desligada e Alt+arrastar (duplica): o centro da cópia cai na grade do Alt, a guia encaixa por cima e a original fica', async () => {
+        prepara({ ...mapa([ALVO_A_1_PX]), grid: 50, props: [torto] })
+        await monta()
+        ponteiro('pointerdown', { x: 40, y: 55 }, { alt: true })
+        ponteiro('pointermove', { x: 240, y: 55 }, { alt: true })
+        const objetos = atual().props
+        expect(objetos).toHaveLength(2)
+        // O centro iria a (237, 52); a grade o põe em (250, 50), e a guia o leva 2 px
+        // para baixo, até alinhar com a original, que ficou em y = 52.
+        expect(objetos.find((p) => p.id !== 'torto')).toMatchObject({ x: 250, y: 52 })
+        expect(objetos.find((p) => p.id === 'torto')).toMatchObject({ x: 37, y: 52 })
         expect(guiaMagenta()).not.toBeNull()
       })
     })

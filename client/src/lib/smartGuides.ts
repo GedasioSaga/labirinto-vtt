@@ -255,7 +255,11 @@ export function guideModeForDrag({ free, altKey, gridBySetting }: GuideModifiers
 export interface BoxDragInput {
   /** Caixa da peça no pointerdown. */
   startBounds: AreaBounds
-  /** Ponteiro do pointerdown e o de agora, já com a grade do gesto aplicada aos DOIS. */
+  /**
+   * Dois pontos cujo delta é o deslocamento do gesto: o ponteiro do
+   * pointerdown e o de agora, com a grade do gesto aplicada aos DOIS; ou, no
+   * objeto, o centro de partida e o destino dele já na grade.
+   */
   startPointer: Point
   pointer: Point
   others: readonly AreaBounds[]
