@@ -329,7 +329,8 @@ export const MOTIVO_SEM_CORREDOR: Record<MotivoSemCorredor, string> = {
   'nao-paralelas': 'As paredes que encostam na sala não são paralelas: deixe as 2 do corredor quase paralelas.',
   coladas: 'As paredes que encostam estão coladas uma na outra, como traço repetido: afaste-as ou apague a cópia.',
   longe: 'As paredes que encostam estão longe demais uma da outra para serem um corredor: aproxime-as.',
-  rente: 'As paredes chegam quase deitadas na borda, e o vão passaria da largura do corredor: traga-as mais de frente.',
+  // Vale também para o corredor largo a 45°-60°: o vão passa das 16 células sem a linha estar deitada.
+  rente: 'As paredes chegam de lado na borda, e o vão ficaria grande demais para um corredor: traga-as mais de frente.',
   canto: 'Uma quina da sala fica fora das 2 paredes do corredor: leve-as até a borda dos dois lados da quina.',
 }
 

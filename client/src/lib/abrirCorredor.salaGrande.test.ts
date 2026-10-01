@@ -5,7 +5,7 @@
 // caixa dela, nunca menos que as 4 células de antes, nunca mais que 16.
 // Os números da Sala 1 e da Sala 3 são os do mapa dele (copiados, sem o arquivo).
 import { describe, expect, it } from 'vitest'
-import { abrirSalaParaCorredores, corredoresDaSala } from './abrirCorredor'
+import { abrirSalaParaCorredores, corredoresDaSala, motivoSemCorredor } from './abrirCorredor'
 import { buildFreeRoomFromPoints, buildRoomFromDraft } from './drawingFactory'
 import { addRoom, createEmptyMap } from './mapFactory'
 import { hasLineOfSight, visionSegments } from './visibility'
@@ -180,5 +180,40 @@ describe('no salão, as outras réguas continuam barrando parede sem relação',
     const map = retangulo(SALAO_DE, SALAO_ATE, rua)
     expect(corredoresDaSala(map, 'sala')).toEqual([])
     expect(abrirSalaParaCorredores(map, 'sala').map).toBe(map)
+  })
+
+  /** A mesma rua, de 1000 px, saindo do topo nos mesmos dois pontos (26 células um do outro), a `graus` da parede. */
+  function ruaNoTopo(graus: number): Wall[] {
+    const angulo = (graus * Math.PI) / 180
+    const dx = -1000 * Math.cos(angulo)
+    const dy = -1000 * Math.sin(angulo)
+    return [parede('L1', 1800, 0, 1800 + dx, dy), parede('L2', 142, 0, 142 + dx, dy)]
+  }
+
+  // Revisão do 41c50bf: o vão até 4× a largura só barra linha abaixo de ~14,5° da parede. Com a
+  // largura presa em 4 células, o vão nunca passava de 16; com o teto crescendo com a Sala, a mesma
+  // rua a 15°-25° tem 6,7 a 10,9 células de largura (abaixo das 13 do salão) e abria 26 das 30 do topo.
+  it.each([15, 20, 25])('a mesma rua a %i° da parede: o vão de 26 células continua fechado, e o motivo é "rente"', (graus) => {
+    const map = retangulo(SALAO_DE, SALAO_ATE, ruaNoTopo(graus))
+    expect(corredoresDaSala(map, 'sala')).toEqual([])
+    expect(abrirSalaParaCorredores(map, 'sala').map).toBe(map)
+    expect(motivoSemCorredor(map, 'sala')).toBe('rente')
+  })
+
+  it('nem chegando de frente o vão passa de 16 células, o maior de antes: 15,5 abre, 16,5 não', () => {
+    // Salão de 40 × 40 células (teto da largura: 16). As linhas chegam à base a 60° da parede,
+    // com 13,4 e 14,3 células entre elas: só o tamanho do vão separa os dois casos.
+    const lado = 40 * GRADE
+    const aSessentaGraus = (vaoCelulas: number) => {
+      const de = 10 * GRADE
+      const ate = de + vaoCelulas * GRADE
+      const linhas = [parede('S1', de, lado, de + 500, lado + 866), parede('S2', ate, lado, ate + 500, lado + 866)]
+      return retangulo({ x: 0, y: 0 }, { x: lado, y: lado }, linhas)
+    }
+    expect(linhasDosCorredores(aSessentaGraus(15.5))).toEqual([['S1', 'S2']])
+    const grande = aSessentaGraus(16.5)
+    expect(corredoresDaSala(grande, 'sala')).toEqual([])
+    expect(abrirSalaParaCorredores(grande, 'sala').map).toBe(grande)
+    expect(motivoSemCorredor(grande, 'sala')).toBe('rente')
   })
 })

@@ -70,9 +70,20 @@ const COS_ANGULO_MAX = Math.cos((CORREDOR_ANGULO_MAX_GRAUS * Math.PI) / 180)
 
 /** O vão tem no máximo 4× a largura do corredor. Linhas quase deitadas sobre a
  *  parede (uma rua passando rente à Sala) encostam longe uma da outra e, sem
- *  esse teto, abririam a lateral inteira. Corredor que chega a ~15° da parede
- *  ainda passa. */
+ *  esse teto, abririam a lateral inteira. Corredor de até 4 células que chega a
+ *  ~15° da parede ainda passa; mais largo, vale também `VAO_MAX_CELULAS`. */
 const VAO_MAX_POR_LARGURA = 4
+
+/**
+ * E o vão nunca passa de 16 células, o maior que cabia antes do teto
+ * proporcional (4× o teto fixo de 4 células). O 4× sozinho é régua de ângulo
+ * (barra só linha abaixo de ~14,5° da parede): com a largura crescendo com a
+ * Sala, uma rua a 15°-25° de um salão de 30 × 26 células passava com 7 a 11
+ * células de largura e abria 26 das 30 do topo. Quanto mais largo o corredor,
+ * mais de frente ele precisa chegar: com 9 células, a partir de ~34°. Os do
+ * mapa do mestre abrem de 6 a 13 células.
+ */
+const VAO_MAX_CELULAS = 16
 
 /** Trecho de borda menor que isto (px) não vira vão: é o `PEDACO_MINIMO` de
  *  abrirVao.ts, abaixo do qual o corte nem acontece. */
@@ -363,6 +374,8 @@ interface Regua {
   larguraMin: number
   /** Cresce com a Sala, entre o piso e o teto (`CORREDOR_LARGURA_MAX_*`). */
   larguraMax: number
+  /** Não cresce com a Sala (`VAO_MAX_CELULAS`). */
+  vaoMax: number
 }
 
 function reguaDa(borda: Borda, grade: number): Regua {
@@ -370,7 +383,7 @@ function reguaDa(borda: Borda, grade: number): Regua {
   const menorLado = Math.min(caixa.maxX - caixa.minX, caixa.maxY - caixa.minY)
   const proporcional = menorLado * CORREDOR_LARGURA_MAX_FRACAO_DA_SALA
   const larguraMax = Math.min(Math.max(proporcional, CORREDOR_LARGURA_MAX_PISO_CELULAS * grade), CORREDOR_LARGURA_MAX_TETO_CELULAS * grade)
-  return { folga: ENCOSTE_TOLERANCIA_CELULAS * grade, larguraMin: CORREDOR_LARGURA_MIN_CELULAS * grade, larguraMax }
+  return { folga: ENCOSTE_TOLERANCIA_CELULAS * grade, larguraMin: CORREDOR_LARGURA_MIN_CELULAS * grade, larguraMax, vaoMax: VAO_MAX_CELULAS * grade }
 }
 
 /** Por que duas linhas vizinhas não formam corredor. 'arco-longo' é o par medido
@@ -393,7 +406,7 @@ function formamCorredor(de: EncosteDeCorredor, ate: EncosteDeCorredor, borda: Bo
   const largura = Math.max(Math.abs(cruz(de.paraFora, menos(ate.ponto, de.ponto))), Math.abs(cruz(ate.paraFora, menos(de.ponto, ate.ponto))))
   if (largura < regua.larguraMin) return 'coladas'
   if (largura > regua.larguraMax) return 'longe'
-  if (arco > VAO_MAX_POR_LARGURA * largura) return 'rente'
+  if (arco > Math.min(VAO_MAX_POR_LARGURA * largura, regua.vaoMax)) return 'rente'
   const trechos = trechosDoArco(borda, de, ate)
   const cantos = trechos.slice(1).map((t) => t.de)
   const cantosDentro = cantos.every((c) => ladoDeDentro(de, ate.ponto, c) >= -regua.folga && ladoDeDentro(ate, de.ponto, c) >= -regua.folga)
