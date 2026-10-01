@@ -905,6 +905,34 @@ describe('PixiCanvas — guias ao desenhar (pedido 3, fatia 4)', () => {
       ponteiro('pointerup', { x: 966, y: 700 }, { alt: true })
       expect(caixaDa(salaNova().id)).toEqual({ minX: 300, maxX: 963, minY: 500, maxY: 700 })
     })
+
+    // O raio do Círculo nunca passou pela grade. Com ela ligada, a regra da
+    // grade (guia só no alinhamento exato) deixava o raio sem grade E sem guia.
+    it('grade ligada e sem Alt: o raio do Círculo, que a grade não toca, encaixa na reta do centro e a guia aparece', async () => {
+      prepara(mapa([ALVO]), true)
+      await monta()
+      usa('circle')
+      // O centro vai ao vértice (768, 576); o raio continua fora da grade em x.
+      ponteiro('pointerdown', { x: 770, y: 574 })
+      ponteiro('pointermove', { x: 1003, y: 579 })
+      expect(guiaMagenta()).not.toBeNull()
+      ponteiro('pointerup', { x: 1003, y: 579 })
+      expect(atual().drawings[0]).toMatchObject({ kind: 'circle', cx: 768, cy: 576, radius: 235 })
+      expect(guiaMagenta()).toBeNull()
+    })
+
+    it('grade ligada e sem Alt: o raio do Círculo a 3 px da borda da vizinha encaixa nela', async () => {
+      prepara(mapa([ALVO]), true)
+      await monta()
+      usa('circle')
+      ponteiro('pointerdown', { x: 770, y: 574 })
+      ponteiro('pointermove', { x: 963, y: 650 })
+      expect(guiaMagenta()).not.toBeNull()
+      ponteiro('pointerup', { x: 963, y: 650 })
+      const circulo = atual().drawings[0]
+      if (circulo.kind !== 'circle') throw new Error('esperava um círculo')
+      expect(circulo.radius).toBeCloseTo(Math.hypot(960 - 768, 650 - 576))
+    })
   })
 
   describe('Linha, Parede e Escada', () => {

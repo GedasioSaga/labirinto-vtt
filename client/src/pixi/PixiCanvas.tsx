@@ -2952,12 +2952,21 @@ export function PixiCanvas({
 
       /**
        * Quem manda no ponto do desenho (fatia 4): a regra do arrasto, com a
-       * grade de parede, que é a de todo desenho. O Ctrl solta a guia; na
-       * Parede, na Linha e na Escada ele também trava o ângulo, e com a trava
-       * a guia não encaixa (decisão b de `smartGuides.ts`).
+       * grade por onde o ponto passou. `gridTarget` é a de parede, que é a de
+       * todo desenho, ou `null` no raio do Círculo, que nunca teve grade: a
+       * grade não manda num ponto que ela não tocou, e ali a guia encaixa mesmo
+       * com a grade ligada. Pela regra da grade ('gridExact') o raio ficava sem
+       * grade E sem guia — ela só mostra o alinhamento exato, que um ponto
+       * vindo do ponteiro nunca atinge. O Ctrl solta a guia; na Parede, na
+       * Linha e na Escada ele também trava o ângulo, e com a trava a guia não
+       * encaixa (decisão b de `smartGuides.ts`).
        */
-      const draftGuideMode = (event: GuideKeys): GuideMode =>
-        guideModeForDrag({ free: isFreeMoveModifier(event), altKey: event.altKey, gridBySetting: useMapStore.getState().snapTargets.wall })
+      const draftGuideMode = (event: GuideKeys, gridTarget: 'wall' | null): GuideMode =>
+        guideModeForDrag({
+          free: isFreeMoveModifier(event),
+          altKey: event.altKey,
+          gridBySetting: gridTarget !== null && useMapStore.getState().snapTargets[gridTarget],
+        })
 
       /**
        * Começa um desenho com guia e devolve o ponto de partida encaixado.
@@ -2976,7 +2985,7 @@ export function PixiCanvas({
         const boxes = [...guideBoxesForDrag(map, search), ...guidePointsForDrag(map, 'wall-ends', search)]
         const start = options.fromMagnet
           ? { point, guides: [] }
-          : dragPointWithGuides({ point, others: boxes, tolerance: screenPxToWorld(SMART_GUIDE_SCREEN_PX, camera.scale), mode: draftGuideMode(event) })
+          : dragPointWithGuides({ point, others: boxes, tolerance: screenPxToWorld(SMART_GUIDE_SCREEN_PX, camera.scale), mode: draftGuideMode(event, 'wall') })
         draftGuide = { boxes, endBoxes: options.endAlignsWithStart ? [...boxes, pointBox(start.point)] : boxes, startGuides: start.guides }
         return start.point
       }
@@ -3002,11 +3011,20 @@ export function PixiCanvas({
       const startShapeDraft = (worldPoint: Point, event: GuideKeys, endAlignsWithStart: boolean): Point =>
         startDraftGuides(applySnap(worldPoint, useMapStore.getState().map.grid, 'wall', event.altKey), event, { fromMagnet: false, endAlignsWithStart })
 
-      /** O ponto puxado nas candidatas do desenho: guia, grade exata ou nada (`draftGuideMode`). */
-      const draftPointWithGuides = (point: Point, event: GuideKeys): DraftEnd => {
+      /**
+       * O ponto puxado nas candidatas do desenho: guia, grade exata ou nada
+       * (`draftGuideMode`). `point` já vem com a grade do gesto, e `gridTarget`
+       * diz qual grade ela é — `null` quando o ponto não passou por grade.
+       */
+      const draftPointWithGuides = (point: Point, gridTarget: 'wall' | null, event: GuideKeys): DraftEnd => {
         // Sem desenho começado não há candidata: o ponto fica onde a grade o pôs.
         const others = draftGuide === null ? [] : draftGuide.endBoxes
-        const result = dragPointWithGuides({ point, others, tolerance: screenPxToWorld(SMART_GUIDE_SCREEN_PX, camera.scale), mode: draftGuideMode(event) })
+        const result = dragPointWithGuides({
+          point,
+          others,
+          tolerance: screenPxToWorld(SMART_GUIDE_SCREEN_PX, camera.scale),
+          mode: draftGuideMode(event, gridTarget),
+        })
         return { end: result.point, guides: result.guides }
       }
 
@@ -3032,18 +3050,19 @@ export function PixiCanvas({
           const end = map.gridShape === 'hex' ? constrained : applySnap(constrained, map.grid, 'wall', event.altKey)
           return { end, angleReference: constrained, guides: [] }
         }
-        const guided = draftPointWithGuides(applySnap(worldPoint, map.grid, 'wall', event.altKey), event)
+        const guided = draftPointWithGuides(applySnap(worldPoint, map.grid, 'wall', event.altKey), 'wall', event)
         return { ...guided, angleReference: guided.end }
       }
 
       /**
-       * O canto puxado de Sala, Retângulo e Elipse, e o ponto do raio de
-       * Círculo, Sala circular e Polígono regular. `point` já vem com a grade
-       * do gesto (o raio do Círculo nunca teve grade, e continua sem). A guia
-       * vem antes do Shift (quadrado, círculo), que pode tirar o canto dela: a
-       * guia mostrada é sempre a da posição FINAL, só no alinhamento exato, e
-       * nenhuma guia promete o que não ficou. `constrainTool` = a forma que o
-       * Shift trava (`constrainDraft`); `null` nas de raio, que o Shift não muda.
+       * O canto puxado de Sala, Retângulo e Elipse, e o ponto do raio de Sala
+       * circular e Polígono regular. `point` já vem com a grade de parede do
+       * gesto. O raio do Círculo não passa por aqui: sem grade e sem Shift, ele
+       * vai direto a `draftPointWithGuides` com `null`. A guia vem antes do
+       * Shift (quadrado, círculo), que pode tirar o canto dela: a guia mostrada
+       * é sempre a da posição FINAL, só no alinhamento exato, e nenhuma guia
+       * promete o que não ficou. `constrainTool` = a forma que o Shift trava
+       * (`constrainDraft`); `null` nas de raio, que o Shift não muda.
        */
       const shapeDraftEnd = (
         start: Point,
@@ -3051,22 +3070,23 @@ export function PixiCanvas({
         constrainTool: 'room' | 'rect' | 'ellipse' | null,
         event: GuideKeys & { shiftKey: boolean },
       ): DraftEnd => {
-        const guided = draftPointWithGuides(point, event)
+        const guided = draftPointWithGuides(point, 'wall', event)
         if (constrainTool === null) return guided
         const end = constrainDraft(start, guided.end, constrainTool, { shift: event.shiftKey, alt: event.altKey })
         if (end.x === guided.end.x && end.y === guided.end.y) return guided
-        if (draftGuideMode(event) === 'free' || draftGuide === null) return { end, guides: [] }
+        if (draftGuideMode(event, 'wall') === 'free' || draftGuide === null) return { end, guides: [] }
         // 'gridExact': só a guia do alinhamento que já é exato, sem mover o canto.
         const exact = dragPointWithGuides({ point: end, others: draftGuide.endBoxes, tolerance: screenPxToWorld(SMART_GUIDE_SCREEN_PX, camera.scale), mode: 'gridExact' })
         return { end, guides: exact.guides }
       }
 
       /**
-       * As guias do desenho na tela: as do ponto de partida, fixas, e as do
-       * ponto puxado. Com o Ctrl (guia solta) nenhuma aparece, nem a do começo.
+       * As guias do desenho na tela: as do ponto de partida (que passou pela
+       * grade de parede), fixas, e as do ponto puxado. Com o Ctrl (guia solta)
+       * nenhuma aparece, nem a do começo.
        */
       const showDraftGuides = (endGuides: readonly SmartGuide[], event: GuideKeys): void => {
-        const startGuides = draftGuide === null || draftGuideMode(event) === 'free' ? [] : draftGuide.startGuides
+        const startGuides = draftGuide === null || draftGuideMode(event, 'wall') === 'free' ? [] : draftGuide.startGuides
         showGuides({ guides: [...startGuides, ...endGuides], gaps: [] })
       }
 
@@ -5113,8 +5133,9 @@ export function PixiCanvas({
         if (mode === 'drawing-circle' && circleDraftCenter) {
           const worldPoint = toWorldPoint(event.global.x, event.global.y)
           const { addDrawing, drawColor, drawWidth, drawFilled, drawFillAlpha } = useMapStore.getState()
-          // O ponto do raio passa pela guia, como no preview (o raio nunca teve grade).
-          const { end } = shapeDraftEnd(circleDraftCenter, worldPoint, null, event)
+          // O ponto do raio passa pela guia, como no preview. Ele nunca teve
+          // grade (`null`): com a grade ligada a guia encaixa do mesmo jeito.
+          const { end } = draftPointWithGuides(worldPoint, null, event)
           const radius = Math.hypot(end.x - circleDraftCenter.x, end.y - circleDraftCenter.y)
           if (isValidCircleDraft(radius)) {
             addDrawing(buildCircleDrawing(crypto.randomUUID(), circleDraftCenter, radius, drawColor, drawWidth, drawFilled, drawFillAlpha))
@@ -6277,8 +6298,9 @@ export function PixiCanvas({
         if (mode === 'drawing-circle' && circleDraftCenter) {
           const worldPoint = toWorldPoint(event.global.x, event.global.y)
           const { map, drawColor, drawWidth, drawFilled } = useMapStore.getState()
-          // O ponto do raio passa pela guia (o raio nunca teve grade).
-          const { end, guides } = shapeDraftEnd(circleDraftCenter, worldPoint, null, event)
+          // O ponto do raio passa pela guia. Ele nunca teve grade (`null`): a
+          // regra da grade não vale para ele, e a guia encaixa com a grade ligada.
+          const { end, guides } = draftPointWithGuides(worldPoint, null, event)
           const radius = Math.hypot(end.x - circleDraftCenter.x, end.y - circleDraftCenter.y)
           drawCircleDraft(draftGraphics, circleDraftCenter, radius, drawColor, drawWidth, drawFilled)
           showDraftGuides(guides, event)
