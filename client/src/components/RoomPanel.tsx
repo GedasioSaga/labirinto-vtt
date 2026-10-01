@@ -45,6 +45,7 @@ import { TableScreenSection, type TableScreenSectionProps } from './TableScreenS
 import { TravelLogSection, type TravelLogSectionProps } from './TravelLogSection'
 import { textoDaEsperaParaOMestre } from '../lib/encontroMarcado'
 import { ConfrontoControls, type ConfrontoControlsProps } from './ConfrontoControls'
+import { ControleDeSom, TITULO_DO_SOM } from './ControleDeSom'
 
 export interface RoomPanelToken {
   id: string
@@ -1896,6 +1897,10 @@ export function RoomPanel({
           </button>
         )}
       </div>
+
+      {/* SOM DA MESA: volume e mudo dos sons de clima neste computador. Linha própria e curta:
+          o cabeçalho já ocupa a coluna inteira, e um botão a mais quebrava o código em duas linhas. */}
+      <ControleDeSom variante="painel" legenda={TITULO_DO_SOM} />
 
       {noise !== undefined && <NoiseControl {...noise} />}
 

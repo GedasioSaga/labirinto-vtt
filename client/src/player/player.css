@@ -3959,25 +3959,55 @@ button.pp-colecao__casa:focus-visible {
 
 /*
  * DADO ROLADO NA SALA: as últimas rolagens da mesa no canto de baixo à
- * direita, empilhadas acima do "Chamar o mestre" (o chamado fica sobre o zoom,
- * a 127 px do rodapé). A lista reserva as duas linhas da coluna do chamado, a
- * mão e o aviso ("O mestre viu", "Esperando o mestre"), cada uma com o alvo de
- * toque e o vão do tema; antes ela começava a 124 px, atrás da mão. Acima da
- * gaveta do painel (z 10): no celular, quem rola pela gaveta vê o resultado
- * chegar sem fechá-la. A caixa encolhe até a rolagem mais larga, para não
- * cruzar o aviso da porta à esquerda. Só texto: o toque atravessa para o mapa.
+ * direita, no alto da pilha: acima do "Chamar o mestre" (o chamado fica sobre
+ * o zoom, a 127 px do rodapé) e do alto-falante do som da mesa (`.pp-som`). A
+ * lista reserva as duas linhas da coluna do chamado, a mão e o aviso ("O
+ * mestre viu", "Esperando o mestre"), cada uma com o alvo de toque e o vão do
+ * tema, e o alto-falante (46 px, a largura do zoom) com o mesmo vão; antes ela
+ * começava a 124 px, atrás da mão. Acima da gaveta do painel (z 10): no
+ * celular, quem rola pela gaveta vê o resultado chegar sem fechá-la. A caixa
+ * encolhe até a rolagem mais larga, para não cruzar o aviso da porta à
+ * esquerda. Só texto: o toque atravessa para o mapa.
  */
 .pp-dice-feed {
   position: fixed;
   right: 12px;
   bottom: calc(
     24px + 91px + 12px + var(--lb-control-touch, 44px) + var(--lb-control-gap, 8px) +
-      var(--lb-control-touch, 44px) + var(--lb-control-gap, 8px) + env(safe-area-inset-bottom, 0px)
+      var(--lb-control-touch, 44px) + var(--lb-control-gap, 8px) + 46px + var(--lb-control-gap, 8px) +
+      env(safe-area-inset-bottom, 0px)
   );
   z-index: 12;
   width: auto;
   max-width: min(260px, calc(100% - 24px));
   pointer-events: none;
+}
+
+/*
+ * SOM DA MESA (`ControleDeSom`, variante flutuante; pedido "sons"): o
+ * alto-falante entra na pilha do canto ACIMA das duas linhas reservadas ao
+ * "Chamar o mestre" (a mão e o aviso), no prumo do zoom. A mão e o zoom não
+ * mudam de lugar: o som se regula uma vez e fica, e o lugar mais à mão do
+ * polegar continua deles. Acima das rolagens (z 12): o popover abre para
+ * cima, por cima delas. Abaixo do chamado (z 22): o formulário do chamado,
+ * aberto, passa por cima.
+ */
+.pp-som {
+  position: fixed;
+  right: 12px;
+  bottom: calc(
+    24px + 91px + 12px + var(--lb-control-touch, 44px) + var(--lb-control-gap, 8px) +
+      var(--lb-control-touch, 44px) + var(--lb-control-gap, 8px) + env(safe-area-inset-bottom, 0px)
+  );
+  z-index: 13;
+}
+
+/* Celular: a gaveta aberta cobre o mapa. O alto-falante sai de cena em vez de
+   ficar por cima do painel, e volta quando ela fecha. */
+@media (max-width: 699px) {
+  body:has(.pp-panel:not([hidden])) .pp-som {
+    display: none;
+  }
 }
 
 /*

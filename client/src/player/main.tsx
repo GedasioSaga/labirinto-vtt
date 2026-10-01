@@ -53,6 +53,7 @@ import { escapeDisarmsMeasure } from './playerMeasure'
 import type { PlayerCharacter, PlayerViewSettings } from './PlayerPanel'
 import { PlayerErrorBoundary } from './ErrorBoundary'
 import { LabyrinthMark } from '../components/icons'
+import { ControleDeSom } from '../components/ControleDeSom'
 import { DiceFeed } from '../components/DiceControls'
 import type { DiceRollEntry } from '../lib/dice'
 import type { DestinationMark, SignalMark } from '../lib/signals'
@@ -1355,6 +1356,8 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
           {state.confronto && <ConfrontoFaixa confronto={state.confronto} tokens={state.map.tokens} />}
         </div>
         <PlayerZoomControls canZoomIn={zoomLimits.canZoomIn} canZoomOut={zoomLimits.canZoomOut} onZoom={requestZoomStep} />
+        {/* SOM DA MESA: volume e mudo dos sons de clima, na pilha do canto (`.pp-som`); logo depois do zoom na ordem do Tab. */}
+        <ControleDeSom variante="flutuante" className="pp-som" />
         <PlayerTurnBanner turn={state.turn} ownTokens={ownTokens} tokens={state.map.tokens} />
         {/* PISOS NA MESMA CENA: só com a ficha dele encostada numa escada que liga pisos, e fora das travas do passo. */}
         <PlayerEscada

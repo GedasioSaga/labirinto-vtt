@@ -12,11 +12,16 @@ import { PeekDoorButton } from './PeekDoorButton'
  * player.css de verdade e conferem as posições que o jsdom não calcula.
  */
 
-async function lerPlayerCss(): Promise<string> {
+/** Um CSS do client pelo caminho a partir desta pasta (`player.css`, `../components/ControleDeSom.css`). */
+async function lerCss(caminho: string): Promise<string> {
   const { readFileSync } = await vi.importActual<{ readFileSync(caminho: string, codificacao: 'utf8'): string }>('node:fs')
   const { fileURLToPath } = await vi.importActual<{ fileURLToPath(url: string): string }>('node:url')
   const { dirname, join } = await vi.importActual<{ dirname(caminho: string): string; join(...partes: string[]): string }>('node:path')
-  return readFileSync(join(dirname(fileURLToPath(import.meta.url)), 'player.css'), 'utf8')
+  return readFileSync(join(dirname(fileURLToPath(import.meta.url)), caminho), 'utf8')
+}
+
+async function lerPlayerCss(): Promise<string> {
+  return lerCss('player.css')
 }
 
 type Regra = Map<string, string>
@@ -409,5 +414,61 @@ describe('gaveta do painel: da largura da barra e das abas, com teto na janela',
     expect(arquivo.get('contain')).toBe('inline-size')
     expect(arquivo.get('overflow')).toBe('hidden')
     expect(arquivo.get('white-space')).toBe('nowrap')
+  })
+})
+
+describe('alto-falante (som da mesa) na pilha do canto de baixo à direita', () => {
+  // Pedido "sons", fatia 3. A pilha é feita à mão: zoom (24 px do rodapé),
+  // a mão do "Chamar o mestre" acima dele com a linha do aviso por cima, e as
+  // rolagens. O alto-falante entra acima das duas linhas do chamado, no prumo
+  // do zoom; a mão e o zoom não mudam de lugar, e as rolagens sobem a altura dele.
+  const linha = px('var(--lb-control-touch)') + px('var(--lb-control-gap)')
+  const zIndex = (regra: Regra): number => Number(regra.get('z-index'))
+
+  async function gatilhoFlutuante(): Promise<Regra> {
+    return regraBase(await lerCss('../components/ControleDeSom.css'), '.lb-som--flutuante .lb-som__gatilho')
+  }
+
+  it('no prumo do zoom, acima da mão e da linha do aviso do chamado', async () => {
+    const css = await lerPlayerCss()
+    const som = regraBase(css, '.pp-som')
+    expect(som.get('position')).toBe('fixed')
+    expect(som.get('right')).toBe(regraBase(css, '.pp-zoom').get('right'))
+    expect(px(som.get('bottom'))).toBeGreaterThanOrEqual(px(regraBase(css, '.pp-call').get('bottom')) + 2 * linha)
+  })
+
+  it('o botão tem o alvo de toque, e as rolagens começam acima dele com o vão do tema', async () => {
+    const css = await lerPlayerCss()
+    const gatilho = await gatilhoFlutuante()
+    expect(px(gatilho.get('width'))).toBeGreaterThanOrEqual(44)
+    expect(px(gatilho.get('height'))).toBeGreaterThanOrEqual(44)
+    // Do mesmo tamanho do zoom: os dois controles de pedra formam uma coluna só.
+    expect(px(gatilho.get('width'))).toBe(px('var(--lb-control-touch)') + 2)
+    const som = regraBase(css, '.pp-som')
+    const feed = regraBase(css, '.pp-dice-feed')
+    expect(px(feed.get('bottom'))).toBeGreaterThanOrEqual(px(som.get('bottom')) + px(gatilho.get('height')) + px('var(--lb-control-gap)'))
+  })
+
+  it('acima das rolagens (o popover abre por cima delas) e abaixo do chamado', async () => {
+    const css = await lerPlayerCss()
+    const som = zIndex(regraBase(css, '.pp-som'))
+    expect(som).toBeGreaterThan(zIndex(regraBase(css, '.pp-dice-feed')))
+    expect(som).toBeLessThan(zIndex(regraBase(css, '.pp-call')))
+  })
+
+  it('no celular, a gaveta aberta tira o alto-falante de cena: ele não fica por cima do painel', async () => {
+    const regra = regraNaMidia(await lerPlayerCss(), CELULAR, 'body:has(.pp-panel:not([hidden])) .pp-som')
+    expect(regra.get('display')).toBe('none')
+  })
+
+  it('o popover abre para cima, preso à borda direita do botão, e cabe numa tela de 320 px', async () => {
+    const css = await lerCss('../components/ControleDeSom.css')
+    const pop = regraBase(css, '.lb-som__pop')
+    expect(px(pop.get('width'))).toBeLessThanOrEqual(320 - 2 * 12)
+    expect(pop.get('max-width')).toContain('100vw')
+    const acima = regraBase(css, '.lb-som--flutuante .lb-som__pop')
+    expect(acima.get('right')).toBe('0')
+    expect(acima.get('bottom')).toContain('100%')
+    expect(acima.get('transform-origin')).toBe('bottom right')
   })
 })

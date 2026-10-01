@@ -9,6 +9,11 @@ import type { TipoMobilia } from '../types/map'
 
 interface IconProps {
   size?: number
+  /**
+   * Traço do contorno. O padrão é o do painel; o que flutua sobre o mapa do
+   * jogador usa 2, como o + e o − do zoom (`PlayerZoomControls`).
+   */
+  strokeWidth?: number
 }
 
 /**
@@ -19,7 +24,7 @@ interface IconProps {
  * abaixo de r≈2.8 o miolo fecha — o círculo passa a ler como ponto sólido e
  * quebra a leitura de contorno mesmo sem `fill` nenhum.
  */
-function Icon({ size = 18, children }: IconProps & { children: ReactNode }) {
+function Icon({ size = 18, strokeWidth = 1.6, children }: IconProps & { children: ReactNode }) {
   return (
     <svg
       width={size}
@@ -27,7 +32,7 @@ function Icon({ size = 18, children }: IconProps & { children: ReactNode }) {
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
-      strokeWidth={1.6}
+      strokeWidth={strokeWidth}
       strokeLinecap="round"
       strokeLinejoin="round"
       aria-hidden="true"
@@ -575,6 +580,29 @@ export function EyeOffIcon(props: IconProps) {
       <path d="M2.5 12C4.6 7.8 8 5.5 12 5.5S19.4 7.8 21.5 12C19.4 16.2 16 18.5 12 18.5S4.6 16.2 2.5 12Z" />
       <circle cx="12" cy="12" r="3" />
       <path d="M4 4l16 16" />
+    </Icon>
+  )
+}
+
+/**
+ * Alto-falante: caixa + cone e duas ondas — o botão do som da mesa
+ * (`ControleDeSom`). As ondas são arcos abertos, sem círculo pequeno.
+ */
+export function SomIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z" />
+      <path d="M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11" />
+    </Icon>
+  )
+}
+
+/** Alto-falante mudo: o mesmo corpo do `SomIcon`, com um X no lugar das ondas. */
+export function SomMudoIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z" />
+      <path d="M16 9.5l5 5M21 9.5l-5 5" />
     </Icon>
   )
 }

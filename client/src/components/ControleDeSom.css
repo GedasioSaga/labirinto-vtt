@@ -1,0 +1,403 @@
+/*
+ * SOM DA MESA (`ControleDeSom.tsx`): o alto-falante e o popover com o volume e
+ * o mudo. Serve às duas telas (editor e player.html): só `var(--lb-*)` de
+ * theme.ts, com o valor de reserva que player.css também usa. A POSIÇÃO na
+ * tela é de quem monta: no jogador, a pilha do canto (`.pp-som`, player.css,
+ * que também dá o `position` da raiz); no mestre, a linha do cabeçalho da sala.
+ */
+
+.lb-som {
+  display: inline-flex;
+  font-family: var(--lb-font-sans, system-ui, sans-serif);
+}
+
+/* No mestre a raiz fica no fluxo da linha; o popover se prende a ela. */
+.lb-som--painel {
+  position: relative;
+}
+
+/* Com legenda (no mestre): uma linha inteira, o texto à esquerda e o alto-falante à direita. */
+.lb-som--com-legenda {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+/* A pele do rótulo de campo do painel (`.lb-label`); clicar nele também abre o popover. */
+.lb-som__legenda {
+  font-size: var(--lb-font-size-sm, 11.5px);
+  font-weight: var(--lb-font-weight-medium, 500);
+  color: var(--lb-color-parchment-dim, #a2a09a);
+  cursor: pointer;
+}
+
+/* ------------------------------------------------- gatilho flutuante (jogador) */
+
+/*
+ * A pele do zoom — pedra com filete de latão, o mesmo raio e a mesma sombra —:
+ * os dois são os controles que ficam sempre por cima do mapa. 46 px por fora
+ * é o alvo de 44 px do dedo mais o filete, a largura do zoom: a coluna do canto
+ * fica no prumo.
+ */
+.lb-som--flutuante .lb-som__gatilho {
+  box-sizing: border-box;
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  margin: 0;
+  padding: 0;
+  font: inherit;
+  color: var(--lb-color-brass-bright, #f3ba66);
+  background: var(--lb-color-stone-raised, #232328);
+  border: 1px solid var(--lb-color-brass, #e0a44a);
+  border-radius: var(--lb-radius-md, 9px);
+  box-shadow: var(--lb-shadow-float, 0 8px 24px rgba(0, 0, 0, 0.45));
+  cursor: pointer;
+  /* Dois toques rápidos são dois cliques, não o zoom do navegador na página. */
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    background-color var(--lb-motion-fast, 110ms) var(--lb-motion-ease, ease),
+    color var(--lb-motion-fast, 110ms) var(--lb-motion-ease, ease);
+}
+
+.lb-som--flutuante .lb-som__gatilho svg {
+  transition: transform var(--lb-motion-fast, 110ms) var(--lb-motion-ease, ease);
+}
+
+/* Pairar só onde existe ponteiro que paira: no celular o hover grudava depois do toque. */
+@media (hover: hover) {
+  .lb-som--flutuante .lb-som__gatilho:hover {
+    background: var(--lb-color-brass-soft, rgba(224, 164, 74, 0.14));
+  }
+}
+
+/* Aberto: o fundo de latão diz de quem é o popover. */
+.lb-som--flutuante .lb-som__gatilho[aria-expanded='true'] {
+  background: var(--lb-color-brass-soft, rgba(224, 164, 74, 0.14));
+}
+
+/* O dedo pegou: o fundo afunda e o desenho encolhe NA HORA, e voltam em 110 ms (o aperto do zoom). */
+.lb-som--flutuante .lb-som__gatilho:active {
+  background: var(--lb-color-stone-sunken, #141417);
+  transition-duration: 0ms;
+}
+
+.lb-som--flutuante .lb-som__gatilho:active svg {
+  transform: scale(0.88);
+  transition-duration: 0ms;
+}
+
+/* Calado (mudo ou volume zero): o alto-falante cortado perde o latão aceso — está desligado, não chamando. */
+.lb-som--flutuante .lb-som__gatilho[data-estado='mudo'] {
+  color: var(--lb-color-parchment-dim, #a2a09a);
+}
+
+.lb-som--flutuante .lb-som__gatilho:focus-visible {
+  outline: 2px solid var(--lb-color-brass, #e0a44a);
+  outline-offset: 2px;
+}
+
+/* ------------------------------------------------------ gatilho do painel (mestre) */
+
+/* O botão compacto da linha do Laser (`lb-btn lb-btn--compact`), quadrado em volta do ícone. */
+.lb-som--painel .lb-som__gatilho {
+  width: 28px;
+  padding: 0;
+}
+
+.lb-som--painel .lb-som__gatilho[aria-expanded='true'] {
+  color: var(--lb-color-brass-bright, #f3ba66);
+  background: var(--lb-color-brass-soft, rgba(224, 164, 74, 0.14));
+  border-color: var(--lb-color-brass, #e0a44a);
+}
+
+.lb-som--painel .lb-som__gatilho[data-estado='mudo'] {
+  color: var(--lb-color-parchment-dim, #a2a09a);
+}
+
+/* ------------------------------------------------------------------- popover */
+
+/*
+ * Cartão opaco (por cima do mapa e das rolagens, nada atravessa), com a linha
+ * fina e a sombra dos painéis flutuantes. Largura fixa e pequena: cabe numa
+ * tela de 320 px com a margem de 12 px dos dois lados.
+ */
+.lb-som__pop {
+  position: absolute;
+  z-index: 1;
+  box-sizing: border-box;
+  display: grid;
+  gap: 8px;
+  width: 232px;
+  max-width: calc(100vw - 24px);
+  padding: 12px;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--lb-color-parchment, #eceae4);
+  background: var(--lb-color-stone-solid, #1a1a1e);
+  border: 1px solid var(--lb-color-line-panel, rgba(255, 255, 255, 0.13));
+  border-radius: var(--lb-radius-lg, 14px);
+  box-shadow: var(--lb-shadow-float, 0 8px 24px rgba(0, 0, 0, 0.45));
+  /* Cresce do alto-falante (a origem é o canto dele), curto e com desaceleração: é o "de onde veio". */
+  animation: lb-som-entra 160ms var(--lb-motion-ease, cubic-bezier(0.2, 0.8, 0.2, 1));
+}
+
+/*
+ * No jogador abre para CIMA, preso à borda direita do botão: no prumo da
+ * coluna do canto, sem cobrir o zoom, a mão do "Chamar o mestre" nem o próprio
+ * alto-falante. Passa por cima das rolagens enquanto está aberto.
+ */
+.lb-som--flutuante .lb-som__pop {
+  right: 0;
+  bottom: calc(100% + 8px);
+  transform-origin: bottom right;
+}
+
+/* No mestre abre para BAIXO, dentro do painel da sala: estreito o bastante para a coluna de 264 px. */
+.lb-som--painel .lb-som__pop {
+  top: calc(100% + 6px);
+  right: 0;
+  width: 216px;
+  transform-origin: top right;
+}
+
+@keyframes lb-som-entra {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Pelo teclado aparece na hora: animação depois da tecla parece atraso. Fechar é sempre na hora. */
+.lb-som__pop[data-abertura='teclado'] {
+  animation: none;
+}
+
+.lb-som__cabeca {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+/* Legenda em caixa alta, condensada, como as do painel do mestre (`.lb-eyebrow`). */
+.lb-som__titulo {
+  margin: 0;
+  font-family: var(--lb-font-utility, 'Segoe UI', system-ui, sans-serif);
+  font-size: var(--lb-font-size-sm, 11.5px);
+  font-weight: 600;
+  letter-spacing: var(--lb-font-tracking-wide, 0.06em);
+  text-transform: uppercase;
+  color: var(--lb-color-parchment-faint, #858480);
+}
+
+.lb-som__valor {
+  font-family: var(--lb-font-utility, 'Segoe UI', system-ui, sans-serif);
+  font-variant-numeric: tabular-nums;
+  color: var(--lb-color-parchment-dim, #a2a09a);
+}
+
+.lb-som__linha {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* O nome da barra é para o leitor de tela: na vista, o título e o valor já dizem o que ela é. */
+.lb-som__rotulo {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* -------------------------------------------------------------- botão Mudo */
+
+/* O alto-falante ao lado da barra, como no volume do sistema: um clique cala, outro devolve. */
+.lb-som__mudo {
+  flex: none;
+  box-sizing: border-box;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  margin: 0;
+  padding: 0;
+  font: inherit;
+  color: var(--lb-color-parchment, #eceae4);
+  background: transparent;
+  border: 1px solid var(--lb-color-line-panel, rgba(255, 255, 255, 0.13));
+  border-radius: var(--lb-radius-md, 9px);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    background-color var(--lb-motion-fast, 110ms) var(--lb-motion-ease, ease),
+    border-color var(--lb-motion-fast, 110ms) var(--lb-motion-ease, ease),
+    color var(--lb-motion-fast, 110ms) var(--lb-motion-ease, ease),
+    transform var(--lb-motion-fast, 110ms) var(--lb-motion-ease, ease);
+}
+
+@media (hover: hover) {
+  .lb-som__mudo:hover {
+    background: var(--lb-color-stone-hover, #2c2c33);
+  }
+}
+
+.lb-som__mudo:active {
+  transform: scale(0.97);
+  transition-duration: 0ms;
+}
+
+/* Ligado (mudo): o latão do estado ativo, o mesmo dos botões apertados do app. */
+.lb-som__mudo[aria-pressed='true'] {
+  color: var(--lb-color-brass-bright, #f3ba66);
+  background: var(--lb-color-brass-soft, rgba(224, 164, 74, 0.14));
+  border-color: var(--lb-color-brass, #e0a44a);
+}
+
+.lb-som__mudo:focus-visible {
+  outline: 2px solid var(--lb-color-brass, #e0a44a);
+  outline-offset: 2px;
+}
+
+/* No mestre o ponteiro é fino: o alvo da linha de botões do painel. */
+.lb-som--painel .lb-som__mudo {
+  width: 32px;
+  height: 32px;
+}
+
+/* ------------------------------------------------------- barra de volume */
+
+/*
+ * A caixa da barra é o alvo de toque (44 px no jogador); o trilho de 4 px é
+ * desenhado no FUNDO dela: a primeira camada é a parte cheia, até a alça (o
+ * tamanho vem do componente), a segunda o resto do trilho. A ponta da parte
+ * cheia nunca aparece fora da alça: a diferença é menor que o raio dela.
+ */
+.lb-som__barra {
+  flex: 1;
+  min-width: 0;
+  height: 44px;
+  margin: 0;
+  padding: 0;
+  background:
+    linear-gradient(var(--lb-color-brass, #e0a44a), var(--lb-color-brass, #e0a44a)) 0 50% / 0% 4px no-repeat,
+    linear-gradient(var(--lb-color-stone-hover, #2c2c33), var(--lb-color-stone-hover, #2c2c33)) 0 50% / 100% 4px no-repeat;
+  -webkit-appearance: none;
+  appearance: none;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* O anel de foco mora na alça: em volta da caixa de 44 px ele abraçaria o vazio. */
+.lb-som__barra:focus-visible {
+  outline: none;
+}
+
+.lb-som__barra::-webkit-slider-runnable-track {
+  height: 20px;
+  background: transparent;
+}
+
+.lb-som__barra::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  box-sizing: border-box;
+  width: 20px;
+  height: 20px;
+  border: 2px solid var(--lb-color-stone-solid, #1a1a1e);
+  border-radius: 50%;
+  background: var(--lb-color-brass, #e0a44a);
+  box-shadow: var(--lb-shadow-sm, 0 1px 2px rgba(0, 0, 0, 0.4));
+}
+
+.lb-som__barra:focus-visible::-webkit-slider-thumb {
+  box-shadow:
+    0 0 0 2px var(--lb-color-stone-solid, #1a1a1e),
+    0 0 0 4px var(--lb-color-brass, #e0a44a);
+}
+
+.lb-som__barra::-moz-range-track {
+  height: 4px;
+  background: transparent;
+}
+
+.lb-som__barra::-moz-range-progress {
+  background: transparent;
+}
+
+.lb-som__barra::-moz-range-thumb {
+  box-sizing: border-box;
+  width: 20px;
+  height: 20px;
+  border: 2px solid var(--lb-color-stone-solid, #1a1a1e);
+  border-radius: 50%;
+  background: var(--lb-color-brass, #e0a44a);
+}
+
+.lb-som__barra:focus-visible::-moz-range-thumb {
+  box-shadow:
+    0 0 0 2px var(--lb-color-stone-solid, #1a1a1e),
+    0 0 0 4px var(--lb-color-brass, #e0a44a);
+}
+
+/* Mudo: a barra guarda o volume, apagada; mexer nela tira do mudo. */
+.lb-som__pop[data-mudo='true'] .lb-som__barra {
+  opacity: 0.5;
+}
+
+/* No mestre: a barra e a alça do painel (`.lb-range`), 24 px de alvo. */
+.lb-som--painel .lb-som__barra {
+  height: 24px;
+}
+
+.lb-som--painel .lb-som__barra::-webkit-slider-runnable-track {
+  height: 14px;
+}
+
+.lb-som--painel .lb-som__barra::-webkit-slider-thumb {
+  width: 14px;
+  height: 14px;
+  border-width: 0;
+}
+
+.lb-som--painel .lb-som__barra::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-width: 0;
+}
+
+.lb-som__dica {
+  margin: 0;
+  font-size: 12px;
+  color: var(--lb-color-parchment-dim, #a2a09a);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lb-som__pop {
+    animation: none;
+  }
+
+  .lb-som__gatilho,
+  .lb-som__gatilho svg,
+  .lb-som__mudo {
+    transition: none;
+  }
+
+  .lb-som--flutuante .lb-som__gatilho:active svg,
+  .lb-som__mudo:active {
+    transform: none;
+  }
+}
