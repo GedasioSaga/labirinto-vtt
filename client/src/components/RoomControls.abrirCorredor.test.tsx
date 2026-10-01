@@ -6,7 +6,7 @@ import { addDoorOnWall, addRoom, createEmptyMap } from '../lib/mapFactory'
 import { useMapStore } from '../stores/mapStore'
 import { useToastStore } from '../stores/toastStore'
 import type { MapData, Region, Wall } from '../types/map'
-import { PORTA_NO_ENCOSTE_TEXT, avisoDoCorredorAberto } from './labels'
+import { MOTIVO_SEM_CORREDOR, PORTA_NO_ENCOSTE_TEXT, avisoDoCorredorAberto } from './labels'
 import { RoomControls, type RoomControlsProps } from './RoomControls'
 
 /**
@@ -16,7 +16,9 @@ import { RoomControls, type RoomControlsProps } from './RoomControls'
  * nada, o painel só diz de que Sala é (`salaId`). A conta é de CORREDORES, par
  * de linhas, não de paredes — a imagem 4 tem duas linhas e mostra "(1)". Com
  * tudo aberto a linha some: botão na tela sempre faz alguma coisa, e o segundo
- * clique não tem como gravar um passo vazio no desfazer.
+ * clique não tem como gravar um passo vazio no desfazer. Com parede solta
+ * encostando que não forma corredor (relato de 01/10/2026, "ainda não consigo
+ * ver"), a linha fica desabilitada e diz o que acertar no desenho.
  */
 
 const GRADE = 64
@@ -52,6 +54,29 @@ const T2 = parede('T2', 384, -300, 384, 40)
 // Duas divisórias soltas batendo na Sala em lados opostos: não são corredor.
 const D1 = parede('D1', 200, 0, 200, -300)
 const D2 = parede('D2', 200, 500, 200, 800)
+
+/**
+ * A "Sala 3" do mapa do mestre (01/10/2026, "ainda não consigo ver"): 30 × 26
+ * células, e o corredor chega na diagonal pela quina de cima à esquerda, com
+ * ~9 células entre as linhas na boca. Números copiados do mapa dele.
+ */
+function sala3DoMapa(): MapData {
+  const { region, walls } = buildRoomFromDraft(
+    'sala',
+    ['s0', 's1', 's2', 's3'],
+    { x: 6915.610725426702, y: 4649.274407215158 },
+    { x: 8845.6107254267, y: 6339.274407215158 },
+    undefined,
+    undefined,
+    'Sala 3',
+  )
+  const comSala = addRoom(createEmptyMap('m_mapa_do_mestre', 'Mapa do mestre', 150, 120, GRADE), region, walls)
+  const linhas = [
+    parede('pelo-topo', 6335.273606505386, 3776, 7295.065215866066, 4649.274407215158),
+    parede('pela-esquerda', 5955.610725426702, 4019.2008260027305, 6915.610725426702, 5109.739368855875),
+  ]
+  return { ...comSala, walls: [...comSala.walls, ...linhas] }
+}
 
 let container: HTMLDivElement
 let root: Root
@@ -154,13 +179,65 @@ describe('RoomControls: "Abrir para o corredor"', () => {
     expect(linhaObrigatoria().textContent).toBe('Abrir para o corredor (1)')
   })
 
-  it('sem corredor encostando a linha não existe: Sala vazia, ou duas divisórias soltas em lados opostos', () => {
+  it('sem parede solta encostando a linha não existe: Sala vazia, ou parede longe da Sala', () => {
     carregar(salaCom([]))
     render()
     expect(linhaAbrir()).toBeUndefined()
 
-    carregar(salaCom([D1, D2]))
+    carregar(salaCom([parede('longe', 1000, 1000, 1300, 1000)]))
     render()
+    expect(linhaAbrir()).toBeUndefined()
+  })
+
+  it('parede solta encostando sem formar corredor: a linha aparece desabilitada, sem conta, e diz o que acertar no desenho', () => {
+    const casos: [Wall[], string][] = [
+      [[C1], 'Só 1 parede solta encosta na sala: leve as 2 paredes do corredor até a borda.'],
+      [[D1, D2], MOTIVO_SEM_CORREDOR.opostas],
+    ]
+    for (const [linhas, frase] of casos) {
+      const map = salaCom(linhas)
+      carregar(map)
+      render()
+      const linha = linhaObrigatoria()
+      expect(linha.textContent).toBe('Abrir para o corredor')
+      expect(linha.disabled).toBe(true)
+      expect(motivoDa(linha)).toBe(frase)
+      act(() => linha.click())
+      expect(useMapStore.getState().map).toBe(map)
+      expect(useMapStore.getState().past).toHaveLength(0)
+      expect(avisos()).toEqual([])
+    }
+  })
+
+  it('a segunda linha desenhada com o painel aberto troca o motivo pela conta, e a linha habilita', () => {
+    carregar(salaCom([C1]))
+    render()
+    expect(linhaObrigatoria().disabled).toBe(true)
+    act(() => useMapStore.setState({ map: salaCom([C1, C2]) }))
+    const linha = linhaObrigatoria()
+    expect(linha.textContent).toBe('Abrir para o corredor (1)')
+    expect(linha.disabled).toBe(false)
+    expect(linha.getAttribute('aria-describedby')).toBeNull()
+  })
+
+  it('Sala travada sem corredor: vale o motivo do desenho (o da trava aparece quando houver corredor)', () => {
+    carregar(comRegiao(salaCom([C1]), { locked: true }))
+    render({ locked: true })
+    const linha = linhaObrigatoria()
+    expect(linha.disabled).toBe(true)
+    expect(motivoDa(linha)).toBe(MOTIVO_SEM_CORREDOR['uma-linha'])
+  })
+
+  it('mapa do mestre: a Sala de 30 × 26 células com o corredor de ~9 células na diagonal mostra a linha habilitada, e o clique abre', () => {
+    const antes = sala3DoMapa()
+    carregar(antes)
+    render()
+    const linha = linhaObrigatoria()
+    expect(linha.textContent).toBe('Abrir para o corredor (1)')
+    expect(linha.disabled).toBe(false)
+    act(() => linha.click())
+    expect(useMapStore.getState().past).toEqual([antes])
+    expect(avisos()).toEqual([avisoDoCorredorAberto('Sala 3', 1)])
     expect(linhaAbrir()).toBeUndefined()
   })
 

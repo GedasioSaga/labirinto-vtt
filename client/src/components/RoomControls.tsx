@@ -4,11 +4,11 @@ import { MIN_ROOM_DIMENSION } from '../lib/roomOps'
 import { ROTATION_SHIFT_STEP } from '../lib/roomRotation'
 import { ROOM_TEXT_MAX_LENGTH } from '../lib/roomText'
 import { FACCAO_MAX_LENGTH } from '../lib/faccoes'
-import type { bloqueioDaSala } from '../lib/abrirCorredor'
+import type { MotivoSemCorredor, bloqueioDaSala } from '../lib/abrirCorredor'
 import { VISION_RADIUS_MAX, VISION_RADIUS_MIN, VISION_RADIUS_STEP } from '../net/hostSession'
 import type { RoomLabelStyle, RoomLabelStylePatch } from '../lib/roomLabelStyle'
-import { selectBloqueioParaAbrir, selectCorredoresParaAbrir, useMapStore } from '../stores/mapStore'
-import { MOTIVO_SALA_SECRETA_SEM_VAO, MOTIVO_SALA_TRAVADA_SEM_VAO, rotuloAbrirParaOCorredor } from './labels'
+import { selectBloqueioParaAbrir, selectCorredoresParaAbrir, selectMotivoSemCorredor, useMapStore } from '../stores/mapStore'
+import { MOTIVO_SALA_SECRETA_SEM_VAO, MOTIVO_SALA_TRAVADA_SEM_VAO, MOTIVO_SEM_CORREDOR, rotuloAbrirParaOCorredor } from './labels'
 import { Toggle } from './Toggle'
 import { RoomLabelStyleControls } from './RoomLabelStyleControls'
 import { HazardControls, type HazardControlsProps } from './HazardControls'
@@ -363,11 +363,21 @@ const MOTIVO_SEM_VAO: Record<NonNullable<ReturnType<typeof bloqueioDaSala>>, str
 }
 
 interface AbrirParaOCorredorProps {
-  /** Corredores (par de linhas) que o clique abre; a linha só é montada com 1 ou mais. */
+  /** Corredores (par de linhas) que o clique abre. Com 0 a linha só é montada
+   *  desabilitada, com o motivo do desenho (`semCorredor`). */
   corredores: number
   /** Sala secreta ou travada: a linha fica desabilitada, com o motivo escrito. */
   bloqueio: ReturnType<typeof bloqueioDaSala>
+  /** Parede encostando sem formar corredor: o que acertar no desenho. */
+  semCorredor: MotivoSemCorredor | null
   onAbrir: () => void
+}
+
+/** A frase embaixo da linha desabilitada, ou `null` com ela habilitada. Sem corredor vale o
+ *  motivo do desenho: enquanto ele não muda, destravar a Sala não abriria nada. */
+function motivoDaLinha({ corredores, bloqueio, semCorredor }: Omit<AbrirParaOCorredorProps, 'onAbrir'>): string | null {
+  if (corredores === 0) return semCorredor === null ? null : MOTIVO_SEM_CORREDOR[semCorredor]
+  return bloqueio === null ? null : MOTIVO_SEM_VAO[bloqueio]
 }
 
 /**
@@ -376,24 +386,26 @@ interface AbrirParaOCorredorProps {
  * (`lib/abrirCorredor.ts`), num passo só de Ctrl+Z. É UMA ação, como "Criar sala
  * dentro" logo acima: a linha inteira é o botão, com o alvo de 34 px.
  *
- * Sala secreta ou travada: a linha fica no lugar, desabilitada, com o motivo
- * escrito embaixo e ligado a ela por `aria-describedby`. Porta ou parede
- * travada no caminho só aparecem no clique, que recusa e diz por quê
+ * Sala secreta ou travada, ou parede encostando que não forma corredor (relato
+ * de 01/10/2026, "ainda não consigo ver"): a linha fica no lugar, desabilitada,
+ * com o motivo escrito embaixo e ligado a ela por `aria-describedby`. Porta ou
+ * parede travada no caminho só aparecem no clique, que recusa e diz por quê
  * (`mapStore.abrirSalaParaCorredores`).
  *
  * Sem animação de entrada nem de saída: a linha aparece ao selecionar a Sala
  * (gesto de toda hora) e some com o próprio clique, quando o vão já está no
  * mapa e o aviso diz o que mudou — movimento ali só atrasaria.
  */
-function AbrirParaOCorredor({ corredores, bloqueio, onAbrir }: AbrirParaOCorredorProps) {
+function AbrirParaOCorredor({ corredores, bloqueio, semCorredor, onAbrir }: AbrirParaOCorredorProps) {
   const motivoId = `${useId()}-motivo`
-  const motivo = bloqueio === null ? null : MOTIVO_SEM_VAO[bloqueio]
+  const motivo = motivoDaLinha({ corredores, bloqueio, semCorredor })
   return (
     <div className="lb-room-opt">
       <button
         type="button"
         className="lb-room-opt__add lb-room-opt__add--acao"
-        disabled={motivo !== null}
+        // Sem corredor o clique não teria o que abrir, com ou sem frase.
+        disabled={motivo !== null || corredores === 0}
         aria-describedby={motivo === null ? undefined : motivoId}
         onClick={onAbrir}
       >
@@ -561,7 +573,10 @@ export function RoomControls({
   // desenha ou mexe numa linha com o painel aberto, sem passar pelo App.
   const corredoresParaAbrir = useMapStore((state) => (salaId === undefined ? 0 : selectCorredoresParaAbrir(state, salaId)))
   const bloqueioParaAbrir = useMapStore((state) => (salaId === undefined ? null : selectBloqueioParaAbrir(state, salaId)))
+  const semCorredor = useMapStore((state) => (salaId === undefined ? null : selectMotivoSemCorredor(state, salaId)))
   const abrirSalaParaCorredores = useMapStore((state) => state.abrirSalaParaCorredores)
+  // Com corredor a abrir, ou com parede encostando que não forma corredor (aí desabilitada, com o motivo).
+  const mostraAbrir = corredoresParaAbrir > 0 || semCorredor !== null
   const baseId = useId()
   const roofHintId = `${baseId}-roof-hint`
   const comodoHintId = `${baseId}-comodo-hint`
@@ -585,7 +600,7 @@ export function RoomControls({
     onRaioDeVisaoChange !== undefined ||
     hazard !== undefined ||
     conveyor !== undefined ||
-    corredoresParaAbrir > 0 ||
+    mostraAbrir ||
     onCreateRoomInside !== undefined
   return (
     <section className="lb-section">
@@ -804,16 +819,19 @@ export function RoomControls({
             </button>
           )}
 
-          {salaId !== undefined && corredoresParaAbrir > 0 && (
-            // Some quando não há o que abrir — Sala sem corredor, ou com tudo
-            // já aberto: botão na tela sempre faz alguma coisa. Por último de
-            // propósito: visto no app, acima de "Criar sala dentro" o clique
-            // fazia a linha sumir e "Criar sala dentro" subir para debaixo do
-            // ponteiro (um segundo clique armaria a ferramenta Sala); aqui,
-            // sumir ou aparecer não mexe em linha nenhuma.
+          {salaId !== undefined && mostraAbrir && (
+            // Some quando não há o que abrir — nada encostando na Sala, ou tudo
+            // já aberto: botão habilitado na tela sempre faz alguma coisa. Com
+            // parede encostando que não forma corredor, fica desabilitada e diz
+            // o que acertar no desenho. Por último de propósito: visto no app,
+            // acima de "Criar sala dentro" o clique fazia a linha sumir e
+            // "Criar sala dentro" subir para debaixo do ponteiro (um segundo
+            // clique armaria a ferramenta Sala); aqui, sumir ou aparecer não
+            // mexe em linha nenhuma.
             <AbrirParaOCorredor
               corredores={corredoresParaAbrir}
               bloqueio={bloqueioParaAbrir}
+              semCorredor={semCorredor}
               onAbrir={() => abrirSalaParaCorredores(salaId)}
             />
           )}

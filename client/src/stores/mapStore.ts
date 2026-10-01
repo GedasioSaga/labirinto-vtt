@@ -22,7 +22,7 @@ import { paintRevealBrush as paintRevealBrushOnMap, type RevealBrushMode, type R
 import * as mapFactory from '../lib/mapFactory'
 import { inserirPinturaDeBalde, type BrushMode } from '../lib/baldeDeTinta'
 import { abrirVaoDosDoisLados, desabarParede as desabarParedeNoMapa, type CorteNaParede } from '../lib/abrirVao'
-import { abrirSalaParaCorredores as abrirSalaParaCorredoresNoMapa, bloqueioDaSala, corredoresDaSala } from '../lib/abrirCorredor'
+import { abrirSalaParaCorredores as abrirSalaParaCorredoresNoMapa, bloqueioDaSala, corredoresDaSala, motivoSemCorredor, type MotivoSemCorredor } from '../lib/abrirCorredor'
 import { comEscadaNosPisos, comFichaNoPiso, comSelecaoNoPiso, ehPiso, mapaDoPiso, nascemNoPiso, pisoDe } from '../lib/pisos'
 import { apagarBlocosNoPiso, pinoNoPiso, selecaoNoPiso } from '../lib/pisoEmEdicao'
 import { linkDrawnWallToRoom } from '../lib/roomLink'
@@ -2567,9 +2567,11 @@ interface AberturaNoPainel {
   salaId: string
   corredores: number
   bloqueio: ReturnType<typeof bloqueioDaSala>
+  /** Sem corredor nenhum e com parede encostando: o que acertar no desenho. */
+  semCorredor: MotivoSemCorredor | null
 }
 
-/** Última resposta de `selectCorredoresParaAbrir` / `selectBloqueioParaAbrir`. */
+/** Última resposta de `selectCorredoresParaAbrir` / `selectBloqueioParaAbrir` / `selectMotivoSemCorredor`. */
 let ultimaAberturaNoPainel: AberturaNoPainel | null = null
 
 /**
@@ -2585,11 +2587,15 @@ function aberturaNoPainel(map: MapData, salaId: string): AberturaNoPainel {
   const ultima = ultimaAberturaNoPainel
   if (ultima !== null && ultima.map === map && ultima.salaId === salaId) return ultima
   const sala = map.regions.find((r) => r.id === salaId)
+  const corredores = corredoresDaSala(map, salaId).length
   const nova: AberturaNoPainel = {
     map,
     salaId,
-    corredores: corredoresDaSala(map, salaId).length,
+    corredores,
     bloqueio: sala === undefined ? null : bloqueioDaSala(map, sala),
+    // Com corredor a abrir o motivo seria `null` de qualquer jeito: a segunda
+    // leitura da borda só acontece na Sala sem nada a abrir.
+    semCorredor: corredores > 0 ? null : motivoSemCorredor(map, salaId),
   }
   ultimaAberturaNoPainel = nova
   return nova
@@ -2610,6 +2616,16 @@ export function selectCorredoresParaAbrir(state: Pick<MapStoreState, 'map'>, sal
 /** Por que a Sala não abriria para o corredor ('secreta' ou 'travada', `lib/abrirCorredor.bloqueioDaSala`), ou `null`. */
 export function selectBloqueioParaAbrir(state: Pick<MapStoreState, 'map'>, salaId: string): ReturnType<typeof bloqueioDaSala> {
   return aberturaNoPainel(state.map, salaId).bloqueio
+}
+
+/**
+ * Por que a Sala, com parede solta encostando, não tem corredor nenhum
+ * (`lib/abrirCorredor.motivoSemCorredor`), ou `null`: com motivo, a linha
+ * "Abrir para o corredor" aparece desabilitada e diz o que acertar no desenho;
+ * sem motivo e sem conta, some.
+ */
+export function selectMotivoSemCorredor(state: Pick<MapStoreState, 'map'>, salaId: string): MotivoSemCorredor | null {
+  return aberturaNoPainel(state.map, salaId).semCorredor
 }
 
 /** O pedaço da store que diz de onde veio o `map` atual. */

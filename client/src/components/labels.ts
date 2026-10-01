@@ -1,6 +1,6 @@
 import type { DrawingTool, SelectionKind } from '../types/tools'
 import type { BlockedMoveReason } from '../lib/moveValidation'
-import type { MotivoDaAbertura } from '../lib/abrirCorredor'
+import type { MotivoDaAbertura, MotivoSemCorredor } from '../lib/abrirCorredor'
 
 /**
  * Textos visíveis da interface do editor.
@@ -293,9 +293,12 @@ export function avisoDaSalaQueNaoAbriu(motivo: Exclude<MotivoDaAbertura, 'ok'>, 
  * A linha "Abrir para o corredor" do painel da Sala. A conta aparece mesmo com
  * um corredor só: é o que o mestre confere antes de clicar (a imagem 4 tem
  * duas linhas e é UM corredor), e com três ou mais linhas perto é como ele vê
- * que o par saiu certo. Concorda com o número, como o aviso do clique.
+ * que o par saiu certo. Concorda com o número, como o aviso do clique. Sem
+ * corredor (a linha desabilitada de `MOTIVO_SEM_CORREDOR`), vai sem conta: o
+ * "(0)" repetiria o que a frase embaixo já explica.
  */
 export function rotuloAbrirParaOCorredor(corredores: number): string {
+  if (corredores === 0) return 'Abrir para o corredor'
   return corredores === 1 ? 'Abrir para o corredor (1)' : `Abrir para os corredores (${corredores})`
 }
 
@@ -310,6 +313,25 @@ export const MOTIVO_SALA_TRAVADA_SEM_VAO = 'Sala travada, ela ou a camada Salas:
 /** O mesmo, numa Sala secreta ou dentro de sala secreta ou oculta (`bloqueioDaSala`). */
 export const MOTIVO_SALA_SECRETA_SEM_VAO =
   'Sala secreta, ou dentro de sala secreta ou oculta: o vão mostraria o esconderijo aos jogadores. Revele a sala para abrir.'
+
+/**
+ * Por que a linha "Abrir para o corredor" está desabilitada numa Sala com
+ * parede solta encostando, mas sem corredor nenhum (`motivoSemCorredor`,
+ * lib/abrirCorredor.ts). Relato de 01/10/2026, "ainda não consigo ver": a
+ * linha sumia, e o mestre não tinha como saber que faltava acertar o desenho.
+ * Curto como os `MOTIVO_SALA_*`: o que está errado e o que fazer. Fala
+ * "parede" de propósito: é com a ferramenta Parede que o corredor se desenha.
+ * `Record`: motivo novo na lib sem frase aqui não compila.
+ */
+export const MOTIVO_SEM_CORREDOR: Record<MotivoSemCorredor, string> = {
+  'uma-linha': 'Só 1 parede solta encosta na sala: leve as 2 paredes do corredor até a borda.',
+  opostas: 'As paredes que encostam saem para lados opostos da sala: as 2 do corredor saem para o mesmo lado.',
+  'nao-paralelas': 'As paredes que encostam na sala não são paralelas: deixe as 2 do corredor quase paralelas.',
+  coladas: 'As paredes que encostam estão coladas uma na outra, como traço repetido: afaste-as ou apague a cópia.',
+  longe: 'As paredes que encostam estão longe demais uma da outra para serem um corredor: aproxime-as.',
+  rente: 'As paredes chegam quase deitadas na borda, e o vão passaria da largura do corredor: traga-as mais de frente.',
+  canto: 'Uma quina da sala fica fora das 2 paredes do corredor: leve-as até a borda dos dois lados da quina.',
+}
 
 /**
  * Aviso do "Endireitar" (pedido 5: Alt tocado com uma linha selecionada) quando

@@ -30,6 +30,9 @@ import { NESTING_TOLERANCE, ancestorsOf, pointInPolygonInclusive, pointOnPolygon
  * largura de corredor uma da outra, com o arco curto da borda entre elas.
  * Parede solta encostada em Sala é comum (divisória, muro, rua); sem essa
  * régua, duas delas em lados opostos abririam um lado inteiro da Sala.
+ * Quando há linha encostando e régua nenhuma deixa formar corredor,
+ * `motivoSemCorredor` diz qual recusou: o painel mostra o botão desabilitado
+ * com o motivo, em vez de sumir com ele.
  */
 
 /** Ponta que parou ANTES da borda ainda encosta se a borda está a até 1/4 de
@@ -44,8 +47,21 @@ const PONTA_COLADA = 0.5
 /** Menos que meia célula entre as linhas não é passagem: é traço repetido ou parede dupla. */
 const CORREDOR_LARGURA_MIN_CELULAS = 0.5
 
-/** Mais que 4 células entre as linhas não é corredor: são paredes sem relação encostando na Sala. */
-const CORREDOR_LARGURA_MAX_CELULAS = 4
+/**
+ * O teto da largura cresce com a Sala: até metade do menor lado da caixa dela.
+ * O mestre desenha Salas de 20 a 40 células com corredores de 6 a 9 entre as
+ * linhas (mapa do relato de 01/10/2026, "ainda não consigo ver"), e o teto
+ * fixo de 4 células recusava todos. Mais que meia Sala entre as linhas já não
+ * é a boca de um corredor: é outra sala encostada, ou parede sem relação.
+ */
+const CORREDOR_LARGURA_MAX_FRACAO_DA_SALA = 0.5
+
+/** Nunca menos que 4 células, o teto fixo de antes: Sala pequena não perde corredor nenhum. */
+const CORREDOR_LARGURA_MAX_PISO_CELULAS = 4
+
+/** Nem mais que 16 células em Sala nenhuma: num salão de 64, duas paredes a 30 células
+ *  uma da outra não são corredor, por mais paralelas que cheguem. */
+const CORREDOR_LARGURA_MAX_TETO_CELULAS = 16
 
 /** As linhas seguem para fora quase paralelas: até 25° entre elas. Sentidos
  *  opostos (uma sobe do topo, a outra desce da base) nunca formam corredor. */
@@ -106,6 +122,14 @@ export interface CorredorQueEncosta {
 }
 
 export type MotivoDaAbertura = 'ok' | 'nada' | 'porta' | 'travada' | 'secreta'
+
+/**
+ * Por que a Sala, com parede solta encostando na borda, não tem corredor
+ * nenhum: a frase da linha desabilitada no painel (`MOTIVO_SEM_CORREDOR`,
+ * components/labels.ts). Fora 'uma-linha', é a régua de `formamCorredor` que
+ * recusou o par, na ordem em que ela mede.
+ */
+export type MotivoSemCorredor = 'uma-linha' | 'opostas' | 'nao-paralelas' | 'coladas' | 'longe' | 'rente' | 'canto'
 
 export interface AberturaDeCorredor {
   /** O mapa aberto; em qualquer outro motivo, o MESMO mapa (referência), para quem chama não gravar histórico. */
@@ -332,24 +356,48 @@ function ladoDeDentro(e: EncosteDeCorredor, outra: Ponto, c: Ponto): number {
   return Math.sign(cruz(e.paraFora, menos(outra, e.ponto))) * cruz(e.paraFora, menos(c, e.ponto))
 }
 
+/** As medidas de corredor de uma Sala, em px. */
+interface Regua {
+  /** A ponta que parou antes da borda encosta se ela está a até isto adiante (`ENCOSTE_TOLERANCIA_CELULAS`). */
+  folga: number
+  larguraMin: number
+  /** Cresce com a Sala, entre o piso e o teto (`CORREDOR_LARGURA_MAX_*`). */
+  larguraMax: number
+}
+
+function reguaDa(borda: Borda, grade: number): Regua {
+  const caixa = caixaDaBorda(borda, 0)
+  const menorLado = Math.min(caixa.maxX - caixa.minX, caixa.maxY - caixa.minY)
+  const proporcional = menorLado * CORREDOR_LARGURA_MAX_FRACAO_DA_SALA
+  const larguraMax = Math.min(Math.max(proporcional, CORREDOR_LARGURA_MAX_PISO_CELULAS * grade), CORREDOR_LARGURA_MAX_TETO_CELULAS * grade)
+  return { folga: ENCOSTE_TOLERANCIA_CELULAS * grade, larguraMin: CORREDOR_LARGURA_MIN_CELULAS * grade, larguraMax }
+}
+
+/** Por que duas linhas vizinhas não formam corredor. 'arco-longo' é o par medido
+ *  pelo lado comprido da Sala: o lado curto é a outra ligação do ciclo, e só ela vira motivo. */
+type Falha = Exclude<MotivoSemCorredor, 'uma-linha'> | 'arco-longo'
+
 /**
  * As duas linhas formam um corredor, indo de `de` a `ate` pela borda? Arco
  * curto; quase paralelas e no mesmo sentido; largura de corredor entre elas; o
  * vão do tamanho da boca do corredor; e todo canto da Sala no caminho fica
  * entre as duas linhas (o vão é onde o corredor encontra a Sala, nunca além).
+ * Não formando, diz qual régua recusou.
  */
-function formamCorredor(de: EncosteDeCorredor, ate: EncosteDeCorredor, borda: Borda, grade: number): CorredorQueEncosta | null {
+function formamCorredor(de: EncosteDeCorredor, ate: EncosteDeCorredor, borda: Borda, regua: Regua): CorredorQueEncosta | Falha {
   const arco = (ate.s - de.s + borda.perimetro) % borda.perimetro
-  if (arco > borda.perimetro / 2) return null
-  if (escalar(de.paraFora, ate.paraFora) < COS_ANGULO_MAX) return null
+  if (arco > borda.perimetro / 2) return 'arco-longo'
+  const alinhamento = escalar(de.paraFora, ate.paraFora)
+  if (alinhamento <= -COS_ANGULO_MAX) return 'opostas'
+  if (alinhamento < COS_ANGULO_MAX) return 'nao-paralelas'
   const largura = Math.max(Math.abs(cruz(de.paraFora, menos(ate.ponto, de.ponto))), Math.abs(cruz(ate.paraFora, menos(de.ponto, ate.ponto))))
-  if (largura < CORREDOR_LARGURA_MIN_CELULAS * grade || largura > CORREDOR_LARGURA_MAX_CELULAS * grade) return null
-  if (arco > VAO_MAX_POR_LARGURA * largura) return null
+  if (largura < regua.larguraMin) return 'coladas'
+  if (largura > regua.larguraMax) return 'longe'
+  if (arco > VAO_MAX_POR_LARGURA * largura) return 'rente'
   const trechos = trechosDoArco(borda, de, ate)
-  const folga = ENCOSTE_TOLERANCIA_CELULAS * grade
   const cantos = trechos.slice(1).map((t) => t.de)
-  const cantosDentro = cantos.every((c) => ladoDeDentro(de, ate.ponto, c) >= -folga && ladoDeDentro(ate, de.ponto, c) >= -folga)
-  return cantosDentro ? { linhas: [de, ate], arco, trechos } : null
+  const cantosDentro = cantos.every((c) => ladoDeDentro(de, ate.ponto, c) >= -regua.folga && ladoDeDentro(ate, de.ponto, c) >= -regua.folga)
+  return cantosDentro ? { linhas: [de, ate], arco, trechos } : 'canto'
 }
 
 /** Corredores escolhidos e o arco somado deles. */
@@ -400,25 +448,47 @@ function escolherNoCiclo(ligacoes: readonly (CorredorQueEncosta | null)[]): Corr
   return melhorEscolha(semAUltima, somando(escolherNaFila(ligacoes, 1, n - 3), ultima)).corredores
 }
 
-/** Todos os corredores que encostam na Sala, já abertos ou não. */
-function corredoresQueEncostam(map: MapData, sala: Region, borda: Borda): CorredorQueEncosta[] {
-  const folga = ENCOSTE_TOLERANCIA_CELULAS * map.grid
+/** As linhas que encostam na Sala, em ordem de perímetro, e o que cada uma forma com a seguinte. */
+interface Encostadas {
+  linhas: EncosteDeCorredor[]
+  /** `ligacoes[k]` une a linha k à k+1, e a última fecha o ciclo. Vazia com menos de 2 linhas. */
+  ligacoes: (CorredorQueEncosta | Falha)[]
+}
+
+function linhasEncostadas(map: MapData, sala: Region, borda: Borda): Encostadas {
+  const regua = reguaDa(borda, map.grid)
   const piso = pisoDe(sala)
   // Só a vizinhança da Sala passa pela régua da borda: o painel refaz esta conta
   // a cada quadro do arrasto da Sala, e medir toda parede de um mapa de 14 mil
   // custava ~8 ms (Sala de 4 lados) a ~55 ms (redonda de 32) por quadro. Parede
   // fora da caixa não encosta nem esticada (`folga`), nem pela tolerância da
   // borda (`NESTING_TOLERANCE`, de `lugarDe`).
-  const vizinhanca = caixaDaBorda(borda, folga + NESTING_TOLERANCE)
-  const encostes = map.walls
+  const vizinhanca = caixaDaBorda(borda, regua.folga + NESTING_TOLERANCE)
+  const linhas = map.walls
     .filter((w) => w.regionId === undefined && pisoDe(w) === piso && paredeNaCaixa(w, vizinhanca))
     .flatMap((w) => {
-      const encoste = encosteDa(w, borda, folga)
+      const encoste = encosteDa(w, borda, regua.folga)
       return encoste === null ? [] : [encoste]
     })
     .sort((a, b) => a.s - b.s)
-  if (encostes.length < 2) return []
-  return escolherNoCiclo(encostes.map((e, k) => formamCorredor(e, encostes[(k + 1) % encostes.length], borda, map.grid)))
+  if (linhas.length < 2) return { linhas, ligacoes: [] }
+  return { linhas, ligacoes: linhas.map((e, k) => formamCorredor(e, linhas[(k + 1) % linhas.length], borda, regua)) }
+}
+
+/** Todos os corredores que encostam na Sala, já abertos ou não. */
+function corredoresQueEncostam({ ligacoes }: Encostadas): CorredorQueEncosta[] {
+  return escolherNoCiclo(ligacoes.map((l) => (typeof l === 'string' ? null : l)))
+}
+
+/** Quão perto de corredor a recusa chegou: quanto mais adiante em `formamCorredor`, mais
+ *  útil a frase. Duas paredes que só falham na largura dizem mais que uma divisória torta ao lado. */
+const ALCANCE_DA_FALHA: Record<Exclude<Falha, 'arco-longo'>, number> = {
+  opostas: 0,
+  'nao-paralelas': 0,
+  coladas: 1,
+  longe: 1,
+  rente: 2,
+  canto: 3,
 }
 
 // ─── A sobra do traço ───────────────────────────────────────────────────────
@@ -553,7 +623,7 @@ function salaDe(map: MapData, salaId: string): Region | undefined {
 /** A Sala lida para abrir, e os corredores dela que ainda têm trabalho. */
 function lerSala(map: MapData, sala: Region): { naSala: NaSala; corredores: CorredorQueEncosta[] } {
   const borda = bordaDa(sala)
-  const todos = corredoresQueEncostam(map, sala, borda)
+  const todos = corredoresQueEncostam(linhasEncostadas(map, sala, borda))
   const naSala: NaSala = { map, sala, borda, linhas: new Set(todos.flatMap((c) => c.linhas.map((l) => l.paredeId))) }
   return { naSala, corredores: todos.filter((c) => temTrabalho(naSala, c)) }
 }
@@ -562,11 +632,35 @@ function lerSala(map: MapData, sala: Region): { naSala: NaSala; corredores: Corr
  * Os corredores que o botão "Abrir para o corredor" ainda abre nesta Sala —
  * a contagem é de CORREDORES (par de linhas), não de paredes. Inclui os que a
  * Sala travada ou secreta recusaria: o botão aparece desabilitado com o motivo
- * (`bloqueioDaSala`). Sala inexistente: lista vazia.
+ * (`bloqueioDaSala`). Sala inexistente: lista vazia. Lista vazia com parede
+ * encostando: `motivoSemCorredor` diz por quê.
  */
 export function corredoresDaSala(map: MapData, salaId: string): CorredorQueEncosta[] {
   const sala = salaDe(map, salaId)
   return sala === undefined ? [] : lerSala(map, sala).corredores
+}
+
+/**
+ * Por que a Sala não tem corredor nenhum, com parede solta encostando na borda
+ * (relato de 01/10/2026, "ainda não consigo ver"): o botão aparece
+ * desabilitado com o motivo, e o mestre sabe o que acertar no desenho em vez
+ * de procurar um botão que sumiu. `null` quando nada encosta (o botão some) ou
+ * quando algum corredor é reconhecido, aberto ou não (aí quem decide é a conta
+ * de `corredoresDaSala`). Com várias linhas, vale a recusa que chegou mais
+ * perto de corredor (`ALCANCE_DA_FALHA`).
+ */
+export function motivoSemCorredor(map: MapData, salaId: string): MotivoSemCorredor | null {
+  const sala = salaDe(map, salaId)
+  if (sala === undefined) return null
+  const { linhas, ligacoes } = linhasEncostadas(map, sala, bordaDa(sala))
+  if (linhas.length === 0) return null
+  if (linhas.length === 1) return 'uma-linha'
+  let maisPerto: Exclude<Falha, 'arco-longo'> | null = null
+  for (const ligacao of ligacoes) {
+    if (typeof ligacao !== 'string') return null
+    if (ligacao !== 'arco-longo' && (maisPerto === null || ALCANCE_DA_FALHA[ligacao] > ALCANCE_DA_FALHA[maisPerto])) maisPerto = ligacao
+  }
+  return maisPerto
 }
 
 /**
