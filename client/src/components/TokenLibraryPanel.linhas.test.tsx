@@ -277,6 +277,15 @@ function vencedora(el: Element, propriedade: string): Declaracao | undefined {
 
 const valor = (el: Element, propriedade: string) => vencedora(el, propriedade)?.valor
 
+/** O inicial do CSS das propriedades que uma linha "sem cartão" deixa sem regra nenhuma. */
+const INICIAL: Record<string, string> = {
+  'background-color': 'transparent',
+  ...Object.fromEntries(LADOS.flatMap((lado) => [[`padding-${lado}`, '0'], [`border-${lado}-style`, 'none']])),
+}
+
+/** O valor que vale em `el`: o da regra que vence ou, sem regra nenhuma, o inicial do CSS. */
+const efetivo = (el: Element, propriedade: string) => valor(el, propriedade) ?? INICIAL[propriedade]
+
 /** Liga um estado simulado (`sim-pairar`, `sim-apertar`) só durante a leitura. */
 function com(classe: string, el: Element, ler: () => string | undefined): string | undefined {
   el.classList.add(classe)
@@ -464,24 +473,35 @@ describe('Acervo em linhas — a cascata (TokenLibraryPanel.css antes, main.css 
     montar()
     for (const nome of ['Goblin', 'Carroça']) {
       const linha = linhaDe(nome)
-      expect(valor(linha, 'background-color'), nome).toBe('transparent')
-      expect(valor(linha, 'border-top-width'), nome).toBe('0')
-      expect(valor(linha, 'border-left-width'), nome).toBe('0')
+      expect(efetivo(linha, 'background-color'), nome).toBe('transparent')
+      for (const lado of LADOS) expect(efetivo(linha, `border-${lado}-style`), `${nome} ${lado}`).toBe('none')
       expect(valor(linha, 'padding-top'), nome).toBe('var(--lb-space-1)')
       expect(valor(linha, 'padding-left'), nome).toBe('var(--lb-space-2)')
       expect(valor(linha, 'padding-right'), nome).toBe('var(--lb-space-2)')
     }
   })
 
-  it('dentro da pasta quem decide a linha é esta folha, e não o `.lb-acervo--na-pasta .lb-acervo__item` (0,2,0) de main.css', () => {
-    // Hoje os valores de lá coincidem com os daqui (4 e 8 px): conferir só o
-    // valor não pegaria o empate que devolveria o respiro antigo no dia em que
-    // um dos dois mudar. Confere-se QUEM vence.
+  it('o acervo vazio junta título e frase a 8 px: vence o `.lb-section` de main.css, de mesmo peso que uma classe e carregado depois', () => {
+    // Com uma classe só, a regra desta folha empataria com a de main.css e
+    // perderia calada: o acervo vazio voltaria aos 12 px de seção.
+    montar({ itens: [], pastas: [] })
+    const secao = container.querySelector('.lb-acervo-painel') as HTMLElement
+    expect(secao.classList.contains('lb-section')).toBe(true)
+    expect(valor(secao, 'gap')).toBe('var(--lb-space-2)')
+  })
+
+  it('o anel de foco fica DENTRO da linha, como nas linhas da coluna: o `:focus-visible` de main.css não desenha o de fora', () => {
     montar()
-    const linha = linhaDe('Carroça')
-    for (const propriedade of ['padding-top', 'padding-right', 'padding-bottom', 'padding-left', 'background-color', 'border-left-width']) {
-      expect(vencedora(linha, propriedade)?.folha, propriedade).toBe(0)
+    const anel = 'inset 0 0 0 2px var(--lb-color-brass)'
+    const nome = botao('Colocar Carroça no mapa')
+    expect(com('sim-foco', nome, () => valor(nome, 'box-shadow'))).toBe('none')
+    expect(com('sim-foco', nome, () => valor(linhaDe('Carroça'), 'box-shadow'))).toBe(anel)
+    for (const acao of [botao('Mover Carroça para outra pasta'), botao('Apagar Carroça do acervo'), botao('Apagar a pasta Veículos')]) {
+      expect(com('sim-foco', acao, () => valor(acao, 'box-shadow')), acao.getAttribute('aria-label') ?? '').toBe(anel)
     }
+    const cabecalho = botao('Veículos (1)')
+    expect(com('sim-foco', cabecalho, () => valor(cabecalho, 'box-shadow'))).toBe('none')
+    expect(com('sim-foco', cabecalho, () => valor(cabecalhoDe('Veículos'), 'box-shadow'))).toBe(anel)
   })
 
   it('pairar acende a linha em pedra; apertar o nome afunda; o latão do cartão antigo não volta', () => {
@@ -561,12 +581,16 @@ describe('Acervo em linhas — a cascata (TokenLibraryPanel.css antes, main.css 
     }
   })
 
-  it('os botões de ação: 24 px; Mover aberto fica em latão; o Apagar sob o ponteiro fica em brasa', () => {
+  it('os botões de ação: o alvo mínimo de 24 px, sem respiro em volta do ícone; Mover aberto fica em latão; o Apagar sob o ponteiro fica em brasa', () => {
     montar()
     act(() => botao('Mover Goblin para outra pasta').click())
     const mover = botao('Mover Goblin para outra pasta')
-    expect(valor(mover, 'width')).toBe('var(--lb-space-6)')
-    expect(valor(mover, 'height')).toBe('var(--lb-space-6)')
+    for (const acao of [mover, botao('Apagar Carroça do acervo'), botao('Apagar a pasta Veículos')]) {
+      const nome = acao.getAttribute('aria-label') ?? ''
+      expect(valor(acao, 'min-width'), nome).toBe('var(--lb-control-min)')
+      expect(valor(acao, 'min-height'), nome).toBe('var(--lb-control-min)')
+      for (const lado of LADOS) expect(efetivo(acao, `padding-${lado}`), `${nome} ${lado}`).toBe('0')
+    }
     expect(valor(mover, 'color')).toBe('var(--lb-color-brass)')
     const apagar = botao('Apagar Carroça do acervo')
     expect(valor(apagar, 'color')).toBe('var(--lb-color-parchment-dim)')
@@ -576,7 +600,7 @@ describe('Acervo em linhas — a cascata (TokenLibraryPanel.css antes, main.css 
   it('pasta sem faixa: o cabeçalho é transparente e acende só sob o ponteiro; nome em peso médio, sem virar latão', () => {
     montar()
     const topo = cabecalhoDe('Veículos')
-    expect(valor(topo, 'background-color')).toBe('transparent')
+    expect(efetivo(topo, 'background-color')).toBe('transparent')
     expect(com('sim-pairar', topo, () => valor(topo, 'background-color'))).toBe('var(--lb-color-stone-hover)')
     const cabecalho = botao('Veículos (1)')
     expect(valor(cabecalho, 'font-weight')).toBe('var(--lb-font-weight-medium)')
@@ -613,13 +637,17 @@ describe('Acervo em linhas — a cascata (TokenLibraryPanel.css antes, main.css 
     expect(valor(pasta('Veículos').parentElement as HTMLElement, 'margin-left')).toBe('calc(-1 * var(--lb-space-2))')
   })
 
-  it('o realce da pasta sob o token arrastado continua (fundo de latão), sem moldura que empurre a lista', () => {
+  it('o realce da pasta sob o token arrastado é fundo de latão com contorno de dentro, sem moldura que empurre a lista', () => {
     montar()
     const veiculos = pasta('Veículos')
-    expect(valor(veiculos, 'border-top-width')).toBe('0')
-    expect(valor(veiculos, 'padding-top')).toBe('0')
+    for (const lado of LADOS) {
+      expect(efetivo(veiculos, `border-${lado}-style`), lado).toBe('none')
+      expect(efetivo(veiculos, `padding-${lado}`), lado).toBe('0')
+    }
     veiculos.setAttribute('data-alvo', 'dentro')
     expect(valor(veiculos, 'background-color')).toBe('var(--lb-color-brass-soft)')
+    expect(valor(veiculos, 'box-shadow')).toBe('inset 0 0 0 1px var(--lb-color-brass)')
+    for (const lado of LADOS) expect(efetivo(veiculos, `border-${lado}-style`), lado).toBe('none')
   })
 
   it('"Sem pasta" é rótulo apagado, na vertical das setas', () => {
@@ -632,48 +660,34 @@ describe('Acervo em linhas — a cascata (TokenLibraryPanel.css antes, main.css 
 
 describe('Acervo em linhas — o que não é do elemento, conferido na regra', () => {
   it('as ações não têm transição: pairar é gesto de toda hora', () => {
-    const acoes = regraCom(semMedias(cssDoAcervo), '.lb-acervo-painel .lb-acervo__acoes')
+    const acoes = regraCom(semMedias(cssDoAcervo), '.lb-acervo__acoes')
     expect(acoes.get('opacity')).toBe('0')
     expect(acoes.has('transition')).toBe(false)
   })
 
   it('tela sem pairar (toque): as ações ficam sempre à vista', () => {
-    expect(regraCom(blocoMedia(cssDoAcervo, '(hover: none)'), '.lb-acervo-painel .lb-acervo__acoes').get('opacity')).toBe('1')
-  })
-
-  it('o anel de foco do nome, dos botões e do cabeçalho da pasta fica DENTRO da linha, como nas linhas da coluna', () => {
-    const css = semMedias(cssDoAcervo)
-    const anel = 'inset 0 0 0 2px var(--lb-color-brass)'
-    expect(regraCom(css, '.lb-acervo-painel .lb-acervo__item:has(> .lb-acervo__nome:focus-visible)').get('box-shadow')).toBe(anel)
-    expect(regraCom(css, '.lb-acervo-painel .lb-acervo__pasta-topo:has(> .lb-acervo__pasta-botao:focus-visible)').get('box-shadow')).toBe(anel)
-    expect(regraCom(css, '.lb-acervo-painel .lb-acervo__acoes > button:focus-visible').get('box-shadow')).toBe(anel)
+    expect(regraCom(blocoMedia(cssDoAcervo, '(hover: none)'), '.lb-acervo__acoes').get('opacity')).toBe('1')
   })
 
   it('a linha inteira pega o token: o alvo do nome cobre os 32 px de cima da linha (foto incluída)', () => {
     const css = semMedias(cssDoAcervo)
-    expect(regraCom(css, '.lb-acervo-painel .lb-acervo__item').get('position')).toBe('relative')
-    const alvo = regraCom(css, '.lb-acervo-painel .lb-acervo__nome::before')
+    expect(regraCom(css, '.lb-acervo__item').get('position')).toBe('relative')
+    const alvo = regraCom(css, '.lb-acervo__nome::before')
     expect(alvo.get('position')).toBe('absolute')
     expect(alvo.get('height')).toBe('var(--lb-space-8)')
   })
 
   it('o botão de recolher alcança o cabeçalho inteiro, atrás do conteúdo; a contagem deixa o ponteiro passar', () => {
     const css = semMedias(cssDoAcervo)
-    const alvo = regraCom(css, '.lb-acervo-painel .lb-acervo__pasta-botao:not([data-vazia])::before')
+    const alvo = regraCom(css, '.lb-acervo__pasta-botao:not([data-vazia])::before')
     expect(alvo.get('inset')).toBe('0')
     expect(alvo.get('z-index')).toBe('-1')
-    expect(regraCom(css, '.lb-acervo-painel .lb-acervo__pasta-topo').get('isolation')).toBe('isolate')
-    expect(regraCom(css, '.lb-acervo-painel .lb-acervo__contagem').get('pointer-events')).toBe('none')
-  })
-
-  it('o realce da pasta sob o token arrastado é um contorno de dentro, de latão', () => {
-    expect(regraCom(semMedias(cssDoAcervo), ".lb-acervo-painel .lb-acervo__pasta[data-alvo='dentro']").get('box-shadow')).toBe(
-      'inset 0 0 0 1px var(--lb-color-brass)',
-    )
+    expect(regraCom(css, '.lb-acervo__pasta-topo').get('isolation')).toBe('isolate')
+    expect(regraCom(css, '.lb-acervo__contagem').get('pointer-events')).toBe('none')
   })
 
   it('a seta que gira respeita "reduzir movimento"', () => {
-    expect(regraCom(blocoMedia(cssDoAcervo, '(prefers-reduced-motion: reduce)'), '.lb-acervo-painel .lb-acervo__chevron').get('transition')).toBe('none')
+    expect(regraCom(blocoMedia(cssDoAcervo, '(prefers-reduced-motion: reduce)'), '.lb-acervo__chevron').get('transition')).toBe('none')
   })
 
   it('a especificidade da cascata do teste é a do CSS: lista não soma, :has pesa o argumento', () => {

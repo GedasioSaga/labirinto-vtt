@@ -133,7 +133,7 @@ function posicionarFantasma(fantasma: HTMLElement, ponto: { x: number; y: number
 /**
  * A pasta sob o ponteiro, e só se ela for DESTE painel; `null` fora de todas.
  * `elementFromPoint` enxerga através do fantasma porque ele tem
- * `pointer-events: none` (ver `.lb-acervo__fantasma` em `main.css`).
+ * `pointer-events: none` (ver `.lb-acervo__fantasma` em TokenLibraryPanel.css).
  */
 function pastaSobOPonteiro(raiz: HTMLElement | null, x: number, y: number): HTMLElement | null {
   if (raiz === null || typeof document.elementFromPoint !== 'function') return null

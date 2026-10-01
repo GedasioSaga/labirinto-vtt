@@ -1,8 +1,8 @@
 /*
  * NovoTokenForm — o campo que o "+ Token" abre. O mesmo desenho do campo de
- * nova pasta do Acervo (`.lb-acervo__form` em main.css): um passo de 8 px
- * entre rótulo, campo e botões, e os botões numa linha à direita. Só
- * `var(--lb-*)` de theme.ts.
+ * nova pasta do Acervo (`.lb-acervo__form`, em TokenLibraryPanel.css): um
+ * passo de 8 px entre rótulo, campo e botões, e os botões numa linha à
+ * direita. Só `var(--lb-*)` de theme.ts.
  */
 
 .lb-novotoken {

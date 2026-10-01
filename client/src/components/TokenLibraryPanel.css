@@ -1,20 +1,23 @@
 /*
- * TokenLibraryPanel — o acervo de tokens em LINHAS (pedido painel-acervo).
- * Fatia 2: "+ Token" e "+ Pasta" na linha do título (o desenho do botão está
- * em BotaoMais.css). Fatia 4: a estante deixa de ser pilha de cartões e vira
- * uma árvore leve, como o painel de camadas do Figma e o Explorer do VS Code:
- * linha sem borda nem fundo, pasta sem faixa, um fio fino de pasta, e o Mover
- * e o Apagar só quando a linha está sob o ponteiro, com o foco ou com o menu
- * aberto. O resto do acervo (form, estado vazio, fantasma, menu Mover) ainda
- * mora no bloco ACERVO DE TOKENS de main.css, até sair de lá de uma vez. Só
- * `var(--lb-*)` de theme.ts.
+ * TokenLibraryPanel — o acervo de tokens, a estante de NPCs prontos no
+ * trilho. Desde o pedido painel-acervo (01/10/2026) é uma árvore leve, como o
+ * painel de camadas do Figma e o Explorer do VS Code: linha sem borda nem
+ * fundo, pasta sem faixa, um fio fino de pasta, e o Mover e o Apagar só quando
+ * a linha está sob o ponteiro, com o foco ou com o menu aberto. "+ Token" e
+ * "+ Pasta" ficam na linha do título; o desenho deles está em BotaoMais.css, e
+ * o campo do token em NovoTokenForm.css. Só `var(--lb-*)` de theme.ts.
  *
- * ESPECIFICIDADE: main.tsx importa o App antes de main.css, então esta folha
- * entra ANTES dela na cascata e o empate perde em silêncio. Toda regra leva
- * `.lb-acervo-painel` na frente e vence a de lá por um degrau; onde lá há
- * seletor composto (`.lb-acervo--na-pasta .lb-acervo__item`, os `:hover`), a
- * regra daqui diz contra quem ganha. TokenLibraryPanel.linhas.test.tsx confere
- * o resultado da cascata, com as duas folhas na ordem do app.
+ * Tudo do acervo mora aqui. Antes, o desenho do cartão ficava em main.css e
+ * esta folha o desfazia por cima, regra a regra, com seletores mais pesados.
+ *
+ * CASCATA: main.tsx importa o App antes de main.css, então esta folha entra
+ * ANTES dela, e um empate com uma regra genérica de lá perde calado. As
+ * classes daqui são só do acervo. Onde uma regra genérica de main.css disputa
+ * a mesma propriedade no mesmo elemento, o comentário diz como esta ganha: o
+ * vão do acervo vazio leva duas classes contra `.lb-section`, e os anéis de
+ * foco (classe com pseudo) pesam mais que o `:focus-visible` solto.
+ * TokenLibraryPanel.linhas.test.tsx confere o resultado da cascata com as duas
+ * folhas na ordem do app.
  *
  * MEDIDAS DA ÁRVORE (x a partir do começo do texto da seção, 16 px da borda):
  * as linhas avançam 8 px no respiro da seção, como as de Objetos do mapa, e
@@ -25,11 +28,25 @@
  * da pasta. Toda linha tem 32 px: foto de 24 e 4 de cada lado.
  */
 
+/* ── A seção e a linha do título ───────────────────────────────────────── */
+
+/* Acervo vazio numa faixa só (moldura enxuta; bar: Explorer do VS Code sem
+   pasta aberta): o título e a frase ficam a 8 px, e não aos 12 de seção, porque
+   são um bloco só. Duas classes: `.lb-section`, de main.css, pesa uma e entra
+   depois. */
+.lb-acervo-painel.lb-acervo--vazio {
+  gap: var(--lb-space-2);
+}
+
 /* "ACERVO DE TOKENS", "+ Token" e "+ Pasta" cabem por pouco nos 232 px de
    texto da coluna: se a fonte do sistema for mais larga, as ações descem para
    a linha de baixo, à direita, em vez de vazar. */
-.lb-acervo-painel .lb-acervo__topo {
+.lb-acervo__topo {
+  display: flex;
   flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  column-gap: var(--lb-space-2);
   row-gap: var(--lb-space-1);
 }
 
@@ -37,7 +54,7 @@
    pastilha, 16 px de uma palavra à outra). A margem negativa leva a pastilha
    para dentro do respiro da seção, e o TEXTO da última ação termina a 16 px
    da borda, na mesma vertical do fim dos campos. */
-.lb-acervo-painel .lb-acervo__acoes-topo {
+.lb-acervo__acoes-topo {
   display: flex;
   align-items: baseline;
   gap: var(--lb-control-gap);
@@ -45,112 +62,348 @@
   margin-right: calc(-1 * var(--lb-space-1));
 }
 
+.lb-acervo__vazio,
+.lb-acervo__aviso {
+  margin: 0;
+  color: var(--lb-color-parchment-faint);
+  font-size: var(--lb-font-size-sm);
+}
+
+.lb-acervo__aviso {
+  color: var(--lb-color-ember);
+}
+
+/* O estado vazio é um parágrafo de duas frases, uma por linha do trilho: a de
+   cima diz o que falta, um tom mais clara; a de baixo, como encher. */
+.lb-acervo__vazio-estado {
+  margin: 0;
+  font-size: var(--lb-font-size-sm);
+  line-height: var(--lb-font-leading-normal);
+  color: var(--lb-color-parchment-faint);
+}
+
+.lb-acervo__vazio-estado > span {
+  display: block;
+}
+
+.lb-acervo__vazio-estado > :first-child {
+  color: var(--lb-color-parchment-dim);
+}
+
+/* O campo de pasta nova abaixo do título: campo e botões a 8 px, os botões à
+   direita (o campo do token, em NovoTokenForm.css, repete o desenho). */
+.lb-acervo__form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-2);
+}
+
+.lb-acervo__form-acoes {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--lb-control-gap);
+}
+
 /* ── A árvore ──────────────────────────────────────────────────────────── */
+
+/* Uma linha encosta na outra, sem vão: quem separa é o fundo do pairar. */
+.lb-acervo__pastas,
+.lb-acervo {
+  display: flex;
+  flex-direction: column;
+}
+
+.lb-acervo {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
 
 /* As linhas avançam 8 px no respiro da seção dos dois lados: o fundo do
    pairar ganha ar em volta do conteúdo, e o conteúdo fica na vertical do
-   título. Uma linha encosta na outra: quem separa é o fundo do pairar, não o
-   vão (vence o `gap` de `.lb-acervo__pastas`, de `.lb-acervo` e de
-   `.lb-acervo--na-pasta`, todos (0,1,0)). */
-.lb-acervo-painel .lb-acervo__pastas,
+   título. Sem pastas (o mestre apagou todas), a lista solta é filha da
+   seção e avança do mesmo jeito. */
+.lb-acervo__pastas,
 .lb-acervo-painel > .lb-acervo {
   margin: 0 calc(-1 * var(--lb-space-2));
 }
 
-.lb-acervo-painel .lb-acervo__pastas,
-.lb-acervo-painel .lb-acervo {
-  gap: 0;
+/* O fio de 1 px na cor de linha desce do centro da seta: diz onde a pasta
+   acaba sem uma caixa em volta. A conta: a pasta começa 8 px antes do texto
+   da seção; com a margem de 16 px o fio cai em x=8, o centro da caixa da
+   seta; com o 1 px do fio, os 7 px depois dele e os 8 px da linha do token,
+   a foto começa em x=24, embaixo do ícone da pasta. */
+.lb-acervo--na-pasta {
+  margin-left: var(--lb-space-4);
+  padding-left: calc(var(--lb-space-2) - 1px);
+  border-left: 1px solid var(--lb-color-line);
 }
 
-/* A linha do token: sem a borda e o fundo do cartão de main.css. O mesmo
-   respiro solta ou dentro da pasta: lá `.lb-acervo--na-pasta .lb-acervo__item`
-   é (0,2,0), por isso o segundo seletor (0,3,0). `relative` ancora o alvo do
-   nome, que cobre a linha toda (abaixo). */
-.lb-acervo-painel .lb-acervo__item,
-.lb-acervo-painel .lb-acervo--na-pasta .lb-acervo__item {
+/* ── Pastas ────────────────────────────────────────────────────────────── */
+
+/* A pasta inteira é o alvo do soltar (`data-acervo-pasta`). O realce sob o
+   token arrastado é fundo de latão com um contorno de dentro, que não ocupa
+   lugar: a lista não pula 1 px quando o token passa por cima. */
+.lb-acervo__pasta {
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--lb-radius-md);
+}
+
+.lb-acervo__pasta[data-alvo='dentro'] {
+  background: var(--lb-color-brass-soft);
+  box-shadow: inset 0 0 0 1px var(--lb-color-brass);
+}
+
+/* A pergunta de apagar a pasta é a mesma faixa da pergunta do token. Depois
+   do realce, com o mesmo peso: com a pergunta aberta, ela manda. */
+.lb-acervo__pasta:has(> .lb-acervo__confirma--pasta) {
+  background: var(--lb-color-stone-raised);
+}
+
+/* O cabeçalho da pasta é uma linha como as dos tokens: 32 px, sem a faixa de
+   pedra de antes, e acende sob o ponteiro. `isolation` faz dele o fundo do
+   alvo do botão (abaixo). */
+.lb-acervo__pasta-topo {
   position: relative;
+  isolation: isolate;
+  display: flex;
+  align-items: center;
   gap: var(--lb-space-2);
+  min-height: var(--lb-space-8);
+  padding: 0 var(--lb-space-2);
+  border-radius: var(--lb-radius-sm);
+}
+
+/* Sem transição: pairar é gesto de toda hora. */
+.lb-acervo__pasta-topo:hover {
+  background: var(--lb-color-stone-hover);
+}
+
+.lb-acervo__pasta-topo:has(> button.lb-acervo__pasta-botao:active) {
+  background: var(--lb-color-stone-sunken);
+}
+
+/* O anel de foco fica DENTRO da linha, como nas linhas da coluna
+   (CollapsibleSection.css, Locais): as linhas se encostam, e o anel de fora
+   encostaria nas vizinhas. Por isso o botão apaga o dele, que é o
+   `:focus-visible` de main.css, e o cabeçalho desenha um por dentro. */
+.lb-acervo__pasta-topo:has(> .lb-acervo__pasta-botao:focus-visible) {
+  box-shadow: inset 0 0 0 2px var(--lb-color-brass);
+}
+
+/* O nome da pasta em peso médio, e não negrito: a hierarquia vem da seta, do
+   ícone e do recuo dos tokens. A linha inteira é a altura do alvo. Sob o
+   ponteiro o texto não muda de cor: quem acende é a linha. */
+.lb-acervo__pasta-botao {
+  display: flex;
+  flex: 1;
+  align-self: stretch;
+  align-items: center;
+  gap: var(--lb-space-2);
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--lb-color-parchment);
+  font-family: inherit;
+  font-size: var(--lb-font-size-md);
+  font-weight: var(--lb-font-weight-medium);
+  text-align: left;
+  cursor: pointer;
+}
+
+/* Pasta vazia: o cabeçalho é texto, não botão (sem seta, não alterna). */
+.lb-acervo__pasta-botao[data-vazia] {
+  cursor: default;
+}
+
+.lb-acervo__pasta-botao:focus-visible {
+  box-shadow: none;
+}
+
+/* O botão de recolher alcança a linha inteira, com a contagem da ponta: o
+   alvo fica atrás do conteúdo (z-index -1 dentro do cabeçalho isolado), então
+   o nome continua mostrando o title dele, a contagem deixa o ponteiro passar
+   até o alvo, e o × fica por cima. */
+.lb-acervo__pasta-botao:not([data-vazia])::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+}
+
+/* O ícone da pasta um tom abaixo do nome: é sinal, não título. Não encolhe
+   quando o nome é comprido: quem cede é o nome, com reticências (o title
+   devolve o nome inteiro). */
+.lb-acervo__pasta-botao > svg {
+  flex: none;
+  color: var(--lb-color-parchment-dim);
+}
+
+.lb-acervo__pasta-nome {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* A seta numa caixa de 16 px; na pasta vazia, a mesma caixa sem seta, para o
+   ícone e o nome ficarem na vertical dos das outras pastas. */
+.lb-acervo__chevron,
+.lb-acervo__recuo {
+  display: inline-flex;
+  flex: none;
+  justify-content: center;
+  width: var(--lb-space-4);
+}
+
+/* A seta gira para recolher (110 ms): é o único movimento do acervo. */
+.lb-acervo__chevron {
+  color: var(--lb-color-parchment-faint);
+  transition: transform var(--lb-motion-fast) var(--lb-motion-ease);
+}
+
+.lb-acervo__pasta-botao[aria-expanded='false'] .lb-acervo__chevron {
+  transform: rotate(-90deg);
+}
+
+.lb-acervo__pasta-botao:hover .lb-acervo__chevron {
+  color: var(--lb-color-parchment-dim);
+}
+
+/* A contagem discreta na ponta da linha, numa coluna só em repouso (as das
+   pastas e a de "Sem pasta"). Deixa o ponteiro passar até o alvo do
+   cabeçalho. */
+.lb-acervo__contagem {
+  flex: none;
+  margin-left: auto;
+  color: var(--lb-color-parchment-faint);
+  font-size: var(--lb-font-size-sm);
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+}
+
+/* "Sem pasta" não recolhe: é rótulo, apagado, com a contagem dos soltos na
+   ponta. Linha de 32 px como as outras, na vertical das setas. */
+.lb-acervo__pasta-titulo {
+  display: flex;
+  align-items: center;
+  min-height: var(--lb-space-8);
+  margin: 0;
+  padding: 0 var(--lb-space-2);
+  color: var(--lb-color-parchment-faint);
+  font-size: var(--lb-font-size-sm);
+}
+
+/* "Solte aqui para tirar o token da pasta.", durante o arrasto. */
+.lb-acervo__pasta--solta > .lb-acervo__vazio {
+  padding: 0 var(--lb-space-2) var(--lb-space-2);
+}
+
+/* ── A linha do token ──────────────────────────────────────────────────── */
+
+/* A linha quebra: a pergunta de apagar e o menu "Mover" descem para baixo do
+   nome, na largura da linha, porque na coluna estreita do trilho não cabem
+   ao lado dele. `relative` ancora o alvo do nome, que cobre a linha toda
+   (abaixo). */
+.lb-acervo__item {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: var(--lb-space-2);
   row-gap: var(--lb-control-gap);
   padding: var(--lb-space-1) var(--lb-space-2);
-  border: 0;
   border-radius: var(--lb-radius-sm);
-  background: transparent;
 }
 
-/* Pairar acende a linha inteira, como em Locais e em Objetos do mapa. Sem
-   transição: pairar é gesto de toda hora. */
-.lb-acervo-painel .lb-acervo__item:hover {
+/* Pairar acende a linha inteira, como em Locais e em Objetos do mapa. */
+.lb-acervo__item:hover {
   background: var(--lb-color-stone-hover);
 }
 
 /* Apertar o nome afunda a linha: é o retorno do clique que põe o token no
    centro da vista. */
-.lb-acervo-painel .lb-acervo__item:has(> .lb-acervo__nome:active) {
+.lb-acervo__item:has(> .lb-acervo__nome:active) {
   background: var(--lb-color-stone-sunken);
 }
 
 /* Com a pergunta de apagar ou o menu Mover aberto, a linha vira uma faixa
-   só: sem o cartão, a pergunta de baixo ficava tão perto do token seguinte
-   quanto do dela. Vem depois do pairar, com o mesmo peso, para não piscar
-   quando o ponteiro entra e sai. */
-.lb-acervo-painel .lb-acervo__item.lb-acervo__item--movendo,
-.lb-acervo-painel .lb-acervo__item:has(> .lb-acervo__confirma) {
+   só: sem ela, a pergunta de baixo ficaria tão perto do token seguinte quanto
+   do dela. Depois do pairar, com o mesmo peso, para não piscar quando o
+   ponteiro entra e sai. */
+.lb-acervo__item.lb-acervo__item--movendo,
+.lb-acervo__item:has(> .lb-acervo__confirma) {
   background: var(--lb-color-stone-raised);
 }
 
-/* Redonda como a peça no mapa, menor que antes (32 px): a linha é de lista,
-   não de cartão. O fantasma do arrasto leva a mesma foto da linha que saiu. */
-.lb-acervo-painel .lb-acervo__foto,
-.lb-acervo__fantasma .lb-acervo__foto {
+/* O anel de dentro, como o do cabeçalho da pasta (ver lá). */
+.lb-acervo__item:has(> .lb-acervo__nome:focus-visible) {
+  box-shadow: inset 0 0 0 2px var(--lb-color-brass);
+}
+
+/* Redonda como a peça no mapa: a miniatura é a promessa do que vai entrar.
+   24 px, de linha de lista. O fantasma do arrasto leva a mesma foto. A foto
+   fica fora do botão de propósito: o leitor de tela anuncia "Foto de Goblin"
+   e "Colocar Goblin no mapa" como duas coisas, que é o que elas são. */
+.lb-acervo__foto {
+  flex: none;
   width: var(--lb-space-6);
   height: var(--lb-space-6);
+  border: 1px solid var(--lb-color-line-strong);
+  border-radius: var(--lb-radius-full);
+  object-fit: cover;
 }
 
-/* O nome é a alça: arrasta até o mapa ou até uma pasta (o clique põe no
-   centro). Sob o ponteiro ele não fica de latão: quem acende é a linha, e o
-   latão da coluna é de selecionado/aberto. */
-.lb-acervo-painel .lb-acervo__nome {
+.lb-acervo__foto--vazia {
+  background: var(--lb-color-stone-raised);
+}
+
+/* O nome é o alvo grande e a alça: o clique põe o token no centro da vista,
+   e o arrasto o leva ao mapa ou a uma pasta. Sem `user-select` o gesto
+   selecionaria o texto do trilho no caminho, e sem `touch-action` o toque
+   rolaria a página em vez de levar a peça. Sob o ponteiro ele não fica de
+   latão: quem acende é a linha, e o latão da coluna é de selecionado/aberto. */
+.lb-acervo__nome {
+  flex: 1;
+  min-width: 0;
+  min-height: var(--lb-control-min);
+  padding: 0;
+  border: 0;
+  background: none;
   color: var(--lb-color-parchment);
+  font-family: inherit;
+  font-size: var(--lb-font-size-md);
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   cursor: grab;
+  user-select: none;
+  touch-action: none;
 }
 
-.lb-acervo-painel .lb-acervo__nome:hover {
-  color: var(--lb-color-parchment);
-}
-
-.lb-acervo-painel .lb-acervo__nome:active {
+.lb-acervo__nome:active {
   cursor: grabbing;
+}
+
+.lb-acervo__nome:focus-visible {
+  box-shadow: none;
 }
 
 /* O alvo do nome cobre a PRIMEIRA linha da linha inteira, foto incluída: com
    o fundo do pairar dizendo "esta linha", um clique na foto que não fizesse
    nada seria um buraco. Só os 32 px de cima: a pergunta e o menu que descem
-   para baixo não viram alvo. As ações, a pergunta e o menu ficam por cima. */
-.lb-acervo-painel .lb-acervo__nome::before {
+   para baixo não viram alvo. As ações, a pergunta e o menu ficam por cima
+   (z-index 1). */
+.lb-acervo__nome::before {
   content: '';
   position: absolute;
   top: 0;
   right: 0;
   left: 0;
   height: var(--lb-space-8);
-}
-
-.lb-acervo-painel .lb-acervo__acoes,
-.lb-acervo-painel .lb-acervo__confirma,
-.lb-acervo-painel .lb-acervo__destinos {
-  position: relative;
-  z-index: 1;
-}
-
-/* O anel de foco fica DENTRO da linha, como nas linhas da coluna
-   (CollapsibleSection.css, Locais): as linhas se encostam, e o anel de fora
-   encostaria nas vizinhas. */
-.lb-acervo-painel .lb-acervo__nome:focus-visible {
-  box-shadow: none;
-}
-
-.lb-acervo-painel .lb-acervo__item:has(> .lb-acervo__nome:focus-visible) {
-  box-shadow: inset 0 0 0 2px var(--lb-color-brass);
 }
 
 /* ── Ações sob demanda ─────────────────────────────────────────────────── */
@@ -160,7 +413,9 @@
    continua chegando nelas, e o ponteiro que vai clicar já acendeu a linha.
    Sem transição: aparecer ao pairar é gesto de toda hora, e animar vira
    atraso. */
-.lb-acervo-painel .lb-acervo__acoes {
+.lb-acervo__acoes {
+  position: relative;
+  z-index: 1;
   display: inline-flex;
   flex: none;
   align-items: center;
@@ -171,198 +426,158 @@
 /* Aparecem com o ponteiro na linha, com o foco em qualquer peça dela (o Tab
    que chega ao nome já mostra o que vem depois) e enquanto o menu Mover
    estiver aberto. Na pasta, o × aparece com o ponteiro no cabeçalho dela. */
-.lb-acervo-painel .lb-acervo__item:hover .lb-acervo__acoes,
-.lb-acervo-painel .lb-acervo__item:focus-within .lb-acervo__acoes,
-.lb-acervo-painel .lb-acervo__item--movendo .lb-acervo__acoes,
-.lb-acervo-painel .lb-acervo__pasta-topo:hover .lb-acervo__acoes,
-.lb-acervo-painel .lb-acervo__pasta-topo:focus-within .lb-acervo__acoes {
+.lb-acervo__item:hover .lb-acervo__acoes,
+.lb-acervo__item:focus-within .lb-acervo__acoes,
+.lb-acervo__item--movendo .lb-acervo__acoes,
+.lb-acervo__pasta-topo:hover .lb-acervo__acoes,
+.lb-acervo__pasta-topo:focus-within .lb-acervo__acoes {
   opacity: 1;
 }
 
-/* Os botões: ícone de 14 px em alvo de 24, sem borda, como as ações de uma
-   linha do Explorer. (0,2,1) vence o desenho de `.lb-acervo__mover` e de
-   `.lb-acervo__apagar` (0,1,0); o pairar e o aberto de lá, (0,2,0), são
-   refeitos abaixo com mais peso. */
-.lb-acervo-painel .lb-acervo__acoes > button {
+/* Ícone de 14 px no alvo mínimo do tema, sem borda e sem respiro, como as
+   ações de uma linha do Explorer. */
+.lb-acervo__mover,
+.lb-acervo__apagar {
   display: inline-flex;
+  flex: none;
   align-items: center;
   justify-content: center;
-  width: var(--lb-space-6);
-  height: var(--lb-space-6);
+  min-width: var(--lb-control-min);
+  min-height: var(--lb-control-min);
   padding: 0;
+  border: 0;
   border-radius: var(--lb-radius-sm);
+  background: none;
   color: var(--lb-color-parchment-dim);
+  cursor: pointer;
 }
 
 /* Sobre a linha acesa (stone-hover), o botão sob o ponteiro afunda um tom,
    como a seta de Locais. */
-.lb-acervo-painel .lb-acervo__acoes > button:hover {
+.lb-acervo__mover:hover,
+.lb-acervo__apagar:hover {
   background: var(--lb-color-stone-raised);
   color: var(--lb-color-parchment);
 }
 
-.lb-acervo-painel .lb-acervo__acoes > button:active {
+.lb-acervo__mover:active,
+.lb-acervo__apagar:active {
   background: var(--lb-color-stone-sunken);
 }
 
-.lb-acervo-painel .lb-acervo__acoes > .lb-acervo__apagar:hover {
+/* O Apagar sob o ponteiro avisa em brasa, e o Mover com o menu aberto fica
+   em latão. Depois do pairar, com o mesmo peso. */
+.lb-acervo__apagar:hover {
   color: var(--lb-color-ember);
 }
 
-.lb-acervo-painel .lb-acervo__acoes > .lb-acervo__mover[aria-expanded='true'] {
+.lb-acervo__mover[aria-expanded='true'] {
   color: var(--lb-color-brass);
 }
 
-.lb-acervo-painel .lb-acervo__acoes > button:focus-visible {
+/* O anel de dentro, como o das linhas: a ação encosta na borda da linha. */
+.lb-acervo__mover:focus-visible,
+.lb-acervo__apagar:focus-visible {
   box-shadow: inset 0 0 0 2px var(--lb-color-brass);
+}
+
+/* ── A pergunta de apagar e o menu Mover ───────────────────────────────── */
+
+/* A pergunta ocupa a linha inteira, embaixo do nome do item, que continua à
+   vista. Os dois botões dividem a linha quando cabem; senão cada um fica numa,
+   no vão do painel, sem vazar da coluna. */
+.lb-acervo__confirma {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex: 1 1 100%;
+  flex-wrap: wrap;
+  gap: var(--lb-control-gap);
+  min-width: 0;
+}
+
+/* Nome comprido no botão de apagar quebra em duas linhas equilibradas em vez
+   de ganhar reticência: o nome ali é a última chance de ver o engano. */
+.lb-acervo__confirma > .lb-btn {
+  flex: 1 1 auto;
+  min-width: 0;
+  text-wrap: balance;
+}
+
+/* A pergunta da pasta desce em coluna, abaixo do cabeçalho: a frase do que
+   acontece com os tokens e os dois botões, um por linha. */
+.lb-acervo__confirma--pasta {
+  flex-direction: column;
+  align-items: stretch;
+  padding: var(--lb-space-1) var(--lb-space-2) var(--lb-space-2);
+}
+
+/* O menu "Mover" abre embaixo do nome, na largura da linha (a linha do item
+   quebra: ver `.lb-acervo__item`). */
+.lb-acervo__destinos {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-basis: 100%;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--lb-control-gap);
+}
+
+.lb-acervo__destino {
+  min-height: var(--lb-control-min);
+  padding: var(--lb-space-1) var(--lb-space-2);
+  border: 1px solid var(--lb-color-line);
+  border-radius: var(--lb-radius-sm);
+  background: var(--lb-color-stone-raised);
+  color: var(--lb-color-parchment);
+  font-family: inherit;
+  font-size: var(--lb-font-size-sm);
+  cursor: pointer;
+}
+
+.lb-acervo__destino:hover {
+  border-color: var(--lb-color-brass);
+  color: var(--lb-color-brass);
+}
+
+/* ── O arrasto ─────────────────────────────────────────────────────────── */
+
+/* Fantasma do arrasto: a mesma linha da estante, levantada, seguindo o
+   ponteiro (no `body`, fora do trilho). `pointer-events: none` é funcional:
+   o soltar pergunta ao navegador o que está SOB o ponteiro, e o fantasma não
+   pode ser a resposta. */
+.lb-acervo__fantasma {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: var(--lb-space-2);
+  padding: var(--lb-space-2) var(--lb-space-3);
+  border: 1px solid var(--lb-color-brass);
+  border-radius: var(--lb-radius-md);
+  background: var(--lb-color-stone-solid);
+  color: var(--lb-color-parchment);
+  font-size: var(--lb-font-size-md);
+  box-shadow: var(--lb-shadow-md);
+  opacity: 0.92;
+  pointer-events: none;
+  white-space: nowrap;
 }
 
 /* Arrastando, o ponteiro passa por cima de todas as linhas: nenhuma acende
    nem mostra ações, e só a pasta de destino se marca (`data-alvo`). Depois
-   das regras de mostrar, com o mesmo peso (0,4,0). */
-.lb-acervo-painel.lb-acervo--arrastando .lb-acervo__item .lb-acervo__acoes,
-.lb-acervo-painel.lb-acervo--arrastando .lb-acervo__pasta-topo .lb-acervo__acoes {
+   das regras de mostrar e de apertar, com o mesmo peso. */
+.lb-acervo--arrastando .lb-acervo__item .lb-acervo__acoes,
+.lb-acervo--arrastando .lb-acervo__pasta-topo .lb-acervo__acoes {
   opacity: 0;
 }
 
-.lb-acervo-painel.lb-acervo--arrastando .lb-acervo__item:hover,
-.lb-acervo-painel.lb-acervo--arrastando .lb-acervo__pasta-topo:hover {
+.lb-acervo--arrastando .lb-acervo__item:hover,
+.lb-acervo--arrastando .lb-acervo__pasta-topo:hover {
   background: transparent;
-}
-
-/* ── Pastas ────────────────────────────────────────────────────────────── */
-
-/* A pasta inteira continua alvo do soltar, mas sem a moldura que reservava
-   espaço para o realce: o realce agora é um contorno de dentro, que não
-   ocupa lugar (o fundo de latão vem de main.css). (0,2,0) vence o `padding`,
-   a `border` e o `gap` de `.lb-acervo__pasta` (0,1,0). */
-.lb-acervo-painel .lb-acervo__pasta {
-  gap: 0;
-  padding: 0;
-  border: 0;
-}
-
-.lb-acervo-painel .lb-acervo__pasta[data-alvo='dentro'] {
-  box-shadow: inset 0 0 0 1px var(--lb-color-brass);
-}
-
-/* A pergunta de apagar a pasta: a mesma faixa da pergunta do token. */
-.lb-acervo-painel .lb-acervo__pasta:has(> .lb-acervo__confirma--pasta) {
-  background: var(--lb-color-stone-raised);
-}
-
-.lb-acervo-painel .lb-acervo__confirma--pasta {
-  padding: var(--lb-space-1) var(--lb-space-2) var(--lb-space-2);
-}
-
-/* O cabeçalho da pasta é uma linha como as dos tokens: sem a faixa de pedra
-   (era a "faixa cheia" do pedido), 32 px, e acende sob o ponteiro.
-   `isolation` faz dele o fundo do alvo do botão (abaixo). */
-.lb-acervo-painel .lb-acervo__pasta-topo {
-  position: relative;
-  isolation: isolate;
-  gap: var(--lb-space-2);
-  min-height: var(--lb-space-8);
-  padding: 0 var(--lb-space-2);
-  background: transparent;
-}
-
-.lb-acervo-painel .lb-acervo__pasta-topo:hover {
-  background: var(--lb-color-stone-hover);
-}
-
-.lb-acervo-painel .lb-acervo__pasta-topo:has(> button.lb-acervo__pasta-botao:active) {
-  background: var(--lb-color-stone-sunken);
-}
-
-.lb-acervo-painel .lb-acervo__pasta-botao:focus-visible {
-  box-shadow: none;
-}
-
-.lb-acervo-painel .lb-acervo__pasta-topo:has(> .lb-acervo__pasta-botao:focus-visible) {
-  box-shadow: inset 0 0 0 2px var(--lb-color-brass);
-}
-
-/* O nome da pasta em peso médio, e não negrito: a hierarquia vem da seta, do
-   ícone e do recuo dos tokens. A linha inteira é a altura do alvo. Sob o
-   ponteiro ele não vira latão: quem acende é a linha (vence os `:hover` de
-   main.css, (0,2,0) e (0,3,0)). */
-.lb-acervo-painel .lb-acervo__pasta-botao {
-  align-self: stretch;
-  padding: 0;
-  font-weight: var(--lb-font-weight-medium);
-}
-
-.lb-acervo-painel .lb-acervo__pasta-botao:hover {
-  color: var(--lb-color-parchment);
-}
-
-.lb-acervo-painel .lb-acervo__pasta-botao:hover .lb-acervo__chevron {
-  color: var(--lb-color-parchment-dim);
-}
-
-/* O ícone da pasta um tom abaixo do nome: é sinal, não título. Não encolhe
-   quando o nome é comprido: quem cede é o nome, com reticências. */
-.lb-acervo-painel .lb-acervo__pasta-botao > svg {
-  flex: none;
-  color: var(--lb-color-parchment-dim);
-}
-
-/* O botão de recolher alcança a linha inteira, a contagem na ponta
-   incluída: o alvo fica atrás do conteúdo (z-index -1 dentro do cabeçalho
-   isolado), então o nome continua mostrando o title dele; a contagem deixa
-   o ponteiro passar até o alvo; e o × fica por cima. */
-.lb-acervo-painel .lb-acervo__pasta-botao:not([data-vazia])::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-}
-
-.lb-acervo-painel .lb-acervo__contagem {
-  pointer-events: none;
-}
-
-/* Pasta vazia: o cabeçalho é texto, não botão. */
-.lb-acervo-painel .lb-acervo__pasta-botao[data-vazia] {
-  cursor: default;
-}
-
-/* A seta numa caixa de 16 px; na pasta vazia, a mesma caixa sem seta, para o
-   ícone e o nome ficarem na vertical dos das outras pastas. */
-.lb-acervo-painel .lb-acervo__chevron,
-.lb-acervo-painel .lb-acervo__recuo {
-  display: inline-flex;
-  flex: none;
-  justify-content: center;
-  width: var(--lb-space-4);
-}
-
-/* O fio de 1 px na cor de linha, descendo do centro da seta (antes, 2 px de
-   linha forte). A conta: a pasta começa 8 px antes do texto da seção; com a
-   margem de 16 px o fio cai em x=8, o centro da caixa da seta; com 7 px
-   depois do fio e os 8 px da linha do token, a foto começa em x=24, embaixo
-   do ícone da pasta. Vence `.lb-acervo--na-pasta` (0,1,0). */
-.lb-acervo-painel .lb-acervo--na-pasta {
-  margin-left: var(--lb-space-4);
-  padding-left: calc(var(--lb-space-2) - 1px);
-  border-left: 1px solid var(--lb-color-line);
-}
-
-/* "Sem pasta" não recolhe: é rótulo, apagado, com a contagem dos soltos na
-   ponta (na coluna das contagens das pastas). Linha de 32 px como as outras,
-   na vertical das setas. */
-.lb-acervo-painel .lb-acervo__pasta-titulo {
-  display: flex;
-  align-items: center;
-  min-height: var(--lb-space-8);
-  padding: 0 var(--lb-space-2);
-  color: var(--lb-color-parchment-faint);
-}
-
-/* "Solte aqui para tirar o token da pasta.", durante o arrasto. */
-.lb-acervo-painel .lb-acervo__pasta--solta > .lb-acervo__vazio {
-  padding: 0 var(--lb-space-2) var(--lb-space-2);
 }
 
 /* ── Tela sem pairar e movimento reduzido ──────────────────────────────── */
@@ -372,14 +587,13 @@
    Cenas): lá o mouse paira, e as duas ações ocultas abrem um passo antes de
    agir (menu, pergunta), então um toque às cegas não custa nada. */
 @media (hover: none) {
-  .lb-acervo-painel .lb-acervo__acoes {
+  .lb-acervo__acoes {
     opacity: 1;
   }
 }
 
-/* O giro da seta (110 ms, de main.css) é o único movimento do acervo. */
 @media (prefers-reduced-motion: reduce) {
-  .lb-acervo-painel .lb-acervo__chevron {
+  .lb-acervo__chevron {
     transition: none;
   }
 }

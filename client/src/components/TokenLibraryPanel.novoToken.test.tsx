@@ -182,7 +182,7 @@ describe('Acervo — "+ Token" e "+ Pasta" na linha do título', () => {
     }
   })
 
-  it('a raiz do acervo tem a classe que o CSS do componente usa para vencer o main.css', () => {
+  it('a raiz do acervo tem a classe que o CSS do componente usa como contexto (o vão do acervo vazio, a lista solta sem pastas)', () => {
     montar()
     expect(container.querySelector('section')?.classList.contains('lb-acervo-painel')).toBe(true)
   })
@@ -215,8 +215,8 @@ function regra(css: string, seletor: string): Map<string, string> {
 describe('Acervo — CSS da linha do título', () => {
   it('a linha quebra em vez de vazar da coluna de 264 px, e as duas ações ficam à direita, a um vão do tema', async () => {
     const css = await lerCss('./TokenLibraryPanel.css')
-    expect(regra(css, '.lb-acervo-painel .lb-acervo__topo').get('flex-wrap')).toBe('wrap')
-    const acoes = regra(css, '.lb-acervo-painel .lb-acervo__acoes-topo')
+    expect(regra(css, '.lb-acervo__topo').get('flex-wrap')).toBe('wrap')
+    const acoes = regra(css, '.lb-acervo__acoes-topo')
     expect(acoes.get('gap')).toBe('var(--lb-control-gap)')
     expect(acoes.get('margin-left')).toBe('auto')
     // A pastilha (4 px de cada lado) avança no respiro da seção: o texto termina na vertical dos campos.
