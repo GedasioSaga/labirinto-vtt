@@ -61,7 +61,7 @@ import { canShowPinNow, showPinNowCandidates, showPinNowWithNotice } from './com
 import { RailTabs, type RailTab } from './components/RailTabs'
 import { ask } from '@tauri-apps/plugin-dialog'
 import { criarPedidoDeFechar } from './lib/avisoAoFechar'
-import type { Bounds, Camera } from './pixi/world'
+import type { Bounds } from './pixi/world'
 import { MainMenu } from './screens/MainMenu'
 import { MapTypePicker } from './screens/MapTypePicker'
 import { NewDungeonMap } from './screens/NewDungeonMap'
@@ -1140,12 +1140,6 @@ function App() {
    */
   const [backgroundImageSize, setBackgroundImageSize] = useState<{ width: number; height: number } | null>(null)
   /**
-   * Onda 1, item 10 (HUD de zoom) — `scale` da câmera, atualizado a cada
-   * `onCameraChange` de `<PixiCanvas>` (pan/zoom/roda/atalho/fit). `1` é o
-   * mesmo default de `camera` em `stores/mapStore.ts`.
-   */
-  const [cameraScale, setCameraScale] = useState(1)
-  /**
    * Contador que dispara o reset de zoom DENTRO da closure de `PixiCanvas`
    * (ver `resetZoomRequest` na prop e `resetZoomRequestRef` lá) — incrementa
    * a cada clique no ZoomHud ou Ctrl+0. O valor em si não importa, só a
@@ -1363,7 +1357,9 @@ function App() {
   const selectedProp = singleSelection?.kind === 'prop' ? map.props.find((p) => p.id === singleSelection.id) ?? null : null
   const selectedToken = singleSelection?.kind === 'token' ? map.tokens.find((t) => t.id === singleSelection.id) ?? null : null
   // LEVAR FICHA JUNTO: quem leva a ficha selecionada, quem ela leva e a quem pode ser presa (a mais perto primeiro).
-  const selectedTokenCarry = carryRefsOf(map, selectedToken)
+  // `carryRefsOf` só lê `map.tokens`: parede, sala ou desenho que mudam não refazem a
+  // lista. No arrasto da ficha o memo não segura nada (as fichas mudam a cada pointermove).
+  const selectedTokenCarry = useMemo(() => carryRefsOf(map, selectedToken), [map.tokens, selectedToken])
   const selectedDrawing = singleSelection?.kind === 'drawing' ? map.drawings.find((d) => d.id === singleSelection.id) ?? null : null
   const selectedTextLabel = selectedDrawing && selectedDrawing.kind === 'text' ? selectedDrawing : null
   const selectedRegion = singleSelection?.kind === 'region' ? map.regions.find((r) => r.id === singleSelection.id) ?? null : null
@@ -2458,7 +2454,6 @@ function App() {
         <PixiCanvas
           gridAlignPreview={gridAlignPreview}
           onBackgroundImageSizeChange={setBackgroundImageSize}
-          onCameraChange={(camera: Camera) => setCameraScale(camera.scale)}
           resetZoomRequest={resetZoomRequest}
           cameraRequest={sceneCameraRequest}
           focusObstacles={canvasObstacles}
@@ -3430,7 +3425,8 @@ function App() {
         />
       </div>
 
-      <ZoomHud scale={cameraScale} onReset={() => setResetZoomRequest((n) => n + 1)} />
+      {/* O HUD lê a escala da câmera direto da store: o zoom não re-renderiza o App. */}
+      <ZoomHud onReset={() => setResetZoomRequest((n) => n + 1)} />
       {/* PISOS NA MESMA CENA: só aparece quando a cena tem pisos (ou o mestre já saiu do térreo) — mapa de um piso não ganha controle à toa. */}
       {(pisoAtivo !== 0 || mapaTemPisos) && <PisoHud piso={pisoAtivo} onPisoChange={(piso) => useMapStore.getState().setPisoAtivo(piso)} />}
       {shortcutsOpen && <ShortcutsDialog onClose={() => setShortcutsOpen(false)} />}

@@ -101,3 +101,55 @@ describe('TokenCarryControls', () => {
     expect(container.querySelector('h2')).toBeNull()
   })
 })
+
+/**
+ * No arrasto, o painel re-renderiza a cada pointermove com uma lista NOVA
+ * (arrays e objetos novos), quase sempre igual à anterior. As <option> só são
+ * refeitas quando a lista muda de verdade; estes casos provam que ela nunca
+ * fica velha.
+ */
+describe('TokenCarryControls: a lista re-renderizada', () => {
+  function textos(): string[] {
+    return [...seletor().options].map((o) => o.textContent ?? '')
+  }
+
+  function solta(candidates: { id: string; name: string }[]) {
+    render(<TokenCarryControls tokenId="ferido" carrier={null} carried={[]} candidates={candidates} onCarry={vi.fn()} onRelease={vi.fn()} />)
+  }
+
+  it('acompanha a ordem nova: a ficha andou e outra ficou mais perto', () => {
+    solta([ANA, BRUNO])
+    solta([{ ...BRUNO }, { ...ANA }])
+    expect(textos()).toEqual(['Ninguém', 'Bruno', 'Ana'])
+    expect([...seletor().options].map((o) => o.value)).toEqual(['', 'bruno', 'ana'])
+  })
+
+  it('renomear uma ficha troca o texto da opção, com os mesmos ids na mesma ordem', () => {
+    solta([ANA, BRUNO])
+    solta([{ id: 'ana', name: 'Ana Clara' }, { ...BRUNO }])
+    expect(textos()).toEqual(['Ninguém', 'Ana Clara', 'Bruno'])
+  })
+
+  it('a mesma lista em objetos novos mantém as mesmas opções, e escolher continua prendendo', () => {
+    solta([ANA, BRUNO])
+    const antes = [...seletor().options]
+    const onCarry = vi.fn()
+    render(<TokenCarryControls tokenId="ferido" carrier={null} carried={[]} candidates={[{ ...ANA }, { ...BRUNO }]} onCarry={onCarry} onRelease={vi.fn()} />)
+    const depois = [...seletor().options]
+    expect(textos()).toEqual(['Ninguém', 'Ana', 'Bruno'])
+    expect(depois.every((opcao, i) => opcao === antes[i])).toBe(true)
+    act(() => {
+      seletor().value = 'bruno'
+      seletor().dispatchEvent(new Event('change', { bubbles: true }))
+    })
+    expect(onCarry).toHaveBeenCalledWith('bruno')
+  })
+
+  it('ficha que entra ou sai da cena entra ou sai da lista', () => {
+    solta([ANA])
+    solta([{ ...ANA }, BRUNO])
+    expect(textos()).toEqual(['Ninguém', 'Ana', 'Bruno'])
+    solta([{ ...BRUNO }])
+    expect(textos()).toEqual(['Ninguém', 'Bruno'])
+  })
+})

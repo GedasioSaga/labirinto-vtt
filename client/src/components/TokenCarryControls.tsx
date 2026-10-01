@@ -1,4 +1,5 @@
-import type { CarryRef } from '../lib/carry'
+import { memo } from 'react'
+import { sameCarryRefs, type CarryRef } from '../lib/carry'
 import './TokenControls.css'
 
 export interface TokenCarryControlsProps {
@@ -21,6 +22,29 @@ export const LEVAR_JUNTO_HINT = 'Para carregar um ferido ou escoltar alguém: es
 
 /** Por que a linha está apagada: não há quem leve esta ficha. */
 export const LEVAR_JUNTO_SEM_FICHA = 'Sem outra ficha na cena'
+
+/**
+ * Uma <option> por ficha, fora do caminho do arrasto. No arrasto o painel
+ * re-renderiza a cada pointermove com uma lista nova (arrays e objetos novos),
+ * igual à anterior enquanto a ficha não troca de célula; com 800 fichas,
+ * refazer as 800 <option> pesava tanto quanto a conta da própria lista. Só
+ * re-renderiza quando a lista muda de verdade: outra ordem, outro nome, ficha
+ * a mais ou a menos.
+ */
+const CarryOptions = memo(
+  function CarryOptions({ candidates }: { candidates: readonly CarryRef[] }) {
+    return (
+      <>
+        {candidates.map((token) => (
+          <option key={token.id} value={token.id}>
+            {token.name}
+          </option>
+        ))}
+      </>
+    )
+  },
+  (antes, depois) => sameCarryRefs(antes.candidates, depois.candidates),
+)
 
 /**
  * LEVAR FICHA JUNTO — o mestre prende o ferido (ou o NPC escoltado) à ficha de
@@ -90,11 +114,7 @@ export function TokenCarryControls({ tokenId, carrier, carried, candidates, onCa
           }}
         >
           <option value="">Ninguém</option>
-          {candidates.map((token) => (
-            <option key={token.id} value={token.id}>
-              {token.name}
-            </option>
-          ))}
+          <CarryOptions candidates={candidates} />
         </select>
         <p id="lb-token-carry-hint" className="lb-field__hint">
           {LEVAR_JUNTO_HINT}

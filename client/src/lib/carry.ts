@@ -63,12 +63,30 @@ function canCarry(map: MapData, carriedId: string, carrierId: string): boolean {
 /**
  * As fichas a que `tokenId` pode ser presa, da mais perto à mais longe: o
  * mestre prende o ferido a quem está do lado dele, e esse vem primeiro.
+ *
+ * As regras são as de `canCarry`, com a conta montada uma vez para o mapa
+ * inteiro: o App refaz esta lista em todo render, e no arrasto ele renderiza a
+ * cada pointermove. Chamar `canCarry` por candidata fazia dois `find` e um
+ * `filter` no mapa para cada uma — O(n²), ~4 ms por pointermove com 800 fichas.
  */
 export function carryCandidates(map: MapData, tokenId: string): Token[] {
   const token = map.tokens.find((t) => t.id === tokenId)
   if (token === undefined) return []
+  // Quem leva alguém não pode ser levado: não depende da candidata, então nenhuma serve.
+  if (carriedBy(map, tokenId).length > 0) return []
+  const ids = new Set(map.tokens.map((t) => t.id))
+  // Solta = sem vínculo, ou com vínculo para ficha que não está neste mapa
+  // (`carrierOf` nulo). Quem decide é a PRIMEIRA ficha de cada id, a mesma que
+  // o `find` de `canCarry` acha: mapa do disco com id repetido dá a lista de antes.
+  const soltaPorId = new Map<string, boolean>()
+  for (const t of map.tokens) {
+    if (soltaPorId.has(t.id)) continue
+    const carrierId = carrierIdOf(t)
+    soltaPorId.set(t.id, carrierId === null || !ids.has(carrierId))
+  }
   const distance = (t: Token): number => Math.hypot(t.x - token.x, t.y - token.y)
-  return map.tokens.filter((t) => canCarry(map, tokenId, t.id)).sort((a, b) => distance(a) - distance(b))
+  // O sort é estável: no empate de distância, fica a ordem do mapa.
+  return map.tokens.filter((t) => t.id !== tokenId && soltaPorId.get(t.id) === true).sort((a, b) => distance(a) - distance(b))
 }
 
 /** Prende `carriedId` a `carrierId`. Recusado pelas regras: o MESMO mapa (mesma referência). */
@@ -98,6 +116,17 @@ export interface CarryRefs {
 }
 
 const refOf = (token: Token): CarryRef => ({ id: token.id, name: token.name })
+
+/**
+ * A mesma lista para o painel: as mesmas fichas, com os mesmos nomes, na mesma
+ * ordem — tudo o que as <option> do "Vai junto de" mostram. No arrasto a lista
+ * chega nova (arrays e objetos novos) a cada pointermove, e quase sempre igual.
+ */
+export function sameCarryRefs(a: readonly CarryRef[], b: readonly CarryRef[]): boolean {
+  if (a === b) return true
+  if (a.length !== b.length) return false
+  return a.every((ref, i) => ref.id === b[i].id && ref.name === b[i].name)
+}
 
 /** Quem leva `token`, quem ele leva e a quem pode ser preso. Sem ficha selecionada: tudo vazio. */
 export function carryRefsOf(map: MapData, token: Token | null): CarryRefs {

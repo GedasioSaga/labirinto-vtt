@@ -1,9 +1,8 @@
 import { MAX_SCALE, MIN_SCALE } from '../pixi/world'
+import { useMapStore } from '../stores/mapStore'
 import './ZoomHud.css'
 
 interface ZoomHudProps {
-  /** Escala atual da câmera do canvas — 1 é 100%, mesma unidade de `Camera.scale` em `pixi/world.ts`. */
-  scale: number
   /** Chamado ao clicar no HUD. O integrador decide como voltar a 100% (recentrar ou não). */
   onReset: () => void
 }
@@ -29,7 +28,12 @@ const LIMIT_EPSILON = 1e-6
  * também aparece como texto visível ("MÍN"/"MÁX"), não só como cor — ver
  * `ZoomHud.css`.
  */
-export function ZoomHud({ scale, onReset }: ZoomHudProps) {
+export function ZoomHud({ onReset }: ZoomHudProps) {
+  // A escala vem da store, onde o PixiCanvas grava cada câmera (`applyCamera`,
+  // síncrono). Ela passava por um useState do App, e cada quadro de zoom
+  // re-renderizava o App inteiro, com os painéis, só para trocar este "NN%".
+  // O seletor devolve um número: o pan (só x/y mudam) não re-renderiza nem o botão.
+  const scale = useMapStore((state) => state.camera.scale)
   const percent = Math.round(scale * 100)
   const atMin = scale <= MIN_SCALE + LIMIT_EPSILON
   const atMax = scale >= MAX_SCALE - LIMIT_EPSILON
