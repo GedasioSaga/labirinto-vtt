@@ -234,6 +234,23 @@ export const PAREDE_TRAVADA_SEGURA_O_VAO_TEXT =
   'Uma parede nesse trecho está travada, deste lado ou do outro: nada foi aberto. Destrave a parede (ou a camada dela) e tente de novo.'
 
 /**
+ * Aviso do "Endireitar" (pedido 5: Alt tocado com uma linha selecionada) quando
+ * parte da seleção ficou como estava. Sem aviso no sucesso: a linha reta já
+ * está na tela, e um balão a cada Alt seria barulho. Preso nas duas pontas não
+ * endireita de propósito — soltaria uma emenda, e parede solta da emenda deixa
+ * a luz e o jogador passarem (`lib/endireitar.ts`). `null` = nada a dizer.
+ */
+export function avisoDoEndireitar(ignorados: { presas: number; travados: number }): string | null {
+  const { presas, travados } = ignorados
+  const frases: string[] = []
+  if (presas === 1) frases.push('1 item ficou como estava: está preso nas duas pontas, e endireitar soltaria uma das emendas.')
+  else if (presas > 1) frases.push(`${presas} itens ficaram como estavam: estão presos nas duas pontas, e endireitar soltaria uma das emendas.`)
+  if (travados === 1) frases.push('1 item travado ficou como estava: destrave o item (ou a camada dele) para endireitar.')
+  else if (travados > 1) frases.push(`${travados} itens travados ficaram como estavam: destrave os itens (ou a camada deles) para endireitar.`)
+  return frases.length === 0 ? null : frases.join(' ')
+}
+
+/**
  * Clique parado com a Escada armada (relato de 18/09/2026). A Escada precisa de
  * um lance — dois pontos —, mas as duas vizinhas de barra (Porta e Luz) nascem
  * com UM clique, então o gesto errado é o gesto óbvio. Até aqui o clique parado

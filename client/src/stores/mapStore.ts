@@ -60,7 +60,8 @@ import { moveAreaSelection, areaSelectionBounds, type AreaBounds } from '../lib/
 import { pieceBounds } from '../lib/floorSdf'
 import { groupItems, NO_GROUPS, ungroupItems, type ItemGroups } from '../lib/itemGroups'
 import { alignableUnitCount, alignSelectionItems, distributeSelectionItems, type AlignEdge, type DistributeAxis } from '../lib/alignDistribute'
-import { BLOCKED_MOVE_TEXT, DOOR_OPENED_BY_MOVE_TEXT, PAREDE_TRAVADA_SEGURA_O_VAO_TEXT, SALA_SECRETA_SEGURA_O_VAO_TEXT, TOOL_CLUSTERS } from '../components/labels'
+import { BLOCKED_MOVE_TEXT, DOOR_OPENED_BY_MOVE_TEXT, PAREDE_TRAVADA_SEGURA_O_VAO_TEXT, SALA_SECRETA_SEGURA_O_VAO_TEXT, TOOL_CLUSTERS, avisoDoEndireitar } from '../components/labels'
+import { endireitarNoMapa, type IgnoradosNoEndireitar } from '../lib/endireitar'
 import { useToastStore } from './toastStore'
 import { eraseFromDrawing } from '../lib/eraseGeometry'
 import { wallLayer, regionLayer, lightLayer, tokenLayer, drawingLayer, propLayer, stairLayer } from '../lib/layers'
@@ -1164,6 +1165,15 @@ interface MapStoreState {
    * intermediários — `convertCurveToLine` recusa) ou o id não for curve.
    */
   convertDrawingToLine: (id: string) => void
+  /**
+   * Pedido 5 (30/09/2026): "apertando alt, para ela ficar em angulos retos".
+   * Deixa deitada ou em pé cada Linha, Caminho e Parede solta da seleção
+   * (`lib/endireitar.ts`), num passo SÓ de desfazer para a seleção inteira.
+   * Nada mudou (tudo reto, nada aceito, tudo preso ou travado): nada entra no
+   * histórico — um Ctrl+Z vazio desfaria outra coisa sem o mestre perceber.
+   * Avisa só do que ficou de fora por estar preso ou travado.
+   */
+  endireitarSelecionados: () => { alterados: number; ignorados: IgnoradosNoEndireitar }
   loadMap: (map: MapData) => void
   undo: () => void
   redo: () => void
@@ -2425,6 +2435,14 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
       ...map,
       drawings: map.drawings.map((d) => (d.id === id ? convertCurveToLine(d) : d)),
     })),
+    endireitarSelecionados: () => {
+      const { map, selection } = get()
+      const resultado = endireitarNoMapa(map, selection)
+      if (resultado.map !== map) withHistory(() => resultado.map)
+      const aviso = avisoDoEndireitar(resultado.ignorados)
+      if (aviso !== null) useToastStore.getState().push('info', aviso)
+      return { alterados: resultado.alterados, ignorados: resultado.ignorados }
+    },
     loadMap: (map) => {
       typingEdit = null
       // Outro mapa começa no térreo: o piso em edição do anterior pode nem existir nele.
