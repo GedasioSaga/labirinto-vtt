@@ -1,6 +1,7 @@
 import {
   useEffect,
   useId,
+  useLayoutEffect,
   useRef,
   useState,
   type FormEvent,
@@ -10,7 +11,10 @@ import {
 import { createPortal } from 'react-dom'
 import { convertFileSrc } from '@tauri-apps/api/core'
 import { ehPastaPadrao, type ItemDoAcervoNaTela, type PastaDoAcervo } from '../lib/tokenLibrary'
+import { BotaoMais } from './BotaoMais'
 import { ChevronDownIcon, FolderIcon } from './icons'
+import { ADICIONAR_TOKEN, ADICIONAR_TOKEN_DICA, NovoTokenForm, type NovoTokenProps } from './NovoTokenForm'
+import './TokenLibraryPanel.css'
 
 export interface TokenLibraryPanelProps {
   itens: readonly ItemDoAcervoNaTela[]
@@ -20,10 +24,17 @@ export interface TokenLibraryPanelProps {
   aviso: string | null
   /**
    * Há disco onde gravar as pastas? `false` no app aberto no navegador: lá o
-   * acervo nem é oferecido, e um "+ Nova pasta" que só devolve erro seria uma
+   * acervo nem é oferecido, e um "+ Pasta" que só devolve erro seria uma
    * promessa falsa.
    */
   podeOrganizar: boolean
+  /**
+   * O "+ Token" na linha do título. Quem monta só passa quando ALGO está
+   * selecionado: sem seleção o mesmo botão mora na faixa do topo
+   * (`NadaSelecionado`), e só pode haver um na página (ver `ADICIONAR_TOKEN`).
+   * Ausente com o campo aberto (a seleção acabou), o campo fecha.
+   */
+  novoToken?: NovoTokenProps
   /** Coloca uma cópia do item no mapa aberto, com o nome e a foto dele. */
   onPlace: (item: ItemDoAcervoNaTela) => void
   /**
@@ -72,6 +83,31 @@ const ATRIBUTO_DE_PASTA = 'data-acervo-pasta'
 
 /** Quanto o ponteiro anda (px) antes de o aperto virar arrasto; abaixo disso é clique. */
 const LIMIAR_DO_ARRASTO_PX = 6
+
+/** Nome acessível do "+ Pasta" (era o texto do antigo "+ Nova pasta"). */
+const NOVA_PASTA = 'Nova pasta'
+
+/** O lado seguro das perguntas de apagar: é onde o foco cai quando elas abrem. */
+const MANTER_NO_ACERVO = 'Manter no acervo'
+const MANTER_A_PASTA = 'Manter a pasta'
+
+const rotuloMover = (item: ItemDoAcervoNaTela) => `Mover ${item.nome} para outra pasta`
+const rotuloApagar = (item: ItemDoAcervoNaTela) => `Apagar ${item.nome} do acervo`
+const rotuloApagarPasta = (pasta: PastaDoAcervo) => `Apagar a pasta ${pasta.nome}`
+
+/** O botão de `dentro` cujo nome acessível (o `aria-label`, senão o texto) é `nome`. */
+function botaoPorNome(dentro: Element, nome: string): HTMLButtonElement | null {
+  for (const botao of dentro.querySelectorAll<HTMLButtonElement>('button')) {
+    if ((botao.getAttribute('aria-label') ?? botao.textContent?.trim()) === nome) return botao
+  }
+  return null
+}
+
+/** Onde o foco vai depois do próximo commit: o botão chamado `nome` dentro de `dentro`. */
+interface FocoDepois {
+  dentro: Element | null
+  nome: string
+}
 
 /**
  * Caminho do disco → referência que o `<img>` carrega.
@@ -153,12 +189,25 @@ type Pergunta =
  * automação neste projeto. O botão de confirmar repete o nome do item — "Apagar
  * Goblin para sempre" — porque é a última chance de ver que se clicou na linha
  * errada.
+ *
+ * "+ TOKEN" E "+ PASTA" NA LINHA DO TÍTULO (pedido painel-acervo, fatia 2):
+ * criar e guardar token no mesmo lugar, como no diretório de Atores do
+ * Foundry. Um campo de cada vez abaixo do título.
+ *
+ * ESC NO GESTO DE VERDADE (convenção "Menu de ações"): o Esc fecha o que está
+ * aberto — menu Mover, pergunta de apagar, campo de pasta ou de token — de
+ * onde o foco estiver, e o foco volta a quem abriu. O clique deixa o foco no
+ * Mover (irmão do menu, fora dele), então o Esc é tratado na LINHA, que
+ * recebe a tecla dos dois. E não passa adiante: no mapa ele largaria a
+ * seleção. A pergunta de apagar abre com o foco no lado seguro ("Manter…"),
+ * porque o Apagar que a abriu sai da tela junto.
  */
 export function TokenLibraryPanel({
   itens,
   pastas,
   aviso,
   podeOrganizar,
+  novoToken,
   onPlace,
   onDropOnMap,
   onDelete,
@@ -170,6 +219,14 @@ export function TokenLibraryPanel({
   const [pergunta, setPergunta] = useState<Pergunta>(null)
   /** Texto do campo "Nome da nova pasta"; `null` = campo fechado. */
   const [novaPasta, setNovaPasta] = useState<string | null>(null)
+  /** O campo "Nome do novo token" do "+ Token" está aberto. */
+  const [novoTokenAberto, setNovoTokenAberto] = useState(false)
+  /**
+   * O botão que recebe o foco no commit seguinte. Não dá para focar no próprio
+   * clique: o botão de destino (o Apagar que volta, o "Manter…" que nasce)
+   * ainda não está no DOM nesse momento.
+   */
+  const focoDepoisRef = useRef<FocoDepois | null>(null)
   /** Item sendo arrastado — só liga e desliga o fantasma, duas vezes por gesto. */
   const [arrastado, setArrastado] = useState<ItemDoAcervoNaTela | null>(null)
   const idBase = useId()
@@ -187,6 +244,28 @@ export function TokenLibraryPanel({
   // Painel desmontado no meio do arrasto (troca de aba): os ouvintes de janela
   // não podem sobreviver a ele.
   useEffect(() => () => soltarOuvintesRef.current?.(), [])
+
+  // Depois de CADA commit (sem dependências): é só ler uma ref quando nada
+  // está pendente. Antes da pintura, para o anel de foco não piscar no body.
+  useLayoutEffect(() => {
+    const pendente = focoDepoisRef.current
+    if (pendente === null) return
+    focoDepoisRef.current = null
+    if (pendente.dentro === null || !pendente.dentro.isConnected) return
+    botaoPorNome(pendente.dentro, pendente.nome)?.focus()
+  })
+
+  const focarDepois = (dentro: Element | null, nome: string) => {
+    focoDepoisRef.current = { dentro, nome }
+  }
+
+  // O campo de pasta abre no pé da coluna: o foco automático traz só o campo,
+  // e o Cancelar e o Criar ficavam cortados. Uma vez por abertura, sem animação.
+  const formPastaRef = useRef<HTMLFormElement>(null)
+  const campoPastaAberto = novaPasta !== null
+  useLayoutEffect(() => {
+    if (campoPastaAberto) formPastaRef.current?.scrollIntoView?.({ block: 'nearest' })
+  }, [campoPastaAberto])
 
   const realcarPasta = (alvo: HTMLElement | null) => {
     if (alvo === alvoRef.current) return
@@ -274,19 +353,51 @@ export function TokenLibraryPanel({
     }
   }
 
+  // Um campo de cada vez abaixo do título: abrir um fecha o outro.
+  const abrirNovaPasta = () => {
+    setNovoTokenAberto(false)
+    setNovaPasta('')
+  }
+
+  const abrirNovoToken = () => {
+    setNovaPasta(null)
+    setNovoTokenAberto(true)
+  }
+
+  /** Fecha o campo de pasta (criou ou desistiu) e devolve o foco ao "+ Pasta". */
+  const fecharNovaPasta = () => {
+    focarDepois(raizRef.current, NOVA_PASTA)
+    setNovaPasta(null)
+  }
+
   const criarPasta = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     if (novaPasta === null) return
     onCriarPasta(novaPasta.trim())
-    setNovaPasta(null)
+    fecharNovaPasta()
   }
 
-  const teclaNoNomeDaPasta = (event: ReactKeyboardEvent<HTMLInputElement>) => {
+  // No formulário inteiro, e não só no campo: depois de um Tab o foco está no
+  // Cancelar ou no Criar, e o Esc desiste de onde estiver. Não pode chegar ao
+  // canvas (Esc lá troca a ferramenta).
+  const teclaNoFormDaPasta = (event: ReactKeyboardEvent<HTMLFormElement>) => {
     if (event.key !== 'Escape') return
-    // Esc fecha o campo sem criar; não pode chegar ao canvas (Esc lá troca a ferramenta).
     event.preventDefault()
     event.stopPropagation()
-    setNovaPasta(null)
+    fecharNovaPasta()
+  }
+
+  // Esc numa linha de token fecha o menu Mover ou a pergunta de apagar DELA e
+  // devolve o foco ao botão que abriu. A linha recebe a tecla tanto do Mover
+  // (que fica com o foco depois do clique) quanto dos botões de dentro.
+  const teclaNaLinha = (event: ReactKeyboardEvent<HTMLLIElement>, item: ItemDoAcervoNaTela) => {
+    if (event.key !== 'Escape' || pergunta === null) return
+    if (pergunta.tipo !== 'mover-token' && pergunta.tipo !== 'apagar-token') return
+    if (pergunta.id !== item.id) return
+    event.preventDefault()
+    event.stopPropagation()
+    focarDepois(event.currentTarget, pergunta.tipo === 'mover-token' ? rotuloMover(item) : rotuloApagar(item))
+    setPergunta(null)
   }
 
   // Sem o disco lido não há onde gravar a pasta (`criarPastaNoAcervo` recusa em
@@ -294,11 +405,15 @@ export function TokenLibraryPanel({
   // Ajustado no render (e não num efeito) para não piscar um quadro com o campo
   // órfão.
   if (!podeOrganizar && novaPasta !== null) setNovaPasta(null)
+  // O mesmo para o campo do token: sem `novoToken` (a seleção acabou, e o
+  // "+ Token" foi para a faixa do topo), o campo fecha em vez de ficar órfão —
+  // e sem dois "Nome do novo token" na página.
+  if (novoToken === undefined && novoTokenAberto) setNovoTokenAberto(false)
 
   // Vazio, o acervo é uma faixa só: o que falta e como encher. As três pastas
   // padrão (já nascem no disco, todas vazias) esperam o primeiro token —
-  // cabeçalhos vazios em pilha brigavam com a frase que ensina. O "+ Nova
-  // pasta" fica, e a pasta que o mestre cria traz a estante inteira: é a mesma
+  // cabeçalhos vazios em pilha brigavam com a frase que ensina. O "+ Pasta"
+  // fica, e a pasta que o mestre cria traz a estante inteira: é a mesma
   // vista de depois do primeiro token (a pasta dele não pula quando o token
   // chega), e a "NPCs" à mostra explica o "NPCs (2)" de quem digitou esse nome.
   const vazio = itens.length === 0
@@ -318,7 +433,11 @@ export function TokenLibraryPanel({
     const movendo = pergunta?.tipo === 'mover-token' && pergunta.id === item.id
     const confirmando = pergunta?.tipo === 'apagar-token' && pergunta.id === item.id
     return (
-      <li key={item.id} className={movendo ? 'lb-acervo__item lb-acervo__item--movendo' : 'lb-acervo__item'}>
+      <li
+        key={item.id}
+        className={movendo ? 'lb-acervo__item lb-acervo__item--movendo' : 'lb-acervo__item'}
+        onKeyDown={(event) => teclaNaLinha(event, item)}
+      >
         {item.imagemNoDisco && fonteDaFoto(item.caminho) !== null ? (
           <img className="lb-acervo__foto" src={fonteDaFoto(item.caminho) ?? ''} alt={`Foto de ${item.nome}`} />
         ) : (
@@ -342,8 +461,15 @@ export function TokenLibraryPanel({
         </button>
         {confirmando ? (
           <span className="lb-acervo__confirma">
-            <button type="button" className="lb-btn lb-btn--ghost" onClick={() => setPergunta(null)}>
-              Manter no acervo
+            <button
+              type="button"
+              className="lb-btn lb-btn--ghost"
+              onClick={(event) => {
+                focarDepois(event.currentTarget.closest('li'), rotuloApagar(item))
+                setPergunta(null)
+              }}
+            >
+              {MANTER_NO_ACERVO}
             </button>
             <button
               type="button"
@@ -362,7 +488,7 @@ export function TokenLibraryPanel({
               <button
                 type="button"
                 className="lb-acervo__mover"
-                aria-label={`Mover ${item.nome} para outra pasta`}
+                aria-label={rotuloMover(item)}
                 aria-expanded={movendo}
                 title="Mover para outra pasta"
                 onClick={() => setPergunta(movendo ? null : { tipo: 'mover-token', id: item.id })}
@@ -373,8 +499,12 @@ export function TokenLibraryPanel({
             <button
               type="button"
               className="lb-acervo__apagar"
-              aria-label={`Apagar ${item.nome} do acervo`}
-              onClick={() => setPergunta({ tipo: 'apagar-token', id: item.id })}
+              aria-label={rotuloApagar(item)}
+              onClick={(event) => {
+                // O Apagar sai da tela quando a pergunta abre: o foco vai para o lado seguro.
+                focarDepois(event.currentTarget.closest('li'), MANTER_NO_ACERVO)
+                setPergunta({ tipo: 'apagar-token', id: item.id })
+              }}
             >
               <span aria-hidden="true">×</span>
             </button>
@@ -395,7 +525,14 @@ export function TokenLibraryPanel({
                 {destino.nome}
               </button>
             ))}
-            <button type="button" className="lb-btn lb-btn--ghost" onClick={() => setPergunta(null)}>
+            <button
+              type="button"
+              className="lb-btn lb-btn--ghost"
+              onClick={(event) => {
+                focarDepois(event.currentTarget.closest('li'), rotuloMover(item))
+                setPergunta(null)
+              }}
+            >
               Cancelar
             </button>
           </span>
@@ -410,7 +547,21 @@ export function TokenLibraryPanel({
     const idDoCorpo = `${idBase}-pasta-${pasta.id}`
     const apagando = pergunta?.tipo === 'apagar-pasta' && pergunta.id === pasta.id
     return (
-      <div key={pasta.id} className="lb-acervo__pasta" role="group" aria-label={pasta.nome} {...{ [ATRIBUTO_DE_PASTA]: pasta.id }}>
+      <div
+        key={pasta.id}
+        className="lb-acervo__pasta"
+        role="group"
+        aria-label={pasta.nome}
+        {...{ [ATRIBUTO_DE_PASTA]: pasta.id }}
+        onKeyDown={(event) => {
+          // Esc na pergunta de apagar a pasta: desiste e o foco volta ao "×" da pasta.
+          if (event.key !== 'Escape' || !apagando) return
+          event.preventDefault()
+          event.stopPropagation()
+          focarDepois(event.currentTarget, rotuloApagarPasta(pasta))
+          setPergunta(null)
+        }}
+      >
         <div className="lb-acervo__pasta-topo">
           <button
             type="button"
@@ -436,9 +587,16 @@ export function TokenLibraryPanel({
             <button
               type="button"
               className="lb-acervo__apagar"
-              aria-label={`Apagar a pasta ${pasta.nome}`}
-              // Pasta vazia sai sem pergunta: não há nada a perder nem a mover.
-              onClick={() => (dentro.length === 0 ? onApagarPasta(pasta) : setPergunta({ tipo: 'apagar-pasta', id: pasta.id }))}
+              aria-label={rotuloApagarPasta(pasta)}
+              onClick={(event) => {
+                // Pasta vazia sai sem pergunta: não há nada a perder nem a mover.
+                if (dentro.length === 0) {
+                  onApagarPasta(pasta)
+                  return
+                }
+                focarDepois(event.currentTarget.closest('.lb-acervo__pasta'), MANTER_A_PASTA)
+                setPergunta({ tipo: 'apagar-pasta', id: pasta.id })
+              }}
             >
               <span aria-hidden="true">×</span>
             </button>
@@ -451,8 +609,15 @@ export function TokenLibraryPanel({
                 ? `O token desta pasta volta para “${SEM_PASTA}”.`
                 : `Os ${dentro.length} tokens desta pasta voltam para “${SEM_PASTA}”.`}
             </p>
-            <button type="button" className="lb-btn lb-btn--ghost" onClick={() => setPergunta(null)}>
-              Manter a pasta
+            <button
+              type="button"
+              className="lb-btn lb-btn--ghost"
+              onClick={(event) => {
+                focarDepois(event.currentTarget.closest('.lb-acervo__pasta'), rotuloApagarPasta(pasta))
+                setPergunta(null)
+              }}
+            >
+              {MANTER_A_PASTA}
             </button>
             <button
               type="button"
@@ -475,14 +640,18 @@ export function TokenLibraryPanel({
     )
   }
 
+  const mostrarNovoToken = novoToken !== undefined && !novoTokenAberto
+  const mostrarNovaPasta = podeOrganizar && novaPasta === null
+
   return (
-    <section className={vazio ? 'lb-section lb-acervo--vazio' : 'lb-section'} ref={raizRef}>
+    <section className={vazio ? 'lb-section lb-acervo-painel lb-acervo--vazio' : 'lb-section lb-acervo-painel'} ref={raizRef}>
       <div className="lb-acervo__topo">
         <h2 className="lb-eyebrow">Acervo de tokens</h2>
-        {podeOrganizar && novaPasta === null && (
-          <button type="button" className="lb-acervo__nova-pasta" onClick={() => setNovaPasta('')}>
-            + Nova pasta
-          </button>
+        {(mostrarNovoToken || mostrarNovaPasta) && (
+          <div className="lb-acervo__acoes-topo">
+            {mostrarNovoToken && <BotaoMais nome={ADICIONAR_TOKEN} texto="Token" dica={ADICIONAR_TOKEN_DICA} onClick={abrirNovoToken} />}
+            {mostrarNovaPasta && <BotaoMais nome={NOVA_PASTA} texto="Pasta" onClick={abrirNovaPasta} />}
+          </div>
         )}
       </div>
       {aviso !== null && (
@@ -492,8 +661,23 @@ export function TokenLibraryPanel({
           {aviso}
         </p>
       )}
+      {novoToken !== undefined && novoTokenAberto && (
+        <NovoTokenForm
+          defaultTokenName={novoToken.defaultTokenName}
+          onConfirm={(nome) => {
+            // O foco não volta ao "+ Token": quem monta a tela leva a coluna ao
+            // topo, onde a ficha do token novo nasce selecionada.
+            setNovoTokenAberto(false)
+            novoToken.onAddToken(nome)
+          }}
+          onCancel={() => {
+            focarDepois(raizRef.current, ADICIONAR_TOKEN)
+            setNovoTokenAberto(false)
+          }}
+        />
+      )}
       {novaPasta !== null && (
-        <form className="lb-acervo__form" onSubmit={criarPasta}>
+        <form className="lb-acervo__form" ref={formPastaRef} onSubmit={criarPasta} onKeyDown={teclaNoFormDaPasta}>
           <input
             className="lb-input"
             aria-label="Nome da nova pasta"
@@ -502,10 +686,9 @@ export function TokenLibraryPanel({
             maxLength={NOME_DE_PASTA_MAX}
             autoFocus
             onChange={(event) => setNovaPasta(event.target.value)}
-            onKeyDown={teclaNoNomeDaPasta}
           />
           <div className="lb-acervo__form-acoes">
-            <button type="button" className="lb-btn lb-btn--ghost" onClick={() => setNovaPasta(null)}>
+            <button type="button" className="lb-btn lb-btn--ghost" onClick={fecharNovaPasta}>
               Cancelar
             </button>
             <button type="submit" className="lb-btn">

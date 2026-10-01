@@ -1,0 +1,28 @@
+/*
+ * NovoTokenForm — o campo que o "+ Token" abre. O mesmo desenho do campo de
+ * nova pasta do Acervo (`.lb-acervo__form` em main.css): um passo de 8 px
+ * entre rótulo, campo e botões, e os botões numa linha à direita. Só
+ * `var(--lb-*)` de theme.ts.
+ */
+
+.lb-novotoken {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-2);
+  margin: 0;
+}
+
+/* Solto no topo do corpo (logo abaixo da faixa sem seleção) o formulário é
+   uma seção: o respiro de 16 px e o fio com a seção de baixo vêm de
+   `.lb-section`. O passo de dentro continua 8 px — o 12 de `.lb-section`
+   separaria o rótulo do próprio campo. Duas classes: main.css entra depois
+   desta folha e venceria o empate. */
+.lb-section.lb-novotoken {
+  gap: var(--lb-space-2);
+}
+
+.lb-novotoken__acoes {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--lb-control-gap);
+}

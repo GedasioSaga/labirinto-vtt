@@ -10,6 +10,8 @@ import { PropLayerControls, type PropLayerControlsProps } from './PropLayerContr
 import { PropPlayerControls, type PropPlayerControlsProps } from './PropPlayerControls'
 import { SelectionControls, type SelectionControlsProps } from './SelectionControls'
 import { SelectionHeader, deleteLabelFor, floorActions, selectionIdentity } from './SelectionHeader'
+import { NadaSelecionado } from './NadaSelecionado'
+import type { NovoTokenProps } from './NovoTokenForm'
 import { EndireitarControl } from './EndireitarControl'
 import { WallDoorControls, type WallDoorControlsProps } from './WallDoorControls'
 import { DoorKindControls, type DoorKindControlsProps } from './DoorKindControls'
@@ -84,7 +86,7 @@ import { pinKindShowsIcon } from '../lib/pins'
 import { DEFAULT_TEXT_FONT_FAMILY } from '../lib/drawingFactory'
 import { panelHeadingTool, type PropertyGroupId } from '../lib/toolProperties'
 import { TOOL_LABELS } from './labels'
-import type { ReactNode } from 'react'
+import { useLayoutEffect, useRef, type ReactNode } from 'react'
 
 interface PropertiesPanelProps {
   /** Seção "Cenas" da aventura, montada por quem sabe da aventura (App). */
@@ -397,7 +399,11 @@ export function PropertiesPanel({
   // o mesmo `TOOL_LABELS` do botão da barra, para o painel repetir letra por
   // letra o que o usuário acabou de apertar. Zona oculta aberta conta como
   // seleção: `ConcealZoneControls` já é o título "Zona oculta".
-  const headingTool = panelHeadingTool(activeTool, selection.selection !== null || concealZone !== null || pinSelected)
+  // Pino e zona oculta não entram no resumo `selection.selection`, mas estão
+  // selecionados: a faixa do topo não pode dizer "Nada selecionado" em cima
+  // do cartão deles.
+  const algoSelecionado = selection.selection !== null || concealZone !== null || pinSelected
+  const headingTool = panelHeadingTool(activeTool, algoSelecionado)
   const toolHeading = headingTool === null ? undefined : TOOL_LABELS[headingTool]
   // Campos da região que moram no Avançado (fatia 3), em consts para o TS estreitar dentro do render prop.
   const { strokeJoin, onStrokeJoinChange, onSmoothRegion } = regionStyle
@@ -408,6 +414,28 @@ export function PropertiesPanel({
   const regionSecret = selectedRegion !== null && groups.has('playerVisibility') ? playerSecret : null
   // A seção "Parede" muda de lugar conforme o item (ordem por tarefa): montada uma vez só.
   const doorSelected = selectedWall !== null && selectedWall.door !== null
+  // "+ TOKEN": um lugar de cada vez (ver `ADICIONAR_TOKEN`) — na faixa do topo
+  // sem seleção, no título do Acervo com seleção. A ficha do token novo nasce
+  // selecionada no TOPO do corpo; quem criou lá do Acervo, no pé da coluna, não
+  // veria nada mudar no painel. Então a coluna volta ao topo: já no clique (o
+  // topo é o topo, com ou sem a ficha) e de novo depois do commit que a traz.
+  // Sem animação: o gesto costuma ser o Enter.
+  const corpoRef = useRef<HTMLDivElement>(null)
+  const revelarFichaNovaRef = useRef(false)
+  useLayoutEffect(() => {
+    if (!revelarFichaNovaRef.current) return
+    revelarFichaNovaRef.current = false
+    if (corpoRef.current !== null) corpoRef.current.scrollTop = 0
+  })
+  const novoToken: NovoTokenProps = {
+    defaultTokenName: selection.defaultTokenName,
+    onAddToken: (nome) => {
+      revelarFichaNovaRef.current = true
+      if (corpoRef.current !== null) corpoRef.current.scrollTop = 0
+      selection.onAddToken(nome)
+    },
+  }
+
   const wallStyleSection = (
     <ToolPropertiesSection group="wallStyle" groups={groups}>
       <WallStyleControls {...wallStyle} />
@@ -446,7 +474,11 @@ export function PropertiesPanel({
         />
       </header>
 
-      <div className="lb-inspector__body lb-scroll">
+      <div className="lb-inspector__body lb-scroll" ref={corpoRef}>
+        {/* Sem nada selecionado, a faixa vazia no mesmo lugar: "Nada
+            selecionado" e o "+ Token", à mão sem rolar. Sem título, como a
+            outra: o primeiro `h2` continua sendo o da ferramenta. */}
+        {!algoSelecionado && <NadaSelecionado novoToken={novoToken} />}
         {/* A faixa da seleção, fixa no topo do corpo: o que está selecionado,
             Apagar e "Mais ações" à vista em qualquer altura da coluna. Sem
             título, então o primeiro `h2` continua sendo o do item. `key`: outro
@@ -800,13 +832,14 @@ export function PropertiesPanel({
             )}
           </ToolPropertiesSection>
         )}
-        {/* "Levar ao piso" e Apagar moram na faixa do topo; aqui ficam o que
-            vale sem seleção ("Adicionar token", "Nada selecionado") e o que é
-            de vários itens (seleção de área, alinhar). */}
+        {/* "Levar ao piso" e Apagar moram na faixa do topo, e o "Adicionar
+            token" e o "Nada selecionado" também (o "+ Token" no Acervo, com
+            seleção). Aqui fica só o que é de vários itens: seleção de área,
+            alinhar e o "Oculto para jogadores" em lote. */}
         <ToolPropertiesSection group="selection" groups={groups}>
           <AreaSelectionControls {...areaSelection} />
           <AlignDistributeControls {...alignDistribute} />
-          <SelectionControls {...selection} />
+          <SelectionControls secret={selection.secret} />
         </ToolPropertiesSection>
         {/* Cenas da aventura: depois do bloco da ferramenta e do objeto, junto das
             seções do mapa inteiro. No topo ela roubava o primeiro título da coluna,
@@ -852,8 +885,9 @@ export function PropertiesPanel({
         </ToolPropertiesSection>
         {/* Sem `ToolPropertiesSection` e sem `CollapsibleSection`: a estante de
             NPCs não pertence a ferramenta nem a seleção nenhuma, e é para ela
-            estar à mão justamente quando nada está selecionado. */}
-        <TokenLibraryPanel {...tokenLibrary} />
+            estar à mão justamente quando nada está selecionado. O "+ Token"
+            entra no título dela só com seleção: sem, ele está na faixa. */}
+        <TokenLibraryPanel {...tokenLibrary} novoToken={algoSelecionado ? novoToken : undefined} />
       </div>
     </div>
   )

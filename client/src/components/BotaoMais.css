@@ -1,0 +1,72 @@
+/*
+ * BotaoMais — a ação "+ Coisa" de linha de título ("+ Token", "+ Pasta").
+ * Parada, é só texto apagado: a linha do título é para ler. Sob o ponteiro
+ * ganha a pastilha de pedra, com a mesma cor, o mesmo aperto e o mesmo anel
+ * dos botões da faixa da seleção (SelectionHeader.css). Só `var(--lb-*)` de
+ * theme.ts; nenhuma destas classes existe em main.css, então a ordem da
+ * cascata não pesa.
+ */
+
+.lb-mais {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  min-height: var(--lb-control-min);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--lb-color-parchment-dim);
+  font-family: inherit;
+  font-size: var(--lb-font-size-sm);
+  font-weight: var(--lb-font-weight-medium);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+/* Na faixa do topo o alvo é a altura da faixa: os mesmos 44 px do Apagar e do
+   "⋯" quando há seleção. A pastilha continua do tamanho do texto. */
+.lb-mais--alto {
+  min-height: 44px;
+}
+
+/* A pastilha: 24 px de altura pela entrelinha, sem flex, para o espaço entre
+   o "+" e a palavra ser o espaço da própria fonte. Justa (4 px dos lados):
+   quem a posiciona é a linha (NadaSelecionado.css, TokenLibraryPanel.css). */
+.lb-mais__chip {
+  display: inline-block;
+  min-height: var(--lb-control-min);
+  padding: 0 var(--lb-space-1);
+  border-radius: var(--lb-radius-sm);
+  line-height: var(--lb-control-min);
+  transition:
+    background var(--lb-motion-fast) var(--lb-motion-ease),
+    color var(--lb-motion-fast) var(--lb-motion-ease),
+    transform var(--lb-motion-fast) var(--lb-motion-ease);
+}
+
+.lb-mais:hover .lb-mais__chip {
+  background: var(--lb-color-stone-hover);
+  color: var(--lb-color-parchment);
+}
+
+/* Apertar responde na hora (Emil: scale(0.97) no :active), como o .lb-btn. */
+.lb-mais:active .lb-mais__chip {
+  transform: scale(0.97);
+}
+
+/* O anel de foco abraça a pastilha, não a área de clique de 44 px. */
+.lb-mais:focus-visible {
+  box-shadow: none;
+}
+
+.lb-mais:focus-visible .lb-mais__chip {
+  box-shadow: var(--lb-shadow-focus);
+  color: var(--lb-color-parchment);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lb-mais:active .lb-mais__chip {
+    transform: none;
+  }
+}

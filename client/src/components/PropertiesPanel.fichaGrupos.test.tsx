@@ -82,10 +82,15 @@ describe('painel de propriedades — a ficha em grupos com título', () => {
 
   const corpo = () => container.querySelector<HTMLElement>('.lb-inspector__body')
   const texto = (el: Element | null | undefined) => (el?.textContent ?? '').trim()
-  /** Os títulos do bloco da ficha: do primeiro `h2` até "Seleção", em ordem de DOM. */
+  /**
+   * Os títulos do bloco da ficha, em ordem de DOM: do primeiro `h2` até a
+   * primeira seção do mapa inteiro (linha recolhível, como "Chão do mapa") ou o
+   * Acervo. Antes o marco era o "Seleção", que só existe com o lote.
+   */
   function titulosDaFicha(): string[] {
-    const todos = Array.from(corpo()?.querySelectorAll('h2') ?? []).map(texto)
-    return todos.slice(0, todos.indexOf('Seleção'))
+    const todos = Array.from(corpo()?.querySelectorAll('h2') ?? [])
+    const fim = todos.findIndex((h) => h.classList.contains('lb-collapsible__heading') || texto(h) === 'Acervo de tokens')
+    return (fim === -1 ? todos : todos.slice(0, fim)).map(texto)
   }
   const h2 = (nome: string) => Array.from(corpo()?.querySelectorAll('h2') ?? []).find((h) => texto(h) === nome) ?? null
   const interruptor = (rotulo: string) => Array.from(container.querySelectorAll('label.lb-switch')).find((l) => texto(l) === rotulo) ?? null

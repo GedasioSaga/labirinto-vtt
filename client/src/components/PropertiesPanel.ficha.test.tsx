@@ -88,13 +88,20 @@ describe('painel de propriedades — a ficha em ordem de tarefa', () => {
 
   const corpo = () => container.querySelector<HTMLElement>('.lb-inspector__body')
   const texto = (el: Element | null | undefined) => (el?.textContent ?? '').trim()
-  /** Os títulos do bloco da ficha: do primeiro `h2` até "Seleção", em ordem de DOM. */
+  /**
+   * Os títulos do bloco da ficha, em ordem de DOM: do primeiro `h2` até a
+   * primeira seção do mapa inteiro (linha recolhível, como "Chão do mapa") ou o
+   * Acervo. Antes o marco era o "Seleção", que só existe com o lote.
+   */
   function titulosDaFicha(): string[] {
-    const todos = Array.from(corpo()?.querySelectorAll('h2') ?? []).map(texto)
-    return todos.slice(0, todos.indexOf('Seleção'))
+    const todos = Array.from(corpo()?.querySelectorAll('h2') ?? [])
+    const fim = todos.findIndex((h) => h.classList.contains('lb-collapsible__heading') || texto(h) === 'Acervo de tokens')
+    return (fim === -1 ? todos : todos.slice(0, fim)).map(texto)
   }
   const interruptor = (rotulo: string) => Array.from(container.querySelectorAll('label.lb-switch')).find((l) => texto(l) === rotulo) ?? null
-  const botoes = (nome: string) => Array.from(container.querySelectorAll('button')).filter((b) => texto(b) === nome)
+  /** Pelo nome acessível: o `aria-label` (o "+ Token" se lê "Adicionar token") ou o texto. */
+  const botoes = (nome: string) =>
+    Array.from(container.querySelectorAll('button')).filter((b) => b.getAttribute('aria-label') === nome || texto(b) === nome)
   const botao = (nome: string) => botoes(nome)[0] ?? null
   const rotulo = (nome: string) => Array.from(container.querySelectorAll('.lb-label')).find((l) => texto(l) === nome) ?? null
   /** O controle ligado ao `<label>` de texto `nome`. */
@@ -132,7 +139,7 @@ describe('painel de propriedades — a ficha em ordem de tarefa', () => {
       ['Ajustar a luz', botao('Ajustar a luz')],
       ['Piso', campo('Piso')],
       [CARRY_TO_LABEL, botao(CARRY_TO_LABEL)],
-      ['Seleção', h2('Seleção')],
+      ['Chão do mapa', h2('Chão do mapa')],
     ]
     for (const [nome, el] of marcos) expect(el, `sem "${nome}" no painel`).not.toBeNull()
     const foraDeOrdem = marcos.slice(1).filter(([, el], i) => !antes(marcos[i][1], el)).map(([nome], i) => `${marcos[i][0]} → ${nome}`)

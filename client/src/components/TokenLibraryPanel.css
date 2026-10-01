@@ -1,0 +1,30 @@
+/*
+ * TokenLibraryPanel — o que a linha do título do Acervo ganhou na fatia 2 do
+ * pedido painel-acervo: "+ Token" e "+ Pasta" lado a lado (o desenho do botão
+ * está em BotaoMais.css). O resto do acervo ainda mora no bloco ACERVO DE
+ * TOKENS de main.css, até sair de lá de uma vez. Só `var(--lb-*)` de theme.ts.
+ *
+ * ESPECIFICIDADE: main.tsx importa o App antes de main.css, então esta folha
+ * entra ANTES dela na cascata. Com `.lb-acervo-painel` na frente, (0,2,0)
+ * vence o `.lb-acervo__topo` de lá (0,1,0) sem depender da ordem.
+ */
+
+/* "ACERVO DE TOKENS", "+ Token" e "+ Pasta" cabem por pouco nos 232 px de
+   texto da coluna: se a fonte do sistema for mais larga, as ações descem para
+   a linha de baixo, à direita, em vez de vazar. */
+.lb-acervo-painel .lb-acervo__topo {
+  flex-wrap: wrap;
+  row-gap: var(--lb-space-1);
+}
+
+/* Duas ações vizinhas: o vão do tema entre elas (com os 4 px de cada
+   pastilha, 16 px de uma palavra à outra). A margem negativa leva a pastilha
+   para dentro do respiro da seção, e o TEXTO da última ação termina a 16 px
+   da borda, na mesma vertical do fim dos campos. */
+.lb-acervo-painel .lb-acervo__acoes-topo {
+  display: flex;
+  align-items: baseline;
+  gap: var(--lb-control-gap);
+  margin-left: auto;
+  margin-right: calc(-1 * var(--lb-space-1));
+}

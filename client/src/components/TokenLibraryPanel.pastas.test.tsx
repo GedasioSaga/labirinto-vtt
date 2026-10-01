@@ -116,10 +116,11 @@ describe('TokenLibraryPanel: pastas do acervo', () => {
     expect(nomesNaPasta('Veículos')).toEqual([])
   })
 
-  it('"+ Nova pasta" abre o campo; Enter cria com o nome digitado, Esc desiste', () => {
+  it('"+ Pasta" (nome "Nova pasta") abre o campo; Enter cria com o nome digitado, Esc desiste', () => {
     const props = montar()
 
-    act(() => botao('+ Nova pasta').click())
+    expect(botao('Nova pasta').textContent?.replace(/\s+/g, ' ').trim()).toBe('+ Pasta')
+    act(() => botao('Nova pasta').click())
     const campo = container.querySelector<HTMLInputElement>('input[aria-label="Nome da nova pasta"]')
     expect(campo).not.toBeNull()
     digitar(campo as HTMLInputElement, 'Chefes')
@@ -129,7 +130,7 @@ describe('TokenLibraryPanel: pastas do acervo', () => {
     expect(props.onCriarPasta).toHaveBeenCalledWith('Chefes')
     expect(container.querySelector('input[aria-label="Nome da nova pasta"]')).toBeNull()
 
-    act(() => botao('+ Nova pasta').click())
+    act(() => botao('Nova pasta').click())
     const deNovo = container.querySelector<HTMLInputElement>('input[aria-label="Nome da nova pasta"]')
     act(() => {
       deNovo?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
@@ -201,10 +202,10 @@ describe('TokenLibraryPanel: pastas do acervo', () => {
     expect(props.onDelete).not.toHaveBeenCalled()
   })
 
-  it('sem disco (app no navegador), nem as pastas nem "+ Nova pasta" aparecem', () => {
+  it('sem disco (app no navegador), nem as pastas nem "+ Pasta" aparecem', () => {
     montar({ itens: [], pastas: [], podeOrganizar: false })
 
     expect(container.querySelector('[data-acervo-pasta]')).toBeNull()
-    expect(() => botao('+ Nova pasta')).toThrow()
+    expect(() => botao('Nova pasta')).toThrow()
   })
 })

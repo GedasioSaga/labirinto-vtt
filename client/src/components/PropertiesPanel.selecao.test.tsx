@@ -72,6 +72,14 @@ describe('painel de propriedades — faixa da seleção e ordem por tarefa', () 
   /** Títulos de seção em ordem de DOM — a ordem do leitor de tela e da coluna. */
   const titulos = () => Array.from(container.querySelectorAll('.lb-inspector__body h2')).map((h) => (h.textContent ?? '').trim())
   const botoesComTexto = (texto: RegExp) => Array.from(container.querySelectorAll('button')).filter((b) => texto.test(b.textContent ?? ''))
+  /** Botões pelo nome acessível (o `aria-label`, senão o texto) — o que o `getByRole` das jornadas lê. */
+  const botoesComNome = (nome: RegExp) =>
+    Array.from(container.querySelectorAll('button')).filter((b) => nome.test(b.getAttribute('aria-label') ?? b.textContent ?? ''))
+  /** A seção do Acervo, como as jornadas a acham: a `section` do título "Acervo de tokens". */
+  const acervo = () =>
+    Array.from(container.querySelectorAll('.lb-inspector__body h2'))
+      .find((h) => h.textContent === 'Acervo de tokens')
+      ?.closest('section') ?? null
   /** `a` vem antes de `b` no documento. */
   const antes = (a: Node | null | undefined, b: Node | null | undefined) =>
     a !== null && a !== undefined && b !== null && b !== undefined && (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0
@@ -125,11 +133,48 @@ describe('painel de propriedades — faixa da seleção e ordem por tarefa', () 
     expect(apagar).toHaveLength(1)
     expect(faixa?.contains(apagar[0] ?? null)).toBe(true)
     expect(botoesComTexto(/Nada selecionado/)).toHaveLength(0)
-    // A seção "Seleção" continua, com o que vale sem seleção.
-    expect(botoesComTexto(/^Adicionar token$/)).toHaveLength(1)
 
     act(() => apagar[0]?.click())
     expect(onRemoveSelected).toHaveBeenCalledTimes(1)
+  })
+
+  it('com seleção, sem "Seleção" nem "Nada selecionado": o "+ Token" é um só na coluna, no título do Acervo', () => {
+    renderPainel(painelDaFicha())
+    expect(titulos()).not.toContain('Seleção')
+    expect(botoesComTexto(/Nada selecionado/)).toHaveLength(0)
+    // As jornadas clicam o trecho sem `exact`: um botão só cujo nome o contém.
+    const adicionar = botoesComNome(/adicionar token/i)
+    expect(adicionar).toHaveLength(1)
+    expect(adicionar[0]?.getAttribute('aria-label')).toBe('Adicionar token')
+    expect(acervo()?.querySelector('.lb-acervo__topo')?.contains(adicionar[0] ?? null)).toBe(true)
+  })
+
+  it('"+ Token" no Acervo, no pé da coluna: confirmar cria e volta a coluna ao topo, onde a ficha nova nasce', () => {
+    const onAddToken = vi.fn<(nome: string) => void>()
+    renderPainel(painelDaFicha({ selection: { ...selecao({ kind: 'token', count: 1 }), onAddToken } }))
+    // A coluna rolada até o Acervo (o jsdom não rola: a posição é guardada aqui).
+    let rolagem = 640
+    Object.defineProperty(corpo(), 'scrollTop', {
+      configurable: true,
+      get: () => rolagem,
+      set: (valor: number) => {
+        rolagem = valor
+      },
+    })
+
+    act(() => botoesComNome(/^Adicionar token$/)[0]?.click())
+    const campo = container.querySelector<HTMLInputElement>('input#lb-new-token-name')
+    expect(acervo()?.contains(campo)).toBe(true)
+    // Desistir não mexe na coluna.
+    act(() => {
+      campo?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }))
+    })
+    expect(rolagem).toBe(640)
+
+    act(() => botoesComNome(/^Adicionar token$/)[0]?.click())
+    act(() => container.querySelector<HTMLInputElement>('input#lb-new-token-name')?.form?.requestSubmit())
+    expect(onAddToken).toHaveBeenCalledWith('Token 1')
+    expect(rolagem).toBe(0)
   })
 
   it('"Levar ao piso" saiu da coluna: só aparece no menu "Mais ações", e leva a seleção', () => {
@@ -150,7 +195,7 @@ describe('painel de propriedades — faixa da seleção e ordem por tarefa', () 
     expect(botoesComTexto(/^Apagar token selecionado$/)).toHaveLength(1)
   })
 
-  it('ficha: Travado e Oculto logo depois de Condições, Rotação no Avançado da mesma seção; a ordem item → Seleção → Chão do mapa → Camadas continua', () => {
+  it('ficha: Travado e Oculto logo depois de Condições, Rotação no Avançado da mesma seção; a ordem item → Chão do mapa → Camadas → Acervo continua', () => {
     renderPainel(painelDaFicha())
     const lista = titulos()
     // Condições é uma linha "+" sem título (peça ficha-em-ordem-de-tarefa): a
@@ -175,12 +220,12 @@ describe('painel de propriedades — faixa da seleção e ordem por tarefa', () 
     const rotulo = (texto: string) => Array.from(container.querySelectorAll('label')).find((l) => (l.textContent ?? '').includes(texto))
     expect(antes(rotulo('Ficha de NPC'), rotulo('Ficha de jogador'))).toBe(true)
 
-    const selecaoIdx = lista.indexOf('Seleção')
-    expect(selecaoIdx).toBeGreaterThan(lista.indexOf('Token'))
-    const selecao = Array.from(container.querySelectorAll('.lb-inspector__body h2')).find((h) => h.textContent === 'Seleção')
-    expect(antes(transformacao, selecao)).toBe(true)
-    expect(lista.indexOf('Chão do mapa')).toBeGreaterThan(selecaoIdx)
+    // Um item só, sem lote: não há seção "Seleção" entre o item e o mapa inteiro.
+    expect(lista).not.toContain('Seleção')
+    const chao = Array.from(container.querySelectorAll('.lb-inspector__body h2')).find((h) => h.textContent === 'Chão do mapa')
+    expect(antes(transformacao, chao)).toBe(true)
     expect(lista.indexOf('Camadas')).toBeGreaterThan(lista.indexOf('Chão do mapa'))
+    expect(lista.at(-1)).toBe('Acervo de tokens')
   })
 
   it('sala: Travado e Oculto para jogadores num bloco só, logo depois do bloco Sala; depois Região, Preenchimento, Gatilho, Perigo e o Avançado', () => {
@@ -207,7 +252,7 @@ describe('painel de propriedades — faixa da seleção e ordem por tarefa', () 
     expect(antes(preenchimento, gatilho)).toBe(true)
     expect(antes(gatilho, perigo)).toBe(true)
     expect(antes(perigo, avancado)).toBe(true)
-    expect(antes(avancado, h2.find((h) => h.textContent === 'Seleção'))).toBe(true)
+    expect(antes(avancado, h2.find((h) => h.textContent === 'Chão do mapa'))).toBe(true)
 
     const faixa = corpo()?.firstElementChild
     expect(faixa?.textContent).toContain('Salao')
@@ -258,18 +303,77 @@ describe('painel de propriedades — faixa da seleção e ordem por tarefa', () 
     expect(botoesComTexto(/^Apagar 3 itens selecionados$/)).toHaveLength(1)
   })
 
-  it('nada selecionado: sem faixa, e o "Nada selecionado" desabilitado na seção Seleção', () => {
+  it('vários itens com o "Oculto para jogadores" em lote: a seção "Seleção" volta, só com ele', () => {
+    renderPainel(
+      propsDoPainel(null, {
+        groups: relevantPropertyGroups('select'),
+        selection: { ...selecao({ kind: 'token', count: 3 }), secret: { state: 'mixed', count: 3, onChange: nada } },
+      }),
+    )
+    const selecaoH2 = Array.from(container.querySelectorAll('.lb-inspector__body h2')).find((h) => h.textContent === 'Seleção')
+    expect(selecaoH2?.closest('section')?.textContent).toContain('Oculto para jogadores (3)')
+    expect(selecaoH2?.closest('section')?.querySelectorAll('button')).toHaveLength(0)
+  })
+
+  it('nada selecionado: a faixa vazia ocupa o topo do corpo, com "Nada selecionado" desabilitado e o "+ Token"', () => {
     renderPainel(propsDoPainel(null, { groups: relevantPropertyGroups('select'), selection: selecao(null) }))
     expect(container.querySelector('[role="toolbar"]')).toBeNull()
-    const nadaSel = botoesComTexto(/^Nada selecionado$/)
+    const faixa = corpo()?.firstElementChild
+    expect(faixa?.classList.contains('lb-semsel')).toBe(true)
+    // O texto exato, o papel de botão e o desabilitado são o contrato das jornadas (clique no vazio).
+    const nadaSel = botoesComTexto(/Nada selecionado/)
     expect(nadaSel).toHaveLength(1)
+    expect(nadaSel[0]?.textContent).toBe('Nada selecionado')
     expect(nadaSel[0]?.disabled).toBe(true)
+    expect(faixa?.contains(nadaSel[0] ?? null)).toBe(true)
+    // O "+ Token" na mesma faixa, à mão sem rolar — e um só na coluna (o Acervo não repete).
+    const adicionar = botoesComNome(/adicionar token/i)
+    expect(adicionar).toHaveLength(1)
+    expect(faixa?.contains(adicionar[0] ?? null)).toBe(true)
+    expect((adicionar[0]?.textContent ?? '').replace(/\s+/g, ' ').trim()).toBe('+ Token')
+    expect(titulos()).not.toContain('Seleção')
     expect(botoesComTexto(/Apagar/)).toHaveLength(0)
   })
 
-  it('ferramenta armada sem seleção: sem faixa, e o primeiro título é o da ferramenta', () => {
+  it('"+ Token" da faixa vazia: o campo abre logo abaixo dela, e Enter cria com o nome sugerido', () => {
+    const onAddToken = vi.fn<(nome: string) => void>()
+    renderPainel(propsDoPainel(null, { groups: relevantPropertyGroups('select'), selection: { ...selecao(null), onAddToken } }))
+    act(() => botoesComNome(/^Adicionar token$/)[0]?.click())
+    const campo = container.querySelector<HTMLInputElement>('input#lb-new-token-name')
+    expect(campo?.value).toBe('Token 1')
+    expect(document.activeElement).toBe(campo)
+    // Logo abaixo da faixa, antes do resto da coluna.
+    expect(corpo()?.children[1]?.contains(campo)).toBe(true)
+    act(() => campo?.form?.requestSubmit())
+    expect(onAddToken).toHaveBeenCalledWith('Token 1')
+  })
+
+  it('"+ Token" da faixa vazia: Esc fecha o campo e o foco volta ao "+ Token"', () => {
+    const onAddToken = vi.fn<(nome: string) => void>()
+    renderPainel(propsDoPainel(null, { groups: relevantPropertyGroups('select'), selection: { ...selecao(null), onAddToken } }))
+    act(() => botoesComNome(/^Adicionar token$/)[0]?.click())
+    act(() => {
+      document.activeElement?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }))
+    })
+    expect(container.querySelector('input#lb-new-token-name')).toBeNull()
+    expect(onAddToken).not.toHaveBeenCalled()
+    expect(document.activeElement).toBe(botoesComNome(/^Adicionar token$/)[0])
+  })
+
+  it('ferramenta armada sem seleção: a faixa vazia no topo, e o primeiro título continua o da ferramenta', () => {
     renderPainel(propsDoPainel(null, { activeTool: 'room', groups: relevantPropertyGroups('room'), selection: selecao(null) }))
     expect(container.querySelector('[role="toolbar"]')).toBeNull()
+    expect(corpo()?.firstElementChild?.classList.contains('lb-semsel')).toBe(true)
+    expect(botoesComTexto(/^Nada selecionado$/)).toHaveLength(1)
     expect(titulos()[0]).toBe('Ferramenta · Sala')
+  })
+
+  it('pino selecionado (fora do resumo da seleção): a faixa não diz "Nada selecionado", e o "+ Token" fica no Acervo', () => {
+    renderPainel(propsDoPainel(null, { groups: relevantPropertyGroups('select', { pin: true }), selection: selecao(null), pinSelected: true }))
+    expect(botoesComTexto(/Nada selecionado/)).toHaveLength(0)
+    expect(container.querySelector('.lb-semsel')).toBeNull()
+    const adicionar = botoesComNome(/adicionar token/i)
+    expect(adicionar).toHaveLength(1)
+    expect(acervo()?.contains(adicionar[0] ?? null)).toBe(true)
   })
 })

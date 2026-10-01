@@ -1,7 +1,6 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef } from 'react'
 import type { SelectionKind } from '../types/tools'
 import type { SecretBatchState } from '../lib/batchSecret'
-import { TokenIcon } from './icons'
 
 /**
  * Onda 4, item 24 — resumo do conjunto canônico (`lib/selectionModel.ts`),
@@ -35,6 +34,13 @@ export interface SelectionSecretProps {
   onChange: (secret: boolean) => void
 }
 
+/**
+ * O objeto que o App monta para a seleção. O tipo continua o mesmo de antes da
+ * fatia 2 do painel-acervo, para o App não mudar; quem lê cada campo agora:
+ * `selection` e `onRemoveSelected` → faixa do topo (`SelectionHeader`, ou
+ * `NadaSelecionado` sem seleção); `defaultTokenName` e `onAddToken` → o
+ * "+ Token" (`NovoTokenForm`); `secret` → esta seção.
+ */
 export interface SelectionControlsProps {
   selection: SelectionSummary | null
   /** Ausente: um item só (ele tem o próprio toggle) ou nada que aceite. */
@@ -51,19 +57,6 @@ export interface SelectionControlsProps {
   onRemoveSelected: () => void
 }
 
-/**
- * A seção "Seleção": o que vale sem nada selecionado ("Adicionar token") e o
- * "Oculto para jogadores" de vários itens de uma vez.
- *
- * Sem seleção fica o botão desabilitado "Nada selecionado", onde o "Apagar"
- * morava: os testes e2e o procuram (`getByRole('button', { name:
- * /Apagar|Nada selecionado/ })`) para saber que o clique no vazio desmarcou.
- * Com seleção o "Apagar" está na faixa do topo, e aqui não repete — duas
- * instâncias do mesmo nome quebrariam o modo estrito do Playwright.
- *
- * "Adicionar token" pede o nome antes de criar: sem isso todo token nascia
- * "Token" e a lista de atribuir jogador ficava com itens idênticos.
- */
 /**
  * Interruptor de três estados. O terceiro (misturado) é o `indeterminate` do
  * checkbox nativo — só existe como propriedade do DOM, não como atributo, por
@@ -94,84 +87,24 @@ function BatchSecretToggle({ state, count, onChange }: SelectionSecretProps) {
   )
 }
 
-export function SelectionControls({ selection, secret, defaultTokenName, onAddToken }: SelectionControlsProps) {
-  const [tokenNameDraft, setTokenNameDraft] = useState<string | null>(null)
-  /**
-   * O campo abre com o nome sugerido JÁ SELECIONADO (`onFocus` + `select()`),
-   * para quem quer outro nome só digitar por cima. Mas o clique do mouse
-   * desmancha essa seleção antes da primeira tecla — o cursor ia parar no fim
-   * do texto e o nome saía grudado: "Token 1Goblin" em vez de "Goblin".
-   *
-   * Esta marca segura a seleção no PRIMEIRO `mouseup` depois do foco. Do
-   * segundo clique em diante o campo se comporta como qualquer outro (o clique
-   * posiciona o cursor), que é o que se espera de quem foi corrigir uma letra.
-   */
-  const justSelectedOnFocus = useRef(false)
-
-  const confirmToken = () => {
-    if (tokenNameDraft === null) return
-    const name = tokenNameDraft.trim()
-    onAddToken(name === '' ? defaultTokenName : name)
-    setTokenNameDraft(null)
-  }
-
+/**
+ * A seção "Seleção" — só com o "Oculto para jogadores" de vários itens de uma
+ * vez. Sem ele não desenha nada: a seção fixa que aparecia com qualquer
+ * ferramenta na mão era ruído (pedido painel-acervo, fatia 2). O que ela
+ * guardava não sumiu:
+ * - "Adicionar token" virou o "+ Token": na faixa do topo sem seleção
+ *   (`NadaSelecionado`), no título do Acervo com seleção (`TokenLibraryPanel`),
+ *   com o mesmo nome acessível e o mesmo campo "Nome do novo token"
+ *   (`NovoTokenForm`);
+ * - "Nada selecionado" virou a faixa do topo sem seleção (`NadaSelecionado`);
+ * - o "Apagar" já morava na faixa da seleção (`SelectionHeader`).
+ */
+export function SelectionControls({ secret }: Pick<SelectionControlsProps, 'secret'>) {
+  if (secret === undefined) return null
   return (
     <section className="lb-section">
       <h2 className="lb-eyebrow">Seleção</h2>
-      {tokenNameDraft === null ? (
-        <button type="button" className="lb-btn lb-btn--block" onClick={() => setTokenNameDraft(defaultTokenName)}>
-          <TokenIcon size={16} />
-          Adicionar token
-        </button>
-      ) : (
-        <form
-          className="lb-field"
-          onSubmit={(event) => {
-            event.preventDefault()
-            confirmToken()
-          }}
-        >
-          <label className="lb-label" htmlFor="lb-new-token-name">
-            Nome do novo token
-          </label>
-          <input
-            id="lb-new-token-name"
-            className="lb-input"
-            value={tokenNameDraft}
-            autoFocus
-            onFocus={(event) => {
-              event.target.select()
-              justSelectedOnFocus.current = true
-            }}
-            onMouseUp={(event) => {
-              if (!justSelectedOnFocus.current) return
-              justSelectedOnFocus.current = false
-              // Impede a ação padrão do mouseup, que é colapsar a seleção no
-              // ponto do clique — ver `justSelectedOnFocus` acima.
-              event.preventDefault()
-            }}
-            onBlur={() => {
-              justSelectedOnFocus.current = false
-            }}
-            onChange={(event) => setTokenNameDraft(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === 'Escape') setTokenNameDraft(null)
-            }}
-          />
-          <button type="submit" className="lb-btn lb-btn--primary lb-btn--block">
-            Adicionar
-          </button>
-          <button type="button" className="lb-btn lb-btn--ghost lb-btn--block" onClick={() => setTokenNameDraft(null)}>
-            Cancelar
-          </button>
-        </form>
-      )}
-      {secret !== undefined && <BatchSecretToggle {...secret} />}
-      {selection === null && (
-        <button type="button" className="lb-btn lb-btn--block" disabled>
-          Nada selecionado
-        </button>
-      )}
+      <BatchSecretToggle {...secret} />
     </section>
   )
 }

@@ -1,0 +1,73 @@
+/*
+ * NadaSelecionado — a faixa do topo do corpo sem seleção. É a faixa da seleção
+ * (SelectionHeader.css) vazia: o mesmo lugar, o mesmo fundo, a mesma linha de
+ * baixo e a mesma altura (4 + 44 + 4 px e a linha). Selecionar e largar troca
+ * o que ela diz sem a coluna pular. Só `var(--lb-*)` de theme.ts.
+ */
+
+/* Gruda no topo do corpo que rola, como a faixa da seleção: o "+ Token" fica à
+   mão em qualquer altura da coluna. O mesmo recuo da faixa da seleção (12 px
+   à direita): a pastilha do "+ Token" termina onde termina a do "⋯", e o
+   TEXTO dela (mais 4 px) a 16 px da borda, na vertical do fim dos campos de
+   baixo. E fica à direita do Apagar daquela faixa: quem cria com o Enter,
+   com o ponteiro parado, não o encontra em cima do Apagar do token novo. */
+.lb-semsel {
+  position: sticky;
+  top: 0;
+  z-index: 12;
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--lb-space-2);
+  /* A altura não depende do "+ Token": com o campo aberto ele sai da faixa, e
+     a faixa encolhia para a altura do texto, puxando a coluna 28 px para cima. */
+  min-height: calc(44px + 2 * var(--lb-space-1) + 1px);
+  padding: var(--lb-space-1) var(--lb-space-3) var(--lb-space-1) var(--lb-space-4);
+  background: var(--lb-color-stone-sunken);
+  border-bottom: 1px solid var(--lb-color-line);
+}
+
+/* Rolada a coluna, a faixa ganha a sombra da faixa da seleção: mostra que o
+   painel passa POR BAIXO dela. Ligada à rolagem, não ao tempo — não é
+   movimento. */
+@supports (animation-timeline: scroll()) {
+  .lb-semsel {
+    animation: lb-semsel-sombra linear both;
+    animation-timeline: scroll(nearest block);
+    animation-range: 0 var(--lb-space-6);
+  }
+
+  @keyframes lb-semsel-sombra {
+    to {
+      box-shadow: var(--lb-shadow-md);
+    }
+  }
+}
+
+/* O que o Tab (ou `scrollIntoView`) traz para a vista para abaixo da faixa, e
+   não atrás dela — a mesma conta da faixa da seleção. */
+.lb-inspector__body:has(> .lb-semsel) {
+  scroll-padding-top: calc(44px + 2 * var(--lb-space-1) + 1px + var(--lb-space-2));
+}
+
+/* Estado, não ação: o texto apagado do estado vazio do painel (o mesmo do
+   acervo vazio), alinhado aos 16 px do conteúdo das seções, sem caixa e sem o
+   cursor de proibido do botão desabilitado. Continua um <button disabled>: é
+   contrato das jornadas (ver NadaSelecionado.tsx). */
+.lb-semsel__estado {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--lb-color-parchment-faint);
+  font-family: inherit;
+  font-size: var(--lb-font-size-sm);
+  line-height: var(--lb-font-leading-tight);
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: default;
+}

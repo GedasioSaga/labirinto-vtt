@@ -10,9 +10,9 @@ import { ACERVO_COMO_ENCHER, ACERVO_VAZIO, TokenLibraryPanel, type TokenLibraryP
  * resolver. Antes eram dois parágrafos soltos (o segundo com quatro linhas)
  * e, embaixo, as três pastas padrão vazias brigando com eles.
  *
- * O "+ Nova pasta" fica na linha do título mesmo vazio, como o "+" de seção do
- * Explorer: organizar a estante antes do primeiro token é trabalho legítimo, e
- * a pasta criada tem de aparecer.
+ * O "+ Pasta" (nome "Nova pasta"; era "+ Nova pasta") fica na linha do título
+ * mesmo vazio, como o "+" de seção do Explorer: organizar a estante antes do
+ * primeiro token é trabalho legítimo, e a pasta criada tem de aparecer.
  */
 
 /** Uma linha do rail (232 px de texto a 11,5 px) leva ~40-43 caracteres: a dica cabe na segunda. */
@@ -87,10 +87,10 @@ function campoNovaPasta(): HTMLInputElement | null {
   return container.querySelector<HTMLInputElement>('input[aria-label="Nome da nova pasta"]')
 }
 
-/** Clica no "+ Nova pasta" e devolve o campo que ele abre. */
+/** Clica no "+ Pasta" (nome acessível "Nova pasta") e devolve o campo que ele abre. */
 function abrirNovaPasta(): HTMLInputElement {
-  const botao = [...container.querySelectorAll<HTMLButtonElement>('button')].find((el) => el.textContent?.trim() === '+ Nova pasta')
-  if (botao === undefined) throw new Error('sem "+ Nova pasta" no acervo')
+  const botao = [...container.querySelectorAll<HTMLButtonElement>('button')].find((el) => el.getAttribute('aria-label') === 'Nova pasta')
+  if (botao === undefined) throw new Error('sem "+ Pasta" no acervo')
   act(() => botao.click())
   const campo = campoNovaPasta()
   if (campo === null) throw new Error('o campo "Nome da nova pasta" não abriu')
@@ -122,13 +122,13 @@ describe('acervo vazio numa faixa só', () => {
     expect(container.querySelectorAll('p.lb-acervo__vazio')).toHaveLength(0)
   })
 
-  it('vazio, as pastas padrão saem de cena, o "+ Nova pasta" fica na linha do título e a seção fica mais justa', () => {
+  it('vazio, as pastas padrão saem de cena, o "+ Pasta" fica na linha do título e a seção fica mais justa', () => {
     montar()
     expect(pastasNaTela()).toEqual([])
     const topo = container.querySelector('.lb-acervo__topo')
     if (topo === null) throw new Error('sem a linha do título do acervo')
     // Título e ação na mesma linha, como o "+" de seção do Explorer.
-    expect([...topo.children].map((el) => el.textContent?.trim())).toEqual(['Acervo de tokens', '+ Nova pasta'])
+    expect([...topo.children].map((el) => el.textContent?.trim())).toEqual(['Acervo de tokens', '+ Pasta'])
     expect(secao().classList.contains('lb-acervo--vazio')).toBe(true)
   })
 
@@ -145,7 +145,7 @@ describe('acervo vazio numa faixa só', () => {
     // depois do primeiro token. "Sem pasta" não: não há token solto.
     expect(pastasNaTela()).toEqual(['NPCs', 'Veículos', 'Jogadores', 'Chefes'])
     expect(container.querySelectorAll('.lb-acervo__vazio-estado')).toHaveLength(1)
-    expect(botoes()).toContain('+ Nova pasta')
+    expect(botoes()).toContain('Nova pasta')
   })
 
   it('vazio, a pasta do mestre conta pelo id: mesmo com o nome "NPCs", a estante aparece inteira', () => {
@@ -155,10 +155,10 @@ describe('acervo vazio numa faixa só', () => {
     expect(pastasNaTela()).toEqual(['NPCs', 'Veículos', 'Jogadores', 'NPCs'])
   })
 
-  it('com o primeiro token, as pastas voltam, o "+ Nova pasta" segue lá e o estado vazio some', () => {
+  it('com o primeiro token, as pastas voltam, o "+ Pasta" segue lá e o estado vazio some', () => {
     montar({ itens: [GOBLIN] })
     expect(container.querySelectorAll('[data-acervo-pasta]').length).toBeGreaterThan(0)
-    expect(botoes()).toContain('+ Nova pasta')
+    expect(botoes()).toContain('Nova pasta')
     expect(container.querySelector('.lb-acervo__vazio-estado')).toBeNull()
     expect(secao().classList.contains('lb-acervo--vazio')).toBe(false)
   })
@@ -190,11 +190,11 @@ describe('acervo vazio numa faixa só', () => {
     montar({ itens: [], pastas: [], podeOrganizar: false, aviso: 'Não foi possível ler o acervo de tokens: arquivo sumiu.' })
     expect(campoNovaPasta()).toBeNull()
     expect(botoes()).not.toContain('Criar')
-    expect(botoes()).not.toContain('+ Nova pasta')
+    expect(botoes()).not.toContain('Nova pasta')
     // Fechou, e não só se escondeu: a leitura seguinte, que dá certo, não traz
     // de volta o campo velho (que, com `autoFocus`, roubaria o foco).
     montar()
     expect(campoNovaPasta()).toBeNull()
-    expect(botoes()).toContain('+ Nova pasta')
+    expect(botoes()).toContain('Nova pasta')
   })
 })

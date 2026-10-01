@@ -24,13 +24,8 @@ describe('SelectionControls — Oculto para jogadores em lote', () => {
     container.remove()
   })
 
-  const base: SelectionControlsProps = {
-    selection: { kind: 'token', count: 4 },
-    defaultTokenName: 'Token 1',
-    onAddToken: () => {},
-    onRemoveSelected: () => {},
-  }
-  const render = (props: SelectionControlsProps) => act(() => root.render(<SelectionControls {...props} />))
+  const base: Pick<SelectionControlsProps, 'secret'> = {}
+  const render = (props: Pick<SelectionControlsProps, 'secret'>) => act(() => root.render(<SelectionControls {...props} />))
   const caixa = (): HTMLInputElement | null => {
     const rotulo = Array.from(container.querySelectorAll('label')).find((el) => el.textContent?.startsWith('Oculto para jogadores'))
     return rotulo?.querySelector('input[type="checkbox"]') ?? null
@@ -65,20 +60,20 @@ describe('SelectionControls — Oculto para jogadores em lote', () => {
     expect(onSecretChange).toHaveBeenCalledWith(true)
   })
 
-  it('sem o prop (um item só, ou nada que aceite): nenhuma caixa', () => {
-    render(base)
-    expect(caixa()).toBeNull()
-    expect(container.textContent).toContain('Adicionar token')
+  it('com o lote: a seção é só o título "Seleção" e o interruptor, sem botão nenhum', () => {
+    render({ secret: { state: 'none', count: 4, onChange: () => {} } })
+    expect(container.querySelector('h2')?.textContent).toBe('Seleção')
+    expect(container.querySelectorAll('button')).toHaveLength(0)
   })
 })
 
 /**
- * O "Apagar" mora na faixa do topo (`SelectionHeader`). Aqui, com seleção, não
- * pode repetir (dois botões com o mesmo nome quebram o modo estrito das
- * jornadas); sem seleção fica o "Nada selecionado" desabilitado, que as
- * jornadas leem para saber que o clique no vazio desmarcou.
+ * A seção "Seleção" só existe para o lote (pedido painel-acervo, fatia 2): o
+ * "Adicionar token" foi para o "+ Token" (faixa do topo sem seleção, título do
+ * Acervo com seleção), o "Nada selecionado" virou a faixa do topo
+ * (`NadaSelecionado`) e o "Apagar" já morava na faixa da seleção.
  */
-describe('SelectionControls — o Apagar saiu para a faixa da seleção', () => {
+describe('SelectionControls — fora do lote, nada', () => {
   let container: HTMLDivElement
   let root: Root
 
@@ -94,20 +89,8 @@ describe('SelectionControls — o Apagar saiu para a faixa da seleção', () => 
     container.remove()
   })
 
-  const botoes = () => Array.from(container.querySelectorAll('button')).map((b) => b.textContent)
-
-  it('com seleção: só "Adicionar token", nenhum "Apagar" nem "Nada selecionado"', () => {
-    act(() =>
-      root.render(<SelectionControls selection={{ kind: 'region', count: 1 }} defaultTokenName="Token 1" onAddToken={() => {}} onRemoveSelected={() => {}} />),
-    )
-    expect(botoes()).toEqual(['Adicionar token'])
-    expect(container.querySelector('h2')?.textContent).toBe('Seleção')
-  })
-
-  it('sem seleção: "Nada selecionado", desabilitado, depois de "Adicionar token"', () => {
-    act(() => root.render(<SelectionControls selection={null} defaultTokenName="Token 1" onAddToken={() => {}} onRemoveSelected={() => {}} />))
-    expect(botoes()).toEqual(['Adicionar token', 'Nada selecionado'])
-    const nada = Array.from(container.querySelectorAll('button')).find((b) => b.textContent === 'Nada selecionado')
-    expect(nada?.disabled).toBe(true)
+  it('sem o prop (um item só, nada que aceite, ou nada selecionado): não desenha nada', () => {
+    act(() => root.render(<SelectionControls />))
+    expect(container.childElementCount).toBe(0)
   })
 })
