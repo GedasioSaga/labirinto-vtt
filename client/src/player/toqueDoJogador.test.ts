@@ -196,16 +196,14 @@ describe('os botões do jogador afundam ao toque e soltam suave', () => {
     }
   })
 
-  it('o "Espiar pela porta" afunda sem sair do lugar: o scale vem depois do translate que o centra', async () => {
+  it('o "Espiar pela porta" afunda sem sair do lugar: mora na coluna das ações do lugar, sem translate a compor', async () => {
     const regras = lerRegras(await lerPlayerCss())
-    expect(valor(regras, '.pp-espiar', 'transform')).toBe('translateX(-50%)')
-    expect(valor(regras, '.pp-espiar:active', 'transform')).toBe('translateX(-50%) scale(0.97)')
-    // No celular a pílula mora na coluna da esquerda, sem o translate.
-    expect(valor(regras, '.pp-espiar', 'transform', [CELULAR])).toBe('none')
-    expect(valor(regras, '.pp-espiar:active', 'transform', [CELULAR])).toBe('scale(0.97)')
-    // Com movimento reduzido não afunda, mas continua onde estava em cada tela.
-    expect(valor(regras, '.pp-espiar:active', 'transform', [REDUZIDO])).toBe('translateX(-50%)')
-    expect(valor(regras, '.pp-espiar:active', 'transform', [`${REDUZIDO} and ${CELULAR}`])).toBe('none')
+    // Quem a põe no lugar é a coluna (`.pp-lugar`): a pílula não se centra sozinha em tela nenhuma.
+    expect(valor(regras, '.pp-espiar', 'transform')).toBeUndefined()
+    expect(valor(regras, '.pp-espiar', 'transform', [CELULAR])).toBeUndefined()
+    expect(valor(regras, '.pp-espiar:active', 'transform')).toBe('scale(0.97)')
+    // Com movimento reduzido não afunda, e continua onde a coluna a pôs.
+    expect(valor(regras, '.pp-espiar:active', 'transform', [REDUZIDO])).toBe('none')
   })
 
   it('o realce do item do menu de ponto continua no foco pelo teclado (fora do @media de pairar) e sem esperar transição', async () => {

@@ -15,7 +15,7 @@ import { PlayerPlacesTab } from './PlayerPlacesTab'
 import type { VisitedPlace } from './playerPlaces'
 import { PersonalNoteList } from './PlayerPersonalNotes'
 import type { PersonalNote } from './personalNotes'
-import { DiceForm } from '../components/DiceControls'
+import { DiceFeed, DiceForm, type DiceFeedRoll } from '../components/DiceControls'
 import type { DiceRequest } from '../lib/dice'
 import { PlayerMapShare, type PlayerMapShareProps } from './PlayerMapShare'
 import { PlayerMarkForm, type PlayerMarkFormProps } from './PlayerMarkForm'
@@ -29,6 +29,8 @@ const NO_PERSONAL_NOTES: readonly PersonalNote[] = []
 const IGNORE_NOTE = (): void => {}
 /** Sem fichas em outra cena (mestre antigo, teste): a mesma lista vazia a cada render. */
 const NO_ELSEWHERE: readonly OwnTokenElsewhere[] = []
+/** Sem rolagens (ninguém rolou, tela antiga): a mesma lista vazia a cada render. */
+const NO_DICE_ROLLS: readonly DiceFeedRoll[] = []
 const IGNORE_SWITCH = (): void => {}
 
 // Painel do jogador: meus personagens, ajustes de visão e centralizar a câmera.
@@ -37,19 +39,28 @@ const IGNORE_SWITCH = (): void => {}
 // que mora numa barra fora do painel junto com "Minha ficha": no notebook o
 // painel começa aberto, como coluna; abaixo de 700 px é gaveta e começa fechado.
 
-/** O mesmo corte de player.css: abaixo disto o painel é gaveta sobre o mapa, e não coluna. */
-const DRAWER_QUERY = '(max-width: 699px)'
+/**
+ * Os mesmos cortes de player.css: abaixo de 700 px de largura OU de 481 de
+ * altura o painel é gaveta sobre o mapa, e não coluna. O celular deitado
+ * (844 x 390) é largo, mas a coluna aberta comia 40% de um mapa de 390 px de
+ * altura e passava por baixo da coluna de ações da porta: lá ele também nasce
+ * fechado. Duas consultas, e não uma com vírgula: quem simula a janela nos
+ * testes responde a cada corte pelo texto exato.
+ */
+const DRAWER_QUERIES = ['(max-width: 699px)', '(max-height: 480px)'] as const
 
 function subscribeDrawerScreen(onChange: () => void): () => void {
   if (typeof window.matchMedia !== 'function') return () => {}
-  const query = window.matchMedia(DRAWER_QUERY)
-  query.addEventListener('change', onChange)
-  return () => query.removeEventListener('change', onChange)
+  const queries = DRAWER_QUERIES.map((text) => window.matchMedia(text))
+  for (const query of queries) query.addEventListener('change', onChange)
+  return () => {
+    for (const query of queries) query.removeEventListener('change', onChange)
+  }
 }
 
 /** Sem `matchMedia` (jsdom, navegador muito velho) vale a coluna: é o caso que nunca esconde nada. */
 function isDrawerScreen(): boolean {
-  return typeof window.matchMedia === 'function' && window.matchMedia(DRAWER_QUERY).matches
+  return typeof window.matchMedia === 'function' && DRAWER_QUERIES.some((text) => window.matchMedia(text).matches)
 }
 
 export interface PlayerViewSettings {
@@ -88,6 +99,15 @@ export const DEFAULT_PLAYER_SETTINGS: PlayerViewSettings = { exploredBrightness:
 export const PLAYER_SETTINGS_KEY = 'labirinto.jogador.ajustes'
 /** Variável CSS (no painel) com a largura da barra de cima: `player.css` não deixa o cartão mais estreito que o cabeçalho dele. */
 export const BAR_WIDTH_VAR = '--pp-bar-w'
+/**
+ * Variável CSS (na raiz da página) com o que a COLUNA aberta tira da esquerda
+ * do mapa: a largura dela mais o vão do tema. Fechada, ou gaveta, vale 0. A
+ * coluna das ações do lugar e a faixa "Sua vez" começam depois dela, e não por
+ * baixo dela.
+ */
+export const PANEL_SPACE_VAR = '--pp-painel-ocupa'
+/** O vão entre a coluna aberta e o que mora à direita dela (`--lb-control-gap` do tema). */
+const PANEL_SPACE_GAP_PX = 8
 
 /** Como cada estado do companheiro aparece escrito: é o texto que o jogador lê. */
 const PARTY_WHERE_LABEL: Record<PartyWhere, string> = { aqui: 'aqui', longe: 'em outro lugar', fora: 'fora' }
@@ -260,6 +280,12 @@ interface PlayerPanelProps {
   onRemoveNote?: (noteId: string) => void
   /** DADO ROLADO NA SALA: pede a rolagem ao host. Sem o callback, não há aba Dados. */
   onRollDice?: (request: DiceRequest) => void
+  /**
+   * As rolagens da mesa, como chegam do host. Na GAVETA a aba Dados as mostra
+   * embaixo do formulário: aberta, a gaveta tira de cena a lista que flutua
+   * sobre o mapa, e quem rola por ela vê o resultado sem fechá-la.
+   */
+  diceRolls?: readonly DiceFeedRoll[]
   /** MINHAS FICHAS EM OUTRAS CENAS: as fichas dele fora da cena na tela, com a Sala ('' = sem nome que ele leia). */
   elsewhere?: readonly OwnTokenElsewhere[]
   /** "Olhar por…": tocou numa ficha de fora; a cena da tela passa a ser a dela. */
@@ -334,6 +360,7 @@ export function PlayerPanel({
   onFocusNote,
   onRemoveNote = IGNORE_NOTE,
   onRollDice,
+  diceRolls = NO_DICE_ROLLS,
   elsewhere = NO_ELSEWHERE,
   onSwitchView = IGNORE_SWITCH,
   mapShare,
@@ -424,6 +451,27 @@ export function PlayerPanel({
       panel.style.removeProperty(BAR_WIDTH_VAR)
     }
   }, [barElRef, asideRef])
+
+  // O espaço da coluna aberta vai para a raiz (`--pp-painel-ocupa`): é o que os
+  // flutuantes do mapa somam à margem da esquerda. Abrir, recolher, girar o
+  // celular e a fileira de abas que alarga mudam a largura: o observador e o
+  // estado acompanham. Gaveta não conta: aberta, ela tira o HUD do mapa de cena.
+  useLayoutEffect(() => {
+    const panel = asideRef.current
+    if (panel === null) return
+    const root = document.documentElement
+    const apply = () => {
+      const width = !drawerScreen && open ? panel.offsetWidth : 0
+      root.style.setProperty(PANEL_SPACE_VAR, width > 0 ? `${width + PANEL_SPACE_GAP_PX}px` : '0px')
+    }
+    apply()
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(apply)
+    observer?.observe(panel)
+    return () => {
+      observer?.disconnect()
+      root.style.removeProperty(PANEL_SPACE_VAR)
+    }
+  }, [asideRef, drawerScreen, open])
 
   // Escape é da gaveta, que cobre o mapa. Na coluna do notebook ele fica para
   // a régua e os cartões: fechar o painel de brinde ao sair do "Medir" seria surpresa.
@@ -632,7 +680,8 @@ export function PlayerPanel({
               <path d="M4.75 4.5V3.6a2.25 2.25 0 0 1 4.5 0v.9" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
               <path d="M2.4 4.5h9.2l-.75 7.25a.9.9 0 0 1-.9.8H4.05a.9.9 0 0 1-.9-.8Z" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
             </svg>
-            Inventário
+            {/* Em tela de menos de 380 px a barra não cabia: só a bolsa fica à vista, e o nome continua para o leitor de tela (player.css). */}
+            <span className="pp-bag__rotulo">Inventário</span>
             <kbd className="pp-bag__key" aria-hidden="true">
               I
             </kbd>
@@ -954,11 +1003,14 @@ export function PlayerPanel({
           </div>
 
           {/* Montada mesmo escondida, como a aba Jogo: o dado e a quantidade escolhidos ficam para a próxima rolagem.
-              O resultado não aparece aqui: vem do host, na lista de rolagens sobre o mapa, igual para a mesa inteira. */}
+              O resultado vem do host, na lista de rolagens sobre o mapa, igual para a mesa inteira. Na GAVETA essa
+              lista sai de cena junto com o resto do mapa, e a mesma lista aparece aqui embaixo (player.css,
+              `.pp-dados-rolagens`): na coluna do notebook ela fica escondida, porque a do mapa continua à vista. */}
           {onRollDice !== undefined && (
             <div role="tabpanel" id={`${panelId}-panel-dados`} aria-labelledby={`${panelId}-tab-dados`} className="pp-tabpanel" hidden={tab !== 'dados'}>
               <section className="pp-section">
                 <DiceForm onRoll={(request) => onRollDice(request)} />
+                {diceRolls.length > 0 && <DiceFeed rolls={diceRolls} className="pp-dados-rolagens" />}
               </section>
             </div>
           )}

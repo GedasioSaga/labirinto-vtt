@@ -63,9 +63,9 @@ function alvoDoMapa(map: MapData, ownTokens: readonly string[], travas: TravasDa
 }
 
 /**
- * PISOS NA MESMA CENA — "Subir ao 1º piso" / "Descer ao térreo", no canto de
- * baixo à direita, acima do zoom, só enquanto a ficha do jogador está encostada
- * numa escada que liga pisos. Tocar manda o pedido e o botão mostra
+ * PISOS NA MESMA CENA — "Subir ao 1º piso" / "Descer ao térreo", na coluna das
+ * ações do lugar (`.pp-lugar`, com o "Espiar" e o ferrolho da porta), só
+ * enquanto a ficha do jogador está encostada numa escada que liga pisos. Tocar manda o pedido e o botão mostra
  * "Subindo…" até o piso novo chegar no snapshot (o botão vira o de voltar) ou
  * até `PISO_PENDENTE_MAX_MS`. Escada que não liga nada não ganha botão.
  */
@@ -90,7 +90,10 @@ export function PlayerEscada({ map, ownTokens, turn, confronto, paused, onTrocar
   if (alvo === null) return null
   const pendente = pedido !== null && pedido.tokenId === alvo.tokenId && pedido.deOnde === alvo.piso
   const sobe = alvo.destino > alvo.piso
-  const rotulo = pendente ? (sobe ? 'Subindo…' : 'Descendo…') : `${sobe ? 'Subir' : 'Descer'} ao ${nomeDoPiso(alvo.destino)}`
+  const verbo = sobe ? 'Subir' : 'Descer'
+  // Em tela estreita fica só o verbo (player.css, `.pp-rotulo-resto`): a coluna
+  // das ações do lugar divide a largura com o "Chamar o mestre".
+  const resto = ` ao ${nomeDoPiso(alvo.destino)}`
 
   return (
     <div className="pp-escada">
@@ -98,13 +101,22 @@ export function PlayerEscada({ map, ownTokens, turn, confronto, paused, onTrocar
         type="button"
         className="pp-escada__button"
         aria-disabled={pendente}
+        // O nome inteiro também quando a tela estreita mostra só o verbo.
+        aria-label={pendente ? undefined : `${verbo}${resto}`}
         onClick={() => {
           if (pendente) return
           setPedido({ tokenId: alvo.tokenId, deOnde: alvo.piso })
           onTrocar(alvo.tokenId, alvo.stairId)
         }}
       >
-        {rotulo}
+        {pendente ? (
+          sobe ? 'Subindo…' : 'Descendo…'
+        ) : (
+          <>
+            {verbo}
+            <span className="pp-rotulo-resto">{resto}</span>
+          </>
+        )}
       </button>
     </div>
   )

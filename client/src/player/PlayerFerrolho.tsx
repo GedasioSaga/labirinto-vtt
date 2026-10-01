@@ -13,14 +13,23 @@ interface PlayerFerrolhoProps {
   onAct: (wallId: string, on: boolean) => void
 }
 
+/** O fim do rótulo, que a tela estreita esconde (player.css, `.pp-rotulo-resto`). */
+const RESTO = ' deste lado'
+
 /**
  * O rótulo fala o que o jogador vê acontecer, não o nome da peça: "ferrolho"
  * confundia ("como assim passar ferrolho?"). "Deste lado" diz o que a regra
- * faz — só quem está do lado de quem trancou destranca.
+ * faz — só quem está do lado de quem trancou destranca. Em tela estreita fica
+ * só o começo ("Trancar"): a coluna das ações do lugar divide a largura com o
+ * "Chamar o mestre".
  */
+function comeco(acao: AcaoDeFerrolho): string {
+  if (acao.acao === 'tirar') return 'Destrancar'
+  return acao.aberta ? 'Fechar e trancar' : 'Trancar'
+}
+
 function rotulo(acao: AcaoDeFerrolho): string {
-  if (acao.acao === 'tirar') return 'Destrancar deste lado'
-  return acao.aberta ? 'Fechar e trancar deste lado' : 'Trancar deste lado'
+  return `${comeco(acao)}${RESTO}`
 }
 
 /**
@@ -41,15 +50,26 @@ export function PlayerFerrolho({ acao, revisao, onAct }: PlayerFerrolhoProps) {
       type="button"
       className="pp-ferrolho"
       // O CSS desenha uma cópia invisível do rótulo de repouso: "Trancando…" é
-      // mais curto e, sem ela, a pílula encolheria no toque.
+      // mais curto e, sem ela, a pílula encolheria no toque. A curta é a da tela estreita.
       data-reserva={rotulo(acao)}
+      data-reserva-curta={comeco(acao)}
+      // O nome inteiro também quando a tela estreita mostra só o começo.
+      aria-label={ocupado ? undefined : rotulo(acao)}
       disabled={ocupado}
       onClick={() => {
         setEsperando({ chave, revisao })
         onAct(acao.wallId, acao.acao === 'passar')
       }}
     >
-      {ocupado ? (acao.acao === 'passar' ? 'Trancando…' : 'Destrancando…') : rotulo(acao)}
+      {ocupado ? (
+        acao.acao === 'passar' ? 'Trancando…' : 'Destrancando…'
+      ) : (
+        // Um item só na coluna do botão (o rótulo e a reserva embaixo dele): o fim não desce de linha.
+        <span>
+          {comeco(acao)}
+          <span className="pp-rotulo-resto">{RESTO}</span>
+        </span>
+      )}
     </button>
   )
 }

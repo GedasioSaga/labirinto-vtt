@@ -1311,6 +1311,7 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
               : { log: chatLog, unread: state.chatUnread, status: state.chatSend, selfName: state.selfName, onSend: sendChat, onRead: readChat }
           }
           onRollDice={(request) => connection.rollDice(request)}
+          diceRolls={state.diceRolls ?? NO_DICE_ROLLS}
           elsewhere={state.elsewhere}
           // A câmera da cena nova é a da chegada (`PlayerView`, mapa novo): a mesma da viagem.
           onSwitchView={(tokenId) => connection.switchView(tokenId)}
@@ -1339,35 +1340,73 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
           onDownloadNotebook={downloadNotebook}
           onOpenInventory={canOpenInventory ? (byKeyboard) => setInventory({ instant: byKeyboard }) : undefined}
         />
-        {/* DADO ROLADO NA SALA: as últimas rolagens da mesa, sobre o mapa, acima do zoom. Não é controle: fora da ordem do Tab. */}
-        <DiceFeed rolls={state.diceRolls ?? NO_DICE_ROLLS} className="pp-dice-feed" />
-        <PlayerScreenAwake active={screenAwake} />
         {/*
-          CANTO DE CIMA À DIREITA: abas de andar, "Onde estou" (a cena e a
-          sala, num selo só) e confronto numa coluna só, um embaixo do outro.
-          Antes cada um se prendia sozinho no mesmo canto e um cobria o outro.
-          Depois do painel no DOM: o Tab segue a leitura (painel no alto à
-          esquerda, esta coluna no alto à direita, zoom embaixo à direita).
+          CANTO DA DIREITA: abas de andar, "Onde estou" (a cena e a sala, num
+          selo só), confronto, o selo de estado e, no pé, as rolagens, numa
+          coluna só que desce do alto até logo acima do alto-falante. Antes
+          cada um se prendia sozinho e um cobria o outro: as rolagens caíam
+          sobre o pé do confronto no celular deitado. Na coluna, quem cede
+          lugar são as rolagens (player.css). Depois do painel no DOM: o Tab
+          segue a leitura (painel no alto à esquerda, esta coluna à direita,
+          zoom embaixo à direita).
         */}
         <div className="pp-canto">
           {state.andares && <PlayerFloorTabs andares={state.andares} selected={floorTab ?? state.andares.atual} onSelect={setFloorTab} />}
           <PlayerWhereAmI sceneName={state.sceneName} where={where} showTokenName={ownTokens.length > 1} onFocus={focusToken} />
           {/* CONFRONTO na cena dele: de quem é a vez e o que resta do passo. */}
           {state.confronto && <ConfrontoFaixa confronto={state.confronto} tokens={state.map.tokens} />}
+          {/*
+            SELO DE ESTADO: "Tela acesa" e a hora do dia. Só informam. No
+            notebook ficam no fim desta coluna; no celular, no canto de baixo à
+            esquerda (player.css) — antes a hora morava sozinha embaixo à
+            direita e cruzava o zoom.
+          */}
+          <div className="pp-estado">
+            <PlayerScreenAwake active={screenAwake} />
+            <PlayerClockBadge relogio={state.relogio} />
+          </div>
+          {/*
+            DADO ROLADO NA SALA: as últimas rolagens da mesa, no pé da coluna,
+            logo acima do alto-falante. A caixa em volta ocupa o que sobra da
+            coluna e diz à lista quantas rolagens cabem inteiras (player.css).
+            Não é controle: fora da ordem do Tab.
+          */}
+          <div className="pp-rolagens">
+            <DiceFeed rolls={state.diceRolls ?? NO_DICE_ROLLS} className="pp-dice-feed" />
+          </div>
         </div>
         <PlayerZoomControls canZoomIn={zoomLimits.canZoomIn} canZoomOut={zoomLimits.canZoomOut} onZoom={requestZoomStep} />
         {/* SOM DA MESA: volume e mudo dos sons de clima, na pilha do canto (`.pp-som`); logo depois do zoom na ordem do Tab. */}
         <ControleDeSom variante="flutuante" className="pp-som" />
-        <PlayerTurnBanner turn={state.turn} ownTokens={ownTokens} tokens={state.map.tokens} />
-        {/* PISOS NA MESMA CENA: só com a ficha dele encostada numa escada que liga pisos, e fora das travas do passo. */}
-        <PlayerEscada
-          map={state.map}
-          ownTokens={ownTokens}
-          turn={state.turn}
-          confronto={state.confronto}
-          paused={state.paused === true}
-          onTrocar={(tokenId, stairId) => connection.changeFloor(tokenId, stairId)}
-        />
+        {/*
+          AÇÕES DO LUGAR: o que a ficha pode fazer onde está — espiar e trancar
+          a porta em que encosta, subir ou descer a escada. Uma coluna só (no
+          notebook e no celular em pé, à esquerda, na altura do som; deitado,
+          embaixo da barra), em vez de três botões presos cada um num canto: a
+          escada morava no lugar da mão do "Chamar o mestre" e sumia atrás dela.
+          No celular deitado a faixa "Sua vez" abre esta coluna (player.css).
+        */}
+        <div className="pp-lugar">
+          <PlayerTurnBanner turn={state.turn} ownTokens={ownTokens} tokens={state.map.tokens} />
+          <PeekDoorButton map={state.map} ownTokens={ownTokens} onPeek={(wallId) => connection.peekDoor(wallId)} />
+          {/* Com cartão aberto por cima, o botão sai: um toque nele não pode fechar o cartão e trancar junto. */}
+          {noCardOnTop && (
+            <PlayerFerrolho
+              acao={acaoFerrolho}
+              revisao={`${state.rev}|${state.doorNotice?.id ?? ''}`}
+              onAct={(wallId, on) => connection.barDoor(wallId, on)}
+            />
+          )}
+          {/* PISOS NA MESMA CENA: só com a ficha dele encostada numa escada que liga pisos, e fora das travas do passo. */}
+          <PlayerEscada
+            map={state.map}
+            ownTokens={ownTokens}
+            turn={state.turn}
+            confronto={state.confronto}
+            paused={state.paused === true}
+            onTrocar={(tokenId, stairId) => connection.changeFloor(tokenId, stairId)}
+          />
+        </div>
         {noteDraft && (
           <PersonalNoteDraft
             onSave={(text) => {
@@ -1378,7 +1417,6 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
             onCancel={cancelNoteDraft}
           />
         )}
-        <PlayerClockBadge relogio={state.relogio} />
         {/* O pino pode sumir do recorte enquanto o cartão está aberto (o token
             andou, o mestre escondeu): sem pino no mapa novo, o cartão fecha
             sozinho em vez de mostrar um texto que o jogador não pode mais ver. */}
@@ -1733,7 +1771,6 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
             {doorRequestText(state.doorRequest.phase)}
           </p>
         )}
-        <PeekDoorButton map={state.map} ownTokens={ownTokens} onPeek={(wallId) => connection.peekDoor(wallId)} />
         {state.tokenAction && actionReply === null && (
           <p key={state.tokenAction.id} className="pp-notice pp-notice--action" role="status" aria-live="polite">
             {tokenActionNoticeText(state.tokenAction)}
@@ -1743,14 +1780,6 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
           <p key={state.hide.id} className="pp-notice" role="status" aria-live="polite">
             {HIDE_NOTICE_TEXT[state.hide.reason]}
           </p>
-        )}
-        {/* Com cartão aberto por cima, o botão sai: um toque nele não pode fechar o cartão e trancar junto. */}
-        {noCardOnTop && (
-          <PlayerFerrolho
-            acao={acaoFerrolho}
-            revisao={`${state.rev}|${state.doorNotice?.id ?? ''}`}
-            onAct={(wallId, on) => connection.barDoor(wallId, on)}
-          />
         )}
         {actionNotice && moveNoticeShown && (
           // `key` no id: o mesmo aviso repetido reinicia a animação de entrada.
