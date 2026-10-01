@@ -1,5 +1,6 @@
 import type { MapData, Wall } from '../types/map'
 import { canInteractInLayer, visibleWalls, wallLayer } from './layers'
+import { pisoDe } from './pisos'
 import { findWallAt } from './selectionHitTest'
 import { ancestorsOf, subtreeIds } from './roomNesting'
 
@@ -88,10 +89,13 @@ function cortar(parede: Wall, eixo: Eixo, de: number, ate: number): Wall[] | nul
   return sobras
 }
 
-/** A parede clicada e todas as que estão na mesma linha dela (o outro lado). */
-function mesmaLinha(map: MapData, eixo: Eixo): Wall[] {
+/** A parede clicada e todas as que estão na mesma linha dela (o outro lado).
+ *  Com `piso`, só as desse piso: a parede do andar de cima, na mesma planta,
+ *  nunca é o outro lado desta. Sem ele, de todos os pisos. */
+function mesmaLinha(map: MapData, eixo: Eixo, piso: number | undefined): Wall[] {
   return map.walls.filter(
     (w) =>
+      (piso === undefined || pisoDe(w) === piso) &&
       foraDaLinha(eixo, { x: w.x1, y: w.y1 }) <= MESMA_LINHA_TOLERANCIA &&
       foraDaLinha(eixo, { x: w.x2, y: w.y2 }) <= MESMA_LINHA_TOLERANCIA,
   )
@@ -136,11 +140,14 @@ const NADA_MUDOU: Omit<CorteNaParede, 'map'> = { salaSecretaPoupada: false, trav
  * "não muda por gesto nenhum", do lado clicado ou do outro. Cortar só o lado
  * destravado também não serve: abriria um vão na tela que a parede travada
  * por baixo continua barrando no jogo.
+ *
+ * `piso`: só as paredes desse piso entram — no corte, na trava e na sala
+ * secreta. Sem ele, a linha vale em todos os pisos.
  */
-function cortarNaLinha(map: MapData, eixo: Eixo, de: number, ate: number): CorteNaParede {
+function cortarNaLinha(map: MapData, eixo: Eixo, de: number, ate: number, piso?: number): CorteNaParede {
   const escondidas = salasEscondidasIds(map)
   const ehEscondida = (w: Wall): boolean => w.regionId !== undefined && escondidas.has(w.regionId)
-  const cortes = mesmaLinha(map, eixo).flatMap((parede) => {
+  const cortes = mesmaLinha(map, eixo, piso).flatMap((parede) => {
     const sobras = cortar(parede, eixo, de, ate)
     return sobras === null ? [] : [{ parede, sobras }]
   })
@@ -174,17 +181,19 @@ export function abrirVaoDosDoisLados(map: MapData, wallId: string, ponto: { x: n
 }
 
 /**
- * Abre o trecho reto de `de` até `ate` em toda parede dessa linha — as mesmas
- * regras de `cortarNaLinha` (dos dois lados, sala secreta poupada, recusa com
- * parede travada). É o corte de "Abrir para o corredor" (`lib/abrirCorredor.ts`),
- * que conhece os dois pontos da borda da Sala e não uma parede clicada.
+ * Abre o trecho reto de `de` até `ate` em toda parede dessa linha NO `piso` —
+ * as mesmas regras de `cortarNaLinha` (dos dois lados, sala secreta poupada,
+ * recusa com parede travada). É o corte de "Abrir para o corredor"
+ * (`lib/abrirCorredor.ts`), que conhece os dois pontos da borda da Sala e não
+ * uma parede clicada. O piso é o da Sala: o andar de cima com a mesma planta
+ * não ganha buraco, e porta ou trava de lá não recusa o corte daqui.
  * Pontos iguais: devolve `map` sem cópia.
  */
-export function abrirTrecho(map: MapData, de: { x: number; y: number }, ate: { x: number; y: number }): CorteNaParede {
+export function abrirTrecho(map: MapData, de: { x: number; y: number }, ate: { x: number; y: number }, piso: number): CorteNaParede {
   const comprimento = Math.hypot(ate.x - de.x, ate.y - de.y)
   if (comprimento === 0) return { map, ...NADA_MUDOU }
   const eixo: Eixo = { origem: { x: de.x, y: de.y }, ux: (ate.x - de.x) / comprimento, uy: (ate.y - de.y) / comprimento, comprimento }
-  return cortarNaLinha(map, eixo, 0, comprimento)
+  return cortarNaLinha(map, eixo, 0, comprimento, piso)
 }
 
 /**

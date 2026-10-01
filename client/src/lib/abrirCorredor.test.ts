@@ -26,6 +26,16 @@ function salaCom(linhas: Wall[], grade = GRADE): MapData {
   return { ...comSala, walls: [...comSala.walls, ...linhas] }
 }
 
+/** O andar de cima do mesmo prédio: uma sala com a MESMA planta da "Sala 3", no 1º piso. */
+function comAndarDeCima(map: MapData): MapData {
+  const { region, walls } = buildRoomFromDraft('cima', ['u0', 'u1', 'u2', 'u3'], { x: 0, y: 0 }, { x: 600, y: 500 }, undefined, undefined, 'Sala de cima')
+  return addRoom(map, { ...region, piso: 1 }, walls.map((w) => ({ ...w, piso: 1 })))
+}
+
+function paredesDa(map: MapData, salaId: string): Wall[] {
+  return map.walls.filter((w) => w.regionId === salaId)
+}
+
 function comRegiao(map: MapData, id: string, mudanca: Partial<Region>): MapData {
   return { ...map, regions: map.regions.map((r) => (r.id === id ? { ...r, ...mudanca } : r)) }
 }
@@ -246,13 +256,27 @@ describe('abrirSalaParaCorredores — o vão e as linhas', () => {
     expect(r.map.walls.find((w) => w.id === 'I')).toBe(solta)
   })
 
-  it('na bifurcação (duas paredes saindo da mesma ponta) a corrente para: nada de dentro é apagado', () => {
+  it('na bifurcação (duas paredes saindo da mesma ponta) é construção: nada de dentro é apagado, e a linha segue presa nela', () => {
+    const G1 = parede('G1', 256, 800, 256, 440)
     const J1 = parede('J1', 256, 440, 200, 440)
     const J2 = parede('J2', 256, 440, 320, 440)
-    const r = abrirSalaParaCorredores(salaCom([parede('G1', 256, 800, 256, 440), J1, J2, C2]), 'sala')
+    const r = abrirSalaParaCorredores(salaCom([G1, J1, J2, C2]), 'sala')
     expect(r.motivo).toBe('ok')
     expect(r.map.walls.find((w) => w.id === 'J1')).toBe(J1)
     expect(r.map.walls.find((w) => w.id === 'J2')).toBe(J2)
+    // Encurtar G1 soltaria o "T" no meio do chão, 60 px longe da borda.
+    expect(r.map.walls.find((w) => w.id === 'G1')).toBe(G1)
+    expect(pontas(r.map, 'C2')).toEqual([384, 800, 384, 500])
+  })
+
+  it('fundo do corredor desenhado fechado (U): o fundo sai e as duas linhas param na borda', () => {
+    const H = parede('H', 256, 460, 384, 460)
+    const r = abrirSalaParaCorredores(salaCom([C1, H, C2]), 'sala')
+    expect(r.motivo).toBe('ok')
+    expect(r.map.walls.some((w) => w.id === 'H')).toBe(false)
+    expect(pontas(r.map, 'C1')).toEqual([256, 800, 256, 500])
+    expect(pontas(r.map, 'C2')).toEqual([384, 800, 384, 500])
+    expect(corredoresDaSala(r.map, 'sala')).toEqual([])
   })
 
   it('sala redonda (24 lados): um corredor só, o vão passa pela emenda das arestas e os pedaços seguem ligados', () => {
@@ -279,6 +303,96 @@ describe('abrirSalaParaCorredores — o vão e as linhas', () => {
     // A visão entra pelo vão até o centro.
     expect(hasLineOfSight({ x: 900, y: 500 }, { x: 500, y: 500 }, visionSegments(antes))).toBe(false)
     expect(hasLineOfSight({ x: 900, y: 500 }, { x: 500, y: 500 }, visionSegments(r.map))).toBe(true)
+  })
+})
+
+// Revisão da fatia 1: a corrente do "L" seguia por qualquer parede solta de
+// dentro, inclusive a que volta à borda, e apagava divisória de propósito.
+describe('divisória de propósito não é sobra do traço — fica de pé', () => {
+  const E1 = parede('E1', 256, 800, 256, 500)
+  const E2 = parede('E2', 384, 800, 384, 500)
+
+  it('divisória de borda a borda emendada na ponta do corredor fica de pé, e o segundo clique não a apaga', () => {
+    const P = parede('P', 256, 500, 256, 0)
+    const r = abrirSalaParaCorredores(salaCom([E1, E2, P]), 'sala')
+    expect(r.motivo).toBe('ok')
+    expect(r.map.walls.find((w) => w.id === 'P')).toBe(P)
+    expect(r.map.walls.find((w) => w.id === 'E1')).toBe(E1)
+    expect(pedacos(r.map, 2)).toEqual([
+      [256, 500, 0, 500],
+      [600, 500, 384, 500],
+    ])
+    // Corredor aberto encostado na divisória: o botão some, e o clique não muda nada.
+    expect(corredoresDaSala(r.map, 'sala')).toEqual([])
+    const segunda = abrirSalaParaCorredores(r.map, 'sala')
+    expect(segunda.motivo).toBe('nada')
+    expect(segunda.map).toBe(r.map)
+  })
+
+  it('linha que entra e continua numa divisória até a outra borda: nem a divisória nem a linha mudam', () => {
+    // Encurtar C1 até a borda abriria um buraco de 40 px no pé da divisória.
+    const P2 = parede('P2', 256, 460, 256, 0)
+    const r = abrirSalaParaCorredores(salaCom([C1, P2, C2]), 'sala')
+    expect(r.motivo).toBe('ok')
+    expect(r.map.walls.find((w) => w.id === 'P2')).toBe(P2)
+    expect(r.map.walls.find((w) => w.id === 'C1')).toBe(C1)
+    expect(pontas(r.map, 'C2')).toEqual([384, 800, 384, 500])
+    expect(pedacos(r.map, 2)).toEqual([
+      [256, 500, 0, 500],
+      [600, 500, 384, 500],
+    ])
+    expect(corredoresDaSala(r.map, 'sala')).toEqual([])
+  })
+
+  it('"L" que dobra e volta à borda é divisória: nada dele sai', () => {
+    const X = parede('X', 256, 460, 320, 460)
+    const Q = parede('Q', 320, 460, 320, 0)
+    const r = abrirSalaParaCorredores(salaCom([C1, X, Q, C2]), 'sala')
+    expect(r.motivo).toBe('ok')
+    for (const w of [C1, X, Q]) expect(r.map.walls.find((p) => p.id === w.id)).toBe(w)
+  })
+
+  it('polilinha que entra por baixo e sai pela lateral (atravessa a sala) fica inteira', () => {
+    const X = parede('X', 256, 460, 500, 460)
+    const Y = parede('Y', 500, 460, 700, 460)
+    const r = abrirSalaParaCorredores(salaCom([C1, X, Y, C2]), 'sala')
+    expect(r.motivo).toBe('ok')
+    for (const w of [C1, X, Y]) expect(r.map.walls.find((p) => p.id === w.id)).toBe(w)
+  })
+
+  it('linha que termina no meio de uma parede de dentro (encaixe em T) fica presa nela', () => {
+    const D = parede('D', 100, 460, 300, 460)
+    const r = abrirSalaParaCorredores(salaCom([C1, D, C2]), 'sala')
+    expect(r.motivo).toBe('ok')
+    expect(r.map.walls.find((w) => w.id === 'C1')).toBe(C1)
+    expect(r.map.walls.find((w) => w.id === 'D')).toBe(D)
+    expect(pontas(r.map, 'C2')).toEqual([384, 800, 384, 500])
+  })
+})
+
+// Revisão da fatia 1: o corte pegava toda parede colinear, de qualquer piso.
+describe('pisos — o vão abre só no piso da Sala', () => {
+  it('a sala de mesma planta no piso de cima fica inteira', () => {
+    const antes = comAndarDeCima(salaCom([C1, C2]))
+    const r = abrirSalaParaCorredores(antes, 'sala')
+    expect(r.motivo).toBe('ok')
+    expect(pedacos(r.map, 2)).toEqual([
+      [256, 500, 0, 500],
+      [600, 500, 384, 500],
+    ])
+    expect(paredesDa(r.map, 'cima')).toEqual(paredesDa(antes, 'cima'))
+    for (const w of paredesDa(antes, 'cima')) expect(r.map.walls.find((p) => p.id === w.id)).toBe(w)
+  })
+
+  it('porta ou parede travada do piso de cima, no mesmo trecho, não recusa a abertura', () => {
+    const comPorta = addDoorOnWall(comAndarDeCima(salaCom([C1, C2])), 'u2', { x: 320, y: 500 }, 64, 'normal')
+    const r = abrirSalaParaCorredores(comPorta, 'sala')
+    expect(r.motivo).toBe('ok')
+    expect(paredesDa(r.map, 'cima')).toEqual(paredesDa(comPorta, 'cima'))
+    expect(paredesDa(r.map, 'cima').some((w) => w.door !== null)).toBe(true)
+
+    const travada = comParede(comAndarDeCima(salaCom([C1, C2])), 'u2', { locked: true })
+    expect(abrirSalaParaCorredores(travada, 'sala').motivo).toBe('ok')
   })
 })
 
@@ -441,7 +555,7 @@ describe('depois de abrir', () => {
 
 describe('abrirTrecho — o corte entre dois pontos da borda (lib/abrirVao.ts)', () => {
   it('tira o trecho da parede que passa pelos dois pontos, e os pedaços seguem ligados', () => {
-    const r = abrirTrecho(salaCom([]), { x: 256, y: 500 }, { x: 384, y: 500 })
+    const r = abrirTrecho(salaCom([]), { x: 256, y: 500 }, { x: 384, y: 500 }, 0)
     expect(r.travadaNoCaminho).toBe(false)
     expect(pedacos(r.map, 2)).toEqual([
       [256, 500, 0, 500],
@@ -451,7 +565,20 @@ describe('abrirTrecho — o corte entre dois pontos da borda (lib/abrirVao.ts)',
 
   it('sem parede no trecho, ou com os dois pontos iguais: o MESMO mapa', () => {
     const map = salaCom([])
-    expect(abrirTrecho(map, { x: 1000, y: 1000 }, { x: 1100, y: 1000 }).map).toBe(map)
-    expect(abrirTrecho(map, { x: 300, y: 500 }, { x: 300, y: 500 }).map).toBe(map)
+    expect(abrirTrecho(map, { x: 1000, y: 1000 }, { x: 1100, y: 1000 }, 0).map).toBe(map)
+    expect(abrirTrecho(map, { x: 300, y: 500 }, { x: 300, y: 500 }, 0).map).toBe(map)
+  })
+
+  it('corta só as paredes do piso pedido: a de mesma linha em outro andar fica inteira', () => {
+    const map = comAndarDeCima(salaCom([]))
+    const r = abrirTrecho(map, { x: 256, y: 500 }, { x: 384, y: 500 }, 1)
+    expect(pedacos(r.map, 2, 'cima')).toEqual([
+      [256, 500, 0, 500],
+      [600, 500, 384, 500],
+    ])
+    expect(paredesDa(r.map, 'sala')).toEqual(paredesDa(map, 'sala'))
+    // Parede travada de outro andar também não recusa o corte deste.
+    const travadaEmBaixo = comParede(map, 's2', { locked: true })
+    expect(abrirTrecho(travadaEmBaixo, { x: 256, y: 500 }, { x: 384, y: 500 }, 1).travadaNoCaminho).toBe(false)
   })
 })

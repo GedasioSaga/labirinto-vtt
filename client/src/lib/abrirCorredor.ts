@@ -18,7 +18,10 @@ import { ancestorsOf, pointInPolygonInclusive, pointOnPolygonBorder } from './ro
  *    lados, poupa a parede da sala secreta vizinha e recusa parede travada;
  *  - cada linha para na borda: a ponta de dentro volta até ela, e a que parou
  *    um pouco antes é esticada até ela;
- *  - o "L" solto que a linha fazia dentro do chão é apagado.
+ *  - o "L" solto que a linha fazia dentro do chão é apagado. Só o que termina
+ *    solto: linha que segue numa divisória (volta à borda, bifurca, encaixa em
+ *    outra parede) é construção do mestre e fica inteira, ela e a divisória.
+ * Tudo no piso da Sala: o andar de cima com a mesma planta não é tocado.
  * Visão (`visibility.ts`) e colisão (`collision.ts`) só leem paredes: tirar o
  * trecho abre a passagem de verdade, no mestre e no jogador.
  *
@@ -80,8 +83,10 @@ export interface EncosteDeCorredor extends NaBorda {
   paraFora: Ponto
   /** Ponta da parede (1 = x1,y1; 2 = x2,y2) que vai até o encoste; `null` = já está na borda. */
   ponta: 1 | 2 | null
-  /** De onde sai o "L" que a linha fazia dentro do chão: a ponta de dentro
-   *  original, ou a própria ponta na borda. `null` = a linha não chegava à Sala. */
+  /** A ponta de dentro, de onde sai o "L" que a linha fazia no chão (`sobraDoTraco`).
+   *  `null` = a linha não entra no chão: parou antes da borda, ou bate certinho
+   *  nela — e o que sai dali para dentro é construção do mestre (a divisória de
+   *  borda a borda emendada na ponta), não sobra do traço. */
   inicioDaCorrente: Ponto | null
 }
 
@@ -252,10 +257,10 @@ function entrando(paredeId: string, borda: Borda, dentro: Ponto, fora: Ponto, po
   return { paredeId, ponto, aresta, s, paraFora: unitario(menos(fora, ponto)), ponta, inicioDaCorrente: dentro }
 }
 
-/** Linha que bate certinho na borda: encosta na própria ponta e não muda. */
+/** Linha que bate certinho na borda: encosta na própria ponta e não muda, nem o que sai dela para dentro. */
 function naBorda(paredeId: string, borda: Borda, pontaNaBorda: Ponto, fora: Ponto): EncosteDeCorredor {
   const { ponto, aresta, s } = maisPertoNaBorda(borda, pontaNaBorda)
-  return { paredeId, ponto, aresta, s, paraFora: unitario(menos(fora, ponto)), ponta: null, inicioDaCorrente: pontaNaBorda }
+  return { paredeId, ponto, aresta, s, paraFora: unitario(menos(fora, ponto)), ponta: null, inicioDaCorrente: null }
 }
 
 /** A borda seguindo a linha além de `ponta` (sentido de quem vem de `outra`), a até `folga` px. */
@@ -370,8 +375,7 @@ function escolherNoCiclo(ligacoes: readonly (CorredorQueEncosta | null)[]): Corr
 }
 
 /** Todos os corredores que encostam na Sala, já abertos ou não. */
-function corredoresQueEncostam(map: MapData, sala: Region): CorredorQueEncosta[] {
-  const borda = bordaDa(sala)
+function corredoresQueEncostam(map: MapData, sala: Region, borda: Borda): CorredorQueEncosta[] {
   const folga = ENCOSTE_TOLERANCIA_CELULAS * map.grid
   const piso = pisoDe(sala)
   const encostes = map.walls
@@ -383,6 +387,100 @@ function corredoresQueEncostam(map: MapData, sala: Region): CorredorQueEncosta[]
     .sort((a, b) => a.s - b.s)
   if (encostes.length < 2) return []
   return escolherNoCiclo(encostes.map((e, k) => formamCorredor(e, encostes[(k + 1) % encostes.length], borda, map.grid)))
+}
+
+// ─── A sobra do traço ───────────────────────────────────────────────────────
+
+/** A Sala lida uma vez para abrir: o mapa, a borda, e as linhas de TODO
+ *  corredor que encosta nela — o fundo de um corredor desenhado fechado liga
+ *  duas delas pelo chão. */
+interface NaSala {
+  map: MapData
+  sala: Region
+  borda: Borda
+  linhas: ReadonlySet<string>
+}
+
+function colada(x: number, y: number, p: Ponto): boolean {
+  return Math.hypot(x - p.x, y - p.y) <= PONTA_COLADA
+}
+
+/** Distância de `p` até o segmento da parede. */
+function distanciaAte(w: Wall, p: Ponto): number {
+  const a = { x: w.x1, y: w.y1 }
+  const b = { x: w.x2, y: w.y2 }
+  const ab = menos(b, a)
+  const comprimento2 = escalar(ab, ab)
+  const t = comprimento2 === 0 ? 0 : Math.max(0, Math.min(1, escalar(menos(p, a), ab) / comprimento2))
+  return distancia(p, entre(a, b, t))
+}
+
+/** As paredes do piso que tocam `p` — na ponta ou no meio —, menos a que trouxe até ele.
+ *  Parede de outro piso não existe neste andar: nem emenda, nem bifurca. */
+function paredesQueTocam(map: MapData, piso: number, p: Ponto, vindaDe: string): Wall[] {
+  return map.walls.filter((w) => w.id !== vindaDe && pisoDe(w) === piso && distanciaAte(w, p) <= PONTA_COLADA)
+}
+
+/** Parede solta inteira no chão da Sala: as duas pontas DENTRO, nenhuma sobre a
+ *  borda, e sem cruzar a borda no caminho (Sala livre côncava). Parede presa ao
+ *  contorno é divisória, não sobra de traço. */
+function soltaDeDentro(w: Wall, borda: Borda): boolean {
+  const p1 = { x: w.x1, y: w.y1 }
+  const p2 = { x: w.x2, y: w.y2 }
+  return w.regionId === undefined && lugarDe(p1, borda.pontos) === 'dentro' && lugarDe(p2, borda.pontos) === 'dentro' && primeiroToque(borda, p1, p2) === null
+}
+
+/**
+ * O "L" que a linha fazia dentro do chão: paredes soltas inteiras dentro da
+ * Sala, emendadas ponta com ponta a partir da ponta de dentro (a parede livre
+ * em polilinha). Só é sobra do traço — e sai — quando termina solta no chão,
+ * ou em outra linha que também está abrindo (o fundo de um corredor desenhado
+ * fechado, em U). Se bifurca, encosta na borda, sai da Sala, encaixa no meio de
+ * outra parede (T) ou dá a volta, é construção do mestre: uma divisória que
+ * segue a linha, ou parede que atravessa a Sala. Aí `null`, e nem ela nem a
+ * linha mudam: encurtar a linha abriria um buraco no pé dessa construção.
+ */
+function sobraDoTraco({ map, sala, borda, linhas }: NaSala, linha: EncosteDeCorredor): Wall[] | null {
+  const piso = pisoDe(sala)
+  const sobra: Wall[] = []
+  let vindaDe = linha.paredeId
+  let ponta = linha.inicioDaCorrente
+  while (ponta !== null) {
+    const tocam = paredesQueTocam(map, piso, ponta, vindaDe)
+    if (tocam.length === 0) return sobra
+    if (tocam.length > 1) return null
+    const parede = tocam[0]
+    if (linhas.has(parede.id)) return sobra
+    const pelaPonta1 = colada(parede.x1, parede.y1, ponta)
+    // `includes`: parede de comprimento zero devolve à mesma ponta, e o laço não pode girar para sempre.
+    if ((!pelaPonta1 && !colada(parede.x2, parede.y2, ponta)) || !soltaDeDentro(parede, borda) || sobra.includes(parede)) return null
+    sobra.push(parede)
+    vindaDe = parede.id
+    ponta = pelaPonta1 ? { x: parede.x2, y: parede.y2 } : { x: parede.x1, y: parede.y1 }
+  }
+  return sobra
+}
+
+/** O que abrir muda numa linha: ela como está e com a ponta trazida até a borda
+ *  (`encurta`; `null` = não muda), e a sobra do traço a apagar. */
+interface MudancaNaLinha {
+  encurta: { de: Wall; para: Wall } | null
+  sobra: readonly Wall[]
+}
+
+const LINHA_INTACTA: MudancaNaLinha = { encurta: null, sobra: [] }
+
+function comPontaEm(parede: Wall, ponta: 1 | 2, p: Ponto): Wall {
+  return ponta === 1 ? { ...parede, x1: p.x, y1: p.y } : { ...parede, x2: p.x, y2: p.y }
+}
+
+/** A mudança da linha. Linha que segue como construção (`sobraDoTraco` deu `null`) fica intacta. */
+function mudancaNaLinha(naSala: NaSala, linha: EncosteDeCorredor): MudancaNaLinha {
+  const sobra = sobraDoTraco(naSala, linha)
+  if (sobra === null) return LINHA_INTACTA
+  const parede = naSala.map.walls.find((w) => w.id === linha.paredeId)
+  const encurta = parede === undefined || linha.ponta === null ? null : { de: parede, para: comPontaEm(parede, linha.ponta, linha.ponto) }
+  return { encurta, sobra }
 }
 
 // ─── O que ainda falta fazer ────────────────────────────────────────────────
@@ -401,58 +499,31 @@ function trechoTemParedeDaSala(walls: readonly Wall[], salaId: string, trecho: T
   })
 }
 
-function colada(x: number, y: number, p: Ponto): boolean {
-  return Math.hypot(x - p.x, y - p.y) <= PONTA_COLADA
-}
-
-/** Parede solta, do piso da Sala, inteira dentro do chão dela. O meio fora da borda:
- *  parede sobre o contorno é divisa, não sobra de traço. */
-function soltaDeDentro(w: Wall, sala: Region): boolean {
-  if (w.regionId !== undefined || pisoDe(w) !== pisoDe(sala)) return false
-  const meio = { x: (w.x1 + w.x2) / 2, y: (w.y1 + w.y2) / 2 }
-  return (
-    pointInPolygonInclusive({ x: w.x1, y: w.y1 }, sala.points) &&
-    pointInPolygonInclusive({ x: w.x2, y: w.y2 }, sala.points) &&
-    lugarDe(meio, sala.points) === 'dentro'
-  )
-}
-
 /**
- * O "L" que a linha fazia dentro do chão: paredes soltas inteiras dentro da
- * Sala, emendadas ponta com ponta a partir de `inicio` (a parede livre em
- * polilinha). Para na bifurcação: duas paredes saindo da mesma ponta já são
- * construção de dentro da Sala, não sobra do traço. `usadas` é dividido entre
- * as linhas para nenhuma parede entrar duas vezes.
- */
-function correnteDeDentro(map: MapData, sala: Region, inicio: Ponto | null, usadas: Set<string>): Wall[] {
-  const corrente: Wall[] = []
-  let ponta = inicio
-  while (ponta !== null) {
-    const aqui = ponta
-    const ligadas = map.walls.filter((w) => (colada(w.x1, w.y1, aqui) || colada(w.x2, w.y2, aqui)) && !usadas.has(w.id) && soltaDeDentro(w, sala))
-    if (ligadas.length !== 1) break
-    const parede = ligadas[0]
-    usadas.add(parede.id)
-    corrente.push(parede)
-    ponta = colada(parede.x1, parede.y1, aqui) ? { x: parede.x2, y: parede.y2 } : { x: parede.x1, y: parede.y1 }
-  }
-  return corrente
-}
-
-/**
- * O corredor ainda tem o que fazer: linha para trazer até a borda, "L" para
- * apagar, ou parede da própria Sala no vão. Corredor já aberto não conta: é o
- * que faz o botão sumir depois do clique, e o segundo clique não gravar um
+ * O corredor ainda tem o que fazer: parede da própria Sala no vão, ou linha a
+ * encurtar / sobra a apagar — a MESMA conta do clique (`mudancaNaLinha`), para
+ * o botão nunca prometer o que o clique não faz. Corredor já aberto não conta:
+ * é o que faz o botão sumir depois do clique, e o segundo clique não gravar um
  * passo vazio no histórico.
  */
-function temTrabalho(map: MapData, sala: Region, corredor: CorredorQueEncosta): boolean {
-  if (corredor.linhas.some((l) => l.ponta !== null)) return true
-  if (corredor.trechos.some((t) => trechoTemParedeDaSala(map.walls, sala.id, t))) return true
-  return corredor.linhas.some((l) => correnteDeDentro(map, sala, l.inicioDaCorrente, new Set()).length > 0)
+function temTrabalho(naSala: NaSala, corredor: CorredorQueEncosta): boolean {
+  if (corredor.trechos.some((t) => trechoTemParedeDaSala(naSala.map.walls, naSala.sala.id, t))) return true
+  return corredor.linhas.some((l) => {
+    const { encurta, sobra } = mudancaNaLinha(naSala, l)
+    return encurta !== null || sobra.length > 0
+  })
 }
 
 function salaDe(map: MapData, salaId: string): Region | undefined {
   return map.regions.find((r) => r.id === salaId && r.room !== undefined && r.points.length >= 3)
+}
+
+/** A Sala lida para abrir, e os corredores dela que ainda têm trabalho. */
+function lerSala(map: MapData, sala: Region): { naSala: NaSala; corredores: CorredorQueEncosta[] } {
+  const borda = bordaDa(sala)
+  const todos = corredoresQueEncostam(map, sala, borda)
+  const naSala: NaSala = { map, sala, borda, linhas: new Set(todos.flatMap((c) => c.linhas.map((l) => l.paredeId))) }
+  return { naSala, corredores: todos.filter((c) => temTrabalho(naSala, c)) }
 }
 
 /**
@@ -463,8 +534,7 @@ function salaDe(map: MapData, salaId: string): Region | undefined {
  */
 export function corredoresDaSala(map: MapData, salaId: string): CorredorQueEncosta[] {
   const sala = salaDe(map, salaId)
-  if (sala === undefined) return []
-  return corredoresQueEncostam(map, sala).filter((c) => temTrabalho(map, sala, c))
+  return sala === undefined ? [] : lerSala(map, sala).corredores
 }
 
 /**
@@ -481,33 +551,29 @@ export function bloqueioDaSala(map: MapData, sala: Region): 'secreta' | 'travada
 
 // ─── Abrir ──────────────────────────────────────────────────────────────────
 
-/** O que muda nas linhas: as pontas trazidas até a borda, as paredes do "L" a apagar,
+/** O que muda nas linhas: as pontas trazidas até a borda, os ids da sobra a apagar,
  *  e as paredes originais que vão mudar (para checar trava e porta antes). */
 interface MudancaNasLinhas {
-  novas: Map<string, Wall>
-  apagadas: Wall[]
-  mexidas: Wall[]
+  novas: ReadonlyMap<string, Wall>
+  apagadas: ReadonlySet<string>
+  mexidas: readonly Wall[]
 }
 
-function comPontaEm(parede: Wall, ponta: 1 | 2, p: Ponto): Wall {
-  return ponta === 1 ? { ...parede, x1: p.x, y1: p.y } : { ...parede, x2: p.x, y2: p.y }
-}
-
-function mudancaNasLinhas(map: MapData, sala: Region, corredores: readonly CorredorQueEncosta[]): MudancaNasLinhas {
-  const porId = new Map(map.walls.map((w) => [w.id, w]))
-  const usadas = new Set<string>()
+function mudancaNasLinhas(naSala: NaSala, corredores: readonly CorredorQueEncosta[]): MudancaNasLinhas {
   const novas = new Map<string, Wall>()
-  const apagadas: Wall[] = []
+  const apagadas = new Set<string>()
   const mexidas: Wall[] = []
   for (const linha of corredores.flatMap((c) => c.linhas)) {
-    const parede = porId.get(linha.paredeId)
-    if (parede !== undefined && linha.ponta !== null) {
-      novas.set(parede.id, comPontaEm(parede, linha.ponta, linha.ponto))
-      mexidas.push(parede)
+    const { encurta, sobra } = mudancaNaLinha(naSala, linha)
+    if (encurta !== null) {
+      novas.set(encurta.de.id, encurta.para)
+      mexidas.push(encurta.de)
     }
-    const corrente = correnteDeDentro(map, sala, linha.inicioDaCorrente, usadas)
-    apagadas.push(...corrente)
-    mexidas.push(...corrente)
+    // O fundo do U é sobra das duas linhas dele: entra uma vez só.
+    for (const w of sobra.filter((s) => !apagadas.has(s.id))) {
+      apagadas.add(w.id)
+      mexidas.push(w)
+    }
   }
   return { novas, apagadas, mexidas }
 }
@@ -537,14 +603,17 @@ interface Cortado {
  * anterior. Trecho sem parede da própria Sala já está aberto e fica como está:
  * não é este botão que derruba a parede do vizinho. É isso que protege a sala
  * secreta no segundo clique, porque `abrirTrecho` só poupa a parede dela
- * quando há um lado visível para cortar.
+ * quando há um lado visível para cortar. O corte é só no piso da Sala: o
+ * andar de cima com a mesma planta não ganha buraco, e porta ou parede
+ * travada de lá não recusa o vão daqui.
  */
-function cortarTrechos(map: MapData, salaId: string, trechos: readonly TrechoDaBorda[]): Cortado {
+function cortarTrechos(map: MapData, sala: Region, trechos: readonly TrechoDaBorda[]): Cortado {
+  const piso = pisoDe(sala)
   let atual = map
   let salaSecretaPoupada = false
   for (const trecho of trechos) {
-    if (!trechoTemParedeDaSala(atual.walls, salaId, trecho)) continue
-    const corte = abrirTrecho(atual, trecho.de, trecho.ate)
+    if (!trechoTemParedeDaSala(atual.walls, sala.id, trecho)) continue
+    const corte = abrirTrecho(atual, trecho.de, trecho.ate, piso)
     if (corte.travadaNoCaminho) return { map, salaSecretaPoupada: false, impedimento: 'travada' }
     if (paredesTiradas(atual, corte.map).some((w) => w.door !== null)) return { map, salaSecretaPoupada: false, impedimento: 'porta' }
     salaSecretaPoupada = salaSecretaPoupada || corte.salaSecretaPoupada
@@ -568,15 +637,14 @@ export function abrirSalaParaCorredores(map: MapData, salaId: string): AberturaD
   if (sala === undefined) return recusa(map, 'nada')
   const bloqueio = bloqueioDaSala(map, sala)
   if (bloqueio !== null) return recusa(map, bloqueio)
-  const corredores = corredoresDaSala(map, salaId)
+  const { naSala, corredores } = lerSala(map, sala)
   if (corredores.length === 0) return recusa(map, 'nada')
-  const linhas = mudancaNasLinhas(map, sala, corredores)
+  const linhas = mudancaNasLinhas(naSala, corredores)
   const impedimento = impedimentoDe(map, linhas.mexidas)
   if (impedimento !== null) return recusa(map, impedimento)
-  const cortado = cortarTrechos(map, sala.id, corredores.flatMap((c) => c.trechos))
+  const cortado = cortarTrechos(map, sala, corredores.flatMap((c) => c.trechos))
   if (cortado.impedimento !== null) return recusa(map, cortado.impedimento)
   if (cortado.map === map && linhas.mexidas.length === 0) return recusa(map, 'nada')
-  const apagar = new Set(linhas.apagadas.map((w) => w.id))
-  const walls = cortado.map.walls.flatMap((w) => (apagar.has(w.id) ? [] : [linhas.novas.get(w.id) ?? w]))
+  const walls = cortado.map.walls.flatMap((w) => (linhas.apagadas.has(w.id) ? [] : [linhas.novas.get(w.id) ?? w]))
   return { map: { ...cortado.map, walls }, motivo: 'ok', corredores: corredores.length, salaSecretaPoupada: cortado.salaSecretaPoupada }
 }
