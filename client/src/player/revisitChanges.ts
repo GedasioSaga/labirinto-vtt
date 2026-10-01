@@ -1,4 +1,4 @@
-import type { Drawing, MapData, RegionPoint } from '../types/map'
+import type { Drawing, MapData, MapLine, MapMarker, Prop, RegionPoint, Stair, Wall } from '../types/map'
 import type { Bounds } from '../pixi/world'
 import { createExploration, isPointExplored, markRings, type Exploration } from '../lib/exploration'
 import { pointInRing } from '../lib/floorContour'
@@ -27,12 +27,16 @@ import { pointInRing } from '../lib/floorContour'
  * mudou lá enquanto o jogador estava em outra cena.
  */
 
-/** O que o jogador viu de uma coisa do mapa: a cara dela e onde ela fica. */
+/**
+ * O que o jogador viu de uma coisa do mapa: a cara dela e onde ela fica.
+ * Nunca muda depois de criada: a mesma é dividida pelo catálogo da tela e
+ * pela lembrança de cada cena.
+ */
 interface SeenThing {
-  signature: string
+  readonly signature: string
   /** Pontos que dizem "está na visão": basta um. */
-  samples: RegionPoint[]
-  bounds: Bounds
+  readonly samples: readonly RegionPoint[]
+  readonly bounds: Bounds
 }
 
 interface SceneMemory {
@@ -47,10 +51,35 @@ interface SceneMemory {
   lastVision: RegionPoint[][]
 }
 
+/** A coisa vista e a chave dela entre as coisas do mapa (tipo e id). */
+interface KeyedThing {
+  readonly key: string
+  readonly thing: SeenThing
+}
+
+/** As coisas vistas de uma lista do mapa, na ordem dela; `null` = fora da conta (parede sem comprimento, escada sem lance, traço sem ponto). */
+interface ListThings<T> {
+  readonly items: readonly T[]
+  readonly things: readonly (KeyedThing | null)[]
+}
+
+/** As coisas do último mapa observado, lista por lista, e todas juntas por chave. */
+interface ThingCatalog {
+  readonly props: ListThings<Prop>
+  readonly walls: ListThings<Wall>
+  readonly stairs: ListThings<Stair>
+  readonly drawings: ListThings<Drawing>
+  readonly lines: ListThings<MapLine>
+  readonly markers: ListThings<MapMarker>
+  readonly all: ReadonlyMap<string, SeenThing>
+}
+
 export interface RevisitMemory {
   scenes: Map<string, SceneMemory>
   /** Cena do último snapshot: chegar de outra cena é voltar, mesmo que a visão de lá fosse a mesma. */
   currentMapId: string | null
+  /** As coisas do último mapa: o passo da ficha reaproveita o que não mudou de referência (`collectThings`). */
+  catalog: ThingCatalog | null
 }
 
 export interface RevisitSnapshot {
@@ -63,7 +92,7 @@ export interface RevisitSnapshot {
 }
 
 export function createRevisitMemory(): RevisitMemory {
-  return { scenes: new Map(), currentMapId: null }
+  return { scenes: new Map(), currentMapId: null, catalog: null }
 }
 
 /** Visão vazia: quem chega de outra cena não estava olhando para nada desta. */
@@ -150,8 +179,84 @@ function drawingPoints(d: Drawing): RegionPoint[] {
   }
 }
 
-function thing(signature: unknown, samples: RegionPoint[], outline: readonly RegionPoint[]): SeenThing {
-  return { signature: JSON.stringify(signature), samples, bounds: boundsOf(outline) }
+function keyed(key: string, signature: unknown, samples: readonly RegionPoint[], outline: readonly RegionPoint[]): KeyedThing {
+  return { key, thing: { signature: JSON.stringify(signature), samples, bounds: boundsOf(outline) } }
+}
+
+function propThing(p: Prop): KeyedThing {
+  // Caixa que cabe o objeto em qualquer rotação: meia diagonal para cada lado.
+  const half = Math.hypot(p.width, p.height) / 2
+  const corners = [
+    { x: p.x - half, y: p.y - half },
+    { x: p.x + half, y: p.y + half },
+  ]
+  return keyed(`prop:${p.id}`, [p.x, p.y, p.width, p.height, p.rotation ?? 0], [{ x: p.x, y: p.y }], corners)
+}
+
+function wallThing(w: Wall): KeyedThing | null {
+  const length = Math.hypot(w.x2 - w.x1, w.y2 - w.y1)
+  if (!(length > 0)) return null
+  const nx = (-(w.y2 - w.y1) / length) * WALL_SAMPLE_OFFSET
+  const ny = ((w.x2 - w.x1) / length) * WALL_SAMPLE_OFFSET
+  const mx = (w.x1 + w.x2) / 2
+  const my = (w.y1 + w.y2) / 2
+  const samples = [
+    { x: mx + nx, y: my + ny },
+    { x: mx - nx, y: my - ny },
+  ]
+  const ends = [
+    { x: w.x1, y: w.y1 },
+    { x: w.x2, y: w.y2 },
+  ]
+  return keyed(`wall:${w.id}`, [w.x1, w.y1, w.x2, w.y2, w.door?.kind ?? null], samples, ends)
+}
+
+function stairThing(s: Stair): KeyedThing | null {
+  const first = s.segments[0]
+  if (first === undefined) return null
+  const ends = s.segments.flatMap((seg) => [
+    { x: seg.x1, y: seg.y1 },
+    { x: seg.x2, y: seg.y2 },
+  ])
+  const samples = [{ x: (first.x1 + first.x2) / 2, y: (first.y1 + first.y2) / 2 }]
+  return keyed(`stair:${s.id}`, [s.shape, s.direction, s.segments, s.stepWidth, s.rotation ?? 0], samples, ends)
+}
+
+function drawingThing(d: Drawing): KeyedThing | null {
+  const points = drawingPoints(d)
+  if (points.length === 0) return null
+  return keyed(`drawing:${d.id}`, d, points, points)
+}
+
+function lineThing(l: MapLine): KeyedThing | null {
+  if (l.points.length === 0) return null
+  return keyed(`line:${l.id}`, [l.points, l.closed, l.dotted], strokeSamples(l.points), l.points)
+}
+
+function markerThing(m: MapMarker): KeyedThing {
+  const half = Math.hypot(m.w, m.h) / 2
+  const corners = [
+    { x: m.cx - half, y: m.cy - half },
+    { x: m.cx + half, y: m.cy + half },
+  ]
+  return keyed(`marker:${m.id}`, [m.cx, m.cy, m.w, m.h, m.rotation], [{ x: m.cx, y: m.cy }], corners)
+}
+
+/**
+ * ASSINATURA SÓ DO QUE MUDOU, por referência, antes de serializar. O patch do
+ * mestre mantém a MESMA lista em todo campo do mapa que não mudou
+ * (`applyMapPatch`, em `net/viewPatch.ts`), e nada na tela do jogador muta o
+ * mapa no lugar: lista igual = coisas iguais, sem olhar uma por uma. Lista
+ * nova compara item a item com a de antes, na mesma posição; só o objeto novo
+ * é serializado (o que só andou de posição na lista é refeito: custa o de
+ * antes, nunca erra). A comparação com a lembrança continua sendo pelo
+ * conteúdo: o snapshot inteiro, de objetos novos com o mesmo conteúdo, não pisca.
+ */
+function listThings<T>(items: readonly T[], previous: ListThings<T> | undefined, build: (item: T) => KeyedThing | null): ListThings<T> {
+  if (previous === undefined) return { items, things: items.map((item) => build(item)) }
+  if (previous.items === items) return previous
+  const old = previous.items
+  return { items, things: items.map((item, i) => (old[i] === item ? previous.things[i] : build(item))) }
 }
 
 /**
@@ -159,64 +264,37 @@ function thing(signature: unknown, samples: RegionPoint[], outline: readonly Reg
  * fica de fora (anda o tempo todo), e luz, pino e sala também: são anotação
  * ou efeito, não o trecho. Da porta conta a planta (onde está, que tipo), não
  * o estado: aberta por outro jogador é o jogo andando, não o lugar mudando.
+ *
+ * O passo da ficha chega com mapa novo e as MESMAS listas: devolve o conjunto
+ * de antes inteiro. Serializar as milhares de paredes a cada passo só para
+ * descobrir isso era o tranco do passo numa cena grande.
  */
-function collectThings(map: MapData): Map<string, SeenThing> {
-  const things = new Map<string, SeenThing>()
-  for (const p of map.props) {
-    // Caixa que cabe o objeto em qualquer rotação: meia diagonal para cada lado.
-    const half = Math.hypot(p.width, p.height) / 2
-    const center = { x: p.x, y: p.y }
-    const corners = [
-      { x: p.x - half, y: p.y - half },
-      { x: p.x + half, y: p.y + half },
-    ]
-    things.set(`prop:${p.id}`, thing([p.x, p.y, p.width, p.height, p.rotation ?? 0], [center], corners))
+function collectThings(memory: RevisitMemory, map: MapData): ReadonlyMap<string, SeenThing> {
+  const previous = memory.catalog
+  const props = listThings(map.props, previous?.props, propThing)
+  const walls = listThings(map.walls, previous?.walls, wallThing)
+  const stairs = listThings(map.stairs, previous?.stairs, stairThing)
+  const drawings = listThings(map.drawings, previous?.drawings, drawingThing)
+  const lines = listThings(map.lines, previous?.lines, lineThing)
+  const markers = listThings(map.markers, previous?.markers, markerThing)
+  if (
+    previous !== null &&
+    props === previous.props &&
+    walls === previous.walls &&
+    stairs === previous.stairs &&
+    drawings === previous.drawings &&
+    lines === previous.lines &&
+    markers === previous.markers
+  ) {
+    return previous.all
   }
-  for (const w of map.walls) {
-    const length = Math.hypot(w.x2 - w.x1, w.y2 - w.y1)
-    if (!(length > 0)) continue
-    const nx = (-(w.y2 - w.y1) / length) * WALL_SAMPLE_OFFSET
-    const ny = ((w.x2 - w.x1) / length) * WALL_SAMPLE_OFFSET
-    const mx = (w.x1 + w.x2) / 2
-    const my = (w.y1 + w.y2) / 2
-    const samples = [
-      { x: mx + nx, y: my + ny },
-      { x: mx - nx, y: my - ny },
-    ]
-    const ends = [
-      { x: w.x1, y: w.y1 },
-      { x: w.x2, y: w.y2 },
-    ]
-    things.set(`wall:${w.id}`, thing([w.x1, w.y1, w.x2, w.y2, w.door?.kind ?? null], samples, ends))
+  // Mesma ordem de sempre (objetos, paredes, escadas, desenhos, linhas, marcadores): é a ordem das áreas que piscam.
+  const all = new Map<string, SeenThing>()
+  for (const list of [props, walls, stairs, drawings, lines, markers]) {
+    for (const entry of list.things) if (entry !== null) all.set(entry.key, entry.thing)
   }
-  for (const s of map.stairs) {
-    const ends = s.segments.flatMap((seg) => [
-      { x: seg.x1, y: seg.y1 },
-      { x: seg.x2, y: seg.y2 },
-    ])
-    const first = s.segments[0]
-    if (first === undefined) continue
-    const samples = [{ x: (first.x1 + first.x2) / 2, y: (first.y1 + first.y2) / 2 }]
-    things.set(`stair:${s.id}`, thing([s.shape, s.direction, s.segments, s.stepWidth, s.rotation ?? 0], samples, ends))
-  }
-  for (const d of map.drawings) {
-    const points = drawingPoints(d)
-    if (points.length === 0) continue
-    things.set(`drawing:${d.id}`, thing(d, points, points))
-  }
-  for (const l of map.lines) {
-    if (l.points.length === 0) continue
-    things.set(`line:${l.id}`, thing([l.points, l.closed, l.dotted], strokeSamples(l.points), l.points))
-  }
-  for (const m of map.markers) {
-    const half = Math.hypot(m.w, m.h) / 2
-    const corners = [
-      { x: m.cx - half, y: m.cy - half },
-      { x: m.cx + half, y: m.cy + half },
-    ]
-    things.set(`marker:${m.id}`, thing([m.cx, m.cy, m.w, m.h, m.rotation], [{ x: m.cx, y: m.cy }], corners))
-  }
-  return things
+  memory.catalog = { props, walls, stairs, drawings, lines, markers, all }
+  return all
 }
 
 /** Polígonos das salas de teto FECHADO para este jogador (o recorte só manda `roof` nesse caso). */
@@ -239,7 +317,7 @@ function comparableExplored(explored: Exploration | undefined, seen: Exploration
 }
 
 /** Primeira vez nesta cena (ou ela mudou de tamanho): só aprende o que está na visão; nada pisca. */
-function learnScene(memory: RevisitMemory, snapshot: RevisitSnapshot, sizeKey: string, things: Map<string, SeenThing>): void {
+function learnScene(memory: RevisitMemory, snapshot: RevisitSnapshot, sizeKey: string, things: ReadonlyMap<string, SeenThing>): void {
   const { map, vision, explored } = snapshot
   const visionRings = ringsOf(vision)
   const kept = new Map<string, SeenThing>()
@@ -268,13 +346,13 @@ export function observeRevisit(memory: RevisitMemory, snapshot: RevisitSnapshot)
   const scene = memory.scenes.get(map.id)
   const sizeKey = JSON.stringify([map.width, map.height, map.grid])
   if (scene === undefined || scene.sizeKey !== sizeKey) {
-    learnScene(memory, snapshot, sizeKey, collectThings(map))
+    learnScene(memory, snapshot, sizeKey, collectThings(memory, map))
     return []
   }
   // O mesmo snapshot redesenhado (brilho, nomes, zoom) não é uma volta.
   if (!arrived && scene.lastMap === map && scene.lastVision === vision) return []
 
-  const things = collectThings(map)
+  const things = collectThings(memory, map)
   const visionRings = ringsOf(vision)
   // Chegou de outra cena: aqui ele não estava olhando para nada.
   const prevRings = ringsOf(arrived ? NO_VISION : scene.prevVision)

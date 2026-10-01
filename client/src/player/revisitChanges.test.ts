@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { createEmptyMap } from '../lib/mapFactory'
 import { createExploration, markRings } from '../lib/exploration'
 import type { MapData, Prop, RegionPoint, Wall } from '../types/map'
@@ -162,5 +162,92 @@ describe('observeRevisit — o que mudou desde a última visita pisca ao ser rev
     const comEntulho = pacote([ENTULHO])
     expect(observeRevisit(memoria, { map: comEntulho, vision: NO_CORREDOR })).toHaveLength(1)
     expect(observeRevisit(memoria, { map: comEntulho, vision: NO_CORREDOR })).toEqual([])
+  })
+})
+
+/**
+ * ASSINATURA SÓ DO QUE MUDOU. O patch do mestre mantém a mesma referência em
+ * tudo que não mudou (`net/viewPatch.ts`): o passo da ficha chega com mapa novo
+ * e a MESMA lista de paredes. Serializar a planta inteira a cada passo só para
+ * descobrir que nada mudou era o tranco do passo numa cena grande.
+ */
+describe('observeRevisit — o passo da ficha só serializa o que mudou', () => {
+  /** 60 x 60 traços curtos espalhados no mundo de 1000 x 1000: a planta de uma cena grande. */
+  function planta(): Wall[] {
+    const walls: Wall[] = []
+    for (let i = 0; i < 60; i += 1) {
+      for (let j = 0; j < 60; j += 1) {
+        walls.push({ id: `p${i}-${j}`, x1: i * 16, y1: j * 16, x2: i * 16 + 10, y2: j * 16, blocksLight: true, blocksMove: true, door: null })
+      }
+    }
+    return walls
+  }
+
+  /** Quantas vezes `fn` serializou algo (`JSON.stringify`): é o custo que o passo não pode ter. */
+  function serializacoesDe(fn: () => void): number {
+    const espiao = vi.spyOn(JSON, 'stringify')
+    try {
+      fn()
+      return espiao.mock.calls.length
+    } finally {
+      espiao.mockRestore()
+    }
+  }
+
+  it('a ficha anda numa cena de 3600 paredes e a planta não é serializada de novo', () => {
+    const memoria = createRevisitMemory()
+    const walls = planta()
+    expect(walls).toHaveLength(3600)
+    const antes = pacote([], walls)
+    observeRevisit(memoria, { map: antes, vision: NO_CORREDOR })
+    // O passo: mapa novo (as fichas mudaram), visão nova, a mesma lista de paredes.
+    const passo = serializacoesDe(() => observeRevisit(memoria, { map: { ...antes, tokens: [] }, vision: NO_SALAO }))
+    expect(passo).toBeLessThan(walls.length / 100)
+  })
+
+  it('o mestre troca UMA parede: só ela é serializada além do que o passo sem mudança custa', () => {
+    const memoria = createRevisitMemory()
+    const walls = planta()
+    const antes = pacote([], walls)
+    observeRevisit(memoria, { map: antes, vision: NO_CORREDOR })
+    const semMudanca = serializacoesDe(() => observeRevisit(memoria, { map: { ...antes, tokens: [] }, vision: NO_SALAO }))
+    const trocada = walls.map((w, i) => (i === 7 ? { ...w, x2: w.x2 + 4 } : w))
+    const comMudanca = serializacoesDe(() => observeRevisit(memoria, { map: pacote([], trocada), vision: NO_CORREDOR }))
+    expect(comMudanca - semMudanca).toBe(1)
+  })
+
+  it('a planta que chega inteira de novo (objetos novos, mesmo conteúdo) não pisca', () => {
+    const porta: Wall = { id: 'porta', x1: 100, y1: 250, x2: 160, y2: 250, blocksLight: true, blocksMove: true, door: { open: false, locked: false, kind: 'normal' } }
+    const memoria = createRevisitMemory()
+    expect(observeRevisit(memoria, { map: pacote([ENTULHO], [porta]), vision: NO_CORREDOR })).toEqual([])
+    expect(observeRevisit(memoria, { map: pacote([ENTULHO], [porta]), vision: NO_SALAO })).toEqual([])
+    // Snapshot inteiro (reconexão, `view.resync`): cada objeto vem do JSON, nenhum é o mesmo de antes.
+    const deNovo = pacote(structuredClone([ENTULHO]), structuredClone([porta]))
+    expect(observeRevisit(memoria, { map: deNovo, vision: NO_CORREDOR })).toEqual([])
+  })
+
+  it('parede de mesmo id que volta noutro lugar pisca no lugar novo; a vizinha, o mesmo objeto de antes, não', () => {
+    const muro: Wall = { id: 'muro', x1: 100, y1: 250, x2: 300, y2: 250, blocksLight: true, blocksMove: true, door: null }
+    const vizinha: Wall = { id: 'vizinha', x1: 100, y1: 100, x2: 300, y2: 100, blocksLight: true, blocksMove: true, door: null }
+    const memoria = createRevisitMemory()
+    expect(observeRevisit(memoria, { map: pacote([], [muro, vizinha]), vision: NO_CORREDOR })).toEqual([])
+    expect(observeRevisit(memoria, { map: pacote([], [muro, vizinha]), vision: NO_SALAO })).toEqual([])
+    // O mestre empurrou o muro para baixo; a vizinha é o MESMO objeto de antes.
+    const empurrado: Wall = { ...muro, y1: 350, y2: 350 }
+    const volta = observeRevisit(memoria, { map: pacote([], [empurrado, vizinha]), vision: NO_CORREDOR })
+    expect(volta).toHaveLength(1)
+    expect(contem(volta[0], 200, 350)).toBe(true)
+  })
+
+  it('duas telas olhando os MESMOS objetos guardam lembranças separadas', () => {
+    const daqui = createRevisitMemory()
+    const dali = createRevisitMemory()
+    expect(observeRevisit(daqui, { map: pacote(), vision: NO_CORREDOR })).toEqual([])
+    expect(observeRevisit(daqui, { map: pacote(), vision: NO_SALAO })).toEqual([])
+    const comEntulho = pacote([ENTULHO])
+    // A outra tela vê o corredor pela primeira vez já com o entulho: não é volta.
+    expect(observeRevisit(dali, { map: comEntulho, vision: NO_CORREDOR })).toEqual([])
+    // Esta tinha visto o corredor vazio: na volta, o entulho pisca.
+    expect(observeRevisit(daqui, { map: comEntulho, vision: NO_CORREDOR })).toHaveLength(1)
   })
 })
