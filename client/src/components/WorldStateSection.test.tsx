@@ -44,8 +44,18 @@ describe('WorldStateSection: o painel "Estado do mundo" do mestre', () => {
     )
   }
 
+  /** O nome acessível: `aria-label`, senão o texto sem o que é `aria-hidden` (a contagem da linha, por exemplo). */
+  function nomeDe(el: HTMLElement): string | undefined {
+    const rotulo = el.getAttribute('aria-label')
+    if (rotulo !== null) return rotulo
+    const copia = el.cloneNode(true)
+    if (!(copia instanceof Element)) return undefined
+    for (const oculto of copia.querySelectorAll('[aria-hidden="true"]')) oculto.remove()
+    return copia.textContent?.trim()
+  }
+
   function botao(nome: string): HTMLButtonElement {
-    const b = Array.from(container.querySelectorAll('button')).find((el) => (el.getAttribute('aria-label') ?? el.textContent?.trim()) === nome)
+    const b = Array.from(container.querySelectorAll('button')).find((el) => nomeDe(el) === nome)
     if (b === undefined) throw new Error(`sem botão "${nome}"`)
     return b
   }

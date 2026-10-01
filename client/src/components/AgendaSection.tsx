@@ -275,8 +275,10 @@ export function AgendaSection({ agenda, onChange, cenas = [], onAlarm, onApito }
     return true
   }
 
+  // A contagem é a da lista inteira: o evento que já disparou continua nela
+  // ("· Disparou") até o mestre tirar, então conta também.
   return (
-    <CollapsibleSection id="agenda" title="Agenda" defaultOpen={false}>
+    <CollapsibleSection id="agenda" title="Agenda" defaultOpen={false} contagem={atual.eventos.length}>
       <div className="lb-agenda">
         <p className="lb-agenda__agora" aria-live="polite">
           Agora: {formatarMomento(atual.agora)}

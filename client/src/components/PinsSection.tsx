@@ -57,8 +57,10 @@ export function PinsSection({ entries, onGo }: PinsSectionProps) {
     }
   }
 
+  // A contagem da linha é a de `entries`, todos os pinos, e não a de
+  // `results`: a busca filtra o que se vê aberto, não o que a seção guarda.
   return (
-    <CollapsibleSection id="pins" title="Pinos" defaultOpen={false} lazy>
+    <CollapsibleSection id="pins" title="Pinos" defaultOpen={false} lazy contagem={entries.length}>
       <div className="lb-field">
         <label className="lb-label" htmlFor={searchId}>
           Buscar pino

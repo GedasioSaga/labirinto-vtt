@@ -23,6 +23,10 @@ export interface CollapsibleSectionProps {
    *  do contador de `resetZoomRequest`. O valor da montagem não abre nada, e
    *  fechar à mão continua valendo até o próximo pedido. */
   openRequest?: number
+  /** Quantos itens a lista de dentro tem: o número discreto entre o nome e a
+   *  seta ("Cenas 3 ›"). Só acima de zero — linha sem número é lista vazia.
+   *  Ausente = a linha não conta (seção `lazy`, ou que não é lista). */
+  contagem?: number
   children: ReactNode
 }
 
@@ -58,6 +62,11 @@ function writeStoredOpen(id: string, open: boolean) {
  * O título é nome de LINHA, em minúscula (`.lb-collapsible__titulo`), e não
  * legenda em caixa alta: caixa alta fica para o título de grupo — AVENTURA,
  * ESTA CENA, PAREDE (pedido painel-acervo, fatia 3; CollapsibleSection.css).
+ *
+ * A contagem (fatia 5) fica FORA do nome do botão: as jornadas procuram
+ * `getByRole('button', { name: 'Cenas', exact: true })`. Ela é a descrição
+ * dele — `aria-describedby` lê o texto do alvo mesmo `aria-hidden` —, então o
+ * leitor de tela ouve "Cenas", recolhido, "3": o mesmo que quem enxerga lê.
  */
 export function CollapsibleSection({
   id,
@@ -67,11 +76,16 @@ export function CollapsibleSection({
   headingLevel = 2,
   lazy = false,
   openRequest,
+  contagem,
   children,
 }: CollapsibleSectionProps) {
   const [storedOpen, setStoredOpen] = useState<boolean | null>(() => (persist ? readStoredOpen(id) : null))
   const open = storedOpen ?? defaultOpen
-  const bodyId = `${useId()}-body`
+  const baseId = useId()
+  const bodyId = `${baseId}-body`
+  const contagemId = `${baseId}-contagem`
+  // `> 0` também barra NaN: número que não é contagem não vira linha com "NaN".
+  const mostraContagem = contagem !== undefined && contagem > 0
   const Heading = headingLevel === 3 ? 'h3' : 'h2'
   /** Último pedido de abrir já atendido; o da montagem conta como atendido. */
   const seenOpenRequest = useRef(openRequest)
@@ -97,9 +111,15 @@ export function CollapsibleSection({
           className="lb-collapsible__toggle"
           aria-expanded={open}
           aria-controls={bodyId}
+          aria-describedby={mostraContagem ? contagemId : undefined}
           onClick={toggle}
         >
           <span className="lb-collapsible__titulo">{title}</span>
+          {mostraContagem && (
+            <span id={contagemId} className="lb-collapsible__contagem" aria-hidden="true">
+              {contagem}
+            </span>
+          )}
           <span className="lb-collapsible__chevron">
             <ChevronDownIcon size={14} />
           </span>

@@ -59,7 +59,7 @@ export function MarcasDaCena({ marcas, onApagar }: MarcasDaCenaProps) {
   }
 
   return (
-    <CollapsibleSection id="marcas" title="Marcas dos jogadores" defaultOpen>
+    <CollapsibleSection id="marcas" title="Marcas dos jogadores" defaultOpen contagem={marcas.length}>
       <div className="lb-marcas">
         <p className="lb-marcas__resumo">
           {contagem(marcas.length)} (cabem {MARCAS_POR_CENA}). Apagar uma libera espaço para quem a deixou.

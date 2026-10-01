@@ -188,7 +188,78 @@ describe('CollapsibleSection', () => {
     expect(header().getAttribute('aria-expanded')).toBe('false')
     expect(body().hidden).toBe(true)
   })
+
+  /*
+   * CONTAGEM DISCRETA (pedido painel-acervo, fatia 5): a linha fechada diz
+   * quanto tem dentro antes de abrir — "Cenas 3 ›". O número não entra no
+   * nome do botão: 21 jornadas procuram `getByRole('button', { name: 'Cenas',
+   * exact: true })`. Ele é a DESCRIÇÃO: o leitor de tela ouve "Cenas",
+   * recolhido, e depois "3", o mesmo que quem enxerga lê.
+   */
+  describe('contagem', () => {
+    const renderContagem = (contagem: number | undefined) =>
+      act(() =>
+        root.render(
+          <CollapsibleSection id="scenes" title="Cenas" defaultOpen={false} contagem={contagem}>
+            <p>conteúdo</p>
+          </CollapsibleSection>,
+        ),
+      )
+    const contagem = () => header().querySelector('.lb-collapsible__contagem')
+
+    it('com contagem, o número fica entre o nome e a seta, e o botão continua se chamando só "Cenas"', () => {
+      renderContagem(3)
+      expect(contagem()?.textContent).toBe('3')
+      expect(contagem()?.getAttribute('aria-hidden')).toBe('true')
+      expect([...header().children].map((el) => el.className)).toEqual(['lb-collapsible__titulo', 'lb-collapsible__contagem', 'lb-collapsible__chevron'])
+      expect(nomeAcessivel(header())).toBe('Cenas')
+    })
+
+    it('o número é a descrição do botão: o leitor de tela ouve "Cenas" e depois "3"', () => {
+      renderContagem(3)
+      const descricao = header().getAttribute('aria-describedby')
+      expect(descricao, 'o botão não aponta para o número').toBeTruthy()
+      expect(document.getElementById(descricao ?? '')).toBe(contagem())
+    })
+
+    it('sem contagem, com 0 ou com valor que não é contagem, a linha fica só com o nome e a seta, sem descrição', () => {
+      for (const valor of [undefined, 0, -2, Number.NaN]) {
+        renderContagem(valor)
+        expect(contagem(), String(valor)).toBeNull()
+        expect(header().hasAttribute('aria-describedby'), String(valor)).toBe(false)
+        expect(header().textContent, String(valor)).toBe('Cenas')
+      }
+    })
+
+    it('o número acompanha a lista: muda no render seguinte e some quando ela esvazia', () => {
+      renderContagem(3)
+      renderContagem(4)
+      expect(contagem()?.textContent).toBe('4')
+      renderContagem(0)
+      expect(contagem()).toBeNull()
+      renderContagem(1)
+      expect(contagem()?.textContent).toBe('1')
+    })
+
+    it('abrir e fechar não mexe no número: aberta, a linha continua dizendo quanto tem', () => {
+      renderContagem(3)
+      act(() => header().click())
+      expect(header().getAttribute('aria-expanded')).toBe('true')
+      expect(contagem()?.textContent).toBe('3')
+    })
+  })
 })
+
+/**
+ * O nome acessível do botão, como o leitor de tela e o `getByRole` dos specs o
+ * calculam aqui: o texto de dentro, sem o que é `aria-hidden`.
+ */
+function nomeAcessivel(el: Element): string {
+  const copia = el.cloneNode(true)
+  if (!(copia instanceof Element)) return ''
+  for (const oculto of copia.querySelectorAll('[aria-hidden="true"]')) oculto.remove()
+  return (copia.textContent ?? '').trim()
+}
 
 /** O CSS como está no disco (ver `PropertiesPanel.moldura.test.ts`: `?raw` e `new URL` não leem o arquivo). */
 async function lerCss(): Promise<string> {
@@ -270,6 +341,36 @@ describe('CollapsibleSection.css — a linha que abre e fecha', () => {
   it('o Avançado dentro de uma seção que abre começa na vertical dos campos dela', async () => {
     const dentro = regra(await lerCss(), '.lb-collapsible__body > .lb-collapsible')
     expect(dentro.get('padding-inline')).toBe('0')
+  })
+
+  it('a contagem mora à direita, colada à seta: na fonte e no tamanho do nome, mais leve e mais apagada que ele, com algarismos de largura fixa', async () => {
+    const contagem = regra(await lerCss(), '.lb-collapsible__contagem')
+    // A margem automática toma o espaço livre antes do `space-between` do botão:
+    // sem ela, com três filhos, o número ia parar no meio da linha.
+    expect(contagem.get('margin-left')).toBe('auto')
+    // 4 px até a caixa da seta (o vão do botão é 8): "12 ›" se lê como uma peça.
+    expect(contagem.get('margin-right')).toBe('calc(var(--lb-space-1) - var(--lb-space-2))')
+    expect(contagem.get('flex')).toBe('none')
+    // O botão não herda a fonte da página (o navegador dá a dele): sem dizer a
+    // família, o número sairia noutra fonte, com outra linha de base.
+    expect(contagem.get('font-family')).toBe('var(--lb-font-sans)')
+    expect(contagem.get('font-weight')).toBe('var(--lb-font-weight-regular)')
+    // O TAMANHO do nome, e não um passo menor: com a linha centralizada, número
+    // menor fica com a linha de base 1 px acima da do nome (medido; é a lição
+    // de Camadas, main.css). Quem o deixa discreto é o peso e a cor.
+    expect(contagem.get('font-size')).toBe('var(--lb-font-size-md)')
+    expect(contagem.get('font-variant-numeric')).toBe('tabular-nums')
+    expect(contagem.get('color')).toBe('var(--lb-color-parchment-faint)')
+    // Nem pulo de número nem pulso: a contagem só troca de valor.
+    expect(contagem.has('transition')).toBe(false)
+    expect(contagem.has('animation')).toBe(false)
+  })
+
+  it('sob o ponteiro ou apertada, a contagem sobe um tom com a linha, sem passar o nome', async () => {
+    const css = await lerCss()
+    for (const seletor of ['.lb-collapsible__toggle:hover > .lb-collapsible__contagem', '.lb-collapsible__toggle:active > .lb-collapsible__contagem']) {
+      expect(regra(css, seletor).get('color'), seletor).toBe('var(--lb-color-parchment-dim)')
+    }
   })
 
   it('só tokens do tema: nenhuma cor solta na folha', async () => {

@@ -1483,7 +1483,7 @@ export function ScenesSection({
   const inputLabel = editing?.kind === 'create' ? 'Nome da nova cena' : 'Novo nome da cena'
 
   return (
-    <CollapsibleSection id="scenes" title="Cenas" defaultOpen={defaultOpen}>
+    <CollapsibleSection id="scenes" title="Cenas" defaultOpen={defaultOpen} contagem={scenes.length}>
       {showFilter && (
         <div className="lb-cenas__filtro">
           <label className="lb-label" htmlFor={filterId}>

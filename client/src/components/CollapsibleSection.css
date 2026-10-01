@@ -33,6 +33,44 @@
   color: var(--lb-color-parchment);
 }
 
+/* A CONTAGEM (fatia 5): quanto a lista de dentro tem, para a linha fechada
+   dizer antes de abrir — "Cenas 3 ›". É dado de canto, não título: peso
+   regular e um tom abaixo do nome.
+   - O TAMANHO é o do nome. Com a linha centralizada, um número um passo
+     menor ficava com a linha de base 1 px acima da do nome (medido em DPR 1
+     e 2; é a mesma lição de Camadas, em main.css). Quem o deixa discreto é
+     o peso e a cor, não o tamanho.
+   - `margin-left: auto` toma o espaço livre antes do `space-between` do
+     botão (com três filhos o número iria para o meio da linha). A margem da
+     direita desconta 4 dos 8 px do vão: o número fica a 4 px da caixa da
+     seta, que tem ar por dentro, e "12 ›" se lê como uma peça (9 px até o
+     traço). Com o vão inteiro, 13 px, o número ficava solto entre o nome e
+     a seta. A seta não sai da coluna dela.
+   - A família vem dita: o botão não herda a fonte da página (o navegador dá
+     a dele), e noutra família o número ficaria noutra linha de base. O peso
+     também, pelo mesmo motivo.
+   - Algarismos de largura fixa: 18 → 19 não balança o número.
+   - Sem transição: o número só troca de valor. */
+.lb-collapsible__contagem {
+  flex: none;
+  margin-left: auto;
+  margin-right: calc(var(--lb-space-1) - var(--lb-space-2));
+  font-family: var(--lb-font-sans);
+  font-size: var(--lb-font-size-md);
+  font-weight: var(--lb-font-weight-regular);
+  font-variant-numeric: tabular-nums;
+  color: var(--lb-color-parchment-faint);
+}
+
+/* Sob o ponteiro (e no aperto) a linha acende inteira, cada peça um tom
+   acima: o nome vai ao pergaminho e a contagem ao secundário, sempre abaixo
+   do nome. Parada, ela ficava apagada entre o nome e a seta acesos, como se
+   não fosse do botão. */
+.lb-collapsible__toggle:hover > .lb-collapsible__contagem,
+.lb-collapsible__toggle:active > .lb-collapsible__contagem {
+  color: var(--lb-color-parchment-dim);
+}
+
 /* O anel de foco fica DENTRO da linha: agora as linhas se encostam (sem fio
    entre elas) e a legenda do grupo mora logo acima da primeira, e o anel de
    fora (main.css) encostava nas duas. É o anel das linhas de Locais. Para o

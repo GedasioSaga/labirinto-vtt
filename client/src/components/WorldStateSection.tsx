@@ -97,7 +97,7 @@ export function WorldStateSection({ estados, amarrados, onCriar, onTrocar }: Wor
   }
 
   return (
-    <CollapsibleSection id="world-state" title="Estado do mundo" defaultOpen={false}>
+    <CollapsibleSection id="world-state" title="Estado do mundo" defaultOpen={false} contagem={estados.length}>
       <div className="lb-world">
         {estados.length === 0 ? (
           <p className="lb-world__vazio">
