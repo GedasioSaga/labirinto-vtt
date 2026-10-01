@@ -61,6 +61,8 @@ export interface AudioFalso {
   createBuffer: Mock<(canais: number, quadros: number, taxa: number) => BufferFalso>
   resume: Mock<() => Promise<void>>
   definirEstado(estado: AudioContextState): void
+  /** Anda o relógio do áudio: o toque seguinte dispara mais tarde, com o anterior ainda soando. */
+  avancar(segundos: number): void
 }
 
 export interface OpcoesDoAudioFalso {
@@ -99,6 +101,7 @@ function guardar<T>(lista: T[], item: T): T {
 
 export function criarAudioFalso(opcoes: OpcoesDoAudioFalso = {}): AudioFalso {
   let estado: AudioContextState = opcoes.estado ?? 'running'
+  let agora = opcoes.agora ?? 3
   const destination = noFalso('saida')
   const osciladores: OsciladorFalso[] = []
   const ganhos: GanhoFalso[] = []
@@ -115,7 +118,9 @@ export function criarAudioFalso(opcoes: OpcoesDoAudioFalso = {}): AudioFalso {
   })
 
   const ctx: ContextoDeSom<NoFalso> = {
-    currentTime: opcoes.agora ?? 3,
+    get currentTime() {
+      return agora
+    },
     sampleRate: opcoes.taxa ?? 48000,
     get state() {
       return estado
@@ -161,6 +166,9 @@ export function criarAudioFalso(opcoes: OpcoesDoAudioFalso = {}): AudioFalso {
     resume,
     definirEstado: (novo) => {
       estado = novo
+    },
+    avancar: (segundos) => {
+      agora += segundos
     },
   }
 }

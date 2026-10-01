@@ -3,8 +3,8 @@ import type { FiltroDaVoz, Voz, VozOscilador } from './receitas'
 
 /**
  * SINTETIZADOR DOS SONS DE CLIMA: monta cada voz de uma receita (oscilador ou
- * ruído -> filtro -> envelope -> ganho mestre) e agenda o começo e o fim.
- * Cada nó vive só o tempo da voz; nada fica tocando.
+ * ruído -> filtro -> envelope -> volume do toque -> ganho mestre) e agenda o
+ * começo e o fim. Cada nó vive só o tempo do som; nada fica tocando.
  */
 
 /** Rampa exponencial não aceita 0: "silêncio" é um ganho desprezível (-80 dB). */
@@ -83,13 +83,12 @@ function criarFiltro<N>(ctx: ContextoDeSom<N>, filtro: FiltroDaVoz, inicio: numb
   return no
 }
 
-function tocarVoz<N>(saida: SaidaDeSom<N>, voz: Voz, indice: number, disparo: number): void {
-  const { ctx } = saida
+function tocarVoz<N>(ctx: ContextoDeSom<N>, destino: N, voz: Voz, indice: number, disparo: number): void {
   const inicio = disparo + voz.inicio
   const fim = inicio + voz.duracao
   const envelope = ctx.createGain()
   programarEnvelope(envelope.gain, voz, inicio)
-  envelope.connect(saida.mestre)
+  envelope.connect(destino)
   const entrada = voz.filtro === undefined ? envelope : criarFiltro(ctx, voz.filtro, inicio, envelope)
 
   if (voz.fonte === 'ruido') {
@@ -110,15 +109,24 @@ function tocarVoz<N>(saida: SaidaDeSom<N>, voz: Voz, indice: number, disparo: nu
 
 /**
  * Toca as vozes de uma receita na saída. `volume` é o da barra (0..1); o
- * mestre recebe o quadrado, porque o ouvido ouve o ganho em escala log e a
+ * toque recebe o quadrado, porque o ouvido ouve o ganho em escala log e a
  * barra linear deixaria quase tudo no último quarto. Nunca lança: sem áudio
  * devolve `false`.
+ *
+ * O volume mora num ganho só deste toque, parado do começo ao fim dele, e não
+ * no mestre: o mestre é de todos os sons, e mudar o valor dele com outro som
+ * ainda soando (a barra subiu entre dois toques) seria um degrau no meio da
+ * cauda desse outro, um clique. A barra vale do próximo toque em diante.
  */
 export function tocarReceita<N>(saida: SaidaDeSom<N>, vozes: readonly Voz[], volume: number): boolean {
   try {
-    const disparo = saida.ctx.currentTime + ANTECEDENCIA_S
-    saida.mestre.gain.setValueAtTime(volume * volume, disparo)
-    vozes.forEach((voz, indice) => tocarVoz(saida, voz, indice, disparo))
+    const { ctx } = saida
+    const disparo = ctx.currentTime + ANTECEDENCIA_S
+    const volumeDoToque = ctx.createGain()
+    // Nenhuma voz começa antes do disparo, então o ganho padrão (1) até ali nunca soa.
+    volumeDoToque.gain.setValueAtTime(volume * volume, disparo)
+    volumeDoToque.connect(saida.mestre)
+    vozes.forEach((voz, indice) => tocarVoz(ctx, volumeDoToque, voz, indice, disparo))
     return true
   } catch {
     // Nó recusado ou contexto fechado no meio: o jogo segue sem esse som, nunca com erro.

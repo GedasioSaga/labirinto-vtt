@@ -48,7 +48,11 @@ export interface FonteDeBufferDeSom<N> extends NoDeSom<N> {
   stop(quando: number): void
 }
 
-/** Estende o contexto do bipe do mestre: o mesmo contexto serve aos dois (`signalSound.ts`). */
+/**
+ * Estende só o TIPO do contexto do bipe do mestre (`signalSound.ts`). O
+ * contexto em si não é dividido: o bipe cria o próprio no primeiro bipe, fora
+ * deste motor e fora de gesto, e o destravamento feito aqui não vale para ele.
+ */
 export interface ContextoDeSom<N> extends SignalAudioContext<N> {
   readonly sampleRate: number
   createOscillator(): OsciladorDeSom<N>
@@ -60,7 +64,11 @@ export interface ContextoDeSom<N> extends SignalAudioContext<N> {
 
 export interface SaidaDeSom<N> {
   readonly ctx: ContextoDeSom<N>
-  /** Entrada da cadeia de saída: ganho mestre (volume da mesa) -> passa-baixa geral -> destination. */
+  /**
+   * Entrada comum a todos os sons: ganho mestre -> passa-baixa geral ->
+   * destination. O mestre fica em 1; o volume da mesa vai num ganho de cada
+   * toque (`tocarReceita`), porque mexer aqui mudaria também o som que ainda soa.
+   */
   readonly mestre: GanhoDeSom<N> & N
 }
 

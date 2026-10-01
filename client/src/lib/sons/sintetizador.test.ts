@@ -2,10 +2,12 @@ import { describe, expect, it } from 'vitest'
 import {
   caminhoAteASaida,
   criarAudioFalso,
+  type AudioFalso,
   type FonteFalsa,
   type GanhoFalso,
   type NoFalso,
   type OsciladorFalso,
+  type ParametroFalso,
 } from './audioFalso.fixture'
 import { RECEITAS, type SomId, type VozOscilador } from './receitas'
 import { SEGUNDOS_DE_RUIDO, SILENCIO, curvaDeAltura, tocarReceita } from './sintetizador'
@@ -21,6 +23,28 @@ function envelopeDe(fonte: NoFalso, ganhos: readonly GanhoFalso[]): GanhoFalso {
     atual = atual.destino
   }
   throw new Error(`a fonte ${fonte.nome} não passa por um ganho de envelope`)
+}
+
+/** O ganho que entrega a fonte ao mestre: onde mora o volume do toque. */
+function volumeDoToqueDe(fonte: NoFalso, audio: AudioFalso): GanhoFalso {
+  let atual = fonte.destino
+  while (atual !== null) {
+    if (atual.destino === audio.mestre) {
+      const ganho = audio.ganhos.find((candidato) => candidato === atual)
+      if (ganho !== undefined) return ganho
+    }
+    atual = atual.destino
+  }
+  throw new Error(`a fonte ${fonte.nome} não chega ao mestre por um ganho`)
+}
+
+/** Eventos agendados num parâmetro, de qualquer tipo: degrau, rampa ou curva. */
+function totalDeEventos(parametro: ParametroFalso): number {
+  return (
+    parametro.setValueAtTime.mock.calls.length +
+    parametro.exponentialRampToValueAtTime.mock.calls.length +
+    parametro.setValueCurveAtTime.mock.calls.length
+  )
 }
 
 function primeiraChamada<T extends unknown[]>(chamadas: T[]): T {
@@ -48,16 +72,55 @@ describe('tocarReceita', () => {
     }
   })
 
-  it('o ganho mestre recebe o volume ao quadrado (0.35 -> 0.1225) no instante do disparo', () => {
+  it('o volume ao quadrado (0.35 -> 0.1225) vai num ganho só deste toque, posto no disparo, antes de qualquer voz soar', () => {
     const audio = criarAudioFalso({ agora: 3 })
     tocarReceita(audio.saida, RECEITAS.dado, 0.35)
-    const [ganho, quando] = primeiraChamada(audio.mestre.gain.setValueAtTime.mock.calls)
+    const fontes: (OsciladorFalso | FonteFalsa)[] = [...audio.osciladores, ...audio.fontes]
+    const [umaFonte] = fontes
+    if (umaFonte === undefined) throw new Error('o dado não criou fontes')
+    const volume = volumeDoToqueDe(umaFonte, audio)
+    // Uma porta só até o mestre: todas as vozes do toque passam pelo mesmo volume.
+    for (const fonte of fontes) expect(volumeDoToqueDe(fonte, audio)).toBe(volume)
+    expect(totalDeEventos(volume.gain)).toBe(1)
+    const [ganho, quando] = primeiraChamada(volume.gain.setValueAtTime.mock.calls)
     expect(ganho).toBeCloseTo(0.1225, 6)
     expect(quando).toBeGreaterThanOrEqual(3)
     expect(quando).toBeLessThan(3.05)
-    // As vozes partem do mesmo instante (ou depois): nada é agendado no passado do mestre.
-    const partidas = [...audio.osciladores, ...audio.fontes].map((fonte) => primeiraChamada(fonte.start.mock.calls)[0])
+    // As vozes partem do mesmo instante (ou depois): nenhuma soa antes de o volume estar posto.
+    const partidas = fontes.map((fonte) => primeiraChamada(fonte.start.mock.calls)[0])
     expect(Math.min(...partidas)).toBeCloseTo(quando, 9)
+  })
+
+  it('aviso a 0.35 ainda soando quando a barra sobe para 1 e o dado dispara: o mestre comum não muda e o aviso acaba no volume dele', () => {
+    const audio = criarAudioFalso({ agora: 3 })
+    tocarReceita(audio.saida, RECEITAS.aviso, 0.35)
+    const doAviso: (OsciladorFalso | FonteFalsa)[] = [...audio.osciladores, ...audio.fontes]
+    audio.avancar(0.5)
+    tocarReceita(audio.saida, RECEITAS.dado, 1)
+    const doDado = [...audio.osciladores, ...audio.fontes].filter((fonte) => !doAviso.includes(fonte))
+    expect(doDado).toHaveLength(RECEITAS.dado.length)
+
+    // O cenário do achado: o dado dispara no meio da cauda do aviso.
+    const fimDoAviso = Math.max(...doAviso.map((fonte) => primeiraChamada(fonte.stop.mock.calls)[0]))
+    const disparoDoDado = Math.min(...doDado.map((fonte) => primeiraChamada(fonte.start.mock.calls)[0]))
+    expect(disparoDoDado).toBeLessThan(fimDoAviso)
+
+    // O mestre é de todos os sons: um degrau nele aqui seria +18 dB instantâneos na cauda do aviso, um clique.
+    expect(totalDeEventos(audio.mestre.gain)).toBe(0)
+
+    // Cada toque leva o seu volume, parado do começo ao fim.
+    const [umDoAviso] = doAviso
+    const [umDoDado] = doDado
+    if (umDoAviso === undefined || umDoDado === undefined) throw new Error('toque sem fontes')
+    const volumeDoAviso = volumeDoToqueDe(umDoAviso, audio)
+    const volumeDoDado = volumeDoToqueDe(umDoDado, audio)
+    expect(volumeDoDado).not.toBe(volumeDoAviso)
+    for (const fonte of doAviso) expect(volumeDoToqueDe(fonte, audio)).toBe(volumeDoAviso)
+    for (const fonte of doDado) expect(volumeDoToqueDe(fonte, audio)).toBe(volumeDoDado)
+    expect(totalDeEventos(volumeDoAviso.gain)).toBe(1)
+    expect(primeiraChamada(volumeDoAviso.gain.setValueAtTime.mock.calls)[0]).toBeCloseTo(0.1225, 6)
+    expect(totalDeEventos(volumeDoDado.gain)).toBe(1)
+    expect(primeiraChamada(volumeDoDado.gain.setValueAtTime.mock.calls)[0]).toBe(1)
   })
 
   it.each(ids)('%s: envelope sem clique (sai do silêncio quando a fonte liga e só para depois de voltar a ele)', (id) => {
@@ -87,7 +150,8 @@ describe('tocarReceita', () => {
     const passaAlta = audio.filtros.find((filtro) => filtro.type === 'highpass')
     if (passaAlta === undefined) throw new Error('portaAbre tem o clique em passa-alta')
     expect(primeiraChamada(passaAlta.frequency.setValueAtTime.mock.calls)[0]).toBeGreaterThan(1000)
-    expect(caminhoAteASaida(passaAlta)).toEqual(['filtro', 'ganho', 'mestre', 'saida'])
+    // filtro -> envelope da voz -> volume do toque -> mestre -> saída
+    expect(caminhoAteASaida(passaAlta)).toEqual(['filtro', 'ganho', 'ganho', 'mestre', 'saida'])
   })
 
   it('ruído: um buffer só por contexto, reaproveitado entre vozes e entre toques, sem passar do fim', () => {

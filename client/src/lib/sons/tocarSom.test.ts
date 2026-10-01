@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { PreferenciaDeSom } from '../../stores/somStore'
 import { criarAudioFalso, type AudioFalso, type NoFalso } from './audioFalso.fixture'
-import type { SaidaDeSom } from './contexto'
+import { destravarAudioNoPrimeiroGesto, type SaidaDeSom } from './contexto'
 import type { SomId } from './receitas'
 import { criarTocador, tocarSom } from './tocarSom'
 
@@ -87,7 +87,7 @@ describe('tocarSom', () => {
     expect(falha.produzir).toHaveBeenCalledTimes(2)
   })
 
-  it('sem produzir injetado, sintetiza a receita do som com o volume ao quadrado no mestre', () => {
+  it('sem produzir injetado, sintetiza a receita do som com o volume ao quadrado num ganho do toque, sem mexer no mestre', () => {
     const audio = criarAudioFalso()
     const tocar = criarTocador({
       obterSaida: () => audio.saida,
@@ -96,11 +96,33 @@ describe('tocarSom', () => {
     })
     expect(tocar('item')).toBe(true)
     expect(audio.osciladores).toHaveLength(8)
-    expect(audio.mestre.gain.setValueAtTime).toHaveBeenCalledWith(0.25, expect.any(Number))
+    const [volumeDoToque, ...outros] = audio.ganhos.filter((ganho) => ganho.destino === audio.mestre)
+    if (volumeDoToque === undefined) throw new Error('nenhum ganho entrega o toque ao mestre')
+    expect(outros).toEqual([])
+    expect(volumeDoToque.gain.setValueAtTime).toHaveBeenCalledWith(0.25, expect.any(Number))
+    expect(audio.mestre.gain.setValueAtTime).not.toHaveBeenCalled()
   })
 
-  it('a instância do app, sem Web Audio (jsdom) e sem gesto, devolve false e não lança', () => {
-    expect(() => tocarSom('item')).not.toThrow()
-    expect(tocarSom('passagem')).toBe(false)
+  it('a instância do app sem Web Audio: mesmo depois do gesto que destravaria o áudio, devolve false e não lança', () => {
+    // Sem o gesto o false viria só de ainda não haver saída. A contagem prova que o gesto chegou ao
+    // motor e que ele procurou o AudioContext (e não achou) antes de o tocarSom ser chamado.
+    let procurasPeloAudioContext = 0
+    Object.defineProperty(globalThis, 'AudioContext', {
+      configurable: true,
+      get: () => {
+        procurasPeloAudioContext += 1
+        return undefined
+      },
+    })
+    const parar = destravarAudioNoPrimeiroGesto(window)
+    try {
+      window.dispatchEvent(new Event('pointerup'))
+      expect(procurasPeloAudioContext).toBe(1)
+      expect(() => tocarSom('item')).not.toThrow()
+      expect(tocarSom('passagem')).toBe(false)
+    } finally {
+      parar()
+      Reflect.deleteProperty(globalThis, 'AudioContext')
+    }
   })
 })
