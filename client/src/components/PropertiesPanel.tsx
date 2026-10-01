@@ -11,7 +11,8 @@ import { PropPlayerControls, type PropPlayerControlsProps } from './PropPlayerCo
 import { SelectionControls, type SelectionControlsProps } from './SelectionControls'
 import { SelectionHeader, deleteLabelFor, floorActions, selectionIdentity } from './SelectionHeader'
 import { NadaSelecionado } from './NadaSelecionado'
-import type { NovoTokenProps } from './NovoTokenForm'
+import { ADICIONAR_TOKEN, ADICIONAR_TOKEN_DICA, NOVO_TOKEN_CAMPO_ID, NovoTokenForm } from './NovoTokenForm'
+import { BotaoMais } from './BotaoMais'
 import { EndireitarControl } from './EndireitarControl'
 import { WallDoorControls, type WallDoorControlsProps } from './WallDoorControls'
 import { DoorKindControls, type DoorKindControlsProps } from './DoorKindControls'
@@ -86,7 +87,7 @@ import { pinKindShowsIcon } from '../lib/pins'
 import { DEFAULT_TEXT_FONT_FAMILY } from '../lib/drawingFactory'
 import { panelHeadingTool, type PropertyGroupId } from '../lib/toolProperties'
 import { TOOL_LABELS } from './labels'
-import { useId, useLayoutEffect, useRef, type ReactNode } from 'react'
+import { useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import './PropertiesPanel.css'
 
 interface PropertiesPanelProps {
@@ -420,26 +421,54 @@ export function PropertiesPanel({
   const regionSecret = selectedRegion !== null && groups.has('playerVisibility') ? playerSecret : null
   // A seção "Parede" muda de lugar conforme o item (ordem por tarefa): montada uma vez só.
   const doorSelected = selectedWall !== null && selectedWall.door !== null
-  // "+ TOKEN": um lugar de cada vez (ver `ADICIONAR_TOKEN`) — na faixa do topo
-  // sem seleção, no título do Acervo com seleção. A ficha do token novo nasce
-  // selecionada no TOPO do corpo; quem criou lá do Acervo, no pé da coluna, não
-  // veria nada mudar no painel. Então a coluna volta ao topo: já no clique (o
-  // topo é o topo, com ou sem a ficha) e de novo depois do commit que a traz.
-  // Sem animação: o gesto costuma ser o Enter.
+  // "+ TOKEN" NO CABEÇALHO: um lugar só (ver `ADICIONAR_TOKEN`), o mesmo com e
+  // sem seleção, fora do corpo que rola. Ele já morou na faixa vazia (que some
+  // quando algo é selecionado) e no título do Acervo (a 1500 px do topo com
+  // uma ficha aberta). O campo do nome nasce no topo do corpo, logo abaixo da
+  // faixa, e não depende da seleção: trocar o item selecionado não apaga o
+  // nome digitado.
+  const [novoTokenAberto, setNovoTokenAberto] = useState(false)
   const corpoRef = useRef<HTMLDivElement>(null)
+  const maisTokenRef = useRef<HTMLButtonElement>(null)
+  // Pendências do commit seguinte: o que só dá para fazer depois que o React
+  // tirou o campo da tela e trouxe a ficha do token novo.
   const revelarFichaNovaRef = useRef(false)
+  const devolverFocoAoMaisTokenRef = useRef(false)
   useLayoutEffect(() => {
-    if (!revelarFichaNovaRef.current) return
-    revelarFichaNovaRef.current = false
-    if (corpoRef.current !== null) corpoRef.current.scrollTop = 0
-  })
-  const novoToken: NovoTokenProps = {
-    defaultTokenName: selection.defaultTokenName,
-    onAddToken: (nome) => {
-      revelarFichaNovaRef.current = true
+    // A ficha do token novo nasce selecionada no TOPO do corpo: com a coluna
+    // rolada, quem criou não veria nada mudar. Sem animação: o gesto costuma
+    // ser o Enter.
+    if (revelarFichaNovaRef.current) {
+      revelarFichaNovaRef.current = false
       if (corpoRef.current !== null) corpoRef.current.scrollTop = 0
-      selection.onAddToken(nome)
-    },
+    }
+    // O foco volta a quem abriu o campo (criou ou desistiu), e não cai no
+    // body quando o campo sai: o Enter seguinte já abre o próximo token. O
+    // botão é o mesmo antes e depois da seleção nova — o cabeçalho não troca.
+    if (devolverFocoAoMaisTokenRef.current) {
+      devolverFocoAoMaisTokenRef.current = false
+      maisTokenRef.current?.focus()
+    }
+  })
+  const abrirNovoToken = () => {
+    if (!novoTokenAberto) {
+      setNovoTokenAberto(true)
+      return
+    }
+    // Já aberto: o "+ Token" leva de volta ao campo, com o que já foi escrito
+    // (o foco no campo seleciona o nome — digitar troca).
+    document.getElementById(NOVO_TOKEN_CAMPO_ID)?.focus()
+  }
+  const confirmarNovoToken = (nome: string) => {
+    revelarFichaNovaRef.current = true
+    devolverFocoAoMaisTokenRef.current = true
+    if (corpoRef.current !== null) corpoRef.current.scrollTop = 0
+    setNovoTokenAberto(false)
+    selection.onAddToken(nome)
+  }
+  const desistirDoNovoToken = () => {
+    devolverFocoAoMaisTokenRef.current = true
+    setNovoTokenAberto(false)
   }
   // GRUPOS DA COLUNA (pedido painel-acervo, fatia 3): abaixo do que está na
   // mão, o que é da AVENTURA e o que é DESTA CENA, cada um com a sua legenda.
@@ -469,6 +498,7 @@ export function PropertiesPanel({
       />
     </ToolPropertiesSection>
   )
+  const linhaDoMapa = `${mapName} · ${mapWidth}×${mapHeight} · ${mapGrid}px`
 
   return (
     <div className="lb-panel lb-inspector">
@@ -478,10 +508,17 @@ export function PropertiesPanel({
         </span>
         <span className="lb-inspector__id">
           <h1 className="lb-inspector__wordmark">Labirinto</h1>
-          <span className="lb-inspector__mapname" title={mapName}>
-            {mapName} · {mapWidth}×{mapHeight} · {mapGrid}px
+          {/* Com o "+ Token" ao lado, a linha corta antes das medidas: o
+              `title` traz a linha inteira para o ponteiro. */}
+          <span className="lb-inspector__mapname" title={linhaDoMapa}>
+            {linhaDoMapa}
           </span>
         </span>
+        {/* Criar no cabeçalho, ao lado da engrenagem, como o "novo" da barra
+            lateral do Linear e do Notion: à vista com qualquer seleção e em
+            qualquer altura da coluna. Fica à mostra com o campo aberto — o
+            cabeçalho não muda de desenho, e o clique leva de volta ao campo. */}
+        <BotaoMais ref={maisTokenRef} nome={ADICIONAR_TOKEN} texto="Token" dica={ADICIONAR_TOKEN_DICA} onClick={abrirNovoToken} />
         <MapSettingsButton
           grid={grid}
           gridAlign={gridAlign}
@@ -497,10 +534,10 @@ export function PropertiesPanel({
       </header>
 
       <div className="lb-inspector__body lb-scroll" ref={corpoRef}>
-        {/* Sem nada selecionado, a faixa vazia no mesmo lugar: "Nada
-            selecionado" e o "+ Token", à mão sem rolar. Sem título, como a
-            outra: o primeiro `h2` continua sendo o da ferramenta. */}
-        {!algoSelecionado && <NadaSelecionado novoToken={novoToken} />}
+        {/* Sem nada selecionado, a faixa vazia no mesmo lugar, só com o
+            "Nada selecionado". Sem título, como a outra: o primeiro `h2`
+            continua sendo o da ferramenta. */}
+        {!algoSelecionado && <NadaSelecionado />}
         {/* A faixa da seleção, fixa no topo do corpo: o que está selecionado,
             Apagar e "Mais ações" à vista em qualquer altura da coluna. Sem
             título, então o primeiro `h2` continua sendo o do item. `key`: outro
@@ -524,6 +561,17 @@ export function PropertiesPanel({
             // tudo sobe ou desce um piso pelo menu, sem ocupar a coluna.
             actions={pisos === undefined ? [] : floorActions(pisos.pisoAtivo, pisos.onLevarSelecaoAoPiso)}
             actionsHint={pisos === undefined ? null : LEVAR_AO_PISO_HINT}
+          />
+        )}
+        {/* O campo do "+ Token" do cabeçalho: logo abaixo da faixa, o mais
+            perto do botão que o abriu e acima do que estiver selecionado. Sem
+            título, para o primeiro `h2` continuar sendo o do item. */}
+        {novoTokenAberto && (
+          <NovoTokenForm
+            className="lb-section"
+            defaultTokenName={selection.defaultTokenName}
+            onConfirm={confirmarNovoToken}
+            onCancel={desistirDoNovoToken}
           />
         )}
         {/* Endireitar (pedido 5): aparece sozinho quando há Linha, Parede solta
@@ -854,9 +902,9 @@ export function PropertiesPanel({
             )}
           </ToolPropertiesSection>
         )}
-        {/* "Levar ao piso" e Apagar moram na faixa do topo, e o "Adicionar
-            token" e o "Nada selecionado" também (o "+ Token" no Acervo, com
-            seleção). Aqui fica só o que é de vários itens: seleção de área,
+        {/* "Levar ao piso" e Apagar moram na faixa do topo, e o "Nada
+            selecionado" também; o "Adicionar token" é o "+ Token" do
+            cabeçalho. Aqui fica só o que é de vários itens: seleção de área,
             alinhar e o "Oculto para jogadores" em lote. */}
         <ToolPropertiesSection group="selection" groups={groups}>
           <AreaSelectionControls {...areaSelection} />
@@ -926,9 +974,8 @@ export function PropertiesPanel({
             não da aventura nem da cena. Sem `ToolPropertiesSection` e sem
             `CollapsibleSection`: não pertence a ferramenta nem a seleção
             nenhuma, e é para estar à mão justamente quando nada está
-            selecionado. O "+ Token" entra no título dele só com seleção: sem,
-            ele está na faixa do topo. */}
-        <TokenLibraryPanel {...tokenLibrary} novoToken={algoSelecionado ? novoToken : undefined} />
+            selecionado. */}
+        <TokenLibraryPanel {...tokenLibrary} />
       </div>
     </div>
   )

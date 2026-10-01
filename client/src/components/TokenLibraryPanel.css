@@ -3,9 +3,9 @@
  * trilho. Desde o pedido painel-acervo (01/10/2026) é uma árvore leve, como o
  * painel de camadas do Figma e o Explorer do VS Code: linha sem borda nem
  * fundo, pasta sem faixa, um fio fino de pasta, e o Mover e o Apagar só quando
- * a linha está sob o ponteiro, com o foco ou com o menu aberto. "+ Token" e
- * "+ Pasta" ficam na linha do título; o desenho deles está em BotaoMais.css, e
- * o campo do token em NovoTokenForm.css. Só `var(--lb-*)` de theme.ts.
+ * a linha está sob o ponteiro, com o foco ou com o menu aberto. O "+ Pasta"
+ * fica na linha do título, com o desenho de BotaoMais.css (o "+ Token" mora
+ * no cabeçalho do painel). Só `var(--lb-*)` de theme.ts.
  *
  * Tudo do acervo mora aqui. Antes, o desenho do cartão ficava em main.css e
  * esta folha o desfazia por cima, regra a regra, com seletores mais pesados.
@@ -38,9 +38,9 @@
   gap: var(--lb-space-2);
 }
 
-/* "ACERVO DE TOKENS", "+ Token" e "+ Pasta" cabem por pouco nos 232 px de
-   texto da coluna: se a fonte do sistema for mais larga, as ações descem para
-   a linha de baixo, à direita, em vez de vazar. */
+/* "ACERVO DE TOKENS" e o "+ Pasta" cabem nos 232 px de texto da coluna; se a
+   fonte do sistema for bem mais larga, a ação desce para a linha de baixo, à
+   direita, em vez de vazar. */
 .lb-acervo__topo {
   display: flex;
   flex-wrap: wrap;
@@ -50,10 +50,10 @@
   row-gap: var(--lb-space-1);
 }
 
-/* Duas ações vizinhas: o vão do tema entre elas (com os 4 px de cada
-   pastilha, 16 px de uma palavra à outra). A margem negativa leva a pastilha
-   para dentro do respiro da seção, e o TEXTO da última ação termina a 16 px
-   da borda, na mesma vertical do fim dos campos. */
+/* As ações da linha do título (hoje só o "+ Pasta"), com o vão do tema entre
+   elas se vier outra. A margem negativa leva a pastilha para dentro do
+   respiro da seção, e o TEXTO da última ação termina a 16 px da borda, na
+   mesma vertical do fim dos campos. */
 .lb-acervo__acoes-topo {
   display: flex;
   align-items: baseline;

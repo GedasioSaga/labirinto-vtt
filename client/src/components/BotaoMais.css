@@ -1,10 +1,10 @@
 /*
- * BotaoMais — a ação "+ Coisa" de linha de título ("+ Token", "+ Pasta").
- * Parada, é só texto apagado: a linha do título é para ler. Sob o ponteiro
- * ganha a pastilha de pedra, com a mesma cor, o mesmo aperto e o mesmo anel
- * dos botões da faixa da seleção (SelectionHeader.css). Só `var(--lb-*)` de
- * theme.ts; nenhuma destas classes existe em main.css, então a ordem da
- * cascata não pesa.
+ * BotaoMais — a ação "+ Coisa" de linha de título ("+ Token" no cabeçalho do
+ * painel, "+ Pasta" no Acervo). Parada, é só texto apagado: a linha do título
+ * é para ler. Sob o ponteiro ganha a pastilha de pedra, com a mesma cor, o
+ * mesmo aperto e o mesmo anel dos botões da faixa da seleção
+ * (SelectionHeader.css). Só `var(--lb-*)` de theme.ts; nenhuma destas classes
+ * existe em main.css, então a ordem da cascata não pesa.
  */
 
 .lb-mais {
@@ -24,15 +24,9 @@
   cursor: pointer;
 }
 
-/* Na faixa do topo o alvo é a altura da faixa: os mesmos 44 px do Apagar e do
-   "⋯" quando há seleção. A pastilha continua do tamanho do texto. */
-.lb-mais--alto {
-  min-height: 44px;
-}
-
 /* A pastilha: 24 px de altura pela entrelinha, sem flex, para o espaço entre
    o "+" e a palavra ser o espaço da própria fonte. Justa (4 px dos lados):
-   quem a posiciona é a linha (NadaSelecionado.css, TokenLibraryPanel.css). */
+   quem a posiciona é a linha (PropertiesPanel.css, TokenLibraryPanel.css). */
 .lb-mais__chip {
   display: inline-block;
   min-height: var(--lb-control-min);

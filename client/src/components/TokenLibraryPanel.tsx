@@ -13,7 +13,6 @@ import { convertFileSrc } from '@tauri-apps/api/core'
 import { ehPastaPadrao, type ItemDoAcervoNaTela, type PastaDoAcervo } from '../lib/tokenLibrary'
 import { BotaoMais } from './BotaoMais'
 import { ChevronDownIcon, CloseIcon, FolderIcon, MoveIntoIcon } from './icons'
-import { ADICIONAR_TOKEN, ADICIONAR_TOKEN_DICA, NovoTokenForm, type NovoTokenProps } from './NovoTokenForm'
 import './TokenLibraryPanel.css'
 
 export interface TokenLibraryPanelProps {
@@ -28,13 +27,6 @@ export interface TokenLibraryPanelProps {
    * promessa falsa.
    */
   podeOrganizar: boolean
-  /**
-   * O "+ Token" na linha do título. Quem monta só passa quando ALGO está
-   * selecionado: sem seleção o mesmo botão mora na faixa do topo
-   * (`NadaSelecionado`), e só pode haver um na página (ver `ADICIONAR_TOKEN`).
-   * Ausente com o campo aberto (a seleção acabou), o campo fecha.
-   */
-  novoToken?: NovoTokenProps
   /** Coloca uma cópia do item no mapa aberto, com o nome e a foto dele. */
   onPlace: (item: ItemDoAcervoNaTela) => void
   /**
@@ -190,9 +182,10 @@ type Pergunta =
  * Goblin para sempre" — porque é a última chance de ver que se clicou na linha
  * errada.
  *
- * "+ TOKEN" E "+ PASTA" NA LINHA DO TÍTULO (pedido painel-acervo, fatia 2):
- * criar e guardar token no mesmo lugar, como no diretório de Atores do
- * Foundry. Um campo de cada vez abaixo do título.
+ * "+ PASTA" NA LINHA DO TÍTULO (pedido painel-acervo). O "+ Token" também
+ * morou aqui, mas com uma ficha aberta o Acervo fica a 1500 px do topo da
+ * coluna: ele foi para o cabeçalho do painel, o mesmo lugar com e sem
+ * seleção (`PropertiesPanel`).
  *
  * LINHAS, NÃO CARTÕES (fatia 4): "cada linha é um cartão com borda, as pastas
  * são faixas cheias e o mover e o × ficam sempre à vista" (pedido de
@@ -204,7 +197,7 @@ type Pergunta =
  * desenho mora em TokenLibraryPanel.css.
  *
  * ESC NO GESTO DE VERDADE (convenção "Menu de ações"): o Esc fecha o que está
- * aberto — menu Mover, pergunta de apagar, campo de pasta ou de token — de
+ * aberto — menu Mover, pergunta de apagar, campo de pasta — de
  * onde o foco estiver, e o foco volta a quem abriu. O clique deixa o foco no
  * Mover (irmão do menu, fora dele), então o Esc é tratado na LINHA, que
  * recebe a tecla dos dois. E não passa adiante: no mapa ele largaria a
@@ -216,7 +209,6 @@ export function TokenLibraryPanel({
   pastas,
   aviso,
   podeOrganizar,
-  novoToken,
   onPlace,
   onDropOnMap,
   onDelete,
@@ -228,8 +220,6 @@ export function TokenLibraryPanel({
   const [pergunta, setPergunta] = useState<Pergunta>(null)
   /** Texto do campo "Nome da nova pasta"; `null` = campo fechado. */
   const [novaPasta, setNovaPasta] = useState<string | null>(null)
-  /** O campo "Nome do novo token" do "+ Token" está aberto. */
-  const [novoTokenAberto, setNovoTokenAberto] = useState(false)
   /**
    * O botão que recebe o foco no commit seguinte. Não dá para focar no próprio
    * clique: o botão de destino (o Apagar que volta, o "Manter…" que nasce)
@@ -362,16 +352,7 @@ export function TokenLibraryPanel({
     }
   }
 
-  // Um campo de cada vez abaixo do título: abrir um fecha o outro.
-  const abrirNovaPasta = () => {
-    setNovoTokenAberto(false)
-    setNovaPasta('')
-  }
-
-  const abrirNovoToken = () => {
-    setNovaPasta(null)
-    setNovoTokenAberto(true)
-  }
+  const abrirNovaPasta = () => setNovaPasta('')
 
   /** Fecha o campo de pasta (criou ou desistiu) e devolve o foco ao "+ Pasta". */
   const fecharNovaPasta = () => {
@@ -414,10 +395,6 @@ export function TokenLibraryPanel({
   // Ajustado no render (e não num efeito) para não piscar um quadro com o campo
   // órfão.
   if (!podeOrganizar && novaPasta !== null) setNovaPasta(null)
-  // O mesmo para o campo do token: sem `novoToken` (a seleção acabou, e o
-  // "+ Token" foi para a faixa do topo), o campo fecha em vez de ficar órfão —
-  // e sem dois "Nome do novo token" na página.
-  if (novoToken === undefined && novoTokenAberto) setNovoTokenAberto(false)
 
   // Vazio, o acervo é uma faixa só: o que falta e como encher. As três pastas
   // padrão (já nascem no disco, todas vazias) esperam o primeiro token —
@@ -678,7 +655,6 @@ export function TokenLibraryPanel({
     )
   }
 
-  const mostrarNovoToken = novoToken !== undefined && !novoTokenAberto
   const mostrarNovaPasta = podeOrganizar && novaPasta === null
 
   // Durante o arrasto o ponteiro passa por cima de todas as linhas: a marca na
@@ -691,10 +667,12 @@ export function TokenLibraryPanel({
     <section className={classeDaSecao} ref={raizRef}>
       <div className="lb-acervo__topo">
         <h2 className="lb-eyebrow">Acervo de tokens</h2>
-        {(mostrarNovoToken || mostrarNovaPasta) && (
+        {/* Só o "+ Pasta": o "+ Token" mora no cabeçalho do painel, à vista
+            com e sem seleção (aqui, no pé da coluna, ficava a 1500 px do topo
+            com uma ficha aberta). */}
+        {mostrarNovaPasta && (
           <div className="lb-acervo__acoes-topo">
-            {mostrarNovoToken && <BotaoMais nome={ADICIONAR_TOKEN} texto="Token" dica={ADICIONAR_TOKEN_DICA} onClick={abrirNovoToken} />}
-            {mostrarNovaPasta && <BotaoMais nome={NOVA_PASTA} texto="Pasta" onClick={abrirNovaPasta} />}
+            <BotaoMais nome={NOVA_PASTA} texto="Pasta" onClick={abrirNovaPasta} />
           </div>
         )}
       </div>
@@ -704,21 +682,6 @@ export function TokenLibraryPanel({
         <p className="lb-acervo__aviso" role="status">
           {aviso}
         </p>
-      )}
-      {novoToken !== undefined && novoTokenAberto && (
-        <NovoTokenForm
-          defaultTokenName={novoToken.defaultTokenName}
-          onConfirm={(nome) => {
-            // O foco não volta ao "+ Token": quem monta a tela leva a coluna ao
-            // topo, onde a ficha do token novo nasce selecionada.
-            setNovoTokenAberto(false)
-            novoToken.onAddToken(nome)
-          }}
-          onCancel={() => {
-            focarDepois(raizRef.current, ADICIONAR_TOKEN)
-            setNovoTokenAberto(false)
-          }}
-        />
       )}
       {novaPasta !== null && (
         <form className="lb-acervo__form" ref={formPastaRef} onSubmit={criarPasta} onKeyDown={teclaNoFormDaPasta}>

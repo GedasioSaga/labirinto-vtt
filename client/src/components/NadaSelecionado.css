@@ -5,12 +5,10 @@
  * o que ela diz sem a coluna pular. Só `var(--lb-*)` de theme.ts.
  */
 
-/* Gruda no topo do corpo que rola, como a faixa da seleção: o "+ Token" fica à
-   mão em qualquer altura da coluna. O mesmo recuo da faixa da seleção (12 px
-   à direita): a pastilha do "+ Token" termina onde termina a do "⋯", e o
-   TEXTO dela (mais 4 px) a 16 px da borda, na vertical do fim dos campos de
-   baixo. E fica à direita do Apagar daquela faixa: quem cria com o Enter,
-   com o ponteiro parado, não o encontra em cima do Apagar do token novo. */
+/* Gruda no topo do corpo que rola, como a faixa da seleção: o estado fica à
+   vista em qualquer altura da coluna. O mesmo recuo da faixa da seleção (16 px
+   à esquerda, 12 à direita): "Nada selecionado" começa onde começa o ícone do
+   item quando há seleção. */
 .lb-semsel {
   position: sticky;
   top: 0;
@@ -19,8 +17,9 @@
   display: flex;
   align-items: center;
   gap: var(--lb-space-2);
-  /* A altura não depende do "+ Token": com o campo aberto ele sai da faixa, e
-     a faixa encolhia para a altura do texto, puxando a coluna 28 px para cima. */
+  /* A altura da faixa da seleção, que vem dos 44 px dos botões dela. Aqui só
+     há texto, e a faixa encolheria para a altura dele: selecionar e largar
+     puxaria a coluna 28 px para cima e para baixo. */
   min-height: calc(44px + 2 * var(--lb-space-1) + 1px);
   padding: var(--lb-space-1) var(--lb-space-3) var(--lb-space-1) var(--lb-space-4);
   background: var(--lb-color-stone-sunken);

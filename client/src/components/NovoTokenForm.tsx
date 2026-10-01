@@ -5,23 +5,19 @@ import './NovoTokenForm.css'
  * Nome acessível do "+ Token". As jornadas clicam
  * `getByRole('button', { name: 'Adicionar token' })`, várias SEM `exact`: na
  * página inteira só pode haver UM botão cujo nome contenha este trecho. Por
- * isso o "+ Token" mora num lugar de cada vez — na faixa do topo sem seleção
- * (`NadaSelecionado`), no título do Acervo com seleção (`TokenLibraryPanel`).
+ * isso o "+ Token" mora num lugar só, o cabeçalho do painel
+ * (`PropertiesPanel`), com e sem seleção.
  */
 export const ADICIONAR_TOKEN = 'Adicionar token'
 
 /** Frase do balão nativo do "+ Token": onde a peça nasce, e que nasce sem foto (o acervo só guarda com foto). */
 export const ADICIONAR_TOKEN_DICA = 'Põe um token novo, sem foto, no centro da vista'
 
-/** O que o "+ Token" precisa de quem monta a tela — o mesmo par que `SelectionControlsProps` já traz do App. */
-export interface NovoTokenProps {
-  /** Nome sugerido no campo ("Token 1", "Token 2"…). */
-  defaultTokenName: string
-  /** Chamado com o nome confirmado (nunca vazio: vazio vira `defaultTokenName`). */
-  onAddToken: (name: string) => void
-}
+/** `id` do campo "Nome do novo token" — o `htmlFor` do rótulo e o alvo do "+ Token" quando o campo já está aberto. */
+export const NOVO_TOKEN_CAMPO_ID = 'lb-new-token-name'
 
 interface NovoTokenFormProps {
+  /** Nome sugerido no campo ("Token 1", "Token 2"…), o `defaultTokenName` que o App já monta. */
   defaultTokenName: string
   /** O nome já aparado; campo em branco chega como `defaultTokenName`. */
   onConfirm: (nome: string) => void
@@ -53,9 +49,10 @@ export function NovoTokenForm({ defaultTokenName, onConfirm, onCancel, className
    */
   const justSelectedOnFocus = useRef(false)
 
-  // Aberto no pé da coluna (o "+ Token" do Acervo), o foco automático só traz
-  // o CAMPO para a vista, e o Cancelar e o Adicionar ficavam cortados embaixo.
-  // Uma vez, ao abrir, sem animação: quem abriu acabou de clicar ali.
+  // O campo nasce no topo do corpo, e a coluna pode estar rolada lá embaixo:
+  // o foco automático só traria o CAMPO para a vista, com o Cancelar e o
+  // Adicionar cortados. Uma vez, ao abrir, sem animação: quem abriu acabou de
+  // clicar no "+ Token".
   const formRef = useRef<HTMLFormElement>(null)
   useLayoutEffect(() => {
     formRef.current?.scrollIntoView?.({ block: 'nearest' })
@@ -82,11 +79,11 @@ export function NovoTokenForm({ defaultTokenName, onConfirm, onCancel, className
         onConfirm(limpo === '' ? defaultTokenName : limpo)
       }}
     >
-      <label className="lb-label" htmlFor="lb-new-token-name">
+      <label className="lb-label" htmlFor={NOVO_TOKEN_CAMPO_ID}>
         Nome do novo token
       </label>
       <input
-        id="lb-new-token-name"
+        id={NOVO_TOKEN_CAMPO_ID}
         className="lb-input"
         value={nome}
         autoFocus

@@ -92,10 +92,9 @@ function BatchSecretToggle({ state, count, onChange }: SelectionSecretProps) {
  * vez. Sem ele não desenha nada: a seção fixa que aparecia com qualquer
  * ferramenta na mão era ruído (pedido painel-acervo, fatia 2). O que ela
  * guardava não sumiu:
- * - "Adicionar token" virou o "+ Token": na faixa do topo sem seleção
- *   (`NadaSelecionado`), no título do Acervo com seleção (`TokenLibraryPanel`),
- *   com o mesmo nome acessível e o mesmo campo "Nome do novo token"
- *   (`NovoTokenForm`);
+ * - "Adicionar token" virou o "+ Token" do cabeçalho do painel
+ *   (`PropertiesPanel`), à vista com e sem seleção, com o mesmo nome
+ *   acessível e o mesmo campo "Nome do novo token" (`NovoTokenForm`);
  * - "Nada selecionado" virou a faixa do topo sem seleção (`NadaSelecionado`);
  * - o "Apagar" já morava na faixa da seleção (`SelectionHeader`).
  */

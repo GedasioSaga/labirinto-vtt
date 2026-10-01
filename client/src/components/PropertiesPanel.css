@@ -1,5 +1,6 @@
 /*
- * PropertiesPanel — os grupos da coluna (pedido painel-acervo, fatia 3).
+ * PropertiesPanel — o "+ Token" do cabeçalho e os grupos da coluna (pedido
+ * painel-acervo, fatia 3).
  * Abaixo do que está na mão, dois grupos com legenda: AVENTURA (Cenas, Pinos,
  * Agenda, Estado do mundo) e ESTA CENA (Objetos do mapa, Marcas, Locais,
  * Território, Chão do mapa, Camadas). O Acervo fica por último, fora deles.
@@ -11,6 +12,23 @@
  * `.lb-section + .lb-section` e `.lb-section + .lb-collapsible`, são (0,2,0):
  * as regras de dentro do grupo levam `.lb-zona >` na frente, (0,3,0).
  */
+
+/* O "+ Token" no cabeçalho, encostado na engrenagem pela esquerda: a margem
+   automática dele leva os dois para a ponta, e o nome do mapa cede o espaço
+   (já corta em reticências, com o nome inteiro no `title`). O alvo é o da
+   engrenagem ao lado (`.lb-iconbtn`, 36 px), e a pastilha continua do tamanho
+   do texto. */
+.lb-inspector__head > .lb-mais {
+  margin-left: auto;
+  min-height: 36px;
+}
+
+/* main.css dá `margin-left: auto` à engrenagem (0,1,0) para levá-la à ponta.
+   Com duas margens automáticas o espaço livre se divide, e o "+ Token"
+   ficaria boiando no meio do cabeçalho. (0,3,0): esta folha entra antes. */
+.lb-inspector__head > .lb-mais + .lb-inspector__settings {
+  margin-left: 0;
+}
 
 .lb-zona {
   display: flex;

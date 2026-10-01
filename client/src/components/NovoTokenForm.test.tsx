@@ -129,4 +129,19 @@ describe('NovoTokenForm — o formulário do "+ Token"', () => {
     expect(props.onCancel).toHaveBeenCalledTimes(1)
     expect(props.onConfirm).not.toHaveBeenCalled()
   })
+
+  it('ao abrir, o formulário inteiro vem para a vista uma vez — não só o campo; digitar não rola de novo', () => {
+    const rolar = vi.fn()
+    Object.defineProperty(HTMLFormElement.prototype, 'scrollIntoView', { configurable: true, value: rolar })
+    try {
+      montar()
+      expect(rolar).toHaveBeenCalledTimes(1)
+      expect(rolar).toHaveBeenCalledWith({ block: 'nearest' })
+      expect(rolar.mock.contexts[0]).toBe(container.querySelector('form'))
+      digitar(campo(), 'Goblin')
+      expect(rolar).toHaveBeenCalledTimes(1)
+    } finally {
+      Reflect.deleteProperty(HTMLFormElement.prototype, 'scrollIntoView')
+    }
+  })
 })

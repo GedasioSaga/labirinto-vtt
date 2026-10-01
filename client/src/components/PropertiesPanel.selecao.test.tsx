@@ -80,6 +80,23 @@ describe('painel de propriedades — faixa da seleção e ordem por tarefa', () 
     Array.from(container.querySelectorAll('.lb-inspector__body h2'))
       .find((h) => h.textContent === 'Acervo de tokens')
       ?.closest('section') ?? null
+  /** O cabeçalho do inspetor: fora do corpo que rola, sempre à vista. */
+  const cabecalho = () => container.querySelector<HTMLElement>('.lb-inspector__head')
+  /** O "+ Token" do painel, pelo nome que as jornadas clicam. */
+  const maisToken = () => botoesComNome(/^Adicionar token$/)[0] ?? null
+  const campoNovoToken = () => container.querySelector<HTMLInputElement>('input#lb-new-token-name')
+  /** A coluna "rolada" até `inicio` px (o jsdom não rola: a posição fica guardada aqui). */
+  function rolarCorpo(inicio: number): { valor: () => number } {
+    let rolagem = inicio
+    Object.defineProperty(corpo(), 'scrollTop', {
+      configurable: true,
+      get: () => rolagem,
+      set: (valor: number) => {
+        rolagem = valor
+      },
+    })
+    return { valor: () => rolagem }
+  }
   /** `a` vem antes de `b` no documento. */
   const antes = (a: Node | null | undefined, b: Node | null | undefined) =>
     a !== null && a !== undefined && b !== null && b !== undefined && (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0
@@ -138,7 +155,7 @@ describe('painel de propriedades — faixa da seleção e ordem por tarefa', () 
     expect(onRemoveSelected).toHaveBeenCalledTimes(1)
   })
 
-  it('com seleção, sem "Seleção" nem "Nada selecionado": o "+ Token" é um só na coluna, no título do Acervo', () => {
+  it('com seleção, sem "Seleção" nem "Nada selecionado": o "+ Token" é um só no painel, no cabeçalho, à vista sem rolar', () => {
     renderPainel(painelDaFicha())
     expect(titulos()).not.toContain('Seleção')
     expect(botoesComTexto(/Nada selecionado/)).toHaveLength(0)
@@ -146,35 +163,88 @@ describe('painel de propriedades — faixa da seleção e ordem por tarefa', () 
     const adicionar = botoesComNome(/adicionar token/i)
     expect(adicionar).toHaveLength(1)
     expect(adicionar[0]?.getAttribute('aria-label')).toBe('Adicionar token')
-    expect(acervo()?.querySelector('.lb-acervo__topo')?.contains(adicionar[0] ?? null)).toBe(true)
+    expect((adicionar[0]?.textContent ?? '').replace(/\s+/g, ' ').trim()).toBe('+ Token')
+    // No cabeçalho, fora do corpo que rola: com a ficha comprida, o Acervo
+    // fica 1500 px abaixo, e o "+ Token" continua onde estava.
+    expect(cabecalho()?.contains(adicionar[0] ?? null)).toBe(true)
+    expect(corpo()?.contains(adicionar[0] ?? null)).toBe(false)
+    expect(acervo()?.querySelectorAll('button[aria-label="Adicionar token"]')).toHaveLength(0)
+    // A engrenagem continua na ponta: o "+ Token" vem antes dela.
+    expect(cabecalho()?.lastElementChild?.getAttribute('aria-label')).toBe('Configurações do mapa')
+    expect(cabecalho()?.lastElementChild?.previousElementSibling).toBe(adicionar[0])
+    // O nome do mapa cede o espaço e corta antes das medidas: o ponteiro lê a linha inteira.
+    expect(cabecalho()?.querySelector('.lb-inspector__mapname')?.getAttribute('title')).toBe('Casa · 30×20 · 64px')
   })
 
-  it('"+ Token" no Acervo, no pé da coluna: confirmar cria e volta a coluna ao topo, onde a ficha nova nasce', () => {
+  it('"+ Token" com algo selecionado: o campo abre no topo do corpo, logo abaixo da faixa; criar volta a coluna ao topo e devolve o foco ao "+ Token"', () => {
     const onAddToken = vi.fn<(nome: string) => void>()
     renderPainel(painelDaFicha({ selection: { ...selecao({ kind: 'token', count: 1 }), onAddToken } }))
-    // A coluna rolada até o Acervo (o jsdom não rola: a posição é guardada aqui).
-    let rolagem = 640
-    Object.defineProperty(corpo(), 'scrollTop', {
-      configurable: true,
-      get: () => rolagem,
-      set: (valor: number) => {
-        rolagem = valor
-      },
-    })
+    const rolagem = rolarCorpo(640)
 
-    act(() => botoesComNome(/^Adicionar token$/)[0]?.click())
-    const campo = container.querySelector<HTMLInputElement>('input#lb-new-token-name')
-    expect(acervo()?.contains(campo)).toBe(true)
-    // Desistir não mexe na coluna.
-    act(() => {
-      campo?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }))
-    })
-    expect(rolagem).toBe(640)
+    act(() => maisToken()?.click())
+    const campo = campoNovoToken()
+    expect(campo?.value).toBe('Token 1')
+    expect(document.activeElement).toBe(campo)
+    // Logo abaixo da faixa da seleção, antes da ficha — e não no pé da coluna.
+    expect(corpo()?.children[1]?.contains(campo)).toBe(true)
+    expect(acervo()?.contains(campo)).toBe(false)
 
-    act(() => botoesComNome(/^Adicionar token$/)[0]?.click())
-    act(() => container.querySelector<HTMLInputElement>('input#lb-new-token-name')?.form?.requestSubmit())
+    act(() => campo?.form?.requestSubmit())
     expect(onAddToken).toHaveBeenCalledWith('Token 1')
-    expect(rolagem).toBe(0)
+    expect(campoNovoToken()).toBeNull()
+    // A ficha do token novo nasce no topo do corpo: a coluna volta para lá.
+    expect(rolagem.valor()).toBe(0)
+    // O foco não cai no body: volta a quem abriu, pronto para o próximo token.
+    expect(document.activeElement).toBe(maisToken())
+  })
+
+  it('sem seleção, criar pelo "+ Token" seleciona o token novo e o foco continua no "+ Token" — não cai no body quando a faixa troca', () => {
+    const onAddToken = vi.fn<(nome: string) => void>()
+    renderPainel(propsDoPainel(null, { groups: relevantPropertyGroups('select'), selection: { ...selecao(null), onAddToken } }))
+    const botao = maisToken()
+    act(() => botao?.click())
+    act(() => campoNovoToken()?.form?.requestSubmit())
+    expect(onAddToken).toHaveBeenCalledWith('Token 1')
+    // O App seleciona o token que nasceu: a faixa vazia dá lugar à faixa dele.
+    renderPainel(painelDaFicha({ selection: { ...selecao({ kind: 'token', count: 1 }), onAddToken } }))
+    expect(corpo()?.firstElementChild?.getAttribute('role')).toBe('toolbar')
+    // O mesmo botão, no mesmo lugar, com o foco.
+    expect(maisToken()).toBe(botao)
+    expect(document.activeElement).toBe(botao)
+  })
+
+  it('"+ Token" com o campo já aberto leva o foco de volta ao campo, sem fechar nem abrir um segundo', () => {
+    renderPainel(painelDaFicha())
+    act(() => maisToken()?.click())
+    const campo = campoNovoToken()
+    const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set
+    act(() => {
+      setter?.call(campo, 'Goblin')
+      campo?.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+    // O "+ Token" não some com o campo aberto: o cabeçalho não muda de desenho.
+    expect(maisToken()).not.toBeNull()
+    // O foco foi para outro lugar (um Tab, um clique na coluna)...
+    act(() => maisToken()?.focus())
+    expect(document.activeElement).toBe(maisToken())
+    act(() => maisToken()?.click())
+    // ...e o "+ Token" o traz de volta, com o que já estava escrito.
+    expect(container.querySelectorAll('input#lb-new-token-name')).toHaveLength(1)
+    expect(document.activeElement).toBe(campo)
+    expect(campo?.value).toBe('Goblin')
+  })
+
+  it('o campo aberto não depende da seleção: trocar o que está selecionado não apaga o nome digitado', () => {
+    renderPainel(propsDoPainel(null, { groups: relevantPropertyGroups('select'), selection: selecao(null) }))
+    act(() => maisToken()?.click())
+    const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set
+    act(() => {
+      setter?.call(campoNovoToken(), 'Goblin')
+      campoNovoToken()?.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+    renderPainel(painelDaFicha())
+    expect(campoNovoToken()?.value).toBe('Goblin')
+    expect(corpo()?.children[1]?.contains(campoNovoToken())).toBe(true)
   })
 
   it('"Levar ao piso" saiu da coluna: só aparece no menu "Mais ações", e leva a seleção', () => {
@@ -315,7 +385,7 @@ describe('painel de propriedades — faixa da seleção e ordem por tarefa', () 
     expect(selecaoH2?.closest('section')?.querySelectorAll('button')).toHaveLength(0)
   })
 
-  it('nada selecionado: a faixa vazia ocupa o topo do corpo, com "Nada selecionado" desabilitado e o "+ Token"', () => {
+  it('nada selecionado: a faixa vazia ocupa o topo do corpo, só com "Nada selecionado" desabilitado; o "+ Token" fica no cabeçalho', () => {
     renderPainel(propsDoPainel(null, { groups: relevantPropertyGroups('select'), selection: selecao(null) }))
     expect(container.querySelector('[role="toolbar"]')).toBeNull()
     const faixa = corpo()?.firstElementChild
@@ -326,38 +396,41 @@ describe('painel de propriedades — faixa da seleção e ordem por tarefa', () 
     expect(nadaSel[0]?.textContent).toBe('Nada selecionado')
     expect(nadaSel[0]?.disabled).toBe(true)
     expect(faixa?.contains(nadaSel[0] ?? null)).toBe(true)
-    // O "+ Token" na mesma faixa, à mão sem rolar — e um só na coluna (o Acervo não repete).
+    expect(faixa?.querySelectorAll('button')).toHaveLength(1)
+    // O "+ Token" no mesmo lugar de quando há seleção — e um só no painel (o Acervo não repete).
     const adicionar = botoesComNome(/adicionar token/i)
     expect(adicionar).toHaveLength(1)
-    expect(faixa?.contains(adicionar[0] ?? null)).toBe(true)
-    expect((adicionar[0]?.textContent ?? '').replace(/\s+/g, ' ').trim()).toBe('+ Token')
+    expect(cabecalho()?.contains(adicionar[0] ?? null)).toBe(true)
     expect(titulos()).not.toContain('Seleção')
     expect(botoesComTexto(/Apagar/)).toHaveLength(0)
   })
 
-  it('"+ Token" da faixa vazia: o campo abre logo abaixo dela, e Enter cria com o nome sugerido', () => {
+  it('"+ Token" sem seleção: o campo abre logo abaixo da faixa vazia, e Enter cria com o nome sugerido', () => {
     const onAddToken = vi.fn<(nome: string) => void>()
     renderPainel(propsDoPainel(null, { groups: relevantPropertyGroups('select'), selection: { ...selecao(null), onAddToken } }))
-    act(() => botoesComNome(/^Adicionar token$/)[0]?.click())
-    const campo = container.querySelector<HTMLInputElement>('input#lb-new-token-name')
+    act(() => maisToken()?.click())
+    const campo = campoNovoToken()
     expect(campo?.value).toBe('Token 1')
     expect(document.activeElement).toBe(campo)
     // Logo abaixo da faixa, antes do resto da coluna.
     expect(corpo()?.children[1]?.contains(campo)).toBe(true)
     act(() => campo?.form?.requestSubmit())
     expect(onAddToken).toHaveBeenCalledWith('Token 1')
+    expect(document.activeElement).toBe(maisToken())
   })
 
-  it('"+ Token" da faixa vazia: Esc fecha o campo e o foco volta ao "+ Token"', () => {
+  it('"+ Token": Esc fecha o campo sem criar, não mexe na coluna, e o foco volta ao "+ Token"', () => {
     const onAddToken = vi.fn<(nome: string) => void>()
     renderPainel(propsDoPainel(null, { groups: relevantPropertyGroups('select'), selection: { ...selecao(null), onAddToken } }))
-    act(() => botoesComNome(/^Adicionar token$/)[0]?.click())
+    const rolagem = rolarCorpo(120)
+    act(() => maisToken()?.click())
     act(() => {
       document.activeElement?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }))
     })
-    expect(container.querySelector('input#lb-new-token-name')).toBeNull()
+    expect(campoNovoToken()).toBeNull()
     expect(onAddToken).not.toHaveBeenCalled()
-    expect(document.activeElement).toBe(botoesComNome(/^Adicionar token$/)[0])
+    expect(rolagem.valor()).toBe(120)
+    expect(document.activeElement).toBe(maisToken())
   })
 
   it('ferramenta armada sem seleção: a faixa vazia no topo, e o primeiro título continua o da ferramenta', () => {
@@ -368,12 +441,48 @@ describe('painel de propriedades — faixa da seleção e ordem por tarefa', () 
     expect(titulos()[0]).toBe('Ferramenta · Sala')
   })
 
-  it('pino selecionado (fora do resumo da seleção): a faixa não diz "Nada selecionado", e o "+ Token" fica no Acervo', () => {
+  it('pino selecionado (fora do resumo da seleção): a faixa não diz "Nada selecionado", e o "+ Token" continua no cabeçalho', () => {
     renderPainel(propsDoPainel(null, { groups: relevantPropertyGroups('select', { pin: true }), selection: selecao(null), pinSelected: true }))
     expect(botoesComTexto(/Nada selecionado/)).toHaveLength(0)
     expect(container.querySelector('.lb-semsel')).toBeNull()
     const adicionar = botoesComNome(/adicionar token/i)
     expect(adicionar).toHaveLength(1)
-    expect(acervo()?.contains(adicionar[0] ?? null)).toBe(true)
+    expect(cabecalho()?.contains(adicionar[0] ?? null)).toBe(true)
+  })
+})
+
+/** Um CSS como está no disco, relativo a esta pasta (o mesmo jeito de `PropertiesPanel.botoes.test.ts`). */
+async function lerCss(relativo: string): Promise<string> {
+  const { readFileSync } = await vi.importActual<{ readFileSync(caminho: string, codificacao: 'utf8'): string }>('node:fs')
+  const { fileURLToPath } = await vi.importActual<{ fileURLToPath(url: string): string }>('node:url')
+  const { dirname, join } = await vi.importActual<{ dirname(caminho: string): string; join(...partes: string[]): string }>('node:path')
+  return readFileSync(join(dirname(fileURLToPath(import.meta.url)), relativo), 'utf8')
+}
+
+/** As declarações da PRIMEIRA regra cujo seletor é exatamente `seletor`: propriedade → valor. */
+function regra(css: string, seletor: string): Map<string, string> {
+  const semComentarios = css.replace(/\/\*[\s\S]*?\*\//g, '')
+  for (const [, seletores, corpo] of semComentarios.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+    if (seletores.trim() !== seletor) continue
+    return new Map(
+      corpo
+        .split(';')
+        .map((declaracao) => declaracao.split(':'))
+        .filter((partes) => partes.length >= 2)
+        .map(([propriedade, ...valor]) => [propriedade.trim(), valor.join(':').trim()]),
+    )
+  }
+  return new Map()
+}
+
+describe('PropertiesPanel.css — o "+ Token" no cabeçalho', () => {
+  it('encosta na engrenagem pela direita, com o alvo de 36 px dela; a engrenagem perde o empurrão que a levava à ponta', async () => {
+    const css = await lerCss('./PropertiesPanel.css')
+    const mais = regra(css, '.lb-inspector__head > .lb-mais')
+    expect(mais.get('margin-left')).toBe('auto')
+    expect(mais.get('min-height')).toBe('36px')
+    // main.css dá `margin-left: auto` à engrenagem (0,1,0); com duas margens
+    // automáticas o "+ Token" ficaria boiando no meio do cabeçalho.
+    expect(regra(css, '.lb-inspector__head > .lb-mais + .lb-inspector__settings').get('margin-left')).toBe('0')
   })
 })

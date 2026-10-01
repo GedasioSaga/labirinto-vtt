@@ -4,8 +4,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { NadaSelecionado } from './NadaSelecionado'
 
 /**
- * A faixa do topo sem seleção (pedido painel-acervo, fatia 2): o lugar e a
- * altura da faixa da seleção, com "Nada selecionado" e o "+ Token".
+ * A faixa do topo sem seleção (pedido painel-acervo): o lugar e a altura da
+ * faixa da seleção, só com "Nada selecionado". O "+ Token" mora no cabeçalho
+ * do painel, o mesmo lugar com e sem seleção (PropertiesPanel.selecao.test.tsx).
  */
 
 let container: HTMLDivElement
@@ -21,57 +22,20 @@ beforeEach(() => {
 afterEach(() => {
   act(() => root.unmount())
   container.remove()
-  Reflect.deleteProperty(HTMLFormElement.prototype, 'scrollIntoView')
 })
 
-function montar(onAddToken = vi.fn<(nome: string) => void>()) {
-  act(() => root.render(<NadaSelecionado novoToken={{ defaultTokenName: 'Token 4', onAddToken }} />))
-  return onAddToken
-}
-
-const maisToken = () => container.querySelector<HTMLButtonElement>('button[aria-label="Adicionar token"]')
-
 describe('NadaSelecionado — a faixa sem seleção', () => {
-  it('"Nada selecionado" é um botão desabilitado com o texto exato, e o "+ Token" mora na mesma faixa', () => {
-    montar()
+  it('"Nada selecionado" é um botão desabilitado com o texto exato, e é tudo o que a faixa diz', () => {
+    act(() => root.render(<NadaSelecionado />))
     const faixa = container.querySelector('.lb-semsel')
     const estado = faixa?.querySelector<HTMLButtonElement>('.lb-semsel__estado')
     expect(estado?.textContent).toBe('Nada selecionado')
     expect(estado?.disabled).toBe(true)
-    expect(faixa?.contains(maisToken())).toBe(true)
+    // Estado, não ação: o "+ Token" não mora mais aqui (um lugar só, o cabeçalho).
+    expect(faixa?.querySelectorAll('button')).toHaveLength(1)
+    expect(container.querySelector('button[aria-label="Adicionar token"]')).toBeNull()
     // Ninguém mais na faixa repete o trecho que as jornadas leem com getByText.
-    expect(container.textContent?.match(/nada selecionado/gi)).toHaveLength(1)
-  })
-
-  it('o campo abre logo abaixo da faixa (não dentro dela), e confirmar entrega o nome', () => {
-    const onAddToken = montar()
-    act(() => maisToken()?.click())
-    const faixa = container.querySelector('.lb-semsel')
-    const campo = container.querySelector<HTMLInputElement>('#lb-new-token-name')
-    expect(faixa?.contains(campo)).toBe(false)
-    expect(faixa?.nextElementSibling?.contains(campo)).toBe(true)
-    expect(faixa?.nextElementSibling?.classList.contains('lb-section')).toBe(true)
-    act(() => campo?.form?.requestSubmit())
-    expect(onAddToken).toHaveBeenCalledWith('Token 4')
-    expect(container.querySelector('#lb-new-token-name')).toBeNull()
-  })
-
-  it('ao abrir, o formulário inteiro vem para a vista uma vez — não só o campo; digitar não rola de novo', () => {
-    const rolar = vi.fn()
-    Object.defineProperty(HTMLFormElement.prototype, 'scrollIntoView', { configurable: true, value: rolar })
-    montar()
-    act(() => maisToken()?.click())
-    expect(rolar).toHaveBeenCalledTimes(1)
-    expect(rolar).toHaveBeenCalledWith({ block: 'nearest' })
-    expect(rolar.mock.contexts[0]).toBe(container.querySelector('form'))
-
-    const campo = container.querySelector<HTMLInputElement>('#lb-new-token-name')
-    const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set
-    act(() => {
-      setter?.call(campo, 'Goblin')
-      campo?.dispatchEvent(new Event('input', { bubbles: true }))
-    })
-    expect(rolar).toHaveBeenCalledTimes(1)
+    expect(container.textContent).toBe('Nada selecionado')
   })
 })
 
@@ -100,7 +64,7 @@ function regra(css: string, seletor: string): Map<string, string> {
 }
 
 describe('NadaSelecionado — CSS', () => {
-  it('a faixa gruda no topo como a da seleção e não encolhe quando o "+ Token" sai para o campo abrir', async () => {
+  it('a faixa gruda no topo como a da seleção e tem a altura dela, mesmo só com o texto: selecionar e largar não pula a coluna', async () => {
     const css = await lerCss('./NadaSelecionado.css')
     const faixa = regra(css, '.lb-semsel')
     expect(faixa.get('position')).toBe('sticky')
@@ -115,7 +79,7 @@ describe('NadaSelecionado — CSS', () => {
     )
   })
 
-  it('o mesmo recuo da faixa da seleção: o "+ Token" termina onde termina o "⋯", à direita do Apagar', async () => {
+  it('o mesmo recuo da faixa da seleção: "Nada selecionado" começa onde começa o ícone dela', async () => {
     const faixaVazia = regra(await lerCss('./NadaSelecionado.css'), '.lb-semsel')
     const faixaDaSelecao = regra(await lerCss('./SelectionHeader.css'), '.lb-selhead')
     expect(faixaVazia.get('padding')).toBe(faixaDaSelecao.get('padding'))

@@ -82,7 +82,14 @@ test('1. sem seleção as duas seções nascem abertas; fechar tira o corpo da t
   }
 })
 
-test('2. com item selecionado as seções nascem fechadas e a ordem é item -> Seleção -> Chão do mapa -> Camadas', async ({ page }) => {
+// Ordem atualizada em 01/10/2026 (pedido painel-acervo, correção depois da
+// conferência): a seção "Seleção" só aparece com o "Oculto para jogadores" em
+// lote, e o Acervo de tokens fecha a coluna, depois de Camadas — onde está
+// desde 18/09/2026 (b2df68de). A versão anterior pedia "Seleção" entre o item
+// e o mapa e Camadas como o último título; desde b2df68de o título "Acervo de
+// tokens" vem depois de Camadas, então a linha do "último título" já não
+// valia antes do pedido.
+test('2. com item selecionado as seções nascem fechadas e a ordem é item -> Chão do mapa -> Camadas -> Acervo de tokens', async ({ page }) => {
   await page.evaluate(async () => {
     const mod = await import('/src/stores/mapStore.ts')
     mod.useMapStore.getState().addToken({ id: 'tokPanel', characterId: null, name: 'Token', x: 400, y: 400, size: 1, image: null })
@@ -99,14 +106,16 @@ test('2. com item selecionado as seções nascem fechadas e a ordem é item -> S
   // Títulos em ordem de DOM (a do leitor de tela e a da tela, que é uma coluna só).
   const headings = (await page.locator('.lb-inspector__body h2').allTextContents()).map((text) => text.trim())
   const tokenIndex = headings.indexOf('Token')
-  const selectionIndex = headings.indexOf('Seleção')
   const floorIndex = headings.indexOf('Chão do mapa')
   const layersIndex = headings.indexOf('Camadas')
+  const libraryIndex = headings.indexOf('Acervo de tokens')
   expect(tokenIndex).toBeGreaterThanOrEqual(0)
-  expect(selectionIndex).toBeGreaterThan(tokenIndex)
-  expect(floorIndex).toBeGreaterThan(selectionIndex)
+  // Um item só, sem lote: nada de seção "Seleção" entre o item e o mapa.
+  expect(headings).not.toContain('Seleção')
+  expect(floorIndex).toBeGreaterThan(tokenIndex)
   expect(layersIndex).toBeGreaterThan(floorIndex)
-  expect(layersIndex).toBe(headings.length - 1)
+  expect(libraryIndex).toBeGreaterThan(layersIndex)
+  expect(libraryIndex).toBe(headings.length - 1)
 })
 
 test('3. com ferramenta de desenho ativa (Chão) "Chão do mapa" nasce fechada e Camadas nem aparece', async ({ page }) => {

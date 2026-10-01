@@ -12,21 +12,21 @@ export interface BotaoMaisProps {
   texto: string
   /** Balão nativo ao pairar: o que o clique faz além do nome. */
   dica?: string
-  /** Alvo de 44 px, a altura da faixa do topo; fora dela, os 24 px mínimos do tema. */
-  alto?: boolean
   onClick: () => void
   ref?: Ref<HTMLButtonElement>
 }
 
 /**
- * A ação "+ Coisa" de linha de título: "+ Token" na faixa sem seleção e no
- * Acervo, "+ Pasta" no Acervo. Texto pequeno e apagado em repouso — a linha é
- * para ler, não para chamar —, e a pastilha de pedra aparece sob o ponteiro,
- * mostrando o tamanho do alvo sem desenhar uma caixa a mais na coluna.
+ * A ação "+ Coisa" de linha de título: "+ Token" no cabeçalho do painel,
+ * "+ Pasta" no Acervo. Texto pequeno e apagado em repouso — a linha é para
+ * ler, não para chamar —, e a pastilha de pedra aparece sob o ponteiro,
+ * mostrando o tamanho do alvo sem desenhar uma caixa a mais na coluna. A
+ * altura do alvo vem de quem monta a linha (PropertiesPanel.css no
+ * cabeçalho).
  */
-export function BotaoMais({ nome, texto, dica, alto = false, onClick, ref }: BotaoMaisProps) {
+export function BotaoMais({ nome, texto, dica, onClick, ref }: BotaoMaisProps) {
   return (
-    <button ref={ref} type="button" className={alto ? 'lb-mais lb-mais--alto' : 'lb-mais'} aria-label={nome} title={dica} onClick={onClick}>
+    <button ref={ref} type="button" className="lb-mais" aria-label={nome} title={dica} onClick={onClick}>
       <span className="lb-mais__chip">
         <span className="lb-mais__sinal" aria-hidden="true">
           +

@@ -69,9 +69,9 @@ describe('SelectionControls — Oculto para jogadores em lote', () => {
 
 /**
  * A seção "Seleção" só existe para o lote (pedido painel-acervo, fatia 2): o
- * "Adicionar token" foi para o "+ Token" (faixa do topo sem seleção, título do
- * Acervo com seleção), o "Nada selecionado" virou a faixa do topo
- * (`NadaSelecionado`) e o "Apagar" já morava na faixa da seleção.
+ * "Adicionar token" foi para o "+ Token" do cabeçalho do painel, o "Nada
+ * selecionado" virou a faixa do topo (`NadaSelecionado`) e o "Apagar" já
+ * morava na faixa da seleção.
  */
 describe('SelectionControls — fora do lote, nada', () => {
   let container: HTMLDivElement
