@@ -10,13 +10,27 @@ import { WalkHereItem, type WalkHereItemProps } from './PlayerPointMenu'
 export const POINT_MENU_OFFSET_PX = 16
 /** Tamanho do menu (o mesmo do CSS `.pp-pointmenu`), para virar de lado perto da borda da tela. */
 export const POINT_MENU_WIDTH_PX = 148
-/** 5 itens de 40 px, 4 vãos de 2 px, 4 px de respiro em cima e embaixo e 1 px de borda de cada lado. */
-export const POINT_MENU_HEIGHT_PX = 218
-/** O "Andar até aqui" a mais: 44 px de item com o motivo em até duas linhas embaixo, e o vão. */
-export const POINT_MENU_WALK_HEIGHT_PX = 66
+/**
+ * 5 itens de 44 px (o alvo de dedo do tema, `--lb-control-touch`), 4 vãos de
+ * 2 px, 4 px de respiro em cima e embaixo e 1 px de borda de cada lado. É
+ * também o `max-height` do CSS: menor que a soma, os itens vazariam do menu.
+ */
+export const POINT_MENU_HEIGHT_PX = 238
+/**
+ * O "Andar até aqui" a mais, no caso mais alto: sem caminho, com o motivo
+ * esmaecido em duas linhas embaixo. 8 px de respiro em cima e embaixo, o
+ * rótulo (15 px na entrelinha 1,45 da página), 2 px, as duas linhas do motivo
+ * (12 px na mesma entrelinha) e o vão de 2 px até o item de cima: 76,55 px,
+ * arredondados para cima.
+ */
+export const POINT_MENU_WALK_HEIGHT_PX = 77
 const EDGE_MARGIN_PX = 8
 
-/** Abre à direita/abaixo do dedo; sem espaço, vira para o outro lado — sem nunca cobrir o ponto. */
+/**
+ * Abre à direita/abaixo do dedo; sem espaço, vira para o outro lado — sem
+ * cobrir o ponto. Sem espaço de nenhum dos dois lados (celular deitado), fica
+ * preso à margem da tela, e aí cobre o ponto: não há onde mais caber.
+ */
 function menuStart(point: number, size: number, viewport: number): number {
   const after = point + POINT_MENU_OFFSET_PX
   if (after + size <= viewport - EDGE_MARGIN_PX) return after
@@ -75,6 +89,10 @@ export function PointActionMenu({ screenX, screenY, onSignal, onChoose, walk, on
     items[next]?.focus()
   }
 
+  const height = walk === undefined ? POINT_MENU_HEIGHT_PX : POINT_MENU_HEIGHT_PX + POINT_MENU_WALK_HEIGHT_PX
+  const left = menuStart(screenX, POINT_MENU_WIDTH_PX, window.innerWidth)
+  const top = menuStart(screenY, height, window.innerHeight)
+
   return (
     <div
       ref={menuRef}
@@ -82,8 +100,13 @@ export function PointActionMenu({ screenX, screenY, onSignal, onChoose, walk, on
       aria-label="Ações no ponto"
       className={walk === undefined ? 'pp-pointmenu' : 'pp-pointmenu pp-pointmenu--walk'}
       style={{
-        left: `${menuStart(screenX, POINT_MENU_WIDTH_PX, window.innerWidth)}px`,
-        top: `${menuStart(screenY, walk === undefined ? POINT_MENU_HEIGHT_PX : POINT_MENU_HEIGHT_PX + POINT_MENU_WALK_HEIGHT_PX, window.innerHeight)}px`,
+        left: `${left}px`,
+        top: `${top}px`,
+        // A entrada (escala no CSS) parte do ponto do dedo, contado do canto do
+        // menu: com o menu à direita e abaixo, fica fora do canto de cima à
+        // esquerda; virado, fora do canto oposto; preso à margem, dentro dele.
+        // Origem fixa num canto fazia o menu virado crescer longe do dedo.
+        transformOrigin: `${screenX - left}px ${screenY - top}px`,
       }}
       onKeyDown={moveFocus}
     >

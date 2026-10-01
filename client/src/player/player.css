@@ -40,9 +40,17 @@
   min-height: 100vh;
   min-height: 100dvh;
   display: flex;
-  align-items: center;
+  /*
+   * Cartão preso ao ALTO, não ao centro. Ao trocar o formulário por
+   * "Conectando…" ele encolhe, e centrado subia junto: a marca Labirinto
+   * saltava uns 104 px numa janela de 800. Preso ao topo, só a borda de baixo
+   * se mexe. A margem de cima acompanha a tela (18vh, de 24 a 168 px) para o
+   * cartão ainda cair perto do meio; em `vh`, e não `dvh`, para não andar
+   * quando a barra do navegador do celular aparece ou some.
+   */
+  align-items: flex-start;
   justify-content: center;
-  padding: 24px 16px calc(24px + env(safe-area-inset-bottom, 0px));
+  padding: clamp(24px, 18vh, 168px) 16px calc(24px + env(safe-area-inset-bottom, 0px));
   color: var(--lb-color-parchment, #eceae4);
   font-family: var(--lb-font-sans, system-ui, sans-serif);
   line-height: 1.45;
@@ -725,11 +733,24 @@
   border: 1px solid transparent;
   border-radius: 4px;
   cursor: pointer;
-  transition: background-color 150ms ease-in-out, color 150ms ease-in-out;
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    background-color var(--lb-motion-fast, 110ms) var(--lb-motion-ease, ease),
+    color var(--lb-motion-fast, 110ms) var(--lb-motion-ease, ease),
+    transform var(--lb-motion-fast, 110ms) var(--lb-motion-ease, ease);
 }
 
-.pp-floors__tab:hover {
-  color: var(--lb-color-parchment, #eceae4);
+/* Pairar só onde existe ponteiro que paira: no celular o realce grudava na aba depois do toque. */
+@media (hover: hover) {
+  .pp-floors__tab:hover {
+    color: var(--lb-color-parchment, #eceae4);
+  }
+}
+
+/* O dedo pegou: afunda NA HORA (sem transição na ida) e volta em 110 ms, como os botões da barra. */
+.pp-floors__tab:active {
+  transform: scale(0.97);
+  transition-duration: 0ms;
 }
 
 .pp-floors__tab[aria-selected='true'] {
@@ -772,6 +793,10 @@
 @media (prefers-reduced-motion: reduce) {
   .pp-floors__tab {
     transition: none;
+  }
+
+  .pp-floors__tab:active {
+    transform: none;
   }
 }
 
@@ -1206,14 +1231,29 @@
   border: 1px solid var(--lb-color-brass, #e0a44a);
   color: var(--lb-color-brass-bright, #f3ba66);
   font-weight: 600;
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    background-color var(--lb-motion-fast, 110ms) var(--lb-motion-ease, ease),
+    transform var(--lb-motion-fast, 110ms) var(--lb-motion-ease, ease);
 }
 
 /* O indisponível (`disabled` ou `aria-disabled`) não acende. Um `:not()` só,
    com a lista: ele vale o argumento mais forte, e a regra fica em (0,3,0).
    Dois `:not()` somavam (0,4,0) e passavam na frente do pairar do interruptor
-   ligado, que ganha desta só por vir depois. */
-.pp-button:hover:not(:disabled, [aria-disabled='true']) {
-  background: var(--lb-color-brass-soft, rgba(224, 164, 74, 0.14));
+   ligado, que ganha desta só por vir depois — por isso o `@media` fica aqui
+   mesmo, e não num bloco junto lá embaixo. Pairar só com ponteiro que paira:
+   no celular o latão grudava no botão depois do toque. */
+@media (hover: hover) {
+  .pp-button:hover:not(:disabled, [aria-disabled='true']) {
+    background: var(--lb-color-brass-soft, rgba(224, 164, 74, 0.14));
+  }
+}
+
+/* O dedo pegou: afunda na hora e volta em 110 ms. Só o tamanho: o fundo fica
+   com quem já o pinta (o interruptor ligado é latão cheio). */
+.pp-button:active:not(:disabled, [aria-disabled='true']) {
+  transform: scale(0.97);
+  transition-duration: 0ms;
 }
 
 /*
@@ -1305,8 +1345,11 @@
   color: var(--lb-color-stone, #131317);
 }
 
-.pp-button--toggle[aria-pressed='true']:hover {
-  background: var(--lb-color-brass-bright, #f3ba66);
+/* Também só com ponteiro que paira: no celular o latão claro grudava no interruptor tocado. */
+@media (hover: hover) {
+  .pp-button--toggle[aria-pressed='true']:hover {
+    background: var(--lb-color-brass-bright, #f3ba66);
+  }
 }
 
 /* Rótulo da régua do jogador: segue a ponta da medida (posição escrita pelo
@@ -1531,13 +1574,15 @@
   .pp-toggle,
   .pp-mine,
   .pp-bag,
-  .pp-toggle__chevron {
+  .pp-toggle__chevron,
+  .pp-button {
     transition: none;
   }
 
   .pp-toggle:active,
   .pp-mine:active,
-  .pp-bag:active {
+  .pp-bag:active,
+  .pp-button:active:not(:disabled, [aria-disabled='true']) {
     transform: none;
   }
 }
@@ -1748,10 +1793,23 @@
   border: 1px solid transparent;
   border-radius: 999px;
   cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    background-color var(--lb-motion-fast, 110ms) var(--lb-motion-ease, ease),
+    transform var(--lb-motion-fast, 110ms) var(--lb-motion-ease, ease);
 }
 
-.pp-pincard__travel:hover:not(:disabled) {
-  background: var(--lb-color-brass-bright, #f3ba66);
+/* Pairar só onde existe ponteiro que paira: no celular o latão claro grudava depois do toque. */
+@media (hover: hover) {
+  .pp-pincard__travel:hover:not(:disabled) {
+    background: var(--lb-color-brass-bright, #f3ba66);
+  }
+}
+
+/* Afunda na hora do toque e volta em 110 ms; o pedido já enviado (desligado), não. */
+.pp-pincard__travel:active:not(:disabled) {
+  transform: scale(0.97);
+  transition-duration: 0ms;
 }
 
 /* Pedido já enviado: o botão continua ali dizendo o que aconteceu, sem convidar outro toque. */
@@ -1760,6 +1818,16 @@
   background: transparent;
   border-color: var(--lb-color-line-panel, rgba(255, 255, 255, 0.18));
   cursor: default;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pp-pincard__travel {
+    transition: none;
+  }
+
+  .pp-pincard__travel:active:not(:disabled) {
+    transform: none;
+  }
 }
 
 .pp-pincard__travel:focus-visible,
@@ -2095,7 +2163,9 @@
   gap: 2px;
 }
 
-/* 44 px de alvo: o volante se gira com o polegar. */
+/* 44 px de largura: o volante se gira com o polegar. No toque a altura também
+   sobe a 44 (a lista de alvos de dedo, junto do "Onde estou"); com o mouse,
+   32 bastam e o cadeado fica mais baixo. */
 .pp-lock__turn {
   width: 44px;
   height: 32px;
@@ -2107,10 +2177,33 @@
   border: 1px solid var(--lb-color-line-panel, rgba(255, 255, 255, 0.18));
   border-radius: 6px;
   cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    color var(--lb-motion-fast, 110ms) var(--lb-motion-ease, ease),
+    transform var(--lb-motion-fast, 110ms) var(--lb-motion-ease, ease);
 }
 
-.pp-lock__turn:hover {
-  color: var(--lb-color-parchment, #ece9e1);
+/* Pairar só onde existe ponteiro que paira: no celular a seta tocada ficava acesa. */
+@media (hover: hover) {
+  .pp-lock__turn:hover {
+    color: var(--lb-color-parchment, #ece9e1);
+  }
+}
+
+/* Cada giro afunda na hora e volta em 110 ms: o polegar sente que a seta pegou. */
+.pp-lock__turn:active {
+  transform: scale(0.97);
+  transition-duration: 0ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pp-lock__turn {
+    transition: none;
+  }
+
+  .pp-lock__turn:active {
+    transform: none;
+  }
 }
 
 .pp-lock__digit {
@@ -2273,7 +2366,9 @@
  * AÇÕES NO PONTO: menu do toque longo, ao lado do dedo. Linguagem de
  * minimapa: fundo escuro chapado, linha fina clara, sem textura. Largura e
  * altura casam com POINT_MENU_WIDTH_PX / POINT_MENU_HEIGHT_PX
- * (`PointActionMenu.tsx`), que viram o menu perto da borda da tela.
+ * (`PointActionMenu.tsx`), que viram o menu perto da borda da tela. A origem
+ * da escala de entrada também vem de lá (`transform-origin` no `style`): é o
+ * ponto do dedo, de que lado o menu tiver aberto.
  */
 .pp-pointmenu {
   position: fixed;
@@ -2283,19 +2378,19 @@
   gap: 2px;
   box-sizing: border-box;
   width: 148px;
-  max-height: 218px;
+  max-height: 238px;
   padding: 4px;
   font-family: var(--lb-font-sans, system-ui, sans-serif);
   background: var(--lb-color-stone, #131317);
   border: 1px solid var(--lb-color-line-panel, rgba(255, 255, 255, 0.18));
   border-radius: 8px;
   box-shadow: var(--lb-shadow-float, 0 8px 24px rgba(0, 0, 0, 0.45));
-  transform-origin: top left;
   animation: pp-pointmenu-in 120ms ease-out;
 }
 
+/* Alvo de dedo do tema (44 px), o mesmo do "Andar até aqui" que fecha o menu. */
 .pp-pointmenu__item {
-  min-height: 40px;
+  min-height: var(--lb-control-touch, 44px);
   padding: 0 12px;
   font: inherit;
   font-size: 15px;
@@ -2305,27 +2400,38 @@
   border: 0;
   border-radius: 6px;
   cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  /* Só o aperto anima: o realce do item (pairar, setas do teclado) acende na
+     hora, como num menu do sistema. */
+  transition: transform var(--lb-motion-fast, 110ms) var(--lb-motion-ease, ease);
 }
 
-/* Com "Andar até aqui" (item do menu do toque longo que mora em PlayerPointMenu): cresce o item a mais. */
+/* Com "Andar até aqui" (item do menu do toque longo que mora em PlayerPointMenu):
+   cresce o item a mais, no caso mais alto (motivo em duas linhas), igual a
+   POINT_MENU_HEIGHT_PX + POINT_MENU_WALK_HEIGHT_PX. O item entra com a própria
+   regra (`.pp-point-menu__item`): 44 px, como os de cima. */
 .pp-pointmenu--walk {
-  max-height: 284px;
+  max-height: 315px;
 }
 
-.pp-pointmenu--walk .pp-point-menu__item {
-  min-height: 40px;
-  padding: 8px 12px;
-  border-radius: 6px;
+/* Pairar só onde existe ponteiro que paira: no celular o item tocado ficava aceso.
+   O foco pelo teclado acende igual, fora do `@media`. */
+@media (hover: hover) {
+  .pp-pointmenu__item:hover {
+    background: rgba(255, 255, 255, 0.08);
+  }
 }
 
-.pp-pointmenu__item:hover,
 .pp-pointmenu__item:focus-visible {
   background: rgba(255, 255, 255, 0.08);
-}
-
-.pp-pointmenu__item:focus-visible {
   outline: 2px solid var(--lb-color-brass, #e0a44a);
   outline-offset: -2px;
+}
+
+/* O dedo pegou: afunda na hora e volta em 110 ms, como os botões da barra. */
+.pp-pointmenu__item:active {
+  transform: scale(0.97);
+  transition-duration: 0ms;
 }
 
 @keyframes pp-pointmenu-in {
@@ -2342,6 +2448,14 @@
 @media (prefers-reduced-motion: reduce) {
   .pp-pointmenu {
     animation: none;
+  }
+
+  .pp-pointmenu__item {
+    transition: none;
+  }
+
+  .pp-pointmenu__item:active {
+    transform: none;
   }
 }
 
@@ -2371,11 +2485,26 @@
   border-radius: 999px;
   box-shadow: var(--lb-shadow-float, 0 8px 24px rgba(0, 0, 0, 0.45));
   cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    border-color var(--lb-motion-fast, 110ms) var(--lb-motion-ease, ease),
+    transform var(--lb-motion-fast, 110ms) var(--lb-motion-ease, ease);
   animation: pp-notice-in 160ms ease-out;
 }
 
-.pp-espiar:hover {
-  border-color: var(--lb-color-brass, #e0a44a);
+/* Pairar só onde existe ponteiro que paira: no celular a borda de latão grudava depois do toque. */
+@media (hover: hover) {
+  .pp-espiar:hover {
+    border-color: var(--lb-color-brass, #e0a44a);
+  }
+}
+
+/* O dedo pegou: afunda na hora e volta em 110 ms. O scale vem DEPOIS do
+   translate que centra a pílula: um `scale(0.97)` sozinho trocaria o transform
+   inteiro, e a pílula pularia meia largura para a direita enquanto apertada. */
+.pp-espiar:active {
+  transform: translateX(-50%) scale(0.97);
+  transition-duration: 0ms;
 }
 
 .pp-espiar:focus-visible {
@@ -2392,6 +2521,11 @@
     bottom: calc(156px + var(--lb-control-touch, 44px) + var(--lb-control-gap, 8px) + env(safe-area-inset-bottom, 0px));
     transform: none;
     animation: pp-espiar-in 160ms ease-out;
+  }
+
+  /* Aqui não há translate para compor: o aperto é só o scale. */
+  .pp-espiar:active {
+    transform: scale(0.97);
   }
 }
 
@@ -2442,6 +2576,18 @@
 @media (prefers-reduced-motion: reduce) {
   .pp-espiar {
     animation: none;
+    transition: none;
+  }
+
+  /* Sem afundar, mas no lugar: no meio da tela a pílula segue centrada pelo translate. */
+  .pp-espiar:active {
+    transform: translateX(-50%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) and (max-width: 699px) {
+  .pp-espiar:active {
+    transform: none;
   }
 }
 
@@ -2740,15 +2886,38 @@
   border: 1px solid var(--lb-color-line-panel, rgba(255, 255, 255, 0.18));
   border-radius: 999px;
   cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    background-color var(--lb-motion-fast, 110ms) var(--lb-motion-ease, ease),
+    transform var(--lb-motion-fast, 110ms) var(--lb-motion-ease, ease);
 }
 
-.pp-note__close:hover {
-  background: rgba(255, 255, 255, 0.06);
+/* Pairar só onde existe ponteiro que paira: no celular o "Fechar" tocado ficava aceso. */
+@media (hover: hover) {
+  .pp-note__close:hover {
+    background: rgba(255, 255, 255, 0.06);
+  }
+}
+
+/* O dedo pegou: afunda na hora e volta em 110 ms, como os botões da barra. */
+.pp-note__close:active {
+  transform: scale(0.97);
+  transition-duration: 0ms;
 }
 
 .pp-note__close:focus-visible {
   outline: 2px solid var(--lb-color-brass, #e0a44a);
   outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pp-note__close {
+    transition: none;
+  }
+
+  .pp-note__close:active {
+    transform: none;
+  }
 }
 
 /*
@@ -3517,7 +3686,7 @@ button.pp-colecao__casa:focus-visible {
   flex-direction: column;
   align-items: flex-start;
   gap: 2px;
-  min-height: 44px;
+  min-height: var(--lb-control-touch, 44px);
   padding: 8px 12px;
   font: inherit;
   font-size: 15px;
@@ -3527,10 +3696,23 @@ button.pp-colecao__casa:focus-visible {
   border: 0;
   border-radius: 6px;
   cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  /* Como os irmãos do menu de ponto: só o aperto anima, o realce acende na hora. */
+  transition: transform var(--lb-motion-fast, 110ms) var(--lb-motion-ease, ease);
 }
 
-.pp-point-menu__item:hover:not([aria-disabled='true']) {
-  background: rgba(255, 255, 255, 0.08);
+/* Pairar só onde existe ponteiro que paira: no celular o item tocado ficava aceso. */
+@media (hover: hover) {
+  .pp-point-menu__item:hover:not([aria-disabled='true']) {
+    background: rgba(255, 255, 255, 0.08);
+  }
+}
+
+/* "Andar até aqui" mora no fim do menu do toque longo: afunda como os itens
+   de cima. Esmaecido (sem caminho conhecido), não convida o toque e não afunda. */
+.pp-point-menu__item:active:not([aria-disabled='true']) {
+  transform: scale(0.97);
+  transition-duration: 0ms;
 }
 
 .pp-point-menu__item:focus-visible {
@@ -3551,6 +3733,14 @@ button.pp-colecao__casa:focus-visible {
 @media (prefers-reduced-motion: reduce) {
   .pp-point-menu {
     animation: none;
+  }
+
+  .pp-point-menu__item {
+    transition: none;
+  }
+
+  .pp-point-menu__item:active:not([aria-disabled='true']) {
+    transform: none;
   }
 }
 
@@ -4050,8 +4240,9 @@ button.pp-colecao__casa:focus-visible {
    As abas de andar e o "Onde estou" mediam 36; os botões do aviso da porta, 32;
    os motivos, o campo e os botões do chamado, 32 a 38; o "Fechar" dos cartões,
    40; a coluna do cartão do pino ("Pedir para passar", "Me avise quando der",
-   "Barrar a passagem"), 40. Fica depois das regras de cada controle para vencer
-   na mesma especificidade. */
+   "Barrar a passagem"), 40; o "Fechar" do recado, cerca de 34; as setas do
+   cadeado e o "Apagar" das notas, 32. Fica depois das regras de cada controle
+   para vencer na mesma especificidade. */
 @media (max-width: 699px) {
   .pp-floors__tab,
   .pp-where,
@@ -4062,7 +4253,37 @@ button.pp-colecao__casa:focus-visible {
   .pp-pincard__close,
   .pp-pincard__travel,
   .pp-pincard__watch,
-  .pp-pincard__barrar {
+  .pp-pincard__barrar,
+  .pp-note__close,
+  .pp-lock__turn,
+  .pp-personal-notes__remove {
+    min-height: var(--lb-control-touch, 44px);
+  }
+
+  .pp-notice__close {
+    min-width: var(--lb-control-touch, 44px);
+    min-height: var(--lb-control-touch, 44px);
+  }
+}
+
+/* Tablet e toda tela de toque mais larga que o celular: o polegar é o mesmo, o
+   alvo também. A mesma lista do bloco de cima, num bloco à parte e não numa
+   mídia só com vírgula, porque o hudSemColisao.test.tsx confere o bloco do
+   celular pela condição exata. Quem entrar numa lista entra nas duas. */
+@media (pointer: coarse) {
+  .pp-floors__tab,
+  .pp-where,
+  .pp-notice__action,
+  .pp-call__reason,
+  .pp-call .pp-input,
+  .pp-call .pp-button,
+  .pp-pincard__close,
+  .pp-pincard__travel,
+  .pp-pincard__watch,
+  .pp-pincard__barrar,
+  .pp-note__close,
+  .pp-lock__turn,
+  .pp-personal-notes__remove {
     min-height: var(--lb-control-touch, 44px);
   }
 
