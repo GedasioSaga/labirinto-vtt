@@ -4011,6 +4011,42 @@ button.pp-colecao__casa:focus-visible {
 }
 
 /*
+ * Aberto, o alto-falante passa por cima do chamado (z 22). Na tela baixa o
+ * popover, preso à margem de cima (`desvioParaCaber`), desce até a linha do
+ * aviso ("Esperando o mestre"), e o que o jogador acabou de abrir não fica
+ * por baixo. Fechado, volta à pilha (z 13): o formulário do chamado, aberto
+ * depois, passa por cima de novo.
+ */
+.pp-som:has(.lb-som__pop) {
+  z-index: 23;
+}
+
+/*
+ * CELULAR DEITADO (até 480 px de altura): a pilha do canto de baixo não cabe
+ * em pé. O alto-falante fica onde está, no prumo do zoom, e quem dividia a
+ * coluna com ele vai para a esquerda dela. A coluna do canto de cima, com o
+ * confronto aberto, descia até a faixa do botão (844 x 390); as rolagens,
+ * empurradas para cima dele, saíam pelo alto da tela (844 x 340). Elas voltam
+ * à altura de antes do alto-falante, ao lado dele. O popover abre para a
+ * esquerda e passa por cima das duas (ControleDeSom.css).
+ */
+@media (max-height: 480px) {
+  .pp-canto {
+    right: calc(12px + var(--lb-control-touch, 44px) + 2px + var(--lb-control-gap, 8px));
+    max-width: min(420px, calc(100% - 24px - var(--lb-control-touch, 44px) - 2px - var(--lb-control-gap, 8px)));
+  }
+
+  .pp-dice-feed {
+    right: calc(12px + var(--lb-control-touch, 44px) + 2px + var(--lb-control-gap, 8px));
+    bottom: calc(
+      24px + 91px + 12px + var(--lb-control-touch, 44px) + var(--lb-control-gap, 8px) +
+        var(--lb-control-touch, 44px) + var(--lb-control-gap, 8px) + env(safe-area-inset-bottom, 0px)
+    );
+    max-width: min(260px, calc(100% - 24px - var(--lb-control-touch, 44px) - 2px - var(--lb-control-gap, 8px)));
+  }
+}
+
+/*
  * Teste secreto: o mesmo cartão do recado, mas embaixo (acima do "Espiar"),
  * para os dois caberem na tela ao mesmo tempo sem um tapar o outro.
  */

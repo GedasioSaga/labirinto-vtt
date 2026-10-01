@@ -156,6 +156,22 @@
   transform-origin: bottom right;
 }
 
+/*
+ * Celular deitado (até 480 px de altura): acima do botão não há altura. Em
+ * 844 x 390 o popover subia até 16 px além do alto da tela e levava junto o
+ * título e parte da linha do mudo. Abre para a ESQUERDA, com o pé no pé do
+ * botão: só cresce para cima, e nunca desce até o que mora embaixo dele (no
+ * jogador, as linhas do "Chamar o mestre"). Se nem assim couber, o componente
+ * o prende à margem da tela (`desvioParaCaber`).
+ */
+@media (max-height: 480px) {
+  .lb-som--flutuante .lb-som__pop {
+    right: calc(100% + 8px);
+    bottom: 0;
+    transform-origin: bottom right;
+  }
+}
+
 /* No mestre abre para BAIXO, dentro do painel da sala: estreito o bastante para a coluna de 264 px. */
 .lb-som--painel .lb-som__pop {
   top: calc(100% + 6px);

@@ -4,10 +4,12 @@
 // COMO PROVA: as duas telas inteiras no Chromium de verdade.
 //   - Jogador: `player.html`, com o host feito pelo próprio teste no WebSocket
 //     roteado (como task-sons-do-jogador.spec.ts). A pilha do canto de baixo à
-//     direita é medida pelas caixas reais em 1280, 390 e 320 px de largura: o
-//     alto-falante e o popover não podem cobrir o zoom, a mão do "Chamar o
-//     mestre" (inclusive com a linha "Esperando o mestre"), as rolagens nem a
-//     gaveta do painel. O áudio é o Web Audio de verdade, só registrado.
+//     direita é medida pelas caixas reais em 1280, 390 e 320 px de largura e
+//     no celular deitado (844 x 390, e 844 x 340 com a barra do navegador),
+//     com um confronto aberto: o alto-falante e o popover não podem sair da
+//     tela nem cobrir o zoom, a mão do "Chamar o mestre" (inclusive com a
+//     linha "Esperando o mestre"), as rolagens, a coluna do canto de cima nem
+//     a gaveta do painel. O áudio é o Web Audio de verdade, só registrado.
 //   - Mestre: o app em modo Tauri com disco e transporte de mentira (como
 //     task-jornada-dado-na-sala.spec.ts); o alto-falante mora no cabeçalho da
 //     sala e o popover tem de caber dentro do painel da sala, que rola por dentro.
@@ -54,8 +56,17 @@ const VISAO_TODA: RegionPoint[][] = [
 ]
 
 function mapaDoJogador(): MapData {
-  return addToken(createEmptyMap('m1', 'Salão', 20, 20, 50), { id: 'ficha-ana', characterId: null, name: 'Ana', x: 125, y: 125, size: 1, image: null })
+  const comAna = addToken(createEmptyMap('m1', 'Salão', 20, 20, 50), { id: 'ficha-ana', characterId: null, name: 'Ana', x: 125, y: 125, size: 1, image: null })
+  // Os outros da fila do confronto: a faixa só mostra quem chegou no recorte.
+  const comRato = addToken(comAna, { id: 'rato-1', characterId: null, name: 'Rato 1', x: 225, y: 125, size: 1, image: null })
+  return addToken(comRato, { id: 'bia', characterId: null, name: 'Bia', x: 325, y: 125, size: 1, image: null })
 }
+
+/**
+ * A vez num confronto, a faixa da coluna do canto de cima à direita: com ela
+ * aberta, a coluna desce até a faixa do alto-falante no celular deitado.
+ */
+const CONFRONTO = { fila: ['ficha-ana', 'rato-1', 'bia'], vez: 'ficha-ana', suaVez: true, passo: 6, restam: 6 }
 
 /** Roda NA PÁGINA, antes de qualquer script dela: registra o áudio que começa a tocar. */
 function instrumentarWebAudio(): void {
@@ -97,9 +108,17 @@ async function estadosDosContextos(page: Page): Promise<string[]> {
   })
 }
 
+/** Campos a mais do recorte que o host manda (o confronto da cena, por exemplo). */
+type ExtrasDoRecorte = Record<string, unknown>
+
 /** O host de mentira: a cada `join` (a entrada e a volta depois de recarregar) responde com a sessão e o recorte. */
 class HostDeMentira {
   private socket: WebSocketRoute | null = null
+  private readonly extras: ExtrasDoRecorte
+
+  constructor(extras: ExtrasDoRecorte) {
+    this.extras = extras
+  }
 
   ligar(ws: WebSocketRoute): void {
     this.socket = ws
@@ -107,7 +126,7 @@ class HostDeMentira {
       const msg: unknown = JSON.parse(typeof bruto === 'string' ? bruto : bruto.toString('utf8'))
       if (typeof msg !== 'object' || msg === null || !('type' in msg) || msg.type !== 'join') return
       this.mandar({ type: 'welcome', playerId: 'p-ana', resumeToken: 'tok-ana', name: 'Ana' })
-      this.mandar({ type: 'snapshot', rev: 1, map: mapaDoJogador(), vision: VISAO_TODA, ownTokens: ['ficha-ana'], concealed: [] })
+      this.mandar({ type: 'snapshot', rev: 1, map: mapaDoJogador(), vision: VISAO_TODA, ownTokens: ['ficha-ana'], concealed: [], ...this.extras })
     })
   }
 
@@ -117,8 +136,8 @@ class HostDeMentira {
   }
 }
 
-async function jogadorEntra(page: Page): Promise<HostDeMentira> {
-  const host = new HostDeMentira()
+async function jogadorEntra(page: Page, extras: ExtrasDoRecorte = {}): Promise<HostDeMentira> {
+  const host = new HostDeMentira(extras)
   await page.routeWebSocket(
     (url) => url.pathname === '/ws',
     (ws) => host.ligar(ws),
@@ -152,29 +171,54 @@ async function esperarAEntrada(alvo: Locator): Promise<void> {
   await alvo.evaluate((el) => Promise.all(el.getAnimations().map((animacao) => animacao.finished)))
 }
 
+/**
+ * A camada (z-index) do contêiner fixo onde o elemento mora. O alto-falante,
+ * as rolagens, a coluna do canto de cima e o chamado são irmãos na mesma
+ * pilha; as rolagens e a coluna não pegam toque (`pointer-events: none`), e o
+ * `elementFromPoint` passaria por elas sem dizer quem está por cima.
+ */
+async function camada(alvo: Locator): Promise<number> {
+  return alvo.evaluate((el) => {
+    for (let atual: Element | null = el; atual !== null; atual = atual.parentElement) {
+      const estilo = getComputedStyle(atual)
+      if (estilo.position === 'fixed') return Number(estilo.zIndex)
+    }
+    throw new Error('o elemento não mora num contêiner fixo')
+  })
+}
+
 function rolagem(id: string, total: number) {
   return { type: 'dice.rolled', roll: { id, from: 'Bia', count: 1, sides: 20, modifier: 0, results: [total], total, at: 2_000 } }
 }
 
-/** O notebook do mestre, o celular comum (390) e o celular estreito (320). */
+/**
+ * O notebook do mestre, o celular comum (390) e o estreito (320) em pé, e o
+ * celular deitado (844 x 390): na tela cheia e com a barra do navegador, que
+ * deixa uns 340 px de altura.
+ */
 const TELAS: ReadonlyArray<{ width: number; height: number }> = [
   { width: 1280, height: 800 },
   { width: 390, height: 844 },
   { width: 320, height: 568 },
+  { width: 844, height: 390 },
+  { width: 844, height: 340 },
 ]
 
 for (const tela of TELAS) {
-  test(`jogador ${tela.width}x${tela.height}: o alto-falante entra na pilha do canto sem cobrir zoom, mão, rolagens nem gaveta`, async ({ page }) => {
+  test(`jogador ${tela.width}x${tela.height}: o alto-falante entra na pilha do canto sem cobrir zoom, mão, rolagens, coluna do canto nem gaveta`, async ({ page }) => {
     await page.setViewportSize(tela)
-    const host = await jogadorEntra(page)
+    const host = await jogadorEntra(page, { confronto: CONFRONTO })
     host.mandar(rolagem('r1', 17))
     host.mandar(rolagem('r2', 4))
     const som = page.getByRole('button', { name: 'Som', exact: true })
     const zoom = page.getByRole('group', { name: 'Zoom do mapa' })
     const mao = page.getByRole('button', { name: 'Chamar o mestre' })
     const rolagens = page.getByRole('log', { name: 'Rolagens' })
+    // A coluna do canto de cima à direita: o "Onde estou" e, com o confronto aberto, a faixa da vez.
+    const canto = page.locator('.pp-canto')
     await expect(som).toBeVisible()
     await expect(rolagens.getByText('17')).toBeVisible()
+    await expect(page.getByRole('region', { name: 'Confronto' })).toBeVisible()
 
     const caixaDoSom = await caixa(som)
     expect(dentroDaTela(caixaDoSom, tela)).toBe(true)
@@ -185,10 +229,13 @@ for (const tela of TELAS) {
     expect(Math.abs(caixaDoSom.x + caixaDoSom.width - (caixaDoZoom.x + caixaDoZoom.width))).toBeLessThanOrEqual(1)
     const caixaDaMao = await caixa(mao)
     expect(caixaDoSom.y + caixaDoSom.height).toBeLessThanOrEqual(caixaDaMao.y)
-    for (const outra of [caixaDoZoom, caixaDaMao, await caixa(rolagens)]) expect(cruzam(caixaDoSom, outra)).toBe(false)
-    await test.info().attach(`pilha-${tela.width}.png`, { body: await page.screenshot(), contentType: 'image/png' })
+    const caixaDasRolagens = await caixa(rolagens)
+    for (const outra of [caixaDoZoom, caixaDaMao, caixaDasRolagens, await caixa(canto)]) expect(cruzam(caixaDoSom, outra)).toBe(false)
+    // As rolagens inteiras na tela: empurradas para cima do alto-falante, saíam pelo alto no celular deitado.
+    expect(dentroDaTela(caixaDasRolagens, tela)).toBe(true)
+    await test.info().attach(`pilha-${tela.width}x${tela.height}.png`, { body: await page.screenshot(), contentType: 'image/png' })
 
-    // O popover abre para cima, dentro da tela, sem cobrir o zoom, a mão nem o próprio alto-falante.
+    // O popover abre inteiro na tela (para cima; deitado, para a esquerda), sem cobrir o zoom, a mão nem o próprio alto-falante.
     await som.click()
     const popover = page.getByRole('dialog', { name: 'Som da mesa' })
     await expect(popover).toBeVisible()
@@ -196,14 +243,12 @@ for (const tela of TELAS) {
     const caixaDoPopover = await caixa(popover)
     expect(dentroDaTela(caixaDoPopover, tela)).toBe(true)
     for (const outra of [caixaDoZoom, caixaDaMao, caixaDoSom]) expect(cruzam(caixaDoPopover, outra)).toBe(false)
-    // Por cima das rolagens que ele cruza: o ponto de cruzamento é do popover, não da lista.
-    const caixaDasRolagens = await caixa(rolagens)
-    if (cruzam(caixaDoPopover, caixaDasRolagens)) {
-      const ponto = { x: Math.max(caixaDoPopover.x, caixaDasRolagens.x) + 4, y: Math.max(caixaDoPopover.y, caixaDasRolagens.y) + 4 }
-      expect(await page.evaluate(({ x, y }) => document.elementFromPoint(x, y)?.closest('[role="dialog"]') !== null, ponto)).toBe(true)
+    // Por cima do que ele cruza: as rolagens e, deitado, a coluna do canto de cima.
+    for (const fundo of [rolagens, canto]) {
+      if (cruzam(caixaDoPopover, await caixa(fundo))) expect(await camada(popover)).toBeGreaterThan(await camada(fundo))
     }
     await expect(popover.getByRole('slider', { name: 'Volume' })).toBeFocused()
-    await test.info().attach(`popover-${tela.width}.png`, { body: await page.screenshot(), contentType: 'image/png' })
+    await test.info().attach(`popover-${tela.width}x${tela.height}.png`, { body: await page.screenshot(), contentType: 'image/png' })
     await page.keyboard.press('Escape')
     await expect(popover).toBeHidden()
     await expect(som).toBeFocused()
@@ -215,7 +260,20 @@ for (const tela of TELAS) {
     const baixar = page.getByRole('button', { name: 'Baixar a mão' })
     await expect(esperando).toBeVisible()
     for (const linha of [await caixa(esperando), await caixa(baixar)]) expect(cruzam(await caixa(som), linha)).toBe(false)
-    await test.info().attach(`mao-acesa-${tela.width}.png`, { body: await page.screenshot(), contentType: 'image/png' })
+    await test.info().attach(`mao-acesa-${tela.width}x${tela.height}.png`, { body: await page.screenshot(), contentType: 'image/png' })
+
+    // Com a mão acesa o popover segue inteiro na tela e por cima das linhas do
+    // chamado que cruzar: em 340 ele, preso à margem de cima, desce até a do aviso.
+    await som.click()
+    await expect(popover).toBeVisible()
+    await esperarAEntrada(popover)
+    const comAMaoAcesa = await caixa(popover)
+    expect(dentroDaTela(comAMaoAcesa, tela)).toBe(true)
+    for (const linha of [esperando, baixar]) {
+      if (cruzam(comAMaoAcesa, await caixa(linha))) expect(await camada(popover)).toBeGreaterThan(await camada(linha))
+    }
+    await page.keyboard.press('Escape')
+    await expect(popover).toBeHidden()
 
     // Celular: a gaveta aberta tira o alto-falante de cena (não fica por cima do painel), e fechar a devolve.
     if (tela.width < 700) {

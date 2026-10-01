@@ -2,7 +2,7 @@ import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { CHAVE_DA_PREFERENCIA_DE_SOM, PREFERENCIA_DE_SOM_PADRAO, useSomStore } from '../stores/somStore'
-import { ControleDeSom, SOM_DE_AMOSTRA, TITULO_DO_SOM, type ControleDeSomProps } from './ControleDeSom'
+import { ControleDeSom, desvioParaCaber, MARGEM_DA_TELA, SOM_DE_AMOSTRA, TITULO_DO_SOM, type ControleDeSomProps } from './ControleDeSom'
 
 /*
  * SOM DA MESA (pedido "sons", fatia 3): o alto-falante abre um popover pequeno
@@ -270,6 +270,55 @@ describe('ControleDeSom', () => {
     expect(dialogo()).not.toBeNull()
   })
 
+  it('preso à margem da tela: o popover que passaria do alto desce até a margem, e volta a medir quando a tela muda', () => {
+    // O jsdom não calcula layout: as medidas são as do celular deitado com a
+    // barra do navegador (844 x 340). O alto-falante a 63 px do alto e o
+    // popover à esquerda dele, com o pé no pé do botão: 121 px para cima.
+    const tela = { largura: 844, altura: 340 }
+    const topoDoBotao = { atual: 63 }
+    const popoverDe = (el: Element): boolean => el.classList.contains('lb-som__pop')
+    const espioes = [
+      vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (this: Element) {
+        return this.classList.contains('lb-som') ? new DOMRect(786, topoDoBotao.atual, 46, 46) : new DOMRect()
+      }),
+      vi.spyOn(HTMLElement.prototype, 'offsetLeft', 'get').mockImplementation(function (this: HTMLElement) {
+        return popoverDe(this) ? -240 : 0
+      }),
+      vi.spyOn(HTMLElement.prototype, 'offsetTop', 'get').mockImplementation(function (this: HTMLElement) {
+        return popoverDe(this) ? 46 - 121 : 0
+      }),
+      vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockImplementation(function (this: HTMLElement) {
+        return popoverDe(this) ? 232 : 0
+      }),
+      vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockImplementation(function (this: HTMLElement) {
+        return popoverDe(this) ? 121 : 0
+      }),
+      vi.spyOn(window, 'innerWidth', 'get').mockImplementation(() => tela.largura),
+      vi.spyOn(window, 'innerHeight', 'get').mockImplementation(() => tela.altura),
+    ]
+    try {
+      montar({ className: 'pp-som' })
+      apertar(gatilho())
+      // O topo cairia em 63 + 46 − 121 = −12: desce 20 px, até a margem.
+      expect(dialogo()?.style.translate).toBe(`0px ${MARGEM_DA_TELA + 12}px`)
+      // Girou para a tela cheia (844 x 390): o botão desce 50 px e o popover cabe sem desvio.
+      tela.altura = 390
+      topoDoBotao.atual = 113
+      act(() => {
+        window.dispatchEvent(new Event('resize'))
+      })
+      expect(dialogo()?.style.translate).toBe('')
+    } finally {
+      for (const espiao of espioes) espiao.mockRestore()
+    }
+  })
+
+  it('sem caixa medida (ainda sem layout), o popover fica onde o CSS o pôs', () => {
+    montar()
+    apertar(gatilho())
+    expect(dialogo()?.style.translate).toBe('')
+  })
+
   it('a variante flutuante é o botão de toque do jogador; a de painel usa o botão compacto do mestre', () => {
     montar({ className: 'pp-som' })
     const raiz = container.firstElementChild
@@ -281,5 +330,28 @@ describe('ControleDeSom', () => {
     expect(container.firstElementChild?.classList.contains('lb-som--painel')).toBe(true)
     expect(gatilho().classList.contains('lb-btn')).toBe(true)
     expect(gatilho().classList.contains('lb-btn--compact')).toBe(true)
+  })
+})
+
+describe('desvioParaCaber', () => {
+  const TELA = { largura: 844, altura: 340 }
+  const POPOVER = { largura: 232, altura: 121 }
+
+  it('cabendo com a margem, não move', () => {
+    expect(desvioParaCaber({ x: 546, y: 40, ...POPOVER }, TELA, 8)).toEqual({ x: 0, y: 0 })
+  })
+
+  it('passando do alto, desce até a margem; passando do pé, sobe até ela', () => {
+    expect(desvioParaCaber({ x: 546, y: -12, ...POPOVER }, TELA, 8)).toEqual({ x: 0, y: 20 })
+    expect(desvioParaCaber({ x: 546, y: 300, ...POPOVER }, TELA, 8)).toEqual({ x: 0, y: 340 - 8 - 121 - 300 })
+  })
+
+  it('passando da borda esquerda, entra; passando da direita, volta', () => {
+    expect(desvioParaCaber({ x: -30, y: 40, ...POPOVER }, TELA, 8)).toEqual({ x: 38, y: 0 })
+    expect(desvioParaCaber({ x: 700, y: 40, ...POPOVER }, TELA, 8)).toEqual({ x: 844 - 8 - 232 - 700, y: 0 })
+  })
+
+  it('maior que a tela, a borda de cima e a da esquerda ganham: o título nunca sai', () => {
+    expect(desvioParaCaber({ x: 20, y: -50, largura: 900, altura: 400 }, TELA, 8)).toEqual({ x: -12, y: 58 })
   })
 })

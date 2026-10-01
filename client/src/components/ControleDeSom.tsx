@@ -48,6 +48,58 @@ const TECLAS_DA_BARRA: ReadonlySet<string> = new Set(['ArrowLeft', 'ArrowRight',
 /** Teclas que apertam o botão em foco. */
 const TECLAS_DO_BOTAO: ReadonlySet<string> = new Set([' ', 'Enter'])
 
+/** Respiro mínimo entre o popover e a borda da tela: o mesmo do menu do ponto (`PointActionMenu`). */
+export const MARGEM_DA_TELA = 8
+
+/** Uma caixa na tela, em px a partir do canto de cima à esquerda. */
+export interface CaixaNaTela {
+  x: number
+  y: number
+  largura: number
+  altura: number
+}
+
+/** O quanto mover, em px: positivo é para a direita e para baixo. */
+export interface Desvio {
+  x: number
+  y: number
+}
+
+const SEM_DESVIO: Desvio = { x: 0, y: 0 }
+
+/** Onde a caixa começa num eixo para caber com a margem; maior que o espaço, o começo vence. */
+function inicioQueCabe(inicio: number, tamanho: number, limite: number, margem: number): number {
+  return Math.max(margem, Math.min(inicio, limite - margem - tamanho))
+}
+
+/**
+ * PRESO À MARGEM DA TELA: quanto mover a caixa para ela caber na tela com a
+ * margem. Cabendo, nada. Maior que a tela, a borda de cima e a da esquerda
+ * ganham: é por onde a leitura começa (o título "Som da mesa").
+ */
+export function desvioParaCaber(caixa: CaixaNaTela, tela: { largura: number; altura: number }, margem: number): Desvio {
+  return {
+    x: inicioQueCabe(caixa.x, caixa.largura, tela.largura, margem) - caixa.x,
+    y: inicioQueCabe(caixa.y, caixa.altura, tela.altura, margem) - caixa.y,
+  }
+}
+
+/**
+ * O desvio do popover aberto, medido na tela. As medidas são as de layout
+ * (`offset*`, a partir de quem posiciona o popover: a raiz, que quem monta
+ * deixa posicionada), e não a caixa desenhada do popover: a entrada anima
+ * `transform: scale(0.95)`, e a caixa encolhida mentiria o lugar; o
+ * `translate` do próprio desvio também não entra nelas. Sem caixa (ainda sem
+ * layout), fica onde o CSS o pôs.
+ */
+function medirDesvio(raiz: HTMLElement, popover: HTMLElement): Desvio {
+  if (popover.offsetWidth === 0 && popover.offsetHeight === 0) return SEM_DESVIO
+  const posicionador = popover.offsetParent instanceof HTMLElement ? popover.offsetParent : raiz
+  const origem = posicionador.getBoundingClientRect()
+  const caixa = { x: origem.left + popover.offsetLeft, y: origem.top + popover.offsetTop, largura: popover.offsetWidth, altura: popover.offsetHeight }
+  return desvioParaCaber(caixa, { largura: window.innerWidth, altura: window.innerHeight }, MARGEM_DA_TELA)
+}
+
 /** O alto-falante é mais vazado que o + e o − do zoom: 22 px no botão de 46 lhe dão o mesmo peso. */
 const TAMANHO_DO_ICONE: Record<VarianteDoControleDeSom, number> = { flutuante: 22, painel: 16 }
 /** Sobre o mapa, o traço do + e do − do zoom; no painel, o da família de ícones. */
@@ -57,8 +109,10 @@ export function ControleDeSom({ variante, className, legenda, tocar = tocarSom, 
   const volume = useSomStore((estado) => estado.volume)
   const mudo = useSomStore((estado) => estado.mudo)
   const [abertura, setAbertura] = useState<Abertura | null>(null)
+  const [desvio, setDesvio] = useState<Desvio>(SEM_DESVIO)
   const raizRef = useRef<HTMLDivElement>(null)
   const gatilhoRef = useRef<HTMLButtonElement>(null)
+  const popoverRef = useRef<HTMLDivElement>(null)
   const barraRef = useRef<HTMLInputElement>(null)
   const gatilhoId = useId()
   const popoverId = useId()
@@ -81,6 +135,23 @@ export function ControleDeSom({ variante, className, legenda, tocar = tocarSom, 
   // O foco entra na barra, o controle principal: as setas já regulam.
   useLayoutEffect(() => {
     if (aberto) barraRef.current?.focus()
+  }, [aberto])
+
+  // Preso à margem da tela: onde o CSS o põe e ele não cabe, o popover entra
+  // na tela antes de pintar. No celular deitado com a barra do navegador
+  // (844 x 340), aberto à esquerda com o pé no pé do botão, ele ainda passaria
+  // 12 px do alto. Mede de novo quando a tela muda (o aparelho girou).
+  useLayoutEffect(() => {
+    const raiz = raizRef.current
+    const popover = popoverRef.current
+    if (!aberto || raiz === null || popover === null) return
+    const encaixar = (): void => {
+      const novo = medirDesvio(raiz, popover)
+      setDesvio((atual) => (atual.x === novo.x && atual.y === novo.y ? atual : novo))
+    }
+    encaixar()
+    window.addEventListener('resize', encaixar)
+    return () => window.removeEventListener('resize', encaixar)
   }, [aberto])
 
   // Soltar a alça toca a amostra. É o `change` nativo: o `onChange` do React
@@ -182,6 +253,7 @@ export function ControleDeSom({ variante, className, legenda, tocar = tocarSom, 
       </button>
       {abertura !== null && (
         <div
+          ref={popoverRef}
           id={popoverId}
           className="lb-som__pop"
           role="dialog"
@@ -189,6 +261,8 @@ export function ControleDeSom({ variante, className, legenda, tocar = tocarSom, 
           aria-describedby={dicaId}
           data-abertura={abertura}
           data-mudo={mudo}
+          // O `translate` compõe com o `transform` da entrada: a escala anima, o desvio fica.
+          style={desvio.x === 0 && desvio.y === 0 ? undefined : { translate: `${desvio.x}px ${desvio.y}px` }}
         >
           <div className="lb-som__cabeca">
             <p id={tituloId} className="lb-som__titulo">

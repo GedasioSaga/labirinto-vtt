@@ -472,3 +472,39 @@ describe('alto-falante (som da mesa) na pilha do canto de baixo à direita', () 
     expect(acima.get('transform-origin')).toBe('bottom right')
   })
 })
+
+describe('celular deitado: a pilha do canto de baixo sem altura de sobra', () => {
+  // Em 844 x 390 (uns 340 px úteis com a barra do navegador) o alto-falante
+  // fica a 231 px do rodapé e o popover, aberto para cima, saía pelo alto da
+  // tela com o título "Som da mesa". A coluna do canto de cima, com o
+  // confronto aberto, descia até a faixa do botão; e as rolagens, empurradas
+  // para cima dele, saíam pelo alto em 340.
+  const ALTURA_BAIXA = '(max-height: 480px)'
+  /** A coluna dos controles de pedra (zoom e alto-falante): o botão de 46 px e o vão do tema. */
+  const colunaDosControles = px('var(--lb-control-touch)') + 2 + px('var(--lb-control-gap)')
+
+  it('o popover abre para a esquerda do alto-falante, com o pé no pé dele: só cresce para cima', async () => {
+    const pop = regraNaMidia(await lerCss('../components/ControleDeSom.css'), ALTURA_BAIXA, '.lb-som--flutuante .lb-som__pop')
+    expect(pop.get('right')).toBe('calc(100% + 8px)')
+    expect(pop.get('bottom')).toBe('0')
+    // A entrada nasce do canto mais perto do botão.
+    expect(pop.get('transform-origin')).toBe('bottom right')
+  })
+
+  it.each(['.pp-canto', '.pp-dice-feed'])('%s sai do prumo do alto-falante, para a esquerda da coluna dos controles', async (seletor) => {
+    const css = await lerPlayerCss()
+    const bordaDaColuna = px(regraBase(css, '.pp-zoom').get('right')) + colunaDosControles
+    expect(px(regraNaMidia(css, ALTURA_BAIXA, seletor).get('right'))).toBeGreaterThanOrEqual(bordaDaColuna)
+  })
+
+  it('as rolagens voltam à altura de antes do alto-falante: ao lado dele, não em cima', async () => {
+    const css = await lerPlayerCss()
+    expect(px(regraNaMidia(css, ALTURA_BAIXA, '.pp-dice-feed').get('bottom'))).toBe(px(regraBase(css, '.pp-som').get('bottom')))
+  })
+
+  it('aberto, o alto-falante passa por cima do chamado: preso à margem da tela, o popover desce até a linha do aviso', async () => {
+    const css = await lerPlayerCss()
+    const aberto = Number(regraBase(css, '.pp-som:has(.lb-som__pop)').get('z-index'))
+    expect(aberto).toBeGreaterThan(Number(regraBase(css, '.pp-call').get('z-index')))
+  })
+})
