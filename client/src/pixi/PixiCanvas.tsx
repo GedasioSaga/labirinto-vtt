@@ -869,6 +869,13 @@ export function PixiCanvas({
         return
       }
       initialized = true
+      // Bloco, não o `inline` padrão do <canvas>: inline, ele mora numa linha de
+      // texto que reserva embaixo o espaço das letras que descem, e com o
+      // contêiner de 100% de altura essa sobra (5 px) vazava até o `.lb-editor`.
+      // O editor tem `overflow: hidden`, mas ainda rola por foco: escolher uma
+      // forma no menu "Opções de Desenho" o rolava 5 px, e ele subia inteiro com
+      // uma faixa preta embaixo (conferência guias-4e5).
+      app.canvas.style.display = 'block'
       el.appendChild(app.canvas)
 
       const world = new Container()
