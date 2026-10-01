@@ -1,16 +1,21 @@
 import { describe, expect, it } from 'vitest'
-import type { AreaBounds } from './areaSelection'
+import { EMPTY_AREA_SELECTION, areaSelectionBounds, type AreaBounds, type AreaSelection } from './areaSelection'
+import { guideBoxesForDrag } from './guideBoxes'
+import { createEmptyMap } from './mapFactory'
 import {
   EXACT_ALIGNMENT_WORLD_PX,
   SMART_GUIDE_SCREEN_PX,
   dragBoxWithGuides,
+  dragPointWithGuides,
   guideModeForDrag,
+  pointBox,
   sameGuides,
   screenPxToWorld,
   snapBox,
   type GuideMode,
   type SmartGuide,
 } from './smartGuides'
+import type { Drawing, MapData, Region } from '../types/map'
 
 function caixa(minX: number, minY: number, maxX: number, maxY: number): AreaBounds {
   return { minX, minY, maxX, maxY }
@@ -146,6 +151,96 @@ describe('dragBoxWithGuides — posição pelo delta TOTAL do gesto', () => {
     const perto = arrasta(203)
     expect(perto.offsetX).toBe(203)
     expect(perto.guides).toEqual([])
+  })
+})
+
+describe('dragPointWithGuides — a ponta, o vértice e a ficha encaixam como uma caixa sem tamanho', () => {
+  const sala = caixa(100, 0, 200, 100)
+
+  it('pointBox: as três âncoras do ponto são o próprio ponto', () => {
+    expect(pointBox({ x: 7, y: -3 })).toEqual({ minX: 7, minY: -3, maxX: 7, maxY: -3 })
+  })
+
+  it('ponto a 3 px do centro da caixa encaixa no centro, e a guia vai do ponto até o meio da caixa', () => {
+    const r = dragPointWithGuides({ point: { x: 153, y: 500 }, others: [sala], tolerance: 6, mode: 'snap' })
+    expect(r.point).toEqual({ x: 150, y: 500 })
+    expect(r.guides).toEqual([{ axis: 'x', position: 150, from: 50, to: 500, marks: [50, 500] }])
+  })
+
+  it('a borda da caixa também é âncora: a 4 px da borda direita, encaixa nela', () => {
+    const r = dragPointWithGuides({ point: { x: 204, y: 500 }, others: [sala], tolerance: 6, mode: 'snap' })
+    expect(r.point).toEqual({ x: 200, y: 500 })
+    expect(r.guides.map((g) => [g.axis, g.position])).toEqual([['x', 200]])
+  })
+
+  it('ponto solto (a ponta de outra parede) entra como caixa sem tamanho: encaixa nele e a guia liga os dois', () => {
+    const r = dragPointWithGuides({ point: { x: 403, y: 200 }, others: [pointBox({ x: 400, y: 50 })], tolerance: 6, mode: 'snap' })
+    expect(r.point).toEqual({ x: 400, y: 200 })
+    expect(r.guides).toEqual([{ axis: 'x', position: 400, from: 50, to: 200, marks: [50, 200] }])
+  })
+
+  it('os dois eixos de uma vez: o ponto vai ao canto da caixa', () => {
+    const r = dragPointWithGuides({ point: { x: 203, y: 104 }, others: [sala], tolerance: 6, mode: 'snap' })
+    expect(r.point).toEqual({ x: 200, y: 100 })
+  })
+
+  it("'free' (Ctrl): o ponto fica onde está, sem guia", () => {
+    expect(dragPointWithGuides({ point: { x: 153, y: 500 }, others: [sala], tolerance: 6, mode: 'free' })).toEqual({ point: { x: 153, y: 500 }, guides: [] })
+  })
+
+  it("'gridExact' (a grade manda): o ponto não anda pela guia, e ela só aparece no alinhamento exato", () => {
+    const perto = dragPointWithGuides({ point: { x: 153, y: 500 }, others: [sala], tolerance: 6, mode: 'gridExact' })
+    expect(perto).toEqual({ point: { x: 153, y: 500 }, guides: [] })
+    const exato = dragPointWithGuides({ point: { x: 150, y: 500 }, others: [sala], tolerance: 6, mode: 'gridExact' })
+    expect(exato.point).toEqual({ x: 150, y: 500 })
+    expect(exato.guides.map((g) => g.position)).toEqual([150])
+  })
+
+  it('a 7 px com tolerância 6, nada encaixa', () => {
+    expect(dragPointWithGuides({ point: { x: 157, y: 500 }, others: [sala], tolerance: 6, mode: 'snap' })).toEqual({ point: { x: 157, y: 500 }, guides: [] })
+  })
+})
+
+describe('seleção de vários itens — a caixa da união encaixa, e a própria seleção não vira guia', () => {
+  // Um corredor de duas linhas (x = 100 e x = 140), abaixo e à esquerda de uma
+  // sala: nenhuma altura da sala (100, 200, 300) bate com as do corredor.
+  const linha = (id: string, x: number): Drawing => ({ id, kind: 'line', x1: x, y1: 400, x2: x, y2: 600, color: '#ffffff', width: 2 })
+  const sala: Region = {
+    id: 'sala',
+    points: [
+      { x: 300, y: 100 },
+      { x: 500, y: 100 },
+      { x: 500, y: 300 },
+      { x: 300, y: 300 },
+    ],
+    tag: '',
+    fillColor: '#a8776a',
+    fillPattern: 'solid',
+    data: {},
+    room: { shape: 'rect', name: 'sala' },
+  }
+  const map: MapData = { ...createEmptyMap('m_uniao', 'União', 40, 20, 64), drawings: [linha('a', 100), linha('b', 140)], regions: [sala] }
+  const selecao: AreaSelection = { ...EMPTY_AREA_SELECTION, drawings: ['a', 'b'] }
+  const inicio = areaSelectionBounds(map, selecao)
+  const outras = guideBoxesForDrag(map, { piso: 0, exclude: selecao, viewport: { left: 0, top: 0, right: 1000, bottom: 800 }, margin: 1000 })
+
+  it('a união vai de 100 a 140 e só a sala é candidata', () => {
+    expect(inicio).toEqual({ minX: 100, minY: 400, maxX: 140, maxY: 600 })
+    expect(outras).toEqual([{ minX: 300, minY: 100, maxX: 500, maxY: 300 }])
+  })
+
+  it('a borda esquerda da união, a 3 px da borda direita da sala, encaixa nela', () => {
+    if (inicio === null) throw new Error('a seleção do teste tem caixa')
+    const r = dragBoxWithGuides({ startBounds: inicio, startPointer: { x: 120, y: 500 }, pointer: { x: 523, y: 500 }, others: outras, tolerance: 6, mode: 'snap' })
+    expect(r.offsetX).toBe(400)
+    expect(r.offsetY).toBe(0)
+    expect(r.guides).toEqual([{ axis: 'x', position: 500, from: 200, to: 500, marks: [200, 500] }])
+  })
+
+  it('3 px de arrasto não prende a seleção na posição de onde ela saiu', () => {
+    if (inicio === null) throw new Error('a seleção do teste tem caixa')
+    const r = dragBoxWithGuides({ startBounds: inicio, startPointer: { x: 120, y: 500 }, pointer: { x: 123, y: 500 }, others: outras, tolerance: 6, mode: 'snap' })
+    expect(r).toEqual({ offsetX: 3, offsetY: 0, guides: [] })
   })
 })
 

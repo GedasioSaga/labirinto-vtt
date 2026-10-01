@@ -232,8 +232,8 @@ function drawShape(graphics: Graphics, geometry: HoverGeometry, cameraScale: num
  * `target` que ele devolveu, e de novo quando o zoom muda (a espessura é de
  * tela). `target: null` (nada sob o cursor, algo já selecionado, ou fora de
  * `mode === 'idle'`) limpa o gráfico e não desenha nada — mesmo padrão de
- * `pixi/drawGuides.ts` (`graphics.clear()` incondicional no topo, sem branch
- * "já estava vazio").
+ * `pixi/drawSmartGuides.ts` (`graphics.clear()` incondicional no topo, sem
+ * branch "já estava vazio").
  *
  * `cameraScale` omitida ou inválida (0, NaN) cai na escala de mundo do
  * próprio nó, como o contorno de seleção (`resolveCameraScale`): dentro do

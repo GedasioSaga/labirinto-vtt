@@ -5,7 +5,7 @@ import { Container, EventBoundary, FederatedPointerEvent, Graphics } from 'pixi.
 import { createEmptyMap } from '../lib/mapFactory'
 import { useMapStore } from '../stores/mapStore'
 import type { Camera } from './world'
-import type { MapData, Prop, Region, Stair, Wall } from '../types/map'
+import type { Drawing, FloorPiece, MapData, Prop, Region, Stair, Token, Wall } from '../types/map'
 import { SMART_GUIDE_COLOR } from './constants'
 import { PixiCanvas } from './PixiCanvas'
 import { snapToHexVertex } from './tokenInteraction'
@@ -337,6 +337,231 @@ describe('PixiCanvas — guias inteligentes no arrasto de sala (pedido 3, fatia 
       arrasta(652, 0)
       expect(caixaDa('movel').minX).toBe(750)
       expect(guiaMagenta()).not.toBeNull()
+    })
+  })
+})
+
+/**
+ * FATIA 2: todo arrasto de corpo (parede solta, linha, escada, objeto, chão,
+ * seleção de vários) encaixa pela caixa do que anda, e todo arrasto de ponto
+ * (ponta de parede e de linha, vértice de sala, centro da ficha) encaixa na
+ * borda e no centro das caixas vizinhas — sempre com a guia magenta fina e a
+ * tolerância em px de tela. Peça em y = 500..700, longe das alturas de ALVO
+ * (100, 200, 300): só o eixo x encaixa.
+ */
+describe('PixiCanvas — guias em todo arrasto de corpo e de ponto (pedido 3, fatia 2)', () => {
+  function paredeSolta(id: string, x1: number, y1: number, x2: number, y2: number): Wall {
+    return { id, x1, y1, x2, y2, blocksLight: true, blocksMove: true, door: null }
+  }
+  function linha(id: string, x1: number, y1: number, x2: number, y2: number): Drawing {
+    return { id, kind: 'line', x1, y1, x2, y2, color: '#ffffff', width: 2 }
+  }
+  function ficha(id: string, x: number, y: number): Token {
+    return { id, characterId: null, name: id, x, y, size: 1, image: null }
+  }
+  const mapaCom = (extra: Partial<MapData>): MapData => ({ ...mapa([ALVO]), ...extra })
+  const atual = (): MapData => useMapStore.getState().map
+  function seleciona(kind: 'wall' | 'drawing' | 'region', ...ids: string[]): void {
+    act(() => useMapStore.setState({ selection: ids.map((id) => ({ kind, id })) }))
+  }
+  function solta(mundo: { x: number; y: number }): void {
+    ponteiro('pointerup', mundo)
+  }
+
+  describe('corpo', () => {
+    it('parede solta: a caixa dela encaixa no centro da sala, a própria parede não prende o arrasto e soltar grava num Ctrl+Z', async () => {
+      prepara(mapaCom({ walls: [paredeSolta('solta', 100, 500, 300, 500)] }))
+      await monta()
+      ponteiro('pointerdown', { x: 150, y: 500 })
+      // 3 px: a parede acompanha (a caixa de partida dela não é candidata).
+      ponteiro('pointermove', { x: 153, y: 500 })
+      expect(atual().walls[0]).toMatchObject({ x1: 103, x2: 303 })
+      // Centro em 803, a 3 px do centro da sala (800).
+      ponteiro('pointermove', { x: 753, y: 500 })
+      expect(atual().walls[0]).toMatchObject({ x1: 700, y1: 500, x2: 900, y2: 500 })
+      expect(guiaMagenta()).not.toBeNull()
+      solta({ x: 753, y: 500 })
+      expect(guiaMagenta()).toBeNull()
+      expect(atual().walls[0]).toMatchObject({ x1: 700, x2: 900 })
+      act(() => useMapStore.getState().undo())
+      expect(atual().walls[0]).toMatchObject({ x1: 100, x2: 300 })
+    })
+
+    it('linha (o corredor da imagem): encaixa pela caixa, e com Ctrl anda livre e sem guia', async () => {
+      prepara(mapaCom({ drawings: [linha('corredor', 100, 500, 300, 500)] }))
+      await monta()
+      ponteiro('pointerdown', { x: 150, y: 500 })
+      ponteiro('pointermove', { x: 753, y: 500 })
+      expect(atual().drawings[0]).toMatchObject({ x1: 700, x2: 900 })
+      expect(guiaMagenta()).not.toBeNull()
+      ponteiro('pointermove', { x: 753, y: 500 }, { ctrl: true })
+      expect(atual().drawings[0]).toMatchObject({ x1: 703, x2: 903 })
+      expect(guiaMagenta()).toBeNull()
+    })
+
+    it('escada: encaixa pela placa desenhada', async () => {
+      const escada: Stair = { id: 'escada', shape: 'straight', direction: 'up', segments: [{ x1: 100, y1: 500, x2: 300, y2: 500 }], stepWidth: 64 }
+      prepara(mapaCom({ stairs: [escada] }))
+      await monta()
+      ponteiro('pointerdown', { x: 150, y: 500 })
+      ponteiro('pointermove', { x: 753, y: 500 })
+      expect(atual().stairs[0].segments[0]).toMatchObject({ x1: 700, x2: 900 })
+      expect(guiaMagenta()).not.toBeNull()
+    })
+
+    it('objeto girado: encaixa pela borda do desenho e não pula o centro para o cursor', async () => {
+      // Mesa 200 x 100 em pé: o desenho vai de x = 150 a 250 (o retângulo sem giro iria de 100 a 300).
+      const mesa: Prop = { id: 'mesa', src: '', x: 200, y: 600, width: 200, height: 100, linkedMapPath: null, mobilia: 'mesa', rotation: 90 }
+      prepara(mapaCom({ props: [mesa] }))
+      await monta()
+      ponteiro('pointerdown', { x: 230, y: 640 })
+      // Borda esquerda do desenho em 643, a 3 px da borda esquerda da sala (640).
+      ponteiro('pointermove', { x: 723, y: 640 })
+      expect(atual().props[0]).toMatchObject({ x: 690, y: 600 })
+      expect(guiaMagenta()).not.toBeNull()
+    })
+
+    it('peça de chão: encaixa pela caixa dela', async () => {
+      const chao: FloorPiece = { id: 'chao', shape: { kind: 'rect', cx: 200, cy: 600, w: 200, h: 100 }, op: 'add', modifiers: {} }
+      prepara(mapaCom({ floor: [chao] }))
+      await monta()
+      ponteiro('pointerdown', { x: 150, y: 600 })
+      ponteiro('pointermove', { x: 753, y: 600 })
+      expect(atual().floor[0].shape).toMatchObject({ cx: 800, cy: 600 })
+      expect(guiaMagenta()).not.toBeNull()
+    })
+
+    it('chão de blocos: arrastado devagar anda uma célula quando o gesto passa de meia célula, e não mostra guia', async () => {
+      // Duas células de 64 (colunas 2 e 3, linha 8): de x = 128 a 256.
+      const blocos: FloorPiece = { id: 'blocos', shape: { kind: 'blocos', cell: GRADE, cells: [{ col: 2, row: 8 }, { col: 3, row: 8 }] }, op: 'add', modifiers: {} }
+      prepara(mapaCom({ floor: [blocos] }))
+      await monta()
+      const colunas = () => {
+        const shape = atual().floor[0].shape
+        return shape.kind === 'blocos' ? shape.cells.map((c) => c.col) : []
+      }
+      ponteiro('pointerdown', { x: 150, y: 540 })
+      // De 10 em 10 px: o passo somado arredondava cada um para zero célula, e a peça nunca saía do lugar.
+      for (const x of [160, 170, 180]) ponteiro('pointermove', { x, y: 540 })
+      expect(colunas()).toEqual([2, 3])
+      ponteiro('pointermove', { x: 190, y: 540 })
+      expect(colunas()).toEqual([3, 4])
+      ponteiro('pointermove', { x: 200, y: 540 })
+      expect(colunas()).toEqual([3, 4])
+      expect(guiaMagenta()).toBeNull()
+    })
+
+    it('Alt+arrastar uma parede solta com a grade desligada: a cópia anda na grade do Alt, a guia encaixa por cima e a original fica', async () => {
+      // Centro em 226: depois de 9 células (576), o centro da cópia fica a 2 px do centro da sala.
+      prepara(mapaCom({ walls: [paredeSolta('solta', 126, 500, 326, 500)] }))
+      await monta()
+      ponteiro('pointerdown', { x: 150, y: 500 }, { alt: true })
+      ponteiro('pointermove', { x: 705, y: 500 }, { alt: true })
+      const paredes = atual().walls
+      expect(paredes).toHaveLength(2)
+      const copia = paredes.find((w) => w.id !== 'solta')
+      expect(copia).toMatchObject({ x1: 700, y1: 500, x2: 900, y2: 500 })
+      expect(paredes.find((w) => w.id === 'solta')).toMatchObject({ x1: 126, x2: 326 })
+      expect(guiaMagenta()).not.toBeNull()
+    })
+
+    it('dois itens selecionados (as duas linhas de um corredor): a caixa da união encaixa, e as próprias linhas não prendem o arrasto', async () => {
+      prepara(mapaCom({ drawings: [linha('a', 100, 500, 100, 700), linha('b', 140, 500, 140, 700)] }))
+      await monta()
+      seleciona('drawing', 'a', 'b')
+      ponteiro('pointerdown', { x: 120, y: 600 })
+      ponteiro('pointermove', { x: 123, y: 600 })
+      expect(atual().drawings.map((d) => (d.kind === 'line' ? d.x1 : null))).toEqual([103, 143])
+      // Centro da união em 803: encaixa no centro da sala.
+      ponteiro('pointermove', { x: 803, y: 600 })
+      expect(atual().drawings.map((d) => (d.kind === 'line' ? d.x1 : null))).toEqual([780, 820])
+      expect(guiaMagenta()).not.toBeNull()
+      solta({ x: 803, y: 600 })
+      act(() => useMapStore.getState().undo())
+      expect(atual().drawings.map((d) => (d.kind === 'line' ? d.x1 : null))).toEqual([100, 140])
+    })
+
+    describe('grade do objeto × guia', () => {
+      // Caixa 128 x 128 com o centro num vértice da grade (192, 576): caixa de 128 a 256.
+      // Móvel (desenhado em silhueta): objeto com imagem pediria o Tauri para carregá-la.
+      const caixote: Prop = { id: 'caixote', src: '', x: 192, y: 576, width: 128, height: 128, linkedMapPath: null, mobilia: 'caixa' }
+      // A borda esquerda da sala fica a 1 px de um vértice da grade (768).
+      const ALVO_A_1_PX = sala('alvo', 769, 100, 1089, 300)
+
+      it('grade de objeto ligada e sem Alt: anda em células e não encaixa na guia de 1 px', async () => {
+        prepara({ ...mapa([ALVO_A_1_PX]), props: [caixote] })
+        act(() => useMapStore.setState({ snapTargets: { token: false, wall: false, prop: true } }))
+        await monta()
+        ponteiro('pointerdown', { x: 150, y: 530 })
+        ponteiro('pointermove', { x: 794, y: 530 })
+        expect(atual().props[0]).toMatchObject({ x: 832, y: 576 })
+        expect(guiaMagenta()).toBeNull()
+      })
+
+      it('grade de objeto ligada e Alt no gesto: o Alt solta a grade e a guia encaixa', async () => {
+        prepara({ ...mapa([ALVO_A_1_PX]), props: [caixote] })
+        act(() => useMapStore.setState({ snapTargets: { token: false, wall: false, prop: true } }))
+        await monta()
+        ponteiro('pointerdown', { x: 150, y: 530 })
+        ponteiro('pointermove', { x: 794, y: 530 }, { alt: true })
+        expect(atual().props[0]).toMatchObject({ x: 833, y: 576 })
+        expect(guiaMagenta()).not.toBeNull()
+      })
+    })
+  })
+
+  describe('ponto', () => {
+    it('ponta de parede solta: encaixa no centro da sala (âncora da caixa), com a guia', async () => {
+      prepara(mapaCom({ walls: [paredeSolta('solta', 100, 500, 300, 500)] }))
+      await monta()
+      seleciona('wall', 'solta')
+      ponteiro('pointerdown', { x: 300, y: 500 })
+      ponteiro('pointermove', { x: 803, y: 450 })
+      expect(atual().walls[0]).toMatchObject({ x1: 100, y1: 500, x2: 800, y2: 450 })
+      expect(guiaMagenta()).not.toBeNull()
+    })
+
+    it('ponta de linha: encaixa no centro da sala, e com Ctrl fica onde o cursor está', async () => {
+      prepara(mapaCom({ drawings: [linha('corredor', 100, 500, 300, 500)] }))
+      await monta()
+      seleciona('drawing', 'corredor')
+      ponteiro('pointerdown', { x: 300, y: 500 })
+      ponteiro('pointermove', { x: 803, y: 450 })
+      expect(atual().drawings[0]).toMatchObject({ x2: 800, y2: 450 })
+      expect(guiaMagenta()).not.toBeNull()
+      ponteiro('pointermove', { x: 803, y: 450 }, { ctrl: true })
+      expect(atual().drawings[0]).toMatchObject({ x2: 803, y2: 450 })
+      expect(guiaMagenta()).toBeNull()
+    })
+
+    it('vértice de região: encaixa no centro da outra sala', async () => {
+      const triangulo: Region = { id: 'tri', points: [{ x: 100, y: 500 }, { x: 200, y: 500 }, { x: 150, y: 600 }], tag: '', fillColor: '#3a7ad0', fillPattern: 'solid', data: {} }
+      prepara(mapa([ALVO, triangulo]))
+      await monta()
+      seleciona('region', 'tri')
+      ponteiro('pointerdown', { x: 200, y: 500 })
+      ponteiro('pointermove', { x: 803, y: 450 })
+      expect(atual().regions.find((r) => r.id === 'tri')?.points[1]).toEqual({ x: 800, y: 450 })
+      expect(guiaMagenta()).not.toBeNull()
+    })
+
+    it('ficha: o centro alinha com o de outra ficha, na tolerância de TELA, e a guia é a magenta', async () => {
+      prepara(mapaCom({ tokens: [ficha('parada', 800, 200), ficha('andando', 200, 600)] }))
+      // Zoom 0,5: 6 px de tela são 12 de mundo, e 10 de mundo encaixam.
+      await monta({ x: 0, y: 0, scale: 0.5 })
+      ponteiro('pointerdown', { x: 200, y: 600 })
+      ponteiro('pointermove', { x: 810, y: 600 })
+      expect(atual().tokens.find((t) => t.id === 'andando')).toMatchObject({ x: 800, y: 600 })
+      expect(guiaMagenta()).not.toBeNull()
+    })
+
+    it('ficha no zoom 2: 6 px de tela são 3 de mundo, e 5 de mundo não encaixam', async () => {
+      prepara(mapaCom({ tokens: [ficha('parada', 800, 200), ficha('andando', 200, 600)] }))
+      await monta({ x: 0, y: 0, scale: 2 })
+      ponteiro('pointerdown', { x: 200, y: 600 })
+      ponteiro('pointermove', { x: 805, y: 600 })
+      expect(atual().tokens.find((t) => t.id === 'andando')).toMatchObject({ x: 805, y: 600 })
+      expect(guiaMagenta()).toBeNull()
     })
   })
 })

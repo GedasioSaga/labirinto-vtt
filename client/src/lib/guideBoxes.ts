@@ -11,15 +11,22 @@
  *
  * Objeto e escada medem o DESENHO, não a geometria da seleção por área: o
  * objeto girado e o lance com a largura do degrau. Guia que encaixa numa
- * borda onde não há nada é o desalinhamento que o pedido quer acabar.
+ * borda onde não há nada é o desalinhamento que o pedido quer acabar. O
+ * objeto e a escada ARRASTADOS medem igual (`guideBoxOfProp`,
+ * `guideBoxOfStair`): borda com borda só fecha se as duas forem a que se vê.
+ *
+ * O arrasto de PONTO (fatia 2) soma às caixas os pontos que elas não cobrem
+ * (`guidePointsForDrag`): a ponta de cada parede, o vértice de cada sala, o
+ * centro de cada ficha.
  */
 import type { MapData, Prop, Stair } from '../types/map'
 import { boundsOfDrawing, boundsOfRegion, boundsOfWall, type AreaBounds, type AreaSelection } from './areaSelection'
-import { visibleDrawings, visibleProps, visibleRegions, visibleStairs, visibleWalls } from './layers'
+import { visibleDrawings, visibleProps, visibleRegions, visibleStairs, visibleTokens, visibleWalls } from './layers'
 import { ehMovelRedondo } from './mobilia'
 import { mapaDoPiso } from './pisos'
 import { subtreeIds } from './roomNesting'
 import { rotationTrig } from './roomRotation'
+import { pointBox } from './smartGuides'
 import { stairSpiralCircle } from './stairs'
 import { isDegenerateRegion } from '../pixi/shapes'
 
@@ -37,7 +44,9 @@ export interface GuideBoxesOptions {
   /**
    * O que anda no gesto e tudo o que está selecionado (decisão a de
    * `smartGuides.ts`). Sala excluída leva junto as sub-salas e as paredes
-   * delas, que andam com ela (`mapFactory.moveRegion`).
+   * delas, que andam com ela (`mapFactory.moveRegion`); parede de sala
+   * excluída leva a sala, porque mover a parede move a sala inteira
+   * (`mapFactory.moveWall`).
    */
   exclude: AreaSelection
   viewport: GuideViewport
@@ -61,7 +70,7 @@ function unionBox(a: AreaBounds, b: AreaBounds): AreaBounds {
  * ficaria a um fio da borda. O barril desenha a elipse inscrita, e fora dos
  * quartos de volta a caixa dela é menor que a do retângulo girado.
  */
-function propGuideBox(prop: Prop): AreaBounds {
+export function guideBoxOfProp(prop: Prop): AreaBounds {
   const { sin, cos } = rotationTrig(prop.rotation ?? 0)
   const halfWidth = prop.width / 2
   const halfHeight = prop.height / 2
@@ -79,7 +88,7 @@ function propGuideBox(prop: Prop): AreaBounds {
  * placa pintada ainda encosta no pixel físico, a menos de 1 px de tela desta
  * conta. `null` = nada desenhado (lance de comprimento zero).
  */
-function stairGuideBox(stair: Stair): AreaBounds | null {
+export function guideBoxOfStair(stair: Stair): AreaBounds | null {
   if (stair.shape === 'spiral') {
     const circle = stairSpiralCircle(stair)
     if (circle === null) return null
@@ -107,26 +116,41 @@ function stairGuideBox(stair: Stair): AreaBounds | null {
   return box
 }
 
+/** A tela com a folga do gesto, em px de mundo: o que fica fora não vira guia. */
+function reachOf({ viewport, margin }: GuideBoxesOptions): AreaBounds {
+  return { minX: viewport.left - margin, minY: viewport.top - margin, maxX: viewport.right + margin, maxY: viewport.bottom + margin }
+}
+
+/**
+ * As salas que andam no gesto: as excluídas, as donas de parede excluída
+ * (`moveWall` leva a sala) e as sub-salas de todas elas (`moveRegion` leva a
+ * subárvore). Nenhuma delas pode ser guia: com o delta total do gesto, a
+ * caixa de partida prenderia a peça onde ela estava.
+ */
+function movingRegionIds(doPiso: MapData, exclude: AreaSelection): Set<string> {
+  const roots = new Set(exclude.regions)
+  const excludedWalls = new Set(exclude.walls)
+  for (const wall of doPiso.walls) {
+    if (wall.regionId !== undefined && excludedWalls.has(wall.id)) roots.add(wall.regionId)
+  }
+  const moving = new Set<string>()
+  for (const id of roots) {
+    for (const inner of subtreeIds(doPiso.regions, id)) moving.add(inner)
+  }
+  return moving
+}
+
 export function guideBoxesForDrag(map: MapData, options: GuideBoxesOptions): AreaBounds[] {
   const doPiso = mapaDoPiso(map, options.piso)
   const hidden = doPiso.hiddenLayers
-  const { viewport, margin } = options
-  const reach = {
-    minX: viewport.left - margin,
-    minY: viewport.top - margin,
-    maxX: viewport.right + margin,
-    maxY: viewport.bottom + margin,
-  }
+  const reach = reachOf(options)
   const boxes: AreaBounds[] = []
   const add = (box: AreaBounds): void => {
     const near = box.minX <= reach.maxX && box.maxX >= reach.minX && box.minY <= reach.maxY && box.maxY >= reach.minY
     if (near && isFiniteBox(box)) boxes.push(box)
   }
 
-  const movingRegions = new Set<string>()
-  for (const id of options.exclude.regions) {
-    for (const inner of subtreeIds(doPiso.regions, id)) movingRegions.add(inner)
-  }
+  const movingRegions = movingRegionIds(doPiso, options.exclude)
   // Salas que já têm a própria caixa: a parede delas repetiria a mesma guia.
   const roomsWithBox = new Set<string>()
   for (const region of visibleRegions(doPiso.regions, hidden)) {
@@ -149,15 +173,66 @@ export function guideBoxesForDrag(map: MapData, options: GuideBoxesOptions): Are
 
   const excludedProps = new Set(options.exclude.props)
   for (const prop of visibleProps(doPiso.props, hidden)) {
-    if (!excludedProps.has(prop.id)) add(propGuideBox(prop))
+    if (!excludedProps.has(prop.id)) add(guideBoxOfProp(prop))
   }
 
   const excludedStairs = new Set(options.exclude.stairs)
   for (const stair of visibleStairs(doPiso.stairs, hidden)) {
     if (excludedStairs.has(stair.id)) continue
-    const box = stairGuideBox(stair)
+    const box = guideBoxOfStair(stair)
     if (box !== null) add(box)
   }
 
   return boxes
+}
+
+/**
+ * Pontos soltos que viram guia no arrasto de ponto (`dragPointWithGuides`):
+ *  - 'wall-ends': a ponta de cada parede, solta ou de sala (é ela que fecha o
+ *    canto com a ponta arrastada);
+ *  - 'room-vertices': o vértice de cada sala e região;
+ *  - 'token-centers': o centro de cada ficha. A ficha só alinha com ficha
+ *    (é peça de jogo, não de planta), e por isso não leva caixa nenhuma.
+ */
+export type GuidePointKind = 'wall-ends' | 'room-vertices' | 'token-centers'
+
+/**
+ * Os pontos de um tipo como caixas sem tamanho (`pointBox`), com as mesmas
+ * regras das caixas: só o piso em edição, nada de camada oculta, nada do que
+ * anda no gesto, só perto da tela. Montado uma vez, no pointerdown.
+ */
+export function guidePointsForDrag(map: MapData, kind: GuidePointKind, options: GuideBoxesOptions): AreaBounds[] {
+  const doPiso = mapaDoPiso(map, options.piso)
+  const hidden = doPiso.hiddenLayers
+  const reach = reachOf(options)
+  const points: AreaBounds[] = []
+  const add = (x: number, y: number): void => {
+    const near = x >= reach.minX && x <= reach.maxX && y >= reach.minY && y <= reach.maxY
+    if (near && Number.isFinite(x) && Number.isFinite(y)) points.push(pointBox({ x, y }))
+  }
+
+  if (kind === 'token-centers') {
+    const excludedTokens = new Set(options.exclude.tokens)
+    for (const token of visibleTokens(doPiso.tokens, hidden)) {
+      if (!excludedTokens.has(token.id)) add(token.x, token.y)
+    }
+    return points
+  }
+
+  const movingRegions = movingRegionIds(doPiso, options.exclude)
+  if (kind === 'room-vertices') {
+    for (const region of visibleRegions(doPiso.regions, hidden)) {
+      if (movingRegions.has(region.id) || isDegenerateRegion(region.points)) continue
+      for (const point of region.points) add(point.x, point.y)
+    }
+    return points
+  }
+
+  const excludedWalls = new Set(options.exclude.walls)
+  for (const wall of visibleWalls(doPiso.walls, hidden)) {
+    if (excludedWalls.has(wall.id) || (wall.regionId !== undefined && movingRegions.has(wall.regionId))) continue
+    add(wall.x1, wall.y1)
+    add(wall.x2, wall.y2)
+  }
+  return points
 }

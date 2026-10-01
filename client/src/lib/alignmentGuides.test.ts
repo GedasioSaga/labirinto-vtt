@@ -1,9 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
-  alignUnlessFree,
   computeAlignment,
   isFreeMoveModifier,
-  mapBoundsCandidates,
   gridAlignmentCandidates,
   nearbyCandidates,
   ALIGNMENT_THRESHOLD,
@@ -74,40 +72,6 @@ describe('computeAlignment', () => {
   })
 })
 
-describe('mapBoundsCandidates', () => {
-  it('devolve os 4 cantos e o centro do mapa', () => {
-    const candidates = mapBoundsCandidates({ width: 2000, height: 1000 })
-    expect(candidates).toEqual(
-      expect.arrayContaining([
-        { x: 0, y: 0 },
-        { x: 2000, y: 0 },
-        { x: 0, y: 1000 },
-        { x: 2000, y: 1000 },
-        { x: 1000, y: 500 },
-      ]),
-    )
-    expect(candidates).toHaveLength(5)
-  })
-
-  it('perto da borda esquerda gruda em x=0 sem depender de nenhum outro candidato', () => {
-    const result = computeAlignment({ x: 3, y: 500 }, mapBoundsCandidates({ width: 2000, height: 1000 }))
-    expect(result.point.x).toBe(0)
-  })
-
-  it('perto do centro do mapa gruda nos dois eixos', () => {
-    const result = computeAlignment({ x: 1003, y: 497 }, mapBoundsCandidates({ width: 2000, height: 1000 }))
-    expect(result.point).toEqual({ x: 1000, y: 500 })
-  })
-
-  it('mapa 0×0 (campo ausente/degenerado) não produz NaN — todos os candidatos colapsam na origem', () => {
-    const candidates = mapBoundsCandidates({ width: 0, height: 0 })
-    const result = computeAlignment({ x: 2, y: 2 }, candidates)
-    expect(result.point).toEqual({ x: 0, y: 0 })
-    expect(Number.isNaN(result.point.x)).toBe(false)
-    expect(Number.isNaN(result.point.y)).toBe(false)
-  })
-})
-
 describe('gridAlignmentCandidates', () => {
   it('devolve a interseção de grade mais próxima do ponto', () => {
     const candidates = gridAlignmentCandidates({ x: 54, y: 98 }, 50)
@@ -172,20 +136,7 @@ describe('nearbyCandidates', () => {
   })
 })
 
-describe('alignUnlessFree — Ctrl solta o arrasto das guias', () => {
-  const perto = [{ x: 103, y: 97 }]
-
-  it('sem Ctrl gruda igual a computeAlignment', () => {
-    expect(alignUnlessFree({ x: 100, y: 100 }, perto, false)).toEqual(computeAlignment({ x: 100, y: 100 }, perto))
-  })
-
-  it('com Ctrl o ponto fica onde o ponteiro está e nenhuma guia aparece', () => {
-    const ponto = { x: 100, y: 100 }
-    const result = alignUnlessFree(ponto, perto, true)
-    expect(result).toEqual({ point: { x: 100, y: 100 }, guides: [] })
-    expect(result.point).not.toBe(ponto)
-  })
-
+describe('isFreeMoveModifier — o Ctrl solta o arrasto das guias', () => {
   it('Ctrl ou Cmd contam; Shift e Alt não', () => {
     expect(isFreeMoveModifier({ ctrlKey: true, metaKey: false })).toBe(true)
     expect(isFreeMoveModifier({ ctrlKey: false, metaKey: true })).toBe(true)

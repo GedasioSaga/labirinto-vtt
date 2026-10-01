@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import { createEmptyMap } from './mapFactory'
 import { EMPTY_AREA_SELECTION, type AreaBounds, type AreaSelection } from './areaSelection'
-import { guideBoxesForDrag } from './guideBoxes'
+import { guideBoxesForDrag, guidePointsForDrag } from './guideBoxes'
+import { pointBox } from './smartGuides'
 import { planStairFlight } from '../pixi/stairFlight'
-import type { Drawing, MapData, Prop, Region, Stair, StairDirection, StairSegment, Wall } from '../types/map'
+import type { Drawing, MapData, Prop, Region, Stair, StairDirection, StairSegment, Token, Wall } from '../types/map'
 
 function sala(id: string, minX: number, minY: number, maxX: number, maxY: number, extra: Partial<Region> = {}): Region {
   return {
@@ -105,6 +106,57 @@ describe('guideBoxesForDrag — quem vira guia no arrasto', () => {
     const caixas = guideBoxesForDrag(mapa(), { piso: 0, exclude: EMPTY_AREA_SELECTION, viewport: TELA, margin: 1000 })
     expect(caixas).not.toContainEqual({ minX: 0, minY: 0, maxX: 10, maxY: 10 })
     for (const c of caixas) expect([c.minX, c.minY, c.maxX, c.maxY].every(Number.isFinite)).toBe(true)
+  })
+
+  it('parede de sala na seleção anda com a sala inteira (moveWall leva a sala): a sala dela não vira guia', () => {
+    const exclude: AreaSelection = { ...EMPTY_AREA_SELECTION, walls: ['parede-da-outra'] }
+    const caixas = guideBoxesForDrag(mapa(), { piso: 0, exclude, viewport: TELA, margin: 1000 })
+    expect(caixas).not.toContainEqual(OUTRA)
+    expect(caixas).not.toContainEqual({ minX: 500, minY: 100, maxX: 700, maxY: 100 })
+    // A outra sala, que não anda, continua.
+    expect(caixas).toContainEqual({ minX: 100, minY: 100, maxX: 300, maxY: 300 })
+  })
+})
+
+describe('guidePointsForDrag — os pontos que a caixa não cobre, para o arrasto de ponto', () => {
+  const ficha = (id: string, x: number, y: number, extra: Partial<Token> = {}): Token => ({ id, characterId: null, name: id, x, y, size: 1, image: null, ...extra })
+  const opcoes = (exclude: AreaSelection = EMPTY_AREA_SELECTION, piso = 0) => ({ piso, exclude, viewport: TELA, margin: 1000 })
+
+  it("'wall-ends': a ponta de cada parede, solta ou de sala, como caixa sem tamanho; a parede excluída fica de fora", () => {
+    const pontos = guidePointsForDrag(mapa(), 'wall-ends', opcoes({ ...EMPTY_AREA_SELECTION, walls: ['parede-solta'] }))
+    expect(pontos).toEqual(
+      [
+        { x: 100, y: 100 },
+        { x: 300, y: 100 },
+        { x: 150, y: 150 },
+        { x: 250, y: 150 },
+        { x: 500, y: 100 },
+        { x: 700, y: 100 },
+      ].map(pointBox),
+    )
+  })
+
+  it("'wall-ends': a sala excluída leva as paredes dela e as das sub-salas", () => {
+    const pontos = guidePointsForDrag(mapa(), 'wall-ends', opcoes({ ...EMPTY_AREA_SELECTION, regions: ['sala'] }))
+    expect(pontos).toEqual([{ x: 500, y: 100 }, { x: 700, y: 100 }, { x: 100, y: 600 }, { x: 400, y: 600 }].map(pointBox))
+  })
+
+  it("'room-vertices': os vértices das salas que se veem, sem a excluída (nem as sub-salas dela) e sem a degenerada", () => {
+    const pontos = guidePointsForDrag(mapa(), 'room-vertices', opcoes({ ...EMPTY_AREA_SELECTION, regions: ['sala'] }))
+    expect(pontos).toEqual([{ x: 500, y: 100 }, { x: 700, y: 100 }, { x: 700, y: 300 }, { x: 500, y: 300 }].map(pointBox))
+  })
+
+  it("'token-centers': o centro de cada ficha do piso, sem a excluída, perto da tela", () => {
+    const map: MapData = { ...mapa(), tokens: [ficha('a', 100, 200), ficha('b', 300, 400), ficha('longe', 9000, 400), ficha('cima', 50, 50, { piso: 1 })] }
+    const pontos = guidePointsForDrag(map, 'token-centers', opcoes({ ...EMPTY_AREA_SELECTION, tokens: ['a'] }))
+    expect(pontos).toEqual([pointBox({ x: 300, y: 400 })])
+    expect(guidePointsForDrag(map, 'token-centers', opcoes(EMPTY_AREA_SELECTION, 1))).toEqual([pointBox({ x: 50, y: 50 })])
+  })
+
+  it('camada oculta não dá ponto: o que não se vê não alinha', () => {
+    const oculta: MapData = { ...mapa(), hiddenLayers: ['paredes', 'salas'] }
+    expect(guidePointsForDrag(oculta, 'wall-ends', opcoes())).toEqual([])
+    expect(guidePointsForDrag(oculta, 'room-vertices', opcoes())).toEqual([])
   })
 })
 

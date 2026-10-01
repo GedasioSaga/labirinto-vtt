@@ -13,7 +13,8 @@
  * máximo), e os dois eixos se resolvem separados.
  *
  * Decisões que valem para todo gesto com guia (a fatia 1 usa no arrasto de
- * sala; as seguintes seguem as mesmas):
+ * sala; a fatia 2, em todo arrasto de corpo — parede, escada, desenho,
+ * objeto, chão, seleção de vários — e de ponto — ponta, vértice, ficha):
  *
  *  (a) Candidata nunca é o que anda nem o que está selecionado
  *      (`guideBoxesForDrag`). Com o delta total do gesto, a caixa de partida
@@ -287,4 +288,43 @@ export function dragBoxWithGuides(input: BoxDragInput): BoxDrag {
   }
   const snap = snapBox(tentative, input.others, input.tolerance)
   return { offsetX: offsetX + snap.dx, offsetY: offsetY + snap.dy, guides: snap.guides }
+}
+
+/**
+ * O ponto como caixa sem tamanho: as três âncoras dele coincidem, e ponto e
+ * caixa encaixam pelas mesmas regras (`snapBox`). É assim que a ponta de uma
+ * parede vira candidata, e que a ponta arrastada encaixa na caixa da sala.
+ */
+export function pointBox(point: Point): AreaBounds {
+  return { minX: point.x, minY: point.y, maxX: point.x, maxY: point.y }
+}
+
+export interface PointDragInput {
+  /** Onde o ponto iria sem guia: o ponteiro, já com a grade do gesto. */
+  point: Point
+  /** Caixas das peças e pontos soltos (`pointBox`). */
+  others: readonly AreaBounds[]
+  /** Tolerância do encaixe em px de mundo (`screenPxToWorld`). */
+  tolerance: number
+  mode: GuideMode
+}
+
+export interface PointDrag {
+  point: Point
+  guides: SmartGuide[]
+}
+
+/**
+ * Arrasto de PONTO (fatia 2): a ponta da parede ou da linha, o vértice da
+ * sala, o centro da ficha. Encaixa na borda e no centro das caixas vizinhas e
+ * nos pontos soltos, eixo a eixo, e a guia vai do ponto até a peça alinhada,
+ * com a mesma escolha do arrasto de caixa. O ponto é o do ponteiro, e não um
+ * deslocamento: não há deriva a evitar aqui.
+ */
+export function dragPointWithGuides(input: PointDragInput): PointDrag {
+  const point = { x: input.point.x, y: input.point.y }
+  if (input.mode === 'free') return { point, guides: [] }
+  if (input.mode === 'gridExact') return { point, guides: snapBox(pointBox(point), input.others, EXACT_ALIGNMENT_WORLD_PX).guides }
+  const snap = snapBox(pointBox(point), input.others, input.tolerance)
+  return { point: { x: point.x + snap.dx, y: point.y + snap.dy }, guides: snap.guides }
 }

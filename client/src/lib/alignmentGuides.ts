@@ -1,22 +1,15 @@
 /**
- * Guias de alinhamento (Onda 3, item 19).
+ * Guias de alinhamento por PONTO (Onda 3, item 19).
  *
- * `computeAlignment` é o núcleo, puro: testa X e Y de forma independente
- * contra uma lista de candidatos e devolve tanto o ponto ajustado quanto as
- * linhas a desenhar (o integrador desenha, via `pixi/drawGuides.ts`). Não
- * sabe nada sobre "parede" ou "escada" — qualquer chamador com um `Point` e
- * uma lista de `AlignmentCandidate` usa, e sempre usou (a assinatura não
- * mudou). A cobertura INCONSISTENTE hoje — gruda ao mover parede/sala/token/
- * prop, não gruda ao mover escada, linha, curva, e nenhum resize — não é
- * limitação desta função: é que só 6 dos ~17 modos de arrasto/resize em
- * `pixi/PixiCanvas.tsx` chamam `computeAlignment`. Ver a tabela completa no
- * relatório do agente que fez este módulo (Onda 3, Frente C).
+ * Desde o pedido 3 (guias estilo Figma, fatias 1 e 2) o canvas não alinha
+ * mais por aqui: todo arrasto, de corpo ou de ponto, passa por
+ * `lib/smartGuides.ts`, que encaixa pela caixa (borda e centro) com
+ * tolerância em px de tela e desenha a guia em segmento magenta. Daqui o
+ * canvas usa só `isFreeMoveModifier`, o Ctrl que solta a guia.
  *
- * Generalização entregue aqui — três candidatos novos, compostos livremente
- * com os de entidade que o chamador já monta:
- *  - `mapBoundsCandidates` — bordas e centro do mapa
- *  - `gridAlignmentCandidates` — interseção de grade mais próxima do ponto
- *  - `nearbyCandidates` — pré-filtro de proximidade (ver nota de custo nela)
+ * `computeAlignment` segue puro e testado: testa X e Y de forma independente
+ * contra uma lista de pontos e devolve o ponto ajustado e as linhas.
+ * `gridAlignmentCandidates` e `nearbyCandidates` compõem com ele.
  */
 
 export interface Point {
@@ -78,30 +71,6 @@ export function isFreeMoveModifier(event: { ctrlKey: boolean; metaKey: boolean }
   return event.ctrlKey || event.metaKey
 }
 
-/** `computeAlignment`, ou o ponto intacto e nenhuma guia quando `free`. */
-export function alignUnlessFree(point: Point, candidates: AlignmentCandidate[], free: boolean): AlignmentResult {
-  if (free) return { point: { ...point }, guides: [] }
-  return computeAlignment(point, candidates)
-}
-
-/**
- * Bordas e centro do mapa como candidatos de alinhamento. Como cada eixo é
- * testado de forma independente em `computeAlignment` (eixo X só olha
- * `candidate.x`, eixo Y só `candidate.y`), os 4 cantos + o centro bastam pra
- * cobrir as 3 guias por eixo (esquerda/direita/centro-X, topo/base/centro-Y)
- * — não precisa enumerar a borda inteira nem repetir candidato por eixo.
- */
-export function mapBoundsCandidates(map: { width: number; height: number }): AlignmentCandidate[] {
-  const { width, height } = map
-  return [
-    { x: 0, y: 0 },
-    { x: width, y: 0 },
-    { x: 0, y: height },
-    { x: width, y: height },
-    { x: width / 2, y: height / 2 },
-  ]
-}
-
 /**
  * Interseção de grade mais próxima do ponto sendo arrastado, como candidato
  * único. Não enumera linhas de grade (seriam infinitas) — calcula a mais
@@ -109,9 +78,8 @@ export function mapBoundsCandidates(map: { width: number; height: number }): Ali
  * campo não preenchido) devolve lista vazia, nunca `NaN`.
  *
  * Nota pro integrador: quando o snap de grade "duro" já está ligado
- * (`applySnap` em `pixi/PixiCanvas.tsx` roda ANTES de chamar
- * `computeAlignment` em todo modo hoje), este candidato tende a ser
- * redundante — o ponto já chega exatamente na grade, então a guia de grade
+ * (`applySnap` em `pixi/PixiCanvas.tsx` roda ANTES de qualquer guia), este
+ * candidato tende a ser redundante — o ponto já chega exatamente na grade, então a guia de grade
  * coincidiria com a de snap. Ele passa a importar quando o snap de grade
  * está desligado (Alt) ou nos modos que ainda não chamam `applySnap` com
  * `map.grid` — aí a guia visual é o único sinal de "a grade está aqui perto".
