@@ -20,6 +20,9 @@ const THICKNESS_OPTIONS: Array<{ value: WallThicknessPreset; label: string }> = 
  *  `lb-region-strokewidth` de `RegionStyleControls`. */
 const WALL_WIDTH_INPUT_ID = 'lb-wall-thickness'
 
+/** A frase do limite do ajuste fino, que o campo "Espessura" explica sob demanda. */
+const WALL_WIDTH_HINT_ID = 'lb-wall-thickness-hint'
+
 const LINE_STYLE_OPTIONS: Array<{ value: WallLineStyle; label: string }> = [
   { value: 'round', label: 'Arredondada' },
   { value: 'straight', label: 'Reta' },
@@ -38,8 +41,8 @@ export interface WallStyleControlsProps {
    *
    * 17/09/2026 — "isso era para ser uma muralha de castelo mas nao consigo
    * engrossar a linha o quanto eu quiser": além dos 3 degraus, aceita NÚMERO
-   * (px de mundo, 1..`WALL_WIDTH_WORLD_MAX`), que é o que o controle de
-   * grossura escreve. A assinatura de `onThicknessChange` não mudou — quem
+   * (px de mundo, 1..`WALL_WIDTH_WORLD_MAX`), que é o que o slider "Ajuste
+   * fino" escreve. A assinatura de `onThicknessChange` não mudou — quem
    * mudou foi `Wall['thickness']`, então `App.tsx`/`mapStore`/`mapFactory`,
    * todos tipados a partir dele, passaram a aceitar o número sem uma linha de
    * alteração em nenhum deles.
@@ -80,8 +83,8 @@ export interface WallStyleControlsProps {
 
 /**
  * Classificação visual da parede: interna/externa (semântica, herdada),
- * espessura (3 degraus de fio de planta + grossura contínua até a muralha de
- * castelo, em px de mundo) e ponta/canto (arredondado/reto) —
+ * espessura (3 degraus de fio de planta + ajuste fino contínuo até a muralha
+ * de castelo, em px de mundo) e ponta/canto (arredondado/reto) —
  * três eixos independentes, controlam só `pixi/drawWalls.ts`, nunca
  * `blocksLight`/`blocksMove`/collision.
  *
@@ -118,9 +121,24 @@ export function WallStyleControls({
       {onJanelaChange && (
         <Toggle label="Janela (vê, não passa)" checked={janela === true} onChange={onJanelaChange} />
       )}
+      {/* Painel enxuto (pedido de 30/09/2026, fatia 1): a frase do limite saiu
+          de baixo do slider, onde ocupava três linhas fixas, e virou a dica
+          deste campo. O rótulo continua o PRIMEIRO filho do campo, porque é
+          ele que ganha o "?" (main.css, dicas sob demanda), e o grupo aponta
+          a frase por `aria-describedby`, que é o contrato de
+          `lib/dicaDoPainel.ts`. Ela mora aqui porque explica o par: os degraus
+          são o fio de planta, e o ajuste fino logo abaixo vai além deles. Sem
+          handler o grupo se diz desligado, e a frase volta ao fluxo à vista
+          (dica de controle morto não abre). */}
       <div className="lb-field">
         <span className="lb-label">Espessura</span>
-        <div className="lb-seg" role="radiogroup" aria-label="Espessura da parede">
+        <div
+          className="lb-seg"
+          role="radiogroup"
+          aria-label="Espessura da parede"
+          aria-describedby={WALL_WIDTH_HINT_ID}
+          aria-disabled={onThicknessChange ? undefined : true}
+        >
           {THICKNESS_OPTIONS.map(({ value, label }) => (
             <button
               key={value}
@@ -139,11 +157,14 @@ export function WallStyleControls({
             </button>
           ))}
         </div>
+        <p className="lb-field__hint" id={WALL_WIDTH_HINT_ID}>
+          No ajuste fino a parede vai até {WALL_WIDTH_WORLD_MAX} px, uma célula inteira de muralha. Acompanha o zoom do mapa.
+        </p>
       </div>
       <div className="lb-field">
         <div className="lb-section__row">
           <label className="lb-label" htmlFor={WALL_WIDTH_INPUT_ID}>
-            Grossura
+            Ajuste fino
           </label>
           <span className="lb-num">{worldWidth} px</span>
         </div>
@@ -157,16 +178,14 @@ export function WallStyleControls({
           value={worldWidth}
           disabled={!onThicknessChange}
           // Sem `aria-label`: o nome acessível vem do <label for> visível
-          // ("Grossura"), então o que se lê na tela e o que o leitor de tela
-          // anuncia são a mesma palavra.
+          // ("Ajuste fino", o mesmo nome do slider de Região), então o que se
+          // lê na tela e o que o leitor de tela anuncia são a mesma palavra.
+          // Antes era "Grossura", sinônimo de "Espessura" logo acima: dois
+          // nomes para a mesma propriedade.
           // Mesmo `?.` guardado dos degraus: sem o handler o controle já nasce
           // desabilitado, então isto nunca é um arrasto que não faz nada.
           onChange={(event) => onThicknessChange?.(Number(event.target.value))}
         />
-        <p className="lb-field__hint">
-          Até {WALL_WIDTH_WORLD_MAX} px: uma célula inteira de muralha. Acompanha o zoom, como a largura de qualquer coisa
-          construída no mapa.
-        </p>
       </div>
     </section>
   )
