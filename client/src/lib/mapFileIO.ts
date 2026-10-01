@@ -369,29 +369,35 @@ async function listedAdventure(adventurePath: string, adventureDir: string, fold
   }
 }
 
+/**
+ * Uma pasta de `maps/` vira entrada da lista, ou `null` quando não tem mapa
+ * (pasta só com as fotos das fichas, sem `map.json` nem `adventure.json`).
+ */
+async function listedFolder(mapsDir: string, folderName: string): Promise<SavedMapEntry | null> {
+  const mapJsonPath = await join(mapsDir, folderName, 'map.json')
+  assertPathWithinRoot(mapJsonPath, mapsDir)
+  if (await exists(mapJsonPath)) return listedLooseMap(mapJsonPath, folderName)
+
+  const adventureDir = await join(mapsDir, folderName)
+  const adventurePath = await join(adventureDir, ADVENTURE_FILE)
+  assertPathWithinRoot(adventurePath, mapsDir)
+  if (await exists(adventurePath)) return listedAdventure(adventurePath, adventureDir, folderName)
+  return null
+}
+
 export async function listSavedMaps(): Promise<SavedMapEntry[]> {
   const mapsDir = await defaultMapsDir()
   if (!(await exists(mapsDir))) return []
 
   const entries = await readDir(mapsDir)
-  const maps: SavedMapEntry[] = []
-
-  for (const entry of entries) {
-    if (!entry.isDirectory) continue
-
-    const mapJsonPath = await join(mapsDir, entry.name, 'map.json')
-    assertPathWithinRoot(mapJsonPath, mapsDir)
-    if (await exists(mapJsonPath)) {
-      maps.push(await listedLooseMap(mapJsonPath, entry.name))
-      continue
-    }
-
-    const adventureDir = await join(mapsDir, entry.name)
-    const adventurePath = await join(adventureDir, ADVENTURE_FILE)
-    assertPathWithinRoot(adventurePath, mapsDir)
-    if (await exists(adventurePath)) maps.push(await listedAdventure(adventurePath, adventureDir, entry.name))
-  }
-
+  // Todas as pastas ao mesmo tempo: cada uma custa de 4 a 10 idas e voltas
+  // pela ponte do Tauri (join, exists, stat, readTextFile), e em série elas
+  // se somavam uma atrás da outra. `Promise.all` devolve na ordem do
+  // `readDir` e o sort é estável, então a lista sai igual à da leitura em
+  // série, empates inclusive.
+  const folders = entries.filter((entry) => entry.isDirectory)
+  const listed = await Promise.all(folders.map((entry) => listedFolder(mapsDir, entry.name)))
+  const maps = listed.filter((entry): entry is SavedMapEntry => entry !== null)
   maps.sort((a, b) => b.mtimeMs - a.mtimeMs)
   return maps
 }

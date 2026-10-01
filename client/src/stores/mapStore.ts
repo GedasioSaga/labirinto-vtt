@@ -2466,15 +2466,28 @@ useMapStore.subscribe((state) => state.map, (map) => {
   playerSeqOfMap.set(map, playerSeq)
 })
 
+/** Última contagem de `selectAlignableUnitCount` e as referências de onde ela saiu. */
+let lastAlignableCount: { map: MapData; selection: SelectionSet; count: number } | null = null
+
 /**
  * Quantos blocos o painel "Alinhar e distribuir" deve contar: blocos que andam
  * inteiros, não entradas da seleção. O laço numa Sala sozinha põe 5 entradas
  * (a região e as 4 paredes), mas é 1 bloco — com `selection.length` o painel
  * mostraria botões clicáveis que não fazem nada. Seletor de número: o
  * componente só re-renderiza quando a contagem muda.
+ *
+ * O zustand reavalia o seletor a cada `set()` da store, inclusive o
+ * `setCamera` de cada pointermove de pan e de cada evento de roda, e a conta
+ * custa ~3 a 11 ms com 40 Salas selecionadas num mapa grande (a09-blocos).
+ * Ela só depende de `map` e `selection`, que nunca mudam no lugar (toda ação
+ * monta um objeto novo), então com as duas referências iguais vale a última.
  */
 export function selectAlignableUnitCount(state: Pick<MapStoreState, 'map' | 'selection'>): number {
-  return alignableUnitCount(state.map, state.selection)
+  const last = lastAlignableCount
+  if (last !== null && last.map === state.map && last.selection === state.selection) return last.count
+  const count = alignableUnitCount(state.map, state.selection)
+  lastAlignableCount = { map: state.map, selection: state.selection, count }
+  return count
 }
 
 /** O pedaço da store que diz de onde veio o `map` atual. */
