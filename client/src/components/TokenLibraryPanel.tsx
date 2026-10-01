@@ -12,7 +12,7 @@ import { createPortal } from 'react-dom'
 import { convertFileSrc } from '@tauri-apps/api/core'
 import { ehPastaPadrao, type ItemDoAcervoNaTela, type PastaDoAcervo } from '../lib/tokenLibrary'
 import { BotaoMais } from './BotaoMais'
-import { ChevronDownIcon, FolderIcon } from './icons'
+import { ChevronDownIcon, CloseIcon, FolderIcon, MoveIntoIcon } from './icons'
 import { ADICIONAR_TOKEN, ADICIONAR_TOKEN_DICA, NovoTokenForm, type NovoTokenProps } from './NovoTokenForm'
 import './TokenLibraryPanel.css'
 
@@ -193,6 +193,15 @@ type Pergunta =
  * "+ TOKEN" E "+ PASTA" NA LINHA DO TÍTULO (pedido painel-acervo, fatia 2):
  * criar e guardar token no mesmo lugar, como no diretório de Atores do
  * Foundry. Um campo de cada vez abaixo do título.
+ *
+ * LINHAS, NÃO CARTÕES (fatia 4): "cada linha é um cartão com borda, as pastas
+ * são faixas cheias e o mover e o × ficam sempre à vista" (pedido de
+ * 01/10/2026). Agora é uma árvore como o painel de camadas do Figma: o Mover
+ * e o Apagar moram em `.lb-acervo__acoes` e só aparecem com o ponteiro na
+ * linha, com o foco nela ou com o menu aberto (sempre, em tela sem pairar);
+ * a contagem da pasta fica na ponta da linha, depois do × dela. Pasta vazia
+ * não tem seta nem alterna: seta que não abre nada é controle morto. O
+ * desenho mora em TokenLibraryPanel.css.
  *
  * ESC NO GESTO DE VERDADE (convenção "Menu de ações"): o Esc fecha o que está
  * aberto — menu Mover, pergunta de apagar, campo de pasta ou de token — de
@@ -483,7 +492,11 @@ export function TokenLibraryPanel({
             </button>
           </span>
         ) : (
-          <>
+          // As ações da linha, juntas para aparecerem juntas (ver
+          // `.lb-acervo__acoes`). A seta que entra é a mesma do "Mover para…"
+          // de Cenas: o ícone de pasta repetido em cada linha parecia mais
+          // uma pasta.
+          <span className="lb-acervo__acoes">
             {organizado && destinos.length > 0 && (
               <button
                 type="button"
@@ -493,22 +506,23 @@ export function TokenLibraryPanel({
                 title="Mover para outra pasta"
                 onClick={() => setPergunta(movendo ? null : { tipo: 'mover-token', id: item.id })}
               >
-                <FolderIcon size={14} />
+                <MoveIntoIcon size={14} />
               </button>
             )}
             <button
               type="button"
               className="lb-acervo__apagar"
               aria-label={rotuloApagar(item)}
+              title="Apagar do acervo"
               onClick={(event) => {
                 // O Apagar sai da tela quando a pergunta abre: o foco vai para o lado seguro.
                 focarDepois(event.currentTarget.closest('li'), MANTER_NO_ACERVO)
                 setPergunta({ tipo: 'apagar-token', id: item.id })
               }}
             >
-              <span aria-hidden="true">×</span>
+              <CloseIcon size={14} />
             </button>
-          </>
+          </span>
         )}
         {movendo && (
           <span className="lb-acervo__destinos" role="group" aria-label={`Mover ${item.nome} para`}>
@@ -543,6 +557,7 @@ export function TokenLibraryPanel({
 
   const grupo = (pasta: PastaDoAcervo) => {
     const dentro = itens.filter((item) => item.pasta === pasta.id)
+    const vazia = dentro.length === 0
     const aberta = !pasta.recolhida
     const idDoCorpo = `${idBase}-pasta-${pasta.id}`
     const apagando = pergunta?.tipo === 'apagar-pasta' && pergunta.id === pasta.id
@@ -563,44 +578,67 @@ export function TokenLibraryPanel({
         }}
       >
         <div className="lb-acervo__pasta-topo">
-          <button
-            type="button"
-            className="lb-acervo__pasta-botao"
-            aria-expanded={aberta}
-            aria-controls={aberta && dentro.length > 0 ? idDoCorpo : undefined}
-            aria-label={`${pasta.nome} (${dentro.length})`}
-            onClick={() => onRecolherPasta(pasta, aberta)}
-          >
-            <span className="lb-acervo__chevron" aria-hidden="true">
-              <ChevronDownIcon size={14} />
-            </span>
-            <FolderIcon size={14} />
-            {/* Nome longo corta com reticências na coluna estreita; o title devolve o nome inteiro no hover. */}
-            <span className="lb-acervo__pasta-nome" title={pasta.nome}>
-              {pasta.nome}
-            </span>
-            <span className="lb-acervo__contagem" aria-hidden="true">
-              {dentro.length}
-            </span>
-          </button>
-          {!apagando && (
+          {vazia ? (
+            // Pasta vazia não alterna: uma seta ali prometeria abrir o que não
+            // existe (catálogo, "Árvore de itens"). O recuo guarda o lugar da
+            // seta para o ícone e o nome ficarem na vertical dos das outras.
+            // Continua alvo do soltar (o `data-acervo-pasta` é do grupo).
+            <div className="lb-acervo__pasta-botao" data-vazia="">
+              <span className="lb-acervo__recuo" aria-hidden="true" />
+              <FolderIcon size={14} />
+              <span className="lb-acervo__pasta-nome" title={pasta.nome}>
+                {pasta.nome}
+              </span>
+              <span className="lb-sr-only"> vazia</span>
+            </div>
+          ) : (
             <button
               type="button"
-              className="lb-acervo__apagar"
-              aria-label={rotuloApagarPasta(pasta)}
-              onClick={(event) => {
-                // Pasta vazia sai sem pergunta: não há nada a perder nem a mover.
-                if (dentro.length === 0) {
-                  onApagarPasta(pasta)
-                  return
-                }
-                focarDepois(event.currentTarget.closest('.lb-acervo__pasta'), MANTER_A_PASTA)
-                setPergunta({ tipo: 'apagar-pasta', id: pasta.id })
-              }}
+              className="lb-acervo__pasta-botao"
+              aria-expanded={aberta}
+              aria-controls={aberta ? idDoCorpo : undefined}
+              aria-label={`${pasta.nome} (${dentro.length})`}
+              onClick={() => onRecolherPasta(pasta, aberta)}
             >
-              <span aria-hidden="true">×</span>
+              <span className="lb-acervo__chevron" aria-hidden="true">
+                <ChevronDownIcon size={14} />
+              </span>
+              <FolderIcon size={14} />
+              {/* Nome longo corta com reticências na coluna estreita; o title devolve o nome inteiro no hover. */}
+              <span className="lb-acervo__pasta-nome" title={pasta.nome}>
+                {pasta.nome}
+              </span>
             </button>
           )}
+          {!apagando && (
+            <span className="lb-acervo__acoes">
+              <button
+                type="button"
+                className="lb-acervo__apagar"
+                aria-label={rotuloApagarPasta(pasta)}
+                title={vazia ? 'Apagar a pasta' : 'Apagar a pasta (os tokens ficam)'}
+                onClick={(event) => {
+                  // Pasta vazia sai sem pergunta: não há nada a perder nem a mover.
+                  if (vazia) {
+                    onApagarPasta(pasta)
+                    return
+                  }
+                  focarDepois(event.currentTarget.closest('.lb-acervo__pasta'), MANTER_A_PASTA)
+                  setPergunta({ tipo: 'apagar-pasta', id: pasta.id })
+                }}
+              >
+                <CloseIcon size={14} />
+              </button>
+            </span>
+          )}
+          {/* Na ponta da linha, depois do × (que só aparece sob o ponteiro):
+              em repouso as contagens de todas as pastas e a de "Sem pasta"
+              ficam numa coluna só, rente à borda. Fora do botão, mas o alvo
+              dele cobre a linha inteira (TokenLibraryPanel.css), e o nome
+              acessível dele já diz quantos tokens há. */}
+          <span className="lb-acervo__contagem" aria-hidden="true">
+            {dentro.length}
+          </span>
         </div>
         {apagando && (
           <div className="lb-acervo__confirma lb-acervo__confirma--pasta">
@@ -631,7 +669,7 @@ export function TokenLibraryPanel({
             </button>
           </div>
         )}
-        {aberta && dentro.length > 0 && (
+        {aberta && !vazia && (
           <ul id={idDoCorpo} className="lb-acervo lb-acervo--na-pasta">
             {dentro.map(linha)}
           </ul>
@@ -643,8 +681,14 @@ export function TokenLibraryPanel({
   const mostrarNovoToken = novoToken !== undefined && !novoTokenAberto
   const mostrarNovaPasta = podeOrganizar && novaPasta === null
 
+  // Durante o arrasto o ponteiro passa por cima de todas as linhas: a marca na
+  // seção apaga o pairar delas, e só a pasta de destino acende (`data-alvo`).
+  const classeDaSecao = ['lb-section', 'lb-acervo-painel', vazio && 'lb-acervo--vazio', arrastado !== null && 'lb-acervo--arrastando']
+    .filter(Boolean)
+    .join(' ')
+
   return (
-    <section className={vazio ? 'lb-section lb-acervo-painel lb-acervo--vazio' : 'lb-section lb-acervo-painel'} ref={raizRef}>
+    <section className={classeDaSecao} ref={raizRef}>
       <div className="lb-acervo__topo">
         <h2 className="lb-eyebrow">Acervo de tokens</h2>
         {(mostrarNovoToken || mostrarNovaPasta) && (
@@ -709,7 +753,12 @@ export function TokenLibraryPanel({
           {pastas.map(grupo)}
           {mostrarSemPasta && (
             <div className="lb-acervo__pasta lb-acervo__pasta--solta" role="group" aria-label={SEM_PASTA} {...{ [ATRIBUTO_DE_PASTA]: '' }}>
-              <p className="lb-acervo__pasta-titulo">{SEM_PASTA}</p>
+              <p className="lb-acervo__pasta-titulo">
+                {SEM_PASTA}
+                <span className="lb-acervo__contagem" aria-hidden="true">
+                  {soltos.length}
+                </span>
+              </p>
               {soltos.length > 0 ? (
                 <ul className="lb-acervo">{soltos.map(linha)}</ul>
               ) : (
