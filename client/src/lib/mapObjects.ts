@@ -1,4 +1,4 @@
-import type { DoorKind, Drawing, LayerId, MapData, Pin, Region, Token, Wall } from '../types/map'
+import type { DoorKind, Drawing, LayerId, MapData, Pin, Region, RegionPoint, Token, Wall } from '../types/map'
 import type { Bounds, Point } from '../pixi/world'
 import { drawingLayer, isLayerLocked, isLayerVisible, pinLayer, regionLayer, tokenLayer, wallLayer } from './layers'
 import { canInteract } from './itemTransform'
@@ -113,24 +113,46 @@ function distanceToSegment(p: Point, a: Point, b: Point): number {
   return Math.hypot(p.x - (a.x + t * dx), p.y - (a.y + t * dy))
 }
 
+/** Sala com nome, pronta para achar as portas dela: nome aparado e caixa calculados uma vez. */
+interface NamedRoom {
+  id: string
+  name: string
+  points: RegionPoint[]
+  /** `null` = sala sem ponto: só a porta que já é dela (`regionId`) a encontra. */
+  box: Bounds | null
+}
+
+/**
+ * As Salas com nome, na ordem do mapa. Sai uma vez por lista, não uma vez por
+ * porta: aparar o nome e medir a caixa de cada sala para cada porta era
+ * O(portas x salas) e dominava a lista num mapa grande.
+ */
+function namedRoomsOf(regions: readonly Region[]): NamedRoom[] {
+  const rooms: NamedRoom[] = []
+  for (const region of regions) {
+    const name = region.room?.name.trim() ?? ''
+    if (name === '') continue
+    rooms.push({ id: region.id, name, points: region.points, box: pointsBoundingBox(region.points) })
+  }
+  return rooms
+}
+
 /** A porta está no contorno (ou dentro) desta sala? */
-function roomHasDoorAt(region: Region, point: Point, tolerance: number): boolean {
-  const box = pointsBoundingBox(region.points)
+function roomHasDoorAt(room: NamedRoom, point: Point, tolerance: number): boolean {
+  const { box, points } = room
   if (box === null) return false
   if (point.x < box.minX - tolerance || point.x > box.maxX + tolerance || point.y < box.minY - tolerance || point.y > box.maxY + tolerance) return false
-  if (isPointInPolygon(point, region.points)) return true
-  return region.points.some((a, i) => distanceToSegment(point, a, region.points[(i + 1) % region.points.length]) <= tolerance)
+  if (isPointInPolygon(point, points)) return true
+  return points.some((a, i) => distanceToSegment(point, a, points[(i + 1) % points.length]) <= tolerance)
 }
 
 /** As salas da porta, por nome, em ordem alfabética: "Adega e Corredor". */
-function doorRooms(map: MapData, wall: Wall): string {
+function doorRooms(rooms: readonly NamedRoom[], grid: number, wall: Wall): string {
   const middle = { x: (wall.x1 + wall.x2) / 2, y: (wall.y1 + wall.y2) / 2 }
-  const tolerance = map.grid * DOOR_ROOM_TOLERANCE_CELLS
+  const tolerance = grid * DOOR_ROOM_TOLERANCE_CELLS
   const names = new Set<string>()
-  for (const region of map.regions) {
-    const name = region.room?.name.trim() ?? ''
-    if (name === '') continue
-    if (region.id === wall.regionId || roomHasDoorAt(region, middle, tolerance)) names.add(name)
+  for (const room of rooms) {
+    if (room.id === wall.regionId || roomHasDoorAt(room, middle, tolerance)) names.add(room.name)
   }
   return [...names].sort(COLLATOR.compare).join(' e ')
 }
@@ -156,7 +178,8 @@ export function roomEntry(map: MapData, region: Region): MapObjectEntry | null {
   }
 }
 
-function doorEntry(map: MapData, wall: Wall): MapObjectEntry | null {
+/** `rooms` = `namedRoomsOf(map.regions)`, preparado por quem chama. */
+function doorEntry(map: MapData, wall: Wall, rooms: readonly NamedRoom[]): MapObjectEntry | null {
   if (wall.door === null) return null
   const bounds = { minX: Math.min(wall.x1, wall.x2), minY: Math.min(wall.y1, wall.y2), maxX: Math.max(wall.x1, wall.x2), maxY: Math.max(wall.y1, wall.y2) }
   return {
@@ -164,7 +187,7 @@ function doorEntry(map: MapData, wall: Wall): MapObjectEntry | null {
     kind: 'door',
     id: wall.id,
     name: DOOR_NAMES[wall.door.kind] ?? 'Porta',
-    detail: doorRooms(map, wall),
+    detail: doorRooms(rooms, map.grid, wall),
     // Parede travada sai do clique do mapa (`hitTestMap`): aqui também.
     blockedReason: layerBlock(map, wallLayer(wall)) ?? (canInteract(wall) ? null : 'parede travada'),
     color: null,
@@ -251,8 +274,9 @@ export function mapObjectsOf(map: MapData): MapObjectEntry[] {
     const entry = roomEntry(map, region)
     if (entry !== null) entries.push(entry)
   }
+  const rooms = map.walls.some((wall) => wall.door !== null) ? namedRoomsOf(map.regions) : []
   for (const wall of map.walls) {
-    const entry = doorEntry(map, wall)
+    const entry = doorEntry(map, wall, rooms)
     if (entry !== null) entries.push(entry)
   }
   // O pino da escada que leva a outro andar não é objeto da lista: a escada é.
@@ -282,7 +306,8 @@ export function mapObjectOf(map: MapData, key: string): MapObjectEntry | null {
     }
     case 'door': {
       const wall = map.walls.find((w) => w.id === id)
-      return wall ? doorEntry(map, wall) : null
+      // Parede sem porta não paga a preparação das salas: devolve null como antes.
+      return wall !== undefined && wall.door !== null ? doorEntry(map, wall, namedRoomsOf(map.regions)) : null
     }
     case 'pin': {
       const pin = map.pins.find((p) => p.id === id)

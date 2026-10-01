@@ -27,6 +27,9 @@ describe('PinsSection: lista de pinos buscável', () => {
   beforeEach(() => {
     Reflect.set(globalThis, 'IS_REACT_ACT_ENVIRONMENT', true)
     window.localStorage.clear()
+    // A seção nasce fechada e, fechada, nem monta a lista (`lazy`): os testes da
+    // lista partem dela aberta, como o mestre a deixou da última vez.
+    window.localStorage.setItem('lb-section:pins', '1')
     container = document.createElement('div')
     document.body.appendChild(container)
     root = createRoot(container)
@@ -121,5 +124,50 @@ describe('PinsSection: lista de pinos buscável', () => {
     render([])
     expect(container.querySelector('select')).toBeNull()
     expect(container.textContent).toContain('Nenhum pino no mapa ainda.')
+  })
+
+  function cabecalho(): HTMLButtonElement {
+    const botao = container.querySelector('button[aria-expanded]')
+    if (!(botao instanceof HTMLButtonElement)) throw new Error('sem cabeçalho da seção')
+    return botao
+  }
+
+  it('fechada, a lista nem existe na página; abrir pelo cabeçalho mostra os pinos', () => {
+    window.localStorage.removeItem('lb-section:pins')
+    render(ENTRADAS)
+    expect(cabecalho().getAttribute('aria-expanded')).toBe('false')
+    expect(container.querySelector('ul[aria-label="Pinos da aventura"]')).toBeNull()
+    expect(container.querySelector('input[type="search"]')).toBeNull()
+    act(() => cabecalho().click())
+    expect(cabecalho().getAttribute('aria-expanded')).toBe('true')
+    expect(resultados().map((b) => b.textContent)).toEqual(['FacaCasa do crime', 'BilheteCasa do crime', 'PegadaPorão'])
+  })
+
+  it('a busca e o filtro de cena sobrevivem a fechar e abrir a seção', () => {
+    render(ENTRADAS)
+    const filtro = container.querySelector('select')
+    if (!(filtro instanceof HTMLSelectElement)) throw new Error('sem filtro de cena')
+    act(() => {
+      filtro.value = 's-casa'
+      filtro.dispatchEvent(new Event('change', { bubbles: true }))
+    })
+    digitar(busca(), 'bil')
+    expect(resultados().map((b) => b.textContent)).toEqual(['BilheteCasa do crime'])
+    act(() => cabecalho().click())
+    expect(container.querySelector('ul[aria-label="Pinos da aventura"]')).toBeNull()
+    act(() => cabecalho().click())
+    expect(busca().value).toBe('bil')
+    const filtroDeNovo = container.querySelector('select')
+    if (!(filtroDeNovo instanceof HTMLSelectElement)) throw new Error('sem filtro de cena depois de reabrir')
+    expect(filtroDeNovo.value).toBe('s-casa')
+    expect(resultados().map((b) => b.textContent)).toEqual(['BilheteCasa do crime'])
+  })
+
+  it('pinos que chegam com a seção fechada aparecem ao abrir', () => {
+    window.localStorage.removeItem('lb-section:pins')
+    render(ENTRADAS.slice(0, 1))
+    render(ENTRADAS)
+    act(() => cabecalho().click())
+    expect(resultados()).toHaveLength(3)
   })
 })

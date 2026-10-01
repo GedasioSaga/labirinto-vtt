@@ -17,7 +17,7 @@ import { VISION_FACTOR_MAX, VISION_FACTOR_MIN, VISION_FACTOR_STEP, formatVisionF
 import { NOISE_RANGE_OPTIONS } from '../lib/noise'
 import { LOAN_TASK_MAX_LENGTH } from '../lib/tokenLoan'
 import { formatNoteTime } from '../player/PlayerNotebook'
-import type { TokenContract } from '../types/map'
+import type { MapData, Region, TokenContract } from '../types/map'
 import type { RoomInfo, TunnelState } from '../net/hostBridge'
 import { CluesSection, type CluesSectionProps } from './CluesSection'
 import { SecretCheckSection, type SecretCheckSectionProps } from './SecretCheckSection'
@@ -222,18 +222,37 @@ export function roomPanelTokensOf(world: HostWorld): RoomPanelToken[] {
 export interface GiftScene {
   sceneId: string | null
   name: string
-  rooms: { id: string; name: string }[]
+  /** Somente leitura: o mesmo array volta do cache em renders seguidos (`giftRoomsOf`). */
+  rooms: readonly { id: string; name: string }[]
 }
 
 const UNNAMED_ROOM = 'Sala sem nome'
 
 /**
+ * As Salas de cada `regions` já vista. O App chama `giftScenesOf` a cada render
+ * (cada quadro de arrasto), para a cena aberta e para todas as de fundo, que não
+ * mudam. A store troca o array a cada edição e nunca o muta, então a referência
+ * basta como chave, e o WeakMap solta a entrada quando o mapa sai de cena.
+ * `giftableRoomsOf` só lê `map.regions`; se passar a ler outro campo, a chave muda junto.
+ */
+const giftRoomsByRegions = new WeakMap<readonly Region[], GiftScene['rooms']>()
+
+function giftRoomsOf(map: MapData): GiftScene['rooms'] {
+  const cached = giftRoomsByRegions.get(map.regions)
+  if (cached !== undefined) return cached
+  const rooms = giftableRoomsOf(map).map((region) => ({ id: region.id, name: region.room?.name.trim() || UNNAMED_ROOM }))
+  giftRoomsByRegions.set(map.regions, rooms)
+  return rooms
+}
+
+/**
  * MAPA DE PAPEL: cada cena do mundo com as Salas que o jogador pode ver
  * (`giftableRoomsOf`), a aberta primeiro. Cena sem nenhuma fica de fora.
+ * Nome e id vêm da cena a cada chamada: só as Salas saem do cache.
  */
 export function giftScenesOf(world: HostWorld): GiftScene[] {
   return [world.open, ...world.background].flatMap((scene) => {
-    const rooms = giftableRoomsOf(scene.map).map((region) => ({ id: region.id, name: region.room?.name.trim() || UNNAMED_ROOM }))
+    const rooms = giftRoomsOf(scene.map)
     return rooms.length === 0 ? [] : [{ sceneId: scene.sceneId, name: scene.name, rooms }]
   })
 }

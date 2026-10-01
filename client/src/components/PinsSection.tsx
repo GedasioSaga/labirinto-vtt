@@ -27,6 +27,11 @@ function scenesOf(entries: readonly PinDirectoryEntry[]): { id: string; name: st
  * cena. Um toque na linha (ou Enter na busca, que vai ao primeiro) abre a
  * cena do pino com ele selecionado. Esc na busca limpa o texto e não chega ao
  * canvas (Esc lá troca a ferramenta).
+ *
+ * Nasce recolhida e o corpo só existe com ela aberta (`lazy`): uma aventura
+ * grande tem milhares de pinos, e a lista escondida era montada e reconciliada
+ * a cada render do App (cada quadro de arrasto). A busca e o filtro moram aqui,
+ * acima da seção, e sobrevivem a fechar e abrir.
  */
 export function PinsSection({ entries, onGo }: PinsSectionProps) {
   const searchId = useId()
@@ -53,7 +58,7 @@ export function PinsSection({ entries, onGo }: PinsSectionProps) {
   }
 
   return (
-    <CollapsibleSection id="pins" title="Pinos" defaultOpen={false}>
+    <CollapsibleSection id="pins" title="Pinos" defaultOpen={false} lazy>
       <div className="lb-field">
         <label className="lb-label" htmlFor={searchId}>
           Buscar pino
