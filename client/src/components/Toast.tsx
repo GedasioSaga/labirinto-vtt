@@ -1,5 +1,5 @@
-import { createContext, useContext, useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
-import type { FormEvent } from 'react'
+import { createContext, useCallback, useContext, useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
+import type { FormEvent, RefObject } from 'react'
 import type { ToastMessage, ToastResposta } from '../stores/toastStore'
 import { agruparAvisos, deixarTodos, temRespostaEmLote, tituloDaCaixa } from './caixaDeAvisos'
 import './Toast.css'
@@ -7,6 +7,14 @@ import './Toast.css'
 interface ToastProps {
   toasts: ToastMessage[]
   onDismiss: (id: string) => void
+  /**
+   * O relógio dos avisos para: o ponteiro entrou num aviso, ou o foco entrou
+   * na pilha (`usePausaEnquantoLe`). Sem ele, os avisos somem no prazo de
+   * sempre — o caso dos testes que não tratam de tempo.
+   */
+  onPausar?: () => void
+  /** O ponteiro e o foco saíram da pilha, ou ela saiu da tela: o relógio volta a correr. */
+  onRetomar?: () => void
 }
 
 /**
@@ -43,8 +51,13 @@ interface ToastProps {
  * Avisos de mesmo `grupo` (os pedidos de passagem), dois ou mais, viram UMA
  * caixa — ver `CaixaDeAvisos` e a regra em `caixaDeAvisos.ts`. O pedido da
  * porta trancada (`sempreEmCaixa`) abre a caixa mesmo sozinho: "Pedidos (1)".
+ *
+ * Nenhum aviso some enquanto é lido: com o ponteiro em cima de um deles, ou o
+ * foco dentro da pilha, o relógio de todos para (`onPausar`/`onRetomar`).
  */
-export function Toast({ toasts, onDismiss }: ToastProps) {
+export function Toast({ toasts, onDismiss, onPausar, onRetomar }: ToastProps) {
+  const pilhaRef = useRef<HTMLDivElement>(null)
+  usePausaEnquantoLe(pilhaRef, toasts, onPausar, onRetomar)
   // Mora aqui, e não na linha: a linha é desmontada quando a pilha troca de forma.
   const [respostasEmCurso] = useState(() => new Map<string, RespostaEmCurso>())
   // O texto dos campos acima dos botões mora AQUI, por id de aviso, e não no
@@ -69,7 +82,7 @@ export function Toast({ toasts, onDismiss }: ToastProps) {
 
   return (
     <RespostasEmCurso.Provider value={respostasEmCurso}>
-      <div className="lb-toaststack">
+      <div ref={pilhaRef} className="lb-toaststack">
         {agruparAvisos(toasts).map((item) =>
           item.tipo === 'aviso' ? (
             <AvisoSolto key={item.toast.id} toast={item.toast} onDismiss={onDismiss} rascunhos={rascunhos} />
@@ -80,6 +93,88 @@ export function Toast({ toasts, onDismiss }: ToastProps) {
       </div>
     </RespostasEmCurso.Provider>
   )
+}
+
+/** Por que a pilha está parada. Os dois `false`: o relógio corre. */
+interface MotivosDaPausa {
+  ponteiro: boolean
+  foco: boolean
+}
+
+/**
+ * Segura os avisos enquanto a pessoa lê: o ponteiro em cima de um aviso, ou o
+ * foco num botão ou campo da pilha, chamam `onPausar`; os dois fora,
+ * `onRetomar`. Só avisa na virada (parou agora, voltou a correr agora): andar
+ * de um aviso para outro, ou de um botão para outro, não chama nada.
+ *
+ * Ouve no `document`, e não na pilha: o aviso sob o ponteiro (ou com o foco)
+ * pode sair da tela — dispensado no ×, respondido —, e dele não vem mais
+ * saída nenhuma. Onde o ponteiro foi parar diz o próximo `pointerover`, venha
+ * de onde vier; o foco que sumiu junto com o aviso, a conferência depois de
+ * cada troca da pilha. Pilha vazia ou desmontada solta a pausa: senão o
+ * próximo aviso nasceria parado e não sumiria mais.
+ */
+function usePausaEnquantoLe(
+  pilhaRef: RefObject<HTMLDivElement | null>,
+  toasts: readonly ToastMessage[],
+  onPausar: (() => void) | undefined,
+  onRetomar: (() => void) | undefined,
+): void {
+  const motivos = useRef<MotivosDaPausa>({ ponteiro: false, foco: false })
+  // Os callbacks de agora, lidos na hora: o App trocar a função não reinstala
+  // os ouvintes — nem solta a pausa no meio da leitura.
+  const avisar = useRef({ onPausar, onRetomar })
+  useLayoutEffect(() => {
+    avisar.current = { onPausar, onRetomar }
+  }, [onPausar, onRetomar])
+
+  const marcar = useCallback((motivo: keyof MotivosDaPausa, ativo: boolean) => {
+    const antes = motivos.current.ponteiro || motivos.current.foco
+    motivos.current = { ...motivos.current, [motivo]: ativo }
+    const agora = motivos.current.ponteiro || motivos.current.foco
+    if (agora && !antes) avisar.current.onPausar?.()
+    else if (antes && !agora) avisar.current.onRetomar?.()
+  }, [])
+
+  const temAvisos = toasts.length > 0
+
+  useEffect(() => {
+    if (!temAvisos) return
+    const naPilha = (alvo: EventTarget | null): boolean => alvo instanceof Node && pilhaRef.current !== null && pilhaRef.current.contains(alvo)
+    const aoPassar = (event: PointerEvent) => marcar('ponteiro', naPilha(event.target))
+    // `pointerout` sem destino: o ponteiro saiu da janela.
+    const aoSairDaJanela = (event: PointerEvent) => {
+      if (event.relatedTarget === null) marcar('ponteiro', false)
+    }
+    const aoFocar = (event: FocusEvent) => marcar('foco', naPilha(event.target))
+    // `focusout` sem destino: o foco foi para o `body` ou para fora da janela.
+    // Com destino, quem decide é o `focusin` que vem logo depois.
+    const aoDesfocar = (event: FocusEvent) => {
+      if (event.relatedTarget === null) marcar('foco', false)
+    }
+    // Na captura: `stopPropagation` de outro canto da tela não esconde a passagem.
+    document.addEventListener('pointerover', aoPassar, true)
+    document.addEventListener('pointerout', aoSairDaJanela, true)
+    document.addEventListener('focusin', aoFocar, true)
+    document.addEventListener('focusout', aoDesfocar, true)
+    return () => {
+      document.removeEventListener('pointerover', aoPassar, true)
+      document.removeEventListener('pointerout', aoSairDaJanela, true)
+      document.removeEventListener('focusin', aoFocar, true)
+      document.removeEventListener('focusout', aoDesfocar, true)
+      marcar('ponteiro', false)
+      marcar('foco', false)
+    }
+  }, [temAvisos, pilhaRef, marcar])
+
+  // O botão com o foco pode sair da pilha sem `focusout` (o nó removido não
+  // avisa). Roda depois do efeito da caixa, que devolve o foco à linha
+  // seguinte quando há uma: só o foco que caiu fora da pilha solta a pausa.
+  useLayoutEffect(() => {
+    const pilha = pilhaRef.current
+    if (pilha === null || !motivos.current.foco) return
+    if (!pilha.contains(document.activeElement)) marcar('foco', false)
+  }, [toasts, pilhaRef, marcar])
 }
 
 /**

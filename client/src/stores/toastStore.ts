@@ -6,8 +6,9 @@ import { create } from 'zustand'
  * Fila mínima de avisos, pura o bastante para ser testada sem montar nenhum
  * componente React — todo teste chama `useToastStore.getState()` direto,
  * mesmo padrão de `useMapStore.getState()` já usado fora de componente em
- * `pixi/PixiCanvas.tsx`. `Toast.tsx` só lê `toasts` com o hook e chama
- * `dismiss`; toda a lógica de fila/tempo mora aqui.
+ * `pixi/PixiCanvas.tsx`. A pilha na tela (`Toast.tsx`, ligada em `App.tsx`)
+ * só lê `toasts` e chama `dismiss`, `pausar` e `retomar`; toda a lógica de
+ * fila/tempo mora aqui.
  */
 
 /**
@@ -166,6 +167,17 @@ interface ToastState {
   push: (kind: ToastKind, text: string, durationMs?: number | null, extras?: ToastExtras) => string
   /** Dispensa por `id`, na mão (botão) ou pelo próprio timer de `push`. Idempotente: `id` que já não está na fila é um no-op silencioso. */
   dismiss: (id: string) => void
+  /**
+   * Para o relógio de todo aviso na tela, e do que chegar enquanto isso: a
+   * pessoa está lendo (ponteiro em cima, foco dentro da pilha). Cada um guarda
+   * quanto faltava. Pausar de novo não muda nada.
+   */
+  pausar: () => void
+  /**
+   * Põe o relógio de volta para correr do que faltava — nunca menos que
+   * `RETOMADA_MINIMA_MS`. Sem pausa, não faz nada: não encurta prazo de ninguém.
+   */
+  retomar: () => void
 }
 
 /**
@@ -187,57 +199,103 @@ const DEFAULT_DURATION_MS: Record<ToastKind, number | null> = {
 }
 
 /**
- * Timer de auto-dispensa por `id`, fora do state de propósito:
- * `ReturnType<typeof setTimeout>` não é dado de UI (não deve disparar
- * re-render) e só precisa existir para poder ser cancelado — mesmo padrão de
- * `sliderCommitTimers` em `App.tsx:187`, só que aqui module-scoped porque a
- * store (não um componente) é dona do ciclo de vida do timer.
+ * O menor prazo que `retomar` devolve. Tirar o ponteiro de cima não pode
+ * apagar o aviso no mesmo instante: quem passou de raspão ainda tem tempo de
+ * voltar, e quem terminou de ler vê o aviso sair, em vez de piscar e sumir.
  */
-const timers = new Map<string, ReturnType<typeof setTimeout>>()
+const RETOMADA_MINIMA_MS = 1500
 
-export const useToastStore = create<ToastState>()((set, get) => ({
-  toasts: [],
+/**
+ * O prazo de auto-dispensa de um aviso. Correndo: o timer e o instante em que
+ * ele vence (é dali que a pausa tira o que falta). Parado, com a pilha
+ * pausada: só quanto falta, sem timer nenhum.
+ */
+type Prazo = { estado: 'correndo'; timer: ReturnType<typeof setTimeout>; venceEm: number } | { estado: 'parado'; restante: number }
 
-  push: (kind, text, durationMs = DEFAULT_DURATION_MS[kind], extras = {}) => {
-    // Os extras só entram quando existem: o aviso simples continua exatamente `{ id, kind, text }`.
-    const toast: ToastMessage = { id: '', kind, text }
-    if (extras.actions !== undefined && extras.actions.length > 0) toast.actions = extras.actions
-    if (extras.onDismiss !== undefined) toast.onDismiss = extras.onDismiss
-    if (extras.grupo !== undefined) toast.grupo = extras.grupo
-    if (extras.sempreEmCaixa === true) toast.sempreEmCaixa = true
-    if (extras.resposta !== undefined) toast.resposta = extras.resposta
-    if (extras.urgente === true) toast.urgente = true
-    if (extras.detalhe !== undefined) toast.detalhe = extras.detalhe
-    if (extras.chave !== undefined) toast.chave = extras.chave
-    // Repetido: troca no lugar, com o id de antes e o prazo contando de novo.
-    const repetido = avisoRepetido(get().toasts, toast)
-    const id = repetido?.id ?? crypto.randomUUID()
-    toast.id = id
-    if (repetido !== undefined) {
-      const timer = timers.get(id)
-      if (timer !== undefined) clearTimeout(timer)
-      timers.delete(id)
-      set((state) => ({ toasts: state.toasts.map((atual) => (atual.id === id ? toast : atual)) }))
-    } else {
-      set((state) => ({ toasts: [...state.toasts, toast] }))
-    }
-    if (durationMs !== null) {
-      timers.set(
-        id,
-        setTimeout(() => {
-          get().dismiss(id)
-        }, durationMs),
-      )
-    }
-    return id
-  },
+/**
+ * Prazo por `id`, fora do state de propósito: `ReturnType<typeof setTimeout>`
+ * não é dado de UI (não deve disparar re-render) e só precisa existir para
+ * poder ser cancelado ou pausado — mesmo padrão de `sliderCommitTimers` em
+ * `App.tsx:187`, só que aqui module-scoped porque a store (não um componente)
+ * é dona do ciclo de vida do timer. Aviso sem prazo (`durationMs: null`) não
+ * tem entrada aqui.
+ */
+const prazos = new Map<string, Prazo>()
 
-  dismiss: (id) => {
-    const timer = timers.get(id)
-    if (timer !== undefined) {
-      clearTimeout(timer)
-      timers.delete(id)
-    }
-    set((state) => ({ toasts: state.toasts.filter((toast) => toast.id !== id) }))
-  },
-}))
+/** A pilha está pausada (`pausar`): aviso novo, ou repetido, guarda o prazo sem pôr o relógio para correr. */
+let pausada = false
+
+export const useToastStore = create<ToastState>()((set, get) => {
+  /** Põe o prazo do aviso para correr: some em `ms`, salvo nova pausa. */
+  const correr = (id: string, ms: number) => {
+    const timer = setTimeout(() => {
+      get().dismiss(id)
+    }, ms)
+    prazos.set(id, { estado: 'correndo', timer, venceEm: Date.now() + ms })
+  }
+
+  /** Tira o prazo do aviso, correndo ou parado. */
+  const esquecerPrazo = (id: string) => {
+    const prazo = prazos.get(id)
+    if (prazo?.estado === 'correndo') clearTimeout(prazo.timer)
+    prazos.delete(id)
+  }
+
+  return {
+    toasts: [],
+
+    push: (kind, text, durationMs = DEFAULT_DURATION_MS[kind], extras = {}) => {
+      // Os extras só entram quando existem: o aviso simples continua exatamente `{ id, kind, text }`.
+      const toast: ToastMessage = { id: '', kind, text }
+      if (extras.actions !== undefined && extras.actions.length > 0) toast.actions = extras.actions
+      if (extras.onDismiss !== undefined) toast.onDismiss = extras.onDismiss
+      if (extras.grupo !== undefined) toast.grupo = extras.grupo
+      if (extras.sempreEmCaixa === true) toast.sempreEmCaixa = true
+      if (extras.resposta !== undefined) toast.resposta = extras.resposta
+      if (extras.urgente === true) toast.urgente = true
+      if (extras.detalhe !== undefined) toast.detalhe = extras.detalhe
+      if (extras.chave !== undefined) toast.chave = extras.chave
+      // Repetido: troca no lugar, com o id de antes e o prazo contando de novo.
+      const repetido = avisoRepetido(get().toasts, toast)
+      const id = repetido?.id ?? crypto.randomUUID()
+      toast.id = id
+      if (repetido !== undefined) {
+        esquecerPrazo(id)
+        set((state) => ({ toasts: state.toasts.map((atual) => (atual.id === id ? toast : atual)) }))
+      } else {
+        set((state) => ({ toasts: [...state.toasts, toast] }))
+      }
+      if (durationMs !== null) {
+        // Com a pilha pausada o prazo espera inteiro: quem está lendo um aviso
+        // não pode ver o vizinho, recém-chegado, sumir antes de chegar nele.
+        if (pausada) prazos.set(id, { estado: 'parado', restante: durationMs })
+        else correr(id, durationMs)
+      }
+      return id
+    },
+
+    dismiss: (id) => {
+      esquecerPrazo(id)
+      set((state) => ({ toasts: state.toasts.filter((toast) => toast.id !== id) }))
+    },
+
+    pausar: () => {
+      if (pausada) return
+      pausada = true
+      const agora = Date.now()
+      for (const [id, prazo] of prazos) {
+        if (prazo.estado !== 'correndo') continue
+        clearTimeout(prazo.timer)
+        prazos.set(id, { estado: 'parado', restante: Math.max(0, prazo.venceEm - agora) })
+      }
+    },
+
+    retomar: () => {
+      if (!pausada) return
+      pausada = false
+      for (const [id, prazo] of prazos) {
+        if (prazo.estado === 'parado') correr(id, Math.max(prazo.restante, RETOMADA_MINIMA_MS))
+      }
+    },
+  }
+})

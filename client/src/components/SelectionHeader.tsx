@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState, type KeyboardEvent, type ReactElement, type ReactNode } from 'react'
-import type { Drawing, FloorPiece, Light, Prop, Region, Stair, Token, Wall } from '../types/map'
+import type { Drawing, FloorPiece, Light, Prop, Region, Stair, TipoMobilia, Token, Wall } from '../types/map'
 import { ROTULO_MOBILIA } from '../lib/mobilia'
 import { PISO_MAX, PISO_MIN, nomeDoPiso } from '../lib/pisos'
 import type { SelectionSummary } from './SelectionControls'
@@ -9,6 +9,7 @@ import {
   DoorIcon,
   FloorIcon,
   LightIcon,
+  MobiliaIcon,
   PropIcon,
   RegionIcon,
   RoomIcon,
@@ -29,18 +30,34 @@ export type SelectionIconKind =
   | 'light'
   | 'stair'
   | 'prop'
+  | 'mobilia'
   | 'text'
   | 'drawing'
   | 'floor'
   | 'several'
 
 /** O que a faixa diz da seleção. */
-export interface SelectionIdentity {
-  icon: SelectionIconKind
+export type SelectionIdentity = IdentidadeComum | IdentidadeDeMovel
+
+interface IdentidadeBase {
   /** O tipo, com o nome do botão da ferramenta que cria a coisa ("Sala", "Porta", "Token"). */
   type: string
   /** O nome do item, quando ele tem um; `null` = a faixa diz só o tipo. */
   name: string | null
+}
+
+interface IdentidadeComum extends IdentidadeBase {
+  icon: Exclude<SelectionIconKind, 'mobilia'>
+}
+
+/**
+ * Móvel desenhado: o ícone é o desenho DAQUELE móvel (`MobiliaIcon`), o
+ * mesmo da setinha da ferramenta Objetos — o peão da Peça diria outra coisa
+ * ao lado de "Mesa". O tipo só existe aqui, onde o ícone precisa dele.
+ */
+interface IdentidadeDeMovel extends IdentidadeBase {
+  icon: 'mobilia'
+  mobilia: TipoMobilia
 }
 
 /** Os itens que o painel já recebe; com UM item selecionado, só um deles não é `null`. */
@@ -86,7 +103,8 @@ export function selectionIdentity(summary: SelectionSummary, items: SelectedItem
     case 'prop': {
       // Móvel desenhado diz o que é ("Mesa", "Baú"), como a setinha da ferramenta Objetos o chama.
       const mobilia = items.prop?.mobilia
-      return { icon: 'prop', type: mobilia !== undefined ? ROTULO_MOBILIA[mobilia] : 'Peça', name: null }
+      if (mobilia !== undefined) return { icon: 'mobilia', type: ROTULO_MOBILIA[mobilia], name: null, mobilia }
+      return { icon: 'prop', type: 'Peça', name: null }
     }
     case 'drawing':
       // Rótulo de texto se chama pelo que diz; a primeira linha basta para achar.
@@ -182,7 +200,7 @@ export function SelectionHeader({ identity, deleteLabel, onDelete, actions, acti
   return (
     <div className="lb-selhead" role="toolbar" aria-label="Ações da seleção" aria-describedby={identityId}>
       <span className="lb-selhead__mark" aria-hidden="true">
-        {selectionIcon(identity.icon)}
+        {selectionIcon(identity)}
       </span>
       <span className="lb-selhead__id" id={identityId}>
         {identity.name === null ? (
@@ -368,10 +386,10 @@ function SelectionMenu({ id, actions, hint, trigger, onClose }: SelectionMenuPro
   )
 }
 
-/** Ícone da faixa: o mesmo desenho do botão da ferramenta que cria a coisa. */
-function selectionIcon(kind: SelectionIconKind): ReactElement {
+/** Ícone da faixa: o mesmo desenho do botão da ferramenta que cria a coisa (do móvel, o da setinha). */
+function selectionIcon(identity: SelectionIdentity): ReactElement {
   const size = 16
-  switch (kind) {
+  switch (identity.icon) {
     case 'room':
       return <RoomIcon size={size} />
     case 'region':
@@ -388,6 +406,8 @@ function selectionIcon(kind: SelectionIconKind): ReactElement {
       return <StairIcon size={size} />
     case 'prop':
       return <PropIcon size={size} />
+    case 'mobilia':
+      return <MobiliaIcon tipo={identity.mobilia} size={size} />
     case 'text':
       return <TextIcon size={size} />
     case 'drawing':

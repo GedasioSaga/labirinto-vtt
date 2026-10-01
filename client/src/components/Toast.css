@@ -33,6 +33,23 @@
   gap: var(--lb-space-2);
   padding: var(--lb-space-3);
   pointer-events: auto;
+  /* Chega deslizando da borda onde mora, em vez de piscar no canto. Só a
+     entrada: a saída pediria adiar a desmontagem na store. O aviso repetido
+     não anima de novo — mantém o id, e com ele a mesma key (Toast.tsx). */
+  animation: lb-toast-entra var(--lb-motion-base) var(--lb-motion-ease);
+}
+
+@keyframes lb-toast-entra {
+  from {
+    opacity: 0;
+    transform: translateX(10px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lb-toast {
+    animation: none;
+  }
 }
 
 .lb-toast__body {

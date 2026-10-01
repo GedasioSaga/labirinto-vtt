@@ -1054,6 +1054,8 @@ function App() {
     )
   }
   const dismissToast = useToastStore((state) => state.dismiss)
+  const pausarAvisos = useToastStore((state) => state.pausar)
+  const retomarAvisos = useToastStore((state) => state.retomar)
   // Cenas da aventura (`stores/adventureStore.ts`). O Voltar da barra leva à
   // cena de onde se veio na última troca.
   const adventure = useAdventureStore((state) => state.adventure)
@@ -2312,7 +2314,8 @@ function App() {
       if (!destDir) return
       const sourceMapDir = await mapDirFor(map.id)
       await exportMapFolder(map, sourceMapDir, destDir)
-      console.log('Mapa exportado em', destDir)
+      // O mestre precisa ver que deu certo e onde a pasta foi parar, como no "Exportar imagem".
+      useToastStore.getState().push('info', `Mapa exportado em ${destDir}`)
     } catch (err) {
       reportFileError('exportar o mapa', err)
     }
@@ -2366,7 +2369,7 @@ function App() {
   // dispara da lista "Carregar Mapa", fora do editor.
   const toastStack = (
     <>
-      <Toast toasts={toasts} onDismiss={dismissToast} />
+      <Toast toasts={toasts} onDismiss={dismissToast} onPausar={pausarAvisos} onRetomar={retomarAvisos} />
       {unsavedDialog}
     </>
   )

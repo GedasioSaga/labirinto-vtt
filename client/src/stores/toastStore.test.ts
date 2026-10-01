@@ -157,6 +157,132 @@ describe('toastStore (frente A, onda 2 — item 12: notificação)', () => {
     expect(toasts[0].actions?.[0].run).toBe(ultimo)
   })
 
+  // ── a pilha espera quem está lendo (30/09/2026) ─────────────────────────
+  // Ponteiro em cima de um aviso, ou foco dentro da pilha: o relógio de todo
+  // aviso para. Ao sair, volta de onde parou, com no mínimo 1500 ms.
+
+  describe('pausar e retomar', () => {
+    afterEach(() => {
+      // Nenhum teste deixa a pilha parada para o seguinte.
+      useToastStore.getState().retomar()
+    })
+
+    const naTela = () => useToastStore.getState().toasts.length
+
+    it('pausada, o aviso passa do prazo e fica; retomada, some no que faltava', () => {
+      vi.useFakeTimers()
+      useToastStore.getState().push('info', 'lendo com calma')
+      vi.advanceTimersByTime(1000)
+      useToastStore.getState().pausar()
+      vi.advanceTimersByTime(60_000)
+      expect(naTela()).toBe(1)
+      useToastStore.getState().retomar()
+      vi.advanceTimersByTime(2999)
+      expect(naTela()).toBe(1)
+      vi.advanceTimersByTime(1)
+      expect(naTela()).toBe(0)
+    })
+
+    it('retomar dá no mínimo 1500 ms, mesmo a quem faltava quase nada', () => {
+      vi.useFakeTimers()
+      useToastStore.getState().push('info', 'quase indo')
+      vi.advanceTimersByTime(3900)
+      useToastStore.getState().pausar()
+      vi.advanceTimersByTime(10_000)
+      useToastStore.getState().retomar()
+      vi.advanceTimersByTime(1499)
+      expect(naTela()).toBe(1)
+      vi.advanceTimersByTime(1)
+      expect(naTela()).toBe(0)
+    })
+
+    it('o erro também espera, e volta com o prazo dele', () => {
+      vi.useFakeTimers()
+      useToastStore.getState().push('error', 'Não foi possível salvar o mapa: disco cheio')
+      vi.advanceTimersByTime(2000)
+      useToastStore.getState().pausar()
+      vi.advanceTimersByTime(60_000)
+      useToastStore.getState().retomar()
+      vi.advanceTimersByTime(4999)
+      expect(naTela()).toBe(1)
+      vi.advanceTimersByTime(1)
+      expect(naTela()).toBe(0)
+    })
+
+    it('aviso que chega com a pilha pausada espera inteiro e só corre depois de retomar', () => {
+      vi.useFakeTimers()
+      useToastStore.getState().pausar()
+      useToastStore.getState().push('info', 'chegou com o mouse em cima')
+      vi.advanceTimersByTime(60_000)
+      expect(naTela()).toBe(1)
+      useToastStore.getState().retomar()
+      vi.advanceTimersByTime(3999)
+      expect(naTela()).toBe(1)
+      vi.advanceTimersByTime(1)
+      expect(naTela()).toBe(0)
+    })
+
+    it('aviso repetido com a pilha pausada renova o prazo sem pôr o relógio para correr', () => {
+      vi.useFakeTimers()
+      useToastStore.getState().push('info', 'A camada Paredes está travada')
+      vi.advanceTimersByTime(3000)
+      useToastStore.getState().pausar()
+      useToastStore.getState().push('info', 'A camada Paredes está travada')
+      vi.advanceTimersByTime(60_000)
+      expect(naTela()).toBe(1)
+      useToastStore.getState().retomar()
+      vi.advanceTimersByTime(3999)
+      expect(naTela()).toBe(1)
+      vi.advanceTimersByTime(1)
+      expect(naTela()).toBe(0)
+    })
+
+    it('pausar de novo não muda nada, e um retomar solta o relógio', () => {
+      vi.useFakeTimers()
+      useToastStore.getState().push('info', 'duas pausas')
+      useToastStore.getState().pausar()
+      vi.advanceTimersByTime(1000)
+      useToastStore.getState().pausar()
+      vi.advanceTimersByTime(60_000)
+      useToastStore.getState().retomar()
+      vi.advanceTimersByTime(4000)
+      expect(naTela()).toBe(0)
+    })
+
+    it('retomar sem pausa não encurta o prazo de ninguém', () => {
+      vi.useFakeTimers()
+      useToastStore.getState().push('info', 'intocado')
+      vi.advanceTimersByTime(1000)
+      useToastStore.getState().retomar()
+      vi.advanceTimersByTime(2999)
+      expect(naTela()).toBe(1)
+      vi.advanceTimersByTime(1)
+      expect(naTela()).toBe(0)
+    })
+
+    it('dispensado na mão durante a pausa não volta, e o próximo aviso corre normal', () => {
+      vi.useFakeTimers()
+      const id = useToastStore.getState().push('info', 'dispensado parado')
+      useToastStore.getState().pausar()
+      useToastStore.getState().dismiss(id)
+      useToastStore.getState().retomar()
+      vi.advanceTimersByTime(10_000)
+      expect(naTela()).toBe(0)
+      useToastStore.getState().push('info', 'o seguinte')
+      vi.advanceTimersByTime(4000)
+      expect(naTela()).toBe(0)
+    })
+
+    it('instrução continua sem prazo: pausar e retomar não dão prazo a quem não tinha', () => {
+      vi.useFakeTimers()
+      useToastStore.getState().push('instrucao', 'escolha uma imagem para ele antes de guardar no acervo')
+      useToastStore.getState().pausar()
+      useToastStore.getState().retomar()
+      vi.advanceTimersByTime(600_000)
+      expect(naTela()).toBe(1)
+    })
+  })
+
   it('dismiss manual antes do timer cancela a auto-dispensa (não dispara dismiss duas vezes sobre um id reciclado)', () => {
     vi.useFakeTimers()
     const id = useToastStore.getState().push('info', 'dispensado na mão')

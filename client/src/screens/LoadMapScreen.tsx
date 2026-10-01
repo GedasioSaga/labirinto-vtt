@@ -1,4 +1,4 @@
-import { useEffect, useState, type CSSProperties } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react'
 import { MenuShell } from './MenuShell'
 import {
   listSavedMaps,
@@ -45,6 +45,22 @@ const rowActionsStyle: CSSProperties = {
   flex: 'none',
 }
 
+/** A pergunta "Apagar X?" ocupa o card no mesmo arranjo de `.lb-maplist__item`:
+ *  o texto estica e os botões ficam na ponta. */
+const deleteConfirmStyle: CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 'var(--lb-space-4)',
+  flex: 1,
+  minWidth: 0,
+}
+
+/** Id estável do "Excluir" de uma linha: o botão é desmontado enquanto a
+ *  pergunta está aberta, e é por este id que o foco volta a ele. */
+function deleteButtonId(mapId: string): string {
+  return `lb-del-${mapId}`
+}
+
 /** `.lb-maplist__item` (main.css) já estiliza borda/fundo/hover para um
  *  container flex — só o botão "abrir" interno precisa de reset, porque
  *  agora o card não é mais um único `<button>` (não dá pra aninhar botão de
@@ -85,6 +101,15 @@ export function LoadMapScreen({ onOpenPath, onBack }: LoadMapScreenProps) {
   const [state, setState] = useState<LoadState>('loading')
   const [rowMode, setRowMode] = useState<RowMode | null>(null)
   const [busyId, setBusyId] = useState<string | null>(null)
+  /** Id do botão que recebe o foco depois da próxima troca de `rowMode`. */
+  const focoPendente = useRef<string | null>(null)
+
+  // O "Excluir" só volta à linha no render que fecha a pergunta: aqui ele já existe.
+  useLayoutEffect(() => {
+    const alvo = focoPendente.current
+    focoPendente.current = null
+    if (alvo !== null) document.getElementById(alvo)?.focus()
+  }, [rowMode])
 
   useEffect(() => {
     let cancelled = false
@@ -127,6 +152,13 @@ export function LoadMapScreen({ onOpenPath, onBack }: LoadMapScreenProps) {
 
   const cancelRowMode = () => setRowMode(null)
 
+  /** Fecha a pergunta "Apagar X?" sem apagar. O foco volta ao "Excluir" que
+   *  a abriu: o botão clicado saiu da tela, e o foco cairia no `body`. */
+  const cancelDelete = (mapId: string) => {
+    focoPendente.current = deleteButtonId(mapId)
+    setRowMode(null)
+  }
+
   const submitRename = async (id: string) => {
     if (rowMode?.kind !== 'rename' || rowMode.id !== id) return
     const draft = rowMode.draft
@@ -142,10 +174,12 @@ export function LoadMapScreen({ onOpenPath, onBack }: LoadMapScreenProps) {
     }
   }
 
-  const confirmDelete = async (id: string) => {
-    setBusyId(id)
+  const confirmDelete = async (map: SavedMapEntry) => {
+    setBusyId(map.id)
     try {
-      await deleteMap(id)
+      await deleteMap(map.id)
+      // A linha some da lista: sem o aviso, nada diz que o arquivo saiu do disco.
+      useToastStore.getState().push('info', `"${map.name}" apagado.`)
       setRowMode(null)
       await refreshMaps()
     } catch (err) {
@@ -159,7 +193,9 @@ export function LoadMapScreen({ onOpenPath, onBack }: LoadMapScreenProps) {
   const handleDuplicate = async (map: SavedMapEntry) => {
     setBusyId(map.id)
     try {
-      await duplicateMap(map.id)
+      const copia = await duplicateMap(map.id)
+      // O nome da cópia é o que o mestre vai procurar na lista.
+      useToastStore.getState().push('info', `Cópia criada: "${copia.name}".`)
       await refreshMaps()
     } catch (err) {
       reportMapFileError('duplicar o mapa', err)
@@ -232,9 +268,26 @@ export function LoadMapScreen({ onOpenPath, onBack }: LoadMapScreenProps) {
                       </div>
                     </div>
                   ) : mode?.kind === 'delete-confirm' ? (
-                    <>
+                    <div
+                      role="alertdialog"
+                      aria-modal="false"
+                      aria-labelledby={`lb-del-titulo-${map.id}`}
+                      aria-describedby={`lb-del-texto-${map.id}`}
+                      style={deleteConfirmStyle}
+                      onKeyDown={(event) => {
+                        if (event.key !== 'Escape') return
+                        // O Esc é desta pergunta: sem isto ele subiria até o
+                        // `MenuShell` (:36), que ouve Escape no `window` e
+                        // tiraria o mestre da tela em vez de cancelar.
+                        event.preventDefault()
+                        event.stopPropagation()
+                        // Apagando, o Cancelar está desligado; o Esc espera junto.
+                        if (!isBusy) cancelDelete(map.id)
+                      }}
+                    >
                       <p style={{ flex: 1, minWidth: 0, margin: 0, color: 'var(--lb-color-ember)' }}>
-                        Apagar &quot;{map.name}&quot;? O arquivo é removido do disco e a ação não tem volta.
+                        <span id={`lb-del-titulo-${map.id}`}>Apagar &quot;{map.name}&quot;?</span>{' '}
+                        <span id={`lb-del-texto-${map.id}`}>O arquivo é removido do disco e a ação não tem volta.</span>
                       </p>
                       <div style={rowActionsStyle}>
                         <button
@@ -242,15 +295,23 @@ export function LoadMapScreen({ onOpenPath, onBack }: LoadMapScreenProps) {
                           className="lb-btn lb-btn--danger"
                           style={compactBtnStyle}
                           disabled={isBusy}
-                          onClick={() => void confirmDelete(map.id)}
+                          onClick={() => void confirmDelete(map)}
                         >
                           Apagar
                         </button>
-                        <button type="button" className="lb-btn lb-btn--ghost" style={compactBtnStyle} disabled={isBusy} onClick={cancelRowMode}>
+                        {/* O foco começa no botão seguro (convenção de confirmação destrutiva). */}
+                        <button
+                          type="button"
+                          className="lb-btn lb-btn--ghost"
+                          style={compactBtnStyle}
+                          disabled={isBusy}
+                          autoFocus
+                          onClick={() => cancelDelete(map.id)}
+                        >
                           Cancelar
                         </button>
                       </div>
-                    </>
+                    </div>
                   ) : (
                     <>
                       <button type="button" style={openButtonStyle(isBusy)} disabled={isBusy} onClick={() => onOpenPath(map.path)}>
@@ -279,6 +340,7 @@ export function LoadMapScreen({ onOpenPath, onBack }: LoadMapScreenProps) {
                           Duplicar
                         </button>
                         <button
+                          id={deleteButtonId(map.id)}
                           type="button"
                           className="lb-btn lb-btn--ghost"
                           style={compactBtnStyle}

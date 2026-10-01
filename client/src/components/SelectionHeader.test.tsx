@@ -1,8 +1,9 @@
-import { act } from 'react'
+import { act, type ReactElement } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { PISO_MAX, PISO_MIN } from '../lib/pisos'
 import type { Drawing, Prop, Region, Token, Wall } from '../types/map'
+import { MobiliaIcon, PropIcon } from './icons'
 import { TOOL_LABELS } from './labels'
 import {
   SelectionHeader,
@@ -65,12 +66,12 @@ describe('selectionIdentity — o que a faixa diz', () => {
     expect(selectionIdentity({ kind: 'token', count: 3 }, NADA)).toEqual({ icon: 'several', type: 'Seleção', name: '3 itens' })
   })
 
-  it('móvel desenhado se chama pelo tipo ("Mesa", "Cama"); objeto de imagem continua "Peça"', () => {
+  it('móvel desenhado se chama pelo tipo ("Mesa", "Cama") e leva o desenho dele; objeto de imagem continua "Peça"', () => {
     const deImagem: Prop = { id: 'o', src: 'x.png', x: 0, y: 0, width: 40, height: 40, linkedMapPath: null }
     const movel = (mobilia: Prop['mobilia']): Prop => ({ ...deImagem, src: '', mobilia })
-    expect(selectionIdentity({ kind: 'prop', count: 1 }, { ...NADA, prop: movel('mesa') })).toEqual({ icon: 'prop', type: 'Mesa', name: null })
-    expect(selectionIdentity({ kind: 'prop', count: 1 }, { ...NADA, prop: movel('catre') }).type).toBe('Cama')
-    expect(selectionIdentity({ kind: 'prop', count: 1 }, { ...NADA, prop: deImagem }).type).toBe('Peça')
+    expect(selectionIdentity({ kind: 'prop', count: 1 }, { ...NADA, prop: movel('mesa') })).toEqual({ icon: 'mobilia', type: 'Mesa', name: null, mobilia: 'mesa' })
+    expect(selectionIdentity({ kind: 'prop', count: 1 }, { ...NADA, prop: movel('catre') })).toEqual({ icon: 'mobilia', type: 'Cama', name: null, mobilia: 'catre' })
+    expect(selectionIdentity({ kind: 'prop', count: 1 }, { ...NADA, prop: deImagem })).toEqual({ icon: 'prop', type: 'Peça', name: null })
   })
 
   it('o tipo repete, letra por letra, o botão da ferramenta que cria a coisa', () => {
@@ -171,6 +172,37 @@ describe('SelectionHeader — a faixa', () => {
   it('sem ação no menu, o "Mais ações" não aparece', () => {
     renderFaixa({ actions: [] })
     expect(botao('Mais ações')).toBeNull()
+  })
+
+  describe('ícone do móvel', () => {
+    /** O desenho que o ícone produz sozinho, para comparar com o da faixa. */
+    function desenhoDe(icone: ReactElement): string {
+      const avulso = document.createElement('div')
+      const raiz = createRoot(avulso)
+      act(() => raiz.render(icone))
+      const html = avulso.innerHTML
+      act(() => raiz.unmount())
+      return html
+    }
+
+    const marca = () => container.querySelector('.lb-selhead__mark')?.innerHTML
+
+    it('móvel selecionado: a faixa mostra o desenho daquele móvel, não o peão da Peça', () => {
+      renderFaixa({ identity: { icon: 'mobilia', type: 'Mesa', name: null, mobilia: 'mesa' } })
+      expect(marca()).toBe(desenhoDe(<MobiliaIcon tipo="mesa" size={16} />))
+      expect(marca()).not.toBe(desenhoDe(<PropIcon size={16} />))
+    })
+
+    it('cada tipo de móvel tem o seu desenho: o baú não é a mesa', () => {
+      renderFaixa({ identity: { icon: 'mobilia', type: 'Baú', name: null, mobilia: 'bau' } })
+      expect(marca()).toBe(desenhoDe(<MobiliaIcon tipo="bau" size={16} />))
+      expect(marca()).not.toBe(desenhoDe(<MobiliaIcon tipo="mesa" size={16} />))
+    })
+
+    it('peça de imagem continua com o peão da ferramenta Peça', () => {
+      renderFaixa({ identity: { icon: 'prop', type: 'Peça', name: null } })
+      expect(marca()).toBe(desenhoDe(<PropIcon size={16} />))
+    })
   })
 
   describe('"Mais ações"', () => {

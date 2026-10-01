@@ -203,16 +203,6 @@
   }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .lb-dice-feed__item {
-    animation: none;
-  }
-  .lb-dice-form__die,
-  .lb-dice-form__roll {
-    transition: none;
-  }
-}
-
 /* ── Canto do mestre: acima do zoom, no canto de baixo à direita ──── */
 
 .lb-dice-dock {
@@ -250,6 +240,12 @@
   display: none;
 }
 
+/* Abre subindo de leve, vindo do "Dados" logo abaixo — o mesmo movimento das
+   rolagens que chegam na lista, no tempo curto: não atrasa o primeiro clique. */
+.lb-dice-dock__panel:not([hidden]) {
+  animation: lb-dice-in var(--lb-motion-fast, 110ms) var(--lb-motion-ease, ease-out);
+}
+
 .lb-dice-dock__toggle {
   padding: 6px 16px;
   font: inherit;
@@ -257,6 +253,18 @@
   font-weight: 600;
   color: var(--lb-color-parchment, #eceae4);
   cursor: pointer;
+  transition: transform var(--lb-motion-fast, 110ms) var(--lb-motion-ease, ease);
+}
+
+/* O hover do `.lb-btn` e o aperto dos botões do formulário acima: sem eles o
+   "Dados" parecia rótulo, não botão. */
+.lb-dice-dock__toggle:hover {
+  background: var(--lb-color-stone-hover, #2c2c33);
+  border-color: var(--lb-color-line-strong, rgba(255, 255, 255, 0.16));
+}
+
+.lb-dice-dock__toggle:active {
+  transform: scale(0.97);
 }
 
 .lb-dice-dock__toggle[aria-expanded='true'] {
@@ -266,4 +274,20 @@
 .lb-dice-dock__toggle:focus-visible {
   outline: 2px solid var(--lb-color-brass-bright, #f3ba66);
   outline-offset: 2px;
+}
+
+/* No fim do arquivo de propósito: cada regra daqui empata em especificidade com
+   a que desliga, e só vence por vir depois. */
+@media (prefers-reduced-motion: reduce) {
+  .lb-dice-feed__item,
+  .lb-dice-dock__panel:not([hidden]) {
+    animation: none;
+  }
+  .lb-dice-form__die,
+  .lb-dice-form__roll {
+    transition: none;
+  }
+  .lb-dice-dock__toggle:active {
+    transform: none;
+  }
 }
