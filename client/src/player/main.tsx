@@ -6,6 +6,7 @@ import { latestActionNotice } from './moveNotice'
 import { ConfrontoFaixa } from './ConfrontoFaixa'
 import { themeCss } from '../theme'
 import { chatOf, createPlayerConnection, hasUnreadNotes, RESUME_STORAGE_KEY } from './playerConnection'
+import { instalarSonsDoJogador } from './sonsDoJogador'
 import { pedeGzip } from '../net/pacoteComprimido'
 import type { PlayerConnection, PlayerState, SeatClaimNotice, SocketLike, StorageLike } from './playerConnection'
 import type { SeatOption } from '../net/protocol'
@@ -2001,6 +2002,11 @@ function PlayerApp() {
   }, [])
 
   useEffect(() => () => session?.connection.close(), [session])
+
+  // SONS DE CLIMA: nascem e morrem com a conexão da sessão. A conexão nasce no
+  // `join()`, fora de efeito, e cada entrada troca a sessão: o efeito tira os
+  // ouvintes da anterior antes de pôr os da nova, e nunca há duas tocando.
+  useEffect(() => (session === null ? undefined : instalarSonsDoJogador(session.connection)), [session])
 
   // Recarregou a página (ou abriu o QR numa aba nova) com a sessão deste
   // aparelho ainda viva: volta direto para a sala, sem passar pelo formulário
