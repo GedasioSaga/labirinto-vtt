@@ -44,8 +44,10 @@
  * eixo, o vão no outro eixo até a peça alinhada mais perto. Medida
  * permanente para toda vizinha vira poluição; ela só aparece quando
  * significa alguma coisa, como no Excalidraw. Por eixo vence o menor ajuste,
- * e no empate o alinhamento vence o espaçamento. O arrasto de ponto não tem
- * nada disso: um ponto no meio de duas salas não é fileira.
+ * e no empate o alinhamento vence o espaçamento. A fileira de um eixo depende
+ * da posição no outro, então o espaçamento só move a peça se, onde ela para,
+ * os vãos iguais aparecem (`snapBox`). O arrasto de ponto não tem nada disso:
+ * um ponto no meio de duas salas não é fileira.
  */
 import type { AreaBounds } from './areaSelection'
 import type { Point } from './selectionHitTest'
@@ -246,13 +248,23 @@ function axisGuides(moving: AreaBounds, others: readonly AreaBounds[], axis: Gui
     })
 }
 
+/** A caixa não tem espessura no eixo: parede solta e linha retas, deitadas ou em pé. */
+function isFlat(box: AreaBounds, axis: GuideAxis): boolean {
+  return high(box, axis) - low(box, axis) <= SAME_POSITION_EPSILON
+}
+
 /**
  * As duas caixas se sobrepõem no OUTRO eixo, e por isso estão na mesma
  * fileira (eixo x) ou coluna (eixo y)? Só encostar não conta: duas salas
  * empilhadas, uma tocando a outra, não são fileira.
+ *
+ * Duas retas sem espessura nesse eixo, na mesma coordenada, são da mesma
+ * fileira: são pedaços da mesma reta, a parede cortada pelas portas. A
+ * sobreposição estrita nunca as juntaria, porque nenhuma tem interior.
  */
 function sameRow(a: AreaBounds, b: AreaBounds, axis: GuideAxis): boolean {
   const cross = crossAxis(axis)
+  if (isFlat(a, cross) && isFlat(b, cross)) return Math.abs(low(a, cross) - low(b, cross)) <= SAME_POSITION_EPSILON
   return low(a, cross) < high(b, cross) - SAME_POSITION_EPSILON && low(b, cross) < high(a, cross) - SAME_POSITION_EPSILON
 }
 
@@ -323,18 +335,25 @@ function spacingDelta(moving: AreaBounds, others: readonly AreaBounds[], axis: G
   return best
 }
 
+/** O ajuste escolhido num eixo, e se ele veio do espaçamento igual (e não do alinhamento). */
+interface AxisChoice {
+  delta: number
+  bySpacing: boolean
+}
+
 /**
  * Ajuste de um eixo: o alinhamento (borda e centro) e, com os vãos ligados, o
  * espaçamento igual. Vence o menor; no empate, o alinhamento, que é o encaixe
  * que fecha parede com parede.
  */
-function axisSnap(moving: AreaBounds, others: readonly AreaBounds[], axis: GuideAxis, tolerance: number, options: SnapOptions): number | null {
-  const aligned = axisDelta(moving, others, axis, tolerance)
-  if (!options.gaps) return aligned
-  const spaced = spacingDelta(moving, others, axis, tolerance)
-  if (spaced === null) return aligned
-  if (aligned === null) return spaced
-  return Math.abs(spaced) < Math.abs(aligned) - SAME_POSITION_EPSILON ? spaced : aligned
+function chooseAxis(aligned: number | null, spaced: number | null): AxisChoice | null {
+  if (spaced !== null && (aligned === null || Math.abs(spaced) < Math.abs(aligned) - SAME_POSITION_EPSILON)) return { delta: spaced, bySpacing: true }
+  return aligned === null ? null : { delta: aligned, bySpacing: false }
+}
+
+/** Eixo sem encaixe não ajusta nada. */
+function deltaOf(choice: AxisChoice | null): number {
+  return choice === null ? 0 : choice.delta
 }
 
 function sameGap(a: number, b: number): boolean {
@@ -345,7 +364,7 @@ function sameGap(a: number, b: number): boolean {
  * O vão de `first` (antes) até `second` (depois), medido no meio da faixa que
  * as duas dividem no outro eixo. As duas são sempre da mesma fileira
  * (`neighborBefore`/`neighborAfter` só devolvem quem divide fileira), então a
- * faixa nunca é vazia.
+ * faixa nunca é vazia; entre dois pedaços da mesma reta, ela é a própria reta.
  */
 function gapBetween(first: AreaBounds, second: AreaBounds, axis: GuideAxis): GapMark {
   const cross = crossAxis(axis)
@@ -463,23 +482,54 @@ function gapMarks(moving: AreaBounds, others: readonly AreaBounds[], axes: reado
 }
 
 /**
+ * O encaixe do eixo aparece com a caixa nesta posição? O alinhamento sempre:
+ * a guia não depende do outro eixo. O espaçamento, só se os vãos iguais ainda
+ * estão lá, porque a fileira muda com a posição no OUTRO eixo.
+ */
+function choiceShows(choice: AxisChoice | null, box: AreaBounds, others: readonly AreaBounds[], axis: GuideAxis): boolean {
+  return choice === null || !choice.bySpacing || spacingMarks(box, others, axis).length > 0
+}
+
+/**
  * Encaixa `moving` nas âncoras de `others` que estão a até `tolerance` (px de
  * mundo), eixo a eixo — e, com `options.gaps`, também no espaçamento igual.
  * `dx`/`dy` são o AJUSTE a somar na caixa; as guias e os vãos já descrevem a
  * posição encaixada.
+ *
+ * O espaçamento de um eixo depende da fileira, e a fileira, de onde a caixa
+ * está no OUTRO eixo: a borda de cima que encaixa na de baixo da fileira tira
+ * a peça dela. Por isso o espaçamento de x é procurado com y já alinhado (e
+ * vice-versa), que é também o que põe na reta a parede arrastada com a mão
+ * tremendo. E, na posição final, ele é conferido: o eixo que andaria por um
+ * espaçamento cujos vãos iguais não aparecem fica com o alinhamento dele, ou
+ * parado. A peça nunca pula por um motivo que não está na tela.
  */
 export function snapBox(moving: AreaBounds, others: readonly AreaBounds[], tolerance: number, options: SnapOptions = ALIGNMENT_ONLY): BoxSnap {
-  const dx = axisSnap(moving, others, 'x', tolerance, options)
-  const dy = axisSnap(moving, others, 'y', tolerance, options)
-  if (dx === null && dy === null) return { dx: 0, dy: 0, guides: [], gaps: [] }
-  const snapped = translate(moving, dx ?? 0, dy ?? 0)
+  const alignedX = axisDelta(moving, others, 'x', tolerance)
+  const alignedY = axisDelta(moving, others, 'y', tolerance)
+  const spacedX = options.gaps ? spacingDelta(translate(moving, 0, alignedY ?? 0), others, 'x', tolerance) : null
+  const spacedY = options.gaps ? spacingDelta(translate(moving, alignedX ?? 0, 0), others, 'y', tolerance) : null
+  let x = chooseAxis(alignedX, spacedX)
+  let y = chooseAxis(alignedY, spacedY)
+  let snapped = translate(moving, deltaOf(x), deltaOf(y))
+  // Toda volta que não sai troca ao menos um espaçamento pelo alinhamento do
+  // eixo, que sempre aparece: no máximo duas trocas, e a terceira volta sai.
+  for (;;) {
+    const keepX = choiceShows(x, snapped, others, 'x')
+    const keepY = choiceShows(y, snapped, others, 'y')
+    if (keepX && keepY) break
+    if (!keepX) x = chooseAxis(alignedX, null)
+    if (!keepY) y = chooseAxis(alignedY, null)
+    snapped = translate(moving, deltaOf(x), deltaOf(y))
+  }
+  if (x === null && y === null) return { dx: 0, dy: 0, guides: [], gaps: [] }
   // Só os eixos que encaixaram: num eixo sem encaixe nada está alinhado nem espaçado por igual.
   const axes: GuideAxis[] = []
-  if (dx !== null) axes.push('x')
-  if (dy !== null) axes.push('y')
+  if (x !== null) axes.push('x')
+  if (y !== null) axes.push('y')
   return {
-    dx: dx ?? 0,
-    dy: dy ?? 0,
+    dx: deltaOf(x),
+    dy: deltaOf(y),
     guides: axes.flatMap((axis) => axisGuides(snapped, others, axis)),
     gaps: options.gaps ? gapMarks(snapped, others, axes) : [],
   }

@@ -14,7 +14,9 @@ import {
   sameOverlay,
   screenPxToWorld,
   snapBox,
+  type BoxSnap,
   type GapMark,
+  type GuideAxis,
   type GuideMode,
   type GuideOverlay,
   type SmartGuide,
@@ -420,6 +422,132 @@ describe('snapBox com os vãos — a medida até a peça alinhada (fatia 3)', ()
       { axis: 'x', from: 100, to: 150, at: 50 },
       { axis: 'x', from: 250, to: 300, at: 50 },
     ])
+  })
+})
+
+/**
+ * CORREÇÃO da fatia 3: a fileira de um eixo depende de onde a peça está no
+ * OUTRO eixo. O espaçamento só puxa a peça se, na posição final, os vãos
+ * iguais estão na tela: nada de pulo sem explicação.
+ */
+describe('snapBox com os vãos — a fileira vale onde a peça termina', () => {
+  const comVaos = { gaps: true }
+  const A = caixa(0, 0, 100, 100)
+  const B = caixa(200, 0, 300, 100)
+  const EIXOS: readonly GuideAxis[] = ['x', 'y']
+
+  /** A peça andou no eixo sem guia nele? Então os vãos iguais estão na tela: dois do mesmo tamanho. */
+  function puxaoExplicado(r: BoxSnap, eixo: GuideAxis): boolean {
+    const ajuste = eixo === 'x' ? r.dx : r.dy
+    if (ajuste === 0 || r.guides.some((g) => g.axis === eixo)) return true
+    const vaos = r.gaps.filter((g) => g.axis === eixo).map((g) => g.to - g.from)
+    return vaos.some((vao, i) => vaos.some((outro, j) => i !== j && Math.abs(vao - outro) < 1e-6))
+  }
+
+  it('o encaixe de y tira a peça da fileira: o espaçamento de x não puxa, e fica só a guia de y', () => {
+    // M entra 3 px na fileira e repetiria o vão AB a 2 px (x 402 → 400), mas a
+    // borda de cima encaixa na de baixo de B (+3): encostada, já não é fileira.
+    const r = snapBox(caixa(402, 97, 502, 197), [A, B], 6, comVaos)
+    expect(r).toEqual({
+      dx: 0,
+      dy: 3,
+      guides: [{ axis: 'y', position: 100, from: 50, to: 452, marks: [50, 250, 452] }],
+      gaps: [{ axis: 'x', from: 300, to: 402, at: 100 }],
+    })
+  })
+
+  it('varredura em volta da quina da fileira e da coluna: nenhum puxão sem os vãos iguais na tela', () => {
+    const coluna = [A, caixa(0, 200, 100, 300)]
+    const semExplicacao: string[] = []
+    let puxoesPeloEspacamento = 0
+    for (let x = 396; x <= 408; x += 0.5) {
+      for (let y = 90; y <= 110; y += 0.5) {
+        const naFileira = snapBox(caixa(x, y, x + 100, y + 100), [A, B], 6, comVaos)
+        const naColuna = snapBox(caixa(y, x, y + 100, x + 100), coluna, 6, comVaos)
+        for (const eixo of EIXOS) {
+          if (!puxaoExplicado(naFileira, eixo)) semExplicacao.push(`fileira (${x}, ${y}) em ${eixo}`)
+          if (!puxaoExplicado(naColuna, eixo)) semExplicacao.push(`coluna (${y}, ${x}) em ${eixo}`)
+        }
+        if (naFileira.dx !== 0 && !naFileira.guides.some((g) => g.axis === 'x')) puxoesPeloEspacamento += 1
+      }
+    }
+    expect(semExplicacao).toEqual([])
+    // A correção não desliga o espaçamento: dentro da fileira, longe do encaixe de y, ele continua puxando.
+    expect(puxoesPeloEspacamento).toBeGreaterThan(0)
+  })
+
+  it('quando o espaçamento do outro eixo vence, a fileira é conferida de novo: a vizinha baixa volta e x não puxa', () => {
+    // Fileira em x: A e B altas (y 0..200) com vão de 100, e R baixa (y 0..100)
+    // logo antes de M. Coluna em y: C e D abaixo de M, com vão de 101.
+    const altaA = caixa(0, 0, 100, 200)
+    const altaB = caixa(200, 0, 300, 200)
+    const R = caixa(330, 0, 380, 100)
+    const C = caixa(410, 300, 460, 400)
+    const D = caixa(410, 501, 460, 601)
+    // Com y alinhado (+3, M encosta embaixo de R), R sai da fileira e x repetiria
+    // o vão AB (-2). Mas y vence pelo espaçamento da coluna (+2): M fica 1 px
+    // dentro da fileira de R, R vira a vizinha de antes, e o vão AB não se repete.
+    const r = snapBox(caixa(402, 97, 502, 197), [altaA, altaB, R, C, D], 6, comVaos)
+    expect(r).toEqual({
+      dx: 0,
+      dy: 2,
+      guides: [],
+      gaps: [
+        { axis: 'y', from: 199, to: 300, at: 435 },
+        { axis: 'y', from: 400, to: 501, at: 435 },
+      ],
+    })
+  })
+})
+
+/**
+ * CORREÇÃO da fatia 3: parede solta e linha retas não têm espessura (a caixa é
+ * o segmento cru), e sobreposição estrita nunca as junta numa fileira. Pedaços
+ * da mesma reta — a parede cortada pelas portas — são fileira.
+ */
+describe('snapBox com os vãos — retas sem espessura na mesma reta', () => {
+  const comVaos = { gaps: true }
+  /** Paredes deitadas em y = 100: a caixa de cada uma é o próprio segmento. */
+  const W1 = caixa(0, 100, 100, 100)
+  const W2 = caixa(200, 100, 300, 100)
+
+  it('parede na mesma reta das outras repete o vão delas, e os dois vãos iguais saem medidos', () => {
+    const r = snapBox(caixa(402, 100, 502, 100), [W1, W2], 6, comVaos)
+    expect(r).toEqual({
+      dx: -2,
+      dy: 0,
+      guides: [{ axis: 'y', position: 100, from: 50, to: 450, marks: [50, 250, 450] }],
+      gaps: [
+        { axis: 'x', from: 300, to: 400, at: 100 },
+        { axis: 'x', from: 100, to: 200, at: 100 },
+      ],
+    })
+  })
+
+  it('2 px fora da reta (a mão treme no arrasto): o encaixe de y a põe na reta, e o vão igual vale lá', () => {
+    const r = snapBox(caixa(402, 102, 502, 102), [W1, W2], 6, comVaos)
+    expect(r.dx).toBe(-2)
+    expect(r.dy).toBe(-2)
+    expect(r.gaps).toEqual([
+      { axis: 'x', from: 300, to: 400, at: 100 },
+      { axis: 'x', from: 100, to: 200, at: 100 },
+    ])
+  })
+
+  it('paredes em pé na mesma reta: o mesmo na coluna', () => {
+    const r = snapBox(caixa(101, 402, 101, 502), [caixa(100, 0, 100, 100), caixa(100, 200, 100, 300)], 6, comVaos)
+    expect(r.dx).toBe(-1)
+    expect(r.dy).toBe(-2)
+    expect(r.gaps).toEqual([
+      { axis: 'y', from: 300, to: 400, at: 100 },
+      { axis: 'y', from: 100, to: 200, at: 100 },
+    ])
+  })
+
+  it('só retas na mesma coordenada: a paralela em outra altura, e a parede encostada na borda das salas, não são fileira', () => {
+    expect(snapBox(caixa(402, 150, 502, 150), [W1, W2], 6, comVaos)).toEqual({ dx: 0, dy: 0, guides: [], gaps: [] })
+    // Encostar não divide fileira, como nas salas empilhadas.
+    expect(snapBox(caixa(402, 100, 502, 100), [caixa(0, 0, 100, 100), caixa(200, 0, 300, 100)], 6, comVaos).dx).toBe(0)
   })
 })
 

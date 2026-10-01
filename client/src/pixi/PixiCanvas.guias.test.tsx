@@ -762,4 +762,16 @@ describe('PixiCanvas — espaçamento igual e o número dos vãos (pedido 3, fat
     expect(caixaDa('m').minX).toBe(640)
     expect(numerosNaTela()).toEqual(['3,0 m', '3,0 m'])
   })
+
+  it('parede cortada pelas portas: o pedaço arrastado com a mão 2 px fora da reta volta a ela, encaixa no vão igual e os dois vãos ganham número', async () => {
+    // Três pedaços de parede solta em y = 500: W1 e W2 com 128 px de vão; M 216 px depois de W2.
+    const pedaco = (id: string, x1: number, x2: number): Wall => ({ id, x1, y1: 500, x2, y2: 500, blocksLight: true, blocksMove: true, door: null })
+    prepara(mapa([], [pedaco('w1', 100, 228), pedaco('w2', 356, 484), pedaco('m', 700, 828)]))
+    await monta()
+    ponteiro('pointerdown', { x: 750, y: 500 })
+    // -85 em x e +2 em y: a ponta esquerda iria a 615, a 3 px de 612 (= 484 + 128), e fora da reta.
+    ponteiro('pointermove', { x: 665, y: 502 })
+    expect(useMapStore.getState().map.walls.find((w) => w.id === 'm')).toMatchObject({ x1: 612, y1: 500, x2: 740, y2: 500 })
+    expect(numerosNaTela()).toEqual(['3,0 m', '3,0 m'])
+  })
 })
