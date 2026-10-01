@@ -122,16 +122,22 @@ describe('playSignalSound: o bipe do app', () => {
     expect(audio.osciladores).toHaveLength(1)
   })
 
-  it('a barra de volume não mexe no bipe: o alerta toca sempre no mesmo nível, até com a barra no zero', async () => {
+  it('a barra no 0% cala o bipe, como o alto-falante cortado do botão; acima de zero o alerta toca sempre no mesmo nível', async () => {
     const { audio, tocarBipe, gesto, useSomStore } = await paginaComAudio()
     gesto()
-    for (const volume of [0.1, 0]) {
+    // 0,4% a barra mostra como 0%: cala também.
+    for (const volume of [0, 0.004]) {
+      useSomStore.getState().setVolume(volume)
+      expect(tocarBipe(), `volume ${volume}`).toBe(false)
+    }
+    expect(audio.osciladores).toEqual([])
+    for (const volume of [0.01, 0.1, 1]) {
       useSomStore.getState().setVolume(volume)
       expect(tocarBipe(), `volume ${volume}`).toBe(true)
     }
     const picos = audio.ganhos
       .filter((ganho) => ganho.destino === audio.destination)
       .map((ganho) => Math.max(...ganho.gain.exponentialRampToValueAtTime.mock.calls.map(([valor]) => valor)))
-    expect(picos).toEqual([0.2, 0.2])
+    expect(picos).toEqual([0.2, 0.2, 0.2])
   })
 })

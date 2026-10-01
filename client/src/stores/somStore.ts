@@ -23,6 +23,21 @@ function limitarVolume(volume: number): number {
   return Math.min(1, Math.max(0, volume))
 }
 
+/** O volume como a barra o mostra: de 0 a 100, inteiro. */
+export function percentualDoVolume(volume: number): number {
+  return Math.round(volume * 100)
+}
+
+/**
+ * NADA SAI: mudo, ou a barra no 0%. Vale para todo som da página (os de clima
+ * e o bipe do "Chamar o mestre") e é a mesma regra que corta o alto-falante do
+ * botão (`ControleDeSom`): o desenho e o silêncio nunca discordam. O 0% é o
+ * que a barra mostra, arredondado; volume que não é número também não toca.
+ */
+export function estaCalado({ volume, mudo }: PreferenciaDeSom): boolean {
+  return mudo || !(percentualDoVolume(volume) > 0)
+}
+
 function isRecord(valor: unknown): valor is Record<string, unknown> {
   return typeof valor === 'object' && valor !== null
 }

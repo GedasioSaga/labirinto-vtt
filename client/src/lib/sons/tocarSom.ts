@@ -1,4 +1,4 @@
-import { useSomStore, type PreferenciaDeSom } from '../../stores/somStore'
+import { estaCalado, useSomStore, type PreferenciaDeSom } from '../../stores/somStore'
 import { obterSaidaDeSom, type SaidaDeSom } from './contexto'
 import { RECEITAS, type SomId } from './receitas'
 import { tocarReceita } from './sintetizador'
@@ -6,8 +6,9 @@ import { tocarReceita } from './sintetizador'
 /**
  * TOCAR UM SOM DE CLIMA pelo nome: `tocarSom('item')`. É a única porta de
  * quem dispara som (jogador, mestre, controle de volume): respeita mudo e
- * volume, não toca antes do primeiro gesto destravar o áudio e não repete o
- * mesmo som em rajada.
+ * volume (`estaCalado`), não toca antes do primeiro gesto destravar o áudio e
+ * não repete o mesmo som em rajada. A amostra do controle de volume passa pela
+ * mesma porta, mas fora do intervalo mínimo (`tocarAmostra`).
  */
 
 /**
@@ -42,24 +43,37 @@ export interface OpcoesDoTocador<N> {
   produzir?: ProduzirSom<N>
 }
 
+export interface OpcoesDoToque {
+  /**
+   * AMOSTRA do controle de volume: fica fora do intervalo mínimo, sem ler nem
+   * gravar o último toque do som. Quem mexe na barra quer ouvir cada passo
+   * (cinco setas, cinco sinos), e o item de verdade que chega logo depois da
+   * amostra não pode ficar mudo por causa dela. Mudo, volume e destravamento
+   * valem igual.
+   */
+  amostra?: boolean
+}
+
+export type TocarSom = (id: SomId, opcoes?: OpcoesDoToque) => boolean
+
 function sintetizarReceita<N>(saida: SaidaDeSom<N>, id: SomId, volume: number): boolean {
   return tocarReceita(saida, RECEITAS[id], volume)
 }
 
-export function criarTocador<N>({ obterSaida, lerPreferencia, agora, produzir = sintetizarReceita }: OpcoesDoTocador<N>): (id: SomId) => boolean {
+export function criarTocador<N>({ obterSaida, lerPreferencia, agora, produzir = sintetizarReceita }: OpcoesDoTocador<N>): TocarSom {
   const ultimoToque = new Map<SomId, number>()
-  return (id) => {
-    const { volume, mudo } = lerPreferencia()
-    if (mudo || !(volume > 0)) return false
+  return (id, { amostra = false } = {}) => {
+    const preferencia = lerPreferencia()
+    if (estaCalado(preferencia)) return false
     const instante = agora()
-    const anterior = ultimoToque.get(id)
+    const anterior = amostra ? undefined : ultimoToque.get(id)
     if (anterior !== undefined && instante - anterior < INTERVALO_MINIMO_MS[id]) return false
     const saida = obterSaida()
     // Antes do gesto não há saída, e contexto suspenso não toca: nada sai antes do destravamento.
     if (saida === null || saida.ctx.state !== 'running') return false
-    const tocou = produzir(saida, id, volume)
-    // Só o que tocou conta para o intervalo: som que falhou pode tentar de novo logo.
-    if (tocou) ultimoToque.set(id, instante)
+    const tocou = produzir(saida, id, preferencia.volume)
+    // Só o que tocou conta para o intervalo: som que falhou pode tentar de novo logo. A amostra nunca conta.
+    if (tocou && !amostra) ultimoToque.set(id, instante)
     return tocou
   }
 }
@@ -69,3 +83,6 @@ export const tocarSom = criarTocador({
   lerPreferencia: () => useSomStore.getState(),
   agora: () => performance.now(),
 })
+
+/** A amostra do controle de volume (`ControleDeSom`): o `tocarSom` fora do intervalo mínimo. */
+export const tocarAmostra = (id: SomId): boolean => tocarSom(id, { amostra: true })

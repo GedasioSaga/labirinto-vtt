@@ -82,6 +82,24 @@ describe('ControleDeSom', () => {
     })
   }
 
+  /**
+   * Um passo da seta, como o navegador faz: `keydown` (com `repeat` quando a
+   * tecla está segurada), o valor anda (`input`) e o `change` vem na hora.
+   */
+  function passoDaSeta(valor: number, repeat = false): void {
+    act(() => {
+      barra().dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', repeat, bubbles: true, cancelable: true }))
+    })
+    arrastarAte(valor)
+    soltar()
+  }
+
+  function soltarSeta(): void {
+    act(() => {
+      barra().dispatchEvent(new KeyboardEvent('keyup', { key: 'ArrowRight', bubbles: true, cancelable: true }))
+    })
+  }
+
   function teclar(alvo: HTMLElement, key: string): void {
     act(() => {
       alvo.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true }))
@@ -155,6 +173,30 @@ describe('ControleDeSom', () => {
     soltar()
     expect(tocar).toHaveBeenCalledTimes(1)
     expect(tocar).toHaveBeenCalledWith(SOM_DE_AMOSTRA)
+  })
+
+  it('cada seta toca a amostra; a seta segurada toca no primeiro passo e de novo ao soltar, sem rajada no meio', () => {
+    const { tocar } = montar()
+    apertar(gatilho())
+    for (let valor = 36; valor <= 40; valor += 1) {
+      passoDaSeta(valor)
+      soltarSeta()
+    }
+    expect(tocar).toHaveBeenCalledTimes(5)
+    // Segurada, a repetição do teclado anda uns 30 passos por segundo: um sino de 1 s em cada passo viraria uma rajada.
+    passoDaSeta(41)
+    expect(tocar).toHaveBeenCalledTimes(6)
+    for (let valor = 42; valor <= 45; valor += 1) passoDaSeta(valor, true)
+    expect(tocar).toHaveBeenCalledTimes(6)
+    // Soltar a tecla toca de novo, já no volume final, como soltar a alça.
+    soltarSeta()
+    expect(useSomStore.getState().volume).toBe(0.45)
+    expect(tocar).toHaveBeenCalledTimes(7)
+    // Solta, a seta seguinte volta a tocar na hora.
+    passoDaSeta(46)
+    soltarSeta()
+    expect(tocar).toHaveBeenCalledTimes(8)
+    expect(tocar.mock.calls.every(([id]) => id === SOM_DE_AMOSTRA)).toBe(true)
   })
 
   it('mexer na barra com o mudo ligado tira do mudo, como o volume do sistema', () => {

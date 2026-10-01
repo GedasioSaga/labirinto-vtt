@@ -3,8 +3,10 @@ import {
   CHAVE_DA_PREFERENCIA_DE_SOM,
   PREFERENCIA_DE_SOM_PADRAO,
   criarSomStore,
+  estaCalado,
   gravarPreferenciaDeSom,
   lerPreferenciaDeSom,
+  percentualDoVolume,
   useSomStore,
   type ArmazemDeSom,
 } from './somStore'
@@ -117,5 +119,27 @@ describe('somStore', () => {
   it('o store do app guarda no localStorage do navegador', () => {
     useSomStore.getState().setVolume(0.5)
     expect(JSON.parse(localStorage.getItem(CHAVE_DA_PREFERENCIA_DE_SOM) ?? 'null')).toEqual({ volume: 0.5, mudo: false })
+  })
+})
+
+/*
+ * NADA SAI: uma regra só para o alto-falante cortado do botão e para o
+ * silêncio de todo som da página (os de clima e o bipe do "Chamar o mestre").
+ */
+describe('estaCalado', () => {
+  it('o percentual é o que a barra mostra: de 0 a 100, inteiro', () => {
+    expect(percentualDoVolume(0.35)).toBe(35)
+    expect(percentualDoVolume(0.004)).toBe(0)
+    expect(percentualDoVolume(1)).toBe(100)
+  })
+
+  it('cala com o mudo e com a barra no 0%, inclusive o volume que ela mostra como 0%', () => {
+    expect(estaCalado({ volume: 0.35, mudo: true })).toBe(true)
+    expect(estaCalado({ volume: 0, mudo: false })).toBe(true)
+    expect(estaCalado({ volume: 0.004, mudo: false })).toBe(true)
+    // Store mexido por fora (setState): o que não é volume também não toca.
+    expect(estaCalado({ volume: Number.NaN, mudo: false })).toBe(true)
+    expect(estaCalado({ volume: 0.01, mudo: false })).toBe(false)
+    expect(estaCalado(PREFERENCIA_DE_SOM_PADRAO)).toBe(false)
   })
 })

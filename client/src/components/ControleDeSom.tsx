@@ -1,8 +1,8 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent, type MouseEvent } from 'react'
 import { destravarAudioNoPrimeiroGesto } from '../lib/sons/contexto'
 import type { SomId } from '../lib/sons/receitas'
-import { tocarSom } from '../lib/sons/tocarSom'
-import { useSomStore } from '../stores/somStore'
+import { tocarAmostra } from '../lib/sons/tocarSom'
+import { estaCalado, percentualDoVolume, useSomStore } from '../stores/somStore'
 import { SomIcon, SomMudoIcon } from './icons'
 import './ControleDeSom.css'
 
@@ -30,7 +30,10 @@ export interface ControleDeSomProps {
    * o alvo do clique (no mestre: "Som da mesa"). Sem ele, o nome é "Som".
    */
   legenda?: string
-  /** Quem toca a amostra. Padrão: `tocarSom`, que respeita mudo e volume e não toca antes do destravamento. */
+  /**
+   * Quem toca a amostra. Padrão: `tocarAmostra`, que respeita mudo, volume e
+   * destravamento, mas fica fora do intervalo mínimo dos sons do jogo.
+   */
   tocar?: (id: SomId) => unknown
   /** Escuta os gestos que destravam o áudio. Padrão: o motor do app (`lib/sons/contexto.ts`). */
   destravar?: (alvo: EventTarget) => () => void
@@ -105,7 +108,7 @@ const TAMANHO_DO_ICONE: Record<VarianteDoControleDeSom, number> = { flutuante: 2
 /** Sobre o mapa, o traço do + e do − do zoom; no painel, o da família de ícones. */
 const TRACO_DO_ICONE: Record<VarianteDoControleDeSom, number> = { flutuante: 2, painel: 1.6 }
 
-export function ControleDeSom({ variante, className, legenda, tocar = tocarSom, destravar = destravarAudioNoPrimeiroGesto }: ControleDeSomProps) {
+export function ControleDeSom({ variante, className, legenda, tocar = tocarAmostra, destravar = destravarAudioNoPrimeiroGesto }: ControleDeSomProps) {
   const volume = useSomStore((estado) => estado.volume)
   const mudo = useSomStore((estado) => estado.mudo)
   const [abertura, setAbertura] = useState<Abertura | null>(null)
@@ -120,9 +123,9 @@ export function ControleDeSom({ variante, className, legenda, tocar = tocarSom, 
   const dicaId = useId()
   const barraId = useId()
   const aberto = abertura !== null
-  const percentual = Math.round(volume * 100)
-  /** Nada sai: mudo, ou a barra no zero. */
-  const calado = mudo || percentual === 0
+  const percentual = percentualDoVolume(volume)
+  /** Nada sai: mudo, ou a barra no 0%. A mesma regra cala os sons e o bipe. */
+  const calado = estaCalado({ volume, mudo })
   const icone = { size: TAMANHO_DO_ICONE[variante], strokeWidth: TRACO_DO_ICONE[variante] }
 
   // O gesto feito AQUI também destrava o áudio. O mestre e a sessão do jogador
@@ -156,15 +159,38 @@ export function ControleDeSom({ variante, className, legenda, tocar = tocarSom, 
   }, [aberto])
 
   // Soltar a alça toca a amostra. É o `change` nativo: o `onChange` do React
-  // é o `input`, que dispara a cada passo do arrasto e tocaria em rajada.
+  // é o `input`, que dispara a cada passo do arrasto e tocaria em rajada. Pelo
+  // teclado cada passo também é um `change`, e cada toque na seta toca. A seta
+  // SEGURADA é o arrasto do teclado: a repetição (uns 30 passos por segundo,
+  // cada sino soando 1 s) não toca a cada passo; toca ao soltar a tecla, no
+  // volume final.
   useEffect(() => {
     const barra = barraRef.current
     if (!aberto || barra === null) return
+    let segurando = false
+    let devendo = false
+    const aoApertarTecla = (evento: HTMLElementEventMap['keydown']): void => {
+      if (TECLAS_DA_BARRA.has(evento.key)) segurando = evento.repeat
+    }
     const aoSoltar = (): void => {
+      if (segurando) devendo = true
+      else tocar(SOM_DE_AMOSTRA)
+    }
+    const aoSoltarTecla = (evento: HTMLElementEventMap['keyup']): void => {
+      if (!TECLAS_DA_BARRA.has(evento.key)) return
+      segurando = false
+      if (!devendo) return
+      devendo = false
       tocar(SOM_DE_AMOSTRA)
     }
+    barra.addEventListener('keydown', aoApertarTecla)
     barra.addEventListener('change', aoSoltar)
-    return () => barra.removeEventListener('change', aoSoltar)
+    barra.addEventListener('keyup', aoSoltarTecla)
+    return () => {
+      barra.removeEventListener('keydown', aoApertarTecla)
+      barra.removeEventListener('change', aoSoltar)
+      barra.removeEventListener('keyup', aoSoltarTecla)
+    }
   }, [aberto, tocar])
 
   // O toque fora e o foco que sai (Tab) fecham, sem roubar o gesto: o arrasto do mapa segue.

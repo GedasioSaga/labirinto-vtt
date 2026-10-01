@@ -1,4 +1,4 @@
-import { useSomStore } from '../stores/somStore'
+import { estaCalado, useSomStore } from '../stores/somStore'
 import { obterContexto } from './sons/contexto'
 
 /**
@@ -86,9 +86,11 @@ export function createSignalSound<N>(createContext: () => SignalAudioContext<N> 
  * primeiro gesto não toca; na mesa isso não acontece, porque abrir a sala já
  * é um clique.
  *
- * O Mudo da mesa cala o bipe também: quem aperta mudo espera silêncio. A
- * barra de volume não: o bipe é alerta, não clima, e toca sempre no mesmo nível.
+ * O Mudo da mesa e a barra no 0% calam o bipe também (`estaCalado`): o
+ * alto-falante cortado do botão já diz silêncio, e quem o vê espera silêncio.
+ * Acima de zero a barra não mexe nele: o bipe é alerta, não clima, e toca
+ * sempre no mesmo nível.
  */
 const tocarBipe = createSignalSound(obterContexto)
 
-export const playSignalSound = (): boolean => !useSomStore.getState().mudo && tocarBipe()
+export const playSignalSound = (): boolean => !estaCalado(useSomStore.getState()) && tocarBipe()

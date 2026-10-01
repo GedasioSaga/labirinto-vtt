@@ -44,6 +44,12 @@ describe('tocarSom', () => {
     expect(produzir).not.toHaveBeenCalled()
   })
 
+  it('o volume que a barra mostra como 0% também cala: o alto-falante cortado e o silêncio andam juntos', () => {
+    const { tocar, produzir } = montar({ preferencia: { volume: 0.004, mudo: false } })
+    expect(tocar('item')).toBe(false)
+    expect(produzir).not.toHaveBeenCalled()
+  })
+
   it('antes do destravamento nada toca: sem saída, ou com o contexto ainda suspenso', () => {
     const semGesto = montar({ saida: null })
     expect(semGesto.tocar('dado')).toBe(false)
@@ -85,6 +91,29 @@ describe('tocarSom', () => {
     expect(falha.tocar('aviso')).toBe(false)
     expect(falha.tocar('aviso')).toBe(false)
     expect(falha.produzir).toHaveBeenCalledTimes(2)
+  })
+
+  it('a amostra fica fora do intervalo: cinco seguidas tocam cinco vezes, e o item de verdade logo depois toca', () => {
+    const { tocar, produzir } = montar()
+    for (let passo = 1; passo <= 5; passo += 1) expect(tocar('item', { amostra: true }), `amostra ${passo}`).toBe(true)
+    // No mesmo instante: a amostra não alimentou o intervalo do item.
+    expect(tocar('item')).toBe(true)
+    // E o item de verdade não cala a amostra seguinte.
+    expect(tocar('item', { amostra: true })).toBe(true)
+    // Entre itens de verdade, o intervalo segue valendo.
+    expect(tocar('item')).toBe(false)
+    expect(produzir).toHaveBeenCalledTimes(7)
+  })
+
+  it('a amostra respeita mudo, volume 0 e o destravamento como qualquer som', () => {
+    const mudo = montar({ preferencia: { volume: 0.8, mudo: true } })
+    const zerado = montar({ preferencia: { volume: 0, mudo: false } })
+    const semGesto = montar({ saida: null })
+    const suspenso = montar({ audio: criarAudioFalso({ estado: 'suspended' }) })
+    for (const { tocar, produzir } of [mudo, zerado, semGesto, suspenso]) {
+      expect(tocar('item', { amostra: true })).toBe(false)
+      expect(produzir).not.toHaveBeenCalled()
+    }
   })
 
   it('sem produzir injetado, sintetiza a receita do som com o volume ao quadrado num ganho do toque, sem mexer no mestre', () => {
