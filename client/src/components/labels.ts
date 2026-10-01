@@ -1,5 +1,6 @@
 import type { DrawingTool, SelectionKind } from '../types/tools'
 import type { BlockedMoveReason } from '../lib/moveValidation'
+import type { MotivoDaAbertura } from '../lib/abrirCorredor'
 
 /**
  * Textos visíveis da interface do editor.
@@ -232,6 +233,61 @@ export const SALA_SECRETA_SEGURA_O_VAO_TEXT =
  */
 export const PAREDE_TRAVADA_SEGURA_O_VAO_TEXT =
   'Uma parede nesse trecho está travada, deste lado ou do outro: nada foi aberto. Destrave a parede (ou a camada dela) e tente de novo.'
+
+/**
+ * "Abrir para o corredor" (pedido 4 de 30/09/2026, `lib/abrirCorredor.ts`)
+ * recusado porque uma porta está onde o corredor encosta: o corte apagaria a
+ * porta em silêncio, e quem decide tirar porta é o mestre.
+ */
+export const PORTA_NO_ENCOSTE_TEXT =
+  'Tem porta onde o corredor encosta: nada foi aberto. Tire a porta ou mova o corredor e tente de novo.'
+
+/**
+ * O mesmo botão numa Sala travada, ela ou a camada Salas. Separado do aviso da
+ * parede travada porque o conserto é outro: o "Travado" da própria Sala.
+ */
+export const SALA_TRAVADA_NAO_ABRE_TEXT =
+  'A sala está travada, ela ou a camada Salas: nada foi aberto. Desligue Travado no painel da sala (ou destrave a camada) e tente de novo.'
+
+/**
+ * O mesmo botão numa Sala secreta, ou dentro de sala secreta ou oculta: o vão
+ * furaria o disfarce (`disguisedSecretBorderWalls`, fogFilter.ts) e mostraria
+ * aos jogadores onde fica o esconderijo.
+ */
+export const SALA_SECRETA_NAO_ABRE_TEXT =
+  'A sala é secreta, ou fica dentro de uma sala secreta ou oculta: nada foi aberto, para o vão não mostrar o esconderijo aos jogadores. Revele a sala e tente de novo.'
+
+/**
+ * Aviso de que a Sala abriu para os corredores. Concorda com "vão", nunca com
+ * o nome: o mestre chama sala de "Porão" ou "Salão", e "Porão aberta" sairia
+ * errado. Diz quantos abriram porque com três ou mais linhas perto a conta é o
+ * jeito de o mestre notar um par errado (e o Ctrl+Z desfaz tudo de uma vez).
+ */
+export function avisoDoCorredorAberto(nomeDaSala: string, corredores: number): string {
+  const nome = nomeDaSala.trim()
+  const sala = nome === '' ? 'a sala' : nome
+  if (corredores === 1) return `Vão aberto entre ${sala} e o corredor. Ctrl+Z desfaz.`
+  return `${corredores} vãos abertos entre ${sala} e os corredores. Ctrl+Z desfaz.`
+}
+
+/**
+ * Por que "Abrir para o corredor" não abriu, ou `null` quando não há o que
+ * dizer: 'nada' é corredor nenhum com trabalho, e aí o botão nem aparece.
+ * `salaTravada` separa a trava da própria Sala (ou da camada Salas) da trava
+ * de uma parede no caminho: a lib devolve 'travada' para as duas.
+ */
+export function avisoDaSalaQueNaoAbriu(motivo: Exclude<MotivoDaAbertura, 'ok'>, salaTravada: boolean): string | null {
+  switch (motivo) {
+    case 'nada':
+      return null
+    case 'porta':
+      return PORTA_NO_ENCOSTE_TEXT
+    case 'secreta':
+      return SALA_SECRETA_NAO_ABRE_TEXT
+    case 'travada':
+      return salaTravada ? SALA_TRAVADA_NAO_ABRE_TEXT : PAREDE_TRAVADA_SEGURA_O_VAO_TEXT
+  }
+}
 
 /**
  * Aviso do "Endireitar" (pedido 5: Alt tocado com uma linha selecionada) quando

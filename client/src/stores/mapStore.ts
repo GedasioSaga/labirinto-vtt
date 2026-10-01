@@ -22,6 +22,7 @@ import { paintRevealBrush as paintRevealBrushOnMap, type RevealBrushMode, type R
 import * as mapFactory from '../lib/mapFactory'
 import { inserirPinturaDeBalde, type BrushMode } from '../lib/baldeDeTinta'
 import { abrirVaoDosDoisLados, desabarParede as desabarParedeNoMapa, type CorteNaParede } from '../lib/abrirVao'
+import { abrirSalaParaCorredores as abrirSalaParaCorredoresNoMapa, bloqueioDaSala } from '../lib/abrirCorredor'
 import { comEscadaNosPisos, comFichaNoPiso, comSelecaoNoPiso, ehPiso, mapaDoPiso, nascemNoPiso, pisoDe } from '../lib/pisos'
 import { apagarBlocosNoPiso, pinoNoPiso, selecaoNoPiso } from '../lib/pisoEmEdicao'
 import { linkDrawnWallToRoom } from '../lib/roomLink'
@@ -60,7 +61,10 @@ import { moveAreaSelection, areaSelectionBounds, type AreaBounds } from '../lib/
 import { pieceBounds } from '../lib/floorSdf'
 import { groupItems, NO_GROUPS, ungroupItems, type ItemGroups } from '../lib/itemGroups'
 import { alignableUnitCount, alignSelectionItems, distributeSelectionItems, type AlignEdge, type DistributeAxis } from '../lib/alignDistribute'
-import { BLOCKED_MOVE_TEXT, DOOR_OPENED_BY_MOVE_TEXT, PAREDE_TRAVADA_SEGURA_O_VAO_TEXT, SALA_SECRETA_SEGURA_O_VAO_TEXT, TOOL_CLUSTERS, avisoDoEndireitar } from '../components/labels'
+import {
+  BLOCKED_MOVE_TEXT, DOOR_OPENED_BY_MOVE_TEXT, PAREDE_TRAVADA_SEGURA_O_VAO_TEXT, SALA_SECRETA_SEGURA_O_VAO_TEXT, TOOL_CLUSTERS,
+  avisoDaSalaQueNaoAbriu, avisoDoCorredorAberto, avisoDoEndireitar,
+} from '../components/labels'
 import { endireitarMudariaAlgo, endireitarNoMapa, type IgnoradosNoEndireitar } from '../lib/endireitar'
 import { useToastStore } from './toastStore'
 import { eraseFromDrawing } from '../lib/eraseGeometry'
@@ -791,6 +795,13 @@ interface MapStoreState {
   /** "Desabar": a parede clicada cai inteira, e o mesmo trecho da parede do
    *  outro lado junto (`lib/abrirVao.desabarParede`). Com histórico. */
   desabarParede: (wallId: string) => void
+  /** "Abrir para o corredor" do painel da Sala (pedido 4 de 30/09/2026,
+   *  `lib/abrirCorredor.abrirSalaParaCorredores`): a parede da Sala abre entre
+   *  as duas linhas de cada corredor que encosta nela, e as linhas param na
+   *  borda. Um Ctrl+Z desfaz tudo. Recusa (porta, trava, Sala secreta) e
+   *  "nada a abrir" — inclusive o segundo clique, com tudo já aberto — não
+   *  entram no histórico; a recusa diz o porquê num aviso. */
+  abrirSalaParaCorredores: (salaId: string) => void
   /** Troca o tipo estrutural de uma porta JÁ CRIADA e redimensiona o vão pra
    *  `DOOR_LENGTH_BY_KIND[kind]`, centrado no meio do vão atual (ver
    *  mapFactory.setWallDoorKind). Com histórico. */
@@ -1455,12 +1466,16 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
    * `typingKey` (só campos de texto): letra seguinte no mesmo campo, sem outra
    * mudança do mestre no meio, atualiza o mapa sem empurrar passo novo — ver
    * `TypingEdit`.
+   *
+   * `pisoDoQueNasce`: o piso de quem nasce no passo, quando não é o da tela —
+   * o passo que só parte uma coisa que já existe, num piso que pode não ser o
+   * em edição (ver `abrirSalaParaCorredores`). Ausente = o piso em edição.
    */
   let typingEdit: TypingEdit | null = null
-  const withHistory = (updater: (map: MapData) => MapData, typingKey?: string) => {
+  const withHistory = (updater: (map: MapData) => MapData, typingKey?: string, pisoDoQueNasce?: number) => {
     const prevMap = get().map
-    // PISOS NA MESMA CENA: o que o passo criou nasce no piso em edição.
-    const nextMap = nascemNoPiso(prevMap, updater(prevMap), get().pisoAtivo)
+    // PISOS NA MESMA CENA: o que o passo criou nasce no piso em edição (ou no `pisoDoQueNasce`).
+    const nextMap = nascemNoPiso(prevMap, updater(prevMap), pisoDoQueNasce ?? get().pisoAtivo)
     const continuesTyping = typingKey !== undefined && typingEdit !== null && typingEdit.key === typingKey && typingEdit.map === prevMap
     typingEdit = typingKey === undefined ? null : { key: typingKey, map: nextMap }
     if (continuesTyping) {
@@ -2001,6 +2016,24 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
       aplicarCorteNaParede(abrirVaoDosDoisLados(map, wallId, point, map.grid))
     },
     desabarParede: (wallId) => aplicarCorteNaParede(desabarParedeNoMapa(get().map, wallId)),
+    abrirSalaParaCorredores: (salaId) => {
+      const map = get().map
+      const sala = map.regions.find((r) => r.id === salaId)
+      if (sala === undefined) return
+      const abertura = abrirSalaParaCorredoresNoMapa(map, salaId)
+      const avisos = useToastStore.getState()
+      if (abertura.motivo !== 'ok') {
+        const aviso = avisoDaSalaQueNaoAbriu(abertura.motivo, bloqueioDaSala(map, sala) === 'travada')
+        if (aviso !== null) avisos.push('info', aviso)
+        return
+      }
+      // Os pedaços da parede cortada são da Sala e ficam no piso DELA. A Sala
+      // selecionada pode não estar no piso da tela: o Ctrl+Z depois de "Levar
+      // ao piso" devolve a Sala e deixa a tela no piso para onde ela tinha ido.
+      withHistory(() => abertura.map, undefined, pisoDe(sala))
+      avisos.push('info', avisoDoCorredorAberto(sala.room?.name ?? '', abertura.corredores))
+      if (abertura.salaSecretaPoupada) avisos.push('info', SALA_SECRETA_SEGURA_O_VAO_TEXT)
+    },
     setWallDoorKind: (wallId, kind) => withHistory((map) =>
       mapFactory.setWallDoorKind(map, wallId, kind, DOOR_LENGTH_BY_KIND[kind]),
     ),

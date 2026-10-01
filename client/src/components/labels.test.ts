@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import {
+  avisoDaSalaQueNaoAbriu,
+  avisoDoCorredorAberto,
   deleteSelectionLabel,
+  PAREDE_TRAVADA_SEGURA_O_VAO_TEXT,
+  PORTA_NO_ENCOSTE_TEXT,
+  SALA_SECRETA_NAO_ABRE_TEXT,
+  SALA_TRAVADA_NAO_ABRE_TEXT,
   SELECTION_LABELS,
   STAIR_CLICK_WITHOUT_DRAG_TEXT,
   TOOLBAR_SLOTS,
@@ -66,5 +72,32 @@ describe('aviso do clique parado com a Escada', () => {
     // só lê "não deu" fica sem saber o que fazer. Precisa das duas metades.
     expect(STAIR_CLICK_WITHOUT_DRAG_TEXT).toMatch(/n[ãa]o deu|n[ãa]o foi poss[íi]vel|n[ãa]o criou/i)
     expect(STAIR_CLICK_WITHOUT_DRAG_TEXT).toMatch(/arrast/i)
+  })
+})
+
+describe('avisos do "Abrir para o corredor"', () => {
+  it('diz o nome da sala e quantos corredores, sem concordar com o gênero do nome', () => {
+    // "Porão aberta" sairia errado: o texto concorda com "vão", nunca com o nome que o mestre deu.
+    expect(avisoDoCorredorAberto('Sala 3', 1)).toBe('Vão aberto entre Sala 3 e o corredor. Ctrl+Z desfaz.')
+    expect(avisoDoCorredorAberto('Porão', 2)).toBe('2 vãos abertos entre Porão e os corredores. Ctrl+Z desfaz.')
+  })
+
+  it('sala sem nome vira "a sala"', () => {
+    expect(avisoDoCorredorAberto('   ', 1)).toBe('Vão aberto entre a sala e o corredor. Ctrl+Z desfaz.')
+  })
+
+  it('cada recusa tem o seu aviso; "nada" a abrir não avisa', () => {
+    expect(avisoDaSalaQueNaoAbriu('nada', false)).toBeNull()
+    expect(avisoDaSalaQueNaoAbriu('porta', false)).toBe(PORTA_NO_ENCOSTE_TEXT)
+    expect(avisoDaSalaQueNaoAbriu('secreta', false)).toBe(SALA_SECRETA_NAO_ABRE_TEXT)
+    expect(avisoDaSalaQueNaoAbriu('travada', false)).toBe(PAREDE_TRAVADA_SEGURA_O_VAO_TEXT)
+    expect(avisoDaSalaQueNaoAbriu('travada', true)).toBe(SALA_TRAVADA_NAO_ABRE_TEXT)
+  })
+
+  it('toda recusa diz que nada foi aberto e o que fazer para abrir', () => {
+    for (const texto of [PORTA_NO_ENCOSTE_TEXT, SALA_TRAVADA_NAO_ABRE_TEXT, SALA_SECRETA_NAO_ABRE_TEXT]) {
+      expect(texto).toMatch(/nada foi aberto/i)
+      expect(texto).toMatch(/tente de novo/i)
+    }
   })
 })
