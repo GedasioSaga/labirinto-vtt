@@ -736,10 +736,18 @@ export function removeToken(map: MapData, tokenId: string): MapData {
  * regra da ficha levada — barrado pela parede, fica onde está e desce. É o
  * que segura o passageiro quando o jogador dono do veículo anda pela rede: a
  * sessão valida só o passo do veículo. O passageiro que anda sozinho desce.
+ *
+ * MESMO LUGAR: a ficha que já está em (x, y) devolve o MESMO mapa — passo zero
+ * não leva tocha, pino, levado nem passageiro. O arrasto manda a posição já
+ * encaixada a cada pointermove, igual enquanto o ponteiro não sai da casa, e
+ * quem chama lê a referência como "nada mudou": `moveTokenLive` não faz `set`
+ * (o App não re-renderiza), `commitDragHistory` não empurra passo vazio e a
+ * ponte do host não agenda snapshot para os jogadores (`mapChangeCause`).
  */
 export function setTokenPosition(map: MapData, tokenId: string, x: number, y: number): MapData {
   const moving = map.tokens.find((t) => t.id === tokenId)
   if (moving === undefined) return map
+  if (moving.x === x && moving.y === y) return map
   const dx = x - moving.x
   const dy = y - moving.y
   const withVehicle = moveTokenWithVehicle(map, tokenId, x, y)
@@ -748,7 +756,7 @@ export function setTokenPosition(map: MapData, tokenId: string, x: number, y: nu
   const group = new Set([tokenId, ...passengerIdsOf(withVehicle, tokenId)])
   const follows = (t: Token): boolean => {
     const carrierId = carrierIdOf(t)
-    return (dx !== 0 || dy !== 0) && !group.has(t.id) && carrierId !== null && group.has(carrierId)
+    return !group.has(t.id) && carrierId !== null && group.has(carrierId)
   }
   const moved: MapData = {
     ...withVehicle,
