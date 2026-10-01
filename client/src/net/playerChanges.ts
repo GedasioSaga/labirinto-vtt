@@ -5,6 +5,7 @@ import type { MapData, MarcaNoLugar } from '../types/map'
 import { openPinLock } from '../lib/pinLock'
 import { adicionarMarca, apagarMarca } from '../lib/marcas'
 import { comFichaNoPiso } from '../lib/pisos'
+import { comMovimentoRemoto } from '../lib/movimentoRemoto'
 import type { AppliedLock, AppliedMark, AppliedPiso, AppliedTokenEdit } from './hostSession'
 
 /**
@@ -111,7 +112,10 @@ function removeMarkWhereItIs(markId: string): boolean {
 
 /** Os retornos da ponte do host (`createHostBridge`) para as mudanças do jogador. */
 export const hostPlayerChanges = {
-  applyMove: (tokenId: string, x: number, y: number, sceneId?: string): void => applyToScene(sceneId, moveToken(tokenId, x, y)),
+  // A marca vem ANTES de aplicar: o redraw das fichas roda dentro do `set` da
+  // store, e é nele que o editor decide que esta ficha desliza (lib/movimentoRemoto.ts).
+  applyMove: (tokenId: string, x: number, y: number, sceneId?: string): void =>
+    comMovimentoRemoto(tokenId, () => applyToScene(sceneId, moveToken(tokenId, x, y))),
   applyDoor: (wallId: string, open: boolean, sceneId?: string): void => applyToScene(sceneId, setDoorOpen(wallId, open)),
   applyTokenEdit: (edit: AppliedTokenEdit): void => applyToScene(edit.sceneId, editToken(edit)),
   applyLock: (lock: AppliedLock): void => applyToScene(lock.sceneId, openLock(lock.pinId)),

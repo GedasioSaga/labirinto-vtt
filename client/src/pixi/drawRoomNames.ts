@@ -1,4 +1,4 @@
-import { Container, Graphics, Text } from 'pixi.js'
+import { Container, Graphics, Text, TextStyle } from 'pixi.js'
 import type { Region, RegionPoint } from '../types/map'
 import { pointInPolygonInclusive } from '../lib/roomNesting'
 import { roomCentroid } from '../lib/roomRotation'
@@ -14,6 +14,13 @@ export interface RoomNamesRenderer {
   draw: (container: Container, regions: Region[], grid: number, cameraScale?: number, tokens?: readonly LabelObstacle[]) => void
   /** Só o zoom mudou: reescala e mostra/esconde os nomes sem re-rasterizar. */
   setCameraScale: (cameraScale: number) => void
+  /**
+   * A sala cujo nome está sendo editado no campo sobre o canvas (`null` =
+   * nenhuma): a etiqueta dela sai do mapa enquanto o campo, que imita a
+   * própria etiqueta (`roomLabelEditorLook`), está aberto. Sem isto a
+   * plaquinha antiga aparecia em volta do campo e o nome velho por trás dele.
+   */
+  setEditingRegion: (regionId: string | null) => void
 }
 
 const FONT_SIZE_PER_GRID = 0.3
@@ -41,6 +48,8 @@ const MAX_FONT_SIZE = 28
  * o único acento do mapa, e a etiqueta não disputa a cena com ele.
  */
 const LABEL_PLATE_COLOR = 0xc9c1ac
+/** A mesma pedra clara em CSS: o campo de nome sobre o canvas é a própria plaquinha. */
+const LABEL_PLATE_CSS = `#${LABEL_PLATE_COLOR.toString(16).padStart(6, '0')}`
 /* Tinta padrão do nome: `ROOM_LABEL_DEFAULT_COLOR` (lib/roomLabelStyle.ts), o
  * mesmo quase-preto do fundo do app. Letra escura sobre pedra clara não precisa
  * do contorno que segurava a letra branca: o fio some junto com o problema. A
@@ -508,6 +517,68 @@ export function findRoomLabelAt(
 }
 
 /**
+ * Como o campo de nome sobre o canvas (`PixiCanvas`) imita a etiqueta DESTA
+ * sala, em px de mundo e em `em`: o campo deixa de ser uma caixa escura por
+ * cima da plaquinha e passa a ser a própria plaquinha (achado visual de
+ * 30/09/2026: duas caixas encaixadas a cada sala criada).
+ */
+export interface RoomLabelEditorLook {
+  /** Centro da etiqueta, em px de mundo — o mesmo ponto onde o `draw` a põe. */
+  x: number
+  y: number
+  /** Fonte da etiqueta em px de mundo, já com o tamanho escolhido para a sala (sem a compensação de zoom). */
+  fontSize: number
+  /** Cor CSS da plaquinha; `null` = sala sem plaquinha, campo de fundo transparente. */
+  plateColor: string | null
+  /** Cor CSS das letras. */
+  color: string
+  /** Família CSS das letras: a mesma com que o Pixi escreve o nome. */
+  fontFamily: string
+  /** Nome escondido dos jogadores sai em itálico no editor. O esmaecido fica
+   *  de fora de propósito: no campo, atrapalharia ler o que se digita. */
+  italic: boolean
+  /** Título de baixo para cima, girado 90°. */
+  vertical: boolean
+  /** Altura da pílula, em múltiplos da fonte (`em`). */
+  plateHeightEm: number
+  /** Respiro dos lados, em `em`. */
+  platePadXEm: number
+  /** Largura mínima da pílula, em `em`: nome curto não vira losango. */
+  plateMinWidthEm: number
+}
+
+/** A fonte do nome no mapa: o `draw` não escolhe uma, então vale a padrão do `TextStyle` do Pixi. */
+function labelFontFamilyCss(): string {
+  const family = TextStyle.defaultTextStyle.fontFamily ?? 'sans-serif'
+  return Array.isArray(family) ? family.join(', ') : family
+}
+
+/**
+ * A etiqueta desta sala como o editor a desenha, para o campo de nome copiar.
+ * `regions` é a mesma lista que o `draw` recebe (a cena do piso em edição):
+ * é por ela que o nome desvia das salas filhas, então o campo abre na
+ * plaquinha desviada, e não no centro coberto pela filha. O editor do mestre
+ * não passa fichas ao `draw`, por isso o desvio delas não entra aqui.
+ */
+export function roomLabelEditorLook(region: Region, regions: readonly Region[], grid: number): RoomLabelEditorLook {
+  const style = roomLabelStyleOf(region.room)
+  const position = roomLabelPositionAvoidingChildren(region, regions, grid)
+  return {
+    x: position.x,
+    y: position.y,
+    fontSize: roomLabelFontSizeFor(region, grid),
+    plateColor: style.plate ? LABEL_PLATE_CSS : null,
+    color: style.color,
+    fontFamily: labelFontFamilyCss(),
+    italic: region.room?.nameHiddenFromPlayers === true,
+    vertical: style.vertical,
+    plateHeightEm: PLATE_HEIGHT_PER_FONT,
+    platePadXEm: PLATE_PAD_X_PER_FONT,
+    plateMinWidthEm: PLATE_MIN_WIDTH_PER_FONT,
+  }
+}
+
+/**
  * Largura que o texto REALMENTE ocupa depois de rasterizado. Só o Pixi sabe,
  * e só onde existe canvas 2D: no jsdom dos testes de unidade tanto
  * `getLocalBounds()` quanto `.width` estouram (medido em 21/09/2026), então o
@@ -555,19 +626,31 @@ export function createRoomNamesRenderer(): RoomNamesRenderer {
   /** Nomes desenhados no último `draw` (os demais ficam invisíveis). */
   let namedIds = new Set<string>()
   let lastCameraScale = 1
+  /** Sala com o campo de nome aberto por cima (`setEditingRegion`): a etiqueta dela fica escondida. */
+  let editingId: string | null = null
 
   function applySizing(id: string): void {
     const sizing = screenLabelSizing(fontSizeById.get(id) ?? roomLabelFontSize(0), lastCameraScale)
+    const shown = sizing.visible && id !== editingId
     const textObj = cache.get(id)
     if (textObj) {
       textObj.scale.set(sizing.scale)
-      textObj.visible = sizing.visible
+      textObj.visible = shown
     }
     const plate = plateCache.get(id)
     if (plate) {
       plate.scale.set(sizing.scale)
-      plate.visible = sizing.visible && plateOnById.get(id) !== false
+      plate.visible = shown && plateOnById.get(id) !== false
     }
+  }
+
+  function setEditingRegion(regionId: string | null): void {
+    if (regionId === editingId) return
+    const previous = editingId
+    editingId = regionId
+    // Só quem entra ou sai da edição muda; sala que não foi desenhada não tem o que mostrar.
+    if (previous !== null) applySizing(previous)
+    if (regionId !== null) applySizing(regionId)
   }
 
   /** Destrói o Text e a plaquinha de toda sala fora de `keep`: tira do
@@ -681,5 +764,5 @@ export function createRoomNamesRenderer(): RoomNamesRenderer {
     }
   }
 
-  return { draw, setCameraScale }
+  return { draw, setCameraScale, setEditingRegion }
 }

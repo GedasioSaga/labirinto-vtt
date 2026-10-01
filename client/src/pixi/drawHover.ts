@@ -20,19 +20,26 @@
  * CONTRATO da tarefa pede pra evitar essa confusão). `HOVER_COLOR` é um azul
  * frio — oposto de temperatura, não só de matiz, o par mais fácil de
  * distinguir num relance — com metade da opacidade (`HOVER_ALPHA`) e, para
- * formas fechadas/delimitadas, metade do peso mínimo da escala do app
- * (`STROKE_WEIGHT.hairline`, `pixi/constants.ts`: "traço de referência, quase
- * invisível" — a descrição já pedida por este CONTRATO, "contorno discreto").
+ * formas fechadas/delimitadas, o peso fino da escala do app
+ * (`STROKE_WEIGHT.thin` — "contorno discreto", pedido deste CONTRATO).
+ *
+ * ## Espessura em px de TELA, não de mundo
+ *
+ * Os dois pesos abaixo são de TELA e viram px de mundo na hora de desenhar
+ * (`/ cameraScale`), como o contorno de seleção da parede
+ * (`selectionOutlineWidth`, `drawWalls.ts`). Em px de mundo o anel quase
+ * sumia com o mapa afastado (1 px a 25% = 0,25 px na tela) e virava um traço
+ * gordo de 4 px a 400% — justo o anel que diz "é isto que você vai pegar".
  *
  * Duas famílias de forma, porque uma largura só não serve pras duas:
  *  - `'circle'`/`'rect'`/`'ellipse'`/`'polygon'` (Token, Prop, Luz, Região,
  *    Drawing rect/ellipse/circle/polygon) já são áreas DELIMITADAS — o
- *    contorno na largura mínima (`HOVER_OUTLINE_WIDTH`) já é visível porque
- *    traça uma borda que existe de verdade.
+ *    contorno fino (`HOVER_OUTLINE_SCREEN_PX`) já é visível porque traça uma
+ *    borda que existe de verdade.
  *  - `'segments'` (Parede, Escada, Drawing line/freehand/curve) são
  *    ENTIDADES FINAS — a própria parede pode ter 0.5px de espessura
  *    (`drawWalls.ts`, preset 'thin'); um contorno na mesma largura ficaria
- *    imperceptível. `HOVER_LINE_HALO_WIDTH` (6) desenha um halo translúcido
+ *    imperceptível. `HOVER_LINE_HALO_SCREEN_PX` (6) desenha um halo translúcido
  *    ao REDOR do traço, na mesma ordem de grandeza da tolerância de clique
  *    real (`WALL_HIT_TOLERANCE`/`DRAWING_HIT_TOLERANCE` = 8,
  *    `lib/selectionHitTest.ts`) — o halo comunica o CORREDOR clicável, não só
@@ -55,17 +62,18 @@ import { LIGHT_HIT_RADIUS, estimateTextWidth } from '../lib/selectionHitTest'
 import { STROKE_WEIGHT } from './constants'
 import { pieceBounds } from '../lib/floorSdf'
 import { stairSpiralCircle } from '../lib/stairs'
+import { resolveCameraScale } from './drawWalls'
 
 /** Azul frio — ver docstring do módulo para a justificativa de não reusar
  *  `SELECTION_COLOR`. */
 const HOVER_COLOR = 0x6fc3ff
 /** Translúcido de propósito — "contorno FRACO", pedido literal do CONTRATO. */
 const HOVER_ALPHA = 0.55
-/** Peso do contorno em forma fechada/delimitada — o próprio hairline da
- *  escala do app já documenta "quase invisível" (`pixi/constants.ts`). */
-const HOVER_OUTLINE_WIDTH = STROKE_WEIGHT.hairline
-/** Largura do halo sobre entidade fina (segmento) — ver docstring do módulo. */
-const HOVER_LINE_HALO_WIDTH = 6
+/** Peso do contorno em forma fechada/delimitada, em px de TELA: o traço fino
+ *  da escala do app (`pixi/constants.ts`). */
+const HOVER_OUTLINE_SCREEN_PX = STROKE_WEIGHT.thin
+/** Largura do halo sobre entidade fina (segmento), em px de TELA — ver docstring do módulo. */
+const HOVER_LINE_HALO_SCREEN_PX = 6
 
 export type HoverGeometry =
   | { shape: 'circle'; cx: number; cy: number; radius: number }
@@ -187,29 +195,31 @@ export function resolveHoverGeometry(map: MapData, target: HoverTarget): HoverGe
   }
 }
 
-function drawShape(graphics: Graphics, geometry: HoverGeometry): void {
+/** As duas larguras de hover são de tela: divididas pela escala, viram px de mundo. */
+function drawShape(graphics: Graphics, geometry: HoverGeometry, cameraScale: number): void {
+  const outline = HOVER_OUTLINE_SCREEN_PX / cameraScale
   switch (geometry.shape) {
     case 'circle':
       graphics.circle(geometry.cx, geometry.cy, geometry.radius)
-      graphics.stroke({ width: HOVER_OUTLINE_WIDTH, color: HOVER_COLOR, alpha: HOVER_ALPHA })
+      graphics.stroke({ width: outline, color: HOVER_COLOR, alpha: HOVER_ALPHA })
       return
     case 'rect':
       graphics.rect(geometry.x, geometry.y, geometry.w, geometry.h)
-      graphics.stroke({ width: HOVER_OUTLINE_WIDTH, color: HOVER_COLOR, alpha: HOVER_ALPHA })
+      graphics.stroke({ width: outline, color: HOVER_COLOR, alpha: HOVER_ALPHA })
       return
     case 'ellipse':
       graphics.ellipse(geometry.cx, geometry.cy, geometry.rx, geometry.ry)
-      graphics.stroke({ width: HOVER_OUTLINE_WIDTH, color: HOVER_COLOR, alpha: HOVER_ALPHA })
+      graphics.stroke({ width: outline, color: HOVER_COLOR, alpha: HOVER_ALPHA })
       return
     case 'polygon':
       graphics.poly(geometry.points)
-      graphics.stroke({ width: HOVER_OUTLINE_WIDTH, color: HOVER_COLOR, alpha: HOVER_ALPHA })
+      graphics.stroke({ width: outline, color: HOVER_COLOR, alpha: HOVER_ALPHA })
       return
     case 'segments':
       for (const segment of geometry.segments) {
         graphics.moveTo(segment.a.x, segment.a.y).lineTo(segment.b.x, segment.b.y)
       }
-      graphics.stroke({ width: HOVER_LINE_HALO_WIDTH, color: HOVER_COLOR, alpha: HOVER_ALPHA, cap: 'round' })
+      graphics.stroke({ width: HOVER_LINE_HALO_SCREEN_PX / cameraScale, color: HOVER_COLOR, alpha: HOVER_ALPHA, cap: 'round' })
       return
     default:
       assertNeverShape(geometry)
@@ -219,15 +229,21 @@ function drawShape(graphics: Graphics, geometry: HoverGeometry): void {
 /**
  * Redesenha o contorno de hover em `graphics` — chamar a cada `pointermove`
  * ocioso, logo depois de `resolveHoverHit` (`lib/hoverHitTest.ts`), com o
- * `target` que ele devolveu. `target: null` (nada sob o cursor, algo já
- * selecionado, ou fora de `mode === 'idle'`) limpa o gráfico e não desenha
- * nada — mesmo padrão de `pixi/drawGuides.ts` (`graphics.clear()` incondicional
- * no topo, sem branch "já estava vazio").
+ * `target` que ele devolveu, e de novo quando o zoom muda (a espessura é de
+ * tela). `target: null` (nada sob o cursor, algo já selecionado, ou fora de
+ * `mode === 'idle'`) limpa o gráfico e não desenha nada — mesmo padrão de
+ * `pixi/drawGuides.ts` (`graphics.clear()` incondicional no topo, sem branch
+ * "já estava vazio").
+ *
+ * `cameraScale` omitida ou inválida (0, NaN) cai na escala de mundo do
+ * próprio nó, como o contorno de seleção (`resolveCameraScale`): dentro do
+ * `world` é a do último render, fora da cena (teste) é 1. O editor passa a
+ * escala de agora, que vale já no quadro do zoom.
  */
-export function drawHover(graphics: Graphics, map: MapData, target: HoverTarget | null): void {
+export function drawHover(graphics: Graphics, map: MapData, target: HoverTarget | null, cameraScale?: number): void {
   graphics.clear()
   if (!target) return
   const geometry = resolveHoverGeometry(map, target)
   if (!geometry) return
-  drawShape(graphics, geometry)
+  drawShape(graphics, geometry, resolveCameraScale(graphics, cameraScale))
 }

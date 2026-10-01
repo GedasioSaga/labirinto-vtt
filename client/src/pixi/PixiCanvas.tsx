@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react'
 import { DoorContextMenu } from '../components/DoorContextMenu'
 import { Application, Container, Graphics, Sprite, Texture, Assets, Rectangle } from 'pixi.js'
 import { dataUrlToBytes, imageExportScale, mapForImageExport, type ImageExportOptions, type MapImageExporter } from '../lib/mapImageExport'
@@ -48,12 +48,13 @@ import { visionSegments, type Segment } from '../lib/visibility'
 import { createRegionsRenderer, resolveHighlightedRegionId } from './drawRegions'
 import { createShapesRedrawer, paintedTextLayer, type ShapesLayer, type ShapesSnapshot } from './shapesRedraw'
 import { createMontadorEmFatias } from './montagemEmFatias'
-import { createRoomNamesRenderer, findRoomLabelAt, roomLabelAnchor, roomLabelFontSize, roomLabelPosition } from './drawRoomNames'
+import { createRoomNamesRenderer, findRoomLabelAt, roomLabelAnchor, roomLabelEditorLook, roomLabelFontSize, type RoomLabelEditorLook } from './drawRoomNames'
 import { createFloorRenderer, drawBlocosDraft, drawFloorDraft } from './drawFloor'
 import { drawMapLines, drawMapMarkers } from './drawMapLines'
 import { drawMapFrame } from './drawMapFrame'
 import { createDebouncedTask, syncWorldTextResolution } from './textResolution'
 import { createZoomDaRoda } from './zoomDaRoda'
+import { createGlideDaCamera } from './glideDaCamera'
 import { pixelGrid, snapToPhysicalPixel } from './pixelAlign'
 import { buildFloorMask } from './floorMask'
 import { layoutMapFrame } from '../lib/mapFrame'
@@ -86,6 +87,7 @@ const OUTSIDE_FLOOR_GRID_ALPHA = 0.08
 // Onda 3, item 21 (Frente E) — moldura do mapa (contorno + sombra fora dela).
 import { drawMapBounds } from './drawMapBounds'
 import { createTokensRenderer } from './tokensRenderer'
+import { consumirMovimentosRemotos } from '../lib/movimentoRemoto'
 import { createDestinationsRenderer, createSignalsRenderer } from './drawSignals'
 import { useSignalStore } from '../stores/signalStore'
 import { useDestinationStore } from '../stores/destinationStore'
@@ -542,6 +544,36 @@ type NameEditorState = { kind: 'room'; regionId: string; value: string } | { kin
 
 const MIN_ROOM_NAME_EDITOR_FONT = 12
 
+/** `prefers-reduced-motion` do sistema: ligado, nada do mapa anima (ficha, anel da vez, câmera). */
+function prefersReducedMotion(): boolean {
+  return window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false
+}
+
+/**
+ * O campo de nome de SALA vestido como a etiqueta dela no mapa (achado visual
+ * de 30/09/2026: um campo escuro com borda por cima da plaquinha bege, duas
+ * caixas encaixadas a cada sala criada). Pílula de pedra clara — ou nada, na
+ * sala sem plaquinha —, sem borda, na cor, fonte e orientação da sala; a
+ * etiqueta do mapa sai de baixo enquanto o campo está aberto
+ * (`setEditingRegion`). Só o anel de foco diz que ali se digita.
+ */
+function roomPlateInputStyle(look: RoomLabelEditorLook, cameraScale: number): CSSProperties {
+  return {
+    transform: look.vertical ? 'translate(-50%, -50%) rotate(-90deg)' : 'translate(-50%, -50%)',
+    minWidth: `${look.plateMinWidthEm}em`,
+    height: `${look.plateHeightEm}em`,
+    padding: `0 ${look.platePadXEm}em`,
+    border: 0,
+    borderRadius: 'var(--lb-radius-full)',
+    background: look.plateColor ?? 'transparent',
+    color: look.color,
+    fontFamily: look.fontFamily,
+    fontStyle: look.italic ? 'italic' : 'normal',
+    fontSize: Math.max(MIN_ROOM_NAME_EDITOR_FONT, look.fontSize * cameraScale),
+    boxShadow: 'var(--lb-shadow-focus)',
+  }
+}
+
 /** Fundo do canvas do editor; é também o fundo da imagem exportada (fora do chão). */
 const EDITOR_BACKGROUND_COLOR = 0x2b2b2b
 
@@ -618,6 +650,13 @@ export function PixiCanvas({
     nameEditor?.kind === 'room' ? state.map.regions.find((r) => r.id === nameEditor.regionId) ?? null : null,
   )
   const editorGrid = useMapStore((state) => state.map.grid)
+  // A cena inteira só com o campo de SALA aberto: a etiqueta desvia das salas
+  // filhas, e o campo precisa abrir no mesmo lugar dela. Referências da store,
+  // sem montar nada no seletor (um array novo por leitura faria o React
+  // renderizar sem parar).
+  const editorScene = useMapStore((state) => (nameEditor?.kind === 'room' ? state.map : null))
+  const editorPiso = useMapStore((state) => state.pisoAtivo)
+  const editingRoomId = nameEditor?.kind === 'room' ? nameEditor.regionId : null
 
   // Só usa ref e setter estáveis: o setup() do Pixi, que roda uma vez, pode chamar.
   const openNameEditor = (next: NameEditorState) => {
@@ -663,6 +702,16 @@ export function PixiCanvas({
   useEffect(() => {
     if (cameraRequest !== null) cameraRequestRef.current?.(cameraRequest)
   }, [cameraRequest])
+
+  // Mesma ponte, para a etiqueta da sala sair do mapa enquanto o campo de
+  // nome, que imita a própria etiqueta, está aberto por cima dela. Antes da
+  // pintura (layout effect): o campo nasce ou some no MESMO quadro em que a
+  // etiqueta some ou volta — o campo é aberto pelo pointerup do Pixi, fora do
+  // evento do React, e com `useEffect` sobraria um quadro com as duas.
+  const editingRoomRef = useRef<((regionId: string | null) => void) | null>(null)
+  useLayoutEffect(() => {
+    editingRoomRef.current?.(editingRoomId)
+  }, [editingRoomId])
 
   useEffect(() => {
     const el = containerRef.current
@@ -916,6 +965,13 @@ export function PixiCanvas({
       const resetZoom = () => applyCamera({ x: 0, y: 0, scale: 1 }, 'gesto')
       resetZoomRequestRef.current = resetZoom
 
+      /**
+       * A cena aberta, como chave: a cena da aventura e o mapa. Deslize — da
+       * ficha do jogador e da câmera do "Ir até lá" — só vale dentro da mesma;
+       * trocar de cena não atravessa a tela vindo da cena anterior.
+       */
+      const cenaAberta = () => `${useAdventureStore.getState().activeSceneId ?? ''}|${useMapStore.getState().map.id}`
+
       // Item #9 — margem de respiro (px de tela) ao redor do conteúdo tanto
       // no fit automático de abertura quanto na tecla F.
       const FIT_MARGIN = 40
@@ -939,7 +995,22 @@ export function PixiCanvas({
       // a cena tinha (ou no de agora) — o mestre vê de cara por onde entrou.
       // "Ir até lá" (lista Objetos do mapa): com `fit`, afasta só o bastante
       // para a caixa do objeto caber na parte que os painéis deixam livre.
+      //
+      // O "Ir até lá", o "Ir lá" (Grupo, pistas) e a chegada por pino NA MESMA
+      // CENA levam a câmera deslizando (`glideDaCamera`, montado junto do zoom
+      // adiado, mais abaixo): o mestre vê em que direção o alvo fica. Fica
+      // instantâneo o pedido sem ponto (troca de cena pela lista), a chegada
+      // em OUTRA cena (o deslize partiria da câmera da anterior), o Seguir
+      // (instantâneo por decisão, não briga com o arrasto do jogador) e o
+      // movimento reduzido. F e Ctrl+0 nem passam por aqui, e param o deslize
+      // em curso como qualquer gesto que mexe na câmera.
+      let cenaDoUltimoPedido = cenaAberta()
       cameraRequestRef.current = ({ camera: requested, focus, fit }) => {
+        // Pedido novo, de qualquer tipo, encerra o deslize em curso.
+        glideDaCamera.parar()
+        const cena = cenaAberta()
+        const mesmaCena = cena === cenaDoUltimoPedido
+        cenaDoUltimoPedido = cena
         if (focus !== undefined) {
           const viewport = { width: app.screen.width, height: app.screen.height }
           const obstacles = focusObstaclesRef.current?.() ?? []
@@ -947,7 +1018,9 @@ export function PixiCanvas({
           const area = freeArea(viewport, obstacles)
           const scale = fit === undefined ? base : revealScale(base, fit, { width: area.maxX - area.minX, height: area.maxY - area.minY }, FIT_MARGIN)
           const center = freeAreaCenter(viewport, obstacles)
-          applyCamera({ scale, x: center.x - focus.x * scale, y: center.y - focus.y * scale }, 'pedido')
+          const alvo = { scale, x: center.x - focus.x * scale, y: center.y - focus.y * scale }
+          if (mesmaCena && useFollowStore.getState().playerId === null && !prefersReducedMotion()) glideDaCamera.deslizar(alvo)
+          else applyCamera(alvo, 'pedido')
           return
         }
         if (requested) applyCamera(requested, 'pedido')
@@ -1501,6 +1574,11 @@ export function PixiCanvas({
         // VOLTO JÁ: selo de ausente na ficha de quem saiu da mesa. A imagem
         // exportada é do mapa, não da sessão: sai sem selo.
         const awayTokenIds = exportScene === null ? useAwayTokensStore.getState().tokenIds : undefined
+        // Passo do JOGADOR desliza; o do mestre vai direto. A marca é consumida
+        // a cada redraw, desenhe ou não a ficha marcada (lib/movimentoRemoto.ts).
+        // A imagem exportada sai com as fichas paradas no lugar final.
+        const remoteMoveIds = consumirMovimentosRemotos()
+        const glide = exportScene === null ? { sceneId: cenaAberta(), remoteMoveIds } : undefined
         tokensRenderer.draw(
           tokensContainer,
           visibleTokens(map.tokens, map.hiddenLayers),
@@ -1509,6 +1587,7 @@ export function PixiCanvas({
           camera.scale,
           turnTokenId,
           awayTokenIds,
+          glide,
         )
         // O cone acompanha o guarda no arrasto e a direção escolhida no painel, e
         // a rota acompanha a patrulha (pelo portão do redesenho: sem guarda, sem
@@ -1533,6 +1612,7 @@ export function PixiCanvas({
       // O mestre vê tudo, sempre: a marca do teto é DELE, e só existe no editor.
       const regionsRenderer = createRegionsRenderer({ roofMarker: true })
       const roomNamesRenderer = createRoomNamesRenderer()
+      editingRoomRef.current = roomNamesRenderer.setEditingRegion
       const concealZonesRenderer = createConcealZonesRenderer()
       // O editor é o único que desenha o nome só do mestre ao lado do pino.
       const pinsRenderer = createPinsRenderer({ showNames: true })
@@ -1619,7 +1699,9 @@ export function PixiCanvas({
         drawn.position.set(frame.x - layout.content.x, frame.y - layout.content.y)
         mapFrameContainer.addChild(drawn)
       }
-      const tokensRenderer = createTokensRenderer()
+      // Ficha na mão, anel da vez e passo do jogador animam no relógio do Pixi
+      // — e só enquanto alguma coisa anima (tokensRenderer.ts).
+      const tokensRenderer = createTokensRenderer({ ticker: app.ticker, reducedMotion: prefersReducedMotion })
       // Onda 2, item 16 (Frente C) — número ao vivo durante o arrasto de forma.
       const dimensionLabelRenderer = createDimensionLabelRenderer()
 
@@ -1854,12 +1936,28 @@ export function PixiCanvas({
         // Móvel desenhado tem fio em px de tela, como a parede. Objeto de
         // imagem não muda com o zoom: mapa sem móvel não redesenha nada aqui.
         if (hasDrawnFurniture()) redrawProps()
+        // O anel de hover também é de px de tela. Sem alvo, só limpa o que já
+        // estava vazio. `redrawHover` mora junto do estado de hover, mais
+        // abaixo: esta função só roda depois da montagem (roda parada ou
+        // quadro seguinte), nunca durante ela.
+        redrawHover()
       }
       const zoomDaRoda = createZoomDaRoda({
         redesenhar: () => {
           if (!destroyed) redrawScaleDependentLayers()
         },
         redesenharNoQuadro: umaVezPorQuadro(redrawScaleDependentLayers),
+      })
+      // "Ir até lá" deslizando (ver o pedido de câmera, lá em cima): o zoom do
+      // deslize passa pelo zoom adiado, e a geometria é refeita uma vez no fim.
+      const glideDaCamera = createGlideDaCamera({
+        lerCamera: () => camera,
+        aplicar: (next) => applyCamera(next, 'pedido'),
+        redesenhar: () => {
+          if (!destroyed) redrawScaleDependentLayers()
+        },
+        zoom: zoomDaRoda,
+        ticker: app.ticker,
       })
       const syncLabelsToScale = umaVezPorQuadro(() => {
         const { scale } = useMapStore.getState().camera
@@ -2074,6 +2172,10 @@ export function PixiCanvas({
       // Graphics/Text quando o snap devolve a mesma célula — arrastar ficha é
       // o gesto mais usado do app e a maioria dos moves não muda nada aqui.
       let tokenDragLastShown: string | null = null
+      // A ficha deste arrasto já saiu da célula de origem e foi levantada da
+      // mesa (`tokensRenderer.levantar`). Clique sem arrasto nunca levanta:
+      // selecionar uma ficha é a ação mais frequente do mapa e não pulsa.
+      let tokenDragLifted = false
       let draggingWallPointId: string | null = null
       let draggingWallPointIndex: 0 | 1 = 0
       let draggingRegionId: string | null = null
@@ -2209,6 +2311,16 @@ export function PixiCanvas({
       // Onda 2, item 15 (Frente B) — entidade (kind+id) sob o cursor em
       // `mode === 'idle'`, `null` fora dela ou quando já é a seleção atual.
       let hoverTarget: HoverTarget | null = null
+      /**
+       * O anel de hover no alvo de agora, com a espessura do zoom de agora (px
+       * de tela, `drawHover`). Chamado no pointermove ocioso e quando a
+       * geometria que depende da escala é refeita: a roda não dispara
+       * pointermove, e sem isto o anel ficaria com a espessura do zoom antigo
+       * até o mouse se mexer.
+       */
+      const redrawHover = () => {
+        drawHover(hoverGraphics, doPisoEmEdicao(useMapStore.getState().map), hoverTarget, camera.scale)
+      }
       let spaceHeld = false
       // 17/09/2026 — a pessoa já moveu a vista pelo botão do meio ou por
       // Espaço+arrastar pelo menos uma vez nesta sessão do canvas. A dica
@@ -3394,6 +3506,9 @@ export function PixiCanvas({
         // ficaria "grudado" na tela até o próximo pointermove ocioso.
         hoverGraphics.clear()
         hoverTarget = null
+        // Clicar no mapa com o "Ir até lá" ainda correndo: a câmera para onde
+        // está, e o gesto mira no que a pessoa vê agora, não num mapa andando.
+        glideDaCamera.parar()
         // Todo gesto novo começa sem travessia pendente: só o ramo do pino de
         // viagem, mais abaixo, arma uma — e só para ESTE aperto.
         travelPress = null
@@ -4203,6 +4318,7 @@ export function PixiCanvas({
               // igual no Alt+arrastar — a cópia nasce exatamente aqui.
               tokenDragOrigin = { x: token.x, y: token.y }
               tokenDragLastShown = null
+              tokenDragLifted = false
               // Onda 3, item 13 (Alt+arrastar duplica) — clona no pointerdown
               // e arrasta a CÓPIA; o original fica onde estava. Ver
               // `cloneForAltDrag` para a nota sobre Alt="inverter snap".
@@ -4334,6 +4450,7 @@ export function PixiCanvas({
             // do disco não pode contar quadrado que ela não andou.
             tokenDragOrigin = { x: selectedToken.x, y: selectedToken.y }
             tokenDragLastShown = null
+            tokenDragLifted = false
           } else if (activeTool === 'select') {
             mode = 'area-marquee-drag'
             areaMarqueeStart = worldPoint
@@ -4752,6 +4869,11 @@ export function PixiCanvas({
         if (mode === 'dragging-token' && tokenDragSnapshot) {
           useMapStore.getState().commitDragHistory(tokenDragSnapshot)
         }
+        // Soltou a ficha: ela assenta na mesa. Sem arrasto de verdade, nada levantou e nada anima.
+        if (mode === 'dragging-token') {
+          tokensRenderer.levantar(null)
+          tokenDragLifted = false
+        }
         if (mode === 'dragging-prop' && propDragSnapshot) {
           useMapStore.getState().commitDragHistory(propDragSnapshot)
         }
@@ -4909,6 +5031,11 @@ export function PixiCanvas({
         // comentário completo no pointerup.
         if (mode === 'dragging-token' && tokenDragSnapshot) {
           useMapStore.getState().commitDragHistory(tokenDragSnapshot)
+        }
+        // Mesmo assentar do pointerup: soltar fora do canvas também larga a ficha.
+        if (mode === 'dragging-token') {
+          tokensRenderer.levantar(null)
+          tokenDragLifted = false
         }
         if (mode === 'dragging-prop' && propDragSnapshot) {
           useMapStore.getState().commitDragHistory(propDragSnapshot)
@@ -5092,7 +5219,7 @@ export function PixiCanvas({
           updateCursor()
           // Onda 2, item 15 (Frente B) — anel de hover, mesmo custo marginal
           // ~0 do resolveHoverHit (ver docstring do módulo).
-          drawHover(hoverGraphics, doPisoEmEdicao(useMapStore.getState().map), hoverTarget)
+          redrawHover()
           // Corredor em construção não tem `mode` (cliques soltos), então a
           // prévia até o cursor mora aqui, no pointermove ocioso.
           if (corridorDraftPoints.length > 0 && useMapStore.getState().activeTool === 'floor') {
@@ -5142,6 +5269,13 @@ export function PixiCanvas({
           const result = alignUnlessFree(snapped, candidates, isFreeMoveModifier(event))
           drawGuides(guidesGraphics, result.guides, computeViewport())
           useMapStore.getState().moveTokenLive(draggingTokenId, result.point.x, result.point.y)
+          // A ficha andou de fato (saiu da célula de origem): sai da mesa. Depois
+          // do moveTokenLive, que já desenhou o wrapper — o clone do Alt+arrastar
+          // inclusive — no lugar novo.
+          if (!tokenDragLifted && tokenDragOrigin && (result.point.x !== tokenDragOrigin.x || result.point.y !== tokenDragOrigin.y)) {
+            tokenDragLifted = true
+            tokensRenderer.levantar(draggingTokenId)
+          }
           // Quantos quadrados a ficha já andou, enquanto o botão está apertado.
           // A conta é a da ferramenta Medir (`measureCells`, via
           // `rotuloDeQuadradosAndados`) e o desenho é o desenhista dela, com o
@@ -6199,7 +6333,8 @@ export function PixiCanvas({
           // sem o mestre tirar o olho do mapa. Sem combate nesta cena, nada.
           case 'nextTurn': {
             const { map: mapaDaVez } = useMapStore.getState()
-            advanceTurn(mapaDaVez.id, mapaDaVez.tokens)
+            // Atalho de teclado não anima: o anel aparece parado na ficha seguinte.
+            tokensRenderer.semPulsoDaVez(() => advanceTurn(mapaDaVez.id, mapaDaVez.tokens))
             break
           }
           case 'nudge':
@@ -6296,6 +6431,8 @@ export function PixiCanvas({
 
       const onWheel = (event: WheelEvent) => {
         event.preventDefault()
+        // A roda é do mestre: o "Ir até lá" em curso para e não disputa a câmera.
+        glideDaCamera.parar()
         const rect = el.getBoundingClientRect()
         const pointer = { x: event.clientX - rect.left, y: event.clientY - rect.top }
         const gesture = resolveMapWheel({
@@ -6320,6 +6457,7 @@ export function PixiCanvas({
         app.ticker.remove(tickDestinations)
         app.ticker.remove(tickLaser)
         app.ticker.remove(tickPlayerLasers)
+        tokensRenderer.cancelarAnimacoes()
         unsubscribeLaserCursor()
         unsubscribeNoiseCursor()
         noiseGesture.cancel()
@@ -6335,6 +6473,7 @@ export function PixiCanvas({
         unsubscribeGrid()
         unsubscribeGridOffset()
         unsubscribeCameraScaleForWalls()
+        glideDaCamera.parar()
         zoomDaRoda.cancelar()
         unsubscribeShapes()
         unsubscribeTravelLinks()
@@ -6360,6 +6499,7 @@ export function PixiCanvas({
         gridAlignOverlayRedrawRef.current = null
         resetZoomRequestRef.current = null
         cameraRequestRef.current = null
+        editingRoomRef.current = null
         onImageExporterChangeRef.current?.(null)
       }
     }
@@ -6383,7 +6523,15 @@ export function PixiCanvas({
     }
   }, [])
 
-  const editorPosition = nameEditor?.kind === 'token' ? nameEditor.at : editorRegion ? roomLabelPosition(editorRegion) : null
+  // Campo de SALA: a própria etiqueta do mapa (lugar, fonte, cor, plaquinha e
+  // orientação dela), não uma caixa escura por cima. A lista de salas é a que
+  // o desenho recebe — o piso em edição, sem camada oculta —, para o desvio
+  // das salas filhas dar o mesmo lugar.
+  const roomLook =
+    editorRegion && editorScene
+      ? roomLabelEditorLook(editorRegion, visibleRegions(mapaDoPiso(editorScene, editorPiso).regions, editorScene.hiddenLayers), editorGrid)
+      : null
+  const editorPosition = nameEditor?.kind === 'token' ? nameEditor.at : roomLook
 
   return (
     // O canvas do Pixi é anexado por fora do React no div do ref; o campo de
@@ -6450,6 +6598,7 @@ export function PixiCanvas({
             textAlign: 'center',
             fontSize: Math.max(MIN_ROOM_NAME_EDITOR_FONT, roomLabelFontSize(editorGrid) * editorCamera.scale),
             zIndex: 2,
+            ...(roomLook === null ? null : roomPlateInputStyle(roomLook, editorCamera.scale)),
           }}
         />
       )}

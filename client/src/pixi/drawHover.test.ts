@@ -161,53 +161,95 @@ function strokeInstructions(g: Graphics) {
   return g.context.instructions.filter((instruction) => instruction.action === 'stroke')
 }
 
+/** Largura do único traço desenhado, em px de MUNDO. */
+function strokeWidth(g: Graphics): number {
+  const [stroke] = strokeInstructions(g)
+  if (stroke?.action !== 'stroke') throw new Error('nenhum traço desenhado')
+  return stroke.data.style.width
+}
+
 describe('drawHover — integração com Graphics real (regra 5: executa de verdade, não só typecheck)', () => {
   it('target null: limpa o gráfico e não desenha nada', () => {
     const g = new Graphics()
-    drawHover(g, baseMap, null)
+    drawHover(g, baseMap, null, 1)
     expect(strokeInstructions(g)).toHaveLength(0)
   })
 
   it('CASO OBRIGATÓRIO (regra 5): target aponta pra entidade que já não existe — limpa e não desenha (não lança)', () => {
     const g = new Graphics()
-    expect(() => drawHover(g, baseMap, { kind: 'token', id: 'fantasma' })).not.toThrow()
+    expect(() => drawHover(g, baseMap, { kind: 'token', id: 'fantasma' }, 1)).not.toThrow()
     expect(strokeInstructions(g)).toHaveLength(0)
   })
 
   it('token: 1 stroke, cor/peso/alpha discretos e DIFERENTES de SELECTION_COLOR', () => {
     const map = addToken(baseMap, buildToken('t1'))
     const g = new Graphics()
-    drawHover(g, map, { kind: 'token', id: 't1' })
+    drawHover(g, map, { kind: 'token', id: 't1' }, 1)
     const [stroke] = strokeInstructions(g)
     expect(strokeInstructions(g)).toHaveLength(1)
     expect(stroke.action === 'stroke' && stroke.data.style.color).toBe(0x6fc3ff)
     expect(stroke.action === 'stroke' && stroke.data.style.color).not.toBe(0xffdd55) // SELECTION_COLOR — nunca a mesma cor de "já selecionado"
-    expect(stroke.action === 'stroke' && stroke.data.style.width).toBe(1)
+    expect(strokeWidth(g)).toBe(1.5)
     expect(stroke.action === 'stroke' && stroke.data.style.alpha).toBe(0.55)
+  })
+
+  it('forma fechada: o contorno tem 1,5 px de TELA em qualquer zoom (largura de mundo = 1,5 / escala)', () => {
+    const map = addToken(baseMap, buildToken('t1'))
+    for (const scale of [0.1, 0.25, 1, 2, 4]) {
+      const g = new Graphics()
+      drawHover(g, map, { kind: 'token', id: 't1' }, scale)
+      expect(strokeWidth(g) * scale).toBeCloseTo(1.5, 9)
+    }
   })
 
   it('wall (entidade fina): halo mais largo que o contorno de forma fechada — senão fica invisível', () => {
     const map = addWall(baseMap, buildWall('w1'))
     const g = new Graphics()
-    drawHover(g, map, { kind: 'wall', id: 'w1' })
-    const [stroke] = strokeInstructions(g)
+    drawHover(g, map, { kind: 'wall', id: 'w1' }, 1)
     expect(strokeInstructions(g)).toHaveLength(1)
-    expect(stroke.action === 'stroke' && stroke.data.style.width).toBe(6)
-    expect(stroke.action === 'stroke' && stroke.data.style.width).toBeGreaterThan(1) // maior que HOVER_OUTLINE_WIDTH das formas fechadas
+    expect(strokeWidth(g)).toBe(6)
+    expect(strokeWidth(g)).toBeGreaterThan(1.5) // maior que o contorno das formas fechadas
+  })
+
+  it('wall: o halo também é de TELA — 6 px a 10% e a 400%, sem virar traço gordo de perto', () => {
+    const map = addWall(baseMap, buildWall('w1'))
+    for (const scale of [0.1, 0.5, 1, 4]) {
+      const g = new Graphics()
+      drawHover(g, map, { kind: 'wall', id: 'w1' }, scale)
+      expect(strokeWidth(g) * scale).toBeCloseTo(6, 9)
+    }
+  })
+
+  it('escala inválida (0, NaN) não desenha traço infinito: cai na escala do próprio nó (1 fora da cena)', () => {
+    const map = addToken(baseMap, buildToken('t1'))
+    for (const scale of [0, Number.NaN, -2]) {
+      const g = new Graphics()
+      drawHover(g, map, { kind: 'token', id: 't1' }, scale)
+      expect(strokeWidth(g)).toBe(1.5)
+    }
   })
 
   it('redesenho: chamar de novo com target diferente troca o contorno, nunca acumula (graphics.clear() no topo)', () => {
     const map = addToken(addWall(baseMap, buildWall('w1')), buildToken('t1'))
     const g = new Graphics()
-    drawHover(g, map, { kind: 'wall', id: 'w1' })
-    drawHover(g, map, { kind: 'token', id: 't1' })
+    drawHover(g, map, { kind: 'wall', id: 'w1' }, 1)
+    drawHover(g, map, { kind: 'token', id: 't1' }, 1)
     expect(strokeInstructions(g)).toHaveLength(1)
+  })
+
+  it('o mesmo alvo redesenhado depois do zoom troca a espessura, sem acumular traço', () => {
+    const map = addToken(baseMap, buildToken('t1'))
+    const g = new Graphics()
+    drawHover(g, map, { kind: 'token', id: 't1' }, 1)
+    drawHover(g, map, { kind: 'token', id: 't1' }, 3)
+    expect(strokeInstructions(g)).toHaveLength(1)
+    expect(strokeWidth(g)).toBeCloseTo(0.5, 9)
   })
 
   it('região: 1 stroke fechado (poly)', () => {
     const map = addRegion(baseMap, buildRegion('r1'))
     const g = new Graphics()
-    drawHover(g, map, { kind: 'region', id: 'r1' })
+    drawHover(g, map, { kind: 'region', id: 'r1' }, 1)
     expect(strokeInstructions(g)).toHaveLength(1)
   })
 })
