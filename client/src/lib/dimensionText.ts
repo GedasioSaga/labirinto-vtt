@@ -117,3 +117,13 @@ export function dimensionLabel(draft: DimensionDraft, gridSize: number, gridShap
     }
   }
 }
+
+/**
+ * O lado e o ângulo do traço num rótulo só, "3,0 m · 90°" (pedido 3, fatia 4:
+ * a medida do lado ao desenhar Parede, Linha e o segmento do Caminho). Um
+ * rótulo, e não dois: dois textos perto do cursor se sobrepõem. O comprimento
+ * vem de `dimensionLabel` com a ferramenta 'line', a mesma régua da Medir.
+ */
+export function lengthAndAngleLabel(length: string, angle: string): string {
+  return `${length} · ${angle}`
+}

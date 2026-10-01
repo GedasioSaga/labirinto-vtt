@@ -1,7 +1,8 @@
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { Container, EventBoundary, FederatedPointerEvent, Graphics } from 'pixi.js'
+import { Container, EventBoundary, FederatedPointerEvent, Graphics, Text } from 'pixi.js'
+import { SMART_GUIDE_COLOR } from './constants'
 import { createEmptyMap } from '../lib/mapFactory'
 import { imageExportScale, type MapImageExporter } from '../lib/mapImageExport'
 import { useMapStore } from '../stores/mapStore'
@@ -16,7 +17,8 @@ import { syncWorldTextResolution, TEXT_RESOLUTION_DEBOUNCE_MS } from './textReso
  *
  * P2: o `world` não recebe evento do Pixi e é um grupo de render; o contorno
  * de hover, refeito a cada pointermove, tem grupo próprio para não refazer os
- * lotes do mapa inteiro. P7: o arrasto da ficha não percorre todos os textos
+ * lotes do mapa inteiro — e, desde o pedido 3 (fatia 4), também o rascunho, a
+ * guia e o rótulo de medida do desenho. P7: o arrasto da ficha não percorre todos os textos
  * do mundo a cada passo; só nome novo ou renomeado pede a ressincronização.
  */
 
@@ -161,18 +163,40 @@ function contornoDeHover(): Graphics {
   throw new Error('sem contorno de hover')
 }
 
+/** O Graphics do mundo que tem traço desta cor agora. */
+function graficoComTraco(cor: number): Graphics {
+  for (const no of descendentes(mundo())) {
+    if (no instanceof Graphics && no.context.instructions.some((i) => i.action === 'stroke' && i.data.style.color === cor)) return no
+  }
+  throw new Error(`sem traço da cor ${cor.toString(16)}`)
+}
+
+/** Cor do rascunho da linha no teste: única no mapa, para achar o Graphics dele. */
+const COR_DO_RASCUNHO = 0x12ab34
+
 describe('PixiCanvas — o mundo fora da árvore de eventos e em grupos de render (P2)', () => {
-  it('o world não recebe evento do Pixi e é grupo de render; dentro dele só o contorno de hover tem grupo próprio (a grade não)', async () => {
+  it('o world não recebe evento do Pixi e é grupo de render; dentro dele só tem grupo próprio o que muda a cada pointermove com o mapa parado: o contorno de hover e, ao desenhar, o rascunho, a guia e o rótulo de medida (a grade não)', async () => {
     await monta()
     ponteiro('pointermove', { x: 160, y: 160 })
     const hover = contornoDeHover()
+    // Uma linha em curso, deitada: o rascunho, a guia (a ponta na altura do
+    // começo, pedido 3, fatia 4) e o rótulo "comprimento · ângulo". A ponta
+    // fica EXATA na reta do começo: o zoom aqui é o do enquadramento das
+    // fichas, e a tolerância em px de tela encolhe no mundo.
+    act(() => useMapStore.setState({ activeTool: 'line', drawColor: `#${COR_DO_RASCUNHO.toString(16)}` }))
+    ponteiro('pointerdown', { x: 400, y: 300 })
+    ponteiro('pointermove', { x: 700, y: 300 })
+    const rascunho = graficoComTraco(COR_DO_RASCUNHO)
+    const guia = graficoComTraco(SMART_GUIDE_COLOR)
+    // `null` = o rótulo não apareceu, e o teste cai na asserção logo abaixo.
+    const rotulo = descendentes(mundo()).find((no) => no instanceof Text && no.text.includes('°'))?.parent ?? null
+    expect(rotulo).not.toBeNull()
 
     expect(mundo().eventMode).toBe('none')
     expect(mundo().isRenderGroup).toBe(true)
-    expect(hover.isRenderGroup).toBe(true)
     const grupos = descendentes(mundo()).filter((no) => no.isRenderGroup)
-    expect(grupos).toHaveLength(1)
-    expect(grupos[0]).toBe(hover)
+    expect(grupos).toHaveLength(4)
+    for (const proprio of [hover, rascunho, guia, rotulo]) expect(grupos).toContain(proprio)
   })
 
   it('os ouvintes continuam no stage: o hover segue o ponteiro e o arrasto move a ficha', async () => {

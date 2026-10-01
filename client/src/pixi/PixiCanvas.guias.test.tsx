@@ -6,6 +6,7 @@ import { createEmptyMap } from '../lib/mapFactory'
 import { useMapStore } from '../stores/mapStore'
 import type { Camera } from './world'
 import type { Drawing, FloorPiece, MapData, Prop, Region, Stair, Token, Wall } from '../types/map'
+import type { DrawingTool } from '../types/tools'
 import { SMART_GUIDE_COLOR, SMART_GUIDE_LABEL_COLOR } from './constants'
 import { PixiCanvas } from './PixiCanvas'
 import { snapToHexVertex } from './tokenInteraction'
@@ -152,6 +153,7 @@ function descendentes(no: Container): Container[] {
 interface Teclas {
   ctrl?: boolean
   alt?: boolean
+  shift?: boolean
 }
 
 function ponteiro(tipo: 'pointerdown' | 'pointermove' | 'pointerup', mundo: { x: number; y: number }, teclas: Teclas = {}): void {
@@ -164,6 +166,7 @@ function ponteiro(tipo: 'pointerdown' | 'pointermove' | 'pointerup', mundo: { x:
   e.buttons = tipo === 'pointerup' ? 0 : 1
   e.ctrlKey = teclas.ctrl ?? false
   e.altKey = teclas.alt ?? false
+  e.shiftKey = teclas.shift ?? false
   e.global.set(camera.x + mundo.x * camera.scale, camera.y + mundo.y * camera.scale)
   act(() => {
     stage().emit(tipo, e)
@@ -773,5 +776,261 @@ describe('PixiCanvas — espaçamento igual e o número dos vãos (pedido 3, fat
     ponteiro('pointermove', { x: 665, y: 502 })
     expect(useMapStore.getState().map.walls.find((w) => w.id === 'm')).toMatchObject({ x1: 612, y1: 500, x2: 740, y2: 500 })
     expect(numerosNaTela()).toEqual(['3,0 m', '3,0 m'])
+  })
+})
+
+/**
+ * FATIA 4: guias ENQUANTO DESENHA. O ponto de partida encaixa no apertar e o
+ * ponto puxado a cada movimento, pela borda e pelo centro das caixas vizinhas,
+ * com a guia magenta e a tolerância de 6 px de tela. No traço (parede, linha,
+ * escada) e na forma de raio, o ponto de partida também é candidato: a ponta a
+ * poucos px da reta do começo deixa o traço deitado ou em pé. Quem solta a
+ * guia é o Ctrl, em todo desenho (decisão b de `lib/smartGuides.ts`): na
+ * parede e na linha ele trava o ângulo, e com a trava a guia não encaixa.
+ * ALVO: 640..960 × 100..300, centro (800, 200). Grade de 64, desligada.
+ */
+describe('PixiCanvas — guias ao desenhar (pedido 3, fatia 4)', () => {
+  const atual = (): MapData => useMapStore.getState().map
+
+  function usa(ferramenta: DrawingTool): void {
+    act(() => useMapStore.setState({ activeTool: ferramenta }))
+  }
+
+  /** A sala que a ferramenta acabou de criar: a única que não é a ALVO. */
+  function salaNova(): Region {
+    const nova = atual().regions.find((r) => r.id !== 'alvo')
+    if (!nova) throw new Error('a ferramenta não criou a sala')
+    return nova
+  }
+
+  /** O rótulo de ângulo visível agora (o único texto com "°"), ou `null`. */
+  function rotuloDoAngulo(): string | null {
+    const texto = descendentes(stage()).find((no): no is Text => no instanceof Text && no.visible && no.text.includes('°'))
+    return texto === undefined ? null : texto.text
+  }
+
+  beforeEach(() => {
+    prepara(mapa([ALVO]))
+  })
+
+  describe('Sala (de canto a canto)', () => {
+    it('o canto de partida a 3 px da borda da vizinha encaixa nela; a guia aparece no arrasto e some ao soltar', async () => {
+      await monta()
+      usa('room')
+      ponteiro('pointerdown', { x: 643, y: 500 })
+      ponteiro('pointermove', { x: 900, y: 700 })
+      expect(guiaMagenta()).not.toBeNull()
+      ponteiro('pointerup', { x: 900, y: 700 })
+      expect(caixaDa(salaNova().id)).toEqual({ minX: 640, maxX: 900, minY: 500, maxY: 700 })
+      expect(guiaMagenta()).toBeNull()
+    })
+
+    it('o canto puxado a 3 px da borda da vizinha encaixa nela, e o que se viu no arrasto é o que fica', async () => {
+      await monta()
+      usa('room')
+      ponteiro('pointerdown', { x: 300, y: 500 })
+      ponteiro('pointermove', { x: 957, y: 700 })
+      expect(guiaMagenta()).not.toBeNull()
+      ponteiro('pointerup', { x: 957, y: 700 })
+      expect(caixaDa(salaNova().id)).toEqual({ minX: 300, maxX: 960, minY: 500, maxY: 700 })
+    })
+
+    it('com Ctrl nada encaixa e não há guia', async () => {
+      await monta()
+      usa('room')
+      ponteiro('pointerdown', { x: 300, y: 500 })
+      ponteiro('pointermove', { x: 957, y: 700 }, { ctrl: true })
+      expect(guiaMagenta()).toBeNull()
+      ponteiro('pointerup', { x: 957, y: 700 }, { ctrl: true })
+      expect(caixaDa(salaNova().id).maxX).toBe(957)
+    })
+
+    it('Shift depois da guia: o quadrado tira o canto do centro da vizinha, e nenhuma guia fica mentindo', async () => {
+      await monta()
+      usa('room')
+      ponteiro('pointerdown', { x: 300, y: 500 })
+      // A guia leva o canto a x = 800 (centro da ALVO); o Shift faz o quadrado
+      // pelo lado maior (600) e o canto vai a x = 900, onde nada alinha.
+      ponteiro('pointermove', { x: 797, y: 1100 }, { shift: true })
+      expect(guiaMagenta()).toBeNull()
+      ponteiro('pointerup', { x: 797, y: 1100 }, { shift: true })
+      expect(caixaDa(salaNova().id)).toEqual({ minX: 300, maxX: 900, minY: 500, maxY: 1100 })
+    })
+
+    it('a sala selecionada continua sendo guia: nada anda ao desenhar, e a próxima sala alinha com a que acabou de nascer selecionada', async () => {
+      await monta()
+      act(() => useMapStore.setState({ selection: [{ kind: 'region', id: 'alvo' }] }))
+      usa('room')
+      ponteiro('pointerdown', { x: 643, y: 500 })
+      ponteiro('pointermove', { x: 900, y: 700 })
+      ponteiro('pointerup', { x: 900, y: 700 })
+      expect(caixaDa(salaNova().id).minX).toBe(640)
+    })
+
+    it('Esc no meio do desenho: o rascunho e a guia somem', async () => {
+      await monta()
+      usa('room')
+      ponteiro('pointerdown', { x: 300, y: 500 })
+      ponteiro('pointermove', { x: 957, y: 700 })
+      expect(guiaMagenta()).not.toBeNull()
+      act(() => {
+        window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+      })
+      expect(guiaMagenta()).toBeNull()
+    })
+  })
+
+  describe('grade × guia ao desenhar', () => {
+    // Vizinha fora da grade: bordas em 643 e 963.
+    const ALVO_FORA_DA_GRADE = sala('alvo', 643, 100, 963, 300)
+
+    it('grade ligada e sem Alt: o canto vai para o vértice da grade e a guia não o puxa', async () => {
+      prepara(mapa([ALVO_FORA_DA_GRADE]), true)
+      await monta()
+      usa('room')
+      ponteiro('pointerdown', { x: 300, y: 500 })
+      ponteiro('pointermove', { x: 966, y: 700 })
+      expect(guiaMagenta()).toBeNull()
+      ponteiro('pointerup', { x: 966, y: 700 })
+      expect(caixaDa(salaNova().id)).toEqual({ minX: 320, maxX: 960, minY: 512, maxY: 704 })
+    })
+
+    it('grade ligada e Alt no gesto: o Alt solta a grade e a guia encaixa', async () => {
+      prepara(mapa([ALVO_FORA_DA_GRADE]), true)
+      await monta()
+      usa('room')
+      ponteiro('pointerdown', { x: 300, y: 500 }, { alt: true })
+      ponteiro('pointermove', { x: 966, y: 700 }, { alt: true })
+      expect(guiaMagenta()).not.toBeNull()
+      ponteiro('pointerup', { x: 966, y: 700 }, { alt: true })
+      expect(caixaDa(salaNova().id)).toEqual({ minX: 300, maxX: 963, minY: 500, maxY: 700 })
+    })
+  })
+
+  describe('Linha, Parede e Escada', () => {
+    it('linha quase deitada fica deitada: a ponta encaixa na altura do começo, e o rótulo mostra o comprimento e o ângulo', async () => {
+      await monta()
+      usa('line')
+      ponteiro('pointerdown', { x: 100, y: 500 })
+      ponteiro('pointermove', { x: 420, y: 504 })
+      expect(guiaMagenta()).not.toBeNull()
+      // 320 px = 5 células de 1,5 m.
+      expect(rotuloDoAngulo()).toBe('7,5 m · 0.0°')
+      ponteiro('pointerup', { x: 420, y: 504 })
+      expect(atual().drawings[0]).toMatchObject({ kind: 'line', x1: 100, y1: 500, x2: 420, y2: 500 })
+      expect(guiaMagenta()).toBeNull()
+    })
+
+    it('a ponta da linha encaixa no centro da sala vizinha, nos dois eixos', async () => {
+      await monta()
+      usa('line')
+      ponteiro('pointerdown', { x: 100, y: 500 })
+      ponteiro('pointermove', { x: 797, y: 203 })
+      ponteiro('pointerup', { x: 797, y: 203 })
+      expect(atual().drawings[0]).toMatchObject({ kind: 'line', x2: 800, y2: 200 })
+    })
+
+    it('linha com Ctrl: a trava de ângulo manda, sem guia, e o rótulo mostra o ângulo travado', async () => {
+      await monta()
+      usa('line')
+      ponteiro('pointerdown', { x: 100, y: 500 })
+      ponteiro('pointermove', { x: 420, y: 504 }, { ctrl: true })
+      expect(guiaMagenta()).toBeNull()
+      expect(rotuloDoAngulo()).toBe('7,5 m · 0°')
+      ponteiro('pointerup', { x: 420, y: 504 }, { ctrl: true })
+      const linhaFeita = atual().drawings[0]
+      if (linhaFeita.kind !== 'line') throw new Error('esperava uma linha')
+      expect(linhaFeita.y2).toBeCloseTo(500)
+      // A trava guarda o comprimento do arrasto (hypot(320, 4)), sem encaixe nenhum.
+      expect(linhaFeita.x2).toBeCloseTo(100 + Math.hypot(320, 4))
+    })
+
+    it('parede: a ponta encaixa na borda da sala, e perto da quina o ímã de vértice ganha da guia', async () => {
+      prepara(mapa([ALVO], paredesDa(ALVO)))
+      await monta()
+      usa('wall')
+      ponteiro('pointerdown', { x: 300, y: 800 })
+      ponteiro('pointermove', { x: 643, y: 600 })
+      expect(guiaMagenta()).not.toBeNull()
+      // A 7 px da quina (640, 300): o ímã leva a ponta exata a ela, sem guia.
+      ponteiro('pointermove', { x: 645, y: 305 })
+      expect(guiaMagenta()).toBeNull()
+      ponteiro('pointerup', { x: 645, y: 305 })
+      const nova = atual().walls.find((w) => w.regionId === undefined)
+      expect(nova).toMatchObject({ x1: 300, y1: 800, x2: 640, y2: 300 })
+    })
+
+    it('escada: a ponta quase deitada fica deitada, como a da linha', async () => {
+      await monta()
+      usa('stair')
+      ponteiro('pointerdown', { x: 100, y: 500 })
+      ponteiro('pointermove', { x: 420, y: 504 })
+      ponteiro('pointerup', { x: 420, y: 504 })
+      expect(atual().stairs[0].segments[0]).toEqual({ x1: 100, y1: 500, x2: 420, y2: 500 })
+    })
+
+    it('ímã de vértice em px de TELA: no zoom 0,5 a ponta a 20 px de mundo (10 de tela) da quina gruda nela', async () => {
+      prepara(mapa([ALVO], paredesDa(ALVO)))
+      await monta({ x: 0, y: 0, scale: 0.5 })
+      usa('wall')
+      ponteiro('pointerdown', { x: 300, y: 800 })
+      ponteiro('pointermove', { x: 660, y: 300 })
+      ponteiro('pointerup', { x: 660, y: 300 })
+      expect(atual().walls.find((w) => w.regionId === undefined)).toMatchObject({ x2: 640, y2: 300 })
+    })
+
+    it('ímã de vértice em px de TELA: no zoom 2 a ponta a 8 px de mundo (16 de tela) da quina não gruda', async () => {
+      prepara(mapa([ALVO], paredesDa(ALVO)))
+      await monta({ x: 0, y: 0, scale: 2 })
+      usa('wall')
+      ponteiro('pointerdown', { x: 300, y: 800 })
+      ponteiro('pointermove', { x: 648, y: 300 })
+      ponteiro('pointerup', { x: 648, y: 300 })
+      expect(atual().walls.find((w) => w.regionId === undefined)).toMatchObject({ x2: 648, y2: 300 })
+    })
+  })
+
+  describe('formas de raio e de centro', () => {
+    it('Sala circular: o centro encaixa no centro da vizinha, e o raio puxado quase deitado deixa a sala em pé na reta do centro', async () => {
+      await monta()
+      usa('roomCircle')
+      ponteiro('pointerdown', { x: 803, y: 600 })
+      ponteiro('pointermove', { x: 1000, y: 604 })
+      expect(guiaMagenta()).not.toBeNull()
+      ponteiro('pointerup', { x: 1000, y: 604 })
+      const redonda = salaNova()
+      // O primeiro vértice fica sob o ponto puxado (`buildRegularPolygonRoomFromDraft`).
+      expect(redonda.points[0].x).toBeCloseTo(1000)
+      expect(redonda.points[0].y).toBeCloseTo(600)
+      const caixa = caixaDa(redonda.id)
+      expect((caixa.minX + caixa.maxX) / 2).toBeCloseTo(800)
+    })
+
+    it('Círculo (desenho): o centro encaixa e o raio puxado quase deitado fica na reta do centro', async () => {
+      await monta()
+      usa('circle')
+      ponteiro('pointerdown', { x: 803, y: 600 })
+      ponteiro('pointermove', { x: 1000, y: 604 })
+      ponteiro('pointerup', { x: 1000, y: 604 })
+      expect(atual().drawings[0]).toMatchObject({ kind: 'circle', cx: 800, cy: 600, radius: 200 })
+    })
+
+    it('Elipse: o centro encaixa no centro da vizinha', async () => {
+      await monta()
+      usa('ellipse')
+      ponteiro('pointerdown', { x: 803, y: 600 })
+      ponteiro('pointermove', { x: 900, y: 650 })
+      ponteiro('pointerup', { x: 900, y: 650 })
+      expect(atual().drawings[0]).toMatchObject({ kind: 'ellipse', cx: 800, cy: 600, rx: 100, ry: 50 })
+    })
+  })
+
+  it('Caminho: entre um clique e outro, o rótulo mostra o comprimento e o ângulo do segmento até o cursor', async () => {
+    await monta()
+    usa('path')
+    ponteiro('pointerdown', { x: 100, y: 500 })
+    ponteiro('pointerup', { x: 100, y: 500 })
+    ponteiro('pointermove', { x: 420, y: 500 })
+    expect(rotuloDoAngulo()).toBe('7,5 m · 0.0°')
   })
 })

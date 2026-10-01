@@ -27,7 +27,7 @@ import { ROOM_CIRCLE_SIDES } from '../lib/roomCircle'
 import type { HoverHit, HoverTarget } from '../lib/hoverHitTest'
 import { drawHover } from './drawHover'
 // Onda 2, item 16 (Frente C) — número ao vivo durante o arrasto de forma.
-import { dimensionLabel, type DimensionDraft } from '../lib/dimensionText'
+import { dimensionLabel, lengthAndAngleLabel, type DimensionDraft } from '../lib/dimensionText'
 import { createDimensionLabelRenderer } from './drawDimensionLabel'
 // Onda 2, item 14 (Frente E) — Shift trava proporção em rect/room/ellipse.
 import { constrainDraft } from '../lib/shapeConstraint'
@@ -192,7 +192,7 @@ import { isFreeMoveModifier } from '../lib/alignmentGuides'
 // Pedido 3 (guias estilo Figma): o que anda encaixa pela CAIXA (borda e
 // centro) das vizinhas, com tolerância em px de tela. Fatia 1: a sala; fatia
 // 2: todo arrasto de corpo e de ponto; fatia 3: espaçamento igual e o número
-// de cada vão.
+// de cada vão; fatia 4: o ponto de partida e o ponto puxado ao DESENHAR.
 import {
   SMART_GUIDE_SCREEN_PX,
   dragBoxWithGuides,
@@ -203,7 +203,9 @@ import {
   sameOverlay,
   screenPxToWorld,
   type GapMark,
+  type GuideMode,
   type GuideOverlay,
+  type SmartGuide,
 } from '../lib/smartGuides'
 import { guideBoxOfProp, guideBoxOfSelection, guideBoxOfStair, guideBoxesForDrag, guidePointsForDrag, type GuideBoxesOptions, type GuidePointKind } from '../lib/guideBoxes'
 import { drawSmartGuides } from './drawSmartGuides'
@@ -349,6 +351,31 @@ interface GuideKeys {
 }
 
 /**
+ * Pedido 3, fatia 4: DESENHO com guias — Sala, Retângulo, Elipse, Círculo,
+ * Sala circular, Polígono regular, Parede, Linha e Escada. Montado no
+ * pointerdown: o ponto de partida encaixa ali, e o pointermove só varre as
+ * candidatas prontas para o ponto puxado.
+ */
+interface DraftGuide {
+  /** Caixas das peças e pontas de parede do piso, perto da tela. Nada fica de fora: ao desenhar, nada anda. */
+  boxes: AreaBounds[]
+  /**
+   * As candidatas do ponto PUXADO: as de cima e, no traço e na forma de raio,
+   * o próprio ponto de partida — a ponta a poucos px da reta do começo deixa
+   * o traço deitado ou em pé, e o raio da sala redonda na reta do centro.
+   */
+  endBoxes: AreaBounds[]
+  /** As guias do ponto de partida. Ele não anda no gesto, e a guia dele fica na tela até soltar. */
+  startGuides: SmartGuide[]
+}
+
+/** A ponta puxada de um desenho, e as guias dela já na posição final. */
+interface DraftEnd {
+  end: Point
+  guides: SmartGuide[]
+}
+
+/**
  * Abaixo disto (px de mundo) o passo é resto de ponto flutuante, não
  * movimento: presa no encaixe, a peça receberia um passo de 1e-13 a cada
  * pointermove, e cada um refaria o desenho do mapa à toa.
@@ -440,14 +467,15 @@ function describeDeletion(map: MapData, selection: readonly { kind: SelectionKin
   return `${selection.length} itens apagados: ${detalhe}`
 }
 
-// Tolerância (em pixels de mundo) do "ímã" de vértice ao desenhar Parede ou
-// Linha: se o ponto inicial ou final do arrasto cai dentro deste raio de um
-// vértice já existente (ponta de outra parede, vértice de região, ponta de
-// outra linha/curva — ver findNearestExistingVertex), gruda EXATAMENTE nesse
-// vértice em vez de ficar solto perto dele. Mesmo valor usado como default
-// em findNearestExistingVertex; repetido aqui só para o call site ficar
-// explícito sobre qual tolerância está em jogo.
-const VERTEX_MAGNET_TOLERANCE = 12
+// Tolerância (em px de TELA) do "ímã" de vértice ao desenhar Parede, Linha e
+// Escada e ao arrastar a ponta de uma parede: se o ponto cai dentro deste raio
+// de um vértice já existente (ponta de outra parede, vértice de região, ponta
+// de outra linha/curva — ver findNearestExistingVertex), gruda EXATAMENTE
+// nesse vértice em vez de ficar solto perto dele. Em px de tela desde o pedido
+// 3 (fatia 4), como a guia: em px de mundo o ímã ficava largo demais com o
+// zoom afastado e sumia com o zoom próximo. O canvas converte pelo zoom de
+// agora (`vertexMagnetTolerance`).
+const VERTEX_MAGNET_SCREEN_PX = 12
 
 /** Folga de clique do pino, em px de TELA — o alvo do dedo não encolhe com o zoom. */
 const PIN_TAP_TOLERANCE_PX = 6
@@ -958,10 +986,20 @@ export function PixiCanvas({
       // Graphics e Text; com grupo próprio, só os dele (hover de 40 passos,
       // 400 salas: 497 → 57 ms de script, mesma medição).
       hoverGraphics.enableRenderGroup()
-      // A guia e os números do vão NÃO têm grupo próprio: eles mudam junto com
-      // a peça arrastada, que já refaz os lotes do mapa no mesmo quadro, e
-      // presos no encaixe não mudam (`showGuides`). Grupo a mais seria custo
-      // sem ganho medido (arrasto até o vão igual: 0 tarefa longa, p95 16,8 ms).
+      // Ao DESENHAR o mapa não muda: quem muda a cada pointermove é o
+      // rascunho, a guia (pedido 3, fatia 4) e o rótulo de medida. No grupo do
+      // mapa, cada um deles obrigava o Pixi a refazer os lotes do mapa inteiro,
+      // como o anel de hover acima. Com grupo próprio, só os deles. Medido com
+      // 400 salas e 40 passos de arrasto (script, mediana de 5): Sala 97 → 62
+      // ms, Linha 87 → 52, Parede 84 → 47 — abaixo até do desenho sem guia de
+      // antes (76, 75, 75).
+      draftGraphics.enableRenderGroup()
+      guidesGraphics.enableRenderGroup()
+      angleIndicatorContainer.enableRenderGroup()
+      // Os números do vão NÃO têm grupo próprio: eles mudam junto com a peça
+      // arrastada, que já refaz os lotes do mapa no mesmo quadro, e presos no
+      // encaixe não mudam (`showGuides`). Grupo a mais seria custo sem ganho
+      // medido (arrasto até o vão igual: 0 tarefa longa, p95 16,8 ms).
       // 17/09/2026 — arrastar no vazio virou marquee (era pan). A dica que
       // conta por onde o pan foi mora DENTRO do retângulo em curso; entra no
       // `world` DEPOIS de todas as camadas acima, por cima de todas elas, que
@@ -2298,6 +2336,9 @@ export function PixiCanvas({
       // Arrasto de ponto com guias (ponta, vértice, ficha): as candidatas do
       // gesto, montadas no pointerdown. Vazia fora do gesto.
       let pointGuideBoxes: AreaBounds[] = []
+      // Desenho com guias (fatia 4): as candidatas do traço em curso e as
+      // guias do ponto de partida. `null` fora de um desenho.
+      let draftGuide: DraftGuide | null = null
       // O que a camada das guias mostra agora (guias e vãos), e em que zoom (ver `showGuides`).
       let guidesShown: GuideOverlay = { guides: [], gaps: [] }
       let guidesShownScale = 0
@@ -2646,6 +2687,7 @@ export function PixiCanvas({
       const endGuides = (): void => {
         bodyGuideDrag = null
         pointGuideBoxes = []
+        draftGuide = null
         guidesGraphics.clear()
         guideLabels.hide()
         guidesShown = { guides: [], gaps: [] }
@@ -2661,13 +2703,11 @@ export function PixiCanvas({
        * no pointerdown; o pointermove não toca no mapa para achá-las.
        */
       const guideSearch = (moving: Partial<AreaSelection>): GuideBoxesOptions => {
-        const store = useMapStore.getState()
-        const selecionado = selectionToAreaSelection(store.selection)
+        const selecionado = selectionToAreaSelection(useMapStore.getState().selection)
         // `?? []`: o gesto só diz o tipo do que anda; os outros tipos não têm nada.
         const junto = (tipo: keyof AreaSelection): string[] => [...selecionado[tipo], ...(moving[tipo] ?? [])]
-        const viewport = computeViewport()
         return {
-          piso: store.pisoAtivo,
+          ...guideReach(),
           exclude: {
             walls: junto('walls'),
             regions: junto('regions'),
@@ -2677,6 +2717,14 @@ export function PixiCanvas({
             stairs: junto('stairs'),
             drawings: junto('drawings'),
           },
+        }
+      }
+
+      /** O piso em edição, a tela de agora e uma tela de folga para cada lado: onde as candidatas são procuradas. */
+      const guideReach = (): Pick<GuideBoxesOptions, 'piso' | 'viewport' | 'margin'> => {
+        const viewport = computeViewport()
+        return {
+          piso: useMapStore.getState().pisoAtivo,
           viewport,
           margin: Math.max(viewport.right - viewport.left, viewport.bottom - viewport.top),
         }
@@ -2897,6 +2945,136 @@ export function PixiCanvas({
         // Ponto não mede vão (fatia 3 é do arrasto de corpo): só a guia.
         showGuides({ guides: result.guides, gaps: [] })
         return result.point
+      }
+
+      /** Ímã de vértice em px de TELA, pelo zoom de agora (`VERTEX_MAGNET_SCREEN_PX`). */
+      const vertexMagnetTolerance = (): number => screenPxToWorld(VERTEX_MAGNET_SCREEN_PX, camera.scale)
+
+      /**
+       * Quem manda no ponto do desenho (fatia 4): a regra do arrasto, com a
+       * grade de parede, que é a de todo desenho. O Ctrl solta a guia; na
+       * Parede, na Linha e na Escada ele também trava o ângulo, e com a trava
+       * a guia não encaixa (decisão b de `smartGuides.ts`).
+       */
+      const draftGuideMode = (event: GuideKeys): GuideMode =>
+        guideModeForDrag({ free: isFreeMoveModifier(event), altKey: event.altKey, gridBySetting: useMapStore.getState().snapTargets.wall })
+
+      /**
+       * Começa um desenho com guia e devolve o ponto de partida encaixado.
+       * `point` já vem com a grade do gesto. `fromMagnet`: o ímã de vértice o
+       * pegou, e o ponto exato não ganha guia — a quina de uma sala alinharia
+       * com as bordas da própria sala, ruído puro.
+       *
+       * Nada fica de fora das candidatas: ao desenhar nada anda, e a decisão
+       * (a) de `smartGuides.ts` é do que anda. A sala recém-desenhada nasce
+       * selecionada, e é justamente a vizinha com que a próxima alinha.
+       * Montado uma vez aqui; o pointermove só varre a lista pronta.
+       */
+      const startDraftGuides = (point: Point, event: GuideKeys, options: { fromMagnet: boolean; endAlignsWithStart: boolean }): Point => {
+        const { map } = useMapStore.getState()
+        const search: GuideBoxesOptions = { ...guideReach(), exclude: EMPTY_AREA_SELECTION }
+        const boxes = [...guideBoxesForDrag(map, search), ...guidePointsForDrag(map, 'wall-ends', search)]
+        const start = options.fromMagnet
+          ? { point, guides: [] }
+          : dragPointWithGuides({ point, others: boxes, tolerance: screenPxToWorld(SMART_GUIDE_SCREEN_PX, camera.scale), mode: draftGuideMode(event) })
+        draftGuide = { boxes, endBoxes: options.endAlignsWithStart ? [...boxes, pointBox(start.point)] : boxes, startGuides: start.guides }
+        return start.point
+      }
+
+      /**
+       * Começo de Parede, Linha e Escada: o ímã de vértice primeiro (a ponta de
+       * outra parede é o ponto exato, sem grade por cima), senão a grade e a
+       * guia. A ponta puxada alinha também com o começo: o traço deitado ou em pé.
+       */
+      const startStrokeDraft = (worldPoint: Point, event: GuideKeys): Point => {
+        const { map } = useMapStore.getState()
+        const magnet = findNearestExistingVertex(doPisoEmEdicao(map), worldPoint, vertexMagnetTolerance())
+        const point = magnet ?? applySnap(worldPoint, map.grid, 'wall', event.altKey)
+        return startDraftGuides(point, event, { fromMagnet: magnet !== null, endAlignsWithStart: true })
+      }
+
+      /**
+       * Começo de forma: o canto de Sala e Retângulo, o centro de Elipse,
+       * Círculo e das salas de raio. `endAlignsWithStart` só nas de raio (o raio
+       * na reta do centro deixa a sala em pé); nas de canto, o canto oposto
+       * alinhado com o primeiro daria uma forma de largura zero.
+       */
+      const startShapeDraft = (worldPoint: Point, event: GuideKeys, endAlignsWithStart: boolean): Point =>
+        startDraftGuides(applySnap(worldPoint, useMapStore.getState().map.grid, 'wall', event.altKey), event, { fromMagnet: false, endAlignsWithStart })
+
+      /** O ponto puxado nas candidatas do desenho: guia, grade exata ou nada (`draftGuideMode`). */
+      const draftPointWithGuides = (point: Point, event: GuideKeys): DraftEnd => {
+        // Sem desenho começado não há candidata: o ponto fica onde a grade o pôs.
+        const others = draftGuide === null ? [] : draftGuide.endBoxes
+        const result = dragPointWithGuides({ point, others, tolerance: screenPxToWorld(SMART_GUIDE_SCREEN_PX, camera.scale), mode: draftGuideMode(event) })
+        return { end: result.point, guides: result.guides }
+      }
+
+      /**
+       * A ponta puxada de Parede, Linha e Escada. Preview (pointermove) e
+       * commit (pointerup) passam os dois por aqui: o que se vê arrastando é o
+       * que fica ao soltar.
+       *  1. Ímã de vértice: a ponta cai exata na de outra parede, sem guia.
+       *  2. Ctrl: trava o ângulo em passos de 45°, sem guia (decisão b de
+       *     `smartGuides.ts`). Na grade hexagonal a ponta travada não passa pela
+       *     grade — ver o bloco de preview da Parede.
+       *  3. Senão a grade do gesto e, por cima, a guia.
+       * `angleReference` é de onde o rótulo mede o ângulo: com a trava, o ponto
+       * travado ("90°" limpo, mesmo que a grade quadrada o arredonde); sem ela,
+       * a própria ponta, para o número ser o do traço que fica.
+       */
+      const strokeDraftEnd = (start: Point, worldPoint: Point, event: GuideKeys): DraftEnd & { angleReference: Point } => {
+        const { map } = useMapStore.getState()
+        const magnet = findNearestExistingVertex(doPisoEmEdicao(map), worldPoint, vertexMagnetTolerance())
+        if (magnet) return { end: magnet, angleReference: magnet, guides: [] }
+        if (event.ctrlKey) {
+          const constrained = constrainToAngleStep(start, worldPoint)
+          const end = map.gridShape === 'hex' ? constrained : applySnap(constrained, map.grid, 'wall', event.altKey)
+          return { end, angleReference: constrained, guides: [] }
+        }
+        const guided = draftPointWithGuides(applySnap(worldPoint, map.grid, 'wall', event.altKey), event)
+        return { ...guided, angleReference: guided.end }
+      }
+
+      /**
+       * O canto puxado de Sala, Retângulo e Elipse, e o ponto do raio de
+       * Círculo, Sala circular e Polígono regular. `point` já vem com a grade
+       * do gesto (o raio do Círculo nunca teve grade, e continua sem). A guia
+       * vem antes do Shift (quadrado, círculo), que pode tirar o canto dela: a
+       * guia mostrada é sempre a da posição FINAL, só no alinhamento exato, e
+       * nenhuma guia promete o que não ficou. `constrainTool` = a forma que o
+       * Shift trava (`constrainDraft`); `null` nas de raio, que o Shift não muda.
+       */
+      const shapeDraftEnd = (
+        start: Point,
+        point: Point,
+        constrainTool: 'room' | 'rect' | 'ellipse' | null,
+        event: GuideKeys & { shiftKey: boolean },
+      ): DraftEnd => {
+        const guided = draftPointWithGuides(point, event)
+        if (constrainTool === null) return guided
+        const end = constrainDraft(start, guided.end, constrainTool, { shift: event.shiftKey, alt: event.altKey })
+        if (end.x === guided.end.x && end.y === guided.end.y) return guided
+        if (draftGuideMode(event) === 'free' || draftGuide === null) return { end, guides: [] }
+        // 'gridExact': só a guia do alinhamento que já é exato, sem mover o canto.
+        const exact = dragPointWithGuides({ point: end, others: draftGuide.endBoxes, tolerance: screenPxToWorld(SMART_GUIDE_SCREEN_PX, camera.scale), mode: 'gridExact' })
+        return { end, guides: exact.guides }
+      }
+
+      /**
+       * As guias do desenho na tela: as do ponto de partida, fixas, e as do
+       * ponto puxado. Com o Ctrl (guia solta) nenhuma aparece, nem a do começo.
+       */
+      const showDraftGuides = (endGuides: readonly SmartGuide[], event: GuideKeys): void => {
+        const startGuides = draftGuide === null || draftGuideMode(event) === 'free' ? [] : draftGuide.startGuides
+        showGuides({ guides: [...startGuides, ...endGuides], gaps: [] })
+      }
+
+      /** O rótulo do traço perto da ponta: o comprimento e o ângulo, "3,0 m · 90°". */
+      const strokeLabel = (start: Point, end: Point, angleReference: Point, angleLocked: boolean): string => {
+        const { map } = useMapStore.getState()
+        const length = dimensionLabel({ tool: 'line', start, end }, map.grid, map.gridShape, map.scale)
+        return lengthAndAngleLabel(length, formatAngleLabel(angleDegrees(start, angleReference), angleLocked))
       }
 
       /**
@@ -3346,6 +3524,10 @@ export function PixiCanvas({
         dimensionLabelRenderer.hide()
         hoverGraphics.clear()
         hoverTarget = null
+        // Rascunho cancelado (Esc, troca de ferramenta) no meio do arrasto: a
+        // guia do desenho some junto, sem esperar o botão subir. Só com desenho
+        // em curso: no meio de um arrasto de peça a guia é dele.
+        if (draftGuide !== null) endGuides()
       }
 
       /**
@@ -3615,6 +3797,8 @@ export function PixiCanvas({
         addDrawing(buildPathDrawing(crypto.randomUUID(), points, pathColor, pathWidthCells, map.grid))
         pathDraftPoints = []
         draftGraphics.clear()
+        // O rótulo do segmento em curso sai junto: o Enter fecha sem pointerup, que é quem o esconde.
+        angleIndicatorRenderer.hide()
         return true
       }
 
@@ -3983,15 +4167,15 @@ export function PixiCanvas({
           // Ímã primeiro: se a ponta inicial cai perto de um vértice já
           // existente, usa ele direto (sem grid-snap por cima — o vértice
           // pode não estar exatamente numa célula da grade). Só cai no
-          // applySnap normal quando não há vértice perto o bastante.
-          wallDraftStart = findNearestExistingVertex(doPisoEmEdicao(map), worldPoint, VERTEX_MAGNET_TOLERANCE) ?? applySnap(worldPoint, map.grid, 'wall', event.altKey)
+          // applySnap normal, e na guia (fatia 4), quando não há vértice perto.
+          wallDraftStart = startStrokeDraft(worldPoint, event)
           return
         }
 
         if (activeTool === 'stair') {
           mode = 'drawing-stair'
-          // Mesmo ímã dos blocos de Parede/Linha acima — ver comentário lá.
-          stairDraftStart = findNearestExistingVertex(doPisoEmEdicao(map), worldPoint, VERTEX_MAGNET_TOLERANCE) ?? applySnap(worldPoint, map.grid, 'wall', event.altKey)
+          // Mesmo ímã e mesma guia dos blocos de Parede/Linha — ver `startStrokeDraft`.
+          stairDraftStart = startStrokeDraft(worldPoint, event)
           return
         }
 
@@ -4032,7 +4216,7 @@ export function PixiCanvas({
 
         if (activeTool === 'room') {
           mode = 'drawing-room'
-          roomDraftStart = applySnap(worldPoint, map.grid, 'wall', event.altKey)
+          roomDraftStart = startShapeDraft(worldPoint, event, false)
           return
         }
 
@@ -4086,14 +4270,14 @@ export function PixiCanvas({
 
         if (activeTool === 'roomCircle') {
           mode = 'drawing-polygon-room'
-          polygonDraftCenter = applySnap(worldPoint, map.grid, 'wall', event.altKey)
+          polygonDraftCenter = startShapeDraft(worldPoint, event, true)
           polygonDraftSides = ROOM_CIRCLE_SIDES
           return
         }
 
         if (activeTool === 'roomPolygon') {
           mode = 'drawing-polygon-room'
-          polygonDraftCenter = applySnap(worldPoint, map.grid, 'wall', event.altKey)
+          polygonDraftCenter = startShapeDraft(worldPoint, event, true)
           polygonDraftSides = useMapStore.getState().polygonSides
           return
         }
@@ -4184,26 +4368,26 @@ export function PixiCanvas({
 
         if (activeTool === 'line') {
           mode = 'drawing-line'
-          // Mesmo ímã do bloco de Parede acima — ver comentário lá.
-          lineDraftStart = findNearestExistingVertex(doPisoEmEdicao(map), worldPoint, VERTEX_MAGNET_TOLERANCE) ?? applySnap(worldPoint, map.grid, 'wall', event.altKey)
+          // Mesmo ímã e mesma guia do bloco de Parede acima — ver `startStrokeDraft`.
+          lineDraftStart = startStrokeDraft(worldPoint, event)
           return
         }
 
         if (activeTool === 'circle') {
           mode = 'drawing-circle'
-          circleDraftCenter = applySnap(worldPoint, map.grid, 'wall', event.altKey)
+          circleDraftCenter = startShapeDraft(worldPoint, event, true)
           return
         }
 
         if (activeTool === 'rect') {
           mode = 'drawing-rect'
-          rectDraftStart = applySnap(worldPoint, map.grid, 'wall', event.altKey)
+          rectDraftStart = startShapeDraft(worldPoint, event, false)
           return
         }
 
         if (activeTool === 'ellipse') {
           mode = 'drawing-ellipse'
-          ellipseDraftCenter = applySnap(worldPoint, map.grid, 'wall', event.altKey)
+          ellipseDraftCenter = startShapeDraft(worldPoint, event, false)
           return
         }
 
@@ -4894,20 +5078,10 @@ export function PixiCanvas({
         }
         if (mode === 'drawing-wall' && wallDraftStart) {
           const worldPoint = toWorldPoint(event.global.x, event.global.y)
-          const { map, addWall } = useMapStore.getState()
-          // Ímã primeiro (mesma lógica do preview em pointermove, ver lá): se a
-          // ponta final cai perto de um vértice já existente, gruda nele direto,
-          // ignorando trava de ângulo e grid-snap — senão cai na lógica normal.
-          const magnet = findNearestExistingVertex(doPisoEmEdicao(map), worldPoint, VERTEX_MAGNET_TOLERANCE)
-          let end: Point
-          if (magnet) {
-            end = magnet
-          } else {
-            const constrained = event.ctrlKey ? constrainToAngleStep(wallDraftStart, worldPoint) : worldPoint
-            // Com Ctrl em grade hexagonal, NÃO re-snapa `constrained` — ver nota
-            // completa no bloco de preview (pointermove) mais abaixo, mesma lógica.
-            end = event.ctrlKey && map.gridShape === 'hex' ? constrained : applySnap(constrained, map.grid, 'wall', event.altKey)
-          }
+          const { addWall } = useMapStore.getState()
+          // Ímã, trava de ângulo, grade e guia: a MESMA conta do preview em
+          // pointermove (`strokeDraftEnd`), então o que se viu é o que fica.
+          const { end } = strokeDraftEnd(wallDraftStart, worldPoint, event)
           if (isValidWallDraft(wallDraftStart, end)) {
             addWall(buildWallFromDraft(crypto.randomUUID(), wallDraftStart, end, useMapStore.getState().wallKind))
           }
@@ -4926,18 +5100,9 @@ export function PixiCanvas({
 
         if (mode === 'drawing-line' && lineDraftStart) {
           const worldPoint = toWorldPoint(event.global.x, event.global.y)
-          const { map, addDrawing, drawColor, drawWidth, drawCap, drawDash } = useMapStore.getState()
-          // Ímã primeiro — mesma lógica do bloco de Parede acima, ver lá.
-          const magnet = findNearestExistingVertex(doPisoEmEdicao(map), worldPoint, VERTEX_MAGNET_TOLERANCE)
-          let end: Point
-          if (magnet) {
-            end = magnet
-          } else {
-            const constrained = event.ctrlKey ? constrainToAngleStep(lineDraftStart, worldPoint) : worldPoint
-            // Com Ctrl em grade hexagonal, NÃO re-snapa `constrained` — ver nota
-            // completa no bloco de preview (pointermove) mais abaixo, mesma lógica.
-            end = event.ctrlKey && map.gridShape === 'hex' ? constrained : applySnap(constrained, map.grid, 'wall', event.altKey)
-          }
+          const { addDrawing, drawColor, drawWidth, drawCap, drawDash } = useMapStore.getState()
+          // Mesma conta do preview — ver o bloco de Parede acima.
+          const { end } = strokeDraftEnd(lineDraftStart, worldPoint, event)
           if (isValidLineDraft(lineDraftStart, end)) {
             addDrawing(buildLineDrawing(crypto.randomUUID(), lineDraftStart, end, drawColor, drawWidth, drawCap, drawDash))
           }
@@ -4948,7 +5113,9 @@ export function PixiCanvas({
         if (mode === 'drawing-circle' && circleDraftCenter) {
           const worldPoint = toWorldPoint(event.global.x, event.global.y)
           const { addDrawing, drawColor, drawWidth, drawFilled, drawFillAlpha } = useMapStore.getState()
-          const radius = Math.hypot(worldPoint.x - circleDraftCenter.x, worldPoint.y - circleDraftCenter.y)
+          // O ponto do raio passa pela guia, como no preview (o raio nunca teve grade).
+          const { end } = shapeDraftEnd(circleDraftCenter, worldPoint, null, event)
+          const radius = Math.hypot(end.x - circleDraftCenter.x, end.y - circleDraftCenter.y)
           if (isValidCircleDraft(radius)) {
             addDrawing(buildCircleDrawing(crypto.randomUUID(), circleDraftCenter, radius, drawColor, drawWidth, drawFilled, drawFillAlpha))
           }
@@ -4959,10 +5126,9 @@ export function PixiCanvas({
         if (mode === 'drawing-rect' && rectDraftStart) {
           const worldPoint = toWorldPoint(event.global.x, event.global.y)
           const { map, addDrawing, drawColor, drawWidth, drawFilled, drawFillAlpha } = useMapStore.getState()
-          const snapped = applySnap(worldPoint, map.grid, 'wall', event.altKey)
-          // Onda 2, item 14 (Frente E) — Shift trava em quadrado; sem Shift
-          // devolve `snapped` intacto (mesmo comportamento de antes).
-          const end = constrainDraft(rectDraftStart, snapped, 'rect', { shift: event.shiftKey, alt: event.altKey })
+          // Onda 2, item 14 (Frente E) — Shift trava em quadrado, depois da
+          // grade e da guia (`shapeDraftEnd`, a mesma conta do preview).
+          const { end } = shapeDraftEnd(rectDraftStart, applySnap(worldPoint, map.grid, 'wall', event.altKey), 'rect', event)
           if (isValidRectDraft(rectDraftStart, end)) {
             addDrawing(buildRectDrawing(crypto.randomUUID(), rectDraftStart, end, drawColor, drawWidth, drawFilled, drawFillAlpha))
           }
@@ -4973,9 +5139,8 @@ export function PixiCanvas({
         if (mode === 'drawing-ellipse' && ellipseDraftCenter) {
           const worldPoint = toWorldPoint(event.global.x, event.global.y)
           const { map, addDrawing, drawColor, drawWidth, drawFilled, drawFillAlpha } = useMapStore.getState()
-          const snapped = applySnap(worldPoint, map.grid, 'wall', event.altKey)
-          // Onda 2, item 14 (Frente E) — Shift trava em círculo (rx===ry).
-          const end = constrainDraft(ellipseDraftCenter, snapped, 'ellipse', { shift: event.shiftKey, alt: event.altKey })
+          // Onda 2, item 14 (Frente E) — Shift trava em círculo (rx===ry), depois da grade e da guia.
+          const { end } = shapeDraftEnd(ellipseDraftCenter, applySnap(worldPoint, map.grid, 'wall', event.altKey), 'ellipse', event)
           const rx = Math.abs(end.x - ellipseDraftCenter.x)
           const ry = Math.abs(end.y - ellipseDraftCenter.y)
           if (isValidEllipseDraft(rx, ry)) {
@@ -5022,9 +5187,8 @@ export function PixiCanvas({
         if (mode === 'drawing-room' && roomDraftStart) {
           const worldPoint = toWorldPoint(event.global.x, event.global.y)
           const { map, roomFillColor, regionFillPattern } = useMapStore.getState()
-          const snapped = applySnap(worldPoint, map.grid, 'wall', event.altKey)
-          // Onda 2, item 14 (Frente E) — Shift trava em quadrado.
-          const end = constrainDraft(roomDraftStart, snapped, 'room', { shift: event.shiftKey, alt: event.altKey })
+          // Onda 2, item 14 (Frente E) — Shift trava em quadrado, depois da grade e da guia.
+          const { end } = shapeDraftEnd(roomDraftStart, applySnap(worldPoint, map.grid, 'wall', event.altKey), 'room', event)
           if (isValidRoomDraft(roomDraftStart, end)) {
             const wallIds: [string, string, string, string] = [
               crypto.randomUUID(),
@@ -5068,7 +5232,7 @@ export function PixiCanvas({
         if (mode === 'drawing-polygon-room' && polygonDraftCenter) {
           const worldPoint = toWorldPoint(event.global.x, event.global.y)
           const { map, roomFillColor, regionFillPattern } = useMapStore.getState()
-          const end = applySnap(worldPoint, map.grid, 'wall', event.altKey)
+          const { end } = shapeDraftEnd(polygonDraftCenter, applySnap(worldPoint, map.grid, 'wall', event.altKey), null, event)
           if (isValidRegularPolygonDraft(polygonDraftCenter, end)) {
             const wallIds = Array.from({ length: polygonDraftSides }, () => crypto.randomUUID())
             const result = buildRegularPolygonRoomFromDraft(
@@ -5092,17 +5256,8 @@ export function PixiCanvas({
         if (mode === 'drawing-stair' && stairDraftStart) {
           const worldPoint = toWorldPoint(event.global.x, event.global.y)
           const { map, addStair, stairSizePreset } = useMapStore.getState()
-          // Ímã primeiro — mesma lógica do bloco de Parede acima, ver lá.
-          const magnet = findNearestExistingVertex(doPisoEmEdicao(map), worldPoint, VERTEX_MAGNET_TOLERANCE)
-          let end: Point
-          if (magnet) {
-            end = magnet
-          } else {
-            const constrained = event.ctrlKey ? constrainToAngleStep(stairDraftStart, worldPoint) : worldPoint
-            // Com Ctrl em grade hexagonal, NÃO re-snapa `constrained` — mesma
-            // lógica do bloco de Parede acima, ver lá.
-            end = event.ctrlKey && map.gridShape === 'hex' ? constrained : applySnap(constrained, map.grid, 'wall', event.altKey)
-          }
+          // Mesma conta do preview — ver o bloco de Parede acima.
+          const { end } = strokeDraftEnd(stairDraftStart, worldPoint, event)
           if (isValidStairDraft(stairDraftStart, end)) {
             // Fase 5, N1 "escada P/M/G": stepWidth da PRÓXIMA escada vem da
             // preferência de sessão `stairSizePreset` (default 'medium' ===
@@ -5644,6 +5799,21 @@ export function PixiCanvas({
               drawRegionDraftPreview(cursor)
             }
           }
+          // O Caminho é feito de cliques soltos como a Região: a prévia até o
+          // cursor também mora aqui. Lá embaixo, depois do `return` deste bloco,
+          // ela nunca rodava. O segmento em curso ganha o rótulo de comprimento
+          // e ângulo da Linha (pedido 3, fatia 4); o caminho não tem grade nem
+          // guia de propósito (ver o pointerdown dele).
+          if (useMapStore.getState().activeTool === 'path') {
+            const last = pathDraftPoints.at(-1)
+            if (last === undefined) {
+              // Sem ponto (Ctrl+Z tirou o último): o rótulo do segmento não tem de onde medir.
+              angleIndicatorRenderer.hide()
+            } else {
+              drawPathPreview(worldPoint)
+              angleIndicatorRenderer.show(angleIndicatorContainer, worldPoint, strokeLabel(last, worldPoint, worldPoint, false))
+            }
+          }
           // A régua também não muda `mode` (pointerdown da ferramenta Medir),
           // então a prévia dela precisa morar aqui: depois deste `return` o
           // arrasto de medição nunca chegava a desenhar. Lê o mapa da store a
@@ -5779,7 +5949,7 @@ export function PixiCanvas({
           // arrasto (inclusive a OUTRA ponta dela) vire candidata espúria.
           // Ctrl solta o ímã junto com as guias: a ponta anda livre.
           const livre = isFreeMoveModifier(event)
-          const magnet = livre ? null : findNearestExistingVertex(doPisoEmEdicao(map), worldPoint, VERTEX_MAGNET_TOLERANCE, draggingWallPointId)
+          const magnet = livre ? null : findNearestExistingVertex(doPisoEmEdicao(map), worldPoint, vertexMagnetTolerance(), draggingWallPointId)
           if (magnet) {
             showGuides({ guides: [], gaps: [] })
             useMapStore.getState().updateWallPoint(draggingWallPointId, draggingWallPointIndex, magnet.x, magnet.y)
@@ -5932,63 +6102,49 @@ export function PixiCanvas({
 
         if (mode === 'drawing-wall' && wallDraftStart) {
           const worldPoint = toWorldPoint(event.global.x, event.global.y)
-          const { map } = useMapStore.getState()
           // Ímã primeiro: perto de um vértice já existente, o preview gruda nele
-          // direto — ignora trava de ângulo (Ctrl) e grid-snap por completo, pois
-          // o vértice já É a posição final desejada. Preview e commit (pointerup
-          // acima) usam a MESMA checagem, então o que se vê arrastando é
-          // exatamente o que fica ao soltar.
-          const magnet = findNearestExistingVertex(doPisoEmEdicao(map), worldPoint, VERTEX_MAGNET_TOLERANCE)
-          let end: Point
-          let angleReference: Point
-          if (magnet) {
-            end = magnet
-            angleReference = magnet
-          } else {
-            const constrained = event.ctrlKey ? constrainToAngleStep(wallDraftStart, worldPoint) : worldPoint
-            // Grade quadrada: `end` ainda passa por `applySnap` depois de travar o
-            // ângulo. `snapToGrid` arredonda x/y de forma independente, e como o
-            // ponto travado sempre cai com dx=dy em módulo (diagonais) ou um dos
-            // dois exatamente 0 (eixos), o arredondamento independente preserva o
-            // múltiplo de 45° — e ainda deixa `end` exato em cima de um vértice de
-            // grade (provado por varredura de milhares de combinações dx/dy,
-            // revisão da task T2-indicador-graus-snap-amplo).
-            //
-            // Grade hexagonal: `snapToHexGrid` arredonda em coordenadas AXIAIS, que
-            // não são ortogonais entre si — em geral não existe vértice hexagonal a
-            // exatamente 45° de outro. Reaplicar esse snap depois de travar o
-            // ângulo desloca a direção pra fora do múltiplo de 45° (medido na mesma
-            // revisão: até ~3° de desvio). A garantia "com Ctrl, o ângulo final é
-            // SEMPRE múltiplo de 45°" tem prioridade sobre "o ponto cai num vértice
-            // hex", então aqui `end` PULA o snap de grade e fica igual a
-            // `constrained` — o segmento desenhado/commitado fica exato no ângulo,
-            // só não necessariamente alinhado ao hexágono.
-            end = event.ctrlKey && map.gridShape === 'hex' ? constrained : applySnap(constrained, map.grid, 'wall', event.altKey)
-            angleReference = constrained
-          }
+          // direto — ignora trava de ângulo (Ctrl), grade e guia, pois o vértice
+          // já É a posição final desejada. Preview e commit (pointerup acima)
+          // usam a MESMA conta (`strokeDraftEnd`), então o que se vê arrastando
+          // é exatamente o que fica ao soltar.
+          //
+          // Com Ctrl, a grade quadrada ainda passa por `applySnap` depois de
+          // travar o ângulo. `snapToGrid` arredonda x/y de forma independente, e
+          // como o ponto travado sempre cai com dx=dy em módulo (diagonais) ou um
+          // dos dois exatamente 0 (eixos), o arredondamento independente preserva
+          // o múltiplo de 45° — e ainda deixa `end` exato em cima de um vértice
+          // de grade (provado por varredura de milhares de combinações dx/dy,
+          // revisão da task T2-indicador-graus-snap-amplo).
+          //
+          // Grade hexagonal: `snapToHexGrid` arredonda em coordenadas AXIAIS, que
+          // não são ortogonais entre si — em geral não existe vértice hexagonal a
+          // exatamente 45° de outro. Reaplicar esse snap depois de travar o
+          // ângulo desloca a direção pra fora do múltiplo de 45° (medido na mesma
+          // revisão: até ~3° de desvio). A garantia "com Ctrl, o ângulo final é
+          // SEMPRE múltiplo de 45°" tem prioridade sobre "o ponto cai num vértice
+          // hex", então ali `end` PULA o snap de grade e fica igual ao ponto
+          // travado — o segmento desenhado/commitado fica exato no ângulo, só não
+          // necessariamente alinhado ao hexágono.
+          const { end, angleReference, guides } = strokeDraftEnd(wallDraftStart, worldPoint, event)
           drawWallDraft(draftGraphics, wallDraftStart, end)
-          // Ângulo a partir de `angleReference` (não de `end`): em grade quadrada
-          // `end` ainda pode diferir de `angleReference` pelo snap acima (diferença
-          // cosmética no rótulo, "90°" limpo). Em grade hexagonal com Ctrl,
-          // `end === angleReference` (ver comentário acima) — rótulo e segmento
-          // desenhado sempre concordam, sem mais divergência. Sem Ctrl,
-          // `angleReference` é o próprio worldPoint bruto — mesma coisa, ângulo
-          // livre. Com ímã, `angleReference === end === magnet`.
-          angleIndicatorRenderer.show(
-            angleIndicatorContainer,
-            end,
-            formatAngleLabel(angleDegrees(wallDraftStart, angleReference), event.ctrlKey),
-          )
+          showDraftGuides(guides, event)
+          // Ângulo a partir de `angleReference`: com Ctrl, o ponto travado — em
+          // grade quadrada `end` ainda pode diferir dele pelo snap acima
+          // (diferença cosmética no rótulo, "90°" limpo). Sem Ctrl, a própria
+          // ponta: o número é o do traço que fica, já com grade e guia. Junto do
+          // ângulo vai o comprimento (fatia 4), num rótulo só.
+          angleIndicatorRenderer.show(angleIndicatorContainer, end, strokeLabel(wallDraftStart, end, angleReference, event.ctrlKey))
           return
         }
 
         if (mode === 'drawing-room' && roomDraftStart) {
           const worldPoint = toWorldPoint(event.global.x, event.global.y)
           const { map, roomFillColor } = useMapStore.getState()
-          const snapped = applySnap(worldPoint, map.grid, 'wall', event.altKey)
-          // Onda 2, item 14 (Frente E) — Shift trava em quadrado.
-          const end = constrainDraft(roomDraftStart, snapped, 'room', { shift: event.shiftKey, alt: event.altKey })
+          // Grade, guia (fatia 4) e, por último, o Shift que trava em quadrado
+          // (Onda 2, item 14) — a mesma conta do commit no pointerup.
+          const { end, guides } = shapeDraftEnd(roomDraftStart, applySnap(worldPoint, map.grid, 'wall', event.altKey), 'room', event)
           drawRoomDraft(draftGraphics, roomDraftStart, end, roomFillColor)
+          showDraftGuides(guides, event)
           // Onda 2, item 16 (Frente C) — número ao vivo.
           dimensionLabelRenderer.show(
             angleIndicatorContainer,
@@ -6014,18 +6170,10 @@ export function PixiCanvas({
         if (mode === 'drawing-stair' && stairDraftStart) {
           const worldPoint = toWorldPoint(event.global.x, event.global.y)
           const { map, stairSizePreset } = useMapStore.getState()
-          // Ímã primeiro — mesma lógica do preview de Parede acima, ver lá.
-          // Preview e commit (pointerup acima) usam a MESMA checagem.
-          const magnet = findNearestExistingVertex(doPisoEmEdicao(map), worldPoint, VERTEX_MAGNET_TOLERANCE)
-          let end: Point
-          if (magnet) {
-            end = magnet
-          } else {
-            const constrained = event.ctrlKey ? constrainToAngleStep(stairDraftStart, worldPoint) : worldPoint
-            // Com Ctrl em grade hexagonal, NÃO re-snapa `constrained` — mesma
-            // lógica do bloco de preview de Parede acima, ver lá.
-            end = event.ctrlKey && map.gridShape === 'hex' ? constrained : applySnap(constrained, map.grid, 'wall', event.altKey)
-          }
+          // Ímã, trava de ângulo, grade e guia — mesma conta do preview de
+          // Parede acima e do commit (pointerup), ver `strokeDraftEnd`.
+          const { end, guides } = strokeDraftEnd(stairDraftStart, worldPoint, event)
+          showDraftGuides(guides, event)
           // Mesmo stepWidth que o pointerup vai gravar (stairSizePreset) — o
           // preview do arrasto já mostra o tamanho real do preset escolhido.
           // Câmera e resolução iguais às de paintStairs: traço fino igual ao da gravada.
@@ -6050,8 +6198,10 @@ export function PixiCanvas({
         if (mode === 'drawing-polygon-room' && polygonDraftCenter) {
           const worldPoint = toWorldPoint(event.global.x, event.global.y)
           const { map, roomFillColor } = useMapStore.getState()
-          const end = applySnap(worldPoint, map.grid, 'wall', event.altKey)
+          // O ponto do raio é o primeiro vértice: na reta do centro, a sala fica em pé.
+          const { end, guides } = shapeDraftEnd(polygonDraftCenter, applySnap(worldPoint, map.grid, 'wall', event.altKey), null, event)
           drawRegularPolygonDraft(draftGraphics, polygonDraftCenter, end, polygonDraftSides, roomFillColor)
+          showDraftGuides(guides, event)
           // Onda 2, item 16 (Frente C) — número ao vivo.
           dimensionLabelRenderer.show(
             angleIndicatorContainer,
@@ -6070,10 +6220,10 @@ export function PixiCanvas({
         if (mode === 'drawing-rect' && rectDraftStart) {
           const worldPoint = toWorldPoint(event.global.x, event.global.y)
           const { map, drawColor, drawWidth, drawFilled, drawFillAlpha } = useMapStore.getState()
-          const snapped = applySnap(worldPoint, map.grid, 'wall', event.altKey)
-          // Onda 2, item 14 (Frente E) — Shift trava em quadrado.
-          const end = constrainDraft(rectDraftStart, snapped, 'rect', { shift: event.shiftKey, alt: event.altKey })
+          // Grade, guia e o Shift que trava em quadrado (Onda 2, item 14).
+          const { end, guides } = shapeDraftEnd(rectDraftStart, applySnap(worldPoint, map.grid, 'wall', event.altKey), 'rect', event)
           drawRectDraft(draftGraphics, rectDraftStart, end, drawColor, drawWidth, drawFilled, drawFillAlpha)
+          showDraftGuides(guides, event)
           // Onda 2, item 16 (Frente C) — número ao vivo.
           dimensionLabelRenderer.show(
             angleIndicatorContainer,
@@ -6087,10 +6237,10 @@ export function PixiCanvas({
         if (mode === 'drawing-ellipse' && ellipseDraftCenter) {
           const worldPoint = toWorldPoint(event.global.x, event.global.y)
           const { map, drawColor, drawWidth, drawFilled, drawFillAlpha } = useMapStore.getState()
-          const snapped = applySnap(worldPoint, map.grid, 'wall', event.altKey)
-          // Onda 2, item 14 (Frente E) — Shift trava em círculo.
-          const end = constrainDraft(ellipseDraftCenter, snapped, 'ellipse', { shift: event.shiftKey, alt: event.altKey })
+          // Grade, guia no canto da caixa e o Shift que trava em círculo (Onda 2, item 14).
+          const { end, guides } = shapeDraftEnd(ellipseDraftCenter, applySnap(worldPoint, map.grid, 'wall', event.altKey), 'ellipse', event)
           drawEllipseDraft(draftGraphics, ellipseDraftCenter, end, drawColor, drawWidth, drawFilled, drawFillAlpha)
+          showDraftGuides(guides, event)
           // Onda 2, item 16 (Frente C) — número ao vivo.
           dimensionLabelRenderer.show(
             angleIndicatorContainer,
@@ -6111,45 +6261,32 @@ export function PixiCanvas({
 
         if (mode === 'drawing-line' && lineDraftStart) {
           const worldPoint = toWorldPoint(event.global.x, event.global.y)
-          const { map, drawColor, drawWidth, drawDash } = useMapStore.getState()
-          // Ímã primeiro — mesma lógica do bloco de preview de Parede acima, ver
-          // lá. Preview e commit (pointerup acima) usam a MESMA checagem.
-          const magnet = findNearestExistingVertex(doPisoEmEdicao(map), worldPoint, VERTEX_MAGNET_TOLERANCE)
-          let end: Point
-          let angleReference: Point
-          if (magnet) {
-            end = magnet
-            angleReference = magnet
-          } else {
-            const constrained = event.ctrlKey ? constrainToAngleStep(lineDraftStart, worldPoint) : worldPoint
-            // Com Ctrl em grade hexagonal, NÃO re-snapa `constrained` — mesma lógica
-            // do bloco de preview de Parede logo acima (`end` PULA o snap pra
-            // preservar o múltiplo de 45°; ver comentário completo lá).
-            end = event.ctrlKey && map.gridShape === 'hex' ? constrained : applySnap(constrained, map.grid, 'wall', event.altKey)
-            angleReference = constrained
-          }
+          const { drawColor, drawWidth, drawDash } = useMapStore.getState()
+          // Ímã, trava de ângulo, grade e guia — mesma conta do preview de
+          // Parede acima e do commit (pointerup), ver `strokeDraftEnd`.
+          const { end, angleReference, guides } = strokeDraftEnd(lineDraftStart, worldPoint, event)
           // `cap` fica no default 'round' do draft, como sempre foi — quem
           // muda aqui é só o estilo do traço, para o preview já mostrar o
           // pontilhado em vez de prometer uma linha cheia.
           drawLineDraft(draftGraphics, lineDraftStart, end, drawColor, drawWidth, 'round', drawDash)
-          angleIndicatorRenderer.show(
-            angleIndicatorContainer,
-            end,
-            formatAngleLabel(angleDegrees(lineDraftStart, angleReference), event.ctrlKey),
-          )
+          showDraftGuides(guides, event)
+          angleIndicatorRenderer.show(angleIndicatorContainer, end, strokeLabel(lineDraftStart, end, angleReference, event.ctrlKey))
           return
         }
 
         if (mode === 'drawing-circle' && circleDraftCenter) {
           const worldPoint = toWorldPoint(event.global.x, event.global.y)
           const { map, drawColor, drawWidth, drawFilled } = useMapStore.getState()
-          const radius = Math.hypot(worldPoint.x - circleDraftCenter.x, worldPoint.y - circleDraftCenter.y)
+          // O ponto do raio passa pela guia (o raio nunca teve grade).
+          const { end, guides } = shapeDraftEnd(circleDraftCenter, worldPoint, null, event)
+          const radius = Math.hypot(end.x - circleDraftCenter.x, end.y - circleDraftCenter.y)
           drawCircleDraft(draftGraphics, circleDraftCenter, radius, drawColor, drawWidth, drawFilled)
+          showDraftGuides(guides, event)
           // Onda 2, item 16 (Frente C) — número ao vivo.
           dimensionLabelRenderer.show(
             angleIndicatorContainer,
-            worldPoint,
-            dimensionLabel({ tool: 'circle', center: circleDraftCenter, end: worldPoint }, map.grid, map.gridShape, map.scale),
+            end,
+            dimensionLabel({ tool: 'circle', center: circleDraftCenter, end }, map.grid, map.gridShape, map.scale),
             computeViewport(),
           )
           return
@@ -6175,10 +6312,6 @@ export function PixiCanvas({
           const { map } = useMapStore.getState()
           const cursor = applySnap(worldPoint, map.grid, 'wall', event.altKey)
           drawRegionDraftPreview(cursor)
-        }
-
-        if (useMapStore.getState().activeTool === 'path' && pathDraftPoints.length > 0) {
-          drawPathPreview(toWorldPoint(event.global.x, event.global.y))
         }
 
         if (useMapStore.getState().activeTool === 'polygon' && polygonDraftPoints.length > 0) {

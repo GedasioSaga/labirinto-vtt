@@ -14,11 +14,14 @@
  *
  * Decisões que valem para todo gesto com guia (a fatia 1 usa no arrasto de
  * sala; a fatia 2, em todo arrasto de corpo — parede, escada, desenho,
- * objeto, chão, seleção de vários — e de ponto — ponta, vértice, ficha):
+ * objeto, chão, seleção de vários — e de ponto — ponta, vértice, ficha; a
+ * fatia 4, ao DESENHAR):
  *
  *  (a) Candidata nunca é o que anda nem o que está selecionado
  *      (`guideBoxesForDrag`). Com o delta total do gesto, a caixa de partida
- *      da própria peça grudaria a peça na posição antiga.
+ *      da própria peça grudaria a peça na posição antiga. Ao desenhar nada
+ *      anda, e por isso nada fica de fora: a sala recém-desenhada nasce
+ *      selecionada e é justamente a vizinha com que a próxima alinha.
  *  (b) A tecla que solta a guia é o Ctrl, em TODO gesto. Arrastando, o Ctrl
  *      já era "mover livre". Desenhando parede ou linha, o Ctrl trava o
  *      ângulo, e com a trava a guia também não encaixa: a trava é o encaixe
@@ -48,6 +51,18 @@
  * da posição no outro, então o espaçamento só move a peça se, onde ela para,
  * os vãos iguais aparecem (`snapBox`). O arrasto de ponto não tem nada disso:
  * um ponto no meio de duas salas não é fileira.
+ *
+ * Fatia 4, ao DESENHAR (o canvas compõe com `dragPointWithGuides`): o ponto
+ * de partida encaixa no pointerdown e o ponto puxado a cada pointermove, como
+ * pontos, nas mesmas candidatas e com a mesma regra de grade e de Ctrl. Na
+ * Parede, na Linha e na Escada o ímã de vértice vem antes de tudo, e a trava
+ * de ângulo do Ctrl dispensa a guia (decisão b). No traço e na forma de raio
+ * (Círculo, Sala circular, Polígono regular) o próprio ponto de partida é
+ * candidato do puxado: a ponta a poucos px da reta do começo deixa o traço
+ * deitado ou em pé — o corredor torto da imagem do pedido. Na forma de canto
+ * (Sala, Retângulo, Elipse) não: o canto oposto alinhado com o primeiro daria
+ * largura zero. O Shift (quadrado, círculo) vem DEPOIS da guia e pode tirar o
+ * canto dela; aí só aparece a guia do alinhamento que ficou exato.
  */
 import type { AreaBounds } from './areaSelection'
 import type { Point } from './selectionHitTest'

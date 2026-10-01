@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { dimensionLabel, type DimensionDraft } from './dimensionText'
+import { dimensionLabel, lengthAndAngleLabel, type DimensionDraft } from './dimensionText'
 import type { MapScale } from '../types/map'
 
 const SCALE_FT: MapScale = { unitsPerCell: 5, unit: 'ft', precision: 0 }
@@ -89,5 +89,16 @@ describe('dimensionLabel', () => {
     const draft: DimensionDraft = { tool: 'rect', start: { x: 0, y: 0 }, end: { x: 100, y: 50 } }
     expect(dimensionLabel(draft, 0, 'square', SCALE_FT)).toBe('0 ft × 0 ft')
     expect(dimensionLabel(draft, -10, 'square', SCALE_FT)).toBe('0 ft × 0 ft')
+  })
+})
+
+describe('lengthAndAngleLabel (pedido 3, fatia 4: a medida do lado ao desenhar)', () => {
+  it('junta o comprimento e o ângulo num rótulo só, separados pelo ponto do meio', () => {
+    expect(lengthAndAngleLabel('12 ft', '90°')).toBe('12 ft · 90°')
+  })
+
+  it('o comprimento vem de dimensionLabel com a ferramenta Linha, na régua do mapa', () => {
+    const length = dimensionLabel({ tool: 'line', start: { x: 0, y: 0 }, end: { x: 100, y: 0 } }, GRID_SIZE, 'square', SCALE_FT)
+    expect(lengthAndAngleLabel(length, '0.0°')).toBe('10 ft · 0.0°')
   })
 })
