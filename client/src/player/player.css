@@ -478,6 +478,25 @@
   --pp-coluna-de-pedra: calc(12px + var(--pp-pedra) + var(--lb-control-gap, 8px));
   /* Logo abaixo da barra de cima: a borda, o filete, o respiro, o botão de toque e o vão. */
   --pp-abaixo-da-barra: calc(12px + 1px + 12px + var(--lb-control-touch, 44px) + var(--lb-control-gap, 8px));
+  /* Da coluna do canto até a borda direita (deitado, ela mora ao lado da coluna de pedra). */
+  --pp-canto-direita: 12px;
+  /*
+   * DUAS COLUNAS NA MESMA ALTURA: as ações do lugar, à esquerda (depois da
+   * coluna do painel aberta), e a coluna do canto, à direita (as rolagens no
+   * pé, o confronto), dividem ao meio a faixa livre do mapa, com o vão do
+   * tema no meio. Antes cada uma tinha o seu teto — o das ações era a metade
+   * da TELA, medida a partir da borda já deslocada pelo painel, e o das
+   * rolagens, 260 px encostados à direita — e as duas se cruzavam a 320, 390
+   * e 768 px. `100vw` e não `100%`: as rolagens moram dentro da coluna do
+   * canto, e o `%` delas seria o da coluna.
+   */
+  --pp-meia-faixa: calc((100vw - 12px - var(--pp-painel-ocupa, 0px) - var(--pp-canto-direita) - var(--lb-control-gap, 8px)) / 2);
+  /* Um aviso (`.pp-notice`) de duas linhas: a letra de 14 px na entrelinha 1,45, o respiro de 8 px e o filete. */
+  --pp-aviso-duas-linhas: calc(2 * 1.45 * 14px + 2 * 8px + 2px);
+  /* A faixa da porta trancada no celular: duas linhas de botões de toque, o vão, o respiro de 4 px e o filete. */
+  --pp-faixa-da-porta: calc(2 * var(--lb-control-touch, 44px) + var(--lb-control-gap, 8px) + 2 * 4px + 2px);
+  /* A faixa "Sua vez", sempre de uma linha: a letra de 15 px na entrelinha 1,45, o respiro de 6 px e o filete. */
+  --pp-faixa-da-vez: calc(1.45 * 15px + 2 * 6px + 2px);
 }
 
 /* ==================================================== painel sobre o canvas */
@@ -590,6 +609,8 @@
   padding: 8px 14px;
   font-family: var(--lb-font-sans, system-ui, sans-serif);
   font-size: 14px;
+  /* A da página, escrita aqui: a régua do HUD (`--pp-aviso-duas-linhas`) conta com ela. */
+  line-height: 1.45;
   color: var(--lb-color-parchment, #eceae4);
   background: var(--lb-color-stone, rgba(19, 19, 23, 0.94));
   border: 1px solid var(--lb-color-line-panel, rgba(255, 255, 255, 0.12));
@@ -621,6 +642,9 @@
  * Fixo e fora do fluxo — surgir não redimensiona o canvas. Vazio (vez de
  * outro), a região de anúncio fica montada mas não ocupa nada nem cobre o
  * mapa. No celular a barra ocupa o alto: a faixa desce (fim do arquivo).
+ * Sempre uma linha só, com reticências no nome comprido: a altura dela entra
+ * na régua (`--pp-faixa-da-vez`), e a coluna do canto desce embaixo dela
+ * quando o mapa que sobra é estreito (fim do arquivo).
  */
 .pp-turn {
   position: fixed;
@@ -628,10 +652,16 @@
   left: calc(50% + var(--pp-painel-ocupa, 0px) / 2);
   transform: translateX(-50%);
   z-index: 20;
+  box-sizing: border-box;
+  max-width: calc(100vw - 24px - var(--pp-painel-ocupa, 0px));
   margin: 0;
   padding: 6px 16px;
+  overflow: hidden;
   font-family: var(--lb-font-sans, system-ui, sans-serif);
   font-size: 15px;
+  line-height: 1.45;
+  white-space: nowrap;
+  text-overflow: ellipsis;
   font-weight: 600;
   color: var(--lb-color-parchment, #eceae4);
   background: var(--lb-color-stone, rgba(19, 19, 23, 0.94));
@@ -710,7 +740,7 @@
 .pp-canto {
   position: fixed;
   top: calc(12px + var(--pp-alarm-space, 0px));
-  right: 12px;
+  right: var(--pp-canto-direita);
   bottom: var(--pp-base-rolagens);
   z-index: 9;
   display: flex;
@@ -722,9 +752,18 @@
   pointer-events: none;
 }
 
-/* Os selos ficam inteiros; só a lista de rolagens encolhe quando falta altura. */
+/*
+ * Os selos ficam inteiros; quando falta altura, a lista de rolagens cede
+ * primeiro (ela fica com o que sobra). Quando nem os selos cabem — alarme
+ * aceso e confronto de muitas fichas num celular —, cede a fila do confronto,
+ * o único selo de altura solta: a coluna nunca passa do pé.
+ */
 .pp-canto > * {
   flex-shrink: 0;
+}
+
+.pp-canto > .pp-confronto {
+  flex-shrink: 1;
 }
 
 /* Celular: ao lado da barra sobram 43 px; a coluna desce para baixo dela
@@ -769,6 +808,28 @@
     /* Cresce para cima quando não cabe numa linha, e nunca chega à coluna do zoom. */
     flex-wrap: wrap-reverse;
     max-width: calc(100% - 12px - var(--pp-coluna-de-pedra));
+    transition: opacity 160ms ease-out;
+  }
+}
+
+/*
+ * O selo só informa, e mora no chão da esquerda — com a faixa da porta
+ * trancada e os avisos do chão ("Pedido enviado", "Chegue mais perto da
+ * porta"), que caíam em cima dele. Sai de baixo deles enquanto estão na tela
+ * e volta quando saem. Os avisos que moram mais alto não o cobrem, e ele
+ * fica: a pausa pode durar minutos. Em pé, mais alto moram todos os avisos
+ * com modificador, menos a faixa da porta; deitado, só os que ficam na tela
+ * enquanto o estado dura (o segundo andar do chão, fim do arquivo).
+ */
+@media (max-width: 699px) and (min-height: 481px) {
+  body:has(.pp-notice:not(.pp-notice--travel):not(.pp-notice--pause):not(.pp-notice--congelado):not(.pp-notice--point):not(.pp-notice--action):not(.pp-notice--wait):not(.pp-notice--opened):not(.pp-notice--secret)) .pp-estado {
+    opacity: 0;
+  }
+}
+
+@media (max-height: 480px) {
+  body:has(.pp-notice:not(.pp-notice--pause):not(.pp-notice--congelado):not(.pp-notice--travel):not(.pp-notice--wait)) .pp-estado {
+    opacity: 0;
   }
 }
 
@@ -934,8 +995,9 @@
  * o zoom: duas linhas de botões, abaixo da mão do chamado. O raio acompanha o
  * dos botões (metade do alvo mais o respiro), para a faixa de duas linhas não
  * virar um estádio. Entra subindo, sem o translate(-50%) dos avisos centrados.
- * A hora do dia e a "Tela acesa" moram nesse canto e só informam: saem de
- * baixo da faixa enquanto a porta pede uma decisão, e voltam quando ela fecha.
+ * O selo de estado (a hora do dia e a "Tela acesa") mora nesse canto e só
+ * informa: sai de baixo da faixa enquanto a porta pede uma decisão (regra do
+ * `.pp-estado`, junto dele), e volta quando ela fecha.
  */
 @media (max-width: 699px) {
   .pp-notice--door {
@@ -954,16 +1016,6 @@
   .pp-notice--door .pp-notice__action {
     margin-left: 0;
   }
-
-  .pp-clock,
-  .pp-awake {
-    transition: opacity 160ms ease-out;
-  }
-
-  body:has(.pp-notice--door) .pp-clock,
-  body:has(.pp-notice--door) .pp-awake {
-    opacity: 0;
-  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -971,8 +1023,7 @@
     animation: none;
   }
 
-  .pp-clock,
-  .pp-awake {
+  .pp-estado {
     transition: none;
   }
 }
@@ -4035,8 +4086,9 @@ button.pp-colecao__casa:focus-visible {
   flex: 1 1 0;
   min-height: 0;
   container-type: size;
-  /* Contêiner de tamanho não mede o conteúdo: a largura é a do teto da lista. */
-  width: min(260px, calc(100vw - 24px));
+  /* Contêiner de tamanho não mede o conteúdo: a largura é a do teto da lista —
+     260 px, ou a metade da faixa livre, onde a outra metade é das ações do lugar. */
+  width: min(260px, var(--pp-meia-faixa));
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
@@ -4053,15 +4105,40 @@ button.pp-colecao__casa:focus-visible {
 
 /*
  * Uma linha por rolagem, sempre da mesma altura (26 px, e 4 de vão): a conta
- * de quantas cabem não depende da fonte. As faces e o nome comprido cortam
- * com reticências no fim, depois do total.
+ * de quantas cabem não depende da fonte. Na metade da faixa de um celular a
+ * linha não cabe inteira: o total nunca some. Cedem as faces primeiro e o
+ * nome depois, cada um com as suas reticências ("Bartol… 4d6+3 = 18"); a
+ * expressão, o "=" e o total ficam inteiros. Com a reticência no fim da
+ * linha, um nome comprido empurraria o total para fora.
  */
 .pp-dice-feed .lb-dice-feed__item {
+  display: flex;
+  align-items: baseline;
+  /* Os espaços entre as partes são texto, e o flex não desenha espaço solto: o vão faz o papel dele. */
+  column-gap: 0.28em;
   box-sizing: border-box;
   height: 26px;
   padding: 3px 10px;
   line-height: 18px;
   white-space: nowrap;
+  overflow: hidden;
+}
+
+.pp-dice-feed .lb-dice-feed__item > * {
+  flex: none;
+}
+
+.pp-dice-feed .lb-dice-feed__who {
+  flex-shrink: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* As faces cedem antes do nome: o peso de encolher delas é muito maior. */
+.pp-dice-feed .lb-dice-feed__faces {
+  flex-shrink: 1000;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
 }
@@ -4447,11 +4524,22 @@ button.pp-colecao__casa:focus-visible {
  * canto e, no celular, descia para o rodapé, em cima do chamar o mestre e dos
  * avisos. Só leitura: o toque passa para o mapa. Linguagem de minimapa: fundo
  * escuro chapado, linha fina clara; a vez do próprio jogador ganha a borda latão.
+ *
+ * Fica na metade direita da faixa livre (`--pp-meia-faixa`): numa coluna do
+ * canto curta, ele desce até a altura das ações do lugar. É o único selo da
+ * coluna de altura solta, e é ele quem cede quando nem os selos cabem: a vez
+ * fica inteira e a fila corta por baixo, apagando — o apagado mora no respiro
+ * de baixo, que passa a ser da fila, e por isso não se vê quando nada corta.
  */
 .pp-confronto {
+  /* O respiro de cima e de baixo, e o dos lados: a fila leva o de baixo e o piso conta com eles. */
+  --pp-confronto-respiro: 8px;
+  --pp-confronto-respiro-x: 12px;
+  display: flex;
+  flex-direction: column;
   box-sizing: border-box;
-  max-width: min(320px, 100%);
-  padding: 8px 12px;
+  max-width: min(320px, 100%, var(--pp-meia-faixa));
+  padding: var(--pp-confronto-respiro) var(--pp-confronto-respiro-x);
   font-family: var(--lb-font-sans, system-ui, sans-serif);
   font-size: 14px;
   line-height: 1.4;
@@ -4463,11 +4551,18 @@ button.pp-colecao__casa:focus-visible {
   pointer-events: none;
 }
 
+/* Com fila, o respiro de baixo é dela. O piso: o respiro de cima, a linha da vez, a margem da fila, o respiro dela e o filete. */
+.pp-confronto:has(> .pp-confronto__fila) {
+  padding-bottom: 0;
+  min-height: calc(2 * var(--pp-confronto-respiro) + 1lh + 4px + 2px);
+}
+
 .pp-confronto--sua {
   border-color: var(--lb-color-brass, #e0a44a);
 }
 
 .pp-confronto__vez {
+  flex: none;
   margin: 0;
   font-weight: 600;
 }
@@ -4476,11 +4571,15 @@ button.pp-colecao__casa:focus-visible {
   display: flex;
   flex-wrap: wrap;
   gap: 4px 10px;
+  min-height: 0;
   margin: 4px 0 0;
-  padding: 0;
+  padding: 0 0 var(--pp-confronto-respiro);
+  overflow: hidden;
   list-style: none;
   font-size: 12px;
   color: var(--lb-color-parchment-dim, rgba(236, 234, 228, 0.7));
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - var(--pp-confronto-respiro)), transparent);
+  mask-image: linear-gradient(to bottom, #000 calc(100% - var(--pp-confronto-respiro)), transparent);
 }
 
 .pp-confronto__item[aria-current='true'] {
@@ -4586,8 +4685,8 @@ button.pp-colecao__casa:focus-visible {
   visibility: hidden;
 }
 
-/* Em tela estreita o rótulo de repouso é o curto ("Trancar"): a reserva acompanha. */
-@media (max-width: 379px) {
+/* Em tela estreita e no celular deitado o rótulo de repouso é o curto ("Trancar"): a reserva acompanha. */
+@media (max-width: 379px), (max-height: 480px) {
   .pp-ferrolho::after {
     content: attr(data-reserva-curta);
   }
@@ -5707,9 +5806,10 @@ button.pp-colecao__casa:focus-visible {
  * presos cada um num canto: a escada caía no lugar da mão do chamado e sumia
  * atrás dela, o ferrolho ficava por baixo da coluna do painel aberta no
  * notebook. Com a coluna do painel aberta, começa depois dela
- * (`--pp-painel-ocupa`, escrita por `PlayerPanel`). A metade da tela é o teto:
- * do outro lado moram as rolagens e o alto-falante. O vão entre os botões é
- * mapa: o arrasto passa por ele.
+ * (`--pp-painel-ocupa`, escrita por `PlayerPanel`). O teto é a metade da
+ * faixa livre (`--pp-meia-faixa`): a outra metade é da coluna do canto, com
+ * as rolagens e o confronto na mesma altura. O vão entre os botões é mapa: o
+ * arrasto passa por ele.
  */
 .pp-lugar {
   position: fixed;
@@ -5720,7 +5820,7 @@ button.pp-colecao__casa:focus-visible {
   flex-direction: column;
   align-items: flex-start;
   gap: var(--lb-control-gap, 8px);
-  max-width: calc(50vw - 12px - var(--lb-control-gap, 8px) / 2);
+  max-width: var(--pp-meia-faixa);
   pointer-events: none;
 }
 
@@ -5729,12 +5829,14 @@ button.pp-colecao__casa:focus-visible {
   pointer-events: auto;
 }
 
-/* Rótulo comprido ("Fechar e trancar deste lado") quebra dentro da pílula em vez de passar da metade. */
+/* Rótulo comprido ("Fechar e trancar deste lado") quebra dentro da pílula em vez de passar da metade,
+   em linhas do mesmo tamanho: sem o "lado" sozinho embaixo (768 px com a coluna do painel aberta). */
 .pp-lugar .pp-espiar,
 .pp-lugar .pp-ferrolho,
 .pp-lugar .pp-escada__button {
   max-width: 100%;
   text-align: center;
+  text-wrap: balance;
 }
 
 /*
@@ -5763,11 +5865,23 @@ button.pp-colecao__casa:focus-visible {
 }
 
 /*
+ * Janela de coluna estreita com a coluna do painel aberta (tablet em pé ou
+ * deitado, notebook com a janela pela metade): o mapa que sobra tem 370 a
+ * 700 px, e a faixa "Sua vez", no meio dele, mora na mesma altura do
+ * primeiro selo da coluna do canto — a 768 px, sem abas de andar, ela cobria
+ * o começo do "Onde estou". Com a faixa acesa, a coluna do canto começa logo
+ * abaixo dela: as duas nunca dividem a mesma linha, com o nome que for.
+ */
+@media (min-width: 700px) and (max-width: 1099px) and (min-height: 481px) {
+  body:has(.pp-panel:not([hidden])):has(.pp-turn:not(:empty)) .pp-canto {
+    top: calc(12px + var(--pp-alarm-space, 0px) + var(--pp-faixa-da-vez) + var(--lb-control-gap, 8px));
+  }
+}
+
+/*
  * Tela estreita (menos de 380 px): a barra (Painel, Minha ficha, Inventário)
  * passava da borda — 338 px numa tela de 320. O Inventário fica só com a
  * bolsa, num alvo quadrado de toque; o nome continua para o leitor de tela.
- * As ações do lugar ficam com o começo do rótulo ("Espiar", "Trancar",
- * "Subir"), e o nome inteiro mora no `aria-label` de cada uma.
  */
 @media (max-width: 379px) {
   .pp-bag {
@@ -5788,7 +5902,19 @@ button.pp-colecao__casa:focus-visible {
     border: 0;
   }
 
-  .pp-bag__key,
+  .pp-bag__key {
+    display: none;
+  }
+}
+
+/*
+ * Tela estreita e celular deitado: as ações do lugar ficam com o começo do
+ * rótulo ("Espiar", "Trancar", "Subir"), e o nome inteiro mora no
+ * `aria-label` de cada uma. Deitado, a coluna que não cabe na altura abre
+ * outra ao lado (fim do arquivo): com o rótulo inteiro, as duas passavam da
+ * metade da faixa e cruzavam o "Onde estou".
+ */
+@media (max-width: 379px), (max-height: 480px) {
   .pp-rotulo-resto {
     display: none;
   }
@@ -5822,7 +5948,8 @@ button.pp-colecao__casa:focus-visible {
   }
 
   .pp-confronto {
-    padding: 6px 10px;
+    --pp-confronto-respiro: 6px;
+    --pp-confronto-respiro-x: 10px;
   }
 }
 
@@ -5833,9 +5960,19 @@ button.pp-colecao__casa:focus-visible {
  * vira duas colunas no pé da tela: a de pedra (zoom no chão, alto-falante em
  * cima dele) na borda, e a do chamado (a mão no chão, o aviso em cima) ao
  * lado. A coluna do canto desce do alto até o aviso do chamado, ao lado da de
- * pedra, com as rolagens que couberem no pé. Os avisos do meio e a faixa da porta
- * trancada ficam à esquerda da largura reservada ao chamado. As ações do
- * lugar sobem para logo abaixo da barra, abertas pela faixa "Sua vez".
+ * pedra, com as rolagens que couberem no pé, e fica na metade direita da
+ * faixa livre. As ações do lugar sobem para logo abaixo da barra, abertas
+ * pela faixa "Sua vez", na metade esquerda.
+ *
+ * O CHÃO DA ESQUERDA: à esquerda da largura reservada ao chamado moram o
+ * selo de estado, a faixa da porta trancada e os avisos. Antes os avisos
+ * ficavam a 24, 68, 112 e 156 px do rodapé — o meio da tela deitada, na
+ * altura das ações do lugar —, e a coluna das ações descia sem pé por cima
+ * da faixa da porta e do selo. Agora os avisos que passam descem para o
+ * chão; os que ficam na tela enquanto o estado dura (pausa, ficha congelada,
+ * viagem esperando, encontro, caminho) moram um andar acima (`--pp-piso-1`);
+ * e as ações do lugar param antes do andar ocupado. Quando não cabem na
+ * altura que sobra, abrem outra coluna ao lado, com o começo do rótulo.
  */
 @media (max-height: 480px) {
   :root {
@@ -5843,28 +5980,62 @@ button.pp-colecao__casa:focus-visible {
     --pp-base-chamado: var(--pp-chao);
     --pp-base-som: calc(var(--pp-chao) + var(--pp-zoom-alto) + var(--lb-control-gap, 8px));
     --pp-base-rolagens: calc(var(--pp-base-chamado) + 2 * var(--pp-linha));
+    /* A coluna do canto mora ao lado da coluna de pedra. */
+    --pp-canto-direita: var(--pp-coluna-de-pedra);
     /* A largura da coluna do chamado: "Esperando o mestre · Quero agir" inteira. */
     --pp-chamado-largura: 228px;
     /* O que os avisos do pé da tela deixam livre à direita: a coluna de pedra e a do chamado. */
     --pp-reserva-direita: calc(var(--pp-coluna-de-pedra) + var(--pp-chamado-largura) + var(--lb-control-gap, 8px));
   }
 
-  .pp-canto {
-    top: calc(12px + var(--pp-alarm-space, 0px));
-    right: var(--pp-coluna-de-pedra);
-    max-width: min(420px, calc(100% - 12px - var(--pp-coluna-de-pedra)));
+  /* Onde começa o segundo andar do chão: acima de um aviso de duas linhas; com a faixa da porta no chão, acima dela. */
+  body {
+    --pp-piso-1: calc(var(--pp-chao) + var(--pp-aviso-duas-linhas) + var(--lb-control-gap, 8px));
   }
 
-  /* O confronto numa linha só: a vez e a fila lado a lado, para a coluna caber na altura. */
+  body:has(.pp-notice--door) {
+    --pp-piso-1: calc(var(--pp-chao) + var(--pp-faixa-da-porta) + var(--lb-control-gap, 8px));
+  }
+
+  .pp-canto {
+    top: calc(12px + var(--pp-alarm-space, 0px));
+    max-width: min(420px, var(--pp-meia-faixa));
+  }
+
+  /*
+   * O confronto numa linha só: a vez e a fila lado a lado, sem quebrar. A
+   * fila que não cabe corta à direita, apagando no respiro da direita, que
+   * passa a ser dela; a vez fica inteira. Com a fila quebrando linha, sete
+   * fichas davam três linhas e a coluna passava do pé.
+   */
   .pp-confronto {
-    display: flex;
-    flex-wrap: wrap;
+    flex-direction: row;
+    flex-wrap: nowrap;
     align-items: baseline;
     column-gap: 10px;
   }
 
+  .pp-confronto:has(> .pp-confronto__fila) {
+    padding-bottom: var(--pp-confronto-respiro);
+    padding-right: 0;
+    min-height: auto;
+  }
+
+  .pp-confronto__vez {
+    flex: none;
+  }
+
   .pp-confronto__fila {
+    flex-wrap: nowrap;
+    min-width: 0;
     margin: 0;
+    padding: 0 var(--pp-confronto-respiro-x) 0 0;
+    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - var(--pp-confronto-respiro-x)), transparent);
+    mask-image: linear-gradient(to right, #000 calc(100% - var(--pp-confronto-respiro-x)), transparent);
+  }
+
+  .pp-confronto__item {
+    flex: none;
   }
 
   .pp-call {
@@ -5872,14 +6043,42 @@ button.pp-colecao__casa:focus-visible {
     max-width: var(--pp-chamado-largura);
   }
 
+  /*
+   * As ações do lugar descem da barra até o segundo andar do chão. Uma grade
+   * de linhas da altura do alvo de toque, preenchida de cima para baixo:
+   * quando a altura não dá para todas, a próxima abre outra coluna ao lado.
+   */
   .pp-lugar {
     top: calc(var(--pp-abaixo-da-barra) + var(--pp-alarm-space, 0px));
-    bottom: auto;
+    bottom: var(--pp-piso-1);
+    display: grid;
+    grid-auto-flow: column;
+    grid-template-rows: repeat(auto-fill, var(--lb-control-touch, 44px));
+    grid-auto-columns: max-content;
+    align-content: start;
+    justify-content: start;
+    align-items: center;
+    justify-items: start;
+  }
+
+  /* O botão nunca quebra linha: passaria da altura da linha da grade. */
+  .pp-lugar > * {
+    white-space: nowrap;
+  }
+
+  /* Com um aviso no segundo andar, as ações param acima dele. */
+  body:has(.pp-notice--pause) .pp-lugar,
+  body:has(.pp-notice--congelado) .pp-lugar,
+  body:has(.pp-notice--travel) .pp-lugar,
+  body:has(.pp-notice--wait) .pp-lugar,
+  body:has(.pp-route-dock) .pp-lugar {
+    bottom: calc(var(--pp-piso-1) + var(--pp-aviso-duas-linhas) + var(--lb-control-gap, 8px));
   }
 
   .pp-lugar > .pp-turn {
     position: static;
     transform: none;
+    max-width: var(--pp-meia-faixa);
     animation-name: pp-turn-desce;
   }
 
@@ -5889,10 +6088,24 @@ button.pp-colecao__casa:focus-visible {
     max-width: calc(100% - 24px - var(--pp-reserva-direita));
   }
 
+  /* Os avisos que passam: no chão. */
+  .pp-notice {
+    bottom: var(--pp-chao);
+  }
+
+  /* Os que ficam enquanto o estado dura: um andar acima, para os que passam não os cobrirem. */
+  .pp-notice--pause,
+  .pp-notice--congelado,
+  .pp-notice--travel,
+  .pp-notice--wait,
+  .pp-route-dock {
+    bottom: var(--pp-piso-1);
+  }
+
   .pp-notice--door {
     left: 12px;
     right: var(--pp-reserva-direita);
-    bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+    bottom: var(--pp-chao);
     max-width: none;
     transform: none;
     justify-content: flex-start;
@@ -5904,11 +6117,6 @@ button.pp-colecao__casa:focus-visible {
 
   .pp-notice--door .pp-notice__action {
     margin-left: 0;
-  }
-
-  /* O selo de estado mora embaixo da faixa da porta: sai enquanto ela pede uma decisão. */
-  body:has(.pp-notice--door) .pp-estado {
-    opacity: 0;
   }
 }
 

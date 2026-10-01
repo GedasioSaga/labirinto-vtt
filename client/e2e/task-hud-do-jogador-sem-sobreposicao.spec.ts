@@ -4,14 +4,21 @@
 // barra de cima, a coluna do canto da direita (abas de andar, "Onde estou",
 // confronto e as rolagens no pé), a pilha do canto de baixo à direita (zoom,
 // "Chamar o mestre", alto-falante), a coluna das ações do lugar (espiar,
-// trancar, subir), a faixa "Sua vez" e o selo de estado (hora do dia, tela
-// acesa) — nos tamanhos de tela que o jogador usa: o notebook do mestre
-// (1280 x 800), o celular em pé (390 x 844 e 320 x 568) e deitado (844 x 390,
-// 844 x 340 com a barra do navegador, 667 x 375 e 568 x 320). Com TUDO aceso
-// ao mesmo tempo, que é o pior caso: a ficha encostada numa escada que liga
-// pisos E numa porta fechada, abas de andar, confronto, "Sua vez", hora do
-// dia, tela acesa, quatro rolagens e a mão do "Chamar o mestre" acesa (duas
-// linhas). O formulário do chamado, aberto, também cabe na tela.
+// trancar, subir), a faixa "Sua vez", o selo de estado (hora do dia, tela
+// acesa), a faixa do alarme, a faixa da porta trancada e os avisos — nos
+// tamanhos de tela que o jogador usa: o notebook do mestre (1280 x 800), o
+// tablet em pé com a coluna do painel aberta (768 x 1024), o celular em pé
+// (390 x 844 e 320 x 568) e deitado (844 x 390, 844 x 340 com a barra do
+// navegador, 667 x 375 e 568 x 320).
+//
+// Primeiro com TUDO aceso ao mesmo tempo: a ficha encostada numa escada que
+// liga pisos E numa porta fechada, abas de andar, confronto, "Sua vez", hora
+// do dia, tela acesa, quatro rolagens (a mais nova de nome comprido e quatro
+// dados) e a mão do "Chamar o mestre" acesa (duas linhas). Depois os casos que
+// apertam um canto da tela: a porta trancada com a faixa dos pedidos no
+// celular deitado (com e sem alarme), o alarme com o confronto de sete
+// fichas, a pausa com um aviso que passa, e o tablet com a coluna do painel
+// aberta, sem abas de andar e com a porta aberta.
 //
 // COMO PROVA: `player.html` inteiro no Chromium de verdade, com o host feito
 // pelo próprio teste no WebSocket roteado (como task-controle-de-som.spec.ts).
@@ -39,38 +46,60 @@ const VISAO_TODA: RegionPoint[][] = [
   ],
 ]
 
-/** Porta fechada e destrancada a uma célula da ficha: acende "Espiar pela porta" e o ferrolho. */
-const PORTA: Wall = {
-  id: 'porta',
-  x1: 275,
-  y1: 200,
-  x2: 275,
-  y2: 250,
-  blocksLight: true,
-  blocksMove: true,
-  door: { open: false, locked: false, kind: 'normal' },
+/**
+ * A porta a uma célula da ficha. Fechada: acende "Espiar pela porta" e o
+ * ferrolho ("Trancar deste lado"). Aberta: só o ferrolho, com o rótulo mais
+ * comprido ("Fechar e trancar deste lado"). Trancada pelo mestre: só o
+ * "Espiar" — e o toque nela traz a faixa dos pedidos ("Trancada").
+ */
+type Porta = 'fechada' | 'aberta' | 'trancada'
+
+/** O que a cena acende, além do que todo recorte traz (a ficha, a escada, a vez, a hora do dia). */
+interface Cena {
+  porta: Porta
+  /** Quem divide a fila do confronto com a Ana, na ordem. */
+  fila: readonly string[]
+  /** Outro andar do prédio que ele já conhece: acende as abas de andar. */
+  andares: boolean
+}
+
+const FILA_CURTA = ['Rato 1', 'Bia']
+/** Sete fichas na fila: no celular ela quebra em três linhas. */
+const FILA_LONGA = ['Rato 1', 'Bia', 'Rato 2', 'Bartolomeu', 'Rato 3', 'Guarda do porto']
+const CENA_CHEIA: Cena = { porta: 'fechada', fila: FILA_CURTA, andares: true }
+
+function porta(tipo: Porta): Wall {
+  return {
+    id: 'porta',
+    x1: 275,
+    y1: 200,
+    x2: 275,
+    y2: 250,
+    blocksLight: true,
+    blocksMove: true,
+    door: { open: tipo === 'aberta', locked: tipo === 'trancada', kind: 'normal' },
+  }
 }
 
 /** Escada que leva ao 1º piso, encostada na ficha: acende "Subir ao 1º piso". */
 const ESCADA: Stair = { id: 'escada', shape: 'straight', direction: 'up', segments: [{ x1: 225, y1: 275, x2: 225, y2: 325 }], stepWidth: 50, levaAoPiso: 1 }
 
-function mapaDoJogador(): MapData {
-  const base = createEmptyMap('m1', 'Salão', 20, 20, 50)
-  const comAna = addToken(base, { id: 'ficha-ana', characterId: null, name: 'Ana', x: 225, y: 225, size: 1, image: null })
-  const comRato = addToken(comAna, { id: 'rato-1', characterId: null, name: 'Rato 1', x: 525, y: 525, size: 1, image: null })
-  const comBia = addToken(comRato, { id: 'bia', characterId: null, name: 'Bia', x: 625, y: 525, size: 1, image: null })
-  return { ...comBia, walls: [PORTA], stairs: [ESCADA] }
+function mapaDoJogador(cena: Cena): MapData {
+  let mapa = addToken(createEmptyMap('m1', 'Salão', 20, 20, 50), { id: 'ficha-ana', characterId: null, name: 'Ana', x: 225, y: 225, size: 1, image: null })
+  for (const [i, nome] of cena.fila.entries()) {
+    mapa = addToken(mapa, { id: `ficha-${i}`, characterId: null, name: nome, x: 525 + 50 * i, y: 525, size: 1, image: null })
+  }
+  return { ...mapa, walls: [porta(cena.porta)], stairs: [ESCADA] }
 }
 
-/** Outro andar do prédio que ele já conhece: acende as abas de andar. */
 function outroAndar(): { rotulo: string; map: MapData; explored: ReturnType<typeof encodeExploration>; concealed: RegionPoint[][] } {
   const map = createEmptyMap('m2', 'Sótão', 20, 20, 50)
   return { rotulo: '2F', map, explored: encodeExploration(createExploration(map)), concealed: [] }
 }
 
 /** Tudo o que acende um flutuante, num recorte só. */
-function recorte(): Record<string, unknown> {
-  const map = mapaDoJogador()
+function recorte(cena: Cena): Record<string, unknown> {
+  const map = mapaDoJogador(cena)
   return {
     type: 'snapshot',
     rev: 1,
@@ -81,29 +110,41 @@ function recorte(): Record<string, unknown> {
     concealed: [],
     sceneName: 'Casa do porto',
     turn: 'ficha-ana',
-    confronto: { fila: ['ficha-ana', 'rato-1', 'bia'], vez: 'ficha-ana', suaVez: true, passo: 6, restam: 6 },
-    andares: { atual: '1F', outros: [outroAndar()] },
+    confronto: { fila: map.tokens.map((t) => t.id), vez: 'ficha-ana', suaVez: true, passo: 6, restam: 6 },
+    ...(cena.andares ? { andares: { atual: '1F', outros: [outroAndar()] } } : {}),
     relogio: { periodo: 'noite', escuro: true },
   }
 }
 
-/** Rolagem de 2d6+3 que alguém da mesa fez: a linha mais larga que a lista mostra ("Bia 2d6+3 = 14 (5, 6)"). */
-function rolagem(id: string, faces: readonly [number, number], de = 'Bia') {
-  const total = faces[0] + faces[1] + 3
-  return { type: 'dice.rolled', roll: { id, from: de, count: 2, sides: 6, modifier: 3, results: [...faces], total, at: 2_000 } }
+interface Rolagem {
+  de: string
+  faces: readonly number[]
+  modificador: number
 }
 
-/** Quatro rolagens: a lista inteira (`DICE_FEED_VISIBLE`). A última dá 14. */
-const ROLAGENS: ReadonlyArray<readonly [number, number]> = [
-  [6, 6],
-  [1, 2],
-  [4, 3],
-  [5, 6],
-]
+function rolagem(id: string, { de, faces, modificador }: Rolagem) {
+  const total = faces.reduce((soma, face) => soma + face, modificador)
+  return { type: 'dice.rolled', roll: { id, from: de, count: faces.length, sides: 6, modifier: modificador, results: [...faces], total, at: 2_000 } }
+}
 
-/** O host de mentira: a cada `join` responde com a sessão e o recorte. */
+/**
+ * Quatro rolagens: a lista inteira (`DICE_FEED_VISIBLE`). A mais nova é a
+ * linha mais larga — nome comprido e quatro dados: "Bartolomeu 4d6+3 = 18
+ * (3, 4, 6, 2)". Ela passava por baixo do ferrolho a 320 e 390 px.
+ */
+const ROLAGENS: readonly Rolagem[] = [
+  { de: 'Bia', faces: [6, 6], modificador: 3 },
+  { de: 'Bia', faces: [1, 2], modificador: 3 },
+  { de: 'Bia', faces: [4, 3], modificador: 3 },
+  { de: 'Bartolomeu', faces: [3, 4, 6, 2], modificador: 3 },
+]
+const TOTAL_DA_MAIS_NOVA = '18'
+
+/** O host de mentira: a cada `join` responde com a sessão e o recorte da cena. */
 class HostDeMentira {
   private socket: WebSocketRoute | null = null
+
+  constructor(private readonly cena: Cena) {}
 
   ligar(ws: WebSocketRoute): void {
     this.socket = ws
@@ -111,7 +152,7 @@ class HostDeMentira {
       const msg: unknown = JSON.parse(typeof bruto === 'string' ? bruto : bruto.toString('utf8'))
       if (typeof msg !== 'object' || msg === null || !('type' in msg) || msg.type !== 'join') return
       this.mandar({ type: 'welcome', playerId: 'p-ana', resumeToken: 'tok-ana', name: 'Ana' })
-      this.mandar(recorte())
+      this.mandar(recorte(this.cena))
     })
   }
 
@@ -127,8 +168,8 @@ function telaAcesaConcedida(): void {
   Object.defineProperty(Navigator.prototype, 'wakeLock', { configurable: true, get: () => ({ request: async () => sentinela }) })
 }
 
-async function jogadorEntra(page: Page): Promise<HostDeMentira> {
-  const host = new HostDeMentira()
+async function jogadorEntra(page: Page, cena: Cena = CENA_CHEIA): Promise<HostDeMentira> {
+  const host = new HostDeMentira(cena)
   await page.addInitScript(telaAcesaConcedida)
   await page.routeWebSocket(
     (url) => url.pathname === '/ws',
@@ -140,6 +181,30 @@ async function jogadorEntra(page: Page): Promise<HostDeMentira> {
   await page.getByRole('button', { name: 'Entrar' }).click()
   await expect(page.getByRole('group', { name: 'Zoom do mapa' })).toBeVisible()
   return host
+}
+
+/**
+ * As quatro rolagens chegam. Com `aVista`, a mais nova — a mais larga —
+ * aparece com o total à vista; sem, basta ter chegado: com alarme e confronto
+ * longo a coluna do canto pode não ter altura para nenhuma, e quem cede são elas.
+ */
+async function rolarTudo(page: Page, host: HostDeMentira, aVista = true): Promise<void> {
+  for (const [i, uma] of ROLAGENS.entries()) host.mandar(rolagem(`r${i}`, uma))
+  const total = page.getByRole('log', { name: 'Rolagens' }).getByText(TOTAL_DA_MAIS_NOVA, { exact: true })
+  await (aVista ? expect(total).toBeVisible() : expect(total).toHaveCount(1))
+}
+
+/** A mão acesa ocupa as duas linhas do chamado ("Esperando o mestre" e "Baixar a mão"). */
+async function chamarOMestre(page: Page): Promise<void> {
+  await page.getByRole('button', { name: 'Chamar o mestre' }).click()
+  await page.getByRole('button', { name: 'Chamar', exact: true }).click()
+  await expect(page.getByText(/^Esperando o mestre/)).toBeVisible()
+}
+
+/** O alarme do mestre: a faixa de ponta a ponta no alto, e o que mora no alto desce a altura dela. */
+async function soarOAlarme(page: Page, host: HostDeMentira): Promise<void> {
+  host.mandar({ type: 'scene.alarm', id: 'alarme-1', text: 'Fogo no porão!' })
+  await expect(page.getByText('Fogo no porão!')).toBeVisible()
 }
 
 /** Mede só depois das entradas (deslizes e escalas curtos): no meio delas a caixa ainda não está no lugar. As que repetem para sempre não contam. */
@@ -168,11 +233,15 @@ interface Flutuante {
   toque: boolean
 }
 
+/** Os avisos que ficam na tela enquanto o estado dura (pausa, ficha congelada, viagem esperando, encontro): moram um andar acima dos que passam. */
+const AVISOS_QUE_FICAM = '.pp-notice--pause, .pp-notice--congelado, .pp-notice--travel, .pp-notice--wait'
+
 const FLUTUANTES: readonly Flutuante[] = [
   { nome: 'Painel', seletor: '.pp-bar > .pp-toggle', toque: true },
   { nome: 'Minha ficha', seletor: '.pp-bar > .pp-mine', toque: true },
   { nome: 'Inventário', seletor: '.pp-bar > .pp-bag', toque: true },
   { nome: 'gaveta do painel', seletor: '.pp-panel', toque: false },
+  { nome: 'alarme', seletor: '.pp-alarm', toque: false },
   { nome: 'abas de andar', seletor: '.pp-floors__list', toque: true },
   { nome: 'Onde estou', seletor: '.pp-where', toque: true },
   { nome: 'confronto', seletor: '.pp-confronto', toque: false },
@@ -187,13 +256,18 @@ const FLUTUANTES: readonly Flutuante[] = [
   { nome: 'rolagens', seletor: '.pp-dice-feed', toque: false },
   { nome: 'ferrolho', seletor: '.pp-ferrolho', toque: true },
   { nome: 'Espiar pela porta', seletor: '.pp-espiar', toque: true },
+  { nome: 'faixa da porta', seletor: '.pp-notice--door', toque: false },
+  { nome: 'pedido da porta', seletor: '.pp-notice--door button', toque: true },
+  { nome: 'aviso que fica', seletor: AVISOS_QUE_FICAM, toque: false },
+  { nome: 'aviso', seletor: `.pp-notice:not(.pp-notice--door, ${AVISOS_QUE_FICAM})`, toque: false },
 ]
 
-/** A barra é o cabeçalho da gaveta: morar dentro dela é o desenho, não sobreposição. */
+/** A barra é o cabeçalho da gaveta, e os pedidos moram na faixa da porta: morar dentro é o desenho, não sobreposição. */
 const JUNTOS_DE_PROPOSITO: ReadonlyArray<readonly [string, string]> = [
   ['Painel', 'gaveta do painel'],
   ['Minha ficha', 'gaveta do painel'],
   ['Inventário', 'gaveta do painel'],
+  ['faixa da porta', 'pedido da porta'],
 ]
 
 interface Medida {
@@ -269,23 +343,28 @@ function problemas(medidas: readonly Medida[], tela: { width: number; height: nu
 interface Tela {
   width: number
   height: number
-  /** Celular: dedo (pointer coarse, sem hover). */
+  /** Celular e tablet: dedo (pointer coarse, sem hover). */
   toque: boolean
   /** O painel é gaveta (nasce fechada, aberta cobre o mapa): menos de 700 px de largura ou até 480 de altura. */
   gaveta: boolean
 }
 
-const TELAS: readonly Tela[] = [
-  { width: 1280, height: 800, toque: false, gaveta: false },
-  { width: 390, height: 844, toque: true, gaveta: true },
-  { width: 320, height: 568, toque: true, gaveta: true },
-  { width: 844, height: 390, toque: true, gaveta: true },
-  { width: 844, height: 340, toque: true, gaveta: true },
-  { width: 667, height: 375, toque: true, gaveta: true },
-  { width: 568, height: 320, toque: true, gaveta: true },
-]
+const NOTEBOOK: Tela = { width: 1280, height: 800, toque: false, gaveta: false }
+/** Janela de 768 px com a coluna do painel aberta: a faixa livre do mapa tem uns 370 px. */
+const TABLET_EM_PE: Tela = { width: 768, height: 1024, toque: false, gaveta: false }
+const TABLET_DEITADO: Tela = { width: 1024, height: 768, toque: false, gaveta: false }
+const EM_PE: Tela = { width: 390, height: 844, toque: true, gaveta: true }
+const EM_PE_ESTREITO: Tela = { width: 320, height: 568, toque: true, gaveta: true }
+const DEITADO_LARGO: Tela = { width: 844, height: 390, toque: true, gaveta: true }
+const DEITADO_BAIXO: Tela = { width: 844, height: 340, toque: true, gaveta: true }
+const DEITADO_MEDIO: Tela = { width: 667, height: 375, toque: true, gaveta: true }
+const DEITADO_PEQUENO: Tela = { width: 568, height: 320, toque: true, gaveta: true }
 
-/** Tudo o que o recorte acende tem de estar medido: sem isso o teste passaria com a tela vazia. */
+const TELAS: readonly Tela[] = [NOTEBOOK, TABLET_EM_PE, EM_PE, EM_PE_ESTREITO, DEITADO_LARGO, DEITADO_BAIXO, DEITADO_MEDIO, DEITADO_PEQUENO]
+
+const nomeDaTela = (tela: Tela): string => `${tela.width}x${tela.height}${tela.toque ? ' (dedo)' : ''}`
+
+/** Tudo o que o recorte cheio acende tem de estar medido: sem isso o teste passaria com a tela vazia. */
 const ACESOS = [
   'Painel',
   'Minha ficha',
@@ -309,14 +388,34 @@ const ACESOS = [
 /** O dedo no alvo: o mínimo de 44 px do tema. Mouse: os 24 px da WCAG 2.5.8 — no notebook o "Onde estou" tem 36. */
 const alvoMinimo = (tela: Tela): number => (tela.toque ? 44 : 24)
 
+/** Mede a tela, guarda a foto e as caixas, e devolve as medidas. */
+async function medirEFotografar(page: Page, nome: string): Promise<Medida[]> {
+  await esperarAsEntradas(page)
+  const medidas = await medir(page)
+  await fotografar(page, nome)
+  await test.info().attach(`${nome}.json`, { body: JSON.stringify(medidas, null, 2), contentType: 'application/json' })
+  return medidas
+}
+
+/** Os acesos que não foram medidos: o teste que passa com eles apagados não prova nada. */
+function apagados(medidas: readonly Medida[], acesos: readonly string[]): string[] {
+  const medidos = new Set(medidas.map((m) => m.nome))
+  return acesos.filter((nome) => !medidos.has(nome))
+}
+
+function caixaDe(medidas: readonly Medida[], nome: string): Medida {
+  const achada = medidas.find((m) => m.nome === nome)
+  if (achada === undefined) throw new Error(`${nome} não foi medido`)
+  return achada
+}
+
 for (const tela of TELAS) {
-  test.describe(`${tela.width}x${tela.height}${tela.toque ? ' (dedo)' : ''}`, () => {
+  test.describe(nomeDaTela(tela), () => {
     test.use({ viewport: { width: tela.width, height: tela.height }, hasTouch: tela.toque, isMobile: tela.toque })
 
     test('com tudo aceso, nenhum flutuante cruza outro nem sai da tela', async ({ page }) => {
       const host = await jogadorEntra(page)
-      for (const [i, faces] of ROLAGENS.entries()) host.mandar(rolagem(`r${i}`, faces))
-      await expect(page.getByRole('log', { name: 'Rolagens' }).getByText('14', { exact: true })).toBeVisible()
+      await rolarTudo(page, host)
       // O formulário do chamado, aberto, cabe inteiro na tela — deitado, a mão mora no pé dela e
       // o formulário, mais alto que a tela, rola por dentro. A mão continua à vista em cima dele.
       const mao = page.getByRole('button', { name: 'Chamar o mestre' })
@@ -335,29 +434,23 @@ for (const tela of TELAS) {
         expect(caixaAberta.y + caixaAberta.height, `o pé de ${oQue} na tela`).toBeLessThanOrEqual(tela.height)
       }
       await fotografar(page, `chamado-aberto-${tela.width}x${tela.height}`)
-      // A mão acesa ocupa as duas linhas do chamado ("Esperando o mestre" e "Baixar a mão").
       await page.getByRole('button', { name: 'Chamar', exact: true }).click()
       await expect(page.getByText(/^Esperando o mestre/)).toBeVisible()
       await expect(page.getByRole('button', { name: 'Subir ao 1º piso' })).toBeVisible()
       await expect(page.getByRole('button', { name: 'Espiar pela porta' })).toBeVisible()
       await expect(page.getByText('Tela acesa')).toBeVisible()
-      await esperarAsEntradas(page)
 
-      const medidas = await medir(page)
-      await fotografar(page, `hud-${tela.width}x${tela.height}`)
-      await test.info().attach(`hud-${tela.width}x${tela.height}.json`, { body: JSON.stringify(medidas, null, 2), contentType: 'application/json' })
-      const medidos = new Set(medidas.map((m) => m.nome))
-      expect(ACESOS.filter((nome) => !medidos.has(nome)), 'flutuantes que deviam estar acesos e não foram medidos').toEqual([])
+      const medidas = await medirEFotografar(page, `hud-${tela.width}x${tela.height}`)
+      expect(apagados(medidas, ACESOS), 'flutuantes que deviam estar acesos e não foram medidos').toEqual([])
       // A coluna do notebook nasce aberta e entra na conta; a gaveta do celular nasce fechada.
-      expect(medidos.has('gaveta do painel')).toBe(!tela.gaveta)
+      expect(medidas.some((m) => m.nome === 'gaveta do painel')).toBe(!tela.gaveta)
       expect(problemas(medidas, tela, alvoMinimo(tela))).toEqual([])
     })
 
     test('gaveta aberta: nada do mapa fica por cima dela, a rolagem feita por ela aparece nela, e fechar devolve o HUD', async ({ page }) => {
-      test.skip(!tela.gaveta, 'no notebook o painel é coluna, aberta desde a entrada: o teste de cima já a mede')
+      test.skip(!tela.gaveta, 'no notebook e no tablet o painel é coluna, aberta desde a entrada: o teste de cima já a mede')
       const host = await jogadorEntra(page)
-      for (const [i, faces] of ROLAGENS.entries()) host.mandar(rolagem(`r${i}`, faces))
-      await expect(page.getByRole('log', { name: 'Rolagens' }).getByText('14', { exact: true })).toBeVisible()
+      await rolarTudo(page, host)
       // Fechada ela se chama "Painel"; aberta, "Fechar painel".
       const botaoDoPainel = page.getByRole('button', { name: /^(Fechar )?painel$/i })
       await botaoDoPainel.click()
@@ -374,7 +467,7 @@ for (const tela of TELAS) {
       await gaveta.getByRole('tab', { name: 'Dados' }).click()
       await gaveta.getByRole('button', { name: 'd6', exact: true }).click()
       await gaveta.getByRole('button', { name: 'Rolar', exact: true }).click()
-      host.mandar(rolagem('r-gaveta', [1, 1], 'Ana'))
+      host.mandar(rolagem('r-gaveta', { de: 'Ana', faces: [1, 1], modificador: 3 }))
       const naGaveta = gaveta.getByRole('log', { name: 'Rolagens' })
       await expect(naGaveta.getByText('5', { exact: true })).toBeVisible()
       await naGaveta.scrollIntoViewIfNeeded()
@@ -389,6 +482,143 @@ for (const tela of TELAS) {
       await expect(gaveta).toBeHidden()
       await expect(page.getByRole('group', { name: 'Zoom do mapa' })).toBeVisible()
       await expect(page.getByRole('log', { name: 'Rolagens' }).getByText('5', { exact: true })).toBeVisible()
+    })
+  })
+}
+
+/*
+ * PORTA TRANCADA: o toque na porta que o mestre trancou traz a faixa dos
+ * pedidos ("Trancada" com Bater, Forçar, Usar chave e o ×) — no celular,
+ * duas linhas de botões no chão da esquerda. Deitado, a coluna das ações do
+ * lugar descia por cima dela, e o alarme a empurrava ainda mais para baixo.
+ * O pedido feito vira o aviso "Pedido enviado", no mesmo chão — onde mora
+ * também o selo de estado, que caía embaixo dele.
+ */
+const PORTA_TRANCADA: ReadonlyArray<{ tela: Tela; alarme: boolean }> = [
+  { tela: DEITADO_PEQUENO, alarme: false },
+  { tela: DEITADO_PEQUENO, alarme: true },
+  { tela: DEITADO_MEDIO, alarme: false },
+  { tela: DEITADO_LARGO, alarme: true },
+  { tela: EM_PE_ESTREITO, alarme: false },
+]
+
+for (const { tela, alarme } of PORTA_TRANCADA) {
+  test.describe(`porta trancada ${nomeDaTela(tela)}${alarme ? ' com alarme' : ''}`, () => {
+    test.use({ viewport: { width: tela.width, height: tela.height }, hasTouch: tela.toque, isMobile: tela.toque })
+
+    test('a faixa dos pedidos, o aviso do pedido e as ações do lugar não se cobrem', async ({ page }) => {
+      const host = await jogadorEntra(page, { porta: 'trancada', fila: FILA_CURTA, andares: true })
+      await rolarTudo(page, host)
+      if (alarme) await soarOAlarme(page, host)
+      // O mestre recusou o toque na porta: ela está trancada.
+      host.mandar({ type: 'door.toggle.rejected', wallId: 'porta', reason: 'locked' })
+      const faixa = page.getByRole('group', { name: 'Porta trancada' })
+      await expect(faixa).toBeVisible()
+      await expect(page.getByRole('button', { name: 'Espiar pela porta' })).toBeVisible()
+      await expect(page.getByRole('button', { name: 'Subir ao 1º piso' })).toBeVisible()
+
+      const comAFaixa = await medirEFotografar(page, `porta-trancada-${tela.width}x${tela.height}${alarme ? '-alarme' : ''}`)
+      const acesos = ['faixa da porta', 'pedido da porta', 'Espiar pela porta', 'escada', 'Sua vez', 'Onde estou', 'zoom', 'mão do chamado', ...(alarme ? ['alarme'] : [])]
+      expect(apagados(comAFaixa, acesos), 'flutuantes que deviam estar acesos e não foram medidos').toEqual([])
+      expect(problemas(comAFaixa, tela, alvoMinimo(tela))).toEqual([])
+
+      // "Bater": a faixa sai e o aviso do pedido entra no mesmo chão.
+      await faixa.getByRole('button', { name: 'Bater' }).click()
+      await expect(page.getByText('Pedido enviado')).toBeVisible()
+      const comOAviso = await medirEFotografar(page, `pedido-enviado-${tela.width}x${tela.height}${alarme ? '-alarme' : ''}`)
+      expect(apagados(comOAviso, ['aviso', 'Espiar pela porta', 'escada'])).toEqual([])
+      expect(problemas(comOAviso, tela, alvoMinimo(tela))).toEqual([])
+    })
+  })
+}
+
+/*
+ * ALARME E CONFRONTO LONGO: a faixa do alarme empurra tudo o que mora no alto
+ * para baixo, e a fila de sete fichas quebra em três linhas. A coluna do canto
+ * passava do pé — por cima do alto-falante e das ações do lugar (320 x 568),
+ * e até o "Esperando o mestre" (844 x 340). Agora as rolagens cedem primeiro
+ * e, quando nem os selos cabem, a fila do confronto: a coluna nunca passa do pé.
+ */
+for (const tela of [EM_PE_ESTREITO, EM_PE, DEITADO_BAIXO, DEITADO_PEQUENO, NOTEBOOK]) {
+  test.describe(`alarme e confronto longo ${nomeDaTela(tela)}`, () => {
+    test.use({ viewport: { width: tela.width, height: tela.height }, hasTouch: tela.toque, isMobile: tela.toque })
+
+    test('a coluna do canto não passa do pé, e nada cruza nada', async ({ page }) => {
+      const host = await jogadorEntra(page, { porta: 'fechada', fila: FILA_LONGA, andares: true })
+      await rolarTudo(page, host, false)
+      await soarOAlarme(page, host)
+      await chamarOMestre(page)
+      await expect(page.getByRole('button', { name: 'Trancar deste lado' })).toBeVisible()
+
+      const medidas = await medirEFotografar(page, `alarme-confronto-${tela.width}x${tela.height}`)
+      const acesos = ['alarme', 'abas de andar', 'Onde estou', 'confronto', 'Sua vez', 'zoom', 'som', 'mão do chamado', 'linha do chamado', 'escada', 'ferrolho', 'Espiar pela porta']
+      expect(apagados(medidas, acesos), 'flutuantes que deviam estar acesos e não foram medidos').toEqual([])
+      expect(problemas(medidas, tela, alvoMinimo(tela))).toEqual([])
+
+      // A vez continua inteira à vista; a fila corta por baixo (ou à direita, deitado) dentro da faixa.
+      await expect(page.getByRole('region', { name: 'Confronto' }).getByText('Sua vez · 6 casas')).toBeInViewport({ ratio: 1 })
+      const confronto = caixaDe(medidas, 'confronto')
+      const pe = await page.locator('.pp-canto').evaluate((canto) => canto.getBoundingClientRect().bottom)
+      expect(confronto.y + confronto.altura, 'o pé do confronto dentro do pé da coluna do canto').toBeLessThanOrEqual(pe + FOLGA)
+    })
+  })
+}
+
+/*
+ * PAUSA E AVISO QUE PASSA, deitado: o aviso da pausa fica na tela enquanto o
+ * mestre está com o outro grupo, e a resposta do mestre a uma ação no ponto
+ * passa sozinha. Moravam a 112 e 156 px do rodapé — o meio da tela deitada,
+ * na altura da coluna das ações do lugar.
+ */
+for (const tela of [DEITADO_PEQUENO, DEITADO_BAIXO]) {
+  test.describe(`pausa e aviso que passa ${nomeDaTela(tela)}`, () => {
+    test.use({ viewport: { width: tela.width, height: tela.height }, hasTouch: tela.toque, isMobile: tela.toque })
+
+    test('os avisos moram no chão da esquerda, abaixo das ações do lugar', async ({ page }) => {
+      const host = await jogadorEntra(page)
+      await rolarTudo(page, host)
+      host.mandar({ type: 'scene.paused', paused: true })
+      await expect(page.getByText('O mestre está com o outro grupo')).toBeVisible()
+      await expect(page.getByRole('button', { name: 'Trancar deste lado' })).toBeVisible()
+
+      // Só a pausa, no segundo andar: ela não cobre o selo de estado, e ele fica à vista.
+      const soAPausa = await medirEFotografar(page, `pausa-${tela.width}x${tela.height}`)
+      expect(apagados(soAPausa, ['aviso que fica', 'hora do dia', 'tela acesa', 'Espiar pela porta', 'ferrolho', 'Sua vez'])).toEqual([])
+      expect(problemas(soAPausa, tela, alvoMinimo(tela))).toEqual([])
+
+      // A resposta do mestre a uma ação no ponto passa pelo chão: o selo sai de baixo dela.
+      host.mandar({ type: 'point.action.answer', action: 'escutar', answer: 'seen' })
+      await expect(page.locator('.pp-notice--point')).toBeVisible()
+      const comOAviso = await medirEFotografar(page, `pausa-e-aviso-${tela.width}x${tela.height}`)
+      expect(apagados(comOAviso, ['aviso que fica', 'aviso', 'Espiar pela porta', 'ferrolho', 'Sua vez', 'Onde estou', 'confronto'])).toEqual([])
+      expect(comOAviso.some((m) => m.nome === 'hora do dia'), 'o selo de estado embaixo do aviso do chão').toBe(false)
+      expect(problemas(comOAviso, tela, alvoMinimo(tela))).toEqual([])
+    })
+  })
+}
+
+/*
+ * TABLET COM A COLUNA DO PAINEL ABERTA: o mapa que sobra tem uns 370 px. A
+ * porta aberta dá o rótulo mais comprido do ferrolho ("Fechar e trancar deste
+ * lado"), que passava do meio da faixa e cruzava a rolagem; sem abas de
+ * andar, o "Onde estou" é o primeiro selo da coluna do canto e mora na altura
+ * da faixa "Sua vez", centrada no mapa que sobra.
+ */
+for (const tela of [TABLET_EM_PE, TABLET_DEITADO]) {
+  test.describe(`coluna do painel aberta ${nomeDaTela(tela)}`, () => {
+    test.use({ viewport: { width: tela.width, height: tela.height }, hasTouch: tela.toque, isMobile: tela.toque })
+
+    test('a faixa "Sua vez", o "Onde estou", o ferrolho e as rolagens não se cruzam', async ({ page }) => {
+      const host = await jogadorEntra(page, { porta: 'aberta', fila: FILA_CURTA, andares: false })
+      await rolarTudo(page, host)
+      await chamarOMestre(page)
+      await expect(page.getByRole('button', { name: 'Fechar e trancar deste lado' })).toBeVisible()
+      await expect(page.getByRole('complementary', { name: 'Painel do jogador' })).toBeVisible()
+
+      const medidas = await medirEFotografar(page, `coluna-do-painel-${tela.width}x${tela.height}`)
+      const acesos = ['gaveta do painel', 'Sua vez', 'Onde estou', 'confronto', 'ferrolho', 'escada', 'rolagens', 'hora do dia', 'zoom', 'som', 'mão do chamado', 'linha do chamado']
+      expect(apagados(medidas, acesos), 'flutuantes que deviam estar acesos e não foram medidos').toEqual([])
+      expect(problemas(medidas, tela, alvoMinimo(tela))).toEqual([])
     })
   })
 }
