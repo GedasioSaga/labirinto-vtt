@@ -11,8 +11,12 @@ interface PlayerWhereAmIProps {
   where: WhereAmI | null
   /** Jogador com mais de uma ficha: o selo diz de qual delas é o caminho. */
   showTokenName: boolean
-  /** Toque no selo: centraliza a ficha, pelo mesmo caminho do "Minha ficha". */
-  onFocus: (tokenId: string) => void
+  /**
+   * Toque no selo: centraliza a ficha, pelo mesmo caminho do "Minha ficha".
+   * `animate`: veio do dedo ou do mouse, e a câmera desliza. Sem ele (o
+   * teclado), é o pedido de sempre: a câmera salta.
+   */
+  onFocus: (tokenId: string, animate?: boolean) => void
 }
 
 interface WhereAmIButtonProps {
@@ -20,7 +24,7 @@ interface WhereAmIButtonProps {
   scene: string
   where: WhereAmI
   showTokenName: boolean
-  onFocus: (tokenId: string) => void
+  onFocus: (tokenId: string, animate?: boolean) => void
 }
 
 /** Mesmo nome, sem ligar para caixa nem para espaço nas pontas. */
@@ -72,7 +76,12 @@ function WhereAmIButton({ scene, where, showTokenName, onFocus }: WhereAmIButton
       className="pp-where"
       aria-label={`Onde estou: ${text}. Centralizar ${tokenName}`}
       title="Centralizar a ficha"
-      onClick={() => onFocus(tokenId)}
+      // `detail` conta os cliques do dedo ou do mouse, que pedem o deslize. Enter e Espaço
+      // sintetizam o clique com 0 e fazem o pedido de sempre, só com a ficha: a câmera salta.
+      onClick={(event) => {
+        if (event.detail === 0) onFocus(tokenId)
+        else onFocus(tokenId, true)
+      }}
     >
       {showTokenName && <span className="pp-where__who">{tokenName}</span>}
       {shownScene !== '' && (

@@ -1,5 +1,6 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, type CSSProperties } from 'react'
 import { PlayerMeasureLabel, writeMeasureText } from './PlayerMeasureLabel'
+import { theme } from '../theme'
 import { Application, Container, Graphics, Sprite, Text, Texture } from 'pixi.js'
 import type { FederatedPointerEvent } from 'pixi.js'
 import type { MapData, Pin, Region, RegionPoint, Token, TokenCompanion, Wall } from '../types/map'
@@ -163,6 +164,19 @@ interface PlayerViewProps {
   /** Token a centralizar. `focusSeq` muda a cada pedido, para repetir o mesmo token. */
   focusTokenId: string | null
   focusSeq: number
+  /**
+   * O pedido `focusSeq` veio do dedo ou do mouse: a câmera desliza até a ficha
+   * em `RECENTER_MS`, e o jogador vê para que lado ela estava. Falso (veio do
+   * teclado), a câmera salta: ação de teclado não espera animação.
+   */
+  focusAnimate?: boolean
+  /**
+   * ATALHO NA MESMA CENA: o pedido `focusSeq` é a chegada pelo atalho. A ficha
+   * vai direto ao ponto do outro lado e a câmera salta junto. O mapa é o mesmo,
+   * então o snapshot da chegada começou um deslize que levaria a ficha em linha
+   * reta pela tela, por cima de parede e névoa. Manda sobre `focusAnimate`.
+   */
+  focusSnap?: boolean
   onMove: (tokenId: string, x: number, y: number) => void
   /** Sinais recebidos do mestre (inclui o eco dos próprios). */
   signals?: readonly SignalMark[]
@@ -255,6 +269,16 @@ interface PlayerViewProps {
    * só mostra — nenhum gesto chega ao mapa, então nada anda na tela do jogador.
    */
   mirror?: boolean
+  /**
+   * Chave da CHEGADA: muda quando o jogador vai a outro lugar (viagem, "o
+   * mestre levou você", outro andar ao vivo), e a troca do mapa ganha o véu.
+   * Olhar a memória de outro andar pelas abas troca o mapa sem mudar a chave:
+   * a aba troca na hora pelas setas do teclado, e véu em ação de teclado é
+   * atraso. A chegada que não troca o mapa na tela (ao andar cuja memória ele
+   * já olhava) fica sem véu, mas conta: a troca de aba seguinte não toca o véu
+   * dela. Ausente, vale o id do mapa.
+   */
+  arrivalKey?: string
 }
 
 const RASTER_SAMPLES = 4
@@ -961,6 +985,8 @@ interface Scene {
    * outro tamanho, e a câmera do mapa de antes o deixaria olhando para o nada.
    */
   fittedMapId: string | null
+  /** Chave da chegada (`arrivalKey`) no último desenho; `null` = nenhum ainda, e a primeira cena não ganha véu. */
+  arrivalKey: string | null
   drag: Drag | null
   /** Dedos na tela e a pinça (playerZoom.ts). Só toque: mouse e caneta são um ponteiro só. */
   touch: TouchState
@@ -1256,6 +1282,75 @@ function stepZoom(scene: Scene, direction: ZoomDirection, animate: boolean): voi
   applyCamera(scene)
 }
 
+/**
+ * A ficha vai direto ao ponto que o mapa diz, sem o deslize que o snapshot
+ * começou. A que está sob o dedo fica com ele: o arrasto manda nela até soltar.
+ */
+function snapTokenToMap(scene: Scene, token: Token): void {
+  scene.tokenGlides.delete(token.id)
+  if (scene.drag?.kind === 'token' && scene.drag.tokenId === token.id) return
+  scene.tokenViews.get(token.id)?.wrapper.position.set(token.x, token.y)
+}
+
+/** Quanto a própria ficha cresce ao ser agarrada: no celular o dedo a cobre, e o sinal de "peguei" aparece em volta dele. */
+const TOKEN_LIFT_SCALE = 1.08
+/** O cursor da ficha agarrada, do aperto ao soltar: a mão fechada. */
+const TOKEN_HELD_CURSOR = 'grabbing'
+
+/**
+ * PEGAR A PRÓPRIA FICHA: agarrada (`lifted`), ela cresce um pouco e o cursor
+ * vira a mão fechada, na hora — é resposta ao toque, sem tween. Solta, volta
+ * ao tamanho e ao toque de `applyTokenTouch` (a mão aberta). Com movimento
+ * reduzido, só o cursor muda.
+ */
+function syncTokenLift(wrapper: Container, own: boolean, lifted: boolean): void {
+  applyTokenTouch(wrapper, own)
+  wrapper.scale.set(lifted && !prefersReducedMotion() ? TOKEN_LIFT_SCALE : 1)
+  if (lifted) wrapper.cursor = TOKEN_HELD_CURSOR
+}
+
+/**
+ * CURSOR NA HORA. A tela mostra o cursor do EventBoundary que despacha o
+ * evento (`event.manager`): o Pixi o põe no canvas no fim de cada evento de
+ * ponteiro, mas só o recalcula, pelo objeto sob o mouse, quando o mouse anda.
+ * O `cursor` que a ficha ganha no aperto ou no soltar não aparecia com o mouse
+ * parado: a mão aberta ficava até o primeiro movimento. Escrito no boundary
+ * durante o evento, o cursor novo vale no fim dele mesmo.
+ */
+function showCursorNow(event: FederatedPointerEvent, cursor: string | undefined): void {
+  // Sem cursor pedido (nada sob o ponteiro, ou um objeto que não pede nenhum), a seta: a mesma regra do Pixi.
+  event.manager.cursor = cursor ?? 'default'
+}
+
+/**
+ * Fim do arrasto da própria ficha, com ou sem efeito: ela volta ao tamanho e à
+ * mão aberta. Pelo id, e não pela ficha do mapa: a que sumiu do pacote no meio
+ * do arrasto continua guardada (invisível) e volta também.
+ */
+function releaseTokenLift(scene: Scene, tokenId: string): void {
+  const view = scene.tokenViews.get(tokenId)
+  if (view) syncTokenLift(view.wrapper, view.own, false)
+}
+
+/**
+ * VÉU DA CHEGADA: cobre o mapa no instante da troca e some, e o lugar novo
+ * surge em vez de saltar de um quadro para o outro. Fixo como o container do
+ * mapa e logo depois dele, sem z-index: fica acima do canvas e abaixo de todo
+ * o HUD (z-index de 5 a 40 em player.css). Estilo aqui, como o do container,
+ * porque é parte da tela do mapa.
+ */
+const VEIL_STYLE: CSSProperties = {
+  position: 'fixed',
+  inset: 0,
+  background: `var(--lb-color-stone-sunken, ${theme.color.stoneSunken})`,
+  opacity: 0,
+  pointerEvents: 'none',
+}
+/** Cobre de uma vez e some: o primeiro quadro já esconde o corte. Só opacidade, que roda no compositor. */
+const VEIL_KEYFRAMES: Keyframe[] = [{ opacity: 1 }, { opacity: 0 }]
+/** Saída da tela: a curva de desaceleração e a duração base dos tokens de movimento. */
+const VEIL_TIMING: KeyframeAnimationOptions = { duration: Number.parseFloat(theme.motion.base), easing: theme.motion.ease }
+
 /** Referência estável: sem zonas, o redesenho não repinta a camada a cada snapshot. */
 const NO_CONCEALED: RegionPoint[][] = []
 /** Mesmo motivo, para a zona de perigo. */
@@ -1283,6 +1378,8 @@ export function PlayerView({
   settings,
   focusTokenId,
   focusSeq,
+  focusAnimate = false,
+  focusSnap = false,
   onMove,
   signals = NO_SIGNALS,
   signalArmed = false,
@@ -1316,6 +1413,7 @@ export function PlayerView({
   zoomStep = NO_ZOOM_STEP,
   onZoomLimitsChange,
   mirror = false,
+  arrivalKey,
 }: PlayerViewProps) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const measureLabelRef = useRef<HTMLDivElement | null>(null)
@@ -1326,6 +1424,8 @@ export function PlayerView({
   /** O que esta tela já viu de cada cena, para saber o que mudou na volta (`revisitChanges.ts`). */
   const revisitMemoryRef = useRef(createRevisitMemory())
   const routeLabelRef = useRef<HTMLDivElement | null>(null)
+  /** Véu da chegada (`VEIL_STYLE`); fica `null` no espelho do mestre, que não tem véu. */
+  const veilRef = useRef<HTMLDivElement | null>(null)
   const sceneRef = useRef<Scene | null>(null)
   const latest = {
     map,
@@ -1371,6 +1471,7 @@ export function PlayerView({
     noteArmed,
     onNotePlace,
     onZoomLimitsChange,
+    arrivalKey,
   }
   const latestRef = useRef(latest)
   latestRef.current = latest
@@ -1466,6 +1567,18 @@ export function PlayerView({
     label.textContent = REVISIT_NOTE
     label.hidden = false
     placeRevisitNote(scene, label, revisitAreaOnScreen(scene, areas[0]))
+  }
+
+  /**
+   * VÉU DA CHEGADA (`VEIL_STYLE`): cobre o mapa de uma vez e some, e o lugar
+   * novo surge do escuro. Movimento reduzido: a troca fica seca, como antes.
+   * Uma chegada no meio do véu anterior o recomeça coberto, sobre o lugar mais novo.
+   */
+  function playArrivalVeil(): void {
+    const veil = veilRef.current
+    // jsdom e WebView antiga não têm Web Animations: sem véu, fica o corte de antes.
+    if (veil === null || typeof veil.animate !== 'function' || prefersReducedMotion()) return
+    veil.animate(VEIL_KEYFRAMES, VEIL_TIMING)
   }
 
   function stopRevisitPulse(scene: Scene): void {
@@ -1996,7 +2109,8 @@ export function PlayerView({
       // Fora do `if` de propósito: trocar uma foto por outra não muda a chave.
       syncTokenPhoto(view, token, currentMap.grid)
       // A posse muda sem a view nascer de novo (o mestre atribui ou tira a ficha).
-      applyTokenTouch(view.wrapper, isOwn)
+      // A ficha sob o dedo continua agarrada: a posse sozinha devolveria a mão aberta no meio do arrasto.
+      syncTokenLift(view.wrapper, isOwn, token.id === draggedId)
       sizeTokenLabel(view.label, scene.camera.scale, currentSettings.showNames)
       syncOwnerRing(view, scene.camera.scale)
       syncFacing(view, token, scene.tokenTurns, { shown: shownFacing, now, animate: sameScene && !reducedMotion, cameraScale: scene.camera.scale })
@@ -2058,6 +2172,13 @@ export function PlayerView({
       el.dataset.waitingTokens = currentMap.tokens.filter((t) => waitingSet.has(t.id)).map((t) => t.id).join(',')
     }
 
+    // VÉU DA CHEGADA: chegar é a chave (`arrivalKey`) mudar. Registrada a cada
+    // desenho, troque o mapa ou não: a chegada ao andar cuja memória já estava
+    // na tela não troca o mapa (o id é o mesmo), e a chave velha guardada faria
+    // a próxima troca de aba, pelas setas, tocar o véu de uma chegada antiga.
+    const arrivedAt = latestRef.current.arrivalKey ?? currentMap.id
+    const arrived = scene.arrivalKey !== null && arrivedAt !== scene.arrivalKey
+    scene.arrivalKey = arrivedAt
     if (scene.fittedMapId !== currentMap.id) {
       scene.fittedMapId = currentMap.id
       // Mapa novo (viagem): a medida era em pontos do mapa de antes e mentiria aqui. O modo continua ligado.
@@ -2076,6 +2197,10 @@ export function PlayerView({
       setCameraFromApp(scene, arrival)
       // Pulso só quando a câmera foi atrás da ficha: é a resposta a "onde estou?".
       if (mine !== null && arrival !== fitted) startOwnerPulse(scene, mine.id)
+      // O véu, depois do enquadramento: o primeiro quadro coberto já é o do lugar
+      // novo. A primeira cena (entrar no jogo) não é chegada, e olhar outro andar
+      // pelas abas troca o mapa sem mudar a chave.
+      if (arrived) playArrivalVeil()
     }
     // Nomes e rótulos novos nascem na resolução do renderer: ajusta ao zoom atual.
     scene.textResolution.flush()
@@ -2146,6 +2271,11 @@ export function PlayerView({
       edgeArmed: false,
       edgeAt: null,
     }
+    // Pegou: a ficha cresce e o cursor fecha a mão já no toque, antes de andar.
+    // Ela é do jogador: só a própria ficha recebe o toque (`applyTokenTouch`).
+    syncTokenLift(view, true, true)
+    // Na tela também, com o mouse parado: o Pixi só trocaria o cursor no primeiro movimento.
+    showCursorNow(event, TOKEN_HELD_CURSOR)
   }
 
   useEffect(() => {
@@ -2397,6 +2527,7 @@ export function PlayerView({
         zoomScale: 1,
         onZoom: () => {},
         fittedMapId: null,
+        arrivalKey: null,
         drag: null,
         touch: NO_TOUCH,
         zoomAnimation: null,
@@ -2660,6 +2791,7 @@ export function PlayerView({
         const drag = scene.drag
         scene.drag = null
         if (drag?.kind === 'token') {
+          releaseTokenLift(scene, drag.tokenId)
           const token = latestRef.current.map.tokens.find((t) => t.id === drag.tokenId)
           if (token) scene.tokenViews.get(drag.tokenId)?.wrapper.position.set(token.x, token.y)
         } else if (drag?.kind === 'measure') {
@@ -2835,12 +2967,24 @@ export function PlayerView({
           drag.edgeArmed = true
         }
         scene.tokenViews.get(drag.tokenId)?.wrapper.position.set(drag.x, drag.y)
+        // Segurando, a mão fica fechada. O Pixi acaba de pôr o cursor do que está
+        // sob o mouse, e pode não ser a ficha: ela parou no alcance, ou o mouse
+        // correu na frente dela, e a seta do chão piscaria no meio do arrasto.
+        showCursorNow(event, TOKEN_HELD_CURSOR)
         syncTokenDrag(scene)
       })
-      const endDrag = () => {
+      const endDrag = (event: FederatedPointerEvent) => {
         cancelLongPress()
         const drag = scene.drag
         scene.drag = null
+        // Soltou a própria ficha (andando, no lugar ou num pino): ela volta ao tamanho e à mão aberta.
+        if (drag?.kind === 'token') {
+          releaseTokenLift(scene, drag.tokenId)
+          // A mão abre já, com o mouse parado: vale o cursor do que está sob ele (a
+          // ficha, de mão aberta de novo, ou o chão). `target` vazio apesar do tipo:
+          // solto fora do canvas, o Pixi não acha nada sob o ponteiro, e recalcula quando o mouse volta.
+          showCursorNow(event, event.target?.cursor)
+        }
         // Soltou: trajeto, alcance e "N quadrados" somem junto com o gesto.
         syncTokenDrag(scene)
         if (drag?.kind === 'measure') {
@@ -2932,7 +3076,7 @@ export function PlayerView({
         if (event.pointerType === 'touch' && releaseFinger(event.pointerId)) return
         // Soltou um dedo que não é o dono do gesto em curso: o gesto continua.
         if (scene.drag !== null && scene.drag.pointerId !== event.pointerId) return
-        endDrag()
+        endDrag(event)
       }
       app.stage.on('pointerup', onPointerUp)
       app.stage.on('pointerupoutside', onPointerUp)
@@ -3017,7 +3161,8 @@ export function PlayerView({
   useEffect(() => {
     const scene = sceneRef.current
     if (scene) redraw(scene)
-  }, [map, vision, explored, concealed, glimpses, hazards, gatilhos, peek, porAtravessar, ownTokens, waitingTokens, turnTokenId, settings])
+    // `arrivalKey` também: a chegada que só muda a chave (levado enquanto olhava outro andar) fica registrada já.
+  }, [map, vision, explored, concealed, glimpses, hazards, gatilhos, peek, porAtravessar, ownTokens, waitingTokens, turnTokenId, settings, arrivalKey])
 
   useEffect(() => {
     // Contagem para o e2e (o desenho em si é do ticker); muda quando chega ou expira um sinal.
@@ -3045,12 +3190,25 @@ export function PlayerView({
     if (!scene || focusTokenId === null) return
     const token = latestRef.current.map.tokens.find((t) => t.id === focusTokenId)
     if (!token) return
+    // Chegada pelo atalho na mesma cena: a ficha aparece direto do outro lado,
+    // sem o deslize que o snapshot dela começou pela tela (parede e névoa no caminho).
+    if (focusSnap) snapTokenToMap(scene, token)
     // "Minha ficha" e "Centralizar": no meio do que o painel deixa livre, no
     // zoom de agora, e a ficha pulsa para o olho achar onde a câmera foi.
     const viewport = { width: scene.app.screen.width, height: scene.app.screen.height }
     // Com o degrau dos botões andando, centraliza já na escala em que ele ia parar.
     const scale = scene.zoomAnimation?.to ?? scene.camera.scale
-    setCameraFromApp(scene, centeredCamera(scale, token, viewport, readObstacles()))
+    const target = centeredCamera(scale, token, viewport, readObstacles())
+    // Pelo dedo ou pelo mouse, a câmera desliza e mostra para que lado a ficha
+    // estava. Salta pelo teclado, no atalho (a ficha já está do outro lado), com
+    // movimento reduzido e com a pinça em curso, que manda na câmera.
+    if (focusAnimate && !focusSnap && scene.touch.pinch === null && !prefersReducedMotion()) {
+      // O deslize assume a câmera: o degrau do + para onde está, e o deslize parte dali.
+      scene.zoomAnimation = null
+      scene.cameraGlide = startCameraGlide(scene.camera, target, performance.now())
+    } else {
+      setCameraFromApp(scene, target)
+    }
     startOwnerPulse(scene, token.id)
     // Só um pedido novo (focusSeq) move a câmera; snapshot com o token andando não.
   }, [focusSeq])
@@ -3101,6 +3259,9 @@ export function PlayerView({
             : { position: 'fixed', inset: 0, touchAction: 'none', cursor: signalArmed || measureArmed || laserArmed || destinationArmed || noteArmed ? 'crosshair' : undefined }
         }
       />
+      {/* Véu da chegada: logo depois do mapa e sem z-index, acima do canvas e abaixo de todo o HUD.
+          Fora do espelho do mestre: fixo na janela, ele cobriria a tela do mestre inteira. */}
+      {!mirror && <div ref={veilRef} data-testid="map-veil" aria-hidden="true" style={VEIL_STYLE} />}
 
       {/* Rótulo da régua: escrito pelo gesto direto no DOM (syncMeasure), sem re-render do React por passo do dedo.
           A região viva mora à parte e nasce montada, para a PRIMEIRA medida já ser anunciada. */}

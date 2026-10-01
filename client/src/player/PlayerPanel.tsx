@@ -186,7 +186,11 @@ interface PlayerPanelProps {
   characterColor: string
   settings: PlayerViewSettings
   onSettingsChange: (settings: PlayerViewSettings) => void
-  onFocusToken: (tokenId: string) => void
+  /**
+   * Centralizar a ficha. `animate`: o pedido veio do dedo ou do mouse, e a câmera
+   * desliza até ela. Sem ele (o teclado), é o pedido de sempre: a câmera salta.
+   */
+  onFocusToken: (tokenId: string, animate?: boolean) => void
   /** Modo "Sinalizar" ligado: o próximo toque no mapa vira sinal. */
   signalArmed: boolean
   onToggleSignal: () => void
@@ -459,8 +463,14 @@ export function PlayerPanel({
     selectTab(target.id)
   }
 
-  function focusToken(tokenId: string) {
-    onFocusToken(tokenId)
+  /**
+   * `detail` conta os cliques do dedo ou do mouse, e esses pedem o deslize. Enter
+   * e Espaço sintetizam o clique com 0 e fazem o pedido de sempre, só com a
+   * ficha: o deslize é o acréscimo, e o pedido sem ele continua sendo o salto.
+   */
+  function focusToken(tokenId: string, event: MouseEvent<HTMLButtonElement>) {
+    if (event.detail === 0) onFocusToken(tokenId)
+    else onFocusToken(tokenId, true)
     // Na gaveta o painel cobre o mapa: fecha para mostrar onde a câmera foi.
     closeDrawer()
   }
@@ -600,7 +610,7 @@ export function PlayerPanel({
           {(notebookUnread || chatMention) && <UnreadDot label={panelDotLabel(notebookUnread, chatMention)} />}
         </button>
         {first !== undefined && (
-          <button type="button" className="pp-mine" onClick={() => focusToken(first.id)}>
+          <button type="button" className="pp-mine" onClick={(event) => focusToken(first.id, event)}>
             <svg className="pp-mine__icon" width="14" height="14" viewBox="0 0 14 14" aria-hidden="true" focusable="false">
               <circle cx="7" cy="7" r="4" fill="none" stroke="currentColor" strokeWidth="1.5" />
               <circle cx="7" cy="7" r="1.4" fill="currentColor" />
@@ -670,7 +680,7 @@ export function PlayerPanel({
                         type="button"
                         className="pp-character"
                         aria-label={`Centralizar em ${character.name}`}
-                        onClick={() => focusToken(character.id)}
+                        onClick={(event) => focusToken(character.id, event)}
                       >
                         <span className="pp-dot" style={{ background: characterColor }} aria-hidden="true" />
                         <span className="pp-character__name">{character.name}</span>
@@ -700,7 +710,7 @@ export function PlayerPanel({
                   ))}
                 </ul>
               )}
-              <button type="button" className="pp-button" disabled={first === undefined} onClick={() => first && focusToken(first.id)}>
+              <button type="button" className="pp-button" disabled={first === undefined} onClick={(event) => first && focusToken(first.id, event)}>
                 Centralizar no meu personagem
               </button>
               <button type="button" className="pp-button" aria-pressed={signalArmed} onClick={toggleSignal}>

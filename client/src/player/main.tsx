@@ -609,6 +609,21 @@ interface PointMenuState {
 }
 
 /**
+ * Pedido de câmera na ficha, para a `PlayerView`. `seq` cresce a cada pedido
+ * (o mesmo token de novo é outro pedido). `animate`: veio do dedo ou do mouse,
+ * e a câmera desliza; do teclado, salta. `snap`: é a chegada pelo atalho na
+ * mesma cena, e a ficha vai direto ao outro lado.
+ */
+interface FocusRequest {
+  tokenId: string | null
+  seq: number
+  animate: boolean
+  snap: boolean
+}
+
+const NO_FOCUS: FocusRequest = { tokenId: null, seq: 0, animate: false, snap: false }
+
+/**
  * Prazo do aperto de mão. Passado ele, "Conectando…" vira explicação.
  *
  * Oito segundos: o handshake de uma sala na mesma rede fecha em milissegundos,
@@ -622,7 +637,7 @@ const HANDSHAKE_DEADLINE_MS = 8_000
 export function Session({ connection, code, typedName, hostName, onLeave, onQuit }: SessionProps) {
   const state: PlayerState = useSyncExternalStore(connection.subscribe, connection.getState)
   const [settings, setSettings] = useState<PlayerViewSettings>(() => loadPlayerSettings(localStorageOrNull()))
-  const [focus, setFocus] = useState<{ tokenId: string | null; seq: number }>({ tokenId: null, seq: 0 })
+  const [focus, setFocus] = useState<FocusRequest>(NO_FOCUS)
   /** LUGARES: os nomes que o jogador deu, por lugar. Só nesta tela (nunca vão ao mestre). */
   const [placeNames, setPlaceNames] = useState<Record<string, string>>({})
   const playerId = state.playerId
@@ -721,7 +736,14 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
   const [floorTab, setFloorTab] = useState<string | null>(null)
   const currentFloor = state.andares?.atual
   // Mudou de andar (ou saiu do prédio): a tela volta ao mapa ao vivo, onde a ficha dele está.
-  useEffect(() => setFloorTab(null), [currentFloor])
+  // No mesmo render da mudança (padrão "estado derivado"), e não num efeito depois dela: o
+  // render do meio desenharia a memória da aba velha já com a chegada nova, e a PlayerView
+  // veria a chegada separada da troca de mapa — a volta ao andar ao vivo ficaria sem o véu.
+  const [floorOfTab, setFloorOfTab] = useState(currentFloor)
+  if (floorOfTab !== currentFloor) {
+    setFloorOfTab(currentFloor)
+    setFloorTab(null)
+  }
   /** Cada "Reconectar" conta uma tentativa nova e reinicia o prazo do aperto de mão. */
   const [attempt, setAttempt] = useState(0)
   const [handshakeOverdue, setHandshakeOverdue] = useState(false)
@@ -786,14 +808,20 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
   // ATALHO NA MESMA CENA: o mapa não mudou, então a câmera não reenquadra
   // sozinha. Cada chegada assim centra a ficha que atravessou (não a primeira
   // dele: com duas fichas, o host diz qual foi), pelo mesmo caminho do
-  // "Minha ficha" (o pulso mostra onde ela foi parar). Um objeto novo por
-  // chegada: a ficha andando depois não move a câmera.
+  // "Minha ficha" (o pulso mostra onde ela foi parar) — mas com a ficha direto
+  // do outro lado (`snap`): o deslize da ficha numa cena só a levaria pela
+  // tela, atravessando as paredes. Um objeto novo por chegada: a ficha andando
+  // depois não move a câmera.
+  // No mesmo render do snapshot da chegada (padrão "estado derivado"), e não num
+  // efeito depois dele: o snapshot já começa o deslize na PlayerView, e entre
+  // os dois desenhos cabia um quadro da ficha andando em linha reta pela parede.
   const arrivalFocus = state.arrivalFocus
-  useEffect(() => {
+  const [focusedArrival, setFocusedArrival] = useState(arrivalFocus)
+  if (focusedArrival !== arrivalFocus) {
+    setFocusedArrival(arrivalFocus)
     const arrivedTokenId = arrivalFocus?.tokenId ?? null
-    if (arrivedTokenId === null) return
-    setFocus((current) => ({ tokenId: arrivedTokenId, seq: current.seq + 1 }))
-  }, [arrivalFocus])
+    if (arrivedTokenId !== null) setFocus((current) => ({ tokenId: arrivedTokenId, seq: current.seq + 1, animate: false, snap: true }))
+  }
 
   const characters = useMemo((): PlayerCharacter[] => {
     if (!map) return []
@@ -902,7 +930,8 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
   // já chegou (o recorte decide o que ela pode dizer). Recalcula a cada
   // snapshot, não a cada quadro do arrasto: o arrasto é local ao `PlayerView`.
   const where = useMemo(() => (map ? whereAmI(map, ownTokens, focus.tokenId) : null), [map, ownTokens, focus.tokenId])
-  const focusToken = useCallback((tokenId: string) => setFocus((current) => ({ tokenId, seq: current.seq + 1 })), [])
+  // "Minha ficha", "Centralizar" e "Onde estou": `animate` diz que o pedido veio do dedo ou do mouse (desliza); sem ele, do teclado (salta).
+  const focusToken = useCallback((tokenId: string, animate = false) => setFocus((current) => ({ tokenId, seq: current.seq + 1, animate, snap: false })), [])
   // JOGADOR TRANCA A PORTA: a porta que a ficha dele alcança agora, lida do
   // recorte (a marca "do meu lado" só chega a quem está do lado do ferrolho).
   const acaoFerrolho = useMemo(() => (map ? acaoDeFerrolho(map, ownTokens) : null), [map, ownTokens])
@@ -1112,6 +1141,8 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
             focusSeq={focus.seq}
             onMove={IGNORE_MOVE}
             measureArmed={measureArmed}
+            // A chegada é a do mapa AO VIVO: olhar a memória de outro andar não é chegar (sem véu).
+            arrivalKey={state.map.id}
           />
         ) : (
           <PlayerView
@@ -1130,6 +1161,9 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
             settings={settings}
             focusTokenId={focus.tokenId}
             focusSeq={focus.seq}
+            focusAnimate={focus.animate}
+            focusSnap={focus.snap}
+            arrivalKey={state.map.id}
             onMove={(id, x, y) => connection.requestMove(id, x, y)}
             signals={state.signals ?? NO_SIGNALS}
             laser={state.laser}
