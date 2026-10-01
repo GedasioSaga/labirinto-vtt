@@ -20,10 +20,14 @@
  * centro de cada ficha.
  *
  * A seleção de vários arrastada mede com a mesma régua (`guideBoxOfSelection`).
+ * O Alt segurado (fatia 5) também: `measureBoxOfItems`.
  */
 import type { MapData, Prop, Stair } from '../types/map'
+import type { SelectionItem } from './selectionModel'
 import { boundsOfDrawing, boundsOfRegion, boundsOfWall, type AreaBounds, type AreaSelection } from './areaSelection'
+import { pieceBounds } from './floorSdf'
 import { canInteract } from './itemTransform'
+import { tokenBoundingBox } from './objectTransform'
 import { visibleDrawings, visibleProps, visibleRegions, visibleStairs, visibleTokens, visibleWalls } from './layers'
 import { ehMovelRedondo } from './mobilia'
 import { mapaDoPiso } from './pisos'
@@ -258,6 +262,64 @@ export function guideBoxOfSelection(map: MapData, selection: AreaSelection, piso
   }
 
   return boxes.reduce<AreaBounds | null>((union, box) => (union === null ? box : unionBox(union, box)), null)
+}
+
+/** A caixa de um item como ele se vê no mapa; `null` = o item sumiu ou não tem desenho. */
+function measureBoxOfItem(map: MapData, item: SelectionItem): AreaBounds | null {
+  switch (item.kind) {
+    case 'region': {
+      const region = map.regions.find((r) => r.id === item.id)
+      return region === undefined || isDegenerateRegion(region.points) ? null : boundsOfRegion(region)
+    }
+    case 'wall': {
+      const wall = map.walls.find((w) => w.id === item.id)
+      return wall === undefined ? null : boundsOfWall(wall)
+    }
+    case 'drawing': {
+      const drawing = map.drawings.find((d) => d.id === item.id)
+      return drawing === undefined ? null : boundsOfDrawing(drawing)
+    }
+    case 'prop': {
+      const prop = map.props.find((p) => p.id === item.id)
+      return prop === undefined ? null : guideBoxOfProp(prop)
+    }
+    case 'stair': {
+      const stair = map.stairs.find((s) => s.id === item.id)
+      return stair === undefined ? null : guideBoxOfStair(stair)
+    }
+    case 'token': {
+      const token = map.tokens.find((t) => t.id === item.id)
+      return token === undefined ? null : tokenBoundingBox(token, map.grid)
+    }
+    case 'light': {
+      const light = map.lights.find((l) => l.id === item.id)
+      return light === undefined ? null : { minX: light.x, minY: light.y, maxX: light.x, maxY: light.y }
+    }
+    case 'floor': {
+      const piece = map.floor.find((p) => p.id === item.id)
+      return piece === undefined ? null : pieceBounds(piece)
+    }
+  }
+}
+
+/**
+ * A caixa do que o mestre VÊ destes itens, para o Alt segurado medir (pedido
+ * 3, fatia 5): a união das caixas, com a régua das vizinhas (o objeto girado,
+ * a placa da escada). Medir é só olhar, então nada dos filtros do arrasto: o
+ * item travado e a ficha entram. A parede de sala mede a própria linha, e não
+ * a sala inteira, porque é a linha que o anel de hover destaca. A luz é o
+ * ponto dela; a ficha, o disco; o chão, o retângulo da peça (o mesmo do anel).
+ * `null` = nenhum dos itens existe mais ou tem desenho.
+ */
+export function measureBoxOfItems(map: MapData, items: readonly SelectionItem[]): AreaBounds | null {
+  let union: AreaBounds | null = null
+  for (const item of items) {
+    const box = measureBoxOfItem(map, item)
+    // Mão livre sem ponto dá caixa infinita: não há o que medir nela.
+    if (box === null || !isFiniteBox(box)) continue
+    union = union === null ? box : unionBox(union, box)
+  }
+  return union
 }
 
 /**

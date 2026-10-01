@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import { createEmptyMap } from './mapFactory'
 import { EMPTY_AREA_SELECTION, type AreaBounds, type AreaSelection } from './areaSelection'
-import { guideBoxOfSelection, guideBoxesForDrag, guidePointsForDrag } from './guideBoxes'
+import { guideBoxOfSelection, guideBoxesForDrag, guidePointsForDrag, measureBoxOfItems } from './guideBoxes'
 import { pointBox } from './smartGuides'
 import { planStairFlight } from '../pixi/stairFlight'
-import type { Drawing, Light, MapData, Prop, Region, Stair, StairDirection, StairSegment, Token, Wall } from '../types/map'
+import type { Drawing, FloorPiece, Light, MapData, Prop, Region, Stair, StairDirection, StairSegment, Token, Wall } from '../types/map'
 
 function sala(id: string, minX: number, minY: number, maxX: number, maxY: number, extra: Partial<Region> = {}): Region {
   return {
@@ -323,5 +323,68 @@ describe('guideBoxOfSelection — a caixa do que anda na seleção de vários', 
     expect(guideBoxOfSelection(map, selecao({ regions: ['outro-piso'] }), 0)).toBeNull()
     expect(guideBoxOfSelection(map, selecao({ regions: ['outro-piso'] }), 1)).toEqual({ minX: 800, minY: 100, maxX: 900, maxY: 200 })
     expect(guideBoxOfSelection(map, selecao({ regions: ['degenerada'], drawings: ['vazio'] }), 0)).toBeNull()
+  })
+})
+
+/**
+ * Pedido 3, fatia 5: com o Alt segurado, a distância vai da caixa da seleção
+ * até a caixa da peça sob o mouse. Medir é só olhar, então nada de filtro do
+ * arrasto: travado e ficha entram. A régua é a do que se VÊ, como nas guias.
+ */
+describe('measureBoxOfItems — a caixa do que se vê, para o Alt segurado medir', () => {
+  const mesaEmPe: Prop = { id: 'mesa-em-pe', src: '', x: 200, y: 600, width: 256, height: 64, linkedMapPath: null, mobilia: 'mesa', rotation: 90 }
+  const ficha: Token = { id: 'ficha', characterId: null, name: 'ficha', x: 2000, y: 2000, size: 1, image: null }
+  const fichaGrande: Token = { ...ficha, id: 'ficha-grande', size: 2 }
+  const luz: Light = { id: 'luz', x: 3000, y: 100, radius: 200, color: '#ffcc66', intensity: 1 }
+  const chao: FloorPiece = { id: 'chao', shape: { kind: 'rect', cx: 1000, cy: 1000, w: 200, h: 100 }, op: 'add', modifiers: {} }
+  const semPonto: Drawing = { id: 'vazio', kind: 'freehand', points: [], color: '#ffffff', width: 2 }
+
+  function mapaCompleto(): MapData {
+    return { ...mapa(), props: [bau, mesaEmPe], tokens: [ficha, fichaGrande], lights: [luz], floor: [chao], drawings: [linha, semPonto] }
+  }
+
+  it('sala: a caixa do polígono; a sala travada também mede', () => {
+    const base = mapaCompleto()
+    const travada: MapData = { ...base, regions: base.regions.map((r) => (r.id === 'outra' ? { ...r, locked: true } : r)) }
+    expect(measureBoxOfItems(travada, [{ kind: 'region', id: 'outra' }])).toEqual(OUTRA)
+  })
+
+  it('parede de sala: a própria linha, que é o que o anel de hover destaca, não a sala inteira', () => {
+    expect(measureBoxOfItems(mapaCompleto(), [{ kind: 'wall', id: 'parede-da-outra' }])).toEqual({ minX: 500, minY: 100, maxX: 700, maxY: 100 })
+  })
+
+  it('objeto girado e escada: o desenho (guideBoxOfProp, guideBoxOfStair), como nas guias', () => {
+    expect(measureBoxOfItems(mapaCompleto(), [{ kind: 'prop', id: 'mesa-em-pe' }])).toEqual({ minX: 168, minY: 472, maxX: 232, maxY: 728 })
+    expect(measureBoxOfItems(mapaCompleto(), [{ kind: 'stair', id: 'escada' }])).toEqual(ESCADA)
+  })
+
+  it('ficha: o disco (meia célula vezes o tamanho); luz: o ponto dela', () => {
+    expect(measureBoxOfItems(mapaCompleto(), [{ kind: 'token', id: 'ficha' }])).toEqual({ minX: 1968, minY: 1968, maxX: 2032, maxY: 2032 })
+    expect(measureBoxOfItems(mapaCompleto(), [{ kind: 'token', id: 'ficha-grande' }])).toEqual({ minX: 1936, minY: 1936, maxX: 2064, maxY: 2064 })
+    expect(measureBoxOfItems(mapaCompleto(), [{ kind: 'light', id: 'luz' }])).toEqual({ minX: 3000, minY: 100, maxX: 3000, maxY: 100 })
+  })
+
+  it('peça de chão: o retângulo dela', () => {
+    expect(measureBoxOfItems(mapaCompleto(), [{ kind: 'floor', id: 'chao' }])).toEqual({ minX: 900, minY: 950, maxX: 1100, maxY: 1050 })
+  })
+
+  it('vários itens: a união do que se vê', () => {
+    const itens = [
+      { kind: 'region', id: 'outra' },
+      { kind: 'wall', id: 'parede-solta' },
+      { kind: 'drawing', id: 'linha' },
+    ] as const
+    expect(measureBoxOfItems(mapaCompleto(), itens)).toEqual({ minX: 100, minY: 100, maxX: 900, maxY: 650 })
+  })
+
+  it('item que sumiu, sala sem polígono e mão livre sem ponto ficam de fora; sem nada sobrando, null', () => {
+    const fantasmas = [
+      { kind: 'region', id: 'nao-existe' },
+      { kind: 'region', id: 'degenerada' },
+      { kind: 'drawing', id: 'vazio' },
+    ] as const
+    expect(measureBoxOfItems(mapaCompleto(), fantasmas)).toBeNull()
+    expect(measureBoxOfItems(mapaCompleto(), [...fantasmas, { kind: 'drawing', id: 'linha' }])).toEqual(LINHA)
+    expect(measureBoxOfItems(mapaCompleto(), [])).toBeNull()
   })
 })

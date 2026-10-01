@@ -35,10 +35,11 @@
  *      aparece quando o alinhamento já é exato, sem mover a peça. Com o Alt no
  *      gesto, invertendo a grade para um lado ou para o outro (inclusive o
  *      Alt+arrastar que duplica), a guia encaixa por cima da grade.
- *  (d) O Alt SEGURADO para medir é de outra fatia e usa a classificação de
- *      `lib/toqueDeAlt.ts`: toque curto endireita, segurar além da janela
- *      mede, e clique ou arrasto no meio cancelam os dois. Nada aqui lê o Alt
- *      do teclado; o arrasto só lê o `altKey` do próprio evento de ponteiro.
+ *  (d) O Alt SEGURADO para medir é da fatia 5 (`lib/altMeasure.ts`) e usa a
+ *      classificação de `lib/toqueDeAlt.ts`: toque curto endireita, segurar
+ *      além da janela mede, e clique ou arrasto no meio cancelam os dois. Nada
+ *      aqui lê o Alt do teclado; o arrasto só lê o `altKey` do próprio evento
+ *      de ponteiro.
  *
  * Fatia 3, só no arrasto de CORPO (`SnapOptions.gaps`): ESPAÇAMENTO IGUAL —
  * a peça também encaixa onde os vãos da fileira ficam iguais — e a MEDIDA
@@ -158,15 +159,18 @@ function anchorsOf(box: AreaBounds, axis: GuideAxis): Anchors {
   return axis === 'x' ? [box.minX, (box.minX + box.maxX) / 2, box.maxX] : [box.minY, (box.minY + box.maxY) / 2, box.maxY]
 }
 
-function crossAxis(axis: GuideAxis): GuideAxis {
+/** O outro eixo. Exportado com `low` e `high` para a medida do Alt (`lib/altMeasure.ts`) falar a mesma língua das guias. */
+export function crossAxis(axis: GuideAxis): GuideAxis {
   return axis === 'x' ? 'y' : 'x'
 }
 
-function low(box: AreaBounds, axis: GuideAxis): number {
+/** A borda de baixo da caixa no eixo: a esquerda em x, a de cima em y. */
+export function low(box: AreaBounds, axis: GuideAxis): number {
   return axis === 'x' ? box.minX : box.minY
 }
 
-function high(box: AreaBounds, axis: GuideAxis): number {
+/** A borda de cima da caixa no eixo: a direita em x, a de baixo em y. */
+export function high(box: AreaBounds, axis: GuideAxis): number {
   return axis === 'x' ? box.maxX : box.maxY
 }
 
@@ -584,9 +588,14 @@ export function sameGuides(a: readonly SmartGuide[], b: readonly SmartGuide[]): 
  * encaixe é trabalho jogado fora.
  */
 export function sameOverlay(a: GuideOverlay, b: GuideOverlay): boolean {
-  if (!sameGuides(a.guides, b.guides) || a.gaps.length !== b.gaps.length) return false
-  return a.gaps.every((gap, index) => {
-    const other = b.gaps[index]
+  return sameGuides(a.guides, b.guides) && sameGaps(a.gaps, b.gaps)
+}
+
+/** Os mesmos vãos, na mesma ordem? Serve às guias e à medida do Alt segurado (`lib/altMeasure.ts`). */
+export function sameGaps(a: readonly GapMark[], b: readonly GapMark[]): boolean {
+  if (a.length !== b.length) return false
+  return a.every((gap, index) => {
+    const other = b[index]
     return gap.axis === other.axis && gap.from === other.from && gap.to === other.to && gap.at === other.at
   })
 }

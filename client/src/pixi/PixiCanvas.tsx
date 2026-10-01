@@ -192,7 +192,8 @@ import { isFreeMoveModifier } from '../lib/alignmentGuides'
 // Pedido 3 (guias estilo Figma): o que anda encaixa pela CAIXA (borda e
 // centro) das vizinhas, com tolerância em px de tela. Fatia 1: a sala; fatia
 // 2: todo arrasto de corpo e de ponto; fatia 3: espaçamento igual e o número
-// de cada vão; fatia 4: o ponto de partida e o ponto puxado ao DESENHAR.
+// de cada vão; fatia 4: o ponto de partida e o ponto puxado ao DESENHAR;
+// fatia 5: o Alt segurado mede da seleção até a peça sob o mouse.
 import {
   SMART_GUIDE_SCREEN_PX,
   dragBoxWithGuides,
@@ -207,8 +208,19 @@ import {
   type GuideOverlay,
   type SmartGuide,
 } from '../lib/smartGuides'
-import { guideBoxOfProp, guideBoxOfSelection, guideBoxOfStair, guideBoxesForDrag, guidePointsForDrag, type GuideBoxesOptions, type GuidePointKind } from '../lib/guideBoxes'
-import { drawSmartGuides } from './drawSmartGuides'
+import {
+  guideBoxOfProp,
+  guideBoxOfSelection,
+  guideBoxOfStair,
+  guideBoxesForDrag,
+  guidePointsForDrag,
+  measureBoxOfItems,
+  type GuideBoxesOptions,
+  type GuidePointKind,
+} from '../lib/guideBoxes'
+import { criarMedidorDoAlt, measureBetween, sameAltMeasure, type AltMeasure } from '../lib/altMeasure'
+import { ouvirAltDeMedir } from '../lib/medirComAlt'
+import { drawAltMeasure, drawSmartGuides } from './drawSmartGuides'
 import { createGuideLabelPool, type GuideLabel } from './drawGuideLabels'
 import { passengerIdsOf } from '../lib/vehicle'
 import { carriedBy } from '../lib/carry'
@@ -1249,6 +1261,8 @@ export function PixiCanvas({
       }
       const onCanvasPointerLeave = () => {
         laserPointer = null
+        // A medida do Alt segurado vai até a peça sob o mouse: fora do canvas não há peça sob ele.
+        hideAltMeasure()
       }
       el.addEventListener('pointerleave', onCanvasPointerLeave)
       // Alt+Tab com L ou o botão apertado: keyup/pointerup nunca chegam e o laser ficaria preso ligado.
@@ -2342,6 +2356,12 @@ export function PixiCanvas({
       // O que a camada das guias mostra agora (guias e vãos), e em que zoom (ver `showGuides`).
       let guidesShown: GuideOverlay = { guides: [], gaps: [] }
       let guidesShownScale = 0
+      // A medida do Alt segurado (fatia 5) usa a MESMA camada e os mesmos números
+      // das guias: as duas nunca estão na tela juntas, porque a medida só existe
+      // com o canvas parado e o clique que começa um gesto a cancela. `null` =
+      // a camada não está com a medida (ver `refreshAltMeasure`).
+      let altMeasureShown: AltMeasure | null = null
+      let altMeasureShownScale = 0
       let draggingLineId: string | null = null
       let draggingLinePointIndex: 0 | 1 = 0
       let draggingLineBodyId: string | null = null
@@ -2691,7 +2711,66 @@ export function PixiCanvas({
         guidesGraphics.clear()
         guideLabels.hide()
         guidesShown = { guides: [], gaps: [] }
+        // A camada acabou de ser limpa: se a medida do Alt estava nela, não está mais.
+        altMeasureShown = null
       }
+
+      /**
+       * ALT SEGURADO MEDE (pedido 3, fatia 5; `lib/altMeasure.ts`). O medidor
+       * ouve a janela (`lib/medirComAlt.ts`) e diz quando o Alt é do medir: só
+       * depois da janela do toque, que é do endireitar (pedido 5), e nunca com
+       * clique, arrasto, rolagem ou outra tecla no meio. A medida nunca muda o
+       * mapa e só existe com o canvas parado.
+       */
+      const medidorDoAlt = criarMedidorDoAlt()
+
+      const hideAltMeasure = (): void => {
+        if (altMeasureShown === null) return
+        altMeasureShown = null
+        guidesGraphics.clear()
+        guideLabels.hide()
+      }
+
+      /**
+       * O que medir agora: da caixa da seleção até a da peça sob o mouse
+       * (`hoverTarget`, que já é "outra peça": a selecionada não vira alvo).
+       * `null` = nada a medir. Só olha a store quando o Alt já está medindo:
+       * o pointermove de quem não segura o Alt não paga nada disto.
+       */
+      const altMeasureNow = (): AltMeasure | null => {
+        // `laserPointer` é o ponteiro sobre o canvas: fora dele, o alvo do hover é velho.
+        if (mode !== 'idle' || laserPointer === null || hoverTarget === null) return null
+        const { map, selection } = useMapStore.getState()
+        // Num grupo, o alvo pode ser um item do próprio grupo: medir o grupo até ele mesmo não diz nada.
+        if (selection.length === 0 || selectionHas(selection, hoverTarget)) return null
+        const from = measureBoxOfItems(map, selection)
+        const to = measureBoxOfItems(map, [hoverTarget])
+        if (from === null || to === null) return null
+        const measure = measureBetween(from, to)
+        return measure.gaps.length === 0 ? null : measure
+      }
+
+      /**
+       * Mostra, troca ou apaga a medida. Chamado pelo medidor (Alt desceu, subiu,
+       * foi cancelado, ou a janela do toque acabou com o mouse parado) e pelo
+       * pointermove ocioso, depois de achar a peça sob o mouse. `agora` é o
+       * relógio do `timeStamp` dos eventos, o mesmo do medidor.
+       */
+      const refreshAltMeasure = (agora: number): void => {
+        const measure = medidorDoAlt.medindo(agora) ? altMeasureNow() : null
+        if (measure === null) {
+          hideAltMeasure()
+          return
+        }
+        // O mouse parado sobre a mesma peça dá a mesma medida: refazer a cota e o número seria trabalho jogado fora.
+        if (altMeasureShown !== null && altMeasureShownScale === camera.scale && sameAltMeasure(measure, altMeasureShown)) return
+        drawAltMeasure(guidesGraphics, measure, camera.scale, app.renderer.resolution)
+        guideLabels.show(gapLabels(measure.gaps), camera.scale, app.renderer.resolution)
+        altMeasureShown = measure
+        altMeasureShownScale = camera.scale
+      }
+
+      const pararDeOuvirOAlt = ouvirAltDeMedir(window, medidorDoAlt, { ocioso: () => mode === 'idle', aoMudar: refreshAltMeasure })
 
       /**
        * Onde as candidatas são procuradas: o piso em edição, a tela de agora e
@@ -5797,6 +5876,8 @@ export function PixiCanvas({
           // Onda 2, item 15 (Frente B) — anel de hover, mesmo custo marginal
           // ~0 do resolveHoverHit (ver docstring do módulo).
           redrawHover()
+          // Pedido 3, fatia 5: com o Alt segurado, a medida segue a peça sob o mouse.
+          refreshAltMeasure(event.timeStamp)
           // Corredor em construção não tem `mode` (cliques soltos), então a
           // prévia até o cursor mora aqui, no pointermove ocioso.
           if (corridorDraftPoints.length > 0 && useMapStore.getState().activeTool === 'floor') {
@@ -6854,6 +6935,7 @@ export function PixiCanvas({
         releaseLaserKey(false)
         el.removeEventListener('pointerleave', onCanvasPointerLeave)
         window.removeEventListener('blur', onWindowBlur)
+        pararDeOuvirOAlt()
         containerResizeObserver.disconnect()
         stopWatchingResolution()
         textResolutionTask.cancel()

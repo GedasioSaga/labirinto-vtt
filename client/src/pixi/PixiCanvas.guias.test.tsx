@@ -3,6 +3,7 @@ import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { Container, EventBoundary, FederatedPointerEvent, Graphics, Text } from 'pixi.js'
 import { createEmptyMap } from '../lib/mapFactory'
+import { ALT_TOQUE_JANELA_MS } from '../lib/toqueDeAlt'
 import { useMapStore } from '../stores/mapStore'
 import type { Camera } from './world'
 import type { Drawing, FloorPiece, MapData, Prop, Region, Stair, Token, Wall } from '../types/map'
@@ -180,6 +181,28 @@ function guiaMagenta(): Graphics | null {
     if (no.context.instructions.some((i) => i.action === 'stroke' && i.data.style.color === SMART_GUIDE_COLOR)) return no
   }
   return null
+}
+
+function visivel(no: Container): boolean {
+  let atual: Container | null = no
+  while (atual !== null) {
+    if (!atual.visible) return false
+    atual = atual.parent
+  }
+  return true
+}
+
+/** Os números dos vãos na tela agora: o texto de cada pílula magenta visível. */
+function numerosNaTela(): string[] {
+  const numeros: string[] = []
+  for (const no of descendentes(stage())) {
+    if (!(no instanceof Graphics) || !no.context.instructions.some((i) => i.action === 'fill' && i.data.style.color === SMART_GUIDE_LABEL_COLOR)) continue
+    const rotulo = no.parent
+    if (rotulo === null || !visivel(rotulo)) continue
+    const texto = rotulo.children.find((c): c is Text => c instanceof Text)
+    if (texto !== undefined) numeros.push(texto.text)
+  }
+  return numeros
 }
 
 function caixaDa(id: string): { minX: number; maxX: number; minY: number; maxY: number } {
@@ -665,28 +688,6 @@ describe('PixiCanvas — espaçamento igual e o número dos vãos (pedido 3, fat
   /** Perto do canto de M, longe do nome (que mora no meio). */
   const PEGA_EM_M = { x: 710, y: 510 }
 
-  function visivel(no: Container): boolean {
-    let atual: Container | null = no
-    while (atual !== null) {
-      if (!atual.visible) return false
-      atual = atual.parent
-    }
-    return true
-  }
-
-  /** Os números dos vãos na tela agora: o texto de cada pílula magenta visível. */
-  function numerosNaTela(): string[] {
-    const numeros: string[] = []
-    for (const no of descendentes(stage())) {
-      if (!(no instanceof Graphics) || !no.context.instructions.some((i) => i.action === 'fill' && i.data.style.color === SMART_GUIDE_LABEL_COLOR)) continue
-      const rotulo = no.parent
-      if (rotulo === null || !visivel(rotulo)) continue
-      const texto = rotulo.children.find((c): c is Text => c instanceof Text)
-      if (texto !== undefined) numeros.push(texto.text)
-    }
-    return numeros
-  }
-
   function quantosTextos(): number {
     return descendentes(stage()).filter((no) => no instanceof Text).length
   }
@@ -1060,5 +1061,173 @@ describe('PixiCanvas — guias ao desenhar (pedido 3, fatia 4)', () => {
     ponteiro('pointerup', { x: 100, y: 500 })
     ponteiro('pointermove', { x: 420, y: 500 })
     expect(rotuloDoAngulo()).toBe('7,5 m · 0.0°')
+  })
+})
+
+/**
+ * ALT SEGURADO MEDE (pedido 3, fatia 5): a fiação. A geometria e a régua do
+ * Alt têm teste próprio (`lib/altMeasure.test.ts`, `lib/medirComAlt.test.ts`);
+ * aqui a prova é que o canvas mostra a cota com o número da seleção até a peça
+ * sob o mouse só depois da janela do toque, apaga ao soltar, ao clicar, ao
+ * perder o foco e ao sair do canvas, e nunca mexe no mapa nem nas guias de um
+ * arrasto.
+ */
+describe('PixiCanvas — Alt segurado mede da seleção até a peça sob o mouse (pedido 3, fatia 5)', () => {
+  /** À direita da sala móvel, com faixa em comum na vertical (550..650): cota de x = 300 a 500 em y = 600. */
+  const VIZINHA = sala('vizinha', 500, 550, 700, 650)
+  const SOBRE_A_VIZINHA = { x: 600, y: 600 }
+  const SOBRE_A_MOVEL = { x: 200, y: 520 }
+
+  function prepararComSelecao(): void {
+    prepara(mapa([ALVO, MOVEL, VIZINHA]))
+    useMapStore.setState({ selection: [{ kind: 'region', id: 'movel' }] })
+  }
+
+  /** Mouse parado (sem botão) sobre o ponto, no instante dado: o pointermove ocioso acha a peça sob ele. */
+  function pairar(mundo: { x: number; y: number }, timeStamp: number): void {
+    const camera = useMapStore.getState().camera
+    const e = new FederatedPointerEvent(new EventBoundary())
+    e.pointerType = 'mouse'
+    e.pointerId = 1
+    e.isPrimary = true
+    e.buttons = 0
+    e.timeStamp = timeStamp
+    e.global.set(camera.x + mundo.x * camera.scale, camera.y + mundo.y * camera.scale)
+    act(() => {
+      stage().emit('pointermove', e)
+    })
+  }
+
+  /** O Alt de verdade, na janela: é lá que o medidor ouve. */
+  function alt(tipo: 'keydown' | 'keyup', timeStamp: number): void {
+    const evento = new KeyboardEvent(tipo, { key: 'Alt', altKey: tipo === 'keydown', bubbles: true, cancelable: true })
+    Object.defineProperty(evento, 'timeStamp', { value: timeStamp })
+    act(() => {
+      document.body.dispatchEvent(evento)
+    })
+  }
+
+  /** Um clique na janela: o medidor ouve na captura, antes de o canvas começar o gesto. */
+  function clicarNaJanela(): void {
+    act(() => {
+      document.body.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, buttons: 1, pointerId: 1, isPrimary: true }))
+      document.body.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, buttons: 0, pointerId: 1, isPrimary: true }))
+    })
+  }
+
+  it('Alt segurado sobre a vizinha: nada na janela do toque; depois dela, a cota magenta com o número; soltar apaga, e o mapa não muda', async () => {
+    prepararComSelecao()
+    await monta()
+    const mapaAntes = useMapStore.getState().map
+    pairar(SOBRE_A_VIZINHA, 100)
+    alt('keydown', 1000)
+    pairar(SOBRE_A_VIZINHA, 1000 + ALT_TOQUE_JANELA_MS - 1)
+    expect(guiaMagenta()).toBeNull()
+
+    pairar(SOBRE_A_VIZINHA, 1000 + ALT_TOQUE_JANELA_MS)
+    const cota = guiaMagenta()
+    expect(cota).not.toBeNull()
+    // Deitada em y = 600, da borda da móvel (300) à da vizinha (500): meio pixel
+    // de alinhamento e meio de espessura nos tracinhos das pontas, no máximo.
+    const caixa = cota?.getLocalBounds()
+    expect(Math.abs((caixa?.minX ?? 0) - 300)).toBeLessThanOrEqual(1)
+    expect(Math.abs((caixa?.maxX ?? 0) - 500)).toBeLessThanOrEqual(1)
+    expect(Math.abs(((caixa?.minY ?? 0) + (caixa?.maxY ?? 0)) / 2 - 600)).toBeLessThan(1)
+    expect(numerosNaTela()).toEqual(['4,7 m'])
+
+    alt('keyup', 2000)
+    expect(guiaMagenta()).toBeNull()
+    expect(numerosNaTela()).toEqual([])
+    expect(useMapStore.getState().map).toBe(mapaAntes)
+    expect(useMapStore.getState().past).toHaveLength(0)
+  })
+
+  it('mouse parado em cima da vizinha: o prazo da janela do toque acende a medida sem o mouse mexer', async () => {
+    prepararComSelecao()
+    await monta()
+    pairar(SOBRE_A_VIZINHA, 100)
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    try {
+      alt('keydown', 1000)
+      expect(guiaMagenta()).toBeNull()
+      act(() => {
+        vi.advanceTimersByTime(ALT_TOQUE_JANELA_MS)
+      })
+      expect(guiaMagenta()).not.toBeNull()
+      expect(numerosNaTela()).toEqual(['4,7 m'])
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('clique no meio do Alt apaga a medida, e ela só volta num Alt novo', async () => {
+    prepararComSelecao()
+    await monta()
+    alt('keydown', 1000)
+    pairar(SOBRE_A_VIZINHA, 1700)
+    expect(guiaMagenta()).not.toBeNull()
+    clicarNaJanela()
+    expect(guiaMagenta()).toBeNull()
+    pairar(SOBRE_A_VIZINHA, 2500)
+    expect(guiaMagenta()).toBeNull()
+    alt('keyup', 2600)
+    alt('keydown', 3000)
+    pairar(SOBRE_A_VIZINHA, 3700)
+    expect(guiaMagenta()).not.toBeNull()
+  })
+
+  it('sem seleção, ou com o mouse sobre a própria sala selecionada, nada a medir', async () => {
+    prepara(mapa([ALVO, MOVEL, VIZINHA]))
+    await monta()
+    alt('keydown', 1000)
+    pairar(SOBRE_A_VIZINHA, 1700)
+    expect(guiaMagenta()).toBeNull()
+    act(() => useMapStore.setState({ selection: [{ kind: 'region', id: 'movel' }] }))
+    pairar(SOBRE_A_MOVEL, 1800)
+    expect(guiaMagenta()).toBeNull()
+    pairar(SOBRE_A_VIZINHA, 1900)
+    expect(guiaMagenta()).not.toBeNull()
+  })
+
+  it('a janela perde o foco (Alt+Tab) ou o mouse sai do canvas: a medida some', async () => {
+    prepararComSelecao()
+    await monta()
+    alt('keydown', 1000)
+    pairar(SOBRE_A_VIZINHA, 1700)
+    expect(guiaMagenta()).not.toBeNull()
+    act(() => {
+      window.dispatchEvent(new FocusEvent('blur'))
+    })
+    expect(guiaMagenta()).toBeNull()
+
+    alt('keydown', 3000)
+    pairar(SOBRE_A_VIZINHA, 3700)
+    expect(guiaMagenta()).not.toBeNull()
+    const host = raiz.firstElementChild?.firstElementChild
+    if (!(host instanceof HTMLElement)) throw new Error('sem o elemento do canvas')
+    act(() => {
+      host.dispatchEvent(new PointerEvent('pointerleave'))
+    })
+    expect(guiaMagenta()).toBeNull()
+  })
+
+  it('o Alt no meio de um arrasto nunca vira medida: a guia do arrasto fica na tela', async () => {
+    prepararComSelecao()
+    await monta()
+    arrasta(603, 0)
+    const guiaDoArrasto = guiaMagenta()
+    expect(guiaDoArrasto).not.toBeNull()
+    const caixaDaGuia = guiaDoArrasto?.getLocalBounds()
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    try {
+      alt('keydown', 1000)
+      act(() => {
+        vi.advanceTimersByTime(ALT_TOQUE_JANELA_MS)
+      })
+    } finally {
+      vi.useRealTimers()
+    }
+    // A mesma guia vertical em x = 800 do encaixe, intacta.
+    expect(guiaMagenta()?.getLocalBounds()).toEqual(caixaDaGuia)
   })
 })
