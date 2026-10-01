@@ -1,3 +1,6 @@
+import { useSomStore } from '../stores/somStore'
+import { obterContexto } from './sons/contexto'
+
 /**
  * Som curto do sinal no mestre, gerado por WebAudio (sem arquivo de áudio).
  * Só o subconjunto do AudioContext que é usado, para o teste injetar um falso;
@@ -41,12 +44,11 @@ const ATTACK_S = 0.01
 const SWEEP_S = 0.08
 const DURATION_S = 0.2
 
-function createBrowserContext(): SignalAudioContext<AudioNode> | null {
-  const Ctor = globalThis.AudioContext
-  return typeof Ctor === 'function' ? new Ctor() : null
-}
-
-/** Devolve a função que toca o bipe; o contexto é criado no primeiro toque e reaproveitado. */
+/**
+ * Devolve a função que toca o bipe. O contexto vem de `createContext` no
+ * primeiro toque que o achar (`null` = ainda não há: tenta no próximo) e é
+ * reaproveitado.
+ */
 export function createSignalSound<N>(createContext: () => SignalAudioContext<N> | null): () => boolean {
   let context: SignalAudioContext<N> | null = null
   return () => {
@@ -76,4 +78,17 @@ export function createSignalSound<N>(createContext: () => SignalAudioContext<N> 
   }
 }
 
-export const playSignalSound = createSignalSound(createBrowserContext)
+/**
+ * O BIPE DO APP toca no contexto dos sons de clima (`lib/sons/contexto.ts`):
+ * um contexto só na página, criado e destravado no gesto do mestre. O bipe
+ * vem de mensagem de rede, fora de gesto, e o contexto próprio que ele criava
+ * ali nasceria suspenso no navegador que exige o gesto para o áudio. Antes do
+ * primeiro gesto não toca; na mesa isso não acontece, porque abrir a sala já
+ * é um clique.
+ *
+ * O Mudo da mesa cala o bipe também: quem aperta mudo espera silêncio. A
+ * barra de volume não: o bipe é alerta, não clima, e toca sempre no mesmo nível.
+ */
+const tocarBipe = createSignalSound(obterContexto)
+
+export const playSignalSound = (): boolean => !useSomStore.getState().mudo && tocarBipe()

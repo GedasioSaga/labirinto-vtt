@@ -49,9 +49,9 @@ export interface FonteDeBufferDeSom<N> extends NoDeSom<N> {
 }
 
 /**
- * Estende só o TIPO do contexto do bipe do mestre (`signalSound.ts`). O
- * contexto em si não é dividido: o bipe cria o próprio no primeiro bipe, fora
- * deste motor e fora de gesto, e o destravamento feito aqui não vale para ele.
+ * Estende o tipo do contexto do bipe do mestre (`signalSound.ts`): o bipe toca
+ * neste mesmo contexto (`obterContexto`), destravado aqui no gesto. Ele liga
+ * direto no `destination`, fora do ganho mestre e do passa-baixa dos sons de clima.
  */
 export interface ContextoDeSom<N> extends SignalAudioContext<N> {
   readonly sampleRate: number

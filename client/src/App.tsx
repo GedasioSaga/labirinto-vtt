@@ -39,6 +39,7 @@ import { useFollowPlayer } from './stores/useFollowPlayer'
 import { useArrivalTextSettings } from './stores/useArrivalTextSettings'
 import { subscribeToPlayerWorldChanges } from './stores/playerWorldSubscription'
 import { playSignalSound } from './lib/signalSound'
+import { comSomDePassagem, instalarSonsDoMestre } from './lib/sons/sonsDoMestre'
 import { faceRangeCellsOrNull } from './lib/tokenVulto'
 import { createSignalRouter } from './net/chamadoDeFundo'
 import { tableSceneKey, type AppliedMove, type PinClueState, type PlayerInfo, type SecretCheckState } from './net/hostSession'
@@ -690,7 +691,9 @@ function App() {
           useAwayTokensStore.getState().setFromPlayers(players)
         },
         onPinAudiencesChange: setPinAudiences,
-        onTravelLogChange: setTravelLog,
+        // SONS: linha nova no diário é ficha que trocou de cena na sessão, e toca a passagem.
+        // O pino de viagem do editor (`handleTravelPin`) só move a vista do mestre: não entra aqui.
+        onTravelLogChange: comSomDePassagem(setTravelLog),
         onPinCluesChange: setPinClues,
         onSecretRevealsChange: setSecretReveals,
         onSecretChecksChange: setSecretChecks,
@@ -778,6 +781,9 @@ function App() {
   useEffect(() => subscribeToServedScenes(() => hostBridgeRef.current?.notifyMapChanged()), [])
   // O mapa aberto e as cenas de fundo: o snapshot dos jogadores lê os dois.
   useEffect(() => subscribeToPlayerWorldChanges(() => hostBridgeRef.current?.notifyMapChanged()), [])
+  // SONS DO MESTRE: o dado rolado na sala toca, e o primeiro gesto no app
+  // destrava o áudio (o bipe de chamado toca nesse contexto também).
+  useEffect(() => instalarSonsDoMestre(), [])
   const laserToggled = useLaserStore((state) => state.toggled)
   const diceRolls = useDiceStore((state) => state.rolls)
   const noiseArmed = useNoiseStore((state) => state.armed)

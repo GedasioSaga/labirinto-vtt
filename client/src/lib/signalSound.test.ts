@@ -1,5 +1,6 @@
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createSignalSound, playSignalSound, type SignalAudioContext } from './signalSound'
+import { caminhoAteASaida, criarAudioFalso } from './sons/audioFalso.fixture'
 
 interface FakeNode {
   name: string
@@ -53,5 +54,84 @@ describe('signalSound', () => {
       throw new Error('bloqueado')
     })
     expect(broken()).toBe(false)
+  })
+})
+
+/**
+ * O BIPE DO APP (`playSignalSound`) toca no contexto dos sons de clima
+ * (`lib/sons/contexto.ts`), o único da página, criado no gesto do mestre. O
+ * bipe vem de mensagem de rede, fora de gesto: um contexto só dele nasceria
+ * suspenso onde o navegador exige o gesto. Cada teste sobe os módulos do zero
+ * (o motor e a preferência de som são da página), com um AudioContext falso.
+ */
+describe('playSignalSound: o bipe do app', () => {
+  beforeEach(() => {
+    vi.resetModules()
+    localStorage.clear()
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    localStorage.clear()
+  })
+
+  async function paginaComAudio() {
+    const audio = criarAudioFalso({ estado: 'suspended' })
+    const construir = vi.fn()
+    // O motor faz `new AudioContext()`: função comum que devolve objeto faz o `new` devolver esse objeto.
+    vi.stubGlobal('AudioContext', function AudioContextFalso() {
+      construir()
+      return audio.ctx
+    })
+    const { playSignalSound: tocarBipe } = await import('./signalSound')
+    const { destravarAudioNoPrimeiroGesto } = await import('./sons/contexto')
+    const { useSomStore } = await import('../stores/somStore')
+    /** O primeiro gesto do mestre no app. */
+    const gesto = () => {
+      const parar = destravarAudioNoPrimeiroGesto(window)
+      window.dispatchEvent(new Event('pointerup'))
+      parar()
+    }
+    return { audio, construir, tocarBipe, gesto, useSomStore }
+  }
+
+  it('toca no contexto que o gesto criou para os sons de clima: a página não abre um segundo AudioContext', async () => {
+    const { audio, construir, tocarBipe, gesto } = await paginaComAudio()
+    expect(tocarBipe()).toBe(false)
+    expect(construir).not.toHaveBeenCalled()
+    gesto()
+    expect(construir).toHaveBeenCalledTimes(1)
+    expect(tocarBipe()).toBe(true)
+    expect(tocarBipe()).toBe(true)
+    expect(construir).toHaveBeenCalledTimes(1)
+    expect(audio.osciladores).toHaveLength(2)
+    const [bipe] = audio.osciladores
+    if (bipe === undefined) throw new Error('o bipe não criou oscilador')
+    // Direto à saída: o bipe é alerta, sem o passa-baixa dos sons de clima.
+    expect(caminhoAteASaida(bipe)).toEqual(['oscilador', 'ganho', 'saida'])
+  })
+
+  it('o Mudo da mesa cala o bipe: nenhum oscilador; tirado o mudo, volta a tocar', async () => {
+    const { audio, tocarBipe, gesto, useSomStore } = await paginaComAudio()
+    gesto()
+    useSomStore.getState().alternarMudo()
+    expect(tocarBipe()).toBe(false)
+    expect(audio.osciladores).toEqual([])
+    useSomStore.getState().alternarMudo()
+    expect(tocarBipe()).toBe(true)
+    expect(audio.osciladores).toHaveLength(1)
+  })
+
+  it('a barra de volume não mexe no bipe: o alerta toca sempre no mesmo nível, até com a barra no zero', async () => {
+    const { audio, tocarBipe, gesto, useSomStore } = await paginaComAudio()
+    gesto()
+    for (const volume of [0.1, 0]) {
+      useSomStore.getState().setVolume(volume)
+      expect(tocarBipe(), `volume ${volume}`).toBe(true)
+    }
+    const picos = audio.ganhos
+      .filter((ganho) => ganho.destino === audio.destination)
+      .map((ganho) => Math.max(...ganho.gain.exponentialRampToValueAtTime.mock.calls.map(([valor]) => valor)))
+    expect(picos).toEqual([0.2, 0.2])
   })
 })

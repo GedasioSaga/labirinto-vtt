@@ -125,8 +125,9 @@ export function ControleDeSom({ variante, className, legenda, tocar = tocarSom, 
   const calado = mudo || percentual === 0
   const icone = { size: TAMANHO_DO_ICONE[variante], strokeWidth: TRACO_DO_ICONE[variante] }
 
-  // O gesto feito AQUI destrava o áudio (o mestre não tem outro destravamento
-  // ainda): sem isso, a amostra da barra não tocaria no primeiro uso.
+  // O gesto feito AQUI também destrava o áudio. O mestre e a sessão do jogador
+  // já destravam pela janela; este fica para quem montar o controle sem aquilo,
+  // e não abre outro contexto (o motor é um só).
   useEffect(() => {
     const raiz = raizRef.current
     return raiz === null ? undefined : destravar(raiz)
