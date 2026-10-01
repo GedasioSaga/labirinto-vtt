@@ -71,6 +71,19 @@ export interface PropsRenderer {
 }
 
 /**
+ * Um móvel desenhado e o que a última pintura dele leu. Mesma pintura =
+ * nada a limpar: arrastar UM móvel chamava `draw` com todos a cada passo e
+ * limpava cada um (1200 móveis: ~40 mil `GraphicsContext.clear` num arrasto
+ * de 30 passos, medido no dev em 01/10/2026). O móvel entra pela REFERÊNCIA
+ * (`setPropPosition` conserva a dos outros), o que cobre todo campo que a
+ * silhueta lê; zoom e densidade entram porque o fio é em px de TELA.
+ */
+interface FurnitureEntry {
+  drawing: Graphics
+  painted: { prop: Prop; cameraScale: number; rendererResolution: number } | null
+}
+
+/**
  * Cria um renderer de props com cache de sprite fechado por closure — mesma
  * lifecycle de backgroundSprite/backgroundLoadToken em PixiCanvas.tsx: deve
  * ser instanciado uma vez dentro do setup() de cada mount do PixiCanvas, nunca
@@ -81,7 +94,7 @@ export interface PropsRenderer {
 export function createPropsRenderer(): PropsRenderer {
   const spriteCache = new Map<string, Sprite>()
   // Móveis da mobília desenhada, por id — mesma vida do `spriteCache`.
-  const furnitureCache = new Map<string, Graphics>()
+  const furnitureCache = new Map<string, FurnitureEntry>()
   const highlightGraphics = new Graphics()
   let highlightAttached = false
   // Onda 2, item 12 — caminho de imagem já avisado, pra não empilhar o
@@ -109,7 +122,7 @@ export function createPropsRenderer(): PropsRenderer {
         spriteCache.delete(id)
       }
     }
-    for (const [id, drawing] of furnitureCache) {
+    for (const [id, { drawing }] of furnitureCache) {
       if (!furnitureIds.has(id)) {
         container.removeChild(drawing)
         drawing.destroy()
@@ -178,17 +191,31 @@ export function createPropsRenderer(): PropsRenderer {
    * jogador vê (`drawPropSilhouettes`), um `Graphics` por móvel para o
    * fantasma e o "Oculto para jogadores" valerem por móvel, como no sprite.
    * Nada de imagem: nem pedido de arquivo, nem aviso de imagem quebrada.
+   * Só repinta quando a pintura mudou (`FurnitureEntry`).
    */
   function drawFurniture(container: Container, prop: Prop, view: PropsView): void {
-    let drawing = furnitureCache.get(prop.id)
-    if (!drawing) {
-      drawing = new Graphics()
+    let entry = furnitureCache.get(prop.id)
+    if (!entry) {
+      const drawing = new Graphics()
       drawing.label = FURNITURE_LABEL
-      furnitureCache.set(prop.id, drawing)
+      entry = { drawing, painted: null }
+      furnitureCache.set(prop.id, entry)
       container.addChildAt(drawing, 0)
     }
-    drawPropSilhouettes(drawing, [prop], view.cameraScale, view.rendererResolution)
-    drawing.alpha = propAlpha(prop)
+    const { painted } = entry
+    const { cameraScale, rendererResolution } = view
+    // Mesma pintura: o desenho de antes continua valendo, nada a limpar.
+    if (
+      painted !== null &&
+      painted.prop === prop &&
+      painted.cameraScale === cameraScale &&
+      painted.rendererResolution === rendererResolution
+    ) {
+      return
+    }
+    drawPropSilhouettes(entry.drawing, [prop], cameraScale, rendererResolution)
+    entry.drawing.alpha = propAlpha(prop)
+    entry.painted = { prop, cameraScale, rendererResolution }
   }
 
   /** Fantasma do "Oculto no editor" e destaque de seleção, iguais para imagem e móvel. */

@@ -17,8 +17,12 @@ export interface MeasurementIndicatorRenderer {
    * contador de quadrados do arrasto de ficha: lá `end` é o CENTRO do disco,
    * e o offset padrão jogaria o texto por dentro da peça, com a própria linha
    * riscando as letras. Sem o parâmetro nada muda para a ferramenta Medir.
+   *
+   * Devolve `true` quando o rótulo NASCEU nesta chamada: o Text novo sai na
+   * resolução do renderer, e quem desenha no mundo com zoom precisa ajustá-lo
+   * (`syncWorldTextResolution`) — uma vez, não a cada passo.
    */
-  show: (container: Container, start: Point, end: Point, label: string, labelAnchor?: Point) => void
+  show: (container: Container, start: Point, end: Point, label: string, labelAnchor?: Point) => boolean
   /** Esconde linha e rótulo. Chamar no pointerup/pointerupoutside da
    *  ferramenta "measure" — senão a régua fica "grudada" na tela depois que
    *  o arrasto termina, mesmo bug que o comentário de
@@ -43,11 +47,12 @@ export function createMeasurementIndicatorRenderer(): MeasurementIndicatorRender
   let lineGraphics: Graphics | null = null
   let labelText: Text | null = null
 
-  function ensure(container: Container): { line: Graphics; label: Text } {
+  function ensure(container: Container): { line: Graphics; label: Text; born: boolean } {
     if (!lineGraphics) {
       lineGraphics = new Graphics()
       container.addChild(lineGraphics)
     }
+    const born = labelText === null
     if (!labelText) {
       labelText = new Text({
         style: {
@@ -58,11 +63,11 @@ export function createMeasurementIndicatorRenderer(): MeasurementIndicatorRender
       })
       container.addChild(labelText)
     }
-    return { line: lineGraphics, label: labelText }
+    return { line: lineGraphics, label: labelText, born }
   }
 
-  function show(container: Container, start: Point, end: Point, label: string, labelAnchor?: Point): void {
-    const { line, label: text } = ensure(container)
+  function show(container: Container, start: Point, end: Point, label: string, labelAnchor?: Point): boolean {
+    const { line, label: text, born } = ensure(container)
 
     line.clear()
     line.moveTo(start.x, start.y).lineTo(end.x, end.y).stroke({ width: LINE_WIDTH, color: SELECTION_COLOR, alpha: 0.85 })
@@ -82,6 +87,7 @@ export function createMeasurementIndicatorRenderer(): MeasurementIndicatorRender
       text.y = end.y + LABEL_OFFSET_Y
     }
     text.visible = true
+    return born
   }
 
   function hide(): void {

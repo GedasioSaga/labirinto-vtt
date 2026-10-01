@@ -465,12 +465,6 @@ interface PixiCanvasProps {
    */
   onBackgroundImageSizeChange?: (size: { width: number; height: number } | null) => void
   /**
-   * Onda 1, item 10 (HUD de zoom, Frente E) — notifica a câmera a cada
-   * mudança (pan/zoom/roda/atalho/fit), pra `App.tsx` repassar o `scale` pro
-   * `<ZoomHud>`. Chamado uma vez já no mount, com o valor inicial.
-   */
-  onCameraChange?: (camera: Camera) => void
-  /**
    * Pedido de "resetar zoom para 100%" vindo de FORA da closure (clique no
    * `<ZoomHud>`, `App.tsx`) — muda de valor a cada clique (contador
    * incremental). Mesmo padrão de ponte que `gridAlignOverlayRedrawRef`
@@ -583,7 +577,6 @@ const SELECT_ALL_RECT: AreaRect = { x1: -1e9, y1: -1e9, x2: 1e9, y2: 1e9 }
 export function PixiCanvas({
   gridAlignPreview = null,
   onBackgroundImageSizeChange,
-  onCameraChange,
   resetZoomRequest,
   cameraRequest = null,
   onRoomCreated,
@@ -684,8 +677,9 @@ export function PixiCanvas({
   // em vez de props: aqui a fonte é uma prop, não a store, então a ponte é
   // um ref em vez de uma subscription. `null` até o `setup()` terminar.
   const gridAlignOverlayRedrawRef = useRef<((draft: GridAlignResult | null) => void) | null>(null)
-  // Mesma ponte, para o pedido de "resetar zoom" vindo de fora (ZoomHud/
-  // Ctrl+0 em App.tsx) — ver docstring de `resetZoomRequest` acima.
+  // Mesma ponte, para o pedido de "resetar zoom" vindo de fora (o clique no
+  // ZoomHud, que o App repassa; o Ctrl+0 é resolvido aqui dentro, pelo
+  // atalho `zoomReset`) — ver docstring de `resetZoomRequest` acima.
   const resetZoomRequestRef = useRef<(() => void) | null>(null)
 
   useEffect(() => {
@@ -870,6 +864,25 @@ export function PixiCanvas({
         angleIndicatorContainer,
         guidesGraphics,
       )
+      // DESEMPENHO (invariante): nenhum filho do `world` recebe evento do Pixi.
+      // Os quatro ouvintes (pointerdown, pointerup, pointerupoutside,
+      // pointermove) moram no `stage`, e o alvo do clique sai da geometria do
+      // mapa (`findSelectableAt`, `hitTestMap`), não da árvore. No padrão
+      // ('passive') o EventBoundary descia o mundo inteiro a cada pointermove;
+      // 'none' poda tudo de uma vez. Filho novo que precisar de evento do Pixi
+      // tem de mudar esta linha.
+      world.eventMode = 'none'
+      // O mundo é um grupo de render: o pan e o zoom só mexem no transform do
+      // `world`, que vai para a GPU, em vez de retransformar cada filho na CPU
+      // (pan de 40 passos, 400 salas: 532 → 312 ms de script com esta linha e
+      // a de cima, mediana de 3, imagem idêntica). NÃO na grade: testado ali,
+      // mudou 26.139 px da imagem.
+      world.enableRenderGroup()
+      // O anel de hover é limpo e refeito a cada pointermove. No mesmo grupo do
+      // mapa, cada refação obrigava o Pixi a refazer os lotes de milhares de
+      // Graphics e Text; com grupo próprio, só os dele (hover de 40 passos,
+      // 400 salas: 497 → 57 ms de script, mesma medição).
+      hoverGraphics.enableRenderGroup()
       // 17/09/2026 — arrastar no vazio virou marquee (era pan). A dica que
       // conta por onde o pan foi mora DENTRO do retângulo em curso; entra no
       // `world` DEPOIS de todas as camadas acima, por cima de todas elas, que
@@ -885,7 +898,6 @@ export function PixiCanvas({
       }
       positionWorld()
       world.scale.set(camera.scale)
-      onCameraChange?.(camera)
 
       // Texto no mundo escalado acompanha o zoom em degraus (textResolution.ts):
       // sem isso ele é rasterizado a 1x e esticado (mole a 2x, em blocos a 4x).
@@ -903,18 +915,20 @@ export function PixiCanvas({
        * mudança fica sem desenhar).
        *
        * Só para trabalho DERIVADO da câmera: grade, moldura, contornos em px
-       * de tela e o ZoomHud do React. O pixel que a pessoa está olhando NÃO
-       * passa por aqui — `world.position`/`world.scale` continuam mudando
-       * dentro do próprio pointermove/wheel, então o mapa acompanha o
-       * ponteiro sem um quadro de atraso.
+       * de tela e os nomes. O pixel que a pessoa está olhando NÃO passa por
+       * aqui — `world.position`/`world.scale` continuam mudando dentro do
+       * próprio pointermove/wheel, então o mapa acompanha o ponteiro sem um
+       * quadro de atraso.
        *
        * Por que existe: o navegador entrega VÁRIOS pointermove e vários
        * eventos de roda por quadro, e só o último de cada quadro chega à
        * tela. Redesenhar em todos era trabalho jogado fora. Perfil de CPU do
        * Chromium num gesto de roda (10 passos, editor com 6 salas, 17/09/2026):
        * o topo do JS era `jsxDEV` repetido — a árvore inteira do React
-       * re-renderizando uma vez por evento de roda, puxada por
-       * `onCameraChange`, com frame_p95 de 50 ms no `ux-driver medir`.
+       * re-renderizando uma vez por evento de roda, puxada pelo aviso de
+       * câmera que o canvas mandava ao App, com frame_p95 de 50 ms no
+       * `ux-driver medir`. O aviso não existe mais: o ZoomHud lê a escala
+       * direto da store (`setCamera`, em `applyCamera`).
        */
       const umaVezPorQuadro = (tarefa: () => void): (() => void) => {
         let agendado = false
@@ -930,16 +944,12 @@ export function PixiCanvas({
         }
       }
 
-      // `camera` é lida no quadro, não capturada no agendamento: o ZoomHud
-      // recebe o valor final do gesto, não o do primeiro evento dele.
-      const notifyCameraChange = umaVezPorQuadro(() => onCameraChange?.(camera))
-
       // Onda 1 — todo ponto do arquivo que muda `camera` passa por aqui (pan,
-      // roda, atalho de enquadrar/resetar): aplica no Pixi, grava na store E
-      // notifica App.tsx (ZoomHud). Antes desta fase cada call site repetia
-      // as 3 linhas (`world.position.set` / `world.scale.set` /
-      // `setCamera`) — reunidas aqui pra `onCameraChange` não ficar esquecido
-      // em algum dos pontos novos.
+      // roda, atalho de enquadrar/resetar): aplica no Pixi e grava na store,
+      // de onde o ZoomHud lê a escala sozinho (sem re-renderizar o App).
+      // Antes desta fase cada call site repetia as 3 linhas
+      // (`world.position.set` / `world.scale.set` / `setCamera`) — reunidas
+      // aqui pra nenhuma ficar esquecida em algum dos pontos novos.
       //
       // `setCamera` continua SÍNCRONO de propósito: é o que os gestos e os
       // testes leem para converter mundo↔tela no evento seguinte. O que foi
@@ -953,7 +963,6 @@ export function PixiCanvas({
         positionWorld()
         world.scale.set(camera.scale)
         useMapStore.getState().setCamera(camera)
-        notifyCameraChange()
         textResolutionTask.schedule()
         useFollowStore.getState().cameraApplied(origin)
       }
@@ -1579,7 +1588,7 @@ export function PixiCanvas({
         // A imagem exportada sai com as fichas paradas no lugar final.
         const remoteMoveIds = consumirMovimentosRemotos()
         const glide = exportScene === null ? { sceneId: cenaAberta(), remoteMoveIds } : undefined
-        tokensRenderer.draw(
+        const changedLabels = tokensRenderer.draw(
           tokensContainer,
           visibleTokens(map.tokens, map.hiddenLayers),
           map.grid,
@@ -1596,7 +1605,12 @@ export function PixiCanvas({
         // As alças do token acompanham o token: `moveTokenLive` (arrasto) e
         // `moveSelectionBy` (setas) só acordam ESTE redraw, nunca o de formas.
         redrawEditHandles()
-        syncTextResolution()
+        // Só nome que nasceu (na resolução do renderer) ou mudou de texto pede
+        // o ajuste ao zoom, como as camadas de texto acima (`paintedTextLayer`):
+        // ele percorre TODO Text do mundo, e este redraw roda a cada passo do
+        // arrasto (1200 textos: ~30 ms num arrasto de 30 passos, medido no dev
+        // em 01/10/2026).
+        if (changedLabels > 0) syncTextResolution()
       }
 
       const propsRenderer = createPropsRenderer()
@@ -1810,6 +1824,9 @@ export function PixiCanvas({
           tokensRenderer.setCameraScale(scale)
           for (const overlay of overlays) overlay.visible = false
           redrawScene()
+          // A escala do mundo mudou para a do PNG: o texto é rasterizado nela
+          // (sem isto o nome sairia na resolução do zoom do editor, esticado).
+          syncTextResolution()
           pending = app.renderer.extract.base64({
             target: app.stage,
             frame: new Rectangle(0, 0, Math.max(1, Math.round(width * scale)), Math.max(1, Math.round(height * scale))),
@@ -1828,6 +1845,8 @@ export function PixiCanvas({
             overlay.visible = wasVisible[i]
           })
           redrawScene()
+          // E de volta à resolução do zoom do editor.
+          syncTextResolution()
         }
         return dataUrlToBytes(await pending)
       }
@@ -5304,10 +5323,13 @@ export function PixiCanvas({
                 // acima está livre.
                 const arrastada = map.tokens.find((t) => t.id === draggingTokenId)
                 const raio = arrastada ? tokenRadiusOf(arrastada, map.grid) : map.grid / 2
-                tokenDragDistanceRenderer.show(angleIndicatorContainer, tokenDragOrigin, result.point, rotulo, {
+                const nasceu = tokenDragDistanceRenderer.show(angleIndicatorContainer, tokenDragOrigin, result.point, rotulo, {
                   x: result.point.x,
                   y: result.point.y - raio - FOLGA_DO_ROTULO_DE_QUADRADOS,
                 })
+                // O rótulo é de mundo e nasce na resolução do renderer: ajusta
+                // ao zoom uma vez (o zoom seguinte o mantém, ele fica guardado).
+                if (nasceu) syncTextResolution()
               }
               tokenDragLastShown = assinatura
             }

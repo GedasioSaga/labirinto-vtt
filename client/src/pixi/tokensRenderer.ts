@@ -137,6 +137,11 @@ export interface TokensRenderer {
    * ausente; omitido = nenhuma (a exportação de imagem não leva estado da sessão).
    * `glide`: quem pode deslizar; omitido = tudo no lugar final, e deslize em
    * curso termina já (a exportação de imagem sai com as fichas paradas).
+   *
+   * Só repinta a ficha cuja pintura mudou (`TokenPaint`); a outra só anda.
+   * Devolve quantos nomes nasceram ou trocaram de texto neste desenho: só
+   * então a resolução do texto precisa ser refeita (`syncWorldTextResolution`
+   * percorre o mundo inteiro, e o arrasto chama `draw` a cada passo).
    */
   draw: (
     container: Container,
@@ -147,7 +152,7 @@ export interface TokensRenderer {
     turnTokenId?: string | null,
     awayTokenIds?: ReadonlySet<string>,
     glide?: TokenGlideContext,
-  ) => void
+  ) => number
   /** Só o zoom mudou: reescala e mostra/esconde os nomes sem redesenhar os tokens. */
   setCameraScale: (cameraScale: number) => void
   /**
@@ -188,6 +193,46 @@ function progressOf(start: number, duration: number, now: number): number {
 function applyTurnPulse(ring: Graphics, k: number): void {
   ring.scale.set(TURN_RING_PULSE_FROM_SCALE + (1 - TURN_RING_PULSE_FROM_SCALE) * k)
   ring.alpha = k
+}
+
+/**
+ * Tudo o que a pintura de uma ficha leu. Igual ao da última pintura = nada a
+ * limpar nem a refazer: a ficha só anda. Cada Graphics limpo refaz a geometria
+ * e obriga o Pixi a refazer os lotes do grupo de render — com 800 fichas, um
+ * arrasto de 30 passos limpava ~75 mil (medido no dev, 01/10/2026).
+ *
+ * A ficha entra pela REFERÊNCIA: a store troca o objeto a cada mudança e
+ * conserva o das fichas que não mudaram (`moveTokenLive`, `setTokenPosition`),
+ * então a referência cobre todo campo que o desenho lê — cor, foto, tamanho,
+ * giro, nome, vida, condições, oculta, secreta, congelada. O resto vem de
+ * fora da ficha: a grade (raio), a seleção, a vez e o Volto já. O zoom não
+ * entra: ele só muda a escala do nome, refeita a cada `draw` e em `setCameraScale`.
+ */
+interface TokenPaint {
+  token: Token
+  gridSize: number
+  selected: boolean
+  isTurn: boolean
+  away: boolean
+}
+
+/** A última pintura da ficha ainda vale para estas entradas? */
+function paintIsCurrent(
+  painted: TokenPaint | null,
+  token: Token,
+  gridSize: number,
+  selected: boolean,
+  isTurn: boolean,
+  away: boolean,
+): boolean {
+  return (
+    painted !== null &&
+    painted.token === token &&
+    painted.gridSize === gridSize &&
+    painted.selected === selected &&
+    painted.isTurn === isTurn &&
+    painted.away === away
+  )
 }
 
 interface TokenEntry {
@@ -242,6 +287,8 @@ interface TokenEntry {
    *  do primeiro load terminar (a textura antiga vence por engano) e (b) o
    *  próprio token ser removido do mapa antes do load terminar. */
   loadToken: number
+  /** O que a última pintura leu (`TokenPaint`); null antes da primeira. */
+  painted: TokenPaint | null
 }
 
 /**
@@ -553,7 +600,7 @@ export function createTokensRenderer(motion?: TokensMotion): TokensRenderer {
     turnTokenId: string | null = null,
     awayTokenIds: ReadonlySet<string> = NO_AWAY_TOKENS,
     glide?: TokenGlideContext,
-  ): void {
+  ): number {
     if (cameraScale !== undefined) lastCameraScale = cameraScale
     const currentIds = new Set(tokens.map((t) => t.id))
 
@@ -585,9 +632,12 @@ export function createTokensRenderer(motion?: TokensMotion): TokensRenderer {
     const remoteMoveIds = glide?.remoteMoveIds ?? NO_REMOTE_MOVES
     const glideAllowed = sameScene && (remoteMoveIds.size > 0 || glides.size > 0) && canAnimate()
     const now = clock()
+    /** Nomes que nasceram ou trocaram de texto: o retorno de `draw`. */
+    let changedLabels = 0
 
     for (const token of tokens) {
       let entry = cache.get(token.id)
+      const born = entry === undefined
       // Onde a ficha está desenhada agora; `null` = acabou de aparecer, e aparece no lugar.
       let shown: GlidePoint | null = null
       if (entry) {
@@ -614,12 +664,35 @@ export function createTokensRenderer(motion?: TokensMotion): TokensRenderer {
           loadedData: null,
           loadedUrl: null,
           loadToken: 0,
+          painted: null,
         }
         cache.set(token.id, entry)
         container.addChild(wrapper)
       }
 
+      // Passo do jogador: do lugar antigo ao novo. A ficha na mão do mestre
+      // nunca desliza atrás do ponteiro, e a que o mestre mexeu vai direto —
+      // inclusive a que ainda deslizava, quando o alvo dela muda (Ctrl+Z, setas).
+      // Antes da pintura: toda ficha anda, repintada ou não.
+      const target = { x: token.x, y: token.y }
+      const animate = glideAllowed && token.id !== handId && (remoteMoveIds.has(token.id) || glidingTo(token.id, target))
+      const at = syncGlide(glides, token.id, { shown, target, now, animate })
+      entry.wrapper.position.set(at.x, at.y)
+      // O zoom de `draw` vale para todo nome, repintado ou não (só escala; o texto não muda).
+      applyLabelSizing(entry.label)
+
       const selected = token.id === selectedTokenId
+      // A ficha da vez: anel solto por fora de tudo (moldura e seleção), para
+      // ler de relance no meio do mapa sem esconder a seleção.
+      const isTurn = token.id === turnTokenId
+      const pulse = isTurn && pulseTurn
+      // VOLTO JÁ: a ficha de quem saiu da mesa (disco apagado e selo, abaixo).
+      const away = awayTokenIds.has(token.id)
+      // Pintura em dia: a ficha só andou (acima). É o caso de quase toda ficha
+      // a cada passo do arrasto de OUTRA. O pulso da vez sempre repinta: é ele
+      // que arma a animação do anel.
+      if (!pulse && paintIsCurrent(entry.painted, token, gridSize, selected, isTurn, away)) continue
+
       const ghost = isHidden(token)
       entry.wrapper.alpha = ghost ? HIDDEN_TOKEN_GHOST_ALPHA : token.secret ? SECRET_ITEM_ALPHA : 1
       entry.ring.clear()
@@ -741,10 +814,7 @@ export function createTokensRenderer(motion?: TokensMotion): TokensRenderer {
       // fica como fantasma (alpha baixo acima + contorno tracejado), clicável.
       if (ghost) strokeDashedCircle(entry.ring, outlineRadius)
       else if (token.secret === true) strokeDashedCircle(entry.ring, outlineRadius + SECRET_RING_GAP)
-      // A ficha da vez: anel solto por fora de tudo (moldura e seleção), para
-      // ler de relance no meio do mapa sem esconder a seleção.
-      const isTurn = token.id === turnTokenId
-      syncTurnRing(entry, token.id, isTurn, outlineRadius, isTurn && pulseTurn)
+      syncTurnRing(entry, token.id, isTurn, outlineRadius, pulse)
 
       // Condição na ficha: pastilhas sentadas na borda de cima do disco que a
       // pessoa vê (`outlineRadius`), por cima de tudo. Fantasma e "Oculto para
@@ -753,7 +823,6 @@ export function createTokensRenderer(motion?: TokensMotion): TokensRenderer {
 
       // VOLTO JÁ: o disco apaga e o selo diz por quê. O alpha do wrapper
       // (fantasma/secreta) continua valendo por cima: o selo não revela nada.
-      const away = awayTokenIds.has(token.id)
       const visual = entry.sprite ?? entry.graphics
       if (visual !== null) visual.alpha = away ? AWAY_TOKEN_ALPHA : 1
       if (away) drawAwaySeal(entry.ring, outlineRadius)
@@ -762,18 +831,15 @@ export function createTokensRenderer(motion?: TokensMotion): TokensRenderer {
       // sem slot novo no wrapper. Travada também: no editor não há cadeado.
       if (estaCongelada(token)) drawFrostBadge(entry.ring, outlineRadius)
 
+      // Nome novo (Text que acabou de nascer, na resolução do renderer) ou
+      // trocado: o tamanho do texto entra no teto da resolução dele.
+      const renamed = entry.label.text !== token.name
       entry.label.text = token.name
-      applyLabelSizing(entry.label)
-
-      // Passo do jogador: do lugar antigo ao novo. A ficha na mão do mestre
-      // nunca desliza atrás do ponteiro, e a que o mestre mexeu vai direto —
-      // inclusive a que ainda deslizava, quando o alvo dela muda (Ctrl+Z, setas).
-      const target = { x: token.x, y: token.y }
-      const animate = glideAllowed && token.id !== handId && (remoteMoveIds.has(token.id) || glidingTo(token.id, target))
-      const at = syncGlide(glides, token.id, { shown, target, now, animate })
-      entry.wrapper.position.set(at.x, at.y)
+      if (born || renamed) changedLabels += 1
+      entry.painted = { token, gridSize, selected, isTurn, away }
     }
     if (glides.size > 0) startTicking()
+    return changedLabels
   }
 
   return { draw, setCameraScale, levantar, semPulsoDaVez, cancelarAnimacoes }
