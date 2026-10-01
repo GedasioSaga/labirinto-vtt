@@ -15,6 +15,8 @@ import { criarDetectorDeToqueDeAlt } from './toqueDeAlt'
  *
  * Fica mudo — e sem `preventDefault`, para a tecla seguir até quem é dono
  * dela — quando:
+ * - o editor não está na tela (menu, Abrir, Opções, mapa novo): o ouvinte vive
+ *   o app inteiro, e o Início só troca a tela, sem limpar a store;
  * - o Alt não foi TOQUE: segurado é do medir (pedido 3); combinado é de
  *   Alt+arrastar, Alt+setas, AltGr, Alt+Tab e de todo Alt no meio de um gesto;
  * - o foco está num campo de texto: o Alt é do campo;
@@ -36,6 +38,14 @@ export type EstadoDoEndireitarComAlt = Pick<
 export interface FonteDoEndireitar {
   getState(): EstadoDoEndireitarComAlt
 }
+
+/**
+ * A raiz da tela do editor (`App.tsx`: `<div className="lb-editor">`). O App só
+ * a monta com a tela no editor, e as outras telas a desmontam. É a raiz no DOM,
+ * e não uma flag na store, porque a tela vive no `useState` do App (`screen`),
+ * fora de qualquer store.
+ */
+const RAIZ_DO_EDITOR = '.lb-editor'
 
 const CAPTURA: AddEventListenerOptions = { capture: true }
 const CAPTURA_PASSIVA: AddEventListenerOptions = { capture: true, passive: true }
@@ -81,6 +91,10 @@ export function instalarEndireitarComAlt(janela: Window = window, store: FonteDo
   const detector = criarDetectorDeToqueDeAlt()
 
   const podeEndireitar = (soltura: KeyboardEvent): boolean => {
+    // Fora do editor, a store ainda tem o mapa recém-salvo, a seleção e o
+    // Selecionar: o toque mexeria num mapa fechado e o deixaria sujo, e o
+    // "Abrir" perguntaria por trabalho que o mestre não fez.
+    if (doc.querySelector(RAIZ_DO_EDITOR) === null) return false
     if (focoEmCampoDeTexto(soltura.target)) return false
     if (doc.querySelector('[aria-modal="true"]') !== null) return false
     const { map, selection, activeTool } = store.getState()

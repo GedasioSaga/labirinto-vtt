@@ -65,11 +65,24 @@ function nadaMudou(): void {
   expect(useMapStore.getState().past).toHaveLength(0)
 }
 
+/**
+ * A raiz da tela do editor, como o `App.tsx` a monta (`<div className="lb-editor">`)
+ * só com a tela no editor. A classe vai escrita aqui, e não importada do módulo:
+ * se o módulo trocar o seletor sem o `App.tsx` trocar junto, estes testes ficam
+ * vermelhos em vez de seguirem verdes com o atalho morto no app.
+ */
+function montarEditor(): void {
+  const editor = document.createElement('div')
+  editor.className = 'lb-editor'
+  document.body.append(editor)
+}
+
 let desligar: () => void = () => {}
 
 beforeEach(() => {
   useMapStore.setState({ map: MAPA, selection: [], past: [], future: [], activeTool: 'select' })
   useToastStore.setState({ toasts: [] })
+  montarEditor()
   desligar = instalarEndireitarComAlt(window)
 })
 
@@ -226,6 +239,26 @@ describe('instalarEndireitarComAlt: todo outro Alt fica mudo', () => {
     useMapStore.setState({ selection: TORTA, activeTool: 'path' })
     expect(tocarAlt().defaultPrevented).toBe(false)
     nadaMudou()
+  })
+
+  it('fora do editor (o Início leva ao menu e a store segue com o mapa e a seleção): nada; de volta ao editor, o toque vale de novo', () => {
+    // O Início só troca a tela: o mapa recém-salvo, a seleção e o Selecionar ficam na store.
+    useMapStore.setState({ selection: [...TORTA, { kind: 'wall', id: 'presa' }] })
+    document.body.replaceChildren()
+    // No menu (e em Abrir, Opções) o foco fica num botão, que não é campo de texto, e não há modal.
+    const botaoDoMenu = document.createElement('button')
+    botaoDoMenu.textContent = 'Criar Mapas'
+    document.body.append(botaoDoMenu)
+
+    expect(tocarAlt(botaoDoMenu).defaultPrevented).toBe(false)
+    nadaMudou()
+    expect(useToastStore.getState().toasts).toHaveLength(0)
+
+    // O ouvinte é o mesmo pela vida do app: a regra é lida a cada toque, não na instalação.
+    botaoDoMenu.remove()
+    montarEditor()
+    expect(tocarAlt(document.body, 200, 300).defaultPrevented).toBe(true)
+    expect(linhaTorta().x1).toBe(linhaTorta().x2)
   })
 
   it('desligar remove todos os ouvintes que ligou, e um toque depois não faz nada', () => {

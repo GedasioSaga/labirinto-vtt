@@ -7,6 +7,7 @@
 // SEGURADO fica reservado para as guias de medir (pedido 3).
 import { test, expect, type Page } from '@playwright/test'
 import { enterEditor } from './helpers/enterEditor'
+import { installTauriFsStub } from './helpers/tauriFsStub'
 import { pickTool } from './helpers/tools'
 import { ALT_TOQUE_JANELA_MS } from '../src/lib/toqueDeAlt'
 import type { Drawing } from '../src/types/map'
@@ -39,6 +40,11 @@ async function lerEstado(page: Page): Promise<Estado> {
       passosDeDesfazer: past.length,
     }
   })
+}
+
+/** A flag de trabalho não salvo, a mesma que faz o "Abrir" do menu perguntar antes de trocar de mapa. */
+async function estaSujo(page: Page): Promise<boolean> {
+  return page.evaluate(async () => (await import('/src/stores/sessionStore.ts')).useSessionStore.getState().isDirty)
 }
 
 async function resetMap(page: Page) {
@@ -93,6 +99,8 @@ async function desenharESelecionarLinhaTorta(page: Page, box: Caixa): Promise<Li
 }
 
 test.beforeEach(async ({ page }) => {
+  // Disco de mentira: sem ele o Início (salva e só depois troca de tela) para no erro de gravar.
+  await installTauriFsStub(page)
   await enterEditor(page)
   await resetMap(page)
 })
@@ -176,4 +184,24 @@ test('4. Alt segurado além da janela do toque é do medir (pedido 3): soltar n�
   const depois = await lerEstado(page)
   expect(linhaPorId(depois, torta.id)).toEqual(torta)
   expect(depois.passosDeDesfazer).toBe(antes.passosDeDesfazer)
+})
+
+test('5. Alt tocado no menu depois do Início: o mapa fechado fica como foi salvo, sem passo de desfazer e sem virar trabalho não salvo', async ({ page }) => {
+  const box = await caixaDoCanvas(page)
+  const torta = await desenharESelecionarLinhaTorta(page, box)
+
+  await page.getByRole('button', { name: 'Início', exact: true }).click()
+  await expect(page.getByRole('button', { name: 'Criar Mapas' })).toBeVisible()
+  await expect(page.locator('canvas')).toHaveCount(0)
+  // O Início só troca a tela: a store segue com a linha torta selecionada, e o mapa acabou de ser salvo.
+  const antes = await lerEstado(page)
+  expect(antes.selecionados).toEqual([torta.id])
+  expect(await estaSujo(page)).toBe(false)
+
+  await page.keyboard.press('Alt')
+
+  const depois = await lerEstado(page)
+  expect(linhaPorId(depois, torta.id)).toEqual(torta)
+  expect(depois.passosDeDesfazer).toBe(antes.passosDeDesfazer)
+  expect(await estaSujo(page), 'o "Abrir" perguntaria por trabalho que o mestre não fez').toBe(false)
 })
