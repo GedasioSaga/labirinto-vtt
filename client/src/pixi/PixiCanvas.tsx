@@ -2481,6 +2481,15 @@ export function PixiCanvas({
       // `mode === 'idle'`, `null` fora dela ou quando já é a seleção atual.
       let hoverTarget: HoverTarget | null = null
       /**
+       * Onde o hover ocioso caiu dentro da caixa de uma seleção de vários
+       * ('area-selection': o clique ali arrasta o grupo, e o hover não aponta
+       * peça nenhuma). Só a medida do Alt olha por baixo desse atalho
+       * (`altMeasureTarget`), e só quando mede: guardar o ponto, e não a peça,
+       * poupa o hit-test a quem não segura o Alt. Zerado junto com
+       * `hoverTarget`, nos mesmos lugares: hover que não vale mais não mede.
+       */
+      let hoverGroupPoint: Point | null = null
+      /**
        * O anel de hover no alvo de agora, com a espessura do zoom de agora (px
        * de tela, `drawHover`). Chamado no pointermove ocioso e quando a
        * geometria que depende da escala é refeita: a roda não dispara
@@ -2732,19 +2741,36 @@ export function PixiCanvas({
       }
 
       /**
+       * A peça a medir: o alvo do hover. Dentro da caixa de uma seleção de
+       * vários o hover é do grupo e não aponta peça (`hoverGroupPoint`); aí a
+       * medida pega a peça que o hover acharia sem o atalho do grupo (o mesmo
+       * piso, os mesmos filtros, a mesma ferramenta), como no Figma, que mede
+       * a peça dentro da caixa da seleção. Pode ser um item do próprio grupo:
+       * quem chama filtra.
+       */
+      const altMeasureTarget = (): HoverTarget | null => {
+        if (hoverTarget !== null || hoverGroupPoint === null) return hoverTarget
+        const { map, pisoAtivo, activeTool } = useMapStore.getState()
+        // Sem seleção, a cadeia do hover pula as alças e o atalho do grupo e cai direto na peça sob o ponto.
+        return hoverNoPiso({ map, selection: null, areaSelection: null, activeTool, worldPoint: hoverGroupPoint, cameraScale: camera.scale }, pisoAtivo).target
+      }
+
+      /**
        * O que medir agora: da caixa da seleção até a da peça sob o mouse
-       * (`hoverTarget`, que já é "outra peça": a selecionada não vira alvo).
-       * `null` = nada a medir. Só olha a store quando o Alt já está medindo:
-       * o pointermove de quem não segura o Alt não paga nada disto.
+       * (`altMeasureTarget`). `null` = nada a medir. Só olha a store quando o
+       * Alt já está medindo: o pointermove de quem não segura o Alt não paga
+       * nada disto.
        */
       const altMeasureNow = (): AltMeasure | null => {
         // `laserPointer` é o ponteiro sobre o canvas: fora dele, o alvo do hover é velho.
-        if (mode !== 'idle' || laserPointer === null || hoverTarget === null) return null
+        if (mode !== 'idle' || laserPointer === null) return null
         const { map, selection } = useMapStore.getState()
+        if (selection.length === 0) return null
+        const target = altMeasureTarget()
         // Num grupo, o alvo pode ser um item do próprio grupo: medir o grupo até ele mesmo não diz nada.
-        if (selection.length === 0 || selectionHas(selection, hoverTarget)) return null
+        if (target === null || selectionHas(selection, target)) return null
         const from = measureBoxOfItems(map, selection)
-        const to = measureBoxOfItems(map, [hoverTarget])
+        const to = measureBoxOfItems(map, [target])
         if (from === null || to === null) return null
         const measure = measureBetween(from, to)
         return measure.gaps.length === 0 ? null : measure
@@ -3623,6 +3649,7 @@ export function PixiCanvas({
         dimensionLabelRenderer.hide()
         hoverGraphics.clear()
         hoverTarget = null
+        hoverGroupPoint = null
         // Rascunho cancelado (Esc, troca de ferramenta) no meio do arrasto: a
         // guia do desenho some junto, sem esperar o botão subir. Só com desenho
         // em curso: no meio de um arrasto de peça a guia é dele.
@@ -4098,12 +4125,14 @@ export function PixiCanvas({
         if (isLaserArmed(state) === isLaserArmed(previous)) return
         hoverGraphics.clear()
         hoverTarget = null
+        hoverGroupPoint = null
         updateCursor()
       })
       const unsubscribeNoiseCursor = useNoiseStore.subscribe((state, previous) => {
         if (state.armed === previous.armed) return
         hoverGraphics.clear()
         hoverTarget = null
+        hoverGroupPoint = null
         updateCursor()
       })
 
@@ -4182,6 +4211,7 @@ export function PixiCanvas({
         // ficaria "grudado" na tela até o próximo pointermove ocioso.
         hoverGraphics.clear()
         hoverTarget = null
+        hoverGroupPoint = null
         // Clicar no mapa com o "Ir até lá" ainda correndo: a câmera para onde
         // está, e o gesto mira no que a pessoa vê agora, não num mapa andando.
         glideDaCamera.parar()
@@ -5872,6 +5902,7 @@ export function PixiCanvas({
           hoverKind = hover.kind
           hoverCorner = hover.corner
           hoverTarget = hover.target
+          hoverGroupPoint = hover.kind === 'area-selection' ? worldPoint : null
           updateCursor()
           // Onda 2, item 15 (Frente B) — anel de hover, mesmo custo marginal
           // ~0 do resolveHoverHit (ver docstring do módulo).

@@ -5,6 +5,7 @@ import { Container, EventBoundary, FederatedPointerEvent, Graphics, Text } from 
 import { createEmptyMap } from '../lib/mapFactory'
 import { ALT_TOQUE_JANELA_MS } from '../lib/toqueDeAlt'
 import { useMapStore } from '../stores/mapStore'
+import { useLaserStore } from '../stores/laserStore'
 import type { Camera } from './world'
 import type { Drawing, FloorPiece, MapData, Prop, Region, Stair, Token, Wall } from '../types/map'
 import type { DrawingTool } from '../types/tools'
@@ -1229,5 +1230,80 @@ describe('PixiCanvas — Alt segurado mede da seleção até a peça sob o mouse
     }
     // A mesma guia vertical em x = 800 do encaixe, intacta.
     expect(guiaMagenta()?.getLocalBounds()).toEqual(caixaDaGuia)
+  })
+
+  /**
+   * Dentro da caixa de uma seleção de vários, o hover é do grupo (o clique ali
+   * arrasta tudo) e não aponta peça nenhuma. A medida olha por baixo desse
+   * atalho, como no Figma: a peça entre as selecionadas também é medida.
+   */
+  describe('seleção de vários: a peça dentro da caixa do grupo', () => {
+    /** Na mesma faixa da móvel: com ela, o grupo ocupa 100..1100 × 500..700, e a vizinha fica dentro da caixa. */
+    const DIREITA = sala('direita', 900, 500, 1100, 700)
+    /** O alvo (640..960 × 100..300) fica fora da caixa do grupo, acima dela. */
+    const SOBRE_O_ALVO = { x: 800, y: 200 }
+    /** A vizinha (500..700 × 550..650) dentro do grupo: 400 px de cada lado, 50 em cima e embaixo (as 4 folgas). */
+    const FOLGAS_DA_VIZINHA = ['1,2 m', '1,2 m', '9,4 m', '9,4 m']
+
+    function prepararComGrupo(): void {
+      prepara(mapa([ALVO, MOVEL, VIZINHA, DIREITA]))
+      useMapStore.setState({ selection: [{ kind: 'region', id: 'movel' }, { kind: 'region', id: 'direita' }] })
+    }
+
+    it('a vizinha entre as duas salas selecionadas é medida; a sala do próprio grupo não é alvo; fora da caixa, a cota de sempre', async () => {
+      prepararComGrupo()
+      await monta()
+      alt('keydown', 1000)
+      pairar(SOBRE_A_VIZINHA, 1700)
+      expect(guiaMagenta()).not.toBeNull()
+      expect(numerosNaTela().sort()).toEqual(FOLGAS_DA_VIZINHA)
+
+      pairar(SOBRE_A_MOVEL, 1800)
+      expect(guiaMagenta()).toBeNull()
+
+      // Dentro da caixa, entre a móvel e a vizinha, não há peça nenhuma: nada a medir.
+      pairar({ x: 400, y: 520 }, 1850)
+      expect(guiaMagenta()).toBeNull()
+      expect(numerosNaTela()).toEqual([])
+
+      // Da borda de cima do grupo (500) à de baixo do alvo (300).
+      pairar(SOBRE_O_ALVO, 1900)
+      expect(numerosNaTela()).toEqual(['4,7 m'])
+    })
+
+    it('mouse parado sobre a vizinha, dentro da caixa: o prazo da janela do toque acende a medida sem o mouse mexer', async () => {
+      prepararComGrupo()
+      await monta()
+      pairar(SOBRE_A_VIZINHA, 100)
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+      try {
+        alt('keydown', 1000)
+        act(() => {
+          vi.advanceTimersByTime(ALT_TOQUE_JANELA_MS)
+        })
+        expect(numerosNaTela().sort()).toEqual(FOLGAS_DA_VIZINHA)
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('laser armado com o mouse dentro da caixa: sem hover, e o Alt não mede', async () => {
+      prepararComGrupo()
+      await monta()
+      pairar(SOBRE_A_VIZINHA, 100)
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+      try {
+        act(() => useLaserStore.getState().setToggled(true))
+        alt('keydown', 1000)
+        act(() => {
+          vi.advanceTimersByTime(ALT_TOQUE_JANELA_MS)
+        })
+        expect(guiaMagenta()).toBeNull()
+      } finally {
+        vi.useRealTimers()
+        // A store do laser é global: o próximo teste começa desarmado.
+        act(() => useLaserStore.getState().setToggled(false))
+      }
+    })
   })
 })
