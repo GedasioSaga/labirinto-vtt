@@ -55,6 +55,7 @@ import { drawMapFrame } from './drawMapFrame'
 import { createDebouncedTask, syncWorldTextResolution } from './textResolution'
 import { createZoomDaRoda } from './zoomDaRoda'
 import { createGlideDaCamera } from './glideDaCamera'
+import { ENDIREITAR_FANTASMA_LABEL, criarFantasmaDoEndireitar, tracosDoEndireitar } from './straightenGhost'
 import { pixelGrid, snapToPhysicalPixel } from './pixelAlign'
 import { buildFloorMask } from './floorMask'
 import { layoutMapFrame } from '../lib/mapFrame'
@@ -952,6 +953,11 @@ export function PixiCanvas({
       // Pinos acima das zonas ocultas: o pino é o chamariz da cena e o mestre
       // precisa achá-lo mesmo sobre uma área que ele mesmo escondeu.
       const pinsContainer = new Container()
+      // Pedido 5, fatia 4: a posição de antes da linha endireitada, apagando
+      // (`straightenGhost.ts`). Logo depois dos pinos: abaixo das alças da
+      // seleção nova, e fora da imagem exportada, que esconde tudo daqui pra cima.
+      const straightenGhostGraphics = new Graphics()
+      straightenGhostGraphics.label = ENDIREITAR_FANTASMA_LABEL
       const handlesGraphics = new Graphics()
       // Destaque da peça de chão selecionada. Graphics próprio, acima do
       // conteúdo: o chão em si fica atrás de Regiões/paredes e esconderia o contorno.
@@ -1003,6 +1009,7 @@ export function PixiCanvas({
         tokensContainer,
         concealZonesContainer,
         pinsContainer,
+        straightenGhostGraphics,
         floorSelectionGraphics,
         handlesGraphics,
         hoverGraphics,
@@ -1045,6 +1052,11 @@ export function PixiCanvas({
       draftGraphics.enableRenderGroup()
       guidesGraphics.enableRenderGroup()
       angleIndicatorContainer.enableRenderGroup()
+      // O fantasma do endireitar muda o alpha a cada quadro enquanto apaga. Na
+      // raiz de um grupo próprio, o alpha vira uniforme do grupo: o Pixi não
+      // atualiza o lote do mapa a cada quadro, e o desenho e a limpeza do
+      // fantasma não obrigam o mundo inteiro a refazer os lotes.
+      straightenGhostGraphics.enableRenderGroup()
       // Os números do vão NÃO têm grupo próprio: eles mudam junto com a peça
       // arrastada, que já refaz os lotes do mapa no mesmo quadro, e presos no
       // encaixe não mudam (`showGuides`). Grupo a mais seria custo sem ganho
@@ -2176,6 +2188,25 @@ export function PixiCanvas({
       )
       // PISOS NA MESMA CENA: outro piso em edição é outra planta inteira na tela.
       const unsubscribePisoAtivo = useMapStore.subscribe((state) => state.pisoAtivo, () => redrawScene())
+      // ENDIREITAR (pedido 5, fatia 4): a store não avisa que endireitou, então
+      // cada mudança dela é comparada com a anterior (`tracosDoEndireitar`; o
+      // caminho comum é comparação de referência). O `data-` conta os traços na
+      // tela para o e2e ver um fantasma que vive 150 ms.
+      el.dataset.straightenGhost = '0'
+      const straightenGhost = criarFantasmaDoEndireitar({
+        graphics: straightenGhostGraphics,
+        ticker: app.ticker,
+        movimentoReduzido: prefersReducedMotion,
+        escalaDaCamera: () => camera.scale,
+        resolucao: () => app.renderer.resolution,
+        aoMudar: (tracos) => {
+          el.dataset.straightenGhost = String(tracos)
+        },
+      })
+      const unsubscribeStraightenGhost = useMapStore.subscribe((state, previous) => {
+        const tracos = tracosDoEndireitar(previous, state)
+        if (tracos !== null) straightenGhost.mostrar(tracos)
+      })
 
       let mode:
         | 'idle'
@@ -7157,6 +7188,8 @@ export function PixiCanvas({
         unsubscribeBackground()
         unsubscribeHiddenLayersForTokensAndProps()
         unsubscribePisoAtivo()
+        unsubscribeStraightenGhost()
+        straightenGhost.parar()
         unsubscribeActiveTool()
         unsubscribeFloorShape()
         // Antes do app.destroy: os gradientes de luz não são filhos da cena.
