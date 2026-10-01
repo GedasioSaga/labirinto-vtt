@@ -174,6 +174,20 @@ export function abrirVaoDosDoisLados(map: MapData, wallId: string, ponto: { x: n
 }
 
 /**
+ * Abre o trecho reto de `de` até `ate` em toda parede dessa linha — as mesmas
+ * regras de `cortarNaLinha` (dos dois lados, sala secreta poupada, recusa com
+ * parede travada). É o corte de "Abrir para o corredor" (`lib/abrirCorredor.ts`),
+ * que conhece os dois pontos da borda da Sala e não uma parede clicada.
+ * Pontos iguais: devolve `map` sem cópia.
+ */
+export function abrirTrecho(map: MapData, de: { x: number; y: number }, ate: { x: number; y: number }): CorteNaParede {
+  const comprimento = Math.hypot(ate.x - de.x, ate.y - de.y)
+  if (comprimento === 0) return { map, ...NADA_MUDOU }
+  const eixo: Eixo = { origem: { x: de.x, y: de.y }, ux: (ate.x - de.x) / comprimento, uy: (ate.y - de.y) / comprimento, comprimento }
+  return cortarNaLinha(map, eixo, 0, comprimento)
+}
+
+/**
  * A parede sob o clique direito do mestre, ou `null`. Mesmo filtro do resto
  * do editor: parede de camada escondida não é alvo (não está na tela), e
  * parede travada — ela ou a camada — não muda por gesto nenhum.
