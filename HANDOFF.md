@@ -1150,3 +1150,21 @@ Itens 1-4 commitados com revisor sem achado bloqueante e conferidos no navegador
 - `rtk proxy npx vitest run` (suíte inteira, 1 vez): Test Files 1282 passed (1282), Tests 11498 passed (11498), 245 s. Saída em scratchpad `suite-final.txt`.
 - Conferências no navegador com ux-driver medir: lotes UX longtask 0, frame p95 16,8 ms; resultados por workflow em `~/.claude/projects/C--dev-labirinto/556fad7c-d96f-40fa-8a7d-f1d953372ad4/subagents/workflows/<run>/journal.jsonl` (runs `wf_fa56582f-d61`, `wf_49b96153-931`, `wf_3b843041-d4b`, `wf_e2207017-a3f`, `wf_b47e1620-2df`, `wf_c22a7d2a-d63`).
 - Não rodado: Playwright e2e inteiro; teste no instalador; celular real.
+
+### 01/10/2026: release v0.4.8 (`b4ad2774`)
+
+- Pedido do usuário (depois de `/goal clear`): "pode fazer o push e fazer o instalador coloca como versão 0.4.8".
+- Item 7 dos próximos passos do FECHAMENTO DO DIA está FEITO; os itens 1-6 continuam valendo para o próximo dia.
+- Versão `0.4.8` nos 5 arquivos (package.json, client/package.json, tauri.conf.json, Cargo.toml, Cargo.lock). Tag anotada `v0.4.8`. Identificador `com.labirinto.app` mantido.
+- Release: https://github.com/GedasioSaga/labirinto-vtt/releases/tag/v0.4.8
+- Escada espiral parcial ficou fora (stash só dos 4 arquivos, backup `scratchpad/escada-parcial-backup/escada-048.patch`) e voltou idêntica.
+
+## Evidência
+- Com a escada em stash: `rtk proxy npx tsc --noEmit` exit 0; `tsc -p tsconfig.e2e.json` exit 0; `rtk proxy npx vitest run` Test Files 1282 passed (1282), Tests 11479 passed (11479), 246 s.
+- gitleaks `v0.4.7.2..HEAD`: 56 commits, no leaks found.
+- `npm run tauri:build`: exit 0, 2 bundles.
+- Fumaça: `target/release/labirinto.exe` ProductVersion 0.4.8, janela "Labirinto" respondendo, ~31 MB.
+- Push: `origin/main` 5dc4920a..b4ad2774 (fast-forward) e tag `v0.4.8`.
+- Assets no GitHub: `Labirinto_0.4.8_x64-setup.exe` 2311739 bytes, sha256 `c35b2f0f5ae59c5f089a8da9f21573982b15180592e3fd85cdcf62ff9721ffb3`; `Labirinto_0.4.8_x64_en-US.msi` 2998272 bytes, sha256 `c19233d83f385a0788e18ed65143c5f00a8f6cd090cbf493ad61b9579d7ca8b3`.
+- Escada: `cmp` entre o patch de backup e o diff depois do pop: idênticos.
+- Não rodado: Playwright e2e inteiro; instalação do .exe numa máquina limpa.

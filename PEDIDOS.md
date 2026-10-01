@@ -1204,3 +1204,7 @@ Noite = esta sessão conduzida pelo main thread; o noite-runner continua encerra
 
 - Feito: trilhas B (guias + fantasma do Alt) e C3 (HUD do jogador, sobras dos sons, perf do revisit). Polimento fase 1 parado antes de editar. Release adiada.
 - Fila para o próximo dia (detalhe em HANDOFF.md, "FECHAMENTO DO DIA"): (1) opção Animações; (2) polimento: avisos x barra, cabeçalho, ficha do acervo no topo, Ctrl+Z vazio, "Abrir para o corredor" no topo do painel, tolerância 3/4 de célula; (3) medida das guias legível com zoom afastado; (4) reconferir o HUD do jogador e confirmar 3 mudanças de comportamento; (5) sobras menores; (6) ouvir os sons no Tauri e no celular; (7) instalador, push e release.
+
+> 01/10/2026: "pode fazer o push e fazer o instalador coloca como versão 0.4.8"
+
+- Feito: release v0.4.8 (`b4ad2774`), https://github.com/GedasioSaga/labirinto-vtt/releases/tag/v0.4.8, com .exe e .msi. A fila do próximo dia (itens 1-6) continua.
