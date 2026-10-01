@@ -1,0 +1,13 @@
+/* A tecla do atalho dentro do botão "Endireitar": miúda e apagada, a mesma
+   pastilha do "Ctrl+K" da busca de objetos (.lb-objetos__atalho). O verbo é o
+   que se lê primeiro; a tecla fica para quem quer aprender o atalho. O vão
+   entre os dois é o `gap` do .lb-btn. */
+.lb-endireitar__tecla {
+  padding: 0 var(--lb-space-1);
+  border: 1px solid var(--lb-color-line);
+  border-radius: var(--lb-radius-sm);
+  font-family: var(--lb-font-utility);
+  font-size: var(--lb-font-size-xs);
+  letter-spacing: var(--lb-font-tracking-wide);
+  color: var(--lb-color-parchment-faint);
+}

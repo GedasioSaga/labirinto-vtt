@@ -10,6 +10,7 @@ import { PropLayerControls, type PropLayerControlsProps } from './PropLayerContr
 import { PropPlayerControls, type PropPlayerControlsProps } from './PropPlayerControls'
 import { SelectionControls, type SelectionControlsProps } from './SelectionControls'
 import { SelectionHeader, deleteLabelFor, floorActions, selectionIdentity } from './SelectionHeader'
+import { EndireitarControl } from './EndireitarControl'
 import { WallDoorControls, type WallDoorControlsProps } from './WallDoorControls'
 import { DoorKindControls, type DoorKindControlsProps } from './DoorKindControls'
 import { DoorModeControls, type DoorModeControlsProps } from './DoorModeControls'
@@ -469,6 +470,11 @@ export function PropertiesPanel({
             actionsHint={pisos === undefined ? null : LEVAR_AO_PISO_HINT}
           />
         )}
+        {/* Endireitar (pedido 5): aparece sozinho quando há Linha, Parede solta
+            ou Caminho torto na seleção. Logo depois da faixa e fora das seções
+            de ferramenta, porque vale para os três; sem título, para o primeiro
+            `h2` continuar sendo o do item. */}
+        <EndireitarControl />
         {/* Cabeçalho de contexto: a primeira coisa lida na coluna é o nome da
             ferramenta ativa. O prefixo "Ferramenta ·" separa este título dos
             títulos de bloco que vêm abaixo ("Região", "Preenchimento"), que

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { FEATURES } from '../lib/features'
 import { hiddenTools, resolveShortcut, TOOL_SHORTCUTS, type ShortcutEvent } from '../lib/keymap'
+import { ALT_TOQUE_JANELA_MS, classificarSolturaDoAlt } from '../lib/toqueDeAlt'
 import type { DrawingTool } from '../types/tools'
 import { TOOL_LABELS, TOOLBAR_SLOTS, toolsOfSlot } from './labels'
 import { DOCUMENTED_ACTIONS, shortcutColumns, type ShortcutRow } from './shortcutSheet'
@@ -55,12 +56,29 @@ describe('shortcutSheet — o que a tela de atalhos mostra', () => {
   it('gesto que não passa pelo mapa de teclas não disputa a tecla com outro atalho', () => {
     // Espaço (arrastar a vista) e Enter (fechar o traço) são tratados no canvas
     // antes do mapa de teclas; se um dia o mapa de teclas os tomar para outra
-    // coisa, a linha da tela passa a mentir.
-    const rows = allRows().filter((row) => row.action === undefined && !row.combo.hold && row.combo.keys.length > 0)
+    // coisa, a linha da tela passa a mentir. O Alt tocado tem o caso dele, abaixo:
+    // tecla de modificador sozinha não tem "tecla principal" para `pressOf`.
+    const rows = allRows().filter((row) => row.action === undefined && !row.combo.hold && !row.combo.tap && row.combo.keys.length > 0)
     expect(rows.length).toBeGreaterThan(0)
     for (const row of rows) {
       expect(resolveShortcut(pressOf(row)), `linha "${row.what}"`).toBeNull()
     }
+  })
+
+  it('Alt TOCADO endireita: a linha ensina o toque, o mapa de teclas não toma o Alt sozinho e segurar não é tocar', () => {
+    const toques = allRows().filter((row) => row.combo.tap)
+    expect(toques.map((row) => ({ what: row.what, keys: row.combo.keys, hold: row.combo.hold ?? false }))).toEqual([
+      { what: 'Endireitar a linha selecionada', keys: ['Alt'], hold: false },
+    ])
+    // Quem ouve o toque é `lib/endireitarComAlt.ts`, fora do mapa de teclas: se um
+    // dia o mapa de teclas tomar o Alt sozinho, os dois disputariam a tecla.
+    const altSozinho = { key: 'Alt', ctrlKey: false, metaKey: false, shiftKey: false, altKey: true, targetTagName: '' }
+    expect(resolveShortcut(altSozinho)).toBeNull()
+    // "Tocar" é a régua de `lib/toqueDeAlt.ts`: soltar antes da janela é toque;
+    // segurar é do medir (pedido 3) e não endireita.
+    const semNadaNoMeio = { apertouEm: 0, movimentoPx: 0, outraEntrada: false }
+    expect(classificarSolturaDoAlt({ ...semNadaNoMeio, soltouEm: ALT_TOQUE_JANELA_MS - 1 })).toBe('toque')
+    expect(classificarSolturaDoAlt({ ...semNadaNoMeio, soltouEm: ALT_TOQUE_JANELA_MS })).toBe('segurado')
   })
 
   it('toda ação do mapa de teclas tem pelo menos uma linha na tela', () => {

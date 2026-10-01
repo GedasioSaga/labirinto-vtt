@@ -34,7 +34,8 @@ import { pisoDe } from './pisos'
  *
  * Módulo puro, sem store e sem PixiJS. O Ctrl+Z (um passo para a seleção
  * inteira) e o aviso ficam em `stores/mapStore.ts` → `endireitarSelecionados`;
- * o gesto do Alt, em `lib/toqueDeAlt.ts`.
+ * o gesto do Alt, em `lib/toqueDeAlt.ts`; o botão do painel, em
+ * `components/EndireitarControl.tsx`.
  */
 
 type Ponto = DrawingPoint
@@ -495,12 +496,83 @@ function itemTorto(map: MapData, item: SelectionItem): boolean {
 }
 
 /**
- * O Alt (e o botão "Endireitar") age ou fica mudo: age quando a seleção tem ao
- * menos um item torto de tipo aceito — preso ou travado inclusive, para o
- * mestre ouvir no aviso por que ele ficou. Seleção vazia, só itens retos ou só
- * paredes de Sala: mudo. Mesma resposta de "o `endireitarNoMapa` mudaria ou
- * avisaria algo", sem procurar encostos — barato para chamar a cada tecla.
+ * O Alt age ou fica mudo: age quando a seleção tem ao menos um item torto de
+ * tipo aceito — preso ou travado inclusive, para o mestre ouvir no aviso por
+ * que ele ficou. Seleção vazia, só itens retos ou só paredes de Sala: mudo.
+ * Mesma resposta de "o `endireitarNoMapa` mudaria ou avisaria algo", sem
+ * procurar encostos — barato para chamar a cada tecla. O botão do painel usa
+ * outra régua, `endireitarMudariaAlgo`: botão na tela tem de fazer alguma coisa.
  */
 export function haAlgoParaEndireitar(map: MapData, selection: SelectionSet): boolean {
   return selection.some((item) => itemTorto(map, item))
+}
+
+// ─────────────────────────────────────────────────────────────
+// O botão "Endireitar" do painel
+// ─────────────────────────────────────────────────────────────
+
+/**
+ * Até quantos itens tortos o botão "Endireitar" confere a fundo — encostos e
+ * trava de cada um — para saber se o clique mudaria alguma coisa. O painel
+ * refaz a conta a cada mudança do mapa (um arrasto muda o mapa a cada quadro),
+ * e conferir um item é procurar encostos no piso inteiro. Medido num mapa de
+ * 14 mil paredes: ~3,7 ms com uma linha torta e ~35 ms com 16 paredes presas,
+ * o pior caso dentro do teto; sem teto, 3 mil presas levavam 7,9 s. Num mapa
+ * de 1.500 paredes, 0,3 ms e 3,6 ms. Acima disto o botão não aparece: seleção
+ * assim é de quem mexe no mapa inteiro, não de quem acertou uma linha, e o Alt
+ * continua endireitando a seleção inteira.
+ */
+export const ENDIREITAR_TORTOS_NO_BOTAO = 16
+
+const ehTorta = (d: { x1: number; y1: number; x2: number; y2: number }): boolean =>
+  !jaEstaReta({ x: d.x1, y: d.y1 }, { x: d.x2, y: d.y2 })
+
+/**
+ * Os itens da seleção que o endireitar poderia mexer, pelo que se vê de cada
+ * um sozinho: tipo aceito, fora de Sala, destravado (ele e a camada) e torto.
+ * Uma passada pelo mapa, e não um `find` por item: com o mapa inteiro
+ * selecionado, só os `find` levavam ~190 ms. Para em `ate` itens.
+ */
+function tortosEditaveis(map: MapData, selection: SelectionSet, ate: number): SelectionItem[] {
+  const paredes = new Set<string>()
+  const desenhos = new Set<string>()
+  for (const item of selection) {
+    if (item.kind === 'wall') paredes.add(item.id)
+    else if (item.kind === 'drawing') desenhos.add(item.id)
+  }
+  const tortos: SelectionItem[] = []
+  if (paredes.size > 0) {
+    for (const w of map.walls) {
+      if (!paredes.has(w.id) || w.regionId !== undefined || !ehTorta(w)) continue
+      if (!canInteractInLayer(w, wallLayer(w), map.lockedLayers)) continue
+      tortos.push({ kind: 'wall', id: w.id })
+      if (tortos.length >= ate) return tortos
+    }
+  }
+  if (desenhos.size > 0) {
+    for (const d of map.drawings) {
+      if (!desenhos.has(d.id) || isLayerLocked(map.lockedLayers, drawingLayer(d))) continue
+      const torto = d.kind === 'line' ? ehTorta(d) : d.kind === 'path' && !caminhoJaReto(d.points)
+      if (!torto) continue
+      tortos.push({ kind: 'drawing', id: d.id })
+      if (tortos.length >= ate) return tortos
+    }
+  }
+  return tortos
+}
+
+/**
+ * O botão "Endireitar" aparece: o clique mudaria alguma coisa na seleção. É a
+ * conta de `endireitarNoMapa` sobre os itens tortos, então parede presa e item
+ * travado não contam — o botão some quando o que sobrou torto ficaria como
+ * está, em vez de oferecer um clique sem efeito. O Alt, que avisa por quê,
+ * continua valendo para eles. A parede com porta é conferida pela peça
+ * selecionada, e a conta endireita a corrente inteira: as duas só discordam
+ * quando a peça já está reta e a corrente torce até um pixel nas emendas (a
+ * tolerância de `continuacao`), o que não se vê.
+ */
+export function endireitarMudariaAlgo(map: MapData, selection: SelectionSet): boolean {
+  const tortos = tortosEditaveis(map, selection, ENDIREITAR_TORTOS_NO_BOTAO + 1)
+  if (tortos.length === 0 || tortos.length > ENDIREITAR_TORTOS_NO_BOTAO) return false
+  return endireitarNoMapa(map, tortos).alterados > 0
 }

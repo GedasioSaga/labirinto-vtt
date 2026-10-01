@@ -14,7 +14,8 @@ import { TOOL_LABELS, TOOLBAR_SLOTS, toolsOfSlot } from './labels'
  *  - toda linha que é atalho do mapa de teclas diz qual `Action` promete, e o
  *    teste ao lado aperta a tecla em `resolveShortcut` para conferir. Linha sem
  *    `action` é gesto que o canvas trata antes do mapa de teclas (roda,
- *    Espaço, Enter, L segurado), conferido no código que o trata.
+ *    Espaço, Enter, L segurado) ou o Alt tocado do endireitar, conferido no
+ *    código que o trata.
  */
 
 export interface ShortcutCombo {
@@ -24,6 +25,12 @@ export interface ShortcutCombo {
   mouse?: string
   /** A tecla fica apertada durante o gesto: segurar L é laser, tocar L é a Linha. */
   hold?: boolean
+  /**
+   * A tecla é TOCADA sozinha: apertar e soltar logo, sem nada no meio. É o
+   * caso do Alt do endireitar (`lib/toqueDeAlt.ts`): segurado, o Alt é das
+   * guias de medir, e com outra tecla ou clique é modificador.
+   */
+  tap?: boolean
 }
 
 export interface ShortcutRow {
@@ -133,6 +140,8 @@ const EDIT_GROUP: ShortcutGroup = {
     { what: 'Mover a seleção 1 quadrado', combo: { keys: ['Setas'] }, action: { kind: 'nudge', dx: 1, dy: 0, fine: false } },
     { what: 'Mover 10 quadrados', combo: { keys: ['Shift', 'Setas'] }, action: { kind: 'nudge', dx: 10, dy: 0, fine: false } },
     { what: 'Mover 1 pixel', combo: { keys: ['Alt', 'Setas'] }, action: { kind: 'nudge', dx: 1, dy: 0, fine: true } },
+    // Fora do mapa de teclas: quem ouve o Alt tocado é `lib/endireitarComAlt.ts`.
+    { what: 'Endireitar a linha selecionada', combo: { keys: ['Alt'], tap: true } },
     { what: 'Soltar a seleção', combo: { keys: ['Esc'] }, action: { kind: 'cancel' } },
     {
       what: 'Trocar ! e ? no pino selecionado',

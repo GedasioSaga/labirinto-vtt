@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import {
+  ENDIREITAR_TORTOS_NO_BOTAO,
   eixoMaisProximo,
+  endireitarMudariaAlgo,
   endireitarNoMapa,
   endireitarPolilinha,
   endireitarSegmento,
@@ -11,7 +13,7 @@ import { addDoorOnWall, createEmptyMap } from './mapFactory'
 import { buildLineDrawing, buildPathDrawing, buildWallFromDraft } from './drawingFactory'
 import type { Drawing, LayerId, MapData, Wall } from '../types/map'
 import type { SelectionKind } from '../types/tools'
-import type { SelectionSet } from './selectionModel'
+import type { SelectionItem, SelectionSet } from './selectionModel'
 
 /**
  * Pedido 5 (PEDIDOS.md, 30/09/2026): "depois que eu faço uma linha seria legal
@@ -418,5 +420,103 @@ describe('haAlgoParaEndireitar (o Alt age ou fica mudo)', () => {
       const mudariaOuAvisaria = r.alterados > 0 || r.ignorados.presas > 0 || r.ignorados.travados > 0
       expect(haAlgoParaEndireitar(m, caso)).toBe(mudariaOuAvisaria)
     }
+  })
+})
+
+describe('endireitarMudariaAlgo (o botão "Endireitar" do painel aparece ou some)', () => {
+  /** Uma de cada: solta, presa nas duas pontas (com as âncoras), reta, travada, de Sala, e duas linhas. */
+  const UMA_DE_CADA = mapa({
+    walls: [
+      parede('solta', 0, 0, 100, 10),
+      parede('presa', 0, 300, 100, 320),
+      parede('p', 0, 300, 0, 250),
+      parede('q', 100, 320, 100, 400),
+      parede('reta', 500, 0, 600, 0),
+      parede('travada', 500, 100, 600, 130, { locked: true }),
+      parede('sala', 700, 0, 800, 10, { regionId: 'r', regionEdgeIndex: 0 }),
+    ],
+    drawings: [linha('l', 0, 600, 40, 700), linha('lr', 0, 800, 90, 800)],
+  })
+
+  /** A seleção de N linhas tortas soltas, longe umas das outras (nenhuma encosta em outra). */
+  function linhasTortas(n: number): { map: MapData; todas: SelectionSet } {
+    const linhas = Array.from({ length: n }, (_, i) => linha(`t${i}`, i * 200, 0, i * 200 + 100, 10))
+    return { map: mapa({ drawings: linhas }), todas: linhas.map((l): SelectionItem => ({ kind: 'drawing', id: l.id })) }
+  }
+
+  it('diz o mesmo que endireitarNoMapa: aparece exatamente quando o clique mudaria alguma coisa', () => {
+    const casos: SelectionSet[] = [
+      [],
+      sel(['wall', 'solta']),
+      sel(['wall', 'presa']),
+      sel(['wall', 'reta']),
+      sel(['wall', 'travada']),
+      sel(['wall', 'sala']),
+      sel(['drawing', 'l']),
+      sel(['drawing', 'lr']),
+      sel(['wall', 'presa'], ['wall', 'travada'], ['wall', 'sala']),
+      sel(['wall', 'presa'], ['drawing', 'l']),
+      sel(['wall', 'reta'], ['wall', 'sala'], ['drawing', 'lr']),
+    ]
+    for (const caso of casos) {
+      expect(endireitarMudariaAlgo(UMA_DE_CADA, caso), JSON.stringify(caso)).toBe(endireitarNoMapa(UMA_DE_CADA, caso).alterados > 0)
+    }
+  })
+
+  it('só parede presa nas duas pontas: o botão some, e o Alt continua agindo para o aviso dizer por quê', () => {
+    expect(endireitarMudariaAlgo(UMA_DE_CADA, sel(['wall', 'presa']))).toBe(false)
+    expect(haAlgoParaEndireitar(UMA_DE_CADA, sel(['wall', 'presa']))).toBe(true)
+  })
+
+  it('linha torta com a camada Anotações travada, ou parede torta com a camada Paredes travada: some', () => {
+    expect(endireitarMudariaAlgo(mapa({ drawings: [linha('l', 0, 0, 100, 10)], lockedLayers: ['anotacoes'] }), sel(['drawing', 'l']))).toBe(false)
+    expect(endireitarMudariaAlgo(mapa({ walls: [parede('w', 0, 0, 100, 10)], lockedLayers: ['paredes'] }), sel(['wall', 'w']))).toBe(false)
+  })
+
+  it('parede com porta torta, só a porta selecionada: aparece, porque a corrente inteira endireita', () => {
+    const map = addDoorOnWall(mapa({ walls: [parede('w', 0, 0, 300, 40)] }), 'w', { x: 150, y: 20 }, 32, 'normal')
+    const porta = map.walls.find((w) => w.door !== null)
+    if (porta === undefined) throw new Error('a porta não partiu a parede')
+    expect(endireitarMudariaAlgo(map, sel(['wall', porta.id]))).toBe(true)
+    expect(endireitarMudariaAlgo({ ...map, lockedLayers: ['portas'] }, sel(['wall', porta.id]))).toBe(false)
+  })
+
+  it('caminho torto aparece; caminho já reto, não', () => {
+    const torto = buildPathDrawing('c', [{ x: 0, y: 0 }, { x: 100, y: 8 }, { x: 110, y: 108 }], '#8a6a45', 1, 64)
+    const reto = buildPathDrawing('r', [{ x: 0, y: 500 }, { x: 100, y: 500 }, { x: 100, y: 590 }], '#8a6a45', 1, 64)
+    const m = mapa({ drawings: [torto, reto] })
+    expect(endireitarMudariaAlgo(m, sel(['drawing', 'c']))).toBe(true)
+    expect(endireitarMudariaAlgo(m, sel(['drawing', 'r']))).toBe(false)
+  })
+
+  it(`confere a fundo até ${ENDIREITAR_TORTOS_NO_BOTAO} itens tortos; com mais, o botão some e o Alt endireita todos`, () => {
+    const noLimite = linhasTortas(ENDIREITAR_TORTOS_NO_BOTAO)
+    expect(endireitarMudariaAlgo(noLimite.map, noLimite.todas)).toBe(true)
+
+    const acima = linhasTortas(ENDIREITAR_TORTOS_NO_BOTAO + 1)
+    expect(endireitarMudariaAlgo(acima.map, acima.todas)).toBe(false)
+    expect(endireitarNoMapa(acima.map, acima.todas).alterados).toBe(ENDIREITAR_TORTOS_NO_BOTAO + 1)
+  })
+
+  it('item reto e parede de Sala não contam no limite: uma linha torta no meio de muitos retos aparece', () => {
+    const retas = Array.from({ length: ENDIREITAR_TORTOS_NO_BOTAO * 3 }, (_, i) => linha(`r${i}`, i * 200, 500, i * 200 + 100, 500))
+    const salas = Array.from({ length: ENDIREITAR_TORTOS_NO_BOTAO * 3 }, (_, i) =>
+      parede(`s${i}`, i * 200, 900, i * 200 + 100, 930, { regionId: `r${i}`, regionEdgeIndex: 0 }),
+    )
+    const m = mapa({ walls: salas, drawings: [...retas, linha('torta', 0, 2000, 100, 2010)] })
+    const selecao: SelectionSet = [
+      ...retas.map((l): SelectionItem => ({ kind: 'drawing', id: l.id })),
+      ...salas.map((w): SelectionItem => ({ kind: 'wall', id: w.id })),
+      { kind: 'drawing', id: 'torta' },
+    ]
+    expect(endireitarMudariaAlgo(m, selecao)).toBe(true)
+  })
+
+  it('não mexe no mapa nem na seleção: só responde', () => {
+    const selecao = sel(['wall', 'solta'], ['drawing', 'l'])
+    const copia: unknown = JSON.parse(JSON.stringify(UMA_DE_CADA))
+    endireitarMudariaAlgo(UMA_DE_CADA, selecao)
+    expect(UMA_DE_CADA).toEqual(copia)
+    expect(selecao).toEqual(sel(['wall', 'solta'], ['drawing', 'l']))
   })
 })

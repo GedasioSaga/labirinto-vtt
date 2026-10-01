@@ -119,6 +119,14 @@ describe('ShortcutsDialog — a tela de atalhos', () => {
     expect(linhaDoPainel(opened, /\?/, /pino/i)).not.toBeNull()
   })
 
+  it('ensina o Alt TOCADO do endireitar: "Alt (tocar)", com só o Alt desenhado como tecla', () => {
+    const opened = openDialog()
+    const linha = Array.from(opened.querySelectorAll('li')).find((li) => li.textContent?.includes('Endireitar a linha selecionada'))
+    if (linha === undefined) throw new Error('a linha do endireitar não está na tela')
+    expect(linha.textContent?.replace(/\s+/g, ' ').trim()).toBe('Endireitar a linha selecionada Alt (tocar)')
+    expect(Array.from(linha.querySelectorAll('kbd'), (tecla) => tecla.textContent)).toEqual(['Alt'])
+  })
+
   it('o foco entra na tela ao abrir e volta a quem abriu quando o Esc fecha', () => {
     const opened = openDialog()
     expect(opened.contains(document.activeElement)).toBe(true)

@@ -165,7 +165,7 @@ function ShortcutGroupView({ group }: { group: ShortcutGroup }) {
 
 /**
  * As teclas como estão no teclado — cada uma numa tecla desenhada, unidas por
- * "+" — e o gesto do mouse por extenso ("segurar L + arrastar").
+ * "+" — e o gesto por extenso ("segurar L + arrastar", "Alt (tocar)").
  */
 function Keys({ combo }: { combo: ShortcutCombo }) {
   const parts: ReactNode[] = []
@@ -178,6 +178,8 @@ function Keys({ combo }: { combo: ShortcutCombo }) {
       </kbd>,
     )
   })
+  // Só "Alt" não diria que é apertar e soltar logo: segurado, o Alt é das guias de medir.
+  if (combo.tap) parts.push(<span key="tap">(tocar)</span>)
   if (combo.mouse) {
     if (combo.keys.length > 0) parts.push(<span key="plus-mouse">+</span>)
     parts.push(<span key="mouse">{combo.mouse}</span>)

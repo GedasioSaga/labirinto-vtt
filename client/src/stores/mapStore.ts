@@ -61,7 +61,7 @@ import { pieceBounds } from '../lib/floorSdf'
 import { groupItems, NO_GROUPS, ungroupItems, type ItemGroups } from '../lib/itemGroups'
 import { alignableUnitCount, alignSelectionItems, distributeSelectionItems, type AlignEdge, type DistributeAxis } from '../lib/alignDistribute'
 import { BLOCKED_MOVE_TEXT, DOOR_OPENED_BY_MOVE_TEXT, PAREDE_TRAVADA_SEGURA_O_VAO_TEXT, SALA_SECRETA_SEGURA_O_VAO_TEXT, TOOL_CLUSTERS, avisoDoEndireitar } from '../components/labels'
-import { endireitarNoMapa, type IgnoradosNoEndireitar } from '../lib/endireitar'
+import { endireitarMudariaAlgo, endireitarNoMapa, type IgnoradosNoEndireitar } from '../lib/endireitar'
 import { useToastStore } from './toastStore'
 import { eraseFromDrawing } from '../lib/eraseGeometry'
 import { wallLayer, regionLayer, lightLayer, tokenLayer, drawingLayer, propLayer, stairLayer } from '../lib/layers'
@@ -2506,6 +2506,26 @@ export function selectAlignableUnitCount(state: Pick<MapStoreState, 'map' | 'sel
   const count = alignableUnitCount(state.map, state.selection)
   lastAlignableCount = { map: state.map, selection: state.selection, count }
   return count
+}
+
+/** Última resposta de `selectEndireitarMudaria` e as referências de onde ela saiu. */
+let ultimoEndireitarMudaria: { map: MapData; selection: SelectionSet; mudaria: boolean } | null = null
+
+/**
+ * O botão "Endireitar" do painel aparece (`components/EndireitarControl.tsx`):
+ * o clique mudaria alguma coisa na seleção (`lib/endireitar.ts` →
+ * `endireitarMudariaAlgo`). Mesmo cuidado de `selectAlignableUnitCount`: o
+ * zustand reavalia o seletor a cada `set()`, o `setCamera` do pan inclusive, e
+ * a conta procura encostos no piso inteiro (~3,7 ms com uma linha torta num
+ * mapa de 14 mil paredes). Ela só depende de `map` e `selection`, então com
+ * as duas referências iguais vale a última resposta.
+ */
+export function selectEndireitarMudaria(state: Pick<MapStoreState, 'map' | 'selection'>): boolean {
+  const ultimo = ultimoEndireitarMudaria
+  if (ultimo !== null && ultimo.map === state.map && ultimo.selection === state.selection) return ultimo.mudaria
+  const mudaria = endireitarMudariaAlgo(state.map, state.selection)
+  ultimoEndireitarMudaria = { map: state.map, selection: state.selection, mudaria }
+  return mudaria
 }
 
 /** O pedaço da store que diz de onde veio o `map` atual. */
