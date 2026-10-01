@@ -18,10 +18,11 @@ import { PlayerView } from './PlayerView'
  *
  * Sem navegador: só o `Application` do Pixi é trocado (o jsdom não tem WebGL);
  * `Container` e `Graphics` são os de verdade, então o que se lê aqui são as
- * instruções de desenho que o Pixi mandaria para a GPU.
+ * instruções de desenho que o Pixi mandaria para a GPU. O ticker é do teste:
+ * cada quadro roda quando o teste pede.
  */
 
-const tela = vi.hoisted(() => ({ palcos: [] as Container[] }))
+const tela = vi.hoisted(() => ({ palcos: [] as Container[], quadros: new Array<() => void>() }))
 
 vi.mock('pixi.js', async (importOriginal) => {
   const pixi = await importOriginal<typeof import('pixi.js')>()
@@ -29,7 +30,15 @@ vi.mock('pixi.js', async (importOriginal) => {
     readonly stage = new pixi.Container()
     readonly screen = new pixi.Rectangle(0, 0, 800, 600)
     readonly renderer = { resolution: 1 }
-    readonly ticker = { add: () => undefined, remove: () => undefined }
+    readonly ticker = {
+      add: (quadro: () => void) => {
+        tela.quadros.push(quadro)
+      },
+      remove: (quadro: () => void) => {
+        const i = tela.quadros.indexOf(quadro)
+        if (i >= 0) tela.quadros.splice(i, 1)
+      },
+    }
     readonly canvas = document.createElement('canvas')
     constructor() {
       tela.palcos.push(this.stage)
@@ -110,6 +119,7 @@ describe('PlayerView — a luz vista de longe aparece como ponto aceso acima da 
       },
     )
     tela.palcos.length = 0
+    tela.quadros.length = 0
     raiz = document.createElement('div')
     document.body.appendChild(raiz)
     root = createRoot(raiz)
@@ -120,6 +130,13 @@ describe('PlayerView — a luz vista de longe aparece como ponto aceso acima da 
     raiz.remove()
     vi.unstubAllGlobals()
   })
+
+  /** Um quadro do ticker: é nele que a roda refaz o que tem tamanho em px de tela. */
+  function quadro(): void {
+    act(() => {
+      for (const q of [...tela.quadros]) q()
+    })
+  }
 
   function conteiner(): HTMLElement {
     const el = raiz.firstElementChild
@@ -185,6 +202,8 @@ describe('PlayerView — a luz vista de longe aparece como ponto aceso acima da 
     act(() => {
       canvas.dispatchEvent(new WheelEvent('wheel', { deltaY: -500, clientX: 400, clientY: 300, cancelable: true }))
     })
+    // A roda escala o mundo na hora; o ponto se refaz no quadro seguinte, antes do render.
+    quadro()
 
     const depois = world.scale.x
     expect(depois).toBeGreaterThan(antes)

@@ -217,6 +217,8 @@ describe('PlayerView — onde vi o colega pela última vez', () => {
       canvas.dispatchEvent(new WheelEvent('wheel', { deltaY: -120, clientX: 400, clientY: 300, cancelable: true }))
     })
     expect(mundo().scale.x).not.toBe(escalaAntes)
+    // O zoom da roda se refaz no quadro, antes do render: é ali que o contorno vencido some e a contagem zera.
+    quadro()
     expect(fantasmasVisiveis()).toEqual([])
     expect(conteiner().dataset.lastSeenCount).toBe('0')
 

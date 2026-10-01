@@ -380,6 +380,8 @@ describe('PlayerView — o jogador vê para onde as fichas olham', () => {
     act(() => {
       canvas.dispatchEvent(new WheelEvent('wheel', { deltaY: -500, clientX: 400, clientY: 300, cancelable: true }))
     })
+    // A roda escala o mundo na hora; o bico e o nome se refazem no quadro seguinte, antes do render.
+    quadro()
 
     const depois = world.scale.x
     expect(depois).toBeGreaterThan(antes)

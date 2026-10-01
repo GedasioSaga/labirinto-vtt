@@ -26,10 +26,11 @@ import { PlayerView } from './PlayerView'
  * a ÚNICA peça trocada: `Container` e `Graphics` são os de verdade, então o que
  * se lê aqui são as instruções de desenho que o Pixi mandaria para a GPU. O
  * pixel na tela continua sendo assunto do e2e, que tem o `data-props-count`.
+ * O ticker é do teste: cada quadro roda quando o teste pede.
  */
 
-/** Palco de cada `Application` criado: é por ele que o teste chega ao `world`. */
-const tela = vi.hoisted(() => ({ palcos: [] as Container[] }))
+/** Palco de cada `Application` criado (é por ele que o teste chega ao `world`) e os quadros do ticker. */
+const tela = vi.hoisted(() => ({ palcos: [] as Container[], quadros: new Array<() => void>() }))
 
 vi.mock('pixi.js', async (importOriginal) => {
   const pixi = await importOriginal<typeof import('pixi.js')>()
@@ -37,7 +38,15 @@ vi.mock('pixi.js', async (importOriginal) => {
     readonly stage = new pixi.Container()
     readonly screen = new pixi.Rectangle(0, 0, 800, 600)
     readonly renderer = { resolution: 1 }
-    readonly ticker = { add: () => undefined, remove: () => undefined }
+    readonly ticker = {
+      add: (quadro: () => void) => {
+        tela.quadros.push(quadro)
+      },
+      remove: (quadro: () => void) => {
+        const i = tela.quadros.indexOf(quadro)
+        if (i >= 0) tela.quadros.splice(i, 1)
+      },
+    }
     readonly canvas = document.createElement('canvas')
     constructor() {
       tela.palcos.push(this.stage)
@@ -137,6 +146,7 @@ describe('PlayerView — o objeto que chega no recorte aparece na tela como silh
       },
     )
     tela.palcos.length = 0
+    tela.quadros.length = 0
     raiz = document.createElement('div')
     document.body.appendChild(raiz)
     root = createRoot(raiz)
@@ -147,6 +157,13 @@ describe('PlayerView — o objeto que chega no recorte aparece na tela como silh
     raiz.remove()
     vi.unstubAllGlobals()
   })
+
+  /** Um quadro do ticker: é nele que a roda refaz o que tem tamanho em px de tela. */
+  function quadro(): void {
+    act(() => {
+      for (const q of [...tela.quadros]) q()
+    })
+  }
 
   /** O div do canvas: é nele que a PlayerView escreve as contagens para o e2e. */
   function conteiner(): HTMLElement {
@@ -221,6 +238,8 @@ describe('PlayerView — o objeto que chega no recorte aparece na tela como silh
     act(() => {
       canvas.dispatchEvent(new WheelEvent('wheel', { deltaY: -500, clientX: 400, clientY: 300, cancelable: true }))
     })
+    // A roda escala o mundo na hora; o contorno se refaz no quadro seguinte, antes do render.
+    quadro()
 
     const depois = world.scale.x
     expect(depois).toBeGreaterThan(antes)

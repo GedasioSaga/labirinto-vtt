@@ -370,6 +370,49 @@ function floorKey(map: MapData): string {
   return JSON.stringify([map.width, map.height, map.grid, map.floor, map.lines, map.markers, map.floorStyle, map.hiddenLayers])
 }
 
+/**
+ * Chave por conteúdo de uma camada, atrás de um portão por referência
+ * (`contentChanged`). `refs`: os campos crus do mapa na última olhada; `key`:
+ * o conteúdo do último desenho (`null` = nenhum ainda).
+ */
+interface ContentKey {
+  refs: readonly unknown[] | null
+  key: string | null
+}
+
+function emptyContentKey(): ContentKey {
+  return { refs: null, key: null }
+}
+
+/** Mesmos itens, um a um, por `===`: referência para lista e objeto, valor para número e texto. */
+function sameRefs(previous: readonly unknown[] | null, next: readonly unknown[]): boolean {
+  return previous !== null && previous.length === next.length && previous.every((value, i) => value === next[i])
+}
+
+/**
+ * PORTÃO POR REFERÊNCIA antes do `JSON.stringify`. O patch do mestre mantém a
+ * MESMA referência em todo campo do mapa que não mudou (`applyMapPatch`, em
+ * `net/viewPatch.ts`), e nada na tela do jogador muta o mapa no lugar: com os
+ * campos crus iguais aos da última olhada, o conteúdo é o mesmo. Serializar a
+ * planta inteira (paredes, salas, chão) a cada passo de ficha só para descobrir
+ * isso era o tranco do passo numa cena grande. Campo novo (snapshot inteiro,
+ * camada escondida, o mestre editando) cai na chave por conteúdo de sempre, a
+ * rede de segurança: mesmo conteúdo em listas novas, nada a redesenhar.
+ *
+ * `refs` são os campos CRUS do mapa de que a chave depende, nunca a lista
+ * filtrada (`visibleWalls` devolve uma lista nova a cada chamada) — e todos
+ * eles: faltar um deixaria a camada velha na tela. `true` = o conteúdo mudou
+ * desde o último desenho: redesenhe.
+ */
+function contentChanged(memo: ContentKey, refs: readonly unknown[], buildKey: () => string): boolean {
+  if (sameRefs(memo.refs, refs)) return false
+  memo.refs = refs
+  const key = buildKey()
+  if (key === memo.key) return false
+  memo.key = key
+  return true
+}
+
 function rasterizeMap(map: MapData): Texture | null {
   const width = Math.round(map.width * map.grid)
   const height = Math.round(map.height * map.grid)
@@ -854,7 +897,14 @@ interface Scene {
   /** Silhueta do piso: a grade do jogador só existe dentro dele. */
   gridMask: Graphics
   lastGridKey: string | null
-  lastGridMaskKey: string | null
+  /**
+   * Máscara da grade (`gridMaskChanged`), parte a parte: paredes e salas atrás
+   * do portão por referência, e o enquadramento (render fiel e tamanho, ou a
+   * chave do chão recortado) comparado item a item.
+   */
+  gridMaskWalls: ContentKey
+  gridMaskRegions: ContentKey
+  gridMaskFrame: readonly unknown[] | null
   raster: Sprite
   floor: Graphics
   mapLines: Graphics
@@ -864,10 +914,10 @@ interface Scene {
   regionsRenderer: ReturnType<typeof createRegionsRenderer>
   /** PERIGO QUE SE ALASTRA: fogo, água e cinza das salas que o jogador vê agora. */
   perigos: Graphics
-  lastPerigosKey: string | null
+  perigosKey: ContentKey
   drawings: Graphics
   stairs: Graphics
-  lastDrawingsKey: string | null
+  drawingsKey: ContentKey
   /** Escadas dependem do zoom e da resolução (linha central alinhada ao pixel). */
   lastStairsKey: string | null
   /**
@@ -914,7 +964,7 @@ interface Scene {
   /** Halos das luzes do mestre, recortados pelas paredes; sob a névoa. */
   lights: Container
   lightsRenderer: ReturnType<typeof createLightsRenderer>
-  lastLightsKey: string | null
+  lightsKey: ContentKey
   /** Nunca visto: preto opaco fora de (explorado ∪ visão). */
   fogUnknown: Graphics
   knownMask: Graphics
@@ -927,7 +977,7 @@ interface Scene {
   /** Pinos de ponto de interesse, acima da névoa: o jogador toca para ler o cartão. */
   pins: Container
   pinsRenderer: ReturnType<typeof createPinsRenderer>
-  lastPinsKey: string | null
+  pinsKey: ContentKey
   /** ZONA DE PERIGO: cor chapada sob a névoa, recortada pela visão atual (`hazardsMask`). */
   hazards: Graphics
   hazardsMask: Graphics
@@ -940,7 +990,7 @@ interface Scene {
   triggersCount: number
   /** BILHETE NO LUGAR: bilhetes e setas de giz, logo abaixo dos pinos. */
   marks: Graphics
-  lastMarksKey: string | null
+  marksKey: ContentKey
   /** Fator de tamanho mínimo com que os pinos foram pintados por último (`pinSizeScale`). */
   pinsSizeScale: number
   /** Zonas ocultas: preto opaco acima da névoa e abaixo dos tokens. */
@@ -1051,16 +1101,54 @@ const NO_OWN_LASER: LaserTrail = { points: [], on: false }
 /** Rótulo da ponta do próprio laser: o nome de quem aponta é o dos outros, o seu é "Você". */
 const OWN_LASER_LABEL = 'Você'
 
-function applyCamera(scene: Scene): void {
+/**
+ * Quando refazer o que tem tamanho em px de tela (grade, paredes, portas,
+ * pinos, nomes) depois de a câmera mudar: `agora`, ou no próximo quadro do
+ * ticker (`tickZoomLayers`, no setup).
+ */
+type ZoomLayersTiming = 'agora' | 'noQuadro'
+
+function applyCamera(scene: Scene, zoomLayers: ZoomLayersTiming = 'agora'): void {
   const res = scene.app.renderer.resolution
   // Pixel físico inteiro: traço fino alinhado (pixelAlign.ts) não depende do pan.
   scene.world.position.set(snapToPhysicalPixel(scene.camera.x, res), snapToPhysicalPixel(scene.camera.y, res))
+  // O mundo escala já, em todo caminho: o ponto sob o dedo nunca espera o quadro.
   scene.world.scale.set(scene.camera.scale)
-  if (scene.camera.scale !== scene.zoomScale) {
-    scene.zoomScale = scene.camera.scale
-    scene.onZoom()
-  }
+  if (zoomLayers === 'agora') syncZoomLayers(scene)
   scene.textResolution.schedule()
+}
+
+/**
+ * Ajusta à escala da câmera o que depende do zoom, se ela andou desde o último
+ * ajuste. Os caminhos de uma vez só (botões, enquadrar, os deslizes que o
+ * próprio ticker leva) chamam na hora. A roda e a pinça mandam vários eventos
+ * por quadro (a pinça, um por dedo) e só o último chega à tela: elas deixam
+ * para o ticker, que chama uma vez por quadro, antes do render — N eventos
+ * viram um ajuste, na escala do último, e o traço não fica um quadro atrás.
+ */
+function syncZoomLayers(scene: Scene): void {
+  if (scene.camera.scale === scene.zoomScale) return
+  scene.zoomScale = scene.camera.scale
+  scene.onZoom()
+}
+
+/**
+ * A máscara da grade (a silhueta do piso) precisa ser refeita? Render fiel:
+ * só o tamanho do mapa. Vetorial: paredes, salas e o chão recortado
+ * (`lastFloorKey`). Cada parte com o próprio portão (`contentChanged`): o
+ * passo que só muda o chão recortado (a visão andou) não serializa paredes
+ * nem salas.
+ */
+function gridMaskChanged(scene: Scene, map: MapData, walls: readonly Wall[], regions: readonly Region[], raster: boolean): boolean {
+  const hidden = map.hiddenLayers
+  // As duas antes do `||`: cada portão guarda o que viu, senão a próxima olhada compararia com o velho.
+  const wallsChanged = contentChanged(scene.gridMaskWalls, [map.walls, hidden, map.grid], () => JSON.stringify([walls, map.grid]))
+  const regionsChanged = contentChanged(scene.gridMaskRegions, [map.regions, hidden], () => JSON.stringify(regions.map((r) => [r.id, r.points])))
+  // Só texto e número: comparar item a item já é comparar o conteúdo.
+  const frame = raster ? ['raster', map.width * map.grid, map.height * map.grid] : ['piso', scene.lastFloorKey]
+  const frameChanged = !sameRefs(scene.gridMaskFrame, frame)
+  scene.gridMaskFrame = frame
+  return frameChanged || (!raster && (wallsChanged || regionsChanged))
 }
 
 function redrawFloor(scene: Scene, map: MapData): void {
@@ -1747,23 +1835,21 @@ export function PlayerView({
   function redrawLights(scene: Scene): void {
     const currentMap = latestRef.current.map
     const lights = visibleLights(currentMap.lights, currentMap.hiddenLayers)
+    // Portão por referência (`contentChanged`): o passo da ficha não serializa luzes, paredes e chão.
+    // A sombra usa o chão INTEIRO, não o recortado da tela (`lastFloorKey`
+    // muda a cada pedaço explorado e refaria o contorno da cena toda a cada passo).
+    const changed = contentChanged(scene.lightsKey, [currentMap.lights, currentMap.walls, currentMap.floor, currentMap.hiddenLayers], () =>
+      lights.length === 0 ? JSON.stringify([lights]) : JSON.stringify([lights, visibleWalls(currentMap), currentMap.floor]),
+    )
+    if (!changed) return
     // Sem luz não há sombra a recortar: nada de contornar o chão da cena
     // inteira (numa cidade de milhares de salas, isso travava o celular).
     if (lights.length === 0) {
-      const key = JSON.stringify([lights])
-      if (key === scene.lastLightsKey) return
-      scene.lastLightsKey = key
       scene.lightsRenderer.draw(scene.lights, lights, { occluders: [], showMarkers: false })
       return
     }
-    const walls = visibleWalls(currentMap)
-    // A sombra usa o chão INTEIRO, não o recortado da tela (`lastFloorKey`
-    // muda a cada pedaço explorado e refaria o contorno da cena toda a cada passo).
-    const key = JSON.stringify([lights, walls, currentMap.floor])
-    if (key === scene.lastLightsKey) return
-    scene.lastLightsKey = key
     scene.lightsRenderer.draw(scene.lights, lights, {
-      occluders: visionSegments({ ...currentMap, walls }),
+      occluders: visionSegments({ ...currentMap, walls: visibleWalls(currentMap) }),
       showMarkers: false,
     })
   }
@@ -1991,19 +2077,15 @@ export function PlayerView({
 
     const regions = visibleRegions(currentMap.regions, hidden)
     scene.regionsRenderer.draw(scene.regions, regions)
-    // Sem perigo à vista a chave é vazia: não serializa as salas a cada quadro à toa.
-    const perigosKey = currentMap.perigos === undefined ? '' : JSON.stringify([currentMap.perigos, regions.map((r) => [r.id, r.points])])
-    if (perigosKey !== scene.lastPerigosKey) {
-      scene.lastPerigosKey = perigosKey
-      drawPerigos(scene.perigos, regions, currentMap.perigos ?? [])
-    }
+    // Portão por referência (`contentChanged`): o passo da ficha não serializa as salas.
+    // Sem perigo à vista a chave é vazia: não serializa as salas à toa.
+    const perigosChanged = contentChanged(scene.perigosKey, [currentMap.perigos, currentMap.regions, hidden], () =>
+      currentMap.perigos === undefined ? '' : JSON.stringify([currentMap.perigos, regions.map((r) => [r.id, r.points])]),
+    )
+    if (perigosChanged) drawPerigos(scene.perigos, regions, currentMap.perigos ?? [])
 
     const drawings = visibleDrawings(currentMap.drawings, hidden)
-    const drawingsKey = JSON.stringify(drawings)
-    if (drawingsKey !== scene.lastDrawingsKey) {
-      scene.lastDrawingsKey = drawingsKey
-      drawDrawings(scene.drawings, drawings)
-    }
+    if (contentChanged(scene.drawingsKey, [currentMap.drawings, hidden], () => JSON.stringify(drawings))) drawDrawings(scene.drawings, drawings)
     redrawPropsLayer(scene)
     redrawStairsLayer(scene)
 
@@ -2011,16 +2093,12 @@ export function PlayerView({
     redrawDoorHints(scene)
     const walls = visibleWalls(currentMap)
     scene.wallsCount = walls.length
-    const wallsKey = JSON.stringify([walls, currentMap.grid])
     const raster = isRasterMode(currentMap)
-    const floorPolygons = raster || hidden.includes('salas') ? [] : scene.floorRenderer.polygons()
-    const regionsKey = JSON.stringify(regions.map((r) => [r.id, r.points]))
 
     // Grade só dentro do piso (salas com parede + chão por peças): fora dele o
     // jogador não vê grade. Render fiel não tem contorno vetorial: vale o mapa.
-    const gridMaskKey = raster ? JSON.stringify(['raster', worldWidth, worldHeight]) : JSON.stringify([wallsKey, scene.lastFloorKey, regionsKey])
-    if (gridMaskKey !== scene.lastGridMaskKey) {
-      scene.lastGridMaskKey = gridMaskKey
+    if (gridMaskChanged(scene, currentMap, walls, regions, raster)) {
+      const floorPolygons = raster || hidden.includes('salas') ? [] : scene.floorRenderer.polygons()
       const hasFloor = raster
         ? (scene.gridMask.clear().rect(0, 0, worldWidth, worldHeight).fill({ color: 0xffffff }), true)
         : buildFloorMask(scene.gridMask, regions, walls, floorPolygons)
@@ -2049,18 +2127,12 @@ export function PlayerView({
     // O recorte do mestre já tirou daqui todo pino que este jogador não pode
     // ver (lib/fogFilter.ts): o que chegou é o que ele pode tocar.
     const marcas = currentMap.marcas ?? []
-    const marksKey = JSON.stringify(marcas)
-    if (marksKey !== scene.lastMarksKey) {
-      scene.lastMarksKey = marksKey
-      drawMarcas(scene.marks, marcas)
-    }
+    if (contentChanged(scene.marksKey, [currentMap.marcas], () => JSON.stringify(marcas))) drawMarcas(scene.marks, marcas)
 
     const pins = visiblePins(currentMap.pins ?? [], hidden)
-    const pinsKey = JSON.stringify(pins)
-    if (pinsKey !== scene.lastPinsKey || pinSizeScale(scene.camera.scale) !== scene.pinsSizeScale) {
-      scene.lastPinsKey = pinsKey
-      paintPins(scene, pins)
-    }
+    // Antes do `||`: o portão dos pinos guarda o que viu mesmo quando o zoom já pede a repintura.
+    const pinsChanged = contentChanged(scene.pinsKey, [currentMap.pins, hidden], () => JSON.stringify(pins))
+    if (pinsChanged || pinSizeScale(scene.camera.scale) !== scene.pinsSizeScale) paintPins(scene, pins)
 
     // Reaproveita a view por id e NUNCA destrói `Text` durante a sessão: Text
     // destruído antes de ser renderizado (3 redraws por movimento: otimista,
@@ -2443,7 +2515,9 @@ export function PlayerView({
         grid,
         gridMask,
         lastGridKey: null,
-        lastGridMaskKey: null,
+        gridMaskWalls: emptyContentKey(),
+        gridMaskRegions: emptyContentKey(),
+        gridMaskFrame: null,
         raster,
         floor,
         mapLines,
@@ -2452,10 +2526,10 @@ export function PlayerView({
         regions,
         regionsRenderer: createRegionsRenderer(),
         perigos,
-        lastPerigosKey: null,
+        perigosKey: emptyContentKey(),
         drawings,
         stairs,
-        lastDrawingsKey: null,
+        drawingsKey: emptyContentKey(),
         lastStairsKey: null,
         props,
         lastPropsKey: null,
@@ -2480,7 +2554,7 @@ export function PlayerView({
         textLabelsRenderer: createTextLabelsRenderer(),
         lights,
         lightsRenderer: createLightsRenderer(),
-        lastLightsKey: null,
+        lightsKey: emptyContentKey(),
         fogUnknown,
         knownMask,
         fogDim,
@@ -2490,7 +2564,7 @@ export function PlayerView({
         exploredCells: 0,
         pins,
         pinsRenderer: createPinsRenderer(),
-        lastPinsKey: null,
+        pinsKey: emptyContentKey(),
         hazards,
         hazardsMask,
         lastHazards: null,
@@ -2500,7 +2574,7 @@ export function PlayerView({
         lastTriggers: null,
         triggersCount: 0,
         marks,
-        lastMarksKey: null,
+        marksKey: emptyContentKey(),
         pinsSizeScale: 1,
         concealed,
         lastConcealed: null,
@@ -2585,6 +2659,13 @@ export function PlayerView({
         applyCamera(scene)
       }
       app.ticker.add(tickCameraGlide)
+
+      // Roda e pinça (`applyCamera(scene, 'noQuadro')`): o que tem tamanho em px
+      // de tela se refaz aqui, uma vez por quadro, antes do render (o Pixi o põe
+      // no ticker com prioridade baixa). Depois do degrau e do deslize, que já
+      // refazem no próprio passo: com eles, não sobra nada para cá.
+      const tickZoomLayers = () => syncZoomLayers(scene)
+      app.ticker.add(tickZoomLayers)
 
       // Ficha arrastada na faixa da borda: o mapa rola a cada quadro, com o dedo parado ou não,
       // e a ficha continua sob o dedo. Só a câmera desta tela — nada vai pela rede até soltar.
@@ -2903,8 +2984,9 @@ export function PlayerView({
           scene.touch = state
           if (camera !== null) {
             scene.camera = camera
-            // applyCamera chama onZoom → paredes e portas refazem a largura de tela, como na roda.
-            applyCamera(scene)
+            // Um evento por dedo, vários por quadro: o mundo escala já, e paredes,
+            // portas e nomes refazem a largura de tela uma vez, no quadro (`tickZoomLayers`).
+            applyCamera(scene, 'noQuadro')
           }
           // Durante a pinça nenhum dedo arrasta nada sozinho.
           if (state.pinch !== null) return
@@ -3096,8 +3178,9 @@ export function PlayerView({
         scene.cameraGlide = null
         const rect = app.canvas.getBoundingClientRect()
         scene.camera = zoomAt(scene.camera, { x: event.clientX - rect.left, y: event.clientY - rect.top }, event.deltaY)
-        // applyCamera chama onZoom → redrawZoomLayers: paredes e portas refazem a largura de tela.
-        applyCamera(scene)
+        // O trackpad manda vários eventos por quadro: o mundo escala já, e paredes,
+        // portas e nomes refazem a largura de tela uma vez, no quadro (`tickZoomLayers`).
+        applyCamera(scene, 'noQuadro')
       }
       app.canvas.addEventListener('wheel', onWheel, { passive: false })
       // Outro monitor ou zoom do navegador: resolução nova e resize (textos se refazem sozinhos).
@@ -3119,6 +3202,7 @@ export function PlayerView({
         cancelLongPress()
         app.ticker.remove(tickZoom)
         app.ticker.remove(tickCameraGlide)
+        app.ticker.remove(tickZoomLayers)
         app.ticker.remove(tickEdgeScroll)
         app.ticker.remove(tickSignals)
         app.ticker.remove(tickDestinations)
