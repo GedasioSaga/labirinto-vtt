@@ -296,6 +296,31 @@ function drawingEntity(drawing: Drawing): AreaGeometryEntity {
   }
 }
 
+// Caixa de cada tipo de peça pela MESMA conta do laço: as guias de
+// alinhamento (lib/guideBoxes.ts) medem a peça igual à seleção por área, e uma
+// sala redonda tem uma caixa só, seja para selecionar, seja para alinhar.
+// Polígono sem ponto devolve caixa infinita: quem chama descarta a degenerada.
+
+export function boundsOfRegion(region: Region): AreaBounds {
+  return entityBounds(regionEntity(region))
+}
+
+export function boundsOfWall(wall: Wall): AreaBounds {
+  return entityBounds(wallEntity(wall))
+}
+
+export function boundsOfDrawing(drawing: Drawing): AreaBounds {
+  return entityBounds(drawingEntity(drawing))
+}
+
+export function boundsOfProp(prop: Prop): AreaBounds {
+  return entityBounds(propEntity(prop))
+}
+
+export function boundsOfStair(stair: Stair): AreaBounds {
+  return entityBounds(stairEntity(stair))
+}
+
 // ─────────────────────────────────────────────────────────────
 // API pública — 1. seleção por área
 // ─────────────────────────────────────────────────────────────

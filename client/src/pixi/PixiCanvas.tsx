@@ -190,6 +190,11 @@ import { findBoxCornerHandleAt, findRoomCornerHandleAt, findVertexHandleAt, isOn
 import { regionEdgeMidpoints } from '../lib/roomLink'
 import { alignUnlessFree, isFreeMoveModifier, mapBoundsCandidates } from '../lib/alignmentGuides'
 import { drawGuides } from './drawGuides'
+// Pedido 3 (guias estilo Figma), fatia 1: a sala arrastada encaixa pela CAIXA
+// (borda e centro) das vizinhas, com tolerância em px de tela.
+import { SMART_GUIDE_SCREEN_PX, dragBoxWithGuides, guideModeForDrag, sameGuides, screenPxToWorld, type SmartGuide } from '../lib/smartGuides'
+import { guideBoxesForDrag } from '../lib/guideBoxes'
+import { drawSmartGuides } from './drawSmartGuides'
 // Onda 3, item 13 (Frente A) — clonagem pura por tipo de entidade, usada só
 // pelo Alt+arrastar (Ctrl+D chama `duplicateSelected`, que já embute a
 // clonagem dentro da store — ver mapStore.ts).
@@ -221,7 +226,7 @@ import { tokenRadiusOf } from '../lib/doorReach'
 // pra resize por canto de Drawing rect/ellipse/polygon, Token e Prop.
 import { drawingBoundingBox, tokenBoundingBox, propBoundingBox, resizeTokenSize, type Corner } from '../lib/objectTransform'
 // N3 "ferramenta de seleção de área" — geometria pura de marquee + mover grupo.
-import { selectEntitiesInArea, areaSelectionBounds, classifyMarqueeGesture, ctrlStartsMarquee, type AreaRect } from '../lib/areaSelection'
+import { selectEntitiesInArea, areaSelectionBounds, classifyMarqueeGesture, ctrlStartsMarquee, EMPTY_AREA_SELECTION, type AreaBounds, type AreaRect } from '../lib/areaSelection'
 import { drawSelectionMarquee, drawAreaSelectionOutline, createMarqueeHintRenderer } from './drawSelectionMarquee'
 // Onda 4, item 24 — modelo canônico de seleção (lib/selectionModel.ts).
 // `useMapStore.getState().selection` agora é um SelectionSet (conjunto);
@@ -282,6 +287,26 @@ const SELECTED_TOKEN_GRAB_SLOP = 8
 // seleção e deixa de ser legível; com muito mais ele desgruda da ficha e a
 // pessoa precisa procurar o número em vez de ler de canto de olho.
 const FOLGA_DO_ROTULO_DE_QUADRADOS = 12
+
+/**
+ * Pedido 3, fatia 1: o arrasto de SALA com guias inteligentes
+ * (`lib/smartGuides.ts`). Montado no pointerdown, com as candidatas já
+ * filtradas pela tela; o pointermove só varre a lista pronta.
+ */
+interface RoomGuideDrag {
+  /** A sala que anda: a do corpo pego, ou a dona da parede pega. */
+  regionId: string
+  /** Ponteiro CRU do pointerdown: a grade do gesto vale para ele e para o de agora, a cada passo. */
+  startPointer: Point
+  /** `points[0]` da sala no pointerdown: o deslocamento total parte dele. */
+  startAnchor: Point
+  /** Caixa da sala com as sub-salas, no pointerdown. */
+  startBounds: AreaBounds
+  boxes: AreaBounds[]
+  /** Guias na tela agora e o zoom delas: a mesma guia no mesmo zoom não redesenha. */
+  shown: SmartGuide[]
+  shownScale: number
+}
 
 /**
  * Nome em PT-BR de cada tipo de item, para o aviso de apagar dizer O QUE
@@ -2211,6 +2236,9 @@ export function PixiCanvas({
       let draggingStairBodyId: string | null = null
       let draggingFloorBodyId: string | null = null
       let bodyDragLastPoint: Point | null = null
+      // Arrasto de sala com guias (pedido 3): pelo corpo, ou por uma parede
+      // vinculada. `null` fora do gesto, e no arrasto de parede solta.
+      let roomGuideDrag: RoomGuideDrag | null = null
       let draggingLineId: string | null = null
       let draggingLinePointIndex: 0 | 1 = 0
       let draggingLineBodyId: string | null = null
@@ -2523,6 +2551,64 @@ export function PixiCanvas({
         // Sala: as paredes vinculadas vão junto (senão a cópia sai só com o chão).
         useMapStore.getState().insertClonedEntityLive(cloned, input.kind === 'region' ? input.entity.id : undefined)
         return cloned.entity.id
+      }
+
+      /**
+       * Pedido 3, fatia 1: começa o arrasto de sala com guias. Roda DEPOIS do
+       * clone do Alt+arrastar, com a seleção já apontando para quem anda: a
+       * cópia não alinha consigo mesma, e a original, que fica, é vizinha.
+       * As candidatas saem uma vez aqui, só das peças da tela com uma tela de
+       * folga para cada lado; o pointermove não toca no mapa para achá-las.
+       */
+      const startRoomGuideDrag = (regionId: string, pointer: Point): RoomGuideDrag | null => {
+        const store = useMapStore.getState()
+        const doPiso = doPisoEmEdicao(store.map)
+        const region = doPiso.regions.find((r) => r.id === regionId)
+        if (region === undefined || region.points.length === 0) return null
+        const startBounds = areaSelectionBounds(doPiso, { ...EMPTY_AREA_SELECTION, regions: [...subtreeIds(doPiso.regions, regionId)] })
+        if (startBounds === null) return null
+        const selecionado = selectionToAreaSelection(store.selection)
+        const viewport = computeViewport()
+        const boxes = guideBoxesForDrag(store.map, {
+          piso: store.pisoAtivo,
+          exclude: { ...selecionado, regions: [...selecionado.regions, regionId] },
+          viewport,
+          margin: Math.max(viewport.right - viewport.left, viewport.bottom - viewport.top),
+        })
+        return { regionId, startPointer: pointer, startAnchor: { ...region.points[0] }, startBounds, boxes, shown: [], shownScale: camera.scale }
+      }
+
+      /**
+       * Um passo do arrasto de sala com guias. A grade do gesto vale para os
+       * DOIS ponteiros (o do pointerdown e o de agora): o delta entre dois
+       * pontos da grade é um número inteiro de células, também em hex e
+       * triângulo — `applySnap` é de ponto, e aplicado ao delta daria passo
+       * errado ali. Quem manda (guia, grade ou nada) é `guideModeForDrag`.
+       */
+      const moveRoomWithGuides = (drag: RoomGuideDrag, worldPoint: Point, event: { altKey: boolean; ctrlKey: boolean; metaKey: boolean }) => {
+        const { map, snapTargets } = useMapStore.getState()
+        const result = dragBoxWithGuides({
+          startBounds: drag.startBounds,
+          startPointer: applySnap(drag.startPointer, map.grid, 'wall', event.altKey),
+          pointer: applySnap(worldPoint, map.grid, 'wall', event.altKey),
+          others: drag.boxes,
+          tolerance: screenPxToWorld(SMART_GUIDE_SCREEN_PX, camera.scale),
+          mode: guideModeForDrag({ free: isFreeMoveModifier(event), altKey: event.altKey, gridBySetting: snapTargets.wall }),
+        })
+        // Presa no encaixe, a sala recebe dezenas de pointermove com a mesma
+        // guia: redesenhar o Graphics no grupo do mapa refaria os lotes do
+        // mapa inteiro a cada um (a medição do `hoverGraphics`, acima).
+        if (camera.scale !== drag.shownScale || !sameGuides(result.guides, drag.shown)) {
+          drawSmartGuides(guidesGraphics, result.guides, camera.scale, app.renderer.resolution)
+          drag.shown = result.guides
+          drag.shownScale = camera.scale
+        }
+        const region = map.regions.find((r) => r.id === drag.regionId)
+        // A sala pode sumir no meio do gesto (Ctrl+Z pelo teclado): não há o que mover.
+        if (region === undefined || region.points.length === 0) return
+        const dx = drag.startAnchor.x + result.offsetX - region.points[0].x
+        const dy = drag.startAnchor.y + result.offsetY - region.points[0].y
+        if (dx !== 0 || dy !== 0) useMapStore.getState().moveRegionLive(drag.regionId, dx, dy)
       }
 
       /**
@@ -4356,6 +4442,11 @@ export function PixiCanvas({
             const wall = map.walls.find((w) => w.id === hit.id)
             draggingWallBodyId = event.altKey && wall ? cloneForAltDrag({ kind: 'wall', entity: wall }) : hit.id
             bodyDragLastPoint = applySnap(worldPoint, map.grid, 'wall', event.altKey)
+            // Parede de sala leva a sala inteira (`moveWall` → `moveRegion`): o
+            // arrasto é o da sala, com guias pela caixa dela. A cópia do
+            // Alt+arrastar nasce solta (`cloneWall`) e segue como parede solta.
+            const salaDaParede = event.altKey ? undefined : wall?.regionId
+            roomGuideDrag = salaDaParede === undefined ? null : startRoomGuideDrag(salaDaParede, worldPoint)
           } else if (hit.kind === 'region') {
             // `canInteract`: desde que `clickSelectMap` passou a deixar a
             // Região travada chegar no hit-test, é ESTE ponto que segura o
@@ -4368,7 +4459,7 @@ export function PixiCanvas({
               bodyDragSnapshot = map
               draggingRegionBodyId = event.altKey ? cloneForAltDrag({ kind: 'region', entity: region }) : hit.id
               altDragRegionSource = event.altKey ? region.id : null
-              bodyDragLastPoint = applySnap(worldPoint, map.grid, 'wall', event.altKey)
+              roomGuideDrag = startRoomGuideDrag(draggingRegionBodyId, worldPoint)
             }
           } else if (hit.kind === 'stair') {
             // B3 (bug3 "mover e redimensionar"): wiring que faltava — a ação
@@ -4958,6 +5049,7 @@ export function PixiCanvas({
         draggingLineBodyId = null
         draggingLightId = null
         bodyDragLastPoint = null
+        roomGuideDrag = null
         finishRoomLabelDrag()
         guidesGraphics.clear()
         angleIndicatorRenderer.hide()
@@ -5119,6 +5211,7 @@ export function PixiCanvas({
         draggingLineBodyId = null
         draggingLightId = null
         bodyDragLastPoint = null
+        roomGuideDrag = null
         finishRoomLabelDrag()
         guidesGraphics.clear()
         updateCursor()
@@ -5448,6 +5541,11 @@ export function PixiCanvas({
 
         if (mode === 'dragging-wall-body' && draggingWallBodyId !== null && bodyDragLastPoint) {
           const worldPoint = toWorldPoint(event.global.x, event.global.y)
+          // Parede de sala: anda a sala, com as guias da caixa dela.
+          if (roomGuideDrag !== null) {
+            moveRoomWithGuides(roomGuideDrag, worldPoint, event)
+            return
+          }
           const { map } = useMapStore.getState()
           const p = applySnap(worldPoint, map.grid, 'wall', event.altKey)
           const dx = p.x - bodyDragLastPoint.x
@@ -5493,29 +5591,11 @@ export function PixiCanvas({
           return
         }
 
-        if (mode === 'dragging-region-body' && draggingRegionBodyId !== null && bodyDragLastPoint) {
-          const worldPoint = toWorldPoint(event.global.x, event.global.y)
-          const { map } = useMapStore.getState()
-          const p = applySnap(worldPoint, map.grid, 'wall', event.altKey)
-          const dx = p.x - bodyDragLastPoint.x
-          const dy = p.y - bodyDragLastPoint.y
-          if (dx !== 0 || dy !== 0) {
-            const region = map.regions.find((r) => r.id === draggingRegionBodyId)
-            if (region) {
-              // Mesma ancoragem do wall-body acima, no primeiro ponto da regiao.
-              const anchor = region.points[0]
-              const tentativeAnchor = { x: anchor.x + dx, y: anchor.y + dy }
-              // Sub-salas andam junto: alinhar com elas seria alinhar consigo mesma.
-              const moving = subtreeIds(map.regions, draggingRegionBodyId)
-              const candidates = doPisoEmEdicao(map).regions
-                .filter((r) => !moving.has(r.id))
-                .flatMap((r) => r.points)
-              const result = alignUnlessFree(tentativeAnchor, candidates, isFreeMoveModifier(event))
-              drawGuides(guidesGraphics, result.guides, computeViewport())
-              useMapStore.getState().moveRegionLive(draggingRegionBodyId, result.point.x - anchor.x, result.point.y - anchor.y)
-            }
-            bodyDragLastPoint = p
-          }
+        // Pedido 3, fatia 1: a sala encaixa pela caixa (borda e centro) das
+        // vizinhas, pelo deslocamento TOTAL do gesto — ver `moveRoomWithGuides`.
+        // Antes alinhava só `points[0]`, e a sala redonda nunca encaixava pelo centro.
+        if (mode === 'dragging-region-body' && roomGuideDrag !== null) {
+          moveRoomWithGuides(roomGuideDrag, toWorldPoint(event.global.x, event.global.y), event)
           return
         }
 
