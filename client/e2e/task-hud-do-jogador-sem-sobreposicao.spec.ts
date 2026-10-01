@@ -27,7 +27,9 @@
 // que o dedo acerta no meio dele (`elementFromPoint`), se o alvo tem menos de
 // 44 px no dedo (24 no mouse) ou se uma rolagem aparece cortada pela metade.
 // Em tela de gaveta, com a gaveta aberta, nada do mapa fica por cima dela — e
-// a rolagem feita de dentro da gaveta aparece nela.
+// a rolagem feita de dentro da gaveta aparece nela. Por dentro, aba por aba, o
+// miolo dela não rola de lado, nenhuma aba nem controle passa da borda, e cada
+// aba tem o alvo do dedo e é o que o dedo acerta no meio dela.
 import { test, expect, type Page, type WebSocketRoute } from '@playwright/test'
 import { createExploration, encodeExploration } from '../src/lib/exploration'
 import { addToken, createEmptyMap } from '../src/lib/mapFactory'
@@ -409,6 +411,48 @@ function caixaDe(medidas: readonly Medida[], nome: string): Medida {
   return achada
 }
 
+/** As abas da gaveta, na ordem. O Chat é a última: a que saía da tela a 320 px. */
+const ABAS_DA_GAVETA = ['Jogo', 'Caderno', 'Lugares', 'Dados', 'Chat']
+
+/**
+ * Por dentro da gaveta aberta: o miolo não rola de lado, cada aba e cada
+ * controle à vista ficam entre as bordas dele, e cada aba tem o alvo do dedo e
+ * é o que o dedo acerta no meio dela. A caixa da gaveta sozinha não pega isso:
+ * a 320 px ela cabia na tela, mas a fileira de abas era mais larga que ela — o
+ * miolo rolava de lado, a aba "Chat" saía da tela (o dedo no meio dela
+ * acertava o mapa) e todos os botões perdiam a borda direita.
+ */
+async function problemasPorDentroDaGaveta(page: Page, toqueMinimo: number): Promise<string[]> {
+  return page.evaluate(
+    ({ toqueMinimo, folga }) => {
+      const corpo = document.querySelector<HTMLElement>('.pp-panel:not([hidden]) .pp-panel__body')
+      if (corpo === null) return ['a gaveta aberta sem o miolo (.pp-panel__body)']
+      const achados: string[] = []
+      if (corpo.scrollWidth > corpo.clientWidth) achados.push(`o miolo rola de lado: ${corpo.scrollWidth} px de conteúdo em ${corpo.clientWidth}`)
+      // A borda que corta é a do miolo (a caixa que rola), por dentro da borda do cartão.
+      const esquerda = corpo.getBoundingClientRect().left + corpo.clientLeft
+      const direita = esquerda + corpo.clientWidth
+      for (const el of Array.from(corpo.querySelectorAll<HTMLElement>('button, input, select, textarea, a[href], [role="tab"]'))) {
+        if (!el.checkVisibility({ opacityProperty: true, visibilityProperty: true })) continue
+        const r = el.getBoundingClientRect()
+        // O que é só para o leitor de tela é um recorte de 1 px: não é alvo de ninguém.
+        if (r.width < 2 || r.height < 2) continue
+        const aba = el.getAttribute('role') === 'tab'
+        const nome = `${aba ? 'aba' : el.tagName.toLowerCase()} "${(el.getAttribute('aria-label') ?? el.textContent ?? '').trim().slice(0, 32)}"`
+        if (r.left < esquerda - folga || r.right > direita + folga) {
+          achados.push(`${nome} passa da borda: vai de ${Math.round(r.left)} a ${Math.round(r.right)}, o miolo de ${Math.round(esquerda)} a ${Math.round(direita)}`)
+        }
+        if (!aba) continue
+        if (r.width < toqueMinimo - folga || r.height < toqueMinimo - folga) achados.push(`${nome} pequena para o dedo: ${Math.round(r.width)}x${Math.round(r.height)}`)
+        const alvo = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2)
+        if (alvo === null || !el.contains(alvo)) achados.push(`${nome}: o dedo no meio dela acerta ${alvo === null ? 'nada' : `${alvo.tagName.toLowerCase()}.${alvo.getAttribute('class') ?? ''}`}`)
+      }
+      return achados
+    },
+    { toqueMinimo, folga: FOLGA },
+  )
+}
+
 for (const tela of TELAS) {
   test.describe(nomeDaTela(tela), () => {
     test.use({ viewport: { width: tela.width, height: tela.height }, hasTouch: tela.toque, isMobile: tela.toque })
@@ -462,6 +506,23 @@ for (const tela of TELAS) {
       const comAGaveta = await medir(page)
       expect(comAGaveta.map((m) => m.nome).filter((nome) => !['Painel', 'Minha ficha', 'Inventário', 'gaveta do painel'].includes(nome))).toEqual([])
       expect(problemas(comAGaveta, tela, alvoMinimo(tela))).toEqual([])
+
+      // Por dentro, aba por aba: o miolo não rola de lado, nada passa da borda e cada aba é alvo do dedo.
+      // As cinco precisam estar lá: sem o Chat, a fileira cabia e o teste passaria sem provar nada.
+      await expect(gaveta.getByRole('tab')).toHaveText(ABAS_DA_GAVETA)
+      const porDentro: string[] = []
+      for (const nome of ABAS_DA_GAVETA) {
+        const aba = gaveta.getByRole('tab', { name: new RegExp(`^${nome}`) })
+        await aba.click()
+        await expect(aba).toHaveAttribute('aria-selected', 'true')
+        await esperarAsEntradas(page)
+        porDentro.push(...(await problemasPorDentroDaGaveta(page, alvoMinimo(tela))).map((achado) => `${nome}: ${achado}`))
+      }
+      // A foto de volta na aba Jogo, depois do traço da aba ativa terminar de passar de uma para a outra.
+      await gaveta.getByRole('tab', { name: 'Jogo' }).click()
+      await esperarAsEntradas(page)
+      await fotografar(page, `${tela.width}x${tela.height}-aberta`)
+      expect(porDentro, 'por dentro da gaveta aberta').toEqual([])
 
       // Rolar pela gaveta: o pedido sai, o host devolve a rolagem da mesa, e ela aparece embaixo do formulário.
       await gaveta.getByRole('tab', { name: 'Dados' }).click()

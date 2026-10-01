@@ -265,6 +265,8 @@ describe('alvos de toque no celular', () => {
     ['.pp-pincard__travel', false],
     ['.pp-pincard__watch', false],
     ['.pp-pincard__barrar', false],
+    // As abas da gaveta (Jogo, Caderno, Lugares, Dados, Chat) mediam 36 de altura.
+    ['.pp-tab', false],
   ]
 
   it.each(ALVOS)('%s tem o alvo de toque do tema no celular', async (seletor, soIcone) => {

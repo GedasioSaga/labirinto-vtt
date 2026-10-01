@@ -558,11 +558,16 @@
 }
 
 /* Só o miolo rola: numa janela baixa (notebook de 768 px) o conteúdo desce
-   por baixo do cabeçalho, e nunca passa por trás da barra. */
+   por baixo do cabeçalho, e nunca passa por trás da barra. A coluna é a
+   largura do miolo e nunca mais: com a coluna `auto`, o filho mais largo (a
+   fileira de abas, a 320 px) alargava a coluna inteira, e todos os botões
+   passavam da borda junto com ele. A largura natural do cartão continua
+   vindo do conteúdo (o `1fr` mede o mais largo quando o cartão se mede). */
 .pp-panel__body {
   min-height: 0;
   overflow-y: auto;
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 14px;
   padding: 0 var(--pp-pad) var(--pp-pad);
 }
@@ -3189,6 +3194,28 @@
   }
 }
 
+/*
+ * Na gaveta as abas dividem a largura dela, como as abas fixas do celular:
+ * cada uma cresce a partir do próprio rótulo e o que sobra vira respiro igual
+ * entre elas. Com o respiro fixo (10 px de cada lado e 4 entre elas) a fileira
+ * tinha 314 px, e a 320 px a gaveta tem 270 por dentro: o Chat saía da tela e
+ * o miolo rolava de lado. Sem respiro fixo só os rótulos contam (uns 200 px), e
+ * numa tela mais estreita ou numa fonte mais larga o vão entre eles encolhe
+ * antes de qualquer rótulo cortar. Nenhuma fica mais estreita que o dedo.
+ */
+@media (max-width: 699px), (max-height: 480px) {
+  .pp-tabs {
+    gap: 0;
+  }
+
+  .pp-tab {
+    flex: 1 1 auto;
+    justify-content: center;
+    min-width: var(--lb-control-touch, 44px);
+    padding-inline: 0;
+  }
+}
+
 /* O conteúdo das abas não alarga a gaveta: ela segue a barra e a fileira de abas. */
 .pp-tabpanel {
   display: grid;
@@ -4456,8 +4483,9 @@ button.pp-colecao__casa:focus-visible {
    os motivos, o campo e os botões do chamado, 32 a 38; o "Fechar" dos cartões,
    40; a coluna do cartão do pino ("Pedir para passar", "Me avise quando der",
    "Barrar a passagem"), 40; o "Fechar" do recado, cerca de 34; as setas do
-   cadeado e o "Apagar" das notas, 32. Fica depois das regras de cada controle
-   para vencer na mesma especificidade. */
+   cadeado e o "Apagar" das notas, 32; as abas da gaveta (Jogo, Caderno,
+   Lugares, Dados, Chat), 36. Fica depois das regras de cada controle para
+   vencer na mesma especificidade. */
 @media (max-width: 699px) {
   .pp-floors__tab,
   .pp-where,
@@ -4471,7 +4499,8 @@ button.pp-colecao__casa:focus-visible {
   .pp-pincard__barrar,
   .pp-note__close,
   .pp-lock__turn,
-  .pp-personal-notes__remove {
+  .pp-personal-notes__remove,
+  .pp-tab {
     min-height: var(--lb-control-touch, 44px);
   }
 
@@ -4498,7 +4527,8 @@ button.pp-colecao__casa:focus-visible {
   .pp-pincard__barrar,
   .pp-note__close,
   .pp-lock__turn,
-  .pp-personal-notes__remove {
+  .pp-personal-notes__remove,
+  .pp-tab {
     min-height: var(--lb-control-touch, 44px);
   }
 
