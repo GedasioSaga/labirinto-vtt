@@ -27,7 +27,7 @@ import { ROOM_CIRCLE_SIDES } from '../lib/roomCircle'
 import type { HoverHit, HoverTarget } from '../lib/hoverHitTest'
 import { drawHover } from './drawHover'
 // Onda 2, item 16 (Frente C) — número ao vivo durante o arrasto de forma.
-import { dimensionLabel, lengthAndAngleLabel, type DimensionDraft } from '../lib/dimensionText'
+import { dimensionLabel, formatAngleLabel, lengthAndAngleLabel, type DimensionDraft } from '../lib/dimensionText'
 import { createDimensionLabelRenderer } from './drawDimensionLabel'
 // Onda 2, item 14 (Frente E) — Shift trava proporção em rect/room/ellipse.
 import { constrainDraft } from '../lib/shapeConstraint'
@@ -255,7 +255,19 @@ import { tokenRadiusOf } from '../lib/doorReach'
 // pra resize por canto de Drawing rect/ellipse/polygon, Token e Prop.
 import { drawingBoundingBox, tokenBoundingBox, propBoundingBox, resizeTokenSize, type Corner } from '../lib/objectTransform'
 // N3 "ferramenta de seleção de área" — geometria pura de marquee + mover grupo.
-import { selectEntitiesInArea, areaSelectionBounds, boundsOfDrawing, boundsOfWall, classifyMarqueeGesture, ctrlStartsMarquee, EMPTY_AREA_SELECTION, type AreaBounds, type AreaRect, type AreaSelection } from '../lib/areaSelection'
+import {
+  selectEntitiesInArea,
+  areaSelectionBounds,
+  boundsOfDrawing,
+  boundsOfWall,
+  classifyMarqueeGesture,
+  ctrlStartsMarquee,
+  EMPTY_AREA_SELECTION,
+  MARQUEE_DRAG_THRESHOLD_SCREEN_PX,
+  type AreaBounds,
+  type AreaRect,
+  type AreaSelection,
+} from '../lib/areaSelection'
 import { drawSelectionMarquee, drawAreaSelectionOutline, createMarqueeHintRenderer } from './drawSelectionMarquee'
 // Onda 4, item 24 — modelo canônico de seleção (lib/selectionModel.ts).
 // `useMapStore.getState().selection` agora é um SelectionSet (conjunto);
@@ -386,6 +398,30 @@ interface DraftEnd {
   end: Point
   guides: SmartGuide[]
 }
+
+/**
+ * Alt+arrastar duplica; Alt+CLIQUE não (conferência guias-4e5). O pointerdown
+ * com Alt só ARMA a cópia, e ela nasce no primeiro pointermove que passa da
+ * folga de clique. Clonar no pointerdown, como era, deixava o clique parado
+ * com uma cópia invisível empilhada sobre a original, um passo de desfazer
+ * gasto e a seleção na cópia (a sala ainda saía aninhada dentro da original),
+ * e o Alt segurado para medir convida justamente a clicar com ele apertado.
+ */
+interface PendingAltClone {
+  /** A peça clicada, que a cópia copia. */
+  source: CloneableEntity
+  /** Ponteiro do pointerdown em px de TELA: a folga é da mão, não do mapa. */
+  pressScreen: Point
+  /** Liga o gesto à cópia recém-nascida: o id que o pointermove arrasta e as guias dela. */
+  drag: (cloneId: string) => void
+}
+
+/**
+ * Até onde o Alt+arrastar ainda é clique, em px de TELA: a mesma folga que
+ * separa o clique do laço na ferramenta Selecionar
+ * (`MARQUEE_DRAG_THRESHOLD_SCREEN_PX`). Dentro dela nada nasce e nada anda.
+ */
+const ALT_CLONE_DRAG_SCREEN_PX = MARQUEE_DRAG_THRESHOLD_SCREEN_PX
 
 /**
  * Abaixo disto (px de mundo) o passo é resto de ponto flutuante, não
@@ -533,11 +569,6 @@ const FECHAMENTO_DOIS_TOQUES_JANELA_MS = 900
  */
 const FECHAMENTO_DOIS_TOQUES_TOLERANCIA_PX = 8
 
-// Rótulo do indicador de ângulo durante o arrasto de Parede/Linha. Travado
-// (Ctrl segurado) sempre cai num múltiplo exato de stepDegrees — arredondar
-// pro inteiro mais próximo só limpa erro de ponto flutuante (ex.: 89.9999999
-// vira "90°"), não perde precisão real. Livre (sem Ctrl) mostra 1 casa
-// decimal (ex.: "87.3°") pra deixar claro que não está travado num valor exato.
 /**
  * O que `resolveShortcut` precisa saber de ONDE a tecla caiu: a tag e, num
  * INPUT, o tipo — interruptor e rádio não recebem texto, então a letra
@@ -552,10 +583,6 @@ function alvoDoAtalho(target: EventTarget | null): Pick<ShortcutEvent, 'targetTa
     targetInputType: target instanceof HTMLInputElement ? target.type : undefined,
     targetContentEditable: target.isContentEditable,
   }
-}
-
-function formatAngleLabel(degrees: number, locked: boolean): string {
-  return locked ? `${Math.round(degrees)}°` : `${degrees.toFixed(1)}°`
 }
 
 interface PixiCanvasProps {
@@ -975,8 +1002,11 @@ export function PixiCanvas({
         areaSelectionOutlineGraphics,
         draftGraphics,
         areaMarqueeGraphics,
-        angleIndicatorContainer,
+        // A guia ANTES dos rótulos de medida: texto por cima da linha. Com a
+        // guia por cima, o traço magenta cortava o "comprimento · ângulo" da
+        // Linha (conferência guias-4e5).
         guidesGraphics,
+        angleIndicatorContainer,
         guideLabelsContainer,
       )
       // DESEMPENHO (invariante): nenhum filho do `world` recebe evento do Pixi.
@@ -2196,7 +2226,6 @@ export function PixiCanvas({
         | 'rotating-room' = 'idle'
       let lastPoint = { x: 0, y: 0 }
       let draggingTokenId: string | null = null
-      let draggingPropId: string | null = null
       let draggingPinId: string | null = null
       /**
        * Distância entre a PONTA do pino e o ponto onde o dedo o pegou. Sem ela
@@ -2245,6 +2274,11 @@ export function PixiCanvas({
        * ou o Enter.
        */
       let pathDraftPoints: Point[] = []
+      // A guia do Caminho em curso (conferência guias-4e5): as candidatas e as
+      // guias do último ponto clicado, refeitas a cada clique. O Caminho é
+      // feito de cliques soltos, e o `draftGuide` dos outros desenhos morre no
+      // pointerup de cada um. `null` fora de um Caminho.
+      let pathGuide: DraftGuide | null = null
       let lightDraftCenter: Point | null = null
       // Ponto bruto (sem snap) do pointerdown da ferramenta Luz — usado SO para
       // medir dragDistance no pointerup. lightDraftCenter e sempre snapado (para
@@ -2255,7 +2289,6 @@ export function PixiCanvas({
       let curveDraftPoints: Point[] = []
       let draggingCurveId: string | null = null
       let draggingCurvePointIndex = 0
-      let draggingCurveBodyId: string | null = null
       // `map` capturado no pointerdown de um arrasto de ponto ou corpo de
       // Curva, ANTES de qualquer mutação do gesto — usado só pra fechar um
       // Ctrl+Z único no pointerup/pointerupoutside (ver commitDragHistory no
@@ -2337,13 +2370,8 @@ export function PixiCanvas({
       let draggingRegionBodyId: string | null = null
       // Alt+arrastar de Sala: id da sala original da cópia arrastada (senão `null`).
       let altDragRegionSource: string | null = null
-      // Escada — `findSelectableAt` (selectionHitTest.ts) já devolve
-      // `kind:'stair'` mas com `draggable:false` de propósito, deixando o
-      // wiring de arrasto pro integrador (comentário explícito no arquivo).
-      // `moveStair` já existe na store (I7); só faltava este mode + os 2
-      // branches de pointerdown/pointermove, mesmo padrão de wall/region body.
-      let draggingStairBodyId: string | null = null
-      let draggingFloorBodyId: string | null = null
+      // Alt+arrastar armado no pointerdown e ainda sem cópia (`PendingAltClone`). `null` fora disso.
+      let pendingAltClone: PendingAltClone | null = null
       // Arrasto de corpo com guias (pedido 3): sala, parede, escada, desenho,
       // objeto, chão e seleção de vários. `null` fora do gesto.
       let bodyGuideDrag: BodyGuideDrag | null = null
@@ -2364,7 +2392,6 @@ export function PixiCanvas({
       let altMeasureShownScale = 0
       let draggingLineId: string | null = null
       let draggingLinePointIndex: 0 | 1 = 0
-      let draggingLineBodyId: string | null = null
       let draggingLightId: string | null = null
       // `map` capturado no pointerdown do arrasto da alça de raio da Luz, ANTES
       // da mutação — mesmo padrão de curveDragSnapshot acima, pra fechar o
@@ -2668,8 +2695,9 @@ export function PixiCanvas({
        * Nota sobre conflito com Alt="inverter snap" (já usado por
        * `applySnap` em todo drag de corpo): os dois significados NÃO se
        * atropelam porque são lidos em momentos diferentes do mesmo gesto —
-       * esta função só é chamada UMA VEZ, no pointerdown, decidindo se o
-       * arrasto que está para começar duplica ou não; o `event.altKey` que os
+       * o Alt do POINTERDOWN decide se o arrasto que está para começar
+       * duplica ou não (`startPieceDrag`), e esta função roda UMA VEZ, quando o
+       * gesto passa da folga de clique; o `event.altKey` que os
        * pointermoves seguintes passam pra `applySnap` continua sendo lido a
        * cada frame, do jeito que já era antes desta fase, sem saber (nem
        * precisar saber) que o gesto começou como uma duplicação. Segurar Alt
@@ -2682,6 +2710,43 @@ export function PixiCanvas({
         // Sala: as paredes vinculadas vão junto (senão a cópia sai só com o chão).
         useMapStore.getState().insertClonedEntityLive(cloned, input.kind === 'region' ? input.entity.id : undefined)
         return cloned.entity.id
+      }
+
+      /**
+       * Começa o arrasto da peça clicada. `drag(id)` liga o gesto a ela: o id
+       * que o pointermove move e as guias dela. Sem Alt, já com a peça
+       * clicada. Com Alt, a peça só ARMA a cópia (`PendingAltClone`), e `drag`
+       * roda com o id da cópia quando o gesto passar da folga de clique — até
+       * lá não há guia nem passo. `clone` é `null` quando a peça não existe no
+       * mapa: aí nem o Alt duplica.
+       */
+      const startPieceDrag = (
+        event: { altKey: boolean; global: Point },
+        id: string,
+        clone: CloneableEntity | null,
+        drag: (draggedId: string) => void,
+      ): void => {
+        if (event.altKey && clone !== null) {
+          bodyGuideDrag = null
+          pendingAltClone = { source: clone, pressScreen: { x: event.global.x, y: event.global.y }, drag }
+          return
+        }
+        drag(id)
+      }
+
+      /**
+       * O passo de um arrasto com a cópia do Alt ainda armada: dentro da folga
+       * de clique ainda é Alt+CLIQUE e o passo não anda (`false`); além dela, a
+       * cópia nasce exatamente sobre a original e o gesto segue com ela
+       * (`true`). Sem cópia armada, o passo segue sempre.
+       */
+      const startAltCloneOnceDragging = (screen: Point): boolean => {
+        const pending = pendingAltClone
+        if (pending === null) return true
+        if (Math.hypot(screen.x - pending.pressScreen.x, screen.y - pending.pressScreen.y) < ALT_CLONE_DRAG_SCREEN_PX) return false
+        pendingAltClone = null
+        pending.drag(cloneForAltDrag(pending.source))
+        return true
       }
 
       /**
@@ -3074,6 +3139,17 @@ export function PixiCanvas({
         })
 
       /**
+       * As candidatas de quem DESENHA: as caixas das peças e as pontas de
+       * parede do piso, perto da tela. Nada fica de fora: ao desenhar nada
+       * anda, e a decisão (a) de `smartGuides.ts` é do que anda.
+       */
+      const drawingGuideBoxes = (): AreaBounds[] => {
+        const { map } = useMapStore.getState()
+        const search: GuideBoxesOptions = { ...guideReach(), exclude: EMPTY_AREA_SELECTION }
+        return [...guideBoxesForDrag(map, search), ...guidePointsForDrag(map, 'wall-ends', search)]
+      }
+
+      /**
        * Começa um desenho com guia e devolve o ponto de partida encaixado.
        * `point` já vem com a grade do gesto. `fromMagnet`: o ímã de vértice o
        * pegou, e o ponto exato não ganha guia — a quina de uma sala alinharia
@@ -3085,9 +3161,7 @@ export function PixiCanvas({
        * Montado uma vez aqui; o pointermove só varre a lista pronta.
        */
       const startDraftGuides = (point: Point, event: GuideKeys, options: { fromMagnet: boolean; endAlignsWithStart: boolean }): Point => {
-        const { map } = useMapStore.getState()
-        const search: GuideBoxesOptions = { ...guideReach(), exclude: EMPTY_AREA_SELECTION }
-        const boxes = [...guideBoxesForDrag(map, search), ...guidePointsForDrag(map, 'wall-ends', search)]
+        const boxes = drawingGuideBoxes()
         const start = options.fromMagnet
           ? { point, guides: [] }
           : dragPointWithGuides({ point, others: boxes, tolerance: screenPxToWorld(SMART_GUIDE_SCREEN_PX, camera.scale), mode: draftGuideMode(event, 'wall') })
@@ -3652,8 +3726,11 @@ export function PixiCanvas({
         hoverGroupPoint = null
         // Rascunho cancelado (Esc, troca de ferramenta) no meio do arrasto: a
         // guia do desenho some junto, sem esperar o botão subir. Só com desenho
-        // em curso: no meio de um arrasto de peça a guia é dele.
-        if (draftGuide !== null) endGuides()
+        // em curso: no meio de um arrasto de peça a guia é dele. O Caminho,
+        // feito de cliques soltos, tem a guia própria entre um clique e outro.
+        const comGuiaDeDesenho = draftGuide !== null || pathGuide !== null
+        pathGuide = null
+        if (comGuiaDeDesenho) endGuides()
       }
 
       /**
@@ -3923,8 +4000,9 @@ export function PixiCanvas({
         addDrawing(buildPathDrawing(crypto.randomUUID(), points, pathColor, pathWidthCells, map.grid))
         pathDraftPoints = []
         draftGraphics.clear()
-        // O rótulo do segmento em curso sai junto: o Enter fecha sem pointerup, que é quem o esconde.
+        // O rótulo e a guia do segmento em curso saem junto: o Enter fecha sem pointerup, que é quem os esconde.
         angleIndicatorRenderer.hide()
+        endPathGuides()
         return true
       }
 
@@ -3932,6 +4010,84 @@ export function PixiCanvas({
       const drawPathPreview = (cursor: Point | null) => {
         const { pathColor, pathWidthCells, map } = useMapStore.getState()
         drawPathDraft(draftGraphics, pathDraftPoints, cursor, pathColor, pathWidthCells * map.grid)
+      }
+
+      /**
+       * O ponto do Caminho com guia (conferência guias-4e5: o Caminho só
+       * mostrava a medida). O clique e a prévia passam os dois por aqui, com as
+       * MESMAS candidatas: o que a prévia mostra é o que o clique grava. Sem
+       * grade nenhuma (ver o pointerdown do Caminho), então o Alt não muda
+       * nada; o Ctrl solta a guia, como em todo desenho.
+       */
+      const pathPointWithGuides = (point: Point, others: readonly AreaBounds[], event: GuideKeys): DraftEnd => {
+        const result = dragPointWithGuides({
+          point,
+          others,
+          tolerance: screenPxToWorld(SMART_GUIDE_SCREEN_PX, camera.scale),
+          mode: draftGuideMode(event, null),
+        })
+        return { end: result.point, guides: result.guides }
+      }
+
+      /**
+       * Põe o ponto clicado no Caminho. Ele encaixa nas candidatas da prévia que
+       * a pessoa viu; o primeiro, que não teve prévia, nas da tela de agora, como
+       * o começo da Linha. Depois as candidatas são refeitas para o próximo
+       * segmento: a vista pode ter andado entre um clique e outro, e os pontos
+       * do próprio caminho entram — o segmento a poucos px da reta do ponto
+       * anterior fica deitado ou em pé.
+       *
+       * Só a guia do PRIMEIRO ponto fica na tela durante o segmento seguinte,
+       * como a do começo da Linha: ele encaixou sem prévia, e é ali que a pessoa
+       * vê onde ele foi parar. A dos outros ela já viu na prévia antes de
+       * clicar, e repetida por cima do traço pronto seria só ruído.
+       */
+      const addPathPoint = (worldPoint: Point, event: GuideKeys): void => {
+        const boxes = drawingGuideBoxes()
+        const isFirst = pathGuide === null
+        const placed = pathPointWithGuides(worldPoint, pathGuide === null ? boxes : pathGuide.endBoxes, event)
+        pathDraftPoints = [...pathDraftPoints, placed.end]
+        pathGuide = { boxes, endBoxes: [...boxes, ...pathDraftPoints.map(pointBox)], startGuides: isFirst ? placed.guides : [] }
+      }
+
+      /**
+       * A prévia do segmento em curso, até o cursor: o traço, as guias e o
+       * rótulo. No primeiro segmento a guia do ponto de partida fica junto da
+       * guia da ponta, como na Linha (`addPathPoint`); com o Ctrl, nenhuma.
+       */
+      const showPathPreview = (worldPoint: Point, event: GuideKeys): void => {
+        const last = pathDraftPoints.at(-1)
+        if (last === undefined || pathGuide === null) {
+          // Sem ponto (Ctrl+Z tirou o último): o rótulo do segmento não tem de onde medir.
+          angleIndicatorRenderer.hide()
+          return
+        }
+        const preview = pathPointWithGuides(worldPoint, pathGuide.endBoxes, event)
+        drawPathPreview(preview.end)
+        const startGuides = draftGuideMode(event, null) === 'free' ? [] : pathGuide.startGuides
+        showGuides({ guides: [...startGuides, ...preview.guides], gaps: [] })
+        angleIndicatorRenderer.show(angleIndicatorContainer, last, preview.end, strokeLabel(last, preview.end, preview.end, false), computeViewport())
+      }
+
+      /** O Caminho acabou (fechado ou cancelado): a guia dele sai da tela. */
+      const endPathGuides = (): void => {
+        if (pathGuide === null) return
+        pathGuide = null
+        endGuides()
+      }
+
+      /**
+       * Ctrl+Z tirou o último ponto do Caminho: ele sai das candidatas, e a guia
+       * na tela, que era dele, some até o próximo passo do mouse.
+       */
+      const forgetLastPathPoint = (): void => {
+        if (pathGuide === null) return
+        if (pathDraftPoints.length === 0) {
+          endPathGuides()
+          return
+        }
+        pathGuide = { ...pathGuide, endBoxes: [...pathGuide.boxes, ...pathDraftPoints.map(pointBox)], startGuides: [] }
+        endGuides()
       }
 
       /**
@@ -4093,6 +4249,7 @@ export function PixiCanvas({
         if (pathDraftPoints.length > 0) {
           pathDraftPoints = pathDraftPoints.slice(0, -1)
           if (pathDraftPoints.length > 0) drawPathPreview(cursor)
+          forgetLastPathPoint()
         }
         if (corridorDraftPoints.length > 0) {
           corridorDraftPoints = corridorDraftPoints.slice(0, -1)
@@ -4218,6 +4375,8 @@ export function PixiCanvas({
         // Todo gesto novo começa sem travessia pendente: só o ramo do pino de
         // viagem, mais abaixo, arma uma — e só para ESTE aperto.
         travelPress = null
+        // Nem cópia de Alt armada: só o arrasto de peça, mais abaixo, arma uma.
+        pendingAltClone = null
 
         // Ruído armado + botão esquerdo: o clique é do ruído (um só) e a ferramenta ativa não roda.
         if (!spaceHeld && noiseGesture.pointerDown(event.button, toWorldPoint(event.global.x, event.global.y))) return
@@ -4533,8 +4692,10 @@ export function PixiCanvas({
           // SEM applySnap, de propósito: o caminho atravessa a sala, não a
           // grade — prendê-lo aos vértices da célula faria a trilha andar em
           // degraus e sair de baixo do ponto onde a pessoa clicou. É a mesma
-          // escolha do pincel de blocos, que também ignora o snap.
-          pathDraftPoints = [...pathDraftPoints, worldPoint]
+          // escolha do pincel de blocos, que também ignora o snap. A guia, sim
+          // (conferência guias-4e5): ela move o ponto poucos px de TELA, e só
+          // para onde a prévia já mostrava (`addPathPoint`).
+          addPathPoint(worldPoint, event)
           drawPathPreview(null)
           return
         }
@@ -5029,31 +5190,36 @@ export function PixiCanvas({
               tokenDragOrigin = { x: token.x, y: token.y }
               tokenDragLastShown = null
               tokenDragLifted = false
-              // Onda 3, item 13 (Alt+arrastar duplica) — clona no pointerdown
-              // e arrasta a CÓPIA; o original fica onde estava. Ver
+              // Onda 3, item 13 (Alt+arrastar duplica) — o Alt arma a cópia, e
+              // o gesto arrasta a CÓPIA assim que passa da folga de clique; o
+              // original fica onde estava (`startPieceDrag`). Ver
               // `cloneForAltDrag` para a nota sobre Alt="inverter snap".
-              draggingTokenId = event.altKey ? cloneForAltDrag({ kind: 'token', entity: token }) : hit.id
-              startTokenGuides(draggingTokenId)
+              startPieceDrag(event, hit.id, { kind: 'token', entity: token }, (id) => {
+                draggingTokenId = id
+                startTokenGuides(id)
+              })
             }
           } else if (hit.kind === 'prop') {
             const prop = map.props.find((p) => p.id === hit.id)
             if (prop && canInteract(prop)) {
               mode = 'dragging-prop'
               propDragSnapshot = map
-              draggingPropId = event.altKey ? cloneForAltDrag({ kind: 'prop', entity: prop }) : hit.id
-              bodyGuideDrag = startPropGuideDrag(draggingPropId, worldPoint)
+              startPieceDrag(event, hit.id, { kind: 'prop', entity: prop }, (id) => {
+                bodyGuideDrag = startPropGuideDrag(id, worldPoint)
+              })
             }
           } else if (hit.kind === 'wall') {
             mode = 'dragging-wall-body'
             bodyDragSnapshot = map
             const wall = map.walls.find((w) => w.id === hit.id)
-            draggingWallBodyId = event.altKey && wall ? cloneForAltDrag({ kind: 'wall', entity: wall }) : hit.id
-            // Parede de sala leva a sala inteira (`moveWall` → `moveRegion`): o
-            // arrasto é o da sala, com guias pela caixa dela. A cópia do
-            // Alt+arrastar nasce solta (`cloneWall`) e segue como parede solta.
-            const salaDaParede = event.altKey ? undefined : wall?.regionId
-            bodyGuideDrag =
-              salaDaParede === undefined ? startWallGuideDrag(draggingWallBodyId, worldPoint) : startRoomGuideDrag(salaDaParede, worldPoint)
+            startPieceDrag(event, hit.id, wall === undefined ? null : { kind: 'wall', entity: wall }, (id) => {
+              draggingWallBodyId = id
+              // Parede de sala leva a sala inteira (`moveWall` → `moveRegion`): o
+              // arrasto é o da sala, com guias pela caixa dela. A cópia do
+              // Alt+arrastar (outro id) nasce solta (`cloneWall`) e segue como parede solta.
+              const salaDaParede = id === hit.id ? wall?.regionId : undefined
+              bodyGuideDrag = salaDaParede === undefined ? startWallGuideDrag(id, worldPoint) : startRoomGuideDrag(salaDaParede, worldPoint)
+            })
           } else if (hit.kind === 'region') {
             // `canInteract`: desde que `clickSelectMap` passou a deixar a
             // Região travada chegar no hit-test, é ESTE ponto que segura o
@@ -5064,9 +5230,13 @@ export function PixiCanvas({
             if (region && canInteract(region)) {
               mode = 'dragging-region-body'
               bodyDragSnapshot = map
-              draggingRegionBodyId = event.altKey ? cloneForAltDrag({ kind: 'region', entity: region }) : hit.id
-              altDragRegionSource = event.altKey ? region.id : null
-              bodyGuideDrag = startRoomGuideDrag(draggingRegionBodyId, worldPoint)
+              altDragRegionSource = null
+              startPieceDrag(event, hit.id, { kind: 'region', entity: region }, (id) => {
+                draggingRegionBodyId = id
+                // A cópia (outro id) lembra de que sala veio: no pointerup ela não vira filha da original.
+                if (id !== hit.id) altDragRegionSource = region.id
+                bodyGuideDrag = startRoomGuideDrag(id, worldPoint)
+              })
             }
           } else if (hit.kind === 'stair') {
             // B3 (bug3 "mover e redimensionar"): wiring que faltava — a ação
@@ -5075,23 +5245,26 @@ export function PixiCanvas({
             mode = 'dragging-stair-body'
             bodyDragSnapshot = map
             const stair = map.stairs.find((s) => s.id === hit.id)
-            draggingStairBodyId = event.altKey && stair ? cloneForAltDrag({ kind: 'stair', entity: stair }) : hit.id
-            bodyGuideDrag = startStairGuideDrag(draggingStairBodyId, worldPoint)
+            startPieceDrag(event, hit.id, stair === undefined ? null : { kind: 'stair', entity: stair }, (id) => {
+              bodyGuideDrag = startStairGuideDrag(id, worldPoint)
+            })
           } else if (hit.kind === 'floor') {
             // Mesmo esquema de corpo de wall/region/stair: snapshot de antes
             // do gesto, pointermove com moveFloorPieceLive, 1 undo no pointerup.
             mode = 'dragging-floor-body'
             bodyDragSnapshot = map
             const piece = map.floor.find((p) => p.id === hit.id)
-            draggingFloorBodyId = event.altKey && piece ? cloneForAltDrag({ kind: 'floor', entity: piece }) : hit.id
-            bodyGuideDrag = startFloorGuideDrag(draggingFloorBodyId, worldPoint)
+            startPieceDrag(event, hit.id, piece === undefined ? null : { kind: 'floor', entity: piece }, (id) => {
+              bodyGuideDrag = startFloorGuideDrag(id, worldPoint)
+            })
           } else if (hit.kind === 'drawing') {
             const drawing = map.drawings.find((d) => d.id === hit.id)
             if (drawing && drawing.kind === 'curve') {
               mode = 'dragging-curve-body'
               curveDragSnapshot = map
-              draggingCurveBodyId = event.altKey ? cloneForAltDrag({ kind: 'drawing', entity: drawing }) : hit.id
-              bodyGuideDrag = startDrawingGuideDrag(draggingCurveBodyId, worldPoint, useMapStore.getState().moveCurveLive)
+              startPieceDrag(event, hit.id, { kind: 'drawing', entity: drawing }, (id) => {
+                bodyGuideDrag = startDrawingGuideDrag(id, worldPoint, useMapStore.getState().moveCurveLive)
+              })
             } else if (drawing) {
               // line/circle/text/freehand/rect/ellipse/polygon: todos movem
               // via moveDrawing genérico (mapFactory.ts) — B3 (bug3 "mover e
@@ -5100,8 +5273,9 @@ export function PixiCanvas({
               // tocar a union `mode` mais do que o necessário.
               mode = 'dragging-line-body'
               bodyDragSnapshot = map
-              draggingLineBodyId = event.altKey ? cloneForAltDrag({ kind: 'drawing', entity: drawing }) : hit.id
-              bodyGuideDrag = startDrawingGuideDrag(draggingLineBodyId, worldPoint, useMapStore.getState().moveDrawingLive)
+              startPieceDrag(event, hit.id, { kind: 'drawing', entity: drawing }, (id) => {
+                bodyGuideDrag = startDrawingGuideDrag(id, worldPoint, useMapStore.getState().moveDrawingLive)
+              })
             } else {
               mode = 'idle'
             }
@@ -5613,19 +5787,16 @@ export function PixiCanvas({
         pinDragSnapshot = null
         mode = 'idle'
         draggingTokenId = null
-        draggingPropId = null
         draggingPinId = null
         pinDragOffset = null
         draggingCurveId = null
-        draggingCurveBodyId = null
         draggingWallPointId = null
         draggingRegionId = null
         draggingWallBodyId = null
         draggingRegionBodyId = null
-        draggingStairBodyId = null
-        draggingFloorBodyId = null
+        // Soltou dentro da folga: o Alt+clique não deixa cópia armada para o próximo gesto.
+        pendingAltClone = null
         draggingLineId = null
-        draggingLineBodyId = null
         draggingLightId = null
         endGuides()
         finishRoomLabelDrag()
@@ -5772,19 +5943,16 @@ export function PixiCanvas({
         pinDragSnapshot = null
         mode = 'idle'
         draggingTokenId = null
-        draggingPropId = null
         draggingPinId = null
         pinDragOffset = null
         draggingCurveId = null
-        draggingCurveBodyId = null
         draggingWallPointId = null
         draggingRegionId = null
         draggingWallBodyId = null
         draggingRegionBodyId = null
-        draggingStairBodyId = null
-        draggingFloorBodyId = null
+        // Soltou dentro da folga: o Alt+clique não deixa cópia armada para o próximo gesto.
+        pendingAltClone = null
         draggingLineId = null
-        draggingLineBodyId = null
         draggingLightId = null
         endGuides()
         finishRoomLabelDrag()
@@ -5935,18 +6103,9 @@ export function PixiCanvas({
           // O Caminho é feito de cliques soltos como a Região: a prévia até o
           // cursor também mora aqui. Lá embaixo, depois do `return` deste bloco,
           // ela nunca rodava. O segmento em curso ganha o rótulo de comprimento
-          // e ângulo da Linha (pedido 3, fatia 4); o caminho não tem grade nem
-          // guia de propósito (ver o pointerdown dele).
-          if (useMapStore.getState().activeTool === 'path') {
-            const last = pathDraftPoints.at(-1)
-            if (last === undefined) {
-              // Sem ponto (Ctrl+Z tirou o último): o rótulo do segmento não tem de onde medir.
-              angleIndicatorRenderer.hide()
-            } else {
-              drawPathPreview(worldPoint)
-              angleIndicatorRenderer.show(angleIndicatorContainer, worldPoint, strokeLabel(last, worldPoint, worldPoint, false))
-            }
-          }
+          // e ângulo da Linha (pedido 3, fatia 4) e a guia dela (conferência
+          // guias-4e5); grade, de propósito, não (ver o pointerdown dele).
+          if (useMapStore.getState().activeTool === 'path') showPathPreview(worldPoint, event)
           // A régua também não muda `mode` (pointerdown da ferramenta Medir),
           // então a prévia dela precisa morar aqui: depois deste `return` o
           // arrasto de medição nunca chegava a desenhar. Lê o mapa da store a
@@ -5959,6 +6118,10 @@ export function PixiCanvas({
           }
           return
         }
+
+        // Alt+arrastar com a cópia ainda armada: dentro da folga de clique é
+        // Alt+CLIQUE, e nada nasce nem anda (`startPieceDrag`).
+        if (!startAltCloneOnceDragging(event.global)) return
 
         if (mode === 'dragging-token' && draggingTokenId) {
           const worldPoint = toWorldPoint(event.global.x, event.global.y)
@@ -6266,7 +6429,7 @@ export function PixiCanvas({
           // (diferença cosmética no rótulo, "90°" limpo). Sem Ctrl, a própria
           // ponta: o número é o do traço que fica, já com grade e guia. Junto do
           // ângulo vai o comprimento (fatia 4), num rótulo só.
-          angleIndicatorRenderer.show(angleIndicatorContainer, end, strokeLabel(wallDraftStart, end, angleReference, event.ctrlKey))
+          angleIndicatorRenderer.show(angleIndicatorContainer, wallDraftStart, end, strokeLabel(wallDraftStart, end, angleReference, event.ctrlKey), computeViewport())
           return
         }
 
@@ -6403,7 +6566,7 @@ export function PixiCanvas({
           // pontilhado em vez de prometer uma linha cheia.
           drawLineDraft(draftGraphics, lineDraftStart, end, drawColor, drawWidth, 'round', drawDash)
           showDraftGuides(guides, event)
-          angleIndicatorRenderer.show(angleIndicatorContainer, end, strokeLabel(lineDraftStart, end, angleReference, event.ctrlKey))
+          angleIndicatorRenderer.show(angleIndicatorContainer, lineDraftStart, end, strokeLabel(lineDraftStart, end, angleReference, event.ctrlKey), computeViewport())
           return
         }
 

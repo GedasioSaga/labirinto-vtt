@@ -944,8 +944,8 @@ describe('PixiCanvas — guias ao desenhar (pedido 3, fatia 4)', () => {
       ponteiro('pointerdown', { x: 100, y: 500 })
       ponteiro('pointermove', { x: 420, y: 504 })
       expect(guiaMagenta()).not.toBeNull()
-      // 320 px = 5 células de 1,5 m.
-      expect(rotuloDoAngulo()).toBe('7,5 m · 0.0°')
+      // 320 px = 5 células de 1,5 m. Vírgula nos dois números (conferência guias-4e5).
+      expect(rotuloDoAngulo()).toBe('7,5 m · 0,0°')
       ponteiro('pointerup', { x: 420, y: 504 })
       expect(atual().drawings[0]).toMatchObject({ kind: 'line', x1: 100, y1: 500, x2: 420, y2: 500 })
       expect(guiaMagenta()).toBeNull()
@@ -1061,7 +1061,244 @@ describe('PixiCanvas — guias ao desenhar (pedido 3, fatia 4)', () => {
     ponteiro('pointerdown', { x: 100, y: 500 })
     ponteiro('pointerup', { x: 100, y: 500 })
     ponteiro('pointermove', { x: 420, y: 500 })
-    expect(rotuloDoAngulo()).toBe('7,5 m · 0.0°')
+    expect(rotuloDoAngulo()).toBe('7,5 m · 0,0°')
+  })
+
+  /**
+   * Conferência guias-4e5: o Caminho mostrava só a medida. Ele continua sem
+   * GRADE (o caminho atravessa a sala, não a célula), mas ganha a guia, como a
+   * Linha: o ponto clicado encaixa no que a prévia mostrou.
+   */
+  describe('Caminho com guia', () => {
+    function clica(mundo: { x: number; y: number }, teclas: Teclas = {}): void {
+      ponteiro('pointerdown', mundo, teclas)
+      ponteiro('pointerup', mundo, teclas)
+    }
+
+    function fechaComEnter(): void {
+      act(() => {
+        window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }))
+      })
+    }
+
+    function pontosDoCaminho(): { x: number; y: number }[] {
+      const caminho = atual().drawings.find((d) => d.kind === 'path')
+      if (caminho === undefined || caminho.kind !== 'path') throw new Error('o Caminho não virou desenho')
+      return caminho.points.map((p) => ({ x: p.x, y: p.y }))
+    }
+
+    it('o segundo ponto a 4 px da reta do primeiro encaixa nela: a prévia mostra a guia, e o clique grava o que a prévia mostrou', async () => {
+      await monta()
+      usa('path')
+      clica({ x: 100, y: 500 })
+      ponteiro('pointermove', { x: 420, y: 504 })
+      expect(guiaMagenta()).not.toBeNull()
+      expect(rotuloDoAngulo()).toBe('7,5 m · 0,0°')
+      clica({ x: 420, y: 504 })
+      fechaComEnter()
+      expect(pontosDoCaminho()).toEqual([
+        { x: 100, y: 500 },
+        { x: 420, y: 500 },
+      ])
+      expect(guiaMagenta()).toBeNull()
+    })
+
+    it('depois do clique, a guia do ponto que já foi não fica na tela: a prévia mostra só a do cursor', async () => {
+      await monta()
+      usa('path')
+      clica({ x: 100, y: 500 })
+      ponteiro('pointermove', { x: 420, y: 504 })
+      clica({ x: 420, y: 504 })
+      // Longe de toda candidata: nem a sala, nem a reta dos pontos já clicados.
+      ponteiro('pointermove', { x: 600, y: 700 })
+      expect(guiaMagenta()).toBeNull()
+    })
+
+    it('o ponto a 3 px do centro da sala vizinha encaixa nele, nos dois eixos', async () => {
+      await monta()
+      usa('path')
+      clica({ x: 100, y: 500 })
+      ponteiro('pointermove', { x: 797, y: 203 })
+      clica({ x: 797, y: 203 })
+      fechaComEnter()
+      expect(pontosDoCaminho()[1]).toEqual({ x: 800, y: 200 })
+    })
+
+    it('Ctrl+Z tira o último ponto: ele deixa de ser candidato, e nada encaixa na reta dele', async () => {
+      await monta()
+      usa('path')
+      clica({ x: 100, y: 500 })
+      ponteiro('pointermove', { x: 420, y: 500 })
+      clica({ x: 420, y: 500 })
+      act(() => {
+        window.dispatchEvent(new KeyboardEvent('keydown', { key: 'z', ctrlKey: true }))
+      })
+      // A 4 px da reta em pé do ponto que saiu: sem ele, nada encaixa.
+      ponteiro('pointermove', { x: 424, y: 650 })
+      expect(guiaMagenta()).toBeNull()
+      clica({ x: 424, y: 650 })
+      fechaComEnter()
+      expect(pontosDoCaminho()).toEqual([
+        { x: 100, y: 500 },
+        { x: 424, y: 650 },
+      ])
+    })
+
+    it('com Ctrl o ponto fica onde o cursor está, sem guia', async () => {
+      await monta()
+      usa('path')
+      clica({ x: 100, y: 500 })
+      ponteiro('pointermove', { x: 420, y: 504 }, { ctrl: true })
+      expect(guiaMagenta()).toBeNull()
+      clica({ x: 420, y: 504 }, { ctrl: true })
+      fechaComEnter()
+      expect(pontosDoCaminho()[1]).toEqual({ x: 420, y: 504 })
+    })
+
+    it('Esc no meio do Caminho: o rascunho e a guia somem', async () => {
+      await monta()
+      usa('path')
+      clica({ x: 100, y: 500 })
+      ponteiro('pointermove', { x: 420, y: 504 })
+      expect(guiaMagenta()).not.toBeNull()
+      act(() => {
+        window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+      })
+      expect(guiaMagenta()).toBeNull()
+      expect(rotuloDoAngulo()).toBeNull()
+    })
+  })
+
+  /**
+   * Conferência guias-4e5: na Linha, a guia horizontal da ponta cortava a base
+   * do "comprimento · ângulo", e o texto cinza sumia sobre o chão da sala.
+   */
+  describe('rótulo do traço legível', () => {
+    function rotuloVisivel(): Text {
+      const texto = descendentes(stage()).find((no): no is Text => no instanceof Text && no.visible && no.text.includes('°'))
+      if (texto === undefined) throw new Error('o rótulo do traço não apareceu')
+      return texto
+    }
+
+    it('linha para a direita: o rótulo fica inteiro acima da guia da ponta e depois dela, e é desenhado por cima das guias', async () => {
+      await monta()
+      usa('line')
+      ponteiro('pointerdown', { x: 100, y: 500 })
+      // A ponta encaixa em y = 500: a guia horizontal passa pela ponta.
+      ponteiro('pointermove', { x: 420, y: 504 })
+      const guia = guiaMagenta()
+      if (guia === null) throw new Error('a guia da ponta não apareceu')
+      const texto = rotuloVisivel()
+      expect(texto.y + texto.height).toBeLessThan(500)
+      expect(texto.x).toBeGreaterThan(420)
+      const mundo = guia.parent
+      if (mundo === null || texto.parent === null) throw new Error('rótulo ou guia fora do mundo')
+      expect(mundo.children.indexOf(texto.parent)).toBeGreaterThan(mundo.children.indexOf(guia))
+    })
+
+    it('linha para a esquerda e para baixo: o rótulo vai para o outro lado da ponta, longe do traço', async () => {
+      await monta()
+      usa('line')
+      ponteiro('pointerdown', { x: 900, y: 500 })
+      ponteiro('pointermove', { x: 500, y: 704 })
+      const texto = rotuloVisivel()
+      expect(texto.x + texto.width).toBeLessThan(500)
+      expect(texto.y).toBeGreaterThan(704)
+    })
+
+    it('o texto é branco com contorno escuro: lê sobre o chão da sala e sobre o fundo', async () => {
+      await monta()
+      usa('line')
+      ponteiro('pointerdown', { x: 100, y: 500 })
+      ponteiro('pointermove', { x: 420, y: 504 })
+      const texto = rotuloVisivel()
+      expect(texto.style.fill).toBe(0xffffff)
+      expect(texto.style.stroke).toMatchObject({ color: 0x000000 })
+    })
+  })
+})
+
+/**
+ * ALT+CLIQUE NÃO DUPLICA (conferência guias-4e5). O Alt segurado mede, e isso
+ * convida a clicar com ele apertado; o clone do Alt+arrastar nascia no
+ * pointerdown, e o clique parado deixava uma cópia invisível empilhada sobre a
+ * original, gastava um passo de desfazer e levava a seleção para a cópia (a
+ * sala clonada ainda ficava aninhada dentro da original). A cópia só nasce
+ * quando o gesto ARRASTA de fato.
+ */
+describe('PixiCanvas — Alt+clique sem arrasto não duplica (conferência guias-4e5)', () => {
+  const LINHA: Extract<Drawing, { kind: 'line' }> = { id: 'torta', kind: 'line', x1: 400, y1: 520, x2: 520, y2: 700, color: '#ffffff', width: 4 }
+  const MEIO_DA_LINHA = { x: 460, y: 610 }
+  const atual = (): MapData => useMapStore.getState().map
+
+  function prepararLinhaSelecionada(): void {
+    prepara({ ...mapa([ALVO]), drawings: [LINHA] })
+    useMapStore.setState({ selection: [{ kind: 'drawing', id: 'torta' }] })
+  }
+
+  it('Alt+clique na linha selecionada: nenhuma cópia, nenhum passo de desfazer, e a seleção continua na linha', async () => {
+    prepararLinhaSelecionada()
+    await monta()
+    ponteiro('pointerdown', MEIO_DA_LINHA, { alt: true })
+    ponteiro('pointerup', MEIO_DA_LINHA, { alt: true })
+    expect(atual().drawings).toEqual([LINHA])
+    expect(useMapStore.getState().past).toHaveLength(0)
+    expect(useMapStore.getState().selection).toEqual([{ kind: 'drawing', id: 'torta' }])
+  })
+
+  it('tremor de mão com o Alt (3 px de tela): ainda é clique, nada nasce e nada anda', async () => {
+    prepararLinhaSelecionada()
+    await monta()
+    ponteiro('pointerdown', MEIO_DA_LINHA, { alt: true })
+    ponteiro('pointermove', { x: MEIO_DA_LINHA.x + 2, y: MEIO_DA_LINHA.y + 2 }, { alt: true })
+    ponteiro('pointerup', { x: MEIO_DA_LINHA.x + 2, y: MEIO_DA_LINHA.y + 2 }, { alt: true })
+    expect(atual().drawings).toEqual([LINHA])
+    expect(useMapStore.getState().past).toHaveLength(0)
+  })
+
+  it('Alt+clique na outra sala (o mestre medindo com o Alt): nenhuma sala nova nem aninhada, e o clique só seleciona a sala', async () => {
+    prepara(mapa([ALVO, MOVEL], [...paredesDa(ALVO), ...paredesDa(MOVEL)]))
+    useMapStore.setState({ selection: [{ kind: 'region', id: 'movel' }] })
+    await monta()
+    // Perto do canto da ALVO, longe do nome (que mora no meio) e das paredes.
+    ponteiro('pointerdown', { x: 670, y: 130 }, { alt: true })
+    ponteiro('pointerup', { x: 670, y: 130 }, { alt: true })
+    expect(atual().regions.map((r) => r.id)).toEqual(['alvo', 'movel'])
+    expect(atual().regions.every((r) => r.parentId === undefined)).toBe(true)
+    expect(atual().walls).toHaveLength(8)
+    expect(useMapStore.getState().past).toHaveLength(0)
+    expect(useMapStore.getState().selection).toEqual([{ kind: 'region', id: 'alvo' }])
+  })
+
+  it('Alt+clique numa ficha: nenhuma ficha nova', async () => {
+    const ficha: Token = { id: 'saga', characterId: null, name: 'Saga', x: 160, y: 160, size: 1, image: null }
+    prepara({ ...mapa([ALVO]), tokens: [ficha] })
+    await monta()
+    ponteiro('pointerdown', { x: 160, y: 160 }, { alt: true })
+    ponteiro('pointerup', { x: 160, y: 160 }, { alt: true })
+    expect(atual().tokens).toEqual([ficha])
+    expect(useMapStore.getState().past).toHaveLength(0)
+  })
+
+  it('Alt+arrastar além da folga continua duplicando: a cópia anda, a original fica, e um Ctrl+Z desfaz o gesto inteiro', async () => {
+    prepararLinhaSelecionada()
+    await monta()
+    ponteiro('pointerdown', MEIO_DA_LINHA, { alt: true })
+    ponteiro('pointermove', { x: MEIO_DA_LINHA.x + 100, y: MEIO_DA_LINHA.y + 20 }, { alt: true })
+    ponteiro('pointerup', { x: MEIO_DA_LINHA.x + 100, y: MEIO_DA_LINHA.y + 20 }, { alt: true })
+    const linhas = atual().drawings
+    expect(linhas).toHaveLength(2)
+    expect(linhas.find((d) => d.id === 'torta')).toEqual(LINHA)
+    const copia = linhas.find((d) => d.id !== 'torta')
+    if (copia === undefined || copia.kind !== 'line') throw new Error('o Alt+arrastar não criou a cópia da linha')
+    // A cópia tem o mesmo traço e andou para a direita com a mão (na grade que o Alt liga).
+    expect([copia.x2 - copia.x1, copia.y2 - copia.y1]).toEqual([LINHA.x2 - LINHA.x1, LINHA.y2 - LINHA.y1])
+    expect(copia.x1).toBeGreaterThan(LINHA.x1)
+    // A seleção vai para a cópia, que é o que a mão está segurando.
+    expect(useMapStore.getState().selection).toEqual([{ kind: 'drawing', id: copia.id }])
+    expect(useMapStore.getState().past).toHaveLength(1)
+    act(() => useMapStore.getState().undo())
+    expect(atual().drawings).toEqual([LINHA])
   })
 })
 

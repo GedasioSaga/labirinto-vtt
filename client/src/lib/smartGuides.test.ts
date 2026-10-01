@@ -94,6 +94,26 @@ describe('snapBox — encaixe por borda e por centro da caixa', () => {
     expect(resultado.guides).toEqual([{ axis: 'y', position: 50, from: 50, to: 650, marks: [50, 350, 650] }])
   })
 
+  it('mapa denso: a guia vai só até as 2 vizinhas alinhadas mais perto, sem atravessar a tela (conferência guias-4e5, print 22)', () => {
+    // Uma coluna de 10 salas iguais (centros em y = 50, 250, ..., 1850) e a que
+    // anda entre a 5ª e a 6ª, 3 px fora da coluna.
+    const coluna = Array.from({ length: 10 }, (_, i) => caixa(0, i * 200, 100, i * 200 + 100))
+    const resultado = snapBox(caixa(3, 920, 103, 980), coluna, 6)
+    expect(resultado.dx).toBe(-3)
+    expect(resultado.dy).toBe(0)
+    // Borda esquerda, centro e borda direita alinham com a coluna inteira; cada
+    // guia liga só a de cima e a de baixo, com um "x" em cada uma.
+    expect(resultado.guides).toEqual([0, 50, 100].map((position) => ({ axis: 'x', position, from: 850, to: 1050, marks: [850, 950, 1050] })))
+  })
+
+  it('mapa denso: a vizinha que é um ponto (ponta de parede) conta uma vez só entre as 2 mais perto', () => {
+    // A ponta solta encosta na guia com as 3 âncoras no mesmo lugar: não pode ocupar as duas vagas.
+    const ponta = pointBox({ x: 50, y: 700 })
+    const longe = caixa(0, 1200, 100, 1300)
+    const resultado = snapBox(caixa(3, 920, 103, 980), [ponta, longe], 6)
+    expect(resultado.guides.find((g) => g.position === 50)).toEqual({ axis: 'x', position: 50, from: 700, to: 1250, marks: [700, 950, 1250] })
+  })
+
   it('os dois eixos encaixam de forma independente', () => {
     // Canto com canto: borda esquerda na direita da vizinha (x) e topo no topo dela (y).
     // Alturas diferentes: no eixo y só o topo fica alinhado depois do encaixe.

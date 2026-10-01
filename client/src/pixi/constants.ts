@@ -19,11 +19,6 @@ export const SMART_GUIDE_COLOR = 0xff4fd8
  */
 export const SMART_GUIDE_LABEL_COLOR = 0xd600a8
 
-/** Cor do indicador de ângulo mostrado durante o arrasto de Parede/Linha — cinza
- * claro discreto, pra não competir com o draft em SELECTION_COLOR nem sumir
- * contra o fundo escuro do canvas (0x2b2b2b, ver PixiCanvas.tsx). */
-export const ANGLE_INDICATOR_COLOR = 0xaaaaaa
-
 /** Cor de traço dos degraus e da moldura da escada (drawStairs.ts) — bege
  * claro, perto do cinza de WALL_COLOR['exterior'] (drawWalls.ts) mas
  * visivelmente distinto, pra não confundir lance de escada com parede num

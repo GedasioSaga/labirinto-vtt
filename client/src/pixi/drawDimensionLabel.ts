@@ -9,20 +9,23 @@
  *
  * 1. O rótulo TROCA DE LADO (direita/esquerda, cima/baixo) conforme a
  *    âncora está perto de qual borda do viewport VISÍVEL — não do mapa, que
- *    é "infinito" e quase sempre maior que a tela. `drawAngleIndicator`/
- *    `drawMeasurementIndicator` usam offset fixo porque o texto deles é
- *    curto (ângulo, ou a régua efêmera que raramente termina colada na
- *    borda); rótulo de forma inteira ("20 ft × 10 ft") é mais largo e o
+ *    é "infinito" e quase sempre maior que a tela. `drawMeasurementIndicator`
+ *    usa offset fixo porque a régua efêmera raramente termina colada na
+ *    borda; rótulo de forma inteira ("20 ft × 10 ft") é mais largo e o
  *    gesto de desenhar uma Sala/Círculo termina perto da borda da tela com
  *    frequência real (zoom alto, mapa grande).
  * 2. Texto com CONTORNO (stroke preto sobre fill branco), não só `fill` —
- *    o rótulo fica sobre a imagem de fundo do mapa, que o usuário escolhe;
- *    `ANGLE_INDICATOR_COLOR`/`SELECTION_COLOR` (constants.ts) foram
- *    calibradas pra contraste contra o CHROME do app (fundo fixo 0x2b2b2b
- *    fora da imagem), não contra fundo de imagem arbitrário claro OU
- *    escuro — branco+contorno preto lê nos dois.
+ *    o rótulo fica sobre a imagem de fundo do mapa, que o usuário escolhe, e
+ *    sobre o chão das salas; um cinza calibrado contra o CHROME do app
+ *    (fundo fixo 0x2b2b2b fora da imagem) some num fundo claro OU escuro —
+ *    branco+contorno preto lê nos dois.
+ *
+ * Desde a conferência guias-4e5 o rótulo do TRAÇO (`drawAngleIndicator.ts`:
+ * "comprimento · ângulo" de Parede, Linha e Caminho) também mora nas regras
+ * daqui: o mesmo estilo (`measureLabelStyle`) e o lado escolhido por
+ * `resolveStrokeLabelPosition`, que foge das guias da ponta.
  */
-import { Container, Text } from 'pixi.js'
+import { Container, Text, type TextStyleOptions } from 'pixi.js'
 import type { Point } from './world'
 import { DEFAULT_TEXT_FONT_FAMILY } from '../lib/drawingFactory'
 
@@ -80,6 +83,31 @@ function clamp(value: number, min: number, max: number): number {
 }
 
 /**
+ * Tamanho estimado do rótulo em unidades de MUNDO (ver `CHAR_WIDTH_ESTIMATE`),
+ * o mesmo que as duas decisões de lado usam. Exportado para o teste medir a
+ * caixa do rótulo com a mesma régua de quem o posiciona.
+ */
+export function estimateMeasureLabelSize(label: string): { width: number; height: number } {
+  return { width: label.length * CHAR_WIDTH_ESTIMATE, height: LABEL_HEIGHT_ESTIMATE }
+}
+
+/**
+ * Estilo do rótulo de medida ao desenhar: branco com contorno preto (ver o
+ * cabeçalho). Objeto novo a cada chamada, porque cada `Text` monta o próprio
+ * `TextStyle` a partir dele. O rótulo do traço (`drawAngleIndicator.ts`) usa o
+ * mesmo: na conferência guias-4e5 o cinza sem contorno dele sumia sobre o chão
+ * da sala, enquanto este lia bem no mesmo print.
+ */
+export function measureLabelStyle(): Partial<TextStyleOptions> {
+  return {
+    fontSize: FONT_SIZE,
+    fill: FILL_COLOR,
+    stroke: { color: STROKE_COLOR, width: STROKE_WIDTH },
+    fontFamily: DEFAULT_TEXT_FONT_FAMILY,
+  }
+}
+
+/**
  * Posição (canto superior-esquerdo do `Text`, mesma convenção de pivot
  * padrão do Pixi) que `show` usa pra desenhar o rótulo — extraída como
  * função PURA, sem tocar em nenhum objeto Pixi, pra dar pra testar a
@@ -130,6 +158,53 @@ export function resolveDimensionLabelPosition(anchor: Point, label: string, view
   return { x, y }
 }
 
+/**
+ * Fica no lado preferido, a não ser que ele não caiba e o outro tenha mais
+ * espaço — a mesma regra de troca de `resolveDimensionLabelPosition`, agora
+ * nos dois sentidos, porque o lado preferido do traço pode ser qualquer um.
+ */
+function staysOnPreferredSide(roomPreferred: number, roomOther: number, needed: number): boolean {
+  return !(roomPreferred < needed && roomOther > roomPreferred)
+}
+
+/**
+ * Posição (canto superior-esquerdo do `Text`) do rótulo "comprimento · ângulo"
+ * do TRAÇO — Parede, Linha e o segmento do Caminho —, com `from` o começo do
+ * traço e `end` a ponta que o cursor puxa.
+ *
+ * O rótulo nasce no quadrante que CONTINUA o traço depois da ponta: à direita
+ * se o traço anda para a direita, embaixo se anda para baixo. As guias que
+ * encaixam a ponta passam por ela, na vertical e na horizontal, e o rótulo
+ * inteiro fica do outro lado das duas — e do próprio traço, que está atrás da
+ * ponta. Conferência guias-4e5: com o canto fixo de antes (texto começando 12
+ * px acima da ponta, mais baixo que a altura dele), a guia horizontal cortava
+ * a base do "5,1 m · 325,2°" justamente ao alinhar pela lateral. Traço em pé
+ * fica à direita e traço deitado fica em cima: o lado de sempre.
+ *
+ * Perto da borda da tela o lado troca, como no rótulo das formas; o clamp final
+ * segura o caso degenerado.
+ */
+export function resolveStrokeLabelPosition(from: Point, end: Point, label: string, viewport: WorldViewport): Point {
+  const { width, height } = estimateMeasureLabelSize(label)
+  const neededX = LABEL_OFFSET + width
+  const neededY = LABEL_OFFSET + height
+
+  const roomRight = viewport.right - end.x
+  const roomLeft = end.x - viewport.left
+  const roomAbove = end.y - viewport.top
+  const roomBelow = viewport.bottom - end.y
+
+  const prefersLeft = end.x < from.x
+  const prefersBelow = end.y > from.y
+  const goLeft = prefersLeft ? staysOnPreferredSide(roomLeft, roomRight, neededX) : !staysOnPreferredSide(roomRight, roomLeft, neededX)
+  const goBelow = prefersBelow ? staysOnPreferredSide(roomBelow, roomAbove, neededY) : !staysOnPreferredSide(roomAbove, roomBelow, neededY)
+
+  const rawX = goLeft ? end.x - LABEL_OFFSET - width : end.x + LABEL_OFFSET
+  const rawY = goBelow ? end.y + LABEL_OFFSET : end.y - LABEL_OFFSET - height
+
+  return { x: clamp(rawX, viewport.left, viewport.right - width), y: clamp(rawY, viewport.top, viewport.bottom - height) }
+}
+
 /** Cache de um único `Text` por instância, fechado por closure — mesma
  *  lifecycle de `createAngleIndicatorRenderer`/`createMeasurementIndicatorRenderer`:
  *  instanciar uma vez por mount do PixiCanvas (dentro do `setup()`), nunca
@@ -140,14 +215,7 @@ export function createDimensionLabelRenderer(): DimensionLabelRenderer {
 
   function ensureText(container: Container): Text {
     if (!textObj) {
-      textObj = new Text({
-        style: {
-          fontSize: FONT_SIZE,
-          fill: FILL_COLOR,
-          stroke: { color: STROKE_COLOR, width: STROKE_WIDTH },
-          fontFamily: DEFAULT_TEXT_FONT_FAMILY,
-        },
-      })
+      textObj = new Text({ style: measureLabelStyle() })
       container.addChild(textObj)
     }
     return textObj

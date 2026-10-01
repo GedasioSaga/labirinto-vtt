@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import { Container, Text } from 'pixi.js'
-import { createDimensionLabelRenderer, resolveDimensionLabelPosition, type WorldViewport } from './drawDimensionLabel'
+import {
+  createDimensionLabelRenderer,
+  estimateMeasureLabelSize,
+  resolveDimensionLabelPosition,
+  resolveStrokeLabelPosition,
+  type WorldViewport,
+} from './drawDimensionLabel'
+import type { Point } from './world'
 
 /** Type guard evita `as Text` no ponto de uso — mesmo padrão de
  *  drawTextLabels.test.ts (`findTextChild`). */
@@ -72,6 +79,87 @@ describe('resolveDimensionLabelPosition', () => {
     const position = resolveDimensionLabelPosition({ x: 0, y: 0 }, '', ROOMY_VIEWPORT)
     expect(Number.isFinite(position.x)).toBe(true)
     expect(Number.isFinite(position.y)).toBe(true)
+  })
+})
+
+/**
+ * Rótulo do TRAÇO (Parede, Linha, segmento do Caminho). Conferência guias-4e5:
+ * o "5,1 m · 325,2°" da Linha nascia com a base na altura da ponta, e a guia
+ * horizontal que passa pela ponta cortava o texto.
+ */
+describe('resolveStrokeLabelPosition', () => {
+  const PONTA: Point = { x: 0, y: 0 }
+  const ROTULO = '5,1 m · 325,2°'
+
+  function caixaDoRotulo(from: Point, end: Point = PONTA, viewport: WorldViewport = ROOMY_VIEWPORT) {
+    const position = resolveStrokeLabelPosition(from, end, ROTULO, viewport)
+    const { width, height } = estimateMeasureLabelSize(ROTULO)
+    return { minX: position.x, minY: position.y, maxX: position.x + width, maxY: position.y + height }
+  }
+
+  // O começo do traço; a ponta é sempre a origem.
+  const TRACOS: [string, Point][] = [
+    ['para a direita e para cima', { x: -300, y: 200 }],
+    ['para a direita e para baixo', { x: -300, y: -200 }],
+    ['para a esquerda e para cima', { x: 300, y: 200 }],
+    ['para a esquerda e para baixo', { x: 300, y: -200 }],
+    ['deitado para a direita', { x: -300, y: 0 }],
+    ['deitado para a esquerda', { x: 300, y: 0 }],
+    ['em pé para cima', { x: 0, y: 300 }],
+    ['em pé para baixo', { x: 0, y: -300 }],
+  ]
+
+  it.each(TRACOS)('traço %s: nenhuma guia que passa pela ponta (a vertical e a horizontal) corta o rótulo', (_, from) => {
+    const caixa = caixaDoRotulo(from)
+    expect(caixa.minX > PONTA.x || caixa.maxX < PONTA.x).toBe(true)
+    expect(caixa.minY > PONTA.y || caixa.maxY < PONTA.y).toBe(true)
+  })
+
+  it.each(TRACOS)('traço %s: o rótulo nasce depois da ponta, do lado de fora do traço', (_, from) => {
+    const caixa = caixaDoRotulo(from)
+    if (from.x > PONTA.x) expect(caixa.maxX).toBeLessThan(PONTA.x)
+    else expect(caixa.minX).toBeGreaterThan(PONTA.x)
+    if (from.y < PONTA.y) expect(caixa.minY).toBeGreaterThan(PONTA.y)
+    else expect(caixa.maxY).toBeLessThan(PONTA.y)
+  })
+
+  it('perto da borda DIREITA, traço para a direita: troca para a esquerda em vez de sair da tela', () => {
+    const ponta = { x: 995, y: 0 }
+    const position = resolveStrokeLabelPosition({ x: 700, y: 0 }, ponta, ROTULO, ROOMY_VIEWPORT)
+    expect(position.x + estimateMeasureLabelSize(ROTULO).width).toBeLessThan(ponta.x)
+  })
+
+  it('perto da borda ESQUERDA, traço para a esquerda: troca para a direita', () => {
+    const ponta = { x: -995, y: 0 }
+    const position = resolveStrokeLabelPosition({ x: -700, y: 0 }, ponta, ROTULO, ROOMY_VIEWPORT)
+    expect(position.x).toBeGreaterThan(ponta.x)
+  })
+
+  it('perto da borda de CIMA, traço para cima: troca para baixo', () => {
+    const ponta = { x: 0, y: -995 }
+    const position = resolveStrokeLabelPosition({ x: 0, y: -700 }, ponta, ROTULO, ROOMY_VIEWPORT)
+    expect(position.y).toBeGreaterThan(ponta.y)
+  })
+
+  it('perto da borda de BAIXO, traço para baixo: troca para cima', () => {
+    const ponta = { x: 0, y: 995 }
+    const position = resolveStrokeLabelPosition({ x: 0, y: 700 }, ponta, ROTULO, ROOMY_VIEWPORT)
+    expect(position.y + estimateMeasureLabelSize(ROTULO).height).toBeLessThan(ponta.y)
+  })
+
+  it('traço de comprimento zero (o clique que começa a linha): o lado de sempre, acima e à direita', () => {
+    const caixa = caixaDoRotulo(PONTA)
+    expect(caixa.minX).toBeGreaterThan(PONTA.x)
+    expect(caixa.maxY).toBeLessThan(PONTA.y)
+  })
+
+  it('viewport menor que o rótulo (zoom extremo): posição finita, presa ao viewport, sem NaN', () => {
+    const tinyViewport: WorldViewport = { left: 0, top: 0, right: 20, bottom: 20 }
+    const position = resolveStrokeLabelPosition({ x: 0, y: 10 }, { x: 10, y: 10 }, ROTULO, tinyViewport)
+    expect(Number.isFinite(position.x)).toBe(true)
+    expect(Number.isFinite(position.y)).toBe(true)
+    expect(position.x).toBeGreaterThanOrEqual(tinyViewport.left)
+    expect(position.y).toBeGreaterThanOrEqual(tinyViewport.top)
   })
 })
 

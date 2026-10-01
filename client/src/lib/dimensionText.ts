@@ -127,3 +127,24 @@ export function dimensionLabel(draft: DimensionDraft, gridSize: number, gridShap
 export function lengthAndAngleLabel(length: string, angle: string): string {
   return `${length} · ${angle}`
 }
+
+/** Uma volta inteira: o ângulo do traço mora em [0, 360). */
+const FULL_TURN_DEGREES = 360
+
+/**
+ * O ângulo do traço para o rótulo. Travado (Ctrl) ele cai num múltiplo exato
+ * do passo, e o inteiro só limpa o resto de ponto flutuante (89,9999999 vira
+ * "90°"). Livre, uma casa, para ficar claro que não está travado.
+ *
+ * Vírgula decimal, como o comprimento ao lado (`measureDistance` formata em
+ * pt-BR): "5,1 m · 335.8°" misturava as duas convenções no mesmo rótulo
+ * (conferência guias-4e5). O arredondamento que chega a 360 volta a 0, senão
+ * um traço quase deitado para a direita mostraria "360,0°".
+ */
+export function formatAngleLabel(degrees: number, locked: boolean): string {
+  const decimals = locked ? 0 : 1
+  const factor = 10 ** decimals
+  const rounded = Math.round(degrees * factor) / factor
+  const inTurn = rounded >= FULL_TURN_DEGREES ? rounded - FULL_TURN_DEGREES : rounded
+  return `${inTurn.toFixed(decimals).replace('.', ',')}°`
+}

@@ -229,9 +229,20 @@ function axisDelta(moving: AreaBounds, others: readonly AreaBounds[], axis: Guid
   return best === null ? null : best.delta
 }
 
+/**
+ * Quantas vizinhas alinhadas cada guia liga, as mais perto da peça ao longo da
+ * linha. Num mapa denso (salas em grade, todas alinhadas por acaso) a guia
+ * ligava a coluna inteira e atravessava a tela com um "x" em cada sala
+ * (conferência guias-4e5, print 22); com as 2 mais perto ela continua dizendo
+ * "alinhou aqui" e fica no pedaço do mapa que o mestre está olhando — o ajuste
+ * que o risco do plano guias-figma já previa.
+ */
+const MAX_ALIGNED_PER_GUIDE = 2
+
 interface GuideGroup {
   position: number
-  marks: number[]
+  /** Onde cada vizinha alinhada encosta (uma vizinha pode repetir: o ponto alinha pelas 3 âncoras). */
+  others: number[]
 }
 
 function sortedDistinct(values: number[]): number[] {
@@ -239,13 +250,22 @@ function sortedDistinct(values: number[]): number[] {
   return sorted.filter((value, index) => index === 0 || value - sorted[index - 1] > SAME_POSITION_EPSILON)
 }
 
+/** As `MAX_ALIGNED_PER_GUIDE` marcas de vizinha mais perto de `own`, sem repetir a mesma vizinha. */
+function nearestMarks(own: number, others: number[]): number[] {
+  return sortedDistinct(others)
+    .sort((a, b) => Math.abs(a - own) - Math.abs(b - own))
+    .slice(0, MAX_ALIGNED_PER_GUIDE)
+}
+
 /**
- * Todas as caixas alinhadas com a caixa JÁ encaixada, numa guia por posição:
+ * As caixas alinhadas com a caixa JÁ encaixada, numa guia por posição:
  * várias vizinhas na mesma altura dividem uma linha só, com uma marca para
- * cada uma, como no Figma.
+ * cada uma, como no Figma — até as `MAX_ALIGNED_PER_GUIDE` mais perto.
  */
 function axisGuides(moving: AreaBounds, others: readonly AreaBounds[], axis: GuideAxis): SmartGuide[] {
   const mine = anchorsOf(moving, axis)
+  // Onde a peça que anda encosta na linha: o mesmo ponto em toda guia do eixo.
+  const own = crossCenter(moving, axis)
   const groups: GuideGroup[] = []
   for (const other of others) {
     const theirs = anchorsOf(other, axis)
@@ -254,15 +274,15 @@ function axisGuides(moving: AreaBounds, others: readonly AreaBounds[], axis: Gui
         if (Math.abs(theirs[j] - mine[i]) > SAME_POSITION_EPSILON) continue
         const position = theirs[j]
         const group = groups.find((g) => Math.abs(g.position - position) <= SAME_POSITION_EPSILON)
-        if (group) group.marks.push(crossCenter(other, axis))
-        else groups.push({ position, marks: [crossCenter(moving, axis), crossCenter(other, axis)] })
+        if (group) group.others.push(crossCenter(other, axis))
+        else groups.push({ position, others: [crossCenter(other, axis)] })
       }
     }
   }
   return groups
     .sort((a, b) => a.position - b.position)
-    .map(({ position, marks }) => {
-      const distinct = sortedDistinct(marks)
+    .map(({ position, others: otherMarks }) => {
+      const distinct = sortedDistinct([own, ...nearestMarks(own, otherMarks)])
       return { axis, position, from: distinct[0], to: distinct[distinct.length - 1], marks: distinct }
     })
 }

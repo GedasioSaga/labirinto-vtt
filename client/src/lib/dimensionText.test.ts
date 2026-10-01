@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { dimensionLabel, lengthAndAngleLabel, type DimensionDraft } from './dimensionText'
+import { dimensionLabel, formatAngleLabel, lengthAndAngleLabel, type DimensionDraft } from './dimensionText'
 import type { MapScale } from '../types/map'
 
 const SCALE_FT: MapScale = { unitsPerCell: 5, unit: 'ft', precision: 0 }
@@ -99,6 +99,24 @@ describe('lengthAndAngleLabel (pedido 3, fatia 4: a medida do lado ao desenhar)'
 
   it('o comprimento vem de dimensionLabel com a ferramenta Linha, na régua do mapa', () => {
     const length = dimensionLabel({ tool: 'line', start: { x: 0, y: 0 }, end: { x: 100, y: 0 } }, GRID_SIZE, 'square', SCALE_FT)
-    expect(lengthAndAngleLabel(length, '0.0°')).toBe('10 ft · 0.0°')
+    expect(lengthAndAngleLabel(length, formatAngleLabel(0, false))).toBe('10 ft · 0,0°')
+  })
+})
+
+describe('formatAngleLabel (conferência guias-4e5: "5,1 m · 335.8°" misturava vírgula e ponto)', () => {
+  it('livre: uma casa, com a vírgula decimal do comprimento ao lado', () => {
+    expect(formatAngleLabel(335.84, false)).toBe('335,8°')
+    expect(formatAngleLabel(10.1, false)).toBe('10,1°')
+    expect(formatAngleLabel(0, false)).toBe('0,0°')
+  })
+
+  it('travado (Ctrl): inteiro, e o resto de ponto flutuante some', () => {
+    expect(formatAngleLabel(90, true)).toBe('90°')
+    expect(formatAngleLabel(89.9999999, true)).toBe('90°')
+  })
+
+  it('o arredondamento que chega a 360 volta a 0: o ângulo mora em [0, 360)', () => {
+    expect(formatAngleLabel(359.96, false)).toBe('0,0°')
+    expect(formatAngleLabel(359.9999999, true)).toBe('0°')
   })
 })
