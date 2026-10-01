@@ -8,20 +8,19 @@
  * fica de fora: alinhar sala com ficha é ruído para quem desenha a planta.
  * Peça travada entra (ela não anda, mas está ali e serve de referência); peça
  * de camada oculta não entra, porque não se vê.
+ *
+ * Objeto e escada medem o DESENHO, não a geometria da seleção por área: o
+ * objeto girado e o lance com a largura do degrau. Guia que encaixa numa
+ * borda onde não há nada é o desalinhamento que o pedido quer acabar.
  */
-import type { MapData } from '../types/map'
-import {
-  boundsOfDrawing,
-  boundsOfProp,
-  boundsOfRegion,
-  boundsOfStair,
-  boundsOfWall,
-  type AreaBounds,
-  type AreaSelection,
-} from './areaSelection'
+import type { MapData, Prop, Stair } from '../types/map'
+import { boundsOfDrawing, boundsOfRegion, boundsOfWall, type AreaBounds, type AreaSelection } from './areaSelection'
 import { visibleDrawings, visibleProps, visibleRegions, visibleStairs, visibleWalls } from './layers'
+import { ehMovelRedondo } from './mobilia'
 import { mapaDoPiso } from './pisos'
 import { subtreeIds } from './roomNesting'
+import { rotationTrig } from './roomRotation'
+import { stairSpiralCircle } from './stairs'
 import { isDegenerateRegion } from '../pixi/shapes'
 
 /** Retângulo visível em px de mundo (o `computeViewport` do canvas). */
@@ -48,6 +47,64 @@ export interface GuideBoxesOptions {
 
 function isFiniteBox(box: AreaBounds): boolean {
   return Number.isFinite(box.minX) && Number.isFinite(box.minY) && Number.isFinite(box.maxX) && Number.isFinite(box.maxY)
+}
+
+function unionBox(a: AreaBounds, b: AreaBounds): AreaBounds {
+  return { minX: Math.min(a.minX, b.minX), minY: Math.min(a.minY, b.minY), maxX: Math.max(a.maxX, b.maxX), maxY: Math.max(a.maxY, b.maxY) }
+}
+
+/**
+ * O objeto como aparece: o sprite e a silhueta da mobília giram em volta do
+ * centro (`pixi/drawProps.ts`, `pixi/drawPropSilhouettes.ts`). Sem o giro, um
+ * objeto de 100 x 50 em pé ganhava a caixa deitada. `rotationTrig` é exato nos
+ * quartos de volta: com `Math.cos(π/2)` (6e-17) a caixa do objeto em pé
+ * ficaria a um fio da borda. O barril desenha a elipse inscrita, e fora dos
+ * quartos de volta a caixa dela é menor que a do retângulo girado.
+ */
+function propGuideBox(prop: Prop): AreaBounds {
+  const { sin, cos } = rotationTrig(prop.rotation ?? 0)
+  const halfWidth = prop.width / 2
+  const halfHeight = prop.height / 2
+  const round = ehMovelRedondo(prop.mobilia)
+  const reachX = round ? Math.hypot(halfWidth * cos, halfHeight * sin) : Math.abs(halfWidth * cos) + Math.abs(halfHeight * sin)
+  const reachY = round ? Math.hypot(halfWidth * sin, halfHeight * cos) : Math.abs(halfWidth * sin) + Math.abs(halfHeight * cos)
+  return { minX: prop.x - reachX, minY: prop.y - reachY, maxX: prop.x + reachX, maxY: prop.y + reachY }
+}
+
+/**
+ * A escada como aparece. Espiral: o círculo desenhado (`stairSpiralCircle`).
+ * Reta, em L ou dupla: a união das placas dos lances (`planStairFlight`,
+ * `pixi/stairFlight.ts`), cada uma com o lance de linha do meio e `stepWidth`
+ * de largura. Só a linha do meio punha a borda da sala no meio da escada. A
+ * placa pintada ainda encosta no pixel físico, a menos de 1 px de tela desta
+ * conta. `null` = nada desenhado (lance de comprimento zero).
+ */
+function stairGuideBox(stair: Stair): AreaBounds | null {
+  if (stair.shape === 'spiral') {
+    const circle = stairSpiralCircle(stair)
+    if (circle === null) return null
+    const { center, radius } = circle
+    return { minX: center.x - radius, minY: center.y - radius, maxX: center.x + radius, maxY: center.y + radius }
+  }
+  // Mesma regra de `planStairFlight`: largura que não forma lance pinta só a moldura, na linha do meio.
+  const halfWidth = (Number.isFinite(stair.stepWidth) ? Math.max(0, stair.stepWidth) : 0) / 2
+  let box: AreaBounds | null = null
+  for (const { x1, y1, x2, y2 } of stair.segments) {
+    const length = Math.hypot(x2 - x1, y2 - y1)
+    if (!(length > 0) || !Number.isFinite(length)) continue
+    // A placa vai meia largura para cada lado na perpendicular do lance: em x
+    // isso pesa o quanto o lance corre em y, e vice-versa.
+    const reachX = (halfWidth * Math.abs(y2 - y1)) / length
+    const reachY = (halfWidth * Math.abs(x2 - x1)) / length
+    const flight: AreaBounds = {
+      minX: Math.min(x1, x2) - reachX,
+      minY: Math.min(y1, y2) - reachY,
+      maxX: Math.max(x1, x2) + reachX,
+      maxY: Math.max(y1, y2) + reachY,
+    }
+    box = box === null ? flight : unionBox(box, flight)
+  }
+  return box
 }
 
 export function guideBoxesForDrag(map: MapData, options: GuideBoxesOptions): AreaBounds[] {
@@ -92,12 +149,14 @@ export function guideBoxesForDrag(map: MapData, options: GuideBoxesOptions): Are
 
   const excludedProps = new Set(options.exclude.props)
   for (const prop of visibleProps(doPiso.props, hidden)) {
-    if (!excludedProps.has(prop.id)) add(boundsOfProp(prop))
+    if (!excludedProps.has(prop.id)) add(propGuideBox(prop))
   }
 
   const excludedStairs = new Set(options.exclude.stairs)
   for (const stair of visibleStairs(doPiso.stairs, hidden)) {
-    if (!excludedStairs.has(stair.id)) add(boundsOfStair(stair))
+    if (excludedStairs.has(stair.id)) continue
+    const box = stairGuideBox(stair)
+    if (box !== null) add(box)
   }
 
   return boxes

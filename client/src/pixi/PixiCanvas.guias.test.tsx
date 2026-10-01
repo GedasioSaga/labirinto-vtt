@@ -5,7 +5,7 @@ import { Container, EventBoundary, FederatedPointerEvent, Graphics } from 'pixi.
 import { createEmptyMap } from '../lib/mapFactory'
 import { useMapStore } from '../stores/mapStore'
 import type { Camera } from './world'
-import type { MapData, Region, Wall } from '../types/map'
+import type { MapData, Prop, Region, Stair, Wall } from '../types/map'
 import { SMART_GUIDE_COLOR } from './constants'
 import { PixiCanvas } from './PixiCanvas'
 import { snapToHexVertex } from './tokenInteraction'
@@ -313,5 +313,30 @@ describe('PixiCanvas — guias inteligentes no arrasto de sala (pedido 3, fatia 
     expect(guiaMagenta()).not.toBeNull()
     const parede = useMapStore.getState().map.walls.find((w) => w.id === 'movel-p3')
     expect(parede).toMatchObject({ x1: 700, x2: 700 })
+  })
+
+  describe('a sala encaixa na peça como ela aparece', () => {
+    // As duas peças aparecem de x = 750 a 850. Arrastar 652 leva a borda
+    // esquerda da sala a 752: 2 px da borda que se vê, e 52 px de qualquer
+    // âncora da caixa antiga (700/800/900 da mesa sem giro, 800 da linha do
+    // meio da escada).
+    const MESA_EM_PE: Prop = { id: 'mesa', src: '', x: 800, y: 200, width: 200, height: 100, linkedMapPath: null, mobilia: 'mesa', rotation: 90 }
+    const ESCADA_EM_PE: Stair = { id: 'escada', shape: 'straight', direction: 'up', segments: [{ x1: 800, y1: 100, x2: 800, y2: 300 }], stepWidth: 100 }
+
+    it('móvel girado 90 graus: a sala encaixa na borda do desenho girado, não na do retângulo sem giro', async () => {
+      prepara({ ...mapa([MOVEL]), props: [MESA_EM_PE] })
+      await monta()
+      arrasta(652, 0)
+      expect(caixaDa('movel').minX).toBe(750)
+      expect(guiaMagenta()).not.toBeNull()
+    })
+
+    it('escada: a sala encaixa na borda do lance, com a largura do degrau, não na linha do meio', async () => {
+      prepara({ ...mapa([MOVEL]), stairs: [ESCADA_EM_PE] })
+      await monta()
+      arrasta(652, 0)
+      expect(caixaDa('movel').minX).toBe(750)
+      expect(guiaMagenta()).not.toBeNull()
+    })
   })
 })
