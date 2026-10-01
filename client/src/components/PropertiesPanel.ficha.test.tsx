@@ -89,14 +89,14 @@ describe('painel de propriedades — a ficha em ordem de tarefa', () => {
   const corpo = () => container.querySelector<HTMLElement>('.lb-inspector__body')
   const texto = (el: Element | null | undefined) => (el?.textContent ?? '').trim()
   /**
-   * Os títulos do bloco da ficha, em ordem de DOM: do primeiro `h2` até a
-   * primeira seção do mapa inteiro (linha recolhível, como "Chão do mapa") ou o
-   * Acervo. Antes o marco era o "Seleção", que só existe com o lote.
+   * Os títulos do bloco da ficha, em ordem de DOM: os `h2` do corpo fora dos
+   * grupos Aventura e Esta cena (`.lb-zona`) e fora do Acervo — o que está na
+   * mão, e só ele.
    */
   function titulosDaFicha(): string[] {
-    const todos = Array.from(corpo()?.querySelectorAll('h2') ?? [])
-    const fim = todos.findIndex((h) => h.classList.contains('lb-collapsible__heading') || texto(h) === 'Acervo de tokens')
-    return (fim === -1 ? todos : todos.slice(0, fim)).map(texto)
+    return Array.from(corpo()?.querySelectorAll('h2') ?? [])
+      .filter((h) => h.closest('.lb-zona') === null && h.closest('.lb-acervo-painel') === null)
+      .map(texto)
   }
   const interruptor = (rotulo: string) => Array.from(container.querySelectorAll('label.lb-switch')).find((l) => texto(l) === rotulo) ?? null
   /** Pelo nome acessível: o `aria-label` (o "+ Token" se lê "Adicionar token") ou o texto. */

@@ -1,0 +1,57 @@
+/*
+ * PropertiesPanel — os grupos da coluna (pedido painel-acervo, fatia 3).
+ * Abaixo do que está na mão, dois grupos com legenda: AVENTURA (Cenas, Pinos,
+ * Agenda, Estado do mundo) e ESTA CENA (Objetos do mapa, Marcas, Locais,
+ * Território, Chão do mapa, Camadas). O Acervo fica por último, fora deles.
+ * Dentro de um grupo as linhas se seguem sem fio: quem separa é o grupo. Só
+ * `var(--lb-*)` de theme.ts.
+ *
+ * ESPECIFICIDADE: main.tsx importa o App antes de main.css, então esta folha
+ * entra ANTES dela na cascata e o empate perde em silêncio. Os fios de lá,
+ * `.lb-section + .lb-section` e `.lb-section + .lb-collapsible`, são (0,2,0):
+ * as regras de dentro do grupo levam `.lb-zona >` na frente, (0,3,0).
+ */
+
+.lb-zona {
+  display: flex;
+  flex-direction: column;
+  /* Com o ar de dentro da última linha (12 px dos 44), o texto dela fica a
+     16 px do fio de baixo: a distância que um bloco deixa até o fio. */
+  padding-bottom: var(--lb-space-1);
+}
+
+/* O fio de cima do grupo, o mesmo de `.lb-section + .lb-section`. Só depois de
+   uma seção ou de outro grupo: logo abaixo da faixa do topo (sem nada
+   selecionado e Selecionar na mão), a linha de baixo dela já separa. */
+.lb-section + .lb-zona,
+.lb-zona + .lb-zona {
+  border-top: 1px solid var(--lb-color-line);
+}
+
+/* O Acervo, depois do último grupo, com o fio que tinha depois de Camadas. */
+.lb-zona + .lb-section {
+  border-top: 1px solid var(--lb-color-line);
+}
+
+/* A legenda: na vertical dos 16 px do conteúdo e 16 px abaixo do fio, como
+   PAREDE e ACERVO DE TOKENS abaixo dos deles — um ritmo só para os títulos
+   de grupo da coluna. Sem respiro embaixo: a primeira linha já traz 12 px de
+   ar dentro dos seus 44. */
+.lb-zona__rotulo {
+  padding: var(--lb-space-4) var(--lb-space-4) 0;
+}
+
+/* Dentro do grupo, as linhas recolhíveis se seguem sem fio entre elas. */
+.lb-zona > .lb-section + .lb-collapsible {
+  box-shadow: none;
+}
+
+.lb-zona > .lb-section + .lb-section {
+  border-top: 0;
+}
+
+/* Menos depois de uma seção ABERTA: o fio fecha o conteúdo dela, e a linha
+   seguinte não parece parte do que está aberto. */
+.lb-zona > .lb-collapsible:has(> .lb-collapsible__heading > .lb-collapsible__toggle[aria-expanded='true']) + .lb-section {
+  box-shadow: inset 0 1px 0 var(--lb-color-line);
+}

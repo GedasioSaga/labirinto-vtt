@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { ChevronDownIcon } from './icons'
+import './CollapsibleSection.css'
 
 export interface CollapsibleSectionProps {
   /** Identificador estável: vira a chave `lb-section:<id>` no localStorage. */
@@ -53,6 +54,10 @@ function writeStoredOpen(id: string, open: boolean) {
  * de verdade (teclado e leitor de tela de graça) com `aria-expanded` e
  * `aria-controls` apontando para o corpo. O corpo fechado sai do DOM via
  * `hidden`, então controles recolhidos não entram na ordem de Tab.
+ *
+ * O título é nome de LINHA, em minúscula (`.lb-collapsible__titulo`), e não
+ * legenda em caixa alta: caixa alta fica para o título de grupo — AVENTURA,
+ * ESTA CENA, PAREDE (pedido painel-acervo, fatia 3; CollapsibleSection.css).
  */
 export function CollapsibleSection({
   id,
@@ -94,7 +99,7 @@ export function CollapsibleSection({
           aria-controls={bodyId}
           onClick={toggle}
         >
-          <span className="lb-eyebrow">{title}</span>
+          <span className="lb-collapsible__titulo">{title}</span>
           <span className="lb-collapsible__chevron">
             <ChevronDownIcon size={14} />
           </span>

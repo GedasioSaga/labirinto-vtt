@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import type { Wall, WallThicknessPreset } from '../types/map'
 import {
   WALL_WIDTH_WORLD_MAX,
@@ -79,6 +80,14 @@ export interface WallStyleControlsProps {
    */
   janela?: boolean
   onJanelaChange?: (janela: boolean) => void
+  /**
+   * O Avançado da parede ("Ponta e canto"), como a ÚLTIMA linha deste bloco
+   * (pedido painel-acervo, fatia 3), e não uma seção irmã com fio: é da
+   * parede, como o da ficha é de "Trava e visibilidade". Quem monta é o
+   * painel, que sabe qual parede está selecionada (`key` para nascer
+   * fechado a cada parede).
+   */
+  avancado?: ReactNode
 }
 
 /**
@@ -101,6 +110,7 @@ export function WallStyleControls({
   onThicknessChange,
   janela,
   onJanelaChange,
+  avancado,
 }: WallStyleControlsProps) {
   // `lineStyle`/`onLineStyleChange` continuam no tipo (o chamador monta um
   // objeto só), mas quem desenha é `WallLineStyleField`, no Avançado.
@@ -187,6 +197,7 @@ export function WallStyleControls({
           onChange={(event) => onThicknessChange?.(Number(event.target.value))}
         />
       </div>
+      {avancado}
     </section>
   )
 }

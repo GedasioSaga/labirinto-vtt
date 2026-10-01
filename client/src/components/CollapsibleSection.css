@@ -1,0 +1,80 @@
+/*
+ * CollapsibleSection — a linha que abre e fecha (pedido painel-acervo,
+ * fatia 3). Eram sete cabeçalhos iguais em caixa alta disputando com o título
+ * da ferramenta. Caixa alta agora é só do título de GRUPO (PAREDE, AVENTURA,
+ * ESTA CENA, ACERVO DE TOKENS); a linha que abre e fecha é item, em minúscula,
+ * como as linhas de Camadas e as pastas do acervo. A calma vem da tipografia
+ * e de tirar os fios entre as linhas (PropertiesPanel.css), não de encolher o
+ * alvo: a linha de seção continua com 44 px (main.css). Só `var(--lb-*)` de
+ * theme.ts.
+ *
+ * ESPECIFICIDADE: main.tsx importa o App antes de main.css, então esta folha
+ * entra ANTES dela na cascata e o empate perde em silêncio. Cada regra que
+ * corrige uma de lá diz contra quem ela ganha.
+ */
+
+/* O nome da linha: a fonte da interface, peso médio, apagado. `.lb-eyebrow`
+   (caixa alta, condensada, espaçada) saiu do título: ela é de legenda. */
+.lb-collapsible__titulo {
+  font-family: var(--lb-font-sans);
+  font-size: var(--lb-font-size-md);
+  font-weight: var(--lb-font-weight-medium);
+  color: var(--lb-color-parchment-dim);
+}
+
+/* Sob o ponteiro a linha acende, e no aperto também, que é o retorno de quem
+   toca (no toque não há pairar). Aberta, ela continua apagada: quem acende é
+   o conteúdo. Acesa, "Chão do mapa" ficava do brilho e do tamanho de "Cor do
+   chão" logo abaixo e se lia como mais um campo; apagada, é o título do que
+   está aberto, e a seta diz que está aberto. Sem transição: pairar é gesto de
+   toda hora. */
+.lb-collapsible__toggle:hover > .lb-collapsible__titulo,
+.lb-collapsible__toggle:active > .lb-collapsible__titulo {
+  color: var(--lb-color-parchment);
+}
+
+/* O anel de foco fica DENTRO da linha: agora as linhas se encostam (sem fio
+   entre elas) e a legenda do grupo mora logo acima da primeira, e o anel de
+   fora (main.css) encostava nas duas. É o anel das linhas de Locais. Para o
+   texto não colar nele, o botão ganha 8 px de cada lado e avança 8 px no
+   respiro da seção: texto e seta continuam na vertical dos campos. (0,2,0)
+   vence `width` e `padding` de `.lb-collapsible__toggle` (0,1,0); a regra do
+   anel, (0,3,0), vence o `:focus-visible` geral. */
+.lb-collapsible__heading > .lb-collapsible__toggle {
+  width: calc(100% + 2 * var(--lb-space-2));
+  margin-inline: calc(-1 * var(--lb-space-2));
+  padding-inline: var(--lb-space-2);
+}
+
+.lb-collapsible__heading > .lb-collapsible__toggle:focus-visible {
+  box-shadow: inset 0 0 0 2px var(--lb-color-brass);
+}
+
+/* O Avançado (h3) DENTRO de um bloco — Parede, a ficha ("Trava e
+   visibilidade"), "Chão do mapa" — é a última linha dele, não uma seção:
+   34 px, a altura do `.lb-btn` e a que a ficha já usava
+   (ItemTransformControls.css), acima dos 24 px de `--lb-control-min`. O
+   Avançado solto, irmão das seções (o da Região, depois do Gatilho e do
+   Perigo), continua uma linha de 44 px com o fio: colado, ele parecia do
+   Perigo. (0,4,1) vence o `min-height: 44px` de `.lb-collapsible__toggle`
+   (0,1,0). */
+.lb-section > .lb-collapsible > h3.lb-collapsible__heading > .lb-collapsible__toggle,
+.lb-collapsible__body > .lb-collapsible > h3.lb-collapsible__heading > .lb-collapsible__toggle {
+  min-height: 34px;
+}
+
+/* No bloco, sem o respiro de seção: o espaço vem do passo de 12 px entre os
+   campos do bloco e dos 16 px do fim dele. (0,3,1) vence o `padding` de
+   `.lb-section` e de `.lb-collapsible` (0,1,0). */
+.lb-section > .lb-collapsible:has(> h3.lb-collapsible__heading) {
+  padding: 0;
+}
+
+/* O Avançado DENTRO de uma seção que abre ("Chão do mapa"): começa na mesma
+   vertical dos campos de fora, sem o recuo de seção (antes, x=49 contra
+   x=33), e termina no respiro da seção que o guarda. (0,2,0) vence o
+   `padding` de `.lb-section` (0,1,0). */
+.lb-collapsible__body > .lb-collapsible {
+  padding-inline: 0;
+  padding-bottom: 0;
+}

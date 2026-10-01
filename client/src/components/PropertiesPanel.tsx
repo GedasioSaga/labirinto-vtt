@@ -86,7 +86,8 @@ import { pinKindShowsIcon } from '../lib/pins'
 import { DEFAULT_TEXT_FONT_FAMILY } from '../lib/drawingFactory'
 import { panelHeadingTool, type PropertyGroupId } from '../lib/toolProperties'
 import { TOOL_LABELS } from './labels'
-import { useLayoutEffect, useRef, type ReactNode } from 'react'
+import { useId, useLayoutEffect, useRef, type ReactNode } from 'react'
+import './PropertiesPanel.css'
 
 interface PropertiesPanelProps {
   /** Seção "Cenas" da aventura, montada por quem sabe da aventura (App). */
@@ -294,6 +295,11 @@ export interface PisosWiring {
   onLevarSelecaoAoPiso: (piso: number) => void
 }
 
+/** Há o que mostrar: o App passa `undefined` quando a seção não existe (mapa solto, sem aventura). */
+function presente(no: ReactNode): boolean {
+  return no !== undefined && no !== null && typeof no !== 'boolean'
+}
+
 /**
  * Inspetor da coluna esquerda: identidade do mapa aberto e as seções de
  * propriedade. Só compõe — cada seção é responsável pelos próprios controles.
@@ -435,16 +441,32 @@ export function PropertiesPanel({
       selection.onAddToken(nome)
     },
   }
+  // GRUPOS DA COLUNA (pedido painel-acervo, fatia 3): abaixo do que está na
+  // mão, o que é da AVENTURA e o que é DESTA CENA, cada um com a sua legenda.
+  // A ordem já era essa; faltava dizer. Grupo sem linha não monta: legenda
+  // solta seria um título de nada. "Esta cena" tem linha quando há os objetos
+  // ou o momento de mapa (Chão do mapa e Camadas; Território vai com Camadas).
+  const legendaId = useId()
+  const legendaAventuraId = `${legendaId}-aventura`
+  const legendaCenaId = `${legendaId}-cena`
+  const temAventura = presente(scenes) || presente(worldState)
+  const temCena = presente(objects) || groups.has('floorStyle') || groups.has('layers')
 
   const wallStyleSection = (
     <ToolPropertiesSection group="wallStyle" groups={groups}>
-      <WallStyleControls {...wallStyle} />
-      {/* `key` pelo id: outra parede selecionada faz o Avançado nascer fechado. */}
-      <AdvancedSection key={selectedWall?.id ?? 'wall-tool'}>
-        <AdvancedField hint="Arredondada suaviza a ponta solta e a quina entre paredes; Reta deixa a quina viva.">
-          {(hintId) => <WallLineStyleField lineStyle={wallStyle.lineStyle} onLineStyleChange={wallStyle.onLineStyleChange} describedBy={hintId} />}
-        </AdvancedField>
-      </AdvancedSection>
+      <WallStyleControls
+        {...wallStyle}
+        // A última linha do bloco Parede, sem fio (fatia 3): "Ponta e canto" é
+        // da parede. `key` pelo id: outra parede selecionada faz o Avançado
+        // nascer fechado.
+        avancado={
+          <AdvancedSection key={selectedWall?.id ?? 'wall-tool'}>
+            <AdvancedField hint="Arredondada suaviza a ponta solta e a quina entre paredes; Reta deixa a quina viva.">
+              {(hintId) => <WallLineStyleField lineStyle={wallStyle.lineStyle} onLineStyleChange={wallStyle.onLineStyleChange} describedBy={hintId} />}
+            </AdvancedField>
+          </AdvancedSection>
+        }
+      />
     </ToolPropertiesSection>
   )
 
@@ -841,52 +863,71 @@ export function PropertiesPanel({
           <AlignDistributeControls {...alignDistribute} />
           <SelectionControls secret={selection.secret} />
         </ToolPropertiesSection>
-        {/* Cenas da aventura: depois do bloco da ferramenta e do objeto, junto das
-            seções do mapa inteiro. No topo ela roubava o primeiro título da coluna,
-            que é o nome do que está na mão ou do que acabou de ser desenhado
-            (task-jornada-sala-livre.spec.ts, teste 3). */}
-        {scenes}
-        {worldState}
-        {/* Os objetos DA cena aberta, logo abaixo das cenas. Sem grupo de
-            ferramenta: é navegação, como as Cenas, e nasce recolhida — com uma
-            ferramenta de desenho na mão ela é só uma linha de título. Antes de
-            "Chão do mapa": Camadas continua o último título da coluna. */}
-        {objects}
-        {/* FACÇÃO E ALERTA do mapa inteiro. Mesmo grupo das Camadas (é filtro
-            de vista e estado da cena, não ferramenta), antes de "Chão do mapa"
-            para Camadas continuar o último título da coluna. Nasce fechada
-            mesmo sem seleção (peça mapa-inteiro-enxuto): o mestre mexe nela
-            durante o jogo, não na primeira tela do mapa; a escolha dele fica
-            lembrada (`lb-section:territorio`). */}
-        {territorio !== undefined && (
-          <ToolPropertiesSection group="layers" groups={groups}>
-            <CollapsibleSection id="territorio" title="Território" defaultOpen={false}>
-              <TerritorioControls {...territorio} />
-            </CollapsibleSection>
-          </ToolPropertiesSection>
+        {/* AVENTURA: Cenas, Pinos, Agenda e Estado do mundo, a aventura
+            inteira. Depois do bloco da ferramenta e do objeto: no topo ela
+            roubava o primeiro título da coluna, que é o nome do que está na mão
+            ou do que acabou de ser desenhado (task-jornada-sala-livre.spec.ts,
+            teste 3). A legenda é `<p>`, não `h2`, pelo mesmo motivo — o molde é
+            o `MoreSection` do RoomPanel: `role=group` nomeado pela legenda. */}
+        {temAventura && (
+          <div className="lb-zona" role="group" aria-labelledby={legendaAventuraId}>
+            <p id={legendaAventuraId} className="lb-eyebrow lb-zona__rotulo">
+              Aventura
+            </p>
+            {scenes}
+            {worldState}
+          </div>
         )}
-        <ToolPropertiesSection group="floorStyle" groups={groups}>
-          {/* "Chão do mapa", não "Chão": o botão da ferramenta na barra já se
-              chama "Chão" e dois botões com o mesmo nome confundem leitor de
-              tela (e o getByRole dos specs). */}
-          <CollapsibleSection id="floor" title="Chão do mapa" defaultOpen={mapSectionsOpenByDefault}>
-            <FloorStyleControls {...floorStyle} />
-          </CollapsibleSection>
-          {floorLayers !== undefined && floorLayers.floor.length > 0 && (
-            <CollapsibleSection id="floor-layers" title="Camadas do chão" defaultOpen>
-              <FloorLayersList {...floorLayers} />
-            </CollapsibleSection>
-          )}
-        </ToolPropertiesSection>
-        <ToolPropertiesSection group="layers" groups={groups}>
-          <CollapsibleSection id="layers" title="Camadas" defaultOpen={mapSectionsOpenByDefault}>
-            <LayersPanel {...layers} quickToggles={<GridQuickToggles {...grid} />} />
-          </CollapsibleSection>
-        </ToolPropertiesSection>
-        {/* Sem `ToolPropertiesSection` e sem `CollapsibleSection`: a estante de
-            NPCs não pertence a ferramenta nem a seleção nenhuma, e é para ela
-            estar à mão justamente quando nada está selecionado. O "+ Token"
-            entra no título dela só com seleção: sem, ele está na faixa. */}
+        {/* ESTA CENA: o que é da cena aberta, do que há nela (Objetos do mapa,
+            Marcas, Locais) ao jeito dela (Território, Chão do mapa, Camadas). */}
+        {temCena && (
+          <div className="lb-zona" role="group" aria-labelledby={legendaCenaId}>
+            <p id={legendaCenaId} className="lb-eyebrow lb-zona__rotulo">
+              Esta cena
+            </p>
+            {/* Os objetos DA cena aberta. Sem grupo de ferramenta: é navegação,
+                como as Cenas, e nasce recolhida — com uma ferramenta de desenho
+                na mão ela é só uma linha. */}
+            {objects}
+            {/* FACÇÃO E ALERTA do mapa inteiro. Mesmo grupo das Camadas (é
+                filtro de vista e estado da cena, não ferramenta), antes de
+                "Chão do mapa". Nasce fechada mesmo sem seleção (peça
+                mapa-inteiro-enxuto): o mestre mexe nela durante o jogo, não na
+                primeira tela do mapa; a escolha dele fica lembrada
+                (`lb-section:territorio`). */}
+            {territorio !== undefined && (
+              <ToolPropertiesSection group="layers" groups={groups}>
+                <CollapsibleSection id="territorio" title="Território" defaultOpen={false}>
+                  <TerritorioControls {...territorio} />
+                </CollapsibleSection>
+              </ToolPropertiesSection>
+            )}
+            <ToolPropertiesSection group="floorStyle" groups={groups}>
+              {/* "Chão do mapa", não "Chão": o botão da ferramenta na barra já se
+                  chama "Chão" e dois botões com o mesmo nome confundem leitor de
+                  tela (e o getByRole dos specs). */}
+              <CollapsibleSection id="floor" title="Chão do mapa" defaultOpen={mapSectionsOpenByDefault}>
+                <FloorStyleControls {...floorStyle} />
+              </CollapsibleSection>
+              {floorLayers !== undefined && floorLayers.floor.length > 0 && (
+                <CollapsibleSection id="floor-layers" title="Camadas do chão" defaultOpen>
+                  <FloorLayersList {...floorLayers} />
+                </CollapsibleSection>
+              )}
+            </ToolPropertiesSection>
+            <ToolPropertiesSection group="layers" groups={groups}>
+              <CollapsibleSection id="layers" title="Camadas" defaultOpen={mapSectionsOpenByDefault}>
+                <LayersPanel {...layers} quickToggles={<GridQuickToggles {...grid} />} />
+              </CollapsibleSection>
+            </ToolPropertiesSection>
+          </div>
+        )}
+        {/* O Acervo, por último e fora dos grupos: a estante de NPCs é do app,
+            não da aventura nem da cena. Sem `ToolPropertiesSection` e sem
+            `CollapsibleSection`: não pertence a ferramenta nem a seleção
+            nenhuma, e é para estar à mão justamente quando nada está
+            selecionado. O "+ Token" entra no título dele só com seleção: sem,
+            ele está na faixa do topo. */}
         <TokenLibraryPanel {...tokenLibrary} novoToken={algoSelecionado ? novoToken : undefined} />
       </div>
     </div>

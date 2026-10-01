@@ -48,6 +48,13 @@ describe('CollapsibleSection', () => {
     expect(body().textContent).toBe('conteúdo')
   })
 
+  it('o título é nome de linha, não legenda: sem a caixa alta de .lb-eyebrow (pedido painel-acervo, fatia 3)', () => {
+    render(true)
+    const titulo = header().querySelector('.lb-collapsible__titulo')
+    expect(titulo?.textContent).toBe('Camadas')
+    expect(header().querySelector('.lb-eyebrow')).toBeNull()
+  })
+
   it('clique abre e fecha, trocando aria-expanded e hidden do corpo', () => {
     render(true)
     expect(header().getAttribute('aria-expanded')).toBe('true')
@@ -180,5 +187,93 @@ describe('CollapsibleSection', () => {
     expect(setItem).toHaveBeenCalledWith('lb-section:layers', '0')
     expect(header().getAttribute('aria-expanded')).toBe('false')
     expect(body().hidden).toBe(true)
+  })
+})
+
+/** O CSS como está no disco (ver `PropertiesPanel.moldura.test.ts`: `?raw` e `new URL` não leem o arquivo). */
+async function lerCss(): Promise<string> {
+  const { readFileSync } = await vi.importActual<{ readFileSync(caminho: string, codificacao: 'utf8'): string }>('node:fs')
+  const { fileURLToPath } = await vi.importActual<{ fileURLToPath(url: string): string }>('node:url')
+  const { dirname, join } = await vi.importActual<{ dirname(caminho: string): string; join(...partes: string[]): string }>('node:path')
+  return readFileSync(join(dirname(fileURLToPath(import.meta.url)), 'CollapsibleSection.css'), 'utf8')
+}
+
+/** As declarações da PRIMEIRA regra que tem `seletor` na lista de seletores: propriedade → valor. */
+function regra(css: string, seletor: string): Map<string, string> {
+  const semComentarios = css.replace(/\/\*[\s\S]*?\*\//g, '')
+  for (const [, seletores, corpo] of semComentarios.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+    if (!seletores.split(',').some((s) => s.replace(/\s+/g, ' ').trim() === seletor)) continue
+    return new Map(
+      corpo
+        .split(';')
+        .map((declaracao) => declaracao.split(':'))
+        .filter((partes) => partes.length >= 2)
+        .map(([propriedade, ...valor]) => [propriedade.trim(), valor.join(':').trim()]),
+    )
+  }
+  return new Map()
+}
+
+/*
+ * LINHAS CALMAS (pedido painel-acervo, fatia 3): caixa alta só no título de
+ * grupo (PAREDE, AVENTURA, ACERVO DE TOKENS); a linha que abre e fecha é item,
+ * em minúscula. O jsdom não aplica folha: o teste lê as regras, a tela é a
+ * outra metade da prova. O main.css entra DEPOIS desta folha, então o que
+ * corrige uma regra de lá precisa de seletor mais específico.
+ */
+describe('CollapsibleSection.css — a linha que abre e fecha', () => {
+  it('o nome da linha usa a fonte da interface, 13 px, peso médio, apagado', async () => {
+    const titulo = regra(await lerCss(), '.lb-collapsible__titulo')
+    expect(titulo.get('font-family')).toBe('var(--lb-font-sans)')
+    expect(titulo.get('font-size')).toBe('var(--lb-font-size-md)')
+    expect(titulo.get('font-weight')).toBe('var(--lb-font-weight-medium)')
+    expect(titulo.get('color')).toBe('var(--lb-color-parchment-dim)')
+    expect(titulo.has('text-transform')).toBe(false)
+  })
+
+  it('sob o ponteiro ou apertada, a linha acende; aberta, continua apagada (quem acende é o conteúdo)', async () => {
+    const css = await lerCss()
+    for (const seletor of ['.lb-collapsible__toggle:hover > .lb-collapsible__titulo', '.lb-collapsible__toggle:active > .lb-collapsible__titulo']) {
+      expect(regra(css, seletor).get('color'), seletor).toBe('var(--lb-color-parchment)')
+    }
+    expect(regra(css, ".lb-collapsible__toggle[aria-expanded='true'] > .lb-collapsible__titulo").size).toBe(0)
+  })
+
+  it('o anel de foco fica dentro da linha, com folga para o texto, que continua na vertical dos campos', async () => {
+    const css = await lerCss()
+    const linha = regra(css, '.lb-collapsible__heading > .lb-collapsible__toggle')
+    // O botão avança no respiro da seção o mesmo tanto que ganha de folga: o texto não sai do lugar.
+    expect(linha.get('padding-inline')).toBe('var(--lb-space-2)')
+    expect(linha.get('margin-inline')).toBe('calc(-1 * var(--lb-space-2))')
+    expect(linha.get('width')).toBe('calc(100% + 2 * var(--lb-space-2))')
+    const foco = regra(css, '.lb-collapsible__heading > .lb-collapsible__toggle:focus-visible')
+    expect(foco.get('box-shadow')).toBe('inset 0 0 0 2px var(--lb-color-brass)')
+  })
+
+  it('o Avançado DENTRO de um bloco é a última linha dele: 34 px (a altura do .lb-btn, a da ficha), sem respiro de seção', async () => {
+    const css = await lerCss()
+    for (const seletor of [
+      '.lb-section > .lb-collapsible > h3.lb-collapsible__heading > .lb-collapsible__toggle',
+      '.lb-collapsible__body > .lb-collapsible > h3.lb-collapsible__heading > .lb-collapsible__toggle',
+    ]) {
+      expect(regra(css, seletor).get('min-height'), seletor).toBe('34px')
+    }
+    expect(regra(css, '.lb-section > .lb-collapsible:has(> h3.lb-collapsible__heading)').get('padding')).toBe('0')
+  })
+
+  it('o Avançado solto, irmão das seções (o da Região, depois do Perigo), continua linha de 44 px com o fio: não se cola ao bloco de outro', async () => {
+    const css = await lerCss()
+    expect(regra(css, 'h3.lb-collapsible__heading > .lb-collapsible__toggle').size).toBe(0)
+    expect(regra(css, '.lb-section + .lb-collapsible:has(> h3.lb-collapsible__heading)').size).toBe(0)
+  })
+
+  it('o Avançado dentro de uma seção que abre começa na vertical dos campos dela', async () => {
+    const dentro = regra(await lerCss(), '.lb-collapsible__body > .lb-collapsible')
+    expect(dentro.get('padding-inline')).toBe('0')
+  })
+
+  it('só tokens do tema: nenhuma cor solta na folha', async () => {
+    const semComentarios = (await lerCss()).replace(/\/\*[\s\S]*?\*\//g, '')
+    expect(semComentarios).not.toMatch(/#[0-9a-f]{3,8}\b|rgba?\(/i)
   })
 })
