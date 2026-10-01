@@ -12,6 +12,7 @@ import { SceneFloorControls, type SceneFloorControlsProps } from './SceneFloorCo
 import { SceneVisionControls, type SceneVisionControlsProps } from './SceneVisionControls'
 import { FaceRangeControls, type FaceRangeControlsProps } from './FaceRangeControls'
 import { FEATURES } from '../lib/features'
+import { theme } from '../theme'
 
 export interface MapSettingsProps {
   grid: GridControlsProps
@@ -42,6 +43,17 @@ interface ScenarioLinkVisibility {
 
 const FOCUSABLE =
   'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [href], [tabindex]:not([tabindex="-1"])'
+
+/**
+ * Entrada da janela: opacidade e escala de 0,95 a 1, como as outras janelas
+ * (Exportar imagem, Visão geral, Corte da Torre). Tempo e curva vêm do tema; o
+ * véu escuro atrás entra no mesmo tempo (`.lb-dialog-backdrop::before`).
+ */
+const ENTRADA_QUADROS: Keyframe[] = [
+  { opacity: 0, transform: 'scale(0.95)' },
+  { opacity: 1, transform: 'scale(1)' },
+]
+const ENTRADA_TEMPO: KeyframeAnimationOptions = { duration: Number.parseFloat(theme.motion.base), easing: theme.motion.ease }
 
 function focusablesIn(root: HTMLElement | null): HTMLElement[] {
   return root ? Array.from(root.querySelectorAll<HTMLElement>(FOCUSABLE)) : []
@@ -81,6 +93,11 @@ export function MapSettingsDialog({
   useEffect(() => {
     const [first] = focusablesIn(bodyRef.current)
     ;(first ?? dialogRef.current)?.focus()
+    const box = dialogRef.current
+    // `animate` não existe em jsdom, e quem pediu menos movimento não recebe nenhum.
+    if (box && typeof box.animate === 'function' && !window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
+      box.animate(ENTRADA_QUADROS, ENTRADA_TEMPO)
+    }
   }, [])
 
   function onKeyDown(event: KeyboardEvent<HTMLDivElement>) {
@@ -177,8 +194,14 @@ export function MapSettingsButton({ showScenarioLink, ...props }: MapSettingsPro
       <button
         ref={buttonRef}
         type="button"
-        className="lb-iconbtn lb-inspector__settings"
+        // O balão repete o nome acessível, como nos ícones da barra: uma
+        // engrenagem sozinha não diz o que abre. Para baixo, porque o
+        // cabeçalho fica no topo do painel, e alinhado pela direita do botão
+        // (main.css, `.lb-inspector__settings.lb-tip`): centrado, ele saía do
+        // painel e a barra de ferramentas cortava o texto.
+        className="lb-iconbtn lb-tip lb-inspector__settings"
         aria-label="Configurações do mapa"
+        data-tip="Configurações do mapa"
         aria-haspopup="dialog"
         aria-expanded={open}
         onClick={() => setOpen(true)}

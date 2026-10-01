@@ -4,8 +4,8 @@
  * `justify-content:space-between`, `gap`, `padding`) de `.lb-actionbar`
  * também (main.css:982) — mesma convenção documentada em ZoomHud.css e
  * Toast.css. Aqui só o que é específico desta barra: o divisor entre o
- * grupo de histórico e o de arquivo, o estado desabilitado dos dois botões
- * novos de desfazer/refazer, e a quebra de linha que os dois exigem.
+ * grupo de histórico e o de arquivo, a quebra de linha que os botões de
+ * desfazer/refazer exigem e o menu de imagem de fundo.
  * Só `var(--lb-*)` de theme.ts — zero hex.
  */
 
@@ -37,14 +37,8 @@
   background: var(--lb-color-line);
 }
 
-/* `.lb-iconbtn` (main.css:194) não define estado `:disabled` — nenhum botão
-   da barra precisava dele até desfazer/refazer existirem. Escopado a esta
-   barra (não ao seletor global) para não mudar a aparência de botões
-   desabilitados em outros painéis que não pediram isso. */
-.lb-actionbar .lb-iconbtn:disabled {
-  opacity: 0.35;
-  cursor: default;
-}
+/* Desfazer/refazer sem histórico usam o `.lb-iconbtn:disabled` global
+   (main.css), o mesmo de todo ícone desabilitado do app. */
 
 /* Botão de imagem com o menu aberto: mesmo destaque da setinha de variantes. */
 .lb-actionbar .lb-iconbtn[aria-expanded='true'] {
@@ -70,6 +64,17 @@
   /* Opaco: o menu abre por cima do painel de propriedades, e o fundo
      translúcido de .lb-panel deixava os textos do painel vazarem entre os itens. */
   background: var(--lb-color-stone-solid);
+  /* Brota da barra, de baixo para cima, como o menu "…" da cena (mesma
+     lb-cenas-menu-entra, do main.css). A origem fica no meio: o botão de imagem
+     mora no meio da barra, e o menu tem a largura dela. */
+  transform-origin: bottom center;
+  animation: lb-cenas-menu-entra var(--lb-motion-fast) var(--lb-motion-ease);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lb-panel.lb-actionbar-menu {
+    animation: none;
+  }
 }
 
 .lb-actionbar-menu__item {

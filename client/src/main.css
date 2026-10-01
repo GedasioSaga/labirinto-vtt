@@ -142,7 +142,8 @@ body {
   transition:
     background var(--lb-motion-fast) var(--lb-motion-ease),
     border-color var(--lb-motion-fast) var(--lb-motion-ease),
-    color var(--lb-motion-fast) var(--lb-motion-ease);
+    color var(--lb-motion-fast) var(--lb-motion-ease),
+    transform var(--lb-motion-fast) var(--lb-motion-ease);
 }
 
 .lb-btn:hover:not(:disabled) {
@@ -150,13 +151,21 @@ body {
   border-color: var(--lb-color-line-strong);
 }
 
+/* Apertar afunda o botão 3% e ele volta em 110 ms (Emil: scale(0.97) no
+   :active). É o mesmo aperto das pastilhas (.lb-seg--pairs), dos chips e dos
+   Dados: um retorno de clique só no app inteiro, em vez de dois. */
 .lb-btn:active:not(:disabled) {
   background: var(--lb-color-stone-sunken);
+  transform: scale(0.97);
 }
 
+/* A borda volta ao neutro junto com o fundo: sem isto o primário desabilitado
+   guardava o contorno de latão e parecia chamar para a ação. A especificidade
+   (0,2,0) vence a borda das variantes (0,1,0). */
 .lb-btn:disabled {
   color: var(--lb-color-parchment-faint);
   background: transparent;
+  border-color: var(--lb-color-line);
   cursor: not-allowed;
 }
 
@@ -187,6 +196,12 @@ body {
   background: var(--lb-color-stone-raised);
   border-color: var(--lb-color-line);
   color: var(--lb-color-parchment);
+}
+
+/* O fantasma não tem moldura nem desabilitado: a borda neutra do .lb-btn:disabled
+   o transformaria num botão comum apagado. */
+.lb-btn--ghost:disabled {
+  border-color: transparent;
 }
 
 .lb-btn--danger:not(:disabled) {
@@ -231,14 +246,52 @@ body {
   background: transparent;
   color: var(--lb-color-parchment-dim);
   cursor: pointer;
+  /* `border-color` junto do fundo: no estado pressionado a borda de latão
+     acende no mesmo ritmo do fundo, em vez de aparecer de estalo. */
   transition:
     background var(--lb-motion-fast) var(--lb-motion-ease),
-    color var(--lb-motion-fast) var(--lb-motion-ease);
+    border-color var(--lb-motion-fast) var(--lb-motion-ease),
+    color var(--lb-motion-fast) var(--lb-motion-ease),
+    transform var(--lb-motion-fast) var(--lb-motion-ease);
 }
 
 .lb-iconbtn:hover:not(:disabled) {
   background: var(--lb-color-stone-hover);
   color: var(--lb-color-parchment);
+}
+
+/* Ícone que não faz nada agora (desfazer sem histórico, distribuir com 2
+   itens, a seta da camada que já está na ponta): apagado, e o hover acima já
+   não acende. Era cópia em ActionBar.css e AlignDistributeControls.css, e as
+   setas das camadas do piso ficavam com cara de ativas. `cursor: default`,
+   como nas cópias: numa fileira de ícones a seta comum não pisca um "proibido"
+   a cada passada do mouse. */
+.lb-iconbtn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+/* O mesmo aperto do .lb-btn. O balão (.lb-tip::after) é filho do botão e
+   encolhe junto, 3% por 110 ms: isso não se percebe. O que se perceberia é
+   outra coisa: o transform faz do botão um contexto de empilhamento, e o
+   z-index 10 do balão passa a valer só dentro dele. Com a barra em duas
+   fileiras, os ícones de baixo pintariam por cima do balão enquanto o botão
+   está apertado. Por isso o botão apertado sobe acima dos vizinhos; 2 fica
+   abaixo da setinha de variantes (3), que mora no canto do próprio botão e não
+   pode sumir. */
+.lb-iconbtn:active:not(:disabled) {
+  transform: scale(0.97);
+  z-index: 2;
+}
+
+/* O bloco global de movimento reduzido só encurta a duração: o salto de escala
+   continuaria. Aqui o botão não muda de tamanho (no .lb-btn o fundo que afunda
+   segue dando o retorno). */
+@media (prefers-reduced-motion: reduce) {
+  .lb-btn:active:not(:disabled),
+  .lb-iconbtn:active:not(:disabled) {
+    transform: none;
+  }
 }
 
 .lb-iconbtn[aria-pressed='true'] {
@@ -265,7 +318,10 @@ body {
   z-index: 10;
   padding: 5px var(--lb-space-2);
   border-radius: var(--lb-radius-sm);
-  background: var(--lb-color-stone-sunken);
+  /* Um degrau acima da pedra do painel, como o balão das dicas do inspetor: em
+     stone-sunken ele era quase o próprio painel, e acima do trilho só a borda
+     fina o separava. */
+  background: var(--lb-color-stone-raised);
   border: 1px solid var(--lb-color-line-strong);
   box-shadow: var(--lb-shadow-md);
   color: var(--lb-color-parchment);
@@ -277,9 +333,16 @@ body {
   /* pointer-events:none é obrigatório: sem isso o tooltip de um botão cobre o
      vizinho e o clique seguinte erra o alvo. */
   pointer-events: none;
-  transition:
-    opacity var(--lb-motion-fast) var(--lb-motion-ease),
-    transform var(--lb-motion-fast) var(--lb-motion-ease);
+  /* Só a ENTRADA anima: o tempo e a espera moram nos estados de mostrar,
+     abaixo. A saída usa o tempo deste estado de repouso, e ele é zero: o balão
+     que sai não fica esmaecendo por cima do próximo. No Tab não haveria outro
+     jeito: o Chrome recalcula o estilo entre tirar o foco de um ícone e dar ao
+     outro, e nesse meio-tempo nada na fileira está focado, então nenhuma regra
+     "de teclado" alcança o balão que sai (medido: 1 → 0,17 → 0,03 em 60 ms,
+     por cima do novo). */
+  transition-property: opacity, transform;
+  transition-duration: 0ms;
+  transition-timing-function: var(--lb-motion-ease);
   transition-delay: 0ms;
 }
 
@@ -294,15 +357,16 @@ body {
   width: 8px;
   height: 8px;
   margin-left: -4px;
-  background: var(--lb-color-stone-sunken);
+  background: var(--lb-color-stone-raised);
   border-left: 1px solid var(--lb-color-line-strong);
   border-top: 1px solid var(--lb-color-line-strong);
   opacity: 0;
   transform: translateY(-3px) rotate(45deg);
   pointer-events: none;
-  transition:
-    opacity var(--lb-motion-fast) var(--lb-motion-ease),
-    transform var(--lb-motion-fast) var(--lb-motion-ease);
+  /* Sai na hora, junto com o balão (acima). */
+  transition-property: opacity, transform;
+  transition-duration: 0ms;
+  transition-timing-function: var(--lb-motion-ease);
   transition-delay: 0ms;
 }
 
@@ -326,14 +390,48 @@ body {
 .lb-tip:focus-visible::after {
   opacity: 1;
   transform: translate(-50%, 0);
-  transition-delay: 320ms;
+  transition-duration: var(--lb-motion-fast);
+  transition-delay: var(--lb-motion-tip-delay);
 }
 
 .lb-tip:hover::before,
 .lb-tip:focus-visible::before {
   opacity: 1;
   transform: translateY(0) rotate(45deg);
-  transition-delay: 320ms;
+  transition-duration: var(--lb-motion-fast);
+  transition-delay: var(--lb-motion-tip-delay);
+}
+
+/* Foco pelo teclado: o balão vem junto com o foco, sem espera e sem movimento
+   (quem navega por tecla não espera entrada). Vem depois da regra acima, que
+   tem a mesma especificidade. */
+.lb-tip:focus-visible::after,
+.lb-tip:focus-visible::before {
+  transition-delay: 0ms;
+  transition-duration: 0ms;
+}
+
+/* Só o primeiro balão de um passeio espera. Quando ele aparece, o Toolbar marca
+   a barra com `data-tip-quente`, e os vizinhos abrem na hora e sem movimento
+   (os vizinhos estão a 40 px e os balões são mais largos que isso: um balão
+   entrando devagar ao lado do que acabou de sair se leria como dois). Mesma
+   língua das dicas do inspetor (lib/dicaDoPainel.ts). */
+.lb-toolbar[data-tip-quente] .lb-tip::after,
+.lb-toolbar[data-tip-quente] .lb-tip::before {
+  transition-delay: 0ms;
+  transition-duration: 0ms;
+}
+
+/* Botão com o próprio menu aberto (aria-expanded): quem responde é o menu, e o
+   balão sai na hora. Sem isto, o balão do botão de imagem de fundo ficava atrás
+   do menu que o botão abriu, com o texto vazando pela borda. O pairar continua
+   valendo com o menu aberto, então a espera e o tempo dele também são zerados
+   aqui. Mesma decisão do "⋯" do cabeçalho da seleção (SelectionHeader.css). */
+.lb-tip[aria-expanded='true']::after,
+.lb-tip[aria-expanded='true']::before {
+  opacity: 0;
+  transition-delay: 0ms;
+  transition-duration: 0ms;
 }
 
 /* ------------------------------------------------------------------- campos */
@@ -639,6 +737,7 @@ body {
   /* Liga/desliga responde à pressão na hora e volta sozinho (< 150 ms). */
   transition:
     background var(--lb-motion-fast) var(--lb-motion-ease),
+    border-color var(--lb-motion-fast) var(--lb-motion-ease),
     color var(--lb-motion-fast) var(--lb-motion-ease),
     transform var(--lb-motion-fast) var(--lb-motion-ease);
 }
@@ -661,8 +760,10 @@ body {
   font-size: var(--lb-font-size-sm);
   font-weight: var(--lb-font-weight-medium);
   cursor: pointer;
+  /* A borda de latão do marcado acende no ritmo do fundo, não de estalo. */
   transition:
     background var(--lb-motion-fast) var(--lb-motion-ease),
+    border-color var(--lb-motion-fast) var(--lb-motion-ease),
     color var(--lb-motion-fast) var(--lb-motion-ease);
 }
 
@@ -997,6 +1098,13 @@ body {
   opacity: 0;
 }
 
+/* Menu da setinha aberto: ele abre na mesma faixa sob a barra, e a dica ficava
+   atrás dele, vazando pelo vidro e pelas laterais. Enquanto o menu está
+   aberto, só ele fala; fechou, a dica volta. */
+.lb-toolbar:has(.lb-toolvariant-menu) ~ .lb-hint {
+  opacity: 0;
+}
+
 .lb-hint::before {
   content: '';
   position: absolute;
@@ -1046,6 +1154,18 @@ body {
   display: block;
 }
 
+/* O menu aqui é da setinha, irmã do botão da ferramenta, mas o par é um
+   controle só: com o menu aberto, o balão do botão também sai, como o de todo
+   botão com o próprio menu aberto (`.lb-tip[aria-expanded='true']`, no bloco
+   do tooltip). Sem isto, o ponteiro de volta ao botão acendia o balão atrás do
+   menu, e o pedaço que passa da borda esquerda dele ficava à vista. */
+.lb-toolvariant-anchor:has(> .lb-toolvariant-arrow[aria-expanded='true']) > .lb-tip::after,
+.lb-toolvariant-anchor:has(> .lb-toolvariant-arrow[aria-expanded='true']) > .lb-tip::before {
+  opacity: 0;
+  transition-delay: 0ms;
+  transition-duration: 0ms;
+}
+
 /* O popover é uma FILEIRA de colunas (uma só, na maioria das ferramentas), e
    o orçamento de altura é o que sobra da janela abaixo do topo dele. Quem mede
    o topo é `ToolVariantMenu.tsx`, que entrega o número em
@@ -1079,6 +1199,12 @@ body {
   padding: var(--lb-space-2);
   max-height: max(160px, calc(100vh - var(--lb-toolvariant-topo, 0px) - var(--lb-layout-edge-gap)));
   overscroll-behavior: contain;
+  /* Brota do canto da setinha que o abriu, como o menu da parede e o "…" da
+     cena. Só opacidade e escala: com a origem no topo, a escala não mexe no
+     topo que `ToolVariantMenu.tsx` mede, e transform não muda scrollHeight
+     nem offsetWidth, as outras duas medidas dele. */
+  transform-origin: top left;
+  animation: lb-cenas-menu-entra var(--lb-motion-fast) var(--lb-motion-ease);
 }
 
 /* Abre para a esquerda quando abrir para a direita passaria da janela — o
@@ -1086,6 +1212,13 @@ body {
 .lb-toolvariant-menu--direita {
   left: auto;
   right: 0;
+  transform-origin: top right;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lb-toolvariant-menu {
+    animation: none;
+  }
 }
 
 /* Uma coluna. Em menu de coluna única é ela que dá ao popover a largura de
@@ -1684,6 +1817,27 @@ label.lb-switch[data-dica-linha='aberta'] > span:first-child::after,
   margin-left: auto;
 }
 
+/* O balão da engrenagem cresce para dentro do painel, alinhado pela direita do
+   botão. Centrado nele, passava quase 50 px da borda direita do inspetor, e
+   ali quem manda é a barra de ferramentas: ela tem z-index 2, e o painel
+   inteiro, por causa do desfoque (backdrop-filter), é um contexto de
+   empilhamento sem z-index, então o z-index 10 do balão só vale dentro do
+   painel. Em 1280 e 1440 de largura a barra cobria o fim do texto
+   ("Configurações do m"). Dentro do painel ninguém o cobre. A setinha
+   (::before) continua no meio do botão, e o movimento de entrada é o mesmo, só
+   sem o centramento. Mesma saída do balão do cabeçalho da seleção
+   (SelectionHeader.css). */
+.lb-inspector__settings.lb-tip::after {
+  left: auto;
+  right: 0;
+  transform: translateY(-3px);
+}
+
+.lb-inspector__settings.lb-tip:hover::after,
+.lb-inspector__settings.lb-tip:focus-visible::after {
+  transform: translateY(0);
+}
+
 /* Janela "Configurações do mapa" (MapSettingsDialog). O fundo escurece pouco:
    "Alinhar grade à imagem" desenha a prévia no canvas e o usuário precisa
    enxergar a imagem atrás da janela. */
@@ -1694,7 +1848,39 @@ label.lb-switch[data-dica-linha='aberta'] > span:first-child::after,
   display: grid;
   place-items: center;
   padding: var(--lb-space-6);
+}
+
+/* O véu escuro é uma camada própria, e não o fundo do .lb-dialog-backdrop, para
+   poder entrar esmaecendo junto com a caixa (que cada janela anima por WAAPI).
+   Esmaecer o próprio backdrop multiplicaria a opacidade da caixa, que é filha
+   dele, e isolaria o desfoque (backdrop-filter) dela, que só enxergaria o véu
+   até a entrada acabar. Pseudo-elemento não é alvo de evento: o clique nele
+   continua chegando ao backdrop, que fecha a janela. */
+.lb-dialog-backdrop::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
   background: rgba(0, 0, 0, 0.32);
+  animation: lb-fundo-entra var(--lb-motion-base) var(--lb-motion-ease);
+}
+
+@keyframes lb-fundo-entra {
+  from {
+    opacity: 0;
+  }
+}
+
+/* Atalhos abre pela tecla "?" e a caixa dela aparece de uma vez: quem chega pelo
+   teclado não espera entrada, e o véu acompanha a caixa. */
+.lb-dialog-backdrop:has(> .lb-shortcuts)::before {
+  animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lb-dialog-backdrop::before {
+    animation: none;
+  }
 }
 
 .lb-dialog {
@@ -1829,13 +2015,21 @@ label.lb-switch[data-dica-linha='aberta'] > span:first-child::after,
 }
 
 /* Confirmação de tirar a ficha de outro jogador: dentro do card, com a borda
-   da cor de perigo para não passar por dica. */
+   da cor de perigo para não passar por dica. Desce da linha que a pediu, como
+   o "Mais" do jogador (lb-mais-abre, abaixo): a pergunta não surge do nada. */
 .lb-room__confirm {
   display: flex;
   flex-direction: column;
   gap: var(--lb-space-2);
   padding: var(--lb-space-2) var(--lb-space-3);
   border-left: 2px solid var(--lb-color-ember);
+  animation: lb-mais-abre var(--lb-motion-base) var(--lb-motion-ease);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lb-room__confirm {
+    animation: none;
+  }
 }
 
 .lb-room__confirm p {
@@ -2970,12 +3164,26 @@ label.lb-switch[data-dica-linha='aberta'] > span:first-child::after,
   cursor: pointer;
   transition:
     background var(--lb-motion-fast) var(--lb-motion-ease),
-    color var(--lb-motion-fast) var(--lb-motion-ease);
+    border-color var(--lb-motion-fast) var(--lb-motion-ease),
+    color var(--lb-motion-fast) var(--lb-motion-ease),
+    transform var(--lb-motion-fast) var(--lb-motion-ease);
 }
 
 .lb-railtabs__tab:hover {
   background: var(--lb-color-stone-hover);
   color: var(--lb-color-parchment);
+}
+
+/* O mesmo aperto dos botões (.lb-btn). A troca pelas setas não passa por
+   :active, então o teclado não ganha movimento. */
+.lb-railtabs__tab:active {
+  transform: scale(0.97);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lb-railtabs__tab:active {
+    transform: none;
+  }
 }
 
 .lb-railtabs__tab[aria-selected='true'] {
@@ -3331,12 +3539,25 @@ label.lb-switch[data-dica-linha='aberta'] > span:first-child::after,
   cursor: pointer;
   transition:
     background var(--lb-motion-fast) var(--lb-motion-ease),
-    border-color var(--lb-motion-fast) var(--lb-motion-ease);
+    border-color var(--lb-motion-fast) var(--lb-motion-ease),
+    transform var(--lb-motion-fast) var(--lb-motion-ease);
 }
 
 .lb-menucard:hover:not(:disabled) {
   background: var(--lb-color-stone-hover);
   border-color: var(--lb-color-brass);
+}
+
+/* Cartão largo afunda menos que o botão: 3% de um cartão de 600 px tirariam
+   18 px da largura, e o aperto viraria movimento. */
+.lb-menucard:active:not(:disabled) {
+  transform: scale(0.985);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lb-menucard:active:not(:disabled) {
+    transform: none;
+  }
 }
 
 .lb-menucard:disabled {
@@ -3543,12 +3764,29 @@ label.lb-switch[data-dica-linha='aberta'] > span:first-child::after,
   font-family: inherit;
   text-align: left;
   cursor: pointer;
-  transition: background var(--lb-motion-fast) var(--lb-motion-ease);
+  transition:
+    background var(--lb-motion-fast) var(--lb-motion-ease),
+    border-color var(--lb-motion-fast) var(--lb-motion-ease),
+    transform var(--lb-motion-fast) var(--lb-motion-ease);
 }
 
 .lb-maplist__item:hover {
   background: var(--lb-color-stone-hover);
   border-color: var(--lb-color-brass);
+}
+
+/* O cartão é um <div> com o botão que abre o mapa, os de Renomear, Duplicar e
+   Excluir e, renomeando, um campo (LoadMapScreen.tsx). Só o botão de abrir —
+   o único filho direto que é botão — afunda o cartão inteiro: com :active no
+   próprio cartão, clicar no campo ou em Excluir também o encolheria. */
+.lb-maplist__item:has(> button:not(:disabled):active) {
+  transform: scale(0.985);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lb-maplist__item:has(> button:not(:disabled):active) {
+    transform: none;
+  }
 }
 
 .lb-maplist__name {
@@ -3968,7 +4206,10 @@ label.lb-switch[data-dica-linha='aberta'] > span:first-child::after,
   background: var(--lb-color-stone-solid);
   /* A linha também é a alça do arrasto: puxar por ela não pinta texto de azul. */
   user-select: none;
-  transition: background-color var(--lb-motion-fast) var(--lb-motion-ease);
+  /* Borda no ritmo do fundo: o destino do arrasto (data-alvo) muda os dois. */
+  transition:
+    background-color var(--lb-motion-fast) var(--lb-motion-ease),
+    border-color var(--lb-motion-fast) var(--lb-motion-ease);
 }
 
 .lb-cenas__item--ativa {
@@ -4269,7 +4510,8 @@ label.lb-switch[data-dica-linha='aberta'] > span:first-child::after,
   color: var(--lb-color-parchment);
 }
 
-/* Confirmação de apagar: a linha inteira, no molde da de "Dar a…" do painel Sala. */
+/* Confirmação de apagar: a linha inteira, no molde da de "Dar a…" do painel
+   Sala, e entrando do mesmo jeito (desce da linha da cena). */
 .lb-cenas__apagar {
   display: flex;
   flex-direction: column;
@@ -4277,6 +4519,13 @@ label.lb-switch[data-dica-linha='aberta'] > span:first-child::after,
   gap: var(--lb-space-2);
   padding: var(--lb-space-2) var(--lb-space-3);
   border-left: 2px solid var(--lb-color-ember);
+  animation: lb-mais-abre var(--lb-motion-base) var(--lb-motion-ease);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lb-cenas__apagar {
+    animation: none;
+  }
 }
 
 .lb-cenas__apagar p {
@@ -5327,6 +5576,13 @@ html.lb-arrastando-cena * {
   box-shadow: inset 0 0 0 1px var(--lb-color-parchment);
 }
 
+/* A sombra do próprio ponto (acima, mesma especificidade do :focus-visible
+   global e declarada depois) apagava o anel de foco: no Tab, nada mostrava
+   qual ponto estava focado. Aqui vão os dois, o contorno aceso e o anel. */
+.lb-corte__ponto:focus-visible {
+  box-shadow: inset 0 0 0 1px var(--lb-color-parchment), var(--lb-shadow-focus);
+}
+
 /* Pedido de passagem esperando: um anel de latão que pulsa em volta do disco. */
 .lb-corte__ponto--pedido::after {
   content: '';
@@ -5507,6 +5763,18 @@ html.lb-arrastando-cena * {
   top: 50%;
   right: var(--lb-space-1);
   transform: translateY(-50%);
+}
+
+/* O aperto do .lb-iconbtn trocaria o transform inteiro e o botão cairia meia
+   altura para fora do campo: aqui a escala vem somada à centralização. */
+.lb-objetos__limpar:active:not(:disabled) {
+  transform: translateY(-50%) scale(0.97);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lb-objetos__limpar:active:not(:disabled) {
+    transform: translateY(-50%);
+  }
 }
 
 .lb-objetos__resumo,

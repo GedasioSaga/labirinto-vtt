@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ComponentType, type CSSProperties, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ComponentType, type CSSProperties, type ReactNode, type RefObject } from 'react'
 import type { DrawingTool } from '../types/tools'
 import { theme } from '../theme'
 import { ROOM_FREE_WALL_HINT, TOOLBAR_SLOTS, TOOL_CLUSTERS, TOOL_HINTS, TOOL_LABELS, clusterIdOf, type ToolbarSlot } from './labels'
@@ -199,6 +199,86 @@ function echoLineStyle(withSeparator: boolean): CSSProperties {
 const ECHO_LINE_MOTION: KeyframeAnimationOptions = { duration: parseFloat(theme.motion.base), easing: theme.motion.ease }
 const ECHO_MARK_MOTION: KeyframeAnimationOptions = { duration: parseFloat(theme.motion.fast), easing: theme.motion.ease }
 
+/* --------------------------------------------------------- balão aquecido */
+
+/** Tempo parado sobre um ícone antes do PRIMEIRO balão: o mesmo que o CSS segura (`--lb-motion-tip-delay`). */
+const ESPERA_DO_PRIMEIRO_MS = Number.parseFloat(theme.motion.tipDelay)
+
+/**
+ * Depois que o ponteiro sai dos ícones, o vizinho ainda abre na hora durante
+ * esta janela. Atravessar o vão de 4 px entre dois ícones leva bem menos.
+ */
+const JANELA_DO_VIZINHO_MS = 300
+
+/** Marca da barra aquecida, lida pelo main.css (`.lb-toolbar[data-tip-quente]`). */
+const ATRIBUTO_QUENTE = 'data-tip-quente'
+
+/**
+ * Balão aquecido (catálogo de convenções, "Dica de ferramenta": pairar espera,
+ * e o vizinho aparece na hora). O CSS segura cada balão `ESPERA_DO_PRIMEIRO_MS`;
+ * quando o primeiro aparece, a barra ganha `data-tip-quente` e o CSS passa a
+ * mostrar os vizinhos sem espera e sem movimento. Saindo dos ícones, a barra
+ * esfria depois de `JANELA_DO_VIZINHO_MS`. Mesma conta das dicas do inspetor
+ * (`lib/dicaDoPainel.ts`), com os números desta barra.
+ *
+ * O atributo é escrito direto no elemento, sem estado do React: passar o mouse
+ * pela barra não re-renderiza nada. Toque não aquece: no dedo não existe
+ * pairar, e um toque não é passeio de ponteiro pela barra.
+ */
+function useBalaoQuente(barraRef: RefObject<HTMLDivElement | null>): void {
+  useEffect(() => {
+    const barra = barraRef.current
+    if (!barra) return
+    let aquecer: ReturnType<typeof setTimeout> | null = null
+    let esfriar: ReturnType<typeof setTimeout> | null = null
+
+    const pararDeAquecer = () => {
+      if (aquecer === null) return
+      clearTimeout(aquecer)
+      aquecer = null
+    }
+    const pararDeEsfriar = () => {
+      if (esfriar === null) return
+      clearTimeout(esfriar)
+      esfriar = null
+    }
+    /** O alvo é um ícone com balão desta barra, ou fica dentro de um (o desenho em svg). */
+    const sobreBalao = (alvo: EventTarget | null) => alvo instanceof Element && barra.contains(alvo) && alvo.closest('.lb-tip') !== null
+
+    const aoEntrar = (evento: PointerEvent) => {
+      if (evento.pointerType === 'touch' || !sobreBalao(evento.target)) return
+      pararDeEsfriar()
+      if (barra.hasAttribute(ATRIBUTO_QUENTE) || aquecer !== null) return
+      aquecer = setTimeout(() => {
+        aquecer = null
+        barra.setAttribute(ATRIBUTO_QUENTE, '')
+      }, ESPERA_DO_PRIMEIRO_MS)
+    }
+
+    const aoSair = (evento: PointerEvent) => {
+      // Do botão para o desenho dele, ou direto para o vizinho: continua sobre um balão.
+      if (evento.pointerType === 'touch' || !sobreBalao(evento.target) || sobreBalao(evento.relatedTarget)) return
+      pararDeAquecer()
+      if (!barra.hasAttribute(ATRIBUTO_QUENTE)) return
+      pararDeEsfriar()
+      esfriar = setTimeout(() => {
+        esfriar = null
+        barra.removeAttribute(ATRIBUTO_QUENTE)
+      }, JANELA_DO_VIZINHO_MS)
+    }
+
+    barra.addEventListener('pointerover', aoEntrar)
+    barra.addEventListener('pointerout', aoSair)
+    return () => {
+      barra.removeEventListener('pointerover', aoEntrar)
+      barra.removeEventListener('pointerout', aoSair)
+      pararDeAquecer()
+      pararDeEsfriar()
+      barra.removeAttribute(ATRIBUTO_QUENTE)
+    }
+  }, [barraRef])
+}
+
 /** Posição da barra e eixo tocados pela última escolha de variante. */
 interface VariantChoice {
   slot: ToolbarSlot
@@ -334,6 +414,9 @@ export function Toolbar({ activeTool, onSelectTool, lastDrawingTool, variantBind
   const dockRef = useRef<HTMLDivElement>(null)
   const hintRef = useRef<HTMLParagraphElement>(null)
   const activeButtonRef = useRef<HTMLButtonElement>(null)
+  /** A barra em si (`.lb-toolbar`): é nela que o balão aquecido escreve o atributo. */
+  const barraRef = useRef<HTMLDivElement>(null)
+  useBalaoQuente(barraRef)
   /** Os dois pedaços do eco — a frase no balão e o ponto no botão —, só para a
    *  animação de entrada. */
   const echoRef = useRef<HTMLSpanElement>(null)
@@ -467,7 +550,7 @@ export function Toolbar({ activeTool, onSelectTool, lastDrawingTool, variantBind
 
   return (
     <div className="lb-toolbar-dock" ref={dockRef}>
-      <div className="lb-panel lb-toolbar" role="toolbar" aria-label="Ferramentas do mapa">
+      <div ref={barraRef} className="lb-panel lb-toolbar" role="toolbar" aria-label="Ferramentas do mapa">
         {TOOLBAR_SLOTS.map((group, index) => (
           // Grupo inteiro é a unidade de quebra de linha — ver comentário do
           // componente. O separador mora dentro do grupo que ele abre, então

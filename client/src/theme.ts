@@ -168,8 +168,16 @@ export const theme = {
      */
     float:
       '0 0 0 1px rgba(0, 0, 0, 0.5), 0 1px 2px rgba(0, 0, 0, 0.5), 0 6px 14px rgba(0, 0, 0, 0.44), 0 20px 46px rgba(0, 0, 0, 0.55)',
-    /** Anel de foco — mesmo em todo controle focável. */
-    focus: '0 0 0 3px rgba(224, 164, 74, 0.34)',
+    /**
+     * Anel de foco — mesmo em todo controle focável. Latão sólido de 2 px, como
+     * o contorno de foco do jogador (player.css), e não o halo a 34% de antes:
+     * pela conta, sobre o painel composto (~#141418), o halo dava 2:1 e o latão
+     * sólido dá 8,4:1 (o mínimo para indicador de foco é 3:1). A primeira
+     * camada é a folga: 2 px da pedra opaca entre o controle e o anel. Sem ela,
+     * o anel colado ao botão primário (fundo e borda de latão) se fundia nele,
+     * e o foco sumia justamente no botão principal.
+     */
+    focus: '0 0 0 2px var(--lb-color-stone-solid), 0 0 0 4px var(--lb-color-brass)',
     /** Brilho interno de 1px que dá relevo ao painel de vidro. */
     bevel: 'inset 0 1px 0 rgba(255, 255, 255, 0.07)',
   },
@@ -179,6 +187,13 @@ export const theme = {
     base: '170ms',
     /** Desaceleração suave; nada de bounce em UI de ferramenta. */
     ease: 'cubic-bezier(0.2, 0.8, 0.2, 1)',
+    /**
+     * Espera do PRIMEIRO balão de ícone (`.lb-tip`) ao pairar. Mora aqui porque
+     * o CSS e o Toolbar precisam do mesmo número: o CSS segura o balão este
+     * tempo, e o Toolbar aquece a barra no mesmo instante para os vizinhos
+     * abrirem sem espera.
+     */
+    tipDelay: '320ms',
   },
 } as const
 

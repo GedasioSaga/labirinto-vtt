@@ -16,9 +16,5 @@
   margin-right: var(--lb-space-2);
 }
 
-/* `.lb-iconbtn` não define `:disabled` (ver ActionBar.css); aqui é preciso:
-   com 2 itens os dois de distribuir aparecem desligados. */
-.lb-align .lb-iconbtn:disabled {
-  opacity: 0.35;
-  cursor: default;
-}
+/* Com 2 itens os dois de distribuir aparecem desligados: o apagado vem do
+   `.lb-iconbtn:disabled` global (main.css). */
