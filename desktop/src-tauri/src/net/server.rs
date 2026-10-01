@@ -595,7 +595,7 @@ impl TokenBucket {
 
 async fn player_page(State(room): State<Arc<Room>>) -> Response {
     match (room.assets)("player.html") {
-        Some(asset) => asset_response(asset),
+        Some(asset) => asset_response(asset, CACHE_SEMPRE_CONFERIR),
         // Em `tauri dev` com `devUrl`, o resolver só acha o build se `client/dist`
         // existia na hora de compilar. Sem ele, a página vem do Vite — mas
         // SERVIDA por esta sala, nunca por redirecionamento.
@@ -682,7 +682,7 @@ async fn dev_proxy(path: &str) -> Response {
             // Mesmo `nosniff` de `asset_response`: o tipo vem do Vite, e o
             // navegador não pode adivinhar outro em cima dele.
             (header::X_CONTENT_TYPE_OPTIONS, HeaderValue::from_static("nosniff")),
-            (header::CACHE_CONTROL, HeaderValue::from_static("no-cache")),
+            (header::CACHE_CONTROL, HeaderValue::from_static(CACHE_SEMPRE_CONFERIR)),
         ],
         bytes,
     )
@@ -778,7 +778,10 @@ async fn asset_file(State(room): State<Arc<Room>>, Path(path): Path<String>) -> 
         return StatusCode::NOT_FOUND.into_response();
     }
     match (room.assets)(&format!("assets/{path}")) {
-        Some(asset) => asset_response(asset),
+        Some(asset) => {
+            let cache = cache_do_asset(&path, &asset.bytes);
+            asset_response(asset, cache)
+        }
         None => StatusCode::NOT_FOUND.into_response(),
     }
 }
@@ -797,13 +800,73 @@ async fn media_stub(Path(_id): Path<String>) -> StatusCode {
     StatusCode::NOT_FOUND
 }
 
-fn asset_response(asset: Asset) -> Response {
+/// `Cache-Control` do que o navegador confere a cada abertura: a `player.html`
+/// (é ela que aponta para os nomes do build atual), o proxy de dev e o que em
+/// `/assets` não é arquivo do build. Sem `ETag`, conferir é baixar de novo.
+const CACHE_SEMPRE_CONFERIR: &str = "no-cache";
+/// `Cache-Control` dos arquivos do build em `/assets`: o nome leva o hash do
+/// conteúdo, então conteúdo novo sai com nome novo e o navegador guarda por um
+/// ano sem perguntar (`immutable` vale também para o recarregar).
+const CACHE_IMUTAVEL: &str = "public, max-age=31536000, immutable";
+/// Tamanho do `[hash]` que o Rollup põe no nome (`player-6b9PUy9d.js`).
+const TAMANHO_HASH_VITE: usize = 8;
+/// Como começa uma página HTML (comparado sem diferença de caixa).
+const MARCAS_DE_HTML: [&[u8]; 3] = [b"<!doctype html", b"<html", b"<!--"];
+
+/// Só o arquivo do build vai com `CACHE_IMUTAVEL`; o resto continua conferindo.
+///
+/// - Nome sem o hash do Vite: conteúdo novo sairia com o mesmo nome (o que vem
+///   de `client/public/assets` é copiado assim) e o celular ficaria com o velho
+///   por um ano.
+/// - Corpo que é página HTML: em release, o resolver do Tauri responde caminho
+///   que não existe com o `index.html` (fallback final de
+///   `AppManager::get_asset`, tauri 2.11). Acontece quando uma página aberta de
+///   um build pede um chunk de outro; guardada por um ano, essa resposta ficaria
+///   no lugar do chunk mesmo depois que o build dele voltasse.
+fn cache_do_asset(path: &str, bytes: &[u8]) -> &'static str {
+    if nome_com_hash_do_vite(path) && !parece_pagina_html(bytes) {
+        CACHE_IMUTAVEL
+    } else {
+        CACHE_SEMPRE_CONFERIR
+    }
+}
+
+/// Nome no formato `[name]-[hash].ext` do Vite: os 8 caracteres antes da
+/// extensão são base64 de URL, vêm depois de um hífen e têm ao menos uma
+/// maiúscula ou um dígito. A última regra separa o hash de uma palavra de 8
+/// letras (`porta-rangendo.mp3`); um hash sem maiúscula nem dígito (~0,1% dos
+/// nomes) só perde o cache longo.
+fn nome_com_hash_do_vite(path: &str) -> bool {
+    let arquivo = path.rsplit_once('/').map_or(path, |(_, nome)| nome);
+    let Some((base, extensao)) = arquivo.rsplit_once('.') else {
+        return false;
+    };
+    let base = base.as_bytes();
+    let Some((nome, hash)) = base.len().checked_sub(TAMANHO_HASH_VITE).and_then(|corte| base.split_at_checked(corte)) else {
+        return false;
+    };
+    !extensao.is_empty()
+        && nome.ends_with(b"-")
+        && hash.iter().all(|&b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_')
+        && hash.iter().any(|&b| b.is_ascii_uppercase() || b.is_ascii_digit())
+}
+
+/// Corpo que começa como página HTML, depois de BOM e espaço. As páginas do
+/// build começam com `<!doctype html>`; JS, CSS, imagem e fonte, não.
+fn parece_pagina_html(bytes: &[u8]) -> bool {
+    let inicio = bytes.strip_prefix(b"\xEF\xBB\xBF").unwrap_or(bytes).trim_ascii_start();
+    MARCAS_DE_HTML.iter().any(|marca| inicio.get(..marca.len()).is_some_and(|prefixo| prefixo.eq_ignore_ascii_case(marca)))
+}
+
+/// `cache_control` é sempre uma das constantes `CACHE_*` acima: ASCII visível,
+/// que `HeaderValue::from_static` aceita sem pânico.
+fn asset_response(asset: Asset, cache_control: &'static str) -> Response {
     let mime = HeaderValue::from_str(&asset.mime_type).unwrap_or(HeaderValue::from_static("application/octet-stream"));
     (
         [
             (header::CONTENT_TYPE, mime),
             (header::X_CONTENT_TYPE_OPTIONS, HeaderValue::from_static("nosniff")),
-            (header::CACHE_CONTROL, HeaderValue::from_static("no-cache")),
+            (header::CACHE_CONTROL, HeaderValue::from_static(cache_control)),
         ],
         asset.bytes,
     )
@@ -1028,5 +1091,151 @@ mod tests {
         assert!(sanitize_name(&"\u{1F600}".repeat(16)).is_some());
         assert_eq!(sanitize_name(&format!("{}x", "\u{1F600}".repeat(16))), None);
         assert!(sanitize_name(&"é".repeat(32)).is_some());
+    }
+
+    struct SinkMudo;
+
+    impl NetSink for SinkMudo {
+        fn on_message(&self, _client_id: ClientId, _msg: Value) {}
+        fn on_peer(&self, _client_id: ClientId, _event: PeerEvent, _name: Option<&str>) {}
+    }
+
+    type Erro = Box<dyn std::error::Error>;
+
+    /// Começo do `client/index.html`: é o que o resolver do Tauri devolve em
+    /// release para caminho que não existe.
+    const INDEX_DO_EDITOR: &[u8] = b"<!doctype html>\r\n<html lang=\"pt-BR\">\r\n  <head>";
+
+    /// Build de mentira com o fallback do Tauri em release
+    /// (`AppManager::get_asset`, tauri 2.11): o que não existe vira o
+    /// `index.html`, com o tipo deduzido do conteúdo (`text/html`).
+    fn resolver_de_release(path: &str) -> Option<Asset> {
+        let (bytes, mime): (&[u8], &str) = match path {
+            "player.html" => (b"<!doctype html>\r\n<html lang=\"pt-BR\"><body>jogador", "text/html"),
+            "assets/player-6b9PUy9d.js" => (b"import{a as b}from\"./PinSymbolArt-DnFA_kqj.js\";", "text/javascript"),
+            // Arquivo de `client/public/assets`: o Vite copia sem hash no nome.
+            "assets/porta-rangendo.mp3" => (b"ID3\x04\x00\x00", "audio/mpeg"),
+            _ => (INDEX_DO_EDITOR, "text/html"),
+        };
+        Some(Asset { bytes: bytes.to_vec(), mime_type: mime.to_owned() })
+    }
+
+    async fn sala_de_release() -> Result<SocketAddr, Erro> {
+        let room = Room::new("ABC234".to_owned(), Arc::new(SinkMudo), Arc::new(resolver_de_release));
+        let listener = bind(IpAddr::from([127, 0, 0, 1]), 0, 1).await?;
+        let addr = listener.local_addr()?;
+        tokio::spawn(serve(listener, room));
+        Ok(addr)
+    }
+
+    /// Status e `Cache-Control` de `GET caminho` na sala.
+    async fn cache_de(sala: SocketAddr, caminho: &str) -> Result<(u16, String), Erro> {
+        let resposta = reqwest::Client::builder().no_proxy().build()?.get(format!("http://{sala}{caminho}")).send().await?;
+        let cache = match resposta.headers().get(reqwest::header::CACHE_CONTROL) {
+            Some(valor) => valor.to_str()?.to_owned(),
+            None => String::new(),
+        };
+        Ok((resposta.status().as_u16(), cache))
+    }
+
+    /// Jornada do celular que reabre a página do jogador: o chunk com hash vem
+    /// do cache sem nem perguntar à sala; a página continua conferindo, porque
+    /// é ela que aponta para os nomes do build atual (cache longo nela = tela
+    /// branca depois de atualizar o app).
+    #[tokio::test]
+    async fn chunk_com_hash_fica_guardado_e_a_pagina_continua_conferindo() -> Result<(), Erro> {
+        let sala = sala_de_release().await?;
+        assert_eq!(cache_de(sala, "/assets/player-6b9PUy9d.js").await?, (200, "public, max-age=31536000, immutable".to_owned()));
+        assert_eq!(cache_de(sala, "/player").await?, (200, "no-cache".to_owned()));
+        Ok(())
+    }
+
+    /// Página aberta de um build pedindo o chunk de outro: em release o Tauri
+    /// responde com o `index.html` (200, como antes). Guardada por um ano, essa
+    /// resposta ficaria no lugar do chunk mesmo depois que o build dele voltasse.
+    #[tokio::test]
+    async fn chunk_que_volta_como_index_html_nao_fica_guardado() -> Result<(), Erro> {
+        let sala = sala_de_release().await?;
+        assert_eq!(cache_de(sala, "/assets/WebGLRenderer-0ldH4sh1.js").await?, (200, "no-cache".to_owned()));
+        Ok(())
+    }
+
+    /// Sem hash no nome, conteúdo novo sairia com o mesmo nome: continua conferindo.
+    #[tokio::test]
+    async fn asset_sem_hash_no_nome_continua_conferindo() -> Result<(), Erro> {
+        let sala = sala_de_release().await?;
+        assert_eq!(cache_de(sala, "/assets/porta-rangendo.mp3").await?, (200, "no-cache".to_owned()));
+        Ok(())
+    }
+
+    #[test]
+    fn nome_com_hash_do_vite_reconhece_o_build_e_recusa_o_resto() {
+        // Os 15 nomes de `client/dist/assets` no build de 29/09/2026.
+        let do_build = [
+            "BitmapFont-Dg2WovPQ.js",
+            "BufferResource-DgVDCwmy.js",
+            "CanvasRenderer-CHs4d_n6.js",
+            "Filter-C-Xp9yWn.js",
+            "PinSymbolArt-D6LVVYbC.css",
+            "PinSymbolArt-DnFA_kqj.js",
+            "RenderTargetSystem-wfv1jQ2b.js",
+            "WebGLRenderer-CeIFwG0M.js",
+            "WebGPURenderer-Br2fMSIu.js",
+            "browserAll-UsrcHHJd.js",
+            "main-CHGk2oUA.js",
+            "main-DtSnaguN.css",
+            "player-6b9PUy9d.js",
+            "player-C6DohELb.css",
+            "webworkerAll-OtQ9Fee5.js",
+        ];
+        for nome in do_build {
+            assert!(nome_com_hash_do_vite(nome), "{nome} é do build e perdeu o cache longo");
+        }
+        assert!(nome_com_hash_do_vite("sons/porta-AbCd1234.mp3"), "em subpasta vale o último segmento");
+        let sem_hash = [
+            "",
+            ".js",
+            "player.js",
+            // Palavra de 8 letras depois do hífen, com e sem hífen dentro.
+            "porta-rangendo.mp3",
+            "som-da-porta.mp3",
+            // Hash de 7; sem o hífen antes do hash.
+            "x-AbCd123.js",
+            "xAbCd1234.js",
+            // Sem extensão; extensão vazia; o hash não fica antes da última extensão.
+            "player-6b9PUy9d",
+            "player-6b9PUy9d.",
+            "player-6b9PUy9d.js.map",
+            // Byte fora de ASCII no hash, e corte no meio de um caractere de 2 bytes.
+            "x-AbCd12é.js",
+            "é1234567.js",
+        ];
+        for nome in sem_hash {
+            assert!(!nome_com_hash_do_vite(nome), "{nome:?} não tem o hash do Vite e ganhou cache longo");
+        }
+    }
+
+    #[test]
+    fn parece_pagina_html_pega_as_paginas_do_build_e_nao_os_arquivos() {
+        // As duas páginas reais do front; o Tauri devolve o `index.html` no lugar
+        // de chunk que não existe.
+        assert!(parece_pagina_html(include_bytes!("../../../../client/index.html")));
+        assert!(parece_pagina_html(include_bytes!("../../../../client/player.html")));
+        assert!(parece_pagina_html(b"\xEF\xBB\xBF\r\n  <!DOCTYPE HTML>"));
+        assert!(parece_pagina_html(b"<html lang=\"pt-BR\">"));
+        assert!(parece_pagina_html(b"<!-- gerado -->"));
+        let arquivos: [&[u8]; 8] = [
+            b"",
+            b"<",
+            b"<!doctype",
+            b"import{a as b}from\"./x.js\";",
+            b".pe-page{position:relative}",
+            b"\x89PNG\r\n\x1a\n",
+            b"<svg xmlns=\"http://www.w3.org/2000/svg\">",
+            b"<?xml version=\"1.0\"?>",
+        ];
+        for corpo in arquivos {
+            assert!(!parece_pagina_html(corpo), "{:?} foi tratado como página", String::from_utf8_lossy(corpo));
+        }
     }
 }
