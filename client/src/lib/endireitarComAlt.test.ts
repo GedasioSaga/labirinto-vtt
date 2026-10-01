@@ -6,6 +6,7 @@ import type { Drawing, MapData, Wall } from '../types/map'
 import { buildLineDrawing, buildWallFromDraft } from './drawingFactory'
 import { instalarEndireitarComAlt, type EstadoDoEndireitarComAlt, type FonteDoEndireitar } from './endireitarComAlt'
 import { createEmptyMap } from './mapFactory'
+import type { SelectionSet } from './selectionModel'
 import { ALT_TOQUE_JANELA_MS } from './toqueDeAlt'
 
 /**
@@ -31,7 +32,7 @@ const MAPA: MapData = {
   drawings: [linha('torta', 300, 200, 360, 420), linha('reta', 0, 40, 200, 40)],
 }
 
-const TORTA = [{ kind: 'drawing' as const, id: 'torta' }]
+const TORTA: SelectionSet = [{ kind: 'drawing', id: 'torta' }]
 
 function tecla(tipo: 'keydown' | 'keyup', key: string, timeStamp: number, extra: KeyboardEventInit = {}): KeyboardEvent {
   const evento = new KeyboardEvent(tipo, { key, bubbles: true, cancelable: true, ...extra })
