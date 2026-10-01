@@ -1167,3 +1167,40 @@ Noite = esta sessão conduzida pelo main thread; o noite-runner continua encerra
   - Fila: bug da borda da sombra serrilhada longe do jogador (entra junto da fila de Objetos, em paralelo, arquivos separados).
 - 28/09/2026, noite: "Quando terminar lance a versão 1.4.7.2, lembre-se não use gauntlet-loop"
   - Leitura: "1.4.7.2" tratado como 0.4.7.2 (sequência da 0.4.7.1; pular para 1.x seria salto de versão maior). Release depois das 3 partes de Objetos + bug da sombra. Sem gauntlet.
+
+### 30/09/2026 a 01/10/2026: animação, UX/UI e otimização (ultracode, sem gauntlet)
+
+> "Usando o ultracode eu quero que você trabalhe na main evoluindo as animações, refinando, e melhorando ux/ui, primeiro gere uma lista do que você acredita que pode ser melhorada de maneira rápida. Não use gauntlet-loop. contudo pode usar paralelismo."
+
+- Goal da sessão: "Contruir animações fluidas e bem feitas, melhorar o ux/ui para jogadores e mestres, refinar e optimizar o programa."
+- Lista rápida (25 itens M1-M25 em 5 lotes A-E): `scratchpad/lista-ux.json` da sessão 556fad7c. Lista de desempenho (P1-Pn) em andamento.
+
+> "Algumas ideias para você colocar nessa listas para fazer: 1- alguns sons baixo para dar imerssão, tipo, tocar um sound effect ao pegar um item ou ir para um cenário, tipo resident evil https://youtu.be/j3m8SkSc2XA (Um video dos sons) 2-Sabe uma coisa, as propriedades das ferramentas as vezes ficam cheias demais, as propriedades no caso, um exemplo, olha o tanto de prioridade aqui [Image #1], sabe acho que da para ajeitar tudo isso, a parte de tokens tambem [Image #2] da para fazer um ux/ui mais bonito e perfeito para ficar tudo harmonico 3-Uma coisa tambem que ajudaria muito é aquelas features de medição do Figma e Excalidraw, [Image #3] tipo fiz o meu melhor mas muito coisa parece está desalinhada, poderia analisar depois e ver melhorias para isso ? 4-[Image #4] e seria legal ter um botão que desmonta as salas, ou uma parede só da salas tipo, a imagem é um correr e do na tem um sala eu queria que fosse uma estrutura só sabe ? 5-[Image #5] depois que eu faço uma linha seria legal eu poder alinhar ela mesmo depois de feita apertando alt, para ela ficar em angulos retos"
+
+- Imagem 1: painel da direita com a seção Parede (Parede interna, Espessura Fina/Média/Grossa, Grossura 2 px com texto longo), Avançado, Seleção (Adicionar token, Nada selecionado) e mais 7 seções recolhidas (Cenas, Pinos, Agenda, Estado do mundo, Objetos do mapa, Locais, Acervo de tokens). Cheio demais.
+- Imagem 2: Acervo de tokens com pastas NPCs (9), Veículos (0), Jogadores (4: Vagn, Ryoko, Aira, Jimboy) e "Sem pasta" (Saga); cada linha com ícone de pasta e x. Quer visual mais bonito e harmônico.
+- Imagem 3: salas redondas e retangulares ligadas a uma sala central por corredores de duas linhas, com ângulos e larguras desencontrados. Quer guias de medição/alinhamento como Figma e Excalidraw.
+- Imagem 4: "Sala 3" selecionada, com as duas linhas de um corredor entrando nela. Quer corredor e sala virando uma estrutura só (desmontar a sala em paredes ou juntar numa parede só).
+- Imagem 5: uma linha inclinada solta. Quer selecionar a linha pronta, apertar Alt e ela se endireitar em ângulo reto.
+- Imagens da sessão: `C:/Users/gedasio.filho/AppData/Local/Temp/claude/C--dev-labirinto/556fad7c-d96f-40fa-8a7d-f1d953372ad4/images/1.png` a `5.png`.
+- Fila (depois dos lotes A-E e da lista de desempenho): (5) Alt endireita linha pronta; (2) painel de propriedades e Acervo de tokens enxutos e harmônicos; (3) guias de medição e alinhamento estilo Figma/Excalidraw; (1) sons baixos de imersão (pegar item, trocar de cena), sintetizados, com volume e mudo; (4) desmontar sala / sala + corredor numa estrutura só.
+
+> 01/10/2026: "Depois que terminar tudo, crie o instalador, e push para o github, e então pare até eu dar novas features ou pedir novas analises. Lembre-se não use gauntlet-loop, pode usar o ultracode, paralelismo e afins se a construção deixar mas não precisa se forçar a usar caso não de para usar."
+
+- Leitura: "tudo" = lotes A-E, otimizações P1-P14 mantidas e os 5 pedidos acima. No fim: instalador (.exe/.msi), push da main, release/tag; depois parar e esperar.
+
+> 01/10/2026: "Não to vendo nenhuma animação será que é configuração do meu computador?"
+
+- Diagnóstico: o Windows está com "Efeitos de animação" desligado (SystemParametersInfo SPI_GETCLIENTAREAANIMATION = False). O WebView2 repassa isso como `prefers-reduced-motion: reduce`, e todas as animações novas respeitam essa preferência, então nada anima.
+- Fila: opção no app "Animações: Seguir o Windows / Sempre ligadas / Reduzidas" (persistida), que manda no CSS (`data-movimento` no html) e nas animações em JS (helper único no lugar dos matchMedia soltos). Entra no polimento final, depois que as trilhas liberarem main.css, pixi e player.
+
+> 01/10/2026: "Uma pergunta, como eu desmonto a sala?" / "mas fica aonde exatamente? não to achando" / "[Image #6] ainda não consigo ver, mesmo com o que você disse [Image #7]"
+
+- Imagem 6: painel da Sala 3 sem a linha "Abrir para o corredor" (termina em "Criar sala dentro"). Imagem 7: duas paredes chegando na diagonal no canto de cima à esquerda de uma sala retangular.
+- Causa (no mapa dele): as linhas são paredes e encostam, mas os corredores têm 6,1 a 7,2 células de largura; a regra aceitava no máximo 4. Nenhum corredor reconhecido, linha escondida.
+- Fila: teto de largura proporcional à sala; linha aparece apagada com o motivo quando há parede encostando mas não vira corredor. Em andamento (`wf_c22a7d2a-d63`).
+
+> 01/10/2026: "Vamos fazer o seguinte termina o B e C3, e por enquanto pronto, salva no Pedidos/Handoff o que falta, para trabalharmos outro dia."
+
+- Feito: trilhas B (guias + fantasma do Alt) e C3 (HUD do jogador, sobras dos sons, perf do revisit). Polimento fase 1 parado antes de editar. Release adiada.
+- Fila para o próximo dia (detalhe em HANDOFF.md, "FECHAMENTO DO DIA"): (1) opção Animações; (2) polimento: avisos x barra, cabeçalho, ficha do acervo no topo, Ctrl+Z vazio, "Abrir para o corredor" no topo do painel, tolerância 3/4 de célula; (3) medida das guias legível com zoom afastado; (4) reconferir o HUD do jogador e confirmar 3 mudanças de comportamento; (5) sobras menores; (6) ouvir os sons no Tauri e no celular; (7) instalador, push e release.

@@ -1094,3 +1094,59 @@ Publicar 0.4.4 ao fechar as 5 features (suíte 1x, fumaça, instalador, push com
   - `Labirinto_0.4.7.2_x64-setup.exe`: 2281437 bytes, sha256 `c7c0251b800ff9d1c6c027cc8f261dec3f1a7171a52d4a99589864984156e7be`;
   - `Labirinto_0.4.7.2_x64_en-US.msi`: 2969600 bytes, sha256 `7f6f940c138af47c9a1383535912dac60e1bc43007abdacccba9b0021e0f0d1d`.
 - Escada restaurada idêntica: `cmp` entre o patch de backup e `rtk proxy git diff` depois do pop deu igual.
+
+### 30/09 a 01/10/2026: animação, UX/UI e otimização (ultracode, sem gauntlet)
+
+Objetivo (goal do usuário): "Contruir animações fluidas e bem feitas, melhorar o ux/ui para jogadores e mestres, refinar e optimizar o programa." Depois de tudo: instalador, push e release, e parar até novo pedido. Se o limite estourar, esperar voltar e continuar.
+
+Estado (01/10, meio do caminho). Listas e planos no scratchpad da sessão 556fad7c (`lista-ux.json`, `lista-perf.json`, `planos-pedidos.json`, `resultado-ux.json`).
+- Feito e commitado: lotes UX A `9d18d3c1`, B `a41f9a9c`, C `bb1bf5e5`, D `28c989c2`, E `1226d98f`; desempenho `07ae9505`, `76550af0`, `07a4c639`, `e63c5098`, `6ec93824`; Alt endireita `29e9f6a9`, `ad438a5e`, `b65ef0f2`, `602a9718`; motor de som `f4f4415d`, `0c56b75f`.
+- Rodando: trilha A (Abrir para o corredor, painel e acervo), trilha B (guias estilo Figma, fantasma do Alt), trilha C2 (otimizações do jogador, sons tocando, volume e mudo, setTokenPosition).
+- Escada espiral parcial (4 arquivos stairs/drawStairs) continua fora de commit.
+
+Próximos passos: esperar as trilhas; polimento final (pilha de avisos em cima da barra, barra numa linha só M8); suíte inteira 1 vez; tsc; stash da escada com backup em patch; bump de versão; `npm run tauri:build`; fumaça; gitleaks; push da main e tag; release com .exe e .msi; pop da escada; parar.
+
+Critério de pronto: todas as fatias commitadas com revisor sem achado bloqueante; tsc exit 0; suíte vitest inteira verde (só falhas de tempo sob carga, conferidas sozinhas); release no GitHub com os 2 instaladores; escada restaurada idêntica ao patch.
+
+Evidência até agora: tsc exit 0 antes de começar; cada lote UX passou conferência no navegador com ux-driver medir (longtask 0, frame p95 16,8 ms); números de desempenho nos commits (zoom: App 10 renders para 0; Pinos fechados 157 ms para 14 ms; mapObjectsOf 447 ms para 118 ms).
+
+#### 01/10/2026: PAUSA pedida pelo usuário ("Pause por um tempo, até eu mandar voltar.")
+
+- Workflows parados no meio (retomar com `resumeFromRunId`; scripts em `~/.claude/projects/C--dev-labirinto/556fad7c-d96f-40fa-8a7d-f1d953372ad4/workflows/scripts/`):
+  - Trilha A `wf_49b96153-931` (painel e acervo): parou em `fixvis:painel-acervo` (correção pós-conferência). Árvore com mudanças NÃO commitadas dela: NadaSelecionado.*, NovoTokenForm.*, BotaoMais.*, PropertiesPanel.*, SelectionControls.*, TokenLibraryPanel.*, e2e/task-panel-sections.spec.ts. Depois falta reconferir.
+  - Trilha B `wf_3b843041-d4b`: guias 1-5 commitadas; parou em `fixvis:guias-4e5` (último commit `6930e188`); falta reconferir as guias 4-5 e a fatia do fantasma do Alt.
+  - Trilha C3 `wf_b47e1620-2df`: HUD do jogador commitado (`4e34b1fd`, `2be5f53a`); faltam conferência do HUD, sobras dos sons e perf do revisitChanges.
+- Na fila do polimento final: opção "Animações: Seguir o Windows / Sempre ligadas / Reduzidas" (o Windows do usuário está com Efeitos de animação desligado, por isso ele não viu animação); pilha de avisos em cima da barra e barra numa linha só (M8); withHistory com passo vazio quando o mapa não muda.
+- Depois: suíte inteira, instalador, push, release, e parar.
+- App em modo dev (vite 1420 + labirinto.exe) ficou aberto para o usuário; vites dos agentes (5233, 5243, 5250) foram fechados.
+- 01/10/2026: usuário mandou "Continue"; trilhas A, B e C3 retomadas com resumeFromRunId (fixvis do painel avisado da tentativa interrompida).
+
+### 01/10/2026: FECHAMENTO DO DIA (usuário: "termina o B e C3, e por enquanto pronto, salva no Pedidos/Handoff o que falta, para trabalharmos outro dia")
+
+## Objetivo
+Goal da sessão: "Contruir animações fluidas e bem feitas, melhorar o ux/ui para jogadores e mestres, refinar e optimizar o programa." Parado a pedido do usuário depois das trilhas B e C3. Release NÃO foi feita (estava combinada para "depois que terminar tudo").
+
+## Estado atual
+- main @ `cdf7a640` + este commit de docs: 50 commits desde `5dc4920a` (v0.4.7.2), **sem push**.
+- Entregue e conferido no navegador: lotes UX A-E (M1-M25), desempenho (P1-P9, P12-P14), Alt endireita (+ fantasma `c0971483`), Abrir para o corredor (+ corredor largo `41c50bf8`, `a7a0102c`), painel e acervo, guias estilo Figma (5 fatias), sons (motor, jogador, mestre, volume/mudo, sobras `7afbb949`), HUD do jogador sem sobreposição.
+- Escada espiral parcial (4 arquivos `lib/stairs*`, `pixi/drawStairs*`) continua fora de commit, como antes.
+- App em modo dev (vite 1420 + `labirinto.exe`) ficou aberto para o usuário.
+- Listas e planos da sessão: scratchpad `556fad7c` (`lista-ux.json`, `lista-perf.json`, `planos-pedidos.json`, `resultado-ux.json`). Script do polimento pronto e parado antes de editar: `~/.claude/projects/C--dev-labirinto/556fad7c-d96f-40fa-8a7d-f1d953372ad4/workflows/scripts/polimento-final-fase-1-wf_2caef538-689.js` (dá para relançar com scriptPath).
+
+## Próximos passos (o que falta, em ordem)
+1. Opção "Animações: Seguir o Windows / Sempre ligadas / Reduzidas" (o Windows do usuário está com Efeitos de animação desligado, por isso ele não vê animação). `data-movimento` no html + helper único no lugar dos `matchMedia` soltos (main.css, CSS de componentes, player.css, pixi, player).
+2. Polimento fase 1 (script acima): pilha de avisos cobrindo a barra e barra numa linha só (M8 parcial); cabeçalho do inspetor corta nome/medidas com "+ Token"; ficha do token solto do acervo não volta ao topo; acervo 1 px desalinhado; `withHistory` empurra passo vazio quando o mapa não muda; "Abrir para o corredor" no TOPO do painel da Sala (hoje abaixo da dobra, o usuário não achou); tolerância de encoste 3/4 de célula (paredes do usuário param 17-38 px antes da borda).
+3. Guias: rótulo de medida ilegível com zoom afastado (conferência 4-5 rodada 2 reprovou; fonte deve ficar em px de tela).
+4. HUD do jogador: correção `26e5468f` sem reconferência (gaveta aberta sem nada por cima, alvos de 44 px, e2e da gaveta). Confirmar com o usuário 3 mudanças de comportamento: celular deitado abre com o painel fechado; rótulos curtos abaixo de 380 px ("Espiar", "Trancar", "Subir"); formulário do chamado abre acima da mão, opaco.
+5. Sobras menores: nome da ficha levantada sai 6% ampliado durante o arrasto; grupo de render próprio para guias e alças (lotes refeitos por passo); rótulo da ferramenta Medir sem ajuste de resolução; `drawProps.ts:157` (`sprite!`); laço de visão do revisit (~0,6-2 ms por passo); App assina o mapa inteiro (11-16 ms por pointermove sem grudar, 800 fichas); Alt não endireita parede presa nas duas pontas (corredores ligados a salas) e sala arrastada depois de aberta deixa o corredor desencontrado (decisões do usuário).
+6. Sons: portas e aviso só provados em teste de unidade; ouvir no Tauri e num celular de verdade.
+7. Release: stash só da escada com backup em patch, bump de versão (5 arquivos), `npm run tauri:build`, fumaça, gitleaks desde v0.4.7.2, push da main e tag, release com .exe e .msi, pop da escada e conferir patch idêntico.
+
+## Critério de pronto
+Itens 1-4 commitados com revisor sem achado bloqueante e conferidos no navegador; tsc 0; suíte vitest inteira verde; release no GitHub com os 2 instaladores; escada restaurada idêntica ao patch.
+
+## Evidência
+- `rtk proxy npx tsc --noEmit`: exit 0. `rtk proxy npx tsc --noEmit -p tsconfig.e2e.json`: exit 0 (01/10, depois de `cdf7a640`).
+- `rtk proxy npx vitest run` (suíte inteira, 1 vez): Test Files 1282 passed (1282), Tests 11498 passed (11498), 245 s. Saída em scratchpad `suite-final.txt`.
+- Conferências no navegador com ux-driver medir: lotes UX longtask 0, frame p95 16,8 ms; resultados por workflow em `~/.claude/projects/C--dev-labirinto/556fad7c-d96f-40fa-8a7d-f1d953372ad4/subagents/workflows/<run>/journal.jsonl` (runs `wf_fa56582f-d61`, `wf_49b96153-931`, `wf_3b843041-d4b`, `wf_e2207017-a3f`, `wf_b47e1620-2df`, `wf_c22a7d2a-d63`).
+- Não rodado: Playwright e2e inteiro; teste no instalador; celular real.
