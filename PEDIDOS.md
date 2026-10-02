@@ -1208,3 +1208,20 @@ Noite = esta sessão conduzida pelo main thread; o noite-runner continua encerra
 > 01/10/2026: "pode fazer o push e fazer o instalador coloca como versão 0.4.8"
 
 - Feito: release v0.4.8 (`b4ad2774`), https://github.com/GedasioSaga/labirinto-vtt/releases/tag/v0.4.8, com .exe e .msi. A fila do próximo dia (itens 1-6) continua.
+
+> 01/10/2026: "Eu quero fazer algo simples com os pinos: 1- [Image #1] No escolher imagem, eu quero poder da Ctrl + C e Ctrl + V para colocar a imagem ou só arrastar a imagem para ficar mais facil de escolher, então coloque as três opções: 1. A de copiar e colar 2. Arrastar imagem 3. escolher normalmente"
+
+- Feito (`d485e232`, testado no navegador; arrastar do Explorer no exe ainda não conferido): área "Arraste uma imagem para cá / ou clique aqui e cole com Ctrl+V" acima de "Escolher imagem..." (`components/PinImageDrop.tsx`); `dragDropEnabled: false` no tauri.conf.
+
+> 01/10/2026: "Perfeito, agora eu quero que você faça o seguinte com os tokens: 1-[Image #2] eu quero que você nessa parte de patrulha, eu quero que você faça estilo macro, o Token tem um caminho que eu coloco e ele vai andando sozinho com base nas propriedades que eu botar, segundos, de tempo em tempos coisa assim, e outra coisa se essa ficha é de NPC e eu coloco essa ficha para vigiar e o Jogador entra no radar, a ficha corre em direção ao jogador. e outra coisa, certas fichas eu quero que elas tenham varias imagens como se fosse transformações e que seja facil mudar, tanto fichas npc quanto jogadores, essas fichas especiais bote para salvar e editar."
+
+- Imagem 2: seção "Patrulha" do painel do token, com "Avançar patrulha" (manual), a dica "Marque pelo menos 2 pontos" e "Marcar ponto aqui".
+- Três features, uma por vez: (A) patrulha automática por tempo (macro); (B) vigiar: NPC vê jogador no radar e corre até ele; (C) transformações: várias imagens por ficha, troca fácil, NPC e jogador, salvas no acervo e editáveis.
+
+- Plano aprovado (grilling, 01/10/2026) para (A) patrulha automática, em 3 entregas:
+  1. Motor: "Patrulhar sozinha"/"Parar"; anda casa a casa (findTokenPath, como a rotina); velocidade da ficha (padrão 2 casas/s); circuito ou vai-e-volta; espera 2 s por ponto; pausa geral na barra (só aparece com NPC andando) + Shift+P, congela patrulha E rotina; ao reabrir mapa volta parada (config salva).
+  2. Macro por ponto: lista ordenável de passos (pode repetir): esperar X s, olhar para direção (gira ficha e cone de vigia), velocidade até o próximo, falar, sumir/aparecer (sumida continua andando), esperar o mestre ("Seguir"). Ponto novo nasce com "Esperar 2 s".
+  3. Balão de fala no mestre e no jogador (só quem enxerga a ficha), dura até a ficha voltar a andar.
+  - "Trocar imagem" entra como passo depois da feature C. Ordem: A, depois B (vigia já existe: `TokenWatch`), depois C.
+  - Regra do usuário: no máximo 1 agente por vez, Opus high.
+- Entrega 1 (motor) feita e testada no navegador: anda casa a casa com A* (`lib/caminhoEmGrade.ts`), contorna parede, sem caminho fica parada e tenta de novo a cada 1 s; velocidade e ronda salvas; "Pausar NPCs" + Shift+P. Pendência anotada: a ROTINA ainda teleporta através de parede sem porta (usa o caminho antigo).

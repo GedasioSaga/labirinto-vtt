@@ -37,7 +37,7 @@ import { roomRotationOf, rotationDelta } from '../lib/roomRotation'
 import { canInteract } from '../lib/itemTransform'
 import { pullLever } from '../lib/lever'
 import { setOutdoor as setOutdoorOnMap } from '../lib/campaignClock'
-import { applyPatrolOp, type PatrolOp } from '../lib/npcPatrol'
+import { applyPatrolOp, setPatrolConfig, type ConfigDaPatrulha, type PatrolOp } from '../lib/npcPatrol'
 import { toggleTokenCondition as toggleConditionOnMap } from '../lib/tokenConditions'
 import { attachCarried, carrierIdOf, releaseCarried } from '../lib/carry'
 import { boardVehicle, leaveVehicle, setVehicleSeats as setVehicleSeatsOnMap, vehicleCarrying } from '../lib/vehicle'
@@ -715,6 +715,8 @@ interface MapStoreState {
    * entrada de histórico.
    */
   patrolAction: (id: string, op: PatrolOp) => void
+  /** Velocidade e modo da patrulha automática (`setPatrolConfig`). Mudança do mestre: Ctrl+Z desfaz. */
+  setPatrolConfig: (id: string, config: ConfigDaPatrulha) => void
   /**
    * VEÍCULO: faz da ficha um veículo com `lugares`, troca os lugares, ou
    * desliga (`null`) — `lib/vehicle.ts`. Com histórico: Ctrl+Z desfaz.
@@ -1921,6 +1923,10 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
     })),
     patrolAction: (id, op) => {
       const next = applyPatrolOp(get().map, id, op)
+      if (next !== get().map) withHistory(() => next)
+    },
+    setPatrolConfig: (id, config) => {
+      const next = setPatrolConfig(get().map, id, config)
       if (next !== get().map) withHistory(() => next)
     },
     setVehicleSeats: (id, lugares) => {

@@ -1,7 +1,8 @@
 /// <reference types="vite/client" />
 import { create } from 'zustand'
-import { darPassoDaRotina, desligarRotina, ligarRotina, PASSO_DA_ROTINA_MS, type RotinasAndando } from '../lib/rotinaAndando'
+import { adiarEsperas, darPassoDaRotina, desligarRotina, ligarRotina, PASSO_DA_ROTINA_MS, type RotinasAndando } from '../lib/rotinaAndando'
 import { subscribeToOpenings, useAdventureStore } from './adventureStore'
+import { agoraDosNpcs, assinarPausa, usePausaDosNpcsStore } from './pausaDosNpcsStore'
 
 /**
  * ROTINA ANDANDO no editor do mestre: quem está com a rotina ligada e o
@@ -26,10 +27,11 @@ interface RotinaAndandoState {
 
 let relogio: ReturnType<typeof setInterval> | null = null
 
-/** O relógio corre enquanto houver ficha andando, e só então. */
+/** O relógio corre enquanto houver ficha andando e os NPCs não estiverem pausados, e só então. */
 function acertarRelogio(andando: RotinasAndando): void {
-  if (andando.size > 0 && relogio === null) relogio = setInterval(() => useRotinaAndandoStore.getState().darPasso(), PASSO_DA_ROTINA_MS)
-  if (andando.size === 0 && relogio !== null) {
+  const correr = andando.size > 0 && usePausaDosNpcsStore.getState().pausadaDesde === null
+  if (correr && relogio === null) relogio = setInterval(() => useRotinaAndandoStore.getState().darPasso(), PASSO_DA_ROTINA_MS)
+  if (!correr && relogio !== null) {
     clearInterval(relogio)
     relogio = null
   }
@@ -47,7 +49,7 @@ export const useRotinaAndandoStore = create<RotinaAndandoState>()((set, get) => 
   return {
     andando: new Map(),
     fixas: new Set(),
-    ligar: (tokenId) => trocar(ligarRotina(get().andando, useAdventureStore.getState().cenasDaRotina(), tokenId, estadosDaAventura(), Date.now())),
+    ligar: (tokenId) => trocar(ligarRotina(get().andando, useAdventureStore.getState().cenasDaRotina(), tokenId, estadosDaAventura(), agoraDosNpcs())),
     desligar: (tokenId) => trocar(desligarRotina(get().andando, tokenId)),
     setFixas: (fixas) => set({ fixas }),
     darPasso: () => {
@@ -66,6 +68,17 @@ export const useRotinaAndandoStore = create<RotinaAndandoState>()((set, get) => 
 // aqui — a ficha segue andando na cena de fundo.
 const pararAoAbrir = subscribeToOpenings(() => useRotinaAndandoStore.getState().reset())
 
+// PAUSA GERAL: pausar para o relógio sem desligar ninguém; retomar empurra as
+// esperas no posto pelo tempo pausado e religa o relógio.
+const seguirAPausa = assinarPausa(
+  () => acertarRelogio(useRotinaAndandoStore.getState().andando),
+  (pausadoMs) => {
+    const andando = adiarEsperas(useRotinaAndandoStore.getState().andando, pausadoMs)
+    if (andando !== useRotinaAndandoStore.getState().andando) useRotinaAndandoStore.setState({ andando })
+    acertarRelogio(andando)
+  },
+)
+
 // Em `npm run dev`, editar este módulo (ou o que ele importa) o troca por um novo,
 // com o store zerado; sem isto o relógio do módulo velho seguia andando a ficha com
 // o botão já dizendo "Andar sozinha". O Vite só roda o `dispose` de quem aceita a
@@ -74,6 +87,7 @@ const pararAoAbrir = subscribeToOpenings(() => useRotinaAndandoStore.getState().
 import.meta.hot?.accept(() => import.meta.hot?.invalidate())
 import.meta.hot?.dispose(() => {
   pararAoAbrir()
+  seguirAPausa()
   if (relogio !== null) clearInterval(relogio)
   relogio = null
 })

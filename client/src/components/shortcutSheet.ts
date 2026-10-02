@@ -76,6 +76,7 @@ export const DOCUMENTED_ACTIONS: Record<Action['kind'], true> = {
   togglePinType: true,
   showShortcuts: true,
   nextTurn: true,
+  pauseNpcs: true,
 }
 
 /**
@@ -171,6 +172,8 @@ const VIEW_GROUP: ShortcutGroup = {
     { what: 'Zoom em 100%', combo: { keys: ['Ctrl', '0'] }, action: { kind: 'zoomReset' } },
     // INICIATIVA: o mesmo "Próxima vez" da aba Jogo (`NEXT_TURN_SHORTCUT`).
     { what: 'Passar a vez da iniciativa', combo: { keys: ['Shift', 'N'] }, action: { kind: 'nextTurn' } },
+    // PAUSA GERAL: o mesmo "Pausar NPCs" da barra de cima (`PAUSE_NPCS_SHORTCUT`).
+    { what: 'Pausar ou retomar os NPCs andando', combo: { keys: ['Shift', 'P'] }, action: { kind: 'pauseNpcs' } },
     // Os três abaixo são gestos do canvas, fora do mapa de teclas:
     // `resolveMapWheel` (roda = zoom), Espaço armando o pan e o L do laser.
     { what: 'Aproximar e afastar', combo: { keys: [], mouse: 'roda do mouse' } },

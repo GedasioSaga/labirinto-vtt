@@ -1,4 +1,4 @@
-import type { MapData, RegionPoint, Token, TokenPatrol } from '../types/map'
+import type { MapData, ModoDaPatrulha, RegionPoint, Token, TokenPatrol } from '../types/map'
 
 /**
  * ROTA DE PATRULHA — regras compartilhadas pelo painel do mestre, pelo desenho
@@ -13,6 +13,19 @@ import type { MapData, RegionPoint, Token, TokenPatrol } from '../types/map'
 
 /** Teto de pontos numa rota: ronda de verdade tem poucos; o teto segura arquivo torto. */
 export const PATROL_MAX_POINTS = 64
+
+/** Patrulha automática: duas casas por segundo, o passo da rotina — gente andando, sem correr. */
+export const VELOCIDADE_PADRAO = 2
+/** Mais devagar que isto a ficha parece parada entre um deslize e outro. */
+export const VELOCIDADE_MINIMA = 0.5
+/** Mais rápido que isto o passo de um tique passa de casa e meia: o jogador vê pulo, não andar. */
+export const VELOCIDADE_MAXIMA = 8
+
+/** O que o painel muda na ronda automática. */
+export interface ConfigDaPatrulha {
+  velocidade?: number
+  modo?: ModoDaPatrulha
+}
 
 /** O que o painel pede à rota da ficha. */
 export type PatrolOp = 'marcar' | 'desfazer' | 'apagar' | 'avancar'
@@ -44,7 +57,20 @@ export function readTokenPatrol(raw: unknown): TokenPatrol | null {
   if (pontos.length === 0) return null
   const rawAtual: unknown = Reflect.get(raw, 'atual')
   const atual = finite(rawAtual) ? Math.min(pontos.length - 1, Math.max(0, Math.round(rawAtual))) : 0
-  return { pontos, atual }
+  const rawVelocidade: unknown = Reflect.get(raw, 'velocidade')
+  const rawModo: unknown = Reflect.get(raw, 'modo')
+  // Configuração ausente fica ausente: mapa antigo relido não ganha campo novo.
+  return {
+    pontos,
+    atual,
+    ...(finite(rawVelocidade) ? { velocidade: velocidadeNaFaixa(rawVelocidade) } : {}),
+    ...(rawModo === 'circuito' || rawModo === 'vai-e-volta' ? { modo: rawModo } : {}),
+  }
+}
+
+/** Velocidade presa à faixa que o passo de 200 ms aguenta. */
+function velocidadeNaFaixa(velocidade: number): number {
+  return Math.min(VELOCIDADE_MAXIMA, Math.max(VELOCIDADE_MINIMA, velocidade))
 }
 
 /** A rota de uma ficha, ou `null` se ela não patrulha. */
@@ -66,12 +92,13 @@ function tokenAfterOp(token: Token, op: PatrolOp): Token {
     case 'marcar': {
       const pontos = patrol?.pontos ?? []
       if (pontos.length >= PATROL_MAX_POINTS) return token
-      return withPatrol(token, { pontos: [...pontos, { x: token.x, y: token.y }], atual: pontos.length })
+      // A configuração da ronda automática (velocidade, modo) fica com a rota.
+      return withPatrol(token, { ...patrol, pontos: [...pontos, { x: token.x, y: token.y }], atual: pontos.length })
     }
     case 'desfazer': {
       if (patrol === null) return token
       const pontos = patrol.pontos.slice(0, -1)
-      return withPatrol(token, pontos.length === 0 ? null : { pontos, atual: Math.min(patrol.atual, pontos.length - 1) })
+      return withPatrol(token, pontos.length === 0 ? null : { ...patrol, pontos, atual: Math.min(patrol.atual, pontos.length - 1) })
     }
     case 'apagar':
       return 'patrulha' in token ? withPatrol(token, null) : token
@@ -98,5 +125,24 @@ export function applyPatrolOp(map: MapData, tokenId: string, op: PatrolOp): MapD
   if (next === token) return map
   const tokens = [...map.tokens]
   tokens[index] = next
+  return { ...map, tokens }
+}
+
+/**
+ * Troca velocidade e/ou modo da ronda automática da ficha `tokenId`. Devolve
+ * o mapa pela MESMA referência quando nada muda (ficha sem rota, valor igual):
+ * o store não gasta entrada de histórico à toa.
+ */
+export function setPatrolConfig(map: MapData, tokenId: string, config: ConfigDaPatrulha): MapData {
+  const index = map.tokens.findIndex((t) => t.id === tokenId)
+  const token = map.tokens[index]
+  const patrol = token === undefined ? null : tokenPatrolOf(token)
+  if (token === undefined || patrol === null) return map
+  const velocidade = config.velocidade === undefined || !finite(config.velocidade) ? patrol.velocidade : velocidadeNaFaixa(config.velocidade)
+  const modo = config.modo ?? patrol.modo
+  if (velocidade === patrol.velocidade && modo === patrol.modo) return map
+  const next: TokenPatrol = { ...patrol, ...(velocidade === undefined ? {} : { velocidade }), ...(modo === undefined ? {} : { modo }) }
+  const tokens = [...map.tokens]
+  tokens[index] = withPatrol(token, next)
   return { ...map, tokens }
 }

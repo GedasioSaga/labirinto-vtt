@@ -6311,3 +6311,24 @@ html.lb-arrastando-cena * {
   margin-top: var(--lb-space-1);
   color: var(--lb-color-parchment);
 }
+
+/* ------------------------------------------------- pausa geral dos NPCs */
+
+/* "Pausar NPCs" na barra de cima, só com alguém andando sozinho. Fora do
+   fluxo do `.lb-editor__top`: a barra de ferramentas segue centrada quando o
+   botão aparece ou some. Mora na faixa da direita que o padding do topo já
+   deixa livre (a largura do rail), longe da barra. */
+.lb-npcs-pausa {
+  position: absolute;
+  top: 0;
+  right: var(--lb-layout-edge-gap);
+  pointer-events: auto;
+  box-shadow: var(--lb-shadow-float), var(--lb-shadow-bevel);
+}
+
+/* Pausado: o mesmo latão do botão ligado da barra — dá para ver de longe que o mundo parou. */
+.lb-npcs-pausa[aria-pressed='true'] {
+  background: var(--lb-color-brass-soft);
+  color: var(--lb-color-brass);
+  border-color: rgba(224, 164, 74, 0.28);
+}

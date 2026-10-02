@@ -229,6 +229,21 @@ export function findTokenPath(from: Point, to: Point, walls: readonly Wall[], do
   return null
 }
 
+/**
+ * O traço reto do token passa? A mesma regra do primeiro teste de
+ * `findTokenPath` (porta aberta e destrancada passa; fechada, trancada ou
+ * secreta barra), com a folga do raspão tirada da célula `doorSlack`. É a
+ * aresta do caminho em grade (`lib/caminhoEmGrade.ts`).
+ */
+export function isTokenPathClear(from: Point, to: Point, walls: readonly Wall[], doorSlack: number = DEFAULT_DOOR_SLACK): boolean {
+  return isPathClear(from, to, walls, doorSlack * GRAZE_CELL_FRACTION)
+}
+
+/** A parede barra a passagem do token agora: parede de movimento que não é porta passável. */
+export function wallBlocksToken(wall: Wall): boolean {
+  return blocksPassage(wall)
+}
+
 export function resolveTokenMove(from: Point, to: Point, walls: Wall[], doorSlack: number = DEFAULT_DOOR_SLACK): Point {
   return findTokenPath(from, to, walls, doorSlack) === null ? from : to
 }

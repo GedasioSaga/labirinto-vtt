@@ -77,6 +77,8 @@ export type Action =
   | { kind: 'ungroup' }
   /** Shift+N — passa a vez da iniciativa (o mesmo que o botão "Próxima vez"). */
   | { kind: 'nextTurn' }
+  /** Shift+P — pausa ou retoma todo NPC andando sozinho (rotina e patrulha). */
+  | { kind: 'pauseNpcs' }
 
 /**
  * Tecla do "Próxima vez" da iniciativa, no formato de `aria-keyshortcuts`
@@ -84,6 +86,12 @@ export type Action =
  * são ferramentas (N é a Sala); Shift+letra estava livre, e N é de "next".
  */
 export const NEXT_TURN_SHORTCUT = 'Shift+N'
+
+/**
+ * Tecla do "Pausar NPCs" da barra de cima, no mesmo formato. P sozinho é o
+ * Pincel; Shift+P estava livre, e P é de "pausa".
+ */
+export const PAUSE_NPCS_SHORTCUT = 'Shift+P'
 
 /**
  * Tabela ferramenta → letra, para o integrador mostrar no `data-tip` de cada
@@ -309,6 +317,8 @@ export function resolveShortcut(evt: ShortcutEvent): Action | null {
   // Shift+N (`NEXT_TURN_SHORTCUT`): a próxima vez da iniciativa. Também antes
   // da trava de Shift, pelo mesmo motivo do `?`.
   if (evt.shiftKey && !evt.altKey && lower === 'n') return { kind: 'nextTurn' }
+  // Shift+P (`PAUSE_NPCS_SHORTCUT`): pausa geral dos NPCs, pelo mesmo caminho.
+  if (evt.shiftKey && !evt.altKey && lower === 'p') return { kind: 'pauseNpcs' }
   if (evt.shiftKey || evt.altKey) return null
 
   if (lower === 'f') return { kind: 'fitAll' }

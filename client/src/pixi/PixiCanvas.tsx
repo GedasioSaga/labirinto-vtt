@@ -17,6 +17,8 @@ import { useFollowStore, type CameraOrigin } from '../stores/followStore'
 import { subscribeToShapesRedraw } from '../stores/shapesSubscription'
 import { subscribeToTokensRedraw } from '../stores/tokensSubscription'
 import { advanceTurn, useInitiativeStore } from '../stores/initiativeStore'
+import { alternarPausaDosNpcs } from '../stores/npcsAndando'
+import { usePatrulhaAndandoStore } from '../stores/patrulhaAndandoStore'
 import { turnTokenIdOn } from '../lib/initiative'
 import { subscribeToBackgroundRedraw } from '../stores/backgroundSubscription'
 import { panBy, zoomAt, constrainToAngleStep, angleDegrees, contentBounds, fitCamera, freeArea, freeAreaCenter, revealScale, type Bounds, type Camera, type Point } from './world'
@@ -587,6 +589,15 @@ function alvoDoAtalho(target: EventTarget | null): Pick<ShortcutEvent, 'targetTa
     // tecla cola a imagem copiada, não os itens do mapa.
     targetContentEditable: target.isContentEditable || target.closest(`[${ATRIBUTO_COLA_IMAGEM}]`) !== null,
   }
+}
+
+/**
+ * PATRULHA ANDANDO: as fichas que o mestre arrasta não dão passo sozinhas até o
+ * gesto acabar — o passo da patrulha puxaria a ficha de debaixo do ponteiro.
+ * Lista vazia solta todas (fim de qualquer gesto).
+ */
+function segurarNoArrasto(itens: readonly { kind: string; id: string }[]): void {
+  usePatrulhaAndandoStore.getState().setArrastadas(new Set(itens.flatMap((item) => (item.kind === 'token' ? [item.id] : []))))
 }
 
 interface PixiCanvasProps {
@@ -5091,6 +5102,7 @@ export function PixiCanvas({
           ) {
             mode = 'dragging-area-selection'
             areaSelectionDragBefore = map
+            segurarNoArrasto(selection)
             bodyGuideDrag = startSelectionGuideDrag(worldPoint)
             lastPoint = { x: event.global.x, y: event.global.y }
             return
@@ -5201,6 +5213,7 @@ export function PixiCanvas({
             setSelection(grupo)
             mode = 'dragging-area-selection'
             areaSelectionDragBefore = map
+            segurarNoArrasto(grupo)
             bodyGuideDrag = startSelectionGuideDrag(worldPoint)
             lastPoint = { x: event.global.x, y: event.global.y }
             updateCursor()
@@ -5237,6 +5250,7 @@ export function PixiCanvas({
               // `cloneForAltDrag` para a nota sobre Alt="inverter snap".
               startPieceDrag(event, hit.id, { kind: 'token', entity: token }, (id) => {
                 draggingTokenId = id
+                segurarNoArrasto([{ kind: 'token', id }])
                 startTokenGuides(id)
               })
             }
@@ -5378,6 +5392,7 @@ export function PixiCanvas({
             mode = 'dragging-token'
             tokenDragSnapshot = map
             draggingTokenId = selectedToken.id
+            segurarNoArrasto([{ kind: 'token', id: selectedToken.id }])
             // Mesma origem do ramo de cima: pegar a ficha pela folga em volta
             // do disco não pode contar quadrado que ela não andou.
             tokenDragOrigin = { x: selectedToken.x, y: selectedToken.y }
@@ -5828,6 +5843,7 @@ export function PixiCanvas({
         pinDragSnapshot = null
         mode = 'idle'
         draggingTokenId = null
+        segurarNoArrasto([])
         draggingPinId = null
         pinDragOffset = null
         draggingCurveId = null
@@ -5984,6 +6000,7 @@ export function PixiCanvas({
         pinDragSnapshot = null
         mode = 'idle'
         draggingTokenId = null
+        segurarNoArrasto([])
         draggingPinId = null
         pinDragOffset = null
         draggingCurveId = null
@@ -7036,6 +7053,11 @@ export function PixiCanvas({
             break
           // Shift+N — a mesma "Próxima vez" do painel Iniciativa (aba Jogo),
           // sem o mestre tirar o olho do mapa. Sem combate nesta cena, nada.
+          // Shift+P — o mesmo "Pausar NPCs" da barra de cima: congela (ou
+          // retoma) toda rotina e patrulha andando. Sem ninguém andando, nada.
+          case 'pauseNpcs':
+            alternarPausaDosNpcs()
+            break
           case 'nextTurn': {
             const { map: mapaDaVez } = useMapStore.getState()
             // Atalho de teclado não anima: o anel aparece parado na ficha seguinte.

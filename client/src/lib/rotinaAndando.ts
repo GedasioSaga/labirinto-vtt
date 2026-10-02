@@ -1,4 +1,4 @@
-import type { PostoDaRotina, RotinaDoNpc, Token } from '../types/map'
+import type { MapData, PostoDaRotina, RotinaDoNpc, Token } from '../types/map'
 import type { Point } from '../pixi/world'
 import { findTokenPath } from './collision'
 import type { EstadoDoMundo } from './estadoDoMundo'
@@ -36,9 +36,20 @@ export interface FichaAndando {
 /** Fichas com a rotina ligada, por id. */
 export type RotinasAndando = ReadonlyMap<string, FichaAndando>
 
-/** Quanto a ficha anda num tique, em px de mundo, num mapa de célula `grid`. */
-export function passoEmPx(grid: number): number {
-  return (grid * CASAS_POR_SEGUNDO * PASSO_DA_ROTINA_MS) / 1000
+/** Quanto a ficha anda num tique, em px de mundo, num mapa de célula `grid` (a patrulha passa a velocidade dela). */
+export function passoEmPx(grid: number, casasPorSegundo: number = CASAS_POR_SEGUNDO): number {
+  return (grid * casasPorSegundo * PASSO_DA_ROTINA_MS) / 1000
+}
+
+/**
+ * Retomar depois da PAUSA GERAL dos NPCs: cada espera anda para a frente o
+ * tempo que ficou pausado — quem estava parado no posto termina a parada, em
+ * vez de sair correndo porque o relógio de parede seguiu. Mesmo mapa quando
+ * não há o que adiar. Serve à rotina e à patrulha.
+ */
+export function adiarEsperas<T extends { esperaAte: number }>(andando: ReadonlyMap<string, T>, ms: number): ReadonlyMap<string, T> {
+  if (ms <= 0 || andando.size === 0) return andando
+  return new Map([...andando].map(([id, ficha]): [string, T] => [id, { ...ficha, esperaAte: ficha.esperaAte + ms }]))
 }
 
 /**
@@ -98,13 +109,13 @@ export function desligarRotina(andando: RotinasAndando, tokenId: string): Rotina
  * dobrasse a quina o faria ver a ficha atravessar a ponta da parede.
  * Sem arredondar: o posto guarda o x/y cru da ficha (22,5 no centro de uma casa
  * de 45 px, irracional na grade hexagonal), e a chegada é por igualdade exata.
+ * A patrulha anda com o mesmo passo, só que na velocidade dela (`passo`).
  */
-function andarUmPasso(from: Point, to: Point, cena: CenaDaRotina): Point | null {
-  const trajeto = findTokenPath(from, to, cena.map.walls, cena.map.grid)
+export function andarUmPasso(from: Point, to: Point, map: Pick<MapData, 'walls' | 'grid'>, passo: number = passoEmPx(map.grid)): Point | null {
+  const trajeto = findTokenPath(from, to, map.walls, map.grid)
   if (trajeto === null) return null
   const alvo = trajeto[1] ?? to
   const dist = Math.hypot(alvo.x - from.x, alvo.y - from.y)
-  const passo = passoEmPx(cena.map.grid)
   if (dist <= passo) return { x: alvo.x, y: alvo.y }
   const k = passo / dist
   return { x: from.x + (alvo.x - from.x) * k, y: from.y + (alvo.y - from.y) * k }
@@ -146,7 +157,7 @@ export function darPassoDaRotina(
     }
     const posto = postos[passo]
     const { cena, token } = achada
-    const para = posto.sceneId !== cena.sceneId ? posto : (andarUmPasso(token, posto, cena) ?? posto)
+    const para = posto.sceneId !== cena.sceneId ? posto : (andarUmPasso(token, posto, cena.map) ?? posto)
     if (para.x !== token.x || para.y !== token.y || posto.sceneId !== cena.sceneId) {
       movimentos.push({ tokenId, de: cena.sceneId, para: posto.sceneId, x: para.x, y: para.y })
     }

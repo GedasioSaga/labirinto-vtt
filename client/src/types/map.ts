@@ -1123,7 +1123,17 @@ export interface TokenPatrol {
   pontos: RegionPoint[]
   /** Índice do ponto onde o NPC está (o último alcançado). "Avançar patrulha" vai ao seguinte. */
   atual: number
+  /**
+   * Patrulha automática ("Patrulhar sozinha"): casas por segundo. Ausente = o
+   * padrão (`VELOCIDADE_PADRAO` em `lib/npcPatrol.ts`); mapa antigo não tem.
+   */
+  velocidade?: number
+  /** Patrulha automática: circuito (1-2-3-1, o padrão) ou vai-e-volta (1-2-3-2-1). */
+  modo?: ModoDaPatrulha
 }
+
+/** Ordem da ronda automática: do último volta ao primeiro, ou volta pelo mesmo caminho. */
+export type ModoDaPatrulha = 'circuito' | 'vai-e-volta'
 
 /**
  * Ficha no mapa. Sai para o jogador por LISTA BRANCA (`tokenForPlayer` em

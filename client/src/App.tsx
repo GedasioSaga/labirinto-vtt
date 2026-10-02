@@ -26,7 +26,7 @@ import { laserStrokeEnded, useLaserStore } from './stores/laserStore'
 import { usePlayerLaserStore } from './stores/playerLaserStore'
 import { useNoiseStore } from './stores/noiseStore'
 import { noiseFeedbackText } from './lib/noise'
-import { isEditableTarget } from './lib/keymap'
+import { isEditableTarget, PAUSE_NPCS_SHORTCUT } from './lib/keymap'
 import { useFollowStore } from './stores/followStore'
 import { useTerritorioStore } from './stores/territorioStore'
 import { alertaDaCena, coresDasFaccoes, corCss, faccaoHerdada } from './lib/faccoes'
@@ -53,6 +53,9 @@ import { jogadoresDoCorte } from './lib/corteDaTorre'
 import { useDestinationStore } from './stores/destinationStore'
 import { useCenaQueEspera } from './stores/useCenaQueEspera'
 import { useRotinaAndandoStore } from './stores/rotinaAndandoStore'
+import { usePatrulhaAndandoStore } from './stores/patrulhaAndandoStore'
+import { usePausaDosNpcsStore } from './stores/pausaDosNpcsStore'
+import { alternarPausaDosNpcs, useAlgumNpcAndando } from './stores/npcsAndando'
 import type { TravelLogEntry } from './lib/travelLog'
 import { withStoredTokens } from './lib/storedTokens'
 import { loadSavedExploration, loadSavedTable, savedTableSummary, storeSavedExploration, storeSavedTable, type TableStorage } from './lib/savedTable'
@@ -1083,9 +1086,16 @@ function App() {
   }, [roomPlayers, openSceneId])
   // ROTINA ANDANDO: quem anda sozinho agora; ficha na mão de um jogador (a dele ou o ajudante) não anda.
   const rotinasAndando = useRotinaAndandoStore((state) => state.andando)
+  // PATRULHA ANDANDO: a mesma regra — ficha na mão de um jogador fica onde está.
+  const patrulhasAndando = usePatrulhaAndandoStore((state) => state.andando)
   useEffect(() => {
-    useRotinaAndandoStore.getState().setFixas(new Set(roomPlayers.flatMap((player) => player.tokenIds)))
+    const fixas = new Set(roomPlayers.flatMap((player) => player.tokenIds))
+    useRotinaAndandoStore.getState().setFixas(fixas)
+    usePatrulhaAndandoStore.getState().setFixas(fixas)
   }, [roomPlayers])
+  // PAUSA GERAL DOS NPCS: o botão da barra de cima só existe com alguém andando sozinho.
+  const algumNpcAndando = useAlgumNpcAndando()
+  const npcsPausados = usePausaDosNpcsStore((state) => state.pausadaDesde !== null)
   useFollowPlayer(roomPlayers, () => hostWorldOf({ adventure, activeSceneId, cache: sceneCache }, map))
   // FACÇÃO E ALERTA: o filtro "Quem manda aqui" é da vista do mestre; a legenda sai das salas da cena aberta.
   const filtroFaccoes = useTerritorioStore((state) => state.filtroLigado)
@@ -1873,6 +1883,15 @@ function App() {
     }
   }
 
+  /** Imagem colada (Ctrl+V) ou solta arrastando na área do painel do pino. */
+  const handlePinImageBlob = async (pinId: string, blob: Blob) => {
+    try {
+      useMapStore.getState().updatePin(pinId, { image: await pinImageFromBlob(blob) })
+    } catch (err) {
+      reportFileError('usar a imagem do ponto de interesse', err)
+    }
+  }
+
   const handleTextChange = (text: string) => {
     if (!selectedTextLabel) return
     updateTextLabel(selectedTextLabel.id, { text })
@@ -1881,15 +1900,6 @@ function App() {
   const handleTextColorChange = (color: string) => {
     if (!selectedTextLabel) return
     updateTextLabel(selectedTextLabel.id, { color })
-  }
-
-  /** Imagem colada (Ctrl+V) ou solta arrastando na área do painel do pino. */
-  const handlePinImageBlob = async (pinId: string, blob: Blob) => {
-    try {
-      useMapStore.getState().updatePin(pinId, { image: await pinImageFromBlob(blob) })
-    } catch (err) {
-      reportFileError('usar a imagem do ponto de interesse', err)
-    }
   }
 
   const handleTextFontSizeChange = (fontSize: number) => {
@@ -2133,6 +2143,7 @@ function App() {
     // salvar, senão um passo depois da gravação sujava o mapa (o "Abrir" do
     // menu avisava trabalho não salvo) e os jogadores seguiam vendo o NPC andar.
     useRotinaAndandoStore.getState().reset()
+    usePatrulhaAndandoStore.getState().reset()
     try {
       await persistMap()
       useToastStore.getState().push('info', MAP_SAVED_TEXT)
@@ -2517,6 +2528,21 @@ function App() {
             drawShape: { value: activeTool, onChange: setActiveTool },
           }}
         />
+        {/* PAUSA GERAL DOS NPCS: congela rotina e patrulha andando para o
+            mestre narrar; fora do fluxo da barra, para ela não pular de lugar
+            quando o botão aparece. */}
+        {algumNpcAndando && (
+          <button
+            type="button"
+            className="lb-btn lb-npcs-pausa"
+            aria-pressed={npcsPausados}
+            aria-keyshortcuts={PAUSE_NPCS_SHORTCUT}
+            title={`${npcsPausados ? 'Retomar' : 'Pausar'} os NPCs que andam sozinhos (${PAUSE_NPCS_SHORTCUT})`}
+            onClick={alternarPausaDosNpcs}
+          >
+            {npcsPausados ? 'Retomar NPCs' : 'Pausar NPCs'}
+          </button>
+        )}
       </div>
 
       <div className="lb-editor__rail" ref={editorRailRef}>
@@ -3036,6 +3062,17 @@ function App() {
               // Opera sobre a ficha ATUAL do store: o "marcar" grava onde ela
               // está agora. Cada clique que muda o mapa é um Ctrl+Z.
               onPatrolOp: (op) => selectedToken && useMapStore.getState().patrolAction(selectedToken.id, op),
+              // PATRULHA ANDANDO: a ficha anda sozinha pela rota até o mestre
+              // parar; os passos ficam fora do Ctrl+Z, como a rotina andando.
+              patrulhando: selectedToken !== null && patrulhasAndando.has(selectedToken.id),
+              onPatrulhar: (ligar) => {
+                if (selectedToken === null) return
+                const patrulhas = usePatrulhaAndandoStore.getState()
+                if (ligar) patrulhas.ligar(selectedToken.id)
+                else patrulhas.desligar(selectedToken.id)
+              },
+              // Velocidade e modo são da rota: cada escolha é um Ctrl+Z.
+              onConfig: (config) => selectedToken && useMapStore.getState().setPatrolConfig(selectedToken.id, config),
             }}
             tokenCarry={{
               ...selectedTokenCarry,
@@ -3273,6 +3310,7 @@ function App() {
               colecao: selectedPin ? pinColecaoPanel(selectedPin, map.pins) : null,
               image: selectedPin?.image ?? null,
               onChooseImage: () => selectedPin && void handleChoosePinImage(selectedPin.id),
+              onImageBlob: (blob) => selectedPin && void handlePinImageBlob(selectedPin.id, blob),
               onClearImage: () => selectedPin && useMapStore.getState().updatePin(selectedPin.id, { image: null }),
               onDelete: () => selectedPin && useMapStore.getState().removePin(selectedPin.id),
               // ITEM PEGÁVEL: só com um pino "!"/"?" aberto (a passagem não vai para a mochila).
@@ -3310,7 +3348,6 @@ function App() {
                   ? {
                       target: cabinOf(map, selectedPin.id),
                       targets:
-              onImageBlob: (blob) => selectedPin && void handlePinImageBlob(selectedPin.id, blob),
                         selectedPin.kind === 'viagem'
                           ? cabinTargetsOfPar(pinExitsTravelOf({ adventure, activeSceneId, cache: sceneCache }, map, selectedPin))
                           : cabinTargets(map, selectedPin.id),
