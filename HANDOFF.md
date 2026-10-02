@@ -1168,3 +1168,29 @@ Itens 1-4 commitados com revisor sem achado bloqueante e conferidos no navegador
 - Assets no GitHub: `Labirinto_0.4.8_x64-setup.exe` 2311739 bytes, sha256 `c35b2f0f5ae59c5f089a8da9f21573982b15180592e3fd85cdcf62ff9721ffb3`; `Labirinto_0.4.8_x64_en-US.msi` 2998272 bytes, sha256 `c19233d83f385a0788e18ed65143c5f00a8f6cd090cbf493ad61b9579d7ca8b3`.
 - Escada: `cmp` entre o patch de backup e o diff depois do pop: idênticos.
 - Não rodado: Playwright e2e inteiro; instalação do .exe numa máquina limpa.
+
+### 01/10/2026 (noite): release v0.4.9 (`cd01cda8`)
+
+## Objetivo
+Pedido do usuário: imagem do pino por Ctrl+V/arrastar; patrulha automática (motor + macro por ponto); depois "pode fazer o instalador, da push e publicar no github". Entrega 3 (balão de fala desenhado) dispensada pelo usuário ("Nem precisa").
+
+## Estado atual
+- main = origin/main @ `cd01cda8` + este commit de docs. Commits: `d485e232` (pino), `c78b67d1` (patrulha), `36207197` (rotina contorna parede), `a70f5f1d` (macro por ponto), `cd01cda8` (versão).
+- Peças novas: `client/src/components/PinImageDrop.tsx`, `client/src/lib/caminhoEmGrade.ts` (A*), `client/src/lib/andarPeloCaminho.ts`, `client/src/lib/patrulhaAndando.ts`, `client/src/stores/patrulhaAndandoStore.ts`, `client/src/stores/pausaDosNpcsStore.ts`, `client/src/components/PassosDoPonto.tsx`.
+- Escada espiral parcial segue fora de commit (backup `scratchpad/escada-parcial-backup/escada-049.patch`).
+
+## Próximos passos
+- Fila do usuário em PEDIDOS.md: (B) vigiar — NPC vê jogador no radar e corre até ele (`TokenWatch` já existe); (C) transformações — várias imagens por ficha, NPC e jogador, salvas no acervo; depois "Trocar imagem" vira passo da patrulha.
+- Regra do usuário: no máximo 1 agente por vez, Opus high.
+
+## Critério de pronto
+- Release v0.4.9 no GitHub com os 2 instaladores; `labirinto.exe` ProductVersion 0.4.9.
+
+## Evidência
+- `rtk proxy npx tsc --noEmit` exit 0; e2e tsconfig exit 0 (escada em stash).
+- Suíte (antes da versão): 11600/11601; única falha `net/hostSession.custoCom7.test.ts` (tempo sob carga, passa sozinho).
+- Navegador: patrulha contorna parede (passo máx 26 px, sem cruzar); Shift+P congela; macro falar/olhar/esperar/sumir/aparecer/Seguir conferida; pino colar e soltar viram data URL webp.
+- gitleaks não instalado; varredura por padrões de segredo em `v0.4.8..HEAD`: nada.
+- `npm run tauri:build` exit 0; exe 0.4.9 abre janela "Labirinto" respondendo.
+- Release: https://github.com/GedasioSaga/labirinto-vtt/releases/tag/v0.4.9 — `Labirinto_0.4.9_x64-setup.exe` 2318425 bytes sha256 d4ba557ce20ed89ffc51fef92998e51eda75669c74ecb0f018d780938b1e3b08; `Labirinto_0.4.9_x64_en-US.msi` 3006464 bytes sha256 f2c33663abf05fa0d21cc751afc53db17ad0b37e098a485fd2e0499a95628e97.
+- Não rodado: Playwright e2e inteiro; arrastar arquivo do Explorer no exe; instalação em máquina limpa.
