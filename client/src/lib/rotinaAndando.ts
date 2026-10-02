@@ -1,6 +1,6 @@
-import type { MapData, PostoDaRotina, RotinaDoNpc, Token } from '../types/map'
+import type { PostoDaRotina, RotinaDoNpc, Token } from '../types/map'
 import type { Point } from '../pixi/world'
-import { findTokenPath } from './collision'
+import { andarPeloTrajeto, TENTAR_DE_NOVO_MS, trajetoAte } from './andarPeloCaminho'
 import type { EstadoDoMundo } from './estadoDoMundo'
 import type { CenaDaRotina, MovimentoDaRotina } from './rotinaDoNpc'
 
@@ -29,9 +29,13 @@ export const ESPERA_NO_POSTO_MS = 2000
 export interface FichaAndando {
   /** Índice, em `postosEmOrdem`, do posto para onde ela anda agora. */
   destino: number
-  /** Parada no posto: não anda antes deste instante. */
+  /** Parada no posto (ou à espera de caminho): não anda antes deste instante. */
   esperaAte: number
+  /** Os cantos que faltam até o posto (o último é ele). Ausente: calcular no próximo passo. */
+  trajeto?: readonly Point[]
 }
+
+export { TENTAR_DE_NOVO_MS } from './andarPeloCaminho'
 
 /** Fichas com a rotina ligada, por id. */
 export type RotinasAndando = ReadonlyMap<string, FichaAndando>
@@ -103,27 +107,11 @@ export function desligarRotina(andando: RotinasAndando, tokenId: string): Rotina
 }
 
 /**
- * Um passo de `from` rumo a `to` seguindo o trajeto; `null`: sem caminho.
- * O passo para NO vão da porta em vez de dobrar a quina dentro do mesmo tique:
- * o jogador desliza em linha reta de um ponto ao outro, e um passo que
- * dobrasse a quina o faria ver a ficha atravessar a ponta da parede.
- * Sem arredondar: o posto guarda o x/y cru da ficha (22,5 no centro de uma casa
- * de 45 px, irracional na grade hexagonal), e a chegada é por igualdade exata.
- * A patrulha anda com o mesmo passo, só que na velocidade dela (`passo`).
- */
-export function andarUmPasso(from: Point, to: Point, map: Pick<MapData, 'walls' | 'grid'>, passo: number = passoEmPx(map.grid)): Point | null {
-  const trajeto = findTokenPath(from, to, map.walls, map.grid)
-  if (trajeto === null) return null
-  const alvo = trajeto[1] ?? to
-  const dist = Math.hypot(alvo.x - from.x, alvo.y - from.y)
-  if (dist <= passo) return { x: alvo.x, y: alvo.y }
-  const k = passo / dist
-  return { x: from.x + (alvo.x - from.x) * k, y: from.y + (alvo.y - from.y) * k }
-}
-
-/**
  * Um tique do relógio: o movimento de cada ficha com a rotina ligada.
- * - posto na mesma cena: um passo rumo a ele (sem caminho livre: vai de uma vez);
+ * - posto na mesma cena: um passo rumo a ele pelo caminho em grade
+ *   (`lib/andarPeloCaminho.ts`): contorna parede, passa por porta aberta;
+ * - sem caminho até ele (porta fechada): fica onde está, sem pular, e procura
+ *   de novo em `TENTAR_DE_NOVO_MS`;
  * - posto noutra cena carregada: vai de uma vez para lá (`transferToken`);
  * - posto em cena fora do ar: fica de fora do loop, a ficha não some;
  * - ficha em `fixas` (um jogador segura) ou esperando no posto: não anda;
@@ -157,12 +145,25 @@ export function darPassoDaRotina(
     }
     const posto = postos[passo]
     const { cena, token } = achada
-    const para = posto.sceneId !== cena.sceneId ? posto : (andarUmPasso(token, posto, cena.map) ?? posto)
-    if (para.x !== token.x || para.y !== token.y || posto.sceneId !== cena.sceneId) {
-      movimentos.push({ tokenId, de: cena.sceneId, para: posto.sceneId, x: para.x, y: para.y })
+    const proximo = { destino: (passo + 1) % postos.length, esperaAte: now + ESPERA_NO_POSTO_MS }
+    if (posto.sceneId !== cena.sceneId) {
+      movimentos.push({ tokenId, de: cena.sceneId, para: posto.sceneId, x: posto.x, y: posto.y })
+      next.set(tokenId, proximo)
+      continue
     }
-    const chegou = posto.sceneId !== cena.sceneId || (para.x === posto.x && para.y === posto.y)
-    next.set(tokenId, chegou ? { destino: (passo + 1) % postos.length, esperaAte: now + ESPERA_NO_POSTO_MS } : { destino: passo, esperaAte: ficha.esperaAte })
+    const aqui = { x: token.x, y: token.y }
+    const trajeto = trajetoAte(aqui, posto, ficha.trajeto, cena.map)
+    if (trajeto === null) {
+      // Sem caminho (porta fechada): parada onde está, sem pular, até a próxima tentativa.
+      next.set(tokenId, { destino: passo, esperaAte: now + TENTAR_DE_NOVO_MS })
+      continue
+    }
+    const { para, resta } = andarPeloTrajeto(aqui, trajeto, passoEmPx(cena.map.grid))
+    if (para.x !== token.x || para.y !== token.y) {
+      movimentos.push({ tokenId, de: cena.sceneId, para: cena.sceneId, x: para.x, y: para.y })
+    }
+    const chegou = resta.length === 0 && para.x === posto.x && para.y === posto.y
+    next.set(tokenId, chegou ? proximo : { destino: passo, esperaAte: ficha.esperaAte, trajeto: resta })
   }
   return { movimentos, andando: next }
 }

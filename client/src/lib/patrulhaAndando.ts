@@ -1,11 +1,11 @@
 import type { Point } from '../pixi/world'
 import type { MapData, ModoDaPatrulha, TokenPatrol } from '../types/map'
-import { acharCaminho } from './caminhoEmGrade'
-import { isTokenPathClear } from './collision'
+import { andarPeloTrajeto, TENTAR_DE_NOVO_MS, trajetoAte } from './andarPeloCaminho'
 import { tokenPatrolOf, VELOCIDADE_PADRAO } from './npcPatrol'
 import { PASSO_DA_ROTINA_MS, passoEmPx } from './rotinaAndando'
 
 export { adiarEsperas } from './rotinaAndando'
+export { TENTAR_DE_NOVO_MS } from './andarPeloCaminho'
 
 /**
  * PATRULHA ANDANDO — "Patrulhar sozinha": ligada, a ficha anda pela própria
@@ -13,12 +13,10 @@ export { adiarEsperas } from './rotinaAndando'
  * (`lib/rotinaAndando.ts`), espera um pouco em cada ponto e segue, em circuito
  * (1-2-3-1) ou em vai-e-volta (1-2-3-2-1). Até o mestre tocar "Parar".
  *
- * O trecho até o ponto sai do caminho em grade (`lib/caminhoEmGrade.ts`):
- * contorna parede, passa por porta aberta, nunca atravessa parede nem porta
- * fechada. É calculado uma vez por trecho e guardado; se o próximo canto deixa
- * de ser alcançável (porta fechou no caminho, o mestre mudou a ficha de lugar),
- * recalcula. Sem caminho, a ficha NÃO pula: fica onde está e tenta de novo a
- * cada `TENTAR_DE_NOVO_MS` — abriu a porta, ela segue.
+ * O trecho até o ponto anda pelo caminho em grade, com a mesma regra da rotina
+ * (`lib/andarPeloCaminho.ts`): contorna parede, passa por porta aberta, e sem
+ * caminho a ficha NÃO pula — fica onde está e tenta de novo a cada
+ * `TENTAR_DE_NOVO_MS`.
  *
  * Diferente da rotina, não depende de aventura nem de estado do mundo: a rota
  * é da ficha, na cena aberta. Por isso o agendador recebe só o MAPA aberto —
@@ -34,8 +32,6 @@ export { adiarEsperas } from './rotinaAndando'
 export const PASSO_DA_PATRULHA_MS = PASSO_DA_ROTINA_MS
 /** Parada em cada ponto antes de seguir para o próximo. */
 export const ESPERA_NO_PONTO_MS = 2000
-/** Sem caminho até o ponto (porta fechada, sala sem saída): de quanto em quanto ela procura de novo. */
-export const TENTAR_DE_NOVO_MS = 1000
 
 /** A ficha com a patrulha ligada. */
 export interface FichaPatrulhando {
@@ -114,41 +110,6 @@ export function desligarPatrulha(andando: PatrulhasAndando, tokenId: string): Pa
   const next = new Map(andando)
   next.delete(tokenId)
   return next
-}
-
-/**
- * Os cantos que faltam até `ponto`: o trajeto guardado, se ainda leva lá e o
- * próximo canto continua alcançável daqui; senão, um caminho novo. `null`:
- * sem caminho agora.
- */
-function trajetoAte(aqui: Point, ponto: Point, guardado: readonly Point[] | undefined, map: MapData): readonly Point[] | null {
-  const ultimo = guardado?.[guardado.length - 1]
-  const proximo = guardado?.[0]
-  const valeAinda =
-    guardado !== undefined &&
-    ultimo !== undefined &&
-    proximo !== undefined &&
-    ultimo.x === ponto.x &&
-    ultimo.y === ponto.y &&
-    isTokenPathClear(aqui, proximo, map.walls, map.grid)
-  if (valeAinda) return guardado
-  return acharCaminho(aqui, ponto, map)?.slice(1) ?? null
-}
-
-/**
- * Um passo de `aqui` pelo `trajeto`. Para EM cada canto em vez de dobrá-lo no
- * mesmo tique: o jogador desliza em linha reta de um ponto ao outro, e um passo
- * que dobrasse a quina o faria ver a ficha atravessar a ponta da parede (a
- * mesma regra do vão da porta na rotina). Sem arredondar: a chegada ao ponto é
- * por igualdade exata.
- */
-function andarPeloTrajeto(aqui: Point, trajeto: readonly Point[], passo: number): { para: Point; resta: readonly Point[] } {
-  const alvo = trajeto[0]
-  if (alvo === undefined) return { para: aqui, resta: trajeto }
-  const dist = Math.hypot(alvo.x - aqui.x, alvo.y - aqui.y)
-  if (dist <= passo) return { para: { x: alvo.x, y: alvo.y }, resta: trajeto.slice(1) }
-  const k = passo / dist
-  return { para: { x: aqui.x + (alvo.x - aqui.x) * k, y: aqui.y + (alvo.y - aqui.y) * k }, resta: trajeto }
 }
 
 /**

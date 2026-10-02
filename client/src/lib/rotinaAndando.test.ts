@@ -5,9 +5,9 @@
  */
 import { describe, expect, it } from 'vitest'
 import type { EstadoDoMundo } from './estadoDoMundo'
-import { findTokenPath } from './collision'
+import { findTokenPath, segmentsIntersect } from './collision'
 import { createEmptyMap } from './mapFactory'
-import { ESPERA_NO_POSTO_MS, PASSO_DA_ROTINA_MS, darPassoDaRotina, desligarRotina, ligarRotina, passoEmPx, type RotinasAndando } from './rotinaAndando'
+import { ESPERA_NO_POSTO_MS, PASSO_DA_ROTINA_MS, TENTAR_DE_NOVO_MS, darPassoDaRotina, desligarRotina, ligarRotina, passoEmPx, type RotinasAndando } from './rotinaAndando'
 import { moverNaCena, type CenaDaRotina } from './rotinaDoNpc'
 import type { MapData, Token, Wall } from '../types/map'
 
@@ -269,5 +269,75 @@ describe('agendador da rotina: cena trocada', () => {
     const cenas = [{ sceneId: 'capela', map: mapa('capela', [tobias(100, 100, rotina)]) }]
     const r = tique(cenas, ligarRotina(new Map(), cenas, 'tobias', ESTADOS, 0), 0)
     expect(r.movimentos).toEqual([{ tokenId: 'tobias', de: 'capela', para: 'capela', x: 100 + PASSO, y: 100 }])
+  })
+})
+
+describe('agendador da rotina: desvia de parede e nunca teleporta', () => {
+  const G = 64
+  const PASSO_64 = passoEmPx(G)
+
+  function parede(id: string, x1: number, y1: number, x2: number, y2: number, door: Wall['door'] = null): Wall {
+    return { id, x1, y1, x2, y2, blocksLight: true, blocksMove: true, door }
+  }
+
+  /** Aurora em `de`, Meio em `para`, na mesma cena; o Tobias começa na Aurora. */
+  function sala(walls: Wall[], de: { x: number; y: number }, para: { x: number; y: number }): CenaDaRotina[] {
+    const rotina = {
+      estadoId: 'apito',
+      postos: [
+        { valor: 'Aurora', sceneId: 'capela', x: de.x, y: de.y },
+        { valor: 'Meio', sceneId: 'capela', x: para.x, y: para.y },
+      ],
+    }
+    return [{ sceneId: 'capela', map: { ...createEmptyMap('capela', 'capela', 15, 10, G), walls, tokens: [tobias(de.x, de.y, rotina)] } }]
+  }
+
+  function comParedes(cenas: CenaDaRotina[], walls: Wall[]): CenaDaRotina[] {
+    return cenas.map((c) => ({ ...c, map: { ...c.map, walls } }))
+  }
+
+  function semPuloNemParede(trilha: ReadonlyArray<{ x: number; y: number }>, walls: readonly Wall[]) {
+    for (let i = 1; i < trilha.length; i += 1) {
+      const de = trilha[i - 1]
+      const para = trilha[i]
+      if (de === undefined || para === undefined) continue
+      expect(Math.hypot(para.x - de.x, para.y - de.y)).toBeLessThanOrEqual(PASSO_64 + 1e-9)
+      for (const w of walls) {
+        if (w.door !== null && w.door.open && !w.door.locked) continue
+        expect(segmentsIntersect(de, para, { x: w.x1, y: w.y1 }, { x: w.x2, y: w.y2 })).toBe(false)
+      }
+    }
+  }
+
+  it('parede sem porta entre dois postos: contorna casa a casa e chega, sem pulo', () => {
+    const walls = [parede('w', 384, 128, 384, 320)]
+    const cenas = sala(walls, { x: 224, y: 224 }, { x: 608, y: 224 })
+    const r = rodar(cenas, ligarRotina(new Map(), cenas, 'tobias', ESTADOS, 0), 0, 60)
+    expect(r.trilha).toContainEqual({ x: 608, y: 224 })
+    semPuloNemParede([{ x: 224, y: 224 }, ...r.trilha], walls)
+  })
+
+  it('porta fechada no único caminho: fica parada e tenta de novo; aberta a porta, segue', () => {
+    const comPorta = (door: Wall['door']) => [parede('a', 384, 0, 384, 384), parede('porta', 384, 384, 384, 448, door), parede('b', 384, 448, 384, 640)]
+    const fechada = comPorta({ open: false, locked: false, kind: 'normal' })
+    const aberta = comPorta({ open: true, locked: false, kind: 'normal' })
+    const cenas = sala(fechada, { x: 224, y: 96 }, { x: 608, y: 96 })
+    const parada = darPassoDaRotina(cenas, ligarRotina(new Map(), cenas, 'tobias', ESTADOS, 0), ESTADOS, 0)
+    expect(parada.movimentos).toEqual([])
+    expect(parada.andando.get('tobias')?.esperaAte).toBe(TENTAR_DE_NOVO_MS)
+    expect(darPassoDaRotina(cenas, parada.andando, ESTADOS, TENTAR_DE_NOVO_MS).movimentos).toEqual([])
+    const r = rodar(comParedes(cenas, aberta), parada.andando, TENTAR_DE_NOVO_MS, 80)
+    expect(r.trilha).toContainEqual({ x: 608, y: 96 })
+    semPuloNemParede([{ x: 224, y: 96 }, ...r.trilha], aberta)
+  })
+
+  it('porta fecha no meio do caminho: a ficha para do lado de cá, sem atravessar', () => {
+    const comPorta = (door: Wall['door']) => [parede('a', 384, 0, 384, 384), parede('porta', 384, 384, 384, 448, door), parede('b', 384, 448, 384, 640)]
+    const fechada = comPorta({ open: false, locked: false, kind: 'normal' })
+    const cenas = sala(comPorta({ open: true, locked: false, kind: 'normal' }), { x: 224, y: 96 }, { x: 608, y: 96 })
+    const ida = rodar(cenas, ligarRotina(new Map(), cenas, 'tobias', ESTADOS, 0), 0, 3)
+    const r = rodar(comParedes(ida.cenas, fechada), ida.andando, 3 * PASSO_DA_ROTINA_MS, 60)
+    expect(r.trilha.every((p) => p.x < 384)).toBe(true)
+    semPuloNemParede(r.trilha, fechada)
   })
 })
