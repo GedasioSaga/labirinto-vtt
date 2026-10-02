@@ -10,6 +10,7 @@ import { PinIconControls, type PinIconControlsProps } from './PinIconControls'
 import { PinLockControls, type PinLockControlsProps } from './PinLockControls'
 import { PinLojaControls, type PinLojaControlsProps } from './PinLojaControls'
 import { PinLeverArt, PinTravelArt } from './PinSymbolArt'
+import { PinImageDrop } from './PinImageDrop'
 import { PinCabinControls, type PinCabinControlsProps } from './PinCabinControls'
 import { PinTravelControls, type PinTravelControlsProps } from './PinTravelControls'
 import { ShowPinNowControls, type ShowPinNowControlsProps } from './ShowPinNowControls'
@@ -45,6 +46,8 @@ export interface PinControlsProps {
   onLerDePertoChange: (casas: number | null) => void
   image: string | null
   onChooseImage: () => void
+  /** Imagem colada (Ctrl+V) ou solta arrastando na área do painel. */
+  onImageBlob?: (blob: Blob) => void
   onClearImage: () => void
   onDelete: () => void
   /**
@@ -320,6 +323,7 @@ export function PinControls({
   onLerDePertoChange,
   image,
   onChooseImage,
+  onImageBlob,
   onClearImage,
   onDelete,
   travel = null,
@@ -466,6 +470,7 @@ export function PinControls({
               recebe a imagem embutida, e mostrar a pasta do mestre aqui só
               enche a coluna. Data URL não tem nome, então diz o que é. */}
           {image !== null && <span className="lb-label">Imagem escolhida</span>}
+          {onImageBlob !== undefined && <PinImageDrop onImage={onImageBlob} />}
           <button type="button" className="lb-btn lb-btn--block" onClick={onChooseImage}>
             {image === null ? 'Escolher imagem...' : 'Trocar imagem...'}
           </button>

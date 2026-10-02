@@ -23,6 +23,18 @@ instalarDicasDoPainel(document)
 // fazem do Alt um modificador (Alt+arrastar, Alt+setas).
 instalarEndireitarComAlt(window)
 
+// Arquivo solto fora de uma área que o aceite (hoje só a imagem do pino) não
+// pode abrir na janela no lugar do app. O Tauri entrega o arrastar ao DOM
+// (`dragDropEnabled: false`), então a trava fica aqui.
+for (const tipo of ['dragover', 'drop'] as const) {
+  window.addEventListener(tipo, (event) => {
+    // Já tratado pela área que aceita: ela decide o cursor.
+    if (event.defaultPrevented || !event.dataTransfer?.types.includes('Files')) return
+    event.preventDefault()
+    event.dataTransfer.dropEffect = 'none'
+  })
+}
+
 createRoot(document.getElementById('root') as HTMLElement).render(
   <StrictMode>
     <App />

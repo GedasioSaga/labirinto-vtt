@@ -130,6 +130,7 @@ describe('PinControls: a loja no painel do pino', () => {
           onLockedChange={() => {}}
           image={null}
           onChooseImage={() => {}}
+          onImageBlob={() => {}}
           onClearImage={() => {}}
           onDelete={() => {}}
           marco={false}

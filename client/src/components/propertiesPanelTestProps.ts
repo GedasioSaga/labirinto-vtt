@@ -150,6 +150,7 @@ export function propsDoPainel(ficha: Token | null, extra: Partial<PainelProps> =
       onLerDePertoChange: nada,
       image: null,
       onChooseImage: nada,
+      onImageBlob: nada,
       onClearImage: nada,
       onDelete: nada,
     },

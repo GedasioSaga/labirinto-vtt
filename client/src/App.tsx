@@ -112,7 +112,7 @@ import { ligacaoLevarFicha } from './stores/levarFicha'
 import type { ActiveAlarmView } from './components/SceneAlarmControls'
 import { PinsSection } from './components/PinsSection'
 import { pinDirectory } from './lib/pinDirectory'
-import { pickBackgroundImage, importBackgroundImage, pickImageFile, importPinImage, importTokenImage, buildTokenSharedPhoto } from './lib/imageImport'
+import { pickBackgroundImage, importBackgroundImage, pickImageFile, importPinImage, pinImageFromBlob, importTokenImage, buildTokenSharedPhoto } from './lib/imageImport'
 import { useTokenLibraryStore } from './stores/tokenLibraryStore'
 import {
   apagarDoAcervo,
@@ -1883,6 +1883,15 @@ function App() {
     updateTextLabel(selectedTextLabel.id, { color })
   }
 
+  /** Imagem colada (Ctrl+V) ou solta arrastando na área do painel do pino. */
+  const handlePinImageBlob = async (pinId: string, blob: Blob) => {
+    try {
+      useMapStore.getState().updatePin(pinId, { image: await pinImageFromBlob(blob) })
+    } catch (err) {
+      reportFileError('usar a imagem do ponto de interesse', err)
+    }
+  }
+
   const handleTextFontSizeChange = (fontSize: number) => {
     if (!selectedTextLabel) return
     updateTextLabel(selectedTextLabel.id, { fontSize })
@@ -3301,6 +3310,7 @@ function App() {
                   ? {
                       target: cabinOf(map, selectedPin.id),
                       targets:
+              onImageBlob: (blob) => selectedPin && void handlePinImageBlob(selectedPin.id, blob),
                         selectedPin.kind === 'viagem'
                           ? cabinTargetsOfPar(pinExitsTravelOf({ adventure, activeSceneId, cache: sceneCache }, map, selectedPin))
                           : cabinTargets(map, selectedPin.id),

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react'
+import { ATRIBUTO_COLA_IMAGEM } from '../components/PinImageDrop'
 import { DoorContextMenu } from '../components/DoorContextMenu'
 import { Application, Container, Graphics, Sprite, Texture, Assets, Rectangle } from 'pixi.js'
 import { dataUrlToBytes, imageExportScale, mapForImageExport, type ImageExportOptions, type MapImageExporter } from '../lib/mapImageExport'
@@ -582,7 +583,9 @@ function alvoDoAtalho(target: EventTarget | null): Pick<ShortcutEvent, 'targetTa
   return {
     targetTagName: target.tagName,
     targetInputType: target instanceof HTMLInputElement ? target.type : undefined,
-    targetContentEditable: target.isContentEditable,
+    // A área de imagem do pino recebe o Ctrl+V como um campo de texto: lá a
+    // tecla cola a imagem copiada, não os itens do mapa.
+    targetContentEditable: target.isContentEditable || target.closest(`[${ATRIBUTO_COLA_IMAGEM}]`) !== null,
   }
 }
 

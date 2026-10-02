@@ -66,6 +66,7 @@ function renderPainel(pinId: string): void {
         iconChoice={null}
         image={pin.image}
         onChooseImage={vi.fn()}
+        onImageBlob={vi.fn()}
         onClearImage={vi.fn()}
         onDelete={vi.fn()}
         colecao={pinColecaoPanel(pin, pins)}

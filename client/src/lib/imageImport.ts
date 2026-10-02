@@ -144,7 +144,16 @@ export async function importPinImage(sourcePath: string): Promise<string> {
   await invoke('grant_fs_access', { path: sourceDir })
 
   const bytes = await readFile(sourcePath)
-  const bitmap = await createImageBitmap(new Blob([bytes]))
+  return pinImageFromBlob(new Blob([bytes]))
+}
+
+/**
+ * Mesmo resultado de `importPinImage`, a partir da imagem já em memória: a que
+ * o mestre COLA (Ctrl+V) ou SOLTA arrastando no painel do pino. Não há caminho
+ * de disco nem pasta para liberar — o navegador já entregou os bytes.
+ */
+export async function pinImageFromBlob(source: Blob): Promise<string> {
+  const bitmap = await createImageBitmap(source)
   const { width, height } = computeResampleDimensions(bitmap.width, bitmap.height, MAX_PIN_SIDE)
 
   const canvas = document.createElement('canvas')
