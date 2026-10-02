@@ -1120,7 +1120,7 @@ export type WatchAlert = '?' | '!'
  */
 export interface TokenPatrol {
   /** Os pontos da rota, em px do mapa, na ordem em que o NPC anda. Do último volta ao primeiro. */
-  pontos: RegionPoint[]
+  pontos: PontoDaPatrulha[]
   /** Índice do ponto onde o NPC está (o último alcançado). "Avançar patrulha" vai ao seguinte. */
   atual: number
   /**
@@ -1134,6 +1134,35 @@ export interface TokenPatrol {
 
 /** Ordem da ronda automática: do último volta ao primeiro, ou volta pelo mesmo caminho. */
 export type ModoDaPatrulha = 'circuito' | 'vai-e-volta'
+
+/**
+ * Um ponto da rota. `passos` é a MACRO do ponto: o que a ficha faz, em ordem,
+ * ao chegar nele na patrulha automática, antes de seguir. Ausente (mapa antigo)
+ * = [Esperar 2 s]; lista vazia = segue direto. Regras em `lib/npcPatrol.ts`.
+ */
+export interface PontoDaPatrulha extends RegionPoint {
+  passos?: PassoDaPatrulha[]
+}
+
+/**
+ * Um passo da macro do ponto da patrulha.
+ * - `esperar`: fica parada `segundos`;
+ * - `olhar`: vira para `graus` (0 = para cima, horário: a convenção de `rotation`), e o cone da vigia junto;
+ * - `velocidade`: `casas` por segundo só no trecho até o próximo ponto;
+ * - `falar`: a ficha diz `texto` (campo `fala` da ficha) até voltar a andar;
+ * - `sumir` / `aparecer`: oculta ou mostra a ficha (`hidden`); sumida, segue a ronda invisível;
+ * - `esperarMestre`: para até o mestre tocar "Seguir" no painel.
+ */
+export type PassoDaPatrulha =
+  | { tipo: 'esperar'; segundos: number }
+  | { tipo: 'olhar'; graus: number }
+  | { tipo: 'velocidade'; casas: number }
+  | { tipo: 'falar'; texto: string }
+  | { tipo: 'sumir' }
+  | { tipo: 'aparecer' }
+  | { tipo: 'esperarMestre' }
+
+export type TipoDePassoDaPatrulha = PassoDaPatrulha['tipo']
 
 /**
  * Ficha no mapa. Sai para o jogador por LISTA BRANCA (`tokenForPlayer` em
@@ -1217,6 +1246,12 @@ export interface Token extends PlayerSecret, NoPiso {
    * `readTokenPatrol`. NÃO atravessa para o jogador.
    */
   patrulha?: TokenPatrol
+  /**
+   * O que a ficha está dizendo agora (passo `falar` da patrulha, `lib/patrulhaAndando.ts`).
+   * Some quando ela volta a andar. Vai ao jogador só junto com a ficha, isto é,
+   * só quando ele a enxerga (`tokenForPlayer`). Ausente = calada.
+   */
+  fala?: string
   /** Token não pode ser movido/editado. `undefined` === false (comportamento
    *  idêntico ao de hoje) — sem linha de migração. */
   locked?: boolean

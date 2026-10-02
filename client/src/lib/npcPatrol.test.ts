@@ -61,15 +61,18 @@ describe('readTokenPatrol — o mapa do disco chega cru', () => {
   })
 })
 
+/** Ponto novo nasce com a macro de sempre (npcPatrol.passos.test.ts). */
+const ESPERA_2S = [{ tipo: 'esperar' as const, segundos: 2 }]
+
 describe('applyPatrolOp — marcar os pontos da rota', () => {
   it('"marcar" grava a posição ATUAL da ficha como próximo ponto, e o NPC está nele', () => {
     const inicio = mesa([ficha('guarda', 100, 100)])
     const um = applyPatrolOp(inicio, 'guarda', 'marcar')
-    expect(tokenPatrolOf(npc(um))).toEqual({ pontos: [{ x: 100, y: 100 }], atual: 0 })
+    expect(tokenPatrolOf(npc(um))).toEqual({ pontos: [{ x: 100, y: 100, passos: ESPERA_2S }], atual: 0 })
 
     const andou = { ...um, tokens: um.tokens.map((t) => ({ ...t, x: 300, y: 100 })) }
     const dois = applyPatrolOp(andou, 'guarda', 'marcar')
-    expect(tokenPatrolOf(npc(dois))).toEqual({ pontos: [{ x: 100, y: 100 }, { x: 300, y: 100 }], atual: 1 })
+    expect(tokenPatrolOf(npc(dois))).toEqual({ pontos: [{ x: 100, y: 100, passos: ESPERA_2S }, { x: 300, y: 100, passos: ESPERA_2S }], atual: 1 })
   })
 
   it('rota cheia não ganha ponto: o mapa volta pela mesma referência', () => {

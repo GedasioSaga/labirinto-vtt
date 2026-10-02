@@ -1,6 +1,7 @@
 import { useId, useLayoutEffect, useRef } from 'react'
-import type { ModoDaPatrulha, TokenPatrol } from '../types/map'
+import type { ModoDaPatrulha, PassoDaPatrulha, TokenPatrol } from '../types/map'
 import { VELOCIDADE_PADRAO, type ConfigDaPatrulha, type PatrolOp } from '../lib/npcPatrol'
+import { ListaDePontos, rotuloDaVelocidade, VELOCIDADES } from './PassosDoPonto'
 import { OpcionalDaFicha, useSecaoLembrada } from './TokenConditionControls'
 import './TokenControls.css'
 
@@ -15,14 +16,15 @@ export interface TokenPatrolControlsProps {
   onPatrulhar?: (ligar: boolean) => void
   /** Troca velocidade ou modo da ronda (`setPatrolConfig`); sem ele, as listas não aparecem. */
   onConfig?: (config: ConfigDaPatrulha) => void
-}
-
-/** As velocidades que a lista oferece, em casas por segundo: de quem espreita a quem corre. */
-const VELOCIDADES = [0.5, 1, 2, 3, 4, 6, 8] as const
-
-function rotuloDaVelocidade(casas: number): string {
-  const numero = casas.toLocaleString('pt-BR')
-  return casas === 1 ? '1 casa/s' : `${numero} casas/s`
+  /** MACRO POR PONTO: a lista nova de passos do ponto `indice` (`setPatrolPassos`, no Ctrl+Z); sem ele, a lista de pontos não aparece. */
+  onPassos?: (indice: number, passos: PassoDaPatrulha[]) => void
+  /** O ponto aberto no painel (o mapa o destaca); `null` = nenhum. */
+  pontoAberto?: number | null
+  onAbrirPonto?: (indice: number | null) => void
+  /** A ficha está parada no passo "Esperar o mestre". */
+  esperandoMestre?: boolean
+  /** "Seguir": solta a ficha que espera o mestre. */
+  onSeguir?: () => void
 }
 
 const MODOS: ReadonlyArray<{ valor: ModoDaPatrulha; rotulo: string }> = [
@@ -63,7 +65,18 @@ function patrolSummary(patrol: TokenPatrol): string {
  * tocar "Parar". Esses passos ficam FORA do Ctrl+Z (como a rotina andando);
  * velocidade e modo são da rota e entram nele.
  */
-export function TokenPatrolControls({ patrol, onPatrolOp, patrulhando = false, onPatrulhar, onConfig }: TokenPatrolControlsProps) {
+export function TokenPatrolControls({
+  patrol,
+  onPatrolOp,
+  patrulhando = false,
+  onPatrulhar,
+  onConfig,
+  onPassos,
+  pontoAberto = null,
+  onAbrirPonto,
+  esperandoMestre = false,
+  onSeguir,
+}: TokenPatrolControlsProps) {
   const [aberta, lembrarAberta] = useSecaoLembrada('ficha-patrulha')
   const reasonId = useId()
   const dicaId = useId()
@@ -117,6 +130,15 @@ export function TokenPatrolControls({ patrol, onPatrolOp, patrulhando = false, o
           >
             {patrulhando ? 'Parar' : 'Patrulhar sozinha'}
           </button>
+        )}
+        {/* Passo "Esperar o mestre": a ficha está parada à espera dele, e é aqui que ele a solta. */}
+        {patrulhando && esperandoMestre && onSeguir !== undefined && (
+          <div className="lb-patrulha-espera" role="status">
+            <span className="lb-patrulha-espera__texto">Esperando você no ponto {(patrol?.atual ?? 0) + 1}</span>
+            <button type="button" className="lb-btn lb-btn--primary" onClick={onSeguir}>
+              Seguir
+            </button>
+          </div>
         )}
         {/* Com a ronda automática acima, o passo manual vira a ação secundária. */}
         <button
@@ -179,6 +201,9 @@ export function TokenPatrolControls({ patrol, onPatrolOp, patrulhando = false, o
               </select>
             </div>
           </>
+        )}
+        {patrol !== null && onPassos !== undefined && (
+          <ListaDePontos pontos={patrol.pontos} aberto={pontoAberto} onAbrir={(indice) => onAbrirPonto?.(indice)} onPassos={onPassos} />
         )}
         <button ref={marcarRef} type="button" className="lb-btn lb-btn--ghost lb-btn--block" onClick={() => pedir('marcar')}>
           Marcar ponto aqui

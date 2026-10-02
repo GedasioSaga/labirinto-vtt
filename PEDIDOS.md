@@ -1225,3 +1225,4 @@ Noite = esta sessão conduzida pelo main thread; o noite-runner continua encerra
   - "Trocar imagem" entra como passo depois da feature C. Ordem: A, depois B (vigia já existe: `TokenWatch`), depois C.
   - Regra do usuário: no máximo 1 agente por vez, Opus high.
 - Entrega 1 (motor) feita e testada no navegador: anda casa a casa com A* (`lib/caminhoEmGrade.ts`), contorna parede, sem caminho fica parada e tenta de novo a cada 1 s; velocidade e ronda salvas; "Pausar NPCs" + Shift+P. Pendência anotada: a ROTINA ainda teleporta através de parede sem porta (usa o caminho antigo).
+- Entrega 2 (macro por ponto) feita e testada no navegador: falar, olhar, esperar, sumir, aparecer e esperar o mestre ("Seguir") rodando em ordem; anel no ponto aberto; linha do passo em duas linhas para caber na coluna. Fala não é gravada no arquivo. Rotina também deixou de atravessar parede (`36207197`).

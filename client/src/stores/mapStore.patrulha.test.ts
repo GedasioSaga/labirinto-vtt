@@ -44,7 +44,8 @@ describe('mapStore patrolAction', () => {
   it('Marcar ponto aqui grava a posição atual da ficha no store (não a de uma cópia velha)', () => {
     useMapStore.getState().setTokenPosition('heroi', 75, 80)
     useMapStore.getState().patrolAction('heroi', 'marcar')
-    expect(fichaDoMapa('heroi')?.patrulha).toEqual({ pontos: [{ x: 75, y: 80 }], atual: 0 })
+    // O ponto novo nasce com a macro de sempre, [Esperar 2 s] (npcPatrol.passos.test.ts).
+    expect(fichaDoMapa('heroi')?.patrulha).toEqual({ pontos: [{ x: 75, y: 80, passos: [{ tipo: 'esperar', segundos: 2 }] }], atual: 0 })
   })
 
   it('sem para onde andar, ou ficha que não existe: o mapa fica igual e o histórico não cresce', () => {

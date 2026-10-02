@@ -1637,6 +1637,7 @@ export function PixiCanvas({
           rendererResolution: app.renderer.resolution,
           rotatingRoom: roomRotateGesture.isActive(),
           filtroFaccoes: useTerritorioStore.getState().filtroLigado,
+          pontoDaPatrulhaAberto: usePatrulhaAndandoStore.getState().pontoAberto,
         }
       }
 
@@ -1692,7 +1693,7 @@ export function PixiCanvas({
         // OLHOS DO GUARDA: parede nova, porta aberta ou guarda andando mudam o cone.
         watchCones: () => drawWatchCones(watchConesGraphics, sceneState().map),
         // ROTA DE PATRULHA: a rota muda junto com a ficha (marcar ponto, avançar patrulha).
-        patrolRoutes: () => drawPatrolRoutes(patrolRoutesGraphics, sceneState().map),
+        patrolRoutes: () => drawPatrolRoutes(patrolRoutesGraphics, sceneState().map, usePatrulhaAndandoStore.getState().pontoAberto),
         concealZones: () => {
           const { map, selectedConcealZoneId } = sceneState()
           concealZonesRenderer.draw(concealZonesContainer, map.concealZones, map.grid, selectedConcealZoneId)
@@ -2107,6 +2108,10 @@ export function PixiCanvas({
       // pelo mesmo portão do redesenho parcial (só ela repinta).
       const unsubscribeTerritorio = useTerritorioStore.subscribe((state, previous) => {
         if (state.filtroLigado !== previous.filtroLigado) redrawShapes()
+      })
+      // MACRO POR PONTO: abrir outro ponto no painel move o anel de destaque da rota.
+      const unsubscribePontoAberto = usePatrulhaAndandoStore.subscribe((state, previous) => {
+        if (state.pontoAberto !== previous.pontoAberto) redrawShapeLayers(['patrolRoutes'])
       })
       const unsubscribeTokens = subscribeToTokensRedraw(redrawTokens)
       // A vez andou (Começar, Próxima vez, Encerrar): o anel troca de ficha.
@@ -7206,6 +7211,7 @@ export function PixiCanvas({
         unsubscribeShapes()
         unsubscribeTravelLinks()
         unsubscribeTerritorio()
+        unsubscribePontoAberto()
         unsubscribeTokens()
         unsubscribeTurn()
         unsubscribeAwayTokens()

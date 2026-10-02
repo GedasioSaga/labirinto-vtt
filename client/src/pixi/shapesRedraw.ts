@@ -7,6 +7,7 @@ import { hazardsOf } from '../lib/hazards'
 import { conveyorsOf } from '../lib/conveyors'
 import { tokenWatchOf } from '../lib/npcWatch'
 import { tokenPatrolOf } from '../lib/npcPatrol'
+import type { PontoDaRotaAberto } from './drawNpcPatrol'
 
 /**
  * Camadas vetoriais do mapa no editor, NA ORDEM de pintura do PixiCanvas.
@@ -66,6 +67,8 @@ export interface ShapesSnapshot {
   rotatingRoom: boolean
   /** Filtro "Quem manda aqui" ligado (`stores/territorioStore.ts`). Ausente === desligado. */
   filtroFaccoes?: boolean
+  /** O ponto da patrulha com a macro aberta no painel (`stores/patrulhaAndandoStore.ts`). Ausente === nenhum. */
+  pontoDaPatrulhaAberto?: PontoDaRotaAberto | null
 }
 
 /**
@@ -157,7 +160,8 @@ export function shapesLayerDeps(layer: ShapesLayer, snapshot: ShapesSnapshot): r
       return map.tokens.some((t) => tokenWatchOf(t) !== null) ? [map.tokens, map.walls, map.floor, hidden, map.grid] : ['sem guarda']
     case 'patrolRoutes':
       // ROTA DE PATRULHA: a rota mora na ficha (marcar ponto, avançar), e a camada Fichas esconde junto.
-      return map.tokens.some((t) => tokenPatrolOf(t) !== null) ? [map.tokens, hidden, map.grid] : ['sem patrulha']
+      // O ponto aberto no painel ganha o anel de destaque.
+      return map.tokens.some((t) => tokenPatrolOf(t) !== null) ? [map.tokens, hidden, map.grid, snapshot.pontoDaPatrulhaAberto ?? null] : ['sem patrulha']
     case 'concealZones':
       return [map.concealZones, map.grid, snapshot.selectedConcealZoneId]
     case 'pins':

@@ -150,3 +150,62 @@ describe('patrulha andando no editor', () => {
     expect(usePausaDosNpcsStore.getState().pausadaDesde).toBeNull()
   })
 })
+
+describe('macro do ponto no editor', () => {
+  function comPassos(passos: NonNullable<NonNullable<Token['patrulha']>['pontos'][number]['passos']>): void {
+    const g = guarda()
+    const rota = g.patrulha
+    if (rota === undefined) throw new Error('sem rota')
+    const pontos = [rota.pontos[0] ?? { x: 100, y: 100 }, { x: 300, y: 100, passos }]
+    useMapStore.getState().loadMap({ ...createEmptyMap('m', 'Mapa solto', 30, 20, GRID), tokens: [{ ...g, patrulha: { ...rota, pontos } }] })
+  }
+
+  it('"Esperar o mestre": a ficha para no ponto e "Seguir" a solta; falou, e parar cala', () => {
+    comPassos([{ tipo: 'falar', texto: 'Alto!' }, { tipo: 'esperarMestre' }])
+    usePatrulhaAndandoStore.getState().ligar('guarda')
+    vi.advanceTimersByTime(PASSO_DA_PATRULHA_MS * 12)
+    expect(ondeEsta()).toMatchObject({ x: 300, atual: 1 })
+    expect(useMapStore.getState().map.tokens[0]?.fala).toBe('Alto!')
+    expect(usePatrulhaAndandoStore.getState().andando.get('guarda')?.esperandoMestre).toBe(true)
+    vi.advanceTimersByTime(60_000)
+    expect(ondeEsta().x).toBe(300)
+    usePatrulhaAndandoStore.getState().seguir('guarda')
+    vi.advanceTimersByTime(PASSO_DA_PATRULHA_MS)
+    expect(ondeEsta().x).toBeLessThan(300)
+    // Voltou a andar: calou.
+    expect(useMapStore.getState().map.tokens[0]).not.toHaveProperty('fala')
+  })
+
+  it('"Parar" no meio da fala: a ficha para e cala', () => {
+    comPassos([{ tipo: 'falar', texto: 'Alto!' }, { tipo: 'esperar', segundos: 30 }])
+    usePatrulhaAndandoStore.getState().ligar('guarda')
+    vi.advanceTimersByTime(PASSO_DA_PATRULHA_MS * 12)
+    expect(useMapStore.getState().map.tokens[0]?.fala).toBe('Alto!')
+    const historico = useMapStore.getState().past.length
+    usePatrulhaAndandoStore.getState().desligar('guarda')
+    expect(useMapStore.getState().map.tokens[0]).not.toHaveProperty('fala')
+    expect(useMapStore.getState().past.length).toBe(historico)
+  })
+
+  it('pausa geral congela a espera de um passo e retoma de onde parou', () => {
+    comPassos([{ tipo: 'esperar', segundos: 3 }])
+    usePatrulhaAndandoStore.getState().ligar('guarda')
+    while (ondeEsta().atual !== 1) vi.advanceTimersByTime(PASSO_DA_PATRULHA_MS)
+    const chegada = Date.now()
+    vi.advanceTimersByTime(1000)
+    alternarPausaDosNpcs()
+    vi.advanceTimersByTime(10_000)
+    alternarPausaDosNpcs()
+    vi.advanceTimersByTime(chegada + 3000 + 10_000 - PASSO_DA_PATRULHA_MS - Date.now())
+    expect(ondeEsta().x).toBe(300)
+    vi.advanceTimersByTime(PASSO_DA_PATRULHA_MS * 2)
+    expect(ondeEsta().x).toBeLessThan(300)
+  })
+
+  it('o ponto aberto no painel fica no store (destaque no mapa)', () => {
+    usePatrulhaAndandoStore.getState().abrirPonto({ tokenId: 'guarda', indice: 1 })
+    expect(usePatrulhaAndandoStore.getState().pontoAberto).toEqual({ tokenId: 'guarda', indice: 1 })
+    usePatrulhaAndandoStore.getState().abrirPonto(null)
+    expect(usePatrulhaAndandoStore.getState().pontoAberto).toBeNull()
+  })
+})

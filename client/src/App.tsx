@@ -1088,6 +1088,8 @@ function App() {
   const rotinasAndando = useRotinaAndandoStore((state) => state.andando)
   // PATRULHA ANDANDO: a mesma regra — ficha na mão de um jogador fica onde está.
   const patrulhasAndando = usePatrulhaAndandoStore((state) => state.andando)
+  // MACRO POR PONTO: o ponto aberto no painel (o mapa o destaca).
+  const pontoDaPatrulhaAberto = usePatrulhaAndandoStore((state) => state.pontoAberto)
   useEffect(() => {
     const fixas = new Set(roomPlayers.flatMap((player) => player.tokenIds))
     useRotinaAndandoStore.getState().setFixas(fixas)
@@ -1376,6 +1378,12 @@ function App() {
   // `carryRefsOf` só lê `map.tokens`: parede, sala ou desenho que mudam não refazem a
   // lista. No arrasto da ficha o memo não segura nada (as fichas mudam a cada pointermove).
   const selectedTokenCarry = useMemo(() => carryRefsOf(map, selectedToken), [map.tokens, selectedToken])
+  // MACRO POR PONTO: o anel do ponto aberto é do painel da ficha; outra ficha (ou nenhuma) selecionada, ele sai do mapa.
+  const fichaSelecionadaId = selectedToken?.id ?? null
+  useEffect(() => {
+    const aberto = usePatrulhaAndandoStore.getState().pontoAberto
+    if (aberto !== null && aberto.tokenId !== fichaSelecionadaId) usePatrulhaAndandoStore.getState().abrirPonto(null)
+  }, [fichaSelecionadaId])
   const selectedDrawing = singleSelection?.kind === 'drawing' ? map.drawings.find((d) => d.id === singleSelection.id) ?? null : null
   const selectedTextLabel = selectedDrawing && selectedDrawing.kind === 'text' ? selectedDrawing : null
   const selectedRegion = singleSelection?.kind === 'region' ? map.regions.find((r) => r.id === singleSelection.id) ?? null : null
@@ -3073,6 +3081,12 @@ function App() {
               },
               // Velocidade e modo são da rota: cada escolha é um Ctrl+Z.
               onConfig: (config) => selectedToken && useMapStore.getState().setPatrolConfig(selectedToken.id, config),
+              // MACRO POR PONTO: editar os passos entra no Ctrl+Z; fazê-los (na ronda) não.
+              onPassos: (indice, passos) => selectedToken && useMapStore.getState().setPatrolPassos(selectedToken.id, indice, passos),
+              pontoAberto: selectedToken !== null && pontoDaPatrulhaAberto?.tokenId === selectedToken.id ? pontoDaPatrulhaAberto.indice : null,
+              onAbrirPonto: (indice) => usePatrulhaAndandoStore.getState().abrirPonto(selectedToken === null || indice === null ? null : { tokenId: selectedToken.id, indice }),
+              esperandoMestre: selectedToken !== null && patrulhasAndando.get(selectedToken.id)?.esperandoMestre === true,
+              onSeguir: () => selectedToken && usePatrulhaAndandoStore.getState().seguir(selectedToken.id),
             }}
             tokenCarry={{
               ...selectedTokenCarry,

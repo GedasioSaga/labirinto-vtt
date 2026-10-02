@@ -4,7 +4,7 @@ import type {
   MapData, Wall, Light, Region, Token, Prop, Drawing, DoorState, DoorSide, LayerId, GridSettings,
   Stair, StairDirection, StairShape, DoorKind, MapScale, MeasurementMode, DrawingCap, DrawingDash, FreehandTexture,
   FloorPiece, FloorStyle, MapLine, MapMarker, MapFrame, PinIcon, PinKind, RoomMeta, TokenCondition, MovementRules, HazardKind, AreaTriggerKind, SceneFloor, NivelAlerta,
-  TipoDePerigo, RotinaDoNpc, TipoMobilia, VistaMobilia,
+  TipoDePerigo, RotinaDoNpc, TipoMobilia, VistaMobilia, PassoDaPatrulha,
 } from '../types/map'
 import * as perigo from '../lib/perigo'
 import type { Camera, Point } from '../pixi/world'
@@ -37,7 +37,7 @@ import { roomRotationOf, rotationDelta } from '../lib/roomRotation'
 import { canInteract } from '../lib/itemTransform'
 import { pullLever } from '../lib/lever'
 import { setOutdoor as setOutdoorOnMap } from '../lib/campaignClock'
-import { applyPatrolOp, setPatrolConfig, type ConfigDaPatrulha, type PatrolOp } from '../lib/npcPatrol'
+import { applyPatrolOp, setPassosDoPonto, setPatrolConfig, type ConfigDaPatrulha, type PatrolOp } from '../lib/npcPatrol'
 import { toggleTokenCondition as toggleConditionOnMap } from '../lib/tokenConditions'
 import { attachCarried, carrierIdOf, releaseCarried } from '../lib/carry'
 import { boardVehicle, leaveVehicle, setVehicleSeats as setVehicleSeatsOnMap, vehicleCarrying } from '../lib/vehicle'
@@ -717,6 +717,8 @@ interface MapStoreState {
   patrolAction: (id: string, op: PatrolOp) => void
   /** Velocidade e modo da patrulha automática (`setPatrolConfig`). Mudança do mestre: Ctrl+Z desfaz. */
   setPatrolConfig: (id: string, config: ConfigDaPatrulha) => void
+  /** A macro do ponto `indice` da patrulha (`setPassosDoPonto`). Edição do mestre: Ctrl+Z desfaz. */
+  setPatrolPassos: (id: string, indice: number, passos: readonly PassoDaPatrulha[]) => void
   /**
    * VEÍCULO: faz da ficha um veículo com `lugares`, troca os lugares, ou
    * desliga (`null`) — `lib/vehicle.ts`. Com histórico: Ctrl+Z desfaz.
@@ -1927,6 +1929,10 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
     },
     setPatrolConfig: (id, config) => {
       const next = setPatrolConfig(get().map, id, config)
+      if (next !== get().map) withHistory(() => next)
+    },
+    setPatrolPassos: (id, indice, passos) => {
+      const next = setPassosDoPonto(get().map, id, indice, passos)
       if (next !== get().map) withHistory(() => next)
     },
     setVehicleSeats: (id, lugares) => {

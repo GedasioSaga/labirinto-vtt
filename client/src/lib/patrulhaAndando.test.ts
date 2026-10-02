@@ -210,13 +210,13 @@ describe('darPassoDaPatrulha — anda casa a casa', () => {
     expect(r.movimentos[0]).toMatchObject({ x: 100 + passoEmPx(GRID, 2), y: 100 })
   })
 
-  it('a espera de cada ponto vem de fora quando pedida (porta para a macro por ponto)', () => {
+  it('os passos de cada ponto vêm de fora quando pedidos (a macro do ponto)', () => {
     const map = mesa([guarda(300, 100)])
     const andando: PatrulhasAndando = new Map([['guarda', { destino: 1, sentido: 1, esperaAte: 0 }]])
     const pedidas: number[] = []
     const r = darPassoDaPatrulha(map, andando, 1000, new Set(), (_rota, indice) => {
       pedidas.push(indice)
-      return 5000
+      return [{ tipo: 'esperar', segundos: 5 }]
     })
     expect(pedidas).toEqual([1])
     expect(r.andando.get('guarda')).toEqual({ destino: 2, sentido: 1, esperaAte: 6000 })

@@ -1,6 +1,6 @@
 /// <reference types="vite/client" />
 import { create } from 'zustand'
-import { adiarEsperas, darPassoDaPatrulha, desligarPatrulha, ligarPatrulha, moverPatrulhas, PASSO_DA_PATRULHA_MS, type PatrulhasAndando } from '../lib/patrulhaAndando'
+import { adiarEsperas, calarFicha, darPassoDaPatrulha, desligarPatrulha, ligarPatrulha, moverPatrulhas, PASSO_DA_PATRULHA_MS, seguirPatrulha, type PatrulhasAndando } from '../lib/patrulhaAndando'
 import { subscribeToOpenings } from './adventureStore'
 import { useMapStore } from './mapStore'
 import { agoraDosNpcs, assinarPausa, usePausaDosNpcsStore } from './pausaDosNpcsStore'
@@ -28,10 +28,21 @@ interface PatrulhaAndandoState {
   setFixas: (fixas: ReadonlySet<string>) => void
   /** Começo (ids) e fim (vazio) do arrasto do mestre (`pixi/PixiCanvas.tsx`). */
   setArrastadas: (ids: ReadonlySet<string>) => void
+  /** "Seguir" do painel: solta a ficha parada em "Esperar o mestre". */
+  seguir: (tokenId: string) => void
+  /** O ponto cuja macro está aberta no painel: o mapa o destaca (`pixi/drawNpcPatrol.ts`). */
+  pontoAberto: PontoAberto | null
+  abrirPonto: (ponto: PontoAberto | null) => void
   /** Um tique do relógio. */
   darPasso: () => void
   /** Desliga todas e para o relógio. */
   reset: () => void
+}
+
+/** Um ponto da rota de uma ficha. */
+export interface PontoAberto {
+  tokenId: string
+  indice: number
 }
 
 let relogio: ReturnType<typeof setInterval> | null = null
@@ -56,7 +67,18 @@ export const usePatrulhaAndandoStore = create<PatrulhaAndandoState>()((set, get)
     fixas: new Set(),
     arrastadas: new Set(),
     ligar: (tokenId) => trocar(ligarPatrulha(get().andando, useMapStore.getState().map, tokenId, agoraDosNpcs())),
-    desligar: (tokenId) => trocar(desligarPatrulha(get().andando, tokenId)),
+    desligar: (tokenId) => {
+      // Parou no meio de um "Falar": o balão não fica sobre a ficha parada. Fora do Ctrl+Z, como a fala.
+      if (get().andando.has(tokenId)) useMapStore.getState().applyPlayerChange((map) => calarFicha(map, tokenId))
+      trocar(desligarPatrulha(get().andando, tokenId))
+    },
+    seguir: (tokenId) => trocar(seguirPatrulha(get().andando, tokenId, agoraDosNpcs())),
+    pontoAberto: null,
+    abrirPonto: (ponto) => {
+      const antes = get().pontoAberto
+      if (ponto?.tokenId === antes?.tokenId && ponto?.indice === antes?.indice) return
+      set({ pontoAberto: ponto })
+    },
     setFixas: (fixas) => set({ fixas }),
     setArrastadas: (ids) => {
       // Todo fim de gesto do canvas chama com vazio: sem isto cada clique acordava quem assina.
@@ -73,6 +95,8 @@ export const usePatrulhaAndandoStore = create<PatrulhaAndandoState>()((set, get)
     reset: () => {
       // Um arrasto que não chegou ao fim (o canvas saiu no meio do gesto) não prende ninguém no mapa seguinte.
       if (get().arrastadas.size > 0) set({ arrastadas: new Set() })
+      // O ponto aberto era de uma ficha do mapa que saiu.
+      if (get().pontoAberto !== null) set({ pontoAberto: null })
       trocar(new Map())
     },
   }

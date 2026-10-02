@@ -52,6 +52,19 @@ describe('drawPatrolRoutes', () => {
     expect(desenhar(mapa([ficha('guarda', 100, 100, { patrulha: RONDA, hidden: true })])).context.instructions).toHaveLength(0)
   })
 
+  it('o ponto aberto no painel ganha um anel a mais, só nele e só na ficha dele', () => {
+    const map = mapa([ficha('guarda', 100, 100, { patrulha: RONDA })])
+    const sem = desenhar(map).context.instructions.length
+    const g = new Graphics()
+    drawPatrolRoutes(g, map, { tokenId: 'guarda', indice: 2 })
+    expect(g.context.instructions.length).toBe(sem + 1)
+    const caixa = g.getLocalBounds()
+    expect(caixa.maxY).toBeGreaterThan(400 + GRADE * 0.12)
+    const outra = new Graphics()
+    drawPatrolRoutes(outra, map, { tokenId: 'outro', indice: 2 })
+    expect(outra.context.instructions.length).toBe(sem)
+  })
+
   it('redesenhar depois de apagar a rota limpa o desenho anterior', () => {
     const g = new Graphics()
     drawPatrolRoutes(g, mapa([ficha('guarda', 100, 100, { patrulha: RONDA })]))

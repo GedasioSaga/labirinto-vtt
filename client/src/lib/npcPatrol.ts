@@ -1,4 +1,4 @@
-import type { MapData, ModoDaPatrulha, RegionPoint, Token, TokenPatrol } from '../types/map'
+import type { MapData, ModoDaPatrulha, PassoDaPatrulha, PontoDaPatrulha, Token, TokenPatrol } from '../types/map'
 
 /**
  * ROTA DE PATRULHA — regras compartilhadas pelo painel do mestre, pelo desenho
@@ -34,11 +34,73 @@ function finite(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value)
 }
 
-function readPoint(raw: unknown): RegionPoint | null {
+/** Teto de passos na macro de um ponto: ronda tem poucos; o teto segura arquivo torto. */
+export const PASSOS_MAX_POR_PONTO = 32
+/** Espera mais longa de um passo: dez minutos — para mais, o mestre usa "Esperar o mestre". */
+export const ESPERA_MAXIMA_S = 600
+/** Teto da fala de um passo: cabe num balão sobre a ficha. */
+export const FALA_MAX_LETRAS = 140
+/** O passo de quem não disse nada: ponto novo e ponto de mapa antigo esperam 2 s, como antes da macro. */
+export const PASSO_PADRAO: PassoDaPatrulha = { tipo: 'esperar', segundos: 2 }
+
+/** Graus no giro de 0 a 360 (sem o 360): 450 → 90, −90 → 270. */
+function grausNoGiro(graus: number): number {
+  const g = graus % 360
+  return g < 0 ? g + 360 : g === 0 ? 0 : g
+}
+
+/** Um passo como vale para executar, ou `null` (passo torto some). */
+export function readPasso(raw: unknown): PassoDaPatrulha | null {
+  if (typeof raw !== 'object' || raw === null) return null
+  const tipo: unknown = Reflect.get(raw, 'tipo')
+  switch (tipo) {
+    case 'esperar': {
+      const segundos: unknown = Reflect.get(raw, 'segundos')
+      return finite(segundos) ? { tipo, segundos: Math.min(ESPERA_MAXIMA_S, Math.max(0, segundos)) } : null
+    }
+    case 'olhar': {
+      const graus: unknown = Reflect.get(raw, 'graus')
+      return finite(graus) ? { tipo, graus: grausNoGiro(graus) } : null
+    }
+    case 'velocidade': {
+      const casas: unknown = Reflect.get(raw, 'casas')
+      return finite(casas) ? { tipo, casas: velocidadeNaFaixa(casas) } : null
+    }
+    case 'falar': {
+      const texto: unknown = Reflect.get(raw, 'texto')
+      return typeof texto === 'string' ? { tipo, texto: texto.slice(0, FALA_MAX_LETRAS) } : null
+    }
+    case 'sumir':
+    case 'aparecer':
+    case 'esperarMestre':
+      return { tipo }
+    default:
+      return null
+  }
+}
+
+function readPassos(raw: unknown[]): PassoDaPatrulha[] {
+  return raw
+    .flatMap((p: unknown) => {
+      const passo = readPasso(p)
+      return passo === null ? [] : [passo]
+    })
+    .slice(0, PASSOS_MAX_POR_PONTO)
+}
+
+function readPoint(raw: unknown): PontoDaPatrulha | null {
   if (typeof raw !== 'object' || raw === null) return null
   const x: unknown = Reflect.get(raw, 'x')
   const y: unknown = Reflect.get(raw, 'y')
-  return finite(x) && finite(y) ? { x, y } : null
+  if (!finite(x) || !finite(y)) return null
+  // Sem lista (mapa antigo), sem o campo: o ponto relido fica como estava.
+  const passos: unknown = Reflect.get(raw, 'passos')
+  return Array.isArray(passos) ? { x, y, passos: readPassos(passos) } : { x, y }
+}
+
+/** O que a ficha faz ao chegar ao ponto: os passos dele, ou [Esperar 2 s] no ponto sem lista (mapa antigo). */
+export function passosDoPonto(ponto: PontoDaPatrulha): readonly PassoDaPatrulha[] {
+  return ponto.passos ?? [PASSO_PADRAO]
 }
 
 /**
@@ -93,7 +155,8 @@ function tokenAfterOp(token: Token, op: PatrolOp): Token {
       const pontos = patrol?.pontos ?? []
       if (pontos.length >= PATROL_MAX_POINTS) return token
       // A configuração da ronda automática (velocidade, modo) fica com a rota.
-      return withPatrol(token, { ...patrol, pontos: [...pontos, { x: token.x, y: token.y }], atual: pontos.length })
+      // O ponto novo nasce com a macro de sempre: espera 2 s e segue.
+      return withPatrol(token, { ...patrol, pontos: [...pontos, { x: token.x, y: token.y, passos: [PASSO_PADRAO] }], atual: pontos.length })
     }
     case 'desfazer': {
       if (patrol === null) return token
@@ -144,5 +207,25 @@ export function setPatrolConfig(map: MapData, tokenId: string, config: ConfigDaP
   const next: TokenPatrol = { ...patrol, ...(velocidade === undefined ? {} : { velocidade }), ...(modo === undefined ? {} : { modo }) }
   const tokens = [...map.tokens]
   tokens[index] = withPatrol(token, next)
+  return { ...map, tokens }
+}
+
+/**
+ * Troca a macro do ponto `indice` da rota da ficha `tokenId` (o painel monta a
+ * lista; a leitura é a mesma do disco: passo torto some, valores na faixa).
+ * Devolve o mapa pela MESMA referência quando nada muda (mesma lista, ponto
+ * que não existe, ficha sem rota): o store não gasta entrada de histórico à toa.
+ */
+export function setPassosDoPonto(map: MapData, tokenId: string, indice: number, passos: readonly PassoDaPatrulha[]): MapData {
+  const index = map.tokens.findIndex((t) => t.id === tokenId)
+  const token = map.tokens[index]
+  const patrol = token === undefined ? null : tokenPatrolOf(token)
+  const ponto = patrol?.pontos[indice]
+  if (token === undefined || patrol === null || ponto === undefined) return map
+  const lidos = readPassos([...passos])
+  if (ponto.passos !== undefined && JSON.stringify(ponto.passos) === JSON.stringify(lidos)) return map
+  const pontos = patrol.pontos.map((p, i) => (i === indice ? { x: p.x, y: p.y, passos: lidos } : p))
+  const tokens = [...map.tokens]
+  tokens[index] = withPatrol(token, { ...patrol, pontos })
   return { ...map, tokens }
 }

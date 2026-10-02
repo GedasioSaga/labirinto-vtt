@@ -6332,3 +6332,157 @@ html.lb-arrastando-cena * {
   color: var(--lb-color-brass);
   border-color: rgba(224, 164, 74, 0.28);
 }
+
+/* ------------------------------------------- macro por ponto da patrulha */
+
+/* "Esperando você no ponto N" + Seguir: o latão do que pede a mão do mestre. */
+.lb-patrulha-espera {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--lb-space-2);
+  padding: var(--lb-space-1) var(--lb-space-2);
+  border: 1px solid rgba(224, 164, 74, 0.28);
+  border-radius: var(--lb-radius-sm);
+  background: var(--lb-color-brass-soft);
+  color: var(--lb-color-brass);
+  font-size: var(--lb-font-size-sm);
+}
+
+/* Lista de pontos: uma linha por ponto, nome à esquerda e o resumo dos passos
+   à direita, cortado com reticências — a coluna tem ~250 px. */
+.lb-patrulha-pontos {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.lb-patrulha-ponto__cabeca {
+  justify-content: space-between;
+  gap: var(--lb-space-2);
+  min-width: 0;
+}
+
+.lb-patrulha-ponto__cabeca[aria-expanded='true'] {
+  border-color: var(--lb-color-line-strong);
+  background: var(--lb-color-stone-raised);
+}
+
+.lb-patrulha-ponto__nome {
+  flex: none;
+}
+
+.lb-patrulha-ponto__resumo {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--lb-color-parchment-faint);
+  font-size: var(--lb-font-size-sm);
+  font-weight: var(--lb-font-weight-regular);
+}
+
+/* Os passos do ponto aberto, recuados sob ele. */
+.lb-passos {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-1);
+  padding: var(--lb-space-1) 0 var(--lb-space-2) var(--lb-space-2);
+}
+
+.lb-passos__lista {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* Linha do passo: alça | rótulo | valor | ↑ ↓ ×. O valor estica; sem valor
+   (Sumir, Aparecer, Esperar o mestre), o rótulo ocupa o espaço. */
+.lb-passo {
+  display: flex;
+  align-items: center;
+  gap: var(--lb-space-1);
+  min-height: 28px;
+  padding: 2px var(--lb-space-1);
+  border-radius: var(--lb-radius-sm);
+  background: var(--lb-color-stone-sunken);
+  font-size: var(--lb-font-size-sm);
+}
+
+.lb-passo--arrastado {
+  opacity: 0.5;
+}
+
+.lb-passo__alca {
+  flex: none;
+  cursor: grab;
+  color: var(--lb-color-parchment-faint);
+  user-select: none;
+}
+
+.lb-passo__rotulo {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lb-passo__valor.lb-input {
+  flex: 1 1 64px;
+  min-width: 0;
+  min-height: 24px;
+  padding: 0 var(--lb-space-1);
+  font-size: var(--lb-font-size-sm);
+}
+
+.lb-passo__valor + .lb-passo__unidade {
+  flex: none;
+  color: var(--lb-color-parchment-faint);
+}
+
+.lb-passo__acoes {
+  display: flex;
+  flex: none;
+}
+
+.lb-passo__btn.lb-btn {
+  min-height: 24px;
+  min-width: 24px;
+  padding: 0;
+  border-color: transparent;
+}
+
+.lb-passos__adicionar.lb-input {
+  min-height: 28px;
+  font-size: var(--lb-font-size-sm);
+}
+
+/* Coluna estreita: alça, rótulo e ↑ ↓ × na primeira linha; o valor ganha a
+   linha de baixo inteira, para "Olhar para" e "Leste (direita)" caberem sem
+   reticências. */
+.lb-passo {
+  flex-wrap: wrap;
+  row-gap: 2px;
+  padding-block: var(--lb-space-1);
+}
+
+.lb-passo__acoes {
+  order: 2;
+}
+
+.lb-passo__valor.lb-input {
+  order: 3;
+  flex: 1 1 calc(100% - 32px);
+  margin-left: 14px;
+}
+
+.lb-passo__valor + .lb-passo__unidade {
+  order: 4;
+}

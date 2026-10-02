@@ -373,7 +373,10 @@ function deserializeMapFields(json: string): MapData {
     // ausente, forma torta some e a ficha volta a ser comum (`readTokenVehicle`).
     // BOLSA (moedas e troca) segue a mesma mão única: ausente continua
     // ausente; só inteiro positivo até o teto fica (`readMoedas`).
-    tokens: entityList(parsed.tokens).map((t) => {
+    tokens: entityList(parsed.tokens).map((fichaDoArquivo) => {
+      // FALA da patrulha só existe enquanto a ficha espera no ponto; salva no
+      // meio de uma fala, o mapa reaberto (patrulha parada) não a mostra.
+      const { fala: _falaDaRonda, ...t } = fichaDoArquivo
       const lido = tokenVehicleFromFile(fichaComRotinaDoArquivo(withoutLentMark(withoutContract(tokenPublicNameFromFile({ ...t, image: t.image ?? null })))))
       const comBolsa = bolsaDoArquivo(lido)
       if (!('mochila' in t)) return comBolsa

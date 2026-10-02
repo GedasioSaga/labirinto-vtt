@@ -2,6 +2,7 @@ import type { ConcealZone, DoorState, Drawing, FloorPiece, HazardKind, LayerId, 
 import { cellCenter, cellKeyAt, cellRunRects, concealedPieces, unveiledCellsOf } from './concealBrush'
 import { REVEAL_BRUSH_CELL } from './revealBrushCell'
 import { isTokenPhotoData } from './tokenPhoto'
+import { FALA_MAX_LETRAS } from './npcPatrol'
 import { tokenAsSeenByPlayer, tokenPublicNameMode } from './tokenPublicName'
 import { healthForPlayer } from './tokenHealth'
 import { tokenConditionsOf } from './tokenConditions'
@@ -1385,6 +1386,7 @@ interface TokenCut {
  *   nada de outro piso); a escada da tela dele decide subir ou descer por ele.
  * - `companion`: só a marca deste recorte (`cut.companion`, nome e cor de quem
  *   está na mesa); a gravada no mapa do mestre nunca.
+ * - `fala`: o que o NPC diz agora (passo "Falar" da patrulha), só texto e no teto.
  * Ficam de fora, entre outros: `vigia`, `patrulha` (por onde o NPC vai passar),
  * `rotina` (os postos, com a cena de cada um), `levadoPor` (aponta para ficha
  * que o recorte pode ter escondido), `veiculo` (lugares e a lista de quem vai
@@ -1432,6 +1434,9 @@ function tokenForPlayer(token: Token, cut: TokenCut): Token {
   // (térreo é o campo ausente, como no arquivo — `comPiso`).
   if (ehPiso(token.piso) && token.piso !== 0) forPlayer.piso = token.piso
   if (cut.companion !== undefined) forPlayer.companion = { name: cut.companion.name, color: cut.companion.color }
+  // FALA DO NPC (passo "Falar" da patrulha): vai junto com a ficha que ele vê,
+  // só texto, no teto do balão. A macro que a produziu (`patrulha`) fica.
+  if (typeof token.fala === 'string' && token.fala !== '') forPlayer.fala = token.fala.slice(0, FALA_MAX_LETRAS)
   return forPlayer
 }
 
