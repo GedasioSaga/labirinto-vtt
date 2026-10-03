@@ -105,6 +105,34 @@ export function driveTarget(map: MapData, driverId: string, x: number, y: number
   return { vehicleId: vehicle.id, x: vehicle.x + (x - driver.x), y: vehicle.y + (y - driver.y) }
 }
 
+/**
+ * O veículo que a ficha `tokenId` DIRIGE nesta cena (`driverOf`). É ele que
+ * atravessa o pino que ela pede, com todos a bordo. `null` = a pé, ou
+ * passageira que não dirige.
+ */
+export function vehicleDrivenBy(map: MapData, tokenId: string): Token | null {
+  const vehicle = vehicleCarrying(map, tokenId)
+  return vehicle !== null && driverOf(map, vehicle.id) === tokenId ? vehicle : null
+}
+
+/** A ficha vai a bordo e NÃO é a motorista: não anda nem atravessa sozinha — desce primeiro. */
+export function ridesWithoutDriving(map: MapData, tokenId: string): boolean {
+  return vehicleCarrying(map, tokenId) !== null && vehicleDrivenBy(map, tokenId) === null
+}
+
+/**
+ * ATALHO NA MESMA CENA: o veículo SALTA para (x, y) levando todos a bordo, cada
+ * um no mesmo afastamento. Não confere o trajeto de ninguém: é a passagem que
+ * leva (como a travessia entre cenas), não um passo — conferir derrubaria do
+ * veículo quem a parede entre os dois pinos "barrasse". Veículo vazio ou ficha
+ * comum: só ela anda.
+ */
+export function hopVehicle(map: MapData, vehicleId: string, x: number, y: number): MapData {
+  const vehicle = map.tokens.find((t) => t.id === vehicleId)
+  if (vehicle === undefined) return map
+  return moveTokensWithVehicles(map, new Set([vehicleId, ...passengerIdsOf(map, vehicleId)]), x - vehicle.x, y - vehicle.y)
+}
+
 function withVehicle(map: MapData, tokenId: string, vehicle: TokenVehicle): MapData {
   return { ...map, tokens: map.tokens.map((t) => (t.id === tokenId ? { ...t, veiculo: vehicle } : t)) }
 }

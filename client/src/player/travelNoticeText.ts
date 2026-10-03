@@ -37,6 +37,8 @@ export function travelNoticeText(notice: TravelNotice): string {
       if (notice.reason === 'far') return 'Chegue mais perto da passagem'
       // CONGELAR FICHA: a mesma frase do aviso fixo e do floco, e o que ela barra aqui.
       if (notice.reason === 'congelado') return `${TEXTO_CONGELADO}: não dá para passar agora`
+      // VEÍCULO: passageira que não dirige — a frase do passo recusado, com o verbo daqui.
+      if (notice.reason === 'a_bordo') return 'A bordo: desça para viajar'
       return 'Não dá para passar por aqui agora'
   }
 }

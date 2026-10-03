@@ -1,6 +1,7 @@
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { PlayerConfronto } from '../lib/confronto'
 import { filterMapForPlayer } from '../lib/fogFilter'
 import { createEmptyMap } from '../lib/mapFactory'
 import type { MapData, Token } from '../types/map'
@@ -120,6 +121,37 @@ describe('PlayerVeiculo — subir e descer na tela do jogador', () => {
     render(recorte(cena(['lia'])), ['lia'], {}, true)
     expect(rotulo()).toBe('No veículo · motorista')
     expect(botao()).toBeNull()
+  })
+
+  const renderNaVez = (map: MapData, own: string[], vez: { turn?: string; confronto?: PlayerConfronto }) =>
+    act(() => root.render(<PlayerVeiculo map={map} ownTokens={own} paused={false} turn={vez.turn} confronto={vez.confronto} onSubir={() => {}} onDescer={() => {}} />))
+
+  it('INICIATIVA: na vez de outra ficha, o "Subir" não aparece; na vez dela, aparece', () => {
+    render(recorte(cena()))
+    expect(botao()?.textContent).toBe('Subir no veículo')
+    renderNaVez(recorte(cena()), ['lia'], { turn: 'caio' })
+    expect(botao()).toBeNull()
+    renderNaVez(recorte(cena()), ['lia'], { turn: 'lia' })
+    expect(botao()?.textContent).toBe('Subir no veículo')
+  })
+
+  it('INICIATIVA: a bordo na vez de outra ficha, o rótulo fica e o "Descer" sai', () => {
+    renderNaVez(recorte(cena(['lia'])), ['lia'], { turn: 'caio' })
+    expect(rotulo()).toBe('No veículo · motorista')
+    expect(botao()).toBeNull()
+    renderNaVez(recorte(cena(['lia'])), ['lia'], { turn: 'lia' })
+    expect(botao()?.textContent).toBe('Descer do veículo')
+  })
+
+  it('CONFRONTO: na fila e fora da vez, nem "Subir" nem "Descer"; fora da fila, como sempre', () => {
+    const naVezDoCaio: PlayerConfronto = { fila: ['caio', 'lia'], vez: 'caio', suaVez: false, passo: 6, restam: null }
+    renderNaVez(recorte(cena()), ['lia'], { confronto: naVezDoCaio })
+    expect(botao()).toBeNull()
+    renderNaVez(recorte(cena(['lia'])), ['lia'], { confronto: naVezDoCaio })
+    expect(rotulo()).toBe('No veículo · motorista')
+    expect(botao()).toBeNull()
+    renderNaVez(recorte(cena()), ['lia'], { confronto: { ...naVezDoCaio, fila: ['caio'] } })
+    expect(botao()?.textContent).toBe('Subir no veículo')
   })
 
   it('a espera do botão acaba sozinha, ou com o aviso da recusa ("Veículo cheio")', () => {

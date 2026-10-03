@@ -23,8 +23,8 @@ export interface PlayerEscadaProps {
   onTrocar: (tokenId: string, stairId: string) => void
 }
 
-/** O que a tela sabe das travas do passo — as mesmas que o host usa na escada. */
-type TravasDaTela = Pick<PlayerEscadaProps, 'turn' | 'confronto' | 'paused'>
+/** O que a tela sabe das travas do passo — as mesmas que o host usa na escada (e no veículo, `PlayerVeiculo`). */
+export type TravasDaTela = Pick<PlayerEscadaProps, 'turn' | 'confronto' | 'paused'>
 
 /** O que o botão oferece: qual ficha, por qual escada, de que piso para qual. */
 interface Alvo {
@@ -40,7 +40,7 @@ interface Alvo {
  * não oferece o que vai ser recusado. Vez de ficha que o jogador não vê não
  * chega aqui (`turn` ausente) — a tela não pode saber dela sem contar que existe.
  */
-function fichaTravada(token: Token, { turn, confronto, paused }: TravasDaTela): boolean {
+export function fichaTravada(token: Token, { turn, confronto, paused }: TravasDaTela): boolean {
   if (paused) return true
   // Cadeado do mestre, e a ficha que ele congelou (CONGELAR FICHA).
   if (token.locked === true || token.congelado === true) return true

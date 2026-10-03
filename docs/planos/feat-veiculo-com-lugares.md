@@ -68,6 +68,40 @@ juntos em a07.
   perto (`disembarkSpot` em `lib/gatherParty.ts`, a regra de `gatherSpots`),
   contando só as fichas que ele vê. Se era o motorista, o próximo da lista
   assume sem regra extra.
+- **Vez (iniciativa e confronto)**: fora da vez, o "Subir" não aparece e, a
+  bordo, o "Descer" sai (o rótulo "No veículo" fica). É a regra da escada
+  (`fichaTravada` de `player/PlayerEscada.tsx`, agora exportada e usada pelos
+  dois): botão que só levaria "Espere sua vez" não aparece, e a faixa "Sua vez"
+  já diz quando volta a valer. Usa só o que o jogador já recebe (`turn`, que
+  só vem quando a ficha da vez está no recorte dele, e `confronto`); vez de
+  ficha que ele não vê continua chegando como recusa `not_your_turn` do host,
+  que segue validando (`travaDaFichaDoJogador` em `vehicleRequestScene`).
+- **Viagem da motorista leva o veículo**: o pino pedido pela motorista
+  atravessa o VEÍCULO com todos a bordo (`transferResult` troca a ficha da
+  frente pelo veículo de `vehicleDrivenBy`; `adventureStore.transferToken`
+  leva os passageiros no afastamento de cada um). Vale para o pino livre, o
+  passe, a chave, o "Deixar ir" (e o "com quem está perto") e o atalho na mesma
+  cena — este por `hopVehicle` (`applyVehicleHop` da ponte): o veículo salta
+  com todos sem conferir o trajeto, senão a parede entre os dois pinos
+  derrubaria quem vai a bordo. O ALCANCE do pino conta a ficha da motorista,
+  não o veículo: é a conta que o cartão do jogador já faz com as fichas DELE
+  (`tokenReachesPin`), o "Deixar ir" revalida igual e o tamanho do veículo não
+  entra em nada que o jogador recebe. Quem vai a bordo não entra no séquito,
+  no ajudante nem no "(N)" do "Deixar ir com quem está perto" (sairia do
+  veículo para sentar ao lado). Veículo com cadeado não passa; veículo
+  congelado ou alguém congelado a bordo recusa `congelado`. Os outros
+  jogadores a bordo recebem a troca de cena do broadcast (`by: 'master'`,
+  "O mestre levou você para outro lugar", a mesma de quando o mestre leva o
+  veículo).
+- **Passageira que não dirige não viaja**: o pedido (e o "Deixar ir" de um
+  pedido feito a pé, antes de subir) volta `pin.travel.rejected` `a_bordo`
+  ("A bordo: desça para viajar"); nada vai à Caixa do mestre. Escolher no
+  "Quem passa?" uma ficha dela a bordo sem dirigir recusa o pedido inteiro.
+- **Dirigindo para longe do pino** com o pedido esperando o mestre: o pedido
+  cai por `far` (`travelLeftBehind` conta cada ficha dele no lugar novo do
+  grupo, `drivenTo`, não só a motorista).
+- O "Levar para…/Mandar para…" do mestre numa ficha passageira continua como
+  antes: ela atravessa sozinha e sai da lista do veículo que ficou.
 - O integrador aplica `applyVehicle` fora do Ctrl+Z do mestre
   (`net/playerChanges.ts`, que confere `boardVehicle` de novo no mapa da hora)
   e faz o broadcast na hora (`net/hostBridge.ts`).
@@ -93,15 +127,19 @@ juntos em a07.
   oculta ou o mestre escondem. O que vaza, e foi aceito: o passageiro sabe que
   há alguém antes dele na fila (não é motorista), sem saber quem. Prova em
   `lib/fogFilter.veiculo.test.ts`, `player/PlayerVeiculo.test.tsx` e, de ponta
-  a ponta pela sessão, em `stores/veiculo.test.ts` e
-  `stores/veiculoJogador.test.ts`.
+  a ponta pela sessão, em `stores/veiculo.test.ts`,
+  `stores/veiculoJogador.test.ts` e `stores/veiculoMotoristaViaja.test.ts`; no
+  navegador, `e2e/task-veiculo-jogador.spec.ts` e
+  `e2e/task-veiculo-motorista-viaja.spec.ts`.
 
 ## O que fica para depois
 
-1. (Feito em 03/10/2026: ver "O jogador sobe, dirige e desce pela tela dele".)
-   Sobra dele: o "Subir" não conhece a vez da iniciativa/confronto (o host
-   recusa com "Espere sua vez"); o pedido de viagem do MOTORISTA atravessa só a
-   ficha dele (desce do veículo), não o veículo inteiro.
+1. (Feito em 03/10/2026: ver "O jogador sobe, dirige e desce pela tela dele".
+   A vez e a viagem da motorista, também em 03/10.) Sobra: o cartão do pino
+   ainda oferece "Passar" à passageira (a recusa vem do host, com o aviso);
+   no atalho na mesma cena o passageiro fora do contorno do veículo pode
+   pousar numa parede (o salto mantém o afastamento às cegas, como o item 4);
+   na Caixa e no diário a viagem aparece com o nome do veículo.
 2. Desenho do veículo no mapa (lugares ocupados, passageiros empilhados no
    veículo) — hoje o passageiro fica onde estava e anda junto.
 3. Mover em grupo pela seleção de área (`lib/areaSelection.ts`) ainda não

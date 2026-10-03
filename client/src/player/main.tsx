@@ -1411,6 +1411,8 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
           <PlayerVeiculo
             map={state.map}
             ownTokens={ownTokens}
+            turn={state.turn}
+            confronto={state.confronto}
             paused={state.paused === true}
             aviso={state.moveNotice?.id}
             onSubir={(tokenId, vehicleId) => connection.boardVehicle(tokenId, vehicleId)}

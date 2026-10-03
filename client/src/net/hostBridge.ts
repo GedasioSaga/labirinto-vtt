@@ -19,6 +19,7 @@ import {
 } from '../lib/savedTable'
 import type { ChamadaAceita, MovimentoDeCabine } from '../lib/cabine'
 import { holdAlongSeats } from '../lib/gatherParty'
+import { passengerIdsOf } from '../lib/vehicle'
 import {
   createHostSession,
   ownTokenIdsOf,
@@ -144,6 +145,13 @@ export interface HostBridgeDeps {
   getWorld?: () => HostWorld
   /** `sceneId`: cena de FUNDO onde o token está; ausente = a cena aberta no editor. */
   applyMove: (tokenId: string, x: number, y: number, sceneId?: string) => void
+  /**
+   * VEÍCULO no ATALHO NA MESMA CENA: a motorista passou pelo pino e o veículo
+   * SALTA para (x, y) com todos a bordo, no afastamento de cada um (o passo de
+   * `applyMove` conferiria o trajeto e a parede entre os pinos derrubaria quem
+   * vai a bordo). Ausente = `applyMove`.
+   */
+  applyVehicleHop?: (vehicleId: string, x: number, y: number, sceneId?: string) => void
   /**
    * CARAVANA: fichas do grupo que acompanham a caravana, SEM passar pelo
    * desfazer. Elas são consequência da edição que as disparou (o arrasto do
@@ -2231,8 +2239,12 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
    */
   const moveWithinScene = (transfer: AppliedTransfer): boolean => {
     const { tokenId, x, y, toSceneId } = transfer
-    if (world().open.sceneId === toSceneId) deps.applyMove(tokenId, x, y)
-    else deps.applyMove(tokenId, x, y, toSceneId)
+    const current = world()
+    const scene = [current.open, ...current.background].find((s) => s.sceneId === toSceneId)
+    // VEÍCULO: quem atravessa é o veículo da motorista, com gente a bordo — salta com todos.
+    const move = scene !== undefined && passengerIdsOf(scene.map, tokenId).length > 0 ? (deps.applyVehicleHop ?? deps.applyMove) : deps.applyMove
+    if (current.open.sceneId === toSceneId) move(tokenId, x, y)
+    else move(tokenId, x, y, toSceneId)
     return true
   }
 

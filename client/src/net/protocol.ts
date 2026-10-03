@@ -1202,8 +1202,11 @@ export type DoorRequestAnswer = 'opened' | 'denied'
  * ele escolheu uma, ou uma congelada iria presa a quem passa (a bordo,
  * levada). Sai no lugar do `far` (mesma altura, antes do outro lado) ou no fim,
  * com a viagem já válida; também no "Deixar ir" de pedido feito antes de congelar.
+ * `a_bordo`: VEÍCULO — a ficha dele que passaria vai a bordo sem dirigir (só
+ * a motorista leva o veículo pelo pino); também no "Deixar ir" de pedido feito
+ * antes de subir. Aditivo: jogador antigo ignora o motivo que não conhece.
  */
-export type PinTravelRejection = 'unavailable' | 'pending' | 'too_soon' | 'far' | 'congelado'
+export type PinTravelRejection = 'unavailable' | 'pending' | 'too_soon' | 'far' | 'congelado' | 'a_bordo'
 
 /**
  * Por que o pedido de passagem saiu da espera sem resposta do mestre:

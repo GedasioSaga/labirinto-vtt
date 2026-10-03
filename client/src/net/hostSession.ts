@@ -71,7 +71,7 @@ import { itemAVenda } from '../lib/loja'
 import { selectedTokenColor } from '../lib/tokenColor'
 import { acceptsLockedExitRequest, arrivalSpot, arrivalSpotWithoutPin, exitLabelsOf, exitPassageOf, freeSeatNear, isArrivalOnly, isExitPassage, oneWayExitsOf, resolvePinTravel, SAIDA_PRINCIPAL, sameDestination, travelExitOf, type TravelScene } from '../lib/pinTravel'
 import { disembarkSpot, gatherSpots, pinClearance, type KeepClear, type SeatHold } from '../lib/gatherParty'
-import { boardVehicle, driveTarget, driverOf, passengerIdsOf, vehicleCarrying } from '../lib/vehicle'
+import { boardVehicle, driveTarget, driverOf, passengerIdsOf, ridesWithoutDriving, vehicleCarrying, vehicleDrivenBy, withRiders } from '../lib/vehicle'
 import { visibleTokens } from '../lib/layers'
 import type { SavedSceneMemory, SavedSeat, SavedSeatExploration } from '../lib/savedTable'
 import { companionSpots, companionsNear, entourageNear, entourageSeats, type Companion, type Seat } from '../lib/travelTogether'
@@ -2362,9 +2362,10 @@ interface ValidTravel {
 /**
  * Resposta de `validTravel`. `far`: o pino está no recorte do jogador, mas
  * nenhuma ficha dele encosta; `unavailable`: qualquer outra falha, com o
- * mesmo motivo genérico de sempre.
+ * mesmo motivo genérico de sempre. `a_bordo` (VEÍCULO): a ficha que passaria
+ * vai a bordo sem dirigir — desce primeiro.
  */
-type TravelCheck = { ok: true; travel: ValidTravel } | { ok: false; reason: 'far' | 'unavailable' | 'congelado' }
+type TravelCheck = { ok: true; travel: ValidTravel } | { ok: false; reason: 'far' | 'unavailable' | 'congelado' | 'a_bordo' }
 
 /**
  * O que uma FICHA lembra de um mapa (MEMÓRIA POR FICHA): células exploradas e
@@ -5217,7 +5218,9 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     // `setTokenPosition` leva todos a bordo pelo mesmo deslocamento (ele inclusive).
     const moved = drive === null ? { tokenId: msg.tokenId, x: result.x, y: result.y } : { tokenId: drive.vehicleId, x: drive.x, y: drive.y }
     const applyMove: AppliedMove = { ...moved, ...backgroundSceneId(scene, world) }
-    const cancelled = travelLeftBehind(playerId, scene, msg.tokenId, result.x, result.y)
+    // VEÍCULO: dirigindo, quem anda é o grupo inteiro a bordo — o pedido de
+    // passagem conta cada ficha dele no lugar novo, não só a motorista.
+    const cancelled = travelLeftBehind(playerId, scene, drive === null ? new Map([[msg.tokenId, { x: result.x, y: result.y }]]) : drivenTo(scene.map, drive))
     if (cancelled === null) return { outbound, applyMove }
     // Depois do aceite: o jogador vê a ficha no lugar novo e, logo em seguida, que o pedido caiu.
     outbound.push({ clientId, msg: { type: 'pin.travel.cancelled', reason: 'far' } })
@@ -5251,6 +5254,20 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   }
 
   /**
+   * VEÍCULO — onde fica cada ficha que o passo do veículo leva (`withRiders`,
+   * a mesma conta de `moveTokenWithVehicle`): o veículo e quem a parede não
+   * barra, todos pelo mesmo deslocamento.
+   */
+  function drivenTo(map: MapData, drive: { vehicleId: string; x: number; y: number }): Map<string, { x: number; y: number }> {
+    const vehicle = map.tokens.find((t) => t.id === drive.vehicleId)
+    if (vehicle === undefined) return new Map()
+    const dx = drive.x - vehicle.x
+    const dy = drive.y - vehicle.y
+    const moving = withRiders(map, new Set([vehicle.id]), dx, dy)
+    return new Map(map.tokens.filter((t) => moving.has(t.id)).map((t) => [t.id, { x: t.x + dx, y: t.y + dy }]))
+  }
+
+  /**
    * DESISTIR DO PEDIDO — o pedido cai sozinho quando nenhuma ficha dele (a que
    * andou, já no lugar novo) alcança mais o pino (`tokenReachesPin`, a mesma
    * conta do pedido e do "Deixar ir"): esperar o mestre seria esperar uma
@@ -5258,7 +5275,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
    * não está nesta cena (ou sumiu) não conta aqui: é a revalidação do
    * "Deixar ir" que recusa.
    */
-  function travelLeftBehind(playerId: string, scene: HostScene, movedTokenId: string, x: number, y: number): TravelCancelled | null {
+  function travelLeftBehind(playerId: string, scene: HostScene, movedTo: ReadonlyMap<string, { x: number; y: number }>): TravelCancelled | null {
     const pending = pendingTravels.get(playerId)
     if (pending === undefined) return null
     const pin = scene.map.pins.find((p) => p.id === pending.pinId)
@@ -5269,8 +5286,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     // nem vaza, por andar, que está perto do pino.
     const stillReaches = visibleTokens(scene.map.tokens, scene.map.hiddenLayers).some((t) => {
       if (!owned.has(t.id) || t.hidden === true) return false
-      const at = t.id === movedTokenId ? { ...t, x, y } : t
-      return tokenReachesPin(at, pin, scene.map.grid)
+      const novo = movedTo.get(t.id)
+      return tokenReachesPin(novo === undefined ? t : { ...t, ...novo }, pin, scene.map.grid)
     })
     if (stillReaches) return null
     return dropPendingTravel(playerId, 'far')
@@ -6736,6 +6753,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   ): TravelCheck {
     const unavailable: TravelCheck = { ok: false, reason: 'unavailable' }
     const congelado: TravelCheck = { ok: false, reason: 'congelado' }
+    const aBordo: TravelCheck = { ok: false, reason: 'a_bordo' }
     const from = sceneFor(playerId, world)
     if (from === null || from.sceneId === null) return unavailable
     const fromSceneId = from.sceneId
@@ -6783,17 +6801,24 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     // no recorte. Só congeladas encostadas no pino: a recusa diz por quê — a
     // ficha é dele e está no recorte dele, então o motivo não conta nada novo.
     const congelada = (id: string): boolean => from.map.tokens.some((t) => t.id === id && estaCongelada(t))
+    // VEÍCULO: passageira que não dirige não atravessa sozinha (sairia do
+    // veículo sem descer). A motorista, sim: quem passa é o veículo inteiro
+    // (`transferResult`). O alcance é o da FICHA dela, como o cartão do jogador
+    // conta (`tokenReachesPin` nas fichas dele) — o veículo não é dele.
+    const semDirigir = (id: string): boolean => ridesWithoutDriving(from.map, id)
     const alcancam = travelCandidates(playerId, mine).filter((t) => tokenReachesPin(t, pin, from.map.grid))
-    const near = alcancam.filter((t) => !congelada(t.id))
+    const near = alcancam.filter((t) => !congelada(t.id) && !semDirigir(t.id))
     let token: Token | null = null
     for (const t of near) {
       if (token === null || Math.hypot(t.x - pin.x, t.y - pin.y) < Math.hypot(token.x - pin.x, token.y - pin.y)) token = t
     }
-    if (token === null) return alcancam.length > 0 ? congelado : { ok: false, reason: 'far' }
+    if (token === null) return alcancam.some((t) => congelada(t.id)) ? congelado : alcancam.length > 0 ? aBordo : { ok: false, reason: 'far' }
     // CONGELAR FICHA: escolher no "Quem passa?" uma ficha DELE congelada recusa
     // o pedido inteiro — ele pediu aquela. O grupo do pino se conta sem as
     // congeladas, como as caixas do cartão (`pinTravelChoices`).
     if (tokenIds !== undefined && tokenIds.some((id) => owned.has(id) && congelada(id))) return congelado
+    // VEÍCULO: escolher uma passageira que não dirige também recusa o pedido inteiro.
+    if (tokenIds !== undefined && tokenIds.some((id) => owned.has(id) && semDirigir(id))) return aBordo
     const soltas = view.map.tokens.filter((t) => !congelada(t.id))
     const chosen = tokenIds === undefined ? undefined : chosenTravelers(playerId, soltas, pin, from.map.grid, tokenIds, chosenReach)
     if (chosen === null) return unavailable
@@ -6816,7 +6841,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
         // Com escolha, só uma das escolhidas abre: a chave de quem fica não leva ninguém.
         // CONGELAR FICHA: nem a congelada, que não passa.
         const nearIds = new Set(
-          mine.filter((t) => !congelada(t.id) && (chosen === undefined || chosenIds.has(t.id)) && tokenReachesPin(t, pin, from.map.grid)).map((t) => t.id),
+          mine.filter((t) => !congelada(t.id) && !semDirigir(t.id) && (chosen === undefined || chosenIds.has(t.id)) && tokenReachesPin(t, pin, from.map.grid)).map((t) => t.id),
         )
         const found = keyForPin(pin, from.map.tokens.filter((t) => nearIds.has(t.id)))
         if (found !== null) keyHolder = { token: found.token, nome: found.item.nome }
@@ -6847,10 +6872,16 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     // CONGELAR FICHA: por último, quando a viagem já passou em tudo — quem iria
     // PRESO a quem passa (a bordo, levado) e está congelado não fica para trás
     // sozinho: o pedido inteiro não passa.
-    const pronta = (viagem: ValidTravel): TravelCheck => (congeladaPresaNaPassagem(playerId, from.map, viagem.token, viagem.chosen) === null ? { ok: true, travel: viagem } : congelado)
+    // VEÍCULO: o veículo que a da frente dirige vai com ela — segurado pelo
+    // mestre (cadeado) não passa, como não anda (`driveVehicleStep`).
+    const pronta = (viagem: ValidTravel): TravelCheck => {
+      if (vehicleDrivenBy(from.map, viagem.token.id)?.locked === true) return unavailable
+      return congeladaPresaNaPassagem(playerId, from.map, viagem.token, viagem.chosen) === null ? { ok: true, travel: viagem } : congelado
+    }
     if (keyHolder !== null) return pronta({ ...base, token: keyHolder.token, key: keyHolder.nome, cabine, ...escolha })
-    // Com escolha, vai à frente a escolhida mais perto do pino (o grupo já vem nessa ordem).
-    const first = chosen?.[0]
+    // Com escolha, vai à frente a escolhida mais perto do pino (o grupo já vem
+    // nessa ordem) — ou a MOTORISTA escolhida, que leva o veículo.
+    const first = chosen?.find((t) => vehicleDrivenBy(from.map, t.id) !== null) ?? chosen?.[0]
     if (first !== undefined) return pronta({ ...base, token: first, cabine, ...escolha })
     return pronta({ ...base, token, cabine })
   }
@@ -6868,7 +6899,10 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const owned = new Set((ownership[playerId] ?? []).filter((id) => !loaned.has(id)))
     const sequito = chosen ?? entourageNear(lead, doPisoDe(lead, soltas, onBoardTokens(soltas)).filter((t) => owned.has(t.id)), soltas.grid)
     const ajudantes = soltas.tokens.filter((t) => t.id !== lead.id && loaned.has(t.id))
-    return congeladaPresaA(from, [lead.id, ...sequito.map((t) => t.id), ...ajudantes.map((t) => t.id)])
+    // VEÍCULO: a motorista leva o veículo — ele congelado, ou alguém congelado a bordo, segura a passagem.
+    const veiculo = vehicleDrivenBy(from, lead.id)
+    if (veiculo !== null && estaCongelada(veiculo)) return veiculo
+    return congeladaPresaA(from, [lead.id, ...(veiculo === null ? [] : [veiculo.id]), ...sequito.map((t) => t.id), ...ajudantes.map((t) => t.id)])
   }
 
   /**
@@ -7224,8 +7258,15 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     // A procura só enxerga as fichas que ele verá ali (o recorte, com a ficha
     // em cima do pino par): a casa pulada não pode contar o NPC da zona oculta.
     const pisoDoPar = pisoDe(travel.partner) === 0 ? undefined : pisoDe(travel.partner)
-    const seen = seenOnArrival(playerId, travel.to.map, travel.token, { x: travel.partner.x, y: travel.partner.y, piso: pisoDoPar }, new Set([travel.token.id]))
-    const spot = arrivalSpot(seen, travel.partner, travel.token.size, travel.token.id)
+    // VEÍCULO: a motorista não passa sozinha — quem atravessa é o VEÍCULO, e
+    // `adventureStore.transferToken` leva todos a bordo no afastamento de cada
+    // um. A casa de chegada é a do veículo; a visão que a escolhe, a dela.
+    const veiculo = vehicleDrivenBy(travel.from.map, travel.token.id)
+    const lead = veiculo ?? travel.token
+    const aBordo = veiculo === null ? [] : passengerIdsOf(travel.from.map, veiculo.id)
+    const going = new Set([travel.token.id, lead.id, ...aBordo])
+    const seen = seenOnArrival(playerId, travel.to.map, travel.token, { x: travel.partner.x, y: travel.partner.y, piso: pisoDoPar }, going)
+    const spot = arrivalSpot(seen, travel.partner, lead.size, lead.id)
     // A cena dele passa a ser a de destino a partir daqui: é ela que o
     // próximo broadcast manda, com a memória que ele tem DELA.
     currentScene.set(playerId, sceneKey(travel.to))
@@ -7240,12 +7281,15 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     // CONGELAR FICHA: a passagem é pedido do jogador (o "Deixar ir" só o
     // aprova), então quem só acompanha — ajudante e séquito — e está congelado
     // fica. A da frente e quem vai preso a ela já passaram por `validTravel`.
-    const acompanham = semAsCongeladas(travel.from.map)
-    const companions = loanedFollowers(playerId, acompanham, travel.to.map, travel.token, spot)
+    // VEÍCULO: quem vai a bordo (e o próprio veículo) chega com ele, não como
+    // ajudante nem séquito — senão sairia do veículo para sentar ao lado.
+    const levados = new Set([...going].filter((id) => id !== travel.token.id))
+    const acompanham = semAsFichas(semAsCongeladas(travel.from.map), levados)
+    const companions = loanedFollowers(playerId, acompanham, travel.to.map, lead, spot)
     const along = carriedAlong(playerId, travel.token.id, travel.from, travel.to, spot, world, 'master')
     const applyTransfer: AppliedTransfer = {
       ...along.transfer,
-      tokenId: travel.token.id,
+      tokenId: lead.id,
       playerId,
       playerName,
       fromSceneId: travel.from.sceneId,
@@ -7257,7 +7301,9 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       ...(pisoDe(travel.partner) === 0 ? {} : { piso: pisoDe(travel.partner) }),
       ...(companions.length > 0 ? { companions } : {}),
     }
-    withEntourage(applyTransfer, acompanham, travel.token, travel.to.map, carriedSeats(applyTransfer, travel.from.map), travel.partner, travel.chosen)
+    // O veículo já ocupa a casa de chegada inteira: o séquito senta em volta dele.
+    const vehicleSeat: Seat[] = veiculo === null ? [] : [{ x: spot.x, y: spot.y, size: veiculo.size }]
+    withEntourage(applyTransfer, acompanham, travel.token, travel.to.map, [...vehicleSeat, ...carriedSeats(applyTransfer, travel.from.map)], travel.partner, travel.chosen)
     withoutCarriedInEntourage(applyTransfer)
     return {
       outbound: [{ clientId, msg: atalho ? { ...changed, tokenId: travel.token.id } : changed }, ...along.outbound],
@@ -7266,6 +7312,10 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       ...(travel.cabine === null ? {} : { applyCabine: travel.cabine }),
     }
   }
+
+  /** `map` sem as fichas `ids` (VEÍCULO: quem atravessa a bordo não acompanha de novo). Nenhuma: o mesmo mapa. */
+  const semAsFichas = (map: MapData, ids: ReadonlySet<string>): MapData =>
+    map.tokens.some((t) => ids.has(t.id)) ? { ...map, tokens: map.tokens.filter((t) => !ids.has(t.id)) } : map
 
   /** As fichas do mapa que estão no tabuleiro para os jogadores: fora camada oculta e o que o mestre escondeu. */
   const onBoardTokens = (map: MapData): Token[] => visibleTokens(map.tokens, map.hiddenLayers).filter((t) => t.hidden !== true)
@@ -8084,7 +8134,13 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     // PISOS: só quem está no piso de quem pediu; a colada no andar de cima fica.
     // CONGELAR FICHA: ficha congelada nunca atravessa por pino — nem a do
     // colega que iria junto, nem quem leva uma congelada presa. Não conta no "(N)".
-    const onBoard = doPisoDe(travel.token, fromMap, visibleTokens(fromMap.tokens, fromMap.hiddenLayers).filter((t) => t.hidden !== true && podeAcompanhar(fromMap, t)))
+    // VEÍCULO: quem vai a bordo de um veículo (o da motorista, que já leva a
+    // pessoa, ou outro) não é levado por fora dele: fica de fora do "(N)".
+    const onBoard = doPisoDe(
+      travel.token,
+      fromMap,
+      visibleTokens(fromMap.tokens, fromMap.hiddenLayers).filter((t) => t.hidden !== true && podeAcompanhar(fromMap, t) && vehicleCarrying(fromMap, t.id) === null),
+    )
     const candidates = [...players.values()].flatMap((record) => {
       if (record.playerId === pending.playerId || record.clientId === null || statusOf(record.playerId) !== 'playing') return []
       // A cena DELE, pela mesma regra do broadcast: ficha esquecida no Salão
@@ -8687,7 +8743,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       // Quem pediu não passou: ninguém vai "junto" de quem ficou.
       if (group === null || arrival === undefined) return [lead]
       const { travel, near } = group
-      const leader = { x: arrival.x, y: arrival.y, size: travel.token.size }
+      // VEÍCULO: a motorista chegou de veículo — é ele que ocupa a casa de chegada.
+      const leader = { x: arrival.x, y: arrival.y, size: (vehicleDrivenBy(travel.from.map, travel.token.id) ?? travel.token).size }
       // O séquito de quem pediu já tem casa: ninguém senta em cima do pônei dele.
       const leadEntourage: Seat[] = (arrival.entourage ?? []).flatMap((seat) => {
         const token = travel.from.map.tokens.find((t) => t.id === seat.tokenId)
