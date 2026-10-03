@@ -1,5 +1,6 @@
 import { useId } from 'react'
 import { Toggle } from './Toggle'
+import { CampoDeCorComPipeta } from './CampoDeCorComPipeta'
 
 /** Ficha da cena que pode carregar a luz (tocha presa na ficha). */
 export interface LightCarrierOption {
@@ -57,12 +58,10 @@ export function LightControls({
         <label className="lb-label" htmlFor="lb-light-color">
           Cor
         </label>
-        <input
+        <CampoDeCorComPipeta
           id="lb-light-color"
-          className="lb-swatch"
-          type="color"
           value={color}
-          onChange={(event) => onColorChange(event.target.value)}
+          onChange={(cor) => onColorChange(cor)}
         />
       </div>
       <div className="lb-field">

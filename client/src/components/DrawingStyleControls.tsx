@@ -1,5 +1,6 @@
 import { Toggle } from './Toggle'
 import { TEXT_FONT_FAMILIES } from './labels'
+import { CampoDeCorComPipeta } from './CampoDeCorComPipeta'
 
 export interface DrawingStyleControlsProps {
   /**
@@ -60,12 +61,10 @@ export function DrawingStyleControls({
         <label className="lb-label" htmlFor="lb-draw-color">
           Cor
         </label>
-        <input
+        <CampoDeCorComPipeta
           id="lb-draw-color"
-          className="lb-swatch"
-          type="color"
           value={color}
-          onChange={(event) => onColorChange(event.target.value)}
+          onChange={(cor) => onColorChange(cor)}
         />
       </div>
 

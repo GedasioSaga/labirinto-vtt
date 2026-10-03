@@ -18,7 +18,7 @@
 
 /* A "Cor" sem "Preencher": a amostra continua mostrando a cor guardada, apagada
    como o interruptor desligado de main.css, e sem o realce de passar o mouse. */
-.lb-mobilia__color > .lb-swatch:disabled {
+.lb-mobilia__color .lb-swatch:disabled {
   opacity: 0.5;
   border-color: var(--lb-color-line-strong);
   cursor: not-allowed;

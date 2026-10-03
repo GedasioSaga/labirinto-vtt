@@ -2,6 +2,7 @@ import type { GridSettings, GridShape } from '../types/map'
 import type { SnapTargetKind, SnapTargets } from '../pixi/grid'
 import { GridShapePicker } from './GridShapePicker'
 import { Toggle } from './Toggle'
+import { CampoDeCorComPipeta } from './CampoDeCorComPipeta'
 
 const LINE_STYLES: Array<{ value: GridSettings['lineStyle']; label: string }> = [
   { value: 'solid', label: 'Sólida' },
@@ -81,12 +82,10 @@ export function GridControls({ gridShape, onGridShapeChange, gridSettings, onGri
         <label className="lb-label" htmlFor="lb-grid-color">
           Cor da grade
         </label>
-        <input
+        <CampoDeCorComPipeta
           id="lb-grid-color"
-          className="lb-swatch"
-          type="color"
           value={gridSettings.color}
-          onChange={(event) => onGridSettingsChange({ color: event.target.value })}
+          onChange={(cor) => onGridSettingsChange({ color: cor })}
         />
       </div>
 

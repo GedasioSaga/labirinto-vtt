@@ -1,4 +1,5 @@
 import { MAX_PATH_WIDTH_CELLS, MIN_PATH_WIDTH_CELLS } from '../lib/drawingFactory'
+import { CampoDeCorComPipeta } from './CampoDeCorComPipeta'
 
 export interface PathStyleControlsProps {
   /** Cor do PRÓXIMO caminho (`pathColor` no mapStore). */
@@ -39,12 +40,10 @@ export function PathStyleControls({ color, onColorChange, widthCells, onWidthCel
         <label className="lb-label" htmlFor="lb-path-color">
           Cor deste caminho
         </label>
-        <input
+        <CampoDeCorComPipeta
           id="lb-path-color"
-          className="lb-swatch"
-          type="color"
           value={color}
-          onChange={(event) => onColorChange(event.target.value)}
+          onChange={(cor) => onColorChange(cor)}
         />
       </div>
 

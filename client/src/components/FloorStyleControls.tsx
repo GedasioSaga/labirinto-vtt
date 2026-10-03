@@ -3,6 +3,7 @@ import type { FloorStyle, MapFrame } from '../types/map'
 import { AdvancedField, AdvancedSection } from './AdvancedSection'
 import { Toggle } from './Toggle'
 import './FloorStyleControls.css'
+import { CampoDeCorComPipeta } from './CampoDeCorComPipeta'
 
 export interface FloorStyleControlsProps {
   style: FloorStyle
@@ -59,13 +60,12 @@ export function FloorStyleControls({
         <label className="lb-label" htmlFor="lb-floor-fill-color">
           Cor do chão
         </label>
-        <input
+        <CampoDeCorComPipeta
           id="lb-floor-fill-color"
-          className="lb-swatch"
-          type="color"
           value={style.fillColor}
           aria-describedby={explicaSemChao}
-          onChange={(event) => onStyleChange({ fillColor: event.target.value })}
+          rotuloDaPipeta="Pegar do mapa a cor do chão"
+          onChange={(cor) => onStyleChange({ fillColor: cor })}
         />
       </div>
 
@@ -80,12 +80,11 @@ export function FloorStyleControls({
           <label className="lb-label" htmlFor="lb-floor-stroke-color">
             Cor do contorno
           </label>
-          <input
+          <CampoDeCorComPipeta
             id="lb-floor-stroke-color"
-            className="lb-swatch"
-            type="color"
             value={style.strokeColor}
-            onChange={(event) => onStyleChange({ strokeColor: event.target.value })}
+            rotuloDaPipeta="Pegar do mapa a cor do contorno"
+            onChange={(cor) => onStyleChange({ strokeColor: cor })}
           />
         </div>
       )}

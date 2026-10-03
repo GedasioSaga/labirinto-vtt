@@ -7,6 +7,7 @@ import {
   type RoomLabelStylePatch,
 } from '../lib/roomLabelStyle'
 import { Toggle } from './Toggle'
+import { CampoDeCorComPipeta } from './CampoDeCorComPipeta'
 
 /** Passo do slider de tamanho, em pontos percentuais. */
 const SCALE_STEP_PERCENT = 5
@@ -66,12 +67,11 @@ export function RoomLabelStyleControls({ style, onChange }: RoomLabelStyleContro
               Padrão
             </button>
           )}
-          <input
+          <CampoDeCorComPipeta
             id={colorId}
-            className="lb-swatch"
-            type="color"
             value={style.color}
-            onChange={(event) => onChange({ color: event.target.value })}
+            rotuloDaPipeta="Pegar do mapa a cor do título"
+            onChange={(cor) => onChange({ color: cor })}
           />
         </div>
       </div>

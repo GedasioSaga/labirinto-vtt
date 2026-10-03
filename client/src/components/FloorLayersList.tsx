@@ -1,6 +1,7 @@
 import type { FloorPiece } from '../types/map'
 import { linhasDeCamada } from '../lib/camadasDoChao'
 import { ChevronDownIcon, ChevronUpIcon, LockIcon, UnlockIcon } from './icons'
+import { CampoDeCorComPipeta } from './CampoDeCorComPipeta'
 
 export interface FloorLayersListProps {
   floor: FloorPiece[]
@@ -37,13 +38,14 @@ export function FloorLayersList({
       {linhas.map((linha) => (
         <li key={linha.id} className="lb-layers__row" data-selected={linha.id === selectedPieceId || undefined}>
           {linha.op === 'add' ? (
-            <input
-              type="color"
+            <CampoDeCorComPipeta
               className="lb-floor-layers__swatch"
               value={linha.cor}
               aria-label={`Cor de ${linha.nome}`}
               title={`Cor de ${linha.nome}`}
-              onChange={(event) => onColorChange(linha.id, event.target.value)}
+              rotuloDaPipeta={`Pegar do mapa a cor de ${linha.nome}`}
+              compacto
+              onChange={(cor) => onColorChange(linha.id, cor)}
             />
           ) : (
             <span className="lb-floor-layers__swatch lb-floor-layers__swatch--hole" aria-hidden="true" />

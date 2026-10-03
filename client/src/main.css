@@ -864,6 +864,32 @@ body {
   border-color: var(--lb-color-brass);
 }
 
+/* Amostra + pipeta (CampoDeCorComPipeta): a pipeta encosta na amostra, à
+   esquerda dela (vem antes no DOM, e no Tab), para a amostra continuar na
+   ponta da linha como antes. */
+.lb-campo-cor {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 2px;
+}
+
+.lb-campo-cor__pipeta {
+  width: 28px;
+  height: 28px;
+}
+
+.lb-campo-cor__pipeta--compacta {
+  width: 20px;
+  height: 20px;
+}
+
+/* Armada, a pipeta acende em latão (o `aria-pressed` de .lb-iconbtn) e a
+   amostra ganha o mesmo contorno: é para ela que a cor do mapa vai. */
+.lb-campo-cor:has(> .lb-campo-cor__pipeta[aria-pressed='true']) > input {
+  border-color: var(--lb-color-brass);
+}
+
 .lb-range {
   width: 100%;
   height: 20px;

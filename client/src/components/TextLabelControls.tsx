@@ -1,4 +1,5 @@
 import { TEXT_FONT_FAMILIES } from './labels'
+import { CampoDeCorComPipeta } from './CampoDeCorComPipeta'
 
 export interface TextLabelControlsProps {
   text: string
@@ -39,12 +40,10 @@ export function TextLabelControls({
         <label className="lb-label" htmlFor="lb-text-color">
           Cor
         </label>
-        <input
+        <CampoDeCorComPipeta
           id="lb-text-color"
-          className="lb-swatch"
-          type="color"
           value={color}
-          onChange={(event) => onColorChange(event.target.value)}
+          onChange={(cor) => onColorChange(cor)}
         />
       </div>
 

@@ -803,3 +803,19 @@ export function KeyboardIcon(props: IconProps) {
     </Icon>
   )
 }
+
+/**
+ * Pipeta — o conta-gotas que pega uma cor do mapa (`CampoDeCorComPipeta`). Bulbo
+ * no alto à direita, haste em diagonal até a ponta embaixo à esquerda, com o
+ * anel entre o bulbo e a haste.
+ */
+export function PipetaIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M4 20l1.5-1.5" />
+      <path d="M5.5 18.5v-2l7.5-7.5 2.5 2.5-7.5 7.5z" />
+      <path d="M11.5 6.5l6 6" />
+      <path d="M13.5 8.5L17 5a2.12 2.12 0 013 3l-3.5 3.5" />
+    </Icon>
+  )
+}

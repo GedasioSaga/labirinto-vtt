@@ -1,6 +1,7 @@
 import type { FloorPiece, FloorShape } from '../types/map'
 import { Toggle } from './Toggle'
 import { FLOOR_POLYGON_SIDES_MAX, FLOOR_POLYGON_SIDES_MIN, clampFloorPolygonSides } from '../lib/floorTool'
+import { CampoDeCorComPipeta } from './CampoDeCorComPipeta'
 
 export type FloorPiecePatch = Partial<Omit<FloorPiece, 'id'>>
 
@@ -213,12 +214,10 @@ export function FloorPieceControls({
         <label className="lb-label" htmlFor="lb-floor-piece-color">
           Cor desta peça
         </label>
-        <input
+        <CampoDeCorComPipeta
           id="lb-floor-piece-color"
-          className="lb-swatch"
-          type="color"
           value={piece.fillColor ?? floorFillColor}
-          onChange={(event) => onChange({ fillColor: event.target.value })}
+          onChange={(cor) => onChange({ fillColor: cor })}
         />
       </div>
       {piece.fillColor !== undefined && (

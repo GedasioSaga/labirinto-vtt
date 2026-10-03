@@ -111,7 +111,9 @@ describe('FloorStyleControls — "Chão do mapa" enxuto', () => {
     expect(cor.type).toBe('color')
     const rotulo = container.querySelector('label[for="lb-floor-fill-color"]')
     expect(rotulo?.textContent?.trim()).toBe('Cor do chão')
-    const linha = cor.parentElement
+    // A amostra vem com a pipeta do conta-gotas ao lado (CampoDeCorComPipeta):
+    // o par é que mora na linha.
+    const linha = cor.closest('.lb-campo-cor')?.parentElement
     expect(linha, 'rótulo e amostra são irmãos na mesma linha').toBe(rotulo?.parentElement)
     expect(linha?.firstElementChild, 'o rótulo vem antes da amostra: o "?" da dica cai logo depois dele').toBe(rotulo)
     expect(linha?.classList.contains('lb-field')).toBe(true)
@@ -158,6 +160,6 @@ describe('FloorStyleControls — "Chão do mapa" enxuto', () => {
     const contorno = amostra('lb-floor-stroke-color')
     expect(contorno.value).toBe('#222222')
     expect(container.querySelector('label[for="lb-floor-stroke-color"]')?.textContent?.trim()).toBe('Cor do contorno')
-    expect(contorno.parentElement?.classList.contains('lb-floor-linha')).toBe(true)
+    expect(contorno.closest('.lb-campo-cor')?.parentElement?.classList.contains('lb-floor-linha')).toBe(true)
   })
 })

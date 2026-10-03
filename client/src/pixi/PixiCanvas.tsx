@@ -100,6 +100,9 @@ import { isLaserArmed, useLaserStore } from '../stores/laserStore'
 import { usePlayerLaserStore } from '../stores/playerLaserStore'
 import { useNoiseStore } from '../stores/noiseStore'
 import { createNoiseGesture } from './noiseGesture'
+import { useContaGotasStore } from '../stores/contaGotasStore'
+import { createContaGotasGesture } from './contaGotasGesture'
+import { pixelDaTela, rgbaParaHex } from '../lib/contaGotas'
 import { useAwayTokensStore } from '../stores/awayTokensStore'
 import { createLaserGesture } from './laserGesture'
 import { LASER_KEY_TAP_MS, isLaserKey } from '../lib/laser'
@@ -1302,6 +1305,42 @@ export function PixiCanvas({
         onLaserMoveRef.current?.(point.x, point.y)
       })
       const noiseGesture = createNoiseGesture((point) => onNoiseRef.current?.(point.x, point.y))
+      /**
+       * CONTA-GOTAS — a cor do pixel desenhado sob o ponto (px CSS da tela).
+       * O stage inteiro é desenhado de novo num alvo 1×1 (`extract.pixels`):
+       * a câmera (zoom/pan) é a transformação do `world` dentro do stage, e a
+       * densidade do monitor não entra porque o quadro está em px CSS. Saem
+       * as camadas de trabalho do editor — seleção, alças, hover, guias,
+       * sinais e laser, as mesmas que a "Exportar imagem" tira — para a
+       * pipeta pegar a cor do MAPA, não a do contorno de seleção por cima.
+       */
+      const lerCorDoPonto = (x: number, y: number): string | null => {
+        const pixel = pixelDaTela(x, y, app.screen.width, app.screen.height)
+        if (pixel === null) return null
+        const camadasDeTrabalho = [
+          gridAlignOverlayGraphics,
+          ...world.children.slice(world.getChildIndex(pinsContainer) + 1),
+          signalsLayer,
+          laserLayer,
+        ]
+        const estavamVisiveis = camadasDeTrabalho.map((camada) => camada.visible)
+        try {
+          for (const camada of camadasDeTrabalho) camada.visible = false
+          const { pixels } = app.renderer.extract.pixels({
+            target: app.stage,
+            frame: new Rectangle(pixel.x, pixel.y, 1, 1),
+            resolution: 1,
+            clearColor: EDITOR_BACKGROUND_COLOR,
+          })
+          return rgbaParaHex(pixels[0], pixels[1], pixels[2], pixels[3])
+        } finally {
+          camadasDeTrabalho.forEach((camada, i) => {
+            camada.visible = estavamVisiveis[i]
+          })
+        }
+      }
+      const contaGotasGesture = createContaGotasGesture(lerCorDoPonto)
+      const contaGotasArmado = () => useContaGotasStore.getState().donoId !== null
       /** Arma o laser pela tecla: nada é desenhado nem enviado até o botão esquerdo. */
       const activateLaserKey = () => {
         if (laserKeyTimer !== null) clearTimeout(laserKeyTimer)
@@ -1331,6 +1370,7 @@ export function PixiCanvas({
       // Alt+Tab com L ou o botão apertado: keyup/pointerup nunca chegam e o laser ficaria preso ligado.
       const onWindowBlur = () => {
         noiseGesture.cancel()
+        contaGotasGesture.cancel()
         laserGesture.cancel()
         releaseLaserKey(false)
       }
@@ -4322,7 +4362,8 @@ export function PixiCanvas({
       // ('crosshair' pra Borracha, 'default' pro resto).
       const updateCursor = () => {
         // B2 — laser ou ruído armado fora de pan: mira, qualquer que seja a ferramenta.
-        if ((isLaserArmed(useLaserStore.getState()) || useNoiseStore.getState().armed) && mode === 'idle' && !spaceHeld) {
+        // Conta-gotas armado: a mesma mira — o próximo clique é da pipeta.
+        if ((isLaserArmed(useLaserStore.getState()) || useNoiseStore.getState().armed || contaGotasArmado()) && mode === 'idle' && !spaceHeld) {
           el.style.cursor = 'crosshair'
           return
         }
@@ -4344,6 +4385,15 @@ export function PixiCanvas({
       })
       const unsubscribeNoiseCursor = useNoiseStore.subscribe((state, previous) => {
         if (state.armed === previous.armed) return
+        hoverGraphics.clear()
+        hoverTarget = null
+        hoverGroupPoint = null
+        updateCursor()
+      })
+      // O anel de hover sai também por isto: ele é desenhado no stage e a
+      // pipeta leria a cor dele em vez da do mapa.
+      const unsubscribeContaGotasCursor = useContaGotasStore.subscribe((state, previous) => {
+        if ((state.donoId === null) === (previous.donoId === null)) return
         hoverGraphics.clear()
         hoverTarget = null
         hoverGroupPoint = null
@@ -4414,6 +4464,12 @@ export function PixiCanvas({
       })
 
       app.stage.on('pointerdown', (event) => {
+        // Conta-gotas armado + botão esquerdo: o clique só lê a cor do mapa e
+        // a entrega ao campo que pediu. Antes de TUDO, inclusive de encerrar a
+        // edição de rótulo e de parar a câmera: nada no mapa muda, nem a
+        // seleção (o painel com o campo continua aberto).
+        if (!spaceHeld && contaGotasGesture.pointerDown(event.button, event.global.x, event.global.y)) return
+
         // Clicar em qualquer lugar do mapa encerra a edição do rótulo
         // anterior. O bloco da ferramenta Texto, mais abaixo, religa a edição
         // no rótulo que ESTE mesmo clique cria.
@@ -5421,7 +5477,8 @@ export function PixiCanvas({
       })
 
       app.stage.on('pointerup', (event) => {
-        // O soltar do clique do ruído também é dele: a ferramenta não viu o apertar.
+        // O soltar do clique do ruído (e da pipeta) também é dele: a ferramenta não viu o apertar.
+        if (contaGotasGesture.pointerUp()) return
         if (noiseGesture.pointerUp()) return
         // B2 — fim do traço do laser; o App manda `laser {off}` na transição.
         if (laserGesture.pointerUp()) return
@@ -5903,6 +5960,7 @@ export function PixiCanvas({
         // O toque terminou FORA do canvas: ele não é mais a primeira metade de
         // um duplo clique, e o próximo toque dentro do mapa é um toque novo.
         ultimoToqueDoTracado = null
+        if (contaGotasGesture.pointerUp()) return
         if (noiseGesture.pointerUp()) return
         if (laserGesture.pointerUp()) return
         // Mesmo fechamento de gesto do pointerup acima — o mouse pode sair do
@@ -6112,7 +6170,7 @@ export function PixiCanvas({
         // Traço do laser em curso (botão esquerdo pressionado): consome o move.
         if (laserGesture.pointerMove(laserPointer)) return
         // Armado e ocioso: sem hover nem prévia da ferramenta, só a mira.
-        if (mode === 'idle' && (isLaserArmed(useLaserStore.getState()) || useNoiseStore.getState().armed)) return
+        if (mode === 'idle' && (isLaserArmed(useLaserStore.getState()) || useNoiseStore.getState().armed || contaGotasArmado())) return
 
         if (mode === 'panning') {
           const dx = event.global.x - lastPoint.x
@@ -7192,7 +7250,9 @@ export function PixiCanvas({
         tokensRenderer.cancelarAnimacoes()
         unsubscribeLaserCursor()
         unsubscribeNoiseCursor()
+        unsubscribeContaGotasCursor()
         noiseGesture.cancel()
+        contaGotasGesture.cancel()
         laserGesture.cancel()
         releaseLaserKey(false)
         el.removeEventListener('pointerleave', onCanvasPointerLeave)

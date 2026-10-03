@@ -1,5 +1,6 @@
 import type { Region } from '../types/map'
 import { Toggle } from './Toggle'
+import { CampoDeCorComPipeta } from './CampoDeCorComPipeta'
 
 /**
  * Junção do vértice do contorno da região — só os 2 valores que o usuário
@@ -168,12 +169,10 @@ export function RegionStyleControls({
         <label className="lb-label" htmlFor="lb-region-color">
           Cor
         </label>
-        <input
+        <CampoDeCorComPipeta
           id="lb-region-color"
-          className="lb-swatch"
-          type="color"
           value={color}
-          onChange={(event) => onColorChange(event.target.value)}
+          onChange={(cor) => onColorChange(cor)}
         />
       </div>
       <Toggle

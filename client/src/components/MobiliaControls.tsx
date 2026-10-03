@@ -14,6 +14,7 @@ import { PROP_SILHOUETTE_EDGE_COLOR, PROP_SILHOUETTE_FILL_COLOR } from '../pixi/
 import type { Prop, TipoMobilia, VistaMobilia } from '../types/map'
 import { Toggle } from './Toggle'
 import './MobiliaControls.css'
+import { CampoDeCorComPipeta } from './CampoDeCorComPipeta'
 
 function hexDaCor(cor: number): string {
   return `#${cor.toString(16).padStart(6, '0')}`
@@ -69,13 +70,12 @@ function CampoDeCor({ id, rotulo, rotuloDoPadrao, corPropria, corPadrao, desabil
             Padrão
           </button>
         )}
-        <input
+        <CampoDeCorComPipeta
           id={id}
-          className="lb-swatch"
-          type="color"
           value={corPropria ?? corPadrao}
           disabled={desabilitado}
-          onChange={(event) => onEscolher(event.target.value)}
+          rotuloDaPipeta={`Pegar do mapa: ${rotulo}`}
+          onChange={(cor) => onEscolher(cor)}
         />
       </div>
     </div>
