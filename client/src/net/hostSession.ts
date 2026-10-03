@@ -56,7 +56,7 @@ import { sameBuilding, sortFloorLabels } from '../lib/buildingFloors'
 import { turnTokenIdOn, type TurnRef } from '../lib/initiative'
 import { clampNoiseRangeCells } from '../lib/noise'
 import { guardarPeca, pecaDoPino, progressoDasColecoes, type ColecoesDoJogador, type PecaDeColecao } from '../lib/colecao'
-import { travaDaFichaDoJogador, validateTokenMove } from '../lib/moveValidation'
+import { travaDaFichaDoJogador, validateTokenMove, type TokenMoveRejection } from '../lib/moveValidation'
 import { tokensOccupy } from '../lib/movementRules'
 import { escadaDaFicha, mapaDoPiso, pisoDe } from '../lib/pisos'
 import { confrontoParaJogador, fichaDaVez } from '../lib/confronto'
@@ -70,7 +70,8 @@ import { carriedItemsOf, cleanItemName, itemOfPin, tokenReachesPin, tokensTouch,
 import { itemAVenda } from '../lib/loja'
 import { selectedTokenColor } from '../lib/tokenColor'
 import { acceptsLockedExitRequest, arrivalSpot, arrivalSpotWithoutPin, exitLabelsOf, exitPassageOf, freeSeatNear, isArrivalOnly, isExitPassage, oneWayExitsOf, resolvePinTravel, SAIDA_PRINCIPAL, sameDestination, travelExitOf, type TravelScene } from '../lib/pinTravel'
-import { gatherSpots, pinClearance, type KeepClear, type SeatHold } from '../lib/gatherParty'
+import { disembarkSpot, gatherSpots, pinClearance, type KeepClear, type SeatHold } from '../lib/gatherParty'
+import { boardVehicle, driveTarget, driverOf, passengerIdsOf, vehicleCarrying } from '../lib/vehicle'
 import { visibleTokens } from '../lib/layers'
 import type { SavedSceneMemory, SavedSeat, SavedSeatExploration } from '../lib/savedTable'
 import { companionSpots, companionsNear, entourageNear, entourageSeats, type Companion, type Seat } from '../lib/travelTogether'
@@ -155,6 +156,9 @@ import {
   type TokenEditMessage,
   type TokenHideRejection,
   type TokenHideRequestMessage,
+  type VehicleBoardMessage,
+  type VehicleLeaveMessage,
+  type VehicleRejection,
   type TokenMoveMessage,
   type TokenPisoMessage,
   type ViewSwitchMessage,
@@ -469,6 +473,17 @@ export interface AppliedPiso {
   piso: number
   sceneId?: string
 }
+
+/**
+ * VEÍCULO — o "Subir" ou o "Descer" do jogador, já validado (a ficha é dele,
+ * o veículo está no recorte dele, perto e com lugar). `board`: a ficha entra
+ * na lista do veículo. `leave`: sai da lista e fica em (x, y) — onde estava,
+ * ou a casa livre ao lado se estava em cima do veículo. `sceneId` como nos
+ * outros "Applied".
+ */
+export type AppliedVehicle =
+  | { op: 'board'; vehicleId: string; tokenId: string; sceneId?: string }
+  | { op: 'leave'; tokenId: string; x: number; y: number; sceneId?: string }
 
 export interface AppliedTokenEdit {
   tokenId: string
@@ -962,6 +977,8 @@ export interface HostResult {
   applyMark?: AppliedMark
   /** PISOS NA MESMA CENA: a ficha trocou de piso pela escada. */
   applyPiso?: AppliedPiso
+  /** VEÍCULO: o jogador subiu ou desceu; o integrador aplica e faz o broadcast. */
+  applyVehicle?: AppliedVehicle
   signal?: HostSignal
   playerLaser?: HostPlayerLaser
   /** Ação no ponto aceita: o integrador põe a linha na Caixa do mestre. */
@@ -1359,6 +1376,8 @@ export const LOCK_ANSWER_MIN_INTERVAL_MS = 1500
 
 /** PISOS NA MESMA CENA: uma troca de piso por jogador nesta janela; o excesso morre em silêncio. */
 export const PISO_CHANGE_MIN_INTERVAL_MS = 500
+/** VEÍCULO: intervalo mínimo entre dois "Subir"/"Descer" do mesmo jogador — o pedido monta o recorte dele, que é a parte cara. */
+export const VEHICLE_ACTION_MIN_INTERVAL_MS = 300
 
 /** Um pedido de porta por jogador nesta janela; o excesso morre em silêncio (igual ao sinal). */
 export const DOOR_TOGGLE_MIN_INTERVAL_MS = 250
@@ -2845,6 +2864,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   const lastMarkAt = new Map<string, number>()
   // Por playerId: PISOS NA MESMA CENA — o limite da troca de piso pela escada.
   const lastPisoChangeAt = new Map<string, number>()
+  // Por playerId: VEÍCULO — o limite do "Subir"/"Descer" (`VEHICLE_ACTION_MIN_INTERVAL_MS`).
+  const lastVehicleActionAt = new Map<string, number>()
   // Por playerId: janela corrente do teto de lotes de laser (PLAYER_LASER_MAX_PER_WINDOW).
   const laserWindows = new Map<string, { start: number; count: number }>()
   // Por playerId: conexões que receberam algum ponto do gesto em curso, e a
@@ -5157,6 +5178,16 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     // não ocupa a casa para onde ela vai. O vínculo vem do mapa do MESTRE: o
     // recorte do jogador não o carrega.
     const carriedIds = new Set(carriedBy(scene.map, msg.tokenId).map((t) => t.id))
+    // VEÍCULO: a ficha do jogador a bordo. Passageiro que não é o motorista não
+    // anda (andar sozinho o derrubaria do veículo, e quem dirige é o primeiro a
+    // bordo): a recusa diz "desça para andar". Só para a ficha DELE — a de
+    // outro lê `not_owner` no `validateTokenMove`, sem saber que vai a bordo.
+    const carrier = vehicleCarrying(scene.map, msg.tokenId)
+    if (carrier !== null && (ownership[playerId] ?? []).includes(msg.tokenId) && driverOf(scene.map, carrier.id) !== msg.tokenId) {
+      return reply(clientId, { type: 'token.move.rejected', reqId: msg.reqId, reason: 'a_bordo' })
+    }
+    // O MOTORISTA leva o veículo e todos a bordo: nenhum deles ocupa a casa para onde o grupo vai.
+    if (carrier !== null) for (const id of [carrier.id, ...passengerIdsOf(scene.map, carrier.id)]) carriedIds.add(id)
     const occupants = occupantsSeenBy(playerId, scene.map)?.filter((t) => !carriedIds.has(t.id))
     // PISOS: só as paredes (e as fichas) do piso da ficha seguram o passo — o piso de cima não é teto aqui.
     const floorMap = mapaDoPiso(scene.map, tokenPisoOf(msg.tokenId, scene.map))
@@ -5171,6 +5202,9 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     // levado — anda junto no mapa do mestre (`setTokenPosition`): congelado
     // ali, o passo inteiro não vale. Depois da posse: a ficha de outro já leu `not_owner`.
     if (congeladaPresaA(scene.map, [msg.tokenId]) !== null) return reply(clientId, { type: 'token.move.rejected', reqId: msg.reqId, reason: 'congelado' })
+    // VEÍCULO: o passo do motorista vira o passo do veículo (`driveTarget`).
+    const drive = carrier === null ? null : driveVehicleStep(scene.map, msg.tokenId, result.x, result.y)
+    if (drive !== null && !drive.ok) return reply(clientId, { type: 'token.move.rejected', reqId: msg.reqId, reason: drive.reason })
     // CONFRONTO: o passo aceito conta no passo máximo da vez.
     if (result.casas !== undefined) gastarNaVez(scene.map, msg.tokenId, result.casas)
     // `landing` só leva o motivo; o ponto já passou pelo recorte em `validateTokenMove`
@@ -5179,12 +5213,41 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const landing = result.landing === undefined ? {} : { landing: result.landing }
     const accepted: HostMessage = { type: 'token.move.accepted', reqId: msg.reqId, x: result.x, y: result.y, ...landing }
     const outbound: Outbound[] = [{ clientId, msg: accepted }]
-    const applyMove: AppliedMove = { tokenId: msg.tokenId, x: result.x, y: result.y, ...backgroundSceneId(scene, world) }
+    // O motorista não anda sozinho no mapa do mestre: quem anda é o VEÍCULO, e
+    // `setTokenPosition` leva todos a bordo pelo mesmo deslocamento (ele inclusive).
+    const moved = drive === null ? { tokenId: msg.tokenId, x: result.x, y: result.y } : { tokenId: drive.vehicleId, x: drive.x, y: drive.y }
+    const applyMove: AppliedMove = { ...moved, ...backgroundSceneId(scene, world) }
     const cancelled = travelLeftBehind(playerId, scene, msg.tokenId, result.x, result.y)
     if (cancelled === null) return { outbound, applyMove }
     // Depois do aceite: o jogador vê a ficha no lugar novo e, logo em seguida, que o pedido caiu.
     outbound.push({ clientId, msg: { type: 'pin.travel.cancelled', reason: 'far' } })
     return { outbound, applyMove, travelCancelled: cancelled }
+  }
+
+  /**
+   * VEÍCULO — o passo do MOTORISTA, já aceito para a ficha dele em (x, y),
+   * levado ao veículo: o veículo vai o mesmo deslocamento (`driveTarget`). O
+   * trajeto do VEÍCULO passa pela regra do passo do mestre (parede, chão, borda
+   * do mapa — `validateTokenMove` com `isHost`, a mesma de `followStep`), na
+   * planta do piso dele; barrado, o passo inteiro não vale. O veículo segurado
+   * ou congelado pelo mestre, ou uma ficha congelada a bordo, também seguram.
+   * Quem vai a bordo e a parede barra fica e desce, como no arrasto do veículo
+   * (`moveTokenWithVehicle`). `null` = a ficha não é motorista.
+   */
+  function driveVehicleStep(
+    map: MapData,
+    driverId: string,
+    x: number,
+    y: number,
+  ): { ok: true; vehicleId: string; x: number; y: number } | { ok: false; reason: TokenMoveRejection } | null {
+    const target = driveTarget(map, driverId, x, y)
+    const vehicle = target === null ? undefined : map.tokens.find((t) => t.id === target.vehicleId)
+    if (target === null || vehicle === undefined) return null
+    if (vehicle.locked === true) return { ok: false, reason: 'locked' }
+    if (estaCongelada(vehicle) || congeladaPresaA(map, [vehicle.id]) !== null) return { ok: false, reason: 'congelado' }
+    const step = validateTokenMove(mapaDoPiso(map, pisoDe(vehicle)), { playerId: '', tokenId: vehicle.id, x: target.x, y: target.y }, {}, { isHost: true })
+    if (!step.ok) return { ok: false, reason: step.reason }
+    return { ok: true, ...target }
   }
 
   /**
@@ -6477,6 +6540,92 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const escada = escadaDaFicha({ stairs: [stair], grid: map.grid }, token)
     if (escada === null) return { outbound: [] }
     return { outbound: [], applyPiso: { tokenId: token.id, piso: escada.destino, ...backgroundSceneId(scene, world) } }
+  }
+
+  /**
+   * VEÍCULO — o que o "Subir" e o "Descer" conferem antes de olhar o veículo:
+   * a ficha é DELE e está na cena dele, fora do mapa-mundi (a caravana é do
+   * mestre), com limite de frequência (o recorte é a parte cara). Pedido que
+   * não vale aqui morre em silêncio (`null`), como o da escada; a cena
+   * pausada, o "Volto já" e as travas do passo voltam com motivo.
+   */
+  function vehicleRequestScene(
+    clientId: string,
+    tokenId: string,
+    world: HostWorld,
+  ): { playerId: string; scene: HostScene; token: Token } | { refuse: HostResult } | null {
+    const playerId = byClient.get(clientId)
+    if (playerId === undefined) return { refuse: reply(clientId, { type: 'error', reason: 'not_joined' }) }
+    if (statusOf(playerId) !== 'playing') return null
+    if (!(ownership[playerId] ?? []).includes(tokenId)) return null
+    const scene = sceneFor(playerId, world)
+    if (scene === null || isWorldMap(scene.map)) return null
+    const token = scene.map.tokens.find((t) => t.id === tokenId)
+    if (token === undefined) return null
+    const at = now()
+    const last = lastVehicleActionAt.get(playerId)
+    if (last !== undefined && at - last < VEHICLE_ACTION_MIN_INTERVAL_MS) return null
+    lastVehicleActionAt.set(playerId, at)
+    const refuse = (reason: VehicleRejection) => ({ refuse: reply(clientId, { type: 'vehicle.rejected', reason }) })
+    if (inPausedScene(scene)) return refuse('paused')
+    if (awayPlayers.has(playerId)) return refuse('locked')
+    const trava = travaDaFichaDoJogador(scene.map, token, turnTokenIdOn(options.getTurn?.() ?? null, scene.map))
+    if (trava !== null) return refuse(trava)
+    return { playerId, scene, token }
+  }
+
+  /** O recorte de AGORA do jogador nesta cena: o que ele vê (veículo marcado com `embarcavel`). */
+  function viewNow(playerId: string, scene: HostScene, world: HostWorld): MapData {
+    const map = scene.map
+    const memory = memoryFor(playerId, map, world)
+    return filterMapForPlayer(map, playerId, ownership, tokenRadiusIn(playerId, map), memory.exp, memory.doors, pinAudiences, undefined, loansFor(playerId), memory.seenRooms).map
+  }
+
+  /**
+   * VEÍCULO — "Subir": sobe na hora, sem o mestre. O veículo precisa estar no
+   * recorte dele marcado como `embarcavel` (veículo que a névoa, o mestre ou o
+   * piso escondem não existe para ele: silêncio), e `boardVehicle` decide no
+   * mapa do MESTRE: perto (`isNearVehicle`) e com lugar. `cheio` e `longe` voltam
+   * como aviso curto; o resto dos motivos de `boardVehicle` não acontece com o
+   * veículo à vista e morre calado. Quem já está a bordo: nada muda, nada volta.
+   */
+  function handleVehicleBoard(clientId: string, msg: VehicleBoardMessage, world: HostWorld): HostResult {
+    const checked = vehicleRequestScene(clientId, msg.tokenId, world)
+    if (checked === null) return { outbound: [] }
+    if ('refuse' in checked) return checked.refuse
+    const { playerId, scene, token } = checked
+    const view = viewNow(playerId, scene, world)
+    if (view.tokens.find((t) => t.id === msg.vehicleId)?.embarcavel !== true || !view.tokens.some((t) => t.id === token.id)) return { outbound: [] }
+    // CONGELAR FICHA: a ficha congelada a bordo seguraria o veículo; quem LEVA uma congelada também não sobe.
+    if (congeladaPresaA(scene.map, [token.id]) !== null) return reply(clientId, { type: 'vehicle.rejected', reason: 'congelado' })
+    const result = boardVehicle(scene.map, msg.vehicleId, token.id)
+    if (!result.ok) {
+      if (result.motivo === 'cheio' || result.motivo === 'longe') return reply(clientId, { type: 'vehicle.rejected', reason: result.motivo })
+      return { outbound: [] }
+    }
+    if (result.map === scene.map) return { outbound: [] }
+    return { outbound: [], applyVehicle: { op: 'board', vehicleId: msg.vehicleId, tokenId: token.id, ...backgroundSceneId(scene, world) } }
+  }
+
+  /**
+   * VEÍCULO — "Descer": a ficha sai da lista e fica onde está; em cima do
+   * veículo, vai para a casa livre ao lado (`disembarkSpot`), contando só as
+   * fichas que ele vê — desviar de uma escondida diria que há algo ali. Fora de
+   * veículo: nada (a tela dele estava atrasada; o snapshot corrige). Se ela era
+   * a motorista, o próximo a bordo vira motorista (`driverOf`).
+   */
+  function handleVehicleLeave(clientId: string, msg: VehicleLeaveMessage, world: HostWorld): HostResult {
+    const checked = vehicleRequestScene(clientId, msg.tokenId, world)
+    if (checked === null) return { outbound: [] }
+    if ('refuse' in checked) return checked.refuse
+    const { playerId, scene, token } = checked
+    const vehicle = vehicleCarrying(scene.map, token.id)
+    if (vehicle === null) return { outbound: [] }
+    const seen = new Set(viewNow(playerId, scene, world).tokens.map((t) => t.id))
+    // O próprio veículo sempre conta: ela não desce em cima dele.
+    const unseen = new Set(scene.map.tokens.filter((t) => !seen.has(t.id) && t.id !== vehicle.id).map((t) => t.id))
+    const spot = disembarkSpot(mapaDoPiso(scene.map, pisoDe(token)), vehicle, token, unseen)
+    return { outbound: [], applyVehicle: { op: 'leave', tokenId: token.id, x: spot.x, y: spot.y, ...backgroundSceneId(scene, world) } }
   }
 
   /**
@@ -8133,6 +8282,10 @@ export function createHostSession(options: HostSessionOptions): HostSession {
         return handleLetterSend(clientId, msg)
       case 'token.piso':
         return handleTokenPiso(clientId, msg, world)
+      case 'vehicle.board':
+        return handleVehicleBoard(clientId, msg, world)
+      case 'vehicle.leave':
+        return handleVehicleLeave(clientId, msg, world)
       case 'chat.send':
         return handleChatSend(clientId, msg, world)
     }

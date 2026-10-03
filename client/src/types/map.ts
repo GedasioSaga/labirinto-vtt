@@ -1330,6 +1330,26 @@ export interface Token extends PlayerSecret, NoPiso {
    * entregaria ficha que a névoa ou o mestre escondem (`lib/fogFilter.ts`).
    */
   veiculo?: TokenVehicle
+  /**
+   * VEÍCULO, na tela do jogador: a PRÓPRIA ficha dele está a bordo, e se é a
+   * motorista (a primeira a bordo, que leva o veículo e todos). Campo de FIO,
+   * nunca do arquivo: só o recorte do jogador o escreve, só na ficha do dono
+   * (`lib/fogFilter.ts`), sem a lista de quem mais vai a bordo; `deserializeMap`
+   * o descarta se um arquivo trouxer. Ausente = a pé.
+   */
+  aBordo?: TokenAboard
+  /**
+   * VEÍCULO, na tela do jogador: esta ficha que ele vê é um veículo em que dá
+   * para subir (o botão "Subir" quando a ficha dele encosta). Campo de FIO,
+   * como `aBordo`: nem lugares nem passageiros vão junto. Ausente = ficha comum.
+   */
+  embarcavel?: boolean
+}
+
+/** A ficha do jogador a bordo de um veículo, como a tela dele a lê. */
+export interface TokenAboard {
+  /** `true` = é a motorista: o passo dela leva o veículo e todos a bordo. */
+  motorista: boolean
 }
 
 /** Quem joga com a ficha: nome do jogador e a cor de sinal dele (`#rrggbb`, `lib/signals.ts`). */

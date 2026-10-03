@@ -27,6 +27,8 @@ export interface TokenMoveRequest {
  * `too_far`: CONFRONTO — o trajeto passa do que resta do passo.
  * `congelado`: CONGELAR FICHA — o mestre congelou a ficha (`Token.congelado`),
  * ou uma que iria presa a ela (a bordo, levada; a sessão confere, `lib/congelar.ts`).
+ * `a_bordo`: VEÍCULO — a ficha vai a bordo e não é a motorista (`driverOf`): quem
+ * vai de passageiro não anda; desce primeiro (a sessão confere, `net/hostSession.ts`).
  */
 export type TokenMoveRejection =
   | 'unknown_token'
@@ -39,6 +41,7 @@ export type TokenMoveRejection =
   | 'outside_floor'
   | 'occupied'
   | 'too_far'
+  | 'a_bordo'
 
 /**
  * Por que o movimento aceito parou em outro lugar que não o pedido.

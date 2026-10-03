@@ -1,7 +1,7 @@
 import type { DoorToggleRejection } from '../net/protocol'
 import type { TokenMoveLanding, TokenMoveRejection } from '../lib/moveValidation'
 import { TEXTO_CONGELADO } from '../lib/congelar'
-import { MOVE_NOTICE_TEXT as LANDING_NOTICE_TEXT } from './playerConnection'
+import { MOVE_NOTICE_TEXT as LANDING_NOTICE_TEXT, VEHICLE_NOTICE_TEXT, type MoveNoticeReason, type VehicleNotice } from './playerConnection'
 
 /** Recusa do mestre ao toque na porta, em uma linha curta. */
 const DOOR_NOTICE_TEXT: Record<DoorToggleRejection, string> = {
@@ -34,6 +34,8 @@ const MOVE_NOTICE_TEXT: Record<TokenMoveRejection, string> = {
   // CONFRONTO na cena (`lib/confronto.ts`) usa este mesmo texto.
   not_your_turn: 'Espere sua vez',
   too_far: 'Além do seu passo',
+  // VEÍCULO: passageiro que não dirige não anda — desce primeiro (ou espera o motorista).
+  a_bordo: 'A bordo: desça para andar',
 }
 
 export function moveNoticeText(reason: TokenMoveRejection): string {
@@ -44,18 +46,26 @@ export function moveNoticeText(reason: TokenMoveRejection): string {
  * Porta e movimento avisam no mesmo lugar da tela (rodapé): dois avisos juntos
  * se sobreporiam. Vale o mais novo — o `id` dos dois sai do mesmo contador.
  */
-function isLanding(reason: TokenMoveRejection | TokenMoveLanding): reason is TokenMoveLanding {
+function isLanding(reason: MoveNoticeReason): reason is TokenMoveLanding {
   return reason === 'nearest_floor'
 }
 
-/** Texto do motivo do movimento: recusa (não moveu) ou pouso aceito em outro lugar (moveu, mas não onde pedido). */
-function moveActionText(reason: TokenMoveRejection | TokenMoveLanding): string {
-  return isLanding(reason) ? LANDING_NOTICE_TEXT[reason] : MOVE_NOTICE_TEXT[reason]
+function isVehicleNotice(reason: MoveNoticeReason): reason is VehicleNotice {
+  return reason === 'veiculo_cheio' || reason === 'veiculo_longe'
+}
+
+/**
+ * Texto do motivo do movimento: recusa (não moveu), pouso aceito em outro
+ * lugar (moveu, mas não onde pedido) ou a recusa do "Subir" no veículo.
+ */
+function moveActionText(reason: MoveNoticeReason): string {
+  if (isLanding(reason)) return LANDING_NOTICE_TEXT[reason]
+  return isVehicleNotice(reason) ? VEHICLE_NOTICE_TEXT[reason] : MOVE_NOTICE_TEXT[reason]
 }
 
 export function latestActionNotice(
   door: { id: number; reason: DoorToggleRejection } | undefined,
-  move: { id: number; reason: TokenMoveRejection | TokenMoveLanding } | undefined,
+  move: { id: number; reason: MoveNoticeReason } | undefined,
 ): { id: number; text: string } | null {
   if (move !== undefined && (door === undefined || move.id > door.id)) return { id: move.id, text: moveActionText(move.reason) }
   if (door !== undefined) return { id: door.id, text: DOOR_NOTICE_TEXT[door.reason] }

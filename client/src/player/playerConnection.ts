@@ -237,8 +237,10 @@ export interface PlayerState {
    * Mesmo contador de `id` da porta. A vez (`not_your_turn`) vai em `turnNotice`.
    * Também cobre o pouso em outro lugar quando o mestre ACEITOU o arrasto
    * (ficha sem chão => chão mais próximo, `TokenMoveLanding`).
+   *
+   * VEÍCULO: a recusa do "Subir" (`VehicleNotice`) sai no mesmo lugar.
    */
-  moveNotice?: { id: number; reason: TokenMoveRejection | TokenMoveLanding }
+  moveNotice?: { id: number; reason: MoveNoticeReason }
   /**
    * INICIATIVA: o mestre recusou o arrasto porque não é a vez desta ficha
    * ("Espere sua vez"); some sozinho. `id` novo repete o aviso. Não diz de quem
@@ -903,6 +905,14 @@ export interface PlayerConnection {
    */
   changeFloor(tokenId: string, stairId: string): boolean
   /**
+   * VEÍCULO: "Subir" com a ficha `tokenId` no veículo `vehicleId`, ou "Descer"
+   * com ela. Só os ids — o host decide (perto, lugar, travas) e a resposta
+   * vem no snapshot (`aBordo`) ou em `vehicle.rejected`. `false` se não está
+   * jogando ou o socket não está aberto.
+   */
+  boardVehicle(tokenId: string, vehicleId: string): boolean
+  leaveVehicle(tokenId: string): boolean
+  /**
    * Corre (`on`) ou tira o ferrolho da porta, do lado da ficha dele. O host
    * decide; a marca volta no recorte. `false` se não está jogando ou o socket não está aberto.
    */
@@ -1203,7 +1213,15 @@ export const MOVE_NOTICE_TTL_MS = 2500
 export const MOVE_NOTICE_TEXT: Record<TokenMoveLanding, string> = {
   nearest_floor: 'O chão sumiu debaixo da ficha: ela foi para o chão mais perto',
 }
-const MOVE_REJECTIONS: readonly TokenMoveRejection[] = ['unknown_token', 'not_owner', 'locked', 'congelado', 'outside_map', 'wall', 'outside_floor', 'occupied', 'too_far']
+/** VEÍCULO: por que o "Subir" não valeu, em uma linha curta. O resto das recusas (trava, vez) reusa a frase do passo. */
+export type VehicleNotice = 'veiculo_cheio' | 'veiculo_longe'
+export const VEHICLE_NOTICE_TEXT: Record<VehicleNotice, string> = {
+  veiculo_cheio: 'Veículo cheio',
+  veiculo_longe: 'Chegue mais perto do veículo',
+}
+/** O que o aviso do rodapé (`moveNotice`) pode dizer. */
+export type MoveNoticeReason = TokenMoveRejection | TokenMoveLanding | VehicleNotice
+const MOVE_REJECTIONS: readonly TokenMoveRejection[] = ['unknown_token', 'not_owner', 'locked', 'congelado', 'outside_map', 'wall', 'outside_floor', 'occupied', 'too_far', 'a_bordo']
 
 function isMoveRejection(value: unknown): value is TokenMoveRejection {
   return MOVE_REJECTIONS.some((reason) => reason === value)
@@ -1676,7 +1694,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
   }
 
   /** Recusa do movimento (`TokenMoveRejection`) ou pouso em outro lugar após aceite (`TokenMoveLanding`). */
-  function showMoveNotice(reason: TokenMoveRejection | TokenMoveLanding): void {
+  function showMoveNotice(reason: MoveNoticeReason): void {
     clearMoveNotice()
     setState({ moveNotice: { id: nextNoticeId++, reason } })
     moveNoticeTimer = setTimeout(() => {
@@ -3696,6 +3714,14 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         const undone = handleRejected(data.reqId, data.reason)
         if (undone && data.reason === 'not_your_turn') showTurnNotice()
         return
+      case 'vehicle.rejected':
+        // VEÍCULO: o "Subir"/"Descer" não valeu. Pausa já tem a faixa dela; motivo desconhecido não vira frase.
+        if (state.status !== 'playing') return
+        if (data.reason === 'cheio') showMoveNotice('veiculo_cheio')
+        else if (data.reason === 'longe') showMoveNotice('veiculo_longe')
+        else if (data.reason === 'not_your_turn') showTurnNotice()
+        else if (isMoveRejection(data.reason)) showMoveNotice(data.reason)
+        return
       case 'away':
         if (typeof data.away !== 'boolean') return
         handleAway(data.away, data.travelPending === true)
@@ -4003,6 +4029,14 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     changeFloor(tokenId, stairId) {
       if (state.status !== 'playing' || tokenId.length === 0 || stairId.length === 0) return false
       return send({ type: 'token.piso', tokenId, stairId })
+    },
+    boardVehicle(tokenId, vehicleId) {
+      if (state.status !== 'playing' || tokenId.length === 0 || vehicleId.length === 0) return false
+      return send({ type: 'vehicle.board', tokenId, vehicleId })
+    },
+    leaveVehicle(tokenId) {
+      if (state.status !== 'playing' || tokenId.length === 0) return false
+      return send({ type: 'vehicle.leave', tokenId })
     },
     barDoor(wallId, on) {
       if (state.status !== 'playing' || wallId.length === 0) return false

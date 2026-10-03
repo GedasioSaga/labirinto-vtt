@@ -376,7 +376,8 @@ function deserializeMapFields(json: string): MapData {
     tokens: entityList(parsed.tokens).map((fichaDoArquivo) => {
       // FALA da patrulha só existe enquanto a ficha espera no ponto; salva no
       // meio de uma fala, o mapa reaberto (patrulha parada) não a mostra.
-      const { fala: _falaDaRonda, ...t } = fichaDoArquivo
+      // `aBordo` e `embarcavel` (VEÍCULO na tela do jogador) são marcas de FIO: arquivo que as traga as perde.
+      const { fala: _falaDaRonda, aBordo: _aBordo, embarcavel: _embarcavel, ...t } = fichaDoArquivo
       const lido = tokenVehicleFromFile(fichaComRotinaDoArquivo(withoutLentMark(withoutContract(tokenPublicNameFromFile({ ...t, image: t.image ?? null })))))
       const comBolsa = bolsaDoArquivo(lido)
       if (!('mochila' in t)) return comBolsa

@@ -82,6 +82,29 @@ export function vehicleCarrying(map: MapData, tokenId: string): Token | null {
   return map.tokens.find((t) => t.id !== tokenId && passengerIdsOf(map, t.id).includes(tokenId)) ?? null
 }
 
+/**
+ * MOTORISTA: quem embarcou primeiro e ainda está a bordo (`passengerIdsOf`,
+ * na ordem do embarque). É ele que, pelo movimento do jogador, leva o veículo
+ * e todos a bordo (`driveTarget`). Quando ele desce, a lista anda e o próximo
+ * vira motorista sem regra extra. `null` = veículo vazio ou ficha comum.
+ */
+export function driverOf(map: MapData, vehicleId: string): string | null {
+  return passengerIdsOf(map, vehicleId)[0] ?? null
+}
+
+/**
+ * Para onde vai o VEÍCULO quando o motorista `driverId` pede (x, y): o veículo
+ * anda o MESMO deslocamento, mantendo o afastamento de todos a bordo
+ * (`moveTokenWithVehicle` faz o resto). `null` = a ficha não é motorista de
+ * veículo nenhum nesta cena.
+ */
+export function driveTarget(map: MapData, driverId: string, x: number, y: number): { vehicleId: string; x: number; y: number } | null {
+  const driver = map.tokens.find((t) => t.id === driverId)
+  const vehicle = vehicleCarrying(map, driverId)
+  if (driver === undefined || vehicle === null || driverOf(map, vehicle.id) !== driverId) return null
+  return { vehicleId: vehicle.id, x: vehicle.x + (x - driver.x), y: vehicle.y + (y - driver.y) }
+}
+
 function withVehicle(map: MapData, tokenId: string, vehicle: TokenVehicle): MapData {
   return { ...map, tokens: map.tokens.map((t) => (t.id === tokenId ? { ...t, veiculo: vehicle } : t)) }
 }

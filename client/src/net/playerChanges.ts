@@ -6,7 +6,8 @@ import { openPinLock } from '../lib/pinLock'
 import { adicionarMarca, apagarMarca } from '../lib/marcas'
 import { comFichaNoPiso } from '../lib/pisos'
 import { comMovimentoRemoto } from '../lib/movimentoRemoto'
-import type { AppliedLock, AppliedMark, AppliedPiso, AppliedTokenEdit } from './hostSession'
+import { boardVehicle, leaveVehicle } from '../lib/vehicle'
+import type { AppliedLock, AppliedMark, AppliedPiso, AppliedTokenEdit, AppliedVehicle } from './hostSession'
 
 /**
  * O que o JOGADOR muda no mapa do mestre (movimento, porta, nome/foto da
@@ -77,6 +78,25 @@ function setTokenPiso(tokenId: string, piso: number): MapTransform {
   return (map) => comFichaNoPiso(map, tokenId, piso)
 }
 
+/**
+ * VEÍCULO: o jogador subiu (`boardVehicle`, que recusa de novo se o mapa
+ * mudou entre a validação e aqui — encheu, ela se afastou) ou desceu: sai da
+ * lista ANTES de andar até o ponto que a sessão escolheu — `setTokenPosition`
+ * leva então só ela (com a tocha e quem ela leva), e o veículo fica.
+ */
+function applyVehicleChange(change: AppliedVehicle): MapTransform {
+  return (map) => {
+    if (change.op === 'board') {
+      const result = boardVehicle(map, change.vehicleId, change.tokenId)
+      return result.ok ? result.map : map
+    }
+    const off = leaveVehicle(map, change.tokenId)
+    const token = off.tokens.find((t) => t.id === change.tokenId)
+    if (token === undefined || (token.x === change.x && token.y === change.y)) return off
+    return mapFactory.setTokenPosition(off, change.tokenId, change.x, change.y)
+  }
+}
+
 /** `sceneId` ausente = a cena aberta no editor; presente = uma cena de fundo. */
 function applyToScene(sceneId: string | undefined, transform: MapTransform): void {
   if (sceneId === undefined) useMapStore.getState().applyPlayerChange(transform)
@@ -122,4 +142,5 @@ export const hostPlayerChanges = {
   applyMark: (mark: AppliedMark): void => applyToScene(mark.sceneId, placeMark(mark.marca)),
   removeMark: removeMarkWhereItIs,
   applyPiso: ({ tokenId, piso, sceneId }: AppliedPiso): void => applyToScene(sceneId, setTokenPiso(tokenId, piso)),
+  applyVehicle: (change: AppliedVehicle): void => applyToScene(change.sceneId, applyVehicleChange(change)),
 }

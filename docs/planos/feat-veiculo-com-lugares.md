@@ -30,7 +30,47 @@ juntos em a07.
   "cheio". Cada clique passa pelo histórico (Ctrl+Z desfaz).
 - Mover o veículo (arrasto do mestre, movimento do jogador dono dele, "Reunir")
   leva quem está a bordo pelo mesmo deslocamento, com as tochas presas.
-- Mover um passageiro sozinho é descer do veículo: ele sai da lista.
+- Mover um passageiro sozinho PELO MESTRE (arrasto, setas) é descer do
+  veículo: ele sai da lista. Fica como antes de propósito: o arrasto do mestre
+  é a mão dele tirando alguém do cesto, e o painel continua sendo o caminho
+  certo para embarcar e desembarcar sem mexer na ficha.
+
+## O jogador sobe, dirige e desce pela tela dele
+
+- **Subir**: com a ficha dele encostada (`isNearVehicle`) num veículo que ele
+  VÊ, aparece "Subir no veículo" na coluna das ações do lugar (`.pp-lugar`,
+  junto da escada e do "Espiar"; `player/PlayerVeiculo.tsx`). Sobe na hora,
+  sem o mestre: `vehicle.board { tokenId, vehicleId }`. O host
+  (`handleVehicleBoard`) confere ficha dele, cena dele (fora do mapa-mundi),
+  limite de frequência, cena sem pausa, "Volto já", travas do passo
+  (cadeado, congelada, vez), o veículo no recorte de AGORA marcado como
+  `embarcavel`, e decide no mapa do mestre com `boardVehicle` (perto, lugar).
+  `cheio` e `longe` voltam em `vehicle.rejected` e viram "Veículo cheio" /
+  "Chegue mais perto do veículo" no rodapé; ficha de outro ou veículo que ele
+  não vê morrem em silêncio (responder ensinaria ids).
+- **Motorista**: o primeiro a bordo (`driverOf` = `passageiros[0]`). O passo
+  aceito da ficha dele vira o passo do VEÍCULO (`driveTarget`, mesmo
+  deslocamento): a sessão manda `applyMove` com o id do veículo, e
+  `setTokenPosition` leva todos a bordo mantendo o afastamento. O trajeto do
+  veículo passa pela regra de parede/chão/borda do passo do mestre
+  (`validateTokenMove` com `isHost`, a de `followStep`) — barrado, o passo
+  inteiro é recusado com o motivo (ex.: "Parede no caminho"); passageiro que a
+  parede barra fica e desce, como no arrasto do veículo. Veículo segurado ou
+  congelado pelo mestre (ou ficha congelada a bordo) também segura. Quem vai
+  a bordo não ocupa a casa para onde o grupo vai.
+- **Passageiro que não dirige não anda**: o passo dele é recusado com
+  `a_bordo` ("A bordo: desça para andar") e ele continua a bordo. Escolhido em
+  vez de "anda e desce" porque andar sem querer derrubava o jogador do cesto
+  sem aviso — a queixa original —, e em vez de "o passageiro também dirige"
+  porque dois jogadores puxando o mesmo veículo brigariam pelo volante.
+- **Descer**: "Descer do veículo" (`vehicle.leave { tokenId }`). Sai da lista
+  e fica onde está; se estava em cima do veículo, vai para a casa livre mais
+  perto (`disembarkSpot` em `lib/gatherParty.ts`, a regra de `gatherSpots`),
+  contando só as fichas que ele vê. Se era o motorista, o próximo da lista
+  assume sem regra extra.
+- O integrador aplica `applyVehicle` fora do Ctrl+Z do mestre
+  (`net/playerChanges.ts`, que confere `boardVehicle` de novo no mapa da hora)
+  e faz o broadcast na hora (`net/hostBridge.ts`).
 - Atravessar (pedido de viagem do jogador dono do veículo, "Deixar ir",
   "Levar para…", "Mandar para…") passa por `adventureStore.transferToken`: o
   veículo e cada passageiro saem juntos da cena de origem e chegam juntos na de
@@ -39,19 +79,29 @@ juntos em a07.
 
 ## O que o jogador recebe e o que nunca recebe
 
-- Recebe: nada novo. Ele vê a própria ficha andar e trocar de cena pelo
-  snapshot de sempre (a sessão acha a cena dele pela ficha que ele tem).
+- Recebe a própria ficha andar e trocar de cena pelo snapshot de sempre, e
+  duas marcas de FIO na ficha (`types/map.ts`, escritas só pelo recorte,
+  descartadas por `deserializeMap`):
+  - `aBordo: { motorista }` — só na ficha do DONO. A tela dele diz "No
+    veículo · motorista" ou "No veículo" e oferece "Descer". Não diz em qual
+    veículo nem quem mais vai; o colega que vê a ficha dele não recebe a marca.
+  - `embarcavel: true` — no veículo que ele vê (nunca no vulto). É o que
+    acende o "Subir" quando a ficha dele encosta.
 - Nunca recebe: o campo `veiculo`, nem os lugares, nem a lista de passageiros
   — o recorte (`lib/fogFilter.ts`) apaga o campo de toda ficha, a dele
   inclusive. A lista poderia entregar o id de uma ficha que a névoa, a zona
-  oculta ou o mestre escondem. Prova em `lib/fogFilter.veiculo.test.ts` e, de
-  ponta a ponta pela sessão, em `stores/veiculo.test.ts`.
+  oculta ou o mestre escondem. O que vaza, e foi aceito: o passageiro sabe que
+  há alguém antes dele na fila (não é motorista), sem saber quem. Prova em
+  `lib/fogFilter.veiculo.test.ts`, `player/PlayerVeiculo.test.tsx` e, de ponta
+  a ponta pela sessão, em `stores/veiculo.test.ts` e
+  `stores/veiculoJogador.test.ts`.
 
 ## O que fica para depois
 
-1. Mostrar ao jogador que ele está a bordo ("no cesto") e deixá-lo pedir para
-   embarcar e descer pela tela dele — exige mensagem nova na rede e decidir
-   se o pedido vai ao mestre.
+1. (Feito em 03/10/2026: ver "O jogador sobe, dirige e desce pela tela dele".)
+   Sobra dele: o "Subir" não conhece a vez da iniciativa/confronto (o host
+   recusa com "Espere sua vez"); o pedido de viagem do MOTORISTA atravessa só a
+   ficha dele (desce do veículo), não o veículo inteiro.
 2. Desenho do veículo no mapa (lugares ocupados, passageiros empilhados no
    veículo) — hoje o passageiro fica onde estava e anda junto.
 3. Mover em grupo pela seleção de área (`lib/areaSelection.ts`) ainda não

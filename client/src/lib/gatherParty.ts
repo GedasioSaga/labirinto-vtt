@@ -302,6 +302,21 @@ export function vehicleRiderSpots(
   })
 }
 
+/**
+ * DESCER DO VEÍCULO pela tela do jogador: onde a ficha `rider` fica. Ao lado
+ * do veículo, fica onde está. Em cima dele (encosta na ficha do veículo, a
+ * conta de `seatIsTaken`), vai para a casa livre mais perto de onde está, pela
+ * regra de `gatherSpots` (no chão, sem parede no meio, sem ficha em cima).
+ * `ignore`: fichas que não contam como ocupadas — as que o jogador não vê:
+ * desviar delas diria que há algo ali. Sem casa livre, fica onde está.
+ */
+export function disembarkSpot(map: MapData, vehicle: Token, rider: Token, ignore: ReadonlySet<string> = new Set()): Point {
+  const here = { x: rider.x, y: rider.y }
+  const size = tokenSizeInSquares(rider)
+  if (!seatIsTaken({ ...map, tokens: [vehicle] }, here, size)) return here
+  return gatherSpots(map, here, [size], new Set([...ignore, rider.id]))[0] ?? here
+}
+
 /** Uma ficha que a reunião põe em volta do pino. */
 export interface GatherMove {
   playerId: string

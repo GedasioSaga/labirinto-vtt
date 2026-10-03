@@ -29,6 +29,7 @@ import {
   type AppliedMove,
   type AppliedDoor,
   type AppliedPiso,
+  type AppliedVehicle,
   type AppliedTokenEdit,
   type DoorKeyUse,
   type DoorRequest,
@@ -201,6 +202,11 @@ export interface HostBridgeDeps {
    * jogador simplesmente não muda nada.
    */
   applyPiso?: (change: AppliedPiso) => void
+  /**
+   * VEÍCULO: a ficha do jogador subiu ou desceu, já validada pela sessão.
+   * Opcional como `applyPiso`: sem ele, o "Subir"/"Descer" não muda nada.
+   */
+  applyVehicle?: (change: AppliedVehicle) => void
   /**
    * O mestre deixou o jogador passar: mover o token entre as cenas. `false`
    * quando não deu (cena sumiu, token sumiu) — o jogador recebe a recusa em
@@ -2747,6 +2753,11 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     if (result.applyPiso !== undefined && deps.applyPiso !== undefined) {
       // O jogador que subiu recebe o piso novo, e quem ficou deixa de vê-lo, no snapshot imediato.
       deps.applyPiso(result.applyPiso)
+      broadcastNow()
+    }
+    if (result.applyVehicle !== undefined && deps.applyVehicle !== undefined) {
+      // Quem subiu (ou desceu) lê "No veículo" — e o motorista novo, o dele — no snapshot imediato.
+      deps.applyVehicle(result.applyVehicle)
       broadcastNow()
     }
     notifyPlayersIfChanged()

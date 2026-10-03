@@ -969,6 +969,39 @@ export interface TokenHideRequestMessage {
 }
 
 /**
+ * VEÍCULO — o jogador toca "Subir" com a ficha `tokenId` encostada no veículo
+ * `vehicleId` (o que ele vê com `embarcavel`). Sobe na hora, sem o mestre: o
+ * host confere (ficha dele, veículo no recorte dele, perto, com lugar, cena
+ * sem pausa, sem trava) e aplica. Recusa com motivo volta em
+ * `vehicle.rejected`; aceito não tem resposta — a ficha chega com `aBordo` no
+ * snapshot. Pedido que não vale (ficha de outro, veículo que ele não vê)
+ * morre em silêncio: responder ensinaria quais ids existem. Aditiva: mestre
+ * antigo responde `error invalid_message`, que o jogador ignora.
+ */
+export interface VehicleBoardMessage {
+  type: 'vehicle.board'
+  tokenId: string
+  vehicleId: string
+}
+
+/**
+ * VEÍCULO — "Descer": a ficha `tokenId` do jogador sai do veículo em que está.
+ * Fica onde está; em cima do veículo, vai para a casa livre ao lado. Mesmas
+ * recusas de `vehicle.board` (menos lugar e distância).
+ */
+export interface VehicleLeaveMessage {
+  type: 'vehicle.leave'
+  tokenId: string
+}
+
+/**
+ * Por que o host não deixou subir/descer: `cheio` (sem lugar), `longe` (a ficha
+ * saiu de perto antes do pedido chegar), `paused` (mesa pausada) e as travas
+ * do passo (`travaDaFichaDoJogador`). Nunca quem está a bordo nem quantos lugares há.
+ */
+export type VehicleRejection = 'cheio' | 'longe' | 'paused' | 'locked' | 'congelado' | 'not_your_turn'
+
+/**
  * JOGADOR TRANCA PORTA: `on: true` corre o ferrolho da porta `wallId` do lado
  * da ficha dele (o host fecha a porta se estiver aberta); `on: false` tira.
  * O host valida como no `door.toggle`, e a recusa volta no mesmo
@@ -1046,6 +1079,8 @@ export type PlayerMessage =
   | AwayMessage
   | RouteShowMessage
   | TokenHideRequestMessage
+  | VehicleBoardMessage
+  | VehicleLeaveMessage
 
 /**
  * Por que o pedido de esconder-se não virou ficha escondida. `denied`: o
@@ -1674,6 +1709,8 @@ export type HostMessage =
   // `landing`: a ficha parou em outro lugar que não o pedido, e por quê (ficha sem chão => chão mais próximo).
   | { type: 'token.move.accepted'; reqId: string; x: number; y: number; landing?: TokenMoveLanding }
   | { type: 'token.move.rejected'; reqId: string; reason: TokenMoveRejectionReason }
+  // VEÍCULO: o "Subir"/"Descer" não valeu, e por quê (`VehicleRejection`). Aceito não tem resposta: vem no snapshot.
+  | { type: 'vehicle.rejected'; reason: VehicleRejection }
   // `unheard`: só no eco de quem sinalizou (sai tracejado). Quer dizer "nenhum colega que você vê AGORA
   // está vendo este ponto" (ou o ponto está fora da sua visão atual, ou numa zona oculta/teto seu).
   // NÃO quer dizer "ninguém recebeu": colega fora de vista que já explorou o ponto recebe e o eco
@@ -2986,6 +3023,12 @@ export function parsePlayerMessage(raw: unknown): PlayerMessage | null {
         : null
     case 'token.hide.request':
       return isBoundedString(value.tokenId, 1, REQ_ID_MAX_LENGTH) ? { type: 'token.hide.request', tokenId: value.tokenId } : null
+    case 'vehicle.board':
+      return isBoundedString(value.tokenId, 1, REQ_ID_MAX_LENGTH) && isBoundedString(value.vehicleId, 1, REQ_ID_MAX_LENGTH)
+        ? { type: 'vehicle.board', tokenId: value.tokenId, vehicleId: value.vehicleId }
+        : null
+    case 'vehicle.leave':
+      return isBoundedString(value.tokenId, 1, REQ_ID_MAX_LENGTH) ? { type: 'vehicle.leave', tokenId: value.tokenId } : null
     default:
       return null
   }

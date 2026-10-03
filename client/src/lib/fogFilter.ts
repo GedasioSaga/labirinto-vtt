@@ -1,4 +1,4 @@
-import type { ConcealZone, DoorState, Drawing, FloorPiece, HazardKind, LayerId, Light, MapData, MapLine, MapMarker, Pin, PinCard, PinExitLabel, Region, RegionPoint, Stair, Token, TokenCompanion, TokenContract, Wall, WatchAlert } from '../types/map'
+import type { ConcealZone, DoorState, Drawing, FloorPiece, HazardKind, LayerId, Light, MapData, MapLine, MapMarker, Pin, PinCard, PinExitLabel, Region, RegionPoint, Stair, Token, TokenAboard, TokenCompanion, TokenContract, Wall, WatchAlert } from '../types/map'
 import { cellCenter, cellKeyAt, cellRunRects, concealedPieces, unveiledCellsOf } from './concealBrush'
 import { REVEAL_BRUSH_CELL } from './revealBrushCell'
 import { isTokenPhotoData } from './tokenPhoto'
@@ -8,6 +8,7 @@ import { healthForPlayer } from './tokenHealth'
 import { tokenConditionsOf } from './tokenConditions'
 import { parseHexColor, selectedTokenColor, TOKEN_COLOR_DEFAULT } from './tokenColor'
 import { carrierIdOf } from './carry'
+import { driverOf, vehicleCarrying, vehicleOf } from './vehicle'
 import { guardAlerts, tokenWatchOf } from './npcWatch'
 import type { TurnRef } from './initiative'
 import { isPointExplored, isShapeExplored, type Exploration } from './exploration'
@@ -1354,6 +1355,10 @@ interface TokenCut {
   lentNpc: boolean
   /** MARCA DE COMPANHEIRO que ESTE recorte decidiu (`companionsByToken`); `undefined` = nenhuma. */
   companion: TokenCompanion | undefined
+  /** VEÍCULO: a ficha do DONO está a bordo (e se é a motorista); `undefined` = a pé, ou ficha de outro. */
+  aBordo?: TokenAboard
+  /** VEÍCULO: a ficha é um veículo em que o jogador deste recorte pode subir. */
+  embarcavel?: boolean
 }
 
 /**
@@ -1387,6 +1392,10 @@ interface TokenCut {
  * - `companion`: só a marca deste recorte (`cut.companion`, nome e cor de quem
  *   está na mesa); a gravada no mapa do mestre nunca.
  * - `fala`: o que o NPC diz agora (passo "Falar" da patrulha), só texto e no teto.
+ * - `aBordo`: só na ficha do DONO e só `{ motorista }` (`cut.aBordo`) — a tela
+ *   dele diz "No veículo · motorista" e oferece "Descer"; quem mais vai a bordo, não.
+ * - `embarcavel`: só a marca deste recorte (`cut.embarcavel`) no veículo que ele
+ *   vê — o botão "Subir"; lugares e passageiros, não.
  * Ficam de fora, entre outros: `vigia`, `patrulha` (por onde o NPC vai passar),
  * `rotina` (os postos, com a cena de cada um), `levadoPor` (aponta para ficha
  * que o recorte pode ter escondido), `veiculo` (lugares e a lista de quem vai
@@ -1437,6 +1446,8 @@ function tokenForPlayer(token: Token, cut: TokenCut): Token {
   // FALA DO NPC (passo "Falar" da patrulha): vai junto com a ficha que ele vê,
   // só texto, no teto do balão. A macro que a produziu (`patrulha`) fica.
   if (typeof token.fala === 'string' && token.fala !== '') forPlayer.fala = token.fala.slice(0, FALA_MAX_LETRAS)
+  if (cut.aBordo !== undefined) forPlayer.aBordo = { motorista: cut.aBordo.motorista }
+  if (cut.embarcavel === true) forPlayer.embarcavel = true
   return forPlayer
 }
 
@@ -3437,6 +3448,14 @@ export function filterMapForGroup(
   // Vulto também não: a marca poria o nome do dono no rótulo que o vulto tirou.
   // Ficha sem rosto (`isFaceless`) sai montada do zero por `tokenAsVulto`: nada
   // da ficha real passa, só a marca do guarda (?, !) que este recorte decidiu.
+  // VEÍCULO: a conta é no mapa INTEIRO (a lista de quem vai a bordo é do
+  // mestre). Sai só a marca de cada ficha: nem lugares nem a lista.
+  const boardable = new Set(mapaInteiro.tokens.filter((t) => t.veiculo !== undefined && vehicleOf(t) !== null).map((t) => t.id))
+  const aboardOf = (tokenId: string): TokenAboard | undefined => {
+    if (boardable.size === 0) return undefined
+    const carrier = vehicleCarrying(mapaInteiro, tokenId)
+    return carrier === null ? undefined : { motorista: driverOf(mapaInteiro, carrier.id) === tokenId }
+  }
   const tokens = playerTokens.map((t) => {
     const alert = alerts.get(t.id) ?? null
     if (isFaceless(t)) {
@@ -3454,6 +3473,8 @@ export function filterMapForGroup(
       contract: playerId === undefined ? undefined : contrato,
       lentNpc: playerId !== undefined && contrato === undefined && own && t.npc === true,
       companion: shadow || tokenPublicNameMode(t.publicName) !== 'same' ? undefined : companionOf?.get(t.id),
+      aBordo: playerId !== undefined && own ? aboardOf(t.id) : undefined,
+      embarcavel: playerId !== undefined && !shadow && boardable.has(t.id),
     })
     return shadow ? asShadow(seen) : seen
   })

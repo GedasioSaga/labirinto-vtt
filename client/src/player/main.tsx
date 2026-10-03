@@ -37,6 +37,7 @@ import { useScreenWakeLock } from './screenWakeLock'
 import { PlayerWhereAmI } from './PlayerWhereAmI'
 import { whereAmI } from './whereAmI'
 import { PlayerEscada } from './PlayerEscada'
+import { PlayerVeiculo } from './PlayerVeiculo'
 import { NO_ZOOM_STEP, type ZoomDirection, type ZoomLimits, type ZoomStepRequest } from './playerZoom'
 import { PlayerAlarmBanner } from './PlayerAlarmBanner'
 import { PlayerTurnBanner, TurnWaitNotice } from './PlayerTurnBanner'
@@ -1405,6 +1406,15 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
             confronto={state.confronto}
             paused={state.paused === true}
             onTrocar={(tokenId, stairId) => connection.changeFloor(tokenId, stairId)}
+          />
+          {/* VEÍCULO: "Subir" com a ficha encostada num veículo que ele vê; a bordo, o rótulo e o "Descer". */}
+          <PlayerVeiculo
+            map={state.map}
+            ownTokens={ownTokens}
+            paused={state.paused === true}
+            aviso={state.moveNotice?.id}
+            onSubir={(tokenId, vehicleId) => connection.boardVehicle(tokenId, vehicleId)}
+            onDescer={(tokenId) => connection.leaveVehicle(tokenId)}
           />
         </div>
         {noteDraft && (
