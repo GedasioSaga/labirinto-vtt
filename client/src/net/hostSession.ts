@@ -190,7 +190,7 @@ import {
 import { clampTokenActionReply, distanceInCells, type TokenAction, type TokenActionRejection } from '../lib/tokenActions'
 import { diffView, isEmptyViewPatch, type PlayerViewContent } from './viewPatch'
 import { LETTER_PENDING_MAX_PER_PLAYER, LETTER_SEND_MIN_INTERVAL_MS, type LetterVia } from '../lib/correio'
-import { CHAT_HISTORY_MAX, CHAT_MASTER_MENTION, CHAT_MASTER_NAME, CHAT_TEXT_MAX_LENGTH, cleanChatText, findMentions, nameSkeleton, takeChatTurn } from '../lib/chat'
+import { CHAT_HISTORY_MAX, CHAT_MASTER_MENTION, CHAT_MASTER_NAME, CHAT_TEXT_MAX_LENGTH, cleanChatText, findMentions, nameSkeleton, takeChatTurn, type ChatChannel } from '../lib/chat'
 import { readArrivalText } from '../lib/arrivalText'
 import { caravanCity, caravanMembers, caravanRegroup, caravanSize, caravanStep, isWorldMap, landingSpots, type CaravanMemory } from '../lib/caravan'
 
@@ -1753,6 +1753,14 @@ export interface HostSession {
    * depois da limpeza, ou acima de `CHAT_TEXT_MAX_LENGTH`: nada sai (`sent: false`).
    */
   masterChatSend(text: string): HostResult & { sent: boolean }
+  /**
+   * CHAT: o mestre apaga a linha `id` do Global (`sceneKey` `null`) ou da cena
+   * `sceneKey`: some da história e da tela de todos (`chat.delete`). O chat
+   * ainda não tem disco (fatia B) nem mídia (fatia C): quando tiverem, apagar
+   * reescreve o JSONL do canal e apaga o arquivo. `deleted: false` = a linha
+   * já não estava lá.
+   */
+  masterChatDelete(sceneKey: string | null, id: string): HostResult & { deleted: boolean }
   /**
    * RUÍDO NO MAPA: o mestre fez um ruído em (`x`, `y`) da cena ABERTA no
    * editor (é o mapa em que ele clicou). Quem joga nessa cena e tem ficha a
@@ -8094,6 +8102,28 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     return { outbound, chatChanged: true, sent: true }
   }
 
+  /**
+   * CHAT: o mestre apaga a linha `id` do Global (`sceneKey` `null`) ou da cena
+   * `sceneKey`. Ela sai da história (quem chega depois não a recebe) e da tela
+   * de quem tem aquela lista agora (`chat.delete`): no Global, quem recebeu a
+   * história dele; na cena, quem tem a história DESSA cena — a conexão que
+   * trocou de cena e ainda não recebeu a nova continua com a velha na tela.
+   * Linha que não existe (já apagada, caiu pelo teto): nada.
+   */
+  function masterChatDelete(key: string | null, id: string): HostResult & { deleted: boolean } {
+    const list = key === null ? globalChat : sceneChats.get(key)
+    const index = list === undefined ? -1 : list.findIndex((entry) => entry.id === id)
+    if (list === undefined || index < 0) return { outbound: [], deleted: false }
+    list.splice(index, 1)
+    const channel: ChatChannel = key === null ? 'global' : 'cena'
+    const outbound: Outbound[] = []
+    for (const clientId of byClient.keys()) {
+      const shows = key === null ? chatGlobalSent.has(clientId) : chatSceneSent.get(clientId) === key
+      if (shows) outbound.push({ clientId, msg: { type: 'chat.delete', channel, id } })
+    }
+    return { outbound, chatChanged: true, deleted: true }
+  }
+
   /** O que o mestre lê: cópias, para a tela dele nunca segurar a lista viva da sessão. */
   function masterChat(source: HostMapSource): MasterChatState {
     const scenes = allScenes(toWorld(source))
@@ -8687,6 +8717,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
 
     masterChat,
     masterChatSend,
+    masterChatDelete,
 
     expireWaits() {
       const at = now()

@@ -13,12 +13,15 @@ import './MasterChatPanel.css'
  * lê o Global e cada cena com conversa; escreve só no Global (a cena é só
  * leitura para ele). Cada linha é texto do React — nunca HTML, nunca link
  * automático. O que chegou com o canal fechado conta como não lido; a menção
- * ao mestre (`@mestre`) acende forte, no canal e no botão.
+ * ao mestre (`@mestre`) acende forte, no canal e no botão. O mestre apaga
+ * qualquer linha (com confirmação): ela some para todos.
  */
 export interface MasterChatPanelProps {
   chat: MasterChatState
   /** Manda no Global; `false` = não saiu (sala fechada, texto vazio ou longo demais). */
   onSend: (text: string) => boolean
+  /** Apaga a linha `id` para todos: do Global (`sceneKey` `null`) ou da cena. */
+  onDelete: (sceneKey: string | null, id: string) => void
 }
 
 /** `global`, ou `cena:<chave>`: o prefixo impede uma chave de cena de se passar pelo Global. */
@@ -45,6 +48,8 @@ const COUNTER_FROM = 250
 
 interface Channel {
   id: ChannelId
+  /** `null` = o Global. */
+  sceneKey: string | null
   name: string
   messages: readonly ChatEntry[]
 }
@@ -53,8 +58,8 @@ const sceneChannelId = (key: string): ChannelId => `cena:${key}`
 
 function channelsOf(chat: MasterChatState): Channel[] {
   return [
-    { id: GLOBAL, name: 'Global', messages: chat.global },
-    ...chat.scenes.map((scene) => ({ id: sceneChannelId(scene.key), name: scene.name ?? SCENE_GONE, messages: scene.messages })),
+    { id: GLOBAL, sceneKey: null, name: 'Global', messages: chat.global },
+    ...chat.scenes.map((scene) => ({ id: sceneChannelId(scene.key), sceneKey: scene.key, name: scene.name ?? SCENE_GONE, messages: scene.messages })),
   ]
 }
 
@@ -68,13 +73,15 @@ function unreadLabel(count: number, mention: boolean): string {
   return mention ? `${novas}, menciona você` : novas
 }
 
-export function MasterChatPanel({ chat, onSend }: MasterChatPanelProps) {
+export function MasterChatPanel({ chat, onSend, onDelete }: MasterChatPanelProps) {
   const [open, setOpen] = useState(false)
   const [channelId, setChannelId] = useState<ChannelId>(GLOBAL)
   // Por canal: os ids já vistos (com o painel aberto nele).
   const [seen, setSeen] = useState<ReadonlyMap<ChannelId, ReadonlySet<string>>>(() => new Map())
   const [draft, setDraft] = useState('')
   const [alert, setAlert] = useState<LocalAlert | null>(null)
+  // A linha que espera o "Apagar" de confirmação (apagar some para todos: dois cliques, nunca um).
+  const [confirmId, setConfirmId] = useState<string | null>(null)
   const toggleRef = useRef<HTMLButtonElement | null>(null)
   const logRef = useRef<HTMLDivElement | null>(null)
   const inputRef = useRef<HTMLTextAreaElement | null>(null)
@@ -121,6 +128,7 @@ export function MasterChatPanel({ chat, onSend }: MasterChatPanelProps) {
 
   function chooseChannel(id: ChannelId): void {
     setChannelId(id)
+    setConfirmId(null)
     stickRef.current = true
   }
 
@@ -199,7 +207,17 @@ export function MasterChatPanel({ chat, onSend }: MasterChatPanelProps) {
           ) : (
             <ul className="lb-mchat__list">
               {current.messages.map((entry) => (
-                <MasterChatLine key={entry.id} entry={entry} />
+                <MasterChatLine
+                  key={entry.id}
+                  entry={entry}
+                  confirming={confirmId === entry.id}
+                  onAsk={() => setConfirmId(entry.id)}
+                  onCancel={() => setConfirmId(null)}
+                  onConfirm={() => {
+                    setConfirmId(null)
+                    onDelete(current.sceneKey, entry.id)
+                  }}
+                />
               ))}
             </ul>
           )}
@@ -271,9 +289,9 @@ export function MasterChatPanel({ chat, onSend }: MasterChatPanelProps) {
 /**
  * Uma fala: quem (o mestre pela marca do host; o jogador chamado "Mestre" com
  * " (jogador)"), a hora e o texto, este só como texto do React. A que
- * menciona o mestre se destaca.
+ * menciona o mestre se destaca. "Apagar" pede confirmação na própria linha.
  */
-function MasterChatLine({ entry }: { entry: ChatEntry }) {
+function MasterChatLine({ entry, confirming, onAsk, onCancel, onConfirm }: { entry: ChatEntry; confirming: boolean; onAsk: () => void; onCancel: () => void; onConfirm: () => void }) {
   const master = entry.fromMaster === true
   const mention = mentionsMaster(entry.mentions)
   const className = ['lb-mchat__msg', master ? 'lb-mchat__msg--master' : '', mention ? 'lb-mchat__msg--mention' : ''].filter((name) => name !== '').join(' ')
@@ -287,8 +305,24 @@ function MasterChatLine({ entry }: { entry: ChatEntry }) {
             <span className="lb-sr-only">(</span>menciona você<span className="lb-sr-only">)</span>
           </span>
         )}
+        {!confirming && (
+          <button type="button" className="lb-mchat__delete" aria-label={`Apagar a mensagem de ${chatSpeakerLabel(entry.from, master)} das ${formatNoteTime(entry.at)}`} onClick={onAsk}>
+            Apagar
+          </button>
+        )}
       </p>
       <p className="lb-mchat__text">{entry.text}</p>
+      {confirming && (
+        <div className="lb-mchat__confirm" role="group" aria-label="Apagar para todos?">
+          <span>Apagar para todos?</span>
+          <button type="button" className="lb-btn lb-mchat__confirm-yes" onClick={onConfirm}>
+            Apagar
+          </button>
+          <button type="button" className="lb-btn lb-btn--ghost" onClick={onCancel}>
+            Cancelar
+          </button>
+        </div>
+      )}
     </li>
   )
 }

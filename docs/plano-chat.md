@@ -70,6 +70,7 @@ Donos: `programador-frontend` (A, B, D, TS da C); `programador-rust` (rota, magi
 - Mestre envia imagem e vídeo no global (mesmos limites).
 - `@mestre` vale: a mensagem fica destacada para o mestre.
 - Mestre apaga mensagem ou mídia: some para todos e sai do disco (reescreve o JSONL do canal, apaga o arquivo de mídia).
+  - **Feito em 03/10/2026, só a parte que existe:** `session.masterChatDelete(sceneKey | null, id)` tira a linha da história e manda `chat.delete {channel, id}` a quem tem aquela lista na tela (Global: quem recebeu a história dele; cena: quem tem a história dessa cena), sem a chave da cena. No painel, "Apagar" em cada linha pede "Apagar para todos?". Sem disco (fatia B) nem mídia (fatia C) ainda: quando existirem, o `masterChatDelete` é o ponto de reescrever o JSONL e apagar o arquivo.
 - Sem cota de disco por mesa. Continua a taxa de envio (1 ticket em andamento, 10 por 10 min).
 
 Em aberto: mídia acessível a quem tiver o id (128 bits, só chega a quem tem direito ao canal).

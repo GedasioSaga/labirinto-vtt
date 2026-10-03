@@ -33,6 +33,7 @@ describe('MasterChatPanel', () => {
   let root: Root
   let enviados: string[]
   let aceita: boolean
+  let apagados: [string | null, string][]
 
   beforeEach(() => {
     Reflect.set(globalThis, 'IS_REACT_ACT_ENVIRONMENT', true)
@@ -41,6 +42,7 @@ describe('MasterChatPanel', () => {
     root = createRoot(container)
     enviados = []
     aceita = true
+    apagados = []
   })
 
   afterEach(() => {
@@ -57,6 +59,7 @@ describe('MasterChatPanel', () => {
             enviados.push(text)
             return aceita
           }}
+          onDelete={(sceneKey, id) => apagados.push([sceneKey, id])}
         />,
       ),
     )
@@ -238,6 +241,38 @@ describe('MasterChatPanel', () => {
     } finally {
       document.removeEventListener('keydown', ouvinte)
     }
+  })
+
+  it('Apagar pede confirmação na linha; confirmar apaga do canal certo, Cancelar não apaga', () => {
+    render(conversa())
+    abrir()
+    act(() => canal('Cripta Rubra').click())
+    const apagar = container.querySelector<HTMLButtonElement>('button.lb-mchat__delete')
+    expect(apagar?.getAttribute('aria-label')).toBe('Apagar a mensagem de Bruno das 20:30')
+    act(() => apagar?.click())
+    expect(apagados).toEqual([])
+    const confirmar = () => container.querySelector('.lb-mchat__confirm')
+    expect(confirmar()?.textContent).toContain('Apagar para todos?')
+    act(() => Array.from(confirmar()?.querySelectorAll('button') ?? []).find((b) => b.textContent === 'Cancelar')?.click())
+    expect(confirmar()).toBeNull()
+    expect(apagados).toEqual([])
+    act(() => container.querySelector<HTMLButtonElement>('button.lb-mchat__delete')?.click())
+    act(() => container.querySelector<HTMLButtonElement>('button.lb-mchat__confirm-yes')?.click())
+    expect(apagados).toEqual([['m-cripta', 'c1']])
+    act(() => canal('Global').click())
+    act(() => container.querySelector<HTMLButtonElement>('button.lb-mchat__delete')?.click())
+    act(() => container.querySelector<HTMLButtonElement>('button.lb-mchat__confirm-yes')?.click())
+    expect(apagados).toEqual([['m-cripta', 'c1'], [null, 'g1']])
+  })
+
+  it('trocar de canal desfaz a confirmação pendente', () => {
+    render(conversa())
+    abrir()
+    act(() => container.querySelector<HTMLButtonElement>('button.lb-mchat__delete')?.click())
+    expect(container.querySelector('.lb-mchat__confirm')).not.toBeNull()
+    act(() => canal('Salao Norte').click())
+    act(() => canal('Global').click())
+    expect(container.querySelector('.lb-mchat__confirm')).toBeNull()
   })
 
   it('cena que saiu da aventura aparece como "Cena fora da aventura"', () => {

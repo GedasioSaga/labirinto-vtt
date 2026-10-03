@@ -422,4 +422,29 @@ test('o mestre lê o Global e as duas cenas, fala no Global e o @mestre acende',
   await jogadorFala(bruno, 'Cena', 'Ouvi passos')
   await expect(canalDoMestre(mestre, CENA_B).locator('.lb-mchat__badge')).toBeVisible({ timeout: ESPERA_FALA })
   await expect(canalDoMestre(mestre, CENA_A).locator('.lb-mchat__badge')).toHaveCount(0)
+
+  // O mestre apaga a fala com @mestre do Global: some para ele, para Ana e para Bruno.
+  const apagavel = painel.locator('li.lb-mchat__msg').filter({ hasText: '@mestre posso abrir o baú?' })
+  await apagavel.hover()
+  await apagavel.getByRole('button', { name: /^Apagar a mensagem de Ana/ }).click()
+  await expect(apagavel.getByText('Apagar para todos?')).toBeVisible()
+  await mestre.screenshot({ path: 'test-results/chat-do-mestre-5-apagar.png' })
+  await apagavel.getByRole('button', { name: 'Apagar', exact: true }).click()
+  await expect(painel.locator('.lb-mchat__log')).not.toContainText('@mestre posso abrir o baú?')
+  await expect(painel.locator('.lb-mchat__log')).toContainText('Pausa de 5 minutos, pessoal')
+  for (const tela of [ana, bruno]) {
+    await jogadorNoCanal(tela, 'Global')
+    await expect(logDoJogador(tela)).not.toContainText('@mestre posso abrir o baú?', { timeout: ESPERA_FALA })
+    await expect(logDoJogador(tela)).toContainText('Pausa de 5 minutos, pessoal')
+  }
+  // Da cena: a fala de Bruno na Cripta some da tela dele.
+  await canalDoMestre(mestre, CENA_B).click()
+  const passos = painel.locator('li.lb-mchat__msg').filter({ hasText: 'Ouvi passos' })
+  await passos.hover()
+  await passos.getByRole('button', { name: /^Apagar a mensagem de Bruno/ }).click()
+  await passos.getByRole('button', { name: 'Apagar', exact: true }).click()
+  await expect(painel.locator('.lb-mchat__log')).not.toContainText('Ouvi passos')
+  await jogadorNoCanal(bruno, 'Cena')
+  await expect(logDoJogador(bruno)).not.toContainText('Ouvi passos', { timeout: ESPERA_FALA })
+  await expect(logDoJogador(bruno)).toContainText('Aqui embaixo está escuro')
 })

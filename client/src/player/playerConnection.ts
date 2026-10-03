@@ -2993,6 +2993,14 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       setState({ chat: withChatChannel(log, msg.channel, msg.messages), chatUnread: unreadAfterHistory(state.chatUnread, before, msg.channel, msg.messages) })
       return
     }
+    if (msg.type === 'chat.delete') {
+      // O mestre apagou: a linha sai da lista, e a marca de menção dela junto.
+      const list = log[msg.channel]
+      if (!list.some((known) => known.id === msg.id)) return
+      const next = list.filter((known) => known.id !== msg.id)
+      setState({ chat: withChatChannel(log, msg.channel, next), chatUnread: unreadKeptIn(state.chatUnread, msg.channel, next) })
+      return
+    }
     const entry = msg.msg
     const list = log[msg.channel]
     // A mesma linha duas vezes (a história e a mensagem se cruzaram) aparece uma vez só.
@@ -3365,6 +3373,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       case 'chat.history':
       case 'chat.msg':
       case 'chat.send.result':
+      case 'chat.delete':
         handleChatMessage(data)
         return
       case 'dice.rolled': {

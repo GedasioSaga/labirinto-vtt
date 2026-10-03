@@ -43,7 +43,8 @@ async function salaComDois() {
   bridge.assignToken(idDe('c2'), 'machado')
   invoke.mockClear()
   const chat = () => enviados().filter((e) => e.msg.type === 'chat.msg')
-  return { bridge, emit, chat, onMasterChatChange }
+  const apagados = () => enviados().filter((e) => e.msg.type === 'chat.delete')
+  return { bridge, emit, chat, apagados, onMasterChatChange }
 }
 
 describe('hostBridge: chat do mestre', () => {
@@ -66,8 +67,21 @@ describe('hostBridge: chat do mestre', () => {
     expect(t.bridge.masterChatSend('   ')).toBe(false)
   })
 
-  it('sala fechada: não manda nada', () => {
+  it('o mestre apaga: chat.delete sai a quem tem a lista e a tela dele relê sem a linha', async () => {
+    const t = await salaComDois()
+    t.emit({ clientId: 'c2', msg: { type: 'chat.send', reqId: 'r1', channel: 'global', text: 'palavrão', mentions: [] } })
+    await Promise.resolve()
+    const id = t.onMasterChatChange.mock.calls.at(-1)?.[0].global[0]?.id ?? ''
+    expect(t.bridge.masterChatDelete(null, id)).toBe(true)
+    await Promise.resolve()
+    expect(t.apagados().map((e) => e.clientId).sort()).toEqual(['c1', 'c2'])
+    expect(t.onMasterChatChange.mock.calls.at(-1)?.[0].global).toEqual([])
+    expect(t.bridge.masterChatDelete(null, id)).toBe(false)
+  })
+
+  it('sala fechada: não manda nem apaga nada', () => {
     const bridge = createHostBridge({ invoke: vi.fn(), listen: vi.fn(), getMap: () => createEmptyMap('m', 'M', 10, 10, 50), applyMove: vi.fn(), applyDoor: vi.fn() })
     expect(bridge.masterChatSend('oi')).toBe(false)
+    expect(bridge.masterChatDelete(null, 'x')).toBe(false)
   })
 })

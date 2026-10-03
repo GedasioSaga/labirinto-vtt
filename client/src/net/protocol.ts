@@ -1611,7 +1611,14 @@ export interface ChatSendResultMessage {
   reason?: ChatSendRefusal
 }
 
-export type ChatHostMessage = ChatHistoryMessage | ChatMsgMessage | ChatSendResultMessage
+/** CHAT: o mestre apagou a linha `id` do canal: ela some da tela. */
+export interface ChatDeleteMessage {
+  type: 'chat.delete'
+  channel: ChatChannel
+  id: string
+}
+
+export type ChatHostMessage = ChatHistoryMessage | ChatMsgMessage | ChatSendResultMessage | ChatDeleteMessage
 
 /**
  * `table_full`: já há `MAX_TABLE_SCREENS` telas da mesa na sala (`hostSession.ts`).
@@ -2480,6 +2487,10 @@ export function parseChatMessage(value: unknown): ChatHostMessage | null {
       const { channel } = value
       const msg = parseChatEntry(value.msg)
       return isChatChannel(channel) && msg !== null ? { type: 'chat.msg', channel, msg } : null
+    }
+    case 'chat.delete': {
+      const { channel, id } = value
+      return isChatChannel(channel) && isBoundedString(id, 1, REQ_ID_MAX_LENGTH) ? { type: 'chat.delete', channel, id } : null
     }
     case 'chat.send.result': {
       const { reqId, ok, reason } = value

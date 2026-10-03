@@ -3573,7 +3573,13 @@ function App() {
       {/* Dado rolado na sala: só com a sala aberta — sem mesa, não há quem veja a rolagem. */}
       {room !== null && <DiceDock rolls={diceRolls} onRoll={(request, hidden) => hostBridgeRef.current?.rollDice(request, hidden)} />}
       {/* Chat dos jogadores: só com a sala aberta — a conversa vive na sessão. */}
-      {room !== null && <MasterChatPanel chat={masterChat} onSend={(text) => hostBridgeRef.current?.masterChatSend(text) ?? false} />}
+      {room !== null && (
+        <MasterChatPanel
+          chat={masterChat}
+          onSend={(text) => hostBridgeRef.current?.masterChatSend(text) ?? false}
+          onDelete={(sceneKey, id) => hostBridgeRef.current?.masterChatDelete(sceneKey, id)}
+        />
+      )}
     </div>
   )
 }

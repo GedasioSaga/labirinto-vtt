@@ -616,3 +616,49 @@ describe('chat: o mestre lê e fala (fatia D)', () => {
     expect(s.masterChat(comFoice).global[0]).not.toHaveProperty('fromMaster')
   })
 })
+
+describe('chat: o mestre apaga', () => {
+  it('apagar do Global some da história e da tela de quem a tem; quem chega depois não recebe', () => {
+    const { s } = mesa()
+    const r = fala(s, 'c2', 'global', 'palavrão')
+    fala(s, 'c1', 'global', 'oi', [], 'r2')
+    const id = linhaDe(r).id
+    const apagou = s.masterChatDelete(null, id)
+    expect(apagou.deleted).toBe(true)
+    expect(apagou.chatChanged).toBe(true)
+    expect(apagou.outbound).toEqual(
+      ['c1', 'c2', 'c4'].map((clientId) => ({ clientId, msg: { type: 'chat.delete', channel: 'global', id } })),
+    )
+    expect(s.masterChat(mundo).global.map((linha) => linha.text)).toEqual(['oi'])
+    // De novo: já não está lá.
+    expect(s.masterChatDelete(null, id)).toEqual({ outbound: [], deleted: false })
+    const ganhou = s.assignToken(idDoWelcome(s.handleMessage('c5', { type: 'join', code: CODE, name: 'Eva' }, mundo)), 'foice')
+    const depois = s.broadcast(comFoice)
+    const historia = JSON.stringify([...ganhou.outbound, ...depois.outbound].filter((o) => o.clientId === 'c5'))
+    expect(historia).toContain('"oi"')
+    expect(historia).not.toContain('palavrão')
+  })
+
+  it('apagar da cena vai só a quem tem a lista dessa cena, sem a chave dela', () => {
+    const { s } = mesa()
+    const doSalao = fala(s, 'c1', 'cena', 'segredo do salão')
+    fala(s, 'c2', 'cena', 'na cripta')
+    const id = linhaDe(doSalao).id
+    const apagou = s.masterChatDelete('m-salao', id)
+    expect(apagou.outbound).toEqual(['c1', 'c4'].map((clientId) => ({ clientId, msg: { type: 'chat.delete', channel: 'cena', id } })))
+    semCena(apagou)
+    // A cena sem linha nenhuma sai da leitura do mestre; a outra fica.
+    expect(s.masterChat(mundo).scenes.map((cena) => cena.key)).toEqual(['m-cripta'])
+    // Chave errada ou id de outra cena: nada.
+    expect(s.masterChatDelete('m-salao', 'nao-existe').deleted).toBe(false)
+    expect(s.masterChatDelete('m-outra', id).deleted).toBe(false)
+  })
+
+  it('a fala do próprio mestre também se apaga para todos', () => {
+    const { s } = mesa()
+    const r = s.masterChatSend('ops, mensagem errada')
+    const id = linhaDe(r).id
+    expect(quemRecebe(s.masterChatDelete(null, id), 'chat.delete')).toEqual(['c1', 'c2', 'c4'])
+    expect(s.masterChat(mundo).global).toEqual([])
+  })
+})

@@ -142,6 +142,22 @@ describe('chat no cliente: o que chega', () => {
     socket.receive({ type: 'chat.msg', channel: 'global', msg: { ...linha('g3', 'eu também', [], 'Mestre'), fromMaster: 1 } })
     expect(connection.getState().chat?.global).toEqual([doMestre, linha('g2', 'sou eu', [], 'Mestre'), linha('g3', 'eu também', [], 'Mestre')])
   })
+
+  it('chat.delete do mestre tira a linha do canal dele, e a marca de menção junto; id desconhecido não muda nada', () => {
+    const { connection, socket } = comChat()
+    socket.receive({ type: 'chat.msg', channel: 'global', msg: linha('g1', '@Ana olha', ['Ana']) })
+    socket.receive({ type: 'chat.msg', channel: 'global', msg: linha('g2', 'fica') })
+    socket.receive({ type: 'chat.msg', channel: 'cena', msg: linha('c1', 'na cena') })
+    expect(connection.getState().chatUnread?.global).toEqual(['g1'])
+    socket.receive({ type: 'chat.delete', channel: 'global', id: 'g1' })
+    expect(connection.getState().chat).toEqual({ cena: [linha('c1', 'na cena')], global: [linha('g2', 'fica')] })
+    expect(connection.getState().chatUnread?.global).toEqual([])
+    const antes = connection.getState().chat
+    socket.receive({ type: 'chat.delete', channel: 'cena', id: 'g2' })
+    socket.receive({ type: 'chat.delete', channel: 'sala', id: 'c1' })
+    socket.receive({ type: 'chat.delete', channel: 'cena', id: '' })
+    expect(connection.getState().chat).toBe(antes)
+  })
 })
 
 describe('chat no cliente: menção a mim', () => {

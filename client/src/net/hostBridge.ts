@@ -551,6 +551,11 @@ export interface HostBridge {
    */
   masterChatSend(text: string): boolean
   /**
+   * CHAT: o mestre apaga a linha `id` do Global (`sceneKey` `null`) ou da
+   * cena: some da tela de todos. `false` com a sala fechada ou a linha já fora.
+   */
+  masterChatDelete(sceneKey: string | null, id: string): boolean
+  /**
    * "Visto por" do painel da ficha: nomes dos jogadores conectados cuja tela
    * (o último recorte que SAIU, `playerScreen`) tem a ficha `tokenId` do mapa
    * aberto no editor, na ordem de entrada na sala. É a mesma regra do recorte
@@ -3239,6 +3244,15 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       if (session === null) return false
       const result = session.masterChatSend(text)
       if (!result.sent) return false
+      void dispatch(result)
+      notifyMasterChat()
+      return true
+    },
+
+    masterChatDelete(sceneKey, id) {
+      if (session === null) return false
+      const result = session.masterChatDelete(sceneKey, id)
+      if (!result.deleted) return false
       void dispatch(result)
       notifyMasterChat()
       return true
