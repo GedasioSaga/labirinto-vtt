@@ -18,7 +18,7 @@ import {
   type SavedTable,
 } from '../lib/savedTable'
 import type { ChamadaAceita, MovimentoDeCabine } from '../lib/cabine'
-import { holdAlongSeats } from '../lib/gatherParty'
+import { holdAlongSeats, type SeatHold } from '../lib/gatherParty'
 import { passengerIdsOf } from '../lib/vehicle'
 import {
   createHostSession,
@@ -147,11 +147,12 @@ export interface HostBridgeDeps {
   applyMove: (tokenId: string, x: number, y: number, sceneId?: string) => void
   /**
    * VEÍCULO no ATALHO NA MESMA CENA: a motorista passou pelo pino e o veículo
-   * SALTA para (x, y) com todos a bordo, no afastamento de cada um (o passo de
-   * `applyMove` conferiria o trajeto e a parede entre os pinos derrubaria quem
-   * vai a bordo). Ausente = `applyMove`.
+   * SALTA para (x, y) com todos a bordo (o passo de `applyMove` conferiria o
+   * trajeto e a parede entre os pinos derrubaria quem vai a bordo), cada um no
+   * afastamento quando a casa serve, senão na casa livre mais perto do
+   * veículo — fora das casas de `hold` (quem atravessa depois). Ausente = `applyMove`.
    */
-  applyVehicleHop?: (vehicleId: string, x: number, y: number, sceneId?: string) => void
+  applyVehicleHop?: (vehicleId: string, x: number, y: number, sceneId?: string, hold?: SeatHold) => void
   /**
    * CARAVANA: fichas do grupo que acompanham a caravana, SEM passar pelo
    * desfazer. Elas são consequência da edição que as disparou (o arrasto do
@@ -2238,13 +2239,15 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
    * A cena aberta vai sem `sceneId`, como o movimento de sempre.
    */
   const moveWithinScene = (transfer: AppliedTransfer): boolean => {
-    const { tokenId, x, y, toSceneId } = transfer
+    const { tokenId, x, y, toSceneId, hold } = transfer
     const current = world()
     const scene = [current.open, ...current.background].find((s) => s.sceneId === toSceneId)
+    const aberta = current.open.sceneId === toSceneId
     // VEÍCULO: quem atravessa é o veículo da motorista, com gente a bordo — salta com todos.
-    const move = scene !== undefined && passengerIdsOf(scene.map, tokenId).length > 0 ? (deps.applyVehicleHop ?? deps.applyMove) : deps.applyMove
-    if (current.open.sceneId === toSceneId) move(tokenId, x, y)
-    else move(tokenId, x, y, toSceneId)
+    if (scene !== undefined && passengerIdsOf(scene.map, tokenId).length > 0 && deps.applyVehicleHop !== undefined) {
+      deps.applyVehicleHop(tokenId, x, y, aberta ? undefined : toSceneId, hold)
+    } else if (aberta) deps.applyMove(tokenId, x, y)
+    else deps.applyMove(tokenId, x, y, toSceneId)
     return true
   }
 

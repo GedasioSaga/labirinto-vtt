@@ -20,7 +20,7 @@ import { playerExitPassageOf, unreadExitLabels } from '../lib/pinTravel'
 import type { LockAnswerPhase } from './playerConnection'
 import { PlayerLockPad } from './PlayerLockPad'
 import { PASS_CHECK_TEXT } from './travelNotice'
-import type { PinTravelChoice } from '../lib/pinTravelers'
+import { TEXTO_A_BORDO_VIAGEM, type PinTravelChoice } from '../lib/pinTravelers'
 import { TEXTO_CONGELADO } from '../lib/congelar'
 
 const NO_TRAVELERS: readonly PinTravelChoice[] = []
@@ -110,6 +110,14 @@ interface PlayerPinCardProps {
    * o "Chegue mais perto": chegar perto não adiantaria.
    */
   congelado?: boolean
+  /**
+   * VEÍCULO: as fichas dele que passariam vão a bordo sem dirigir
+   * (`passagemABordo`) — o host recusaria com `a_bordo`. A passagem fica
+   * apagada com "A bordo: desça para viajar", que vence o "Chegue mais perto"
+   * (a bordo ela não anda até o pino) e perde para o congelado (descer não
+   * adiantaria).
+   */
+  aBordo?: boolean
   /**
    * ESPIAR PELA PASSAGEM: pino de viagem que "dá vista" ganha o botão
    * "Espiar". Ausente = o cartão não oferece. Quem confere se a ficha está
@@ -300,6 +308,7 @@ export function PlayerPinCard({
   onWatch,
   longe = false,
   congelado = false,
+  aBordo = false,
   travelers = NO_TRAVELERS,
   onPeek,
   peekWaiting = false,
@@ -530,8 +539,9 @@ export function PlayerPinCard({
   // campo, e mercadoria torta não pode quebrar o cartão. `null` = sem banca.
   const mercadorias = lojaParaJogador(pin)
   // Por que a passagem fica apagada: a ficha congelada (chegar perto não
-  // adiantaria) ou longe do pino. `null` = nada segura o pedido aqui.
-  const semPassar = congelado ? TEXTO_CONGELADO : longe ? TEXTO_LONGE : null
+  // adiantaria), a bordo sem dirigir (descer antes) ou longe do pino. `null` =
+  // nada segura o pedido aqui.
+  const semPassar = congelado ? TEXTO_CONGELADO : aBordo ? TEXTO_A_BORDO_VIAGEM : longe ? TEXTO_LONGE : null
   // ESCOLHER FICHAS NO PINO: só com duas ou mais há o que escolher.
   const escolheFichas = travelers.length > 1
   const marcadas = travelers.filter((f) => !deFora.has(f.id)).map((f) => f.id)

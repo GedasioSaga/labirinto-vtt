@@ -10,9 +10,11 @@
 // do `adventureStore.transferToken` reduzida ao que esta cena exercita (o
 // veículo e quem vai a bordo, no mesmo afastamento).
 //   1. o Gui e a Bia sobem no cesto pela tela ("Subir no veículo");
-//   2. a Bia, passageira, toca o poço e pede "Passar": lê "A bordo: desça para viajar" e nada anda;
+//   2. a Bia, passageira, toca o poço: o cartão já não oferece "Passar" — o
+//      botão vem apagado com "A bordo: desça para viajar" — e nada anda;
 //   3. o Gui, motorista, toca o poço e passa: lê "Você chegou"; o cesto, ele e a
-//      Bia chegam ao Poço, a bordo, no mesmo afastamento; as duas telas mostram
+//      Bia chegam ao Poço, a bordo, no mesmo afastamento; a Bia lê "Você viajou
+//      no veículo" (e não "O mestre levou você"); as duas telas mostram
 //      "No veículo · motorista" e "No veículo";
 //   4. INICIATIVA: na vez da Bia, o Gui perde o "Descer do veículo"; na vez dele, volta.
 // O lado do mestre no app Tauri (painel, Caixa de Pedidos) NÃO é aberto aqui;
@@ -225,12 +227,19 @@ test('a motorista passa pelo poço levando o cesto e a passageira; a passageira 
   await expect(bia.getByText('No veículo', { exact: true })).toBeVisible({ timeout: ESPERA })
   expect(passengerIdsOf(mesa.mapa(CENA_PATIO) as MapData, 'cesto')).toEqual(['gui', 'bia'])
 
-  // 2. A Bia, passageira, tenta passar pelo poço: recusa, e ninguém sai do Pátio.
-  await passarPeloPoco(bia)
-  await expect(bia.getByText('A bordo: desça para viajar').first()).toBeVisible({ timeout: ESPERA })
+  // 2. A Bia, passageira, abre o poço: o cartão já diz que não dá, sem "Passar" para clicar.
+  await tocar(bia, naTela({ x: POCO.x, y: POCO.y - PIN_HEAD_OFFSET }))
+  const cartaoDaBia = bia.getByRole('dialog').filter({ hasText: 'Poço' })
+  await expect(cartaoDaBia).toBeVisible({ timeout: ESPERA })
+  const apagado = cartaoDaBia.getByRole('button', { name: 'A bordo: desça para viajar' })
+  await expect(apagado).toBeVisible({ timeout: ESPERA })
+  await expect(apagado).toBeDisabled()
+  await expect(cartaoDaBia.getByRole('button', { name: 'Passar', exact: true })).toHaveCount(0)
   expect(ids(mesa.mapa(CENA_PATIO))).toEqual(['bia', 'cesto', 'gui'])
   expect(ids(mesa.mapa(CENA_POCO))).toEqual([])
   await foto(bia, '1-bia-a-bordo-nao-viaja')
+  await cartaoDaBia.getByRole('button', { name: 'Fechar' }).click()
+  await expect(cartaoDaBia).toBeHidden({ timeout: ESPERA })
 
   // 3. O Gui, motorista, passa: o cesto e a Bia vão junto, a bordo, no mesmo afastamento.
   await passarPeloPoco(gui)
@@ -242,6 +251,9 @@ test('a motorista passa pelo poço levando o cesto e a passageira; a passageira 
   const cesto = posicao(poco, 'cesto') as Ponto
   expect(posicao(poco, 'gui')).toEqual({ x: cesto.x + (GUI.x - CESTO.x), y: cesto.y + (GUI.y - CESTO.y) })
   expect(posicao(poco, 'bia')).toEqual({ x: cesto.x + (BIA.x - CESTO.x), y: cesto.y + (BIA.y - CESTO.y) })
+  // A Bia não pediu e o mestre não levou: quem dirigiu foi o Gui, que ela não precisa saber quem é.
+  await expect(bia.getByText('Você viajou no veículo').first()).toBeVisible({ timeout: ESPERA })
+  await expect(bia.getByText('O mestre levou você para outro lugar')).toHaveCount(0)
   // As duas telas, já no Poço, continuam a bordo.
   await expect(gui.getByText('No veículo · motorista', { exact: true })).toBeVisible({ timeout: ESPERA })
   await expect(bia.getByText('No veículo', { exact: true })).toBeVisible({ timeout: ESPERA })

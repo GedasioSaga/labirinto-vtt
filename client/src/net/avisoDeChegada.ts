@@ -1,6 +1,7 @@
 import { useFollowStore } from '../stores/followStore'
 import { useToastStore } from '../stores/toastStore'
 import type { AppliedTransfer } from './hostSession'
+import { nomeNoVeiculo } from '../lib/travelLog'
 
 /**
  * atencao-do-mestre — o aviso "<jogador> entrou em <cena>", UM por cena.
@@ -108,7 +109,9 @@ export function createArrivalAnnouncer(
     // Chegou de novo: vai para o fim da lista (é a chegada mais recente), sem repetir o nome.
     chegados.delete(transfer.playerId)
     // Térreo não leva o campo (`AppliedTransfer.piso` ausente).
-    chegados.set(transfer.playerId, { name: transfer.playerName, x: transfer.x, y: transfer.y, piso: transfer.piso ?? 0 })
+    // VEÍCULO: quem dirigiu chegou com o veículo — "Ana (no veículo Cesto) entrou em Porão".
+    const name = transfer.veiculo === undefined ? transfer.playerName : nomeNoVeiculo(transfer.playerName, transfer.veiculo.nome)
+    chegados.set(transfer.playerId, { name, x: transfer.x, y: transfer.y, piso: transfer.piso ?? 0 })
     if (cartao !== undefined) useToastStore.getState().dismiss(cartao.toastId)
     mostrar(transfer.toSceneId, transfer.toSceneName, chegados)
     cenaDe.set(transfer.playerId, transfer.toSceneId)

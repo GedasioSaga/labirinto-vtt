@@ -15,6 +15,7 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import type { MapData, Pin, Token } from '../types/map'
 import type { TurnRef } from '../lib/initiative'
+import type { TravelLogEntry } from '../lib/travelLog'
 
 vi.mock('@tauri-apps/plugin-fs', () => ({
   writeTextFile: vi.fn(async () => undefined),
@@ -112,8 +113,9 @@ interface Enviado {
 
 const esperarSnapshot = () => new Promise((resolve) => setTimeout(resolve, BROADCAST_THROTTLE_MS + 30))
 
-async function mesa(turno: { atual: TurnRef | null } = { atual: null }) {
+async function mesa(turno: { atual: TurnRef | null } = { atual: null }, nomes: { gui: string; bia: string; caio: string } = { gui: 'Gui', bia: 'Bia', caio: 'Caio' }) {
   const cenas = montarAventura()
+  let diario: TravelLogEntry[] = []
   const ouvintes = new Map<string, (event: { payload: unknown }) => void>()
   const enviados: Enviado[] = []
   let relogio = 0
@@ -138,6 +140,9 @@ async function mesa(turno: { atual: TurnRef | null } = { atual: null }) {
     applyDoor: () => undefined,
     applyTransfer: ({ tokenId, fromSceneId, toSceneId, x, y, piso, hold }) => useAdventureStore.getState().transferToken(tokenId, fromSceneId, toSceneId, x, y, piso, hold),
     getTurn: () => turno.atual,
+    onTravelLogChange: (log) => {
+      diario = log
+    },
     onPlayersChange: vi.fn(),
     now: () => relogio,
   })
@@ -153,9 +158,9 @@ async function mesa(turno: { atual: TurnRef | null } = { atual: null }) {
     if (boasVindas === undefined || typeof boasVindas.msg.playerId !== 'string') throw new Error(`${name} não entrou`)
     return boasVindas.msg.playerId
   }
-  bridge.assignToken(entra('c-gui', 'Gui'), 'gui')
-  bridge.assignToken(entra('c-bia', 'Bia'), 'bia')
-  bridge.assignToken(entra('c-caio', 'Caio'), 'caio')
+  bridge.assignToken(entra('c-gui', nomes.gui), 'gui')
+  bridge.assignToken(entra('c-bia', nomes.bia), 'bia')
+  bridge.assignToken(entra('c-caio', nomes.caio), 'caio')
   const sobe = (clientId: string, tokenId: string) => {
     relogio += VEHICLE_ACTION_MIN_INTERVAL_MS
     envia(clientId, { type: 'vehicle.board', tokenId, vehicleId: 'cesto' })
@@ -167,7 +172,7 @@ async function mesa(turno: { atual: TurnRef | null } = { atual: null }) {
     desligar()
     await bridge.stop()
   }
-  return { ...cenas, bridge, enviados, sobe, desce, pede, anda, fim }
+  return { ...cenas, bridge, enviados, sobe, desce, pede, anda, fim, diario: () => diario }
 }
 
 /** As respostas de `clientId` a partir de `desde`, sem os snapshots. */
@@ -220,9 +225,10 @@ describe('veículo: a viagem da motorista leva o veículo inteiro', () => {
     expect(tokensDaCena(t.a07).map((tk) => tk.id).sort()).toEqual(['bia', 'cesto', 'gui'])
     expect(passengerIdsOf(mapaDaCena(t.a07), 'cesto')).toEqual(['gui', 'bia'])
     expect(afastamentos(t.a07)).toEqual(antes)
-    // O Gui pediu: "Você chegou". A Bia foi levada a bordo: a troca do mestre, como no "Levar para…" do veículo.
+    // O Gui pediu: "Você chegou". A Bia foi a bordo de quem dirigiu: "Você
+    // viajou no veículo" (`by: 'veiculo'`), não "O mestre levou você".
     expect(trocas(t.enviados, 'c-gui', desde)).toEqual([{ by: undefined }])
-    expect(trocas(t.enviados, 'c-bia', desde)).toEqual([{ by: 'master' }])
+    expect(trocas(t.enviados, 'c-bia', desde)).toEqual([{ by: 'veiculo' }])
     expect(trocas(t.enviados, 'c-caio', desde)).toEqual([])
     await t.fim()
   })
@@ -246,7 +252,8 @@ describe('veículo: a viagem da motorista leva o veículo inteiro', () => {
     const fio = JSON.stringify(t.enviados.filter((e) => e.clientId.startsWith('c-')))
     expect(fio).not.toContain('passageiros')
     expect(fio).not.toContain('lugares')
-    expect(fio).not.toContain('"veiculo"')
+    // O CAMPO `veiculo` nunca vai (o valor `by: "veiculo"` do aviso da Bia, sim).
+    expect(fio).not.toContain('"veiculo":')
     // O Caio, que ficou, nunca lê o nome de a07.
     expect(JSON.stringify(t.enviados.filter((e) => e.clientId === 'c-caio'))).not.toContain(`"${A07}"`)
     await t.fim()
@@ -325,6 +332,81 @@ describe('veículo: a viagem da motorista leva o veículo inteiro', () => {
     expect(passengerIdsOf(mapaDaCena(t.a06), 'cesto')).toEqual(['gui', 'bia'])
     expect(afastamentos(t.a06)).toEqual(antes)
     expect(posicoes(t.a06).caio).toEqual([448, 320])
+    await t.fim()
+  })
+})
+
+describe('veículo: sobras da viagem da motorista', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    useToastStore.setState({ toasts: [] })
+  })
+
+  it('diário e aviso de chegada dizem quem dirigiu, com o veículo entre parênteses — não o veículo como quem viajou', async () => {
+    const t = await mesa({ atual: null }, { gui: 'Gedasio', bia: 'Beatriz', caio: 'Caio' })
+    abrirPoco(t.a06, t.a07, 'livre')
+    t.sobe('c-gui', 'gui')
+    t.sobe('c-bia', 'bia')
+
+    t.pede('c-gui', 'poco')
+    await esperarSnapshot()
+
+    const [linha] = t.diario()
+    expect(linha?.tokenName).toBe('Gui (no veículo Cesto)')
+    // O "Desfazer" do diário continua devolvendo o VEÍCULO (com quem vai a bordo).
+    expect(linha?.tokenId).toBe('cesto')
+    const textos = useToastStore.getState().toasts.map((toast) => toast.text)
+    expect(textos).toContain('Gedasio (no veículo Cesto) entrou em a07')
+    await t.fim()
+  })
+
+  it('o "Levar para…" do mestre no veículo continua "O mestre levou você" para quem vai a bordo', async () => {
+    const t = await mesa()
+    t.sobe('c-gui', 'gui')
+    t.sobe('c-bia', 'bia')
+    const desde = t.enviados.length
+
+    useAdventureStore.getState().transferToken('cesto', t.a06, t.a07, SAIDA.x, SAIDA.y + 128)
+    t.bridge.notifyMapChanged()
+    await esperarSnapshot()
+
+    expect(trocas(t.enviados, 'c-bia', desde)).toEqual([{ by: 'master' }])
+    expect(trocas(t.enviados, 'c-gui', desde)).toEqual([{ by: 'master' }])
+    await t.fim()
+  })
+
+  it('atalho na mesma cena: quem cairia numa parede do destino assenta numa casa livre colada ao cesto, ainda a bordo', async () => {
+    const pinos = (a06: string) => {
+      useMapStore.getState().addPin({ id: 'ida', x: 320, y: 384, kind: 'viagem', description: 'Alçapão', image: null, destino: { sceneId: a06, pinId: 'volta' }, passagem: 'livre' })
+      useMapStore.getState().addPin({ id: 'volta', x: 1280, y: 768, kind: 'viagem', description: 'Saída do alçapão', image: null, destino: { sceneId: a06, pinId: 'ida' }, passagem: 'livre' })
+    }
+    // Ensaio: onde o cesto pousa e onde a Bia cairia no afastamento de sempre.
+    const ensaio = await mesa()
+    pinos(ensaio.a06)
+    ensaio.sobe('c-gui', 'gui')
+    ensaio.sobe('c-bia', 'bia')
+    ensaio.pede('c-gui', 'ida')
+    const [cx, cy] = posicoes(ensaio.a06).cesto
+    const ondeCairia = { x: cx + afastamentos(ensaio.a06).bia[0], y: cy + afastamentos(ensaio.a06).bia[1] }
+    await ensaio.fim()
+
+    const t = await mesa()
+    pinos(t.a06)
+    // Um pilar curto bem no meio de onde a Bia cairia: longe do pino, não barra o pouso do cesto.
+    useMapStore.getState().addWall({ id: 'pilar', x1: ondeCairia.x, y1: ondeCairia.y - 20, x2: ondeCairia.x, y2: ondeCairia.y + 20, blocksLight: true, blocksMove: true, door: null })
+    t.sobe('c-gui', 'gui')
+    t.sobe('c-bia', 'bia')
+
+    t.pede('c-gui', 'ida')
+
+    const depois = posicoes(t.a06)
+    expect(depois.cesto).toEqual([cx, cy])
+    expect(depois.bia).not.toEqual([ondeCairia.x, ondeCairia.y])
+    // A casa nova não é cortada pelo pilar (fica a meia casa dele, no mínimo) e é colada ao cesto.
+    const [bx, by] = depois.bia
+    expect(Math.hypot(bx - ondeCairia.x, by - ondeCairia.y)).toBeGreaterThanOrEqual(32 - 1)
+    expect(Math.max(Math.abs(bx - cx), Math.abs(by - cy))).toBe(64)
+    expect(passengerIdsOf(mapaDaCena(t.a06), 'cesto')).toEqual(['gui', 'bia'])
     await t.fim()
   })
 })

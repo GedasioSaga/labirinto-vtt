@@ -1,5 +1,6 @@
 import type { TravelNotice } from './playerConnection'
 import { TEXTO_CONGELADO } from '../lib/congelar'
+import { TEXTO_A_BORDO_VIAGEM } from '../lib/pinTravelers'
 
 /**
  * Enquanto o host confere o passe (pino no modo `passe`). O mesmo texto no
@@ -24,6 +25,10 @@ export function travelNoticeText(notice: TravelNotice): string {
     case 'moved':
       // Nunca diz para onde: o nome da cena é do mestre.
       return 'O mestre levou você para outro lugar'
+    case 'rode':
+      // VEÍCULO: outro jogador dirigiu. Sem o nome dele nem o do veículo — a
+      // tela não sabe quem vai a bordo (`aBordo` não diz), nem para onde.
+      return 'Você viajou no veículo'
     case 'gathered':
       // Também sem o nome da cena: só que o grupo está junto de novo.
       return 'O mestre reuniu o grupo'
@@ -38,7 +43,7 @@ export function travelNoticeText(notice: TravelNotice): string {
       // CONGELAR FICHA: a mesma frase do aviso fixo e do floco, e o que ela barra aqui.
       if (notice.reason === 'congelado') return `${TEXTO_CONGELADO}: não dá para passar agora`
       // VEÍCULO: passageira que não dirige — a frase do passo recusado, com o verbo daqui.
-      if (notice.reason === 'a_bordo') return 'A bordo: desça para viajar'
+      if (notice.reason === 'a_bordo') return TEXTO_A_BORDO_VIAGEM
       return 'Não dá para passar por aqui agora'
   }
 }

@@ -98,10 +98,12 @@ export interface PinTravelChoice {
  * ajudantes na mão a caixa é uma só, a do mais perto, como no host.
  * CONGELAR FICHA: a congelada também não é caixa — o host recusa o pedido
  * que a escolhe, e conta o grupo sem ela (`validTravel`).
+ * VEÍCULO: a passageira que não dirige (`vaiSemDirigir`) também não — o host
+ * recusa com `a_bordo` o pedido que a escolhe.
  */
 export function pinTravelChoices(tokens: readonly Token[], ownIds: readonly string[], pin: Point, grid: number): PinTravelChoice[] {
   const owned = new Set(ownIds)
-  const mine = tokens.filter((t) => owned.has(t.id) && t.congelado !== true)
+  const mine = tokens.filter((t) => owned.has(t.id) && t.congelado !== true && !vaiSemDirigir(t))
   return pinTravelGroupOf(mine, isHelper, pin, grid).map((t) => ({ id: t.id, name: t.name }))
 }
 
@@ -118,4 +120,35 @@ export function passagemCongelada(tokens: readonly Token[], ownIds: readonly str
   const proprias = mine.filter((t) => !isHelper(t))
   const encostadas = (proprias.length > 0 ? proprias : mine).filter((t) => tokenReachesPin(t, pin, grid))
   return encostadas.length > 0 && encostadas.every((t) => t.congelado === true)
+}
+
+/** VEÍCULO: por que a passageira que não dirige não passa — no cartão do pino e no aviso da recusa `a_bordo`. */
+export const TEXTO_A_BORDO_VIAGEM = 'A bordo: desça para viajar'
+
+/**
+ * VEÍCULO: a ficha vai a bordo e NÃO dirige — não anda nem atravessa sozinha
+ * (o host recusa com `a_bordo`). Lida da marca de fio `aBordo`, que o host só
+ * põe na ficha do DONO: a tela não sabe em qual veículo nem quem mais vai.
+ */
+export function vaiSemDirigir(token: Pick<Token, 'aBordo'>): boolean {
+  return token.aBordo !== undefined && token.aBordo.motorista !== true
+}
+
+/**
+ * VEÍCULO — a passagem fica apagada no cartão com "A bordo: desça para
+ * viajar": das fichas do jogador que podem ir à frente (as mesmas de
+ * `passagemCongelada`), nenhuma solta pode passar porque as que sobram vão a
+ * bordo sem dirigir. A mesma conta do host (`validTravel`): conta as que
+ * encostam no pino; ninguém encostado, conta todas — a passageira não anda
+ * até o pino a bordo, então "Chegue mais perto" não adiantaria. Congelada não
+ * entra na conta (`passagemCongelada` diz por ela).
+ */
+export function passagemABordo(tokens: readonly Token[], ownIds: readonly string[], pin: Pick<Pin, 'x' | 'y'>, grid: number): boolean {
+  const owned = new Set(ownIds)
+  const mine = tokens.filter((t) => owned.has(t.id))
+  const proprias = mine.filter((t) => !isHelper(t))
+  const pool = proprias.length > 0 ? proprias : mine
+  const encostadas = pool.filter((t) => tokenReachesPin(t, pin, grid))
+  const soltas = (encostadas.length > 0 ? encostadas : pool).filter((t) => t.congelado !== true)
+  return soltas.length > 0 && soltas.every(vaiSemDirigir)
 }

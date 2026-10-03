@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest'
 import { createEmptyMap } from './mapFactory'
 import type { Token } from '../types/map'
 import type { AppliedTransfer, HostWorld } from '../net/hostSession'
-import { TRAVEL_LOG_MAX, addTravel, travelClock, travelLine, travelLogEntry, undoableTravelIds, withoutTravel, type TravelLogEntry } from './travelLog'
+import { TRAVEL_LOG_MAX, addTravel, nomeNoVeiculo, travelClock, travelLine, travelLogEntry, undoableTravelIds, withoutTravel, type TravelLogEntry } from './travelLog'
 
 const ficha = (id: string, name: string, x: number, y: number): Token => ({ id, characterId: null, name, x, y, size: 1, image: null })
 
@@ -105,5 +105,27 @@ describe('texto da linha', () => {
 
   it('"Ana: Salão → Cripta"', () => {
     expect(travelLine(entrada('v1', 'ana', { tokenName: 'Ana' }))).toBe('Ana: Salão → Cripta')
+  })
+})
+
+describe('VEÍCULO no diário: quem dirigiu, com o veículo entre parênteses', () => {
+  const comCesto: HostWorld = {
+    ...mundo,
+    open: { ...mundo.open, map: { ...mundo.open.map, tokens: [...mundo.open.map.tokens, ficha('cesto', 'Cesto', 750, 300)] } },
+  }
+
+  it('a linha diz "Ana (no veículo Cesto)" e o "Desfazer" continua sendo do veículo (volta com quem vai a bordo)', () => {
+    const linha = travelLogEntry(transfer({ tokenId: 'cesto', veiculo: { motoristaId: 't-ana', nome: 'Cesto' } }), comCesto, 0, 'v1')
+    expect(linha).toMatchObject({ tokenId: 'cesto', tokenName: 'Ana (no veículo Cesto)', fromX: 750, fromY: 300 })
+    expect(linha === null ? '' : travelLine(linha)).toBe('Ana (no veículo Cesto): Salão → Cripta')
+  })
+
+  it('a motorista sumiu da cena de partida: o nome do veículo, como antes', () => {
+    expect(travelLogEntry(transfer({ tokenId: 'cesto', veiculo: { motoristaId: 'ninguem', nome: 'Cesto' } }), comCesto, 0, 'v2')?.tokenName).toBe('Cesto')
+  })
+
+  it('nomeNoVeiculo: "no veículo" e não o artigo do nome; veículo sem nome não deixa espaço sobrando', () => {
+    expect(nomeNoVeiculo('Gui', 'Carroça')).toBe('Gui (no veículo Carroça)')
+    expect(nomeNoVeiculo('Gui', '  ')).toBe('Gui (no veículo)')
   })
 })

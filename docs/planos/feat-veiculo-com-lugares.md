@@ -89,14 +89,32 @@ juntos em a07.
   entra em nada que o jogador recebe. Quem vai a bordo não entra no séquito,
   no ajudante nem no "(N)" do "Deixar ir com quem está perto" (sairia do
   veículo para sentar ao lado). Veículo com cadeado não passa; veículo
-  congelado ou alguém congelado a bordo recusa `congelado`. Os outros
-  jogadores a bordo recebem a troca de cena do broadcast (`by: 'master'`,
-  "O mestre levou você para outro lugar", a mesma de quando o mestre leva o
-  veículo).
+  congelado ou alguém congelado a bordo recusa `congelado`. No atalho, cada
+  passageiro ASSENTA no destino (`hopVehicleSeated`, `lib/vehicleHop.ts`): no
+  afastamento quando a casa serve, senão na casa livre mais perto do veículo
+  — a regra de `vehicleRiderSpots`, a mesma da travessia entre cenas —, e
+  nunca numa parede, em cima de outra ficha ou do pino. Os outros jogadores a
+  bordo recebem a troca de cena do broadcast com `by: 'veiculo'` ("Você viajou
+  no veículo"): não foi o mestre que levou. A frase não nomeia quem dirigiu
+  nem o veículo — a tela dele não sabe quem vai a bordo (`aBordo` não diz), e
+  nomear a motorista contaria isso. O "Levar para…" do mestre no veículo
+  continua "O mestre levou você para outro lugar".
+- **Diário e aviso de chegada** (só do mestre): a viagem da motorista entra
+  como "Gui (no veículo Cesto): Pátio → Poço" e "Ana (no veículo Cesto)
+  entrou em Poço" (`AppliedTransfer.veiculo`, `nomeNoVeiculo` em
+  `lib/travelLog.ts`). "no veículo" e não "no Cesto": o artigo do nome que o
+  mestre deu ("na Carroça") a tela não sabe. O "Desfazer" do diário continua
+  devolvendo o veículo, com quem vai a bordo.
 - **Passageira que não dirige não viaja**: o pedido (e o "Deixar ir" de um
   pedido feito a pé, antes de subir) volta `pin.travel.rejected` `a_bordo`
   ("A bordo: desça para viajar"); nada vai à Caixa do mestre. Escolher no
   "Quem passa?" uma ficha dela a bordo sem dirigir recusa o pedido inteiro.
+  O cartão do pino já diz isso antes do clique (`passagemABordo` em
+  `lib/pinTravelers.ts`, pela marca `aBordo` da ficha dela): o botão vem
+  apagado com "A bordo: desça para viajar" no lugar de "Passar", vencendo o
+  "Chegue mais perto" (a bordo ela não anda até o pino) e perdendo para o
+  "Congelado pelo mestre"; a passageira também não vira caixa do "Quem
+  passa?". O host continua validando.
 - **Dirigindo para longe do pino** com o pedido esperando o mestre: o pedido
   cai por `far` (`travelLeftBehind` conta cada ficha dele no lugar novo do
   grupo, `drivenTo`, não só a motorista).
@@ -128,22 +146,26 @@ juntos em a07.
   há alguém antes dele na fila (não é motorista), sem saber quem. Prova em
   `lib/fogFilter.veiculo.test.ts`, `player/PlayerVeiculo.test.tsx` e, de ponta
   a ponta pela sessão, em `stores/veiculo.test.ts`,
-  `stores/veiculoJogador.test.ts` e `stores/veiculoMotoristaViaja.test.ts`; no
+  `stores/veiculoJogador.test.ts` e `stores/veiculoMotoristaViaja.test.ts`
+  (e o cartão em `lib/pinTravelers.aBordo.test.ts`,
+  `player/PlayerPinCard.aBordo.test.tsx`, o assento em
+  `lib/vehicleHop.test.ts`); no
   navegador, `e2e/task-veiculo-jogador.spec.ts` e
   `e2e/task-veiculo-motorista-viaja.spec.ts`.
 
 ## O que fica para depois
 
 1. (Feito em 03/10/2026: ver "O jogador sobe, dirige e desce pela tela dele".
-   A vez e a viagem da motorista, também em 03/10.) Sobra: o cartão do pino
-   ainda oferece "Passar" à passageira (a recusa vem do host, com o aviso);
-   no atalho na mesma cena o passageiro fora do contorno do veículo pode
-   pousar numa parede (o salto mantém o afastamento às cegas, como o item 4);
-   na Caixa e no diário a viagem aparece com o nome do veículo.
+   A vez, a viagem da motorista e as sobras — cartão do pino da passageira,
+   assento no atalho, diário/aviso de chegada e o aviso de quem vai a bordo —
+   também em 03/10.) Sobra: o colega a bordo não entra no cartão "entrou em"
+   do mestre (só quem dirigiu); no atalho na mesma cena ele não recebe aviso
+   nenhum (a ficha salta com o veículo).
 2. Desenho do veículo no mapa (lugares ocupados, passageiros empilhados no
    veículo) — hoje o passageiro fica onde estava e anda junto.
 3. Mover em grupo pela seleção de área (`lib/areaSelection.ts`) ainda não
    carrega quem está a bordo e não está na seleção.
-4. O passageiro que chega pode cair numa parede do destino (o afastamento é
-   mantido às cegas); assentar cada um numa casa livre em volta do veículo.
+4. (Feito: a travessia entre cenas já assentava cada passageiro em
+   `adventureStore.transferToken` com `vehicleRiderSpots`; o atalho na mesma
+   cena passou a usar a mesma regra em 03/10, `lib/vehicleHop.ts`.)
 5. Veículo dentro de veículo (a carroça no navio) fica recusado.

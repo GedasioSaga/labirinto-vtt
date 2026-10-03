@@ -1766,7 +1766,10 @@ export type HostMessage =
   // o leva (`lib/fogFilter.ts`). Aditivo: jogador antigo ignora o campo.
   // `tokenId`: só no ATALHO NA MESMA CENA, a ficha DELE que atravessou — o
   // mapa não muda, e a tela precisa saber qual ficha centrar. Aditivo.
-  | { type: 'scene.changed'; by?: 'master' | 'gather'; chegada?: string; tokenId?: string }
+  // `by: 'veiculo'`: VEÍCULO — a ficha dele foi a bordo do veículo que OUTRO
+  // jogador dirigiu pelo pino; não diz quem dirigiu nem qual veículo. Jogador
+  // antigo não conhece o valor e lê "Você chegou".
+  | { type: 'scene.changed'; by?: 'master' | 'gather' | 'veiculo'; chegada?: string; tokenId?: string }
   | LaserMessage
   | RelayedLaserMessage
   | SceneNoteMessage

@@ -6,7 +6,9 @@ import { openPinLock } from '../lib/pinLock'
 import { adicionarMarca, apagarMarca } from '../lib/marcas'
 import { comFichaNoPiso } from '../lib/pisos'
 import { comMovimentoRemoto } from '../lib/movimentoRemoto'
-import { boardVehicle, hopVehicle, leaveVehicle } from '../lib/vehicle'
+import { boardVehicle, leaveVehicle } from '../lib/vehicle'
+import { hopVehicleSeated } from '../lib/vehicleHop'
+import type { SeatHold } from '../lib/gatherParty'
 import type { AppliedLock, AppliedMark, AppliedPiso, AppliedTokenEdit, AppliedVehicle } from './hostSession'
 
 /**
@@ -136,8 +138,10 @@ export const hostPlayerChanges = {
   // store, e é nele que o editor decide que esta ficha desliza (lib/movimentoRemoto.ts).
   applyMove: (tokenId: string, x: number, y: number, sceneId?: string): void =>
     comMovimentoRemoto(tokenId, () => applyToScene(sceneId, moveToken(tokenId, x, y))),
-  // VEÍCULO no ATALHO NA MESMA CENA: salta com todos a bordo (`hopVehicle`), sem deslizar — é passagem, não passo.
-  applyVehicleHop: (vehicleId: string, x: number, y: number, sceneId?: string): void => applyToScene(sceneId, (map) => hopVehicle(map, vehicleId, x, y)),
+  // VEÍCULO no ATALHO NA MESMA CENA: salta com todos a bordo, sem deslizar — é
+  // passagem, não passo —, e cada um assenta numa casa livre (`hopVehicleSeated`).
+  applyVehicleHop: (vehicleId: string, x: number, y: number, sceneId?: string, hold?: SeatHold): void =>
+    applyToScene(sceneId, (map) => hopVehicleSeated(map, vehicleId, x, y, hold)),
   applyDoor: (wallId: string, open: boolean, sceneId?: string): void => applyToScene(sceneId, setDoorOpen(wallId, open)),
   applyTokenEdit: (edit: AppliedTokenEdit): void => applyToScene(edit.sceneId, editToken(edit)),
   applyLock: (lock: AppliedLock): void => applyToScene(lock.sceneId, openLock(lock.pinId)),

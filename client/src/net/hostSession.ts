@@ -277,7 +277,7 @@ function allScenes(world: HostWorld): HostScene[] {
  * dela (`lib/arrivalText.ts`) quando há: é o único caminho do texto até o
  * jogador — o recorte nunca o manda — e só quem chega recebe este aviso.
  */
-function sceneChangedFor(to: MapData, by?: 'master' | 'gather'): Extract<HostMessage, { type: 'scene.changed' }> {
+function sceneChangedFor(to: MapData, by?: 'master' | 'gather' | 'veiculo'): Extract<HostMessage, { type: 'scene.changed' }> {
   const chegada = readArrivalText(to.textoChegada)
   return { type: 'scene.changed', ...(by === undefined ? {} : { by }), ...(chegada === undefined ? {} : { chegada }) }
 }
@@ -706,6 +706,14 @@ export interface AppliedTransfer {
    * guardado. Nada disto vai ao jogador.
    */
   hold?: SeatHold
+  /**
+   * VEÍCULO: quem atravessa (`tokenId`) é o veículo que a ficha `motoristaId`
+   * dirige, e `nome` é o nome dele. O diário e o aviso de chegada dizem quem
+   * DIRIGIU, com o veículo entre parênteses ("Gui (no veículo Cesto)"), em vez
+   * do veículo como quem viajou. Ausente = a ficha foi a pé. Nada disto vai ao
+   * jogador.
+   */
+  veiculo?: { motoristaId: string; nome: string }
 }
 
 /** Um ajudante que atravessa junto com o dono, e onde ele assenta na cena de destino. */
@@ -2831,6 +2839,12 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   // a ficha dele aparece em outra sem que a sessão tenha avisado (veículo,
   // "Levar para…"), o broadcast avisa. Mapa solto e espera não entram.
   const toldScene = new Map<string, string>()
+  // Por playerId: VEÍCULO — a cena (sceneId) para onde a ficha dele foi a
+  // bordo do veículo que OUTRO jogador dirigiu pelo pino. O broadcast que
+  // avisa a troca (`carriedAway`) diz "Você viajou no veículo" (`by:
+  // 'veiculo'`) em vez de "O mestre levou você". Vale uma vez (o aviso a
+  // consome), e só se a cena bater.
+  const viajouNoVeiculo = new Map<string, string>()
   // Por playerId: o pedido de passagem que espera o mestre (no máximo um).
   const pendingTravels = new Map<string, PendingTravel>()
   /**
@@ -4946,6 +4960,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     memories.delete(playerId)
     currentScene.delete(playerId)
     toldScene.delete(playerId)
+    viajouNoVeiculo.delete(playerId)
     forgetTravelsOf(playerId)
     // O Volto já morre com o jogador: o id não volta a existir.
     awayPlayers.delete(playerId)
@@ -7300,6 +7315,17 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       // PISOS: chega no piso do pino par; térreo não leva o campo.
       ...(pisoDe(travel.partner) === 0 ? {} : { piso: pisoDe(travel.partner) }),
       ...(companions.length > 0 ? { companions } : {}),
+      ...(veiculo === null ? {} : { veiculo: { motoristaId: travel.token.id, nome: veiculo.name } }),
+    }
+    // VEÍCULO: quem vai a bordo e é de OUTRO jogador lê "Você viajou no
+    // veículo" quando o broadcast avisar a troca — não foi o mestre que levou.
+    // Sem nome de quem dirigiu: a tela dele não sabe quem vai no veículo
+    // (`aBordo` não diz), e nomear a motorista contaria isso.
+    if (veiculo !== null && !atalho && travel.to.sceneId !== null) {
+      for (const id of aBordo) {
+        const owner = Object.entries(ownership).find(([, ids]) => ids.includes(id))?.[0]
+        if (owner !== undefined && owner !== playerId) viajouNoVeiculo.set(owner, travel.to.sceneId)
+      }
     }
     // O veículo já ocupa a casa de chegada inteira: o séquito senta em volta dele.
     const vehicleSeat: Seat[] = veiculo === null ? [] : [{ x: spot.x, y: spot.y, size: veiculo.size }]
@@ -9677,7 +9703,9 @@ export function createHostSession(options: HostSessionOptions): HostSession {
         if (landed !== null && carriedAway(playerId, world)) {
           forgetSentView(playerId)
           lastViews.delete(playerId)
-          outbound.push({ clientId, msg: sceneChangedFor(landed.map, 'master') })
+          const deVeiculo = viajouNoVeiculo.get(playerId)
+          viajouNoVeiculo.delete(playerId)
+          outbound.push({ clientId, msg: sceneChangedFor(landed.map, deVeiculo !== undefined && deVeiculo === landed.sceneId ? 'veiculo' : 'master') })
         }
         if (landed !== null) tellScene(playerId, landed)
         // SÓ A CENA QUE MUDOU: um passo no Salão não refaz o recorte de quem

@@ -8,7 +8,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createEmptyMap } from '../lib/mapFactory'
 import type { Token } from '../types/map'
 import { latestActionNotice } from './moveNotice'
-import { createPlayerConnection, MOVE_NOTICE_TTL_MS, type SocketLike } from './playerConnection'
+import { createPlayerConnection, MOVE_NOTICE_TTL_MS, travelPhaseOfSceneChange, type SocketLike } from './playerConnection'
+import { travelNoticeText } from './travelNoticeText'
 
 class FakeSocket implements SocketLike {
   readyState = 0
@@ -104,5 +105,26 @@ describe('veículo no cliente do jogador', () => {
     socket.receive({ type: 'token.move.rejected', reqId: pedido.reqId, reason: 'a_bordo' })
     expect(connection.getState().map?.tokens.find((t) => t.id === 'lia')?.x).toBe(100)
     expect(aviso(connection)).toBe('A bordo: desça para andar')
+  })
+
+  it('a bordo do veículo que outro jogador dirigiu: "Você viajou no veículo", não "O mestre levou você"', () => {
+    const { connection, socket } = conectado()
+    socket.receive(snapshot(1, [ficha('lia', 100, { aBordo: { motorista: false } })], ['lia']))
+    socket.receive({ type: 'scene.changed', by: 'veiculo' })
+    const travel = connection.getState().travel
+    expect(travel?.phase).toBe('rode')
+    expect(travel === undefined ? null : travelNoticeText(travel)).toBe('Você viajou no veículo')
+  })
+
+  it('o "by" da troca de cena vira o aviso certo; valor desconhecido é a chegada de sempre', () => {
+    expect(travelPhaseOfSceneChange(undefined)).toBe('arrived')
+    expect(travelPhaseOfSceneChange('master')).toBe('moved')
+    expect(travelPhaseOfSceneChange('gather')).toBe('gathered')
+    expect(travelPhaseOfSceneChange('veiculo')).toBe('rode')
+    expect(travelPhaseOfSceneChange('carroça')).toBe('arrived')
+  })
+
+  it('a recusa "a_bordo" da passagem usa a mesma frase do cartão do pino', () => {
+    expect(travelNoticeText({ id: 1, phase: 'rejected', reason: 'a_bordo' })).toBe('A bordo: desça para viajar')
   })
 })

@@ -64,6 +64,13 @@ describe('createArrivalAnnouncer: um cartão por cena', () => {
     expect(goTo).toHaveBeenCalledWith('s-torre', 900, 600, 2)
   })
 
+  it('VEÍCULO: quem dirigiu chega "no veículo", não some atrás do nome do veículo', () => {
+    const anunciar = createArrivalAnnouncer(vi.fn())
+    anunciar({ ...chegada('p-ana', 'Ana', 's-porao', 'Porão'), tokenId: 'cesto', veiculo: { motoristaId: 't-ana', nome: 'Cesto' } })
+    anunciar(chegada('p-bruno', 'Bruno', 's-porao', 'Porão'))
+    expect(avisos().map((t) => t.text)).toEqual(['Ana (no veículo Cesto) e Bruno entraram em Porão'])
+  })
+
   it('cenas diferentes, cartões diferentes', () => {
     const anunciar = createArrivalAnnouncer(vi.fn())
     anunciar(chegada('p-ana', 'Ana', 's-porao', 'Porão'))

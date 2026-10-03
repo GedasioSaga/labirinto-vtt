@@ -565,6 +565,8 @@ export type TravelNotice =
   | { id: number; phase: 'arrived' }
   /** O mestre levou o jogador para outra cena sem ele pedir. */
   | { id: number; phase: 'moved' }
+  /** VEÍCULO: a ficha dele foi a bordo do veículo que outro jogador dirigiu pelo pino. */
+  | { id: number; phase: 'rode' }
   /** O mestre reuniu o grupo num pino e trouxe o jogador de outra cena. */
   | { id: number; phase: 'gathered' }
   /** `text`: o motivo do "Não, porque…" do mestre. Ausente = o "não deixou" sem motivo. */
@@ -1281,6 +1283,19 @@ export const MOVED_NOTICE_TTL_MS = 60_000
  * ele mexe a própria ficha (aí já viu onde está) ou depois de um minuto.
  */
 export const GATHERED_NOTICE_TTL_MS = 60_000
+
+/**
+ * O aviso da troca de cena pelo `by` que o host mandou: pediu e passou
+ * ("Você chegou"), o mestre levou, o mestre reuniu o grupo, ou foi a bordo do
+ * veículo que outro jogador dirigiu. Valor que ele não conhece (host de versão
+ * futura) é a chegada de sempre.
+ */
+export function travelPhaseOfSceneChange(by: unknown): 'arrived' | 'moved' | 'gathered' | 'rode' {
+  if (by === 'gather') return 'gathered'
+  if (by === 'master') return 'moved'
+  if (by === 'veiculo') return 'rode'
+  return 'arrived'
+}
 /**
  * Espera da reconexão automática: dobra a cada tentativa que falha, de 1 s
  * até este teto. Trinta segundos é o mais longo que um celular esperaria sem
@@ -1962,7 +1977,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
 
   function travelNoticeTtl(notice: TravelNotice): number {
     if (notice.phase === 'gathered') return GATHERED_NOTICE_TTL_MS
-    if (notice.phase === 'moved') return MOVED_NOTICE_TTL_MS
+    if (notice.phase === 'moved' || notice.phase === 'rode') return MOVED_NOTICE_TTL_MS
     if (notice.phase === 'denied' && notice.text !== undefined) return TRAVEL_DENIED_WITH_REASON_TTL_MS
     return notice.phase === 'arrived' ? ARRIVAL_NOTICE_TTL_MS : TRAVEL_NOTICE_TTL_MS
   }
@@ -2573,7 +2588,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     // Mexeu a ficha depois de mudar de lugar (chegou, foi levado ou
     // reunido): já viu onde está, o aviso sai.
     const phase = state.travel?.phase
-    if (phase === 'gathered' || phase === 'arrived' || phase === 'moved') {
+    if (phase === 'gathered' || phase === 'arrived' || phase === 'moved' || phase === 'rode') {
       clearTravelTimer()
       setState({ map: withTokenAt(map, tokenId, x, y), travel: undefined })
       return reqId
@@ -3198,7 +3213,8 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         setState({ pinPeek: undefined })
         // Levado pelo mestre, "Você chegou" mentiria: ele não pediu para ir.
         // Reunido pelo mestre: outro aviso, porque ele não foi levado sozinho.
-        showTravelAnswer({ id: nextNoticeId++, phase: data.by === 'gather' ? 'gathered' : data.by === 'master' ? 'moved' : 'arrived' })
+        // A bordo do veículo que outro jogador dirigiu: nem um nem outro.
+        showTravelAnswer({ id: nextNoticeId++, phase: travelPhaseOfSceneChange(data.by) })
         return
       case 'pin.peek.view':
       case 'pin.peek.rejected':

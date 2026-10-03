@@ -73,7 +73,7 @@ import { hazardNoticeText } from '../lib/hazards'
 import { tableCodeFromSearch, tableKeyFromSearch } from '../lib/tableScreen'
 import { TableApp } from './TableScreen'
 import { readContract } from '../lib/tokenLoan'
-import { passagemCongelada, pinTravelChoices, type PinTravelChoice } from '../lib/pinTravelers'
+import { passagemABordo, passagemCongelada, pinTravelChoices, type PinTravelChoice } from '../lib/pinTravelers'
 import { avisoDeCongelado } from './congeladoNotice'
 import { letterTitle, type LetterVia } from '../lib/correio'
 import type { ChatChannel } from '../lib/chat'
@@ -980,6 +980,12 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
     () => map !== undefined && openPin !== null && openPin.kind === 'viagem' && passagemCongelada(map.tokens, ownTokens, openPin, map.grid),
     [map, openPin, ownTokens],
   )
+  // VEÍCULO: só fichas dele a bordo sem dirigir passariam — a mesma conta do
+  // host (`a_bordo`), com a marca `aBordo` que só a ficha do dono recebe.
+  const openPinABordo = useMemo(
+    () => map !== undefined && openPin !== null && openPin.kind === 'viagem' && passagemABordo(map.tokens, ownTokens, openPin, map.grid),
+    [map, openPin, ownTokens],
+  )
   // CONGELAR FICHA: o aviso fixo da tela, das fichas DELE que vieram no recorte.
   const avisoCongelado = useMemo(() => (map === undefined ? null : avisoDeCongelado(map.tokens, ownTokens)), [map, ownTokens])
   // BARRAR A PASSAGEM: só com uma ficha dele encostada no pino aberto — a mesma conta do host.
@@ -1452,6 +1458,7 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
             onWatch={(on) => connection.watchPassage(openPin.id, on)}
             longe={openPinFar}
             congelado={openPinCongelado}
+            aBordo={openPinABordo}
             travelers={pinTravelers}
             onRequestTravel={(exitId, tokenIds) => {
               // Pedido enviado, o cartão sai: a espera fica no aviso de baixo,

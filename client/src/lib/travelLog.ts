@@ -37,12 +37,15 @@ export function travelLogEntry(transfer: AppliedTransfer, world: HostWorld, at: 
   const from = [world.open, ...world.background].find((scene) => scene.sceneId === transfer.fromSceneId)
   const token = from?.map.tokens.find((t) => t.id === transfer.tokenId)
   if (from === undefined || token === undefined) return null
+  // VEÍCULO: quem atravessou é o veículo (o "Desfazer" devolve ele, com quem
+  // vai a bordo), mas quem viajou foi a motorista: "Gui (no veículo Cesto)".
+  const motorista = transfer.veiculo === undefined ? undefined : from.map.tokens.find((t) => t.id === transfer.veiculo?.motoristaId)
   return {
     id,
     at,
     playerId: transfer.playerId,
     tokenId: transfer.tokenId,
-    tokenName: token.name,
+    tokenName: motorista === undefined ? token.name : nomeNoVeiculo(motorista.name, token.name),
     fromSceneId: transfer.fromSceneId,
     fromSceneName: from.name,
     fromX: token.x,
@@ -50,6 +53,16 @@ export function travelLogEntry(transfer: AppliedTransfer, world: HostWorld, at: 
     toSceneId: transfer.toSceneId,
     toSceneName: transfer.toSceneName,
   }
+}
+
+/**
+ * VEÍCULO: "Gui (no veículo Cesto)" — quem viajou e, entre parênteses, em
+ * quê. "no veículo" e não "no Cesto": o artigo do nome que o mestre deu
+ * ("na Carroça") a tela não sabe. Veículo sem nome: "Gui (no veículo)".
+ */
+export function nomeNoVeiculo(nome: string, veiculo: string): string {
+  const qual = veiculo.trim()
+  return qual === '' ? `${nome} (no veículo)` : `${nome} (no veículo ${qual})`
 }
 
 /** A viagem nova entra em cima; passou do teto, a mais velha sai. */
