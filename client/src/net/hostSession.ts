@@ -190,7 +190,7 @@ import {
 import { clampTokenActionReply, distanceInCells, type TokenAction, type TokenActionRejection } from '../lib/tokenActions'
 import { diffView, isEmptyViewPatch, type PlayerViewContent } from './viewPatch'
 import { LETTER_PENDING_MAX_PER_PLAYER, LETTER_SEND_MIN_INTERVAL_MS, type LetterVia } from '../lib/correio'
-import { CHAT_HISTORY_MAX, CHAT_MASTER_MENTION, findMentions, nameSkeleton, takeChatTurn } from '../lib/chat'
+import { CHAT_HISTORY_MAX, CHAT_MASTER_MENTION, CHAT_MASTER_NAME, CHAT_TEXT_MAX_LENGTH, cleanChatText, findMentions, nameSkeleton, takeChatTurn } from '../lib/chat'
 import { readArrivalText } from '../lib/arrivalText'
 import { caravanCity, caravanMembers, caravanRegroup, caravanSize, caravanStep, isWorldMap, landingSpots, type CaravanMemory } from '../lib/caravan'
 
@@ -968,6 +968,19 @@ export interface LetterRequest {
   text: string
 }
 
+/** CHAT, leitura do mestre: uma cena com conversa. `key` = chave da cena (o id do mapa); `name` = `null` quando ela saiu da aventura. */
+export interface MasterChatScene {
+  key: string
+  name: string | null
+  messages: ChatEntry[]
+}
+
+/** CHAT, leitura do mestre: o Global e as cenas com conversa, na ordem da primeira fala em cada uma. */
+export interface MasterChatState {
+  global: ChatEntry[]
+  scenes: MasterChatScene[]
+}
+
 export interface HostResult {
   outbound: Outbound[]
   /** Chamado NOVO na fila: o integrador mostra a linha e toca o bipe. Repetição do mesmo chamado não vem. */
@@ -1093,6 +1106,8 @@ export interface HostResult {
   reclaimed?: ReclaimedSeat
   /** DADO ROLADO NA SALA: a rolagem que a tela do mestre mostra (a escondida dele, marcada). */
   diceRoll?: HostDiceRoll
+  /** CHAT: um canal ganhou ou perdeu linha. O integrador relê `masterChat` para a tela do mestre. */
+  chatChanged?: true
   /**
    * Empréstimos encerrados (o dono voltou, ou o mestre tomou de volta): a
    * ficha saiu de quem a jogava. O integrador manda o mapa novo a todos — quem
@@ -1725,6 +1740,19 @@ export interface HostSession {
    * "Mestre"; `hidden`, não sai para ninguém — só a tela do mestre a mostra.
    */
   masterRoll(request: DiceRequest, hidden: boolean): HostResult
+  /**
+   * CHAT, leitura do mestre (fatia D): o Global e cada cena que já teve
+   * conversa, com o nome dela no mundo de `source` (`null` = a cena saiu da
+   * aventura). As linhas vêm inteiras: todas as menções, o `@mestre` também.
+   * São cópias. `chatChanged` no resultado diz quando reler.
+   */
+  masterChat(source: HostMapSource): MasterChatState
+  /**
+   * CHAT: o mestre fala no Global (só nele: a cena é só leitura para ele). A
+   * linha chega a todo jogador com ficha, com `fromMaster`. Texto vazio
+   * depois da limpeza, ou acima de `CHAT_TEXT_MAX_LENGTH`: nada sai (`sent: false`).
+   */
+  masterChatSend(text: string): HostResult & { sent: boolean }
   /**
    * RUÍDO NO MAPA: o mestre fez um ruído em (`x`, `y`) da cena ABERTA no
    * editor (é o mapa em que ele clicou). Quem joga nessa cena e tem ficha a
@@ -8042,7 +8070,40 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       if (hears(otherId)) outbound.push({ clientId: otherClient, msg: { type: 'chat.msg', channel: msg.channel, msg: chatEntryFor(entry, otherId) } })
     }
     outbound.push({ clientId, msg: { type: 'chat.send.result', reqId: msg.reqId, ok: true } })
-    return { outbound }
+    return { outbound, chatChanged: true }
+  }
+
+  /**
+   * CHAT, a fala do mestre (fatia D): só no Global, a todo jogador com ficha,
+   * com `fromMaster`. O texto passa pela mesma limpeza e pelo mesmo teto do
+   * jogador; as menções são achadas aqui, entre quem joga. Sem ritmo: quem
+   * escreve é a pessoa no próprio app, não uma conexão da rede.
+   */
+  function masterChatSend(raw: string): HostResult & { sent: boolean } {
+    const text = cleanChatText(raw)
+    if (text === '' || text.length > CHAT_TEXT_MAX_LENGTH) return { outbound: [], sent: false }
+    const names = [...players.values()].filter((other) => statusOf(other.playerId) === 'playing').map((other) => other.name)
+    const mentions = findMentions(text, names)
+    // Quem ganhou a ficha desde o último broadcast recebe a história ANTES da linha nova.
+    const outbound: Outbound[] = [...syncChatGlobal()]
+    const entry: ChatEntry = { id: randomId(), at: now(), from: CHAT_MASTER_NAME, text, mentions, fromMaster: true }
+    keepChatEntry(globalChat, entry)
+    for (const [otherClient, otherId] of byClient) {
+      if (statusOf(otherId) === 'playing') outbound.push({ clientId: otherClient, msg: { type: 'chat.msg', channel: 'global', msg: chatEntryFor(entry, otherId) } })
+    }
+    return { outbound, chatChanged: true, sent: true }
+  }
+
+  /** O que o mestre lê: cópias, para a tela dele nunca segurar a lista viva da sessão. */
+  function masterChat(source: HostMapSource): MasterChatState {
+    const scenes = allScenes(toWorld(source))
+    const copy = (list: readonly ChatEntry[]): ChatEntry[] => list.map((entry) => ({ ...entry, mentions: [...entry.mentions] }))
+    return {
+      global: copy(globalChat),
+      scenes: [...sceneChats]
+        .filter(([, list]) => list.length > 0)
+        .map(([key, list]) => ({ key, name: scenes.find((scene) => sceneKey(scene) === key)?.name ?? null, messages: copy(list) })),
+    }
   }
 
   const findPendingTravel = (requestId: string): PendingTravel | undefined =>
@@ -8623,6 +8684,9 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       const roll: HostDiceRoll = hidden ? { ...rolled, master: true, hidden: true } : { ...rolled, master: true }
       return { outbound: diceOutbound(roll), diceRoll: roll }
     },
+
+    masterChat,
+    masterChatSend,
 
     expireWaits() {
       const at = now()

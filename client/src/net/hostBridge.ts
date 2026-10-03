@@ -59,6 +59,7 @@ import {
   type HostSignal,
   type HostWorld,
   type MasterCall,
+  type MasterChatState,
   type LetterRequest,
   type LoanTerms,
   type PinKeyUse,
@@ -307,6 +308,8 @@ export interface HostBridgeDeps {
   saveExploration?: (exploration: SavedExploration) => void
   /** DADO ROLADO NA SALA: toda rolagem da mesa (a de um jogador e a do mestre, a escondida marcada). */
   onDiceRoll?: (roll: HostDiceRoll) => void
+  /** CHAT, leitura do mestre: o Global e as cenas com conversa, a cada linha nova ou apagada. */
+  onMasterChatChange?: (chat: MasterChatState) => void
   now?: () => number
 }
 
@@ -541,6 +544,12 @@ export interface HostBridge {
    * recebe; `hidden`, só a tela do mestre (`onDiceRoll`). `null` com a sala fechada.
    */
   rollDice(request: DiceRequest, hidden: boolean): HostDiceRoll | null
+  /**
+   * CHAT: o mestre fala no Global; a mesa inteira (quem tem ficha) recebe e a
+   * tela dele relê por `onMasterChatChange`. `false` com a sala fechada ou
+   * texto vazio/longo demais.
+   */
+  masterChatSend(text: string): boolean
   /**
    * "Visto por" do painel da ficha: nomes dos jogadores conectados cuja tela
    * (o último recorte que SAIU, `playerScreen`) tem a ficha `tokenId` do mapa
@@ -1104,6 +1113,11 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     if (key === lastSecretRevealsKey) return
     lastSecretRevealsKey = key
     deps.onSecretRevealsChange?.(reveals)
+  }
+
+  /** CHAT: a tela do mestre relê os canais (a sessão só avisa quando um mudou). */
+  const notifyMasterChat = () => {
+    if (session !== null) deps.onMasterChatChange?.(session.masterChat(world()))
   }
 
   const notifySecretChecksIfChanged = () => {
@@ -2678,6 +2692,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     pruneCallToasts()
     if (result.pointAction !== undefined) askPointAction(result.pointAction)
     if (result.diceRoll !== undefined) deps.onDiceRoll?.(result.diceRoll)
+    if (result.chatChanged === true) notifyMasterChat()
     if (result.seatClaim !== undefined) askSeatClaim(result.seatClaim)
     if (result.applyMove !== undefined) {
       const { tokenId, x, y, sceneId } = result.applyMove
@@ -3218,6 +3233,15 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       // A tela do mestre mostra pelo mesmo caminho da rolagem de um jogador.
       if (result.diceRoll !== undefined) deps.onDiceRoll?.(result.diceRoll)
       return result.diceRoll ?? null
+    },
+
+    masterChatSend(text) {
+      if (session === null) return false
+      const result = session.masterChatSend(text)
+      if (!result.sent) return false
+      void dispatch(result)
+      notifyMasterChat()
+      return true
     },
 
     noise(x, y, rangeCells) {

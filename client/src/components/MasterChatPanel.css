@@ -1,0 +1,289 @@
+/*
+ * CHAT DOS JOGADORES na tela do mestre — o botão "Chat" e o painel. Canto de
+ * baixo à esquerda do mapa, logo ao lado do rail (o canto direito é dos Dados
+ * e do zoom). Mesma linguagem dos Dados: fundo chapado escuro, linha fina
+ * clara, latão no que importa — aqui, a menção ao mestre.
+ */
+
+.lb-mchat {
+  position: absolute;
+  left: calc(var(--lb-layout-rail-width, 264px) + var(--lb-layout-edge-gap, 12px) * 2);
+  bottom: var(--lb-layout-edge-gap, 12px);
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  width: min(340px, calc(100vw - var(--lb-layout-rail-width, 264px) - 4 * var(--lb-layout-edge-gap, 12px)));
+  /* O vão entre as peças continua sendo mapa. */
+  pointer-events: none;
+}
+
+.lb-mchat__panel,
+.lb-mchat__toggle {
+  pointer-events: auto;
+}
+
+.lb-mchat__panel {
+  box-sizing: border-box;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  gap: 8px;
+  width: 100%;
+  height: min(420px, calc(100vh - 160px));
+  padding: 10px;
+}
+
+/* `.lb-panel` põe `display`: o atributo `hidden` sozinho perderia. */
+.lb-mchat__panel[hidden] {
+  display: none;
+}
+
+.lb-mchat__panel:not([hidden]) {
+  animation: lb-mchat-in var(--lb-motion-fast, 110ms) var(--lb-motion-ease, ease-out);
+}
+
+@keyframes lb-mchat-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ── Canais: Global e uma pastilha por cena com conversa ──────────── */
+
+.lb-mchat__channels {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  max-height: 72px;
+  overflow-y: auto;
+}
+
+.lb-mchat__channel {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  min-height: 28px;
+  padding: 2px 10px;
+  border: 1px solid var(--lb-color-line, rgba(255, 255, 255, 0.08));
+  border-radius: var(--lb-radius-full, 999px);
+  background: var(--lb-color-stone-raised, #232328);
+  color: var(--lb-color-parchment-dim, #a2a09a);
+  font: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+
+.lb-mchat__channel:hover {
+  background: var(--lb-color-stone-hover, #2c2c33);
+  color: var(--lb-color-parchment, #eceae4);
+}
+
+.lb-mchat__channel[aria-pressed='true'] {
+  border-color: var(--lb-color-brass, #e0a44a);
+  background: var(--lb-color-brass-soft, rgba(224, 164, 74, 0.14));
+  color: var(--lb-color-parchment, #eceae4);
+}
+
+.lb-mchat__channel-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lb-mchat__badge {
+  min-width: 18px;
+  padding: 0 5px;
+  border-radius: var(--lb-radius-full, 999px);
+  background: var(--lb-color-stone-hover, #2c2c33);
+  color: var(--lb-color-parchment, #eceae4);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 18px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+/* `@mestre` esperando: latão cheio, o destaque mais forte da tela. */
+.lb-mchat__badge--mention {
+  background: var(--lb-color-brass, #e0a44a);
+  color: var(--lb-color-brass-contrast, #1c1608);
+}
+
+/* ── As mensagens ─────────────────────────────────────────────────── */
+
+.lb-mchat__log {
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
+.lb-mchat__log:focus-visible {
+  outline: 2px solid var(--lb-color-brass-bright, #f3ba66);
+  outline-offset: 2px;
+}
+
+.lb-mchat__empty {
+  margin: 8px 0;
+  font-size: 12.5px;
+  color: var(--lb-color-parchment-faint, #858480);
+}
+
+.lb-mchat__list {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.lb-mchat__msg {
+  min-width: 0;
+  padding: 2px 0 2px 6px;
+  border-left: 3px solid transparent;
+  border-radius: 0 var(--lb-radius-sm, 6px) var(--lb-radius-sm, 6px) 0;
+}
+
+.lb-mchat__msg--master {
+  border-left-color: var(--lb-color-line-divider, rgba(255, 255, 255, 0.26));
+}
+
+.lb-mchat__msg--master .lb-mchat__from {
+  color: var(--lb-color-brass-bright, #f3ba66);
+}
+
+.lb-mchat__msg--mention {
+  border-left-color: var(--lb-color-brass, #e0a44a);
+  background: var(--lb-color-brass-soft, rgba(224, 164, 74, 0.14));
+}
+
+.lb-mchat__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 8px;
+  margin: 0;
+  font-size: 12px;
+  color: var(--lb-color-parchment-dim, #a2a09a);
+}
+
+.lb-mchat__from {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-weight: 600;
+  color: var(--lb-color-parchment, #eceae4);
+}
+
+.lb-mchat__time {
+  font-variant-numeric: tabular-nums;
+}
+
+.lb-mchat__tag {
+  font-weight: 600;
+  color: var(--lb-color-brass-bright, #f3ba66);
+}
+
+/* Quebras de linha do jogador valem; palavra ou link sem fim quebra em qualquer ponto em vez de alargar o painel. */
+.lb-mchat__text {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 13px;
+  color: var(--lb-color-parchment, #eceae4);
+}
+
+/* ── Escrever (só no Global) ou o aviso de só leitura ──────────────── */
+
+.lb-mchat__form {
+  display: grid;
+  gap: 4px;
+}
+
+.lb-mchat__row {
+  display: flex;
+  align-items: stretch;
+  gap: 6px;
+}
+
+.lb-mchat__input {
+  flex: 1;
+  min-width: 0;
+  min-height: 42px;
+  padding: 6px 8px;
+  line-height: 1.35;
+  resize: none;
+}
+
+.lb-mchat__send {
+  flex: none;
+}
+
+.lb-mchat__note,
+.lb-mchat__readonly {
+  margin: 0;
+  font-size: 12px;
+  color: var(--lb-color-parchment-dim, #a2a09a);
+}
+
+.lb-mchat__readonly {
+  padding: 8px 10px;
+  border: 1px dashed var(--lb-color-line-strong, rgba(255, 255, 255, 0.16));
+  border-radius: var(--lb-radius-sm, 6px);
+}
+
+.lb-mchat__alert {
+  margin: 0;
+  font-size: 12px;
+  color: var(--lb-color-ember, #e2645a);
+}
+
+/* ── O botão "Chat" ───────────────────────────────────────────────── */
+
+.lb-mchat__toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--lb-color-parchment, #eceae4);
+  cursor: pointer;
+  transition: transform var(--lb-motion-fast, 110ms) var(--lb-motion-ease, ease);
+}
+
+.lb-mchat__toggle:hover {
+  background: var(--lb-color-stone-hover, #2c2c33);
+  border-color: var(--lb-color-line-strong, rgba(255, 255, 255, 0.16));
+}
+
+.lb-mchat__toggle:active {
+  transform: scale(0.97);
+}
+
+.lb-mchat__toggle[aria-expanded='true'] {
+  color: var(--lb-color-brass-bright, #f3ba66);
+}
+
+.lb-mchat__toggle:focus-visible,
+.lb-mchat__channel:focus-visible {
+  outline: 2px solid var(--lb-color-brass-bright, #f3ba66);
+  outline-offset: 2px;
+}
+
+/* No fim do arquivo de propósito: cada regra daqui empata em especificidade com a que desliga. */
+@media (prefers-reduced-motion: reduce) {
+  .lb-mchat__panel:not([hidden]) {
+    animation: none;
+  }
+  .lb-mchat__toggle:active {
+    transform: none;
+  }
+}

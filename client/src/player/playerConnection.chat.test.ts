@@ -133,6 +133,15 @@ describe('chat no cliente: o que chega', () => {
     expect(depois[0]?.id).toBe('g7')
     expect(depois[199]).toEqual(nova)
   })
+
+  it('a fala do mestre chega com fromMaster; só o true marca, qualquer outro valor é linha comum', () => {
+    const { connection, socket } = comChat()
+    const doMestre = { ...linha('g1', 'Pausa de 5 minutos', [], 'Mestre'), fromMaster: true }
+    socket.receive({ type: 'chat.msg', channel: 'global', msg: doMestre })
+    socket.receive({ type: 'chat.msg', channel: 'global', msg: { ...linha('g2', 'sou eu', [], 'Mestre'), fromMaster: 'true' } })
+    socket.receive({ type: 'chat.msg', channel: 'global', msg: { ...linha('g3', 'eu também', [], 'Mestre'), fromMaster: 1 } })
+    expect(connection.getState().chat?.global).toEqual([doMestre, linha('g2', 'sou eu', [], 'Mestre'), linha('g3', 'eu também', [], 'Mestre')])
+  })
 })
 
 describe('chat no cliente: menção a mim', () => {

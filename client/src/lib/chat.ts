@@ -26,6 +26,14 @@ export const CHAT_HISTORY_MAX = 200
 /** `@mestre` menciona o mestre, que não é jogador nem aparece no Grupo. */
 export const CHAT_MASTER_MENTION = 'mestre'
 
+/** Como a fala do mestre aparece (o mesmo nome das rolagens dele, `MASTER_ROLLER_NAME`). */
+export const CHAT_MASTER_NAME = 'Mestre'
+
+/** A mensagem menciona o mestre (`@mestre`, confirmado pelo host)? */
+export function mentionsMaster(mentions: readonly string[]): boolean {
+  return mentions.includes(CHAT_MASTER_MENTION)
+}
+
 /** Quebra de linha do Windows e do Mac antigo. */
 const CARRIAGE_RETURNS = /\r\n?/g
 
@@ -162,10 +170,11 @@ export function nameSkeleton(name: string): string {
  * "Mestre" ganha " (jogador)": a fala dele não se passa pela do mestre. A
  * comparação é pelo esqueleto (`nameSkeleton`), para que um invisível, a letra
  * larga ou a letra cirílica ou grega não tirem a marca. É a regra do
- * `rollerLabel` (`lib/dice.ts`). Quando o mestre falar no chat (fatia D), a
- * fala dele precisa de marca própria, como `roll.master`: o nome não basta.
+ * `rollerLabel` (`lib/dice.ts`). A fala do mestre (fatia D) vem com a marca
+ * do host (`fromMaster`), não pelo nome: só ela vira "Mestre".
  */
-export function chatSpeakerLabel(from: string): string {
+export function chatSpeakerLabel(from: string, fromMaster = false): string {
+  if (fromMaster) return CHAT_MASTER_NAME
   return nameSkeleton(from) === nameSkeleton(CHAT_MASTER_MENTION) ? `${from} (jogador)` : from
 }
 

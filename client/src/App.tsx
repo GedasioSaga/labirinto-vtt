@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { PixiCanvas } from './pixi/PixiCanvas'
 import { ZoomHud } from './components/ZoomHud'
 import { DiceDock } from './components/DiceDock'
+import { MasterChatPanel } from './components/MasterChatPanel'
 import { useDiceStore } from './stores/diceStore'
 import { PisoHud } from './components/PisoHud'
 import { temPisos } from './lib/pisos'
@@ -42,7 +43,7 @@ import { playSignalSound } from './lib/signalSound'
 import { comSomDePassagem, instalarSonsDoMestre } from './lib/sons/sonsDoMestre'
 import { faceRangeCellsOrNull } from './lib/tokenVulto'
 import { createSignalRouter } from './net/chamadoDeFundo'
-import { tableSceneKey, type AppliedMove, type PinClueState, type PlayerInfo, type SecretCheckState } from './net/hostSession'
+import { tableSceneKey, type AppliedMove, type MasterChatState, type PinClueState, type PlayerInfo, type SecretCheckState } from './net/hostSession'
 import { tableScreenUrl } from './lib/tableScreen'
 import { giftScenesOf, RoomPanel, roomPanelTokensOf } from './components/RoomPanel'
 import { hostCluesProps } from './components/CluesSection'
@@ -270,6 +271,8 @@ const CLOSE_DIALOG_MAX_WAIT_MS = 10_000
 const MAP_SAVED_TEXT = 'Mapa salvo'
 /** Cena sem nenhum valor de iniciativa: referência estável, sem render novo à toa. */
 const NO_INITIATIVE_VALUES: Readonly<Record<string, number>> = {}
+/** Sala sem conversa: o chat do mestre antes da primeira linha e depois de fechar a sala. */
+const NO_MASTER_CHAT: MasterChatState = { global: [], scenes: [] }
 
 /** Entrada do aviso de trabalho não salvo: ease-out curto, nunca de escala zero. */
 const UNSAVED_DIALOG_ENTER_MS = 160
@@ -635,6 +638,8 @@ function App() {
   const [secretReveals, setSecretReveals] = useState<Record<string, string[]>>({})
   // Testes secretos e as respostas: só o mestre vê. O dono é a sessão do host.
   const [secretChecks, setSecretChecks] = useState<SecretCheckState[]>([])
+  // CHAT DOS JOGADORES: o que o mestre lê (Global e cenas), relido a cada linha nova.
+  const [masterChat, setMasterChat] = useState<MasterChatState>(NO_MASTER_CHAT)
   const [tunnel, setTunnel] = useState<TunnelState>({ kind: 'idle' })
   const [railTab, setRailTab] = useState<RailTab>('map')
   /** Muda a cada Ctrl+K: "Objetos do mapa" abre com o cursor na busca (MapObjectsSection). */
@@ -750,6 +755,7 @@ function App() {
         },
         // Dado rolado na sala: toda rolagem da mesa (e a do mestre, escondida ou não) entra na lista dele.
         onDiceRoll: (roll) => useDiceStore.getState().push(roll),
+        onMasterChatChange: setMasterChat,
       })
     }
     return hostBridgeRef.current
@@ -852,6 +858,8 @@ function App() {
     usePlayerLaserStore.getState().clear()
     useLaserStore.getState().setToggled(false)
     useDiceStore.getState().clear()
+    // A conversa vivia na sessão: sala nova começa sem chat.
+    setMasterChat(NO_MASTER_CHAT)
     useNoiseStore.getState().setArmed(false)
   }
   /**
@@ -3564,6 +3572,8 @@ function App() {
         )}
       {/* Dado rolado na sala: só com a sala aberta — sem mesa, não há quem veja a rolagem. */}
       {room !== null && <DiceDock rolls={diceRolls} onRoll={(request, hidden) => hostBridgeRef.current?.rollDice(request, hidden)} />}
+      {/* Chat dos jogadores: só com a sala aberta — a conversa vive na sessão. */}
+      {room !== null && <MasterChatPanel chat={masterChat} onSend={(text) => hostBridgeRef.current?.masterChatSend(text) ?? false} />}
     </div>
   )
 }

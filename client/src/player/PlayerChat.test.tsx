@@ -156,6 +156,15 @@ describe('PlayerChat', () => {
     expect(quem).toEqual(['Mestre (jogador)', 'MESTRE (jogador)', 'Mestrado'])
   })
 
+  it('a fala do mestre (marca do host) aparece como "Mestre", em destaque próprio', () => {
+    render({ log: { cena: [], global: [{ ...linha('g1', 'Mestre', 'Pausa de 5 minutos'), fromMaster: true }, linha('g2', 'Mestre', 'sou eu')] } })
+    act(() => canal('Global').click())
+    const itens = Array.from(container.querySelectorAll('li.pc-msg'))
+    expect(itens.map((item) => item.querySelector('.pc-msg__from')?.textContent)).toEqual(['Mestre', 'Mestre (jogador)'])
+    expect(itens[0].classList.contains('pc-msg--master')).toBe(true)
+    expect(itens[1].classList.contains('pc-msg--master')).toBe(false)
+  })
+
   it('mensagem que me menciona fica destacada e diz "(menciona você)"; a dos outros não', () => {
     render({ log: { cena: [linha('c1', 'Bruno', '@Ana abre a porta', ['Ana']), linha('c2', 'Bruno', '@Caio vem', ['Caio'])], global: [] } })
     const itens = Array.from(container.querySelectorAll('li.pc-msg'))

@@ -103,6 +103,19 @@
   background: var(--lb-color-brass-soft, rgba(224, 164, 74, 0.14));
 }
 
+/* A fala do mestre: o nome em latão e a borda clara. Se ela me menciona, a borda volta ao latão da menção. */
+.pc-msg--master {
+  border-left-color: var(--lb-color-line-divider, rgba(255, 255, 255, 0.26));
+}
+
+.pc-msg--master .pc-msg__from {
+  color: var(--lb-color-brass-bright, #f3ba66);
+}
+
+.pc-msg--master.pc-msg--me {
+  border-left-color: var(--lb-color-brass, #e0a44a);
+}
+
 .pc-msg__meta {
   display: flex;
   flex-wrap: wrap;

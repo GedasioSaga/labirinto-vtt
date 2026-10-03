@@ -384,13 +384,16 @@ export function PlayerChat({ log, unread, status, selfName, party, visible, onSe
 
 /**
  * Uma fala: quem (o jogador chamado "Mestre" com " (jogador)"), a hora e o
- * texto, este só como texto do React. A que me menciona se destaca.
+ * texto, este só como texto do React. A que me menciona se destaca; a do
+ * mestre (marca do host, nunca o nome) também, com cor própria.
  */
 function ChatLine({ entry, mine }: { entry: ChatEntry; mine: boolean }) {
+  const master = entry.fromMaster === true
+  const className = ['pc-msg', master ? 'pc-msg--master' : '', mine ? 'pc-msg--me' : ''].filter((name) => name !== '').join(' ')
   return (
-    <li className={mine ? 'pc-msg pc-msg--me' : 'pc-msg'}>
+    <li className={className}>
       <p className="pc-msg__meta">
-        <span className="pc-msg__from">{chatSpeakerLabel(entry.from)}</span>
+        <span className="pc-msg__from">{chatSpeakerLabel(entry.from, master)}</span>
         <time className="pc-msg__time">{formatNoteTime(entry.at)}</time>
         {mine && (
           <span className="pc-msg__tag">

@@ -819,3 +819,17 @@ export function PipetaIcon(props: IconProps) {
     </Icon>
   )
 }
+
+/**
+ * Balão de fala — o chat dos jogadores na tela do mestre (`MasterChatPanel`).
+ * Retângulo de cantos redondos com o rabicho embaixo à esquerda e duas
+ * linhas de texto dentro.
+ */
+export function ChatIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M5.5 5h13A1.5 1.5 0 0 1 20 6.5v8a1.5 1.5 0 0 1-1.5 1.5H10l-4 3.5V16h-.5A1.5 1.5 0 0 1 4 14.5v-8A1.5 1.5 0 0 1 5.5 5z" />
+      <path d="M8 9.5h8M8 12.5h5" />
+    </Icon>
+  )
+}

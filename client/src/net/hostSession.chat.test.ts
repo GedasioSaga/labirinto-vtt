@@ -534,3 +534,85 @@ describe('chat: texto', () => {
     expect(s.handleMessage('c9', { type: 'chat.send', reqId: 'r1', channel: 'global', text: 42, mentions: [] }, mundo).outbound).toEqual(invalido('c9'))
   })
 })
+
+describe('chat: o mestre lê e fala (fatia D)', () => {
+  it('o mestre lê o Global e cada cena com conversa, com o nome dela e as menções inteiras', () => {
+    const { s } = mesa()
+    expect(s.masterChat(mundo)).toEqual({ global: [], scenes: [] })
+    const doSalao = fala(s, 'c1', 'cena', 'segredo do salão, @Dora', ['Dora'])
+    expect(doSalao.chatChanged).toBe(true)
+    fala(s, 'c2', 'cena', 'aqui embaixo está escuro')
+    fala(s, 'c4', 'global', 'todos bem?', [], 'r2')
+    const lido = s.masterChat(mundo)
+    expect(lido.global.map((linha) => [linha.from, linha.text])).toEqual([['Dora', 'todos bem?']])
+    expect(lido.scenes.map((cena) => [cena.key, cena.name, cena.messages.map((linha) => linha.text)])).toEqual([
+      ['m-salao', 'Salao Norte', ['segredo do salão, @Dora']],
+      ['m-cripta', 'Cripta Rubra', ['aqui embaixo está escuro']],
+    ])
+    // O mestre vê a quem a linha marcou; o jogador só fica sabendo da própria.
+    expect(lido.scenes[0].messages[0].mentions).toEqual(['Dora'])
+    // Cena que saiu da aventura: a conversa continua, sem nome.
+    expect(s.masterChat({ open: salao([]), background: [] }).scenes[1]).toMatchObject({ key: 'm-cripta', name: null })
+  })
+
+  it('o que o mestre lê é cópia: mexer nela não muda a sessão', () => {
+    const { s } = mesa()
+    fala(s, 'c1', 'global', 'oi')
+    const lido = s.masterChat(mundo)
+    lido.global[0].mentions.push('mestre')
+    lido.global.pop()
+    expect(s.masterChat(mundo).global).toHaveLength(1)
+    expect(s.masterChat(mundo).global[0].mentions).toEqual([])
+  })
+
+  it('@mestre fica marcado para o mestre, e só para ele', () => {
+    const { s } = mesa()
+    const r = fala(s, 'c1', 'cena', '@mestre posso abrir o baú?', ['mestre'])
+    expect(s.masterChat(mundo).scenes[0].messages[0].mentions).toEqual(['mestre'])
+    expect(linhaPara(r, 'c4').mentions).toEqual([])
+  })
+
+  it('a fala do mestre vai só ao Global, a todo jogador com ficha, com fromMaster e o nome Mestre', () => {
+    const { s, relogio } = mesa()
+    relogio.agora = 5000
+    const r = s.masterChatSend('  Pausa de 5 minutos, @Bruno\r\n  ')
+    expect(r.sent).toBe(true)
+    expect(r.chatChanged).toBe(true)
+    expect(quemRecebe(r, 'chat.msg')).toEqual(['c1', 'c2', 'c4'])
+    expect(r.outbound.every((o) => o.msg.type !== 'chat.msg' || ('channel' in o.msg && o.msg.channel === 'global'))).toBe(true)
+    expect(r.outbound.find((o) => o.clientId === 'c2' && o.msg.type === 'chat.msg')?.msg).toEqual({
+      type: 'chat.msg',
+      channel: 'global',
+      msg: { id: expect.any(String), at: 5000, from: 'Mestre', text: 'Pausa de 5 minutos, @Bruno', mentions: ['Bruno'], fromMaster: true },
+    })
+    // Bruno foi marcado; Ana não fica sabendo de quem foi.
+    expect(linhaPara(r, 'c1').mentions).toEqual([])
+    semCena(r)
+    expect(s.masterChat(mundo).global.map((linha) => [linha.from, linha.fromMaster])).toEqual([['Mestre', true]])
+    // Quem chega depois recebe a fala do mestre na história do global, ainda marcada.
+    const ganhou = s.assignToken(idDoWelcome(s.handleMessage('c5', { type: 'join', code: CODE, name: 'Eva' }, mundo)), 'foice')
+    const depois = s.broadcast(comFoice)
+    const historia = [...ganhou.outbound, ...depois.outbound].find((o) => o.clientId === 'c5' && o.msg.type === 'chat.history' && 'channel' in o.msg && o.msg.channel === 'global')?.msg
+    expect(JSON.stringify(historia)).toContain('"fromMaster":true')
+  })
+
+  it('o mestre não fala vazio nem acima do teto, e sem ritmo de jogador', () => {
+    const { s } = mesa()
+    expect(s.masterChatSend('   ‮  ')).toEqual({ outbound: [], sent: false })
+    expect(s.masterChatSend('x'.repeat(1001))).toEqual({ outbound: [], sent: false })
+    for (let i = 0; i < 12; i += 1) expect(s.masterChatSend(`aviso ${i}`).sent).toBe(true)
+    expect(s.masterChat(mundo).global).toHaveLength(12)
+  })
+
+  it('um jogador chamado Mestre não se passa pelo mestre: a linha dele não tem fromMaster', () => {
+    const { s } = mesa()
+    const id = idDoWelcome(s.handleMessage('c6', { type: 'join', code: CODE, name: 'Mestre' }, mundo))
+    s.assignToken(id, 'foice')
+    s.broadcast(comFoice)
+    const r = fala(s, 'c6', 'global', 'sou eu, o mestre', [], 'r1', comFoice)
+    const linhas = r.outbound.filter((o) => o.msg.type === 'chat.msg')
+    expect(linhas.length).toBeGreaterThan(0)
+    expect(JSON.stringify(linhas)).not.toContain('fromMaster')
+    expect(s.masterChat(comFoice).global[0]).not.toHaveProperty('fromMaster')
+  })
+})

@@ -1568,7 +1568,9 @@ export type LetterHostMessage = LetterPeersMessage | LetterSendResultMessage
  * CHAT: uma mensagem como todos a leem. `from` é o nome do jogador na sala;
  * `mentions` são os nomes (ou `mestre`) que o host confirmou, e a cópia que
  * vai a cada jogador leva só o nome dele, se foi marcado. Nunca leva a cena
- * nem o id de quem falou.
+ * nem o id de quem falou. `fromMaster` = quem falou foi o mestre (só no
+ * Global): a marca vem do host, nunca do nome, para um jogador chamado
+ * "Mestre" não se passar por ele.
  */
 export interface ChatEntry {
   id: string
@@ -1576,6 +1578,7 @@ export interface ChatEntry {
   from: string
   text: string
   mentions: string[]
+  fromMaster?: true
 }
 
 /** CHAT: as últimas mensagens do canal, a quem entra na sala ou troca de cena. Troca a lista inteira. */
@@ -2446,10 +2449,11 @@ export function parseLetterMessage(value: unknown): LetterHostMessage | null {
 /** Uma linha do CHAT: forma errada vira `null`; sai só com os campos conhecidos. */
 function parseChatEntry(value: unknown): ChatEntry | null {
   if (!isRecord(value)) return null
-  const { id, at, from, text, mentions } = value
+  const { id, at, from, text, mentions, fromMaster } = value
   if (!isBoundedString(id, 1, REQ_ID_MAX_LENGTH) || !isFiniteNumber(at) || !isRoomName(from)) return null
   if (!isBoundedString(text, 1, CHAT_TEXT_MAX_LENGTH) || !isChatMentionList(mentions)) return null
-  return { id, at, from, text, mentions: [...mentions] }
+  // Só o `true` marca: qualquer outro valor é linha de jogador.
+  return fromMaster === true ? { id, at, from, text, mentions: [...mentions], fromMaster } : { id, at, from, text, mentions: [...mentions] }
 }
 
 /**
