@@ -63,9 +63,9 @@ function channelsOf(chat: MasterChatState): Channel[] {
   ]
 }
 
-/** As linhas que o mestre ainda não viu: as dele nunca contam. */
-function unreadOf(channel: Channel, seen: ReadonlySet<string> | undefined): ChatEntry[] {
-  return channel.messages.filter((entry) => entry.fromMaster !== true && seen?.has(entry.id) !== true)
+/** As linhas que o mestre ainda não viu: as dele e as que voltaram do disco (`restoredIds`) nunca contam. */
+function unreadOf(channel: Channel, seen: ReadonlySet<string> | undefined, restored: ReadonlySet<string> | undefined): ChatEntry[] {
+  return channel.messages.filter((entry) => entry.fromMaster !== true && seen?.has(entry.id) !== true && restored?.has(entry.id) !== true)
 }
 
 function unreadLabel(count: number, mention: boolean): string {
@@ -97,7 +97,7 @@ export function MasterChatPanel({ chat, onSend, onDelete }: MasterChatPanelProps
   const current = channels.find((channel) => channel.id === channelId) ?? channels[0]
   const writable = current.id === GLOBAL
   const lastId = current.messages.at(-1)?.id ?? ''
-  const unreadByChannel = new Map(channels.map((channel) => [channel.id, unreadOf(channel, seen.get(channel.id))]))
+  const unreadByChannel = new Map(channels.map((channel) => [channel.id, unreadOf(channel, seen.get(channel.id), chat.restoredIds)]))
   const unreadTotal = [...unreadByChannel.values()].reduce((sum, list) => sum + list.length, 0)
   const mentionWaiting = [...unreadByChannel.values()].some((list) => list.some((entry) => mentionsMaster(entry.mentions)))
   const left = CHAT_TEXT_MAX_LENGTH - draft.length

@@ -17,6 +17,7 @@ import {
   type SavedExploration,
   type SavedTable,
 } from '../lib/savedTable'
+import type { ChatHistory } from '../lib/chatStore'
 import type { ChamadaAceita, MovimentoDeCabine } from '../lib/cabine'
 import { holdAlongSeats, type SeatHold } from '../lib/gatherParty'
 import { passengerIdsOf } from '../lib/vehicle'
@@ -88,6 +89,7 @@ import {
   NOTE_MAX_LENGTH,
   parsePlayerMessage,
   TRAVEL_DENY_TEXT_MAX_LENGTH,
+  type ChatEntry,
   type DoorRequestHow,
   type HostErrorReason,
   type LaserMessage,
@@ -310,6 +312,16 @@ export interface HostBridgeDeps {
   onDiceRoll?: (roll: HostDiceRoll) => void
   /** CHAT, leitura do mestre: o Global e as cenas com conversa, a cada linha nova ou apagada. */
   onMasterChatChange?: (chat: MasterChatState) => void
+  /**
+   * CHAT SALVO: a conversa guardada da mesa desta sala, lida ao abrir (com ou
+   * sem "Retomar": a conversa é da aventura, não dos assentos). Rejeitar =
+   * a sala abre sem histórico e o mestre vê um aviso. Ausente = sem disco.
+   */
+  loadChat?: () => Promise<ChatHistory>
+  /** CHAT SALVO: grava a linha nova no fim do canal (`sceneKey` `null` = Global). Rejeitar = aviso, o chat segue. */
+  appendChat?: (sceneKey: string | null, entry: ChatEntry) => Promise<void>
+  /** CHAT SALVO: o mestre apagou a linha `id`: ela sai do arquivo do canal. Rejeitar = aviso, o chat segue. */
+  deleteChat?: (sceneKey: string | null, id: string) => Promise<void>
   now?: () => number
 }
 
@@ -552,7 +564,8 @@ export interface HostBridge {
   masterChatSend(text: string): boolean
   /**
    * CHAT: o mestre apaga a linha `id` do Global (`sceneKey` `null`) ou da
-   * cena: some da tela de todos. `false` com a sala fechada ou a linha já fora.
+   * cena: some da tela de todos e do disco (`deleteChat`). `false` com a sala
+   * fechada ou a linha já fora.
    */
   masterChatDelete(sceneKey: string | null, id: string): boolean
   /**
@@ -796,6 +809,12 @@ function errorText(error: unknown): string {
 function reportError(context: string, error: unknown): void {
   useToastStore.getState().push('error', `${context}: ${errorText(error)}`)
 }
+
+/** CHAT SALVO: o disco recusou gravar (cheio, sem permissão). Uma vez por sala: o chat segue em memória. */
+export const CHAT_SAVE_FAILED_TEXT = 'O chat não está sendo salvo no disco. A conversa continua, mas não volta quando a sala reabrir.'
+
+/** CHAT SALVO: o histórico guardado não abriu. */
+export const CHAT_LOAD_FAILED_TEXT = 'Não deu para ler o chat salvo desta mesa. A sala abriu sem o histórico.'
 
 export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   const now = deps.now ?? Date.now
@@ -1123,6 +1142,27 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   /** CHAT: a tela do mestre relê os canais (a sessão só avisa quando um mudou). */
   const notifyMasterChat = () => {
     if (session !== null) deps.onMasterChatChange?.(session.masterChat(world()))
+  }
+
+  // CHAT SALVO: a recusa do disco já virou aviso nesta sala (um só, não um por fala).
+  let chatSaveWarned = false
+  /** Grava sem nunca derrubar o chat: erro, síncrono ou não, vira o aviso curto ao mestre. */
+  const persistChat = (write: () => Promise<void> | undefined) => {
+    const warn = () => {
+      if (chatSaveWarned) return
+      chatSaveWarned = true
+      useToastStore.getState().push('error', CHAT_SAVE_FAILED_TEXT)
+    }
+    try {
+      write()?.catch(warn)
+    } catch {
+      warn()
+    }
+  }
+  /** A linha que acabou de entrar num canal vai para o fim do arquivo dele. */
+  const persistChatLine = (result: HostResult) => {
+    const appended = result.chatAppended
+    if (appended !== undefined) persistChat(() => deps.appendChat?.(appended.sceneKey, appended.entry))
   }
 
   const notifySecretChecksIfChanged = () => {
@@ -2697,6 +2737,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     pruneCallToasts()
     if (result.pointAction !== undefined) askPointAction(result.pointAction)
     if (result.diceRoll !== undefined) deps.onDiceRoll?.(result.diceRoll)
+    persistChatLine(result)
     if (result.chatChanged === true) notifyMasterChat()
     if (result.seatClaim !== undefined) askSeatClaim(result.seatClaim)
     if (result.applyMove !== undefined) {
@@ -2874,6 +2915,20 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     unlisteners = []
   }
 
+  /**
+   * CHAT SALVO: a conversa guardada da mesa. Disco que não deixa ler não
+   * impede a sala de abrir: ela abre sem histórico, com um aviso ao mestre.
+   */
+  const loadSavedChat = async (): Promise<ChatHistory | undefined> => {
+    if (deps.loadChat === undefined) return undefined
+    try {
+      return await deps.loadChat()
+    } catch {
+      useToastStore.getState().push('error', CHAT_LOAD_FAILED_TEXT)
+      return undefined
+    }
+  }
+
   const openRoom = async (options: StartOptions): Promise<RoomInfo> => {
     try {
       // Lida antes de abrir: a sala nova regrava o arquivo assim que alguém muda de dono.
@@ -2881,6 +2936,8 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       const restoreSeats = saved?.seats ?? []
       // O explorado só vale com a mesa: sem assento, não há de quem ele seja.
       const restoreExploration = saved === null ? [] : (deps.loadExploration?.()?.seats ?? [])
+      // A conversa guardada é lida junto com a abertura no Rust (nunca lança: falha vira aviso).
+      const chatLoading = loadSavedChat()
       // Retomar pede o MESMO código: o link e a reconexão automática dos jogadores continuam valendo.
       // O Rust decide se dá (a porta pode ter mudado de dono); o que vale é o código que ele devolver.
       const preferredCode = preferredRoomCode(saved)
@@ -2891,6 +2948,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
         // Sem prazo: o mestre precisa do texto na tela enquanto repassa o código novo à mesa.
         useToastStore.getState().push('instrucao', roomCodeChangedText(saved.code, room.code))
       }
+      const restoreChat = deps.loadChat === undefined ? undefined : await chatLoading
       session = createHostSession({
         code: room.code,
         visionRadius: deps.visionRadius ?? DEFAULT_VISION_RADIUS,
@@ -2899,7 +2957,9 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
         getClock: deps.getClock,
         restoreSeats,
         restoreExploration,
+        restoreChat,
       })
+      chatSaveWarned = false
       // O diário é desta sala: os jogadores da anterior já não estão aqui para desfazer.
       setTravelLog([])
       unlisteners = [
@@ -2911,6 +2971,9 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       livenessTimer = setInterval(sweepSilent, LIVENESS_SWEEP_MS)
       currentRoom = room
       notifyPlayersIfChanged()
+      // A conversa guardada já está na tela do mestre ao abrir, sem contar como nova
+      // (sem ela, a tela já está vazia: fechar a sala a esvaziou).
+      if (restoreChat !== undefined && (restoreChat.global.length > 0 || restoreChat.scenes.length > 0)) notifyMasterChat()
       return room
     } catch (error) {
       removeListeners()
@@ -3245,6 +3308,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       const result = session.masterChatSend(text)
       if (!result.sent) return false
       void dispatch(result)
+      persistChatLine(result)
       notifyMasterChat()
       return true
     },
@@ -3254,6 +3318,8 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       const result = session.masterChatDelete(sceneKey, id)
       if (!result.deleted) return false
       void dispatch(result)
+      // Some para todos E sai do disco: o arquivo do canal é reescrito sem a linha.
+      persistChat(() => deps.deleteChat?.(sceneKey, id))
       notifyMasterChat()
       return true
     },

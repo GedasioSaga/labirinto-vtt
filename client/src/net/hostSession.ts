@@ -191,6 +191,7 @@ import { clampTokenActionReply, distanceInCells, type TokenAction, type TokenAct
 import { diffView, isEmptyViewPatch, type PlayerViewContent } from './viewPatch'
 import { LETTER_PENDING_MAX_PER_PLAYER, LETTER_SEND_MIN_INTERVAL_MS, type LetterVia } from '../lib/correio'
 import { CHAT_HISTORY_MAX, CHAT_MASTER_MENTION, CHAT_MASTER_NAME, CHAT_TEXT_MAX_LENGTH, cleanChatText, findMentions, nameSkeleton, takeChatTurn, type ChatChannel } from '../lib/chat'
+import type { ChatHistory } from '../lib/chatStore'
 import { readArrivalText } from '../lib/arrivalText'
 import { caravanCity, caravanMembers, caravanRegroup, caravanSize, caravanStep, isWorldMap, landingSpots, type CaravanMemory } from '../lib/caravan'
 
@@ -979,6 +980,18 @@ export interface MasterChatScene {
 export interface MasterChatState {
   global: ChatEntry[]
   scenes: MasterChatScene[]
+  /**
+   * CHAT SALVO: os ids das linhas que vieram do disco ao abrir a sala. São
+   * conversa de outra sessão, que o mestre já teve a chance de ler: não
+   * contam como não lidas nem acendem o `@mestre`. Ausente = nenhuma.
+   */
+  restoredIds?: ReadonlySet<string>
+}
+
+/** CHAT SALVO: a linha nova que o integrador grava no fim do canal (`sceneKey` `null` = Global). */
+export interface ChatAppended {
+  sceneKey: string | null
+  entry: ChatEntry
 }
 
 export interface HostResult {
@@ -1108,6 +1121,8 @@ export interface HostResult {
   diceRoll?: HostDiceRoll
   /** CHAT: um canal ganhou ou perdeu linha. O integrador relê `masterChat` para a tela do mestre. */
   chatChanged?: true
+  /** CHAT SALVO: a linha que acabou de entrar num canal; o integrador a grava no disco. */
+  chatAppended?: ChatAppended
   /**
    * Empréstimos encerrados (o dono voltou, ou o mestre tomou de volta): a
    * ficha saiu de quem a jogava. O integrador manda o mapa novo a todos — quem
@@ -1568,6 +1583,14 @@ export interface HostSessionOptions {
    * recorte de sempre, cena a cena. Ausente = todos começam do zero.
    */
   restoreExploration?: readonly SavedSeatExploration[]
+  /**
+   * CHAT SALVO (fatia B): a conversa guardada da mesa (`lib/chatStore.ts`),
+   * já lida do disco. Entra na história de cada canal como se tivesse sido
+   * dita nesta sala: quem chega (ou chega na cena) recebe as últimas
+   * `CHAT_HISTORY_MAX`. Não sai como mensagem nova e, para o mestre, não
+   * conta como não lida (`MasterChatState.restoredIds`). Ausente = sem histórico.
+   */
+  restoreChat?: ChatHistory
   /** O dado do host. Ausente = o gerador do sistema (`secureRollDie`); o teste injeta faces fixas. */
   rollDie?: RollDie
   /** Só para teste: troca `PATCH_MIN_SNAPSHOT_LENGTH` (0 = todo mapa recebe patch). */
@@ -1755,10 +1778,9 @@ export interface HostSession {
   masterChatSend(text: string): HostResult & { sent: boolean }
   /**
    * CHAT: o mestre apaga a linha `id` do Global (`sceneKey` `null`) ou da cena
-   * `sceneKey`: some da história e da tela de todos (`chat.delete`). O chat
-   * ainda não tem disco (fatia B) nem mídia (fatia C): quando tiverem, apagar
-   * reescreve o JSONL do canal e apaga o arquivo. `deleted: false` = a linha
-   * já não estava lá.
+   * `sceneKey`: some da história e da tela de todos (`chat.delete`). Com
+   * `deleted: true`, o integrador tira a linha do JSONL do canal (fatia B;
+   * mídia, fatia C, não existe). `deleted: false` = a linha já não estava lá.
    */
   masterChatDelete(sceneKey: string | null, id: string): HostResult & { deleted: boolean }
   /**
@@ -3081,11 +3103,18 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   // tela de espera. Saem como `unread` no caderno da volta até ele voltar jogando:
   // sem isso o bilhete chegava mudo.
   const unseenLetters = new Map<string, Set<string>>()
-  // CHAT DOS JOGADORES — as últimas `CHAT_HISTORY_MAX` de cada canal, só em
-  // memória (a fatia B grava em disco). A cena é pela chave (`sceneKey`), que
-  // nunca sai para o jogador: ele só lê 'cena' ou 'global'.
-  const globalChat: ChatEntry[] = []
+  // CHAT DOS JOGADORES — as últimas `CHAT_HISTORY_MAX` de cada canal. A sala
+  // abre com a conversa guardada (`restoreChat`); cada linha nova sai em
+  // `chatAppended` para o integrador gravar. A cena é pela chave (`sceneKey`),
+  // que nunca sai para o jogador: ele só lê 'cena' ou 'global'.
+  const copyChatEntry = (entry: ChatEntry): ChatEntry => ({ ...entry, mentions: [...entry.mentions] })
+  const globalChat: ChatEntry[] = (options.restoreChat?.global ?? []).slice(-CHAT_HISTORY_MAX).map(copyChatEntry)
   const sceneChats = new Map<string, ChatEntry[]>()
+  for (const { key, messages } of options.restoreChat?.scenes ?? []) {
+    if (messages.length > 0 && !sceneChats.has(key)) sceneChats.set(key, messages.slice(-CHAT_HISTORY_MAX).map(copyChatEntry))
+  }
+  // As linhas que vieram do disco: para o mestre, já lidas. Não muda depois de criada.
+  const chatRestoredIds: ReadonlySet<string> = new Set([globalChat, ...sceneChats.values()].flatMap((list) => list.map((entry) => entry.id)))
   // Por playerId: o relógio do ritmo de envio (`takeChatTurn`). Só o kick apaga.
   const chatPace = new Map<string, number>()
   // Por clientId: a cena do último `chat.history` de 'cena' que a conexão
@@ -8078,7 +8107,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       if (hears(otherId)) outbound.push({ clientId: otherClient, msg: { type: 'chat.msg', channel: msg.channel, msg: chatEntryFor(entry, otherId) } })
     }
     outbound.push({ clientId, msg: { type: 'chat.send.result', reqId: msg.reqId, ok: true } })
-    return { outbound, chatChanged: true }
+    return { outbound, chatChanged: true, chatAppended: { sceneKey: scene, entry: copyChatEntry(entry) } }
   }
 
   /**
@@ -8099,7 +8128,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     for (const [otherClient, otherId] of byClient) {
       if (statusOf(otherId) === 'playing') outbound.push({ clientId: otherClient, msg: { type: 'chat.msg', channel: 'global', msg: chatEntryFor(entry, otherId) } })
     }
-    return { outbound, chatChanged: true, sent: true }
+    return { outbound, chatChanged: true, chatAppended: { sceneKey: null, entry: copyChatEntry(entry) }, sent: true }
   }
 
   /**
@@ -8127,12 +8156,13 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   /** O que o mestre lê: cópias, para a tela dele nunca segurar a lista viva da sessão. */
   function masterChat(source: HostMapSource): MasterChatState {
     const scenes = allScenes(toWorld(source))
-    const copy = (list: readonly ChatEntry[]): ChatEntry[] => list.map((entry) => ({ ...entry, mentions: [...entry.mentions] }))
+    const copy = (list: readonly ChatEntry[]): ChatEntry[] => list.map(copyChatEntry)
     return {
       global: copy(globalChat),
       scenes: [...sceneChats]
         .filter(([, list]) => list.length > 0)
         .map(([key, list]) => ({ key, name: scenes.find((scene) => sceneKey(scene) === key)?.name ?? null, messages: copy(list) })),
+      ...(chatRestoredIds.size > 0 ? { restoredIds: chatRestoredIds } : {}),
     }
   }
 

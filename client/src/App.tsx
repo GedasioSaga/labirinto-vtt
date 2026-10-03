@@ -60,6 +60,7 @@ import { alternarPausaDosNpcs, useAlgumNpcAndando } from './stores/npcsAndando'
 import type { TravelLogEntry } from './lib/travelLog'
 import { withStoredTokens } from './lib/storedTokens'
 import { loadSavedExploration, loadSavedTable, savedTableSummary, storeSavedExploration, storeSavedTable, type TableStorage } from './lib/savedTable'
+import { createTauriChatStore, type ChatStore } from './lib/chatStore'
 import { applyGatherPlan, gatherCandidates, planGather, sendCandidates } from './lib/gatherParty'
 import { comConfronto, iniciarConfronto, proximaVez } from './lib/confronto'
 import { canShowPinNow, showPinNowCandidates, showPinNowWithNotice } from './components/ShowPinNowControls'
@@ -652,6 +653,14 @@ function App() {
   // A mesa da sala aberta é da aventura em que ela abriu: trocar de aventura no
   // meio não pode gravar os donos desta sala na mesa da outra.
   const roomTableIdRef = useRef<string | null>(null)
+  // CHAT SALVO: o disco do chat da mesa desta sala (`$APPDATA/chat/<tableId>/`).
+  // Um por mesa: a fila de gravação de uma aventura nunca escreve na de outra.
+  const chatStoreRef = useRef<{ tableId: string; store: ChatStore } | null>(null)
+  const roomChatStore = (): ChatStore => {
+    const tableId = roomTableIdRef.current ?? currentTableId()
+    if (chatStoreRef.current?.tableId !== tableId) chatStoreRef.current = { tableId, store: createTauriChatStore(tableId) }
+    return chatStoreRef.current.store
+  }
   const hostBridge = (): HostBridge => {
     if (!hostBridgeRef.current) {
       hostBridgeRef.current = createHostBridge({
@@ -661,6 +670,9 @@ function App() {
         saveTable: (table) => storeSavedTable(tableStorage(), roomTableIdRef.current ?? currentTableId(), table),
         loadExploration: () => loadSavedExploration(tableStorage(), roomTableIdRef.current ?? currentTableId()),
         saveExploration: (exploration) => storeSavedExploration(tableStorage(), roomTableIdRef.current ?? currentTableId(), exploration),
+        loadChat: () => roomChatStore().load(),
+        appendChat: (sceneKey, entry) => roomChatStore().append(sceneKey, entry),
+        deleteChat: (sceneKey, id) => roomChatStore().remove(sceneKey, id),
         getMap: () => useMapStore.getState().map,
         // Cada jogador vê a cena do token dele: a sessão precisa da aventura inteira, não só da cena aberta.
         getWorld: () => hostWorldOf(useAdventureStore.getState(), useMapStore.getState().map),
@@ -858,7 +870,7 @@ function App() {
     usePlayerLaserStore.getState().clear()
     useLaserStore.getState().setToggled(false)
     useDiceStore.getState().clear()
-    // A conversa vivia na sessão: sala nova começa sem chat.
+    // Sala fechada: o painel esvazia; a conversa guardada volta do disco quando a sala reabrir.
     setMasterChat(NO_MASTER_CHAT)
     useNoiseStore.getState().setArmed(false)
   }

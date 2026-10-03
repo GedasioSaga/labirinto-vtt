@@ -189,6 +189,16 @@ describe('MasterChatPanel', () => {
     expect(botaoChat().querySelector('.lb-mchat__badge')).toBeNull()
   })
 
+  it('chat salvo: o que voltou do disco (restoredIds) não conta como não lido nem acende o @mestre', () => {
+    const salvo = linha('s1', 'Ana', '@mestre lembra do baú?', ['mestre'])
+    render(conversa({ scenes: [{ key: 'm-salao', name: 'Salao Norte', messages: [salvo] }], restoredIds: new Set(['g1', 's1']) }))
+    expect(botaoChat().getAttribute('aria-label')).toBe('Chat')
+    expect(botaoChat().querySelector('.lb-mchat__badge')).toBeNull()
+    // A linha nova, dita nesta sala, conta normalmente.
+    render(conversa({ scenes: [{ key: 'm-salao', name: 'Salao Norte', messages: [salvo, linha('s2', 'Ana', 'e agora?')] }], restoredIds: new Set(['g1', 's1']) }))
+    expect(botaoChat().getAttribute('aria-label')).toBe('Chat (1 nova)')
+  })
+
   it('a fala do próprio mestre nunca conta como não lida', () => {
     render(conversa({ global: [{ ...linha('g1', 'Mestre', 'Pausa'), fromMaster: true }], scenes: [] }))
     expect(botaoChat().getAttribute('aria-label')).toBe('Chat')

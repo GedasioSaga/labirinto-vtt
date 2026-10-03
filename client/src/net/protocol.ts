@@ -2453,8 +2453,11 @@ export function parseLetterMessage(value: unknown): LetterHostMessage | null {
   }
 }
 
-/** Uma linha do CHAT: forma errada vira `null`; sai só com os campos conhecidos. */
-function parseChatEntry(value: unknown): ChatEntry | null {
+/**
+ * Uma linha do CHAT, da rede ou do disco do mestre (`lib/chatStore.ts`):
+ * forma errada vira `null`; sai só com os campos conhecidos.
+ */
+export function parseChatEntry(value: unknown): ChatEntry | null {
   if (!isRecord(value)) return null
   const { id, at, from, text, mentions, fromMaster } = value
   if (!isBoundedString(id, 1, REQ_ID_MAX_LENGTH) || !isFiniteNumber(at) || !isRoomName(from)) return null
