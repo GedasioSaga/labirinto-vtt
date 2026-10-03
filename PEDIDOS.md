@@ -1226,3 +1226,20 @@ Noite = esta sessão conduzida pelo main thread; o noite-runner continua encerra
   - Regra do usuário: no máximo 1 agente por vez, Opus high.
 - Entrega 1 (motor) feita e testada no navegador: anda casa a casa com A* (`lib/caminhoEmGrade.ts`), contorna parede, sem caminho fica parada e tenta de novo a cada 1 s; velocidade e ronda salvas; "Pausar NPCs" + Shift+P. Pendência anotada: a ROTINA ainda teleporta através de parede sem porta (usa o caminho antigo).
 - Entrega 2 (macro por ponto) feita e testada no navegador: falar, olhar, esperar, sumir, aparecer e esperar o mestre ("Seguir") rodando em ordem; anel no ponto aberto; linha do passo em duas linhas para caber na coluna. Fala não é gravada no arquivo. Rotina também deixou de atravessar parede (`36207197`).
+
+> 03/10/2026: "Eu quero fazer uma coisa, [Image #1] o conta gotas ta bugado e não ta funcionando, pode ajudar ? outra coisa o Token que eu tranformo em veiculo, o jogadores não estão conseguindo subir nele nem controlar o token."
+
+- Imagem 1: botão de conta-gotas + amostra de cor do seletor de cor nativo.
+- Causa: (1) o conta-gotas do seletor nativo não funciona no WebView2 (só no Chrome); (2) veículo: só o mestre embarca alguém, e mover a própria ficha desce do veículo (item 1 do "fica para depois" do plano do veículo).
+- Decidido (grilling, 03/10/2026): (A) conta-gotas próprio que pega a cor de um ponto do mapa, ao lado de cada cor; (B) veículo: botão "Subir" automático quando encostado (recusa se cheio), primeiro a bordo é o motorista e o movimento dele leva o veículo e todos, botão "Descer", andar a bordo não derruba ninguém. Ordem: A, depois B.
+- (A) conta-gotas feito (`8ab6197c`): pipeta ao lado das 12 cores do editor, pega a cor do pixel do mapa (sem seleção/guias), Esc cancela, Ctrl+Z desfaz; testado no navegador (Chromium), não conferido no exe. (B) veículo em andamento.
+- (B) veículo feito (`e6f2e521`): jogador sobe ("Subir no veículo"), primeiro a bordo dirige e leva todos, passageiro não anda ("A bordo: desça para andar"), "Descer", sucessão do motorista; e2e com 2 jogadores no Chromium. Pendências: Subir não conhece a vez da iniciativa; viagem do motorista não leva o veículo; mestre no Tauri não conferido.
+
+> 03/10/2026: "Resolva as pendencias."
+- Pendências do veículo: (1) "Subir" fora da vez na iniciativa; (2) viagem do motorista leva o veículo inteiro.
+- Feito (`412b339c`): fora da vez "Subir"/"Descer" somem; viagem do motorista leva o veículo e todos; passageiro recebe "A bordo: desça para viajar". Sobras: cartão do pino mostra "Passar" à passageira; atalho na mesma cena pode pôr passageiro na parede; diário mostra o nome do veículo; colega a bordo lê "O mestre levou você".
+
+> 03/10/2026: "corrija essas sobras e na parte de colocar iamgem de token eu quero que você permita eu arrastar uma imagem e colocar uma imagem igual ao que eu faço com os pinos [Image #2]"
+- Imagem 2: seção "IMAGEM DO TOKEN" do painel (nome do arquivo, "Trocar imagem...", "Remover imagem (voltar ao círculo)").
+- Fila: (1) 4 sobras do veículo; (2) área de arrastar/colar imagem no token, como `components/PinImageDrop.tsx`.
+- Feito: sobras do veículo (`c537f629`) e arrastar/colar imagem no token (`ea129299`, só PNG/JPG/WebP/GIF até 25 MB; testado no navegador, não no exe). Sobras: colega a bordo não aparece no cartão "entrou em" do mestre; atalho na mesma cena sem aviso a quem vai a bordo.

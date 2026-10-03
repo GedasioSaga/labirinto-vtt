@@ -1194,3 +1194,32 @@ Pedido do usuário: imagem do pino por Ctrl+V/arrastar; patrulha automática (mo
 - `npm run tauri:build` exit 0; exe 0.4.9 abre janela "Labirinto" respondendo.
 - Release: https://github.com/GedasioSaga/labirinto-vtt/releases/tag/v0.4.9 — `Labirinto_0.4.9_x64-setup.exe` 2318425 bytes sha256 d4ba557ce20ed89ffc51fef92998e51eda75669c74ecb0f018d780938b1e3b08; `Labirinto_0.4.9_x64_en-US.msi` 3006464 bytes sha256 f2c33663abf05fa0d21cc751afc53db17ad0b37e098a485fd2e0499a95628e97.
 - Não rodado: Playwright e2e inteiro; arrastar arquivo do Explorer no exe; instalação em máquina limpa.
+
+### 03/10/2026: release v0.4.10 (`1c3e1444`)
+
+## Objetivo
+Pedido do usuário: "faz o push e o instalador". Release v0.4.10 com o que entrou desde a v0.4.9: conta-gotas que pega cor do mapa (`8ab6197c`), jogador sobe/dirige/desce do veículo (`e6f2e521`, `412b339c`, `c537f629`), imagem do token por arrastar/colar (`ea129299`).
+
+## Estado atual
+- main = origin/main @ `1c3e1444` (versão 0.4.10 em `client/package.json`, `package.json`, `desktop/src-tauri/Cargo.toml`, `Cargo.lock`, `tauri.conf.json`; identifier `com.labirinto.app`) + este commit de docs. Tag anotada `v0.4.10`.
+- Release publicada: https://github.com/GedasioSaga/labirinto-vtt/releases/tag/v0.4.10 com os 2 instaladores.
+- Escada espiral parcial segue fora de commit (backup `scratchpad/escada-parcial-backup/escada-0410.patch`; stash só dos 4 arquivos durante a release, devolvida depois).
+
+## Próximos passos
+- Veículo: colega a bordo não aparece no cartão "entrou em" do mestre.
+- Veículo: atalho na mesma cena não avisa a quem vai a bordo.
+- Conferir no exe (não feito): arrastar imagem do Explorer para pino/token; conta-gotas.
+- Fila do usuário em PEDIDOS.md. Regra do usuário: no máximo 1 agente por vez, Opus high.
+
+## Critério de pronto
+- Release v0.4.10 no GitHub com `Labirinto_0.4.10_x64-setup.exe` e `Labirinto_0.4.10_x64_en-US.msi`, sha256 dos assets igual ao dos arquivos locais; `labirinto.exe` ProductVersion 0.4.10.
+
+## Evidência
+- Com a escada em stash: `rtk proxy npx tsc --noEmit` exit 0; `rtk proxy npx tsc --noEmit -p tsconfig.e2e.json` exit 0.
+- `rtk proxy npx vitest run` (antes da versão): Test Files 1 failed | 1305 passed (1306), Tests 1 failed | 11677 passed (11678), 246,8 s. Única falha `src/net/hostSession.custoCom7.test.ts` (maxMs com 7 jogadores acima do teto sob carga); sozinho: 1 passed (1).
+- gitleaks não instalado; grep de padrões de segredo (api key, secret, password, chave privada, AKIA, ghp_/github_pat_, sk-, xox, AIza) no diff `v0.4.9..HEAD` (67 arquivos) e nos nomes de arquivo (.env/.pem/.key): nada.
+- `npm run tauri:build`: exit 0, "Finished 2 bundles".
+- Fumaça: `target/release/labirinto.exe` ProductVersion/FileVersion 0.4.10; janela "Labirinto" Responding=True, ~28 MB.
+- Push: `origin/main` 3bad8a2e..1c3e1444 (fast-forward) e tag `v0.4.10`.
+- Assets (`gh release view v0.4.10`, digest igual ao local): `Labirinto_0.4.10_x64-setup.exe` 2322496 bytes sha256 54a0b998a213ac8a97ec6d90aa877afac87e9564060c0acc5631ba021c5d9b31; `Labirinto_0.4.10_x64_en-US.msi` 3010560 bytes sha256 cbde20113ba778fb015b66d8810eeed28ac93e8f26bb07ae9028d415311edcf7.
+- Não rodado: Playwright e2e inteiro; instalação em máquina limpa; arrastar do Explorer e conta-gotas no exe.
