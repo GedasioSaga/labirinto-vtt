@@ -43,6 +43,10 @@ const {
   importBackgroundImage,
   importPropImage,
   importTokenImage,
+  importTokenImageFromBlob,
+  MAX_TOKEN_IMAGE_BYTES,
+  TOKEN_IMAGE_TYPE_MESSAGE,
+  TOKEN_IMAGE_SIZE_MESSAGE,
   ImagePickerUnavailableError,
   IMAGE_PICKER_UNAVAILABLE_MESSAGE,
   MAX_BACKGROUND_SIDE,
@@ -319,5 +323,39 @@ describe('importTokenImage', () => {
     await importTokenImage('C:\\imgs\\heroi.png', 'C:\\maps\\map_1', 'token123')
 
     expect(computeResampleDimensionsMock).toHaveBeenCalledWith(200, 100, MAX_PROP_SIDE)
+  })
+})
+
+describe('importTokenImageFromBlob: imagem colada ou solta no token', () => {
+  const png = () => new Blob([new Uint8Array([9, 8, 7])], { type: 'image/png' })
+
+  it('grava o MESMO arquivo do "Trocar imagem..." (token_<id>_original.<ext>) com os bytes colados, e libera a pasta do mapa', async () => {
+    const result = await importTokenImageFromBlob(png(), 'C:\\maps\\map_1', 'token123')
+
+    expect(result.destPath).toBe('C:\\maps\\map_1\\token_token123_original.png')
+    expect(writeFileMock).toHaveBeenCalledWith('C:\\maps\\map_1\\token_token123_original.png', new Uint8Array([9, 8, 7]))
+    expect(invokeMock).toHaveBeenCalledWith('grant_fs_access', { path: 'C:\\maps\\map_1' })
+    // Nada lido do disco: os bytes já vieram do colar/soltar.
+    expect(readFileMock).not.toHaveBeenCalled()
+  })
+
+  it('JPEG vira .jpg; passa do teto, também gera token_<id>.webp com MAX_PROP_SIDE', async () => {
+    computeResampleDimensionsMock.mockReturnValue({ width: 512, height: 256, needsResample: true })
+    const result = await importTokenImageFromBlob(new Blob([new Uint8Array([1])], { type: 'image/jpeg' }), 'C:\\maps\\map_1', 't9')
+
+    expect(writeFileMock).toHaveBeenNthCalledWith(1, 'C:\\maps\\map_1\\token_t9_original.jpg', expect.any(Uint8Array))
+    expect(result.destPath).toBe('C:\\maps\\map_1\\token_t9.webp')
+    expect(computeResampleDimensionsMock).toHaveBeenCalledWith(200, 100, MAX_PROP_SIDE)
+  })
+
+  it('tipo fora da lista do diálogo (SVG) é recusado sem gravar nada', async () => {
+    await expect(importTokenImageFromBlob(new Blob(['<svg/>'], { type: 'image/svg+xml' }), 'C:\\maps\\map_1', 't1')).rejects.toThrow(TOKEN_IMAGE_TYPE_MESSAGE)
+    expect(writeFileMock).not.toHaveBeenCalled()
+  })
+
+  it('acima do teto de bytes é recusada sem gravar nada', async () => {
+    const grande = { type: 'image/png', size: MAX_TOKEN_IMAGE_BYTES + 1, arrayBuffer: async () => new ArrayBuffer(0) } as unknown as Blob
+    await expect(importTokenImageFromBlob(grande, 'C:\\maps\\map_1', 't1')).rejects.toThrow(TOKEN_IMAGE_SIZE_MESSAGE)
+    expect(writeFileMock).not.toHaveBeenCalled()
   })
 })

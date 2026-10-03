@@ -26,14 +26,18 @@ const SEM_IMAGEM = 'Não veio imagem. Copie uma imagem (ou o arquivo dela) e ten
 
 interface PinImageDropProps {
   onImage: (blob: Blob) => void
+  /** Nome da área para leitor de tela: de quem é a imagem. Ausente = a do ponto de interesse. */
+  rotulo?: string
 }
 
 /**
- * Área do painel do pino que recebe imagem de dois jeitos: arrastando um
- * arquivo para cima dela, ou clicando nela e colando com Ctrl+V. O terceiro
- * jeito, o diálogo de arquivo, continua no botão logo abaixo.
+ * Área do painel que recebe imagem de dois jeitos: arrastando um arquivo para
+ * cima dela, ou clicando nela e colando com Ctrl+V. O terceiro jeito, o
+ * diálogo de arquivo, continua no botão logo abaixo. Nasceu no painel do pino
+ * e serve também à imagem do token (`TokenImageControls`): o que muda é só o
+ * `rotulo` e o que `onImage` faz com o arquivo.
  */
-export function PinImageDrop({ onImage }: PinImageDropProps) {
+export function PinImageDrop({ onImage, rotulo = 'Colar ou soltar imagem do ponto de interesse' }: PinImageDropProps) {
   const [arrastando, setArrastando] = useState(false)
   const [aviso, setAviso] = useState<string | null>(null)
 
@@ -49,7 +53,7 @@ export function PinImageDrop({ onImage }: PinImageDropProps) {
       className={`lb-pin-image-drop${arrastando ? ' lb-pin-image-drop--over' : ''}`}
       tabIndex={0}
       role="region"
-      aria-label="Colar ou soltar imagem do ponto de interesse"
+      aria-label={rotulo}
       {...{ [ATRIBUTO_COLA_IMAGEM]: '' }}
       onPaste={(event) => {
         if (receber(event.clipboardData)) event.preventDefault()

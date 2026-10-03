@@ -70,6 +70,12 @@ describe('PinImageDrop', () => {
     expect(onImage).toHaveBeenCalledWith(png)
   })
 
+  it('sem rótulo, a área continua sendo a do ponto de interesse; com rótulo, diz de quem é', () => {
+    expect(montar(vi.fn()).getAttribute('aria-label')).toBe('Colar ou soltar imagem do ponto de interesse')
+    act(() => root.render(<PinImageDrop onImage={vi.fn()} rotulo="Colar ou soltar imagem do token" />))
+    expect(container.querySelector('[role="region"]')?.getAttribute('aria-label')).toBe('Colar ou soltar imagem do token')
+  })
+
   it('colar sem imagem avisa e não entrega nada', () => {
     const onImage = vi.fn()
     disparar(montar(onImage), 'paste', 'clipboardData', transferencia([texto]))

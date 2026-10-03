@@ -70,9 +70,18 @@ interface ImportedImage {
 async function importImageAsset(sourcePath: string, mapDir: string, baseName: string, maxSide: number): Promise<ImportedImage> {
   const sourceDir = await dirname(sourcePath)
   await invoke('grant_fs_access', { path: sourceDir })
+  const bytes = await readFile(sourcePath)
+  return importImageBytes(bytes, sourcePath.split('.').pop() ?? 'png', mapDir, baseName, maxSide)
+}
+
+/**
+ * O miolo de `importImageAsset`, com os bytes já na mão (de um arquivo lido
+ * do disco, ou de uma imagem colada/solta): grava o original e, se passa do
+ * teto, a versão reamostrada em WebP, na pasta do mapa.
+ */
+async function importImageBytes(bytes: Uint8Array, originalExt: string, mapDir: string, baseName: string, maxSide: number): Promise<ImportedImage> {
   await invoke('grant_fs_access', { path: mapDir })
 
-  const bytes = await readFile(sourcePath)
   const blob = new Blob([bytes])
   const bitmap = await createImageBitmap(blob)
 
@@ -80,7 +89,6 @@ async function importImageAsset(sourcePath: string, mapDir: string, baseName: st
 
   await ensureDir(mapDir)
 
-  const originalExt = sourcePath.split('.').pop() ?? 'png'
   const originalDest = await join(mapDir, `${baseName}_original.${originalExt}`)
   await writeFile(originalDest, bytes)
 
@@ -179,6 +187,45 @@ export async function pinImageFromBlob(source: Blob): Promise<string> {
  *  1024px) — token com imagem não precisa de resolução maior que uma peça. */
 export async function importTokenImage(sourcePath: string, mapDir: string, tokenId: string): Promise<ImportedImage> {
   return importImageAsset(sourcePath, mapDir, `token_${tokenId}`, MAX_PROP_SIDE)
+}
+
+/**
+ * Extensão do original de uma imagem colada ou solta, pelo tipo que o
+ * navegador deu: as mesmas que o "Trocar imagem..." aceita no diálogo
+ * (`pickImageFile`). Outro tipo (SVG, BMP, HEIC…) = `null`.
+ */
+const EXTENSAO_DO_TIPO: Record<string, string> = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp', 'image/gif': 'gif' }
+
+export const TOKEN_IMAGE_TYPE_MESSAGE = 'essa imagem não é PNG, JPG, WebP nem GIF — os formatos que o token aceita'
+
+/**
+ * Teto, em bytes, da imagem colada ou solta no token. O original é gravado
+ * inteiro na pasta do mapa (como o do diálogo), e um arrasto errado não pode
+ * despejar um arquivo gigante lá. O diálogo não tem teto porque a pessoa
+ * escolheu o arquivo pelo nome; aqui pode ter vindo qualquer coisa.
+ */
+export const MAX_TOKEN_IMAGE_BYTES = 25 * 1024 * 1024
+
+export const TOKEN_IMAGE_SIZE_MESSAGE = `essa imagem passa de ${MAX_TOKEN_IMAGE_BYTES / (1024 * 1024)} MB`
+
+/**
+ * Mesmo resultado de `importTokenImage`, a partir da imagem já em memória: a
+ * que o mestre COLA (Ctrl+V) ou SOLTA arrastando em "Imagem do token". Mesmo
+ * arquivo na pasta do mapa (`token_<id>_original.<ext>`, e a versão WebP
+ * reamostrada quando passa de `MAX_PROP_SIDE`). Recusa tipo fora da lista do
+ * diálogo e imagem acima de `MAX_TOKEN_IMAGE_BYTES`.
+ */
+export async function importTokenImageFromBlob(source: Blob, mapDir: string, tokenId: string): Promise<ImportedImage> {
+  const ext = EXTENSAO_DO_TIPO[source.type]
+  if (ext === undefined) throw new Error(TOKEN_IMAGE_TYPE_MESSAGE)
+  if (source.size > MAX_TOKEN_IMAGE_BYTES) throw new Error(TOKEN_IMAGE_SIZE_MESSAGE)
+  const bytes = new Uint8Array(await source.arrayBuffer())
+  return importImageBytes(bytes, ext, mapDir, `token_${tokenId}`, MAX_PROP_SIDE)
+}
+
+/** A cópia que viaja ao jogador (`buildTokenSharedPhoto`), da imagem colada ou solta. */
+export async function buildTokenSharedPhotoFromBlob(source: Blob): Promise<string> {
+  return buildTokenPhotoData(source)
 }
 
 /**

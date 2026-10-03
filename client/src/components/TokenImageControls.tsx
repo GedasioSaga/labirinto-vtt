@@ -1,8 +1,14 @@
 import { tokenPhotoLabel } from '../lib/tokenPhoto'
+import { PinImageDrop } from './PinImageDrop'
 
 export interface TokenImageControlsProps {
   image: string | null
   onChangeImage: () => void
+  /**
+   * Imagem colada (Ctrl+V) ou solta arrastando na área acima do botão — o
+   * mesmo caminho de gravar do "Trocar imagem...". Ausente = sem a área.
+   */
+  onImageBlob?: (blob: Blob) => void
   onClearImage: () => void
   /** Guarda este token no acervo global do app (lib/tokenLibrary.ts). */
   onSaveToLibrary: () => void
@@ -21,10 +27,12 @@ export interface TokenImageControlsProps {
  * `false`, o que cairia no branch "tem imagem" e quebraria em
  * `image.split(...)`. Mesma classe de bug corrigida em tokensRenderer.ts.
  */
-export function TokenImageControls({ image, onChangeImage, onClearImage, onSaveToLibrary }: TokenImageControlsProps) {
+export function TokenImageControls({ image, onChangeImage, onImageBlob, onClearImage, onSaveToLibrary }: TokenImageControlsProps) {
   return (
     <section className="lb-section">
       <h2 className="lb-eyebrow">Imagem do token</h2>
+      {/* A mesma área do painel do pino: arrastar ou colar, com o diálogo logo abaixo. */}
+      {onImageBlob !== undefined && <PinImageDrop rotulo="Colar ou soltar imagem do token" onImage={onImageBlob} />}
       {!image ? (
         <button type="button" className="lb-btn lb-btn--block" onClick={onChangeImage}>
           Escolher imagem...

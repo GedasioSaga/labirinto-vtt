@@ -115,7 +115,17 @@ import { ligacaoLevarFicha } from './stores/levarFicha'
 import type { ActiveAlarmView } from './components/SceneAlarmControls'
 import { PinsSection } from './components/PinsSection'
 import { pinDirectory } from './lib/pinDirectory'
-import { pickBackgroundImage, importBackgroundImage, pickImageFile, importPinImage, pinImageFromBlob, importTokenImage, buildTokenSharedPhoto } from './lib/imageImport'
+import {
+  pickBackgroundImage,
+  importBackgroundImage,
+  pickImageFile,
+  importPinImage,
+  pinImageFromBlob,
+  importTokenImage,
+  importTokenImageFromBlob,
+  buildTokenSharedPhoto,
+  buildTokenSharedPhotoFromBlob,
+} from './lib/imageImport'
 import { useTokenLibraryStore } from './stores/tokenLibraryStore'
 import {
   apagarDoAcervo,
@@ -1692,27 +1702,57 @@ function App() {
     try {
       const sourcePath = await pickImageFile()
       if (!sourcePath) return
-      const mapDir = await mapDirFor(map.id)
-      const imported = await importTokenImage(sourcePath, mapDir, tokenId)
-      // A cópia embutida sai junto: sem ela o jogador receberia o token sem
-      // foto nenhuma, porque o caminho do disco do mestre não atravessa o
-      // recorte (lib/fogFilter.ts).
-      //
-      // Melhor esforço, e não parte do gesto: se a redução falhar (formato que
-      // o `createImageBitmap` recusa, foto que não cabe no teto), a imagem do
-      // mestre entra do mesmo jeito — perder a foto INTEIRA porque a cópia não
-      // saiu seria trocar um problema pequeno por um grande. O aviso diz o que
-      // ficou faltando.
-      let shared: string | null = null
-      try {
-        shared = await buildTokenSharedPhoto(sourcePath)
-      } catch (err) {
-        reportFileError('preparar a foto do token para os jogadores (o token fica com a imagem só na sua tela)', err)
-      }
-      setTokenImage(tokenId, imported.destPath, shared)
+      await gravarImagemDoToken(
+        tokenId,
+        (mapDir) => importTokenImage(sourcePath, mapDir, tokenId),
+        () => buildTokenSharedPhoto(sourcePath),
+      )
     } catch (err) {
       reportFileError('trocar a imagem do token', err)
     }
+  }
+
+  /** Imagem colada (Ctrl+V) ou solta arrastando em "Imagem do token": o mesmo caminho do "Trocar imagem...". */
+  const handleTokenImageBlob = async (tokenId: string, blob: Blob) => {
+    try {
+      await gravarImagemDoToken(
+        tokenId,
+        (mapDir) => importTokenImageFromBlob(blob, mapDir, tokenId),
+        () => buildTokenSharedPhotoFromBlob(blob),
+      )
+    } catch (err) {
+      reportFileError('usar a imagem do token', err)
+    }
+  }
+
+  /**
+   * Grava a imagem do token pela pasta do mapa (`importar`) e a cópia que
+   * viaja ao jogador (`compartilhar`), e só então troca a foto (com histórico).
+   * Lança o erro de `importar`; o de `compartilhar` vira aviso e não segura a troca.
+   */
+  const gravarImagemDoToken = async (
+    tokenId: string,
+    importar: (mapDir: string) => Promise<{ destPath: string }>,
+    compartilhar: () => Promise<string>,
+  ) => {
+    const mapDir = await mapDirFor(map.id)
+    const imported = await importar(mapDir)
+    // A cópia embutida sai junto: sem ela o jogador receberia o token sem
+    // foto nenhuma, porque o caminho do disco do mestre não atravessa o
+    // recorte (lib/fogFilter.ts).
+    //
+    // Melhor esforço, e não parte do gesto: se a redução falhar (formato que
+    // o `createImageBitmap` recusa, foto que não cabe no teto), a imagem do
+    // mestre entra do mesmo jeito — perder a foto INTEIRA porque a cópia não
+    // saiu seria trocar um problema pequeno por um grande. O aviso diz o que
+    // ficou faltando.
+    let shared: string | null = null
+    try {
+      shared = await compartilhar()
+    } catch (err) {
+      reportFileError('preparar a foto do token para os jogadores (o token fica com a imagem só na sua tela)', err)
+    }
+    setTokenImage(tokenId, imported.destPath, shared)
   }
 
   /**
@@ -3025,6 +3065,7 @@ function App() {
             }}
             tokenImage={{
               onChangeImage: () => selectedToken && handleChangeTokenImage(selectedToken.id),
+              onImageBlob: (blob) => selectedToken && void handleTokenImageBlob(selectedToken.id, blob),
               onClearImage: () => selectedToken && setTokenImage(selectedToken.id, null),
               onSaveToLibrary: () => selectedToken && void handleSaveTokenToLibrary(selectedToken),
             }}
