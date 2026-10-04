@@ -70,7 +70,9 @@ describe('createFloorRenderer — trocar a cor não refaz o contorno', () => {
     r.draw(graphics, [peca()], ESTILO)
     const antes = contornos.n
     r.draw(graphics, [peca('#ff0000')], ESTILO)
-    expect(contornos.n - antes).toBe(1) // a camada da peça, não o chão de novo
+    // Peça única: a camada dela É o contorno do chão, já pronto (camadas do
+    // pincel, 03/10/2026). Antes era 1 (a camada recontornada); nunca o chão de novo.
+    expect(contornos.n - antes).toBe(0)
   })
 
   it('mover a peça (forma nova) refaz o contorno', () => {

@@ -131,8 +131,14 @@ async function limparAVista(page: Page): Promise<void> {
   await page.waitForTimeout(PAINT_MS)
 }
 
+/**
+ * A barra de ferramentas. Sem o escopo, "Chão" pegava DOIS botões: o da barra
+ * e a linha "Chão" da lista "Camadas do chão" no painel (peça sem cor própria).
+ */
+const barra = (page: Page) => page.getByRole('toolbar', { name: 'Ferramentas do mapa' })
+
 async function ferramenta(page: Page, label: 'Selecionar' | 'Chão'): Promise<void> {
-  await page.getByRole('button', { name: label, exact: true }).click()
+  await barra(page).getByRole('button', { name: label, exact: true }).click()
 }
 
 /**
@@ -142,7 +148,7 @@ async function ferramenta(page: Page, label: 'Selecionar' | 'Chão'): Promise<vo
  * procurado na mensagem.
  */
 async function escolherNoChao(page: Page, nome: RegExp, oQueElaProcura: string): Promise<void> {
-  const naBarra = page.getByRole('button', { name: nome })
+  const naBarra = barra(page).getByRole('button', { name: nome })
   if ((await naBarra.count()) > 0) {
     await naBarra.first().click()
     return
@@ -189,27 +195,17 @@ async function clicar(page: Page, mundo: Ponto): Promise<void> {
 }
 
 /**
- * O swatch de cor DA PEÇA selecionada. Deliberadamente sem depender do rótulo
- * que a feature vai escolher: é qualquer `input[type=color]` do painel que não
- * seja um dos que já existem hoje — e o que existe hoje para chão é
- * `#lb-floor-fill-color`, "Cor do chão", que vale para o mapa INTEIRO.
+ * CAMADAS DO PINCEL (03/10/2026): a pincelada soma na camada ATIVA, e a cor é
+ * da camada. Cada caminho com cor própria é uma camada própria — "Nova camada"
+ * antes de pintar, como a pessoa faria —, e a cor sai do quadradinho da linha
+ * da camada ativa em "Camadas do chão" (a que acabou de nascer).
  */
-function corDaPecaSelecionada(page: Page) {
-  return page.locator(
-    '.lb-inspector__body input[type="color"]' +
-      ':not(#lb-floor-fill-color):not(#lb-floor-stroke-color)' +
-      ':not(#lb-draw-color):not(#lb-grid-color):not(#lb-text-color)' +
-      ':not(#lb-region-color):not(#lb-light-color)',
-  )
-}
-
 async function pintarCaminhoComCor(page: Page, de: Ponto, ate: Ponto, hex: string): Promise<void> {
   await pegarOPincelDeBlocos(page, 1)
+  await page.getByRole('button', { name: '+ Nova camada', exact: true }).click()
   await pintar(page, de, ate)
-  await ferramenta(page, 'Selecionar')
-  await clicar(page, de)
-  const swatch = corDaPecaSelecionada(page)
-  await expect(swatch, `o caminho selecionado não tem cor própria — só existe "Cor do chão", do mapa inteiro`).toHaveCount(1)
+  const swatch = page.getByRole('list', { name: 'Camadas do chão' }).locator('li[data-ativa] input[type="color"]')
+  await expect(swatch, 'a camada recém-pintada não aparece como ativa, com cor própria, em "Camadas do chão"').toHaveCount(1)
   await swatch.fill(hex)
   await page.waitForTimeout(PAINT_MS)
 }

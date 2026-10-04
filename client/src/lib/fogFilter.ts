@@ -1120,6 +1120,24 @@ function floorInCells(piece: FloorPiece, cells: readonly string[]): FloorPiece |
   return piece.fillColor === undefined ? out : { ...out, fillColor: piece.fillColor }
 }
 
+/**
+ * A peça de chão como o jogador a recebe: sem o NOME que o mestre deu à camada
+ * ("Covil do dragão" contaria o que a sala é). Cacheado pela peça — a store é
+ * imutável, então a peça sem mudança volta o MESMO objeto e o "só o que mudou"
+ * do pacote não reenvia o chão inteiro a cada recorte. Sem nome: a própria peça.
+ */
+const floorWithoutName = new WeakMap<FloorPiece, FloorPiece>()
+function floorPieceForPlayer(piece: FloorPiece): FloorPiece {
+  if (piece.nome === undefined) return piece
+  let out = floorWithoutName.get(piece)
+  if (out === undefined) {
+    out = { ...piece }
+    delete out.nome
+    floorWithoutName.set(piece, out)
+  }
+  return out
+}
+
 /** Passo, em px de mundo, da amostragem da parede que entra no pedaço pintado: um quarto da célula do pincel. */
 const BRUSH_WALL_STEP = REVEAL_BRUSH_CELL / 4
 /** Acima disto (parede de ~50 mil px) a parede não é recortada e não sai: erra para o lado de esconder. */
@@ -3215,7 +3233,7 @@ export function filterMapForGroup(
   // MEMÓRIA SEM SPOILER: com memória, o chão sai na versão lembrada (`floor`); o recortado pelo pincel é o de agora.
   const playerFloor = recalledList(map.floor, floor, memoryMode, (f) => hiddenFloorIds.has(f.id)).flatMap((f): FloorPiece[] => {
     if (f.hidden) return []
-    if (!hiddenFloorIds.has(f.id)) return [f]
+    if (!hiddenFloorIds.has(f.id)) return [floorPieceForPlayer(f)]
     const clipped = floorCells.length > 0 ? floorInCells(f, floorCells) : null
     return clipped === null ? [] : [clipped]
   })

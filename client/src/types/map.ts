@@ -1620,7 +1620,16 @@ export interface FloorPiece extends NoPiso {
   fillColor?: string
   modifiers: FloorModifiers
   locked?: boolean
+  /** Escondida: some da tela do mestre E da do jogador (`lib/fogFilter.ts`). */
   hidden?: boolean
+  /**
+   * CAMADAS DO PINCEL (pedido de 03/10/2026) — nome que o mestre deu à peça
+   * ("Água", "Camada 2"). Só do mestre: o recorte do jogador tira o campo.
+   * `undefined` === nome automático (`lib/camadasDoChao.ts`), que é como todo
+   * mapa salvo antes deste campo abre — a folha de pincel de hoje vira
+   * "Camada 1".
+   */
+  nome?: string
 }
 
 export interface FloorStyle {

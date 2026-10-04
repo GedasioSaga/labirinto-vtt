@@ -92,16 +92,72 @@ export function paintFloor(
  * a do chão do mapa): senão o Chão desenhado por cima do Mar ficaria por baixo
  * dele. Antes da primeira colorida não precisa — a base já pinta essas.
  */
-export function buildColorLayers(floor: FloorPiece[], step: number | undefined, clip?: FloorClip): FloorColorLayer[] {
+export function buildColorLayers(
+  floor: FloorPiece[],
+  step: number | undefined,
+  clip?: FloorClip,
+  /** O contorno do chão inteiro já calculado (mesmo passo e recorte), se houver. */
+  contornoDoChao?: FloorPolygon[],
+): FloorColorLayer[] {
   const layers: FloorColorLayer[] = []
+  const clipKey = clip ? `${clip.minX},${clip.minY},${clip.maxX},${clip.maxY}` : ''
+  // Uma peça só soma chão (o mapa de uma camada): o contorno dela É o do chão
+  // inteiro — buraco antes dela não tira nada, buraco depois tira dos dois.
+  const somam = floor.filter((p) => p.op === 'add' && !p.hidden)
+  const unica = contornoDoChao !== undefined && somam.length === 1 ? somam[0] : null
   for (let i = 0; i < floor.length; i += 1) {
     const piece = floor[i]
     if (piece.hidden || piece.op !== 'add') continue
     if (piece.fillColor === undefined && layers.length === 0) continue
     const buracosDepois = floor.slice(i + 1).filter((p) => p.op === 'subtract' && !p.hidden)
-    layers.push({ color: piece.fillColor ?? null, polygons: buildFloorOutline([piece, ...buracosDepois], { step, clip }) })
+    let polygons: FloorPolygon[]
+    if (piece === unica && contornoDoChao) {
+      polygons = contornoDoChao
+      // Fica guardado: a próxima camada que nascer por cima não recontorna esta.
+      contornoPorPeca.set(piece, { step, clipKey, buracos: buracosDepois, polygons })
+    } else {
+      polygons = contornoDaCamada(piece, buracosDepois, step, clip, clipKey)
+    }
+    layers.push({ color: piece.fillColor ?? null, polygons })
   }
   return layers
+}
+
+interface ContornoGuardado {
+  step: number | undefined
+  clipKey: string
+  buracos: readonly FloorPiece[]
+  polygons: FloorPolygon[]
+}
+
+/**
+ * Contorno de cada camada de cor por PEÇA (camadas do pincel, 03/10/2026). A
+ * store é imutável: a camada em que ninguém pintou é o mesmo objeto, então
+ * pintar na Camada 2 não recontorna a Camada 1 — num balde de 100 × 100 casas
+ * por baixo, era esse recontorno que dobrava o custo de cada pincelada.
+ */
+const contornoPorPeca = new WeakMap<FloorPiece, ContornoGuardado>()
+
+function contornoDaCamada(
+  piece: FloorPiece,
+  buracos: readonly FloorPiece[],
+  step: number | undefined,
+  clip: FloorClip | undefined,
+  clipKey: string,
+): FloorPolygon[] {
+  const guardado = contornoPorPeca.get(piece)
+  if (
+    guardado !== undefined &&
+    guardado.step === step &&
+    guardado.clipKey === clipKey &&
+    guardado.buracos.length === buracos.length &&
+    guardado.buracos.every((b, k) => b === buracos[k])
+  ) {
+    return guardado.polygons
+  }
+  const polygons = buildFloorOutline([piece, ...buracos], { step, clip })
+  contornoPorPeca.set(piece, { step, clipKey, buracos, polygons })
+  return polygons
 }
 
 /**
@@ -181,16 +237,16 @@ export function createFloorRenderer(): FloorRenderer {
       const mesmoPasso = style.sampleStep === lastStep && clipKey === lastClipKey
       if (lastFloor === null || !mesmoPasso || !mesmaGeometriaDoChao(floor, lastFloor)) {
         polygons = buildFloorOutline(floor, { step: style.sampleStep, clip })
-        colorLayers = buildColorLayers(floor, style.sampleStep, clip)
+        colorLayers = buildColorLayers(floor, style.sampleStep, clip, polygons)
       } else if (mesmasCamadasDeCor(floor, lastFloor)) {
         colorLayers = recolorirCamadas(colorLayers, floor)
       } else {
-        colorLayers = buildColorLayers(floor, style.sampleStep, clip)
+        colorLayers = buildColorLayers(floor, style.sampleStep, clip, polygons)
       }
       lastFloor = floor
     } else if (style.sampleStep !== lastStep || clipKey !== lastClipKey) {
       polygons = buildFloorOutline(floor, { step: style.sampleStep, clip })
-      colorLayers = buildColorLayers(floor, style.sampleStep, clip)
+      colorLayers = buildColorLayers(floor, style.sampleStep, clip, polygons)
     }
     lastStep = style.sampleStep
     lastClipKey = clipKey

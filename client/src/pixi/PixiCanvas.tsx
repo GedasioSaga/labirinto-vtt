@@ -9,7 +9,7 @@ import type { MapData, Pin, Region, Wall } from '../types/map'
 import type { DrawingTool } from '../types/tools'
 import { useMapStore } from '../stores/mapStore'
 import { mapaDoPiso } from '../lib/pisos'
-import { baldeNoPiso, camadaTravadaNoPiso, hoverNoPiso, pecaDeChaoNoPiso, selecaoDoLacoNoPiso } from '../lib/pisoEmEdicao'
+import { camadaTravadaNoPiso, hoverNoPiso, pecaDeChaoNoPiso, selecaoDoLacoNoPiso } from '../lib/pisoEmEdicao'
 import { runClipboardShortcut } from '../stores/mapClipboard'
 import { pinTravelOf, unlinkedTravelPinIds, useAdventureStore } from '../stores/adventureStore'
 import { subscribeToGridRedraw } from '../stores/gridSubscription'
@@ -78,9 +78,10 @@ import {
   isFloorDragShape,
   pincelDeBlocosApaga,
 } from '../lib/floorTool'
-import { blocosDoTraco, buildBlocosShape, chaveDoBloco, type Bloco } from '../lib/floorBlocks'
+import { blocosDoTraco, chaveDoBloco, type Bloco } from '../lib/floorBlocks'
 import { mapFloorClip } from '../lib/floorContour'
 import { corDaCamada, pecaNaCamada } from '../lib/camadasDoChao'
+import { corDoPincel } from '../lib/camadasDoPincel'
 
 /** Referência estável: camada oculta não força recalcular o contorno a cada redraw. */
 const EMPTY_FLOOR: FloorPiece[] = []
@@ -3870,11 +3871,13 @@ export function PixiCanvas({
        */
       const acumularBlocos = (de: Point, ate: Point) => {
         if (!blocoCells) return
-        const { map, floorBrushSize, floorCamada } = useMapStore.getState()
+        const { map, floorBrushSize, floorCamada, pisoAtivo, camadaDoPincelId } = useMapStore.getState()
         for (const bloco of blocosDoTraco(de, ate, blocoCellSize, floorBrushSize)) {
           blocoCells.set(chaveDoBloco(bloco.col, bloco.row), bloco)
         }
-        drawBlocosDraft(draftGraphics, [...blocoCells.values()], blocoCellSize, corDaCamada(floorCamada) ?? map.floorStyle.fillColor, blocoApagando)
+        // A prévia na cor da camada ATIVA, que é onde a tinta vai cair.
+        const cor = corDoPincel(map, pisoAtivo, camadaDoPincelId, corDaCamada(floorCamada))
+        drawBlocosDraft(draftGraphics, [...blocoCells.values()], blocoCellSize, cor, blocoApagando)
       }
 
       /** Fecha o traço do pincel: uma peça nova (pintando) ou um apagar (botão direito ou Subtrair). */
@@ -3890,29 +3893,22 @@ export function PixiCanvas({
           useMapStore.getState().eraseFloorBlocks(cells, cell)
           return
         }
-        // O traço inteiro é UMA peça: é ela que o painel seleciona para ganhar
-        // cor própria, e é por isso que dois caminhos têm duas cores.
-        const shape = buildBlocosShape(cell, cells)
-        const { addFloorPiece, floorCamada } = useMapStore.getState()
-        if (shape) addFloorPiece(pecaNaCamada(buildFloorPiece(crypto.randomUUID(), shape, 'add'), floorCamada))
+        // CAMADAS DO PINCEL: o traço soma na camada ativa, sem tirar blocos
+        // das outras (`lib/camadasDoPincel.ts`). Dois caminhos de cores
+        // diferentes = duas camadas.
+        useMapStore.getState().paintFloorBlocks(cells, cell)
       }
 
       /**
-       * Balde: enche de chão a área em volta do clique, até o chão que já
-       * existe, as paredes, as linhas do mapa, a borda das salas e a borda do
-       * mapa. Sem nada para encher, calar seria repetir o defeito da porta sem
-       * parede, então a tela responde.
+       * Balde: enche a camada ativa na área em volta do clique, até as
+       * paredes, as portas, as linhas do mapa, a borda das salas, a borda do
+       * mapa e a tinta da própria camada — a das outras camadas não segura
+       * (`encherNaCamada`). Sem nada para encher, calar seria repetir o
+       * defeito da porta sem parede, então a tela responde.
        */
       const encherAreaFechada = (point: Point) => {
-        const { map, pisoAtivo, addFloorPiece, floorCamada } = useMapStore.getState()
-        const piece = baldeNoPiso(map, pisoAtivo, point, () => crypto.randomUUID())
-        if (!piece) {
-          useToastStore
-            .getState()
-            .push('info', 'Nada para encher aqui: o clique caiu em cima de chão ou fora do mapa.')
-          return
-        }
-        addFloorPiece(pecaNaCamada(piece, floorCamada))
+        if (useMapStore.getState().fillFloorArea(point) !== 'vazio') return
+        useToastStore.getState().push('info', 'Nada para encher aqui: o clique caiu em cima da camada ativa ou fora do mapa.')
       }
 
       /** Prévia do corredor: pontos já clicados + cursor; com 1 ponto só marca o ponto. */

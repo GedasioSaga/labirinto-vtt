@@ -262,13 +262,15 @@ const FLOOR_BRUSH_SIZE_GROUP: ToolVariantGroup = {
 }
 
 /**
- * Camada da próxima peça (pedido de 28/09/2026: "um chão é mar e outro é
- * chão normal"). A peça nasce com a cor da camada; quem fica por cima é a
- * ordem, que "Camadas do chão" no painel mostra e muda.
+ * Tinta da próxima peça (pedido de 28/09/2026: "um chão é mar e outro é
+ * chão normal"). A peça nasce com a cor da tinta; quem fica por cima é a
+ * ordem, que "Camadas do chão" no painel mostra e muda. Rótulo "Tinta", não
+ * "Camada", desde as camadas do pincel (03/10/2026): "Camada 2" é a camada
+ * em que se pinta, e a camada nova nasce com esta tinta.
  */
 const FLOOR_CAMADA_GROUP: ToolVariantGroup = {
   storeKey: 'floorCamada',
-  label: 'Camada',
+  label: 'Tinta',
   options: CAMADAS_DO_CHAO.map((camada) => ({ id: camada.id, label: camada.label, value: camada.id, description: camada.description })),
 }
 

@@ -15,7 +15,7 @@ import type { Corner, ResizeModifiers } from '../lib/objectTransform'
 import type { StairSizePreset } from '../lib/stairs'
 import { FLOOR_LAYER, clampFloorPolygonSides, type FloorShapeKind } from '../lib/floorTool'
 import { clampTamanhoDePincel, type Bloco, type TamanhoDePincel } from '../lib/floorBlocks'
-import type { CamadaDoChao } from '../lib/camadasDoChao'
+import { corDaCamada, type CamadaDoChao } from '../lib/camadasDoChao'
 import type { RoomLabelStylePatch } from '../lib/roomLabelStyle'
 import type { AparenciaDoMovelPatch } from '../lib/mobilia'
 import { paintRevealBrush as paintRevealBrushOnMap, type RevealBrushMode, type RevealBrushWidth } from '../lib/concealBrush'
@@ -24,7 +24,8 @@ import { inserirPinturaDeBalde, type BrushMode } from '../lib/baldeDeTinta'
 import { abrirVaoDosDoisLados, desabarParede as desabarParedeNoMapa, type CorteNaParede } from '../lib/abrirVao'
 import { abrirSalaParaCorredores as abrirSalaParaCorredoresNoMapa, bloqueioDaSala, corredoresDaSala, motivoSemCorredor, type MotivoSemCorredor } from '../lib/abrirCorredor'
 import { comEscadaNosPisos, comFichaNoPiso, comSelecaoNoPiso, ehPiso, mapaDoPiso, nascemNoPiso, pisoDe } from '../lib/pisos'
-import { apagarBlocosNoPiso, pinoNoPiso, selecaoNoPiso } from '../lib/pisoEmEdicao'
+import { pinoNoPiso, selecaoNoPiso } from '../lib/pisoEmEdicao'
+import { apagarNaCamada, avisoDaRecusa, encherNaCamada, pintarNaCamada, type ResultadoNaCamada } from '../lib/camadasDoPincel'
 import { linkDrawnWallToRoom } from '../lib/roomLink'
 import { amarrarAoEstado as amarrarNoMapa, type AmarraDeEstado } from '../lib/estadoDoMundo'
 import { comRotina } from '../lib/rotinaDoNpc'
@@ -439,6 +440,12 @@ interface MapStoreState {
    *  peça ao criar (`lib/camadasDoChao.ts`). Preferência de sessão. */
   floorCamada: CamadaDoChao
   setFloorCamada: (camada: CamadaDoChao) => void
+  /** CAMADAS DO PINCEL — a camada em que o pincel e o balde do Chão pintam
+   *  (id de `FloorPiece`, ou `NOVA_CAMADA` = a próxima pincelada abre uma).
+   *  `null` = a de cima do piso (`alvoDoPincel`). Preferência de sessão: fora
+   *  do mapa e do desfazer, como `floorCamada`. */
+  camadaDoPincelId: string | null
+  setCamadaDoPincel: (id: string | null) => void
   /** Objetos (mobília): o móvel que o próximo clique da ferramenta põe no mapa
    *  (`stores/mobiliaNoPonto.ts`). Preferência de sessão, fora do mapa e do
    *  desfazer — mesma classe de `floorCamada`. */
@@ -573,9 +580,16 @@ interface MapStoreState {
   reorderFloorPiece: (id: string, delta: number) => void
   moveFloorPiece: (id: string, dx: number, dy: number) => void
   moveFloorPieceLive: (id: string, dx: number, dy: number) => void
-  /** Botão direito do pincel de blocos: apaga as células numa entrada de
-   *  histórico só, e NENHUMA quando o gesto não achou chão para apagar. */
+  /** Botão direito do pincel de blocos: apaga as células SÓ da camada ativa
+   *  (`apagarNaCamada`) numa entrada de histórico só, e NENHUMA quando o
+   *  gesto não achou chão para apagar. */
   eraseFloorBlocks: (blocos: Bloco[], cell: number) => void
+  /** Pincelada do pincel de blocos: soma as células na camada ativa (ou abre
+   *  a camada nova), numa entrada de histórico só. */
+  paintFloorBlocks: (blocos: Bloco[], cell: number) => void
+  /** Balde do Chão na camada ativa. `'vazio'` = não havia o que encher;
+   *  `'recusado'` = camada travada ou escondida (o aviso já saiu). */
+  fillFloorArea: (point: { x: number; y: number }) => 'ok' | 'vazio' | 'recusado'
   setFloorStyle: (patch: Partial<FloorStyle>) => void
   /** Traços e marcadores numa entrada de histórico só. */
   addMapDetails: (lines: MapLine[], markers: MapMarker[]) => void
@@ -1506,6 +1520,18 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
     if (corte.salaSecretaPoupada) useToastStore.getState().push('info', SALA_SECRETA_SEGURA_O_VAO_TEXT)
   }
 
+  /** Gesto do pincel/balde numa camada: recusa vira aviso; o que não mudou o
+   *  mapa não gasta Ctrl+Z (arrastar a borracha por onde não havia chão). */
+  const aplicarNaCamada = (resultado: ResultadoNaCamada) => {
+    if (resultado.recusa) {
+      useToastStore.getState().push('info', avisoDaRecusa(resultado.recusa, resultado.nome ?? 'A camada'))
+      return
+    }
+    const atual = get().map
+    if (resultado.map !== atual) withHistory(() => resultado.map)
+    if (resultado.ativaId !== get().camadaDoPincelId) set({ camadaDoPincelId: resultado.ativaId })
+  }
+
   return {
     map: initialMap,
     past: [],
@@ -1551,6 +1577,7 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
     floorPolygonSides: 6,
     floorBrushSize: 1,
     floorCamada: 'chao',
+    camadaDoPincelId: null,
     mobiliaTipo: 'mesa',
     regionFillColor: '#3a7ad0',
     // Marrom, igual ao chão do mapa novo (minimapa do RE4): Sala nova não nasce azul.
@@ -1735,6 +1762,7 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
     setFloorPolygonSides: (sides) => set({ floorPolygonSides: clampFloorPolygonSides(sides) }),
     setFloorBrushSize: (tamanho) => set({ floorBrushSize: clampTamanhoDePincel(tamanho) }),
     setFloorCamada: (camada) => set({ floorCamada: camada }),
+    setCamadaDoPincel: (id) => set({ camadaDoPincelId: id }),
     setMobiliaTipo: (tipo) => set({ mobiliaTipo: tipo }),
     erasePartOfDrawing: (drawingId, center, radius) => {
       const { map } = get()
@@ -1788,12 +1816,21 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
     reorderFloorPiece: (id, delta) => withHistory((map) => mapFactory.reorderFloorPiece(map, id, delta)),
     moveFloorPiece: (id, dx, dy) => withHistory((map) => mapFactory.moveFloorPiece(map, id, dx, dy)),
     moveFloorPieceLive: (id, dx, dy) => set((state) => ({ map: mapFactory.moveFloorPiece(state.map, id, dx, dy) })),
+    // PISOS NA MESMA CENA: pincel, borracha e balde agem só no piso em edição.
     eraseFloorBlocks: (blocos, cell) => {
-      // PISOS NA MESMA CENA: a borracha fura só o chão do piso em edição.
-      const { map: atual, pisoAtivo } = get()
-      const proximo = apagarBlocosNoPiso(atual, pisoAtivo, blocos, cell, () => crypto.randomUUID())
-      // Arrastar a borracha por onde nao havia chao nao e mudanca: nao gasta Ctrl+Z.
-      if (proximo !== atual) withHistory(() => proximo)
+      const { map, pisoAtivo, camadaDoPincelId } = get()
+      aplicarNaCamada(apagarNaCamada(map, pisoAtivo, camadaDoPincelId, blocos, cell, () => crypto.randomUUID()))
+    },
+    paintFloorBlocks: (blocos, cell) => {
+      const { map, pisoAtivo, camadaDoPincelId, floorCamada } = get()
+      aplicarNaCamada(pintarNaCamada(map, pisoAtivo, camadaDoPincelId, blocos, cell, { novoId: () => crypto.randomUUID(), cor: corDaCamada(floorCamada) }))
+    },
+    fillFloorArea: (point) => {
+      const { map, pisoAtivo, camadaDoPincelId, floorCamada } = get()
+      const resultado = encherNaCamada(map, pisoAtivo, camadaDoPincelId, point, { novoId: () => crypto.randomUUID(), cor: corDaCamada(floorCamada) })
+      aplicarNaCamada(resultado)
+      if (resultado.recusa) return 'recusado'
+      return resultado.vazio ? 'vazio' : 'ok'
     },
     setFloorStyle: (patch) =>
       withHistory((map) => mapFactory.setFloorStyle(map, patch), chaveDeArrastoDeCor('floor-style', patch, ['fillColor', 'strokeColor'])),
@@ -2495,7 +2532,7 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
     loadMap: (map) => {
       typingEdit = null
       // Outro mapa começa no térreo: o piso em edição do anterior pode nem existir nele.
-      set({ map, selection: EMPTY_SELECTION, selectedConcealZoneId: null, selectedPinId: null, past: [], future: [], pisoAtivo: 0 })
+      set({ map, selection: EMPTY_SELECTION, selectedConcealZoneId: null, selectedPinId: null, past: [], future: [], pisoAtivo: 0, camadaDoPincelId: null })
     },
     undo: () => {
       const { past, map } = get()

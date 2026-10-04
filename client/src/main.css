@@ -1626,6 +1626,68 @@ body {
   cursor: default;
 }
 
+/* Camadas do pincel (03/10/2026): "Pintando em X" + "Nova camada" acima da
+   lista, e a camada ativa marcada por um filete de latão à esquerda — o mesmo
+   latão da peça selecionada, num lugar que não briga com ele. */
+.lb-floor-layers__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--lb-space-2);
+  margin-bottom: var(--lb-space-1);
+}
+
+.lb-floor-layers__ativa {
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-parchment-dim);
+}
+
+.lb-floor-layers__ativa strong {
+  color: var(--lb-color-brass);
+  font-weight: var(--lb-font-weight-semibold);
+}
+
+.lb-floor-layers__nova {
+  flex: 0 0 auto;
+  min-height: 28px;
+  padding: 0 var(--lb-space-2);
+  font-size: var(--lb-font-size-sm);
+}
+
+/* Cinco controles por linha (cor, olho, subir, descer, cadeado): botões e
+   vãos um pouco menores para "Camada 12" caber sem reticências. */
+.lb-floor-layers .lb-layers__row {
+  gap: var(--lb-space-1);
+}
+
+.lb-floor-layers .lb-iconbtn--sm {
+  width: 24px;
+  height: 24px;
+}
+
+.lb-layers__row[data-ativa] {
+  box-shadow: inset 2px 0 0 var(--lb-color-brass);
+  padding-left: var(--lb-space-2);
+}
+
+.lb-floor-layers__dica {
+  flex: 0 0 auto;
+  font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-parchment-faint);
+}
+
+.lb-floor-layers__rename {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 26px;
+  padding: 0 var(--lb-space-2);
+}
+
 /* Linha de explicação abaixo de um campo (modo de medição, link de cenário). */
 .lb-field__hint {
   margin: 0;

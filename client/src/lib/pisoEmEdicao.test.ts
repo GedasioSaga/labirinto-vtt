@@ -5,10 +5,10 @@ import type { FloorPiece, MapData, Region, Token, Wall } from '../types/map'
 import { selectEntitiesInArea } from './areaSelection'
 import { buildBlocosShape, centroDoBloco, type Bloco } from './floorBlocks'
 import { compileFloor } from './floorSdf'
-import { baldeNoPonto, buildFloorPiece, findFloorPieceAt } from './floorTool'
+import { buildFloorPiece, findFloorPieceAt } from './floorTool'
 import { resolveHoverHit, type HoverHitInput, type HoverTarget } from './hoverHitTest'
 import { createEmptyMap } from './mapFactory'
-import { apagarBlocosNoPiso, baldeNoPiso, camadaTravadaNoPiso, hoverNoPiso, pecaDeChaoNoPiso, selecaoDoLacoNoPiso } from './pisoEmEdicao'
+import { apagarBlocosNoPiso, camadaTravadaNoPiso, hoverNoPiso, pecaDeChaoNoPiso, selecaoDoLacoNoPiso } from './pisoEmEdicao'
 import { mapaDoPiso, pisoDe } from './pisos'
 import { findLockedLayerAt } from './selectionHitTest'
 
@@ -100,28 +100,6 @@ describe('selecaoDoLacoNoPiso — o laço pega só o piso em edição', () => {
     const esperado = selectEntitiesInArea(semPisos, LACO)
     const ids = selecaoDoLacoNoPiso(semPisos, 0, LACO).map((item) => item.id)
     expect(ids).toEqual([...esperado.walls, ...esperado.regions])
-  })
-})
-
-describe('baldeNoPiso — "já tem chão" é o chão do piso em edição', () => {
-  it('no 1º piso, o balde enche o miolo do anel mesmo com chão do térreo embaixo', () => {
-    const map: MapData = {
-      ...torre(),
-      floor: [pecaDeBlocos('chao-hall', quadrado(2, 6)), pecaDeBlocos('anel-bib', quadrado(2, 6, true), { piso: 1 })],
-    }
-    const ponto = centroDoBloco(CENTRO, CELL)
-    // O defeito: sobre o mapa inteiro, o térreo já tem chão ali e o balde recusava.
-    expect(baldeNoPonto(map, ponto, () => 'x')).toBeNull()
-
-    const peca = baldeNoPiso(map, 1, ponto, () => 'miolo')
-    expect(peca?.id).toBe('miolo')
-    expect(peca?.shape.kind).toBe('blocos')
-    expect(peca !== null && temChaoEm([peca], CENTRO)).toBe(true)
-  })
-
-  it('no térreo, onde já tem chão, o balde continua recusando', () => {
-    const map: MapData = { ...torre(), floor: [pecaDeBlocos('chao-hall', quadrado(2, 6))] }
-    expect(baldeNoPiso(map, 0, centroDoBloco(CENTRO, CELL), () => 'x')).toBeNull()
   })
 })
 

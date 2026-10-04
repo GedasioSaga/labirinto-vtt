@@ -1,7 +1,7 @@
 import type { FloorPiece, LayerId, MapData } from '../types/map'
 import { selectEntitiesInArea, type AreaRect } from './areaSelection'
 import type { Bloco } from './floorBlocks'
-import { apagarBlocosDoChao, baldeNoPonto, findFloorPieceAt } from './floorTool'
+import { apagarBlocosDoChao, findFloorPieceAt } from './floorTool'
 import { resolveHoverHit, type HoverHit, type HoverHitInput } from './hoverHitTest'
 import { comPiso, mapaDoPiso, pisoDe } from './pisos'
 import { findLockedLayerAt, type Point } from './selectionHitTest'
@@ -11,8 +11,8 @@ import type { SelectionKind } from '../types/tools'
 /**
  * PISOS NA MESMA CENA — as ferramentas do editor que MIRAM o mapa agem só no
  * piso em edição. O mestre vê um piso por vez (`mapaDoPiso`); o que está em
- * outro piso no mesmo lugar não aparece, então não pode ser pego pelo laço,
- * furado pela borracha de blocos, nem contar como "já tem chão" para o balde.
+ * outro piso no mesmo lugar não aparece, então não pode ser pego pelo laço
+ * nem furado pela borracha de blocos (o balde, ver `lib/camadasDoPincel.ts`).
  */
 
 /**
@@ -70,11 +70,6 @@ export function hoverNoPiso(input: HoverHitInput, piso: number): HoverHit {
  */
 export function camadaTravadaNoPiso(map: MapData, piso: number, point: Point): LayerId | null {
   return findLockedLayerAt(mapaDoPiso(map, piso), point)
-}
-
-/** Balde: a área fechada e o "já tem chão" são os do piso em edição. */
-export function baldeNoPiso(map: MapData, piso: number, point: Point, novoId: () => string): FloorPiece | null {
-  return baldeNoPonto(mapaDoPiso(map, piso), point, novoId)
 }
 
 /** Peça de chão sob o ponto, só entre as do piso em edição. */

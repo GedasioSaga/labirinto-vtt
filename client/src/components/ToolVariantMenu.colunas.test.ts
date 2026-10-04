@@ -27,10 +27,10 @@ describe('dividirEmColunas', () => {
   it('parte o menu de Chão ao meio, com o mesmo peso dos dois lados', () => {
     const colunas = dividirEmColunas(gruposDe('floor'), 2)
     expect(rotulos(colunas)).toEqual([
-      ['Forma', 'Camada'],
+      ['Forma', 'Tinta'],
       ['Tamanho do pincel', 'Operação', 'Lados do polígono'],
     ])
-    // 24 opções, 12 de cada lado, desde que a Camada entrou no Chão
+    // 24 opções, 12 de cada lado, desde que a Tinta (antes Camada) entrou no Chão
     // (28/09/2026).
     expect(pesos(colunas)).toEqual([12, 12])
   })

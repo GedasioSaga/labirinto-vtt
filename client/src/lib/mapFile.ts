@@ -414,7 +414,15 @@ function deserializeMapFields(json: string): MapData {
     // campo se desenhava. Valor que não é string (arquivo editado à mão, versão
     // futura) é descartado em vez de recusado: `new Color(...)` com lixo dentro
     // estouraria no render e levaria o mapa inteiro junto.
-    floor: entityList(parsed.floor).map((f) => (typeof f.fillColor === 'string' ? f : { ...f, fillColor: undefined })),
+    // `FloorPiece.nome` (camadas do pincel, 03/10/2026): mesma regra. Ausente
+    // = nome automático ("Camada 1"); nome que não é texto sai do arquivo.
+    floor: entityList(parsed.floor).map((f) => {
+      const comCor = typeof f.fillColor === 'string' ? f : { ...f, fillColor: undefined }
+      if (comCor.nome === undefined || typeof comCor.nome === 'string') return comCor
+      const semNome = { ...comCor }
+      delete semNome.nome
+      return semNome
+    }),
     floorStyle: parsed.floorStyle ?? { ...LEGACY_FLOOR_STYLE },
     lines: entityList(parsed.lines),
     markers: entityList(parsed.markers),

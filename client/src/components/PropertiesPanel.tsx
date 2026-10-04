@@ -479,8 +479,12 @@ export function PropertiesPanel({
   const legendaAventuraId = `${legendaId}-aventura`
   const legendaCenaId = `${legendaId}-cena`
   const temAventura = presente(scenes) || presente(worldState)
+  // Com o pincel/balde na mão a lista aparece mesmo sem chão: é nela que se
+  // vê onde a primeira pincelada vai cair ("Camada 1 · pinte para criar").
   const temCamadasDoChao =
-    floorLayers !== undefined && floorLayers.floor.length > 0 && (groups.has('floorStyle') || groups.has('floorPiece'))
+    floorLayers !== undefined &&
+    (floorLayers.floor.length > 0 || floorLayers.pincel !== undefined) &&
+    (groups.has('floorStyle') || groups.has('floorPiece'))
   const temCena = presente(objects) || groups.has('floorStyle') || groups.has('layers') || temCamadasDoChao
 
   const wallStyleSection = (

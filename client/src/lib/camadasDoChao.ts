@@ -5,8 +5,9 @@ import type { FloorPiece } from '../types/map'
  * normal"). Cada peça de chão já tem cor própria (`FloorPiece.fillColor`) e a
  * ordem da lista já decide quem fica por cima (`buildColorLayers`). O que
  * faltava era escolher a camada ANTES de pintar e ver as camadas numa lista.
- * Não há campo novo no mapa: a camada de uma peça é a cor dela, e o jogador
- * continua recebendo só a cor que já recebia.
+ * A "tinta" de uma peça é a cor dela, e o jogador continua recebendo só a
+ * cor que já recebia. As camadas do pincel (03/10/2026, mais abaixo) somam
+ * só `FloorPiece.nome`, que o recorte do jogador tira.
  */
 export type CamadaDoChao = 'chao' | 'mar' | 'grama' | 'terra' | 'pedra' | 'lava'
 
@@ -46,14 +47,62 @@ export function nomeDaCamadaDaPeca(piece: FloorPiece): string {
   return CAMADAS_DO_CHAO.find((c) => c.color !== null && c.color.toLowerCase() === cor)?.label ?? 'Cor própria'
 }
 
+/**
+ * CAMADA DO PINCEL (pedido de 03/10/2026: "crie camadas para as ferramentas
+ * de pincel, uma fica em cima da outra"). Cada camada é UMA peça de blocos que
+ * soma chão: o pincel e o balde pintam nela, e a ordem da lista — a mesma de
+ * sempre — decide quem cobre quem. Não há estrutura paralela: a lista
+ * "Camadas do chão" já era a lista das peças.
+ */
+export function ehCamadaDoPincel(piece: FloorPiece): boolean {
+  return piece.shape.kind === 'blocos' && piece.op === 'add'
+}
+
+const PREFIXO_DE_CAMADA = 'Camada'
+const NOME_DE_CAMADA = /^Camada (\d+)$/
+
+/**
+ * Nome da camada do pincel na tela: o que o mestre deu (`nome`) ou "Camada N",
+ * com N pela posição entre as camadas do pincel, de baixo para cima — a folha
+ * única de um mapa antigo vira "Camada 1".
+ */
+function nomesDasCamadasDoPincel(floor: readonly FloorPiece[]): Map<string, string> {
+  const nomes = new Map<string, string>()
+  let n = 0
+  for (const piece of floor) {
+    if (!ehCamadaDoPincel(piece)) continue
+    n += 1
+    nomes.set(piece.id, piece.nome ?? `${PREFIXO_DE_CAMADA} ${n}`)
+  }
+  return nomes
+}
+
+/** Nome de uma camada nova: "Camada N", um a mais que o maior N que já aparece. */
+export function proximoNomeDeCamada(floor: readonly FloorPiece[]): string {
+  let maior = 0
+  for (const nome of nomesDasCamadasDoPincel(floor).values()) {
+    const numero = NOME_DE_CAMADA.exec(nome)
+    if (numero) maior = Math.max(maior, Number(numero[1]))
+  }
+  return `${PREFIXO_DE_CAMADA} ${maior + 1}`
+}
+
+/** Nome que a peça mostra na lista e nos avisos. */
+export function nomeDaPeca(floor: readonly FloorPiece[], piece: FloorPiece): string {
+  return linhasDeCamada(floor, '').find((linha) => linha.id === piece.id)?.nome ?? nomeDaCamadaDaPeca(piece)
+}
+
 export interface LinhaDeCamada {
   id: string
-  /** "Mar", "Mar 2"... — o número separa peças da mesma camada. */
+  /** "Camada 2", "Mar", "Mar 2"... — o número separa peças da mesma camada. */
   nome: string
   op: FloorPiece['op']
   /** Cor que aparece na tela (a do mapa quando a peça não tem cor própria). */
   cor: string
   locked: boolean
+  hidden: boolean
+  /** Camada do pincel: é nela que o pincel e o balde podem pintar. */
+  pincel: boolean
   /** Posição na ordem de aplicação (0 = primeira, a de baixo). */
   index: number
 }
@@ -64,17 +113,23 @@ export interface LinhaDeCamada {
  * de editor de imagem.
  */
 export function linhasDeCamada(floor: readonly FloorPiece[], corDoChao: string): LinhaDeCamada[] {
+  const doPincel = nomesDasCamadasDoPincel(floor)
   const vistos = new Map<string, number>()
   const linhas = floor.map((piece, index) => {
-    const base = nomeDaCamadaDaPeca(piece)
-    const n = (vistos.get(base) ?? 0) + 1
-    vistos.set(base, n)
+    const automatico = (): string => {
+      const base = nomeDaCamadaDaPeca(piece)
+      const n = (vistos.get(base) ?? 0) + 1
+      vistos.set(base, n)
+      return n === 1 ? base : `${base} ${n}`
+    }
     return {
       id: piece.id,
-      nome: n === 1 ? base : `${base} ${n}`,
+      nome: doPincel.get(piece.id) ?? piece.nome ?? automatico(),
       op: piece.op,
       cor: piece.fillColor ?? corDoChao,
       locked: piece.locked === true,
+      hidden: piece.hidden === true,
+      pincel: doPincel.has(piece.id),
       index,
     }
   })

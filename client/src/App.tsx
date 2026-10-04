@@ -7,6 +7,9 @@ import { MasterChatPanel, NO_CHAT_UNREAD, type ChatUnread } from './components/M
 import { useDiceStore } from './stores/diceStore'
 import { PisoHud } from './components/PisoHud'
 import { temPisos } from './lib/pisos'
+import { corDaCamada, proximoNomeDeCamada } from './lib/camadasDoChao'
+import { alvoDoPincel, NOVA_CAMADA } from './lib/camadasDoPincel'
+import type { PincelNasCamadas } from './components/FloorLayersList'
 import { Toast } from './components/Toast'
 import { useToastStore, type ToastKind } from './stores/toastStore'
 import { ensinaOQueFazer } from './lib/erroQueEnsina'
@@ -587,6 +590,8 @@ function App() {
   const setFloorBrushSize = useMapStore((state) => state.setFloorBrushSize)
   const floorCamada = useMapStore((state) => state.floorCamada)
   const setFloorCamada = useMapStore((state) => state.setFloorCamada)
+  const camadaDoPincelId = useMapStore((state) => state.camadaDoPincelId)
+  const setCamadaDoPincel = useMapStore((state) => state.setCamadaDoPincel)
   const mobiliaTipo = useMapStore((state) => state.mobiliaTipo)
   const setMobiliaTipo = useMapStore((state) => state.setMobiliaTipo)
   const updateFloorPiece = useMapStore((state) => state.updateFloorPiece)
@@ -1499,6 +1504,19 @@ function App() {
   const selectedStair = singleSelection?.kind === 'stair' ? map.stairs.find((s) => s.id === singleSelection.id) ?? null : null
   const selectedFloorIndex = singleSelection?.kind === 'floor' ? map.floor.findIndex((p) => p.id === singleSelection.id) : -1
   const selectedFloorPiece = selectedFloorIndex >= 0 ? map.floor[selectedFloorIndex] : null
+  // CAMADAS DO PINCEL: com o Chão em Pincel de blocos ou Balde, a lista
+  // "Camadas do chão" marca onde a tinta cai e oferece "Nova camada".
+  const alvoDaTinta = alvoDoPincel(map.floor, pisoAtivo, camadaDoPincelId)
+  const pincelNasCamadas: PincelNasCamadas | undefined =
+    activeTool === 'floor' && (floorShapeKind === 'blocos' || floorShapeKind === 'balde')
+      ? {
+          ativaId: alvoDaTinta.tipo === 'camada' ? alvoDaTinta.peca.id : NOVA_CAMADA,
+          nomeDaNova: proximoNomeDeCamada(map.floor),
+          corDaNova: corDaCamada(floorCamada) ?? map.floorStyle.fillColor,
+          onAtivar: setCamadaDoPincel,
+          onNovaCamada: () => setCamadaDoPincel(NOVA_CAMADA),
+        }
+      : undefined
   // A5 — zona aberta no painel. Some sozinha se o Ctrl+Z tirar a zona do mapa.
   const selectedConcealZoneId = useMapStore((state) => state.selectedConcealZoneId)
   const selectedConcealZone = map.concealZones.find((z) => z.id === selectedConcealZoneId) ?? null
@@ -3502,6 +3520,9 @@ function App() {
               onToggleLock: (id, locked) => updateFloorPiece(id, { locked: locked || undefined }),
               onColorChange: (id, color) => updateFloorPiece(id, { fillColor: color }),
               onReorder: (id, delta) => reorderFloorPiece(id, delta),
+              onToggleHidden: (id, hidden) => updateFloorPiece(id, { hidden: hidden || undefined }),
+              onRename: (id, nome) => updateFloorPiece(id, { nome }),
+              pincel: pincelNasCamadas,
             }}
           />
         </div>
