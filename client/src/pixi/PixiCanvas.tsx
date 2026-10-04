@@ -1011,13 +1011,21 @@ export function PixiCanvas({
         areaTriggersGraphics,
         faccoesGraphics,
         conveyorsGraphics,
+        // PAREDES POR CIMA DA TINTA (pedido de 03/10/2026: "as paredes é para
+        // sempre ficar em cima da parte de pincel, até no balde"). O desenho
+        // do Pincel e a pintura do balde de tinta entram ANTES das paredes,
+        // portas e escadas — a pintura do balde anda uma célula por baixo do
+        // traço (`lib/baldeDeTinta.ts`) e, por cima, comia meia parede. É a
+        // mesma ordem da tela do jogador (`player/PlayerView.tsx`), que já
+        // desenhava os desenhos sob as paredes. O chão (`floorGraphics`) já
+        // estava lá embaixo.
+        drawingsGraphics,
+        secretDrawingsGraphics,
         wallsGraphics,
         doorsGraphics,
         stairsGraphics,
         secretStairsGraphics,
         roomNamesContainer,
-        drawingsGraphics,
-        secretDrawingsGraphics,
         textLabelsContainer,
         propsContainer,
         lightsContainer,
