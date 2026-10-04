@@ -143,10 +143,43 @@ describe('relevantPropertyGroups — as 6 seções "sempre visíveis" hoje (bug 
     expect(groups.has('floorStyle')).toBe(false)
   })
 
-  it('ferramenta Parede ativa MAS já existe uma Parede selecionada: volta a mostrar (momento de mapa por causa da seleção)', () => {
+  it('ferramenta Parede ativa E uma Parede selecionada: o painel é da parede, sem layers nem floorStyle', () => {
     const groups = groupsOf('wall', { wall: true })
-    expect(groups.has('layers')).toBe(true)
-    expect(groups.has('floorStyle')).toBe(true)
+    expect(groups.has('layers')).toBe(false)
+    expect(groups.has('floorStyle')).toBe(false)
+  })
+
+  // Pedido 03/10/2026: "Quando eu estou com a Sala selecionada aparece
+  // categorias que não são da Sala como o chão do mapa".
+  const SELECOES: Array<[string, Parameters<typeof relevantPropertyGroups>[1], PropertyGroupId[]]> = [
+    ['Sala', { region: true, regionIsRoom: true }, ['room', 'regionStyle', 'fill', 'itemTransform', 'playerVisibility']],
+    ['Região', { region: true }, ['regionStyle', 'fill', 'itemTransform', 'playerVisibility']],
+    ['Parede', { wall: true }, ['wallStyle', 'wallDoor']],
+    ['Porta', { wall: true, wallHasDoor: true }, ['wallStyle', 'wallDoor', 'doorKind']],
+    ['Escada', { stair: true }, ['stairControls', 'stairSize', 'playerVisibility']],
+    ['Objeto', { prop: true }, ['portal', 'itemTransform']],
+    ['Token', { token: true }, ['tokenImage', 'itemTransform']],
+    ['Chão-peça', { floorPiece: true }, ['floorPiece']],
+    ['Texto', { textLabel: true }, ['textLabel', 'playerVisibility']],
+    ['Desenho', { drawingKind: 'rect' }, ['drawingStyle', 'fill', 'playerVisibility']],
+    ['Luz', { light: true }, ['lightControls']],
+    ['Pino', { pin: true }, ['pin', 'playerVisibility']],
+    ['Zona oculta', { concealZone: true }, ['concealZone']],
+  ]
+  for (const [nome, selecao, doItem] of SELECOES) {
+    it(`Selecionar + ${nome} selecionado: só o que é do item — sem Chão do mapa nem Camadas`, () => {
+      const groups = groupsOf('select', selecao)
+      expect(groups.has('floorStyle'), 'floorStyle').toBe(false)
+      expect(groups.has('layers'), 'layers').toBe(false)
+      for (const g of doItem) expect(groups.has(g), g).toBe(true)
+    })
+  }
+
+  it('nada selecionado com Selecionar continua mostrando Chão do mapa e Camadas; a ferramenta Chão mantém o Chão do mapa', () => {
+    expect(groupsOf('select').has('floorStyle')).toBe(true)
+    expect(groupsOf('select').has('layers')).toBe(true)
+    expect(groupsOf('floor').has('floorStyle')).toBe(true)
+    expect(groupsOf('floor').has('layers')).toBe(false)
   })
 
   it('Grade, Medição, Alinhar grade e Link de cenário não são grupos do painel (vão para a janela de configurações do mapa)', () => {

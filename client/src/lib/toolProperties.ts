@@ -190,9 +190,10 @@ export function panelHeadingTool(activeTool: DrawingTool, hasSelection: boolean)
  * Pura: mesma entrada sempre devolve o mesmo `Set`, sem ler DOM/store/React.
  *
  * Camadas (e Chão) aparecem só num "momento de mapa" — ferramenta Selecionar
- * ativa OU já existe alguma seleção — nunca enquanto uma ferramenta de
- * DESENHO está ativa sem nada selecionado, que é quando empurravam as seções
- * da ferramenta pra fora da tela (DOSSIE-FEEDBACK-F4.md). Grade, Medição,
+ * ativa E nada selecionado — nunca enquanto uma ferramenta de DESENHO está
+ * ativa, que é quando empurravam as seções da ferramenta pra fora da tela
+ * (DOSSIE-FEEDBACK-F4.md), nem com um item selecionado, quando o painel é do
+ * item (a Sala selecionada mostrava "Chão do mapa" como se fosse dela). Grade, Medição,
  * Alinhar grade e Link de cenário não são mais grupos daqui: são
  * configuração do mapa e saem do painel. `selection` (SelectionControls) fica de fora dessa
  * regra: tem o botão "Adicionar token", que não depende de haver seleção —
@@ -344,9 +345,16 @@ export function relevantPropertyGroups(
   // largura). Não há "pincel selecionado" — o que ele pinta é da zona.
   if (activeTool === 'revealBrush') groups.add('revealBrush')
 
+  // Pino e zona oculta abertos contam: o painel é o cartão deles, e o mapa
+  // inteiro embaixo seria o mesmo vazamento da Sala.
   const hasAnySelection =
-    wall || prop || token || textLabel || region || light || stair || drawingKind !== null || floorPiece
-  const isMapWideMoment = activeTool === 'select' || hasAnySelection
+    wall || prop || token || textLabel || region || light || stair || drawingKind !== null || floorPiece ||
+    concealZone || pin
+  // Momento de mapa = Selecionar com NADA selecionado. Com um item
+  // selecionado o painel é DO ITEM (pedido 03/10/2026: "com a Sala
+  // selecionada aparece categorias que não são da Sala, como o chão do
+  // mapa"): Chão do mapa, Camadas e Território saem.
+  const isMapWideMoment = activeTool === 'select' && !hasAnySelection
 
   // Estilo do chão é configuração do MAPA (como Grade): aparece no momento
   // de mapa e também com a ferramenta Chão ativa, que é quem mais precisa dele.

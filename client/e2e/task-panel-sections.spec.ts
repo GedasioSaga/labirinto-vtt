@@ -89,7 +89,10 @@ test('1. sem seleção as duas seções nascem abertas; fechar tira o corpo da t
 // e o mapa e Camadas como o último título; desde b2df68de o título "Acervo de
 // tokens" vem depois de Camadas, então a linha do "último título" já não
 // valia antes do pedido.
-test('2. com item selecionado as seções nascem fechadas e a ordem é item -> Chão do mapa -> Camadas -> Acervo de tokens', async ({ page }) => {
+// 03/10/2026 (pedido "com a Sala selecionada aparece categorias que não são
+// da Sala como o chão do mapa"): com um item selecionado o painel é DO ITEM —
+// "Chão do mapa" e "Camadas" saem; o Acervo continua fechando a coluna.
+test('2. com item selecionado o painel é do item: sem Chão do mapa nem Camadas, Acervo de tokens por último', async ({ page }) => {
   await page.evaluate(async () => {
     const mod = await import('/src/stores/mapStore.ts')
     mod.useMapStore.getState().addToken({ id: 'tokPanel', characterId: null, name: 'Token', x: 400, y: 400, size: 1, image: null })
@@ -97,24 +100,18 @@ test('2. com item selecionado as seções nascem fechadas e a ordem é item -> C
   })
 
   for (const title of ['Chão do mapa', 'Camadas'] as const) {
-    const header = sectionHeader(page, title)
-    await expect(header).toHaveAttribute('aria-expanded', 'false')
-    await expect(await sectionBody(page, header)).toBeHidden()
+    await expect(sectionHeader(page, title)).toHaveCount(0)
   }
-  await expect(page.getByRole('list', { name: 'Camadas do mapa', includeHidden: true })).toBeHidden()
+  await expect(page.getByRole('list', { name: 'Camadas do mapa', includeHidden: true })).toHaveCount(0)
 
   // Títulos em ordem de DOM (a do leitor de tela e a da tela, que é uma coluna só).
   const headings = (await page.locator('.lb-inspector__body h2').allTextContents()).map((text) => text.trim())
   const tokenIndex = headings.indexOf('Token')
-  const floorIndex = headings.indexOf('Chão do mapa')
-  const layersIndex = headings.indexOf('Camadas')
   const libraryIndex = headings.indexOf('Acervo de tokens')
   expect(tokenIndex).toBeGreaterThanOrEqual(0)
-  // Um item só, sem lote: nada de seção "Seleção" entre o item e o mapa.
+  // Um item só, sem lote: nada de seção "Seleção" entre o item e o Acervo.
   expect(headings).not.toContain('Seleção')
-  expect(floorIndex).toBeGreaterThan(tokenIndex)
-  expect(layersIndex).toBeGreaterThan(floorIndex)
-  expect(libraryIndex).toBeGreaterThan(layersIndex)
+  expect(libraryIndex).toBeGreaterThan(tokenIndex)
   expect(libraryIndex).toBe(headings.length - 1)
 })
 
@@ -168,11 +165,10 @@ test('5. "Camada do objeto selecionado" mora na seção do objeto e grava a cama
 
   const picker = page.getByRole('radiogroup', { name: 'Camada do objeto selecionado' })
   await expect(picker).toBeVisible()
-  // Saiu de Camadas: nem com a seção aberta ele está lá dentro.
-  const layersHeader = sectionHeader(page, 'Camadas')
-  await layersHeader.click()
-  await expect(layersHeader).toHaveAttribute('aria-expanded', 'true')
-  await expect((await sectionBody(page, layersHeader)).getByRole('radiogroup', { name: 'Camada do objeto selecionado' })).toHaveCount(0)
+  // Saiu de Camadas: com o objeto selecionado a seção Camadas (do mapa) nem
+  // aparece (03/10/2026), e o seletor é um só, o da seção do objeto.
+  await expect(sectionHeader(page, 'Camadas')).toHaveCount(0)
+  await expect(page.getByRole('radiogroup', { name: 'Camada do objeto selecionado' })).toHaveCount(1)
 
   const objects = picker.getByRole('radio', { name: 'Objetos', exact: true })
   const decoration = picker.getByRole('radio', { name: 'Decoração', exact: true })

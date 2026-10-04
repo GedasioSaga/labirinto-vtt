@@ -5,7 +5,7 @@ import { createEmptyMap } from '../lib/mapFactory'
 import { EMPTY_SELECTION } from '../lib/selectionModel'
 import { relevantPropertyGroups } from '../lib/toolProperties'
 import { useMapStore } from '../stores/mapStore'
-import type { Region, Token, Wall } from '../types/map'
+import type { FloorPiece, Region, Token, Wall } from '../types/map'
 import { PropertiesPanel, type PisosWiring } from './PropertiesPanel'
 import { propsDoPainel, type PainelProps } from './propertiesPanelTestProps'
 import type { SelectionSummary } from './SelectionControls'
@@ -265,7 +265,7 @@ describe('painel de propriedades — faixa da seleção e ordem por tarefa', () 
     expect(botoesComTexto(/^Apagar token selecionado$/)).toHaveLength(1)
   })
 
-  it('ficha: Travado e Oculto logo depois de Condições, Rotação no Avançado da mesma seção; a ordem item → Chão do mapa → Camadas → Acervo continua', () => {
+  it('ficha: Travado e Oculto logo depois de Condições, Rotação no Avançado da mesma seção; Chão do mapa e Camadas saem, o Acervo fica por último', () => {
     renderPainel(painelDaFicha())
     const lista = titulos()
     // Condições é uma linha "+" sem título (peça ficha-em-ordem-de-tarefa): a
@@ -292,9 +292,10 @@ describe('painel de propriedades — faixa da seleção e ordem por tarefa', () 
 
     // Um item só, sem lote: não há seção "Seleção" entre o item e o mapa inteiro.
     expect(lista).not.toContain('Seleção')
-    const chao = Array.from(container.querySelectorAll('.lb-inspector__body h2')).find((h) => h.textContent === 'Chão do mapa')
-    expect(antes(transformacao, chao)).toBe(true)
-    expect(lista.indexOf('Camadas')).toBeGreaterThan(lista.indexOf('Chão do mapa'))
+    // Com um item selecionado o painel é do item: nada do mapa inteiro.
+    expect(lista).not.toContain('Chão do mapa')
+    expect(lista).not.toContain('Camadas')
+    expect(lista).not.toContain('Território')
     expect(lista.at(-1)).toBe('Acervo de tokens')
   })
 
@@ -322,12 +323,44 @@ describe('painel de propriedades — faixa da seleção e ordem por tarefa', () 
     expect(antes(preenchimento, gatilho)).toBe(true)
     expect(antes(gatilho, perigo)).toBe(true)
     expect(antes(perigo, avancado)).toBe(true)
-    expect(antes(avancado, h2.find((h) => h.textContent === 'Chão do mapa'))).toBe(true)
+    // Pedido 03/10/2026: a Sala selecionada não mostra o chão do MAPA.
+    expect(h2.find((h) => h.textContent === 'Chão do mapa')).toBeUndefined()
+    expect(h2.find((h) => h.textContent === 'Camadas')).toBeUndefined()
+    expect(container.querySelector('input[type="color"][aria-label*="chão" i]')).toBeNull()
 
     const faixa = corpo()?.firstElementChild
     expect(faixa?.textContent).toContain('Salao')
     expect(faixa?.textContent).toContain('Sala')
     expect(botoesComTexto(/^Apagar região selecionada$/)).toHaveLength(1)
+  })
+
+  it('peça do chão selecionada: sem "Chão do mapa" nem Camadas, mas "Camadas do chão" (das peças) fica; nada selecionado mostra os dois', () => {
+    const peca: FloorPiece = { id: 'p1', shape: { kind: 'rect', cx: 100, cy: 100, w: 64, h: 64 }, op: 'add', modifiers: {} }
+    const floorLayers = {
+      floor: [peca],
+      floorFillColor: '#888888',
+      selectedPieceId: 'p1',
+      onSelect: nada,
+      onToggleLock: nada,
+      onColorChange: nada,
+      onReorder: nada,
+    }
+    renderPainel(
+      propsDoPainel(null, {
+        groups: relevantPropertyGroups('select', { floorPiece: true }),
+        selectedFloorPiece: peca,
+        selection: selecao({ kind: 'floor', count: 1 }),
+        floorLayers,
+      }),
+    )
+    expect(titulos()).not.toContain('Chão do mapa')
+    expect(titulos()).not.toContain('Camadas')
+    expect(titulos()).toContain('Camadas do chão')
+
+    renderPainel(propsDoPainel(null, { groups: relevantPropertyGroups('select'), floorLayers: { ...floorLayers, selectedPieceId: null } }))
+    expect(titulos()).toContain('Chão do mapa')
+    expect(titulos()).toContain('Camadas do chão')
+    expect(titulos()).toContain('Camadas')
   })
 
   it('fora da região (texto, escada, pino), o "Jogadores" continua no bloco dele', () => {

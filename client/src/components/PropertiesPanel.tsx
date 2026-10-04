@@ -479,7 +479,9 @@ export function PropertiesPanel({
   const legendaAventuraId = `${legendaId}-aventura`
   const legendaCenaId = `${legendaId}-cena`
   const temAventura = presente(scenes) || presente(worldState)
-  const temCena = presente(objects) || groups.has('floorStyle') || groups.has('layers')
+  const temCamadasDoChao =
+    floorLayers !== undefined && floorLayers.floor.length > 0 && (groups.has('floorStyle') || groups.has('floorPiece'))
+  const temCena = presente(objects) || groups.has('floorStyle') || groups.has('layers') || temCamadasDoChao
 
   const wallStyleSection = (
     <ToolPropertiesSection group="wallStyle" groups={groups}>
@@ -957,12 +959,15 @@ export function PropertiesPanel({
               <CollapsibleSection id="floor" title="Chão do mapa" defaultOpen={mapSectionsOpenByDefault}>
                 <FloorStyleControls {...floorStyle} />
               </CollapsibleSection>
-              {floorLayers !== undefined && floorLayers.floor.length > 0 && (
-                <CollapsibleSection id="floor-layers" title="Camadas do chão" defaultOpen>
-                  <FloorLayersList {...floorLayers} />
-                </CollapsibleSection>
-              )}
             </ToolPropertiesSection>
+            {/* "Camadas do chão" é das PEÇAS (ordem, trava, trocar de peça):
+                fica também com uma peça selecionada, quando o "Chão do mapa"
+                acima já saiu. */}
+            {temCamadasDoChao && floorLayers !== undefined && (
+              <CollapsibleSection id="floor-layers" title="Camadas do chão" defaultOpen>
+                <FloorLayersList {...floorLayers} />
+              </CollapsibleSection>
+            )}
             <ToolPropertiesSection group="layers" groups={groups}>
               <CollapsibleSection id="layers" title="Camadas" defaultOpen={mapSectionsOpenByDefault}>
                 <LayersPanel {...layers} quickToggles={<GridQuickToggles {...grid} />} />

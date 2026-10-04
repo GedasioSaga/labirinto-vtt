@@ -139,11 +139,13 @@ describe('painel de propriedades — a ficha em ordem de tarefa', () => {
       ['Ajustar a luz', botao('Ajustar a luz')],
       ['Piso', campo('Piso')],
       [CARRY_TO_LABEL, botao(CARRY_TO_LABEL)],
-      ['Chão do mapa', h2('Chão do mapa')],
+      ['Acervo de tokens', h2('Acervo de tokens')],
     ]
     for (const [nome, el] of marcos) expect(el, `sem "${nome}" no painel`).not.toBeNull()
     const foraDeOrdem = marcos.slice(1).filter(([, el], i) => !antes(marcos[i][1], el)).map(([nome], i) => `${marcos[i][0]} → ${nome}`)
     expect(foraDeOrdem).toEqual([])
+    // Com a ficha selecionada o painel é dela: o chão do mapa não vaza.
+    expect(h2('Chão do mapa')).toBeNull()
   })
 
   it('título de bloco só onde há grupo de campos, cada um uma vez: 7 na ficha nova (eram 12)', () => {
