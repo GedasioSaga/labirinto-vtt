@@ -1243,3 +1243,24 @@ Noite = esta sessão conduzida pelo main thread; o noite-runner continua encerra
 - Imagem 2: seção "IMAGEM DO TOKEN" do painel (nome do arquivo, "Trocar imagem...", "Remover imagem (voltar ao círculo)").
 - Fila: (1) 4 sobras do veículo; (2) área de arrastar/colar imagem no token, como `components/PinImageDrop.tsx`.
 - Feito: sobras do veículo (`c537f629`) e arrastar/colar imagem no token (`ea129299`, só PNG/JPG/WebP/GIF até 25 MB; testado no navegador, não no exe). Sobras: colega a bordo não aparece no cartão "entrou em" do mestre; atalho na mesma cena sem aviso a quem vai a bordo.
+
+> 03/10/2026: "Eu não consigo ver o chat dos meus jogadores, pode colocar a opção de ver o chat"
+- Causa: fatia D do `docs/plano-chat.md` (leitura do mestre) nunca foi feita. Decisões já tomadas em 27/09: mestre lê tudo (cena só leitura), escreve no global, `@mestre` destaca, mestre apaga mensagem.
+- Feito: painel "Chat" do mestre (`f7661cbf`) e apagar mensagem (`b02ce36a`); e2e com mestre + 2 jogadores em cenas diferentes. Histórico em disco (fatia B) e mídia (fatia C) nunca foram feitos: o chat some ao fechar a sala.
+
+> 03/10/2026: "Sim" (fazer o chat ficar salvo depois de fechar a sala = fatia B do plano-chat)
+- Feito (`643e17e6`): chat salvo em `%APPDATA%/chat/<id da aventura>/` (global.jsonl + um por cena), últimas 200 voltam ao reabrir, apagar sai do arquivo; e2e passou. Não conferido no disco real do Tauri. Sobras: arquivo só cresce; apagar aventura não apaga o chat dela.
+
+> 03/10/2026: "Eu quero melhorar o ux/ui, eu quero que algumas coisas fique na parte direita da tela, a parte de Jogo [Image #4] eu quero que fique a direita na tela, e tenha abas, e uma dessas abas vai ser o chat, onde vou poder ver e abaixo na parte direita mas abaixo do jogo e do chat eu quero as Cenas [Image #5]."
+- Imagem 4: aba Jogo (Sala, Rede local, Iniciativa, Relógio da campanha, Cena externa). Imagem 5: seção Aventura > Cenas (filtro + árvore).
+- Decidido (grilling, 03/10/2026): coluna direita com abas Jogo | Chat em cima e Cenas embaixo; divisor arrastável (lembra a altura; Cenas recolhível); coluna escondível por botão + atalho (lembra); botão Chat solto sai, não lidas/@mestre vão na aba Chat e no botão de reabrir a coluna. Esquerda fica só Mapa.
+- Feito (`6389e5d6`): coluna direita Jogo | Chat + Cenas; usuário testou no app ("ta tudo certo"). Agente parado no meio da revisão dos 184 e2e (46 ajustados); e2e inteiro não rodado.
+
+> 03/10/2026: "Perfeito agora vamos ajeitar coisas menores: 1-Quando eu estou com a Sala selecionada aparece categorias que não são da Sala como o chão do mapa [Image #6] 2-Outra coisa quando eu uso o [Image #7] chão e coloco em uma lugar muito grande o chão simplemente trava o FPS vai lá para baixo e é uma luta para trocar de cor e até fecha o programa."
+- Imagem 6: seção "Chão do mapa" (Cor do chão com pipeta, Contorno, Avançado) aparecendo com a Sala selecionada. Imagem 7: ferramenta "Chão (I)".
+- Fila: (1) painel da Sala só com o que é da Sala; (2) chão grande trava FPS / troca de cor lenta / fecha o app.
+- Feito: (1) painel só com seções do item (`835a7d9e`); (2) chão grande (`a85d509a`): pintar 15 s→0,75 s, 3 cores 89 s→0,5 s e 1 passo no Ctrl+Z. Sobras: arrastar chão gigante ainda ~1,3 s por passo; crash não reproduzido no Tauri; e2e pincel-balde quebrado pelo botão "Chão" duplicado (provável efeito do item 1, só no teste).
+
+> 03/10/2026: "Pronto, agora vamos falar sobre as ferramentas de pincel, eu quero que vocÊ crie camadas para ela uma fica em cima da outra e outra coisa as paredes é para sempre fica em cima da parte de pincel, até no balde, entendeu ?"
+- Decidido (grilling, 03/10/2026): camada ativa (lista Camada 1, 2…; pincel/balde pintam só nela; de cima cobre a de baixo; renomear, esconder, travar, subir/descer); balde: só paredes/portas/contorno de sala seguram; apagar só na camada ativa; paredes, portas e contorno de sala sempre acima de toda tinta de chão. Ordem: (1) paredes por cima; (2) camadas.
+- Feito: (A) `2fa2f9d3` paredes/portas/escadas acima do traço e do balde da ferramenta DESENHO (a tinta do Chão já ficava embaixo); (B) `332d499a` camadas do pincel/balde da ferramenta CHÃO (camada ativa). Dúvida aberta: o usuário pode ter falado do pincel/balde do Desenho. e2e camada-travada falha (provável efeito do 835a7d9e: seção Camadas some com token selecionado).

@@ -1223,3 +1223,34 @@ Pedido do usuário: "faz o push e o instalador". Release v0.4.10 com o que entro
 - Push: `origin/main` 3bad8a2e..1c3e1444 (fast-forward) e tag `v0.4.10`.
 - Assets (`gh release view v0.4.10`, digest igual ao local): `Labirinto_0.4.10_x64-setup.exe` 2322496 bytes sha256 54a0b998a213ac8a97ec6d90aa877afac87e9564060c0acc5631ba021c5d9b31; `Labirinto_0.4.10_x64_en-US.msi` 3010560 bytes sha256 cbde20113ba778fb015b66d8810eeed28ac93e8f26bb07ae9028d415311edcf7.
 - Não rodado: Playwright e2e inteiro; instalação em máquina limpa; arrastar do Explorer e conta-gotas no exe.
+
+### 03/10/2026 (noite): release v0.4.11 (`6ada455f`)
+
+## Objetivo
+Pedido do usuário: "Faz o Commit, push e cria o instalador". Release v0.4.11 com o que entrou desde a v0.4.10: chat do mestre lê todos os canais, fala no Global e apaga linha (`f7661cbf`, `b02ce36a`); chat salvo ao fechar a sala (`643e17e6`); coluna direita Jogo | Chat + Cenas, Shift+J esconde (`6389e5d6`); painel mostra só as seções do item selecionado (`835a7d9e`); chão grande sem travar ao pintar/cor/arrastar (`a85d509a`); paredes e portas acima do Desenho (`2fa2f9d3`); camadas do pincel/balde do Chão (`332d499a`).
+
+## Estado atual
+- main = origin/main @ `6ada455f` (versão 0.4.11 em `client/package.json`, `package.json`, `desktop/src-tauri/Cargo.toml`, `Cargo.lock`, `tauri.conf.json`; identifier `com.labirinto.app`) + este commit de docs (com `PEDIDOS.md`). Tag anotada `v0.4.11`.
+- Release publicada: https://github.com/GedasioSaga/labirinto-vtt/releases/tag/v0.4.11 com os 2 instaladores.
+- Escada espiral parcial segue fora de commit (backup `scratchpad/escada-parcial-backup/escada-0411.patch`; stash só dos 4 arquivos durante a release, devolvida depois). `docs/verification/task4-e2e-evidencia.png` restaurado para a versão commitada (artefato de teste).
+
+## Próximos passos
+- Playwright e2e inteiro não rodado desde a coluna direita (46 de 184 specs ajustados em `6389e5d6`).
+- e2e `task-jornada-camada-travada` falha: a seção Camadas some com item selecionado depois de `835a7d9e`. Decisão pendente do usuário (manter Camadas visível com item selecionado ou ajustar o spec).
+- Dúvida para o usuário: as camadas eram para o pincel do Desenho, e não (só) para o do Chão?
+- Arrastar chão gigante ainda leva ~1,3 s por passo.
+- Não conferidos no exe: conta-gotas, arrastar imagem do Explorer, chat salvo no disco real.
+- Fila do usuário em PEDIDOS.md. Regra do usuário: no máximo 1 agente por vez, Opus high.
+
+## Critério de pronto
+- Release v0.4.11 no GitHub com `Labirinto_0.4.11_x64-setup.exe` e `Labirinto_0.4.11_x64_en-US.msi`, sha256 dos assets igual ao dos arquivos locais; `labirinto.exe` ProductVersion 0.4.11.
+
+## Evidência
+- Com a escada em stash: `rtk proxy npx tsc --noEmit` exit 0; `rtk proxy npx tsc --noEmit -p tsconfig.e2e.json` exit 0.
+- `rtk proxy npx vitest run` (antes da versão): Test Files 1317 passed (1317), Tests 11813 passed (11813), 254,7 s. Sem falha (nem `hostSession.custoCom7`).
+- gitleaks não instalado; grep de padrões de segredo (api key, secret, password, chave privada, AKIA, ghp_/github_pat_, sk-, xox, AIza) nas linhas adicionadas de `v0.4.10..HEAD` (123 arquivos): nada; nomes de arquivo: só `client/e2e/task-jornada-sala-secreta-nao-vaza.spec.ts` (feature de sala secreta do jogo, não segredo).
+- `npm run tauri:build`: exit 0, "Finished 2 bundles".
+- Fumaça: `target/release/labirinto.exe` ProductVersion/FileVersion 0.4.11; janela "Labirinto" Responding=True, ~28 MB; fechada depois.
+- Push: `origin/main` e9ffbbf7..6ada455f (fast-forward) e tag `v0.4.11`.
+- Assets (`gh release view v0.4.11`, digest igual ao local): `Labirinto_0.4.11_x64-setup.exe` 2332973 bytes sha256 58a60d2d5ed36716f96d340b8ecce88af83eb9415e566a3d77e21cb67fb2da09; `Labirinto_0.4.11_x64_en-US.msi` 3018752 bytes sha256 e00b7753ef2639320245d94f14625294105fb229c481b39522c9e458bea9a209.
+- Não rodado: Playwright e2e inteiro; instalação em máquina limpa; conta-gotas, arrastar do Explorer e chat salvo no exe.
