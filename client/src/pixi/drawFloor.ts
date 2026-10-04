@@ -1,6 +1,7 @@
 import { Color, type Graphics } from 'pixi.js'
 import type { FloorPiece, FloorStyle, RegionPoint } from '../types/map'
 import { buildFloorOutline, type FloorClip, type FloorPolygon } from '../lib/floorContour'
+import { mesmaGeometriaDaPeca, mesmaGeometriaDoChao } from '../lib/floorGeometry'
 import { SELECTION_COLOR, STROKE_WEIGHT } from './constants'
 
 export interface FloorRenderer {
@@ -133,9 +134,33 @@ export function drawFloorDraft(graphics: Graphics, piece: FloorPiece, fillColor:
 }
 
 /**
- * Recalcula o contorno (caro) só quando a lista de peças muda de referência
- * — a store é imutável, então mesma referência = mesmo chão. Troca de estilo
- * ou de seleção só repinta.
+ * As camadas de cor têm o mesmo desenho quando o chão tem a mesma geometria e
+ * as mesmas peças com cor própria — o QUE é a cor pode mudar. É o que
+ * `buildColorLayers` usa para decidir quem vira camada.
+ */
+function mesmasCamadasDeCor(a: readonly FloorPiece[], b: readonly FloorPiece[]): boolean {
+  if (!mesmaGeometriaDoChao(a, b)) return false
+  return a.every((piece, i) => (piece.fillColor === undefined) === (b[i].fillColor === undefined))
+}
+
+/** As camadas já contornadas, com a cor de cada peça trocada pela de `floor`. */
+function recolorirCamadas(layers: readonly FloorColorLayer[], floor: readonly FloorPiece[]): FloorColorLayer[] {
+  // Mesma ordem de `buildColorLayers`: a k-ésima camada é a k-ésima peça que
+  // passa pelo mesmo filtro.
+  const cores: Array<string | null> = []
+  for (const piece of floor) {
+    if (piece.hidden || piece.op !== 'add') continue
+    if (piece.fillColor === undefined && cores.length === 0) continue
+    cores.push(piece.fillColor ?? null)
+  }
+  return layers.map((layer, k) => (layer.color === cores[k] ? layer : { color: cores[k] ?? null, polygons: layer.polygons }))
+}
+
+/**
+ * Recalcula o contorno (caro) só quando o DESENHO do chão muda. Trocar a cor
+ * de uma peça só repinta (pedido 03/10/2026: num chão grande cada evento do
+ * seletor de cor refazia o contorno inteiro e o programa travava). Troca de
+ * estilo ou de seleção também só repinta.
  */
 export function createFloorRenderer(): FloorRenderer {
   let lastFloor: FloorPiece[] | null = null
@@ -144,21 +169,31 @@ export function createFloorRenderer(): FloorRenderer {
   let polygons: FloorPolygon[] = []
   let colorLayers: FloorColorLayer[] = []
 
-  // Mesmo cache por referência para o destaque: redrawShapes roda a cada
-  // mudança de seleção/forma, não só quando a peça selecionada muda.
+  // Mesmo cache para o destaque: redrawShapes roda a cada mudança de
+  // seleção/forma, não só quando a peça selecionada muda.
   let lastSelected: FloorPiece | null = null
   let lastSelectedStep: number | undefined
   let selectedPolygons: FloorPolygon[] = []
 
   function draw(graphics: Graphics, floor: FloorPiece[], style: FloorStyle, clip?: FloorClip): void {
     const clipKey = clip ? `${clip.minX},${clip.minY},${clip.maxX},${clip.maxY}` : ''
-    if (floor !== lastFloor || style.sampleStep !== lastStep || clipKey !== lastClipKey) {
+    if (floor !== lastFloor) {
+      const mesmoPasso = style.sampleStep === lastStep && clipKey === lastClipKey
+      if (lastFloor === null || !mesmoPasso || !mesmaGeometriaDoChao(floor, lastFloor)) {
+        polygons = buildFloorOutline(floor, { step: style.sampleStep, clip })
+        colorLayers = buildColorLayers(floor, style.sampleStep, clip)
+      } else if (mesmasCamadasDeCor(floor, lastFloor)) {
+        colorLayers = recolorirCamadas(colorLayers, floor)
+      } else {
+        colorLayers = buildColorLayers(floor, style.sampleStep, clip)
+      }
+      lastFloor = floor
+    } else if (style.sampleStep !== lastStep || clipKey !== lastClipKey) {
       polygons = buildFloorOutline(floor, { step: style.sampleStep, clip })
       colorLayers = buildColorLayers(floor, style.sampleStep, clip)
-      lastFloor = floor
-      lastStep = style.sampleStep
-      lastClipKey = clipKey
     }
+    lastStep = style.sampleStep
+    lastClipKey = clipKey
     paintFloor(graphics, polygons, style, colorLayers)
   }
 
@@ -169,7 +204,7 @@ export function createFloorRenderer(): FloorRenderer {
       selectedPolygons = []
       return
     }
-    if (piece !== lastSelected || step !== lastSelectedStep) {
+    if (lastSelected === null || !mesmaGeometriaDaPeca(piece, lastSelected) || step !== lastSelectedStep) {
       selectedPolygons = isolatedOutline(piece, step)
       lastSelected = piece
       lastSelectedStep = step

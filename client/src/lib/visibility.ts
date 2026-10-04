@@ -1,6 +1,7 @@
 import type { FloorPiece, MapData, RegionPoint, Wall } from '../types/map'
 import { isDoorPassable } from './collision'
 import { buildFloorOutline } from './floorContour'
+import { mesmaGeometriaDoChao } from './floorGeometry'
 import { simplifyRing } from './refineFloor'
 
 /**
@@ -215,16 +216,29 @@ export function ringToSegments(ring: readonly RegionPoint[]): Segment[] {
 /** Contorno do chão é caro (marching squares): cacheado pela referência do array imutável `map.floor`. */
 const floorSegmentsCache = new WeakMap<FloorPiece[], Segment[]>()
 
+/** O último chão contornado: trocar só a cor de uma peça cria lista nova com o mesmo desenho. */
+let ultimoChao: { floor: FloorPiece[]; segments: Segment[] } | null = null
+
 function floorSegments(floor: FloorPiece[]): Segment[] {
   const cached = floorSegmentsCache.get(floor)
   if (cached) return cached
+  if (ultimoChao !== null && mesmaGeometriaDoChao(floor, ultimoChao.floor)) {
+    floorSegmentsCache.set(floor, ultimoChao.segments)
+    return ultimoChao.segments
+  }
+  const segments = contornarChaoParaVisao(floor)
+  floorSegmentsCache.set(floor, segments)
+  ultimoChao = { floor, segments }
+  return segments
+}
+
+function contornarChaoParaVisao(floor: FloorPiece[]): Segment[] {
   const segments: Segment[] = []
   for (const polygon of buildFloorOutline(floor)) {
     for (const ring of [polygon.outer, ...polygon.holes]) {
       segments.push(...ringToSegments(simplifyRing(ring, FLOOR_SIMPLIFY_TOLERANCE)))
     }
   }
-  floorSegmentsCache.set(floor, segments)
   return segments
 }
 

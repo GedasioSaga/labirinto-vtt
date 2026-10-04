@@ -119,12 +119,23 @@ export function buildBlocosShape(cell: number, blocos: readonly Bloco[]): Blocos
  * editada é objeto novo — então a própria referência é a chave do cache, sem
  * invalidação manual (mesmo truque de `polygonDistanceCache` em floorSdf.ts).
  */
-const cacheDeCelulas = new WeakMap<object, Set<string>>()
+const cacheDeCelulas = new WeakMap<object, Set<number>>()
 
-function celulasDe(shape: BlocosShape): Set<string> {
+/**
+ * Chave NUMÉRICA da célula, só para o índice da distância: ela roda até 125
+ * vezes por amostra do campo, e a chave em texto (`chaveDoBloco`) criava uma
+ * string a cada consulta. Cabe com folga em 2^53 para |col|, |row| < 2^20.
+ */
+const DESLOCAMENTO_DA_CHAVE = 2 ** 20
+const LARGURA_DA_CHAVE = 2 ** 21
+function chaveNumerica(col: number, row: number): number {
+  return (col + DESLOCAMENTO_DA_CHAVE) * LARGURA_DA_CHAVE + (row + DESLOCAMENTO_DA_CHAVE)
+}
+
+function celulasDe(shape: BlocosShape): Set<number> {
   let celulas = cacheDeCelulas.get(shape)
   if (!celulas) {
-    celulas = new Set(shape.cells.map((c) => chaveDoBloco(c.col, c.row)))
+    celulas = new Set(shape.cells.map((c) => chaveNumerica(c.col, c.row)))
     cacheDeCelulas.set(shape, celulas)
   }
   return celulas
@@ -168,18 +179,18 @@ export function blocosDistance(shape: BlocosShape, x: number, y: number): number
   let melhor = teto
   for (let c = col - JANELA_EM_CELULAS; c <= col + JANELA_EM_CELULAS; c += 1) {
     for (let r = row - JANELA_EM_CELULAS; r <= row + JANELA_EM_CELULAS; r += 1) {
-      if (!celulas.has(chaveDoBloco(c, r))) continue
+      if (!celulas.has(chaveNumerica(c, r))) continue
       const x0 = c * cell
       const y0 = r * cell
       const x1 = x0 + cell
       const y1 = y0 + cell
-      if (!celulas.has(chaveDoBloco(c, r - 1))) melhor = Math.min(melhor, distanciaAoSegmento(x, y, x0, y0, x1, y0))
-      if (!celulas.has(chaveDoBloco(c, r + 1))) melhor = Math.min(melhor, distanciaAoSegmento(x, y, x0, y1, x1, y1))
-      if (!celulas.has(chaveDoBloco(c - 1, r))) melhor = Math.min(melhor, distanciaAoSegmento(x, y, x0, y0, x0, y1))
-      if (!celulas.has(chaveDoBloco(c + 1, r))) melhor = Math.min(melhor, distanciaAoSegmento(x, y, x1, y0, x1, y1))
+      if (!celulas.has(chaveNumerica(c, r - 1))) melhor = Math.min(melhor, distanciaAoSegmento(x, y, x0, y0, x1, y0))
+      if (!celulas.has(chaveNumerica(c, r + 1))) melhor = Math.min(melhor, distanciaAoSegmento(x, y, x0, y1, x1, y1))
+      if (!celulas.has(chaveNumerica(c - 1, r))) melhor = Math.min(melhor, distanciaAoSegmento(x, y, x0, y0, x0, y1))
+      if (!celulas.has(chaveNumerica(c + 1, r))) melhor = Math.min(melhor, distanciaAoSegmento(x, y, x1, y0, x1, y1))
     }
   }
-  return celulas.has(chaveDoBloco(col, row)) ? -melhor : melhor
+  return celulas.has(chaveNumerica(col, row)) ? -melhor : melhor
 }
 
 export interface RetanguloDeBlocos {
@@ -189,8 +200,25 @@ export interface RetanguloDeBlocos {
   maxY: number
 }
 
-/** Retângulo exato da união das células. `null` = forma sem célula. */
-export function blocosBounds(shape: BlocosShape): RetanguloDeBlocos | null {
+/**
+ * Retângulo e centro por referência da forma, como `cacheDeCelulas`. O centro
+ * entra em TODA amostra do campo de distância (`pieceDistance` →
+ * `shapeCenter`): sem o cache, cada amostra varria as células inteiras, e um
+ * balde de 100×100 casas levava 10 s para contornar (medido 03/10/2026).
+ */
+const cacheDeRetangulo = new WeakMap<object, RetanguloDeBlocos | null>()
+const cacheDeCentro = new WeakMap<object, { x: number; y: number }>()
+
+/** Retângulo exato da união das células. `null` = forma sem célula. Não mutar: é o objeto do cache. */
+export function blocosBounds(shape: BlocosShape): Readonly<RetanguloDeBlocos> | null {
+  const guardado = cacheDeRetangulo.get(shape)
+  if (guardado !== undefined) return guardado
+  const calculado = calcularRetanguloDosBlocos(shape)
+  cacheDeRetangulo.set(shape, calculado)
+  return calculado
+}
+
+function calcularRetanguloDosBlocos(shape: BlocosShape): RetanguloDeBlocos | null {
   if (shape.cells.length === 0) return null
   let minCol = Infinity
   let minRow = Infinity
@@ -211,9 +239,12 @@ export function blocosBounds(shape: BlocosShape): RetanguloDeBlocos | null {
 }
 
 export function blocosCenter(shape: BlocosShape): { x: number; y: number } {
+  const guardado = cacheDeCentro.get(shape)
+  if (guardado !== undefined) return { ...guardado }
   const b = blocosBounds(shape)
-  if (!b) return { x: 0, y: 0 }
-  return { x: (b.minX + b.maxX) / 2, y: (b.minY + b.maxY) / 2 }
+  const centro = b ? { x: (b.minX + b.maxX) / 2, y: (b.minY + b.maxY) / 2 } : { x: 0, y: 0 }
+  cacheDeCentro.set(shape, centro)
+  return { ...centro }
 }
 
 /**

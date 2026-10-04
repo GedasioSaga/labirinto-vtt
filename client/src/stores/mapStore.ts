@@ -28,6 +28,7 @@ import { apagarBlocosNoPiso, pinoNoPiso, selecaoNoPiso } from '../lib/pisoEmEdic
 import { linkDrawnWallToRoom } from '../lib/roomLink'
 import { amarrarAoEstado as amarrarNoMapa, type AmarraDeEstado } from '../lib/estadoDoMundo'
 import { comRotina } from '../lib/rotinaDoNpc'
+import { chaveDeArrastoDeCor } from '../lib/historicoDeCor'
 // Onda 3, item 13 (Frente A) — clonagem pura por tipo de entidade, usada por
 // `duplicateSelected` (Ctrl+D) e `insertClonedEntityLive` (Alt+arrastar, ver
 // pixi/PixiCanvas.tsx).
@@ -1779,7 +1780,9 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
       if (pieces.length === 0) return
       withHistory((map) => mapFactory.addFloorPieces(map, pieces))
     },
-    updateFloorPiece: (id, patch) => withHistory((map) => mapFactory.updateFloorPiece(map, id, patch)),
+    // A cor da peça emenda os quadros do seletor num passo só (`chaveDeArrastoDeCor`).
+    updateFloorPiece: (id, patch) =>
+      withHistory((map) => mapFactory.updateFloorPiece(map, id, patch), chaveDeArrastoDeCor(`floor-piece:${id}`, patch, ['fillColor'])),
     updateFloorPieceLive: (id, patch) => set((state) => ({ map: mapFactory.updateFloorPiece(state.map, id, patch) })),
     removeFloorPiece: (id) => withHistory((map) => mapFactory.removeFloorPiece(map, id)),
     reorderFloorPiece: (id, delta) => withHistory((map) => mapFactory.reorderFloorPiece(map, id, delta)),
@@ -1792,7 +1795,8 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
       // Arrastar a borracha por onde nao havia chao nao e mudanca: nao gasta Ctrl+Z.
       if (proximo !== atual) withHistory(() => proximo)
     },
-    setFloorStyle: (patch) => withHistory((map) => mapFactory.setFloorStyle(map, patch)),
+    setFloorStyle: (patch) =>
+      withHistory((map) => mapFactory.setFloorStyle(map, patch), chaveDeArrastoDeCor('floor-style', patch, ['fillColor', 'strokeColor'])),
     addMapDetails: (lines, markers) => {
       if (lines.length === 0 && markers.length === 0) return
       withHistory((map) => mapFactory.addMapDetails(map, lines, markers))

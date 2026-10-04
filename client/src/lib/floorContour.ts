@@ -25,6 +25,8 @@ export interface ContourOptions {
    * jogador só cobre o mapa, então chão além da borda aparecia descoberto.
    */
   clip?: FloorClip
+  /** Teto de amostras da grade; acima dele o passo cresce. Padrão `MAX_FLOOR_SAMPLES`. */
+  maxSamples?: number
 }
 
 export interface FloorClip {
@@ -152,8 +154,21 @@ export function marchingSquares(
   return rings
 }
 
-/** Uma amostra grossa a cada tantas finas. */
+/** Uma amostra grossa a cada tantas finas (no passo padrão ou menor). */
 const COARSE_FACTOR = 8
+
+/**
+ * Fator da grade grossa para o passo fino. Até o passo padrão, os 8 de
+ * sempre. Acima dele (chão grande, ver `floorSampleStep`) a célula grossa
+ * fica nos mesmos ~16 px de mundo: com 8 passos de 7 px ela passava do quanto
+ * a distância dos blocos enxerga (2 casas, `blocosDistance`), nenhuma célula
+ * grossa saía "toda dentro" e o chão inteiro era amostrado fino. O resultado
+ * é o mesmo com qualquer fator; muda só quanto se amostra.
+ */
+function coarseFactorFor(step: number): number {
+  if (step <= DEFAULT_STEP) return COARSE_FACTOR
+  return Math.max(2, Math.round((COARSE_FACTOR * DEFAULT_STEP) / step))
+}
 
 /**
  * Amostra o campo na grade fina, mas só calcula de verdade perto da borda.
@@ -172,9 +187,10 @@ export function sampleFloorGrid(
   step: number,
 ): Float32Array {
   const { sample, lipschitz } = compiled
-  const coarseStep = step * COARSE_FACTOR
-  const coarseCols = Math.ceil((cols - 1) / COARSE_FACTOR) + 1
-  const coarseRows = Math.ceil((rows - 1) / COARSE_FACTOR) + 1
+  const coarseFactor = coarseFactorFor(step)
+  const coarseStep = step * coarseFactor
+  const coarseCols = Math.ceil((cols - 1) / coarseFactor) + 1
+  const coarseRows = Math.ceil((rows - 1) / coarseFactor) + 1
   const coarse = new Float32Array(coarseCols * coarseRows)
   for (let cj = 0; cj < coarseRows; cj += 1) {
     for (let ci = 0; ci < coarseCols; ci += 1) {
@@ -200,9 +216,9 @@ export function sampleFloorGrid(
   const values = new Float32Array(cols * rows)
   const probe = step * SEAM_PROBE_FRACTION
   for (let j = 0; j < rows; j += 1) {
-    const cj = Math.min(Math.floor(j / COARSE_FACTOR), coarseRows - 2)
+    const cj = Math.min(Math.floor(j / coarseFactor), coarseRows - 2)
     for (let i = 0; i < cols; i += 1) {
-      const ci = Math.min(Math.floor(i / COARSE_FACTOR), coarseCols - 2)
+      const ci = Math.min(Math.floor(i / coarseFactor), coarseCols - 2)
       const sign = uniformSign[cj * (coarseCols - 1) + ci]
       values[j * cols + i] = sign !== 0 ? sign * coarseStep : sampleAcrossSeam(sample, originX + i * step, originY + j * step, probe)
     }
@@ -256,14 +272,37 @@ function boundingDiagonal(ring: RegionPoint[]): number {
   return Math.hypot(maxX - minX, maxY - minY)
 }
 
+/**
+ * Teto de amostras da grade fina. O passo pedido (2 px) sobre um chão muito
+ * grande vira dezenas de milhões de amostras: um chão de 12 800 px levava 2 s
+ * e ~160 MB por contorno, refeito a cada mudança de peça, e o WebView caía
+ * (pedido 03/10/2026). 4 M amostras = um chão de 4 000 × 4 000 px no passo 2
+ * — mapa de tamanho comum (30 × 20 casas de 64 px) fica bem abaixo e não muda.
+ */
+export const MAX_FLOOR_SAMPLES = 4_000_000
+
+/**
+ * Passo da grade para `bounds`: o pedido, ou o menor que cabe no teto de
+ * amostras. Chão grande perde detalhe abaixo do passo novo, que de longe
+ * (onde um chão desse tamanho é visto inteiro) não aparece.
+ */
+export function floorSampleStep(bounds: FloorClip, step: number, maxSamples = MAX_FLOOR_SAMPLES): number {
+  const width = bounds.maxX - bounds.minX
+  const height = bounds.maxY - bounds.minY
+  // +5: a moldura de amostras fora do chão, como `extractFloorRings` monta.
+  const samplesAt = (s: number) => (width / s + 5) * (height / s + 5)
+  if (!(maxSamples > 0) || samplesAt(step) <= maxSamples) return step
+  return Math.max(step, Math.ceil(Math.sqrt((width * height) / maxSamples) + 1))
+}
+
 /** Anéis fechados do chão, sem agrupar. Externos e buracos têm sinal de área oposto. */
 export function extractFloorRings(pieces: FloorPiece[], options: ContourOptions = {}): RegionPoint[][] {
-  const step = options.step ?? DEFAULT_STEP
   const tolerance = options.tolerance ?? DEFAULT_TOLERANCE
   const compiled = compileFloor(pieces)
   const { clip } = options
   const bounds = clip && compiled.bounds ? intersectBounds(compiled.bounds, clip) : compiled.bounds
   if (!bounds) return []
+  const step = floorSampleStep(bounds, options.step ?? DEFAULT_STEP, options.maxSamples)
 
   // Moldura de 2 amostras fora do chão: garante borda da grade positiva.
   const originX = Math.floor(bounds.minX / step) * step - step * 2

@@ -20,11 +20,19 @@ export interface Bounds {
 /** Folga somada ao retângulo de cada peça para o descarte por distância. */
 const CULL_MARGIN = 8
 
+/** Centro de corredor/polígono livre por referência da forma: entra em toda amostra do campo. */
+const centroDosPontos = new WeakMap<object, { x: number; y: number }>()
+
 export function shapeCenter(shape: FloorShape): { x: number; y: number } {
   if (shape.kind === 'blocos') return blocosCenter(shape)
   if (shape.kind !== 'corridor' && shape.kind !== 'poly') return { x: shape.cx, y: shape.cy }
-  const b = pointsBounds(shape.points)
-  return { x: (b.minX + b.maxX) / 2, y: (b.minY + b.maxY) / 2 }
+  let centro = centroDosPontos.get(shape)
+  if (centro === undefined) {
+    const b = pointsBounds(shape.points)
+    centro = { x: (b.minX + b.maxX) / 2, y: (b.minY + b.maxY) / 2 }
+    centroDosPontos.set(shape, centro)
+  }
+  return { ...centro }
 }
 
 /** Retângulo dos pontos; ponto com `width` (corredor) conta o raio dele. */
