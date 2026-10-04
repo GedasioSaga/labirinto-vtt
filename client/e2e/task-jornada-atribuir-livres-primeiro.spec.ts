@@ -48,6 +48,7 @@ import { test, expect, type Browser, type BrowserContext, type Locator, type Pag
 import { createEmptyMap } from '../src/lib/mapFactory'
 import { serializeMap } from '../src/lib/mapFile'
 import type { MapData, Token } from '../src/types/map'
+import { mostrarColunaDireita } from './helpers/colunaDireita'
 
 test.use({ trace: 'off', video: 'off' })
 
@@ -270,8 +271,8 @@ async function mestreAbreAventura(mestre: Page): Promise<Rede> {
 
 /** A lista "Cenas" da aba Mapa marca a cena aberta no editor. */
 async function esperaEditorNa(mestre: Page, nome: string): Promise<void> {
-  await mestre.getByRole('tab', { name: 'Mapa' }).click()
-  const painel = mestre.getByRole('tabpanel', { name: 'Mapa' })
+  await mostrarColunaDireita(mestre)
+  const painel = mestre.getByRole('region', { name: 'Cenas' })
   const cabecalho = painel.getByRole('button', { name: 'Cenas', exact: true })
   await expect(cabecalho, 'a aba Mapa deveria ter a seção "Cenas"').toBeVisible({ timeout: 10_000 })
   if ((await cabecalho.getAttribute('aria-expanded')) === 'false') await cabecalho.click()

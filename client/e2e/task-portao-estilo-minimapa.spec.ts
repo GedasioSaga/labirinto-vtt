@@ -30,6 +30,7 @@
 // — só o gesto de cada teste. Isso continua sendo trabalho do crítico cego.
 import { test, expect, type Page } from '@playwright/test'
 import { enterEditor } from './helpers/enterEditor'
+import { esconderColunaDireita } from './helpers/colunaDireita'
 
 /** Fundo do mapa novo — `lib/mapFactory.ts:createEmptyMap` (`background.src`). */
 const COR_DO_FUNDO = '#2b2b2b'
@@ -108,6 +109,8 @@ async function arrastar(page: Page, de: { x: number; y: number }, para: { x: num
 
 test.beforeEach(async ({ page }) => {
   await enterEditor(page)
+  // A coluna da direita flutua sobre o lado do mapa que esta jornada desenha e lê.
+  await esconderColunaDireita(page)
 })
 
 test('1. mapa novo nasce com fundo escuro chapado e SEM grade (e o portão sabe ver grade quando ela aparece)', async ({ page }) => {

@@ -47,6 +47,7 @@
 // caixa de proporção intermediária, que não passa por nenhuma das duas; nada
 // da cor do chão = cena vazia.
 import { test, expect, type Locator, type Page } from '@playwright/test'
+import { esconderColunaDireita, mostrarColunaDireita } from './helpers/colunaDireita'
 
 // Disco apertado nesta máquina: sem trace e sem vídeo. O screenshot de falha fica.
 test.use({ trace: 'off', video: 'off' })
@@ -354,6 +355,8 @@ function ler(caixa: CaixaDoChao): OQueATelaMostra {
 
 /** Espera a tela mostrar `esperado` (a troca de cena pode levar alguns quadros) e explica o que viu quando não mostra. */
 async function telaMostra(page: Page, chao: Cor, esperado: OQueATelaMostra, contexto: string): Promise<void> {
+  // A coluna da direita flutua sobre o mapa: a leitura de pixel é do mapa livre.
+  await esconderColunaDireita(page)
   let ultima: CaixaDoChao = { pixels: 0, largura: 0, altura: 0 }
   await expect
     .poll(
@@ -425,10 +428,10 @@ async function reiniciarEReabrir(page: Page): Promise<void> {
 
 /** A seção "Cenas" da aba Mapa, aberta. Devolve o corpo dela, onde mora a lista. */
 async function secaoCenas(page: Page): Promise<Locator> {
-  await page.getByRole('tab', { name: 'Mapa' }).click()
-  const painel = page.getByRole('tabpanel', { name: 'Mapa' })
+  await mostrarColunaDireita(page)
+  const painel = page.getByRole('region', { name: 'Cenas' })
   const cabecalho = painel.getByRole('button', { name: 'Cenas', exact: true })
-  await expect(cabecalho, 'a aba Mapa do rail deveria ter uma seção "Cenas"').toBeVisible({ timeout: 10_000 })
+  await expect(cabecalho, 'a coluna da direita deveria ter a seção "Cenas"').toBeVisible({ timeout: 10_000 })
   if ((await cabecalho.getAttribute('aria-expanded')) === 'false') await cabecalho.click()
   await expect(cabecalho).toHaveAttribute('aria-expanded', 'true')
   const corpo = await cabecalho.getAttribute('aria-controls')
@@ -513,6 +516,7 @@ test('2. duas cenas na mesma aventura: cada uma mostra só o que foi desenhado n
   await nomeDaCena.pressSequentially(CRIPTA, { delay: 10 })
   await nomeDaCena.press('Enter')
   await expect(cenaCripta(lista)).toBeVisible()
+  await mostrarColunaDireita(page)
   expect(await estaDestacada(cenaCripta(lista)), 'a Cripta acabou de ser criada e aberta: deveria estar destacada na lista').toBe(true)
 
   // A cena nova começa vazia: a sala da cena A não vem junto.
@@ -523,9 +527,13 @@ test('2. duas cenas na mesma aventura: cada uma mostra só o que foi desenhado n
   await telaMostra(page, chao, 'só a sala da Cripta', 'na Cripta, depois de desenhar a sala dela')
 
   // ── trocar de cena é um clique na lista ──────────────────────────────────
+  await mostrarColunaDireita(page)
   await cenaA(lista).click()
   await telaMostra(page, chao, 'só a sala da cena A', 'depois de clicar na cena A')
+  await mostrarColunaDireita(page)
   expect(await estaDestacada(cenaA(lista)), 'a cena A foi aberta: deveria estar destacada').toBe(true)
+
+  await mostrarColunaDireita(page)
 
   await cenaCripta(lista).click()
   await telaMostra(page, chao, 'só a sala da Cripta', 'depois de clicar de volta na Cripta')
@@ -537,8 +545,11 @@ test('2. duas cenas na mesma aventura: cada uma mostra só o que foi desenhado n
   await expect(cenaCripta(lista), 'depois de reiniciar, a Cripta deveria continuar na lista').toBeVisible({ timeout: 10_000 })
   await expect(cenaA(lista), 'depois de reiniciar, a cena A deveria continuar na lista').toBeVisible()
 
+  await mostrarColunaDireita(page)
+
   await cenaA(lista).click()
   await telaMostra(page, chao, 'só a sala da cena A', 'depois de reiniciar, na cena A')
+  await mostrarColunaDireita(page)
   await cenaCripta(lista).click()
   await telaMostra(page, chao, 'só a sala da Cripta', 'depois de reiniciar, na Cripta')
 })

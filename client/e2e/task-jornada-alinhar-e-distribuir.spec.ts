@@ -83,6 +83,7 @@ import { test, expect, type Locator, type Page } from '@playwright/test'
 import { createEmptyMap } from '../src/lib/mapFactory'
 import { serializeMap } from '../src/lib/mapFile'
 import type { Drawing, MapData } from '../src/types/map'
+import { esconderColunaDireita } from './helpers/colunaDireita'
 
 // Disco apertado nesta máquina: sem trace e sem vídeo. O screenshot de falha fica.
 test.use({ trace: 'off', video: 'off' })
@@ -415,6 +416,8 @@ async function mestreAbreOMapa(page: Page): Promise<Leitura> {
   await page.getByRole('button', { name: /Carregar Mapa existente/ }).click()
   await page.getByRole('button', { name: new RegExp(MAPA) }).click()
   await page.waitForSelector('canvas')
+  // A coluna da direita flutua sobre o lado do mapa onde o laço e os cliques acontecem.
+  await esconderColunaDireita(page)
   return pilaresAVista(page)
 }
 

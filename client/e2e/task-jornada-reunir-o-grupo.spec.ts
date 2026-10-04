@@ -64,6 +64,7 @@ import { serializeMap } from '../src/lib/mapFile'
 import { PIN_HEAD_OFFSET } from '../src/lib/pins'
 import { contentBounds, fitCamera } from '../src/pixi/world'
 import type { MapData, Pin, Token, Wall } from '../src/types/map'
+import { abrirAbaJogo, esconderColunaDireita, mostrarColunaDireita } from './helpers/colunaDireita'
 
 // Disco apertado nesta máquina: sem trace e sem vídeo. O screenshot de falha fica.
 test.use({ trace: 'off', video: 'off' })
@@ -361,7 +362,7 @@ async function mestreAbreAventura(mestre: Page): Promise<Rede> {
   await expect.poll(() => estaDestacada(entradaDaCena(lista, CENA_A)), { message: `a aventura deveria abrir na cena "${CENA_A}"` }).toBe(true)
   await expect(entradaDaCena(lista, CENA_B), `a lista de Cenas deveria ter "${CENA_B}"`).toBeVisible()
 
-  await mestre.getByRole('tab', { name: 'Jogo' }).click()
+  await abrirAbaJogo(mestre)
   await mestre.getByRole('button', { name: 'Abrir sala' }).click()
   await expect(mestre.getByText(CODIGO).first()).toBeVisible()
   return rede
@@ -369,10 +370,10 @@ async function mestreAbreAventura(mestre: Page): Promise<Rede> {
 
 /** A seção "Cenas" da aba Mapa, aberta. */
 async function secaoCenas(page: Page): Promise<Locator> {
-  await page.getByRole('tab', { name: 'Mapa' }).click()
-  const painel = page.getByRole('tabpanel', { name: 'Mapa' })
+  await mostrarColunaDireita(page)
+  const painel = page.getByRole('region', { name: 'Cenas' })
   const cabecalho = painel.getByRole('button', { name: 'Cenas', exact: true })
-  await expect(cabecalho, 'a aba Mapa do rail deveria ter uma seção "Cenas"').toBeVisible({ timeout: 10_000 })
+  await expect(cabecalho, 'a coluna da direita deveria ter a seção "Cenas"').toBeVisible({ timeout: 10_000 })
   if ((await cabecalho.getAttribute('aria-expanded')) === 'false') await cabecalho.click()
   await expect(cabecalho).toHaveAttribute('aria-expanded', 'true')
   const corpo = await cabecalho.getAttribute('aria-controls')
@@ -400,7 +401,7 @@ async function mestreAbreCena(mestre: Page, nome: string): Promise<void> {
 
 /** Aba Jogo, card do jogador, "Atribuir <ficha>" — o clique de um toque que o painel oferece. */
 async function mestreAtribui(mestre: Page, jogador: string, nomeDoToken: string): Promise<void> {
-  await mestre.getByRole('tab', { name: 'Jogo' }).click()
+  await abrirAbaJogo(mestre)
   const painel = mestre.locator('#lb-rail-panel-room')
   const card = painel.locator('.lb-field').filter({ hasText: `${jogador} —` })
   await card.getByRole('button', { name: `Atribuir ${nomeDoToken}` }).click()
@@ -637,7 +638,7 @@ async function tocarNoMapa(page: Page, p: Ponto): Promise<void> {
 
 /** Ferramenta Pino na mão e clique na cabeça do pino "!": o painel "Ponto de interesse" abre no rail. */
 async function mestreAbrePainelDoPino(mestre: Page): Promise<Locator> {
-  await mestre.getByRole('tab', { name: 'Mapa' }).click()
+  await esconderColunaDireita(mestre)
   await mestre.getByRole('button', { name: FERRAMENTA_PINO, exact: true }).click()
   const camera = await cameraDoMestre(mestre)
   await tocarNoMapa(mestre, camera.paraTela({ x: POS_PINO.x, y: POS_PINO.y - PIN_HEAD_OFFSET }))
@@ -655,7 +656,8 @@ async function botoesDoPainel(painel: Locator): Promise<string> {
 }
 
 function caixaDoJogador(mestre: Page, jogador: string): Locator {
-  return mestre.getByRole('checkbox', { name: new RegExp(`\\b${jogador}\\b`) })
+  // No inspetor (região Mapa): o Jogo, na coluna da direita, pode ter outras caixas com o nome dele.
+  return mestre.getByRole('region', { name: 'Mapa' }).getByRole('checkbox', { name: new RegExp(`\\b${jogador}\\b`) })
 }
 
 /** Abre a lista de reunião pelo botão do painel e confere os três marcados. Devolve o botão "Reunir". */
@@ -721,7 +723,7 @@ test('1. controle: Ana e Bruno veem o Salão, Carla vê a Cripta, e o mestre vê
   if (centroCarla) expect(Math.hypot(centroCarla.x - esperadoCarla.x, centroCarla.y - esperadoCarla.y), `${J3}: a ficha não está onde a câmera de encaixe diz`).toBeLessThan(20)
 
   // A régua de câmera do MESTRE acerta as fichas do Salão (é por ela que os testes 3 e 4 medem).
-  await page.getByRole('tab', { name: 'Mapa' }).click()
+  await esconderColunaDireita(page)
   const camera = await cameraDoMestre(page)
   const telaDoMestre = await telaParada(page)
   for (const [cor, pos, quem] of [['limao', POS_J1, J1], ['laranja', POS_J2, J2]] as const) {

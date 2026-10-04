@@ -50,6 +50,7 @@
 // jogadores", que não existe.
 import { test, expect, type Browser, type BrowserContext, type Locator, type Page, type WebSocketRoute } from '@playwright/test'
 import { installTauriFsStub } from './helpers/tauriFsStub'
+import { abrirAbaJogo, esconderColunaDireita } from './helpers/colunaDireita'
 
 // Disco apertado nesta máquina: sem trace e sem vídeo. O screenshot de falha fica.
 test.use({ trace: 'off', video: 'off' })
@@ -183,17 +184,17 @@ async function mestreEscolheNomePublico(mestre: Page, opcao: 'O mesmo' | 'Outro'
 }
 
 async function mestreAbreSala(mestre: Page): Promise<void> {
-  await mestre.getByRole('tab', { name: 'Jogo' }).click()
+  await abrirAbaJogo(mestre)
   await mestre.getByRole('button', { name: 'Abrir sala' }).click()
   await expect(mestre.getByText(CODIGO).first()).toBeVisible()
 }
 
 async function mestreAtribui(mestre: Page, jogador: string, ficha: string): Promise<void> {
-  await mestre.getByRole('tab', { name: 'Jogo' }).click()
+  await abrirAbaJogo(mestre)
   const card = mestre.locator('#lb-rail-panel-room .lb-field').filter({ hasText: `${jogador} —` })
   await card.getByRole('button', { name: `Atribuir ${ficha}` }).click()
   await expect(card.getByRole('button', { name: `Remover ${ficha}` }), `${jogador} deveria ficar com ${ficha}`).toBeVisible()
-  await mestre.getByRole('tab', { name: 'Mapa' }).click()
+  await esconderColunaDireita(mestre)
 }
 
 // ───────────────────────────────────────────────────────────────────────────

@@ -240,10 +240,9 @@ async function mestreAbreAventura(page: Page): Promise<Locator> {
 
 /** A seção "Cenas" da aba Mapa, aberta (mesmo gesto de task-jornada-cenas-com-gente). */
 async function secaoCenas(page: Page): Promise<Locator> {
-  await page.getByRole('tab', { name: 'Mapa' }).click()
-  const painel = page.getByRole('tabpanel', { name: 'Mapa' })
+  const painel = page.getByRole('region', { name: 'Cenas' })
   const cabecalho = painel.getByRole('button', { name: 'Cenas', exact: true })
-  await expect(cabecalho, 'a aba Mapa do rail deveria ter uma seção "Cenas"').toBeVisible({ timeout: 10_000 })
+  await expect(cabecalho, 'a coluna da direita deveria ter a seção "Cenas"').toBeVisible({ timeout: 10_000 })
   if ((await cabecalho.getAttribute('aria-expanded')) === 'false') await cabecalho.click()
   await expect(cabecalho).toHaveAttribute('aria-expanded', 'true')
   const corpo = await cabecalho.getAttribute('aria-controls')
@@ -270,8 +269,8 @@ function miniatura(painel: Locator, nome: string): Locator {
 /** Clique de ponteiro no botão "Visão geral" da seção Cenas; devolve o painel aberto. */
 async function abrirVisaoGeral(page: Page): Promise<Locator> {
   await secaoCenas(page)
-  const botao = page.getByRole('tabpanel', { name: 'Mapa' }).getByRole('button', { name: BOTAO_VISAO_GERAL })
-  await expect(botao, 'a seção Cenas da aba Mapa deveria ter um botão "Visão geral"').toBeVisible({ timeout: ESPERA })
+  const botao = page.getByRole('region', { name: 'Cenas' }).getByRole('button', { name: BOTAO_VISAO_GERAL })
+  await expect(botao, 'a seção Cenas da coluna da direita deveria ter um botão "Visão geral"').toBeVisible({ timeout: ESPERA })
   await botao.click()
   const painel = painelDaVisaoGeral(page)
   await expect(painel, `o botão "Visão geral" deveria abrir um painel chamado "${NOME_DO_PAINEL}"`).toBeVisible({ timeout: ESPERA })

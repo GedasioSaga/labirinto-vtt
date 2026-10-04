@@ -16,6 +16,7 @@
 // task4-selection-pixel-diff.spec.ts: recorte do canvas, byte a byte.
 import { test, expect, type Page } from '@playwright/test'
 import { enterEditor } from './helpers/enterEditor'
+import { esconderColunaDireita } from './helpers/colunaDireita'
 
 /** Cor padrão de região nova (mapFactory) — fica com o "mar", a região de
  *  baixo. O `#lb-region-color` do painel mostra a cor da região SELECIONADA,
@@ -188,6 +189,8 @@ function recorteDaIlha(origem: Ponto) {
 
 test.beforeEach(async ({ page }) => {
   await enterEditor(page)
+  // A coluna da direita flutua sobre o lado do mapa que esta jornada desenha e lê.
+  await esconderColunaDireita(page)
 })
 
 test('ilha travada não se move no arrasto; destravada volta a mover', async ({ page }) => {

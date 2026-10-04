@@ -56,6 +56,7 @@ import { createEmptyMap } from '../src/lib/mapFactory'
 import { serializeMap } from '../src/lib/mapFile'
 import { fitCamera } from '../src/pixi/world'
 import type { MapData, Pin, Token } from '../src/types/map'
+import { abrirAbaJogo, esconderColunaDireita } from './helpers/colunaDireita'
 
 // Disco apertado nesta máquina: sem trace e sem vídeo. O screenshot de falha fica.
 test.use({ trace: 'off', video: 'off' })
@@ -316,7 +317,7 @@ async function mestreAbreAventura(mestre: Page, passagem: Passagem): Promise<Red
   await mestre.getByRole('button', { name: /Carregar Mapa existente/ }).click()
   await mestre.getByRole('button', { name: new RegExp(AVENTURA) }).click()
   await mestre.waitForSelector('canvas')
-  await mestre.getByRole('tab', { name: 'Jogo' }).click()
+  await abrirAbaJogo(mestre)
   await mestre.getByRole('button', { name: 'Abrir sala' }).click()
   await expect(mestre.getByText(CODIGO).first()).toBeVisible()
   return rede
@@ -324,7 +325,7 @@ async function mestreAbreAventura(mestre: Page, passagem: Passagem): Promise<Red
 
 /** Aba Jogo, card do jogador, "Atribuir <token>" — o clique de um toque que o painel oferece. */
 async function mestreAtribui(mestre: Page, jogador: string, nomeDoToken: string): Promise<void> {
-  await mestre.getByRole('tab', { name: 'Jogo' }).click()
+  await abrirAbaJogo(mestre)
   const painel = mestre.locator('#lb-rail-panel-room')
   const card = painel.locator('.lb-field').filter({ hasText: `${jogador} —` })
   await card.getByRole('button', { name: `Atribuir ${nomeDoToken}` }).click()
@@ -388,7 +389,7 @@ async function mesa(browser: Browser, mestre: Page, baseURL: string, passagem: P
   const jogadores: Jogador[] = []
   for (let i = 0; i < nomes.length; i += 1) jogadores.push(await jogadorEntra(browser, baseURL, rede, `c${i + 1}`, nomes[i]))
   for (const nome of nomes) await mestreAtribui(mestre, nome, TOKEN_DE[nome])
-  await mestre.getByRole('tab', { name: 'Mapa' }).click()
+  await esconderColunaDireita(mestre)
   for (const j of jogadores) {
     await expect(j.page.locator('canvas').first(), `${j.nome}: o mapa não apareceu na tela do jogador`).toBeVisible({ timeout: 10_000 })
     await expect

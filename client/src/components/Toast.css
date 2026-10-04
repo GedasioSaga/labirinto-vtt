@@ -18,13 +18,21 @@
 .lb-toaststack {
   position: absolute;
   top: var(--lb-layout-edge-gap);
-  right: var(--lb-layout-edge-gap);
+  /* Ao lado da coluna da direita, nunca em cima dela (RightColumn.css). */
+  right: calc(var(--lb-layout-edge-gap) + var(--lb-coldir-espaco, 0px));
   z-index: 30;
   display: flex;
   flex-direction: column;
   gap: var(--lb-space-2);
   max-width: 320px;
   pointer-events: none;
+}
+
+/* Coluna aberta: o canto de cima à direita do mapa fica colado na barra de
+   ferramentas, e o aviso que espera resposta taparia ferramentas. Desce para
+   logo abaixo dela (`--lb-topo-altura`, medida pelo App). */
+.lb-editor[data-coldir='aberta'] .lb-toaststack {
+  top: calc(var(--lb-layout-edge-gap) * 2 + var(--lb-topo-altura, 48px));
 }
 
 .lb-toast {

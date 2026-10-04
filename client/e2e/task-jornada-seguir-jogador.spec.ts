@@ -54,6 +54,7 @@ import { createEmptyMap } from '../src/lib/mapFactory'
 import { serializeMap } from '../src/lib/mapFile'
 import { fitCamera } from '../src/pixi/world'
 import type { MapData, Pin, Token, Wall } from '../src/types/map'
+import { abrirAbaJogo, esconderColunaDireita, mostrarColunaDireita } from './helpers/colunaDireita'
 
 // Disco apertado nesta máquina: sem trace e sem vídeo. O screenshot de falha fica.
 test.use({ trace: 'off', video: 'off' })
@@ -366,7 +367,7 @@ async function mestreAbreAventura(mestre: Page): Promise<Rede> {
   await expect.poll(() => estaDestacada(entradaDaCena(lista, CENA_A)), { message: `a aventura deveria abrir na cena "${CENA_A}"` }).toBe(true)
   await expect(entradaDaCena(lista, CENA_B), `a lista de Cenas deveria ter "${CENA_B}"`).toBeVisible()
 
-  await mestre.getByRole('tab', { name: 'Jogo' }).click()
+  await abrirAbaJogo(mestre)
   await mestre.getByRole('button', { name: 'Abrir sala' }).click()
   await expect(mestre.getByText(CODIGO).first()).toBeVisible()
   return rede
@@ -374,10 +375,10 @@ async function mestreAbreAventura(mestre: Page): Promise<Rede> {
 
 /** A seção "Cenas" da aba Mapa, aberta (mesmo gesto de task-jornada-pino-de-viagem). */
 async function secaoCenas(page: Page): Promise<Locator> {
-  await page.getByRole('tab', { name: 'Mapa' }).click()
-  const painel = page.getByRole('tabpanel', { name: 'Mapa' })
+  await mostrarColunaDireita(page)
+  const painel = page.getByRole('region', { name: 'Cenas' })
   const cabecalho = painel.getByRole('button', { name: 'Cenas', exact: true })
-  await expect(cabecalho, 'a aba Mapa do rail deveria ter uma seção "Cenas"').toBeVisible({ timeout: 10_000 })
+  await expect(cabecalho, 'a coluna da direita deveria ter a seção "Cenas"').toBeVisible({ timeout: 10_000 })
   if ((await cabecalho.getAttribute('aria-expanded')) === 'false') await cabecalho.click()
   await expect(cabecalho).toHaveAttribute('aria-expanded', 'true')
   const corpo = await cabecalho.getAttribute('aria-controls')
@@ -407,7 +408,7 @@ function cardDeJogador(mestre: Page, jogador: string): Locator {
 
 /** Aba Jogo, card do jogador, "Atribuir <token>" — o clique de um toque que o painel oferece. */
 async function mestreAtribui(mestre: Page, jogador: string, nomeDoToken: string): Promise<void> {
-  await mestre.getByRole('tab', { name: 'Jogo' }).click()
+  await abrirAbaJogo(mestre)
   const card = cardDeJogador(mestre, jogador)
   await card.getByRole('button', { name: `Atribuir ${nomeDoToken}` }).click()
   await expect(card.getByRole('button', { name: `Remover ${nomeDoToken}` }), `${jogador} deveria ficar com ${nomeDoToken}`).toBeVisible()
@@ -419,7 +420,7 @@ async function mestreAtribui(mestre: Page, jogador: string, nomeDoToken: string)
  * fechado, ou uma região/lista/grupo com nome acessível "Grupo".
  */
 async function secaoGrupo(mestre: Page): Promise<Locator> {
-  await mestre.getByRole('tab', { name: 'Jogo' }).click()
+  await abrirAbaJogo(mestre)
   const painel = painelJogo(mestre)
   await expect(painel.getByRole('button', { name: 'Fechar sala' }).or(painel.getByText(CODIGO)).first(), 'a aba Jogo deveria estar aberta, com a sala').toBeVisible({ timeout: ESPERA })
   const cabecalho = painel.getByRole('button', { name: GRUPO, exact: true })
@@ -577,6 +578,8 @@ async function fotografar(page: Page): Promise<Foto> {
  * pura: decodifica a foto num canvas solto e pergunta `elementFromPoint`.
  */
 async function lerTela(page: Page): Promise<Tela> {
+  // A coluna da direita flutua sobre o mapa: a leitura de pixel é do mapa livre.
+  await esconderColunaDireita(page)
   await page.waitForTimeout(PINTURA_MS)
   const foto = await fotografar(page)
   return page.evaluate(async (b64) => {
@@ -888,6 +891,10 @@ test('3. seguindo Ana, ela viaja pelo pino: o editor passa para a Cripta e a fic
 
 test('4. a roda do mouse sobre o mapa desliga o "Seguir", e a câmera para de acompanhar Ana', async ({ browser, page, baseURL }) => {
   test.setTimeout(180_000)
+  // Mestre numa tela mais larga: o "Seguir" centra Ana no mapa que as DUAS
+  // colunas deixam livre, e em 1280 px as 10 casas de volta (depois da roda)
+  // a levavam para baixo do painel da esquerda.
+  await page.setViewportSize({ width: 1600, height: 800 })
   const { ana } = await mesaMontada(browser, page, baseURL ?? '')
 
   const seguir = await mestreSegue(page, J1)
@@ -898,6 +905,8 @@ test('4. a roda do mouse sobre o mapa desliga o "Seguir", e a câmera para de ac
   expect(quem, `régua: o ponto da roda ${escrever(meio)} não está sobre o mapa, está sobre ${quem}`).toBe('CANVAS')
   await page.mouse.move(meio.x, meio.y)
   await page.mouse.wheel(0, RODA)
+  // O botão Seguir mora na aba Jogo da coluna, escondida para ler o mapa.
+  await mostrarColunaDireita(page)
   await expect(seguir, 'girar a roda do mouse sobre o mapa deveria desligar o "Seguir" (aria-pressed=false)').toHaveAttribute('aria-pressed', 'false', { timeout: ESPERA })
 
   const antes = distanciaAnaBruno(await lerTela(page))

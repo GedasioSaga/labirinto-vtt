@@ -492,7 +492,9 @@ export function Toolbar({ activeTool, onSelectTool, lastDrawingTool, variantBind
           anchorCenter: buttonBox.left + buttonBox.width / 2,
           originLeft: dock.getBoundingClientRect().left,
           hintWidth: balloon.offsetWidth,
-          viewportWidth: window.innerWidth,
+          // A coluna da direita espelha o rail: o balão para antes dela como
+          // para antes do rail (a borda direita útil é a janela menos a coluna).
+          viewportWidth: window.innerWidth - (HINT_MIN_LEFT - EDGE_GAP),
           minLeft: HINT_MIN_LEFT,
           edgeGap: EDGE_GAP,
         }),

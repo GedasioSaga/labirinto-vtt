@@ -527,7 +527,7 @@ test('1. o mestre liga a parede da casa a uma cena nova, entra nela e VOLTA pela
   await page.getByRole('button', { name: /Nova cena em branco/i }).click()
 
   // A DOR 2: tem de existir uma LISTA DE CENAS na tela, com as duas cenas.
-  const cabecalhoCenas = page.locator('.lb-inspector').getByRole('button', { name: 'Cenas', exact: true })
+  const cabecalhoCenas = page.getByRole('region', { name: 'Cenas' }).getByRole('button', { name: 'Cenas', exact: true })
   await expect(cabecalhoCenas, 'não existe seção "Cenas" no rail: hoje há um mapa só em memória (mapStore.ts:1267)').toBeVisible({ timeout: 6000 })
   const corpoId = await cabecalhoCenas.getAttribute('aria-controls')
   if (!corpoId) throw new Error('cabeçalho de Cenas sem aria-controls')

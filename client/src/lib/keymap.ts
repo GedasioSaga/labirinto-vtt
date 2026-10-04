@@ -94,6 +94,24 @@ export const NEXT_TURN_SHORTCUT = 'Shift+N'
 export const PAUSE_NPCS_SHORTCUT = 'Shift+P'
 
 /**
+ * Esconde ou mostra a coluna da direita (Jogo, Chat e Cenas), no mesmo formato.
+ * J de Jogo, a primeira aba dela; Shift+J estava livre e segue a família dos
+ * Shift+letra do mestre (Shift+N, Shift+P). Fora do `resolveShortcut`: quem
+ * ouve é o App, dono da coluna (`isRightColumnShortcut`).
+ */
+export const RIGHT_COLUMN_SHORTCUT = 'Shift+J'
+
+/**
+ * A tecla é o `RIGHT_COLUMN_SHORTCUT`? Num campo de texto não: ali o Shift+J
+ * é um J maiúsculo.
+ */
+export function isRightColumnShortcut(evt: ShortcutEvent): boolean {
+  if (!evt.shiftKey || evt.ctrlKey || evt.metaKey || evt.altKey) return false
+  if (evt.key.toLowerCase() !== 'j') return false
+  return !isEditableTarget(evt.targetTagName, evt.targetInputType, evt.targetContentEditable)
+}
+
+/**
  * Tabela ferramenta → letra, para o integrador mostrar no `data-tip` de cada
  * botão (item 6 do plano — atalho invisível é atalho inexistente). Segue
  * V/W/R/O/L/P/E/T de Figma/Excalidraw onde a convenção existe (select,

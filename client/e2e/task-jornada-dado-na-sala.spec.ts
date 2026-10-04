@@ -62,6 +62,7 @@ import { test, expect, type Browser, type BrowserContext, type Locator, type Pag
 import { createEmptyMap } from '../src/lib/mapFactory'
 import { serializeMap } from '../src/lib/mapFile'
 import type { MapData, Token } from '../src/types/map'
+import { abrirAbaJogo, esconderColunaDireita } from './helpers/colunaDireita'
 
 // Disco apertado nesta máquina: sem trace e sem vídeo. O screenshot de falha fica.
 test.use({ trace: 'off', video: 'off' })
@@ -283,7 +284,7 @@ async function mestreAbreAventura(mestre: Page): Promise<Rede> {
   await mestre.getByRole('button', { name: new RegExp(AVENTURA) }).click()
   await mestre.waitForSelector('canvas')
 
-  await mestre.getByRole('tab', { name: 'Jogo' }).click()
+  await abrirAbaJogo(mestre)
   await mestre.getByRole('button', { name: 'Abrir sala' }).click()
   await expect(mestre.getByText(CODIGO).first()).toBeVisible()
   return rede
@@ -291,7 +292,7 @@ async function mestreAbreAventura(mestre: Page): Promise<Rede> {
 
 /** Aba Jogo, card do jogador, "Atribuir <token>" — o clique de um toque que o painel oferece. */
 async function mestreAtribui(mestre: Page, jogador: string, nomeDoToken: string): Promise<void> {
-  await mestre.getByRole('tab', { name: 'Jogo' }).click()
+  await abrirAbaJogo(mestre)
   const painel = mestre.locator('#lb-rail-panel-room')
   const card = painel.locator('.lb-field').filter({ hasText: `${jogador} —` })
   await card.getByRole('button', { name: `Atribuir ${nomeDoToken}` }).click()
@@ -368,7 +369,7 @@ async function mesaMontada(browser: Browser, mestre: Page, baseURL: string, quem
   await mestreAtribui(mestre, J1, TOKEN_J1)
   if (bruno) await mestreAtribui(mestre, J2, TOKEN_J2)
   // O mestre volta para o mapa: é onde ele fica na mesa.
-  await mestre.getByRole('tab', { name: 'Mapa' }).click()
+  await esconderColunaDireita(mestre)
   await jogadorVeAFicha(ana, TOKEN_J1, J1)
   if (bruno) await jogadorVeAFicha(bruno, TOKEN_J2, J2)
   return { mestre, ana, bruno }
@@ -518,7 +519,7 @@ test('1. controle: Ana e Bruno entram, recebem fichas e cada um vê a própria f
   test.setTimeout(120_000)
   const mesa = await mesaMontada(browser, page, baseURL ?? '', 'ana-e-bruno')
   // A aba Jogo do mestre lista os dois, cada um com a ficha dele.
-  await mesa.mestre.getByRole('tab', { name: 'Jogo' }).click()
+  await abrirAbaJogo(mesa.mestre)
   const painelJogo = mesa.mestre.locator('#lb-rail-panel-room')
   await expect(painelJogo.getByRole('button', { name: `Remover ${TOKEN_J1}` })).toBeVisible()
   await expect(painelJogo.getByRole('button', { name: `Remover ${TOKEN_J2}` })).toBeVisible()

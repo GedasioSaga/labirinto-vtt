@@ -47,6 +47,7 @@ import { createEmptyMap } from '../src/lib/mapFactory'
 import { serializeMap } from '../src/lib/mapFile'
 import { fitCamera } from '../src/pixi/world'
 import type { MapData, Region, Token, Wall } from '../src/types/map'
+import { abrirAbaJogo, esconderColunaDireita } from './helpers/colunaDireita'
 
 // Máquina carregada: sem trace e sem vídeo. O screenshot de falha fica.
 test.use({ trace: 'off', video: 'off' })
@@ -296,14 +297,14 @@ async function mestreAbreAMansao(mestre: Page): Promise<Rede> {
   await mestre.getByRole('button', { name: /Carregar Mapa existente/ }).click()
   await mestre.getByRole('button', { name: new RegExp(AVENTURA) }).click()
   await mestre.waitForSelector('canvas')
-  await mestre.getByRole('tab', { name: 'Jogo' }).click()
+  await abrirAbaJogo(mestre)
   await mestre.getByRole('button', { name: 'Abrir sala' }).click()
   await expect(mestre.getByText(CODIGO).first()).toBeVisible()
   return rede
 }
 
 async function mestreAtribui(mestre: Page, jogador: string, nomeDoToken: string): Promise<void> {
-  await mestre.getByRole('tab', { name: 'Jogo' }).click()
+  await abrirAbaJogo(mestre)
   const card = mestre.locator('#lb-rail-panel-room').locator('.lb-field').filter({ hasText: `${jogador} —` })
   await card.getByRole('button', { name: `Atribuir ${nomeDoToken}` }).click()
   await expect(card.getByRole('button', { name: `Remover ${nomeDoToken}` }), `${jogador} deveria ficar com ${nomeDoToken}`).toBeVisible()
@@ -483,7 +484,7 @@ async function anaJuntoDaEstante(browser: Browser, mestre: Page, baseURL: string
   const rede = await mestreAbreAMansao(mestre)
   const ana = await anaEntra(browser, baseURL, rede)
   await mestreAtribui(mestre, JOGADORA, TOKEN_ANA)
-  await mestre.getByRole('tab', { name: 'Mapa' }).click()
+  await esconderColunaDireita(mestre)
   await expect(ana.locator('canvas').first(), 'o mapa não apareceu na tela da Ana').toBeVisible({ timeout: 10_000 })
   await expect
     .poll(async () => (await lerTela(ana, ZONAS)).centroDaAna !== null, { timeout: ESPERA_TELA, message: 'a ficha da Ana não apareceu na tela dela' })

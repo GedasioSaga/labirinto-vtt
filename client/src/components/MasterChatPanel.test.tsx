@@ -3,12 +3,14 @@ import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import type { MasterChatState } from '../net/hostSession'
 import type { ChatEntry } from '../net/protocol'
-import { MasterChatPanel } from './MasterChatPanel'
+import { chatUnreadLabel, MasterChatPanel, type ChatUnread } from './MasterChatPanel'
 
 /**
- * CHAT DOS JOGADORES na tela do mestre (docs/plano-chat.md, fatia D): o mestre
- * lê o Global e cada cena, escreve só no Global, vê o que não leu por canal e
- * a menção a ele em destaque; o texto do jogador é sempre texto.
+ * CHAT DOS JOGADORES na tela do mestre (docs/plano-chat.md, fatia D), agora o
+ * painel da aba Chat da coluna da direita: o mestre lê o Global e cada cena,
+ * escreve só no Global, vê o que não leu por canal e a menção a ele em
+ * destaque; o texto do jogador é sempre texto. O total não lido sai por
+ * `onUnreadChange` para a aba e o botão de reabrir a coluna.
  */
 
 const AS_20_30 = new Date(2026, 8, 27, 20, 30).getTime()
@@ -34,6 +36,8 @@ describe('MasterChatPanel', () => {
   let enviados: string[]
   let aceita: boolean
   let apagados: [string | null, string][]
+  let naoLidas: ChatUnread[]
+  let atual: MasterChatState
 
   beforeEach(() => {
     Reflect.set(globalThis, 'IS_REACT_ACT_ENVIRONMENT', true)
@@ -43,6 +47,8 @@ describe('MasterChatPanel', () => {
     enviados = []
     aceita = true
     apagados = []
+    naoLidas = []
+    atual = conversa()
   })
 
   afterEach(() => {
@@ -50,11 +56,15 @@ describe('MasterChatPanel', () => {
     container.remove()
   })
 
-  function render(chat: MasterChatState): void {
+  /** `active` = a aba Chat à vista com a coluna aberta; fora da vista nada conta como lido. */
+  function render(chat: MasterChatState, active = false): void {
+    atual = chat
     act(() =>
       root.render(
         <MasterChatPanel
           chat={chat}
+          active={active}
+          onUnreadChange={(unread) => naoLidas.push(unread)}
           onSend={(text) => {
             enviados.push(text)
             return aceita
@@ -65,20 +75,14 @@ describe('MasterChatPanel', () => {
     )
   }
 
-  function botaoChat(): HTMLButtonElement {
-    const achado = container.querySelector<HTMLButtonElement>('button.lb-mchat__toggle')
-    if (!achado) throw new Error('sem o botão Chat')
-    return achado
+  /** O nome que a aba Chat ganharia com o último contador avisado. */
+  function nomeDaAba(): string {
+    return chatUnreadLabel('Chat', naoLidas.at(-1) ?? { count: 0, mention: false })
   }
 
-  function painel(): HTMLElement {
-    const achado = container.querySelector<HTMLElement>('section.lb-mchat__panel')
-    if (!achado) throw new Error('sem o painel')
-    return achado
-  }
-
+  /** A aba Chat escolhida: o painel fica à vista. */
   function abrir(): void {
-    act(() => botaoChat().click())
+    render(atual, true)
   }
 
   function canal(nome: string): HTMLButtonElement {
@@ -114,18 +118,18 @@ describe('MasterChatPanel', () => {
     return evento
   }
 
-  it('o botão Chat abre e fecha o painel; o Global vem primeiro, depois cada cena pelo nome', () => {
-    render(conversa())
-    expect(painel().hidden).toBe(true)
-    abrir()
-    expect(painel().hidden).toBe(false)
-    expect(botaoChat().getAttribute('aria-expanded')).toBe('true')
+  it('é o painel da aba, sem botão flutuante; o Global vem primeiro, depois cada cena pelo nome', () => {
+    render(conversa(), true)
+    const painel = container.querySelector('section.lb-mchat')
+    expect(painel?.getAttribute('aria-label')).toBe('Chat dos jogadores')
+    expect(painel?.hasAttribute('hidden')).toBe(false)
+    // O botão "Chat" do canto do mapa saiu: o painel não abre nem fecha sozinho.
+    expect(container.querySelector('.lb-mchat__toggle')).toBeNull()
+    expect(container.querySelector('[aria-expanded]')).toBeNull()
     const nomes = Array.from(container.querySelectorAll('.lb-mchat__channel-name')).map((n) => n.textContent)
     expect(nomes).toEqual(['Global', 'Salao Norte', 'Cripta Rubra'])
     expect(canal('Global').getAttribute('aria-pressed')).toBe('true')
     expect(textos()).toEqual(['Alguém no Salão?'])
-    act(() => botaoChat().click())
-    expect(painel().hidden).toBe(true)
   })
 
   it('trocar de canal mostra a conversa daquela cena, e a cena é só leitura', () => {
@@ -158,50 +162,49 @@ describe('MasterChatPanel', () => {
     expect(itens[0].classList.contains('lb-mchat__msg--master')).toBe(true)
   })
 
-  it('o que chegou com o canal fechado conta como não lido, por canal; abrir o canal lê', () => {
+  it('o que chegou com o canal fora da vista conta como não lido, por canal; ver o canal lê', () => {
     render(conversa())
-    // Tudo chegou com o painel fechado: 3 novas no botão.
-    expect(botaoChat().getAttribute('aria-label')).toBe('Chat (3 novas)')
-    expect(botaoChat().querySelector('.lb-mchat__badge')?.textContent).toBe('3')
+    // Tudo chegou com a aba fora da vista: 3 novas avisadas para a aba e o botão de reabrir.
+    expect(naoLidas.at(-1)).toEqual({ count: 3, mention: false })
+    expect(nomeDaAba()).toBe('Chat (3 novas)')
     abrir()
-    // O Global, aberto, foi lido; as cenas continuam com 1 cada.
+    // O Global, à vista, foi lido; as cenas continuam com 1 cada.
     expect(canal('Global').querySelector('.lb-mchat__badge')).toBeNull()
     expect(canal('Salao Norte').querySelector('.lb-mchat__badge')?.textContent).toContain('1')
-    expect(botaoChat().getAttribute('aria-label')).toBe('Chat (2 novas)')
+    expect(nomeDaAba()).toBe('Chat (2 novas)')
     act(() => canal('Salao Norte').click())
     expect(canal('Salao Norte').querySelector('.lb-mchat__badge')).toBeNull()
     // Linha nova na Cripta, com o painel no Salão: acende só a Cripta.
-    render(conversa({ scenes: [conversa().scenes[0], { key: 'm-cripta', name: 'Cripta Rubra', messages: [...conversa().scenes[1].messages, linha('c2', 'Bruno', 'ouvi algo')] }] }))
+    render(conversa({ scenes: [conversa().scenes[0], { key: 'm-cripta', name: 'Cripta Rubra', messages: [...conversa().scenes[1].messages, linha('c2', 'Bruno', 'ouvi algo')] }] }), true)
     expect(canal('Cripta Rubra').querySelector('.lb-mchat__badge')?.textContent).toContain('2')
     expect(canal('Salao Norte').querySelector('.lb-mchat__badge')).toBeNull()
   })
 
-  it('@mestre acende forte: na linha, no canal e no botão Chat', () => {
+  it('@mestre acende forte: na linha, no canal e no contador da aba', () => {
     render(conversa({ scenes: [{ key: 'm-salao', name: 'Salao Norte', messages: [linha('s1', 'Ana', '@mestre posso abrir o baú?', ['mestre'])] }] }))
-    expect(botaoChat().getAttribute('aria-label')).toBe('Chat (2 novas, menciona você)')
-    expect(botaoChat().querySelector('.lb-mchat__badge--mention')).not.toBeNull()
+    expect(naoLidas.at(-1)).toEqual({ count: 2, mention: true })
+    expect(nomeDaAba()).toBe('Chat (2 novas, menciona você)')
     abrir()
     expect(canal('Salao Norte').querySelector('.lb-mchat__badge--mention')?.textContent).toContain('@1')
     act(() => canal('Salao Norte').click())
     const item = container.querySelector('li.lb-mchat__msg')
     expect(item?.classList.contains('lb-mchat__msg--mention')).toBe(true)
     expect(item?.textContent).toContain('(menciona você)')
-    expect(botaoChat().querySelector('.lb-mchat__badge')).toBeNull()
+    expect(naoLidas.at(-1)).toEqual({ count: 0, mention: false })
   })
 
   it('chat salvo: o que voltou do disco (restoredIds) não conta como não lido nem acende o @mestre', () => {
     const salvo = linha('s1', 'Ana', '@mestre lembra do baú?', ['mestre'])
     render(conversa({ scenes: [{ key: 'm-salao', name: 'Salao Norte', messages: [salvo] }], restoredIds: new Set(['g1', 's1']) }))
-    expect(botaoChat().getAttribute('aria-label')).toBe('Chat')
-    expect(botaoChat().querySelector('.lb-mchat__badge')).toBeNull()
+    expect(nomeDaAba()).toBe('Chat')
     // A linha nova, dita nesta sala, conta normalmente.
     render(conversa({ scenes: [{ key: 'm-salao', name: 'Salao Norte', messages: [salvo, linha('s2', 'Ana', 'e agora?')] }], restoredIds: new Set(['g1', 's1']) }))
-    expect(botaoChat().getAttribute('aria-label')).toBe('Chat (1 nova)')
+    expect(nomeDaAba()).toBe('Chat (1 nova)')
   })
 
   it('a fala do próprio mestre nunca conta como não lida', () => {
     render(conversa({ global: [{ ...linha('g1', 'Mestre', 'Pausa'), fromMaster: true }], scenes: [] }))
-    expect(botaoChat().getAttribute('aria-label')).toBe('Chat')
+    expect(nomeDaAba()).toBe('Chat')
   })
 
   it('Enter manda no Global e limpa o campo; Shift+Enter não manda; vazio pede a mensagem', () => {
@@ -232,9 +235,8 @@ describe('MasterChatPanel', () => {
     expect(container.querySelector('[role="alert"]')?.textContent).toContain('não saiu')
   })
 
-  it('Esc fecha o painel sem chegar ao editor; fechado, o Esc passa', () => {
-    render(conversa())
-    abrir()
+  it('o Esc passa direto para o editor: o painel da aba não fecha nada', () => {
+    render(conversa(), true)
     let chegou = 0
     const ouvinte = () => {
       chegou += 1
@@ -244,13 +246,18 @@ describe('MasterChatPanel', () => {
       const alvo = campo()
       if (!alvo) throw new Error('sem campo')
       tecla(alvo, 'Escape')
-      expect(painel().hidden).toBe(true)
-      expect(chegou).toBe(0)
-      tecla(botaoChat(), 'Escape')
       expect(chegou).toBe(1)
+      expect(container.querySelector('section.lb-mchat')?.hasAttribute('hidden')).toBe(false)
     } finally {
       document.removeEventListener('keydown', ouvinte)
     }
+  })
+
+  it('desmontar (a sala fechou) zera o contador da aba', () => {
+    render(conversa())
+    expect(naoLidas.at(-1)).toEqual({ count: 3, mention: false })
+    act(() => root.render(<p>sem sala</p>))
+    expect(naoLidas.at(-1)).toEqual({ count: 0, mention: false })
   })
 
   it('Apagar pede confirmação na linha; confirmar apaga do canal certo, Cancelar não apaga', () => {

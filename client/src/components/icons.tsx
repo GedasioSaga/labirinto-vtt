@@ -833,3 +833,24 @@ export function ChatIcon(props: IconProps) {
     </Icon>
   )
 }
+
+/**
+ * Divisa dupla para a direita — "Esconder a coluna": a coluna da direita sai
+ * pela borda de onde mora.
+ */
+export function ChevronsRightIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M6 7l5 5-5 5M13 7l5 5-5 5" />
+    </Icon>
+  )
+}
+
+/** Divisa dupla para a esquerda — "Mostrar a coluna": ela volta da borda direita. */
+export function ChevronsLeftIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M18 7l-5 5 5 5M11 7l-5 5 5 5" />
+    </Icon>
+  )
+}

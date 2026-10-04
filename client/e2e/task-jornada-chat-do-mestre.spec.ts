@@ -316,14 +316,13 @@ async function mesaMontada(browser: Browser, mestre: Page, baseURL: string, quem
   await mestreAtribui(mestre, J1, TOKEN_J1)
   if (bruno) await mestreAtribui(mestre, J2, TOKEN_J2)
   // O mestre volta para o mapa: é onde ele fica na mesa.
-  await mestre.getByRole('tab', { name: 'Mapa' }).click()
   await jogadorVeAFicha(ana, TOKEN_J1, J1)
   if (bruno) await jogadorVeAFicha(bruno, TOKEN_J2, J2)
   return { mestre, ana, bruno }
 }
 
 // ───────────────────────────────────────────────────────────────────────────
-// O chat: o jogador pela aba Chat do Painel, o mestre pelo botão Chat
+// O chat: o jogador pela aba Chat do Painel, o mestre pela aba Chat da coluna da direita
 // ───────────────────────────────────────────────────────────────────────────
 
 /** Abre a aba Chat do Painel do jogador e escolhe o canal. */
@@ -370,8 +369,8 @@ test('o mestre lê o Global e as duas cenas, fala no Global e o @mestre acende',
   await expect(logDoJogador(ana)).toContainText('Alguém viu a porta do salão?')
   await expect(logDoJogador(ana)).not.toContainText('Aqui embaixo está escuro')
 
-  // O botão Chat do mestre mostra o que não leu e a menção.
-  const botao = mestre.getByRole('button', { name: /^Chat/ })
+  // A aba Chat do mestre mostra o que não leu e a menção.
+  const botao = mestre.getByRole('tab', { name: /^Chat/ })
   await expect(botao).toBeVisible({ timeout: ESPERA })
   await expect(botao).toHaveAccessibleName('Chat (3 novas, menciona você)')
   await mestre.screenshot({ path: 'test-results/chat-do-mestre-1-botao.png' })
@@ -396,7 +395,7 @@ test('o mestre lê o Global e as duas cenas, fala no Global e o @mestre acende',
   await expect(painel.locator('.lb-mchat__log')).toContainText('Aqui embaixo está escuro')
   await expect(painel.getByRole('textbox')).toHaveCount(0)
   await mestre.screenshot({ path: 'test-results/chat-do-mestre-3-cena.png' })
-  // Tudo lido: o botão fica só "Chat".
+  // Tudo lido: a aba fica só "Chat".
   await expect(botao).toHaveAccessibleName('Chat')
 
   // O mestre fala no Global; os dois jogadores, em cenas diferentes, recebem como Mestre.

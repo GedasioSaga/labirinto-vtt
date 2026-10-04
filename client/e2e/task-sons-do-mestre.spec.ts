@@ -21,6 +21,7 @@ import { test, expect, type Browser, type BrowserContext, type Page, type WebSoc
 import { createEmptyMap } from '../src/lib/mapFactory'
 import { serializeMap } from '../src/lib/mapFile'
 import type { MapData, Pin, Token } from '../src/types/map'
+import { abrirAbaJogo, esconderColunaDireita } from './helpers/colunaDireita'
 
 // Disco apertado nesta máquina: sem trace e sem vídeo. O screenshot de falha fica.
 test.use({ trace: 'off', video: 'off' })
@@ -256,7 +257,7 @@ async function mestreAbreASala(mestre: Page): Promise<Rede> {
   await mestre.getByRole('button', { name: /Carregar Mapa existente/ }).click()
   await mestre.getByRole('button', { name: new RegExp(AVENTURA) }).click()
   await mestre.waitForSelector('canvas')
-  await mestre.getByRole('tab', { name: 'Jogo' }).click()
+  await abrirAbaJogo(mestre)
   await mestre.getByRole('button', { name: 'Abrir sala' }).click()
   await expect(mestre.getByText(CODIGO).first()).toBeVisible()
   return rede
@@ -264,7 +265,7 @@ async function mestreAbreASala(mestre: Page): Promise<Rede> {
 
 /** Aba Jogo, card de Ana em "Jogadores", "Atribuir Ana". */
 async function mestreAtribuiAFicha(mestre: Page): Promise<void> {
-  await mestre.getByRole('tab', { name: 'Jogo' }).click()
+  await abrirAbaJogo(mestre)
   const card = mestre.locator('#lb-rail-panel-room').locator('.lb-field').filter({ hasText: `${JOGADORA} —` })
   await card.getByRole('button', { name: `Atribuir ${JOGADORA}` }).click()
   await expect(card.getByRole('button', { name: `Remover ${JOGADORA}` }), `${JOGADORA} deveria ficar com a ficha`).toBeVisible()
@@ -272,7 +273,7 @@ async function mestreAtribuiAFicha(mestre: Page): Promise<void> {
 
 /** Abre o "Som da mesa" e aperta o Mudo; fecha com Esc. */
 async function mestreAlternaOMudo(mestre: Page, mudoDepois: boolean): Promise<void> {
-  await mestre.getByRole('tab', { name: 'Jogo' }).click()
+  await abrirAbaJogo(mestre)
   await mestre.locator('.lb-room').getByRole('button', { name: 'Som da mesa' }).click()
   const popover = mestre.getByRole('dialog', { name: 'Som da mesa' })
   await expect(popover).toBeVisible()
@@ -362,7 +363,7 @@ test('o mestre ouve o dado e a passagem de verdade; o pino de viagem do editor f
   await expect.poll(() => fontes(mestre), { message: 'a rolagem da mesa toca o dado no mestre' }).toEqual(DADO)
 
   // EDITOR: o pino de viagem leva a VISTA do mestre à Cripta. Nenhuma ficha andou: nada toca.
-  await mestre.getByRole('tab', { name: 'Mapa' }).click()
+  await esconderColunaDireita(mestre)
   await mestre.getByRole('button', { name: 'Pinos', exact: true }).click()
   await mestre.getByRole('list', { name: 'Pinos da aventura' }).getByRole('button').filter({ hasText: PINO_A }).click()
   await mestre.getByRole('group', { name: 'Destino da viagem' }).getByRole('button', { name: `Ir para ${CENA_B}` }).click()
@@ -371,7 +372,7 @@ test('o mestre ouve o dado e a passagem de verdade; o pino de viagem do editor f
   expect(await fontes(mestre), 'navegar no editor não é passagem').toEqual(DADO)
 
   // SESSÃO: o mestre manda Ana à Cripta. A ficha troca de cena de verdade: passagem, uma vez.
-  await mestre.getByRole('tab', { name: 'Jogo' }).click()
+  await abrirAbaJogo(mestre)
   const grupo = mestre.locator('#lb-rail-panel-room').getByRole('region', { name: 'Grupo', exact: true })
   await grupo.getByRole('listitem').filter({ hasText: JOGADORA }).getByRole('button', { name: /^Mandar para(…|\.\.\.)$/ }).click()
   const envio = mestre.getByRole('form', { name: `Mandar ${JOGADORA} para outra cena` })

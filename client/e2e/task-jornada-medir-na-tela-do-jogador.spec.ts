@@ -56,6 +56,7 @@ import { createEmptyMap } from '../src/lib/mapFactory'
 import { serializeMap } from '../src/lib/mapFile'
 import { fitCamera } from '../src/pixi/world'
 import type { MapData, Token } from '../src/types/map'
+import { abrirAbaJogo, esconderColunaDireita } from './helpers/colunaDireita'
 
 // Disco apertado nesta máquina: sem trace e sem vídeo. O screenshot de falha fica.
 test.use({ trace: 'off', video: 'off' })
@@ -291,7 +292,7 @@ async function mestreAbreAventura(mestre: Page): Promise<Rede> {
   await mestre.getByRole('button', { name: /Carregar Mapa existente/ }).click()
   await mestre.getByRole('button', { name: new RegExp(AVENTURA) }).click()
   await mestre.waitForSelector('canvas')
-  await mestre.getByRole('tab', { name: 'Jogo' }).click()
+  await abrirAbaJogo(mestre)
   await mestre.getByRole('button', { name: 'Abrir sala' }).click()
   await expect(mestre.getByText(CODIGO).first()).toBeVisible()
   return rede
@@ -299,7 +300,7 @@ async function mestreAbreAventura(mestre: Page): Promise<Rede> {
 
 /** Aba Jogo, card da jogadora, "Atribuir <ficha>" — o clique de um toque que o painel oferece. */
 async function mestreAtribui(mestre: Page): Promise<void> {
-  await mestre.getByRole('tab', { name: 'Jogo' }).click()
+  await abrirAbaJogo(mestre)
   const painel = mestre.locator('#lb-rail-panel-room')
   const card = painel.locator('.lb-field').filter({ hasText: `${JOGADORA} —` })
   await card.getByRole('button', { name: `Atribuir ${FICHA}` }).click()
@@ -362,7 +363,7 @@ async function mesaMontada(browser: Browser, mestre: Page, baseURL: string): Pro
   const ana = await jogadoraEntra(browser, baseURL, rede)
   await mestreAtribui(mestre)
   // O mestre volta para o mapa: é onde ele fica na mesa.
-  await mestre.getByRole('tab', { name: 'Mapa' }).click()
+  await esconderColunaDireita(mestre)
   await expect(ana.locator('canvas').first(), 'o mapa não apareceu na tela da jogadora').toBeVisible({ timeout: 10_000 })
   await expect
     .poll(async () => (await ler(ana, null, await foto(ana))).ficha, { timeout: ESPERA_TELA, message: 'a ficha da jogadora não foi pintada' })

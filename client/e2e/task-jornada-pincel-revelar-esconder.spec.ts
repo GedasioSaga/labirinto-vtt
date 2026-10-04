@@ -77,6 +77,7 @@ import { createEmptyMap } from '../src/lib/mapFactory'
 import { serializeMap } from '../src/lib/mapFile'
 import { contentBounds, fitCamera } from '../src/pixi/world'
 import type { ConcealZone, MapData, Token, Wall } from '../src/types/map'
+import { abrirAbaJogo, esconderColunaDireita } from './helpers/colunaDireita'
 
 // Disco apertado nesta máquina: sem trace e sem vídeo. O screenshot de falha fica.
 test.use({ trace: 'off', video: 'off' })
@@ -359,7 +360,7 @@ async function mestreAbreCena(mestre: Page): Promise<Rede> {
   await mestre.getByRole('button', { name: new RegExp(AVENTURA) }).click()
   await mestre.waitForSelector('canvas')
 
-  await mestre.getByRole('tab', { name: 'Jogo' }).click()
+  await abrirAbaJogo(mestre)
   await mestre.getByRole('button', { name: 'Abrir sala' }).click()
   await expect(mestre.getByText(CODIGO).first()).toBeVisible()
   return rede
@@ -367,7 +368,7 @@ async function mestreAbreCena(mestre: Page): Promise<Rede> {
 
 /** Aba Jogo, card do jogador, "Atribuir <token>" — o clique de um toque que o painel oferece. */
 async function mestreAtribui(mestre: Page, jogador: string, nomeDoToken: string): Promise<void> {
-  await mestre.getByRole('tab', { name: 'Jogo' }).click()
+  await abrirAbaJogo(mestre)
   const painel = mestre.locator('#lb-rail-panel-room')
   const card = painel.locator('.lb-field').filter({ hasText: `${jogador} —` })
   await card.getByRole('button', { name: `Atribuir ${nomeDoToken}` }).click()
@@ -432,7 +433,7 @@ async function mesaMontada(browser: Browser, mestre: Page, baseURL: string): Pro
   const rede = await mestreAbreCena(mestre)
   const ana = await jogadorEntra(browser, baseURL, rede, 'c1', J1)
   await mestreAtribui(mestre, J1, TOKEN_J1)
-  await mestre.getByRole('tab', { name: 'Mapa' }).click()
+  await esconderColunaDireita(mestre)
   await expect(ana.page.locator('canvas').first(), `${J1}: o mapa não apareceu`).toBeVisible({ timeout: 10_000 })
   await expect
     .poll(async () => (await lerTela(ana.page, [])).limao, { timeout: ESPERA_TELA, message: `${J1}: a própria ficha não foi pintada` })
@@ -591,7 +592,7 @@ async function telaDeAna(ana: Jogador): Promise<Tela> {
 // ───────────────────────────────────────────────────────────────────────────
 
 async function mestrePegaOPincel(mestre: Page): Promise<Locator> {
-  await mestre.getByRole('tab', { name: 'Mapa' }).click()
+  await esconderColunaDireita(mestre)
   const ferramenta = mestre.getByRole('button', { name: FERRAMENTA }).first()
   await expect(
     ferramenta,

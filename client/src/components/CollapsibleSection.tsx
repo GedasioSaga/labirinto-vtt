@@ -27,6 +27,9 @@ export interface CollapsibleSectionProps {
    *  seta ("Cenas 3 ›"). Só acima de zero — linha sem número é lista vazia.
    *  Ausente = a linha não conta (seção `lazy`, ou que não é lista). */
   contagem?: number
+  /** Avisa quem monta a seção se ela está aberta, na montagem e a cada troca
+   *  (a coluna da direita dá a altura toda às abas quando Cenas recolhe). */
+  onOpenChange?: (open: boolean) => void
   children: ReactNode
 }
 
@@ -77,6 +80,7 @@ export function CollapsibleSection({
   lazy = false,
   openRequest,
   contagem,
+  onOpenChange,
   children,
 }: CollapsibleSectionProps) {
   const [storedOpen, setStoredOpen] = useState<boolean | null>(() => (persist ? readStoredOpen(id) : null))
@@ -96,6 +100,13 @@ export function CollapsibleSection({
     setStoredOpen(true)
     if (persist) writeStoredOpen(id, true)
   }, [openRequest, id, persist])
+
+  // Ref, não dependência: um `onOpenChange` novo a cada render do pai não pode reavisar.
+  const onOpenChangeRef = useRef(onOpenChange)
+  onOpenChangeRef.current = onOpenChange
+  useEffect(() => {
+    onOpenChangeRef.current?.(open)
+  }, [open])
 
   const toggle = () => {
     const next = !open

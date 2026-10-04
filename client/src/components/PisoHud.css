@@ -6,7 +6,8 @@
 
 .lb-pisohud {
   position: absolute;
-  right: var(--lb-layout-edge-gap);
+  /* Ao lado da coluna da direita, nunca embaixo dela (RightColumn.css). */
+  right: calc(var(--lb-layout-edge-gap) + var(--lb-coldir-espaco, 0px));
   /* A altura do zoom (uma linha de texto pequeno + o respiro dele) mais um vão. */
   bottom: calc(var(--lb-layout-edge-gap) + 2.75rem);
   display: inline-flex;

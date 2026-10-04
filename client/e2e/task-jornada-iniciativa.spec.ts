@@ -81,6 +81,7 @@ import { test, expect, type Browser, type BrowserContext, type Locator, type Pag
 import { createEmptyMap } from '../src/lib/mapFactory'
 import { serializeMap } from '../src/lib/mapFile'
 import type { MapData, Token } from '../src/types/map'
+import { abrirAbaJogo, esconderColunaDireita } from './helpers/colunaDireita'
 
 // Disco apertado nesta máquina: sem trace e sem vídeo. O screenshot de falha fica.
 test.use({ trace: 'off', video: 'off' })
@@ -337,7 +338,7 @@ async function mestreAbreAventura(mestre: Page): Promise<Rede> {
   await mestre.getByRole('button', { name: new RegExp(escapar(AVENTURA)) }).click()
   await mestre.waitForSelector('canvas')
 
-  await mestre.getByRole('tab', { name: 'Jogo' }).click()
+  await abrirAbaJogo(mestre)
   await mestre.getByRole('button', { name: 'Abrir sala' }).click()
   await expect(mestre.getByText(CODIGO).first()).toBeVisible()
   return rede
@@ -354,7 +355,7 @@ function cardDeJogador(mestre: Page, jogador: string): Locator {
 
 /** Aba Jogo, card do jogador, "Atribuir <ficha>" — o clique de um toque que o painel oferece. */
 async function mestreAtribui(mestre: Page, jogador: string, nomeDaFicha: string): Promise<void> {
-  await mestre.getByRole('tab', { name: 'Jogo' }).click()
+  await abrirAbaJogo(mestre)
   const card = cardDeJogador(mestre, jogador)
   await card.getByRole('button', { name: `Atribuir ${nomeDaFicha}` }).click()
   await expect(card.getByRole('button', { name: `Remover ${nomeDaFicha}` }), `${jogador} deveria ficar com ${nomeDaFicha}`).toBeVisible()
@@ -370,7 +371,7 @@ async function mestreAtribui(mestre: Page, jogador: string, nomeDaFicha: string)
  * fechado, ou uma região/grupo com nome acessível "Iniciativa".
  */
 async function secaoIniciativa(mestre: Page): Promise<Locator> {
-  await mestre.getByRole('tab', { name: 'Jogo' }).click()
+  await abrirAbaJogo(mestre)
   const painel = painelJogo(mestre)
   await expect(painel.getByText(CODIGO).first(), 'a aba Jogo deveria estar aberta, com a sala').toBeVisible({ timeout: ESPERA })
   const cabecalho = painel.getByRole('button', { name: INICIATIVA_SECAO, exact: true })
@@ -769,7 +770,7 @@ async function mesaMontada(browser: Browser, mestre: Page, baseURL: string): Pro
 
 /** O mestre olha o MAPA: a aba Mapa aberta, como na mesa durante o combate. */
 async function mestreOlhaMapa(mestre: Page): Promise<void> {
-  await mestre.getByRole('tab', { name: 'Mapa' }).click()
+  await esconderColunaDireita(mestre)
 }
 
 async function referenciaDoMestre(mestre: Page): Promise<Referencia> {
@@ -796,7 +797,7 @@ test('1. controle: dois jogadores com fichas; mestre e jogadores veem as três f
   test.setTimeout(180_000)
   const { ana, bruno } = await mesaMontada(browser, page, baseURL ?? '')
 
-  await page.getByRole('tab', { name: 'Jogo' }).click()
+  await abrirAbaJogo(page)
   for (const nome of [J1, J2]) {
     await expect(cardDeJogador(page, nome), `a aba Jogo deveria mostrar ${nome}`).toBeVisible({ timeout: ESPERA })
   }

@@ -1,57 +1,19 @@
 /*
- * CHAT DOS JOGADORES na tela do mestre — o botão "Chat" e o painel. Canto de
- * baixo à esquerda do mapa, logo ao lado do rail (o canto direito é dos Dados
- * e do zoom). Mesma linguagem dos Dados: fundo chapado escuro, linha fina
- * clara, latão no que importa — aqui, a menção ao mestre.
+ * CHAT DOS JOGADORES na tela do mestre — o painel da aba Chat da coluna da
+ * direita (RightColumn). A moldura é a `.lb-panel`; aqui só a grade:
+ * canais em cima, o log ocupando o meio e o campo (ou o aviso de só leitura)
+ * embaixo. Mesma linguagem dos Dados: fundo chapado escuro, linha fina clara,
+ * latão no que importa — aqui, a menção ao mestre.
  */
 
 .lb-mchat {
-  position: absolute;
-  left: calc(var(--lb-layout-rail-width, 264px) + var(--lb-layout-edge-gap, 12px) * 2);
-  bottom: var(--lb-layout-edge-gap, 12px);
-  z-index: 2;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 8px;
-  width: min(340px, calc(100vw - var(--lb-layout-rail-width, 264px) - 4 * var(--lb-layout-edge-gap, 12px)));
-  /* O vão entre as peças continua sendo mapa. */
-  pointer-events: none;
-}
-
-.lb-mchat__panel,
-.lb-mchat__toggle {
-  pointer-events: auto;
-}
-
-.lb-mchat__panel {
   box-sizing: border-box;
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto;
   gap: 8px;
-  width: 100%;
-  height: min(420px, calc(100vh - 160px));
+  flex: 1 1 auto;
+  min-height: 0;
   padding: 10px;
-}
-
-/* `.lb-panel` põe `display`: o atributo `hidden` sozinho perderia. */
-.lb-mchat__panel[hidden] {
-  display: none;
-}
-
-.lb-mchat__panel:not([hidden]) {
-  animation: lb-mchat-in var(--lb-motion-fast, 110ms) var(--lb-motion-ease, ease-out);
-}
-
-@keyframes lb-mchat-in {
-  from {
-    opacity: 0;
-    transform: translateY(4px);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
 }
 
 /* ── Canais: Global e uma pastilha por cena com conversa ──────────── */
@@ -294,46 +256,7 @@
   color: var(--lb-color-ember, #e2645a);
 }
 
-/* ── O botão "Chat" ───────────────────────────────────────────────── */
-
-.lb-mchat__toggle {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 14px;
-  font: inherit;
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--lb-color-parchment, #eceae4);
-  cursor: pointer;
-  transition: transform var(--lb-motion-fast, 110ms) var(--lb-motion-ease, ease);
-}
-
-.lb-mchat__toggle:hover {
-  background: var(--lb-color-stone-hover, #2c2c33);
-  border-color: var(--lb-color-line-strong, rgba(255, 255, 255, 0.16));
-}
-
-.lb-mchat__toggle:active {
-  transform: scale(0.97);
-}
-
-.lb-mchat__toggle[aria-expanded='true'] {
-  color: var(--lb-color-brass-bright, #f3ba66);
-}
-
-.lb-mchat__toggle:focus-visible,
 .lb-mchat__channel:focus-visible {
   outline: 2px solid var(--lb-color-brass-bright, #f3ba66);
   outline-offset: 2px;
-}
-
-/* No fim do arquivo de propósito: cada regra daqui empata em especificidade com a que desliga. */
-@media (prefers-reduced-motion: reduce) {
-  .lb-mchat__panel:not([hidden]) {
-    animation: none;
-  }
-  .lb-mchat__toggle:active {
-    transform: none;
-  }
 }

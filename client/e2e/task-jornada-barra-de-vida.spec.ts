@@ -712,7 +712,6 @@ const apagarFicha = (mestre: Page): Locator => mestre.getByRole('button', { name
 
 /** Aba Mapa, ferramenta Selecionar, clique no centro da ficha: o painel dela abre. */
 async function mestreSelecionaFicha(mestre: Page, ficha: Ficha, nome: string): Promise<void> {
-  await mestre.getByRole('tab', { name: 'Mapa' }).click()
   await mestre.getByRole('button', { name: 'Selecionar', exact: true }).click()
   await mestre.mouse.click(Math.round(ficha.x), Math.round(ficha.y))
   await mestre.mouse.move(DESCANSO.x, DESCANSO.y, { steps: 5 })
@@ -730,7 +729,7 @@ async function mestreLargaSelecao(mestre: Page): Promise<void> {
 /** Todo nome acessível de controle na tela — só para a falha dizer o que EXISTE hoje. */
 async function controlesNaTela(mestre: Page): Promise<string> {
   const nomes = await mestre
-    .locator('#lb-rail-panel-map, [role="tabpanel"]')
+    .locator('.lb-editor__mapa, [role="tabpanel"]')
     .locator('button, input, select, [role="checkbox"], [role="switch"], [role="radio"], [role="spinbutton"], [role="combobox"]')
     .evaluateAll((els) =>
       els
@@ -874,7 +873,6 @@ async function mesaMontada(browser: Browser, mestre: Page, baseURL: string): Pro
   await expect(ana.page.locator('canvas').first(), `${JOGADORA}: o mapa não apareceu na tela`).toBeVisible({ timeout: 10_000 })
   const naAna = await referencia(ana.page, JOGADORA, ESPERA_TELA)
   // O mestre fica na aba Mapa, sem nada selecionado: é a tela que a foto de referência guarda.
-  await mestre.getByRole('tab', { name: 'Mapa' }).click()
   await mestre.getByRole('button', { name: 'Selecionar', exact: true }).click()
   await mestre.mouse.move(DESCANSO.x, DESCANSO.y, { steps: 5 })
   await mestre.keyboard.press('Escape')

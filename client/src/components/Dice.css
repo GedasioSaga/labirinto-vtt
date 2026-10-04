@@ -207,7 +207,8 @@
 
 .lb-dice-dock {
   position: absolute;
-  right: var(--lb-layout-edge-gap, 12px);
+  /* Ao lado da coluna da direita, nunca embaixo dela (RightColumn.css). */
+  right: calc(var(--lb-layout-edge-gap, 12px) + var(--lb-coldir-espaco, 0px));
   /* O zoom (ZoomHud) mora no mesmo canto: a pilha começa acima dele. */
   bottom: calc(var(--lb-layout-edge-gap, 12px) * 2 + 36px);
   z-index: 2;
@@ -215,7 +216,7 @@
   flex-direction: column;
   align-items: flex-end;
   gap: 8px;
-  width: min(280px, calc(100vw - 2 * var(--lb-layout-edge-gap, 12px)));
+  width: min(280px, calc(100vw - 2 * var(--lb-layout-edge-gap, 12px) - var(--lb-coldir-espaco, 0px)));
   /* O vão entre as peças continua sendo mapa. */
   pointer-events: none;
 }

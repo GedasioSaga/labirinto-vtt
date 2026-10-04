@@ -317,13 +317,13 @@ test('o chat fica salvo: fecha a sala, reabre, e a conversa volta para o mestre 
   const ana = await jogadorEntra(browser, baseURL ?? 'http://localhost:1420', rede, 'c1', J1)
   await expect(ana.getByRole('status')).toHaveText(/Aguardando o mestre/, { timeout: 10_000 })
   await mestreAtribui(mestre, J1, TOKEN_J1)
-  await mestre.getByRole('tab', { name: 'Mapa' }).click()
   await jogadorVeAFicha(ana, TOKEN_J1, J1)
 
   // A conversa: Ana na cena e no Global, o mestre no Global.
   await jogadorFala(ana, 'Cena', FALA_CENA)
   await jogadorFala(ana, 'Global', FALA_APAGADA)
-  const botao = mestre.getByRole('button', { name: /^Chat/ })
+  // A aba Chat da coluna da direita (o botão flutuante de antes saiu).
+  const botao = mestre.getByRole('tab', { name: /^Chat/ })
   await botao.click()
   const painel = painelDoChat(mestre)
   const campo = painel.getByRole('textbox', { name: 'Mensagem para o Global' })
@@ -344,19 +344,20 @@ test('o chat fica salvo: fecha a sala, reabre, e a conversa volta para o mestre 
   await expect.poll(() => arquivoDoCanal(mestre, 'global.jsonl'), { timeout: ESPERA }).not.toContain(FALA_APAGADA)
   await expect.poll(() => arquivoDoCanal(mestre, 'cena-map_vale.jsonl'), { timeout: ESPERA }).toContain(FALA_CENA)
 
-  // Fecha a sala: o painel do chat some junto.
-  await botao.click()
+  // Fecha a sala: a conversa some junto, e a aba Chat fica só com o convite para abrir a sala.
   await mestre.getByRole('tab', { name: 'Jogo' }).click()
   await mestre.getByRole('button', { name: 'Fechar sala' }).click()
-  await expect(mestre.getByRole('button', { name: /^Chat/ })).toHaveCount(0)
+  // (com a aba Jogo à frente, o painel da aba Chat está escondido: lido pelo id, não pelo papel)
+  const abaChat = mestre.locator('#lb-rail-panel-chat')
+  await expect(abaChat.locator('.lb-mchat__log')).toHaveCount(0)
+  await expect(abaChat).toContainText('O chat dos jogadores abre junto com a sala.')
   await expect(ana.getByText('O mestre encerrou a sala.').first()).toBeVisible({ timeout: ESPERA_FALA })
 
   // Reabre retomando a mesa: a conversa volta para o mestre, sem contar como nova.
   await mestre.getByRole('button', { name: 'Abrir sala' }).click()
   await mestre.getByRole('button', { name: 'Retomar a mesa', exact: true }).click()
   await expect(mestre.getByText(CODIGO).first()).toBeVisible()
-  await mestre.getByRole('tab', { name: 'Mapa' }).click()
-  const botaoDeNovo = mestre.getByRole('button', { name: /^Chat/ })
+  const botaoDeNovo = mestre.getByRole('tab', { name: /^Chat/ })
   await expect(botaoDeNovo).toHaveAccessibleName('Chat', { timeout: ESPERA })
   await botaoDeNovo.click()
   await expect(painel.locator('.lb-mchat__log')).toContainText(FALA_MESTRE)

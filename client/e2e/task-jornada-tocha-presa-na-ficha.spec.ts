@@ -81,6 +81,7 @@ import { createEmptyMap } from '../src/lib/mapFactory'
 import { serializeMap } from '../src/lib/mapFile'
 import type { Light, MapData, Token } from '../src/types/map'
 import { pickTool } from './helpers/tools'
+import { abrirAbaJogo, esconderColunaDireita } from './helpers/colunaDireita'
 
 // Disco apertado nesta máquina: sem trace e sem vídeo. O screenshot de falha fica.
 test.use({ trace: 'off', video: 'off' })
@@ -306,7 +307,7 @@ async function mestreAbreAventura(mestre: Page): Promise<Rede> {
   await mestre.getByRole('button', { name: /Carregar Mapa existente/ }).click()
   await mestre.getByRole('button', { name: new RegExp(AVENTURA) }).click()
   await mestre.waitForSelector('canvas')
-  await mestre.getByRole('tab', { name: 'Jogo' }).click()
+  await abrirAbaJogo(mestre)
   await mestre.getByRole('button', { name: 'Abrir sala' }).click()
   await expect(mestre.getByText(CODIGO).first()).toBeVisible()
   return rede
@@ -314,7 +315,7 @@ async function mestreAbreAventura(mestre: Page): Promise<Rede> {
 
 /** Aba Jogo, card do jogador, "Atribuir <ficha>" — o clique de um toque que o painel oferece. */
 async function mestreAtribui(mestre: Page, jogador: string, nomeDaFicha: string): Promise<void> {
-  await mestre.getByRole('tab', { name: 'Jogo' }).click()
+  await abrirAbaJogo(mestre)
   const painel = mestre.locator('#lb-rail-panel-room')
   const card = painel.locator('.lb-field').filter({ hasText: `${jogador} —` })
   await card.getByRole('button', { name: `Atribuir ${nomeDaFicha}` }).click()
@@ -374,7 +375,7 @@ async function mesaMontada(browser: Browser, mestre: Page, baseURL: string): Pro
   const rede = await mestreAbreAventura(mestre)
   const ana = await jogadorEntra(browser, baseURL, rede, 'c1', J1)
   await mestreAtribui(mestre, J1, TOKEN_J1)
-  await mestre.getByRole('tab', { name: 'Mapa' }).click()
+  await esconderColunaDireita(mestre)
   await pickTool(mestre, 'Selecionar')
   await expect(ana.locator('canvas').first(), `${J1}: o mapa não apareceu na tela do jogador`).toBeVisible({ timeout: 10_000 })
   await expect
@@ -604,7 +605,7 @@ async function primeiroVisivel(candidatos: Locator[], ate: number): Promise<Loca
  * Termina com o botão "Soltar" visível na aba Mapa.
  */
 async function mestrePrendeLuzNaFicha(mestre: Page, pontos: { ficha: Ponto; luz: Ponto }): Promise<void> {
-  const painel = mestre.getByRole('tabpanel', { name: 'Mapa' })
+  const painel = mestre.getByRole('region', { name: 'Mapa' })
   await tocar(mestre, pontos.luz)
   await expect(painel.getByRole('slider', { name: 'Intensidade' }), 'tocar a luz com Selecionar deveria abrir o painel "Luz"').toBeVisible({ timeout: ESPERA })
 
@@ -659,7 +660,7 @@ test('1. controle: Ana vê a ficha e o halo; o mestre seleciona a luz e arrasta 
 
   // Tocar a luz abre o painel dela: é o ponto de partida da feature.
   await tocar(page, noMestre.luz)
-  await expect(page.getByRole('tabpanel', { name: 'Mapa' }).getByRole('slider', { name: 'Intensidade' }), 'tocar a luz deveria abrir "Intensidade"').toBeVisible({ timeout: ESPERA })
+  await expect(page.getByRole('region', { name: 'Mapa' }).getByRole('slider', { name: 'Intensidade' }), 'tocar a luz deveria abrir "Intensidade"').toBeVisible({ timeout: ESPERA })
 
   // Arrastar a ficha funciona hoje, no editor e na tela de Ana; a luz solta fica onde está.
   const emAnaAntes = await centros(ana, J1)
@@ -719,7 +720,7 @@ test('6. soltar: depois de "Soltar" a ficha anda sozinha e a luz fica onde estav
   const escala = escalaDaTela(inicio)
   await mestrePrendeLuzNaFicha(page, inicio)
 
-  const painel = page.getByRole('tabpanel', { name: 'Mapa' })
+  const painel = page.getByRole('region', { name: 'Mapa' })
   const soltar = painel.getByRole('button', { name: SOLTAR }).first()
   await soltar.click()
   await expect(soltar, '"Soltar" deveria desprender e sumir do painel').toBeHidden({ timeout: ESPERA })

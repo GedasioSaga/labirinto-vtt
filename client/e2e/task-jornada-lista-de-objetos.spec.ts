@@ -71,6 +71,7 @@ import { test, expect, type Browser, type BrowserContext, type Locator, type Pag
 import { createEmptyMap } from '../src/lib/mapFactory'
 import { serializeMap } from '../src/lib/mapFile'
 import type { Drawing, MapData, Pin, Region, Token, Wall } from '../src/types/map'
+import { abrirAbaJogo, esconderColunaDireita } from './helpers/colunaDireita'
 
 // Disco apertado nesta máquina: sem trace e sem vídeo. O screenshot de falha fica.
 test.use({ trace: 'off', video: 'off' })
@@ -360,7 +361,7 @@ async function mestreAbreAventura(mestre: Page): Promise<Rede> {
   await mestre.getByRole('button', { name: /Carregar Mapa existente/ }).click()
   await mestre.getByRole('button', { name: new RegExp(AVENTURA) }).click()
   await mestre.waitForSelector('canvas')
-  await mestre.getByRole('tab', { name: 'Mapa' }).click()
+  await esconderColunaDireita(mestre)
   // A cena abre encaixada: as duas salas e a Lanterna estão na tela.
   await editorMostra(mestre, 'verdeAgua', PIXELS_DE_SALA, `o editor deveria abrir mostrando a sala "${SALA_ENTRADA}"`)
   await editorMostra(mestre, 'magenta', PIXELS_DE_SALA, `o editor deveria abrir mostrando a sala "${CRIPTA}"`)
@@ -521,7 +522,7 @@ async function aproximarNaEntrada(page: Page): Promise<void> {
 }
 
 function campoNome(page: Page): Locator {
-  return page.getByRole('tabpanel', { name: 'Mapa' }).getByLabel('Nome', { exact: true })
+  return page.getByRole('region', { name: 'Mapa' }).getByLabel('Nome', { exact: true })
 }
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -530,7 +531,7 @@ function campoNome(page: Page): Locator {
 
 /** Clique no botão que abre a lista; devolve o painel dela. */
 async function abrirLista(page: Page): Promise<Locator> {
-  await page.getByRole('tab', { name: 'Mapa' }).click()
+  await esconderColunaDireita(page)
   const botao = page.getByRole('button', { name: BOTAO_DA_LISTA }).first()
   await expect(botao, 'a tela do mestre deveria ter um botão "Lista de objetos" / "Objetos do mapa"').toBeVisible({ timeout: ESPERA })
   if ((await botao.getAttribute('aria-expanded')) !== 'true') await botao.click()
@@ -618,15 +619,15 @@ async function jogadorEntra(browser: Browser, baseURL: string, rede: Rede, clien
 /** Aba Jogo: abre a sala; o jogador entra; o mestre atribui a ficha; volta para o Mapa. */
 async function mesaMontada(browser: Browser, mestre: Page, baseURL: string): Promise<Page> {
   const rede = await mestreAbreAventura(mestre)
-  await mestre.getByRole('tab', { name: 'Jogo' }).click()
+  await abrirAbaJogo(mestre)
   await mestre.getByRole('button', { name: 'Abrir sala' }).click()
   await expect(mestre.getByText(CODIGO).first()).toBeVisible()
   const jogador = await jogadorEntra(browser, baseURL, rede, 'c1', JOGADOR)
-  await mestre.getByRole('tab', { name: 'Jogo' }).click()
+  await abrirAbaJogo(mestre)
   const card = mestre.locator('#lb-rail-panel-room').locator('.lb-field').filter({ hasText: `${JOGADOR} —` })
   await card.getByRole('button', { name: `Atribuir ${FICHA_HEROI}` }).click()
   await expect(card.getByRole('button', { name: `Remover ${FICHA_HEROI}` }), `${JOGADOR} deveria ficar com ${FICHA_HEROI}`).toBeVisible()
-  await mestre.getByRole('tab', { name: 'Mapa' }).click()
+  await esconderColunaDireita(mestre)
   await expect(jogador.locator('canvas').first(), 'o mapa não apareceu na tela do jogador').toBeVisible({ timeout: 10_000 })
   await expect
     .poll(async () => (await lerTela(jogador)).verdeAgua.n, { timeout: ESPERA_TELA, message: `o jogador deveria ver a sala "${SALA_ENTRADA}" onde está a ficha dele` })

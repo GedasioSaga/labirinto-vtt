@@ -137,6 +137,8 @@ export interface ScenesSectionProps {
    * só com Selecionar e nada selecionado. Ausente = aberta.
    */
   defaultOpen?: boolean
+  /** Aberta ou recolhida, na montagem e a cada troca (a coluna da direita reparte a altura por isso). */
+  onOpenChange?: (open: boolean) => void
 }
 
 /** Um jogador na lista do "Revelar planta para…". */
@@ -959,6 +961,7 @@ export function ScenesSection({
   players,
   onRevealPlanFor,
   defaultOpen = true,
+  onOpenChange,
 }: ScenesSectionProps) {
   const waiting = useWaitingMinutes(waitingSince)
   const [editing, setEditing] = useState<Editing>(null)
@@ -1483,7 +1486,7 @@ export function ScenesSection({
   const inputLabel = editing?.kind === 'create' ? 'Nome da nova cena' : 'Novo nome da cena'
 
   return (
-    <CollapsibleSection id="scenes" title="Cenas" defaultOpen={defaultOpen} contagem={scenes.length}>
+    <CollapsibleSection id="scenes" title="Cenas" defaultOpen={defaultOpen} contagem={scenes.length} onOpenChange={onOpenChange}>
       {showFilter && (
         <div className="lb-cenas__filtro">
           <label className="lb-label" htmlFor={filterId}>

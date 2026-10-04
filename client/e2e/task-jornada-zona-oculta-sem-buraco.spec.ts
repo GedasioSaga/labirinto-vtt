@@ -54,6 +54,7 @@ import { createEmptyMap } from '../src/lib/mapFactory'
 import { serializeMap } from '../src/lib/mapFile'
 import { fitCamera } from '../src/pixi/world'
 import type { ConcealZone, MapData, Pin, Region, Token } from '../src/types/map'
+import { abrirAbaJogo, esconderColunaDireita } from './helpers/colunaDireita'
 
 // Máquina carregada: sem trace e sem vídeo. O screenshot de falha fica.
 test.use({ trace: 'off', video: 'off' })
@@ -291,14 +292,14 @@ async function mestreAbreAventura(mestre: Page): Promise<Rede> {
   await mestre.getByRole('button', { name: /Carregar Mapa existente/ }).click()
   await mestre.getByRole('button', { name: new RegExp(AVENTURA) }).click()
   await mestre.waitForSelector('canvas')
-  await mestre.getByRole('tab', { name: 'Jogo' }).click()
+  await abrirAbaJogo(mestre)
   await mestre.getByRole('button', { name: 'Abrir sala' }).click()
   await expect(mestre.getByText(CODIGO).first()).toBeVisible()
   return rede
 }
 
 async function mestreAtribui(mestre: Page, jogador: string, nomeDoToken: string): Promise<void> {
-  await mestre.getByRole('tab', { name: 'Jogo' }).click()
+  await abrirAbaJogo(mestre)
   const card = mestre.locator('#lb-rail-panel-room').locator('.lb-field').filter({ hasText: `${jogador} —` })
   await card.getByRole('button', { name: `Atribuir ${nomeDoToken}` }).click()
   await expect(card.getByRole('button', { name: `Remover ${nomeDoToken}` }), `${jogador} deveria ficar com ${nomeDoToken}`).toBeVisible()
@@ -469,7 +470,7 @@ test('1. controle: Bruno vê o quarto, o alçapão escondido não abre nada e "R
   await expect(cartao, 'com o Tapete oculto, tocar no alçapão não pode abrir o cartão').toHaveCount(0)
 
   // O mestre revela o Tapete: ferramenta Zona oculta, clique na zona, interruptor do painel.
-  await page.getByRole('tab', { name: 'Mapa' }).click()
+  await esconderColunaDireita(page)
   await page.getByRole('button', { name: 'Zona oculta', exact: true }).click()
   const alvo = await naTelaDoMestre(page, CLIQUE_NO_TAPETE)
   await page.mouse.move(alvo.x, alvo.y)

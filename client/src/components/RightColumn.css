@@ -1,0 +1,291 @@
+/*
+ * COLUNA DA DIREITA do mestre (RightColumn.tsx): o espelho do rail da
+ * esquerda — mesma largura, mesmo afastamento das bordas, mesmo vão entre os
+ * painéis. Em cima as abas Jogo | Chat; embaixo as Cenas; entre as duas, o
+ * divisor que reparte a altura. Só `var(--lb-*)`.
+ */
+
+/* O espaço que a coluna toma da borda direita, para o que mora ali (zoom,
+   piso, dados, avisos, espelho da tela do jogador) andar para o lado em vez
+   de ficar embaixo dela. No `:root`, e não no `.lb-editor`, porque o espelho
+   vai para o `body` por portal e também precisa ler. Escondida, sobra a faixa
+   do botão de reabrir. */
+:root {
+  --lb-coldir-alca: 32px;
+  --lb-coldir-espaco: 0px;
+}
+
+:root:has(.lb-editor[data-coldir='aberta']) {
+  --lb-coldir-espaco: calc(var(--lb-layout-rail-width) + var(--lb-layout-edge-gap));
+}
+
+:root:has(.lb-editor[data-coldir='escondida']) {
+  --lb-coldir-espaco: calc(var(--lb-coldir-alca) + var(--lb-layout-edge-gap));
+}
+
+.lb-coldir {
+  position: absolute;
+  top: var(--lb-layout-edge-gap);
+  bottom: var(--lb-layout-edge-gap);
+  right: var(--lb-layout-edge-gap);
+  /* Na janela estreita a coluna nunca passa da largura da tela. */
+  width: min(var(--lb-layout-rail-width), calc(100vw - 2 * var(--lb-layout-edge-gap)));
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-3);
+  /* O vão entre os painéis continua sendo mapa. */
+  pointer-events: none;
+}
+
+.lb-coldir > * {
+  pointer-events: auto;
+}
+
+/* A classe põe `display`: o atributo `hidden` sozinho perderia. */
+.lb-coldir[hidden] {
+  display: none;
+}
+
+/* Aberta pelo clique, a coluna chega da borda onde mora. Pelo teclado ela
+   aparece parada: movimento depois de uma tecla parece atraso. */
+.lb-coldir[data-entrada='deslizando']:not([hidden]) {
+  animation: lb-coldir-entra 180ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+@keyframes lb-coldir-entra {
+  from {
+    opacity: 0;
+    transform: translateX(12px);
+  }
+}
+
+/* ── Metade de cima: as abas e o painel da aba ───────────────────── */
+
+.lb-coldir__abas {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-3);
+  flex: 1 1 0;
+  /* O mesmo TABS_MIN_PX do divisor: as Cenas nunca engolem as abas. */
+  min-height: 180px;
+}
+
+.lb-coldir__head {
+  display: flex;
+  align-items: center;
+  gap: var(--lb-space-1);
+  padding: var(--lb-space-1);
+  flex: none;
+}
+
+/* As abas dentro do cabeçalho: a moldura já é dele. */
+.lb-coldir__tabs.lb-railtabs {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 0;
+}
+
+.lb-coldir__tab {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.lb-coldir__esconder {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--lb-radius-md);
+  background: transparent;
+  color: var(--lb-color-parchment-dim);
+  cursor: pointer;
+  transition:
+    background var(--lb-motion-fast) var(--lb-motion-ease),
+    color var(--lb-motion-fast) var(--lb-motion-ease),
+    transform var(--lb-motion-fast) var(--lb-motion-ease);
+}
+
+.lb-coldir__esconder:hover {
+  background: var(--lb-color-stone-hover);
+  color: var(--lb-color-parchment);
+}
+
+.lb-coldir__esconder:active {
+  transform: scale(0.97);
+}
+
+/* Sem abas (navegador puro): o botão sozinho no alto, com a moldura de painel. */
+.lb-coldir__head--solo {
+  justify-content: flex-end;
+  padding: 0;
+}
+
+.lb-coldir__head--solo .lb-coldir__esconder {
+  background: var(--lb-color-stone);
+  border-color: var(--lb-color-line-panel);
+  box-shadow: var(--lb-shadow-float), var(--lb-shadow-bevel);
+}
+
+.lb-coldir__painel {
+  min-height: 0;
+}
+
+/* "Pausar NPCs" mora no alto da coluna enquanto ela está aberta: na barra de
+   cima ele cairia em cima dela. */
+.lb-npcs-pausa.lb-npcs-pausa--coluna {
+  position: static;
+  flex: none;
+  width: 100%;
+}
+
+/* ── O divisor ──────────────────────────────────────────────────── */
+
+/* Ocupa o vão entre as duas metades (as margens negativas devolvem o vão ao
+   tamanho de sempre): 12 px de pega para o ponteiro, e o traço curto no meio
+   é o que se vê. */
+.lb-coldir__divisor {
+  position: relative;
+  flex: none;
+  height: var(--lb-space-3);
+  margin: calc(-1 * var(--lb-space-3)) 0;
+  border-radius: var(--lb-radius-sm);
+  cursor: row-resize;
+  touch-action: none;
+}
+
+.lb-coldir__divisor::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 36px;
+  height: 4px;
+  border-radius: var(--lb-radius-full);
+  background: var(--lb-color-line-strong);
+  transform: translate(-50%, -50%);
+  transition:
+    background var(--lb-motion-fast) var(--lb-motion-ease),
+    width var(--lb-motion-fast) var(--lb-motion-ease);
+}
+
+.lb-coldir__divisor:hover::before,
+.lb-coldir--arrastando .lb-coldir__divisor::before {
+  width: 56px;
+  background: var(--lb-color-brass);
+}
+
+.lb-coldir__divisor:focus-visible {
+  outline: none;
+}
+
+.lb-coldir__divisor:focus-visible::before {
+  width: 56px;
+  background: var(--lb-color-brass-bright);
+  box-shadow: 0 0 0 2px var(--lb-color-brass-soft);
+}
+
+/* No arrasto, o texto dos painéis não vira seleção. */
+.lb-coldir--arrastando {
+  user-select: none;
+}
+
+/* ── Metade de baixo: as Cenas ──────────────────────────────────── */
+
+.lb-coldir__cenas {
+  /* A altura vem do divisor; os mínimos (CSS e RightColumn.tsx, os mesmos
+     números) seguram as duas metades quando a janela encolhe. */
+  flex: 0 1 var(--lb-coldir-cenas, 320px);
+  min-height: 120px;
+  overflow-y: auto;
+}
+
+/* Recolhida (só o cabeçalho) ou sozinha na coluna: a altura é a do conteúdo,
+   até a coluna toda. */
+.lb-coldir--cenas-recolhida .lb-coldir__cenas {
+  flex: 0 1 auto;
+  min-height: 0;
+}
+
+/* ── Escondida: o botão que traz a coluna de volta ──────────────── */
+
+/* No meio da borda direita: longe dos avisos e do Pausar NPCs (no alto) e do
+   zoom e dos dados (embaixo). Leva o número do chat, para o mestre ver
+   mensagem nova com a coluna fechada. */
+.lb-coldir__reabrir {
+  position: absolute;
+  top: 50%;
+  right: var(--lb-layout-edge-gap);
+  translate: 0 -50%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: var(--lb-coldir-alca);
+  min-height: 56px;
+  padding: var(--lb-space-2) 0;
+  color: var(--lb-color-parchment-dim);
+  cursor: pointer;
+  transition:
+    color var(--lb-motion-fast) var(--lb-motion-ease),
+    background var(--lb-motion-fast) var(--lb-motion-ease),
+    transform var(--lb-motion-fast) var(--lb-motion-ease);
+}
+
+.lb-coldir__reabrir:hover {
+  background: var(--lb-color-stone-hover);
+  color: var(--lb-color-parchment);
+}
+
+.lb-coldir__reabrir:active {
+  transform: scale(0.97);
+}
+
+.lb-coldir__esconder:focus-visible,
+.lb-coldir__reabrir:focus-visible {
+  outline: 2px solid var(--lb-color-brass-bright);
+  outline-offset: 2px;
+}
+
+/* O número na aba e no botão: o mesmo do canal do chat, um pouco menor. */
+.lb-coldir__tab .lb-mchat__badge,
+.lb-coldir__reabrir .lb-mchat__badge {
+  min-width: 16px;
+  padding: 0 4px;
+  font-size: 10.5px;
+  line-height: 16px;
+}
+
+/* Chat sem sala: o convite para abrir a sala, no lugar da conversa. */
+.lb-coldir__vazio {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--lb-space-3);
+  padding: var(--lb-space-4);
+  flex: none;
+}
+
+.lb-coldir__vazio p {
+  margin: 0;
+  font-size: var(--lb-font-size-md);
+  color: var(--lb-color-parchment-dim);
+}
+
+/* No fim do arquivo de propósito: cada regra daqui empata em especificidade com a que desliga. */
+@media (prefers-reduced-motion: reduce) {
+  .lb-coldir[data-entrada='deslizando']:not([hidden]) {
+    animation: none;
+  }
+  .lb-coldir__esconder:active,
+  .lb-coldir__reabrir:active {
+    transform: none;
+  }
+}

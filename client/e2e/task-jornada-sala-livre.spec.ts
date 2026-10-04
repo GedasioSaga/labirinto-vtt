@@ -22,6 +22,7 @@
 // falha em `toBeVisible` com o nome procurado. É a falha honesta — ausência.
 import { test, expect, type Page } from '@playwright/test'
 import { enterEditor } from './helpers/enterEditor'
+import { esconderColunaDireita } from './helpers/colunaDireita'
 
 test.use({ trace: 'off', video: 'off' })
 
@@ -207,6 +208,8 @@ async function desenharSalaLivre(page: Page, cantos: { x: number; y: number }[])
 
 test.beforeEach(async ({ page }) => {
   await enterEditor(page)
+  // A coluna da direita flutua sobre o lado do mapa que esta jornada desenha e lê.
+  await esconderColunaDireita(page)
   // Mapa limpo: a foto do canvas tem de ter só o que a jornada desenhou.
   await page.evaluate(async () => {
     const mapFactory = await import('/src/lib/mapFactory.ts')

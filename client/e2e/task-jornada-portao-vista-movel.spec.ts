@@ -25,6 +25,7 @@
 // bug de arrasto costuma aparecer exatamente na parada.
 import { test, expect, type Page } from '@playwright/test'
 import { enterEditor } from './helpers/enterEditor'
+import { esconderColunaDireita } from './helpers/colunaDireita'
 
 /** O Pixi redesenha na mutação, mas PINTA no próximo quadro (requestAnimationFrame). */
 const PAINT_MS = 150
@@ -187,6 +188,8 @@ test.beforeEach(async ({ page }) => {
   // Sem injeção de estado: `enterEditor` entra pelo menu e cria um mapa novo,
   // do mesmo jeito que a pessoa cria.
   await enterEditor(page)
+  // A coluna da direita flutua sobre o lado do mapa que esta jornada desenha e lê.
+  await esconderColunaDireita(page)
   await instalarColetor(page)
 })
 

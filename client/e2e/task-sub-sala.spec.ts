@@ -3,6 +3,7 @@
 // sala dentro"; mover, apagar (+ Ctrl+Z) e Ctrl+D na mãe levam a filha.
 import { test, expect, type Page } from '@playwright/test'
 import { enterEditor } from './helpers/enterEditor'
+import { esconderColunaDireita } from './helpers/colunaDireita'
 
 interface RegionInfo { id: string; parentId?: string; fillColor: string; points: { x: number; y: number }[] }
 
@@ -78,6 +79,8 @@ async function drawHouseAndRoom(page: Page): Promise<{ casa: RegionInfo; quarto:
 
 test.beforeEach(async ({ page }) => {
   await enterEditor(page)
+  // A coluna da direita flutua sobre o lado do mapa que esta jornada desenha e lê.
+  await esconderColunaDireita(page)
   await resetMap(page)
 })
 

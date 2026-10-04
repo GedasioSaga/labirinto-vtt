@@ -68,6 +68,7 @@ import { test, expect, type Locator, type Page } from '@playwright/test'
 import { createEmptyMap } from '../src/lib/mapFactory'
 import { serializeMap } from '../src/lib/mapFile'
 import type { Drawing, MapData, Region } from '../src/types/map'
+import { esconderColunaDireita, mostrarColunaDireita } from './helpers/colunaDireita'
 
 // Disco apertado nesta máquina: sem trace e sem vídeo. O screenshot de falha fica.
 // Permissão de clipboard: colar pela área de transferência do sistema é uma
@@ -311,10 +312,10 @@ async function mestreAbreAventura(page: Page): Promise<Locator> {
 
 /** A seção "Cenas" da aba Mapa, aberta (mesmo gesto de task-jornada-cenas-com-gente). */
 async function secaoCenas(page: Page): Promise<Locator> {
-  await page.getByRole('tab', { name: 'Mapa' }).click()
-  const painel = page.getByRole('tabpanel', { name: 'Mapa' })
+  await mostrarColunaDireita(page)
+  const painel = page.getByRole('region', { name: 'Cenas' })
   const cabecalho = painel.getByRole('button', { name: 'Cenas', exact: true })
-  await expect(cabecalho, 'a aba Mapa do rail deveria ter uma seção "Cenas"').toBeVisible({ timeout: 10_000 })
+  await expect(cabecalho, 'a coluna da direita deveria ter a seção "Cenas"').toBeVisible({ timeout: 10_000 })
   if ((await cabecalho.getAttribute('aria-expanded')) === 'false') await cabecalho.click()
   await expect(cabecalho).toHaveAttribute('aria-expanded', 'true')
   const corpo = await cabecalho.getAttribute('aria-controls')
@@ -439,6 +440,8 @@ async function foto(page: Page): Promise<Foto> {
 
 /** O editor inteiro (só onde o canvas está por cima), ou só a janela dada. */
 async function editor(page: Page, janela: Janela | null = null): Promise<Leitura> {
+  // A coluna da direita flutua sobre o mapa: a leitura de pixel é do mapa livre.
+  await esconderColunaDireita(page)
   await page.waitForTimeout(PINTURA_MS)
   return lerCores(page, await foto(page), janela)
 }

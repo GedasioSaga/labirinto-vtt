@@ -65,6 +65,7 @@ import { serializeMap } from '../src/lib/mapFile'
 import { PIN_HEAD_OFFSET } from '../src/lib/pins'
 import { contentBounds, fitCamera } from '../src/pixi/world'
 import type { MapData, Pin, Token, Wall } from '../src/types/map'
+import { abrirAbaJogo, esconderColunaDireita, mostrarColunaDireita } from './helpers/colunaDireita'
 
 // Disco apertado nesta máquina: sem trace e sem vídeo. O screenshot de falha fica.
 test.use({ trace: 'off', video: 'off' })
@@ -359,7 +360,7 @@ async function mestreAbreAventura(mestre: Page): Promise<Rede> {
   await expect.poll(() => estaDestacada(entradaDaCena(lista, CENA_A)), { message: `a aventura deveria abrir na cena "${CENA_A}"` }).toBe(true)
   await expect(entradaDaCena(lista, CENA_B), `a lista de Cenas deveria ter "${CENA_B}"`).toBeVisible()
 
-  await mestre.getByRole('tab', { name: 'Jogo' }).click()
+  await abrirAbaJogo(mestre)
   await mestre.getByRole('button', { name: 'Abrir sala' }).click()
   await expect(mestre.getByText(CODIGO).first()).toBeVisible()
   return rede
@@ -367,10 +368,10 @@ async function mestreAbreAventura(mestre: Page): Promise<Rede> {
 
 /** A seção "Cenas" da aba Mapa, aberta. */
 async function secaoCenas(page: Page): Promise<Locator> {
-  await page.getByRole('tab', { name: 'Mapa' }).click()
-  const painel = page.getByRole('tabpanel', { name: 'Mapa' })
+  await mostrarColunaDireita(page)
+  const painel = page.getByRole('region', { name: 'Cenas' })
   const cabecalho = painel.getByRole('button', { name: 'Cenas', exact: true })
-  await expect(cabecalho, 'a aba Mapa do rail deveria ter uma seção "Cenas"').toBeVisible({ timeout: 10_000 })
+  await expect(cabecalho, 'a coluna da direita deveria ter a seção "Cenas"').toBeVisible({ timeout: 10_000 })
   if ((await cabecalho.getAttribute('aria-expanded')) === 'false') await cabecalho.click()
   await expect(cabecalho).toHaveAttribute('aria-expanded', 'true')
   const corpo = await cabecalho.getAttribute('aria-controls')
@@ -398,7 +399,7 @@ async function mestreAbreCena(mestre: Page, nome: string): Promise<void> {
 
 /** Aba Jogo, card do jogador, "Atribuir <token>". */
 async function mestreAtribui(mestre: Page, jogador: string, nomeDoToken: string): Promise<void> {
-  await mestre.getByRole('tab', { name: 'Jogo' }).click()
+  await abrirAbaJogo(mestre)
   const painel = mestre.locator('#lb-rail-panel-room')
   const card = painel.locator('.lb-field').filter({ hasText: `${jogador} —` })
   await card.getByRole('button', { name: `Atribuir ${nomeDoToken}` }).click()
@@ -434,7 +435,7 @@ async function tocarNoMapa(page: Page, p: Ponto): Promise<void> {
 
 /** Ferramenta Pino na mão e clique no pino: o painel "Pino de viagem" abre no rail. */
 async function mestreAbrePainelDoPino(mestre: Page, mapa: MapData, p: Ponto, oQue: string): Promise<Locator> {
-  await mestre.getByRole('tab', { name: 'Mapa' }).click()
+  await esconderColunaDireita(mestre)
   await mestre.getByRole('button', { name: FERRAMENTA_PINO, exact: true }).click()
   await tocarNoMapa(mestre, await cabecaNoMestre(mestre, mapa, p))
   const titulo = mestre.getByRole('heading', { name: TITULO_DO_PAINEL }).first()
@@ -557,7 +558,7 @@ async function mesaMontada(browser: Browser, mestre: Page, baseURL: string): Pro
   const rede = await mestreAbreAventura(mestre)
   const ana = await jogadorEntra(browser, baseURL, rede, 'c1', J1)
   await mestreAtribui(mestre, J1, TOKEN_J1)
-  await mestre.getByRole('tab', { name: 'Mapa' }).click()
+  await esconderColunaDireita(mestre)
   await expect(ana.page.locator('canvas').first(), `${J1}: o mapa não apareceu na tela da jogadora`).toBeVisible({ timeout: 10_000 })
   await expect
     .poll(async () => (await lerTela(ana.page)).fichaAna, { timeout: ESPERA_TELA, message: `${J1}: a ficha dela não foi pintada` })

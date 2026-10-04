@@ -21,6 +21,7 @@ import { createEmptyMap } from '../src/lib/mapFactory'
 import { enterEditor } from './helpers/enterEditor'
 import { installTauriFsStub } from './helpers/tauriFsStub'
 import type { MapData } from '../src/types/map'
+import { abrirAbaJogo, esconderColunaDireita } from './helpers/colunaDireita'
 
 const CODE = 'GATDFB'
 const GRID = 50
@@ -185,11 +186,11 @@ test('2. jogador entra sem token e o mestre não fica sabendo que alguém está 
   // Token criado e selecionado: o painel Seleção passa a oferecer apagá-lo.
   await expect(page.getByRole('button', { name: 'Apagar token selecionado' })).toBeVisible()
 
-  await page.getByRole('tab', { name: 'Jogo' }).click()
+  await abrirAbaJogo(page)
   await page.getByRole('button', { name: 'Abrir sala' }).click()
   await expect(page.getByText(CODE)).toBeVisible()
   // O mestre volta para o mapa: é onde ele fica na mesa de verdade enquanto espera.
-  await page.getByRole('tab', { name: 'Mapa' }).click()
+  await esconderColunaDireita(page)
 
   // Ana entra pelo celular. Isso chega ao mestre pelo transporte (conexão nova
   // + join), não por gesto na tela dele.
@@ -208,7 +209,7 @@ test('2. jogador entra sem token e o mestre não fica sabendo que alguém está 
   await expect.poll(() => textoNaTela(page), { timeout: 8000, intervals: [500, 1000, 1000, 1000, 2000, 2000] }).toMatch(/Ana/)
 
   // E atribuir um personagem tem de caber em UM clique.
-  await page.getByRole('tab', { name: 'Jogo' }).click()
+  await abrirAbaJogo(page)
   await page.getByRole('button', { name: /Heroi/ }).click({ timeout: 5000 })
   await expect.poll(() => textoNaTela(page), { timeout: 5000 }).toMatch(/Ana[^]*jogando/)
 })

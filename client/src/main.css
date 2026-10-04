@@ -987,6 +987,14 @@ body {
   pointer-events: auto;
 }
 
+/* O inspetor (aba Mapa de antes): só ele mora na esquerda, sobre a barra de ações. */
+.lb-editor__mapa {
+  display: flex;
+  flex-direction: column;
+  flex: 0 1 auto;
+  min-height: 0;
+}
+
 /* A barra de ferramentas centraliza na viewport, mas o padding simétrico do
    tamanho do rail impede que ela chegue perto dele mesmo na largura mínima —
    como o padding é igual dos dois lados, o centro visual não se desloca. */
@@ -2970,13 +2978,14 @@ label.lb-switch[data-dica-linha='aberta'] > span:first-child::after,
   border-radius: 0;
   box-shadow: var(--lb-shadow-float), var(--lb-shadow-bevel);
   position: fixed;
-  right: var(--lb-space-4);
+  /* Ao lado da coluna da direita: em cima dela, tapava o próprio "Ver tela". */
+  right: calc(var(--lb-space-4) + var(--lb-coldir-espaco, 0px));
   bottom: var(--lb-space-4);
   z-index: 20;
   display: flex;
   flex-direction: column;
   gap: var(--lb-space-2);
-  width: min(720px, calc(100vw - 2 * var(--lb-space-4)));
+  width: min(720px, calc(100vw - 2 * var(--lb-space-4) - var(--lb-coldir-espaco, 0px)));
   padding: var(--lb-space-3);
   animation: lb-mirror-in var(--lb-motion-base) var(--lb-motion-ease);
 }
@@ -3168,7 +3177,7 @@ label.lb-switch[data-dica-linha='aberta'] > span:first-child::after,
   color: var(--lb-color-parchment-dim);
 }
 
-/* Abas Mapa | Sala no topo do rail (só no Tauri). Visual do segmented. */
+/* Abas Jogo | Chat no alto da coluna da direita (RightColumn, só no Tauri). Visual do segmented. */
 .lb-railtabs {
   display: grid;
   grid-auto-flow: column;
@@ -3229,7 +3238,7 @@ label.lb-switch[data-dica-linha='aberta'] > span:first-child::after,
   display: none;
 }
 
-/* Aba Sala: o painel ocupa toda a altura entre as abas e a ActionBar. */
+/* Painel da aba: ocupa toda a altura entre as abas e as Cenas. */
 .lb-railtabs__panel--fill {
   flex: 1 1 auto;
 }
@@ -6347,7 +6356,9 @@ html.lb-arrastando-cena * {
 .lb-npcs-pausa {
   position: absolute;
   top: 0;
-  right: var(--lb-layout-edge-gap);
+  /* Coluna da direita escondida: ao lado do botão que a reabre. Aberta, o
+     botão mora no alto dela (RightColumn.css). */
+  right: calc(var(--lb-layout-edge-gap) + var(--lb-coldir-espaco, 0px));
   pointer-events: auto;
   box-shadow: var(--lb-shadow-float), var(--lb-shadow-bevel);
 }

@@ -76,6 +76,7 @@ import { createEmptyMap } from '../src/lib/mapFactory'
 import { serializeMap } from '../src/lib/mapFile'
 import type { MapData, Token } from '../src/types/map'
 import { pickTool } from './helpers/tools'
+import { abrirAbaJogo, esconderColunaDireita } from './helpers/colunaDireita'
 
 // Disco apertado nesta máquina: sem trace e sem vídeo. O screenshot de falha fica.
 test.use({ trace: 'off', video: 'off' })
@@ -308,7 +309,7 @@ async function mestreAbreAventura(mestre: Page): Promise<Rede> {
   await mestre.getByRole('button', { name: /Carregar Mapa existente/ }).click()
   await mestre.getByRole('button', { name: new RegExp(AVENTURA) }).click()
   await mestre.waitForSelector('canvas')
-  await mestre.getByRole('tab', { name: 'Jogo' }).click()
+  await abrirAbaJogo(mestre)
   await mestre.getByRole('button', { name: 'Abrir sala' }).click()
   await expect(mestre.getByText(CODIGO).first()).toBeVisible()
   return rede
@@ -316,7 +317,7 @@ async function mestreAbreAventura(mestre: Page): Promise<Rede> {
 
 /** Aba Jogo, card do jogador, "Atribuir <ficha>" — o clique de um toque que o painel oferece. */
 async function mestreAtribui(mestre: Page, jogador: string, nomeDaFicha: string): Promise<void> {
-  await mestre.getByRole('tab', { name: 'Jogo' }).click()
+  await abrirAbaJogo(mestre)
   const painel = mestre.locator('#lb-rail-panel-room')
   const card = painel.locator('.lb-field').filter({ hasText: `${jogador} —` })
   await card.getByRole('button', { name: `Atribuir ${nomeDaFicha}` }).click()
@@ -326,7 +327,7 @@ async function mestreAtribui(mestre: Page, jogador: string, nomeDaFicha: string)
 /** Só o mestre, já no mapa com Selecionar, vendo as duas fichas. */
 async function mestrePronto(mestre: Page): Promise<Fichas> {
   await mestreAbreAventura(mestre)
-  await mestre.getByRole('tab', { name: 'Mapa' }).click()
+  await esconderColunaDireita(mestre)
   await pickTool(mestre, 'Selecionar')
   return mestreEnquadra(mestre)
 }
@@ -401,7 +402,7 @@ async function mesaMontada(browser: Browser, mestre: Page, baseURL: string): Pro
   const rede = await mestreAbreAventura(mestre)
   const ana = await jogadorEntra(browser, baseURL, rede, 'c1', J1)
   await mestreAtribui(mestre, J1, LANTERNA)
-  await mestre.getByRole('tab', { name: 'Mapa' }).click()
+  await esconderColunaDireita(mestre)
   await pickTool(mestre, 'Selecionar')
   await expect(ana.locator('canvas').first(), `${J1}: o mapa não apareceu na tela do jogador`).toBeVisible({ timeout: 10_000 })
   const naAna = await fichasNaTela(ana, `a tela de ${J1}`)
@@ -680,13 +681,13 @@ async function tocar(page: Page, p: Ponto): Promise<void> {
 }
 
 function campoNomeDaFicha(mestre: Page): Locator {
-  return mestre.getByRole('tabpanel', { name: 'Mapa' }).getByLabel('Nome', { exact: true })
+  return mestre.getByRole('region', { name: 'Mapa' }).getByLabel('Nome', { exact: true })
 }
 
 /** Toque na ficha, no mapa: o painel passa a mostrar o Nome dela. */
 async function selecionarFicha(mestre: Page, fichas: Fichas, qual: 'lanterna' | 'ogro'): Promise<void> {
   const nome = qual === 'lanterna' ? LANTERNA : OGRO
-  await mestre.getByRole('tab', { name: 'Mapa' }).click()
+  await esconderColunaDireita(mestre)
   await tocar(mestre, fichas[qual].centro)
   await expect(campoNomeDaFicha(mestre), `o toque na ficha deveria selecionar "${nome}" (painel com o Nome dela)`).toHaveValue(nome, { timeout: ESPERA })
 }
@@ -714,7 +715,7 @@ function controleDaCondicao(mestre: Page, condicao: Condicao): Locator {
 async function acharCondicao(mestre: Page, condicao: Condicao): Promise<Locator> {
   const controle = controleDaCondicao(mestre, condicao)
   if (!(await controle.isVisible())) {
-    const abrir = mestre.getByRole('tabpanel', { name: 'Mapa' }).getByRole('button', { name: ABRIR_CONDICOES })
+    const abrir = mestre.getByRole('region', { name: 'Mapa' }).getByRole('button', { name: ABRIR_CONDICOES })
     if ((await abrir.count()) > 0 && (await abrir.first().isVisible())) await abrir.first().click()
   }
   await expect(controle, `com a ficha selecionada, a página deveria oferecer a condição "${ROTULO[condicao]}"`).toBeVisible({ timeout: ESPERA })

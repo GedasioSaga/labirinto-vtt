@@ -42,6 +42,26 @@ describe('CollapsibleSection', () => {
     return el
   }
 
+  it('onOpenChange avisa na montagem e a cada troca, sem reavisar quando o pai só re-renderiza', () => {
+    const avisos: boolean[] = []
+    const montar = () =>
+      act(() =>
+        root.render(
+          <CollapsibleSection id="scenes" title="Cenas" defaultOpen onOpenChange={(open) => avisos.push(open)}>
+            <p>conteúdo</p>
+          </CollapsibleSection>,
+        ),
+      )
+    montar()
+    expect(avisos).toEqual([true])
+    montar()
+    expect(avisos).toEqual([true])
+    act(() => header().click())
+    expect(avisos).toEqual([true, false])
+    act(() => header().click())
+    expect(avisos).toEqual([true, false, true])
+  })
+
   it('cabeçalho é botão com o título; aria-controls aponta para o corpo', () => {
     render(true)
     expect(header().textContent).toBe('Camadas')
