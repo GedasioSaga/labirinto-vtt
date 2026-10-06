@@ -1,4 +1,5 @@
 import type { ConcealZone, DoorState, FloorStyle, Light, MapData, Prop, Region, Token } from '../types/map'
+import { parseTransicao } from '../transicoes/catalogo'
 import { readMoedas } from './troca'
 import { isEfeitoNaLuz, isEfeitoNaPorta, isEfeitoNaZona, regraDePinoDoArquivo, regraDoArquivo } from './estadoDoMundo'
 import { propPlayerImage, propPlayerLabel } from './propPlayerLook'
@@ -400,7 +401,8 @@ function deserializeMapFields(json: string): MapData {
     props: entityList(parsed.props).map((p) =>
       propMobiliaFromFile(readPropPlayerLook({ ...p, linkedMapPath: p.linkedMapPath ?? null })),
     ),
-    stairs: entityList(parsed.stairs),
+    // TRANSIÇÃO ESPECIAL da escada: mesma regra do pino de viagem.
+    stairs: entityList(parsed.stairs).map((s) => ({ ...s, transicao: parseTransicao(s.transicao) })),
     // MUDA de cru para .map(): PONTO DE MAIOR RISCO DE TODA A MIGRAÇÃO.
     // 0.5/0 é o alpha que drawDrawings.ts:50 já aplicava (filled ? 0.5 : 0);
     // sem esta linha, alpha: undefined vira 1 no Pixi e TODO círculo
@@ -508,6 +510,9 @@ function deserializeMapFields(json: string): MapData {
       // ESPIAR: "Dá vista" é campo NOVO e OPCIONAL. Só inteiro dentro da faixa
       // vale; o resto volta AUSENTE — na dúvida, o pino não deixa espiar.
       daVista: isDaVista(p.daVista) ? p.daVista : undefined,
+      // TRANSIÇÃO ESPECIAL: campo NOVO e OPCIONAL. Id fora do catálogo volta
+      // ausente; duração fora do teto cai e fica a natural (`parseTransicao`).
+      transicao: parseTransicao(p.transicao),
       escolhas: undefined,
       // ITEM PEGÁVEL: campo NOVO e OPCIONAL. Forma errada volta ausente (o
       // pino só deixa de ser pegável); `livre` só vale `true` (`readPinItem`).

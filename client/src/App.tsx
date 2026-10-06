@@ -78,6 +78,7 @@ import { LoadMapScreen } from './screens/LoadMapScreen'
 import { OptionsScreen } from './screens/OptionsScreen'
 import { RoleplayScreen } from './screens/RoleplayScreen'
 import { withViewTransition } from './lib/viewTransition'
+import type { TransicaoEscolhida } from './transicoes/catalogo'
 import { mapChangeCause, selectAlignableUnitCount, useMapStore } from './stores/mapStore'
 import { roomHazardState } from './lib/hazards'
 import { areaTriggerOfRegion } from './lib/areaTriggers'
@@ -2225,6 +2226,9 @@ function App() {
       // ESPIAR: "Dá vista" é do pino desta cena, com desfazer como o modo de passagem.
       daVista: isDaVista(pin.daVista) ? pin.daVista : null,
       onDaVistaChange: (casas: number | null) => useMapStore.getState().updatePin(pin.id, { daVista: casas ?? undefined }),
+      // TRANSIÇÃO ESPECIAL: deste pino, com desfazer.
+      transicao: pin.transicao,
+      onTransicaoChange: (transicao: TransicaoEscolhida | undefined) => useMapStore.getState().updatePin(pin.id, { transicao }),
     }
   }
 
@@ -3497,6 +3501,7 @@ function App() {
               // PISOS NA MESMA CENA: as duas passam por `withHistory` — piso errado se desfaz com Ctrl+Z.
               onTokenPisoChange: (tokenId, piso) => useMapStore.getState().setTokenPiso(tokenId, piso),
               onStairPisosChange: (stairId, mudanca) => useMapStore.getState().setStairPisos(stairId, mudanca),
+              onStairTransicaoChange: (stairId, transicao) => useMapStore.getState().setStairTransicao(stairId, transicao),
               pisoAtivo,
               onEditarPiso: (piso) => useMapStore.getState().setPisoAtivo(piso),
               onLevarSelecaoAoPiso: (piso) => useMapStore.getState().moverSelecaoAoPiso(piso),

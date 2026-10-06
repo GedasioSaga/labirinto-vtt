@@ -19,7 +19,7 @@ export interface TransicaoInfo {
 }
 
 export const TRANSICOES: readonly TransicaoInfo[] = [
-  { id: 'porta', nome: 'Porta rangendo', duracaoNaturalS: 7.2, quadroDaMiniaturaS: 3.6 },
+  { id: 'porta', nome: 'Porta rangendo', duracaoNaturalS: 7.2, quadroDaMiniaturaS: 2.2 },
   { id: 'escada-pedra', nome: 'Escadaria de pedra', duracaoNaturalS: 11.7, quadroDaMiniaturaS: 4 },
 ]
 
@@ -57,6 +57,11 @@ export function parseTransicao(valor: unknown): TransicaoEscolhida | undefined {
   const { id, duracaoS } = valor as { id?: unknown; duracaoS?: unknown }
   if (!isTransicaoId(id)) return undefined
   return isDuracaoValida(duracaoS) ? { id, duracaoS } : { id }
+}
+
+/** Mesma transição e mesma duração; ausente só é igual a ausente. */
+export function sameTransicao(a: TransicaoEscolhida | undefined, b: TransicaoEscolhida | undefined): boolean {
+  return a?.id === b?.id && a?.duracaoS === b?.duracaoS
 }
 
 /** Duração que de fato toca, em segundos. */

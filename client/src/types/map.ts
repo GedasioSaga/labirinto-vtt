@@ -1,3 +1,4 @@
+import type { TransicaoEscolhida } from '../transicoes/catalogo'
 /**
  * Todas as coordenadas e distâncias (x, y, x1/y1/x2/y2, radius) estão em pixels
  * do mundo. `grid` define o tamanho de uma célula em pixels — é a unidade que
@@ -646,6 +647,12 @@ export interface Pin extends PlayerSecret, NoPiso {
    * jogador (`lib/fogFilter.ts`): revelaria que a outra cena existe.
    */
   destino?: PinDestination | null
+  /**
+   * Só do pino de viagem: a TRANSIÇÃO ESPECIAL (animação 3D, `transicoes/`)
+   * que o jogador vê ao atravessar. Ausente = sem animação, como sempre — sem
+   * migração. O disco só aceita id do catálogo e duração dentro do teto.
+   */
+  transicao?: TransicaoEscolhida
   /**
    * Só do pino de viagem: se o jogador pede, passa livre ou encontra trancado.
    * `undefined` === 'pede' — todo pino gravado antes deste campo continua
@@ -1545,6 +1552,11 @@ export interface Stair extends PlayerSecret, NoPiso {
    * como sempre foi.
    */
   levaAoPiso?: number
+  /**
+   * Só da escada que leva a outro piso: a TRANSIÇÃO ESPECIAL que o jogador vê
+   * ao trocar de piso por ela. Ausente = sem animação — sem migração.
+   */
+  transicao?: TransicaoEscolhida
   /** Rotação em graus, sentido horário. `undefined` === 0 (aparência
    *  idêntica à de hoje) — sem linha de migração, mesmo padrão de wallKind
    *  (Wall, acima). */

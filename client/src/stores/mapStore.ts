@@ -13,6 +13,7 @@ import type { SnapTargetKind, SnapTargets } from '../pixi/grid'
 import type { RoomCorner } from '../lib/roomOps'
 import type { Corner, ResizeModifiers } from '../lib/objectTransform'
 import type { StairSizePreset } from '../lib/stairs'
+import type { TransicaoEscolhida } from '../transicoes/catalogo'
 import { FLOOR_LAYER, clampFloorPolygonSides, type FloorShapeKind } from '../lib/floorTool'
 import { clampTamanhoDePincel, type Bloco, type TamanhoDePincel } from '../lib/floorBlocks'
 import { corDaCamada, type CamadaDoChao } from '../lib/camadasDoChao'
@@ -853,6 +854,8 @@ interface MapStoreState {
   setTokenPiso: (id: string, piso: number) => void
   /** PISOS NA MESMA CENA: o piso da escada e/ou o piso a que ela leva (`null` = enfeite). Com histórico. */
   setStairPisos: (id: string, mudanca: { piso?: number; levaAoPiso?: number | null }) => void
+  /** TRANSIÇÃO ESPECIAL da escada (`undefined` = nenhuma). Com histórico. */
+  setStairTransicao: (id: string, transicao: TransicaoEscolhida | undefined) => void
   /**
    * PISOS NA MESMA CENA — o piso que o EDITOR mostra e em que ele constrói
    * (0 = térreo). Vista do mestre: não vai ao arquivo, não entra no desfazer,
@@ -941,7 +944,7 @@ interface MapStoreState {
    *  mantido em dia por `stores/adventureStore.ts`, fora deste desfazer. */
   updatePin: (
     id: string,
-    patch: Partial<Pick<MapData['pins'][number], 'kind' | 'icon' | 'semHaste' | 'description' | 'nome' | 'notaDoMestre' | 'image' | 'locked' | 'destino' | 'passagem' | 'passe' | 'mudo' | 'motivo' | 'rotulo' | 'saidas' | 'item' | 'abreCom' | 'presoA' | 'portaLigada' | 'marco' | 'lerDePerto' | 'segredo' | 'colecao' | 'loja' | 'daVista'>>,
+    patch: Partial<Pick<MapData['pins'][number], 'kind' | 'icon' | 'semHaste' | 'description' | 'nome' | 'notaDoMestre' | 'image' | 'locked' | 'destino' | 'passagem' | 'passe' | 'mudo' | 'motivo' | 'rotulo' | 'saidas' | 'item' | 'abreCom' | 'presoA' | 'portaLigada' | 'marco' | 'lerDePerto' | 'segredo' | 'colecao' | 'loja' | 'daVista' | 'transicao'>>,
   ) => void
   /**
    * ALAVANCA: o mestre aciona pelo painel — a porta ligada abre ou fecha, com
@@ -2129,6 +2132,10 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
         const stair = map.stairs.find((s) => s.id === id)
         if (stair !== undefined) set({ pisoAtivo: pisoDe(stair) })
       }
+    },
+    setStairTransicao: (id, transicao) => {
+      if (mapFactory.updateStairTransicao(get().map, id, transicao) === get().map) return
+      withHistory((map) => mapFactory.updateStairTransicao(map, id, transicao))
     },
     pisoAtivo: 0,
     setPisoAtivo: (piso) => {

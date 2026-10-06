@@ -56,6 +56,8 @@ import { TokenSeenBy, type TokenSeenByProps } from './TokenSeenBy'
 import { WallLineStyleField, WallStyleControls, type WallStyleControlsProps } from './WallStyleControls'
 import { StairControls, type StairControlsProps } from './StairControls'
 import { LEVAR_AO_PISO_HINT, PisoControls } from './PisoControls'
+import { TransicaoSection } from '../transicoes/TransicaoSection'
+import type { TransicaoEscolhida } from '../transicoes/catalogo'
 import { pisoDe } from '../lib/pisos'
 import { RoomControls, type RoomControlsProps } from './RoomControls'
 import type { MapScaleControlsProps } from './MapScaleControls'
@@ -288,6 +290,8 @@ interface PropertiesPanelProps {
 export interface PisosWiring {
   onTokenPisoChange: (tokenId: string, piso: number) => void
   onStairPisosChange: (stairId: string, mudanca: { piso?: number; levaAoPiso?: number | null }) => void
+  /** TRANSIÇÃO ESPECIAL da escada que leva a outro piso (`undefined` = nenhuma). */
+  onStairTransicaoChange?: (stairId: string, transicao: TransicaoEscolhida | undefined) => void
   /** O piso em edição no editor (o que o canvas mostra e onde o mestre constrói). */
   pisoAtivo: number
   /** "Editar o 1º piso" da escada: leva o editor ao outro lado dela. */
@@ -904,6 +908,15 @@ export function PropertiesPanel({
                 onLevaAoPisoChange={(levaAoPiso) => pisos.onStairPisosChange(selectedStair.id, { levaAoPiso })}
                 pisoAtivo={pisos.pisoAtivo}
                 onEditarPiso={pisos.onEditarPiso}
+              />
+            )}
+            {/* Só escada que leva a outro piso tem por onde passar: a de enfeite fica sem galeria. */}
+            {pisos?.onStairTransicaoChange !== undefined && selectedStair.levaAoPiso !== undefined && (
+              <TransicaoSection
+                key={`transicao-${selectedStair.id}`}
+                transicao={selectedStair.transicao}
+                onChange={(transicao) => pisos.onStairTransicaoChange?.(selectedStair.id, transicao)}
+                origem="escada"
               />
             )}
           </ToolPropertiesSection>

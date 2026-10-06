@@ -8,6 +8,8 @@ import type { PassTokenOption } from '../lib/pinPass'
 import type { ExitPassage, PinBlockReason, PinPassage } from '../types/map'
 import { clampDaVista, DA_VISTA_MAX_CASAS, DA_VISTA_MIN_CASAS, DA_VISTA_PADRAO_CASAS, ESPIAR_DURACAO_MS } from '../lib/espiar'
 import { ChevronDownIcon } from './icons'
+import { TransicaoSection } from '../transicoes/TransicaoSection'
+import type { TransicaoEscolhida } from '../transicoes/catalogo'
 import { DoorKeyField } from './WallDoorControls'
 import { SceneChoice, SceneSearchField } from './SceneSearch'
 
@@ -105,6 +107,9 @@ export interface PinTravelControlsProps {
    */
   daVista?: number | null
   onDaVistaChange?: (casas: number | null) => void
+  /** TRANSIÇÃO ESPECIAL ao atravessar. Ausente `onTransicaoChange` = sem a galeria. */
+  transicao?: TransicaoEscolhida
+  onTransicaoChange?: (transicao: TransicaoEscolhida | undefined) => void
 }
 
 /**
@@ -302,6 +307,8 @@ export function PinTravelControls({
   arrivalOnly,
   daVista = null,
   onDaVistaChange,
+  transicao,
+  onTransicaoChange,
 }: PinTravelControlsProps) {
   const [escolha, setEscolha] = useState<Escolha>(null)
   const [busca, setBusca] = useState('')
@@ -634,6 +641,9 @@ export function PinTravelControls({
       {onDaVistaChange !== undefined && principal?.travel.status === 'ligado' && (
         <DaVista casas={daVista} encruzilhada={encruzilhada} onChange={onDaVistaChange} />
       )}
+
+      {/* TRANSIÇÃO ESPECIAL: a animação que o jogador vê ao atravessar. */}
+      {onTransicaoChange !== undefined && <TransicaoSection transicao={transicao} onChange={onTransicaoChange} origem="pino" />}
 
       {escolha !== null && (
         <div id={SELETOR_ID} ref={seletorRef} className="lb-travel__picker">
