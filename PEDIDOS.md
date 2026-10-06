@@ -1325,3 +1325,4 @@ Noite = esta sessão conduzida pelo main thread; o noite-runner continua encerra
 - Feature: "Animação do Cenário" (2D sobre imagem, como a da fortaleza) nos pinos de exclamação. Em grilling.
 - Decidido (grilling): usa a imagem do pino; o mestre escolhe por pino "Só da primeira vez" / "Sempre" / "Não, só o cartão"; galeria de movimentos (sobe, desce, esquerda→direita, direita→esquerda, aproximar) com prévia e duração; névoa, raios, partículas e som ligáveis um a um.
 - Feito: motor 2D (`a2e58bc4`), seção "Animação do Cenário" no painel do pino "!" (`1cca09df`), jogador vê ao abrir o cartão com "Pular" e "Ver animação", primeira vez lembrada no navegador do jogador (este commit). Conferido: tsc, testes das áreas (116), prévia e tela do jogador num Chromium isolado. Suíte inteira rodou, mas a saída não foi lida (usuário pediu para terminar). Não conferido no exe.
+- Publicado: v0.4.14 (`d75125fe`), https://github.com/GedasioSaga/labirinto-vtt/releases/tag/v0.4.14.
