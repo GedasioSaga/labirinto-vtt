@@ -1306,3 +1306,8 @@ Noite = esta sessão conduzida pelo main thread; o noite-runner continua encerra
 - Imagem 7: túnel de esgoto em abóbada de tijolo, canal de água no meio, calçadas dos dois lados, nichos em arco na parede direita, névoa azul, fundo escuro.
 - Fora do app: página avulsa 3D, câmera parada olhando para a esquerda e para a direita.
 - Feito: https://claude.ai/artifact/N9PrimznbwR7kPfzWzbwwW. Túnel em abóbada de tijolo, canal de água com ondinhas andando, calçadas, nichos em arco à direita, névoa azul; câmera parada respira e olha frente, esquerda, frente, direita (nichos), em ~14 s. Som: pingos com eco, água correndo. Fora do app.
+
+> 06/10/2026: "Perfeito proximo exemplo que eu quero que vocÊ faça olhando de cima para baixo [Image #8]"
+- Imagem 8: fortaleza branca em andares redondos, telhados azuis, torres com telhadinho vermelho, canhões, selva em volta, escadaria até o portão (base marinha estilo anime).
+- Fora do app: página avulsa 3D, câmera começa olhando o topo e desce o olhar até a escadaria.
+- Feito: https://claude.ai/artifact/U3WazRc3txoczxPRGpSKmA. Fortaleza branca em 4 andares redondos, telhados azuis, torres com telhadinho vermelho, canhões, palácio no topo, portão em arco, escadaria com muretas e bastiões, selva low-poly, morros e nuvens; olhar desce do topo até a escadaria em ~12 s. Som: vento e pássaros. Sem o letreiro e o símbolo da imagem.
