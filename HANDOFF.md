@@ -1254,3 +1254,33 @@ Pedido do usuário: "Faz o Commit, push e cria o instalador". Release v0.4.11 co
 - Push: `origin/main` e9ffbbf7..6ada455f (fast-forward) e tag `v0.4.11`.
 - Assets (`gh release view v0.4.11`, digest igual ao local): `Labirinto_0.4.11_x64-setup.exe` 2332973 bytes sha256 58a60d2d5ed36716f96d340b8ecce88af83eb9415e566a3d77e21cb67fb2da09; `Labirinto_0.4.11_x64_en-US.msi` 3018752 bytes sha256 e00b7753ef2639320245d94f14625294105fb229c481b39522c9e458bea9a209.
 - Não rodado: Playwright e2e inteiro; instalação em máquina limpa; conta-gotas, arrastar do Explorer e chat salvo no exe.
+
+### 06/10/2026: release v0.4.12 (`18fa6fba`)
+
+## Objetivo
+Pedido do usuário: "Perfeito, da commit, push e criar o instalador". Release v0.4.12 com o que entrou desde a v0.4.11: tela inicial redesenhada + porta Roleplay em construção (`30521390`); Criar Mapas vira o formulário com View Transition (`d4eff03d`); transições especiais 3D em pino de viagem e escada (`24ce02b3`, `1075770b`, `0daf6950`).
+
+## Estado atual
+- main = origin/main @ `18fa6fba` (versão 0.4.12 nos 5 arquivos de versão; identifier `com.labirinto.app`) + este commit de docs. Tag anotada `v0.4.12`.
+- Release: https://github.com/GedasioSaga/labirinto-vtt/releases/tag/v0.4.12 com os 2 instaladores.
+- Transições: `client/src/transicoes/` (catálogo, motor three.js sob demanda, cenas `porta`/`escadaPedra`, galeria `TransicaoSection`, prévia, overlay do jogador). Nova transição = protótipo em Artifact para o usuário aprovar, depois cena + entrada no catálogo + case no motor.
+- Escada espiral parcial segue fora de commit (backup `scratchpad/escada-parcial-backup/escada-0412.patch`; stash durante a release, devolvida).
+
+## Próximos passos
+- Conferir no exe com mestre + jogador na rede: travessia por pino com transição, escada com outro piso, "Pular", som.
+- Playwright e2e inteiro segue sem rodar (falta o Chromium do Playwright 1234 na máquina: `npx playwright install`, pedir antes).
+- Pendências antigas da v0.4.11 continuam (e2e camada-travada, dúvida das camadas do Desenho, chão gigante ~1,3 s).
+- Fila do usuário em PEDIDOS.md. O usuário vai mandar novas transições.
+
+## Critério de pronto
+- Release v0.4.12 no GitHub com `Labirinto_0.4.12_x64-setup.exe` e `Labirinto_0.4.12_x64_en-US.msi`, sha256 dos assets igual ao dos arquivos locais; `labirinto.exe` ProductVersion 0.4.12.
+
+## Evidência
+- `rtk proxy npx vitest run` (antes da versão, com a escada parcial ainda no disco): Test Files 1 failed | 1323 passed (1324), Tests 1 failed | 11859 passed (11860). Única falha `src/net/hostSession.custoCom7.test.ts` sob carga; sozinho: 1 passed.
+- Com a escada em stash: `rtk proxy npx tsc --noEmit` e `-p tsconfig.e2e.json` exit 0.
+- Grep de segredos nas linhas adicionadas de `v0.4.11..HEAD` e nos nomes de arquivo: nada (só texto do próprio HANDOFF).
+- `npm run tauri:build`: exit 0, "Finished 2 bundles".
+- Fumaça: `labirinto.exe` ProductVersion/FileVersion 0.4.12; janela "Labirinto" Responding=True, ~28 MB; fechada depois.
+- Push: `origin/main` e356c98c..18fa6fba e tag `v0.4.12`.
+- Assets (digest do GitHub igual ao sha256 local): `Labirinto_0.4.12_x64-setup.exe` 2518333 bytes sha256 35e1e6fdac40c9c927b33f4396732140e8a6ff76b1cd02f2ee304589f38b9784; `Labirinto_0.4.12_x64_en-US.msi` 3203072 bytes sha256 c3940892c78cfbb7fc14aaaee549d85f78597022554aa82c899588b9cb2cfe8c.
+- Não rodado: Playwright e2e; travessia real mestre+jogador no exe; instalação em máquina limpa.
