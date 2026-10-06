@@ -76,6 +76,7 @@ import { MapTypePicker } from './screens/MapTypePicker'
 import { NewDungeonMap } from './screens/NewDungeonMap'
 import { LoadMapScreen } from './screens/LoadMapScreen'
 import { OptionsScreen } from './screens/OptionsScreen'
+import { RoleplayScreen } from './screens/RoleplayScreen'
 import { mapChangeCause, selectAlignableUnitCount, useMapStore } from './stores/mapStore'
 import { roomHazardState } from './lib/hazards'
 import { areaTriggerOfRegion } from './lib/areaTriggers'
@@ -2555,6 +2556,7 @@ function App() {
           onCreate={() => setScreen(createMapScreen())}
           onLoad={() => setScreen('load-map')}
           onOptions={() => setScreen('options')}
+          onRoleplay={() => setScreen('roleplay')}
           recovery={
             recoveryCopy && {
               mapName: recoveryCopy.map.name,
@@ -2600,6 +2602,15 @@ function App() {
     return (
       <>
         <OptionsScreen onBack={() => setScreen(parentScreen(screen))} />
+        {toastStack}
+      </>
+    )
+  }
+
+  if (screen === 'roleplay') {
+    return (
+      <>
+        <RoleplayScreen onBack={() => setScreen(parentScreen(screen))} />
         {toastStack}
       </>
     )

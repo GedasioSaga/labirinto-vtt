@@ -1,0 +1,413 @@
+/* Tela inicial — "lampião sobre a mesa".
+   Movimento em duas camadas, como pede a frequência de uso:
+   - entrada marcante UMA vez por abertura (texto sobe em cascata, o labirinto
+     se desenha, o centro acende);
+   - depois, só retorno rápido de hover/press (< 200 ms), sem nada em loop.
+   O `prefers-reduced-motion` global do main.css já encurta tudo para 1 ms. */
+
+.lb-home {
+  --home-ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --home-enter: 640ms;
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden auto;
+  background: var(--lb-color-ink);
+  color: var(--lb-color-parchment);
+  isolation: isolate;
+}
+
+/* ---- ambiente */
+
+.lb-home__grid {
+  position: fixed;
+  inset: 0;
+  z-index: -3;
+  background-image:
+    linear-gradient(var(--lb-color-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--lb-color-line) 1px, transparent 1px);
+  background-size: 64px 64px;
+  opacity: 0.4;
+  mask-image: radial-gradient(ellipse 75% 70% at 65% 45%, #000 0%, transparent 100%);
+  -webkit-mask-image: radial-gradient(ellipse 75% 70% at 65% 45%, #000 0%, transparent 100%);
+  animation: lb-home-fade 900ms var(--home-ease-out) both;
+}
+
+/* Camadas de ambiente em position: fixed para nunca alargarem a rolagem.
+   Halo do lampião. Posição de repouso por left/top; com mouse, `useLampGlow`
+   assume a posição pelo transform. */
+.lb-home__glow {
+  position: fixed;
+  left: 72%;
+  top: 42%;
+  z-index: -2;
+  width: 900px;
+  height: 900px;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: radial-gradient(circle at center, rgba(224, 164, 74, 0.16) 0%, rgba(224, 164, 74, 0.05) 38%, transparent 68%);
+  pointer-events: none;
+  will-change: transform;
+  animation: lb-home-fade 1200ms var(--home-ease-out) 120ms both;
+}
+
+.lb-home__vignette {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background: radial-gradient(ellipse 90% 85% at 50% 50%, transparent 55%, rgba(0, 0, 0, 0.55) 100%);
+  pointer-events: none;
+}
+
+/* ---- palco */
+
+.lb-home__stage {
+  min-height: 100%;
+  display: grid;
+  grid-template-columns: minmax(0, 560px) minmax(0, 1fr);
+  align-items: center;
+  gap: clamp(32px, 6vw, 96px);
+  padding: clamp(32px, 7vh, 88px) clamp(24px, 8vw, 120px) 72px;
+  box-sizing: border-box;
+}
+
+.lb-home__intro {
+  display: flex;
+  flex-direction: column;
+  gap: 40px;
+  min-width: 0;
+}
+
+.lb-home__brand {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* Cascata de entrada: cada peça sobe 10 px e aparece, 60 ms depois da anterior. */
+.lb-home__eyebrow,
+.lb-home__title,
+.lb-home__tagline,
+.lb-home__recovery,
+.lb-home__door {
+  animation: lb-home-rise var(--home-enter) var(--home-ease-out) backwards;
+}
+
+.lb-home__eyebrow {
+  margin: 0;
+  font-family: var(--lb-font-utility);
+  font-size: 13px;
+  letter-spacing: var(--lb-font-tracking-wider);
+  text-transform: uppercase;
+  color: var(--lb-color-brass);
+}
+
+.lb-home__title {
+  margin: 0;
+  font-family: var(--lb-font-display);
+  font-size: clamp(64px, 8.5vw, 112px);
+  font-weight: var(--lb-font-weight-regular);
+  line-height: 0.95;
+  letter-spacing: -0.02em;
+  color: var(--lb-color-parchment);
+  animation-delay: 60ms;
+}
+
+/* Foco programático ao montar (tabIndex -1): sem anel. */
+.lb-home__title:focus,
+.lb-home__title:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+
+.lb-home__tagline {
+  margin: 0;
+  font-size: 16px;
+  line-height: 1.6;
+  color: var(--lb-color-parchment-dim);
+  animation-delay: 120ms;
+}
+
+.lb-home__recovery {
+  margin: 0;
+  animation-delay: 160ms;
+}
+
+/* ---- portas */
+
+.lb-home__doors {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  counter-reset: lb-door;
+}
+
+.lb-home__door {
+  counter-increment: lb-door;
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  width: 100%;
+  padding: 18px 22px 18px 20px;
+  border: 1px solid var(--lb-color-line);
+  border-radius: var(--lb-radius-lg);
+  background: rgba(26, 26, 30, 0.82);
+  color: inherit;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  backdrop-filter: blur(6px);
+  transition:
+    background-color 160ms ease,
+    border-color 160ms ease,
+    transform 140ms var(--home-ease-out);
+}
+
+.lb-home__door:nth-child(1) { animation-delay: 200ms; }
+.lb-home__door:nth-child(2) { animation-delay: 260ms; }
+.lb-home__door:nth-child(3) { animation-delay: 320ms; }
+.lb-home__door:nth-child(4) { animation-delay: 380ms; }
+
+.lb-home__door::before {
+  content: counter(lb-door, decimal-leading-zero);
+  flex: none;
+  width: 18px;
+  font-family: var(--lb-font-utility);
+  font-size: 13px;
+  letter-spacing: 0.1em;
+  color: var(--lb-color-parchment-faint);
+  transition: color 160ms ease;
+}
+
+.lb-home__door-body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.lb-home__door-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  font-size: 17px;
+  font-weight: var(--lb-font-weight-semibold);
+  color: var(--lb-color-parchment);
+}
+
+.lb-home__door-desc {
+  font-size: 13px;
+  color: var(--lb-color-parchment-dim);
+}
+
+.lb-home__badge {
+  padding: 3px 8px;
+  border-radius: var(--lb-radius-full);
+  background: var(--lb-color-brass-soft);
+  font-family: var(--lb-font-utility);
+  font-size: 11px;
+  font-weight: var(--lb-font-weight-medium);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--lb-color-brass-bright);
+}
+
+.lb-home__door-arrow {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: var(--lb-color-parchment-faint);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition:
+    stroke 160ms ease,
+    transform 180ms var(--home-ease-out);
+}
+
+/* Hover só com mouse de verdade: no toque o hover "gruda" depois do toque. */
+@media (hover: hover) and (pointer: fine) {
+  .lb-home__door:hover {
+    background-color: var(--lb-color-stone-raised);
+    border-color: rgba(224, 164, 74, 0.45);
+  }
+
+  .lb-home__door:hover::before {
+    color: var(--lb-color-brass);
+  }
+
+  .lb-home__door:hover .lb-home__door-arrow {
+    stroke: var(--lb-color-brass-bright);
+    transform: translateX(3px);
+  }
+}
+
+.lb-home__door:focus-visible {
+  outline: none;
+  border-color: var(--lb-color-brass);
+  box-shadow: 0 0 0 3px rgba(224, 164, 74, 0.22);
+}
+
+.lb-home__door:focus-visible::before {
+  color: var(--lb-color-brass);
+}
+
+.lb-home__door:active {
+  transform: scale(0.98);
+}
+
+/* ---- ilustração */
+
+.lb-home__art {
+  display: grid;
+  place-items: center;
+  min-width: 0;
+}
+
+.lb-home__maze {
+  width: min(100%, 520px);
+  height: auto;
+  overflow: visible;
+}
+
+.lb-home__wall {
+  fill: none;
+  stroke: var(--lb-color-brass);
+  stroke-opacity: 0.6;
+  stroke-width: 2;
+  stroke-linecap: square;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: lb-home-draw 700ms var(--home-ease-out) forwards;
+}
+
+.lb-home__core {
+  fill: var(--lb-color-brass-bright);
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: lb-home-ignite 520ms var(--home-ease-out) 1250ms backwards;
+}
+
+.lb-home__core-halo {
+  fill: var(--lb-color-brass-bright);
+  opacity: 0;
+  filter: blur(14px);
+  animation: lb-home-halo 900ms var(--home-ease-out) 1300ms forwards;
+}
+
+/* ---- rodapé */
+
+.lb-home__foot {
+  position: absolute;
+  left: clamp(24px, 8vw, 120px);
+  bottom: 28px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  font-family: var(--lb-font-utility);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--lb-color-parchment-faint);
+  animation: lb-home-fade 600ms ease 600ms both;
+}
+
+.lb-home__foot kbd {
+  padding: 1px 6px;
+  border: 1px solid var(--lb-color-line-strong);
+  border-radius: 4px;
+  font-family: inherit;
+  font-size: 11px;
+  color: var(--lb-color-parchment-dim);
+}
+
+/* ---- telas estreitas: ilustração some, portas ocupam a largura */
+
+@media (max-width: 900px) {
+  .lb-home__stage {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .lb-home__art {
+    display: none;
+  }
+
+  .lb-home__foot {
+    display: none;
+  }
+}
+
+/* ---- keyframes */
+
+@keyframes lb-home-rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+}
+
+@keyframes lb-home-fade {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes lb-home-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes lb-home-ignite {
+  from {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+}
+
+@keyframes lb-home-halo {
+  to {
+    opacity: 0.35;
+  }
+}
+
+/* ---- Roleplay (em construção) */
+
+.lb-wip {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  text-align: center;
+  padding: 48px 0 24px;
+}
+
+.lb-wip > * {
+  animation: lb-home-rise 560ms cubic-bezier(0.23, 1, 0.32, 1) backwards;
+}
+
+.lb-wip > :nth-child(2) { animation-delay: 60ms; }
+.lb-wip > :nth-child(3) { animation-delay: 120ms; }
+
+.lb-wip__text {
+  margin: 0;
+  max-width: 420px;
+  font-size: 16px;
+  line-height: 1.6;
+  color: var(--lb-color-parchment-dim);
+}
+
+.lb-wip__scaffold {
+  width: 120px;
+  height: 120px;
+  fill: none;
+  stroke: var(--lb-color-brass);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-opacity: 0.7;
+}

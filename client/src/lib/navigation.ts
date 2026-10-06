@@ -12,6 +12,7 @@ export const SCREEN_PARENT: Record<Screen, Screen> = {
   'new-dungeon': 'map-type',
   'load-map': 'menu',
   options: 'menu',
+  roleplay: 'menu',
   editor: 'menu',
 }
 

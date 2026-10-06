@@ -1,1 +1,1 @@
-export type Screen = 'menu' | 'map-type' | 'new-dungeon' | 'load-map' | 'options' | 'editor'
+export type Screen = 'menu' | 'map-type' | 'new-dungeon' | 'load-map' | 'options' | 'roleplay' | 'editor'
