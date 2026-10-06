@@ -1,5 +1,6 @@
 import type { HazardKind, MapData, MarcaRumo, PinCard, RegionPoint, Token } from '../types/map'
 import { moveTokenCarryingLights } from '../lib/lightAttachment'
+import { parseTransicao, type TransicaoEscolhida } from '../transicoes/catalogo'
 import { HAZARD_NOTICE_TTL_MS, isHazardKind, parsePlayerHazards, type PlayerHazard } from '../lib/hazards'
 import { parsePlayerAreaTriggers, type PlayerAreaTrigger } from '../lib/areaTriggers'
 import { decodeExploration, type Exploration } from '../lib/exploration'
@@ -263,6 +264,12 @@ export interface PlayerState {
   hide?: HideNotice
   /** Pedido de passagem: esperando o mestre, ou a resposta dele. */
   travel?: TravelNotice
+  /**
+   * TRANSIÇÃO ESPECIAL a tocar agora: o jogador atravessou um pino (ou subiu
+   * uma escada) que tem uma. `nonce` muda a cada travessia — a tela toca uma
+   * vez por valor. Levado, reunido ou a bordo: nunca (não foi ele que passou).
+   */
+  transicao?: { nonce: number; escolha: TransicaoEscolhida }
   /** ITEM PEGÁVEL: "Pegar" ou "Dar a…" — enviado, a resposta do mestre ou a recusa do host. Some sozinho. */
   item?: ItemNotice
   /** LOJA COM PREÇOS: o último "Quero" — esperando o mestre, a resposta dele ou a recusa do host. A resposta some sozinha. */
@@ -1929,6 +1936,8 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
   }
 
   let travelTimer: ReturnType<typeof setTimeout> | null = null
+  /** TRANSIÇÃO ESPECIAL do pino do último pedido de passagem; toca se a chegada for dele. */
+  let transicaoDoPedido: TransicaoEscolhida | undefined
   /** Quando saiu o último pedido de passagem (qualquer pino) e o de cada pino: o espelho dos limites do host. */
   let lastTravelSentAt: number | null = null
   const lastTravelSentAtByPin = new Map<string, number>()
@@ -3222,7 +3231,13 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         // Levado pelo mestre, "Você chegou" mentiria: ele não pediu para ir.
         // Reunido pelo mestre: outro aviso, porque ele não foi levado sozinho.
         // A bordo do veículo que outro jogador dirigiu: nem um nem outro.
-        showTravelAnswer({ id: nextNoticeId++, phase: travelPhaseOfSceneChange(data.by) })
+        {
+          const fase = travelPhaseOfSceneChange(data.by)
+          showTravelAnswer({ id: nextNoticeId++, phase: fase })
+          // TRANSIÇÃO ESPECIAL: só na chegada pedida pelo próprio jogador.
+          if (fase === 'arrived' && transicaoDoPedido !== undefined) setState({ transicao: { nonce: nextNoticeId++, escolha: transicaoDoPedido } })
+          transicaoDoPedido = undefined
+        }
         return
       case 'pin.peek.view':
       case 'pin.peek.rejected':
@@ -4053,7 +4068,12 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
 
     changeFloor(tokenId, stairId) {
       if (state.status !== 'playing' || tokenId.length === 0 || stairId.length === 0) return false
-      return send({ type: 'token.piso', tokenId, stairId })
+      if (!send({ type: 'token.piso', tokenId, stairId })) return false
+      // TRANSIÇÃO ESPECIAL da escada: toca no toque — a troca de piso é na
+      // mesma cena e o host responde na hora, a animação cobre a virada.
+      const escolha = parseTransicao(state.map?.stairs.find((s) => s.id === stairId)?.transicao)
+      if (escolha !== undefined) setState({ transicao: { nonce: nextNoticeId++, escolha } })
+      return true
     },
     boardVehicle(tokenId, vehicleId) {
       if (state.status !== 'playing' || tokenId.length === 0 || vehicleId.length === 0) return false
@@ -4089,6 +4109,8 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       const pedido: PinTravelRequestMessage = exitId === undefined ? { type: 'pin.travel.request', pinId } : { type: 'pin.travel.request', pinId, exitId }
       // ESCOLHER FICHAS NO PINO: a lista só vai quando o cartão ofereceu a escolha.
       if (tokenIds !== undefined && tokenIds.length > 0) pedido.tokenIds = [...tokenIds]
+      // TRANSIÇÃO ESPECIAL: a deste pino, lida de novo (o recorte já validou; aqui só confere a forma).
+      transicaoDoPedido = parseTransicao(pin?.transicao)
       // Pino livre não espera ninguém: o aviso diz "Passando…", não "Aguardando
       // o mestre". E o pedido sai depois de um instante, não no mesmo toque: a
       // resposta do host é quase imediata, e sem a pausa a tela trocava de cena

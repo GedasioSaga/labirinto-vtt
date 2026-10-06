@@ -55,6 +55,7 @@ import type { PlayerCharacter, PlayerViewSettings } from './PlayerPanel'
 import { PlayerErrorBoundary } from './ErrorBoundary'
 import { LabyrinthMark } from '../components/icons'
 import { ControleDeSom } from '../components/ControleDeSom'
+import { TransicaoOverlay } from '../transicoes/TransicaoOverlay'
 import { DiceFeed } from '../components/DiceControls'
 import type { DiceRollEntry } from '../lib/dice'
 import type { DestinationMark, SignalMark } from '../lib/signals'
@@ -1828,6 +1829,8 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
             </button>
           </div>
         )}
+        {/* TRANSIÇÃO ESPECIAL: por cima de tudo, até o "Pular" ou o fim da animação. */}
+        {state.transicao && <TransicaoOverlay nonce={state.transicao.nonce} escolha={state.transicao.escolha} />}
         {reconnecting}
       </PlayerErrorBoundary>
     )

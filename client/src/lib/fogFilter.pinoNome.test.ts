@@ -38,3 +38,21 @@ describe('fogFilter: nome do pino é só do mestre', () => {
     expect(mapa.pins[0].nome).toBe('Faca')
   })
 })
+
+describe('fogFilter: transição especial do pino de viagem', () => {
+  it('o pino de viagem leva a transição; outro tipo de pino não', () => {
+    const viagem: Pin = { id: 'porta', x: 240, y: 200, kind: 'viagem', description: '', image: null, transicao: { id: 'porta', duracaoS: 5 } }
+    const nota = { ...FACA, transicao: { id: 'porta' } } as Pin
+    const view = filterMapForPlayer(mapaCom([viagem, nota]), 'diego', POSSE, RAIO)
+    expect(view.map.pins.find((p) => p.id === 'porta')?.transicao).toEqual({ id: 'porta', duracaoS: 5 })
+    expect(view.map.pins.find((p) => p.id === 'pino-7')?.transicao).toBeUndefined()
+  })
+})
+
+describe('fogFilter: transição especial da escada', () => {
+  it('a escada que leva a outro piso chega ao jogador com a transição', () => {
+    const escada = { id: 'escada', shape: 'straight', direction: 'up', segments: [{ x1: 220, y1: 180, x2: 220, y2: 240 }], stepWidth: 40, levaAoPiso: 1, transicao: { id: 'escada-pedra' } } as MapData['stairs'][number]
+    const view = filterMapForPlayer({ ...mapaCom([]), stairs: [escada] }, 'diego', POSSE, RAIO)
+    expect(view.map.stairs.find((s) => s.id === 'escada')?.transicao).toEqual({ id: 'escada-pedra' })
+  })
+})

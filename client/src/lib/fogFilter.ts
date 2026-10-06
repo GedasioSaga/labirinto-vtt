@@ -22,6 +22,7 @@ import { exitLabelsOf, exitPassageOf, isArrivalOnly, isExitPassage, travelExitsO
 import { publicLockOf } from './pinLock'
 import { cabineNaParada, type CabineDeTransporte } from './cabine'
 import { withoutAttachment } from './lightAttachment'
+import { parseTransicao } from '../transicoes/catalogo'
 import { marcaParaJogador } from './marcas'
 import { normalizarCorDoMovel, normalizarVistaDoMovel } from './mobilia'
 import { itemOfPin, readCarriedItems, tokenReachesPin } from './items'
@@ -4343,6 +4344,12 @@ function pinForPlayer(pin: Pin, ownTokens: readonly Token[], grid: number, reada
   if (pin.hidden !== undefined) forPlayer.hidden = pin.hidden
   if (pin.secret !== undefined) forPlayer.secret = pin.secret
   if (pin.passagem !== undefined) forPlayer.passagem = pin.passagem
+  // TRANSIÇÃO ESPECIAL: só do pino de viagem e só na forma do catálogo. Diz
+  // qual animação toca, nada da outra cena.
+  if (pin.kind === 'viagem') {
+    const transicao = parseTransicao(pin.transicao)
+    if (transicao !== undefined) forPlayer.transicao = transicao
+  }
   // Escada: o id da ESCADA desta cena, que o jogador já recebe — é por ele que
   // o toque na escada acha o pino. Só chega aqui pino de escada que saiu.
   if (pin.escadaId !== undefined) forPlayer.escadaId = pin.escadaId
