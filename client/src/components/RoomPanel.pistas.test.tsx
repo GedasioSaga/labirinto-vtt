@@ -13,6 +13,10 @@ import { createEmptyMap } from '../lib/mapFactory'
 import type { Pin } from '../types/map'
 import { RoomPanel } from './RoomPanel'
 import { hostCluesProps, type HostCluesWiring } from './CluesSection'
+import { FEATURES } from '../lib/features'
+
+/** O painel está escondido por padrão (06/10/2026); aqui ele é ligado para ser testado. */
+const COM_PISTAS = { ...FEATURES, painelPistas: true }
 
 const noop = vi.fn()
 const handlers = { onStart: noop, onStop: noop, onStartTunnel: noop, onStopTunnel: noop, onAssign: noop, onUnassign: noop, onKick: noop, onVisionRadiusChange: noop, onVisionFactorChange: noop, onRevealPlan: noop, onHidePlan: noop }
@@ -67,7 +71,7 @@ describe('RoomPanel: painel Pistas na aba Jogo', () => {
   })
 
   const render = (players: PlayerInfo[], wiring: HostCluesWiring): void =>
-    act(() => root.render(<RoomPanel room={ROOM} players={players} tokens={[]} tunnel={IDLE} {...handlers} clues={hostCluesProps(wiring)} />))
+    act(() => root.render(<RoomPanel room={ROOM} players={players} tokens={[]} tunnel={IDLE} {...handlers} clues={hostCluesProps(wiring)} flags={COM_PISTAS} />))
 
   function bolinha(nome: string): HTMLButtonElement | undefined {
     return Array.from(container.querySelectorAll<HTMLButtonElement>('.lb-clues__dot')).find((b) => b.getAttribute('aria-label') === nome)
@@ -110,6 +114,19 @@ describe('RoomPanel: painel Pistas na aba Jogo', () => {
     expect(goToPoint).toHaveBeenCalledWith('cena-andar', { x: 450, y: 320 })
     // Parar de seguir vem ANTES: senão o seguir puxa a vista de volta para o jogador.
     expect(calls).toEqual(['stop', 'go'])
+  })
+
+  it('com as flags padrão a aba Jogo não mostra Pistas, Iniciativa, Relógio da campanha nem Confronto', () => {
+    // As seções recebem props de verdade: o que as tira é só a flag.
+    const presente = {} as never
+    act(() =>
+      root.render(
+        <RoomPanel room={ROOM} players={JOGADORES} tokens={[]} tunnel={IDLE} {...handlers} clues={hostCluesProps(ligacao())} initiative={presente} clock={presente} confronto={presente} />,
+      ),
+    )
+    expect(container.querySelector('.lb-clues')).toBeNull()
+    const texto = container.textContent ?? ''
+    for (const titulo of ['Pistas', 'Iniciativa', 'Relógio da campanha', 'Confronto']) expect(texto).not.toContain(titulo)
   })
 
   it('sala vazia: o painel não aparece', () => {

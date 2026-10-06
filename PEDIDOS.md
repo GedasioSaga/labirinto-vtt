@@ -1295,3 +1295,8 @@ Noite = esta sessão conduzida pelo main thread; o noite-runner continua encerra
 > 06/10/2026: "Pronto, eu quero mais uma animação, não tem a animação de escada subindo ? então faz a mesma coisa só que descendo, e outra coisa, não consigo colocar animação da escada, faça com que eu possa."
 - Fila: (1) bug: galeria de transição não aparece para a escada; (2) nova transição "escadaria de pedra descendo" (mesmo estilo da subindo).
 - Feito: galeria aparece em toda escada, inclusive a que leva a outra cena (`8c0123f5`); nova transição "Escadaria descendo" (a de subir virou "Escadaria subindo"), com patamar sem riscos (este commit). Conferido em quadros num Chromium isolado; não no exe.
+
+> 06/10/2026: "Quero que faça mais uma coisa para mim na parte da aba de jogo quero que tire esse parte pistas [Image #3], quero que tire essa parte de Iniciativa [Image #4], que tire essa parte de relogio [Image #5] e por ultimo tire o [Image #6]."
+- Imagens: seções "Pistas (33)", "Iniciativa", "Relógio da campanha" (+1 hora / Próximo período) e "Confronto" (Confronto nesta cena) da aba Jogo do mestre.
+- Fila: esconder as 4 seções da aba Jogo.
+- Feito: Pistas, Iniciativa, Relógio da campanha e Confronto escondidos da aba Jogo por flag em `lib/features.ts` (religa trocando para true). Dados e host seguem iguais. Teste unitário prova as 4 escondidas; não visto no exe (a aba Jogo só existe no app instalado). e2e que usam essas seções vão quebrar (não rodam nesta máquina).

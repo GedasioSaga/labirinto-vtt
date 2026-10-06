@@ -16,6 +16,14 @@ export interface FeatureFlags {
   scenarioLink: boolean
   /** Ferramenta Token e o atalho K. `TOOL_SHORTCUTS.token` continua na tabela. */
   tokenTool: boolean
+  /** Aba Jogo: painel "Pistas" (quem recebeu e quem leu cada pino). O host continua registrando. */
+  painelPistas: boolean
+  /** Aba Jogo: seção "Iniciativa". A ordem guardada continua no mapa. */
+  iniciativa: boolean
+  /** Aba Jogo: "Relógio da campanha" (+1 hora / Próximo período). A hora guardada continua. */
+  relogioDaCampanha: boolean
+  /** Aba Jogo: "Confronto nesta cena". */
+  confronto: boolean
 }
 
 export const FEATURES: Readonly<FeatureFlags> = {
@@ -23,4 +31,9 @@ export const FEATURES: Readonly<FeatureFlags> = {
   otherMapTypes: false,
   scenarioLink: false,
   tokenTool: false,
+  // Pedido do usuário em 06/10/2026: tirar da aba Jogo.
+  painelPistas: false,
+  iniciativa: false,
+  relogioDaCampanha: false,
+  confronto: false,
 }

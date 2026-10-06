@@ -46,6 +46,7 @@ import { TravelLogSection, type TravelLogSectionProps } from './TravelLogSection
 import { textoDaEsperaParaOMestre } from '../lib/encontroMarcado'
 import { ConfrontoControls, type ConfrontoControlsProps } from './ConfrontoControls'
 import { ControleDeSom, TITULO_DO_SOM } from './ControleDeSom'
+import { FEATURES, type FeatureFlags } from '../lib/features'
 
 export interface RoomPanelToken {
   id: string
@@ -148,6 +149,8 @@ export interface RoomPanelProps {
   onToggleLaser?(): void
   /** "Ruído": arma o ruído (o próximo clique no mapa o dispara) e escolhe o alcance. Ausente = sem o controle. */
   noise?: NoiseControlProps
+  /** Default `FEATURES`: Pistas, Iniciativa, Relógio e Confronto só aparecem com a flag ligada. */
+  flags?: Readonly<FeatureFlags>
   /** Seção "Tela da mesa" (link da TV e a cena que ela mostra). Ausente = sem a seção. */
   table?: TableScreenSectionProps
 }
@@ -1863,8 +1866,12 @@ export function RoomPanel({
   clues,
   secretCheck,
   noise,
+  flags = FEATURES,
 }: RoomPanelProps) {
   const inviteId = useId()
+  // Escondidos da aba Jogo por pedido do usuário (`lib/features.ts`): o resto do app segue igual.
+  const iniciativaVisivel = flags.iniciativa ? initiative : undefined
+  const relogioVisivel = flags.relogioDaCampanha ? clock : undefined
   if (room === null) {
     return (
       <section className="lb-panel lb-section lb-room lb-scroll">
@@ -1872,8 +1879,8 @@ export function RoomPanel({
         <OpenRoom savedTableNames={savedTableNames} onStart={onStart} />
         <FirewallHint />
         {/* Combate sem jogador na rede também tem ordem: a seção não espera a sala. */}
-        {initiative !== undefined && <InitiativeSection {...initiative} />}
-        {clock !== undefined && <CampaignClockSection {...clock} />}
+        {iniciativaVisivel !== undefined && <InitiativeSection {...iniciativaVisivel} />}
+        {relogioVisivel !== undefined && <CampaignClockSection {...relogioVisivel} />}
       </section>
     )
   }
@@ -1929,21 +1936,21 @@ export function RoomPanel({
       />
 
       {/* Pistas logo depois do Grupo: as bolinhas são as mesmas pessoas, na mesma ordem e cor. */}
-      {players.length > 0 && <CluesSection {...clues} />}
+      {flags.painelPistas && players.length > 0 && <CluesSection {...clues} />}
 
       {/* O teste secreto é de cena, como as pistas: fica perto do Grupo, não no fim da aba. */}
       {players.length > 0 && secretCheck !== undefined && <SecretCheckSection {...secretCheck} />}
 
       {/* Iniciativa logo depois do Grupo: no combate é o que o mestre toca a cada vez. */}
-      {initiative !== undefined && <InitiativeSection {...initiative} />}
+      {iniciativaVisivel !== undefined && <InitiativeSection {...iniciativaVisivel} />}
 
       {/* O relógio depois da iniciativa: anda entre as cenas, não a cada vez. */}
-      {clock !== undefined && <CampaignClockSection {...clock} />}
+      {relogioVisivel !== undefined && <CampaignClockSection {...relogioVisivel} />}
 
       {travelLog !== undefined && <TravelLogSection {...travelLog} />}
 
       {/* CONFRONTO da cena aberta: ação de mesa, logo depois de quem está onde. */}
-      {confronto !== undefined && (
+      {flags.confronto && confronto !== undefined && (
         <div className="lb-field">
           <h3 className="lb-eyebrow">Confronto</h3>
           <ConfrontoControls {...confronto} />
