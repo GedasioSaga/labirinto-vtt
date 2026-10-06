@@ -1301,3 +1301,8 @@ Noite = esta sessão conduzida pelo main thread; o noite-runner continua encerra
 - Fila: esconder as 4 seções da aba Jogo.
 - Feito: Pistas, Iniciativa, Relógio da campanha e Confronto escondidos da aba Jogo por flag em `lib/features.ts` (religa trocando para true). Dados e host seguem iguais. Teste unitário prova as 4 escondidas; não visto no exe (a aba Jogo só existe no app instalado). e2e que usam essas seções vão quebrar (não rodam nesta máquina).
 - Publicado: v0.4.13 (`69d79a36`), https://github.com/GedasioSaga/labirinto-vtt/releases/tag/v0.4.13.
+
+> 06/10/2026: "Perfeito, agora eu quero só fazer um teste [Image #7] consegue fazer uma animação da pessoas só olhando de um lado para o outro? não coloque no programa eu quero ver se vocÊ consegue."
+- Imagem 7: túnel de esgoto em abóbada de tijolo, canal de água no meio, calçadas dos dois lados, nichos em arco na parede direita, névoa azul, fundo escuro.
+- Fora do app: página avulsa 3D, câmera parada olhando para a esquerda e para a direita.
+- Feito: https://claude.ai/artifact/N9PrimznbwR7kPfzWzbwwW. Túnel em abóbada de tijolo, canal de água com ondinhas andando, calçadas, nichos em arco à direita, névoa azul; câmera parada respira e olha frente, esquerda, frente, direita (nichos), em ~14 s. Som: pingos com eco, água correndo. Fora do app.
