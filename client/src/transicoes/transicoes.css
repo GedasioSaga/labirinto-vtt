@@ -1,0 +1,216 @@
+/* ---- tela da animação (prévia e jogo) */
+
+.lb-transicao-tela {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #000;
+}
+
+.lb-transicao-tela__cena,
+.lb-transicao-tela__granulado {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.lb-transicao-tela__granulado {
+  opacity: 0.06;
+  mix-blend-mode: screen;
+  pointer-events: none;
+}
+
+.lb-transicao-tela__vinheta {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse 78% 72% at 50% 48%, transparent 42%, rgba(0, 0, 0, 0.88) 100%);
+  pointer-events: none;
+}
+
+.lb-transicao-tela__cortina {
+  position: absolute;
+  inset: 0;
+  background: #000;
+  opacity: 1;
+  pointer-events: none;
+}
+
+/* ---- janela de prévia do mestre */
+
+.lb-transicao-previa {
+  width: min(960px, calc(100vw - 48px));
+  padding: 0;
+  overflow: hidden;
+}
+
+.lb-transicao-previa .lb-dialog__head {
+  padding: var(--lb-space-3) var(--lb-space-4);
+}
+
+.lb-transicao-previa__palco {
+  aspect-ratio: 16 / 9;
+  width: 100%;
+  max-width: 100%;
+  background: #000;
+}
+
+.lb-transicao-previa__barra {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--lb-space-2);
+  padding: var(--lb-space-3) var(--lb-space-4);
+}
+
+.lb-transicao-previa__info {
+  font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-parchment-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.lb-transicao-previa__acoes {
+  display: flex;
+  gap: var(--lb-space-2);
+}
+
+/* ---- galeria no painel (pino de viagem e escada) */
+
+.lb-transicoes {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-2);
+}
+
+.lb-transicoes__lista {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.lb-transicao-item {
+  display: flex;
+  align-items: center;
+  gap: var(--lb-space-2);
+  padding: 4px;
+  border: 1px solid var(--lb-color-line);
+  border-radius: var(--lb-radius-md);
+  background: var(--lb-color-stone-sunken);
+  transition: border-color 140ms ease, background-color 140ms ease;
+}
+
+.lb-transicao-item[data-escolhida='true'] {
+  border-color: var(--lb-color-brass);
+  background: var(--lb-color-brass-soft);
+}
+
+.lb-transicao-item__escolher {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: var(--lb-space-2);
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.lb-transicao-item__escolher:focus-visible {
+  outline: 2px solid var(--lb-color-brass);
+  outline-offset: 2px;
+  border-radius: var(--lb-radius-sm);
+}
+
+.lb-transicao-item__miniatura {
+  flex: none;
+  width: 72px;
+  height: 40px;
+  border-radius: var(--lb-radius-sm);
+  background: #000;
+  object-fit: cover;
+}
+
+.lb-transicao-item__miniatura--nenhuma {
+  display: grid;
+  place-items: center;
+  font-size: var(--lb-font-size-xs);
+  color: var(--lb-color-parchment-faint);
+}
+
+.lb-transicao-item__texto {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.lb-transicao-item__nome {
+  font-size: var(--lb-font-size-md);
+  color: var(--lb-color-parchment);
+}
+
+.lb-transicao-item__duracao {
+  font-size: var(--lb-font-size-xs);
+  color: var(--lb-color-parchment-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.lb-transicoes__duracao {
+  display: flex;
+  align-items: center;
+  gap: var(--lb-space-2);
+}
+
+.lb-transicoes__duracao .lb-input {
+  width: 72px;
+}
+
+/* ---- tela cheia do jogador */
+
+.lb-transicao-jogo {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  background: #000;
+  transition: opacity 260ms ease-out;
+}
+
+.lb-transicao-jogo[data-saindo='true'] {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.lb-transicao-jogo__pular {
+  position: absolute;
+  right: max(16px, env(safe-area-inset-right, 0px));
+  bottom: max(16px, env(safe-area-inset-bottom, 0px));
+  padding: 10px 16px;
+  border: 1px solid rgba(216, 208, 191, 0.35);
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.55);
+  color: #d8d0bf;
+  font: inherit;
+  font-size: 13px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: border-color 150ms ease, transform 120ms ease-out;
+}
+
+.lb-transicao-jogo__pular:active {
+  transform: scale(0.97);
+}
+
+.lb-transicao-jogo__pular:focus-visible {
+  outline: 2px solid #d8d0bf;
+  outline-offset: 2px;
+}
