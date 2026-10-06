@@ -77,6 +77,7 @@ import { NewDungeonMap } from './screens/NewDungeonMap'
 import { LoadMapScreen } from './screens/LoadMapScreen'
 import { OptionsScreen } from './screens/OptionsScreen'
 import { RoleplayScreen } from './screens/RoleplayScreen'
+import { withViewTransition } from './lib/viewTransition'
 import { mapChangeCause, selectAlignableUnitCount, useMapStore } from './stores/mapStore'
 import { roomHazardState } from './lib/hazards'
 import { areaTriggerOfRegion } from './lib/areaTriggers'
@@ -2553,7 +2554,7 @@ function App() {
     return (
       <>
         <MainMenu
-          onCreate={() => setScreen(createMapScreen())}
+          onCreate={() => withViewTransition(() => setScreen(createMapScreen()))}
           onLoad={() => setScreen('load-map')}
           onOptions={() => setScreen('options')}
           onRoleplay={() => setScreen('roleplay')}

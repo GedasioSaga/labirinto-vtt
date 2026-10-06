@@ -1,3 +1,4 @@
+import './MainMenu.css'
 import { useEffect, useId, useMemo, useState } from 'react'
 import type { MapData, GridShape } from '../types/map'
 import * as mapFactory from '../lib/mapFactory'
@@ -80,7 +81,7 @@ export function NewDungeonMap({ onCreate, onBack }: NewDungeonMapProps) {
   return (
     <MenuShell title="Novo Dungeon Map" onBack={onBack} crumbs={['Labirinto', 'Criar Mapas']}>
       <div className="lb-start__columns">
-        <form className="lb-card" onSubmit={handleSubmit}>
+        <form className="lb-card lb-card--novo-mapa" onSubmit={handleSubmit}>
           <h2 className="lb-eyebrow">Novo mapa</h2>
 
           <div className="lb-field">

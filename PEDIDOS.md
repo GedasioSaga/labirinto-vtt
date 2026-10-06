@@ -1268,3 +1268,7 @@ Noite = esta sessão conduzida pelo main thread; o noite-runner continua encerra
 > 06/10/2026: "Eu quero que você melhore a tela inicial, usando o emil-design-eng junto ao mcp figma, redesenhe, e melhore, colocando animações, design e tudo, você só irá usar opus medium e adciona uma pagina chamada Roleplay, mas ainda não coloca nada dentro, coloca que ta em construção."
 - Fila: (1) redesenho da tela inicial (Figma primeiro, depois código, com animações no estilo Emil); (2) página Roleplay vazia com aviso "em construção". Agentes só Opus medium.
 - Feito (`30521390`): tela inicial nova (Figma "Labirinto — Tela inicial", arquivo CkZ8IjLikhulUnZ3bnZw73) e página Roleplay "em construção". Conferido no navegador (Chromium isolado): entrada, labirinto, setas, Roleplay, Esc volta, tela estreita. Não conferido no exe. e2e não rodou: falta o navegador do Playwright 1234 na máquina.
+
+> 06/10/2026: "Muito bom, Agora ao apertar Criar Mapas eu quero uma animação de transição, me de algumas opções."
+- Fila: transição animada ao clicar "Criar Mapas" (menu → formulário Novo Dungeon Map). Opções apresentadas ao usuário antes de construir.
+- Escolhido: "Abrir a porta" (cartão cresce e vira o painel do formulário). Feito com View Transitions API; só no clique de Criar Mapas, sem animação com "reduzir movimento". Conferido no navegador (Chromium isolado, quadros desacelerados); não no exe.

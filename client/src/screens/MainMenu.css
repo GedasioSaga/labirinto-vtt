@@ -411,3 +411,76 @@
   stroke-linecap: round;
   stroke-opacity: 0.7;
 }
+
+/* ---- transição "abrir a porta" (menu → Novo Dungeon Map)
+   O cartão Criar Mapas e o painel do formulário levam o mesmo
+   view-transition-name: o navegador anima posição e tamanho de um para o
+   outro (grupo), enquanto as fotos de dentro trocam com um leve desfoque para
+   não se ver dois conteúdos sobrepostos. O resto da tela só faz fade.
+   Disparada por `withViewTransition` (lib/viewTransition.ts) só no clique. */
+
+.lb-home__door--novo-mapa,
+.lb-card--novo-mapa {
+  view-transition-name: lb-novo-mapa;
+}
+
+::view-transition-group(lb-novo-mapa) {
+  animation-duration: 420ms;
+  animation-timing-function: cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+::view-transition-image-pair(lb-novo-mapa) {
+  overflow: clip;
+  border-radius: var(--lb-radius-lg);
+}
+
+::view-transition-old(lb-novo-mapa),
+::view-transition-new(lb-novo-mapa) {
+  width: 100%;
+  height: 100%;
+  object-fit: none;
+  object-position: left top;
+}
+
+::view-transition-old(lb-novo-mapa) {
+  animation: lb-vt-out 160ms ease-out both;
+}
+
+::view-transition-new(lb-novo-mapa) {
+  animation: lb-vt-in 300ms cubic-bezier(0.23, 1, 0.32, 1) 120ms both;
+}
+
+::view-transition-old(root) {
+  animation: lb-vt-fade-out 200ms ease-out both;
+}
+
+::view-transition-new(root) {
+  animation: lb-vt-rise 320ms cubic-bezier(0.23, 1, 0.32, 1) 140ms both;
+}
+
+@keyframes lb-vt-out {
+  to {
+    opacity: 0;
+    filter: blur(3px);
+  }
+}
+
+@keyframes lb-vt-in {
+  from {
+    opacity: 0;
+    filter: blur(3px);
+  }
+}
+
+@keyframes lb-vt-fade-out {
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes lb-vt-rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}

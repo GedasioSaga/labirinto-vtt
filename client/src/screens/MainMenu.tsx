@@ -29,6 +29,8 @@ interface HomeDoorProps {
   title: string
   description: string
   badge?: string
+  /** Classe extra; a de Criar Mapas leva o view-transition-name que vira o formulário. */
+  className?: string
   onClick: () => void
 }
 
@@ -37,9 +39,9 @@ interface HomeDoorProps {
  * seta é SVG: nada disso entra no `textContent`, então o nome do botão começa
  * pelo título — é por ele que os testes e o leitor de tela acham a porta.
  */
-function HomeDoor({ title, description, badge, onClick }: HomeDoorProps) {
+function HomeDoor({ title, description, badge, className, onClick }: HomeDoorProps) {
   return (
-    <button type="button" className="lb-home__door" onClick={onClick}>
+    <button type="button" className={className ? `lb-home__door ${className}` : 'lb-home__door'} onClick={onClick}>
       <span className="lb-home__door-body">
         <span className="lb-home__door-title">
           <span className="lb-menucard__title">{title}</span>
@@ -131,7 +133,7 @@ export function MainMenu({ onCreate, onLoad, onOptions, onRoleplay, flags = FEAT
           )}
 
           <nav className="lb-home__doors" aria-label="Começar">
-            <HomeDoor title="Criar Mapas" description={createDescription} onClick={onCreate} />
+            <HomeDoor title="Criar Mapas" description={createDescription} className="lb-home__door--novo-mapa" onClick={onCreate} />
             <HomeDoor title="Carregar Mapa existente" description="Continuar de onde parou" onClick={onLoad} />
             <HomeDoor title="Roleplay" description="Mesa narrativa, sem mapa" badge="Em construção" onClick={onRoleplay} />
             {flags.optionsScreen && <HomeDoor title="Opções" description="Conexão, personagens, cenário" onClick={onOptions} />}
