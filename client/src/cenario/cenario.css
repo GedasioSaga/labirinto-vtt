@@ -1,0 +1,244 @@
+/* ---- a animação (prévia do mestre e tela do jogador) */
+
+.lb-cenario {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+}
+
+.lb-cenario__quadro {
+  position: relative;
+  overflow: hidden;
+  border-radius: 6px;
+  background: #000;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+}
+
+.lb-cenario__foto {
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform-origin: 0 0;
+  will-change: transform;
+  user-select: none;
+  pointer-events: none;
+}
+
+/* Raios de sol vindos do alto, que respiram devagar. */
+.lb-cenario__raios {
+  position: absolute;
+  inset: -20% -10% 0;
+  background: repeating-conic-gradient(from 200deg at 62% -10%, rgba(255, 246, 214, 0) 0deg, rgba(255, 246, 214, 0.16) 3deg, rgba(255, 246, 214, 0) 7deg, rgba(255, 246, 214, 0) 14deg);
+  mask-image: linear-gradient(to bottom, #000 0%, rgba(0, 0, 0, 0.5) 45%, transparent 80%);
+  -webkit-mask-image: linear-gradient(to bottom, #000 0%, rgba(0, 0, 0, 0.5) 45%, transparent 80%);
+  mix-blend-mode: screen;
+  pointer-events: none;
+  animation: lb-cenario-respira 6s ease-in-out infinite alternate;
+}
+
+@keyframes lb-cenario-respira {
+  from {
+    opacity: 0.35;
+  }
+  to {
+    opacity: 0.85;
+  }
+}
+
+/* Névoa em faixas, perto da câmera. */
+.lb-cenario__nevoa {
+  position: absolute;
+  left: -20%;
+  right: -20%;
+  top: 0;
+  height: 45%;
+  background:
+    radial-gradient(ellipse 60% 50% at 30% 50%, rgba(235, 245, 248, 0.5), transparent 70%),
+    radial-gradient(ellipse 50% 45% at 75% 55%, rgba(235, 245, 248, 0.4), transparent 70%);
+  filter: blur(8px);
+  pointer-events: none;
+  will-change: transform;
+}
+
+.lb-cenario__nevoa--alta {
+  opacity: 0.7;
+}
+
+.lb-cenario__particulas,
+.lb-cenario__vinheta,
+.lb-cenario__cortina {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.lb-cenario__vinheta {
+  background: radial-gradient(ellipse 85% 80% at 50% 50%, transparent 55%, rgba(3, 10, 8, 0.55) 100%);
+}
+
+.lb-cenario__cortina {
+  background: #000;
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lb-cenario__raios {
+    animation: none;
+    opacity: 0.5;
+  }
+}
+
+/* ---- janela de prévia do mestre */
+
+.lb-cenario-previa {
+  width: min(960px, calc(100vw - 48px));
+  padding: 0;
+  overflow: hidden;
+}
+
+.lb-cenario-previa .lb-dialog__head {
+  padding: var(--lb-space-3) var(--lb-space-4);
+}
+
+.lb-cenario-previa__palco {
+  height: min(62vh, 620px);
+  padding: var(--lb-space-3);
+  background: #05070a;
+}
+
+.lb-cenario-previa__barra {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--lb-space-2);
+  padding: var(--lb-space-3) var(--lb-space-4);
+}
+
+.lb-cenario-previa__info {
+  font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-parchment-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.lb-cenario-previa__acoes {
+  display: flex;
+  gap: var(--lb-space-2);
+}
+
+/* ---- seção no painel do pino "!" */
+
+.lb-cenario-secao {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-2);
+}
+
+.lb-cenario-secao__movimentos {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.lb-cenario-mov {
+  display: flex;
+  align-items: center;
+  gap: var(--lb-space-2);
+  padding: 4px;
+  border: 1px solid var(--lb-color-line);
+  border-radius: var(--lb-radius-md);
+  background: var(--lb-color-stone-sunken);
+  transition: border-color 140ms ease, background-color 140ms ease;
+}
+
+.lb-cenario-mov[data-escolhido='true'] {
+  border-color: var(--lb-color-brass);
+  background: var(--lb-color-brass-soft);
+}
+
+.lb-cenario-mov__escolher {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: var(--lb-space-2);
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--lb-color-parchment);
+  font: inherit;
+  font-size: var(--lb-font-size-md);
+  text-align: left;
+  cursor: pointer;
+}
+
+.lb-cenario-mov__escolher:focus-visible {
+  outline: 2px solid var(--lb-color-brass);
+  outline-offset: 2px;
+  border-radius: var(--lb-radius-sm);
+}
+
+.lb-cenario-mov__seta {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 30px;
+  border-radius: var(--lb-radius-sm);
+  background: #000;
+  color: var(--lb-color-brass-bright);
+}
+
+.lb-cenario-secao__duracao .lb-input {
+  width: 72px;
+}
+
+/* ---- tela cheia do jogador */
+
+.lb-cenario-jogo {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  padding: 16px;
+  box-sizing: border-box;
+  background: rgba(0, 0, 0, 0.92);
+  transition: opacity 260ms ease-out;
+}
+
+.lb-cenario-jogo[data-saindo='true'] {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.lb-cenario-jogo__pular {
+  position: absolute;
+  right: max(16px, env(safe-area-inset-right, 0px));
+  bottom: max(16px, env(safe-area-inset-bottom, 0px));
+  padding: 10px 16px;
+  border: 1px solid rgba(216, 208, 191, 0.35);
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.55);
+  color: #d8d0bf;
+  font: inherit;
+  font-size: 13px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: border-color 150ms ease, transform 120ms ease-out;
+}
+
+.lb-cenario-jogo__pular:active {
+  transform: scale(0.97);
+}
+
+.lb-cenario-jogo__pular:focus-visible {
+  outline: 2px solid #d8d0bf;
+  outline-offset: 2px;
+}
