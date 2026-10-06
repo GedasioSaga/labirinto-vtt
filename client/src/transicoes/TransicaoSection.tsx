@@ -9,6 +9,8 @@ interface TransicaoSectionProps {
   onChange: (transicao: TransicaoEscolhida | undefined) => void
   /** Quem atravessa: "o pino" ou "a escada", só para o texto de ajuda. */
   origem: 'pino' | 'escada'
+  /** Escada de enfeite: a galeria aparece, com o aviso de que só toca depois de ligar a escada. */
+  semDestino?: boolean
 }
 
 function ExpandirIcon() {
@@ -40,7 +42,7 @@ function Miniatura({ id }: { id: TransicaoId }) {
  * expandir que abre a animação inteira numa janela. Escolhida uma, aparece o
  * campo de duração (vazio = animação completa).
  */
-export function TransicaoSection({ transicao, onChange, origem }: TransicaoSectionProps) {
+export function TransicaoSection({ transicao, onChange, origem, semDestino = false }: TransicaoSectionProps) {
   const tituloId = useId()
   const duracaoId = useId()
   const dicaId = useId()
@@ -101,6 +103,7 @@ export function TransicaoSection({ transicao, onChange, origem }: TransicaoSecti
           onChange={(duracaoS) => onChange(duracaoS === undefined ? { id: transicao.id } : { id: transicao.id, duracaoS })}
         />
       )}
+      {semDestino && <p className="lb-travel__hint">Esta escada ainda não leva a lugar nenhum: a animação toca quando você ligar a escada a outro andar ou piso.</p>}
       <p className="lb-travel__hint">Só quem passar {origem === 'pino' ? 'pelo pino' : 'pela escada'} vê a animação, com um botão de pular.</p>
       {previa && <TransicaoPreviewDialog escolha={previa} onClose={() => setPrevia(null)} />}
     </section>

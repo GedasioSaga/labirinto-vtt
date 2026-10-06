@@ -30,6 +30,8 @@ class FakeSocket implements SocketLike {
 
 const PORTA: Pin = { id: 'porta', x: 100, y: 100, kind: 'viagem', description: '', image: null, transicao: { id: 'porta', duracaoS: 4 } }
 const SEM_TRANSICAO: Pin = { id: 'beco', x: 200, y: 100, kind: 'viagem', description: '', image: null }
+const PINO_DA_ESCADA: Pin = { id: 'pino-escada', x: 300, y: 100, kind: 'viagem', description: '', image: null, escadaId: 'escada-andar' }
+const ESCADA_ANDAR: Stair = { id: 'escada-andar', shape: 'straight', direction: 'down', segments: [{ x1: 300, y1: 100, x2: 300, y2: 180 }], stepWidth: 40, transicao: { id: 'escada-pedra', duracaoS: 6 } }
 const ESCADA: Stair = { id: 'escada', shape: 'straight', direction: 'up', segments: [{ x1: 100, y1: 100, x2: 100, y2: 180 }], stepWidth: 40, levaAoPiso: 1, transicao: { id: 'escada-pedra' } }
 
 function conectado() {
@@ -49,7 +51,7 @@ function conectado() {
   if (!socket) throw new Error('socket não criado')
   socket.open()
   socket.receive({ type: 'welcome', playerId: 'p1', resumeToken: 'tok', name: 'Ana' })
-  const map = { ...createEmptyMap('m1', '', 10, 10, 50), pins: [PORTA, SEM_TRANSICAO], stairs: [ESCADA] }
+  const map = { ...createEmptyMap('m1', '', 10, 10, 50), pins: [PORTA, SEM_TRANSICAO, PINO_DA_ESCADA], stairs: [ESCADA, ESCADA_ANDAR] }
   socket.receive({ type: 'snapshot', rev: 1, map, vision: [], ownTokens: [], concealed: [] })
   return { connection, socket }
 }
@@ -80,6 +82,13 @@ describe('transição especial no cliente do jogador', () => {
       socket.receive({ type: 'scene.changed', by })
       expect(connection.getState().transicao).toBeUndefined()
     }
+  })
+
+  it('escada que leva a outra cena: o pino invisível dela toca a transição da escada', () => {
+    const { connection, socket } = conectado()
+    connection.requestTravel('pino-escada')
+    socket.receive({ type: 'scene.changed' })
+    expect(connection.getState().transicao?.escolha).toEqual({ id: 'escada-pedra', duracaoS: 6 })
   })
 
   it('escada da mesma cena: o toque toca a transição da escada', () => {

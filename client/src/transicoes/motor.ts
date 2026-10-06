@@ -12,6 +12,11 @@ import type { CenaTransicao, CriarCena, KitDeSom, ThreeModule } from './tipos'
 
 let threeCarregando: Promise<ThreeModule> | null = null
 
+/** Sem WebGL (navegador velho, ambiente de teste) nem vale baixar o `three`. */
+function temWebGL(): boolean {
+  return typeof WebGLRenderingContext !== 'undefined'
+}
+
 /** Baixa `three` uma vez só; o chunk fica fora do bundle principal. */
 export function carregarThree(): Promise<ThreeModule> {
   if (!threeCarregando) {
@@ -92,6 +97,10 @@ export async function tocarTransicao(opcoes: OpcoesDeTocar): Promise<ControleDeT
   let THREE: ThreeModule
   let renderer: Three.WebGLRenderer
   let cena: CenaTransicao
+  if (!temWebGL()) {
+    avisarFim()
+    return controleVazio
+  }
   try {
     THREE = await carregarThree()
     const criar = await fabricaDaCena(escolha.id)
@@ -208,6 +217,7 @@ export function miniaturaDaTransicao(id: TransicaoId): Promise<string | null> {
   const pronta = miniaturas.get(id)
   if (pronta) return pronta
   const gerando = (async () => {
+    if (!temWebGL()) return null
     try {
       const THREE = await carregarThree()
       const criar = await fabricaDaCena(id)

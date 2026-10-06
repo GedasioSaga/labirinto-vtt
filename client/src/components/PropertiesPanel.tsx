@@ -910,13 +910,16 @@ export function PropertiesPanel({
                 onEditarPiso={pisos.onEditarPiso}
               />
             )}
-            {/* Só escada que leva a outro piso tem por onde passar: a de enfeite fica sem galeria. */}
-            {pisos?.onStairTransicaoChange !== undefined && selectedStair.levaAoPiso !== undefined && (
+            {/* TRANSIÇÃO ESPECIAL em toda escada: vale para a que leva a outro
+                piso desta cena e para a que leva a outra cena (o pino invisível
+                dela lê a da escada). A de enfeite mostra a galeria com o aviso. */}
+            {pisos?.onStairTransicaoChange !== undefined && (
               <TransicaoSection
                 key={`transicao-${selectedStair.id}`}
                 transicao={selectedStair.transicao}
                 onChange={(transicao) => pisos.onStairTransicaoChange?.(selectedStair.id, transicao)}
                 origem="escada"
+                semDestino={selectedStair.levaAoPiso === undefined && !stairControls.travel?.linkedSceneId}
               />
             )}
           </ToolPropertiesSection>

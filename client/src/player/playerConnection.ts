@@ -4109,8 +4109,11 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       const pedido: PinTravelRequestMessage = exitId === undefined ? { type: 'pin.travel.request', pinId } : { type: 'pin.travel.request', pinId, exitId }
       // ESCOLHER FICHAS NO PINO: a lista só vai quando o cartão ofereceu a escolha.
       if (tokenIds !== undefined && tokenIds.length > 0) pedido.tokenIds = [...tokenIds]
-      // TRANSIÇÃO ESPECIAL: a deste pino, lida de novo (o recorte já validou; aqui só confere a forma).
-      transicaoDoPedido = parseTransicao(pin?.transicao)
+      // TRANSIÇÃO ESPECIAL: a deste pino, lida de novo (o recorte já validou;
+      // aqui só confere a forma). Pino invisível de escada: vale a da escada,
+      // que é onde o mestre escolhe.
+      const escadaDoPino = pin?.escadaId === undefined ? undefined : state.map?.stairs.find((s) => s.id === pin.escadaId)
+      transicaoDoPedido = parseTransicao(escadaDoPino?.transicao ?? pin?.transicao)
       // Pino livre não espera ninguém: o aviso diz "Passando…", não "Aguardando
       // o mestre". E o pedido sai depois de um instante, não no mesmo toque: a
       // resposta do host é quase imediata, e sem a pausa a tela trocava de cena
