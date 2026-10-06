@@ -1,5 +1,6 @@
 import type { ConcealZone, DoorState, FloorStyle, Light, MapData, Prop, Region, Token } from '../types/map'
 import { parseTransicao } from '../transicoes/catalogo'
+import { parseCenario } from '../cenario/catalogo'
 import { readMoedas } from './troca'
 import { isEfeitoNaLuz, isEfeitoNaPorta, isEfeitoNaZona, regraDePinoDoArquivo, regraDoArquivo } from './estadoDoMundo'
 import { propPlayerImage, propPlayerLabel } from './propPlayerLook'
@@ -513,6 +514,8 @@ function deserializeMapFields(json: string): MapData {
       // TRANSIÇÃO ESPECIAL: campo NOVO e OPCIONAL. Id fora do catálogo volta
       // ausente; duração fora do teto cai e fica a natural (`parseTransicao`).
       transicao: parseTransicao(p.transicao),
+      // ANIMAÇÃO DO CENÁRIO: campo NOVO e OPCIONAL; forma errada volta ausente (`parseCenario`).
+      cenario: parseCenario(p.cenario),
       escolhas: undefined,
       // ITEM PEGÁVEL: campo NOVO e OPCIONAL. Forma errada volta ausente (o
       // pino só deixa de ser pegável); `livre` só vale `true` (`readPinItem`).

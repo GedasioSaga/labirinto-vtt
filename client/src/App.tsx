@@ -3395,6 +3395,11 @@ function App() {
               onChooseImage: () => selectedPin && void handleChoosePinImage(selectedPin.id),
               onImageBlob: (blob) => selectedPin && void handlePinImageBlob(selectedPin.id, blob),
               onClearImage: () => selectedPin && useMapStore.getState().updatePin(selectedPin.id, { image: null }),
+              // ANIMAÇÃO DO CENÁRIO: só no pino "!", com desfazer.
+              cenario:
+                selectedPin?.kind === 'exclamacao'
+                  ? { valor: selectedPin.cenario, onChange: (cenario) => useMapStore.getState().updatePin(selectedPin.id, { cenario }) }
+                  : undefined,
               onDelete: () => selectedPin && useMapStore.getState().removePin(selectedPin.id),
               // ITEM PEGÁVEL: só com um pino "!"/"?" aberto (a passagem não vai para a mochila).
               item:

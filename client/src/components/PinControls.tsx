@@ -11,6 +11,8 @@ import { PinLockControls, type PinLockControlsProps } from './PinLockControls'
 import { PinLojaControls, type PinLojaControlsProps } from './PinLojaControls'
 import { PinLeverArt, PinTravelArt } from './PinSymbolArt'
 import { PinImageDrop } from './PinImageDrop'
+import { CenarioSection } from '../cenario/CenarioSection'
+import type { CenarioDoPino } from '../cenario/catalogo'
 import { PinCabinControls, type PinCabinControlsProps } from './PinCabinControls'
 import { PinTravelControls, type PinTravelControlsProps } from './PinTravelControls'
 import { ShowPinNowControls, type ShowPinNowControlsProps } from './ShowPinNowControls'
@@ -49,6 +51,11 @@ export interface PinControlsProps {
   /** Imagem colada (Ctrl+V) ou solta arrastando na área do painel. */
   onImageBlob?: (blob: Blob) => void
   onClearImage: () => void
+  /**
+   * ANIMAÇÃO DO CENÁRIO do pino "!": a escolhida e quem grava. Ausente = sem a
+   * seção (outros tipos de pino).
+   */
+  cenario?: { valor: CenarioDoPino | undefined; onChange: (cenario: CenarioDoPino | undefined) => void }
   onDelete: () => void
   /**
    * Pino de VIAGEM aberto no painel: para onde ele leva e como mudar isso.
@@ -325,6 +332,7 @@ export function PinControls({
   onChooseImage,
   onImageBlob,
   onClearImage,
+  cenario,
   onDelete,
   travel = null,
   gather = null,
@@ -479,6 +487,8 @@ export function PinControls({
               Remover imagem
             </button>
           )}
+          {/* Logo depois da imagem: é ela que a animação usa. */}
+          {cenario !== undefined && <CenarioSection cenario={cenario.valor} imagem={image} onChange={cenario.onChange} />}
           <button type="button" className="lb-btn lb-btn--ghost lb-btn--block" onClick={onDelete}>
             {viagem ? 'Excluir pino de viagem' : alavanca ? 'Excluir alavanca' : 'Excluir ponto de interesse'}
           </button>

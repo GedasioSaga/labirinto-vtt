@@ -1,4 +1,5 @@
 import type { TransicaoEscolhida } from '../transicoes/catalogo'
+import type { CenarioDoPino } from '../cenario/catalogo'
 /**
  * Todas as coordenadas e distâncias (x, y, x1/y1/x2/y2, radius) estão em pixels
  * do mundo. `grid` define o tamanho de uma célula em pixels — é a unidade que
@@ -653,6 +654,12 @@ export interface Pin extends PlayerSecret, NoPiso {
    * migração. O disco só aceita id do catálogo e duração dentro do teto.
    */
   transicao?: TransicaoEscolhida
+  /**
+   * Só do pino "!" com imagem: a ANIMAÇÃO DO CENÁRIO (`cenario/`), a imagem
+   * animada que o jogador vê ao abrir o cartão. Ausente = o cartão de sempre —
+   * sem migração. O disco só aceita a forma do catálogo (`parseCenario`).
+   */
+  cenario?: CenarioDoPino
   /**
    * Só do pino de viagem: se o jogador pede, passa livre ou encontra trancado.
    * `undefined` === 'pede' — todo pino gravado antes deste campo continua

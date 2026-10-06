@@ -26,6 +26,7 @@ import { samePinPass } from './pinPass'
 import { sameColecao } from './colecao'
 import { sameLoja } from './loja'
 import { sameTransicao, type TransicaoEscolhida } from '../transicoes/catalogo'
+import { sameCenario } from '../cenario/catalogo'
 import { withoutAttachment } from './lightAttachment'
 import { seatStairPins, withoutStairPins } from './stairTravel'
 import { carryAttachedPins, carryPinsByTokenSteps } from './pinAttach'
@@ -1970,7 +1971,7 @@ export function addPin(map: MapData, pin: Pin): MapData {
 export function updatePin(
   map: MapData,
   id: string,
-  patch: Partial<Pick<Pin, 'kind' | 'icon' | 'semHaste' | 'description' | 'nome' | 'notaDoMestre' | 'image' | 'locked' | 'destino' | 'passagem' | 'passe' | 'mudo' | 'motivo' | 'rotulo' | 'saidas' | 'item' | 'abreCom' | 'presoA' | 'portaLigada' | 'marco' | 'lerDePerto' | 'segredo' | 'colecao' | 'loja' | 'daVista' | 'transicao'>>,
+  patch: Partial<Pick<Pin, 'kind' | 'icon' | 'semHaste' | 'description' | 'nome' | 'notaDoMestre' | 'image' | 'locked' | 'destino' | 'passagem' | 'passe' | 'mudo' | 'motivo' | 'rotulo' | 'saidas' | 'item' | 'abreCom' | 'presoA' | 'portaLigada' | 'marco' | 'lerDePerto' | 'segredo' | 'colecao' | 'loja' | 'daVista' | 'transicao' | 'cenario'>>,
 ): MapData {
   const pin = map.pins.find((p) => p.id === id)
   if (!pin) return map
@@ -2034,7 +2035,9 @@ export function updatePin(
     // "Dá vista": ausente é "não dá vista", e desligar o que nunca foi ligado não é mudança.
     next.daVista === pin.daVista &&
     // Transição especial: tirar de quem nunca teve, ou gravar a mesma de novo, não é mudança.
-    sameTransicao(next.transicao, pin.transicao)
+    sameTransicao(next.transicao, pin.transicao) &&
+    // Animação do cenário: gravar a mesma de novo, ou tirar de quem nunca teve, não é mudança.
+    sameCenario(next.cenario, pin.cenario)
   ) {
     return map
   }
