@@ -1319,3 +1319,9 @@ Noite = esta sessão conduzida pelo main thread; o noite-runner continua encerra
 > 06/10/2026: "pode fazer a animação do tamanho da foto ? só para eu ver como fica?"
 - Mesma animação 2D num quadro do tamanho da foto (805x608), sem ampliar para a tela cheia; botão para alternar com a tela cheia.
 - Feito (versão 2, mesmo link P3Q1PzNpkRaYVBCasrq7ie): abre num quadro do tamanho da foto (805x608); começa com zoom na escadaria e termina mostrando a foto inteira, sem ampliar além do original; botão alterna com tela cheia.
+
+> 06/10/2026: "Perfeito, esse tipo de animação, eu quero que de para colocar nos pinos de exclamação [Image #10], coloque como Animação do Cenário, pois os pinos de exclamação eu uso para apresentar cenário."
+- Imagem 10: pino "!" amarelo.
+- Feature: "Animação do Cenário" (2D sobre imagem, como a da fortaleza) nos pinos de exclamação. Em grilling.
+- Decidido (grilling): usa a imagem do pino; o mestre escolhe por pino "Só da primeira vez" / "Sempre" / "Não, só o cartão"; galeria de movimentos (sobe, desce, esquerda→direita, direita→esquerda, aproximar) com prévia e duração; névoa, raios, partículas e som ligáveis um a um.
+- Feito: motor 2D (`a2e58bc4`), seção "Animação do Cenário" no painel do pino "!" (`1cca09df`), jogador vê ao abrir o cartão com "Pular" e "Ver animação", primeira vez lembrada no navegador do jogador (este commit). Conferido: tsc, testes das áreas (116), prévia e tela do jogador num Chromium isolado. Suíte inteira rodou, mas a saída não foi lida (usuário pediu para terminar). Não conferido no exe.

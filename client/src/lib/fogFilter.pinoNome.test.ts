@@ -56,3 +56,18 @@ describe('fogFilter: transição especial da escada', () => {
     expect(view.map.stairs.find((s) => s.id === 'escada')?.transicao).toEqual({ id: 'escada-pedra' })
   })
 })
+
+describe('fogFilter: animação do cenário do pino "!"', () => {
+  const CENARIO = { quando: 'primeira', movimento: 'sobe', nevoa: true, raios: false, particulas: true, som: false } as const
+  const IMAGEM = 'data:image/png;base64,AAAA'
+
+  it('o "!" com imagem leva a animação; sem imagem ou de outro tipo, não', () => {
+    const comImagem: Pin = { id: 'forte', x: 240, y: 200, kind: 'exclamacao', description: 'Forte', image: IMAGEM, cenario: CENARIO }
+    const semImagem: Pin = { id: 'vazio', x: 250, y: 200, kind: 'exclamacao', description: 'Nada', image: null, cenario: CENARIO }
+    const outro = { ...FACA, image: IMAGEM, cenario: CENARIO } as Pin
+    const view = filterMapForPlayer(mapaCom([comImagem, semImagem, outro]), 'diego', POSSE, RAIO)
+    expect(view.map.pins.find((p) => p.id === 'forte')?.cenario).toEqual(CENARIO)
+    expect(view.map.pins.find((p) => p.id === 'vazio')?.cenario).toBeUndefined()
+    expect(view.map.pins.find((p) => p.id === 'pino-7')?.cenario).toBeUndefined()
+  })
+})

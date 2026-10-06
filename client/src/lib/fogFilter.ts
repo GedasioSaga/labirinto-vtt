@@ -23,6 +23,7 @@ import { publicLockOf } from './pinLock'
 import { cabineNaParada, type CabineDeTransporte } from './cabine'
 import { withoutAttachment } from './lightAttachment'
 import { parseTransicao } from '../transicoes/catalogo'
+import { parseCenario } from '../cenario/catalogo'
 import { marcaParaJogador } from './marcas'
 import { normalizarCorDoMovel, normalizarVistaDoMovel } from './mobilia'
 import { itemOfPin, readCarriedItems, tokenReachesPin } from './items'
@@ -4349,6 +4350,12 @@ function pinForPlayer(pin: Pin, ownTokens: readonly Token[], grid: number, reada
   if (pin.kind === 'viagem') {
     const transicao = parseTransicao(pin.transicao)
     if (transicao !== undefined) forPlayer.transicao = transicao
+  }
+  // ANIMAÇÃO DO CENÁRIO: só do pino "!" que o jogador lê e cuja imagem foi junto
+  // (longe ou com imagem barrada, não há o que animar).
+  if (pin.kind === 'exclamacao' && forPlayer.image !== null) {
+    const cenario = parseCenario(pin.cenario)
+    if (cenario !== undefined) forPlayer.cenario = cenario
   }
   // Escada: o id da ESCADA desta cena, que o jogador já recebe — é por ele que
   // o toque na escada acha o pino. Só chega aqui pino de escada que saiu.

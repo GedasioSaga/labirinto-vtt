@@ -132,6 +132,8 @@ interface PlayerPinCardProps {
    * `lib/ferrolho.ts`); ausente = o cartão não oferece barrar.
    */
   onBarrar?: (on: boolean) => void
+  /** ANIMAÇÃO DO CENÁRIO: "Ver animação" na foto do pino "!" que tem uma. Ausente = sem o botão. */
+  onVerAnimacao?: () => void
 }
 
 const TEXTO_LONGE = 'Chegue mais perto para passar'
@@ -313,6 +315,7 @@ export function PlayerPinCard({
   onPeek,
   peekWaiting = false,
   onBarrar,
+  onVerAnimacao,
 }: PlayerPinCardProps) {
   const cardRef = useRef<HTMLDivElement | null>(null)
   /**
@@ -595,6 +598,11 @@ export function PlayerPinCard({
         aria-label={escada ?? nome}
       >
         {escada === null && foto !== null && <img className="pp-pincard__image" src={foto} alt={altDaImagem} />}
+        {escada === null && foto !== null && onVerAnimacao !== undefined && (
+          <button type="button" className="pp-pincard__ver-animacao" onClick={onVerAnimacao}>
+            Ver animação
+          </button>
+        )}
         <div className="pp-pincard__body">
           <CabecaDoPino pin={pin} />
           <p className="pp-pincard__title">{titulo}</p>

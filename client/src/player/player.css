@@ -1804,6 +1804,31 @@
   border-radius: 14px 14px 0 0;
 }
 
+/* ANIMAÇÃO DO CENÁRIO: "Ver animação" logo abaixo da foto, à direita, pequeno —
+   rever é opcional, o texto do cartão continua sendo o principal. */
+.pp-pincard__ver-animacao {
+  align-self: flex-end;
+  margin: 6px 12px -4px 0;
+  padding: 6px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  color: inherit;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background-color 150ms ease, transform 120ms ease-out;
+}
+
+.pp-pincard__ver-animacao:active {
+  transform: scale(0.97);
+}
+
+.pp-pincard__ver-animacao:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+}
+
 /*
  * LINHA DE TÍTULO: a cabeça do pino — a mesma que o jogador acabou de tocar no
  * mapa — e o nome dele ("Baú", "Passagem") numa linha; o texto quebra para a

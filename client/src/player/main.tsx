@@ -56,6 +56,10 @@ import { PlayerErrorBoundary } from './ErrorBoundary'
 import { LabyrinthMark } from '../components/icons'
 import { ControleDeSom } from '../components/ControleDeSom'
 import { TransicaoOverlay } from '../transicoes/TransicaoOverlay'
+import { CenarioOverlay } from '../cenario/CenarioOverlay'
+import { deveTocarCenario, marcarCenarioVisto } from '../cenario/jaVisto'
+import type { CenarioDoPino } from '../cenario/catalogo'
+import { isPlayerSafePinImage } from '../lib/pins'
 import { DiceFeed } from '../components/DiceControls'
 import type { DiceRollEntry } from '../lib/dice'
 import type { DestinationMark, SignalMark } from '../lib/signals'
@@ -670,6 +674,8 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
   const [laserArmed, setLaserArmed] = useState(false)
   /** Pino aberto no cartão; `null` = cartão fechado. */
   const [openPinId, setOpenPinId] = useState<string | null>(null)
+  /** ANIMAÇÃO DO CENÁRIO tocando agora (por cima do cartão do pino "!"); `null` = nenhuma. */
+  const [cenarioTocando, setCenarioTocando] = useState<{ imagem: string; cenario: CenarioDoPino } | null>(null)
   /** DOIS PINOS NO MESMO PONTO: os pinos da escolha "Aqui há N coisas"; `null` = fechada. */
   const [pinChoiceIds, setPinChoiceIds] = useState<string[] | null>(null)
   /** Pista do Caderno aberta no cartão (MINHAS PISTAS); `null` = fechado. */
@@ -1015,6 +1021,15 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
       setOpenTokenId(null)
       setOpenPinId(pinId)
       connection.readClue(pinId)
+      // ANIMAÇÃO DO CENÁRIO: o pino "!" com animação toca antes do cartão —
+      // sempre, ou só da primeira vez, como o mestre escolheu.
+      const estado = connection.getState()
+      const pino = estado.map?.pins.find((p) => p.id === pinId)
+      const mapaId = estado.map?.id
+      if (pino?.kind === 'exclamacao' && pino.cenario && isPlayerSafePinImage(pino.image) && mapaId !== undefined && deveTocarCenario(pino.cenario, mapaId, pino.id)) {
+        marcarCenarioVisto(mapaId, pino.id)
+        setCenarioTocando({ imagem: pino.image, cenario: pino.cenario })
+      }
     },
     [connection],
   )
@@ -1454,6 +1469,11 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
             stairs={state.map.stairs}
             onClose={closePin}
             onRead={(pinId) => connection.markPinRead(pinId)}
+            onVerAnimacao={
+              openPin.kind === 'exclamacao' && openPin.cenario && isPlayerSafePinImage(openPin.image)
+                ? () => openPin.cenario && openPin.image && setCenarioTocando({ imagem: openPin.image, cenario: openPin.cenario })
+                : undefined
+            }
             travelWaiting={state.travel?.phase === 'waiting'}
             watching={(state.passageWatch ?? []).includes(openPin.id)}
             onWatch={(on) => connection.watchPassage(openPin.id, on)}
@@ -1829,6 +1849,8 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
             </button>
           </div>
         )}
+        {/* ANIMAÇÃO DO CENÁRIO: por cima do cartão do pino "!", até o "Pular" ou o fim. */}
+        {cenarioTocando && <CenarioOverlay imagem={cenarioTocando.imagem} cenario={cenarioTocando.cenario} onFim={() => setCenarioTocando(null)} />}
         {/* TRANSIÇÃO ESPECIAL: por cima de tudo, até o "Pular" ou o fim da animação. */}
         {state.transicao && <TransicaoOverlay nonce={state.transicao.nonce} escolha={state.transicao.escolha} />}
         {reconnecting}
