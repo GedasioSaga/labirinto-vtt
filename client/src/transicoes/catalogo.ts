@@ -6,7 +6,7 @@
  * leem nomes sem baixar a biblioteca 3D.
  */
 
-export const TRANSICAO_IDS = ['porta', 'escada-pedra'] as const
+export const TRANSICAO_IDS = ['porta', 'escada-pedra', 'escada-pedra-descendo'] as const
 export type TransicaoId = (typeof TRANSICAO_IDS)[number]
 
 export interface TransicaoInfo {
@@ -20,7 +20,8 @@ export interface TransicaoInfo {
 
 export const TRANSICOES: readonly TransicaoInfo[] = [
   { id: 'porta', nome: 'Porta rangendo', duracaoNaturalS: 7.2, quadroDaMiniaturaS: 2.2 },
-  { id: 'escada-pedra', nome: 'Escadaria de pedra', duracaoNaturalS: 11.7, quadroDaMiniaturaS: 4 },
+  { id: 'escada-pedra', nome: 'Escadaria subindo', duracaoNaturalS: 11.7, quadroDaMiniaturaS: 4 },
+  { id: 'escada-pedra-descendo', nome: 'Escadaria descendo', duracaoNaturalS: 11.7, quadroDaMiniaturaS: 4 },
 ]
 
 /** Teto da duração escolhida pelo mestre: rápida demais vira piscada, longa demais prende o jogador. */

@@ -35,14 +35,14 @@ describe('TransicaoSection', () => {
     render({ id: 'porta' })
     expect(container.textContent).toContain('Nenhuma')
     expect(container.textContent).toContain('Porta rangendo')
-    expect(container.textContent).toContain('Escadaria de pedra')
+    expect(container.textContent).toContain('Escadaria subindo')
     expect(botao('Porta rangendo').getAttribute('aria-pressed')).toBe('true')
     expect(botao('Nenhuma').getAttribute('aria-pressed')).toBe('false')
   })
 
   it('escolher uma transição grava sem duração (completa); Nenhuma tira', () => {
     const onChange = render(undefined)
-    act(() => botao('Escadaria de pedra').click())
+    act(() => botao('Escadaria subindo').click())
     expect(onChange).toHaveBeenLastCalledWith({ id: 'escada-pedra' })
     render({ id: 'porta' }, onChange)
     act(() => botao('Nenhuma').click())

@@ -39,6 +39,8 @@ async function fabricaDaCena(id: TransicaoId): Promise<CriarCena> {
       return (await import('./cenas/porta')).criarCenaPorta
     case 'escada-pedra':
       return (await import('./cenas/escadaPedra')).criarCenaEscadaPedra
+    case 'escada-pedra-descendo':
+      return (await import('./cenas/escadaPedra')).criarCenaEscadaPedraDescendo
   }
 }
 

@@ -7,6 +7,7 @@ describe('catálogo de transições', () => {
   it('a duração natural de cada entrada bate com o fim da cena', () => {
     expect(transicaoInfo('porta').duracaoNaturalS).toBeCloseTo(PORTA_FIM_S)
     expect(transicaoInfo('escada-pedra').duracaoNaturalS).toBeCloseTo(ESCADA_PEDRA_FIM_S)
+    expect(transicaoInfo('escada-pedra-descendo').duracaoNaturalS).toBeCloseTo(ESCADA_PEDRA_FIM_S)
   })
 
   it('cada id aparece uma vez só', () => {
