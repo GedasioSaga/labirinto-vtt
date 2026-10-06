@@ -1311,3 +1311,7 @@ Noite = esta sessão conduzida pelo main thread; o noite-runner continua encerra
 - Imagem 8: fortaleza branca em andares redondos, telhados azuis, torres com telhadinho vermelho, canhões, selva em volta, escadaria até o portão (base marinha estilo anime).
 - Fora do app: página avulsa 3D, câmera começa olhando o topo e desce o olhar até a escadaria.
 - Feito: https://claude.ai/artifact/U3WazRc3txoczxPRGpSKmA. Fortaleza branca em 4 andares redondos, telhados azuis, torres com telhadinho vermelho, canhões, palácio no topo, portão em arco, escadaria com muretas e bastiões, selva low-poly, morros e nuvens; olhar desce do topo até a escadaria em ~12 s. Som: vento e pássaros. Sem o letreiro e o símbolo da imagem.
+
+> 06/10/2026: "Perfeito, agora pega esse mesma foto [Image #9] não precisa fazer 3d, só efeito de imagem, olha de baixo para cima, uma animação de imagem 2d"
+- Fora do app: página avulsa 2D com a própria imagem: panorâmica de baixo (escadaria) para cima (palácio), com efeitos de imagem.
+- Feito: https://claude.ai/artifact/P3Q1PzNpkRaYVBCasrq7ie. Panorâmica 2D sobre a própria imagem: começa perto na escadaria, sobe devagar (grua) até o palácio e afasta o zoom; raios de sol, névoa que anda mais rápido que a foto, pólen e folhinhas em 3 profundidades; ~13 s em volta. Som: vento e pássaros.
