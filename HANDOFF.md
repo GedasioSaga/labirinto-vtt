@@ -1284,3 +1284,30 @@ Pedido do usuário: "Perfeito, da commit, push e criar o instalador". Release v0
 - Push: `origin/main` e356c98c..18fa6fba e tag `v0.4.12`.
 - Assets (digest do GitHub igual ao sha256 local): `Labirinto_0.4.12_x64-setup.exe` 2518333 bytes sha256 35e1e6fdac40c9c927b33f4396732140e8a6ff76b1cd02f2ee304589f38b9784; `Labirinto_0.4.12_x64_en-US.msi` 3203072 bytes sha256 c3940892c78cfbb7fc14aaaee549d85f78597022554aa82c899588b9cb2cfe8c.
 - Não rodado: Playwright e2e; travessia real mestre+jogador no exe; instalação em máquina limpa.
+
+### 06/10/2026: release v0.4.13 (`69d79a36`)
+
+## Objetivo
+Pedido do usuário: "Show pode fazer commit, push e o instalador". Release v0.4.13: galeria de transição em toda escada, inclusive a que leva a outra cena (`8c0123f5`); Escadaria descendo + patamar sem riscos (`5b23e13e`); Pistas, Iniciativa, Relógio da campanha e Confronto escondidos da aba Jogo por flag em `lib/features.ts` (`6986cfac`).
+
+## Estado atual
+- main = origin/main @ `69d79a36` (0.4.13 nos 5 arquivos de versão; `com.labirinto.app`) + este commit de docs. Tag anotada `v0.4.13`.
+- Release: https://github.com/GedasioSaga/labirinto-vtt/releases/tag/v0.4.13 com os 2 instaladores.
+- Escada espiral parcial segue fora de commit (backup `scratchpad/escada-parcial-backup/escada-0413.patch`; stash durante a release, devolvida).
+
+## Próximos passos
+- e2e `client/e2e/task-jornada-iniciativa.spec.ts` vai falhar: a Iniciativa saiu da aba Jogo (flag `iniciativa: false`). Decidir com o usuário: apagar/pular o spec ou religar a flag no teste.
+- Conferir no exe: aba Jogo sem as 4 seções; galeria na escada ligada a outra cena; travessia com transição mestre+jogador.
+- Playwright e2e inteiro segue sem rodar nesta máquina.
+
+## Critério de pronto
+- Release v0.4.13 no GitHub com `Labirinto_0.4.13_x64-setup.exe` e `Labirinto_0.4.13_x64_en-US.msi`, sha256 dos assets igual ao local; `labirinto.exe` ProductVersion 0.4.13.
+
+## Evidência
+- Com a escada em stash: `rtk proxy npx tsc --noEmit` e `-p tsconfig.e2e.json` exit 0; `rtk proxy npx vitest run`: Test Files 1324 passed (1324), Tests 11843 passed (11843).
+- Grep de segredos nas linhas adicionadas de `v0.4.12..HEAD`: nada.
+- `npm run tauri:build`: exit 0, "Finished 2 bundles".
+- Fumaça: `labirinto.exe` ProductVersion 0.4.13; janela "Labirinto" Responding=True, ~25 MB; fechada depois.
+- Push: `origin/main` 2ef71795..69d79a36 e tag `v0.4.13`.
+- Assets (digest do GitHub igual ao sha256 local): `Labirinto_0.4.13_x64-setup.exe` 2518116 bytes sha256 b683e1726ee08805ef419b8cc95c81a2c5a4eb4f869a76b0dcfba8c0973d14c3; `Labirinto_0.4.13_x64_en-US.msi` 3203072 bytes sha256 1563afb5e420719de75b104819ad0231d755560709db815b70fd7cfa57a484eb.
+- Não rodado: Playwright e2e; instalação em máquina limpa; conferência no exe.

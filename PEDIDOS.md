@@ -1300,3 +1300,4 @@ Noite = esta sessão conduzida pelo main thread; o noite-runner continua encerra
 - Imagens: seções "Pistas (33)", "Iniciativa", "Relógio da campanha" (+1 hora / Próximo período) e "Confronto" (Confronto nesta cena) da aba Jogo do mestre.
 - Fila: esconder as 4 seções da aba Jogo.
 - Feito: Pistas, Iniciativa, Relógio da campanha e Confronto escondidos da aba Jogo por flag em `lib/features.ts` (religa trocando para true). Dados e host seguem iguais. Teste unitário prova as 4 escondidas; não visto no exe (a aba Jogo só existe no app instalado). e2e que usam essas seções vão quebrar (não rodam nesta máquina).
+- Publicado: v0.4.13 (`69d79a36`), https://github.com/GedasioSaga/labirinto-vtt/releases/tag/v0.4.13.
