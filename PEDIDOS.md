@@ -1280,3 +1280,8 @@ Noite = esta sessão conduzida pelo main thread; o noite-runner continua encerra
 > 06/10/2026: "Perfeito, pode fazer agora descendo uma esacada estilo residente evil ?"
 - Fora do app: segunda página avulsa em 3D, loading descendo uma escada no estilo Resident Evil.
 - Feito: https://claude.ai/artifact/LtWCh7rBBaiJ3vU1ew52AT. Escada de madeira com passadeira vinho e varetas de latão, corrimão, quadro na parede; câmera desce degrau a degrau (olho acompanha cada degrau), luz fria lá embaixo, fade e repete a cada ~9 s. Som: passos sincronizados por degrau, rangido de vez em quando, vento e zumbido. Modo PS1.
+
+> 06/10/2026: "hmmm, não foi assim que eu imaginei tente algo assim [Image #2], passos profundos."
+- Imagem 2: lance largo de degraus de pedra/concreto escuros, de frente, laterais sumindo no preto, sem paredes nem tapete.
+- Refazer a página da escada nesse estilo: degraus largos de pedra, passos pesados e lentos.
+- Feito (versão 2, mesmo link LtWCh7rBBaiJ3vU1ew52AT): escadaria larga de pedra escura como na imagem, laterais somem no preto, câmera baixa sobe 8 degraus em passos lentos (~1 s cada) que afundam no impacto e balançam de lado. Som: baque grave de bota em pedra com eco. A imagem mostra subida, então a câmera sobe; versão descendo não feita.
