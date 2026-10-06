@@ -1315,3 +1315,7 @@ Noite = esta sessão conduzida pelo main thread; o noite-runner continua encerra
 > 06/10/2026: "Perfeito, agora pega esse mesma foto [Image #9] não precisa fazer 3d, só efeito de imagem, olha de baixo para cima, uma animação de imagem 2d"
 - Fora do app: página avulsa 2D com a própria imagem: panorâmica de baixo (escadaria) para cima (palácio), com efeitos de imagem.
 - Feito: https://claude.ai/artifact/P3Q1PzNpkRaYVBCasrq7ie. Panorâmica 2D sobre a própria imagem: começa perto na escadaria, sobe devagar (grua) até o palácio e afasta o zoom; raios de sol, névoa que anda mais rápido que a foto, pólen e folhinhas em 3 profundidades; ~13 s em volta. Som: vento e pássaros.
+
+> 06/10/2026: "pode fazer a animação do tamanho da foto ? só para eu ver como fica?"
+- Mesma animação 2D num quadro do tamanho da foto (805x608), sem ampliar para a tela cheia; botão para alternar com a tela cheia.
+- Feito (versão 2, mesmo link P3Q1PzNpkRaYVBCasrq7ie): abre num quadro do tamanho da foto (805x608); começa com zoom na escadaria e termina mostrando a foto inteira, sem ampliar além do original; botão alterna com tela cheia.
