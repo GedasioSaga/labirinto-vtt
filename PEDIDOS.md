@@ -1276,3 +1276,7 @@ Noite = esta sessão conduzida pelo main thread; o noite-runner continua encerra
 > 06/10/2026: "Perfeito, agora eu quero que vocÊ faça uma animação para mim, separada do programa só para eu ver sua capacidade: https://youtu.be/oqgkMT576Rk, são animações do resident evil abrindo a porta serve como um loading, eu quero que vocÊ faça uma dessa, salão preto e animação da porta abrindo, pode fazer igual a resident evil, pois é só um teste."
 - Fora do app: página avulsa (3D) com salão preto e porta abrindo, estilo loading do Resident Evil. Não mexe no código do Labirinto.
 - Feito: página avulsa em 3D (three.js), publicada em https://claude.ai/artifact/RHovPQHnASoRT1zB3dPnmn. Porta de madeira num salão escuro, maçaneta gira, fresta com tranco, porta abre devagar, câmera atravessa e some no preto; repete a cada ~8 s. Som sintetizado (botão) e Modo PS1. Fora do código do app. O vídeo do YouTube não foi assistido (sem acesso); feito pela referência conhecida do jogo.
+
+> 06/10/2026: "Perfeito, pode fazer agora descendo uma esacada estilo residente evil ?"
+- Fora do app: segunda página avulsa em 3D, loading descendo uma escada no estilo Resident Evil.
+- Feito: https://claude.ai/artifact/LtWCh7rBBaiJ3vU1ew52AT. Escada de madeira com passadeira vinho e varetas de latão, corrimão, quadro na parede; câmera desce degrau a degrau (olho acompanha cada degrau), luz fria lá embaixo, fade e repete a cada ~9 s. Som: passos sincronizados por degrau, rangido de vez em quando, vento e zumbido. Modo PS1.
