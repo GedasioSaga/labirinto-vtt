@@ -12,7 +12,7 @@ import {
   type GrupoDeCena,
   type LinhaDoGrupo,
 } from '../lib/grupoPorCena'
-import type { PlayerInfo } from '../net/hostSession'
+import type { PassagemNoPainel, PlayerInfo } from '../net/hostSession'
 import {
   CONGELADO_TAG,
   CONGELAR_TODOS_LABEL,
@@ -173,6 +173,8 @@ export interface GrupoCompactoProps extends Omit<PlayerAdminProps, 'owners' | 'r
   onCongelarCena?(tokenIds: string[], congelar: boolean): void
   pausedScenes?: ReadonlySet<string>
   onPausarCena?(sceneId: string, pause: boolean): void
+  /** Responde o pedido de passagem pela ficha do jogador (`HostBridge.answerTravel`). */
+  onAnswerTravel?(requestId: string, allow: boolean): void
 }
 
 /**
@@ -424,6 +426,36 @@ interface FichaDoJogadorProps {
   /** "Dar o que o grupo viu" já ligado a ESTE jogador. Ausente = sem o botão. */
   onGiveGroupView?(): void
   groupViewFeedback: string | null
+  /** Responde o pedido de passagem pela ficha. Ausente = só o texto "responda no aviso". */
+  onAnswerTravel?(requestId: string, allow: boolean): void
+}
+
+/** Os botões de cada tipo de pedido: os mesmos do aviso flutuante, para o mestre não aprender duas vezes. */
+const RESPOSTAS_DA_PASSAGEM: Record<PassagemNoPainel['tipo'], { sim: string; nao: string }> = {
+  comum: { sim: 'Deixar ir', nao: 'Não' },
+  trancada: { sim: 'Liberar uma vez', nao: 'Não' },
+  barrada: { sim: 'Passa (quebra a barra)', nao: 'A barra aguenta' },
+}
+
+/** O pedido de passagem no topo da ficha: para onde ele quer ir e as duas respostas. */
+function PedidoDePassagem({ pedido, nome, onAnswer }: { pedido: PassagemNoPainel; nome: string; onAnswer(requestId: string, allow: boolean): void }) {
+  const respostas = RESPOSTAS_DA_PASSAGEM[pedido.tipo]
+  return (
+    <div className="lb-grupo__pedido" role="group" aria-label={`Pedido de passagem de ${nome}`}>
+      <p className="lb-grupo__pedido-texto">
+        ✋ Passagem → {pedido.toSceneName}
+        {pedido.tipo === 'barrada' && <span className="lb-grupo__pedido-nota"> (barrada do outro lado)</span>}
+      </p>
+      <div className="lb-grupo__pedido-botoes">
+        <button type="button" className="lb-btn lb-btn--primary lb-btn--compact" onClick={() => onAnswer(pedido.requestId, true)}>
+          {respostas.sim}
+        </button>
+        <button type="button" className="lb-btn lb-btn--compact" onClick={() => onAnswer(pedido.requestId, false)}>
+          {respostas.nao}
+        </button>
+      </div>
+    </div>
+  )
 }
 
 /**
@@ -439,9 +471,15 @@ function FichaDoJogador(props: FichaDoJogadorProps) {
   const abas: AbaDaFicha[] = member === undefined ? ['visao', 'ficha'] : ['mochila', 'visao', 'ficha']
   const ativa = abas.includes(aba) ? aba : abas[0]
   const pedePassagem = member?.travelPending === true || player.travelPending === true
+  const pedido = player.travelRequest
   return (
     <>
-      {pedePassagem && <p className="lb-grupo__pendencia">✋ Pediu passagem: responda no aviso.</p>}
+      {pedePassagem &&
+        (pedido !== undefined && props.onAnswerTravel !== undefined ? (
+          <PedidoDePassagem pedido={pedido} nome={player.name} onAnswer={props.onAnswerTravel} />
+        ) : (
+          <p className="lb-grupo__pendencia">✋ Pediu passagem: responda no aviso.</p>
+        ))}
       {member !== undefined && <PartyAwayTokens member={member} onBring={party?.onBring} />}
       {member !== undefined && <PartyDestinationMark member={member} onViewDestination={party?.onViewDestination} />}
       {player.borrowedFrom !== undefined && <p className="lb-player__note">Jogando também a ficha de {player.borrowedFrom.join(', ')}.</p>}
@@ -643,6 +681,7 @@ export function GrupoCompacto({
   onCongelarCena,
   pausedScenes,
   onPausarCena,
+  onAnswerTravel,
   ...rest
 }: GrupoCompactoProps) {
   const headingId = useId()
@@ -728,6 +767,7 @@ export function GrupoCompacto({
           onGiveGroupView === undefined ? undefined : () => groupView.show(id, groupViewFeedbackText(player.name, onGiveGroupView(id) ?? null))
         }
         groupViewFeedback={groupView.feedback?.playerId === id ? groupView.feedback.text : null}
+        onAnswerTravel={onAnswerTravel}
       />
     )
   }

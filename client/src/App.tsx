@@ -1101,6 +1101,7 @@ function App() {
         }}
         pausedScenes={pausedScenes}
         onPausarCena={room === null ? undefined : handleToggleScenePause}
+        onAnswerTravel={(requestId, allow) => hostBridgeRef.current?.answerTravel(requestId, allow)}
         tunnel={tunnel}
         savedTableNames={savedTableNames()}
         onStart={(resume) => void handleStartRoom(resume)}

@@ -434,6 +434,12 @@ export interface HostBridge {
    */
   disembarkCaravan(sceneId: string): boolean
   /**
+   * Responde um pedido de passagem pela ficha do jogador no Grupo: o mesmo
+   * "Deixar ir"/"Não" do aviso flutuante (que some junto). Pedido que já não
+   * espera não faz nada.
+   */
+  answerTravel(requestId: string, allow: boolean): void
+  /**
    * Recado do mestre a quem está na cena `sceneId`. Devolve quantos jogadores
    * receberam (0 = ninguém lá), ou `null` com a sala fechada. `playerIds`:
    * só esses, entre os que estão na cena; ausente = a cena inteira.
@@ -3223,6 +3229,10 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
 
     disembarkCaravan(sceneId) {
       return disembark(sceneId)
+    },
+
+    answerTravel(requestId, allow) {
+      answerTravel(requestId, allow)
     },
 
     sceneNote(sceneId, text, playerIds) {

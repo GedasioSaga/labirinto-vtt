@@ -150,6 +150,8 @@ export interface RoomPanelProps {
   pausedScenes?: ReadonlySet<string>
   /** "Pausar a cena" no título do grupo. Ausente (sala fechada) = sem o botão. */
   onPausarCena?(sceneId: string, pause: boolean): void
+  /** Responde o pedido de passagem pela ficha do jogador no Grupo. */
+  onAnswerTravel?(requestId: string, allow: boolean): void
 }
 
 export interface NoiseControlProps {
@@ -1375,6 +1377,7 @@ export function RoomPanel({
   onCongelarCena,
   pausedScenes,
   onPausarCena,
+  onAnswerTravel,
 }: RoomPanelProps) {
   const inviteId = useId()
   // Escondidos da aba Jogo por pedido do usuário (`lib/features.ts`): o resto do app segue igual.
@@ -1428,6 +1431,7 @@ export function RoomPanel({
         onCongelarCena={onCongelarCena}
         pausedScenes={pausedScenes}
         onPausarCena={onPausarCena}
+        onAnswerTravel={onAnswerTravel}
         players={players}
         party={party}
         tokens={tokens}

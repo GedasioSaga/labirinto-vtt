@@ -369,4 +369,22 @@ describe('GrupoCompacto', () => {
     const aba = fichaDoJogador(container, 'Enzo').querySelector('[role="tab"][aria-selected="true"]')
     expect(aba?.textContent).toBe('Ficha')
   })
+  it('o pedido de passagem responde pela ficha, com os botões do aviso de cada tipo', () => {
+    const onAnswerTravel = vi.fn()
+    const comPedido = (tipo: 'comum' | 'trancada' | 'barrada') =>
+      JOGADORES.map((p) => (p.playerId === 'maria' ? { ...p, travelRequest: { requestId: 'r-maria', toSceneName: 'Salão', tipo } } : p))
+    render({ onAnswerTravel }, comPedido('comum'))
+    const ficha = abrirFicha(container, NOME_LONGO)
+    const pedido = ficha.querySelector('[role="group"][aria-label^="Pedido de passagem"]')
+    expect(pedido?.textContent).toContain('Passagem → Salão')
+    act(() => botao(ficha, 'Deixar ir').click())
+    expect(onAnswerTravel).toHaveBeenCalledWith('r-maria', true)
+    act(() => botao(ficha, 'Não').click())
+    expect(onAnswerTravel).toHaveBeenLastCalledWith('r-maria', false)
+
+    render({ onAnswerTravel }, comPedido('trancada'))
+    expect(botao(fichaDoJogador(container, NOME_LONGO), 'Liberar uma vez')).toBeTruthy()
+    render({ onAnswerTravel }, comPedido('barrada'))
+    expect(botao(fichaDoJogador(container, NOME_LONGO), 'A barra aguenta')).toBeTruthy()
+  })
 })

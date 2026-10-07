@@ -2693,6 +2693,33 @@ label.lb-switch[data-dica-linha='aberta'] > span:first-child::after,
   color: var(--lb-color-brass);
 }
 
+/* O pedido de passagem no topo da ficha: o destino em cima, as duas respostas embaixo. */
+.lb-grupo__pedido {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-2);
+  padding: var(--lb-space-2);
+  border: 1px solid var(--lb-color-brass);
+  border-radius: var(--lb-radius-md);
+  background: var(--lb-color-brass-soft);
+}
+
+.lb-grupo__pedido-texto {
+  margin: 0;
+  font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-parchment);
+}
+
+.lb-grupo__pedido-nota {
+  color: var(--lb-color-parchment-dim);
+}
+
+.lb-grupo__pedido-botoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--lb-control-gap);
+}
+
 /* As cinco ações: figura em cima, rótulo curto embaixo, todas da mesma largura. */
 /* As cinco cabem numa linha na coluna de 264 px porque cada uma pega a largura
    do próprio rótulo (`flex: 1 1 auto` abaixo); se um dia não couberem, quebram

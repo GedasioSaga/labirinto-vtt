@@ -1290,6 +1290,14 @@ export type { HostDiceRoll }
  */
 export const MAX_SECRET_CHECKS = 20
 
+/** O pedido de passagem pendente de um jogador, como a ficha dele no Grupo o mostra. */
+export interface PassagemNoPainel {
+  requestId: string
+  toSceneName: string
+  /** `trancada`: pino com cadeado ("Liberar uma vez"); `barrada`: alguém barra o outro lado; `comum`: o resto. */
+  tipo: 'comum' | 'trancada' | 'barrada'
+}
+
 export interface PlayerInfo {
   clientId: string | null
   playerId: string
@@ -1318,6 +1326,13 @@ export interface PlayerInfo {
    * resto do tempo: é o que põe o selo "pedido" na cena dele, na lista Cenas.
    */
   travelPending?: true
+  /**
+   * O pedido de passagem que espera o mestre, para responder pela ficha do
+   * jogador no Grupo: o id que `answerTravel` da ponte recebe, o destino que o
+   * aviso nomeia e de que tipo ele é (pino trancado, barrada do outro lado ou
+   * comum — cada um com os botões do próprio aviso). Dado do painel do mestre.
+   */
+  travelRequest?: PassagemNoPainel
   /** ENCONTRO MARCADO: a espera dele. Ausente = não espera ninguém. */
   waiting?: PlayerWaitInfo
   /**
@@ -10150,7 +10165,14 @@ export function createHostSession(options: HostSessionOptions): HostSession {
           // O selo da lista Cenas nasce e morre com o pedido: aprovar, recusar
           // e cair a conexão já tiram o jogador de `pendingTravels`.
           const pending = pendingTravels.get(p.playerId)
-          if (pending !== undefined) info.travelPending = true
+          if (pending !== undefined) {
+            info.travelPending = true
+            info.travelRequest = {
+              requestId: pending.requestId,
+              toSceneName: pending.request.toSceneName,
+              tipo: pending.trancada === true ? 'trancada' : pending.barradaPorId !== undefined ? 'barrada' : 'comum',
+            }
+          }
           // CABINE DE TRANSPORTE: o ocupante é quem embarcou E ainda tem a cabine
           // na parada do embarque (o mestre pode tê-la levado; sem o mundo, vale o embarque).
           const embarque = pending?.embarque
