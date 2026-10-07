@@ -171,6 +171,14 @@ describe('painel de propriedades — os grupos Aventura e Esta cena', () => {
     expect(cabecalho('Camadas')).toBeNull()
   })
 
+  it('esconderCategorias (opção de 07/10/2026): com a Parede armada somem Aventura, Objetos do mapa e Locais', () => {
+    renderPainel({ ...PAREDE_ARMADA, scenes: CENAS_E_PINOS, objects: OBJETOS, esconderCategorias: true })
+    expect(grupo('Aventura')).toBeNull()
+    expect(grupo('Esta cena')).toBeNull()
+    for (const titulo of ['Cenas', 'Pinos', 'Objetos do mapa', 'Locais']) expect(cabecalho(titulo), titulo).toBeNull()
+    expect(h2('Parede')).not.toBeNull()
+  })
+
   it('GUARDA: com a Parede armada, o primeiro título continua "Parede", acima dos dois grupos', () => {
     renderPainel({ ...PAREDE_ARMADA, scenes: CENAS_E_PINOS, objects: OBJETOS })
     expect(primeiroTitulo()).toBe('Parede')

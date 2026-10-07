@@ -109,6 +109,21 @@ export function wallScreenWidth(wall: Pick<WallWithStyle, 'thickness'>, cameraSc
   return world === null ? WALL_SCREEN_PX[presetOf(wall.thickness)] : world * usableScale(cameraScale)
 }
 
+const HEX_COLOR = /^#[0-9a-f]{6}$/i
+
+/**
+ * Cor da linha: a escolhida no painel (`Wall.color`) ou a padrão. Texto fora
+ * de `#rrggbb` (map.json editado à mão) cai na padrão em vez de quebrar o stroke.
+ */
+export function wallColorFor(wall: Pick<Wall, 'color'>): number {
+  return typeof wall.color === 'string' && HEX_COLOR.test(wall.color) ? Number.parseInt(wall.color.slice(1), 16) : WALL_COLOR
+}
+
+/** Parede que deixa a ficha passar (`blocksMove` falso) — o editor a marca tracejada. */
+function isPassagem(wall: Pick<Wall, 'door' | 'blocksMove'>): boolean {
+  return wall.door === null && !wall.blocksMove
+}
+
 export function wallAlphaFor(wall: Pick<Wall, 'wallKind'>): number {
   return wall.wallKind === 'interior' ? WALL_INTERIOR_ALPHA : WALL_EXTERIOR_ALPHA
 }
@@ -118,6 +133,7 @@ interface WallVisualStyle {
   pixel: PixelGrid
   width: number
   alpha: number
+  color: number
   cap: 'round' | 'butt'
   join: 'round' | 'miter'
 }
@@ -134,11 +150,11 @@ function capJoinFor(lineStyle: WallLineStyle): Pick<WallVisualStyle, 'cap' | 'jo
  */
 function resolveWallStyle(wall: WallWithStyle, cameraScale: number, rendererResolution: number): WallVisualStyle {
   const pixel = pixelGrid(cameraScale, rendererResolution, wallScreenWidth(wall, cameraScale))
-  return { pixel, width: strokeWidthInWorld(pixel), alpha: wallAlphaFor(wall), ...capJoinFor(wall.lineStyle ?? 'round') }
+  return { pixel, width: strokeWidthInWorld(pixel), alpha: wallAlphaFor(wall), color: wallColorFor(wall), ...capJoinFor(wall.lineStyle ?? 'round') }
 }
 
 function sameStyle(a: WallVisualStyle, b: WallVisualStyle): boolean {
-  return a.width === b.width && a.alpha === b.alpha && a.cap === b.cap && a.join === b.join
+  return a.width === b.width && a.alpha === b.alpha && a.color === b.color && a.cap === b.cap && a.join === b.join
 }
 
 /**
@@ -252,9 +268,15 @@ export function traceWallChain(graphics: Graphics, chain: readonly Pick<Wall, 'x
  * é da porta, drawDoors.ts) e por isso quebra a cadeia; estilo diferente
  * também quebra (Pixi aceita um width/color/cap/join por stroke).
  */
-function groupWallsForPath(walls: WallWithStyle[], cameraScale: number, rendererResolution: number): { walls: WallWithStyle[]; style: WallVisualStyle }[] {
+function groupWallsForPath(
+  walls: WallWithStyle[],
+  cameraScale: number,
+  rendererResolution: number,
+  marcarPassagem: boolean,
+): { walls: WallWithStyle[]; style: WallVisualStyle }[] {
   // Janela tem desenho próprio (`drawJanela`): não entra no traço contínuo.
-  const solid = walls.filter((wall) => wall.door === null && !isJanela(wall))
+  // A passagem marcada também não (`drawPassagem`, tracejada).
+  const solid = walls.filter((wall) => wall.door === null && !isJanela(wall) && !(marcarPassagem && isPassagem(wall)))
   const styleOf = (wall: WallWithStyle) => resolveWallStyle(wall, cameraScale, rendererResolution)
   const chains = groupWallChains(solid, (previous, next) => !sameStyle(styleOf(previous), styleOf(next)))
   return chains.map((chain) => ({ walls: chain, style: styleOf(chain[0]) }))
@@ -273,6 +295,9 @@ function groupWallsForPath(walls: WallWithStyle[], cameraScale: number, renderer
  *  - `selectedWallId`: a parede selecionada;
  *  - `highlightedRegionId`: a Sala selecionada — o contorno segue todas as
  *    paredes dela (inclusive as de porta, para não abrir no vão).
+ *
+ * `marcarPassagem`: só o editor do mestre liga. A parede que deixa a ficha
+ * passar sai tracejada; na tela do jogador ela é igual a qualquer parede.
  */
 export function drawWalls(
   graphics: Graphics,
@@ -281,6 +306,7 @@ export function drawWalls(
   cameraScale = 1,
   rendererResolution = 1,
   highlightedRegionId: string | null = null,
+  marcarPassagem = false,
 ): void {
   graphics.clear()
   if (highlightedRegionId !== null) drawRegionWallsOutline(graphics, walls, highlightedRegionId, cameraScale, rendererResolution)
@@ -288,13 +314,37 @@ export function drawWalls(
   // (60% do vão). Contornar o vão inteiro aqui deixaria pontas amarelas soltas.
   const selected = selectedWallId === null ? undefined : walls.find((wall) => wall.id === selectedWallId && wall.door === null)
   if (selected) drawWallSelectionOutline(graphics, selected, cameraScale, rendererResolution)
-  for (const { walls: run, style } of groupWallsForPath(walls, cameraScale, rendererResolution)) {
+  for (const { walls: run, style } of groupWallsForPath(walls, cameraScale, rendererResolution, marcarPassagem)) {
     traceWallChain(graphics, alignChain(run, style.pixel))
-    graphics.stroke({ width: style.width, color: WALL_COLOR, alpha: style.alpha, cap: style.cap, join: style.join })
+    graphics.stroke({ width: style.width, color: style.color, alpha: style.alpha, cap: style.cap, join: style.join })
   }
   for (const wall of walls) {
     if (isJanela(wall)) drawJanela(graphics, wall, cameraScale, rendererResolution)
+    else if (marcarPassagem && isPassagem(wall)) drawPassagem(graphics, wall, resolveWallStyle(wall, cameraScale, rendererResolution), cameraScale)
   }
+}
+
+/** Traço e vão da passagem tracejada, em px de TELA: o mesmo ritmo em qualquer zoom. */
+const PASSAGEM_TRACO_SCREEN_PX = 8
+const PASSAGEM_VAO_SCREEN_PX = 6
+
+/**
+ * Parede que deixa passar, como o mestre a vê: a mesma cor e espessura, em
+ * traços. Pixi não tem tracejado nativo, então cada traço é um segmento.
+ */
+function drawPassagem(graphics: Graphics, wall: WallWithStyle, style: WallVisualStyle, cameraScale: number): void {
+  const length = Math.hypot(wall.x2 - wall.x1, wall.y2 - wall.y1)
+  if (!(length > 0)) return
+  const scale = usableScale(cameraScale)
+  const traco = PASSAGEM_TRACO_SCREEN_PX / scale
+  const passo = traco + PASSAGEM_VAO_SCREEN_PX / scale
+  const ux = (wall.x2 - wall.x1) / length
+  const uy = (wall.y2 - wall.y1) / length
+  for (let inicio = 0; inicio < length; inicio += passo) {
+    const fim = Math.min(inicio + traco, length)
+    graphics.moveTo(wall.x1 + ux * inicio, wall.y1 + uy * inicio).lineTo(wall.x1 + ux * fim, wall.y1 + uy * fim)
+  }
+  graphics.stroke({ width: style.width, color: style.color, alpha: style.alpha, cap: 'butt' })
 }
 
 /**
@@ -327,7 +377,7 @@ function drawJanela(graphics: Graphics, wall: WallWithStyle, cameraScale: number
   for (const side of [1, -1]) {
     const [line] = alignChain([{ ...wall, x1: wall.x1 + nx * side, y1: wall.y1 + ny * side, x2: wall.x2 + nx * side, y2: wall.y2 + ny * side }], pixel)
     graphics.moveTo(line.x1, line.y1).lineTo(line.x2, line.y2)
-    graphics.stroke({ width, color: WALL_COLOR, alpha, cap: 'butt' })
+    graphics.stroke({ width, color: wallColorFor(wall), alpha, cap: 'butt' })
   }
 }
 

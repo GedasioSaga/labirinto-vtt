@@ -113,6 +113,13 @@ interface PropertiesPanelProps {
   rotinaDaFicha?: ReactNode
   /** Seção "Objetos do mapa" (busca e "Ir até lá"), montada pelo App, que sabe da câmera e da seleção. */
   objects?: ReactNode
+  /**
+   * Esconde as categorias de navegação (Cenas, Pinos, Estado do mundo,
+   * Objetos do mapa, Marcas, Locais). O App liga com ferramenta na mão ou
+   * objeto selecionado, se o mestre deixou a opção ligada
+   * (`stores/painelCategoriasStore.ts`).
+   */
+  esconderCategorias?: boolean
   mapName: string
   mapWidth: number
   mapHeight: number
@@ -318,7 +325,8 @@ export function PropertiesPanel({
   estadoDaLuz,
   perigoDaSala,
   rotinaDaFicha,
-  objects,
+  objects: objetosDaCena,
+  esconderCategorias = false,
   mapName,
   mapWidth,
   mapHeight,
@@ -482,7 +490,8 @@ export function PropertiesPanel({
   const legendaId = useId()
   const legendaAventuraId = `${legendaId}-aventura`
   const legendaCenaId = `${legendaId}-cena`
-  const temAventura = presente(scenes) || presente(worldState)
+  const objects = esconderCategorias ? undefined : objetosDaCena
+  const temAventura = !esconderCategorias && (presente(scenes) || presente(worldState))
   // Com o pincel/balde na mão a lista aparece mesmo sem chão: é nela que se
   // vê onde a primeira pincelada vai cair ("Camada 1 · pinte para criar").
   const temCamadasDoChao =

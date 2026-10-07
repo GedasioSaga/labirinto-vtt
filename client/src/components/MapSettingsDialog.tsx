@@ -11,6 +11,7 @@ import { ArrivalTextControls, type ArrivalTextControlsProps } from './ArrivalTex
 import { SceneFloorControls, type SceneFloorControlsProps } from './SceneFloorControls'
 import { SceneVisionControls, type SceneVisionControlsProps } from './SceneVisionControls'
 import { FaceRangeControls, type FaceRangeControlsProps } from './FaceRangeControls'
+import { PainelCategoriasControls } from './PainelCategoriasControls'
 import { FEATURES } from '../lib/features'
 import { theme } from '../theme'
 
@@ -172,6 +173,7 @@ export function MapSettingsDialog({
           <SceneVisionControls {...sceneVision} />
           {faceRange !== undefined && <FaceRangeControls {...faceRange} />}
           {showScenarioLink && <ScenarioLinkControls {...scenarioLink} />}
+          <PainelCategoriasControls />
         </div>
       </div>
     </div>,

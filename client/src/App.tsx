@@ -114,6 +114,7 @@ import { PerigoDaSalaControls } from './components/PerigoDaSalaControls'
 import { RotinaDaFichaControls } from './components/RotinaDaFichaControls'
 import { amarradosPorEstado, type AmarraDeEstado } from './lib/estadoDoMundo'
 import { MapObjectsSection } from './components/MapObjectsSection'
+import { usePainelCategoriasStore } from './stores/painelCategoriasStore'
 import { MarcasDaCena } from './components/MarcasDaCena'
 import { PlaceTreeSection } from './components/PlaceTreeSection'
 import { currentObjectKey, isFindObjectShortcut } from './lib/mapObjects'
@@ -445,6 +446,7 @@ function App() {
   const gridShape = useMapStore((state) => state.map.gridShape)
   const setGridShapeAction = useMapStore((state) => state.setGridShape)
   const selection = useMapStore((state) => state.selection)
+  const categoriasSoSemSelecao = usePainelCategoriasStore((state) => state.soSemSelecao)
   // Blocos que andam no alinhar (Sala + paredes = 1), não entradas da seleção.
   const alignableCount = useMapStore(selectAlignableUnitCount)
   const setSelection = useMapStore((state) => state.setSelection)
@@ -512,6 +514,8 @@ function App() {
   const setWallLineStyle = useMapStore((state) => state.setWallLineStyle)
   const setWallLineStyleForWall = useMapStore((state) => state.setWallLineStyleForWall)
   const setWallJanela = useMapStore((state) => state.setWallJanela)
+  const setWallPassagem = useMapStore((state) => state.setWallPassagem)
+  const setWallColor = useMapStore((state) => state.setWallColor)
   const regionStrokeWidth = useMapStore((state) => state.regionStrokeWidth)
   const setRegionStrokeWidth = useMapStore((state) => state.setRegionStrokeWidth)
   const regionStrokeJoin = useMapStore((state) => state.regionStrokeJoin)
@@ -2816,6 +2820,7 @@ function App() {
                 />
               )
             }
+            esconderCategorias={categoriasSoSemSelecao && (activeTool !== 'select' || selection.length > 0 || selectedPinId !== null)}
             objects={
               <>
                 <MapObjectsSection
@@ -3058,6 +3063,17 @@ function App() {
               // Janela só na parede selecionada e sem porta (`setWallJanela`).
               janela: selectedWall?.janela === true,
               onJanelaChange: selectedWall && selectedWall.door === null ? (on: boolean) => setWallJanela(selectedWall.id, on) : undefined,
+              // Passagem e cor só na parede selecionada e sem porta: a porta tem as regras dela.
+              passagem:
+                selectedWall && selectedWall.door === null
+                  ? {
+                      deixaPassar: !selectedWall.blocksMove,
+                      onDeixaPassarChange: (on: boolean) => setWallPassagem(selectedWall.id, { blocksMove: !on }),
+                      deixaVer: !selectedWall.blocksLight,
+                      onDeixaVerChange: (on: boolean) => setWallPassagem(selectedWall.id, { blocksLight: !on }),
+                    }
+                  : undefined,
+              cor: selectedWall ? { color: selectedWall.color ?? null, onColorChange: (color: string | null) => setWallColor(selectedWall.id, color) } : undefined,
             }}
             selectedProp={selectedProp}
             propTransform={{

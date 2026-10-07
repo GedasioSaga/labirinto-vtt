@@ -759,6 +759,7 @@ function plainWallFor(id: string, from: RegionPoint, to: RegionPoint, look: Wall
   if (look?.wallKind !== undefined) plain.wallKind = look.wallKind
   if (look?.thickness !== undefined) plain.thickness = look.thickness
   if (look?.lineStyle !== undefined) plain.lineStyle = look.lineStyle
+  if (look?.color !== undefined) plain.color = look.color
   if (look?.regionId !== undefined && playerRegionIds.has(look.regionId)) {
     plain.regionId = look.regionId
     if (look.regionEdgeIndex !== undefined) plain.regionEdgeIndex = look.regionEdgeIndex

@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import type { Wall, WallThicknessPreset } from '../types/map'
 import {
+  WALL_COLOR,
   WALL_WIDTH_WORLD_MAX,
   WALL_WIDTH_WORLD_MIN,
   wallWorldWidth,
@@ -8,6 +9,7 @@ import {
   type WallThickness,
 } from '../pixi/drawWalls'
 import { Toggle } from './Toggle'
+import { CampoDeCorComPipeta } from './CampoDeCorComPipeta'
 
 /** Mesmo padrão de `LineCapControls.tsx`/`GridControls.tsx` (`LINE_STYLES`):
  *  array explícito de opções, não `Object.keys` (que tiparia `string[]`). */
@@ -23,6 +25,11 @@ const WALL_WIDTH_INPUT_ID = 'lb-wall-thickness'
 
 /** A frase do limite do ajuste fino, que o campo "Espessura" explica sob demanda. */
 const WALL_WIDTH_HINT_ID = 'lb-wall-thickness-hint'
+
+const WALL_COLOR_INPUT_ID = 'lb-wall-color'
+
+/** A cor padrão da linha (`WALL_COLOR`) como o `<input type="color">` a lê. */
+const WALL_COLOR_HEX = `#${WALL_COLOR.toString(16).padStart(6, '0')}`
 
 const LINE_STYLE_OPTIONS: Array<{ value: WallLineStyle; label: string }> = [
   { value: 'round', label: 'Arredondada' },
@@ -81,6 +88,18 @@ export interface WallStyleControlsProps {
   janela?: boolean
   onJanelaChange?: (janela: boolean) => void
   /**
+   * PASSAGEM E COR (pedido de 07/10/2026) — só da parede JÁ SELECIONADA, como
+   * a janela: sem o handler o controle não aparece. `deixaPassar` é
+   * `!blocksMove`, `deixaVer` é `!blocksLight`; `color` `null` = cor padrão.
+   */
+  passagem?: {
+    deixaPassar: boolean
+    onDeixaPassarChange: (on: boolean) => void
+    deixaVer: boolean
+    onDeixaVerChange: (on: boolean) => void
+  }
+  cor?: { color: string | null; onColorChange: (color: string | null) => void }
+  /**
    * O Avançado da parede ("Ponta e canto"), como a ÚLTIMA linha deste bloco
    * (pedido painel-acervo, fatia 3), e não uma seção irmã com fio: é da
    * parede, como o da ficha é de "Trava e visibilidade". Quem monta é o
@@ -110,6 +129,8 @@ export function WallStyleControls({
   onThicknessChange,
   janela,
   onJanelaChange,
+  passagem,
+  cor,
   avancado,
 }: WallStyleControlsProps) {
   // `lineStyle`/`onLineStyleChange` continuam no tipo (o chamador monta um
@@ -130,6 +151,32 @@ export function WallStyleControls({
       />
       {onJanelaChange && (
         <Toggle label="Janela (vê, não passa)" checked={janela === true} onChange={onJanelaChange} />
+      )}
+      {passagem && (
+        <>
+          <Toggle label="Deixa passar (a ficha atravessa)" checked={passagem.deixaPassar} onChange={passagem.onDeixaPassarChange} />
+          <Toggle label="Deixa ver (a visão atravessa)" checked={passagem.deixaVer} onChange={passagem.onDeixaVerChange} />
+        </>
+      )}
+      {cor && (
+        <div className="lb-section__row">
+          <label className="lb-label" htmlFor={WALL_COLOR_INPUT_ID}>
+            Cor da parede
+          </label>
+          <div className="lb-room-title__color">
+            {cor.color !== null && (
+              <button type="button" className="lb-btn lb-btn--ghost" onClick={() => cor.onColorChange(null)}>
+                Padrão
+              </button>
+            )}
+            <CampoDeCorComPipeta
+              id={WALL_COLOR_INPUT_ID}
+              value={cor.color ?? WALL_COLOR_HEX}
+              rotuloDaPipeta="Pegar do mapa a cor da parede"
+              onChange={cor.onColorChange}
+            />
+          </div>
+        </div>
       )}
       {/* Painel enxuto (pedido de 30/09/2026, fatia 1): a frase do limite saiu
           de baixo do slider, onde ocupava três linhas fixas, e virou a dica

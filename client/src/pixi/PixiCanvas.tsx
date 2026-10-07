@@ -1532,7 +1532,7 @@ export function PixiCanvas({
         const selectedWallId = single?.kind === 'wall' ? single.id : null
         const res = app.renderer.resolution
         // Sala selecionada: o contorno segue as paredes (sob elas o da Região some).
-        drawWalls(wallsGraphics, walls, selectedWallId, camera.scale, res, single?.kind === 'region' ? single.id : null)
+        drawWalls(wallsGraphics, walls, selectedWallId, camera.scale, res, single?.kind === 'region' ? single.id : null, true)
         drawDoors(doorsGraphics, walls, selectedWallId, camera.scale, res)
       }
 

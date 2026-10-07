@@ -139,6 +139,11 @@ export interface Wall extends NoPiso {
    * (`lib/mapFile.ts` copia a parede inteira).
    */
   janela?: boolean
+  /**
+   * Cor da linha (`#rrggbb`), escolhida no painel da parede. `undefined` = a
+   * cor padrão (`WALL_COLOR`, `pixi/drawWalls.ts`), sem linha de migração.
+   */
+  color?: string
 }
 
 /**

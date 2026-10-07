@@ -1054,6 +1054,35 @@ export function setWallJanela(map: MapData, wallId: string, janela: boolean): Ma
 }
 
 /**
+ * "Deixa passar" / "Deixa ver" de uma parede (pedido de 07/10/2026): a parede
+ * continua desenhada, mas o passo (`blocksMove`) ou a visão (`blocksLight`)
+ * atravessa. Mesmo valor = o mesmo mapa, sem entrada inútil no histórico.
+ */
+export function setWallPassagem(map: MapData, wallId: string, patch: { blocksMove?: boolean; blocksLight?: boolean }): MapData {
+  const target = map.walls.find((w) => w.id === wallId)
+  if (target === undefined) return map
+  const blocksMove = patch.blocksMove ?? target.blocksMove
+  const blocksLight = patch.blocksLight ?? target.blocksLight
+  if (blocksMove === target.blocksMove && blocksLight === target.blocksLight) return map
+  return { ...map, walls: map.walls.map((w) => (w.id === wallId ? { ...w, blocksMove, blocksLight } : w)) }
+}
+
+/** Cor da parede (`#rrggbb`); `null` volta à cor padrão e tira o campo. */
+export function setWallColor(map: MapData, wallId: string, color: string | null): MapData {
+  const target = map.walls.find((w) => w.id === wallId)
+  if (target === undefined || (target.color ?? null) === color) return map
+  return {
+    ...map,
+    walls: map.walls.map((w) => {
+      if (w.id !== wallId) return w
+      if (color !== null) return { ...w, color }
+      const { color: _color, ...padrao } = w
+      return padrao
+    }),
+  }
+}
+
+/**
  * Folga, em px de mundo, para decidir "este pedaço está na MESMA RETA do vão" e
  * "estes dois pedaços se ENCOSTAM". Os pedaços de uma aresta nascem do mesmo
  * vetor unitário (`addDoorOnWall`), então o erro real aqui é de arredondamento
@@ -1116,6 +1145,7 @@ function sameEdgeIdentity(piece: Wall, other: Wall): boolean {
     piece.wallKind === other.wallKind &&
     piece.thickness === other.thickness &&
     piece.lineStyle === other.lineStyle &&
+    piece.color === other.color &&
     piece.blocksLight === other.blocksLight &&
     piece.blocksMove === other.blocksMove
   )
