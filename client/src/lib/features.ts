@@ -26,6 +26,10 @@ export interface FeatureFlags {
   confronto: boolean
   /** "Andar do prédio" na janela Configurações do mapa. Prédio e andar guardados continuam valendo. */
   andarDoPredio: boolean
+  /** "Gatilho" (Nenhum/Armadilha/Alarme) no painel da Sala (a Região continua com ele). O gatilho guardado continua valendo. */
+  gatilhoDeArea: boolean
+  /** "Perigo" (Pôr fogo/Pôr água) no painel da Sala. O perigo em curso continua avançando. */
+  perigoDaSala: boolean
 }
 
 export const FEATURES: Readonly<FeatureFlags> = {
@@ -40,4 +44,7 @@ export const FEATURES: Readonly<FeatureFlags> = {
   confronto: false,
   // Pedido do usuário em 07/10/2026: tirar da janela Configurações do mapa.
   andarDoPredio: false,
+  // Pedido do usuário em 07/10/2026: tirar do painel da Sala.
+  gatilhoDeArea: false,
+  perigoDaSala: false,
 }

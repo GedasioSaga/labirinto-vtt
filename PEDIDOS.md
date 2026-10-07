@@ -1338,3 +1338,9 @@ Noite = esta sessão conduzida pelo main thread; o noite-runner continua encerra
 - Imagem 4: seção "Visão dos jogadores" (Visão nesta cena em quadrados, Cena escura).
 - Fila: (1) tirar "Andar do prédio" da janela; (2) "Visão dos jogadores" sai da janela e vira botão de configurar em cada cena da lista Cenas, com prévia ao lado do raio que o jogador vê.
 - Feito: "Andar do prédio" escondido da janela por flag (`FEATURES.andarDoPredio`, prédio/andar guardados continuam valendo). "Visão dos jogadores" saiu da janela e foi para a engrenagem "Configurar" em cada linha da lista Cenas: janela com "Visão nesta cena" e "Cena escura" e, ao lado, um radar (ficha no meio, grade, círculo do alcance; cena escura mostra só a casa da ficha e o alcance tracejado). Cena aberta grava no Ctrl+Z; cena de fundo grava no cache dela. Conferido: tsc, testes das áreas (239), clique real num Chromium isolado na cena aberta. Não conferido: configurar uma cena de fundo na tela, exe.
+
+> 07/10/2026: "Nas salas não precisamos mais disso [Image #6] no lugar coloque: 1- Numa sala eu quero pode pintar uma parte de uma cor e outra parte outro, coloque uma opção que possamos fazer isso."
+- Imagem 6: painel da Sala, "Gatilho" (Nenhum/Armadilha/Alarme) e "Perigo" (Pôr fogo/Pôr água).
+- Fila: (1) esconder Gatilho e Perigo do painel da Sala; (2) opção para pintar partes da sala em cores diferentes.
+- Decidido: linha divisória (não pincel).
+- Feito: Gatilho e Perigo escondidos do painel da Sala por flag (`FEATURES.gatilhoDeArea`, `FEATURES.perigoDaSala`; a Região comum continua com o Gatilho). No lugar, bloco "Duas cores": "Pintar parte da sala de outra cor", Segunda cor, Divisão (Em pé/Deitada/Diagonal) e "Onde corta" (5–95%). Vale no editor e na tela do jogador (mesmo desenho). Conferido: tsc, testes (1464 de componentes + recorte), clique real num Chromium isolado. Não conferido no exe.

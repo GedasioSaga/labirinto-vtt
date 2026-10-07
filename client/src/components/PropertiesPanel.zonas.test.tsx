@@ -197,7 +197,7 @@ describe('painel de propriedades — os grupos Aventura e Esta cena', () => {
     expect(document.getElementById(avancado?.getAttribute('aria-controls') ?? '')?.querySelector('[aria-label="Ponta e canto da parede"]')).not.toBeNull()
   })
 
-  it('o Avançado da Região continua linha do item, fora dos blocos de Gatilho e Perigo', () => {
+  it('o Avançado da Região continua linha do item; Perigo saiu da Sala (07/10/2026)', () => {
     const { region, walls } = buildRoomFromDraft('sala', ['s0', 's1', 's2', 's3'], { x: 0, y: 0 }, { x: 320, y: 256 }, undefined, undefined, 'Sala 1')
     const map = addRoom(createEmptyMap('m_sala', 'Casa', 30, 20, 64), region, walls)
     useMapStore.setState({ map })
@@ -214,7 +214,7 @@ describe('painel de propriedades — os grupos Aventura e Esta cena', () => {
     })
     const avancado = cabecalho('Avançado')
     expect(avancado).not.toBeNull()
-    expect(h2('Perigo')?.closest('section')?.contains(avancado)).toBe(false)
+    expect(h2('Perigo')).toBeNull()
     expect(avancado?.closest('.lb-collapsible')?.parentElement?.classList.contains('lb-inspector__body')).toBe(true)
   })
 

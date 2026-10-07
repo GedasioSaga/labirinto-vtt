@@ -2812,6 +2812,11 @@ function App() {
                 <EstadoDaZona zone={selectedConcealZone} estados={adventure.estados ?? []} onAmarrar={amarrarAoEstado} />
               )
             }
+            regionSplit={
+              selectedRegion?.room === undefined
+                ? undefined
+                : { split: selectedRegion.split, onChange: (split) => useMapStore.getState().setRegionSplit(selectedRegion.id, split) }
+            }
             perigoDaSala={
               selectedRegion?.room === undefined ? undefined : (
                 <PerigoDaSalaControls

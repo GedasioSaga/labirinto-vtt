@@ -1072,6 +1072,19 @@ export interface Region extends PlayerSecret, NoPiso {
    *  tela/modo jogador, então essa promessa não existe. `undefined` === false
    *  (visível, comportamento idêntico ao de hoje) — sem linha de migração. */
   hidden?: boolean
+  /** SALA EM DUAS CORES: o lado de lá da reta com a segunda cor (`lib/regionSplit.ts`). `undefined` = uma cor só. */
+  split?: RegionSplit
+}
+
+/** Direção da reta que divide a sala: em pé (|), deitada (—) ou diagonal (/). */
+export type RegionSplitDirection = 'vertical' | 'horizontal' | 'diagonal'
+
+export interface RegionSplit {
+  /** A segunda cor, `#rrggbb`. */
+  color: string
+  direction: RegionSplitDirection
+  /** Onde a reta corta, de 0 (começo da sala) a 1 (fim). */
+  at: number
 }
 
 /**

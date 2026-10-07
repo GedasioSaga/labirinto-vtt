@@ -5,6 +5,7 @@ import { isDegenerateRegion } from './shapes'
 import { SECRET_ITEM_ALPHA, SELECTION_COLOR } from './constants'
 import { resolveCameraScale, selectionOutlineWidth } from './drawWalls'
 import { roomHasRoof } from '../lib/roomOps'
+import { readRegionSplit, splitSecondPart } from '../lib/regionSplit'
 
 /**
  * TETO DE CONSTRUÇÃO — marca do telhado NO EDITOR. O mestre vê tudo, sempre
@@ -270,6 +271,15 @@ export function createRegionsRenderer(options: RegionsRendererOptions = {}): Reg
       const isFilled = region.filled !== false
       if (isFilled) {
         g.fill({ color, alpha: 1 })
+      }
+      // SALA EM DUAS CORES: o lado de lá da reta por cima do fundo; o caminho
+      // inteiro volta para o contorno, que segue na cor da sala.
+      const split = isFilled ? readRegionSplit(region.split) : undefined
+      const secondPart = split ? splitSecondPart(region.points, split) : []
+      if (split && secondPart.length > 0) {
+        traceRegionPath(g, secondPart)
+        g.fill({ color: new Color(split.color).toNumber(), alpha: 1 })
+        traceRegionPath(g, region.points)
       }
       g.stroke({ width: strokeWidth, color, join })
 

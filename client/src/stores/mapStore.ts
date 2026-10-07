@@ -4,7 +4,7 @@ import type {
   MapData, Wall, Light, Region, Token, Prop, Drawing, DoorState, DoorSide, LayerId, GridSettings,
   Stair, StairDirection, StairShape, DoorKind, MapScale, MeasurementMode, DrawingCap, DrawingDash, FreehandTexture,
   FloorPiece, FloorStyle, MapLine, MapMarker, MapFrame, PinIcon, PinKind, RoomMeta, TokenCondition, MovementRules, HazardKind, AreaTriggerKind, SceneFloor, NivelAlerta,
-  TipoDePerigo, RotinaDoNpc, TipoMobilia, VistaMobilia, PassoDaPatrulha,
+  TipoDePerigo, RotinaDoNpc, TipoMobilia, VistaMobilia, PassoDaPatrulha, RegionSplit,
 } from '../types/map'
 import * as perigo from '../lib/perigo'
 import type { Camera, Point } from '../pixi/world'
@@ -650,6 +650,8 @@ interface MapStoreState {
   regionFillEnabled: boolean
   setRegionFillEnabled: (enabled: boolean) => void
   setRegionFilled: (id: string, filled: boolean) => void
+  /** SALA EM DUAS CORES: liga/ajusta a segunda cor; `null` volta a uma cor só. Com histórico. */
+  setRegionSplit: (id: string, split: RegionSplit | null) => void
   /**
    * Trava/destrava uma Região/Sala JÁ CRIADA ("travar movimentação de item",
    * pedido de 18/09/2026: a ilha arrastada sem querer no meio da sessão).
@@ -1909,6 +1911,15 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
     setRegionFilled: (id, filled) => withHistory((map) => ({
       ...map,
       regions: map.regions.map((r) => (r.id === id ? { ...r, filled } : r)),
+    })),
+    setRegionSplit: (id, split) => withHistory((map) => ({
+      ...map,
+      regions: map.regions.map((r) => {
+        if (r.id !== id) return r
+        if (split !== null) return { ...r, split }
+        const { split: _split, ...umaCor } = r
+        return umaCor
+      }),
     })),
     setRegionLocked: (id, locked) => withHistory((map) => ({
       ...map,

@@ -299,7 +299,7 @@ describe('painel de propriedades — faixa da seleção e ordem por tarefa', () 
     expect(lista.at(-1)).toBe('Acervo de tokens')
   })
 
-  it('sala: Travado e Oculto para jogadores num bloco só, logo depois do bloco Sala; depois Região, Preenchimento, Gatilho, Perigo e o Avançado', () => {
+  it('sala: Travado e Oculto para jogadores num bloco só, logo depois do bloco Sala; depois Região, Preenchimento e o Avançado (Gatilho e Perigo saíram em 07/10/2026)', () => {
     const onSecretChange = vi.fn<(secret: boolean) => void>()
     renderPainel(painelDaSala({ playerSecret: { secret: false, onSecretChange } }))
     const lista = titulos()
@@ -317,12 +317,10 @@ describe('painel de propriedades — faixa da seleção e ordem por tarefa', () 
     expect(onSecretChange).toHaveBeenCalledWith(true)
 
     const preenchimento = h2[3]
-    const gatilho = container.querySelector('[role="radiogroup"][aria-label="Gatilho da área"]')
-    const perigo = h2.find((h) => h.textContent === 'Perigo')
     const avancado = Array.from(container.querySelectorAll('button')).find((b) => b.textContent?.includes('Avançado'))
-    expect(antes(preenchimento, gatilho)).toBe(true)
-    expect(antes(gatilho, perigo)).toBe(true)
-    expect(antes(perigo, avancado)).toBe(true)
+    expect(container.querySelector('[role="radiogroup"][aria-label="Gatilho da área"]')).toBeNull()
+    expect(h2.find((h) => h.textContent === 'Perigo')).toBeUndefined()
+    expect(antes(preenchimento, avancado)).toBe(true)
     // Pedido 03/10/2026: a Sala selecionada não mostra o chão do MAPA.
     expect(h2.find((h) => h.textContent === 'Chão do mapa')).toBeUndefined()
     expect(h2.find((h) => h.textContent === 'Camadas')).toBeUndefined()

@@ -69,6 +69,8 @@ import { ToolPropertiesSection } from './ToolPropertiesSection'
 import { LineCapControls, type LineCapControlsProps } from './LineCapControls'
 import { LineShapeControls, type LineShapeControlsProps } from './LineShapeControls'
 import { FillControls, type FillControlsProps } from './FillControls'
+import { RegionSplitControls, type RegionSplitControlsProps } from './RegionSplitControls'
+import { FEATURES } from '../lib/features'
 import { AreaSelectionControls, type AreaSelectionControlsProps } from './AreaSelectionControls'
 import { AlignDistributeControls, type AlignDistributeControlsProps } from './AlignDistributeControls'
 import { FloorPieceControls, type FloorPieceControlsProps } from './FloorPieceControls'
@@ -108,6 +110,8 @@ interface PropertiesPanelProps {
   estadoDaLuz?: ReactNode
   /** PERIGO QUE SE ALASTRA — bloco "Perigo" da Sala selecionada (`PerigoDaSalaControls.tsx`), montado pelo App. */
   perigoDaSala?: ReactNode
+  /** SALA EM DUAS CORES da sala selecionada; ausente = sem o bloco. */
+  regionSplit?: RegionSplitControlsProps
   /** ROTINA DO NPC da ficha selecionada (`RotinaDaFichaControls.tsx`), montada pelo App; ausente no mapa solto. */
   rotinaDaFicha?: ReactNode
   /** Seção "Objetos do mapa" (busca e "Ir até lá"), montada pelo App, que sabe da câmera e da seleção. */
@@ -321,6 +325,7 @@ export function PropertiesPanel({
   estadoDaZona,
   estadoDaLuz,
   perigoDaSala,
+  regionSplit,
   rotinaDaFicha,
   objects: objetosDaCena,
   esconderCategorias = false,
@@ -704,7 +709,13 @@ export function PropertiesPanel({
         </ToolPropertiesSection>
         {/* GATILHO DE ÁREA: decide o que o jogador recebe ao entrar. Região e
             Sala, não só Sala. */}
-        {selectedRegion && areaTrigger && (
+        {/* SALA EM DUAS CORES: logo depois do Preenchimento, que é o fundo que ela divide. */}
+        {selectedRegion?.room && regionSplit && (
+          <ToolPropertiesSection group="fill" groups={groups}>
+            <RegionSplitControls key={selectedRegion.id} {...regionSplit} />
+          </ToolPropertiesSection>
+        )}
+        {selectedRegion && areaTrigger && (FEATURES.gatilhoDeArea || selectedRegion.room === undefined) && (
           <ToolPropertiesSection group="playerVisibility" groups={groups}>
             <section className="lb-section">
               <AreaTriggerControls key={selectedRegion.id} {...areaTrigger} />
@@ -713,7 +724,7 @@ export function PropertiesPanel({
         )}
         {/* PERIGO QUE SE ALASTRA: gesto de mesa (pôr fogo, avançar), não de
             construir a sala — depois do que a sala é. */}
-        {selectedRegion?.room && (
+        {FEATURES.perigoDaSala && selectedRegion?.room && (
           <ToolPropertiesSection group="room" groups={groups}>
             {perigoDaSala}
           </ToolPropertiesSection>
