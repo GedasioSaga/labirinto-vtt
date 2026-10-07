@@ -1,5 +1,5 @@
 /**
- * "Recado" na linha de cada jogador do Grupo: o mestre escreve para UM
+ * "Recado" na ficha de cada jogador do Grupo: o mestre escreve para UM
  * jogador. Ctrl+Enter envia, Esc cancela, e a linha diz o que aconteceu —
  * enviado, guardado para quando ele voltar, ou que a sala não está aberta.
  */
@@ -11,6 +11,7 @@ import { partyMembers } from '../lib/party'
 import type { HostWorld, PlayerInfo, PlayerNoteDelivery } from '../net/hostSession'
 import { NOTE_MAX_LENGTH } from '../net/protocol'
 import type { Token } from '../types/map'
+import { abrirFicha } from './grupoTeste'
 import { playerNoteFeedbackText } from './PartySection'
 import { RoomPanel, roomPanelTokensOf } from './RoomPanel'
 
@@ -108,16 +109,20 @@ describe('PartySection: "Recado" para um jogador só', () => {
 
   it('sem sala (sem onNote) não há "Recado"; com sala, um por jogador, inclusive quem está sem ficha', () => {
     render()
+    abrirFicha(container, 'Gabi')
     expect(botao('Recado para Gabi')).toBeUndefined()
     render(vi.fn((): PlayerNoteDelivery => 'sent'))
     expect(botao('Recado para Gabi')?.textContent).toBe('Recado')
+    abrirFicha(container, 'Elisa')
     expect(botao('Recado para Elisa')).toBeDefined()
+    abrirFicha(container, 'Caio')
     expect(botao('Recado para Caio')).toBeDefined()
   })
 
   it('Recado na Gabi, Ctrl+Enter: manda só para ela e a linha DELA diz "Recado enviado a Gabi"', () => {
     const onNote = vi.fn((): PlayerNoteDelivery => 'sent')
     render(onNote)
+    abrirFicha(container, 'Gabi')
     act(() => botao('Recado para Gabi')?.click())
     expect(botao('Recado para Gabi')?.getAttribute('aria-expanded')).toBe('true')
     const label = container.querySelector(`label[for="${campo()?.id ?? ''}"]`)
@@ -138,6 +143,7 @@ describe('PartySection: "Recado" para um jogador só', () => {
 
   it('quem está fora: a linha diz que ele recebe ao voltar', () => {
     render(vi.fn((): PlayerNoteDelivery => 'queued'))
+    abrirFicha(container, 'Caio')
     act(() => botao('Recado para Caio')?.click())
     digita('Quando voltar, leia isto.')
     act(() => botao('Enviar')?.click())
@@ -147,6 +153,7 @@ describe('PartySection: "Recado" para um jogador só', () => {
   it('Esc cancela sem enviar; texto vazio não envia', () => {
     const onNote = vi.fn((): PlayerNoteDelivery => 'sent')
     render(onNote)
+    abrirFicha(container, 'Elisa')
     act(() => botao('Recado para Elisa')?.click())
     digita('   ')
     expect(botao('Enviar')?.disabled).toBe(true)

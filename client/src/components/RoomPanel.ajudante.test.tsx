@@ -3,6 +3,7 @@ import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { TunnelState } from '../net/hostBridge'
 import type { LoanTerms, PlayerInfo } from '../net/hostSession'
+import { abrirFicha } from './grupoTeste'
 import { RoomPanel, type RoomPanelToken } from './RoomPanel'
 
 /**
@@ -75,11 +76,9 @@ describe('RoomPanel: emprestar ficha como ajudante', () => {
     return achado
   }
 
-  /** Abre o "…" do card da Duda e o formulário do ajudante, que mora nele. */
+  /** Abre a ficha da Duda na aba Ficha e o formulário do ajudante, que mora nela. */
   function abrirEmprestimo(): void {
-    const mais = container.querySelector<HTMLButtonElement>('button[aria-label="Mais de Duda"]')
-    if (mais === null) throw new Error('o card da Duda não tem "…"')
-    act(() => mais.click())
+    abrirFicha(container, 'Duda', 'ficha')
     act(() => botao('Emprestar como ajudante…').click())
   }
 
@@ -135,6 +134,7 @@ describe('RoomPanel: emprestar ficha como ajudante', () => {
 
   it('a ficha emprestada aparece no card com o prazo, e "Remover" continua ali', () => {
     render([jogador({ tokenIds: ['arco', 'tiziu'], loans: { tiziu: { tarefa: 'levar o recado', ate: AS_21_30, visao: false } } })])
+    abrirFicha(container, 'Duda', 'ficha')
     expect(container.textContent).toContain('Tiziu — ajudante até 21:30 · levar o recado')
     expect(botao('Remover Tiziu')).toBeDefined()
   })

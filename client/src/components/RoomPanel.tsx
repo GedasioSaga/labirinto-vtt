@@ -1,5 +1,4 @@
-import { Fragment, useEffect, useId, useRef, useState, type FormEvent, type KeyboardEvent, type ReactNode, type RefObject } from 'react'
-import { partyPresenceLabel, type PartyMember } from '../lib/party'
+import { Fragment, useEffect, useId, useRef, useState, type FormEvent, type KeyboardEvent } from 'react'
 import {
   MAX_SCENE_MEMORIES_PER_PLAYER,
   ownTokenIdsOf,
@@ -21,29 +20,13 @@ import type { MapData, Region, TokenContract } from '../types/map'
 import type { RoomInfo, TunnelState } from '../net/hostBridge'
 import { CluesSection, type CluesSectionProps } from './CluesSection'
 import { SecretCheckSection, type SecretCheckSectionProps } from './SecretCheckSection'
-import {
-  PartyActions,
-  PartyAwayTokens,
-  PartyBag,
-  PartyDestinationMark,
-  PartyNoteForm,
-  PartySendForm,
-  PartyStatus,
-  partyBagVisible,
-  CONGELADO_TAG,
-  CONGELAR_TODOS_LABEL,
-  DESCONGELAR_TODOS_LABEL,
-  playerNoteFeedbackText,
-  useNoteFeedback,
-  useOfflineClock,
-  usePartySend,
-  type PartySectionProps,
-} from './PartySection'
+import type { PartySectionProps } from './PartySection'
+import { GrupoCompacto } from './GrupoCompacto'
+import type { CenaNaOrdem } from '../lib/grupoPorCena'
 import { InitiativeSection, type InitiativeSectionProps } from './InitiativeSection'
 import { CampaignClockSection, type CampaignClockSectionProps } from './CampaignClockSection'
 import { TableScreenSection, type TableScreenSectionProps } from './TableScreenSection'
 import { TravelLogSection, type TravelLogSectionProps } from './TravelLogSection'
-import { textoDaEsperaParaOMestre } from '../lib/encontroMarcado'
 import { ConfrontoControls, type ConfrontoControlsProps } from './ConfrontoControls'
 import { ControleDeSom, TITULO_DO_SOM } from './ControleDeSom'
 import { FEATURES, type FeatureFlags } from '../lib/features'
@@ -153,6 +136,20 @@ export interface RoomPanelProps {
   flags?: Readonly<FeatureFlags>
   /** Seção "Tela da mesa" (link da TV e a cena que ela mostra). Ausente = sem a seção. */
   table?: TableScreenSectionProps
+  /** GRUPO POR CENA: a cena aberta no editor, que vem primeiro. `null` ou ausente = mapa solto. */
+  cenaAberta?: string | null
+  /** As cenas na ordem da lista Cenas: a ordem dos grupos e o nome de cada um. Vazio no mapa solto. */
+  ordemDasCenas?: readonly CenaNaOrdem[]
+  /** Nome do mapa solto: o título do grupo único quando não há aventura. */
+  mapName?: string
+  /** "Ir à cena" no título do grupo: o editor abre a cena. Ausente = sem o botão. */
+  onIrACena?(sceneId: string): void
+  /** "Congelar a cena"/"Descongelar a cena": as fichas dos jogadores dela. Ausente = sem o botão. */
+  onCongelarCena?(tokenIds: string[], congelar: boolean): void
+  /** As cenas pausadas agora (a mesma pausa da lista Cenas). */
+  pausedScenes?: ReadonlySet<string>
+  /** "Pausar a cena" no título do grupo. Ausente (sala fechada) = sem o botão. */
+  onPausarCena?(sceneId: string, pause: boolean): void
 }
 
 export interface NoiseControlProps {
@@ -371,17 +368,6 @@ export function tokenName(tokens: RoomPanelToken[], tokenId: string): string {
 }
 
 /**
- * Quem está sem personagem AGORA, do outro lado, olhando uma tela parada: é o
- * cartão aberto no topo do Grupo, com o que dá personagem à vista.
- *
- * Desconectado não conta: fechou a aba e não espera nada. Fica na lista, na
- * ordem de chegada, sem empurrar para baixo quem de fato espera.
- */
-export function waitingNow(player: PlayerInfo): boolean {
-  return player.status === 'waiting' && player.connected
-}
-
-/**
  * O toast de "Ana entrou" dura 10 s e o mestre costuma estar desenhando. Esta
  * linha é o que sobra depois dele: aberta a aba Jogo, diz de cara que alguém
  * continua parado esperando, sem o mestre ter de ler card por card. Curta, sem
@@ -488,7 +474,7 @@ interface AssignControlsProps {
  * jogador não atribui na hora: abre a confirmação no próprio card, com o
  * foco em Cancelar — o engano não derruba quem está jogando.
  */
-function AssignControls({ player, tokens, owners, onAssign }: AssignControlsProps) {
+export function AssignControls({ player, tokens, owners, onAssign }: AssignControlsProps) {
   const [pendingId, setPendingId] = useState<string | null>(null)
   const selectRef = useRef<HTMLSelectElement>(null)
   const selectId = `lb-room-assign-${player.playerId}`
@@ -662,7 +648,7 @@ interface ShareMapControlsProps {
  * agora. Escolher passa na hora (não tira nada de ninguém, então não pede
  * confirmação) e a lista volta ao "Escolher…"; a linha de status diz se passou.
  */
-function ShareMapControls({ player, players, onShareMap }: ShareMapControlsProps) {
+export function ShareMapControls({ player, players, onShareMap }: ShareMapControlsProps) {
   const [status, setStatus] = useState<string | null>(null)
   const selectId = `lb-room-share-${player.playerId}`
   const others = players.filter(
@@ -738,7 +724,7 @@ function giveMapStatus(playerName: string, outcome: GiveMapOutcome): string {
  * Só quem recebe passa a conhecer; a linha de status conta quantas foram.
  * Esc fecha e devolve o foco ao botão que abre.
  */
-function GiveMapControls({ player, scenes, onGiveMap }: GiveMapControlsProps) {
+export function GiveMapControls({ player, scenes, onGiveMap }: GiveMapControlsProps) {
   const [open, setOpen] = useState(false)
   const [chosenScene, setChosenScene] = useState<string | null>(null)
   const [checked, setChecked] = useState<ReadonlySet<string>>(new Set())
@@ -873,7 +859,7 @@ interface HelperLoanControlsProps {
   onLend(playerId: string, tokenId: string, terms: LoanTerms): void
   /**
    * Botão discreto (ghost): no card de quem espera, fica abaixo dos "Atribuir",
-   * que são a ação do momento. No "…" ele é uma ação entre pares e vai sólido:
+   * que são a ação do momento. Na aba Ficha ele é uma ação entre pares e vai sólido:
    * ghost ali parecia texto solto.
    */
   quiet?: boolean
@@ -888,7 +874,7 @@ interface HelperLoanControlsProps {
  * Distinto do `LoanControls` (empréstimo da ficha de quem SAIU da mesa): aqui
  * é o mestre contratando um NPC/ficha livre como ajudante de um jogador ATIVO.
  */
-function HelperLoanControls({ player, tokens, owners, onLend, quiet = false }: HelperLoanControlsProps) {
+export function HelperLoanControls({ player, tokens, owners, onLend, quiet = false }: HelperLoanControlsProps) {
   const [open, setOpen] = useState(false)
   const [tokenId, setTokenId] = useState('')
   const [tarefa, setTarefa] = useState('')
@@ -1007,7 +993,7 @@ function HelperLoanControls({ player, tokens, owners, onLend, quiet = false }: H
 }
 
 /** O que um cartão de jogador precisa da sala para agir nele. */
-interface PlayerAdminProps {
+export interface PlayerAdminProps {
   tokens: RoomPanelToken[]
   owners: ReadonlyMap<string, string>
   onAssign(playerId: string, tokenId: string): void
@@ -1184,9 +1170,9 @@ function HandOverControls({ player, players, onHandOver }: HandOverControlsProps
  * tira a ficha do mapa até ele voltar; "Emprestar ficha a" põe outro jogador
  * para jogá-la até ele voltar; "Passar fichas e mapa a" entrega tudo a outro
  * e tira a linha; "Dispensar" tira a linha. Conectado não tem nada disso: o
- * "Expulsar" dele fica no "Mais".
+ * "Expulsar" dele fica no fim da aba Ficha.
  */
-function AwayControls({
+export function AwayControls({
   player,
   players,
   onStoreTokens,
@@ -1226,29 +1212,12 @@ function AwayControls({
 }
 
 /**
- * A presença que a linha lê: quem caiu leva a hora da queda, para o "fora há
- * 0:10" (`partyPresenceLabel`). Conectado ou sem hora, só o estado.
- */
-function presenceOf(player: PlayerInfo): Pick<PartyMember, 'connected' | 'offlineSince'> {
-  if (player.connected || player.disconnectedAt === undefined) return { connected: player.connected }
-  return { connected: false, offlineSince: player.disconnectedAt }
-}
-
-/** Esc fecha o "Mais" e para aqui: no editor ele cancelaria a ferramenta. */
-function closeOnEscape(event: KeyboardEvent, close: () => void): void {
-  if (event.key !== 'Escape') return
-  event.preventDefault()
-  event.stopPropagation()
-  close()
-}
-
-/**
  * O nome à vista e, para o leitor de tela, o status inteiro ("Ana — jogando
  * · conectado"). A vista mostra só o que foge do normal ("aguardando",
  * "fora"), com `aria-hidden` para o leitor não ouvir duas vezes. É também
  * por "<nome> —" que as jornadas acham o cartão.
  */
-function PlayerName({ player }: { player: PlayerInfo }) {
+export function PlayerName({ player }: { player: PlayerInfo }) {
   return (
     <>
       <strong className="lb-player__name" title={player.name}>
@@ -1268,7 +1237,7 @@ function PlayerName({ player }: { player: PlayerInfo }) {
  * teste acham a ficha certa. Emprestada como AJUDANTE CONTRATADO, o prazo vem
  * logo antes.
  */
-function TokenChips({ player, tokens, onUnassign }: { player: PlayerInfo } & Pick<PlayerAdminProps, 'tokens' | 'onUnassign'>) {
+export function TokenChips({ player, tokens, onUnassign }: { player: PlayerInfo } & Pick<PlayerAdminProps, 'tokens' | 'onUnassign'>) {
   if (player.tokenIds.length === 0) return null
   return (
     <div className="lb-player__line lb-player__line--fichas">
@@ -1326,7 +1295,7 @@ function VisionRadiusField({ player, onVisionRadiusChange }: { player: PlayerInf
  * "Visão nesta cena" ativa, quantos quadrados este jogador enxerga ali (o raio
  * em px não conta nessa cena); sem valor, o raio de sempre continua.
  */
-function VisionFields({
+export function VisionFields({
   player,
   onVisionRadiusChange,
   onVisionFactorChange,
@@ -1357,474 +1326,6 @@ function VisionFields({
         <VisionRadiusField player={player} onVisionRadiusChange={onVisionRadiusChange} />
       )}
     </div>
-  )
-}
-
-interface MoreToggleProps {
-  player: PlayerInfo
-  open: boolean
-  panelId: string
-  /** O que tem dentro, para quem para o ponteiro no "…". */
-  title: string
-  buttonRef: RefObject<HTMLButtonElement | null>
-  /** `instant`: aberto pelo teclado, o painel aparece sem animação. */
-  onToggle(instant: boolean): void
-  onClose(): void
-}
-
-/**
- * O "…" da linha: o mesmo glifo e o mesmo peso do menu da lista Cenas. Enter
- * e Espaço num botão disparam um clique sem contagem (`detail` 0): quem abre
- * pelo teclado vê o painel na hora; a animação é só para o mouse.
- */
-function MoreToggle({ player, open, panelId, title, buttonRef, onToggle, onClose }: MoreToggleProps) {
-  return (
-    <button
-      ref={buttonRef}
-      type="button"
-      className="lb-player__mais"
-      aria-label={`Mais de ${player.name}`}
-      title={title}
-      aria-expanded={open}
-      aria-controls={open ? panelId : undefined}
-      onClick={(event) => onToggle(event.detail === 0)}
-      onKeyDown={(event) => {
-        if (open) closeOnEscape(event, onClose)
-      }}
-    >
-      <span aria-hidden="true">…</span>
-    </button>
-  )
-}
-
-interface MorePanelProps extends PlayerAdminProps {
-  player: PlayerInfo
-  id: string
-  /** Outra ficha, ajudante e raio de visão. Quem aguarda já tem os três à vista no cartão: lá o "Mais" é só o resto. */
-  withSetup: boolean
-  /** Aberto pelo teclado: aparece sem animação. */
-  instant: boolean
-  /** "Mochila e bolsa" (`PartyBag`); ausente = sem a seção. */
-  bag?: ReactNode
-  /** "Dar o que o grupo viu" e o aviso dele, no alto de "Visão e mapa"; ausente = sem o botão. */
-  groupView?: ReactNode
-  onClose(): void
-}
-
-/** Uma seção do "…": título curto e divisória, como no menu de membro do Discord. */
-function MoreSection({ id, title, children }: { id: string; title: string; children: ReactNode }) {
-  const titleId = `${id}-titulo`
-  return (
-    <div className="lb-player__secao" role="group" aria-labelledby={titleId}>
-      <p id={titleId} className="lb-player__secao-titulo">
-        {title}
-      </p>
-      {children}
-    </div>
-  )
-}
-
-/**
- * O "…" guarda o que o mestre usa de vez em quando, em seções com título
- * (pedido 13; a referência é o menu de membro do Discord): "Mochila e bolsa",
- * "Visão e mapa" e "Ficha". Expulsar vem por último e separado, porque derruba
- * alguém. Um aberto por vez, então a dica da planta aparece uma vez só.
- */
-function MorePanel({ player, id, withSetup, instant, bag, groupView, onClose, ...admin }: MorePanelProps) {
-  const hintId = `${id}-dica`
-  const clientId = player.clientId
-  // Sem ficha livre para dar e sem ajudante, a seção seria só um título.
-  const fichaVisivel = withSetup && (assignListTokens(admin.tokens, player, admin.owners).length > 0 || admin.onLend !== undefined)
-  return (
-    <div
-      id={id}
-      className="lb-player__panel"
-      role="group"
-      aria-label={`Mais de ${player.name}`}
-      data-instant={instant ? '' : undefined}
-      onKeyDown={(event) => closeOnEscape(event, onClose)}
-    >
-      {bag !== undefined && (
-        <MoreSection id={`${id}-bolsa`} title="Mochila e bolsa">
-          {bag}
-        </MoreSection>
-      )}
-      <MoreSection id={`${id}-visao`} title="Visão e mapa">
-        {groupView}
-        {withSetup && <VisionFields player={player} onVisionRadiusChange={admin.onVisionRadiusChange} onVisionFactorChange={admin.onVisionFactorChange} />}
-        <div className="lb-player__plan">
-          <button type="button" className="lb-btn lb-btn--compact" aria-describedby={hintId} onClick={() => admin.onRevealPlan(player.playerId)}>
-            Revelar planta
-          </button>
-          <button type="button" className="lb-btn lb-btn--compact" onClick={() => admin.onHidePlan(player.playerId)}>
-            Esconder de novo
-          </button>
-        </div>
-        <p id={hintId} className="lb-field__hint">
-          {PLAN_HINT}
-        </p>
-        {admin.onShareMap !== undefined && <ShareMapControls player={player} players={admin.roster} onShareMap={admin.onShareMap} />}
-        {admin.onGiveMap !== undefined && admin.giftScenes !== undefined && admin.giftScenes.length > 0 && (
-          <GiveMapControls player={player} scenes={admin.giftScenes} onGiveMap={admin.onGiveMap} />
-        )}
-      </MoreSection>
-      {fichaVisivel && (
-        <MoreSection id={`${id}-ficha`} title="Ficha">
-          <AssignControls player={player} tokens={admin.tokens} owners={admin.owners} onAssign={admin.onAssign} />
-          {admin.onLend !== undefined && <HelperLoanControls player={player} tokens={admin.tokens} owners={admin.owners} onLend={admin.onLend} />}
-        </MoreSection>
-      )}
-      {/* Desconectado não tem Expulsar: não há conexão para derrubar. */}
-      {clientId !== null && (
-        <div className="lb-player__perigo">
-          <button type="button" className="lb-btn lb-btn--danger lb-btn--compact lb-player__kick" onClick={() => admin.onKick(clientId)}>
-            Expulsar
-          </button>
-        </div>
-      )}
-    </div>
-  )
-}
-
-interface PlayerCardProps extends PlayerAdminProps {
-  player: PlayerInfo
-  moreOpen: boolean
-  /** O "…" aberto agora veio do teclado: aparece sem animação. */
-  moreInstant: boolean
-  onToggleMore(instant: boolean): void
-  onCloseMore(): void
-}
-
-/** Estado do "…" de um cartão: fechar pelo Esc devolve o foco ao botão que abriu. */
-function useMore(player: PlayerInfo, onCloseMore: () => void) {
-  const buttonRef = useRef<HTMLButtonElement>(null)
-  const panelId = `lb-room-more-${player.playerId}`
-  const close = () => {
-    onCloseMore()
-    buttonRef.current?.focus()
-  }
-  return { buttonRef, panelId, close }
-}
-
-/**
- * Quem espera personagem: no topo do Grupo e aberto — atribuir em um clique,
- * a lista e o raio de visão à vista (o mestre acerta a lanterna antes de dar
- * a ficha). Planta e Expulsar ficam no "Mais".
- */
-function WaitingCard({ player, moreOpen, moreInstant, onToggleMore, onCloseMore, ...admin }: PlayerCardProps) {
-  const more = useMore(player, onCloseMore)
-  return (
-    <div className="lb-field lb-player lb-player--waiting">
-      <div className="lb-player__line">
-        <span className="lb-party__dot" aria-hidden="true" />
-        <PlayerName player={player} />
-        <span className="lb-player__status" aria-hidden="true">
-          aguardando
-        </span>{' '}
-        <MoreToggle
-          player={player}
-          open={moreOpen}
-          panelId={more.panelId}
-          title="Planta e Expulsar"
-          buttonRef={more.buttonRef}
-          onToggle={onToggleMore}
-          onClose={more.close}
-        />
-      </div>
-      <TokenChips player={player} tokens={admin.tokens} onUnassign={admin.onUnassign} />
-      <AssignControls player={player} tokens={admin.tokens} owners={admin.owners} onAssign={admin.onAssign} />
-      {admin.onLend !== undefined && <HelperLoanControls player={player} tokens={admin.tokens} owners={admin.owners} onLend={admin.onLend} quiet />}
-      <VisionFields player={player} onVisionRadiusChange={admin.onVisionRadiusChange} onVisionFactorChange={admin.onVisionFactorChange} />
-      {moreOpen && <MorePanel {...admin} player={player} id={more.panelId} withSetup={false} instant={moreInstant} onClose={more.close} />}
-    </div>
-  )
-}
-
-interface PlayerRowProps extends PlayerCardProps {
-  /** A linha do Grupo deste jogador; ausente sem o `party` (painel montado sem aventura nem câmera). */
-  member: PartyMember | undefined
-  party: PartySectionProps | undefined
-  sendOpen: boolean
-  sendFormId: string
-  onToggleSend(opener: HTMLElement): void
-  /** "Recado" aberto nesta linha: o campo mora dentro dela. */
-  noteOpen: boolean
-  noteFormId: string
-  onToggleNote(opener: HTMLElement): void
-  onSendNote(text: string): void
-  onCancelNote(): void
-  /** O aviso do último recado a este jogador; `null` = nenhum. */
-  noteFeedback: string | null
-  /** "Dar o que o grupo viu" já ligado a ESTE jogador. Ausente = sem o botão. */
-  onGiveGroupView?(): void
-  /** O aviso do último "Dar o que o grupo viu" a este jogador; `null` = nenhum. */
-  groupViewFeedback: string | null
-  /** Relógio do "fora há…" (`useOfflineClock`). */
-  now: number
-  /** A mesa inteira: "Emprestar ficha a" oferece quem está conectado. */
-  players: PlayerInfo[]
-}
-
-/**
- * Uma linha por jogador em jogo, lida de cima para baixo: bolinha na cor da
- * ficha, nome e cena; as fichas, cada uma num chip com o "×" de tirar; bolsa e
- * mochila numa frase; as ações de toda cena ("Acompanhar", depois "Mandar
- * para…" e "Recado") e o "…". O resto (mochila e bolsa, visão e mapa, outra
- * ficha, Expulsar) mora no "…" (pedido 13).
- */
-function PlayerRow({
-  player,
-  member,
-  party,
-  sendOpen,
-  sendFormId,
-  onToggleSend,
-  noteOpen,
-  noteFormId,
-  onToggleNote,
-  onSendNote,
-  onCancelNote,
-  noteFeedback,
-  onGiveGroupView,
-  groupViewFeedback,
-  now,
-  players,
-  moreOpen,
-  moreInstant,
-  onToggleMore,
-  onCloseMore,
-  ...admin
-}: PlayerRowProps) {
-  const more = useMore(player, onCloseMore)
-  const token = member?.token ?? null
-  const where = member?.sceneName ?? null
-  const bag = member !== undefined && party !== undefined && partyBagVisible(member, party) ? <PartyBag member={member} party={party} /> : undefined
-  // Só quem joga tem cena: quem aguarda não tem onde receber o que o grupo viu.
-  const groupView =
-    onGiveGroupView !== undefined && player.status === 'playing' ? (
-      <>
-        <button type="button" className="lb-btn lb-btn--compact" onClick={onGiveGroupView}>
-          {GROUP_VIEW_LABEL}
-        </button>
-        {groupViewFeedback !== null && (
-          <p className="lb-player__note" role="status">
-            {groupViewFeedback}
-          </p>
-        )}
-      </>
-    ) : undefined
-  const presence = partyPresenceLabel(presenceOf(player), now)
-  // A presença só aparece na exceção ("fora"): em 212 px, "online" em seis linhas
-  // cortaria a cena, que é o que o mestre procura aqui. "online" fica para o leitor.
-  const presenceView = player.connected ? (
-    <span className="lb-sr-only">{`${presence} `}</span>
-  ) : (
-    <span className="lb-player__away" aria-hidden="true">
-      {where === null ? presence : `${presence} · `}
-    </span>
-  )
-  return (
-    <li className={player.connected ? 'lb-party__item' : 'lb-party__item lb-party__item--away'}>
-      <div className="lb-field lb-player">
-        <div className="lb-player__line">
-          {/* Sem ficha, sem cor: a bolinha vazia diz "não está no mapa". */}
-          <span className="lb-party__dot" aria-hidden="true" style={token === null ? undefined : { background: token.color }} />
-          <PlayerName player={player} />
-          <span className="lb-player__meta" title={where ?? undefined}>
-            {presenceView}
-            {where}
-          </span>{' '}
-          {/* CONGELAR FICHA: o mestre não guarda de cabeça quem ele segurou. */}
-          {member?.congelado === true && <span className="lb-player__congelado">{CONGELADO_TAG}</span>}
-        </div>
-        <TokenChips player={player} tokens={admin.tokens} onUnassign={admin.onUnassign} />
-        {member !== undefined && <PartyStatus member={member} />}
-        {member !== undefined && <PartyDestinationMark member={member} onViewDestination={party?.onViewDestination} />}
-        {member !== undefined && <PartyAwayTokens member={member} onBring={party?.onBring} />}
-        <div className="lb-player__line lb-player__line--acoes">
-          {member !== undefined && party !== undefined && (
-            <PartyActions
-              member={member}
-              party={party}
-              sendOpen={sendOpen}
-              sendFormId={sendFormId}
-              onToggleSend={onToggleSend}
-              noteOpen={noteOpen}
-              noteFormId={noteFormId}
-              onToggleNote={onToggleNote}
-            />
-          )}
-          <MoreToggle
-            player={player}
-            open={moreOpen}
-            panelId={more.panelId}
-            title="Mochila, bolsa, visão, mapa, outra ficha e Expulsar"
-            buttonRef={more.buttonRef}
-            onToggle={onToggleMore}
-            onClose={more.close}
-          />
-        </div>
-        {member !== undefined && party?.onNote !== undefined && noteOpen && (
-          <PartyNoteForm member={member} formId={noteFormId} onSend={onSendNote} onCancel={onCancelNote} />
-        )}
-        {noteFeedback !== null && (
-          <p className="lb-party__recado-aviso" role="status">
-            {noteFeedback}
-          </p>
-        )}
-        {player.borrowedFrom !== undefined && <p className="lb-player__note">Jogando também a ficha de {player.borrowedFrom.join(', ')}.</p>}
-        {/* ENCONTRO MARCADO: o mestre não guarda de cabeça quem espera quem, onde e até quando. */}
-        {player.waiting !== undefined && <p className="lb-player__note">{textoDaEsperaParaOMestre(player.waiting)}</p>}
-        <AwayControls
-          player={player}
-          players={players}
-          onStoreTokens={admin.onStoreTokens}
-          onDismiss={admin.onDismiss}
-          onHandOver={admin.onHandOver}
-          onLendTokens={admin.onLendTokens}
-          onEndLoans={admin.onEndLoans}
-        />
-        {moreOpen && <MorePanel {...admin} player={player} id={more.panelId} withSetup instant={moreInstant} bag={bag} groupView={groupView} onClose={more.close} />}
-      </div>
-    </li>
-  )
-}
-
-interface GroupRosterProps extends Omit<PlayerAdminProps, 'owners' | 'roster'> {
-  players: PlayerInfo[]
-  party: PartySectionProps | undefined
-  /**
-   * "Dar o que o grupo viu": o jogador ganha o que os colegas viram na cena
-   * onde ele está. Devolve quantos colegas (0 = ninguém mais explorou), ou
-   * `null` se não deu. Ausente = o card fica sem o botão.
-   */
-  onGiveGroupView?(playerId: string): number | null
-}
-
-/** Aviso do último "Dar o que o grupo viu", com o mesmo formato do recado (`useNoteFeedback`). */
-function useGroupViewFeedback() {
-  const [feedback, setFeedback] = useState<{ playerId: string; text: string } | null>(null)
-  useEffect(() => {
-    if (feedback === null) return
-    const timer = setTimeout(() => setFeedback(null), GROUP_VIEW_FEEDBACK_MS)
-    return () => clearTimeout(timer)
-  }, [feedback])
-  return { feedback, show: (playerId: string, text: string) => setFeedback({ playerId, text }) }
-}
-
-/** O porquê dos dois botões do Grupo, no `title` (a frase do "Congelado" da ficha). */
-const CONGELAR_A_MESA_TITLE = 'Os jogadores não movem as próprias fichas; você continua movendo.'
-
-/**
- * CONGELAR FICHA — os dois gestos de mesa no alto do Grupo: "Congelar todos"
- * enquanto alguma ficha de jogador está solta, "Descongelar todos" enquanto
- * alguma está congelada (os dois, quando só uma parte está). Ações de uma
- * vez, não interruptor: o estado de cada um mora na marca da linha.
- */
-function CongelarAMesa({ todas, alguma, onChange }: NonNullable<PartySectionProps['congelar']>) {
-  return (
-    <div className="lb-party__congelar">
-      {!todas && (
-        <button type="button" className="lb-btn lb-btn--compact" title={CONGELAR_A_MESA_TITLE} onClick={() => onChange(true)}>
-          {CONGELAR_TODOS_LABEL}
-        </button>
-      )}
-      {alguma && (
-        <button type="button" className="lb-btn lb-btn--compact" onClick={() => onChange(false)}>
-          {DESCONGELAR_TODOS_LABEL}
-        </button>
-      )}
-    </div>
-  )
-}
-
-/**
- * O Grupo: UMA lista com a mesa inteira, uma linha por jogador. Antes eram
- * duas (Grupo e Jogadores) com as mesmas pessoas, e cada card de Jogadores
- * empilhava atribuir, lista, raio, planta, dica e Expulsar: com 7 jogadores,
- * ~50 controles e o Grupo com 4 linhas à vista. Quem espera personagem vem
- * primeiro, aberto; o resto na ordem de chegada.
- */
-function GroupRoster({ players, party, onGiveGroupView, ...rest }: GroupRosterProps) {
-  const headingId = useId()
-  const sendFormId = useId()
-  const noteFormId = useId()
-  const [moreId, setMoreId] = useState<string | null>(null)
-  const [moreInstant, setMoreInstant] = useState(false)
-  const send = usePartySend()
-  const note = useNoteFeedback()
-  const groupView = useGroupViewFeedback()
-  const now = useOfflineClock(players.some((player) => !player.connected && player.disconnectedAt !== undefined))
-  const admin: PlayerAdminProps = { ...rest, owners: tokenOwners(players), roster: players }
-  const members = new Map((party?.members ?? []).map((member) => [member.playerId, member]))
-  const waiting = players.filter(waitingNow)
-  const inPlay = players.filter((player) => !waitingNow(player))
-  const sending = send.sendingId === null ? undefined : members.get(send.sendingId)
-  const cardProps = (player: PlayerInfo): PlayerCardProps => ({
-    ...admin,
-    player,
-    moreOpen: moreId === player.playerId,
-    moreInstant,
-    onToggleMore: (instant) => {
-      setMoreInstant(instant)
-      setMoreId((current) => (current === player.playerId ? null : player.playerId))
-    },
-    onCloseMore: () => setMoreId(null),
-  })
-
-  return (
-    <section className="lb-party" aria-labelledby={headingId}>
-      <div className="lb-party__head">
-        <h3 id={headingId} className="lb-eyebrow">
-          Grupo
-        </h3>
-        {players.length > 0 && (
-          <span className={waiting.length > 0 ? 'lb-party__count lb-party__count--waiting' : 'lb-party__count'}>{groupCountLabel(players.length, waiting.length)}</span>
-        )}
-      </div>
-      {players.length > 0 && party?.congelar !== undefined && <CongelarAMesa {...party.congelar} />}
-      {players.length === 0 && <p className="lb-player__note">{EMPTY_GROUP_HINT}</p>}
-      {waiting.map((player) => (
-        <WaitingCard key={player.playerId} {...cardProps(player)} />
-      ))}
-      {inPlay.length > 0 && (
-        <ul className="lb-party__list">
-          {inPlay.map((player) => (
-            <PlayerRow
-              key={player.playerId}
-              {...cardProps(player)}
-              member={members.get(player.playerId)}
-              party={party}
-              sendOpen={send.sendingId === player.playerId}
-              sendFormId={sendFormId}
-              onToggleSend={(opener) => send.toggle(player.playerId, opener)}
-              noteOpen={send.notingId === player.playerId}
-              noteFormId={noteFormId}
-              onToggleNote={(opener) => {
-                note.clear()
-                send.toggle(player.playerId, opener, 'note')
-              }}
-              onSendNote={(text) => {
-                const delivery = party?.onNote?.(player.playerId, text) ?? null
-                note.show(player.playerId, playerNoteFeedbackText(player.name, delivery))
-                send.close()
-              }}
-              onCancelNote={send.close}
-              noteFeedback={note.feedback?.playerId === player.playerId ? note.feedback.text : null}
-              onGiveGroupView={
-                onGiveGroupView === undefined
-                  ? undefined
-                  : () => groupView.show(player.playerId, groupViewFeedbackText(player.name, onGiveGroupView(player.playerId) ?? null))
-              }
-              groupViewFeedback={groupView.feedback?.playerId === player.playerId ? groupView.feedback.text : null}
-              now={now}
-              players={players}
-            />
-          ))}
-        </ul>
-      )}
-      {sending !== undefined && sending.token !== null && party !== undefined && <PartySendForm member={sending} party={party} formId={sendFormId} onClose={send.close} />}
-    </section>
   )
 }
 
@@ -1867,6 +1368,13 @@ export function RoomPanel({
   secretCheck,
   noise,
   flags = FEATURES,
+  cenaAberta = null,
+  ordemDasCenas,
+  mapName,
+  onIrACena,
+  onCongelarCena,
+  pausedScenes,
+  onPausarCena,
 }: RoomPanelProps) {
   const inviteId = useId()
   // Escondidos da aba Jogo por pedido do usuário (`lib/features.ts`): o resto do app segue igual.
@@ -1912,7 +1420,14 @@ export function RoomPanel({
       {noise !== undefined && <NoiseControl {...noise} />}
 
       {/* O Grupo logo abaixo: é o que o mestre consulta a cada cena. Convite e Fechar sala são de montar e desmontar a mesa. */}
-      <GroupRoster
+      <GrupoCompacto
+        cenaAberta={cenaAberta}
+        ordemDasCenas={ordemDasCenas}
+        mapName={mapName}
+        onIrACena={onIrACena}
+        onCongelarCena={onCongelarCena}
+        pausedScenes={pausedScenes}
+        onPausarCena={onPausarCena}
         players={players}
         party={party}
         tokens={tokens}

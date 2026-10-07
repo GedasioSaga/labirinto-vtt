@@ -8,6 +8,7 @@ import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { TunnelState } from '../net/hostBridge'
 import type { PlayerInfo } from '../net/hostSession'
+import { abrirFicha } from './grupoTeste'
 import { RoomPanel, SHARE_MAP_HINT } from './RoomPanel'
 
 function jogador(overrides: Partial<PlayerInfo>): PlayerInfo {
@@ -78,13 +79,13 @@ describe('RoomPanel: passar o mapa de um jogador a outro', () => {
   }
 
   /**
-   * ABA JOGO COMPACTA: o "Passar o mapa" mora no "Mais" (…) do card, fechado
-   * por padrão; um aberto por vez. Abre o do jogador antes de procurar a lista.
+   * GRUPO COMPACTO: o "Passar o mapa" mora na aba Visão da ficha, fechada por
+   * padrão; uma aberta por vez. Abre a do jogador antes de procurar a lista.
+   * Quem aguarda personagem já vem aberto em "Chegando", sem ficha para abrir.
    */
   function abrirMais(nome: string): void {
-    const mais = card(nome).querySelector<HTMLButtonElement>(`button[aria-label="Mais de ${nome}"]`)
-    if (mais === null) throw new Error(`sem o "Mais" de ${nome}`)
-    if (mais.getAttribute('aria-expanded') !== 'true') act(() => mais.click())
+    if (card(nome).closest('li') === null) return
+    abrirFicha(container, nome, 'visao')
   }
 
   function listaDePassar(nome: string): HTMLSelectElement | null {

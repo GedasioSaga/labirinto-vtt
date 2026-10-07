@@ -11,6 +11,7 @@ import { createEmptyMap } from '../lib/mapFactory'
 import { awayTokenLabel, partyMembers } from '../lib/party'
 import type { HostWorld, PlayerInfo } from '../net/hostSession'
 import type { Token } from '../types/map'
+import { abrirFicha, linhaDoJogador } from './grupoTeste'
 import { BRING_FAILED } from './PartySection'
 import { RoomPanel, roomPanelTokensOf } from './RoomPanel'
 
@@ -101,11 +102,14 @@ describe('Grupo (RoomPanel): "Trazer"', () => {
   it('a linha de Bruno avisa a Faísca, e "Trazer" pede a Faísca DELE', () => {
     const onBring = vi.fn(() => true)
     render(onBring)
-    const linhaBruno = [...container.querySelectorAll('li')].find((li) => li.textContent?.includes('Bruno') === true)
-    expect(linhaBruno?.textContent).toContain('Faísca ficou em outra cena')
-    expect(linhaBruno?.textContent).toContain('Uma ficha ficou em outra cena')
-    const linhaAna = [...container.querySelectorAll('li')].find((li) => li.textContent?.startsWith('Ana') === true)
-    expect(linhaAna?.textContent).not.toContain('ficou em outra cena')
+    // Fechada, a linha leva o selo; o aviso com "Trazer" mora no alto da ficha.
+    expect(linhaDoJogador(container, 'Bruno').textContent).toContain('ficha longe')
+    expect(linhaDoJogador(container, 'Ana').textContent).not.toContain('ficha longe')
+    const fichaBruno = abrirFicha(container, 'Bruno')
+    expect(fichaBruno.textContent).toContain('Faísca ficou em outra cena')
+    expect(fichaBruno.textContent).toContain('Uma ficha ficou em outra cena')
+    expect(abrirFicha(container, 'Ana').textContent).not.toContain('ficou em outra cena')
+    abrirFicha(container, 'Bruno')
     const botao = trazer('Faísca')
     expect(botao.textContent).toBe('Trazer')
     act(() => botao.click())
@@ -115,6 +119,7 @@ describe('Grupo (RoomPanel): "Trazer"', () => {
 
   it('"Trazer" que não deu avisa na linha', () => {
     render(vi.fn(() => false))
+    abrirFicha(container, 'Bruno')
     act(() => trazer('Faísca').click())
     expect(container.querySelector('[role="alert"]')?.textContent).toBe(BRING_FAILED)
   })

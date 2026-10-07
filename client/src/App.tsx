@@ -1089,6 +1089,18 @@ function App() {
           onAsk: (label, playerIds) => hostBridgeRef.current?.secretCheck(label, playerIds) ?? null,
           onClose: (checkId) => hostBridgeRef.current?.closeSecretCheck(checkId),
         }}
+        // GRUPO POR CENA: a cena aberta primeiro, depois a ordem da lista Cenas; no mapa solto, um grupo com o nome do mapa.
+        cenaAberta={adventure === null ? null : activeSceneId}
+        ordemDasCenas={adventure === null ? [] : scenesPanel.map((scene) => ({ id: scene.id, name: scene.name }))}
+        mapName={map.name}
+        onIrACena={handleSelectScene}
+        // Congelar a cena: mudança de MESA, como o "Congelar todos" (fora do Ctrl+Z).
+        onCongelarCena={(tokenIds, congelar) => {
+          useAdventureStore.getState().congelarFichas(new Set(tokenIds), congelar)
+          hostBridgeRef.current?.notifyMapChanged()
+        }}
+        pausedScenes={pausedScenes}
+        onPausarCena={room === null ? undefined : handleToggleScenePause}
         tunnel={tunnel}
         savedTableNames={savedTableNames()}
         onStart={(resume) => void handleStartRoom(resume)}
@@ -2102,6 +2114,17 @@ function App() {
   const handleSelectScene = (sceneId: string) => {
     useFollowStore.getState().stop()
     useAdventureStore.getState().switchScene(sceneId)
+  }
+
+  /** Pausa por cena (lista Cenas e título do grupo no Grupo). O botão só muda depois que a sessão aceitou: o estado que o jogador vê é o dela. */
+  const handleToggleScenePause = (sceneId: string, pause: boolean) => {
+    if (hostBridgeRef.current?.setScenePaused(sceneId, pause) !== true) return
+    setPausedScenes((current) => {
+      const next = new Set(current)
+      if (pause) next.add(sceneId)
+      else next.delete(sceneId)
+      return next
+    })
   }
 
   /** "+ Nova cena": a aventura nasce aqui quando o mapa ainda era solto. */
@@ -3677,20 +3700,7 @@ function App() {
             }
             // Pausa por cena também só com a sala aberta: sem sala não há grupo esperando.
             paused={pausedScenes}
-            onTogglePause={
-              room === null
-                ? undefined
-                : (sceneId, pause) => {
-                    // O botão só muda depois que a sessão aceitou: o estado que o jogador vê é o dela.
-                    if (hostBridgeRef.current?.setScenePaused(sceneId, pause) !== true) return
-                    setPausedScenes((current) => {
-                      const next = new Set(current)
-                      if (pause) next.add(sceneId)
-                      else next.delete(sceneId)
-                      return next
-                    })
-                  }
-            }
+            onTogglePause={room === null ? undefined : handleToggleScenePause}
             // Abalo por distância: mesma regra do recado, um envio para a aventura inteira.
             onQuake={room === null ? undefined : (origem, textos, vizinhas) => hostBridgeRef.current?.abalo(origem, textos, vizinhas) ?? null}
             // Corte da torre: clicar numa ficha é o mestre escolhendo a vista (como o "Ir lá" do Grupo), então desliga o seguir.

@@ -72,11 +72,10 @@ describe('linhas de botões do painel: um vão e um alvo mínimo só', () => {
 
   it('cartão do jogador: as ações quebram de linha com o vão do token em vez de vazar', async () => {
     const css = await lerCss('../main.css')
-    const acoes = regra(css, '.lb-player__actions')
+    // A barra de ações da ficha aberta (Grupo compacto).
+    const acoes = regra(css, '.lb-grupo__acoes')
     expect(acoes.get('flex-wrap')).toBe('wrap')
     expect(acoes.get('gap')).toBe(VAO)
-    // O respiro de 6 px solto que espremia as ações numa linha só sai.
-    expect(regra(css, '.lb-player__actions > .lb-btn').get('padding')).toBeUndefined()
     expect(regra(css, '.lb-player__line--acoes').get('gap')).toBe(VAO)
     expect(regra(css, '.lb-player__quick').get('gap')).toBe(VAO)
     const fichas = regra(css, '.lb-player__tokens')

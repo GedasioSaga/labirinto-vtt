@@ -1,13 +1,14 @@
 /**
- * "Dar o que o grupo viu" no "…" do card do jogador (seção "Visão e mapa",
- * pedido 13): só para quem está jogando (tem cena), e o mestre lê o resultado
- * na hora — quantos colegas, ou que ninguém mais explorou a cena.
+ * "Dar o que o grupo viu" na aba Visão da ficha do jogador (pedido 13): só
+ * para quem está jogando (tem cena), e o mestre lê o resultado na hora —
+ * quantos colegas, ou que ninguém mais explorou a cena.
  */
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { TunnelState } from '../net/hostBridge'
 import type { PlayerInfo } from '../net/hostSession'
+import { abrirFicha, cartaoDoJogador } from './grupoTeste'
 import { GROUP_VIEW_LABEL, RoomPanel, groupViewFeedbackText } from './RoomPanel'
 
 const noop = vi.fn()
@@ -39,23 +40,20 @@ describe('RoomPanel: Dar o que o grupo viu', () => {
     return Array.from(container.querySelectorAll('button')).filter((b) => b.textContent === GROUP_VIEW_LABEL)
   }
 
-  /** Abre o "…" do card, onde o botão mora. */
+  /** Abre a ficha na aba Visão, onde o botão mora. */
   function abrirMais(nome: string): void {
-    const mais = container.querySelector<HTMLButtonElement>(`button[aria-label="Mais de ${nome}"]`)
-    if (mais === null) throw new Error(`o card de ${nome} não tem "…"`)
-    act(() => mais.click())
+    abrirFicha(container, nome, 'visao')
   }
 
   it('aparece só para quem joga; o clique chama com o id e o aviso diz quantos colegas', () => {
     const onGiveGroupView = vi.fn((): number | null => 3)
     const jogadores = [player({}), player({ clientId: 'c2', playerId: 'p2', name: 'Caio', status: 'waiting', tokenIds: [] })]
     act(() => root.render(<RoomPanel room={ROOM} players={jogadores} tokens={[]} tunnel={IDLE} {...handlers} onGiveGroupView={onGiveGroupView} />))
+    // Caio espera personagem: o cartão dele, aberto em "Chegando", não tem cena onde receber.
+    expect(botoes()).toHaveLength(0)
+    expect(cartaoDoJogador(container, 'Caio').textContent).not.toContain(GROUP_VIEW_LABEL)
     abrirMais('Duda')
     expect(botoes()).toHaveLength(1)
-    // Caio espera personagem: nem com o "…" dele aberto há cena onde receber.
-    abrirMais('Caio')
-    expect(botoes()).toHaveLength(0)
-    abrirMais('Duda')
     act(() => botoes()[0]?.click())
     expect(onGiveGroupView).toHaveBeenCalledWith('p1')
     expect(container.querySelector('[role="status"]')?.textContent).toBe('Duda recebeu o que 3 colegas viram')

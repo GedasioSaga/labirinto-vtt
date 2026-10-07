@@ -5,12 +5,13 @@ import { ITEM_NAME_MAX_LENGTH } from '../lib/items'
 import type { PartyItemAction, PartyMember } from '../lib/party'
 import type { TunnelState } from '../net/hostBridge'
 import type { PlayerInfo } from '../net/hostSession'
+import { abrirFicha } from './grupoTeste'
 import { PARTY_ITEM_FAILED } from './PartySection'
 import { RoomPanel } from './RoomPanel'
 
 /**
- * ITEM PEGÁVEL no Grupo: o mestre vê a mochila de cada jogador na linha dele
- * e, no "…" da linha (seção "Mochila e bolsa", pedido 13), TIRA um item,
+ * ITEM PEGÁVEL no Grupo: o mestre vê a mochila de cada jogador na aba Mochila
+ * da ficha dele (pedido 13) e ali TIRA um item,
  * DEVOLVE ao chão ou DÁ um item novo. O Grupo é a lista única da aba Jogo
  * (RoomPanel): é por ela que o mestre chega à linha.
  */
@@ -64,16 +65,14 @@ describe('Grupo: ações de mochila do mestre', () => {
     container.remove()
   })
 
-  /** Monta o Grupo e abre o "…" da linha do primeiro jogador, onde mora a mochila. */
+  /** Monta o Grupo e abre a ficha do primeiro jogador na aba Mochila, onde ela mora. */
   function render(onItem?: (action: PartyItemAction) => boolean, members: PartyMember[] = [DIEGO]): void {
     const party = { members, destinations: [], onGoTo: noop, onSend: () => true, onItem }
     const tokens = members.flatMap((member) => (member.token === null ? [] : [{ id: member.token.id, name: member.name }]))
     act(() =>
       root.render(<RoomPanel room={{ code: 'MOCHI1', urls: [], qrSvg: '<svg/>' }} players={members.map(jogadorDe)} tokens={tokens} party={party} tunnel={IDLE} {...handlers} />),
     )
-    const mais = botao(`Mais de ${members[0]?.name ?? ''}`)
-    if (mais === undefined) throw new Error('a linha não tem "…"')
-    act(() => mais.click())
+    abrirFicha(container, members[0]?.name ?? '', 'mochila')
   }
 
   function botao(nome: string): HTMLButtonElement | undefined {

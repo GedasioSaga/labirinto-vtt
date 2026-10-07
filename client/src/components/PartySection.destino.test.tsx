@@ -5,6 +5,7 @@ import { createEmptyMap } from '../lib/mapFactory'
 import { masterDestinationMarks, partyMembers } from '../lib/party'
 import type { HostWorld, PlayerInfo } from '../net/hostSession'
 import type { MapData, Token } from '../types/map'
+import { abrirFicha } from './grupoTeste'
 import { DESTINATION_MARKED_LABEL, VIEW_DESTINATION_LABEL } from './PartySection'
 import { RoomPanel, roomPanelTokensOf } from './RoomPanel'
 
@@ -93,10 +94,11 @@ describe('PartySection: destino marcado', () => {
     })
     const linhas = [...container.querySelectorAll('li.lb-party__item')]
     expect(linhas).toHaveLength(3)
-    const [elisa, caio] = linhas
-    expect(elisa?.textContent).toContain(DESTINATION_MARKED_LABEL)
-    expect(caio?.textContent).not.toContain(DESTINATION_MARKED_LABEL)
-    const ver = [...(elisa?.querySelectorAll('button') ?? [])].find((b) => b.textContent === VIEW_DESTINATION_LABEL)
+    // A marca mora no alto da ficha aberta de quem marcou.
+    expect(abrirFicha(container, 'Caio').textContent).not.toContain(DESTINATION_MARKED_LABEL)
+    const elisa = abrirFicha(container, 'Elisa')
+    expect(elisa.textContent).toContain(DESTINATION_MARKED_LABEL)
+    const ver = [...elisa.querySelectorAll('button')].find((b) => b.textContent === VIEW_DESTINATION_LABEL)
     expect(ver).toBeDefined()
     expect(ver?.getAttribute('aria-label')).toBe('Ver o destino marcado por Elisa')
     act(() => ver?.click())

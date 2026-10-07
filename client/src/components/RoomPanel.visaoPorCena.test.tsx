@@ -10,6 +10,7 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { TunnelState } from '../net/hostBridge'
 import type { PlayerInfo } from '../net/hostSession'
+import { abrirFicha } from './grupoTeste'
 import { RoomPanel } from './RoomPanel'
 
 const noop = vi.fn()
@@ -29,9 +30,9 @@ function html(p: PlayerInfo): string {
 }
 
 /**
- * ABA JOGO COMPACTA: no card de quem JOGA, raio e fator moram no "Mais" (…),
- * fechado por padrão. Monta o painel de verdade, abre o "Mais de Eva" e
- * devolve o card aberto (o `container` é removido pelo chamador via `fechar`).
+ * GRUPO COMPACTO: no card de quem JOGA, raio e fator moram na aba Visão da
+ * ficha, fechada por padrão. Monta o painel de verdade, abre a ficha de Eva
+ * nessa aba e devolve o painel (o `container` é removido pelo chamador via `fechar`).
  */
 function comMaisAberto(p: PlayerInfo): { container: HTMLDivElement; fechar(): void } {
   Reflect.set(globalThis, 'IS_REACT_ACT_ENVIRONMENT', true)
@@ -39,9 +40,7 @@ function comMaisAberto(p: PlayerInfo): { container: HTMLDivElement; fechar(): vo
   document.body.appendChild(container)
   const root = createRoot(container)
   act(() => root.render(<RoomPanel room={ROOM} players={[p]} tokens={[]} tunnel={IDLE} {...handlers()} />))
-  const mais = container.querySelector<HTMLButtonElement>(`button[aria-label="Mais de ${p.name}"]`)
-  if (mais === null) throw new Error(`sem o "Mais" de ${p.name}`)
-  act(() => mais.click())
+  abrirFicha(container, p.name, 'visao')
   return {
     container,
     fechar: () => {
@@ -110,10 +109,8 @@ describe('RoomPanel — arrastar o fator', () => {
   it('manda o fator escolhido para aquele jogador', () => {
     const onVisionFactorChange = vi.fn()
     act(() => root.render(<RoomPanel room={ROOM} players={[player()]} tokens={[]} tunnel={IDLE} {...handlers(onVisionFactorChange)} />))
-    // ABA JOGO COMPACTA: o fator de quem joga mora no "Mais" (…), fechado por padrão.
-    const mais = container.querySelector<HTMLButtonElement>('button[aria-label="Mais de Eva"]')
-    if (mais === null) throw new Error('sem o "Mais" de Eva')
-    act(() => mais.click())
+    // GRUPO COMPACTO: o fator de quem joga mora na aba Visão da ficha, fechada por padrão.
+    abrirFicha(container, 'Eva', 'visao')
     const slider = container.querySelector<HTMLInputElement>('#lb-room-vision-factor-p1')
     if (slider === null) throw new Error('slider do fator ausente')
     const setValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set

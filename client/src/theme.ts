@@ -71,6 +71,9 @@ export const theme = {
 
     ember: '#e2645a',
     emberSoft: 'rgba(226, 100, 90, 0.14)',
+
+    /** Ponto de presença "online" no Grupo: verde-musgo apagado, para não competir com o latão dos pedidos. */
+    online: '#7fb48a',
   },
 
   font: {

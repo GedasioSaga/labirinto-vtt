@@ -1,8 +1,8 @@
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
-import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { PinControls } from '../components/PinControls'
+import { abrirFicha } from '../components/grupoTeste'
 import { RoomPanel, roomPanelTokensOf } from '../components/RoomPanel'
 import { createEmptyMap, buildPin } from '../lib/mapFactory'
 import { partyMembers } from '../lib/party'
@@ -153,7 +153,7 @@ describe('Grupo do mestre: a mochila de cada um', () => {
     const players = [jogador('p-diego', 'diego'), jogador('p-bruno', 'bruno')]
     const members = partyMembers(players, world)
     expect(members.map((m) => m.mochila.map((i) => i.nome))).toEqual([['Chave do Escudo'], []])
-    // O Grupo é a lista única da aba Jogo (RoomPanel): a mochila sai na linha do jogador.
+    // O Grupo é a lista única da aba Jogo (RoomPanel): a mochila sai na aba Mochila da ficha do jogador.
     const handlers = {
       onStart: vi.fn(),
       onStop: vi.fn(),
@@ -169,11 +169,21 @@ describe('Grupo do mestre: a mochila de cada um', () => {
       clues: { rows: [], onCenter: vi.fn(), onToggle: vi.fn() },
     }
     const party = { members, destinations: [], onGoTo: vi.fn(), onSend: () => true }
-    const html = renderToStaticMarkup(
-      <RoomPanel room={{ code: 'MOCHI2', urls: [], qrSvg: '<svg/>' }} players={players} tokens={roomPanelTokensOf(world)} party={party} tunnel={{ kind: 'idle' }} {...handlers} />,
-    )
-    expect(html).toContain('Mochila: 1')
-    expect(html).toContain('Chave do Escudo')
-    expect(html.match(/Mochila:/g)).toHaveLength(1)
+    Reflect.set(globalThis, 'IS_REACT_ACT_ENVIRONMENT', true)
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    const root = createRoot(container)
+    try {
+      act(() =>
+        root.render(<RoomPanel room={{ code: 'MOCHI2', urls: [], qrSvg: '<svg/>' }} players={players} tokens={roomPanelTokensOf(world)} party={party} tunnel={{ kind: 'idle' }} {...handlers} />),
+      )
+      const doDiego = abrirFicha(container, 'Diego', 'mochila').textContent ?? ''
+      expect(doDiego).toContain('Mochila: 1')
+      expect(doDiego).toContain('Chave do Escudo')
+      expect(abrirFicha(container, 'Bruno', 'mochila').textContent).not.toContain('Mochila:')
+    } finally {
+      act(() => root.unmount())
+      container.remove()
+    }
   })
 })

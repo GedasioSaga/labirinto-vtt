@@ -11,6 +11,7 @@ import { createEmptyMap } from '../lib/mapFactory'
 import type { TunnelState } from '../net/hostBridge'
 import { MAX_SCENE_MEMORIES_PER_PLAYER, type GiveMapOutcome, type HostWorld, type PlayerInfo } from '../net/hostSession'
 import type { Region } from '../types/map'
+import { abrirFicha } from './grupoTeste'
 import { giftScenesOf, RoomPanel, type GiftScene } from './RoomPanel'
 
 function jogador(overrides: Partial<PlayerInfo>): PlayerInfo {
@@ -130,10 +131,8 @@ describe('RoomPanel: dar um mapa de papel', () => {
         />,
       ),
     )
-    // ABA JOGO COMPACTA: o "Dar um mapa a…" mora no "Mais" (…) do card, fechado por padrão.
-    const mais = container.querySelector<HTMLButtonElement>('button[aria-label="Mais de Ana"]')
-    if (mais === null) throw new Error('sem o "Mais" de Ana')
-    act(() => mais.click())
+    // GRUPO COMPACTO: o "Dar um mapa a…" mora na aba Visão da ficha, fechada por padrão.
+    abrirFicha(container, 'Ana', 'visao')
   }
 
   function botao(texto: string): HTMLButtonElement {

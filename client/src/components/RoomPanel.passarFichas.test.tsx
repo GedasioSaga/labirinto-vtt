@@ -3,6 +3,7 @@ import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { TunnelState } from '../net/hostBridge'
 import type { PlayerInfo } from '../net/hostSession'
+import { abrirFicha } from './grupoTeste'
 import { RoomPanel } from './RoomPanel'
 
 /**
@@ -64,6 +65,11 @@ function render(players: PlayerInfo[], onHandOver: ((playerId: string, heirId: s
   })
 }
 
+/** O que se faz com quem saiu mora na aba Ficha da ficha dele: abre antes de procurar. */
+function abrirFichaDe(nome: string): void {
+  abrirFicha(container, nome, 'ficha')
+}
+
 function botao(label: string): HTMLButtonElement | undefined {
   return [...container.querySelectorAll('button')].find((b) => b.textContent === label)
 }
@@ -87,6 +93,7 @@ describe('RoomPanel: passar fichas e mapa de quem saiu', () => {
   it('escolher a Ana pergunta antes; "Passar e remover" chama o mestre com Fábio e Ana', () => {
     const onHandOver = vi.fn()
     render([ANA, FABIO_FORA], onHandOver)
+    abrirFichaDe('Fábio')
     const select = listaPassar()
     if (select === null) throw new Error('esperava a lista "Passar fichas e mapa a"')
     // Só os outros jogadores: o próprio Fábio não é opção.
@@ -106,6 +113,7 @@ describe('RoomPanel: passar fichas e mapa de quem saiu', () => {
   it('Cancelar e Esc desfazem a escolha sem chamar o mestre', () => {
     const onHandOver = vi.fn()
     render([ANA, FABIO_FORA], onHandOver)
+    abrirFichaDe('Fábio')
     const select = listaPassar()
     if (select === null) throw new Error('esperava a lista "Passar fichas e mapa a"')
     escolher(select, 'p-ana')
@@ -128,11 +136,14 @@ describe('RoomPanel: passar fichas e mapa de quem saiu', () => {
 
   it('sem outro jogador na mesa, ou sem o mestre ter como passar: sem a lista', () => {
     render([FABIO_FORA], vi.fn())
+    abrirFichaDe('Fábio')
     expect(listaPassar()).toBeNull()
     render([ANA, FABIO_FORA], undefined)
+    abrirFichaDe('Fábio')
     expect(listaPassar()).toBeNull()
     // Conectado não tem a lista: ele mesmo está jogando.
     render([ANA], vi.fn())
+    abrirFichaDe('Ana')
     expect(listaPassar()).toBeNull()
     expect(botao('Dispensar')).toBeUndefined()
   })

@@ -3,6 +3,7 @@ import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { TunnelState } from '../net/hostBridge'
 import type { PlayerInfo } from '../net/hostSession'
+import { abrirFicha } from './grupoTeste'
 import { RoomPanel, type RoomPanelProps } from './RoomPanel'
 
 /**
@@ -66,6 +67,11 @@ function render(players: PlayerInfo[], extra: Partial<RoomPanelProps>) {
   })
 }
 
+/** O que se faz com quem saiu mora na aba Ficha da ficha dele: abre antes de procurar. */
+function abrir(nome: string): void {
+  abrirFicha(container, nome, 'ficha')
+}
+
 function botao(label: string): HTMLButtonElement | undefined {
   return [...container.querySelectorAll('button')].find((b) => b.textContent === label)
 }
@@ -91,6 +97,7 @@ describe('RoomPanel: emprestar a ficha de quem saiu', () => {
   it('fora com ficha: a lista oferece só quem está conectado, e escolher empresta', () => {
     const onLendTokens = vi.fn()
     render([ANA_FORA, CARLA, BRUNO_FORA], { onLendTokens, onEndLoans: vi.fn() })
+    abrir('Ana')
     const lista = listaEmprestar('p-ana')
     if (lista === null) throw new Error('esperava "Emprestar ficha a" no card da Ana')
     const opcoes = [...lista.options].map((o) => o.textContent)
@@ -98,8 +105,10 @@ describe('RoomPanel: emprestar a ficha de quem saiu', () => {
     escolher(lista, 'p-carla')
     expect(onLendTokens).toHaveBeenCalledWith('p-ana', 'p-carla')
     // Quem está conectado não empresta nada: a ficha dele está em jogo com ele.
+    abrir('Carla')
     expect(listaEmprestar('p-carla')).toBeNull()
     // Fora e sem ficha: nada a emprestar.
+    abrir('Bruno')
     expect(listaEmprestar('p-bruno')).toBeNull()
   })
 
@@ -110,8 +119,10 @@ describe('RoomPanel: emprestar a ficha de quem saiu', () => {
       onEndLoans,
       onStoreTokens: vi.fn(),
     })
-    expect(container.textContent).toContain('Ficha emprestada a Carla. Volta sozinha quando Ana voltar.')
+    abrir('Carla')
     expect(container.textContent).toContain('Jogando também a ficha de Ana.')
+    abrir('Ana')
+    expect(container.textContent).toContain('Ficha emprestada a Carla. Volta sozinha quando Ana voltar.')
     expect(listaEmprestar('p-ana')).toBeNull()
     // Guardar tiraria do mapa a ficha que a Carla está jogando.
     expect(botao('Guardar ficha')).toBeUndefined()
@@ -123,12 +134,14 @@ describe('RoomPanel: emprestar a ficha de quem saiu', () => {
 
   it('ninguém conectado para receber: sem a lista', () => {
     render([ANA_FORA, BRUNO_FORA], { onLendTokens: vi.fn(), onEndLoans: vi.fn() })
+    abrir('Ana')
     expect(listaEmprestar('p-ana')).toBeNull()
     expect(container.textContent).not.toContain('Emprestar ficha a')
   })
 
   it('sem quem empreste (ponte sem o recurso): sem a lista', () => {
     render([ANA_FORA, CARLA], {})
+    abrir('Ana')
     expect(listaEmprestar('p-ana')).toBeNull()
     expect(botao('Guardar ficha')).toBeUndefined()
   })
@@ -141,6 +154,7 @@ describe('RoomPanel: emprestar a ficha de quem saiu', () => {
       onEndLoans: vi.fn(),
       onStoreTokens,
     })
+    abrir('Carla')
     const guardar = botao('Guardar ficha')
     if (guardar === undefined) throw new Error('esperava "Guardar ficha" no card da Carla (o Escudo é dela)')
     act(() => guardar.click())
@@ -151,6 +165,7 @@ describe('RoomPanel: emprestar a ficha de quem saiu', () => {
       onEndLoans: vi.fn(),
       onStoreTokens: vi.fn(),
     })
+    abrir('Carla')
     expect(botao('Guardar ficha')).toBeUndefined()
   })
 
@@ -163,6 +178,7 @@ describe('RoomPanel: emprestar a ficha de quem saiu', () => {
       onLendTokens,
       onEndLoans: vi.fn(),
     })
+    abrir('Carla')
     const lista = listaEmprestar('p-carla')
     if (lista === null) throw new Error('esperava "Emprestar ficha a" no card da Carla (o Escudo é dela)')
     expect([...lista.options].map((o) => o.textContent)).toEqual(['Escolher…', 'Bob'])
@@ -173,6 +189,7 @@ describe('RoomPanel: emprestar a ficha de quem saiu', () => {
       onLendTokens: vi.fn(),
       onEndLoans: vi.fn(),
     })
+    abrir('Carla')
     expect(listaEmprestar('p-carla')).toBeNull()
     expect(container.textContent).not.toContain('Emprestar ficha a')
   })

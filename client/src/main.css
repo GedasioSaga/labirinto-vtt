@@ -2111,8 +2111,8 @@ label.lb-switch[data-dica-linha='aberta'] > span:first-child::after,
 }
 
 /* Confirmação de tirar a ficha de outro jogador: dentro do card, com a borda
-   da cor de perigo para não passar por dica. Desce da linha que a pediu, como
-   o "Mais" do jogador (lb-mais-abre, abaixo): a pergunta não surge do nada. */
+   da cor de perigo para não passar por dica. Desce da linha que a pediu
+   (lb-mais-abre, abaixo): a pergunta não surge do nada. */
 .lb-room__confirm {
   display: flex;
   flex-direction: column;
@@ -2274,12 +2274,578 @@ label.lb-switch[data-dica-linha='aberta'] > span:first-child::after,
   color: var(--lb-color-brass);
 }
 
-/* CONGELAR FICHA: os dois gestos de mesa numa linha logo abaixo do título,
-   antes das pessoas; quebram de linha no rail estreito em vez de cortar. */
-.lb-party__congelar {
+/* GRUPO COMPACTO — o topo: a busca ocupa a sobra; "Pedindo N" e os flocos
+   (congelar a mesa) do lado, na altura de um botão compacto. */
+.lb-grupo__topo {
+  display: flex;
+  align-items: center;
+  gap: var(--lb-space-1);
+  min-width: 0;
+}
+
+.lb-grupo__busca {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 28px;
+  padding: 0 var(--lb-space-2);
+  font-size: var(--lb-font-size-sm);
+}
+
+/* O filtro é um chip: ligado, ganha o latão do pedido que ele mostra. */
+.lb-grupo__pedindo {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--lb-space-1);
+  flex: none;
+  min-height: 28px;
+  padding: 0 var(--lb-space-2);
+  border: 1px solid var(--lb-color-line-strong);
+  border-radius: var(--lb-radius-full);
+  background: none;
+  color: var(--lb-color-parchment-dim);
+  font: inherit;
+  font-size: var(--lb-font-size-sm);
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background var(--lb-motion-fast) var(--lb-motion-ease),
+    border-color var(--lb-motion-fast) var(--lb-motion-ease),
+    color var(--lb-motion-fast) var(--lb-motion-ease),
+    transform 120ms var(--lb-motion-ease);
+}
+
+.lb-grupo__pedindo:hover:not(:disabled) {
+  border-color: var(--lb-color-brass);
+  color: var(--lb-color-parchment);
+}
+
+.lb-grupo__pedindo[aria-pressed='true'] {
+  border-color: var(--lb-color-brass);
+  background: var(--lb-color-brass-soft);
+  color: var(--lb-color-brass);
+}
+
+.lb-grupo__pedindo:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+/* Botão só de figura (flocos do topo, atalhos de cena): o alvo mínimo da casa,
+   sem moldura até o ponteiro chegar. */
+.lb-grupo__icone {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--lb-radius-sm);
+  background: none;
+  color: var(--lb-color-parchment-faint);
+  cursor: pointer;
+  transition:
+    background var(--lb-motion-fast) var(--lb-motion-ease),
+    border-color var(--lb-motion-fast) var(--lb-motion-ease),
+    color var(--lb-motion-fast) var(--lb-motion-ease),
+    transform 120ms var(--lb-motion-ease);
+}
+
+.lb-grupo__icone:hover {
+  border-color: var(--lb-color-line-strong);
+  background: var(--lb-color-stone-hover);
+  color: var(--lb-color-parchment);
+}
+
+/* Descongelar: o floco riscado no azul-gelo da ficha congelada, para não se
+   confundir com o "Congelar todos" ao lado quando só parte da mesa está presa. */
+.lb-grupo__icone--gelo {
+  color: #9fd0ff;
+}
+
+.lb-grupo__icone[aria-pressed='true'] {
+  border-color: var(--lb-color-brass);
+  background: var(--lb-color-brass-soft);
+  color: var(--lb-color-brass);
+}
+
+.lb-grupo__figura {
+  width: 14px;
+  height: 14px;
+}
+
+/* Quem chega: o título do grupo em latão, o cartão aberto logo abaixo. */
+.lb-grupo__chegando {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-2);
+}
+
+.lb-grupo__chegando-titulo {
+  margin: 0;
+  font-size: var(--lb-font-size-xs);
+  font-weight: var(--lb-font-weight-semibold);
+  letter-spacing: var(--lb-font-tracking-wide);
+  text-transform: uppercase;
+  color: var(--lb-color-brass);
+}
+
+/* Um grupo por cena: título recolhível e atalhos na mesma linha. */
+.lb-grupo__cena {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.lb-grupo__cena-topo {
+  display: flex;
+  align-items: center;
+  gap: var(--lb-space-1);
+  min-width: 0;
+}
+
+.lb-grupo__cena-alterna {
+  display: flex;
+  align-items: center;
+  gap: var(--lb-space-1);
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 28px;
+  padding: 0 var(--lb-space-1) 0 0;
+  border: 0;
+  background: none;
+  color: var(--lb-color-parchment-dim);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.lb-grupo__cena-alterna:hover {
+  color: var(--lb-color-parchment);
+}
+
+/* A seta gira 90° com o grupo aberto, no tempo do recolher. */
+.lb-grupo__seta {
+  width: 12px;
+  height: 12px;
+  flex: none;
+  transform: rotate(90deg);
+  transition: transform 180ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.lb-grupo__cena[data-recolhida] .lb-grupo__seta {
+  transform: rotate(0deg);
+}
+
+.lb-grupo__cena-alterna[data-instant] .lb-grupo__seta {
+  transition: none;
+}
+
+.lb-grupo__cena-nome {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--lb-font-size-xs);
+  font-weight: var(--lb-font-weight-semibold);
+  letter-spacing: var(--lb-font-tracking-wide);
+  text-transform: uppercase;
+}
+
+.lb-grupo__cena-aqui {
+  flex: none;
+  font-size: var(--lb-font-size-xs);
+  color: var(--lb-color-brass);
+}
+
+.lb-grupo__cena-conta {
+  flex: none;
+  font-size: var(--lb-font-size-xs);
+  color: var(--lb-color-parchment-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.lb-grupo__cena-atalhos {
+  display: flex;
+  flex: none;
+  gap: calc(var(--lb-control-gap) / 2);
+}
+
+/* Recolher a cena: a altura vai de 1fr a 0fr, sem medir nada em JS. */
+.lb-grupo__cena-corpo {
+  display: grid;
+  /* Sem a coluna `minmax(0, 1fr)` o item da grade cresce até o conteúdo e o
+     nome longo empurra a linha para fora da coluna de 264 px. */
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: 1fr;
+  transition:
+    grid-template-rows 180ms cubic-bezier(0.23, 1, 0.32, 1),
+    opacity 180ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.lb-grupo__cena[data-recolhida] .lb-grupo__cena-corpo {
+  grid-template-rows: 0fr;
+  opacity: 0;
+}
+
+.lb-grupo__cena-corpo[data-instant] {
+  transition: none;
+}
+
+/* `clip` com margem: o anel de foco da linha não é cortado na borda do grupo. */
+.lb-grupo__cena-dentro {
+  min-height: 0;
+  overflow: clip;
+  overflow-clip-margin: var(--lb-space-1);
+}
+
+/* A lista de cada cena: o mesmo poço do Grupo, sem teto de altura — a coluna
+   inteira rola, e um teto aqui escondia o pedido de quem estava embaixo. */
+.lb-party__list.lb-grupo__lista {
+  margin-top: var(--lb-space-1);
+}
+
+.lb-grupo__item.lb-party__item {
+  padding: 0;
+}
+
+.lb-player.lb-grupo__jogador {
+  gap: 0;
+}
+
+/* A linha de 36 px é um botão: bolinha, os dois nomes e os selos. */
+.lb-grupo__linha {
+  display: flex;
+  align-items: center;
+  gap: var(--lb-space-2);
+  width: 100%;
+  min-height: 36px;
+  padding: var(--lb-space-1) var(--lb-space-2);
+  border: 0;
+  border-radius: var(--lb-radius-md);
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background var(--lb-motion-fast) var(--lb-motion-ease),
+    transform 120ms var(--lb-motion-ease);
+}
+
+.lb-grupo__linha:hover {
+  background: var(--lb-color-stone-hover);
+}
+
+.lb-grupo__item--aberta .lb-grupo__linha {
+  background: var(--lb-color-stone-raised);
+}
+
+.lb-grupo__linha:active,
+.lb-grupo__acao:active,
+.lb-grupo__icone:active,
+.lb-grupo__pedindo:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+/* A bolinha vira avatar: 20 px na cor da ficha, anel vazio sem ficha. */
+.lb-party__dot.lb-grupo__avatar {
+  position: relative;
+  width: 20px;
+  height: 20px;
+}
+
+/* O ponto de presença no canto do avatar, com a borda da pedra para destacar. */
+.lb-grupo__presenca {
+  position: absolute;
+  right: -2px;
+  bottom: -2px;
+  width: 8px;
+  height: 8px;
+  border: 2px solid var(--lb-color-stone-sunken);
+  border-radius: 50%;
+  background: var(--lb-color-online);
+  box-sizing: content-box;
+}
+
+.lb-grupo__presenca[data-presenca='fora'] {
+  background: var(--lb-color-stone-solid);
+  box-shadow: inset 0 0 0 1px var(--lb-color-parchment-faint);
+}
+
+.lb-grupo__presenca[data-presenca='volto-ja'] {
+  background: var(--lb-color-brass);
+}
+
+/* O azul-gelo do floco da ficha no mapa, o mesmo da marca "congelado". */
+.lb-grupo__presenca[data-presenca='congelado'] {
+  background: #9fd0ff;
+}
+
+.lb-grupo__nomes {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-width: 0;
+  line-height: var(--lb-font-leading-tight);
+}
+
+.lb-grupo__nome {
+  display: flex;
+  min-width: 0;
+}
+
+.lb-grupo__personagem {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-parchment-dim);
+}
+
+.lb-grupo__personagem--sem {
+  color: var(--lb-color-parchment-faint);
+  font-style: italic;
+}
+
+/* Os selos não encolhem: o nome corta antes deles, que são o que pede atenção. */
+.lb-grupo__selos {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  flex: none;
+  max-width: 50%;
+}
+
+.lb-grupo__selo {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  max-width: 100%;
+  padding: 0 var(--lb-space-1);
+  border-radius: var(--lb-radius-sm);
+  overflow: hidden;
+  font-size: var(--lb-font-size-xs);
+  line-height: 16px;
+  white-space: nowrap;
+}
+
+.lb-grupo__selo--pede {
+  background: var(--lb-color-brass-soft);
+  color: var(--lb-color-brass);
+}
+
+.lb-grupo__selo--fora,
+.lb-grupo__selo--neutro {
+  color: var(--lb-color-parchment-faint);
+}
+
+.lb-grupo__selo--gelo {
+  color: #9fd0ff;
+}
+
+/* A ficha abre sob a linha: a altura vai de 0fr a 1fr (200 ms) e volta mais
+   rápido (150 ms). Pelo teclado, ou trocando de linha com uma aberta, de uma vez. */
+.lb-grupo__ficha {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: 1fr;
+  animation: lb-grupo-abre 200ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.lb-grupo__ficha[data-estado='fechando'] {
+  animation: lb-grupo-fecha 150ms cubic-bezier(0.23, 1, 0.32, 1) forwards;
+}
+
+.lb-grupo__ficha[data-instant] {
+  animation: none;
+}
+
+@keyframes lb-grupo-abre {
+  from {
+    grid-template-rows: 0fr;
+    opacity: 0;
+  }
+}
+
+@keyframes lb-grupo-fecha {
+  to {
+    grid-template-rows: 0fr;
+    opacity: 0;
+  }
+}
+
+.lb-grupo__ficha-dentro {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-2);
+  min-height: 0;
+  overflow: clip;
+  overflow-clip-margin: var(--lb-space-1);
+  padding: var(--lb-space-1) var(--lb-space-2) var(--lb-space-2);
+}
+
+.lb-grupo__pendencia {
+  margin: 0;
+  font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-brass);
+}
+
+/* As cinco ações: figura em cima, rótulo curto embaixo, todas da mesma largura. */
+/* As cinco cabem numa linha na coluna de 264 px porque cada uma pega a largura
+   do próprio rótulo (`flex: 1 1 auto` abaixo); se um dia não couberem, quebram
+   de linha com o vão da casa em vez de cortar. */
+.lb-grupo__acoes {
   display: flex;
   flex-wrap: wrap;
+  gap: var(--lb-control-gap);
+}
+
+/* O grupo "Acompanhar" tem nome para o leitor de tela, mas não muda o fluxo. */
+.lb-grupo__acoes-olhar {
+  display: contents;
+}
+
+.lb-grupo__acao {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  /* Base no conteúdo: "Mandar" e "Recado" pegam a largura que pedem e a sobra
+     se divide — com base 0 os cinco ficavam iguais e esses dois cortavam. */
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 40px;
+  /* Sem respiro lateral: a sobra da linha (o `grow`) já afasta o rótulo da borda,
+     e os 4 px a mais faziam o "Mandar" descer sozinho. */
+  padding: var(--lb-space-1) 0;
+  border: 1px solid var(--lb-color-line-strong);
+  border-radius: var(--lb-radius-md);
+  background: var(--lb-color-stone-raised);
+  color: var(--lb-color-parchment);
+  font: inherit;
+  cursor: pointer;
+  transition:
+    background var(--lb-motion-fast) var(--lb-motion-ease),
+    border-color var(--lb-motion-fast) var(--lb-motion-ease),
+    color var(--lb-motion-fast) var(--lb-motion-ease),
+    transform 120ms var(--lb-motion-ease);
+}
+
+.lb-grupo__acao:hover {
+  background: var(--lb-color-stone-hover);
+}
+
+.lb-grupo__acao[aria-pressed='true'],
+.lb-grupo__acao[aria-expanded='true'] {
+  border-color: var(--lb-color-brass);
+  background: var(--lb-color-brass-soft);
+  color: var(--lb-color-brass);
+}
+
+.lb-grupo__acao-icone {
+  width: 16px;
+  height: 16px;
+}
+
+.lb-grupo__acao-rotulo {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: var(--lb-font-size-xs);
+  line-height: var(--lb-font-leading-tight);
+  white-space: nowrap;
+}
+
+/* As abas: texto curto sublinhado em latão na escolhida. */
+.lb-grupo__abas {
+  display: flex;
+  gap: var(--lb-space-3);
+  border-bottom: 1px solid var(--lb-color-line);
+}
+
+.lb-grupo__aba {
+  min-height: 28px;
+  margin-bottom: -1px;
+  padding: 0;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: none;
+  color: var(--lb-color-parchment-faint);
+  font: inherit;
+  font-size: var(--lb-font-size-sm);
+  font-weight: var(--lb-font-weight-semibold);
+  cursor: pointer;
+  transition:
+    border-color var(--lb-motion-fast) var(--lb-motion-ease),
+    color var(--lb-motion-fast) var(--lb-motion-ease);
+}
+
+.lb-grupo__aba:hover {
+  color: var(--lb-color-parchment);
+}
+
+.lb-grupo__aba[aria-selected='true'] {
+  border-bottom-color: var(--lb-color-brass);
+  color: var(--lb-color-parchment);
+}
+
+.lb-grupo__painel {
+  display: flex;
+  flex-direction: column;
   gap: var(--lb-space-2);
+  min-width: 0;
+}
+
+/* Na coluna da aba quem dá o ritmo é o vão dela: a margem de 1em que o
+   parágrafo traz de fábrica abria um buraco sob o seletor de mapa. */
+.lb-grupo__painel > p {
+  margin: 0;
+}
+
+/* Botão solto na aba ("Dar o que o grupo viu", "Dar um mapa a…",
+   "Emprestar como ajudante…") tem a largura do rótulo e encosta na margem:
+   esticado na coluna, parecia uma barra. */
+.lb-grupo__painel > .lb-btn {
+  align-self: flex-start;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* Só a opacidade: nada cresce nem gira. */
+  .lb-grupo__ficha {
+    animation-name: lb-grupo-surge;
+  }
+
+  .lb-grupo__ficha[data-estado='fechando'] {
+    animation-name: lb-grupo-some;
+  }
+
+  .lb-grupo__cena-corpo,
+  .lb-grupo__seta {
+    transition: opacity 180ms linear;
+  }
+
+  .lb-grupo__linha:active,
+  .lb-grupo__acao:active,
+  .lb-grupo__icone:active,
+  .lb-grupo__pedindo:active:not(:disabled) {
+    transform: none;
+  }
+}
+
+@keyframes lb-grupo-surge {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes lb-grupo-some {
+  to {
+    opacity: 0;
+  }
 }
 
 /* Um poço só, com filete entre as linhas: sete caixas de borda própria eram
@@ -2589,23 +3155,8 @@ label.lb-switch[data-dica-linha='aberta'] > span:first-child::after,
   color: var(--lb-color-parchment);
 }
 
-/* A cena (e "fora", quando caiu): voz apagada, corta com reticência antes das fichas. */
-.lb-player__meta {
-  flex: 1 1 auto;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: var(--lb-font-size-sm);
-  color: var(--lb-color-parchment-dim);
-}
-
-.lb-player__away {
-  color: var(--lb-color-parchment-faint);
-}
-
 /* CONGELAR FICHA: a marca da linha, no azul-gelo do floco da ficha no mapa
-   (`pixi/drawTokenFrozen.ts`). Não encolhe: a cena corta antes dela. */
+   (`pixi/drawTokenFrozen.ts`). Não encolhe: o nome corta antes dela. */
 .lb-player__congelado {
   flex: none;
   font-size: var(--lb-font-size-sm);
@@ -2759,60 +3310,6 @@ label.lb-switch[data-dica-linha='aberta'] > span:first-child::after,
   transform: scale(0.97);
 }
 
-/* "Ir lá", "Seguir" e "Ver tela" (acompanhar o jogador) ocupam a linha
-   inteira; "Mandar para…", "Recado" e o "…" descem juntos para a de baixo. */
-.lb-player__olhar {
-  display: flex;
-  flex: 1 1 100%;
-  flex-wrap: wrap;
-  gap: var(--lb-control-gap);
-  min-width: 0;
-}
-
-/* As ações do jogador quebram de linha no vão do painel em vez de espremer o
-   respiro dos botões para caber numa linha só ("Mandar para…" e "Recado"
-   ficavam fora da coluna). */
-.lb-player__actions {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--lb-control-gap);
-  min-width: 0;
-}
-
-/* O "…" da linha: o mesmo traço do menu da lista Cenas, na altura dos botões da linha. */
-.lb-player__mais {
-  display: inline-grid;
-  place-items: center;
-  flex: none;
-  min-width: 24px;
-  height: 24px;
-  margin-left: auto;
-  padding: 0 var(--lb-space-1);
-  border: 1px solid var(--lb-color-line);
-  border-radius: var(--lb-radius-md);
-  background: none;
-  color: var(--lb-color-parchment-faint);
-  font-family: inherit;
-  font-size: var(--lb-font-size-md);
-  line-height: 1;
-  cursor: pointer;
-  transition:
-    border-color var(--lb-motion-fast) var(--lb-motion-ease),
-    color var(--lb-motion-fast) var(--lb-motion-ease),
-    transform var(--lb-motion-fast) var(--lb-motion-ease);
-}
-
-.lb-player__mais:hover,
-.lb-player__mais[aria-expanded='true'] {
-  border-color: var(--lb-color-brass);
-  color: var(--lb-color-brass);
-}
-
-.lb-player__mais:active {
-  transform: scale(0.97);
-}
-
 /* Quem espera personagem: filete de latão à esquerda — a mesma marca de
    borda da confirmação e da dica da sala — e aberto, com o que dá personagem
    à vista. */
@@ -2855,11 +3352,11 @@ label.lb-switch[data-dica-linha='aberta'] > span:first-child::after,
 }
 
 /* Lista que age ao escolher tem a altura e a letra dos botões compactos: o
-   "Atribuir token" na linha e o "Passar o mapa de … a" solto na seção do "…"
+   "Atribuir token" na linha e o "Passar o mapa de … a" solto na aba Visão
    (pedido 13), que com os 38 px de fábrica era o único campo grande entre
-   botões de 24. O flex só vale na linha; na coluna da seção não há sobra. */
+   botões de 24. O flex só vale na linha; na coluna da aba não há sobra. */
 .lb-player__pick > .lb-input,
-.lb-player__secao > .lb-input {
+.lb-grupo__painel > .lb-input {
   flex: 1 1 auto;
   min-width: 0;
   min-height: 26px;
@@ -2873,17 +3370,6 @@ label.lb-switch[data-dica-linha='aberta'] > span:first-child::after,
   gap: var(--lb-space-1);
 }
 
-/* O "Mais" abre sob a linha, dentro dela: é daquele jogador, não da lista. */
-.lb-player__panel {
-  display: flex;
-  flex-direction: column;
-  gap: var(--lb-space-2);
-  margin-top: var(--lb-space-1);
-  padding: var(--lb-space-2) 0 var(--lb-space-1);
-  border-top: 1px solid var(--lb-color-line);
-  animation: lb-mais-abre var(--lb-motion-base) var(--lb-motion-ease);
-}
-
 /* Entra de onde veio (a linha de cima), curto: explica o que abriu sem atrasar a mão. */
 @keyframes lb-mais-abre {
   from {
@@ -2892,59 +3378,16 @@ label.lb-switch[data-dica-linha='aberta'] > span:first-child::after,
   }
 }
 
-/* Aberto pelo teclado (Enter ou Espaço no "…"), o painel aparece de uma vez:
-   quem navega por tecla já sabe de onde ele veio e não espera a entrada. */
-.lb-player__panel[data-instant] {
-  animation: none;
-}
-
 @media (prefers-reduced-motion: reduce) {
-  .lb-player__panel {
-    animation: none;
-  }
-
-  .lb-chip__remove:active,
-  .lb-player__mais:active {
+  .lb-chip__remove:active {
     transform: none;
   }
 }
 
-/* O "…" em seções, como o menu de membro do Discord (pedido 13): o título
-   diz do que é cada grupo, a divisória separa, e o que é destrutivo fica no
-   fim, sozinho. */
-.lb-player__secao {
-  display: flex;
-  flex-direction: column;
-  gap: var(--lb-space-2);
-  min-width: 0;
-}
-
-.lb-player__secao + .lb-player__secao,
+/* O que derruba alguém (Expulsar) fica no fim, sozinho, depois de um filete. */
 .lb-player__perigo {
   padding-top: var(--lb-space-2);
   border-top: 1px solid var(--lb-color-line);
-}
-
-.lb-player__secao-titulo {
-  margin: 0;
-  font-size: var(--lb-font-size-xs);
-  font-weight: var(--lb-font-weight-semibold);
-  line-height: var(--lb-font-leading-tight);
-  letter-spacing: var(--lb-font-tracking-wide);
-  color: var(--lb-color-parchment-dim);
-}
-
-/* Na coluna da seção quem dá o ritmo é o vão dela: a margem de 1em que o
-   parágrafo traz de fábrica abria um buraco sob o seletor de mapa. */
-.lb-player__secao > p {
-  margin: 0;
-}
-
-/* Botão solto na seção ("Dar o que o grupo viu", "Dar um mapa a…",
-   "Emprestar como ajudante…") tem a largura do rótulo e encosta na margem,
-   como os da linha: esticado na coluna, parecia uma barra. */
-.lb-player__secao > .lb-btn {
-  align-self: flex-start;
 }
 
 .lb-player__plan {

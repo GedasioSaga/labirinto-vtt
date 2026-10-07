@@ -138,8 +138,8 @@ export function sendDestinationsFor(member: PartyMember, destinations: PartyDest
 }
 
 /**
- * Os formulários de uma linha do Grupo: "Mandar para…" abaixo da lista, o
- * "Recado" dentro da própria linha. O "Dar item…" mora no "…" do cartão
+ * Os formulários da ficha aberta de um jogador no Grupo: "Mandar para…" e
+ * "Recado", os dois dentro dela. O "Dar item…" mora na aba Mochila
  * (`PartyBag`), com a mochila e a bolsa.
  */
 export type PartyFormKind = 'send' | 'note'
@@ -147,7 +147,8 @@ export type PartyFormKind = 'send' | 'note'
 /**
  * O "Mandar para…" e o "Recado" do Grupo: um formulário por vez (abrir um
  * fecha o outro), e o foco volta ao botão que o abriu ao terminar ou cancelar
- * (quem abriu pode ter saído da lista).
+ * (quem abriu pode ter saído da lista). `reset` fecha sem mexer no foco: é o
+ * que a ficha usa ao fechar ou trocar de jogador, quando o foco tem outro dono.
  */
 export function usePartySend() {
   const [open, setOpen] = useState<{ kind: PartyFormKind; playerId: string } | null>(null)
@@ -162,6 +163,11 @@ export function usePartySend() {
     })
   }
 
+  const reset = () => {
+    openerRef.current = null
+    setOpen(null)
+  }
+
   const toggle = (playerId: string, opener: HTMLElement, kind: PartyFormKind = 'send') => {
     if (open !== null && open.kind === kind && open.playerId === playerId) {
       close()
@@ -173,7 +179,7 @@ export function usePartySend() {
 
   const sendingId = open?.kind === 'send' ? open.playerId : null
   const notingId = open?.kind === 'note' ? open.playerId : null
-  return { sendingId, notingId, toggle, close }
+  return { sendingId, notingId, toggle, close, reset }
 }
 
 /**
@@ -206,13 +212,51 @@ interface PartyActionsProps {
   onToggleNote(opener: HTMLElement): void
 }
 
+/** As figuras das ações da ficha: traço fino na cor do texto, como o × do chip. */
+type AcaoIcone = 'ir' | 'seguir' | 'tela' | 'recado' | 'mandar'
+
+const ACAO_TRACOS: Record<AcaoIcone, string> = {
+  ir: 'M8 1.5v3M8 11.5v3M1.5 8h3M11.5 8h3',
+  seguir: 'M1.5 8s2.5-4.5 6.5-4.5S14.5 8 14.5 8s-2.5 4.5-6.5 4.5S1.5 8 1.5 8z',
+  tela: 'M2.5 3.5h11v7.5h-11zM6 14h4M8 11v3',
+  recado: 'M2 4h12v8.5H2zM2.5 4.5L8 9l5.5-4.5',
+  mandar: 'M2 8h11M9 4l4 4-4 4',
+}
+
+/** O círculo do "Ir lá" (a mira) e a pupila do "Seguir": o resto é traço. */
+const ACAO_CIRCULOS: Partial<Record<AcaoIcone, number>> = { ir: 4, seguir: 2 }
+
+function AcaoFigura({ icone }: { icone: AcaoIcone }) {
+  const raio = ACAO_CIRCULOS[icone]
+  return (
+    <svg className="lb-grupo__acao-icone" aria-hidden="true" focusable="false" viewBox="0 0 16 16">
+      <path d={ACAO_TRACOS[icone]} stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+      {raio !== undefined && <circle cx="8" cy="8" r={raio} stroke="currentColor" strokeWidth="1.4" fill="none" />}
+    </svg>
+  )
+}
+
+/** O rótulo curto à vista, embaixo da figura; o nome acessível completo vai no `aria-label` quando difere. */
+function AcaoRotulo({ icone, children }: { icone: AcaoIcone; children: string }) {
+  return (
+    <>
+      <AcaoFigura icone={icone} />
+      <span className="lb-grupo__acao-rotulo">{children}</span>
+    </>
+  )
+}
+
+/** Rótulos curtos à vista na barra da ficha; o nome acessível continua o de sempre. */
+const MIRROR_SHORT_LABEL = 'Tela'
+const SEND_SHORT_LABEL = 'Mandar'
+
 /**
- * As ações de toda cena numa linha do Grupo, em dois grupos por intenção.
- * "Acompanhar": ir ver ("Ir lá"), a câmera ir junto ("Seguir") e ver a tela
- * dele ("Ver tela"). Depois, agir sobre ele: trazer ou levar ("Mandar para…")
- * e o "Recado" que só ele lê. Dar, trocar e mexer na mochila são de vez em
- * quando e moram no "…" do cartão (`PartyBag`): com tudo à vista, o cartão
- * virava uma pilha de botões em que o mestre não achava nada (pedido 13). Sem
+ * A barra de ações da ficha aberta de um jogador: cinco botões com figura e
+ * rótulo curto, na ordem em que o mestre age. "Acompanhar" (um grupo com
+ * nome): ir ver ("Ir lá"), a câmera ir junto ("Seguir") e ver a tela dele
+ * ("Ver tela"). Depois, agir sobre ele: o "Recado" que só ele lê e trazer ou
+ * levar ("Mandar para…"). Os nomes acessíveis são os de sempre — é por eles
+ * que o mestre por voz, o leitor de tela e as jornadas acham cada um. Sem
  * ficha no mapa, só o "Recado" (ele chega quando o mapa do jogador aparecer).
  */
 export function PartyActions({ member, party, sendOpen, sendFormId, onToggleSend, noteOpen, noteFormId, onToggleNote }: PartyActionsProps) {
@@ -222,68 +266,62 @@ export function PartyActions({ member, party, sendOpen, sendFormId, onToggleSend
   const following = member.playerId === followingId
   if (!hasToken && onNote === undefined) return null
   return (
-    <>
+    <div className="lb-grupo__acoes">
       {hasToken && (
-        <div className="lb-player__olhar" role="group" aria-label={`Acompanhar ${member.name}`}>
-          <button type="button" className="lb-btn lb-btn--compact" onClick={() => onGoTo(member)}>
-            Ir lá
+        <div className="lb-grupo__acoes-olhar" role="group" aria-label={`Acompanhar ${member.name}`}>
+          <button type="button" className="lb-grupo__acao" onClick={() => onGoTo(member)}>
+            <AcaoRotulo icone="ir">Ir lá</AcaoRotulo>
           </button>
           {onToggleFollow !== undefined && (
-            // Ligado ganha o destaque do "Laser" da mesma aba: um botão de modo, não uma ação de uma vez.
-            <button
-              type="button"
-              className={following ? 'lb-btn lb-btn--compact lb-btn--primary' : 'lb-btn lb-btn--compact'}
-              aria-pressed={following}
-              onClick={() => onToggleFollow(member)}
-            >
-              {FOLLOW_LABEL}
+            // Ligado ganha o latão: um botão de modo, não uma ação de uma vez.
+            <button type="button" className="lb-grupo__acao" aria-pressed={following} onClick={() => onToggleFollow(member)}>
+              <AcaoRotulo icone="seguir">{FOLLOW_LABEL}</AcaoRotulo>
             </button>
           )}
           {/* Desconectado não tem tela: o botão abriria um espelho vazio. */}
           {onToggleMirror !== undefined && member.connected && (
             <button
               type="button"
-              className="lb-btn lb-btn--compact"
+              className="lb-grupo__acao"
               aria-label={mirrorLabel(member.name)}
               aria-expanded={member.playerId === mirroringId}
               aria-haspopup="dialog"
+              title={mirrorLabel(member.name)}
               onClick={() => onToggleMirror(member)}
             >
-              {MIRROR_LABEL}
+              <AcaoRotulo icone="tela">{MIRROR_SHORT_LABEL}</AcaoRotulo>
             </button>
           )}
         </div>
       )}
-      {(targets.length > 0 || onNote !== undefined) && (
-        <div className="lb-player__actions">
-          {targets.length > 0 && (
-            <button
-              type="button"
-              className="lb-btn lb-btn--compact"
-              aria-expanded={sendOpen}
-              aria-controls={sendOpen ? sendFormId : undefined}
-              onClick={(event) => onToggleSend(event.currentTarget)}
-            >
-              {SEND_TO_LABEL}
-            </button>
-          )}
-          {onNote !== undefined && (
-            // Montado também com o campo aberto: é para ele que o foco volta.
-            <button
-              type="button"
-              className={noteOpen ? 'lb-btn lb-btn--compact lb-btn--primary' : 'lb-btn lb-btn--compact'}
-              aria-label={`${NOTE_LABEL} para ${member.name}`}
-              aria-expanded={noteOpen}
-              aria-controls={noteOpen ? noteFormId : undefined}
-              title="Recado: só este jogador lê"
-              onClick={(event) => onToggleNote(event.currentTarget)}
-            >
-              {NOTE_LABEL}
-            </button>
-          )}
-        </div>
+      {onNote !== undefined && (
+        // Montado também com o campo aberto: é para ele que o foco volta.
+        <button
+          type="button"
+          className="lb-grupo__acao"
+          aria-label={`${NOTE_LABEL} para ${member.name}`}
+          aria-expanded={noteOpen}
+          aria-controls={noteOpen ? noteFormId : undefined}
+          title="Recado: só este jogador lê"
+          onClick={(event) => onToggleNote(event.currentTarget)}
+        >
+          <AcaoRotulo icone="recado">{NOTE_LABEL}</AcaoRotulo>
+        </button>
       )}
-    </>
+      {targets.length > 0 && (
+        <button
+          type="button"
+          className="lb-grupo__acao"
+          aria-label={SEND_TO_LABEL}
+          aria-expanded={sendOpen}
+          aria-controls={sendOpen ? sendFormId : undefined}
+          title={SEND_TO_LABEL}
+          onClick={(event) => onToggleSend(event.currentTarget)}
+        >
+          <AcaoRotulo icone="mandar">{SEND_SHORT_LABEL}</AcaoRotulo>
+        </button>
+      )}
+    </div>
   )
 }
 
@@ -333,7 +371,7 @@ interface PartySendFormProps {
   onClose(): void
 }
 
-/** O formulário do "Mandar para…" de um jogador, logo abaixo da lista do Grupo. */
+/** O formulário do "Mandar para…" de um jogador, dentro da ficha aberta dele no Grupo. */
 export function PartySendForm({ member, party, formId, onClose }: PartySendFormProps) {
   return (
     <div id={formId}>
@@ -359,7 +397,7 @@ interface GiveFormProps {
 }
 
 /**
- * "Dar item…" do mestre, no "…" do cartão, em "Mochila e bolsa" (`PartyBag`):
+ * "Dar item…" do mestre, na aba Mochila da ficha (`PartyBag`):
  * um campo com rótulo, já com o foco; "Dar" fica indisponível com o campo
  * vazio; Enter dá (é um `<form>`); Esc cancela. Não deu: o texto fica.
  */
@@ -482,7 +520,7 @@ interface BackpackListProps {
  * A mochila de um jogador, item por item, com o que o mestre faz com cada um:
  * "Tirar" (a chave usada some) e "Devolver ao chão" (vira pino pegável onde a
  * ficha está). O nome do item fica numa linha e as duas ações na de baixo,
- * sempre: na coluna do "…" nome e botões não cabem lado a lado, e soltos na
+ * sempre: na coluna da ficha nome e botões não cabem lado a lado, e soltos na
  * mesma linha cada item quebrava num ponto diferente. O nome acessível diz o
  * item e de quem é: com sete jogadores, "Tirar" sozinho não diz qual.
  */
@@ -527,13 +565,13 @@ interface StatusPart {
 }
 
 /**
- * O estado do jogador numa linha do Grupo, de relance: sem ficha no mapa, a
+ * O estado do jogador no alto da aba Mochila, de relance: sem ficha no mapa, a
  * bolsa e a mochila com os nomes (ITEM PEGÁVEL, MOEDAS E TROCA). Uma linha
  * só, que quebra em vez de cortar: o nome do item é o que o mestre procura.
  * Com ficha na cena, bolsa e mochila sempre se dizem, e a vazia vem um tom
  * abaixo (`lb-player__vazio`): sem a linha, o mestre não distingue "não leva
  * nada" de "a linha sumiu". Sem ficha na cena não há bolsa; a mochila só
- * aparece se uma ficha de outra cena levar algo. Mexer nelas fica no "…"
+ * aparece se uma ficha de outra cena levar algo. Mexer nelas fica logo abaixo
  * (`PartyBag`).
  */
 export function PartyStatus({ member }: { member: PartyMember }) {
@@ -575,7 +613,7 @@ function escCloses(onClose: () => void) {
   }
 }
 
-/** Se o "…" do cartão tem a seção "Mochila e bolsa": há item para tirar, ou ficha para dar, acertar a bolsa ou propor troca. */
+/** Se a aba Mochila tem o que fazer: há item para tirar, ou ficha para dar, acertar a bolsa ou propor troca. */
 export function partyBagVisible(member: PartyMember, { onItem, onTrade }: Pick<PartySectionProps, 'onItem' | 'onTrade'>): boolean {
   if (onItem !== undefined && member.mochila.length > 0) return true
   return member.token !== null && (onItem !== undefined || onTrade !== undefined)
@@ -590,7 +628,7 @@ interface PartyBagProps {
 }
 
 /**
- * "Mochila e bolsa", no "…" do cartão (pedido 13): por item, "Tirar" e
+ * A mochila e a bolsa na aba Mochila da ficha (pedido 13): por item, "Tirar" e
  * "Devolver ao chão"; depois "Dar item…", "Moedas…" (acerta o valor) e
  * "Propor troca…" (a oferta ao jogador). São de vez em quando: à vista, cada
  * cartão ganhava uma pilha de botões que o mestre quase nunca usa. Um

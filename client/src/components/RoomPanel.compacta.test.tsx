@@ -6,6 +6,7 @@ import { createEmptyMap } from '../lib/mapFactory'
 import type { TunnelState } from '../net/hostBridge'
 import type { HostWorld, PlayerInfo } from '../net/hostSession'
 import type { Token } from '../types/map'
+import { abrirFicha, botaoDaLinha, escolherAba } from './grupoTeste'
 import { PLAN_HINT, RoomPanel, roomPanelTokensOf } from './RoomPanel'
 
 /*
@@ -173,10 +174,10 @@ describe('aba Jogo compacta: 7 jogadores, 1 aguardando', () => {
     return alvo
   }
 
-  function painelDe(mais: HTMLButtonElement): HTMLElement {
-    const painel = document.getElementById(mais.getAttribute('aria-controls') ?? '')
-    if (!painel) throw new Error(`"${nomeAcessivel(mais)}" não abriu painel nenhum`)
-    return painel
+  /** O título do grupo de cena em que a linha está. */
+  function cenaDe(li: HTMLElement): string | null {
+    const secao = li.closest('section.lb-grupo__cena')
+    return secao?.querySelector('.lb-grupo__cena-nome')?.textContent ?? null
   }
 
   function clicar(el: HTMLElement): void {
@@ -226,60 +227,60 @@ describe('aba Jogo compacta: 7 jogadores, 1 aguardando', () => {
     expect(controle(gina, 'Raio de visão').getAttribute('type')).toBe('range')
   })
 
-  it('a linha de quem joga mostra bolinha, nome, ficha, cena e status; raio, planta e Expulsar ficam fora dela', () => {
+  it('a linha de quem joga mostra bolinha, nome, personagem e selos; a cena é o título do grupo; o resto fica na ficha', () => {
     render()
     const bruno = linha('Bruno')
     expect(bruno.textContent).toContain('Machado')
-    expect(bruno.textContent).toContain(COZINHA)
-    expect(bruno.textContent).toMatch(/\bonline\b/)
-    expect(botoes(bruno)).toEqual(['Remover Machado', 'Ir lá', 'Seguir', 'Mandar para…', 'Mais de Bruno'])
+    expect(cenaDe(bruno)).toBe(COZINHA)
+    // Fechada, a linha é um botão só: o que se faz com ele mora na ficha.
+    expect(botoes(bruno)).toHaveLength(1)
+    expect(botaoDaLinha(container, 'Bruno').getAttribute('aria-expanded')).toBe('false')
     expect(bruno.querySelector('input, select')).toBeNull()
     expect(bruno.textContent).not.toContain('Revelar planta')
     expect(bruno.textContent).not.toContain('Expulsar')
     const bolinha = bruno.querySelector<HTMLElement>('.lb-party__dot')
     expect(bolinha?.style.background).toBe(corCss('#ff5a00'))
 
-    // Quem caiu: "fora" à vista, e o status inteiro no cartão (leitor de tela e régua).
+    // Quem caiu: o selo "fora" à vista, e o status inteiro no cartão (leitor de tela e régua).
     const fabio = linha('Fabio')
     expect(fabio.textContent).toMatch(/\bfora\b/)
     expect(cartao('Fabio').textContent).toContain('Fabio — jogando · desconectado')
-    // Quem está em outra cena diz qual.
-    expect(linha('Enzo').textContent).toContain(BIBLIOTECA)
+    // Quem está em outra cena fica no grupo dela.
+    expect(cenaDe(linha('Enzo'))).toBe(BIBLIOTECA)
   })
 
-  it('"Mais" na linha do Bruno abre raio, planta e Expulsar dele, e cada controle age no Bruno', () => {
+  it('a ficha do Bruno traz raio e planta (Visão) e Expulsar (Ficha), e cada controle age no Bruno', () => {
     render()
-    const mais = botao(linha('Bruno'), 'Mais de Bruno')
-    expect(mais.getAttribute('aria-expanded')).toBe('false')
-    clicar(mais)
-    expect(mais.getAttribute('aria-expanded')).toBe('true')
-    const painel = painelDe(mais)
-    expect(linha('Bruno').contains(painel)).toBe(true)
+    const abre = botaoDaLinha(container, 'Bruno')
+    expect(abre.getAttribute('aria-expanded')).toBe('false')
+    const ficha = abrirFicha(container, 'Bruno', 'visao')
+    expect(abre.getAttribute('aria-expanded')).toBe('true')
+    expect(linha('Bruno').contains(ficha)).toBe(true)
 
-    const raio = controle(painel, 'Raio de visão')
+    const raio = controle(ficha, 'Raio de visão')
     expect((raio as HTMLInputElement).value).toBe('450')
-    expect(painel.textContent).toContain('450 px')
-    expect(botoes(painel)).toEqual(expect.arrayContaining(['Revelar planta', 'Esconder de novo', 'Expulsar']))
+    expect(ficha.textContent).toContain('450 px')
+    expect(botoes(ficha)).toEqual(expect.arrayContaining(['Revelar planta', 'Esconder de novo']))
     // Só dele: as outras linhas continuam curtas.
     expect(linha('Ana').querySelector('input[type="range"]')).toBeNull()
     expect(botoes(linha('Ana'))).not.toContain('Expulsar')
 
     mudarFaixa(raio, '500')
     expect(spies.onVisionRadiusChange).toHaveBeenCalledWith('p2', 500)
-    clicar(botao(painel, 'Revelar planta'))
+    clicar(botao(ficha, 'Revelar planta'))
     expect(spies.onRevealPlan).toHaveBeenCalledWith('p2')
-    clicar(botao(painel, 'Esconder de novo'))
+    clicar(botao(ficha, 'Esconder de novo'))
     expect(spies.onHidePlan).toHaveBeenCalledWith('p2')
-    clicar(botao(painel, 'Expulsar'))
+    escolherAba(ficha, 'ficha')
+    clicar(botao(ficha, 'Expulsar'))
     expect(spies.onKick).toHaveBeenCalledWith('c2')
   })
 
-  it('Esc fecha o "Mais", devolve o foco ao botão e não chega aos atalhos do editor', () => {
+  it('Esc fecha a ficha, devolve o foco à linha e não chega aos atalhos do editor', () => {
     render()
-    const mais = botao(linha('Bruno'), 'Mais de Bruno')
-    clicar(mais)
-    const painel = painelDe(mais)
-    const raio = controle(painel, 'Raio de visão')
+    const abre = botaoDaLinha(container, 'Bruno')
+    const ficha = abrirFicha(container, 'Bruno', 'visao')
+    const raio = controle(ficha, 'Raio de visão')
     act(() => raio.focus())
 
     const atalhos = vi.fn()
@@ -292,54 +293,57 @@ describe('aba Jogo compacta: 7 jogadores, 1 aguardando', () => {
       window.removeEventListener('keydown', atalhos)
     }
 
-    expect(mais.getAttribute('aria-expanded')).toBe('false')
-    expect(painel.isConnected).toBe(false)
-    expect(document.activeElement).toBe(mais)
+    expect(abre.getAttribute('aria-expanded')).toBe('false')
+    // Pelo teclado a ficha some de uma vez: sai da árvore sem esperar a animação.
+    expect(ficha.isConnected).toBe(false)
+    expect(document.activeElement).toBe(abre)
     expect(atalhos).not.toHaveBeenCalled()
   })
 
-  it('um "Mais" aberto por vez, e a dica da planta aparece uma vez só', () => {
+  it('uma ficha aberta por vez, e a dica da planta aparece uma vez só', () => {
     render()
     expect(ocorrencias(container.textContent, PLAN_HINT)).toBe(0)
-    clicar(botao(linha('Bruno'), 'Mais de Bruno'))
-    clicar(botao(linha('Carla'), 'Mais de Carla'))
-    expect(botao(linha('Bruno'), 'Mais de Bruno').getAttribute('aria-expanded')).toBe('false')
-    expect(botao(linha('Carla'), 'Mais de Carla').getAttribute('aria-expanded')).toBe('true')
+    abrirFicha(container, 'Bruno', 'visao')
+    abrirFicha(container, 'Carla')
+    expect(botaoDaLinha(container, 'Bruno').getAttribute('aria-expanded')).toBe('false')
+    expect(botaoDaLinha(container, 'Carla').getAttribute('aria-expanded')).toBe('true')
+    // A aba escolhida vale para a próxima ficha: a da Carla abre em Visão.
     expect(ocorrencias(container.textContent, PLAN_HINT)).toBe(1)
 
-    // Quem aguarda também tem "Mais" (planta e Expulsar); o raio dele já está à vista e não se repete.
+    // Quem aguarda vem aberto em "Chegando": raio, fator e Expulsar à vista, sem repetir nada.
     const gina = cartao('Gina')
-    const maisGina = botao(gina, 'Mais de Gina')
-    clicar(maisGina)
-    expect(botao(linha('Carla'), 'Mais de Carla').getAttribute('aria-expanded')).toBe('false')
-    expect(botoes(painelDe(maisGina))).toEqual(expect.arrayContaining(['Revelar planta', 'Esconder de novo', 'Expulsar']))
-    // FATOR DE VISÃO (outra feature) mora junto do raio: dois sliders à vista, e nenhum se repete no "Mais".
+    expect(botoes(gina)).toContain('Expulsar')
+    // Sem cena não há planta a revelar: o cartão dela não oferece.
+    expect(botoes(gina)).not.toContain('Revelar planta')
+    // FATOR DE VISÃO (outra feature) mora junto do raio: dois sliders à vista.
     expect(gina.querySelectorAll('input[type="range"]').length).toBe(2)
     expect(ocorrencias(gina.textContent, 'Raio de visão')).toBe(1)
     expect(ocorrencias(gina.textContent, 'Fator de visão')).toBe(1)
-    expect(painelDe(maisGina).querySelectorAll('input[type="range"]').length).toBe(0)
     expect(ocorrencias(container.textContent, PLAN_HINT)).toBe(1)
 
     // Quem caiu não tem conexão para derrubar: a planta sim, Expulsar não.
-    const maisFabio = botao(linha('Fabio'), 'Mais de Fabio')
-    clicar(maisFabio)
-    const painelFabio = painelDe(maisFabio)
-    expect(botoes(painelFabio)).toContain('Revelar planta')
-    expect(botoes(painelFabio)).not.toContain('Expulsar')
+    const fichaFabio = abrirFicha(container, 'Fabio', 'visao')
+    expect(botaoDaLinha(container, 'Carla').getAttribute('aria-expanded')).toBe('false')
+    expect(botoes(fichaFabio)).toContain('Revelar planta')
+    escolherAba(fichaFabio, 'ficha')
+    expect(botoes(fichaFabio)).not.toContain('Expulsar')
   })
 
-  it('"Mandar para…" abre o envio abaixo da lista, um jogador por vez, e Cancelar fecha', () => {
+  it('"Mandar para…" abre o envio dentro da ficha, um jogador por vez, e Cancelar fecha', () => {
     render()
-    const mandarAna = botao(linha('Ana'), 'Mandar para…')
+    const fichaAna = abrirFicha(container, 'Ana')
+    const mandarAna = botao(fichaAna, 'Mandar para…')
     clicar(mandarAna)
     expect(mandarAna.getAttribute('aria-expanded')).toBe('true')
     const envio = document.getElementById(mandarAna.getAttribute('aria-controls') ?? '')
     expect(envio?.querySelector('form')?.getAttribute('aria-label')).toBe('Mandar Ana para outra cena')
-    expect(grupo().contains(envio)).toBe(true)
+    expect(fichaAna.contains(envio)).toBe(true)
 
-    const mandarBruno = botao(linha('Bruno'), 'Mandar para…')
+    // Abrir a ficha do Bruno fecha a da Ana, e o envio dela junto.
+    const fichaBruno = abrirFicha(container, 'Bruno')
+    expect(fichaAna.isConnected).toBe(false)
+    const mandarBruno = botao(fichaBruno, 'Mandar para…')
     clicar(mandarBruno)
-    expect(mandarAna.getAttribute('aria-expanded')).toBe('false')
     expect(mandarBruno.getAttribute('aria-expanded')).toBe('true')
     expect(grupo().querySelectorAll('form').length).toBe(1)
     expect(grupo().querySelector('form')?.getAttribute('aria-label')).toBe('Mandar Bruno para outra cena')
