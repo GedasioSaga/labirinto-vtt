@@ -1,7 +1,10 @@
+import { act } from 'react'
+import { createRoot } from 'react-dom/client'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'
 import type { TunnelState } from '../net/hostBridge'
 import type { PlayerInfo } from '../net/hostSession'
+import { abrirFicha } from './grupoTeste'
 import { FIREWALL_HINT, LASER_HINT, PLAN_HINT, RoomPanel, TUNNEL_WARNING, assignOptionLabel, assignableTokens, downloadLabel, playerStatusLabel, qrDataUrl, tokenDotColor } from './RoomPanel'
 
 const noop = vi.fn()
@@ -32,13 +35,12 @@ describe('RoomPanel', () => {
     expect(closed).not.toContain('>Laser<')
   })
 
-  it('B3: quem aguarda tem o raio de visão à vista com o valor efetivo; planta e dica só no "Mais"', () => {
+  it('B3: quem aguarda tem o raio de visão à vista com o valor efetivo; sem cena, nada de planta nem dica', () => {
     const html = renderToStaticMarkup(<RoomPanel room={ROOM} players={[player({ visionRadius: 350 })]} tokens={TOKENS} tunnel={IDLE} {...handlers} />)
     expect(html).toMatch(/<label class="lb-label" for="lb-room-vision-p1">Raio de visão<\/label>/)
     expect(html).toContain('350 px')
     expect(html).toMatch(/<input id="lb-room-vision-p1" class="lb-range" type="range" min="50" max="2000" step="50" value="350"\/>/)
-    // Revelar planta, Esconder de novo e a dica abrem no "Mais" (RoomPanel.compacta.test.tsx): fechado, nada disso.
-    expect(html).toMatch(/<button[^>]*aria-label="Mais de Ana"[^>]*aria-expanded="false"/)
+    // Revelar planta e a dica moram na aba Visão de quem joga (RoomPanel.compacta.test.tsx): no cartão de quem chega, nada disso.
     expect(html).not.toContain('>Revelar planta</button>')
     expect(html).not.toContain(PLAN_HINT)
   })
@@ -46,12 +48,22 @@ describe('RoomPanel', () => {
   it('"Remover …" dá o nome da ficha que está numa cena de FUNDO (quem viajou), não o id', () => {
     // A ficha da Ana foi para a Cripta: sem ela em `tokens`, sobra o id.
     const viajou = player({ status: 'playing', tokenIds: ['tok-cripta'] })
-    const semCenas = renderToStaticMarkup(<RoomPanel room={ROOM} players={[viajou]} tokens={TOKENS} tunnel={IDLE} {...handlers} />)
-    expect(semCenas).toContain('Remover tok-cripta')
-    const todasAsCenas = [...TOKENS, { id: 'tok-cripta', name: 'Lanterna', sceneName: 'Cripta' }]
-    const html = renderToStaticMarkup(<RoomPanel room={ROOM} players={[viajou]} tokens={todasAsCenas} tunnel={IDLE} {...handlers} />)
-    expect(html).toContain('Remover Lanterna')
-    expect(html).not.toContain('tok-cripta<')
+    Reflect.set(globalThis, 'IS_REACT_ACT_ENVIRONMENT', true)
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    const root = createRoot(container)
+    try {
+      act(() => root.render(<RoomPanel room={ROOM} players={[viajou]} tokens={TOKENS} tunnel={IDLE} {...handlers} />))
+      expect(abrirFicha(container, 'Ana', 'ficha').innerHTML).toContain('Remover tok-cripta')
+      const todasAsCenas = [...TOKENS, { id: 'tok-cripta', name: 'Lanterna', sceneName: 'Cripta' }]
+      act(() => root.render(<RoomPanel room={ROOM} players={[viajou]} tokens={todasAsCenas} tunnel={IDLE} {...handlers} />))
+      const html = abrirFicha(container, 'Ana', 'ficha').innerHTML
+      expect(html).toContain('Remover Lanterna')
+      expect(html).not.toContain('tok-cripta<')
+    } finally {
+      act(() => root.unmount())
+      container.remove()
+    }
   })
 
   it('qrDataUrl codifica o SVG', () => {
@@ -90,7 +102,7 @@ describe('RoomPanel', () => {
     expect(html).toContain(FIREWALL_HINT)
   })
 
-  it('com sala mostra código, URLs, QR e jogadores; Expulsar só dentro do "Mais"', () => {
+  it('com sala mostra código, URLs, QR e jogadores; Expulsar só para quem está conectado', () => {
     const players = [player(), player({ playerId: 'p2', clientId: null, name: 'Bia', connected: false, tokenIds: ['t2'] })]
     const html = renderToStaticMarkup(<RoomPanel room={ROOM} players={players} tokens={TOKENS} tunnel={IDLE} {...handlers} />)
     expect(html).toContain('Fechar sala')
@@ -99,9 +111,10 @@ describe('RoomPanel', () => {
     expect(html).toContain('alt="QR da sala"')
     // "Bia — aguardando · desconectado": o nome à vista, o status inteiro para o leitor de tela.
     expect(html).toMatch(/>Bia<\/strong><span class="lb-sr-only"> — aguardando · desconectado<\/span>/)
-    expect(html).toContain('aria-label="Remover Ladino"')
-    // Quem caiu (Bia) não tem Expulsar nem com o "Mais" aberto: RoomPanel.compacta.test.tsx.
-    expect(html).not.toMatch(/>Expulsar<\/button>/)
+    // A linha fechada da Bia diz o personagem; o "Remover Ladino" mora na aba Ficha (RoomPanel.compacta.test.tsx).
+    expect(html).toContain('>Ladino</span>')
+    // Ana chega conectada (cartão aberto, com Expulsar); quem caiu (Bia) não tem conexão para derrubar.
+    expect(html.split('>Expulsar</button>').length - 1).toBe(1)
   })
 
   it('idle: botão Tornar pública habilitado e dica do firewall rotulada como rede local', () => {
