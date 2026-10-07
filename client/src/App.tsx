@@ -115,6 +115,7 @@ import { RotinaDaFichaControls } from './components/RotinaDaFichaControls'
 import { amarradosPorEstado, type AmarraDeEstado } from './lib/estadoDoMundo'
 import { MapObjectsSection } from './components/MapObjectsSection'
 import { usePainelCategoriasStore } from './stores/painelCategoriasStore'
+import { SceneSettingsDialog } from './components/SceneSettingsDialog'
 import { MarcasDaCena } from './components/MarcasDaCena'
 import { PlaceTreeSection } from './components/PlaceTreeSection'
 import { currentObjectKey, isFindObjectShortcut } from './lib/mapObjects'
@@ -631,6 +632,8 @@ function App() {
 
   // Multiplayer em LAN: ponte do mestre criada sob demanda (só dentro do Tauri, ver RoomPanel abaixo).
   const [room, setRoom] = useState<RoomInfo | null>(null)
+  /** Cena com a janela "Configurar" aberta; `null` = nenhuma. */
+  const [configuringSceneId, setConfiguringSceneId] = useState<string | null>(null)
   const [roomPlayers, setRoomPlayers] = useState<PlayerInfo[]>([])
   // "Quem vê" de cada pino com lista. O dono é a sessão do host; isto é só o que o painel desenha.
   const [pinAudiences, setPinAudiences] = useState<Record<string, string[]>>({})
@@ -2639,6 +2642,30 @@ function App() {
         }
   const scenesPanel = sceneList({ adventure, activeSceneId, cache: sceneCache }, map)
 
+  /**
+   * CONFIGURAR CENA: a cena aberta muda pelo mapa vivo (entra no Ctrl+Z); a de
+   * fundo, pelo cache (`updateBackgroundScene`). Cena ainda sem mapa não abre.
+   */
+  function renderSceneSettings(sceneId: string) {
+    const aberta = sceneId === (activeSceneId ?? '')
+    const sceneMap = aberta ? map : sceneMaps({ adventure, activeSceneId, cache: sceneCache }, map).get(sceneId)
+    if (sceneMap === undefined) return null
+    const mudarFundo = (updater: (m: MapData) => MapData) => useAdventureStore.getState().updateBackgroundScene(sceneId, updater)
+    return (
+      <SceneSettingsDialog
+        sceneName={scenesPanel.find((scene) => scene.id === sceneId)?.name ?? sceneMap.name}
+        cellPx={sceneMap.grid}
+        vision={{
+          visionCells: sceneMap.visionCells,
+          onVisionCellsChange: aberta ? setSceneVisionCells : (cells) => mudarFundo((m) => mapFactory.setSceneVisionCells(m, cells)),
+          dark: sceneMap.dark === true,
+          onDarkChange: aberta ? setSceneDark : (dark) => mudarFundo((m) => mapFactory.setSceneDark(m, dark)),
+        }}
+        onClose={() => setConfiguringSceneId(null)}
+      />
+    )
+  }
+
   return (
     <div className="lb-editor" ref={editorRootRef} data-coldir={rightOpen ? 'aberta' : 'escondida'}>
       {/* Os avisos vêm PRIMEIRO no DOM, antes do trilho. A posição na tela é do
@@ -2983,12 +3010,6 @@ function App() {
             movement={{ movement: map.movement, onMovementChange: setMovementRules, worldMap: map.worldMap === true, onWorldMapChange: setWorldMap }}
             arrivalText={arrivalTextSettings}
             sceneFloor={{ andar: map.andar, onChange: setSceneFloor }}
-            sceneVision={{
-              visionCells: map.visionCells,
-              onVisionCellsChange: setSceneVisionCells,
-              dark: map.dark === true,
-              onDarkChange: setSceneDark,
-            }}
             faceRange={{
               faceRangeCells: faceRangeCellsOrNull(map.faceRangeCells),
               onFaceRangeCellsChange: setFaceRangeCells,
@@ -3675,9 +3696,11 @@ function App() {
             // Na coluna da direita a lista não empurra mais a ficha do item: nasce aberta.
             // Aberta ou recolhida, a coluna reparte a altura por isso.
             onOpenChange={setScenesOpen}
+            onConfigure={setConfiguringSceneId}
           />
         }
       />
+      {configuringSceneId !== null && renderSceneSettings(configuringSceneId)}
 
       {/* O HUD lê a escala da câmera direto da store: o zoom não re-renderiza o App. */}
       <ZoomHud onReset={() => setResetZoomRequest((n) => n + 1)} />

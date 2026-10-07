@@ -21,7 +21,6 @@ import type { ScenarioLinkControlsProps } from './ScenarioLinkControls'
 import type { MovementControlsProps } from './MovementControls'
 import type { ArrivalTextControlsProps } from './ArrivalTextControls'
 import type { SceneFloorControlsProps } from './SceneFloorControls'
-import type { SceneVisionControlsProps } from './SceneVisionControls'
 import { TextLabelControls, type TextLabelControlsProps } from './TextLabelControls'
 import { RegionJoinField, RegionSmoothButton, RegionStyleControls, type RegionStyleControlsProps } from './RegionStyleControls'
 import { AdvancedField, AdvancedSection } from './AdvancedSection'
@@ -153,8 +152,6 @@ interface PropertiesPanelProps {
   pathStyle: PathStyleControlsProps
   grid: GridControlsProps
   mapScale: MapScaleControlsProps
-  /** "Visão nesta cena", na janela Configurações do mapa. */
-  sceneVision: SceneVisionControlsProps
   /** "Rostos só de perto" da cena, na janela Configurações do mapa. */
   faceRange: FaceRangeControlsProps
   gridAlign: GridAlignControlsProps
@@ -343,7 +340,6 @@ export function PropertiesPanel({
   pathStyle,
   grid,
   mapScale,
-  sceneVision,
   faceRange,
   gridAlign,
   layers,
@@ -542,7 +538,6 @@ export function PropertiesPanel({
           grid={grid}
           gridAlign={gridAlign}
           mapScale={mapScale}
-          sceneVision={sceneVision}
           faceRange={faceRange}
           scenarioLink={scenarioLink}
           movement={movement}

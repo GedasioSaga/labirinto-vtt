@@ -45,7 +45,6 @@ function props(): MapSettingsProps {
       onMeasurementModeChange: vazio,
       gridShape: 'square',
     },
-    sceneVision: { visionCells: undefined, onVisionCellsChange: vazio },
     scenarioLink: { scenarioLink: null, onScenarioLinkChange: vazio },
     mapSize: { width: 30, height: 10, onApply: vazio },
   }

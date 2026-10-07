@@ -36,7 +36,6 @@ function makeProps(overrides: { measurementMode?: MeasurementMode; withImage?: b
       onMeasurementModeChange,
       gridShape: 'square',
     },
-    sceneVision: { visionCells: undefined, onVisionCellsChange: vi.fn() },
     scenarioLink: { scenarioLink: null, onScenarioLinkChange: vi.fn() },
     mapSize: { width: 30, height: 10, onApply: onMapSizeApply },
   }
@@ -97,13 +96,12 @@ describe('MapSettingsButton / MapSettingsDialog', () => {
     expect(active?.closest('[aria-label="Formato da grade"]')).not.toBeNull()
   })
 
-  it('a janela tem "Visão nesta cena", com o valor da cena', () => {
-    const { props } = makeProps()
-    render({ ...props, sceneVision: { ...props.sceneVision, visionCells: 6 } })
+  it('pedido de 07/10/2026: a janela não tem mais "Visão dos jogadores" nem "Andar do prédio"', () => {
+    render({ ...makeProps().props, sceneFloor: { andar: undefined, onChange: vi.fn() } })
     openDialog()
-    const campo = document.body.querySelector<HTMLInputElement>('#lb-scene-vision')
-    expect(campo?.value).toBe('6')
-    expect(document.body.querySelector('label[for="lb-scene-vision"]')?.textContent).toBe('Visão nesta cena (quadrados)')
+    expect(document.body.querySelector('#lb-scene-vision')).toBeNull()
+    expect(dialog()?.textContent).not.toContain('Visão dos jogadores')
+    expect(dialog()?.textContent).not.toContain('Andar do prédio')
   })
 
   it('Esc fecha a janela e devolve o foco à engrenagem', () => {

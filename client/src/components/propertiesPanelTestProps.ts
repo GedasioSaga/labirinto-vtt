@@ -84,7 +84,6 @@ export function propsDoPainel(ficha: Token | null, extra: Partial<PainelProps> =
     layers: { hiddenLayers: [], lockedLayers: [], counts: CONTAGEM_ZERO, onToggleLayer: nada, onToggleLock: nada },
     selection: { selection: null, defaultTokenName: 'Token', onAddToken: nada, onRemoveSelected: nada },
     scenarioLink: { scenarioLink: null, onScenarioLinkChange: nada },
-    sceneVision: { visionCells: undefined, onVisionCellsChange: nada },
     selectedWall: null,
     wallDoor: { onToggleDoor: nada, onToggleOpen: nada, onToggleLocked: nada, onToggleSemEspiar: nada, onToggleSecret: nada, onRevealPassage: nada, onOpensFromChange: nada },
     doorKind: { kind: 'normal', onKindChange: nada },

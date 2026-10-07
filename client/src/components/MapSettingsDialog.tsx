@@ -9,7 +9,6 @@ import { MovementControls, type MovementControlsProps } from './MovementControls
 import { MapSizeControls, type MapSizeControlsProps } from './MapSizeControls'
 import { ArrivalTextControls, type ArrivalTextControlsProps } from './ArrivalTextControls'
 import { SceneFloorControls, type SceneFloorControlsProps } from './SceneFloorControls'
-import { SceneVisionControls, type SceneVisionControlsProps } from './SceneVisionControls'
 import { FaceRangeControls, type FaceRangeControlsProps } from './FaceRangeControls'
 import { PainelCategoriasControls } from './PainelCategoriasControls'
 import { FEATURES } from '../lib/features'
@@ -19,8 +18,6 @@ export interface MapSettingsProps {
   grid: GridControlsProps
   gridAlign: GridAlignControlsProps
   mapScale: MapScaleControlsProps
-  /** "Visão nesta cena": alcance da visão dos jogadores nesta cena, em quadrados. */
-  sceneVision: SceneVisionControlsProps
   /** "Rostos só de perto" da cena. Ausente, a seção não aparece (quem monta a janela sem mapa de sessão). */
   faceRange?: FaceRangeControlsProps
   scenarioLink: ScenarioLinkControlsProps
@@ -40,6 +37,8 @@ export interface MapSettingsDialogProps extends MapSettingsProps {
 interface ScenarioLinkVisibility {
   /** Default `FEATURES.scenarioLink`. Escondido, o dado continua passando e sendo gravado. */
   showScenarioLink?: boolean
+  /** Default `FEATURES.andarDoPredio`. Escondido, prédio e andar guardados continuam valendo. */
+  showSceneFloor?: boolean
 }
 
 const FOCUSABLE =
@@ -74,7 +73,6 @@ export function MapSettingsDialog({
   grid,
   gridAlign,
   mapScale,
-  sceneVision,
   faceRange,
   scenarioLink,
   movement,
@@ -82,6 +80,7 @@ export function MapSettingsDialog({
   arrivalText,
   sceneFloor,
   showScenarioLink = FEATURES.scenarioLink,
+  showSceneFloor = FEATURES.andarDoPredio,
 }: MapSettingsDialogProps & ScenarioLinkVisibility) {
   const titleId = useId()
   const dialogRef = useRef<HTMLDivElement>(null)
@@ -169,8 +168,7 @@ export function MapSettingsDialog({
           {movement && <MovementControls {...movement} />}
           <MapSizeControls {...mapSize} />
           {arrivalText && <ArrivalTextControls {...arrivalText} />}
-          {sceneFloor && <SceneFloorControls {...sceneFloor} />}
-          <SceneVisionControls {...sceneVision} />
+          {showSceneFloor && sceneFloor && <SceneFloorControls {...sceneFloor} />}
           {faceRange !== undefined && <FaceRangeControls {...faceRange} />}
           {showScenarioLink && <ScenarioLinkControls {...scenarioLink} />}
           <PainelCategoriasControls />

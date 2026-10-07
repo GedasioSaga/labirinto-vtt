@@ -14,7 +14,7 @@ import { CollapsibleSection } from './CollapsibleSection'
 import { SceneOverviewDialog } from './SceneOverview'
 import { CorteDaTorreDialog } from './CorteDaTorre'
 import type { CorteJogador } from '../lib/corteDaTorre'
-import { ChevronDownIcon, CloseIcon, MoveIntoIcon, SearchIcon, TokenIcon } from './icons'
+import { ChevronDownIcon, CloseIcon, MoveIntoIcon, SearchIcon, SettingsIcon, TokenIcon } from './icons'
 import { useSceneDrag, type SceneDrag } from './sceneDrag'
 import { SceneAlarmControls, type ActiveAlarmView } from './SceneAlarmControls'
 import { NOTE_MAX_LENGTH } from '../net/protocol'
@@ -90,6 +90,8 @@ export interface ScenesSectionProps {
   onEndAlarm?: () => void
   /** O alarme soando; `null`/ausente = nenhum. */
   alarm?: ActiveAlarmView | null
+  /** CONFIGURAR CENA: abre a janela da cena (visão dos jogadores). Ausente = a linha fica sem a engrenagem. */
+  onConfigure?: (sceneId: string) => void
   /** PAUSA POR CENA: ids das cenas pausadas agora. Ausente = nenhuma. */
   paused?: ReadonlySet<string>
   /**
@@ -958,6 +960,7 @@ export function ScenesSection({
   onTogglePause,
   waitingSince,
   onTogglePlanKnown,
+  onConfigure,
   players,
   onRevealPlanFor,
   defaultOpen = true,
@@ -1697,6 +1700,18 @@ export function ScenesSection({
                     >
                       {/* ▦ cheio quando a cena é conhecida por todos: o estado se lê sem abrir. */}
                       <span aria-hidden="true">{scene.planKnownByAll === true ? '▦' : '▢'}</span>
+                    </button>
+                  )}
+                  {onConfigure !== undefined && (
+                    <button
+                      type="button"
+                      className="lb-cenas__recado-btn"
+                      aria-label={`Configurar ${scene.name}`}
+                      title="Configurar: visão dos jogadores nesta cena"
+                      disabled={!scene.available}
+                      onClick={() => onConfigure(scene.id)}
+                    >
+                      <SettingsIcon size={13} />
                     </button>
                   )}
                   {hasSceneMenu && scene.id !== '' && (

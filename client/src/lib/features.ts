@@ -24,6 +24,8 @@ export interface FeatureFlags {
   relogioDaCampanha: boolean
   /** Aba Jogo: "Confronto nesta cena". */
   confronto: boolean
+  /** "Andar do prédio" na janela Configurações do mapa. Prédio e andar guardados continuam valendo. */
+  andarDoPredio: boolean
 }
 
 export const FEATURES: Readonly<FeatureFlags> = {
@@ -36,4 +38,6 @@ export const FEATURES: Readonly<FeatureFlags> = {
   iniciativa: false,
   relogioDaCampanha: false,
   confronto: false,
+  // Pedido do usuário em 07/10/2026: tirar da janela Configurações do mapa.
+  andarDoPredio: false,
 }

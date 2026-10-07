@@ -5176,6 +5176,66 @@ html.lb-arrastando-cena * {
   will-change: transform;
 }
 
+/* "Configurar cena" (SceneSettingsDialog): os campos da visão e, ao lado, o
+   radar do que o jogador enxerga. Em tela estreita o radar desce. */
+.lb-dialog.lb-cena-config {
+  width: min(600px, 100%);
+}
+
+.lb-cena-config__corpo {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+}
+
+@media (max-width: 560px) {
+  .lb-cena-config__corpo {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.lb-cena-config__radar {
+  margin: 0;
+  padding: var(--lb-space-4);
+  display: grid;
+  gap: var(--lb-space-2);
+  width: calc(168px + 2 * var(--lb-space-4));
+}
+
+.lb-cena-config__previa {
+  display: block;
+  border-radius: var(--lb-radius-md);
+  border: 1px solid var(--lb-color-line-strong);
+}
+
+.lb-cena-config__escuro {
+  fill: var(--lb-color-ink);
+}
+
+.lb-cena-config__visto {
+  fill: var(--lb-color-stone-hover);
+}
+
+.lb-cena-config__grade line {
+  stroke: var(--lb-color-line);
+  stroke-width: 1;
+}
+
+.lb-cena-config__borda {
+  fill: none;
+  stroke: var(--lb-color-brass);
+  stroke-width: 1.5;
+}
+
+.lb-cena-config__borda--escura {
+  stroke-dasharray: 4 4;
+  opacity: 0.6;
+}
+
+.lb-cena-config__ficha {
+  fill: var(--lb-color-brass);
+}
+
 .lb-corte__corpo {
   padding: var(--lb-space-4);
 }
