@@ -220,3 +220,40 @@ describe('tokenCountLabel', () => {
     expect(tokenCountLabel(null)).toBe('indisponível')
   })
 })
+
+describe('SceneOverviewDialog agrupada', () => {
+  let caixa: HTMLDivElement
+  beforeEach(() => {
+    Reflect.set(globalThis, 'IS_REACT_ACT_ENVIRONMENT', true)
+    caixa = document.createElement('div')
+    document.body.appendChild(caixa)
+  })
+  afterEach(() => {
+    document.body.innerHTML = ''
+  })
+  const janela = () => document.body.querySelector<HTMLElement>('[role="dialog"]')
+  const miniaturas = () => Array.from(janela()?.querySelectorAll<HTMLButtonElement>('button[aria-label]') ?? []).filter((b) => b.getAttribute('aria-label') !== 'Fechar')
+
+  it('cenas dentro de cenas (07/10/2026): grupo pela cena de fora, sub-grupos embaixo, em níveis', () => {
+    const aninhadas: SceneListItem[] = [
+      { ...CENAS[0] },
+      { ...CENAS[1], parentId: 's-salao' },
+      { ...CENAS[2], parentId: 's-cripta' },
+      { ...CENAS[3] },
+    ]
+    act(() => createRoot(caixa).render(<SceneOverviewDialog expandida scenes={aninhadas} maps={MAPAS} onPick={vi.fn()} onClose={vi.fn()} />))
+    expect(janela()?.classList.contains('lb-visao--expandida')).toBe(true)
+    const grupoSalao = janela()?.querySelector('section[aria-label="Salão"]')
+    expect(grupoSalao).not.toBeNull()
+    const subSalao = grupoSalao?.querySelector(':scope > .lb-visao__sub')
+    expect(subSalao?.querySelector('.lb-visao__sub-titulo')?.textContent).toBe('Dentro de Salão')
+    // Cripta logo abaixo do Salão; o Poço, dentro da Cripta, um nível mais fundo.
+    expect(subSalao?.querySelector(':scope > .lb-visao__grade')?.textContent).toContain('Cripta')
+    const subCripta = subSalao?.querySelector('.lb-visao__sub')
+    expect(subCripta?.querySelector('.lb-visao__sub-titulo')?.textContent).toBe('Dentro de Cripta')
+    expect(subCripta?.textContent).toContain('Poço')
+    // A cena sem nada dentro vai para "Outras cenas".
+    expect(janela()?.querySelector('section[aria-label="Outras cenas"]')?.textContent).toContain('Torre')
+    expect(miniaturas()).toHaveLength(4)
+  })
+})

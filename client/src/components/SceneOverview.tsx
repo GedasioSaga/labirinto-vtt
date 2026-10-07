@@ -7,6 +7,7 @@ import { WALL_COLOR, WALL_INTERIOR_ALPHA } from '../pixi/drawWalls'
 import { theme } from '../theme'
 import { CloseIcon } from './icons'
 import { sceneArt, type ArtFrame } from './sceneOverviewArt'
+import { sceneTree, type SceneTreeRow } from '../lib/adventure'
 
 /** Entrada da janela: ease-out curto, nunca de escala zero — o mesmo do aviso de trabalho não salvo (App.tsx). */
 const ENTER_MS = 160
@@ -175,7 +176,11 @@ export interface SceneOverviewDialogProps {
   /** Clique numa miniatura. Quem chama troca de cena (ou não, se já é a aberta) e fecha. */
   onPick: (sceneId: string) => void
   onClose: () => void
+  /** Aberta pelo ícone de expandir do cabeçalho: janela maior, miniaturas maiores. */
+  expandida?: boolean
 }
+
+type Row = SceneTreeRow<SceneListItem>
 
 /**
  * VISÃO GERAL DAS CENAS (G14): uma miniatura por cena da aventura, com o chão
@@ -186,11 +191,14 @@ export interface SceneOverviewDialogProps {
  * Janela modal por portal no `body`, como "Configurações do mapa": o painel
  * lateral usa `backdrop-filter`, que prenderia a janela na coluna de 264 px.
  */
-export function SceneOverviewDialog({ scenes, maps, pisoAberto = 0, onPick, onClose }: SceneOverviewDialogProps) {
+export function SceneOverviewDialog({ scenes, maps, pisoAberto = 0, onPick, onClose, expandida = false }: SceneOverviewDialogProps) {
   const titleId = useId()
   const hintId = useId()
   const dialogRef = useRef<HTMLDivElement>(null)
-  const gridRef = useRef<HTMLUListElement>(null)
+  const gridRef = useRef<HTMLDivElement>(null)
+  const rows = useMemo(() => sceneTree(scenes), [scenes])
+  const byId = useMemo(() => new Map(rows.map((row) => [row.entry.id, row])), [rows])
+  const temGrupos = rows.some((row) => row.childIds.length > 0)
   // Fecha só se o clique COMEÇOU no fundo (mesma regra de MapSettingsDialog).
   const pressStartedOnBackdrop = useRef(false)
 
@@ -228,7 +236,7 @@ export function SceneOverviewDialog({ scenes, maps, pisoAberto = 0, onPick, onCl
     }
   }
 
-  function onGridKeyDown(event: KeyboardEvent<HTMLUListElement>) {
+  function onGridKeyDown(event: KeyboardEvent<HTMLDivElement>) {
     const cards = Array.from(gridRef.current?.querySelectorAll<HTMLButtonElement>(CARD) ?? [])
     const from = cards.findIndex((card) => card === document.activeElement)
     if (from === -1) return
@@ -247,11 +255,61 @@ export function SceneOverviewDialog({ scenes, maps, pisoAberto = 0, onPick, onCl
     pressStartedOnBackdrop.current = false
   }
 
+  /** Uma miniatura: clicar abre a cena. */
+  function renderCard(scene: SceneListItem) {
+    const map = maps.get(scene.id)
+    return (
+      <li key={scene.id || 'cena-solta'} className="lb-visao__item">
+        <button
+          type="button"
+          className="lb-visao__cena"
+          aria-current={scene.active ? 'true' : undefined}
+          aria-label={sceneLabel(scene, map)}
+          disabled={!scene.available}
+          onClick={() => onPick(scene.id)}
+        >
+          <span className="lb-visao__mapa">
+            {!scene.available ? (
+              <span className="lb-visao__falta">Arquivo não encontrado</span>
+            ) : map ? (
+              <SceneThumbnail map={map} piso={scene.active ? pisoAberto : 0} />
+            ) : (
+              <span className="lb-visao__falta">Sem prévia</span>
+            )}
+          </span>
+          <span className="lb-visao__legenda">
+            <span className="lb-visao__nome">{scene.name}</span>
+            <span className="lb-visao__conta">{tokenCountLabel(scene.tokenCount)}</span>
+          </span>
+        </button>
+      </li>
+    )
+  }
+
+  /**
+   * CENAS DENTRO DE CENAS: as de dentro de `row` numa grade logo abaixo dela,
+   * recuadas; cada uma que também tem cenas dentro abre o seu sub-grupo depois,
+   * e assim por diante.
+   */
+  function renderSubgrupo(row: Row) {
+    const filhos = row.childIds.map((id) => byId.get(id)).filter((child): child is Row => child !== undefined)
+    if (filhos.length === 0) return null
+    return (
+      <div className="lb-visao__sub">
+        <p className="lb-visao__sub-titulo">Dentro de {row.entry.name}</p>
+        <ul className="lb-visao__grade">{filhos.map((child) => renderCard(child.entry))}</ul>
+        {filhos.map((child) => (
+          <div key={child.entry.id}>{renderSubgrupo(child)}</div>
+        ))}
+      </div>
+    )
+  }
+
   return createPortal(
     <div className="lb-dialog-backdrop" onMouseDown={onBackdropMouseDown} onClick={onBackdropClick}>
       <div
         ref={dialogRef}
-        className="lb-panel lb-dialog lb-visao"
+        className={`lb-panel lb-dialog lb-visao${expandida ? ' lb-visao--expandida' : ''}`}
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
@@ -272,37 +330,31 @@ export function SceneOverviewDialog({ scenes, maps, pisoAberto = 0, onPick, onCl
             <CloseIcon size={16} />
           </button>
         </header>
-        <ul ref={gridRef} className="lb-dialog__body lb-scroll lb-visao__grade" aria-label="Miniaturas das cenas" onKeyDown={onGridKeyDown}>
-          {scenes.map((scene) => {
-            const map = maps.get(scene.id)
-            return (
-              <li key={scene.id || 'cena-solta'} className="lb-visao__item">
-                <button
-                  type="button"
-                  className="lb-visao__cena"
-                  aria-current={scene.active ? 'true' : undefined}
-                  aria-label={sceneLabel(scene, map)}
-                  disabled={!scene.available}
-                  onClick={() => onPick(scene.id)}
-                >
-                  <span className="lb-visao__mapa">
-                    {!scene.available ? (
-                      <span className="lb-visao__falta">Arquivo não encontrado</span>
-                    ) : map ? (
-                      <SceneThumbnail map={map} piso={scene.active ? pisoAberto : 0} />
-                    ) : (
-                      <span className="lb-visao__falta">Sem prévia</span>
-                    )}
-                  </span>
-                  <span className="lb-visao__legenda">
-                    <span className="lb-visao__nome">{scene.name}</span>
-                    <span className="lb-visao__conta">{tokenCountLabel(scene.tokenCount)}</span>
-                  </span>
-                </button>
-              </li>
-            )
-          })}
-        </ul>
+        <div ref={gridRef} className="lb-dialog__body lb-scroll lb-visao__corpo" role="group" aria-label="Miniaturas das cenas" onKeyDown={onGridKeyDown}>
+          {temGrupos ? (
+            <>
+              {rows
+                .filter((row) => row.depth === 0 && row.childIds.length > 0)
+                .map((row) => (
+                  <section key={row.entry.id} className="lb-visao__grupo" aria-label={row.entry.name}>
+                    <h3 className="lb-eyebrow lb-visao__grupo-titulo">{row.entry.name}</h3>
+                    <ul className="lb-visao__grade">{renderCard(row.entry)}</ul>
+                    {renderSubgrupo(row)}
+                  </section>
+                ))}
+              {rows.some((row) => row.depth === 0 && row.childIds.length === 0) && (
+                <section className="lb-visao__grupo" aria-label="Outras cenas">
+                  <h3 className="lb-eyebrow lb-visao__grupo-titulo">Outras cenas</h3>
+                  <ul className="lb-visao__grade">
+                    {rows.filter((row) => row.depth === 0 && row.childIds.length === 0).map((row) => renderCard(row.entry))}
+                  </ul>
+                </section>
+              )}
+            </>
+          ) : (
+            <ul className="lb-visao__grade">{rows.map((row) => renderCard(row.entry))}</ul>
+          )}
+        </div>
       </div>
     </div>,
     document.body,

@@ -116,6 +116,7 @@ import { amarradosPorEstado, type AmarraDeEstado } from './lib/estadoDoMundo'
 import { MapObjectsSection } from './components/MapObjectsSection'
 import { usePainelCategoriasStore } from './stores/painelCategoriasStore'
 import { SceneSettingsDialog } from './components/SceneSettingsDialog'
+import { SceneOverviewDialog } from './components/SceneOverview'
 import { MarcasDaCena } from './components/MarcasDaCena'
 import { PlaceTreeSection } from './components/PlaceTreeSection'
 import { currentObjectKey, isFindObjectShortcut } from './lib/mapObjects'
@@ -634,6 +635,8 @@ function App() {
   const [room, setRoom] = useState<RoomInfo | null>(null)
   /** Cena com a janela "Configurar" aberta; `null` = nenhuma. */
   const [configuringSceneId, setConfiguringSceneId] = useState<string | null>(null)
+  /** "Ver todas as cenas" (ícone de expandir do cabeçalho) aberta. */
+  const [cenasExpandidas, setCenasExpandidas] = useState(false)
   const [roomPlayers, setRoomPlayers] = useState<PlayerInfo[]>([])
   // "Quem vê" de cada pino com lista. O dono é a sessão do host; isto é só o que o painel desenha.
   const [pinAudiences, setPinAudiences] = useState<Record<string, string[]>>({})
@@ -2812,6 +2815,7 @@ function App() {
                 <EstadoDaZona zone={selectedConcealZone} estados={adventure.estados ?? []} onAmarrar={amarrarAoEstado} />
               )
             }
+            onExpandirCenas={() => setCenasExpandidas(true)}
             regionSplit={
               selectedRegion?.room === undefined
                 ? undefined
@@ -3706,6 +3710,19 @@ function App() {
         }
       />
       {configuringSceneId !== null && renderSceneSettings(configuringSceneId)}
+      {cenasExpandidas && (
+        <SceneOverviewDialog
+          expandida
+          scenes={scenesPanel}
+          maps={sceneMaps({ adventure, activeSceneId, cache: sceneCache }, map)}
+          pisoAberto={pisoAtivo}
+          onPick={(sceneId) => {
+            setCenasExpandidas(false)
+            if (scenesPanel.find((scene) => scene.id === sceneId)?.active === false) handleSelectScene(sceneId)
+          }}
+          onClose={() => setCenasExpandidas(false)}
+        />
+      )}
 
       {/* O HUD lê a escala da câmera direto da store: o zoom não re-renderiza o App. */}
       <ZoomHud onReset={() => setResetZoomRequest((n) => n + 1)} />

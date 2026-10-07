@@ -1344,3 +1344,9 @@ Noite = esta sessão conduzida pelo main thread; o noite-runner continua encerra
 - Fila: (1) esconder Gatilho e Perigo do painel da Sala; (2) opção para pintar partes da sala em cores diferentes.
 - Decidido: linha divisória (não pincel).
 - Feito: Gatilho e Perigo escondidos do painel da Sala por flag (`FEATURES.gatilhoDeArea`, `FEATURES.perigoDaSala`; a Região comum continua com o Gatilho). No lugar, bloco "Duas cores": "Pintar parte da sala de outra cor", Segunda cor, Divisão (Em pé/Deitada/Diagonal) e "Onde corta" (5–95%). Vale no editor e na tela do jogador (mesmo desenho). Conferido: tsc, testes (1464 de componentes + recorte), clique real num Chromium isolado. Não conferido no exe.
+
+> 07/10/2026: "[Image #7] aqui coloque um icone de expandir e quando tocado no icone vai aparecer todas as cenas, separada por categorias e as cenas que ficam dentro de outras cenas como subgrupo [Image #8] vão aparecer embaixo da cena principal e assim por diante, o que vai aparecer vai ser a miniatura do mapa, mas ainda sim visivel."
+- Imagem 7: cabeçalho do painel esquerdo (Labirinto, + Token, engrenagem).
+- Imagem 8: lista Cenas com "Cena 2" dentro de "Mapa sem título".
+- Fila: ícone de expandir no cabeçalho; abre todas as cenas em miniatura, agrupadas pela cena de cima, sub-cenas embaixo da principal, em níveis.
+- Feito: ícone de expandir ("Ver todas as cenas") no cabeçalho, entre "+ Token" e a engrenagem. Abre a Visão geral grande (até 1280 px) com miniaturas: cada cena de fora que tem cenas dentro vira um grupo com título; as de dentro aparecem embaixo, recuadas, em "Dentro de X", e assim por diante; cenas sem nada dentro vão para "Outras cenas". A "Visão geral" da lista de Cenas também ficou agrupada. Clicar abre a cena. Conferido: tsc, testes (27 da visão geral + painel), aventura com 3 níveis num Chromium isolado. Não conferido no exe.

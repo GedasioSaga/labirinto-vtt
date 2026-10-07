@@ -563,6 +563,15 @@ export function SettingsIcon(props: IconProps) {
   )
 }
 
+/** Expandir: quatro cantos apontando para fora (abre as cenas em tela grande). */
+export function ExpandIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M4 9V4H9M15 4H20V9M20 15V20H15M9 20H4V15" />
+    </Icon>
+  )
+}
+
 /** Olho aberto: amêndoa + pupila `r 3` (acima do limite de miolo fechado). */
 export function EyeIcon(props: IconProps) {
   return (

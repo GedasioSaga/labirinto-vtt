@@ -1,6 +1,6 @@
 import type { DrawingTool } from '../types/tools'
 import type { Drawing, FloorPiece, Light, Prop, Region, Stair, Token, Wall } from '../types/map'
-import { LabyrinthMark } from './icons'
+import { ExpandIcon, LabyrinthMark } from './icons'
 import { DrawingStyleControls, type DrawingStyleControlsProps } from './DrawingStyleControls'
 import { PathStyleControls, type PathStyleControlsProps } from './PathStyleControls'
 import { GridQuickToggles, type GridControlsProps } from './GridControls'
@@ -112,6 +112,8 @@ interface PropertiesPanelProps {
   perigoDaSala?: ReactNode
   /** SALA EM DUAS CORES da sala selecionada; ausente = sem o bloco. */
   regionSplit?: RegionSplitControlsProps
+  /** Ícone de expandir do cabeçalho: abre todas as cenas em miniatura, agrupadas. Ausente = sem o ícone. */
+  onExpandirCenas?: () => void
   /** ROTINA DO NPC da ficha selecionada (`RotinaDaFichaControls.tsx`), montada pelo App; ausente no mapa solto. */
   rotinaDaFicha?: ReactNode
   /** Seção "Objetos do mapa" (busca e "Ir até lá"), montada pelo App, que sabe da câmera e da seleção. */
@@ -326,6 +328,7 @@ export function PropertiesPanel({
   estadoDaLuz,
   perigoDaSala,
   regionSplit,
+  onExpandirCenas,
   rotinaDaFicha,
   objects: objetosDaCena,
   esconderCategorias = false,
@@ -539,6 +542,18 @@ export function PropertiesPanel({
             qualquer altura da coluna. Fica à mostra com o campo aberto — o
             cabeçalho não muda de desenho, e o clique leva de volta ao campo. */}
         <BotaoMais ref={maisTokenRef} nome={ADICIONAR_TOKEN} texto="Token" dica={ADICIONAR_TOKEN_DICA} onClick={abrirNovoToken} />
+        {onExpandirCenas !== undefined && (
+          <button
+            type="button"
+            className="lb-iconbtn lb-tip lb-inspector__settings"
+            aria-label="Ver todas as cenas"
+            data-tip="Ver todas as cenas"
+            aria-haspopup="dialog"
+            onClick={onExpandirCenas}
+          >
+            <ExpandIcon size={16} />
+          </button>
+        )}
         <MapSettingsButton
           grid={grid}
           gridAlign={gridAlign}

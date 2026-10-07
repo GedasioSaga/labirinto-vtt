@@ -5074,6 +5074,60 @@ html.lb-arrastando-cena * {
   min-width: 0;
 }
 
+/* CENAS AGRUPADAS: o corpo rola inteiro; cada cena de fora é um grupo com
+   título, e as de dentro descem recuadas, com o fio do nível à esquerda (o
+   mesmo fio da árvore da lista de Cenas). */
+.lb-visao__corpo {
+  display: flex;
+  flex-direction: column;
+}
+
+.lb-visao__corpo > .lb-visao__grade {
+  padding: var(--lb-space-4);
+}
+
+.lb-visao__grupo {
+  padding: var(--lb-space-4);
+  border-bottom: 1px solid var(--lb-color-line);
+}
+
+.lb-visao__grupo:last-child {
+  border-bottom: none;
+}
+
+/* auto-fill: a cena de fora sozinha na linha não estica até a largura toda. */
+.lb-visao__grupo .lb-visao__grade {
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  padding: 0;
+}
+
+.lb-visao__grupo-titulo {
+  margin: 0 0 var(--lb-space-3);
+}
+
+.lb-visao__sub {
+  margin-top: var(--lb-space-3);
+  margin-left: var(--lb-space-3);
+  padding-left: var(--lb-space-4);
+  border-left: 1px solid var(--lb-color-line-strong);
+}
+
+.lb-visao__sub-titulo {
+  margin: 0 0 var(--lb-space-2);
+  color: var(--lb-color-parchment-faint);
+  font-size: var(--lb-font-size-sm);
+}
+
+/* Aberta pelo ícone de expandir: quase a tela toda, miniaturas maiores. */
+.lb-dialog.lb-visao.lb-visao--expandida {
+  width: min(1280px, 100%);
+  height: calc(100vh - 2 * var(--lb-space-6));
+}
+
+.lb-visao--expandida .lb-visao__grade {
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+}
+
 .lb-visao__cena {
   display: flex;
   flex-direction: column;
