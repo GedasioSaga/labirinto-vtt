@@ -97,6 +97,26 @@ export function findVertexHandleAt(points: DrawingPoint[], point: Point, cameraS
   return findCurveControlPointAt(points, point, screenToWorldTolerance(VERTEX_HANDLE_TOLERANCE, cameraScale))
 }
 
+/**
+ * Como `findVertexHandleAt`, mas devolve a alça MAIS PERTO do ponteiro, não a
+ * primeira da lista. No traço do Pincel duas alças podem ficar a menos de dois
+ * alcances uma da outra; pela primeira da lista, o clique na de trás pegaria a
+ * da frente.
+ */
+export function findNearestVertexHandleAt(points: readonly DrawingPoint[], point: Point, cameraScale: number): number | null {
+  const alcance = screenToWorldTolerance(VERTEX_HANDLE_TOLERANCE, cameraScale)
+  let melhor: number | null = null
+  let menor = alcance
+  for (let i = 0; i < points.length; i += 1) {
+    const d = Math.hypot(point.x - points[i].x, point.y - points[i].y)
+    if (d <= menor) {
+      menor = d
+      melhor = i
+    }
+  }
+  return melhor
+}
+
 /** Alça de raio (Luz, Drawing círculo) sob o ponteiro, no zoom `cameraScale`. */
 export function isOnRadiusHandle(target: RadiusHandleTarget, point: Point, cameraScale: number): boolean {
   return findLightRadiusHandleAt(target, point, screenToWorldTolerance(LIGHT_RADIUS_HANDLE_TOLERANCE, cameraScale))

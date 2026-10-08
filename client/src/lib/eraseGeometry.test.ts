@@ -292,3 +292,23 @@ describe('eraseDecisionForProp', () => {
     expect(eraseDecisionForProp(prop, { x: 1000, y: 1000 }, 1)).toBe('keep')
   })
 })
+
+// Traço do Pincel já editado pelas alças (`pontosChave`, lib/pontosChave.ts):
+// a borracha parte o traço e os pedaços têm outros pontos — os índices velhos
+// não valem neles. Cada pedaço nasce sem o campo e as alças saem de novo do
+// Douglas-Peucker do pedaço.
+describe('eraseFromDrawing — traço do Pincel com pontos-chave guardados', () => {
+  it('os pedaços não herdam os índices do traço inteiro', () => {
+    const traco: Drawing = {
+      id: 't',
+      kind: 'freehand',
+      points: Array.from({ length: 101 }, (_, i) => ({ x: i * 2, y: 0 })),
+      color: '#000',
+      width: 3,
+      pontosChave: [0, 25, 50, 75, 100],
+    }
+    const pedacos = eraseFromDrawing(traco, { x: 100, y: 0 }, 10)
+    expect(pedacos).toHaveLength(2)
+    for (const pedaco of pedacos) expect('pontosChave' in pedaco).toBe(false)
+  })
+})

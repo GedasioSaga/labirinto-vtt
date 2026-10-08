@@ -195,7 +195,8 @@ import { drawDrawings } from './drawDrawings'
 import { desenhoFicaSobAsSalas } from '../lib/desenhoSobAsSalas'
 import { drawEditHandles, circleDrawingRadiusHandle } from './drawEditHandles'
 // Área de clique das alças no mesmo tamanho de TELA do desenho, em qualquer zoom.
-import { findBoxCornerHandleAt, findRoomCornerHandleAt, findVertexHandleAt, isOnRadiusHandle } from '../lib/handleHitArea'
+import { findBoxCornerHandleAt, findNearestVertexHandleAt, findRoomCornerHandleAt, findVertexHandleAt, isOnRadiusHandle } from '../lib/handleHitArea'
+import { alcasDoDesenho, editavelPorPontos, type DesenhoPorPontos } from '../lib/pontosChave'
 import { regionEdgeMidpoints } from '../lib/roomLink'
 import { isFreeMoveModifier } from '../lib/alignmentGuides'
 // Pedido 3 (guias estilo Figma): o que anda encaixa pela CAIXA (borda e
@@ -2317,6 +2318,8 @@ export function PixiCanvas({
         | 'drawing-curve'
         | 'dragging-curve-point'
         | 'dragging-curve-body'
+        // Alça de ponto-chave do traço do Pincel e do polígono (lib/pontosChave.ts).
+        | 'dragging-drawing-key-point'
         | 'dragging-light-radius'
         | 'erasing'
         | 'drawing-room'
@@ -2428,6 +2431,22 @@ export function PixiCanvas({
       // undo no pointerdown; nesse caso o gesto de arrastar o ponto recém-
       // inserido não deve gerar uma SEGUNDA entrada de histórico.
       let curveDragSnapshot: MapData | null = null
+      // Alça de ponto-chave do traço do Pincel e do polígono (lib/pontosChave.ts).
+      let draggingKeyPointDrawingId: string | null = null
+      // Índice em `pontosChaveDoDesenho`, não em `points`.
+      let draggingKeyPointIndex = 0
+      // Mapa de quando o arrasto começou (já com o ponto novo, se veio da
+      // bolinha vazada): cada pointermove recalcula a partir dele, senão o
+      // peso suave do trecho se acumularia passo a passo.
+      let keyPointDragBase: MapData | null = null
+      // Mapa de ANTES do gesto, para o Ctrl+Z único no pointerup. `null` quando
+      // o gesto começou criando o ponto: `insertDrawingKeyPoint` já foi o passo.
+      let keyPointDragSnapshot: MapData | null = null
+      // Alça menos ponteiro no pointerdown: a alça não pula para baixo do cursor.
+      let keyPointGrabOffset: Point = { x: 0, y: 0 }
+      // Polígono anda na grade e nas guias como o vértice da sala livre; o
+      // traço do Pincel nasce sem grade e continua sem.
+      let keyPointDragSnaps = false
       let roomDraftStart: Point | null = null
       // Ferramenta Token: ponto do clique. O campo de nome só abre no
       // pointerup — aberto no pointerdown, o mousedown seguinte no canvas
@@ -3246,6 +3265,23 @@ export function PixiCanvas({
         // Ponto não mede vão (fatia 3 é do arrasto de corpo): só a guia.
         showGuides({ guides: result.guides, gaps: [] })
         return result.point
+      }
+
+      /**
+       * Começa o arrasto de uma alça de ponto-chave (traço do Pincel, polígono).
+       * `snapshot` é o mapa de antes do gesto, ou `null` quando o gesto começou
+       * criando o ponto pela bolinha vazada (a criação já foi o passo de
+       * desfazer). A base do arrasto é o mapa da store AGORA — depois da criação.
+       */
+      const startKeyPointDrag = (drawing: DesenhoPorPontos, chave: number, alca: Point, pegouEm: Point, snapshot: MapData | null): void => {
+        mode = 'dragging-drawing-key-point'
+        draggingKeyPointDrawingId = drawing.id
+        draggingKeyPointIndex = chave
+        keyPointDragBase = useMapStore.getState().map
+        keyPointDragSnapshot = snapshot
+        keyPointGrabOffset = { x: alca.x - pegouEm.x, y: alca.y - pegouEm.y }
+        keyPointDragSnaps = drawing.kind === 'polygon'
+        if (keyPointDragSnaps) pointGuideBoxes = startPointGuides({ drawings: [drawing.id] }, 'wall-ends')
       }
 
       /** Ímã de vértice em px de TELA, pelo zoom de agora (`VERTEX_MAGNET_SCREEN_PX`). */
@@ -4926,10 +4962,11 @@ export function PixiCanvas({
         if (activeTool === 'select' && single?.kind === 'drawing') {
           const drawing = map.drawings.find((d) => d.id === single.id)
 
-          // B3 (bug3 "mover e redimensionar"): alça de canto de rect/ellipse/
-          // polygon, ANTES de curve/line abaixo — um clique numa alça tem
-          // prioridade sobre qualquer outro gesto dessa seleção.
-          if (drawing && (drawing.kind === 'rect' || drawing.kind === 'ellipse' || drawing.kind === 'polygon')) {
+          // B3 (bug3 "mover e redimensionar"): alça de canto de rect/ellipse,
+          // ANTES de curve/line abaixo — um clique numa alça tem prioridade
+          // sobre qualquer outro gesto dessa seleção. O polígono saiu daqui em
+          // 08/10/2026: tem alça de vértice, logo abaixo.
+          if (drawing && (drawing.kind === 'rect' || drawing.kind === 'ellipse')) {
             const box = drawingBoundingBox(drawing)
             const corner = box ? findBoxCornerHandleAt(box, worldPoint, camera.scale) : null
             if (corner !== null) {
@@ -4938,6 +4975,29 @@ export function PixiCanvas({
               resizingDrawingCorner = corner
               resizingDrawingSnapshot = map
               return
+            }
+          }
+
+          // Traço do Pincel e polígono (forma Polígono e pintura do balde):
+          // alças de ponto-chave, como a sala livre (lib/pontosChave.ts). A
+          // cheia arrasta o ponto e o trecho em volta acompanha; a vazada cria
+          // um ponto-chave no meio do trecho e já sai arrastando, num Ctrl+Z só.
+          if (drawing && editavelPorPontos(drawing)) {
+            const alcas = alcasDoDesenho(drawing, camera.scale)
+            const vertice = findNearestVertexHandleAt(alcas.vertices, worldPoint, camera.scale)
+            if (vertice !== null) {
+              const alca = alcas.vertices[vertice]
+              startKeyPointDrag(drawing, alca.chave, alca, worldPoint, map)
+              return
+            }
+            const meio = findNearestVertexHandleAt(alcas.meios, worldPoint, camera.scale)
+            if (meio !== null) {
+              const alca = alcas.meios[meio]
+              const chave = useMapStore.getState().insertDrawingKeyPoint(single.id, alca.depoisDaChave)
+              if (chave !== null) {
+                startKeyPointDrag(drawing, chave, alca, worldPoint, null)
+                return
+              }
             }
           }
 
@@ -5800,6 +5860,11 @@ export function PixiCanvas({
         if ((mode === 'dragging-curve-point' || mode === 'dragging-curve-body') && curveDragSnapshot) {
           useMapStore.getState().commitDragHistory(curveDragSnapshot)
         }
+        // Alça de ponto-chave (traço do Pincel, polígono): mesmo par da Curva.
+        // Sem snapshot quando o gesto começou criando o ponto — já é um passo.
+        if (mode === 'dragging-drawing-key-point' && keyPointDragSnapshot) {
+          useMapStore.getState().commitDragHistory(keyPointDragSnapshot)
+        }
         // Fecha o arrasto da alça de raio da Luz no mesmo padrão de Curva acima:
         // lightRadiusDragSnapshot é o `map` de ANTES do gesto (pointerdown); os
         // pointermoves do meio usaram updateLightRadiusLive, sem histórico.
@@ -5918,6 +5983,9 @@ export function PixiCanvas({
         // botão fora do canvas encerra a passada do mesmo jeito.
         if (mode === 'erasing') finishEraseGesture()
         curveDragSnapshot = null
+        keyPointDragSnapshot = null
+        keyPointDragBase = null
+        draggingKeyPointDrawingId = null
         lightRadiusDragSnapshot = null
         roomCornerDragSnapshot = null
         resizingRoomId = null
@@ -6005,6 +6073,9 @@ export function PixiCanvas({
         if ((mode === 'dragging-curve-point' || mode === 'dragging-curve-body') && curveDragSnapshot) {
           useMapStore.getState().commitDragHistory(curveDragSnapshot)
         }
+        if (mode === 'dragging-drawing-key-point' && keyPointDragSnapshot) {
+          useMapStore.getState().commitDragHistory(keyPointDragSnapshot)
+        }
         if (mode === 'dragging-light-radius' && lightRadiusDragSnapshot) {
           useMapStore.getState().commitDragHistory(lightRadiusDragSnapshot)
         }
@@ -6078,6 +6149,9 @@ export function PixiCanvas({
         // botão fora do canvas encerra a passada do mesmo jeito.
         if (mode === 'erasing') finishEraseGesture()
         curveDragSnapshot = null
+        keyPointDragSnapshot = null
+        keyPointDragBase = null
+        draggingKeyPointDrawingId = null
         lightRadiusDragSnapshot = null
         roomCornerDragSnapshot = null
         resizingRoomId = null
@@ -6382,6 +6456,15 @@ export function PixiCanvas({
           const { map } = useMapStore.getState()
           const p = applySnap(worldPoint, map.grid, 'wall', event.altKey)
           useMapStore.getState().updateCurvePointLive(draggingCurveId, draggingCurvePointIndex, p.x, p.y)
+          return
+        }
+
+        if (mode === 'dragging-drawing-key-point' && draggingKeyPointDrawingId !== null && keyPointDragBase !== null) {
+          const worldPoint = toWorldPoint(event.global.x, event.global.y)
+          const alvo = { x: worldPoint.x + keyPointGrabOffset.x, y: worldPoint.y + keyPointGrabOffset.y }
+          const { map } = useMapStore.getState()
+          const ponto = keyPointDragSnaps ? pointWithGuides(applySnap(alvo, map.grid, 'wall', event.altKey), 'wall', event) : alvo
+          useMapStore.getState().updateDrawingKeyPointLive(keyPointDragBase, draggingKeyPointDrawingId, draggingKeyPointIndex, ponto.x, ponto.y)
           return
         }
 
@@ -6804,6 +6887,19 @@ export function PixiCanvas({
             }
           } else if (single?.kind === 'drawing') {
             const drawing = map.drawings.find((d) => d.id === single.id)
+            // Traço do Pincel e polígono: duplo clique na alça cheia tira o
+            // ponto-chave (lib/pontosChave.ts). Recusado (mínimo de pontos,
+            // âncora) não faz nada, como a curva com 2 pontos.
+            if (drawing && editavelPorPontos(drawing)) {
+              const rect = el.getBoundingClientRect()
+              const worldPoint = toWorldPoint(event.clientX - rect.left, event.clientY - rect.top)
+              const alcas = alcasDoDesenho(drawing, camera.scale)
+              const vertice = findNearestVertexHandleAt(alcas.vertices, worldPoint, camera.scale)
+              if (vertice !== null) {
+                useMapStore.getState().removeDrawingKeyPoint(single.id, alcas.vertices[vertice].chave)
+                return
+              }
+            }
             if (drawing && drawing.kind === 'curve') {
               const rect = el.getBoundingClientRect()
               const worldPoint = toWorldPoint(event.clientX - rect.left, event.clientY - rect.top)

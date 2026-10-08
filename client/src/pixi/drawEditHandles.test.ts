@@ -32,6 +32,16 @@ const FILLS_POR_CHIP = 2
  * Toda Sala selecionada e destravada a tem; região comum, não.
  */
 const FILLS_DA_ALCA_DE_GIRAR = 1
+
+/**
+ * Alças de PONTO-CHAVE (traço do Pincel, polígono — lib/pontosChave.ts): a
+ * bolinha da sala livre ganha a faixa escura dos chips de canto, senão some
+ * na faixa amarela de seleção do traço. Cheia: faixa + bolinha (2 fills).
+ * Vazada: fundo escuro (1 fill) + aro amarelo (1 stroke).
+ */
+const FILLS_POR_PONTO_CHAVE = 2
+const FILLS_POR_MEIO = 1
+const STROKES_POR_MEIO = 1
 const STROKES_DA_ALCA_DE_GIRAR = 2
 
 function buildSquareRegion(id: string): Region {
@@ -312,7 +322,11 @@ describe('drawEditHandles — Drawing rect/ellipse/polygon (bounding box)', () =
     expect(countStrokeInstructions(g)).toBe(0)
   })
 
-  it('polygon selecionado: 4 alças de canto (bounding box, não 1 por vértice)', () => {
+  // Pedido do usuário (08/10/2026, "editar o pincel igual à sala livre"): o
+  // polígono — forma Polígono e pintura do balde — troca a caixa de 4 cantos
+  // por alças de VÉRTICE, como a sala livre: bolinha cheia em cada canto e
+  // vazada no meio de cada aresta (`lib/pontosChave.ts`).
+  it('polygon selecionado: uma bolinha cheia por vértice e uma vazada por aresta, sem caixa de cantos', () => {
     const drawing: Drawing = {
       id: 'd3', kind: 'polygon',
       points: [{ x: 0, y: 0 }, { x: 50, y: -20 }, { x: 100, y: 0 }, { x: 50, y: 80 }],
@@ -323,16 +337,54 @@ describe('drawEditHandles — Drawing rect/ellipse/polygon (bounding box)', () =
 
     drawEditHandles(g, map, { kind: 'drawing', id: 'd3' }, 'select')
 
-    expect(countFillInstructions(g)).toBe(4 * FILLS_POR_CHIP)
-    expect(countStrokeInstructions(g)).toBe(0)
+    expect(countFillInstructions(g)).toBe(4 * FILLS_POR_PONTO_CHAVE + 4 * FILLS_POR_MEIO)
+    expect(countStrokeInstructions(g)).toBe(4 * STROKES_POR_MEIO)
   })
 
-  it('text/freehand selecionados: sem handle nenhum (fora de escopo de resize nesta fase)', () => {
-    const freehand: Drawing = { id: 'd4', kind: 'freehand', points: [{ x: 0, y: 0 }, { x: 10, y: 10 }], color: '#fff', width: 2 }
+  it('pintura do balde com buraco: as pontas da ponte da fechadura não ganham alça', () => {
+    const pintura: Drawing = {
+      id: 'd5', kind: 'polygon',
+      points: [
+        { x: 0, y: 0 }, { x: 100, y: 0 }, { x: 100, y: 100 }, { x: 0, y: 100 },
+        { x: 0, y: 50 }, { x: 40, y: 50 },
+        { x: 40, y: 60 }, { x: 60, y: 60 }, { x: 60, y: 40 }, { x: 40, y: 40 },
+        { x: 40, y: 50 }, { x: 0, y: 50 },
+      ],
+      color: '#fff', width: 0, filled: true, fillAlpha: 1,
+    }
+    const map = { ...createEmptyMap('m', 'M', 30, 20, 64), drawings: [pintura] }
+    const g = new Graphics()
+
+    // Zoom 4: toda aresta (a menor tem 10 px de mundo) fica longa o bastante na tela para ter meio.
+    drawEditHandles(g, map, { kind: 'drawing', id: 'd5' }, 'select', { cameraScale: 4 })
+
+    // 12 pontos, 4 deles pontas de ponte: 8 alças cheias. 12 arestas, 2 delas
+    // a ponte de ida e volta: 10 bolinhas vazadas.
+    expect(countFillInstructions(g)).toBe(8 * FILLS_POR_PONTO_CHAVE + 10 * FILLS_POR_MEIO)
+    expect(countStrokeInstructions(g)).toBe(10 * STROKES_POR_MEIO)
+  })
+
+  it('freehand (traço do Pincel) selecionado: alça nos pontos-chave e vazada no meio de cada trecho', () => {
+    const freehand: Drawing = {
+      id: 'd4', kind: 'freehand',
+      points: Array.from({ length: 101 }, (_, i) => ({ x: i * 2, y: 0 })),
+      color: '#fff', width: 2, pontosChave: [0, 50, 100],
+    }
     const map = { ...createEmptyMap('m', 'M', 30, 20, 64), drawings: [freehand] }
     const g = new Graphics()
 
     drawEditHandles(g, map, { kind: 'drawing', id: 'd4' }, 'select')
+
+    expect(countFillInstructions(g)).toBe(3 * FILLS_POR_PONTO_CHAVE + 2 * FILLS_POR_MEIO)
+    expect(countStrokeInstructions(g)).toBe(2 * STROKES_POR_MEIO)
+  })
+
+  it('text selecionado: sem handle nenhum', () => {
+    const text: Drawing = { id: 'd6', kind: 'text', x: 0, y: 0, text: 'oi', color: '#fff', fontSize: 16 }
+    const map = { ...createEmptyMap('m', 'M', 30, 20, 64), drawings: [text] }
+    const g = new Graphics()
+
+    drawEditHandles(g, map, { kind: 'drawing', id: 'd6' }, 'select')
 
     expect(countFillInstructions(g)).toBe(0)
     expect(countStrokeInstructions(g)).toBe(0)

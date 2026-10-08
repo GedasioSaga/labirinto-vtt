@@ -49,6 +49,8 @@ export type GestureMode =
   | 'drawing-curve'
   | 'dragging-curve-point'
   | 'dragging-curve-body'
+  // Alça de ponto-chave do traço do Pincel e do polígono (lib/pontosChave.ts).
+  | 'dragging-drawing-key-point'
   | 'dragging-light-radius'
   | 'erasing'
   | 'drawing-room'
@@ -345,6 +347,7 @@ export function resolveCursor(input: ResolveCursorInput): string {
     case 'dragging-wall-point':
     case 'dragging-region-point':
     case 'dragging-curve-point':
+    case 'dragging-drawing-key-point':
     case 'dragging-line-point':
     case 'dragging-light-radius':
     // Onda 3, item 18 — mesma leitura de `dragging-light-radius`: mão

@@ -71,6 +71,7 @@ import {
 import { endireitarMudariaAlgo, endireitarNoMapa, type IgnoradosNoEndireitar } from '../lib/endireitar'
 import { useToastStore } from './toastStore'
 import { eraseFromDrawing } from '../lib/eraseGeometry'
+import { arrastarPontoChave, editavelPorPontos, inserirPontoChave, removerPontoChave, trocarDesenhoPorPontos } from '../lib/pontosChave'
 import { wallLayer, regionLayer, lightLayer, tokenLayer, drawingLayer, propLayer, stairLayer } from '../lib/layers'
 // Onda 4, item 24 (Frente C) — modelo canônico de seleção. `selection` do
 // store deixa de ser `Selection | null` (um item) + `areaSelection` (campo
@@ -1065,6 +1066,25 @@ interface MapStoreState {
    */
   updateCurvePointLive: (drawingId: string, index: number, x: number, y: number) => void
   moveCurveLive: (drawingId: string, dx: number, dy: number) => void
+  /*
+   * EDITAR O TRAÇO DO PINCEL E O POLÍGONO pelas alças de ponto-chave
+   * (`lib/pontosChave.ts`). São as ÚNICAS portas por onde os pontos de um
+   * `freehand`/`polygon` mudam numa edição de alça — quem precisa reagir a
+   * isso (ex.: o que estiver preso ao desenho) escuta estas três.
+   *
+   * `keyIndex`/`afterKeyIndex` são índices em `pontosChaveDoDesenho(desenho)`,
+   * não em `points`.
+   */
+  /** Arrasto de alça, SEM histórico: recalcula a partir do desenho em `base`
+   *  (o mapa de quando o gesto começou). Par de `commitDragHistory` no pointerup. */
+  updateDrawingKeyPointLive: (base: MapData, drawingId: string, keyIndex: number, x: number, y: number) => void
+  /** Bolinha vazada: cria o ponto-chave no meio do trecho, COM histórico (um
+   *  passo). Devolve o índice do ponto-chave novo, para o arrasto que segue
+   *  (sem segundo passo), ou `null` quando o trecho não aceita. */
+  insertDrawingKeyPoint: (drawingId: string, afterKeyIndex: number) => number | null
+  /** Duplo clique na alça: tira o ponto-chave, COM histórico. `false` (e nenhum
+   *  passo) quando não pode — mínimo de pontos-chave, âncora da fechadura. */
+  removeDrawingKeyPoint: (drawingId: string, keyIndex: number) => boolean
   /**
    * Fecha um gesto de arrasto (drag) num único snapshot de undo: `before` é
    * o `map` capturado ANTES do gesto começar (no pointerdown), guardado numa
@@ -2395,6 +2415,31 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
       },
     })),
     moveCurveLive: (drawingId, dx, dy) => set((state) => ({ map: mapFactory.moveCurve(state.map, drawingId, dx, dy) })),
+    updateDrawingKeyPointLive: (base, drawingId, keyIndex, x, y) => {
+      const doInicio = base.drawings.find((d) => d.id === drawingId)
+      if (doInicio === undefined || !editavelPorPontos(doInicio)) return
+      const arrastado = arrastarPontoChave(doInicio, keyIndex, x, y)
+      set((state) => {
+        const map = trocarDesenhoPorPontos(state.map, drawingId, () => arrastado)
+        return map === state.map ? {} : { map }
+      })
+    },
+    insertDrawingKeyPoint: (drawingId, afterKeyIndex) => {
+      const atual = get().map.drawings.find((d) => d.id === drawingId)
+      if (atual === undefined || !editavelPorPontos(atual)) return null
+      const inserido = inserirPontoChave(atual, afterKeyIndex)
+      if (inserido === null) return null
+      withHistory((map) => trocarDesenhoPorPontos(map, drawingId, () => inserido.desenho))
+      return inserido.chave
+    },
+    removeDrawingKeyPoint: (drawingId, keyIndex) => {
+      const atual = get().map.drawings.find((d) => d.id === drawingId)
+      if (atual === undefined || !editavelPorPontos(atual)) return false
+      const removido = removerPontoChave(atual, keyIndex)
+      if (removido === null) return false
+      withHistory((map) => trocarDesenhoPorPontos(map, drawingId, () => removido))
+      return true
+    },
     commitDragHistory: (before) => set((state) =>
       changedOnlyByPlayer(state.map, before) ? {} : { past: pushPast(state.past, withLaterPlayerChanges(before)), future: [] },
     ),

@@ -121,6 +121,31 @@ describe('resolveHoverHit — resize-corner (entidade já selecionada)', () => {
     expect(result).toEqual({ kind: 'resize-corner', corner: 2, target: null })
   })
 
+  it('Drawing polygon selecionado: o canto da caixa não redimensiona mais; o vértice é alça (como a sala livre)', () => {
+    const drawing: Drawing = {
+      id: 'p1', kind: 'polygon', points: [{ x: 0, y: 0 }, { x: 100, y: 50 }, { x: 0, y: 100 }],
+      color: '#fff', width: 2, filled: true, fillAlpha: 1,
+    }
+    const map = addDrawing(baseMap, drawing)
+    const sobre = (worldPoint: { x: number; y: number }) =>
+      resolveHoverHit({ map, selection: { kind: 'drawing', id: 'p1' }, areaSelection: null, activeTool: 'select', worldPoint })
+    // (100, 0) é canto da caixa, mas não é vértice.
+    expect(sobre({ x: 100, y: 0 }).kind).not.toBe('resize-corner')
+    expect(sobre({ x: 100, y: 50 })).toEqual({ kind: 'vertex', corner: null, target: null })
+    // Meio da aresta que fecha (0,100) → (0,0): bolinha vazada.
+    expect(sobre({ x: 0, y: 50 })).toEqual({ kind: 'vertex', corner: null, target: null })
+  })
+
+  it('traço do Pincel selecionado, hover num ponto-chave: vertex', () => {
+    const drawing: Drawing = {
+      id: 'f1', kind: 'freehand', points: Array.from({ length: 101 }, (_, i) => ({ x: i * 2, y: 300 })),
+      color: '#fff', width: 2, pontosChave: [0, 50, 100],
+    }
+    const map = addDrawing(baseMap, drawing)
+    const result = resolveHoverHit({ map, selection: { kind: 'drawing', id: 'f1' }, areaSelection: null, activeTool: 'select', worldPoint: { x: 101, y: 302 } })
+    expect(result).toEqual({ kind: 'vertex', corner: null, target: null })
+  })
+
   it('Sala retangular (region.room.shape rect) selecionada por si mesma, hover no canto: resize-corner via findRoomCornerAt', () => {
     const region = buildSquareRegion('r1', { room: { shape: 'rect', name: 'Sala' } })
     const map = addRegion(baseMap, region)

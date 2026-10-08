@@ -3,6 +3,7 @@ import type { MapData, RegionPoint, Drawing, Region } from '../types/map'
 import type { Selection, DrawingTool } from '../types/tools'
 import type { Point } from './world'
 import { regionEdgeMidpoints } from '../lib/roomLink'
+import { alcasDoDesenho, editavelPorPontos } from '../lib/pontosChave'
 import { isAxisAlignedRect } from '../lib/roomOps'
 import { roomRotateHandle, roomRotationOf } from '../lib/roomRotation'
 import { isLocked } from '../lib/itemTransform'
@@ -13,6 +14,7 @@ import { alignToPixel, pixelGrid, strokeWidthInWorld } from './pixelAlign'
 import { selectionOutlineWidth } from './drawWalls'
 import {
   SELECTION_COLOR, STROKE_WEIGHT, HANDLE_VISUAL_RADIUS, HANDLE_MIDPOINT_RADIUS, CORNER_HANDLE_KEYLINE_COLOR,
+  CORNER_HANDLE_KEYLINE_WIDTH,
 } from './constants'
 
 /** Tolerância de clique/arrasto sobre a alça de raio da Luz, em px de mundo —
@@ -105,6 +107,30 @@ function drawRegionHandles(graphics: Graphics, points: RegionPoint[], cameraScal
     graphics
       .circle(midpoint.x, midpoint.y, HANDLE_MIDPOINT_RADIUS / cameraScale)
       .stroke({ width: STROKE_WEIGHT.thin / cameraScale, color: SELECTION_COLOR })
+  }
+}
+
+/**
+ * Alças de PONTO-CHAVE do traço do Pincel e do polígono (`lib/pontosChave.ts`):
+ * a linguagem da sala livre — cheia no ponto, vazada no meio — com a faixa
+ * escura dos chips de canto (`CORNER_HANDLE_KEYLINE_*`) em volta. Sem a faixa
+ * elas sumiam: o contorno de seleção do traço é uma faixa amarela da largura
+ * do traço + 2 px de cada lado, e a bolinha amarela de 7 px cabia inteira
+ * dentro dela (visto na prova de 08/10/2026). A vazada tem fundo escuro: o
+ * miolo mostra que ela é oca mesmo em cima da faixa amarela.
+ */
+function drawKeyPointHandles(graphics: Graphics, vertices: readonly Point[], midpoints: readonly Point[], cameraScale: number): void {
+  const keyline = CORNER_HANDLE_KEYLINE_WIDTH / cameraScale
+  const vertexRadius = HANDLE_VISUAL_RADIUS / cameraScale
+  const midpointRadius = HANDLE_MIDPOINT_RADIUS / cameraScale
+  const ring = STROKE_WEIGHT.thin / cameraScale
+  for (const point of vertices) {
+    graphics.circle(point.x, point.y, vertexRadius + keyline).fill({ color: CORNER_HANDLE_KEYLINE_COLOR })
+    graphics.circle(point.x, point.y, vertexRadius).fill({ color: SELECTION_COLOR })
+  }
+  for (const midpoint of midpoints) {
+    graphics.circle(midpoint.x, midpoint.y, midpointRadius + ring / 2 + keyline).fill({ color: CORNER_HANDLE_KEYLINE_COLOR })
+    graphics.circle(midpoint.x, midpoint.y, midpointRadius).stroke({ width: ring, color: SELECTION_COLOR })
   }
 }
 
@@ -208,12 +234,16 @@ function drawRoomRotateHandle(graphics: Graphics, region: Region, view: EditHand
  * qual conjunto de alças usar). A Curva mantém seu próprio mecanismo de
  * handle em `drawDrawings.ts` — não mexer.
  *
- * Agente B3 (dossiê F4, bug3): `rect`/`ellipse`/`polygon` (Drawing), Token e
+ * Agente B3 (dossiê F4, bug3): `rect`/`ellipse` (Drawing), Token e
  * Prop ganharam alça de canto quadrada (`drawBoxResizeHandles`, mesma
  * linguagem visual de `drawRoomHandles` — quadrado preenchido = "isto
- * redimensiona"), via bounding box (`lib/objectTransform.ts`). `text`/
- * `freehand` (Drawing) e `curve` não ganham handle NENHUM aqui: têm move
- * (ver CONTRATO em relatório), mas sem resize nesta fase.
+ * redimensiona"), via bounding box (`lib/objectTransform.ts`). `text` (Drawing)
+ * e `curve` não ganham handle NENHUM aqui (a curva desenha as dela).
+ *
+ * `freehand` (traço do Pincel) e `polygon` (forma Polígono e pintura do balde)
+ * têm alças de PONTO-CHAVE, como a sala livre: cheia no ponto, vazada no meio
+ * do trecho (`lib/pontosChave.ts`). O polígono tinha a caixa de 4 cantos; o
+ * pedido de 08/10/2026 ("editar igual à sala livre") trocou pelos vértices.
  *
  * Frente B, Onda 3 (item 18): `circle` (Drawing) ganhou a alça de raio
  * redonda (`drawLightRadiusHandle`, a mesma da Luz) — era o único Drawing
@@ -282,10 +312,19 @@ export function drawEditHandles(
       return
     }
 
-    // rect/ellipse/polygon: alça de canto por bounding box. `drawingBoundingBox`
-    // devolve null pros kinds restantes (text/freehand — circle já retornou
-    // acima) — nenhum desenho nesse caso, mesmo padrão de "seleção órfã não
-    // desenha nada" abaixo.
+    // Traço do Pincel e polígono (forma Polígono e pintura do balde): alças
+    // nos pontos-chave, como a sala livre (`lib/pontosChave.ts`). No polígono
+    // elas substituem a caixa de 4 cantos — pedido de 08/10/2026.
+    if (editavelPorPontos(drawing)) {
+      const alcas = alcasDoDesenho(drawing, scale)
+      drawKeyPointHandles(graphics, alcas.vertices, alcas.meios, scale)
+      return
+    }
+
+    // rect/ellipse: alça de canto por bounding box. `drawingBoundingBox`
+    // devolve null pros kinds restantes (text — circle, freehand e polygon já
+    // retornaram acima) — nenhum desenho nesse caso, mesmo padrão de "seleção
+    // órfã não desenha nada" abaixo.
     const box = drawingBoundingBox(drawing)
     if (box) drawBoxResizeHandles(graphics, box, scale)
     return

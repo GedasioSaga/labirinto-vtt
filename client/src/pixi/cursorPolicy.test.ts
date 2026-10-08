@@ -30,6 +30,7 @@ const ALL_MODES: GestureMode[] = [
   'drawing-curve',
   'dragging-curve-point',
   'dragging-curve-body',
+  'dragging-drawing-key-point',
   'dragging-light-radius',
   'erasing',
   'drawing-room',
@@ -116,8 +117,8 @@ const baseInput = (overrides: Partial<ResolveCursorInput> = {}): ResolveCursorIn
 })
 
 describe('resolveCursor — exaustividade', () => {
-  it('cobre TODOS os 41 modos de PixiCanvas.tsx sem lançar e devolve cursor CSS válido', () => {
-    expect(ALL_MODES).toHaveLength(41)
+  it('cobre TODOS os 42 modos de PixiCanvas.tsx sem lançar e devolve cursor CSS válido', () => {
+    expect(ALL_MODES).toHaveLength(42)
     for (const mode of ALL_MODES) {
       const cursor = resolveCursor(baseInput({ mode, corner: 0 }))
       expect(VALID_CSS_CURSORS.has(cursor), `mode "${mode}" devolveu cursor desconhecido: "${cursor}"`).toBe(true)
@@ -265,7 +266,7 @@ describe('resolveCursor — arrastando corpo inteiro: "move"', () => {
 
 describe('resolveCursor — arrastando um ponto/alça específica: "grabbing" (distingue de "move" de corpo inteiro)', () => {
   const pointDragModes: GestureMode[] = [
-    'dragging-wall-point', 'dragging-region-point', 'dragging-curve-point', 'dragging-line-point', 'dragging-light-radius',
+    'dragging-wall-point', 'dragging-region-point', 'dragging-curve-point', 'dragging-drawing-key-point', 'dragging-line-point', 'dragging-light-radius',
     // Onda 3, item 18 — alça de raio do Drawing 'circle', mesma leitura de
     // dragging-light-radius (mão fechada num ponto específico, não "move").
     'resizing-drawing-radius',

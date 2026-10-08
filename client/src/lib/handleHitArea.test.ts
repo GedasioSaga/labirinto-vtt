@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
-  findBoxCornerHandleAt, findRoomCornerHandleAt, findVertexHandleAt, isOnRadiusHandle, screenToWorldTolerance,
+  findBoxCornerHandleAt, findNearestVertexHandleAt, findRoomCornerHandleAt, findVertexHandleAt, isOnRadiusHandle, screenToWorldTolerance,
 } from './handleHitArea'
 import { findBoxCornerAt } from './objectTransform'
 import { findRoomCornerAt } from './roomOps'
@@ -118,6 +118,22 @@ describe('findVertexHandleAt — vértice, ponto médio e ponta de parede', () =
   it('zoom 4: o alcance encolhe para 2 px de mundo', () => {
     expect(findVertexHandleAt(pontos, { x: 198.5, y: 0 }, 4)).toBe(1)
     expect(findVertexHandleAt(pontos, { x: 197, y: 0 }, 4)).toBeNull()
+  })
+})
+
+describe('findNearestVertexHandleAt — alças juntas (traço do Pincel)', () => {
+  // Duas alças a 10 px uma da outra: com o alcance de 8 px as duas cobrem o meio.
+  const juntas = [{ x: 0, y: 0 }, { x: 10, y: 0 }]
+
+  it('pega a MAIS PERTO, não a primeira da lista', () => {
+    expect(findVertexHandleAt(juntas, { x: 7, y: 0 }, 1)).toBe(0)
+    expect(findNearestVertexHandleAt(juntas, { x: 7, y: 0 }, 1)).toBe(1)
+    expect(findNearestVertexHandleAt(juntas, { x: 3, y: 0 }, 1)).toBe(0)
+  })
+
+  it('mesmo alcance de tela de findVertexHandleAt', () => {
+    expect(findNearestVertexHandleAt(juntas, { x: 19, y: 0 }, 1)).toBeNull()
+    expect(findNearestVertexHandleAt(juntas, { x: 25, y: 0 }, 0.5)).toBe(1)
   })
 })
 

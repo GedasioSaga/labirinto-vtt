@@ -1520,9 +1520,20 @@ export type FreehandTexture = 'pen' | 'pencil' | 'marker'
  */
 export type DrawingDash = 'solid' | 'dashed' | 'dotted'
 
+/**
+ * Índices (em `points`, ordem crescente) dos PONTOS-CHAVE de um traço do
+ * Pincel ou de um polígono — onde ficam as alças de edição
+ * (`lib/pontosChave.ts`). Ausente até a primeira edição: as alças saem do
+ * Douglas-Peucker dos pontos. Depois de editado, os índices ficam guardados
+ * para as alças não pularem de lugar. Campo novo e opcional: mapa salvo antes
+ * abre igual, sem linha de migração; índice que não bate com os pontos é
+ * ignorado na leitura.
+ */
+export type PontosChave = number[]
+
 // `& PlayerSecret` distribui sobre a união: cada variante ganha `secret?`.
 export type Drawing = PlayerSecret & NoPiso & (
-  | { id: string; kind: 'freehand'; points: DrawingPoint[]; color: string; width: number; cap?: DrawingCap; texture?: FreehandTexture; dash?: DrawingDash }
+  | { id: string; kind: 'freehand'; points: DrawingPoint[]; color: string; width: number; cap?: DrawingCap; texture?: FreehandTexture; dash?: DrawingDash; pontosChave?: PontosChave }
   | { id: string; kind: 'line'; x1: number; y1: number; x2: number; y2: number; color: string; width: number; cap?: DrawingCap; dash?: DrawingDash }
   | { id: string; kind: 'circle'; cx: number; cy: number; radius: number; color: string; width: number; filled: boolean; fillAlpha: number }
   | { id: string; kind: 'curve'; points: DrawingPoint[]; color: string; width: number; cap?: DrawingCap; dash?: DrawingDash }
@@ -1530,7 +1541,7 @@ export type Drawing = PlayerSecret & NoPiso & (
   // NOVOS. `width` continua = espessura de traço; `w`/`h` = geometria.
   | { id: string; kind: 'rect'; x: number; y: number; w: number; h: number; color: string; width: number; filled: boolean; fillAlpha: number }
   | { id: string; kind: 'ellipse'; cx: number; cy: number; rx: number; ry: number; color: string; width: number; filled: boolean; fillAlpha: number }
-  | { id: string; kind: 'polygon'; points: DrawingPoint[]; color: string; width: number; filled: boolean; fillAlpha: number }
+  | { id: string; kind: 'polygon'; points: DrawingPoint[]; color: string; width: number; filled: boolean; fillAlpha: number; pontosChave?: PontosChave }
   /**
    * CAMINHO (ferramenta "Caminho", `types/tools.ts`): trilha traçada ponto a
    * ponto, com a cor DAQUELE caminho. Traço aberto como `freehand`/`curve` —

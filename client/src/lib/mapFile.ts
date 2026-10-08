@@ -38,6 +38,7 @@ import { propMobiliaFromFile } from './mobilia'
 import { readPinLeverDoor } from './lever'
 import { readAreaTriggers } from './areaTriggers'
 import { readArrivalText } from './arrivalText'
+import { pontosChaveDoArquivo } from './pontosChave'
 import { readSceneFloor } from './buildingFloors'
 import { lerAlerta, lerFaccao } from './faccoes'
 import { faceRangeCellsOrNull } from './tokenVulto'
@@ -408,8 +409,10 @@ function deserializeMapFields(json: string): MapData {
     // 0.5/0 é o alpha que drawDrawings.ts:50 já aplicava (filled ? 0.5 : 0);
     // sem esta linha, alpha: undefined vira 1 no Pixi e TODO círculo
     // preenchido de mapa salvo muda de aparência ao abrir.
+    // PONTOS-CHAVE (alças do traço e do polígono, `lib/pontosChave.ts`): campo
+    // novo e opcional; o que não é lista de inteiros sai na leitura.
     drawings: entityList(parsed.drawings).map((d) =>
-      d.kind === 'circle' && d.fillAlpha === undefined ? { ...d, fillAlpha: d.filled ? 0.5 : 0 } : d,
+      pontosChaveDoArquivo(d.kind === 'circle' && d.fillAlpha === undefined ? { ...d, fillAlpha: d.filled ? 0.5 : 0 } : d),
     ),
     // MUDA de cru para .map(): `FloorPiece.fillColor` (cor própria do caminho)
     // é campo NOVO. O default dele é a AUSÊNCIA — peça sem cor própria usa

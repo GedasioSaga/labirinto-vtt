@@ -41,7 +41,8 @@ import { drawingBoundingBox, tokenBoundingBox, propBoundingBox } from './objectT
 import { isAxisAlignedRect } from './roomOps'
 import { isOnRoomRotateHandle, roomRotationOf } from './roomRotation'
 import { findSelectableAt } from './selectionHitTest'
-import { findBoxCornerHandleAt, findRoomCornerHandleAt, findVertexHandleAt, isOnRadiusHandle } from './handleHitArea'
+import { findBoxCornerHandleAt, findNearestVertexHandleAt, findRoomCornerHandleAt, findVertexHandleAt, isOnRadiusHandle } from './handleHitArea'
+import { alcasDoDesenho, editavelPorPontos } from './pontosChave'
 import { areaSelectionBounds, type AreaSelection } from './areaSelection'
 import { canInteract, isHidden } from './itemTransform'
 
@@ -105,10 +106,18 @@ export function resolveHoverHit(input: HoverHitInput): HoverHit {
   if (tool === 'select' && selection) {
     if (selection.kind === 'drawing') {
       const drawing = map.drawings.find((d) => d.id === selection.id)
-      if (drawing && (drawing.kind === 'rect' || drawing.kind === 'ellipse' || drawing.kind === 'polygon')) {
+      if (drawing && (drawing.kind === 'rect' || drawing.kind === 'ellipse')) {
         const box = drawingBoundingBox(drawing)
         const corner = box ? findBoxCornerHandleAt(box, worldPoint, scale) : null
         if (corner !== null) return { kind: 'resize-corner', corner, target: null }
+      }
+      // Traço do Pincel e polígono: alça cheia (ponto-chave) ou vazada (meio),
+      // as mesmas que o pointerdown pega (`lib/pontosChave.ts`).
+      if (drawing && editavelPorPontos(drawing)) {
+        const alcas = alcasDoDesenho(drawing, scale)
+        if (findNearestVertexHandleAt(alcas.vertices, worldPoint, scale) !== null || findNearestVertexHandleAt(alcas.meios, worldPoint, scale) !== null) {
+          return { kind: 'vertex', corner: null, target: null }
+        }
       }
       if (drawing && drawing.kind === 'curve' && findVertexHandleAt(drawing.points, worldPoint, scale) !== null) {
         return { kind: 'vertex', corner: null, target: null }
