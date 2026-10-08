@@ -186,12 +186,13 @@ import { subscribeToPropsRedraw } from '../stores/propsSubscription'
 import { pickImageFile, importPropImage } from '../lib/imageImport'
 import { mapDirFor } from '../lib/mapFileIO'
 import {
-  findSelectableAt, findWallAt, findNearestExistingVertex,
+  findSelectableAt, findErasableAt, findWallAt, findNearestExistingVertex,
   findDoorAt, findConcealZoneForSelect,
   type SelectableHit,
 } from '../lib/selectionHitTest'
 import type { SelectionKind } from '../types/tools'
 import { drawDrawings } from './drawDrawings'
+import { desenhoFicaSobAsSalas } from '../lib/desenhoSobAsSalas'
 import { drawEditHandles, circleDrawingRadiusHandle } from './drawEditHandles'
 // Área de clique das alças no mesmo tamanho de TELA do desenho, em qualquer zoom.
 import { findBoxCornerHandleAt, findRoomCornerHandleAt, findVertexHandleAt, isOnRadiusHandle } from '../lib/handleHitArea'
@@ -925,7 +926,11 @@ export function PixiCanvas({
       const mapFrameContainer = new Container()
       // Render fiel (FloorStyle.renderMode === 'raster'): conteúdo do mapa rasterizado por software.
       const mapRasterSprite = new Sprite(Texture.EMPTY)
+      // A sala em duas camadas (pedido de 08/10/2026): o fundo aqui embaixo e a
+      // borda acima dos desenhos do botão Desenho (`RegionLayers`, drawRegions.ts).
       const regionsContainer = new Container()
+      const regionStrokesContainer = new Container()
+      const regionLayers = { fills: regionsContainer, strokes: regionStrokesContainer }
       // PERIGO QUE SE ALASTRA: logo acima das salas, abaixo de paredes e nomes.
       const perigosGraphics = new Graphics()
       // Nomes das salas acima de paredes, portas e escadas: abaixo delas a
@@ -941,6 +946,11 @@ export function PixiCanvas({
       const drawingsGraphics = new Graphics()
       const secretDrawingsGraphics = new Graphics()
       secretDrawingsGraphics.alpha = SECRET_ITEM_ALPHA
+      // Caminho (ferramenta junto do Chão, fora do botão Desenho): segue por
+      // cima da sala inteira, como sempre esteve (`desenhoFicaSobAsSalas`).
+      const pathsGraphics = new Graphics()
+      const secretPathsGraphics = new Graphics()
+      secretPathsGraphics.alpha = SECRET_ITEM_ALPHA
       const textLabelsContainer = new Container()
       const propsContainer = new Container()
       // Container, não Graphics: cada luz tem o halo em um objeto próprio para
@@ -1017,11 +1027,20 @@ export function PixiCanvas({
         // do Pincel e a pintura do balde de tinta entram ANTES das paredes,
         // portas e escadas — a pintura do balde anda uma célula por baixo do
         // traço (`lib/baldeDeTinta.ts`) e, por cima, comia meia parede. É a
-        // mesma ordem da tela do jogador (`player/PlayerView.tsx`), que já
-        // desenhava os desenhos sob as paredes. O chão (`floorGraphics`) já
-        // estava lá embaixo.
+        // mesma ordem da tela do jogador (`player/PlayerView.tsx`). O chão
+        // (`floorGraphics`) já estava lá embaixo.
+        //
+        // E POR BAIXO DA BORDA DA SALA (pedido de 08/10/2026: "ele pode pintar
+        // o cômodo da sala porém ele fica embaixo das paredes"): o fundo da
+        // sala (`regionsContainer`) fica lá embaixo, a borda
+        // (`regionStrokesContainer`) vem logo depois dos desenhos do botão
+        // Desenho. Ficam ACIMA da borda, como antes, o Caminho (logo abaixo)
+        // e o Texto (`textLabelsContainer`) — `lib/desenhoSobAsSalas.ts`.
         drawingsGraphics,
         secretDrawingsGraphics,
+        regionStrokesContainer,
+        pathsGraphics,
+        secretPathsGraphics,
         wallsGraphics,
         doorsGraphics,
         stairsGraphics,
@@ -1574,7 +1593,7 @@ export function PixiCanvas({
       const paintRegions = () => {
         const { map, selection } = sceneState()
         const single = selectionSingle(selection)
-        regionsRenderer.draw(regionsContainer, visibleRegions(map.regions, map.hiddenLayers), resolveHighlightedRegionId(map.walls, single), camera.scale)
+        regionsRenderer.draw(regionLayers, visibleRegions(map.regions, map.hiddenLayers), resolveHighlightedRegionId(map.walls, single), camera.scale)
       }
 
       const paintDrawings = () => {
@@ -1582,8 +1601,14 @@ export function PixiCanvas({
         const single = selectionSingle(selection)
         const drawings = visibleDrawings(map.drawings, map.hiddenLayers)
         const selectedDrawingId = single?.kind === 'drawing' ? single.id : null
-        drawDrawings(drawingsGraphics, drawings.filter((d) => !d.secret), selectedDrawingId, camera.scale)
-        drawDrawings(secretDrawingsGraphics, drawings.filter((d) => d.secret), selectedDrawingId, camera.scale)
+        // Os do botão Desenho por baixo da borda da sala; o Caminho por cima
+        // dela (o Texto tem renderer próprio e `drawDrawings` o pula).
+        const sobAsSalas = drawings.filter(desenhoFicaSobAsSalas)
+        const sobreAsSalas = drawings.filter((d) => !desenhoFicaSobAsSalas(d))
+        drawDrawings(drawingsGraphics, sobAsSalas.filter((d) => !d.secret), selectedDrawingId, camera.scale)
+        drawDrawings(secretDrawingsGraphics, sobAsSalas.filter((d) => d.secret), selectedDrawingId, camera.scale)
+        drawDrawings(pathsGraphics, sobreAsSalas.filter((d) => !d.secret), selectedDrawingId, camera.scale)
+        drawDrawings(secretPathsGraphics, sobreAsSalas.filter((d) => d.secret), selectedDrawingId, camera.scale)
       }
 
       /** Escadas também têm contorno de seleção em px de tela: redesenham no zoom. */
@@ -1774,7 +1799,7 @@ export function PixiCanvas({
       const objetosDaCamada: Partial<Record<ShapesLayer, readonly Container[]>> = {
         floorSelection: [floorSelectionGraphics],
         perigos: [perigosGraphics],
-        drawings: [drawingsGraphics, secretDrawingsGraphics],
+        drawings: [drawingsGraphics, secretDrawingsGraphics, pathsGraphics, secretPathsGraphics],
         hazards: [hazardsGraphics],
         areaTriggers: [areaTriggersGraphics],
         roomNames: [roomNamesContainer],
@@ -3583,15 +3608,20 @@ export function PixiCanvas({
        * e, para SALA (`region.room`), nem isso: ver o comentário no ramo
        * `region` do `eraseAt`. Arrastar sobre a borda continua apagando a
        * PAREDE encostada, que ganha o hit-test antes da região (wall > region
-       * em `findSelectableAt`); Região solta, sem parede, segue sumindo ao
+       * em `findErasableAt`); Região solta, sem parede, segue sumindo ao
        * encostar no próprio contorno. O modo "objeto" (default) não muda em
        * nada — lá o clique é deliberado e removedor por definição.
+       *
+       * `findErasableAt`, não `findSelectableAt`: no clique a parede passou na
+       * frente do desenho (pedido de 08/10/2026), mas a borracha segue achando
+       * o desenho primeiro — passar a borracha na tinta rente à parede tem de
+       * tirar a tinta, não a parede.
        */
       const eraseAt = (point: Point) => {
         const { map, eraseMode } = useMapStore.getState()
-        const hit = findSelectableAt(hitTestMap(map), point)
+        const hit = findErasableAt(hitTestMap(map), point)
         if (!hit) {
-          // Nada apagável aqui, mas pode haver CHÃO: `findSelectableAt` nunca
+          // Nada apagável aqui, mas pode haver CHÃO: `findErasableAt` nunca
           // devolve peça de chão, que só vira alvo por `floorHitAt`. A
           // borracha não apaga chão por decisão (22/09/2026) — só que calar
           // fazia a pessoa achar que errou o alvo. Vale nos dois modos: nenhum

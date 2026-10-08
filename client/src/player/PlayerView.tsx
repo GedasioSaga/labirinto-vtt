@@ -47,7 +47,8 @@ import { createFloorRenderer } from '../pixi/drawFloor'
 import { drawWalls } from '../pixi/drawWalls'
 import { drawDoors } from '../pixi/drawDoors'
 import { drawMapLines, drawMapMarkers } from '../pixi/drawMapLines'
-import { createRegionsRenderer } from '../pixi/drawRegions'
+import { createRegionsRenderer, type RegionLayers } from '../pixi/drawRegions'
+import { desenhoFicaSobAsSalas } from '../lib/desenhoSobAsSalas'
 import { drawPerigos } from '../pixi/drawPerigos'
 import { createLightsRenderer } from '../pixi/drawLights'
 import { drawFarLights, farLightPoints } from '../pixi/drawFarLights'
@@ -910,12 +911,16 @@ interface Scene {
   mapLines: Graphics
   lastFloorKey: string | null
   floorRenderer: ReturnType<typeof createFloorRenderer>
-  regions: Container
+  /** Fundo das salas por baixo dos desenhos, borda por cima deles. */
+  regionLayers: RegionLayers
   regionsRenderer: ReturnType<typeof createRegionsRenderer>
   /** PERIGO QUE SE ALASTRA: fogo, água e cinza das salas que o jogador vê agora. */
   perigos: Graphics
   perigosKey: ContentKey
+  /** Desenhos do botão Desenho (sob a borda das salas). */
   drawings: Graphics
+  /** Caminhos (por cima da borda das salas). */
+  paths: Graphics
   stairs: Graphics
   drawingsKey: ContentKey
   /** Escadas dependem do zoom e da resolução (linha central alinhada ao pixel). */
@@ -2076,7 +2081,7 @@ export function PlayerView({
     redrawFloor(scene, { ...currentMap, floor: drawnFloor })
 
     const regions = visibleRegions(currentMap.regions, hidden)
-    scene.regionsRenderer.draw(scene.regions, regions)
+    scene.regionsRenderer.draw(scene.regionLayers, regions)
     // Portão por referência (`contentChanged`): o passo da ficha não serializa as salas.
     // Sem perigo à vista a chave é vazia: não serializa as salas à toa.
     const perigosChanged = contentChanged(scene.perigosKey, [currentMap.perigos, currentMap.regions, hidden], () =>
@@ -2085,7 +2090,12 @@ export function PlayerView({
     if (perigosChanged) drawPerigos(scene.perigos, regions, currentMap.perigos ?? [])
 
     const drawings = visibleDrawings(currentMap.drawings, hidden)
-    if (contentChanged(scene.drawingsKey, [currentMap.drawings, hidden], () => JSON.stringify(drawings))) drawDrawings(scene.drawings, drawings)
+    if (contentChanged(scene.drawingsKey, [currentMap.drawings, hidden], () => JSON.stringify(drawings))) {
+      // Os do botão Desenho por baixo da borda da sala; o Caminho por cima (o
+      // Texto tem renderer próprio e `drawDrawings` o pula).
+      drawDrawings(scene.drawings, drawings.filter(desenhoFicaSobAsSalas))
+      drawDrawings(scene.paths, drawings.filter((d) => !desenhoFicaSobAsSalas(d)))
+    }
     redrawPropsLayer(scene)
     redrawStairsLayer(scene)
 
@@ -2384,8 +2394,12 @@ export function PlayerView({
       const floor = new Graphics()
       const mapLines = new Graphics()
       const regions = new Container()
+      // A borda das salas, acima dos desenhos do botão Desenho (pedido de 08/10/2026).
+      const regionStrokes = new Container()
       const perigos = new Graphics()
       const drawings = new Graphics()
+      // Caminho (fora do botão Desenho): por cima da sala inteira, como sempre.
+      const paths = new Graphics()
       const props = new Graphics()
       const propImages = new Container()
       const propLabels = new Container()
@@ -2431,7 +2445,12 @@ export function PlayerView({
         perigos,
         gridMask,
         grid,
+        // Mesma ordem do editor (pedido de 08/10/2026): fundo da sala (`regions`,
+        // lá embaixo) < desenhos do botão Desenho < borda da sala < Caminho <
+        // paredes. O Texto (`textLabels`) segue lá em cima.
         drawings,
+        regionStrokes,
+        paths,
         // Móveis sobre o chão e ABAIXO de escada, parede e porta — ao contrário
         // do editor, que põe a imagem do objeto por cima. Lá a imagem tem fundo
         // transparente; aqui a silhueta é o retângulo inteiro e, por cima, apagaria
@@ -2523,11 +2542,12 @@ export function PlayerView({
         mapLines,
         lastFloorKey: null,
         floorRenderer: createFloorRenderer(),
-        regions,
+        regionLayers: { fills: regions, strokes: regionStrokes },
         regionsRenderer: createRegionsRenderer(),
         perigos,
         perigosKey: emptyContentKey(),
         drawings,
+        paths,
         stairs,
         drawingsKey: emptyContentKey(),
         lastStairsKey: null,

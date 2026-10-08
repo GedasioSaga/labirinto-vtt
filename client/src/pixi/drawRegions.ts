@@ -179,10 +179,24 @@ export interface RegionsRendererOptions {
   roofMarker?: boolean
 }
 
+/**
+ * As duas camadas de uma sala no palco (pedido de 08/10/2026: "ele pode pintar
+ * o cômodo da sala porém ele fica embaixo das paredes"). Os desenhos do botão
+ * Desenho entram ENTRE as duas: a tinta cobre o chão da sala e a borda dela
+ * fica por cima da tinta, sob paredes, portas e escadas. Sem desenho no meio,
+ * empilhar as duas dá a mesma sala de antes.
+ */
+export interface RegionLayers {
+  /** Fundo: preenchimento, a segunda cor da sala em duas cores e a hachura. */
+  fills: Container
+  /** Borda: contorno da sala, contorno de seleção e marca de telhado. */
+  strokes: Container
+}
+
 export interface RegionsRenderer {
   /** `cameraScale` dá ao contorno de seleção 2 px de TELA; omitido, vem da
-   *  escala de mundo do `container` no último render (`resolveCameraScale`). */
-  draw: (container: Container, regions: Region[], selectedRegionId?: string | null, cameraScale?: number) => void
+   *  escala de mundo de `layers.strokes` no último render (`resolveCameraScale`). */
+  draw: (layers: RegionLayers, regions: Region[], selectedRegionId?: string | null, cameraScale?: number) => void
 }
 
 function traceRegionPath(g: Graphics, points: RegionPoint[]): void {
@@ -203,120 +217,150 @@ function traceRegionPath(g: Graphics, points: RegionPoint[]): void {
  * desenhando fill/stroke de todas em sequência) elimina o bug em que, com muitas
  * regiões (~15+), algumas nasciam sem preenchimento visível — batching interno do
  * Pixi 8 Graphics quando o path acumulado numa mesma instância cresce demais.
- * Como cada Graphics isolado nunca acumula mais que 1 fill (mesmo com hachura),
- * fill + stroke + hachura da mesma região podem ficar na mesma instância sem
- * risco de corromper o path de outra região.
+ * Cada região ganha DOIS Graphics, um em cada camada de `RegionLayers` (fundo e
+ * borda); nenhum acumula mais que 1 fill de região (o fundo tem o fill e, na
+ * sala em duas cores, o da segunda cor), então o isolamento entre regiões
+ * continua o mesmo.
  */
 export function createRegionsRenderer(options: RegionsRendererOptions = {}): RegionsRenderer {
-  const cache = new Map<string, Graphics>()
+  const cache = new Map<string, { fill: Graphics; stroke: Graphics }>()
   const roofMarker = options.roofMarker === true
   // Redesenho parcial: o que cada Graphics pintou da última vez. A store é
-  // imutável (`moveRegion` só recria a sala movida), então mesma referência +
-  // mesmo destaque = pintura idêntica — arrastar 1 sala repinta só ela. A
-  // largura do contorno entra só na sala selecionada (é a única que a usa):
-  // no zoom, só ela repinta, e o contorno continua com 2 px de tela.
-  const painted = new Map<string, { region: Region; outlineWidth: number | null }>()
+  // imutável (`moveRegion` só recria a sala movida), então mesma referência =
+  // pintura idêntica — arrastar 1 sala repinta só ela. O destaque e a largura
+  // do contorno de seleção só mexem na BORDA, e só na sala selecionada (é a
+  // única que a usa): no zoom, só a borda dela repinta, com 2 px de tela.
+  const paintedFill = new Map<string, Region>()
+  const paintedStroke = new Map<string, { region: Region; outlineWidth: number | null }>()
 
-  function draw(container: Container, regions: Region[], selectedRegionId: string | null = null, cameraScale?: number): void {
-    const outlineWidth = selectionOutlineWidth(resolveCameraScale(container, cameraScale))
+  function graphicsOf(layers: RegionLayers, region: Region): { fill: Graphics; stroke: Graphics } {
+    const cached = cache.get(region.id)
+    if (cached) return cached
+    const created = { fill: new Graphics(), stroke: new Graphics() }
+    created.fill.label = region.id
+    created.stroke.label = region.id
+    layers.fills.addChild(created.fill)
+    layers.strokes.addChild(created.stroke)
+    cache.set(region.id, created)
+    return created
+  }
+
+  function draw(layers: RegionLayers, regions: Region[], selectedRegionId: string | null = null, cameraScale?: number): void {
+    const outlineWidth = selectionOutlineWidth(resolveCameraScale(layers.strokes, cameraScale))
     const visibleRegions = regions.filter((region) => !isDegenerateRegion(region.points))
     const currentIds = new Set(visibleRegions.map((r) => r.id))
 
-    for (const [id, g] of cache) {
+    for (const [id, pair] of cache) {
       if (!currentIds.has(id)) {
-        container.removeChild(g)
-        g.destroy()
+        layers.fills.removeChild(pair.fill)
+        layers.strokes.removeChild(pair.stroke)
+        pair.fill.destroy()
+        pair.stroke.destroy()
         cache.delete(id)
-        painted.delete(id)
+        paintedFill.delete(id)
+        paintedStroke.delete(id)
       }
     }
 
     for (const region of visibleRegions) {
-      const isSelected = region.id === selectedRegionId
-      const paintedOutline = isSelected ? outlineWidth : null
-      const last = painted.get(region.id)
-      if (last !== undefined && last.region === region && last.outlineWidth === paintedOutline && cache.has(region.id)) continue
-      painted.set(region.id, { region, outlineWidth: paintedOutline })
-
-      let g = cache.get(region.id)
-      if (!g) {
-        g = new Graphics()
-        g.label = region.id
-        cache.set(region.id, g)
-        container.addChild(g)
+      const { fill, stroke } = graphicsOf(layers, region)
+      if (paintedFill.get(region.id) !== region) {
+        paintedFill.set(region.id, region)
+        paintRegionFill(fill, region)
       }
-      g.clear()
-
-      g.alpha = region.secret ? SECRET_ITEM_ALPHA : 1
-      const color = new Color(region.fillColor).toNumber()
-      const strokeWidth = readRegionStrokeWidth(region)
-      const join = readRegionStrokeJoin(region)
-
-      // Auditoria 14/09: a seleção pintava a região inteira de amarelo (fill
-      // 0.85 + contorno), escondendo a cor e a hachura que o usuário acabou de
-      // escolher. Agora é um contorno POR FORA, desenhado antes (por baixo):
-      // `alignment: 0` põe o traço do lado de fora do polígono, e a largura
-      // cobre a metade externa do contorno real + 2 px de tela.
-      if (isSelected) {
-        traceRegionPath(g, region.points)
-        g.stroke({ width: strokeWidth / 2 + outlineWidth, color: SELECTION_COLOR, alignment: 0, join })
-      }
-
-      traceRegionPath(g, region.points)
-      // Pedido N2 do usuário ("tirar o fundo" de Região/Sala) — `Region.filled`
-      // já existe no schema e a store já tem `setRegionFilled`/`FillControls`
-      // ligados (App.tsx), mas nada lia o campo aqui: `g.fill(...)` disparava
-      // incondicional. `undefined` conta como `true` (preenche, aparência
-      // idêntica à de hoje), mesmo padrão de wallKind/locked/hidden.
-      const isFilled = region.filled !== false
-      if (isFilled) {
-        g.fill({ color, alpha: 1 })
-      }
-      // SALA EM DUAS CORES: o lado de lá da reta por cima do fundo; o caminho
-      // inteiro volta para o contorno, que segue na cor da sala.
-      const split = isFilled ? readRegionSplit(region.split) : undefined
-      const secondPart = split ? splitSecondPart(region.points, split) : []
-      if (split && secondPart.length > 0) {
-        traceRegionPath(g, secondPart)
-        g.fill({ color: new Color(split.color).toNumber(), alpha: 1 })
-        traceRegionPath(g, region.points)
-      }
-      g.stroke({ width: strokeWidth, color, join })
-
-      // Hachura é tratamento de FUNDO (alternativa a preenchimento sólido) —
-      // sem fundo, não faz sentido desenhar diagonais soltas por cima do
-      // contorno. Serve exatamente o caso "rua"/"construção artesanal" do
-      // usuário: contorno só, sem nenhum traço extra por dentro. Continua
-      // visível com a região selecionada.
-      if (roofMarker && roomHasRoof(region.room)) {
-        traceRegionPath(g, region.points)
-        // `alignment: 1` = traço inteiro POR DENTRO do polígono (0 = por fora,
-        // 0,5 = centrado; StrokeAttributes.alignment do Pixi 8). Por fora é
-        // onde mora o contorno de seleção, e os dois brigariam.
-        g.stroke({ width: ROOF_MARK_WIDTH, color: ROOF_MARK_COLOR, alignment: 1, join })
-      }
-
-      if (isFilled && region.fillPattern === 'hatch') {
-        const segments = computeHatchSegments(region.points)
-        for (const segment of segments) {
-          g.moveTo(segment.x1, segment.y1)
-          g.lineTo(segment.x2, segment.y2)
-        }
-        if (segments.length > 0) {
-          g.stroke({ width: HATCH_WIDTH, color: HATCH_COLOR, alpha: HATCH_ALPHA })
-        }
+      const paintedOutline = region.id === selectedRegionId ? outlineWidth : null
+      const last = paintedStroke.get(region.id)
+      if (last === undefined || last.region !== region || last.outlineWidth !== paintedOutline) {
+        paintedStroke.set(region.id, { region, outlineWidth: paintedOutline })
+        paintRegionStroke(stroke, region, paintedOutline, roofMarker)
       }
     }
 
-    // Ordem do array = ordem de pintura. O Graphics em cache fica na posição em
-    // que nasceu; sub-sala inserida no meio do array (`lib/roomNesting.ts`) e
-    // Ctrl+Z que devolve a sala de fora precisam reordenar, senão a mãe cobre a
-    // filha. O container só guarda Graphics de região.
+    // Ordem do array = ordem de pintura, nas DUAS camadas. O Graphics em cache
+    // fica na posição em que nasceu; sub-sala inserida no meio do array
+    // (`lib/roomNesting.ts`) e Ctrl+Z que devolve a sala de fora precisam
+    // reordenar, senão a mãe cobre a filha. Cada camada só guarda Graphics de
+    // região.
     visibleRegions.forEach((region, index) => {
-      const g = cache.get(region.id)
-      if (g && container.getChildIndex(g) !== index) container.setChildIndex(g, index)
+      const pair = cache.get(region.id)
+      if (!pair) return
+      if (layers.fills.getChildIndex(pair.fill) !== index) layers.fills.setChildIndex(pair.fill, index)
+      if (layers.strokes.getChildIndex(pair.stroke) !== index) layers.strokes.setChildIndex(pair.stroke, index)
     })
   }
 
   return { draw }
+}
+
+/** O FUNDO da sala: preenchimento, a segunda cor e a hachura — o chão que a tinta cobre. */
+function paintRegionFill(g: Graphics, region: Region): void {
+  g.clear()
+  g.alpha = region.secret ? SECRET_ITEM_ALPHA : 1
+  // Pedido N2 do usuário ("tirar o fundo" de Região/Sala) — `Region.filled`
+  // já existe no schema e a store já tem `setRegionFilled`/`FillControls`
+  // ligados (App.tsx), mas nada lia o campo aqui: `g.fill(...)` disparava
+  // incondicional. `undefined` conta como `true` (preenche, aparência
+  // idêntica à de hoje), mesmo padrão de wallKind/locked/hidden.
+  if (region.filled === false) return
+
+  traceRegionPath(g, region.points)
+  g.fill({ color: new Color(region.fillColor).toNumber(), alpha: 1 })
+  // SALA EM DUAS CORES: o lado de lá da reta por cima do fundo. O contorno,
+  // na outra camada, segue na cor da sala.
+  const split = readRegionSplit(region.split)
+  const secondPart = split ? splitSecondPart(region.points, split) : []
+  if (split && secondPart.length > 0) {
+    traceRegionPath(g, secondPart)
+    g.fill({ color: new Color(split.color).toNumber(), alpha: 1 })
+  }
+
+  // Hachura é tratamento de FUNDO (alternativa a preenchimento sólido) —
+  // sem fundo, não faz sentido desenhar diagonais soltas por cima do
+  // contorno. Serve exatamente o caso "rua"/"construção artesanal" do
+  // usuário: contorno só, sem nenhum traço extra por dentro. Continua
+  // visível com a região selecionada. Mora no fundo: a tinta que pinta o
+  // cômodo cobre a hachura como cobre o preenchimento.
+  if (region.fillPattern === 'hatch') {
+    const segments = computeHatchSegments(region.points)
+    for (const segment of segments) {
+      g.moveTo(segment.x1, segment.y1)
+      g.lineTo(segment.x2, segment.y2)
+    }
+    if (segments.length > 0) {
+      g.stroke({ width: HATCH_WIDTH, color: HATCH_COLOR, alpha: HATCH_ALPHA })
+    }
+  }
+}
+
+/**
+ * A BORDA da sala: contorno de seleção, contorno real e marca de telhado — o
+ * que fica por cima da tinta. `outlineWidth` só vem na sala selecionada.
+ */
+function paintRegionStroke(g: Graphics, region: Region, outlineWidth: number | null, roofMarker: boolean): void {
+  g.clear()
+  g.alpha = region.secret ? SECRET_ITEM_ALPHA : 1
+  const color = new Color(region.fillColor).toNumber()
+  const strokeWidth = readRegionStrokeWidth(region)
+  const join = readRegionStrokeJoin(region)
+
+  // Auditoria 14/09: a seleção pintava a região inteira de amarelo (fill
+  // 0.85 + contorno), escondendo a cor e a hachura que o usuário acabou de
+  // escolher. Agora é um contorno POR FORA, desenhado antes (por baixo):
+  // `alignment: 0` põe o traço do lado de fora do polígono, e a largura
+  // cobre a metade externa do contorno real + 2 px de tela.
+  if (outlineWidth !== null) {
+    traceRegionPath(g, region.points)
+    g.stroke({ width: strokeWidth / 2 + outlineWidth, color: SELECTION_COLOR, alignment: 0, join })
+  }
+
+  traceRegionPath(g, region.points)
+  g.stroke({ width: strokeWidth, color, join })
+
+  if (roofMarker && roomHasRoof(region.room)) {
+    traceRegionPath(g, region.points)
+    // `alignment: 1` = traço inteiro POR DENTRO do polígono (0 = por fora,
+    // 0,5 = centrado; StrokeAttributes.alignment do Pixi 8). Por fora é
+    // onde mora o contorno de seleção, e os dois brigariam.
+    g.stroke({ width: ROOF_MARK_WIDTH, color: ROOF_MARK_COLOR, alignment: 1, join })
+  }
 }

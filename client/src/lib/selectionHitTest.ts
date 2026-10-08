@@ -9,6 +9,7 @@ import {
 } from './layers'
 import { findPinAt, findPinsAt } from './pins'
 import { stairSpiralCircle } from './stairs'
+import { desenhoFicaSobAsSalas } from './desenhoSobAsSalas'
 
 export interface Point {
   x: number
@@ -342,21 +343,8 @@ export interface SelectableHit extends Selection {
   draggable: boolean
 }
 
-/**
- * Cadeia de prioridade única de hit-test, usada pela ferramenta "Selecionar":
- * token/prop primeiro (pequenos, em primeiro plano, arrastáveis), depois
- * luz/parede (marcáveis mas não arrastáveis nesta versão), região por último
- * (área grande, não deve "engolir" clique destinado a algo menor por cima).
- *
- * Cada array é filtrado pela camada visível (map.hiddenLayers) ANTES do
- * hit-test — item em camada oculta não é selecionável, mesmo que geometricamente
- * o ponto caia em cima dele. Esse é o filtro de hit-test; o filtro de RENDER
- * (o que de fato desenha na tela) é território do integrador em
- * pixi/PixiCanvas.tsx (redrawShapes) e usa as mesmas funções `visible*` de
- * lib/layers.ts — os dois precisam concordar, senão dá pra clicar em algo
- * invisível ou ver algo que não clica.
- */
-export function findSelectableAt(map: MapData, point: Point): SelectableHit | null {
+/** Ficha, objeto e luz: pequenos e em primeiro plano, ganham de tudo. */
+function findForegroundAt(map: MapData, point: Point): SelectableHit | null {
   const token = findTokenAt(visibleTokens(map.tokens, map.hiddenLayers), point, map.grid)
   if (token) return { kind: 'token', id: token.id, draggable: true }
 
@@ -366,14 +354,23 @@ export function findSelectableAt(map: MapData, point: Point): SelectableHit | nu
   const light = findLightAt(visibleLights(map.lights, map.hiddenLayers), point)
   if (light) return { kind: 'light', id: light.id, draggable: false }
 
-  const drawing = findDrawingAt(visibleDrawings(map.drawings, map.hiddenLayers), point)
-  // Agente B3 (dossiê F4, bug3): TODO kind de Drawing agora move o corpo
-  // inteiro (mapFactory.moveDrawing cobre os 7 kinds — ver CONTRATO), por
-  // isso `draggable` é sempre true aqui. 'curve' continua arrastando vértice
-  // por um caminho separado, direto no PixiCanvas, que não passa por este
-  // campo — mas o CORPO da curva também é `moveDrawing`-compatível.
-  if (drawing) return { kind: 'drawing', id: drawing.id, draggable: true }
+  return null
+}
 
+/**
+ * Agente B3 (dossiê F4, bug3): TODO kind de Drawing agora move o corpo
+ * inteiro (mapFactory.moveDrawing cobre os 7 kinds — ver CONTRATO), por isso
+ * `draggable` é sempre true aqui. 'curve' continua arrastando vértice por um
+ * caminho separado, direto no PixiCanvas, que não passa por este campo — mas
+ * o CORPO da curva também é `moveDrawing`-compatível.
+ */
+function drawingHitAt(drawings: Drawing[], point: Point): SelectableHit | null {
+  const drawing = findDrawingAt(drawings, point)
+  return drawing ? { kind: 'drawing', id: drawing.id, draggable: true } : null
+}
+
+/** Parede (porta inclusive: é parede com `door`) e escada. */
+function findStructureAt(map: MapData, point: Point): SelectableHit | null {
   const wall = findWallAt(visibleWalls(map.walls, map.hiddenLayers), point)
   if (wall) return { kind: 'wall', id: wall.id, draggable: false }
 
@@ -387,10 +384,65 @@ export function findSelectableAt(map: MapData, point: Point): SelectableHit | nu
   const stair = findStairAt(visibleStairs(map.stairs, map.hiddenLayers), point)
   if (stair) return { kind: 'stair', id: stair.id, draggable: false }
 
-  const region = findRegionAt(visibleRegions(map.regions, map.hiddenLayers), point)
-  if (region) return { kind: 'region', id: region.id, draggable: false }
-
   return null
+}
+
+function regionHitAt(map: MapData, point: Point): SelectableHit | null {
+  const region = findRegionAt(visibleRegions(map.regions, map.hiddenLayers), point)
+  return region ? { kind: 'region', id: region.id, draggable: false } : null
+}
+
+/**
+ * Cadeia de prioridade única de hit-test, usada pela ferramenta "Selecionar"
+ * (e pelo cursor de hover, que precisa prometer o mesmo alvo do clique):
+ * 1. ficha, objeto, luz — pequenos, em primeiro plano;
+ * 2. Texto e Caminho — por cima da planta, ganham da parede como sempre;
+ * 3. parede (e porta) e escada;
+ * 4. desenhos do botão Desenho (Pincel, balde, Linha, Curva, Círculo,
+ *    Elipse, Retângulo, Polígono — `desenhoFicaSobAsSalas`);
+ * 5. sala, por último (área grande, não deve "engolir" clique destinado a
+ *    algo menor por cima).
+ *
+ * PAREDE > DESENHO > SALA (pedido de 08/10/2026): a pintura do balde é um
+ * polígono CHEIO uma célula maior que a sala, então acertava qualquer ponto em
+ * cima da parede e a parede ficava impossível de selecionar. Agora o desenho
+ * mora sob a parede na tela (`pixi/PixiCanvas.tsx`) e no clique também; no
+ * miolo da sala pintada ele ainda ganha da sala, e a sala sai onde não há
+ * desenho.
+ *
+ * Cada array é filtrado pela camada visível (map.hiddenLayers) ANTES do
+ * hit-test — item em camada oculta não é selecionável, mesmo que geometricamente
+ * o ponto caia em cima dele. Esse é o filtro de hit-test; o filtro de RENDER
+ * (o que de fato desenha na tela) é território do integrador em
+ * pixi/PixiCanvas.tsx (redrawShapes) e usa as mesmas funções `visible*` de
+ * lib/layers.ts — os dois precisam concordar, senão dá pra clicar em algo
+ * invisível ou ver algo que não clica.
+ */
+export function findSelectableAt(map: MapData, point: Point): SelectableHit | null {
+  const drawings = visibleDrawings(map.drawings, map.hiddenLayers)
+  return (
+    findForegroundAt(map, point) ??
+    drawingHitAt(drawings.filter((drawing) => !desenhoFicaSobAsSalas(drawing)), point) ??
+    findStructureAt(map, point) ??
+    drawingHitAt(drawings.filter(desenhoFicaSobAsSalas), point) ??
+    regionHitAt(map, point)
+  )
+}
+
+/**
+ * A cadeia da BORRACHA: todo desenho antes da parede, como sempre foi. A
+ * borracha é ferramenta própria e serve justamente para tirar tinta — com a
+ * ordem do clique, passar a borracha sobre a pintura rente à parede apagaria
+ * a PAREDE (no modo "Objeto inteiro", de uma vez) em vez da tinta. Apagar a
+ * parede continua possível onde não há desenho por cima.
+ */
+export function findErasableAt(map: MapData, point: Point): SelectableHit | null {
+  return (
+    findForegroundAt(map, point) ??
+    drawingHitAt(visibleDrawings(map.drawings, map.hiddenLayers), point) ??
+    findStructureAt(map, point) ??
+    regionHitAt(map, point)
+  )
 }
 
 /**

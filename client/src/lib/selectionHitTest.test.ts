@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { findWallAt, findLightAt, isPointInPolygon, findRegionAt, findDrawingAt, findSelectableAt, findCurveControlPointAt, estimateTextWidth, findNearestExistingVertex } from './selectionHitTest'
-import type { Wall, Light, Region, Drawing, MapData } from '../types/map'
+import { findWallAt, findLightAt, isPointInPolygon, findRegionAt, findDrawingAt, findSelectableAt, findErasableAt, findCurveControlPointAt, estimateTextWidth, findNearestExistingVertex } from './selectionHitTest'
+import type { Wall, Light, Region, Drawing, MapData, Stair } from '../types/map'
 import { createEmptyMap, addWall, addLight, addRegion, addToken, addProp, addDrawing } from './mapFactory'
 
 const wall: Wall = { id: 'w1', x1: 0, y1: 0, x2: 100, y2: 0, blocksLight: true, blocksMove: true, door: null }
@@ -170,7 +170,9 @@ describe('findCurveControlPointAt', () => {
 })
 
 describe('findSelectableAt — drawing na cadeia de prioridade', () => {
-  it('drawing tem prioridade sobre parede/região, e Linha é arrastável', () => {
+  // Sobre a PAREDE não mais (pedido de 08/10/2026): ver o bloco "parede por
+  // cima da pintura do botão Desenho", no fim deste arquivo.
+  it('drawing tem prioridade sobre região, e Linha é arrastável', () => {
     let map: MapData = createEmptyMap('m', 'x', 10, 10, 64)
     map = addRegion(map, region)
     map = { ...map, drawings: [lineDrawing] }
@@ -342,5 +344,77 @@ describe('findNearestExistingVertex', () => {
 
       expect(findNearestExistingVertex(map, { x: 2, y: 1 }, 12, 'wall-que-nao-existe')).toEqual({ x: 0, y: 0 })
     })
+  })
+})
+
+/**
+ * PAREDE POR CIMA DA PINTURA, também no clique (pedido de 08/10/2026: "eu não
+ * consigo por nada selecionar a parede porque o pincel ta por todo lado").
+ * A pintura do balde é um polígono CHEIO uma célula maior que a sala, e por
+ * isso acertava qualquer ponto em cima da parede. Prioridade combinada:
+ * Parede > Desenho > Sala — o desenho do botão Desenho só ganha onde não há
+ * parede nem escada; o Texto (botão T) e o Caminho (ferramenta junto do Chão)
+ * ficam como estavam, por cima da parede.
+ */
+describe('findSelectableAt — parede por cima da pintura do botão Desenho', () => {
+  const sala: Region = { id: 'sala', points: [{ x: 0, y: 0 }, { x: 200, y: 0 }, { x: 200, y: 200 }, { x: 0, y: 200 }], tag: '', fillColor: '#3a7ad0', fillPattern: 'solid', data: {} }
+  const paredeDeCima: Wall = { id: 'parede', x1: 0, y1: 0, x2: 200, y2: 0, blocksLight: true, blocksMove: true, door: null, regionId: 'sala', regionEdgeIndex: 0 }
+  const portaDeBaixo: Wall = { id: 'porta', x1: 0, y1: 200, x2: 200, y2: 200, blocksLight: true, blocksMove: true, door: { kind: 'normal', open: false, locked: false }, regionId: 'sala', regionEdgeIndex: 2 }
+  /** A pintura do balde: polígono cheio, espessura 0, passando por baixo do contorno. */
+  const balde: Drawing = { id: 'balde', kind: 'polygon', points: [{ x: -4, y: -4 }, { x: 204, y: -4 }, { x: 204, y: 204 }, { x: -4, y: 204 }], color: '#d94f3a', width: 0, filled: true, fillAlpha: 1 }
+
+  function mapaPintado(drawings: Drawing[] = [balde]): MapData {
+    return { ...createEmptyMap('m', 'x', 10, 10, 64), regions: [sala], walls: [paredeDeCima, portaDeBaixo], drawings }
+  }
+
+  it('ponto em cima da parede coberta pela pintura do balde devolve a PAREDE', () => {
+    expect(findSelectableAt(mapaPintado(), { x: 100, y: 2 })).toEqual({ kind: 'wall', id: 'parede', draggable: false })
+  })
+
+  it('a porta também ganha da pintura', () => {
+    expect(findSelectableAt(mapaPintado(), { x: 100, y: 199 })).toEqual({ kind: 'wall', id: 'porta', draggable: false })
+  })
+
+  it('no miolo da sala pintada (longe da parede) o clique pega o DESENHO', () => {
+    expect(findSelectableAt(mapaPintado(), { x: 100, y: 100 })).toEqual({ kind: 'drawing', id: 'balde', draggable: true })
+  })
+
+  it('na sala sem desenho o clique pega a SALA', () => {
+    expect(findSelectableAt(mapaPintado([]), { x: 100, y: 100 })).toEqual({ kind: 'region', id: 'sala', draggable: false })
+  })
+
+  it('pintura que cobre só metade da sala: fora dela a sala sai', () => {
+    const metade: Drawing = { ...balde, id: 'metade', points: [{ x: -4, y: -4 }, { x: 100, y: -4 }, { x: 100, y: 204 }, { x: -4, y: 204 }] }
+    const mapa = mapaPintado([metade])
+    expect(findSelectableAt(mapa, { x: 50, y: 100 })).toEqual({ kind: 'drawing', id: 'metade', draggable: true })
+    expect(findSelectableAt(mapa, { x: 150, y: 100 })).toEqual({ kind: 'region', id: 'sala', draggable: false })
+  })
+
+  it('traço do Pincel por cima da parede: a parede ganha; longe dela, o traço', () => {
+    const traco: Drawing = { id: 'traco', kind: 'freehand', points: [{ x: 0, y: 3 }, { x: 100, y: 3 }, { x: 100, y: 120 }], color: '#222222', width: 6 }
+    const mapa = mapaPintado([traco])
+    expect(findSelectableAt(mapa, { x: 50, y: 2 })).toEqual({ kind: 'wall', id: 'parede', draggable: false })
+    expect(findSelectableAt(mapa, { x: 100, y: 100 })).toEqual({ kind: 'drawing', id: 'traco', draggable: true })
+  })
+
+  it('escada coberta pela pintura devolve a ESCADA', () => {
+    const escada: Stair = { id: 'escada', shape: 'straight', direction: 'up', segments: [{ x1: 60, y1: 100, x2: 140, y2: 100 }], stepWidth: 32 }
+    const mapa = { ...mapaPintado(), stairs: [escada] }
+    expect(findSelectableAt(mapa, { x: 100, y: 100 })).toEqual({ kind: 'stair', id: 'escada', draggable: false })
+  })
+
+  it('TEXTO (botão T) em cima da parede continua ganhando dela', () => {
+    const texto: Drawing = { id: 'texto', kind: 'text', x: 80, y: -6, text: 'Cozinha', color: '#ffffff', fontSize: 16 }
+    expect(findSelectableAt(mapaPintado([balde, texto]), { x: 90, y: 2 })).toEqual({ kind: 'drawing', id: 'texto', draggable: true })
+  })
+
+  it('CAMINHO (ferramenta fora do botão Desenho) fica como estava: ganha da parede', () => {
+    const caminho: Drawing = { id: 'caminho', kind: 'path', points: [{ x: 100, y: -60 }, { x: 100, y: 60 }], color: '#8a6a40', width: 32 }
+    expect(findSelectableAt(mapaPintado([balde, caminho]), { x: 100, y: 2 })).toEqual({ kind: 'drawing', id: 'caminho', draggable: true })
+  })
+
+  it('a BORRACHA (findErasableAt) continua achando a pintura antes da parede — apagar tinta não derruba parede', () => {
+    expect(findErasableAt(mapaPintado(), { x: 100, y: 2 })).toEqual({ kind: 'drawing', id: 'balde', draggable: true })
+    expect(findErasableAt(mapaPintado([]), { x: 100, y: 2 })).toEqual({ kind: 'wall', id: 'parede', draggable: false })
   })
 })

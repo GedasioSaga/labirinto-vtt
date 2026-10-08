@@ -1,7 +1,7 @@
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { Container, Graphics } from 'pixi.js'
+import { Container, Graphics, Text } from 'pixi.js'
 import { createEmptyMap } from '../lib/mapFactory'
 import { useMapStore } from '../stores/mapStore'
 import type { Drawing, FloorPiece, MapData, Region, Wall } from '../types/map'
@@ -99,6 +99,24 @@ const TINTA_DO_DESENHO: Drawing = {
   fillAlpha: 1,
 }
 
+const COR_DO_CAMINHO = '#3c8d2f'
+const ROTULO = 'Cozinha'
+
+/** Caminho (ferramenta junto do Chão, fora do botão Desenho) atravessando a borda da sala. */
+const CAMINHO: Drawing = {
+  id: 'caminho',
+  kind: 'path',
+  points: [
+    { x: 320, y: 64 },
+    { x: 320, y: 256 },
+  ],
+  color: COR_DO_CAMINHO,
+  width: GRADE / 2,
+}
+
+/** Texto (botão T) em cima da parede de cima da sala. */
+const TEXTO: Drawing = { id: 'texto', kind: 'text', x: 280, y: 120, text: ROTULO, color: '#ffffff', fontSize: 16 }
+
 function mapa(): MapData {
   return { ...createEmptyMap('m_paredes', 'Paredes', 12, 10, GRADE), regions: [SALA], walls: paredes(), floor: [TINTA_DO_CHAO], drawings: [TINTA_DO_DESENHO] }
 }
@@ -155,6 +173,31 @@ function indiceDaCamada(world: Container, cor: number): number {
   return i
 }
 
+/** `no` ou algum descendente dele satisfaz `teste`. */
+function contem(no: Container, teste: (filho: Container) => boolean): boolean {
+  return teste(no) || no.children.some((filho) => contem(filho, teste))
+}
+
+/**
+ * Índice no `world` da camada que guarda o Graphics da sala `id` com uma
+ * instrução `acao`: o renderer de salas põe um Graphics por sala, com o id no
+ * `label`, dentro de um Container por camada (fundo e borda).
+ */
+function indiceDaSala(world: Container, id: string, acao: 'fill' | 'stroke'): number {
+  const i = world.children.findIndex((filho) =>
+    contem(filho, (no) => no instanceof Graphics && no.label === id && no.context.instructions.some((ins) => ins.action === acao)),
+  )
+  if (i < 0) throw new Error(`nenhuma camada pinta ${acao} da sala ${id}`)
+  return i
+}
+
+/** Índice no `world` da camada que guarda o rótulo de texto `texto`. */
+function indiceDoTexto(world: Container, texto: string): number {
+  const i = world.children.findIndex((filho) => contem(filho, (no) => no instanceof Text && no.text === texto))
+  if (i < 0) throw new Error(`nenhuma camada mostra o texto ${texto}`)
+  return i
+}
+
 describe('PixiCanvas — paredes por cima da tinta', () => {
   it('a tinta do pincel/balde do Chão fica por baixo das paredes e das portas', async () => {
     const world = await monta()
@@ -168,5 +211,31 @@ describe('PixiCanvas — paredes por cima da tinta', () => {
     const tinta = indiceDaCamada(world, Number.parseInt(COR_DA_TINTA_DO_DESENHO.slice(1), 16))
     expect(indiceDaCamada(world, WALL_COLOR)).toBeGreaterThan(tinta)
     expect(indiceDaCamada(world, DOOR_COLOR)).toBeGreaterThan(tinta)
+  })
+
+  /**
+   * PINCEL POR BAIXO DA BORDA DA SALA (pedido de 08/10/2026: "ele pode pintar
+   * o cômodo da sala porém ele fica embaixo das paredes"). A sala vira duas
+   * camadas: o FUNDO por baixo da pintura e a BORDA por cima dela — e as
+   * paredes, por cima de tudo isso. Texto (botão T) e Caminho (ferramenta junto
+   * do Chão) não são do botão Desenho e ficam como estavam: por cima da sala.
+   */
+  it('fundo da sala < pintura do balde < borda da sala < paredes', async () => {
+    const world = await monta()
+    const tinta = indiceDaCamada(world, Number.parseInt(COR_DA_TINTA_DO_DESENHO.slice(1), 16))
+    const fundo = indiceDaSala(world, SALA.id, 'fill')
+    const borda = indiceDaSala(world, SALA.id, 'stroke')
+    expect(fundo).toBeLessThan(tinta)
+    expect(borda).toBeGreaterThan(tinta)
+    expect(indiceDaCamada(world, WALL_COLOR)).toBeGreaterThan(borda)
+    expect(indiceDaCamada(world, DOOR_COLOR)).toBeGreaterThan(borda)
+  })
+
+  it('Caminho e Texto continuam por cima da borda da sala', async () => {
+    useMapStore.setState({ map: { ...mapa(), drawings: [TINTA_DO_DESENHO, CAMINHO, TEXTO] } })
+    const world = await monta()
+    const borda = indiceDaSala(world, SALA.id, 'stroke')
+    expect(indiceDaCamada(world, Number.parseInt(COR_DO_CAMINHO.slice(1), 16))).toBeGreaterThan(borda)
+    expect(indiceDoTexto(world, ROTULO)).toBeGreaterThan(borda)
   })
 })
