@@ -1,5 +1,16 @@
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest'
+import { countExploredCells, createExploration, encodeExploration, markAll, type Exploration } from '../../lib/exploration'
 import { createEmptyMap } from '../../lib/mapFactory'
+import {
+  loadSavedExploration,
+  loadSavedTable,
+  storeSavedExploration,
+  storeSavedTable,
+  type SavedExploration,
+  type SavedSceneMemory,
+  type SavedTable,
+  type TableStorage,
+} from '../../lib/savedTable'
 import { useAdventureStore } from '../../stores/adventureStore'
 import { useMapStore } from '../../stores/mapStore'
 import { useToastStore } from '../../stores/toastStore'
@@ -7,12 +18,19 @@ import type { MapData, Token } from '../../types/map'
 import { createPlayerConnection, type PlayerConnection, type StorageLike } from '../../player/playerConnection'
 import { criarSocketDoCanal } from '../../player/visaoDeTeste/socketDoCanal'
 import { PILHA_DO_EDITOR } from '../avisosDaPonte'
-import { createHostBridge, type InvokeFn } from '../hostBridge'
+import { createHostBridge, EXPLORATION_SAVE_DELAY_MS, type InvokeFn, type ListenFn } from '../hostBridge'
 import { singleSceneWorld } from '../hostSession'
 import { criarParDeCanais, type Canal } from './canal'
 import type { JanelaDeTeste } from './janela'
 import { lerMensagemDoHost } from './protocoloDoCanal'
-import { criarControladorDaVisao, fichasParaTeste, PRAZO_DA_PRIMEIRA_RESPOSTA_MS, type ControladorDaVisao } from './visaoDeTeste'
+import {
+  criarControladorDaVisao,
+  fichaDoMundo,
+  fichasParaTeste,
+  PRAZO_DA_PRIMEIRA_RESPOSTA_MS,
+  type ControladorDaVisao,
+  type FontesDaSemente,
+} from './visaoDeTeste'
 
 /**
  * VISÃO DE JOGADOR de ponta a ponta, sem React: o controlador com a ponte de
@@ -39,6 +57,34 @@ function memoria(): StorageLike {
     removeItem: (k) => {
       itens.delete(k)
     },
+  }
+}
+
+/** Um salão comprido (2000 px) para a memória do dono: com raio 200, a vista de agora é bem menor que a cena. */
+function salaoComprido(): MapData {
+  return { ...createEmptyMap('m-visao', 'Salão', 40, 10, GRADE), tokens: [ANA, SEVERA] }
+}
+
+function cenaInteira(map: MapData): Exploration {
+  const exp = createExploration({ width: map.width * map.grid, height: map.height * map.grid, grid: map.grid })
+  markAll(exp)
+  return exp
+}
+
+/** A memória gravada da cena INTEIRA explorada: o que o dono já viu. */
+function cenaExplorada(map: MapData): SavedSceneMemory {
+  return { mapId: map.id, width: map.width, height: map.height, grid: map.grid, explored: encodeExploration(cenaInteira(map)), doors: [] }
+}
+
+function celulas(exp: Exploration | undefined): number {
+  return exp === undefined ? 0 : countExploredCells(exp)
+}
+
+/** A mesa de ontem: Bia tem a Ana, com raio 200, e explorou o salão inteiro. */
+function mesaDaBia(map: MapData): { mesa: SavedTable; explorado: SavedExploration } {
+  return {
+    mesa: { version: 1, code: 'REAL22', seats: [{ name: 'Bia', tokenIds: [ANA.id], visionRadius: 200, sceneKey: map.id }] },
+    explorado: { version: 1, seats: [{ name: 'Bia', scenes: [cenaExplorada(map)] }] },
   }
 }
 
@@ -85,6 +131,7 @@ describe('Visão de jogador — controlador + ponte de teste + cliente de verdad
   let canalDaJanela: Canal
   let sessaoAberta: string | null
   let janelaFalsa: { abrir: Mock<JanelaDeTeste['abrir']>; fechar: Mock<JanelaDeTeste['fechar']>; mostrar: Mock<JanelaDeTeste['mostrar']> }
+  let janelaDoSistema: JanelaDeTeste
   let controlador: ControladorDaVisao
   const escritasNasStores = vi.fn()
 
@@ -100,19 +147,26 @@ describe('Visão de jogador — controlador + ponte de teste + cliente de verdad
       fechar: vi.fn(async () => {}),
       mostrar: vi.fn(async () => true),
     }
-    const janela: JanelaDeTeste = { abrir: janelaFalsa.abrir, fechar: janelaFalsa.fechar, mostrar: janelaFalsa.mostrar, desligar: () => {} }
+    janelaDoSistema = { abrir: janelaFalsa.abrir, fechar: janelaFalsa.fechar, mostrar: janelaFalsa.mostrar, desligar: () => {} }
     vi.spyOn(useMapStore, 'setState').mockImplementation(escritasNasStores)
     vi.spyOn(useAdventureStore, 'setState').mockImplementation(escritasNasStores)
     escritasNasStores.mockClear()
-    controlador = criarControladorDaVisao({
+    controlador = novoControlador()
+  })
+
+  /** O controlador como o App o cria; `fontes` = de onde vem a memória do dono (ausentes = do zero). */
+  function novoControlador(fontes: FontesDaSemente = {}): ControladorDaVisao {
+    const novo = criarControladorDaVisao({
       getMap: () => mapa,
       getWorld: () => singleSceneWorld(mapa),
       avisos: PILHA_DO_EDITOR,
       abrirCanal: () => canalDoHost,
-      criarJanela: () => janela,
+      criarJanela: () => janelaDoSistema,
+      ...fontes,
     })
-    controlador.definirFichas(fichasParaTeste(mapa.tokens, new Map([[ANA.id, 'Bia']])), null)
-  })
+    novo.definirFichas(fichasParaTeste(mapa.tokens, new Map([[ANA.id, 'Bia']])), null)
+    return novo
+  }
 
   afterEach(() => {
     controlador.fechar()
@@ -213,5 +267,131 @@ describe('Visão de jogador — controlador + ponte de teste + cliente de verdad
 
     await vi.waitFor(() => expect(controlador.estado().aberta).toBe(false))
     expect(janelaFalsa.fechar).toHaveBeenCalledTimes(1)
+  })
+
+  it('sala fechada: o teste começa com o que o dono explorou (mesa e explorado do disco), com o raio dele, e o disco não muda', async () => {
+    mapa = salaoComprido()
+    const tudo = countExploredCells(cenaInteira(mapa))
+    const itens = new Map<string, string>()
+    const setItem = vi.fn((chave: string, valor: string) => {
+      itens.set(chave, valor)
+    })
+    const disco: TableStorage = { getItem: (chave) => itens.get(chave) ?? null, setItem }
+    const { mesa, explorado } = mesaDaBia(mapa)
+    storeSavedTable(disco, 'mesa-1', mesa)
+    storeSavedExploration(disco, 'mesa-1', explorado)
+    const discoAntes = JSON.stringify([...itens])
+    setItem.mockClear()
+    // Os mesmos leitores que o App usa com a sala fechada.
+    controlador = novoControlador({ mesaGuardada: () => loadSavedTable(disco, 'mesa-1'), exploradoGuardado: () => loadSavedExploration(disco, 'mesa-1') })
+
+    const janela = await abrirJanela(ANA.id)
+    await vi.waitFor(() => expect(janela.conexao().getState().ownTokens).toEqual([ANA.id]))
+    // A Ana nunca andou e o raio é 200: a cena inteira só pode ter vindo da memória da Bia.
+    await vi.waitFor(() => expect(celulas(janela.conexao().getState().explored)).toBe(tudo))
+    expect(controlador.ponte()?.players()).toEqual([expect.objectContaining({ name: 'Bia', visionRadius: 200, tokenIds: [ANA.id] })])
+
+    expect(setItem).not.toHaveBeenCalled()
+    expect(JSON.stringify([...itens])).toBe(discoAntes)
+    expect(useToastStore.getState().toasts).toEqual([])
+    expect(escritasNasStores).not.toHaveBeenCalled()
+  })
+
+  it('sala aberta, pelo "Ver tela": memória, raio e fator vêm da ponte da sala — e a sala de verdade, a mesa gravada e a Bia de verdade ficam iguais', async () => {
+    mapa = salaoComprido()
+    const tudo = countExploredCells(cenaInteira(mapa))
+    const { mesa, explorado } = mesaDaBia(mapa)
+    const ouvintes = new Map<string, (evento: { payload: unknown }) => void>()
+    const invokeReal = vi.fn<InvokeFn>(async (cmd) => (cmd === 'net_start_room' ? { code: 'REAL22', urls: [], qrSvg: '' } : undefined))
+    const listenReal: ListenFn = async (nome, ouvinte) => {
+      ouvintes.set(nome, ouvinte)
+      return () => {}
+    }
+    const mesasGravadas: SavedTable[] = []
+    const exploradosGravados: SavedExploration[] = []
+    const ponteReal = createHostBridge({
+      invoke: invokeReal,
+      listen: listenReal,
+      getMap: () => mapa,
+      applyMove: vi.fn(),
+      applyDoor: vi.fn(),
+      loadTable: () => mesa,
+      saveTable: (table) => {
+        mesasGravadas.push(table)
+      },
+      loadExploration: () => explorado,
+      saveExploration: (exploration) => {
+        exploradosGravados.push(exploration)
+      },
+    })
+    await ponteReal.start({ resume: true })
+    // A Bia de verdade volta (reencontra a Ana e a memória) e o mestre ajusta o fator dela.
+    const chegada = ouvintes.get('net:message')
+    if (chegada === undefined) throw new Error('a ponte da sala deveria ouvir net:message')
+    chegada({ payload: { clientId: 'bia-de-verdade', msg: { type: 'join', code: 'REAL22', name: 'Bia' } } })
+    const biaReal = ponteReal.players()[0]
+    if (biaReal === undefined) throw new Error('a Bia de verdade deveria ter entrado')
+    ponteReal.setVisionFactor(biaReal.playerId, 1.5)
+    // A sala de verdade assenta (o recorte pelo throttle e o explorado gravado): daqui em diante, nada nela deveria mudar.
+    await new Promise((resolve) => setTimeout(resolve, EXPLORATION_SAVE_DELAY_MS + 200))
+    const fotoDaSala = () =>
+      JSON.stringify({ envios: invokeReal.mock.calls, mesasGravadas, exploradosGravados, jogadores: ponteReal.players(), memoria: ponteReal.seatSeedFor(ANA.id), mesa, explorado })
+    const antes = fotoDaSala()
+
+    controlador = novoControlador({ ponteDaSala: () => ponteReal })
+    // "Ver tela" leva a ficha pronta, mesmo fora da lista (a ficha numa cena de fundo).
+    controlador.definirFichas([], null)
+    const ficha = fichaDoMundo(singleSceneWorld(mapa), ANA.id, biaReal.name)
+    if (ficha === null) throw new Error('a Ana deveria estar no mundo')
+    controlador.verTela(ficha)
+    await vi.waitFor(() => expect(sessaoAberta).not.toBeNull())
+    if (sessaoAberta === null) throw new Error('a janela não abriu')
+    const janela = janelaSemTela(canalDaJanela, sessaoAberta)
+    await vi.waitFor(() => expect(janela.conexao().getState().ownTokens).toEqual([ANA.id]))
+    await vi.waitFor(() => expect(celulas(janela.conexao().getState().explored)).toBe(tudo))
+    await vi.waitFor(() => expect(controlador.ponte()?.players()).toEqual([expect.objectContaining({ name: 'Bia', visionRadius: 200, visionFactor: 1.5 })]))
+    expect(controlador.estado().ficha).toMatchObject({ id: ANA.id, dono: 'Bia' })
+
+    expect(fotoDaSala()).toBe(antes)
+    expect(escritasNasStores).not.toHaveBeenCalled()
+    controlador.fechar()
+    await ponteReal.stop()
+  })
+
+  it('"Esquecer tudo" zera só o jogador de teste (até trocar de ficha), e "Trocar ficha" começa com a memória do dono da ficha nova', async () => {
+    mapa = salaoComprido()
+    const tudo = countExploredCells(cenaInteira(mapa))
+    const { mesa, explorado } = mesaDaBia(mapa)
+    const guardadoAntes = JSON.stringify({ mesa, explorado })
+    controlador = novoControlador({ mesaGuardada: () => mesa, exploradoGuardado: () => explorado })
+    const janela = await abrirJanela(ANA.id)
+    const explorou = () => celulas(janela.conexao().getState().explored)
+    await vi.waitFor(() => expect(explorou()).toBe(tudo))
+    if (sessaoAberta === null) throw new Error('a janela não abriu')
+    const sessao = sessaoAberta
+
+    canalDaJanela.enviar({ de: 'janela', tipo: 'esquecer', sessao })
+    // A névoa da janela muda na hora: sobra só o que a Ana vê agora.
+    await vi.waitFor(() => expect(explorou()).toBeLessThan(tudo))
+    expect(explorou()).toBeGreaterThan(0)
+
+    // Recarregar a janela não devolve a memória esquecida.
+    canalDaJanela.enviar({ de: 'janela', tipo: 'ola', sessao })
+    await vi.waitFor(() => expect(janela.quantas()).toBe(2))
+    await vi.waitFor(() => expect(janela.conexao().getState().ownTokens).toEqual([ANA.id]))
+    expect(explorou()).toBeLessThan(tudo)
+
+    // Severa não tem dono: começa do zero. Voltar à Ana traz de novo a memória da Bia.
+    controlador.abrir(SEVERA.id)
+    await vi.waitFor(() => expect(janela.conexao().getState().ownTokens).toEqual([SEVERA.id]))
+    expect(explorou()).toBeLessThan(tudo)
+    controlador.abrir(ANA.id)
+    await vi.waitFor(() => expect(janela.conexao().getState().ownTokens).toEqual([ANA.id]))
+    await vi.waitFor(() => expect(explorou()).toBe(tudo))
+
+    // O dono de verdade não esqueceu nada.
+    expect(JSON.stringify({ mesa, explorado })).toBe(guardadoAntes)
+    expect(useToastStore.getState().toasts).toEqual([])
+    expect(escritasNasStores).not.toHaveBeenCalled()
   })
 })

@@ -239,11 +239,4 @@ describe('PlayerView — véu curto na troca de cena, em vez do corte seco', () 
     await mostra(base(PORAO))
     expect(pedidos).toHaveLength(0)
   })
-
-  it('no espelho do mestre (Ver tela) não há véu: ele é fixo na janela, e o espelho é um quadro dentro da tela do mestre', async () => {
-    await monta({ ...base(SALAO), mirror: true })
-    expect(veu()).toBeNull()
-    await mostra({ ...base(PORAO), mirror: true })
-    expect(pedidos).toHaveLength(0)
-  })
 })

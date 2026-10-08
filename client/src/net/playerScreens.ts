@@ -4,12 +4,12 @@ import type { MapData, RegionPoint } from '../types/map'
 import type { HostMessage } from './protocol'
 
 /**
- * ESPELHO DA TELA DO JOGADOR. O que o mestre vê no "Ver tela" não é montado
- * de novo a partir do mapa dele: é o ÚLTIMO recorte que saiu pelo fio para
- * aquele jogador (`net_send`), guardado tal como foi. Por construção o espelho
- * nunca mostra nada que o jogador não recebeu — a névoa, a zona oculta e a
- * cena de cada um já foram decididas por `hostSession`/`fogFilter` antes de
- * sair — e segue a cena DELE, não a aberta no editor.
+ * A TELA DE CADA JOGADOR, do lado do mestre. O "Visto por" do painel da ficha
+ * não remonta nada a partir do mapa do editor: lê o ÚLTIMO recorte que saiu
+ * pelo fio para aquele jogador (`net_send`), guardado tal como foi. Por
+ * construção nunca conta nada que o jogador não recebeu — a névoa, a zona
+ * oculta e a cena de cada um já foram decididas por `hostSession`/`fogFilter`
+ * antes de sair — e segue a cena DELE, não a aberta no editor.
  *
  * As regras de "o que muda a tela" copiam as do jogador
  * (`player/playerConnection.ts`): snapshot/delta com `rev` antigo é ignorado,
@@ -22,7 +22,7 @@ export type PlayerScreen =
       rev: number
       map: MapData
       vision: RegionPoint[][]
-      /** Fio cru: quem desenha decodifica (só quando o espelho está aberto). */
+      /** Fio cru: guardar não decodifica nada (quem precisar do explorado decodifica). */
       explored: ExploredWire
       ownTokens: string[]
       concealed: RegionPoint[][]

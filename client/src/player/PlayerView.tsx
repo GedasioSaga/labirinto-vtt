@@ -266,16 +266,11 @@ interface PlayerViewProps {
   /** Chegou ao zoom máximo ou mínimo, ou saiu dele: os botões mostram o que ainda dá para fazer. */
   onZoomLimitsChange?: (limits: ZoomLimits) => void
   /**
-   * Espelho do "Ver tela" do mestre: ocupa o elemento pai (e não a janela) e
-   * só mostra — nenhum gesto chega ao mapa, então nada anda na tela do jogador.
-   */
-  mirror?: boolean
-  /**
    * MODO OLHAR da Visão de jogador (o mestre só olha a tela do jogador): a
    * câmera continua livre — arrastar, pinça e roda —, mas nenhum toque vira
    * ação. Pegar a própria ficha, tocar em porta, pino, bilhete, ficha alheia
    * ou nome de Sala, segurar no mapa e o Alt+clique chamam isto em vez de
-   * agir. Diferente do `mirror`, o layout é o do jogador. Ausente = o jogador.
+   * agir. Ausente = o jogador.
    */
   onAcaoNoOlhar?: () => void
   /**
@@ -1513,7 +1508,6 @@ export function PlayerView({
   focusPoint = null,
   zoomStep = NO_ZOOM_STEP,
   onZoomLimitsChange,
-  mirror = false,
   onAcaoNoOlhar,
   arrivalKey,
 }: PlayerViewProps) {
@@ -1526,7 +1520,7 @@ export function PlayerView({
   /** O que esta tela já viu de cada cena, para saber o que mudou na volta (`revisitChanges.ts`). */
   const revisitMemoryRef = useRef(createRevisitMemory())
   const routeLabelRef = useRef<HTMLDivElement | null>(null)
-  /** Véu da chegada (`VEIL_STYLE`); fica `null` no espelho do mestre, que não tem véu. */
+  /** Véu da chegada (`VEIL_STYLE`). */
   const veilRef = useRef<HTMLDivElement | null>(null)
   const sceneRef = useRef<Scene | null>(null)
   const latest = {
@@ -1660,13 +1654,11 @@ export function PlayerView({
   /**
    * MAPA LEMBRADO: o que mudou desde a última visita começa a piscar. O aviso
    * é TEXTO do DOM (como o rótulo da régua), para o leitor de tela anunciar.
-   * No espelho do mestre o aviso fica de fora: ele é `fixed` na janela, e o
-   * espelho é um quadro dentro da tela do mestre — só o piscar aparece lá.
    */
   function startRevisitPulse(scene: Scene, areas: Bounds[], mapId: string): void {
     scene.revisit = { areas, mapId, startedAt: performance.now(), reducedMotion: prefersReducedMotion() }
     const label = revisitNoteRef.current
-    if (!label || mirror) return
+    if (!label) return
     label.textContent = REVISIT_NOTE
     label.hidden = false
     placeRevisitNote(scene, label, revisitAreaOnScreen(scene, areas[0]))
@@ -1941,8 +1933,8 @@ export function PlayerView({
 
   /**
    * Ficha ALHEIA sob o ponto da TELA, com a mesma folga de dedo do pino. Só
-   * quando alguém ouve o toque: no espelho do mestre ("Ver tela") não há
-   * cartão, e a ficha não pode virar alvo de cursor à toa. Porta sob o mesmo
+   * quando alguém ouve o toque: sem quem abra o cartão, a ficha não pode
+   * virar alvo de cursor à toa. Porta sob o mesmo
    * dedo: a ficha só ganha no miolo dela (`findTappedOtherToken`) — senão a
    * porta ao lado de um NPC nunca mais abria pelo toque.
    */
@@ -3410,15 +3402,10 @@ export function PlayerView({
         // MODO OLHAR: a marca diz ao bloqueio da janela de teste (`visaoDeTeste/bloqueioDeEntrada.ts`)
         // que este é o mapa, cuja câmera fica livre; o que vira ação aqui dentro é barrado acima.
         data-camera-livre={onAcaoNoOlhar === undefined ? undefined : ''}
-        style={
-          mirror
-            ? { position: 'absolute', inset: 0, pointerEvents: 'none' }
-            : { position: 'fixed', inset: 0, touchAction: 'none', cursor: signalArmed || measureArmed || laserArmed || destinationArmed || noteArmed ? 'crosshair' : undefined }
-        }
+        style={{ position: 'fixed', inset: 0, touchAction: 'none', cursor: signalArmed || measureArmed || laserArmed || destinationArmed || noteArmed ? 'crosshair' : undefined }}
       />
-      {/* Véu da chegada: logo depois do mapa e sem z-index, acima do canvas e abaixo de todo o HUD.
-          Fora do espelho do mestre: fixo na janela, ele cobriria a tela do mestre inteira. */}
-      {!mirror && <div ref={veilRef} data-testid="map-veil" aria-hidden="true" style={VEIL_STYLE} />}
+      {/* Véu da chegada: logo depois do mapa e sem z-index, acima do canvas e abaixo de todo o HUD. */}
+      <div ref={veilRef} data-testid="map-veil" aria-hidden="true" style={VEIL_STYLE} />
 
       {/* Rótulo da régua: escrito pelo gesto direto no DOM (syncMeasure), sem re-render do React por passo do dedo.
           A região viva mora à parte e nasce montada, para a PRIMEIRA medida já ser anunciada. */}

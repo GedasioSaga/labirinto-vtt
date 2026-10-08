@@ -25,7 +25,7 @@ import { PILHA_DO_EDITOR } from './net/avisosDaPonte'
 import { abrirCanalDoNavegador } from './net/visaoDeTeste/canal'
 import { criarJanelaDoSistema } from './net/visaoDeTeste/janela'
 import type { FichaParaTeste } from './net/visaoDeTeste/tipos'
-import { criarControladorDaVisao, donosDasFichas, fichasParaTeste, mesmasFichas } from './net/visaoDeTeste/visaoDeTeste'
+import { criarControladorDaVisao, donosDasFichas, fichaDoMundo, fichasParaTeste, mesmasFichas } from './net/visaoDeTeste/visaoDeTeste'
 import { hostPlayerChanges } from './net/playerChanges'
 import { setPinPassageFromRequest } from './net/pinPassageFromRequest'
 import { useSignalStore } from './stores/signalStore'
@@ -55,7 +55,6 @@ import { tableSceneKey, type AppliedMove, type MasterChatState, type PinClueStat
 import { tableScreenUrl } from './lib/tableScreen'
 import { giftScenesOf, RoomPanel, roomPanelTokensOf } from './components/RoomPanel'
 import { hostCluesProps } from './components/CluesSection'
-import { LivePlayerMirror } from './components/PlayerMirror'
 import { masterDestinationMarks, partyDestinations, partyItemChange, partyMembers, peopleByScene } from './lib/party'
 import { congelamentoDaMesa } from './lib/congelar'
 import { jogadoresDoCorte } from './lib/corteDaTorre'
@@ -823,6 +822,11 @@ function App() {
       avisos: PILHA_DO_EDITOR,
       abrirCanal: () => abrirCanalDoNavegador(),
       criarJanela: criarJanelaDoSistema,
+      // A memória do dono, só lida: a ponte da sala (aberta) ou a mesa e o explorado
+      // gravados desta aventura (os mesmos do "Retomar a mesa" e da lista de donos).
+      ponteDaSala: () => hostBridgeRef.current,
+      mesaGuardada: () => loadSavedTable(tableStorage(), currentTableId()),
+      exploradoGuardado: () => loadSavedExploration(tableStorage(), currentTableId()),
     }),
   )
   const estadoDaVisao = useSyncExternalStore(visaoDeTeste.assinar, visaoDeTeste.estado)
@@ -1049,9 +1053,12 @@ function App() {
           },
           followingId,
           onToggleFollow: (member) => useFollowStore.getState().toggle(member.playerId),
-          // "Ver tela": um espelho por vez; o mesmo botão fecha o que abriu.
-          mirroringId: mirrorId,
-          onToggleMirror: (member) => setMirrorId((current) => (current === member.playerId ? null : member.playerId)),
+          // "Ver tela": atalho da Visão de jogador, no Olhar, na ficha do jogador na cena dele
+          // e com a memória dele. Uma janela só: com ela aberta, troca para esta ficha.
+          onViewScreen: (member) => {
+            const ficha = member.token === null ? null : fichaDoMundo(world, member.token.id, member.name)
+            if (ficha !== null) visaoDeTeste.verTela(ficha)
+          },
           // Recado para um jogador só: sem sala não há quem leia.
           onNote: room === null ? undefined : (playerId, text) => hostBridgeRef.current?.playerNote(playerId, text) ?? null,
           // MOEDAS E TROCA: a oferta vai pela sessão, só ao jogador da linha; sem sala não há quem responda.
@@ -1261,13 +1268,6 @@ function App() {
   // FACÇÃO E ALERTA: o filtro "Quem manda aqui" é da vista do mestre; a legenda sai das salas da cena aberta.
   const filtroFaccoes = useTerritorioStore((state) => state.filtroLigado)
   const legendaFaccoes = coresDasFaccoes(map.regions)
-  // "Ver tela" do Grupo: de quem é o espelho aberto. Quem saiu da sala (expulso,
-  // sala fechada) leva o espelho junto — voltar depois não o reabre sozinho.
-  const [mirrorId, setMirrorId] = useState<string | null>(null)
-  const mirroredPlayer = mirrorId === null ? undefined : roomPlayers.find((player) => player.playerId === mirrorId)
-  useEffect(() => {
-    if (mirrorId !== null && mirroredPlayer === undefined) setMirrorId(null)
-  }, [mirrorId, mirroredPlayer])
   // atencao-do-mestre — a cena que espera (`lib/cenaQueEspera.ts`): cada cena
   // com gente que o editor NÃO mostra guarda desde quando espera; a lista
   // Cenas mostra 'há N min' e o Ctrl+J abre a que espera há mais tempo.
@@ -3819,19 +3819,6 @@ function App() {
           }}
         />
       )}
-      {mirroredPlayer !== undefined &&
-        hostBridgeRef.current !== null &&
-        createPortal(
-          <LivePlayerMirror
-            key={mirroredPlayer.playerId}
-            playerName={mirroredPlayer.name}
-            playerId={mirroredPlayer.playerId}
-            watch={hostBridgeRef.current.watchPlayerScreens}
-            read={hostBridgeRef.current.playerScreen}
-            onClose={() => setMirrorId(null)}
-          />,
-          document.body,
-        )}
       {/* Dado rolado na sala: só com a sala aberta — sem mesa, não há quem veja a rolagem. */}
       {room !== null && <DiceDock rolls={diceRolls} onRoll={(request, hidden) => hostBridgeRef.current?.rollDice(request, hidden)} />}
     </div>

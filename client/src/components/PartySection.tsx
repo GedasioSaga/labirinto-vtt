@@ -18,10 +18,12 @@ export interface PartySectionProps {
   followingId?: string | null
   /** "Seguir": liga neste jogador (e desliga o anterior) ou desliga se já era ele. Sem ele, não há botão. */
   onToggleFollow?(member: PartyMember): void
-  /** De quem é a tela aberta no espelho agora; `null` = nenhuma. */
-  mirroringId?: string | null
-  /** "Ver tela": abre (ou fecha, se já é a dele) o espelho da tela do jogador. Sem ele, não há botão. */
-  onToggleMirror?(member: PartyMember): void
+  /**
+   * "Ver tela": abre a Visão de jogador (a janela de teste, no Olhar) na ficha
+   * da linha, com a memória do jogador. Com a janela já aberta, ela troca para
+   * esta ficha. Sem ele, não há botão.
+   */
+  onViewScreen?(member: PartyMember): void
   /**
    * ITEM PEGÁVEL: tirar, devolver ao chão ou dar um item. `false` = não deu
    * (a ficha ou o item mudou), e a linha avisa. Sem ele, a mochila é só leitura.
@@ -82,7 +84,7 @@ export const BRING_FAILED = 'Não deu para trazer: a ficha ou a cena mudou.'
 /** Nome FIXO do botão: o estado vai em `aria-pressed`, e o leitor de tela lê "Seguir, pressionado". */
 export const FOLLOW_LABEL = 'Seguir'
 
-/** Texto visível do botão de espelhar; o nome acessível leva o nome do jogador (`mirrorLabel`). */
+/** Texto do botão que abre a Visão de jogador na ficha da linha; o nome acessível leva o nome do jogador (`mirrorLabel`). */
 export const MIRROR_LABEL = 'Ver tela'
 
 /** Começa pelo texto visível: quem comanda por voz diz "Ver tela" e acha o botão. */
@@ -260,7 +262,7 @@ const SEND_SHORT_LABEL = 'Mandar'
  * ficha no mapa, só o "Recado" (ele chega quando o mapa do jogador aparecer).
  */
 export function PartyActions({ member, party, sendOpen, sendFormId, onToggleSend, noteOpen, noteFormId, onToggleNote }: PartyActionsProps) {
-  const { onGoTo, onToggleFollow, followingId = null, onToggleMirror, mirroringId = null, onNote } = party
+  const { onGoTo, onToggleFollow, followingId = null, onViewScreen, onNote } = party
   const hasToken = member.token !== null
   const targets = hasToken ? sendDestinationsFor(member, party.destinations) : []
   const following = member.playerId === followingId
@@ -278,16 +280,14 @@ export function PartyActions({ member, party, sendOpen, sendFormId, onToggleSend
               <AcaoRotulo icone="seguir">{FOLLOW_LABEL}</AcaoRotulo>
             </button>
           )}
-          {/* Desconectado não tem tela: o botão abriria um espelho vazio. */}
-          {onToggleMirror !== undefined && member.connected && (
+          {/* Fora do ar também: a janela de teste parte da memória dele, não da conexão. */}
+          {onViewScreen !== undefined && (
             <button
               type="button"
               className="lb-grupo__acao"
               aria-label={mirrorLabel(member.name)}
-              aria-expanded={member.playerId === mirroringId}
-              aria-haspopup="dialog"
-              title={mirrorLabel(member.name)}
-              onClick={() => onToggleMirror(member)}
+              title={`${mirrorLabel(member.name)}: abre a Visão de jogador nesta ficha`}
+              onClick={() => onViewScreen(member)}
             >
               <AcaoRotulo icone="tela">{MIRROR_SHORT_LABEL}</AcaoRotulo>
             </button>

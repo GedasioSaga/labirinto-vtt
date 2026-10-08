@@ -199,6 +199,8 @@ function VisaoDeJogador({ sessao, canal }: { sessao: string; canal: Canal }) {
           fichas={lista.fichas}
           fichaSelecionadaId={lista.fichaSelecionadaId}
           onTrocarFicha={(tokenId) => enviar({ de: 'janela', tipo: 'trocar-ficha', sessao, tokenId })}
+          // Quem esquece é o host de teste: a névoa nova chega no próximo snapshot, como para o jogador.
+          onEsquecerTudo={() => enviar({ de: 'janela', tipo: 'esquecer', sessao })}
           onFechar={() => enviar({ de: 'janela', tipo: 'pedir-fechar', sessao })}
         />
       )}

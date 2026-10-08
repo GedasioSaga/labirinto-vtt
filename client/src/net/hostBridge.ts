@@ -98,6 +98,7 @@ import {
 import type { AbaloContagem, AbaloOrigem, AbaloTextos } from '../lib/abalo'
 import { letterViaPhrase } from '../lib/correio'
 import { createPlayerScreens, type PlayerScreen } from './playerScreens'
+import { sementeDosAssentos, type SementeDoDono } from './visaoDeTeste/semente'
 import { criarSaidaEmOrdem } from './pacoteComprimido'
 import { guardSightingNotices } from './guardNotices'
 import type { TurnRef } from '../lib/initiative'
@@ -394,6 +395,19 @@ export interface HostBridge {
   /** "Esconder de novo": snapshot imediato com exploração e portas lembradas zeradas. */
   hidePlan(playerId: string): void
   /**
+   * VISÃO DE JOGADOR, "Esquecer tudo" (só a ponte de teste chama): a memória
+   * do jogador em TODAS as cenas volta a zero, a das fichas dele junto, e o
+   * snapshot sai na hora com a névoa do que a ficha vê agora.
+   */
+  forgetPlayerMemory(playerId: string): void
+  /**
+   * VISÃO DE JOGADOR: a memória do dono da ficha `tokenId` como a mesa a
+   * gravaria agora (assento, raio, fator e o explorado do térreo de cada cena),
+   * para o teste começar dali. SÓ LEITURA: não grava, não manda nada a ninguém
+   * e devolve cópia. `null` = sala fechada ou ficha sem dono.
+   */
+  seatSeedFor(tokenId: string): SementeDoDono | null
+  /**
    * "Revelar planta para…" da lista Cenas: a planta de `sceneId` para estes
    * jogadores, mesmo fora dela (aparece quando chegarem). Devolve quantos
    * ganharam, ou `null` com a sala fechada. Snapshot na hora.
@@ -521,10 +535,10 @@ export interface HostBridge {
    */
   abalo(origem: AbaloOrigem, textos: AbaloTextos, vizinhas: readonly string[]): AbaloContagem | null
   /**
-   * "Ver tela" do painel Grupo: o último recorte que SAIU pelo fio para este
-   * jogador (a cena dele, com a névoa e a zona oculta já aplicadas), a espera
-   * (`waiting`) ou `null` quando ele não tem tela (caiu, saiu, sala fechada).
-   * Mesma referência enquanto nada novo sai: serve de `getSnapshot`.
+   * A tela do jogador como o "Visto por" a lê: o último recorte que SAIU pelo
+   * fio para ele (a cena dele, com a névoa e a zona oculta já aplicadas), a
+   * espera (`waiting`) ou `null` quando ele não tem tela (caiu, saiu, sala
+   * fechada). Mesma referência enquanto nada novo sai: serve de `getSnapshot`.
    */
   playerScreen(playerId: string): PlayerScreen | null
   /** Chama `listener` a cada tela de jogador que muda. Devolve o desligar. */
@@ -899,7 +913,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   const heldToasts = new Map<string, string>()
   /** Aviso de cada disputa na porta (ferrolho) ainda na Caixa: `requestId` -> id do toast. */
   const disputeToasts = new Map<string, string>()
-  /** O que cada conexão está vendo, anotado do que sai em `dispatch` (espelho do "Ver tela"). */
+  /** O que cada conexão está vendo, anotado do que sai em `dispatch` (é daqui que o "Visto por" lê). */
   const screens = createPlayerScreens()
   const screenWatchers = new Set<() => void>()
   const notifyScreens = () => {
@@ -3135,6 +3149,22 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       broadcastNow()
     },
 
+    forgetPlayerMemory(playerId) {
+      if (session === null) return
+      // Sem a cena: a sessão esquece todas (e as memórias das fichas dele), não só a de agora.
+      session.hidePlan(playerId)
+      broadcastNow()
+    },
+
+    seatSeedFor(tokenId) {
+      if (session === null) return null
+      // Os mesmos assentos e o mesmo explorado que `saveTableNow`/`saveExplorationNow` gravariam, sem gravar.
+      const held = heldTokenIds()
+      // O fator não vai na mesa: só quem está na sala tem um (a lista sem mundo não mexe em nada).
+      const dono = session.listPlayers().find((player) => player.tokenIds.includes(tokenId))
+      return sementeDosAssentos(session.savedSeats(held), session.savedExploration(held), tokenId, dono === undefined ? null : dono.visionFactor)
+    },
+
     revealPlanFor(sceneId, playerIds) {
       if (session === null) return null
       const granted = session.revealPlanFor(sceneId, playerIds, world())
@@ -3526,7 +3556,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
 
     playerScreen(playerId) {
       if (session === null) return null
-      // Sem mundo: só o `clientId` interessa, e isto roda a cada render do espelho.
+      // Sem mundo: só o `clientId` interessa, e isto roda a cada tela nova que sai.
       const clientId = session.listPlayers().find((player) => player.playerId === playerId)?.clientId ?? null
       return clientId === null ? null : screens.get(clientId)
     },

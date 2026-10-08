@@ -61,6 +61,13 @@
 //     cena inteira cabe); em escala menor vale, desde que o chão e as fichas
 //     tenham pixels para contar (limiares `*_NO_ESPELHO`).
 //
+// DESDE A VISÃO DE JOGADOR (fatia 2): o "Ver tela" da linha do Grupo é um
+// atalho da Visão de jogador. Ele abre a janela de teste (modo Olhar) na ficha
+// do jogador, na cena dele, com a memória dele; o painel dentro do editor saiu.
+// O Rust de mentira atende `abrir_visao_jogador` abrindo a mesma página
+// (`/visao-jogador.html?sessao=…`) como popup: a régua a lê como janela nova, e
+// só onde o mapa está por cima (`soCanvas`), sem contar o retrato da barra.
+//
 // CONTROLE POSITIVO (verde hoje): teste 1. Prova que a mesa monta, que a tela
 // de Ana esconde o Espião (a zona funciona do lado do jogador), que o EDITOR
 // do mestre mostra o Espião (a diferença que o espelho tem de reproduzir) e
@@ -275,6 +282,8 @@ async function mestreAbreAventura(mestre: Page): Promise<Rede> {
       const callbacks = new Map<number, HandlerTauri>()
       const ouvintes = new Map<number, { event: string; handler: HandlerTauri }>()
       let proximoId = 1
+      /** A janela da Visão de jogador, que o Rust de verdade cria como janela nativa. */
+      let janelaDeTeste: Window | null = null
       alvo.isTauri = true
       alvo.__emitTauri = (event, payload) => {
         for (const [id, ouvinte] of ouvintes) if (ouvinte.event === event) ouvinte.handler({ event, id, payload })
@@ -298,6 +307,17 @@ async function mestreAbreAventura(mestre: Page): Promise<Rede> {
               return null
             case 'net_kick':
             case 'net_stop_room':
+              return null
+            // VISÃO DE JOGADOR: a janela de teste vira popup, com a sessão no endereço (a página aceita os dois jeitos).
+            case 'abrir_visao_jogador':
+              if (janelaDeTeste !== null) janelaDeTeste.close()
+              janelaDeTeste = window.open(`/visao-jogador.html?sessao=${encodeURIComponent(String(a.sessao))}`, 'visao-jogador', 'popup,width=1280,height=800')
+              return null
+            case 'mostrar_visao_jogador':
+              return janelaDeTeste !== null && !janelaDeTeste.closed
+            case 'fechar_visao_jogador':
+              if (janelaDeTeste !== null) janelaDeTeste.close()
+              janelaDeTeste = null
               return null
             case 'plugin:event|listen': {
               const id = Number(a.handler)
@@ -668,7 +688,8 @@ async function lerTela(page: Page): Promise<Pixels> {
 
 async function lerEspelho(espelho: Espelho): Promise<Pixels> {
   await espelho.page.waitForTimeout(PINTURA_MS)
-  return contarCores(espelho.page, await fotografar(espelho.alvo), false)
+  // Na janela de teste, a barra de cima traz o retrato da ficha na cor dela: conta só o mapa.
+  return contarCores(espelho.page, await fotografar(espelho.alvo), espelho.onde === 'janela')
 }
 
 function fichaDe(p: Pixels, nome: string): number {

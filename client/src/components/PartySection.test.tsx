@@ -188,16 +188,24 @@ describe('Grupo na aba Jogo', () => {
     expect(nomes(abrirFicha(container, 'Ana'))).not.toContain(FOLLOW_LABEL)
   })
 
-  it('"Ver tela" na ficha de quem está conectado e tem ficha, com o nome do jogador no nome acessível', () => {
-    grupo({ mirroringId: 'ana', onToggleMirror: vi.fn() })
+  it('"Ver tela" na ficha de quem tem ficha em cena abre a Visão de jogador nela, com o nome do jogador no nome acessível', () => {
+    const onViewScreen = vi.fn()
+    grupo({ onViewScreen })
     expect(mirrorLabel('Ana')).toBe('Ver tela de Ana')
-    const tela = (nome: string) => Array.from(abrirFicha(container, nome).querySelectorAll('button[aria-haspopup="dialog"]'))
+    const tela = (nome: string) => Array.from(abrirFicha(container, nome).querySelectorAll('button')).filter((b) => b.getAttribute('aria-label') === mirrorLabel(nome))
     const daAna = tela('Ana')
-    expect(daAna.map((b) => [b.getAttribute('aria-label'), b.getAttribute('aria-expanded')])).toEqual([['Ver tela de Ana', 'true']])
+    expect(daAna).toHaveLength(1)
+    // Abre outra janela, não um painel aqui dentro: nada de "expandido" nem de diálogo.
+    expect(daAna[0]?.hasAttribute('aria-expanded')).toBe(false)
+    expect(daAna[0]?.hasAttribute('aria-haspopup')).toBe(false)
     // O rótulo curto à vista começa a palavra do nome acessível (quem comanda por voz diz "tela").
     expect(MIRROR_LABEL.toLowerCase()).toContain(daAna[0]?.textContent?.trim().toLowerCase() ?? '?')
-    // Bruno está fora (sem tela para ver) e a ficha de Dora não está em cena: sem o botão.
-    expect(tela('Bruno')).toHaveLength(0)
+    daAna[0]?.click()
+    expect(onViewScreen).toHaveBeenCalledTimes(1)
+    expect(onViewScreen.mock.calls[0]?.[0]).toMatchObject({ playerId: 'ana', token: { id: 'lanterna' } })
+    // Bruno está fora do ar, mas a ficha dele está na Cripta: a janela de teste parte da memória dele.
+    expect(tela('Bruno')).toHaveLength(1)
+    // A ficha de Dora não está em cena nenhuma: sem o botão.
     expect(tela('Dora')).toHaveLength(0)
     // Sem o callback, não há botão.
     grupo()

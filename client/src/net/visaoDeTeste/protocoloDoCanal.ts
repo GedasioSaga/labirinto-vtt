@@ -52,6 +52,8 @@ export type MensagemDaJanela =
   | { de: 'janela'; tipo: 'pong'; sessao: string }
   /** "Trocar ficha" da barra da janela. */
   | { de: 'janela'; tipo: 'trocar-ficha'; sessao: string; tokenId: string }
+  /** "Esquecer tudo" da barra da janela: a memória do jogador de teste volta a zero, em todas as cenas. */
+  | { de: 'janela'; tipo: 'esquecer'; sessao: string }
   /** "Fechar" da barra da janela. */
   | { de: 'janela'; tipo: 'pedir-fechar'; sessao: string }
 
@@ -135,6 +137,7 @@ export function lerMensagemDaJanela(dado: unknown, sessao: string): MensagemDaJa
   switch (dado.tipo) {
     case 'ola':
     case 'pong':
+    case 'esquecer':
     case 'pedir-fechar':
       return { de: 'janela', tipo: dado.tipo, sessao }
     case 'abrir': {
