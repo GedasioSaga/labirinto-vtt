@@ -30,7 +30,12 @@ const tela = vi.hoisted(() => ({
   mascaras: 0,
   perigos: 0,
   bilhetes: 0,
-  /** Quantos desenhos cada repintura da camada levou. */
+  /**
+   * Quantos desenhos cada chamada de `drawDrawings` levou. Desde que os
+   * desenhos do botão Desenho passaram para baixo da borda da sala, cada
+   * repintura chama duas vezes (sob as salas, depois Texto e Caminho): use
+   * `desenhosNaUltimaPintura()` para o total.
+   */
   desenhos: new Array<number>(),
   /** Quantos pinos cada repintura da camada levou. */
   pinos: new Array<number>(),
@@ -295,8 +300,13 @@ describe('PlayerView — a referência antes do conteúdo nas chaves do redesenh
     expect(tela.mascaras).toBeGreaterThan(0)
     expect(tela.perigos).toBeGreaterThan(0)
     expect(tela.bilhetes).toBeGreaterThan(0)
-    expect(tela.desenhos.at(-1)).toBe(2)
+    expect(desenhosNaUltimaPintura()).toBe(2)
     expect(tela.pinos.at(-1)).toBe(2)
+  }
+
+  /** Desenhos da última repintura: as duas chamadas (sob as salas + Texto e Caminho) somadas. */
+  function desenhosNaUltimaPintura(): number {
+    return (tela.desenhos.at(-2) ?? 0) + (tela.desenhos.at(-1) ?? 0)
   }
 
   /** Quantas vezes cada camada foi pintada até agora. */
@@ -348,7 +358,7 @@ describe('PlayerView — a referência antes do conteúdo nas chaves do redesenh
 
     const comDesenho: MapData = { ...comPerigo, drawings: [...comPerigo.drawings, desenho('risco-3', 540)] }
     await mostra(comDesenho)
-    expect(tela.desenhos.at(-1)).toBe(3)
+    expect(desenhosNaUltimaPintura()).toBe(3)
 
     const comBilhete: MapData = { ...comDesenho, marcas: [BILHETE, { id: 'seta-1', tipo: 'seta', x: 520, y: 520, rumo: 'n' }] }
     await mostra(comBilhete)
@@ -365,7 +375,7 @@ describe('PlayerView — a referência antes do conteúdo nas chaves do redesenh
     const antes = pinturas()
 
     await mostra({ ...map, hiddenLayers: ['anotacoes', 'paredes', 'salas'] })
-    expect(tela.desenhos.at(-1)).toBe(0)
+    expect(desenhosNaUltimaPintura()).toBe(0)
     expect(tela.pinos.at(-1)).toBe(0)
     expect(conteiner().dataset.pinsCount).toBe('0')
     // Sem paredes à vista, a sombra muda; sem salas, o perigo não tem onde pintar.
