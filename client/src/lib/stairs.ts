@@ -213,35 +213,43 @@ export function computeStairPlan(segment: StairSegment, stepWidth: number, direc
 }
 
 /**
- * ESCADA EM ESPIRAL vista de cima, na gramática do minimapa: um círculo de
- * traço fino, o poste no meio e um raio fino por degrau. Sem galão nem massa —
- * a torre se lê pela forma, não pela espessura.
+ * ESCADA EM ESPIRAL vista de cima: o lance reto enrolado num poste.
  *
  * O arrasto (o primeiro lance) é o DIÂMETRO: quem troca "Reta" por "Espiral"
  * vê o círculo nascer em cima do lance que já estava lá, e a boca (`x1, y1`,
- * onde mora o pino da escada, `lib/stairTravel.ts`) fica na borda. O primeiro
- * raio aponta para a boca; 'up' gira no sentido horário da tela a partir dela
- * e 'down' no anti-horário — subir e descer viram desenhos espelhados, como no
- * lance reto, e o tom clareia rumo ao alto (`climb`, o renderer converte).
+ * onde mora o pino da escada, `lib/stairTravel.ts`) fica na borda.
+ *
+ * Todo ponto da escada se diz por `sweep`, o ângulo andado desde a boca no
+ * sentido da subida, e pela distância ao centro (`spiralPoint`). A subida vai
+ * de 0 a `climbSweep`; o patamar é o último `landingSweep`, que fecha a volta
+ * e encosta na boca pelo outro lado. 'up' sobe no sentido horário da tela;
+ * 'down' é o espelho no eixo da boca, a mesma escada percorrida do alto: quem
+ * entra pela boca pisa no patamar e desce. Quantos degraus, onde cada um cai,
+ * cores e espessuras são do renderer (pixi/drawStairs.ts), como no lance reto.
  */
-export const SPIRAL_SPOKE_COUNT = 12
 /** Raio do poste central, como fração do raio do círculo. */
 export const SPIRAL_POST_RATIO = 0.18
-
-export interface SpiralSpoke {
-  /** Na borda do poste. */
-  from: Point
-  /** Na borda do círculo. */
-  to: Point
-  /** 0 no raio da boca, 1 no último — o renderer converte em tom. */
-  climb: number
-}
+/** Fatia do patamar: um quarto de volta. */
+export const SPIRAL_LANDING_SWEEP = Math.PI / 2
 
 export interface SpiralPlan {
   center: Point
   radius: number
   postRadius: number
-  spokes: SpiralSpoke[]
+  /** Ângulo da boca visto do centro, em radianos de tela (y para baixo). */
+  mouthAngle: number
+  /** 1 quando o `sweep` cresce no sentido horário da tela ('up'); -1 no anti-horário ('down'). */
+  turn: 1 | -1
+  /** Ângulo da subida, da boca até o patamar. */
+  climbSweep: number
+  /** Ângulo do patamar; com a subida, fecha a volta. */
+  landingSweep: number
+}
+
+/** O ponto a `distance` do centro, depois de andar `sweep` desde a boca no sentido da subida. */
+export function spiralPoint(plan: SpiralPlan, sweep: number, distance: number): Point {
+  const angle = plan.mouthAngle + plan.turn * sweep
+  return { x: plan.center.x + Math.cos(angle) * distance, y: plan.center.y + Math.sin(angle) * distance }
 }
 
 /** Centro e raio do círculo de uma espiral: o lance é o diâmetro. `null` = lance de comprimento zero. */
@@ -268,19 +276,14 @@ export function computeSpiralPlan(segment: StairSegment, direction: StairDirecti
   const circle = spiralCircle(segment)
   if (circle === null) return null
   const { center, radius } = circle
-  const postRadius = radius * SPIRAL_POST_RATIO
-  const mouthAngle = Math.atan2(segment.y1 - center.y, segment.x1 - center.x)
-  // Na tela o y cresce para baixo: ângulo crescente é sentido horário.
-  const turn = direction === 'up' ? 1 : -1
-  const at = (angle: number, distance: number): Point => ({
-    x: center.x + Math.cos(angle) * distance,
-    y: center.y + Math.sin(angle) * distance,
-  })
-
-  const spokes: SpiralSpoke[] = []
-  for (let i = 0; i < SPIRAL_SPOKE_COUNT; i += 1) {
-    const angle = mouthAngle + (turn * i * 2 * Math.PI) / SPIRAL_SPOKE_COUNT
-    spokes.push({ from: at(angle, postRadius), to: at(angle, radius), climb: i / (SPIRAL_SPOKE_COUNT - 1) })
+  return {
+    center,
+    radius,
+    postRadius: radius * SPIRAL_POST_RATIO,
+    mouthAngle: Math.atan2(segment.y1 - center.y, segment.x1 - center.x),
+    // Na tela o y cresce para baixo: ângulo crescente é sentido horário.
+    turn: direction === 'up' ? 1 : -1,
+    climbSweep: 2 * Math.PI - SPIRAL_LANDING_SWEEP,
+    landingSweep: SPIRAL_LANDING_SWEEP,
   }
-  return { center, radius, postRadius, spokes }
 }

@@ -25,8 +25,12 @@ import type { Point } from './world'
  * degraus num bloco, o lance perde degraus de 2 em 2 e mantém vão legível.
  */
 
-/** Passo médio do degrau, como fração do lado menor do lance (largura ou comprimento). */
-const TREAD_PITCH_RATIO = 0.14
+/**
+ * Passo médio do degrau, como fração do lado menor do lance (largura ou
+ * comprimento). A espiral (drawStairs.ts) usa o mesmo passo na linha do meio
+ * do degrau, para os dois desenhos terem o mesmo ritmo.
+ */
+export const TREAD_PITCH_RATIO = 0.14
 
 /** Último vão (junto ao topo) dividido pelo primeiro (junto ao pé): a "perspectiva" do lance. */
 export const STAIR_PERSPECTIVE_RATIO = 1.75

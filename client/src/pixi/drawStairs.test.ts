@@ -3,9 +3,11 @@ import { Graphics } from 'pixi.js'
 import { drawStairs, STAIR_RAIL_ALPHA } from './drawStairs'
 import { SELECTION_COLOR, STAIR_COLOR, STAIR_PLATE_COLOR } from './constants'
 import { WALL_COLOR, WALL_INTERIOR_ALPHA } from './drawWalls'
+import { MIN_TREAD_GAP_SCREEN_PX } from './stairFlight'
 import type { Point } from './world'
 import type { Stair, StairDirection } from '../types/map'
 import { DEFAULT_FLOOR_STYLE, LEGACY_FLOOR_STYLE } from '../lib/mapFile'
+import { computeSpiralPlan, SPIRAL_POST_RATIO, type SpiralPlan } from '../lib/stairs'
 
 function buildStair(overrides: Partial<Stair> = {}): Stair {
   return {
@@ -60,12 +62,16 @@ function comoPontos(dados: readonly number[] | readonly Point[]): Point[] {
   return pontos
 }
 
+/** Lados do polígono que faz as vezes de `circle` no rasterizador: a 100 px de raio, erra menos de 0,06 px. */
+const LADOS_DO_CIRCULO = 96
+
 /**
  * As formas de um caminho do Pixi: `moveTo` abre uma forma, `lineTo` estende,
- * `closePath` fecha; `poly` e `rect` são formas inteiras. O `moveTo` solto que
- * o Pixi deixa depois de cada fill/stroke vira forma de 1 ponto e é
- * descartado, como o próprio Pixi faz. Passo que a escada não usa quebra o
- * teste em vez de sumir calado.
+ * `closePath` fecha; `poly`, `rect` e `circle` são formas inteiras (o círculo
+ * vira um polígono de LADOS_DO_CIRCULO lados). O `moveTo` solto que o Pixi
+ * deixa depois de cada fill/stroke vira forma de 1 ponto e é descartado, como
+ * o próprio Pixi faz. Passo que a escada não usa quebra o teste em vez de
+ * sumir calado.
  */
 function formasDoCaminho(passos: readonly PassoDoCaminho[]): Forma[] {
   const formas: Forma[] = []
@@ -96,12 +102,41 @@ function formasDoCaminho(passos: readonly PassoDoCaminho[]): Forma[] {
         formas.push({ pontos: [{ x, y }, { x: x + w, y }, { x: x + w, y: y + h }, { x, y: y + h }], fechada: true })
         break
       }
+      case 'circle': {
+        encerrar(false)
+        const [cx, cy, r] = passo.data as number[]
+        const pontos: Point[] = []
+        for (let i = 0; i < LADOS_DO_CIRCULO; i += 1) {
+          const angulo = (2 * Math.PI * i) / LADOS_DO_CIRCULO
+          pontos.push({ x: cx + Math.cos(angulo) * r, y: cy + Math.sin(angulo) * r })
+        }
+        formas.push({ pontos, fechada: true })
+        break
+      }
       default:
         throw new Error(`passo de caminho sem rasterizador no teste: ${passo.action}`)
     }
   }
   encerrar(false)
   return formas
+}
+
+interface Circulo {
+  x: number
+  y: number
+  r: number
+}
+
+/** Os `circle` de um caminho do Pixi, com centro e raio exatos (sem virar polígono). */
+function circulosDoCaminho(passos: readonly PassoDoCaminho[]): Circulo[] {
+  const circulos: Circulo[] = []
+  for (const passo of passos) {
+    if (passo.action === 'circle') {
+      const [x, y, r] = passo.data as number[]
+      circulos.push({ x, y, r })
+    }
+  }
+  return circulos
 }
 
 /** O que importa para comparar duas pinturas: ação, cor, opacidade, espessura e geometria. */
@@ -327,13 +362,14 @@ function arestas(forma: Forma): [Point, Point][] {
 }
 
 /**
- * Pinta as instruções do Graphics num recorte de LARGURA x ALTURA cujo canto
- * de cima à esquerda está em `origem` (mundo, zoom 1): amostra no centro de
- * cada pixel, uma mistura por instrução. Canto de moldura em `miter` = lados
- * esticados meio traço; ponta `butt` = sem esticar.
+ * Pinta as instruções do Graphics num recorte (LARGURA x ALTURA, a janela da
+ * jornada, se nada for dito) cujo canto de cima à esquerda está em `origem`
+ * (mundo, zoom 1): amostra no centro de cada pixel, uma mistura por
+ * instrução. Canto de moldura em `miter` = lados esticados meio traço; ponta
+ * `butt` = sem esticar.
  */
-function rasterizar(g: Graphics, origem: Point = { x: 0, y: 0 }): Recorte {
-  const pixels = new Array<number>(LARGURA * ALTURA).fill(COR_DO_FUNDO)
+function rasterizar(g: Graphics, origem: Point = { x: 0, y: 0 }, larguraDoRecorte = LARGURA, alturaDoRecorte = ALTURA): Recorte {
+  const pixels = new Array<number>(larguraDoRecorte * alturaDoRecorte).fill(COR_DO_FUNDO)
   for (const pintura of pinturas(g)) {
     const formas = formasDoCaminho(pintura.data.path.instructions)
     const { color, alpha } = pintura.data.style
@@ -345,14 +381,14 @@ function rasterizar(g: Graphics, origem: Point = { x: 0, y: 0 }): Recorte {
     } else {
       cobre = (x, y) => formas.some((forma) => dentroDoPoligono(x, y, forma.pontos))
     }
-    for (let y = 0; y < ALTURA; y += 1) {
-      for (let x = 0; x < LARGURA; x += 1) {
-        const indice = y * LARGURA + x
+    for (let y = 0; y < alturaDoRecorte; y += 1) {
+      for (let x = 0; x < larguraDoRecorte; x += 1) {
+        const indice = y * larguraDoRecorte + x
         if (cobre(origem.x + x + 0.5, origem.y + y + 0.5)) pixels[indice] = misturar(pixels[indice], color, alpha)
       }
     }
   }
-  return { largura: LARGURA, altura: ALTURA, pixels }
+  return { largura: larguraDoRecorte, altura: alturaDoRecorte, pixels }
 }
 
 function fundoDe(recorte: Recorte): number {
@@ -527,5 +563,280 @@ describe('drawStairs — o que o mestre vê sem selecionar nada', () => {
     const placaNoCanvas = tonsSobre(COR_DO_FUNDO).placa
     expect([COR_DO_FUNDO, placaNoCanvas]).toContain(fundoDe(sobe))
     expect([COR_DO_FUNDO, placaNoCanvas]).toContain(fundoDe(desce))
+  })
+})
+
+// --------------------------------------------------------------------------
+// ESPIRAL: O LANCE RETO ENROLADO NO POSTE
+//
+// A espiral fala a mesma língua do lance reto: placa translúcida no disco,
+// patamar no último quarto da volta, degraus finos com o peso, a opacidade e o
+// passo do degrau reto (raios de poste a aro, apertando no pé e abrindo rumo ao
+// patamar) e contorno de 1 px no aro e no poste. O sentido se lê pelo patamar
+// e pelo ritmo, sem seta: a espiral que desce é o espelho da que sobe no eixo
+// da boca. Espiral dos testes: o lance padrão (0,0)-(200,0) é o diâmetro, então
+// o disco tem centro (100,0), raio 100 e a boca em (0,0).
+// --------------------------------------------------------------------------
+
+describe('drawStairs — a espiral fala a língua do lance reto', () => {
+  const CENTRO: Point = { x: 100, y: 0 }
+  const espiral = (overrides: Partial<Stair> = {}) => buildStair({ shape: 'spiral', ...overrides })
+
+  function planoDe(direction: StairDirection): SpiralPlan {
+    const plano = computeSpiralPlan({ x1: 0, y1: 0, x2: 200, y2: 0 }, direction)
+    if (plano === null) throw new Error('a espiral dos testes tem diâmetro')
+    return plano
+  }
+
+  /** Ângulo andado desde a boca, no sentido da subida, até o ponto: 0 na boca, 2π na volta inteira. */
+  function varreduraDe(ponto: Point, plano: SpiralPlan): number {
+    const volta = 2 * Math.PI
+    const angulo = Math.atan2(ponto.y - plano.center.y, ponto.x - plano.center.x)
+    return (((plano.turn * (angulo - plano.mouthAngle)) % volta) + volta) % volta
+  }
+
+  function camadasDaEspiral(g: Graphics) {
+    const camadas = pinturas(g)
+    expect(camadas).toHaveLength(4)
+    const [placa, patamar, degraus, contorno] = camadas
+    return { placa, patamar, degraus: comoTraco(degraus), contorno: comoTraco(contorno) }
+  }
+
+  /** Poste e aro do contorno, do menor para o maior raio. */
+  function posteEAro(contorno: Traco): [Circulo, Circulo] {
+    const circulos = circulosDoCaminho(contorno.data.path.instructions).sort((a, b) => a.r - b.r)
+    expect(circulos).toHaveLength(2)
+    return [circulos[0], circulos[1]]
+  }
+
+  const distanciaAoCentro = (p: Point) => Math.hypot(p.x - CENTRO.x, p.y - CENTRO.y)
+
+  it.each(['up', 'down'] as const)('%s: placa, patamar, degraus e contorno, com a cor e a opacidade de cada camada do lance reto', (direction) => {
+    const reta = new Graphics()
+    const torre = new Graphics()
+    drawStairs(reta, [buildStair({ direction })], null)
+    drawStairs(torre, [espiral({ direction })], null)
+    const tinta = (g: Graphics) => pinturas(g).map((p) => [p.action, p.data.style.color, p.data.style.alpha])
+    expect(tinta(torre)).toEqual(tinta(reta))
+  })
+
+  it.each([1, 0.5, 2])('zoom %s: cada degrau é um raio reto de ponta reta, do poste ao aro, com a espessura do degrau reto', (scale) => {
+    const reta = new Graphics()
+    const torre = new Graphics()
+    drawStairs(reta, [buildStair()], null, scale)
+    drawStairs(torre, [espiral()], null, scale)
+    const degrauReto = comoTraco(pinturas(reta)[2])
+    const { degraus, contorno } = camadasDaEspiral(torre)
+    expect(degraus.data.style.width).toBeCloseTo(degrauReto.data.style.width, 9)
+    expect(degraus.data.style.cap).toBe('butt')
+
+    const [poste, aro] = posteEAro(contorno)
+    const traco = contorno.data.style.width
+    const formas = formasDoCaminho(degraus.data.path.instructions)
+    expect(formas.length).toBeGreaterThan(3)
+    for (const forma of formas) {
+      expect(forma.fechada).toBe(false)
+      expect(forma.pontos).toHaveLength(2)
+      const [a, b] = forma.pontos.map((p) => ({ x: p.x - CENTRO.x, y: p.y - CENTRO.y }))
+      // Raio de verdade: as duas pontas no mesmo ângulo, vistas do centro.
+      expect(a.x * b.y - a.y * b.x).toBeCloseTo(0, 6)
+      expect(a.x * b.x + a.y * b.y).toBeGreaterThan(0)
+      // Encosta por dentro no traço do poste e no do aro, sem cruzar nenhum dos dois.
+      const [dentro, fora] = forma.pontos.map(distanciaAoCentro).sort((x, y) => x - y)
+      expect(dentro).toBeCloseTo(poste.r + traco / 2, 9)
+      expect(fora).toBeCloseTo(aro.r - traco / 2, 9)
+    }
+  })
+
+  it('o contorno é o traço de 1 px da moldura, no aro e no poste; a placa é o disco inteiro', () => {
+    const reta = new Graphics()
+    const torre = new Graphics()
+    drawStairs(reta, [buildStair()], null)
+    drawStairs(torre, [espiral()], null)
+    const moldura = comoTraco(pinturas(reta)[3])
+    const { placa, contorno } = camadasDaEspiral(torre)
+    const traco = contorno.data.style.width
+    expect(traco).toBeCloseTo(moldura.data.style.width, 9)
+    expect(contorno.data.style.alpha).toBeCloseTo(STAIR_RAIL_ALPHA, 9)
+
+    const [poste, aro] = posteEAro(contorno)
+    for (const circulo of [poste, aro]) {
+      expect(circulo.x).toBeCloseTo(CENTRO.x, 9)
+      expect(circulo.y).toBeCloseTo(CENTRO.y, 9)
+    }
+    // O aro corre por dentro da borda do disco, como a moldura por dentro da
+    // placa; o traço do poste corre por fora dele, do lado dos degraus.
+    expect(aro.r + traco / 2).toBeCloseTo(100, 9)
+    expect(poste.r - traco / 2).toBeCloseTo(100 * SPIRAL_POST_RATIO, 9)
+
+    const disco = circulosDoCaminho(placa.data.path.instructions)
+    expect(disco).toHaveLength(1)
+    expect(disco[0].x).toBeCloseTo(CENTRO.x, 9)
+    expect(disco[0].y).toBeCloseTo(CENTRO.y, 9)
+    expect(disco[0].r).toBeCloseTo(100, 9)
+  })
+
+  it.each([
+    { scale: 1, largura: 2 },
+    { scale: 0.5, largura: 4 },
+  ])('zoom $scale: selecionada, um anel de SELECTION_COLOR com $largura de mundo por fora do disco, e a espiral por cima igual à não selecionada', ({ scale, largura }) => {
+    const simples = new Graphics()
+    const marcada = new Graphics()
+    drawStairs(simples, [espiral()], null, scale)
+    drawStairs(marcada, [espiral()], 's1', scale)
+    const [anelCru, ...resto] = pinturas(marcada)
+    const anel = comoTraco(anelCru)
+    expect(anel.data.style.color).toBe(SELECTION_COLOR)
+    expect(anel.data.style.width).toBeCloseTo(largura, 9)
+    expect(formasDoCaminho(anel.data.path.instructions)).toHaveLength(1)
+    const circulos = circulosDoCaminho(anel.data.path.instructions)
+    expect(circulos).toHaveLength(1)
+    expect(circulos[0].x).toBeCloseTo(CENTRO.x, 9)
+    expect(circulos[0].y).toBeCloseTo(CENTRO.y, 9)
+    // Borda de dentro do anel na borda do disco: encosta por fora, não cobre o aro.
+    expect(circulos[0].r - largura / 2).toBeCloseTo(100, 9)
+    expect(resto.map(resumo)).toEqual(pinturas(simples).map(resumo))
+  })
+
+  it('o patamar é o último quarto da volta, entre poste e aro; o da que desce é o espelho do da que sobe', () => {
+    const patamarDe = (direction: StairDirection) => {
+      const g = new Graphics()
+      drawStairs(g, [espiral({ direction })], null)
+      const { patamar, contorno } = camadasDaEspiral(g)
+      expect(patamar.action).toBe('fill')
+      expect(patamar.data.style.color).toBe(STAIR_COLOR)
+      const formas = formasDoCaminho(patamar.data.path.instructions)
+      expect(formas).toHaveLength(1)
+      return { pontos: formas[0].pontos, contorno }
+    }
+    const centroide = (pontos: readonly Point[]): Point => ({
+      x: pontos.reduce((soma, p) => soma + p.x, 0) / pontos.length,
+      y: pontos.reduce((soma, p) => soma + p.y, 0) / pontos.length,
+    })
+    const sobe = patamarDe('up')
+    const desce = patamarDe('down')
+    // Boca à esquerda. Quem sobe gira no sentido horário da tela (esquerda,
+    // topo, direita, baixo): o patamar fecha a volta embaixo, à esquerda. Quem
+    // desce entra pela boca direto no patamar, que fica em cima, à esquerda.
+    expect(centroide(sobe.pontos).x).toBeLessThan(CENTRO.x)
+    expect(centroide(sobe.pontos).y).toBeGreaterThan(CENTRO.y)
+    expect(centroide(desce.pontos).x).toBeLessThan(CENTRO.x)
+    expect(centroide(desce.pontos).y).toBeLessThan(CENTRO.y)
+    expect(desce.pontos).toHaveLength(sobe.pontos.length)
+    sobe.pontos.forEach((p, i) => {
+      expect(desce.pontos[i].x).toBeCloseTo(p.x, 9)
+      expect(desce.pontos[i].y).toBeCloseTo(-p.y, 9)
+    })
+
+    for (const [direction, { pontos, contorno }] of [['up', sobe], ['down', desce]] as const) {
+      const plano = planoDe(direction)
+      const [poste, aro] = posteEAro(contorno)
+      const traco = contorno.data.style.width
+      for (const ponto of pontos) {
+        let phi = varreduraDe(ponto, plano)
+        if (phi < 1e-6) phi += 2 * Math.PI
+        expect(phi).toBeGreaterThanOrEqual(plano.climbSweep - 1e-9)
+        expect(phi).toBeLessThanOrEqual(2 * Math.PI + 1e-9)
+        const r = distanciaAoCentro(ponto)
+        expect(r).toBeGreaterThanOrEqual(poste.r + traco / 2 - 1e-9)
+        expect(r).toBeLessThanOrEqual(aro.r - traco / 2 + 1e-9)
+      }
+    }
+  })
+
+  it.each(['up', 'down'] as const)('%s: da boca rumo ao patamar os degraus se abrem, como no lance reto', (direction) => {
+    const g = new Graphics()
+    drawStairs(g, [espiral({ direction })], null)
+    const plano = planoDe(direction)
+    const { degraus } = camadasDaEspiral(g)
+    const varreduras = formasDoCaminho(degraus.data.path.instructions)
+      .map((forma) => varreduraDe(forma.pontos[0], plano))
+      .sort((a, b) => a - b)
+    for (const phi of varreduras) {
+      expect(phi).toBeGreaterThan(0)
+      expect(phi).toBeLessThan(plano.climbSweep)
+    }
+    const marcos = [0, ...varreduras, plano.climbSweep]
+    const vaos = marcos.slice(1).map((marco, i) => marco - marcos[i])
+    for (let i = 1; i < vaos.length; i += 1) expect(vaos[i]).toBeGreaterThan(vaos[i - 1])
+  })
+
+  it.each([2, 1, 0.5, 0.25, 0.1])('zoom %s: todo vão entre degraus, e entre degrau e boca ou patamar, fica aberto na tela', (scale) => {
+    const g = new Graphics()
+    drawStairs(g, [espiral()], null, scale)
+    const plano = planoDe('up')
+    const { degraus } = camadasDaEspiral(g)
+    const larguraDoDegrau = degraus.data.style.width
+    const formas = formasDoCaminho(degraus.data.path.instructions)
+    expect(formas.length).toBeGreaterThanOrEqual(1)
+    const [dentro, fora] = formas[0].pontos.map(distanciaAoCentro).sort((a, b) => a - b)
+    const meio = (dentro + fora) / 2
+    const varreduras = formas.map((forma) => varreduraDe(forma.pontos[0], plano)).sort((a, b) => a - b)
+    const marcos = [0, ...varreduras, plano.climbSweep]
+    for (let i = 1; i < marcos.length; i += 1) {
+      const ponta = i === 1 || i === marcos.length - 1
+      const angulo = marcos[i] - marcos[i - 1]
+      const comido = ponta ? larguraDoDegrau / 2 : larguraDoDegrau
+      expect(angulo * meio * scale - comido * scale).toBeGreaterThanOrEqual(MIN_TREAD_GAP_SCREEN_PX - 1e-6)
+      // Perto do poste, onde os raios se juntam, o vão só precisa não fechar.
+      if (!ponta) expect(angulo * dentro - larguraDoDegrau).toBeGreaterThan(0)
+    }
+  })
+
+  it.each([
+    { nome: 'a de 3 células a 200%', diametro: 192, scale: 2 },
+    { nome: 'a de 5 células a 100%, que virava roda de carroça', diametro: 320, scale: 1 },
+  ])('$nome: de perto, o ritmo do lance reto — tantos degraus quanto o lance com a largura do degrau da espiral e a subida dela', ({ diametro, scale }) => {
+    // O degrau da espiral vai do poste ao aro; a subida se mede na linha do
+    // meio do degrau. O lance reto equivalente tem essa largura e essa subida
+    // antes do patamar (o patamar reto tem um degrau de fundo). Nesses zooms
+    // nenhum dos dois perde degrau por estar longe.
+    const torre = espiral({ segments: [{ x1: 0, y1: 0, x2: diametro, y2: 0 }] })
+    const plano = computeSpiralPlan(torre.segments[0], 'up')
+    if (plano === null) throw new Error('a espiral do teste tem diâmetro')
+    const largura = plano.radius - plano.postRadius
+    const subida = plano.climbSweep * ((plano.radius + plano.postRadius) / 2)
+    const degrausDe = (escada: Stair) => {
+      const g = new Graphics()
+      drawStairs(g, [escada], null, scale)
+      return formasDoCaminho(comoTraco(pinturas(g)[2]).data.path.instructions).length
+    }
+    const naEspiral = degrausDe(torre)
+    const noLance = degrausDe(buildStair({ stepWidth: largura, segments: [{ x1: 0, y1: 0, x2: subida + largura, y2: 0 }] }))
+    expect(naEspiral).toBe(noLance)
+    expect(naEspiral).toBeGreaterThan(20)
+  })
+
+  it('de longe, menos degraus, como no lance reto', () => {
+    const contar = (scale: number) => {
+      const g = new Graphics()
+      drawStairs(g, [espiral()], null, scale)
+      return formasDoCaminho(camadasDaEspiral(g).degraus.data.path.instructions).length
+    }
+    expect(contar(0.1)).toBeLessThan(contar(1))
+  })
+
+  describe('o que o mestre vê sem selecionar nada', () => {
+    function fotografarEspiral(direction: StairDirection, origem: Point = { x: 0, y: 0 }): Recorte {
+      const g = new Graphics()
+      const diametro = { x1: origem.x + 10, y1: origem.y + 90, x2: origem.x + 170, y2: origem.y + 90 }
+      drawStairs(g, [espiral({ direction, segments: [diametro] })], null)
+      return rasterizar(g, origem, 180, 180)
+    }
+    const sobe = fotografarEspiral('up')
+    const desce = fotografarEspiral('down')
+
+    it('desenha tinta de verdade no recorte', () => {
+      expect(tintaDe(sobe)).toBeGreaterThan(500)
+      expect(tintaDe(desce)).toBeGreaterThan(500)
+    })
+
+    it('a espiral que sobe e a que desce são desenhos diferentes', () => {
+      expect(fracaoDiferente(sobe, desce)).toBeGreaterThanOrEqual(DIFERENCA_SENTIDO_MINIMA)
+    })
+
+    it('controle negativo: duas espirais com o mesmo sentido, em lugares diferentes, continuam iguais', () => {
+      expect(fracaoDiferente(sobe, fotografarEspiral('up', { x: 1000, y: 500 }))).toBeLessThan(DIFERENCA_IGUAL_MAXIMA)
+    })
   })
 })
