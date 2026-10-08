@@ -312,6 +312,12 @@ interface PlayerPanelProps {
    * animação). Ausente (tela antiga, teste, nenhuma ficha dele no mapa) = sem o botão.
    */
   onOpenInventory?: (byKeyboard: boolean) => void
+  /**
+   * FICHA DE PERSONAGEM: o botão "Ficha" na barra de cima, depois do
+   * Inventário. `byKeyboard` como no Inventário. Ausente (mapa solto, mestre
+   * antigo: o host não serve ficha) = sem o botão.
+   */
+  onOpenFicha?: (byKeyboard: boolean) => void
 }
 
 /** Resultado do último "Baixar meu caderno", para a aba dizer o que houve. */
@@ -371,6 +377,7 @@ export function PlayerPanel({
   onStepAway,
   onDownloadNotebook,
   onOpenInventory,
+  onOpenFicha,
 }: PlayerPanelProps) {
   const baseTabs = onRollDice === undefined ? PANEL_TABS_NO_DICE : PANEL_TABS
   const tabs = chat === undefined ? baseTabs : [...baseTabs, CHAT_TAB]
@@ -664,7 +671,8 @@ export function PlayerPanel({
               <circle cx="7" cy="7" r="1.4" fill="currentColor" />
               <path d="M7 0.75v2M7 11.25v2M0.75 7h2M11.25 7h2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
             </svg>
-            Minha ficha
+            {/* Abaixo de 380 px só a mira fica à vista: com a "Ficha" de personagem, a barra passava da tela de 320 (player.css). */}
+            <span className="pp-mine__rotulo">Minha ficha</span>
           </button>
         )}
         {onOpenInventory !== undefined && (
@@ -685,6 +693,23 @@ export function PlayerPanel({
             <kbd className="pp-bag__key" aria-hidden="true">
               I
             </kbd>
+          </button>
+        )}
+        {onOpenFicha !== undefined && (
+          <button
+            type="button"
+            className="pp-ficha-btn"
+            aria-haspopup="dialog"
+            // "Minha ficha", ao lado, centra a câmera no token: o nome diz que esta é a ficha de PERSONAGEM.
+            aria-label="Ficha de personagem"
+            onClick={(event) => onOpenFicha(event.detail === 0)}
+          >
+            <svg className="pp-ficha-btn__icon" width="14" height="14" viewBox="0 0 14 14" aria-hidden="true" focusable="false">
+              <rect x="2.25" y="1.25" width="9.5" height="11.5" rx="1.25" fill="none" stroke="currentColor" strokeWidth="1.5" />
+              <path d="M4.75 4.75h4.5M4.75 7.25h4.5M4.75 9.75h2.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+            </svg>
+            {/* Abaixo de 380 px só o ícone fica à vista, como a bolsa do Inventário (player.css). */}
+            <span className="pp-ficha-btn__rotulo">Ficha</span>
           </button>
         )}
       </div>

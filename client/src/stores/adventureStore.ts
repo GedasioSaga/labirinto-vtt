@@ -39,6 +39,7 @@ import {
 } from '../lib/adventure'
 import type { AgendaDaCampanha } from '../lib/agendaDaCampanha'
 import type { Personagem } from '../lib/personagem'
+import type { SistemaDeRpg } from '../lib/sistemaDeRpg'
 import {
   aplicarEstadoNoMapa,
   comValorAtual,
@@ -771,8 +772,24 @@ export function pinTravelOptions(state: SceneState, liveMap: MapData, sceneId: s
  * O que o host serve (`net/hostSession.ts`): a cena aberta pelo mapa vivo e as
  * de fundo que abriram, cada uma com o nome da lista. Sem aventura, o mapa
  * solto sozinho — e aí todo jogador vê a cena aberta, como sempre.
+ *
+ * `biblioteca` (os sistemas de RPG deste computador, `rpgStore`): só quem
+ * serve tela de jogador passa — as pontes da sala e da Visão de jogador. Com
+ * ela, o mundo leva a FICHA DE PERSONAGEM (`HostWorld.rpg`): o sistema da
+ * aventura e os personagens dela.
  */
-export function hostWorldOf(state: SceneState, liveMap: MapData): HostWorld {
+export function hostWorldOf(state: SceneState, liveMap: MapData, biblioteca?: readonly SistemaDeRpg[]): HostWorld {
+  const mundo = mundoDasCenas(state, liveMap)
+  if (biblioteca === undefined || state.adventure === null) return mundo
+  const sistemaId = state.adventure.sistemaDeRpg
+  const sistema = sistemaId === undefined ? undefined : biblioteca.find((candidato) => candidato.id === sistemaId)
+  return { ...mundo, rpg: { sistema: sistema ?? null, personagens: state.adventure.personagens ?? SEM_PERSONAGENS } }
+}
+
+/** Referência estável: a sessão compara os personagens por referência para não reenviar a ficha. */
+const SEM_PERSONAGENS: readonly Personagem[] = []
+
+function mundoDasCenas(state: SceneState, liveMap: MapData): HostWorld {
   if (state.adventure === null || state.activeSceneId === null) return singleSceneWorld(liveMap)
   const background: HostScene[] = []
   let open: HostScene = { sceneId: state.activeSceneId, name: liveMap.name, map: liveMap }

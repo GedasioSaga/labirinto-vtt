@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { buildPin, createEmptyMap } from '../../lib/mapFactory'
+import { ID_ONE_PIECE, SISTEMAS_EMBUTIDOS } from '../../lib/sistemaOnePiece'
 import { hostWorldOf, useAdventureStore } from '../../stores/adventureStore'
 import { useMapStore } from '../../stores/mapStore'
 import { useToastStore, type ToastMessage } from '../../stores/toastStore'
@@ -127,16 +128,17 @@ describe('Visão de jogador no Jogar — vazamento zero para o editor', () => {
       applyPlayerChange: vi.spyOn(useMapStore.getState(), 'applyPlayerChange'),
       applyPlayerChangeToBackgroundScene: vi.spyOn(useAdventureStore.getState(), 'applyPlayerChangeToBackgroundScene'),
       transferToken: vi.spyOn(useAdventureStore.getState(), 'transferToken'),
+      salvarPersonagem: vi.spyOn(useAdventureStore.getState(), 'salvarPersonagem'),
       'assinante do mapa': mudancaNoMapa,
       'assinante da aventura': mudancaNaAventura,
     }
   }
 
-  /** O controlador como o App o cria: o mundo vem das stores de verdade. */
+  /** O controlador como o App o cria: o mundo vem das stores de verdade, com a ficha de personagem (a biblioteca de sistemas). */
   function novoControlador(): ControladorDaVisao {
     const novo = criarControladorDaVisao({
       getMap: () => useMapStore.getState().map,
-      getWorld: () => hostWorldOf(useAdventureStore.getState(), useMapStore.getState().map),
+      getWorld: () => hostWorldOf(useAdventureStore.getState(), useMapStore.getState().map, SISTEMAS_EMBUTIDOS),
       avisos: PILHA_DO_EDITOR,
       // Um par novo a cada abertura: fechar o teste fecha o lado do host.
       abrirCanal: () => {
@@ -372,6 +374,45 @@ describe('Visão de jogador no Jogar — vazamento zero para o editor', () => {
       await vi.waitFor(() => expect(deNovo.conexao().getState().map?.id).toBe(MAPA_LAB))
       expect(fichaNaJanela(deNovo.conexao(), ANA_NO_LAB.id)).toMatchObject({ x: ANA_NO_LAB.x, y: ANA_NO_LAB.y })
       expect(controlador.estado().fantasma ?? null).toBeNull()
+    })
+
+    it('ficha de personagem: criar e salvar no teste aparecem na janela; a aventura e a ficha (token) do mestre não mudam', async () => {
+      const aventura = useAdventureStore.getState().adventure
+      if (aventura === null) throw new Error('a mesa de duas cenas deveria ter aventura')
+      useAdventureStore.setState({ adventure: { ...aventura, sistemaDeRpg: ID_ONE_PIECE } })
+      const antes = editorSerializado()
+      espionar()
+      const janela = await jogarCom(ANA_NO_LAB.id)
+      const conexao = janela.conexao()
+      await vi.waitFor(() => expect(conexao.getState().personagens?.tokens).toEqual([{ tokenId: ANA_NO_LAB.id, nome: 'Ana', personagemId: null }]))
+      expect(conexao.getState().sistemaDeRpg?.id).toBe(ID_ONE_PIECE)
+
+      // "Criar minha ficha" no teste: a ficha nasce e se liga à Ana, na janela.
+      expect(conexao.criarPersonagem(ANA_NO_LAB.id)).toBe(true)
+      await vi.waitFor(() => expect(conexao.getState().envioDePersonagem).toMatchObject({ tipo: 'criar', pendentes: [], falhou: false }))
+      const criada = conexao.getState().personagens?.personagens.at(0)
+      if (criada === undefined) throw new Error('a ficha criada no teste deveria chegar à janela')
+      expect(conexao.getState().personagens?.tokens).toEqual([{ tokenId: ANA_NO_LAB.id, nome: 'Ana', personagemId: criada.id }])
+
+      // "Salvar" no teste: a janela recebe a ficha editada.
+      expect(conexao.salvarPersonagem(criada, { ...criada, nome: 'Ana, a Navegadora', atributos: { ...criada.atributos, forca: 45 } })).toEqual({ ok: true, nada: false })
+      await vi.waitFor(() => expect(conexao.getState().envioDePersonagem).toMatchObject({ tipo: 'salvar', pendentes: [], falhou: false }))
+      expect(conexao.getState().personagens?.personagens.map((p) => [p.nome, p.atributos.forca])).toEqual([['Ana, a Navegadora', 45]])
+
+      // O editor: nenhuma escrita (nem `salvarPersonagem`), a aventura sem personagem e a Ana sem ligação.
+      expect(chamadas()).toEqual(nenhumaChamada())
+      expect(editorSerializado()).toBe(antes)
+      expect(useAdventureStore.getState().adventure?.personagens).toBeUndefined()
+      expect(useMapStore.getState().map.tokens.find((t) => t.id === ANA_NO_LAB.id)?.characterId).toBeNull()
+      for (const dasPontes of pontes.deps) {
+        for (const escritor of ESCRITORES_DO_JOGO_DE_VERDADE) expect(dasPontes[escritor], escritor).toBeUndefined()
+      }
+
+      // Fechar o teste esquece a ficha: reabrir começa sem personagem, como a aventura de verdade.
+      controlador.fechar()
+      sessaoAberta = null
+      const deNovo = await jogarCom(ANA_NO_LAB.id)
+      await vi.waitFor(() => expect(deNovo.conexao().getState().personagens).toEqual({ personagens: [], tokens: [{ tokenId: ANA_NO_LAB.id, nome: 'Ana', personagemId: null }] }))
     })
   })
 })

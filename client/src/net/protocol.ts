@@ -28,6 +28,13 @@ import { COLECAO_MAX_PARTES, COLECAO_NOME_MAX_LENGTH, COLECOES_MAX, type Colecao
 import { isTokenAction, isTokenActionRejection, TOKEN_ACTION_REPLY_MAX_LENGTH, TOKEN_ACTION_TEXT_MAX_LENGTH, type TokenAction, type TokenActionRejection } from '../lib/tokenActions'
 import { ESPERA_ONDE_MAX_LENGTH, isFimDaEsperaMotivo, isWaitMinutes, type FimDaEspera, type MinhaEspera } from '../lib/encontroMarcado'
 import { ESPIAR_DURACAO_MAX_MS, parseEspiada, type Espiada } from '../lib/espiar'
+import {
+  parsePersonagemCriar,
+  parsePersonagemEditar,
+  parsePersonagemImagem,
+  type PersonagemHostMessage,
+  type PersonagemPlayerMessage,
+} from './protocoloDoPersonagem'
 
 export type { OwnTokenElsewhere }
 
@@ -1081,6 +1088,8 @@ export type PlayerMessage =
   | TokenHideRequestMessage
   | VehicleBoardMessage
   | VehicleLeaveMessage
+  // FICHA DE PERSONAGEM: criar, editar e trocar imagem da própria (`protocoloDoPersonagem.ts`).
+  | PersonagemPlayerMessage
 
 /**
  * Por que o pedido de esconder-se não virou ficha escondida. `denied`: o
@@ -1816,6 +1825,8 @@ export type HostMessage =
   | RouteHostMessage
   | PinShowMessage
   | PeekHostMessage
+  // FICHA DE PERSONAGEM: o sistema, os personagens DESTE jogador e a resposta aos pedidos dele.
+  | PersonagemHostMessage
   | { type: 'kicked' }
   | { type: 'room.closed' }
   // A mesma pessoa entrou por outra aba (ou aparelho) com o resume desta
@@ -2954,6 +2965,12 @@ export function parsePlayerMessage(raw: unknown): PlayerMessage | null {
       return isBoundedString(value.pinId, 1, REQ_ID_MAX_LENGTH) && typeof value.on === 'boolean' ? { type: 'pin.bar', pinId: value.pinId, on: value.on } : null
     case 'token.edit':
       return parseTokenEdit(value)
+    case 'personagem.criar':
+      return parsePersonagemCriar(value)
+    case 'personagem.editar':
+      return parsePersonagemEditar(value)
+    case 'personagem.imagem':
+      return parsePersonagemImagem(value)
     case 'pin.travel.request':
       return parseTravelRequest(value)
     case 'pin.travel.cancel':

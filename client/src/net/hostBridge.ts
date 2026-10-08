@@ -34,6 +34,7 @@ import {
   type AppliedPiso,
   type AppliedVehicle,
   type AppliedTokenEdit,
+  type AppliedPersonagem,
   type DoorKeyUse,
   type DoorRequest,
   type HideRequest,
@@ -192,6 +193,13 @@ export interface HostBridgeDeps {
    * ponte sem este retorno simplesmente não oferece a edição ao jogador.
    */
   applyTokenEdit?: (edit: AppliedTokenEdit) => void
+  /**
+   * FICHA DE PERSONAGEM que o jogador criou ou editou, já validada e com a
+   * edição aplicada (`HostSession`): gravar o personagem na aventura e, na
+   * criação, ligar a ficha (token) a ele. A sessão só oferece a ficha quando o
+   * mundo traz `rpg` (`getWorld`); quem serve `rpg` passa este retorno junto.
+   */
+  applyPersonagem?: (aplicado: AppliedPersonagem) => void
   /**
    * FECHADURA COM SEGREDO: o jogador acertou a combinação (a sessão já
    * conferiu). O integrador abre a fechadura e destranca a porta ligada.
@@ -2841,6 +2849,14 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       // Mesma regra da porta: o mestre vê pela store, os outros jogadores pelo snapshot imediato.
       deps.applyTokenEdit(result.applyTokenEdit)
       broadcastNow()
+    }
+    if (result.applyPersonagem !== undefined && deps.applyPersonagem !== undefined) {
+      // O mestre vê pela aventura (a janela da ficha aberta acompanha); quem
+      // pediu já recebeu a ficha nova na resposta, e o broadcast não a repete.
+      deps.applyPersonagem(result.applyPersonagem)
+      broadcastNow()
+      const { criadoPor, personagem } = result.applyPersonagem
+      if (criadoPor !== undefined) toastSink.push('info', `${criadoPor} criou a ficha de personagem ${personagem.nome}.`)
     }
     if (result.applyLock !== undefined && deps.applyLock !== undefined) {
       // Mesma regra da porta: o cartão do jogador perde a fechadura no snapshot de agora.

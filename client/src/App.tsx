@@ -714,7 +714,8 @@ function App() {
         deleteChat: (sceneKey, id) => roomChatStore().remove(sceneKey, id),
         getMap: () => useMapStore.getState().map,
         // Cada jogador vê a cena do token dele: a sessão precisa da aventura inteira, não só da cena aberta.
-        getWorld: () => hostWorldOf(useAdventureStore.getState(), useMapStore.getState().map),
+        // Com a biblioteca de sistemas, a FICHA DE PERSONAGEM de cada um vai junto (`HostWorld.rpg`).
+        getWorld: () => hostWorldOf(useAdventureStore.getState(), useMapStore.getState().map, useRpgStore.getState().biblioteca),
         // Movimento, porta e nome/foto da ficha que o JOGADOR mudou, já validados
         // pela sessão: entram no mapa sem virar passo do Ctrl+Z do mestre (ver
         // `net/playerChanges.ts`), na cena aberta ou numa de fundo.
@@ -820,7 +821,7 @@ function App() {
   const [visaoDeTeste] = useState(() =>
     criarControladorDaVisao({
       getMap: () => useMapStore.getState().map,
-      getWorld: () => hostWorldOf(useAdventureStore.getState(), useMapStore.getState().map),
+      getWorld: () => hostWorldOf(useAdventureStore.getState(), useMapStore.getState().map, useRpgStore.getState().biblioteca),
       getTurn: () => useInitiativeStore.getState().turn,
       getClock: () => useClockStore.getState().hour,
       avisos: PILHA_DO_EDITOR,
@@ -868,6 +869,15 @@ function App() {
     () =>
       useAdventureStore.subscribe((state, previous) => {
         if (state.adventure !== previous.adventure) notificarPontes((ponte) => ponte.notifyMapChanged())
+      }),
+    [],
+  )
+  // FICHA DE PERSONAGEM: o sistema da aventura chegou à biblioteca (importado, ou a
+  // pasta lida agora): quem tem ficha passa a vê-la, sem esperar outra edição.
+  useEffect(
+    () =>
+      useRpgStore.subscribe((state, previous) => {
+        if (state.biblioteca !== previous.biblioteca) notificarPontes((ponte) => ponte.notifyMapChanged())
       }),
     [],
   )

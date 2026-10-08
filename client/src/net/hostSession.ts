@@ -194,6 +194,10 @@ import { CHAT_HISTORY_MAX, CHAT_MASTER_MENTION, CHAT_MASTER_NAME, CHAT_TEXT_MAX_
 import type { ChatHistory } from '../lib/chatStore'
 import { readArrivalText } from '../lib/arrivalText'
 import { caravanCity, caravanMembers, caravanRegroup, caravanSize, caravanStep, isWorldMap, landingSpots, type CaravanMemory } from '../lib/caravan'
+import { novoPersonagem, type Personagem } from '../lib/personagem'
+import type { SistemaDeRpg } from '../lib/sistemaDeRpg'
+import { aplicarImagem, aplicarPartes } from './edicaoDoPersonagem'
+import type { PersonagemCriarMessage, PersonagemEditarMessage, PersonagemImagemMessage, TokenDoPersonagem } from './protocoloDoPersonagem'
 
 /** Como a ficha livre de nome em branco aparece na lista de quem chega. */
 const SEAT_OPTION_UNNAMED = 'Ficha sem nome'
@@ -244,6 +248,19 @@ export interface HostWorld {
    * sempre. Nunca vai ao jogador: dela sai só o "aqui/longe" da parada.
    */
   cabines?: readonly CabineDeTransporte[]
+  /**
+   * FICHA DE PERSONAGEM: o sistema de RPG da aventura e os personagens dela.
+   * Ausente = mapa solto (ou integrador que não serve ficha): nenhuma ficha
+   * sai para jogador nenhum. De cada jogador sai SÓ o personagem ligado às
+   * fichas (tokens) dele (`Token.characterId`), nunca o de outro.
+   */
+  rpg?: RpgDoMundo
+}
+
+export interface RpgDoMundo {
+  /** `null` = a aventura não escolheu sistema, ou o escolhido não está na biblioteca deste computador. */
+  sistema: SistemaDeRpg | null
+  personagens: readonly Personagem[]
 }
 
 /** De onde a sessão lê o mapa: um `MapData` (mapa solto, o de sempre) ou o mundo da aventura. */
@@ -491,6 +508,20 @@ export interface AppliedTokenEdit {
   name?: string
   image?: string | null
   sceneId?: string
+}
+
+/**
+ * FICHA DE PERSONAGEM que o jogador criou ou editou, já validada e já com a
+ * edição aplicada: o integrador grava o personagem inteiro na aventura e, na
+ * criação, liga a ficha (token) `ligarTokenId` a ele, na cena `sceneId`
+ * (ausente = a aberta), fora do Ctrl+Z do mestre.
+ */
+export interface AppliedPersonagem {
+  personagem: Personagem
+  ligarTokenId?: string
+  sceneId?: string
+  /** Só na criação: o nome do jogador, para o aviso do mestre. */
+  criadoPor?: string
 }
 
 /**
@@ -1003,6 +1034,8 @@ export interface HostResult {
   /** Espiar aceito: o integrador avisa o mestre e reenvia o snapshot agora e no fim do prazo. */
   peek?: HostPeek
   applyTokenEdit?: AppliedTokenEdit
+  /** FICHA DE PERSONAGEM criada ou editada pelo jogador: o integrador grava e faz o broadcast. */
+  applyPersonagem?: AppliedPersonagem
   /** Combinação certa: o integrador abre a fechadura e faz o broadcast. */
   applyLock?: AppliedLock
   /** Tentativa conferida (certa ou errada): o integrador avisa o mestre. */
@@ -1456,6 +1489,15 @@ export const PEDIDO_LOJA_MIN_INTERVAL_MS = 1500
  * foto no mesmo gesto perder um dos dois em silêncio.
  */
 export const TOKEN_PHOTO_MIN_INTERVAL_MS = 500
+
+/**
+ * FICHA DE PERSONAGEM: pedidos (criar, editar, imagem) por jogador nesta
+ * janela. Um "Salvar" do jogador são poucas mensagens (as partes e uma por
+ * imagem trocada); o teto segura quem manda em laço, e cada pedido custa ao
+ * mestre um personagem regravado e o reenvio da ficha.
+ */
+export const PERSONAGEM_PEDIDOS_POR_JANELA = 20
+export const PERSONAGEM_JANELA_MS = 10_000
 
 /**
  * Um pedido de esconder-se por jogador nesta janela. O mestre disse "Não" e o
@@ -2995,6 +3037,13 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   const peeks = new Map<string, { sceneKey: string; wallId: string; until: number }>()
   // Por playerId: limite da foto nova do próprio token (só da foto, ver TOKEN_PHOTO_MIN_INTERVAL_MS).
   const lastTokenPhotoAt = new Map<string, number>()
+  // FICHA DE PERSONAGEM — por playerId: os instantes dos pedidos da janela (PERSONAGEM_PEDIDOS_POR_JANELA).
+  const pedidosDePersonagem = new Map<string, number[]>()
+  // FICHA DE PERSONAGEM — por clientId: o que a conexão já recebeu. O sistema
+  // e os personagens pela REFERÊNCIA (a aventura troca o objeto quando grava),
+  // as fichas dela pelo texto. Só sai de novo o que mudou: o retrato (até 48
+  // mil caracteres) não viaja a cada recorte. Ausente = nada enviado.
+  const personagensEnviados = new Map<string, { sistema: SistemaDeRpg | null; personagens: readonly Personagem[]; tokens: string }>()
   // CABINE DE TRANSPORTE — por playerId: o último "Chamar a cabine". Só o kick apaga.
   const lastCabineCallAt = new Map<string, number>()
   // Por playerId: ajuste do mestre sobre `options.visionRadius`; só o kick apaga.
@@ -4952,6 +5001,9 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     chatGlobalSent.delete(clientId)
     outbound.push(...chatGlobalUpdate(clientId, playerId))
     outbound.push(...chatSceneUpdate(clientId, playerId, world))
+    // FICHA DE PERSONAGEM: a conexão nova não tem nada; numa aventura, o sistema e os personagens dele saem inteiros.
+    personagensEnviados.delete(clientId)
+    outbound.push(...personagensUpdate(clientId, playerId, world))
     return outbound
   }
 
@@ -5056,6 +5108,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     pendingHides.delete(playerId)
     lastHideRequestAt.delete(playerId)
     lastTokenPhotoAt.delete(playerId)
+    pedidosDePersonagem.delete(playerId)
     lastCabineCallAt.delete(playerId)
     visionOverrides.delete(playerId)
     pendingNotes.delete(playerId)
@@ -6782,6 +6835,179 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   }
 
   /**
+   * FICHA DE PERSONAGEM — as fichas (tokens) do jogador que podem ter a ficha
+   * de personagem DELE: as que ele tem de verdade, em qualquer cena. Ficam de
+   * fora as mesmas que o `token.edit` recusa: a emprestada (ajudante
+   * contratado, ou a do dono que saiu) e o NPC do mestre dado pelo "Atribuir"
+   * — a ficha de personagem delas é de outro, ou do mestre.
+   */
+  const fichasDoPersonagem = (playerId: string, world: HostWorld): { token: Token; scene: HostScene }[] => {
+    const achadas: { token: Token; scene: HostScene }[] = []
+    for (const tokenId of ownership[playerId] ?? []) {
+      if (helperLoans.has(tokenId) || loans.get(tokenId)?.borrowerId === playerId) continue
+      for (const scene of allScenes(world)) {
+        const token = scene.map.tokens.find((t) => t.id === tokenId)
+        if (token === undefined) continue
+        if (token.npc !== true) achadas.push({ token, scene })
+        break
+      }
+    }
+    return achadas
+  }
+
+  /** O que a tela do jogador recebe: os personagens das fichas dele, na ordem da aventura, e as fichas, com ou sem personagem. */
+  const personagensDoJogador = (playerId: string, world: HostWorld, rpg: RpgDoMundo): { personagens: Personagem[]; tokens: TokenDoPersonagem[] } => {
+    const existentes = new Set(rpg.personagens.map((personagem) => personagem.id))
+    const tokens = fichasDoPersonagem(playerId, world).map(({ token }) => ({
+      tokenId: token.id,
+      nome: token.name,
+      // Ligado a personagem que o mestre apagou: para o jogador, a ficha está sem personagem.
+      personagemId: token.characterId !== null && existentes.has(token.characterId) ? token.characterId : null,
+    }))
+    const ligados = new Set(tokens.map((token) => token.personagemId))
+    return { personagens: rpg.personagens.filter((personagem) => ligados.has(personagem.id)), tokens }
+  }
+
+  const mesmasReferencias = (a: readonly Personagem[], b: readonly Personagem[]): boolean => a.length === b.length && a.every((personagem, i) => personagem === b[i])
+
+  /**
+   * O sistema e os personagens que a conexão ainda não tem. Sem `world.rpg`
+   * (mapa solto): quem nunca recebeu nada não recebe; quem recebeu (o mestre
+   * fechou a aventura) recebe o vazio, uma vez.
+   */
+  const personagensUpdate = (clientId: string, playerId: string, world: HostWorld): Outbound[] => {
+    const enviado = personagensEnviados.get(clientId)
+    const rpg = world.rpg
+    if (rpg === undefined) {
+      if (enviado === undefined) return []
+      personagensEnviados.delete(clientId)
+      return [
+        { clientId, msg: { type: 'rpg.sistema', sistema: null } },
+        { clientId, msg: { type: 'personagens', personagens: [], tokens: [] } },
+      ]
+    }
+    const { personagens, tokens } = personagensDoJogador(playerId, world, rpg)
+    const chave = JSON.stringify(tokens)
+    const outbound: Outbound[] = []
+    if (enviado === undefined || enviado.sistema !== rpg.sistema) outbound.push({ clientId, msg: { type: 'rpg.sistema', sistema: rpg.sistema } })
+    if (enviado === undefined || enviado.tokens !== chave || !mesmasReferencias(enviado.personagens, personagens)) {
+      outbound.push({ clientId, msg: { type: 'personagens', personagens, tokens } })
+    }
+    personagensEnviados.set(clientId, { sistema: rpg.sistema, personagens, tokens: chave })
+    return outbound
+  }
+
+  /** A cada broadcast: cada conexão recebe só o que mudou PARA ELA (o mestre editou a ficha dela, ela ganhou ou perdeu ficha). */
+  const syncPersonagens = (world: HostWorld): Outbound[] => {
+    // Conexão que caiu ou saiu não recebe mais nada: a chave dela só ocuparia memória.
+    for (const clientId of personagensEnviados.keys()) {
+      if (!byClient.has(clientId)) personagensEnviados.delete(clientId)
+    }
+    return [...byClient].flatMap(([clientId, playerId]) => personagensUpdate(clientId, playerId, world))
+  }
+
+  /** Mais um pedido de ficha do jogador na janela; `false` = passou do teto (`PERSONAGEM_PEDIDOS_POR_JANELA`). */
+  const cabePedidoDePersonagem = (playerId: string): boolean => {
+    const agora = now()
+    const recentes = (pedidosDePersonagem.get(playerId) ?? []).filter((at) => agora - at < PERSONAGEM_JANELA_MS)
+    const cabe = recentes.length < PERSONAGEM_PEDIDOS_POR_JANELA
+    pedidosDePersonagem.set(playerId, cabe ? [...recentes, agora] : recentes)
+    return cabe
+  }
+
+  const resultadoDePersonagem = (clientId: string, reqId: string, ok: boolean, personagemId?: string): Outbound => ({
+    clientId,
+    msg: personagemId === undefined ? { type: 'personagem.resultado', reqId, ok } : { type: 'personagem.resultado', reqId, ok, personagemId },
+  })
+
+  /**
+   * O mundo como fica depois do pedido aceito: o personagem gravado e, na
+   * criação, a ficha ligada a ele. Só para montar a resposta — quem grava de
+   * verdade é o integrador (`applyPersonagem`).
+   */
+  const mundoComPersonagem = (world: HostWorld, rpg: RpgDoMundo, personagem: Personagem, ligarTokenId?: string): HostWorld => {
+    const existe = rpg.personagens.some((atual) => atual.id === personagem.id)
+    const personagens = existe ? rpg.personagens.map((atual) => (atual.id === personagem.id ? personagem : atual)) : [...rpg.personagens, personagem]
+    const ligar = (scene: HostScene): HostScene =>
+      ligarTokenId === undefined || !scene.map.tokens.some((t) => t.id === ligarTokenId)
+        ? scene
+        : { ...scene, map: { ...scene.map, tokens: scene.map.tokens.map((t) => (t.id === ligarTokenId ? { ...t, characterId: personagem.id } : t)) } }
+    return { ...world, open: ligar(world.open), background: world.background.map(ligar), rpg: { ...rpg, personagens } }
+  }
+
+  /**
+   * Pedido aceito: a ficha nova vai JÁ a quem pediu, antes da resposta — a
+   * tela sai da edição com a ficha certa, sem piscar a de antes. O integrador
+   * grava o mesmo objeto, e o broadcast seguinte não a manda de novo.
+   */
+  const personagemAceito = (clientId: string, playerId: string, reqId: string, world: HostWorld, rpg: RpgDoMundo, aplicado: AppliedPersonagem): HostResult => {
+    const depois = mundoComPersonagem(world, rpg, aplicado.personagem, aplicado.ligarTokenId)
+    const criado = aplicado.ligarTokenId === undefined ? undefined : aplicado.personagem.id
+    return { outbound: [...personagensUpdate(clientId, playerId, depois), resultadoDePersonagem(clientId, reqId, true, criado)], applyPersonagem: aplicado }
+  }
+
+  /**
+   * FICHA DE PERSONAGEM — "Criar minha ficha": personagem novo do sistema da
+   * aventura, com o nome da ficha (token), ligado a ela. Só ficha DELE de
+   * verdade (`fichasDoPersonagem`) e ainda sem personagem: a que já tem não
+   * ganha outro. Sem sistema não há o que criar. A recusa é `ok: false`, a
+   * mesma para todo motivo — um motivo por caso ensinaria quais ids existem.
+   */
+  function handlePersonagemCriar(clientId: string, msg: PersonagemCriarMessage, world: HostWorld): HostResult {
+    const playerId = byClient.get(clientId)
+    if (playerId === undefined) return reply(clientId, { type: 'error', reason: 'not_joined' })
+    const recusa: HostResult = { outbound: [resultadoDePersonagem(clientId, msg.reqId, false)] }
+    const rpg = world.rpg
+    const record = players.get(playerId)
+    if (record === undefined || statusOf(playerId) !== 'playing' || rpg === undefined || rpg.sistema === null) return recusa
+    if (!cabePedidoDePersonagem(playerId)) return recusa
+    const alvo = fichasDoPersonagem(playerId, world).find(({ token }) => token.id === msg.tokenId)
+    if (alvo === undefined) return recusa
+    const { token, scene } = alvo
+    if (token.characterId !== null && rpg.personagens.some((personagem) => personagem.id === token.characterId)) return recusa
+    // O id vem da sessão (e não de `crypto`): o teste escolhe, e o host é quem dá nome às coisas.
+    const personagem: Personagem = { ...novoPersonagem(rpg.sistema, 'jogador', token.name), id: `pers_${randomId()}` }
+    return personagemAceito(clientId, playerId, msg.reqId, world, rpg, { personagem, ligarTokenId: token.id, ...backgroundSceneId(scene, world), criadoPor: record.name })
+  }
+
+  /**
+   * O personagem que o pedido de editar (ou de imagem) quer mudar, se o
+   * jogador pode: jogando, dentro do teto, e o personagem ligado a uma ficha
+   * que é dele de verdade. Tudo o que não vale é a mesma recusa.
+   */
+  function personagemDoPedido(
+    clientId: string,
+    reqId: string,
+    personagemId: string,
+    world: HostWorld,
+  ): { refuse: HostResult } | { playerId: string; rpg: RpgDoMundo; atual: Personagem } {
+    const playerId = byClient.get(clientId)
+    if (playerId === undefined) return { refuse: reply(clientId, { type: 'error', reason: 'not_joined' }) }
+    const refuse: HostResult = { outbound: [resultadoDePersonagem(clientId, reqId, false)] }
+    const rpg = world.rpg
+    if (statusOf(playerId) !== 'playing' || rpg === undefined || !cabePedidoDePersonagem(playerId)) return { refuse }
+    if (!fichasDoPersonagem(playerId, world).some(({ token }) => token.characterId === personagemId)) return { refuse }
+    const atual = rpg.personagens.find((personagem) => personagem.id === personagemId)
+    return atual === undefined ? { refuse } : { playerId, rpg, atual }
+  }
+
+  /** FICHA DE PERSONAGEM — as partes que o jogador mudou entram no personagem de AGORA (`aplicarPartes`). */
+  function handlePersonagemEditar(clientId: string, msg: PersonagemEditarMessage, world: HostWorld): HostResult {
+    const alvo = personagemDoPedido(clientId, msg.reqId, msg.personagemId, world)
+    if ('refuse' in alvo) return alvo.refuse
+    return personagemAceito(clientId, alvo.playerId, msg.reqId, world, alvo.rpg, { personagem: aplicarPartes(alvo.atual, msg.partes) })
+  }
+
+  /** FICHA DE PERSONAGEM — o retrato ou a imagem de um cartão. Cartão que não existe mais: recusa. */
+  function handlePersonagemImagem(clientId: string, msg: PersonagemImagemMessage, world: HostWorld): HostResult {
+    const alvo = personagemDoPedido(clientId, msg.reqId, msg.personagemId, world)
+    if ('refuse' in alvo) return alvo.refuse
+    const personagem = aplicarImagem(alvo.atual, msg.cartaoId, msg.imagem)
+    if (personagem === null) return { outbound: [resultadoDePersonagem(clientId, msg.reqId, false)] }
+    return personagemAceito(clientId, alvo.playerId, msg.reqId, world, alvo.rpg, { personagem })
+  }
+
+  /**
    * LEITURA DA PISTA: só conta pino que o host já mandou COM o texto a este
    * jogador (`pinReceived`). Id inventado, pino no escuro ou "só de perto"
    * visto de longe morrem em silêncio — responder "recusado" só ensinaria
@@ -8432,6 +8658,12 @@ export function createHostSession(options: HostSessionOptions): HostSession {
         return handlePinBar(clientId, msg, world)
       case 'token.edit':
         return handleTokenEdit(clientId, msg, world)
+      case 'personagem.criar':
+        return handlePersonagemCriar(clientId, msg, world)
+      case 'personagem.editar':
+        return handlePersonagemEditar(clientId, msg, world)
+      case 'personagem.imagem':
+        return handlePersonagemImagem(clientId, msg, world)
       case 'pin.travel.request':
         return handleTravelRequest(clientId, msg, world)
       case 'pin.peek':
@@ -9883,6 +10115,9 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       // a lista vazia; quem mudou de cena (ou ganhou, ou perdeu a ficha), a
       // história da cena de agora.
       outbound.push(...syncChatGlobal(), ...syncChatScenes(world))
+      // FICHA DE PERSONAGEM: o mestre editou a ficha de alguém, ou alguém ganhou
+      // ou perdeu ficha (token): só essa conexão recebe, e só o que mudou.
+      outbound.push(...syncPersonagens(world))
       // Depois dos mapas: a visão nova decide que marca cada um já conhece, e
       // quem mudou de cena perde as da cena de antes.
       outbound.push(...destinationUpdates(world))

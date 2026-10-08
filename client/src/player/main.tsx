@@ -23,6 +23,8 @@ import { PlayerFerrolho } from './PlayerFerrolho'
 import { acaoDeFerrolho, tokenAlcancaPino } from '../lib/ferrolho'
 import { PlayerTokenCard } from './PlayerTokenCard'
 import { PlayerInventory } from './PlayerInventory'
+import { PlayerFicha } from './PlayerFicha'
+import { escolherImagemNoAparelho } from './imagemDoAparelho'
 import { inventoryCharacters, rememberItemTexts, stableSlotOrder, type ItemTexts } from './inventario'
 import { isEditableTarget } from '../lib/keymap'
 import { tokenActionNoticeText, tokenActionReply } from './tokenCard'
@@ -920,6 +922,10 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
     if (pins !== undefined) setItemTexts((memory) => rememberItemTexts(memory, pins))
   }, [pins])
   const closeInventory = useCallback(() => setInventory(null), [])
+  // FICHA DE PERSONAGEM (botão "Ficha" da barra): só existe onde o host serve ficha — numa aventura.
+  const [ficha, setFicha] = useState<{ instant: boolean } | null>(null)
+  const closeFicha = useCallback(() => setFicha(null), [])
+  const servePersonagens = state.personagens !== undefined
   // Sem ficha dele no mapa (viajou, o mestre tirou), o inventário fecha — e não reabre sozinho depois.
   useEffect(() => {
     if (!canOpenInventory) setInventory(null)
@@ -1376,6 +1382,7 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
           }}
           onDownloadNotebook={downloadNotebook}
           onOpenInventory={canOpenInventory ? (byKeyboard) => setInventory({ instant: byKeyboard }) : undefined}
+          onOpenFicha={servePersonagens ? (byKeyboard) => setFicha({ instant: byKeyboard }) : undefined}
         />
         {/*
           CANTO DA DIREITA: abas de andar, "Onde estou" (a cena e a sala, num
@@ -1571,6 +1578,20 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
             onGive={(itemId, toTokenId) => connection.giveItem(itemId, toTokenId)}
             onPay={(toTokenId, moedas) => connection.giveCoins(toTokenId, moedas)}
             itemTexts={itemTexts}
+          />
+        )}
+        {/* FICHA DE PERSONAGEM em tela cheia: no mesmo andar do inventário (abaixo do alarme e da reconexão). */}
+        {ficha !== null && state.personagens !== undefined && (
+          <PlayerFicha
+            sistema={state.sistemaDeRpg}
+            personagens={state.personagens.personagens}
+            tokens={state.personagens.tokens}
+            envio={state.envioDePersonagem}
+            instant={ficha.instant}
+            onCriar={(tokenId) => connection.criarPersonagem(tokenId)}
+            onSalvar={(base, rascunho) => connection.salvarPersonagem(base, rascunho)}
+            onClose={closeFicha}
+            escolherImagem={escolherImagemNoAparelho}
           />
         )}
         {/* MINHAS PISTAS: a pista reaberta do Caderno, com "Mostrar para…".

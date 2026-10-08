@@ -26,15 +26,17 @@ export interface FichaDePersonagemProps {
   escolherImagem: () => Promise<string | null>
   /** Id do título com o nome: a janela se nomeia por ele. */
   tituloId?: string
+  /** Jogador/NPC é decisão do mestre: a ficha do jogador edita sem o campo (`false`). Padrão: com. */
+  tipoEditavel?: boolean
 }
 
-export function FichaDePersonagem({ personagem, sistema, editando, onChange, escolherImagem, tituloId }: FichaDePersonagemProps) {
+export function FichaDePersonagem({ personagem, sistema, editando, onChange, escolherImagem, tituloId, tipoEditavel = true }: FichaDePersonagemProps) {
   return (
     <div className="lb-ficha">
       <div className="lb-ficha__lado">
         <EscolhasDoPersonagem personagem={personagem} sistema={sistema} editando={editando} onChange={onChange} />
         {editando ? (
-          <BlocoEditavel personagem={personagem} sistema={sistema} onChange={onChange} escolherImagem={escolherImagem} tituloId={tituloId} />
+          <BlocoEditavel personagem={personagem} sistema={sistema} onChange={onChange} escolherImagem={escolherImagem} tituloId={tituloId} tipoEditavel={tipoEditavel} />
         ) : (
           <BlocoLido personagem={personagem} sistema={sistema} tituloId={tituloId} />
         )}
@@ -215,9 +217,10 @@ interface BlocoEditavelProps {
   onChange: (personagem: Personagem) => void
   escolherImagem: () => Promise<string | null>
   tituloId?: string
+  tipoEditavel: boolean
 }
 
-function BlocoEditavel({ personagem, sistema, onChange, escolherImagem, tituloId }: BlocoEditavelProps) {
+function BlocoEditavel({ personagem, sistema, onChange, escolherImagem, tituloId, tipoEditavel }: BlocoEditavelProps) {
   const idBase = useId()
   const [erroDoRetrato, setErroDoRetrato] = useState<string | null>(null)
   const pedirRetrato = async () => {
@@ -254,18 +257,20 @@ function BlocoEditavel({ personagem, sistema, onChange, escolherImagem, tituloId
         <span className="lb-label">Nome</span>
         <input id={`${idBase}-nome`} className="lb-input" value={personagem.nome} onChange={(event) => onChange({ ...personagem, nome: event.target.value })} />
       </label>
-      <label className="lb-field" htmlFor={`${idBase}-tipo`}>
-        <span className="lb-label">Tipo</span>
-        <select
-          id={`${idBase}-tipo`}
-          className="lb-input"
-          value={personagem.tipo}
-          onChange={(event) => onChange({ ...personagem, tipo: event.target.value === 'jogador' ? 'jogador' : 'npc' })}
-        >
-          <option value="jogador">Jogador</option>
-          <option value="npc">NPC</option>
-        </select>
-      </label>
+      {tipoEditavel && (
+        <label className="lb-field" htmlFor={`${idBase}-tipo`}>
+          <span className="lb-label">Tipo</span>
+          <select
+            id={`${idBase}-tipo`}
+            className="lb-input"
+            value={personagem.tipo}
+            onChange={(event) => onChange({ ...personagem, tipo: event.target.value === 'jogador' ? 'jogador' : 'npc' })}
+          >
+            <option value="jogador">Jogador</option>
+            <option value="npc">NPC</option>
+          </select>
+        </label>
+      )}
       <label className="lb-field" htmlFor={`${idBase}-descricao`}>
         <span className="lb-label">Descrição</span>
         <textarea

@@ -1,3 +1,4 @@
+import type { Personagem } from '../../lib/personagem'
 import type { MapData } from '../../types/map'
 import type { HostScene, HostWorld } from '../hostSession'
 import type { DestinoDasMudancas, MapTransform } from '../playerChanges'
@@ -22,6 +23,10 @@ import type { FantasmaDeTeste } from './tipos'
  * em cada cena (sai da origem, chega no destino, `escritoresDeTeste.ts`), e
  * não uma mudança do mundo inteiro: cada cena continua com o próprio memo, e
  * o mestre editar a origem não refaz o recorte da cena onde a ficha está.
+ *
+ * A FICHA DE PERSONAGEM que o jogador de teste cria ou edita também fica aqui
+ * (`registrarPersonagem`), por id, por cima dos personagens da aventura: a
+ * janela vê a ficha como o teste a deixou, e a aventura do mestre nem sabe.
  *
  * Este módulo é puro: não importa store nenhuma, não lê nem grava nada fora
  * dele. Quem o liga à ponte de teste é `escritoresDeTeste.ts`.
@@ -48,6 +53,8 @@ export interface CamadaDeTeste {
    * se foi a última mudança da cena, sai (o passo novo já leva ao ponto final).
    */
   registrar(mapId: string, transform: MapTransform, passoDe?: string): void
+  /** O personagem como o teste o deixou: troca o de mesmo id da aventura (ou entra no fim), só no teste. */
+  registrarPersonagem(personagem: Personagem): void
   /** O mapa `base` com as mudanças do teste; cena sem mudança devolve o PRÓPRIO `base`. */
   aplicarNoMapa(base: MapData): MapData
   /** O mundo `base` com as mudanças do teste; nada mudando, o PRÓPRIO `base`, e cada cena intocada é a mesma de antes. */
@@ -58,8 +65,20 @@ export interface CamadaDeTeste {
   limpar(): void
 }
 
+/**
+ * Os personagens da aventura com os do teste por cima. A MESMA referência de
+ * cada personagem que o teste não tocou (a sessão do host compara por
+ * referência para não reenviar a ficha), e a do teste enquanto ele não muda.
+ */
+function personagensComOsDoTeste(base: readonly Personagem[], doTeste: ReadonlyMap<string, Personagem>): Personagem[] {
+  const trocados = base.map((personagem) => doTeste.get(personagem.id) ?? personagem)
+  const daBase = new Set(base.map((personagem) => personagem.id))
+  return [...trocados, ...[...doTeste.values()].filter((personagem) => !daBase.has(personagem.id))]
+}
+
 export function criarCamadaDeTeste(): CamadaDeTeste {
   const porCena = new Map<string, Entrada[]>()
+  const personagens = new Map<string, Personagem>()
   /** Versão de cada cena com mudança: muda a cada registro nela, e só nela (as outras cenas guardam o resultado). */
   const versoes = new Map<string, number>()
   const memos = new Map<string, Memo>()
@@ -95,23 +114,29 @@ export function criarCamadaDeTeste(): CamadaDeTeste {
       contador += 1
       versoes.set(mapId, contador)
     },
+    registrarPersonagem(personagem) {
+      personagens.set(personagem.id, personagem)
+    },
     aplicarNoMapa,
     aplicarNoMundo(base) {
-      if (porCena.size === 0) return base
-      const open = naCena(base.open)
-      let mudou = open !== base.open
-      const background = base.background.map((cena) => {
+      // Mapa solto (sem `rpg`) não tem ficha de personagem: o que o teste guardou fica sem onde aparecer.
+      const comPersonagens = base.rpg === undefined || personagens.size === 0 ? base : { ...base, rpg: { ...base.rpg, personagens: personagensComOsDoTeste(base.rpg.personagens, personagens) } }
+      if (porCena.size === 0) return comPersonagens
+      const open = naCena(comPersonagens.open)
+      let mudou = open !== comPersonagens.open
+      const background = comPersonagens.background.map((cena) => {
         const nova = naCena(cena)
         if (nova !== cena) mudou = true
         return nova
       })
-      return mudou ? { ...base, open, background } : base
+      return mudou ? { ...comPersonagens, open, background } : comPersonagens
     },
-    tamanho: () => [...porCena.values()].reduce((soma, entradas) => soma + entradas.length, 0),
+    tamanho: () => [...porCena.values()].reduce((soma, entradas) => soma + entradas.length, 0) + personagens.size,
     limpar() {
       porCena.clear()
       versoes.clear()
       memos.clear()
+      personagens.clear()
     },
   }
 }
@@ -138,6 +163,7 @@ export function destinoDaCamada(camada: CamadaDeTeste, mundoBase: () => HostWorl
       // A cena saiu do mundo entre a validação da sessão e aqui: a mudança não tem onde ficar.
       if (mapId !== null) camada.registrar(mapId, transform, passoDe)
     },
+    salvarPersonagem: (personagem) => camada.registrarPersonagem(personagem),
     cenaComMarca(markId) {
       // A marca pode ter sido deixada no próprio teste: procura no mundo como o teste o vê.
       const mundo = camada.aplicarNoMundo(mundoBase())

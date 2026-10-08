@@ -1,0 +1,340 @@
+/* FICHA DE PERSONAGEM do jogador, em tela cheia. O miolo é a MESMA ficha do
+   mestre (components/FichaDePersonagem.tsx, com o CSS dela): duas colunas no
+   computador, uma só empilhada abaixo de 760 px. A página do jogador não
+   carrega o main.css do editor, então as peças de base que a ficha usa
+   (botão, campo, rótulo, legenda) vêm aqui, presas ao `.pp-ficha` — fora dela
+   nada muda na tela do jogador. */
+
+.pp-ficha {
+  position: fixed;
+  inset: 0;
+  /* O alarme continua por cima: a faixa dele empurra a ficha para baixo. */
+  top: var(--pp-alarm-space, 0px);
+  z-index: 35;
+  display: flex;
+  flex-direction: column;
+  font-family: var(--lb-font-sans, system-ui, sans-serif);
+  font-size: var(--lb-font-size-md, 13px);
+  line-height: var(--lb-font-leading-normal, 1.45);
+  color: var(--lb-color-parchment, #eceae4);
+  background: var(--lb-color-stone-solid, #1a1a1e);
+  /* Entra subindo 8 px e aparecendo — é uma tela por cima do mapa, aberta de vez em quando. */
+  transition:
+    opacity 200ms cubic-bezier(0.23, 1, 0.32, 1),
+    transform 200ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+@starting-style {
+  .pp-ficha {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+/* Aberta pelo teclado: aparece já, sem animação (o gesto repetido não espera). */
+.pp-ficha[data-instant] {
+  transition: none;
+}
+
+.pp-ficha__topo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--lb-space-2, 8px) var(--lb-space-3, 12px);
+  padding: calc(12px + env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) 12px max(16px, env(safe-area-inset-left, 0px));
+  border-bottom: 1px solid var(--lb-color-line, rgba(255, 255, 255, 0.08));
+}
+
+.pp-ficha__titulo {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  margin-right: auto;
+}
+
+.pp-ficha__acoes {
+  display: flex;
+  align-items: center;
+  gap: var(--lb-control-gap, 8px);
+}
+
+/* Fechar: só o ícone, num alvo quadrado de toque. */
+.pp-ficha__fechar.lb-btn {
+  width: var(--lb-control-touch, 44px);
+  padding: 0;
+}
+
+/* Um personagem por botão quando o jogador tem mais de uma ficha (token). */
+.pp-ficha__personagens {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--lb-space-1, 4px);
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pp-ficha__personagens .lb-btn[aria-pressed='true'] {
+  color: var(--lb-color-brass-bright, #f3ba66);
+  border-color: var(--lb-color-brass, #e0a44a);
+}
+
+.pp-ficha__aviso {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--lb-space-2, 8px);
+  margin: 0;
+  padding: var(--lb-space-2, 8px) 16px;
+  border-bottom: 1px solid var(--lb-color-line, rgba(255, 255, 255, 0.08));
+  font-size: var(--lb-font-size-sm, 11.5px);
+  color: var(--lb-color-parchment-dim, #a2a09a);
+}
+
+.pp-ficha__aviso[data-tom='erro'] {
+  background: var(--lb-color-ember-soft, rgba(214, 108, 74, 0.14));
+  color: var(--lb-color-parchment, #eceae4);
+}
+
+.pp-ficha__corpo {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 16px max(16px, env(safe-area-inset-right, 0px)) calc(24px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px));
+}
+
+/* Sem sistema, sem ficha: uma coluna de leitura, no alto. */
+.pp-ficha__vazio {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--lb-space-3, 12px);
+  max-width: 52ch;
+  margin: 8vh auto 0;
+  color: var(--lb-color-parchment-dim, #a2a09a);
+}
+
+.pp-ficha__vazio h2 {
+  margin: 0;
+  font-family: var(--lb-font-display, Georgia, serif);
+  font-size: var(--lb-font-size-xl, 20px);
+  font-weight: var(--lb-font-weight-semibold, 600);
+  color: var(--lb-color-parchment, #eceae4);
+}
+
+.pp-ficha__vazio p {
+  margin: 0;
+}
+
+.pp-ficha__criar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--lb-space-2, 8px);
+}
+
+/* As fichas (tokens) sem personagem, quando ele já tem outro: uma linha sob o topo. */
+.pp-ficha__sem-ficha {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--lb-space-2, 8px);
+  margin: 0 0 16px;
+  font-size: var(--lb-font-size-sm, 11.5px);
+  color: var(--lb-color-parchment-dim, #a2a09a);
+}
+
+.pp-ficha :focus-visible {
+  outline: 2px solid var(--lb-color-brass, #e0a44a);
+  outline-offset: 2px;
+}
+
+/* ------------------------------------------- peças de base, só dentro da ficha */
+
+.pp-ficha .lb-eyebrow {
+  margin: 0;
+  font-family: var(--lb-font-utility, system-ui, sans-serif);
+  font-size: var(--lb-font-size-sm, 11.5px);
+  font-weight: var(--lb-font-weight-semibold, 600);
+  letter-spacing: var(--lb-font-tracking-wide, 0.06em);
+  text-transform: uppercase;
+  color: var(--lb-color-parchment-faint, #858480);
+}
+
+.pp-ficha .lb-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+.pp-ficha .lb-btn {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--lb-space-2, 8px);
+  min-height: 36px;
+  margin: 0;
+  padding: 0 var(--lb-space-3, 12px);
+  border: 1px solid var(--lb-color-line, rgba(255, 255, 255, 0.08));
+  border-radius: var(--lb-radius-md, 9px);
+  background: var(--lb-color-stone-raised, #232328);
+  color: var(--lb-color-parchment, #eceae4);
+  font: inherit;
+  font-weight: var(--lb-font-weight-medium, 500);
+  white-space: nowrap;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    background-color var(--lb-motion-fast, 110ms) var(--lb-motion-ease, ease),
+    border-color var(--lb-motion-fast, 110ms) var(--lb-motion-ease, ease),
+    transform var(--lb-motion-fast, 110ms) var(--lb-motion-ease, ease);
+}
+
+@media (hover: hover) {
+  .pp-ficha .lb-btn:hover:not(:disabled) {
+    background-color: var(--lb-color-stone-hover, #2c2c33);
+    border-color: var(--lb-color-line-strong, rgba(255, 255, 255, 0.16));
+  }
+}
+
+/* Como os botões da barra: afunda NA HORA (sem transição na ida) e volta em 110 ms. */
+.pp-ficha .lb-btn:active:not(:disabled) {
+  background-color: var(--lb-color-stone-sunken, #141417);
+  transform: scale(0.97);
+  transition-duration: 0ms;
+}
+
+.pp-ficha .lb-btn:disabled {
+  color: var(--lb-color-parchment-faint, #858480);
+  background: transparent;
+  cursor: not-allowed;
+}
+
+.pp-ficha .lb-btn--primary {
+  background: var(--lb-color-brass, #e0a44a);
+  border-color: var(--lb-color-brass, #e0a44a);
+  color: var(--lb-color-brass-contrast, #1a1206);
+  font-weight: var(--lb-font-weight-semibold, 600);
+}
+
+@media (hover: hover) {
+  .pp-ficha .lb-btn--primary:hover:not(:disabled) {
+    background-color: var(--lb-color-brass-bright, #f3ba66);
+    border-color: var(--lb-color-brass-bright, #f3ba66);
+  }
+}
+
+.pp-ficha .lb-btn--primary:active:not(:disabled) {
+  background-color: var(--lb-color-brass, #e0a44a);
+}
+
+.pp-ficha .lb-btn--ghost {
+  background: transparent;
+  border-color: transparent;
+  color: var(--lb-color-parchment-dim, #a2a09a);
+}
+
+.pp-ficha .lb-btn--danger:not(:disabled) {
+  background: var(--lb-color-ember-soft, rgba(214, 108, 74, 0.14));
+  border-color: transparent;
+  color: var(--lb-color-ember, #d66c4a);
+}
+
+.pp-ficha .lb-btn--compact {
+  min-height: 28px;
+  padding: 0 var(--lb-space-2, 8px);
+  font-size: var(--lb-font-size-sm, 11.5px);
+}
+
+.pp-ficha .lb-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-2, 8px);
+}
+
+.pp-ficha .lb-label {
+  font-size: var(--lb-font-size-sm, 11.5px);
+  font-weight: var(--lb-font-weight-medium, 500);
+  color: var(--lb-color-parchment-dim, #a2a09a);
+}
+
+.pp-ficha .lb-field__error {
+  margin: 0;
+  font-size: var(--lb-font-size-sm, 11.5px);
+  color: var(--lb-color-ember, #d66c4a);
+}
+
+.pp-ficha .lb-input {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 38px;
+  padding: 0 var(--lb-space-3, 12px);
+  border: 1px solid var(--lb-color-line, rgba(255, 255, 255, 0.08));
+  border-radius: var(--lb-radius-md, 9px);
+  background: var(--lb-color-stone-sunken, #141417);
+  color: var(--lb-color-parchment, #eceae4);
+  font-family: inherit;
+  font-size: var(--lb-font-size-md, 13px);
+  caret-color: var(--lb-color-brass, #e0a44a);
+}
+
+.pp-ficha .lb-input:focus-visible {
+  border-color: var(--lb-color-brass, #e0a44a);
+}
+
+.pp-ficha .lb-textarea {
+  min-height: 84px;
+  padding: var(--lb-space-2, 8px) var(--lb-space-3, 12px);
+  line-height: 1.45;
+  resize: vertical;
+}
+
+/* Toque: alvo de dedo nos botões e, nos campos, 16 px — abaixo disso o iOS dá
+   zoom sozinho ao focar e joga o resto da ficha para fora da tela. */
+@media (pointer: coarse) {
+  .pp-ficha .lb-btn {
+    min-height: var(--lb-control-touch, 44px);
+  }
+
+  .pp-ficha .lb-btn--compact {
+    min-height: 36px;
+  }
+
+  .pp-ficha .lb-input {
+    min-height: var(--lb-control-touch, 44px);
+    font-size: 16px;
+  }
+}
+
+/* Movimento reduzido: só o aparecer, sem subir. */
+@media (prefers-reduced-motion: reduce) {
+  .pp-ficha {
+    transform: none;
+    transition: opacity 160ms ease;
+  }
+
+  @starting-style {
+    .pp-ficha {
+      opacity: 0;
+      transform: none;
+    }
+  }
+
+  .pp-ficha .lb-btn {
+    transition: none;
+  }
+
+  .pp-ficha .lb-btn:active:not(:disabled) {
+    transform: none;
+  }
+}

@@ -1395,7 +1395,8 @@
  */
 .pp-toggle,
 .pp-mine,
-.pp-bag {
+.pp-bag,
+.pp-ficha-btn {
   box-sizing: border-box;
   display: inline-flex;
   align-items: center;
@@ -1428,7 +1429,8 @@
 @media (hover: hover) {
   .pp-toggle:hover,
   .pp-mine:hover,
-  .pp-bag:hover {
+  .pp-bag:hover,
+  .pp-ficha-btn:hover {
     background-image: linear-gradient(var(--lb-color-brass-soft, rgba(224, 164, 74, 0.14)), var(--lb-color-brass-soft, rgba(224, 164, 74, 0.14)));
   }
 }
@@ -1436,7 +1438,8 @@
 /* O dedo pegou: afunda NA HORA (sem transição na ida) e volta em 110 ms. */
 .pp-toggle:active,
 .pp-mine:active,
-.pp-bag:active {
+.pp-bag:active,
+.pp-ficha-btn:active {
   transform: scale(0.97);
   background-color: var(--lb-color-stone-sunken, #141417);
   transition-duration: 0ms;
@@ -1453,7 +1456,8 @@
 }
 
 .pp-mine__icon,
-.pp-bag__icon {
+.pp-bag__icon,
+.pp-ficha-btn__icon {
   flex: none;
 }
 
@@ -1706,6 +1710,7 @@
   .pp-toggle,
   .pp-mine,
   .pp-bag,
+  .pp-ficha-btn,
   .pp-toggle__chevron,
   .pp-button {
     transition: none;
@@ -1714,6 +1719,7 @@
   .pp-toggle:active,
   .pp-mine:active,
   .pp-bag:active,
+  .pp-ficha-btn:active,
   .pp-button:active:not(:disabled, [aria-disabled='true']) {
     transform: none;
   }
@@ -5963,13 +5969,20 @@ button.pp-colecao__casa:focus-visible {
  * bolsa, num alvo quadrado de toque; o nome continua para o leitor de tela.
  */
 @media (max-width: 379px) {
-  .pp-bag {
+  /* Com a "Ficha" de personagem (entrega 2 dos sistemas de RPG) a barra media
+     324 px numa tela de 320: "Minha ficha" e "Ficha" ficam só com o ícone,
+     como a bolsa. Medido com o Chrome a 320 x 568. */
+  .pp-mine,
+  .pp-bag,
+  .pp-ficha-btn {
     justify-content: center;
     width: var(--pp-bar-h);
     padding: 0;
   }
 
-  .pp-bag__rotulo {
+  .pp-mine__rotulo,
+  .pp-bag__rotulo,
+  .pp-ficha-btn__rotulo {
     position: absolute;
     width: 1px;
     height: 1px;

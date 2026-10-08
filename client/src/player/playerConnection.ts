@@ -43,6 +43,16 @@ import {
   type TokenHideRejection,
 } from '../net/protocol'
 import { ACEITA_GZIP, criarEntradaEmOrdem } from '../net/pacoteComprimido'
+import {
+  parsePersonagemResultado,
+  parsePersonagensMessage,
+  parseSistemaDeRpgMessage,
+  type PersonagemCriarMessage,
+  type TokenDoPersonagem,
+} from '../net/protocoloDoPersonagem'
+import { mensagensDoSalvar } from '../net/edicaoDoPersonagem'
+import type { Personagem } from '../lib/personagem'
+import type { SistemaDeRpg } from '../lib/sistemaDeRpg'
 import { carriedItemsOf, cleanItemName, itemOfPin } from '../lib/items'
 import { canPay, isCoinAmount, ownTradeToken, purseToward, TRADE_ITEMS_MAX } from '../lib/troca'
 import { lojaParaJogador } from '../lib/loja'
@@ -167,6 +177,29 @@ export interface PlayerFloors {
   atual: string
   outros: PlayerFloorMemory[]
 }
+
+/**
+ * FICHA DE PERSONAGEM: o último envio ("Criar minha ficha" ou "Salvar") e o
+ * que o host respondeu. Um "Salvar" pode ser várias mensagens (as partes e
+ * uma por imagem): ele só termina quando todas têm resposta.
+ */
+export interface EnvioDePersonagem {
+  /** Muda a cada envio: a tela sabe que a resposta é do envio dela. */
+  id: number
+  tipo: 'criar' | 'salvar'
+  /** O personagem salvo; no criar, `null` até o host dizer qual nasceu. */
+  personagemId: string | null
+  /** Pedidos ainda sem resposta. Vazio = terminou. */
+  pendentes: string[]
+  /** Algum pedido foi recusado, a conexão caiu antes da resposta, ou o host não respondeu no prazo. */
+  falhou: boolean
+}
+
+/** FICHA DE PERSONAGEM: o "Salvar" do jogador, antes de sair. `nada`: a ficha não mudou, nada saiu. */
+export type SalvarPersonagem = { ok: true; nada: boolean } | { ok: false; erro: string }
+
+/** Sem resposta do host neste prazo, o envio da ficha é dado como perdido (a mensagem pode ter morrido no caminho). */
+export const ENVIO_DE_PERSONAGEM_PRAZO_MS = 15_000
 
 export interface PlayerState {
   status: PlayerStatus
@@ -382,6 +415,16 @@ export interface PlayerState {
    * host mandou por último — a lista inteira, a cada peça nova e na entrada.
    */
   colecoes?: ColecaoProgresso[]
+  /**
+   * FICHA DE PERSONAGEM: o sistema de RPG da aventura, como o host mandou.
+   * `null` = a aventura não tem sistema (ou ele não está no computador do
+   * mestre); ausente = o host não serve ficha (mapa solto, mestre antigo).
+   */
+  sistemaDeRpg?: SistemaDeRpg | null
+  /** FICHA DE PERSONAGEM: os personagens das fichas dele e as fichas (tokens) dele, com ou sem personagem. Ausente = o host não mandou. */
+  personagens?: { personagens: Personagem[]; tokens: TokenDoPersonagem[] }
+  /** FICHA DE PERSONAGEM: o último "Salvar" ou "Criar minha ficha" e o que o host respondeu. */
+  envioDePersonagem?: EnvioDePersonagem
   /** Pista que um colega acabou de mostrar: o cartão "Gabi mostrou: Bilhete". `id` novo reabre. */
   shownClue?: { id: number; from: string; clue: ClueEntry }
   /** "Mostrar para…": esperando a lista, ou os colegas da mesma cena. */
@@ -939,6 +982,20 @@ export interface PlayerConnection {
    * (`TOKEN_PHOTO_SEND_MAX_CHARS`) — foto que derrubaria o jogador nem sai.
    */
   setOwnTokenPhoto(tokenId: string, image: string): boolean
+  /**
+   * FICHA DE PERSONAGEM — "Criar minha ficha" para a ficha (token) `tokenId`.
+   * O host cria pelo sistema da aventura e responde em `envioDePersonagem`
+   * (com o personagem que nasceu). `false` se não está jogando, se outro envio
+   * da ficha ainda espera resposta ou se o socket não está aberto.
+   */
+  criarPersonagem(tokenId: string): boolean
+  /**
+   * FICHA DE PERSONAGEM — "Salvar": manda só o que o `rascunho` mudou desde a
+   * `base` (a ficha quando a edição abriu), em mensagens que cabem no teto do
+   * servidor. Recusa antes de sair, com o motivo, o que o host recusaria
+   * (texto longo, aba grande, imagem pesada). A resposta chega em `envioDePersonagem`.
+   */
+  salvarPersonagem(base: Personagem, rascunho: Personagem): SalvarPersonagem
   /**
    * Pede ao mestre para passar pelo pino de viagem `pinId` — ou, no pino
    * livre, passa (o pedido sai depois de `FREE_PASSAGE_BEAT_MS`; no pino de
@@ -2008,6 +2065,53 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       setState({ item: undefined })
     }, ITEM_NOTICE_TTL_MS)
   }
+
+  // FICHA DE PERSONAGEM: o prazo do envio no ar (ENVIO_DE_PERSONAGEM_PRAZO_MS).
+  let envioDePersonagemTimer: ReturnType<typeof setTimeout> | null = null
+  let proximoEnvioDePersonagem = 1
+
+  function clearEnvioDePersonagemTimer(): void {
+    if (envioDePersonagemTimer !== null) clearTimeout(envioDePersonagemTimer)
+    envioDePersonagemTimer = null
+  }
+
+  /** Um envio da ficha no ar: a tela espera; sem resposta no prazo, ele falha (a tela deixa tentar de novo). */
+  function comecarEnvioDePersonagem(tipo: EnvioDePersonagem['tipo'], personagemId: string | null, pendentes: string[]): void {
+    clearEnvioDePersonagemTimer()
+    const id = proximoEnvioDePersonagem++
+    setState({ envioDePersonagem: { id, tipo, personagemId, pendentes, falhou: false } })
+    envioDePersonagemTimer = setTimeout(() => {
+      envioDePersonagemTimer = null
+      const atual = state.envioDePersonagem
+      if (atual !== undefined && atual.id === id && atual.pendentes.length > 0) setState({ envioDePersonagem: { ...atual, pendentes: [], falhou: true } })
+    }, ENVIO_DE_PERSONAGEM_PRAZO_MS)
+  }
+
+  /** O envio no ar não vai ter resposta (a conexão caiu: o host esquece o que estava pela metade). */
+  function perderEnvioDePersonagem(): void {
+    const atual = state.envioDePersonagem
+    if (atual === undefined || atual.pendentes.length === 0) return
+    clearEnvioDePersonagemTimer()
+    setState({ envioDePersonagem: { ...atual, pendentes: [], falhou: true } })
+  }
+
+  /** `personagem.resultado`: um pedido do envio no ar respondeu. Resposta de envio que já acabou (ou de outro) não muda nada. */
+  function responderEnvioDePersonagem(reqId: string, ok: boolean, criado: string | undefined): void {
+    const atual = state.envioDePersonagem
+    if (atual === undefined || !atual.pendentes.includes(reqId)) return
+    const pendentes = atual.pendentes.filter((pendente) => pendente !== reqId)
+    if (pendentes.length === 0) clearEnvioDePersonagemTimer()
+    const personagemId = atual.tipo === 'criar' && criado !== undefined ? criado : atual.personagemId
+    setState({ envioDePersonagem: { ...atual, pendentes, personagemId, falhou: atual.falhou || !ok } })
+  }
+
+  /** A mensagem cabe no teto do servidor? A mesma conta do `send`, para o "Salvar" partir antes de o `send` recusar. */
+  function cabeNoTeto(mensagem: PlayerMessage): boolean {
+    const texto = JSON.stringify(mensagem)
+    return texto.length * 3 <= PLAYER_MESSAGE_MAX_BYTES || utf8.encode(texto).length <= PLAYER_MESSAGE_MAX_BYTES
+  }
+
+  const envioDePersonagemNoAr = (): boolean => (state.envioDePersonagem?.pendentes.length ?? 0) > 0
 
   let compraTimer: ReturnType<typeof setTimeout> | null = null
 
@@ -3090,6 +3194,8 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         }
         // TROCA: a oferta também morre no host com a queda — o cartão ofereceria o que ninguém espera.
         forgetTrade()
+        // FICHA DE PERSONAGEM: o pedido que estava no ar não terá resposta; a tela continua com o rascunho.
+        perderEnvioDePersonagem()
         return
       case 'lobby.waiting':
         arrivalFromMapId = null
@@ -3402,6 +3508,22 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         // Vale também aguardando, como o caderno: a coleção é do jogador, não da cena.
         const msg = parseColecoesMessage(data)
         if (msg !== null) setState({ colecoes: msg.colecoes })
+        return
+      }
+      // FICHA DE PERSONAGEM: valem também aguardando — a ficha é do jogador, não da cena.
+      case 'rpg.sistema': {
+        const msg = parseSistemaDeRpgMessage(data)
+        if (msg !== null) setState({ sistemaDeRpg: msg.sistema })
+        return
+      }
+      case 'personagens': {
+        const msg = parsePersonagensMessage(data)
+        if (msg !== null) setState({ personagens: { personagens: msg.personagens, tokens: msg.tokens } })
+        return
+      }
+      case 'personagem.resultado': {
+        const msg = parsePersonagemResultado(data)
+        if (msg !== null) responderEnvioDePersonagem(msg.reqId, msg.ok, msg.personagemId)
         return
       }
       case 'map.shared':
@@ -3933,6 +4055,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     clearPassageOpenedTimer()
     clearSharedRouteTimer()
     clearPeekTimer()
+    clearEnvioDePersonagemTimer()
     const current = socket
     socket = null
     current?.close()
@@ -4595,6 +4718,30 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       // deixa de valer para este token — a foto agora é a que o jogador
       // escolheu, e é a embutida que viaja. Mesma forma que o host vai gravar.
       return editOwnToken(tokenId, { type: 'token.edit', tokenId, image }, { image: null, imageData: image })
+    },
+
+    criarPersonagem(tokenId) {
+      if (state.status !== 'playing' || envioDePersonagemNoAr()) return false
+      const mensagem: PersonagemCriarMessage = { type: 'personagem.criar', reqId: `p${nextReqId++}`, tokenId }
+      if (!send(mensagem)) return false
+      comecarEnvioDePersonagem('criar', null, [mensagem.reqId])
+      return true
+    },
+
+    salvarPersonagem(base, rascunho) {
+      if (state.status !== 'playing') return { ok: false, erro: 'A ficha só salva com você na mesa.' }
+      if (envioDePersonagemNoAr()) return { ok: false, erro: 'Ainda esperando a mesa responder o último envio.' }
+      const pacote = mensagensDoSalvar(base, rascunho, { novoReqId: () => `p${nextReqId++}`, cabe: cabeNoTeto })
+      if (!pacote.ok) return pacote
+      if (pacote.mensagens.length === 0) return { ok: true, nada: true }
+      // Todas ou nenhuma: o socket que cai no meio deixaria a ficha meio salva sem a tela saber qual meio.
+      if (socket === null || socket.readyState !== SOCKET_OPEN) return { ok: false, erro: 'Sem conexão com a mesa agora. Tente de novo quando ela voltar.' }
+      const enviados = pacote.mensagens.filter((mensagem) => send(mensagem))
+      comecarEnvioDePersonagem('salvar', base.id, enviados.map((mensagem) => mensagem.reqId))
+      // Alguma não saiu: o envio nasce falho (a tela fica com o rascunho); o que saiu ainda responde, e não muda isso.
+      const comecado = state.envioDePersonagem
+      if (enviados.length < pacote.mensagens.length && comecado !== undefined) setState({ envioDePersonagem: { ...comecado, falhou: true } })
+      return { ok: true, nada: false }
     },
     reconnect: restart,
     wake() {

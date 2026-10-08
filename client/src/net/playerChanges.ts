@@ -9,7 +9,8 @@ import { comMovimentoRemoto } from '../lib/movimentoRemoto'
 import { boardVehicle, leaveVehicle } from '../lib/vehicle'
 import { hopVehicleSeated } from '../lib/vehicleHop'
 import type { SeatHold } from '../lib/gatherParty'
-import type { AppliedLock, AppliedMark, AppliedPiso, AppliedTokenEdit, AppliedVehicle } from './hostSession'
+import type { Personagem } from '../lib/personagem'
+import type { AppliedLock, AppliedMark, AppliedPersonagem, AppliedPiso, AppliedTokenEdit, AppliedVehicle } from './hostSession'
 
 /**
  * O que o JOGADOR muda no mapa do mestre (movimento, porta, nome/foto da
@@ -99,6 +100,19 @@ function applyVehicleChange(change: AppliedVehicle): MapTransform {
   }
 }
 
+/**
+ * FICHA DE PERSONAGEM: a ficha (token) que o jogador escolheu no "Criar minha
+ * ficha" passa a apontar para o personagem novo. Fora do Ctrl+Z, como o resto
+ * do que vem do jogador: desfazer um passo do mestre não desliga a ficha.
+ */
+function ligarAoPersonagem(tokenId: string, personagemId: string): MapTransform {
+  return (map) => {
+    const token = map.tokens.find((t) => t.id === tokenId)
+    if (token === undefined || token.characterId === personagemId) return map
+    return { ...map, tokens: map.tokens.map((t) => (t.id === tokenId ? { ...t, characterId: personagemId } : t)) }
+  }
+}
+
 /** `sceneId` ausente = a cena aberta no editor; presente = uma cena de fundo. */
 function applyToScene(sceneId: string | undefined, transform: MapTransform): void {
   if (sceneId === undefined) useMapStore.getState().applyPlayerChange(transform)
@@ -140,6 +154,8 @@ export interface DestinoDasMudancas {
   cenaComMarca(markId: string): string | undefined | null
   /** Em volta do passo do jogador (o editor marca a ficha para deslizar). Ausente = só aplica. */
   emVoltaDoPasso?: (tokenId: string, aplicar: () => void) => void
+  /** FICHA DE PERSONAGEM: grava o personagem inteiro (troca o de mesmo id, ou entra no fim). */
+  salvarPersonagem(personagem: Personagem): void
 }
 
 /** Os retornos da ponte do host (`createHostBridge`) para as mudanças do jogador, gravados em `destino`. */
@@ -165,6 +181,11 @@ export function createPlayerChanges(destino: DestinoDasMudancas) {
     },
     applyPiso: ({ tokenId, piso, sceneId }: AppliedPiso): void => destino.aplicar(sceneId, setTokenPiso(tokenId, piso)),
     applyVehicle: (change: AppliedVehicle): void => destino.aplicar(change.sceneId, applyVehicleChange(change)),
+    // O personagem ANTES da ligação: a ficha nunca aponta para um personagem que ainda não existe.
+    applyPersonagem: ({ personagem, ligarTokenId, sceneId }: AppliedPersonagem): void => {
+      destino.salvarPersonagem(personagem)
+      if (ligarTokenId !== undefined) destino.aplicar(sceneId, ligarAoPersonagem(ligarTokenId, personagem.id))
+    },
   }
 }
 
@@ -174,6 +195,10 @@ export type PlayerChanges = ReturnType<typeof createPlayerChanges>
 export const hostPlayerChanges = createPlayerChanges({
   aplicar: applyToScene,
   cenaComMarca,
+  // Mapa solto não tem onde guardar personagem; a sessão nem oferece a ficha sem aventura (`HostWorld.rpg`).
+  salvarPersonagem: (personagem) => {
+    useAdventureStore.getState().salvarPersonagem(personagem)
+  },
   // A marca vem ANTES de aplicar: o redraw das fichas roda dentro do `set` da
   // store, e é nele que o editor decide que esta ficha desliza (lib/movimentoRemoto.ts).
   emVoltaDoPasso: comMovimentoRemoto,

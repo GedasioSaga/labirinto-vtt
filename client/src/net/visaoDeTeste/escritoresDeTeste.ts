@@ -43,6 +43,7 @@ export type EscritoresDeTeste = Required<
     | 'unlockAndOpenDoor'
     | 'hideToken'
     | 'setPinPassage'
+    | 'applyPersonagem'
   >
 >
 
@@ -81,6 +82,7 @@ export function criarEscritoresDeTeste(camada: CamadaDeTeste, mundoBase: () => H
   const destino = destinoDaCamada(camada, mundoBase)
   const mudancas = createPlayerChanges(destino)
   return {
+    // FICHA DE PERSONAGEM (`applyPersonagem`) vem daqui também: o personagem e a ligação ficam na camada.
     ...mudancas,
     // CARAVANA: cada seguidor anda como um passo dele, na cena do mapa-mundi onde está.
     applyCaravanMoves: (moves) => {
