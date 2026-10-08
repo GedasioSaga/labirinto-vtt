@@ -275,8 +275,9 @@ function groupWallsForPath(
   marcarPassagem: boolean,
 ): { walls: WallWithStyle[]; style: WallVisualStyle }[] {
   // Janela tem desenho próprio (`drawJanela`): não entra no traço contínuo.
-  // A passagem marcada também não (`drawPassagem`, tracejada).
-  const solid = walls.filter((wall) => wall.door === null && !isJanela(wall) && !(marcarPassagem && isPassagem(wall)))
+  // A passagem marcada também não (`drawPassagem`, tracejada), nem a parede
+  // invisível (`drawParedeInvisivel`, só no editor).
+  const solid = walls.filter((wall) => wall.door === null && !isInvisivel(wall) && !isJanela(wall) && !(marcarPassagem && isPassagem(wall)))
   const styleOf = (wall: WallWithStyle) => resolveWallStyle(wall, cameraScale, rendererResolution)
   const chains = groupWallChains(solid, (previous, next) => !sameStyle(styleOf(previous), styleOf(next)))
   return chains.map((chain) => ({ walls: chain, style: styleOf(chain[0]) }))
@@ -297,7 +298,9 @@ function groupWallsForPath(
  *    paredes dela (inclusive as de porta, para não abrir no vão).
  *
  * `marcarPassagem`: só o editor do mestre liga. A parede que deixa a ficha
- * passar sai tracejada; na tela do jogador ela é igual a qualquer parede.
+ * passar sai tracejada; na tela do jogador ela é igual a qualquer parede. A
+ * parede invisível (`hidden`) sai tracejada fina e fraca no editor e não sai
+ * na tela do jogador (que, de todo jeito, nem a recebe: `lib/fogFilter.ts`).
  */
 export function drawWalls(
   graphics: Graphics,
@@ -319,7 +322,10 @@ export function drawWalls(
     graphics.stroke({ width: style.width, color: style.color, alpha: style.alpha, cap: style.cap, join: style.join })
   }
   for (const wall of walls) {
-    if (isJanela(wall)) drawJanela(graphics, wall, cameraScale, rendererResolution)
+    // A invisível vem antes: janela ou passagem invisível continua invisível.
+    if (isInvisivel(wall)) {
+      if (marcarPassagem) drawParedeInvisivel(graphics, wall, cameraScale, rendererResolution)
+    } else if (isJanela(wall)) drawJanela(graphics, wall, cameraScale, rendererResolution)
     else if (marcarPassagem && isPassagem(wall)) drawPassagem(graphics, wall, resolveWallStyle(wall, cameraScale, rendererResolution), cameraScale)
   }
 }
@@ -333,18 +339,51 @@ const PASSAGEM_VAO_SCREEN_PX = 6
  * traços. Pixi não tem tracejado nativo, então cada traço é um segmento.
  */
 function drawPassagem(graphics: Graphics, wall: WallWithStyle, style: WallVisualStyle, cameraScale: number): void {
+  if (!traceTracejado(graphics, wall, PASSAGEM_TRACO_SCREEN_PX, PASSAGEM_VAO_SCREEN_PX, cameraScale)) return
+  graphics.stroke({ width: style.width, color: style.color, alpha: style.alpha, cap: 'butt' })
+}
+
+/**
+ * Abre os traços de uma linha tracejada (px de TELA, o mesmo ritmo em
+ * qualquer zoom) sem chamar `stroke()`. `false` quando a parede não tem
+ * comprimento e não há o que traçar.
+ */
+function traceTracejado(graphics: Graphics, wall: WallWithStyle, tracoPx: number, vaoPx: number, cameraScale: number): boolean {
   const length = Math.hypot(wall.x2 - wall.x1, wall.y2 - wall.y1)
-  if (!(length > 0)) return
+  if (!(length > 0)) return false
   const scale = usableScale(cameraScale)
-  const traco = PASSAGEM_TRACO_SCREEN_PX / scale
-  const passo = traco + PASSAGEM_VAO_SCREEN_PX / scale
+  const traco = tracoPx / scale
+  const passo = traco + vaoPx / scale
   const ux = (wall.x2 - wall.x1) / length
   const uy = (wall.y2 - wall.y1) / length
   for (let inicio = 0; inicio < length; inicio += passo) {
     const fim = Math.min(inicio + traco, length)
     graphics.moveTo(wall.x1 + ux * inicio, wall.y1 + uy * inicio).lineTo(wall.x1 + ux * fim, wall.y1 + uy * fim)
   }
-  graphics.stroke({ width: style.width, color: style.color, alpha: style.alpha, cap: 'butt' })
+  return true
+}
+
+/**
+ * PAREDE INVISÍVEL (`Wall.hidden`): barra visão e passo como qualquer parede,
+ * mas o jogador não a vê (`lib/fogFilter.ts` nem a manda). O mestre precisa
+ * achá-la, então ela sai tracejada, fina (o fio de 1 px da janela) e fraca, na
+ * cor da parede. Traço mais curto, vão maior e menos opaca que a passagem:
+ * a passagem é parede de verdade em traços; esta é quase um fantasma.
+ * Só vale sem porta — a porta tem o desenho dela (`drawDoors.ts`).
+ */
+export const PAREDE_INVISIVEL_ALPHA = 0.35
+const PAREDE_INVISIVEL_TRACO_SCREEN_PX = 3
+const PAREDE_INVISIVEL_VAO_SCREEN_PX = 4
+
+function isInvisivel(wall: Pick<Wall, 'door' | 'hidden'>): boolean {
+  return wall.door === null && wall.hidden === true
+}
+
+function drawParedeInvisivel(graphics: Graphics, wall: WallWithStyle, cameraScale: number, rendererResolution: number): void {
+  const pixel = pixelGrid(usableScale(cameraScale), rendererResolution, WALL_SCREEN_PX.thin)
+  const [alinhada] = alignChain([wall], pixel)
+  if (!traceTracejado(graphics, alinhada, PAREDE_INVISIVEL_TRACO_SCREEN_PX, PAREDE_INVISIVEL_VAO_SCREEN_PX, cameraScale)) return
+  graphics.stroke({ width: strokeWidthInWorld(pixel), color: wallColorFor(wall), alpha: PAREDE_INVISIVEL_ALPHA, cap: 'butt' })
 }
 
 /**
