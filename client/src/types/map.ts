@@ -125,10 +125,14 @@ export interface Wall extends NoPiso {
    *  idêntico ao de hoje) — sem linha de migração, mesmo padrão de wallKind
    *  (acima). */
   locked?: boolean
-  /** Não renderiza NO EDITOR — organização de cena para o próprio mestre.
-   *  NÃO significa "invisível para o jogador": este app não tem segunda
-   *  tela/modo jogador, então essa promessa não existe. `undefined` === false
-   *  (visível, comportamento idêntico ao de hoje) — sem linha de migração. */
+  /**
+   * PAREDE INVISÍVEL: o jogador não a recebe (`lib/fogFilter.ts` a tira do
+   * recorte), mas ela continua barrando a visão (`lib/visibility.ts`) e o passo
+   * (`lib/collision.ts`), como qualquer parede. No editor o mestre a vê
+   * tracejada e fraca (`pixi/drawWalls.ts`), para conseguir achá-la. Coberto
+   * por `lib/paredeInvisivel.test.ts`. `undefined` === false (parede comum) —
+   * sem linha de migração.
+   */
   hidden?: boolean
   /**
    * JANELA — deixa a VISÃO passar e continua barrando o PASSO (`blocksMove`
@@ -144,6 +148,15 @@ export interface Wall extends NoPiso {
    * cor padrão (`WALL_COLOR`, `pixi/drawWalls.ts`), sem linha de migração.
    */
   color?: string
+  /**
+   * PAREDE PRESA A UM DESENHO ("Paredes ao redor", `Drawing.paredes`): o id do
+   * desenho dono. A parede é DERIVADA do desenho — nasce, anda, muda e some
+   * com ele (`lib/paredesPresas.ts`, aplicado pela store a cada mudança do
+   * mapa) — e o clique nela pega o desenho. "Soltar" tira o campo, e ela vira
+   * parede comum. `undefined` = parede comum, sem linha de migração; vínculo
+   * com desenho que não existe sai na leitura (`lib/mapFile.ts`).
+   */
+  desenhoId?: string
 }
 
 /**
@@ -1531,8 +1544,37 @@ export type DrawingDash = 'solid' | 'dashed' | 'dotted'
  */
 export type PontosChave = number[]
 
+/** 'bloqueia' = o jogador não vê nem passa; 'janela' = vê através, mas não passa. */
+export type PassagemDaParede = 'bloqueia' | 'janela'
+
+/**
+ * PAREDES AO REDOR (pedido de 08/10/2026): paredes que um desenho do botão
+ * Desenho (Pincel, balde, Linha, Curva, Círculo, Elipse, Retângulo, Polígono)
+ * cria no próprio contorno e mantém PRESAS a si — mover, editar ou apagar o
+ * desenho leva as paredes junto (`lib/paredesPresas.ts`). Desligar
+ * (`ativo: false`) guarda as outras escolhas para quando religar.
+ */
+export interface ParedesDoDesenho {
+  ativo: boolean
+  /** O jogador não vê a parede, mas não passa por ela; o mestre a vê tracejada. */
+  invisivel: boolean
+  /** Hex `#rrggbb`; `undefined` = a cor padrão de parede (`WALL_COLOR`). */
+  cor?: string
+  passagem: PassagemDaParede
+}
+
+/**
+ * Campo comum às variantes de `Drawing`. Texto e Caminho não ganham paredes
+ * (`aceitaParedesAoRedor`, `lib/paredesDoDesenho.ts`): o campo neles é
+ * ignorado e sai na leitura do arquivo. `undefined` = nunca ligadas, sem
+ * linha de migração.
+ */
+export interface ComParedesAoRedor {
+  paredes?: ParedesDoDesenho
+}
+
 // `& PlayerSecret` distribui sobre a união: cada variante ganha `secret?`.
-export type Drawing = PlayerSecret & NoPiso & (
+export type Drawing = PlayerSecret & NoPiso & ComParedesAoRedor & (
   | { id: string; kind: 'freehand'; points: DrawingPoint[]; color: string; width: number; cap?: DrawingCap; texture?: FreehandTexture; dash?: DrawingDash; pontosChave?: PontosChave }
   | { id: string; kind: 'line'; x1: number; y1: number; x2: number; y2: number; color: string; width: number; cap?: DrawingCap; dash?: DrawingDash }
   | { id: string; kind: 'circle'; cx: number; cy: number; radius: number; color: string; width: number; filled: boolean; fillAlpha: number }

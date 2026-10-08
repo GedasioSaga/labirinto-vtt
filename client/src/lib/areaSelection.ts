@@ -417,7 +417,10 @@ export function selectEntitiesInArea(map: MapData, rect: AreaRect): AreaSelectio
   const mode = areaSelectionMode(rect)
   const inArea = (entity: AreaGeometryEntity) => matchesArea(entity, normalized, mode)
 
+  // Parede presa a um desenho (`Wall.desenhoId`) não entra sozinha: ela anda,
+  // muda e some com o desenho, que entra pela própria forma logo abaixo.
   const walls = visibleWalls(map.walls, map.hiddenLayers)
+    .filter((wall) => wall.desenhoId === undefined)
     .filter((wall) => canInteract(wall))
     .filter((wall) => inArea(wallEntity(wall)))
     .map((wall) => wall.id)

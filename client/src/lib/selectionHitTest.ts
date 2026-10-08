@@ -369,10 +369,23 @@ function drawingHitAt(drawings: Drawing[], point: Point): SelectableHit | null {
   return drawing ? { kind: 'drawing', id: drawing.id, draggable: true } : null
 }
 
-/** Parede (porta inclusive: é parede com `door`) e escada. */
+/**
+ * Parede (porta inclusive: é parede com `door`) e escada.
+ *
+ * PAREDE PRESA A UM DESENHO (`Wall.desenhoId`, "Paredes ao redor"): ela é
+ * parte do desenho, então o clique nela pega o DESENHO dono — é nele que se
+ * liga, troca e solta as paredes todas de uma vez. Ela nunca sai selecionada
+ * sozinha. Com o desenho escondido (camada oculta), a presa não responde: o
+ * clique passa para o que está embaixo.
+ */
 function findStructureAt(map: MapData, point: Point): SelectableHit | null {
-  const wall = findWallAt(visibleWalls(map.walls, map.hiddenLayers), point)
-  if (wall) return { kind: 'wall', id: wall.id, draggable: false }
+  const visiveis = visibleWalls(map.walls, map.hiddenLayers)
+  const donos = visiveis.some((parede) => parede.desenhoId !== undefined)
+    ? new Set(visibleDrawings(map.drawings, map.hiddenLayers).map((drawing) => drawing.id))
+    : null
+  const clicaveis = donos === null ? visiveis : visiveis.filter((parede) => parede.desenhoId === undefined || donos.has(parede.desenhoId))
+  const wall = findWallAt(clicaveis, point)
+  if (wall) return wall.desenhoId === undefined ? { kind: 'wall', id: wall.id, draggable: false } : { kind: 'drawing', id: wall.desenhoId, draggable: true }
 
   // DEPOIS de wall, ANTES de region: escada encostada em parede não pode
   // roubar o clique da parede (testado antes: se viesse antes de wall, o

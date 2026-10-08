@@ -1,0 +1,92 @@
+/*
+ * PAREDES AO REDOR (ParedesAoRedorControls.tsx): o bloco que o interruptor
+ * revela, a linha da cor que some com a parede invisível, e o aviso da parede
+ * presa. O resto é do painel (lb-section, lb-switch, lb-seg, lb-btn).
+ */
+
+/* Revelar sem medir nada em JS: a altura vai de 0fr a 1fr, o mesmo recurso da
+   cena e da ficha do Grupo (main.css). A margem negativa devolve o vão da
+   coluna de fora, e o miolo repõe o mesmo vão como padding DENTRO do recorte:
+   fechado, o bloco ocupa zero e sair da árvore não dá pulo nenhum. */
+.lb-paredes__revela {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: 1fr;
+  margin-top: calc(-1 * var(--lb-space-3));
+}
+
+/* O item da grade não pode ter padding: um item não encolhe abaixo do próprio
+   padding, e a trilha 0fr ficava com 12 px (medido na câmera lenta: o painel
+   pulava 12 px no começo da abertura e no fim do fechamento). `clip` com
+   margem: o anel de foco dos controles não é cortado na borda. */
+.lb-paredes__recorte {
+  min-height: 0;
+  overflow: clip;
+  overflow-clip-margin: var(--lb-space-1);
+}
+
+.lb-paredes__miolo {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-3);
+  padding-top: var(--lb-space-3);
+}
+
+/* Só o gesto do ponteiro anima; o teclado troca de uma vez (o componente nem
+   põe o atributo). Transição, e não keyframes: ligar e desligar rápido inverte
+   o caminho de onde o bloco está, sem voltar ao começo. Fecha mais rápido do
+   que abre. */
+.lb-paredes__revela[data-movimento] {
+  transition:
+    grid-template-rows var(--lb-motion-base) var(--lb-motion-ease),
+    opacity var(--lb-motion-base) var(--lb-motion-ease);
+}
+
+.lb-paredes__revela[data-movimento='fechando'] {
+  grid-template-rows: 0fr;
+  opacity: 0;
+  transition-duration: var(--lb-motion-fast);
+}
+
+@starting-style {
+  .lb-paredes__revela[data-movimento='abrindo'] {
+    grid-template-rows: 0fr;
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lb-paredes__revela[data-movimento] {
+    transition: none;
+  }
+}
+
+/* Desabilitado tem de PARECER desabilitado. No main.css a opção marcada
+   (`[aria-checked='true']`) vem depois do `:disabled`, com o mesmo peso, e fica
+   com o latão cheio; e a amostra de cor não tem estado apagado. Aqui as duas
+   apagam como o trilho do interruptor desabilitado (opacidade 0,5). */
+.lb-paredes .lb-seg__option:disabled[aria-checked='true'],
+.lb-paredes .lb-swatch:disabled {
+  opacity: 0.5;
+}
+
+.lb-paredes .lb-swatch:disabled {
+  border-color: var(--lb-color-line-strong);
+  cursor: not-allowed;
+}
+
+/* Aviso da parede presa: o nome do desenho um degrau acima da frase, e nome
+   comprido quebra em vez de vazar da coluna. */
+.lb-paredes-aviso__nome {
+  color: var(--lb-color-parchment);
+  font-weight: var(--lb-font-weight-medium);
+  overflow-wrap: anywhere;
+}
+
+/* Os dois botões um sobre o outro, no vão de linha de botões do tema: lado a
+   lado, "Selecionar desenho" não cabe na metade da coluna. */
+.lb-paredes-aviso__acoes {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-control-gap);
+}

@@ -257,6 +257,7 @@ function eraseFromPolylineDrawing(drawing: Drawing & { kind: 'freehand' | 'curve
     color: drawing.color,
     width: drawing.width,
     ...(drawing.cap !== undefined ? { cap: drawing.cap } : {}),
+    ...paredesHerdadas(drawing),
   }))
 }
 
@@ -301,8 +302,19 @@ function eraseFromLineDrawing(drawing: Drawing & { kind: 'line' }, center: Point
       color: drawing.color,
       width: drawing.width,
       ...(drawing.cap !== undefined ? { cap: drawing.cap } : {}),
+      ...paredesHerdadas(drawing),
     }
   })
+}
+
+/**
+ * PAREDES AO REDOR: cada pedaço do traço dividido herda as escolhas das
+ * paredes do original e ganha as próprias paredes presas (quem as cria é a
+ * store, `lib/paredesPresas.ts`). Sem o campo, cortar o meio do traço
+ * apagaria as paredes dos dois lados que sobraram.
+ */
+function paredesHerdadas(drawing: Drawing): Pick<Drawing, 'paredes'> {
+  return drawing.paredes === undefined ? {} : { paredes: { ...drawing.paredes } }
 }
 
 /**

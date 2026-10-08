@@ -62,6 +62,10 @@ export type PropertyGroupId =
   | 'pathStyle'
   /** Pincel de revelar: "Revelar | Esconder" e a largura do PRÓXIMO traço. */
   | 'revealBrush'
+  /** PAREDES AO REDOR do desenho selecionado (`ParedesAoRedorControls`). */
+  | 'paredesAoRedor'
+  /** Parede presa a um desenho selecionada: o aviso (`AvisoParedePresa`) no lugar dos controles de parede. */
+  | 'paredePresa'
 
 /** Todos os IDs, na mesma ordem do type acima — usado pelo teste pra
  *  conferir exaustão sem precisar listar os valores de novo lá. */
@@ -71,7 +75,7 @@ export const PROPERTY_GROUP_IDS: readonly PropertyGroupId[] = [
   'lightControls', 'stairControls', 'stairSize', 'room',
   'layers', 'selection',
   'floorPiece', 'floorStyle', 'playerVisibility', 'concealZone', 'pin', 'pathStyle',
-  'revealBrush',
+  'revealBrush', 'paredesAoRedor', 'paredePresa',
 ]
 
 /**
@@ -86,6 +90,8 @@ export interface ToolPropertiesSelection {
   wall?: boolean
   /** Espelha `selectedWall?.door !== null` — só importa quando `wall` é true. */
   wallHasDoor?: boolean
+  /** Espelha `selectedWall?.desenhoId !== undefined` (parede presa a um desenho) — só importa quando `wall` é true. */
+  wallPresa?: boolean
   /** Espelha `selectedProp !== null`. */
   prop?: boolean
   /** Espelha `selectedToken !== null`. */
@@ -145,6 +151,11 @@ const CAP_KINDS: ReadonlySet<Exclude<Drawing['kind'], 'text'>> = new Set(['freeh
 
 /** `Drawing.kind` preenchível — os 4 com `filled`/`fillAlpha` no schema. */
 const FILL_KINDS: ReadonlySet<Exclude<Drawing['kind'], 'text'>> = new Set(['circle', 'rect', 'ellipse', 'polygon'])
+
+/** `Drawing.kind` que ganha "Paredes ao redor" — mesma lista de `aceitaParedesAoRedor` (`lib/paredesDoDesenho.ts`). */
+const PAREDES_AO_REDOR_KINDS: ReadonlySet<Exclude<Drawing['kind'], 'text'>> = new Set([
+  'freehand', 'line', 'curve', 'circle', 'ellipse', 'rect', 'polygon',
+])
 
 const EMPTY_SELECTION: ToolPropertiesSelection = {}
 
@@ -213,6 +224,7 @@ export function relevantPropertyGroups(
   const {
     wall = false,
     wallHasDoor = false,
+    wallPresa = false,
     prop = false,
     token = false,
     textLabel = false,
@@ -293,11 +305,21 @@ export function relevantPropertyGroups(
   // TextLabelControls — mesma condição de PropertiesPanel.tsx:141.
   if (textLabel) groups.add('textLabel')
 
+  // PAREDES AO REDOR — só o desenho JÁ selecionado (não é preferência do
+  // próximo traço: as paredes nascem do contorno do que foi desenhado) e só
+  // os tipos que aceitam paredes (`aceitaParedesAoRedor`): Caminho e Texto não.
+  if (drawingKind !== null && PAREDES_AO_REDOR_KINDS.has(drawingKind)) groups.add('paredesAoRedor')
+
+  // Parede presa a um desenho: anda, muda e some com ele, então os controles
+  // de parede não fariam nada — o aviso leva ao desenho ou solta as paredes.
+  const paredeComum = wall && !wallPresa
+  if (wall && wallPresa) groups.add('paredePresa')
+
   // Parede/Porta — mesmas condições de `showWallStyle`/`showDoorKind`,
   // PropertiesPanel.tsx:116-121.
-  if (activeTool === 'wall' || wall) groups.add('wallStyle')
-  if (wall) groups.add('wallDoor')
-  if (activeTool === 'door' || (wall && wallHasDoor)) groups.add('doorKind')
+  if (activeTool === 'wall' || paredeComum) groups.add('wallStyle')
+  if (paredeComum) groups.add('wallDoor')
+  if (activeTool === 'door' || (paredeComum && wallHasDoor)) groups.add('doorKind')
 
   // Objeto (Prop) / Token — mesmas condições de PropertiesPanel.tsx:158-177.
   if (prop) {

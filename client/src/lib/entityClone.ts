@@ -3,6 +3,7 @@ import type { SelectionKind } from '../types/tools'
 import { moveBlocos } from './floorBlocks'
 import { isStairPin } from './stairTravel'
 import { withoutCarrier } from './carry'
+import { presaNaCopiaDaCena } from './paredesPresas'
 
 /**
  * FRENTE A (ONDA 3, item 13 do PLANO-REFINAMENTO.md) — clonagem PURA por
@@ -71,10 +72,16 @@ function offsetPoints(points: readonly RegionPoint[], offset: Offset): RegionPoi
  * objeto inteiro), aliasing num clone é o tipo de coisa que vira bug quando
  * alguém adiciona um setter novo sem saber que dois `Wall.id` diferentes
  * apontavam para o mesmo objeto `door`.
+ *
+ * PAREDES AO REDOR: a cópia também sai sem `desenhoId`. Uma parede presa
+ * copiada sozinha vira parede comum; presa com o vínculo de outro desenho
+ * seria refeita (apagada) pela store no passo seguinte. A cópia da cena
+ * inteira religa as presas aos desenhos copiados (`cloneSceneMap`).
  */
 export function cloneWall(wall: Wall, offset: Offset): Wall {
+  const { desenhoId: _dono, ...semDono } = wall
   return {
-    ...wall,
+    ...semDono,
     id: crypto.randomUUID(),
     x1: wall.x1 + offset.dx,
     y1: wall.y1 + offset.dy,
@@ -397,10 +404,17 @@ export function cloneSceneMap(map: MapData, mapId: string, name: string, dropTok
     const { parentId: _orfao, ...topo } = copy
     return topo
   })
+  // PAREDES AO REDOR: as presas da cópia passam a ser dos desenhos copiados,
+  // com os ids deles — a cena copiada abre (ou chega ao jogador) com as
+  // paredes no lugar, sem esperar o editor refazê-las.
+  const drawings = map.drawings.map((drawing) => cloneDrawing(drawing, NO_OFFSET))
+  const drawingIds = new Map(map.drawings.map((drawing, i) => [drawing.id, drawings[i].id]))
+  const presasPorDesenho = new Map<string, number>()
   const walls = map.walls.map((wall) => {
     const copy = cloneWall(wall, NO_OFFSET)
     const regionId = wall.regionId === undefined ? undefined : regionIds.get(wall.regionId)
-    return regionId === undefined ? copy : { ...copy, regionId, regionEdgeIndex: wall.regionEdgeIndex }
+    const comSala = regionId === undefined ? copy : { ...copy, regionId, regionEdgeIndex: wall.regionEdgeIndex }
+    return wall.desenhoId === undefined ? comSala : presaNaCopiaDaCena(comSala, wall.desenhoId, drawingIds, presasPorDesenho)
   })
   return {
     ...map,
@@ -415,7 +429,7 @@ export function cloneSceneMap(map: MapData, mapId: string, name: string, dropTok
     tokens: map.tokens.filter((token) => !dropTokenIds.has(token.id)).map((token) => cloneToken(token, NO_OFFSET)),
     props: map.props.map((prop) => cloneProp(prop, NO_OFFSET)),
     stairs: map.stairs.map((stair) => cloneStair(stair, NO_OFFSET)),
-    drawings: map.drawings.map((drawing) => cloneDrawing(drawing, NO_OFFSET)),
+    drawings,
     floor: map.floor.map((piece) => cloneFloorPiece(piece, NO_OFFSET)),
     floorStyle: { ...map.floorStyle },
     lines: map.lines.map((line) => ({ ...line, id: crypto.randomUUID(), points: line.points.map((p) => ({ x: p.x, y: p.y })) })),

@@ -4656,7 +4656,16 @@ export function PixiCanvas({
           // difícil, e aqui não há preview de arrasto pra corrigir a mira.
           // Filtrado por camada visível (mesmo filtro do render/hit-test de
           // seleção) — não cria porta em cima de parede que o LayersPanel escondeu.
-          const wall = findWallAt(visibleWalls(doPisoEmEdicao(map).walls, map.hiddenLayers), worldPoint, 16)
+          const paredesDoPiso = visibleWalls(doPisoEmEdicao(map).walls, map.hiddenLayers)
+          // Parede presa a um desenho ("Paredes ao redor") é refeita a partir
+          // dele: a porta partiria a parede e sumiria na edição seguinte do
+          // desenho. Ela fica de fora, e o clique nela explica o caminho.
+          const wall = findWallAt(paredesDoPiso.filter((parede) => parede.desenhoId === undefined), worldPoint, 16)
+          const presa = wall === null ? findWallAt(paredesDoPiso, worldPoint, 16) : null
+          if (presa !== null) {
+            useToastStore.getState().push('info', 'Esta parede é de um desenho: selecione o desenho e use "Soltar paredes" para pôr porta ou vão nela.')
+            return
+          }
           // Sem parede sob o clique: não cria porta flutuando no vazio. `kind`
           // vem da preferência de ferramenta (doorKind/setDoorKind no store,
           // ver DoorKindControls) — antes desta fase era um comprimento fixo

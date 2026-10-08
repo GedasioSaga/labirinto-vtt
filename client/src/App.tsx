@@ -163,7 +163,7 @@ import { ShortcutsDialog } from './components/ShortcutsDialog'
 import { ExportImageDialog } from './components/ExportImageDialog'
 import { imageExportFileName, type ImageExportOptions, type MapImageExporter } from './lib/mapImageExport'
 import { saveMapImage } from './lib/mapImageSave'
-import type { DoorKind, DoorSide, DrawingCap, DrawingDash, ExitPassage, MapData, Pin, PinBlockReason, PinPassage, Region, Token, Wall } from './types/map'
+import type { DoorKind, DoorSide, DrawingCap, DrawingDash, ExitPassage, MapData, ParedesDoDesenho, Pin, PinBlockReason, PinPassage, Region, Token, Wall } from './types/map'
 import { passageOf } from './lib/pins'
 import { passItemOf, passTokenOptions, withPassItem, withPassToken } from './lib/pinPass'
 import { isArrivalOnly, setExitPassage } from './lib/pinTravel'
@@ -181,6 +181,7 @@ import { countEntitiesByLayer } from './lib/layers'
 import { roomDimensions } from './lib/roomOps'
 import type { GridAlignResult } from './lib/gridAlign'
 import { relevantPropertyGroups } from './lib/toolProperties'
+import { avisoDaParedePresa, paredesAoRedorDoPainel } from './components/paredesAoRedorNoPainel'
 import { EMPTY_SELECTION, selectionOfItem, selectionSingle, selectionToAreaSelection } from './lib/selectionModel'
 import { selectionSecretState } from './lib/batchSecret'
 import { isSingleGroup, NO_GROUPS } from './lib/itemGroups'
@@ -390,6 +391,13 @@ function UnsavedChangesDialog({ onSaveAndContinue, onDiscardAndContinue, onCance
     </div>,
     document.body,
   )
+}
+
+/** O que os controles de "Paredes ao redor" fazem na store (lidos na hora do clique). */
+const ACOES_DAS_PAREDES_AO_REDOR = {
+  setParedesDoDesenho: (id: string, patch: Partial<ParedesDoDesenho>) => useMapStore.getState().setParedesDoDesenho(id, patch),
+  soltarParedesDoDesenho: (id: string) => useMapStore.getState().soltarParedesDoDesenho(id),
+  selecionarDesenho: (id: string) => useMapStore.getState().setSelection([{ kind: 'drawing', id }]),
 }
 
 /** Ferramentas que criam Sala (piso em `roomFillColor`); Região usa `regionFillColor`. */
@@ -1581,6 +1589,7 @@ function App() {
     {
       wall: selectedWall !== null,
       wallHasDoor: selectedWall?.door != null,
+      wallPresa: selectedWall?.desenhoId !== undefined,
       prop: selectedProp !== null,
       token: selectedToken !== null,
       textLabel: selectedTextLabel !== null,
@@ -2933,6 +2942,10 @@ function App() {
                     }
                   : null
             }
+            // PAREDES AO REDOR: as do desenho selecionado e, se uma parede
+            // presa ficar selecionada, o aviso no lugar dos controles dela.
+            paredesAoRedor={paredesAoRedorDoPainel(map, selectedDrawing, ACOES_DAS_PAREDES_AO_REDOR)}
+            paredePresa={avisoDaParedePresa(map, selectedWall, ACOES_DAS_PAREDES_AO_REDOR)}
             lineShape={
               selectedDrawing?.kind === 'line'
                 ? { kind: 'line', onConvertToCurve: () => convertDrawingToCurve(selectedDrawing.id), onConvertToLine: null }

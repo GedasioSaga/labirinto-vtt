@@ -67,6 +67,7 @@ import { ItemTransformControls, type ItemTransformControlsProps } from './ItemTr
 import { MobiliaControls, type MobiliaControlsProps } from './MobiliaControls'
 import { ToolPropertiesSection } from './ToolPropertiesSection'
 import { LineCapControls, type LineCapControlsProps } from './LineCapControls'
+import { AvisoParedePresa, ParedesAoRedorControls, type AvisoParedePresaProps, type ParedesAoRedorControlsProps } from './ParedesAoRedorControls'
 import { LineShapeControls, type LineShapeControlsProps } from './LineShapeControls'
 import { FillControls, type FillControlsProps } from './FillControls'
 import { RegionSplitControls, type RegionSplitControlsProps } from './RegionSplitControls'
@@ -143,6 +144,12 @@ interface PropertiesPanelProps {
    *  selecionado) — `ToolPropertiesSection` já esconderia a seção pelo grupo,
    *  mas sem um valor concreto não haveria o que passar pro controle. */
   lineCap: LineCapControlsProps | null
+  /** PAREDES AO REDOR do desenho selecionado (`paredesAoRedorDoPainel`).
+   *  Ausente/`null` = nenhum desenho que aceite paredes selecionado. */
+  paredesAoRedor?: ParedesAoRedorControlsProps | null
+  /** Parede PRESA a um desenho selecionada: o aviso no lugar dos controles
+   *  de parede (`avisoDaParedePresa`). Ausente/`null` = parede comum. */
+  paredePresa?: AvisoParedePresaProps | null
   /** Fase 5 — B2 "dobrar a linha": converte `line` ⇄ `curve` (segmented
    *  control "Reta | Curva", `LineShapeControls.tsx`). `null` = nada
    *  selecionado é `line` nem `curve` (seção não aparece). */
@@ -340,6 +347,8 @@ export function PropertiesPanel({
   activeTool,
   groups,
   lineCap,
+  paredesAoRedor,
+  paredePresa,
   lineShape,
   fill,
   areaSelection,
@@ -715,6 +724,12 @@ export function PropertiesPanel({
             {lineShape && <LineShapeControls {...lineShape} />}
           </ToolPropertiesSection>
         )}
+        {/* PAREDES AO REDOR: logo depois do traço, que é de onde as paredes nascem. */}
+        {paredesAoRedor && (
+          <ToolPropertiesSection group="paredesAoRedor" groups={groups}>
+            <ParedesAoRedorControls {...paredesAoRedor} />
+          </ToolPropertiesSection>
+        )}
         <ToolPropertiesSection group="regionStyle" groups={groups}>
           <RegionStyleControls {...regionStyle} />
         </ToolPropertiesSection>
@@ -784,6 +799,13 @@ export function PropertiesPanel({
         {/* Parede lisa: "Parede" primeiro, "Virar porta" depois. Porta
             selecionada: o que se mexe na porta (aberta, trancada, tipo) vem
             antes da espessura da parede em que ela mora. */}
+        {/* Parede presa a um desenho: o aviso no lugar de Parede/Porta (o
+            grupo `paredePresa` já tira os controles de parede do painel). */}
+        {paredePresa && (
+          <ToolPropertiesSection group="paredePresa" groups={groups}>
+            <AvisoParedePresa {...paredePresa} />
+          </ToolPropertiesSection>
+        )}
         {!doorSelected && wallStyleSection}
         {selectedWall && (
           <ToolPropertiesSection group="wallDoor" groups={groups}>

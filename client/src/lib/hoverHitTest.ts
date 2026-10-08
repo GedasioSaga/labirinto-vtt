@@ -172,7 +172,8 @@ export function resolveHoverHit(input: HoverHitInput): HoverHit {
     }
     if (selection.kind === 'wall') {
       const wall = map.walls.find((w) => w.id === selection.id)
-      if (wall && wall.regionId === undefined) {
+      // Parede presa a um desenho não tem alça: ela anda com o desenho.
+      if (wall && wall.regionId === undefined && wall.desenhoId === undefined) {
         const pts = [{ x: wall.x1, y: wall.y1 }, { x: wall.x2, y: wall.y2 }]
         if (findVertexHandleAt(pts, worldPoint, scale) !== null) return { kind: 'vertex', corner: null, target: null }
       }

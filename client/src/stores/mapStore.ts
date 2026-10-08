@@ -4,8 +4,9 @@ import type {
   MapData, Wall, Light, Region, Token, Prop, Drawing, DoorState, DoorSide, LayerId, GridSettings,
   Stair, StairDirection, StairShape, DoorKind, MapScale, MeasurementMode, DrawingCap, DrawingDash, FreehandTexture,
   FloorPiece, FloorStyle, MapLine, MapMarker, MapFrame, PinIcon, PinKind, RoomMeta, TokenCondition, MovementRules, HazardKind, AreaTriggerKind, SceneFloor, NivelAlerta,
-  TipoDePerigo, RotinaDoNpc, TipoMobilia, VistaMobilia, PassoDaPatrulha, RegionSplit,
+  TipoDePerigo, RotinaDoNpc, TipoMobilia, VistaMobilia, PassoDaPatrulha, RegionSplit, ParedesDoDesenho,
 } from '../types/map'
+import { aplicarParedesDoDesenho, sincronizarParedesDosDesenhos, soltarParedesDoDesenho as soltarParedesNoMapa } from '../lib/paredesPresas'
 import * as perigo from '../lib/perigo'
 import type { Camera, Point } from '../pixi/world'
 import type { DoorMode, DrawingTool, RoomFreeKind, Selection } from '../types/tools'
@@ -1205,6 +1206,16 @@ interface MapStoreState {
   /** Variante sem histórico de `setDrawingWidth`, para o arrasto do slider. */
   setDrawingWidthLive: (id: string, width: number) => void
   /**
+   * PAREDES AO REDOR: muda as paredes presas do desenho — `patch` mesclado no
+   * que ele tem (`mesclarParedesDoDesenho`: ligar parte do padrão; Invisível
+   * passa a "Vê mas não passa"). Com histórico; os quadros seguidos do
+   * seletor de cor viram UM passo (`chaveDeArrastoDeCor`). Nada mudou = nada
+   * no histórico. As presas em si a store refaz sozinha (`set`, abaixo).
+   */
+  setParedesDoDesenho: (id: string, patch: Partial<ParedesDoDesenho>) => void
+  /** SOLTAR: as presas viram paredes comuns e o desenho desliga as paredes ao redor. Um passo. */
+  soltarParedesDoDesenho: (id: string) => void
+  /**
    * Leitura B do pedido do usuário (B2, "dobrar a linha"): converte um
    * Drawing `kind:'line'` selecionado em `kind:'curve'`, preservando
    * id/cor/espessura/cap (`lib/drawingFactory.ts` → `convertLineToCurve`).
@@ -1500,7 +1511,30 @@ interface TypingEdit {
   map: MapData
 }
 
-export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, get) => {
+export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaStore, get, api) => {
+  /**
+   * PAREDES AO REDOR — o ponto central: TODO `set` que troca o mapa passa por
+   * aqui, e as paredes presas aos desenhos são acertadas a partir deles
+   * (`sincronizarParedesDosDesenhos`, comparando o mapa de agora com o novo)
+   * ANTES de o mapa virar estado. Assim nenhum assinante (render, envio ao
+   * jogador, histórico) vê um desenho movido com as paredes no lugar antigo, e
+   * nenhum caminho que muda desenho precisa lembrar das paredes: mover ao vivo,
+   * alças, cantos, borracha, apagar, colar, desfazer e trocar de cena saem
+   * certos pelo mesmo lugar. Também vira o `setState` público
+   * (`api.setState`), que a aventura usa para trocar de cena.
+   *
+   * Sem o `replace` do zustand: a store só mescla, e o estado tem forma fixa.
+   */
+  const set = (parcial: Partial<MapStoreState> | ((state: MapStoreState) => Partial<MapStoreState>)): void => {
+    setDaStore((state) => {
+      const pedido = typeof parcial === 'function' ? parcial(state) : parcial
+      if (pedido.map === undefined || pedido.map === state.map) return pedido
+      const sincronizado = sincronizarParedesDosDesenhos(state.map, pedido.map)
+      return sincronizado === pedido.map ? pedido : { ...pedido, map: sincronizado }
+    })
+  }
+  api.setState = set
+
   /**
    * Toda action que muda conteúdo do mapa (não estado de UI/ferramenta como
    * activeTool/camera/selection/snapTargets) passa por aqui: empurra o `map`
@@ -1523,7 +1557,9 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
   const withHistory = (updater: (map: MapData) => MapData, typingKey?: string, pisoDoQueNasce?: number) => {
     const prevMap = get().map
     // PISOS NA MESMA CENA: o que o passo criou nasce no piso em edição (ou no `pisoDoQueNasce`).
-    const nextMap = nascemNoPiso(prevMap, updater(prevMap), pisoDoQueNasce ?? get().pisoAtivo)
+    // As paredes presas já saem certas AQUI (o `set` refaria igual): o mapa
+    // guardado na edição contínua é o mesmo que vira estado.
+    const nextMap = sincronizarParedesDosDesenhos(prevMap, nascemNoPiso(prevMap, updater(prevMap), pisoDoQueNasce ?? get().pisoAtivo))
     const continuesTyping = typingKey !== undefined && typingEdit !== null && typingEdit.key === typingKey && typingEdit.map === prevMap
     typingEdit = typingKey === undefined ? null : { key: typingKey, map: nextMap }
     if (continuesTyping) {
@@ -2567,6 +2603,17 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
       set((state) => ({
         map: { ...state.map, drawings: state.map.drawings.map((d) => (d.id === id && d.kind !== 'text' ? { ...d, width } : d)) },
       }))
+    },
+    setParedesDoDesenho: (id, patch) => {
+      const map = get().map
+      // Opção que já estava assim (ou desenho que não aceita paredes): nem passo de desfazer.
+      if (aplicarParedesDoDesenho(map, id, patch) === map) return
+      withHistory((m) => aplicarParedesDoDesenho(m, id, patch), chaveDeArrastoDeCor(`paredes-do-desenho:${id}`, patch, ['cor']))
+    },
+    soltarParedesDoDesenho: (id) => {
+      const map = get().map
+      const solto = soltarParedesNoMapa(map, id, () => crypto.randomUUID())
+      if (solto !== map) withHistory(() => solto)
     },
     setDrawingFilled: (id, filled) => withHistory((map) => ({
       ...map,

@@ -39,6 +39,7 @@ import { readPinLeverDoor } from './lever'
 import { readAreaTriggers } from './areaTriggers'
 import { readArrivalText } from './arrivalText'
 import { pontosChaveDoArquivo } from './pontosChave'
+import { paredesDoDesenhoDoArquivo, vinculosDeParedeDoArquivo } from './paredesPresas'
 import { readSceneFloor } from './buildingFloors'
 import { lerAlerta, lerFaccao } from './faccoes'
 import { faceRangeCellsOrNull } from './tokenVulto'
@@ -63,9 +64,11 @@ export function serializeMap(map: MapData): string {
 export function deserializeMap(json: string): MapData {
   // PISOS NA MESMA CENA: `piso`/`levaAoPiso` tortos saem aqui (`lib/pisos.ts`); ausentes continuam ausentes.
   const map = pisosDoArquivo(deserializeMapFields(json))
+  // PAREDES AO REDOR: parede presa a desenho que não existe (ou sem as paredes
+  // ligadas) perde o vínculo e fica como parede comum (`lib/paredesPresas.ts`).
   // Mapa salvo antes de a porta manter o vínculo com a Sala: pedaços de parede
   // soltos sobre a aresta de uma Sala voltam a ser dela (`lib/roomLink.ts`).
-  const walls = linkLooseWallsToRooms(map.regions, map.walls)
+  const walls = linkLooseWallsToRooms(map.regions, vinculosDeParedeDoArquivo(map.walls, map.drawings))
   return walls === map.walls ? map : { ...map, walls }
 }
 
@@ -411,8 +414,10 @@ function deserializeMapFields(json: string): MapData {
     // preenchido de mapa salvo muda de aparência ao abrir.
     // PONTOS-CHAVE (alças do traço e do polígono, `lib/pontosChave.ts`): campo
     // novo e opcional; o que não é lista de inteiros sai na leitura.
+    // PAREDES AO REDOR (`Drawing.paredes`, `lib/paredesPresas.ts`): campo novo
+    // e opcional; torto sai, e texto e caminho o perdem.
     drawings: entityList(parsed.drawings).map((d) =>
-      pontosChaveDoArquivo(d.kind === 'circle' && d.fillAlpha === undefined ? { ...d, fillAlpha: d.filled ? 0.5 : 0 } : d),
+      paredesDoDesenhoDoArquivo(pontosChaveDoArquivo(d.kind === 'circle' && d.fillAlpha === undefined ? { ...d, fillAlpha: d.filled ? 0.5 : 0 } : d)),
     ),
     // MUDA de cru para .map(): `FloorPiece.fillColor` (cor própria do caminho)
     // é campo NOVO. O default dele é a AUSÊNCIA — peça sem cor própria usa

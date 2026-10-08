@@ -39,6 +39,8 @@ export type SegmentoDeParede = Pick<Wall, 'x1' | 'y1' | 'x2' | 'y2'>
 
 /** Quanto a parede pode se afastar da borda desenhada, em px de mundo. */
 const TOLERANCIA_PX = 0.5
+/** Desvio que a parede PRESA aceita a mais, em px de mundo (`segmentosDasParedesPresas`). */
+const TOLERANCIA_DAS_PAREDES_PX = 1.25
 /** Passo da grade do campo: metade da meia grossura, entre estes limites (px). */
 const PASSO_MINIMO_PX = 0.25
 const PASSO_MAXIMO_PX = 2
@@ -107,12 +109,45 @@ export function contornoDoDesenho(desenho: Drawing): DrawingPoint[][] {
 
 /** Os anéis como segmentos de parede: um por lado, cada anel fechando no primeiro ponto. */
 export function segmentosDasParedesDoDesenho(desenho: Drawing): SegmentoDeParede[] {
-  return contornoDoDesenho(desenho).flatMap((anel) =>
+  return segmentosDosAneis(contornoDoDesenho(desenho))
+}
+
+/**
+ * Os segmentos das paredes PRESAS ao desenho (`lib/paredesPresas.ts`): o
+ * mesmo contorno, com um Douglas-Peucker a mais. A parede presa é um fio de
+ * 1 px de tela; seguir a borda a meio pixel dobrava a quantidade de paredes
+ * (o rabisco de 500 pontos dava 768) sem diferença à vista, e cada parede a
+ * mais pesa na visão de todo jogador. O limite é meia grossura sobre dois: os
+ * dois lados de um traço fino nunca se aproximam a ponto de se cruzar, e a
+ * conferência de cruzamento de `simplificarSemCruzar` segura o resto.
+ */
+export function segmentosDasParedesPresas(desenho: Drawing): SegmentoDeParede[] {
+  const meia = meiaDoQueSeVe(desenho)
+  const tolerancia = meia > 0 ? Math.min(TOLERANCIA_DAS_PAREDES_PX, meia / 2) : TOLERANCIA_DAS_PAREDES_PX
+  const aneis = simplificarSemCruzar(contornoDoDesenho(desenho), tolerancia).map(comecarNoCanto)
+  return segmentosDosAneis(aneis.sort((a, b) => a[0].x - b[0].x || a[0].y - b[0].y))
+}
+
+function segmentosDosAneis(aneis: readonly DrawingPoint[][]): SegmentoDeParede[] {
+  return aneis.flatMap((anel) =>
     anel.map((p, i) => {
       const q = anel[(i + 1) % anel.length]
       return { x1: p.x, y1: p.y, x2: q.x, y2: q.y }
     }),
   )
+}
+
+/** Meia grossura do que aparece na tela (o marcador é mais grosso que a espessura escolhida); 0 = só área. */
+function meiaDoQueSeVe(desenho: Drawing): number {
+  switch (desenho.kind) {
+    case 'text':
+    case 'path':
+      return 0
+    case 'freehand':
+      return meiaGrossura(readFreehandTexture(desenho) === 'marker' ? computeMarkerStroke(desenho.width).width : desenho.width)
+    default:
+      return meiaGrossura(desenho.width)
+  }
 }
 
 function aneisSemOrdem(desenho: Drawing): DrawingPoint[][] {

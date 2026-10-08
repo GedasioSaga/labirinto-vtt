@@ -4,6 +4,8 @@ interface ToggleProps {
   onChange: (checked: boolean) => void
   /** Id do texto que explica o controle (vira `aria-describedby` do checkbox). */
   describedBy?: string
+  /** Apagado e sem resposta; o main.css já pinta o `:disabled` do interruptor. */
+  disabled?: boolean
 }
 
 /**
@@ -15,7 +17,7 @@ interface ToggleProps {
  * isso o trilho não é `aria-hidden`: levaria o checkbox junto para fora da
  * árvore de acessibilidade.
  */
-export function Toggle({ label, checked, onChange, describedBy }: ToggleProps) {
+export function Toggle({ label, checked, onChange, describedBy, disabled }: ToggleProps) {
   return (
     <label className="lb-switch">
       <span>{label}</span>
@@ -24,6 +26,7 @@ export function Toggle({ label, checked, onChange, describedBy }: ToggleProps) {
           className="lb-switch__input"
           type="checkbox"
           checked={checked}
+          disabled={disabled}
           aria-describedby={describedBy}
           onChange={(event) => onChange(event.target.checked)}
         />

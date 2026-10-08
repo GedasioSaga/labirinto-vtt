@@ -328,7 +328,9 @@ export function linkLooseWallsToRooms(regions: readonly Region[], walls: Wall[])
   if (rooms.length === 0) return walls
   let changed = false
   const out = walls.map((wall) => {
-    if (wall.regionId !== undefined) return wall
+    // Parede presa a um desenho é dele (`Wall.desenhoId`): mesmo encostada na
+    // aresta de uma Sala, mover a Sala não pode levá-la para longe do desenho.
+    if (wall.regionId !== undefined || wall.desenhoId !== undefined) return wall
     const hits: { regionId: string; edge: number }[] = []
     for (const room of rooms) {
       const n = room.points.length
