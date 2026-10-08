@@ -1,6 +1,5 @@
-import { StrictMode, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import type { FormEvent, ReactNode } from 'react'
-import { createRoot } from 'react-dom/client'
 import { JOIN_CODE_LENGTH, NAME_MAX_LENGTH, type ClueEntry, type NoteEntry } from '../net/protocol'
 import { latestActionNotice } from './moveNotice'
 import { ConfrontoFaixa } from './ConfrontoFaixa'
@@ -75,8 +74,6 @@ import { compraNoticeText } from './compraNotice'
 import { HIDE_NOTICE_TEXT } from './hideNotice'
 import { leverNoticeText } from './leverNotice'
 import { hazardNoticeText } from '../lib/hazards'
-import { tableCodeFromSearch, tableKeyFromSearch } from '../lib/tableScreen'
-import { TableApp } from './TableScreen'
 import { readContract } from '../lib/tokenLoan'
 import { passagemABordo, passagemCongelada, pinTravelChoices, type PinTravelChoice } from '../lib/pinTravelers'
 import { avisoDeCongelado } from './congeladoNotice'
@@ -103,6 +100,8 @@ import { baixarArquivoHtml, montarCaderno, nomeDoArquivoDoCaderno, type EntradaD
 import './player.css'
 
 // Página do jogador: entra com código + nome, espera o mestre e mostra o mapa.
+// Quem monta a página é `boot.tsx`: importar este módulo não desenha nada, e a
+// janela da Visão de jogador (`visaoDeTeste/entrada.tsx`) reusa o `Session`.
 
 // Mesmas custom properties `--lb-*` do editor (ver main.tsx da raiz), antes do primeiro render.
 const themeStyle = document.createElement('style')
@@ -245,7 +244,7 @@ const HOST_NAME_MAX_LENGTH = NAME_MAX_LENGTH + 8
  * ("Ana" -> "Ana (2)") e é o único que sabe disso; sem ler aqui, o jogador
  * acharia a vida toda que os outros o veem como "Ana".
  */
-function welcomeName(raw: unknown): string | null {
+export function welcomeName(raw: unknown): string | null {
   if (typeof raw !== 'string') return null
   let data: unknown
   try {
@@ -590,6 +589,18 @@ interface SessionProps {
   onLeave: (notice?: Notice) => void
   /** Sair de vez: volta ao formulário E esquece o resume, para a página não retomar sozinha. */
   onQuit: () => void
+  /**
+   * Onde a tela guarda ajustes do painel, anotações pessoais e nomes de
+   * lugares. Ausente = o aparelho (`localStorage`). A Visão de jogador passa
+   * um em memória: o que se escreve no teste some ao fechar a janela.
+   */
+  storage?: StorageLike
+  /**
+   * MODO OLHAR da Visão de jogador: a câmera continua livre, mas nenhum toque
+   * no mapa vira ação do jogador; cada tentativa chama isto (o recado). Ausente
+   * = o jogador de sempre.
+   */
+  onAcaoNoOlhar?: () => void
 }
 
 /** Ação de uma tela de texto. `primary` é o botão de latão, no máximo um por tela. */
@@ -642,26 +653,27 @@ const NO_FOCUS: FocusRequest = { tokenId: null, seq: 0, animate: false, snap: fa
 const HANDSHAKE_DEADLINE_MS = 8_000
 
 // Exportada só para o teste montar a sessão sem o formulário de entrada.
-export function Session({ connection, code, typedName, hostName, onLeave, onQuit }: SessionProps) {
+export function Session({ connection, code, typedName, hostName, onLeave, onQuit, storage, onAcaoNoOlhar }: SessionProps) {
   const state: PlayerState = useSyncExternalStore(connection.subscribe, connection.getState)
-  const [settings, setSettings] = useState<PlayerViewSettings>(() => loadPlayerSettings(localStorageOrNull()))
+  const armazenamento = useMemo(() => storage ?? localStorageOrNull(), [storage])
+  const [settings, setSettings] = useState<PlayerViewSettings>(() => loadPlayerSettings(armazenamento))
   const [focus, setFocus] = useState<FocusRequest>(NO_FOCUS)
   /** LUGARES: os nomes que o jogador deu, por lugar. Só nesta tela (nunca vão ao mestre). */
   const [placeNames, setPlaceNames] = useState<Record<string, string>>({})
   const playerId = state.playerId
   useEffect(() => {
     // Por jogador: o id de lugar é um contador do host, e outra sala recomeçaria do "l1".
-    setPlaceNames(playerId === undefined ? {} : loadPlaceNames(localStorageOrNull(), playerId))
-  }, [playerId])
+    setPlaceNames(playerId === undefined ? {} : loadPlaceNames(armazenamento, playerId))
+  }, [playerId, armazenamento])
   const renamePlace = useCallback(
     (placeId: string, name: string) => {
       if (playerId === undefined) return
       // O estado manda na tela; o armazenamento é só persistência. Reler dele
       // perderia o nome quando ele está cheio ou bloqueado.
       setPlaceNames((names) => withPlaceName(names, placeId, name))
-      savePlaceName(localStorageOrNull(), playerId, placeId, name)
+      savePlaceName(armazenamento, playerId, placeId, name)
     },
-    [playerId],
+    [playerId, armazenamento],
   )
   const [signalArmed, setSignalArmed] = useState(false)
   /** "Marcar destino" ligado: o próximo toque no mapa põe a marca "vamos para cá". */
@@ -689,7 +701,7 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
    * ANOTAÇÕES PESSOAIS de todas as cenas, lidas do aparelho ao entrar. Nunca
    * vão pelo socket: nem o mestre nem os colegas sabem delas.
    */
-  const [personalNotes, setPersonalNotes] = useState<readonly PersonalNote[]>(() => loadPersonalNotes(localStorageOrNull()))
+  const [personalNotes, setPersonalNotes] = useState<readonly PersonalNote[]>(() => loadPersonalNotes(armazenamento))
   /** "Anotar" ligado: o próximo toque no mapa marca onde vai a nota. */
   const [noteArmed, setNoteArmed] = useState(false)
   /** Ponto já tocado, esperando o texto no cartão; `null` = cartão fechado. */
@@ -706,10 +718,10 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
   const changePersonalNotes = useCallback((change: (notes: readonly PersonalNote[]) => readonly PersonalNote[]) => {
     setPersonalNotes((current) => {
       const next = change(current)
-      if (next !== current) savePersonalNotes(localStorageOrNull(), next)
+      if (next !== current) savePersonalNotes(armazenamento, next)
       return next
     })
-  }, [])
+  }, [armazenamento])
   const removeNote = useCallback((noteId: string) => changePersonalNotes((notes) => removePersonalNote(notes, noteId)), [changePersonalNotes])
   const cancelNoteDraft = useCallback(() => setNoteDraft(null), [])
   // Outra cena: o ponto e o caminho do menu eram do mapa de antes (e o ponto da nota por escrever também).
@@ -965,7 +977,7 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
 
   function changeSettings(next: PlayerViewSettings) {
     setSettings(next)
-    savePlayerSettings(localStorageOrNull(), next)
+    savePlayerSettings(armazenamento, next)
   }
 
   const openPin = openPinId === null ? null : (map?.pins ?? []).find((p) => p.id === openPinId) ?? null
@@ -1168,6 +1180,7 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
             measureArmed={measureArmed}
             // A chegada é a do mapa AO VIVO: olhar a memória de outro andar não é chegar (sem véu).
             arrivalKey={state.map.id}
+            onAcaoNoOlhar={onAcaoNoOlhar}
           />
         ) : (
           <PlayerView
@@ -1239,6 +1252,7 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
             focusPoint={pointFocus}
             zoomStep={zoomStep}
             onZoomLimitsChange={setZoomLimits}
+            onAcaoNoOlhar={onAcaoNoOlhar}
           />
         )}
         <PlayerPanel
@@ -2052,7 +2066,7 @@ interface ActiveSession {
   typedName: string
 }
 
-function PlayerApp() {
+export function PlayerApp() {
   const [lastJoin, setLastJoin] = useState<LastJoin>(readLastJoin)
   const [session, setSession] = useState<ActiveSession | null>(null)
   /** Nome com que o mestre registrou o jogador; `null` até o `welcome` chegar. */
@@ -2139,9 +2153,3 @@ function PlayerApp() {
     />
   )
 }
-
-const root = document.getElementById('root')
-if (!root) throw new Error('player.html sem #root')
-// `?mesa` no endereço = TELA DA MESA (TV, projetor): espectador sem ficha, ver `TableScreen.tsx`.
-const tableCode = tableCodeFromSearch(location.search)
-createRoot(root).render(<StrictMode>{tableCode === null ? <PlayerApp /> : <TableApp initialCode={tableCode} tableKey={tableKeyFromSearch(location.search)} />}</StrictMode>)

@@ -1,6 +1,7 @@
 import type { InvokeArgs } from '@tauri-apps/api/core'
 import type { UnlistenFn } from '@tauri-apps/api/event'
-import { useToastStore, type ToastAction, type ToastResposta } from '../stores/toastStore'
+import type { ToastAction, ToastResposta } from '../stores/toastStore'
+import { PILHA_DO_EDITOR, type ToastSink } from './avisosDaPonte'
 import type { MapData, PinPassage, RegionPoint, Token } from '../types/map'
 import { NO_OWNER_RADII, type OwnerVisionRadii } from '../lib/imposedOccupancy'
 import { LASER_MAX_POINTS_PER_MESSAGE, LASER_SEND_INTERVAL_MS } from '../lib/laser'
@@ -323,6 +324,12 @@ export interface HostBridgeDeps {
   /** CHAT SALVO: o mestre apagou a linha `id`: ela sai do arquivo do canal. Rejeitar = aviso, o chat segue. */
   deleteChat?: (sceneKey: string | null, id: string) => Promise<void>
   now?: () => number
+  /**
+   * Para onde vão os avisos desta ponte (pedidos, erros, "Ana entrou").
+   * Ausente = a pilha do editor (`useToastStore`). A Visão de jogador passa o
+   * dela, que marca "Teste ·" e cala os avisos que só relatam.
+   */
+  toasts?: ToastSink
 }
 
 export interface StartOptions {
@@ -812,10 +819,6 @@ function errorText(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
 }
 
-function reportError(context: string, error: unknown): void {
-  useToastStore.getState().push('error', `${context}: ${errorText(error)}`)
-}
-
 /** CHAT SALVO: o disco recusou gravar (cheio, sem permissão). Uma vez por sala: o chat segue em memória. */
 export const CHAT_SAVE_FAILED_TEXT = 'O chat não está sendo salvo no disco. A conversa continua, mas não volta quando a sala reabrir.'
 
@@ -824,6 +827,11 @@ export const CHAT_LOAD_FAILED_TEXT = 'Não deu para ler o chat salvo desta mesa.
 
 export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   const now = deps.now ?? Date.now
+  /** Todo aviso desta ponte sai por aqui: a pilha do editor ou a da Visão de jogador. */
+  const toastSink: ToastSink = deps.toasts ?? PILHA_DO_EDITOR
+  const reportError = (context: string, error: unknown): void => {
+    toastSink.push('error', `${context}: ${errorText(error)}`)
+  }
   let session: HostSession | null = null
   let currentRoom: RoomInfo | null = null
   let unlisteners: UnlistenFn[] = []
@@ -879,7 +887,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     if (travelsComCabine.delete(requestId)) scheduleBroadcast()
   }
   /** "Fulano entrou em X": um cartão por cena de destino (`net/avisoDeChegada.ts`). */
-  const announceArrival = createArrivalAnnouncer(deps.onGoToScene)
+  const announceArrival = createArrivalAnnouncer(deps.onGoToScene, CHEGADA_TOAST_MS, toastSink)
   /** Prazo de cada "Espiar" aceito: no fim, o snapshot que fecha o cone. Fechar a sala cancela. */
   const peekTimers = new Set<ReturnType<typeof setTimeout>>()
   /** Aviso de cada pedido de ação sobre ficha ainda na Caixa: `requestId` -> id do toast. */
@@ -1017,7 +1025,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
         return
       case 'closed':
         setTunnel(TUNNEL_IDLE)
-        if (parsed.reason === 'exited' && wasReady) useToastStore.getState().push('error', 'O link público caiu: o cloudflared encerrou')
+        if (parsed.reason === 'exited' && wasReady) toastSink.push('error', 'O link público caiu: o cloudflared encerrou')
         return
     }
   }
@@ -1157,7 +1165,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     const warn = () => {
       if (chatSaveWarned) return
       chatSaveWarned = true
-      useToastStore.getState().push('error', CHAT_SAVE_FAILED_TEXT)
+      toastSink.push('error', CHAT_SAVE_FAILED_TEXT)
     }
     try {
       write()?.catch(warn)
@@ -1243,7 +1251,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     if (session === null) return
     const notices = guardSightingNotices(current, session.listPlayers(current), guardSeen)
     guardSeen = notices.seen
-    for (const line of notices.lines) useToastStore.getState().push('info', line, GUARD_SIGHTING_TOAST_MS, { grupo: 'Vigias' })
+    for (const line of notices.lines) toastSink.push('info', line, GUARD_SIGHTING_TOAST_MS, { grupo: 'Vigias' })
   }
 
   /**
@@ -1272,7 +1280,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
 
   /** Uma oferta por mapa-mundi: some quando a caravana sai da cidade, troca quando para em outra. */
   const syncCaravanToasts = (stops: readonly CaravanStop[]) => {
-    const toasts = useToastStore.getState()
+    const toasts = toastSink
     for (const [sceneId, shown] of [...caravanToasts]) {
       if (stops.some((stop) => stop.sceneId === sceneId && stop.pinId === shown.pinId)) continue
       toasts.dismiss(shown.toastId)
@@ -1292,7 +1300,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     if (session === null) return false
     const arrivals = session.disembarkCaravan(sceneId, world())
     const shown = caravanToasts.get(sceneId)
-    if (shown !== undefined) useToastStore.getState().dismiss(shown.toastId)
+    if (shown !== undefined) toastSink.dismiss(shown.toastId)
     caravanToasts.delete(sceneId)
     const arrived = new Set<string>()
     for (const arrival of arrivals) {
@@ -1340,7 +1348,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     // "Deixar ir" fica oferecendo o que seria recusado, e o mestre lê por quê.
     if (result.frozenTravels !== undefined) {
       pruneTravelToasts()
-      for (const frozen of result.frozenTravels) useToastStore.getState().push('info', frozenTravelLine(frozen))
+      for (const frozen of result.frozenTravels) toastSink.push('info', frozenTravelLine(frozen))
       notifyPlayersIfChanged()
     }
     announceHazardEntries(result.hazardEntries ?? [])
@@ -1363,9 +1371,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
    */
   const announceTriggerEntries = (entries: readonly AreaTriggerEntryNotice[]) => {
     for (const entry of entries) {
-      useToastStore
-        .getState()
-        .push('info', areaTriggerEntryLine(entry.playerName, entry.kind, entry.areaName, entry.sceneName), GUARD_SIGHTING_TOAST_MS, { grupo: 'Gatilhos' })
+      toastSink.push('info', areaTriggerEntryLine(entry.playerName, entry.kind, entry.areaName, entry.sceneName), GUARD_SIGHTING_TOAST_MS, { grupo: 'Gatilhos' })
     }
   }
 
@@ -1376,7 +1382,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
    */
   const announceHazardEntries = (entries: readonly HazardEntryNotice[]) => {
     for (const entry of entries) {
-      useToastStore.getState().push('info', hazardEntryLine(entry.playerName, entry.kind, entry.sceneName), PLAYER_JOINED_TOAST_MS)
+      toastSink.push('info', hazardEntryLine(entry.playerName, entry.kind, entry.sceneName), PLAYER_JOINED_TOAST_MS)
     }
   }
 
@@ -1437,7 +1443,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       session?.tableScene() === null
         ? 'A tela da mesa conectou. Escolha a cena dela na aba Jogo.'
         : 'A tela da mesa conectou.'
-    useToastStore.getState().push('info', text, PLAYER_JOINED_TOAST_MS)
+    toastSink.push('info', text, PLAYER_JOINED_TOAST_MS)
   }
 
   const clearLoanTimer = () => {
@@ -1485,7 +1491,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       player.status === 'waiting'
         ? `${player.name} entrou e está sem personagem. Abra a aba Jogo para atribuir um.`
         : `${player.name} voltou para a sala.`
-    useToastStore.getState().push('info', text, PLAYER_JOINED_TOAST_MS)
+    toastSink.push('info', text, PLAYER_JOINED_TOAST_MS)
   }
 
   /**
@@ -1496,7 +1502,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   const announceReclaim = (reclaimed: ReclaimedSeat) => {
     const w = world()
     const names = reclaimed.tokenIds.map((tokenId) => [w.open, ...w.background].flatMap((scene) => scene.map.tokens).find((t) => t.id === tokenId)?.name ?? tokenId)
-    useToastStore.getState().push('info', reclaimText(reclaimed.name, names), PLAYER_JOINED_TOAST_MS, {
+    toastSink.push('info', reclaimText(reclaimed.name, names), PLAYER_JOINED_TOAST_MS, {
       grupo: 'Mesa retomada',
       actions: [{ label: 'Desfazer', run: () => undoReclaim(reclaimed.playerId) }],
     })
@@ -1529,7 +1535,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     const dropped = [...pendingDrops]
     pendingDrops.clear()
     if (session === null || dropped.length === 0) return
-    const toastId = useToastStore.getState().push('info', dropText(dropped.map(([, name]) => name)), PLAYER_JOINED_TOAST_MS)
+    const toastId = toastSink.push('info', dropText(dropped.map(([, name]) => name)), PLAYER_JOINED_TOAST_MS)
     for (const [playerId] of dropped) dropToasts.set(playerId, toastId)
   }
 
@@ -1546,9 +1552,9 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     const dropToast = dropToasts.get(playerId)
     if (dropToast !== undefined) {
       dropToasts.delete(playerId)
-      if (![...dropToasts.values()].includes(dropToast)) useToastStore.getState().dismiss(dropToast)
+      if (![...dropToasts.values()].includes(dropToast)) toastSink.dismiss(dropToast)
     }
-    useToastStore.getState().push('info', `${name} voltou`, PLAYER_JOINED_TOAST_MS)
+    toastSink.push('info', `${name} voltou`, PLAYER_JOINED_TOAST_MS)
   }
 
   const resetDrops = () => {
@@ -1567,7 +1573,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       for (const [requestId, toastId] of toasts) {
         if (session !== null && session.isTravelPending(requestId)) continue
         toasts.delete(requestId)
-        useToastStore.getState().dismiss(toastId)
+        toastSink.dismiss(toastId)
         // O pedido morreu: a cabine do embarque (se era) volta a ficar livre.
         releaseCabine(requestId)
       }
@@ -1576,51 +1582,51 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     for (const [letterId, toastId] of letterToasts) {
       if (session !== null && session.isLetterPending(letterId)) continue
       letterToasts.delete(letterId)
-      useToastStore.getState().dismiss(toastId)
+      toastSink.dismiss(toastId)
     }
     // Mesma regra para a porta: "Destrancar e abrir" de quem saiu não abre nada.
     for (const [requestId, toastId] of doorRequestToasts) {
       if (session !== null && session.isDoorRequestPending(requestId)) continue
       doorRequestToasts.delete(requestId)
-      useToastStore.getState().dismiss(toastId)
+      toastSink.dismiss(toastId)
     }
     // E para o esconder-se: "Deixar" de quem saiu não esconde nada.
     for (const [requestId, toastId] of hideToasts) {
       if (session !== null && session.isHidePending(requestId)) continue
       hideToasts.delete(requestId)
-      useToastStore.getState().dismiss(toastId)
+      toastSink.dismiss(toastId)
     }
     // E para o item: "Deixar" de quem saiu não entrega nada.
     for (const [requestId, toastId] of itemToasts) {
       if (session !== null && session.isItemRequestPending(requestId)) continue
       itemToasts.delete(requestId)
-      useToastStore.getState().dismiss(toastId)
+      toastSink.dismiss(toastId)
     }
     // E para a loja: "Vender" de quem saiu não vende nada.
     for (const [requestId, toastId] of purchaseToasts) {
       if (session !== null && session.isPurchasePending(requestId)) continue
       purchaseToasts.delete(requestId)
-      useToastStore.getState().dismiss(toastId)
+      toastSink.dismiss(toastId)
     }
     // E para a troca: a oferta de quem caiu ou saiu morreu na sessão.
     for (const [offerId, toastId] of tradeToasts) {
       if (session !== null && session.isTradePending(offerId)) continue
       tradeToasts.delete(offerId)
-      useToastStore.getState().dismiss(toastId)
+      toastSink.dismiss(toastId)
     }
     // Mesma regra para a ação no ponto: jogador expulso ou sala fechada não
     // deixa um "Nada aqui" que não chega a ninguém.
     for (const [requestId, toastId] of pointActionToasts) {
       if (session !== null && session.isPointActionPending(requestId)) continue
       pointActionToasts.delete(requestId)
-      useToastStore.getState().dismiss(toastId)
+      toastSink.dismiss(toastId)
     }
     // Mesma regra para o pedido de ficha: quem pediu caiu, ganhou ficha pelo
     // painel, ou a ficha foi para outro — o "Aceitar" não daria nada a ninguém.
     for (const [requestId, toastId] of seatClaimToasts) {
       if (session !== null && session.isSeatClaimPending(requestId)) continue
       seatClaimToasts.delete(requestId)
-      useToastStore.getState().dismiss(toastId)
+      toastSink.dismiss(toastId)
     }
   }
 
@@ -1632,7 +1638,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   const answerSeatClaim = (requestId: string, allow: boolean) => {
     const toastId = seatClaimToasts.get(requestId)
     seatClaimToasts.delete(requestId)
-    if (toastId !== undefined) useToastStore.getState().dismiss(toastId)
+    if (toastId !== undefined) toastSink.dismiss(toastId)
     if (session === null) return
     if (!allow) {
       void dispatch(session.denySeatClaim(requestId))
@@ -1651,7 +1657,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
    * sem resposta.
    */
   const askSeatClaim = (claim: SeatClaim) => {
-    const toastId = useToastStore.getState().push('instrucao', `${claim.playerName} quer jogar com ${claim.tokenName}`, null, {
+    const toastId = toastSink.push('instrucao', `${claim.playerName} quer jogar com ${claim.tokenName}`, null, {
       actions: [
         { label: 'Aceitar', run: () => answerSeatClaim(claim.requestId, true) },
         { label: 'Não', run: () => answerSeatClaim(claim.requestId, false) },
@@ -1683,7 +1689,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   const answerItem = (requestId: string, allow: boolean) => {
     const toastId = itemToasts.get(requestId)
     itemToasts.delete(requestId)
-    if (toastId !== undefined) useToastStore.getState().dismiss(toastId)
+    if (toastId !== undefined) toastSink.dismiss(toastId)
     if (session === null) return
     if (!allow) {
       void dispatch(session.denyItemRequest(requestId))
@@ -1700,7 +1706,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
    * "Deixar" (`emLote`). Sozinho já abre a caixa, como o pedido da porta.
    */
   const askItem = (request: ItemRequest) => {
-    const toastId = useToastStore.getState().push('instrucao', itemRequestLine(request), null, {
+    const toastId = toastSink.push('instrucao', itemRequestLine(request), null, {
       actions: [
         { label: 'Deixar', run: () => answerItem(request.requestId, true), emLote: true },
         { label: 'Não', run: () => answerItem(request.requestId, false) },
@@ -1721,7 +1727,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   const answerPurchase = (requestId: string, vender: boolean) => {
     const toastId = purchaseToasts.get(requestId)
     purchaseToasts.delete(requestId)
-    if (toastId !== undefined) useToastStore.getState().dismiss(toastId)
+    if (toastId !== undefined) toastSink.dismiss(toastId)
     if (session === null) return
     if (!vender || deps.applyItems === undefined) {
       void dispatch(session.denyPurchase(requestId))
@@ -1743,7 +1749,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
    * vender é decisão de uma mercadoria por vez, e "Deixar todos" não vende.
    */
   const askPurchase = (request: PurchaseRequest) => {
-    const toastId = useToastStore.getState().push('instrucao', purchaseRequestLine(request), null, {
+    const toastId = toastSink.push('instrucao', purchaseRequestLine(request), null, {
       actions: [
         { label: 'Vender', run: () => answerPurchase(request.requestId, true) },
         { label: 'Não', run: () => answerPurchase(request.requestId, false) },
@@ -1759,7 +1765,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   const dropTradeToast = (offerId: string) => {
     const toastId = tradeToasts.get(offerId)
     tradeToasts.delete(offerId)
-    if (toastId !== undefined) useToastStore.getState().dismiss(toastId)
+    if (toastId !== undefined) toastSink.dismiss(toastId)
   }
 
   /**
@@ -1792,7 +1798,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
    * "Desfazer" (ou o ×) a tira dele. Some sozinha quando a troca acaba.
    */
   const showOpenTrade = (offerId: string, line: string) => {
-    const toastId = useToastStore.getState().push('instrucao', line, null, {
+    const toastId = toastSink.push('instrucao', line, null, {
       actions: [{ label: 'Desfazer', run: () => cancelTrade(offerId) }],
       onDismiss: () => cancelTrade(offerId),
       grupo: 'Pedidos',
@@ -1808,10 +1814,10 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   const announceTrade = (update: TradeUpdate) => {
     dropTradeToast(update.offerId)
     if (update.kind !== 'countered') {
-      useToastStore.getState().push('info', tradeUpdateLine(update))
+      toastSink.push('info', tradeUpdateLine(update))
       return
     }
-    const toastId = useToastStore.getState().push('instrucao', tradeUpdateLine(update), null, {
+    const toastId = toastSink.push('instrucao', tradeUpdateLine(update), null, {
       actions: [
         { label: 'Aceitar', run: () => answerTradeCounter(update.offerId, true) },
         { label: 'Recusar', run: () => answerTradeCounter(update.offerId, false) },
@@ -1831,7 +1837,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   const answerDoor = (requestId: string, allow: boolean) => {
     const toastId = doorRequestToasts.get(requestId)
     doorRequestToasts.delete(requestId)
-    if (toastId !== undefined) useToastStore.getState().dismiss(toastId)
+    if (toastId !== undefined) toastSink.dismiss(toastId)
     if (session === null) return
     if (!allow) {
       void dispatch(session.denyDoorRequest(requestId))
@@ -1849,7 +1855,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
    * "Deixar todos" da caixa responde "Destrancar e abrir" (`emLote`).
    */
   const askDoor = (request: DoorRequest) => {
-    const toastId = useToastStore.getState().push('instrucao', doorRequestLine(request), null, {
+    const toastId = toastSink.push('instrucao', doorRequestLine(request), null, {
       actions: [
         { label: 'Destrancar e abrir', run: () => answerDoor(request.requestId, true), emLote: true },
         { label: 'Não', run: () => answerDoor(request.requestId, false) },
@@ -1872,7 +1878,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   const answerHide = (requestId: string, allow: boolean) => {
     const toastId = hideToasts.get(requestId)
     hideToasts.delete(requestId)
-    if (toastId !== undefined) useToastStore.getState().dismiss(toastId)
+    if (toastId !== undefined) toastSink.dismiss(toastId)
     if (session === null) return
     if (!allow) {
       void dispatch(session.denyHide(requestId))
@@ -1890,7 +1896,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
    * está vendo "Aguardando o mestre…").
    */
   const askHide = (request: HideRequest) => {
-    const toastId = useToastStore.getState().push('instrucao', hideRequestLine(request), null, {
+    const toastId = toastSink.push('instrucao', hideRequestLine(request), null, {
       actions: [
         { label: 'Deixar', run: () => answerHide(request.requestId, true), emLote: true },
         { label: 'Não', run: () => answerHide(request.requestId, false) },
@@ -1907,7 +1913,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     for (const [callId, toastId] of callToasts) {
       if (session !== null && session.isCallOpen(callId)) continue
       callToasts.delete(callId)
-      useToastStore.getState().dismiss(toastId)
+      toastSink.dismiss(toastId)
     }
   }
 
@@ -1916,19 +1922,19 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     for (const [requestId, toastId] of actionToasts) {
       if (session !== null && session.isTokenActionPending(requestId)) continue
       actionToasts.delete(requestId)
-      useToastStore.getState().dismiss(toastId)
+      toastSink.dismiss(toastId)
     }
     for (const [requestId, toastId] of disputeToasts) {
       if (session !== null && session.isBarDisputePending(requestId)) continue
       disputeToasts.delete(requestId)
-      useToastStore.getState().dismiss(toastId)
+      toastSink.dismiss(toastId)
     }
   }
 
   const answerBarDispute = (requestId: string, force: boolean) => {
     const toastId = disputeToasts.get(requestId)
     disputeToasts.delete(requestId)
-    if (toastId !== undefined) useToastStore.getState().dismiss(toastId)
+    if (toastId !== undefined) toastSink.dismiss(toastId)
     if (session === null) return
     const result = session.answerBarDispute(requestId, force, world())
     void dispatch(result)
@@ -1943,7 +1949,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
    */
   const askBarDispute = (dispute: BarDispute) => {
     const where = dispute.sceneName === undefined ? '' : ` em ${dispute.sceneName}`
-    const toastId = useToastStore.getState().push('instrucao', `${dispute.playerName} tenta abrir a porta que ${dispute.barrerName} trancou com o ferrolho${where}`, null, {
+    const toastId = toastSink.push('instrucao', `${dispute.playerName} tenta abrir a porta que ${dispute.barrerName} trancou com o ferrolho${where}`, null, {
       actions: [
         { label: 'Arrombar', run: () => answerBarDispute(dispute.requestId, true) },
         { label: 'Aguenta', run: () => answerBarDispute(dispute.requestId, false) },
@@ -1963,7 +1969,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
           ? 'passou o ferrolho numa porta'
           : 'tirou o ferrolho de uma porta'
         : `${aviso.acao === 'trancou' ? 'barrou' : 'tirou a barra de'} ${aviso.rotulo ?? 'uma passagem'}`
-    useToastStore.getState().push('info', `${aviso.playerName} ${oQue}${where}`)
+    toastSink.push('info', `${aviso.playerName} ${oQue}${where}`)
   }
 
   /** Porta que a sessão mandou abrir ou fechar: o mestre vê pela store, os jogadores pelo snapshot imediato. */
@@ -1980,7 +1986,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   const answerCall = (callId: string, answer: (s: HostSession) => HostResult) => {
     const toastId = callToasts.get(callId)
     callToasts.delete(callId)
-    if (toastId !== undefined) useToastStore.getState().dismiss(toastId)
+    if (toastId !== undefined) toastSink.dismiss(toastId)
     if (session !== null) void dispatch(answer(session))
   }
 
@@ -2008,7 +2014,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
             },
           ]
     const see = () => answerCall(call.callId, (s) => s.seeCall(call.callId))
-    const toastId = useToastStore.getState().push('instrucao', text, null, {
+    const toastId = toastSink.push('instrucao', text, null, {
       actions: [...irLa, { label: 'Visto', run: see }],
       onDismiss: see,
       grupo: 'Chamados',
@@ -2027,7 +2033,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   const answerPointAction = (requestId: string, answer: PointActionAnswer) => {
     const toastId = pointActionToasts.get(requestId)
     pointActionToasts.delete(requestId)
-    if (toastId !== undefined) useToastStore.getState().dismiss(toastId)
+    if (toastId !== undefined) toastSink.dismiss(toastId)
     if (session === null) return
     void dispatch(session.answerPointAction(requestId, answer))
   }
@@ -2043,13 +2049,13 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     const shown = session.showPin(request.playerId, pinId, world())
     answerPointAction(request.requestId, 'seen')
     if (shown.outbound.length === 0) {
-      useToastStore.getState().push('error', `Não deu para entregar a pista a ${request.playerName}: saiu desta cena ou perdeu a conexão.`)
+      toastSink.push('error', `Não deu para entregar a pista a ${request.playerName}: saiu desta cena ou perdeu a conexão.`)
       return
     }
     broadcastNow()
     void dispatch(shown)
     notifyPinAudiencesIfChanged()
-    useToastStore.getState().push('info', `Cartão aberto na tela de ${request.playerName}.`)
+    toastSink.push('info', `Cartão aberto na tela de ${request.playerName}.`)
   }
 
   /**
@@ -2067,7 +2073,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       label: `Entregar: ${pista.label}`,
       run: () => deliverClue(request, pista.pinId),
     }))
-    const toastId = useToastStore.getState().push('instrucao', pointActionMasterText(request), null, {
+    const toastId = toastSink.push('instrucao', pointActionMasterText(request), null, {
       actions: [
         ...irLa,
         ...entregar,
@@ -2088,7 +2094,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   const answerAction = (requestId: string, accepted: boolean, reply = '') => {
     const toastId = actionToasts.get(requestId)
     actionToasts.delete(requestId)
-    if (toastId !== undefined) useToastStore.getState().dismiss(toastId)
+    if (toastId !== undefined) toastSink.dismiss(toastId)
     if (session === null) return
     void dispatch(session.answerTokenAction(requestId, accepted, reply))
   }
@@ -2105,7 +2111,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     const where = request.sceneName === undefined ? '' : ` em ${request.sceneName}`
     const said = request.text === undefined ? '' : ` — "${request.text}"`
     const text = `${request.playerName} → ${request.targetName}${where}: ${TOKEN_ACTION_LABELS[request.action]} (${distanceLabel(request.distanceCells)})${said}`
-    const toastId = useToastStore.getState().push('instrucao', text, null, {
+    const toastId = toastSink.push('instrucao', text, null, {
       actions: [
         { label: 'Aceitar', run: (resposta) => answerAction(request.requestId, true, resposta) },
         { label: 'Recusar', run: (resposta) => answerAction(request.requestId, false, resposta) },
@@ -2133,7 +2139,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     const toastId = heldToasts.get(requestId)
     if (toastId === undefined) return
     heldToasts.delete(requestId)
-    useToastStore.getState().dismiss(toastId)
+    toastSink.dismiss(toastId)
   }
 
   /**
@@ -2145,9 +2151,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
    */
   const announceHeld = (request: TravelRequest) => {
     dismissHeld(request.requestId)
-    const toastId = useToastStore
-      .getState()
-      .push('info', `${request.playerName} está no Volto já: o "Deixar ir" para ${request.toSceneName} espera a volta, e a pergunta volta aqui.`, null)
+    const toastId = toastSink.push('info', `${request.playerName} está no Volto já: o "Deixar ir" para ${request.toSceneName} espera a volta, e a pergunta volta aqui.`, null)
     heldToasts.set(request.requestId, toastId)
   }
 
@@ -2155,7 +2159,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   const answerLetter = (letterId: string, deliver: boolean) => {
     const toastId = letterToasts.get(letterId)
     letterToasts.delete(letterId)
-    if (toastId !== undefined) useToastStore.getState().dismiss(toastId)
+    if (toastId !== undefined) toastSink.dismiss(toastId)
     if (session === null) return
     void dispatch(deliver ? session.deliverLetter(letterId) : session.interceptLetter(letterId))
   }
@@ -2170,7 +2174,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
    */
   const askLetter = (letter: LetterRequest) => {
     const text = `${letter.fromName} → ${letter.toName}, ${letterViaPhrase(letter.via)}: "${letter.text}"`
-    const toastId = useToastStore.getState().push('instrucao', text, null, {
+    const toastId = toastSink.push('instrucao', text, null, {
       actions: [
         { label: 'Entregar', run: () => answerLetter(letter.letterId, true), emLote: true },
         { label: 'Interceptar', run: () => answerLetter(letter.letterId, false) },
@@ -2190,7 +2194,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   const answerTravel = (requestId: string, allow: boolean | 'pede', motivo?: string) => {
     const toastId = travelToasts.get(requestId)
     travelToasts.delete(requestId)
-    if (toastId !== undefined) useToastStore.getState().dismiss(toastId)
+    if (toastId !== undefined) toastSink.dismiss(toastId)
     // Qualquer resposta tira o ocupante da cabine: "Não" e recusa a deixam na
     // parada, livre; "Deixar ir" a leva (e o broadcast da chegada já sai).
     releaseCabine(requestId)
@@ -2238,7 +2242,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   const answerTravelTogether = (requestId: string) => {
     const toastId = travelToasts.get(requestId)
     travelToasts.delete(requestId)
-    if (toastId !== undefined) useToastStore.getState().dismiss(toastId)
+    if (toastId !== undefined) toastSink.dismiss(toastId)
     if (session === null) return
     const [lead, ...companions] = session.approveTravelTogether(requestId, world())
     if (lead === undefined || lead.applyTransfer === undefined) {
@@ -2323,14 +2327,12 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
    */
   const announceShortcut = (transfer: AppliedTransfer) => {
     const goTo = deps.onGoToScene
-    useToastStore
-      .getState()
-      .push(
-        'info',
-        `${transfer.playerName} atravessou para outro ponto de ${transfer.toSceneName}`,
-        CHEGADA_TOAST_MS,
-        goTo === undefined ? {} : { actions: [{ label: 'Ir lá', run: () => goTo(transfer.toSceneId, transfer.x, transfer.y, transfer.piso ?? 0) }] },
-      )
+    toastSink.push(
+      'info',
+      `${transfer.playerName} atravessou para outro ponto de ${transfer.toSceneName}`,
+      CHEGADA_TOAST_MS,
+      goTo === undefined ? {} : { actions: [{ label: 'Ir lá', run: () => goTo(transfer.toSceneId, transfer.x, transfer.y, transfer.piso ?? 0) }] },
+    )
   }
 
   /**
@@ -2370,7 +2372,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     else announceArrival(transfer)
     // CHAVE ABRE PORTA no pino trancado: só depois de a ficha mudar de cena —
     // se não moveu, ninguém abriu nada.
-    if (result.pinKeyUsed !== undefined) useToastStore.getState().push('info', pinKeyLine(result.pinKeyUsed))
+    if (result.pinKeyUsed !== undefined) toastSink.push('info', pinKeyLine(result.pinKeyUsed))
   }
 
   /**
@@ -2380,10 +2382,10 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
    */
   const announceDoor = (door: AppliedDoor) => {
     const previous = doorToasts.get(door.playerId)
-    if (previous !== undefined) useToastStore.getState().dismiss(previous)
+    if (previous !== undefined) toastSink.dismiss(previous)
     const where = door.sceneName === undefined ? '' : ` em ${door.sceneName}`
     const text = `${door.playerName} ${door.open ? 'abriu' : 'fechou'} a porta${where}`
-    doorToasts.set(door.playerId, useToastStore.getState().push('info', text))
+    doorToasts.set(door.playerId, toastSink.push('info', text))
   }
 
   /**
@@ -2427,7 +2429,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
         ? `${request.playerName} voltou do Volto já e ainda quer passar${destino}. O "Deixar ir" esperou a volta.`
         : `${request.playerName} quer passar${destino}`
     const text = barrada === undefined ? pergunta : `${pergunta} (barrada do outro lado por ${barrada})`
-    const toastId = useToastStore.getState().push('instrucao', text, null, {
+    const toastId = toastSink.push('instrucao', text, null, {
       actions:
         barrada === undefined
           ? [
@@ -2489,7 +2491,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
    */
   const askLockedTravel = (request: TravelRequest) => {
     const paraPede = deps.setPinPassage === undefined ? [] : [{ label: 'Passar para pede', run: () => answerTravel(request.requestId, 'pede') }]
-    const toastId = useToastStore.getState().push('instrucao', `${request.playerName} quer passar${travelWithText(request)} por ${request.pinLabel} (trancada) → ${request.toSceneName}`, null, {
+    const toastId = toastSink.push('instrucao', `${request.playerName} quer passar${travelWithText(request)} por ${request.pinLabel} (trancada) → ${request.toSceneName}`, null, {
       actions: [
         { label: 'Liberar uma vez', run: () => answerTravel(request.requestId, true), emLote: true },
         ...paraPede,
@@ -2508,7 +2510,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     for (const [playerId, toastId] of returnToasts) {
       if (session !== null && session.isReturnPending(playerId)) continue
       returnToasts.delete(playerId)
-      useToastStore.getState().dismiss(toastId)
+      toastSink.dismiss(toastId)
     }
   }
 
@@ -2538,7 +2540,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   const answerReturn = (candidate: ReturnCandidate, same: boolean) => {
     const toastId = returnToasts.get(candidate.playerId)
     returnToasts.delete(candidate.playerId)
-    if (toastId !== undefined) useToastStore.getState().dismiss(toastId)
+    if (toastId !== undefined) toastSink.dismiss(toastId)
     if (session === null) return
     if (!same) {
       session.denyReturn(candidate.playerId)
@@ -2571,7 +2573,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
    * o mestre dizer. Fica até a resposta: quem entrou está esperando personagem.
    */
   const askReturn = (candidate: ReturnCandidate) => {
-    const toastId = useToastStore.getState().push('instrucao', `${candidate.name} voltou?`, null, {
+    const toastId = toastSink.push('instrucao', `${candidate.name} voltou?`, null, {
       actions: [
         { label: 'É ela', run: () => answerReturn(candidate, true) },
         { label: 'Outra pessoa', run: () => answerReturn(candidate, false) },
@@ -2599,7 +2601,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
    * porta espiada depois de `PEEK_DURATION_MS` (a folga cobre o relógio do timer).
    */
   const announcePeek = (peek: HostPeek) => {
-    useToastStore.getState().push('info', peekNoticeText(peek), PLAYER_JOINED_TOAST_MS)
+    toastSink.push('info', peekNoticeText(peek), PLAYER_JOINED_TOAST_MS)
     broadcastNow()
     const timer = setTimeout(() => {
       peekTimers.delete(timer)
@@ -2617,9 +2619,9 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   const dropTravelToast = (cancelled: TravelCancelled) => {
     const toastId = travelToasts.get(cancelled.requestId)
     travelToasts.delete(cancelled.requestId)
-    if (toastId !== undefined) useToastStore.getState().dismiss(toastId)
+    if (toastId !== undefined) toastSink.dismiss(toastId)
     const text = cancelled.reason === 'far' ? `${cancelled.playerName} se afastou da passagem` : `${cancelled.playerName} desistiu de passar`
-    useToastStore.getState().push('info', text)
+    toastSink.push('info', text)
   }
 
   /**
@@ -2630,7 +2632,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     const text = attempt.ok
       ? `${attempt.playerName} abriu a fechadura de ${attempt.pinLabel} com “${attempt.tentativa}”`
       : `${attempt.playerName} tentou “${attempt.tentativa}” em ${attempt.pinLabel}: não abriu`
-    useToastStore.getState().push('info', text)
+    toastSink.push('info', text)
   }
 
   /**
@@ -2655,11 +2657,11 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
               // A cena é a que tem a marca no clique, não a de quando ela chegou.
               run: () => {
                 if (removeMark(marca.id)) broadcastNow()
-                else useToastStore.getState().push('info', marca.tipo === 'bilhete' ? 'Esse bilhete já não está no mapa' : 'Essa seta de giz já não está no mapa')
+                else toastSink.push('info', marca.tipo === 'bilhete' ? 'Esse bilhete já não está no mapa' : 'Essa seta de giz já não está no mapa')
               },
             },
           ]
-    useToastStore.getState().push('info', text, MARK_NOTICE_MS, { actions })
+    toastSink.push('info', text, MARK_NOTICE_MS, { actions })
   }
 
   /**
@@ -2676,14 +2678,12 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     // Quem chamou lê "chamada" logo, mesmo com um integrador que não avisa a mudança.
     scheduleBroadcast()
     const mandar = deps.applyCabine
-    useToastStore
-      .getState()
-      .push(
-        'instrucao',
-        `${chamada.jogador} chamou a cabine ${chamada.cabine} em ${chamada.cena}`,
-        null,
-        mandar === undefined ? {} : { actions: [{ label: 'Mandar a cabine', run: () => mandar({ cabineId, parada: pedido.parada }) }] },
-      )
+    toastSink.push(
+      'instrucao',
+      `${chamada.jogador} chamou a cabine ${chamada.cabine} em ${chamada.cena}`,
+      null,
+      mandar === undefined ? {} : { actions: [{ label: 'Mandar a cabine', run: () => mandar({ cabineId, parada: pedido.parada }) }] },
+    )
   }
 
   const onMessage = (event: { payload: unknown }) => {
@@ -2767,7 +2767,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       if (result.applyDoor === undefined) broadcastNow()
     }
     // Sem quem destranque, a porta não abriu: o aviso não pode dizer que abriu.
-    if (result.doorKeyUsed !== undefined && deps.unlockAndOpenDoor !== undefined) useToastStore.getState().push('info', doorKeyLine(result.doorKeyUsed))
+    if (result.doorKeyUsed !== undefined && deps.unlockAndOpenDoor !== undefined) toastSink.push('info', doorKeyLine(result.doorKeyUsed))
     if (result.peek !== undefined) announcePeek(result.peek)
     if (result.barDispute !== undefined) askBarDispute(result.barDispute)
     if (result.travelRequest !== undefined) {
@@ -2806,7 +2806,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     // ESPIAR PELA PASSAGEM: o mestre lê quem olhou e para onde, e decide se alguém de lá percebe.
     if (result.pinPeek !== undefined) {
       const { playerName, pinLabel, toSceneName } = result.pinPeek
-      useToastStore.getState().push('info', `${playerName} espiou por ${pinLabel} → ${toSceneName}`)
+      toastSink.push('info', `${playerName} espiou por ${pinLabel} → ${toSceneName}`)
     }
     if (result.applyTokenEdit !== undefined && deps.applyTokenEdit !== undefined) {
       // Mesma regra da porta: o mestre vê pela store, os outros jogadores pelo snapshot imediato.
@@ -2828,7 +2828,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     if (result.secretCheckAnswer !== undefined) {
       // Só na tela do mestre: o painel e o aviso. Não há `net_send` com o resultado.
       const answer = result.secretCheckAnswer
-      useToastStore.getState().push('info', secretCheckAnswerText(answer.playerName, answer.label, answer.result), PLAYER_JOINED_TOAST_MS)
+      toastSink.push('info', secretCheckAnswerText(answer.playerName, answer.label, answer.result), PLAYER_JOINED_TOAST_MS)
       notifySecretChecksIfChanged()
     }
     if (result.waitsChanged === true) onWaitsChanged()
@@ -2930,7 +2930,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     try {
       return await deps.loadChat()
     } catch {
-      useToastStore.getState().push('error', CHAT_LOAD_FAILED_TEXT)
+      toastSink.push('error', CHAT_LOAD_FAILED_TEXT)
       return undefined
     }
   }
@@ -2952,7 +2952,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       if (room === null) throw new Error('resposta inválida de net_start_room')
       if (saved !== null && room.code !== saved.code) {
         // Sem prazo: o mestre precisa do texto na tela enquanto repassa o código novo à mesa.
-        useToastStore.getState().push('instrucao', roomCodeChangedText(saved.code, room.code))
+        toastSink.push('instrucao', roomCodeChangedText(saved.code, room.code))
       }
       const restoreChat = deps.loadChat === undefined ? undefined : await chatLoading
       session = createHostSession({
@@ -3435,7 +3435,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       if (stored.length === 0) return false
       storedTokens.set(playerId, stored)
       const names = stored.map(({ token }) => token.name).join(', ')
-      useToastStore.getState().push('info', `Ficha guardada: ${names}. Volta ao mapa quando ${player.name} voltar.`)
+      toastSink.push('info', `Ficha guardada: ${names}. Volta ao mapa quando ${player.name} voltar.`)
       broadcastNow()
       notifyPlayersIfChanged()
       return true
@@ -3445,7 +3445,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       if (session === null) return false
       const result = session.lendTokens(ownerId, borrowerId, world())
       if (result.lent.length === 0) {
-        useToastStore.getState().push('error', 'Não deu para emprestar: só a ficha de quem está fora, para quem está conectado e na mesma cena dela.')
+        toastSink.push('error', 'Não deu para emprestar: só a ficha de quem está fora, para quem está conectado e na mesma cena dela.')
         return false
       }
       void dispatch(result)
@@ -3475,7 +3475,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       // Guardar nunca apaga ficha: quem é dispensado deixa a ficha no mapa, sem dono.
       const restored = restoreStoredOf(playerId, null)
       session.dismissPlayer(playerId)
-      if (restored.length > 0) useToastStore.getState().push('info', `De volta ao mapa, sem dono: ${restored.join(', ')}.`)
+      if (restored.length > 0) toastSink.push('info', `De volta ao mapa, sem dono: ${restored.join(', ')}.`)
       // A sessão esqueceu tudo dele, pedidos incluídos (a ação no ponto sobrevive à
       // queda): a linha que sobrasse na Caixa seria um "Nada aqui" que não chega a ninguém.
       pruneTravelToasts()
@@ -3501,7 +3501,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       const tokensById = new Map([current.open, ...current.background].flatMap((scene) => scene.map.tokens).map((token) => [token.id, token.name]))
       const names = [...result.handedTokens.flatMap((tokenId) => tokensById.get(tokenId) ?? []), ...restored]
       const text = names.length > 0 ? `Fichas e mapa de ${player.name} passaram a ${heir.name}: ${names.join(', ')}.` : `O mapa de ${player.name} passou a ${heir.name}.`
-      useToastStore.getState().push('info', text)
+      toastSink.push('info', text)
       // Como no Dispensar: o que sobrasse dele na Caixa não chegaria a ninguém.
       pruneTravelToasts()
       pruneCallToasts()
@@ -3562,7 +3562,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       if (currentRoom === null) {
         // Pede uma ação (abrir a sala) antes do gesto poder acontecer: aviso que
         // ensina, fica até o mestre dispensar (fronteira em `lib/erroQueEnsina.ts`).
-        useToastStore.getState().push('instrucao', 'Abra a sala antes de torná-la pública')
+        toastSink.push('instrucao', 'Abra a sala antes de torná-la pública')
         return Promise.resolve()
       }
       if (tunnelState.kind === 'ready') return Promise.resolve()

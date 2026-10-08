@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useId, useRef, useState, type FormEvent, type KeyboardEvent } from 'react'
+import { Fragment, useEffect, useId, useRef, useState, type FormEvent, type KeyboardEvent, type MouseEvent } from 'react'
 import {
   MAX_SCENE_MEMORIES_PER_PLAYER,
   ownTokenIdsOf,
@@ -30,6 +30,9 @@ import { TravelLogSection, type TravelLogSectionProps } from './TravelLogSection
 import { ConfrontoControls, type ConfrontoControlsProps } from './ConfrontoControls'
 import { ControleDeSom, TITULO_DO_SOM } from './ControleDeSom'
 import { FEATURES, type FeatureFlags } from '../lib/features'
+import type { FichaParaTeste, VisaoDeJogadorNoPainel } from '../net/visaoDeTeste/tipos'
+import { EscolherFichaDeTeste, RetratoDaFicha, type AberturaDaEscolha } from './EscolherFichaDeTeste'
+import { CloseIcon, EyeIcon } from './icons'
 
 export interface RoomPanelToken {
   id: string
@@ -152,6 +155,11 @@ export interface RoomPanelProps {
   onPausarCena?(sceneId: string, pause: boolean): void
   /** Responde o pedido de passagem pela ficha do jogador no Grupo. */
   onAnswerTravel?(requestId: string, allow: boolean): void
+  /**
+   * VISÃO DE JOGADOR: o botão que abre a janela de teste com a tela de uma
+   * ficha (com a sala fechada ou aberta). Ausente = sem o botão.
+   */
+  visaoDeJogador?: VisaoDeJogadorNoPainel
 }
 
 export interface NoiseControlProps {
@@ -633,6 +641,123 @@ function OpenRoom({ savedTableNames, onStart }: Pick<RoomPanelProps, 'savedTable
       >
         Voltar
       </button>
+    </div>
+  )
+}
+
+/** A linha embaixo do botão, só com a sala fechada: responde a dúvida que trava o primeiro clique (os jogadores veem isso?). */
+export const VISAO_DE_JOGADOR_AJUDA = 'Só você vê. Nada fica no jogo.'
+
+/**
+ * O retrato da ficha olhada, no botão "Janela aberta". O painel só sabe o
+ * nome dela: a cor vem da lista quando o nome é de uma ficha só; com duas de
+ * mesmo nome, o disco fica neutro em vez de chutar a cor de uma delas.
+ */
+function retratoDaFichaAberta(nome: string, fichas: readonly FichaParaTeste[]): Pick<FichaParaTeste, 'nome' | 'retrato' | 'cor'> {
+  const iguais = fichas.filter((ficha) => ficha.nome === nome)
+  return iguais.length === 1 ? iguais[0] : { nome, retrato: null, cor: '' }
+}
+
+interface VisaoDeJogadorBotaoProps {
+  visao: VisaoDeJogadorNoPainel
+  /** Com a sala fechada, a linha de ajuda embaixo. */
+  comAjuda: boolean
+}
+
+/**
+ * VISÃO DE JOGADOR no painel da sala: o botão secundário (a pedra do
+ * `.lb-btn`, ao lado do latão de "Abrir sala") que abre a lista de fichas
+ * colada a ele; escolher abre a janela de teste. Com a janela aberta, o botão
+ * fica em latão-suave com a ficha à direita e clicar traz a janela para a
+ * frente — uma janela de cada vez: trocar de ficha é na própria janela. O ×
+ * ao lado fecha a janela.
+ */
+function VisaoDeJogadorBotao({ visao, comAjuda }: VisaoDeJogadorBotaoProps) {
+  const [escolha, setEscolha] = useState<{ ancora: HTMLElement; abertura: AberturaDaEscolha } | null>(null)
+  const botaoRef = useRef<HTMLButtonElement>(null)
+  const ajudaId = useId()
+  const escolhaId = useId()
+  const aberta = visao.aberta
+  const nomeAberto = visao.fichaAberta
+  // A janela abriu por outro caminho com a lista aberta: a lista não vale mais, e
+  // não pode voltar sozinha quando a janela fechar (estado derivado, no próprio render).
+  if (aberta && escolha !== null) setEscolha(null)
+  const listaAberta = escolha !== null && !aberta
+
+  function clicar(evento: MouseEvent<HTMLButtonElement>): void {
+    if (aberta) {
+      visao.onMostrar()
+      return
+    }
+    if (escolha !== null) {
+      setEscolha(null)
+      return
+    }
+    // `detail` 0 é Enter ou Espaço: pelo teclado a lista aparece parada.
+    setEscolha({ ancora: evento.currentTarget, abertura: evento.detail === 0 ? 'teclado' : 'ponteiro' })
+  }
+
+  const classes = ['lb-btn', 'lb-btn--block', 'lb-room__visao-botao']
+  if (aberta) classes.push('lb-room__visao-botao--aberta')
+
+  return (
+    <div className="lb-room__visao">
+      {/* Com a janela aberta, o botão e o × dividem a mesma pílula: o nome da ficha não perde lugar para um botão ao lado. */}
+      <div className={aberta ? 'lb-room__visao-linha lb-room__visao-linha--aberta' : 'lb-room__visao-linha'}>
+        <button
+          ref={botaoRef}
+          type="button"
+          className={classes.join(' ')}
+          aria-haspopup={aberta ? undefined : 'dialog'}
+          aria-expanded={aberta ? undefined : listaAberta}
+          aria-controls={listaAberta ? escolhaId : undefined}
+          aria-describedby={comAjuda ? ajudaId : undefined}
+          aria-label={aberta ? `Visão de jogador: mostrar a janela de ${nomeAberto ?? 'teste'}` : undefined}
+          title={aberta ? 'Traz a janela de teste para a frente' : undefined}
+          onClick={clicar}
+        >
+          <EyeIcon size={16} />
+          <span className="lb-room__visao-rotulo">Visão de jogador</span>
+          {aberta && nomeAberto !== null && (
+            <span className="lb-room__visao-ficha">
+              <RetratoDaFicha ficha={retratoDaFichaAberta(nomeAberto, visao.fichas)} tamanho={18} />
+              <span className="lb-room__visao-nome">{nomeAberto}</span>
+            </span>
+          )}
+        </button>
+        {aberta && (
+          <button
+            type="button"
+            className="lb-room__visao-fechar"
+            aria-label="Fechar a janela de teste"
+            title="Fechar a janela de teste"
+            onClick={() => {
+              visao.onFechar()
+              // O × some com a janela: o foco fica no botão, que volta a abrir a lista.
+              botaoRef.current?.focus()
+            }}
+          >
+            <CloseIcon size={14} />
+          </button>
+        )}
+      </div>
+      {comAjuda && (
+        <p id={ajudaId} className="lb-room__visao-ajuda">
+          {VISAO_DE_JOGADOR_AJUDA}
+        </p>
+      )}
+      {listaAberta && (
+        <EscolherFichaDeTeste
+          id={escolhaId}
+          fichas={visao.fichas}
+          fichaSelecionadaId={visao.fichaSelecionadaId}
+          ancora={escolha.ancora}
+          abertura={escolha.abertura}
+          acaoDoEnter="abrir"
+          onEscolher={(tokenId) => visao.onAbrir(tokenId)}
+          onFechar={() => setEscolha(null)}
+        />
+      )}
     </div>
   )
 }
@@ -1378,6 +1503,7 @@ export function RoomPanel({
   pausedScenes,
   onPausarCena,
   onAnswerTravel,
+  visaoDeJogador,
 }: RoomPanelProps) {
   const inviteId = useId()
   // Escondidos da aba Jogo por pedido do usuário (`lib/features.ts`): o resto do app segue igual.
@@ -1388,6 +1514,8 @@ export function RoomPanel({
       <section className="lb-panel lb-section lb-room lb-scroll">
         <h2 className="lb-eyebrow">Sala</h2>
         <OpenRoom savedTableNames={savedTableNames} onStart={onStart} />
+        {/* Logo abaixo de "Abrir sala", em peso secundário: o par lê como ação principal e ação ao lado. */}
+        {visaoDeJogador !== undefined && <VisaoDeJogadorBotao visao={visaoDeJogador} comAjuda />}
         <FirewallHint />
         {/* Combate sem jogador na rede também tem ordem: a seção não espera a sala. */}
         {iniciativaVisivel !== undefined && <InitiativeSection {...iniciativaVisivel} />}
@@ -1415,6 +1543,9 @@ export function RoomPanel({
           </button>
         )}
       </div>
+
+      {/* Logo abaixo do código, sem a linha de ajuda: o cabeçalho não tem lugar para mais um botão. */}
+      {visaoDeJogador !== undefined && <VisaoDeJogadorBotao visao={visaoDeJogador} comAjuda={false} />}
 
       {/* SOM DA MESA: volume e mudo dos sons de clima neste computador. Linha própria e curta:
           o cabeçalho já ocupa a coluna inteira, e um botão a mais quebrava o código em duas linhas. */}

@@ -66,7 +66,7 @@ afterEach(() => {
 describe('página do jogador: alto-falante do som da mesa', () => {
   it('aparece com o mapa, na pilha do canto ao lado do zoom, e não antes do jogo', async () => {
     await act(async () => {
-      await import('./main')
+      await import('./boot')
     })
     socket().open()
     expect(altoFalante()).toBeNull()

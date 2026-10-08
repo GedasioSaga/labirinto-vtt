@@ -98,7 +98,7 @@ beforeAll(async () => {
   localStorage.setItem('labirinto.ultima-entrada', JSON.stringify({ code: CODE, name: 'Ana' }))
   sessionStorage.setItem('labirinto.resume', JSON.stringify({ code: CODE, token: 'tok' }))
   await act(async () => {
-    await import('./main')
+    await import('./boot')
   })
   act(() => mestre().abre())
   act(() => {

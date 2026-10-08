@@ -66,7 +66,7 @@ beforeAll(async () => {
   raiz.id = 'root'
   document.body.appendChild(raiz)
   await act(async () => {
-    await import('./main')
+    await import('./boot')
   })
 })
 

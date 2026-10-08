@@ -2110,6 +2110,134 @@ label.lb-switch[data-dica-linha='aberta'] > span:first-child::after,
   color: var(--lb-color-parchment-dim);
 }
 
+/* VISÃO DE JOGADOR (RoomPanel → VisaoDeJogadorBotao): a pedra do .lb-btn, peso
+   secundário ao lado do latão de "Abrir sala". Ícone à esquerda e rótulo
+   alinhado à esquerda, como uma linha de ação. A lista que ele abre mora em
+   EscolherFichaDeTeste.css (vai também para a janela de teste). */
+.lb-room__visao {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-1);
+  flex: none;
+}
+
+.lb-room__visao-linha {
+  position: relative;
+  display: flex;
+  min-width: 0;
+}
+
+.lb-room__visao-botao {
+  flex: 1 1 auto;
+  min-width: 0;
+  justify-content: flex-start;
+  padding: 0 var(--lb-space-3) 0 10px;
+}
+
+.lb-room__visao-botao > svg {
+  flex: none;
+  color: var(--lb-color-parchment-dim);
+}
+
+/* O rótulo não cede: com a janela aberta, quem corta é o nome da ficha. */
+.lb-room__visao-rotulo {
+  flex: none;
+}
+
+/* Lista aberta: aceso como no pairar, para se ver de onde ela saiu. */
+.lb-room__visao-botao[aria-expanded='true'] {
+  background: var(--lb-color-stone-hover);
+  border-color: var(--lb-color-line-strong);
+}
+
+/* Janela aberta: o latão-suave da aba e do segmented marcados — dá para ver de
+   relance que existe um teste aberto. No pairar e no aperto o latão fica (só a
+   borda acende), em vez de virar a pedra do botão comum. */
+.lb-room__visao-botao--aberta,
+.lb-room__visao-botao--aberta:hover:not(:disabled),
+.lb-room__visao-botao--aberta:active:not(:disabled) {
+  background: var(--lb-color-brass-soft);
+  border-color: rgba(224, 164, 74, 0.28);
+  color: var(--lb-color-brass);
+}
+
+.lb-room__visao-botao--aberta:hover:not(:disabled) {
+  border-color: var(--lb-color-brass);
+}
+
+.lb-room__visao-botao--aberta > svg {
+  color: var(--lb-color-brass);
+}
+
+.lb-room__visao-ficha {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  margin-left: auto;
+  color: var(--lb-color-parchment-dim);
+  font-size: var(--lb-font-size-sm);
+  font-weight: var(--lb-font-weight-regular);
+}
+
+.lb-room__visao-nome {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Janela aberta: o × mora dentro da pílula, na ponta direita; o botão guarda o
+   lugar dele (24 px e o respiro) para o nome da ficha cortar antes de passar por baixo. */
+.lb-room__visao-linha--aberta > .lb-room__visao-botao {
+  padding-right: 30px;
+}
+
+.lb-room__visao-fechar {
+  position: absolute;
+  top: 50%;
+  right: 4px;
+  display: inline-grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: var(--lb-radius-sm);
+  background: transparent;
+  color: var(--lb-color-brass);
+  cursor: pointer;
+  transform: translateY(-50%);
+  transition:
+    background var(--lb-motion-fast) var(--lb-motion-ease),
+    color var(--lb-motion-fast) var(--lb-motion-ease),
+    transform var(--lb-motion-fast) var(--lb-motion-ease);
+}
+
+.lb-room__visao-fechar:hover {
+  background: var(--lb-color-brass-soft);
+  color: var(--lb-color-brass-bright);
+}
+
+.lb-room__visao-fechar:active {
+  transform: translateY(-50%) scale(0.97);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lb-room__visao-fechar:active {
+    transform: translateY(-50%);
+  }
+}
+
+.lb-room__visao-ajuda {
+  margin: 0;
+  padding-left: 2px;
+  color: var(--lb-color-parchment-faint);
+  font-size: var(--lb-font-size-sm);
+  line-height: var(--lb-font-leading-normal);
+}
+
 /* Confirmação de tirar a ficha de outro jogador: dentro do card, com a borda
    da cor de perigo para não passar por dica. Desce da linha que a pediu
    (lb-mais-abre, abaixo): a pergunta não surge do nada. */

@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react'
+import { useEffect, useId, useMemo, useRef, useState, useSyncExternalStore, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { PixiCanvas } from './pixi/PixiCanvas'
 import { ZoomHud } from './components/ZoomHud'
@@ -21,6 +21,11 @@ import { getCurrentWindow } from '@tauri-apps/api/window'
 import { convertFileSrc, invoke, isTauri } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { createHostBridge, type HostBridge, type RoomInfo, type TunnelState } from './net/hostBridge'
+import { PILHA_DO_EDITOR } from './net/avisosDaPonte'
+import { abrirCanalDoNavegador } from './net/visaoDeTeste/canal'
+import { criarJanelaDoSistema } from './net/visaoDeTeste/janela'
+import type { FichaParaTeste } from './net/visaoDeTeste/tipos'
+import { criarControladorDaVisao, donosDasFichas, fichasParaTeste, mesmasFichas } from './net/visaoDeTeste/visaoDeTeste'
 import { hostPlayerChanges } from './net/playerChanges'
 import { setPinPassageFromRequest } from './net/pinPassageFromRequest'
 import { useSignalStore } from './stores/signalStore'
@@ -803,12 +808,39 @@ function App() {
     }
     return hostBridgeRef.current
   }
+  /**
+   * VISÃO DE JOGADOR: o host de teste da janela separada. Ele lê o mesmo mundo
+   * vivo que a ponte da sala, por isso recebe os mesmos avisos de mudança
+   * (`notificarPontes`), mas não escreve em store nenhuma: o que acontece no
+   * teste fica no teste (`net/visaoDeTeste/visaoDeTeste.ts`).
+   */
+  const [visaoDeTeste] = useState(() =>
+    criarControladorDaVisao({
+      getMap: () => useMapStore.getState().map,
+      getWorld: () => hostWorldOf(useAdventureStore.getState(), useMapStore.getState().map),
+      getTurn: () => useInitiativeStore.getState().turn,
+      getClock: () => useClockStore.getState().hour,
+      avisos: PILHA_DO_EDITOR,
+      abrirCanal: () => abrirCanalDoNavegador(),
+      criarJanela: criarJanelaDoSistema,
+    }),
+  )
+  const estadoDaVisao = useSyncExternalStore(visaoDeTeste.assinar, visaoDeTeste.estado)
+  // Fechar o editor fecha o teste junto (ponte, avisos e a janela).
+  useEffect(() => () => visaoDeTeste.fechar(), [visaoDeTeste])
+  /** O mundo mudou: avisa as pontes que servem telas de jogador, a da sala e a da Visão de jogador. */
+  const notificarPontes = (avisar: (ponte: HostBridge) => void) => {
+    const sala = hostBridgeRef.current
+    if (sala !== null) avisar(sala)
+    const teste = visaoDeTeste.ponte()
+    if (teste !== null) avisar(teste)
+  }
   // Desfazer/refazer avisa como tal: a caravana do mapa-mundi não o lê como arrasto.
   useEffect(
     () =>
       useMapStore.subscribe((state, previous) => {
         const cause = mapChangeCause(state, previous)
-        if (cause !== null) hostBridgeRef.current?.notifyMapChanged(cause)
+        if (cause !== null) notificarPontes((ponte) => ponte.notifyMapChanged(cause))
       }),
     [],
   )
@@ -816,7 +848,7 @@ function App() {
   useEffect(
     () =>
       useInitiativeStore.subscribe((state, previous) => {
-        if (state.turn !== previous.turn) hostBridgeRef.current?.notifyTurnChanged()
+        if (state.turn !== previous.turn) notificarPontes((ponte) => ponte.notifyTurnChanged())
       }),
     [],
   )
@@ -827,7 +859,7 @@ function App() {
   useEffect(
     () =>
       useAdventureStore.subscribe((state, previous) => {
-        if (state.adventure !== previous.adventure) hostBridgeRef.current?.notifyMapChanged()
+        if (state.adventure !== previous.adventure) notificarPontes((ponte) => ponte.notifyMapChanged())
       }),
     [],
   )
@@ -835,14 +867,14 @@ function App() {
   useEffect(
     () =>
       useClockStore.subscribe((state, previous) => {
-        if (state.hour !== previous.hour) hostBridgeRef.current?.notifyClockChanged()
+        if (state.hour !== previous.hour) notificarPontes((ponte) => ponte.notifyClockChanged())
       }),
     [],
   )
   // Cena de fundo que chega do disco depois de abrir a aventura: quem está nela sai da espera.
-  useEffect(() => subscribeToServedScenes(() => hostBridgeRef.current?.notifyMapChanged()), [])
+  useEffect(() => subscribeToServedScenes(() => notificarPontes((ponte) => ponte.notifyMapChanged())), [])
   // O mapa aberto e as cenas de fundo: o snapshot dos jogadores lê os dois.
-  useEffect(() => subscribeToPlayerWorldChanges(() => hostBridgeRef.current?.notifyMapChanged()), [])
+  useEffect(() => subscribeToPlayerWorldChanges(() => notificarPontes((ponte) => ponte.notifyMapChanged())), [])
   // SONS DO MESTRE: o dado rolado na sala toca, e o primeiro gesto no app
   // destrava o áudio (o bipe de chamado toca nesse contexto também).
   useEffect(() => instalarSonsDoMestre(), [])
@@ -1012,7 +1044,7 @@ function App() {
           onItem: (action) => {
             const change = partyItemChange(world, action, crypto.randomUUID())
             if (change === null || !applyItemsInScene(change)) return false
-            hostBridgeRef.current?.notifyMapChanged()
+            notificarPontes((ponte) => ponte.notifyMapChanged())
             return true
           },
           followingId,
@@ -1042,7 +1074,7 @@ function App() {
             onChange: (congelar) => {
               if (congelar) useAdventureStore.getState().congelarFichas(new Set(fichasDeJogador), true)
               else useAdventureStore.getState().descongelarTodas()
-              hostBridgeRef.current?.notifyMapChanged()
+              notificarPontes((ponte) => ponte.notifyMapChanged())
             },
           },
         }}
@@ -1105,7 +1137,7 @@ function App() {
         // Congelar a cena: mudança de MESA, como o "Congelar todos" (fora do Ctrl+Z).
         onCongelarCena={(tokenIds, congelar) => {
           useAdventureStore.getState().congelarFichas(new Set(tokenIds), congelar)
-          hostBridgeRef.current?.notifyMapChanged()
+          notificarPontes((ponte) => ponte.notifyMapChanged())
         }}
         pausedScenes={pausedScenes}
         onPausarCena={room === null ? undefined : handleToggleScenePause}
@@ -1157,6 +1189,16 @@ function App() {
             useNoiseStore.getState().setArmed(!useNoiseStore.getState().armed)
           },
           onRangeChange: (cells) => useNoiseStore.getState().setRangeCells(cells),
+        }}
+        // VISÃO DE JOGADOR: com ou sem sala, o teste é à parte da mesa.
+        visaoDeJogador={{
+          aberta: estadoDaVisao.aberta,
+          fichaAberta: estadoDaVisao.ficha?.nome ?? null,
+          fichas: fichasDaVisao,
+          fichaSelecionadaId,
+          onAbrir: (tokenId) => visaoDeTeste.abrir(tokenId),
+          onMostrar: () => visaoDeTeste.mostrar(),
+          onFechar: () => visaoDeTeste.fechar(),
         }}
       />
     )
@@ -1503,6 +1545,19 @@ function App() {
   const selectedTokenCarry = useMemo(() => carryRefsOf(map, selectedToken), [map.tokens, selectedToken])
   // MACRO POR PONTO: o anel do ponto aberto é do painel da ficha; outra ficha (ou nenhuma) selecionada, ele sai do mapa.
   const fichaSelecionadaId = selectedToken?.id ?? null
+  // VISÃO DE JOGADOR: a lista do painel são as fichas da cena aberta, cada uma com o dono
+  // (os jogadores da sala aberta; com ela fechada, a mesa guardada desta aventura).
+  const adventureId = adventure?.id ?? null
+  const donosDaVisao = useMemo(
+    () => donosDasFichas(room !== null ? roomPlayers : (loadSavedTable(tableStorage(), currentTableId())?.seats ?? [])),
+    [room, roomPlayers, adventureId, map.id],
+  )
+  const fichasDaVisaoNovas = useMemo(() => fichasParaTeste(map.tokens, donosDaVisao), [map.tokens, donosDaVisao])
+  // Arrastar ficha refaz `map.tokens` a cada passo sem mudar a lista: fica a de antes, e a janela de teste não recebe nada.
+  const fichasDaVisaoRef = useRef<FichaParaTeste[]>(fichasDaVisaoNovas)
+  if (!mesmasFichas(fichasDaVisaoRef.current, fichasDaVisaoNovas)) fichasDaVisaoRef.current = fichasDaVisaoNovas
+  const fichasDaVisao = fichasDaVisaoRef.current
+  useEffect(() => visaoDeTeste.definirFichas(fichasDaVisao, fichaSelecionadaId), [visaoDeTeste, fichasDaVisao, fichaSelecionadaId])
   useEffect(() => {
     const aberto = usePatrulhaAndandoStore.getState().pontoAberto
     if (aberto !== null && aberto.tokenId !== fichaSelecionadaId) usePatrulhaAndandoStore.getState().abrirPonto(null)
@@ -3686,7 +3741,7 @@ function App() {
             // A flag grava com a aventura; o snapshot sai pelo throttle do mapa para quem já está lá.
             onTogglePlanKnown={(sceneId, known) => {
               useAdventureStore.getState().setScenePlanKnown(sceneId, known)
-              hostBridgeRef.current?.notifyMapChanged()
+              notificarPontes((ponte) => ponte.notifyMapChanged())
             }}
             players={roomPlayers.map((p) => ({ playerId: p.playerId, name: p.name }))}
             // "Revelar planta para…" só com a sala aberta: sem sala não há para quem.

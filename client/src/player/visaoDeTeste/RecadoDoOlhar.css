@@ -1,0 +1,121 @@
+/*
+ * VISÃO DE JOGADOR — o recado do modo Olhar (`RecadoDoOlhar.tsx`). Página do
+ * jogador, sem main.css: só `var(--lb-*)` de theme.ts com o valor de reserva
+ * de player.css, e classes `vj-recado-do-olhar*` que não existem em outra folha.
+ *
+ * Embaixo, no meio, onde a tela do jogador dá os avisos dela (`.pp-notice`);
+ * na moldura do editor (pedra opaca, filete do painel), porque é o mestre
+ * falando com o mestre, e não o jogo falando com o jogador.
+ */
+
+.vj-recado-do-olhar,
+.vj-recado-do-olhar *,
+.vj-recado-do-olhar *::before,
+.vj-recado-do-olhar *::after {
+  box-sizing: border-box;
+}
+
+.vj-recado-do-olhar {
+  position: fixed;
+  left: 50%;
+  bottom: calc(24px + env(safe-area-inset-bottom, 0px));
+  z-index: 45;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: min(272px, calc(100vw - 24px));
+  padding: 12px;
+  /* `translate` e não `transform`: a entrada anima o `transform` sem desfazer o centro. */
+  translate: -50% 0;
+  background: var(--lb-color-stone-solid, #1a1a1e);
+  border: 1px solid var(--lb-color-line-panel, rgba(255, 255, 255, 0.13));
+  border-radius: var(--lb-radius-lg, 14px);
+  box-shadow:
+    var(--lb-shadow-float, 0 0 0 1px rgba(0, 0, 0, 0.5), 0 1px 2px rgba(0, 0, 0, 0.5), 0 6px 14px rgba(0, 0, 0, 0.44), 0 20px 46px rgba(0, 0, 0, 0.55)),
+    var(--lb-shadow-bevel, inset 0 1px 0 rgba(255, 255, 255, 0.07));
+  color: var(--lb-color-parchment, #eceae4);
+  font-family: var(--lb-font-sans, 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif);
+  text-align: left;
+  -webkit-font-smoothing: antialiased;
+  /* Sobe 6 px de onde vivem os avisos, em 160 ms: o mesmo gesto do `.pp-notice`. */
+  animation: vj-recado-do-olhar-entra 160ms var(--lb-motion-ease, cubic-bezier(0.2, 0.8, 0.2, 1));
+}
+
+@keyframes vj-recado-do-olhar-entra {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+@keyframes vj-recado-do-olhar-esmaece {
+  from {
+    opacity: 0;
+  }
+}
+
+.vj-recado-do-olhar__texto {
+  margin: 0;
+  color: var(--lb-color-parchment, #eceae4);
+  font-size: var(--lb-font-size-sm, 11.5px);
+  line-height: var(--lb-font-leading-normal, 1.45);
+}
+
+.vj-recado-do-olhar__acoes {
+  display: flex;
+  gap: 8px;
+}
+
+/* O botão compacto do app (24 px): secundário, pedra elevada. */
+.vj-recado-do-olhar__botao {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 24px;
+  margin: 0;
+  padding: 0 8px;
+  border: 1px solid var(--lb-color-line, rgba(255, 255, 255, 0.08));
+  border-radius: var(--lb-radius-md, 9px);
+  background: var(--lb-color-stone-raised, #232328);
+  color: var(--lb-color-parchment, #eceae4);
+  font: inherit;
+  font-size: var(--lb-font-size-sm, 11.5px);
+  font-weight: var(--lb-font-weight-medium, 500);
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background-color var(--lb-motion-fast, 110ms) var(--lb-motion-ease, cubic-bezier(0.2, 0.8, 0.2, 1)),
+    border-color var(--lb-motion-fast, 110ms) var(--lb-motion-ease, cubic-bezier(0.2, 0.8, 0.2, 1)),
+    transform var(--lb-motion-fast, 110ms) var(--lb-motion-ease, cubic-bezier(0.2, 0.8, 0.2, 1));
+}
+
+.vj-recado-do-olhar__botao svg {
+  flex: none;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .vj-recado-do-olhar__botao:hover {
+    background: var(--lb-color-stone-hover, #2c2c33);
+    border-color: var(--lb-color-line-strong, rgba(255, 255, 255, 0.16));
+  }
+}
+
+.vj-recado-do-olhar__botao:active {
+  background: var(--lb-color-stone-sunken, #141417);
+  transform: scale(0.97);
+}
+
+.vj-recado-do-olhar__botao:focus-visible {
+  outline: none;
+  box-shadow: var(--lb-shadow-focus, 0 0 0 2px #1a1a1e, 0 0 0 4px #e0a44a);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .vj-recado-do-olhar {
+    animation-name: vj-recado-do-olhar-esmaece;
+  }
+
+  .vj-recado-do-olhar__botao:active {
+    transform: none;
+  }
+}

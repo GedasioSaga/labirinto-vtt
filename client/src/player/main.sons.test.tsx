@@ -92,7 +92,7 @@ afterEach(() => {
 describe('página do jogador: sons presos à conexão da sessão', () => {
   it('uma instalação viva por sessão; sair desinstala; entrar de novo instala na conexão nova', async () => {
     await act(async () => {
-      await import('./main')
+      await import('./boot')
     })
     // StrictMode monta os efeitos duas vezes: mesmo assim, uma instalação viva só.
     expect(registro.ativas.size).toBe(1)

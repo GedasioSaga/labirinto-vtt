@@ -59,7 +59,7 @@ function ultimo(): FakeWebSocket {
 
 async function abrePagina(): Promise<void> {
   await act(async () => {
-    await import('./main')
+    await import('./boot')
   })
 }
 

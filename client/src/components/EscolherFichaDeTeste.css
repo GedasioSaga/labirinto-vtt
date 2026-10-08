@@ -1,0 +1,394 @@
+/*
+ * VISÃO DE JOGADOR — a lista "Escolher a ficha" (`EscolherFichaDeTeste.tsx`)
+ * e o retrato da ficha. Serve às duas páginas: o painel da sala no editor e a
+ * barra da janela de teste, que é a página do jogador. Por isso nada daqui
+ * depende de main.css (lá não carrega): só `var(--lb-*)` de theme.ts, com o
+ * valor de reserva que player.css também usa, e classes `vj-escolha*` e
+ * `vj-retrato*` que não existem em nenhuma outra folha.
+ */
+
+.vj-escolha,
+.vj-escolha *,
+.vj-escolha *::before,
+.vj-escolha *::after,
+.vj-retrato,
+.vj-retrato::after {
+  box-sizing: border-box;
+}
+
+/* ---------------------------------------------------------------- retrato */
+
+/* A foto da ficha ou o disco na cor dela com as iniciais (o nome está sempre ao lado). */
+.vj-retrato {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 28px;
+  height: 28px;
+  overflow: hidden;
+  border-radius: 50%;
+  background: var(--lb-color-stone-hover, #2c2c33);
+  /* O anel claro de fora separa o disco escuro da pedra do painel. */
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.1);
+  color: var(--lb-color-parchment, #eceae4);
+  font-family: var(--lb-font-utility, 'Bahnschrift', 'Segoe UI', system-ui, sans-serif);
+  font-size: var(--lb-font-size-sm, 11.5px);
+  font-weight: var(--lb-font-weight-semibold, 600);
+  font-style: normal;
+  line-height: 1;
+  letter-spacing: 0.02em;
+  user-select: none;
+}
+
+/* O filete escuro de dentro vai por cima da foto: no `box-shadow` do disco ele ficaria embaixo dela. */
+.vj-retrato::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.35);
+  pointer-events: none;
+}
+
+.vj-retrato img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.vj-retrato--24 {
+  width: 24px;
+  height: 24px;
+  font-size: var(--lb-font-size-xs, 10.5px);
+}
+
+.vj-retrato--18 {
+  width: 18px;
+  height: 18px;
+  font-size: 9px;
+}
+
+/* Disco claro (âmbar, cinza): as iniciais na tinta escura do botão de latão. */
+.vj-retrato--escuro {
+  color: var(--lb-color-brass-contrast, #1c1608);
+}
+
+/* ------------------------------------------------------------------ lista */
+
+/* O molde dos menus do app: painel opaco (o mapa não vaza entre as linhas), 4 px de respiro. */
+.vj-escolha {
+  position: fixed;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding: var(--lb-space-1, 4px);
+  background: var(--lb-color-stone-solid, #1a1a1e);
+  border: 1px solid var(--lb-color-line-panel, rgba(255, 255, 255, 0.13));
+  border-radius: var(--lb-radius-lg, 14px);
+  box-shadow:
+    var(--lb-shadow-float, 0 0 0 1px rgba(0, 0, 0, 0.5), 0 1px 2px rgba(0, 0, 0, 0.5), 0 6px 14px rgba(0, 0, 0, 0.44), 0 20px 46px rgba(0, 0, 0, 0.55)),
+    var(--lb-shadow-bevel, inset 0 1px 0 rgba(255, 255, 255, 0.07));
+  color: var(--lb-color-parchment, #eceae4);
+  font-family: var(--lb-font-sans, 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif);
+  font-size: var(--lb-font-size-md, 13px);
+  line-height: var(--lb-font-leading-normal, 1.45);
+  text-align: left;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* O foco mora na busca; a caixa só o recebe na cena sem ficha, para o Esc valer.
+   Ali ela não ganha o anel de latão do editor (`:focus-visible` de main.css, que
+   vem depois desta folha): a lista aberta já é o sinal de onde o teclado está. */
+.vj-escolha:focus,
+.vj-escolha:focus-visible {
+  outline: none;
+  box-shadow:
+    var(--lb-shadow-float, 0 0 0 1px rgba(0, 0, 0, 0.5), 0 1px 2px rgba(0, 0, 0, 0.5), 0 6px 14px rgba(0, 0, 0, 0.44), 0 20px 46px rgba(0, 0, 0, 0.55)),
+    var(--lb-shadow-bevel, inset 0 1px 0 rgba(255, 255, 255, 0.07));
+}
+
+/* Cresce do canto do botão (a origem vem do lugar medido), como o menu da cena. */
+.vj-escolha[data-abertura='ponteiro'] {
+  animation: vj-escolha-entra 120ms var(--lb-motion-ease, cubic-bezier(0.2, 0.8, 0.2, 1));
+}
+
+@keyframes vj-escolha-entra {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+}
+
+@keyframes vj-escolha-esmaece {
+  from {
+    opacity: 0;
+  }
+}
+
+/* Movimento reduzido: sem crescer, só aparece (a opacidade ainda diz de onde veio a mudança). */
+@media (prefers-reduced-motion: reduce) {
+  .vj-escolha[data-abertura='ponteiro'] {
+    animation-name: vj-escolha-esmaece;
+  }
+}
+
+/* ---- busca */
+
+.vj-escolha__busca {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex: none;
+  padding: var(--lb-space-1, 4px) var(--lb-space-1, 4px) var(--lb-space-2, 8px);
+}
+
+.vj-escolha__lupa {
+  position: absolute;
+  left: 15px;
+  display: inline-flex;
+  color: var(--lb-color-parchment-faint, #858480);
+  pointer-events: none;
+}
+
+.vj-escolha__campo {
+  width: 100%;
+  min-height: 38px;
+  margin: 0;
+  /* À esquerda a lupa; à direita o contador ("30 fichas", "12 de 30"). */
+  padding: 0 84px 0 34px;
+  border: 1px solid var(--lb-color-line, rgba(255, 255, 255, 0.08));
+  border-radius: var(--lb-radius-md, 9px);
+  background: var(--lb-color-stone-sunken, #141417);
+  color: var(--lb-color-parchment, #eceae4);
+  font: inherit;
+  font-size: var(--lb-font-size-md, 13px);
+  outline: none;
+  transition: border-color var(--lb-motion-fast, 110ms) var(--lb-motion-ease, cubic-bezier(0.2, 0.8, 0.2, 1));
+}
+
+.vj-escolha__campo::placeholder {
+  color: var(--lb-color-parchment-faint, #858480);
+  opacity: 1;
+}
+
+.vj-escolha__campo:focus-visible {
+  border-color: var(--lb-color-brass, #e0a44a);
+  box-shadow: var(--lb-shadow-focus, 0 0 0 2px #1a1a1e, 0 0 0 4px #e0a44a);
+}
+
+.vj-escolha__contador {
+  position: absolute;
+  right: 16px;
+  color: var(--lb-color-parchment-faint, #858480);
+  font-family: var(--lb-font-utility, 'Bahnschrift', 'Segoe UI', system-ui, sans-serif);
+  font-size: var(--lb-font-size-sm, 11.5px);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+/* ---- linhas */
+
+/* Cabem 9 linhas (44 px cada e o separador); daí para baixo a lista rola por dentro. */
+.vj-escolha__lista {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: 418px;
+  padding: 0 var(--lb-space-1, 4px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--lb-color-line-strong, rgba(255, 255, 255, 0.16)) transparent;
+}
+
+/* Uma linha ativa só, do teclado ou do ponteiro (o ponteiro move a ativa): nunca dois destaques. */
+.vj-escolha__linha {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: none;
+  min-height: 44px;
+  padding: 0 var(--lb-space-2, 8px);
+  border-radius: var(--lb-radius-md, 9px);
+  cursor: pointer;
+  user-select: none;
+}
+
+.vj-escolha__linha[aria-selected='true'] {
+  background: var(--lb-color-stone-hover, #2c2c33);
+}
+
+.vj-escolha__nomes {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1 1 auto;
+  min-width: 0;
+  line-height: var(--lb-font-leading-tight, 1.2);
+}
+
+.vj-escolha__nome,
+.vj-escolha__dono {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.vj-escolha__nome {
+  color: var(--lb-color-parchment, #eceae4);
+  font-size: var(--lb-font-size-md, 13px);
+  font-weight: var(--lb-font-weight-medium, 500);
+}
+
+.vj-escolha__nome--vazio {
+  color: var(--lb-color-parchment-dim, #a2a09a);
+  font-style: italic;
+}
+
+.vj-escolha__dono {
+  color: var(--lb-color-parchment-dim, #a2a09a);
+  font-size: var(--lb-font-size-sm, 11.5px);
+}
+
+/* "sem jogador" em itálico apagado, como no Grupo. O itálico passa um pouco do
+   avanço da última letra: o respiro evita que o corte coma o "r". */
+.vj-escolha__dono--sem {
+  padding-right: 2px;
+  color: var(--lb-color-parchment-faint, #858480);
+  font-style: italic;
+}
+
+/* O trecho que casou com a busca acende em latão claro. */
+.vj-escolha__marca {
+  padding: 0;
+  background: none;
+  color: var(--lb-color-brass-bright, #f3ba66);
+  font-weight: var(--lb-font-weight-semibold, 600);
+}
+
+.vj-escolha__selo {
+  flex: none;
+  padding: 0 6px;
+  border-radius: var(--lb-radius-sm, 6px);
+  background: var(--lb-color-brass-soft, rgba(224, 164, 74, 0.14));
+  color: var(--lb-color-brass, #e0a44a);
+  font-size: var(--lb-font-size-xs, 10.5px);
+  font-weight: var(--lb-font-weight-medium, 500);
+  line-height: 18px;
+  white-space: nowrap;
+}
+
+/* "Na janela" não pede clique (escolhê-la não muda nada): pedra neutra, não latão. */
+.vj-escolha__selo--janela {
+  background: var(--lb-color-stone-raised, #232328);
+  color: var(--lb-color-parchment-dim, #a2a09a);
+}
+
+/* O Enter só aparece na linha ativa, mas o lugar dele existe em todas. */
+.vj-escolha__enter {
+  display: inline-flex;
+  flex: none;
+  color: var(--lb-color-parchment-faint, #858480);
+  visibility: hidden;
+}
+
+.vj-escolha__linha[aria-selected='true'] .vj-escolha__enter {
+  visibility: visible;
+}
+
+.vj-escolha__sep {
+  flex: none;
+  height: 1px;
+  margin: 3px 4px;
+  background: var(--lb-color-line, rgba(255, 255, 255, 0.08));
+}
+
+/* ---- vazios */
+
+.vj-escolha__vazio {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: none;
+  padding: 18px 12px 20px;
+}
+
+.vj-escolha__vazio--cena {
+  padding-top: 16px;
+}
+
+.vj-escolha__vazio-icone {
+  display: inline-flex;
+  margin-bottom: 4px;
+  color: var(--lb-color-parchment-faint, #858480);
+}
+
+.vj-escolha__vazio-titulo,
+.vj-escolha__vazio-texto {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.vj-escolha__vazio-titulo {
+  color: var(--lb-color-parchment, #eceae4);
+  font-size: var(--lb-font-size-md, 13px);
+  font-weight: var(--lb-font-weight-medium, 500);
+}
+
+.vj-escolha__vazio-texto {
+  max-width: 250px;
+  color: var(--lb-color-parchment-dim, #a2a09a);
+  font-size: var(--lb-font-size-sm, 11.5px);
+  line-height: var(--lb-font-leading-normal, 1.45);
+}
+
+/* ---- rodapé: as teclas da lista */
+
+.vj-escolha__pe {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: none;
+  margin-top: var(--lb-space-1, 4px);
+  padding: 9px 10px 7px;
+  overflow: hidden;
+  border-top: 1px solid var(--lb-color-line, rgba(255, 255, 255, 0.08));
+  color: var(--lb-color-parchment-faint, #858480);
+  font-size: var(--lb-font-size-xs, 10.5px);
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.vj-escolha__dica {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+/* A tecla: pedra elevada com a borda de baixo mais grossa, o relevo de uma tecla de verdade. */
+.vj-escolha__tecla {
+  display: inline-grid;
+  place-items: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  border: 1px solid var(--lb-color-line-strong, rgba(255, 255, 255, 0.16));
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  background: var(--lb-color-stone-raised, #232328);
+  color: var(--lb-color-parchment-dim, #a2a09a);
+  font-family: var(--lb-font-utility, 'Bahnschrift', 'Segoe UI', system-ui, sans-serif);
+  font-size: var(--lb-font-size-xs, 10.5px);
+  font-weight: var(--lb-font-weight-medium, 500);
+  line-height: 1;
+}
+
+.vj-escolha__tecla + .vj-escolha__tecla {
+  margin-left: -2px;
+}

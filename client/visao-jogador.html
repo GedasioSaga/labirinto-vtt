@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="dark" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <title>Visão de jogador</title>
+    <!--
+      Janela da VISÃO DE JOGADOR (ferramenta do mestre): a tela do jogador de
+      uma ficha, aberta pelo editor. O escuro nasce aqui, embutido, pelo mesmo
+      motivo de `player.html`: em `npm run dev` o CSS do app chega por script,
+      e a janela não pode piscar branca enquanto o módulo carrega.
+    -->
+    <style>
+      :root {
+        color-scheme: dark;
+      }
+
+      html,
+      body {
+        margin: 0;
+        background: var(--lb-color-ink, #121214);
+        color: var(--lb-color-parchment, #eceae4);
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/player/visaoDeTeste/entrada.tsx"></script>
+  </body>
+</html>

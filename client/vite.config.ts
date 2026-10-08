@@ -23,13 +23,15 @@ export default defineConfig({
     host: host || false,
     hmr: host ? { protocol: 'ws', host, port: porta + 1 } : undefined,
   },
-  // Duas páginas no mesmo build: o editor (index.html) e a página do jogador
-  // (player.html), servida pelo servidor axum do app em /player.
+  // Três páginas no mesmo build: o editor (index.html), a página do jogador
+  // (player.html), servida pelo servidor axum do app em /player, e a janela da
+  // Visão de jogador (visao-jogador.html), aberta pelo Rust dentro do app.
   build: {
     rollupOptions: {
       input: {
         main: 'index.html',
         player: 'player.html',
+        visaoJogador: 'visao-jogador.html',
       },
     },
   },

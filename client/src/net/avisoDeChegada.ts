@@ -1,5 +1,5 @@
 import { useFollowStore } from '../stores/followStore'
-import { useToastStore } from '../stores/toastStore'
+import { PILHA_DO_EDITOR, type ToastSink } from './avisosDaPonte'
 import type { AppliedTransfer } from './hostSession'
 import { nomeNoVeiculo } from '../lib/travelLog'
 
@@ -52,17 +52,19 @@ interface CartaoDaCena {
 /**
  * Devolve a função que a ponte chama a cada viagem concluída. `goTo` ausente
  * = sem "Ir lá" (a ponte sem editor para onde ir). `goTo` recebe o piso de
- * chegada: só a câmera deixaria o editor no piso de antes.
+ * chegada: só a câmera deixaria o editor no piso de antes. `avisos`: a pilha
+ * da ponte que anuncia (a do editor, ou a da Visão de jogador).
  */
 export function createArrivalAnnouncer(
   goTo: ((sceneId: string, x: number, y: number, piso: number) => void) | undefined,
   duracaoMs: number = CHEGADA_TOAST_MS,
+  avisos: ToastSink = PILHA_DO_EDITOR,
 ): (transfer: AppliedTransfer) => void {
   const cartoes = new Map<string, CartaoDaCena>()
   /** Em que cartão cada jogador está agora: `playerId` -> `sceneId`. */
   const cenaDe = new Map<string, string>()
 
-  const naTela = (toastId: string): boolean => useToastStore.getState().toasts.some((toast) => toast.id === toastId)
+  const naTela = (toastId: string): boolean => avisos.toasts().some((toast) => toast.id === toastId)
 
   /** O cartão da cena, se ainda está na tela; o que saiu é esquecido. */
   const cartaoVivo = (sceneId: string): CartaoDaCena | undefined => {
@@ -83,9 +85,7 @@ export function createArrivalAnnouncer(
       useFollowStore.getState().irAteJogador(ultimoId)
       ir(sceneId, ultimo.x, ultimo.y, ultimo.piso)
     }
-    const toastId = useToastStore
-      .getState()
-      .push('info', textoDeChegada(nomes, sceneName), duracaoMs, goTo === undefined ? {} : { actions: [{ label: 'Ir lá', run: irLa(goTo) }] })
+    const toastId = avisos.push('info', textoDeChegada(nomes, sceneName), duracaoMs, goTo === undefined ? {} : { actions: [{ label: 'Ir lá', run: irLa(goTo) }] })
     cartoes.set(sceneId, { toastId, sceneName, chegados })
   }
 
@@ -93,7 +93,7 @@ export function createArrivalAnnouncer(
   const tirarDoCartao = (sceneId: string, playerId: string) => {
     const cartao = cartaoVivo(sceneId)
     if (cartao === undefined || !cartao.chegados.has(playerId)) return
-    useToastStore.getState().dismiss(cartao.toastId)
+    avisos.dismiss(cartao.toastId)
     cartoes.delete(sceneId)
     const restantes = new Map(cartao.chegados)
     restantes.delete(playerId)
@@ -112,7 +112,7 @@ export function createArrivalAnnouncer(
     // VEÍCULO: quem dirigiu chegou com o veículo — "Ana (no veículo Cesto) entrou em Porão".
     const name = transfer.veiculo === undefined ? transfer.playerName : nomeNoVeiculo(transfer.playerName, transfer.veiculo.nome)
     chegados.set(transfer.playerId, { name, x: transfer.x, y: transfer.y, piso: transfer.piso ?? 0 })
-    if (cartao !== undefined) useToastStore.getState().dismiss(cartao.toastId)
+    if (cartao !== undefined) avisos.dismiss(cartao.toastId)
     mostrar(transfer.toSceneId, transfer.toSceneName, chegados)
     cenaDe.set(transfer.playerId, transfer.toSceneId)
   }

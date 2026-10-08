@@ -271,6 +271,14 @@ interface PlayerViewProps {
    */
   mirror?: boolean
   /**
+   * MODO OLHAR da Visão de jogador (o mestre só olha a tela do jogador): a
+   * câmera continua livre — arrastar, pinça e roda —, mas nenhum toque vira
+   * ação. Pegar a própria ficha, tocar em porta, pino, bilhete, ficha alheia
+   * ou nome de Sala, segurar no mapa e o Alt+clique chamam isto em vez de
+   * agir. Diferente do `mirror`, o layout é o do jogador. Ausente = o jogador.
+   */
+  onAcaoNoOlhar?: () => void
+  /**
    * Chave da CHEGADA: muda quando o jogador vai a outro lugar (viagem, "o
    * mestre levou você", outro andar ao vivo), e a troca do mapa ganha o véu.
    * Olhar a memória de outro andar pelas abas troca o mapa sem mudar a chave:
@@ -1506,6 +1514,7 @@ export function PlayerView({
   zoomStep = NO_ZOOM_STEP,
   onZoomLimitsChange,
   mirror = false,
+  onAcaoNoOlhar,
   arrivalKey,
 }: PlayerViewProps) {
   const containerRef = useRef<HTMLDivElement | null>(null)
@@ -1564,6 +1573,7 @@ export function PlayerView({
     noteArmed,
     onNotePlace,
     onZoomLimitsChange,
+    onAcaoNoOlhar,
     arrivalKey,
   }
   const latestRef = useRef(latest)
@@ -1994,6 +2004,21 @@ export function PlayerView({
   }
 
   /**
+   * MODO OLHAR: o toque curto em (`screenX`, `screenY`) acionaria algo do
+   * jogador (pino, bilhete, ficha alheia, porta, nome de Sala)? A mesma busca
+   * do toque de verdade, só que sem agir: no chão vazio não há recado.
+   */
+  function toqueAcionaria(scene: Scene, screenX: number, screenY: number): boolean {
+    return (
+      pinsAtScreen(scene, screenX, screenY).length > 0 ||
+      markAtScreen(scene, screenX, screenY) !== null ||
+      otherTokenAtScreen(scene, screenX, screenY) !== null ||
+      tapTargetAtScreen(scene, screenX, screenY).kind !== 'map' ||
+      roomTextAtScreen(scene, screenX, screenY) !== null
+    )
+  }
+
+  /**
    * Contornos do último avistamento neste instante: cria ou reusa a view de
    * cada um, atualiza o "há N s", esconde os que venceram e publica quantos
    * estão na tela em `data-last-seen-count`.
@@ -2320,6 +2345,12 @@ export function PlayerView({
     // Modo Laser também: apontar a partir da própria ficha não pode arrastá-la.
     // "Marcar destino" também: marcar onde a própria ficha está é marcar, não andar. "Anotar", idem.
     const current = latestRef.current
+    // MODO OLHAR: pegar a própria ficha é o começo de andar — o recado no lugar, e a ficha fica onde está.
+    if (current.onAcaoNoOlhar !== undefined) {
+      event.stopPropagation()
+      current.onAcaoNoOlhar()
+      return
+    }
     if (event.altKey || current.signalArmed || current.measureArmed || current.laserArmed || current.destinationArmed || current.noteArmed) return
     event.stopPropagation()
     // Outro gesto já em curso (o segundo dedo nem chega aqui: a captura do palco o fez pinça).
@@ -2937,6 +2968,13 @@ export function PlayerView({
         if (scene.drag) return
         const { x, y } = event.global
         const pointerId = event.pointerId
+        // MODO OLHAR: Alt+clique é o sinal do jogador. O arrasto comum segue abaixo: é a câmera.
+        const olhar = latestRef.current.onAcaoNoOlhar
+        if (olhar !== undefined && event.altKey) {
+          cancelLongPress()
+          olhar()
+          return
+        }
         if (latestRef.current.measureArmed) {
           // Com o modo Medir, o arrasto mede: nem câmera, nem sinal, nem cartão de pino.
           cancelLongPress()
@@ -2985,6 +3023,12 @@ export function PlayerView({
           longPress = null
           // Virou sinal: o gesto não continua como arrasto de câmera.
           if (scene.drag?.kind === 'pan') scene.drag = null
+          // MODO OLHAR: segurar é o sinal e o menu de ações do jogador — o recado no lugar dos dois.
+          const olharAgora = latestRef.current.onAcaoNoOlhar
+          if (olharAgora !== undefined) {
+            olharAgora()
+            return
+          }
           // Segurou em cima da própria anotação: o gesto é dela (apagar), sem sinal e sem menu do ponto.
           const note = personalNoteAtScreen(latestRef.current.personalNotes, { x, y }, scene.camera)
           if (note !== null && latestRef.current.onNoteLongPress !== undefined) {
@@ -3105,6 +3149,12 @@ export function PlayerView({
           // toque RÁPIDO, não o demorado. O dedo que sobrou de uma pinça nunca é toque.
           if (!drag.canTap) return
           if (Math.hypot(drag.lastX - drag.startX, drag.lastY - drag.startY) > SIGNAL_LONG_PRESS_TOLERANCE_PX) return
+          // MODO OLHAR: o toque que abriria cartão ou porta vira o recado; no chão vazio, nada.
+          const olhar = latestRef.current.onAcaoNoOlhar
+          if (olhar !== undefined) {
+            if (toqueAcionaria(scene, drag.startX, drag.startY)) olhar()
+            return
+          }
           // Mais de um pino sob o dedo: o jogador escolhe ("Aqui há 2 coisas").
           const escolha = escolhaDoToque(pinsAtScreen(scene, drag.startX, drag.startY))
           if (escolha.tipo === 'escolher' && latestRef.current.onPinsChoose !== undefined) {
@@ -3357,6 +3407,9 @@ export function PlayerView({
     <>
       <div
         ref={containerRef}
+        // MODO OLHAR: a marca diz ao bloqueio da janela de teste (`visaoDeTeste/bloqueioDeEntrada.ts`)
+        // que este é o mapa, cuja câmera fica livre; o que vira ação aqui dentro é barrado acima.
+        data-camera-livre={onAcaoNoOlhar === undefined ? undefined : ''}
         style={
           mirror
             ? { position: 'absolute', inset: 0, pointerEvents: 'none' }

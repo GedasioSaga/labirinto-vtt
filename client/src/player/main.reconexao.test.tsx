@@ -85,7 +85,7 @@ afterEach(() => {
 describe('página do jogador: véu "Reconectando…" e volta na hora', () => {
   it('cobre a espera e o mapa sem tirá-los; online e visibilitychange tentam na hora', async () => {
     await act(async () => {
-      await import('./main')
+      await import('./boot')
     })
     expect(FakeWebSocket.instances).toHaveLength(1)
     const primeiro = ultimo()

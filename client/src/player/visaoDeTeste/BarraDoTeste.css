@@ -1,0 +1,433 @@
+/*
+ * VISÃO DE JOGADOR — a barra da janela de teste (`BarraDoTeste.tsx`), logo
+ * abaixo do título do Windows. Mora na página do jogador, que não carrega
+ * main.css (nem o reset de caixa, nem a fonte, nem o anel de foco do editor):
+ * tudo aqui é próprio, só com `var(--lb-*)` de theme.ts e o valor de reserva
+ * que player.css também usa. Classes `vj-barra*` e `vj-modo*`, que não
+ * existem em nenhuma outra folha.
+ */
+
+.vj-barra,
+.vj-barra *,
+.vj-barra *::before,
+.vj-barra *::after {
+  box-sizing: border-box;
+}
+
+/* 40 px de pedra opaca com o filete de baixo: a moldura do mestre por cima da tela do jogador. */
+.vj-barra {
+  position: relative;
+  z-index: 50;
+  display: grid;
+  /* O seletor no centro de verdade: as duas laterais dividem o resto por igual. */
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  column-gap: 12px;
+  flex: none;
+  width: 100%;
+  height: 40px;
+  margin: 0;
+  padding: 0 8px 0 12px;
+  background: var(--lb-color-stone-solid, #1a1a1e);
+  border-bottom: 1px solid var(--lb-color-line-panel, rgba(255, 255, 255, 0.13));
+  color: var(--lb-color-parchment, #eceae4);
+  font-family: var(--lb-font-sans, 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif);
+  font-size: var(--lb-font-size-md, 13px);
+  line-height: 1.2;
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+}
+
+/* Estreita: sem centro forçado, o nome é quem cede. */
+.vj-barra[data-largura='estreita'] {
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  column-gap: 10px;
+}
+
+/* ---- de quem é a tela */
+
+.vj-barra__ficha {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.vj-barra__nome {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--lb-color-parchment, #eceae4);
+  font-weight: var(--lb-font-weight-semibold, 600);
+}
+
+.vj-barra[data-largura='estreita'] .vj-barra__nome {
+  max-width: none;
+}
+
+.vj-barra__dono {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--lb-color-parchment-dim, #a2a09a);
+  font-size: var(--lb-font-size-sm, 11.5px);
+}
+
+/* "sem jogador" em itálico apagado, como no Grupo; não corta (é curto e explica a névoa do zero). */
+.vj-barra__dono--sem {
+  flex: none;
+  padding-right: 2px;
+  color: var(--lb-color-parchment-faint, #858480);
+  font-style: italic;
+}
+
+.vj-barra__div {
+  flex: none;
+  width: 1px;
+  height: 16px;
+  margin: 0 4px;
+  background: var(--lb-color-line-strong, rgba(255, 255, 255, 0.16));
+}
+
+/* "Teste": o tracejado é a linguagem do que só o mestre vê (as paredes escondidas
+   do editor). Neutro, nunca latão: latão quer dizer "ação para você". Não corta. */
+.vj-barra__teste {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+  height: 24px;
+  padding: 0 10px 0 8px;
+  border: 1px dashed var(--lb-color-line-divider, rgba(255, 255, 255, 0.26));
+  border-radius: var(--lb-radius-full, 999px);
+  color: var(--lb-color-parchment-dim, #a2a09a);
+  font-size: var(--lb-font-size-sm, 11.5px);
+  font-weight: var(--lb-font-weight-medium, 500);
+  white-space: nowrap;
+}
+
+/* Texto só para o leitor de tela (o resto do selo curto, a confirmação nas barras sem espaço). */
+.vj-barra__sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ---- Olhar | Jogar: o segmented do app na altura da barra (30 px) */
+
+.vj-modo {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--lb-color-line, rgba(255, 255, 255, 0.08));
+  border-radius: var(--lb-radius-md, 9px);
+  background: var(--lb-color-stone-sunken, #141417);
+}
+
+/* O marcado é este marcador por baixo das opções: trocar de modo o desliza
+   (170 ms, só no clique; pelo teclado ele pula, sem animação). */
+.vj-modo__marca {
+  position: absolute;
+  top: 2px;
+  bottom: 2px;
+  left: 2px;
+  width: calc(50% - 3px);
+  border: 1px solid rgba(224, 164, 74, 0.28);
+  border-radius: var(--lb-radius-sm, 6px);
+  background: var(--lb-color-brass-soft, rgba(224, 164, 74, 0.14));
+  pointer-events: none;
+  transition: transform var(--lb-motion-base, 170ms) var(--lb-motion-ease, cubic-bezier(0.2, 0.8, 0.2, 1));
+}
+
+.vj-modo[data-modo='jogar'] .vj-modo__marca {
+  transform: translateX(calc(100% + 2px));
+}
+
+.vj-modo[data-instante='true'] .vj-modo__marca {
+  transition: none;
+}
+
+.vj-modo__opcao {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 24px;
+  margin: 0;
+  padding: 0 12px;
+  border: 0;
+  border-radius: var(--lb-radius-sm, 6px);
+  background: transparent;
+  color: var(--lb-color-parchment-dim, #a2a09a);
+  font: inherit;
+  font-size: var(--lb-font-size-md, 13px);
+  font-weight: var(--lb-font-weight-medium, 500);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color var(--lb-motion-base, 170ms) var(--lb-motion-ease, cubic-bezier(0.2, 0.8, 0.2, 1));
+}
+
+.vj-modo__opcao svg {
+  flex: none;
+}
+
+.vj-modo__opcao[aria-checked='true'] {
+  color: var(--lb-color-brass, #e0a44a);
+  cursor: default;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .vj-modo__opcao[aria-checked='false']:not([aria-disabled='true']):hover {
+    color: var(--lb-color-parchment, #eceae4);
+  }
+}
+
+/* Jogar ainda não existe: apagado, no lugar de sempre (o mestre aprende onde ele mora). */
+.vj-modo__opcao[aria-disabled='true'] {
+  color: var(--lb-color-parchment-faint, #858480);
+  cursor: not-allowed;
+}
+
+.vj-modo__opcao:focus-visible {
+  outline: none;
+  box-shadow: var(--lb-shadow-focus, 0 0 0 2px #1a1a1e, 0 0 0 4px #e0a44a);
+}
+
+.vj-modo--icones .vj-modo__opcao {
+  width: 32px;
+  padding: 0;
+}
+
+/* O porquê do Jogar desligado. Pairar espera como os balões do app; o foco do teclado abre na hora. */
+.vj-modo__dica {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 2;
+  width: max-content;
+  max-width: 260px;
+  padding: 6px 10px;
+  border: 1px solid var(--lb-color-line-strong, rgba(255, 255, 255, 0.16));
+  border-radius: var(--lb-radius-sm, 6px);
+  background: var(--lb-color-stone-raised, #232328);
+  box-shadow: var(--lb-shadow-md, 0 6px 16px rgba(0, 0, 0, 0.34), 0 1px 2px rgba(0, 0, 0, 0.4));
+  color: var(--lb-color-parchment, #eceae4);
+  font-size: var(--lb-font-size-sm, 11.5px);
+  font-weight: var(--lb-font-weight-regular, 400);
+  line-height: var(--lb-font-leading-normal, 1.45);
+  white-space: normal;
+  text-align: left;
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  /* Desce 2 px do seletor: nasce de quem ele explica. Sai em 120 ms, sem espera. */
+  transform: translateY(-2px);
+  transition:
+    opacity 120ms var(--lb-motion-ease, cubic-bezier(0.2, 0.8, 0.2, 1)),
+    transform 120ms var(--lb-motion-ease, cubic-bezier(0.2, 0.8, 0.2, 1)),
+    visibility 0s linear 120ms;
+}
+
+.vj-modo__opcao[aria-disabled='true']:hover ~ .vj-modo__dica {
+  opacity: 1;
+  visibility: visible;
+  transform: none;
+  transition:
+    opacity 120ms var(--lb-motion-ease, cubic-bezier(0.2, 0.8, 0.2, 1)) var(--lb-motion-tip-delay, 320ms),
+    transform 120ms var(--lb-motion-ease, cubic-bezier(0.2, 0.8, 0.2, 1)) var(--lb-motion-tip-delay, 320ms),
+    visibility 0s linear var(--lb-motion-tip-delay, 320ms);
+}
+
+.vj-modo__opcao[aria-disabled='true']:focus-visible ~ .vj-modo__dica {
+  opacity: 1;
+  visibility: visible;
+  transform: none;
+  transition:
+    opacity 120ms var(--lb-motion-ease, cubic-bezier(0.2, 0.8, 0.2, 1)),
+    transform 120ms var(--lb-motion-ease, cubic-bezier(0.2, 0.8, 0.2, 1)),
+    visibility 0s;
+}
+
+/* ---- ações da direita: o botão fantasma do app em 28 px */
+
+.vj-barra__acoes {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 2px;
+  min-width: 0;
+}
+
+.vj-barra__botao {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+  height: 28px;
+  margin: 0;
+  padding: 0 10px 0 8px;
+  border: 1px solid transparent;
+  border-radius: var(--lb-radius-md, 9px);
+  background: transparent;
+  color: var(--lb-color-parchment-dim, #a2a09a);
+  font: inherit;
+  font-size: var(--lb-font-size-md, 13px);
+  font-weight: var(--lb-font-weight-medium, 500);
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background-color var(--lb-motion-fast, 110ms) var(--lb-motion-ease, cubic-bezier(0.2, 0.8, 0.2, 1)),
+    border-color var(--lb-motion-fast, 110ms) var(--lb-motion-ease, cubic-bezier(0.2, 0.8, 0.2, 1)),
+    color var(--lb-motion-fast, 110ms) var(--lb-motion-ease, cubic-bezier(0.2, 0.8, 0.2, 1)),
+    transform var(--lb-motion-fast, 110ms) var(--lb-motion-ease, cubic-bezier(0.2, 0.8, 0.2, 1));
+}
+
+.vj-barra__botao svg {
+  flex: none;
+}
+
+/* Pairar só onde existe ponteiro que paira. */
+@media (hover: hover) and (pointer: fine) {
+  .vj-barra__botao:hover {
+    background: var(--lb-color-stone-raised, #232328);
+    border-color: var(--lb-color-line, rgba(255, 255, 255, 0.08));
+    color: var(--lb-color-parchment, #eceae4);
+  }
+}
+
+/* Com a lista ou o menu aberto, o botão fica aceso: dá para ver de onde ela saiu. */
+.vj-barra__botao[aria-expanded='true'] {
+  background: var(--lb-color-stone-raised, #232328);
+  border-color: var(--lb-color-line-strong, rgba(255, 255, 255, 0.16));
+  color: var(--lb-color-parchment, #eceae4);
+}
+
+/* Apertar afunda 3% e volta em 110 ms, o mesmo aperto dos botões do editor. */
+.vj-barra__botao:active {
+  background: var(--lb-color-stone-sunken, #141417);
+  transform: scale(0.97);
+}
+
+.vj-barra__botao:focus-visible {
+  outline: none;
+  box-shadow: var(--lb-shadow-focus, 0 0 0 2px #1a1a1e, 0 0 0 4px #e0a44a);
+}
+
+.vj-barra__botao--icone {
+  justify-content: center;
+  width: 28px;
+  padding: 0;
+}
+
+.vj-barra__feito {
+  flex: none;
+  padding: 0 6px;
+  color: var(--lb-color-parchment-dim, #a2a09a);
+  font-size: var(--lb-font-size-sm, 11.5px);
+  white-space: nowrap;
+}
+
+/* ---- menu "Mais" (barra estreita): o molde do menu da cena */
+
+.vj-barra__mais {
+  position: relative;
+  display: inline-flex;
+}
+
+/* Logo abaixo da barra, alinhado à direita do "Mais". */
+.vj-barra__menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 70;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 184px;
+  padding: var(--lb-space-1, 4px);
+  background: var(--lb-color-stone-solid, #1a1a1e);
+  border: 1px solid var(--lb-color-line-panel, rgba(255, 255, 255, 0.13));
+  border-radius: var(--lb-radius-lg, 14px);
+  box-shadow:
+    var(--lb-shadow-float, 0 0 0 1px rgba(0, 0, 0, 0.5), 0 1px 2px rgba(0, 0, 0, 0.5), 0 6px 14px rgba(0, 0, 0, 0.44), 0 20px 46px rgba(0, 0, 0, 0.55)),
+    var(--lb-shadow-bevel, inset 0 1px 0 rgba(255, 255, 255, 0.07));
+  transform-origin: top right;
+}
+
+.vj-barra__menu[data-abertura='ponteiro'] {
+  animation: vj-barra-menu-entra 120ms var(--lb-motion-ease, cubic-bezier(0.2, 0.8, 0.2, 1));
+}
+
+@keyframes vj-barra-menu-entra {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+}
+
+@keyframes vj-barra-menu-esmaece {
+  from {
+    opacity: 0;
+  }
+}
+
+.vj-barra__item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 32px;
+  margin: 0;
+  padding: 0 8px;
+  border: 0;
+  border-radius: var(--lb-radius-sm, 6px);
+  background: transparent;
+  color: var(--lb-color-parchment-dim, #a2a09a);
+  font: inherit;
+  font-size: var(--lb-font-size-sm, 11.5px);
+  text-align: left;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.vj-barra__item svg {
+  flex: none;
+}
+
+.vj-barra__item:hover,
+.vj-barra__item:focus-visible {
+  outline: none;
+  background: var(--lb-color-stone-hover, #2c2c33);
+  color: var(--lb-color-parchment, #eceae4);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .vj-modo__marca,
+  .vj-modo__dica {
+    transition-property: opacity, visibility;
+  }
+
+  .vj-barra__botao:active {
+    transform: none;
+  }
+
+  .vj-barra__menu[data-abertura='ponteiro'] {
+    animation-name: vj-barra-menu-esmaece;
+  }
+}

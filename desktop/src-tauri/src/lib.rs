@@ -2,6 +2,7 @@ use tauri::Manager;
 use tauri_plugin_fs::FsExt;
 
 pub mod net;
+pub mod visao_jogador;
 
 // Este comando concede acesso de FS para um path arbitrário. Não dá pra validar
 // genericamente aqui: `path` também chega de diálogo nativo de arquivo/pasta
@@ -34,14 +35,21 @@ pub fn run() {
             net::commands::net_send,
             net::commands::net_kick,
             net::commands::net_start_tunnel,
-            net::commands::net_stop_tunnel
+            net::commands::net_stop_tunnel,
+            visao_jogador::abrir_visao_jogador,
+            visao_jogador::mostrar_visao_jogador,
+            visao_jogador::fechar_visao_jogador
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application");
-    app.run(|handle, event| {
+    app.run(|handle, event| match event {
         // Nenhum `cloudflared` pode sobreviver ao app.
-        if let tauri::RunEvent::Exit = event {
+        tauri::RunEvent::Exit => {
             handle.state::<net::commands::NetState>().kill_tunnel_now();
         }
+        tauri::RunEvent::WindowEvent { label, event, .. } => {
+            visao_jogador::ao_evento_de_janela(handle, &label, &event);
+        }
+        _ => {}
     });
 }

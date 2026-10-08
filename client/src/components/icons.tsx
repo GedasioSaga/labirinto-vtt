@@ -863,3 +863,81 @@ export function ChevronsLeftIcon(props: IconProps) {
     </Icon>
   )
 }
+
+/**
+ * VISÃO DE JOGADOR — "Jogar": o triângulo de tocar, só contorno como a família.
+ * Ao lado do `EyeIcon` ("Olhar") no seletor da janela de teste: olho é ver,
+ * triângulo é pôr para andar.
+ */
+export function JogarIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M7.5 5.2v13.6L18.5 12z" />
+    </Icon>
+  )
+}
+
+/** "Trocar ficha": duas setas em sentidos opostos, uma sobre a outra (troca, não volta). */
+export function TrocarIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M8 3.5L4 7.5l4 4" />
+      <path d="M4 7.5h15.5" />
+      <path d="M16 20.5l4-4-4-4" />
+      <path d="M20 16.5H4.5" />
+    </Icon>
+  )
+}
+
+/**
+ * "Esquecer tudo": a volta inteira no sentido anti-horário, com a ponta no
+ * começo. Diferente do `UndoIcon` (meia volta para trás, um passo só): aqui é
+ * recomeçar do zero.
+ */
+export function EsquecerIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M3.5 12a8.5 8.5 0 1 0 8.5-8.5 9.2 9.2 0 0 0-6.4 2.6L3.5 8.2" />
+      <path d="M3.5 3.5v4.7h4.7" />
+    </Icon>
+  )
+}
+
+/**
+ * Frasco de laboratório: o selo "Teste" da Visão de jogador. Experimento, e
+ * não alerta: nada de triângulo nem de exclamação, porque o teste não é erro.
+ */
+export function FrascoIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M10 3v6.6a2 2 0 0 1-.25.95L5.1 18.7a1.5 1.5 0 0 0 1.3 2.3h11.2a1.5 1.5 0 0 0 1.3-2.3l-4.65-8.15a2 2 0 0 1-.25-.95V3" />
+      <path d="M8.5 3h7" />
+      <path d="M7.2 15.5h9.6" />
+    </Icon>
+  )
+}
+
+/** A tecla Enter (seta que desce e volta à esquerda): marca a linha que o Enter escolhe numa lista. */
+export function EnterIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M9.5 10.5L5 15l4.5 4.5" />
+      <path d="M19 4.5v6.5a4 4 0 0 1-4 4H5" />
+    </Icon>
+  )
+}
+
+/**
+ * Reticências do menu "Mais". Aqui o círculo pequeno É para fechar o miolo
+ * (ver o aviso no `Icon`): três pontos cheios, lidos de longe, pedem traço
+ * 2.2 em quem monta.
+ */
+export function ReticenciasIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <circle cx="5.5" cy="12" r="1.1" />
+      <circle cx="12" cy="12" r="1.1" />
+      <circle cx="18.5" cy="12" r="1.1" />
+    </Icon>
+  )
+}
