@@ -11,6 +11,7 @@ import {
 } from './floorBlocks'
 import { compileFloor, pieceDistance } from './floorSdf'
 import { isLayerLocked, isLayerVisible } from './layers'
+import { wallWorldWidth } from '../pixi/drawWalls'
 
 /**
  * Ferramenta "Chão" — a parte PURA do gesto: de "pressionou aqui, soltou ali"
@@ -246,21 +247,49 @@ export function apagarBlocosDoChao(
 }
 
 /**
- * Traços que o balde não atravessa: cada parede, cada trecho de linha do mapa
- * (fechando a volta na linha fechada) e cada lado de sala ou região.
+ * Barreira com a meia espessura do traço DESENHADO, em px de mundo. O balde
+ * do Chão ignora a largura (corta por passagem de célula); o balde do Pincel
+ * usa para a tinta parar onde o traço aparece e não vazar por uma fresta que
+ * a espessura fecha na tela.
  */
-export function barreirasDoBalde(map: Partial<Pick<MapData, 'walls' | 'lines' | 'regions'>>): Barreira[] {
-  const barreiras: Barreira[] = (map.walls ?? []).map((w) => ({ x1: w.x1, y1: w.y1, x2: w.x2, y2: w.y2 }))
-  const contorno = (pontos: readonly Point[], fechado: boolean) => {
+export interface BarreiraDoBalde extends Barreira {
+  meiaLargura: number
+}
+
+/** O que o render já usa quando a sala não tem `strokeWidth` (`pixi/drawRegions.ts`). */
+const LARGURA_PADRAO_DA_BORDA_DE_SALA = 2
+
+function meiaLarguraValida(largura: unknown, padrao: number): number {
+  return (typeof largura === 'number' && Number.isFinite(largura) && largura > 0 ? largura : padrao) / 2
+}
+
+/**
+ * Traços que o balde não atravessa: cada parede, cada trecho de linha do mapa
+ * (fechando a volta na linha fechada) e cada lado de sala ou região. A parede
+ * de degrau nomeado (fina/média/grossa) tem espessura fixa na TELA; aqui entra
+ * o equivalente dela a 100% de zoom (`wallWorldWidth`), a muralha entra em px
+ * de mundo como está.
+ */
+export function barreirasDoBalde(map: Partial<Pick<MapData, 'walls' | 'lines' | 'regions'>>): BarreiraDoBalde[] {
+  const barreiras: BarreiraDoBalde[] = (map.walls ?? []).map((w) => ({
+    x1: w.x1,
+    y1: w.y1,
+    x2: w.x2,
+    y2: w.y2,
+    meiaLargura: wallWorldWidth(w.thickness) / 2,
+  }))
+  const contorno = (pontos: readonly Point[], fechado: boolean, meiaLargura: number) => {
     const total = fechado ? pontos.length : pontos.length - 1
     for (let i = 0; i < total; i += 1) {
       const a = pontos[i]
       const b = pontos[(i + 1) % pontos.length]
-      barreiras.push({ x1: a.x, y1: a.y, x2: b.x, y2: b.y })
+      barreiras.push({ x1: a.x, y1: a.y, x2: b.x, y2: b.y, meiaLargura })
     }
   }
-  for (const linha of map.lines ?? []) contorno(linha.points, linha.closed)
-  for (const regiao of map.regions ?? []) contorno(regiao.points, true)
+  for (const linha of map.lines ?? []) contorno(linha.points, linha.closed, meiaLarguraValida(linha.width, 0))
+  for (const regiao of map.regions ?? []) {
+    contorno(regiao.points, true, meiaLarguraValida(regiao.strokeWidth, LARGURA_PADRAO_DA_BORDA_DE_SALA))
+  }
   return barreiras
 }
 
