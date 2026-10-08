@@ -74,6 +74,17 @@ export const theme = {
 
     /** Ponto de presença "online" no Grupo: verde-musgo apagado, para não competir com o latão dos pedidos. */
     online: '#7fb48a',
+    onlineSoft: 'rgba(127, 180, 138, 0.14)',
+
+    /**
+     * FICHA DE PERSONAGEM: azul de maré (o SP, e o rank médio) e violeta
+     * arcano (o rank alto). Apagados como o resto da paleta: na ficha eles
+     * separam número de número, não chamam para ação — isso é do latão.
+     */
+    tide: '#79a9cc',
+    tideSoft: 'rgba(121, 169, 204, 0.14)',
+    arcane: '#ab93d6',
+    arcaneSoft: 'rgba(171, 147, 214, 0.15)',
   },
 
   font: {

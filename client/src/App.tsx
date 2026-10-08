@@ -165,6 +165,9 @@ import { PropertiesPanel } from './components/PropertiesPanel'
 import type { RevealToControlsProps } from './components/PlayerSecretControls'
 import { ActionBar } from './components/ActionBar'
 import { ShortcutsDialog } from './components/ShortcutsDialog'
+import { PersonagensDaAventura } from './components/PersonagensSection'
+import { RpgDialogs } from './components/RpgDialogs'
+import { useRpgStore } from './stores/rpgStore'
 import { ExportImageDialog } from './components/ExportImageDialog'
 import { imageExportFileName, type ImageExportOptions, type MapImageExporter } from './lib/mapImageExport'
 import { saveMapImage } from './lib/mapImageSave'
@@ -2873,6 +2876,8 @@ function App() {
                 />
               )
             }
+            // SISTEMA DE RPG e PERSONAGENS: moram na aventura, então só com ela (como a Agenda).
+            rpg={adventure === null ? undefined : <PersonagensDaAventura />}
             // ESTADO DO MUNDO: "Depende do estado" do elemento aberto no painel —
             // é daqui que a regra `porEstado` nasce, sem editar o map.json à mão.
             estadoDaPorta={
@@ -3345,6 +3350,17 @@ function App() {
               // desfaz), e a lista de quem chega muda no broadcast do mapa.
               onPlayerCharacterChange: (playerCharacter) => selectedToken && updateToken(selectedToken.id, { playerCharacter }),
             }}
+            // PERSONAGEM do token: só com aventura (é lá que os personagens moram).
+            // Ligar passa pelo histórico; o jogador não recebe o vínculo (`tokenForPlayer` zera `characterId`).
+            tokenPersonagem={
+              adventure === null
+                ? undefined
+                : {
+                    personagens: (adventure.personagens ?? []).map((personagem) => ({ id: personagem.id, nome: personagem.nome })),
+                    onLigar: (characterId) => selectedToken && updateToken(selectedToken.id, { characterId }),
+                    onAbrirFicha: (personagemId) => useRpgStore.getState().abrirFicha(personagemId),
+                  }
+            }
             selectedTextLabel={selectedTextLabel}
             textLabel={{
               onTextChange: handleTextChange,
@@ -3824,6 +3840,8 @@ function App() {
       {/* PISOS NA MESMA CENA: só aparece quando a cena tem pisos (ou o mestre já saiu do térreo) — mapa de um piso não ganha controle à toa. */}
       {(pisoAtivo !== 0 || mapaTemPisos) && <PisoHud piso={pisoAtivo} onPisoChange={(piso) => useMapStore.getState().setPisoAtivo(piso)} />}
       {shortcutsOpen && <ShortcutsDialog onClose={() => setShortcutsOpen(false)} />}
+      {/* Grade de sistemas de RPG e ficha de personagem: uma vez só, abertas pelo `rpgStore`. */}
+      <RpgDialogs />
       {exportImageState !== null && (
         <ExportImageDialog
           defaultGrid={map.showGrid}

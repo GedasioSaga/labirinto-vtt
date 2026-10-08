@@ -6,6 +6,7 @@ import { PathStyleControls, type PathStyleControlsProps } from './PathStyleContr
 import { GridQuickToggles, type GridControlsProps } from './GridControls'
 import { MapSettingsButton } from './MapSettingsDialog'
 import { CollapsibleSection } from './CollapsibleSection'
+import { TokenPersonagemControls, type TokenPersonagemControlsProps } from './TokenPersonagemControls'
 import { PropLayerControls, type PropLayerControlsProps } from './PropLayerControls'
 import { PropPlayerControls, type PropPlayerControlsProps } from './PropPlayerControls'
 import { SelectionControls, type SelectionControlsProps } from './SelectionControls'
@@ -99,6 +100,8 @@ interface PropertiesPanelProps {
   scenes?: ReactNode
   /** Seção "Estado do mundo" da aventura (Maré, Giro…), logo abaixo das Cenas. Ausente no mapa solto. */
   worldState?: ReactNode
+  /** "Sistema de RPG" e "Personagens" da aventura (PersonagensSection), depois do Estado do mundo. Ausente no mapa solto. */
+  rpg?: ReactNode
   /**
    * ESTADO DO MUNDO — "Depende do estado" da porta, do pino de viagem, da zona
    * oculta e da luz selecionados, cada um dentro da seção do seu elemento.
@@ -231,6 +234,8 @@ interface PropertiesPanelProps {
   tokenTransform: Omit<ItemTransformControlsProps, 'title' | 'rotation' | 'locked' | 'congelado' | 'hidden' | 'secret'>
   /** "Ficha de jogador" do Token selecionado: entra na lista de quem chega sem personagem. */
   tokenPlayerCharacter: Omit<TokenPlayerCharacterControlsProps, 'playerCharacter'>
+  /** "Personagem" do token (liga ao personagem da aventura). Ausente no mapa solto: sem aventura não há personagem. */
+  tokenPersonagem?: Omit<TokenPersonagemControlsProps, 'characterId'>
   selectedTextLabel: Extract<Drawing, { kind: 'text' }> | null
   textLabel: Omit<TextLabelControlsProps, 'text' | 'color' | 'fontSize' | 'fontFamily'>
   /** "Travar movimentação" da Região/Sala selecionada (pedido de 18/09/2026:
@@ -331,6 +336,7 @@ function presente(no: ReactNode): boolean {
 export function PropertiesPanel({
   scenes,
   worldState,
+  rpg,
   estadoDaPorta,
   estadoDoPino,
   estadoDaZona,
@@ -394,6 +400,7 @@ export function PropertiesPanel({
   tokenVehicle,
   tokenTransform,
   tokenPlayerCharacter,
+  tokenPersonagem,
   selectedTextLabel,
   textLabel,
   regionTransform,
@@ -506,7 +513,7 @@ export function PropertiesPanel({
   const legendaAventuraId = `${legendaId}-aventura`
   const legendaCenaId = `${legendaId}-cena`
   const objects = esconderCategorias ? undefined : objetosDaCena
-  const temAventura = !esconderCategorias && (presente(scenes) || presente(worldState))
+  const temAventura = !esconderCategorias && (presente(scenes) || presente(worldState) || presente(rpg))
   // Com o pincel/balde na mão a lista aparece mesmo sem chão: é nela que se
   // vê onde a primeira pincelada vai cair ("Camada 1 · pinte para criar").
   const temCamadasDoChao =
@@ -915,6 +922,7 @@ export function PropertiesPanel({
               <h2 className="lb-eyebrow">Comportamento</h2>
               <TokenNpcControls npc={selectedToken.npc === true} {...tokenNpc} />
               <TokenPlayerCharacterControls playerCharacter={selectedToken.playerCharacter === true} {...tokenPlayerCharacter} />
+              {tokenPersonagem !== undefined && <TokenPersonagemControls characterId={selectedToken.characterId} {...tokenPersonagem} />}
               <TokenWatchControls watch={readTokenWatch(selectedToken.vigia)} {...tokenWatch} />
               <TokenPatrolControls patrol={readTokenPatrol(selectedToken.patrulha)} {...tokenPatrol} />
               <TokenCarryControls tokenId={selectedToken.id} {...tokenCarry} />
@@ -1002,6 +1010,7 @@ export function PropertiesPanel({
             </p>
             {scenes}
             {worldState}
+            {rpg}
           </div>
         )}
         {/* ESTA CENA: o que é da cena aberta, do que há nela (Objetos do mapa,

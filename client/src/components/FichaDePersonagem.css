@@ -1,0 +1,1040 @@
+/* FICHA DE PERSONAGEM, grade de SISTEMAS e a seção PERSONAGENS do painel.
+   O desenho segue a ficha do projeto-rpg-v2 (cartão do personagem à esquerda,
+   abas de cartões à direita) com a pele do Labirinto: pedra, linha fina e o
+   latão só onde há escolha. As cores de número (HP, SP, rank) são os tons
+   apagados do tema — separam um número do outro sem competir com o latão. */
+
+/* ----------------------------------------------------------------- janela */
+
+.lb-dialog.lb-ficha-janela {
+  width: min(1120px, 100%);
+  height: min(860px, calc(100vh - 2 * var(--lb-space-6)));
+}
+
+.lb-ficha-janela__topo {
+  flex-wrap: wrap;
+}
+
+.lb-ficha-janela__acoes {
+  display: flex;
+  align-items: center;
+  gap: var(--lb-control-gap);
+  margin-left: auto;
+}
+
+/* O primário da janela fica na altura dos vizinhos: 42 px destoava do Cancelar ao lado. */
+.lb-ficha-janela__salvar.lb-btn--primary {
+  min-height: 34px;
+}
+
+.lb-ficha-janela__ligar.lb-input {
+  width: auto;
+  max-width: 220px;
+  min-height: 34px;
+}
+
+.lb-ficha-janela__pergunta,
+.lb-ficha-janela__ligacao {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--lb-space-2);
+  margin: 0;
+  padding: var(--lb-space-2) var(--lb-space-4);
+  border-bottom: 1px solid var(--lb-color-line);
+  font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-parchment-dim);
+}
+
+.lb-ficha-janela__pergunta {
+  background: var(--lb-color-ember-soft);
+  color: var(--lb-color-parchment);
+}
+
+.lb-ficha-janela__corpo {
+  flex: 1;
+  padding: var(--lb-space-4);
+}
+
+.lb-ficha-janela__sem-sistema {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-3);
+  max-width: 60ch;
+  color: var(--lb-color-parchment-dim);
+  line-height: var(--lb-font-leading-normal);
+}
+
+/* ------------------------------------------------------------------ ficha */
+
+.lb-ficha {
+  display: grid;
+  grid-template-columns: minmax(260px, 320px) minmax(0, 1fr);
+  gap: var(--lb-space-5);
+  align-items: start;
+}
+
+@media (max-width: 760px) {
+  .lb-ficha {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.lb-ficha__lado {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-3);
+  min-width: 0;
+}
+
+.lb-ficha__principal {
+  min-width: 0;
+}
+
+/* Raça e ofício no topo, como as tags do projeto-rpg-v2. */
+.lb-ficha__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--lb-space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.lb-ficha__chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px var(--lb-space-2);
+  border: 1px solid var(--lb-color-line-strong);
+  border-radius: var(--lb-radius-sm);
+  background: var(--lb-color-stone-raised);
+  font-size: var(--lb-font-size-sm);
+  font-weight: var(--lb-font-weight-medium);
+  color: var(--lb-color-parchment);
+  overflow-wrap: anywhere;
+}
+
+.lb-ficha__chip--etiqueta {
+  color: var(--lb-color-parchment-dim);
+  border-style: dashed;
+}
+
+.lb-ficha__chip--atributos {
+  flex: none;
+  font-family: var(--lb-font-utility);
+  font-size: var(--lb-font-size-xs);
+  letter-spacing: var(--lb-font-tracking-wide);
+  color: var(--lb-color-parchment-dim);
+}
+
+.lb-ficha__chip--botao {
+  min-height: var(--lb-control-min);
+  font-family: var(--lb-font-utility);
+  letter-spacing: var(--lb-font-tracking-wide);
+  color: var(--lb-color-parchment-dim);
+  cursor: pointer;
+  transition:
+    background var(--lb-motion-fast) var(--lb-motion-ease),
+    border-color var(--lb-motion-fast) var(--lb-motion-ease),
+    color var(--lb-motion-fast) var(--lb-motion-ease);
+}
+
+.lb-ficha__chip--botao:hover {
+  border-color: var(--lb-color-parchment-faint);
+  color: var(--lb-color-parchment);
+}
+
+.lb-ficha__chip--botao[aria-pressed='true'] {
+  border-color: var(--lb-color-brass);
+  background: var(--lb-color-brass-soft);
+  color: var(--lb-color-brass-bright);
+}
+
+.lb-ficha__escolhas-edit {
+  display: grid;
+  gap: var(--lb-space-3);
+}
+
+/* O cartão do personagem: retrato, nome, recursos e atributos. */
+.lb-ficha__bloco {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-4);
+  padding: var(--lb-space-4);
+  border: 1px solid var(--lb-color-line);
+  border-radius: var(--lb-radius-lg);
+  background: var(--lb-color-stone-sunken);
+}
+
+.lb-ficha__bloco--edit {
+  gap: var(--lb-space-3);
+}
+
+.lb-ficha__retrato {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  max-width: 220px;
+  aspect-ratio: 1;
+  margin: 0 auto;
+  overflow: hidden;
+  border: 1px solid var(--lb-color-line);
+  border-radius: var(--lb-radius-md);
+  background: var(--lb-color-stone-raised);
+}
+
+.lb-ficha__retrato img,
+.lb-cartao__imagem img,
+.lb-rpg__retrato img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.lb-ficha__retrato-acoes {
+  display: flex;
+  justify-content: center;
+  gap: var(--lb-control-gap);
+}
+
+/* Retrato sem foto: as iniciais sobre um tom estável do nome (`tomDoNome`). */
+.lb-ficha__iniciais {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  font-family: var(--lb-font-display);
+  font-size: 2.6em;
+  line-height: 1;
+  color: var(--lb-color-brass-bright);
+  background: var(--lb-color-brass-soft);
+  user-select: none;
+}
+
+.lb-ficha__retrato .lb-ficha__iniciais {
+  font-size: 56px;
+}
+
+.lb-ficha__iniciais[data-tom='1'] {
+  color: var(--lb-color-ember);
+  background: var(--lb-color-ember-soft);
+}
+
+.lb-ficha__iniciais[data-tom='2'] {
+  color: var(--lb-color-tide);
+  background: var(--lb-color-tide-soft);
+}
+
+.lb-ficha__iniciais[data-tom='3'] {
+  color: var(--lb-color-arcane);
+  background: var(--lb-color-arcane-soft);
+}
+
+.lb-ficha__iniciais[data-tom='4'] {
+  color: var(--lb-color-online);
+  background: var(--lb-color-online-soft);
+}
+
+.lb-ficha__identidade {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: var(--lb-space-2);
+  text-align: center;
+}
+
+.lb-ficha__nome {
+  margin: 0;
+  font-family: var(--lb-font-display);
+  font-size: var(--lb-font-size-xl);
+  font-weight: var(--lb-font-weight-regular);
+  line-height: var(--lb-font-leading-tight);
+  color: var(--lb-color-parchment);
+  overflow-wrap: anywhere;
+}
+
+/* JOGADOR em latão (é quem está à mesa), NPC em pedra. */
+.lb-ficha__selo {
+  flex: none;
+  padding: 2px 6px;
+  border-radius: var(--lb-radius-sm);
+  background: var(--lb-color-stone-hover);
+  font-family: var(--lb-font-utility);
+  font-size: var(--lb-font-size-xs);
+  font-weight: var(--lb-font-weight-semibold);
+  letter-spacing: var(--lb-font-tracking-wide);
+  text-transform: uppercase;
+  color: var(--lb-color-parchment-dim);
+}
+
+.lb-ficha__selo[data-tipo='jogador'] {
+  background: var(--lb-color-brass);
+  color: var(--lb-color-brass-contrast);
+}
+
+.lb-ficha__descricao-bloco {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--lb-space-1);
+}
+
+/* A ficha importada traz a descrição em linhas ("Idade: 21 / Raça: ..."): as quebras valem. */
+.lb-ficha__descricao {
+  margin: 0;
+  font-size: var(--lb-font-size-md);
+  line-height: var(--lb-font-leading-normal);
+  color: var(--lb-color-parchment-dim);
+  text-align: center;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+
+.lb-ficha__descricao[data-cortada='true'] {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.lb-ficha__mais {
+  padding: 2px var(--lb-space-1);
+  border: 0;
+  border-radius: var(--lb-radius-sm);
+  background: none;
+  font: inherit;
+  font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-brass);
+  cursor: pointer;
+}
+
+.lb-ficha__mais:hover {
+  color: var(--lb-color-brass-bright);
+}
+
+/* HP, SP, Escudo: três quadrinhos, o número grande e o nome em legenda. */
+.lb-ficha__recursos {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(72px, 1fr));
+  gap: var(--lb-space-2);
+  margin: 0;
+}
+
+.lb-ficha__recurso {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: var(--lb-space-2);
+  border: 1px solid var(--lb-color-line-strong);
+  border-radius: var(--lb-radius-md);
+  background: var(--lb-color-stone-raised);
+  color: var(--lb-color-parchment);
+}
+
+.lb-ficha__recurso dt,
+.lb-ficha__recurso > span {
+  font-family: var(--lb-font-utility);
+  font-size: var(--lb-font-size-xs);
+  font-weight: var(--lb-font-weight-semibold);
+  letter-spacing: var(--lb-font-tracking-wide);
+  text-transform: uppercase;
+  opacity: 0.85;
+}
+
+.lb-ficha__recurso dd {
+  margin: 0;
+  font-family: var(--lb-font-utility);
+  font-size: var(--lb-font-size-xl);
+  font-weight: var(--lb-font-weight-semibold);
+  font-variant-numeric: tabular-nums;
+  line-height: var(--lb-font-leading-tight);
+}
+
+.lb-ficha__recurso[data-tom='vida'] {
+  border-color: var(--lb-color-ember-soft);
+  background: var(--lb-color-ember-soft);
+  color: var(--lb-color-ember);
+}
+
+.lb-ficha__recurso[data-tom='energia'] {
+  border-color: var(--lb-color-tide-soft);
+  background: var(--lb-color-tide-soft);
+  color: var(--lb-color-tide);
+}
+
+.lb-ficha__recursos--edit .lb-ficha__numero {
+  text-align: center;
+}
+
+.lb-ficha__subtitulo {
+  margin: 0 0 var(--lb-space-1);
+  padding: 0 var(--lb-space-2);
+}
+
+.lb-ficha__atributos {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  margin: 0;
+}
+
+.lb-ficha__atributo {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--lb-space-3);
+  min-height: 30px;
+  padding: 2px var(--lb-space-2);
+  border-radius: var(--lb-radius-sm);
+  font-size: var(--lb-font-size-md);
+  color: var(--lb-color-parchment-dim);
+}
+
+.lb-ficha__atributo:hover {
+  background: var(--lb-color-stone-raised);
+}
+
+.lb-ficha__atributo dd,
+.lb-ficha__atributo-edit {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--lb-space-2);
+  margin: 0;
+}
+
+.lb-ficha__valor {
+  min-width: 4ch;
+  text-align: right;
+  font-family: var(--lb-font-utility);
+  font-weight: var(--lb-font-weight-semibold);
+  font-variant-numeric: tabular-nums;
+  color: var(--lb-color-parchment);
+}
+
+.lb-ficha__numero.lb-input {
+  width: 7ch;
+  min-height: 28px;
+  padding: 0 var(--lb-space-2);
+  font-family: var(--lb-font-utility);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+/* O rank: a escala do projeto-rpg-v2 em tons do tema — base, média (maré), forte (arcano), alta (latão). */
+.lb-ficha__rank {
+  display: inline-flex;
+  justify-content: center;
+  min-width: 3.4em;
+  padding: 1px 6px;
+  border: 1px solid var(--lb-color-line-strong);
+  border-radius: var(--lb-radius-sm);
+  background: var(--lb-color-stone-raised);
+  font-family: var(--lb-font-utility);
+  font-size: var(--lb-font-size-sm);
+  font-weight: var(--lb-font-weight-semibold);
+  font-variant-numeric: tabular-nums;
+  color: var(--lb-color-parchment-dim);
+}
+
+.lb-ficha__rank[data-faixa='media'] {
+  border-color: var(--lb-color-tide-soft);
+  background: var(--lb-color-tide-soft);
+  color: var(--lb-color-tide);
+}
+
+.lb-ficha__rank[data-faixa='forte'] {
+  border-color: var(--lb-color-arcane-soft);
+  background: var(--lb-color-arcane-soft);
+  color: var(--lb-color-arcane);
+}
+
+.lb-ficha__rank[data-faixa='alta'] {
+  border-color: var(--lb-color-brass);
+  background: var(--lb-color-brass-soft);
+  color: var(--lb-color-brass-bright);
+}
+
+/* ------------------------------------------------------------------- abas */
+
+.lb-ficha__abas {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-3);
+}
+
+.lb-ficha__abas-lista {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--lb-space-4);
+  border-bottom: 1px solid var(--lb-color-line);
+}
+
+.lb-ficha__aba {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 34px;
+  margin-bottom: -1px;
+  padding: 0;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: none;
+  color: var(--lb-color-parchment-faint);
+  font: inherit;
+  font-size: var(--lb-font-size-md);
+  font-weight: var(--lb-font-weight-semibold);
+  cursor: pointer;
+  transition:
+    border-color var(--lb-motion-fast) var(--lb-motion-ease),
+    color var(--lb-motion-fast) var(--lb-motion-ease);
+}
+
+.lb-ficha__aba:hover {
+  color: var(--lb-color-parchment);
+}
+
+.lb-ficha__aba[aria-selected='true'] {
+  border-bottom-color: var(--lb-color-brass);
+  color: var(--lb-color-parchment);
+}
+
+.lb-ficha__aba-conta {
+  font-family: var(--lb-font-utility);
+  font-size: var(--lb-font-size-xs);
+  font-variant-numeric: tabular-nums;
+  color: var(--lb-color-parchment-faint);
+}
+
+.lb-ficha__painel {
+  min-width: 0;
+}
+
+.lb-ficha__vazio {
+  margin: 0;
+  padding: var(--lb-space-8) 0;
+  text-align: center;
+  font-size: var(--lb-font-size-md);
+  color: var(--lb-color-parchment-faint);
+}
+
+.lb-ficha__cartoes {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* ---------------------------------------------------------------- cartões */
+
+.lb-cartao {
+  padding: var(--lb-space-3) var(--lb-space-4);
+  border: 1px solid var(--lb-color-line);
+  border-radius: var(--lb-radius-md);
+  background: var(--lb-color-stone-sunken);
+}
+
+.lb-cartao__corpo {
+  display: flex;
+  gap: var(--lb-space-3);
+}
+
+.lb-cartao__imagem {
+  flex: none;
+  width: 64px;
+  height: 64px;
+  overflow: hidden;
+  border: 1px solid var(--lb-color-line);
+  border-radius: var(--lb-radius-sm);
+  background: var(--lb-color-stone-raised);
+  font-size: 9px;
+}
+
+.lb-cartao__texto {
+  flex: 1;
+  min-width: 0;
+}
+
+.lb-cartao__topo {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--lb-space-3);
+}
+
+.lb-cartao__nome {
+  margin: 0;
+  font-size: var(--lb-font-size-md);
+  font-weight: var(--lb-font-weight-semibold);
+  color: var(--lb-color-parchment);
+  overflow-wrap: anywhere;
+}
+
+.lb-cartao__paragrafo {
+  margin: 6px 0 0;
+  font-size: var(--lb-font-size-md);
+  line-height: var(--lb-font-leading-normal);
+  color: var(--lb-color-parchment-dim);
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+
+.lb-cartao__linhas {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  column-gap: var(--lb-space-2);
+  row-gap: 3px;
+  margin: var(--lb-space-2) 0 0;
+  font-size: var(--lb-font-size-md);
+  line-height: var(--lb-font-leading-normal);
+}
+
+.lb-cartao__linhas--denso {
+  margin-top: 3px;
+  row-gap: 1px;
+  font-size: var(--lb-font-size-sm);
+}
+
+.lb-cartao__linha {
+  display: contents;
+}
+
+.lb-cartao__linha dt {
+  font-weight: var(--lb-font-weight-medium);
+  color: var(--lb-color-parchment-faint);
+}
+
+.lb-cartao__linha dd {
+  margin: 0;
+  color: var(--lb-color-parchment);
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+
+.lb-cartao__destaque {
+  margin: var(--lb-space-2) 0 0;
+  padding: var(--lb-space-2) var(--lb-space-3);
+  border-radius: var(--lb-radius-sm);
+  background: var(--lb-color-stone-raised);
+  font-size: var(--lb-font-size-md);
+  line-height: var(--lb-font-leading-normal);
+  color: var(--lb-color-parchment);
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+
+.lb-cartao__destaque-rotulo {
+  font-weight: var(--lb-font-weight-medium);
+  color: var(--lb-color-parchment-faint);
+}
+
+.lb-cartao__mods {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--lb-space-1);
+  margin-top: var(--lb-space-2);
+}
+
+.lb-cartao__mod {
+  padding: 1px 6px;
+  border-radius: var(--lb-radius-sm);
+  font-family: var(--lb-font-utility);
+  font-size: var(--lb-font-size-sm);
+  font-weight: var(--lb-font-weight-semibold);
+  font-variant-numeric: tabular-nums;
+  background: var(--lb-color-online-soft);
+  color: var(--lb-color-online);
+}
+
+.lb-cartao__mod[data-sinal='menos'] {
+  background: var(--lb-color-ember-soft);
+  color: var(--lb-color-ember);
+}
+
+.lb-cartao__subs {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-2);
+  margin-top: var(--lb-space-3);
+  padding-top: var(--lb-space-3);
+  border-top: 1px solid var(--lb-color-line);
+  font-size: var(--lb-font-size-md);
+}
+
+.lb-cartao__sub-nome {
+  font-weight: var(--lb-font-weight-semibold);
+  color: var(--lb-color-parchment);
+}
+
+.lb-cartao__sub-texto {
+  color: var(--lb-color-parchment-dim);
+  white-space: pre-line;
+}
+
+/* Em edição, cada cartão é uma linha que abre: a lista de 11 técnicas não vira um muro de campos. */
+.lb-cartao--edit {
+  padding: 0;
+}
+
+.lb-cartao__resumo {
+  display: flex;
+  align-items: center;
+  min-height: 36px;
+  padding: var(--lb-space-1) var(--lb-space-3);
+  border-radius: var(--lb-radius-md);
+  cursor: pointer;
+}
+
+.lb-cartao__resumo:hover {
+  background: var(--lb-color-stone-raised);
+}
+
+/* A seta diz que a linha abre: com `display: flex` o marcador nativo do summary some. */
+.lb-cartao__resumo::after {
+  content: '';
+  flex: none;
+  width: 6px;
+  height: 6px;
+  margin-left: auto;
+  border-right: 1.5px solid var(--lb-color-parchment-faint);
+  border-bottom: 1.5px solid var(--lb-color-parchment-faint);
+  transform: rotate(-45deg);
+  transition: transform var(--lb-motion-fast) var(--lb-motion-ease);
+}
+
+.lb-cartao--edit[open] > .lb-cartao__resumo::after {
+  transform: rotate(45deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lb-cartao__resumo::after {
+    transition: none;
+  }
+}
+
+.lb-cartao__form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-3);
+  padding: var(--lb-space-2) var(--lb-space-3) var(--lb-space-3);
+  border-top: 1px solid var(--lb-color-line);
+}
+
+.lb-cartao__imagem-edit {
+  display: flex;
+  align-items: center;
+  gap: var(--lb-control-gap);
+}
+
+.lb-cartao__grupo {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-2);
+  margin: 0;
+  padding: var(--lb-space-2) 0 0;
+  border: 0;
+  border-top: 1px solid var(--lb-color-line);
+}
+
+.lb-cartao__grupo > legend {
+  padding: 0;
+}
+
+.lb-cartao__par {
+  display: flex;
+  align-items: center;
+  gap: var(--lb-control-gap);
+}
+
+.lb-cartao__par .lb-input {
+  min-height: 30px;
+}
+
+.lb-cartao__atributos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--lb-space-1);
+}
+
+.lb-cartao__acrescentar,
+.lb-cartoes-edit__mais {
+  align-self: flex-start;
+}
+
+.lb-cartao__acoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--lb-control-gap);
+  justify-content: flex-end;
+}
+
+.lb-cartoes-edit {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-2);
+}
+
+/* ----------------------------------------------------------- grade de sistemas */
+
+.lb-dialog.lb-sistemas {
+  width: min(760px, 100%);
+}
+
+.lb-sistemas__corpo {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-3);
+  padding: var(--lb-space-4);
+}
+
+.lb-sistemas__corpo > .lb-field__hint {
+  margin: 0;
+}
+
+.lb-sistemas__grade {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: var(--lb-space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.lb-sistema {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  width: 100%;
+  height: 100%;
+  min-height: 200px;
+  padding: var(--lb-space-3);
+  border: 1px solid var(--lb-color-line-strong);
+  border-radius: var(--lb-radius-lg);
+  background: var(--lb-color-stone-raised);
+  color: var(--lb-color-parchment);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color var(--lb-motion-fast) var(--lb-motion-ease),
+    background var(--lb-motion-fast) var(--lb-motion-ease),
+    transform var(--lb-motion-fast) var(--lb-motion-ease);
+}
+
+.lb-sistema:hover:not(:disabled) {
+  border-color: var(--lb-color-parchment-faint);
+  background: var(--lb-color-stone-hover);
+}
+
+.lb-sistema:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.lb-sistema[aria-pressed='true'] {
+  border-color: var(--lb-color-brass);
+  box-shadow: inset 0 0 0 1px var(--lb-color-brass);
+}
+
+.lb-sistema:disabled {
+  cursor: progress;
+  opacity: 0.7;
+}
+
+.lb-sistema__capa {
+  display: grid;
+  place-items: center;
+  align-self: stretch;
+  height: 96px;
+  margin-bottom: var(--lb-space-2);
+  border-radius: var(--lb-radius-md);
+  font-family: var(--lb-font-display);
+  font-size: 40px;
+  color: var(--lb-color-parchment);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+}
+
+.lb-sistema__nome {
+  font-size: var(--lb-font-size-lg);
+  font-weight: var(--lb-font-weight-semibold);
+  overflow-wrap: anywhere;
+}
+
+.lb-sistema__versao {
+  font-family: var(--lb-font-utility);
+  font-size: var(--lb-font-size-sm);
+  letter-spacing: var(--lb-font-tracking-wide);
+  color: var(--lb-color-parchment-faint);
+}
+
+.lb-sistema__descricao {
+  font-size: var(--lb-font-size-sm);
+  line-height: var(--lb-font-leading-normal);
+  color: var(--lb-color-parchment-dim);
+}
+
+.lb-sistema__uso {
+  position: absolute;
+  top: calc(var(--lb-space-3) + 8px);
+  right: calc(var(--lb-space-3) + 8px);
+  padding: 2px 6px;
+  border-radius: var(--lb-radius-sm);
+  background: var(--lb-color-brass);
+  font-family: var(--lb-font-utility);
+  font-size: var(--lb-font-size-xs);
+  font-weight: var(--lb-font-weight-semibold);
+  letter-spacing: var(--lb-font-tracking-wide);
+  text-transform: uppercase;
+  color: var(--lb-color-brass-contrast);
+}
+
+.lb-sistema--mais {
+  align-items: center;
+  justify-content: center;
+  border-style: dashed;
+  background: transparent;
+  text-align: center;
+}
+
+.lb-sistema__mais {
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  margin-bottom: var(--lb-space-2);
+  border: 1px dashed var(--lb-color-line-strong);
+  border-radius: var(--lb-radius-full);
+  font-size: 30px;
+  line-height: 1;
+  color: var(--lb-color-brass);
+}
+
+.lb-sistemas__avisos {
+  font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-parchment-dim);
+}
+
+.lb-sistemas__avisos ul {
+  margin: var(--lb-space-1) 0 0;
+  padding-left: var(--lb-space-4);
+}
+
+/* -------------------------------------------- Personagens no painel esquerdo */
+
+.lb-rpg__sistema.lb-btn {
+  justify-content: space-between;
+  min-height: 34px;
+  margin-bottom: var(--lb-space-2);
+}
+
+.lb-rpg__sistema-rotulo {
+  font-weight: var(--lb-font-weight-medium);
+}
+
+.lb-rpg__sistema-nome {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-parchment-dim);
+}
+
+.lb-rpg {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-2);
+}
+
+.lb-rpg__vazio {
+  margin: 0;
+  font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-parchment-faint);
+}
+
+.lb-rpg__lista {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.lb-rpg__linha {
+  display: flex;
+  align-items: center;
+  gap: var(--lb-space-1);
+}
+
+.lb-rpg__abrir {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: var(--lb-space-2);
+  min-width: 0;
+  min-height: 32px;
+  padding: 2px var(--lb-space-1);
+  border: 0;
+  border-radius: var(--lb-radius-sm);
+  background: none;
+  color: var(--lb-color-parchment);
+  font: inherit;
+  font-size: var(--lb-font-size-md);
+  text-align: left;
+  cursor: pointer;
+}
+
+.lb-rpg__abrir:hover {
+  background: var(--lb-color-stone-raised);
+}
+
+.lb-rpg__retrato {
+  flex: none;
+  width: 26px;
+  height: 26px;
+  overflow: hidden;
+  border-radius: var(--lb-radius-sm);
+  font-size: 5px;
+}
+
+.lb-rpg__nome {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lb-rpg__confirma {
+  display: inline-flex;
+  gap: var(--lb-space-1);
+}
+
+.lb-rpg__estado > p {
+  margin: 0;
+}
+
+.lb-rpg__avisos {
+  margin: var(--lb-space-1) 0 0;
+  padding-left: var(--lb-space-4);
+  font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-parchment-dim);
+}
+
+/* ------------------------------------------------- Personagem no token */
+
+.lb-token-personagem__linha {
+  display: flex;
+  align-items: center;
+  gap: var(--lb-control-gap);
+}
+
+.lb-token-personagem__linha .lb-input {
+  flex: 1;
+  min-width: 0;
+}

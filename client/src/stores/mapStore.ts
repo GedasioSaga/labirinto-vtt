@@ -714,7 +714,7 @@ interface MapStoreState {
    */
   updateToken: (
     id: string,
-    patch: Partial<Pick<Token, 'rotation' | 'locked' | 'congelado' | 'hidden' | 'color' | 'size' | 'health' | 'vigia' | 'npc' | 'publicName' | 'playerCharacter'>>,
+    patch: Partial<Pick<Token, 'rotation' | 'locked' | 'congelado' | 'hidden' | 'color' | 'size' | 'health' | 'vigia' | 'npc' | 'publicName' | 'playerCharacter' | 'characterId'>>,
   ) => void
   /**
    * CONDIÇÃO NA FICHA: marca a condição se ela não está na ficha, desmarca se

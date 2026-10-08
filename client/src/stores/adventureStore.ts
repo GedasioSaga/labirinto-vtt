@@ -38,6 +38,7 @@ import {
   type SceneEntry,
 } from '../lib/adventure'
 import type { AgendaDaCampanha } from '../lib/agendaDaCampanha'
+import type { Personagem } from '../lib/personagem'
 import {
   aplicarEstadoNoMapa,
   comValorAtual,
@@ -277,6 +278,27 @@ interface AdventureState {
    * `false` no mapa solto: sem aventura não há onde guardar a agenda.
    */
   setAgenda: (agenda: AgendaDaCampanha) => boolean
+  /**
+   * SISTEMA DE RPG da aventura (um só, para todas as cenas); `null` tira. Pede
+   * Salvar como a agenda, fora do desfazer da cena aberta. `false` no mapa
+   * solto: sem `adventure.json` não há onde guardar — a aventura nasce na
+   * segunda cena, e é o mesmo limite da agenda e do estado do mundo.
+   */
+  setSistemaDeRpg: (sistemaId: string | null) => boolean
+  /**
+   * Grava o PERSONAGEM (a ficha inteira): troca o de mesmo id, ou entra no fim
+   * da lista. Pede Salvar, fora do desfazer. `false` no mapa solto.
+   */
+  salvarPersonagem: (personagem: Personagem) => boolean
+  /** "Importar personagens": entram no fim da lista, na ordem. `false` no mapa solto. */
+  adicionarPersonagens: (personagens: readonly Personagem[]) => boolean
+  /**
+   * Tira o personagem da aventura. O token que apontava para ele fica com o
+   * `characterId` órfão, que o painel lê como "sem personagem" — desligar em
+   * toda cena (e no desfazer de cada uma) para um apagar raro não compensa.
+   * `false` quando ele não existe ou no mapa solto.
+   */
+  apagarPersonagem: (personagemId: string) => boolean
   /**
    * Troca a cena aberta. `false` quando não há o que trocar (mesma cena, cena
    * indisponível). `focus` centraliza a câmera nesse ponto da cena que entra.
@@ -1277,6 +1299,40 @@ export const useAdventureStore = create<AdventureState>()((set, get) => ({
     const { adventure } = get()
     if (adventure === null) return false
     set({ adventure: { ...adventure, agenda }, structureDirty: true })
+    return true
+  },
+
+  setSistemaDeRpg: (sistemaId) => {
+    const { adventure } = get()
+    if (adventure === null) return false
+    const { sistemaDeRpg: _anterior, ...semSistema } = adventure
+    set({ adventure: sistemaId === null ? semSistema : { ...semSistema, sistemaDeRpg: sistemaId }, structureDirty: true })
+    return true
+  },
+
+  salvarPersonagem: (personagem) => {
+    const { adventure } = get()
+    if (adventure === null) return false
+    const lista = adventure.personagens ?? []
+    const existe = lista.some((atual) => atual.id === personagem.id)
+    const personagens = existe ? lista.map((atual) => (atual.id === personagem.id ? personagem : atual)) : [...lista, personagem]
+    set({ adventure: { ...adventure, personagens }, structureDirty: true })
+    return true
+  },
+
+  adicionarPersonagens: (novos) => {
+    const { adventure } = get()
+    if (adventure === null) return false
+    if (novos.length === 0) return true
+    set({ adventure: { ...adventure, personagens: [...(adventure.personagens ?? []), ...novos] }, structureDirty: true })
+    return true
+  },
+
+  apagarPersonagem: (personagemId) => {
+    const { adventure } = get()
+    const lista = adventure?.personagens ?? []
+    if (adventure === null || !lista.some((personagem) => personagem.id === personagemId)) return false
+    set({ adventure: { ...adventure, personagens: lista.filter((personagem) => personagem.id !== personagemId) }, structureDirty: true })
     return true
   },
 

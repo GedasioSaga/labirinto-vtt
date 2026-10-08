@@ -2,6 +2,7 @@ import type { MapData } from '../types/map'
 import { lerAgenda, type AgendaDaCampanha } from './agendaDaCampanha'
 import { estadosDoArquivo, type EstadoDoMundo } from './estadoDoMundo'
 import { cabinesDoArquivo, type CabineDeTransporte } from './cabine'
+import { personagensDoArquivo, sistemaDaAventuraDoArquivo, type Personagem } from './personagem'
 
 /**
  * AVENTURA: várias cenas (mapas) numa pasta só. Cada cena continua sendo um
@@ -69,6 +70,21 @@ export interface Adventure {
    * (`lib/fogFilter.ts`). Ausente = aventura antiga, que grava sem a chave.
    */
   cabines?: CabineDeTransporte[]
+  /**
+   * SISTEMA DE RPG da aventura inteira (decisão do usuário: um sistema por
+   * aventura, todas as cenas): o id de um sistema da biblioteca do app
+   * (`lib/bibliotecaDeSistemas.ts`). Só o id, não uma cópia: a pasta levada a
+   * outra máquina sem o sistema importado abre igual, e a ficha avisa que o
+   * sistema falta em vez de sumir com os números. Ausente = sem sistema.
+   */
+  sistemaDeRpg?: string
+  /**
+   * PERSONAGENS da aventura e as fichas deles (`lib/personagem.ts`). Moram
+   * aqui, e não no `map.json`, porque cruzam cenas e o mapa é o que vai
+   * (recortado) ao jogador. Só do mestre: a aventura nunca vai pela rede.
+   * Ausente = aventura antiga, que grava sem a chave.
+   */
+  personagens?: Personagem[]
 }
 
 /** Nome de cena vazio vira este, em vez de uma entrada sem nome na lista. */
@@ -225,6 +241,9 @@ export function parseAdventure(json: string): Adventure {
   const estados = estadosDoArquivo(parsed.estados)
   // CABINE DE TRANSPORTE: idem — sem a chave, a aventura continua sem ela.
   const cabines = cabinesDoArquivo(parsed.cabines)
+  // SISTEMA DE RPG e PERSONAGENS: idem — sem a chave, a aventura continua sem ela.
+  const sistemaDeRpg = sistemaDaAventuraDoArquivo(parsed.sistemaDeRpg)
+  const personagens = personagensDoArquivo(parsed.personagens)
   const adventure: Adventure = {
     version: typeof parsed.version === 'number' ? parsed.version : ADVENTURE_VERSION,
     id: typeof parsed.id === 'string' && parsed.id.length > 0 ? parsed.id : `adv_${crypto.randomUUID()}`,
@@ -233,6 +252,8 @@ export function parseAdventure(json: string): Adventure {
     scenes: sanitizeSceneParents(scenes),
     ...(estados === undefined ? {} : { estados }),
     ...(cabines === undefined ? {} : { cabines }),
+    ...(sistemaDeRpg === undefined ? {} : { sistemaDeRpg }),
+    ...(personagens === undefined ? {} : { personagens }),
   }
   // Agenda ausente ou ilegível: a aventura abre sem o campo, igual a uma antiga.
   const agenda = lerAgenda(parsed.agenda)
