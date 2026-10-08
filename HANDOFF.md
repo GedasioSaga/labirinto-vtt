@@ -1400,3 +1400,28 @@ Pedidos de 08/10 (literais em `PEDIDOS.md`): refinar o Pincel (4 itens), a Visã
 - Push: `origin/main` e42cc34a..1eef834f e tag `v0.4.16`.
 - Assets (digest do GitHub igual ao sha256 local): `Labirinto_0.4.16_x64-setup.exe` 2572998 bytes sha256 c8191dfe6ae52b2b8a54f986513bab8ac5a642151d3a2ab47adc5edbb64abe50; `Labirinto_0.4.16_x64_en-US.msi` 3260416 bytes sha256 f0b83bf01aa40344fa92b073c128783c53d8309b3d9c1b61095218853f487ddb.
 - Não rodado: Playwright e2e; instalação em máquina limpa; transição 3D especial no teste (o pino de teste não tinha uma); Visão de jogador no exe instalado.
+
+### 08/10/2026 (noite): release v0.4.17 (`eb4f3a55`)
+
+## Objetivo
+Pedidos de 08/10 (literais em `PEDIDOS.md`): ver através das paredes da sala; sistema completo de fichas e sistemas de RPG (One Piece primeiro, sem batalha); ajustes rápidos na ficha (status x modificador). Release no ritmo de 5 features.
+
+## Estado atual
+- main = origin/main @ `eb4f3a55` + docs. Tag `v0.4.17`. Release: https://github.com/GedasioSaga/labirinto-vtt/releases/tag/v0.4.17.
+- RPG: `13b66166` (sistemas + fichas do mestre; `lib/sistemaDeRpg.ts`, `lib/sistemaOnePiece.ts`, `lib/personagem.ts`, `components/FichaDePersonagem*`), `2ade40e6` (ficha do jogador; `net/protocoloDoPersonagem.ts`, `player/PlayerFicha.tsx`), `827ad84e` (livro; `lib/livroOnePiece.ts`, `net/protocoloDoLivro.ts`), `d138d61c` (ajustes rápidos; `lib/ajusteDaFicha.ts`). Sala: `fe041cc2`.
+- Jogadores do projeto-rpg-v2 em `scratchpad/rpg/jogadores-projeto-rpg-v2.json` da sessão aff6ff7e (o usuário já importou).
+
+## Próximos passos
+- Fila RPG: 4 biblioteca de itens (catálogo do app com imagens, rota de mídia, mochila = inventário da ficha), 5 itens no mapa (pino de item ou imagem, propriedades, pegar direto/pedir), 6 editor de sistemas.
+- Depois: 8 melhorias do jogador (lista em `PEDIDOS.md`, 08/10).
+- Fila de achados: `filterMapForPlayer` quadrático; moldura de latão do pedido real; anel de foco cortado; fantasma sem piso; cada clique do mestre reenvia a ficha inteira com retrato.
+
+## Critério de pronto
+- Release v0.4.17 com `Labirinto_0.4.17_x64-setup.exe` e `.msi`, digest igual ao sha256 local; exe ProductVersion 0.4.17.
+
+## Evidência
+- `rtk proxy npx tsc --noEmit` e `-p tsconfig.e2e.json` exit 0; `rtk proxy npx vitest run`: Test Files 1409 passed (1409), Tests 12685 passed (12685).
+- gitleaks `v0.4.16..HEAD`: no leaks found.
+- `npm run tauri:build`: exit 0 em 210 s, 2 bundles. Fumaça: ProductVersion 0.4.17, janela responde, 26 MB.
+- Assets: setup.exe 2635055 B sha256 ed319573b54e94ea38fd1427ef2bdfcb4911fc92ac76c4eabe336859d6ec4921; msi 3321856 B sha256 79ac75fbfc1b2f9ffb99257f020aa8d4c4898df02c9ac68312ac07b2009e50e4 (iguais ao GitHub).
+- Não rodado: e2e Playwright; Tauri real das fichas (diálogos de arquivo, appData); celular de verdade.
