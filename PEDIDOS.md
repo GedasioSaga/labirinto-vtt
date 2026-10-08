@@ -1401,3 +1401,5 @@ Noite = esta sessão conduzida pelo main thread; o noite-runner continua encerra
 
 > 08/10/2026 (na hora do instalador): "Pera, vocÊ está fazendo tudo no programa principal né? não mandei fazer em clone de nada" — sim, tudo na main de `C:\dev\labirinto`; a cópia limpa era só para o instalador não levar a escada espiral sem commit. Perguntado como gerar: "termina a escada primeiro".
 - Fila: terminar a escada espiral (4 arquivos sem commit desde 28/09: `lib/stairs.ts`, `lib/stairs.espiral.test.ts`, `pixi/drawStairs.ts`, `pixi/drawStairs.test.ts`; backup `scratchpad/escada/escada-antes-de-terminar.patch`), commitar, e só então push + instalador v0.4.16.
+- Feito: escada espiral `1b146e6f` (mesmo estilo da escada reta: patamar e degraus no ritmo da reta, editor e jogador). O agente foi parado no meio da conferência pelo custo ("430k de tokens para uma escada ?"); o que ficou passou em 112 testes da escada e no tsc, e foi visto num print do app.
+- Publicado: v0.4.16 (`1eef834f`), https://github.com/GedasioSaga/labirinto-vtt/releases/tag/v0.4.16. Contagem zerada (0 de 5).

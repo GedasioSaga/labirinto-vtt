@@ -1369,3 +1369,34 @@ Pedido do usuário: "Da commit, push e o instalador." Release v0.4.15 com 6 entr
 - Push: `origin/main` 5b85da2e..05f98c45 e tag `v0.4.15`.
 - Assets (digest do GitHub igual ao sha256 local): `Labirinto_0.4.15_x64-setup.exe` 2529982 bytes sha256 db08f3ef86d10ed083a5fcd4c5e1c0a204ac559ef544d965e7fb212ed2cc10b1; `Labirinto_0.4.15_x64_en-US.msi` 3211264 bytes sha256 016bf161775f33e1c7e3333e896f0778cc1f422ff76af71c06f8a46baf91e24b.
 - Não rodado: Playwright e2e; instalação em máquina limpa; conferência no exe com jogadores.
+
+### 08/10/2026: release v0.4.16 (`1eef834f`)
+
+## Objetivo
+Pedidos de 08/10 (literais em `PEDIDOS.md`): refinar o Pincel (4 itens), a Visão de jogador (janela de teste do mestre) e, na hora do instalador, "termina a escada primeiro". Release v0.4.16 com 5 features desde a v0.4.15 + a escada espiral.
+
+## Estado atual
+- main = origin/main @ `1eef834f` (0.4.16 nos 5 arquivos de versão) + este commit de docs. Tag anotada `v0.4.16`. Working tree limpo: a escada espiral finalmente foi commitada (`1b146e6f`), não há mais nada fora de commit.
+- Release: https://github.com/GedasioSaga/labirinto-vtt/releases/tag/v0.4.16 com os 2 instaladores.
+- Pincel: `5c2b945c` camadas/clique, `d6796cbb` balde, `1f764a53` alças, `92675854` + `daf9a2d1` paredes ao redor.
+- Visão de jogador: `208d8ea8`, `9e9d0d7d`, `61c29e40`, `a614122b`, `57816ce0`, `72ed9671`; código em `client/src/net/visaoDeTeste/`, `client/src/player/visaoDeTeste/`, `client/src/pixi/fantasmaDeTeste.ts`, `desktop/src-tauri/src/visao_jogador.rs`; diagrama `docs/diagrams/visao-de-jogador.html` (+ `docs/diagrams/INDEX.md` novo).
+- Escada espiral: `1b146e6f` (mesmo estilo da reta, `TREAD_PITCH_RATIO` compartilhado). O agente que terminava foi parado pelo custo (430k tokens; ver memória `feedback-custo-de-tokens`); o que ele deixou passou nos testes e no tsc e foi conferido num print do app.
+
+## Próximos passos
+- Fila (achados, não pedidos): `filterMapForPlayer` quadrático com o número de paredes (12 ms a 495, 48 a 990, 187 a 1980; é o pico do teste também); moldura de latão do pedido real não aparece (`.lb-panel` vence `Toast.css:144`); anel de foco cortado na caixa de avisos; fantasma não sabe o piso.
+- Limitações da Visão de jogador v1: cabine de transporte não anda no teste; chat/dado/laser do teste não aparecem no editor; memória do dono só do térreo, sem cômodos lembrados nem marcas.
+- e2e (não rodam aqui): `task-jornada-espelhar-tela-do-jogador.spec.ts` foi adaptado à janela nova sem rodar; e2e do Pincel/Visão não escritos.
+- Contagem zerada: 0 de 5 desde a 0.4.16.
+
+## Critério de pronto
+- Release v0.4.16 no GitHub com `Labirinto_0.4.16_x64-setup.exe` e `Labirinto_0.4.16_x64_en-US.msi`, digest igual ao sha256 local; `labirinto.exe` ProductVersion 0.4.16; working tree limpo.
+
+## Evidência
+- `rtk proxy npx tsc --noEmit` e `-p tsconfig.e2e.json` exit 0; `rtk proxy npx vitest run`: Test Files 1371 passed | 1 failed (1372), Tests 12339 passed | 1 failed (12340); a falha é `hostSession.custoCom7` (medição de tempo sob carga), sozinho 1/1 verde. Escada depois do commit: vitest `src/lib/stairs src/pixi/drawStairs src/pixi/stairFlight` 4 arquivos 112/112, tsc 0.
+- App Tauri real (tauri dev + CDP 9222), prints em `scratchpad/visao/p1/` e `scratchpad/visao/p1/final/` da sessão aff6ff7e: segunda janela abre, recebe edição do mestre ao vivo, Jogar move a ficha só no teste (jogo real com a Ana em 320,320), pedido "Teste · Ana quer passar por Porta da cripta → Cripta" no editor, "Deixar ir" leva à Cripta só no teste, fantasma na origem e no destino, fechar apaga tudo; X do Windows e "Fechar" da barra resetam o painel.
+- gitleaks (`%LOCALAPPDATA%\Microsoft\WinGet\Packages\Gitleaks.Gitleaks_Microsoft.Winget.Source_8wekyb3d8bbwe\gitleaks.exe`) `v0.4.15..HEAD`: 18 commits, no leaks found.
+- `npm run tauri:build`: exit 0, "Finished 2 bundles".
+- Fumaça: `labirinto.exe` ProductVersion 0.4.16; janela "Labirinto" Responding=True, 26 MB; fechada depois.
+- Push: `origin/main` e42cc34a..1eef834f e tag `v0.4.16`.
+- Assets (digest do GitHub igual ao sha256 local): `Labirinto_0.4.16_x64-setup.exe` 2572998 bytes sha256 c8191dfe6ae52b2b8a54f986513bab8ac5a642151d3a2ab47adc5edbb64abe50; `Labirinto_0.4.16_x64_en-US.msi` 3260416 bytes sha256 f0b83bf01aa40344fa92b073c128783c53d8309b3d9c1b61095218853f487ddb.
+- Não rodado: Playwright e2e; instalação em máquina limpa; transição 3D especial no teste (o pino de teste não tinha uma); Visão de jogador no exe instalado.
