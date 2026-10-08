@@ -4,7 +4,7 @@ import { theme } from '../theme'
 import { createTokenGlides, stepGlides, syncGlide, type GlidePoint } from '../player/tokenGlide'
 import type { Token, TokenHealth } from '../types/map'
 import { SECRET_ITEM_ALPHA, SELECTION_COLOR, TOKEN_FRAME_COLOR, TOKEN_FRAME_WIDTH, TURN_RING_COLOR, TURN_RING_GAP, TURN_RING_WIDTH } from './constants'
-import { drawTokenCircle } from './drawTokens'
+import { drawTokenCircle, tokenCircleRadius } from './drawTokens'
 import { drawTokenHealthBar, HEALTH_BAR_LABEL, tokenLabelTop } from './drawTokenHealth'
 import { readTokenHealth } from '../lib/tokenHealth'
 import { parseHexColor, tokenFillColor } from '../lib/tokenColor'
@@ -795,7 +795,7 @@ export function createTokensRenderer(motion?: TokensMotion): TokensRenderer {
         outlineRadius = radius
       } else {
         const graphics = ensureGraphics(entry)
-        const radius = (gridSize * token.size) / 2 - 2
+        const radius = tokenCircleRadius(gridSize, token.size)
         drawTokenCircle(graphics, radius, selected, tokenFillColor(token))
         // Círculo genérico é simétrico hoje, mas gira igual ao sprite pra
         // não haver salto visual quando o token ganha/perde imagem depois.

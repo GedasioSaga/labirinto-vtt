@@ -9,6 +9,7 @@ import { useMapStore } from '../stores/mapStore'
 import type { MapData, Token } from '../types/map'
 import { PixiCanvas } from './PixiCanvas'
 import { ENDIREITAR_FANTASMA_LABEL } from './straightenGhost'
+import { FANTASMA_DE_TESTE_LABEL } from './drawFantasmaDeTeste'
 import { syncWorldTextResolution, TEXT_RESOLUTION_DEBOUNCE_MS } from './textResolution'
 
 /**
@@ -20,7 +21,9 @@ import { syncWorldTextResolution, TEXT_RESOLUTION_DEBOUNCE_MS } from './textReso
  * de hover, refeito a cada pointermove, tem grupo próprio para não refazer os
  * lotes do mapa inteiro — e, desde o pedido 3 (fatia 4), também o rascunho, a
  * guia e o rótulo de medida do desenho; desde o pedido 5 (fatia 4), o
- * fantasma do endireitar, que muda o alpha a cada quadro enquanto apaga. P7: o
+ * fantasma do endireitar, que muda o alpha a cada quadro enquanto apaga; desde
+ * a Visão de jogador (entrega 3), a camada do fantasma da ficha de teste, que
+ * desliza, acende e apaga quadro a quadro com o mapa parado. P7: o
  * arrasto da ficha não percorre todos os textos do mundo a cada passo; só nome
  * novo ou renomeado pede a ressincronização.
  */
@@ -178,7 +181,7 @@ function graficoComTraco(cor: number): Graphics {
 const COR_DO_RASCUNHO = 0x12ab34
 
 describe('PixiCanvas — o mundo fora da árvore de eventos e em grupos de render (P2)', () => {
-  it('o world não recebe evento do Pixi e é grupo de render; dentro dele só tem grupo próprio o que muda a cada pointermove ou quadro com o mapa parado: o contorno de hover, ao desenhar o rascunho, a guia e o rótulo de medida, e o fantasma do endireitar (a grade não)', async () => {
+  it('o world não recebe evento do Pixi e é grupo de render; dentro dele só tem grupo próprio o que muda a cada pointermove ou quadro com o mapa parado: o contorno de hover, ao desenhar o rascunho, a guia e o rótulo de medida, o fantasma do endireitar e o da ficha de teste (a grade não)', async () => {
     await monta()
     ponteiro('pointermove', { x: 160, y: 160 })
     const hover = contornoDeHover()
@@ -197,12 +200,15 @@ describe('PixiCanvas — o mundo fora da árvore de eventos e em grupos de rende
     // `null` = o fantasma não existe, e o teste cai na asserção logo abaixo.
     const fantasma = descendentes(mundo()).find((no) => no.label === ENDIREITAR_FANTASMA_LABEL) ?? null
     expect(fantasma).not.toBeNull()
+    // A camada do fantasma da ficha de teste: o pai da raiz dele (que existe desde a montagem, escondida).
+    const camadaDoTeste = descendentes(mundo()).find((no) => no.label === FANTASMA_DE_TESTE_LABEL)?.parent ?? null
+    expect(camadaDoTeste).not.toBeNull()
 
     expect(mundo().eventMode).toBe('none')
     expect(mundo().isRenderGroup).toBe(true)
     const grupos = descendentes(mundo()).filter((no) => no.isRenderGroup)
-    expect(grupos).toHaveLength(5)
-    for (const proprio of [hover, rascunho, guia, rotulo, fantasma]) expect(grupos).toContain(proprio)
+    expect(grupos).toHaveLength(6)
+    for (const proprio of [hover, rascunho, guia, rotulo, fantasma, camadaDoTeste]) expect(grupos).toContain(proprio)
   })
 
   it('os ouvintes continuam no stage: o hover segue o ponteiro e o arrasto move a ficha', async () => {

@@ -92,6 +92,9 @@ const OUTSIDE_FLOOR_GRID_ALPHA = 0.08
 // Onda 3, item 21 (Frente E) — moldura do mapa (contorno + sombra fora dela).
 import { drawMapBounds } from './drawMapBounds'
 import { createTokensRenderer } from './tokensRenderer'
+import { createFantasmaDeTesteRenderer } from './fantasmaDeTeste'
+import { fantasmaNaCena } from './drawFantasmaDeTeste'
+import type { FantasmaDeTeste } from '../net/visaoDeTeste/tipos'
 import { consumirMovimentosRemotos } from '../lib/movimentoRemoto'
 import { createDestinationsRenderer, createSignalsRenderer } from './drawSignals'
 import { useSignalStore } from '../stores/signalStore'
@@ -688,6 +691,14 @@ interface PixiCanvasProps {
    * "Ruído" da aba Jogo). Um clique, um ruído: o gesto já desarmou.
    */
   onNoise?: (x: number, y: number) => void
+  /**
+   * VISÃO DE JOGADOR — onde a ficha da janela de teste está no teste, quando o
+   * teste a tirou do lugar de verdade (`visaoDeTeste.estado().fantasma`). O
+   * canvas desenha uma cópia translúcida dela ali, só na cena aberta igual a
+   * `mapId` e com a ficha nela (`fantasmaDeTeste.ts`); `null`/ausente = nada.
+   * Não é ficha do mapa: não se clica, não se arrasta e não sai na imagem exportada.
+   */
+  fantasmaDeTeste?: FantasmaDeTeste | null
 }
 
 /**
@@ -747,6 +758,7 @@ export function PixiCanvas({
   focusObstacles,
   onShowShortcuts,
   onImageExporterChange,
+  fantasmaDeTeste = null,
 }: PixiCanvasProps) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const onImageExporterChangeRef = useRef(onImageExporterChange)
@@ -849,6 +861,16 @@ export function PixiCanvas({
   useEffect(() => {
     if (resetZoomRequest !== undefined) resetZoomRequestRef.current?.()
   }, [resetZoomRequest])
+
+  // Mesma ponte, para o fantasma da ficha de teste. Aqui o VALOR fica no ref, e
+  // não só a função: o fantasma que chega antes do `setup()` terminar é o que
+  // a montagem desenha, em vez de se perder até o próximo passo do teste.
+  const fantasmaDeTesteRef = useRef(fantasmaDeTeste)
+  const redrawFantasmaRef = useRef<(() => void) | null>(null)
+  useEffect(() => {
+    fantasmaDeTesteRef.current = fantasmaDeTeste
+    redrawFantasmaRef.current?.()
+  }, [fantasmaDeTeste])
 
   // Mesma ponte, para a câmera de cada cena. Pedido que chega antes do
   // `setup()` terminar é descartado: a montagem já enquadra o mapa aberto.
@@ -982,6 +1004,14 @@ export function PixiCanvas({
       // Pinos acima das zonas ocultas: o pino é o chamariz da cena e o mestre
       // precisa achá-lo mesmo sobre uma área que ele mesmo escondeu.
       const pinsContainer = new Container()
+      // VISÃO DE JOGADOR: a cópia translúcida da ficha onde ela está no teste
+      // (`fantasmaDeTeste.ts`). Acima das fichas, das zonas e dos pinos — é
+      // marca por cima do mapa —, abaixo das alças e do contorno da seleção, e
+      // depois dos pinos: a exportação de imagem esconde tudo daqui pra cima.
+      // Sem evento nenhum (o `world` já poda, e o fantasma nem está no mapa).
+      const fantasmaDeTesteContainer = new Container()
+      fantasmaDeTesteContainer.eventMode = 'none'
+      fantasmaDeTesteContainer.interactiveChildren = false
       // Pedido 5, fatia 4: a posição de antes da linha endireitada, apagando
       // (`straightenGhost.ts`). Logo depois dos pinos: abaixo das alças da
       // seleção nova, e fora da imagem exportada, que esconde tudo daqui pra cima.
@@ -1055,6 +1085,7 @@ export function PixiCanvas({
         tokensContainer,
         concealZonesContainer,
         pinsContainer,
+        fantasmaDeTesteContainer,
         straightenGhostGraphics,
         floorSelectionGraphics,
         handlesGraphics,
@@ -1103,6 +1134,10 @@ export function PixiCanvas({
       // atualiza o lote do mapa a cada quadro, e o desenho e a limpeza do
       // fantasma não obrigam o mundo inteiro a refazer os lotes.
       straightenGhostGraphics.enableRenderGroup()
+      // O fantasma da ficha de teste desliza, acende e apaga (alpha e posição a
+      // cada quadro) e refaz a ligação a cada passo: no grupo próprio, nada
+      // disso refaz os lotes do mapa.
+      fantasmaDeTesteContainer.enableRenderGroup()
       // Os números do vão NÃO têm grupo próprio: eles mudam junto com a peça
       // arrastada, que já refaz os lotes do mapa no mesmo quadro, e presos no
       // encaixe não mudam (`showGuides`). Grupo a mais seria custo sem ganho
@@ -1884,6 +1919,26 @@ export function PixiCanvas({
         // arrasto (1200 textos: ~30 ms num arrasto de 30 passos, medido no dev
         // em 01/10/2026).
         if (changedLabels > 0) syncTextResolution()
+        // O fantasma da ficha de teste segue a ficha de verdade: a cara, o
+        // tamanho e a ponta da ligação dela.
+        redrawFantasma()
+      }
+
+      /**
+       * VISÃO DE JOGADOR: o fantasma da ficha de teste, só na cena aberta igual
+       * à do teste e com a ficha nela (`fantasmaNaCena`). Barato a cada passo de
+       * arrasto: o renderer só repinta o que mudou. A imagem exportada não leva
+       * fantasma — a camada dele já sai escondida, e aqui nem se desenha.
+       */
+      const redrawFantasma = () => {
+        if (exportScene !== null) return
+        const { map } = sceneState()
+        fantasmaRenderer.draw(
+          fantasmaNaCena(fantasmaDeTesteRef.current ?? null, map),
+          map.grid,
+          `${cenaAberta()}|${useMapStore.getState().pisoAtivo}`,
+          camera.scale,
+        )
       }
 
       const propsRenderer = createPropsRenderer()
@@ -1989,6 +2044,8 @@ export function PixiCanvas({
       // Ficha na mão, anel da vez e passo do jogador animam no relógio do Pixi
       // — e só enquanto alguma coisa anima (tokensRenderer.ts).
       const tokensRenderer = createTokensRenderer({ ticker: app.ticker, reducedMotion: prefersReducedMotion })
+      const fantasmaRenderer = createFantasmaDeTesteRenderer(fantasmaDeTesteContainer, { ticker: app.ticker, reducedMotion: prefersReducedMotion })
+      redrawFantasmaRef.current = redrawFantasma
       // Onda 2, item 16 (Frente C) — número ao vivo durante o arrasto de forma.
       const dimensionLabelRenderer = createDimensionLabelRenderer()
 
@@ -2237,6 +2294,8 @@ export function PixiCanvas({
         // abaixo: esta função só roda depois da montagem (roda parada ou
         // quadro seguinte), nunca durante ela.
         redrawHover()
+        // Anel e ligação do fantasma da ficha de teste: traço e ponto em px de tela.
+        redrawFantasma()
       }
       const zoomDaRoda = createZoomDaRoda({
         redesenhar: () => {
@@ -2260,6 +2319,8 @@ export function PixiCanvas({
         // Nomes de sala/token: tamanho mínimo na tela e somem abaixo de 30% (screenLabel.ts).
         roomNamesRenderer.setCameraScale(scale)
         tokensRenderer.setCameraScale(scale)
+        // A etiqueta "Teste" do fantasma escala como os nomes das fichas.
+        fantasmaRenderer.setCameraScale(scale)
       })
       const unsubscribeCameraScaleForWalls = useMapStore.subscribe(
         (state) => state.camera.scale,
@@ -7387,6 +7448,8 @@ export function PixiCanvas({
         app.ticker.remove(tickLaser)
         app.ticker.remove(tickPlayerLasers)
         tokensRenderer.cancelarAnimacoes()
+        fantasmaRenderer.desmontar()
+        redrawFantasmaRef.current = null
         unsubscribeLaserCursor()
         unsubscribeNoiseCursor()
         unsubscribeContaGotasCursor()

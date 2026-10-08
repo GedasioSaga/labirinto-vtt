@@ -2785,6 +2785,7 @@ function App() {
           onImageExporterChange={(exporter) => {
             imageExporterRef.current = exporter
           }}
+          fantasmaDeTeste={estadoDaVisao.fantasma ?? null}
         />
       </div>
 
