@@ -188,6 +188,26 @@
   box-shadow: var(--lb-shadow-focus);
 }
 
+/* Pedido que veio da janela de teste (Visão de jogador, `GRUPO_DO_TESTE`), no
+   lugar da instrução: tracejado neutro sobre a pedra, e latão nenhum — nem na
+   resposta, nem no "Deixar todos" (Toast.tsx). O latão é de quem espera do
+   outro lado da mesa; o tracejado é a linguagem do que só o mestre vê, a mesma
+   do selo "Teste" da janela (BarraDoTeste.css) e do anel do fantasma no mapa.
+   Duas classes: o main.css carrega depois deste arquivo, e a borda e o fundo
+   de .lb-panel venceriam com uma só (mesmo caso de ActionBar.css). */
+.lb-panel.lb-toast--teste {
+  border-style: dashed;
+  border-color: var(--lb-color-line-divider);
+  background: var(--lb-color-stone-solid);
+}
+
+/* O × do cartão do teste fora da caixa: desenhado como o do aviso que espera
+   (é a única saída dele), no contorno neutro. */
+.lb-toast--teste .lb-toast__dismiss {
+  border: 1px solid var(--lb-color-line-strong);
+  color: var(--lb-color-parchment);
+}
+
 /* Caixa de pedidos (caixaDeAvisos.ts): dois ou mais pedidos de passagem numa
    caixa só, "Pedidos (N)". Mesma chrome e mesmo latão do aviso que espera,
    para ler como "os avisos de antes, juntos", e não como painel novo. Coluna:

@@ -121,13 +121,14 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
-function desenha(fantasma: FantasmaDeTeste | null): void {
-  root.render(<PixiCanvas onImageExporterChange={exportador} fantasmaDeTeste={fantasma} />)
+/** `fichaDoFantasma`: a ficha de verdade que o App achou no mundo (null = a prop de sempre, sem cara de fora). */
+function desenha(fantasma: FantasmaDeTeste | null, fichaDoFantasma: Token | null = null): void {
+  root.render(<PixiCanvas onImageExporterChange={exportador} fantasmaDeTeste={fantasma} fichaDoFantasma={fichaDoFantasma} />)
 }
 
-async function monta(fantasma: FantasmaDeTeste | null = NO_TESTE): Promise<void> {
+async function monta(fantasma: FantasmaDeTeste | null = NO_TESTE, fichaDoFantasma: Token | null = null): Promise<void> {
   await act(async () => {
-    desenha(fantasma)
+    desenha(fantasma, fichaDoFantasma)
   })
   montado = true
   await vi.waitFor(() => expect(exportador).toHaveBeenCalled())
@@ -136,9 +137,9 @@ async function monta(fantasma: FantasmaDeTeste | null = NO_TESTE): Promise<void>
 }
 
 /** O App mandou outro fantasma (a prop muda de referência). */
-function trocaFantasma(fantasma: FantasmaDeTeste | null): void {
+function trocaFantasma(fantasma: FantasmaDeTeste | null, fichaDoFantasma: Token | null = null): void {
   act(() => {
-    desenha(fantasma)
+    desenha(fantasma, fichaDoFantasma)
   })
 }
 
@@ -173,6 +174,13 @@ function fantasma(): Container {
 function corpo(): Container {
   const achado = fantasma().children[1]
   if (!(achado instanceof Container)) throw new Error('fantasma sem corpo')
+  return achado
+}
+
+/** Os pontos que ligam o fantasma à ficha de verdade. */
+function ligacao(): Graphics {
+  const achado = fantasma().children[0]
+  if (!(achado instanceof Graphics)) throw new Error('fantasma sem ligação')
   return achado
 }
 
@@ -390,5 +398,76 @@ describe('PixiCanvas — o fantasma da ficha de teste (Visão de jogador, entreg
     })
     montado = false
     await vi.waitFor(() => expect(desligar.mock.calls.map(([fn]) => fn)).toContain(doFantasma))
+  })
+})
+
+describe('PixiCanvas — o fantasma na cena para onde o teste levou a ficha', () => {
+  /**
+   * A Lanterna de verdade ficou na Cripta (agora cena de fundo); no teste ela
+   * passou pela porta e está na Torre, a cena aberta no editor. O App acha a
+   * ficha no mundo e a passa em `fichaDoFantasma`.
+   */
+  const TORRE = 'torre'
+  const NA_TORRE: FantasmaDeTeste = { tokenId: 'lanterna', mapId: TORRE, x: 416, y: 288 }
+  const LANTERNA_DA_CRIPTA = ficha('lanterna', 'Lanterna', REAL.x, REAL.y)
+
+  /** O mestre abre a Torre: só o Guarda mora nela. */
+  function abreATorre(sobra: Partial<MapData> = {}): void {
+    useMapStore.setState({ map: { ...createEmptyMap(TORRE, 'Torre', 30, 20, GRADE), tokens: [ficha('guarda', 'Guarda', 160, 288)], ...sobra } })
+  }
+
+  it('aparece no ponto do teste com a cara da ficha de lá, sem ligação, e não se toca', async () => {
+    abreATorre()
+    await monta(NA_TORRE, LANTERNA_DA_CRIPTA)
+    expect(naTela(fantasma())).toBe(true)
+    expect(fantasma().alpha).toBe(1)
+    expect({ x: corpo().position.x, y: corpo().position.y }).toEqual({ x: NA_TORRE.x, y: NA_TORRE.y })
+    expect(ligacao().context.instructions).toHaveLength(0)
+    expect(camada().eventMode).toBe('none')
+    expect(fantasma().eventMode).toBe('none')
+
+    // Não é ficha da Torre: o clique no ponto dele não acha nada, e a Torre segue só com o Guarda.
+    clica(NA_TORRE)
+    expect(useMapStore.getState().selection).toEqual([])
+    expect(useMapStore.getState().map.tokens.map((token) => token.id)).toEqual(['guarda'])
+  })
+
+  it('o teste com a ficha em outra cena que não a aberta: nada, mesmo com a cara à mão', async () => {
+    abreATorre()
+    await monta({ ...NA_TORRE, mapId: 'porao' }, LANTERNA_DA_CRIPTA)
+    expect(naTela(fantasma())).toBe(false)
+  })
+
+  it('sem a ficha no mundo (o App não a achou): nada', async () => {
+    abreATorre()
+    await monta(NA_TORRE, null)
+    expect(naTela(fantasma())).toBe(false)
+  })
+
+  it('a ficha está nesta cena, noutro piso: vale a regra do piso, e não a cara de fora', async () => {
+    // A Lanterna mora na Torre, no 1º piso; o mestre edita o térreo.
+    abreATorre({ tokens: [ficha('guarda', 'Guarda', 160, 288), { ...ficha('lanterna', 'Lanterna', 160, 160), piso: 1 }] })
+    await monta(NA_TORRE, LANTERNA_DA_CRIPTA)
+    expect(naTela(fantasma())).toBe(false)
+  })
+
+  it('o teste leva a ficha embora: apaga na Cripta; o mestre abre a Torre e ele já está lá, aceso', async () => {
+    await monta(NO_TESTE, LANTERNA_DA_CRIPTA)
+    // Na Cripta, com a ficha de verdade nela: a ligação de sempre.
+    expect(ligacao().context.instructions.length).toBeGreaterThan(0)
+
+    trocaFantasma(NA_TORRE, LANTERNA_DA_CRIPTA)
+    quadro(FANTASMA_APAGAR_MS)
+    expect(naTela(fantasma())).toBe(false)
+
+    // Só a store troca de cena, antes de o App renderizar de novo: a ficha já estava no canvas.
+    act(() => {
+      abreATorre()
+    })
+    quadro(16)
+    expect(naTela(fantasma())).toBe(true)
+    expect(fantasma().alpha).toBe(1)
+    expect({ x: corpo().position.x, y: corpo().position.y }).toEqual({ x: NA_TORRE.x, y: NA_TORRE.y })
+    expect(ligacao().context.instructions).toHaveLength(0)
   })
 })

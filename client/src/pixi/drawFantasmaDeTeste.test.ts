@@ -10,6 +10,7 @@ import {
   TINTA_APAGADA_DO_TESTE,
   TINTA_CLARA_DO_TESTE,
   TINTA_ESCURA_DO_TESTE,
+  acharFichaDoFantasma,
   drawAnelDoTeste,
   drawEtiquetaDoTeste,
   drawLigacaoDoTeste,
@@ -78,6 +79,79 @@ describe('fantasmaNaCena — o fantasma só existe na cena aberta, com a ficha �
   it('ponto inválido (NaN, infinito) não desenha', () => {
     expect(fantasmaNaCena({ ...NO_TESTE, x: Number.NaN }, cena())).toBeNull()
     expect(fantasmaNaCena({ ...NO_TESTE, y: Number.POSITIVE_INFINITY }, cena())).toBeNull()
+  })
+})
+
+describe('fantasmaNaCena — a ficha que o teste levou para outra cena', () => {
+  /** A Cripta ficou para trás com a Aria de verdade; o teste a levou para a Torre. */
+  const NA_TORRE: FantasmaDeTeste = { tokenId: 'aria', mapId: 'torre', x: 352, y: 96 }
+  const torre = (sobra: Partial<Pick<MapData, 'tokens' | 'hiddenLayers'>> = {}) => cena({ id: 'torre', tokens: [ficha({ id: 'guarda' })], ...sobra })
+  /** O que o canvas passa: a ficha que o App achou no mundo e a cena aberta inteira. */
+  const daCripta = (aberta: Pick<MapData, 'tokens'>) => ({ ficha: ficha(), cena: aberta })
+
+  it('na cena de destino: a cara da ficha de lá, no ponto do teste, de outra cena', () => {
+    const aberta = torre()
+    expect(fantasmaNaCena(NA_TORRE, aberta, daCripta(aberta))).toEqual({ ficha: ficha(), x: 352, y: 96, deOutraCena: true })
+  })
+
+  it('o ponto de lá não conta: no mesmo x/y da ficha de verdade (na outra cena), aparece igual', () => {
+    const aberta = torre()
+    expect(fantasmaNaCena({ ...NA_TORRE, x: 160, y: 160 }, aberta, daCripta(aberta))).toMatchObject({ x: 160, y: 160, deOutraCena: true })
+  })
+
+  it('a cena aberta não é a do teste: nada, mesmo com a cara à mão', () => {
+    const aberta = cena({ id: 'porao', tokens: [] })
+    expect(fantasmaNaCena(NA_TORRE, aberta, daCripta(aberta))).toBeNull()
+  })
+
+  it('sem a ficha no mundo (o App não achou): nada', () => {
+    const aberta = torre()
+    expect(fantasmaNaCena(NA_TORRE, aberta, { ficha: null, cena: aberta })).toBeNull()
+  })
+
+  it('a cara de outra ficha não serve', () => {
+    const aberta = torre()
+    expect(fantasmaNaCena(NA_TORRE, aberta, { ficha: ficha({ id: 'outra' }), cena: aberta })).toBeNull()
+  })
+
+  it('camada Fichas oculta na cena aberta: some junto com as fichas', () => {
+    const aberta = torre({ hiddenLayers: ['tokens'] })
+    expect(fantasmaNaCena(NA_TORRE, aberta, daCripta(aberta))).toBeNull()
+  })
+
+  it('a ficha está nesta cena, noutro piso: vale a regra do piso, não a cara de fora', () => {
+    // O canvas passa o piso em edição (sem a Aria) e a cena inteira (com ela no 1º piso).
+    const pisoEmEdicao = torre()
+    const inteira = { tokens: [...pisoEmEdicao.tokens, ficha({ piso: 1 })] }
+    expect(fantasmaNaCena(NA_TORRE, pisoEmEdicao, daCripta(inteira))).toBeNull()
+  })
+
+  it('com a ficha na cena aberta, a cara de fora não muda nada: a de verdade, com ligação', () => {
+    const map = cena()
+    expect(fantasmaNaCena(NO_TESTE, map, { ficha: ficha({ color: '#000000' }), cena: map })).toEqual({ ficha: map.tokens[0], x: 480, y: 160 })
+  })
+})
+
+describe('acharFichaDoFantasma — a ficha de verdade em qualquer cena do mundo', () => {
+  const mundo = (aberta: Token[], ...fundo: Token[][]) => ({ open: { map: { tokens: aberta } }, background: fundo.map((tokens) => ({ map: { tokens } })) })
+
+  it('na cena aberta', () => {
+    const aria = ficha()
+    expect(acharFichaDoFantasma('aria', mundo([aria]))).toBe(aria)
+  })
+
+  it('numa cena de fundo (a ficha ficou para trás)', () => {
+    const aria = ficha()
+    expect(acharFichaDoFantasma('aria', mundo([ficha({ id: 'guarda' })], [], [aria]))).toBe(aria)
+  })
+
+  it('a aberta primeiro, como o teste a acha', () => {
+    const aqui = ficha({ x: 1 })
+    expect(acharFichaDoFantasma('aria', mundo([aqui], [ficha({ x: 2 })]))).toBe(aqui)
+  })
+
+  it('em cena nenhuma: null', () => {
+    expect(acharFichaDoFantasma('aria', mundo([], [ficha({ id: 'guarda' })]))).toBeNull()
   })
 })
 

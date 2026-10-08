@@ -204,6 +204,32 @@ describe('createFantasmaDeTesteRenderer — o que aparece', () => {
     expect(ligacao.context.instructions).toHaveLength(0)
   })
 
+  it('a ficha ficou em outra cena: a cara dela no ponto do teste, com anel e etiqueta, sem ligação', () => {
+    const camada = new Container()
+    createFantasmaDeTesteRenderer(camada).draw({ ...alvo(480, 160), deOutraCena: true }, GRADE, CENA, 1)
+    const { raiz, corpo, cor, anel, texto, ligacao } = partes(camada)
+    expect(raiz.visible).toBe(true)
+    expect({ x: corpo.position.x, y: corpo.position.y }).toEqual({ x: 480, y: 160 })
+    expect(preenchimentos(cor)[0]?.data.style.color).toBe(0xc0392b)
+    expect(anel.context.instructions.length).toBeGreaterThan(0)
+    expect(texto.text).toBe('Teste')
+    expect(ligacao.context.instructions).toHaveLength(0)
+  })
+
+  it('de ligado para outra cena, os pontos de antes somem; de volta à cena da ficha, voltam', () => {
+    const camada = new Container()
+    const renderer = createFantasmaDeTesteRenderer(camada)
+    renderer.draw(alvo(480, 160), GRADE, CENA, 1)
+    const { ligacao } = partes(camada)
+    expect(preenchimentos(ligacao)).toHaveLength(2)
+
+    renderer.draw({ ...alvo(352, 96), deOutraCena: true }, GRADE, 'aventura|torre|0', 1)
+    expect(ligacao.context.instructions).toHaveLength(0)
+
+    renderer.draw(alvo(480, 160), GRADE, CENA, 1)
+    expect(preenchimentos(ligacao)).toHaveLength(2)
+  })
+
   it('sem relógio (nada anima): some na hora', () => {
     const camada = new Container()
     const renderer = createFantasmaDeTesteRenderer(camada)
@@ -308,6 +334,39 @@ describe('createFantasmaDeTesteRenderer — movimento', () => {
     expect(raiz.visible).toBe(true)
     expect(raiz.alpha).toBe(1)
     expect({ x: corpo.position.x, y: corpo.position.y }).toEqual({ x: 544, y: 288 })
+  })
+
+  it('a ficha chegou a esta cena pelo teste: acende no lugar, curto — não sai de dentro da ficha de lá', () => {
+    const { motion, quadro, ticker } = relogio()
+    const camada = new Container()
+    const renderer = createFantasmaDeTesteRenderer(camada, motion)
+    renderer.draw(null, GRADE, CENA, 1)
+    // A ficha de verdade está em (160, 160) da OUTRA cena: aqui não é ponto de partida.
+    renderer.draw({ ...alvo(480, 160), deOutraCena: true }, GRADE, CENA, 1)
+    const { raiz, corpo } = partes(camada)
+    expect(corpo.position.x).toBe(480)
+    expect(raiz.alpha).toBe(0)
+
+    quadro(FANTASMA_APAGAR_MS / 2)
+    expect(corpo.position.x).toBe(480)
+    expect(raiz.alpha).toBeGreaterThan(0)
+    expect(raiz.alpha).toBeLessThan(1)
+    quadro(FANTASMA_APAGAR_MS / 2)
+    expect(raiz.alpha).toBe(1)
+    expect(ticker.count).toBe(0)
+  })
+
+  it('o mestre abre a cena para onde o teste levou a ficha: o fantasma já está lá, aceso', () => {
+    const { motion, ticker } = relogio()
+    const camada = new Container()
+    const renderer = createFantasmaDeTesteRenderer(camada, motion)
+    renderer.draw(null, GRADE, CENA, 1)
+    renderer.draw({ ...alvo(352, 96), deOutraCena: true }, GRADE, 'aventura|torre|0', 1)
+    const { raiz, corpo } = partes(camada)
+    expect(raiz.visible).toBe(true)
+    expect(raiz.alpha).toBe(1)
+    expect({ x: corpo.position.x, y: corpo.position.y }).toEqual({ x: 352, y: 96 })
+    expect(ticker.count).toBe(0)
   })
 
   it('abrir o editor com o teste já em curso: aparece no lugar, sem animar', () => {

@@ -124,29 +124,91 @@ export function escalaUtil(cameraScale: number): number {
 
 /** O fantasma pronto para desenhar nesta cena. */
 export interface FantasmaNaCena {
-  /** A ficha de verdade, nesta cena: a cara do fantasma e a ponta de onde a ligação sai. */
+  /** A ficha de verdade: a cara do fantasma e, nesta cena, a ponta de onde a ligação sai. */
   ficha: Token
   /** Onde ela está no teste, na convenção de `Token.x/y`. */
   x: number
   y: number
+  /**
+   * A ficha de verdade ficou em OUTRA cena: o teste a levou por uma passagem
+   * até esta. A cara vem de lá; ligação não há (a ponta não está aqui), e o
+   * fantasma não sai de dentro de ficha nenhuma. Ausente = ela está nesta cena
+   * — o campo só entra quando é verdade, como o `planKnownByAll` do mundo.
+   */
+  deOutraCena?: true
 }
 
 /**
- * O fantasma só existe na cena aberta igual à do teste e com a ficha de
- * verdade à vista nela (piso em edição, camada Fichas mostrada): é dela que
- * sai o tamanho, a foto e a cor. Fora disso, nada. No mesmo ponto da ficha de
- * verdade também não há o que mostrar.
+ * A ficha de verdade do fantasma quando ela pode não estar na cena aberta: o
+ * teste a levou por uma passagem para esta cena, e é de onde ela ficou que vem
+ * a cara (o App a acha no mundo, `acharFichaDoFantasma`).
+ */
+export interface FichaDeOutraCena {
+  /** A ficha de verdade, de qualquer cena do mundo; null = em nenhuma. */
+  ficha: Token | null
+  /**
+   * A cena aberta INTEIRA, de todos os pisos (o `map` de `fantasmaNaCena` é só
+   * o piso em edição): a ficha que está nesta cena, noutro piso, segue a regra
+   * do piso — nada —, e não vira fantasma de outra cena.
+   */
+  cena: Pick<MapData, 'tokens'>
+}
+
+/**
+ * O fantasma só existe na cena aberta igual à do teste. Com a ficha de verdade
+ * à vista nela (piso em edição, camada Fichas mostrada), é dela que sai o
+ * tamanho, a foto e a cor, e dela sai a ligação; no mesmo ponto dela não há o
+ * que mostrar. Sem a ficha nesta cena — o teste a levou para cá por uma
+ * passagem —, a cara vem de onde ela ficou (`deOutraCena`). Fora disso, nada.
  */
 export function fantasmaNaCena(
   fantasma: FantasmaDeTeste | null,
   map: Pick<MapData, 'id' | 'tokens' | 'hiddenLayers'>,
+  deOutraCena: FichaDeOutraCena | null = null,
 ): FantasmaNaCena | null {
   if (fantasma === null || fantasma.mapId !== map.id) return null
   if (!Number.isFinite(fantasma.x) || !Number.isFinite(fantasma.y)) return null
   const ficha = map.tokens.find((token) => token.id === fantasma.tokenId)
-  if (ficha === undefined || !isLayerVisible(map.hiddenLayers, tokenLayer(ficha))) return null
+  if (ficha === undefined) return deOutraCena === null ? null : vindoDeOutraCena(fantasma, map, deOutraCena)
+  if (!isLayerVisible(map.hiddenLayers, tokenLayer(ficha))) return null
   if (fantasma.x === ficha.x && fantasma.y === ficha.y) return null
   return { ficha, x: fantasma.x, y: fantasma.y }
+}
+
+/**
+ * O fantasma com a cara da ficha que ficou em outra cena: só com ela fora da
+ * cena aberta inteira e com a camada Fichas à vista aqui. O "mesmo ponto da
+ * ficha" não vale — o ponto dela é de outra cena.
+ */
+function vindoDeOutraCena(
+  fantasma: FantasmaDeTeste,
+  map: Pick<MapData, 'hiddenLayers'>,
+  { ficha, cena }: FichaDeOutraCena,
+): FantasmaNaCena | null {
+  if (ficha === null || ficha.id !== fantasma.tokenId) return null
+  if (cena.tokens.some((token) => token.id === fantasma.tokenId)) return null
+  if (!isLayerVisible(map.hiddenLayers, tokenLayer(ficha))) return null
+  return { ficha, x: fantasma.x, y: fantasma.y, deOutraCena: true }
+}
+
+/** As cenas onde a ficha de verdade pode estar: a aberta e as de fundo (o `HostWorld` de net/hostSession.ts serve). */
+export interface CenasDoMundo {
+  open: { map: Pick<MapData, 'tokens'> }
+  background: readonly { map: Pick<MapData, 'tokens'> }[]
+}
+
+/**
+ * A ficha de verdade `tokenId`, em qualquer cena do mundo: a aberta primeiro,
+ * depois as de fundo — a ordem em que o teste a acha (`camadaDeTeste.ts`).
+ * É a cara do fantasma quando o teste a levou para outra cena. `null` = em
+ * cena nenhuma.
+ */
+export function acharFichaDoFantasma(tokenId: string, mundo: CenasDoMundo): Token | null {
+  for (const cena of [mundo.open, ...mundo.background]) {
+    const ficha = cena.map.tokens.find((token) => token.id === tokenId)
+    if (ficha !== undefined) return ficha
+  }
+  return null
 }
 
 /**

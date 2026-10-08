@@ -5,7 +5,7 @@ import { Application, Container, Graphics, Sprite, Texture, Assets, Rectangle } 
 import { dataUrlToBytes, imageExportScale, mapForImageExport, type ImageExportOptions, type MapImageExporter } from '../lib/mapImageExport'
 import { convertFileSrc } from '@tauri-apps/api/core'
 import { currentRendererResolution, watchDevicePixelRatio } from './rendererResolution'
-import type { MapData, Pin, Region, Wall } from '../types/map'
+import type { MapData, Pin, Region, Token, Wall } from '../types/map'
 import type { DrawingTool } from '../types/tools'
 import { useMapStore } from '../stores/mapStore'
 import { mapaDoPiso } from '../lib/pisos'
@@ -695,10 +695,18 @@ interface PixiCanvasProps {
    * VISÃO DE JOGADOR — onde a ficha da janela de teste está no teste, quando o
    * teste a tirou do lugar de verdade (`visaoDeTeste.estado().fantasma`). O
    * canvas desenha uma cópia translúcida dela ali, só na cena aberta igual a
-   * `mapId` e com a ficha nela (`fantasmaDeTeste.ts`); `null`/ausente = nada.
+   * `mapId` e com a cara da ficha (`fantasmaDeTeste.ts`); `null`/ausente = nada.
    * Não é ficha do mapa: não se clica, não se arrasta e não sai na imagem exportada.
    */
   fantasmaDeTeste?: FantasmaDeTeste | null
+  /**
+   * VISÃO DE JOGADOR — a ficha de verdade do fantasma, que o App acha em
+   * qualquer cena do mundo (`acharFichaDoFantasma`). Só conta quando ela não
+   * está na cena aberta: o teste a levou por uma passagem para esta cena, e o
+   * fantasma aparece com a cara de onde ela ficou, sem ligação. `null`/ausente
+   * = só a ficha da cena aberta dá a cara.
+   */
+  fichaDoFantasma?: Token | null
 }
 
 /**
@@ -759,6 +767,7 @@ export function PixiCanvas({
   onShowShortcuts,
   onImageExporterChange,
   fantasmaDeTeste = null,
+  fichaDoFantasma = null,
 }: PixiCanvasProps) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const onImageExporterChangeRef = useRef(onImageExporterChange)
@@ -864,13 +873,17 @@ export function PixiCanvas({
 
   // Mesma ponte, para o fantasma da ficha de teste. Aqui o VALOR fica no ref, e
   // não só a função: o fantasma que chega antes do `setup()` terminar é o que
-  // a montagem desenha, em vez de se perder até o próximo passo do teste.
+  // a montagem desenha, em vez de se perder até o próximo passo do teste. A
+  // ficha dele entra no mesmo efeito: os dois mudam juntos quando o teste leva
+  // a ficha para outra cena, e o fantasma redesenha uma vez só.
   const fantasmaDeTesteRef = useRef(fantasmaDeTeste)
+  const fichaDoFantasmaRef = useRef(fichaDoFantasma)
   const redrawFantasmaRef = useRef<(() => void) | null>(null)
   useEffect(() => {
     fantasmaDeTesteRef.current = fantasmaDeTeste
+    fichaDoFantasmaRef.current = fichaDoFantasma
     redrawFantasmaRef.current?.()
-  }, [fantasmaDeTeste])
+  }, [fantasmaDeTeste, fichaDoFantasma])
 
   // Mesma ponte, para a câmera de cada cena. Pedido que chega antes do
   // `setup()` terminar é descartado: a montagem já enquadra o mapa aberto.
@@ -1926,15 +1939,18 @@ export function PixiCanvas({
 
       /**
        * VISÃO DE JOGADOR: o fantasma da ficha de teste, só na cena aberta igual
-       * à do teste e com a ficha nela (`fantasmaNaCena`). Barato a cada passo de
+       * à do teste — com a ficha nela, ou, se o teste a trouxe de outra cena,
+       * com a cara de onde ela ficou (`fantasmaNaCena`). Barato a cada passo de
        * arrasto: o renderer só repinta o que mudou. A imagem exportada não leva
        * fantasma — a camada dele já sai escondida, e aqui nem se desenha.
        */
       const redrawFantasma = () => {
         if (exportScene !== null) return
         const { map } = sceneState()
+        // A cena INTEIRA, e não o piso em edição: ficha daqui noutro piso não é de outra cena.
+        const deOutraCena = { ficha: fichaDoFantasmaRef.current ?? null, cena: useMapStore.getState().map }
         fantasmaRenderer.draw(
-          fantasmaNaCena(fantasmaDeTesteRef.current ?? null, map),
+          fantasmaNaCena(fantasmaDeTesteRef.current ?? null, map, deOutraCena),
           map.grid,
           `${cenaAberta()}|${useMapStore.getState().pisoAtivo}`,
           camera.scale,

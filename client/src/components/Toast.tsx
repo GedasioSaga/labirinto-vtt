@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import type { FormEvent, RefObject } from 'react'
+import { GRUPO_DO_TESTE } from '../net/visaoDeTeste/avisosDeTeste'
 import type { ToastMessage, ToastResposta } from '../stores/toastStore'
 import { agruparAvisos, deixarTodos, temRespostaEmLote, tituloDaCaixa } from './caixaDeAvisos'
 import './Toast.css'
@@ -51,6 +52,11 @@ interface ToastProps {
  * Avisos de mesmo `grupo` (os pedidos de passagem), dois ou mais, viram UMA
  * caixa — ver `CaixaDeAvisos` e a regra em `caixaDeAvisos.ts`. O pedido da
  * porta trancada (`sempreEmCaixa`) abre a caixa mesmo sozinho: "Pedidos (1)".
+ *
+ * Os pedidos da janela de teste (`GRUPO_DO_TESTE`, Visão de jogador) vêm na
+ * caixa "Pedidos do teste", com a variante `lb-toast--teste` no lugar da
+ * `lb-toast--instrucao`: tracejado neutro e nenhum botão de latão. O latão é de
+ * quem espera do outro lado da mesa; o teste não pode se passar por isso.
  *
  * Nenhum aviso some enquanto é lido: com o ponteiro em cima de um deles, ou o
  * foco dentro da pilha, o relógio de todos para (`onPausar`/`onRetomar`).
@@ -217,13 +223,16 @@ interface AvisoSoltoProps {
 }
 
 function AvisoSolto({ toast, onDismiss, rascunhos }: AvisoSoltoProps) {
+  // Pedido do teste sem a caixa (o grupo só leva pedidos, `avisosDeTeste.ts`): a variante do teste no lugar da de instrução.
+  const doTeste = toast.grupo === GRUPO_DO_TESTE
   return (
-    <div role={toast.kind === 'info' ? 'status' : 'alert'} className={`lb-panel lb-toast lb-toast--${toast.kind}`}>
+    <div role={toast.kind === 'info' ? 'status' : 'alert'} className={`lb-panel lb-toast lb-toast--${doTeste ? 'teste' : toast.kind}`}>
       <div className="lb-toast__body">
         <span className="lb-toast__text">{toast.text}</span>
         {toast.detalhe !== undefined && <DetalheVivo ler={toast.detalhe} />}
-        {/* O primeiro botão é a resposta esperada; os outros, a alternativa. */}
-        <AcoesDoAviso toast={toast} rascunhos={rascunhos} classeDoPrimeiro="lb-btn lb-btn--primary" onResponder={() => onDismiss(toast.id)} />
+        {/* O primeiro botão é a resposta esperada (latão); os outros, a
+            alternativa. No teste, latão nenhum: a resposta é neutra. */}
+        <AcoesDoAviso toast={toast} rascunhos={rascunhos} classeDoPrimeiro={doTeste ? 'lb-btn' : 'lb-btn lb-btn--primary'} onResponder={() => onDismiss(toast.id)} />
       </div>
       <button
         type="button"
@@ -259,13 +268,19 @@ interface CaixaDeAvisosProps {
  * foco estava na caixa e ela continua, ele volta para o primeiro botão da
  * linha seguinte — senão cairia no `body` e quem usa teclado recomeçaria do
  * topo da página a cada resposta.
+ *
+ * A caixa "Pedidos do teste" (`GRUPO_DO_TESTE`) é a mesma peça sem latão: a
+ * variante `lb-toast--teste`, a resposta da linha neutra e o "Deixar todos"
+ * secundário. De longe, a pilha separa o teste dos pedidos de verdade.
  */
 function CaixaDeAvisos({ grupo, toasts, onDismiss, rascunhos }: CaixaDeAvisosProps) {
   const caixaRef = useRef<HTMLElement>(null)
   const devolverFoco = useRef(false)
   const titulo = tituloDaCaixa(grupo, toasts.length)
+  const doTeste = grupo === GRUPO_DO_TESTE
   // Caixa de uma linha só (o pedido da porta, `sempreEmCaixa`): "Deixar todos"
-  // repetiria o botão da linha, e a resposta esperada volta a ser de latão.
+  // repetiria o botão da linha, e a resposta esperada volta a ser de latão —
+  // menos no teste, que não usa latão.
   const variasLinhas = toasts.length > 1
 
   useLayoutEffect(() => {
@@ -281,7 +296,7 @@ function CaixaDeAvisos({ grupo, toasts, onDismiss, rascunhos }: CaixaDeAvisosPro
   }
 
   return (
-    <section ref={caixaRef} role="region" aria-label={titulo} className="lb-panel lb-toast lb-toast--instrucao lb-toastcaixa">
+    <section ref={caixaRef} role="region" aria-label={titulo} className={`lb-panel lb-toast ${doTeste ? 'lb-toast--teste' : 'lb-toast--instrucao'} lb-toastcaixa`}>
       {/* Polido, e não alerta: o número mudando é notícia, não interrupção. */}
       <h2 className="lb-toastcaixa__title" aria-live="polite">
         {titulo}
@@ -297,7 +312,7 @@ function CaixaDeAvisos({ grupo, toasts, onDismiss, rascunhos }: CaixaDeAvisosPro
             <AcoesDoAviso
               toast={toast}
               rascunhos={rascunhos}
-              classeDoPrimeiro={variasLinhas ? 'lb-btn' : 'lb-btn lb-btn--primary'}
+              classeDoPrimeiro={variasLinhas || doTeste ? 'lb-btn' : 'lb-btn lb-btn--primary'}
               onResponder={() => {
                 lembrarFoco()
                 onDismiss(toast.id)
@@ -309,7 +324,7 @@ function CaixaDeAvisos({ grupo, toasts, onDismiss, rascunhos }: CaixaDeAvisosPro
       {/* Só com várias linhas e resposta em lote: numa caixa de chamados, ou de
           uma linha só, "Deixar todos" não quer dizer nada. */}
       {variasLinhas && temRespostaEmLote(toasts) && (
-        <button type="button" className="lb-btn lb-btn--primary lb-toastcaixa__all" onClick={() => deixarTodos(toasts, onDismiss)}>
+        <button type="button" className={`lb-btn${doTeste ? '' : ' lb-btn--primary'} lb-toastcaixa__all`} onClick={() => deixarTodos(toasts, onDismiss)}>
           Deixar todos
         </button>
       )}

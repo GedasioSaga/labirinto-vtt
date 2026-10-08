@@ -1,6 +1,7 @@
 import { useEffect, useId, useMemo, useRef, useState, useSyncExternalStore, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { PixiCanvas } from './pixi/PixiCanvas'
+import { acharFichaDoFantasma } from './pixi/drawFantasmaDeTeste'
 import { ZoomHud } from './components/ZoomHud'
 import { DiceDock } from './components/DiceDock'
 import { MasterChatPanel, NO_CHAT_UNREAD, type ChatUnread } from './components/MasterChatPanel'
@@ -1558,6 +1559,10 @@ function App() {
   if (!mesmasFichas(fichasDaVisaoRef.current, fichasDaVisaoNovas)) fichasDaVisaoRef.current = fichasDaVisaoNovas
   const fichasDaVisao = fichasDaVisaoRef.current
   useEffect(() => visaoDeTeste.definirFichas(fichasDaVisao, fichaSelecionadaId), [visaoDeTeste, fichasDaVisao, fichaSelecionadaId])
+  // Outra aventura (ou outro mapa solto) é outra mesa: o teste da anterior não segue para ela.
+  // Mesma chave de `currentTableId()`; `fechar()` é idempotente, então a montagem não faz nada.
+  const mesaDaVisao = adventureId ?? map.id
+  useEffect(() => visaoDeTeste.fechar(), [visaoDeTeste, mesaDaVisao])
   useEffect(() => {
     const aberto = usePatrulhaAndandoStore.getState().pontoAberto
     if (aberto !== null && aberto.tokenId !== fichaSelecionadaId) usePatrulhaAndandoStore.getState().abrirPonto(null)
@@ -2732,6 +2737,13 @@ function App() {
           return sent
         }
   const scenesPanel = sceneList({ adventure, activeSceneId, cache: sceneCache }, map)
+  // VISÃO DE JOGADOR: a ficha de verdade do fantasma, em qualquer cena do mundo.
+  // O teste pode levá-la por uma passagem para outra cena; quando o mestre abre
+  // essa cena, a ficha não está nela, e o canvas tira a cara do fantasma daqui.
+  // Já vem pronta antes de o mestre trocar de cena: o fantasma da nova aparece
+  // no lugar, como as fichas, sem esperar o App renderizar de novo.
+  const fantasmaDaVisao = estadoDaVisao.fantasma ?? null
+  const fichaDoFantasma = fantasmaDaVisao === null ? null : acharFichaDoFantasma(fantasmaDaVisao.tokenId, hostWorldOf({ adventure, activeSceneId, cache: sceneCache }, map))
 
   /**
    * CONFIGURAR CENA: a cena aberta muda pelo mapa vivo (entra no Ctrl+Z); a de
@@ -2785,7 +2797,8 @@ function App() {
           onImageExporterChange={(exporter) => {
             imageExporterRef.current = exporter
           }}
-          fantasmaDeTeste={estadoDaVisao.fantasma ?? null}
+          fantasmaDeTeste={fantasmaDaVisao}
+          fichaDoFantasma={fichaDoFantasma}
         />
       </div>
 

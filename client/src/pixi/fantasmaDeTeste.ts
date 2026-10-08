@@ -19,6 +19,9 @@
  *   está, mais rápido que a entrada.
  * - Trocar de cena não atravessa a tela: o fantasma da cena anterior some e o
  *   da nova já aparece no lugar, como as fichas.
+ * - A ficha que o teste levou para OUTRA cena (`deOutraCena`): a de verdade
+ *   não está na cena de destino, então ele não sai de dentro dela — acende no
+ *   lugar, só na opacidade e curto — e não tem ligação.
  * - `prefers-reduced-motion`: nada desliza; aparecer e sumir ficam só na
  *   opacidade, curtos.
  * Só transform e alpha, num relógio que só existe enquanto algo anima.
@@ -310,6 +313,17 @@ export function createFantasmaDeTesteRenderer(parent: Container, motion?: Fantas
     anelPintado = { raio, escala }
   }
 
+  /**
+   * Sem ponta de onde sair (a ficha de verdade ficou em outra cena): apaga os
+   * pontos — os da cena de antes, desenhados nas coordenadas de lá, inclusive.
+   */
+  function soltarLigacao(): void {
+    if (origem === null && ligacaoPintada === null) return
+    origem = null
+    ligacaoPintada = null
+    ligacao.clear()
+  }
+
   /** Os pontos até onde o fantasma está desenhado agora (no meio do deslize, inclusive). */
   function pintarLigacao(): void {
     if (origem === null) return
@@ -364,12 +378,16 @@ export function createFantasmaDeTesteRenderer(parent: Container, motion?: Fantas
     if (glides.size === 0 && opacidade === null) stopTicking()
   }
 
-  /** Aparece: de dentro da ficha de verdade (mesma cena, com movimento) ou já no lugar. */
-  function nascer(ficha: Token, alvo: GlidePoint, mesmaCena: boolean): void {
+  /**
+   * Aparece: de dentro da ficha de verdade (mesma cena, com movimento) ou já
+   * no lugar. `daFicha` = a ficha está nesta cena; a que ficou em outra não tem
+   * de onde ele sair (o ponto dela é de lá), e ele só acende no lugar.
+   */
+  function nascer(ficha: Token, alvo: GlidePoint, mesmaCena: boolean, daFicha: boolean): void {
     mostrado = true
     saindo = false
     raiz.visible = true
-    if (mesmaCena && podeAnimar()) {
+    if (mesmaCena && daFicha && podeAnimar()) {
       const at = syncGlide(glides, DESLIZE, { shown: { x: ficha.x, y: ficha.y }, target: alvo, now: clock(), animate: true })
       corpo.position.set(at.x, at.y)
       animarOpacidade(0, 1, TOKEN_GLIDE_MS)
@@ -377,7 +395,8 @@ export function createFantasmaDeTesteRenderer(parent: Container, motion?: Fantas
     }
     glides.delete(DESLIZE)
     corpo.position.set(alvo.x, alvo.y)
-    // Movimento reduzido: sem deslize, só a opacidade, curta. Outra cena ou sem relógio: já aceso.
+    // Movimento reduzido, ou a ficha em outra cena: sem deslize, só a opacidade,
+    // curta. Cena que acabou de abrir, ou sem relógio: já aceso.
     if (mesmaCena && motion !== undefined) {
       animarOpacidade(0, 1, FANTASMA_APAGAR_MS)
     } else {
@@ -410,13 +429,19 @@ export function createFantasmaDeTesteRenderer(parent: Container, motion?: Fantas
     }
     const { ficha } = alvo
     pintarDisco(ficha, gridSize)
-    const meiaCasa = (gridSize * ficha.size) / 2
-    if (origem === null || origem.x !== ficha.x || origem.y !== ficha.y || origem.raio !== meiaCasa) {
-      origem = { x: ficha.x, y: ficha.y, raio: meiaCasa }
+    // A ligação sai da ficha de verdade NESTA cena; a que ficou em outra não tem ponta aqui.
+    const daFicha = alvo.deOutraCena !== true
+    if (daFicha) {
+      const meiaCasa = (gridSize * ficha.size) / 2
+      if (origem === null || origem.x !== ficha.x || origem.y !== ficha.y || origem.raio !== meiaCasa) {
+        origem = { x: ficha.x, y: ficha.y, raio: meiaCasa }
+      }
+    } else {
+      soltarLigacao()
     }
     const destino = { x: alvo.x, y: alvo.y }
     if (!mostrado) {
-      nascer(ficha, destino, mesmaCena)
+      nascer(ficha, destino, mesmaCena, daFicha)
     } else {
       if (saindo) {
         // Voltou antes de sumir: acende de novo a partir de onde estava.
