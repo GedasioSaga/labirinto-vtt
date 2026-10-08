@@ -25,9 +25,13 @@ import { criarTransporteLocal, type TransporteLocal } from './transporteLocal'
  * canal. A janela de teste é só o cliente do jogador.
  *
  * Nada do teste toca o jogo de verdade. O que o jogador de teste faz no Jogar
- * (andar, porta, piso, mochila…) vai para a CAMADA DE TESTE da sessão
- * (`camadaDeTeste.ts`, pelos `escritoresDeTeste.ts`), reaplicada por cima do
- * mundo vivo a cada leitura: a janela vê o teste, o editor continua igual.
+ * (andar, porta, piso, mochila, passar de cena…) e o que o mestre responde aos
+ * pedidos dele ("Deixar ir", "Destrancar e abrir", "Deixar" esconder-se,
+ * "Passar para pede") vai para a CAMADA DE TESTE da sessão (`camadaDeTeste.ts`,
+ * pelos `escritoresDeTeste.ts`), reaplicada por cima do mundo vivo a cada
+ * leitura: a janela vê o teste, o editor continua igual. Os pedidos chegam ao
+ * editor pelos avisos do teste (`avisosDeTeste.ts`), na caixa "Pedidos do
+ * teste", e os botões deles respondem à ponte de TESTE.
  * Esta ponte não grava mesa, explorado nem chat, não tem sala real nem
  * jogadores reais, e os avisos dela passam pelo filtro do teste
  * (`avisosDeTeste.ts`). O mundo entra só por `getMap`/`getWorld`.
@@ -57,6 +61,16 @@ export const PING_DA_VISAO_MS = 2_000
 export const PRAZO_SEM_RESPOSTA_MS = 10_000
 /** Antes da primeira resposta, o prazo é maior: a janela nova ainda está carregando o app. */
 export const PRAZO_DA_PRIMEIRA_RESPOSTA_MS = 30_000
+
+/**
+ * O broadcast agendado da ponte de teste (as edições do mestre juntas) sai no
+ * máximo uma vez a cada… Medido em 08/10/2026 (`visaoDeTeste.bench.ts`): com
+ * 990 paredes à vista, um broadcast do teste custa ~50 ms do thread do editor
+ * (até 70); no intervalo de 50 ms da sala, arrastar uma parede com o teste
+ * aberto tomava ~450 ms de cada segundo. O que o jogador de teste faz sai na
+ * hora do mesmo jeito.
+ */
+export const INTERVALO_DO_BROADCAST_DE_TESTE_MS = 150
 
 /** Nome do jogador de teste quando nem o dono nem a ficha dão um nome que sirva no `join`. */
 export const NOME_PADRAO_DO_TESTE = 'Teste'
@@ -151,6 +165,8 @@ interface Sessao {
   camada: CamadaDeTeste
   /** Já há uma conferência do fantasma marcada para o fim desta volta do relógio. */
   fantasmaAgendado: boolean
+  /** A janela está escondida (minimizada): o recorte agendado não sai até ela voltar. */
+  oculta: boolean
 }
 
 /** A janela aberta na `ficha`; o fantasma só entra no estado quando existe (ausente = sem fantasma no editor). */
@@ -389,6 +405,9 @@ export function criarControladorDaVisao(deps: DepsDaVisao): ControladorDaVisao {
         ponte.setVisionFactor(jogador.playerId, fator)
       },
       toasts: avisos,
+      // O recorte do jogador de teste corre no thread do editor: mais espaçado que o da sala, e parado com a janela escondida.
+      broadcastThrottleMs: INTERVALO_DO_BROADCAST_DE_TESTE_MS,
+      broadcastPaused: () => s.oculta,
     })
     s.ponte = ponte
     s.transporte = transporte
@@ -410,10 +429,18 @@ export function criarControladorDaVisao(deps: DepsDaVisao): ControladorDaVisao {
     switch (mensagem.tipo) {
       case 'ola':
         // Janela nova ou recarregada: a conexão de antes morreu com a página, então a ponte recomeça.
+        s.oculta = false
         iniciarGeracao(s)
         return
       case 'pong':
         return
+      case 'visibilidade': {
+        const voltou = s.oculta && !mensagem.oculta
+        s.oculta = mensagem.oculta
+        // De volta à vista: um broadcast leva tudo o que o mestre mudou enquanto ela estava escondida.
+        if (voltou) s.ponte?.notifyMapChanged()
+        return
+      }
       case 'trocar-ficha': {
         const ficha = fichaDe(mensagem.tokenId)
         if (ficha !== null) trocarFicha(s, ficha)
@@ -498,6 +525,7 @@ export function criarControladorDaVisao(deps: DepsDaVisao): ControladorDaVisao {
       relogio: setInterval(() => conferirVida(s), PING_DA_VISAO_MS),
       camada: criarCamadaDeTeste(),
       fantasmaAgendado: false,
+      oculta: false,
     }
     s.pararDeOuvir = canal.ouvir((dado) => {
       if (sessao !== s) return

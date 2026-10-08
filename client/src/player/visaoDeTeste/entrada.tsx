@@ -174,6 +174,13 @@ function VisaoDeJogador({ sessao, canal }: { sessao: string; canal: Canal }) {
     }
   }, [geracao, encerrado, canal, sessao])
 
+  // Minimizada, a janela avisa o host: o recorte agendado do teste, que roda no thread do editor, para até ela voltar.
+  useEffect(() => {
+    const avisar = () => enviar({ de: 'janela', tipo: 'visibilidade', sessao, oculta: document.visibilityState === 'hidden' })
+    document.addEventListener('visibilitychange', avisar)
+    return () => document.removeEventListener('visibilitychange', avisar)
+  }, [enviar, sessao])
+
   // Teclas com nada em foco (atalhos da tela do jogador na `window`): barradas no Olhar.
   useEffect(() => instalarGuardaDeTeclado(window, () => modoRef.current === 'olhar'), [])
 

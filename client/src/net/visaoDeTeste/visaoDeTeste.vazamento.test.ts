@@ -2,25 +2,36 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { buildPin, createEmptyMap } from '../../lib/mapFactory'
 import { hostWorldOf, useAdventureStore } from '../../stores/adventureStore'
 import { useMapStore } from '../../stores/mapStore'
-import { useToastStore } from '../../stores/toastStore'
+import { useToastStore, type ToastMessage } from '../../stores/toastStore'
 import type { MapData, Pin, Stair, Token, Wall } from '../../types/map'
-import { createPlayerConnection, type PlayerConnection, type StorageLike } from '../../player/playerConnection'
-import { criarSocketDoCanal } from '../../player/visaoDeTeste/socketDoCanal'
 import { PILHA_DO_EDITOR } from '../avisosDaPonte'
 import type { HostBridgeDeps } from '../hostBridge'
+import { GRUPO_DO_TESTE } from './avisosDeTeste'
 import { criarParDeCanais, type Canal } from './canal'
 import type { JanelaDeTeste } from './janela'
-import { lerMensagemDoHost } from './protocoloDoCanal'
-import type { ModoDoTeste } from './tipos'
 import { criarControladorDaVisao, fichasParaTeste, type ControladorDaVisao } from './visaoDeTeste'
+import {
+  ANA as ANA_NO_LAB,
+  carregarMesaDeDuasCenas,
+  editorSerializado,
+  fichaNaJanela,
+  janelaSemTela,
+  MAPA_LAB,
+  MAPA_PATIO,
+  PINO_QUE_PEDE,
+  PINO_TRANCADO,
+  PORTA_TRANCADA,
+  semAventura,
+} from './visaoDeTeste.fixture'
 
 /**
  * VISÃO DE JOGADOR — VAZAMENTO ZERO no Jogar. O jogador de teste age de
  * verdade (o cliente do jogador sobre o canal em memória, sem a guarda do
  * Olhar) e a ponte de teste lê o mundo das stores DE VERDADE, como o App liga.
- * Andar, porta, mochila, bilhete, piso e caravana aparecem na janela, e nada
- * disso chega ao editor: nenhuma escrita nas stores, nenhuma chamada aos
- * escritores do jogo de verdade, o mapa serializado idêntico.
+ * Andar, porta, mochila, bilhete, piso, caravana, passar de cena e as
+ * respostas do mestre aos pedidos do teste aparecem na janela, e nada disso
+ * chega ao editor: nenhuma escrita nas stores, nenhuma chamada aos escritores
+ * do jogo de verdade, o mapa serializado idêntico.
  */
 
 /** Toda ponte que o controlador monta: o que ela recebe de escritor é o que ela pode gravar. */
@@ -59,79 +70,20 @@ function continente(): MapData {
   return { ...createEmptyMap('m-mundo', 'Continente', 20, 20, GRADE), worldMap: true, tokens: [ANA, BIA] }
 }
 
-function memoria(): StorageLike {
-  const itens = new Map<string, string>()
-  return {
-    getItem: (k) => itens.get(k) ?? null,
-    setItem: (k, v) => {
-      itens.set(k, v)
-    },
-    removeItem: (k) => {
-      itens.delete(k)
-    },
-  }
-}
-
-/** A janela de teste sem tela, no modo pedido: fala o protocolo do canal e monta o cliente do jogador a cada geração. */
-function janelaSemTela(canal: Canal, sessao: string, modo: ModoDoTeste) {
-  const conexoes: PlayerConnection[] = []
-  let proxima = 1
-  canal.ouvir((dado) => {
-    const mensagem = lerMensagemDoHost(dado, sessao)
-    if (mensagem === null) return
-    if (mensagem.tipo === 'ping') canal.enviar({ de: 'janela', tipo: 'pong', sessao })
-    if (mensagem.tipo !== 'config') return
-    conexoes.at(-1)?.close()
-    const { geracao, codigo, nome } = mensagem
-    conexoes.push(
-      createPlayerConnection({
-        url: 'teste://visao',
-        code: codigo,
-        name: nome,
-        createSocket: () => {
-          const conexao = proxima
-          proxima += 1
-          return criarSocketDoCanal({ canal, sessao, geracao, conexao, modo: () => modo })
-        },
-        storage: memoria(),
-        aceitaGzip: false,
-      }),
-    )
-  })
-  canal.enviar({ de: 'janela', tipo: 'ola', sessao })
-  return {
-    conexao: (): PlayerConnection => {
-      const atual = conexoes.at(-1)
-      if (atual === undefined) throw new Error('a janela ainda não recebeu o config')
-      return atual
-    },
-  }
-}
-
-function fichaNaJanela(conexao: PlayerConnection, tokenId: string): Token | undefined {
-  return conexao.getState().map?.tokens.find((t) => t.id === tokenId)
-}
-
-/** O que o editor tem agora, serializado: as duas stores que o jogo de verdade grava. */
-function editorSerializado(): string {
-  const { adventure, activeSceneId, cache, dirty } = useAdventureStore.getState()
-  const { map, past, future } = useMapStore.getState()
-  return JSON.stringify({ map, past, future, adventure, activeSceneId, cache, dirty })
-}
-
 /** Um espião qualquer (`vi.fn` ou `vi.spyOn`), só para contar as chamadas. */
 interface Contavel {
   mock: { calls: readonly unknown[] }
 }
 
-/** Os escritores do jogo de verdade que a ponte de teste nunca pode receber. */
+/**
+ * Os escritores do jogo de verdade que a ponte de teste nunca pode receber.
+ * Passar de cena, destrancar, esconder e "Passar para pede" ela recebe, mas
+ * na versão da camada (`escritoresDeTeste.ts`): os testes de duas cenas abaixo
+ * provam que eles não escrevem nada.
+ */
 const ESCRITORES_DO_JOGO_DE_VERDADE = [
-  'applyTransfer',
   'applyCabine',
   'applyChamadaDeCabine',
-  'unlockAndOpenDoor',
-  'hideToken',
-  'setPinPassage',
   'removeToken',
   'restoreToken',
   'saveTable',
@@ -218,7 +170,7 @@ describe('Visão de jogador no Jogar — vazamento zero para o editor', () => {
 
   beforeEach(() => {
     useToastStore.setState({ toasts: [] })
-    useAdventureStore.setState({ cache: {}, dirty: {} })
+    semAventura()
     useMapStore.getState().loadMap(salao())
     pontes.deps = []
     sessaoAberta = null
@@ -263,7 +215,7 @@ describe('Visão de jogador no Jogar — vazamento zero para o editor', () => {
     // Os avisos que só relatam ("Ana abriu a porta", o bilhete, o item) são calados no teste.
     expect(useToastStore.getState().toasts).toEqual([])
 
-    // A ponte de teste não tem escritor do jogo de verdade: passar de cena, cabine, mesa, explorado e chat são recusados por ela.
+    // A ponte de teste não tem escritor do jogo de verdade: cabine, mesa, explorado, chat e diário de viagens ficam de fora dela.
     expect(pontes.deps.length).toBeGreaterThan(0)
     for (const deps of pontes.deps) {
       for (const escritor of ESCRITORES_DO_JOGO_DE_VERDADE) expect(deps[escritor], escritor).toBeUndefined()
@@ -334,5 +286,92 @@ describe('Visão de jogador no Jogar — vazamento zero para o editor', () => {
     const deNovo = await jogarCom(ANA.id)
     await vi.waitFor(() => expect(fichaNaJanela(deNovo.conexao(), ANA.id)).toMatchObject({ x: ANA.x, y: ANA.y }))
     expect(controlador.estado().fantasma ?? null).toBeNull()
+  })
+
+  /*
+   * DUAS CENAS: o editor no Laboratório, o Pátio de fundo. O mestre responde
+   * aos pedidos do teste pelos avisos dele, e a resposta muda só a camada: a
+   * porta abre, o pino trancado passa a pedir, a ficha passa para o Pátio e se
+   * esconde lá — na janela, e só nela.
+   */
+  describe('duas cenas: as respostas do mestre aos pedidos do teste', () => {
+    beforeEach(() => {
+      carregarMesaDeDuasCenas()
+      controlador = novoControlador()
+    })
+
+    /** O pedido do teste que espera o mestre agora, sozinho na caixa "Pedidos do teste". */
+    async function pedidoNaCaixa(): Promise<ToastMessage> {
+      const naCaixa = () => useToastStore.getState().toasts.filter((t) => t.grupo === GRUPO_DO_TESTE)
+      await vi.waitFor(() => expect(naCaixa()).toHaveLength(1))
+      const [pedido] = naCaixa()
+      if (pedido === undefined) throw new Error('o pedido do teste deveria estar na caixa')
+      return pedido
+    }
+
+    /** Como o botão da linha: tira o aviso da tela e responde. */
+    function responder(pedido: ToastMessage, rotulo: string): void {
+      const acao = pedido.actions?.find((a) => a.label === rotulo)
+      if (acao === undefined) throw new Error(`o pedido não tem "${rotulo}"`)
+      useToastStore.getState().dismiss(pedido.id)
+      acao.run()
+    }
+
+    it('destrancar, "Passar para pede", passar de cena e esconder: tudo na janela, nada no editor', async () => {
+      const antes = editorSerializado()
+      espionar()
+      const janela = await jogarCom(ANA_NO_LAB.id)
+      const conexao = janela.conexao()
+      const deps = pontes.deps.at(-1)
+      if (deps?.getWorld === undefined) throw new Error('a ponte de teste deveria ler o mundo')
+      const mundoDoTeste = deps.getWorld
+
+      // Porta trancada: "Destrancar e abrir" abre a porta na janela.
+      expect(conexao.requestDoor(PORTA_TRANCADA.id, 'knock')).toBe(true)
+      responder(await pedidoNaCaixa(), 'Destrancar e abrir')
+      await vi.waitFor(() => expect(conexao.getState().map?.walls.find((w) => w.id === PORTA_TRANCADA.id)?.door?.open).toBe(true))
+
+      // Pino trancado: "Passar para pede" leva a Ana ao Pátio e o pino passa a pedir, só no teste.
+      expect(conexao.requestTravel(PINO_TRANCADO.id)).toBe(true)
+      responder(await pedidoNaCaixa(), 'Passar para pede')
+      await vi.waitFor(() => expect(conexao.getState().map?.id).toBe(MAPA_PATIO))
+      expect(fichaNaJanela(conexao, ANA_NO_LAB.id)).toBeDefined()
+      expect(mundoDoTeste().open.map.pins.find((p) => p.id === PINO_TRANCADO.id)?.passagem).toBe('pede')
+      expect(mundoDoTeste().open.map.tokens.map((t) => t.id)).toEqual([])
+      expect(controlador.estado().fantasma).toMatchObject({ tokenId: ANA_NO_LAB.id, mapId: MAPA_PATIO })
+
+      // No Pátio (cena de fundo do editor): "Deixar" esconder-se.
+      expect(conexao.requestHide(ANA_NO_LAB.id)).toBe(true)
+      responder(await pedidoNaCaixa(), 'Deixar')
+      await vi.waitFor(() => expect(fichaNaJanela(conexao, ANA_NO_LAB.id)?.secret).toBe(true))
+
+      // Nenhuma escrita, e o editor igual: a Ana no Laboratório, à vista, a porta e o pino trancados.
+      expect(chamadas()).toEqual(nenhumaChamada())
+      expect(editorSerializado()).toBe(antes)
+      const editor = useMapStore.getState().map
+      expect(editor.id).toBe(MAPA_LAB)
+      expect(editor.tokens).toEqual([ANA_NO_LAB])
+      expect(editor.walls.find((w) => w.id === PORTA_TRANCADA.id)?.door).toEqual(PORTA_TRANCADA.door)
+      expect(editor.pins.find((p) => p.id === PINO_TRANCADO.id)?.passagem).toBe('trancada')
+
+      // A ponte de teste respondeu pela camada e não tem nenhum escritor do jogo de verdade (nem o diário de viagens).
+      for (const dasPontes of pontes.deps) {
+        for (const escritor of ESCRITORES_DO_JOGO_DE_VERDADE) expect(dasPontes[escritor], escritor).toBeUndefined()
+      }
+    })
+
+    it('fechar o teste esquece a viagem: reabrir traz a Ana de volta ao Laboratório', async () => {
+      const janela = await jogarCom(ANA_NO_LAB.id)
+      expect(janela.conexao().requestTravel(PINO_QUE_PEDE.id)).toBe(true)
+      responder(await pedidoNaCaixa(), 'Deixar ir')
+      await vi.waitFor(() => expect(janela.conexao().getState().map?.id).toBe(MAPA_PATIO))
+
+      controlador.fechar()
+      sessaoAberta = null
+      const deNovo = await jogarCom(ANA_NO_LAB.id)
+      await vi.waitFor(() => expect(deNovo.conexao().getState().map?.id).toBe(MAPA_LAB))
+      expect(fichaNaJanela(deNovo.conexao(), ANA_NO_LAB.id)).toMatchObject({ x: ANA_NO_LAB.x, y: ANA_NO_LAB.y })
+      expect(controlador.estado().fantasma ?? null).toBeNull()
+    })
   })
 })

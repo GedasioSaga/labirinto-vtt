@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { ExitPassage, Light, MapData, Pin, PinDestination, PinPassage, Stair, Token } from '../types/map'
+import type { ExitPassage, MapData, Pin, PinDestination, PinPassage, Stair } from '../types/map'
 import {
   buildingOfStair,
   buildPartnerStair,
@@ -12,18 +12,15 @@ import {
   type StairTravelProps,
 } from '../lib/stairTravel'
 import { passageOf } from '../lib/pins'
-import { singleSceneWorld, travelPinsClearance, type AppliedItems, type HostScene, type HostWorld } from '../net/hostSession'
+import { singleSceneWorld, type AppliedItems, type HostScene, type HostWorld } from '../net/hostSession'
 import { applyItemChange } from '../lib/items'
-import { carrierIdOf, withoutCarrier } from '../lib/carry'
 import { congelarNoMapa, descongelarTudoNoMapa } from '../lib/congelar'
-import { leaveVehicle, passengersOf } from '../lib/vehicle'
-import { vehicleRiderSpots, type SeatHold } from '../lib/gatherParty'
-import { withPlayerVisibleTokens } from '../lib/pinTravel'
-import { tokenSizeInSquares } from '../lib/tokenSize'
+import type { SeatHold } from '../lib/gatherParty'
 import type { Bounds, Camera, Point } from '../pixi/world'
 import * as mapFactory from '../lib/mapFactory'
 import { moverNaCena, planejarRotina, type CenaDaRotina, type MovimentoDaRotina } from '../lib/rotinaDoNpc'
-import { comPiso, mapaDoPiso, pisoDe } from '../lib/pisos'
+import { pisoDe } from '../lib/pisos'
+import { travessiaDaFicha, type SceneHistory } from '../lib/travessiaDaFicha'
 import {
   ADVENTURE_VERSION,
   baseName,
@@ -804,120 +801,9 @@ export function subscribeToServedScenes(onChange: () => void): () => void {
   })
 }
 
-/** Um mapa com o desfazer dele: a cena aberta (no `useMapStore`) ou uma de fundo (no cache). */
-interface SceneHistory {
-  map: MapData
-  past: MapData[]
-  future: MapData[]
-}
-
-/*
- * A TRAVESSIA NÃO ENTRA NO DESFAZER. Tirar o token só do mapa atual deixaria
- * o `past` inteiro com ele: um Ctrl+Z na cena de origem o traria de volta, e
- * o mesmo token estaria nas DUAS cenas. Por isso o token sai de todo passo do
- * histórico da origem (passado e futuro) e entra em todo passo do histórico
- * do destino: desfazer e refazer andam pelo resto da edição sem nunca
- * duplicar nem perder a ficha de um jogador.
- */
-function withoutToken(history: SceneHistory, tokenId: string): SceneHistory {
-  const drop = (map: MapData): MapData => (map.tokens.some((t) => t.id === tokenId) ? mapFactory.removeToken(map, tokenId) : map)
-  return { map: drop(history.map), past: history.past.map(drop), future: history.future.map(drop) }
-}
-
-/*
- * TOCHA PRESA NA FICHA atravessa com ela. Apagar a ficha solta a tocha e a
- * deixa onde está (`mapFactory.removeToken`), mas na travessia a ficha não
- * some: a tocha ficaria acesa na origem, no lugar de onde ela saiu, e ela
- * chegaria a uma cena escura enxergando só a própria casa. Como a ficha, a
- * tocha sai de todo passo do histórico da origem (um Ctrl+Z não a acende de
- * volta lá) e entra em todo passo do histórico do destino.
- */
-
-/** As tochas presas em `departing[i]`, já na casa de `arriving[i]`: o mesmo afastamento e o piso de quem chega. */
-function torchesOf(map: MapData, departing: readonly Token[], arriving: readonly Token[]): Light[] {
-  return departing.flatMap((before, index) => {
-    const after = arriving[index]
-    return map.lights
-      .filter((l) => l.attachedTokenId === before.id)
-      .map((l) => comPiso({ ...l, x: l.x + after.x - before.x, y: l.y + after.y - before.y }, pisoDe(after)))
-  })
-}
-
-function withoutLights(history: SceneHistory, lightIds: ReadonlySet<string>): SceneHistory {
-  const drop = (map: MapData): MapData => (map.lights.some((l) => lightIds.has(l.id)) ? { ...map, lights: map.lights.filter((l) => !lightIds.has(l.id)) } : map)
-  return { map: drop(history.map), past: history.past.map(drop), future: history.future.map(drop) }
-}
-
-/** Luz de mesmo id no destino (cena copiada) fica com o dela; a tocha que chega ganha id novo. */
-function withLights(history: SceneHistory, lights: readonly Light[]): SceneHistory {
-  if (lights.length === 0) return history
-  const steps = [history.map, ...history.past, ...history.future]
-  const taken = (id: string): boolean => steps.some((map) => map.lights.some((l) => l.id === id))
-  const arriving = lights.map((l) => (taken(l.id) ? { ...l, id: crypto.randomUUID() } : l))
-  const put = (map: MapData): MapData => ({ ...map, lights: [...map.lights, ...arriving] })
-  return { map: put(history.map), past: history.past.map(put), future: history.future.map(put) }
-}
-
-/**
- * A ficha `fromId` passa a se chamar `toId`, e o que o mapa guarda pelo id
- * dela vai junto: a tocha presa nela, as fichas que ela leva e o lugar dela
- * num veículo.
- */
-function renameToken(map: MapData, fromId: string, toId: string): MapData {
-  const renamePassenger = (t: Token): Token => {
-    const passageiros = t.veiculo?.passageiros
-    if (t.veiculo === undefined || passageiros === undefined || !passageiros.includes(fromId)) return t
-    return { ...t, veiculo: { ...t.veiculo, passageiros: passageiros.map((id) => (id === fromId ? toId : id)) } }
-  }
-  return {
-    ...map,
-    tokens: map.tokens.map((t) => {
-      const renamed = renamePassenger(t.id === fromId ? { ...t, id: toId } : t)
-      return renamed.levadoPor === fromId ? { ...renamed, levadoPor: toId } : renamed
-    }),
-    lights: map.lights.map((l) => (l.attachedTokenId === fromId ? { ...l, attachedTokenId: toId } : l)),
-  }
-}
-
-/*
- * FICHA COM ID REPETIDO. Duas cenas podem ter uma ficha de mesmo id (cena
- * copiada, mapa importado duas vezes). Quem chega não substitui quem já
- * estava: a de DESTINO ganha id novo, em todo passo do histórico dela (senão
- * um Ctrl+Z traria de volta a ficha com o id repetido). A que viaja guarda o
- * id porque é por ele que a sessão sabe de qual jogador ela é, e o que chamou
- * a travessia (`carryToken`, "Deixar ir", "Reunir o grupo") segue apontando
- * para ela. Tudo que é guardado pelo id da de destino vai junto para o id
- * novo: o que mora no mapa (a tocha presa, as fichas que ela leva e o lugar
- * dela num veículo) aqui, em `renameToken`; o que mora FORA dele (a seleção e
- * a iniciativa) em `transferToken`, com `renamedResidents`.
- *
- * VÁRIAS DE UMA VEZ (o veículo e quem está a bordo): TODAS as de destino com
- * id repetido trocam de id ANTES de qualquer uma chegar. Uma por vez, a
- * troca de id da segunda passaria também na lista do veículo que já tinha
- * chegado, e ele levaria a ficha antiga de lá no lugar de quem viajou.
- */
-function withTokens(history: SceneHistory, tokens: readonly Token[]): { history: SceneHistory; renamedResidents: Map<string, string> } {
-  const steps = [history.map, ...history.past, ...history.future]
-  // Quem já estava no destino com o id de quem chegou ganhou id novo: traveler → resident.
-  const renamedResidents = new Map<string, string>()
-  for (const token of tokens) {
-    if (steps.some((map) => map.tokens.some((t) => t.id === token.id))) renamedResidents.set(token.id, crypto.randomUUID())
-  }
-  const put = (map: MapData): MapData => {
-    let next = map
-    for (const [travelerId, residentId] of renamedResidents) next = renameToken(next, travelerId, residentId)
-    // Id de quem chega que sobrou na lista de um veículo do destino (ficha que
-    // já não estava lá) não põe quem chega a bordo dele sem ninguém pedir.
-    for (const token of tokens) next = leaveVehicle(next, token.id)
-    for (const token of tokens) next = mapFactory.addToken(next, token)
-    return next
-  }
-  return { history: { map: put(history.map), past: history.past.map(put), future: history.future.map(put) }, renamedResidents }
-}
-
 /**
  * A ficha que já estava no mapa `mapId` trocou `fromId` por `toId` (ver
- * `withTokens`). A iniciativa é guardada por mapa + id: o valor e a vez dela
+ * `withTokens` em `lib/travessiaDaFicha.ts`). A iniciativa é guardada por mapa + id: o valor e a vez dela
  * vão com ela, e a que chegou entra sem nenhum dos dois. Se o mapa é o que
  * está aberto (`inEditor`), a seleção dela também segue a ficha.
  */
@@ -1011,20 +897,6 @@ function linkStairAt(
   if (existing === undefined) useMapStore.getState().addPin({ ...ownPin, destino })
   else useMapStore.getState().updatePin(existing.id, { destino, passagem })
   return partnerStair.id
-}
-
-/**
- * LEVAR FICHA JUNTO: a ficha levada que chega a uma cena SEM quem a leva chega
- * solta. Quem leva atravessa ANTES das levadas (`hostBridge`), então achá-la
- * no destino é o "foi junto". Sem ela lá, a levada mudou de cena sozinha (pino
- * dela, "Mandar para…" só nela, reunião sem quem leva): gravar o vínculo
- * deixava um fantasma que o painel mostrava solto e que voltava a puxar a
- * ficha quando quem leva chegasse depois, sem o mestre ter prendido de novo.
- */
-function arrivingLink(token: Token, destination: MapData): Token {
-  const carrierId = carrierIdOf(token)
-  if (carrierId === null || destination.tokens.some((t) => t.id === carrierId)) return token
-  return withoutCarrier(token)
 }
 
 /**
@@ -1817,35 +1689,12 @@ export const useAdventureStore = create<AdventureState>()((set, get) => ({
     }
     const from = read(fromSceneId)
     const to = read(toSceneId)
-    const token = from?.map.tokens.find((t) => t.id === tokenId)
-    if (from === null || to === null || token === undefined) return false
-
-    // VEÍCULO: quem está a bordo atravessa junto e chega ainda a bordo (os
-    // ids de quem viaja não mudam). Cada um no afastamento que tinha em volta
-    // dele, quando a casa serve; senão, na casa livre mais perto do veículo —
-    // nunca fora do mapa, do outro lado de uma parede ou em cima de um pino de
-    // viagem (o veículo chega colado ao par). PISOS: todos chegam no piso do
-    // veículo, e só a planta desse piso barra (`mapaDoPiso`). No "Reunir o
-    // grupo aqui", nem na casa que a reunião deu a outro, nem no pino dela.
-    // Ficha secreta ou escondida pelo mestre não ocupa casa
-    // (`withPlayerVisibleTokens`): desviar dela contaria ao jogador que há
-    // algo invisível ali.
-    const riders = passengersOf(from.map, tokenId)
-    const planta = mapaDoPiso(to.map, piso ?? 0)
-    const seats = vehicleRiderSpots(
-      withPlayerVisibleTokens(planta),
-      { x, y, size: tokenSizeInSquares(token) },
-      riders.map((p) => ({ dx: p.x - token.x, dy: p.y - token.y, size: tokenSizeInSquares(p) })),
-      [...travelPinsClearance(planta), ...(hold?.keepClear ?? [])],
-      hold?.seats ?? [],
-    )
-    const arrive = (t: Token, at: Point): Token => comPiso({ ...arrivingLink(t, to.map), x: at.x, y: at.y }, piso)
-    const travelers: Token[] = [arrive(token, { x, y }), ...riders.map((p, index) => arrive(p, seats[index]))]
-    const torches = torchesOf(from.map, [token, ...riders], travelers)
-    const leaving = travelers.reduce((history, traveler) => withoutToken(history, traveler.id), withoutLights(from, new Set(torches.map((l) => l.id))))
-    const { history: withTravelers, renamedResidents } = withTokens(to, travelers)
-    // Depois de `withTokens`: a troca de id de quem já estava leva as tochas DELE, não as que chegam.
-    const arriving = withLights(withTravelers, torches)
+    if (from === null || to === null) return false
+    // A conta da travessia é pura (`lib/travessiaDaFicha.ts`, a mesma da Visão de jogador):
+    // aqui ela só é lida e gravada nas stores. Id repetido no destino ganha um sorteado.
+    const travessia = travessiaDaFicha(from, to, { tokenId, x, y, piso, hold }, () => crypto.randomUUID())
+    if (travessia === null) return false
+    const { origem: leaving, destino: arriving, renamedResidents } = travessia
     const nextCache: Record<string, SceneSlot> = { ...cache }
     const nextDirty: Record<string, true> = { ...dirty }
     let openScene: SceneHistory | null = null

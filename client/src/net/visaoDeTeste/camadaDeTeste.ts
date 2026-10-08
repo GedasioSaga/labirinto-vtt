@@ -18,6 +18,11 @@ import type { FantasmaDeTeste } from './tipos'
  * A chave é o `MapData.id` da cena, a mesma da sessão do host: o mestre trocar
  * a cena aberta não perde nem muda de lugar o que o teste fez.
  *
+ * A ficha que troca de cena no teste vira DUAS mudanças registradas juntas, uma
+ * em cada cena (sai da origem, chega no destino, `escritoresDeTeste.ts`), e
+ * não uma mudança do mundo inteiro: cada cena continua com o próprio memo, e
+ * o mestre editar a origem não refaz o recorte da cena onde a ficha está.
+ *
  * Este módulo é puro: não importa store nenhuma, não lê nem grava nada fora
  * dele. Quem o liga à ponte de teste é `escritoresDeTeste.ts`.
  */

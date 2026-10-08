@@ -331,6 +331,19 @@ export interface HostBridgeDeps {
    * dela, que marca "Teste ·" e cala os avisos que só relatam.
    */
   toasts?: ToastSink
+  /**
+   * De quanto em quanto tempo sai o broadcast AGENDADO (as edições do mestre
+   * juntas, `notifyMapChanged`). Ausente = `BROADCAST_THROTTLE_MS`. O que o
+   * jogador faz sai na hora do mesmo jeito. A Visão de jogador usa um maior:
+   * o recorte do jogador de teste corre no thread do editor.
+   */
+  broadcastThrottleMs?: number
+  /**
+   * `true` = ninguém olha a tela agora (a janela da Visão de jogador escondida):
+   * o broadcast agendado não sai. Quem pausa chama `notifyMapChanged` quando
+   * a tela volta, e um broadcast leva tudo o que mudou. Ausente = nunca pausa.
+   */
+  broadcastPaused?: () => boolean
 }
 
 export interface StartOptions {
@@ -1441,6 +1454,8 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
 
   const scheduleBroadcast = () => {
     if (session === null || pendingBroadcast !== null) return
+    // Ninguém olhando: o broadcast que viria agora sai quando a tela voltar (`broadcastPaused`).
+    if (deps.broadcastPaused?.() === true) return
     pendingBroadcast = setTimeout(() => {
       pendingBroadcast = null
       broadcastNow()
@@ -1448,7 +1463,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       // "Visão nesta cena" (quantos quadrados cada um enxerga ali) e o ocupante
       // da cabine que saiu da parada. Sem mudança, a lista não sai (chave JSON).
       notifyPlayersIfChanged()
-    }, BROADCAST_THROTTLE_MS)
+    }, deps.broadcastThrottleMs ?? BROADCAST_THROTTLE_MS)
   }
 
   /** A TV entrou: sem cena escolhida ela fica esperando, e o aviso diz onde escolher. */

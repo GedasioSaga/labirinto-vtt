@@ -56,6 +56,8 @@ export type MensagemDaJanela =
   | { de: 'janela'; tipo: 'esquecer'; sessao: string }
   /** "Fechar" da barra da janela. */
   | { de: 'janela'; tipo: 'pedir-fechar'; sessao: string }
+  /** A janela ficou escondida (minimizada) ou voltou: escondida, o host não manda o recorte agendado. */
+  | { de: 'janela'; tipo: 'visibilidade'; sessao: string; oculta: boolean }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -157,6 +159,10 @@ export function lerMensagemDaJanela(dado: unknown, sessao: string): MensagemDaJa
     case 'trocar-ficha': {
       const { tokenId } = dado
       return typeof tokenId === 'string' ? { de: 'janela', tipo: 'trocar-ficha', sessao, tokenId } : null
+    }
+    case 'visibilidade': {
+      const { oculta } = dado
+      return typeof oculta === 'boolean' ? { de: 'janela', tipo: 'visibilidade', sessao, oculta } : null
     }
     default:
       return null
