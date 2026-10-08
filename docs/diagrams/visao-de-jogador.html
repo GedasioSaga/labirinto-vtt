@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Visão de jogador · Arquitetura</title>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --paper: #f5f5f5;
+    --ink: #2d3142;
+    --muted: #4f5d75;
+    --soft: #7a8399;
+    --rule: rgba(45,49,66,0.10);
+  }
+  body {
+    font-family: 'Geist', system-ui, sans-serif;
+    background: var(--paper);
+    color: var(--ink);
+    padding: 48px 24px;
+  }
+  .wrap { max-width: 1040px; margin: 0 auto; }
+  .eyebrow {
+    font-family: 'Geist Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin: 0 0 8px;
+  }
+  h1 {
+    font-family: 'Instrument Serif', serif;
+    font-weight: 400;
+    font-size: 32px;
+    letter-spacing: -0.02em;
+    line-height: 1.15;
+    margin: 0 0 8px;
+    text-wrap: balance;
+  }
+  .subtitle {
+    color: var(--muted);
+    font-size: 14px;
+    line-height: 1.5;
+    margin: 0 0 32px;
+    max-width: 64ch;
+  }
+  .diagram { overflow-x: auto; }
+  svg { display: block; width: 100%; height: auto; }
+  .footer {
+    margin-top: 24px;
+    padding-top: 12px;
+    border-top: 1px solid var(--rule);
+    font-family: 'Geist Mono', monospace;
+    font-size: 11px;
+    color: var(--soft);
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <p class="eyebrow">Labirinto · ferramenta do mestre</p>
+  <h1>Visão de jogador: o teste roda ao lado do jogo, nunca dentro dele</h1>
+  <p class="subtitle">O host de teste mora na janela do editor e lê o mundo vivo com uma camada descartável por cima. A segunda janela é a tela real do jogador. Tudo que o teste muda vai para a camada; nada volta para as stores, para a sala real nem para o arquivo.</p>
+
+  <div class="diagram">
+    <svg viewBox="0 0 920 520" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="visao-de-jogador-title visao-de-jogador-desc">
+      <title id="visao-de-jogador-title">Arquitetura da Visão de jogador</title>
+      <desc id="visao-de-jogador-desc">Arquitetura em que o editor alimenta uma ponte de teste com o mundo vivo mais uma camada descartável, a tela real do jogador numa segunda janela conversa com ela por um canal, e os pedidos e o fantasma voltam só como avisos e desenho no editor.</desc>
+      <defs>
+        <marker id="arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+          <polygon points="0 0, 8 3, 0 6" fill="#4f5d75"/>
+        </marker>
+        <marker id="arrow-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+          <polygon points="0 0, 8 3, 0 6" fill="#eb6c36"/>
+        </marker>
+        <marker id="arrow-link" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+          <polygon points="0 0, 8 3, 0 6" fill="#2e5aa8"/>
+        </marker>
+      </defs>
+
+      <rect width="920" height="520" fill="#f5f5f5"/>
+
+      <!-- ===== ZONES ===== -->
+      <rect x="24" y="72" width="576" height="380" rx="8" fill="rgba(45,49,66,0.02)" stroke="rgba(45,49,66,0.10)" stroke-width="0.8"/>
+      <rect x="40" y="76" width="176" height="12" rx="2" fill="#f5f5f5"/>
+      <text x="128" y="85" fill="rgba(45,49,66,0.40)" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.14em">JANELA PRINCIPAL · EDITOR</text>
+
+      <rect x="648" y="72" width="248" height="380" rx="8" fill="rgba(45,49,66,0.02)" stroke="rgba(45,49,66,0.10)" stroke-width="0.8"/>
+      <rect x="664" y="76" width="140" height="12" rx="2" fill="#f5f5f5"/>
+      <text x="734" y="85" fill="rgba(45,49,66,0.40)" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.14em">JANELA VISAO-JOGADOR</text>
+
+      <!-- ===== ARROWS (drawn before boxes) ===== -->
+
+      <!-- Stores -> Camada: mundo vivo -->
+      <path d="M 148,176 V 240" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+      <rect x="156" y="200" width="64" height="12" rx="2" fill="#f5f5f5"/>
+      <text x="160" y="209" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.06em">MUNDO VIVO</text>
+
+      <!-- Camada -> Ponte de teste: le mundo + camada -->
+      <path d="M 248,260 H 348" fill="none" stroke="#eb6c36" stroke-width="1.2" marker-end="url(#arrow-accent)"/>
+      <rect x="264" y="236" width="68" height="12" rx="2" fill="#f5f5f5"/>
+      <text x="298" y="245" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">MUNDO+CAMADA</text>
+
+      <!-- Ponte de teste -> Camada: escritores de teste -->
+      <path d="M 348,284 H 248" fill="none" stroke="#4f5d75" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#arrow)"/>
+      <rect x="268" y="292" width="60" height="12" rx="2" fill="#f5f5f5"/>
+      <text x="298" y="301" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">ESCRITORES</text>
+
+      <!-- Sala real -> Ponte de teste: so leitura -->
+      <path d="M 448,176 V 240" fill="none" stroke="#2e5aa8" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#arrow-link)"/>
+      <rect x="456" y="200" width="64" height="12" rx="2" fill="#f5f5f5"/>
+      <text x="460" y="209" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.06em">SÓ LEITURA</text>
+
+      <!-- Ponte de teste -> Pedidos do teste: avisos -->
+      <path d="M 436,304 V 368" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+      <rect x="380" y="328" width="48" height="12" rx="2" fill="#f5f5f5"/>
+      <text x="424" y="337" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="end" letter-spacing="0.06em">AVISOS</text>
+
+      <!-- Pedidos do teste -> Ponte de teste: resposta do mestre -->
+      <path d="M 460,368 V 304" fill="none" stroke="#4f5d75" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#arrow)"/>
+      <rect x="468" y="328" width="56" height="12" rx="2" fill="#f5f5f5"/>
+      <text x="472" y="337" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.06em">RESPOSTA</text>
+
+      <!-- Camada -> Fantasma -->
+      <path d="M 148,304 V 368" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+      <rect x="156" y="328" width="80" height="12" rx="2" fill="#f5f5f5"/>
+      <text x="160" y="337" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.06em">POSIÇÃO TESTE</text>
+
+      <!-- Ponte de teste -> Tela do jogador: snapshot pelo canal -->
+      <path d="M 548,260 H 672" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+      <rect x="572" y="236" width="76" height="12" rx="2" fill="#f5f5f5"/>
+      <text x="610" y="245" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">SNAPSHOT</text>
+
+      <!-- Tela do jogador -> Ponte de teste: acoes (so no Jogar) -->
+      <path d="M 672,284 H 548" fill="none" stroke="#4f5d75" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#arrow)"/>
+      <rect x="568" y="292" width="84" height="12" rx="2" fill="#f5f5f5"/>
+      <text x="610" y="301" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">AÇÕES (JOGAR)</text>
+
+      <!-- Barra -> Tela do jogador: modo -->
+      <path d="M 772,176 V 240" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+      <rect x="780" y="200" width="80" height="12" rx="2" fill="#f5f5f5"/>
+      <text x="784" y="209" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.06em">OLHAR | JOGAR</text>
+
+      <!-- Comando Rust -> Tela do jogador: cria a janela -->
+      <path d="M 772,368 V 304" fill="none" stroke="#4f5d75" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#arrow)"/>
+      <rect x="780" y="328" width="80" height="12" rx="2" fill="#f5f5f5"/>
+      <text x="784" y="337" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.06em">CRIA A JANELA</text>
+
+      <!-- ===== NODES ===== -->
+
+      <!-- Stores do editor -->
+      <rect x="48" y="112" width="200" height="64" rx="6" fill="#f5f5f5"/>
+      <rect x="48" y="112" width="200" height="64" rx="6" fill="rgba(45,49,66,0.05)" stroke="#4f5d75" stroke-width="1"/>
+      <rect x="56" y="118" width="40" height="12" rx="2" fill="transparent" stroke="rgba(45,49,66,0.40)" stroke-width="0.8"/>
+      <text x="76" y="127" fill="rgba(45,49,66,0.8)" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">STATE</text>
+      <text x="148" y="148" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Stores do editor</text>
+      <text x="148" y="164" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">nenhuma escrita do teste</text>
+
+      <!-- Sala real (LAN) -->
+      <rect x="348" y="112" width="200" height="64" rx="6" fill="#f5f5f5"/>
+      <rect x="348" y="112" width="200" height="64" rx="6" fill="rgba(45,49,66,0.03)" stroke="rgba(45,49,66,0.30)" stroke-width="1"/>
+      <rect x="356" y="118" width="28" height="12" rx="2" fill="transparent" stroke="rgba(45,49,66,0.40)" stroke-width="0.8"/>
+      <text x="370" y="127" fill="rgba(45,49,66,0.8)" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">LAN</text>
+      <text x="448" y="148" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Sala real</text>
+      <text x="448" y="164" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">seatSeedFor · memória do dono</text>
+
+      <!-- Camada de teste (focal) -->
+      <rect x="48" y="240" width="200" height="64" rx="6" fill="#f5f5f5"/>
+      <rect x="48" y="240" width="200" height="64" rx="6" fill="rgba(235,108,54,0.08)" stroke="#eb6c36" stroke-width="1"/>
+      <rect x="56" y="246" width="40" height="12" rx="2" fill="transparent" stroke="rgba(235,108,54,0.50)" stroke-width="0.8"/>
+      <text x="76" y="255" fill="#eb6c36" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">TESTE</text>
+      <text x="148" y="276" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Camada de teste</text>
+      <text x="148" y="292" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">descartada ao fechar</text>
+
+      <!-- Ponte de teste (focal) -->
+      <rect x="348" y="240" width="200" height="64" rx="6" fill="#f5f5f5"/>
+      <rect x="348" y="240" width="200" height="64" rx="6" fill="rgba(235,108,54,0.08)" stroke="#eb6c36" stroke-width="1"/>
+      <rect x="356" y="246" width="36" height="12" rx="2" fill="transparent" stroke="rgba(235,108,54,0.50)" stroke-width="0.8"/>
+      <text x="374" y="255" fill="#eb6c36" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">HOST</text>
+      <text x="448" y="276" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Ponte de teste</text>
+      <text x="448" y="292" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">hostBridge · transporte local</text>
+
+      <!-- Fantasma no editor -->
+      <rect x="48" y="368" width="200" height="64" rx="6" fill="#f5f5f5"/>
+      <rect x="48" y="368" width="200" height="64" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+      <rect x="56" y="374" width="28" height="12" rx="2" fill="transparent" stroke="rgba(45,49,66,0.40)" stroke-width="0.8"/>
+      <text x="70" y="383" fill="rgba(45,49,66,0.8)" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">UI</text>
+      <text x="148" y="404" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Fantasma no editor</text>
+      <text x="148" y="420" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">PixiCanvas · não clicável</text>
+
+      <!-- Pedidos do teste -->
+      <rect x="348" y="368" width="200" height="64" rx="6" fill="#f5f5f5"/>
+      <rect x="348" y="368" width="200" height="64" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+      <rect x="356" y="374" width="28" height="12" rx="2" fill="transparent" stroke="rgba(45,49,66,0.40)" stroke-width="0.8"/>
+      <text x="370" y="383" fill="rgba(45,49,66,0.8)" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">UI</text>
+      <text x="448" y="404" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Pedidos do teste</text>
+      <text x="448" y="420" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">caixa própria, sem latão</text>
+
+      <!-- Barra Olhar | Jogar -->
+      <rect x="672" y="112" width="200" height="64" rx="6" fill="#f5f5f5"/>
+      <rect x="672" y="112" width="200" height="64" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+      <rect x="680" y="118" width="28" height="12" rx="2" fill="transparent" stroke="rgba(45,49,66,0.40)" stroke-width="0.8"/>
+      <text x="694" y="127" fill="rgba(45,49,66,0.8)" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">UI</text>
+      <text x="772" y="148" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Barra do teste</text>
+      <text x="772" y="164" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">Olhar bloqueia as ações</text>
+
+      <!-- Tela real do jogador -->
+      <rect x="672" y="240" width="200" height="64" rx="6" fill="#f5f5f5"/>
+      <rect x="672" y="240" width="200" height="64" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+      <rect x="680" y="246" width="52" height="12" rx="2" fill="transparent" stroke="rgba(45,49,66,0.40)" stroke-width="0.8"/>
+      <text x="706" y="255" fill="rgba(45,49,66,0.8)" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">CLIENTE</text>
+      <text x="772" y="276" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Tela real do jogador</text>
+      <text x="772" y="292" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">Session · BroadcastChannel</text>
+
+      <!-- Comando Rust -->
+      <rect x="672" y="368" width="200" height="64" rx="6" fill="#f5f5f5"/>
+      <rect x="672" y="368" width="200" height="64" rx="6" fill="rgba(45,49,66,0.02)" stroke="rgba(45,49,66,0.20)" stroke-width="1" stroke-dasharray="4,3"/>
+      <rect x="680" y="374" width="36" height="12" rx="2" fill="transparent" stroke="rgba(45,49,66,0.40)" stroke-width="0.8"/>
+      <text x="698" y="383" fill="rgba(45,49,66,0.8)" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">RUST</text>
+      <text x="772" y="404" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Comando da janela</text>
+      <text x="772" y="420" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">abrir_visao_jogador</text>
+
+      <!-- ===== LEGEND ===== -->
+      <line x1="24" y1="472" x2="896" y2="472" stroke="rgba(45,49,66,0.10)" stroke-width="0.8"/>
+      <text x="24" y="492" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.14em">LEGENDA</text>
+
+      <rect x="104" y="484" width="12" height="12" rx="2" fill="rgba(235,108,54,0.08)" stroke="#eb6c36" stroke-width="1"/>
+      <text x="124" y="493" fill="#4f5d75" font-size="9" font-family="'Geist', sans-serif">peça do teste</text>
+
+      <rect x="228" y="484" width="12" height="12" rx="2" fill="rgba(45,49,66,0.05)" stroke="#4f5d75" stroke-width="1"/>
+      <text x="248" y="493" fill="#4f5d75" font-size="9" font-family="'Geist', sans-serif">estado real do jogo</text>
+
+      <rect x="372" y="484" width="12" height="12" rx="2" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+      <text x="392" y="493" fill="#4f5d75" font-size="9" font-family="'Geist', sans-serif">interface</text>
+
+      <line x1="472" y1="490" x2="504" y2="490" stroke="#2e5aa8" stroke-width="1" stroke-dasharray="4,3"/>
+      <text x="512" y="493" fill="#4f5d75" font-size="9" font-family="'Geist', sans-serif">leitura da sala real</text>
+
+      <line x1="636" y1="490" x2="668" y2="490" stroke="#4f5d75" stroke-width="1" stroke-dasharray="4,3"/>
+      <text x="676" y="493" fill="#4f5d75" font-size="9" font-family="'Geist', sans-serif">volta, ação ou criação</text>
+    </svg>
+  </div>
+
+  <p class="footer">Labirinto · client/src/net/visaoDeTeste/ · client/src/player/visaoDeTeste/ · client/src/pixi/fantasmaDeTeste.ts · desktop/src-tauri/src/visao_jogador.rs</p>
+</div>
+</body>
+</html>
