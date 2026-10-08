@@ -256,6 +256,8 @@ interface PropertiesPanelProps {
     | 'textoAoEntrar'
     | 'notaDoMestre'
     | 'dark'
+    | 'dentroVeFora'
+    | 'foraVeDentro'
     | 'faccao'
     | 'raioDeVisao'
     // O painel passa o id da Sala selecionada; o resto do "Abrir para o corredor" vem da store.
@@ -656,6 +658,8 @@ export function PropertiesPanel({
               textoAoEntrar={selectedRegion.room.textoAoEntrar ?? ''}
               notaDoMestre={selectedRegion.room.notaDoMestre ?? ''}
               dark={selectedRegion.room.dark === true}
+              dentroVeFora={selectedRegion.room.dentroVeFora === true}
+              foraVeDentro={selectedRegion.room.foraVeDentro === true}
               faccao={selectedRegion.room.faccao ?? ''}
               raioDeVisao={selectedRegion.room.raioDeVisao ?? null}
               {...room}

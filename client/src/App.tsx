@@ -3382,6 +3382,8 @@ function App() {
               onTextoAoEntrarChange: (textoAoEntrar) => selectedRegion && useMapStore.getState().setRoomTexts(selectedRegion.id, { textoAoEntrar }),
               onNotaDoMestreChange: (notaDoMestre) => selectedRegion && useMapStore.getState().setRoomTexts(selectedRegion.id, { notaDoMestre }),
               onDarkChange: (dark) => selectedRegion && useMapStore.getState().setRoomDark(selectedRegion.id, dark),
+              onDentroVeForaChange: (ligado) => selectedRegion && useMapStore.getState().setRoomSeeThrough(selectedRegion.id, 'dentroVeFora', ligado),
+              onForaVeDentroChange: (ligado) => selectedRegion && useMapStore.getState().setRoomSeeThrough(selectedRegion.id, 'foraVeDentro', ligado),
               onFaccaoChange: (faccao) => selectedRegion && useMapStore.getState().setRoomFaccao(selectedRegion.id, faccao),
               // Só a herdada vira dica: com facção própria o campo já diz quem manda.
               faccaoHerdada: selectedRegion ? faccaoHerdada(map.regions, selectedRegion.id) : undefined,

@@ -203,6 +203,28 @@ function roomDarkFromFile(region: Region): Region {
   return { ...region, room: semEscuro }
 }
 
+/**
+ * VER ATRAVÉS DAS PAREDES (`RoomMeta.dentroVeFora` / `foraVeDentro`) são
+ * campos NOVOS, no mesmo critério da sala escura: só `true` volta. Qualquer
+ * outro valor SAI, e a parede segura a visão como sempre segurou.
+ */
+function roomSeeThroughFromFile(region: Region): Region {
+  const room = region.room
+  if (!room || typeof room !== 'object') return region
+  const tortoDentro = 'dentroVeFora' in room && room.dentroVeFora !== true
+  const tortoFora = 'foraVeDentro' in room && room.foraVeDentro !== true
+  if (!tortoDentro && !tortoFora) return region
+  const { dentroVeFora, foraVeDentro, ...semVerAtraves } = room
+  return {
+    ...region,
+    room: {
+      ...semVerAtraves,
+      ...(dentroVeFora === true ? { dentroVeFora } : {}),
+      ...(foraVeDentro === true ? { foraVeDentro } : {}),
+    },
+  }
+}
+
 /** BILHETE NO LUGAR: `{ marcas }` só quando o arquivo trouxe o campo. */
 function marcasDoArquivo(value: unknown): Pick<MapData, 'marcas'> {
   const marcas = lerMarcasDoArquivo(value)
@@ -357,7 +379,7 @@ function deserializeMapFields(json: string): MapData {
     // inalterado — `room` ausente fica undefined (região comum); o ângulo do
     // giro da sala passa como veio, desde que seja número (`roomRotationFromFile`)
     regions: entityList(parsed.regions).map((r) =>
-      roomLabelStyleFromFile(roomVisionRadiusFromFile(roomFaccaoFromFile(roomDarkFromFile(roomTextsFromFile(roomRotationFromFile({ ...r, fillColor: r.fillColor ?? '#3a7ad0', fillPattern: r.fillPattern ?? 'solid' })))))),
+      roomLabelStyleFromFile(roomVisionRadiusFromFile(roomFaccaoFromFile(roomSeeThroughFromFile(roomDarkFromFile(roomTextsFromFile(roomRotationFromFile({ ...r, fillColor: r.fillColor ?? '#3a7ad0', fillPattern: r.fillPattern ?? 'solid' }))))))),
     ),
     // MUDA de cru para .map(): Token.image é obrigatório.
     // `imageData` (a cópia embutida que viaja até o jogador) NÃO ganha linha

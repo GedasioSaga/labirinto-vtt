@@ -23,6 +23,22 @@ export interface RoomNamesRenderer {
   setEditingRegion: (regionId: string | null) => void
 }
 
+/**
+ * MARCA DO MESTRE de "ver através das paredes" (`RoomMeta.dentroVeFora` /
+ * `foraVeDentro`): um olho colado ao nome, no tamanho dele. Só aparece no
+ * editor porque o jogador nunca recebe os dois campos (`lib/fogFilter.ts`).
+ */
+export const SEE_THROUGH_MARK = '👁'
+
+/** O texto da etiqueta: o nome e, com algum dos dois interruptores ligados, a marca. Sala sem nome e com a marca mostra só ela. */
+export function roomLabelText(region: Region): string {
+  const room = region.room
+  if (room === undefined) return ''
+  const name = room.name.trim() === '' ? '' : room.name
+  if (room.dentroVeFora !== true && room.foraVeDentro !== true) return name
+  return name === '' ? SEE_THROUGH_MARK : `${name} ${SEE_THROUGH_MARK}`
+}
+
 const FONT_SIZE_PER_GRID = 0.3
 const MIN_FONT_SIZE = 12
 const MAX_FONT_SIZE = 28
@@ -681,7 +697,7 @@ export function createRoomNamesRenderer(): RoomNamesRenderer {
 
   function draw(container: Container, regions: Region[], grid: number, cameraScale?: number, tokens: readonly LabelObstacle[] = []): void {
     if (cameraScale !== undefined) lastCameraScale = cameraScale
-    const named = regions.filter((r) => r.room !== undefined && r.room.name.trim() !== '')
+    const named = regions.filter((r) => roomLabelText(r) !== '')
     namedIds = new Set(named.map((r) => r.id))
     forgetRoomsOutside(namedIds)
 
@@ -707,7 +723,7 @@ export function createRoomNamesRenderer(): RoomNamesRenderer {
       // `regions` (a cena toda, não só as nomeadas): o desvio precisa enxergar
       // a sala filha mesmo quando ela ainda não tem nome.
       const position = roomLabelPositionAvoidingTokens(region, regions, grid, tokens)
-      textObj.text = region.room?.name ?? ''
+      textObj.text = roomLabelText(region)
       textObj.position.set(position.x, position.y)
       // redrawShapes dispara a cada mudança do mapa; recriar o estilo toda vez
       // força o Pixi a re-rasterizar o texto mesmo sem nada ter mudado.

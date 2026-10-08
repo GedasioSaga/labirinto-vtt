@@ -1905,6 +1905,29 @@ export function setRoomDark(map: MapData, id: string, dark: boolean): MapData {
   }
 }
 
+/** Os dois interruptores de "ver através das paredes" da Sala (`RoomMeta`). */
+export type VerAtravesDaSala = 'dentroVeFora' | 'foraVeDentro'
+
+/** VER ATRAVÉS DAS PAREDES — "De dentro, vê lá fora" / "De fora, vê aqui
+ * dentro". Mesmo contrato de `setRoomDark`: região comum, id inexistente ou
+ * valor igual devolve o mesmo `map`; desligar TIRA o campo. Ligar não mexe no
+ * teto: com os dois, quem vence é o teto (`lib/fogFilter.ts`), e desligar o
+ * teto devolve o que o mestre tinha escolhido aqui. */
+export function setRoomSeeThrough(map: MapData, id: string, campo: VerAtravesDaSala, ligado: boolean): MapData {
+  const region = map.regions.find((r) => r.id === id)
+  if (!region || !region.room || (region.room[campo] === true) === ligado) return map
+  return {
+    ...map,
+    regions: map.regions.map((r) => {
+      if (r.id !== id || !r.room) return r
+      const room: RoomMeta = { ...r.room }
+      if (ligado) room[campo] = true
+      else delete room[campo]
+      return { ...r, room }
+    }),
+  }
+}
+
 /**
  * FACÇÃO da Sala (`RoomMeta.faccao`). Guarda o que o mestre digitou, só no
  * teto — aparar a cada tecla comeria o espaço entre "Guarda" e "Carmesim" no

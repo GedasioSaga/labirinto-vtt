@@ -63,6 +63,14 @@ export interface RoomControlsProps {
    *  por padrão), como o do teto. Ausente omite o toggle. */
   dark?: boolean
   onDarkChange?: (dark: boolean) => void
+  /** VER ATRAVÉS DAS PAREDES — `RoomMeta.dentroVeFora` ("De dentro, vê lá
+   *  fora") e `RoomMeta.foraVeDentro` ("De fora, vê aqui dentro"), toggles
+   *  diretos e desligados por padrão. Com o teto ligado o segundo fica
+   *  apagado, com o motivo: quem vence é o teto. Ausente omite o toggle. */
+  dentroVeFora?: boolean
+  onDentroVeForaChange?: (ligado: boolean) => void
+  foraVeDentro?: boolean
+  onForaVeDentroChange?: (ligado: boolean) => void
   /** FACÇÃO — `RoomMeta.faccao`, o que foi digitado. Sem `onFaccaoChange` o campo não aparece. */
   faccao?: string
   onFaccaoChange?: (faccao: string) => void
@@ -547,6 +555,10 @@ export function RoomControls({
   onNotaDoMestreChange,
   dark,
   onDarkChange,
+  dentroVeFora,
+  onDentroVeForaChange,
+  foraVeDentro,
+  onForaVeDentroChange,
   faccao,
   onFaccaoChange,
   faccaoHerdada,
@@ -593,6 +605,12 @@ export function RoomControls({
   const showRoof = roof !== undefined && onRoofChange !== undefined
   const showComodo = onComodoChange !== undefined
   const showDark = dark !== undefined && onDarkChange !== undefined
+  const dentroVeForaHintId = `${baseId}-dentro-ve-fora-hint`
+  const foraVeDentroHintId = `${baseId}-fora-ve-dentro-hint`
+  const showDentroVeFora = dentroVeFora !== undefined && onDentroVeForaChange !== undefined
+  const showForaVeDentro = foraVeDentro !== undefined && onForaVeDentroChange !== undefined
+  // O teto vence (`lib/fogFilter.ts`): o interruptor guarda a escolha, mas fica apagado enquanto o teto estiver ligado.
+  const tetoTapaInterior = roof === true
   const hasExtras =
     onTextoAoEntrarChange !== undefined ||
     onNotaDoMestreChange !== undefined ||
@@ -671,7 +689,7 @@ export function RoomControls({
         note={shape === 'rect' && !axisAligned ? NOTA_SALA_TORTA : undefined}
       />
 
-      {(showNameToggle || showRoof || showComodo || showDark) && (
+      {(showNameToggle || showRoof || showComodo || showDark || showDentroVeFora || showForaVeDentro) && (
         <div className="lb-room-switches">
           {showNameToggle && (
             <Toggle
@@ -705,6 +723,32 @@ export function RoomControls({
               <Toggle label="Sala escura" checked={dark} onChange={onDarkChange} describedBy={darkHintId} />
               <p className="lb-field__hint" id={darkHintId}>
                 Aqui dentro o jogador só vê a casa em volta da ficha e o que uma Luz ilumina. Você continua vendo tudo.
+              </p>
+            </div>
+          )}
+
+          {showDentroVeFora && (
+            <div className="lb-room-switch">
+              <Toggle label="De dentro, vê lá fora" checked={dentroVeFora} onChange={onDentroVeForaChange} describedBy={dentroVeForaHintId} />
+              <p className="lb-field__hint" id={dentroVeForaHintId}>
+                Com a ficha aqui dentro, o jogador enxerga através das paredes desta sala. Elas continuam barrando o passo.
+              </p>
+            </div>
+          )}
+
+          {showForaVeDentro && (
+            <div className="lb-room-switch">
+              <Toggle
+                label="De fora, vê aqui dentro"
+                checked={foraVeDentro}
+                onChange={onForaVeDentroChange}
+                describedBy={foraVeDentroHintId}
+                disabled={tetoTapaInterior}
+              />
+              <p className="lb-field__hint" id={foraVeDentroHintId}>
+                {tetoTapaInterior
+                  ? 'O teto fechado esconde o interior de quem está fora. Desligue o teto para usar.'
+                  : 'Quem está fora enxerga o interior através das paredes desta sala. Elas continuam barrando o passo.'}
               </p>
             </div>
           )}

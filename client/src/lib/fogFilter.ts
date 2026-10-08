@@ -2510,10 +2510,62 @@ export function filterMapForGroup(
    * o desenho da visão enviada do mesmo jeito. RAIO POR FICHA (`radiusOf`): o
    * escuro corta o anel de cada uma no raio dela, não num raio único do grupo.
    */
-  const visionByToken = (segments: Segment[]): RegionPoint[][][] =>
-    ownTokens.map((t) => sightFrom({ x: t.x, y: t.y }, segments, radiusOf(t), darkness))
+  const visionByToken = (segmentsOf: (i: number) => Segment[]): RegionPoint[][][] =>
+    ownTokens.map((t, i) => sightFrom({ x: t.x, y: t.y }, segmentsOf(i), radiusOf(t), darkness))
   const authoritySegments = ownTokens.length > 0 ? visionSegments(knownWalls === map.walls ? map : { ...map, walls: knownWalls }, peekDoorIds) : []
-  const authorityByToken = visionByToken(authoritySegments)
+
+  /**
+   * VER ATRAVÉS DAS PAREDES DA SALA (`RoomMeta.dentroVeFora` / `foraVeDentro`).
+   * Para cada ficha, as Salas cujas paredes o raycast DELA ignora: estritamente
+   * dentro (em cima do muro é fora) com "De dentro, vê lá fora", ou fora com
+   * "De fora, vê aqui dentro" e sem teto — o teto vence.
+   *
+   * Parede da Sala = parede ligada à borda dela (`Wall.regionId`), portas
+   * inclusive: porta fechada é parte do muro, e a porta secreta (já parede em
+   * `knownWalls`, com o vínculo do pedaço) também — se ela segurasse o olhar
+   * num muro transparente, a sombra do tamanho de uma porta entregaria a
+   * passagem. Parede desenhada à mão sobre o muro, sem vínculo, segura como
+   * sempre; a da sub-sala é da sub-sala.
+   *
+   * Só o OLHAR muda: o conteúdo do outro lado passa pelas mesmas perguntas de
+   * sempre (zona oculta, sala secreta, teto, cômodo, escuro, camada, piso), e a
+   * colisão nem passa por aqui. Só entra Sala que o jogador pode conhecer
+   * (`playerRegions`), na camada visível (como a sala escura) e fora de prédio
+   * de teto fechado para ele. Sem Sala com o campo, nada abaixo roda.
+   */
+  const seeThroughRooms = visibleRegions(map.regions, hiddenLayers).filter(
+    (r) => (r.room?.dentroVeFora === true || r.room?.foraVeDentro === true) && !isInteriorRoom(r),
+  )
+  const playerRegionIds = seeThroughRooms.length === 0 ? null : new Set(playerRegions.map((r) => r.id))
+  const knownSeeThroughRooms = playerRegionIds === null ? [] : seeThroughRooms.filter((r) => playerRegionIds.has(r.id))
+  const seeThroughIdsOf = (t: Token): string[] =>
+    knownSeeThroughRooms
+      .filter((r) =>
+        strictlyInside(r.points, { x: t.x, y: t.y }) ? r.room?.dentroVeFora === true : r.room?.foraVeDentro === true && !roomHasRoof(r.room),
+      )
+      .map((r) => r.id)
+  /** Por ficha (mesmo índice de `ownTokens`); vazio = enxerga como sempre. */
+  const seeThroughByToken: readonly string[][] = knownSeeThroughRooms.length === 0 ? [] : ownTokens.map(seeThroughIdsOf)
+  /**
+   * Os obstáculos de `walls` sem as paredes das Salas `ids`. Cacheado pelo
+   * conjunto: fichas na mesma situação dividem a lista, e o contorno do chão
+   * vem do cache de `visionSegments` (mesma referência de `floor`).
+   */
+  const seeThroughSegments = (cache: Map<string, Segment[]>, base: Segment[], walls: readonly Wall[], floor: FloorPiece[], i: number): Segment[] => {
+    const ids = seeThroughByToken[i]
+    if (ids === undefined || ids.length === 0) return base
+    const key = ids.join('|')
+    const cached = cache.get(key)
+    if (cached !== undefined) return cached
+    const through = new Set(ids)
+    const segments = visionSegments({ ...map, walls: walls.filter((w) => w.regionId === undefined || !through.has(w.regionId)), floor }, peekDoorIds)
+    cache.set(key, segments)
+    return segments
+  }
+  const authoritySeeThrough = new Map<string, Segment[]>()
+  /** Os obstáculos da autoridade para a ficha `i` (as paredes que ela atravessa fora). */
+  const authoritySegmentsOf = (i: number): Segment[] => seeThroughSegments(authoritySeeThrough, authoritySegments, knownWalls, map.floor, i)
+  const authorityByToken = visionByToken(authoritySegmentsOf)
   /**
    * ESCURO DO CONE PELO VÃO: o de sempre mais as salas escuras de dentro DESTE
    * prédio. Elas ficam fora de `darkness` de propósito (o jogador não recebe
@@ -2573,7 +2625,7 @@ export function filterMapForGroup(
       // Prédio sem cômodo escuro reaproveita o olhar da autoridade já calculado.
       authorityFor: (roof, token, i) => {
         const dark = glimpseDarknessOf(roof)
-        return dark === null ? authorityByToken.slice(i, i + 1).flat() : sightFrom({ x: token.x, y: token.y }, authoritySegments, radiusOf(token), dark)
+        return dark === null ? authorityByToken.slice(i, i + 1).flat() : sightFrom({ x: token.x, y: token.y }, authoritySegmentsOf(i), radiusOf(token), dark)
       },
       sightFor: (roof, token, segments) => sightFrom({ x: token.x, y: token.y }, segments, radiusOf(token), glimpseDarknessOf(roof) ?? darkness),
       peekDoorIds,
@@ -2668,21 +2720,24 @@ export function filterMapForGroup(
      * atrás da divisória. As paredes que o raio acerta são as que o cone vê —
      * e só essas saem no pacote (`peekedWallForPlayer`).
      */
-    const peekSegments =
+    const peekWalls =
+      peekerIndexes.size === 0 ? playerWalls : [...playerWalls, ...knownWalls.filter((w) => !isSecretRoomWall(w) && isPeekInterior(w)).flatMap(zoneCutWall)]
+    const peekFloor =
       peekerIndexes.size === 0
-        ? playerSegments
-        : visionSegments(
-            {
-              ...map,
-              walls: [...playerWalls, ...knownWalls.filter((w) => !isSecretRoomWall(w) && isPeekInterior(w)).flatMap(zoneCutWall)],
-              floor: floorWithout(
-                map.floor,
-                new Set(map.floor.filter((f) => mostly(floorPieceSamples(f), (p) => inAnyRing(hiddenAreas, p) || inUnpeekedRoof(p))).map((f) => f.id)),
-              ),
-            },
-            peekDoorIds,
+        ? playerFloorForVision
+        : floorWithout(
+            map.floor,
+            new Set(map.floor.filter((f) => mostly(floorPieceSamples(f), (p) => inAnyRing(hiddenAreas, p) || inUnpeekedRoof(p))).map((f) => f.id)),
           )
-    visionByTokenSent = ownTokens.map((t, i) => sightFrom({ x: t.x, y: t.y }, peekerIndexes.has(i) ? peekSegments : playerSegments, radiusOf(t), darkness))
+    const peekSegments = peekerIndexes.size === 0 ? playerSegments : visionSegments({ ...map, walls: peekWalls, floor: peekFloor }, peekDoorIds)
+    // VER ATRAVÉS DAS PAREDES: a visão enviada atravessa as MESMAS paredes que a da autoridade.
+    const playerSeeThrough = new Map<string, Segment[]>()
+    const peekSeeThrough = new Map<string, Segment[]>()
+    const sentSegmentsOf = (i: number): Segment[] =>
+      peekerIndexes.has(i)
+        ? seeThroughSegments(peekSeeThrough, peekSegments, peekWalls, peekFloor, i)
+        : seeThroughSegments(playerSeeThrough, playerSegments, playerWalls, playerFloorForVision, i)
+    visionByTokenSent = ownTokens.map((t, i) => sightFrom({ x: t.x, y: t.y }, sentSegmentsOf(i), radiusOf(t), darkness))
     vision = visionByTokenSent.flat()
   }
 
@@ -2836,7 +2891,7 @@ export function filterMapForGroup(
     if (light.vistaDeLonge !== true) return false
     const point = { x: light.x, y: light.y }
     if (hiddenByZone(point) || inHiddenPlace(point)) return false
-    return ownTokens.some((t) => hasLineOfSight({ x: t.x, y: t.y }, point, authoritySegments))
+    return ownTokens.some((t, i) => hasLineOfSight({ x: t.x, y: t.y }, point, authoritySegmentsOf(i)))
   }
 
   /**
@@ -3583,7 +3638,9 @@ export function filterMapForGroup(
           !hasTexts &&
           r.room.dark === undefined &&
           r.room.faccao === undefined &&
-          r.room.raioDeVisao === undefined
+          r.room.raioDeVisao === undefined &&
+          r.room.dentroVeFora === undefined &&
+          r.room.foraVeDentro === undefined
         )
           return r
         // TEXTO DA SALA: a nota do mestre NUNCA sai. O texto de entrada só sai
@@ -3592,7 +3649,17 @@ export function filterMapForGroup(
         // `comodo` é configuração do mestre: a tela do jogador não precisa dele.
         // FACÇÃO: quem manda aqui é anotação do mestre e nunca sai, nem para quem está dentro.
         // O "Raio de visão aqui" também fica: já está aplicado na visão enviada.
-        const { textoAoEntrar, notaDoMestre: _nota, comodo: _comodo, faccao: _faccao, raioDeVisao: _raio, ...room } = r.room
+        // "Ver através das paredes" idem: a parede chega com a cara de sempre e a visão já atravessada.
+        const {
+          textoAoEntrar,
+          notaDoMestre: _nota,
+          comodo: _comodo,
+          faccao: _faccao,
+          raioDeVisao: _raio,
+          dentroVeFora: _dentroVeFora,
+          foraVeDentro: _foraVeDentro,
+          ...room
+        } = r.room
         const readable = !roofClosed && !inZone && hasEnterText(r.room)
         const occupied = readable && ownTokens.some((t) => isStrictlyInsideReadableRoom(r.points, { x: t.x, y: t.y }))
         if (occupied) occupiedRooms.push(r.id)

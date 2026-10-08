@@ -909,6 +909,8 @@ interface MapStoreState {
   setRegionTriggerRevealed: (regionId: string, revealed: boolean) => void
   /** SALA ESCURA — liga/desliga `RoomMeta.dark` da Sala, com histórico. */
   setRoomDark: (id: string, dark: boolean) => void
+  /** VER ATRAVÉS DAS PAREDES — liga/desliga um dos dois interruptores da Sala, com histórico. */
+  setRoomSeeThrough: (id: string, campo: mapFactory.VerAtravesDaSala, ligado: boolean) => void
   /** "Raio de visão aqui" da Sala; `null` volta ao raio do jogador. Com histórico. */
   setRoomVisionRadius: (id: string, raio: number | null) => void
   /** ESTEIRA — liga a esteira da Sala (direção e passo), troca ou desliga (`null`). Com histórico. */
@@ -2291,6 +2293,10 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
     setRoomDark: (id, dark) => {
       if (mapFactory.setRoomDark(get().map, id, dark) === get().map) return
       withHistory((map) => mapFactory.setRoomDark(map, id, dark))
+    },
+    setRoomSeeThrough: (id, campo, ligado) => {
+      if (mapFactory.setRoomSeeThrough(get().map, id, campo, ligado) === get().map) return
+      withHistory((map) => mapFactory.setRoomSeeThrough(map, id, campo, ligado))
     },
     setRoomVisionRadius: (id, raio) => {
       if (mapFactory.setRoomVisionRadius(get().map, id, raio) === get().map) return

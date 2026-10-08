@@ -403,6 +403,25 @@ export interface RoomMeta {
    * `undefined` (ou valor que não é número positivo) === raio do jogador.
    */
   raioDeVisao?: number
+  /**
+   * VER ATRAVÉS DAS PAREDES DA SALA — "De dentro, vê lá fora". Ficha de
+   * jogador ESTRITAMENTE dentro da Sala (em cima do muro é fora) enxerga
+   * através das paredes ligadas à borda dela (`Wall.regionId`), portas
+   * fechadas inclusive: a parede some só do raycast DESSA ficha. O passo não
+   * muda — a parede segue barrando o movimento —, o raio é o de sempre e as
+   * outras paredes continuam segurando o olhar. Regra do mestre: não sai no
+   * recorte do jogador (`lib/fogFilter.ts`). `undefined` === false, sem
+   * migração; só `true` volta do disco (`lib/mapFile.ts`).
+   */
+  dentroVeFora?: boolean
+  /**
+   * VER ATRAVÉS DAS PAREDES DA SALA — "De fora, vê aqui dentro". Ficha de
+   * jogador FORA da Sala enxerga para dentro através das paredes dela, nas
+   * mesmas regras de `dentroVeFora`. O teto (`roof`) VENCE: Sala com teto
+   * fechado continua sem mostrar nada do interior a quem está fora, ligado
+   * ou não. `undefined` === false, sem migração.
+   */
+  foraVeDentro?: boolean
 }
 
 /**
