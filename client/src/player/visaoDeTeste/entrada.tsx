@@ -17,9 +17,12 @@ import { criarSocketDoCanal } from './socketDoCanal'
 // Esta página não tem estado de jogo nem disco: tudo vem do host de teste
 // (`net/visaoDeTeste/visaoDeTeste.ts`), e o que a tela guardaria no aparelho
 // (ajustes, notas, nomes de lugares) fica em memória e some ao fechar.
-
-/** "Jogar" ainda não existe nesta entrega: a barra mostra o lado desligado e o recado vem sem o botão. */
-const JOGAR_DISPONIVEL = false
+//
+// OLHAR x JOGAR: o modo é desta página e vale até ela fechar (trocar de ficha
+// não o muda). No Olhar, o bloqueio da tela e a guarda do socket barram o que
+// seria ação do jogador; no Jogar os dois saem do caminho e tudo chega ao host
+// de teste, que grava na camada de teste, nunca no mapa do mestre. Voltar ao
+// Olhar liga os dois de novo: eles leem o modo a cada evento e a cada envio.
 
 /** O `url` do cliente nunca é aberto (o socket é o canal): só identifica a origem nos avisos de erro. */
 const URL_DO_TESTE = 'teste://visao'
@@ -192,10 +195,7 @@ function VisaoDeJogador({ sessao, canal }: { sessao: string; canal: Canal }) {
         <BarraDoTeste
           ficha={geracao.ficha}
           modo={modo}
-          onModo={(proximo) => {
-            if (proximo === 'olhar' || JOGAR_DISPONIVEL) setModo(proximo)
-          }}
-          jogarDisponivel={JOGAR_DISPONIVEL}
+          onModo={setModo}
           fichas={lista.fichas}
           fichaSelecionadaId={lista.fichaSelecionadaId}
           onTrocarFicha={(tokenId) => enviar({ de: 'janela', tipo: 'trocar-ficha', sessao, tokenId })}
@@ -221,7 +221,7 @@ function VisaoDeJogador({ sessao, canal }: { sessao: string; canal: Canal }) {
           <Aviso>Abrindo a tela do jogador…</Aviso>
         )}
       </div>
-      {recado && modo === 'olhar' && <RecadoDoOlhar onFechar={() => setRecado(false)} />}
+      {recado && modo === 'olhar' && <RecadoDoOlhar onPassarParaJogar={() => setModo('jogar')} onFechar={() => setRecado(false)} />}
     </div>
   )
 }

@@ -7,11 +7,13 @@ import { createHostBridge, type HostBridge, type HostBridgeDeps } from '../hostB
 import type { HostWorld } from '../hostSession'
 import { NAME_MAX_LENGTH, NAME_MIN_LENGTH } from '../protocol'
 import { criarAvisosDeTeste, type AvisosDeTeste } from './avisosDeTeste'
+import { criarCamadaDeTeste, fantasmaDaFicha, mesmoFantasma, type CamadaDeTeste } from './camadaDeTeste'
 import type { Canal } from './canal'
+import { criarEscritoresDeTeste } from './escritoresDeTeste'
 import type { JanelaDeTeste } from './janela'
 import { lerMensagemDaJanela, type MensagemDaJanela, type MensagemDoHost } from './protocoloDoCanal'
 import { sementeDosAssentos, type SementeDoDono } from './semente'
-import type { FichaParaTeste } from './tipos'
+import type { FantasmaDeTeste, FichaParaTeste } from './tipos'
 import { criarTransporteLocal, type TransporteLocal } from './transporteLocal'
 
 /**
@@ -22,11 +24,19 @@ import { criarTransporteLocal, type TransporteLocal } from './transporteLocal'
  * janela de teste por um transporte falso (`transporteLocal.ts`) sobre o
  * canal. A janela de teste é só o cliente do jogador.
  *
- * Nada do teste toca o jogo de verdade: esta ponte não tem escritor de store
- * (mover, porta e o resto não fazem nada nesta entrega: o modo Olhar não age),
- * não grava mesa, explorado nem chat, não tem sala real nem jogadores reais, e
- * os avisos dela passam pelo filtro do teste (`avisosDeTeste.ts`). Este
- * módulo não importa store nenhuma: o mundo entra por `getMap`/`getWorld`.
+ * Nada do teste toca o jogo de verdade. O que o jogador de teste faz no Jogar
+ * (andar, porta, piso, mochila…) vai para a CAMADA DE TESTE da sessão
+ * (`camadaDeTeste.ts`, pelos `escritoresDeTeste.ts`), reaplicada por cima do
+ * mundo vivo a cada leitura: a janela vê o teste, o editor continua igual.
+ * Esta ponte não grava mesa, explorado nem chat, não tem sala real nem
+ * jogadores reais, e os avisos dela passam pelo filtro do teste
+ * (`avisosDeTeste.ts`). O mundo entra só por `getMap`/`getWorld`.
+ *
+ * A camada é da janela, não da geração: "Trocar ficha" e recarregar a janela
+ * mantêm o mundo do teste (só a névoa passa a ser a da ficha nova); fechar o
+ * teste o esquece. Enquanto a ficha olhada estiver fora do lugar de verdade, o
+ * estado leva o FANTASMA dela (`fantasma`), para o editor mostrar onde ela está
+ * no teste.
  *
  * A MEMÓRIA DO DONO entra só por leitura (`lerSementeDoDono`): com a sala
  * aberta, da ponte da sala, que só expõe aqui o que lê (`seatSeedFor`); com
@@ -59,6 +69,8 @@ export interface EstadoDaVisao {
   aberta: boolean
   /** A ficha olhada agora; `null` com a janela fechada. */
   ficha: FichaParaTeste | null
+  /** Onde a ficha está no teste, quando o teste a tirou do lugar real; ausente/null = sem fantasma no editor. */
+  fantasma?: FantasmaDeTeste | null
 }
 
 export const VISAO_FECHADA: EstadoDaVisao = { aberta: false, ficha: null }
@@ -135,10 +147,16 @@ interface Sessao {
   respondeu: boolean
   ultimaResposta: number
   relogio: ReturnType<typeof setInterval>
+  /** O que o teste mudou no mundo: vale para todas as gerações da janela. */
+  camada: CamadaDeTeste
+  /** Já há uma conferência do fantasma marcada para o fim desta volta do relógio. */
+  fantasmaAgendado: boolean
 }
 
-/** A ponte de teste não grava nada no mapa nesta entrega: o modo Olhar não age, e a guarda do socket garante. */
-const SEM_EFEITO = (): void => {}
+/** A janela aberta na `ficha`; o fantasma só entra no estado quando existe (ausente = sem fantasma no editor). */
+function estadoAberto(ficha: FichaParaTeste, fantasma: FantasmaDeTeste | null): EstadoDaVisao {
+  return fantasma === null ? { aberta: true, ficha } : { aberta: true, ficha, fantasma }
+}
 
 function errorText(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
@@ -274,12 +292,43 @@ export function criarControladorDaVisao(deps: DepsDaVisao): ControladorDaVisao {
   const avisosDaJanela = criarAvisosDeTeste(deps.avisos)
 
   const mudarEstado = (proximo: EstadoDaVisao) => {
-    if (proximo.aberta === estadoAtual.aberta && proximo.ficha === estadoAtual.ficha) return
+    if (proximo.aberta === estadoAtual.aberta && proximo.ficha === estadoAtual.ficha && mesmoFantasma(proximo.fantasma, estadoAtual.fantasma)) return
     estadoAtual = proximo
     for (const ouvinte of [...ouvintes]) ouvinte()
   }
 
   const enviar = (s: Sessao, mensagem: MensagemDoHost) => s.canal.enviar(mensagem)
+
+  /** A ficha olhada fora do lugar de verdade, agora: onde ela está no teste; `null` = no mesmo lugar. */
+  const fantasmaAgora = (s: Sessao): FantasmaDeTeste | null => {
+    const real = deps.getWorld()
+    return fantasmaDaFicha(real, s.camada.aplicarNoMundo(real), s.tokenId)
+  }
+
+  /**
+   * Confere o fantasma UMA vez, no fim desta volta do relógio: um broadcast lê
+   * o mundo várias vezes, e o editor só precisa saber do lugar final. Só avisa
+   * quem assina quando o lugar mudou de fato (`mudarEstado`).
+   */
+  const agendarFantasma = (s: Sessao) => {
+    if (s.fantasmaAgendado) return
+    s.fantasmaAgendado = true
+    // Promise, e não timer: com o relógio falso dos testes a conferência continua saindo.
+    void Promise.resolve().then(() => {
+      s.fantasmaAgendado = false
+      const ficha = estadoAtual.ficha
+      if (sessao !== s || ficha === null) return
+      mudarEstado(estadoAberto(ficha, fantasmaAgora(s)))
+    })
+  }
+
+  /** O mundo que a ponte de teste serve: o vivo do editor com o que o teste mudou por cima. */
+  const mundoDoTeste = (s: Sessao): HostWorld => {
+    const mundo = s.camada.aplicarNoMundo(deps.getWorld())
+    // Toda mudança (do teste ou do mestre) chega à janela por uma leitura destas.
+    agendarFantasma(s)
+    return mundo
+  }
 
   /** A ficha `tokenId` da lista; fora dela (o mestre a apagou ou trocou de cena), a que a janela já mostrava. */
   const fichaDe = (tokenId: string): FichaParaTeste | null =>
@@ -322,13 +371,14 @@ export function criarControladorDaVisao(deps: DepsDaVisao): ControladorDaVisao {
     const ponte = createHostBridge({
       invoke: transporte.invoke,
       listen: transporte.listen,
-      getMap: deps.getMap,
-      getWorld: deps.getWorld,
+      getMap: () => s.camada.aplicarNoMapa(deps.getMap()),
+      getWorld: () => mundoDoTeste(s),
       getTurn: deps.getTurn,
       getClock: deps.getClock,
-      applyMove: SEM_EFEITO,
-      applyDoor: SEM_EFEITO,
-      loadTable: () => mesaSemente(codigo, nome, ficha.id, deps.getWorld(), semente),
+      // Tudo o que o jogador de teste muda vai para a camada da sessão, nada para as stores.
+      ...criarEscritoresDeTeste(s.camada, deps.getWorld),
+      // A ficha pode já estar em outro lugar no teste (geração nova depois de "Trocar ficha").
+      loadTable: () => mesaSemente(codigo, nome, ficha.id, s.camada.aplicarNoMundo(deps.getWorld()), semente),
       loadExploration: () => exploradoSemente(nome, cenas),
       onPlayersChange: (jogadores) => {
         if (fatorPendente === null) return
@@ -385,7 +435,8 @@ export function criarControladorDaVisao(deps: DepsDaVisao): ControladorDaVisao {
     s.tokenId = ficha.id
     // A ficha nova começa com a memória do dono dela: o "Esquecer tudo" era da outra.
     s.semMemoria = false
-    mudarEstado({ aberta: true, ficha })
+    // O mundo do teste continua (a camada é da janela): a ficha nova pode já estar fora do lugar nele.
+    mudarEstado(estadoAberto(ficha, fantasmaAgora(s)))
     // Janela ainda carregando: o `ola` dela já começa com a ficha nova.
     if (s.respondeu) iniciarGeracao(s)
   }
@@ -412,6 +463,8 @@ export function criarControladorDaVisao(deps: DepsDaVisao): ControladorDaVisao {
     clearInterval(s.relogio)
     s.pararDeOuvir()
     encerrarPonte(s, true)
+    // Reabrir começa do mundo de verdade: com a ficha onde ela está no editor.
+    s.camada.limpar()
     enviar(s, { de: 'host', tipo: 'encerrar', sessao: s.id })
     s.canal.fechar()
     s.janela.fechar().then(
@@ -443,6 +496,8 @@ export function criarControladorDaVisao(deps: DepsDaVisao): ControladorDaVisao {
       respondeu: false,
       ultimaResposta: agora(),
       relogio: setInterval(() => conferirVida(s), PING_DA_VISAO_MS),
+      camada: criarCamadaDeTeste(),
+      fantasmaAgendado: false,
     }
     s.pararDeOuvir = canal.ouvir((dado) => {
       if (sessao !== s) return
@@ -450,7 +505,7 @@ export function criarControladorDaVisao(deps: DepsDaVisao): ControladorDaVisao {
       if (mensagem !== null) aoMensagem(s, mensagem)
     })
     sessao = s
-    mudarEstado({ aberta: true, ficha })
+    mudarEstado(estadoAberto(ficha, null))
     s.janela.abrir(id).catch((error: unknown) => {
       if (sessao !== s) return
       avisosDaJanela.push('error', `Não deu para abrir a janela da Visão de jogador: ${errorText(error)}`)
@@ -498,7 +553,7 @@ export function criarControladorDaVisao(deps: DepsDaVisao): ControladorDaVisao {
       if (s === null) return
       const atual = novas.find((ficha) => ficha.id === s.tokenId)
       // Nome ou retrato da ficha olhada mudou no editor: o painel mostra o de agora.
-      if (atual !== undefined) mudarEstado({ aberta: true, ficha: atual })
+      if (atual !== undefined) mudarEstado(estadoAberto(atual, estadoAtual.fantasma ?? null))
       if (s.respondeu) enviar(s, { de: 'host', tipo: 'fichas', sessao: s.id, fichas: [...novas], fichaSelecionadaId: selecionada })
     },
     ponte: () => sessao?.ponte ?? null,

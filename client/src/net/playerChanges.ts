@@ -24,7 +24,7 @@ import type { AppliedLock, AppliedMark, AppliedPiso, AppliedTokenEdit, AppliedVe
  * quando não muda nada — num passo antigo a ficha ou a porta pode nem existir.
  */
 
-type MapTransform = (map: MapData) => MapData
+export type MapTransform = (map: MapData) => MapData
 
 function moveToken(tokenId: string, x: number, y: number): MapTransform {
   return (map) => {
@@ -124,29 +124,57 @@ function cenaComMarca(markId: string): string | undefined | null {
   return null
 }
 
-/** Tira a marca da cena que a tem hoje. `false` quando ela já não estava em cena nenhuma. */
-function removeMarkWhereItIs(markId: string): boolean {
-  const sceneId = cenaComMarca(markId)
-  if (sceneId === null) return false
-  applyToScene(sceneId, removeMark(markId))
-  return true
+/**
+ * Para onde vão as mudanças do jogador: as stores do editor (o jogo de
+ * verdade, `hostPlayerChanges`) ou a camada da VISÃO DE JOGADOR, que guarda o
+ * que o teste mudou sem tocar no mapa do mestre (`net/visaoDeTeste/camadaDeTeste.ts`).
+ */
+export interface DestinoDasMudancas {
+  /**
+   * Aplica `transform` na cena `sceneId` (ausente = a aberta no editor).
+   * `passoDe`: a mudança é só o passo da ficha com esse id — quem guarda as
+   * mudanças em lista pode trocar o passo anterior dela por este.
+   */
+  aplicar(sceneId: string | undefined, transform: MapTransform, passoDe?: string): void
+  /** Onde a marca `markId` está AGORA, no formato de `aplicar`; `null` = em cena nenhuma. */
+  cenaComMarca(markId: string): string | undefined | null
+  /** Em volta do passo do jogador (o editor marca a ficha para deslizar). Ausente = só aplica. */
+  emVoltaDoPasso?: (tokenId: string, aplicar: () => void) => void
 }
 
-/** Os retornos da ponte do host (`createHostBridge`) para as mudanças do jogador. */
-export const hostPlayerChanges = {
+/** Os retornos da ponte do host (`createHostBridge`) para as mudanças do jogador, gravados em `destino`. */
+export function createPlayerChanges(destino: DestinoDasMudancas) {
+  const emVoltaDoPasso = destino.emVoltaDoPasso ?? ((_tokenId: string, aplicar: () => void) => aplicar())
+  return {
+    applyMove: (tokenId: string, x: number, y: number, sceneId?: string): void =>
+      emVoltaDoPasso(tokenId, () => destino.aplicar(sceneId, moveToken(tokenId, x, y), tokenId)),
+    // VEÍCULO no ATALHO NA MESMA CENA: salta com todos a bordo, sem deslizar — é
+    // passagem, não passo —, e cada um assenta numa casa livre (`hopVehicleSeated`).
+    applyVehicleHop: (vehicleId: string, x: number, y: number, sceneId?: string, hold?: SeatHold): void =>
+      destino.aplicar(sceneId, (map) => hopVehicleSeated(map, vehicleId, x, y, hold)),
+    applyDoor: (wallId: string, open: boolean, sceneId?: string): void => destino.aplicar(sceneId, setDoorOpen(wallId, open)),
+    applyTokenEdit: (edit: AppliedTokenEdit): void => destino.aplicar(edit.sceneId, editToken(edit)),
+    applyLock: (lock: AppliedLock): void => destino.aplicar(lock.sceneId, openLock(lock.pinId)),
+    applyMark: (mark: AppliedMark): void => destino.aplicar(mark.sceneId, placeMark(mark.marca)),
+    /** Tira a marca da cena que a tem hoje. `false` quando ela já não estava em cena nenhuma. */
+    removeMark: (markId: string): boolean => {
+      const sceneId = destino.cenaComMarca(markId)
+      if (sceneId === null) return false
+      destino.aplicar(sceneId, removeMark(markId))
+      return true
+    },
+    applyPiso: ({ tokenId, piso, sceneId }: AppliedPiso): void => destino.aplicar(sceneId, setTokenPiso(tokenId, piso)),
+    applyVehicle: (change: AppliedVehicle): void => destino.aplicar(change.sceneId, applyVehicleChange(change)),
+  }
+}
+
+export type PlayerChanges = ReturnType<typeof createPlayerChanges>
+
+/** As mudanças do jogador no jogo de verdade: no mapa do mestre, fora do Ctrl+Z dele. */
+export const hostPlayerChanges = createPlayerChanges({
+  aplicar: applyToScene,
+  cenaComMarca,
   // A marca vem ANTES de aplicar: o redraw das fichas roda dentro do `set` da
   // store, e é nele que o editor decide que esta ficha desliza (lib/movimentoRemoto.ts).
-  applyMove: (tokenId: string, x: number, y: number, sceneId?: string): void =>
-    comMovimentoRemoto(tokenId, () => applyToScene(sceneId, moveToken(tokenId, x, y))),
-  // VEÍCULO no ATALHO NA MESMA CENA: salta com todos a bordo, sem deslizar — é
-  // passagem, não passo —, e cada um assenta numa casa livre (`hopVehicleSeated`).
-  applyVehicleHop: (vehicleId: string, x: number, y: number, sceneId?: string, hold?: SeatHold): void =>
-    applyToScene(sceneId, (map) => hopVehicleSeated(map, vehicleId, x, y, hold)),
-  applyDoor: (wallId: string, open: boolean, sceneId?: string): void => applyToScene(sceneId, setDoorOpen(wallId, open)),
-  applyTokenEdit: (edit: AppliedTokenEdit): void => applyToScene(edit.sceneId, editToken(edit)),
-  applyLock: (lock: AppliedLock): void => applyToScene(lock.sceneId, openLock(lock.pinId)),
-  applyMark: (mark: AppliedMark): void => applyToScene(mark.sceneId, placeMark(mark.marca)),
-  removeMark: removeMarkWhereItIs,
-  applyPiso: ({ tokenId, piso, sceneId }: AppliedPiso): void => applyToScene(sceneId, setTokenPiso(tokenId, piso)),
-  applyVehicle: (change: AppliedVehicle): void => applyToScene(change.sceneId, applyVehicleChange(change)),
-}
+  emVoltaDoPasso: comMovimentoRemoto,
+})

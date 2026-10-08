@@ -23,6 +23,7 @@ import { singleSceneWorld } from '../hostSession'
 import { criarParDeCanais, type Canal } from './canal'
 import type { JanelaDeTeste } from './janela'
 import { lerMensagemDoHost } from './protocoloDoCanal'
+import type { ModoDoTeste } from './tipos'
 import {
   criarControladorDaVisao,
   fichaDoMundo,
@@ -89,7 +90,7 @@ function mesaDaBia(map: MapData): { mesa: SavedTable; explorado: SavedExploratio
 }
 
 /** A janela de teste sem tela: fala o protocolo do canal e monta o cliente do jogador a cada geração. */
-function janelaSemTela(canal: Canal, sessao: string) {
+function janelaSemTela(canal: Canal, sessao: string, modo: ModoDoTeste = 'olhar') {
   const conexoes: PlayerConnection[] = []
   let proxima = 1
   canal.ouvir((dado) => {
@@ -107,7 +108,7 @@ function janelaSemTela(canal: Canal, sessao: string) {
         createSocket: () => {
           const conexao = proxima
           proxima += 1
-          return criarSocketDoCanal({ canal, sessao, geracao, conexao, modo: () => 'olhar' })
+          return criarSocketDoCanal({ canal, sessao, geracao, conexao, modo: () => modo })
         },
         storage: memoria(),
         aceitaGzip: false,
@@ -175,11 +176,11 @@ describe('Visão de jogador — controlador + ponte de teste + cliente de verdad
     useToastStore.setState({ toasts: [] })
   })
 
-  async function abrirJanela(tokenId: string) {
+  async function abrirJanela(tokenId: string, modo: ModoDoTeste = 'olhar') {
     controlador.abrir(tokenId)
     await vi.waitFor(() => expect(sessaoAberta).not.toBeNull())
     if (sessaoAberta === null) throw new Error('a janela não abriu')
-    return janelaSemTela(canalDaJanela, sessaoAberta)
+    return janelaSemTela(canalDaJanela, sessaoAberta, modo)
   }
 
   it('entra pela mesa-semente com a ficha como própria, recebe a edição do mestre e acaba com room.closed — sem nada na mesa de verdade', async () => {
@@ -393,5 +394,27 @@ describe('Visão de jogador — controlador + ponte de teste + cliente de verdad
     expect(JSON.stringify({ mesa, explorado })).toBe(guardadoAntes)
     expect(useToastStore.getState().toasts).toEqual([])
     expect(escritasNasStores).not.toHaveBeenCalled()
+  })
+
+  it('Jogar + "Trocar ficha": o mundo do teste continua (a Ana fica onde andou), só a névoa e o fantasma passam a ser da ficha nova', async () => {
+    const janela = await abrirJanela(ANA.id, 'jogar')
+    await vi.waitFor(() => expect(janela.conexao().getState().ownTokens).toEqual([ANA.id]))
+    janela.conexao().requestMove(ANA.id, 175, 125)
+    await vi.waitFor(() => expect(controlador.estado().fantasma).toEqual({ tokenId: ANA.id, mapId: mapa.id, x: 175, y: 125 }))
+
+    // A Severa nunca andou no teste: sem fantasma, mas ela vê a Ana onde o teste a deixou.
+    controlador.abrir(SEVERA.id)
+    expect(controlador.estado().fantasma ?? null).toBeNull()
+    await vi.waitFor(() => expect(janela.conexao().getState().ownTokens).toEqual([SEVERA.id]))
+    await vi.waitFor(() => expect(janela.conexao().getState().map?.tokens.find((t) => t.id === ANA.id)?.x).toBe(175))
+
+    // De volta à Ana: ela continua fora do lugar, e o fantasma volta junto.
+    controlador.abrir(ANA.id)
+    expect(controlador.estado().fantasma).toEqual({ tokenId: ANA.id, mapId: mapa.id, x: 175, y: 125 })
+
+    // O mapa do mestre nunca soube do passo.
+    expect(mapa.tokens.find((t) => t.id === ANA.id)?.x).toBe(ANA.x)
+    expect(escritasNasStores).not.toHaveBeenCalled()
+    expect(useToastStore.getState().toasts).toEqual([])
   })
 })

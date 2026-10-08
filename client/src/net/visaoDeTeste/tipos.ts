@@ -60,6 +60,21 @@ export interface BarraDoTesteProps {
   onFechar(): void
 }
 
+/**
+ * A ficha de teste vista no EDITOR: uma cópia translúcida onde ela está no
+ * teste, só enquanto o teste a tirou do lugar real (andou no Jogar ou viajou
+ * para outra cena). Não é ficha do mapa: não se seleciona, não se arrasta, não
+ * vai para o arquivo nem para os jogadores.
+ */
+export interface FantasmaDeTeste {
+  tokenId: string
+  /** `MapData.id` da cena onde a ficha está no teste; o editor só desenha na cena aberta igual a esta. */
+  mapId: string
+  /** Posição da ficha no teste, no MESMO sistema e convenção de `Token.x/y`. */
+  x: number
+  y: number
+}
+
 /** Recado do modo Olhar quando o mestre tenta uma ação do jogador. */
 export interface RecadoDoOlharProps {
   /** Muda para Jogar na hora. Ausente = recado sem o botão (Jogar indisponível). */
