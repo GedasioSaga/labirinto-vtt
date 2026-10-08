@@ -1339,3 +1339,33 @@ Pedido do usuário: "commita, publica e faz o instalador". Release v0.4.14: Anim
 - Push: `origin/main` 06c58a45..d75125fe e tag `v0.4.14`.
 - Assets (digest do GitHub igual ao sha256 local): `Labirinto_0.4.14_x64-setup.exe` 2522396 bytes sha256 b8da189259bfe687002180ef6b01228e5afd77e457c757b2f2f698318f5afc51; `Labirinto_0.4.14_x64_en-US.msi` 3207168 bytes sha256 bedd10cd01a37615e557ccdc9edbf2914a7a2bc523e185fdcedebd94e2561c8f.
 - Não rodado: Playwright e2e; instalação em máquina limpa; conferência no exe.
+
+### 07/10/2026: release v0.4.15 (`05f98c45`)
+
+## Objetivo
+Pedido do usuário: "Da commit, push e o instalador." Release v0.4.15 com 6 entregas desde a v0.4.14: parede atravessável/cor e categorias do painel (`a2d0f992`), configurar cena com radar da visão (`aa7158ba`), sala em duas cores (`49003c74`), ver todas as cenas agrupadas (`7e22867e`), Grupo compacto por cena (`84e7609c`, `757ec3e7`) e passagem respondida na ficha (`29f925e0`).
+
+## Estado atual
+- main = origin/main @ `05f98c45` (0.4.15 nos 5 arquivos de versão; `com.labirinto.app`) + este commit de docs. Tag anotada `v0.4.15`.
+- Release: https://github.com/GedasioSaga/labirinto-vtt/releases/tag/v0.4.15 com os 2 instaladores.
+- Grupo novo: `client/src/components/GrupoCompacto.tsx` (UI) e `client/src/lib/grupoPorCena.ts` (agrupar, ordem, busca, Pedindo). Ajudantes de teste em `client/src/components/grupoTeste.ts`. Resposta de passagem: `PlayerInfo.travelRequest` (`net/hostSession.ts`) e `HostBridge.answerTravel` (`net/hostBridge.ts`).
+- Design do Grupo no Figma: https://www.figma.com/design/p35KYAhPUFn9A2kO969rXD (usuário escolheu A + B).
+- Escada espiral parcial segue fora de commit (backup `scratchpad/escada-0415.patch`, 43765 bytes; stash durante a release, devolvida).
+
+## Próximos passos
+- Conferir no exe com jogadores de verdade: Grupo por cena, ficha aberta, passagem pela ficha, Pausar/Congelar a cena.
+- e2e do Grupo devem quebrar (não rodam aqui): specs que clicam "Ir lá", "Mandar para…", "Revelar planta", "Recado para", "Mais de" sem abrir a linha. Atualizar o ajudante comum para abrir a linha (e a aba) antes.
+- Limpeza: import circular GrupoCompacto ↔ RoomPanel (separar as peças compartilhadas num arquivo próprio).
+- Contagem zerada: 0 de 5 desde a 0.4.15.
+
+## Critério de pronto
+- Release v0.4.15 no GitHub com `Labirinto_0.4.15_x64-setup.exe` e `Labirinto_0.4.15_x64_en-US.msi`, sha256 igual ao local; `labirinto.exe` ProductVersion 0.4.15.
+
+## Evidência
+- Com a escada em stash: `rtk proxy npx tsc --noEmit` e `-p tsconfig.e2e.json` exit 0; `rtk proxy npx vitest run`: Test Files 1337 passed (1337), Tests 11929 passed (11929).
+- gitleaks `v0.4.14..HEAD`: 8 commits, no leaks found.
+- `npm run tauri:build`: BUILD_EXIT=0 em 211 s, "Finished 2 bundles".
+- Fumaça: `labirinto.exe` ProductVersion 0.4.15; janela "Labirinto" Responding=True, 28 MB; fechada depois.
+- Push: `origin/main` 5b85da2e..05f98c45 e tag `v0.4.15`.
+- Assets (digest do GitHub igual ao sha256 local): `Labirinto_0.4.15_x64-setup.exe` 2529982 bytes sha256 db08f3ef86d10ed083a5fcd4c5e1c0a204ac559ef544d965e7fb212ed2cc10b1; `Labirinto_0.4.15_x64_en-US.msi` 3211264 bytes sha256 016bf161775f33e1c7e3333e896f0778cc1f422ff76af71c06f8a46baf91e24b.
+- Não rodado: Playwright e2e; instalação em máquina limpa; conferência no exe com jogadores.
