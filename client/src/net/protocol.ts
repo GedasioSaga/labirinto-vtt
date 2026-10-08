@@ -30,6 +30,7 @@ import { ESPERA_ONDE_MAX_LENGTH, isFimDaEsperaMotivo, isWaitMinutes, type FimDaE
 import { ESPIAR_DURACAO_MAX_MS, parseEspiada, type Espiada } from '../lib/espiar'
 import {
   parsePersonagemCriar,
+  parsePersonagemAjustar,
   parsePersonagemEditar,
   parsePersonagemImagem,
   type PersonagemHostMessage,
@@ -2976,6 +2977,8 @@ export function parsePlayerMessage(raw: unknown): PlayerMessage | null {
       return parsePersonagemEditar(value)
     case 'personagem.imagem':
       return parsePersonagemImagem(value)
+    case 'personagem.ajustar':
+      return parsePersonagemAjustar(value)
     case 'livro.pedir':
       return parseLivroPedir(value)
     case 'pin.travel.request':

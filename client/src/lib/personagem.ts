@@ -50,6 +50,46 @@ export interface CartaoDaFicha {
   subcartoes: CartaoDaFicha[]
 }
 
+/**
+ * Que número da ficha um ajuste rápido mexe (`lib/ajusteDaFicha.ts`):
+ *  - `recurso`: o atual do HP (ou o valor do Escudo);
+ *  - `maximo` / `modRecurso`: o máximo base e o modificador dele (HP 600 +100);
+ *  - `atributo` / `modAtributo`: o valor base e o modificador ("60 (+5)");
+ *  - `cartao`: ligar ou desligar uma transformação (1 = ligada, 0 = desligada).
+ */
+export type ParteDoAjuste = 'recurso' | 'maximo' | 'modRecurso' | 'atributo' | 'modAtributo' | 'cartao'
+
+export const PARTES_DO_AJUSTE: readonly ParteDoAjuste[] = ['recurso', 'maximo', 'modRecurso', 'atributo', 'modAtributo', 'cartao']
+
+/**
+ * Uma linha do "Histórico" da ficha: quem mudou o quê, de quanto para quanto
+ * e quando. Quem grava é sempre o host (o mestre, ou o host ao aceitar o
+ * pedido do jogador): o jogador nunca manda histórico pronto.
+ */
+export interface RegistroDaFicha {
+  /** "Mestre" ou o nome do jogador na mesa. */
+  quem: string
+  parte: ParteDoAjuste
+  /** Id do recurso, do atributo ou do cartão. */
+  chave: string
+  /**
+   * O nome na hora (HP, Força, Forma Híbrida): o histórico continua legível
+   * depois que o cartão some ou o sistema da aventura troca.
+   */
+  rotulo: string
+  de: number
+  para: number
+  /** `Date.now()` de quem gravou. */
+  quando: number
+}
+
+/** Linhas do histórico guardadas por personagem: passou, as mais velhas saem. */
+export const HISTORICO_MAX = 100
+/** Nome de quem mudou e rótulo do registro: o mesmo teto do nome do personagem. */
+const REGISTRO_TEXTO_MAX = 80
+/** O maior instante que `Date` representa. */
+const DATA_MAX_MS = 8.64e15
+
 export interface Personagem {
   id: string
   tipo: TipoDePersonagem
@@ -65,8 +105,24 @@ export interface Personagem {
   /** Valor de cada lista do sistema (Raça, Ofício), pela chave da lista. */
   escolhas: Record<string, string>
   etiquetas: string[]
+  /** O valor de cada recurso; no recurso de atual e máximo (HP), o ATUAL. */
   recursos: Record<string, number>
+  /**
+   * O máximo BASE de cada recurso de atual e máximo. Chave ausente = o máximo
+   * é o próprio atual: a ficha de antes guardava um número só (HP 600 vira
+   * 600/600), e quem muda o atual grava o máximo antes (`lib/ajusteDaFicha.ts`).
+   */
+  maximos: Record<string, number>
+  /** O modificador do máximo (HP 600 +100). Ausente = 0. */
+  modificadoresDosRecursos: Record<string, number>
+  /** O valor BASE de cada atributo (o que sobe de nível). */
   atributos: Record<string, number>
+  /** O modificador de cada atributo, separado da base ("60 (+5)"). Ausente = 0. */
+  modificadoresDosAtributos: Record<string, number>
+  /** Ids dos cartões ligados agora (as transformações): os modificadores deles entram nos totais. */
+  cartoesAtivos: string[]
+  /** O "Histórico" dos ajustes rápidos, do mais velho ao mais novo, no máximo `HISTORICO_MAX`. */
+  historico: RegistroDaFicha[]
   /** Cartões de cada aba, pela chave da aba. */
   abas: Record<string, CartaoDaFicha[]>
 }
@@ -101,7 +157,13 @@ export function novoPersonagem(sistema: SistemaDeRpg, tipo: TipoDePersonagem, no
     escolhas: {},
     etiquetas: [],
     recursos: Object.fromEntries(sistema.recursos.map((recurso) => [recurso.id, 0])),
+    // Sem máximo gravado: o HP é de um número só até alguém digitar o máximo (0/0 agora; 600 vira 600/600).
+    maximos: {},
+    modificadoresDosRecursos: {},
     atributos: Object.fromEntries(sistema.atributos.map((atributo) => [atributo.id, 0])),
+    modificadoresDosAtributos: {},
+    cartoesAtivos: [],
+    historico: [],
     abas: Object.fromEntries(sistema.abas.map((aba) => [aba.id, []])),
   }
 }
@@ -197,6 +259,39 @@ function cartaoDoArquivo(value: unknown): CartaoDaFicha | null {
   }
 }
 
+/** Corta em `max` unidades UTF-16 sem deixar meio emoji no fim. */
+function cortado(valor: string, max: number): string {
+  if (valor.length <= max) return valor
+  const ultima = valor.charCodeAt(max - 1)
+  return valor.slice(0, ultima >= 0xd800 && ultima <= 0xdbff ? max - 1 : max)
+}
+
+function numeroFinito(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value)
+}
+
+function registroDoArquivo(value: unknown): RegistroDaFicha | null {
+  if (!isRecord(value) || typeof value.chave !== 'string' || value.chave.length === 0) return null
+  const parte = PARTES_DO_AJUSTE.find((candidata) => candidata === value.parte)
+  if (parte === undefined || !numeroFinito(value.de) || !numeroFinito(value.para) || !numeroFinito(value.quando)) return null
+  // Fora do alcance de `Date` (8,64e15 ms), a hora do registro quebraria a tela ao formatar.
+  if (Math.abs(value.quando) > DATA_MAX_MS) return null
+  return {
+    quem: cortado(textoDe(value.quem), REGISTRO_TEXTO_MAX) || 'Alguém',
+    parte,
+    chave: value.chave,
+    rotulo: cortado(textoDe(value.rotulo), REGISTRO_TEXTO_MAX) || value.chave,
+    de: value.de,
+    para: value.para,
+    quando: value.quando,
+  }
+}
+
+/** O histórico do arquivo: linha torta sai, e só as `HISTORICO_MAX` mais novas ficam. */
+function historicoDoArquivo(value: unknown): RegistroDaFicha[] {
+  return Array.isArray(value) ? semNulos(value.map(registroDoArquivo)).slice(-HISTORICO_MAX) : []
+}
+
 function abasDoArquivo(value: unknown): Record<string, CartaoDaFicha[]> {
   if (!isRecord(value)) return {}
   return Object.fromEntries(
@@ -211,6 +306,9 @@ function abasDoArquivo(value: unknown): Record<string, CartaoDaFicha[]> {
  * para ele não teria como achar a cópia de id novo); o resto é tolerante:
  * nome vazio vira "Personagem sem nome", tipo desconhecido vira NPC (não
  * promove ninguém a jogador por engano), retrato que não é imagem embutida sai.
+ * Ficha de antes dos ajustes rápidos (sem máximos, modificadores, cartões
+ * ligados nem histórico) abre com tudo vazio: o HP de um número só vira
+ * atual = máximo, os modificadores valem 0 e nada está ligado.
  */
 export function personagemDoArquivo(value: unknown): Personagem | null {
   if (!isRecord(value) || typeof value.id !== 'string' || value.id.length === 0) return null
@@ -223,7 +321,12 @@ export function personagemDoArquivo(value: unknown): Personagem | null {
     escolhas: textos(value.escolhas),
     etiquetas: listaDeTextos(value.etiquetas),
     recursos: numeros(value.recursos),
+    maximos: numeros(value.maximos),
+    modificadoresDosRecursos: numeros(value.modificadoresDosRecursos),
     atributos: numeros(value.atributos),
+    modificadoresDosAtributos: numeros(value.modificadoresDosAtributos),
+    cartoesAtivos: [...new Set(listaDeTextos(value.cartoesAtivos))],
+    historico: historicoDoArquivo(value.historico),
     abas: abasDoArquivo(value.abas),
   }
 }

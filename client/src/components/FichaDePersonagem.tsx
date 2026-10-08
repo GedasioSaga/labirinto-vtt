@@ -1,9 +1,12 @@
 import { useId, useState } from 'react'
-import { numeroDaFicha, type Personagem, type TipoDePersonagem } from '../lib/personagem'
-import { rankDoValor, rotuloDoRank, type SistemaDeRpg } from '../lib/sistemaDeRpg'
+import type { Ajuste } from '../lib/ajusteDaFicha'
+import type { Personagem, TipoDePersonagem } from '../lib/personagem'
+import type { SistemaDeRpg } from '../lib/sistemaDeRpg'
+import { HistoricoDaFicha } from './AjusteRapido'
 import type { LivroDaFicha } from './EscolherDoLivro'
 import { FichaAbas } from './FichaAbas'
-import { CampoNumero, IniciaisDoNome } from './FichaPecas'
+import { IniciaisDoNome } from './FichaPecas'
+import { AtributosDaFicha, AtributosEditaveis, RecursosDaFicha, RecursosEditaveis } from './FichaNumeros'
 import './FichaDePersonagem.css'
 
 /**
@@ -31,9 +34,16 @@ export interface FichaDePersonagemProps {
   tipoEditavel?: boolean
   /** O livro de regras que vem à parte, para o "Escolher do livro" do jogador; o mestre não passa (o sistema dele tem os catálogos). */
   livro?: LivroDaFicha
+  /**
+   * AJUSTE RÁPIDO (−/+ do HP, a Força, a transformação que liga), fora da
+   * edição: vai na hora para quem passou, sem Salvar. Na edição não vale —
+   * lá tudo é campo e espera o Salvar. Ausente = a ficha só lê.
+   */
+  onAjustar?: (ajuste: Ajuste) => void
 }
 
-export function FichaDePersonagem({ personagem, sistema, editando, onChange, escolherImagem, tituloId, tipoEditavel = true, livro }: FichaDePersonagemProps) {
+export function FichaDePersonagem({ personagem, sistema, editando, onChange, escolherImagem, tituloId, tipoEditavel = true, livro, onAjustar }: FichaDePersonagemProps) {
+  const ajustar = editando ? undefined : onAjustar
   return (
     <div className="lb-ficha">
       <div className="lb-ficha__lado">
@@ -41,30 +51,13 @@ export function FichaDePersonagem({ personagem, sistema, editando, onChange, esc
         {editando ? (
           <BlocoEditavel personagem={personagem} sistema={sistema} onChange={onChange} escolherImagem={escolherImagem} tituloId={tituloId} tipoEditavel={tipoEditavel} />
         ) : (
-          <BlocoLido personagem={personagem} sistema={sistema} tituloId={tituloId} />
+          <BlocoLido personagem={personagem} sistema={sistema} tituloId={tituloId} onAjustar={ajustar} />
         )}
       </div>
       <div className="lb-ficha__principal">
-        <FichaAbas personagem={personagem} sistema={sistema} editando={editando} onChange={onChange} escolherImagem={escolherImagem} livro={livro} />
+        <FichaAbas personagem={personagem} sistema={sistema} editando={editando} onChange={onChange} escolherImagem={escolherImagem} livro={livro} onAjustar={ajustar} />
       </div>
     </div>
-  )
-}
-
-/** Faixa da cor do rank: quanto maior, mais quente (a escala do projeto-rpg-v2: 10+, 7+, 4+, resto). */
-export function faixaDoRank(rank: number): 'alta' | 'forte' | 'media' | 'base' {
-  if (rank >= 10) return 'alta'
-  if (rank >= 7) return 'forte'
-  if (rank >= 4) return 'media'
-  return 'base'
-}
-
-function ChipDoRank({ rank }: { rank: number | null }) {
-  if (rank === null) return null
-  return (
-    <span className="lb-ficha__rank" data-faixa={faixaDoRank(rank)} title={`Rank ${rank}`}>
-      {rotuloDoRank(rank)}
-    </span>
   )
 }
 
@@ -170,7 +163,7 @@ function Retrato({ personagem }: { personagem: Personagem }) {
   return <div className="lb-ficha__retrato">{personagem.retrato !== null ? <img src={personagem.retrato} alt={`Retrato de ${personagem.nome}`} /> : <IniciaisDoNome nome={personagem.nome} />}</div>
 }
 
-function BlocoLido({ personagem, sistema, tituloId }: { personagem: Personagem; sistema: SistemaDeRpg; tituloId?: string }) {
+function BlocoLido({ personagem, sistema, tituloId, onAjustar }: { personagem: Personagem; sistema: SistemaDeRpg; tituloId?: string; onAjustar?: (ajuste: Ajuste) => void }) {
   return (
     <section className="lb-ficha__bloco" aria-label="Personagem">
       <Retrato personagem={personagem} />
@@ -181,35 +174,9 @@ function BlocoLido({ personagem, sistema, tituloId }: { personagem: Personagem; 
         <SeloDoTipo tipo={personagem.tipo} />
       </div>
       <Descricao texto={personagem.descricao} />
-      {sistema.recursos.length > 0 && (
-        <dl className="lb-ficha__recursos">
-          {sistema.recursos.map((recurso) => (
-            <div key={recurso.id} className="lb-ficha__recurso" data-tom={recurso.tom}>
-              <dt>{recurso.nome}</dt>
-              <dd>{numeroDaFicha(personagem.recursos, recurso.id)}</dd>
-            </div>
-          ))}
-        </dl>
-      )}
-      {sistema.atributos.length > 0 && (
-        <div>
-          <h3 className="lb-eyebrow lb-ficha__subtitulo">Atributos</h3>
-          <dl className="lb-ficha__atributos">
-            {sistema.atributos.map((atributo) => {
-              const valor = numeroDaFicha(personagem.atributos, atributo.id)
-              return (
-                <div key={atributo.id} className="lb-ficha__atributo">
-                  <dt>{atributo.nome}</dt>
-                  <dd>
-                    <span className="lb-ficha__valor">{valor}</span>
-                    <ChipDoRank rank={rankDoValor(atributo.rank, valor)} />
-                  </dd>
-                </div>
-              )
-            })}
-          </dl>
-        </div>
-      )}
+      <RecursosDaFicha personagem={personagem} sistema={sistema} onAjustar={onAjustar} />
+      <AtributosDaFicha personagem={personagem} sistema={sistema} onAjustar={onAjustar} />
+      <HistoricoDaFicha historico={personagem.historico} />
     </section>
   )
 }
@@ -283,45 +250,8 @@ function BlocoEditavel({ personagem, sistema, onChange, escolherImagem, tituloId
           onChange={(event) => onChange({ ...personagem, descricao: event.target.value })}
         />
       </label>
-      {sistema.recursos.length > 0 && (
-        <div className="lb-ficha__recursos lb-ficha__recursos--edit">
-          {sistema.recursos.map((recurso) => (
-            <label key={recurso.id} className="lb-ficha__recurso" data-tom={recurso.tom} htmlFor={`${idBase}-recurso-${recurso.id}`}>
-              <span>{recurso.nome}</span>
-              <CampoNumero
-                id={`${idBase}-recurso-${recurso.id}`}
-                rotulo={recurso.nome}
-                valor={numeroDaFicha(personagem.recursos, recurso.id)}
-                onChange={(valor) => onChange({ ...personagem, recursos: { ...personagem.recursos, [recurso.id]: valor } })}
-              />
-            </label>
-          ))}
-        </div>
-      )}
-      {sistema.atributos.length > 0 && (
-        <div>
-          <h3 className="lb-eyebrow lb-ficha__subtitulo">Atributos</h3>
-          <div className="lb-ficha__atributos">
-            {sistema.atributos.map((atributo) => {
-              const valor = numeroDaFicha(personagem.atributos, atributo.id)
-              return (
-                <div key={atributo.id} className="lb-ficha__atributo">
-                  <label htmlFor={`${idBase}-atributo-${atributo.id}`}>{atributo.nome}</label>
-                  <span className="lb-ficha__atributo-edit">
-                    <CampoNumero
-                      id={`${idBase}-atributo-${atributo.id}`}
-                      rotulo={atributo.nome}
-                      valor={valor}
-                      onChange={(novo) => onChange({ ...personagem, atributos: { ...personagem.atributos, [atributo.id]: novo } })}
-                    />
-                    <ChipDoRank rank={rankDoValor(atributo.rank, valor)} />
-                  </span>
-                </div>
-              )
-            })}
-          </div>
-        </div>
-      )}
+      <RecursosEditaveis personagem={personagem} sistema={sistema} onChange={onChange} />
+      <AtributosEditaveis personagem={personagem} sistema={sistema} onChange={onChange} />
     </section>
   )
 }

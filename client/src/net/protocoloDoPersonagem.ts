@@ -1,4 +1,5 @@
-import { personagemDoArquivo, type CampoExtra, type CartaoDaFicha, type Modificador, type Personagem } from '../lib/personagem'
+import { NUMERO_DA_FICHA_MAX, type Ajuste } from '../lib/ajusteDaFicha'
+import { PARTES_DO_AJUSTE, personagemDoArquivo, type CampoExtra, type CartaoDaFicha, type Modificador, type Personagem } from '../lib/personagem'
 import { CATALOGOS_DO_LIVRO, type ChaveDoCatalogo, type ResumoDoLivro } from '../lib/livroDeRegras'
 import { idValido, lerSistemaDeRpg, LIVRO_CAPITULOS_MAX, type SistemaDeRpg } from '../lib/sistemaDeRpg'
 import { fitsTokenPhotoSend } from '../lib/tokenPhoto'
@@ -16,7 +17,10 @@ import { fitsTokenPhotoSend } from '../lib/tokenPhoto'
  *  - `personagem.editar`: só as PARTES que mudaram, e cartão sem imagem — a
  *    ficha inteira com retrato e imagens de cartão não caberia;
  *  - `personagem.imagem`: uma imagem por mensagem (o retrato ou a de um
- *    cartão), no mesmo teto da foto do token (`fitsTokenPhotoSend`).
+ *    cartão), no mesmo teto da foto do token (`fitsTokenPhotoSend`);
+ *  - `personagem.ajustar`: o ajuste rápido (−/+ do HP, a transformação que
+ *    liga), com o valor NOVO de cada parte (`lib/ajusteDaFicha.ts`). O host
+ *    passa cada um pelas regras de novo e grava o histórico em nome dele.
  *
  * Do host para o jogador (sem teto de tamanho no servidor, mas nada se repete
  * à toa): `rpg.sistema` (a definição do sistema sem o livro de regras, uma vez
@@ -44,6 +48,11 @@ export const PERSONAGEM_CHAVES_MAX = 64
 export const PERSONAGEM_CARTOES_MAX = 100
 export const PERSONAGEM_EXTRAS_MAX = 30
 export const PERSONAGEM_MODIFICADORES_MAX = 30
+/**
+ * Ajustes num `personagem.ajustar`: o jogador junta os cliques de ~400 ms num
+ * pedido só (uma linha por parte mexida); 64 cobre a ficha inteira mexida de uma vez.
+ */
+export const PERSONAGEM_AJUSTES_MAX = 64
 
 /**
  * Cartão como viaja do jogador: sem a imagem, que vai sozinha em
@@ -73,7 +82,10 @@ export interface PartesDoPersonagem {
   etiquetas?: string[]
   escolhas?: Record<string, string>
   recursos?: Record<string, number>
+  maximos?: Record<string, number>
+  modificadoresDosRecursos?: Record<string, number>
   atributos?: Record<string, number>
+  modificadoresDosAtributos?: Record<string, number>
   abas?: Record<string, CartaoSemImagem[]>
 }
 
@@ -101,7 +113,19 @@ export interface PersonagemImagemMessage {
   imagem: string | null
 }
 
-export type PersonagemPlayerMessage = PersonagemCriarMessage | PersonagemEditarMessage | PersonagemImagemMessage
+/**
+ * Ajuste rápido, sem Editar/Salvar: o valor novo de cada parte mexida, em
+ * ordem. Não traz histórico: quem grava a linha é o host, com o nome do
+ * jogador — o jogador não escreve o que "o mestre fez".
+ */
+export interface PersonagemAjustarMessage {
+  type: 'personagem.ajustar'
+  reqId: string
+  personagemId: string
+  ajustes: Ajuste[]
+}
+
+export type PersonagemPlayerMessage = PersonagemCriarMessage | PersonagemEditarMessage | PersonagemImagemMessage | PersonagemAjustarMessage
 
 /** Uma ficha (token) do jogador e o personagem dela; `null` = ainda sem personagem (o "Criar minha ficha" a oferece). */
 export interface TokenDoPersonagem {
@@ -157,6 +181,18 @@ function textoEntre(value: unknown, min: number, max: number): value is string {
 
 function inteiro(value: unknown): number | null {
   return typeof value === 'number' && Number.isSafeInteger(value) ? value : null
+}
+
+/** Número da ficha (atual, máximo, base, modificador): inteiro dentro do teto, ou a tela do mestre desenharia "1e+21". */
+function numeroNoTeto(value: unknown): number | null {
+  const lido = inteiro(value)
+  return lido !== null && Math.abs(lido) <= NUMERO_DA_FICHA_MAX ? lido : null
+}
+
+/** Máximo base: o mesmo, sem negativo. */
+function maximoNoTeto(value: unknown): number | null {
+  const lido = numeroNoTeto(value)
+  return lido !== null && lido >= 0 ? lido : null
 }
 
 /**
@@ -240,11 +276,22 @@ function cartoesDaAba(value: unknown): CartaoSemImagem[] | null {
   return new Set(ids).size === ids.length ? cartoes : null
 }
 
+type NumerosDasPartes = 'recursos' | 'maximos' | 'modificadoresDosRecursos' | 'atributos' | 'modificadoresDosAtributos'
+
+/** Os números da ficha nas partes: cada valor inteiro no teto; o máximo base, sem negativo. */
+const NUMEROS_DAS_PARTES: readonly [NumerosDasPartes, (valor: unknown) => number | null][] = [
+  ['recursos', numeroNoTeto],
+  ['maximos', maximoNoTeto],
+  ['modificadoresDosRecursos', numeroNoTeto],
+  ['atributos', numeroNoTeto],
+  ['modificadoresDosAtributos', numeroNoTeto],
+]
+
 /** As partes da edição. Nenhuma parte = nada a fazer: recusada, como o `token.edit` que não muda nada. */
 export function parsePartesDoPersonagem(value: unknown): PartesDoPersonagem | null {
   if (!isRecord(value)) return null
   const partes: PartesDoPersonagem = {}
-  const { nome, descricao, etiquetas, escolhas, recursos, atributos, abas } = value
+  const { nome, descricao, etiquetas, escolhas, abas } = value
   if (nome !== undefined) {
     if (!textoEntre(nome, 0, PERSONAGEM_NOME_MAX)) return null
     partes.nome = nome
@@ -263,15 +310,11 @@ export function parsePartesDoPersonagem(value: unknown): PartesDoPersonagem | nu
     if (lidas === null) return null
     partes.escolhas = lidas
   }
-  if (recursos !== undefined) {
-    const lidos = registro(recursos, inteiro)
+  for (const [campo, ler] of NUMEROS_DAS_PARTES) {
+    if (value[campo] === undefined) continue
+    const lidos = registro(value[campo], ler)
     if (lidos === null) return null
-    partes.recursos = lidos
-  }
-  if (atributos !== undefined) {
-    const lidos = registro(atributos, inteiro)
-    if (lidos === null) return null
-    partes.atributos = lidos
+    partes[campo] = lidos
   }
   if (abas !== undefined) {
     const lidas = registro(abas, cartoesDaAba)
@@ -292,6 +335,27 @@ export function parsePersonagemEditar(obj: Record<string, unknown>): PersonagemE
   if (!textoEntre(reqId, 1, REQ_ID_MAX) || !textoEntre(personagemId, 1, PERSONAGEM_ID_MAX)) return null
   const partes = parsePartesDoPersonagem(obj.partes)
   return partes === null ? null : { type: 'personagem.editar', reqId, personagemId, partes }
+}
+
+/**
+ * Um ajuste: parte conhecida; chave no formato dos ids do sistema (o cartão,
+ * no do id de cartão); valor inteiro no teto — o cartão, só 0 ou 1. As
+ * regras de cada parte (o atual até o máximo...) são do host, depois.
+ */
+function ajuste(value: unknown): Ajuste | null {
+  if (!isRecord(value)) return null
+  const parte = PARTES_DO_AJUSTE.find((candidata) => candidata === value.parte)
+  const valor = numeroNoTeto(value.valor)
+  if (parte === undefined || valor === null) return null
+  if (parte === 'cartao') return textoEntre(value.chave, 1, PERSONAGEM_ID_MAX) && (valor === 0 || valor === 1) ? { parte, chave: value.chave, valor } : null
+  return idValido(value.chave) ? { parte, chave: value.chave, valor } : null
+}
+
+export function parsePersonagemAjustar(obj: Record<string, unknown>): PersonagemAjustarMessage | null {
+  const { reqId, personagemId } = obj
+  if (!textoEntre(reqId, 1, REQ_ID_MAX) || !textoEntre(personagemId, 1, PERSONAGEM_ID_MAX)) return null
+  const ajustes = lista(obj.ajustes, PERSONAGEM_AJUSTES_MAX, ajuste)
+  return ajustes === null || ajustes.length === 0 ? null : { type: 'personagem.ajustar', reqId, personagemId, ajustes }
 }
 
 /**

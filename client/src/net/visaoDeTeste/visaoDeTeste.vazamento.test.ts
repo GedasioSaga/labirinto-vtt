@@ -129,6 +129,7 @@ describe('Visão de jogador no Jogar — vazamento zero para o editor', () => {
       applyPlayerChangeToBackgroundScene: vi.spyOn(useAdventureStore.getState(), 'applyPlayerChangeToBackgroundScene'),
       transferToken: vi.spyOn(useAdventureStore.getState(), 'transferToken'),
       salvarPersonagem: vi.spyOn(useAdventureStore.getState(), 'salvarPersonagem'),
+      ajustarPersonagem: vi.spyOn(useAdventureStore.getState(), 'ajustarPersonagem'),
       'assinante do mapa': mudancaNoMapa,
       'assinante da aventura': mudancaNaAventura,
     }
@@ -399,7 +400,19 @@ describe('Visão de jogador no Jogar — vazamento zero para o editor', () => {
       await vi.waitFor(() => expect(conexao.getState().envioDePersonagem).toMatchObject({ tipo: 'salvar', pendentes: [], falhou: false }))
       expect(conexao.getState().personagens?.personagens.map((p) => [p.nome, p.atributos.forca])).toEqual([['Ana, a Navegadora', 45]])
 
-      // O editor: nenhuma escrita (nem `salvarPersonagem`), a aventura sem personagem e a Ana sem ligação.
+      // AJUSTE RÁPIDO no teste: o "+" da Força e a transformação de mentira vão juntos à camada; a janela recebe com o histórico.
+      expect(conexao.ajustarPersonagem(criada.id, { parte: 'atributo', chave: 'forca', valor: 46 })).toBe(true)
+      expect(conexao.ajustarPersonagem(criada.id, { parte: 'modAtributo', chave: 'forca', valor: 5 })).toBe(true)
+      // O envio junta os cliques por AJUSTE_JUNTAR_MS (400 ms) antes de sair.
+      await vi.waitFor(() => expect(conexao.getState().ajustesPendentes).toEqual([]), { timeout: 3000 })
+      const ajustada = conexao.getState().personagens?.personagens.at(0)
+      expect([ajustada?.atributos.forca, ajustada?.modificadoresDosAtributos.forca]).toEqual([46, 5])
+      expect(ajustada?.historico.map((registro) => [registro.quem, registro.parte, registro.de, registro.para])).toEqual([
+        ['Ana', 'atributo', 45, 46],
+        ['Ana', 'modAtributo', 0, 5],
+      ])
+
+      // O editor: nenhuma escrita (nem `salvarPersonagem`, nem `ajustarPersonagem`), a aventura sem personagem e a Ana sem ligação.
       expect(chamadas()).toEqual(nenhumaChamada())
       expect(editorSerializado()).toBe(antes)
       expect(useAdventureStore.getState().adventure?.personagens).toBeUndefined()

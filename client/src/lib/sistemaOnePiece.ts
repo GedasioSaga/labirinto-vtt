@@ -42,8 +42,9 @@ export const SISTEMA_ONE_PIECE: SistemaDeRpg = {
     },
   ],
   recursos: [
-    { id: 'hp', nome: 'HP', tom: 'vida' },
-    { id: 'sp', nome: 'SP', tom: 'energia' },
+    // HP e SP gastam e voltam na sessão (450/600); o Escudo é um número só.
+    { id: 'hp', nome: 'HP', tom: 'vida', atualEMaximo: true },
+    { id: 'sp', nome: 'SP', tom: 'energia', atualEMaximo: true },
     { id: 'escudo', nome: 'Escudo', tom: 'neutro' },
   ],
   atributos: [

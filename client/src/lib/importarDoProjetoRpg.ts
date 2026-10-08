@@ -218,8 +218,14 @@ async function personagemDoProjeto(ficha: Record<string, unknown>, tipo: TipoDeP
     retrato: await imagemPequena(ficha.retrato, nome, ctx),
     escolhas,
     etiquetas: lista(ficha.etiquetas).filter((etiqueta): etiqueta is string => typeof etiqueta === 'string'),
+    // O projeto-rpg-v2 guarda HP e SP num número só: sem máximo, a ficha lê atual = máximo.
     recursos: numerosDe(ficha, ctx.sistema.recursos.map((recurso) => recurso.id)),
+    maximos: {},
+    modificadoresDosRecursos: {},
     atributos: numerosDe(ficha, ctx.sistema.atributos.map((atributo) => atributo.id)),
+    modificadoresDosAtributos: {},
+    cartoesAtivos: [],
+    historico: [],
     abas,
   }
 }

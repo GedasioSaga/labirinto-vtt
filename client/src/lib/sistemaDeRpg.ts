@@ -46,6 +46,12 @@ export interface RecursoDoSistema {
   id: string
   nome: string
   tom: TomDoRecurso
+  /**
+   * O recurso tem ATUAL e MÁXIMO (HP 450/600): `Personagem.recursos[id]` é o
+   * atual, o máximo base mora em `Personagem.maximos[id]` e ganha modificador
+   * próprio. Ausente = um número só (o Escudo). Só `true` liga, como as partes da aba.
+   */
+  atualEMaximo?: boolean
 }
 
 /** Lista fechada da ficha (Raça, Ofício): o valor escolhido aparece como chip no topo. */
@@ -269,7 +275,9 @@ function atributoDoArquivo(value: unknown): AtributoDoSistema | null {
 function recursoDoArquivo(value: unknown): RecursoDoSistema | null {
   if (!isRecord(value) || !idValido(value.id)) return null
   const tom = TONS.find((candidato) => candidato === value.tom) ?? 'neutro'
-  return { id: value.id, nome: texto(value.nome) || value.id, tom }
+  const recurso: RecursoDoSistema = { id: value.id, nome: texto(value.nome) || value.id, tom }
+  if (value.atualEMaximo === true) recurso.atualEMaximo = true
+  return recurso
 }
 
 function escolhaDoArquivo(value: unknown): EscolhaDoSistema | null {

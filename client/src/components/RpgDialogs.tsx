@@ -3,6 +3,7 @@ import { useAdventureStore } from '../stores/adventureStore'
 import { useMapStore } from '../stores/mapStore'
 import { sistemaPorId, useRpgStore } from '../stores/rpgStore'
 import { temLivro } from '../lib/livroDeRegras'
+import { aplicarAjustes, NOME_DO_MESTRE } from '../lib/ajusteDaFicha'
 import { FichaDePersonagemDialog, type TokenParaLigar } from './FichaDePersonagemDialog'
 import { LivroDeRegrasDialog } from './LivroDeRegrasDialog'
 import { SistemasDialog } from './SistemasDialog'
@@ -57,6 +58,12 @@ export function RpgDialogs() {
           tokens={tokensParaLigar}
           // Pelo histórico do mapa, como o resto do token: Ctrl+Z desliga.
           onLigarToken={(tokenId) => useMapStore.getState().updateToken(tokenId, { characterId: personagem.id })}
+          // AJUSTE RÁPIDO: sobre o personagem de AGORA da aventura (o jogador pode ter mexido um instante antes), com o histórico.
+          onAjustar={
+            sistema === undefined
+              ? undefined
+              : (ajuste) => useAdventureStore.getState().ajustarPersonagem(personagem.id, (atual) => aplicarAjustes(atual, sistema, [ajuste], NOME_DO_MESTRE, Date.now()))
+          }
         />
       )}
       {/* Depois da ficha: abre por cima dela. */}

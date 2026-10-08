@@ -1,7 +1,8 @@
 import { useId, useRef, useState, type KeyboardEvent } from 'react'
 import { camposVisiveis, cartoesDaAba, novoCartao, paragrafosDoCartao, type CartaoDaFicha, type Personagem } from '../lib/personagem'
 import { abaTemCatalogo, cartaoDoCatalogo, itensDaAba, type ItemEscolhivel } from '../lib/livroDeRegras'
-import { abaDoSistema, type AbaDoSistema, type AtributoDoSistema, type SistemaDeRpg } from '../lib/sistemaDeRpg'
+import { abaDoSistema, type AbaDoSistema, type SistemaDeRpg } from '../lib/sistemaDeRpg'
+import type { Ajuste } from '../lib/ajusteDaFicha'
 import { EscolherDoLivro, type EstadoDaEscolha, type LivroDaFicha } from './EscolherDoLivro'
 import { CampoNumero, IniciaisDoNome } from './FichaPecas'
 
@@ -19,9 +20,11 @@ export interface FichaAbasProps {
   escolherImagem: () => Promise<string | null>
   /** O livro que vem à parte (o jogador pede ao mestre); ausente = os catálogos vêm no próprio `sistema`. */
   livro?: LivroDaFicha
+  /** Fora da edição: o "Ativar" da transformação liga e desliga na hora. Ausente = só lê. */
+  onAjustar?: (ajuste: Ajuste) => void
 }
 
-export function FichaAbas({ personagem, sistema, editando, onChange, escolherImagem, livro }: FichaAbasProps) {
+export function FichaAbas({ personagem, sistema, editando, onChange, escolherImagem, livro, onAjustar }: FichaAbasProps) {
   const idBase = useId()
   const [ativaId, setAtivaId] = useState(sistema.abas[0]?.id ?? '')
   const refs = useRef(new Map<string, HTMLButtonElement>())
@@ -78,7 +81,16 @@ export function FichaAbas({ personagem, sistema, editando, onChange, escolherIma
         ) : (
           <ul className="lb-ficha__cartoes">
             {cartoes.map((cartao) => (
-              <CartaoLido key={cartao.id} cartao={cartao} aba={ativa} sistema={sistema} />
+              <CartaoLido
+                key={cartao.id}
+                cartao={cartao}
+                aba={ativa}
+                sistema={sistema}
+                ativo={personagem.cartoesAtivos.includes(cartao.id)}
+                onLigar={
+                  onAjustar === undefined || ativa.modificadores !== true ? undefined : (ligar) => onAjustar({ parte: 'cartao', chave: cartao.id, valor: ligar ? 1 : 0 })
+                }
+              />
             ))}
           </ul>
         )}
@@ -110,11 +122,21 @@ function LinhasDoCartao({ linhas, denso }: { linhas: { rotulo: string; valor: st
   )
 }
 
-function CartaoLido({ cartao, aba, sistema }: { cartao: CartaoDaFicha; aba: AbaDoSistema; sistema: SistemaDeRpg }) {
+interface CartaoLidoProps {
+  cartao: CartaoDaFicha
+  aba: AbaDoSistema
+  sistema: SistemaDeRpg
+  /** A transformação está ligada: os modificadores dela entram nos totais da ficha. */
+  ativo: boolean
+  /** Liga ou desliga na hora; ausente = o cartão não liga (aba sem modificadores, ou ficha só de leitura). */
+  onLigar?: (ligar: boolean) => void
+}
+
+function CartaoLido({ cartao, aba, sistema, ativo, onLigar }: CartaoLidoProps) {
   const sub = aba.subcartoes === undefined ? undefined : abaDoSistema(sistema, aba.subcartoes.aba)
   const atributos = aba.atributos === true ? cartao.atributos.map((id) => abreviacao(sistema, id)) : []
   return (
-    <li className="lb-cartao">
+    <li className="lb-cartao" data-ativo={ativo && aba.modificadores === true ? '' : undefined}>
       <div className="lb-cartao__corpo">
         {aba.imagem === true && (
           <div className="lb-cartao__imagem">{cartao.imagem !== null ? <img src={cartao.imagem} alt="" /> : <IniciaisDoNome nome={cartao.nome} />}</div>
@@ -123,6 +145,13 @@ function CartaoLido({ cartao, aba, sistema }: { cartao: CartaoDaFicha; aba: AbaD
           <div className="lb-cartao__topo">
             <h4 className="lb-cartao__nome">{cartao.nome}</h4>
             {atributos.length > 0 && <span className="lb-ficha__chip lb-ficha__chip--atributos">{atributos.join(' · ')}</span>}
+            {onLigar !== undefined && (
+              // Nome fixo e o estado no aria-pressed: o leitor de tela diz "Ativar Forma Híbrida, pressionado".
+              <button type="button" className="lb-cartao__ligar" aria-pressed={ativo} aria-label={`Ativar ${cartao.nome}`} onClick={() => onLigar(!ativo)}>
+                {ativo ? 'Ativa' : 'Ativar'}
+              </button>
+            )}
+            {onLigar === undefined && ativo && aba.modificadores === true && <span className="lb-cartao__ativa">Ativa</span>}
           </div>
           {paragrafosDoCartao(aba, cartao).map((paragrafo, i) => (
             <p key={i} className="lb-cartao__paragrafo">
@@ -355,7 +384,7 @@ function CartaoEditavel({ cartao, aba, sistema, aberto, onChange, onRemover, onS
                   value={mod.atributo}
                   onChange={(event) => onChange({ ...cartao, modificadores: cartao.modificadores.map((atual, j) => (j === i ? { ...atual, atributo: event.target.value } : atual)) })}
                 >
-                  {opcoesDeAtributo(sistema.atributos, mod.atributo).map((atributo) => (
+                  {opcoesDeAtributo(alvosDeModificador(sistema), mod.atributo).map((atributo) => (
                     <option key={atributo.id} value={atributo.id}>
                       {atributo.nome}
                     </option>
@@ -442,10 +471,20 @@ function CartaoEditavel({ cartao, aba, sistema, aberto, onChange, onRemover, onS
   )
 }
 
-/** Os atributos do sistema e, se for o caso, o do arquivo que o sistema não conhece — o `select` não troca o valor sozinho. */
-function opcoesDeAtributo(atributos: readonly AtributoDoSistema[], atual: string): { id: string; nome: string }[] {
-  const conhecidos = atributos.map((atributo) => ({ id: atributo.id, nome: atributo.nome }))
-  return atributos.some((atributo) => atributo.id === atual) ? conhecidos : [...conhecidos, { id: atual, nome: atual }]
+/**
+ * O que um modificador de transformação pode mexer: os atributos e o MÁXIMO
+ * dos recursos de atual e máximo ("HP máximo +100" na forma híbrida).
+ */
+function alvosDeModificador(sistema: SistemaDeRpg): { id: string; nome: string }[] {
+  return [
+    ...sistema.atributos.map((atributo) => ({ id: atributo.id, nome: atributo.nome })),
+    ...sistema.recursos.filter((recurso) => recurso.atualEMaximo === true).map((recurso) => ({ id: recurso.id, nome: `${recurso.nome} máximo` })),
+  ]
+}
+
+/** Os alvos conhecidos e, se for o caso, o do arquivo que o sistema não conhece — o `select` não troca o valor sozinho. */
+function opcoesDeAtributo(conhecidos: readonly { id: string; nome: string }[], atual: string): { id: string; nome: string }[] {
+  return conhecidos.some((alvo) => alvo.id === atual) ? [...conhecidos] : [...conhecidos, { id: atual, nome: atual }]
 }
 
 function EscolhaDeAtributos({ sistema, escolhidos, onChange }: { sistema: SistemaDeRpg; escolhidos: string[]; onChange: (atributos: string[]) => void }) {

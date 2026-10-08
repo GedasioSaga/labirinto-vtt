@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, useState, type KeyboardEvent, type MouseEvent } from 'react'
 import { createPortal } from 'react-dom'
+import { salvarSobreOAtual, type Ajuste } from '../lib/ajusteDaFicha'
 import { PERSONAGEM_SEM_NOME, type Personagem } from '../lib/personagem'
 import type { SistemaDeRpg } from '../lib/sistemaDeRpg'
 import { FichaDePersonagem } from './FichaDePersonagem'
@@ -28,6 +29,8 @@ export interface FichaDePersonagemDialogProps {
   /** Tokens da cena aberta. Vazio = não há token para ligar. */
   tokens: readonly TokenParaLigar[]
   onLigarToken: (tokenId: string) => void
+  /** AJUSTE RÁPIDO do mestre, fora da edição: grava na hora, com histórico. Ausente = sem − e +. */
+  onAjustar?: (ajuste: Ajuste) => void
 }
 
 const FOCUSABLE = 'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), summary, [tabindex]:not([tabindex="-1"])'
@@ -51,16 +54,19 @@ export function FichaDePersonagemDialog({
   onAbrirLivro,
   tokens,
   onLigarToken,
+  onAjustar,
 }: FichaDePersonagemDialogProps) {
   const tituloId = useId()
   const ligarId = useId()
   const dialogRef = useRef<HTMLDivElement>(null)
   const pressStartedOnBackdrop = useRef(false)
   const [editando, setEditando] = useState(editandoNoInicio && sistema !== undefined)
+  /** A ficha quando a edição abriu: o Salvar troca só o que mudou desde ela (`salvarSobreOAtual`). */
+  const [base, setBase] = useState(personagem)
   const [rascunho, setRascunho] = useState(personagem)
   const [perguntaDeSaida, setPerguntaDeSaida] = useState(false)
   const [ligado, setLigado] = useState<string | null>(null)
-  const mudou = editando && rascunho !== personagem
+  const mudou = editando && rascunho !== base
 
   useEffect(() => {
     const opener = document.activeElement
@@ -71,7 +77,8 @@ export function FichaDePersonagemDialog({
   }, [])
 
   const salvar = () => {
-    onSalvar({ ...rascunho, nome: rascunho.nome.trim() || PERSONAGEM_SEM_NOME })
+    // Sobre a ficha de AGORA: o dano que o jogador tomou durante a edição não volta atrás.
+    onSalvar(salvarSobreOAtual(base, { ...rascunho, nome: rascunho.nome.trim() || PERSONAGEM_SEM_NOME }, personagem))
     setEditando(false)
     setPerguntaDeSaida(false)
   }
@@ -161,7 +168,16 @@ export function FichaDePersonagemDialog({
                   </select>
                 )}
                 {sistema !== undefined && (
-                  <button type="button" className="lb-btn" onClick={() => setEditando(true)}>
+                  <button
+                    type="button"
+                    className="lb-btn"
+                    onClick={() => {
+                      // A edição começa da ficha de agora: os ajustes rápidos feitos depois de abrir a janela entram.
+                      setBase(personagem)
+                      setRascunho(personagem)
+                      setEditando(true)
+                    }}
+                  >
                     Editar
                   </button>
                 )}
@@ -203,7 +219,15 @@ export function FichaDePersonagemDialog({
               </p>
             </div>
           ) : (
-            <FichaDePersonagem personagem={mostrado} sistema={sistema} editando={editando} onChange={setRascunho} escolherImagem={escolherImagem} tituloId={tituloId} />
+            <FichaDePersonagem
+              personagem={mostrado}
+              sistema={sistema}
+              editando={editando}
+              onChange={setRascunho}
+              escolherImagem={escolherImagem}
+              tituloId={tituloId}
+              onAjustar={onAjustar}
+            />
           )}
         </div>
       </div>

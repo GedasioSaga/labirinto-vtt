@@ -7,6 +7,7 @@ import { NO_OWNER_RADII, type OwnerVisionRadii } from '../lib/imposedOccupancy'
 import { LASER_MAX_POINTS_PER_MESSAGE, LASER_SEND_INTERVAL_MS } from '../lib/laser'
 import { pointActionMasterText, type PointActionAnswer } from '../lib/pointActions'
 import type { StoredToken } from '../lib/storedTokens'
+import { linhasDoAviso } from '../lib/ajusteDaFicha'
 import { addTravel, travelLogEntry, undoableTravelIds, withoutTravel, type TravelLogEntry } from '../lib/travelLog'
 import { CHEGADA_TOAST_MS, createArrivalAnnouncer } from './avisoDeChegada'
 import {
@@ -2855,8 +2856,15 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       // pediu já recebeu a ficha nova na resposta, e o broadcast não a repete.
       deps.applyPersonagem(result.applyPersonagem)
       broadcastNow()
-      const { criadoPor, personagem } = result.applyPersonagem
+      const { criadoPor, ajustadoPor, personagem } = result.applyPersonagem
       if (criadoPor !== undefined) toastSink.push('info', `${criadoPor} criou a ficha de personagem ${personagem.nome}.`)
+      // AJUSTE RÁPIDO do jogador: UM aviso por jogador e ficha, trocado no
+      // lugar a cada pedido (a chave), com o que ele mudou na última janela
+      // já juntado — dez cliques no "−" são "HP 600 → 590", não dez avisos.
+      const linhas = ajustadoPor === undefined ? [] : linhasDoAviso(personagem.historico, ajustadoPor)
+      if (ajustadoPor !== undefined && linhas.length > 0) {
+        toastSink.push('info', `${ajustadoPor} ajustou ${personagem.nome}: ${linhas.join(' · ')}`, undefined, { chave: `ajuste-da-ficha:${personagem.id}:${ajustadoPor}` })
+      }
     }
     if (result.applyLock !== undefined && deps.applyLock !== undefined) {
       // Mesma regra da porta: o cartão do jogador perde a fechadura no snapshot de agora.

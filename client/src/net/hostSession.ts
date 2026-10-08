@@ -198,8 +198,9 @@ import { novoPersonagem, type Personagem } from '../lib/personagem'
 import { resumoDoLivro, sistemaSemLivro } from '../lib/livroDeRegras'
 import type { SistemaDeRpg } from '../lib/sistemaDeRpg'
 import { aplicarImagem, aplicarPartes } from './edicaoDoPersonagem'
+import { aplicarAjustes, nomeDoJogadorNoHistorico } from '../lib/ajusteDaFicha'
 import { partesDoLivro, type LivroPedirMessage } from './protocoloDoLivro'
-import type { PersonagemCriarMessage, PersonagemEditarMessage, PersonagemImagemMessage, TokenDoPersonagem } from './protocoloDoPersonagem'
+import type { PersonagemAjustarMessage, PersonagemCriarMessage, PersonagemEditarMessage, PersonagemImagemMessage, TokenDoPersonagem } from './protocoloDoPersonagem'
 
 /** Como a ficha livre de nome em branco aparece na lista de quem chega. */
 const SEAT_OPTION_UNNAMED = 'Ficha sem nome'
@@ -524,6 +525,11 @@ export interface AppliedPersonagem {
   sceneId?: string
   /** Só na criação: o nome do jogador, para o aviso do mestre. */
   criadoPor?: string
+  /**
+   * Só no ajuste rápido (`personagem.ajustar`): o nome do jogador. O aviso do
+   * mestre lê do histórico o que ele mudou na última janela, já juntado.
+   */
+  ajustadoPor?: string
 }
 
 /**
@@ -7063,6 +7069,25 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     return personagemAceito(clientId, alvo.playerId, msg.reqId, world, alvo.rpg, { personagem: aplicarPartes(alvo.atual, msg.partes) })
   }
 
+  /**
+   * FICHA DE PERSONAGEM — ajuste rápido (−/+ do HP, a Força, a transformação
+   * que liga): cada valor passa de novo pelas regras (`aplicarAjustes`) e o
+   * histórico ganha a linha em nome do jogador, com o relógio do host. Sem
+   * sistema não há regra: recusa. Nada mudou (o valor já era esse, chave que
+   * o sistema não tem): aceita sem regravar — o pedido repetido não é erro.
+   */
+  function handlePersonagemAjustar(clientId: string, msg: PersonagemAjustarMessage, world: HostWorld): HostResult {
+    const alvo = personagemDoPedido(clientId, msg.reqId, msg.personagemId, world)
+    if ('refuse' in alvo) return alvo.refuse
+    const nome = players.get(alvo.playerId)?.name
+    const sistema = alvo.rpg.sistema
+    if (nome === undefined || sistema === null) return { outbound: [resultadoDePersonagem(clientId, msg.reqId, false)] }
+    const quem = nomeDoJogadorNoHistorico(nome)
+    const personagem = aplicarAjustes(alvo.atual, sistema, msg.ajustes, quem, now())
+    if (personagem === alvo.atual) return { outbound: [resultadoDePersonagem(clientId, msg.reqId, true)] }
+    return personagemAceito(clientId, alvo.playerId, msg.reqId, world, alvo.rpg, { personagem, ajustadoPor: quem })
+  }
+
   /** FICHA DE PERSONAGEM — o retrato ou a imagem de um cartão. Cartão que não existe mais: recusa. */
   function handlePersonagemImagem(clientId: string, msg: PersonagemImagemMessage, world: HostWorld): HostResult {
     const alvo = personagemDoPedido(clientId, msg.reqId, msg.personagemId, world)
@@ -8729,6 +8754,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
         return handlePersonagemEditar(clientId, msg, world)
       case 'personagem.imagem':
         return handlePersonagemImagem(clientId, msg, world)
+      case 'personagem.ajustar':
+        return handlePersonagemAjustar(clientId, msg, world)
       case 'livro.pedir':
         return handleLivroPedir(clientId, msg, world)
       case 'pin.travel.request':

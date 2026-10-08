@@ -319,6 +319,8 @@
   grid-template-columns: repeat(auto-fit, minmax(72px, 1fr));
   gap: var(--lb-space-2);
   margin: 0;
+  padding: 0;
+  list-style: none;
 }
 
 .lb-ficha__recurso {
@@ -368,6 +370,384 @@
   text-align: center;
 }
 
+/* ---------------------------------------------------------- ajuste rápido */
+
+.lb-ficha__recursos-bloco {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-2);
+}
+
+.lb-ficha__recurso-item {
+  display: flex;
+  min-width: 0;
+}
+
+.lb-ficha__recurso-item > .lb-ficha__recurso {
+  flex: 1;
+  min-width: 0;
+}
+
+/* O número grande do quadrinho (vence o "> span" da legenda acima). */
+.lb-ficha__recurso .lb-ficha__recurso-valor {
+  font-family: var(--lb-font-utility);
+  font-size: var(--lb-font-size-xl);
+  font-weight: var(--lb-font-weight-semibold);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: normal;
+  line-height: var(--lb-font-leading-tight);
+  text-transform: none;
+  opacity: 1;
+}
+
+.lb-ficha__recurso .lb-ficha__recurso-max {
+  font-size: var(--lb-font-size-sm);
+  opacity: 0.7;
+}
+
+/* Quanto do máximo sobra: a barrinha na cor do recurso, sem animar (muda a cada clique). */
+.lb-ficha__recurso .lb-ficha__barra {
+  display: block;
+  width: 100%;
+  height: 3px;
+  margin-top: 2px;
+  border-radius: 2px;
+  background: color-mix(in srgb, currentColor 22%, transparent);
+  overflow: hidden;
+  opacity: 1;
+}
+
+.lb-ficha__barra > span {
+  display: block;
+  height: 100%;
+  background: currentColor;
+  transform-origin: left center;
+}
+
+/* O quadrinho do HP é o botão que abre o painel. */
+.lb-ficha__recurso--toque {
+  width: 100%;
+  font: inherit;
+  cursor: pointer;
+  transition: transform var(--lb-motion-fast) var(--lb-motion-ease);
+}
+
+.lb-ficha__recurso--toque:active {
+  transform: scale(0.97);
+}
+
+.lb-ficha__recurso--toque[aria-expanded='true'] {
+  border-color: currentColor;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .lb-ficha__recurso--toque:hover {
+    border-color: currentColor;
+  }
+}
+
+/* O número do Escudo: toca para digitar; − e + embaixo dele. */
+.lb-ficha__recurso-valor--toque {
+  padding: 0 var(--lb-space-1);
+  border: 1px solid transparent;
+  border-radius: var(--lb-radius-sm);
+  background: none;
+  color: inherit;
+  cursor: pointer;
+}
+
+.lb-ficha__recurso-valor--toque[aria-expanded='true'] {
+  border-color: var(--lb-color-line-strong);
+}
+
+.lb-ficha__recurso .lb-ficha__passos {
+  display: inline-flex;
+  gap: 4px;
+  margin-top: 2px;
+  opacity: 1;
+}
+
+/* − e +: quadrados firmes, 28 px no mouse e 44 px no dedo. */
+.lb-passo {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid var(--lb-color-line-strong);
+  border-radius: var(--lb-radius-sm);
+  background: var(--lb-color-stone-solid);
+  color: var(--lb-color-parchment);
+  font-family: var(--lb-font-utility);
+  font-size: var(--lb-font-size-md);
+  font-weight: var(--lb-font-weight-semibold);
+  line-height: 1;
+  cursor: pointer;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  transition: transform var(--lb-motion-fast) var(--lb-motion-ease);
+}
+
+.lb-passo:active:not([aria-disabled='true']) {
+  transform: scale(0.95);
+}
+
+.lb-passo[aria-disabled='true'] {
+  opacity: 0.4;
+  cursor: default;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .lb-passo:hover:not([aria-disabled='true']) {
+    background: var(--lb-color-stone-hover);
+  }
+}
+
+.lb-passo--fechar {
+  margin-left: auto;
+  border-color: transparent;
+  background: none;
+}
+
+/* O painel que abre embaixo do número tocado: não é janela, a ficha continua à mão. */
+.lb-ajuste {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-2);
+  padding: var(--lb-space-2) var(--lb-space-3) var(--lb-space-3);
+  border: 1px solid var(--lb-color-line-strong);
+  border-radius: var(--lb-radius-md);
+  background: var(--lb-color-stone-sunken);
+  color: var(--lb-color-parchment);
+}
+
+.lb-ajuste:focus {
+  outline: none;
+}
+
+.lb-ajuste__topo {
+  display: flex;
+  align-items: center;
+  gap: var(--lb-space-2);
+  min-width: 0;
+}
+
+.lb-ajuste__titulo {
+  font-weight: var(--lb-font-weight-semibold);
+}
+
+.lb-ajuste__resumo {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-family: var(--lb-font-utility);
+  font-size: var(--lb-font-size-sm);
+  font-variant-numeric: tabular-nums;
+  color: var(--lb-color-parchment-dim);
+}
+
+.lb-ajuste__linha {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--lb-space-2);
+}
+
+.lb-ajuste__rotulo {
+  font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-parchment-dim);
+}
+
+.lb-ajuste__controles {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.lb-ajuste__campo.lb-input {
+  width: 8ch;
+  min-height: 28px;
+  padding: 0 var(--lb-space-1);
+  font-family: var(--lb-font-utility);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+.lb-ajuste__campo[aria-invalid='true'] {
+  border-color: var(--lb-color-ember);
+}
+
+.lb-ajuste__conta,
+.lb-ajuste__dica {
+  margin: 0;
+  font-size: var(--lb-font-size-xs);
+  line-height: var(--lb-font-leading-normal);
+  color: var(--lb-color-parchment-dim);
+}
+
+.lb-ajuste__conta {
+  font-family: var(--lb-font-utility);
+  font-variant-numeric: tabular-nums;
+}
+
+.lb-ficha__atributo-item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-1);
+}
+
+/* O nome quebra em sílaba (pt-BR), nunca no meio da letra: "Resis-tência", e não "Resistên cia". */
+.lb-ficha__atributo-nome {
+  min-width: 0;
+  overflow-wrap: break-word;
+  hyphens: auto;
+}
+
+/* − total + rank: juntos, para o nome ficar com o resto da linha. */
+.lb-ficha__atributo .lb-ficha__atributo-valores {
+  gap: 4px;
+  flex: none;
+}
+
+/* O total do atributo é o botão da conta: "65 +5". */
+.lb-ficha__valor--toque {
+  min-height: 28px;
+  padding: 0 var(--lb-space-1);
+  border: 1px solid transparent;
+  border-radius: var(--lb-radius-sm);
+  background: none;
+  font-size: inherit;
+  cursor: pointer;
+}
+
+.lb-ficha__valor--toque[aria-expanded='true'] {
+  border-color: var(--lb-color-line-strong);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .lb-ficha__valor--toque:hover {
+    border-color: var(--lb-color-line-strong);
+  }
+}
+
+.lb-ficha__extra {
+  margin-left: 3px;
+  font-size: var(--lb-font-size-xs);
+  color: var(--lb-color-online);
+}
+
+.lb-ficha__extra[data-sinal='menos'] {
+  color: var(--lb-color-ember);
+}
+
+/* Edição: o HP com atual, máximo e modificador num quadrinho só. */
+.lb-ficha__recurso--partes {
+  margin: 0;
+  min-width: 0;
+}
+
+.lb-ficha__recurso--partes > legend {
+  padding: 0 var(--lb-space-1);
+}
+
+.lb-ficha__mini {
+  font-size: var(--lb-font-size-xs);
+  opacity: 0.8;
+}
+
+/* No dedo: alvo de 44 px, e campo a 16 px para o iPhone não dar zoom ao tocar. */
+@media (pointer: coarse) {
+  .lb-passo {
+    width: 44px;
+    height: 44px;
+  }
+
+  .lb-ficha__valor--toque,
+  .lb-ajuste__campo.lb-input {
+    min-height: 44px;
+  }
+
+  .lb-ajuste__campo.lb-input {
+    font-size: 16px;
+  }
+
+  /* Com alvos de 44 px a linha do atributo aperta: menos folga, para o nome caber inteiro. */
+  .lb-ficha__atributo {
+    gap: var(--lb-space-2);
+    padding-inline: 4px;
+  }
+
+  .lb-ficha__atributo .lb-ficha__rank {
+    min-width: 2.6em;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lb-passo,
+  .lb-ficha__recurso--toque {
+    transition: none;
+  }
+}
+
+/* O "Histórico": fechado por padrão, o mais novo em cima, rola dentro dele. */
+.lb-ficha__historico {
+  border-top: 1px solid var(--lb-color-line);
+  padding-top: var(--lb-space-2);
+}
+
+.lb-ficha__historico-titulo {
+  display: flex;
+  align-items: center;
+  gap: var(--lb-space-2);
+  padding: 0 var(--lb-space-2);
+  font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-parchment-dim);
+  cursor: pointer;
+}
+
+.lb-ficha__historico-conta {
+  font-family: var(--lb-font-utility);
+  font-size: var(--lb-font-size-xs);
+  font-variant-numeric: tabular-nums;
+  opacity: 0.8;
+}
+
+.lb-ficha__historico-lista {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 14rem;
+  margin: var(--lb-space-2) 0 0;
+  padding: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  list-style: none;
+}
+
+.lb-ficha__historico-item {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0 var(--lb-space-2);
+  padding: 2px var(--lb-space-2);
+  font-size: var(--lb-font-size-sm);
+}
+
+.lb-ficha__historico-texto {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-variant-numeric: tabular-nums;
+  color: var(--lb-color-parchment);
+}
+
+.lb-ficha__historico-meta {
+  font-size: var(--lb-font-size-xs);
+  color: var(--lb-color-parchment-dim);
+  white-space: nowrap;
+}
+
 .lb-ficha__subtitulo {
   margin: 0 0 var(--lb-space-1);
   padding: 0 var(--lb-space-2);
@@ -378,6 +758,8 @@
   flex-direction: column;
   gap: 1px;
   margin: 0;
+  padding: 0;
+  list-style: none;
 }
 
 .lb-ficha__atributo {
@@ -397,7 +779,8 @@
 }
 
 .lb-ficha__atributo dd,
-.lb-ficha__atributo-edit {
+.lb-ficha__atributo-edit,
+.lb-ficha__atributo-valores {
   display: inline-flex;
   align-items: center;
   gap: var(--lb-space-2);
@@ -652,6 +1035,58 @@
 .lb-cartao__mod[data-sinal='menos'] {
   background: var(--lb-color-ember-soft);
   color: var(--lb-color-ember);
+}
+
+/* A transformação ligada: borda de latão no cartão, e o "Ativa" aceso. */
+.lb-cartao[data-ativo] {
+  border-color: var(--lb-color-brass);
+}
+
+.lb-cartao__ligar {
+  margin-left: auto;
+  min-height: 28px;
+  padding: 0 var(--lb-space-2);
+  border: 1px solid var(--lb-color-line-strong);
+  border-radius: var(--lb-radius-sm);
+  background: var(--lb-color-stone-solid);
+  color: var(--lb-color-parchment-dim);
+  font-family: var(--lb-font-utility);
+  font-size: var(--lb-font-size-sm);
+  font-weight: var(--lb-font-weight-semibold);
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: transform var(--lb-motion-fast) var(--lb-motion-ease);
+}
+
+.lb-cartao__ligar:active {
+  transform: scale(0.97);
+}
+
+.lb-cartao__ligar[aria-pressed='true'],
+.lb-cartao__ativa {
+  border-color: var(--lb-color-brass);
+  background: var(--lb-color-brass-soft);
+  color: var(--lb-color-brass-bright);
+}
+
+.lb-cartao__ativa {
+  margin-left: auto;
+  padding: 1px var(--lb-space-2);
+  border: 1px solid;
+  border-radius: var(--lb-radius-sm);
+  font-size: var(--lb-font-size-sm);
+}
+
+@media (pointer: coarse) {
+  .lb-cartao__ligar {
+    min-height: 44px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lb-cartao__ligar {
+    transition: none;
+  }
 }
 
 .lb-cartao__subs {

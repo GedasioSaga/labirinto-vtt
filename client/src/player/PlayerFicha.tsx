@@ -3,10 +3,11 @@ import type { LivroDaFicha } from '../components/EscolherDoLivro'
 import { FichaDePersonagem } from '../components/FichaDePersonagem'
 import { LivroDeRegras } from '../components/LivroDeRegras'
 import type { ResumoDoLivro } from '../lib/livroDeRegras'
+import { comAjustes, type Ajuste } from '../lib/ajusteDaFicha'
 import type { Personagem } from '../lib/personagem'
 import type { CapituloDoLivro, SistemaDeRpg } from '../lib/sistemaDeRpg'
 import type { TokenDoPersonagem } from '../net/protocoloDoPersonagem'
-import type { EnvioDePersonagem, LivroDoJogador, SalvarPersonagem } from './playerConnection'
+import type { AjustePendente, EnvioDePersonagem, LivroDoJogador, SalvarPersonagem } from './playerConnection'
 import './PlayerFicha.css'
 
 export interface PlayerFichaProps {
@@ -21,6 +22,12 @@ export interface PlayerFichaProps {
   instant?: boolean
   onCriar: (tokenId: string) => boolean
   onSalvar: (base: Personagem, rascunho: Personagem) => SalvarPersonagem
+  /** AJUSTE RÁPIDO fora da edição (−/+, "-50", transformação): `false` = não saiu (fora da mesa). Ausente = sem − e +. */
+  onAjustar?: (personagemId: string, ajuste: Ajuste) => boolean
+  /** Os ajustes que a mesa ainda não confirmou: a ficha os mostra por cima da que ela mandou. */
+  ajustesPendentes?: readonly AjustePendente[]
+  /** O último ajuste não foi confirmado: a ficha voltou ao que a mesa tem. */
+  ajusteFalhou?: boolean
   onClose: () => void
   /** Pede uma imagem ao aparelho, já reduzida para viajar; `null` = cancelou. */
   escolherImagem: () => Promise<string | null>
@@ -40,6 +47,9 @@ const FOCAVEIS = 'button:not([disabled]), input:not([disabled]), select:not([dis
 const ERRO_AO_CRIAR = 'A mesa não criou a ficha. Confira a conexão e tente de novo.'
 const ERRO_AO_SALVAR = 'A mesa não confirmou o que você salvou. A ficha continua aberta: salve de novo.'
 const ERRO_SEM_CONEXAO = 'Não deu para pedir agora: confira a conexão com a mesa e tente de novo.'
+const AVISO_AJUSTE_FALHOU = 'A mesa não confirmou o último ajuste: a ficha mostra o que ela tem.'
+
+const SEM_AJUSTES: readonly AjustePendente[] = []
 
 /** A ficha em edição: `base` é como ela estava quando a edição abriu (o "Salvar" manda só o que mudou desde ela). */
 interface Edicao {
@@ -64,6 +74,11 @@ interface Espera {
  * caiu), a ficha continua aberta com o rascunho, e o aviso diz o que houve.
  * A edição do mestre chega ao vivo: fora da edição a ficha muda na hora; em
  * edição, o aviso conta, e o "Salvar" troca só as partes que o jogador mexeu.
+ *
+ * Fora da edição, o AJUSTE RÁPIDO (−/+ do HP e dos atributos, o "-50", o
+ * "Ativar" da transformação) vai na hora, sem Salvar: a ficha mostra o
+ * valor já (`ajustesPendentes` por cima da que a mesa mandou) e a conexão o
+ * junta com os cliques do mesmo instante num pedido só.
  */
 export function PlayerFicha({
   sistema,
@@ -73,6 +88,9 @@ export function PlayerFicha({
   instant = false,
   onCriar,
   onSalvar,
+  onAjustar,
+  ajustesPendentes = SEM_AJUSTES,
+  ajusteFalhou = false,
   onClose,
   escolherImagem,
   resumoDoLivro,
@@ -164,6 +182,18 @@ export function PlayerFicha({
   }
 
   const sistemaPronto = sistema === null || sistema === undefined ? null : sistema
+  // A ficha otimista: os ajustes que a mesa ainda não confirmou, por cima da que ela mandou — o "−" responde na hora.
+  const mostradoComAjustes = useMemo(() => {
+    if (mostrado === undefined || sistemaPronto === null) return mostrado
+    const deste = ajustesPendentes.filter((ajuste) => ajuste.personagemId === mostrado.id)
+    return deste.length === 0 ? mostrado : comAjustes(mostrado, sistemaPronto, deste)
+  }, [mostrado, sistemaPronto, ajustesPendentes])
+  const ajustar =
+    onAjustar === undefined || mostrado === undefined
+      ? undefined
+      : (ajuste: Ajuste) => {
+          if (!onAjustar(mostrado.id, ajuste)) setErro(ERRO_SEM_CONEXAO)
+        }
   // O livro que chegou do mestre, do sistema que está aqui (o de outro sistema não vale).
   const livroQueChegou = livroDeRegras !== undefined && livroDeRegras.estado === 'pronto' && sistemaPronto !== null && livroDeRegras.sistemaId === sistemaPronto.id ? livroDeRegras : null
   // A ficha e o leitor usam o sistema COM o livro quando ele já chegou: é daí que o "Escolher do livro" tira os itens.
@@ -228,7 +258,7 @@ export function PlayerFicha({
     }
   }
 
-  const editadoNaMesa = edicao !== null && mostrado !== undefined && mostrado !== edicao.base && !salvando
+  const editadoNaMesa = edicao !== null && mostradoComAjustes !== undefined && mostradoComAjustes !== edicao.base && !salvando
 
   return (
     <div
@@ -263,8 +293,8 @@ export function PlayerFicha({
               </button>
             )
           )}
-          {!vendoLivro && sistemaPronto !== null && mostrado !== undefined && edicao === null && (
-            <button type="button" className="lb-btn" onClick={() => setEdicao({ base: mostrado, rascunho: mostrado })}>
+          {!vendoLivro && sistemaPronto !== null && mostradoComAjustes !== undefined && edicao === null && (
+            <button type="button" className="lb-btn" onClick={() => setEdicao({ base: mostradoComAjustes, rascunho: mostradoComAjustes })}>
               Editar
             </button>
           )}
@@ -322,6 +352,11 @@ export function PlayerFicha({
           {erro}
         </p>
       )}
+      {ajusteFalhou && edicao === null && !vendoLivro && (
+        <p className="pp-ficha__aviso" role="status">
+          {AVISO_AJUSTE_FALHOU}
+        </p>
+      )}
       {editadoNaMesa && (
         <p className="pp-ficha__aviso" aria-live="polite">
           Esta ficha mudou na mesa enquanto você editava. O Salvar troca só o que você mexeu.
@@ -351,7 +386,7 @@ export function PlayerFicha({
               <h2 id={tituloId}>Ficha de personagem</h2>
               <p>O mestre ainda não escolheu um sistema de RPG para esta aventura. Quando escolher, a sua ficha aparece aqui.</p>
             </div>
-          ) : mostrado === undefined ? (
+          ) : mostradoComAjustes === undefined ? (
             <SemFicha tituloId={tituloId} sistema={sistemaPronto} semPersonagem={semPersonagem} criando={espera?.tipo === 'criar'} onCriar={criar} />
           ) : (
             <>
@@ -365,7 +400,7 @@ export function PlayerFicha({
                 </div>
               )}
               <FichaDePersonagem
-                personagem={edicao === null ? mostrado : edicao.rascunho}
+                personagem={edicao === null ? mostradoComAjustes : edicao.rascunho}
                 sistema={sistemaComLivro ?? sistemaPronto}
                 editando={edicao !== null}
                 onChange={(rascunho) => setEdicao((atual) => (atual === null ? atual : { ...atual, rascunho }))}
@@ -373,6 +408,7 @@ export function PlayerFicha({
                 tituloId={tituloId}
                 tipoEditavel={false}
                 livro={livroDaFicha}
+                onAjustar={ajustar}
               />
             </>
           )}

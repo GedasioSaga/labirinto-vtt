@@ -46,6 +46,8 @@ async function salaComFichas() {
     if (ligarTokenId !== undefined) tokens = tokens.map((t) => (t.id === ligarTokenId ? { ...t, characterId: personagem.id } : t))
   })
   const toasts: string[] = []
+  /** A chave de cada aviso, na ordem: aviso com a mesma chave troca o de antes no lugar (`toastStore`). */
+  const chaves: (string | undefined)[] = []
   const bridge = createHostBridge({
     invoke,
     listen,
@@ -55,8 +57,9 @@ async function salaComFichas() {
     applyDoor: vi.fn(),
     applyPersonagem,
     toasts: {
-      push: (_kind, text) => {
+      push: (_kind, text, _duracao, extras) => {
         toasts.push(text)
+        chaves.push(extras?.chave)
         return `t${toasts.length}`
       },
       dismiss: () => {},
@@ -85,6 +88,7 @@ async function salaComFichas() {
     deTipo,
     applyPersonagem,
     toasts,
+    chaves,
     personagens: () => personagens,
     mestreGrava: (personagem: Personagem) => {
       personagens = personagens.map((p) => (p.id === personagem.id ? personagem : p))
@@ -125,5 +129,18 @@ describe('hostBridge: ficha de personagem nas duas mãos', () => {
     expect(t.toasts).toContain('Beto criou a ficha de personagem Beto.')
     // A Ana não recebe a ficha nova do Beto.
     expect(t.deTipo('c1', 'personagens')).toEqual([])
+  })
+
+  it('ajuste rápido da Ana: a aventura grava e o mestre vê UM aviso, trocado no lugar com o que ela mudou já juntado', async () => {
+    const t = await salaComFichas()
+    t.emit({ clientId: 'c1', msg: { type: 'personagem.ajustar', reqId: 'a1', personagemId: LUFFY.id, ajustes: [{ parte: 'atributo', chave: 'forca', valor: 1 }] } })
+    await vi.waitFor(() => expect(t.deTipo('c1', 'personagem.resultado')).toHaveLength(1))
+    t.emit({ clientId: 'c1', msg: { type: 'personagem.ajustar', reqId: 'a2', personagemId: LUFFY.id, ajustes: [{ parte: 'atributo', chave: 'forca', valor: 2 }] } })
+    await vi.waitFor(() => expect(t.deTipo('c1', 'personagem.resultado')).toHaveLength(2))
+    expect(t.personagens().find((p) => p.id === LUFFY.id)?.atributos.forca).toBe(2)
+    // Os dois últimos avisos (antes vêm os de entrada na sala).
+    expect(t.toasts.slice(-2)).toEqual(['Ana ajustou Luffy: Força 0 → 1', 'Ana ajustou Luffy: Força 0 → 2'])
+    // A mesma chave nas duas: na pilha do editor, o segundo aviso TROCA o primeiro (não empilha).
+    expect(t.chaves.slice(-2)).toEqual([`ajuste-da-ficha:${LUFFY.id}:Ana`, `ajuste-da-ficha:${LUFFY.id}:Ana`])
   })
 })

@@ -47,10 +47,13 @@ import {
   parsePersonagemResultado,
   parsePersonagensMessage,
   parseSistemaDeRpgMessage,
+  PERSONAGEM_AJUSTES_MAX,
+  type PersonagemAjustarMessage,
   type PersonagemCriarMessage,
   type TokenDoPersonagem,
 } from '../net/protocoloDoPersonagem'
 import { mensagensDoSalvar } from '../net/edicaoDoPersonagem'
+import type { Ajuste } from '../lib/ajusteDaFicha'
 import { lerPacoteDoLivro, parseLivroParte, parseLivroRecusa, receberParte, type ChegadaDoLivro, type LivroPedirMessage } from '../net/protocoloDoLivro'
 import type { ResumoDoLivro } from '../lib/livroDeRegras'
 import type { Personagem } from '../lib/personagem'
@@ -202,6 +205,20 @@ export type SalvarPersonagem = { ok: true; nada: boolean } | { ok: false; erro: 
 
 /** Sem resposta do host neste prazo, o envio da ficha é dado como perdido (a mensagem pode ter morrido no caminho). */
 export const ENVIO_DE_PERSONAGEM_PRAZO_MS = 15_000
+
+/** Um ajuste rápido ainda sem confirmação da mesa, com o personagem dele. */
+export interface AjustePendente extends Ajuste {
+  personagemId: string
+}
+
+/** Ajuste rápido: sem clique novo por este tempo, os ajustes juntados vão à mesa num pedido só. */
+export const AJUSTE_JUNTAR_MS = 400
+/**
+ * E nunca dois envios a menos disto: no máximo ~17 pedidos em 10 s, abaixo
+ * do teto da mesa (`PERSONAGEM_PEDIDOS_POR_JANELA`, 20 por 10 s), mesmo com
+ * clique espaçado de meio em meio segundo.
+ */
+export const AJUSTE_INTERVALO_MS = 600
 
 /**
  * LIVRO DE REGRAS na tela do jogador, depois que ele pediu: chegando (as
@@ -440,6 +457,14 @@ export interface PlayerState {
   personagens?: { personagens: Personagem[]; tokens: TokenDoPersonagem[] }
   /** FICHA DE PERSONAGEM: o último "Salvar" ou "Criar minha ficha" e o que o host respondeu. */
   envioDePersonagem?: EnvioDePersonagem
+  /**
+   * AJUSTE RÁPIDO da ficha: os ajustes que a mesa ainda não confirmou (na
+   * fila do envio juntado, ou no ar), em ordem. A ficha os desenha por cima da
+   * que o host mandou, para o "−" responder na hora. Ausente/vazio = nenhum.
+   */
+  ajustesPendentes?: readonly AjustePendente[]
+  /** O último ajuste rápido não foi confirmado (recusa, queda, prazo): a ficha voltou ao que a mesa tem. */
+  ajusteFalhou?: boolean
   /** LIVRO DE REGRAS: o resumo que veio com o sistema. Ausente = o sistema não tem livro. */
   resumoDoLivro?: ResumoDoLivro
   /** LIVRO DE REGRAS: o livro que ele pediu (`pedirLivro`). Ausente = não pediu desde que o sistema chegou. */
@@ -1015,6 +1040,14 @@ export interface PlayerConnection {
    * (texto longo, aba grande, imagem pesada). A resposta chega em `envioDePersonagem`.
    */
   salvarPersonagem(base: Personagem, rascunho: Personagem): SalvarPersonagem
+  /**
+   * FICHA DE PERSONAGEM — ajuste rápido (−/+, "-50", a transformação que
+   * liga), sem Editar/Salvar: entra já em `ajustesPendentes` e vai à mesa
+   * junto com os do mesmo instante (`AJUSTE_JUNTAR_MS` sem clique novo,
+   * nunca dois envios a menos de `AJUSTE_INTERVALO_MS`). Da mesma parte vale
+   * o último valor. `false` fora da mesa.
+   */
+  ajustarPersonagem(personagemId: string, ajuste: Ajuste): boolean
   /**
    * LIVRO DE REGRAS — pede ao mestre o livro do sistema da aventura (o "Livro"
    * da ficha, ou o "Escolher do livro"). Já chegando ou pronto, não pede de
@@ -2139,6 +2172,76 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
 
   const envioDePersonagemNoAr = (): boolean => (state.envioDePersonagem?.pendentes.length ?? 0) > 0
 
+  // AJUSTE RÁPIDO: a fila juntada (uma entrada por parte mexida: vale o último
+  // valor), os pedidos no ar com o prazo de cada um, e o relógio do envio.
+  const filaDeAjustes = new Map<string, AjustePendente>()
+  const ajustesNoAr = new Map<string, { ajustes: AjustePendente[]; prazo: ReturnType<typeof setTimeout> }>()
+  let ajusteTimer: ReturnType<typeof setTimeout> | null = null
+  let ultimoEnvioDeAjuste = -Infinity
+
+  /** A ficha otimista: os no ar primeiro (saíram antes), depois a fila. `falhou` ausente = o aviso fica como está. */
+  function publicarAjustes(falhou?: boolean): void {
+    const ajustesPendentes = [...[...ajustesNoAr.values()].flatMap((noAr) => noAr.ajustes), ...filaDeAjustes.values()]
+    setState(falhou === undefined ? { ajustesPendentes } : { ajustesPendentes, ajusteFalhou: falhou })
+  }
+
+  function agendarAjustes(): void {
+    if (ajusteTimer !== null) clearTimeout(ajusteTimer)
+    ajusteTimer = setTimeout(enviarAjustes, Math.max(AJUSTE_JUNTAR_MS, ultimoEnvioDeAjuste + AJUSTE_INTERVALO_MS - Date.now()))
+  }
+
+  /** A fila vai à mesa: um pedido por personagem (fatiado no teto do pedido), cada um com o prazo dele. */
+  function enviarAjustes(): void {
+    ajusteTimer = null
+    const porPersonagem = new Map<string, AjustePendente[]>()
+    for (const ajuste of filaDeAjustes.values()) porPersonagem.set(ajuste.personagemId, [...(porPersonagem.get(ajuste.personagemId) ?? []), ajuste])
+    filaDeAjustes.clear()
+    let falhou = false
+    for (const [personagemId, todos] of porPersonagem) {
+      for (let inicio = 0; inicio < todos.length; inicio += PERSONAGEM_AJUSTES_MAX) {
+        const ajustes = todos.slice(inicio, inicio + PERSONAGEM_AJUSTES_MAX)
+        const mensagem: PersonagemAjustarMessage = {
+          type: 'personagem.ajustar',
+          reqId: `a${nextReqId++}`,
+          personagemId,
+          ajustes: ajustes.map(({ parte, chave, valor }) => ({ parte, chave, valor })),
+        }
+        if (!send(mensagem)) {
+          falhou = true
+          continue
+        }
+        const prazo = setTimeout(() => {
+          if (ajustesNoAr.delete(mensagem.reqId)) publicarAjustes(true)
+        }, ENVIO_DE_PERSONAGEM_PRAZO_MS)
+        ajustesNoAr.set(mensagem.reqId, { ajustes, prazo })
+      }
+    }
+    ultimoEnvioDeAjuste = Date.now()
+    // O que não saiu sai da ficha otimista: ela volta ao que a mesa tem, e o aviso diz.
+    publicarAjustes(falhou ? true : undefined)
+  }
+
+  /** `personagem.resultado` de um ajuste: a ficha que a mesa mandou (antes da resposta) já tem o valor; o otimista sai. */
+  function responderAjuste(reqId: string, ok: boolean): boolean {
+    const noAr = ajustesNoAr.get(reqId)
+    if (noAr === undefined) return false
+    clearTimeout(noAr.prazo)
+    ajustesNoAr.delete(reqId)
+    publicarAjustes(!ok)
+    return true
+  }
+
+  /** A conexão caiu (ou fechou): nada da fila nem do ar vai ter resposta. */
+  function perderAjustes(): void {
+    if (ajusteTimer !== null) clearTimeout(ajusteTimer)
+    ajusteTimer = null
+    for (const { prazo } of ajustesNoAr.values()) clearTimeout(prazo)
+    const havia = filaDeAjustes.size + ajustesNoAr.size > 0
+    filaDeAjustes.clear()
+    ajustesNoAr.clear()
+    if (havia) publicarAjustes(true)
+  }
+
   // LIVRO DE REGRAS: as partes do pedido no ar (`null` = nenhum) e o prazo dele (LIVRO_PRAZO_MS).
   let chegadaDoLivro: ChegadaDoLivro | null = null
   let livroTimer: ReturnType<typeof setTimeout> | null = null
@@ -2719,6 +2822,8 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
   function handleSocketLost(): void {
     // CHAT: a resposta do envio no ar morreu com o socket; "Enviando…" mentiria para sempre.
     if (state.chatSend !== undefined) setState({ chatSend: undefined })
+    // AJUSTE RÁPIDO: idem — a ficha otimista volta já ao que a mesa tem, em vez de esperar o prazo.
+    perderAjustes()
     if (sessionOver()) return
     if (state.reconnecting !== undefined) {
       // A tentativa falhou (a rede ainda não voltou): a próxima espera mais.
@@ -3260,6 +3365,8 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         forgetTrade()
         // FICHA DE PERSONAGEM: o pedido que estava no ar não terá resposta; a tela continua com o rascunho.
         perderEnvioDePersonagem()
+        // AJUSTE RÁPIDO: idem, e a ficha otimista volta ao que a mesa tem.
+        perderAjustes()
         // LIVRO DE REGRAS: idem — as partes que faltavam morreram com a conexão.
         falharLivro()
         return
@@ -3601,7 +3708,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       }
       case 'personagem.resultado': {
         const msg = parsePersonagemResultado(data)
-        if (msg !== null) responderEnvioDePersonagem(msg.reqId, msg.ok, msg.personagemId)
+        if (msg !== null && !responderAjuste(msg.reqId, msg.ok)) responderEnvioDePersonagem(msg.reqId, msg.ok, msg.personagemId)
         return
       }
       case 'map.shared':
@@ -4134,6 +4241,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     clearSharedRouteTimer()
     clearPeekTimer()
     clearEnvioDePersonagemTimer()
+    perderAjustes()
     clearLivroTimer()
     const current = socket
     socket = null
@@ -4821,6 +4929,18 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       const comecado = state.envioDePersonagem
       if (enviados.length < pacote.mensagens.length && comecado !== undefined) setState({ envioDePersonagem: { ...comecado, falhou: true } })
       return { ok: true, nada: false }
+    },
+    ajustarPersonagem(personagemId, ajuste) {
+      // Sem conexão agora, o clique não entra: mostrar o valor e desfazer depois seria pior que avisar já.
+      if (state.status !== 'playing' || socket === null || socket.readyState !== SOCKET_OPEN) return false
+      const chave = `${personagemId}|${ajuste.parte}|${ajuste.chave}`
+      // Sai e entra de novo: a fila fica na ORDEM do último clique de cada parte
+      // (o máximo que subiu antes da cura tem de chegar antes dela).
+      filaDeAjustes.delete(chave)
+      filaDeAjustes.set(chave, { personagemId, parte: ajuste.parte, chave: ajuste.chave, valor: ajuste.valor })
+      agendarAjustes()
+      publicarAjustes(false)
+      return true
     },
     pedirLivro() {
       const sistema = state.sistemaDeRpg

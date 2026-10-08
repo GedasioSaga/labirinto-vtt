@@ -29,6 +29,12 @@ export interface ImagemMudada {
 
 const mesmoTexto = (a: unknown, b: unknown): boolean => JSON.stringify(a) === JSON.stringify(b)
 
+/**
+ * Os registros de números da ficha que a edição troca chave a chave. Os
+ * cartões ligados e o histórico ficam de fora: mudam só pelo ajuste rápido.
+ */
+const NUMEROS_DA_FICHA = ['recursos', 'maximos', 'modificadoresDosRecursos', 'atributos', 'modificadoresDosAtributos'] as const
+
 /** As chaves do rascunho cujo valor não é o da base; `undefined` = nenhuma. */
 function chavesMudadas<T>(base: Record<string, T>, rascunho: Record<string, T>): Record<string, T> | undefined {
   const mudadas = Object.entries(rascunho).filter(([chave, valor]) => !mesmoTexto(base[chave], valor))
@@ -48,10 +54,10 @@ export function partesMudadas(base: Personagem, rascunho: Personagem): PartesDoP
   if (!mesmoTexto(rascunho.etiquetas, base.etiquetas)) partes.etiquetas = rascunho.etiquetas
   const escolhas = chavesMudadas(base.escolhas, rascunho.escolhas)
   if (escolhas !== undefined) partes.escolhas = escolhas
-  const recursos = chavesMudadas(base.recursos, rascunho.recursos)
-  if (recursos !== undefined) partes.recursos = recursos
-  const atributos = chavesMudadas(base.atributos, rascunho.atributos)
-  if (atributos !== undefined) partes.atributos = atributos
+  for (const campo of NUMEROS_DA_FICHA) {
+    const mudadas = chavesMudadas(base[campo], rascunho[campo])
+    if (mudadas !== undefined) partes[campo] = mudadas
+  }
   const abas = Object.entries(rascunho.abas).flatMap(([abaId, cartoes]): [string, CartaoSemImagem[]][] => {
     const semImagem = cartoes.map(cartaoSemImagem)
     return mesmoTexto((base.abas[abaId] ?? []).map(cartaoSemImagem), semImagem) ? [] : [[abaId, semImagem]]
@@ -145,16 +151,16 @@ export function aplicarPartes(atual: Personagem, partes: PartesDoPersonagem): Pe
   const imagens = imagensDosCartoes(atual.abas)
   const comImagem = (cartao: CartaoSemImagem): CartaoDaFicha => ({ ...cartao, imagem: imagens.get(cartao.id) ?? null, subcartoes: cartao.subcartoes.map(comImagem) })
   const abasNovas = partes.abas === undefined ? {} : Object.fromEntries(Object.entries(partes.abas).map(([abaId, cartoes]) => [abaId, cartoes.map(comImagem)]))
-  return {
+  const aplicado: Personagem = {
     ...atual,
     ...(partes.nome === undefined ? {} : { nome: partes.nome.trim() || PERSONAGEM_SEM_NOME }),
     ...(partes.descricao === undefined ? {} : { descricao: partes.descricao }),
     ...(partes.etiquetas === undefined ? {} : { etiquetas: partes.etiquetas }),
     escolhas: { ...atual.escolhas, ...partes.escolhas },
-    recursos: { ...atual.recursos, ...partes.recursos },
-    atributos: { ...atual.atributos, ...partes.atributos },
     abas: { ...atual.abas, ...abasNovas },
   }
+  for (const campo of NUMEROS_DA_FICHA) aplicado[campo] = { ...atual[campo], ...partes[campo] }
+  return aplicado
 }
 
 /** HOST: a imagem aceita entra no retrato (`cartaoId` ausente) ou no cartão; `null` = o cartão não existe mais. */

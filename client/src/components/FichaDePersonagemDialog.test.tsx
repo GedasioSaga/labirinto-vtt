@@ -103,7 +103,8 @@ describe('FichaDePersonagemDialog', () => {
     expect(document.getElementById(janela?.getAttribute('aria-labelledby') ?? '')?.textContent).toBe('Vagn Kane')
     expect(Array.from(document.body.querySelectorAll('.lb-ficha__chips li')).map((li) => li.textContent)).toEqual(['Lunariano', 'Ferreiro'])
     expect(document.body.querySelector('.lb-ficha__selo')?.textContent).toBe('Jogador')
-    expect(Array.from(document.body.querySelectorAll('.lb-ficha__recurso')).map((tile) => tile.textContent)).toEqual(['HP1000', 'SP120', 'Escudo100'])
+    // HP e SP sem máximo gravado (a ficha de um número só): atual = máximo. O Escudo continua um número.
+    expect(Array.from(document.body.querySelectorAll('.lb-ficha__recurso')).map((tile) => tile.textContent)).toEqual(['HP1000/1000', 'SP120/120', 'Escudo100'])
     // Força 50: passou do limiar 40 (R2) e não chegou ao 90 (R3).
     expect(rankDe('Força')).toBe('R2')
     expect(rankDe('Espírito')).toBe('R13')

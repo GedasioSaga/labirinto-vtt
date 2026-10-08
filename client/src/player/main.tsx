@@ -1590,6 +1590,9 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
             instant={ficha.instant}
             onCriar={(tokenId) => connection.criarPersonagem(tokenId)}
             onSalvar={(base, rascunho) => connection.salvarPersonagem(base, rascunho)}
+            ajustesPendentes={state.ajustesPendentes}
+            ajusteFalhou={state.ajusteFalhou === true}
+            onAjustar={(personagemId, ajuste) => connection.ajustarPersonagem(personagemId, ajuste)}
             onClose={closeFicha}
             escolherImagem={escolherImagemNoAparelho}
             resumoDoLivro={state.resumoDoLivro}

@@ -291,6 +291,13 @@ interface AdventureState {
    * da lista. Pede Salvar, fora do desfazer. `false` no mapa solto.
    */
   salvarPersonagem: (personagem: Personagem) => boolean
+  /**
+   * AJUSTE RÁPIDO do mestre (−/+ do HP, a transformação que liga): `ajustar`
+   * recebe o personagem de AGORA — o jogador pode ter mexido nele um instante
+   * antes — e devolve o novo. Devolveu o mesmo = nada muda, nem pede Salvar.
+   * `false` sem aventura ou sem esse personagem.
+   */
+  ajustarPersonagem: (personagemId: string, ajustar: (atual: Personagem) => Personagem) => boolean
   /** "Importar personagens": entram no fim da lista, na ordem. `false` no mapa solto. */
   adicionarPersonagens: (personagens: readonly Personagem[]) => boolean
   /**
@@ -1334,6 +1341,16 @@ export const useAdventureStore = create<AdventureState>()((set, get) => ({
     const existe = lista.some((atual) => atual.id === personagem.id)
     const personagens = existe ? lista.map((atual) => (atual.id === personagem.id ? personagem : atual)) : [...lista, personagem]
     set({ adventure: { ...adventure, personagens }, structureDirty: true })
+    return true
+  },
+
+  ajustarPersonagem: (personagemId, ajustar) => {
+    const { adventure } = get()
+    const atual = adventure?.personagens?.find((personagem) => personagem.id === personagemId)
+    if (adventure === null || atual === undefined) return false
+    const novo = ajustar(atual)
+    if (novo === atual) return true
+    set({ adventure: { ...adventure, personagens: (adventure.personagens ?? []).map((personagem) => (personagem.id === personagemId ? novo : personagem)) }, structureDirty: true })
     return true
   },
 
