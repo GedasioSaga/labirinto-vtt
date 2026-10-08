@@ -11,7 +11,8 @@ import { SISTEMAS_EMBUTIDOS } from '../lib/sistemaOnePiece'
  * (`adventureStore`); aqui fica só o que é da tela: qual ficha está aberta, se
  * a grade de sistemas está aberta e a lista de sistemas que a grade mostra.
  * Separado do painel para o botão "Abrir ficha" do token e a lista
- * "Personagens" abrirem a MESMA janela, montada uma vez só (`RpgDialogs`).
+ * "Personagens" abrirem a MESMA janela, montada uma vez só (`RpgDialogs`) —
+ * e o "Livro de regras" (zona Aventura e ficha), idem.
  */
 interface RpgState {
   /** Personagem com a ficha aberta, ou `null`. */
@@ -19,6 +20,8 @@ interface RpgState {
   /** A ficha abre já em edição: o personagem acabou de nascer. */
   abrirEditando: boolean
   sistemasAbertos: boolean
+  /** O livro de regras do sistema da aventura está aberto (por cima da ficha, quando ela também está). */
+  livroAberto: boolean
   /** Embutidos primeiro, depois os da pasta (`listarSistemas`). */
   biblioteca: SistemaDeRpg[]
   avisosDaBiblioteca: string[]
@@ -29,6 +32,8 @@ interface RpgState {
   fecharFicha: () => void
   abrirSistemas: () => void
   fecharSistemas: () => void
+  abrirLivro: () => void
+  fecharLivro: () => void
   /** Lê a pasta da biblioteca uma vez. Fora do app instalado ficam só os embutidos, sem aviso. */
   carregarBiblioteca: () => Promise<void>
   /** O "+" da grade: grava o sistema do arquivo e o põe na lista. Lança com a razão. */
@@ -39,6 +44,7 @@ export const useRpgStore = create<RpgState>()((set, get) => ({
   personagemAberto: null,
   abrirEditando: false,
   sistemasAbertos: false,
+  livroAberto: false,
   biblioteca: [...SISTEMAS_EMBUTIDOS],
   avisosDaBiblioteca: [],
   bibliotecaLida: false,
@@ -47,6 +53,8 @@ export const useRpgStore = create<RpgState>()((set, get) => ({
   fecharFicha: () => set({ personagemAberto: null, abrirEditando: false }),
   abrirSistemas: () => set({ sistemasAbertos: true }),
   fecharSistemas: () => set({ sistemasAbertos: false }),
+  abrirLivro: () => set({ livroAberto: true }),
+  fecharLivro: () => set({ livroAberto: false }),
 
   carregarBiblioteca: async () => {
     if (get().bibliotecaLida || !isTauri()) return

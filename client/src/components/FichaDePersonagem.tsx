@@ -1,6 +1,7 @@
 import { useId, useState } from 'react'
 import { numeroDaFicha, type Personagem, type TipoDePersonagem } from '../lib/personagem'
 import { rankDoValor, rotuloDoRank, type SistemaDeRpg } from '../lib/sistemaDeRpg'
+import type { LivroDaFicha } from './EscolherDoLivro'
 import { FichaAbas } from './FichaAbas'
 import { CampoNumero, IniciaisDoNome } from './FichaPecas'
 import './FichaDePersonagem.css'
@@ -28,9 +29,11 @@ export interface FichaDePersonagemProps {
   tituloId?: string
   /** Jogador/NPC é decisão do mestre: a ficha do jogador edita sem o campo (`false`). Padrão: com. */
   tipoEditavel?: boolean
+  /** O livro de regras que vem à parte, para o "Escolher do livro" do jogador; o mestre não passa (o sistema dele tem os catálogos). */
+  livro?: LivroDaFicha
 }
 
-export function FichaDePersonagem({ personagem, sistema, editando, onChange, escolherImagem, tituloId, tipoEditavel = true }: FichaDePersonagemProps) {
+export function FichaDePersonagem({ personagem, sistema, editando, onChange, escolherImagem, tituloId, tipoEditavel = true, livro }: FichaDePersonagemProps) {
   return (
     <div className="lb-ficha">
       <div className="lb-ficha__lado">
@@ -42,7 +45,7 @@ export function FichaDePersonagem({ personagem, sistema, editando, onChange, esc
         )}
       </div>
       <div className="lb-ficha__principal">
-        <FichaAbas personagem={personagem} sistema={sistema} editando={editando} onChange={onChange} escolherImagem={escolherImagem} />
+        <FichaAbas personagem={personagem} sistema={sistema} editando={editando} onChange={onChange} escolherImagem={escolherImagem} livro={livro} />
       </div>
     </div>
   )

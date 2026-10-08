@@ -1,6 +1,8 @@
 import { useId, useRef, useState, type KeyboardEvent } from 'react'
 import { camposVisiveis, cartoesDaAba, novoCartao, paragrafosDoCartao, type CartaoDaFicha, type Personagem } from '../lib/personagem'
+import { abaTemCatalogo, cartaoDoCatalogo, itensDaAba, type ItemEscolhivel } from '../lib/livroDeRegras'
 import { abaDoSistema, type AbaDoSistema, type AtributoDoSistema, type SistemaDeRpg } from '../lib/sistemaDeRpg'
+import { EscolherDoLivro, type EstadoDaEscolha, type LivroDaFicha } from './EscolherDoLivro'
 import { CampoNumero, IniciaisDoNome } from './FichaPecas'
 
 /**
@@ -15,9 +17,11 @@ export interface FichaAbasProps {
   editando: boolean
   onChange: (personagem: Personagem) => void
   escolherImagem: () => Promise<string | null>
+  /** O livro que vem à parte (o jogador pede ao mestre); ausente = os catálogos vêm no próprio `sistema`. */
+  livro?: LivroDaFicha
 }
 
-export function FichaAbas({ personagem, sistema, editando, onChange, escolherImagem }: FichaAbasProps) {
+export function FichaAbas({ personagem, sistema, editando, onChange, escolherImagem, livro }: FichaAbasProps) {
   const idBase = useId()
   const [ativaId, setAtivaId] = useState(sistema.abas[0]?.id ?? '')
   const refs = useRef(new Map<string, HTMLButtonElement>())
@@ -68,7 +72,7 @@ export function FichaAbas({ personagem, sistema, editando, onChange, escolherIma
       </div>
       <div id={`${idBase}-painel`} className="lb-ficha__painel" role="tabpanel" aria-labelledby={`${idBase}-aba-${ativa.id}`}>
         {editando ? (
-          <ListaEditavel aba={ativa} sistema={sistema} cartoes={cartoes} onChange={trocarCartoes} escolherImagem={escolherImagem} />
+          <ListaEditavel key={ativa.id} aba={ativa} sistema={sistema} cartoes={cartoes} onChange={trocarCartoes} escolherImagem={escolherImagem} livro={livro} />
         ) : cartoes.length === 0 ? (
           <p className="lb-ficha__vazio">{ativa.vazio}</p>
         ) : (
@@ -174,13 +178,34 @@ interface ListaEditavelProps {
   cartoes: CartaoDaFicha[]
   onChange: (cartoes: CartaoDaFicha[]) => void
   escolherImagem: () => Promise<string | null>
-  /** Dentro de outro cartão (técnicas da transformação): botões menores. */
+  /** Dentro de outro cartão (técnicas da transformação): botões menores, e sem "Escolher do livro". */
   aninhada?: boolean
+  livro?: LivroDaFicha
 }
 
-function ListaEditavel({ aba, sistema, cartoes, onChange, escolherImagem, aninhada = false }: ListaEditavelProps) {
+function ListaEditavel({ aba, sistema, cartoes, onChange, escolherImagem, aninhada = false, livro }: ListaEditavelProps) {
   // O cartão que acabou de nascer abre aberto; os outros ficam fechados numa linha cada.
   const [recemCriado, setRecemCriado] = useState<string | null>(null)
+  const [escolhendo, setEscolhendo] = useState(false)
+  const botaoDoLivro = useRef<HTMLButtonElement>(null)
+  // Os itens do catálogo da aba: no sistema (mestre, ou o livro do jogador que já chegou) ou ainda no mestre.
+  const itens = itensDaAba(sistema.catalogos, aba.id)
+  const noMestre = livro !== undefined && itens.length === 0 && abaTemCatalogo(livro.resumo, aba.id)
+  const ofereceLivro = !aninhada && (itens.length > 0 || noMestre)
+  const estadoDaEscolha: EstadoDaEscolha = !noMestre || livro.estado === 'pronto' ? 'pronto' : livro.estado === 'falhou' ? 'falhou' : 'chegando'
+  const pedirLivro = () => {
+    if (noMestre && (livro.estado === 'ausente' || livro.estado === 'falhou')) livro.pedir()
+  }
+  const fecharEscolha = () => {
+    setEscolhendo(false)
+    botaoDoLivro.current?.focus()
+  }
+  const escolher = (item: ItemEscolhivel) => {
+    const cartao = cartaoDoCatalogo(aba, sistema, item)
+    setRecemCriado(cartao.id)
+    onChange([...cartoes, cartao])
+    fecharEscolha()
+  }
   const trocar = (id: string, cartao: CartaoDaFicha) => onChange(cartoes.map((atual) => (atual.id === id ? cartao : atual)))
   const mover = (indice: number, delta: -1 | 1) => {
     const alvo = indice + delta
@@ -212,9 +237,41 @@ function ListaEditavel({ aba, sistema, cartoes, onChange, escolherImagem, aninha
           escolherImagem={escolherImagem}
         />
       ))}
-      <button type="button" className={`lb-btn${aninhada ? ' lb-btn--compact' : ''} lb-cartoes-edit__mais`} onClick={adicionar}>
-        + {aba.item}
-      </button>
+      <div className="lb-cartoes-edit__botoes">
+        <button type="button" className={`lb-btn${aninhada ? ' lb-btn--compact' : ''} lb-cartoes-edit__mais`} onClick={adicionar}>
+          + {aba.item}
+        </button>
+        {ofereceLivro && (
+          <button
+            ref={botaoDoLivro}
+            type="button"
+            className="lb-btn lb-btn--ghost"
+            aria-expanded={escolhendo}
+            onClick={() => {
+              if (escolhendo) {
+                setEscolhendo(false)
+                return
+              }
+              setEscolhendo(true)
+              pedirLivro()
+            }}
+          >
+            Escolher do livro
+          </button>
+        )}
+      </div>
+      {ofereceLivro && escolhendo && (
+        <EscolherDoLivro
+          aba={aba}
+          sistema={sistema}
+          itens={itens}
+          estado={estadoDaEscolha}
+          nomesNaFicha={new Set(cartoes.map((cartao) => cartao.nome.toLocaleLowerCase('pt-BR')))}
+          onTentarDeNovo={pedirLivro}
+          onEscolher={escolher}
+          onFechar={fecharEscolha}
+        />
+      )}
     </div>
   )
 }

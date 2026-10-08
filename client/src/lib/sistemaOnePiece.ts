@@ -1,3 +1,4 @@
+import { CATALOGOS_ONE_PIECE, LIVRO_ONE_PIECE } from './livroOnePiece'
 import { FORMATO_DO_SISTEMA, type SistemaDeRpg } from './sistemaDeRpg'
 
 /**
@@ -14,7 +15,9 @@ import { FORMATO_DO_SISTEMA, type SistemaDeRpg } from './sistemaDeRpg'
  *    começam em R0 (valor < 1); Espírito e Determinação vão até R13;
  *  - raças e ofícios: src/features/characters/form/SecaoBase.tsx:18-30;
  *  - abas, campos e ordem dos campos da técnica (Ação, Efeito, Custo, Tempo,
- *    Dano, depois os extras): CharacterSheet.tsx e CamposTecnica.tsx.
+ *    Dano, depois os extras): CharacterSheet.tsx e CamposTecnica.tsx;
+ *  - livro de regras e catálogos: `lib/livroOnePiece.ts` (as notas de regra e o
+ *    Compêndio de lá).
  *
  * Os ids dos atributos, recursos, abas e campos são os nomes de coluna do
  * projeto-rpg-v2 (`forca`, `hp`, `habilidades`, `acao`...): é isso que deixa o
@@ -118,6 +121,8 @@ export const SISTEMA_ONE_PIECE: SistemaDeRpg = {
       subcartoes: { aba: 'habilidades', rotulo: 'Técnicas da forma' },
     },
   ],
+  livro: LIVRO_ONE_PIECE,
+  catalogos: CATALOGOS_ONE_PIECE,
 }
 
 /** Os sistemas que o app traz de fábrica: sempre na grade, nunca gravados nem apagados. */

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { escolherTextoJson } from '../lib/arquivosDaFicha'
 import { importarFichasDoProjetoRpg, type ResultadoDaImportacao } from '../lib/importarDoProjetoRpg'
+import { temLivro } from '../lib/livroDeRegras'
 import { novoPersonagem, type Personagem } from '../lib/personagem'
 import type { SistemaDeRpg } from '../lib/sistemaDeRpg'
 import { buildTokenPhotoData } from '../lib/tokenPhoto'
@@ -17,6 +18,8 @@ export interface PersonagensSectionProps {
   sistemaId: string | undefined
   personagens: readonly Personagem[]
   onAbrirSistemas: () => void
+  /** "Livro de regras"; ausente = o sistema da aventura não tem livro (sem botão). */
+  onAbrirLivro?: () => void
   onAbrirFicha: (personagemId: string) => void
   onCriar: () => void
   onApagar: (personagemId: string) => void
@@ -34,11 +37,12 @@ export function resumoDaImportacao(resultado: ResultadoDaImportacao): string {
 }
 
 /**
- * "Sistema de RPG" e "Personagens" na zona Aventura do painel esquerdo. Só
+ * "Sistema de RPG", "Livro de regras" (quando o sistema tem) e "Personagens"
+ * na zona Aventura do painel esquerdo. Só
  * aparece com aventura: personagens e sistema moram no `adventure.json`, que o
  * mapa solto não tem (o mesmo limite da Agenda).
  */
-export function PersonagensSection({ sistema, sistemaId, personagens, onAbrirSistemas, onAbrirFicha, onCriar, onApagar, onImportar }: PersonagensSectionProps) {
+export function PersonagensSection({ sistema, sistemaId, personagens, onAbrirSistemas, onAbrirLivro, onAbrirFicha, onCriar, onApagar, onImportar }: PersonagensSectionProps) {
   const [apagando, setApagando] = useState<string | null>(null)
   const [importando, setImportando] = useState(false)
   const [estado, setEstado] = useState<{ tipo: 'ok' | 'erro'; texto: string; avisos: string[] } | null>(null)
@@ -63,6 +67,11 @@ export function PersonagensSection({ sistema, sistemaId, personagens, onAbrirSis
         <span className="lb-rpg__sistema-rotulo">Sistema de RPG</span>
         <span className="lb-rpg__sistema-nome">{nomeDoSistema}</span>
       </button>
+      {onAbrirLivro !== undefined && (
+        <button type="button" className="lb-btn lb-btn--ghost lb-btn--block lb-rpg__livro" onClick={onAbrirLivro}>
+          Livro de regras
+        </button>
+      )}
       <CollapsibleSection id="personagens" title="Personagens" defaultOpen={false} contagem={personagens.length}>
         <div className="lb-rpg">
           {personagens.length === 0 ? (
@@ -152,6 +161,7 @@ export function PersonagensDaAventura() {
       sistemaId={sistemaId}
       personagens={personagens}
       onAbrirSistemas={() => useRpgStore.getState().abrirSistemas()}
+      onAbrirLivro={sistema !== undefined && temLivro(sistema) ? () => useRpgStore.getState().abrirLivro() : undefined}
       onAbrirFicha={(id) => useRpgStore.getState().abrirFicha(id)}
       onCriar={() => {
         if (sistema === undefined) return

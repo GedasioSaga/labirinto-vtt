@@ -1592,6 +1592,9 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
             onSalvar={(base, rascunho) => connection.salvarPersonagem(base, rascunho)}
             onClose={closeFicha}
             escolherImagem={escolherImagemNoAparelho}
+            resumoDoLivro={state.resumoDoLivro}
+            livroDeRegras={state.livroDeRegras}
+            onPedirLivro={() => connection.pedirLivro()}
           />
         )}
         {/* MINHAS PISTAS: a pista reaberta do Caderno, com "Mostrar para…".

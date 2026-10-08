@@ -106,6 +106,14 @@
   padding: 16px max(16px, env(safe-area-inset-right, 0px)) calc(24px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px));
 }
 
+/* O livro de regras no lugar da ficha: a busca fica no alto e só o leitor
+   rola — num capítulo longo, buscar de novo não exige voltar ao topo. */
+.pp-ficha__corpo--livro {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
 /* Sem sistema, sem ficha: uma coluna de leitura, no alto. */
 .pp-ficha__vazio {
   display: flex;

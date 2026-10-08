@@ -931,6 +931,13 @@
   margin-bottom: var(--lb-space-2);
 }
 
+/* Logo abaixo do sistema, de quem ele é: mesmo alinhamento, sem competir com ele. */
+.lb-rpg__livro.lb-btn {
+  justify-content: flex-start;
+  min-height: 34px;
+  margin: calc(-1 * var(--lb-space-1)) 0 var(--lb-space-2);
+}
+
 .lb-rpg__sistema-rotulo {
   font-weight: var(--lb-font-weight-medium);
 }

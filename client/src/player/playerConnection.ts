@@ -51,8 +51,10 @@ import {
   type TokenDoPersonagem,
 } from '../net/protocoloDoPersonagem'
 import { mensagensDoSalvar } from '../net/edicaoDoPersonagem'
+import { lerPacoteDoLivro, parseLivroParte, parseLivroRecusa, receberParte, type ChegadaDoLivro, type LivroPedirMessage } from '../net/protocoloDoLivro'
+import type { ResumoDoLivro } from '../lib/livroDeRegras'
 import type { Personagem } from '../lib/personagem'
-import type { SistemaDeRpg } from '../lib/sistemaDeRpg'
+import type { CapituloDoLivro, CatalogosDoSistema, SistemaDeRpg } from '../lib/sistemaDeRpg'
 import { carriedItemsOf, cleanItemName, itemOfPin } from '../lib/items'
 import { canPay, isCoinAmount, ownTradeToken, purseToward, TRADE_ITEMS_MAX } from '../lib/troca'
 import { lojaParaJogador } from '../lib/loja'
@@ -200,6 +202,19 @@ export type SalvarPersonagem = { ok: true; nada: boolean } | { ok: false; erro: 
 
 /** Sem resposta do host neste prazo, o envio da ficha é dado como perdido (a mensagem pode ter morrido no caminho). */
 export const ENVIO_DE_PERSONAGEM_PRAZO_MS = 15_000
+
+/**
+ * LIVRO DE REGRAS na tela do jogador, depois que ele pediu: chegando (as
+ * partes ainda vêm), pronto, ou falhou (recusa, parte torta, conexão caiu,
+ * prazo) — a tela oferece tentar de novo.
+ */
+export type LivroDoJogador =
+  | { estado: 'chegando' }
+  | { estado: 'pronto'; sistemaId: string; livro: CapituloDoLivro[]; catalogos: CatalogosDoSistema | undefined }
+  | { estado: 'falhou' }
+
+/** Sem o livro inteiro neste prazo, o pedido falha (3 partes num LAN chegam em milissegundos; o túnel é mais lento). */
+export const LIVRO_PRAZO_MS = 20_000
 
 export interface PlayerState {
   status: PlayerStatus
@@ -425,6 +440,10 @@ export interface PlayerState {
   personagens?: { personagens: Personagem[]; tokens: TokenDoPersonagem[] }
   /** FICHA DE PERSONAGEM: o último "Salvar" ou "Criar minha ficha" e o que o host respondeu. */
   envioDePersonagem?: EnvioDePersonagem
+  /** LIVRO DE REGRAS: o resumo que veio com o sistema. Ausente = o sistema não tem livro. */
+  resumoDoLivro?: ResumoDoLivro
+  /** LIVRO DE REGRAS: o livro que ele pediu (`pedirLivro`). Ausente = não pediu desde que o sistema chegou. */
+  livroDeRegras?: LivroDoJogador
   /** Pista que um colega acabou de mostrar: o cartão "Gabi mostrou: Bilhete". `id` novo reabre. */
   shownClue?: { id: number; from: string; clue: ClueEntry }
   /** "Mostrar para…": esperando a lista, ou os colegas da mesma cena. */
@@ -996,6 +1015,13 @@ export interface PlayerConnection {
    * (texto longo, aba grande, imagem pesada). A resposta chega em `envioDePersonagem`.
    */
   salvarPersonagem(base: Personagem, rascunho: Personagem): SalvarPersonagem
+  /**
+   * LIVRO DE REGRAS — pede ao mestre o livro do sistema da aventura (o "Livro"
+   * da ficha, ou o "Escolher do livro"). Já chegando ou pronto, não pede de
+   * novo. A resposta chega em `livroDeRegras`. `false` se o sistema não tem
+   * livro ou o pedido não saiu (sem conexão).
+   */
+  pedirLivro(): boolean
   /**
    * Pede ao mestre para passar pelo pino de viagem `pinId` — ou, no pino
    * livre, passa (o pedido sai depois de `FREE_PASSAGE_BEAT_MS`; no pino de
@@ -2113,6 +2139,44 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
 
   const envioDePersonagemNoAr = (): boolean => (state.envioDePersonagem?.pendentes.length ?? 0) > 0
 
+  // LIVRO DE REGRAS: as partes do pedido no ar (`null` = nenhum) e o prazo dele (LIVRO_PRAZO_MS).
+  let chegadaDoLivro: ChegadaDoLivro | null = null
+  let livroTimer: ReturnType<typeof setTimeout> | null = null
+
+  function clearLivroTimer(): void {
+    if (livroTimer !== null) clearTimeout(livroTimer)
+    livroTimer = null
+  }
+
+  /** O pedido no ar acabou sem livro. Sem pedido no ar, nada muda (o livro pronto continua). */
+  function falharLivro(): void {
+    if (chegadaDoLivro === null) return
+    chegadaDoLivro = null
+    clearLivroTimer()
+    setState({ livroDeRegras: { estado: 'falhou' } })
+  }
+
+  /** `livro.parte`: mais uma parte do pedido no ar; com todas, o livro lido pelos leitores do arquivo de sistema. */
+  function receberParteDoLivro(data: unknown): void {
+    const msg = parseLivroParte(data)
+    if (msg === null || chegadaDoLivro === null) return
+    const passo = receberParte(chegadaDoLivro, msg)
+    if (passo.tipo === 'alheia') return
+    if (passo.tipo === 'faltando') {
+      chegadaDoLivro = passo.chegada
+      return
+    }
+    if (passo.tipo === 'torto') {
+      falharLivro()
+      return
+    }
+    chegadaDoLivro = null
+    clearLivroTimer()
+    const sistema = state.sistemaDeRpg
+    const lido = sistema === undefined || sistema === null ? null : lerPacoteDoLivro(passo.texto, sistema)
+    setState({ livroDeRegras: lido === null || sistema === undefined || sistema === null ? { estado: 'falhou' } : { estado: 'pronto', sistemaId: sistema.id, ...lido } })
+  }
+
   let compraTimer: ReturnType<typeof setTimeout> | null = null
 
   function clearCompraTimer(): void {
@@ -3196,6 +3260,8 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         forgetTrade()
         // FICHA DE PERSONAGEM: o pedido que estava no ar não terá resposta; a tela continua com o rascunho.
         perderEnvioDePersonagem()
+        // LIVRO DE REGRAS: idem — as partes que faltavam morreram com a conexão.
+        falharLivro()
         return
       case 'lobby.waiting':
         arrivalFromMapId = null
@@ -3513,7 +3579,19 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       // FICHA DE PERSONAGEM: valem também aguardando — a ficha é do jogador, não da cena.
       case 'rpg.sistema': {
         const msg = parseSistemaDeRpgMessage(data)
-        if (msg !== null) setState({ sistemaDeRpg: msg.sistema })
+        if (msg === null) return
+        // Sistema novo (ou o mesmo de novo, na volta da conexão): o livro de antes pode não ser mais o dele.
+        chegadaDoLivro = null
+        clearLivroTimer()
+        setState({ sistemaDeRpg: msg.sistema, resumoDoLivro: msg.livro, livroDeRegras: undefined })
+        return
+      }
+      case 'livro.parte':
+        receberParteDoLivro(data)
+        return
+      case 'livro.recusa': {
+        const msg = parseLivroRecusa(data)
+        if (msg !== null && chegadaDoLivro !== null && chegadaDoLivro.reqId === msg.reqId) falharLivro()
         return
       }
       case 'personagens': {
@@ -4056,6 +4134,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     clearSharedRouteTimer()
     clearPeekTimer()
     clearEnvioDePersonagemTimer()
+    clearLivroTimer()
     const current = socket
     socket = null
     current?.close()
@@ -4742,6 +4821,25 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       const comecado = state.envioDePersonagem
       if (enviados.length < pacote.mensagens.length && comecado !== undefined) setState({ envioDePersonagem: { ...comecado, falhou: true } })
       return { ok: true, nada: false }
+    },
+    pedirLivro() {
+      const sistema = state.sistemaDeRpg
+      if (sistema === undefined || sistema === null || state.resumoDoLivro === undefined) return false
+      const atual = state.livroDeRegras
+      if (atual !== undefined && atual.estado !== 'falhou') return true
+      const mensagem: LivroPedirMessage = { type: 'livro.pedir', reqId: `l${nextReqId++}`, sistemaId: sistema.id }
+      if (!send(mensagem)) {
+        setState({ livroDeRegras: { estado: 'falhou' } })
+        return false
+      }
+      chegadaDoLivro = { reqId: mensagem.reqId, total: null, partes: [] }
+      setState({ livroDeRegras: { estado: 'chegando' } })
+      clearLivroTimer()
+      livroTimer = setTimeout(() => {
+        livroTimer = null
+        falharLivro()
+      }, LIVRO_PRAZO_MS)
+      return true
     },
     reconnect: restart,
     wake() {

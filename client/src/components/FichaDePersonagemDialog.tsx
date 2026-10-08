@@ -23,6 +23,8 @@ export interface FichaDePersonagemDialogProps {
   onSalvar: (personagem: Personagem) => void
   onClose: () => void
   escolherImagem: () => Promise<string | null>
+  /** Abre o livro de regras do sistema; ausente = o sistema não tem livro (sem botão). */
+  onAbrirLivro?: () => void
   /** Tokens da cena aberta. Vazio = não há token para ligar. */
   tokens: readonly TokenParaLigar[]
   onLigarToken: (tokenId: string) => void
@@ -46,6 +48,7 @@ export function FichaDePersonagemDialog({
   onSalvar,
   onClose,
   escolherImagem,
+  onAbrirLivro,
   tokens,
   onLigarToken,
 }: FichaDePersonagemDialogProps) {
@@ -119,6 +122,11 @@ export function FichaDePersonagemDialog({
         <header className="lb-dialog__head lb-ficha-janela__topo">
           <p className="lb-eyebrow">Ficha de personagem{sistema !== undefined ? ` · ${sistema.nome}` : ''}</p>
           <div className="lb-ficha-janela__acoes">
+            {onAbrirLivro !== undefined && (
+              <button type="button" className="lb-btn lb-btn--ghost" onClick={onAbrirLivro}>
+                Livro
+              </button>
+            )}
             {editando ? (
               <>
                 <button type="button" className="lb-btn lb-btn--ghost" onClick={descartar}>

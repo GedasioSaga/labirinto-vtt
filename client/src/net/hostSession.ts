@@ -195,8 +195,10 @@ import type { ChatHistory } from '../lib/chatStore'
 import { readArrivalText } from '../lib/arrivalText'
 import { caravanCity, caravanMembers, caravanRegroup, caravanSize, caravanStep, isWorldMap, landingSpots, type CaravanMemory } from '../lib/caravan'
 import { novoPersonagem, type Personagem } from '../lib/personagem'
+import { resumoDoLivro, sistemaSemLivro } from '../lib/livroDeRegras'
 import type { SistemaDeRpg } from '../lib/sistemaDeRpg'
 import { aplicarImagem, aplicarPartes } from './edicaoDoPersonagem'
+import { partesDoLivro, type LivroPedirMessage } from './protocoloDoLivro'
 import type { PersonagemCriarMessage, PersonagemEditarMessage, PersonagemImagemMessage, TokenDoPersonagem } from './protocoloDoPersonagem'
 
 /** Como a ficha livre de nome em branco aparece na lista de quem chega. */
@@ -1498,6 +1500,14 @@ export const TOKEN_PHOTO_MIN_INTERVAL_MS = 500
  */
 export const PERSONAGEM_PEDIDOS_POR_JANELA = 20
 export const PERSONAGEM_JANELA_MS = 10_000
+
+/**
+ * LIVRO DE REGRAS: pedidos do livro por jogador nesta janela. A tela do
+ * jogador guarda o livro que chegou até o sistema mudar ou a conexão cair:
+ * pedir de novo é raro, e cada pedido são ~127 KB (o One Piece, em 3 mensagens) saindo do mestre.
+ */
+export const LIVRO_PEDIDOS_POR_JANELA = 3
+export const LIVRO_JANELA_MS = 60_000
 
 /**
  * Um pedido de esconder-se por jogador nesta janela. O mestre disse "Não" e o
@@ -3039,6 +3049,11 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   const lastTokenPhotoAt = new Map<string, number>()
   // FICHA DE PERSONAGEM — por playerId: os instantes dos pedidos da janela (PERSONAGEM_PEDIDOS_POR_JANELA).
   const pedidosDePersonagem = new Map<string, number[]>()
+  // LIVRO DE REGRAS — por playerId: os instantes dos pedidos do livro na janela (LIVRO_PEDIDOS_POR_JANELA).
+  const pedidosDoLivro = new Map<string, number[]>()
+  // LIVRO DE REGRAS — as partes de cada sistema, pela referência: partir o
+  // livro é um JSON.stringify de ~127 KB, feito uma vez e não a cada jogador.
+  const partesPorSistema = new WeakMap<SistemaDeRpg, string[] | null>()
   // FICHA DE PERSONAGEM — por clientId: o que a conexão já recebeu. O sistema
   // e os personagens pela REFERÊNCIA (a aventura troca o objeto quando grava),
   // as fichas dela pelo texto. Só sai de novo o que mudou: o retrato (até 48
@@ -5109,6 +5124,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     lastHideRequestAt.delete(playerId)
     lastTokenPhotoAt.delete(playerId)
     pedidosDePersonagem.delete(playerId)
+    pedidosDoLivro.delete(playerId)
     lastCabineCallAt.delete(playerId)
     visionOverrides.delete(playerId)
     pendingNotes.delete(playerId)
@@ -6889,12 +6905,22 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const { personagens, tokens } = personagensDoJogador(playerId, world, rpg)
     const chave = JSON.stringify(tokens)
     const outbound: Outbound[] = []
-    if (enviado === undefined || enviado.sistema !== rpg.sistema) outbound.push({ clientId, msg: { type: 'rpg.sistema', sistema: rpg.sistema } })
+    if (enviado === undefined || enviado.sistema !== rpg.sistema) outbound.push({ clientId, msg: mensagemDoSistema(rpg.sistema) })
     if (enviado === undefined || enviado.tokens !== chave || !mesmasReferencias(enviado.personagens, personagens)) {
       outbound.push({ clientId, msg: { type: 'personagens', personagens, tokens } })
     }
     personagensEnviados.set(clientId, { sistema: rpg.sistema, personagens, tokens: chave })
     return outbound
+  }
+
+  /**
+   * O sistema como vai ao jogador: sem o livro de regras, que vai à parte e
+   * só a quem o pede (`handleLivroPedir`); no lugar dele, o resumo.
+   */
+  const mensagemDoSistema = (sistema: SistemaDeRpg | null): HostMessage => {
+    if (sistema === null) return { type: 'rpg.sistema', sistema: null }
+    const livro = resumoDoLivro(sistema)
+    return livro === null ? { type: 'rpg.sistema', sistema: sistemaSemLivro(sistema) } : { type: 'rpg.sistema', sistema: sistemaSemLivro(sistema), livro }
   }
 
   /** A cada broadcast: cada conexão recebe só o que mudou PARA ELA (o mestre editou a ficha dela, ela ganhou ou perdeu ficha). */
@@ -6944,6 +6970,45 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const depois = mundoComPersonagem(world, rpg, aplicado.personagem, aplicado.ligarTokenId)
     const criado = aplicado.ligarTokenId === undefined ? undefined : aplicado.personagem.id
     return { outbound: [...personagensUpdate(clientId, playerId, depois), resultadoDePersonagem(clientId, reqId, true, criado)], applyPersonagem: aplicado }
+  }
+
+  /** Mais um pedido do livro na janela; `false` = passou do teto (`LIVRO_PEDIDOS_POR_JANELA`). */
+  const cabePedidoDoLivro = (playerId: string): boolean => {
+    const agora = now()
+    const recentes = (pedidosDoLivro.get(playerId) ?? []).filter((at) => agora - at < LIVRO_JANELA_MS)
+    const cabe = recentes.length < LIVRO_PEDIDOS_POR_JANELA
+    pedidosDoLivro.set(playerId, cabe ? [...recentes, agora] : recentes)
+    return cabe
+  }
+
+  /** As partes do livro do sistema, partidas uma vez por sistema (`partesPorSistema`); `null` = grande demais. */
+  const partesDoSistema = (sistema: SistemaDeRpg): string[] | null => {
+    const guardadas = partesPorSistema.get(sistema)
+    if (guardadas !== undefined) return guardadas
+    const partes = partesDoLivro(sistema)
+    partesPorSistema.set(sistema, partes)
+    return partes
+  }
+
+  /**
+   * LIVRO DE REGRAS — o jogador abriu o "Livro" (ou o "Escolher do livro"):
+   * o livro do sistema da aventura, em partes que cabem no teto de mensagem
+   * (`partesDoLivro`), todas de uma vez. Só a quem entrou na mesa, numa
+   * aventura com ESSE sistema e com livro — o pedido de um sistema que o
+   * mestre já trocou é recusado (a tela dele recebe o `rpg.sistema` novo) —,
+   * e no máximo `LIVRO_PEDIDOS_POR_JANELA`. A recusa é a mesma para todo motivo.
+   */
+  function handleLivroPedir(clientId: string, msg: LivroPedirMessage, world: HostWorld): HostResult {
+    const playerId = byClient.get(clientId)
+    if (playerId === undefined) return reply(clientId, { type: 'error', reason: 'not_joined' })
+    const recusa: HostResult = { outbound: [{ clientId, msg: { type: 'livro.recusa', reqId: msg.reqId } }] }
+    const rpg = world.rpg
+    if (!players.has(playerId) || rpg === undefined || rpg.sistema === null || rpg.sistema.id !== msg.sistemaId) return recusa
+    const sistema = rpg.sistema
+    if (resumoDoLivro(sistema) === null || !cabePedidoDoLivro(playerId)) return recusa
+    const partes = partesDoSistema(sistema)
+    if (partes === null) return recusa
+    return { outbound: partes.map((texto, indice) => ({ clientId, msg: { type: 'livro.parte', reqId: msg.reqId, indice, total: partes.length, texto } })) }
   }
 
   /**
@@ -8664,6 +8729,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
         return handlePersonagemEditar(clientId, msg, world)
       case 'personagem.imagem':
         return handlePersonagemImagem(clientId, msg, world)
+      case 'livro.pedir':
+        return handleLivroPedir(clientId, msg, world)
       case 'pin.travel.request':
         return handleTravelRequest(clientId, msg, world)
       case 'pin.peek':

@@ -1,5 +1,6 @@
 import { personagemDoArquivo, type CampoExtra, type CartaoDaFicha, type Modificador, type Personagem } from '../lib/personagem'
-import { idValido, lerSistemaDeRpg, type SistemaDeRpg } from '../lib/sistemaDeRpg'
+import { CATALOGOS_DO_LIVRO, type ChaveDoCatalogo, type ResumoDoLivro } from '../lib/livroDeRegras'
+import { idValido, lerSistemaDeRpg, LIVRO_CAPITULOS_MAX, type SistemaDeRpg } from '../lib/sistemaDeRpg'
 import { fitsTokenPhotoSend } from '../lib/tokenPhoto'
 
 /**
@@ -18,8 +19,8 @@ import { fitsTokenPhotoSend } from '../lib/tokenPhoto'
  *    cartão), no mesmo teto da foto do token (`fitsTokenPhotoSend`).
  *
  * Do host para o jogador (sem teto de tamanho no servidor, mas nada se repete
- * à toa): `rpg.sistema` (a definição do sistema, uma vez por conexão e quando
- * muda), `personagens` (os dele, quando algum muda) e `personagem.resultado`
+ * à toa): `rpg.sistema` (a definição do sistema sem o livro de regras, uma vez
+ * por conexão e quando muda), `personagens` (os dele, quando algum muda) e `personagem.resultado`
  * (a resposta a cada pedido, pelo `reqId`).
  *
  * Este módulo não importa `protocol.ts`, que importa daqui: o ciclo entre os
@@ -119,10 +120,17 @@ export interface PersonagensMessage {
   tokens: TokenDoPersonagem[]
 }
 
-/** O sistema de RPG da aventura, por valor (o embutido também): `null` = sem sistema escolhido, ou ele não está na biblioteca do mestre. */
+/**
+ * O sistema de RPG da aventura, por valor (o embutido também): `null` = sem
+ * sistema escolhido, ou ele não está na biblioteca do mestre. O host manda o
+ * sistema SEM o livro de regras (`sistemaSemLivro`): o livro vai à parte, sob
+ * pedido (`protocoloDoLivro.ts`), e aqui vem só o resumo dele.
+ */
 export interface SistemaDeRpgMessage {
   type: 'rpg.sistema'
   sistema: SistemaDeRpg | null
+  /** Ausente = o sistema não tem livro (ou o host é de antes do livro). */
+  livro?: ResumoDoLivro
 }
 
 /** A resposta a `personagem.criar`/`editar`/`imagem`. `personagemId`: o personagem que nasceu (só no criar aceito). */
@@ -320,12 +328,29 @@ export function parsePersonagensMessage(value: unknown): PersonagensMessage | nu
   return { type: 'personagens', personagens, tokens }
 }
 
+const CHAVES_DOS_CATALOGOS: ReadonlySet<string> = new Set(CATALOGOS_DO_LIVRO.map(({ chave }) => chave))
+
+function chaveDoCatalogo(value: unknown): value is ChaveDoCatalogo {
+  return typeof value === 'string' && CHAVES_DOS_CATALOGOS.has(value)
+}
+
+/** O resumo do livro: torto é como se não houvesse livro (o jogador só não vê o botão). */
+function resumoDoLivroLido(value: unknown): ResumoDoLivro | null {
+  if (!isRecord(value) || !Array.isArray(value.catalogos)) return null
+  const capitulos = inteiro(value.capitulos)
+  if (capitulos === null || capitulos < 0 || capitulos > LIVRO_CAPITULOS_MAX) return null
+  const catalogos = [...new Set(value.catalogos.filter(chaveDoCatalogo))]
+  return capitulos === 0 && catalogos.length === 0 ? null : { capitulos, catalogos }
+}
+
 /** `rpg.sistema`: o sistema passa pelo mesmo leitor do arquivo importado; o que ele recusa vira "sem sistema". */
 export function parseSistemaDeRpgMessage(value: unknown): SistemaDeRpgMessage | null {
   if (!isRecord(value) || value.type !== 'rpg.sistema') return null
   if (value.sistema === null) return { type: 'rpg.sistema', sistema: null }
   const lido = lerSistemaDeRpg(value.sistema)
-  return { type: 'rpg.sistema', sistema: lido.ok ? lido.sistema : null }
+  if (!lido.ok) return { type: 'rpg.sistema', sistema: null }
+  const livro = resumoDoLivroLido(value.livro)
+  return livro === null ? { type: 'rpg.sistema', sistema: lido.sistema } : { type: 'rpg.sistema', sistema: lido.sistema, livro }
 }
 
 export function parsePersonagemResultado(value: unknown): PersonagemResultadoMessage | null {

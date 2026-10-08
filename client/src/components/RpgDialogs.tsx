@@ -2,12 +2,14 @@ import { escolherImagemDaFicha, escolherTextoJson } from '../lib/arquivosDaFicha
 import { useAdventureStore } from '../stores/adventureStore'
 import { useMapStore } from '../stores/mapStore'
 import { sistemaPorId, useRpgStore } from '../stores/rpgStore'
+import { temLivro } from '../lib/livroDeRegras'
 import { FichaDePersonagemDialog, type TokenParaLigar } from './FichaDePersonagemDialog'
+import { LivroDeRegrasDialog } from './LivroDeRegrasDialog'
 import { SistemasDialog } from './SistemasDialog'
 
 /**
- * As janelas do sistema de RPG, montadas UMA vez no App: a grade de sistemas
- * e a ficha de personagem. Quem abre (a lista "Personagens", o "Abrir ficha"
+ * As janelas do sistema de RPG, montadas UMA vez no App: a grade de sistemas,
+ * a ficha de personagem e o livro de regras. Quem abre (a lista "Personagens", o "Abrir ficha"
  * do token) só mexe no `rpgStore`; assim a janela não depende de o painel
  * esquerdo estar montado nem de qual seção está aberta.
  */
@@ -19,6 +21,7 @@ export function RpgDialogs() {
   const sistemasAbertos = useRpgStore((state) => state.sistemasAbertos)
   const biblioteca = useRpgStore((state) => state.biblioteca)
   const avisos = useRpgStore((state) => state.avisosDaBiblioteca)
+  const livroAberto = useRpgStore((state) => state.livroAberto)
   if (adventure === null) return null
 
   const personagem = personagemAberto === null ? undefined : (adventure.personagens ?? []).find((candidato) => candidato.id === personagemAberto)
@@ -50,11 +53,14 @@ export function RpgDialogs() {
           onSalvar={(salvo) => useAdventureStore.getState().salvarPersonagem(salvo)}
           onClose={() => useRpgStore.getState().fecharFicha()}
           escolherImagem={escolherImagemDaFicha}
+          onAbrirLivro={sistema !== undefined && temLivro(sistema) ? () => useRpgStore.getState().abrirLivro() : undefined}
           tokens={tokensParaLigar}
           // Pelo histórico do mapa, como o resto do token: Ctrl+Z desliga.
           onLigarToken={(tokenId) => useMapStore.getState().updateToken(tokenId, { characterId: personagem.id })}
         />
       )}
+      {/* Depois da ficha: abre por cima dela. */}
+      {livroAberto && sistema !== undefined && <LivroDeRegrasDialog sistema={sistema} onClose={() => useRpgStore.getState().fecharLivro()} />}
     </>
   )
 }

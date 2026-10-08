@@ -35,6 +35,7 @@ import {
   type PersonagemHostMessage,
   type PersonagemPlayerMessage,
 } from './protocoloDoPersonagem'
+import { parseLivroPedir, type LivroHostMessage, type LivroPlayerMessage } from './protocoloDoLivro'
 
 export type { OwnTokenElsewhere }
 
@@ -1090,6 +1091,8 @@ export type PlayerMessage =
   | VehicleLeaveMessage
   // FICHA DE PERSONAGEM: criar, editar e trocar imagem da própria (`protocoloDoPersonagem.ts`).
   | PersonagemPlayerMessage
+  // LIVRO DE REGRAS: o pedido do livro do sistema, sob demanda (`protocoloDoLivro.ts`).
+  | LivroPlayerMessage
 
 /**
  * Por que o pedido de esconder-se não virou ficha escondida. `denied`: o
@@ -1827,6 +1830,8 @@ export type HostMessage =
   | PeekHostMessage
   // FICHA DE PERSONAGEM: o sistema, os personagens DESTE jogador e a resposta aos pedidos dele.
   | PersonagemHostMessage
+  // LIVRO DE REGRAS: as partes do livro pedido, ou a recusa.
+  | LivroHostMessage
   | { type: 'kicked' }
   | { type: 'room.closed' }
   // A mesma pessoa entrou por outra aba (ou aparelho) com o resume desta
@@ -2971,6 +2976,8 @@ export function parsePlayerMessage(raw: unknown): PlayerMessage | null {
       return parsePersonagemEditar(value)
     case 'personagem.imagem':
       return parsePersonagemImagem(value)
+    case 'livro.pedir':
+      return parseLivroPedir(value)
     case 'pin.travel.request':
       return parseTravelRequest(value)
     case 'pin.travel.cancel':

@@ -1,9 +1,12 @@
-import { useEffect, useId, useRef, useState, type KeyboardEvent } from 'react'
+import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from 'react'
+import type { LivroDaFicha } from '../components/EscolherDoLivro'
 import { FichaDePersonagem } from '../components/FichaDePersonagem'
+import { LivroDeRegras } from '../components/LivroDeRegras'
+import type { ResumoDoLivro } from '../lib/livroDeRegras'
 import type { Personagem } from '../lib/personagem'
-import type { SistemaDeRpg } from '../lib/sistemaDeRpg'
+import type { CapituloDoLivro, SistemaDeRpg } from '../lib/sistemaDeRpg'
 import type { TokenDoPersonagem } from '../net/protocoloDoPersonagem'
-import type { EnvioDePersonagem, SalvarPersonagem } from './playerConnection'
+import type { EnvioDePersonagem, LivroDoJogador, SalvarPersonagem } from './playerConnection'
 import './PlayerFicha.css'
 
 export interface PlayerFichaProps {
@@ -21,7 +24,16 @@ export interface PlayerFichaProps {
   onClose: () => void
   /** Pede uma imagem ao aparelho, já reduzida para viajar; `null` = cancelou. */
   escolherImagem: () => Promise<string | null>
+  /** LIVRO DE REGRAS: o resumo que veio com o sistema. Ausente = o sistema não tem livro (sem botão "Livro"). */
+  resumoDoLivro?: ResumoDoLivro
+  /** O livro que ele pediu ao mestre, como está agora. */
+  livroDeRegras?: LivroDoJogador
+  /** Pede o livro ao mestre (abrir o "Livro", ou o "Escolher do livro" da edição). */
+  onPedirLivro?: () => boolean
 }
+
+/** Sistema só com catálogos: a mesma lista vazia a cada render, para o índice da busca não refazer à toa. */
+const SEM_CAPITULOS: readonly CapituloDoLivro[] = []
 
 const FOCAVEIS = 'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), summary, [tabindex]:not([tabindex="-1"])'
 
@@ -53,9 +65,25 @@ interface Espera {
  * A edição do mestre chega ao vivo: fora da edição a ficha muda na hora; em
  * edição, o aviso conta, e o "Salvar" troca só as partes que o jogador mexeu.
  */
-export function PlayerFicha({ sistema, personagens, tokens, envio, instant = false, onCriar, onSalvar, onClose, escolherImagem }: PlayerFichaProps) {
+export function PlayerFicha({
+  sistema,
+  personagens,
+  tokens,
+  envio,
+  instant = false,
+  onCriar,
+  onSalvar,
+  onClose,
+  escolherImagem,
+  resumoDoLivro,
+  livroDeRegras,
+  onPedirLivro,
+}: PlayerFichaProps) {
   const tituloId = useId()
+  const livroTituloId = useId()
   const raizRef = useRef<HTMLDivElement>(null)
+  /** O "Livro" aberto no lugar da ficha. A edição (rascunho) continua guardada enquanto ele lê. */
+  const [vendoLivro, setVendoLivro] = useState(false)
   const [escolhidoId, setEscolhidoId] = useState<string | null>(null)
   const [edicao, setEdicao] = useState<Edicao | null>(null)
   const [espera, setEspera] = useState<Espera | null>(null)
@@ -135,6 +163,41 @@ export function PlayerFicha({ sistema, personagens, tokens, envio, instant = fal
     setPerguntaDeSaida(false)
   }
 
+  const sistemaPronto = sistema === null || sistema === undefined ? null : sistema
+  // O livro que chegou do mestre, do sistema que está aqui (o de outro sistema não vale).
+  const livroQueChegou = livroDeRegras !== undefined && livroDeRegras.estado === 'pronto' && sistemaPronto !== null && livroDeRegras.sistemaId === sistemaPronto.id ? livroDeRegras : null
+  // A ficha e o leitor usam o sistema COM o livro quando ele já chegou: é daí que o "Escolher do livro" tira os itens.
+  const sistemaComLivro = useMemo(
+    () => (sistemaPronto === null || livroQueChegou === null ? sistemaPronto : { ...sistemaPronto, livro: livroQueChegou.livro, catalogos: livroQueChegou.catalogos }),
+    [sistemaPronto, livroQueChegou],
+  )
+  // Mestre de antes do livro manda o sistema com tudo dentro: aí o livro já está aqui, sem pedido.
+  const livroNoSistema = sistemaPronto !== null && (sistemaPronto.livro !== undefined || sistemaPronto.catalogos !== undefined)
+  const temLivro = sistemaPronto !== null && (livroNoSistema || resumoDoLivro !== undefined)
+  const livroDaFicha: LivroDaFicha | undefined =
+    sistemaPronto !== null && !livroNoSistema && resumoDoLivro !== undefined && onPedirLivro !== undefined
+      ? {
+          resumo: resumoDoLivro,
+          estado: livroDeRegras === undefined ? 'ausente' : livroDeRegras.estado === 'chegando' ? 'chegando' : livroQueChegou !== null ? 'pronto' : 'falhou',
+          pedir: () => {
+            onPedirLivro()
+          },
+        }
+      : undefined
+  const livroParaLer = sistemaComLivro !== null && (sistemaComLivro.livro !== undefined || sistemaComLivro.catalogos !== undefined) ? sistemaComLivro : null
+
+  /** "Livro": o leitor no lugar da ficha; o livro é pedido ao mestre na primeira vez (ou depois de falhar). */
+  const abrirLivro = () => {
+    setVendoLivro(true)
+    // O botão some com a troca: o foco fica na tela, e não perdido no `body`.
+    raizRef.current?.focus()
+    if (livroDaFicha !== undefined && (livroDaFicha.estado === 'ausente' || livroDaFicha.estado === 'falhou')) livroDaFicha.pedir()
+  }
+  const voltarAFicha = () => {
+    setVendoLivro(false)
+    raizRef.current?.focus()
+  }
+
   /** Fechar (Esc, X): com rascunho mudado, pergunta antes de jogar fora o que ele escreveu. */
   const pedirFechar = () => {
     if (mudou) setPerguntaDeSaida(true)
@@ -146,7 +209,9 @@ export function PlayerFicha({ sistema, personagens, tokens, envio, instant = fal
     event.stopPropagation()
     if (event.key === 'Escape') {
       event.preventDefault()
-      pedirFechar()
+      // Lendo o livro, o Esc volta à ficha: fecha a camada de cima, não a tela inteira.
+      if (vendoLivro) voltarAFicha()
+      else pedirFechar()
       return
     }
     if (event.key !== 'Tab') return
@@ -163,7 +228,6 @@ export function PlayerFicha({ sistema, personagens, tokens, envio, instant = fal
     }
   }
 
-  const sistemaPronto = sistema === null || sistema === undefined ? null : sistema
   const editadoNaMesa = edicao !== null && mostrado !== undefined && mostrado !== edicao.base && !salvando
 
   return (
@@ -172,22 +236,39 @@ export function PlayerFicha({ sistema, personagens, tokens, envio, instant = fal
       className="pp-ficha"
       role="dialog"
       aria-modal="true"
-      aria-labelledby={tituloId}
+      aria-labelledby={vendoLivro ? livroTituloId : tituloId}
       tabIndex={-1}
       data-instant={instant ? '' : undefined}
       onKeyDown={onKeyDown}
     >
       <header className="pp-ficha__topo">
         <div className="pp-ficha__titulo">
-          <p className="lb-eyebrow">Ficha de personagem{sistemaPronto === null ? '' : ` · ${sistemaPronto.nome}`}</p>
+          {vendoLivro && sistemaPronto !== null ? (
+            <p className="lb-eyebrow" id={livroTituloId}>
+              Livro de regras · {sistemaPronto.nome}
+            </p>
+          ) : (
+            <p className="lb-eyebrow">Ficha de personagem{sistemaPronto === null ? '' : ` · ${sistemaPronto.nome}`}</p>
+          )}
         </div>
         <div className="pp-ficha__acoes">
-          {sistemaPronto !== null && mostrado !== undefined && edicao === null && (
+          {vendoLivro ? (
+            <button type="button" className="lb-btn" onClick={voltarAFicha}>
+              Voltar à ficha
+            </button>
+          ) : (
+            temLivro && (
+              <button type="button" className="lb-btn lb-btn--ghost" onClick={abrirLivro}>
+                Livro
+              </button>
+            )
+          )}
+          {!vendoLivro && sistemaPronto !== null && mostrado !== undefined && edicao === null && (
             <button type="button" className="lb-btn" onClick={() => setEdicao({ base: mostrado, rascunho: mostrado })}>
               Editar
             </button>
           )}
-          {edicao !== null && (
+          {!vendoLivro && edicao !== null && (
             <>
               <button type="button" className="lb-btn lb-btn--ghost" disabled={salvando} onClick={cancelar}>
                 Cancelar
@@ -203,7 +284,7 @@ export function PlayerFicha({ sistema, personagens, tokens, envio, instant = fal
             </svg>
           </button>
         </div>
-        {sistemaPronto !== null && personagens.length > 1 && (
+        {!vendoLivro && sistemaPronto !== null && personagens.length > 1 && (
           <ul className="pp-ficha__personagens" aria-label="Seus personagens">
             {personagens.map((personagem) => (
               <li key={personagem.id}>
@@ -246,37 +327,57 @@ export function PlayerFicha({ sistema, personagens, tokens, envio, instant = fal
           Esta ficha mudou na mesa enquanto você editava. O Salvar troca só o que você mexeu.
         </p>
       )}
-      <div className="pp-ficha__corpo">
-        {sistemaPronto === null ? (
-          <div className="pp-ficha__vazio">
-            <h2 id={tituloId}>Ficha de personagem</h2>
-            <p>O mestre ainda não escolheu um sistema de RPG para esta aventura. Quando escolher, a sua ficha aparece aqui.</p>
-          </div>
-        ) : mostrado === undefined ? (
-          <SemFicha tituloId={tituloId} sistema={sistemaPronto} semPersonagem={semPersonagem} criando={espera?.tipo === 'criar'} onCriar={criar} />
-        ) : (
-          <>
-            {semPersonagem.length > 0 && edicao === null && (
-              <div className="pp-ficha__sem-ficha">
-                {semPersonagem.map((token) => (
-                  <button key={token.tokenId} type="button" className="lb-btn lb-btn--compact" disabled={salvando} onClick={() => criar(token.tokenId)}>
-                    Criar ficha de {token.nome || 'ficha sem nome'}
-                  </button>
-                ))}
-              </div>
-            )}
-            <FichaDePersonagem
-              personagem={edicao === null ? mostrado : edicao.rascunho}
-              sistema={sistemaPronto}
-              editando={edicao !== null}
-              onChange={(rascunho) => setEdicao((atual) => (atual === null ? atual : { ...atual, rascunho }))}
-              escolherImagem={escolherImagem}
-              tituloId={tituloId}
-              tipoEditavel={false}
-            />
-          </>
-        )}
-      </div>
+      {vendoLivro ? (
+        <div className="pp-ficha__corpo pp-ficha__corpo--livro">
+          {livroParaLer !== null ? (
+            <LivroDeRegras sistema={livroParaLer} livro={livroParaLer.livro ?? SEM_CAPITULOS} catalogos={livroParaLer.catalogos} />
+          ) : livroDaFicha !== undefined && livroDaFicha.estado === 'falhou' ? (
+            <div className="pp-ficha__vazio" role="alert">
+              <p>Não deu para trazer o livro da mesa. Confira a conexão e tente de novo.</p>
+              <button type="button" className="lb-btn lb-btn--primary" onClick={() => livroDaFicha.pedir()}>
+                Tentar de novo
+              </button>
+            </div>
+          ) : (
+            <div className="pp-ficha__vazio" role="status">
+              <p>Trazendo o livro de regras da mesa…</p>
+            </div>
+          )}
+        </div>
+      ) : (
+        <div className="pp-ficha__corpo">
+          {sistemaPronto === null ? (
+            <div className="pp-ficha__vazio">
+              <h2 id={tituloId}>Ficha de personagem</h2>
+              <p>O mestre ainda não escolheu um sistema de RPG para esta aventura. Quando escolher, a sua ficha aparece aqui.</p>
+            </div>
+          ) : mostrado === undefined ? (
+            <SemFicha tituloId={tituloId} sistema={sistemaPronto} semPersonagem={semPersonagem} criando={espera?.tipo === 'criar'} onCriar={criar} />
+          ) : (
+            <>
+              {semPersonagem.length > 0 && edicao === null && (
+                <div className="pp-ficha__sem-ficha">
+                  {semPersonagem.map((token) => (
+                    <button key={token.tokenId} type="button" className="lb-btn lb-btn--compact" disabled={salvando} onClick={() => criar(token.tokenId)}>
+                      Criar ficha de {token.nome || 'ficha sem nome'}
+                    </button>
+                  ))}
+                </div>
+              )}
+              <FichaDePersonagem
+                personagem={edicao === null ? mostrado : edicao.rascunho}
+                sistema={sistemaComLivro ?? sistemaPronto}
+                editando={edicao !== null}
+                onChange={(rascunho) => setEdicao((atual) => (atual === null ? atual : { ...atual, rascunho }))}
+                escolherImagem={escolherImagem}
+                tituloId={tituloId}
+                tipoEditavel={false}
+                livro={livroDaFicha}
+              />
+            </>
+          )}
+        </div>
+      )}
     </div>
   )
 }

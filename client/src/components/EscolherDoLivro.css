@@ -1,0 +1,112 @@
+/* "ESCOLHER DO LIVRO": a lista do catálogo dentro da aba em edição. Fica no
+   fluxo da aba (não é janela por cima): o mestre e o jogador continuam vendo
+   os cartões que já têm enquanto escolhem. */
+
+.lb-cartoes-edit__botoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--lb-control-gap);
+}
+
+.lb-escolher {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-2);
+  padding: var(--lb-space-3);
+  border: 1px solid var(--lb-color-line-strong);
+  border-radius: var(--lb-radius-md);
+  background: var(--lb-color-stone-sunken);
+}
+
+.lb-escolher__topo {
+  display: flex;
+  gap: var(--lb-control-gap);
+}
+
+.lb-escolher__filtro.lb-input {
+  flex: 1;
+  min-width: 0;
+}
+
+.lb-escolher__aviso {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--lb-space-2);
+  margin: 0;
+  padding: var(--lb-space-2) 0;
+  font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-parchment-dim);
+}
+
+.lb-escolher__lista {
+  max-height: min(320px, 50vh);
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  list-style: none;
+}
+
+.lb-escolher__item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  min-height: 44px;
+  padding: var(--lb-space-2);
+  border: 0;
+  border-radius: var(--lb-radius-sm);
+  background: transparent;
+  color: var(--lb-color-parchment);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color var(--lb-motion-fast) var(--lb-motion-ease);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .lb-escolher__item:hover {
+    background: var(--lb-color-stone-hover);
+  }
+}
+
+.lb-escolher__item:focus-visible {
+  outline: none;
+  box-shadow: var(--lb-shadow-focus);
+}
+
+.lb-escolher__nome {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--lb-space-1) var(--lb-space-2);
+  font-weight: var(--lb-font-weight-semibold);
+}
+
+.lb-escolher__atributos,
+.lb-escolher__ja {
+  font-family: var(--lb-font-utility);
+  font-size: var(--lb-font-size-xs);
+  font-weight: var(--lb-font-weight-medium);
+  letter-spacing: var(--lb-font-tracking-wide);
+}
+
+.lb-escolher__atributos {
+  color: var(--lb-color-tide);
+}
+
+.lb-escolher__ja {
+  color: var(--lb-color-parchment-faint);
+}
+
+.lb-escolher__resumo {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  font-size: var(--lb-font-size-sm);
+  line-height: var(--lb-font-leading-normal);
+  color: var(--lb-color-parchment-dim);
+}

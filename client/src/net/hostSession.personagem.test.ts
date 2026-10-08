@@ -5,6 +5,7 @@
  * fora; cada jogador recebe só os personagens dele, e só quando mudam.
  */
 import { describe, expect, it } from 'vitest'
+import { resumoDoLivro, sistemaSemLivro } from '../lib/livroDeRegras'
 import { createEmptyMap } from '../lib/mapFactory'
 import { novoPersonagem, type Personagem } from '../lib/personagem'
 import { SISTEMA_ONE_PIECE } from '../lib/sistemaOnePiece'
@@ -95,8 +96,8 @@ describe('host: quem recebe qual ficha', () => {
   it('na entrada, cada um recebe o sistema e SÓ os personagens das fichas dele', () => {
     const { session, mundo } = mesa()
     const r = session.handleMessage('c3', { type: 'join', code: CODIGO, name: 'Caio' }, mundo())
-    // Caio acabou de chegar, sem ficha: sistema e lista vazia.
-    expect(doTipo(r.outbound, 'c3', 'rpg.sistema')).toEqual([{ type: 'rpg.sistema', sistema: SISTEMA_ONE_PIECE }])
+    // Caio acabou de chegar, sem ficha: sistema (sem o livro, que vai sob pedido: hostSession.livro.test.ts) e lista vazia.
+    expect(doTipo(r.outbound, 'c3', 'rpg.sistema')).toEqual([{ type: 'rpg.sistema', sistema: sistemaSemLivro(SISTEMA_ONE_PIECE), livro: resumoDoLivro(SISTEMA_ONE_PIECE) }])
     expect(doTipo(r.outbound, 'c3', 'personagens')).toEqual([{ type: 'personagens', personagens: [], tokens: [] }])
   })
 
