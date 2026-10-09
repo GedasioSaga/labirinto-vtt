@@ -19,6 +19,8 @@ use tokio::net::TcpListener;
 use tokio::sync::{mpsc, watch, OwnedSemaphorePermit, Semaphore};
 use tokio::time::Instant;
 
+use super::animacoes::Pacote;
+
 /// Tamanho máximo de uma mensagem recebida de um jogador.
 pub const MAX_MESSAGE_BYTES: usize = 64 * 1024;
 /// Orçamento de mensagens por segundo por conexão (token bucket).
@@ -100,6 +102,8 @@ pub struct Room {
     bad_codes: Mutex<BadCodeLimiter>,
     /// Pasta de onde `/media/{id}` lê (`<appData>/midia`); `None` = a rota só dá 404.
     media_dir: Mutex<Option<PathBuf>>,
+    /// Pacote de onde `/animacoes/...` lê (`<appData>/animacoes`); `None` = só 404.
+    animacoes: Mutex<Option<Pacote>>,
 }
 
 /// Conta joins com código errado por IP. `MAX_BAD_CODES` falhas dentro de
@@ -213,6 +217,7 @@ impl Room {
             tunnel_host: Mutex::new(None),
             bad_codes: Mutex::new(BadCodeLimiter::default()),
             media_dir: Mutex::new(None),
+            animacoes: Mutex::new(None),
         })
     }
 
@@ -223,6 +228,15 @@ impl Room {
 
     fn media_dir(&self) -> Option<PathBuf> {
         lock(&self.media_dir).clone()
+    }
+
+    /// Passa a servir `/animacoes/...` deste pacote (ver `animacoes.rs`).
+    pub fn set_animacoes(&self, pacote: Pacote) {
+        *lock(&self.animacoes) = Some(pacote);
+    }
+
+    fn animacoes(&self) -> Option<Pacote> {
+        lock(&self.animacoes).clone()
     }
 
     pub fn code(&self) -> &str {
@@ -337,6 +351,9 @@ pub fn router(room: Arc<Room>) -> Router {
         .route("/player", get(player_page))
         .route("/assets/{*path}", get(asset_file))
         .route("/media/{id}", get(media_file))
+        // A rota fixa vence a com parâmetro: `indice.json` nunca cai em `{nome}`.
+        .route("/animacoes/indice.json", get(animacoes_indice))
+        .route("/animacoes/{nome}", get(animacoes_arquivo))
         .fallback(dev_fallback)
         .with_state(room)
 }
@@ -841,6 +858,69 @@ fn media_response(bytes: Vec<u8>, mime: &'static str) -> Response {
     )
         .into_response()
 }
+
+/// `/animacoes/indice.json`: o índice do pacote instalado, com a assinatura
+/// reconferida agora. O mestre já conferiu; o jogador confia no mestre.
+async fn animacoes_indice(State(room): State<Arc<Room>>) -> Response {
+    let Some(pacote) = room.animacoes() else {
+        return StatusCode::NOT_FOUND.into_response();
+    };
+    match pacote.ler_indice().await {
+        Ok(verificado) => (
+            [
+                (header::CONTENT_TYPE, HeaderValue::from_static("application/json")),
+                (header::X_CONTENT_TYPE_OPTIONS, HeaderValue::from_static("nosniff")),
+                (header::CACHE_CONTROL, HeaderValue::from_static(CACHE_SEMPRE_CONFERIR)),
+                (header::HeaderName::from_static("cross-origin-resource-policy"), HeaderValue::from_static("same-origin")),
+            ],
+            verificado.texto,
+        )
+            .into_response(),
+        Err(_) => StatusCode::NOT_FOUND.into_response(),
+    }
+}
+
+/// `/animacoes/{nome}`: um módulo do pacote, só se o índice assinado o listar
+/// e o conteúdo bater com o sha256 dele. Toda recusa é o mesmo 404.
+///
+/// O nome NÃO leva o hash (`porta-rangendo.js` pode mudar de conteúdo numa
+/// versão nova do pacote), então não dá para guardar como imutável: o
+/// navegador confere a cada vez, com o sha256 de `ETag`, e recebe 304 sem
+/// corpo quando já tem a versão certa.
+async fn animacoes_arquivo(State(room): State<Arc<Room>>, Path(nome): Path<String>, headers: HeaderMap) -> Response {
+    let nao_encontrado = || StatusCode::NOT_FOUND.into_response();
+    let Some(pacote) = room.animacoes() else {
+        return nao_encontrado();
+    };
+    let Ok(verificado) = pacote.ler_indice().await else {
+        return nao_encontrado();
+    };
+    let Some(arquivo) = verificado.arquivo(&nome) else {
+        return nao_encontrado();
+    };
+    // O sha256 do índice validado é hex puro: sempre vale como header.
+    let Ok(etag) = HeaderValue::from_str(&format!("\"{}\"", arquivo.sha256)) else {
+        return nao_encontrado();
+    };
+    let cabecalhos = [
+        (header::CONTENT_TYPE, HeaderValue::from_static("text/javascript; charset=utf-8")),
+        (header::X_CONTENT_TYPE_OPTIONS, HeaderValue::from_static("nosniff")),
+        (header::CACHE_CONTROL, HeaderValue::from_static(CACHE_DO_MODULO)),
+        (header::HeaderName::from_static("cross-origin-resource-policy"), HeaderValue::from_static("same-origin")),
+        (header::ETAG, etag.clone()),
+    ];
+    if headers.get(header::IF_NONE_MATCH) == Some(&etag) {
+        return (StatusCode::NOT_MODIFIED, cabecalhos).into_response();
+    }
+    match pacote.ler_arquivo_de(arquivo).await {
+        Ok(bytes) => (cabecalhos, bytes).into_response(),
+        Err(_) => nao_encontrado(),
+    }
+}
+
+/// `private`: o cache da Cloudflare (link público) não guarda o código da
+/// mesa; `no-cache`: o navegador confere o `ETag` antes de reusar.
+const CACHE_DO_MODULO: &str = "private, no-cache";
 
 /// `Cache-Control` do que o navegador confere a cada abertura: a `player.html`
 /// (é ela que aponta para os nomes do build atual), o proxy de dev e o que em

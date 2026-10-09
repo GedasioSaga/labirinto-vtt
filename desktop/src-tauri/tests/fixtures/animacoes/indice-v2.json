@@ -1,0 +1,13 @@
+{
+  "formato": 1,
+  "versao": 2,
+  "motorMinimo": "0.4.0",
+  "arquivos": [
+    { "nome": "porta-teste.js", "sha256": "4141e8b37572ee296881d36ad3ab85e3226ed0ec03066a3ad1ba1054cc8787e9", "tamanho": 52 },
+    { "nome": "transicao-teste.js", "sha256": "873f52b45eb9489c1a922f0395d9547b47314a6fd47e2275bf8cfcfe5f8e100c", "tamanho": 56 }
+  ],
+  "animacoes": [
+    { "id": "porta-teste", "tipo": "porta", "arquivo": "porta-teste.js" },
+    { "id": "transicao-teste", "tipo": "transicao", "arquivo": "transicao-teste.js" }
+  ]
+}

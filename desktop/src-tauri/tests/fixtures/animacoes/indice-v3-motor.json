@@ -1,0 +1,9 @@
+{
+  "formato": 1,
+  "versao": 3,
+  "motorMinimo": "99.0.0",
+  "arquivos": [
+    { "nome": "porta-teste.js", "sha256": "4141e8b37572ee296881d36ad3ab85e3226ed0ec03066a3ad1ba1054cc8787e9", "tamanho": 52 }
+  ],
+  "animacoes": []
+}

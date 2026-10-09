@@ -5,6 +5,7 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use futures_util::{SinkExt, StreamExt};
+use labirinto_lib::net::animacoes;
 use labirinto_lib::net::commands;
 use labirinto_lib::net::media;
 use labirinto_lib::net::server::{self, Asset, AssetSource, ClientId, NetSink, PeerEvent, Room};
@@ -262,6 +263,70 @@ async fn media_serve_so_a_imagem_da_pasta_da_sala() {
     std::fs::remove_dir_all(&raiz).unwrap();
 }
 
+/// PACOTE DE ANIMAÇÕES: só o que o índice assinado lista sai pela sala, com o
+/// conteúdo conferido; todo o resto é o mesmo 404.
+#[tokio::test]
+async fn animacoes_serve_so_o_que_o_indice_assinado_lista() {
+    const FIXTURE: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/animacoes");
+    let (addr, room, _sink) = start_server().await;
+    let raiz = std::env::temp_dir().join(format!("labirinto-sala-animacoes-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&raiz);
+    let atual = raiz.join("atual");
+    std::fs::create_dir_all(&atual).unwrap();
+    for (origem, destino) in [
+        ("indice-v2.json", "indice.json"),
+        ("indice-v2.json.sig", "indice.json.sig"),
+        ("porta-teste.js", "porta-teste.js"),
+        ("transicao-teste.js", "transicao-teste.js"),
+    ] {
+        std::fs::copy(format!("{FIXTURE}/{origem}"), atual.join(destino)).unwrap();
+    }
+    std::fs::write(atual.join("intruso.js"), b"alert(1)").unwrap();
+
+    // Sem pacote configurado, nem o índice sai.
+    assert!(http_get(addr, "/animacoes/indice.json").await.starts_with("HTTP/1.1 404"));
+    room.set_animacoes(animacoes::Pacote::com_chave(raiz.clone(), include_str!("fixtures/animacoes/chave-teste.pub")));
+
+    let indice = http_get(addr, "/animacoes/indice.json").await;
+    let cabecalho = indice.to_ascii_lowercase();
+    assert!(cabecalho.starts_with("http/1.1 200"), "{indice}");
+    assert!(cabecalho.contains("content-type: application/json"));
+    assert!(cabecalho.contains("cache-control: no-cache"));
+    assert!(cabecalho.contains("x-content-type-options: nosniff"));
+    assert!(indice.ends_with(include_str!("fixtures/animacoes/indice-v2.json")));
+
+    let modulo = http_get(addr, "/animacoes/porta-teste.js").await;
+    let cabecalho = modulo.to_ascii_lowercase();
+    assert!(cabecalho.starts_with("http/1.1 200"), "{modulo}");
+    assert!(cabecalho.contains("content-type: text/javascript; charset=utf-8"));
+    assert!(cabecalho.contains("x-content-type-options: nosniff"));
+    assert!(cabecalho.contains("cache-control: private, no-cache"));
+    assert!(modulo.ends_with(include_str!("fixtures/animacoes/porta-teste.js")));
+    let sha = media::hash_hex(include_bytes!("fixtures/animacoes/porta-teste.js"));
+    assert!(cabecalho.contains(&format!("etag: \"{sha}\"")));
+    // O navegador que já tem a versão certa recebe 304, sem corpo.
+    let revalidado = http_get_com(addr, "/animacoes/porta-teste.js", &format!("If-None-Match: \"{sha}\"\r\n")).await;
+    assert!(revalidado.starts_with("HTTP/1.1 304"), "{revalidado}");
+    assert!(!revalidado.contains("export default"));
+    // ETag de outro conteúdo não vale: o corpo vem inteiro.
+    let outro = http_get_com(addr, "/animacoes/porta-teste.js", "If-None-Match: \"abc\"\r\n").await;
+    assert!(outro.starts_with("HTTP/1.1 200"));
+
+    // Fora do índice, nome torto, e a própria assinatura: tudo 404.
+    for ruim in ["intruso.js", "nao-existe.js", "indice.json.sig", "..%2Findice.json", "..%5Cporta-teste.js", "PORTA-TESTE.js", ".."] {
+        assert!(http_get(addr, &format!("/animacoes/{ruim}")).await.starts_with("HTTP/1.1 404"), "{ruim}");
+    }
+    // Módulo trocado no disco depois de instalado: 404.
+    std::fs::write(atual.join("transicao-teste.js"), b"export default function criar() { return 'XXXXXXXXX'; }\n").unwrap();
+    assert!(http_get(addr, "/animacoes/transicao-teste.js").await.starts_with("HTTP/1.1 404"));
+    // Índice editado à mão: a assinatura não confere e nada mais sai.
+    let editado = include_str!("fixtures/animacoes/indice-v2.json").replace("\"versao\": 2", "\"versao\": 5");
+    std::fs::write(atual.join("indice.json"), editado).unwrap();
+    assert!(http_get(addr, "/animacoes/indice.json").await.starts_with("HTTP/1.1 404"));
+    assert!(http_get(addr, "/animacoes/porta-teste.js").await.starts_with("HTTP/1.1 404"));
+    std::fs::remove_dir_all(&raiz).unwrap();
+}
+
 const TUNNEL: &str = "calm-river-42.trycloudflare.com";
 
 /// Upgrade como o `cloudflared` repassa: TCP do loopback, `Host`/`Origin` do
@@ -371,8 +436,13 @@ async fn codigos_errados_do_mesmo_64_ipv6_bloqueiam_juntos() {
 }
 
 async fn http_get(addr: SocketAddr, path: &str) -> String {
+    http_get_com(addr, path, "").await
+}
+
+/// `extra`: linhas de header a mais, cada uma terminada em `\r\n`.
+async fn http_get_com(addr: SocketAddr, path: &str, extra: &str) -> String {
     let mut tcp = TcpStream::connect(addr).await.unwrap();
-    let raw = format!("GET {path} HTTP/1.1\r\nHost: {addr}\r\nConnection: close\r\n\r\n");
+    let raw = format!("GET {path} HTTP/1.1\r\nHost: {addr}\r\nConnection: close\r\n{extra}\r\n");
     tcp.write_all(raw.as_bytes()).await.unwrap();
     let mut out = Vec::new();
     tokio::time::timeout(WAIT, tcp.read_to_end(&mut out)).await.unwrap().unwrap();

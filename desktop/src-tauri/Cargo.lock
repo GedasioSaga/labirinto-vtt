@@ -1939,8 +1939,10 @@ name = "labirinto"
 version = "0.4.20"
 dependencies = [
  "axum",
+ "base64 0.22.1",
  "futures-util",
  "local-ip-address",
+ "minisign-verify",
  "qrcode",
  "rand",
  "reqwest",

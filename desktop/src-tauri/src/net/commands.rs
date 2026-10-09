@@ -11,6 +11,7 @@ use serde_json::Value;
 use tauri::{AppHandle, Emitter, Manager, Runtime, State};
 use tokio::sync::Mutex;
 
+use super::animacoes;
 use super::server::{self, lock, Asset, ClientId, NetSink, PeerEvent, Room, SendError};
 use super::tunnel::{self, CloseReason, SharedChild, TunnelEvent, TUNNEL_EVENT};
 
@@ -256,9 +257,11 @@ pub async fn net_start_room<R: Runtime>(app: AppHandle<R>, state: State<'_, NetS
     });
     let code = generate_code();
     let room = Room::new(code.clone(), Arc::new(TauriSink(app.clone())), assets);
-    // Sem pasta de dados do app, a sala abre igual: só as imagens por URL (`/media`) ficam de fora.
+    // Sem pasta de dados do app, a sala abre igual: só as imagens por URL
+    // (`/media`) e as animações do pacote (`/animacoes`) ficam de fora.
     if let Ok(dados) = app.path().app_data_dir() {
         room.set_media_dir(dados.join(super::media::PASTA_DE_MIDIA));
+        room.set_animacoes(super::animacoes::Pacote::oficial(&dados));
     }
     for listener in listeners {
         tauri::async_runtime::spawn(server::serve(listener, room.clone()));
@@ -428,6 +431,39 @@ pub async fn net_send(state: State<'_, NetState>, client_id: String, msg: Value)
 pub async fn net_kick(state: State<'_, NetState>, client_id: String) -> Result<(), String> {
     let room = active_room(&state).await?;
     kick(&room, &client_id)
+}
+
+// --- Pacote de animações (ver `animacoes.rs`) -------------------------------
+
+fn pacote_de_animacoes<R: Runtime>(app: &AppHandle<R>) -> Result<animacoes::Pacote, String> {
+    let dados = app.path().app_data_dir().map_err(|e| format!("pasta de dados do app indisponível: {e}"))?;
+    Ok(animacoes::Pacote::oficial(&dados))
+}
+
+/// Procura pacote novo no GitHub e instala se for o caso. Rede e pacote ruim
+/// voltam como `estado`; só falha de disco local vira erro.
+#[tauri::command]
+pub async fn animacoes_atualizar<R: Runtime>(app: AppHandle<R>) -> Result<animacoes::ResultadoDaAtualizacao, String> {
+    let pacote = pacote_de_animacoes(&app)?;
+    let fonte = animacoes::GitHub::novo().map_err(|e| e.to_string())?;
+    let versao = &app.package_info().version;
+    pacote.atualizar(&fonte, (versao.major, versao.minor, versao.patch)).await.map_err(|e| e.to_string())
+}
+
+/// O índice instalado, com a assinatura reconferida; `None` se não houver ou
+/// não conferir.
+#[tauri::command]
+pub async fn animacoes_ler_indice<R: Runtime>(app: AppHandle<R>) -> Option<String> {
+    let pacote = pacote_de_animacoes(&app).ok()?;
+    pacote.ler_indice().await.ok().map(|verificado| verificado.texto)
+}
+
+/// Os bytes crus de um módulo do pacote (`ArrayBuffer` no TS, não array JSON).
+#[tauri::command]
+pub async fn animacoes_ler_arquivo<R: Runtime>(app: AppHandle<R>, nome: String) -> Result<tauri::ipc::Response, String> {
+    let pacote = pacote_de_animacoes(&app)?;
+    let bytes = pacote.ler_arquivo(&nome).await.map_err(|e| e.to_string())?;
+    Ok(tauri::ipc::Response::new(bytes))
 }
 
 async fn active_room(state: &NetState) -> Result<Arc<Room>, String> {

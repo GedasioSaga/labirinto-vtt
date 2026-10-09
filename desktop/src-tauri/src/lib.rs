@@ -42,6 +42,9 @@ pub fn run() {
             net::commands::net_kick,
             net::commands::net_start_tunnel,
             net::commands::net_stop_tunnel,
+            net::commands::animacoes_atualizar,
+            net::commands::animacoes_ler_indice,
+            net::commands::animacoes_ler_arquivo,
             visao_jogador::abrir_visao_jogador,
             visao_jogador::mostrar_visao_jogador,
             visao_jogador::fechar_visao_jogador

@@ -5,6 +5,7 @@
 //! servidor inteiro em `tests/net_server.rs` sem abrir janela. `commands` faz a
 //! costura com o `AppHandle` e expõe os comandos IPC.
 
+pub mod animacoes;
 pub mod commands;
 pub mod media;
 pub mod server;
