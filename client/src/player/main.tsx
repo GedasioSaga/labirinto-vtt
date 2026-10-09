@@ -950,9 +950,6 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
   // ajudante) chega marcado quando o mestre deixou ele se esconder.
   const mineId = characters.find((c) => !('contrato' in c))?.id
   const ownHidden = mineId !== undefined && map?.tokens.find((t) => t.id === mineId)?.secret === true
-  // O retrato ao lado das ações do cartão da ficha alheia: a foto da ficha DELE (a própria, senão a primeira), ou as iniciais.
-  const portraitToken = map?.tokens.find((t) => t.id === (mineId ?? ownTokens[0]))
-  const ownPortrait = { name: portraitToken?.name ?? state.selfName ?? 'Você', image: portraitToken?.imageData ?? null }
   const partyTokens = state.partyTokens ?? NO_TOKENS
   // ITEM PEGÁVEL: "Comigo" é a mochila das fichas dele; "Dar a…" oferece só
   // fichas de COLEGAS encostadas numa delas — NPC do mestre o host recusaria.
@@ -1695,7 +1692,6 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
             token={openToken}
             onClose={closeTokenCard}
             waiting={state.tokenAction?.phase === 'waiting'}
-            portrait={ownPortrait}
             give={withGive(giveChoiceFor(map, ownTokens, partyTokens, openToken.id), (itemId) => {
               if (connection.giveItem(itemId, openToken.id)) setOpenTokenId(null)
             })}

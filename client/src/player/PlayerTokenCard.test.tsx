@@ -3,14 +3,13 @@ import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { CarriedItem, Token } from '../types/map'
 import { TOKEN_ACTION_TEXT_MAX_LENGTH } from '../lib/tokenActions'
-import { PlayerTokenCard, type TokenCardGive, type TokenCardPortrait } from './PlayerTokenCard'
-
-function ficha(name: string): Token {
-  return { id: 'severa', characterId: null, name, x: 200, y: 100, size: 1, image: null }
-}
+import { PlayerTokenCard, type TokenCardGive } from './PlayerTokenCard'
 
 const FOTO = 'data:image/png;base64,iVBORw0KGgo='
-const ALEXEI: TokenCardPortrait = { name: 'Alexei Volkov', image: FOTO }
+
+function ficha(name: string, imageData: string | null = FOTO): Token {
+  return { id: 'severa', characterId: null, name, x: 200, y: 100, size: 1, image: null, imageData }
+}
 
 describe('PlayerTokenCard (cartão da ficha alheia)', () => {
   let container: HTMLDivElement
@@ -31,7 +30,8 @@ describe('PlayerTokenCard (cartão da ficha alheia)', () => {
   interface Props {
     name?: string
     waiting?: boolean
-    portrait?: TokenCardPortrait
+    /** A foto da ficha tocada; ausente = `FOTO`. */
+    imageData?: string | null
     give?: TokenCardGive
     onSend?: (action: string, text: string) => void
     onClose?: () => void
@@ -41,9 +41,8 @@ describe('PlayerTokenCard (cartão da ficha alheia)', () => {
     act(() =>
       root.render(
         <PlayerTokenCard
-          token={ficha(props.name ?? 'Mulher de capuz')}
+          token={ficha(props.name ?? 'Mulher de capuz', props.imageData === undefined ? FOTO : props.imageData)}
           waiting={props.waiting ?? false}
-          portrait={props.portrait ?? ALEXEI}
           give={props.give ?? { kind: 'npc' }}
           onSend={props.onSend ?? (() => {})}
           onClose={props.onClose ?? (() => {})}
@@ -82,24 +81,26 @@ describe('PlayerTokenCard (cartão da ficha alheia)', () => {
     return [...container.querySelectorAll('.pp-tokencard__actions button')].map((b) => b.textContent?.trim() ?? '')
   }
 
-  it('mostra o nome que o jogador vê, o retrato DELE ao lado e só Falar, Ação e Entregar item', () => {
+  it('mostra o nome que o jogador vê, a foto DA FICHA TOCADA ao lado e só Falar, Ação e Entregar item', () => {
     render({})
     const dialogo = container.querySelector('[role="dialog"]')
     expect(dialogo?.getAttribute('aria-label')).toBe('Ficha: Mulher de capuz')
     expect(acoes()).toEqual(['Falar', 'Ação', 'Entregar item'])
     for (const velha of ['Oferecer', 'Pedir ajuda', 'Empurrar', 'Outro']) expect(container.textContent).not.toContain(velha)
-    const retrato = container.querySelector('.pp-tokencard__me')
+    const retrato = container.querySelector('.pp-tokencard__face')
     expect(retrato?.querySelector('img')?.getAttribute('src')).toBe(FOTO)
-    expect(retrato?.textContent).toContain('Alexei Volkov')
+    // O nome aparece uma vez só, no título.
+    expect(container.querySelector('.pp-tokencard__name')?.textContent).toBe('Mulher de capuz')
+    expect(retrato?.textContent).toBe('')
     render({ name: '' })
     expect(container.querySelector('[role="dialog"]')?.getAttribute('aria-label')).toBe('Ficha: Alguém')
   })
 
-  it('sem foto na ficha dele, o retrato são as iniciais do nome', () => {
-    render({ portrait: { name: 'Alexei Volkov', image: null } })
-    const retrato = container.querySelector('.pp-tokencard__me')
+  it('sem foto na ficha tocada, o retrato são as iniciais do nome dela', () => {
+    render({ name: 'Rigel Antares', imageData: null })
+    const retrato = container.querySelector('.pp-tokencard__face')
     expect(retrato?.querySelector('img')).toBeNull()
-    expect(retrato?.querySelector('.lb-ficha__iniciais')?.textContent).toBe('AV')
+    expect(retrato?.querySelector('.lb-ficha__iniciais')?.textContent).toBe('RA')
   })
 
   it('Falar exige texto: o envio só liga depois de escrever, e o contador diz quanto falta', () => {
@@ -195,7 +196,7 @@ describe('PlayerTokenCard (cartão da ficha alheia)', () => {
   })
 
   it('o nome da ficha é texto, nunca HTML', () => {
-    render({ name: '<img src=x onerror="alert(1)">', portrait: { name: 'Alexei', image: null } })
+    render({ name: '<img src=x onerror="alert(1)">', imageData: null })
     expect(container.querySelector('img')).toBeNull()
     expect(container.textContent).toContain('<img src=x onerror="alert(1)">')
   })

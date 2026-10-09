@@ -16,12 +16,6 @@ export type TokenCardGive =
   | { kind: 'far' }
   | { kind: 'npc' }
 
-/** O retrato do PRÓPRIO jogador ao lado das ações: a foto da ficha dele, ou as iniciais do nome. */
-export interface TokenCardPortrait {
-  name: string
-  image: string | null
-}
-
 interface PlayerTokenCardProps {
   /** A ficha como o JOGADOR a recebe (recorte do host): o nome é o "Nome para os jogadores". */
   token: Token
@@ -30,7 +24,6 @@ interface PlayerTokenCardProps {
   onSend: (action: TokenAction, text: string) => void
   /** Já há um pedido esperando o mestre: "Falar" e "Ação" ficam desligadas ("Entregar item" não passa pelo mestre). */
   waiting: boolean
-  portrait: TokenCardPortrait
   give: TokenCardGive
 }
 
@@ -52,7 +45,7 @@ function giveBlockedText(give: Exclude<TokenCardGive, { kind: 'ready' }>, name: 
 }
 
 /**
- * CARTÃO DA FICHA ALHEIA (NPC ou colega): o retrato do jogador ao lado das três
+ * CARTÃO DA FICHA ALHEIA (NPC ou colega): o retrato DELA ao lado das três
  * coisas que ele pode fazer com ela. "Falar" e "Ação" (agir com ou contra a
  * ficha: beijar, lutar) pedem o texto e viram pedido na Caixa do mestre;
  * "Entregar item" abre a mochila e o item vai direto, pelo `item.give`. O
@@ -63,7 +56,7 @@ function giveBlockedText(give: Exclude<TokenCardGive, { kind: 'ready' }>, name: 
  * O nome vai como TEXTO (o React escapa): é o mestre quem o escreve, e ele
  * chega pela rede.
  */
-export function PlayerTokenCard({ token, onClose, onSend, waiting, portrait, give }: PlayerTokenCardProps) {
+export function PlayerTokenCard({ token, onClose, onSend, waiting, give }: PlayerTokenCardProps) {
   const cardRef = useRef<HTMLDivElement | null>(null)
   const actionsRef = useRef<HTMLDivElement | null>(null)
   const fieldRef = useRef<HTMLInputElement | null>(null)
@@ -142,12 +135,10 @@ export function PlayerTokenCard({ token, onClose, onSend, waiting, portrait, giv
       <div ref={cardRef} className="pp-pincard pp-tokencard" role="dialog" aria-modal="true" aria-label={`Ficha: ${name}`}>
         <p className="pp-tokencard__name">{name}</p>
         <div className="pp-tokencard__body">
-          <figure className="pp-tokencard__me">
-            <span className="pp-tokencard__face">
-              <ImagemOuIniciais imagem={portrait.image} nome={portrait.name} />
-            </span>
-            <figcaption className="pp-tokencard__me-name">{portrait.name}</figcaption>
-          </figure>
+          {/* O nome já está no título: aqui vai só a foto da ficha tocada, como o jogador a vê no mapa. */}
+          <span className="pp-tokencard__face">
+            <ImagemOuIniciais imagem={token.imageData ?? null} nome={name} />
+          </span>
           <div className="pp-tokencard__main">
             {waiting && asking === null && chosen !== 'entregar' && (
               <p className="pp-pincard__locked">Você já tem um pedido esperando o mestre. Entregar item continua valendo.</p>

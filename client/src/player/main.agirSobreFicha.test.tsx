@@ -145,8 +145,8 @@ describe('main.tsx: agir sobre uma ficha de ponta a ponta', () => {
   it('tocar na ficha alheia abre o cartão; "Enviar ao mestre" manda o pedido e mostra "Aguardando…"', () => {
     act(() => botao('ficha severa').click())
     expect(dialogo().getAttribute('aria-label')).toBe('Ficha: Mulher de capuz')
-    // O retrato DELA ao lado das três ações: sem foto na ficha, as iniciais do nome.
-    expect(dialogo().querySelector('.pp-tokencard__me')?.textContent).toBe('GGabi')
+    // O retrato DA FICHA TOCADA (não o da Gabi) ao lado das três ações: sem foto, as iniciais do nome dela.
+    expect(dialogo().querySelector('.pp-tokencard__face')?.textContent).toBe('MD')
     expect(Array.from(dialogo().querySelectorAll('.pp-tokencard__actions button')).map((b) => b.textContent)).toEqual(['Falar', 'Ação', 'Entregar item'])
     act(() => botao('Falar', dialogo()).click())
     const campo = dialogo().querySelector('input')
