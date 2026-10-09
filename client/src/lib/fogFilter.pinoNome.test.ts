@@ -70,4 +70,14 @@ describe('fogFilter: animação do cenário do pino "!"', () => {
     expect(view.map.pins.find((p) => p.id === 'vazio')?.cenario).toBeUndefined()
     expect(view.map.pins.find((p) => p.id === 'pino-7')?.cenario).toBeUndefined()
   })
+
+  it('o estilo do pacote vai junto ao jogador; id torto de arquivo editado à mão fica no host', () => {
+    const comEstilo: Pin = { id: 'forte', x: 240, y: 200, kind: 'exclamacao', description: 'Forte', image: IMAGEM, cenario: { ...CENARIO, estilo: 'neve-caindo' } }
+    const torto: Pin = { id: 'torto', x: 245, y: 200, kind: 'exclamacao', description: 'Torto', image: IMAGEM, cenario: { ...CENARIO, estilo: 'Neve <b>' } }
+    const view = filterMapForPlayer(mapaCom([comEstilo, torto]), 'diego', POSSE, RAIO)
+    expect(view.map.pins.find((p) => p.id === 'forte')?.cenario).toEqual({ ...CENARIO, estilo: 'neve-caindo' })
+    const lidoTorto = view.map.pins.find((p) => p.id === 'torto')?.cenario
+    expect(lidoTorto).toEqual(CENARIO)
+    expect(lidoTorto).not.toHaveProperty('estilo')
+  })
 })

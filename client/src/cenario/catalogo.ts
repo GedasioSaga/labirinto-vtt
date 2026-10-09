@@ -41,9 +41,25 @@ export const CENARIO_DURACAO_MAX_S = 40
 
 export type QuandoToca = 'primeira' | 'sempre'
 
+/**
+ * Id de ESTILO de cenário no mapa e no disco: curto, minúsculo, sem espaço — a
+ * mesma forma do id de animação de porta. Fora disso o campo é descartado.
+ */
+export const ID_DE_ESTILO_DE_CENARIO = /^[a-z0-9-]{1,40}$/
+
+export function idDeEstiloDeCenarioValido(valor: unknown): valor is string {
+  return typeof valor === 'string' && ID_DE_ESTILO_DE_CENARIO.test(valor)
+}
+
 /** O que fica gravado no pino "!". Ausente = o cartão de sempre, sem animação. */
 export interface CenarioDoPino {
   quando: QuandoToca
+  /**
+   * Estilo vindo do pacote de animações (`estilosDeCenario.ts`). Ausente = a
+   * panorâmica embutida. Id de um estilo que este app ainda não tem também
+   * toca a panorâmica, com os campos abaixo: por isso eles continuam gravados.
+   */
+  estilo?: string
   movimento: MovimentoId
   /** Ausente = a duração natural. */
   duracaoS?: number
@@ -88,13 +104,26 @@ export function parseCenario(valor: unknown): CenarioDoPino | undefined {
     som: v.som === true,
   }
   if (isDuracaoDeCenario(v.duracaoS)) lido.duracaoS = v.duracaoS
+  // Estilo torto some e fica a panorâmica: o id vira chave de busca no registro
+  // e texto na tela ("Não instalado (id)"), então só a forma curta atravessa.
+  if (idDeEstiloDeCenarioValido(v.estilo)) lido.estilo = v.estilo
   return lido
+}
+
+/**
+ * O cenário com outro estilo: `null` tira o campo (a panorâmica), em vez de
+ * gravar `undefined` — o pino fica igual ao de antes do estilo existir.
+ */
+export function cenarioComEstilo(cenario: CenarioDoPino, estilo: string | null): CenarioDoPino {
+  const { estilo: _anterior, ...semEstilo } = cenario
+  return estilo === null ? semEstilo : { ...semEstilo, estilo }
 }
 
 export function sameCenario(a: CenarioDoPino | undefined, b: CenarioDoPino | undefined): boolean {
   if (a === undefined || b === undefined) return a === b
   return (
     a.quando === b.quando &&
+    a.estilo === b.estilo &&
     a.movimento === b.movimento &&
     a.duracaoS === b.duracaoS &&
     a.nevoa === b.nevoa &&

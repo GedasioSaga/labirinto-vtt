@@ -67,6 +67,7 @@
 }
 
 .lb-cenario__particulas,
+.lb-cenario__tela,
 .lb-cenario__vinheta,
 .lb-cenario__cortina {
   position: absolute;

@@ -6,10 +6,12 @@ import {
   CENARIO_DURACAO_NATURAL_S,
   CENARIO_PADRAO,
   MOVIMENTOS,
+  cenarioComEstilo,
   type CenarioDoPino,
   type MovimentoId,
 } from './catalogo'
 import { CenarioPreviewDialog } from './CenarioPreviewDialog'
+import { useEstilosDeCenario } from './estilosDeCenario'
 import './cenario.css'
 
 interface CenarioSectionProps {
@@ -51,18 +53,29 @@ function ExpandirIcon() {
   )
 }
 
+/** Valor do seletor "Estilo" para a panorâmica embutida: nenhum id válido é vazio. */
+const PANORAMICA = ''
+
 /**
  * ANIMAÇÃO DO CENÁRIO no painel do pino "!": quando toca (nunca, só da
- * primeira vez, sempre), qual movimento, quanto tempo e quais efeitos. Cada
- * movimento tem o botão de assistir inteiro numa janela.
+ * primeira vez, sempre), qual estilo, quanto tempo e — na panorâmica — qual
+ * movimento e quais efeitos. Cada movimento, e cada estilo do pacote, tem o
+ * botão de assistir inteiro numa janela.
  */
 export function CenarioSection({ cenario, imagem, onChange }: CenarioSectionProps) {
   const tituloId = useId()
   const quandoId = useId()
+  const estiloId = useId()
   const duracaoId = useId()
   const dicaId = useId()
   const [previa, setPrevia] = useState<CenarioDoPino | null>(null)
   const quando: Quando = cenario?.quando ?? 'nao'
+  const estilos = useEstilosDeCenario()
+  const estiloGravado = cenario?.estilo
+  const estilo = estiloGravado === undefined ? null : (estilos.find((e) => e.id === estiloGravado) ?? null)
+  // Id de um pacote que este app ainda não baixou: a opção diz isso em vez de
+  // virar "Panorâmica" calada — o seletor não mente sobre o pino.
+  const naoInstalado = estiloGravado !== undefined && estilo === null ? estiloGravado : null
 
   function mudar(patch: Partial<CenarioDoPino>) {
     onChange({ ...(cenario ?? CENARIO_PADRAO), ...patch })
@@ -102,32 +115,70 @@ export function CenarioSection({ cenario, imagem, onChange }: CenarioSectionProp
           </div>
           {cenario !== undefined && (
             <>
-              <ul className="lb-cenario-secao__movimentos">
-                {MOVIMENTOS.map((m) => (
-                  <li key={m.id} className="lb-cenario-mov" data-escolhido={cenario.movimento === m.id}>
-                    <button type="button" className="lb-cenario-mov__escolher" aria-pressed={cenario.movimento === m.id} onClick={() => mudar({ movimento: m.id })}>
-                      <span className="lb-cenario-mov__seta">
-                        <SetaDoMovimento id={m.id} />
-                      </span>
-                      {m.nome}
-                    </button>
-                    <button
-                      type="button"
-                      className="lb-iconbtn lb-iconbtn--sm"
-                      aria-label={`Assistir ${m.nome}`}
-                      title="Assistir inteira"
-                      onClick={() => setPrevia({ ...cenario, movimento: m.id })}
-                    >
-                      <ExpandirIcon />
-                    </button>
-                  </li>
-                ))}
-              </ul>
-              <DuracaoDoCenario key={cenario.movimento} inputId={duracaoId} dicaId={dicaId} duracaoS={cenario.duracaoS} onChange={(duracaoS) => mudar({ duracaoS })} />
-              <Toggle label="Névoa" checked={cenario.nevoa} onChange={(nevoa) => mudar({ nevoa })} />
-              <Toggle label="Raios de sol" checked={cenario.raios} onChange={(raios) => mudar({ raios })} />
-              <Toggle label="Partículas (pólen e folhas)" checked={cenario.particulas} onChange={(particulas) => mudar({ particulas })} />
-              <Toggle label="Som do vento" checked={cenario.som} onChange={(som) => mudar({ som })} />
+              <div className="lb-field">
+                <label className="lb-label" htmlFor={estiloId}>
+                  Estilo
+                </label>
+                <select
+                  id={estiloId}
+                  className="lb-input"
+                  value={estiloGravado ?? PANORAMICA}
+                  onChange={(event) => onChange(cenarioComEstilo(cenario, event.target.value === PANORAMICA ? null : event.target.value))}
+                >
+                  <option value={PANORAMICA}>Panorâmica</option>
+                  {estilos.map((e) => (
+                    <option key={e.id} value={e.id}>
+                      {e.nome}
+                    </option>
+                  ))}
+                  {naoInstalado !== null && <option value={naoInstalado}>Não instalado ({naoInstalado})</option>}
+                </select>
+              </div>
+              {naoInstalado !== null && <p className="lb-travel__hint">Este estilo ainda não chegou neste app. Até chegar, o jogador vê a panorâmica abaixo.</p>}
+              {estilo !== null ? (
+                <button type="button" className="lb-btn lb-btn--ghost" aria-label={`Assistir ${estilo.nome}`} onClick={() => setPrevia(cenario)}>
+                  Assistir inteira
+                </button>
+              ) : (
+                <ul className="lb-cenario-secao__movimentos">
+                  {MOVIMENTOS.map((m) => (
+                    <li key={m.id} className="lb-cenario-mov" data-escolhido={cenario.movimento === m.id}>
+                      <button type="button" className="lb-cenario-mov__escolher" aria-pressed={cenario.movimento === m.id} onClick={() => mudar({ movimento: m.id })}>
+                        <span className="lb-cenario-mov__seta">
+                          <SetaDoMovimento id={m.id} />
+                        </span>
+                        {m.nome}
+                      </button>
+                      <button
+                        type="button"
+                        className="lb-iconbtn lb-iconbtn--sm"
+                        aria-label={`Assistir ${m.nome}`}
+                        title="Assistir inteira"
+                        onClick={() => setPrevia({ ...cenario, movimento: m.id })}
+                      >
+                        <ExpandirIcon />
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <DuracaoDoCenario
+                key={`${estiloGravado ?? PANORAMICA}|${cenario.movimento}`}
+                inputId={duracaoId}
+                dicaId={dicaId}
+                duracaoS={cenario.duracaoS}
+                naturalS={estilo !== null ? estilo.duracaoNaturalS : CENARIO_DURACAO_NATURAL_S}
+                onChange={(duracaoS) => mudar({ duracaoS })}
+              />
+              {/* Névoa, raios, partículas e vento são da panorâmica: num estilo do pacote não mudam nada. */}
+              {estilo === null && (
+                <>
+                  <Toggle label="Névoa" checked={cenario.nevoa} onChange={(nevoa) => mudar({ nevoa })} />
+                  <Toggle label="Raios de sol" checked={cenario.raios} onChange={(raios) => mudar({ raios })} />
+                  <Toggle label="Partículas (pólen e folhas)" checked={cenario.particulas} onChange={(particulas) => mudar({ particulas })} />
+                  <Toggle label="Som do vento" checked={cenario.som} onChange={(som) => mudar({ som })} />
+                </>
+              )}
               <p className="lb-travel__hint">
                 {cenario.quando === 'sempre'
                   ? 'Toca toda vez que o jogador abre este pino; depois vem o cartão.'
@@ -146,11 +197,13 @@ interface DuracaoProps {
   inputId: string
   dicaId: string
   duracaoS: number | undefined
+  /** A natural do que está escolhido: a da panorâmica ou a do estilo do pacote. */
+  naturalS: number
   onChange: (duracaoS: number | undefined) => void
 }
 
 /** Segundos: vazio = duração natural; grava ao sair do campo ou no Enter, preso ao teto. */
-function DuracaoDoCenario({ inputId, dicaId, duracaoS, onChange }: DuracaoProps) {
+function DuracaoDoCenario({ inputId, dicaId, duracaoS, naturalS, onChange }: DuracaoProps) {
   const [texto, setTexto] = useState(duracaoS === undefined ? '' : String(duracaoS))
   useEffect(() => {
     setTexto(duracaoS === undefined ? '' : String(duracaoS))
@@ -168,8 +221,8 @@ function DuracaoDoCenario({ inputId, dicaId, duracaoS, onChange }: DuracaoProps)
       return
     }
     const preso = Math.min(CENARIO_DURACAO_MAX_S, Math.max(CENARIO_DURACAO_MIN_S, Math.round(lido * 10) / 10))
-    onChange(preso === CENARIO_DURACAO_NATURAL_S ? undefined : preso)
-    setTexto(preso === CENARIO_DURACAO_NATURAL_S ? '' : String(preso))
+    onChange(preso === naturalS ? undefined : preso)
+    setTexto(preso === naturalS ? '' : String(preso))
   }
 
   return (
@@ -182,7 +235,7 @@ function DuracaoDoCenario({ inputId, dicaId, duracaoS, onChange }: DuracaoProps)
         className="lb-input"
         type="text"
         inputMode="decimal"
-        placeholder={String(CENARIO_DURACAO_NATURAL_S)}
+        placeholder={String(naturalS)}
         aria-describedby={dicaId}
         value={texto}
         onChange={(event) => setTexto(event.currentTarget.value)}
@@ -192,7 +245,7 @@ function DuracaoDoCenario({ inputId, dicaId, duracaoS, onChange }: DuracaoProps)
         }}
       />
       <span id={dicaId} className="lb-travel__hint">
-        Vazio = {CENARIO_DURACAO_NATURAL_S} s. De {CENARIO_DURACAO_MIN_S} a {CENARIO_DURACAO_MAX_S} s.
+        Vazio = {naturalS.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} s. De {CENARIO_DURACAO_MIN_S} a {CENARIO_DURACAO_MAX_S} s.
       </span>
     </div>
   )

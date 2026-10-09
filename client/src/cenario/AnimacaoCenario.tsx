@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { duracaoDoCenarioS, movimentoInfo, type CenarioDoPino, type Enquadramento } from './catalogo'
+import { AnimacaoDeEstilo } from './AnimacaoDeEstilo'
+import { duracaoDoEstiloS, useEstilosDeCenario, type EstiloDeCenario } from './estilosDeCenario'
 import './cenario.css'
 
 interface AnimacaoCenarioProps {
@@ -108,12 +110,44 @@ function ligarVento(volume: number): { parar: () => void; volume: (v: number) =>
 }
 
 /**
- * A ANIMAÇÃO DO CENÁRIO: a imagem do pino num quadro do tamanho dela (cabendo
- * no espaço dado), com a câmera andando pelo movimento escolhido. Névoa,
- * raios e partículas por cima, cada um só se o mestre ligou. Só `transform` e
+ * A ANIMAÇÃO DO CENÁRIO. Com `cenario.estilo` de um estilo registrado (pacote
+ * baixado), toca o módulo dele; sem estilo, com estilo ainda não baixado ou
+ * com o módulo quebrado, toca a panorâmica embutida com os campos do cenário.
+ * O "quando", o "Pular" e o fim continuam com quem chama.
+ */
+export function AnimacaoCenario(props: AnimacaoCenarioProps) {
+  const { imagem, cenario, volume, repetir = false, rodada = 0, onFim } = props
+  const estilos = useEstilosDeCenario()
+  const estilo = cenario.estilo === undefined ? null : (estilos.find((e) => e.id === cenario.estilo) ?? null)
+  // Guarda o OBJETO que falhou, não o id: um pacote novo com o mesmo id ganha outra chance.
+  const [quebrado, setQuebrado] = useState<EstiloDeCenario | null>(null)
+  if (estilo !== null && estilo !== quebrado) {
+    return (
+      <AnimacaoDeEstilo
+        imagem={imagem}
+        estilo={estilo}
+        duracaoS={duracaoDoEstiloS(cenario, estilo)}
+        volume={volume}
+        repetir={repetir}
+        rodada={rodada}
+        onFim={onFim}
+        onErro={(erro) => {
+          console.warn(`estilo de cenário ${estilo.id}: falhou, tocando a panorâmica`, erro)
+          setQuebrado(estilo)
+        }}
+      />
+    )
+  }
+  return <AnimacaoPanoramica {...props} />
+}
+
+/**
+ * A PANORÂMICA: a imagem do pino num quadro do tamanho dela (cabendo no espaço
+ * dado), com a câmera andando pelo movimento escolhido. Névoa, raios e
+ * partículas por cima, cada um só se o mestre ligou. Só `transform` e
  * `opacity` mudam a cada quadro.
  */
-export function AnimacaoCenario({ imagem, cenario, volume, repetir = false, rodada = 0, onFim }: AnimacaoCenarioProps) {
+function AnimacaoPanoramica({ imagem, cenario, volume, repetir = false, rodada = 0, onFim }: AnimacaoCenarioProps) {
   const areaRef = useRef<HTMLDivElement>(null)
   const fotoRef = useRef<HTMLImageElement>(null)
   const nevoaARef = useRef<HTMLDivElement>(null)

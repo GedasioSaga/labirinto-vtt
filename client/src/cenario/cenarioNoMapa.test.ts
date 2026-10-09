@@ -23,6 +23,24 @@ describe('animação do cenário no disco e no editor', () => {
     expect(deserializeMap(JSON.stringify(torto)).pins[0].cenario).toBeUndefined()
   })
 
+  it('o estilo do pacote vai e volta do disco; id torto volta sem estilo (a panorâmica)', () => {
+    const comEstilo = { ...CENARIO_PADRAO, estilo: 'neve-caindo', duracaoS: 9 }
+    expect(deserializeMap(serializeMap(mapa([{ ...pino, cenario: comEstilo }]))).pins[0].cenario).toEqual(comEstilo)
+    const torto = JSON.parse(serializeMap(mapa([{ ...pino, cenario: CENARIO_PADRAO }]))) as { pins: Array<{ cenario: Record<string, unknown> }> }
+    torto.pins[0].cenario.estilo = '../Neve Caindo'
+    const lido = deserializeMap(JSON.stringify(torto)).pins[0].cenario
+    expect(lido).toEqual(CENARIO_PADRAO)
+    expect(lido).not.toHaveProperty('estilo')
+  })
+
+  it('trocar só o estilo é um passo de Ctrl+Z', () => {
+    useMapStore.getState().updatePin('pino', { cenario: CENARIO_PADRAO })
+    useMapStore.getState().updatePin('pino', { cenario: { ...CENARIO_PADRAO, estilo: 'neve' } })
+    expect(useMapStore.getState().past).toHaveLength(2)
+    useMapStore.getState().undo()
+    expect(atual().cenario).toEqual(CENARIO_PADRAO)
+  })
+
   it('ligar, trocar o movimento e desligar: um passo de Ctrl+Z cada; gravar o mesmo não empilha', () => {
     useMapStore.getState().updatePin('pino', { cenario: CENARIO_PADRAO })
     useMapStore.getState().updatePin('pino', { cenario: { ...CENARIO_PADRAO } })

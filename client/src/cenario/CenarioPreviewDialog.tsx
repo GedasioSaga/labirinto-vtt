@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { CloseIcon } from '../components/icons'
 import { CENARIO_DURACAO_NATURAL_S, duracaoDoCenarioS, movimentoInfo, type CenarioDoPino } from './catalogo'
 import { AnimacaoCenario } from './AnimacaoCenario'
+import { duracaoDoEstiloS, useEstilosDeCenario } from './estilosDeCenario'
 import './cenario.css'
 
 interface CenarioPreviewDialogProps {
@@ -29,6 +30,17 @@ export function CenarioPreviewDialog({ imagem, cenario, onClose }: CenarioPrevie
   const pressStartedOnBackdrop = useRef(false)
   const [som, setSom] = useState(true)
   const [rodada, setRodada] = useState(0)
+  const estilos = useEstilosDeCenario()
+  const estilo = cenario.estilo === undefined ? null : (estilos.find((e) => e.id === cenario.estilo) ?? null)
+  const nome = estilo !== null ? estilo.nome : movimentoInfo(cenario.movimento).nome
+  const duracaoS = estilo !== null ? duracaoDoEstiloS(cenario, estilo) : duracaoDoCenarioS(cenario)
+  const naturalS = estilo !== null ? estilo.duracaoNaturalS : CENARIO_DURACAO_NATURAL_S
+
+  function alternarSom() {
+    setSom((ligado) => !ligado)
+    // O estilo do pacote só recebe o volume ao ser criado: recomeça para o botão valer na hora.
+    if (estilo !== null) setRodada((n) => n + 1)
+  }
 
   useEffect(() => {
     const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null
@@ -78,7 +90,7 @@ export function CenarioPreviewDialog({ imagem, cenario, onClose }: CenarioPrevie
       <div ref={dialogRef} className="lb-panel lb-dialog lb-cenario-previa" role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1} onKeyDown={onKeyDown}>
         <header className="lb-dialog__head">
           <h2 id={titleId} className="lb-dialog__title">
-            Animação do Cenário · {movimentoInfo(cenario.movimento).nome}
+            Animação do Cenário · {nome}
           </h2>
           <button ref={closeRef} type="button" className="lb-iconbtn lb-iconbtn--sm" aria-label="Fechar" onClick={onClose}>
             <CloseIcon />
@@ -89,12 +101,13 @@ export function CenarioPreviewDialog({ imagem, cenario, onClose }: CenarioPrevie
         </div>
         <div className="lb-cenario-previa__barra">
           <span className="lb-cenario-previa__info">
-            {segundos(duracaoDoCenarioS(cenario))}
-            {cenario.duracaoS === undefined ? ' · duração natural' : ` · natural tem ${segundos(CENARIO_DURACAO_NATURAL_S)}`}
+            {segundos(duracaoS)}
+            {cenario.duracaoS === undefined ? ' · duração natural' : ` · natural tem ${segundos(naturalS)}`}
           </span>
           <span className="lb-cenario-previa__acoes">
-            {cenario.som && (
-              <button type="button" className="lb-btn lb-btn--ghost" aria-pressed={som} onClick={() => setSom((ligado) => !ligado)}>
+            {/* "Som do vento" é só da panorâmica; o estilo do pacote pode ter som próprio. */}
+            {(estilo !== null || cenario.som) && (
+              <button type="button" className="lb-btn lb-btn--ghost" aria-pressed={som} onClick={alternarSom}>
                 {som ? 'Som ligado' : 'Som desligado'}
               </button>
             )}
