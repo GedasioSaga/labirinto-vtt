@@ -10,6 +10,8 @@ client/test-results/
 client/playwright-report/
 # Saída de scripts/pacote-animacoes.cjs (módulos compilados, índice e assinatura)
 client/dist-animacoes/
+# Saída de scripts/conferir-som.cjs (wav, espectrograma e medidas de cada transição)
+client/dist-som/
 
 # Grafo gerado pelo graphify (2.5 MB, reconstruível com `graphify extract`)
 graphify-out/
