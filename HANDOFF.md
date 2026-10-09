@@ -1507,3 +1507,24 @@ Publicar os 4 consertos de 09/10 (ficha de token da biblioteca, miniatura do cha
 - `rtk proxy npx vitest run`: Test Files 1450 passed (1450), Tests 13028 passed (13028).
 - gitleaks `v0.4.18..HEAD`: 6 commits, no leaks found. `npm run tauri:build`: 2 bundles. Fumaça: ProductVersion 0.4.19, Responding=True, 26 MB.
 - setup.exe 2678412 B sha256 50394723ed8f5657d0f121a48220b61d4d79bf0c6cf596a3a1768e9a21a4e136; msi 3362816 B sha256 05e8c83868961f0414c53d2f340cbfc2283c40301da824b5402e625c59c73323 (iguais ao GitHub).
+
+### 09/10/2026 (manhã): depois da v0.4.19, sem push
+
+## Objetivo
+Pedidos de 09/10: tela branca no celular ao fechar o inventário; menu de clique direito no token do jogador (Congelar, Enviar mensagem).
+
+## Estado atual
+- `0d241876` (agente debugador): `PlayerView` remonta o Pixi ao perder o contexto WebGL (`client/src/player/PlayerView.tsx`); mais de 3 perdas em 60 s viram a tela de erro.
+- `70ccbd9d`: `components/TokenContextMenu.tsx`; `PixiCanvas` prop `menuDoToken` (`tem`/`abrir`); `App.tsx` liga `updateToken(congelado)` e `hostBridge.playerNote`.
+- Contagem para push+instalador: 2 de 5 desde a v0.4.19.
+
+## Próximos passos
+- Usuário testar; instalador quando completar 5 ou quando ele pedir.
+
+## Critério de pronto
+- Teste vermelho antes e verde depois em cada um; tsc 0. (Atingido.)
+
+## Evidência
+- PlayerView.contextoPerdido.test.tsx: 2 falhas antes, 2/2 depois; 7 arquivos / 63 testes do jogador verdes (relato do agente).
+- PixiCanvas.menuDaParede.test.tsx 9/9 (o teste do botão direito falha com a trava desligada); TokenContextMenu.test.tsx 6/6; src/pixi + src/App: 100 arquivos, 1260 testes verdes; tsc exit 0.
+- Não conferido: celular real, menu no app real (só testes).
