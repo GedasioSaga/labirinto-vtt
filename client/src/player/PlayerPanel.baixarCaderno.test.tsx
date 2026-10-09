@@ -63,7 +63,7 @@ describe('PlayerPanel: baixar meu caderno', () => {
     abrirCaderno()
     const botao = botaoBaixar()
     expect(botao).toBeDefined()
-    expect(container.textContent).toMatch(/mapas que você conhece, suas pistas e os recados/)
+    expect(container.textContent).toMatch(/mapas que você conhece, suas pistas e suas notas/)
     act(() => botao?.click())
     expect(baixar).toHaveBeenCalledTimes(1)
     const aviso = container.querySelector('[role="tabpanel"]:not([hidden]) [role="status"]')
