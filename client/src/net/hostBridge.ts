@@ -699,10 +699,11 @@ export function tradeOfferLine(playerName: string, de: string, oferta: string, p
   return `Oferta a ${playerName} (${de}): ${oferta} por ${pedido}`
 }
 
-/** "Diego quer pegar Chave do Escudo", mais " em Mansão" quando o item está numa cena de fundo. */
+/** "Diego quer pegar Chave do Escudo", "Flecha (20)" na pilha, mais " em Mansão" quando o item está numa cena de fundo. */
 export function itemRequestLine(request: ItemRequest): string {
   const where = request.sceneName === undefined ? '' : ` em ${request.sceneName}`
-  return `${request.playerName} quer pegar ${request.itemName}${where}`
+  const pilha = request.quantidade === undefined ? '' : ` (${request.quantidade})`
+  return `${request.playerName} quer pegar ${request.itemName}${pilha}${where}`
 }
 
 /**

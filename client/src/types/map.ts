@@ -561,15 +561,21 @@ export type CabineNaParada = 'aqui' | 'ocupada' | 'longe' | 'chamada'
  * desenha exatamente o pino de hoje ("!" ou "?"). Mapa salvo antes deste campo
  * abre com a cara que tinha — mesma regra de `locked` e de `FloorPiece.fillColor`.
  */
-export type PinIcon = 'bau' | 'armadilha' | 'chave' | 'perigo' | 'escada' | 'agua'
+export type PinIcon = 'bau' | 'armadilha' | 'chave' | 'perigo' | 'escada' | 'agua' | 'item'
 
 /**
- * ITEM PEGÁVEL: o pino é uma coisa que o jogador pode pegar ("Chave do
- * Escudo"). `nome` é o que vai para a mochila; `livre` pega sem pedir ao
- * mestre. Ausente (e `livre` ausente) é o de sempre — pino que só se lê, e
- * "pede ao mestre" —, sem migração: mapa salvo antes do campo abre igual.
+ * ITEM PEGÁVEL: o pino (ou o objeto no chão, `Prop.item`) é uma coisa que o
+ * jogador pode pegar ("Chave do Escudo"). `nome` é o que vai para a mochila;
+ * `livre` = "Pega direto", sem pedir ao mestre. Ausente (e `livre` ausente) é
+ * o de sempre — pino que só se lê, e "pede ao mestre" —, sem migração: mapa
+ * salvo antes do campo abre igual.
+ *
+ * ITEM NO MAPA (entrega 5): os dados do acervo (`DadosDoItem`) vão junto —
+ * imagem por referência de mídia, descrição, categoria, preço, quantidade —, e
+ * pegar os leva inteiros para a mochila. O pino "!" com só o nome, de antes,
+ * continua valendo: os dados são todos opcionais (`readPinItem`).
  */
-export interface PinItem {
+export interface PinItem extends DadosDoItem {
   nome: string
   livre?: true
 }
@@ -1536,6 +1542,14 @@ export interface Prop extends PlayerSecret, NoPiso {
    *  sai; esta cópia é a única imagem do objeto que atravessa o recorte.
    *  Ausente = interruptor desligado (só a silhueta). */
   playerImage?: string
+  /** ITEM NO CHÃO (entrega 5): o objeto é um item que o jogador pega — a
+   *  IMAGEM do item deitada no mapa, que o mestre arrasta e redimensiona como
+   *  qualquer objeto. `src` fica vazio: a imagem é `item.imagem`, referência de
+   *  mídia que o mestre lê do disco e o jogador pela URL da sala (nunca
+   *  embutida no snapshot). Vai ao jogador só numa cópia limpa
+   *  (`itemParaJogador`, `lib/itemNoMapa.ts`), junto do objeto que ele enxerga.
+   *  Ausente = objeto comum — sem linha de migração (`readPinItem` no disco). */
+  item?: PinItem
 }
 
 /** Móveis do catálogo da mobília desenhada (`lib/mobilia.ts`). */

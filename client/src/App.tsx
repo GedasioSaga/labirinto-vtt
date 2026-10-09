@@ -57,7 +57,8 @@ import { tableScreenUrl } from './lib/tableScreen'
 import { giftScenesOf, RoomPanel, roomPanelTokensOf } from './components/RoomPanel'
 import { hostCluesProps } from './components/CluesSection'
 import { alvosDoAcervo, darDoAcervo, masterDestinationMarks, partyDestinations, partyItemChange, partyMembers, peopleByScene } from './lib/party'
-import { itemParaDar } from './lib/acervoDeItens'
+import { itemParaDar, type ItemDoCatalogo } from './lib/acervoDeItens'
+import { itemDoAcervoNoMapa, ladoNoChao, objetoDeItem, pinoDeItem } from './lib/itemNoMapa'
 import { baseDaMidiaConhecida } from './lib/midiaNoDisco'
 import { congelamentoDaMesa } from './lib/congelar'
 import { jogadoresDoCorte } from './lib/corteDaTorre'
@@ -2073,6 +2074,35 @@ function App() {
   }
 
   /**
+   * ITEM NO MAPA (entrega 5) — soltar um item ARRASTADO do acervo de itens. O
+   * mesmo "é o mapa?" e a mesma conta tela → mundo do acervo de tokens. Com
+   * imagem e sem Alt: a IMAGEM do item no chão, um objeto que o mestre
+   * arrasta e redimensiona; com Alt (ou sem imagem, que não teria o que
+   * desenhar): o PINO DE ITEM. Nasce "Pega direto", uma unidade, já
+   * selecionado (o painel dele abre na hora), num passo só do Ctrl+Z.
+   */
+  const handleSoltarItemNoMapa = (item: ItemDoCatalogo, clientX: number, clientY: number, comoPino: boolean): boolean => {
+    const host = canvasHostRef.current
+    const sobOPonteiro = document.elementFromPoint(clientX, clientY)
+    if (host === null || sobOPonteiro === null || !host.contains(sobOPonteiro)) return false
+    const noMapa = itemDoAcervoNoMapa(itemParaDar(item))
+    if (noMapa === null) return false
+    const caixa = host.getBoundingClientRect()
+    const { camera } = useMapStore.getState()
+    const ponto = { x: (clientX - caixa.left - camera.x) / camera.scale, y: (clientY - caixa.top - camera.y) / camera.scale }
+    const id = crypto.randomUUID()
+    const store = useMapStore.getState()
+    if (comoPino || noMapa.imagem === undefined) {
+      store.addPin(pinoDeItem(id, ponto, noMapa))
+      store.setSelectedPin(id)
+    } else {
+      store.addProp(objetoDeItem(id, ponto, ladoNoChao(map.grid), noMapa))
+      store.setSelection(selectionOfItem({ kind: 'prop', id }))
+    }
+    return true
+  }
+
+  /**
    * ACERVO — apagar do disco. A confirmação já aconteceu em `TokenLibraryPanel`.
    *
    * O `finally` não é zelo: `apagarDoAcervo` reescreve o índice ANTES de mexer
@@ -3295,6 +3325,11 @@ function App() {
               onVistaChange: trocarVistaDoMovel,
               onAparenciaChange: setAparenciaDoMovel,
             }}
+            // ITEM NO CHÃO: nome, modo de pegar e pilha são um passo do Ctrl+Z cada; trocar vira pino de item.
+            itemNoChao={{
+              onChange: (item) => selectedProp && updateProp(selectedProp.id, { item }),
+              onTrocarForma: () => selectedProp && useMapStore.getState().trocarFormaDoItem(selectedProp.id),
+            }}
             selectedToken={selectedToken}
             tokenName={{
               onNameChange: (name) => selectedToken && useMapStore.getState().renameToken(selectedToken.id, name),
@@ -3630,6 +3665,8 @@ function App() {
                   ? {
                       value: selectedPin.item ?? null,
                       onChange: (item) => useMapStore.getState().updatePin(selectedPin.id, { item: item ?? undefined }),
+                      // ITEM NO MAPA: o pino de item vira a imagem no chão, no mesmo lugar.
+                      onTrocarForma: () => useMapStore.getState().trocarFormaDoItem(selectedPin.id),
                     }
                   : null,
               // LOJA COM PREÇOS: só com um pino "!"/"?" aberto. O "Quero" do jogador chega na caixa Pedidos.
@@ -3701,6 +3738,7 @@ function App() {
                 return change !== null && aplicarItensDoMestre(change)
               },
               onErro: (mensagem) => useToastStore.getState().push('error', mensagem),
+              onSoltarNoMapa: handleSoltarItemNoMapa,
             }}
             territorio={{
               filtroLigado: filtroFaccoes,

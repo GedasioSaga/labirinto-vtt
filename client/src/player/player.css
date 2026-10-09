@@ -2000,6 +2000,140 @@
 }
 
 /*
+ * CARTÃO DO ITEM (PlayerItemCard): a moldura é a do cartão do pino. O "Ver
+ * inteira" fica no canto de baixo da foto, por cima dela — pequeno, porque o
+ * cartão já mostra a imagem grande; a tela toda é para o detalhe.
+ */
+.pp-itemcard__foto {
+  position: relative;
+}
+
+.pp-itemcard__ver-inteira {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  font: inherit;
+  font-size: 13px;
+  color: var(--lb-color-parchment, #eceae4);
+  background: rgba(13, 13, 17, 0.78);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 999px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    background-color 120ms ease-out,
+    transform 100ms ease-out;
+}
+
+@media (hover: hover) {
+  .pp-itemcard__ver-inteira:hover {
+    background: rgba(13, 13, 17, 0.92);
+  }
+}
+
+.pp-itemcard__ver-inteira:active {
+  transform: scale(0.97);
+}
+
+.pp-itemcard__ver-inteira:focus-visible,
+.pp-itemcard__fechar-inteira:focus-visible {
+  outline: 2px solid var(--lb-color-brass, #e0a44a);
+  outline-offset: 2px;
+}
+
+/* Categoria e quantidade: a linha discreta logo abaixo do nome, antes da descrição. */
+.pp-itemcard__detalhes {
+  flex-basis: 100%;
+  margin: 0;
+  font-size: 13px;
+  color: var(--lb-color-parchment-dim, #a9a7a0);
+}
+
+/* Longe do item: o porquê do botão apagado, logo embaixo dele. */
+.pp-itemcard__longe {
+  margin: 6px 16px 0;
+  font-size: 13px;
+  text-align: center;
+  color: var(--lb-color-parchment-dim, #a9a7a0);
+}
+
+/*
+ * A IMAGEM INTEIRA: a tela toda escurecida e a imagem no maior tamanho que
+ * cabe, sem cortar nem deformar. Entra como o cartão (opacidade e um quase
+ * nada de escala, 200 ms saindo rápido); sai na hora — fechar é resposta.
+ */
+.pp-itemcard__inteira {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 24px 16px;
+  background: rgba(0, 0, 0, 0.86);
+  animation: pp-pincard-fade 160ms ease-out;
+}
+
+.pp-itemcard__inteira-img {
+  max-width: 100%;
+  max-height: calc(100% - 64px);
+  object-fit: contain;
+  border-radius: 8px;
+  animation: pp-itemcard-zoom 200ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.pp-itemcard__fechar-inteira {
+  flex: none;
+  padding: 8px 18px;
+  font: inherit;
+  font-size: 15px;
+  color: var(--lb-color-parchment, #eceae4);
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 999px;
+  cursor: pointer;
+  transition: transform 100ms ease-out;
+}
+
+.pp-itemcard__fechar-inteira:active {
+  transform: scale(0.97);
+}
+
+@keyframes pp-itemcard-zoom {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pp-itemcard__ver-inteira,
+  .pp-itemcard__fechar-inteira {
+    transition: none;
+  }
+
+  .pp-itemcard__ver-inteira:active,
+  .pp-itemcard__fechar-inteira:active {
+    transform: none;
+  }
+
+  /* Só a opacidade: a imagem aparece sem crescer. */
+  .pp-itemcard__inteira-img {
+    animation: pp-pincard-fade 160ms ease-out;
+  }
+}
+
+/*
  * LOJA COM PREÇOS: uma linha por mercadoria — nome, preço e estoque à
  * esquerda, "Quero" à direita. Fio fino entre as mercadorias, sem caixa nem
  * grade: o cartão é chapado, como o mapa. A lista rola sozinha numa banca

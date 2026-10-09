@@ -6,7 +6,7 @@
 import { describe, expect, it } from 'vitest'
 import type { CarriedItem, MapData, Token } from '../types/map'
 import { filterMapForPlayer } from './fogFilter'
-import { darDoAcervoChange, ITEM_QUANTIDADE_MAX, podeLargarNoChao, readCarriedItems, type ItemParaDar } from './items'
+import { darDoAcervoChange, ITEM_QUANTIDADE_MAX, readCarriedItems, type ItemParaDar } from './items'
 import { createEmptyMap } from './mapFactory'
 
 const IMAGEM = `midia:${'d'.repeat(64)}.webp`
@@ -93,12 +93,6 @@ describe('"Dar a…" do acervo', () => {
 
   it('nome vazio não dá nada', () => {
     expect(darDoAcervoChange(token(), { nome: '   ' }, 1, 'x')).toBeNull()
-  })
-
-  it('largar no chão só o item simples: o do acervo perderia imagem e pilha', () => {
-    expect(podeLargarNoChao({ id: 'p1', nome: 'Chave' })).toBe(true)
-    expect(podeLargarNoChao({ id: 'a', nome: 'Poção', itemId: 'item_pocao' })).toBe(false)
-    expect(podeLargarNoChao({ id: 'b', nome: 'Pedra', quantidade: 3 })).toBe(false)
   })
 })
 

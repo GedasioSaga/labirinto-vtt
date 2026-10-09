@@ -66,7 +66,8 @@ import { keyForDoor, keyForPin } from '../lib/doorKey'
 import { DESTINATION_MIN_INTERVAL_MS, SIGNAL_MIN_INTERVAL_MS, SIGNAL_NEUTRAL_COLOR, signalColor, type DestinationMark } from '../lib/signals'
 import { passageOf, pinSummary } from '../lib/pins'
 import { tokenHasPass } from '../lib/pinPass'
-import { carriedItemsOf, cleanItemName, itemOfPin, tokenReachesPin, tokensTouch, type ItemChange } from '../lib/items'
+import { carriedItemsOf, cleanItemName, quantidadeDe, tokenReachesPin, tokensTouch, type ItemChange } from '../lib/items'
+import { acharItemNoMapa, fichaAlcancaItem, pegarItemChange, type ItemNoMapa } from '../lib/itemNoMapa'
 import { itemAVenda } from '../lib/loja'
 import { selectedTokenColor } from '../lib/tokenColor'
 import { acceptsLockedExitRequest, arrivalSpot, arrivalSpotWithoutPin, exitLabelsOf, exitPassageOf, freeSeatNear, isArrivalOnly, isExitPassage, oneWayExitsOf, resolvePinTravel, SAIDA_PRINCIPAL, sameDestination, travelExitOf, type TravelScene } from '../lib/pinTravel'
@@ -448,6 +449,8 @@ export interface ItemRequest {
   playerId: string
   playerName: string
   itemName: string
+  /** ITEM NO MAPA: quantos vêm na pilha, só quando passa de 1. */
+  quantidade?: number
   /** Nome da cena (o que o mestre lê), só quando o item está numa cena de FUNDO. */
   sceneName?: string
 }
@@ -6363,31 +6366,42 @@ export function createHostSession(options: HostSessionOptions): HostSession {
    * vale) e uma ficha dele, no recorte dele, está ao alcance. Inexistente,
    * invisível e não-item respondem o mesmo `unavailable`.
    */
-  const takeCheck = (playerId: string, map: MapData, pinId: string, world: HostWorld): { pin: Pin; nome: string; livre: boolean; token: Token } | PinTakeRejection => {
-    const pin = map.pins.find((p) => p.id === pinId)
-    const item = pin === undefined ? null : itemOfPin(pin)
-    if (pin === undefined || item === null) return 'unavailable'
+  const takeCheck = (playerId: string, map: MapData, itemId: string, world: HostWorld): { alvo: ItemNoMapa; token: Token } | PinTakeRejection => {
+    // ITEM NO MAPA (entrega 5): o id é o de um pino de item OU o de uma imagem
+    // de item no chão (objeto). Os dois respondem igual: o que não existe, não
+    // é item ou não chega a este jogador é `unavailable`.
+    const alvo = acharItemNoMapa(map, itemId)
+    if (alvo === null) return 'unavailable'
     const memory = memoryFor(playerId, map, world)
     // "Quem vê" entra no recorte: pino que não chega a este jogador não se pega.
+    // O item no chão segue a regra do objeto: oculto, sob teto ou fora da
+    // visão de agora não está no recorte, e não se pega.
     const view = filterMapForPlayer(map, playerId, ownership, tokenRadiusIn(playerId, map), memory.exp, memory.doors, pinAudiences, undefined, loansFor(playerId), memory.seenRooms)
-    if (!view.map.pins.some((p) => p.id === pinId)) return 'unavailable'
+    const noRecorte = alvo.forma === 'pino' ? view.map.pins.some((p) => p.id === itemId) : view.map.props.some((p) => p.id === itemId)
+    if (!noRecorte) return 'unavailable'
     const owned = new Set(ownership[playerId] ?? [])
-    const reaching = view.map.tokens.filter((t) => owned.has(t.id) && tokenReachesPin(t, pin, map.grid))
+    const reaching = view.map.tokens.filter((t) => owned.has(t.id) && fichaAlcancaItem(t, alvo, map.grid))
     // A ficha do MAPA DO MESTRE, não a do recorte: é a mochila dela que cresce.
     const token = reaching.map((t) => map.tokens.find((m) => m.id === t.id)).find((t): t is Token => t !== undefined)
     if (token === undefined) return 'far'
-    return { pin, nome: item.nome, livre: item.livre === true, token }
+    return { alvo, token }
   }
 
-  /** O item vai à mochila da ficha e o pino sai do mapa; `clientId` (quando há) lê "está com você". */
-  const takeResult = (clientId: string | null, scene: HostScene, world: HostWorld, pin: Pin, nome: string, token: Token): HostResult => ({
-    outbound: clientId === null ? [] : [{ clientId, msg: { type: 'pin.take.answer', answer: 'taken', nome } }],
-    applyItems: {
-      ...backgroundSceneId(scene, world),
-      removePinId: pin.id,
-      mochilas: [{ tokenId: token.id, mochila: [...carriedItemsOf(token), { id: pin.id, nome }] }],
-    },
-  })
+  /**
+   * O item vai INTEIRO à mochila da ficha (imagem, descrição, categoria,
+   * preço, quantidade; empilhando no empilhável) e sai do mapa — o pino ou a
+   * imagem no chão. `clientId` (quando há) lê "está com você".
+   */
+  const takeResult = (clientId: string | null, scene: HostScene, world: HostWorld, alvo: ItemNoMapa, token: Token): HostResult => {
+    // Id novo só quando a mochila já tem uma vaga com o id do item (caso raro): não gasta sorteio à toa.
+    const freshId = carriedItemsOf(token).some((carried) => carried.id === alvo.id) ? randomId() : alvo.id
+    const change = pegarItemChange(token, alvo, freshId)
+    if (change === null) return clientId === null ? { outbound: [] } : reply(clientId, { type: 'pin.take.rejected', reason: 'unavailable' })
+    return {
+      outbound: clientId === null ? [] : [{ clientId, msg: { type: 'pin.take.answer', answer: 'taken', nome: alvo.item.nome } }],
+      applyItems: { ...backgroundSceneId(scene, world), ...change },
+    }
+  }
 
   function handlePinTake(clientId: string, msg: PinTakeMessage, world: HostWorld): HostResult {
     const playerId = byClient.get(clientId)
@@ -6402,12 +6416,15 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     if (pendingItems.has(playerId)) return reject('pending')
     const found = takeCheck(playerId, scene.map, msg.pinId, world)
     if (typeof found === 'string') return reject(found)
-    // Livre: passou em tudo que o pedido passaria e vai direto, sem esperar o mestre.
-    if (found.livre) return takeResult(clientId, scene, world, found.pin, found.nome, found.token)
+    // "Pega direto": passou em tudo que o pedido passaria e vai direto, sem esperar o mestre.
+    if (found.alvo.item.livre === true) return takeResult(clientId, scene, world, found.alvo, found.token)
 
     const requestId = randomId()
-    pendingItems.set(playerId, { requestId, playerId, pinId: found.pin.id, tokenId: found.token.id, mapId: sceneKey(scene) })
-    const request: ItemRequest = { requestId, playerId, playerName: record.name, itemName: found.nome }
+    pendingItems.set(playerId, { requestId, playerId, pinId: found.alvo.id, tokenId: found.token.id, mapId: sceneKey(scene) })
+    const request: ItemRequest = { requestId, playerId, playerName: record.name, itemName: found.alvo.item.nome }
+    // A pilha: o mestre lê "quer pegar Flecha (20)" antes de deixar.
+    const quantidade = quantidadeDe(found.alvo.item)
+    if (quantidade > 1) request.quantidade = quantidade
     // Cena de fundo: o mestre lê onde é, porque está olhando outra.
     if (backgroundSceneId(scene, world).sceneId !== undefined) request.sceneName = scene.name
     return { outbound: [], itemRequest: request }
@@ -8901,15 +8918,16 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       if (record === undefined || record.clientId === null) return { outbound: [] }
       const world = toWorld(source)
       const scene = allScenes(world).find((s) => sceneKey(s) === pending.mapId)
-      const pin = scene?.map.pins.find((p) => p.id === pending.pinId)
-      const item = pin === undefined ? null : itemOfPin(pin)
+      // O item de AGORA no mapa do mestre (pino ou chão): o mestre pode tê-lo
+      // mudado, trocado de forma ou tirado enquanto decidia.
+      const alvo = scene === undefined ? null : acharItemNoMapa(scene.map, pending.pinId)
       const token = scene?.map.tokens.find((t) => t.id === pending.tokenId)
       // A ficha tem de continuar sendo dele: o mestre pode tê-la dado a outro.
       const stillHis = (ownership[pending.playerId] ?? []).includes(pending.tokenId)
-      if (scene === undefined || pin === undefined || item === null || token === undefined || !stillHis) {
+      if (scene === undefined || alvo === null || token === undefined || !stillHis) {
         return reply(record.clientId, { type: 'pin.take.rejected', reason: 'unavailable' })
       }
-      return takeResult(record.clientId, scene, world, pin, item.nome, token)
+      return takeResult(record.clientId, scene, world, alvo, token)
     },
 
     denyItemRequest(requestId) {

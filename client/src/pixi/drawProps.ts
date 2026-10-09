@@ -5,6 +5,8 @@ import { SECRET_ITEM_ALPHA, SELECTION_COLOR } from './constants'
 import { isHidden, rotationToRadians } from '../lib/itemTransform'
 import { useToastStore } from '../stores/toastStore'
 import { drawPropSilhouettes } from './drawPropSilhouettes'
+import { fitPropSprite } from './drawPropLooks'
+import { urlDaMidiaNoMestre } from '../lib/midiaNoDisco'
 
 /**
  * Onda 2, item 12 (notificação) — reduz um caminho de arquivo ao nome
@@ -103,6 +105,9 @@ export function createPropsRenderer(): PropsRenderer {
   // vazio a cada mount. Guarda por CAMINHO, não por prop — dois props com a
   // mesma imagem quebrada avisam uma vez só, não duas.
   const warnedSrcPaths = new Set<string>()
+  // O objeto como está AGORA, por id: a textura que chega depois do carregamento
+  // encaixa no tamanho de agora (o mestre pode ter redimensionado no meio).
+  const propsById = new Map<string, Prop>()
 
   function draw(container: Container, props: Prop[], selectedPropId: string | null, view: PropsView): void {
     if (!highlightAttached) {
@@ -120,6 +125,7 @@ export function createPropsRenderer(): PropsRenderer {
         container.removeChild(sprite)
         sprite.destroy()
         spriteCache.delete(id)
+        propsById.delete(id)
       }
     }
     for (const [id, { drawing }] of furnitureCache) {
@@ -133,6 +139,7 @@ export function createPropsRenderer(): PropsRenderer {
     highlightGraphics.clear()
 
     for (const prop of props) {
+      propsById.set(prop.id, prop)
       if (prop.mobilia !== undefined) {
         drawFurniture(container, prop, view)
         markPropState(prop, selectedPropId)
@@ -147,15 +154,21 @@ export function createPropsRenderer(): PropsRenderer {
 
         // Capturado num `const` separado: dentro do `.then()`/`.catch()`
         // abaixo (fronteira de função nova), o TS não carrega a narrowing
-        // que o `if (!sprite)` fez do `let sprite` — mesmo motivo do
-        // `sprite!` já existente logo abaixo (herdado, não desta mudança).
-        const srcPath = prop.src
-        const url = convertFileSrc(srcPath)
-        Assets.load(url)
+        // que o `if (!sprite)` fez do `let sprite`.
+        const criado = sprite
+        // ITEM NO CHÃO: a imagem é a mídia do item (`midia:<id>`), lida do
+        // disco pela ponte do Tauri — `src` fica vazio. O objeto comum segue
+        // pelo caminho de disco dele, como sempre.
+        const imagemDoItem = prop.item?.imagem
+        const srcPath = imagemDoItem ?? prop.src
+        const aviso = imagemDoItem === undefined ? `Imagem do objeto não carregou: ${fileBaseName(srcPath)}` : `Imagem do item não carregou: ${prop.item?.nome ?? ''}`
+        const url = imagemDoItem === undefined ? Promise.resolve(convertFileSrc(srcPath)) : urlDaMidiaNoMestre(imagemDoItem)
+        url
+          .then((endereco) => (endereco === null ? Promise.reject(new Error('sem mídia')) : Assets.load<Texture>(endereco)))
           .then((texture) => {
-            if (spriteCache.get(prop.id) === sprite) {
-              sprite!.texture = texture
-            }
+            if (spriteCache.get(prop.id) !== criado) return
+            criado.texture = texture
+            fitPropSprite(criado, propsById.get(prop.id) ?? prop)
           })
           .catch(() => {
             // textura não carregou — sprite fica com Texture.EMPTY
@@ -164,14 +177,13 @@ export function createPropsRenderer(): PropsRenderer {
             // (warnedSrcPaths), não uma vez por prop nem por frame.
             if (!warnedSrcPaths.has(srcPath)) {
               warnedSrcPaths.add(srcPath)
-              useToastStore.getState().push('error', `Imagem do objeto não carregou: ${fileBaseName(srcPath)}`)
+              useToastStore.getState().push('error', aviso)
             }
           })
       }
       sprite.x = prop.x
       sprite.y = prop.y
-      sprite.width = prop.width
-      sprite.height = prop.height
+      fitPropSprite(sprite, prop)
       // Anchor já é 0.5 (linha 45), então a rotação gira em torno do centro
       // do prop, não do canto. `undefined` → 0 radiano: aparência idêntica à
       // de hoje (types/map.ts documenta Prop.rotation undefined === 0).

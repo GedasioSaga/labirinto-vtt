@@ -27,6 +27,7 @@ import { parseCenario } from '../cenario/catalogo'
 import { marcaParaJogador } from './marcas'
 import { normalizarCorDoMovel, normalizarVistaDoMovel } from './mobilia'
 import { itemOfPin, readCarriedItems, tokenReachesPin } from './items'
+import { itemDoObjeto, itemParaJogador } from './itemNoMapa'
 import { readMoedas } from './troca'
 import { lojaParaJogador } from './loja'
 import { keyForPin } from './doorKey'
@@ -4468,10 +4469,13 @@ function pinForPlayer(pin: Pin, ownTokens: readonly Token[], grid: number, reada
     })
   }
   if (escolhas.length === 1 && soIda(escolhas[0].id)) forPlayer.semVolta = true
-  // ITEM PEGÁVEL: o cartão precisa do nome e de saber se pede ao mestre.
-  // Cópia limpa (`itemOfPin`), nunca o objeto do mestre.
+  // ITEM PEGÁVEL: o cartão precisa do nome e de saber se pede ao mestre; o
+  // pino de item (entrega 5), também da imagem (referência de mídia, nunca
+  // embutida), da descrição, da categoria e da quantidade. Cópia limpa
+  // (`itemOfPin`) e pela lista do que vai (`itemParaJogador`): o id do acervo
+  // e o preço ficam no host.
   const item = itemOfPin(pin)
-  if (item !== null) forPlayer.item = item
+  if (item !== null) forPlayer.item = itemParaJogador(item)
   const key = keyForPin(pin, ownTokens.filter((t) => tokenReachesPin(t, pin, grid)))
   if (key !== null) forPlayer.chave = key.item.nome
   // FECHADURA COM SEGREDO: `segredo` (resposta e porta ligada) nunca vai. O
@@ -4673,6 +4677,12 @@ function propForPlayer(prop: MapData['props'][number]): MapData['props'][number]
   if (label !== undefined) forPlayer.playerLabel = label
   const image = propPlayerImage(prop.playerImage)
   if (image !== undefined) forPlayer.playerImage = image
+  // ITEM NO CHÃO (entrega 5): a tela do jogador desenha a imagem do item e o
+  // toque abre o cartão dele. Cópia limpa e pela lista do que vai
+  // (`itemParaJogador`): imagem só por referência de mídia — o snapshot nunca
+  // carrega a imagem embutida —, sem o id do acervo nem o preço.
+  const item = itemDoObjeto(prop)
+  if (item !== null) forPlayer.item = itemParaJogador(item)
   return forPlayer
 }
 

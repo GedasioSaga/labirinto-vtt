@@ -110,3 +110,30 @@ describe('createPropLooksRenderer — rótulo e imagem do objeto na tela do joga
     expect(rotulo.visible).toBe(true)
   })
 })
+
+describe('ITEM NO CHÃO na tela do jogador', () => {
+  const ID = `${'6'.repeat(64)}.webp`
+  const ESPADA: Prop = { id: 'espada', x: 200, y: 200, width: 80, height: 80, src: '', linkedMapPath: null, item: { nome: 'Espada', imagem: `midia:${ID}` } }
+
+  it('a imagem vem pela URL que a tela resolve e cabe INTEIRA na caixa, sem deformar', async () => {
+    const imagens = new Container()
+    const carregar = vi.fn(async () => texturaDaCopia())
+    const conta = createPropLooksRenderer(carregar).draw(imagens, new Container(), [ESPADA], GRID, 1, (ref) => (ref === `midia:${ID}` ? `/media/${ID}` : null))
+    expect(conta.images).toBe(1)
+    expect(carregar).toHaveBeenCalledWith(`/media/${ID}`)
+    await vi.waitFor(() => expect(sprites(imagens)[0]?.texture.width).toBe(256))
+    const [imagem] = sprites(imagens)
+    // 256 x 192 numa caixa de 80 x 80: a largura manda, e a altura segue a proporção.
+    expect(imagem.width).toBeCloseTo(80, 6)
+    expect(imagem.height).toBeCloseTo(60, 6)
+  })
+
+  it('sem quem resolva a mídia, ou com imagem que não é referência, nada é carregado', () => {
+    const carregar = vi.fn(async () => texturaDaCopia())
+    const renderer = createPropLooksRenderer(carregar)
+    expect(renderer.draw(new Container(), new Container(), [ESPADA], GRID, 1).images).toBe(0)
+    const embutida: Prop = { ...ESPADA, item: { nome: 'Espada', imagem: IMAGEM_DO_PIANO } }
+    expect(renderer.draw(new Container(), new Container(), [embutida], GRID, 1, () => IMAGEM_DO_PIANO).images).toBe(0)
+    expect(carregar).not.toHaveBeenCalled()
+  })
+})

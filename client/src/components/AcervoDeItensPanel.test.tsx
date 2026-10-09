@@ -166,3 +166,45 @@ describe('AcervoDeItensPanel', () => {
     expect(Array.from(host.querySelectorAll('.lb-itens__grupo')).map((grupo) => grupo.getAttribute('aria-label'))).toEqual(['Arma', 'Consumível', 'Relíquia'])
   })
 })
+
+describe('AcervoDeItensPanel — arrastar ao mapa (ITEM NO MAPA)', () => {
+  async function montarComMapa(onSoltarNoMapa = vi.fn(() => true)) {
+    await act(async () => {
+      root.render(<AcervoDeItensPanel alvos={ALVOS} onDar={vi.fn(() => true)} onSoltarNoMapa={onSoltarNoMapa} />)
+    })
+    return onSoltarNoMapa
+  }
+
+  function arrastar(alvo: HTMLElement, ate: { x: number; y: number }, altKey: boolean): void {
+    act(() => void alvo.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0, isPrimary: true, pointerId: 7, clientX: 10, clientY: 10 })))
+    act(() => void window.dispatchEvent(new PointerEvent('pointermove', { pointerId: 7, clientX: ate.x, clientY: ate.y })))
+    act(() => void window.dispatchEvent(new PointerEvent('pointerup', { pointerId: 7, clientX: ate.x, clientY: ate.y, altKey })))
+  }
+
+  it('soltar no mapa entrega o item e o ponto; com Alt pede o pino; o clique do gesto não abre a janela', async () => {
+    const onSoltarNoMapa = await montarComMapa()
+    expect(host.textContent).toContain('Arraste um item até o mapa')
+    const pocao = botao('Abrir Poção', host)
+    arrastar(pocao, { x: 300, y: 200 }, false)
+    expect(onSoltarNoMapa).toHaveBeenLastCalledWith(POCAO, 300, 200, false)
+    act(() => pocao.click())
+    expect(document.body.querySelector('[role="dialog"]')).toBeNull()
+    arrastar(botao('Abrir Espada', host), { x: 320, y: 220 }, true)
+    expect(onSoltarNoMapa).toHaveBeenLastCalledWith(ESPADA, 320, 220, true)
+  })
+
+  it('toque parado continua abrindo a janela; Esc no meio do arrasto desiste sem pôr nada', async () => {
+    const onSoltarNoMapa = await montarComMapa()
+    const pocao = botao('Abrir Poção', host)
+    act(() => void pocao.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0, isPrimary: true, pointerId: 3, clientX: 10, clientY: 10 })))
+    act(() => void window.dispatchEvent(new PointerEvent('pointermove', { pointerId: 3, clientX: 200, clientY: 200 })))
+    expect(document.body.querySelector('.lb-acervo__fantasma')?.textContent).toContain('Poção')
+    act(() => void window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' })))
+    act(() => void window.dispatchEvent(new PointerEvent('pointerup', { pointerId: 3, clientX: 200, clientY: 200 })))
+    expect(onSoltarNoMapa).not.toHaveBeenCalled()
+    expect(document.body.querySelector('.lb-acervo__fantasma')).toBeNull()
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    act(() => pocao.click())
+    expect(janela().textContent).toContain('Poção')
+  })
+})

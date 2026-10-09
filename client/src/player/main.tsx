@@ -14,6 +14,8 @@ import { travelNoticeText } from './travelNoticeText'
 import { OWN_TOKEN_CSS, PlayerView } from './PlayerView'
 import { PlayerPanel, loadPlayerSettings, savePlayerSettings } from './PlayerPanel'
 import { PlayerPinCard } from './PlayerPinCard'
+import { PlayerItemCard } from './PlayerItemCard'
+import { acharItemNoMapa, fichaAlcancaItem } from '../lib/itemNoMapa'
 import { PlayerPinChooser } from './PlayerPinChooser'
 import { ARRIVAL_CARD_TITLE, PlayerNoteCard } from './PlayerNoteCard'
 import { formatNoteTime } from './PlayerNotebook'
@@ -688,6 +690,8 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
   const [laserArmed, setLaserArmed] = useState(false)
   /** Pino aberto no cartão; `null` = cartão fechado. */
   const [openPinId, setOpenPinId] = useState<string | null>(null)
+  /** ITEM NO MAPA: a imagem de item no chão aberta no cartão do item; `null` = nenhuma. */
+  const [openItemNoChaoId, setOpenItemNoChaoId] = useState<string | null>(null)
   /** ANIMAÇÃO DO CENÁRIO tocando agora (por cima do cartão do pino "!"); `null` = nenhuma. */
   const [cenarioTocando, setCenarioTocando] = useState<{ imagem: string; cenario: CenarioDoPino } | null>(null)
   /** DOIS PINOS NO MESMO PONTO: os pinos da escolha "Aqui há N coisas"; `null` = fechada. */
@@ -999,6 +1003,22 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
   }
 
   const openPin = openPinId === null ? null : (map?.pins ?? []).find((p) => p.id === openPinId) ?? null
+  // ITEM NO MAPA: o cartão do item abre para a imagem no chão e para o PINO DE
+  // ITEM (o "!" do saco); o pino "!" pegável de antes segue no cartão do pino.
+  // Saiu do recorte (alguém pegou, a ficha andou): o cartão fecha sozinho.
+  const itemAberto = useMemo(() => {
+    if (!map) return null
+    if (openItemNoChaoId !== null) return acharItemNoMapa(map, openItemNoChaoId)
+    return openPin !== null && openPin.icon === 'item' ? acharItemNoMapa(map, openPin.id) : null
+  }, [map, openItemNoChaoId, openPin])
+  // O item no chão que saiu do recorte esquece o cartão: largado de volta mais
+  // tarde (com o mesmo id), ele não pode reabrir sozinho na tela de quem olhava.
+  useEffect(() => {
+    if (openItemNoChaoId !== null && map !== undefined && itemAberto === null) setOpenItemNoChaoId(null)
+  }, [openItemNoChaoId, map, itemAberto])
+  // A mesma régua do host (`fichaAlcancaItem`): chegando perto, o "Pegar" do cartão aberto acende sozinho.
+  const itemAbertoLonge =
+    map !== undefined && itemAberto !== null && !map.tokens.some((t) => ownTokens.includes(t.id) && fichaAlcancaItem(t, itemAberto, map.grid))
   // SÓ DE PERTO: a mesma conta do host (`tokenReachesPin`). Recalculada a cada
   // snapshot: quando a ficha encosta, o botão do cartão aberto acende sozinho.
   const openPinFar = useMemo(() => {
@@ -1049,6 +1069,7 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
   const openPinCard = useCallback(
     (pinId: string) => {
       setOpenTokenId(null)
+      setOpenItemNoChaoId(null)
       setOpenPinId(pinId)
       connection.readClue(pinId)
       // ANIMAÇÃO DO CENÁRIO: o pino "!" com animação toca antes do cartão —
@@ -1073,7 +1094,20 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
     // Um cartão por vez no mesmo lugar: a ficha toma o lugar do pino aberto (e da escolha entre pinos).
     setOpenPinId(null)
     setPinChoiceIds(null)
+    setOpenItemNoChaoId(null)
     setOpenTokenId(tokenId)
+  }, [])
+  // ITEM NO MAPA: o item no chão também toma o lugar do que estiver aberto.
+  const openItemNoChao = useCallback((propId: string) => {
+    setOpenPinId(null)
+    setPinChoiceIds(null)
+    setOpenTokenId(null)
+    setOpenItemNoChaoId(propId)
+  }, [])
+  // Estável pelo mesmo motivo do cartão do pino. Fecha os dois jeitos de abrir: o chão e o pino de item.
+  const closeItemCard = useCallback(() => {
+    setOpenItemNoChaoId(null)
+    setOpenPinId(null)
   }, [])
   // Só os pinos que ainda estão no recorte: o que saiu (a ficha andou, o mestre
   // escondeu) some da lista; sem nenhum, a escolha fecha sozinha, como o cartão.
@@ -1255,6 +1289,7 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
             onDoorToggle={(wallId) => connection.toggleDoor(wallId)}
             onPinOpen={openPinCard}
             onTokenOpen={openTokenCard}
+            onItemNoChaoOpen={openItemNoChao}
             onPinsChoose={openPinChoice}
             onRoomOpen={(regionId) => connection.openRoomText(regionId)}
             onMarkOpen={setOpenMarkId}
@@ -1496,7 +1531,21 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
         {!shownPin && openPin === null && pinChoice.length > 0 && (
           <PlayerPinChooser pins={pinChoice} stairs={state.map.stairs} onChoose={choosePin} onClose={closePinChoice} />
         )}
-        {!shownPin && openPin && (
+        {!shownPin && itemAberto !== null && (
+          <PlayerItemCard
+            key={itemAberto.id}
+            item={itemAberto.item}
+            textoDoPino={itemAberto.forma === 'pino' ? itemAberto.pin.description : undefined}
+            onClose={closeItemCard}
+            longe={itemAbertoLonge}
+            takeWaiting={state.item?.phase === 'sent' && !state.item.direct}
+            onTake={() => {
+              // Mesma regra do "Pegar" do pino: enviado, o cartão sai e a espera fica no aviso.
+              if (connection.takePin(itemAberto.id)) closeItemCard()
+            }}
+          />
+        )}
+        {!shownPin && openPin && itemAberto === null && (
           <PlayerPinCard
             pin={openPin}
             stairs={state.map.stairs}

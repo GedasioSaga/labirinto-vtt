@@ -162,8 +162,8 @@ describe('pinSummary', () => {
 })
 
 describe('ícone do ponto de interesse', () => {
-  it('os seis ícones pedidos têm rótulo, ordem e forma', () => {
-    expect(PIN_ICON_ORDER).toEqual(['bau', 'armadilha', 'chave', 'perigo', 'escada', 'agua'])
+  it('os seis ícones pedidos e o do pino de item têm rótulo, ordem e forma', () => {
+    expect(PIN_ICON_ORDER).toEqual(['bau', 'armadilha', 'chave', 'perigo', 'escada', 'agua', 'item'])
     for (const icon of PIN_ICON_ORDER) {
       expect(PIN_ICON_LABELS[icon].length, icon).toBeGreaterThan(0)
       expect(PIN_SYMBOLS[icon].strokes.length, icon).toBeGreaterThan(0)

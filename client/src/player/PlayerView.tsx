@@ -23,6 +23,8 @@ import { findStairPinAt } from '../lib/selectionHitTest'
 import { findPinAt, findPinsAt, pinSizeScale, pinTapTolerance } from '../lib/pins'
 import { escolhaDoToque } from './pinChooser'
 import { visiblePins } from '../lib/layers'
+import { itemNoChaoNoPonto } from '../lib/itemNoMapa'
+import { useImagemDaMesa } from '../components/ImagemDaMesa'
 import { mapFloorClip } from '../lib/floorContour'
 import { createPinsRenderer } from '../pixi/drawPins'
 import { drawMarcas } from '../pixi/drawMarcas'
@@ -218,6 +220,8 @@ interface PlayerViewProps {
   onPinOpen?: (pinId: string) => void
   /** Toque curto numa ficha ALHEIA: abre o cartão dela, com as ações que viram pedido ao mestre. */
   onTokenOpen?: (tokenId: string) => void
+  /** ITEM NO MAPA: toque curto na imagem de um item no chão abre o cartão do item. Ausente = a imagem não é tocável. */
+  onItemNoChaoOpen?: (propId: string) => void
   /**
    * Toque curto onde há MAIS DE UM pino (cravados no mesmo ponto, ou colados
    * dentro da folga do dedo): os ids, do mais perto ao mais longe, para o
@@ -1491,6 +1495,7 @@ export function PlayerView({
   onDoorToggle,
   onPinOpen,
   onTokenOpen,
+  onItemNoChaoOpen,
   onPinsChoose,
   onRoomOpen,
   onMarkOpen,
@@ -1523,6 +1528,8 @@ export function PlayerView({
   /** Véu da chegada (`VEIL_STYLE`). */
   const veilRef = useRef<HTMLDivElement | null>(null)
   const sceneRef = useRef<Scene | null>(null)
+  // ITEM NO CHÃO: de onde vem a imagem do item (a URL da sala; na janela de teste, a ponte de arquivos).
+  const imagemDaMesa = useImagemDaMesa()
   const latest = {
     map,
     vision,
@@ -1552,12 +1559,14 @@ export function PlayerView({
     onDoorToggle,
     onPinOpen,
     onTokenOpen,
+    onItemNoChaoOpen,
     onPinsChoose,
     onRoomOpen,
     onMarkOpen,
     laser,
     laserArmed,
     ownLaserColor,
+    imagemDaMesa,
     onLaserMove,
     onLaserEnd,
     playerLasers,
@@ -1807,8 +1816,11 @@ export function PlayerView({
     const key = JSON.stringify([props, scale, res, currentMap.grid])
     if (key === scene.lastPropsKey) return
     scene.lastPropsKey = key
-    scene.propsCount = drawPropSilhouettes(scene.props, props, scale, res)
-    scene.propLooksCount = scene.propLooksRenderer.draw(scene.propImages, scene.propLabels, props, currentMap.grid, scale)
+    // ITEM NO CHÃO com imagem: a imagem do item é o desenho — a silhueta chapada
+    // por baixo faria a poção virar um caixote escuro.
+    const silhuetas = props.filter((p) => p.item?.imagem === undefined)
+    scene.propsCount = drawPropSilhouettes(scene.props, silhuetas, scale, res)
+    scene.propLooksCount = scene.propLooksRenderer.draw(scene.propImages, scene.propLabels, props, currentMap.grid, scale, latestRef.current.imagemDaMesa)
   }
 
   /** Mesmo desenho do editor (linha clara fina, porta retângulo), em px de tela. */
@@ -1947,6 +1959,19 @@ export function PlayerView({
   }
 
   /**
+   * ITEM NO MAPA: a imagem de item no chão sob o ponto da TELA, a de cima
+   * primeiro, com a folga de dedo do pino. Só quando alguém ouve o toque (como
+   * a ficha alheia), e só o que veio no recorte e nas camadas à mostra.
+   */
+  function itemNoChaoAtScreen(scene: Scene, screenX: number, screenY: number): string | null {
+    const { map, onItemNoChaoOpen: open } = latestRef.current
+    if (open === undefined) return null
+    const point = scene.world.toLocal({ x: screenX, y: screenY })
+    const prop = itemNoChaoNoPonto(visibleProps(map.props, map.hiddenLayers), point, DOOR_TAP_TOLERANCE_PX / scene.camera.scale)
+    return prop === null ? null : prop.id
+  }
+
+  /**
    * Pinta os pinos no tamanho deste zoom. `pins` já vem do recorte do mestre
    * (lib/fogFilter.ts) e das camadas ocultas: o que chega é o que se toca.
    */
@@ -2005,6 +2030,7 @@ export function PlayerView({
       pinsAtScreen(scene, screenX, screenY).length > 0 ||
       markAtScreen(scene, screenX, screenY) !== null ||
       otherTokenAtScreen(scene, screenX, screenY) !== null ||
+      itemNoChaoAtScreen(scene, screenX, screenY) !== null ||
       tapTargetAtScreen(scene, screenX, screenY).kind !== 'map' ||
       roomTextAtScreen(scene, screenX, screenY) !== null
     )
@@ -3011,6 +3037,8 @@ export function PlayerView({
         if (markAtScreen(scene, x, y) !== null) return
         // Idem a ficha alheia: o toque nela é para abrir o cartão.
         if (otherTokenAtScreen(scene, x, y) !== null) return
+        // E o item no chão: segurar em cima dele é querer ver o item, não pingar o mapa.
+        if (itemNoChaoAtScreen(scene, x, y) !== null) return
         const timer = setTimeout(() => {
           longPress = null
           // Virou sinal: o gesto não continua como arrasto de câmera.
@@ -3066,6 +3094,7 @@ export function PlayerView({
             (tapTargetAtScreen(scene, event.global.x, event.global.y).kind !== 'map' ||
               markAtScreen(scene, event.global.x, event.global.y) !== null ||
               otherTokenAtScreen(scene, event.global.x, event.global.y) !== null ||
+              itemNoChaoAtScreen(scene, event.global.x, event.global.y) !== null ||
               roomTextAtScreen(scene, event.global.x, event.global.y) !== null)
           app.stage.cursor = overTappable ? 'pointer' : 'default'
           return
@@ -3168,6 +3197,13 @@ export function PlayerView({
           const tokenId = otherTokenAtScreen(scene, drag.startX, drag.startY)
           if (tokenId !== null) {
             latestRef.current.onTokenOpen?.(tokenId)
+            return
+          }
+          // ITEM NO CHÃO: desenhado na camada dos objetos, abaixo das fichas e
+          // dos pinos — vem depois deles, e antes da porta e do nome da Sala.
+          const itemNoChao = itemNoChaoAtScreen(scene, drag.startX, drag.startY)
+          if (itemNoChao !== null) {
+            latestRef.current.onItemNoChaoOpen?.(itemNoChao)
             return
           }
           const target = tapTargetAtScreen(scene, drag.startX, drag.startY)

@@ -112,10 +112,11 @@ export const PIN_ICON_LABELS: Record<PinIcon, string> = {
   perigo: 'Perigo',
   escada: 'Escada',
   agua: 'Água',
+  item: 'Item',
 }
 
 /** Ordem em que os símbolos aparecem na grade do painel. */
-export const PIN_ICON_ORDER: readonly PinIcon[] = ['bau', 'armadilha', 'chave', 'perigo', 'escada', 'agua']
+export const PIN_ICON_ORDER: readonly PinIcon[] = ['bau', 'armadilha', 'chave', 'perigo', 'escada', 'agua', 'item']
 
 /** Guarda de leitura: arquivo de mapa editado à mão ou de versão futura não derruba o desenho. */
 export function isPinIcon(value: unknown): value is PinIcon {
@@ -377,6 +378,35 @@ export const PIN_SYMBOLS: Record<PinIcon, PinSymbolShape> = {
           { x: 0, y: 0.6 },
           { x: 0.42, y: 0.3 },
           { x: 0.85, y: 0.6 },
+        ],
+      },
+    ],
+  },
+  // ITEM NO MAPA (entrega 5): o saco amarrado — o pino de item que o mestre
+  // solta do acervo. Bojo largo embaixo, gargalo estreito e as duas pontas do
+  // pano acima do nó: não se confunde com a caixa reta do baú.
+  item: {
+    strokes: [
+      {
+        points: [
+          { x: -0.3, y: -0.34 },
+          { x: -0.74, y: 0.12 },
+          { x: -0.74, y: 0.5 },
+          { x: -0.5, y: 0.74 },
+          { x: 0.5, y: 0.74 },
+          { x: 0.74, y: 0.5 },
+          { x: 0.74, y: 0.12 },
+          { x: 0.3, y: -0.34 },
+        ],
+        closed: true,
+      },
+      {
+        points: [
+          { x: -0.3, y: -0.34 },
+          { x: -0.46, y: -0.74 },
+          { x: 0, y: -0.52 },
+          { x: 0.46, y: -0.74 },
+          { x: 0.3, y: -0.34 },
         ],
       },
     ],

@@ -27,6 +27,7 @@ import { abrirVaoDosDoisLados, desabarParede as desabarParedeNoMapa, type CorteN
 import { abrirSalaParaCorredores as abrirSalaParaCorredoresNoMapa, bloqueioDaSala, corredoresDaSala, motivoSemCorredor, type MotivoSemCorredor } from '../lib/abrirCorredor'
 import { comEscadaNosPisos, comFichaNoPiso, comSelecaoNoPiso, ehPiso, mapaDoPiso, nascemNoPiso, pisoDe } from '../lib/pisos'
 import { pinoNoPiso, selecaoNoPiso } from '../lib/pisoEmEdicao'
+import { trocarFormaDoItem as trocarForma } from '../lib/itemNoMapa'
 import { apagarNaCamada, avisoDaRecusa, encherNaCamada, pintarNaCamada, type ResultadoNaCamada } from '../lib/camadasDoPincel'
 import { linkDrawnWallToRoom } from '../lib/roomLink'
 import { amarrarAoEstado as amarrarNoMapa, type AmarraDeEstado } from '../lib/estadoDoMundo'
@@ -759,7 +760,13 @@ interface MapStoreState {
   moveProp: (id: string, x: number, y: number) => void
   /** Mesmo contrato de `updateToken`, para Prop. `playerLabel`/`playerImage`
    *  com `undefined` apagam o rótulo/a imagem do jogador (`stores/propPlayerLook.ts`). */
-  updateProp: (id: string, patch: Partial<Pick<Prop, 'rotation' | 'locked' | 'hidden' | 'playerLabel' | 'playerImage'>>) => void
+  updateProp: (id: string, patch: Partial<Pick<Prop, 'rotation' | 'locked' | 'hidden' | 'playerLabel' | 'playerImage' | 'item'>>) => void
+  /**
+   * ITEM NO MAPA: troca a forma do item `id` — imagem no chão ⇄ pino de item
+   * (`lib/itemNoMapa.ts`) —, com histórico, e a seleção segue o item na forma
+   * nova. Nada a trocar (sem imagem, não é item): nada, nem entrada no desfazer.
+   */
+  trocarFormaDoItem: (id: string) => void
   setShowGrid: (show: boolean) => void
   setGridShape: (shape: MapData['gridShape']) => void
   setGridSettings: (patch: Partial<GridSettings>) => void
@@ -2075,6 +2082,18 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
       ...map,
       props: map.props.map((p) => (p.id === id ? { ...p, ...patch } : p)),
     })),
+    trocarFormaDoItem: (id) => {
+      const antes = get().map
+      const depois = trocarForma(antes, id)
+      if (depois === antes) return
+      withHistory((map) => trocarForma(map, id))
+      const virouPino = get().map.pins.some((p) => p.id === id)
+      set(
+        virouPino
+          ? { selectedPinId: id, selection: EMPTY_SELECTION, selectedConcealZoneId: null }
+          : { selectedPinId: null, selection: selectionOfItem({ kind: 'prop', id }) },
+      )
+    },
     addDrawing: (drawing) => withHistory((map) => mapFactory.addDrawing(map, drawing)),
     pintarComBalde: (pintura) => withHistory((map) => ({ ...map, drawings: inserirPinturaDeBalde(map.drawings, pintura) })),
     removeDrawing: (id) => withHistory((map) => mapFactory.removeDrawing(map, id)),

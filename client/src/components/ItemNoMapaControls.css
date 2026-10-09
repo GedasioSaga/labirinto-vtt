@@ -1,0 +1,44 @@
+/* ITEM NO MAPA (ItemNoMapaControls.tsx): a miniatura do item com o nome e a
+   categoria ao lado, a quantidade numa linha e a troca de forma embaixo. A
+   miniatura usa a moldura da grade do acervo (`.lb-itens__foto`). */
+.lb-item-no-mapa {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.lb-item-no-mapa__cabeca {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.lb-item-no-mapa__foto {
+  flex: none;
+  width: 48px;
+  background: var(--lb-color-stone-sunken);
+  border: 1px solid var(--lb-color-line);
+}
+
+.lb-item-no-mapa__resumo {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.lb-item-no-mapa__nome {
+  overflow-wrap: anywhere;
+  font-weight: 600;
+}
+
+.lb-item-no-mapa__linha {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.lb-item-no-mapa__quantidade {
+  width: 7ch;
+}

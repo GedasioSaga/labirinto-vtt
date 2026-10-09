@@ -71,7 +71,7 @@ export async function pastaDaMidiaDoMapaSolto(caminhoDoMapa: string): Promise<st
 export interface UsoDaMidia {
   /** As fichas da aventura: retrato e imagem de cartão. */
   personagens?: readonly Personagem[]
-  /** As cenas: a mochila de cada token. */
+  /** As cenas: a mochila de cada token e os itens soltos no mapa (pino de item, item no chão). */
   mapas?: readonly MapData[]
   /** Fichas guardadas fora do mapa (`StoredToken`), que o arquivo continua levando. */
   tokens?: readonly Token[]
@@ -91,10 +91,17 @@ function idsDaMochila(token: Token, ids: Set<string>): void {
   for (const item of carriedItemsOf(token)) guardarId(item.imagem, ids)
 }
 
+/** ITEM NO MAPA (entrega 5): a imagem do pino de item e a do item deitado no chão (objeto). */
+function idsDosItensNoMapa(mapa: MapData, ids: Set<string>): void {
+  for (const pin of mapa.pins) guardarId(pin.item?.imagem, ids)
+  for (const prop of mapa.props) guardarId(prop.item?.imagem, ids)
+}
+
 /**
  * Os ids de mídia usados, sem repetir e em ordem. A imagem embutida
- * (`data:image/...`) não entra: ela já mora dentro do arquivo. O pino também
- * não: a imagem dele é embutida no `map.json` (`Pin.image`).
+ * (`data:image/...`) não entra: ela já mora dentro do arquivo. A imagem
+ * própria do pino também não: é embutida no `map.json` (`Pin.image`) — só a do
+ * ITEM do pino (e do item no chão) é referência.
  */
 export function idsDaMidiaUsada(uso: UsoDaMidia): string[] {
   const ids = new Set<string>()
@@ -102,7 +109,10 @@ export function idsDaMidiaUsada(uso: UsoDaMidia): string[] {
     guardarId(personagem.retrato, ids)
     for (const cartoes of Object.values(personagem.abas)) for (const cartao of cartoes) idsDoCartao(cartao, ids)
   }
-  for (const mapa of uso.mapas ?? []) for (const token of mapa.tokens) idsDaMochila(token, ids)
+  for (const mapa of uso.mapas ?? []) {
+    for (const token of mapa.tokens) idsDaMochila(token, ids)
+    idsDosItensNoMapa(mapa, ids)
+  }
   for (const token of uso.tokens ?? []) idsDaMochila(token, ids)
   return [...ids].sort()
 }

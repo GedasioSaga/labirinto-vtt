@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useId, useRef, useState, type FormEvent, type KeyboardEvent } from 'react'
-import { ITEM_NAME_MAX_LENGTH, podeLargarNoChao, quantidadeDe } from '../lib/items'
+import { ITEM_NAME_MAX_LENGTH, quantidadeDe } from '../lib/items'
 import { awayTokenLabel, awayTokenName, type PartyDestination, type PartyItemAction, type PartyMember } from '../lib/party'
 import { SceneSendForm } from './SceneSendForm'
 import type { PlayerNoteDelivery, TradeProposeRefusal, TradeProposeResult } from '../net/hostSession'
@@ -518,8 +518,8 @@ interface BackpackListProps {
 
 /**
  * A mochila de um jogador, item por item, com o que o mestre faz com cada um:
- * "Tirar" (a chave usada some) e "Devolver ao chão" (vira pino pegável onde a
- * ficha está). O nome do item fica numa linha e as duas ações na de baixo,
+ * "Tirar" (a chave usada some) e "Devolver ao chão" (volta ao mapa onde a
+ * ficha está: imagem no chão, ou pino de item sem imagem — `dropItemChange`). O nome do item fica numa linha e as duas ações na de baixo,
  * sempre: na coluna da ficha nome e botões não cabem lado a lado, e soltos na
  * mesma linha cada item quebrava num ponto diferente. O nome acessível diz o
  * item e de quem é: com sete jogadores, "Tirar" sozinho não diz qual.
@@ -540,17 +540,15 @@ function BackpackList({ member, onItem }: BackpackListProps) {
               <button type="button" className="lb-btn lb-btn--compact" aria-label={`Tirar ${item.nome} de ${member.name}`} onClick={() => run({ kind: 'tirar', item })}>
                 Tirar
               </button>
-              {/* ACERVO DE ITENS: o item do acervo (imagem, pilha) não volta inteiro ao chão até a entrega 5. */}
-              {podeLargarNoChao(item) && (
-                <button
-                  type="button"
-                  className="lb-btn lb-btn--compact"
-                  aria-label={`Devolver ao chão ${item.nome} de ${member.name}`}
-                  onClick={() => run({ kind: 'devolver', item })}
-                >
-                  Devolver ao chão
-                </button>
-              )}
+              {/* ITEM NO MAPA: todo item volta ao chão inteiro (imagem, dados, pilha) — `dropItemChange`. */}
+              <button
+                type="button"
+                className="lb-btn lb-btn--compact"
+                aria-label={`Devolver ao chão ${item.nome} de ${member.name}`}
+                onClick={() => run({ kind: 'devolver', item })}
+              >
+                Devolver ao chão
+              </button>
             </span>
           </li>
         ))}

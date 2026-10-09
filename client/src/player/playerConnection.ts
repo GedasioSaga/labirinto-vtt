@@ -58,7 +58,8 @@ import { lerPacoteDoLivro, parseLivroParte, parseLivroRecusa, receberParte, type
 import type { ResumoDoLivro } from '../lib/livroDeRegras'
 import type { Personagem } from '../lib/personagem'
 import type { CapituloDoLivro, CatalogosDoSistema, SistemaDeRpg } from '../lib/sistemaDeRpg'
-import { carriedItemsOf, cleanItemName, itemOfPin } from '../lib/items'
+import { carriedItemsOf, cleanItemName } from '../lib/items'
+import { acharItemNoMapa } from '../lib/itemNoMapa'
 import { canPay, isCoinAmount, ownTradeToken, purseToward, TRADE_ITEMS_MAX } from '../lib/troca'
 import { lojaParaJogador } from '../lib/loja'
 import { fitsTokenPhotoSend } from '../lib/tokenPhoto'
@@ -1110,8 +1111,9 @@ export interface PlayerConnection {
   /** Soltou o laser: manda o que faltava e o `off`, só se algo saiu desde o último. */
   laserOff(): void
   /**
-   * "Pegar" o item do pino `pinId`. `false` se não está jogando, o pino não
-   * está no mapa dele ou não é pegável, ou o socket não está aberto.
+   * "Pegar" o item do pino `pinId` — ou da imagem de item no chão com esse
+   * id (ITEM NO MAPA). `false` se não está jogando, o item não está no mapa
+   * dele ou não é pegável, ou o socket não está aberto.
    */
   takePin(pinId: string): boolean
   /**
@@ -4560,12 +4562,12 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     },
 
     takePin(pinId) {
-      if (state.status !== 'playing' || pinId.length === 0) return false
-      const pin = state.map?.pins.find((p) => p.id === pinId)
-      const item = pin === undefined ? null : itemOfPin(pin)
-      if (item === null) return false
+      if (state.status !== 'playing' || pinId.length === 0 || state.map === undefined) return false
+      // ITEM NO MAPA: o id é de um pino de item ou de uma imagem de item no chão — o mesmo `pin.take`.
+      const alvo = acharItemNoMapa(state.map, pinId)
+      if (alvo === null) return false
       if (!send({ type: 'pin.take', pinId })) return false
-      showItemNotice({ id: nextNoticeId++, phase: 'sent', direct: item.livre === true })
+      showItemNotice({ id: nextNoticeId++, phase: 'sent', direct: alvo.item.livre === true })
       return true
     },
 

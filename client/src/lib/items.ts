@@ -1,8 +1,7 @@
-import type { CarriedItem, DadosDoItem, MapData, Pin, PinItem, Token } from '../types/map'
+import type { CarriedItem, DadosDoItem, MapData, Pin, PinItem, Prop, Token } from '../types/map'
 import { tokenRadiusOf } from './doorReach'
 import { venderItem } from './loja'
 import { ehRefDeMidia } from './midia'
-import { comPiso, pisoDe } from './pisos'
 
 /**
  * ITEM PEGÁVEL — regras puras, compartilhadas pelo host (validar o "Pegar" e
@@ -32,24 +31,28 @@ export function cleanItemName(raw: string): string {
 /**
  * O item do pino, quando ele é pegável: nome não vazio e pino "!"/"?" (a
  * passagem e a alavanca não vão para a mochila). `null` = pino que só se lê.
+ * Sai numa cópia limpa, com os dados do acervo que estiverem bons
+ * (`readPinItem`): o host decide e grava a partir dela, nunca do objeto cru.
  */
 export function itemOfPin(pin: Pick<Pin, 'kind' | 'item'>): PinItem | null {
   if (pin.kind === 'viagem' || pin.kind === 'alavanca' || pin.item === undefined) return null
-  const nome = cleanItemName(pin.item.nome)
-  if (nome === '') return null
-  return pin.item.livre === true ? { nome, livre: true } : { nome }
+  return readPinItem(pin.item) ?? null
 }
 
 /**
- * `Pin.item` como vem do disco. Forma errada (arquivo editado à mão, versão
- * futura) volta AUSENTE — o pino só deixa de ser pegável; `livre` só vale
- * `true`: na dúvida, o pino pede ao mestre.
+ * `Pin.item` (e `Prop.item`) como vem do disco. Forma errada (arquivo editado
+ * à mão, versão futura) volta AUSENTE — o pino só deixa de ser pegável;
+ * `livre` só vale `true`: na dúvida, o pino pede ao mestre. Os dados do acervo
+ * passam pela mesma porta da mochila (`dadosDoItemLidos`): o pino "!" de
+ * antes, só com o nome, volta igual.
  */
 export function readPinItem(value: unknown): PinItem | undefined {
   if (!isRecord(value) || typeof value.nome !== 'string') return undefined
   const nome = cleanItemName(value.nome)
   if (nome === '') return undefined
-  return value.livre === true ? { nome, livre: true } : { nome }
+  const item: PinItem = { nome, ...dadosDoItemLidos(value) }
+  if (value.livre === true) item.livre = true
+  return item
 }
 
 /** Teto da descrição do item: texto que o jogador lê no detalhe do inventário. */
@@ -145,11 +148,14 @@ export interface BackpackUpdate {
  * O que muda no mapa quando um item troca de lugar: o pino pego sai
  * (`removePinId`), o item devolvido ao chão vira pino (`addPin`) e cada ficha
  * envolvida recebe a mochila nova INTEIRA — quem decidiu já calculou, e o
- * integrador só grava.
+ * integrador só grava. ITEM NO CHÃO (entrega 5): o mesmo para a imagem do
+ * item deitada no mapa, que é um objeto (`removePropId`, `addProp`).
  */
 export interface ItemChange {
   removePinId?: string
   addPin?: Pin
+  removePropId?: string
+  addProp?: Prop
   mochilas: BackpackUpdate[]
   /**
    * LOJA COM PREÇOS — "Vender": a mercadoria `itemId` da banca `pinId` perde
@@ -177,33 +183,6 @@ export function removeItemChange(token: Token, itemId: string): ItemChange | nul
   const mochila = carriedItemsOf(token)
   if (!mochila.some((item) => item.id === itemId)) return null
   return { mochilas: [{ tokenId: token.id, mochila: mochila.filter((item) => item.id !== itemId) }] }
-}
-
-/**
- * "Devolver ao chão" do mestre: o item sai da mochila e volta a ser pino
- * pegável ("!") onde a ficha está — no MESMO piso dela —, pedindo ao mestre de novo. O pino usa o id
- * do item (o do pino de onde ele saiu); se já há um pino com esse id no mapa,
- * usa `freshPinId` — nunca sobrescreve outro pino.
- */
-export function dropItemChange(map: MapData, token: Token, itemId: string, freshPinId: string): ItemChange | null {
-  const item = carriedItemsOf(token).find((carried) => carried.id === itemId)
-  const removed = removeItemChange(token, itemId)
-  if (item === undefined || removed === null) return null
-  const pinId = map.pins.some((pin) => pin.id === item.id) ? freshPinId : item.id
-  const pino: Pin = { id: pinId, x: token.x, y: token.y, kind: 'exclamacao', description: '', image: null, item: { nome: item.nome } }
-  // O host grava o pino direto (fora do desfazer que carimba o piso em edição):
-  // sem o piso da ficha ele cairia no térreo, longe de quem o largou.
-  return { ...removed, addPin: comPiso(pino, pisoDe(token)) }
-}
-
-/**
- * O "Largar no chão" (`dropItemChange`) só sabe recriar o pino com o NOME: a
- * imagem, a descrição e a pilha de um item do acervo sumiriam no chão (três
- * poções viravam uma). Até o item no mapa (entrega 5) guardar esses dados, só
- * o item simples — o pego de um pino — vai ao chão.
- */
-export function podeLargarNoChao(item: CarriedItem): boolean {
-  return item.itemId === undefined && quantidadeDe(item) === 1
 }
 
 /** "Dar" do mestre: um item NOVO, com o nome aparado, no fim da mochila da ficha. `null` = nome vazio. */
@@ -285,7 +264,7 @@ function withPurse(token: Token, moedas: number): Token {
   return semBolsa
 }
 
-/** As mochilas, as bolsas e o pino que sai ou volta; nada mudando, o MESMO mapa. */
+/** As mochilas, as bolsas e o pino (ou o objeto no chão) que sai ou volta; nada mudando, o MESMO mapa. */
 function applyBackpacksAndPins(map: MapData, change: ItemChange): MapData {
   const byToken = new Map(change.mochilas.map((update) => [update.tokenId, update.mochila]))
   const bolsaByToken = new Map((change.bolsas ?? []).map((update) => [update.tokenId, update.moedas]))
@@ -302,11 +281,17 @@ function applyBackpacksAndPins(map: MapData, change: ItemChange): MapData {
   const pinGone = removePinId !== undefined && map.pins.some((p) => p.id === removePinId)
   const addPin = change.addPin
   const pinBack = addPin !== undefined && !map.pins.some((p) => p.id === addPin.id)
-  if (!tokensChanged && !pinGone && !pinBack) return map
+  const removePropId = change.removePropId
+  const propGone = removePropId !== undefined && map.props.some((p) => p.id === removePropId)
+  const addProp = change.addProp
+  const propBack = addProp !== undefined && !map.props.some((p) => p.id === addProp.id)
+  if (!tokensChanged && !pinGone && !pinBack && !propGone && !propBack) return map
   const keptPins = pinGone ? map.pins.filter((p) => p.id !== removePinId) : map.pins
+  const keptProps = propGone ? map.props.filter((p) => p.id !== removePropId) : map.props
   return {
     ...map,
     tokens: tokensChanged ? tokens : map.tokens,
     pins: pinBack ? [...keptPins, addPin] : keptPins,
+    props: propBack ? [...keptProps, addProp] : keptProps,
   }
 }

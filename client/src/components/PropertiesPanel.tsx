@@ -86,6 +86,7 @@ import { PinControls, type PinControlsProps } from './PinControls'
 import type { PinIconControlsProps } from './PinIconControls'
 import { TokenLibraryPanel, type TokenLibraryPanelProps } from './TokenLibraryPanel'
 import { AcervoDeItensPanel, type AcervoDeItensPanelProps } from './AcervoDeItensPanel'
+import { ItemNoChaoControls, type ItemNoChaoControlsProps } from './ItemNoMapaControls'
 import { isAxisAlignedRect, roomDimensions } from '../lib/roomOps'
 import { roomRotationOf } from '../lib/roomRotation'
 import { roomLabelStyleOf } from '../lib/roomLabelStyle'
@@ -194,6 +195,12 @@ interface PropertiesPanelProps {
   propPlayer: Omit<PropPlayerControlsProps, 'label' | 'showImage'>
   /** Seção "Móvel" (tipo e aparência) — só aparece quando o Objeto selecionado é um móvel desenhado. */
   propMobilia: Omit<MobiliaControlsProps, 'prop'>
+  /**
+   * ITEM NO CHÃO (entrega 5): quando o Objeto selecionado é a imagem de um
+   * item, a seção dele (nome, modo de pegar, quantidade, trocar para pino)
+   * toma o lugar de "Móvel" e "Para os jogadores". Ausente = nunca aparece.
+   */
+  itemNoChao?: Omit<ItemNoChaoControlsProps, 'item'>
   selectedToken: Token | null
   tokenName: Omit<TokenNameControlsProps, 'name' | 'publicName'>
   tokenImage: Omit<TokenImageControlsProps, 'image'>
@@ -383,6 +390,7 @@ export function PropertiesPanel({
   propTransform,
   propPlayer,
   propMobilia,
+  itemNoChao,
   selectedToken,
   tokenName,
   tokenImage,
@@ -839,9 +847,15 @@ export function PropertiesPanel({
         {doorSelected && wallStyleSection}
         {selectedProp && (
           <ToolPropertiesSection group="itemTransform" groups={groups}>
-            <MobiliaControls prop={selectedProp} {...propMobilia} />
+            {/* ITEM NO CHÃO: a imagem do item não é móvel nem tem "imagem ao
+                jogador" própria — a imagem do item já é o que ele vê. */}
+            {selectedProp.item !== undefined && itemNoChao !== undefined ? (
+              <ItemNoChaoControls key={selectedProp.id} item={selectedProp.item} {...itemNoChao} />
+            ) : (
+              <MobiliaControls prop={selectedProp} {...propMobilia} />
+            )}
             <ItemTransformControls
-              title="Objeto"
+              title={selectedProp.item !== undefined ? 'Imagem no chão' : 'Objeto'}
               rotation={selectedProp.rotation ?? 0}
               locked={!!selectedProp.locked}
               hidden={!!selectedProp.hidden}
@@ -849,7 +863,9 @@ export function PropertiesPanel({
               {...propTransform}
             />
             <PropLayerControls prop={selectedProp} onSetPropLayer={onSetPropLayer} />
-            <PropPlayerControls label={selectedProp.playerLabel ?? ''} showImage={selectedProp.playerImage !== undefined} {...propPlayer} />
+            {selectedProp.item === undefined && (
+              <PropPlayerControls label={selectedProp.playerLabel ?? ''} showImage={selectedProp.playerImage !== undefined} {...propPlayer} />
+            )}
           </ToolPropertiesSection>
         )}
         {/* A FICHA NA ORDEM DO FIGMA UI3 (peça ficha-em-ordem-de-tarefa):

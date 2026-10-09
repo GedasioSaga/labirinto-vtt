@@ -1,6 +1,7 @@
 import { Container, Sprite, Text, Texture } from 'pixi.js'
 import type { Prop } from '../types/map'
 import { propPlayerImage, propPlayerLabel } from '../lib/propPlayerLook'
+import { ehRefDeMidia, type ResolverDeImagem } from '../lib/midia'
 import { rotationToRadians } from '../lib/itemTransform'
 import { screenLabelSizing } from './screenLabel'
 import { textureFromDataUrl } from './tokenPhotoSprite'
@@ -15,7 +16,9 @@ import { WALL_COLOR } from './drawWalls'
  *   a mesma regra de zoom do nome da sala (`screenLabel.ts`);
  * - a IMAGEM, quando o mestre ligou "Mostrar imagem ao jogador": a cópia
  *   pequena que viajou, esticada ao tamanho e girada na rotação do editor —
- *   exatamente onde o sprite do mestre está.
+ *   exatamente onde o sprite do mestre está;
+ * - a IMAGEM DO ITEM NO CHÃO (entrega 5), buscada por referência de mídia
+ *   (`imagemDaMesa`), inteira dentro da caixa do objeto (`fitPropSprite`).
  *
  * O recorte (`lib/fogFilter.ts`) já tirou o que o jogador não pode ver; aqui
  * a imagem ainda passa pela regra de `propPlayerLook.ts`, para que nada que não
@@ -28,8 +31,13 @@ export interface PropLooksCount {
 }
 
 export interface PropLooksRenderer {
-  /** Redesenha rótulos e imagens dos objetos recebidos; o que saiu da lista sai da tela. */
-  draw: (images: Container, labels: Container, props: readonly Prop[], grid: number, cameraScale: number) => PropLooksCount
+  /**
+   * Redesenha rótulos e imagens dos objetos recebidos; o que saiu da lista sai
+   * da tela. `imagemDaMesa` diz de onde vem a imagem do ITEM NO CHÃO (a URL da
+   * sala no jogador, a ponte de arquivos na janela de teste); sem ele, o item
+   * no chão fica só no toque, sem desenho.
+   */
+  draw: (images: Container, labels: Container, props: readonly Prop[], grid: number, cameraScale: number, imagemDaMesa?: ResolverDeImagem) => PropLooksCount
   /** Só o zoom mudou: reescala e mostra/esconde os rótulos, sem refazer nada. */
   setCameraScale: (cameraScale: number) => void
 }
@@ -63,14 +71,42 @@ function labelFontSize(grid: number): number {
   return Math.min(LABEL_MAX_FONT, Math.max(LABEL_MIN_FONT, size))
 }
 
+/**
+ * O tamanho do sprite na caixa do objeto, igual no editor (`drawProps.ts`) e
+ * na tela do jogador: o objeto comum estica até a caixa, como sempre; o ITEM
+ * NO CHÃO cabe INTEIRO nela, sem deformar — a espada comprida numa caixa
+ * quadrada continua espada. Textura ainda vazia estica (não há proporção).
+ */
+export function fitPropSprite(sprite: Sprite, prop: Pick<Prop, 'width' | 'height' | 'item'>): void {
+  const { width, height } = sprite.texture
+  if (prop.item === undefined || width <= 1 || height <= 1) {
+    sprite.width = prop.width
+    sprite.height = prop.height
+    return
+  }
+  sprite.scale.set(Math.min(prop.width / width, prop.height / height))
+}
+
 /** Tamanho e rotação do editor: âncora no centro, igual ao sprite do mestre (`drawProps.ts`). */
 function placeImage(view: ImageView): void {
   const { sprite, prop } = view
   sprite.x = prop.x
   sprite.y = prop.y
   sprite.rotation = rotationToRadians(prop.rotation)
-  sprite.width = prop.width
-  sprite.height = prop.height
+  fitPropSprite(sprite, prop)
+}
+
+/**
+ * A imagem que o jogador vê no objeto: a do ITEM NO CHÃO (referência de mídia
+ * resolvida pela tela, só a da forma `midia:<id>`) ou a cópia auto-contida do
+ * "Mostrar imagem ao jogador". `undefined` = só a silhueta.
+ */
+function imagemDoObjeto(prop: Prop, imagemDaMesa: ResolverDeImagem | undefined): string | undefined {
+  if (prop.item !== undefined) {
+    const ref = prop.item.imagem
+    return ehRefDeMidia(ref) && imagemDaMesa !== undefined ? (imagemDaMesa(ref) ?? undefined) : undefined
+  }
+  return propPlayerImage(prop.playerImage)
 }
 
 function sizeLabel(view: LabelView, cameraScale: number): void {
@@ -103,10 +139,10 @@ export function createPropLooksRenderer(loadTexture: PropTextureLoader = texture
       })
   }
 
-  function drawImages(container: Container, props: readonly Prop[]): number {
+  function drawImages(container: Container, props: readonly Prop[], imagemDaMesa: ResolverDeImagem | undefined): number {
     const wanted = new Map<string, { prop: Prop; data: string }>()
     for (const prop of props) {
-      const data = propPlayerImage(prop.playerImage)
+      const data = imagemDoObjeto(prop, imagemDaMesa)
       if (data !== undefined) wanted.set(prop.id, { prop, data })
     }
     for (const [id, view] of imageViews) if (!wanted.has(id)) dropImage(id, view)
@@ -167,9 +203,9 @@ export function createPropLooksRenderer(loadTexture: PropTextureLoader = texture
   }
 
   return {
-    draw(images, labels, props, grid, cameraScale) {
+    draw(images, labels, props, grid, cameraScale, imagemDaMesa) {
       lastCameraScale = cameraScale
-      return { images: drawImages(images, props), labels: drawLabels(labels, props, grid) }
+      return { images: drawImages(images, props, imagemDaMesa), labels: drawLabels(labels, props, grid) }
     },
     setCameraScale(cameraScale) {
       lastCameraScale = cameraScale

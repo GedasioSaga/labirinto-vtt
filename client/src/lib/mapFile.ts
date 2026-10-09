@@ -113,6 +113,19 @@ function readPropPlayerLook(prop: Prop): Prop {
 }
 
 /**
+ * ITEM NO CHÃO (entrega 5): campo NOVO e OPCIONAL. Sem ele o objeto volta
+ * idêntico; com ele, só na forma de `readPinItem` (nome, `livre` só `true`,
+ * imagem só referência de mídia). Forma errada sai: o objeto fica, só deixa
+ * de ser pegável — o `...p` não leva o valor cru até a tela do jogador.
+ */
+function readPropItem(prop: Prop): Prop {
+  if (!('item' in prop)) return prop
+  const { item, ...rest } = prop
+  const lido = readPinItem(item)
+  return lido === undefined ? rest : { ...rest, item: lido }
+}
+
+/**
  * CHAVE ABRE PORTA: o "Abre com" é campo NOVO e OPCIONAL. Ausente continua
  * ausente (o round-trip do mapa antigo não ganha campo); o que não é texto sai
  * — a porta continua trancada, só deixa de abrir com item.
@@ -426,7 +439,7 @@ function deserializeMapFields(json: string): MapData {
     // (rótulo curto, imagem em data URL); o resto sai em vez de ir parar na
     // tela do jogador.
     props: entityList(parsed.props).map((p) =>
-      propMobiliaFromFile(readPropPlayerLook({ ...p, linkedMapPath: p.linkedMapPath ?? null })),
+      propMobiliaFromFile(readPropItem(readPropPlayerLook({ ...p, linkedMapPath: p.linkedMapPath ?? null }))),
     ),
     // TRANSIÇÃO ESPECIAL da escada: mesma regra do pino de viagem.
     stairs: entityList(parsed.stairs).map((s) => ({ ...s, transicao: parseTransicao(s.transicao) })),

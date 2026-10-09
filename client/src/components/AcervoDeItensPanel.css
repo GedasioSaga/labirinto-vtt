@@ -8,6 +8,22 @@
   gap: var(--lb-space-3);
 }
 
+/* ITEM NO MAPA: a linha que ensina o arrasto (e o Alt), acima da primeira categoria. */
+.lb-itens__dica {
+  margin: 0;
+}
+
+/* A miniatura do item no fantasma do arrasto, do tamanho da foto do token no fantasma dele. */
+.lb-itens__fantasma-foto {
+  width: 32px;
+  flex: none;
+}
+
+/* Arrastar a grade não seleciona o nome do item no caminho. */
+.lb-itens__item {
+  user-select: none;
+}
+
 .lb-itens__categoria {
   display: flex;
   align-items: center;

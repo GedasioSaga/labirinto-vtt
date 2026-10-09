@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { buildPin, createEmptyMap } from '../../lib/mapFactory'
+import { objetoDeItem } from '../../lib/itemNoMapa'
 import { ID_ONE_PIECE, SISTEMAS_EMBUTIDOS } from '../../lib/sistemaOnePiece'
 import { hostWorldOf, useAdventureStore } from '../../stores/adventureStore'
 import { useMapStore } from '../../stores/mapStore'
@@ -61,6 +62,8 @@ const CHAVE: Pin = { ...buildPin('pino-chave', { x: 225, y: 125 }, 'exclamacao')
 const ESCADA: Stair = { id: 'escada', shape: 'straight', direction: 'up', segments: [{ x1: 175, y1: 100, x2: 175, y2: 150 }], stepWidth: 40, levaAoPiso: 1 }
 
 const DESTINO = { x: 175, y: 125 }
+/** ITEM NO MAPA: a imagem do item é referência de mídia — a única forma que atravessa. */
+const IMAGEM_DA_POCAO = `midia:${'e'.repeat(64)}.webp`
 
 function salao(): MapData {
   return { ...createEmptyMap('m-salao', 'Salão', 10, 10, GRADE), tokens: [ANA], walls: [PORTA, PAREDE], pins: [CHAVE], stairs: [ESCADA] }
@@ -223,6 +226,44 @@ describe('Visão de jogador no Jogar — vazamento zero para o editor', () => {
     for (const deps of pontes.deps) {
       for (const escritor of ESCRITORES_DO_JOGO_DE_VERDADE) expect(deps[escritor], escritor).toBeUndefined()
     }
+  })
+
+  it('ITEM NO MAPA: a imagem no chão chega por referência e limpa; pegar enche a mochila só na janela', async () => {
+    const pocao = objetoDeItem('chao-pocao', { x: 175, y: 175 }, GRADE, {
+      nome: 'Poção',
+      itemId: 'item_pocao',
+      imagem: IMAGEM_DA_POCAO,
+      descricao: 'Cura 50 HP.',
+      preco: 30,
+      quantidade: 2,
+      empilhavel: true,
+      livre: true,
+    })
+    const segredo = { ...objetoDeItem('chao-segredo', { x: 125, y: 175 }, GRADE, { nome: 'Anel do mestre', imagem: IMAGEM_DA_POCAO }), secret: true }
+    useMapStore.getState().loadMap({ ...salao(), props: [pocao, segredo] })
+    const antes = editorSerializado()
+    espionar()
+    const janela = await jogarCom(ANA.id)
+    const conexao = janela.conexao()
+
+    await vi.waitFor(() => expect(conexao.getState().map?.props.map((p) => p.id)).toEqual(['chao-pocao']))
+    const naJanela = JSON.stringify(conexao.getState().map)
+    expect(naJanela).toContain(IMAGEM_DA_POCAO)
+    expect(naJanela).not.toContain('data:image')
+    expect(naJanela).not.toContain('item_pocao')
+    expect(naJanela).not.toContain('Anel do mestre')
+
+    expect(conexao.takePin('chao-pocao')).toBe(true)
+    await vi.waitFor(() =>
+      expect(fichaNaJanela(conexao, ANA.id)?.mochila).toEqual([
+        { id: 'chao-pocao', nome: 'Poção', itemId: 'item_pocao', imagem: IMAGEM_DA_POCAO, descricao: 'Cura 50 HP.', preco: 30, quantidade: 2, empilhavel: true },
+      ]),
+    )
+    expect(conexao.getState().map?.props).toEqual([])
+
+    expect(chamadas()).toEqual(nenhumaChamada())
+    expect(editorSerializado()).toBe(antes)
+    expect(useMapStore.getState().map.props.map((p) => p.id)).toEqual(['chao-pocao', 'chao-segredo'])
   })
 
   it('caravana no mapa-mundi: quem segue a ficha arrastada pelo mestre anda só no teste', async () => {

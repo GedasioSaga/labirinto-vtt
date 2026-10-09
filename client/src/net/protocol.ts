@@ -687,6 +687,9 @@ export interface DoorRequestMessage {
  * ITEM PEGÁVEL: o jogador pede para pegar o item do pino `pinId`. O host
  * valida (pino visível, pegável, ficha encostada) e leva ao mestre — ou, no
  * pino livre, entrega direto. A resposta volta em `pin.take.answer`.
+ * ITEM NO MAPA (entrega 5): `pinId` também pode ser o id da imagem de item no
+ * chão (um objeto); a mensagem e as respostas são as mesmas, e o host confere
+ * no mapa dele qual dos dois é (`acharItemNoMapa`).
  */
 export interface PinTakeMessage {
   type: 'pin.take'

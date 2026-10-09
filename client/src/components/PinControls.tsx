@@ -17,6 +17,7 @@ import { PinCabinControls, type PinCabinControlsProps } from './PinCabinControls
 import { PinTravelControls, type PinTravelControlsProps } from './PinTravelControls'
 import { ShowPinNowControls, type ShowPinNowControlsProps } from './ShowPinNowControls'
 import { Toggle } from './Toggle'
+import { comModoDePegar, DadosDoItemNoMapa } from './ItemNoMapaControls'
 
 export interface PinControlsProps {
   kind: PinKind
@@ -72,8 +73,9 @@ export interface PinControlsProps {
   /**
    * ITEM PEGÁVEL do pino aberto ("!"/"?"): `value` `null` = pino que só se lê.
    * `onChange(null)` desliga. `null` no prop = sem pino aberto, ou pino de viagem.
+   * `onTrocarForma` (ITEM NO MAPA): o pino de item vira imagem no chão.
    */
-  item?: { value: PinItem | null; onChange: (item: PinItem | null) => void } | null
+  item?: { value: PinItem | null; onChange: (item: PinItem | null) => void; onTrocarForma?: () => void } | null
   /**
    * PRESO À FICHA do pino de viagem aberto: `value` é o id da ficha que ele
    * acompanha (`null` = parado); `options`, as fichas desta cena.
@@ -230,7 +232,7 @@ export const NEW_ITEM_NAME = 'Item'
  * o nome que vai para a mochila e se ele pega sem pedir ao mestre. O nome só
  * vale ao sair do campo (ou Enter): cada letra não vira um passo do desfazer.
  */
-function PinItemControls({ value, onChange }: { value: PinItem | null; onChange: (item: PinItem | null) => void }) {
+function PinItemControls({ value, onChange, onTrocarForma }: { value: PinItem | null; onChange: (item: PinItem | null) => void; onTrocarForma?: () => void }) {
   const [draft, setDraft] = useState(value?.nome ?? '')
   const nome = value?.nome ?? ''
   useEffect(() => setDraft(nome), [nome])
@@ -261,15 +263,21 @@ function PinItemControls({ value, onChange }: { value: PinItem | null; onChange:
               if (event.key === 'Enter') commit()
             }}
           />
-          <Toggle
-            label="Pega sem pedir ao mestre"
-            checked={value.livre === true}
-            onChange={(livre) => onChange(livre ? { nome: value.nome, livre: true } : { nome: value.nome })}
-          />
+          <Toggle label="Pega sem pedir ao mestre" checked={value.livre === true} onChange={(livre) => onChange(comModoDePegar(value, livre))} />
+          {/* PINO DE ITEM (entrega 5): o item que veio do acervo mostra a imagem, a pilha e a troca para imagem no chão. */}
+          {temDadosDoAcervo(value) && onTrocarForma !== undefined && (
+            <DadosDoItemNoMapa item={value} forma="pino" onChange={onChange} onTrocarForma={onTrocarForma} />
+          )}
         </>
       )}
     </>
   )
+}
+
+/** O item tem algo do acervo além do nome (o pino "!" de antes só tem o nome). */
+function temDadosDoAcervo(item: PinItem): boolean {
+  const { nome: _nome, livre: _livre, ...dados } = item
+  return Object.values(dados).some((valor) => valor !== undefined)
 }
 
 /** A pastilha de cada tipo: a mesma cabeça que o pino tem no mapa. */
@@ -455,7 +463,7 @@ export function PinControls({
               rotação nem "oculto no editor" separado do resto do painel. */}
           <Toggle label="Travado" checked={locked} onChange={onLockedChange} />
           {viagem && attachment !== null && <PinAttachControls {...attachment} />}
-          {!viagem && !alavanca && item !== null && <PinItemControls value={item.value} onChange={item.onChange} />}
+          {!viagem && !alavanca && item !== null && <PinItemControls value={item.value} onChange={item.onChange} onTrocarForma={item.onTrocarForma} />}
           {/* Quem lê o pino, e de onde. */}
           <PinReachControls
             marco={marco}

@@ -1,4 +1,5 @@
-import { useEffect, useId, useState, type FormEvent } from 'react'
+import { useEffect, useId, useRef, useState, type FormEvent, type PointerEvent as ReactPointerEvent } from 'react'
+import { createPortal } from 'react-dom'
 import { categoriaLimpa, novoItemDoCatalogo, type ItemDoCatalogo } from '../lib/acervoDeItens'
 import { escolherImagemDoItem, imagemDoItemDoBlob } from '../lib/imagemDoItem'
 import type { AlvoDoAcervo } from '../lib/party'
@@ -7,6 +8,7 @@ import { BotaoMais } from './BotaoMais'
 import { ImagemOuIniciais } from './FichaPecas'
 import { ItemDoCatalogoDialog } from './ItemDoCatalogoDialog'
 import './AcervoDeItensPanel.css'
+import './TokenLibraryPanel.css'
 
 /**
  * ACERVO DE ITENS (entrega 4) — a categoria "Itens" logo abaixo dos tokens no
@@ -23,6 +25,119 @@ export interface AcervoDeItensPanelProps {
   onDar: (item: ItemDoCatalogo, alvo: AlvoDoAcervo, quantidade: number) => boolean
   /** Erro de gravação que a tela não mostra no lugar (o toast do app). */
   onErro?: (mensagem: string) => void
+  /**
+   * ITEM NO MAPA (entrega 5): o item foi ARRASTADO e solto neste ponto da tela
+   * (px de janela). `comoPino` = o Alt estava apertado ao soltar: pino de item
+   * em vez da imagem no chão. Quem monta a tela decide se ali é o mapa e
+   * devolve `true` quando pôs. Ausente = o item não se arrasta.
+   */
+  onSoltarNoMapa?: (item: ItemDoCatalogo, clientX: number, clientY: number, comoPino: boolean) => boolean
+}
+
+/** Quanto o ponteiro anda antes de o aperto virar arrasto (o mesmo do acervo de tokens). */
+const LIMIAR_DO_ARRASTO_PX = 6
+
+/** O que a linha de ajuda diz: o gesto e o modificador, que de outro jeito ninguém descobre. */
+export const DICA_DO_ARRASTO = 'Arraste um item até o mapa para pô-lo no chão; com Alt, vira pino.'
+
+/** Leva o fantasma ao ponteiro, centrado nele. Estilo direto: sem render do React por quadro. */
+function posicionarFantasma(fantasma: HTMLElement, ponto: { x: number; y: number }): void {
+  fantasma.style.transform = `translate(${ponto.x}px, ${ponto.y}px) translate(-50%, -50%)`
+}
+
+/**
+ * O arrasto de um item da grade até o mapa, no molde do acervo de tokens
+ * (`TokenLibraryPanel`): de ponteiro, não o drag-and-drop do HTML — o alvo é o
+ * canvas do Pixi, que não fala `dragover`/`drop`. Durante o gesto só o
+ * fantasma se move (estilo direto) e a grade não re-renderiza; Esc ou soltar
+ * fora do mapa desiste sem pôr nada. O clique que o navegador manda depois do
+ * arrasto é engolido: soltar não abre a janela do item.
+ */
+function useArrastoAoMapa(onSoltar: AcervoDeItensPanelProps['onSoltarNoMapa']) {
+  const [arrastado, setArrastado] = useState<ItemDoCatalogo | null>(null)
+  const fantasmaRef = useRef<HTMLDivElement | null>(null)
+  const pontoRef = useRef({ x: 0, y: 0 })
+  const engolirCliqueRef = useRef(false)
+  const soltarOuvintesRef = useRef<(() => void) | null>(null)
+
+  // Painel desmontado no meio do arrasto: os ouvintes de janela não podem sobreviver a ele.
+  useEffect(() => () => soltarOuvintesRef.current?.(), [])
+
+  const comecar = (event: ReactPointerEvent<HTMLButtonElement>, item: ItemDoCatalogo) => {
+    if (onSoltar === undefined || event.button !== 0 || !event.isPrimary) return
+    soltarOuvintesRef.current?.()
+    engolirCliqueRef.current = false
+    const pointerId = event.pointerId
+    const inicio = { x: event.clientX, y: event.clientY }
+    let arrastando = false
+    let cancelado = false
+
+    const mover = (e: PointerEvent) => {
+      if (e.pointerId !== pointerId || cancelado) return
+      pontoRef.current = { x: e.clientX, y: e.clientY }
+      if (!arrastando) {
+        if (Math.hypot(e.clientX - inicio.x, e.clientY - inicio.y) < LIMIAR_DO_ARRASTO_PX) return
+        arrastando = true
+        setArrastado(item)
+      }
+      if (fantasmaRef.current !== null) posicionarFantasma(fantasmaRef.current, pontoRef.current)
+    }
+    const encerrar = (e: PointerEvent, soltou: boolean) => {
+      if (e.pointerId !== pointerId) return
+      soltarOuvintesRef.current?.()
+      if (!arrastando) return
+      setArrastado(null)
+      // O `click` chega logo depois deste `pointerup`; o `setTimeout` libera o próximo clique de verdade.
+      engolirCliqueRef.current = true
+      setTimeout(() => {
+        engolirCliqueRef.current = false
+      }, 0)
+      if (soltou && !cancelado) onSoltar(item, e.clientX, e.clientY, e.altKey)
+    }
+    const aoSoltar = (e: PointerEvent) => encerrar(e, true)
+    const aoCancelar = (e: PointerEvent) => encerrar(e, false)
+    // Esc desiste, na CAPTURA e parando ali: no mapa ele largaria a seleção.
+    const aoTeclar = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape' || !arrastando || cancelado) return
+      e.preventDefault()
+      e.stopImmediatePropagation()
+      cancelado = true
+      setArrastado(null)
+    }
+    window.addEventListener('pointermove', mover)
+    window.addEventListener('pointerup', aoSoltar)
+    window.addEventListener('pointercancel', aoCancelar)
+    window.addEventListener('keydown', aoTeclar, true)
+    soltarOuvintesRef.current = () => {
+      window.removeEventListener('pointermove', mover)
+      window.removeEventListener('pointerup', aoSoltar)
+      window.removeEventListener('pointercancel', aoCancelar)
+      window.removeEventListener('keydown', aoTeclar, true)
+      soltarOuvintesRef.current = null
+    }
+  }
+
+  const fantasma =
+    arrastado === null
+      ? null
+      : createPortal(
+          <div
+            className="lb-acervo__fantasma"
+            aria-hidden="true"
+            ref={(el) => {
+              fantasmaRef.current = el
+              if (el !== null) posicionarFantasma(el, pontoRef.current)
+            }}
+          >
+            <span className="lb-itens__foto lb-itens__fantasma-foto">
+              <ImagemOuIniciais imagem={arrastado.imagem} nome={arrastado.nome} />
+            </span>
+            <span>{arrastado.nome}</span>
+          </div>,
+          document.body,
+        )
+
+  return { comecar, fantasma, engolirClique: () => engolirCliqueRef.current }
 }
 
 export const ITENS_VAZIO = 'Nenhum item no acervo ainda.'
@@ -42,8 +157,9 @@ export function itensPorCategoria(itens: readonly ItemDoCatalogo[], categorias: 
   return ordem.map((categoria) => ({ categoria, itens: grupos.get(categoria) ?? [] }))
 }
 
-export function AcervoDeItensPanel({ alvos, onDar, onErro }: AcervoDeItensPanelProps) {
+export function AcervoDeItensPanel({ alvos, onDar, onErro, onSoltarNoMapa }: AcervoDeItensPanelProps) {
   const tituloId = useId()
+  const arrasto = useArrastoAoMapa(onSoltarNoMapa)
   const itens = useAcervoDeItensStore((state) => state.itens)
   const categorias = useAcervoDeItensStore((state) => state.categorias)
   const aviso = useAcervoDeItensStore((state) => state.aviso)
@@ -86,6 +202,7 @@ export function AcervoDeItensPanel({ alvos, onDar, onErro }: AcervoDeItensPanelP
         </p>
       ) : (
         <div className="lb-itens__grupos">
+          {onSoltarNoMapa !== undefined && <p className="lb-label lb-itens__dica">{DICA_DO_ARRASTO}</p>}
           {grupos.map((grupo) => (
             <div key={grupo.categoria} className="lb-itens__grupo" role="group" aria-label={grupo.categoria}>
               <p className="lb-itens__categoria">
@@ -97,7 +214,18 @@ export function AcervoDeItensPanel({ alvos, onDar, onErro }: AcervoDeItensPanelP
               <ul className="lb-itens__grade">
                 {grupo.itens.map((item) => (
                   <li key={item.id}>
-                    <button type="button" className="lb-itens__item" aria-label={`Abrir ${item.nome}`} title={item.nome} onClick={() => setAberto({ id: item.id })}>
+                    <button
+                      type="button"
+                      className="lb-itens__item"
+                      aria-label={`Abrir ${item.nome}`}
+                      title={item.nome}
+                      onPointerDown={(event) => arrasto.comecar(event, item)}
+                      onClick={() => {
+                        // Acabou de soltar no mapa: o clique do mesmo gesto não abre a janela.
+                        if (arrasto.engolirClique()) return
+                        setAberto({ id: item.id })
+                      }}
+                    >
                       <span className="lb-itens__foto">
                         <ImagemOuIniciais imagem={item.imagem} nome={item.nome} />
                       </span>
@@ -125,6 +253,7 @@ export function AcervoDeItensPanel({ alvos, onDar, onErro }: AcervoDeItensPanelP
           escolherImagem={escolherImagemDoItem}
         />
       )}
+      {arrasto.fantasma}
     </section>
   )
 }

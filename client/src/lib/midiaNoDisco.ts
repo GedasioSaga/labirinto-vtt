@@ -2,7 +2,7 @@ import { exists, writeFile } from '@tauri-apps/plugin-fs'
 import { appDataDir, join } from '@tauri-apps/api/path'
 import { convertFileSrc } from '@tauri-apps/api/core'
 import { ensureDir } from './mapFileIO'
-import { bytesDaDataUrl, idDosBytes, MIDIA_MAX_BYTES, refDoId } from './midia'
+import { bytesDaDataUrl, idDaRef, idDosBytes, MIDIA_MAX_BYTES, refDoId } from './midia'
 
 /**
  * MÍDIA DA MESA no disco do mestre: `<appData>/midia/<sha256>.<ext>`, irmã de
@@ -63,6 +63,18 @@ export async function baseDaMidiaNoMestre(): Promise<string> {
 
 /** A última base calculada; `null` antes da primeira. Para quem precisa dela já (a config da janela de teste). */
 let baseConhecida: string | null = null
+
+/**
+ * A URL de uma referência de mídia NESTE computador, para quem desenha no
+ * canvas do mestre (o item no chão, `pixi/drawProps.ts`). `null` = não é
+ * referência de mídia.
+ */
+export async function urlDaMidiaNoMestre(ref: unknown): Promise<string | null> {
+  const id = idDaRef(ref)
+  if (id === null) return null
+  const base = baseConhecida ?? (await baseDaMidiaNoMestre())
+  return `${base}${id}`
+}
 
 export function baseDaMidiaConhecida(): string | null {
   return baseConhecida
