@@ -132,8 +132,8 @@ test('tela do jogador: salas coloridas, explorado persiste e token alheio fora d
   await page.waitForTimeout(400)
   await page.screenshot({ path: shot('depois-sala-b') })
 
-  // 3. Painel: centralizar, brilho, grade e nomes salvos em localStorage.
-  await page.getByRole('button', { name: 'Centralizar no meu personagem' }).click()
+  // 3. Painel: centralizar ("Minha ficha", na barra), brilho, grade e nomes salvos em localStorage.
+  await page.getByRole('button', { name: 'Minha ficha' }).click()
   await page.getByLabel('Brilho do explorado').fill('0.8')
   await page.getByLabel('Grade').uncheck()
   await page.getByLabel('Nomes').uncheck()

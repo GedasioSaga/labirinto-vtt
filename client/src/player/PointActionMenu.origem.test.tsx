@@ -96,9 +96,10 @@ describe('PointActionMenu: a entrada cresce de onde está o dedo', () => {
   })
 
   it('sem espaço em cima nem embaixo (celular deitado), o menu fica preso à margem e a escala parte de dentro dele, no dedo', () => {
-    janela(844, 390)
-    const menu = abrir(400, 200, true)
-    expect(origemNaTela(menu)).toEqual({ x: 400, y: 200 })
+    // Com três itens o menu é baixo: só uma janela bem rasa (300 px) não tem espaço de nenhum lado.
+    janela(844, 300)
+    const menu = abrir(400, 150, true)
+    expect(origemNaTela(menu)).toEqual({ x: 400, y: 150 })
     expect(origem(menu).y).toBeGreaterThan(0)
     expect(origem(menu).y).toBeLessThan(POINT_MENU_HEIGHT_PX + POINT_MENU_WALK_HEIGHT_PX)
   })

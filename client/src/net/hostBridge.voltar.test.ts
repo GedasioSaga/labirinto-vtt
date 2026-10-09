@@ -144,7 +144,7 @@ describe('hostBridge: "Ana voltou?" na Caixa', () => {
     const segunda = m.players().find((p) => p.name === 'ana (2)')
     if (segunda === undefined) throw new Error('esperava a "ana (2)"')
     m.bridge.assignToken(segunda.playerId, 'f-tocha')
-    m.emit('net:message', { clientId: 'c9', msg: { type: 'point.action', action: 'procurar', x: 500, y: 120 } })
+    m.emit('net:message', { clientId: 'c9', msg: { type: 'point.action', action: 'chamar', x: 500, y: 120 } })
     m.emit('net:message', { clientId: 'c9', msg: { type: 'call.raise', reason: 'agir', text: 'abro o baú' } })
     const daSegunda = () => useToastStore.getState().toasts.filter((t) => t.text.startsWith('ana (2)')).map((t) => t.text)
     expect(daSegunda()).toHaveLength(2)
@@ -162,10 +162,10 @@ describe('hostBridge: "Ana voltou?" na Caixa', () => {
     const segunda = m.players().find((p) => p.name === 'ana (2)')
     if (segunda === undefined) throw new Error('esperava a "ana (2)"')
     m.bridge.assignToken(segunda.playerId, 'f-tocha')
-    m.emit('net:message', { clientId: 'c9', msg: { type: 'point.action', action: 'procurar', x: 500, y: 120 } })
+    m.emit('net:message', { clientId: 'c9', msg: { type: 'point.action', action: 'chamar', x: 500, y: 120 } })
     const pergunta = useToastStore.getState().toasts.find((t) => t.text === 'Ana voltou?')
     pergunta?.actions?.find((a) => a.label === 'Outra pessoa')?.run()
-    expect(useToastStore.getState().toasts.filter((t) => t.text.startsWith('ana (2) quer'))).toHaveLength(1)
+    expect(useToastStore.getState().toasts.filter((t) => t.text.startsWith('ana (2) chama o mestre aqui'))).toHaveLength(1)
   })
 
   it('a Ana volta pelo resume antes da resposta: a pergunta some sozinha', async () => {
@@ -235,14 +235,14 @@ describe('hostBridge: Guardar ficha e Dispensar', () => {
 
   it('"Dispensar" tira da Caixa o pedido de ação no ponto de quem saiu', async () => {
     const m = await mesa()
-    m.emit('net:message', { clientId: 'c2', msg: { type: 'point.action', action: 'procurar', x: 300, y: 120 } })
-    expect(useToastStore.getState().toasts.some((t) => t.text.startsWith('Fábio quer'))).toBe(true)
+    m.emit('net:message', { clientId: 'c2', msg: { type: 'point.action', action: 'chamar', x: 300, y: 120 } })
+    expect(useToastStore.getState().toasts.some((t) => t.text.startsWith('Fábio chama o mestre aqui'))).toBe(true)
     m.cai('c2')
     // A queda não tira a linha (o mestre ainda quer ler o pedido)…
-    expect(useToastStore.getState().toasts.some((t) => t.text.startsWith('Fábio quer'))).toBe(true)
+    expect(useToastStore.getState().toasts.some((t) => t.text.startsWith('Fábio chama o mestre aqui'))).toBe(true)
     // …o Dispensar tira: não há mais a quem responder.
     expect(m.bridge.dismissPlayer(m.fabio.playerId)).toBe(true)
-    expect(useToastStore.getState().toasts.some((t) => t.text.startsWith('Fábio quer'))).toBe(false)
+    expect(useToastStore.getState().toasts.some((t) => t.text.startsWith('Fábio chama o mestre aqui'))).toBe(false)
   })
 
   it('"Dispensar" tira o card; a ficha guardada volta ao mapa, sem dono', async () => {

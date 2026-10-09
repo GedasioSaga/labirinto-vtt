@@ -19,7 +19,7 @@ const pedido = (sceneId: string | null): PointActionRequest => ({
   playerId: 'p-fabi',
   playerName: 'Fabi',
   color: '#e11d48',
-  action: 'procurar',
+  action: 'chamar',
   x: 120,
   y: 130,
   roomName: 'Ferreiro',
@@ -62,7 +62,7 @@ describe('goToPointAction ("Ir lá" da ação no ponto)', () => {
     expect(useSignalStore.getState().signals).toEqual([])
   })
 
-  it('pela ponte: o "Ir lá" da linha "Fabi quer Procurar" centra e marca o ponto', async () => {
+  it('pela ponte: o "Ir lá" da linha "Fabi chama o mestre aqui" centra e marca o ponto', async () => {
     useAdventureStore.setState({ activeSceneId: 'cena-vila', cameraRequest: null })
     const ficha: Token = { id: 'ficha-fabi', characterId: null, name: 'Fabi', x: 100, y: 100, size: 1, image: null }
     const world = (): HostWorld => ({
@@ -90,11 +90,11 @@ describe('goToPointAction ("Ir lá" da ação no ponto)', () => {
     const fabi = bridge.players().find((p) => p.name === 'Fabi')
     if (fabi === undefined) throw new Error('Fabi deveria ter entrado')
     bridge.assignToken(fabi.playerId, 'ficha-fabi')
-    emit({ clientId: 'c1', msg: { type: 'point.action', action: 'procurar', x: 120, y: 130 } })
+    emit({ clientId: 'c1', msg: { type: 'point.action', action: 'chamar', x: 120, y: 130 } })
 
     const irLa = useToastStore
       .getState()
-      .toasts.find((t) => t.text.startsWith('Fabi quer Procurar'))
+      .toasts.find((t) => t.text.startsWith('Fabi chama o mestre aqui'))
       ?.actions?.find((a) => a.label === 'Ir lá')
     if (irLa === undefined) throw new Error('a linha do pedido deveria ter "Ir lá"')
     irLa.run()

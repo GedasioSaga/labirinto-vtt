@@ -78,9 +78,6 @@ describe('PlayerPanel: Lugares com Anotar, Marcar destino e Dados', () => {
           onToggleLaser={() => {}}
           onRenameToken={() => {}}
           onChangeTokenPhoto={async () => {}}
-          notebook={[]}
-          notebookUnread={false}
-          onReadNotebook={() => {}}
           pins={[TEMPLO]}
           places={doisLugares()}
           currentPlace="l2"
@@ -140,16 +137,19 @@ describe('PlayerPanel: Lugares com Anotar, Marcar destino e Dados', () => {
     expect(abas().map((b) => (b.textContent ?? '').trim())).toEqual(['Jogo', 'Caderno', 'Lugares', 'Dados'])
   })
 
-  it('Lugares mostra o ponto e a miniatura e centra no ponto; Anotar e Mudar destino seguem na aba Jogo', () => {
+  it('Lugares mostra o ponto e a miniatura e centra no ponto; Anotar e Mudar destino seguem na aba Jogo, no menu Marcações', () => {
     const c = chamadas()
     render(c)
 
     const jogo = painelAberto()
+    act(() => botao(jogo, 'Marcações').click())
     act(() => botao(jogo, 'Anotar').click())
     expect(c.onToggleNote).toHaveBeenCalledTimes(1)
-    // Com a marca já no mapa, o mesmo botão diz "Mudar destino".
+    // Com a marca já no mapa, o mesmo item diz "Mudar destino".
+    act(() => botao(jogo, 'Marcações').click())
     act(() => botao(jogo, 'Mudar destino').click())
     expect(c.onToggleDestination).toHaveBeenCalledTimes(1)
+    act(() => botao(jogo, 'Marcações').click())
     act(() => botao(jogo, 'Tirar marca').click())
     expect(c.onClearDestination).toHaveBeenCalledTimes(1)
 

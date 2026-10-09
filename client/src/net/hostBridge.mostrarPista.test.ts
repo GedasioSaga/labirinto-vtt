@@ -99,11 +99,11 @@ describe('hostBridge: "Mostrar agora a…"', () => {
 })
 
 /**
- * "ENTREGAR PISTA…" num pedido de Revistar: a linha da Caixa oferece um botão
+ * "ENTREGAR PISTA…" num chamado no ponto: a linha da Caixa oferece um botão
  * por pino oculto da sala ("Entregar: Carta"). Tocar abre a carta só em Gabi,
  * responde o pedido dela e o mestre lê que o cartão saiu.
  */
-describe('hostBridge: Revistar > Entregar pista', () => {
+describe('hostBridge: Chamar o mestre aqui > Entregar pista', () => {
   const ESCRITORIO: Region = {
     id: 'escritorio',
     points: [
@@ -172,11 +172,11 @@ describe('hostBridge: Revistar > Entregar pista', () => {
     useToastStore.setState({ toasts: [] })
   })
 
-  it('a linha "Gabi quer Revistar — Escritório" oferece "Entregar: Carta"; tocar abre a carta só em Gabi e o aviso confirma', async () => {
+  it('a linha "Gabi chama o mestre aqui — Escritório" oferece "Entregar: Carta"; tocar abre a carta só em Gabi e o aviso confirma', async () => {
     const { emit, enviadosA } = await mesaDaCasa()
-    emit({ clientId: 'c-gabi', msg: { type: 'point.action', action: 'revistar', x: 200, y: 200 } })
-    const pedido = useToastStore.getState().toasts.find((t) => t.text === 'Gabi quer Revistar — Escritório')
-    if (pedido === undefined) throw new Error('o Revistar deveria virar linha na Caixa')
+    emit({ clientId: 'c-gabi', msg: { type: 'point.action', action: 'chamar', x: 200, y: 200 } })
+    const pedido = useToastStore.getState().toasts.find((t) => t.text === 'Gabi chama o mestre aqui — Escritório')
+    if (pedido === undefined) throw new Error('o chamado deveria virar linha na Caixa')
     const entregar = pedido.actions?.find((a) => a.label === 'Entregar: Carta')
     if (entregar === undefined) throw new Error('a linha deveria oferecer "Entregar: Carta"')
 
@@ -188,14 +188,8 @@ describe('hostBridge: Revistar > Entregar pista', () => {
     expect(paraGabi).toContain('"type":"point.action.answer"')
     expect(JSON.stringify(enviadosA('c-diego'))).not.toContain('cofre fica atrás do quadro')
     const textos = useToastStore.getState().toasts.map((t) => t.text)
-    expect(textos).not.toContain('Gabi quer Revistar — Escritório')
+    expect(textos).not.toContain('Gabi chama o mestre aqui — Escritório')
     expect(textos).toContain('Cartão aberto na tela de Gabi.')
   })
 
-  it('Procurar no mesmo lugar não oferece entregar pista', async () => {
-    const { emit } = await mesaDaCasa()
-    emit({ clientId: 'c-gabi', msg: { type: 'point.action', action: 'procurar', x: 200, y: 200 } })
-    const pedido = useToastStore.getState().toasts.find((t) => t.text === 'Gabi quer Procurar — Escritório')
-    expect(pedido?.actions?.map((a) => a.label)).toEqual(['Nada aqui', 'Feito'])
-  })
 })

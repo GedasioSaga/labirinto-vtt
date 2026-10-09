@@ -2,7 +2,7 @@
  * LEVAR O MAPA E O CADERNO PARA CASA montado na página do jogador (`main.tsx`):
  * o "Baixar meu caderno" do Painel e o "Guardar meu caderno" da sala encerrada
  * geram o arquivo com o que já chegou a este aparelho. Quebra se a costura sair
- * de `main.tsx` (as cenas da conexão, as pistas, os recados e o nome do arquivo).
+ * de `main.tsx` (as cenas da conexão, as pistas, as notas e o nome do arquivo).
  *
  * Só o que o jsdom não tem é trocado: a `PlayerView` (Pixi pede WebGL), o
  * `WebSocket` (um falso faz o papel do mestre) e o download do navegador.
@@ -105,6 +105,8 @@ beforeAll(async () => {
     })
     mestre().manda({ type: 'clue.added', clue: { id: 'c1', title: 'Bilhete', text: 'Encontre-me na torre.', image: null, at: Date.now() } })
     mestre().manda({ type: 'scene.note', id: 'n1', text: 'A guarda troca à meia-noite.' })
+    // MINHAS NOTAS: a lista que o host guardou para ela vai no arquivo; o recado acima não (saiu do caderno).
+    mestre().manda({ type: 'mynotes.book', notes: [{ id: 'nota-1', mapId: 'mapa-da-nota', x: 10, y: 10, text: 'baú trancado aqui' }] })
   })
 })
 
@@ -118,7 +120,7 @@ afterAll(() => {
 })
 
 describe('main.tsx: levar o mapa e o caderno para casa', () => {
-  it('"Baixar meu caderno" no Caderno baixa um .html com a cena, a pista e o recado, sem a ficha alheia', async () => {
+  it('"Baixar meu caderno" no Caderno baixa um .html com a cena, a pista e a nota, sem a ficha alheia', async () => {
     const aba = Array.from(document.querySelectorAll<HTMLButtonElement>('[role="tab"]')).find((b) => /Caderno/.test(b.textContent ?? ''))
     if (!aba) throw new Error('sem a aba Caderno')
     act(() => aba.click())
@@ -133,7 +135,8 @@ describe('main.tsx: levar o mapa e o caderno para casa', () => {
     expect(html).toContain('<svg')
     expect(html).toContain('Bilhete')
     expect(html).toContain('Encontre-me na torre.')
-    expect(html).toContain('A guarda troca à meia-noite.')
+    expect(html).toContain('baú trancado aqui')
+    expect(html).not.toContain('A guarda troca à meia-noite.')
     expect(html).not.toContain('Capataz')
     expect(html).not.toContain('cena-cripta')
     expect(document.querySelector('[role="tabpanel"]:not([hidden]) [role="status"]')?.textContent).toBe(`Baixado: ${arquivo?.nome}`)

@@ -34,20 +34,27 @@ describe('PointActionMenu (toque longo no mapa)', () => {
     })
   }
 
-  it('abre um menu com Sinalizar, Procurar, Escutar, Espiar e Revistar, com o foco no primeiro', () => {
+  it('abre um menu só com Sinalizar e Chamar o mestre aqui (sem ficha, sem Andar), com o foco no primeiro', () => {
     render()
     const menu = container.querySelector('[role="menu"]')
     expect(menu?.getAttribute('aria-label')).toBe('Ações no ponto')
-    expect(itens().map((b) => b.textContent)).toEqual(['Sinalizar', 'Procurar', 'Escutar', 'Espiar', 'Revistar'])
+    expect(itens().map((b) => b.textContent)).toEqual(['Sinalizar', 'Chamar o mestre aqui'])
     expect(document.activeElement).toBe(itens()[0])
   })
 
-  it('escolher Procurar devolve a ação, sem sinalizar', () => {
+  it('com ficha na cena: Sinalizar, Andar até aqui e Chamar o mestre aqui, nesta ordem', () => {
+    act(() =>
+      root.render(
+        <PointActionMenu screenX={200} screenY={150} onSignal={vi.fn()} onChoose={vi.fn()} walk={{ canWalk: true, onWalk: vi.fn() }} onClose={vi.fn()} />,
+      ),
+    )
+    expect(itens().map((b) => b.textContent)).toEqual(['Sinalizar', 'Andar até aqui', 'Chamar o mestre aqui'])
+  })
+
+  it('escolher Chamar o mestre aqui devolve a ação, sem sinalizar', () => {
     const { onChoose, onSignal } = render()
     act(() => itens()[1]?.click())
-    expect(onChoose).toHaveBeenCalledWith('procurar')
-    act(() => itens()[4]?.click())
-    expect(onChoose).toHaveBeenLastCalledWith('revistar')
+    expect(onChoose).toHaveBeenCalledWith('chamar')
     expect(onSignal).not.toHaveBeenCalled()
   })
 
@@ -64,13 +71,14 @@ describe('PointActionMenu (toque longo no mapa)', () => {
     const { onClose } = render()
     tecla('ArrowDown')
     expect(document.activeElement).toBe(itens()[1])
+    tecla('ArrowDown')
+    expect(document.activeElement).toBe(itens()[0])
     tecla('ArrowUp')
-    tecla('ArrowUp')
-    expect(document.activeElement).toBe(itens()[4])
+    expect(document.activeElement).toBe(itens()[1])
     tecla('Home')
     expect(document.activeElement).toBe(itens()[0])
     tecla('End')
-    expect(document.activeElement).toBe(itens()[4])
+    expect(document.activeElement).toBe(itens()[1])
     tecla('Escape')
     expect(onClose).toHaveBeenCalledTimes(1)
   })

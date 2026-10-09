@@ -117,7 +117,31 @@
   border-left-color: var(--lb-color-line-divider, rgba(255, 255, 255, 0.26));
 }
 
-.lb-mchat__msg--master .lb-mchat__from {
+.lb-mchat__msg--master /* A miniatura de quem falou, ao lado do nome: a foto da ficha, ou as iniciais num tom do nome. */
+.lb-mchat__face {
+  display: block;
+  flex: none;
+  align-self: center;
+  width: 20px;
+  height: 20px;
+  overflow: hidden;
+  border-radius: 50%;
+}
+
+.lb-mchat__face img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.lb-mchat__face .lb-ficha__iniciais {
+  font-family: inherit;
+  font-size: 9px;
+  font-weight: 600;
+}
+
+.lb-mchat__from {
   color: var(--lb-color-brass-bright, #f3ba66);
 }
 

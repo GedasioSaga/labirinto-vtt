@@ -41,9 +41,6 @@ function render(onRollDice?: (request: DiceRequest) => void): void {
         onToggleLaser={() => {}}
         onRenameToken={() => {}}
         onChangeTokenPhoto={async () => {}}
-        notebook={[]}
-        notebookUnread={false}
-        onReadNotebook={() => {}}
         onRollDice={onRollDice}
       />,
     ),

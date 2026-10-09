@@ -57,12 +57,10 @@ describe('PlayerPanel: Anotar e Minhas notas', () => {
           onToggleLaser={() => {}}
           onRenameToken={() => {}}
           onChangeTokenPhoto={async () => {}}
-          notebook={[]}
-          notebookUnread={false}
-          onReadNotebook={() => {}}
           noteArmed={noteArmed}
           onToggleNote={onToggleNote}
           personalNotes={NOTAS}
+          currentMapId="vila"
           onFocusNote={onFocusNote}
           onRemoveNote={onRemoveNote}
         />,
@@ -82,18 +80,18 @@ describe('PlayerPanel: Anotar e Minhas notas', () => {
     return achada
   }
 
-  it('"Anotar" é um modo de um toque, como o Sinalizar: aperta e pede o toque no mapa', () => {
+  it('"Anotar" (no menu Marcações) é um modo de um toque, como o Sinalizar: escolhe e pede o toque no mapa', () => {
     const onToggleNote = vi.fn()
     render({ onToggleNote })
-    const anotar = botao('Anotar')
-    expect(anotar.getAttribute('aria-pressed')).toBe('false')
-    act(() => anotar.click())
+    act(() => botao('Marcações').click())
+    act(() => botao('Anotar').click())
     expect(onToggleNote).toHaveBeenCalledTimes(1)
 
     render({ noteArmed: true, onToggleNote })
-    const ligado = botao('Toque onde anotar…')
-    expect(ligado.getAttribute('aria-pressed')).toBe('true')
-    expect(container.textContent).toContain('Só você vê')
+    expect(container.textContent).toContain('Toque onde anotar. Só você vê. Esc sai.')
+    // Ligado, o item do menu desliga.
+    act(() => botao('Marcações').click())
+    expect(botao('Cancelar nota')).toBeDefined()
   })
 
   it('no celular, ligar "Anotar" fecha a gaveta para o dedo cair no mapa', () => {
@@ -102,6 +100,7 @@ describe('PlayerPanel: Anotar e Minhas notas', () => {
     act(() => botao('Painel').click())
     const painel = container.querySelector('aside.pp-panel')
     expect(painel?.hasAttribute('hidden')).toBe(false)
+    act(() => botao('Marcações').click())
     act(() => botao('Anotar').click())
     expect(painel?.hasAttribute('hidden')).toBe(true)
   })

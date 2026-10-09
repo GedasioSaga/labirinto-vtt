@@ -75,9 +75,6 @@ describe('PlayerPanel: aba Lugares', () => {
           onToggleLaser={() => {}}
           onRenameToken={() => {}}
           onChangeTokenPhoto={async () => {}}
-          notebook={[]}
-          notebookUnread={false}
-          onReadNotebook={() => {}}
           pins={extra.pins ?? []}
           places={extra.places ?? []}
           currentPlace="l4"

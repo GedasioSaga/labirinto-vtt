@@ -114,17 +114,17 @@ describe('hostSession: nome igual ao de quem caiu vira pergunta ao mestre', () =
 
   it('pedido de ação no ponto feito antes da queda: depois do "É ela", a resposta do mestre chega ao aparelho novo', () => {
     const m = mesa()
-    const pedido = m.s.handleMessage('c1', { type: 'point.action', action: 'procurar', x: 120, y: 130 }, mundo).pointAction
+    const pedido = m.s.handleMessage('c1', { type: 'point.action', action: 'chamar', x: 120, y: 130 }, mundo).pointAction
     if (pedido === undefined) throw new Error('esperava o pedido da Ana')
     m.s.disconnect('c1')
     const nova = m.entra('c9', 'ana')
     // A "ana (2)" ainda não é a Ana: pedido dela é recusado em silêncio (está no lobby).
-    const antes = m.s.handleMessage('c9', { type: 'point.action', action: 'escutar', x: 120, y: 130 }, mundo)
+    const antes = m.s.handleMessage('c9', { type: 'point.action', action: 'chamar', x: 120, y: 130 }, mundo)
     expect(antes.pointAction).toBeUndefined()
     m.s.confirmReturn(nova.playerId, m.ana.playerId, mundo)
     expect(m.s.isPointActionPending(pedido.requestId)).toBe(true)
     expect(m.s.answerPointAction(pedido.requestId, 'nothing').outbound).toEqual([
-      { clientId: 'c9', msg: { type: 'point.action.answer', action: 'procurar', answer: 'nothing' } },
+      { clientId: 'c9', msg: { type: 'point.action.answer', action: 'chamar', answer: 'nothing' } },
     ])
   })
 
@@ -197,10 +197,10 @@ describe('hostSession: Dispensar quem foi embora', () => {
 
   it('o pedido de ação no ponto de quem é dispensado morre junto: "Nada aqui" não vai a ninguém', () => {
     const m = mesa()
-    const pedido = m.s.handleMessage('c1', { type: 'point.action', action: 'procurar', x: 120, y: 130 }, mundo).pointAction
+    const pedido = m.s.handleMessage('c1', { type: 'point.action', action: 'chamar', x: 120, y: 130 }, mundo).pointAction
     if (pedido === undefined) throw new Error('esperava o pedido da Ana')
     m.s.disconnect('c1')
-    // A queda não apaga o pedido (o mestre ainda quer ler "Ana quer Procurar")…
+    // A queda não apaga o pedido (o mestre ainda quer ler "Ana chama o mestre aqui")…
     expect(m.s.isPointActionPending(pedido.requestId)).toBe(true)
     // …mas o Dispensar esquece a Ana inteira, pedido incluído.
     expect(m.s.dismissPlayer(m.ana.playerId)).toBe(true)

@@ -1,9 +1,10 @@
 /**
  * ANOTAÇÃO PESSOAL montada na página do jogador (`main.tsx`), sem navegador:
  * Fabi liga "Anotar", toca ao lado do baú e escreve "baú trancado aqui". A
- * nota aparece no mapa dela, fica no aparelho (volta ao recarregar) e NADA
- * sai pelo fio — nem a nota, nem o sinal de 3 s. O toque longo na nota apaga;
- * "Minhas notas" no Caderno lista e centraliza.
+ * nota aparece no mapa dela e a lista INTEIRA vai ao host (`mynotes.set`),
+ * que a guarda só para ela e devolve na volta (`mynotes.book`) — nenhum sinal,
+ * nada para os colegas. O toque longo na nota apaga; "Minhas notas" no
+ * Caderno lista as de todos os mapas e centraliza as desta cena.
  *
  * Só o que o jsdom não tem é trocado: a `PlayerView` (Pixi pede WebGL) vira
  * botões que chamam os mesmos ganchos (`onNotePlace`, `onNoteLongPress`) e
@@ -14,7 +15,8 @@ import { act } from 'react'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { createEmptyMap } from '../lib/mapFactory'
 import type { MapData } from '../types/map'
-import { PERSONAL_NOTES_KEY, loadPersonalNotes, type PersonalNote } from './personalNotes'
+import { MY_NOTES_SEND_INTERVAL_MS } from '../lib/minhasNotas'
+import type { PersonalNote } from './personalNotes'
 
 type PlayerViewProps = Parameters<(typeof import('./PlayerView'))['PlayerView']>[0]
 
@@ -81,7 +83,7 @@ const MAPA: MapData = {
   tokens: [{ id: 'fabi', characterId: null, name: 'Fabi', x: 300, y: 300, size: 1, image: null }],
 }
 
-/** De uma sessão anterior neste aparelho: uma nota nesta cena e uma em outra. */
+/** De uma sessão anterior, guardadas no host: uma nota nesta cena e uma em outra. */
 const ANTIGAS: PersonalNote[] = [
   { id: 'antiga-vila', mapId: 'vila', x: 100, y: 100, text: 'poço seco' },
   { id: 'antiga-masmorra', mapId: 'masmorra', x: 5, y: 5, text: 'armadilha no corredor' },
@@ -97,9 +99,10 @@ function notasNoMapa(): string[] {
   return Array.from(document.querySelectorAll('[data-testid="notas-no-mapa"] li')).map((li) => li.textContent ?? '')
 }
 
-/** O que está no aparelho agora, lido como a página lê ao recarregar. */
-function notasGuardadas(): PersonalNote[] {
-  return loadPersonalNotes(localStorage)
+function aba(nome: RegExp): HTMLButtonElement {
+  const achada = Array.from(document.querySelectorAll<HTMLButtonElement>('[role="tab"]')).find((b) => nome.test(b.textContent ?? ''))
+  if (!achada) throw new Error(`sem a aba ${nome}`)
+  return achada
 }
 
 function mapa(): HTMLElement {
@@ -124,13 +127,13 @@ beforeAll(async () => {
   document.body.appendChild(raiz)
   localStorage.setItem('labirinto.ultima-entrada', JSON.stringify({ code: CODE, name: 'Fabi' }))
   sessionStorage.setItem('labirinto.resume', JSON.stringify({ code: CODE, token: 'tok' }))
-  localStorage.setItem(PERSONAL_NOTES_KEY, JSON.stringify(ANTIGAS))
   await act(async () => {
     await import('./boot')
   })
   act(() => mestre().abre())
   act(() => {
     mestre().manda({ type: 'welcome', playerId: 'p1', resumeToken: 'tok', name: 'Fabi' })
+    mestre().manda({ type: 'mynotes.book', notes: ANTIGAS })
     mestre().manda({ type: 'snapshot', rev: 1, map: MAPA, vision: [], ownTokens: ['fabi'], concealed: [] })
   })
 })
@@ -142,13 +145,19 @@ afterAll(() => {
 })
 
 describe('main.tsx: anotação pessoal de ponta a ponta', () => {
-  it('recarregou: a nota guardada no aparelho volta no mapa desta cena, e a de outra cena não aparece', () => {
+  it('a lista que o host guardou para ela volta: no mapa só a desta cena; no Caderno, as de todos os mapas', () => {
     expect(notasNoMapa()).toEqual(['poço seco'])
     expect(notasNoMapa()).not.toContain('armadilha no corredor')
+    act(() => aba(/Caderno/).click())
+    const caderno = document.querySelector('[role="tabpanel"]:not([hidden])')?.textContent ?? ''
+    expect(caderno).toContain('poço seco')
+    expect(caderno).toContain('armadilha no corredor')
+    act(() => aba(/Jogo/).click())
   })
 
-  it('Fabi anota ao lado do baú: a nota aparece no mapa dela, fica no aparelho e nada sai pelo fio', () => {
+  it('Fabi anota pelo menu Marcações: a nota aparece no mapa e a lista INTEIRA vai ao host, sem sinal nenhum', async () => {
     const enviadasAntes = mestre().sent.length
+    act(() => botao('Marcações').click())
     act(() => botao('Anotar').click())
     expect(mapa().dataset.anotar).toBe('true')
     act(() => botao('tocar ao lado do bau').click())
@@ -159,31 +168,66 @@ describe('main.tsx: anotação pessoal de ponta a ponta', () => {
     expect(document.activeElement).toBe(campo)
     digita(campo, 'baú trancado aqui')
     act(() => botao('Salvar').click())
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
 
     expect(document.querySelector('input[maxlength="40"]')).toBeNull()
     expect(notasNoMapa()).toEqual(['poço seco', 'baú trancado aqui'])
-    const guardada = notasGuardadas().find((nota) => nota.text === 'baú trancado aqui')
-    expect(guardada).toMatchObject({ mapId: 'vila', x: BAU.x, y: BAU.y })
-    // Bruno não vê: nenhuma mensagem saiu — nem a nota, nem o sinal do toque.
-    expect(mestre().sent.length).toBe(enviadasAntes)
-    expect(mestre().sent.some((m) => m.includes('baú trancado'))).toBe(false)
+    const saidas = mestre().sent.slice(enviadasAntes).map((texto) => JSON.parse(texto) as { type: string; notes?: PersonalNote[] })
+    // Só a lista ao host: nem o sinal do toque, nem nada para os colegas.
+    expect(saidas.map((m) => m.type)).toEqual(['mynotes.set'])
+    expect(saidas[0]?.notes?.map((nota) => nota.text)).toEqual(['poço seco', 'armadilha no corredor', 'baú trancado aqui'])
+    expect(saidas[0]?.notes?.[2]).toMatchObject({ mapId: 'vila', x: BAU.x, y: BAU.y })
   })
 
-  it('Caderno > Minhas notas: tocar na nota leva a câmera até ela', () => {
-    const caderno = Array.from(document.querySelectorAll<HTMLButtonElement>('[role="tab"]')).find((b) => /Caderno/.test(b.textContent ?? ''))
-    if (!caderno) throw new Error('sem a aba Caderno')
-    act(() => caderno.click())
+  it('Caderno > Minhas notas: tocar na nota desta cena leva a câmera até ela', () => {
+    act(() => aba(/Caderno/).click())
     const centrar = document.querySelector<HTMLButtonElement>('button[aria-label="Centralizar em baú trancado aqui"]')
     if (!centrar) throw new Error('sem a nota em Minhas notas')
     act(() => centrar.click())
     expect(mapa().dataset.foco).toBe(`${BAU.x},${BAU.y}`)
+    act(() => aba(/Jogo/).click())
   })
 
-  it('toque longo na nota apaga: some do mapa e do aparelho, sem mandar sinal', () => {
-    const enviadasAntes = mestre().sent.length
-    act(() => botao('segurar nota baú trancado aqui').click())
-    expect(notasNoMapa()).toEqual(['poço seco'])
-    expect(notasGuardadas().map((nota) => nota.text)).toEqual(['poço seco', 'armadilha no corredor'])
-    expect(mestre().sent.length).toBe(enviadasAntes)
+  it('toque longo na nota apaga: some do mapa e a lista nova vai ao host depois do intervalo, sem sinal', () => {
+    vi.useFakeTimers()
+    try {
+      const enviadasAntes = mestre().sent.length
+      act(() => botao('segurar nota baú trancado aqui').click())
+      expect(notasNoMapa()).toEqual(['poço seco'])
+      act(() => {
+        vi.advanceTimersByTime(MY_NOTES_SEND_INTERVAL_MS)
+      })
+      const saidas = mestre().sent.slice(enviadasAntes).map((texto) => JSON.parse(texto) as { type: string; notes?: PersonalNote[] })
+      expect(saidas.map((m) => m.type)).toEqual(['mynotes.set'])
+      expect(saidas[0]?.notes?.map((nota) => nota.text)).toEqual(['poço seco', 'armadilha no corredor'])
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('o host recusou por pressa (too_soon): a mesma lista vai de novo depois do intervalo', () => {
+    vi.useFakeTimers()
+    try {
+      const enviadasAntes = mestre().sent.length
+      act(() => mestre().manda({ type: 'mynotes.rejected', reason: 'too_soon' }))
+      // Nunca antes do intervalo, contado também do último envio (que foi há pouco, no teste anterior).
+      act(() => {
+        vi.advanceTimersByTime(2 * MY_NOTES_SEND_INTERVAL_MS)
+      })
+      const saidas = mestre().sent.slice(enviadasAntes).map((texto) => JSON.parse(texto) as { type: string; notes?: PersonalNote[] })
+      expect(saidas.map((m) => m.type)).toEqual(['mynotes.set'])
+      expect(saidas[0]?.notes?.map((nota) => nota.text)).toEqual(['poço seco', 'armadilha no corredor'])
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('voltou de uma queda: a lista guardada no host manda (a tela não tinha nada por mandar)', () => {
+    act(() =>
+      mestre().manda({ type: 'mynotes.book', notes: [{ id: 'outra-vila', mapId: 'vila', x: 1, y: 1, text: 'escada podre' }] }),
+    )
+    expect(notasNoMapa()).toEqual(['escada podre'])
   })
 })

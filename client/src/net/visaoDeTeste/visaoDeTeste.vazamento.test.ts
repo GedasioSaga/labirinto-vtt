@@ -92,6 +92,7 @@ const ESCRITORES_DO_JOGO_DE_VERDADE = [
   'restoreToken',
   'saveTable',
   'saveExploration',
+  'saveMyNotes',
   'appendChat',
   'deleteChat',
   'onTravelLogChange',
@@ -330,6 +331,51 @@ describe('Visão de jogador no Jogar — vazamento zero para o editor', () => {
     const deNovo = await jogarCom(ANA.id)
     await vi.waitFor(() => expect(fichaNaJanela(deNovo.conexao(), ANA.id)).toMatchObject({ x: ANA.x, y: ANA.y }))
     expect(controlador.estado().fantasma ?? null).toBeNull()
+  })
+
+  /*
+   * MELHORIAS DO JOGADOR (08/10/2026): as três mensagens novas que o jogador
+   * de teste manda — a lista de MINHAS NOTAS, a "Ação" sobre uma ficha e o
+   * "Chamar o mestre aqui" — ficam na sessão de teste. Os pedidos caem na
+   * caixa do teste, a resposta chega só à janela, e nem o editor nem o disco
+   * da mesa (as notas guardadas de verdade) são tocados ou lidos.
+   */
+  it('Minhas notas, Ação sobre uma ficha e Chamar o mestre aqui: tudo na janela; editor e disco intocados', async () => {
+    const severa: Token = { id: 'tok-severa', characterId: null, name: 'Severa', x: 175, y: 125, size: 1, image: null }
+    useMapStore.getState().loadMap({ ...salao(), tokens: [ANA, severa] })
+    const antes = editorSerializado()
+    espionar()
+    const janela = await jogarCom(ANA.id)
+    const conexao = janela.conexao()
+    const naCaixa = () => useToastStore.getState().toasts.filter((t) => t.grupo === GRUPO_DO_TESTE)
+
+    // MINHAS NOTAS: a lista vai à sessão de teste e fica na janela.
+    conexao.setMyNotes([{ id: 'n1', mapId: 'm-salao', x: 120, y: 140, text: 'baú trancado' }])
+    await vi.waitFor(() => expect(conexao.getState().myNotes?.map((nota) => nota.text)).toEqual(['baú trancado']))
+
+    // AÇÃO: o pedido vai à caixa do TESTE, e o "Deixar" responde só na janela.
+    await vi.waitFor(() => expect(conexao.getState().map?.tokens.some((t) => t.id === severa.id)).toBe(true))
+    expect(conexao.requestTokenAction(severa.id, 'acao', 'abraça a Severa')).toBe(true)
+    await vi.waitFor(() => expect(naCaixa()).toHaveLength(1))
+    const [acao] = naCaixa()
+    const deixar = acao?.actions?.find((a) => a.label === 'Deixar')
+    if (acao === undefined || deixar === undefined) throw new Error('o pedido de Ação deveria estar na caixa do teste, com "Deixar"')
+    useToastStore.getState().dismiss(acao.id)
+    deixar.run()
+    await vi.waitFor(() => expect(conexao.getState().tokenAction?.phase).toBe('accepted'))
+
+    // CHAMAR O MESTRE AQUI: também na caixa do teste, sem "Ir lá" (o editor não se mexe pelo teste).
+    expect(conexao.sendPointAction('chamar', 120, 140)).toBe(true)
+    await vi.waitFor(() => expect(naCaixa()).toHaveLength(1))
+    expect(naCaixa()[0]?.actions?.map((a) => a.label)).toEqual(['Nada aqui', 'Visto'])
+
+    expect(chamadas()).toEqual(nenhumaChamada())
+    expect(editorSerializado()).toBe(antes)
+    for (const deps of pontes.deps) {
+      for (const escritor of ESCRITORES_DO_JOGO_DE_VERDADE) expect(deps[escritor], escritor).toBeUndefined()
+      // As notas guardadas de verdade nem são lidas: o jogador de teste não recebe nota de jogador nenhum.
+      expect(deps.loadMyNotes, 'loadMyNotes').toBeUndefined()
+    }
   })
 
   /*

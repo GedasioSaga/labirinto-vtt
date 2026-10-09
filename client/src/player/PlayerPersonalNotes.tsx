@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
-import { PERSONAL_NOTE_MAX_LENGTH, cleanNoteText, type PersonalNote } from './personalNotes'
+import { PERSONAL_NOTE_MAX_LENGTH, cleanNoteText, groupNotesByMap, type PersonalNote } from './personalNotes'
 
 export interface PersonalNoteDraftProps {
   /** Texto já limpo (uma linha, até 40), nunca vazio. */
@@ -96,34 +96,57 @@ export function PersonalNoteDraft({ onSave, onCancel }: PersonalNoteDraftProps) 
 }
 
 export interface PersonalNoteListProps {
-  /** Notas desta cena, da mais antiga à mais nova (a lista mostra a mais nova em cima). */
+  /** MINHAS NOTAS de TODOS os mapas, da mais antiga à mais nova. */
   notes: readonly PersonalNote[]
+  /** O mapa da tela agora: só das notas dele a câmera vai até o ponto. */
+  currentMapId?: string
+  /** Como o jogador chama o lugar de outro mapa (o nome que ELE deu na aba Lugares, ou "Outro lugar"). */
+  placeLabelOf(mapId: string): string
   onFocus(id: string): void
   onRemove(id: string): void
 }
 
 /**
- * MINHAS NOTAS no Caderno: tocar numa leva a câmera até ela; "Apagar" é o
- * mesmo que o toque longo na nota, para quem usa teclado. O texto entra como
- * filho de texto do React: HTML digitado aparece literal.
+ * MINHAS NOTAS no Caderno, por mapa: as deste lugar primeiro (tocar numa leva
+ * a câmera até ela), depois as de cada outro mapa por onde ele passou, com o
+ * nome que ele deu ao lugar — o caderno é do jogador, não da cena. "Apagar" é
+ * o mesmo que o toque longo na nota, para quem usa teclado. O texto entra
+ * como filho de texto do React: HTML digitado aparece literal.
  */
-export function PersonalNoteList({ notes, onFocus, onRemove }: PersonalNoteListProps) {
+export function PersonalNoteList({ notes, currentMapId, placeLabelOf, onFocus, onRemove }: PersonalNoteListProps) {
   if (notes.length === 0) {
-    return <p className="pp-empty">Nenhuma nota nesta cena. Toque em Anotar e depois no mapa; só você vê.</p>
+    return <p className="pp-empty">Nenhuma nota ainda. Em Marcações, toque em Anotar e depois no mapa; só você vê.</p>
   }
   return (
-    <ul className="pp-list pp-personal-notes">
-      {[...notes].reverse().map((note) => (
-        <li key={note.id} className="pp-personal-notes__item">
-          <button type="button" className="pp-character" aria-label={`Centralizar em ${note.text}`} onClick={() => onFocus(note.id)}>
-            <span className="pp-personal-notes__mark" aria-hidden="true" />
-            <span className="pp-character__name">{note.text}</span>
-          </button>
-          <button type="button" className="pp-personal-notes__remove" aria-label={`Apagar nota ${note.text}`} onClick={() => onRemove(note.id)}>
-            Apagar
-          </button>
-        </li>
-      ))}
-    </ul>
+    <div className="pp-personal-notes__groups">
+      {groupNotesByMap(notes, currentMapId).map((group) => {
+        const title = group.here ? 'Neste lugar' : placeLabelOf(group.mapId)
+        return (
+          <section key={group.mapId} className="pp-personal-notes__group" aria-label={`Notas: ${title}`}>
+            <h3 className="pp-subheading">{title}</h3>
+            <ul className="pp-list pp-personal-notes">
+              {group.notes.map((note) => (
+                <li key={note.id} className="pp-personal-notes__item">
+                  {group.here ? (
+                    <button type="button" className="pp-character" aria-label={`Centralizar em ${note.text}`} onClick={() => onFocus(note.id)}>
+                      <span className="pp-personal-notes__mark" aria-hidden="true" />
+                      <span className="pp-character__name">{note.text}</span>
+                    </button>
+                  ) : (
+                    <span className="pp-character pp-personal-notes__away">
+                      <span className="pp-personal-notes__mark" aria-hidden="true" />
+                      <span className="pp-character__name">{note.text}</span>
+                    </span>
+                  )}
+                  <button type="button" className="pp-personal-notes__remove" aria-label={`Apagar nota ${note.text}`} onClick={() => onRemove(note.id)}>
+                    Apagar
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )
+      })}
+    </div>
   )
 }

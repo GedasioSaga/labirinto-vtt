@@ -44,32 +44,42 @@ describe('PlayerPanel: marca "vamos para cá"', () => {
           onClearDestination={opts.onClear ?? (() => {})}
           onRenameToken={() => {}}
           onChangeTokenPhoto={async () => {}}
-          notebook={[]}
-          notebookUnread={false}
-          onReadNotebook={() => {}}
         />,
       ),
     )
   }
 
-  const botao = (texto: string) => Array.from(container.querySelectorAll('button')).find((b) => b.textContent === texto)
+  const botao = (texto: string) => Array.from(container.querySelectorAll('button')).find((b) => b.textContent?.trim() === texto)
+  const itens = () => Array.from(container.querySelectorAll('[role="menuitem"]')).map((b) => b.textContent)
 
-  it('sem marca: "Marcar destino" como botão de modo e nenhum "Tirar marca"; ligado pede o toque', () => {
+  /** "Marcar destino" mora no menu "Marcações": abre o menu antes. */
+  function abrirMarcacoes(): void {
+    act(() => botao('Marcações')?.click())
+  }
+
+  it('sem marca: "Marcar destino" no menu Marcações e nenhum "Tirar marca"; ligado pede o toque', () => {
     const onToggle = vi.fn()
     render({ armed: false, has: false, onToggle })
-    const marcar = botao('Marcar destino')
-    expect(marcar?.getAttribute('aria-pressed')).toBe('false')
-    expect(botao('Tirar marca')).toBeUndefined()
-    act(() => marcar?.click())
+    // Fora do menu, nenhum dos três: só o botão Marcações.
+    expect(botao('Marcar destino')).toBeUndefined()
+    abrirMarcacoes()
+    // Só o destino neste painel (sem Anotar nem Deixar marca): o menu oferece o que a tela tem.
+    expect(itens()).toEqual(['Marcar destino'])
+    act(() => botao('Marcar destino')?.click())
     expect(onToggle).toHaveBeenCalledTimes(1)
+    // Escolher fecha o menu.
+    expect(container.querySelector('[role="menu"]')).toBeNull()
     render({ armed: true, has: false, onToggle })
-    expect(botao('Toque no destino…')?.getAttribute('aria-pressed')).toBe('true')
+    expect(container.textContent).toContain('Toque no destino, no mapa. Esc sai.')
+    abrirMarcacoes()
+    expect(itens()).toEqual(['Cancelar destino'])
   })
 
-  it('com marca: "Mudar destino" e "Tirar marca", que tira', () => {
+  it('com marca: "Mudar destino" e "Tirar marca" no menu, que tira', () => {
     const onClear = vi.fn()
     render({ armed: false, has: true, onClear })
-    expect(botao('Mudar destino')).toBeDefined()
+    abrirMarcacoes()
+    expect(itens()).toEqual(['Mudar destino', 'Tirar marca'])
     act(() => botao('Tirar marca')?.click())
     expect(onClear).toHaveBeenCalledTimes(1)
   })

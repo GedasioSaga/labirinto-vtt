@@ -41,9 +41,6 @@ describe('PlayerPanel: baixar meu caderno', () => {
           onToggleLaser={() => {}}
           onRenameToken={() => {}}
           onChangeTokenPhoto={async () => {}}
-          notebook={[]}
-          notebookUnread={false}
-          onReadNotebook={() => {}}
           onDownloadNotebook={onDownloadNotebook}
         />,
       ),

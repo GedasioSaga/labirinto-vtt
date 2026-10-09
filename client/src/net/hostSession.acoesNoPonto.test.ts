@@ -1,7 +1,7 @@
 /**
  * AÇÕES NO PONTO: o toque longo do jogador vira pedido com o ponto
- * ("Fabi quer Procurar — Ferreiro"). O pedido e o nome da sala são do MESTRE:
- * nenhum outro jogador recebe nada, e a resposta ("Nada aqui" / "Feito") volta
+ * ("Fabi chama o mestre aqui — Ferreiro"). O pedido e o nome da sala são do MESTRE:
+ * nenhum outro jogador recebe nada, e a resposta ("Nada aqui" / "Visto") volta
  * só para quem pediu, sem nome de sala nem de cena.
  */
 import { describe, expect, it } from 'vitest'
@@ -75,13 +75,13 @@ function para(r: HostResult, clientId: string): string {
 describe('ações no ponto (host)', () => {
   it('Fabi segura na bigorna > Procurar: o mestre recebe o pedido com o nome da sala mais de dentro', () => {
     const { s, fabi } = mesa()
-    const r = s.handleMessage('c1', { type: 'point.action', action: 'procurar', x: 120, y: 130 }, mundo)
+    const r = s.handleMessage('c1', { type: 'point.action', action: 'chamar', x: 120, y: 130 }, mundo)
     expect(r.pointAction).toEqual({
       requestId: expect.any(String),
       playerId: fabi,
       playerName: 'Fabi',
       color: expect.stringMatching(/^#[0-9a-f]{6}$/i),
-      action: 'procurar',
+      action: 'chamar',
       x: 120,
       y: 130,
       roomName: 'Ferreiro',
@@ -93,19 +93,19 @@ describe('ações no ponto (host)', () => {
 
   it('o pedido não chega a NENHUM jogador: nem a quem está na mesma cena, nem a quem pediu', () => {
     const { s } = mesa()
-    const r = s.handleMessage('c1', { type: 'point.action', action: 'escutar', x: 120, y: 130 }, mundo)
+    const r = s.handleMessage('c1', { type: 'point.action', action: 'chamar', x: 120, y: 130 }, mundo)
     expect(r.outbound).toEqual([])
     const tudo = JSON.stringify(r.outbound)
     expect(tudo).not.toContain('Ferreiro')
     expect(tudo).not.toContain('Vila do Norte')
   })
 
-  it('"Nada aqui" e "Feito" voltam só para quem pediu, sem sala, cena nem ponto', () => {
+  it('"Nada aqui" e "Visto" voltam só para quem pediu, sem sala, cena nem ponto', () => {
     const { s } = mesa()
-    const pedido = s.handleMessage('c1', { type: 'point.action', action: 'procurar', x: 120, y: 130 }, mundo).pointAction
+    const pedido = s.handleMessage('c1', { type: 'point.action', action: 'chamar', x: 120, y: 130 }, mundo).pointAction
     if (pedido === undefined) throw new Error('esperava pedido')
     const nada = s.answerPointAction(pedido.requestId, 'nothing')
-    expect(nada.outbound).toEqual([{ clientId: 'c1', msg: { type: 'point.action.answer', action: 'procurar', answer: 'nothing' } }])
+    expect(nada.outbound).toEqual([{ clientId: 'c1', msg: { type: 'point.action.answer', action: 'chamar', answer: 'nothing' } }])
     const texto = JSON.stringify(nada.outbound)
     for (const segredo of ['Ferreiro', 'Praça', 'Vila do Norte', 's-vila', '120', '130']) expect(texto).not.toContain(segredo)
     expect(para(nada, 'c2')).toBe('[]')
@@ -115,20 +115,20 @@ describe('ações no ponto (host)', () => {
     expect(s.answerPointAction(pedido.requestId, 'seen')).toEqual({ outbound: [] })
   })
 
-  it('"Feito" responde "seen"', () => {
+  it('"Visto" responde "seen"', () => {
     const { s } = mesa()
-    const pedido = s.handleMessage('c1', { type: 'point.action', action: 'espiar', x: 400, y: 300 }, mundo).pointAction
+    const pedido = s.handleMessage('c1', { type: 'point.action', action: 'chamar', x: 400, y: 300 }, mundo).pointAction
     if (pedido === undefined) throw new Error('esperava pedido')
     // Fora do Ferreiro, dentro da Praça: a sala é a Praça.
     expect(pedido.roomName).toBe('Praça')
     expect(s.answerPointAction(pedido.requestId, 'seen').outbound).toEqual([
-      { clientId: 'c1', msg: { type: 'point.action.answer', action: 'espiar', answer: 'seen' } },
+      { clientId: 'c1', msg: { type: 'point.action.answer', action: 'chamar', answer: 'seen' } },
     ])
   })
 
   it('pedido de cena de FUNDO leva a cena de lá (para o mestre), e ponto fora de sala não tem sala', () => {
     const { s } = mesa()
-    const r = s.handleMessage('c3', { type: 'point.action', action: 'escutar', x: 600, y: 300 }, mundo)
+    const r = s.handleMessage('c3', { type: 'point.action', action: 'chamar', x: 600, y: 300 }, mundo)
     expect(r.pointAction).toMatchObject({ playerName: 'Bruno', roomName: null, sceneId: 's-porao', sceneName: 'Porão Úmido', background: true })
     expect(r.outbound).toEqual([])
   })
@@ -141,7 +141,7 @@ describe('ações no ponto (host)', () => {
     const welcome = r0.outbound[0]?.msg
     if (welcome?.type !== 'welcome') throw new Error('esperava welcome')
     s.assignToken(welcome.playerId, 'fabi')
-    const r = s.handleMessage('c1', { type: 'point.action', action: 'procurar', x: 100, y: 100 }, solto)
+    const r = s.handleMessage('c1', { type: 'point.action', action: 'chamar', x: 100, y: 100 }, solto)
     expect(r.pointAction).toMatchObject({ roomName: null, sceneId: null, sceneName: 'm-solto', background: false })
   })
 
@@ -156,7 +156,7 @@ describe('ações no ponto (host)', () => {
     const welcome = r0.outbound[0]?.msg
     if (welcome?.type !== 'welcome') throw new Error('esperava welcome')
     s.assignToken(welcome.playerId, 'fabi')
-    const r = s.handleMessage('c1', { type: 'point.action', action: 'procurar', x: 100, y: 100 }, secreta)
+    const r = s.handleMessage('c1', { type: 'point.action', action: 'chamar', x: 100, y: 100 }, secreta)
     expect(r.pointAction?.roomName).toBe('Cofre')
     // ...e o jogador não recebe nada que diga que ali há um Cofre.
     expect(JSON.stringify(r.outbound)).not.toContain('Cofre')
@@ -164,22 +164,22 @@ describe('ações no ponto (host)', () => {
 
   it('limite: um pedido por intervalo, e no máximo N esperando o mestre por jogador', () => {
     const { s, relogio } = mesa()
-    const ok = s.handleMessage('c1', { type: 'point.action', action: 'procurar', x: 120, y: 130 }, mundo)
+    const ok = s.handleMessage('c1', { type: 'point.action', action: 'chamar', x: 120, y: 130 }, mundo)
     expect(ok.pointAction).toBeDefined()
-    const cedo = s.handleMessage('c1', { type: 'point.action', action: 'procurar', x: 120, y: 130 }, mundo)
+    const cedo = s.handleMessage('c1', { type: 'point.action', action: 'chamar', x: 120, y: 130 }, mundo)
     expect(cedo.pointAction).toBeUndefined()
     expect(cedo.outbound).toEqual([{ clientId: 'c1', msg: { type: 'point.action.rejected', reason: 'too_soon' } }])
 
     for (let i = 1; i < MAX_PENDING_POINT_ACTIONS_PER_PLAYER; i += 1) {
       relogio.agora += POINT_ACTION_MIN_INTERVAL_MS
-      expect(s.handleMessage('c1', { type: 'point.action', action: 'escutar', x: 120, y: 130 }, mundo).pointAction).toBeDefined()
+      expect(s.handleMessage('c1', { type: 'point.action', action: 'chamar', x: 120, y: 130 }, mundo).pointAction).toBeDefined()
     }
     relogio.agora += POINT_ACTION_MIN_INTERVAL_MS
-    const cheio = s.handleMessage('c1', { type: 'point.action', action: 'escutar', x: 120, y: 130 }, mundo)
+    const cheio = s.handleMessage('c1', { type: 'point.action', action: 'chamar', x: 120, y: 130 }, mundo)
     expect(cheio.pointAction).toBeUndefined()
     expect(cheio.outbound).toEqual([{ clientId: 'c1', msg: { type: 'point.action.rejected', reason: 'pending' } }])
     // O limite é de Fabi: Duda pede normalmente.
-    expect(s.handleMessage('c2', { type: 'point.action', action: 'escutar', x: 150, y: 100 }, mundo).pointAction).toBeDefined()
+    expect(s.handleMessage('c2', { type: 'point.action', action: 'chamar', x: 150, y: 100 }, mundo).pointAction).toBeDefined()
   })
 
   it('ação desconhecida ou ponto não finito: nada chega ao mestre', () => {
@@ -187,28 +187,28 @@ describe('ações no ponto (host)', () => {
     expect(s.handleMessage('c1', { type: 'point.action', action: 'roubar', x: 1, y: 1 }, mundo).outbound).toEqual([
       { clientId: 'c1', msg: { type: 'error', reason: 'invalid_message' } },
     ])
-    expect(s.handleMessage('c1', { type: 'point.action', action: 'procurar', x: 'a', y: 1 }, mundo).pointAction).toBeUndefined()
+    expect(s.handleMessage('c1', { type: 'point.action', action: 'chamar', x: 'a', y: 1 }, mundo).pointAction).toBeUndefined()
   })
 
   it('fora do mapa: nada chega ao mestre, e Fabi recebe a recusa em vez de esperar para sempre', () => {
     const { s } = mesa()
     const recusa = [{ clientId: 'c1', msg: { type: 'point.action.rejected', reason: 'out_of_map' } }]
     // Câmera arrastada até a borda escura: x < 0, e depois além da largura.
-    expect(s.handleMessage('c1', { type: 'point.action', action: 'procurar', x: -5, y: 100 }, mundo)).toEqual({ outbound: recusa })
-    expect(s.handleMessage('c1', { type: 'point.action', action: 'procurar', x: 99_999, y: 1 }, mundo)).toEqual({ outbound: recusa })
+    expect(s.handleMessage('c1', { type: 'point.action', action: 'chamar', x: -5, y: 100 }, mundo)).toEqual({ outbound: recusa })
+    expect(s.handleMessage('c1', { type: 'point.action', action: 'chamar', x: 99_999, y: 1 }, mundo)).toEqual({ outbound: recusa })
     // A recusa não gasta o intervalo: o pedido de dentro, logo depois, passa.
-    expect(s.handleMessage('c1', { type: 'point.action', action: 'procurar', x: 120, y: 130 }, mundo).pointAction).toBeDefined()
+    expect(s.handleMessage('c1', { type: 'point.action', action: 'chamar', x: 120, y: 130 }, mundo).pointAction).toBeDefined()
   })
 
   it('quem não entrou ou está aguardando não pede; expulso tem os pedidos apagados', () => {
     const { s } = mesa()
-    expect(s.handleMessage('c9', { type: 'point.action', action: 'procurar', x: 1, y: 1 }, mundo).outbound).toEqual([
+    expect(s.handleMessage('c9', { type: 'point.action', action: 'chamar', x: 1, y: 1 }, mundo).outbound).toEqual([
       { clientId: 'c9', msg: { type: 'error', reason: 'not_joined' } },
     ])
     entra(s, 'c4', 'Caio')
-    expect(s.handleMessage('c4', { type: 'point.action', action: 'procurar', x: 100, y: 100 }, mundo)).toEqual({ outbound: [] })
+    expect(s.handleMessage('c4', { type: 'point.action', action: 'chamar', x: 100, y: 100 }, mundo)).toEqual({ outbound: [] })
 
-    const pedido = s.handleMessage('c1', { type: 'point.action', action: 'procurar', x: 120, y: 130 }, mundo).pointAction
+    const pedido = s.handleMessage('c1', { type: 'point.action', action: 'chamar', x: 120, y: 130 }, mundo).pointAction
     if (pedido === undefined) throw new Error('esperava pedido')
     s.kick('c1')
     expect(s.isPointActionPending(pedido.requestId)).toBe(false)
@@ -217,7 +217,7 @@ describe('ações no ponto (host)', () => {
 
   it('caiu a conexão: o pedido continua na mão do mestre, e a resposta não vai a ninguém', () => {
     const { s } = mesa()
-    const pedido = s.handleMessage('c1', { type: 'point.action', action: 'procurar', x: 120, y: 130 }, mundo).pointAction
+    const pedido = s.handleMessage('c1', { type: 'point.action', action: 'chamar', x: 120, y: 130 }, mundo).pointAction
     if (pedido === undefined) throw new Error('esperava pedido')
     s.disconnect('c1')
     expect(s.isPointActionPending(pedido.requestId)).toBe(true)

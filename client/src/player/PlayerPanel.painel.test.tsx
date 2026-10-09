@@ -62,9 +62,6 @@ describe('PlayerPanel: painel que recolhe em qualquer largura e "Minha ficha" se
           onChangeTokenPhoto={async () => {}}
           panelRef={opcoes.panelRef}
           barRef={opcoes.barRef}
-          notebook={[]}
-          notebookUnread={false}
-          onReadNotebook={() => {}}
         />,
       ),
     )
@@ -154,12 +151,11 @@ describe('PlayerPanel: painel que recolhe em qualquer largura e "Minha ficha" se
     janela('notebook')
     const onFocusToken = vi.fn()
     render({ onFocusToken })
-    clicar(botao('Centralizar no meu personagem'))
     clicar(botao(`Centralizar em ${FABIO.name}`))
     clicar(botao('Minha ficha'))
     clicar(botao('Sinalizar'))
     clicar(botao('Medir'))
-    expect(onFocusToken).toHaveBeenCalledTimes(3)
+    expect(onFocusToken).toHaveBeenCalledTimes(2)
     expect(aberto()).toBe(true)
   })
 
@@ -181,7 +177,7 @@ describe('PlayerPanel: painel que recolhe em qualquer largura e "Minha ficha" se
     expect(aberto()).toBe(true)
     expect(nome(alternar as HTMLButtonElement)).toBe('Fechar painel')
 
-    const dentro = botao('Centralizar no meu personagem')
+    const dentro = botao(`Centralizar em ${FABIO.name}`)
     act(() => dentro?.focus())
     escape(dentro)
     expect(aberto()).toBe(false)

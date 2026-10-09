@@ -42,9 +42,6 @@ describe('PlayerPanel: minhas fichas em outras cenas', () => {
           onToggleLaser={() => {}}
           onRenameToken={() => {}}
           onChangeTokenPhoto={async () => {}}
-          notebook={[]}
-          notebookUnread={false}
-          onReadNotebook={() => {}}
           elsewhere={elsewhere}
           onSwitchView={onSwitchView}
         />,

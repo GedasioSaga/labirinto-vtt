@@ -42,9 +42,6 @@ describe('PlayerPanel: esconder-se', () => {
           onToggleLaser={() => {}}
           onRenameToken={() => {}}
           onChangeTokenPhoto={async () => {}}
-          notebook={[]}
-          notebookUnread={false}
-          onReadNotebook={() => {}}
           hide={hide}
         />,
       ),

@@ -8,16 +8,20 @@ import { WalkHereItem, type WalkHereItemProps } from './PlayerPointMenu'
  * continua caindo no mapa, não num item do menu.
  */
 export const POINT_MENU_OFFSET_PX = 16
-/** Tamanho do menu (o mesmo do CSS `.pp-pointmenu`), para virar de lado perto da borda da tela. */
-export const POINT_MENU_WIDTH_PX = 148
 /**
- * 5 itens de 44 px (o alvo de dedo do tema, `--lb-control-touch`), 4 vãos de
+ * Tamanho do menu (o mesmo do CSS `.pp-pointmenu`), para virar de lado perto
+ * da borda da tela. Largo o bastante para "Chamar o mestre aqui" caber numa
+ * linha só, na letra de 15 px.
+ */
+export const POINT_MENU_WIDTH_PX = 192
+/**
+ * 2 itens de 44 px (o alvo de dedo do tema, `--lb-control-touch`), 1 vão de
  * 2 px, 4 px de respiro em cima e embaixo e 1 px de borda de cada lado. É
  * também o `max-height` do CSS: menor que a soma, os itens vazariam do menu.
  */
-export const POINT_MENU_HEIGHT_PX = 238
+export const POINT_MENU_HEIGHT_PX = 100
 /**
- * O "Andar até aqui" a mais, no caso mais alto: sem caminho, com o motivo
+ * O "Andar até aqui" a mais (entre os dois), no caso mais alto: sem caminho, com o motivo
  * esmaecido em duas linhas embaixo. 8 px de respiro em cima e embaixo, o
  * rótulo (15 px na entrelinha 1,45 da página), 2 px, as duas linhas do motivo
  * (12 px na mesma entrelinha) e o vão de 2 px até o item de cima: 76,55 px,
@@ -43,10 +47,11 @@ interface PointActionMenuProps {
   screenY: number
   /** "Sinalizar": o ponto pisca também para os colegas. Não vira pedido. */
   onSignal: () => void
+  /** "Chamar o mestre aqui": vira pedido com o ponto na Caixa do mestre. */
   onChoose: (action: PointActionKind) => void
   /**
-   * ANDAR ATÉ AQUI, o último item: o mesmo toque longo, sem um segundo menu no
-   * mesmo ponto. Ausente = sem ficha dele na cena, não há quem ande.
+   * ANDAR ATÉ AQUI, o item do meio: o mesmo toque longo, sem um segundo menu
+   * no mesmo ponto. Ausente = sem ficha dele na cena, não há quem ande.
    */
   walk?: WalkHereItemProps
   onClose: () => void
@@ -54,9 +59,10 @@ interface PointActionMenuProps {
 
 /**
  * AÇÕES NO PONTO: o menu que abre depois do toque longo no mapa. O gesto só
- * avisou o mestre; aqui o jogador escolhe: Sinalizar (o ponto pisca para os
- * colegas também) ou Procurar, Escutar, Espiar e Revistar — cada um vira um
- * pedido com o ponto na Caixa do mestre, sem piscar nada para os colegas.
+ * avisou o mestre; aqui o jogador escolhe, nesta ordem: Sinalizar (o ponto
+ * pisca para os colegas também), Andar até aqui e Chamar o mestre aqui — que
+ * vira um pedido com o ponto na Caixa do mestre, sem piscar nada para os
+ * colegas.
  *
  * Menu de verdade (`menu`/`menuitem`): o foco entra no primeiro item, as
  * setas andam com volta, Home/End vão às pontas e Escape fecha. Não é modal:
@@ -113,12 +119,12 @@ export function PointActionMenu({ screenX, screenY, onSignal, onChoose, walk, on
       <button type="button" role="menuitem" className="pp-pointmenu__item" onClick={onSignal}>
         Sinalizar
       </button>
+      {walk !== undefined && <WalkHereItem canWalk={walk.canWalk} onWalk={walk.onWalk} />}
       {POINT_ACTION_KINDS.map((action) => (
         <button key={action} type="button" role="menuitem" className="pp-pointmenu__item" onClick={() => onChoose(action)}>
           {pointActionLabel(action)}
         </button>
       ))}
-      {walk !== undefined && <WalkHereItem canWalk={walk.canWalk} onWalk={walk.onWalk} />}
     </div>
   )
 }

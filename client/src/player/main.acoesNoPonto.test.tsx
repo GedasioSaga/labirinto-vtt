@@ -8,8 +8,9 @@ import type { PlayerView } from './PlayerView'
 
 /**
  * AÇÕES NO PONTO montadas na sessão do jogador (main.tsx): o toque longo que o
- * PlayerView avisa abre o menu, escolher envia o pedido pelo socket e o aviso
- * aparece na tela. O canvas (Pixi) não roda no jsdom: o PlayerView vira um
+ * PlayerView avisa abre o menu (Sinalizar, Andar até aqui, Chamar o mestre
+ * aqui), "Chamar o mestre aqui" envia o pedido pelo socket e o aviso aparece
+ * na tela. O canvas (Pixi) não roda no jsdom: o PlayerView vira um
  * dublê que só guarda as props que a sessão lhe passa.
  */
 
@@ -120,49 +121,50 @@ describe('sessão do jogador: ações no ponto', () => {
     act(() => item.click())
   }
 
-  it('toque longo abre o menu; Procurar envia o pedido com o ponto e mostra a espera', () => {
+  it('toque longo abre o menu só com Sinalizar e Chamar o mestre aqui (sem ficha, não há quem ande); chamar envia o pedido com o ponto', () => {
     expect(menu()).toBeNull()
     tocarLongo(120, 130, 200, 150)
     expect(menu()).not.toBeNull()
-    escolher('Procurar')
-    expect(pedidos()).toEqual([{ type: 'point.action', action: 'procurar', x: 120, y: 130 }])
+    const itens = Array.from(container.querySelectorAll('[role="menuitem"]')).map((b) => b.textContent)
+    expect(itens).toEqual(['Sinalizar', 'Chamar o mestre aqui'])
+    for (const velho of ['Procurar', 'Escutar', 'Espiar', 'Revistar']) expect(menu()?.textContent).not.toContain(velho)
+    escolher('Chamar o mestre aqui')
+    expect(pedidos()).toEqual([{ type: 'point.action', action: 'chamar', x: 120, y: 130 }])
     expect(menu()).toBeNull()
-    expect(aviso()).toBe('Procurar: esperando o mestre')
-    act(() => socket.receive({ type: 'point.action.answer', action: 'procurar', answer: 'nothing' }))
-    expect(aviso()).toBe('Procurar: você não encontrou nada')
+    expect(aviso()).toBe('Chamado: esperando o mestre')
+    act(() => socket.receive({ type: 'point.action.answer', action: 'chamar', answer: 'seen' }))
+    expect(aviso()).toBe('Chamado: o mestre viu')
   })
 
-  // Fabi pede Procurar na bigorna e, logo depois, Escutar na porta: a resposta
-  // ao Procurar diz que é do Procurar, e a espera do Escutar volta à tela.
-  it('dois pedidos: a resposta diz de qual ação é e a espera da outra volta depois', () => {
+  it('dois chamados: a resposta do primeiro aparece e a espera do outro volta depois', () => {
     vi.useFakeTimers()
     try {
       tocarLongo(120, 130, 200, 150)
-      escolher('Procurar')
+      escolher('Chamar o mestre aqui')
       act(() => vi.advanceTimersByTime(1000))
       tocarLongo(300, 130, 380, 150)
-      escolher('Escutar')
+      escolher('Chamar o mestre aqui')
       expect(pedidos()).toEqual([
-        { type: 'point.action', action: 'procurar', x: 120, y: 130 },
-        { type: 'point.action', action: 'escutar', x: 300, y: 130 },
+        { type: 'point.action', action: 'chamar', x: 120, y: 130 },
+        { type: 'point.action', action: 'chamar', x: 300, y: 130 },
       ])
-      expect(aviso()).toBe('Procurar e Escutar: esperando o mestre')
-      act(() => socket.receive({ type: 'point.action.answer', action: 'procurar', answer: 'nothing' }))
-      expect(aviso()).toBe('Procurar: você não encontrou nada')
+      expect(aviso()).toBe('Chamado: esperando o mestre')
+      act(() => socket.receive({ type: 'point.action.answer', action: 'chamar', answer: 'nothing' }))
+      expect(aviso()).toBe('Chamado: nada aqui, diz o mestre')
       act(() => vi.advanceTimersByTime(POINT_NOTICE_TTL_MS))
-      expect(aviso()).toBe('Escutar: esperando o mestre')
+      expect(aviso()).toBe('Chamado: esperando o mestre')
     } finally {
       vi.useRealTimers()
     }
   })
 
   // O gesto avisa só o mestre; o ponto piscar para os colegas é o "Sinalizar"
-  // do menu. Sem isso, Espiar e Revistar nunca seriam discretos.
-  it('toque longo manda o sinal só ao mestre; Espiar não pisca nada para os colegas', () => {
+  // do menu. Sem isso, o chamado ao mestre nunca seria discreto.
+  it('toque longo manda o sinal só ao mestre; Chamar o mestre aqui não pisca nada para os colegas', () => {
     tocarLongo(120, 130, 200, 150)
     expect(sinais()).toEqual([{ type: 'signal', x: 120, y: 130, audience: 'master' }])
-    escolher('Espiar')
-    expect(pedidos()).toEqual([{ type: 'point.action', action: 'espiar', x: 120, y: 130 }])
+    escolher('Chamar o mestre aqui')
+    expect(pedidos()).toEqual([{ type: 'point.action', action: 'chamar', x: 120, y: 130 }])
     expect(sinais()).toEqual([{ type: 'signal', x: 120, y: 130, audience: 'master' }])
   })
 
@@ -240,7 +242,7 @@ describe('sessão do jogador: ações no ponto', () => {
     tocarLongo(120, 130, 200, 150)
     act(() => socket.receive({ type: 'snapshot', rev: 2, map: createEmptyMap('m1', '', 10, 10, 50), vision: [], ownTokens: [], concealed: [] }))
     expect(menu()).not.toBeNull()
-    escolher('Escutar')
-    expect(pedidos()).toEqual([{ type: 'point.action', action: 'escutar', x: 120, y: 130 }])
+    escolher('Chamar o mestre aqui')
+    expect(pedidos()).toEqual([{ type: 'point.action', action: 'chamar', x: 120, y: 130 }])
   })
 })

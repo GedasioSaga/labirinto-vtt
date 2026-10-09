@@ -4,7 +4,7 @@
  * Caractere especial vai por escape: colado cru, não se vê na revisão.
  */
 import { describe, expect, it } from 'vitest'
-import { chatSpeakerLabel, cleanPlayerName, nameSkeleton } from './chat'
+import { chatFacesByName, chatSpeakerLabel, cleanPlayerName, nameSkeleton } from './chat'
 
 /** "Mestre" com um invisível colado: um de cada família que a limpeza antiga deixava passar. */
 const MESTRE_COM_INVISIVEL = [
@@ -83,5 +83,46 @@ describe('chat: nome de quem entra', () => {
 
   it('o seletor de variação também sai do emoji: o coração fica, no estilo de texto', () => {
     expect(cleanPlayerName('Ana \u{2764}\u{FE0F}')).toBe('Ana \u{2764}')
+  })
+})
+
+describe('chatFacesByName: a foto de quem falou, só do que a tela já tem', () => {
+  const FOTO_ANA = 'data:image/png;base64,QU5B'
+  const FOTO_BIA = 'data:image/png;base64,QklB'
+
+  it('a primeira ficha da pessoa que tem foto, na ordem da posse; sem foto ou sem ficha à vista, o nome não entra', () => {
+    const tokens = [
+      { id: 'ana-1', imageData: null },
+      { id: 'ana-2', imageData: FOTO_ANA },
+      { id: 'bia', imageData: FOTO_BIA },
+      { id: 'cris', imageData: '' },
+    ]
+    const faces = chatFacesByName(
+      [
+        { name: 'Ana', tokenIds: ['ana-1', 'ana-2'] },
+        { name: 'Bia', tokenIds: ['bia'] },
+        { name: 'Cris', tokenIds: ['cris'] },
+        { name: 'Dora', tokenIds: ['longe-daqui'] },
+      ],
+      tokens,
+    )
+    expect([...faces]).toEqual([
+      ['Ana', FOTO_ANA],
+      ['Bia', FOTO_BIA],
+    ])
+  })
+
+  it('nome repetido vale o primeiro: ninguém troca a foto de outro escrevendo o mesmo nome', () => {
+    const faces = chatFacesByName(
+      [
+        { name: 'Ana', tokenIds: ['ana'] },
+        { name: 'Ana', tokenIds: ['bia'] },
+      ],
+      [
+        { id: 'ana', imageData: FOTO_ANA },
+        { id: 'bia', imageData: FOTO_BIA },
+      ],
+    )
+    expect(faces.get('Ana')).toBe(FOTO_ANA)
   })
 })

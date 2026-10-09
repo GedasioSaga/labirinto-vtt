@@ -70,8 +70,18 @@ import { usePausaDosNpcsStore } from './stores/pausaDosNpcsStore'
 import { alternarPausaDosNpcs, useAlgumNpcAndando } from './stores/npcsAndando'
 import type { TravelLogEntry } from './lib/travelLog'
 import { withStoredTokens } from './lib/storedTokens'
-import { loadSavedExploration, loadSavedTable, savedTableSummary, storeSavedExploration, storeSavedTable, type TableStorage } from './lib/savedTable'
+import {
+  loadSavedExploration,
+  loadSavedMyNotes,
+  loadSavedTable,
+  savedTableSummary,
+  storeSavedExploration,
+  storeSavedMyNotes,
+  storeSavedTable,
+  type TableStorage,
+} from './lib/savedTable'
 import { createTauriChatStore, type ChatStore } from './lib/chatStore'
+import { chatFacesByName } from './lib/chat'
 import { applyGatherPlan, gatherCandidates, planGather, sendCandidates } from './lib/gatherParty'
 import { comConfronto, iniciarConfronto, proximaVez } from './lib/confronto'
 import { canShowPinNow, showPinNowCandidates, showPinNowWithNotice } from './components/ShowPinNowControls'
@@ -306,6 +316,8 @@ const MAP_SAVED_TEXT = 'Mapa salvo'
 const NO_INITIATIVE_VALUES: Readonly<Record<string, number>> = {}
 /** Sala sem conversa: o chat do mestre antes da primeira linha e depois de fechar a sala. */
 const NO_MASTER_CHAT: MasterChatState = { global: [], scenes: [] }
+/** Sala sem ninguém: o chat do mestre sem foto nenhuma, o mesmo mapa vazio a cada render. */
+const NO_CHAT_FACES: ReadonlyMap<string, string> = new Map()
 
 /** Entrada do aviso de trabalho não salvo: ease-out curto, nunca de escala zero. */
 const UNSAVED_DIALOG_ENTER_MS = 160
@@ -723,6 +735,8 @@ function App() {
         saveTable: (table) => storeSavedTable(tableStorage(), roomTableIdRef.current ?? currentTableId(), table),
         loadExploration: () => loadSavedExploration(tableStorage(), roomTableIdRef.current ?? currentTableId()),
         saveExploration: (exploration) => storeSavedExploration(tableStorage(), roomTableIdRef.current ?? currentTableId(), exploration),
+        loadMyNotes: () => loadSavedMyNotes(tableStorage(), roomTableIdRef.current ?? currentTableId()),
+        saveMyNotes: (notes) => storeSavedMyNotes(tableStorage(), roomTableIdRef.current ?? currentTableId(), notes),
         loadChat: () => roomChatStore().load(),
         appendChat: (sceneKey, entry) => roomChatStore().append(sceneKey, entry),
         deleteChat: (sceneKey, id) => roomChatStore().remove(sceneKey, id),
@@ -987,6 +1001,12 @@ function App() {
    * viajou. Só é montado com a aba Jogo existindo (Tauri).
    */
   const roomPanelWorld = () => hostWorldOf({ adventure, activeSceneId, cache: sceneCache }, map)
+  /** CHAT: a foto da ficha de cada jogador da sala (a primeira dele com foto, em qualquer cena), pelo nome. */
+  const chatFaces = (): ReadonlyMap<string, string> => {
+    if (roomPlayers.length === 0) return NO_CHAT_FACES
+    const world = roomPanelWorld()
+    return chatFacesByName(roomPlayers, [world.open, ...world.background].flatMap((scene) => scene.map.tokens))
+  }
   /** A lista do "Reunir o grupo aqui" do pino aberto: agrupada por cena, com quem já está em volta dele à parte. */
   const gatherListFor = (pin: { x: number; y: number }) => {
     const world = roomPanelWorld()
@@ -1052,6 +1072,7 @@ function App() {
           ) : (
             <MasterChatPanel
               chat={masterChat}
+              faces={chatFaces()}
               active={rightOpen && rightTab === 'chat'}
               onUnreadChange={setChatUnread}
               onSend={(text) => hostBridgeRef.current?.masterChatSend(text) ?? false}

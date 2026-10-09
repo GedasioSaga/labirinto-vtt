@@ -265,13 +265,13 @@ const ENTRELINHA = 1.45
 describe('a altura do menu do toque longo no TS é a soma real do CSS', () => {
   // O TS usa a altura para virar o menu perto da borda; o CSS a usa de teto.
   // Se o teto for menor que os itens, eles vazam pela borda de baixo do menu.
-  it('cinco itens de 44 px, quatro vãos, o respiro e a borda', async () => {
+  it('dois itens de 44 px (Sinalizar e Chamar o mestre aqui), um vão, o respiro e a borda', async () => {
     const regras = lerRegras(await lerPlayerCss())
     const item = px(valor(regras, '.pp-pointmenu__item', 'min-height'))
     const vao = px(valor(regras, '.pp-pointmenu', 'gap'))
     const respiro = px(valor(regras, '.pp-pointmenu', 'padding'))
     const borda = px(valor(regras, '.pp-pointmenu', 'border'))
-    expect(POINT_MENU_HEIGHT_PX).toBe(5 * item + 4 * vao + 2 * respiro + 2 * borda)
+    expect(POINT_MENU_HEIGHT_PX).toBe(2 * item + 1 * vao + 2 * respiro + 2 * borda)
     expect(valor(regras, '.pp-pointmenu', 'max-height')).toBe(`${POINT_MENU_HEIGHT_PX}px`)
   })
 

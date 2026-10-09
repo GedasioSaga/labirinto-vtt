@@ -15,8 +15,10 @@ import {
   reclaimText,
   roomCodeChangedText,
   SAVED_EXPLORATION_VERSION,
+  SAVED_MY_NOTES_VERSION,
   SAVED_TABLE_VERSION,
   type SavedExploration,
+  type SavedMyNotes,
   type SavedTable,
 } from '../lib/savedTable'
 import type { ChatHistory } from '../lib/chatStore'
@@ -300,7 +302,7 @@ export interface HostBridgeDeps {
   /**
    * "Ir lá" de uma AÇÃO NO PONTO: abrir a cena do pedido centrada no ponto e
    * marcá-lo. Sem este retorno a linha da Caixa vem sem o "Ir lá" (o pedido
-   * continua chegando, e "Nada aqui"/"Feito" respondem igual).
+   * continua chegando, e "Nada aqui"/"Visto" respondem igual).
    */
   onPointActionGo?: (request: PointActionRequest) => void
   /**
@@ -319,6 +321,13 @@ export interface HostBridgeDeps {
   loadExploration?: () => SavedExploration | null
   /** Grava o mapa explorado pouco depois de mudar e ao fechar a sala. Ausente = nada é gravado. */
   saveExploration?: (exploration: SavedExploration) => void
+  /**
+   * MINHAS NOTAS guardadas da mesa (`null` = nenhuma). Lidas a cada sala que
+   * abre, retomada ou não: a nota é do jogador, não do assento.
+   */
+  loadMyNotes?: () => SavedMyNotes | null
+  /** Grava as notas pouco depois de um jogador mudar as dele e ao fechar a sala. Ausente = nada é gravado. */
+  saveMyNotes?: (notes: SavedMyNotes) => void
   /** DADO ROLADO NA SALA: toda rolagem da mesa (a de um jogador e a do mestre, a escondida marcada). */
   onDiceRoll?: (roll: HostDiceRoll) => void
   /** CHAT, leitura do mestre: o Global e as cenas com conversa, a cada linha nova ou apagada. */
@@ -874,6 +883,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   let unlisteners: UnlistenFn[] = []
   let pendingBroadcast: ReturnType<typeof setTimeout> | null = null
   let pendingExplorationSave: ReturnType<typeof setTimeout> | null = null
+  let pendingMyNotesSave: ReturnType<typeof setTimeout> | null = null
   /** Despertador do prazo do ajudante contratado mais próximo (`armLoanTimer`). */
   let loanTimer: ReturnType<typeof setTimeout> | null = null
   let pendingStart: Promise<RoomInfo> | null = null
@@ -1154,6 +1164,31 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     clearTimeout(pendingExplorationSave)
     pendingExplorationSave = null
     saveExplorationNow()
+  }
+
+  const saveMyNotesNow = () => {
+    if (session === null || deps.saveMyNotes === undefined) return
+    deps.saveMyNotes({ version: SAVED_MY_NOTES_VERSION, seats: session.savedMyNotes() })
+  }
+
+  /**
+   * MINHAS NOTAS: grava uma vez, `EXPLORATION_SAVE_DELAY_MS` depois da primeira
+   * mudança pendente — quem apaga cinco notas seguidas não regrava o disco cinco vezes.
+   */
+  const scheduleMyNotesSave = () => {
+    if (session === null || deps.saveMyNotes === undefined || pendingMyNotesSave !== null) return
+    pendingMyNotesSave = setTimeout(() => {
+      pendingMyNotesSave = null
+      saveMyNotesNow()
+    }, EXPLORATION_SAVE_DELAY_MS)
+  }
+
+  /** Fechar a sala: a última nota de cada um não pode se perder no timer. */
+  const flushMyNotesSave = () => {
+    if (pendingMyNotesSave === null) return
+    clearTimeout(pendingMyNotesSave)
+    pendingMyNotesSave = null
+    saveMyNotesNow()
   }
 
   /**
@@ -2068,7 +2103,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     deps.onCall?.(call)
   }
 
-  /** "Nada aqui" ou "Feito": a linha sai e a resposta vai só a quem pediu. */
+  /** "Nada aqui" ou "Visto": a linha sai e a resposta vai só a quem chamou. */
   const answerPointAction = (requestId: string, answer: PointActionAnswer) => {
     const toastId = pointActionToasts.get(requestId)
     pointActionToasts.delete(requestId)
@@ -2078,9 +2113,9 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   }
 
   /**
-   * "ENTREGAR PISTA…" do Revistar: o cartão do pino oculto abre só em quem
-   * revistou (o mesmo `showPin` do "Mostrar agora a…"), e o pedido dele fica
-   * respondido ("Feito"). O mestre lê no aviso se saiu — ou por que não: a
+   * "ENTREGAR PISTA…" do chamado no ponto: o cartão do pino oculto abre só em
+   * quem chamou (o mesmo `showPin` do "Mostrar agora a…"), e o pedido dele
+   * fica respondido ("Visto"). O mestre lê no aviso se saiu — ou por que não: a
    * linha pode ter esperado enquanto o jogador saía da cena ou caía.
    */
   const deliverClue = (request: PointActionRequest, pinId: string) => {
@@ -2098,16 +2133,16 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   }
 
   /**
-   * AÇÃO NO PONTO: "Fabi quer Procurar — Ferreiro" na Caixa (grupo
-   * "Pedidos"), esperando o mestre. "Ir lá" leva ao ponto e deixa a linha;
-   * "Nada aqui" e "Feito" respondem só a quem pediu. O × vale "Feito": a
-   * pergunta nunca some sem resposta. Sem `emLote`: o "Deixar todos" é dos
-   * pedidos de passagem e passa por esta linha sem tocar nela.
+   * CHAMAR O MESTRE AQUI: "Fabi chama o mestre aqui — Ferreiro" na Caixa,
+   * junto dos outros chamados (grupo "Chamados"), esperando o mestre. "Ir
+   * lá" centra o editor no ponto e deixa a linha; "Nada aqui" e "Visto"
+   * respondem só a quem chamou. O × vale "Visto": o chamado nunca some sem
+   * resposta. Sem `emLote`: o "Deixar todos" é dos pedidos de passagem.
    */
   const askPointAction = (request: PointActionRequest) => {
     const goTo = deps.onPointActionGo
     const irLa = goTo === undefined ? [] : [{ label: 'Ir lá', mantem: true, run: () => goTo(request) }]
-    // REVISTAR: um "Entregar: Carta" por pista oculta da sala (`hiddenCluesAt`).
+    // Um "Entregar: Carta" por pista oculta da sala do ponto (`hiddenCluesAt`).
     const entregar = (request.pistas ?? []).map((pista) => ({
       label: `Entregar: ${pista.label}`,
       run: () => deliverClue(request, pista.pinId),
@@ -2117,10 +2152,10 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
         ...irLa,
         ...entregar,
         { label: 'Nada aqui', run: () => answerPointAction(request.requestId, 'nothing') },
-        { label: 'Feito', run: () => answerPointAction(request.requestId, 'seen') },
+        { label: 'Visto', run: () => answerPointAction(request.requestId, 'seen') },
       ],
       onDismiss: () => answerPointAction(request.requestId, 'seen'),
-      grupo: 'Pedidos',
+      grupo: 'Chamados',
     })
     pointActionToasts.set(request.requestId, toastId)
   }
@@ -2141,19 +2176,20 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   /**
    * AGIR SOBRE UMA FICHA: o pedido entra na Caixa de Pedidos ("Pedidos"), e
    * espera o mestre como o pedido de passagem — o jogador olha "Aguardando…".
-   * O × vale "Recusar". Sem "emLote": o "Deixar todos" da caixa é da passagem,
-   * e aceitar de uma vez "Empurrar", "Agarrar" e "Oferecer" não é uma decisão só.
-   * O campo "Resposta só para Ana" leva junto o que o NPC responde: o texto
-   * vai só a quem pediu, e não à cena (o recado de cena chega a todos).
+   * "Deixar" e "Não", como os outros pedidos; o × vale "Não". Sem "emLote": o
+   * "Deixar todos" da caixa é da passagem, e deixar de uma vez um beijo e uma
+   * briga não é uma decisão só. O campo "Resposta só para Ana" leva junto o
+   * que o NPC responde: o texto vai só a quem pediu, e não à cena (o recado de
+   * cena chega a todos). No "Deixar", o dono da ficha-alvo (se for jogador)
+   * recebe o aviso do que o colega fez — a sessão decide quem é.
    */
   const askAction = (request: TokenActionRequest) => {
     const where = request.sceneName === undefined ? '' : ` em ${request.sceneName}`
-    const said = request.text === undefined ? '' : ` — "${request.text}"`
-    const text = `${request.playerName} → ${request.targetName}${where}: ${TOKEN_ACTION_LABELS[request.action]} (${distanceLabel(request.distanceCells)})${said}`
+    const text = `${request.playerName} → ${request.targetName}${where}: ${TOKEN_ACTION_LABELS[request.action]} (${distanceLabel(request.distanceCells)}) — "${request.text}"`
     const toastId = toastSink.push('instrucao', text, null, {
       actions: [
-        { label: 'Aceitar', run: (resposta) => answerAction(request.requestId, true, resposta) },
-        { label: 'Recusar', run: (resposta) => answerAction(request.requestId, false, resposta) },
+        { label: 'Deixar', run: (resposta) => answerAction(request.requestId, true, resposta) },
+        { label: 'Não', run: (resposta) => answerAction(request.requestId, false, resposta) },
       ],
       onDismiss: () => answerAction(request.requestId, false),
       grupo: 'Pedidos',
@@ -2834,6 +2870,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     // "Mostrar meu mapa a…" aceito: o colega recebe o trecho no snapshot de agora.
     if (result.mapShared !== undefined) broadcastNow()
     if (result.actionRequest !== undefined) askAction(result.actionRequest)
+    if (result.myNotesChanged === true) scheduleMyNotesSave()
     if (result.purchaseRequest !== undefined) {
       // Integrador sem quem grave a mochila: "Vender" não teria como entregar.
       if (deps.applyItems === undefined) void dispatch(session.denyPurchase(result.purchaseRequest.requestId))
@@ -2996,6 +3033,8 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       const restoreSeats = saved?.seats ?? []
       // O explorado só vale com a mesa: sem assento, não há de quem ele seja.
       const restoreExploration = saved === null ? [] : (deps.loadExploration?.()?.seats ?? [])
+      // MINHAS NOTAS: com ou sem "Retomar a mesa" — a nota é de quem a escreveu, e volta a quem entrar com o nome dele.
+      const restoreMyNotes = deps.loadMyNotes?.()?.seats ?? []
       // A conversa guardada é lida junto com a abertura no Rust (nunca lança: falha vira aviso).
       const chatLoading = loadSavedChat()
       // Retomar pede o MESMO código: o link e a reconexão automática dos jogadores continuam valendo.
@@ -3017,6 +3056,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
         getClock: deps.getClock,
         restoreSeats,
         restoreExploration,
+        restoreMyNotes,
         restoreChat,
       })
       chatSaveWarned = false
@@ -3070,6 +3110,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       cancelPendingBroadcast()
       // Com a sessão ainda viva: depois dela não há de onde ler o explorado.
       flushExplorationSave()
+      flushMyNotesSave()
       for (const timer of peekTimers) clearTimeout(timer)
       peekTimers.clear()
       // Sala fechada leva os empréstimos junto (a sessão morre): nada de despertador órfão.

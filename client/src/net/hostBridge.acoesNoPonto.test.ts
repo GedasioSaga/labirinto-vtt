@@ -7,8 +7,8 @@ import type { HostWorld, PointActionRequest } from './hostSession'
 import { createHostBridge } from './hostBridge'
 
 /**
- * AÇÕES NO PONTO do lado do mestre: o pedido vira uma linha na Caixa (grupo
- * "Pedidos") com "Ir lá", "Nada aqui" e "Feito". "Ir lá" não responde nada e
+ * CHAMAR O MESTRE AQUI do lado do mestre: o pedido vira uma linha na Caixa (grupo
+ * "Chamados") com "Ir lá", "Nada aqui" e "Visto". "Ir lá" não responde nada e
  * deixa a linha na tela; as outras duas respondem só a quem pediu.
  */
 
@@ -74,7 +74,7 @@ async function mesa() {
 }
 
 function avisoDoPedido() {
-  const aviso = useToastStore.getState().toasts.find((t) => t.text.startsWith('Fabi quer'))
+  const aviso = useToastStore.getState().toasts.find((t) => t.text.startsWith('Fabi chama o mestre aqui'))
   if (aviso === undefined) throw new Error('o pedido deveria virar aviso do mestre')
   return aviso
 }
@@ -90,74 +90,74 @@ describe('hostBridge: ações no ponto', () => {
     useToastStore.setState({ toasts: [] })
   })
 
-  it('"Fabi quer Procurar — Ferreiro" entra na Caixa com Ir lá, Nada aqui e Feito', async () => {
+  it('"Fabi chama o mestre aqui — Ferreiro" entra na Caixa com Ir lá, Nada aqui e Visto', async () => {
     const { emit } = await mesa()
-    emit({ clientId: 'c1', msg: { type: 'point.action', action: 'procurar', x: 120, y: 130 } })
+    emit({ clientId: 'c1', msg: { type: 'point.action', action: 'chamar', x: 120, y: 130 } })
     const aviso = avisoDoPedido()
-    expect(aviso.text).toBe('Fabi quer Procurar — Ferreiro')
-    expect(aviso.grupo).toBe('Pedidos')
+    expect(aviso.text).toBe('Fabi chama o mestre aqui — Ferreiro')
+    expect(aviso.grupo).toBe('Chamados')
     expect(aviso.kind).toBe('instrucao')
-    expect(aviso.actions?.map((a) => a.label)).toEqual(['Ir lá', 'Nada aqui', 'Feito'])
+    expect(aviso.actions?.map((a) => a.label)).toEqual(['Ir lá', 'Nada aqui', 'Visto'])
   })
 
   it('duas ações no ponto na Caixa não oferecem resposta em lote: nenhum botão delas é emLote', async () => {
     const { emit } = await mesa()
-    emit({ clientId: 'c1', msg: { type: 'point.action', action: 'procurar', x: 120, y: 130 } })
-    emit({ clientId: 'c2', msg: { type: 'point.action', action: 'escutar', x: 150, y: 100 } })
-    const pedidos = useToastStore.getState().toasts.filter((t) => t.grupo === 'Pedidos')
-    expect(pedidos.map((t) => t.text)).toEqual(['Fabi quer Procurar — Ferreiro', 'Duda quer Escutar — Ferreiro'])
+    emit({ clientId: 'c1', msg: { type: 'point.action', action: 'chamar', x: 120, y: 130 } })
+    emit({ clientId: 'c2', msg: { type: 'point.action', action: 'chamar', x: 150, y: 100 } })
+    const pedidos = useToastStore.getState().toasts.filter((t) => t.grupo === 'Chamados')
+    expect(pedidos.map((t) => t.text)).toEqual(['Fabi chama o mestre aqui — Ferreiro', 'Duda chama o mestre aqui — Ferreiro'])
     expect(temRespostaEmLote(pedidos)).toBe(false)
   })
 
   it('"Ir lá" centra e marca o ponto, não responde nada ao jogador e fica na tela', async () => {
     const { emit, sent, onPointActionGo } = await mesa()
-    emit({ clientId: 'c1', msg: { type: 'point.action', action: 'procurar', x: 120, y: 130 } })
+    emit({ clientId: 'c1', msg: { type: 'point.action', action: 'chamar', x: 120, y: 130 } })
     const antes = sent().length
     const irLa = acao('Ir lá')
     expect(irLa.mantem).toBe(true)
     irLa.run()
-    expect(onPointActionGo).toHaveBeenCalledWith(expect.objectContaining({ sceneId: 'cena-vila', x: 120, y: 130, playerName: 'Fabi', action: 'procurar' }))
+    expect(onPointActionGo).toHaveBeenCalledWith(expect.objectContaining({ sceneId: 'cena-vila', x: 120, y: 130, playerName: 'Fabi', action: 'chamar' }))
     expect(sent().slice(antes)).toEqual([])
-    expect(useToastStore.getState().toasts.some((t) => t.text === 'Fabi quer Procurar — Ferreiro')).toBe(true)
+    expect(useToastStore.getState().toasts.some((t) => t.text === 'Fabi chama o mestre aqui — Ferreiro')).toBe(true)
   })
 
   it('"Nada aqui" manda "nothing" só para Fabi e tira a linha', async () => {
     const { emit, sent } = await mesa()
-    emit({ clientId: 'c1', msg: { type: 'point.action', action: 'procurar', x: 120, y: 130 } })
+    emit({ clientId: 'c1', msg: { type: 'point.action', action: 'chamar', x: 120, y: 130 } })
     const antes = sent().length
     acao('Nada aqui').run()
-    expect(sent().slice(antes)).toEqual([{ clientId: 'c1', msg: { type: 'point.action.answer', action: 'procurar', answer: 'nothing' } }])
-    expect(useToastStore.getState().toasts.some((t) => t.text.startsWith('Fabi quer'))).toBe(false)
+    expect(sent().slice(antes)).toEqual([{ clientId: 'c1', msg: { type: 'point.action.answer', action: 'chamar', answer: 'nothing' } }])
+    expect(useToastStore.getState().toasts.some((t) => t.text.startsWith('Fabi chama o mestre aqui'))).toBe(false)
   })
 
-  it('"Feito" manda "seen" só para Fabi', async () => {
+  it('"Visto" manda "seen" só para Fabi', async () => {
     const { emit, sent } = await mesa()
-    emit({ clientId: 'c1', msg: { type: 'point.action', action: 'escutar', x: 120, y: 130 } })
+    emit({ clientId: 'c1', msg: { type: 'point.action', action: 'chamar', x: 120, y: 130 } })
     const antes = sent().length
-    acao('Feito').run()
-    expect(sent().slice(antes)).toEqual([{ clientId: 'c1', msg: { type: 'point.action.answer', action: 'escutar', answer: 'seen' } }])
+    acao('Visto').run()
+    expect(sent().slice(antes)).toEqual([{ clientId: 'c1', msg: { type: 'point.action.answer', action: 'chamar', answer: 'seen' } }])
   })
 
   it('o × responde "seen": o pedido nunca some sem resposta', async () => {
     const { emit, sent } = await mesa()
-    emit({ clientId: 'c1', msg: { type: 'point.action', action: 'espiar', x: 120, y: 130 } })
+    emit({ clientId: 'c1', msg: { type: 'point.action', action: 'chamar', x: 120, y: 130 } })
     const antes = sent().length
     avisoDoPedido().onDismiss?.()
-    expect(sent().slice(antes)).toEqual([{ clientId: 'c1', msg: { type: 'point.action.answer', action: 'espiar', answer: 'seen' } }])
+    expect(sent().slice(antes)).toEqual([{ clientId: 'c1', msg: { type: 'point.action.answer', action: 'chamar', answer: 'seen' } }])
   })
 
   it('o pedido em si não sai para jogador nenhum', async () => {
     const { emit, sent } = await mesa()
     const antes = sent().length
-    emit({ clientId: 'c1', msg: { type: 'point.action', action: 'revistar', x: 120, y: 130 } })
+    emit({ clientId: 'c1', msg: { type: 'point.action', action: 'chamar', x: 120, y: 130 } })
     expect(JSON.stringify(sent().slice(antes))).not.toContain('Ferreiro')
     expect(sent().slice(antes)).toEqual([])
   })
 
   it('expulsar Fabi tira o pedido dela da tela do mestre', async () => {
     const { emit, bridge } = await mesa()
-    emit({ clientId: 'c1', msg: { type: 'point.action', action: 'procurar', x: 120, y: 130 } })
+    emit({ clientId: 'c1', msg: { type: 'point.action', action: 'chamar', x: 120, y: 130 } })
     await bridge.kick('c1')
-    expect(useToastStore.getState().toasts.some((t) => t.text.startsWith('Fabi quer'))).toBe(false)
+    expect(useToastStore.getState().toasts.some((t) => t.text.startsWith('Fabi chama o mestre aqui'))).toBe(false)
   })
 })

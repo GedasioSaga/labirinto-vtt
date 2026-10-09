@@ -41,9 +41,6 @@ describe('PlayerPanel: seção Grupo', () => {
           onToggleMeasure={() => undefined}
           laserArmed={false}
           onToggleLaser={() => undefined}
-          notebook={[]}
-          notebookUnread={false}
-          onReadNotebook={() => undefined}
           onRenameToken={() => undefined}
           onChangeTokenPhoto={async () => undefined}
           party={party}

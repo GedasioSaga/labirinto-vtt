@@ -4,6 +4,7 @@ import { CHAT_TEXT_MAX_LENGTH, chatSpeakerLabel, cleanChatText, mentionsMaster }
 import type { MasterChatState } from '../net/hostSession'
 import type { ChatEntry } from '../net/protocol'
 import { formatNoteTime } from '../player/PlayerNotebook'
+import { ImagemOuIniciais } from './FichaPecas'
 import './MasterChatPanel.css'
 
 /**
@@ -23,6 +24,8 @@ export interface MasterChatPanelProps {
   onUnreadChange?: (unread: ChatUnread) => void
   /** Manda no Global; `false` = não saiu (sala fechada, texto vazio ou longo demais). */
   onSend: (text: string) => boolean
+  /** A foto da ficha de cada jogador, pelo nome na sala (`chatFacesByName`). Sem ela, a linha mostra as iniciais. */
+  faces?: ReadonlyMap<string, string>
   /** Apaga a linha `id` para todos: do Global (`sceneKey` `null`) ou da cena. */
   onDelete: (sceneKey: string | null, id: string) => void
 }
@@ -90,7 +93,7 @@ export function chatUnreadLabel(base: string, unread: ChatUnread): string {
   return unread.count === 0 ? base : `${base} (${unreadLabel(unread.count, unread.mention)})`
 }
 
-export function MasterChatPanel({ chat, active, onUnreadChange, onSend, onDelete }: MasterChatPanelProps) {
+export function MasterChatPanel({ chat, active, onUnreadChange, onSend, onDelete, faces = NO_FACES }: MasterChatPanelProps) {
   const [channelId, setChannelId] = useState<ChannelId>(GLOBAL)
   // Por canal: os ids já vistos (com o painel aberto nele).
   const [seen, setSeen] = useState<ReadonlyMap<ChannelId, ReadonlySet<string>>>(() => new Map())
@@ -224,6 +227,7 @@ export function MasterChatPanel({ chat, active, onUnreadChange, onSend, onDelete
               <MasterChatLine
                 key={entry.id}
                 entry={entry}
+                face={entry.fromMaster === true ? null : (faces.get(entry.from) ?? null)}
                 confirming={confirmId === entry.id}
                 onAsk={() => setConfirmId(entry.id)}
                 onCancel={() => setConfirmId(null)}
@@ -292,18 +296,35 @@ export function ChatUnreadBadge({ unread }: { unread: ChatUnread }) {
   )
 }
 
+/** Sem fotos (teste, sala sem ninguém): o mesmo mapa vazio a cada render. */
+const NO_FACES: ReadonlyMap<string, string> = new Map()
+
+interface MasterChatLineProps {
+  entry: ChatEntry
+  /** A foto da ficha de quem falou; `null` = as iniciais. */
+  face: string | null
+  confirming: boolean
+  onAsk: () => void
+  onCancel: () => void
+  onConfirm: () => void
+}
+
 /**
- * Uma fala: quem (o mestre pela marca do host; o jogador chamado "Mestre" com
- * " (jogador)"), a hora e o texto, este só como texto do React. A que
- * menciona o mestre se destaca. "Apagar" pede confirmação na própria linha.
+ * Uma fala: a miniatura de quem falou (a foto da ficha, ou as iniciais), quem
+ * (o mestre pela marca do host; o jogador chamado "Mestre" com " (jogador)"),
+ * a hora e o texto, este só como texto do React. A que menciona o mestre se
+ * destaca. "Apagar" pede confirmação na própria linha.
  */
-function MasterChatLine({ entry, confirming, onAsk, onCancel, onConfirm }: { entry: ChatEntry; confirming: boolean; onAsk: () => void; onCancel: () => void; onConfirm: () => void }) {
+function MasterChatLine({ entry, face, confirming, onAsk, onCancel, onConfirm }: MasterChatLineProps) {
   const master = entry.fromMaster === true
   const mention = mentionsMaster(entry.mentions)
   const className = ['lb-mchat__msg', master ? 'lb-mchat__msg--master' : '', mention ? 'lb-mchat__msg--mention' : ''].filter((name) => name !== '').join(' ')
   return (
     <li className={className}>
       <p className="lb-mchat__meta">
+        <span className="lb-mchat__face" aria-hidden="true">
+          <ImagemOuIniciais imagem={face} nome={chatSpeakerLabel(entry.from, master)} />
+        </span>
         <span className="lb-mchat__from">{chatSpeakerLabel(entry.from, master)}</span>
         <time className="lb-mchat__time">{formatNoteTime(entry.at)}</time>
         {mention && (

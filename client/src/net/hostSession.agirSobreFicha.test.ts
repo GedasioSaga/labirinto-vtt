@@ -69,7 +69,7 @@ function mesa(relogio = { t: 0 }) {
 }
 
 function pede(s: ReturnType<typeof createHostSession>, clientId: string, tokenId: string, extra: Record<string, unknown> = {}): HostResult {
-  return s.handleMessage(clientId, { type: 'token.action', reqId: `r-${tokenId}`, tokenId, action: 'empurrar', ...extra }, mundo)
+  return s.handleMessage(clientId, { type: 'token.action', reqId: `r-${tokenId}`, tokenId, action: 'acao', text: 'empurrar', ...extra }, mundo)
 }
 
 function textoPara(r: HostResult, clientId: string): string {
@@ -165,14 +165,14 @@ describe('hostSession: agir sobre uma ficha', () => {
     const primeiro = pede(s, 'c1', 'severa').actionRequest
     if (primeiro === undefined) throw new Error('esperava pedido')
     relogio.t = TOKEN_ACTION_MIN_INTERVAL_MS * 2
-    const segundo = s.handleMessage('c1', { type: 'token.action', reqId: 'r2', tokenId: 'severa', action: 'oferecer' }, mundo)
+    const segundo = s.handleMessage('c1', { type: 'token.action', reqId: 'r2', tokenId: 'severa', action: 'acao', text: 'oferecer uma moeda' }, mundo)
     expect(segundo.actionRequest).toBeUndefined()
     expect(segundo.outbound).toEqual([{ clientId: 'c1', msg: { type: 'token.action.rejected', reqId: 'r2', reason: 'pending' } }])
 
     s.answerTokenAction(primeiro.requestId, true)
     // Logo depois da resposta, o limite de tempo ainda vale (conta do último pedido).
     relogio.t += TOKEN_ACTION_MIN_INTERVAL_MS - 1
-    const cedo = s.handleMessage('c1', { type: 'token.action', reqId: 'r3', tokenId: 'severa', action: 'oferecer' }, mundo)
+    const cedo = s.handleMessage('c1', { type: 'token.action', reqId: 'r3', tokenId: 'severa', action: 'acao', text: 'oferecer uma moeda' }, mundo)
     expect(cedo.outbound).toEqual([{ clientId: 'c1', msg: { type: 'token.action.rejected', reqId: 'r3', reason: 'too_soon' } }])
   })
 
@@ -185,12 +185,84 @@ describe('hostSession: agir sobre uma ficha', () => {
     expect(s.answerTokenAction(pedido.requestId, true)).toEqual({ outbound: [] })
   })
 
-  it('ação fora da lista ou texto acima do teto: mensagem inválida, nada ao mestre', () => {
+  it('ação fora da lista (inclusive as que saíram: Empurrar, Oferecer…), sem texto ou texto acima do teto: mensagem inválida, nada ao mestre', () => {
     const { s } = mesa()
     const invalida = s.handleMessage('c1', { type: 'token.action', reqId: 'r', tokenId: 'severa', action: 'matar' }, mundo)
     expect(invalida.actionRequest).toBeUndefined()
     expect(invalida.outbound).toEqual([{ clientId: 'c1', msg: { type: 'error', reason: 'invalid_message' } }])
+    for (const velha of ['empurrar', 'oferecer', 'pedir', 'outro']) {
+      expect(s.handleMessage('c1', { type: 'token.action', reqId: 'r', tokenId: 'severa', action: velha, text: 'x' }, mundo).actionRequest).toBeUndefined()
+    }
+    for (const semTexto of [{}, { text: '' }, { text: '    ' }, { text: 42 }]) {
+      const r = s.handleMessage('c1', { type: 'token.action', reqId: 'r', tokenId: 'severa', action: 'acao', ...semTexto }, mundo)
+      expect(r.actionRequest).toBeUndefined()
+      expect(r.outbound).toEqual([{ clientId: 'c1', msg: { type: 'error', reason: 'invalid_message' } }])
+    }
     const longa = s.handleMessage('c1', { type: 'token.action', reqId: 'r', tokenId: 'severa', action: 'falar', text: 'x'.repeat(121) }, mundo)
     expect(longa.actionRequest).toBeUndefined()
+  })
+})
+
+/**
+ * AÇÃO SOBRE A FICHA DE UM COLEGA: o pedido continua sendo do mestre; só no
+ * "Deixar" o dono da ficha-alvo fica sabendo (`token.action.notice`), com o
+ * nome do colega na sala, a ficha dele e o que o colega escreveu. No "Não",
+ * nada lhe chega — a ação não aconteceu.
+ */
+describe('hostSession: Ação sobre a ficha de um colega', () => {
+  const TAVERNA: HostScene = { sceneId: 's-taverna', name: 'Taverna', map: mapa('m-taverna', 'Taverna', [ficha('lanterna', 100, 100), ficha('harpa', 150, 100)]) }
+  const taverna: HostWorld = { open: TAVERNA, background: [] }
+
+  function duas() {
+    let n = 0
+    const s = createHostSession({ code: CODE, visionRadius: 700, now: () => 0, randomId: () => `id-${(n += 1)}` })
+    const entra = (clientId: string, name: string): string => {
+      const welcome = s.handleMessage(clientId, { type: 'join', code: CODE, name }, taverna).outbound[0]?.msg
+      if (welcome?.type !== 'welcome') throw new Error('esperava welcome')
+      return welcome.playerId
+    }
+    const ana = entra('c1', 'Ana')
+    const carla = entra('c3', 'Carla')
+    s.assignToken(ana, 'lanterna')
+    s.assignToken(carla, 'harpa')
+    s.broadcast(taverna)
+    const pedido = s.handleMessage('c1', { type: 'token.action', reqId: 'r1', tokenId: 'harpa', action: 'acao', text: 'dá um abraço' }, taverna).actionRequest
+    if (pedido === undefined) throw new Error('esperava o pedido ao mestre')
+    return { s, pedido }
+  }
+
+  it('o pedido sobre a ficha da Carla não chega a ela antes do mestre decidir', () => {
+    let n = 0
+    const s = createHostSession({ code: CODE, visionRadius: 700, now: () => 0, randomId: () => `id-${(n += 1)}` })
+    const ana = s.handleMessage('c1', { type: 'join', code: CODE, name: 'Ana' }, taverna).outbound[0]?.msg
+    const carla = s.handleMessage('c3', { type: 'join', code: CODE, name: 'Carla' }, taverna).outbound[0]?.msg
+    if (ana?.type !== 'welcome' || carla?.type !== 'welcome') throw new Error('esperava welcome')
+    s.assignToken(ana.playerId, 'lanterna')
+    s.assignToken(carla.playerId, 'harpa')
+    s.broadcast(taverna)
+    const r = s.handleMessage('c1', { type: 'token.action', reqId: 'r1', tokenId: 'harpa', action: 'acao', text: 'dá um abraço' }, taverna)
+    expect(r.outbound).toEqual([])
+    expect(r.actionRequest).toMatchObject({ playerName: 'Ana', tokenId: 'harpa', action: 'acao', text: 'dá um abraço' })
+  })
+
+  it('"Deixar": a Ana recebe a resposta e a Carla o aviso (quem, ficha dela, o quê) — sem a resposta do mestre', () => {
+    const { s, pedido } = duas()
+    const r = s.answerTokenAction(pedido.requestId, true, 'Ela sorri.')
+    expect(r.outbound).toEqual([
+      { clientId: 'c1', msg: { type: 'token.action.answer', reqId: 'r1', accepted: true, reply: 'Ela sorri.' } },
+      { clientId: 'c3', msg: { type: 'token.action.notice', from: 'Ana', action: 'acao', tokenId: 'harpa', text: 'dá um abraço' } },
+    ])
+    expect(JSON.stringify(r.outbound.filter((o) => o.clientId === 'c3'))).not.toContain('Ela sorri.')
+  })
+
+  it('"Não": só a Ana sabe da recusa; a Carla não recebe nada', () => {
+    const { s, pedido } = duas()
+    expect(s.answerTokenAction(pedido.requestId, false).outbound).toEqual([{ clientId: 'c1', msg: { type: 'token.action.answer', reqId: 'r1', accepted: false } }])
+  })
+
+  it('a Carla fora do ar não recebe o aviso (não há conexão), e a resposta à Ana sai igual', () => {
+    const { s, pedido } = duas()
+    s.disconnect('c3')
+    expect(s.answerTokenAction(pedido.requestId, true).outbound).toEqual([{ clientId: 'c1', msg: { type: 'token.action.answer', reqId: 'r1', accepted: true } }])
   })
 })

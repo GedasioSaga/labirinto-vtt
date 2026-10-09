@@ -55,9 +55,6 @@ describe('PlayerPanel — centralizar pelo toque desliza, pelo teclado salta', (
           onToggleLaser={() => {}}
           onRenameToken={() => {}}
           onChangeTokenPhoto={async () => {}}
-          notebook={[]}
-          notebookUnread={false}
-          onReadNotebook={() => {}}
         />,
       ),
     )
@@ -76,7 +73,14 @@ describe('PlayerPanel — centralizar pelo toque desliza, pelo teclado salta', (
     })
   }
 
-  const BOTOES = ['Minha ficha', `Centralizar em ${FABIO.name}`, 'Centralizar no meu personagem']
+  // "Centralizar no meu personagem" saiu do painel: "Minha ficha", na barra, já centra.
+  const BOTOES = ['Minha ficha', `Centralizar em ${FABIO.name}`]
+
+  it('"Centralizar no meu personagem" não existe mais: "Minha ficha" faz o mesmo', () => {
+    render(vi.fn())
+    expect(container.textContent).not.toContain('Centralizar no meu personagem')
+    expect(botao('Minha ficha')).toBeDefined()
+  })
 
   for (const nome of BOTOES) {
     it(`"${nome}" pelo dedo ou pelo mouse: a câmera desliza até a ficha`, () => {

@@ -130,7 +130,7 @@ describe('playerConnection: "É ela" transforma a "Ana (2)" na Ana', () => {
     socket.receive({ type: 'snapshot', rev: 3, map, vision: [], ownTokens: ['t9'] })
     // A "ana (2)" pede três coisas ao mestre enquanto ele não responde "Ana voltou?".
     expect(connection.requestTravel('escada')).toBe(true)
-    expect(connection.sendPointAction('procurar', 20, 20)).toBe(true)
+    expect(connection.sendPointAction('chamar', 20, 20)).toBe(true)
     expect(connection.raiseHand('agir')).toBe(true)
     expect(connection.getState().travel).toMatchObject({ phase: 'waiting' })
     expect(connection.getState().pointNotice).toMatchObject({ phase: 'waiting' })

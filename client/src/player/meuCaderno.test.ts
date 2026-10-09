@@ -7,7 +7,8 @@
  * nem ficha alheia, nem o id do mapa.
  */
 import { describe, expect, it } from 'vitest'
-import type { ClueEntry, NoteEntry } from '../net/protocol'
+import type { ClueEntry } from '../net/protocol'
+import type { PersonalNote } from '../lib/minhasNotas'
 import type { MapData, Region, Token } from '../types/map'
 import { createExploration, markRings } from '../lib/exploration'
 import { filterMapForPlayer } from '../lib/fogFilter'
@@ -78,8 +79,8 @@ function recebido(map: MapData) {
   return { map: view.map, vision: view.vision, explored, concealed: view.concealed, ownTokens: posse.duda }
 }
 
-function caderno(cenas: readonly CenaLembrada[], pistas: ClueEntry[] = [], recados: NoteEntry[] = []): string {
-  return montarCaderno({ cenas, pistas, recados, personagem: 'Duda', geradoEm: QUANDO })
+function caderno(cenas: readonly CenaLembrada[], pistas: ClueEntry[] = [], notas: PersonalNote[] = []): string {
+  return montarCaderno({ cenas, pistas, notas, personagem: 'Duda', geradoEm: QUANDO })
 }
 
 describe('meu caderno: o que o recorte escondeu não entra no arquivo', () => {
@@ -122,11 +123,11 @@ describe('meu caderno: o que o recorte escondeu não entra no arquivo', () => {
   })
 })
 
-describe('meu caderno: pistas e recados', () => {
-  it('texto da mesa entra escapado: HTML do mestre ou do colega aparece literal', () => {
+describe('meu caderno: pistas e notas (os recados saíram do caderno)', () => {
+  it('texto da mesa e da nota entra escapado: HTML do mestre, do colega ou dele aparece literal', () => {
     const pista: ClueEntry = { id: 'c1', title: '<b>Carta</b>', text: '<img src=x onerror=alert(1)>', image: null, at: QUANDO.getTime(), from: 'Gabi "&" Bruno' }
-    const recado: NoteEntry = { id: 'n1', text: '<script>alert(1)</script> fujam', at: QUANDO.getTime() }
-    const html = caderno([], [pista], [recado])
+    const nota: PersonalNote = { id: 'n1', mapId: 'm-x', x: 1, y: 1, text: '<script>alert(1)</script> fujam' }
+    const html = caderno([], [pista], [nota])
     expect(html).toContain('&lt;b&gt;Carta&lt;/b&gt;')
     expect(html).toContain('&lt;img src=x onerror=alert(1)&gt;')
     expect(html).toContain('mostrada por Gabi &quot;&amp;&quot; Bruno')
@@ -153,18 +154,22 @@ describe('meu caderno: pistas e recados', () => {
     const html = caderno([])
     expect(html).toContain('Nenhuma cena explorada ainda.')
     expect(html).toContain('Nenhuma pista ainda.')
-    expect(html).toContain('Nenhum recado ainda.')
+    expect(html).toContain('Nenhuma nota ainda.')
+    expect(html).not.toContain('Recados')
     expect(html).toContain('<title>Caderno de Duda</title>')
   })
 
-  it('a mais nova em cima, como no Caderno da tela', () => {
-    const recados: NoteEntry[] = [
-      { id: 'n1', text: 'primeiro', at: 1 },
-      { id: 'n2', text: 'segundo', at: 2 },
+  it('as notas vão por mapa, com o nome que o arquivo dá à cena; mapa que o arquivo não guardou fica em "Outro lugar"', () => {
+    const cenas = lembrarCena([], recebido(cripta()))
+    const notas: PersonalNote[] = [
+      { id: 'n1', mapId: cripta().id, x: 1, y: 1, text: 'baú trancado' },
+      { id: 'n2', mapId: 'm-esquecido', x: 2, y: 2, text: 'rato morto' },
     ]
-    const html = caderno([], [], recados)
-    expect(html.indexOf('segundo')).toBeGreaterThan(0)
-    expect(html.indexOf('segundo')).toBeLessThan(html.indexOf('primeiro'))
+    const html = caderno(cenas, [], notas)
+    const secao = html.slice(html.indexOf('<h2>Minhas notas</h2>'))
+    expect(secao.indexOf('<h3>Cena 1</h3>')).toBeLessThan(secao.indexOf('baú trancado'))
+    expect(secao.indexOf('<h3>Outro lugar</h3>')).toBeLessThan(secao.indexOf('rato morto'))
+    expect(secao.indexOf('baú trancado')).toBeLessThan(secao.indexOf('<h3>Outro lugar</h3>'))
   })
 })
 

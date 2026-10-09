@@ -20,6 +20,7 @@ import { MAX_DESTINATION_MARKS, SIGNAL_COLOR_PATTERN, type DestinationMark } fro
 import { MASTER_ROLLER_NAME, parseDiceRequest, type DiceRequest, type DiceRollEntry } from '../lib/dice'
 import { isNoiseDirection, type NoiseDirection } from '../lib/noise'
 import type { ViewPatch } from './viewPatch'
+import { parsePersonalNoteList, type PersonalNote } from '../lib/minhasNotas'
 import type { OwnTokenElsewhere, RoofPeek } from '../lib/fogFilter'
 import { ABALO_SETAS, type AbaloSeta } from '../lib/abalo'
 import { LOCK_ANSWER_MAX_LENGTH } from '../lib/pinLock'
@@ -524,8 +525,8 @@ export interface PingMessage {
 
 /**
  * Quem vê o sinal além de quem sinalizou. `master`: só o mestre — é o sinal
- * que sai com o toque longo, antes de o jogador escolher no menu (Espiar e
- * Revistar ficam discretos para os colegas). Sem o campo: também os colegas
+ * que sai com o toque longo, antes de o jogador escolher no menu (Chamar o
+ * mestre aqui fica discreto para os colegas). Sem o campo: também os colegas
  * da cena que conhecem o ponto (o sinal de sempre, e o "Sinalizar" do menu).
  */
 export type SignalAudience = 'master'
@@ -803,7 +804,7 @@ export interface CallLowerMessage {
 
 /**
  * AÇÃO NO PONTO: depois do toque longo, o jogador pede ao mestre para
- * Procurar/Escutar/Espiar/Revistar em (`x`, `y`), px de mundo da cena DELE.
+ * chamar o mestre em (`x`, `y`), px de mundo da cena DELE ("Chamar o mestre aqui").
  * Aditiva pelo critério de sempre: mestre antigo responde `error
  * invalid_message` (o pedido só não chega) e jogador antigo nunca a envia.
  */
@@ -910,15 +911,15 @@ export type MarkPlaceMessage =
 /**
  * AGIR SOBRE UMA FICHA: o jogador pede ao mestre `action` sobre a ficha
  * `tokenId` (que ele vê agora e não é dele). `reqId` é do jogador, como no
- * movimento: é por ele que a resposta volta. `text`: o que ele diz, oferece ou
- * pede, até `TOKEN_ACTION_TEXT_MAX_LENGTH`; ausente = sem texto.
+ * movimento: é por ele que a resposta volta. `text`: o que ele diz ou faz,
+ * aparado, de 1 a `TOKEN_ACTION_TEXT_MAX_LENGTH` — sem ele não há pedido.
  */
 export interface TokenActionRequestMessage {
   type: 'token.action'
   reqId: string
   tokenId: string
   action: TokenAction
-  text?: string
+  text: string
 }
 
 /**
@@ -1097,6 +1098,35 @@ export type PlayerMessage =
   | PersonagemPlayerMessage
   // LIVRO DE REGRAS: o pedido do livro do sistema, sob demanda (`protocoloDoLivro.ts`).
   | LivroPlayerMessage
+  | MyNotesSetMessage
+
+/**
+ * MINHAS NOTAS: a lista INTEIRA das anotações pessoais do jogador, de todos os
+ * mapas (`lib/minhasNotas.ts`). O host guarda por jogador e devolve só a ele
+ * (`mynotes.book`). Lista, e não "uma a mais": a volta de uma queda nunca
+ * deixa o host com metade do caderno.
+ */
+export interface MyNotesSetMessage {
+  type: 'mynotes.set'
+  notes: PersonalNote[]
+}
+
+/**
+ * MINHAS NOTAS, na volta e só ao próprio jogador: `mynotes.book` é a lista
+ * guardada (na entrada e na volta, só quando há nota — como `clues.book`);
+ * `mynotes.rejected` diz que a lista chegou antes do intervalo mínimo e não
+ * foi guardada — a tela manda de novo.
+ */
+export type MyNotesHostMessage = { type: 'mynotes.book'; notes: PersonalNote[] } | { type: 'mynotes.rejected'; reason: 'too_soon' }
+
+/** Valida o que o jogador recebe de MINHAS NOTAS. Lista torta recusa a mensagem inteira. */
+export function parseMyNotesHostMessage(value: unknown): MyNotesHostMessage | null {
+  if (!isRecord(value)) return null
+  if (value.type === 'mynotes.rejected') return value.reason === 'too_soon' ? { type: 'mynotes.rejected', reason: 'too_soon' } : null
+  if (value.type !== 'mynotes.book') return null
+  const notes = parsePersonalNoteList(value.notes)
+  return notes === null ? null : { type: 'mynotes.book', notes }
+}
 
 /**
  * Por que o pedido de esconder-se não virou ficha escondida. `denied`: o
@@ -1365,6 +1395,12 @@ export interface ClueEntry {
   image: string | null
   at: number
   from?: string
+  /**
+   * LUGARES: o lugar (o `snapshot.place` DESTE jogador) onde a pista entrou
+   * no caderno — é por ele que a aba Lugares agrupa as pistas por mapa. Nunca
+   * o id nem o nome da cena. Ausente = mestre antigo, ou lugar desconhecido.
+   */
+  place?: string
 }
 
 /** A pista que o host acabou de guardar para este jogador (nova, ou lida de novo). */
@@ -1405,7 +1441,17 @@ export interface PartyMember {
   playerId: string
   name: string
   where: PartyWhere
+  /**
+   * As fichas DESTE colega que quem recebe já vê no recorte dele agora (as
+   * mesmas do `partyTokens` do snapshot). É por elas que o chat mostra a foto
+   * de quem falou sem levar imagem na mensagem. Ausente = nenhuma à vista.
+   * Nunca leva ficha que ele não vê: a lista não conta quem está no escuro.
+   */
+  tokenIds?: string[]
 }
+
+/** Teto de fichas de um colega na lista: acima disto é lixo, não mesa. */
+export const PARTY_TOKEN_IDS_MAX = 16
 
 /** Os OUTROS jogadores da mesa, na ordem de chegada. Quem recebe nunca está na lista. */
 export interface PartyUpdateMessage {
@@ -1690,6 +1736,23 @@ export type MapShareHostMessage = MapSharedMessage | MapShareResultMessage | Map
 export type TokenActionHostMessage =
   | { type: 'token.action.rejected'; reqId: string; reason: TokenActionRejection }
   | { type: 'token.action.answer'; reqId: string; accepted: boolean; reply?: string }
+  | TokenActionNoticeMessage
+
+/**
+ * AGIR SOBRE UMA FICHA, do outro lado: o mestre deixou ("Deixar") o pedido de
+ * um colega sobre a ficha DESTE jogador. Vai só ao dono da ficha-alvo, e só
+ * depois do "Deixar" — pedido recusado não aconteceu. `from` é o nome do
+ * colega na sala (o mesmo do chat); `tokenId` é a ficha DELE que foi o alvo;
+ * `text` é o que o colega escreveu. Nunca a resposta do mestre, a cena ou a
+ * distância.
+ */
+export interface TokenActionNoticeMessage {
+  type: 'token.action.notice'
+  from: string
+  action: TokenAction
+  tokenId: string
+  text: string
+}
 
 /** ENCONTRO MARCADO: a espera de quem recebe (`null` = não espera). Só vai ao próprio jogador. */
 export interface WaitStateMessage {
@@ -1826,6 +1889,7 @@ export type HostMessage =
   | ColecoesMessage
   | MapShareHostMessage
   | TokenActionHostMessage
+  | MyNotesHostMessage
   | WaitHostMessage
   // VOLTO JÁ: o estado que o host guarda. `travelPending`: o pedido dele ainda espera o mestre.
   | { type: 'away'; away: boolean; travelPending?: true }
@@ -2193,7 +2257,14 @@ export function parsePartyUpdate(value: unknown): PartyUpdateMessage | null {
     if (!isBoundedString(playerId, 1, REQ_ID_MAX_LENGTH)) return null
     if (!isBoundedString(name, NAME_MIN_LENGTH, NAME_MAX_LENGTH + PARTY_NAME_SUFFIX_MAX)) return null
     if (where !== 'aqui' && where !== 'longe' && where !== 'fora') return null
-    parsed.push({ playerId, name, where })
+    const { tokenIds } = member
+    if (tokenIds === undefined) {
+      parsed.push({ playerId, name, where })
+      continue
+    }
+    if (!Array.isArray(tokenIds) || tokenIds.length === 0 || tokenIds.length > PARTY_TOKEN_IDS_MAX) return null
+    if (!tokenIds.every((id: unknown): id is string => isBoundedString(id, 1, REQ_ID_MAX_LENGTH))) return null
+    parsed.push({ playerId, name, where, tokenIds: [...tokenIds] })
   }
   return { type: 'party.update', members: parsed }
 }
@@ -2321,6 +2392,11 @@ function parseClueEntry(value: unknown): ClueEntry | null {
   }
   if (!isNoteTime(at)) return null
   const entry: ClueEntry = { id, title, text, image: photo, at }
+  const { place } = value
+  if (place !== undefined) {
+    if (!isBoundedString(place, 1, REQ_ID_MAX_LENGTH)) return null
+    entry.place = place
+  }
   if (from === undefined) return entry
   if (!isRoomName(from)) return null
   return { ...entry, from }
@@ -2528,20 +2604,18 @@ export function parseChatMessage(value: unknown): ChatHostMessage | null {
 }
 
 /**
- * Pedido de ação sobre uma ficha. Ação fora da lista, texto que não é texto ou
- * acima do teto recusam a mensagem inteira. Texto só de espaço vale como sem
- * texto (o campo some), e o que sobra sai aparado.
+ * Pedido de ação sobre uma ficha. Ação fora da lista, texto ausente, que não é
+ * texto, só de espaço ou acima do teto recusam a mensagem inteira: "Falar" e
+ * "Ação" sem dizer o quê não são pedido. O texto sai aparado.
  */
 function parseTokenActionRequest(obj: Record<string, unknown>): TokenActionRequestMessage | null {
   const { reqId, tokenId, action, text } = obj
   if (!isBoundedString(reqId, 1, REQ_ID_MAX_LENGTH)) return null
   if (!isBoundedString(tokenId, 1, REQ_ID_MAX_LENGTH)) return null
   if (!isTokenAction(action)) return null
-  const parsed: TokenActionRequestMessage = { type: 'token.action', reqId, tokenId, action }
-  if (text === undefined) return parsed
-  if (!isBoundedString(text, 0, TOKEN_ACTION_TEXT_MAX_LENGTH)) return null
+  if (!isBoundedString(text, 1, TOKEN_ACTION_TEXT_MAX_LENGTH)) return null
   const trimmed = text.trim()
-  return trimmed === '' ? parsed : { ...parsed, text: trimmed }
+  return trimmed === '' ? null : { type: 'token.action', reqId, tokenId, action, text: trimmed }
 }
 
 /**
@@ -2553,6 +2627,12 @@ function parseTokenActionRequest(obj: Record<string, unknown>): TokenActionReque
  */
 export function parseTokenActionHostMessage(value: unknown): TokenActionHostMessage | null {
   if (!isRecord(value)) return null
+  if (value.type === 'token.action.notice') {
+    const { from, action, tokenId, text } = value
+    if (!isRoomName(from) || !isTokenAction(action) || !isBoundedString(tokenId, 1, REQ_ID_MAX_LENGTH)) return null
+    if (!isBoundedString(text, 1, TOKEN_ACTION_TEXT_MAX_LENGTH) || text.trim() === '') return null
+    return { type: 'token.action.notice', from, action, tokenId, text: text.trim() }
+  }
   const { reqId, reply } = value
   if (!isBoundedString(reqId, 1, REQ_ID_MAX_LENGTH)) return null
   if (value.type === 'token.action.answer') {
@@ -3026,6 +3106,10 @@ export function parsePlayerMessage(raw: unknown): PlayerMessage | null {
       return parseCallRaise(value)
     case 'call.lower':
       return { type: 'call.lower' }
+    case 'mynotes.set': {
+      const notes = parsePersonalNoteList(value.notes)
+      return notes === null ? null : { type: 'mynotes.set', notes }
+    }
     case 'point.action':
       return isPointActionKind(value.action) && isFiniteNumber(value.x) && isFiniteNumber(value.y)
         ? { type: 'point.action', action: value.action, x: value.x, y: value.y }

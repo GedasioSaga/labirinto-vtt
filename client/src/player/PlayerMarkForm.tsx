@@ -10,6 +10,8 @@ export type { MarkPlaceIntent } from './playerConnection'
  * até `MARCA_TEXTO_MAX` letras ou uma seta de giz, cravados onde a ficha dele
  * está. Quem confere o lugar é o host; a linha de status conta a resposta. O
  * bilhete sai sem o nome de quem deixou: quem quiser assinar escreve no texto.
+ * Abre pelo menu "Marcações" (`PlayerMarcacoes`), que é quem o mostra e
+ * recebe o foco de volta ao fechar.
  */
 export interface PlayerMarkFormProps {
   /** A última marca e o que o host respondeu; ausente = nada enviado ainda. */
@@ -17,6 +19,12 @@ export interface PlayerMarkFormProps {
   onPlace: (intent: MarkPlaceIntent) => void
   /** Recolhe o formulário (o dono zera `result`). */
   onClose: () => void
+}
+
+/** O formulário aberto: quem abre e fecha é o menu "Marcações". */
+type PlayerMarkFormOpenProps = PlayerMarkFormProps & {
+  /** Fechou (Escape, "Fechar"): o menu recolhe o formulário e põe o foco de volta no botão dele. */
+  onDismiss: () => void
 }
 
 /** A rosa em 3 x 3 (o meio vazio é onde a ficha está), na ordem da leitura. */
@@ -44,12 +52,10 @@ function faltam(n: number): string {
   return n === 1 ? 'Falta 1 letra' : `Faltam ${n} letras`
 }
 
-export function PlayerMarkForm({ result, onPlace, onClose }: PlayerMarkFormProps) {
-  const [open, setOpen] = useState(false)
+export function PlayerMarkForm({ result, onPlace, onClose, onDismiss }: PlayerMarkFormOpenProps) {
   const [tipo, setTipo] = useState<'bilhete' | 'seta'>('bilhete')
   const [texto, setTexto] = useState('')
   const [vazio, setVazio] = useState(false)
-  const triggerRef = useRef<HTMLButtonElement | null>(null)
   const inputRef = useRef<HTMLInputElement | null>(null)
   const fieldId = useId()
   const countId = useId()
@@ -64,14 +70,12 @@ export function PlayerMarkForm({ result, onPlace, onClose }: PlayerMarkFormProps
 
   useEffect(() => {
     // Abriu no bilhete: quem veio pelo teclado já está no campo.
-    if (open && tipo === 'bilhete') inputRef.current?.focus()
-  }, [open, tipo])
+    if (tipo === 'bilhete') inputRef.current?.focus()
+  }, [tipo])
 
   const close = () => {
-    // O foco vai antes ao botão que abre: o "Fechar" some junto com o formulário.
-    triggerRef.current?.focus()
-    setOpen(false)
     setVazio(false)
+    onDismiss()
     onClose()
   }
 
@@ -98,79 +102,72 @@ export function PlayerMarkForm({ result, onPlace, onClose }: PlayerMarkFormProps
   const status = result === undefined ? null : resultText(result)
 
   return (
-    <>
-      <button ref={triggerRef} type="button" className="pp-button" aria-expanded={open} onClick={() => (open ? close() : setOpen(true))}>
-        Deixar marca aqui…
-      </button>
-      {open && (
-        <form className="pp-field pp-mark" aria-label="Deixar marca aqui" noValidate onSubmit={submit} onKeyDown={onKeyDown}>
-          <div className="pp-mark__tipos" role="group" aria-label="Tipo de marca">
-            <button type="button" className="pp-button pp-button--toggle" aria-pressed={tipo === 'bilhete'} onClick={() => setTipo('bilhete')}>
-              Bilhete
-            </button>
-            <button type="button" className="pp-button pp-button--toggle" aria-pressed={tipo === 'seta'} onClick={() => setTipo('seta')}>
-              Seta de giz
-            </button>
-          </div>
-          {tipo === 'bilhete' ? (
-            <>
-              <label className="pp-label" htmlFor={fieldId}>
-                Bilhete
-              </label>
-              <input
-                ref={inputRef}
-                id={fieldId}
-                className="pp-input"
-                type="text"
-                maxLength={MARCA_TEXTO_MAX}
-                value={texto}
-                aria-invalid={vazio}
-                aria-describedby={vazio ? `${errorId} ${countId}` : countId}
-                onChange={(event) => {
-                  setTexto(event.target.value)
-                  // O aviso some assim que o valor fica válido.
-                  if (vazio && normalizarTextoDaMarca(event.target.value).length > 0) setVazio(false)
-                }}
-              />
-              <p id={countId} className="pp-empty">
-                {faltam(MARCA_TEXTO_MAX - texto.length)}
-              </p>
-              {vazio && (
-                <p id={errorId} className="pp-error" role="alert">
-                  Escreva o bilhete antes de deixar.
-                </p>
-              )}
-              <button type="submit" className="pp-button" disabled={sending}>
-                {sending ? 'Deixando…' : 'Deixar bilhete'}
-              </button>
-            </>
-          ) : (
-            <div className="pp-mark__rosa" role="group" aria-label="Para onde a seta aponta">
-              {ROSA.map(({ rumo, glifo }) => (
-                <button
-                  key={rumo}
-                  type="button"
-                  className="pp-button"
-                  aria-label={`Seta para o ${RUMO_NOME[rumo]}`}
-                  disabled={sending}
-                  onClick={() => onPlace({ tipo: 'seta', rumo })}
-                >
-                  <span aria-hidden="true">{glifo}</span>
-                </button>
-              ))}
-            </div>
-          )}
-          <p className="pp-empty">Fica no chão onde seu personagem está, sem o seu nome. Quem passar por aqui vai ver.</p>
-          {status !== null && (
-            <p className="pp-empty" role="status">
-              {status}
+    <form className="pp-field pp-mark" aria-label="Deixar marca aqui" noValidate onSubmit={submit} onKeyDown={onKeyDown}>
+      <div className="pp-mark__tipos" role="group" aria-label="Tipo de marca">
+        <button type="button" className="pp-button pp-button--toggle" aria-pressed={tipo === 'bilhete'} onClick={() => setTipo('bilhete')}>
+          Bilhete
+        </button>
+        <button type="button" className="pp-button pp-button--toggle" aria-pressed={tipo === 'seta'} onClick={() => setTipo('seta')}>
+          Seta de giz
+        </button>
+      </div>
+      {tipo === 'bilhete' ? (
+        <>
+          <label className="pp-label" htmlFor={fieldId}>
+            Bilhete
+          </label>
+          <input
+            ref={inputRef}
+            id={fieldId}
+            className="pp-input"
+            type="text"
+            maxLength={MARCA_TEXTO_MAX}
+            value={texto}
+            aria-invalid={vazio}
+            aria-describedby={vazio ? `${errorId} ${countId}` : countId}
+            onChange={(event) => {
+              setTexto(event.target.value)
+              // O aviso some assim que o valor fica válido.
+              if (vazio && normalizarTextoDaMarca(event.target.value).length > 0) setVazio(false)
+            }}
+          />
+          <p id={countId} className="pp-empty">
+            {faltam(MARCA_TEXTO_MAX - texto.length)}
+          </p>
+          {vazio && (
+            <p id={errorId} className="pp-error" role="alert">
+              Escreva o bilhete antes de deixar.
             </p>
           )}
-          <button type="button" className="pp-button" disabled={sending} onClick={close}>
-            Fechar
+          <button type="submit" className="pp-button" disabled={sending}>
+            {sending ? 'Deixando…' : 'Deixar bilhete'}
           </button>
-        </form>
+        </>
+      ) : (
+        <div className="pp-mark__rosa" role="group" aria-label="Para onde a seta aponta">
+          {ROSA.map(({ rumo, glifo }) => (
+            <button
+              key={rumo}
+              type="button"
+              className="pp-button"
+              aria-label={`Seta para o ${RUMO_NOME[rumo]}`}
+              disabled={sending}
+              onClick={() => onPlace({ tipo: 'seta', rumo })}
+            >
+              <span aria-hidden="true">{glifo}</span>
+            </button>
+          ))}
+        </div>
       )}
-    </>
+      <p className="pp-empty">Fica no chão onde seu personagem está, sem o seu nome. Quem passar por aqui vai ver.</p>
+      {status !== null && (
+        <p className="pp-empty" role="status">
+          {status}
+        </p>
+      )}
+      <button type="button" className="pp-button" disabled={sending} onClick={close}>
+        Fechar
+      </button>
+    </form>
   )
 }

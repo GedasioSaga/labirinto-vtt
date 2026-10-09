@@ -109,6 +109,8 @@ beforeAll(async () => {
     })
     mestre().manda({ type: 'clue.added', clue: { id: 'c1', title: 'Bilhete', text: 'Encontre-me na torre.', image: null, at: Date.now() } })
     mestre().manda({ type: 'scene.note', id: 'n1', text: 'A guarda troca à meia-noite.' })
+    // MINHAS NOTAS: a lista que o host guardou para ela vai no arquivo; o recado acima não (saiu do caderno).
+    mestre().manda({ type: 'mynotes.book', notes: [{ id: 'nota-1', mapId: 'mapa-da-nota', x: 10, y: 10, text: 'baú trancado aqui' }] })
   })
 })
 
@@ -139,7 +141,7 @@ function veu(): HTMLElement {
 }
 
 describe('main.tsx: o caderno vai para casa mesmo quando o mestre fecha o app', () => {
-  it('conexão caída: "Guardar meu caderno" no véu baixa a cena, a pista e o recado', async () => {
+  it('conexão caída: "Guardar meu caderno" no véu baixa a cena, a pista e a nota', async () => {
     vi.useFakeTimers()
     try {
       mestreFechaOApp()
@@ -157,12 +159,13 @@ describe('main.tsx: o caderno vai para casa mesmo quando o mestre fecha o app', 
     expect(html).toContain('Cena 1')
     expect(html).toContain('Bilhete')
     expect(html).toContain('Encontre-me na torre.')
-    expect(html).toContain('A guarda troca à meia-noite.')
+    expect(html).toContain('baú trancado aqui')
+    expect(html).not.toContain('A guarda troca à meia-noite.')
     expect(html).not.toContain('Capataz')
     expect(veu().textContent).toContain(`Baixado: ${baixados[0]?.nome}`)
   })
 
-  it('"Reconectar" que não acha a sala: o caderno ainda leva a pista e o recado', async () => {
+  it('"Reconectar" que não acha a sala: o caderno ainda leva a pista e a nota', async () => {
     const antes = MestreFalso.ultimo
     act(() => botao('Reconectar', veu()).click())
     expect(MestreFalso.ultimo).not.toBe(antes)
@@ -173,7 +176,8 @@ describe('main.tsx: o caderno vai para casa mesmo quando o mestre fecha o app', 
     const html = await ultimoHtml(2)
     expect(html).toContain('Cena 1')
     expect(html).toContain('Bilhete')
-    expect(html).toContain('A guarda troca à meia-noite.')
+    expect(html).toContain('baú trancado aqui')
+    expect(html).not.toContain('A guarda troca à meia-noite.')
   })
 
   it('"Reconectar" que abre mas ninguém responde: o véu continua oferecendo o caderno', async () => {
@@ -195,6 +199,7 @@ describe('main.tsx: o caderno vai para casa mesmo quando o mestre fecha o app', 
 
     const html = await ultimoHtml(3)
     expect(html).toContain('Bilhete')
-    expect(html).toContain('A guarda troca à meia-noite.')
+    expect(html).toContain('baú trancado aqui')
+    expect(html).not.toContain('A guarda troca à meia-noite.')
   })
 })

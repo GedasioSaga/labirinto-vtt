@@ -1,5 +1,5 @@
 /**
- * COLEÇÃO DE PISTAS na tela do jogador: no Caderno, cada coleção é uma fileira
+ * COLEÇÃO DE PISTAS na tela do jogador: na aba Lugares, cada coleção é uma fileira
  * de casas ("Letreiro · 2 de 3"), cheias as que ele tem e vazias as que
  * faltam. Tocar numa casa cheia reabre o cartão da pista. Juntas todas, a
  * frase inteira aparece, sempre como texto.
@@ -85,8 +85,8 @@ describe('PlayerColecaoList', () => {
   })
 })
 
-describe('PlayerPanel — a coleção mora no Caderno, junto das pistas', () => {
-  it('aba Caderno mostra "Letreiro 2 de 3" acima da lista de pistas', () => {
+describe('PlayerPanel — a coleção mora na aba Lugares, junto das pistas', () => {
+  it('aba Lugares mostra "Letreiro 2 de 3" acima da lista de pistas', () => {
     // jsdom não tem matchMedia: janela larga, painel em coluna (mesmo stub de PlayerPanel.caderno.test).
     vi.stubGlobal('matchMedia', (query: string) => ({ matches: false, media: query, addEventListener: () => {}, removeEventListener: () => {} }))
     act(() =>
@@ -105,16 +105,13 @@ describe('PlayerPanel — a coleção mora no Caderno, junto das pistas', () => 
           onToggleLaser={vi.fn()}
           onRenameToken={vi.fn()}
           onChangeTokenPhoto={vi.fn()}
-          notebook={[]}
-          notebookUnread={false}
-          onReadNotebook={vi.fn()}
           clues={[LETRA_A, LETRA_S]}
           colecoes={[DUAS_DE_TRES]}
         />,
       ),
     )
-    const aba = [...container.querySelectorAll<HTMLButtonElement>('[role="tab"]')].find((b) => b.textContent?.includes('Caderno'))
-    if (aba === undefined) throw new Error('sem a aba Caderno')
+    const aba = [...container.querySelectorAll<HTMLButtonElement>('[role="tab"]')].find((b) => b.textContent?.includes('Lugares'))
+    if (aba === undefined) throw new Error('sem a aba Lugares')
     act(() => aba.click())
     const painel = container.querySelector('[role="tabpanel"]:not([hidden])')
     expect(painel?.querySelector('.pp-colecoes')?.textContent).toContain('2 de 3')

@@ -1,6 +1,6 @@
 /**
  * MINHAS PISTAS montado na página do jogador (`main.tsx`), de ponta a ponta
- * sem navegador: o que liga o toque no pino ao Caderno e o Caderno aos dois
+ * sem navegador: o que liga o toque no pino à aba Lugares e a aba aos dois
  * cartões de pista. Os outros testes provam cada peça sozinha (host, conexão,
  * componentes); este quebra se a costura sair de `main.tsx` — o `onPinOpen`
  * que manda `clue.read`, o `clues`/`onOpenClue` do Painel, o cartão da pista
@@ -131,13 +131,13 @@ describe('main.tsx: Minhas pistas de ponta a ponta', () => {
     expect(document.querySelector('[role="dialog"]')).toBeNull()
   })
 
-  it('a pista guardada aparece no Caderno e reabre com a foto; "Mostrar para…" chega a Ana', () => {
+  it('a pista guardada aparece na aba Lugares e reabre com a foto; "Mostrar para…" chega a Ana', () => {
     act(() => mestre().manda({ type: 'clue.added', clue: { id: 'c1', title: 'Bilhete', text: 'Bilhete\nEncontre-me na torre.', image: FOTO, at: AS_21_15 } }))
-    const caderno = Array.from(document.querySelectorAll<HTMLButtonElement>('[role="tab"]')).find((b) => /Caderno/.test(b.textContent ?? ''))
-    if (!caderno) throw new Error('sem a aba Caderno')
+    const caderno = Array.from(document.querySelectorAll<HTMLButtonElement>('[role="tab"]')).find((b) => /Lugares/.test(b.textContent ?? ''))
+    if (!caderno) throw new Error('sem a aba Lugares')
     act(() => caderno.click())
     const painel = document.querySelector('[role="tabpanel"]:not([hidden])')
-    if (!painel) throw new Error('sem o painel do Caderno')
+    if (!painel) throw new Error('sem o painel de Lugares')
     expect(painel.textContent).toContain('Minhas pistas')
     act(() => botao(/^Bilhete/, painel).click())
 

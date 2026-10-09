@@ -1,25 +1,24 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react'
 import type { ChangeEvent, ComponentProps, FormEvent, KeyboardEvent as ReactKeyboardEvent, MouseEvent, RefObject } from 'react'
-import type { OwnWait, StorageLike } from './playerConnection'
+import type { StorageLike } from './playerConnection'
 import { PlayerBackpack } from './PlayerBackpack'
-import { NAME_MAX_LENGTH, type ClueEntry, type NoteEntry, type PartyMember, type PartyWhere, type OwnTokenElsewhere } from '../net/protocol'
+import { NAME_MAX_LENGTH, type ClueEntry, type PartyMember, type PartyWhere, type OwnTokenElsewhere } from '../net/protocol'
 import type { Pin, RegionPoint, TokenContract } from '../types/map'
 import { loanLabel } from '../lib/tokenLoan'
-import { formatNoteTime, PlayerNotebook } from './PlayerNotebook'
-import { PlayerClueList, PlayerColecaoList } from './PlayerClues'
+import { formatNoteTime } from './PlayerNotebook'
 import type { ColecaoProgresso } from '../lib/colecao'
-import { PlayerLetterForm, type PlayerLetterFormProps } from './PlayerLetterForm'
 import { PlayerChat, type PlayerChatProps } from './PlayerChat'
 // `PlayerPlacesTab` e não `PlayerPlaces`: no Windows o nome colidiria com `playerPlaces.ts` (a parte pura).
 import { PlayerPlacesTab } from './PlayerPlacesTab'
-import type { VisitedPlace } from './playerPlaces'
+import { placeLabel, type VisitedPlace } from './playerPlaces'
+import { PlayerCluesByPlace } from './PlayerCluesByPlace'
 import { PersonalNoteList } from './PlayerPersonalNotes'
 import type { PersonalNote } from './personalNotes'
 import { DiceFeed, DiceForm, type DiceFeedRoll } from '../components/DiceControls'
 import type { DiceRequest } from '../lib/dice'
 import { PlayerMapShare, type PlayerMapShareProps } from './PlayerMapShare'
-import { PlayerMarkForm, type PlayerMarkFormProps } from './PlayerMarkForm'
-import { PlayerWaitSection } from './PlayerWaitSection'
+import type { PlayerMarkFormProps } from './PlayerMarkForm'
+import { PlayerMarcacoes } from './PlayerMarcacoes'
 
 /** Caderno sem pistas passadas (tela antiga, teste): a mesma lista vazia, sem objeto novo a cada render. */
 const NO_CLUES: readonly ClueEntry[] = []
@@ -144,6 +143,7 @@ export type PlayerPanelChat = Omit<PlayerChatProps, 'party' | 'visible'>
 const NO_PINS: readonly Pin[] = []
 const NO_PLACES: readonly VisitedPlace[] = []
 const NO_PLACE_NAMES: Readonly<Record<string, string>> = {}
+const NO_PLACE_OF_MAP: Readonly<Record<string, string>> = {}
 const IGNORE_POINT = (): void => {}
 const IGNORE_RENAME = (): void => {}
 
@@ -235,15 +235,9 @@ interface PlayerPanelProps {
   /** O painel e a barra de cima: a câmera mede o que eles cobrem para centrar a ficha no que sobra. */
   panelRef?: RefObject<HTMLElement | null>
   barRef?: RefObject<HTMLDivElement | null>
-  /** Recados guardados, do mais antigo ao mais novo (a aba mostra o mais novo em cima). */
-  notebook: NoteEntry[]
-  /** Há recado que o jogador não viu: acende o ponto no "Painel" e na aba Caderno. */
-  notebookUnread: boolean
-  /** O Caderno ficou à vista: tudo nele conta como lido. */
-  onReadNotebook: () => void
-  /** MINHAS PISTAS, da mais antiga à mais nova (a lista mostra a mais nova em cima). */
+  /** MINHAS PISTAS, da mais antiga à mais nova: a aba Lugares as mostra por lugar, a mais nova em cima. */
   clues?: readonly ClueEntry[]
-  /** Tocou numa pista do Caderno: reabre o cartão dela. */
+  /** Tocou numa pista da aba Lugares: reabre o cartão dela. */
   onOpenClue?: (clueId: string) => void
   /** COLEÇÃO DE PISTAS: "Letreiro 5 de 12", acima da lista. Tocar numa peça reabre a pista dela (`onOpenClue`). */
   colecoes?: readonly ColecaoProgresso[]
@@ -255,8 +249,6 @@ interface PlayerPanelProps {
    * de afirmar que ele está sozinho.
    */
   party?: PartyMember[]
-  /** CORREIO: o formulário "Bilhete". Ausente (tela antiga, teste) = a seção não aparece. */
-  letter?: PlayerLetterFormProps
   /** CHAT: a aba "Chat". Ausente (antes do `welcome` do mestre, tela antiga, teste) = a aba não aparece. */
   chat?: PlayerPanelChat
   /** LUGARES: os pinos do recorte da cena (o que a névoa esconde nem chega aqui). */
@@ -274,8 +266,12 @@ interface PlayerPanelProps {
   /** Modo "Anotar" ligado: o próximo toque no mapa marca onde vai a anotação pessoal. Sem o callback, não há botão. */
   noteArmed?: boolean
   onToggleNote?: () => void
-  /** MINHAS NOTAS desta cena, só deste aparelho. Sem `onFocusNote`, a seção não aparece no Caderno. */
+  /** MINHAS NOTAS de TODOS os mapas (o host as guarda para ele). Sem `onFocusNote`, a seção não aparece no Caderno. */
   personalNotes?: readonly PersonalNote[]
+  /** O mapa da tela: as notas dele vêm primeiro no Caderno, e só delas a câmera vai até o ponto. */
+  currentMapId?: string
+  /** Por id de mapa, o lugar (`VisitedPlace.id`) que esta tela viu nele: é o nome que o Caderno dá às notas de lá. */
+  placeOfMap?: Readonly<Record<string, string>>
   onFocusNote?: (noteId: string) => void
   onRemoveNote?: (noteId: string) => void
   /** DADO ROLADO NA SALA: pede a rolagem ao host. Sem o callback, não há aba Dados. */
@@ -294,11 +290,6 @@ interface PlayerPanelProps {
   mapShare?: PlayerMapShareProps
   /** BILHETE NO LUGAR — "Deixar marca aqui…": ausente = a tela não oferece (teste, tela antiga). */
   markForm?: PlayerMarkFormProps
-  /** ENCONTRO MARCADO: a espera confirmada pelo mestre; `undefined` = não espera. */
-  wait?: OwnWait
-  /** "Esperar aqui". Sem ele (tela antiga, teste), a seção não aparece. */
-  onStartWait?: (minutes: number, who: string, where: string) => void
-  onStopWait?: () => void
   /** VOLTO JÁ: sair da mesa por um instante. Sem ele, o botão não aparece. */
   onStepAway?: () => void
   /**
@@ -344,15 +335,11 @@ export function PlayerPanel({
   hide,
   panelRef,
   barRef,
-  notebook,
-  notebookUnread,
-  onReadNotebook,
   clues = NO_CLUES,
   onOpenClue = IGNORE_CLUE,
   colecoes = NO_COLECOES,
   backpack,
   party,
-  letter,
   chat,
   pins = NO_PINS,
   places = NO_PLACES,
@@ -363,6 +350,8 @@ export function PlayerPanel({
   noteArmed = false,
   onToggleNote,
   personalNotes = NO_PERSONAL_NOTES,
+  currentMapId,
+  placeOfMap = NO_PLACE_OF_MAP,
   onFocusNote,
   onRemoveNote = IGNORE_NOTE,
   onRollDice,
@@ -371,9 +360,6 @@ export function PlayerPanel({
   onSwitchView = IGNORE_SWITCH,
   mapShare,
   markForm,
-  wait,
-  onStartWait,
-  onStopWait,
   onStepAway,
   onDownloadNotebook,
   onOpenInventory,
@@ -492,13 +478,6 @@ export function PlayerPanel({
     // `closeDrawer` só lê estes dois estados e refs estáveis.
   }, [drawerScreen, drawerOpen])
 
-  // Caderno à vista = lido: aba Caderno com o painel aberto (coluna ou gaveta;
-  // recolhido, o painel some nas duas formas). Recado que chega com o Caderno aberto já nasce lido.
-  useEffect(() => {
-    if (tab !== 'caderno' || !notebookUnread || !open) return
-    onReadNotebook()
-  }, [tab, notebookUnread, open, onReadNotebook])
-
   function selectTab(next: PanelTab) {
     setTab(next)
     tabButtons.current[next]?.focus()
@@ -596,6 +575,13 @@ export function PlayerPanel({
   const [photoBusy, setPhotoBusy] = useState(false)
   const [download, setDownload] = useState<DownloadResult | null>(null)
 
+  /** O nome do lugar de outro mapa, nas Minhas notas: o que ELE deu na aba Lugares, se esta tela viu aquele mapa. */
+  function notePlaceLabel(mapId: string): string {
+    const placeId = placeOfMap[mapId]
+    const place = placeId === undefined ? undefined : places.find((candidate) => candidate.id === placeId)
+    return place === undefined ? 'Outro lugar' : placeLabel(place, placeNames)
+  }
+
   function downloadNotebook() {
     if (onDownloadNotebook === undefined) return
     try {
@@ -662,7 +648,7 @@ export function PlayerPanel({
             <path d="M2 3.5 5 6.5 8 3.5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
           Painel
-          {(notebookUnread || chatMention) && <UnreadDot label={panelDotLabel(notebookUnread, chatMention)} />}
+          {chatMention && <UnreadDot />}
         </button>
         {first !== undefined && (
           <button type="button" className="pp-mine" onClick={(event) => focusToken(first.id, event)}>
@@ -732,8 +718,7 @@ export function PlayerPanel({
                 onClick={() => setTab(item.id)}
               >
                 {item.label}
-                {item.id === 'caderno' && notebookUnread && <UnreadDot />}
-                {item.id === 'chat' && chatMention && <UnreadDot label=" (menção nova no chat)" />}
+                {item.id === 'chat' && chatMention && <UnreadDot />}
               </button>
             ))}
           </div>
@@ -784,31 +769,20 @@ export function PlayerPanel({
                   ))}
                 </ul>
               )}
-              <button type="button" className="pp-button" disabled={first === undefined} onClick={(event) => first && focusToken(first.id, event)}>
-                Centralizar no meu personagem
-              </button>
               <button type="button" className="pp-button" aria-pressed={signalArmed} onClick={toggleSignal}>
                 {signalArmed ? 'Toque no mapa…' : 'Sinalizar'}
               </button>
               <p className="pp-empty">No PC: Alt+clique ou segure o clique parado.</p>
-              {onToggleDestination !== undefined && (
-                <button type="button" className="pp-button" aria-pressed={destinationArmed} onClick={toggleDestination}>
-                  {destinationArmed ? 'Toque no destino…' : hasDestination ? 'Mudar destino' : 'Marcar destino'}
-                </button>
-              )}
-              {hasDestination && onClearDestination !== undefined && (
-                <button type="button" className="pp-button" onClick={onClearDestination}>
-                  Tirar marca
-                </button>
-              )}
-              {onToggleNote !== undefined && (
-                <>
-                  <button type="button" className="pp-button" aria-pressed={noteArmed} onClick={toggleNote}>
-                    {noteArmed ? 'Toque onde anotar…' : 'Anotar'}
-                  </button>
-                  {noteArmed && <p className="pp-empty">Só você vê: a nota fica neste aparelho. Esc sai.</p>}
-                </>
-              )}
+              {/* MARCAÇÕES: Marcar destino, Anotar e Deixar marca aqui… num menu só. */}
+              <PlayerMarcacoes
+                destination={
+                  onToggleDestination === undefined
+                    ? undefined
+                    : { armed: destinationArmed, has: hasDestination, onToggle: toggleDestination, onClear: onClearDestination }
+                }
+                note={onToggleNote === undefined ? undefined : { armed: noteArmed, onToggle: toggleNote }}
+                markForm={markForm}
+              />
               <button type="button" className="pp-button pp-button--toggle" aria-pressed={measureArmed} onClick={toggleMeasure}>
                 Medir
               </button>
@@ -818,7 +792,6 @@ export function PlayerPanel({
               </button>
               {laserArmed && <p className="pp-empty">Segure e arraste no mapa para apontar. Quem está na sua cena vê. Esc sai.</p>}
               {mapShare !== undefined && <PlayerMapShare {...mapShare} />}
-              {markForm !== undefined && <PlayerMarkForm {...markForm} />}
               {onStepAway !== undefined && (
                 <>
                   <button type="button" className="pp-button" onClick={onStepAway}>
@@ -899,25 +872,6 @@ export function PlayerPanel({
               </section>
             )}
 
-            {letter !== undefined && (
-              <section className="pp-section" aria-labelledby={`${panelId}-letter`}>
-                <h2 id={`${panelId}-letter`} className="pp-heading">
-                  Bilhete
-                </h2>
-                <PlayerLetterForm {...letter} />
-              </section>
-            )}
-
-            {/* ENCONTRO MARCADO: só com ficha no mapa — é ela que espera, e é nela que a marca aparece. */}
-            {first !== undefined && onStartWait !== undefined && onStopWait !== undefined && (
-              <section className="pp-section" aria-labelledby={`${panelId}-wait`}>
-                <h2 id={`${panelId}-wait`} className="pp-heading">
-                  Encontro
-                </h2>
-                <PlayerWaitSection wait={wait} onStart={onStartWait} onStop={onStopWait} />
-              </section>
-            )}
-
             <section className="pp-section" aria-labelledby={`${panelId}-vision`}>
               <h2 id={`${panelId}-vision`} className="pp-heading">
                 Visão
@@ -965,28 +919,21 @@ export function PlayerPanel({
             className="pp-tabpanel"
             hidden={tab !== 'caderno'}
           >
-            {/* Só montado à vista: fora da aba, o texto dos recados não fica no documento. */}
+            {/* Só montado à vista: fora da aba, o texto das notas não fica no documento. */}
             {tab === 'caderno' && (
               <>
-                <section className="pp-section" aria-labelledby={`${panelId}-clues`}>
-                  <h2 id={`${panelId}-clues`} className="pp-heading">
-                    Minhas pistas
-                  </h2>
-                  <PlayerColecaoList colecoes={colecoes} clues={clues} onOpen={onOpenClue} />
-                  <PlayerClueList clues={clues} onOpen={onOpenClue} />
-                </section>
-                <section className="pp-section" aria-labelledby={`${panelId}-notes`}>
-                  <h2 id={`${panelId}-notes`} className="pp-heading">
-                    Recados
-                  </h2>
-                  <PlayerNotebook notes={notebook} />
-                </section>
                 {onFocusNote !== undefined && (
                   <section className="pp-section" aria-labelledby={`${panelId}-personal`}>
                     <h2 id={`${panelId}-personal`} className="pp-heading">
                       Minhas notas
                     </h2>
-                    <PersonalNoteList notes={personalNotes} onFocus={focusNote} onRemove={onRemoveNote} />
+                    <PersonalNoteList
+                      notes={personalNotes}
+                      currentMapId={currentMapId}
+                      placeLabelOf={notePlaceLabel}
+                      onFocus={focusNote}
+                      onRemove={onRemoveNote}
+                    />
                   </section>
                 )}
                 {onDownloadNotebook !== undefined && (
@@ -994,7 +941,7 @@ export function PlayerPanel({
                     <h2 id={`${panelId}-home`} className="pp-heading">
                       Levar para casa
                     </h2>
-                    <p className="pp-empty">Um arquivo com os mapas que você conhece, suas pistas e os recados. Abre sem internet e sem o mestre.</p>
+                    <p className="pp-empty">Um arquivo com os mapas que você conhece, suas pistas e suas notas. Abre sem internet e sem o mestre.</p>
                     <button type="button" className="pp-button" onClick={downloadNotebook}>
                       Baixar meu caderno
                     </button>
@@ -1023,7 +970,16 @@ export function PlayerPanel({
           >
             {/* Só montado à vista: as miniaturas não se redesenham a cada passo da ficha com a aba fechada. */}
             {tab === 'lugares' && (
-              <PlayerPlacesTab pins={pins} places={places} currentPlace={currentPlace} names={placeNames} onFocusPin={focusPin} onRename={onRenamePlace} />
+              <>
+                <PlayerPlacesTab pins={pins} places={places} currentPlace={currentPlace} names={placeNames} onFocusPin={focusPin} onRename={onRenamePlace} />
+                {/* MINHAS PISTAS, por lugar: o que ele leu em cada mapa, junto dos lugares. */}
+                <section className="pp-section" aria-labelledby={`${panelId}-clues`}>
+                  <h2 id={`${panelId}-clues`} className="pp-heading">
+                    Minhas pistas
+                  </h2>
+                  <PlayerCluesByPlace clues={clues} colecoes={colecoes} places={places} currentPlace={currentPlace} names={placeNames} onOpen={onOpenClue} />
+                </section>
+              </>
             )}
           </div>
 
@@ -1052,17 +1008,11 @@ export function PlayerPanel({
   )
 }
 
-/** Ponto de aviso novo. O texto escondido dá o aviso a quem usa leitor de tela. */
-function UnreadDot({ label = ' (recado novo)' }: { label?: string }) {
+/** Ponto de menção nova no chat. O texto escondido dá o aviso a quem usa leitor de tela. */
+function UnreadDot() {
   return (
     <span className="pp-unread">
-      <span className="pp-visually-hidden">{label}</span>
+      <span className="pp-visually-hidden"> (menção nova no chat)</span>
     </span>
   )
-}
-
-/** O ponto do botão "Painel" junta os dois avisos; o texto escondido diz quais. */
-function panelDotLabel(notebook: boolean, chat: boolean): string {
-  if (notebook && chat) return ' (recado novo e menção nova no chat)'
-  return chat ? ' (menção nova no chat)' : ' (recado novo)'
 }

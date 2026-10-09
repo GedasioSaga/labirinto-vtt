@@ -358,3 +358,45 @@ describe('PlayerChat', () => {
     expect(opcoes()).toEqual(['@mestre'])
   })
 })
+
+describe('PlayerChat: a miniatura de quem falou', () => {
+  const FOTO_BRUNO = 'data:image/png;base64,QlJVTk8='
+  let container: HTMLDivElement
+  let root: Root
+
+  beforeEach(() => {
+    Reflect.set(globalThis, 'IS_REACT_ACT_ENVIRONMENT', true)
+    container = document.createElement('div')
+    document.body.appendChild(container)
+    root = createRoot(container)
+  })
+
+  afterEach(() => {
+    act(() => root.unmount())
+    container.remove()
+  })
+
+  it('ao lado do nome: a foto da ficha de quem tem; as iniciais de quem não tem e do mestre; a mensagem não leva imagem', () => {
+    const log: ChatLog = {
+      cena: [
+        linha('m1', 'Bruno', 'Olá'),
+        linha('m2', 'Carla Dias', 'Oi'),
+        { ...linha('m3', 'Mestre', 'Silêncio.'), fromMaster: true },
+      ],
+      global: [],
+    }
+    act(() =>
+      root.render(
+        <PlayerChat log={log} selfName="Ana" party={GRUPO} faces={new Map([['Bruno', FOTO_BRUNO]])} visible onSend={() => true} onRead={() => {}} />,
+      ),
+    )
+    const linhas = Array.from(container.querySelectorAll('.pc-msg'))
+    expect(linhas[0]?.querySelector('.pc-msg__face img')?.getAttribute('src')).toBe(FOTO_BRUNO)
+    expect(linhas[1]?.querySelector('.pc-msg__face img')).toBeNull()
+    expect(linhas[1]?.querySelector('.pc-msg__face .lb-ficha__iniciais')?.textContent).toBe('CD')
+    expect(linhas[2]?.querySelector('.pc-msg__face .lb-ficha__iniciais')?.textContent).toBe('M')
+    // A miniatura é enfeite: o leitor de tela lê o nome, não a imagem.
+    expect(linhas[0]?.querySelector('.pc-msg__face')?.getAttribute('aria-hidden')).toBe('true')
+    expect(linhas[0]?.querySelector('.pc-msg__from')?.textContent).toBe('Bruno')
+  })
+})

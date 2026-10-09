@@ -2,33 +2,27 @@
  * AGIR SOBRE UMA FICHA: o jogador toca na ficha de outro (NPC ou colega) e
  * pede ao mestre uma ação sobre ela. A lista é fechada: o host recusa qualquer
  * outra palavra, e o texto livre vai no campo `text`, não num tipo inventado.
+ * "Falar" diz algo; "Ação" é agir COM ou CONTRA a ficha (beijar, lutar) — o
+ * jogador escreve o que faz. "Entregar item" do cartão não é pedido: é o
+ * `item.give` da mochila, que o host confere sozinho.
  */
 
 // `as const` só congela a lista em tupla literal (é dela que sai o tipo `TokenAction`); não converte tipo nenhum.
-export const TOKEN_ACTIONS = ['falar', 'oferecer', 'pedir', 'empurrar', 'outro'] as const
+export const TOKEN_ACTIONS = ['falar', 'acao'] as const
 
 export type TokenAction = (typeof TOKEN_ACTIONS)[number]
 
 /** Rótulo do botão no cartão do jogador e do pedido na Caixa do mestre. */
 export const TOKEN_ACTION_LABELS: Record<TokenAction, string> = {
   falar: 'Falar',
-  oferecer: 'Oferecer',
-  pedir: 'Pedir ajuda',
-  empurrar: 'Empurrar',
-  outro: 'Outro',
+  acao: 'Ação',
 }
 
-/** O que o campo de texto pergunta em cada ação. */
+/** O que o campo de texto pergunta em cada ação. As duas pedem texto: sem ele não há o que o mestre decidir. */
 export const TOKEN_ACTION_PROMPTS: Record<TokenAction, string> = {
-  falar: 'O que você diz',
-  oferecer: 'O que você oferece, e em troca de quê',
-  pedir: 'O que você pede',
-  empurrar: 'Para onde, ou como (opcional)',
-  outro: 'O que você quer fazer',
+  falar: 'O que você diz?',
+  acao: 'O que você faz?',
 }
-
-/** Ações que não fazem sentido sem texto: o botão "Enviar" espera o jogador escrever. */
-export const TOKEN_ACTIONS_NEED_TEXT: ReadonlySet<TokenAction> = new Set<TokenAction>(['falar', 'outro'])
 
 /** Teto do texto do pedido, em unidades UTF-16 (o `maxLength` do campo conta igual). */
 export const TOKEN_ACTION_TEXT_MAX_LENGTH = 120

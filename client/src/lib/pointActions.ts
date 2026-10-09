@@ -2,13 +2,16 @@ import type { MapData, Pin, Region, RegionPoint } from '../types/map'
 import { pointInRing } from './floorContour'
 
 /**
- * AÇÕES NO PONTO: depois do toque longo no mapa o jogador escolhe o que quer
- * fazer ALI ("procuro armadilha aqui"), e isso vira um pedido com o ponto na
- * Caixa do mestre. Aqui mora a regra pura, dividida por mestre e jogador:
- * quais ações existem, como cada lado lê o pedido e a resposta, e os limites.
+ * AÇÕES NO PONTO: depois do toque longo no mapa o jogador pode CHAMAR O
+ * MESTRE AQUI ("o que tem nesta gaveta?"), e isso vira um pedido com o ponto
+ * na Caixa do mestre — o "Ir lá" dele centra o editor no ponto. Aqui mora a
+ * regra pura, dividida por mestre e jogador: como cada lado lê o pedido e a
+ * resposta, e os limites. Procurar, Escutar, Espiar e Revistar viraram este
+ * chamado só: o que ele quer ali, ele diz ao mestre.
  */
 
-export const POINT_ACTION_KINDS = ['procurar', 'escutar', 'espiar', 'revistar'] as const
+// `as const` só congela a lista em tupla literal (é dela que sai o tipo `PointActionKind`); não converte tipo nenhum.
+export const POINT_ACTION_KINDS = ['chamar'] as const
 export type PointActionKind = (typeof POINT_ACTION_KINDS)[number]
 
 /** Resposta do mestre: "Nada aqui" (`nothing`) ou "Feito" (`seen`). */
@@ -44,11 +47,19 @@ export const MAX_PENDING_POINT_ACTIONS_PER_PLAYER = 3
 /** Quanto tempo a resposta do mestre (ou a recusa do host) fica na tela do jogador. */
 export const POINT_NOTICE_TTL_MS = 5000
 
+/** O item do menu do toque longo. */
 const LABELS: Record<PointActionKind, string> = {
-  procurar: 'Procurar',
-  escutar: 'Escutar',
-  espiar: 'Espiar',
-  revistar: 'Revistar',
+  chamar: 'Chamar o mestre aqui',
+}
+
+/** O nome curto do pedido nos avisos do jogador ("Chamado: o mestre viu"). */
+const NOTICE_LABELS: Record<PointActionKind, string> = {
+  chamar: 'Chamado',
+}
+
+/** O verbo da linha da Caixa do mestre ("Fabi chama o mestre aqui"). */
+const MASTER_VERBS: Record<PointActionKind, string> = {
+  chamar: 'chama o mestre aqui',
 }
 
 export function pointActionLabel(action: PointActionKind): string {
@@ -92,15 +103,15 @@ function roomAt(map: MapData, point: RegionPoint): { name: string; region: Regio
   return best === null ? null : { name: best.name, region: best.region }
 }
 
-/** Uma pista oculta que o mestre pode entregar a quem revistou: o pino e como o mestre o reconhece. */
+/** Uma pista oculta que o mestre pode entregar a quem chamou: o pino e como o mestre o reconhece. */
 export interface PointActionClue {
   pinId: string
   /** O nome só do mestre ("Carta"), ou a primeira linha da descrição. Leitura do MESTRE. */
   label: string
 }
 
-/** Quantas pistas a linha do Revistar oferece: cada uma é um botão na Caixa. */
-export const PISTAS_DO_REVISTAR_MAX = 4
+/** Quantas pistas a linha do chamado oferece: cada uma é um botão na Caixa. */
+export const PISTAS_DO_CHAMADO_MAX = 4
 /** Teto do rótulo do botão "Entregar: …" (a linha da Caixa é estreita). */
 export const PISTA_ROTULO_MAX = 28
 const PISTA_SEM_TEXTO = 'Pista sem texto'
@@ -114,18 +125,18 @@ function clueLabelOf(pin: Pick<Pin, 'nome' | 'description'>): string {
 }
 
 /**
- * REVISTAR + "ENTREGAR PISTA…": os pinos OCULTOS PARA JOGADORES ("!"/"?") da
- * Sala onde o jogador tocou — a carta na gaveta, o diário sob o colchão. São
- * o que o mestre escondeu para ser achado revistando. Leitura do MESTRE: nada
- * disto vai ao jogador; o que sai é só o cartão que o mestre escolher entregar.
- * Fora de Sala com nome, nenhuma (não há "a sala" para revistar).
+ * CHAMAR O MESTRE AQUI + "ENTREGAR PISTA…": os pinos OCULTOS PARA JOGADORES
+ * ("!"/"?") da Sala onde o jogador tocou — a carta na gaveta, o diário sob o
+ * colchão. São o que o mestre escondeu para ser achado ali. Leitura do
+ * MESTRE: nada disto vai ao jogador; o que sai é só o cartão que o mestre
+ * escolher entregar. Fora de Sala com nome, nenhuma (não há "a sala").
  */
 export function hiddenCluesAt(map: MapData, point: RegionPoint): PointActionClue[] {
   const room = roomAt(map, point)
   if (room === null) return []
   return map.pins
     .filter((pin) => pin.secret === true && (pin.kind === 'exclamacao' || pin.kind === 'interrogacao') && pointInRing(pin, room.region.points))
-    .slice(0, PISTAS_DO_REVISTAR_MAX)
+    .slice(0, PISTAS_DO_CHAMADO_MAX)
     .map((pin) => ({ pinId: pin.id, label: clueLabelOf(pin) }))
 }
 
@@ -140,11 +151,11 @@ export interface PointActionSummary {
 }
 
 /**
- * A linha da Caixa: "Fabi quer Procurar — Ferreiro". De cena de fundo leva a
- * cena junto ("— Adega, em Porão"), porque o mestre está olhando outro mapa.
+ * A linha da Caixa: "Fabi chama o mestre aqui — Ferreiro". De cena de fundo
+ * leva a cena junto ("— Adega, em Porão"), porque o mestre está olhando outro mapa.
  */
 export function pointActionMasterText(summary: PointActionSummary): string {
-  const head = `${summary.playerName} quer ${pointActionLabel(summary.action)}`
+  const head = `${summary.playerName} ${MASTER_VERBS[summary.action]}`
   const where = summary.background ? (summary.roomName === null ? `em ${summary.sceneName}` : `${summary.roomName}, em ${summary.sceneName}`) : summary.roomName
   return where === null ? head : `${head} — ${where}`
 }
@@ -166,9 +177,9 @@ const REJECTION_TEXT: Record<PointActionRejection, string> = {
   out_of_map: 'Esse ponto fica fora do mapa',
 }
 
-/** "Procurar", "Procurar e Escutar", "Procurar, Escutar e Espiar"; a mesma ação repetida conta uma vez. */
+/** "Chamado"; com mais tipos, "A e B", "A, B e C". A mesma ação repetida conta uma vez. */
 function joinActionLabels(actions: readonly PointActionKind[]): string {
-  const labels = [...new Set(actions)].map(pointActionLabel)
+  const labels = [...new Set(actions)].map((action) => NOTICE_LABELS[action])
   const last = labels.pop()
   return labels.length === 0 ? (last ?? '') : `${labels.join(', ')} e ${last}`
 }
@@ -179,7 +190,7 @@ export function pointNoticeText(notice: PointNotice): string {
       return `${joinActionLabels(notice.actions)}: esperando o mestre`
     case 'answered':
       // Com vários pedidos esperando, a resposta sem o nome da ação não diz de qual é.
-      return `${pointActionLabel(notice.action)}: ${notice.answer === 'nothing' ? 'você não encontrou nada' : 'o mestre viu'}`
+      return `${NOTICE_LABELS[notice.action]}: ${notice.answer === 'nothing' ? 'nada aqui, diz o mestre' : 'o mestre viu'}`
     case 'rejected':
       return REJECTION_TEXT[notice.reason]
   }

@@ -1,5 +1,6 @@
 import type { MapData, MapLine, MapMarker, Region, RegionPoint, Wall } from '../types/map'
-import type { ClueEntry, NoteEntry } from '../net/protocol'
+import type { ClueEntry } from '../net/protocol'
+import type { PersonalNote } from '../lib/minhasNotas'
 import { buildFloorOutline } from '../lib/floorContour'
 import { forEachExploredRun, type Exploration } from '../lib/exploration'
 
@@ -7,7 +8,7 @@ import { forEachExploredRun, type Exploration } from '../lib/exploration'
  * LEVAR O MAPA E O CADERNO PARA CASA. A página do jogador só existe enquanto o
  * app do mestre está aberto na LAN; entre as sessões não sobra nada. O botão
  * "Baixar meu caderno" gera, NO APARELHO DO JOGADOR, um `.html` único que abre
- * sem rede: um mapa por cena que ele conhece, as pistas e os recados.
+ * sem rede: um mapa por cena que ele conhece, as pistas e as notas dele.
  *
  * Nada é pedido ao host. Tudo sai do que o recorte (`lib/fogFilter.ts`) já
  * entregou a este jogador — o nome da cena nunca chegou (`name: ''`), então a
@@ -91,7 +92,8 @@ export function lembrarCena(cenas: readonly CenaLembrada[], snap: SnapshotDaCena
 export interface EntradaDoCaderno {
   cenas: readonly CenaLembrada[]
   pistas: readonly ClueEntry[]
-  recados: readonly NoteEntry[]
+  /** MINHAS NOTAS de todos os mapas: no arquivo, embaixo da cena de cada uma ("Cena 2"). */
+  notas: readonly PersonalNote[]
   /** Nome do personagem (ou o que ele digitou ao entrar): título e nome do arquivo. */
   personagem: string
   geradoEm: Date
@@ -134,8 +136,8 @@ ${entrada.cenas.length === 0 ? '<p class="vazio">Nenhuma cena explorada ainda.</
 <section><h2>Pistas</h2>
 ${listaDePistas(entrada.pistas)}
 </section>
-<section><h2>Recados</h2>
-${listaDeRecados(entrada.recados)}
+<section><h2>Minhas notas</h2>
+${listaDeNotas(entrada.notas, entrada.cenas)}
 </section>
 </body>
 </html>
@@ -322,7 +324,7 @@ function nomeDaSalaSvg(region: Region, casa: number): string {
 }
 
 // ---------------------------------------------------------------------------
-// Pistas e recados
+// Pistas e notas
 // ---------------------------------------------------------------------------
 
 /** Só foto embutida de formato de imagem comum: caminho de disco, endereço de rede e SVG não entram no arquivo. */
@@ -339,10 +341,24 @@ function listaDePistas(pistas: readonly ClueEntry[]): string {
   return `<ol class="lista">${itens.join('')}</ol>`
 }
 
-function listaDeRecados(recados: readonly NoteEntry[]): string {
-  if (recados.length === 0) return '<p class="vazio">Nenhum recado ainda.</p>'
-  const itens = [...recados].reverse().map((r) => `<li><p class="meta">${esc(dataEHora(r.at))} · Mestre</p><p class="texto">${esc(r.text)}</p></li>`)
-  return `<ol class="lista">${itens.join('')}</ol>`
+/**
+ * As notas pelo mapa onde moram, com o nome que o arquivo dá à cena ("Cena 2",
+ * a mesma numeração dos mapas). Nota de mapa que o arquivo não guardou (cena
+ * esquecida pelo teto) fica em "Outro lugar".
+ */
+function listaDeNotas(notas: readonly PersonalNote[], cenas: readonly CenaLembrada[]): string {
+  if (notas.length === 0) return '<p class="vazio">Nenhuma nota ainda.</p>'
+  const porLugar = new Map<string, PersonalNote[]>()
+  for (const nota of notas) {
+    const indice = cenas.findIndex((cena) => cena.mapId === nota.mapId)
+    const lugar = indice < 0 ? 'Outro lugar' : `Cena ${indice + 1}`
+    porLugar.set(lugar, [...(porLugar.get(lugar) ?? []), nota])
+  }
+  const blocos = [...porLugar].map(([lugar, doLugar]) => {
+    const itens = doLugar.map((nota) => `<li><p class="texto">${esc(nota.text)}</p></li>`).join('')
+    return `<h3>${esc(lugar)}</h3><ul class="lista">${itens}</ul>`
+  })
+  return blocos.join('')
 }
 
 // ---------------------------------------------------------------------------

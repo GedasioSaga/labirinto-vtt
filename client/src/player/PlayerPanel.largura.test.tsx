@@ -86,9 +86,6 @@ describe('PlayerPanel: a gaveta sabe a largura da barra de cima', () => {
           onToggleLaser={() => {}}
           onRenameToken={() => {}}
           onChangeTokenPhoto={async () => {}}
-          notebook={[]}
-          notebookUnread={false}
-          onReadNotebook={() => {}}
         />,
       ),
     )

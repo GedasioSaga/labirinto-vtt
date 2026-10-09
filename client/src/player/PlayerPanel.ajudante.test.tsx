@@ -45,9 +45,6 @@ describe('PlayerPanel: ajudante contratado', () => {
           onToggleLaser={() => {}}
           onRenameToken={onRenameToken}
           onChangeTokenPhoto={async () => {}}
-          notebook={[]}
-          notebookUnread={false}
-          onReadNotebook={() => {}}
         />,
       ),
     )

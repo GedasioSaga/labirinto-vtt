@@ -145,6 +145,9 @@ describe('main.tsx: agir sobre uma ficha de ponta a ponta', () => {
   it('tocar na ficha alheia abre o cartão; "Enviar ao mestre" manda o pedido e mostra "Aguardando…"', () => {
     act(() => botao('ficha severa').click())
     expect(dialogo().getAttribute('aria-label')).toBe('Ficha: Mulher de capuz')
+    // O retrato DELA ao lado das três ações: sem foto na ficha, as iniciais do nome.
+    expect(dialogo().querySelector('.pp-tokencard__me')?.textContent).toBe('GGabi')
+    expect(Array.from(dialogo().querySelectorAll('.pp-tokencard__actions button')).map((b) => b.textContent)).toEqual(['Falar', 'Ação', 'Entregar item'])
     act(() => botao('Falar', dialogo()).click())
     const campo = dialogo().querySelector('input')
     if (!(campo instanceof HTMLInputElement)) throw new Error('sem o campo do que ele diz')
@@ -168,12 +171,33 @@ describe('main.tsx: agir sobre uma ficha de ponta a ponta', () => {
     expect(cartao.isConnected).toBe(false)
   })
 
-  it('resposta sem texto vira só o aviso curto: "O mestre recusou: Empurrar Mulher de capuz"', () => {
+  it('Ação: ela escreve o que faz; resposta sem texto vira só o aviso curto: "O mestre recusou: Ação com Mulher de capuz"', () => {
     act(() => botao('ficha severa').click())
-    act(() => botao('Empurrar', dialogo()).click())
+    act(() => botao('Ação', dialogo()).click())
+    const campo = dialogo().querySelector('input')
+    if (!(campo instanceof HTMLInputElement)) throw new Error('sem o campo do que ela faz')
+    digita(campo, 'empurra a Severa')
     act(() => botao('Enviar ao mestre', dialogo()).click())
-    expect(mestre().enviados('token.action')).toHaveLength(2)
+    expect(mestre().enviados('token.action').at(-1)).toEqual({ type: 'token.action', reqId: expect.any(String), tokenId: 'severa', action: 'acao', text: 'empurra a Severa' })
     act(() => mestre().manda({ type: 'token.action.answer', reqId: ultimoReqId(), accepted: false }))
-    expect(avisos()).toEqual(['O mestre recusou: Empurrar Mulher de capuz'])
+    expect(avisos()).toEqual(['O mestre recusou: Ação com Mulher de capuz'])
+  })
+
+  it('Entregar item para quem não é jogador explica por quê, e nada sai', () => {
+    const antes = mestre().sent.length
+    act(() => botao('ficha severa').click())
+    act(() => botao('Entregar item', dialogo()).click())
+    expect(dialogo().textContent).toContain('Só dá para entregar a outro jogador.')
+    act(() => botao('Fechar', dialogo()).click())
+    expect(mestre().sent.slice(antes).filter((m) => JSON.stringify(m).includes('item.give'))).toEqual([])
+  })
+
+  it('o mestre deixou um colega agir com a ficha dela: o cartão "Bruno agiu com Gabi" diz o que ele fez, e fica até fechar', () => {
+    act(() => mestre().manda({ type: 'token.action.notice', from: 'Bruno', action: 'acao', tokenId: 'lanterna', text: 'te dá um abraço' }))
+    const cartao = Array.from(document.querySelectorAll('section')).find((s) => s.querySelector('h2')?.textContent === 'Bruno agiu com Gabi')
+    if (cartao === undefined) throw new Error('sem o cartão do que o colega fez')
+    expect(cartao.textContent).toContain('te dá um abraço')
+    act(() => botao('Fechar', cartao).click())
+    expect(cartao.isConnected).toBe(false)
   })
 })

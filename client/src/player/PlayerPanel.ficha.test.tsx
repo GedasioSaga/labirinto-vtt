@@ -44,9 +44,6 @@ describe('PlayerPanel: botão "Ficha"', () => {
           onToggleLaser={() => {}}
           onRenameToken={() => {}}
           onChangeTokenPhoto={async () => {}}
-          notebook={[]}
-          notebookUnread={false}
-          onReadNotebook={() => {}}
           onOpenFicha={onOpenFicha}
         />,
       ),

@@ -4,7 +4,7 @@ import { JOIN_CODE_LENGTH, NAME_MAX_LENGTH, type ClueEntry, type NoteEntry } fro
 import { latestActionNotice } from './moveNotice'
 import { ConfrontoFaixa } from './ConfrontoFaixa'
 import { themeCss } from '../theme'
-import { chatOf, createPlayerConnection, hasUnreadNotes, RESUME_STORAGE_KEY } from './playerConnection'
+import { chatOf, createPlayerConnection, RESUME_STORAGE_KEY } from './playerConnection'
 import { instalarSonsDoJogador } from './sonsDoJogador'
 import { pedeGzip } from '../net/pacoteComprimido'
 import type { PlayerConnection, PlayerState, SeatClaimNotice, SocketLike, StorageLike } from './playerConnection'
@@ -23,13 +23,13 @@ import { PlayerMarkCard } from './PlayerMarkCard'
 import { PlayerPeek } from './PlayerPeek'
 import { PlayerFerrolho } from './PlayerFerrolho'
 import { acaoDeFerrolho, tokenAlcancaPino } from '../lib/ferrolho'
-import { PlayerTokenCard } from './PlayerTokenCard'
+import { PlayerTokenCard, type TokenCardGive } from './PlayerTokenCard'
 import { PlayerInventory } from './PlayerInventory'
 import { PlayerFicha, type InventarioDoJogador } from './PlayerFicha'
 import { escolherImagemNoAparelho } from './imagemDoAparelho'
 import { inventoryCharacters, rememberItemTexts, stableSlotOrder, type ItemTexts } from './inventario'
 import { isEditableTarget } from '../lib/keymap'
-import { tokenActionNoticeText, tokenActionReply } from './tokenCard'
+import { actedOnTitle, giveChoiceFor, tokenActionNoticeText, tokenActionReply, type GiveChoice } from './tokenCard'
 import { PlayerClueCard } from './PlayerClues'
 import { mapSharedNoticeText } from './PlayerMapShare'
 import { PlayerRouteShare, PlayerSharedRouteNotice } from './PlayerRouteShare'
@@ -81,21 +81,13 @@ import { hazardNoticeText } from '../lib/hazards'
 import { readContract } from '../lib/tokenLoan'
 import { passagemABordo, passagemCongelada, pinTravelChoices, type PinTravelChoice } from '../lib/pinTravelers'
 import { avisoDeCongelado } from './congeladoNotice'
-import { letterTitle, type LetterVia } from '../lib/correio'
-import type { ChatChannel } from '../lib/chat'
+import { letterTitle } from '../lib/correio'
+import { chatFacesByName, type ChatChannel } from '../lib/chat'
 import { findKnownPath } from '../lib/knownPath'
 import type { Pin, Stair } from '../types/map'
 import { loadPlaceNames, savePlaceName, withPlaceName, type VisitedPlace } from './playerPlaces'
 import { PersonalNoteDraft } from './PlayerPersonalNotes'
-import {
-  addPersonalNote,
-  loadPersonalNotes,
-  newPersonalNoteId,
-  notesOnMap,
-  removePersonalNote,
-  savePersonalNotes,
-  type PersonalNote,
-} from './personalNotes'
+import { addPersonalNote, newPersonalNoteId, notesOnMap, removePersonalNote, type PersonalNote } from './personalNotes'
 import type { FocusPointRequest } from './PlayerView'
 import { floorShown, PlayerFloorTabs } from './PlayerFloorTabs'
 import type { RegionPoint } from '../types/map'
@@ -123,6 +115,7 @@ const NO_CLUES: ClueEntry[] = []
 const NO_DICE_ROLLS: DiceRollEntry[] = []
 const NO_PINS: Pin[] = []
 const NO_PLACES: VisitedPlace[] = []
+const NO_PERSONAL_NOTES: readonly PersonalNote[] = []
 const NO_TRAVELERS: PinTravelChoice[] = []
 /** O cartão mostrado pelo mestre nunca é de escada: vem só "!" ou "?". */
 const NO_STAIRS: Stair[] = []
@@ -156,22 +149,28 @@ interface Notice {
 
 const JOIN_NOTICE: Notice = { text: 'O código da sala vem do mestre.', tone: 'info' }
 
+/** A escolha pura do "Entregar item" (`giveChoiceFor`) com o envio de verdade. */
+function withGive(choice: GiveChoice, onGive: (itemId: string) => void): TokenCardGive {
+  return choice.kind === 'ready' ? { kind: 'ready', items: choice.items, onGive } : choice
+}
+
 /**
- * O que vai para o arquivo. Pistas e recados: os da tela; depois de um
- * "Reconectar" sem volta, os guardados na queda (`keptNotebook`).
+ * O que vai para o arquivo. Pistas: as da tela; depois de um "Reconectar" sem
+ * volta, as guardadas na queda (`keptNotebook`). Notas: as que o host
+ * devolveu (a conexão as mantém depois da queda).
  */
-function notebookToTake(state: PlayerState): Pick<EntradaDoCaderno, 'cenas' | 'pistas' | 'recados'> {
+function notebookToTake(state: PlayerState): Pick<EntradaDoCaderno, 'cenas' | 'pistas' | 'notas'> {
   return {
     cenas: state.knownScenes ?? [],
     pistas: state.clues ?? state.keptNotebook?.clues ?? [],
-    recados: state.notebook ?? state.keptNotebook?.notes ?? [],
+    notas: state.myNotes ?? [],
   }
 }
 
-/** Há o que levar para casa: alguma cena, pista ou recado. */
+/** Há o que levar para casa: alguma cena, pista ou nota. */
 function hasNotebookContent(state: PlayerState): boolean {
-  const { cenas, pistas, recados } = notebookToTake(state)
-  return cenas.length > 0 || pistas.length > 0 || recados.length > 0
+  const { cenas, pistas, notas } = notebookToTake(state)
+  return cenas.length > 0 || pistas.length > 0 || notas.length > 0
 }
 
 function sessionStorageOrNull(): StorageLike | null {
@@ -704,10 +703,11 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
   const [pointMenu, setPointMenu] = useState<PointMenuState | null>(null)
   const closePointMenu = useCallback(() => setPointMenu(null), [])
   /**
-   * ANOTAÇÕES PESSOAIS de todas as cenas, lidas do aparelho ao entrar. Nunca
-   * vão pelo socket: nem o mestre nem os colegas sabem delas.
+   * MINHAS NOTAS de todas as cenas: a lista que o host guarda para ELE
+   * (`mynotes.book`) e devolve em qualquer cena, ao recarregar e na sessão
+   * seguinte. Nenhum colega a recebe.
    */
-  const [personalNotes, setPersonalNotes] = useState<readonly PersonalNote[]>(() => loadPersonalNotes(armazenamento))
+  const personalNotes = state.myNotes ?? NO_PERSONAL_NOTES
   /** "Anotar" ligado: o próximo toque no mapa marca onde vai a nota. */
   const [noteArmed, setNoteArmed] = useState(false)
   /** Ponto já tocado, esperando o texto no cartão; `null` = cartão fechado. */
@@ -721,13 +721,15 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
   const focusOnPoint = useCallback((x: number, y: number) => {
     setPointFocus((current) => ({ x, y, seq: (current?.seq ?? 0) + 1 }))
   }, [])
-  const changePersonalNotes = useCallback((change: (notes: readonly PersonalNote[]) => readonly PersonalNote[]) => {
-    setPersonalNotes((current) => {
+  const changePersonalNotes = useCallback(
+    (change: (notes: readonly PersonalNote[]) => readonly PersonalNote[]) => {
+      // Lida da conexão, não do render: duas mudanças no mesmo tique não perdem a primeira.
+      const current = connection.getState().myNotes ?? NO_PERSONAL_NOTES
       const next = change(current)
-      if (next !== current) savePersonalNotes(armazenamento, next)
-      return next
-    })
-  }, [armazenamento])
+      if (next !== current) connection.setMyNotes(next)
+    },
+    [connection],
+  )
   const removeNote = useCallback((noteId: string) => changePersonalNotes((notes) => removePersonalNote(notes, noteId)), [changePersonalNotes])
   const cancelNoteDraft = useCallback(() => setNoteDraft(null), [])
   // Outra cena: o ponto e o caminho do menu eram do mapa de antes (e o ponto da nota por escrever também).
@@ -738,6 +740,14 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
   }, [sceneMapId])
   // Referência estável por cena: a camada do mapa não recebe lista nova a cada snapshot.
   const sceneNotes = useMemo(() => (sceneMapId === undefined ? [] : notesOnMap(personalNotes, sceneMapId)), [personalNotes, sceneMapId])
+  // MINHAS NOTAS: que lugar (da aba Lugares) cada mapa é, pelo que esta tela já viu — é o nome que o
+  // Caderno dá às notas de outro mapa. O host nunca diz o nome de outra cena; o jogador deu nome ao lugar.
+  const [placeOfMap, setPlaceOfMap] = useState<Readonly<Record<string, string>>>({})
+  const currentPlaceId = state.place
+  useEffect(() => {
+    if (sceneMapId === undefined || currentPlaceId === undefined) return
+    setPlaceOfMap((known) => (known[sceneMapId] === currentPlaceId ? known : { ...known, [sceneMapId]: currentPlaceId }))
+  }, [sceneMapId, currentPlaceId])
   /**
    * Trechos até o ponto do menu a partir de onde a ficha ESTÁ agora, só com o
    * que esta tela conhece; `null` = não conhece o caminho. Recalculados a cada
@@ -829,6 +839,15 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
   }, [measureArmed, laserArmed, destinationArmed, noteArmed])
 
   const ownTokens = state.ownTokens ?? NO_TOKENS
+  // CHAT: a foto de quem falou, só das fichas que esta tela já tem — a dele e a dos colegas que ele vê agora
+  // (`party[].tokenIds`, o host só manda as do recorte). Nada de imagem na mensagem.
+  const selfName = state.selfName
+  const party = state.party
+  const tokensOnScreen = state.map?.tokens
+  const chatFaces = useMemo(() => {
+    const speakers = [...(selfName === undefined ? [] : [{ name: selfName, tokenIds: ownTokens }]), ...(party ?? []).map((member) => ({ name: member.name, tokenIds: member.tokenIds ?? [] }))]
+    return chatFacesByName(speakers, tokensOnScreen ?? [])
+  }, [selfName, ownTokens, party, tokensOnScreen])
   // ENCONTRO MARCADO: a marca "esperando". Mesma referência estável dos tokens: sem ninguém esperando, nada a redesenhar.
   const waitingTokens = state.waitingTokens ?? NO_TOKENS
   const map = state.map
@@ -868,6 +887,9 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
   // ajudante) chega marcado quando o mestre deixou ele se esconder.
   const mineId = characters.find((c) => !('contrato' in c))?.id
   const ownHidden = mineId !== undefined && map?.tokens.find((t) => t.id === mineId)?.secret === true
+  // O retrato ao lado das ações do cartão da ficha alheia: a foto da ficha DELE (a própria, senão a primeira), ou as iniciais.
+  const portraitToken = map?.tokens.find((t) => t.id === (mineId ?? ownTokens[0]))
+  const ownPortrait = { name: portraitToken?.name ?? state.selfName ?? 'Você', image: portraitToken?.imageData ?? null }
   const partyTokens = state.partyTokens ?? NO_TOKENS
   // ITEM PEGÁVEL: "Comigo" é a mochila das fichas dele; "Dar a…" oferece só
   // fichas de COLEGAS encostadas numa delas — NPC do mestre o host recusaria.
@@ -981,7 +1003,7 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
   const acaoFerrolho = useMemo(() => (map ? acaoDeFerrolho(map, ownTokens) : null), [map, ownTokens])
 
   // LEVAR O MAPA PARA CASA: o arquivo sai do que já está neste aparelho (as
-  // cenas guardadas pela conexão, as pistas e os recados), sem pedir nada ao
+  // cenas guardadas pela conexão, as pistas e as notas), sem pedir nada ao
   // mestre — funciona também depois que ele encerra a sala, e depois que a
   // conexão cai (o mestre fechou o app). O nome é o do personagem; sem ficha
   // no mapa (sala encerrada), o que ele digitou ao entrar.
@@ -1061,10 +1083,9 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
   const closeAwayNotes = useCallback(() => connection.dismissAwayNotes(), [connection])
   const awayNotes = state.awayNotes ?? NO_NOTES
   const closeActionReply = useCallback(() => connection.dismissTokenAction(), [connection])
+  const closeActedOn = useCallback(() => connection.dismissActedOn(), [connection])
   // Estável: o quadro do espiar religa o Escape quando `onClose` muda.
   const closePeek = useCallback(() => connection.dismissPeek(), [connection])
-  // Estável: o painel marca o Caderno como lido num efeito que depende dela.
-  const readNotebook = useCallback(() => connection.markNotebookRead(), [connection])
   // MINHAS PISTAS: abrir o cartão do pino é ler — o host guarda a pista no Caderno.
   const openPinCard = useCallback(
     (pinId: string) => {
@@ -1149,8 +1170,6 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
   const closeShownClue = useCallback(() => connection.dismissShownClue(), [connection])
   const closeMark = useCallback(() => setOpenMarkId(null), [])
   const askCluePeers = useCallback(() => connection.askCluePeers(), [connection])
-  const startWait = useCallback((minutes: number, who: string, where: string) => connection.startWait(minutes, who, where), [connection])
-  const stopWait = useCallback(() => connection.stopWait(), [connection])
   const closeWaitEnded = useCallback(() => connection.dismissWaitEnded(), [connection])
   // Caminho da régua: medida nova (ou nenhuma) — a lista de colegas e o "mostrado a…" eram da anterior.
   const settleMeasure = useCallback(
@@ -1162,11 +1181,6 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
   )
   const askRoutePeers = useCallback(() => connection.askRoutePeers(), [connection])
   const dismissSharedRoute = useCallback(() => connection.dismissSharedRoute(), [connection])
-  // CORREIO: o formulário "Bilhete" do Painel.
-  const askLetterPeers = useCallback(() => {
-    connection.askLetterPeers()
-  }, [connection])
-  const sendLetter = useCallback((to: string, via: LetterVia, text: string) => connection.sendLetter(to, via, text), [connection])
   // CHAT: a aba "Chat" do Painel.
   const sendChat = useCallback(
     (channel: ChatChannel, text: string, mentions: readonly string[]) => connection.sendChat(channel, text, mentions),
@@ -1265,7 +1279,7 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
             }}
             onLongPress={(x, y, screenX, screenY) => {
               // O mestre vê o ponto já no gesto (e o jogador, o eco). Os colegas
-              // só se ele escolher Sinalizar: Espiar e Revistar ficam discretos.
+              // só se ele escolher Sinalizar: o "Chamar o mestre aqui" fica discreto.
               connection.sendSignal(x, y, 'master')
               // A câmera arrasta além da borda: fora do mapa não há o que procurar.
               if (map !== undefined && isPointInsideMap(map, x, y)) setPointMenu({ x, y, screenX, screenY, sceneEpoch: state.sceneEpoch, tokenId: walkerId })
@@ -1364,7 +1378,9 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
             setLaserArmed(false)
             setDestinationArmed(false)
           }}
-          personalNotes={sceneNotes}
+          personalNotes={personalNotes}
+          currentMapId={sceneMapId}
+          placeOfMap={placeOfMap}
           onFocusNote={(noteId) => {
             const note = sceneNotes.find((n) => n.id === noteId)
             if (note !== undefined) focusOnPoint(note.x, note.y)
@@ -1379,9 +1395,6 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
             connection.setOwnTokenPhoto(tokenId, await buildTokenPhotoData(file))
           }}
           hide={{ hidden: ownHidden, waiting: state.hide?.phase === 'waiting', onRequest: (tokenId) => connection.requestHide(tokenId) }}
-          notebook={state.notebook ?? NO_NOTES}
-          notebookUnread={hasUnreadNotes(state)}
-          onReadNotebook={readNotebook}
           clues={state.clues ?? NO_CLUES}
           colecoes={state.colecoes}
           onOpenClue={(clueId) => {
@@ -1394,11 +1407,10 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
             onGive: (itemId, toTokenId) => void connection.giveItem(itemId, toTokenId),
             onPay: (toTokenId, moedas) => void connection.giveCoins(toTokenId, moedas),
           }}
-          letter={{ peers: state.letterPeers, status: state.letterSend, onAskPeers: askLetterPeers, onSend: sendLetter }}
           chat={
             chatLog === undefined
               ? undefined
-              : { log: chatLog, unread: state.chatUnread, status: state.chatSend, selfName: state.selfName, onSend: sendChat, onRead: readChat }
+              : { log: chatLog, unread: state.chatUnread, status: state.chatSend, selfName: state.selfName, faces: chatFaces, onSend: sendChat, onRead: readChat }
           }
           onRollDice={(request) => connection.rollDice(request)}
           diceRolls={state.diceRolls ?? NO_DICE_ROLLS}
@@ -1417,9 +1429,6 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
             onPlace: (intent) => connection.placeMark(intent),
             onClose: () => connection.resetMarkPlace(),
           }}
-          wait={state.wait}
-          onStartWait={startWait}
-          onStopWait={stopWait}
           onStepAway={() => {
             if (!connection.setAway(true)) return
             // Quem saiu não deixa um modo de toque armado para a volta.
@@ -1616,12 +1625,16 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
         )}
         {/* AGIR SOBRE UMA FICHA: o cartão da ficha alheia. Enviado, ele sai: a
             espera e a resposta ficam no aviso de baixo, e o mapa volta à vista. */}
-        {!shownPin && openToken && (
+        {!shownPin && openToken && map && (
           <PlayerTokenCard
             key={openToken.id}
             token={openToken}
             onClose={closeTokenCard}
             waiting={state.tokenAction?.phase === 'waiting'}
+            portrait={ownPortrait}
+            give={withGive(giveChoiceFor(map, ownTokens, partyTokens, openToken.id), (itemId) => {
+              if (connection.giveItem(itemId, openToken.id)) setOpenTokenId(null)
+            })}
             onSend={(action, text) => {
               if (connection.requestTokenAction(openToken.id, action, text)) setOpenTokenId(null)
             }}
@@ -1770,10 +1783,22 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
             escapeCloses={noCardOnTop && !clueCardOpen}
           />
         )}
+        {/* AGIR SOBRE UMA FICHA, do outro lado: o mestre deixou um colega
+            fazer algo com a ficha DELE. Mesma fila do cartão da resposta,
+            logo depois dela. */}
+        {state.actedOn && actionReply === null && !state.note && !state.arrival && awayNotes.length === 0 && (
+          <PlayerNoteCard
+            key={state.actedOn.id}
+            title={actedOnTitle(state.actedOn)}
+            text={state.actedOn.text}
+            onClose={closeActedOn}
+            escapeCloses={noCardOnTop && !clueCardOpen}
+          />
+        )}
         {/* TEXTO DA SALA: o mesmo cartão, com o nome da Sala no alto. Um
             cartão de cada vez no mesmo lugar: com recado aberto, o texto da
             sala espera o recado fechar em vez de ficar por baixo dele. */}
-        {state.roomText && !state.note && !state.arrival && awayNotes.length === 0 && actionReply === null && (
+        {state.roomText && !state.note && !state.arrival && awayNotes.length === 0 && actionReply === null && !state.actedOn && (
           <PlayerNoteCard
             key={state.roomText.id}
             title={state.roomText.title || 'Ao entrar'}

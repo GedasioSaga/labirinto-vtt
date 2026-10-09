@@ -281,12 +281,12 @@ describe('pinCardForPlayer', () => {
 })
 
 /**
- * REVISTAR + "ENTREGAR PISTA…": o pedido de Revistar de Gabi numa sala leva ao
+ * CHAMAR O MESTRE AQUI + "ENTREGAR PISTA…": o chamado de Gabi numa sala leva ao
  * MESTRE (nunca a jogador) os pinos ocultos da sala onde ela tocou, pelo nome
  * que o mestre deu. Entregar um deles é o mesmo "Mostrar agora": só Gabi
  * recebe a carta.
  */
-describe('hostSession: Revistar lista as pistas ocultas da sala', () => {
+describe('hostSession: Chamar o mestre aqui lista as pistas ocultas da sala', () => {
   const ESCRITORIO: Region = {
     id: 'escritorio',
     points: [
@@ -330,9 +330,9 @@ describe('hostSession: Revistar lista as pistas ocultas da sala', () => {
     return { s, w, gabi, diego }
   }
 
-  it('Revistar no Escritório: o mestre lê as pistas ocultas da sala (Carta, Diário); nada vai a jogador', () => {
+  it('Chamado no Escritório: o mestre lê as pistas ocultas da sala (Carta, Diário); nada vai a jogador', () => {
     const { s, w } = mesaNoEscritorio()
-    const r = s.handleMessage('c-gabi', { type: 'point.action', action: 'revistar', x: 200, y: 200 }, w)
+    const r = s.handleMessage('c-gabi', { type: 'point.action', action: 'chamar', x: 200, y: 200 }, w)
     expect(r.outbound).toEqual([])
     expect(r.pointAction?.pistas).toEqual([
       { pinId: 'carta-oculta', label: 'Carta' },
@@ -340,13 +340,10 @@ describe('hostSession: Revistar lista as pistas ocultas da sala', () => {
     ])
   })
 
-  it('Procurar, e Revistar fora de sala com nome, não listam pista nenhuma', () => {
+  it('chamado fora de sala com nome não lista pista nenhuma (não há "a sala" onde procurar)', () => {
     const { s, w } = mesaNoEscritorio()
-    const procurar = s.handleMessage('c-gabi', { type: 'point.action', action: 'procurar', x: 200, y: 200 }, w)
-    expect(procurar.pointAction?.action).toBe('procurar')
-    expect(procurar.pointAction?.pistas).toBeUndefined()
-    const fora = s.handleMessage('c-diego', { type: 'point.action', action: 'revistar', x: 900, y: 200 }, w)
-    expect(fora.pointAction?.action).toBe('revistar')
+    const fora = s.handleMessage('c-diego', { type: 'point.action', action: 'chamar', x: 900, y: 200 }, w)
+    expect(fora.pointAction?.action).toBe('chamar')
     expect(fora.pointAction?.pistas).toBeUndefined()
   })
 

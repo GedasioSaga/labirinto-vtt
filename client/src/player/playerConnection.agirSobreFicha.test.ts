@@ -5,7 +5,7 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createEmptyMap } from '../lib/mapFactory'
-import { TOKEN_ACTION_REPLY_MAX_LENGTH } from '../lib/tokenActions'
+import { TOKEN_ACTION_REPLY_MAX_LENGTH, TOKEN_ACTION_TEXT_MAX_LENGTH } from '../lib/tokenActions'
 import { parseTokenActionHostMessage } from '../net/protocol'
 import type { Token } from '../types/map'
 import { createPlayerConnection, TOKEN_ACTION_NOTICE_TTL_MS, type SocketLike } from './playerConnection'
@@ -85,6 +85,20 @@ describe('parseTokenActionHostMessage', () => {
     })
     expect(parseTokenActionHostMessage({ type: 'token.action.answer', reqId: 'a1', accepted: true, reply: '   ' })).toEqual({ type: 'token.action.answer', reqId: 'a1', accepted: true })
   })
+
+  it('o aviso a quem sofreu a ação: nome da sala, ação da lista, ficha e texto aparado; o resto cai, torto recusa', () => {
+    expect(parseTokenActionHostMessage({ type: 'token.action.notice', from: 'Bruno', action: 'acao', tokenId: 'lanterna', text: ' te abraça ', sceneId: 's' })).toEqual({
+      type: 'token.action.notice',
+      from: 'Bruno',
+      action: 'acao',
+      tokenId: 'lanterna',
+      text: 'te abraça',
+    })
+    expect(parseTokenActionHostMessage({ type: 'token.action.notice', from: 'Bruno', action: 'empurrar', tokenId: 'lanterna', text: 'x' })).toBeNull()
+    expect(parseTokenActionHostMessage({ type: 'token.action.notice', from: 'Bruno', action: 'acao', tokenId: 'lanterna', text: '   ' })).toBeNull()
+    expect(parseTokenActionHostMessage({ type: 'token.action.notice', from: 'Bruno', action: 'acao', tokenId: 'lanterna', text: 'x'.repeat(TOKEN_ACTION_TEXT_MAX_LENGTH + 1) })).toBeNull()
+    expect(parseTokenActionHostMessage({ type: 'token.action.notice', from: '', action: 'acao', tokenId: 'lanterna', text: 'x' })).toBeNull()
+  })
 })
 
 describe('pedido de ação sobre ficha no cliente', () => {
@@ -102,27 +116,29 @@ describe('pedido de ação sobre ficha no cliente', () => {
     expect(connection.getState().tokenAction).toEqual({ id: expect.any(Number), phase: 'waiting', action: 'falar', targetName: 'Mulher de capuz' })
   })
 
-  it('sem texto, o campo nem vai; a própria ficha, ficha que não está no mapa e pedido em espera não saem', () => {
+  it('sem texto não há pedido; a própria ficha, ficha que não está no mapa, texto longo e pedido em espera não saem', () => {
     const { connection, socket } = jogando()
-    expect(connection.requestTokenAction('lanterna', 'empurrar')).toBe(false)
-    expect(connection.requestTokenAction('fantasma', 'empurrar')).toBe(false)
+    expect(connection.requestTokenAction('lanterna', 'acao', 'beijar')).toBe(false)
+    expect(connection.requestTokenAction('fantasma', 'acao', 'beijar')).toBe(false)
+    expect(connection.requestTokenAction('severa', 'acao', '   ')).toBe(false)
+    expect(connection.requestTokenAction('severa', 'falar', 'x'.repeat(TOKEN_ACTION_TEXT_MAX_LENGTH + 1))).toBe(false)
     expect(socket.sent).toEqual([])
-    expect(connection.requestTokenAction('severa', 'empurrar', '   ')).toBe(true)
-    expect(socket.sent).toEqual([{ type: 'token.action', reqId: expect.any(String), tokenId: 'severa', action: 'empurrar' }])
-    expect(connection.requestTokenAction('severa', 'oferecer')).toBe(false)
+    expect(connection.requestTokenAction('severa', 'acao', '  beijar a mão dela  ')).toBe(true)
+    expect(socket.sent).toEqual([{ type: 'token.action', reqId: expect.any(String), tokenId: 'severa', action: 'acao', text: 'beijar a mão dela' }])
+    expect(connection.requestTokenAction('severa', 'falar', 'oi')).toBe(false)
     expect(socket.sent).toHaveLength(1)
   })
 
   it('a resposta com o reqId dele vira o aviso, e o aviso some sozinho', () => {
     const { connection, socket } = jogando()
-    connection.requestTokenAction('severa', 'empurrar')
+    connection.requestTokenAction('severa', 'acao', 'abraçar')
     const pedido = socket.sent[0]
     const reqId = typeof pedido === 'object' && pedido !== null && 'reqId' in pedido ? pedido.reqId : null
     // Resposta de outro pedido (atrasada, ou de outra aba): não é desta espera.
     socket.receive({ type: 'token.action.answer', reqId: 'outro', accepted: true })
     expect(connection.getState().tokenAction?.phase).toBe('waiting')
     socket.receive({ type: 'token.action.answer', reqId, accepted: true })
-    expect(connection.getState().tokenAction).toEqual({ id: expect.any(Number), phase: 'accepted', action: 'empurrar', targetName: 'Mulher de capuz' })
+    expect(connection.getState().tokenAction).toEqual({ id: expect.any(Number), phase: 'accepted', action: 'acao', targetName: 'Mulher de capuz' })
     vi.advanceTimersByTime(TOKEN_ACTION_NOTICE_TTL_MS)
     expect(connection.getState().tokenAction).toBeUndefined()
     // Livre de novo: o próximo pedido sai.
@@ -131,19 +147,19 @@ describe('pedido de ação sobre ficha no cliente', () => {
 
   it('recusa do mestre e recusa do host viram avisos diferentes', () => {
     const { connection, socket } = jogando()
-    connection.requestTokenAction('severa', 'oferecer', 'uma moeda')
+    connection.requestTokenAction('severa', 'acao', 'dar uma moeda')
     const first = socket.sent[0]
     const reqId = typeof first === 'object' && first !== null && 'reqId' in first ? first.reqId : null
     socket.receive({ type: 'token.action.answer', reqId, accepted: false })
-    expect(connection.getState().tokenAction).toMatchObject({ phase: 'refused', action: 'oferecer' })
+    expect(connection.getState().tokenAction).toMatchObject({ phase: 'refused', action: 'acao' })
     vi.advanceTimersByTime(TOKEN_ACTION_NOTICE_TTL_MS)
-    connection.requestTokenAction('severa', 'empurrar')
+    connection.requestTokenAction('severa', 'acao', 'abraçar')
     // O prazo do aviso (5 s) passa por pings do batimento (a cada 2 s): o segundo pedido é o segundo `token.action`, não o segundo envio.
     const second = socket.sent.filter((m) => typeof m === 'object' && m !== null && 'type' in m && m.type === 'token.action')[1]
     expect(second).toBeDefined()
     const reqId2 = typeof second === 'object' && second !== null && 'reqId' in second ? second.reqId : null
     socket.receive({ type: 'token.action.rejected', reqId: reqId2, reason: 'unavailable' })
-    expect(connection.getState().tokenAction).toMatchObject({ phase: 'rejected', reason: 'unavailable', action: 'empurrar' })
+    expect(connection.getState().tokenAction).toMatchObject({ phase: 'rejected', reason: 'unavailable', action: 'acao' })
   })
 
   it('com o texto do mestre, a resposta fica na tela até o jogador fechar', () => {
@@ -168,14 +184,33 @@ describe('pedido de ação sobre ficha no cliente', () => {
 
   it('fechar não apaga a espera: o pedido ainda aguardando o mestre continua na tela', () => {
     const { connection } = jogando()
-    connection.requestTokenAction('severa', 'empurrar')
+    connection.requestTokenAction('severa', 'acao', 'abraçar')
     connection.dismissTokenAction()
     expect(connection.getState().tokenAction?.phase).toBe('waiting')
   })
 
+  it('o mestre deixou um colega agir com a ficha DELE: o aviso diz quem, com qual ficha e o quê, e fica até fechar', () => {
+    const { connection, socket } = jogando()
+    socket.receive({ type: 'token.action.notice', from: 'Bruno', action: 'acao', tokenId: 'lanterna', text: 'te dá um abraço' })
+    expect(connection.getState().actedOn).toEqual({ id: expect.any(Number), from: 'Bruno', action: 'acao', tokenName: 'Ana', text: 'te dá um abraço' })
+    vi.advanceTimersByTime(TOKEN_ACTION_NOTICE_TTL_MS * 10)
+    expect(connection.getState().actedOn?.text).toBe('te dá um abraço')
+    connection.dismissActedOn()
+    expect(connection.getState().actedOn).toBeUndefined()
+    // O pedido dele não se mistura: nada saiu (só o batimento), nada espera.
+    expect(socket.sent.filter((m) => !JSON.stringify(m).includes('"ping"'))).toEqual([])
+    expect(connection.getState().tokenAction).toBeUndefined()
+  })
+
+  it('aviso sobre ficha que não é dele não aparece', () => {
+    const { connection, socket } = jogando()
+    socket.receive({ type: 'token.action.notice', from: 'Bruno', action: 'acao', tokenId: 'severa', text: 'empurra' })
+    expect(connection.getState().actedOn).toBeUndefined()
+  })
+
   it('voltar à espera do lobby apaga o pedido da tela', () => {
     const { connection, socket } = jogando()
-    connection.requestTokenAction('severa', 'empurrar')
+    connection.requestTokenAction('severa', 'acao', 'abraçar')
     socket.receive({ type: 'lobby.waiting' })
     expect(connection.getState().tokenAction).toBeUndefined()
   })

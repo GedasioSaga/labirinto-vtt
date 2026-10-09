@@ -3,6 +3,7 @@
  * uma seta de giz, cravados onde a ficha está. O formulário segue as
  * convenções de campo: rótulo ligado, contador do que falta, Enter envia,
  * enviar vazio avisa e devolve o foco ao campo, e o texto nunca some numa recusa.
+ * Quem o abre é o menu "Marcações" (`PlayerMarcacoes`): montado, ele já está aberto.
  */
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
@@ -15,6 +16,7 @@ describe('PlayerMarkForm', () => {
   let root: Root
   let onPlace: ReturnType<typeof vi.fn<(intent: MarkPlaceIntent) => void>>
   let onClose: ReturnType<typeof vi.fn<() => void>>
+  let onDismiss: ReturnType<typeof vi.fn<() => void>>
 
   beforeEach(() => {
     Reflect.set(globalThis, 'IS_REACT_ACT_ENVIRONMENT', true)
@@ -23,6 +25,7 @@ describe('PlayerMarkForm', () => {
     root = createRoot(container)
     onPlace = vi.fn<(intent: MarkPlaceIntent) => void>()
     onClose = vi.fn<() => void>()
+    onDismiss = vi.fn<() => void>()
   })
 
   afterEach(() => {
@@ -31,7 +34,7 @@ describe('PlayerMarkForm', () => {
   })
 
   function render(props: Partial<PlayerMarkFormProps> = {}): void {
-    act(() => root.render(<PlayerMarkForm result={undefined} onPlace={onPlace} onClose={onClose} {...props} />))
+    act(() => root.render(<PlayerMarkForm result={undefined} onPlace={onPlace} onClose={onClose} onDismiss={onDismiss} {...props} />))
   }
 
   function botao(texto: string): HTMLButtonElement {
@@ -61,16 +64,15 @@ describe('PlayerMarkForm', () => {
       .join(' | ')
   }
 
-  it('fechado: um botão só, que abre o formulário', () => {
+  it('montado já é o formulário aberto, no bilhete, sem botão de abrir (quem abre é o menu Marcações)', () => {
     render()
-    expect(Array.from(container.querySelectorAll('button')).map((b) => b.textContent?.trim())).toEqual(['Deixar marca aqui…'])
-    act(() => botao('Deixar marca aqui…').click())
     expect(container.querySelector('form')).not.toBeNull()
+    expect(Array.from(container.querySelectorAll('button')).some((b) => (b.textContent ?? '').trim() === 'Deixar marca aqui…')).toBe(false)
+    expect(document.activeElement).toBe(campo())
   })
 
   it('o rótulo está ligado ao campo, o teto é de 80 letras e o contador diz quanto falta', () => {
     render()
-    act(() => botao('Deixar marca aqui…').click())
     const input = campo()
     const rotulo = container.querySelector(`label[for="${input.id}"]`)
     expect(rotulo?.textContent).toBe('Bilhete')
@@ -82,7 +84,6 @@ describe('PlayerMarkForm', () => {
 
   it('Enter (enviar) deixa o bilhete com o texto aparado', () => {
     render()
-    act(() => botao('Deixar marca aqui…').click())
     digitar('  GUI ESPERA NO POÇO  ')
     act(() => container.querySelector('form')?.requestSubmit())
     expect(onPlace).toHaveBeenCalledTimes(1)
@@ -91,7 +92,6 @@ describe('PlayerMarkForm', () => {
 
   it('enviar vazio não envia: avisa junto do campo e o foco volta a ele', () => {
     render()
-    act(() => botao('Deixar marca aqui…').click())
     digitar('   ')
     act(() => container.querySelector('form')?.requestSubmit())
     expect(onPlace).not.toHaveBeenCalled()
@@ -102,7 +102,6 @@ describe('PlayerMarkForm', () => {
 
   it('seta de giz: cada rumo é um botão com nome, e tocar deixa a seta', () => {
     render()
-    act(() => botao('Deixar marca aqui…').click())
     act(() => botao('Seta de giz').click())
     const rumos = Array.from(container.querySelectorAll('button[aria-label^="Seta para"]')).map((b) => b.getAttribute('aria-label'))
     expect(rumos).toEqual([
@@ -123,7 +122,6 @@ describe('PlayerMarkForm', () => {
 
   it('enquanto o mestre confere, o botão diz "Deixando…" e não envia de novo', () => {
     render()
-    act(() => botao('Deixar marca aqui…').click())
     digitar('oi')
     render({ result: { phase: 'sending' } })
     const enviar = botao('Deixando…')
@@ -134,7 +132,6 @@ describe('PlayerMarkForm', () => {
 
   it('recusa: o texto fica no campo e a mensagem diz o que houve', () => {
     render()
-    act(() => botao('Deixar marca aqui…').click())
     digitar('volto já')
     render({ result: { phase: 'refused', reason: 'unavailable' } })
     expect(campo().value).toBe('volto já')
@@ -147,19 +144,16 @@ describe('PlayerMarkForm', () => {
 
   it('deixou: confirma e limpa o campo para o próximo', () => {
     render()
-    act(() => botao('Deixar marca aqui…').click())
     digitar('volto já')
     render({ result: { phase: 'ok' } })
     expect(status()).toContain('Quem passar por aqui vai ver')
     expect(campo().value).toBe('')
   })
 
-  it('Fechar recolhe o formulário, avisa o dono e devolve o foco ao botão que abre', () => {
+  it('Fechar avisa o menu (que recolhe e devolve o foco) e o dono (que zera o resultado)', () => {
     render()
-    act(() => botao('Deixar marca aqui…').click())
     act(() => botao('Fechar').click())
+    expect(onDismiss).toHaveBeenCalledTimes(1)
     expect(onClose).toHaveBeenCalledTimes(1)
-    expect(container.querySelector('form')).toBeNull()
-    expect(document.activeElement).toBe(botao('Deixar marca aqui…'))
   })
 })

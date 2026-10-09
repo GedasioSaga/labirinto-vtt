@@ -110,6 +110,7 @@ import {
   parseSceneAlarmEnd,
   parseSceneNote,
   parseTokenActionHostMessage,
+  parseMyNotesHostMessage,
   parseTravelDenyText,
   parseWaitHostMessage,
   type CallRaiseMessage,
@@ -154,6 +155,7 @@ import { NOISE_CUE_TTL_MS, type NoiseDirection } from '../lib/noise'
 import { applyMapPatch, type MapPatch, type TokenChange } from '../net/viewPatch'
 import { LOCK_ANSWER_MAX_LENGTH } from '../lib/pinLock'
 import { TOKEN_ACTION_TEXT_MAX_LENGTH, type TokenAction } from '../lib/tokenActions'
+import { MY_NOTES_SEND_INTERVAL_MS, type PersonalNote } from '../lib/minhasNotas'
 import { tokenCardName, type TokenActionNotice } from './tokenCard'
 import { ESPERA_ONDE_MAX_LENGTH, isWaitMinutes, type FimDaEspera } from '../lib/encontroMarcado'
 import { lembrarCena, type CenaLembrada } from './meuCaderno'
@@ -444,6 +446,13 @@ export interface PlayerState {
    */
   clues?: ClueEntry[]
   /**
+   * MINHAS NOTAS: as anotações pessoais dele, de TODOS os mapas, da mais
+   * antiga à mais nova. O host guarda e devolve na entrada (`mynotes.book`);
+   * a tela muda na hora (`setMyNotes`) e manda a lista inteira logo depois.
+   * `undefined` = o host ainda não mandou.
+   */
+  myNotes?: PersonalNote[]
+  /**
    * COLEÇÃO DE PISTAS: as coleções deste jogador ("Letreiro 5 de 12"), como o
    * host mandou por último — a lista inteira, a cada peça nova e na entrada.
    */
@@ -555,6 +564,12 @@ export interface PlayerState {
   markPlace?: MarkPlace
   /** AGIR SOBRE UMA FICHA: o pedido esperando o mestre, ou a resposta dele. */
   tokenAction?: TokenActionNotice
+  /**
+   * AGIR SOBRE UMA FICHA, do outro lado: o mestre deixou um colega fazer algo
+   * com a ficha DESTE jogador ("Bruno: te dá um abraço"). Fica até ele fechar.
+   * `id` novo repete o aviso; `tokenName` é o nome da ficha dele, como ele a vê.
+   */
+  actedOn?: { id: number; from: string; action: TokenAction; tokenName: string; text: string }
   /**
    * ENCONTRO MARCADO: a espera do jogador, como o mestre a confirmou. `until`
    * é o prazo no relógio DESTA tela (a chegada do `wait.state` mais o que
@@ -1145,8 +1160,8 @@ export interface PlayerConnection {
   /** Fecha o cartão da troca que já acabou. */
   dismissTrade(): void
   /**
-   * AÇÃO NO PONTO (px de mundo): pede ao mestre para Procurar/Escutar/
-   * Espiar/Revistar ali. `false` se não está jogando, o ponto não é finito,
+   * AÇÃO NO PONTO (px de mundo): chama o mestre ali ("Chamar o mestre
+   * aqui"). `false` se não está jogando, o ponto não é finito,
    * cai fora do mapa ou o socket não está aberto.
    */
   sendPointAction(action: PointActionKind, x: number, y: number): boolean
@@ -1251,16 +1266,25 @@ export interface PlayerConnection {
   switchView(tokenId: string): boolean
   /**
    * AGIR SOBRE UMA FICHA: pede ao mestre `action` sobre a ficha ALHEIA
-   * `tokenId`, com o texto opcional (aparado; só espaço = sem texto). `false`
-   * (e nada sai) quando não joga, a ficha não está no mapa dele ou é dele, o
-   * texto passa do teto, já há um pedido esperando ou o socket não está aberto.
+   * `tokenId`, com o texto do que ele diz ou faz (aparado). `false` (e nada
+   * sai) quando não joga, a ficha não está no mapa dele ou é dele, o texto
+   * está vazio ou passa do teto, já há um pedido esperando ou o socket não
+   * está aberto.
    */
-  requestTokenAction(tokenId: string, action: TokenAction, text?: string): boolean
+  requestTokenAction(tokenId: string, action: TokenAction, text: string): boolean
   /**
    * Fecha a resposta do mestre ao pedido de ação (o cartão com o texto dele).
    * O pedido que ainda espera o mestre não se fecha: ele some com a resposta.
    */
   dismissTokenAction(): void
+  /** Fecha o aviso do que um colega fez com a ficha dele (`actedOn`). */
+  dismissActedOn(): void
+  /**
+   * MINHAS NOTAS: a lista nova, inteira. Vale na tela na hora; vai ao host no
+   * máximo uma vez por `MY_NOTES_SEND_INTERVAL_MS` (a última sempre vai). Fora
+   * do ar, espera a volta: a lista da tela vence a guardada.
+   */
+  setMyNotes(notes: readonly PersonalNote[]): void
   /**
    * ENCONTRO MARCADO: "Esperar aqui" por `minutes`, esperando `who` (o nome do
    * colega; vazio = qualquer um) em `where` (texto livre). Tudo aparado; vazio
@@ -2507,6 +2531,59 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     markTimer = null
   }
 
+  // MINHAS NOTAS: a lista da tela mudou e o host ainda não a guardou; o relógio do próximo envio.
+  let myNotesDirty = false
+  let myNotesTimer: ReturnType<typeof setTimeout> | null = null
+  let lastMyNotesSentAt = -Infinity
+
+  /** Agenda o envio: nunca antes do intervalo desde o último, nem antes de `atLeastMs`. */
+  function scheduleMyNotes(atLeastMs: number): void {
+    if (myNotesTimer !== null) return
+    myNotesTimer = setTimeout(sendMyNotes, Math.max(atLeastMs, lastMyNotesSentAt + MY_NOTES_SEND_INTERVAL_MS - Date.now()))
+  }
+
+  /** Outra pessoa nesta tela ("É ela", sessão nova): a lista da anterior sai da tela e nada dela vai ao host. */
+  function forgetMyNotes(): void {
+    clearMyNotesTimer()
+    myNotesDirty = false
+    setState({ myNotes: undefined })
+  }
+
+  /** Sala fechada: nada mais sai. A lista suja fica suja (a tela ainda a mostra). */
+  function clearMyNotesTimer(): void {
+    if (myNotesTimer !== null) clearTimeout(myNotesTimer)
+    myNotesTimer = null
+  }
+
+  /** Manda a lista de AGORA. Socket fechado: fica suja, e a volta (`mynotes.book`) manda de novo. */
+  function sendMyNotes(): void {
+    myNotesTimer = null
+    if (!myNotesDirty) return
+    if (!send({ type: 'mynotes.set', notes: [...(state.myNotes ?? [])] })) return
+    myNotesDirty = false
+    lastMyNotesSentAt = Date.now()
+  }
+
+  /**
+   * `mynotes.book`: a lista guardada vale — menos quando a tela mudou a dela
+   * fora do ar, e aí é a da tela que vai ao host. `too_soon`: o host não
+   * guardou; a lista de agora vai de novo depois do intervalo.
+   */
+  function handleMyNotesMessage(data: unknown): void {
+    const msg = parseMyNotesHostMessage(data)
+    if (msg === null) return
+    if (msg.type === 'mynotes.rejected') {
+      myNotesDirty = true
+      scheduleMyNotes(MY_NOTES_SEND_INTERVAL_MS)
+      return
+    }
+    if (myNotesDirty) {
+      scheduleMyNotes(0)
+      return
+    }
+    setState({ myNotes: msg.notes })
+  }
+
   let tokenActionTimer: ReturnType<typeof setTimeout> | null = null
   /** `reqId` do pedido de ação que espera o mestre; `null` = nenhum. Só a resposta com ele vale. */
   let pendingActionReqId: string | null = null
@@ -2523,8 +2600,16 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
    */
   function handleTokenActionMessage(data: unknown): void {
     const msg = parseTokenActionHostMessage(data)
+    if (msg === null) return
+    if (msg.type === 'token.action.notice') {
+      // Só sobre ficha DELE: aviso sobre outra ficha (host antigo, mensagem trocada) não tem o que dizer.
+      if (!(state.ownTokens ?? []).includes(msg.tokenId)) return
+      const token = state.map?.tokens.find((t) => t.id === msg.tokenId)
+      setState({ actedOn: { id: nextNoticeId++, from: msg.from, action: msg.action, tokenName: token === undefined ? 'você' : tokenCardName(token), text: msg.text } })
+      return
+    }
     const waiting = state.tokenAction
-    if (msg === null || waiting === undefined || waiting.phase !== 'waiting' || msg.reqId !== pendingActionReqId) return
+    if (waiting === undefined || waiting.phase !== 'waiting' || msg.reqId !== pendingActionReqId) return
     clearTokenAction()
     const base = { id: nextNoticeId++, action: waiting.action, targetName: waiting.targetName }
     if (msg.type === 'token.action.answer' && msg.reply !== undefined) {
@@ -3341,6 +3426,10 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         // Outro playerId: o mestre disse "É ela" e a "Ana (2)" virou a Ana. O
         // host esqueceu os pedidos da "Ana (2)"; a espera deles mentiria para sempre.
         if (state.playerId !== undefined && state.playerId !== data.playerId) forgetWaitingRequests()
+        // MINHAS NOTAS: outra pessoa nesta tela não herda as notas da anterior (o host manda as dela, se houver).
+        // A mesma pessoa de volta, com a lista mudada fora do ar, manda a dela: o host só manda a guardada se tiver nota.
+        if (state.playerId !== undefined && state.playerId !== data.playerId) forgetMyNotes()
+        else if (myNotesDirty) scheduleMyNotes(0)
         // O pedido de ficha morre no host com a queda: a espera dele mentiria para sempre.
         // A lista de fichas livres também: o host conta o que mandou POR CONEXÃO,
         // e a desta começa vazia; a velha mostraria como livre a ficha de outro.
@@ -3459,6 +3548,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
           lockAnswer: undefined,
           markPlace: undefined,
           tokenAction: undefined,
+          actedOn: undefined,
           wait: undefined,
           waitEnded: undefined,
           waitingTokens: undefined,
@@ -3666,6 +3756,10 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       case 'letter.send.result':
         handleLetterMessage(data)
         return
+      case 'mynotes.book':
+      case 'mynotes.rejected':
+        handleMyNotesMessage(data)
+        return
       case 'chat.history':
       case 'chat.msg':
       case 'chat.send.result':
@@ -3720,6 +3814,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         return
       case 'token.action.answer':
       case 'token.action.rejected':
+      case 'token.action.notice':
         // Sem mapa na tela não há pedido esperando (a espera do lobby já o apagou).
         if (state.status === 'playing') handleTokenActionMessage(data)
         return
@@ -4105,12 +4200,13 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         dropQueuedSecretChecks()
         clearMapSharedTimer()
         clearTokenAction()
+        clearMyNotesTimer()
         clearWaitEndedTimer()
         clearPassageOpenedTimer()
         clearSharedRouteTimer()
         clearPeekTimer()
         wantsBack = false
-        setState({ status: 'closed', away: undefined, hide: undefined, playerLasers: undefined, doorNotice: undefined, doorRequest: undefined, moveNotice: undefined, turnNotice: undefined, travel: undefined, item: undefined, compra: undefined, lever: undefined, hazardNotice: undefined, call: undefined, reconnecting: undefined, pointNotice: undefined, noise: undefined, secretCheck: undefined, secretCheckNotice: undefined, mapShared: undefined, tokenAction: undefined, wait: undefined, waitEnded: undefined, pinPeek: undefined, ...NO_PASSAGE_WATCH, ...NO_ROUTE })
+        setState({ status: 'closed', away: undefined, hide: undefined, playerLasers: undefined, doorNotice: undefined, doorRequest: undefined, moveNotice: undefined, turnNotice: undefined, travel: undefined, item: undefined, compra: undefined, lever: undefined, hazardNotice: undefined, call: undefined, reconnecting: undefined, pointNotice: undefined, noise: undefined, secretCheck: undefined, secretCheckNotice: undefined, mapShared: undefined, tokenAction: undefined, actedOn: undefined, wait: undefined, waitEnded: undefined, pinPeek: undefined, ...NO_PASSAGE_WATCH, ...NO_ROUTE })
         return
       case 'session.replaced':
         // A sessão foi para outra aba (ou aparelho). O resume FICA: é o mesmo
@@ -4266,7 +4362,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       clues: state.clues ?? state.keptNotebook?.clues ?? [],
       notes: state.notebook ?? state.keptNotebook?.notes ?? [],
     }
-    setState({ keptNotebook, status: 'connecting', hide: undefined, compra: undefined, porAtravessar: undefined, letterPeers: undefined, letterSend: undefined, selfName: undefined, chatSend: undefined, error: undefined, rev: -1, map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, partyTokens: undefined, concealed: undefined, glimpses: undefined, elsewhere: undefined, peek: undefined, pinPeek: undefined, sceneName: undefined, place: undefined, destinations: undefined, hazards: undefined, hazardNotice: undefined, gatilhos: undefined, andares: undefined, relogio: undefined, turn: undefined, signals: undefined, laser: undefined, playerLasers: undefined, doorNotice: undefined, doorRequest: undefined, moveNotice: undefined, turnNotice: undefined, travel: undefined, note: undefined, arrival: undefined, alarm: undefined, item: undefined, lever: undefined, roomText: undefined, notebook: undefined, unreadNotes: undefined, clues: undefined, colecoes: undefined, shownClue: undefined, shownPin: undefined, cluePeers: undefined, clueShow: undefined, paused: undefined, call: undefined, reconnecting: undefined, pointNotice: undefined, noise: undefined, secretCheck: undefined, secretCheckNotice: undefined, mapPeers: undefined, mapShare: undefined, mapShared: undefined, tokenAction: undefined, wait: undefined, waitEnded: undefined, waitingTokens: undefined, away: undefined, ...NO_PASSAGE_WATCH, ...NO_ROUTE })
+    setState({ keptNotebook, status: 'connecting', hide: undefined, compra: undefined, porAtravessar: undefined, letterPeers: undefined, letterSend: undefined, selfName: undefined, chatSend: undefined, error: undefined, rev: -1, map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, partyTokens: undefined, concealed: undefined, glimpses: undefined, elsewhere: undefined, peek: undefined, pinPeek: undefined, sceneName: undefined, place: undefined, destinations: undefined, hazards: undefined, hazardNotice: undefined, gatilhos: undefined, andares: undefined, relogio: undefined, turn: undefined, signals: undefined, laser: undefined, playerLasers: undefined, doorNotice: undefined, doorRequest: undefined, moveNotice: undefined, turnNotice: undefined, travel: undefined, note: undefined, arrival: undefined, alarm: undefined, item: undefined, lever: undefined, roomText: undefined, notebook: undefined, unreadNotes: undefined, clues: undefined, colecoes: undefined, shownClue: undefined, shownPin: undefined, cluePeers: undefined, clueShow: undefined, paused: undefined, call: undefined, reconnecting: undefined, pointNotice: undefined, noise: undefined, secretCheck: undefined, secretCheckNotice: undefined, mapPeers: undefined, mapShare: undefined, mapShared: undefined, tokenAction: undefined, actedOn: undefined, wait: undefined, waitEnded: undefined, waitingTokens: undefined, away: undefined, ...NO_PASSAGE_WATCH, ...NO_ROUTE })
     open()
   }
 
@@ -4827,11 +4923,10 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       if ((state.ownTokens ?? []).includes(tokenId)) return false
       const token = state.map?.tokens.find((t) => t.id === tokenId)
       if (token === undefined) return false
-      const said = (text ?? '').trim()
-      if (said.length > TOKEN_ACTION_TEXT_MAX_LENGTH) return false
+      const said = text.trim()
+      if (said === '' || said.length > TOKEN_ACTION_TEXT_MAX_LENGTH) return false
       const reqId = `a${nextReqId++}`
-      const message: PlayerMessage = said === '' ? { type: 'token.action', reqId, tokenId, action } : { type: 'token.action', reqId, tokenId, action, text: said }
-      if (!send(message)) return false
+      if (!send({ type: 'token.action', reqId, tokenId, action, text: said })) return false
       clearTokenAction()
       pendingActionReqId = reqId
       // O nome que ELE viu no cartão: é com ele que o aviso fala, e o host nunca manda nome de volta.
@@ -4844,6 +4939,17 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       if (notice === undefined || notice.phase === 'waiting') return
       clearTokenAction()
       setState({ tokenAction: undefined })
+    },
+
+    dismissActedOn() {
+      if (state.actedOn !== undefined) setState({ actedOn: undefined })
+    },
+
+    setMyNotes(notes) {
+      if (isTable) return
+      myNotesDirty = true
+      setState({ myNotes: [...notes] })
+      scheduleMyNotes(0)
     },
 
     startWait(minutes, who = '', where = '') {

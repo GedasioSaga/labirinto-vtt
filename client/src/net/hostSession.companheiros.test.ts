@@ -152,3 +152,41 @@ describe('party.update não vaza', () => {
     for (const membro of msg.members) expect(Object.keys(membro).sort()).toEqual(['name', 'playerId', 'where'])
   })
 })
+
+/**
+ * CHAT COM FOTO: a lista do Grupo leva, de cada colega, as fichas dele que
+ * QUEM RECEBE já vê no recorte (as do `partyTokens` do último snapshot). É
+ * por elas que o chat acha a foto de quem falou, sem imagem na mensagem.
+ * Ficha de colega no escuro, escondida pelo mestre ou noutra cena não vai.
+ */
+describe('party.update: as fichas à vista de cada colega (para a foto do chat)', () => {
+  /** Tudo do membro `nome` na lista que `clientId` recebeu. */
+  function membro(r: HostResult, clientId: string, nome: string): PartyMember | undefined {
+    const msg = r.outbound.find((o) => o.clientId === clientId && o.msg.type === 'party.update')?.msg
+    return msg?.type === 'party.update' ? msg.members.find((m) => m.name === nome) : undefined
+  }
+
+  it('depois do recorte, Ana recebe a ficha do Bruno (que ela vê); a da Carla, noutra cena, não', () => {
+    const { s } = mesa(MUNDO)
+    s.broadcast(MUNDO)
+    const r = s.partyUpdates(MUNDO)
+    expect(membro(r, 'c1', 'Bruno')?.tokenIds).toEqual(['machado'])
+    expect(membro(r, 'c1', 'Carla')).toEqual({ playerId: expect.any(String), name: 'Carla', where: 'longe' })
+    // A Carla, sozinha na Cripta, não vê ficha de ninguém.
+    expect(membro(r, 'c3', 'Ana')?.tokenIds).toBeUndefined()
+  })
+
+  it('ficha do colega que o mestre escondeu não vai, mesmo na mesma cena', () => {
+    const escondida = mundoCom([ficha('lanterna', 100, 100), { ...ficha('machado', 200, 100), hidden: true }], [ficha('cajado', 300, 100)])
+    const { s } = mesa(escondida)
+    s.broadcast(escondida)
+    const r = s.partyUpdates(escondida)
+    expect(membro(r, 'c1', 'Bruno')).toEqual({ playerId: expect.any(String), name: 'Bruno', where: 'aqui' })
+  })
+
+  it('antes de qualquer recorte (nada visto ainda), a lista não leva ficha nenhuma', () => {
+    const { s } = mesa(MUNDO)
+    const r = s.partyUpdates(MUNDO)
+    expect(membro(r, 'c1', 'Bruno')?.tokenIds).toBeUndefined()
+  })
+})

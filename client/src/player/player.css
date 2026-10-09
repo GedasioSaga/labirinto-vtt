@@ -1655,35 +1655,133 @@
   grid-column: 3;
 }
 
-/* CORREIO: o formulário do bilhete, com o mesmo campo e o mesmo botão do "Meu personagem". */
-.pp-letter {
+/*
+ * MARCAÇÕES: o botão que abre o menu com Marcar destino, Anotar e Deixar marca
+ * aqui… O menu mora no fluxo do painel, embaixo do botão (a gaveta rola junto),
+ * e entra pelo canto de cima, de onde veio o toque.
+ */
+.pp-marcacoes {
   display: grid;
+  gap: 6px;
+}
+
+.pp-marcacoes__toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   gap: 8px;
 }
 
-.pp-letter__via {
+.pp-marcacoes__chevron {
+  flex: none;
+  transition: transform 160ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.pp-marcacoes__toggle[aria-expanded='true'] .pp-marcacoes__chevron {
+  transform: rotate(180deg);
+}
+
+.pp-marcacoes__menu {
   display: flex;
-  flex-wrap: wrap;
-  gap: 4px 12px;
-  margin: 0;
-  padding: 0;
+  flex-direction: column;
+  gap: 2px;
+  padding: 4px;
+  background: var(--lb-color-stone, #131317);
+  border: 1px solid var(--lb-color-line-panel, rgba(255, 255, 255, 0.18));
+  border-radius: 8px;
+  transform-origin: top left;
+  animation: pp-marcacoes-in 140ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+/* Aberto pelo teclado: aparece na hora, como todo atalho. */
+.pp-marcacoes__menu--instant {
+  animation: none;
+}
+
+.pp-marcacoes__item {
+  min-height: var(--lb-control-touch, 44px);
+  padding: 0 12px;
+  font: inherit;
+  text-align: left;
+  color: var(--lb-color-parchment, #eceae4);
+  background: transparent;
   border: 0;
+  border-radius: 6px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform var(--lb-motion-fast, 110ms) var(--lb-motion-ease, ease);
 }
 
-.pp-letter__via legend {
-  width: 100%;
-  margin-bottom: 4px;
-  padding: 0;
+@media (hover: hover) {
+  .pp-marcacoes__item:hover {
+    background: rgba(255, 255, 255, 0.08);
+  }
 }
 
-.pp-letter__text {
-  resize: vertical;
-  min-height: 4.5em;
+.pp-marcacoes__item:focus-visible {
+  background: rgba(255, 255, 255, 0.08);
+  outline: 2px solid var(--lb-color-brass, #e0a44a);
+  outline-offset: -2px;
 }
 
-.pp-letter__actions {
-  display: flex;
-  gap: 8px;
+.pp-marcacoes__item:active {
+  transform: scale(0.97);
+  transition-duration: 0ms;
+}
+
+@keyframes pp-marcacoes-in {
+  from {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes pp-marcacoes-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pp-marcacoes__menu {
+    animation-name: pp-marcacoes-fade;
+  }
+
+  .pp-marcacoes__chevron,
+  .pp-marcacoes__item {
+    transition: none;
+  }
+
+  .pp-marcacoes__item:active {
+    transform: none;
+  }
+}
+
+/* Subtítulo dentro de uma seção do painel (o lugar das notas e das pistas): o nome, em claro. */
+.pp-subheading {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--lb-color-parchment, #eceae4);
+  overflow-wrap: anywhere;
+}
+
+.pp-subheading__here {
+  font-weight: 400;
+  color: var(--lb-color-parchment-dim, #a2a09a);
+}
+
+/* MINHAS PISTAS na aba Lugares: um bloco por lugar, o nome em cima. */
+.pp-place-clues {
+  display: grid;
+  gap: 4px;
 }
 
 /* Foco por teclado visível em tudo que é interativo no painel e na barra (anel de latão do editor). */
@@ -2674,8 +2772,8 @@
   flex-direction: column;
   gap: 2px;
   box-sizing: border-box;
-  width: 148px;
-  max-height: 238px;
+  width: 192px;
+  max-height: 100px;
   padding: 4px;
   font-family: var(--lb-font-sans, system-ui, sans-serif);
   background: var(--lb-color-stone, #131317);
@@ -2708,7 +2806,7 @@
    POINT_MENU_HEIGHT_PX + POINT_MENU_WALK_HEIGHT_PX. O item entra com a própria
    regra (`.pp-point-menu__item`): 44 px, como os de cima. */
 .pp-pointmenu--walk {
-  max-height: 315px;
+  max-height: 177px;
 }
 
 /* Pairar só onde existe ponteiro que paira: no celular o item tocado ficava aceso.
@@ -2896,21 +2994,10 @@
   outline-offset: 2px;
 }
 
-/* ENCONTRO MARCADO no painel: o formulário "Esperar aqui", ou a espera ativa. */
-.pp-wait {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.pp-wait__status {
-  margin: 0;
-  color: var(--lb-color-parchment, #eceae4);
-}
-
 /*
- * CARTÃO DA FICHA ALHEIA: a moldura do cartão do pino, sem imagem. O nome no
- * alto (é quem o jogador tocou) e as ações em duas colunas de pílulas.
+ * CARTÃO DA FICHA ALHEIA: a moldura do cartão do pino. O nome no alto (é quem
+ * o jogador tocou); embaixo, o retrato DELE à esquerda e as três ações em
+ * coluna à direita — quem age e o que faz, lado a lado.
  */
 .pp-tokencard__name {
   margin: 0;
@@ -2920,15 +3007,171 @@
   overflow-wrap: anywhere;
 }
 
+.pp-tokencard__body {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin: 10px 12px 0;
+}
+
+.pp-tokencard__me {
+  display: flex;
+  flex: 0 0 64px;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  margin: 0;
+}
+
+.pp-tokencard__face {
+  display: block;
+  width: 64px;
+  height: 64px;
+  overflow: hidden;
+  border: 1px solid var(--lb-color-line-panel, rgba(255, 255, 255, 0.18));
+  border-radius: 50%;
+}
+
+.pp-tokencard__face img,
+.pp-tokencard__item-face img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.pp-tokencard__face .lb-ficha__iniciais {
+  font-size: 22px;
+}
+
+.pp-tokencard__me-name {
+  max-width: 64px;
+  font-size: 12px;
+  line-height: 1.3;
+  color: var(--lb-color-parchment-dim, #a9a7a0);
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+.pp-tokencard__main {
+  display: grid;
+  flex: 1 1 auto;
+  gap: 8px;
+  min-width: 0;
+}
+
+/* Dentro da coluna das ações, as molduras da pergunta e do aviso já têm a margem do corpo. */
+.pp-tokencard__main .pp-pincard__confirm,
+.pp-tokencard__main .pp-pincard__locked {
+  margin: 0;
+}
+
 .pp-tokencard__actions {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
-  margin: 10px 12px 0;
 }
 
 .pp-tokencard__actions .pp-pincard__travel {
   margin: 0;
+}
+
+.pp-tokencard__items {
+  display: grid;
+  gap: 6px;
+  max-height: 40vh;
+  margin: 0;
+  padding: 0;
+  overflow: auto;
+  list-style: none;
+}
+
+.pp-tokencard__item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: var(--lb-control-touch, 44px);
+  padding: 6px 10px;
+  font: inherit;
+  font-size: 15px;
+  color: var(--lb-color-parchment, #eceae4);
+  text-align: left;
+  background: #0d0d11;
+  border: 1px solid var(--lb-color-line-panel, rgba(255, 255, 255, 0.18));
+  border-radius: 8px;
+  cursor: pointer;
+  transition:
+    transform 160ms ease-out,
+    border-color 160ms ease;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .pp-tokencard__item:hover {
+    border-color: var(--lb-color-brass, #e0a44a);
+  }
+}
+
+.pp-tokencard__item:active {
+  transform: scale(0.97);
+}
+
+.pp-tokencard__item:focus-visible {
+  outline: 2px solid var(--lb-color-brass, #e0a44a);
+  outline-offset: 1px;
+}
+
+.pp-tokencard__item-face {
+  display: block;
+  flex: none;
+  width: 32px;
+  height: 32px;
+  overflow: hidden;
+  border-radius: 6px;
+}
+
+.pp-tokencard__item-face .lb-ficha__iniciais {
+  font-size: 13px;
+}
+
+.pp-tokencard__item-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.pp-tokencard__item-qty {
+  color: var(--lb-color-parchment-dim, #a9a7a0);
+  font-variant-numeric: tabular-nums;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pp-tokencard__item {
+    transition: border-color 160ms ease;
+  }
+
+  .pp-tokencard__item:active {
+    transform: none;
+  }
+}
+
+/* Celular estreito: o retrato encolhe para a coluna das ações não espremer o texto. */
+@media (max-width: 379px) {
+  .pp-tokencard__me {
+    flex-basis: 48px;
+  }
+
+  .pp-tokencard__face {
+    width: 48px;
+    height: 48px;
+  }
+
+  .pp-tokencard__face .lb-ficha__iniciais {
+    font-size: 17px;
+  }
+
+  .pp-tokencard__me-name {
+    max-width: 48px;
+  }
 }
 
 .pp-tokencard__field {
@@ -4224,6 +4467,27 @@ button.pp-colecao__casa:focus-visible {
 .pp-personal-notes__item > .pp-character {
   flex: 1;
   min-width: 0;
+}
+
+/* MINHAS NOTAS no Caderno, por mapa: um bloco por lugar. */
+.pp-personal-notes__groups {
+  display: grid;
+  gap: 10px;
+}
+
+.pp-personal-notes__group {
+  display: grid;
+  gap: 4px;
+}
+
+/* Nota de outro mapa: só leitura (a câmera não vai a outra cena), sem o realce do botão. */
+.pp-personal-notes__away {
+  color: var(--lb-color-parchment-dim, #a2a09a);
+  cursor: default;
+}
+
+.pp-personal-notes__away:hover {
+  background: transparent;
 }
 
 /* O mesmo quadradinho claro da nota no mapa: retângulo pequeno, chapado, como no minimapa. */

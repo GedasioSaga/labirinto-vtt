@@ -1,8 +1,8 @@
 /**
- * AÇÕES NO PONTO no cliente do jogador: o pedido sai com o ponto arredondado,
+ * CHAMAR O MESTRE AQUI no cliente do jogador: o pedido sai com o ponto arredondado,
  * a espera aparece na hora, e a resposta do mestre vira o aviso que o jogador
- * lê, com o nome da ação ("Procurar: você não encontrou nada"). Com vários
- * pedidos esperando ao mesmo tempo, a espera dos que sobram volta à tela.
+ * lê ("Chamado: nada aqui, diz o mestre"). Com vários chamados esperando ao
+ * mesmo tempo, a espera dos que sobram volta à tela.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createEmptyMap } from '../lib/mapFactory'
@@ -65,7 +65,7 @@ function textoDoAviso(connection: ReturnType<typeof conectado>['connection']): s
   return notice === undefined ? null : pointNoticeText(notice)
 }
 
-describe('ações no ponto (jogador)', () => {
+describe('chamar o mestre aqui (jogador)', () => {
   beforeEach(() => {
     vi.useFakeTimers()
   })
@@ -73,132 +73,107 @@ describe('ações no ponto (jogador)', () => {
     vi.useRealTimers()
   })
 
-  it('Procurar envia o pedido com o ponto e mostra a espera', () => {
+  it('"Chamar o mestre aqui" envia o pedido com o ponto e mostra a espera', () => {
     const { connection, socket } = jogando()
-    expect(connection.sendPointAction('procurar', 120.4, 130.6)).toBe(true)
-    expect(socket.sent.at(-1)).toEqual({ type: 'point.action', action: 'procurar', x: 120, y: 131 })
-    expect(textoDoAviso(connection)).toBe('Procurar: esperando o mestre')
+    expect(connection.sendPointAction('chamar', 120.4, 130.6)).toBe(true)
+    expect(socket.sent.at(-1)).toEqual({ type: 'point.action', action: 'chamar', x: 120, y: 131 })
+    expect(textoDoAviso(connection)).toBe('Chamado: esperando o mestre')
   })
 
-  it('"Nada aqui" do mestre: Fabi lê "Procurar: você não encontrou nada", que some sozinho', () => {
+  it('"Nada aqui" do mestre: Fabi lê "Chamado: nada aqui, diz o mestre", que some sozinho', () => {
     const { connection, socket } = jogando()
-    connection.sendPointAction('procurar', 120, 130)
-    socket.receive({ type: 'point.action.answer', action: 'procurar', answer: 'nothing' })
-    expect(textoDoAviso(connection)).toBe('Procurar: você não encontrou nada')
+    connection.sendPointAction('chamar', 120, 130)
+    socket.receive({ type: 'point.action.answer', action: 'chamar', answer: 'nothing' })
+    expect(textoDoAviso(connection)).toBe('Chamado: nada aqui, diz o mestre')
     vi.advanceTimersByTime(POINT_NOTICE_TTL_MS)
     expect(connection.getState().pointNotice).toBeUndefined()
   })
 
-  it('"Feito" do mestre: Fabi lê "Escutar: o mestre viu"', () => {
+  it('"Visto" do mestre: Fabi lê "Chamado: o mestre viu"', () => {
     const { connection, socket } = jogando()
-    connection.sendPointAction('escutar', 120, 130)
-    socket.receive({ type: 'point.action.answer', action: 'escutar', answer: 'seen' })
-    expect(textoDoAviso(connection)).toBe('Escutar: o mestre viu')
+    connection.sendPointAction('chamar', 120, 130)
+    socket.receive({ type: 'point.action.answer', action: 'chamar', answer: 'seen' })
+    expect(textoDoAviso(connection)).toBe('Chamado: o mestre viu')
   })
 
-  // O host aceita até MAX_PENDING_POINT_ACTIONS_PER_PLAYER pedidos esperando:
-  // a resposta de um não pode apagar a espera dos outros, nem ficar sem dono.
-  it('dois pedidos esperando: a resposta nomeia a ação e a espera do outro volta', () => {
+  // O host aceita até MAX_PENDING_POINT_ACTIONS_PER_PLAYER chamados esperando:
+  // a resposta de um não pode apagar a espera dos outros.
+  it('dois chamados esperando: a espera continua até a segunda resposta', () => {
     const { connection, socket } = jogando()
-    connection.sendPointAction('procurar', 120, 130)
+    connection.sendPointAction('chamar', 120, 130)
     vi.advanceTimersByTime(1000)
-    connection.sendPointAction('escutar', 200, 130)
-    expect(textoDoAviso(connection)).toBe('Procurar e Escutar: esperando o mestre')
-    socket.receive({ type: 'point.action.answer', action: 'procurar', answer: 'nothing' })
-    expect(textoDoAviso(connection)).toBe('Procurar: você não encontrou nada')
+    connection.sendPointAction('chamar', 200, 130)
+    expect(textoDoAviso(connection)).toBe('Chamado: esperando o mestre')
+    socket.receive({ type: 'point.action.answer', action: 'chamar', answer: 'nothing' })
+    expect(textoDoAviso(connection)).toBe('Chamado: nada aqui, diz o mestre')
     vi.advanceTimersByTime(POINT_NOTICE_TTL_MS)
-    expect(textoDoAviso(connection)).toBe('Escutar: esperando o mestre')
+    expect(textoDoAviso(connection)).toBe('Chamado: esperando o mestre')
     // A espera que voltou fica até a resposta, sem prazo.
     vi.advanceTimersByTime(POINT_NOTICE_TTL_MS * 3)
-    expect(textoDoAviso(connection)).toBe('Escutar: esperando o mestre')
-    socket.receive({ type: 'point.action.answer', action: 'escutar', answer: 'seen' })
-    expect(textoDoAviso(connection)).toBe('Escutar: o mestre viu')
+    expect(textoDoAviso(connection)).toBe('Chamado: esperando o mestre')
+    socket.receive({ type: 'point.action.answer', action: 'chamar', answer: 'seen' })
+    expect(textoDoAviso(connection)).toBe('Chamado: o mestre viu')
     vi.advanceTimersByTime(POINT_NOTICE_TTL_MS)
     expect(connection.getState().pointNotice).toBeUndefined()
   })
 
-  it('três esperando, respondidos fora de ordem: cada resposta tira só o seu', () => {
-    const { connection, socket } = jogando()
-    connection.sendPointAction('procurar', 120, 130)
-    connection.sendPointAction('escutar', 200, 130)
-    connection.sendPointAction('espiar', 300, 130)
-    expect(textoDoAviso(connection)).toBe('Procurar, Escutar e Espiar: esperando o mestre')
-    socket.receive({ type: 'point.action.answer', action: 'escutar', answer: 'seen' })
-    expect(textoDoAviso(connection)).toBe('Escutar: o mestre viu')
-    vi.advanceTimersByTime(POINT_NOTICE_TTL_MS)
-    expect(textoDoAviso(connection)).toBe('Procurar e Espiar: esperando o mestre')
-  })
-
-  it('o mesmo pedido duas vezes: a espera continua até a segunda resposta', () => {
-    const { connection, socket } = jogando()
-    connection.sendPointAction('procurar', 120, 130)
-    connection.sendPointAction('procurar', 200, 130)
-    expect(textoDoAviso(connection)).toBe('Procurar: esperando o mestre')
-    socket.receive({ type: 'point.action.answer', action: 'procurar', answer: 'nothing' })
-    vi.advanceTimersByTime(POINT_NOTICE_TTL_MS)
-    expect(textoDoAviso(connection)).toBe('Procurar: esperando o mestre')
-    socket.receive({ type: 'point.action.answer', action: 'procurar', answer: 'seen' })
-    vi.advanceTimersByTime(POINT_NOTICE_TTL_MS)
-    expect(connection.getState().pointNotice).toBeUndefined()
-  })
-
-  // O host recusa na hora, na ordem em que recebe: a recusa é do pedido mais
+  // O host recusa na hora, na ordem em que recebe: a recusa é do chamado mais
   // novo, e o que já estava esperando continua esperando.
-  it('recusa do segundo pedido não apaga a espera do primeiro', () => {
+  it('recusa do segundo chamado não apaga a espera do primeiro', () => {
     const { connection, socket } = jogando()
-    connection.sendPointAction('procurar', 120, 130)
-    connection.sendPointAction('escutar', 200, 130)
+    connection.sendPointAction('chamar', 120, 130)
+    connection.sendPointAction('chamar', 200, 130)
     socket.receive({ type: 'point.action.rejected', reason: 'too_soon' })
     expect(textoDoAviso(connection)).toBe('Espere um instante para pedir de novo')
     vi.advanceTimersByTime(POINT_NOTICE_TTL_MS)
-    expect(textoDoAviso(connection)).toBe('Procurar: esperando o mestre')
+    expect(textoDoAviso(connection)).toBe('Chamado: esperando o mestre')
   })
 
-  it('voltar ao lobby esquece os pedidos: resposta tardia não traz espera velha', () => {
+  it('voltar ao lobby esquece os chamados: resposta tardia não traz espera velha', () => {
     const { connection, socket } = jogando()
-    connection.sendPointAction('procurar', 120, 130)
-    connection.sendPointAction('escutar', 200, 130)
+    connection.sendPointAction('chamar', 120, 130)
+    connection.sendPointAction('chamar', 200, 130)
     socket.receive({ type: 'lobby.waiting' })
     expect(connection.getState().pointNotice).toBeUndefined()
     socket.receive({ type: 'snapshot', rev: 2, map: createEmptyMap('m1', '', 10, 10, 50), vision: [], ownTokens: [], concealed: [] })
-    socket.receive({ type: 'point.action.answer', action: 'procurar', answer: 'nothing' })
-    expect(textoDoAviso(connection)).toBe('Procurar: você não encontrou nada')
+    socket.receive({ type: 'point.action.answer', action: 'chamar', answer: 'nothing' })
+    expect(textoDoAviso(connection)).toBe('Chamado: nada aqui, diz o mestre')
     vi.advanceTimersByTime(POINT_NOTICE_TTL_MS)
     expect(connection.getState().pointNotice).toBeUndefined()
   })
 
-  it('recusa do host vira aviso de espera, sem mentir que o pedido foi', () => {
+  it('recusa do host vira aviso de espera, sem mentir que o chamado foi', () => {
     const { connection, socket } = jogando()
-    connection.sendPointAction('espiar', 120, 130)
+    connection.sendPointAction('chamar', 120, 130)
     socket.receive({ type: 'point.action.rejected', reason: 'too_soon' })
     expect(textoDoAviso(connection)).toBe('Espere um instante para pedir de novo')
     socket.receive({ type: 'point.action.rejected', reason: 'pending' })
     expect(textoDoAviso(connection)).toBe('Espere o mestre responder seus pedidos')
   })
 
-  it('resposta malformada é ignorada e não apaga a espera', () => {
+  it('resposta malformada, ou de uma ação que não existe mais (Revistar), é ignorada e não apaga a espera', () => {
     const { connection, socket } = jogando()
-    connection.sendPointAction('revistar', 120, 130)
-    socket.receive({ type: 'point.action.answer', action: 'roubar', answer: 'nothing' })
-    socket.receive({ type: 'point.action.answer', action: 'revistar', answer: 'talvez' })
+    connection.sendPointAction('chamar', 120, 130)
+    socket.receive({ type: 'point.action.answer', action: 'revistar', answer: 'nothing' })
+    socket.receive({ type: 'point.action.answer', action: 'chamar', answer: 'talvez' })
     socket.receive({ type: 'point.action.rejected', reason: 'outro' })
-    expect(textoDoAviso(connection)).toBe('Revistar: esperando o mestre')
+    expect(textoDoAviso(connection)).toBe('Chamado: esperando o mestre')
   })
 
   it('ponto fora do mapa não sai e não deixa "esperando o mestre" na tela', () => {
     // O mapa de `jogando()` tem 10 x 10 casas de 50 px: 0..500 nos dois eixos.
     const { connection, socket } = jogando()
-    expect(connection.sendPointAction('procurar', -10, 100)).toBe(false)
-    expect(connection.sendPointAction('procurar', 100, 520)).toBe(false)
+    expect(connection.sendPointAction('chamar', -10, 100)).toBe(false)
+    expect(connection.sendPointAction('chamar', 100, 520)).toBe(false)
     expect(socket.sent.some((m) => JSON.stringify(m).includes('point.action'))).toBe(false)
     expect(connection.getState().pointNotice).toBeUndefined()
     // A borda ainda é do mapa.
-    expect(connection.sendPointAction('procurar', 500, 0)).toBe(true)
+    expect(connection.sendPointAction('chamar', 500, 0)).toBe(true)
   })
 
   it('recusa "fora do mapa" do host troca a espera por um aviso que some sozinho', () => {
     const { connection, socket } = jogando()
-    connection.sendPointAction('procurar', 120, 130)
+    connection.sendPointAction('chamar', 120, 130)
     socket.receive({ type: 'point.action.rejected', reason: 'out_of_map' })
     expect(textoDoAviso(connection)).toBe('Esse ponto fica fora do mapa')
     vi.advanceTimersByTime(POINT_NOTICE_TTL_MS)
@@ -208,9 +183,9 @@ describe('ações no ponto (jogador)', () => {
   it('fora do jogo não envia, e ponto não finito não sai', () => {
     const { connection, socket } = conectado()
     socket.receive({ type: 'lobby.waiting' })
-    expect(connection.sendPointAction('procurar', 1, 1)).toBe(false)
+    expect(connection.sendPointAction('chamar', 1, 1)).toBe(false)
     const mesa = jogando()
-    expect(mesa.connection.sendPointAction('procurar', Number.NaN, 1)).toBe(false)
+    expect(mesa.connection.sendPointAction('chamar', Number.NaN, 1)).toBe(false)
     expect(mesa.socket.sent.some((m) => JSON.stringify(m).includes('point.action'))).toBe(false)
   })
 })

@@ -359,10 +359,10 @@ describe('hostSession — pisos na mesma cena', () => {
     t.s.assignToken(t.entra('c1', 'Ana', map), 'lia')
     t.s.assignToken(t.entra('c2', 'Bia', map), 'caio')
     t.s.broadcast(map)
-    const laEmCima = t.s.handleMessage('c2', { type: 'point.action', action: 'procurar', x: 300, y: 300 }, map)
+    const laEmCima = t.s.handleMessage('c2', { type: 'point.action', action: 'chamar', x: 300, y: 300 }, map)
     expect(laEmCima.pointAction?.roomName).toBe('Biblioteca proibida')
     // Pré-condição: no térreo, o mesmo ponto é a Adega (a menor sala ali).
-    const embaixo = t.s.handleMessage('c1', { type: 'point.action', action: 'procurar', x: 300, y: 300 }, map)
+    const embaixo = t.s.handleMessage('c1', { type: 'point.action', action: 'chamar', x: 300, y: 300 }, map)
     expect(embaixo.pointAction?.roomName).toBe('Adega')
   })
 })

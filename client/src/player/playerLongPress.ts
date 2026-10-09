@@ -2,8 +2,8 @@
  * O que o TOQUE LONGO no mapa dispara quando o prazo vence, fora do Pixi para
  * ter teste. Com as ações no ponto montadas (`onLongPress`), o gesto é delas:
  * quem monta decide o que sai (o sinal só para o mestre e o menu
- * Sinalizar/Procurar/…), e o sinal para os colegas passa a ser escolha do
- * menu — senão Espiar e Revistar piscariam o ponto para todos. Sem menu, o
+ * Sinalizar/Andar/Chamar o mestre), e o sinal para os colegas passa a ser escolha do
+ * menu — senão o chamado ao mestre piscaria o ponto para todos. Sem menu, o
  * gesto continua sendo o sinal de sempre. As duas chaves são obrigatórias (o
  * valor pode faltar): quem monta o PlayerView não esquece de repassar uma
  * delas sem o compilador reclamar.

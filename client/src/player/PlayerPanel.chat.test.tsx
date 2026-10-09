@@ -55,9 +55,6 @@ describe('PlayerPanel: aba Chat', () => {
           onToggleLaser={() => {}}
           onRenameToken={() => {}}
           onChangeTokenPhoto={async () => {}}
-          notebook={[]}
-          notebookUnread={false}
-          onReadNotebook={() => {}}
           chat={chatProp}
         />,
       ),

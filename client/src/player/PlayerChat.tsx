@@ -3,6 +3,7 @@ import type { ChangeEvent, FormEvent, KeyboardEvent as ReactKeyboardEvent, Synth
 import { CHAT_CHANNELS, CHAT_MASTER_MENTION, CHAT_TEXT_MAX_LENGTH, chatSpeakerLabel, cleanChatText, findMentions, type ChatChannel } from '../lib/chat'
 import type { ChatEntry, PartyMember } from '../net/protocol'
 import { formatNoteTime } from './PlayerNotebook'
+import { ImagemOuIniciais } from '../components/FichaPecas'
 import type { ChatLog, ChatSend, ChatUnread } from './playerConnection'
 import './PlayerChat.css'
 
@@ -23,6 +24,11 @@ export interface PlayerChatProps {
   selfName?: string
   /** Os companheiros: quem está "aqui" é sugerido na cena; todos, no Global. */
   party?: readonly PartyMember[]
+  /**
+   * A foto da ficha de quem falou, pelo nome na sala (`chatFacesByName`): só a
+   * que esta tela já tem. Sem ela, a linha mostra as iniciais.
+   */
+  faces?: ReadonlyMap<string, string>
   /** A aba está à vista: só então as marcas do canal aberto contam como lidas. */
   visible: boolean
   /** Manda a mensagem; `false` = não saiu (sem conexão com o mestre). */
@@ -114,7 +120,7 @@ function counterText(left: number): string | null {
   return `Passou ${-left} ${left === -1 ? 'caractere' : 'caracteres'} do limite`
 }
 
-export function PlayerChat({ log, unread, status, selfName, party, visible, onSend, onRead }: PlayerChatProps) {
+export function PlayerChat({ log, unread, status, selfName, party, faces = NO_FACES, visible, onSend, onRead }: PlayerChatProps) {
   const [channel, setChannel] = useState<ChatChannel>('cena')
   const [draft, setDraft] = useState('')
   const [caret, setCaret] = useState(0)
@@ -305,7 +311,12 @@ export function PlayerChat({ log, unread, status, selfName, party, visible, onSe
         ) : (
           <ul className="pc-list">
             {messages.map((entry) => (
-              <ChatLine key={entry.id} entry={entry} mine={selfName !== undefined && entry.mentions.includes(selfName)} />
+              <ChatLine
+                key={entry.id}
+                entry={entry}
+                mine={selfName !== undefined && entry.mentions.includes(selfName)}
+                face={entry.fromMaster === true ? null : (faces.get(entry.from) ?? null)}
+              />
             ))}
           </ul>
         )}
@@ -382,18 +393,26 @@ export function PlayerChat({ log, unread, status, selfName, party, visible, onSe
   )
 }
 
+/** Sem fotos (teste, tela antiga): o mesmo mapa vazio a cada render. */
+const NO_FACES: ReadonlyMap<string, string> = new Map()
+
 /**
- * Uma fala: quem (o jogador chamado "Mestre" com " (jogador)"), a hora e o
- * texto, este só como texto do React. A que me menciona se destaca; a do
- * mestre (marca do host, nunca o nome) também, com cor própria.
+ * Uma fala: a miniatura de quem falou (a foto da ficha, ou as iniciais), quem
+ * (o jogador chamado "Mestre" com " (jogador)"), a hora e o texto, este só
+ * como texto do React. A que me menciona se destaca; a do mestre (marca do
+ * host, nunca o nome) também, com cor própria.
  */
-function ChatLine({ entry, mine }: { entry: ChatEntry; mine: boolean }) {
+function ChatLine({ entry, mine, face }: { entry: ChatEntry; mine: boolean; face: string | null }) {
   const master = entry.fromMaster === true
   const className = ['pc-msg', master ? 'pc-msg--master' : '', mine ? 'pc-msg--me' : ''].filter((name) => name !== '').join(' ')
+  const speaker = chatSpeakerLabel(entry.from, master)
   return (
     <li className={className}>
       <p className="pc-msg__meta">
-        <span className="pc-msg__from">{chatSpeakerLabel(entry.from, master)}</span>
+        <span className="pc-msg__face" aria-hidden="true">
+          <ImagemOuIniciais imagem={face} nome={speaker} />
+        </span>
+        <span className="pc-msg__from">{speaker}</span>
         <time className="pc-msg__time">{formatNoteTime(entry.at)}</time>
         {mine && (
           <span className="pc-msg__tag">

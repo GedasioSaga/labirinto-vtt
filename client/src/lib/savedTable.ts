@@ -11,6 +11,7 @@
 
 import type { ExploredWire } from './exploration'
 import type { DoorKind } from '../types/map'
+import { readPersonalNoteList, type PersonalNote } from './minhasNotas'
 
 export const SAVED_TABLE_VERSION = 1
 
@@ -239,6 +240,68 @@ export function storeSavedExploration(storage: TableStorage | null, tableId: str
     } catch {
       // Cheio ou bloqueado: a próxima tentativa é menor.
     }
+  }
+}
+
+/*
+ * MINHAS NOTAS DA MESA: por nome de jogador, as anotações pessoais dele
+ * (`lib/minhasNotas.ts`), de todos os mapas. Dado do MESTRE no disco, como o
+ * explorado — mas só volta pela rede ao próprio jogador (`mynotes.book`), e o
+ * mestre nunca as vê na tela. Chave separada: anotar uma nota não regrava a
+ * mesa nem o explorado, e o explorado cheio não leva as notas junto.
+ */
+
+export const SAVED_MY_NOTES_VERSION = 1
+
+export interface SavedSeatNotes {
+  name: string
+  notes: PersonalNote[]
+}
+
+export interface SavedMyNotes {
+  version: typeof SAVED_MY_NOTES_VERSION
+  seats: SavedSeatNotes[]
+}
+
+export function savedMyNotesKey(tableId: string): string {
+  return `lb-mesa-notas:${tableId}`
+}
+
+function parseSeatNotes(value: unknown): SavedSeatNotes | null {
+  if (!isRecord(value)) return null
+  const { name, notes } = value
+  if (typeof name !== 'string' || name.trim() === '') return null
+  const read = readPersonalNoteList(notes)
+  return read.length === 0 ? null : { name, notes: read }
+}
+
+/** Notas válidas de ao menos um jogador, ou `null`. Nota torta cai sozinha; nada lança. */
+export function parseSavedMyNotes(raw: unknown): SavedMyNotes | null {
+  if (!isRecord(raw) || raw.version !== SAVED_MY_NOTES_VERSION || !Array.isArray(raw.seats)) return null
+  const seats = raw.seats
+    .slice(0, MAX_SEATS)
+    .map(parseSeatNotes)
+    .filter((seat): seat is SavedSeatNotes => seat !== null)
+  return seats.length === 0 ? null : { version: SAVED_MY_NOTES_VERSION, seats }
+}
+
+export function loadSavedMyNotes(storage: TableStorage | null, tableId: string): SavedMyNotes | null {
+  if (storage === null) return null
+  try {
+    const text = storage.getItem(savedMyNotesKey(tableId))
+    return text === null ? null : parseSavedMyNotes(JSON.parse(text))
+  } catch {
+    return null
+  }
+}
+
+/** Storage cheio ou bloqueado: desta vez as notas não ficam no disco, e a sala segue (a sessão ainda as tem). */
+export function storeSavedMyNotes(storage: TableStorage | null, tableId: string, notes: SavedMyNotes): void {
+  if (storage === null) return
+  try {
+    storage.setItem(savedMyNotesKey(tableId), JSON.stringify(notes))
+  } catch {
+    // Cheio ou bloqueado: fica o que já estava gravado.
   }
 }
 

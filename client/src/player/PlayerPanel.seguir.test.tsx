@@ -115,9 +115,6 @@ describe('PlayerPanel: o interruptor "Câmera segue minha ficha"', () => {
           onToggleLaser={() => {}}
           onRenameToken={() => {}}
           onChangeTokenPhoto={async () => {}}
-          notebook={[]}
-          notebookUnread={false}
-          onReadNotebook={() => {}}
         />,
       ),
     )

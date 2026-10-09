@@ -1,5 +1,5 @@
 /**
- * MINHAS PISTAS na tela do jogador: a lista no Caderno (a mais nova em cima,
+ * MINHAS PISTAS na tela do jogador: a lista na aba Lugares (a mais nova em cima,
  * pelo título) e o cartão da pista — foto em cima, texto embaixo, "Mostrar
  * para…" com os colegas da mesma cena. O cartão que um colega mostra diz de
  * quem veio ("Gabi mostrou: Bilhete") e não oferece mostrar de novo.
@@ -160,7 +160,7 @@ describe('PlayerClueCard', () => {
     expect(onClose).toHaveBeenCalledTimes(2)
   })
 
-  it('aberto do Caderno: o foco entra no cartão e volta a quem abriu ao fechar', () => {
+  it('aberto da aba Lugares: o foco entra no cartão e volta a quem abriu ao fechar', () => {
     const abridor = document.createElement('button')
     document.body.appendChild(abridor)
     abridor.focus()
@@ -172,8 +172,8 @@ describe('PlayerClueCard', () => {
   })
 })
 
-describe('PlayerPanel: pistas no Caderno', () => {
-  it('aba Caderno mostra "Minhas pistas" e tocar numa pista pede para abri-la', () => {
+describe('PlayerPanel: pistas na aba Lugares', () => {
+  it('aba Lugares mostra "Minhas pistas" e tocar numa pista pede para abri-la', () => {
     vi.stubGlobal('matchMedia', (query: string) => ({ matches: false, media: query, addEventListener: () => {}, removeEventListener: () => {} }))
     const onOpenClue = vi.fn()
     act(() =>
@@ -192,15 +192,12 @@ describe('PlayerPanel: pistas no Caderno', () => {
           onToggleLaser={() => {}}
           onRenameToken={() => {}}
           onChangeTokenPhoto={async () => {}}
-          notebook={[]}
-          notebookUnread={false}
-          onReadNotebook={() => {}}
           clues={[BILHETE]}
           onOpenClue={onOpenClue}
         />,
       ),
     )
-    const caderno = Array.from(container.querySelectorAll<HTMLButtonElement>('[role="tab"]')).find((b) => /Caderno/.test(b.textContent ?? ''))
+    const caderno = Array.from(container.querySelectorAll<HTMLButtonElement>('[role="tab"]')).find((b) => /Lugares/.test(b.textContent ?? ''))
     act(() => caderno?.click())
     const painel = container.querySelector('[role="tabpanel"]:not([hidden])')
     expect(painel?.textContent).toContain('Minhas pistas')

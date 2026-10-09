@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { Token, Wall } from '../types/map'
-import { findOtherTokenAt, findTappedOtherToken, tokenActionNoticeText, tokenCardName } from './tokenCard'
+import { createEmptyMap } from '../lib/mapFactory'
+import { actedOnTitle, findOtherTokenAt, findTappedOtherToken, giveChoiceFor, tokenActionNoticeText, tokenCardName } from './tokenCard'
 
 function ficha(id: string, x: number, y: number, extra: Partial<Token> = {}): Token {
   return { id, characterId: null, name: `nome-${id}`, x, y, size: 1, image: null, ...extra }
@@ -75,11 +76,38 @@ describe('texto do cartão e do aviso', () => {
   })
 
   it('cada fase do pedido diz o que aconteceu, com a ação e a ficha', () => {
-    expect(tokenActionNoticeText({ id: 1, phase: 'waiting', action: 'empurrar', targetName: 'Severa' })).toBe('Pedido ao mestre: Empurrar Severa. Aguardando…')
+    expect(tokenActionNoticeText({ id: 1, phase: 'waiting', action: 'acao', targetName: 'Severa' })).toBe('Pedido ao mestre: Ação com Severa. Aguardando…')
     expect(tokenActionNoticeText({ id: 1, phase: 'accepted', action: 'falar', targetName: 'Severa' })).toBe('O mestre aceitou: Falar com Severa')
-    expect(tokenActionNoticeText({ id: 1, phase: 'refused', action: 'oferecer', targetName: 'Severa' })).toBe('O mestre recusou: Oferecer a Severa')
-    expect(tokenActionNoticeText({ id: 1, phase: 'rejected', reason: 'unavailable', action: 'empurrar', targetName: 'Severa' })).toBe('Não dá para fazer isso agora.')
-    expect(tokenActionNoticeText({ id: 1, phase: 'rejected', reason: 'pending', action: 'empurrar', targetName: 'Severa' })).toBe('Você já tem um pedido esperando o mestre.')
-    expect(tokenActionNoticeText({ id: 1, phase: 'rejected', reason: 'too_soon', action: 'empurrar', targetName: 'Severa' })).toBe('Espere um instante antes de pedir de novo.')
+    expect(tokenActionNoticeText({ id: 1, phase: 'refused', action: 'acao', targetName: 'Severa' })).toBe('O mestre recusou: Ação com Severa')
+    expect(tokenActionNoticeText({ id: 1, phase: 'rejected', reason: 'unavailable', action: 'acao', targetName: 'Severa' })).toBe('Não dá para fazer isso agora.')
+    expect(tokenActionNoticeText({ id: 1, phase: 'rejected', reason: 'pending', action: 'acao', targetName: 'Severa' })).toBe('Você já tem um pedido esperando o mestre.')
+    expect(tokenActionNoticeText({ id: 1, phase: 'rejected', reason: 'too_soon', action: 'falar', targetName: 'Severa' })).toBe('Espere um instante antes de pedir de novo.')
+  })
+
+  it('o aviso de quem sofreu a ação diz quem fez e com qual ficha dele', () => {
+    expect(actedOnTitle({ from: 'Bruno', action: 'acao', tokenName: 'May' })).toBe('Bruno agiu com May')
+    expect(actedOnTitle({ from: 'Bruno', action: 'falar', tokenName: 'May' })).toBe('Bruno falou com May')
+  })
+})
+
+describe('giveChoiceFor ("Entregar item" no cartão, a mesma régua do item.give no host)', () => {
+  const GRID = 50
+  const mapa = (tokens: Token[]) => ({ ...createEmptyMap('m', '', 10, 10, GRID), tokens })
+  const POCAO = { id: 'pocao', nome: 'Poção' }
+
+  it('NPC (ficha que não é de colega) não recebe: o mestre é quem mexe na mochila dele', () => {
+    const tokens = [ficha('eu', 100, 100, { mochila: [POCAO] }), ficha('npc', 150, 100)]
+    expect(giveChoiceFor(mapa(tokens), ['eu'], [], 'npc')).toEqual({ kind: 'npc' })
+    expect(giveChoiceFor(mapa(tokens), ['eu'], [], 'sumiu')).toEqual({ kind: 'npc' })
+  })
+
+  it('colega longe: "chegue perto"; encostado sem item: mochila vazia; encostado com item: os itens da ficha encostada', () => {
+    const longe = [ficha('eu', 100, 100, { mochila: [POCAO] }), ficha('bia', 400, 400)]
+    expect(giveChoiceFor(mapa(longe), ['eu'], ['bia'], 'bia')).toEqual({ kind: 'far' })
+    const vazia = [ficha('eu', 100, 100), ficha('bia', 150, 100)]
+    expect(giveChoiceFor(mapa(vazia), ['eu'], ['bia'], 'bia')).toEqual({ kind: 'empty' })
+    // A ficha dele LONGE da Bia não entra: o host recusaria o item dela com "far".
+    const duas = [ficha('eu', 100, 100, { mochila: [POCAO] }), ficha('eu2', 450, 450, { mochila: [{ id: 'faca', nome: 'Faca' }] }), ficha('bia', 150, 100)]
+    expect(giveChoiceFor(mapa(duas), ['eu', 'eu2'], ['bia'], 'bia')).toEqual({ kind: 'ready', items: [POCAO] })
   })
 })

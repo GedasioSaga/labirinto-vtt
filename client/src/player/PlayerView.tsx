@@ -194,7 +194,7 @@ interface PlayerViewProps {
   /**
    * AÇÕES NO PONTO: o toque longo venceu em (`x`, `y`) de mundo, com o dedo em
    * (`screenX`, `screenY`) de tela (px da janela). Quem monta abre ali o menu
-   * Sinalizar/Procurar/Escutar/Espiar/Revistar (e "Andar até aqui") e decide
+   * Sinalizar, "Andar até aqui" e "Chamar o mestre aqui" e decide
    * o sinal: com isto, o toque longo NÃO chama `onSignal`; sem isto, chama (o
    * sinal de sempre). Um gesto, um menu.
    */

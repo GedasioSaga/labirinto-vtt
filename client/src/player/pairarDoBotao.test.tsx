@@ -294,8 +294,7 @@ describe('o pairar dos botões do jogador (.pp-button no player.css)', () => {
   })
 
   it('o interruptor ligado ("Bilhete") em hover clareia o latão cheio e mantém o texto em pedra escura; o desligado ("Seta de giz") acende como o botão comum', () => {
-    act(() => root.render(<PlayerMarkForm result={undefined} onPlace={() => {}} onClose={() => {}} />))
-    act(() => botao('Deixar marca aqui…').click())
+    act(() => root.render(<PlayerMarkForm result={undefined} onPlace={() => {}} onClose={() => {}} onDismiss={() => {}} />))
     const ligado = botao('Bilhete')
     const desligado = botao('Seta de giz')
     expect(ligado.getAttribute('aria-pressed')).toBe('true')

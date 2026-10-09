@@ -7,9 +7,11 @@ import type { HostWorld } from './hostSession'
 import { createHostBridge } from './hostBridge'
 
 /**
- * AGIR SOBRE UMA FICHA do lado do mestre: o pedido vira um aviso na Caixa de
- * Pedidos (grupo "Pedidos") com Aceitar e Recusar; a resposta vai só a quem
- * pediu. O × vale "Recusar": a pergunta nunca some sem resposta.
+ * AGIR SOBRE UMA FICHA do lado do mestre: o pedido ("Falar" ou "Ação") vira
+ * um aviso na Caixa de Pedidos (grupo "Pedidos") com Deixar e Não, como os
+ * outros pedidos; a resposta vai só a quem pediu. O × vale "Não": a pergunta
+ * nunca some sem resposta. Ficha de colega: no "Deixar", o dono dela recebe
+ * o aviso do que aconteceu; no "Não", nada.
  */
 
 const ROOM = { code: 'AB12CD', urls: ['http://192.168.0.2:7777'], qrSvg: '<svg/>' }
@@ -76,16 +78,16 @@ describe('hostBridge: pedido de ação sobre ficha', () => {
     useToastStore.setState({ toasts: [] })
   })
 
-  it('vira aviso na Caixa de Pedidos, e "Aceitar" responde só a quem pediu', async () => {
+  it('vira aviso na Caixa de Pedidos, e "Deixar" responde só a quem pediu (NPC não tem dono a avisar)', async () => {
     const { emit, sent } = await mesa()
     emit('net:message', { clientId: 'c1', msg: { type: 'token.action', reqId: 'a1', tokenId: 'severa', action: 'falar', text: 'Você viu o Lemos?' } })
     const [aviso] = pedidos()
     if (aviso === undefined) throw new Error('esperava o pedido na caixa')
     expect(aviso.text).toBe('Ana → Severa: Falar (a 2 casas) — "Você viu o Lemos?"')
-    expect(aviso.actions?.map((a) => a.label)).toEqual(['Aceitar', 'Recusar'])
+    expect(aviso.actions?.map((a) => a.label)).toEqual(['Deixar', 'Não'])
 
     const antes = sent().length
-    aviso.actions?.find((a) => a.label === 'Aceitar')?.run()
+    aviso.actions?.find((a) => a.label === 'Deixar')?.run()
     const depois = sent().slice(antes)
     expect(depois).toEqual([{ clientId: 'c1', msg: { type: 'token.action.answer', reqId: 'a1', accepted: true } }])
     expect(pedidos()).toEqual([])
@@ -100,16 +102,16 @@ describe('hostBridge: pedido de ação sobre ficha', () => {
 
     const antes = sent().length
     // A tela passa a `run` o que o mestre escreveu no campo do aviso (components/Toast.tsx).
-    aviso.actions?.find((a) => a.label === 'Aceitar')?.run('Ela aponta a torre: "Subiu ontem."')
+    aviso.actions?.find((a) => a.label === 'Deixar')?.run('Ela aponta a torre: "Subiu ontem."')
     expect(sent().slice(antes)).toEqual([{ clientId: 'c1', msg: { type: 'token.action.answer', reqId: 'a1', accepted: true, reply: 'Ela aponta a torre: "Subiu ontem."' } }])
   })
 
-  it('o × do aviso vale "Recusar"', async () => {
+  it('o × do aviso vale "Não"', async () => {
     const { emit, sent } = await mesa()
-    emit('net:message', { clientId: 'c2', msg: { type: 'token.action', reqId: 'b1', tokenId: 'severa', action: 'empurrar' } })
+    emit('net:message', { clientId: 'c2', msg: { type: 'token.action', reqId: 'b1', tokenId: 'severa', action: 'acao', text: 'empurra a Severa' } })
     const [aviso] = pedidos()
     if (aviso === undefined) throw new Error('esperava o pedido na caixa')
-    expect(aviso.text).toBe('Bruno → Severa: Empurrar (a 2 casas)')
+    expect(aviso.text).toBe('Bruno → Severa: Ação (a 2 casas) — "empurra a Severa"')
     const antes = sent().length
     // O × da tela roda o `onDismiss` do aviso (components/Toasts).
     aviso.onDismiss?.()
@@ -119,9 +121,35 @@ describe('hostBridge: pedido de ação sobre ficha', () => {
 
   it('quem pediu e caiu: o aviso sai da caixa sozinho', async () => {
     const { emit } = await mesa()
-    emit('net:message', { clientId: 'c1', msg: { type: 'token.action', reqId: 'a1', tokenId: 'severa', action: 'pedir' } })
+    emit('net:message', { clientId: 'c1', msg: { type: 'token.action', reqId: 'a1', tokenId: 'severa', action: 'falar', text: 'me ajuda?' } })
     expect(pedidos()).toHaveLength(1)
     emit('net:peer', { clientId: 'c1', event: 'disconnected' })
     expect(pedidos()).toEqual([])
+  })
+
+  it('Ação sobre a ficha de um COLEGA: "Deixar" responde a Ana e avisa o Bruno do que ela fez; nada vai à outra ficha nem ao mestre de volta', async () => {
+    const { emit, sent } = await mesa()
+    emit('net:message', { clientId: 'c1', msg: { type: 'token.action', reqId: 'a1', tokenId: 'ficha-bruno', action: 'acao', text: 'dá um abraço' } })
+    const [aviso] = pedidos()
+    if (aviso === undefined) throw new Error('esperava o pedido na caixa')
+    expect(aviso.text).toBe('Ana → Bruno: Ação (a 4 casas) — "dá um abraço"')
+    // Antes do "Deixar", o Bruno não sabe de nada: o pedido é do mestre.
+    expect(sent().some((m) => JSON.stringify(m).includes('dá um abraço'))).toBe(false)
+    const antes = sent().length
+    aviso.actions?.find((a) => a.label === 'Deixar')?.run('Ele retribui.')
+    expect(sent().slice(antes)).toEqual([
+      { clientId: 'c1', msg: { type: 'token.action.answer', reqId: 'a1', accepted: true, reply: 'Ele retribui.' } },
+      { clientId: 'c2', msg: { type: 'token.action.notice', from: 'Ana', action: 'acao', tokenId: 'ficha-bruno', text: 'dá um abraço' } },
+    ])
+  })
+
+  it('Ação sobre a ficha de um colega com "Não": só Ana sabe da recusa, o Bruno não recebe nada', async () => {
+    const { emit, sent } = await mesa()
+    emit('net:message', { clientId: 'c1', msg: { type: 'token.action', reqId: 'a1', tokenId: 'ficha-bruno', action: 'acao', text: 'rouba a bolsa' } })
+    const [aviso] = pedidos()
+    if (aviso === undefined) throw new Error('esperava o pedido na caixa')
+    const antes = sent().length
+    aviso.actions?.find((a) => a.label === 'Não')?.run()
+    expect(sent().slice(antes)).toEqual([{ clientId: 'c1', msg: { type: 'token.action.answer', reqId: 'a1', accepted: false } }])
   })
 })

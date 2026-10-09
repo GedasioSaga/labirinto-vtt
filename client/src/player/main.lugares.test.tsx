@@ -14,7 +14,7 @@ import { act } from 'react'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { createEmptyMap } from '../lib/mapFactory'
 import type { MapData, Pin } from '../types/map'
-import { PERSONAL_NOTES_KEY, type PersonalNote } from './personalNotes'
+import type { PersonalNote } from './personalNotes'
 
 type PlayerViewProps = Parameters<(typeof import('./PlayerView'))['PlayerView']>[0]
 
@@ -107,7 +107,6 @@ beforeAll(async () => {
   raiz.id = 'root'
   document.body.appendChild(raiz)
   localStorage.setItem('labirinto.ultima-entrada', JSON.stringify({ code: CODE, name: 'Eva' }))
-  localStorage.setItem(PERSONAL_NOTES_KEY, JSON.stringify([NOTA]))
   sessionStorage.setItem('labirinto.resume', JSON.stringify({ code: CODE, token: 'tok' }))
   await act(async () => {
     await import('./boot')
@@ -115,6 +114,8 @@ beforeAll(async () => {
   act(() => mestre().abre())
   act(() => {
     mestre().manda({ type: 'welcome', playerId: 'p1', resumeToken: 'tok', name: 'Eva' })
+    // MINHAS NOTAS: o host devolve a lista guardada dela logo depois do welcome.
+    mestre().manda({ type: 'mynotes.book', notes: [NOTA] })
     mestre().manda({ type: 'snapshot', rev: 1, map: MAPA, vision: [], ownTokens: ['eva'], concealed: [] })
   })
 })

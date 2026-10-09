@@ -74,7 +74,8 @@ import { acceptsLockedExitRequest, arrivalSpot, arrivalSpotWithoutPin, exitLabel
 import { disembarkSpot, gatherSpots, pinClearance, type KeepClear, type SeatHold } from '../lib/gatherParty'
 import { boardVehicle, driveTarget, driverOf, passengerIdsOf, ridesWithoutDriving, vehicleCarrying, vehicleDrivenBy, withRiders } from '../lib/vehicle'
 import { visibleTokens } from '../lib/layers'
-import type { SavedSceneMemory, SavedSeat, SavedSeatExploration } from '../lib/savedTable'
+import type { SavedSceneMemory, SavedSeat, SavedSeatExploration, SavedSeatNotes } from '../lib/savedTable'
+import { MY_NOTES_MAX, MY_NOTES_MIN_INTERVAL_MS, type PersonalNote } from '../lib/minhasNotas'
 import { companionSpots, companionsNear, entourageNear, entourageSeats, type Companion, type Seat } from '../lib/travelTogether'
 import { pinTravelChosenReach, pinTravelChosenWithin, pinTravelGroupOf } from '../lib/pinTravelers'
 import {
@@ -127,6 +128,7 @@ import {
   type MapShareMessage,
   type MarkPlaceMessage,
   type MarkPlaceRefusal,
+  type MyNotesSetMessage,
   type PinAnswerMessage,
   type PinLeverMessage,
   type PinLeverRejection,
@@ -180,6 +182,7 @@ import {
   clampTravelDenyText,
   NAME_MAX_LENGTH,
   NOTEBOOK_MAX_NOTES,
+  PARTY_TOKEN_IDS_MAX,
   REQ_ID_MAX_LENGTH,
   ROUTE_MIN_POINTS,
   SEAT_OPTIONS_MAX,
@@ -681,8 +684,8 @@ export interface TokenActionRequest {
   /** Como o MESTRE chama a ficha (o nome dele, não o "Nome para os jogadores"). */
   targetName: string
   action: TokenAction
-  /** O texto do jogador, já aparado; ausente = sem texto. */
-  text?: string
+  /** O texto do jogador, já aparado (o host recusa o pedido sem ele). */
+  text: string
   /** Casas entre a ficha dele mais perto e o alvo. */
   distanceCells: number
   /** Só quando o pedido vem de uma cena de FUNDO: o nome que o mestre lê. */
@@ -952,7 +955,7 @@ export interface CallTarget {
 
 /**
  * AÇÃO NO PONTO aceita, à espera do mestre. É o que a linha da Caixa mostra
- * ("Fabi quer Procurar — Ferreiro") e o que o "Ir lá" usa. Nada disto vai ao
+ * ("Fabi chama o mestre aqui — Ferreiro") e o que o "Ir lá" usa. Nada disto vai ao
  * jogador: a sala é lida no mapa do MESTRE, secreta ou não.
  */
 export interface PointActionRequest {
@@ -972,7 +975,7 @@ export interface PointActionRequest {
   /** `true` quando a cena do ponto não é a aberta no editor. */
   background: boolean
   /**
-   * Só no REVISTAR, e só quando há: as pistas ocultas da sala do ponto
+   * Só quando há: as pistas ocultas da sala do ponto
    * (`hiddenCluesAt`), que a linha da Caixa oferece como "Entregar: …".
    * Leitura do mestre, como o resto deste pedido.
    */
@@ -1067,6 +1070,8 @@ export interface HostResult {
   travelRequest?: TravelRequest
   /** Pedido de ação sobre ficha válido: o integrador põe na Caixa de Pedidos. */
   actionRequest?: TokenActionRequest
+  /** MINHAS NOTAS de alguém mudaram: o integrador grava as notas da mesa. */
+  myNotesChanged?: true
   /** Pedido da porta trancada válido: o integrador pergunta ao mestre. */
   doorRequest?: DoorRequest
   /** Pedido de esconder-se válido: o integrador pergunta ao mestre. */
@@ -1660,6 +1665,12 @@ export interface HostSessionOptions {
    */
   restoreExploration?: readonly SavedSeatExploration[]
   /**
+   * MINHAS NOTAS guardadas da mesa, por nome (`lib/savedTable.ts`). Quem entra
+   * (sem resume) com o nome delas as recebe de volta, com ou sem assento: a nota
+   * é do jogador, não da ficha. Ausente = ninguém tem nota guardada.
+   */
+  restoreMyNotes?: readonly SavedSeatNotes[]
+  /**
    * CHAT SALVO (fatia B): a conversa guardada da mesa (`lib/chatStore.ts`),
    * já lida do disco. Entra na história de cada canal como se tivesse sido
    * dita nesta sala: quem chega (ou chega na cena) recebe as últimas
@@ -2152,7 +2163,7 @@ export interface HostSession {
    * "Só estes" ganha o jogador na lista (o pino passa a aparecer no mapa dele
    * quando estiver à vista); pino de "Todos" continua de todos. Oculto para
    * jogadores sai (é a pista que o mestre entrega de propósito, como no
-   * "Entregar pista…" do Revistar) sem entrar no mapa de ninguém; viagem e
+   * "Entregar pista…" do chamado no ponto) sem entrar no mapa de ninguém; viagem e
    * alavanca não viram cartão (`pinCardForPlayer`). Conta como RECEBIDO no
    * painel Pistas e entra no caderno dele (`clue.added`). Não envia
    * snapshot: o integrador faz o broadcast. `outbound` vazio = nada saiu.
@@ -2311,6 +2322,11 @@ export interface HostSession {
    * Só do mestre. `held` como em `savedSeats`.
    */
   savedExploration(held?: HeldTokens): SavedSeatExploration[]
+  /**
+   * MINHAS NOTAS a gravar, por nome: as de quem está na sala e as guardadas de
+   * quem ainda não voltou (ou saiu da lista). Só do mestre, só para o disco.
+   */
+  savedMyNotes(): SavedSeatNotes[]
   readonly rev: number
 }
 
@@ -2428,6 +2444,10 @@ interface PendingTokenAction {
   requestId: string
   playerId: string
   reqId: string
+  /** A ficha-alvo, a ação e o texto: no "Deixar", o dono da ficha-alvo (se for jogador) recebe o aviso. */
+  tokenId: string
+  action: TokenAction
+  text: string
 }
 
 /** LOJA: o "Quero" que espera o mestre — a banca, a mercadoria, a ficha que estava nela e a cena. */
@@ -3166,6 +3186,19 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   for (const seat of options.restoreExploration ?? []) {
     const key = normalizeName(seat.name)
     if (!pendingExploration.has(key)) pendingExploration.set(key, seat)
+  }
+  // MINHAS NOTAS — por playerId: a lista inteira de anotações pessoais dele, de
+  // todos os mapas. Só volta a ele mesmo (`mynotes.book`); sobrevive a queda e
+  // resume. Quem sai da lista (kick, dispensa, "Passar fichas e mapa a…") não
+  // leva as notas para ninguém: elas voltam a `parkedMyNotes`, pelo nome.
+  const myNotes = new Map<string, PersonalNote[]>()
+  const lastMyNotesAt = new Map<string, number>()
+  // As notas guardadas de quem ainda não entrou nesta sala, pelo nome
+  // normalizado (`normalizeName`). O primeiro com o nome vale.
+  const parkedMyNotes = new Map<string, SavedSeatNotes>()
+  for (const seat of options.restoreMyNotes ?? []) {
+    const key = normalizeName(seat.name)
+    if (!parkedMyNotes.has(key)) parkedMyNotes.set(key, { name: seat.name, notes: seat.notes.map((note) => ({ ...note })) })
   }
   // `exploration`: o que o assento trouxe, para o "Desfazer" devolvê-lo intacto;
   // `restoredMapIds`: as cenas cuja memória veio dele.
@@ -3908,6 +3941,9 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const book = cluebooks.get(playerId) ?? []
     const previous = book.find((item) => item.source === source)
     const base: ClueEntry = { id: previous?.entry.id ?? randomId(), title: content.title, text: content.text, image: content.image, at: now() }
+    // LUGARES: a memória usada por último é a da cena onde ele está agora (`memoryFor` a põe no fim).
+    const place = [...(memories.get(playerId)?.values() ?? [])].at(-1)?.place
+    if (place !== undefined) base.place = place
     const entry: ClueEntry = from === undefined ? base : { ...base, from }
     cluebooks.set(playerId, [...book.filter((item) => item.source !== source), { source, entry, peca }].slice(-CLUEBOOK_MAX_CLUES))
     return { ...entry }
@@ -4968,6 +5004,50 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   }
 
   /**
+   * MINHAS NOTAS: as guardadas com este nome (o DIGITADO, como o assento da
+   * mesa retomada) passam a ser de quem entrou. Quem já tem notas fica com as dele.
+   */
+  const claimMyNotes = (playerId: string, typedName: string): void => {
+    const key = normalizeName(typedName)
+    const parked = parkedMyNotes.get(key)
+    if (parked === undefined || myNotes.has(playerId)) return
+    parkedMyNotes.delete(key)
+    myNotes.set(playerId, parked.notes)
+  }
+
+  /**
+   * Quem sai da lista deixa as notas guardadas pelo nome — voltando com ele, as
+   * reencontra; nenhum outro jogador as herda. Já havendo notas guardadas com
+   * o nome, ficam as que já estavam.
+   */
+  const parkMyNotes = (playerId: string): void => {
+    const notes = myNotes.get(playerId)
+    const record = players.get(playerId)
+    myNotes.delete(playerId)
+    lastMyNotesAt.delete(playerId)
+    if (notes === undefined || notes.length === 0 || record === undefined) return
+    const key = normalizeName(record.name)
+    if (!parkedMyNotes.has(key)) parkedMyNotes.set(key, { name: record.name, notes })
+  }
+
+  /**
+   * MINHAS NOTAS: a lista inteira, de todos os mapas, só a quem as escreveu. O
+   * host não confere ponto nem mapa — a nota é do jogador e só volta a ele —,
+   * só a forma e os tetos (`parsePersonalNoteList`) e o ritmo: dentro do
+   * intervalo a lista não é guardada e a tela ouve `too_soon` para mandar de novo.
+   */
+  function handleMyNotesSet(clientId: string, msg: MyNotesSetMessage): HostResult {
+    const playerId = byClient.get(clientId)
+    if (playerId === undefined) return reply(clientId, { type: 'error', reason: 'not_joined' })
+    const at = now()
+    const last = lastMyNotesAt.get(playerId)
+    if (last !== undefined && at - last < MY_NOTES_MIN_INTERVAL_MS) return reply(clientId, { type: 'mynotes.rejected', reason: 'too_soon' })
+    lastMyNotesAt.set(playerId, at)
+    myNotes.set(playerId, msg.notes.slice(0, MY_NOTES_MAX).map((note) => ({ ...note })))
+    return { outbound: [], myNotesChanged: true }
+  }
+
+  /**
    * O que a conexão de quem entra, volta (resume) ou passa a ser outra pessoa
    * ("É ela") recebe logo depois do `welcome`: o mapa (ou a espera), o caderno
    * e as pistas dele, os cartões que vêm com o mapa, o recado só para ele que
@@ -4993,6 +5073,10 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     // COLEÇÃO DE PISTAS: depois do caderno, para a casa cheia já achar a pista que reabre.
     const colecoes = colecoesMessage(playerId)
     if (colecoes !== null) outbound.push({ clientId, msg: colecoes })
+    // MINHAS NOTAS: é o que faz a nota sobreviver a recarregar a página e à sessão seguinte. Como as pistas,
+    // só sai com nota; a tela que mudou a lista fora do ar a manda de novo depois do `welcome`.
+    const notes = myNotes.get(playerId) ?? []
+    if (notes.length > 0) outbound.push({ clientId, msg: { type: 'mynotes.book', notes: notes.map((note) => ({ ...note })) } })
     // FORA DO AR: a fila sai uma vez só, por último (é o cartão por cima). O
     // recado da cena que já está nela não abre um segundo cartão.
     const away = awayNotes.get(playerId) ?? []
@@ -5086,6 +5170,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     // a quem o mestre acabou de dizer que não é ela.
     const returnOf = reclaimed === undefined ? lookalike : undefined
     if (returnOf !== undefined) pendingReturns.set(record.playerId, returnOf.playerId)
+    // MINHAS NOTAS: quem entra (sem resume) com o nome de notas guardadas as recebe de volta.
+    if (resumed === undefined) claimMyNotes(record.playerId, msg.name)
 
     // `name` é o nome já passado por `uniqueName`: é assim que o jogador
     // descobre que entrou como "Ana (2)" em vez da "Ana" que digitou.
@@ -5109,6 +5195,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
 
   /** Esquece tudo do jogador (kick, Dispensar, a "Ana (2)" que virou Ana). Não mexe em conexão: quem chama cuida de `byClient`. */
   function forgetPlayer(playerId: string): void {
+    // Antes de apagar o registro: é pelo nome dele que as notas ficam guardadas.
+    parkMyNotes(playerId)
     players.delete(playerId) // invalida o resumeToken
     delete ownership[playerId]
     // Esquecido, o ajudante volta ao mestre na hora (sem recado: não há a quem mandar).
@@ -5237,6 +5325,12 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     if (target.size > 0) memories.set(into, target)
     const radius = visionOverrides.get(from)
     if (!visionOverrides.has(into) && radius !== undefined) visionOverrides.set(into, radius)
+    // MINHAS NOTAS: a Ana fica com as dela e as que `from` escreveu enquanto era "Ana (2)".
+    const kept = myNotes.get(into) ?? []
+    const keptIds = new Set(kept.map((note) => note.id))
+    const merged = [...kept, ...(myNotes.get(from) ?? []).filter((note) => !keptIds.has(note.id))].slice(-MY_NOTES_MAX)
+    myNotes.delete(from)
+    if (merged.length > 0) myNotes.set(into, merged)
   }
 
   /**
@@ -5996,8 +6090,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       sceneName: scene.name,
       background: scene !== world.open && scene.sceneId !== null,
     }
-    // REVISTAR: o que o mestre escondeu na sala vira "Entregar: …" na linha dele.
-    const pistas = msg.action === 'revistar' ? hiddenCluesAt(floorMap, point) : []
+    // O que o mestre escondeu na sala do chamado vira "Entregar: …" na linha dele.
+    const pistas = hiddenCluesAt(floorMap, point)
     if (pistas.length > 0) request.pistas = pistas
     return { outbound: [], pointAction: request }
   }
@@ -8562,7 +8656,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     }
     if (nearest === null) return reject('unavailable')
     const requestId = randomId()
-    pendingTokenActions.set(playerId, { requestId, playerId, reqId: msg.reqId })
+    pendingTokenActions.set(playerId, { requestId, playerId, reqId: msg.reqId, tokenId: target.id, action: msg.action, text: msg.text })
     const request: TokenActionRequest = {
       requestId,
       playerId,
@@ -8570,9 +8664,9 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       tokenId: target.id,
       targetName: target.name,
       action: msg.action,
+      text: msg.text,
       distanceCells: nearest,
     }
-    if (msg.text !== undefined) request.text = msg.text
     // Mesma regra de `backgroundSceneId`: a cena aberta e o mapa solto não levam o nome.
     if (scene !== world.open && scene.sceneId !== null) request.sceneName = scene.name
     return { outbound: [], actionRequest: request }
@@ -8580,6 +8674,19 @@ export function createHostSession(options: HostSessionOptions): HostSession {
 
   const findPendingTokenAction = (requestId: string): PendingTokenAction | undefined =>
     [...pendingTokenActions.values()].find((pending) => pending.requestId === requestId)
+
+  /**
+   * "Deixar" num pedido sobre ficha de JOGADOR: o aviso vai ao dono dela, e só
+   * a ele — nem a quem pediu (já tem a resposta), nem a quem está fora do ar ou
+   * esperando ficha. Ficha de NPC não tem dono: lista vazia.
+   */
+  const tokenActionNotices = (pending: PendingTokenAction, actorName: string): Outbound[] =>
+    Object.entries(ownership).flatMap(([ownerId, ids]): Outbound[] => {
+      if (ownerId === pending.playerId || !ids.includes(pending.tokenId) || statusOf(ownerId) !== 'playing') return []
+      const ownerClient = players.get(ownerId)?.clientId ?? null
+      if (ownerClient === null) return []
+      return [{ clientId: ownerClient, msg: { type: 'token.action.notice', from: actorName, action: pending.action, tokenId: pending.tokenId, text: pending.text } }]
+    })
 
   const findPendingBarDispute = (requestId: string): PendingBarDispute | undefined =>
     [...pendingBarDisputes.values()].find((pending) => pending.requestId === requestId)
@@ -8805,6 +8912,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
         return handleTradeCounter(clientId, msg, world)
       case 'call.raise':
         return handleCallRaise(clientId, msg)
+      case 'mynotes.set':
+        return handleMyNotesSet(clientId, msg)
       case 'call.lower':
         return handleCallLower(clientId)
       case 'point.action':
@@ -9138,12 +9247,15 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       const pending = findPendingTokenAction(requestId)
       if (pending === undefined) return { outbound: [] }
       pendingTokenActions.delete(pending.playerId)
-      const clientId = players.get(pending.playerId)?.clientId ?? null // null = saiu: não há a quem responder
-      if (clientId === null) return { outbound: [] }
+      const actor = players.get(pending.playerId)
+      // O aviso ao dono da ficha-alvo sai mesmo com quem pediu fora do ar: o mestre deixou, a ação aconteceu.
+      const notices = accepted && actor !== undefined ? tokenActionNotices(pending, actor.name) : []
+      const clientId = actor?.clientId ?? null // null = saiu: não há a quem responder
+      if (clientId === null) return { outbound: notices }
       const said = clampTokenActionReply(text)
       const answer: HostMessage =
         said === '' ? { type: 'token.action.answer', reqId: pending.reqId, accepted } : { type: 'token.action.answer', reqId: pending.reqId, accepted, reply: said }
-      return reply(clientId, answer)
+      return { outbound: [{ clientId, msg: answer }, ...notices] }
     },
 
     isTokenActionPending(requestId) {
@@ -9911,6 +10023,19 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       return buildSavedSeats(held)
     },
 
+    savedMyNotes() {
+      // Quem está na lista vale pelo nome de agora; as guardadas de quem não voltou vêm depois, sem repetir nome.
+      const present = [...players.values()].flatMap((record): SavedSeatNotes[] => {
+        const notes = myNotes.get(record.playerId) ?? []
+        return notes.length === 0 ? [] : [{ name: record.name, notes: notes.map((note) => ({ ...note })) }]
+      })
+      const names = new Set(present.map((seat) => normalizeName(seat.name)))
+      const parked = [...parkedMyNotes.entries()]
+        .filter(([key]) => !names.has(key))
+        .map(([, seat]) => ({ name: seat.name, notes: seat.notes.map((note) => ({ ...note })) }))
+      return [...present, ...parked]
+    },
+
     savedExploration(held) {
       const saved: SavedSeatExploration[] = []
       const written = new Set<string>()
@@ -10584,9 +10709,17 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       const outbound: Outbound[] = []
       for (const [clientId, viewerId] of byClient) {
         const mine = sceneOf.get(viewerId) ?? null
+        // As fichas de colegas que ESTE jogador recebeu no último recorte (`partyTokens`): só delas sai o id,
+        // para o chat achar a foto de quem falou. Ficha no escuro, escondida ou de outra cena não entra.
+        const viewerScene = statusOf(viewerId) === 'playing' ? sceneFor(viewerId, world) : null
+        const seen = new Set(viewerScene === null ? [] : (existingMemory(viewerId, viewerScene.map)?.party ?? []))
         const members: PartyMember[] = ordered
           .filter((p) => p.playerId !== viewerId)
-          .map((p) => ({ playerId: p.playerId, name: p.name, where: partyWhere(p, mine, sceneOf.get(p.playerId) ?? null) }))
+          .map((p) => {
+            const member: PartyMember = { playerId: p.playerId, name: p.name, where: partyWhere(p, mine, sceneOf.get(p.playerId) ?? null) }
+            const tokenIds = (ownership[p.playerId] ?? []).filter((id) => seen.has(id)).slice(0, PARTY_TOKEN_IDS_MAX)
+            return tokenIds.length === 0 ? member : { ...member, tokenIds }
+          })
         const key = JSON.stringify(members)
         if (lastPartySent.get(clientId) === key) continue
         lastPartySent.set(clientId, key)

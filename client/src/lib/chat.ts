@@ -219,3 +219,33 @@ function isMentionAt(text: string, start: number, name: string): boolean {
   if (text.slice(start, end).toLowerCase() !== name.toLowerCase()) return false
   return !NAME_CONTINUES.test(text.slice(end))
 }
+
+/** Quem fala no chat e as fichas dele, para achar a foto (`chatFacesByName`). */
+export interface ChatSpeakerTokens {
+  name: string
+  tokenIds: readonly string[]
+}
+
+/**
+ * A FOTO DE QUEM FALOU, por nome na sala: a da primeira ficha dele, na ordem
+ * da posse, que tem foto entre as fichas que ESTA tela já tem. Nada viaja na
+ * mensagem — o mestre lê das cenas dele; o jogador, do próprio recorte (a
+ * ficha do colega só conta se ele a vê agora). Sem foto, o nome não entra, e
+ * a linha mostra as iniciais.
+ */
+export function chatFacesByName(
+  speakers: readonly ChatSpeakerTokens[],
+  tokens: readonly { id: string; imageData?: string | null }[],
+): ReadonlyMap<string, string> {
+  const photoOf = new Map<string, string>()
+  for (const token of tokens) {
+    if (typeof token.imageData === 'string' && token.imageData !== '' && !photoOf.has(token.id)) photoOf.set(token.id, token.imageData)
+  }
+  const faces = new Map<string, string>()
+  for (const speaker of speakers) {
+    if (faces.has(speaker.name)) continue
+    const photo = speaker.tokenIds.map((id) => photoOf.get(id)).find((found) => found !== undefined)
+    if (photo !== undefined) faces.set(speaker.name, photo)
+  }
+  return faces
+}

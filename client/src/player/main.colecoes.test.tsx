@@ -1,6 +1,6 @@
 /**
  * COLEÇÃO DE PISTAS montada na página do jogador (`main.tsx`): o que o host
- * manda (`colecoes`) tem de aparecer no Caderno, e a casa cheia reabre o
+ * manda (`colecoes`) tem de aparecer na aba Lugares, e a casa cheia reabre o
  * cartão da pista. `PlayerColecoes.test.tsx` prova o Painel com `colecoes`
  * passado à mão; este quebra se a costura sair de `main.tsx`.
  *
@@ -83,13 +83,13 @@ function dialogo(): HTMLElement {
   return aberto
 }
 
-/** Abre a aba Caderno e devolve o painel visível. */
-function caderno(): Element {
-  const aba = Array.from(document.querySelectorAll<HTMLButtonElement>('[role="tab"]')).find((b) => /Caderno/.test(b.textContent ?? ''))
-  if (!aba) throw new Error('sem a aba Caderno')
+/** Abre a aba Lugares (onde moram as pistas e as coleções) e devolve o painel visível. */
+function lugares(): Element {
+  const aba = Array.from(document.querySelectorAll<HTMLButtonElement>('[role="tab"]')).find((b) => /Lugares/.test(b.textContent ?? ''))
+  if (!aba) throw new Error('sem a aba Lugares')
   act(() => aba.click())
   const painel = document.querySelector('[role="tabpanel"]:not([hidden])')
-  if (!painel) throw new Error('sem o painel do Caderno')
+  if (!painel) throw new Error('sem o painel de Lugares')
   return painel
 }
 
@@ -125,13 +125,13 @@ afterAll(() => {
   sessionStorage.clear()
 })
 
-describe('main.tsx: a coleção de pistas chega ao Caderno', () => {
-  it('"Letreiro 1 de 2" aparece no Caderno e a casa cheia reabre o cartão da pista', () => {
+describe('main.tsx: a coleção de pistas chega à aba Lugares', () => {
+  it('"Letreiro 1 de 2" aparece na aba Lugares e a casa cheia reabre o cartão da pista', () => {
     act(() => {
       mestre().manda({ type: 'clue.added', clue: { id: 'c1', title: 'Letra A', text: 'Letra A\nUm A de ferro.', image: null, at: AS_21_15 } })
       mestre().manda({ type: 'colecoes', colecoes: [UMA_DE_DUAS] })
     })
-    const painel = caderno()
+    const painel = lugares()
     const colecoes = painel.querySelector('.pp-colecoes')
     expect(colecoes?.textContent).toContain('Letreiro')
     expect(colecoes?.textContent).toContain('1 de 2')
@@ -143,7 +143,7 @@ describe('main.tsx: a coleção de pistas chega ao Caderno', () => {
     expect(document.querySelector('[role="dialog"]')).toBeNull()
   })
 
-  it('juntou todas: a frase inteira aparece no Caderno', () => {
+  it('juntou todas: a frase inteira aparece na aba Lugares', () => {
     act(() => {
       mestre().manda({ type: 'clue.added', clue: { id: 'c2', title: 'Letra S', text: 'Letra S', image: null, at: AS_21_15 } })
       mestre().manda({
@@ -151,7 +151,7 @@ describe('main.tsx: a coleção de pistas chega ao Caderno', () => {
         colecoes: [{ ...UMA_DE_DUAS, partes: [...UMA_DE_DUAS.partes, { parte: 2, clueId: 'c2' }], completa: true, inteira: 'A BOCA ABRE' }],
       })
     })
-    // O Caderno continua aberto desde o teste anterior.
+    // A aba Lugares continua aberta desde o teste anterior.
     const painel = document.querySelector('[role="tabpanel"]:not([hidden])')
     expect(painel?.querySelector('.pp-colecao__inteira')?.textContent).toBe('A BOCA ABRE')
   })

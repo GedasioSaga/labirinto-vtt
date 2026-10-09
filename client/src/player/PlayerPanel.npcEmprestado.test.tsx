@@ -44,9 +44,6 @@ describe('PlayerPanel: NPC emprestado', () => {
           onToggleLaser={() => {}}
           onRenameToken={onRenameToken}
           onChangeTokenPhoto={async () => {}}
-          notebook={[]}
-          notebookUnread={false}
-          onReadNotebook={() => {}}
         />,
       ),
     )

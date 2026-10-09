@@ -1,5 +1,6 @@
-import type { RegionPoint, Token, Wall } from '../types/map'
+import type { CarriedItem, MapData, RegionPoint, Token, Wall } from '../types/map'
 import { distanceToWall, findDoorAt } from '../lib/doorReach'
+import { carriedItemsOf, tokensTouch } from '../lib/items'
 import type { TokenAction, TokenActionRejection } from '../lib/tokenActions'
 
 /**
@@ -53,6 +54,23 @@ export function findTappedOtherToken(
   return toCenter < tokenRadius(token, grid) && toCenter < distanceToWall(point, door) ? token : null
 }
 
+/**
+ * "Entregar item" no cartão, com o que esta tela já sabe — a mesma régua do
+ * `item.give` no host: só ficha de COLEGA (`partyTokens`; NPC é do mestre) e
+ * só das fichas dele ENCOSTADAS nela. Os itens são os dessas fichas: o host
+ * recusaria (`far`) item de uma ficha dele que está longe.
+ */
+export type GiveChoice = { kind: 'ready'; items: CarriedItem[] } | { kind: 'empty' } | { kind: 'far' } | { kind: 'npc' }
+
+export function giveChoiceFor(map: MapData, ownTokens: readonly string[], partyTokens: readonly string[], targetId: string): GiveChoice {
+  const target = map.tokens.find((t) => t.id === targetId)
+  if (target === undefined || !partyTokens.includes(targetId)) return { kind: 'npc' }
+  const touching = map.tokens.filter((t) => ownTokens.includes(t.id) && tokensTouch(t, target, map.grid))
+  if (touching.length === 0) return { kind: 'far' }
+  const items = touching.flatMap(carriedItemsOf)
+  return items.length === 0 ? { kind: 'empty' } : { kind: 'ready', items }
+}
+
 /** O nome no cartão: o que o jogador vê. O mestre escondeu o nome ("Nome para os jogadores" vazio)? "Alguém". */
 export function tokenCardName(token: Token): string {
   const name = token.name.trim()
@@ -71,20 +89,19 @@ export type TokenActionNotice =
   | { id: number; phase: 'accepted' | 'refused'; action: TokenAction; targetName: string; reply?: string }
   | { id: number; phase: 'rejected'; reason: TokenActionRejection; action: TokenAction; targetName: string }
 
-/** A ação dita com a ficha, como frase: "Falar com Severa", "Empurrar Severa". */
+/** A ação dita com a ficha, como frase: "Falar com Severa", "Ação com Severa". */
 export function tokenActionPhrase(action: TokenAction, targetName: string): string {
   switch (action) {
     case 'falar':
       return `Falar com ${targetName}`
-    case 'oferecer':
-      return `Oferecer a ${targetName}`
-    case 'pedir':
-      return `Pedir ajuda a ${targetName}`
-    case 'empurrar':
-      return `Empurrar ${targetName}`
-    case 'outro':
-      return `Agir sobre ${targetName}`
+    case 'acao':
+      return `Ação com ${targetName}`
   }
+}
+
+/** O título do aviso de quem SOFREU a ação ("Bruno falou com Lírio", "Bruno agiu com Lírio"); o texto do colega vai embaixo. */
+export function actedOnTitle(notice: { from: string; action: TokenAction; tokenName: string }): string {
+  return notice.action === 'falar' ? `${notice.from} falou com ${notice.tokenName}` : `${notice.from} agiu com ${notice.tokenName}`
 }
 
 const REJECTION_TEXT: Record<TokenActionRejection, string> = {

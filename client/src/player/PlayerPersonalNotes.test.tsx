@@ -105,16 +105,30 @@ describe('PlayerPersonalNotes', () => {
       { id: 'n2', mapId: 'vila', x: 3, y: 4, text: '<b>poço</b>' },
     ]
 
+    const lugar = (mapId: string): string => (mapId === 'masmorra' ? 'Masmorra' : 'Outro lugar')
+
     it('sem nota: diz como anotar', () => {
-      act(() => root.render(<PersonalNoteList notes={[]} onFocus={() => {}} onRemove={() => {}} />))
+      act(() => root.render(<PersonalNoteList notes={[]} placeLabelOf={lugar} onFocus={() => {}} onRemove={() => {}} />))
       expect(container.querySelector('li')).toBeNull()
-      expect(container.textContent).toContain('Nenhuma nota nesta cena')
+      expect(container.textContent).toContain('Nenhuma nota ainda')
+    })
+
+    it('notas de outro mapa ficam no Caderno, com o nome do lugar, só para ler e apagar', () => {
+      const onFocus = vi.fn()
+      const onRemove = vi.fn()
+      const armadilha: PersonalNote = { id: 'n3', mapId: 'masmorra', x: 9, y: 9, text: 'armadilha' }
+      act(() => root.render(<PersonalNoteList notes={[...notas, armadilha]} currentMapId="vila" placeLabelOf={lugar} onFocus={onFocus} onRemove={onRemove} />))
+      expect(Array.from(container.querySelectorAll('h3')).map((h) => h.textContent)).toEqual(['Neste lugar', 'Masmorra'])
+      expect(container.querySelector('button[aria-label="Centralizar em armadilha"]')).toBeNull()
+      act(() => container.querySelector<HTMLButtonElement>('button[aria-label="Apagar nota armadilha"]')?.click())
+      expect(onRemove).toHaveBeenCalledWith('n3')
+      expect(onFocus).not.toHaveBeenCalled()
     })
 
     it('lista a mais nova em cima; tocar centraliza, "Apagar" apaga; HTML aparece literal', () => {
       const onFocus = vi.fn()
       const onRemove = vi.fn()
-      act(() => root.render(<PersonalNoteList notes={notas} onFocus={onFocus} onRemove={onRemove} />))
+      act(() => root.render(<PersonalNoteList notes={notas} currentMapId="vila" placeLabelOf={lugar} onFocus={onFocus} onRemove={onRemove} />))
       const itens = Array.from(container.querySelectorAll('li'))
       expect(itens).toHaveLength(2)
       expect(itens[0]?.textContent).toContain('<b>poço</b>')

@@ -206,21 +206,21 @@ describe('hostBridge: diário de viagens', () => {
 
   it('ação no ponto e diário na mesma sala: o pedido de Ana sobrevive à viagem de Bruno, e fechar a sala limpa os dois', async () => {
     const t = await mesaMontada()
-    t.emit({ clientId: 'c1', msg: { type: 'point.action', action: 'procurar', x: 700, y: 300 } })
-    const pedido = () => useToastStore.getState().toasts.find((toast) => toast.text.startsWith('Ana quer Procurar'))
-    expect(pedido()?.grupo).toBe('Pedidos')
+    t.emit({ clientId: 'c1', msg: { type: 'point.action', action: 'chamar', x: 700, y: 300 } })
+    const pedido = () => useToastStore.getState().toasts.find((toast) => toast.text.startsWith('Ana chama o mestre aqui'))
+    expect(pedido()?.grupo).toBe('Chamados')
     t.viajaComDeixarIr('c2', 'escada-a')
     expect(t.diario()).toEqual([expect.objectContaining({ tokenId: 'ficha-bruno', toSceneId: 'cena-b' })])
     const nada = pedido()?.actions?.find((a) => a.label === 'Nada aqui')
     if (nada === undefined) throw new Error('o pedido de Ana deveria seguir com "Nada aqui" depois da viagem de Bruno')
     const antes = t.fio().length
     nada.run()
-    expect(t.fio().slice(antes)).toEqual([JSON.stringify({ clientId: 'c1', msg: { type: 'point.action.answer', action: 'procurar', answer: 'nothing' } })])
-    t.emit({ clientId: 'c1', msg: { type: 'point.action', action: 'escutar', x: 700, y: 300 } })
-    expect(useToastStore.getState().toasts.some((toast) => toast.text.startsWith('Ana quer Escutar'))).toBe(true)
+    expect(t.fio().slice(antes)).toEqual([JSON.stringify({ clientId: 'c1', msg: { type: 'point.action.answer', action: 'chamar', answer: 'nothing' } })])
+    t.emit({ clientId: 'c1', msg: { type: 'point.action', action: 'chamar', x: 700, y: 300 } })
+    expect(useToastStore.getState().toasts.some((toast) => toast.text.startsWith('Ana chama o mestre aqui'))).toBe(true)
     await t.bridge.stop()
     expect(t.diario()).toEqual([])
-    expect(useToastStore.getState().toasts.some((toast) => toast.text.startsWith('Ana quer'))).toBe(false)
+    expect(useToastStore.getState().toasts.some((toast) => toast.text.startsWith('Ana chama o mestre aqui'))).toBe(false)
   })
 
   it('fechar a sala zera o diário', async () => {

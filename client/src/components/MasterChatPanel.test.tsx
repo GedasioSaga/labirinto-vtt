@@ -298,3 +298,42 @@ describe('MasterChatPanel', () => {
     expect(canal('Cena fora da aventura')).toBeTruthy()
   })
 })
+
+describe('MasterChatPanel: a miniatura de quem falou', () => {
+  const FOTO_ANA = 'data:image/png;base64,QU5B'
+  let container: HTMLDivElement
+  let root: Root
+
+  beforeEach(() => {
+    Reflect.set(globalThis, 'IS_REACT_ACT_ENVIRONMENT', true)
+    container = document.createElement('div')
+    document.body.appendChild(container)
+    root = createRoot(container)
+  })
+
+  afterEach(() => {
+    act(() => root.unmount())
+    container.remove()
+  })
+
+  it('cada fala do jogador mostra a foto da ficha dele ao lado do nome; sem foto, as iniciais', () => {
+    act(() =>
+      root.render(
+        <MasterChatPanel
+          chat={conversa({ global: [linha('g1', 'Bruno', 'Alguém?'), linha('g2', 'Ana', 'Aqui')] })}
+          active
+          faces={new Map([['Ana', FOTO_ANA]])}
+          onUnreadChange={() => {}}
+          onSend={() => true}
+          onDelete={() => {}}
+        />,
+      ),
+    )
+    const falas = Array.from(container.querySelectorAll('.lb-mchat__msg'))
+    const daAna = falas.find((f) => f.querySelector('.lb-mchat__from')?.textContent === 'Ana')
+    const doBruno = falas.find((f) => f.querySelector('.lb-mchat__from')?.textContent === 'Bruno')
+    expect(daAna?.querySelector('.lb-mchat__face img')?.getAttribute('src')).toBe(FOTO_ANA)
+    expect(doBruno?.querySelector('.lb-mchat__face img')).toBeNull()
+    expect(doBruno?.querySelector('.lb-mchat__face .lb-ficha__iniciais')?.textContent).toBe('B')
+  })
+})
