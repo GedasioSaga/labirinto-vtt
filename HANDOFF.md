@@ -1488,3 +1488,22 @@ Consertar o que o usuário achou testando a v0.4.18: (1) ficha ligada a token n�
 - Vermelho antes (stash do conserto) e verde depois: hostSession.personagem.test.ts (1 falha antes, 16/16 depois), miniaturaDoChat.test.ts (2 falhas antes, verde depois), AcervoDeItensPanel.test.tsx (1 falha antes, 8/8 depois).
 - src/player + chat + itens + host: 285 arquivos, 2017 testes verdes; src/net: 274 arquivos, 2197 testes verdes. tsc app e e2e exit 0.
 - Prova no Edge (motor do WebView2), scratchpad/arrasto/prova.cjs: sem preventDefault o gesto termina em pointercancel; com ele, em pointerup.
+
+### 09/10/2026: release v0.4.19 (`6a3277ff`) — 4 consertos publicados
+
+## Objetivo
+Publicar os 4 consertos de 09/10 (ficha de token da biblioteca, miniatura do chat, foto do menu do token, arrasto de item ao mapa) a pedido do usuário ("Pronto, já faz o instalador.").
+
+## Estado atual
+- main = origin/main com tag `v0.4.19`. Release: https://github.com/GedasioSaga/labirinto-vtt/releases/tag/v0.4.19. Contagem para o próximo instalador zerada (0 de 5).
+
+## Próximos passos
+- Usuário testar no instalado. Pendências antigas seguem na seção da v0.4.18.
+
+## Critério de pronto
+- Suíte inteira verde, tsc 0, gitleaks limpo, exe 0.4.19 abre, digest do GitHub igual ao local. (Atingido.)
+
+## Evidência
+- `rtk proxy npx vitest run`: Test Files 1450 passed (1450), Tests 13028 passed (13028).
+- gitleaks `v0.4.18..HEAD`: 6 commits, no leaks found. `npm run tauri:build`: 2 bundles. Fumaça: ProductVersion 0.4.19, Responding=True, 26 MB.
+- setup.exe 2678412 B sha256 50394723ed8f5657d0f121a48220b61d4d79bf0c6cf596a3a1768e9a21a4e136; msi 3362816 B sha256 05e8c83868961f0414c53d2f340cbfc2283c40301da824b5402e625c59c73323 (iguais ao GitHub).
