@@ -339,19 +339,45 @@ pub trait Fonte {
 /// A release `animacoes` do repositório do app.
 pub struct GitHub {
     cliente: reqwest::Client,
+    base: String,
+}
+
+/// SÓ EM BUILD DE DEBUG: `LABIRINTO_ANIMACOES_URL` troca de onde o pacote vem,
+/// para a prova ponta a ponta servir um pacote de teste num servidor local
+/// sem publicar nada. A assinatura continua conferida com a chave embutida.
+/// No build de release esta função nem existe e a origem é sempre `URL_BASE`.
+#[cfg(debug_assertions)]
+fn url_base() -> String {
+    match std::env::var("LABIRINTO_ANIMACOES_URL") {
+        Ok(url) if !url.is_empty() => {
+            if url.ends_with('/') {
+                url
+            } else {
+                format!("{url}/")
+            }
+        }
+        _ => URL_BASE.to_owned(),
+    }
+}
+
+#[cfg(not(debug_assertions))]
+fn url_base() -> String {
+    URL_BASE.to_owned()
 }
 
 impl GitHub {
     pub fn novo() -> Result<Self, ErroDoPacote> {
+        let base = url_base();
         let cliente = reqwest::Client::builder()
             // Também vale para os redirects: nada de HTTP no meio do caminho.
-            .https_only(true)
+            // Só o servidor local da prova de debug (`url_base`) usa HTTP.
+            .https_only(base.starts_with("https://"))
             .connect_timeout(TEMPO_PARA_CONECTAR)
             .timeout(TEMPO_POR_ARQUIVO)
             .user_agent(concat!("labirinto-vtt/", env!("CARGO_PKG_VERSION")))
             .build()
             .map_err(|_| ErroDoPacote::SemRede)?;
-        Ok(Self { cliente })
+        Ok(Self { cliente, base })
     }
 }
 
@@ -359,7 +385,7 @@ impl Fonte for GitHub {
     async fn baixar(&self, nome: &str, teto: u64) -> Result<Vec<u8>, ErroDoPacote> {
         let grande_demais = ErroDoPacote::Invalido("download grande demais");
         let mut resposta =
-            self.cliente.get(format!("{URL_BASE}{nome}")).send().await.map_err(|_| ErroDoPacote::SemRede)?;
+            self.cliente.get(format!("{}{nome}", self.base)).send().await.map_err(|_| ErroDoPacote::SemRede)?;
         if !resposta.status().is_success() {
             return Err(ErroDoPacote::SemRede);
         }
