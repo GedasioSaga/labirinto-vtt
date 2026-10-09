@@ -1560,3 +1560,28 @@ Animações (transições de viagem, porta no mapa, imagem do pino) chegam por u
 - Conferência no app de dev (CDP, prints em scratchpad/visao/p1/porta-0420/): porta "girar" no meio do giro e aberta no fim; botão "Procurar atualizações" sem sobrepor o rodapé (conserto eaaffcec); sem erros de página.
 - latest.json no endpoint do app: version 0.4.20, url do setup v0.4.20, assinatura 420 chars; script conferiu a assinatura com a pubkey. gitleaks v0.4.19..HEAD: no leaks.
 - setup.exe 3255909 B sha256 90560ef01efe5b34af7485a31cacf98362680bc938b02fc40d55314062741ef4; msi 4055040 B sha256 dac82dc2348df41adae20728a716e908d1f00e4b2e13124bbb5563e60f56a5f5 (iguais ao GitHub). Exe 0.4.20 abre, Responding=True.
+
+### 09/10/2026: v0.4.21 publicada pelo atualizador + pacote de animações (versão 1, vazio)
+
+## Objetivo
+Fechar o plano `~/.claude/plans/luminous-snacking-coral.md`: app se atualiza sozinho e animações chegam por pacote assinado.
+
+## Estado atual
+- main = origin/main com tag v0.4.21. Release https://github.com/GedasioSaga/labirinto-vtt/releases/tag/v0.4.21 (com latest.json). Pacote: release pré-lançamento https://github.com/GedasioSaga/labirinto-vtt/releases/tag/animacoes (indice.json versão 1, 0 animações, motorMinimo 0.4.21).
+- Commits da onda 2: c4779110 (estilos do cenário), d426387d (Rust do pacote), 65883485 (TS do pacote), d389b8ad (script), b369ea20 (override de URL só em debug).
+- Contagem de consertos para o próximo app: 0.
+
+## Próximos passos
+- Usuário: instalar a v0.4.20 à mão (se ainda não) e ver o aviso "Versão 0.4.21 pronta" ao abrir — primeiro teste real do atualizador.
+- Primeira animação real: protótipo (Artifact) → `client/src/animacoes/<tipo>/<id>.ts` + `.json` → `node scripts/pacote-animacoes.cjs --publicar`. Conferir então o jogador num navegador pela LAN tocando a animação do pacote (não conferido ainda).
+
+## Critério de pronto
+- v0.4.21 com latest.json no endpoint; pacote assinado servido; exe 0.4.21 baixa e instala o pacote. (Atingido.) Falta só a confirmação do usuário de que a 0.4.20 instalada se atualizou.
+
+## Evidência
+- Suíte: 1465/1465 arquivos, 13215/13215 testes; tsc app e e2e 0; cargo test 80 passed (5 suites).
+- gitleaks v0.4.20..HEAD: no leaks. Build assinado: "assinatura do setup confere com a chave pública do app".
+- Endpoint do atualizador: latest.json version 0.4.21, url do setup v0.4.21. Pacote: indice.json 200 (versão 1) e .sig 200; o primeiro GET deu 404 de cache por ~30 s.
+- Exe 0.4.21 (release, smoke): ProductVersion 0.4.21, Responding=True; ao abrir baixou e instalou o pacote real em %APPDATA%\com.labirinto.app\animacoes\atual (indice.json + .sig).
+- setup.exe 3285704 B sha256 294f058edf4d26a7050b06128fd5ef2f8242d0e45a0b0682f65b7e694581fe43; msi 4096000 B sha256 b133c9648b84c420251987652982a4723e83f154dbc8fd99ddd54a78b989b1ed (iguais ao GitHub).
+- Prova ponta a ponta do pacote (B2, servidor local + app de dev): aviso "Animações novas: Teste: sumir", galerias com a transição/porta/estilo de teste, prévias tocando; prints em scratchpad\pacote-e2e\.
