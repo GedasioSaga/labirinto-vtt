@@ -1425,3 +1425,25 @@ Pedidos de 08/10 (literais em `PEDIDOS.md`): ver através das paredes da sala; s
 - `npm run tauri:build`: exit 0 em 210 s, 2 bundles. Fumaça: ProductVersion 0.4.17, janela responde, 26 MB.
 - Assets: setup.exe 2635055 B sha256 ed319573b54e94ea38fd1427ef2bdfcb4911fc92ac76c4eabe336859d6ec4921; msi 3321856 B sha256 79ac75fbfc1b2f9ffb99257f020aa8d4c4898df02c9ac68312ac07b2009e50e4 (iguais ao GitHub).
 - Não rodado: e2e Playwright; Tauri real das fichas (diálogos de arquivo, appData); celular de verdade.
+
+### 09/10/2026 (madrugada): fila longa sem push (regra do usuário: "só quando terminar tudo")
+
+## Objetivo
+Terminar a fila combinada com o usuário em 08/10 sem parar para push: RPG (itens, mapa solto, itens no mapa, editor de sistemas), as 8 melhorias do jogador e os 5 pedidos (pastas, locais, cena padrão, login nome+PIN). No fim: suíte inteira, conferência visual no app real, um push e um instalador (v0.4.18). Avisar o usuário só no fim. Decisões e textos literais em `PEDIDOS.md` (08/10, depois da v0.4.17).
+
+## Estado atual
+- main local à frente de origin (último push = docs da v0.4.17, `3a568805`). Commits desde então: `5ce8a5ee` biblioteca de itens + rota /media; `848aa133` mapa solto + Sistema em Configurações do mapa + Livro/Personagens na aba Jogo; `8d8b8393` mídia vai na pasta da aventura; `70971270` editor de sistemas; `75883549` itens no mapa (imagem no chão ou pino de item, "Ver inteira"); `ab60c122` 8 melhorias do jogador (itens 2-8).
+- Sem commit ainda (09/10): pastas + cena inicial (agente terminou: `lib/pastasDeMapas.ts`, `stores/rpgDaPasta.ts`, `screens/PastaDeMapasConfig.tsx`, `screens/LoadMapScreen.tsx`, `stores/adventureStore.ts` acessor `personagensAtivos/sistemaAtivo`, ScenesSection "Definir como cena inicial") e login nome+PIN (agente rodando; contas no appData, `Personagem.dono`, token de aparelho). Os dois mexeram em `App.tsx`: commitar juntos se misturar.
+
+## Próximos passos
+1. Quando o agente do login terminar: commitar pastas+cena inicial e login (separados por arquivo; `App.tsx` no que fizer sentido).
+2. Suíte inteira (`rtk proxy npx vitest run`), `rtk proxy npx tsc --noEmit` e `-p tsconfig.e2e.json`.
+3. Conferência visual no app real (tauri dev com `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port=9222` e `WEBVIEW2_USER_DATA_FOLDER` separado se o app instalado estiver aberto; scripts CDP em `scratchpad/visao/p1/`): editor de sistemas, itens no mapa, pastas, login, menu do token, Marcações.
+4. Versão 0.4.18 nos 5 arquivos, gitleaks (`%LOCALAPPDATA%\Microsoft\WinGet\Packages\Gitleaks.Gitleaks_Microsoft.Winget.Source_8wekyb3d8bbwe\gitleaks.exe`) `v0.4.17..HEAD`, `npm run tauri:build`, fumaça do exe, push + tag + release, avisar o usuário.
+- Pendências anotadas: código de bilhete/espera/recados sem tela do jogador; e2e `task-jornada-mapa-livre-do-painel.spec.ts` clica botão removido; lojas sem itens do acervo; achados antigos (filterMapForPlayer quadrático, moldura do pedido real, foco cortado, fantasma sem piso).
+
+## Critério de pronto
+- Suíte inteira verde (ou só a medição de tempo `hostSession.custoCom7` sob carga), tsc 0, release v0.4.18 com setup.exe e msi com digest igual ao local, e o usuário avisado com o resumo.
+
+## Evidência
+- Última suíte inteira: antes da v0.4.17, 1409 arquivos / 12685 testes verdes. Desde então só testes direcionados por entrega (números em `PEDIDOS.md`).
