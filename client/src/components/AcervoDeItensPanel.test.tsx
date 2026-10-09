@@ -193,6 +193,13 @@ describe('AcervoDeItensPanel — arrastar ao mapa (ITEM NO MAPA)', () => {
     expect(onSoltarNoMapa).toHaveBeenLastCalledWith(ESPADA, 320, 220, true)
   })
 
+  it('o arrasto NATIVO da foto não começa: ele cancelaria o gesto (pointercancel) e soltar no mapa não poria nada', async () => {
+    await montarComMapa()
+    const arrastoNativo = new Event('dragstart', { bubbles: true, cancelable: true })
+    act(() => void botao('Abrir Poção', host).dispatchEvent(arrastoNativo))
+    expect(arrastoNativo.defaultPrevented).toBe(true)
+  })
+
   it('toque parado continua abrindo a janela; Esc no meio do arrasto desiste sem pôr nada', async () => {
     const onSoltarNoMapa = await montarComMapa()
     const pocao = botao('Abrir Poção', host)

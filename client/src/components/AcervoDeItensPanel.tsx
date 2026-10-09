@@ -220,6 +220,9 @@ export function AcervoDeItensPanel({ alvos, onDar, onErro, onSoltarNoMapa }: Ace
                       aria-label={`Abrir ${item.nome}`}
                       title={item.nome}
                       onPointerDown={(event) => arrasto.comecar(event, item)}
+                      // A foto do item é <img>: sem isto o navegador arrasta a imagem
+                      // dele, solta um `pointercancel` e o nosso arrasto morre no caminho.
+                      onDragStart={(event) => event.preventDefault()}
                       onClick={() => {
                         // Acabou de soltar no mapa: o clique do mesmo gesto não abre a janela.
                         if (arrasto.engolirClique()) return

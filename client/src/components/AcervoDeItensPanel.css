@@ -19,9 +19,15 @@
   flex: none;
 }
 
-/* Arrastar a grade não seleciona o nome do item no caminho. */
+/* Arrastar a grade não seleciona o nome do item no caminho, nem arrasta a foto
+   (o arrasto nativo da imagem cancelaria o do app); no toque, leva o item em vez de rolar. */
 .lb-itens__item {
   user-select: none;
+  touch-action: none;
+}
+
+.lb-itens__item img {
+  -webkit-user-drag: none;
 }
 
 .lb-itens__categoria {
