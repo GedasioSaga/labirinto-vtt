@@ -1,10 +1,11 @@
 import { open } from '@tauri-apps/plugin-dialog'
 import { invoke } from '@tauri-apps/api/core'
-import { copyFile, exists, readDir, readTextFile } from '@tauri-apps/plugin-fs'
+import { copyFile, exists, readDir, readTextFile, type DirEntry } from '@tauri-apps/plugin-fs'
 import { join } from '@tauri-apps/api/path'
 import type { MapData } from '../types/map'
 import { serializeMap, deserializeMap } from './mapFile'
-import { ensureDir, assertPathWithinRoot, rebaseMapImagePaths, writeTextFileSafely } from './mapFileIO'
+import { ensureDir, assertPathWithinRoot, copyDirRecursive, rebaseMapImagePaths, writeTextFileSafely } from './mapFileIO'
+import { levarMidiaDoMapaSolto } from './midiaDaPasta'
 
 export async function pickExportFolder(): Promise<string | null> {
   const selected = await open({ directory: true, multiple: false, title: 'Escolher pasta de destino' })
@@ -31,15 +32,30 @@ export async function exportMapFolder(map: MapData, sourceMapDir: string, destDi
 
   await ensureDir(destDir)
 
-  await writeTextFileSafely(await join(destDir, 'map.json'), serializeMap(rebaseMapImagePaths(map, sourceMapDir, destDir)))
+  const destMapJsonPath = await join(destDir, 'map.json')
+  await writeTextFileSafely(destMapJsonPath, serializeMap(rebaseMapImagePaths(map, sourceMapDir, destDir)))
 
   if (await exists(sourceMapDir)) {
     const entries = await readDir(sourceMapDir)
     for (const entry of entries) {
       if (!entry.name || entry.name === 'map.json') continue
-      await copyFile(await join(sourceMapDir, entry.name), await join(destDir, entry.name))
+      await copyEntry(entry, sourceMapDir, destDir)
     }
   }
+  // A mídia das mochilas vai na pasta irmã do `map.json` exportado, mesmo a que
+  // a pasta de origem ainda não tinha (mapa não salvo depois de ganhar o item).
+  await levarMidiaDoMapaSolto(destMapJsonPath, map)
+}
+
+/**
+ * Uma entrada da pasta do mapa: subpasta (a mídia do mapa, `lib/midiaDaPasta.ts`)
+ * vai inteira — `copyFile` numa pasta falha e derrubava a exportação inteira.
+ */
+async function copyEntry(entry: DirEntry, fromDir: string, toDir: string): Promise<void> {
+  const from = await join(fromDir, entry.name)
+  const to = await join(toDir, entry.name)
+  if (entry.isDirectory) await copyDirRecursive(from, to)
+  else await copyFile(from, to)
 }
 
 export async function importMapFolder(sourceDir: string, appDataMapsDir: string): Promise<string> {
@@ -57,7 +73,8 @@ export async function importMapFolder(sourceDir: string, appDataMapsDir: string)
   const entries = await readDir(sourceDir)
   for (const entry of entries) {
     if (!entry.name) continue
-    await copyFile(await join(sourceDir, entry.name), await join(destDir, entry.name))
+    // A pasta irmã da mídia vem junto; quem a traz para `<appData>/midia` é a abertura (`openMapFileFirst`).
+    await copyEntry(entry, sourceDir, destDir)
   }
 
   // O `map.json` copiado acima ainda aponta para a pasta de onde veio (o

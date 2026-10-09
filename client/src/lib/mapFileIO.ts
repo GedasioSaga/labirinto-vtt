@@ -20,6 +20,7 @@ import {
   type Adventure,
   type SceneEntry,
 } from './adventure'
+import { trazerMidiaAoAbrir } from './midiaDaPasta'
 
 /** Sufixo do arquivo de rascunho da gravação atômica (ver `writeTextFileSafely`). */
 const TEMP_WRITE_SUFFIX = '.tmp'
@@ -516,7 +517,7 @@ async function rootlessAdventurePath(id: string, mapDir: string, mapJsonPath: st
  * ignorado de propósito — segui-lo poderia copiar conteúdo de fora da pasta
  * de mapas, e não há caso de uso hoje para symlink dentro de `%APPDATA%/maps`.
  */
-async function copyDirRecursive(srcDir: string, destDir: string): Promise<void> {
+export async function copyDirRecursive(srcDir: string, destDir: string): Promise<void> {
   await ensureDir(destDir)
   const entries = await readDir(srcDir)
   for (const entry of entries) {
@@ -757,10 +758,15 @@ async function findAdventureFor(mapPath: string): Promise<{ adventure: Adventure
  * `pendente`, na ordem da lista, para `loadPendingScenes` ler depois. A
  * conversão do portal antigo (`convertLegacyPortals`) já corre sobre o que foi
  * lido; a das cenas de fundo corre quando elas chegam.
+ *
+ * A mídia que veio na pasta (`lib/midiaDaPasta.ts`) entra em `<appData>/midia`
+ * antes de devolver: a aventura trazida de outro computador abre com os
+ * retratos e as imagens de item. Uma pasta por aventura, para todas as cenas.
  */
 export async function openMapFileFirst(path: string): Promise<OpenedMapFile> {
   const map = await loadMapFromDisk(path)
   const found = await findAdventureFor(path)
+  await trazerMidiaAoAbrir(path, found === null ? null : found.dir)
   if (found === null) {
     return convertLegacyPortals({ path, map, adventure: null, adventureDir: null, activeSceneId: null, scenes: [], changedSceneIds: [], adventureChanged: false, legacySources: [] })
   }

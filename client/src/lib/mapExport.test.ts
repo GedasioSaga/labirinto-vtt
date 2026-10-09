@@ -6,7 +6,7 @@ const invokeMock = vi.fn(async () => undefined)
 const copyFileMock = vi.fn(async () => undefined)
 const mkdirMock = vi.fn(async () => undefined)
 const existsMock = vi.fn(async () => false)
-const readDirMock = vi.fn(async () => [] as { name?: string }[])
+const readDirMock = vi.fn(async () => [] as { name?: string; isDirectory?: boolean; isFile?: boolean }[])
 const writeTextFileMock = vi.fn(async () => undefined)
 const readTextFileMock = vi.fn(async () => '')
 
@@ -197,9 +197,34 @@ describe('exportMapFolder', () => {
     expect(copyFileMock).toHaveBeenCalledTimes(1)
     expect(copyFileMock).toHaveBeenCalledWith('C:\\maps\\map_1\\background.webp', 'C:\\destino\\background.webp')
   })
+
+  it('a subpasta (a mídia do mapa) vai inteira, arquivo por arquivo, em vez de derrubar a exportação', async () => {
+    existsMock.mockResolvedValue(true)
+    readDirMock
+      .mockResolvedValueOnce([{ name: 'map.json', isFile: true }, { name: 'map.midia', isDirectory: true }])
+      .mockResolvedValueOnce([{ name: `${'a'.repeat(64)}.png`, isFile: true }])
+
+    await exportMapFolder(makeMap(), 'C:\\maps\\map_1', 'C:\\destino')
+
+    expect(copyFileMock).toHaveBeenCalledTimes(1)
+    expect(copyFileMock).toHaveBeenCalledWith(`C:\\maps\\map_1\\map.midia\\${'a'.repeat(64)}.png`, `C:\\destino\\map.midia\\${'a'.repeat(64)}.png`)
+  })
 })
 
 describe('importMapFolder', () => {
+  it('a pasta irmã da mídia vem junto para a pasta do mapa no app', async () => {
+    readTextFileMock.mockResolvedValue(JSON.stringify(makeMap({ id: 'map_importado' })))
+    readDirMock
+      .mockResolvedValueOnce([{ name: 'map.json', isFile: true }, { name: 'map.midia', isDirectory: true }])
+      .mockResolvedValueOnce([{ name: `${'b'.repeat(64)}.webp`, isFile: true }])
+
+    await importMapFolder('C:\\origem', 'C:\\appdata\\maps')
+
+    expect(copyFileMock).toHaveBeenCalledWith('C:\\origem\\map.json', 'C:\\appdata\\maps\\map_importado\\map.json')
+    expect(copyFileMock).toHaveBeenCalledWith(`C:\\origem\\map.midia\\${'b'.repeat(64)}.webp`, `C:\\appdata\\maps\\map_importado\\map.midia\\${'b'.repeat(64)}.webp`)
+    expect(copyFileMock).not.toHaveBeenCalledWith('C:\\origem\\map.midia', 'C:\\appdata\\maps\\map_importado\\map.midia')
+  })
+
   it('concede acesso ao diretório de origem', async () => {
     const map = makeMap({ id: 'map_importado' })
     readTextFileMock.mockResolvedValue(JSON.stringify(map))

@@ -85,6 +85,7 @@ import {
 } from '../lib/pinTravel'
 import { cloneSceneMap } from '../lib/entityClone'
 import { loadPendingScenes, mapDirFor, saveAdventureToDisk, scenePath, type ArrivedScene, type OpenedMapFile, type SceneLoad } from '../lib/mapFileIO'
+import { levarMidiaDaAventura } from '../lib/midiaDaPasta'
 import { storedTokensOfScene, withStoredTokens, type StoredToken } from '../lib/storedTokens'
 import type { PinDirectoryScene } from '../lib/pinDirectory'
 import { dirname } from '@tauri-apps/api/path'
@@ -1923,6 +1924,14 @@ export const useAdventureStore = create<AdventureState>()((set, get) => ({
     if (activeFile === null) throw new Error('A cena aberta não está na lista da aventura.')
 
     await saveAdventureToDisk(dir, adventure, writes)
+    // Retratos e imagens de item vão junto para a pasta (`lib/midiaDaPasta.ts`):
+    // a aventura copiada para outro computador abre com eles. Nunca lança — o
+    // que não foi vira aviso, e a gravação acima já valeu.
+    await levarMidiaDaAventura(dir, {
+      personagens: adventure.personagens,
+      mapas: cenasComoNoDisco(adventure, state.cache, writes, written),
+      tokens: stored.map((entry) => entry.token),
+    })
 
     // O editor não trava enquanto o disco grava: só sai de "pendente" o que
     // continua IGUAL (mesma referência) ao que foi escrito. Mudança feita no
@@ -1952,6 +1961,22 @@ export const useAdventureStore = create<AdventureState>()((set, get) => ({
     return scenePath(dir, activeFile)
   },
 }))
+
+/**
+ * Cada cena como ficou no disco depois de `flush`, para saber que mídia a
+ * aventura usa: a recém-gravada e a de fundo já lida (igual ao disco). A que
+ * ainda está chegando do disco fica para a próxima gravação — lê-la aqui
+ * esperaria a mesma leitura que já está em curso; a que não abre teve a mídia
+ * levada na gravação em que abria.
+ */
+function cenasComoNoDisco(adventure: Adventure, cache: Record<string, SceneSlot>, writes: readonly { map: MapData }[], written: ReadonlyMap<string, MapData>): MapData[] {
+  const mapas = writes.map((write) => write.map)
+  for (const entry of adventure.scenes) {
+    const slot = cache[entry.id]
+    if (!written.has(entry.id) && slot !== undefined && slot.status === 'ok') mapas.push(slot.map)
+  }
+  return mapas
+}
 
 /** Leitura síncrona para quem pergunta "há trabalho não salvo?" (fechar janela, trocar de mapa). */
 export function hasUnsavedWork(): boolean {

@@ -161,6 +161,7 @@ import { colocarPecaDoAcervo, criarToken, marcarFichaNpc, type TamanhoDaVista } 
 import { setPropImageShownToPlayers, setPropLabelForPlayers } from './stores/propPlayerLook'
 import { mudarRaioDeVisaoDaSala, mudarVistaDeLonge } from './stores/visaoDeLonge'
 import { pickExportFolder, pickImportFolder, exportMapFolder, importMapFolder } from './lib/mapExport'
+import { levarMidiaDoMapaSolto } from './lib/midiaDaPasta'
 import { join } from '@tauri-apps/api/path'
 import { Toolbar } from './components/Toolbar'
 import { PropertiesPanel } from './components/PropertiesPanel'
@@ -2215,13 +2216,24 @@ function App() {
       setCurrentMapPath(path)
       return path
     }
+    // A mídia das mochilas vai para a pasta irmã do arquivo (`levarMidiaDoMapaSolto`),
+    // depois do `map.json`: o mapa levado a outro computador abre com as imagens de item.
     if (currentMapPath) {
       const path = currentMapPath
-      await saveOpenMap((saving) => saveMapToPath(withStoredTokens(saving, stored), path))
+      const saved = await saveOpenMap(async (saving) => {
+        const forDisk = withStoredTokens(saving, stored)
+        await saveMapToPath(forDisk, path)
+        return forDisk
+      })
+      await levarMidiaDoMapaSolto(path, saved)
       return path
     }
-    const path = await saveOpenMap((saving) => saveMapToAppData(withStoredTokens(saving, stored)))
+    const { path, saved } = await saveOpenMap(async (saving) => {
+      const forDisk = withStoredTokens(saving, stored)
+      return { path: await saveMapToAppData(forDisk), saved: forDisk }
+    })
     setCurrentMapPath(path)
+    await levarMidiaDoMapaSolto(path, saved)
     return path
   }
 
