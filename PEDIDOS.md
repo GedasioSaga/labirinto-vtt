@@ -1474,3 +1474,7 @@ Noite = esta sessão conduzida pelo main thread; o noite-runner continua encerra
 
 > 09/10/2026: "faz duas animações uma de subindo a escada e a outra de descer a escada estilo resident evil, a ecada vai ser de madeira, vai ser estilo a de pedra só que diferen da de pedra que já existe coloca paredes de madeira do lado."
 - Decidido: duas transições do pacote, `escada-madeira` ("Escada de madeira subindo") e `escada-madeira-descendo` ("Escada de madeira descendo"), mesma cena com sentido trocado (molde da escadaria de pedra), paredes de madeira dos dois lados; um designer só para as duas, em paralelo com o portão; protótipo para aprovar antes de publicar.
+
+> 09/10/2026: "Faz uma animação de escada subindo e descendo [Image #42] só que essas escada ela vai curvando que nem na foto, ela tem essa lateral azul e a escada é feito de uma pedra branca, o fundo é preto, e continua estilo resident evil, faça uma agente só para trabalhar nisso"
+- Imagem 42: escadaria curva de pedra branca subindo junto a uma parede de pedra clara, guarda-corpo azul (balaústres e corrimão azuis, pilares azuis com remate redondo), arandelas, porta azul em arco embaixo.
+- Decidido: duas transições do pacote, `escada-curva` ("Escada curva subindo") e `escada-curva-descendo` ("Escada curva descendo"), fundo preto, clima RE clássico; um agente dedicado (3ª vaga em paralelo, com o portão e a escada de madeira); protótipo para aprovar antes de publicar.
