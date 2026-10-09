@@ -1468,3 +1468,23 @@ Fila de 08/10 sem push intermediário (literal em `PEDIDOS.md`): itens, itens no
 - gitleaks `v0.4.17..HEAD`: no leaks found. `npm run tauri:build`: exit 0 em 214 s. Fumaça: ProductVersion 0.4.18, janela responde, 28 MB.
 - Assets: setup.exe 2677928 B sha256 cabbbdaba173f3d2b61063010b25cefa311c4c25028c7e36464df6c8840b0992; msi 3362816 B sha256 a6db9efef01f505b26504a10f556c603af6d408856649a15af0865c57cac0a63 (iguais ao GitHub).
 - Prints da conferência em `scratchpad/visao/p1/final-0418/` da sessão aff6ff7e.
+
+### 09/10/2026: 4 bugs relatados depois da v0.4.18 (corrigidos, sem push)
+
+## Objetivo
+Consertar o que o usuário achou testando a v0.4.18: (1) ficha ligada a token não aparece ao jogador; (2) foto do chat enorme na fala do jogador; (3) menu do token mostra a foto do próprio jogador em vez da do token tocado; (4) arrastar item da biblioteca ao mapa não funciona.
+
+## Estado atual
+- Commits na main, SEM push: fc47638d (1: peça do acervo nasce npc:true e o host escondia a ficha; agora personagem tipo Jogador ligado a ela vai ao dono, hostSession.ts fichasDoPersonagem), 38950cb1 (2: comentário colado no seletor prendia a miniatura de 20px só à fala do mestre, PlayerChat.css e MasterChatPanel.css), 8fb2cb21 (3: PlayerTokenCard usa token.imageData, sem prop portrait), e65636a1 (4: dragstart nativo da <img> do item disparava pointercancel; bloqueado no cartão).
+- Contagem para push+instalador: 4 consertos desde a v0.4.18.
+
+## Próximos passos
+- Usuário decidir se gera instalador agora (v0.4.19) ou junta com mais consertos.
+
+## Critério de pronto
+- Cada conserto com teste vermelho antes e verde depois; tsc app e e2e 0. (Atingido.)
+
+## Evidência
+- Vermelho antes (stash do conserto) e verde depois: hostSession.personagem.test.ts (1 falha antes, 16/16 depois), miniaturaDoChat.test.ts (2 falhas antes, verde depois), AcervoDeItensPanel.test.tsx (1 falha antes, 8/8 depois).
+- src/player + chat + itens + host: 285 arquivos, 2017 testes verdes; src/net: 274 arquivos, 2197 testes verdes. tsc app e e2e exit 0.
+- Prova no Edge (motor do WebView2), scratchpad/arrasto/prova.cjs: sem preventDefault o gesto termina em pointercancel; com ele, em pointerup.
