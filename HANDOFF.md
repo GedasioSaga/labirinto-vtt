@@ -1447,3 +1447,24 @@ Terminar a fila combinada com o usuário em 08/10 sem parar para push: RPG (iten
 
 ## Evidência
 - Última suíte inteira: antes da v0.4.17, 1409 arquivos / 12685 testes verdes. Desde então só testes direcionados por entrega (números em `PEDIDOS.md`).
+
+### 09/10/2026: release v0.4.18 (`00d590f3`) — fila longa concluída
+
+## Objetivo
+Fila de 08/10 sem push intermediário (literal em `PEDIDOS.md`): itens, itens no mapa, editor de sistemas, mapa solto, 8 melhorias do jogador, pastas, cena inicial, contas. Avisar o usuário no fim.
+
+## Estado atual
+- main = origin/main com tag `v0.4.18`. Release: https://github.com/GedasioSaga/labirinto-vtt/releases/tag/v0.4.18. Working tree limpo.
+
+## Próximos passos
+- Usuário testar no instalado: pastas, contas (nome+PIN), itens no mapa, editor de sistemas.
+- Pendências: código de bilhete/espera/recados sem tela do jogador; e2e `task-jornada-mapa-livre-do-painel.spec.ts` clica botão removido; lojas sem itens do acervo; "Usar" item não existe; entrega de ficha ao vivo quando o mestre aloca personagem com o jogador já na sala; achados antigos (filterMapForPlayer quadrático, moldura do pedido real, foco cortado, fantasma sem piso).
+
+## Critério de pronto
+- Release v0.4.18 com os 2 instaladores, digest igual ao local; exe 0.4.18 abre. (Atingido.)
+
+## Evidência
+- `rtk proxy npx vitest run`: Test Files 1447 passed | 2 failed (1449), Tests 13021 passed | 2 failed; falhas: medição de tempo `paredesDoDesenho` (sozinha verde) e texto antigo em `PlayerPanel.baixarCaderno.test.tsx` (corrigido em `432339cd`, 3/3 verde). tsc app e e2e exit 0.
+- gitleaks `v0.4.17..HEAD`: no leaks found. `npm run tauri:build`: exit 0 em 214 s. Fumaça: ProductVersion 0.4.18, janela responde, 28 MB.
+- Assets: setup.exe 2677928 B sha256 cabbbdaba173f3d2b61063010b25cefa311c4c25028c7e36464df6c8840b0992; msi 3362816 B sha256 a6db9efef01f505b26504a10f556c603af6d408856649a15af0865c57cac0a63 (iguais ao GitHub).
+- Prints da conferência em `scratchpad/visao/p1/final-0418/` da sessão aff6ff7e.
