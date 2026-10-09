@@ -1547,3 +1547,16 @@ Animações (transições de viagem, porta no mapa, imagem do pino) chegam por u
 
 ## Evidência
 - (pendente)
+
+### 09/10/2026: v0.4.20 publicada (`8aca697f`) — primeira com atualização automática
+
+## Estado atual
+- Release https://github.com/GedasioSaga/labirinto-vtt/releases/tag/v0.4.20 com setup.exe, .sig, msi e latest.json (publicada por `node scripts/publicar-versao.cjs --publicar --notas <arquivo>`). Usuário instala esta À MÃO (última vez).
+- Entraram: 225e9d6c atualizador (pergunta antes; botão "Procurar atualizações"; comando `net_room_open`), 49683695 porta animada (portas/animacoesDePorta.ts, pixi/animadorDePortas.ts), eaaffcec rodapé da tela inicial, 0d241876 tela branca, 70ccbd9d menu do token.
+- Próximo: onda 2 = B1 (Rust: animacoes.rs + rota /animacoes) ∥ D (CenarioDoPino.estilo + registro), depois B2 (TS do pacote + script pacote-animacoes.cjs). Depois v0.4.21 pelo atualizador.
+
+## Evidência
+- Suíte: 1458/1459 arquivos, 13117/13118 testes; a falha é a medição `paredesDoDesenho` sob carga (sozinha 39/39 verde). tsc app e e2e 0.
+- Conferência no app de dev (CDP, prints em scratchpad/visao/p1/porta-0420/): porta "girar" no meio do giro e aberta no fim; botão "Procurar atualizações" sem sobrepor o rodapé (conserto eaaffcec); sem erros de página.
+- latest.json no endpoint do app: version 0.4.20, url do setup v0.4.20, assinatura 420 chars; script conferiu a assinatura com a pubkey. gitleaks v0.4.19..HEAD: no leaks.
+- setup.exe 3255909 B sha256 90560ef01efe5b34af7485a31cacf98362680bc938b02fc40d55314062741ef4; msi 4055040 B sha256 dac82dc2348df41adae20728a716e908d1f00e4b2e13124bbb5563e60f56a5f5 (iguais ao GitHub). Exe 0.4.20 abre, Responding=True.
