@@ -125,16 +125,23 @@ function entradaDaMeta(tipo, id, meta, onde) {
   return entrada
 }
 
-/** As fontes da pasta: <tipo>/<id>.ts + <id>.json. README e afins são ignorados. */
-function acharFontes(pasta) {
+/**
+ * As fontes da pasta: <tipo>/<id>.ts + <id>.json. README e afins são
+ * ignorados, e também o teste (`<id>.test.ts`) e o auxiliar (`_<nome>.ts`,
+ * código que duas animações dividem, embutido em cada uma pelo import).
+ */
+function acharFontes(pasta, aprovadas) {
   if (!fs.existsSync(pasta)) falhar(`pasta de fontes não existe: ${pasta}`)
   const fontes = []
   for (const tipo of TIPOS) {
     const dir = path.join(pasta, tipo)
     if (!fs.existsSync(dir)) continue
     for (const nome of fs.readdirSync(dir).sort()) {
-      if (!nome.endsWith('.ts')) continue
+      if (!nome.endsWith('.ts') || nome.endsWith('.test.ts') || nome.startsWith('_')) continue
       const id = nome.slice(0, -3)
+      // Publicando: só o que o mestre aprovou. Animação ainda em protótipo (às
+      // vezes pela metade, com outro agente mexendo) fica de fora sem nem ser lida.
+      if (aprovadas !== null && !aprovadas.has(`${tipo}/${id}`)) continue
       const onde = `${tipo}/${nome}`
       if (!ID.test(id)) falhar(`${onde}: o nome do arquivo é o id (a-z, 0-9 e "-", até 40)`)
       if (EMBUTIDAS[tipo].includes(id)) falhar(`${onde}: "${id}" é de uma animação embutida no app`)
@@ -253,6 +260,25 @@ function publicar(modulos, indice, sig) {
   log(`publicado em https://github.com/${REPO_GITHUB}/releases/tag/${RELEASE}`)
 }
 
+/**
+ * A lista do que o mestre aprovou (`client/src/animacoes/aprovadas.json`,
+ * itens "<tipo>/<id>"). Só ela vai ao GitHub: aprovar = acrescentar a linha.
+ */
+function lerAprovadas() {
+  const arquivo = path.join(FONTES_PADRAO, 'aprovadas.json')
+  if (!fs.existsSync(arquivo)) falhar(`falta ${arquivo} (lista das animações aprovadas)`)
+  let lista
+  try {
+    lista = JSON.parse(fs.readFileSync(arquivo, 'utf8'))
+  } catch (erro) {
+    falhar(`aprovadas.json não é JSON: ${erro.message}`)
+  }
+  if (!Array.isArray(lista) || !lista.every((item) => typeof item === 'string' && /^(transicao|porta|cenario)\/[a-z0-9-]{1,40}$/.test(item))) {
+    falhar('aprovadas.json tem de ser uma lista de "<tipo>/<id>" (ex.: "transicao/portao-pesado")')
+  }
+  return new Set(lista)
+}
+
 async function main() {
   const args = lerArgumentos(process.argv.slice(2))
   const conf = JSON.parse(fs.readFileSync(CONF, 'utf8'))
@@ -261,8 +287,13 @@ async function main() {
   if (!pubkey) falhar('tauri.conf.json sem plugins.updater.pubkey')
   if (!fs.existsSync(CHAVE)) falhar(`chave de assinatura não encontrada em ${CHAVE}`)
 
-  const fontes = acharFontes(args.fontes)
-  log(`${fontes.length} animação(ões) em ${args.fontes}`)
+  const aprovadas = args.publicar ? lerAprovadas() : null
+  const fontes = acharFontes(args.fontes, aprovadas)
+  if (aprovadas !== null) {
+    const achadas = new Set(fontes.map((fonte) => `${fonte.tipo}/${fonte.id}`))
+    for (const item of aprovadas) if (!achadas.has(item)) falhar(`aprovadas.json lista "${item}", mas a fonte não existe`)
+  }
+  log(`${fontes.length} animação(ões) em ${args.fontes}${aprovadas !== null ? ' (só as aprovadas)' : ''}`)
   fs.rmSync(SAIDA, { recursive: true, force: true })
   fs.mkdirSync(SAIDA, { recursive: true })
 
