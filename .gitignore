@@ -8,6 +8,8 @@ Thumbs.db
 **/gen/
 client/test-results/
 client/playwright-report/
+# Saída de scripts/pacote-animacoes.cjs (módulos compilados, índice e assinatura)
+client/dist-animacoes/
 
 # Grafo gerado pelo graphify (2.5 MB, reconstruível com `graphify extract`)
 graphify-out/
