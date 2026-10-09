@@ -6,5 +6,6 @@
 //! costura com o `AppHandle` e expõe os comandos IPC.
 
 pub mod commands;
+pub mod media;
 pub mod server;
 pub mod tunnel;

@@ -1,12 +1,15 @@
 import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import type { LivroDaFicha } from '../components/EscolherDoLivro'
 import { FichaDePersonagem } from '../components/FichaDePersonagem'
+import { InventarioDaFicha } from '../components/InventarioDaFicha'
 import { LivroDeRegras } from '../components/LivroDeRegras'
 import type { ResumoDoLivro } from '../lib/livroDeRegras'
 import { comAjustes, type Ajuste } from '../lib/ajusteDaFicha'
 import type { Personagem } from '../lib/personagem'
 import type { CapituloDoLivro, SistemaDeRpg } from '../lib/sistemaDeRpg'
 import type { TokenDoPersonagem } from '../net/protocoloDoPersonagem'
+import type { CarriedItem } from '../types/map'
+import type { BackpackColleague } from './PlayerBackpack'
 import type { AjustePendente, EnvioDePersonagem, LivroDoJogador, SalvarPersonagem } from './playerConnection'
 import './PlayerFicha.css'
 
@@ -37,6 +40,19 @@ export interface PlayerFichaProps {
   livroDeRegras?: LivroDoJogador
   /** Pede o livro ao mestre (abrir o "Livro", ou o "Escolher do livro" da edição). */
   onPedirLivro?: () => boolean
+  /**
+   * INVENTÁRIO do personagem: a mochila do token ligado a ele e os colegas
+   * encostados nesse token. `undefined` = o token não está no mapa desta tela.
+   */
+  inventarioDe?: (personagemId: string) => InventarioDoJogador | undefined
+  /** "Dar a…" um colega encostado: o mesmo pedido do "Comigo" (`item.give`). */
+  onDarItem?: (itemId: string, toTokenId: string) => void
+}
+
+/** O inventário da ficha do jogador: o que o token carrega e a quem dá para passar. */
+export interface InventarioDoJogador {
+  itens: CarriedItem[]
+  colegas: BackpackColleague[]
 }
 
 /** Sistema só com catálogos: a mesma lista vazia a cada render, para o índice da busca não refazer à toa. */
@@ -96,6 +112,8 @@ export function PlayerFicha({
   resumoDoLivro,
   livroDeRegras,
   onPedirLivro,
+  inventarioDe,
+  onDarItem,
 }: PlayerFichaProps) {
   const tituloId = useId()
   const livroTituloId = useId()
@@ -188,6 +206,7 @@ export function PlayerFicha({
     const deste = ajustesPendentes.filter((ajuste) => ajuste.personagemId === mostrado.id)
     return deste.length === 0 ? mostrado : comAjustes(mostrado, sistemaPronto, deste)
   }, [mostrado, sistemaPronto, ajustesPendentes])
+  const inventario = mostrado === undefined ? undefined : inventarioDe?.(mostrado.id)
   const ajustar =
     onAjustar === undefined || mostrado === undefined
       ? undefined
@@ -409,6 +428,7 @@ export function PlayerFicha({
                 tipoEditavel={false}
                 livro={livroDaFicha}
                 onAjustar={ajustar}
+                inventario={inventario === undefined ? undefined : <InventarioDaFicha itens={inventario.itens} acoes={onDarItem === undefined ? undefined : (item) => <DarAColega item={item} colegas={inventario.colegas} onDar={onDarItem} />} />}
               />
             </>
           )}
@@ -449,5 +469,49 @@ function SemFicha({ tituloId, sistema, semPersonagem, criando, onCriar }: SemFic
         ))}
       </div>
     </div>
+  )
+}
+
+/**
+ * "Dar a…" no detalhe do item do inventário: os colegas encostados no token
+ * do personagem. O pedido é o do "Comigo" (`item.give`), e o host confere de
+ * novo quem está perto; o item sai da grade quando a mesa confirma.
+ */
+function DarAColega({ item, colegas, onDar }: { item: CarriedItem; colegas: readonly BackpackColleague[]; onDar: (itemId: string, toTokenId: string) => void }) {
+  const [aberto, setAberto] = useState(false)
+  const [pedido, setPedido] = useState<string | null>(null)
+  return (
+    <>
+      <button type="button" className="lb-btn lb-btn--compact" aria-expanded={aberto} onClick={() => setAberto(!aberto)}>
+        Dar a…
+      </button>
+      {aberto &&
+        (colegas.length === 0 ? (
+          <p className="pp-ficha__dar-vazio">Ninguém encostado em você agora. Chegue perto de um colega para passar o item.</p>
+        ) : (
+          <ul className="pp-ficha__dar" aria-label={`Dar ${item.nome} a`}>
+            {colegas.map((colega) => (
+              <li key={colega.tokenId}>
+                <button
+                  type="button"
+                  className="lb-btn lb-btn--compact"
+                  onClick={() => {
+                    onDar(item.id, colega.tokenId)
+                    setPedido(colega.name)
+                    setAberto(false)
+                  }}
+                >
+                  {colega.name || 'Colega sem nome'}
+                </button>
+              </li>
+            ))}
+          </ul>
+        ))}
+      {pedido !== null && (
+        <p className="pp-ficha__dar-vazio" aria-live="polite">
+          Pedido enviado: {item.nome} para {pedido}.
+        </p>
+      )}
+    </>
   )
 }

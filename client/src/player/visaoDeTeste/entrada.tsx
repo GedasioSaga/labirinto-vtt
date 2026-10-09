@@ -1,6 +1,8 @@
 import { StrictMode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
 import { createRoot } from 'react-dom/client'
+import { ImagemDaMesa } from '../../components/ImagemDaMesa'
+import { resolverComBase, resolverSoEmbutida } from '../../lib/midia'
 import { abrirCanalDoNavegador, type Canal } from '../../net/visaoDeTeste/canal'
 import { lerMensagemDoHost, SESSAO_VALIDA, type MensagemDaJanela } from '../../net/visaoDeTeste/protocoloDoCanal'
 import type { FichaParaTeste, ModoDoTeste } from '../../net/visaoDeTeste/tipos'
@@ -61,6 +63,8 @@ export function armazenamentoEmMemoria(): StorageLike {
 interface Geracao {
   geracao: number
   codigo: string
+  /** MÍDIA DA MESA: o começo das URLs das imagens neste computador; ausente = só as embutidas. */
+  midia?: string
   nome: string
   ficha: FichaParaTeste
 }
@@ -113,8 +117,8 @@ function VisaoDeJogador({ sessao, canal }: { sessao: string; canal: Canal }) {
       if (mensagem === null) return
       switch (mensagem.tipo) {
         case 'config': {
-          const { geracao: numero, codigo, nome, ficha, fichas, fichaSelecionadaId } = mensagem
-          setGeracao((atual) => (atual !== null && atual.geracao >= numero ? atual : { geracao: numero, codigo, nome, ficha }))
+          const { geracao: numero, codigo, nome, ficha, fichas, fichaSelecionadaId, midia } = mensagem
+          setGeracao((atual) => (atual !== null && atual.geracao >= numero ? atual : { geracao: numero, codigo, nome, ficha, ...(midia !== undefined ? { midia } : {}) }))
           setLista({ fichas, fichaSelecionadaId })
           return
         }
@@ -213,6 +217,7 @@ function VisaoDeJogador({ sessao, canal }: { sessao: string; canal: Canal }) {
       )}
       <div style={TELA} {...bloqueio}>
         {ativa !== null && geracao !== null && ativa.geracao === geracao.geracao ? (
+          <ImagemDaMesa.Provider key={ativa.geracao} value={geracao.midia === undefined ? resolverSoEmbutida : resolverComBase(geracao.midia)}>
           <Session
             key={ativa.geracao}
             connection={ativa.connection}
@@ -224,6 +229,7 @@ function VisaoDeJogador({ sessao, canal }: { sessao: string; canal: Canal }) {
             storage={ativa.storage}
             onAcaoNoOlhar={modo === 'olhar' ? mostrarRecado : undefined}
           />
+          </ImagemDaMesa.Provider>
         ) : (
           <Aviso>Abrindo a tela do jogador…</Aviso>
         )}

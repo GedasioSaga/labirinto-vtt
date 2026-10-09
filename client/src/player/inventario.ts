@@ -1,5 +1,5 @@
 import type { MapData, Pin, Token, TokenCondition } from '../types/map'
-import { itemOfPin, tokensTouch } from '../lib/items'
+import { itemOfPin, quantidadeDe, tokensTouch } from '../lib/items'
 import { healthFraction, healthState, readTokenHealth, type HealthState } from '../lib/tokenHealth'
 import { tokenConditionsOf } from '../lib/tokenConditions'
 import { selectedTokenColor } from '../lib/tokenColor'
@@ -72,6 +72,10 @@ export interface InventorySlot {
   quantidade: number
   itemIds: string[]
   glyph: ItemGlyph
+  /** ACERVO DE ITENS: a imagem do item (referência de mídia); ausente = o desenho do nome. */
+  imagem?: string
+  /** ACERVO DE ITENS: o texto do item, que viaja com ele na mochila (o pego de pino não tem). */
+  descricao?: string
 }
 
 /** A bolsa primeiro (como o dinheiro no topo da mochila), depois os itens na ordem em que foram pegos. */
@@ -79,17 +83,23 @@ export function inventorySlots(token: Pick<Token, 'mochila' | 'moedas'>): Invent
   const slots: InventorySlot[] = []
   const moedas = moedasDe(token)
   if (moedas > 0) slots.push({ key: 'moedas', kind: 'moedas', nome: 'Moedas', quantidade: moedas, itemIds: [], glyph: 'moedas' })
-  const porNome = new Map<string, InventorySlot>()
+  const porChave = new Map<string, InventorySlot>()
   // A mesma leitura de `carriedItemsOf`: mochila ausente é vazia.
   for (const item of token.mochila ?? []) {
-    const existente = porNome.get(item.nome)
+    // ACERVO DE ITENS: o item do acervo junta pelo item (dois "Anel" de imagens diferentes não viram um);
+    // o pego de pino, pelo nome, como sempre. A pilha conta inteira (`quantidade`).
+    const chave = item.itemId !== undefined ? `acervo:${item.itemId}` : `item:${item.nome}`
+    const quantos = quantidadeDe(item)
+    const existente = porChave.get(chave)
     if (existente !== undefined) {
-      existente.quantidade += 1
+      existente.quantidade += quantos
       existente.itemIds.push(item.id)
       continue
     }
-    const slot: InventorySlot = { key: `item:${item.nome}`, kind: 'item', nome: item.nome, quantidade: 1, itemIds: [item.id], glyph: itemGlyph(item.nome) }
-    porNome.set(item.nome, slot)
+    const slot: InventorySlot = { key: chave, kind: 'item', nome: item.nome, quantidade: quantos, itemIds: [item.id], glyph: itemGlyph(item.nome) }
+    if (item.imagem !== undefined) slot.imagem = item.imagem
+    if (item.descricao !== undefined) slot.descricao = item.descricao
+    porChave.set(chave, slot)
     slots.push(slot)
   }
   return slots
@@ -284,6 +294,8 @@ export function rememberItemTexts(memory: ItemTexts, pins: readonly Pin[]): Item
 /** O texto do mestre para a vaga: o do primeiro item dela que o jogador leu. A bolsa não tem pino. */
 export function slotDescription(slot: InventorySlot, memory: ItemTexts): string | null {
   if (slot.kind === 'moedas') return null
+  // O texto do acervo viaja com o item; o do pino só a tela lembra.
+  if (slot.descricao !== undefined) return slot.descricao
   for (const id of slot.itemIds) {
     const texto = memory.get(id)
     if (texto !== undefined) return texto

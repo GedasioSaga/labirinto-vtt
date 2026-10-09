@@ -39,6 +39,7 @@ import {
 } from '../lib/adventure'
 import type { AgendaDaCampanha } from '../lib/agendaDaCampanha'
 import type { Personagem } from '../lib/personagem'
+import { personagemComMidia } from '../lib/imagensDaFicha'
 import type { SistemaDeRpg } from '../lib/sistemaDeRpg'
 import {
   aplicarEstadoNoMapa,
@@ -300,6 +301,13 @@ interface AdventureState {
   ajustarPersonagem: (personagemId: string, ajustar: (atual: Personagem) => Personagem) => boolean
   /** "Importar personagens": entram no fim da lista, na ordem. `false` no mapa solto. */
   adicionarPersonagens: (personagens: readonly Personagem[]) => boolean
+  /**
+   * RETRATO COMO MÍDIA: troca cada imagem embutida de `trocas` pela referência
+   * de mídia gravada (`stores/midiaDosPersonagens.ts`). Só as cópias IGUAIS
+   * que ainda estão na ficha: o que mudou enquanto gravava fica. Personagem sem
+   * troca continua o MESMO objeto (a sessão não reenvia a ficha à toa).
+   */
+  trocarImagensDosPersonagens: (trocas: ReadonlyMap<string, string>) => boolean
   /**
    * Tira o personagem da aventura. O token que apontava para ele fica com o
    * `characterId` órfão, que o painel lê como "sem personagem" — desligar em
@@ -1359,6 +1367,17 @@ export const useAdventureStore = create<AdventureState>()((set, get) => ({
     if (adventure === null) return false
     if (novos.length === 0) return true
     set({ adventure: { ...adventure, personagens: [...(adventure.personagens ?? []), ...novos] }, structureDirty: true })
+    return true
+  },
+
+  trocarImagensDosPersonagens: (trocas) => {
+    const { adventure } = get()
+    const lista = adventure?.personagens
+    if (adventure === null || lista === undefined) return false
+    const novos = lista.map((personagem) => personagemComMidia(personagem, trocas))
+    if (novos.every((novo, i) => novo === lista[i])) return true
+    // Mudou o arquivo da aventura (a embutida sai do `adventure.json`): pede Salvar, como a migração da abertura.
+    set({ adventure: { ...adventure, personagens: novos }, structureDirty: true })
     return true
   },
 

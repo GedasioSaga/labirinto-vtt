@@ -1,4 +1,5 @@
 import { useId, useState } from 'react'
+import { quantidadeDe } from '../lib/items'
 import { moedasLabel } from '../lib/troca'
 import type { CarriedItem } from '../types/map'
 
@@ -46,7 +47,11 @@ export function PlayerBackpack({ items, colleagues, onGive, moedas = 0, onPay }:
         <ul className="pp-list">
           {items.map((item) => (
             <li key={item.id}>
-              <span className="pp-character__name">{item.nome}</span>{' '}
+              <span className="pp-character__name">
+                {item.nome}
+                {/* ACERVO DE ITENS: a pilha vai inteira no "Dar a…". */}
+                {quantidadeDe(item) > 1 ? ` ×${quantidadeDe(item)}` : ''}
+              </span>{' '}
               <button
                 type="button"
                 className="pp-button"

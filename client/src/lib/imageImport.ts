@@ -161,6 +161,17 @@ export async function importPinImage(sourcePath: string): Promise<string> {
  * de disco nem pasta para liberar — o navegador já entregou os bytes.
  */
 export async function pinImageFromBlob(source: Blob): Promise<string> {
+  return blobToDataUrl(await pinSizedWebp(source))
+}
+
+/**
+ * A imagem no tamanho do cartão do pino: até `MAX_PIN_SIDE` e SEMPRE
+ * reencodada em WebP, mesmo sem reduzir de tamanho — um PNG de 2 MB viraria
+ * 2,7 MB em base64 dentro de cada snapshot, e o cartão não precisa dessa
+ * fidelidade. Serve também à imagem do item do acervo (`lib/imagemDoItem.ts`),
+ * que a entrega 5 põe no mapa como pino.
+ */
+export async function pinSizedWebp(source: Blob): Promise<Blob> {
   const bitmap = await createImageBitmap(source)
   const { width, height } = computeResampleDimensions(bitmap.width, bitmap.height, MAX_PIN_SIDE)
 
@@ -171,16 +182,13 @@ export async function pinImageFromBlob(source: Blob): Promise<string> {
   if (!ctx) throw new Error('Canvas 2D não disponível')
   ctx.drawImage(bitmap, 0, 0, width, height)
 
-  // Sempre reencodado, mesmo sem reduzir de tamanho: um PNG de 2 MB viraria 2,7 MB
-  // em base64 dentro de cada snapshot, e o cartão não precisa dessa fidelidade.
-  const blob: Blob = await new Promise((resolve, reject) => {
+  return new Promise((resolve, reject) => {
     canvas.toBlob(
       (result) => (result ? resolve(result) : reject(new Error('Falha ao gerar WebP'))),
       'image/webp',
       PIN_IMAGE_QUALITY,
     )
   })
-  return blobToDataUrl(blob)
 }
 
 /** Mesmo pipeline e mesmo teto de reamostragem de importPropImage (MAX_PROP_SIDE,

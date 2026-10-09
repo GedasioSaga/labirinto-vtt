@@ -1,7 +1,7 @@
 import type { AppliedItems, HostScene, HostWorld, PlayerInfo } from '../net/hostSession'
 import type { CarriedItem, Pin, Token } from '../types/map'
 import { sceneTrail, type SceneEntry } from './adventure'
-import { carriedItemsOf, dropItemChange, giveNewItemChange, removeItemChange, type ItemChange } from './items'
+import { carriedItemsOf, darDoAcervoChange, dropItemChange, giveNewItemChange, removeItemChange, type ItemChange, type ItemParaDar } from './items'
 import { estaCongelada } from './congelar'
 import { visibleTokens } from './layers'
 import { pinSummary } from './pins'
@@ -212,6 +212,65 @@ export function partyItemChange(world: HostWorld, action: PartyItemAction, fresh
   else if (action.kind === 'moedas') change = isCoinAmount(action.moedas) ? { mochilas: [], bolsas: [{ tokenId: token.id, moedas: action.moedas }] } : null
   else if (action.kind === 'tirar') change = removeItemChange(token, action.item.id)
   else change = dropItemChange(scene.map, token, action.item.id, freshId)
+  if (change === null) return null
+  return scene === world.open || scene.sceneId === null ? change : { ...change, sceneId: scene.sceneId }
+}
+
+/**
+ * INVENTÁRIO NA FICHA: o token que carrega o inventário do personagem — o
+ * primeiro ligado a ele (`Token.characterId`), a cena aberta primeiro. `null`
+ * = nenhum token das cenas carregadas aponta para ele.
+ */
+export function tokenDoPersonagem(world: HostWorld, personagemId: string): { token: Token; sceneId: string | null } | null {
+  for (const scene of allScenes(world)) {
+    const token = scene.map.tokens.find((candidato) => candidato.characterId === personagemId)
+    if (token !== undefined) return { token, sceneId: scene.sceneId }
+  }
+  return null
+}
+
+/** A quem o "Dar a…" do acervo de itens entrega: um token, na cena dele. */
+export interface AlvoDoAcervo {
+  tokenId: string
+  /** Cena do token; `null` no mapa solto. */
+  sceneId: string | null
+  /** O nome do personagem (ou do token, quando ainda não tem personagem). */
+  nome: string
+  /** O nome da cena, para o mestre distinguir dois "Luffy" de cenas diferentes. */
+  cena: string
+}
+
+/**
+ * Quem pode receber um item do acervo: os tokens ligados a um personagem da
+ * aventura e os de jogador (`playerCharacter`) ainda sem personagem — o
+ * inventário mora no token, e a ficha o mostra quando há ligação. Cada token
+ * uma vez; personagem apagado conta como "sem personagem".
+ */
+export function alvosDoAcervo(world: HostWorld, personagens: readonly { id: string; nome: string }[]): AlvoDoAcervo[] {
+  const nomePorId = new Map(personagens.map((personagem) => [personagem.id, personagem.nome]))
+  const vistos = new Set<string>()
+  const alvos: AlvoDoAcervo[] = []
+  for (const scene of allScenes(world)) {
+    for (const token of scene.map.tokens) {
+      if (vistos.has(token.id)) continue
+      const doPersonagem = token.characterId === null ? undefined : nomePorId.get(token.characterId)
+      if (doPersonagem === undefined && token.playerCharacter !== true) continue
+      vistos.add(token.id)
+      alvos.push({ tokenId: token.id, sceneId: scene.sceneId, nome: doPersonagem ?? (token.name || 'Token sem nome'), cena: scene.name })
+    }
+  }
+  return alvos
+}
+
+/**
+ * "Dar a…" do acervo de itens, na cena do token (`darDoAcervoChange`: a
+ * pilha soma no empilhável). `null` quando o token saiu da cena.
+ */
+export function darDoAcervo(world: HostWorld, alvo: Pick<AlvoDoAcervo, 'tokenId' | 'sceneId'>, item: ItemParaDar, quantidade: number, freshId: string): AppliedItems | null {
+  const scene = sceneById(world, alvo.sceneId)
+  const token = scene?.map.tokens.find((candidato) => candidato.id === alvo.tokenId)
+  if (scene === undefined || token === undefined) return null
+  const change = darDoAcervoChange(token, item, quantidade, freshId)
   if (change === null) return null
   return scene === world.open || scene.sceneId === null ? change : { ...change, sceneId: scene.sceneId }
 }

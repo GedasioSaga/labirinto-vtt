@@ -5290,6 +5290,11 @@ button.pp-colecao__casa:focus-visible {
   height: 28px;
 }
 
+/* ACERVO DE ITENS: a imagem do item no lugar do desenho, no mesmo quadrado (vaga e palco). */
+.pp-inv__foto {
+  object-fit: contain;
+}
+
 .pp-inv__rotulo {
   max-width: 100%;
   font-size: var(--lb-font-size-sm, 11.5px);

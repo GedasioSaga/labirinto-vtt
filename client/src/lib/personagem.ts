@@ -1,4 +1,4 @@
-import { isTokenPhotoData } from './tokenPhoto'
+import { ehImagemDaMesa } from './midia'
 import type { AbaDoSistema, SistemaDeRpg } from './sistemaDeRpg'
 
 /**
@@ -43,7 +43,11 @@ export interface CartaoDaFicha {
   extras: CampoExtra[]
   /** Ids de atributos do sistema (a perícia). */
   atributos: string[]
-  /** Imagem pequena embutida (`data:image/...`), como a foto do token. */
+  /**
+   * A imagem do cartão: referência de mídia (`midia:<id>`, `lib/midia.ts`) ou,
+   * na ficha de antes, a embutida pequena (`data:image/...`) — esta é
+   * gravada como mídia assim que a aventura a vê (`stores/midiaDosPersonagens.ts`).
+   */
   imagem: string | null
   modificadores: Modificador[]
   /** Cartões de outra aba dentro deste (técnicas da transformação). */
@@ -97,9 +101,10 @@ export interface Personagem {
   /** Uma linha (ou um parágrafo) sob o nome na ficha. */
   descricao: string
   /**
-   * Retrato pequeno embutido (`data:image/...;base64,...`), reduzido pelo
-   * mesmo caminho da foto do token (`buildTokenPhotoData`: até 256 px e 48 mil
-   * caracteres). A entrega 4 troca isto por mídia servida por id.
+   * O retrato: referência de mídia (`midia:<id>`), que o jogador busca por URL
+   * da sala em vez de recebê-lo dentro de cada envio da ficha. A embutida de
+   * antes (`data:image/...`, até 256 px) ainda é lida e vira mídia assim que a
+   * aventura a vê (`stores/midiaDosPersonagens.ts`).
    */
   retrato: string | null
   /** Valor de cada lista do sistema (Raça, Ofício), pela chave da lista. */
@@ -236,9 +241,9 @@ function modificadorDoArquivo(value: unknown): Modificador | null {
   return { atributo: value.atributo, delta: value.delta }
 }
 
-/** Imagem só na forma auto-contida da foto do token: caminho de disco ou URL cai para `null`. */
+/** Imagem só como referência de mídia ou embutida: caminho de disco ou URL cai para `null`. */
 function imagemDoArquivo(value: unknown): string | null {
-  return isTokenPhotoData(value) ? value : null
+  return ehImagemDaMesa(value) ? value : null
 }
 
 function semNulos<T>(itens: (T | null)[]): T[] {
@@ -305,7 +310,8 @@ function abasDoArquivo(value: unknown): Record<string, CartaoDaFicha[]> {
  * Um personagem do `adventure.json`. Sem `id` ele sai (o token que apontava
  * para ele não teria como achar a cópia de id novo); o resto é tolerante:
  * nome vazio vira "Personagem sem nome", tipo desconhecido vira NPC (não
- * promove ninguém a jogador por engano), retrato que não é imagem embutida sai.
+ * promove ninguém a jogador por engano), retrato que não é mídia nem imagem
+ * embutida sai.
  * Ficha de antes dos ajustes rápidos (sem máximos, modificadores, cartões
  * ligados nem histórico) abre com tudo vazio: o HP de um número só vira
  * atual = máximo, os modificadores valem 0 e nada está ligado.

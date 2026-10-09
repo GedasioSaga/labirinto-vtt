@@ -1,5 +1,10 @@
 import { escolherImagemDaFicha, escolherTextoJson } from '../lib/arquivosDaFicha'
-import { useAdventureStore } from '../stores/adventureStore'
+import { hostWorldOf, useAdventureStore } from '../stores/adventureStore'
+import { carriedItemsOf, podeLargarNoChao } from '../lib/items'
+import { partyItemChange, tokenDoPersonagem } from '../lib/party'
+import type { AppliedItems, HostWorld } from '../net/hostSession'
+import type { CarriedItem } from '../types/map'
+import { InventarioDaFicha } from './InventarioDaFicha'
 import { useMapStore } from '../stores/mapStore'
 import { sistemaPorId, useRpgStore } from '../stores/rpgStore'
 import { temLivro } from '../lib/livroDeRegras'
@@ -14,8 +19,19 @@ import { SistemasDialog } from './SistemasDialog'
  * do token) só mexe no `rpgStore`; assim a janela não depende de o painel
  * esquerdo estar montado nem de qual seção está aberta.
  */
-export function RpgDialogs() {
+export interface RpgDialogsProps {
+  /**
+   * INVENTÁRIO NA FICHA: grava a mudança da mochila na cena certa e avisa as
+   * telas dos jogadores (`applyItemsInScene` + pontes, em `App.tsx`). Ausente =
+   * o inventário só lê.
+   */
+  aplicarItens?: (change: AppliedItems) => boolean
+}
+
+export function RpgDialogs({ aplicarItens }: RpgDialogsProps = {}) {
   const adventure = useAdventureStore((state) => state.adventure)
+  const activeSceneId = useAdventureStore((state) => state.activeSceneId)
+  const cache = useAdventureStore((state) => state.cache)
   const tokens = useMapStore((state) => state.map.tokens)
   const personagemAberto = useRpgStore((state) => state.personagemAberto)
   const abrirEditando = useRpgStore((state) => state.abrirEditando)
@@ -28,6 +44,9 @@ export function RpgDialogs() {
   const personagem = personagemAberto === null ? undefined : (adventure.personagens ?? []).find((candidato) => candidato.id === personagemAberto)
   const sistema = sistemaPorId(biblioteca, adventure.sistemaDeRpg)
   const tokensParaLigar: TokenParaLigar[] = tokens.map((token) => ({ id: token.id, nome: token.name, personagemId: token.characterId }))
+  // A mochila mora no token: o mapa aberto (assinado acima pelos tokens) e as cenas de fundo carregadas.
+  const inventario =
+    personagem === undefined ? undefined : inventarioDoMestre(hostWorldOf({ adventure, activeSceneId, cache }, useMapStore.getState().map), personagem.id, aplicarItens)
 
   return (
     <>
@@ -64,10 +83,48 @@ export function RpgDialogs() {
               ? undefined
               : (ajuste) => useAdventureStore.getState().ajustarPersonagem(personagem.id, (atual) => aplicarAjustes(atual, sistema, [ajuste], NOME_DO_MESTRE, Date.now()))
           }
+          inventario={inventario}
         />
       )}
       {/* Depois da ficha: abre por cima dela. */}
       {livroAberto && sistema !== undefined && <LivroDeRegrasDialog sistema={sistema} onClose={() => useRpgStore.getState().fecharLivro()} />}
     </>
+  )
+}
+
+/**
+ * O inventário do personagem na ficha do mestre: a mochila do token ligado,
+ * com as ações que o Grupo já tem — largar no chão (vira pino pegável onde o
+ * token está) e tirar. `undefined` = nenhum token ligado nas cenas carregadas.
+ */
+function inventarioDoMestre(world: HostWorld, personagemId: string, aplicarItens: ((change: AppliedItems) => boolean) | undefined) {
+  const achado = tokenDoPersonagem(world, personagemId)
+  if (achado === null) return undefined
+  const { token, sceneId } = achado
+  const agir = (kind: 'tirar' | 'devolver', item: CarriedItem, fechar: () => void) => {
+    const change = partyItemChange(world, { kind, item: { ...item, tokenId: token.id, sceneId } }, crypto.randomUUID())
+    if (change !== null && aplicarItens?.(change) === true) fechar()
+  }
+  return (
+    <InventarioDaFicha
+      itens={carriedItemsOf(token)}
+      vazio={`Nada com ${token.name || 'o token'}. Dê um item pelo acervo de itens.`}
+      acoes={
+        aplicarItens === undefined
+          ? undefined
+          : (item, fechar) => (
+              <>
+                {podeLargarNoChao(item) && (
+                  <button type="button" className="lb-btn lb-btn--compact" onClick={() => agir('devolver', item, fechar)}>
+                    Largar no chão
+                  </button>
+                )}
+                <button type="button" className="lb-btn lb-btn--danger lb-btn--compact" onClick={() => agir('tirar', item, fechar)}>
+                  Tirar
+                </button>
+              </>
+            )
+      }
+    />
   )
 }

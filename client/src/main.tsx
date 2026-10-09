@@ -1,6 +1,7 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import App from './App'
+import { MidiaDoMestre } from './components/MidiaDoMestre'
 import { instalarDicasDoPainel } from './lib/dicaDoPainel'
 import { instalarEndireitarComAlt } from './lib/endireitarComAlt'
 import { themeCss } from './theme'
@@ -37,6 +38,8 @@ for (const tipo of ['dragover', 'drop'] as const) {
 
 createRoot(document.getElementById('root') as HTMLElement).render(
   <StrictMode>
-    <App />
+    <MidiaDoMestre>
+      <App />
+    </MidiaDoMestre>
   </StrictMode>,
 )

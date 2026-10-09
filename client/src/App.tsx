@@ -52,11 +52,13 @@ import { playSignalSound } from './lib/signalSound'
 import { comSomDePassagem, instalarSonsDoMestre } from './lib/sons/sonsDoMestre'
 import { faceRangeCellsOrNull } from './lib/tokenVulto'
 import { createSignalRouter } from './net/chamadoDeFundo'
-import { tableSceneKey, type AppliedMove, type MasterChatState, type PinClueState, type PlayerInfo, type SecretCheckState } from './net/hostSession'
+import { tableSceneKey, type AppliedItems, type AppliedMove, type MasterChatState, type PinClueState, type PlayerInfo, type SecretCheckState } from './net/hostSession'
 import { tableScreenUrl } from './lib/tableScreen'
 import { giftScenesOf, RoomPanel, roomPanelTokensOf } from './components/RoomPanel'
 import { hostCluesProps } from './components/CluesSection'
-import { masterDestinationMarks, partyDestinations, partyItemChange, partyMembers, peopleByScene } from './lib/party'
+import { alvosDoAcervo, darDoAcervo, masterDestinationMarks, partyDestinations, partyItemChange, partyMembers, peopleByScene } from './lib/party'
+import { itemParaDar } from './lib/acervoDeItens'
+import { baseDaMidiaConhecida } from './lib/midiaNoDisco'
 import { congelamentoDaMesa } from './lib/congelar'
 import { jogadoresDoCorte } from './lib/corteDaTorre'
 import { useDestinationStore } from './stores/destinationStore'
@@ -827,6 +829,8 @@ function App() {
       avisos: PILHA_DO_EDITOR,
       abrirCanal: () => abrirCanalDoNavegador(),
       criarJanela: criarJanelaDoSistema,
+      // MÍDIA DA MESA: a janela de teste busca a imagem do item e o retrato no disco, pela ponte de arquivos.
+      baseDaMidia: baseDaMidiaConhecida,
       // A memória do dono, só lida: a ponte da sala (aberta) ou a mesa e o explorado
       // gravados desta aventura (os mesmos do "Retomar a mesa" e da lista de donos).
       ponteDaSala: () => hostBridgeRef.current,
@@ -843,6 +847,16 @@ function App() {
     if (sala !== null) avisar(sala)
     const teste = visaoDeTeste.ponte()
     if (teste !== null) avisar(teste)
+  }
+  /**
+   * INVENTÁRIO (acervo de itens, ficha do personagem): a mochila nova gravada
+   * na cena do token, fora do desfazer como todo passo de item do mestre, e as
+   * telas dos jogadores avisadas. `false` = a cena não está carregada.
+   */
+  const aplicarItensDoMestre = (change: AppliedItems): boolean => {
+    if (!applyItemsInScene(change)) return false
+    notificarPontes((ponte) => ponte.notifyMapChanged())
+    return true
   }
   // Desfazer/refazer avisa como tal: a caravana do mapa-mundi não o lê como arrasto.
   useEffect(
@@ -3651,6 +3665,14 @@ function App() {
               onRecolherPasta: (pasta, recolhida) => void handleRecolherPasta(pasta, recolhida),
               onApagarPasta: (pasta) => void handleApagarPasta(pasta),
             }}
+            acervoDeItens={{
+              alvos: alvosDoAcervo(roomPanelWorld(), adventure?.personagens ?? []),
+              onDar: (item, alvo, quantidade) => {
+                const change = darDoAcervo(roomPanelWorld(), alvo, itemParaDar(item), quantidade, crypto.randomUUID())
+                return change !== null && aplicarItensDoMestre(change)
+              },
+              onErro: (mensagem) => useToastStore.getState().push('error', mensagem),
+            }}
             territorio={{
               filtroLigado: filtroFaccoes,
               onFiltroChange: (ligado) => useTerritorioStore.getState().setFiltroLigado(ligado),
@@ -3851,7 +3873,7 @@ function App() {
       {(pisoAtivo !== 0 || mapaTemPisos) && <PisoHud piso={pisoAtivo} onPisoChange={(piso) => useMapStore.getState().setPisoAtivo(piso)} />}
       {shortcutsOpen && <ShortcutsDialog onClose={() => setShortcutsOpen(false)} />}
       {/* Grade de sistemas de RPG e ficha de personagem: uma vez só, abertas pelo `rpgStore`. */}
-      <RpgDialogs />
+      <RpgDialogs aplicarItens={aplicarItensDoMestre} />
       {exportImageState !== null && (
         <ExportImageDialog
           defaultGrid={map.showGrid}

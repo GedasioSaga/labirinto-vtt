@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::future::Future;
 use std::net::{IpAddr, Ipv6Addr, SocketAddr};
+use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, OnceLock};
 use std::time::{Duration, Instant as StdInstant};
@@ -97,6 +98,8 @@ pub struct Room {
     /// Nome público do Quick Tunnel ativo (ex.: `abc-def.trycloudflare.com`).
     tunnel_host: Mutex<Option<String>>,
     bad_codes: Mutex<BadCodeLimiter>,
+    /// Pasta de onde `/media/{id}` lê (`<appData>/midia`); `None` = a rota só dá 404.
+    media_dir: Mutex<Option<PathBuf>>,
 }
 
 /// Conta joins com código errado por IP. `MAX_BAD_CODES` falhas dentro de
@@ -209,7 +212,17 @@ impl Room {
             shutdown_tx,
             tunnel_host: Mutex::new(None),
             bad_codes: Mutex::new(BadCodeLimiter::default()),
+            media_dir: Mutex::new(None),
         })
+    }
+
+    /// Passa a servir `/media/{id}` desta pasta (ver `media.rs`).
+    pub fn set_media_dir(&self, dir: PathBuf) {
+        *lock(&self.media_dir) = Some(dir);
+    }
+
+    fn media_dir(&self) -> Option<PathBuf> {
+        lock(&self.media_dir).clone()
     }
 
     pub fn code(&self) -> &str {
@@ -323,7 +336,7 @@ pub fn router(room: Arc<Room>) -> Router {
         .route("/ws", get(ws_handler))
         .route("/player", get(player_page))
         .route("/assets/{*path}", get(asset_file))
-        .route("/media/{id}", get(media_stub))
+        .route("/media/{id}", get(media_file))
         .fallback(dev_fallback)
         .with_state(room)
 }
@@ -796,8 +809,37 @@ pub fn is_safe_asset_path(path: &str) -> bool {
         })
 }
 
-async fn media_stub(Path(_id): Path<String>) -> StatusCode {
-    StatusCode::NOT_FOUND
+/// `/media/{id}`: a imagem de `<appData>/midia` (item do acervo, retrato da
+/// ficha). Toda recusa é o mesmo 404 — id torto, arquivo que falta, grande
+/// demais ou que não confere —, para não ensinar quais ids existem.
+async fn media_file(State(room): State<Arc<Room>>, Path(id): Path<String>) -> Response {
+    let Some(pasta) = room.media_dir() else {
+        return StatusCode::NOT_FOUND.into_response();
+    };
+    match super::media::ler_midia(&pasta, &id).await {
+        Ok((bytes, tipo)) => media_response(bytes, tipo.mime()),
+        Err(_) => StatusCode::NOT_FOUND.into_response(),
+    }
+}
+
+/// O nome é o hash do conteúdo: conteúdo novo é nome novo, então o aparelho
+/// guarda por um ano sem perguntar. `private`: cache compartilhado (o da
+/// Cloudflare, no link público) não guarda a imagem de uma mesa.
+const CACHE_DA_MIDIA: &str = "private, max-age=31536000, immutable";
+
+/// `mime` é sempre um `TipoDeMidia::mime` (ASCII fixo). `same-origin`: só a
+/// página do jogador, servida por esta mesma sala, embute a imagem.
+fn media_response(bytes: Vec<u8>, mime: &'static str) -> Response {
+    (
+        [
+            (header::CONTENT_TYPE, HeaderValue::from_static(mime)),
+            (header::X_CONTENT_TYPE_OPTIONS, HeaderValue::from_static("nosniff")),
+            (header::CACHE_CONTROL, HeaderValue::from_static(CACHE_DA_MIDIA)),
+            (header::HeaderName::from_static("cross-origin-resource-policy"), HeaderValue::from_static("same-origin")),
+        ],
+        bytes,
+    )
+        .into_response()
 }
 
 /// `Cache-Control` do que o navegador confere a cada abertura: a `player.html`

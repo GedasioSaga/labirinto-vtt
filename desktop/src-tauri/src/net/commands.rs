@@ -256,6 +256,10 @@ pub async fn net_start_room<R: Runtime>(app: AppHandle<R>, state: State<'_, NetS
     });
     let code = generate_code();
     let room = Room::new(code.clone(), Arc::new(TauriSink(app.clone())), assets);
+    // Sem pasta de dados do app, a sala abre igual: só as imagens por URL (`/media`) ficam de fora.
+    if let Ok(dados) = app.path().app_data_dir() {
+        room.set_media_dir(dados.join(super::media::PASTA_DE_MIDIA));
+    }
     for listener in listeners {
         tauri::async_runtime::spawn(server::serve(listener, room.clone()));
     }

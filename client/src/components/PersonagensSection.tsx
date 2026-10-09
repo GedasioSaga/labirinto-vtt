@@ -8,7 +8,7 @@ import { buildTokenPhotoData } from '../lib/tokenPhoto'
 import { useAdventureStore } from '../stores/adventureStore'
 import { sistemaPorId, useRpgStore } from '../stores/rpgStore'
 import { CollapsibleSection } from './CollapsibleSection'
-import { IniciaisDoNome } from './FichaPecas'
+import { ImagemOuIniciais } from './FichaPecas'
 import './FichaDePersonagem.css'
 
 export interface PersonagensSectionProps {
@@ -81,7 +81,7 @@ export function PersonagensSection({ sistema, sistemaId, personagens, onAbrirSis
               {personagens.map((personagem) => (
                 <li key={personagem.id} className="lb-rpg__linha">
                   <button type="button" className="lb-rpg__abrir" onClick={() => onAbrirFicha(personagem.id)}>
-                    <span className="lb-rpg__retrato">{personagem.retrato !== null ? <img src={personagem.retrato} alt="" /> : <IniciaisDoNome nome={personagem.nome} />}</span>
+                    <span className="lb-rpg__retrato"><ImagemOuIniciais imagem={personagem.retrato} nome={personagem.nome} /></span>
                     <span className="lb-rpg__nome">{personagem.nome}</span>
                     <span className="lb-ficha__selo" data-tipo={personagem.tipo}>
                       {personagem.tipo === 'jogador' ? 'Jogador' : 'NPC'}

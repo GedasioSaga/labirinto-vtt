@@ -1,11 +1,11 @@
-import { useId, useState } from 'react'
+import { useId, useState, type ReactNode } from 'react'
 import type { Ajuste } from '../lib/ajusteDaFicha'
 import type { Personagem, TipoDePersonagem } from '../lib/personagem'
 import type { SistemaDeRpg } from '../lib/sistemaDeRpg'
 import { HistoricoDaFicha } from './AjusteRapido'
 import type { LivroDaFicha } from './EscolherDoLivro'
 import { FichaAbas } from './FichaAbas'
-import { IniciaisDoNome } from './FichaPecas'
+import { ImagemOuIniciais } from './FichaPecas'
 import { AtributosDaFicha, AtributosEditaveis, RecursosDaFicha, RecursosEditaveis } from './FichaNumeros'
 import './FichaDePersonagem.css'
 
@@ -40,9 +40,15 @@ export interface FichaDePersonagemProps {
    * lá tudo é campo e espera o Salvar. Ausente = a ficha só lê.
    */
   onAjustar?: (ajuste: Ajuste) => void
+  /**
+   * O INVENTÁRIO do personagem (`InventarioDaFicha`: a mochila do token ligado
+   * a ele), sob o bloco do personagem fora da edição. Quem olha monta: o mestre
+   * e o jogador oferecem ações diferentes. Ausente = sem a seção.
+   */
+  inventario?: ReactNode
 }
 
-export function FichaDePersonagem({ personagem, sistema, editando, onChange, escolherImagem, tituloId, tipoEditavel = true, livro, onAjustar }: FichaDePersonagemProps) {
+export function FichaDePersonagem({ personagem, sistema, editando, onChange, escolherImagem, tituloId, tipoEditavel = true, livro, onAjustar, inventario }: FichaDePersonagemProps) {
   const ajustar = editando ? undefined : onAjustar
   return (
     <div className="lb-ficha">
@@ -53,6 +59,7 @@ export function FichaDePersonagem({ personagem, sistema, editando, onChange, esc
         ) : (
           <BlocoLido personagem={personagem} sistema={sistema} tituloId={tituloId} onAjustar={ajustar} />
         )}
+        {!editando && inventario}
       </div>
       <div className="lb-ficha__principal">
         <FichaAbas personagem={personagem} sistema={sistema} editando={editando} onChange={onChange} escolherImagem={escolherImagem} livro={livro} onAjustar={ajustar} />
@@ -160,7 +167,7 @@ function EscolhasDoPersonagem({ personagem, sistema, editando, onChange }: { per
 }
 
 function Retrato({ personagem }: { personagem: Personagem }) {
-  return <div className="lb-ficha__retrato">{personagem.retrato !== null ? <img src={personagem.retrato} alt={`Retrato de ${personagem.nome}`} /> : <IniciaisDoNome nome={personagem.nome} />}</div>
+  return <div className="lb-ficha__retrato"><ImagemOuIniciais imagem={personagem.retrato} nome={personagem.nome} alt={`Retrato de ${personagem.nome}`} /></div>
 }
 
 function BlocoLido({ personagem, sistema, tituloId, onAjustar }: { personagem: Personagem; sistema: SistemaDeRpg; tituloId?: string; onAjustar?: (ajuste: Ajuste) => void }) {

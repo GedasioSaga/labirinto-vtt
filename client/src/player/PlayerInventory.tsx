@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { HEALTH_BAR_COLORS } from '../pixi/drawTokenHealth'
 import { TOKEN_CONDITION_LABELS, TOKEN_CONDITION_SYMBOLS } from '../lib/tokenConditions'
 import { moedasLabel } from '../lib/troca'
+import { useImagemDaMesa } from '../components/ImagemDaMesa'
 import { itemNoticeText } from './itemNotice'
 import type { ItemNotice } from './playerConnection'
 import {
@@ -470,7 +471,7 @@ export function PlayerInventory({ characters, onGive, onPay, notice, onClose, in
                   {/* O palco de examinar do RE: o objeto grande sob a luz do lampião. Só desenho — o nome e o texto abaixo dizem o mesmo ao leitor de tela. */}
                   <div className="pp-inv__palco" aria-hidden="true" data-entrada={via ?? undefined}>
                     <div key={selected.key} className="pp-inv__palco-objeto">
-                      <Glyph kind={selected.glyph} className="pp-inv__palco-glifo" />
+                      <ImagemOuGlifo slot={selected} className="pp-inv__palco-glifo" />
                     </div>
                     {(selected.kind === 'moedas' || selected.quantidade > 1) && <span className="pp-inv__palco-qtd">{selected.quantidade}</span>}
                   </div>
@@ -668,7 +669,7 @@ function Grid({ owner, slots, index, slotRef, describedBy, onSelect, onKeyDown }
                     onClick={() => onSelect(at)}
                     onKeyDown={(event) => onKeyDown(event, at)}
                   >
-                    <Glyph kind={slot.glyph} className="pp-inv__glifo" />
+                    <ImagemOuGlifo slot={slot} className="pp-inv__glifo" />
                     <span className="pp-inv__rotulo" aria-hidden="true">
                       {slot.nome}
                     </span>
@@ -928,6 +929,17 @@ function StepMold({ colleagues, moedas }: { colleagues: readonly InventoryCollea
  * CSS o amplia, afina o traço na proporção e dá corpo às formas fechadas.
  * O nome vem sempre junto.
  */
+/**
+ * ACERVO DE ITENS: a imagem do item, quando ele tem uma (o jogador a busca por
+ * URL da sala, `useImagemDaMesa`); sem ela, ou se não carregar, o desenho do nome.
+ */
+function ImagemOuGlifo({ slot, className }: { slot: InventorySlot; className: string }) {
+  const src = useImagemDaMesa()(slot.imagem)
+  const [falhou, setFalhou] = useState<string | null>(null)
+  if (src === null || src === falhou) return <Glyph kind={slot.glyph} className={className} />
+  return <img className={`${className} pp-inv__foto`} src={src} alt="" aria-hidden="true" onError={() => setFalhou(src)} />
+}
+
 function Glyph({ kind, className }: { kind: ItemGlyph; className?: string }) {
   return (
     <svg className={className} viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">

@@ -346,3 +346,21 @@
     transform: none;
   }
 }
+
+/* INVENTÁRIO na ficha: a lista do "Dar a…" no detalhe do item. */
+.pp-ficha__dar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--lb-space-1);
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pp-ficha__dar-vazio {
+  width: 100%;
+  margin: 0;
+  font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-parchment-dim);
+}

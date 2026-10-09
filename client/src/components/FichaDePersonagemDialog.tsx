@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState, type KeyboardEvent, type MouseEvent } from 'react'
+import { useEffect, useId, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { salvarSobreOAtual, type Ajuste } from '../lib/ajusteDaFicha'
 import { PERSONAGEM_SEM_NOME, type Personagem } from '../lib/personagem'
@@ -31,6 +31,8 @@ export interface FichaDePersonagemDialogProps {
   onLigarToken: (tokenId: string) => void
   /** AJUSTE RÁPIDO do mestre, fora da edição: grava na hora, com histórico. Ausente = sem − e +. */
   onAjustar?: (ajuste: Ajuste) => void
+  /** O inventário do personagem (a mochila do token ligado), já com as ações do mestre. Ausente = sem token ligado. */
+  inventario?: ReactNode
 }
 
 const FOCUSABLE = 'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), summary, [tabindex]:not([tabindex="-1"])'
@@ -55,6 +57,7 @@ export function FichaDePersonagemDialog({
   tokens,
   onLigarToken,
   onAjustar,
+  inventario,
 }: FichaDePersonagemDialogProps) {
   const tituloId = useId()
   const ligarId = useId()
@@ -227,6 +230,7 @@ export function FichaDePersonagemDialog({
               escolherImagem={escolherImagem}
               tituloId={tituloId}
               onAjustar={onAjustar}
+              inventario={inventario}
             />
           )}
         </div>

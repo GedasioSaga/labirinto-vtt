@@ -1,3 +1,4 @@
+import { ehBaseDeMidiaLocal } from '../../lib/midia'
 import type { FichaParaTeste } from './tipos'
 
 /**
@@ -26,6 +27,12 @@ export type MensagemDoHost =
       ficha: FichaParaTeste
       fichas: FichaParaTeste[]
       fichaSelecionadaId: string | null
+      /**
+       * MÍDIA DA MESA: o começo das URLs das imagens (item, retrato) neste
+       * computador, pela ponte de arquivos do Tauri — a janela de teste não tem
+       * sala para buscar `/media`. Ausente = só as imagens embutidas aparecem.
+       */
+      midia?: string
     }
   /** A lista do "Trocar ficha" mudou (o mestre editou a cena aberta ou a seleção). */
   | { de: 'host'; tipo: 'fichas'; sessao: string; fichas: FichaParaTeste[]; fichaSelecionadaId: string | null }
@@ -99,14 +106,16 @@ export function lerMensagemDoHost(dado: unknown, sessao: string): MensagemDoHost
   if (!isRecord(dado) || dado.de !== 'host' || dado.sessao !== sessao) return null
   switch (dado.tipo) {
     case 'config': {
-      const { geracao, codigo, nome, ficha, fichas, fichaSelecionadaId } = dado
+      const { geracao, codigo, nome, ficha, fichas, fichaSelecionadaId, midia } = dado
       const geracaoLida = contador(geracao)
       const fichaLida = lerFicha(ficha)
       const fichasLidas = lerFichas(fichas)
       const selecionada = textoOuNull(fichaSelecionadaId)
       if (geracaoLida === null || typeof codigo !== 'string' || typeof nome !== 'string') return null
       if (fichaLida === null || fichasLidas === null || selecionada === undefined) return null
-      return { de: 'host', tipo: 'config', sessao, geracao: geracaoLida, codigo, nome, ficha: fichaLida, fichas: fichasLidas, fichaSelecionadaId: selecionada }
+      // Base que não é da ponte de arquivos sai calada: a janela não carrega imagem de fora.
+      const comMidia = ehBaseDeMidiaLocal(midia) ? { midia } : {}
+      return { de: 'host', tipo: 'config', sessao, geracao: geracaoLida, codigo, nome, ficha: fichaLida, fichas: fichasLidas, fichaSelecionadaId: selecionada, ...comMidia }
     }
     case 'fichas': {
       const fichas = lerFichas(dado.fichas)

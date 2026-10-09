@@ -115,6 +115,8 @@ export interface DepsDaVisao extends FontesDaSemente {
   avisos: ToastSink
   abrirCanal: () => Canal
   criarJanela: (aoFecharPorFora: () => void) => JanelaDeTeste
+  /** MÍDIA DA MESA: onde a janela busca as imagens por referência (`baseDaMidiaNoMestre`); `null` ou ausente = só as embutidas. */
+  baseDaMidia?: () => string | null
   novaSessao?: () => string
   novoCodigo?: () => string
   agora?: () => number
@@ -415,7 +417,8 @@ export function criarControladorDaVisao(deps: DepsDaVisao): ControladorDaVisao {
     ponte.start({ resume: true }).then(
       () => {
         if (sessao !== s || s.geracao !== geracao) return
-        enviar(s, { de: 'host', tipo: 'config', sessao: s.id, geracao, codigo, nome, ficha, fichas: [...fichas], fichaSelecionadaId })
+        const midia = deps.baseDaMidia?.() ?? null
+        enviar(s, { de: 'host', tipo: 'config', sessao: s.id, geracao, codigo, nome, ficha, fichas: [...fichas], fichaSelecionadaId, ...(midia !== null ? { midia } : {}) })
       },
       () => {
         // A ponte já pôs o motivo no aviso do teste ("Teste · Não foi possível abrir a sala").

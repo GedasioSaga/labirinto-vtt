@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useImagemDaMesa } from './ImagemDaMesa'
 
 /**
  * Peças pequenas da ficha de personagem, usadas pelo bloco do personagem e
@@ -34,6 +35,20 @@ export function IniciaisDoNome({ nome }: { nome: string }) {
       {iniciais(nome)}
     </span>
   )
+}
+
+/**
+ * A imagem da ficha (retrato, cartão, item) ou, sem ela, as iniciais. A
+ * imagem pode ser a referência de mídia ou a embutida de antes: quem diz o
+ * `src` é a tela (`useImagemDaMesa`). Imagem que não carrega (a sala caiu, o
+ * arquivo sumiu do disco do mestre) também volta às iniciais, em vez do ícone
+ * de imagem quebrada.
+ */
+export function ImagemOuIniciais({ imagem, nome, alt = '' }: { imagem: string | null | undefined; nome: string; alt?: string }) {
+  const src = useImagemDaMesa()(imagem)
+  const [falhou, setFalhou] = useState<string | null>(null)
+  if (src === null || falhou === src) return <IniciaisDoNome nome={nome} />
+  return <img src={src} alt={alt} onError={() => setFalhou(src)} />
 }
 
 /** Inteiro do texto do campo; `null` enquanto não é número (vazio, "-" no meio da digitação). */

@@ -4,7 +4,7 @@ import { abaTemCatalogo, cartaoDoCatalogo, itensDaAba, type ItemEscolhivel } fro
 import { abaDoSistema, type AbaDoSistema, type SistemaDeRpg } from '../lib/sistemaDeRpg'
 import type { Ajuste } from '../lib/ajusteDaFicha'
 import { EscolherDoLivro, type EstadoDaEscolha, type LivroDaFicha } from './EscolherDoLivro'
-import { CampoNumero, IniciaisDoNome } from './FichaPecas'
+import { CampoNumero, ImagemOuIniciais } from './FichaPecas'
 
 /**
  * As abas da ficha de personagem (Habilidades, Perícias...): os cartões de
@@ -139,7 +139,7 @@ function CartaoLido({ cartao, aba, sistema, ativo, onLigar }: CartaoLidoProps) {
     <li className="lb-cartao" data-ativo={ativo && aba.modificadores === true ? '' : undefined}>
       <div className="lb-cartao__corpo">
         {aba.imagem === true && (
-          <div className="lb-cartao__imagem">{cartao.imagem !== null ? <img src={cartao.imagem} alt="" /> : <IniciaisDoNome nome={cartao.nome} />}</div>
+          <div className="lb-cartao__imagem"><ImagemOuIniciais imagem={cartao.imagem} nome={cartao.nome} /></div>
         )}
         <div className="lb-cartao__texto">
           <div className="lb-cartao__topo">
@@ -356,7 +356,7 @@ function CartaoEditavel({ cartao, aba, sistema, aberto, onChange, onRemover, onS
           <div className="lb-field">
             <span className="lb-label">Imagem</span>
             <div className="lb-cartao__imagem-edit">
-              <div className="lb-cartao__imagem">{cartao.imagem !== null ? <img src={cartao.imagem} alt="" /> : <IniciaisDoNome nome={cartao.nome} />}</div>
+              <div className="lb-cartao__imagem"><ImagemOuIniciais imagem={cartao.imagem} nome={cartao.nome} /></div>
               <button type="button" className="lb-btn lb-btn--compact" onClick={() => void pedirImagem()}>
                 {cartao.imagem === null ? 'Escolher imagem…' : 'Trocar imagem…'}
               </button>

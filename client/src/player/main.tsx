@@ -23,7 +23,7 @@ import { PlayerFerrolho } from './PlayerFerrolho'
 import { acaoDeFerrolho, tokenAlcancaPino } from '../lib/ferrolho'
 import { PlayerTokenCard } from './PlayerTokenCard'
 import { PlayerInventory } from './PlayerInventory'
-import { PlayerFicha } from './PlayerFicha'
+import { PlayerFicha, type InventarioDoJogador } from './PlayerFicha'
 import { escolherImagemNoAparelho } from './imagemDoAparelho'
 import { inventoryCharacters, rememberItemTexts, stableSlotOrder, type ItemTexts } from './inventario'
 import { isEditableTarget } from '../lib/keymap'
@@ -884,6 +884,18 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
     }
   }, [map, ownTokens, partyTokens])
 
+  // INVENTÁRIO NA FICHA DE PERSONAGEM: a mochila do token ligado ao personagem,
+  // como o recorte já a trouxe (só a do dono atravessa, `tokenForPlayer`), e os
+  // colegas encostados NESSE token — o host confere o "Dar a…" por ele.
+  // Token noutra cena (o recorte só traz a desta): sem inventário na ficha.
+  const ligacoesDaFicha = state.personagens?.tokens
+  const inventarioDoPersonagem = (personagemId: string): InventarioDoJogador | undefined => {
+    const ligado = ligacoesDaFicha?.find((token) => token.personagemId === personagemId)
+    const token = ligado === undefined ? undefined : map?.tokens.find((candidato) => candidato.id === ligado.tokenId)
+    if (token === undefined || !map) return undefined
+    return { itens: carriedItemsOf(token), colegas: giveTargets(map, [token.id], partyTokens) }
+  }
+
   // MOEDAS E TROCA: a contraproposta sai da ficha da OFERTA — o host não junta
   // mochilas nem bolsas de fichas diferentes, então o formulário só oferece dela.
   const trocaTokenId = state.troca?.tokenId
@@ -1598,6 +1610,8 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
             resumoDoLivro={state.resumoDoLivro}
             livroDeRegras={state.livroDeRegras}
             onPedirLivro={() => connection.pedirLivro()}
+            inventarioDe={inventarioDoPersonagem}
+            onDarItem={(itemId, toTokenId) => void connection.giveItem(itemId, toTokenId)}
           />
         )}
         {/* MINHAS PISTAS: a pista reaberta do Caderno, com "Mostrar para…".

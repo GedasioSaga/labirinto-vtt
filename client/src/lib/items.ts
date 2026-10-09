@@ -1,6 +1,7 @@
-import type { CarriedItem, MapData, Pin, PinItem, Token } from '../types/map'
+import type { CarriedItem, DadosDoItem, MapData, Pin, PinItem, Token } from '../types/map'
 import { tokenRadiusOf } from './doorReach'
 import { venderItem } from './loja'
+import { ehRefDeMidia } from './midia'
 import { comPiso, pisoDe } from './pisos'
 
 /**
@@ -51,11 +52,60 @@ export function readPinItem(value: unknown): PinItem | undefined {
   return value.livre === true ? { nome, livre: true } : { nome }
 }
 
-/** Um item da mochila lido de fora (disco): id e nome de texto, nome não vazio. */
+/** Teto da descrição do item: texto que o jogador lê no detalhe do inventário. */
+export const ITEM_DESCRICAO_MAX = 2000
+/** Teto do nome da categoria ("Consumível"). */
+export const ITEM_CATEGORIA_MAX = 40
+/** Teto do preço em berries: cabe com folga em `Number.isSafeInteger`, e a tela não desenha "1e+21". */
+export const ITEM_PRECO_MAX = 1_000_000_000_000
+/** Teto da pilha numa vaga. */
+export const ITEM_QUANTIDADE_MAX = 9999
+/** Id do item do acervo (`item_<uuid>` tem 41). */
+const ITEM_ID_MAX = 80
+const FORMA_DO_ITEM_ID = /^[A-Za-z0-9_-]+$/
+
+/** Corta em `max` unidades UTF-16 sem deixar meio emoji no fim. */
+function cortado(valor: string, max: number): string {
+  if (valor.length <= max) return valor
+  const ultima = valor.charCodeAt(max - 1)
+  return valor.slice(0, ultima >= 0xd800 && ultima <= 0xdbff ? max - 1 : max)
+}
+
+function inteiroEntre(value: unknown, min: number, max: number): number | null {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value >= min && value <= max ? value : null
+}
+
+/**
+ * Os dados do acervo que um item traz (`DadosDoItem`), lidos de fora: do
+ * disco, do recorte do jogador, do snapshot. Campo torto SAI sozinho e o item
+ * fica (com id e nome ele ainda é item); imagem só como referência de mídia —
+ * a embutida engordaria todo snapshot e o caminho de disco não sai do mestre.
+ */
+export function dadosDoItemLidos(value: Record<string, unknown>): DadosDoItem {
+  const dados: DadosDoItem = {}
+  if (typeof value.itemId === 'string' && value.itemId.length <= ITEM_ID_MAX && FORMA_DO_ITEM_ID.test(value.itemId)) dados.itemId = value.itemId
+  if (ehRefDeMidia(value.imagem)) dados.imagem = value.imagem
+  if (typeof value.descricao === 'string' && value.descricao.trim() !== '') dados.descricao = cortado(value.descricao, ITEM_DESCRICAO_MAX)
+  if (typeof value.categoria === 'string' && value.categoria.trim() !== '') dados.categoria = cortado(value.categoria.trim(), ITEM_CATEGORIA_MAX)
+  const preco = inteiroEntre(value.preco, 0, ITEM_PRECO_MAX)
+  if (preco !== null) dados.preco = preco
+  const quantidade = inteiroEntre(value.quantidade, 1, ITEM_QUANTIDADE_MAX)
+  // 1 é o ausente: a mochila gravada continua igual à de antes do campo.
+  if (quantidade !== null && quantidade > 1) dados.quantidade = quantidade
+  if (value.empilhavel === true) dados.empilhavel = true
+  return dados
+}
+
+/** Um item da mochila lido de fora (disco, recorte): id e nome de texto, nome não vazio, e os dados do acervo que vierem bons. */
 function readCarriedItem(value: unknown): CarriedItem | null {
   if (!isRecord(value) || typeof value.id !== 'string' || value.id === '' || typeof value.nome !== 'string') return null
   const nome = cleanItemName(value.nome)
-  return nome === '' ? null : { id: value.id, nome }
+  return nome === '' ? null : { id: value.id, nome, ...dadosDoItemLidos(value) }
+}
+
+/** Quantos a vaga tem: ausente é 1. */
+export function quantidadeDe(item: Pick<CarriedItem, 'quantidade'>): number {
+  return item.quantidade ?? 1
 }
 
 /** `Token.mochila` como vem do disco: só os itens bons; lista vazia ou lixo volta ausente (mochila vazia). */
@@ -146,11 +196,49 @@ export function dropItemChange(map: MapData, token: Token, itemId: string, fresh
   return { ...removed, addPin: comPiso(pino, pisoDe(token)) }
 }
 
+/**
+ * O "Largar no chão" (`dropItemChange`) só sabe recriar o pino com o NOME: a
+ * imagem, a descrição e a pilha de um item do acervo sumiriam no chão (três
+ * poções viravam uma). Até o item no mapa (entrega 5) guardar esses dados, só
+ * o item simples — o pego de um pino — vai ao chão.
+ */
+export function podeLargarNoChao(item: CarriedItem): boolean {
+  return item.itemId === undefined && quantidadeDe(item) === 1
+}
+
 /** "Dar" do mestre: um item NOVO, com o nome aparado, no fim da mochila da ficha. `null` = nome vazio. */
 export function giveNewItemChange(token: Token, nome: string, itemId: string): ItemChange | null {
   const clean = cleanItemName(nome)
   if (clean === '') return null
   return { mochilas: [{ tokenId: token.id, mochila: [...carriedItemsOf(token), { id: itemId, nome: clean }] }] }
+}
+
+/** O item do acervo como ele é dado: o nome e os dados que vão para a mochila. */
+export type ItemParaDar = DadosDoItem & { nome: string }
+
+/**
+ * "Dar a…" do ACERVO DE ITENS (o mestre dá um item do acervo a um
+ * personagem). Empilhável com o mesmo `itemId` já na mochila: soma na vaga
+ * que existe (até `ITEM_QUANTIDADE_MAX`), com os dados de agora do acervo.
+ * O resto abre vaga nova no fim, com `freshId`; o não empilhável vai sempre
+ * um por vez. `null` = nome vazio.
+ */
+export function darDoAcervoChange(token: Token, item: ItemParaDar, quantidade: number, freshId: string): ItemChange | null {
+  const nome = cleanItemName(item.nome)
+  if (nome === '') return null
+  const { nome: _nome, quantidade: _quantidade, ...dados } = item
+  const lidos = dadosDoItemLidos(dados)
+  const mochila = carriedItemsOf(token)
+  const pedida = Number.isSafeInteger(quantidade) ? Math.min(Math.max(quantidade, 1), ITEM_QUANTIDADE_MAX) : 1
+  const existente = lidos.empilhavel === true && lidos.itemId !== undefined ? mochila.find((carried) => carried.itemId === lidos.itemId) : undefined
+  if (existente !== undefined) {
+    const soma = Math.min(quantidadeDe(existente) + pedida, ITEM_QUANTIDADE_MAX)
+    const atualizado: CarriedItem = { id: existente.id, nome, ...lidos, ...(soma > 1 ? { quantidade: soma } : {}) }
+    return { mochilas: [{ tokenId: token.id, mochila: mochila.map((carried) => (carried === existente ? atualizado : carried)) }] }
+  }
+  const quantos = lidos.empilhavel === true ? pedida : 1
+  const novo: CarriedItem = { id: freshId, nome, ...lidos, ...(quantos > 1 ? { quantidade: quantos } : {}) }
+  return { mochilas: [{ tokenId: token.id, mochila: [...mochila, novo] }] }
 }
 
 /** Uma ficha a quem o jogador pode dar um item. */

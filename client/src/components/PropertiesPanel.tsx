@@ -85,6 +85,7 @@ import { ConcealBrushControls, type ConcealBrushControlsProps } from './ConcealB
 import { PinControls, type PinControlsProps } from './PinControls'
 import type { PinIconControlsProps } from './PinIconControls'
 import { TokenLibraryPanel, type TokenLibraryPanelProps } from './TokenLibraryPanel'
+import { AcervoDeItensPanel, type AcervoDeItensPanelProps } from './AcervoDeItensPanel'
 import { isAxisAlignedRect, roomDimensions } from '../lib/roomOps'
 import { roomRotationOf } from '../lib/roomRotation'
 import { roomLabelStyleOf } from '../lib/roomLabelStyle'
@@ -306,6 +307,8 @@ interface PropertiesPanelProps {
   pinSelected: boolean
   /** Estante de NPCs prontos, global do app (pedido de 18/09/2026). */
   tokenLibrary: TokenLibraryPanelProps
+  /** ACERVO DE ITENS, logo abaixo dos tokens: do app, como eles. Ausente = sem a seção. */
+  acervoDeItens?: AcervoDeItensPanelProps
   /** FACÇÃO E ALERTA do mapa inteiro ("Território"). Ausente = sem a seção. */
   territorio?: TerritorioControlsProps
 }
@@ -425,6 +428,7 @@ export function PropertiesPanel({
   pinIcon,
   pinSelected,
   tokenLibrary,
+  acervoDeItens,
   territorio,
 }: PropertiesPanelProps) {
   // "Só o que importa agora": as seções de mapa inteiro só abrem sozinhas
@@ -1066,6 +1070,7 @@ export function PropertiesPanel({
             nenhuma, e é para estar à mão justamente quando nada está
             selecionado. */}
         <TokenLibraryPanel {...tokenLibrary} />
+        {acervoDeItens !== undefined && <AcervoDeItensPanel {...acervoDeItens} />}
       </div>
     </div>
   )

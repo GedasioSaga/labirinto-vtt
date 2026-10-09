@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useId, useRef, useState, type FormEvent, type KeyboardEvent } from 'react'
-import { ITEM_NAME_MAX_LENGTH } from '../lib/items'
+import { ITEM_NAME_MAX_LENGTH, podeLargarNoChao, quantidadeDe } from '../lib/items'
 import { awayTokenLabel, awayTokenName, type PartyDestination, type PartyItemAction, type PartyMember } from '../lib/party'
 import { SceneSendForm } from './SceneSendForm'
 import type { PlayerNoteDelivery, TradeProposeRefusal, TradeProposeResult } from '../net/hostSession'
@@ -532,19 +532,25 @@ function BackpackList({ member, onItem }: BackpackListProps) {
       <ul className="lb-party__mochila" aria-label={`Mochila de ${member.name}`}>
         {member.mochila.map((item) => (
           <li key={`${item.tokenId}:${item.id}`} className="lb-party__coisa">
-            <span className="lb-party__coisa-nome">{item.nome}</span>{' '}
+            <span className="lb-party__coisa-nome">
+              {item.nome}
+              {quantidadeDe(item) > 1 ? ` ×${quantidadeDe(item)}` : ''}
+            </span>{' '}
             <span className="lb-party__coisa-acoes">
               <button type="button" className="lb-btn lb-btn--compact" aria-label={`Tirar ${item.nome} de ${member.name}`} onClick={() => run({ kind: 'tirar', item })}>
                 Tirar
               </button>
-              <button
-                type="button"
-                className="lb-btn lb-btn--compact"
-                aria-label={`Devolver ao chão ${item.nome} de ${member.name}`}
-                onClick={() => run({ kind: 'devolver', item })}
-              >
-                Devolver ao chão
-              </button>
+              {/* ACERVO DE ITENS: o item do acervo (imagem, pilha) não volta inteiro ao chão até a entrega 5. */}
+              {podeLargarNoChao(item) && (
+                <button
+                  type="button"
+                  className="lb-btn lb-btn--compact"
+                  aria-label={`Devolver ao chão ${item.nome} de ${member.name}`}
+                  onClick={() => run({ kind: 'devolver', item })}
+                >
+                  Devolver ao chão
+                </button>
+              )}
             </span>
           </li>
         ))}

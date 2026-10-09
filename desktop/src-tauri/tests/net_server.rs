@@ -6,6 +6,7 @@ use std::time::Duration;
 
 use futures_util::{SinkExt, StreamExt};
 use labirinto_lib::net::commands;
+use labirinto_lib::net::media;
 use labirinto_lib::net::server::{self, Asset, AssetSource, ClientId, NetSink, PeerEvent, Room};
 use serde_json::{json, Value};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -231,6 +232,34 @@ async fn player_serve_asset_e_media_e_stub() {
     assert!(http_get(addr, "/player").await.starts_with("HTTP/1.1 200"));
     assert!(http_get(addr, "/assets/nao-existe.js").await.starts_with("HTTP/1.1 404"));
     assert!(http_get(addr, "/media/abc").await.starts_with("HTTP/1.1 404"));
+}
+
+/// MÍDIA DA MESA: a imagem gravada pelo mestre em `<appData>/midia` sai pela
+/// sala com tipo, cache e `nosniff`; o arquivo vizinho da pasta, não.
+#[tokio::test]
+async fn media_serve_so_a_imagem_da_pasta_da_sala() {
+    let (addr, room, _sink) = start_server().await;
+    let raiz = std::env::temp_dir().join(format!("labirinto-sala-midia-{}", std::process::id()));
+    let pasta = raiz.join(media::PASTA_DE_MIDIA);
+    std::fs::create_dir_all(&pasta).unwrap();
+    let png: &[u8] = b"\x89PNG\r\n\x1a\n\x00\x00\x00\x0dIHDR";
+    let id = format!("{}.png", media::hash_hex(png));
+    std::fs::write(pasta.join(&id), png).unwrap();
+    std::fs::write(raiz.join(&id), png).unwrap();
+
+    // Sem pasta configurada, nem a imagem certa sai.
+    assert!(http_get(addr, &format!("/media/{id}")).await.starts_with("HTTP/1.1 404"));
+    room.set_media_dir(pasta.clone());
+    let resposta = http_get(addr, &format!("/media/{id}")).await.to_ascii_lowercase();
+    assert!(resposta.starts_with("http/1.1 200"), "{resposta}");
+    assert!(resposta.contains("content-type: image/png"));
+    assert!(resposta.contains("x-content-type-options: nosniff"));
+    assert!(resposta.contains("cache-control: private, max-age=31536000, immutable"));
+    assert!(resposta.contains("cross-origin-resource-policy: same-origin"));
+    for ruim in [format!("..%2F{id}"), format!("..%5C{id}"), "..".to_owned(), format!("{}.svg", "a".repeat(64))] {
+        assert!(http_get(addr, &format!("/media/{ruim}")).await.starts_with("HTTP/1.1 404"), "{ruim}");
+    }
+    std::fs::remove_dir_all(&raiz).unwrap();
 }
 
 const TUNNEL: &str = "calm-river-42.trycloudflare.com";

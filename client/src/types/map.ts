@@ -575,10 +575,38 @@ export interface PinItem {
 }
 
 /**
- * Um item na mochila da ficha. `id` é o id do pino de onde ele saiu — único
- * no mapa, e a ficha que viaja entre cenas leva a mochila junto.
+ * ACERVO DE ITENS (entrega 4 dos sistemas de RPG): o que um item do acervo do
+ * app (`lib/acervoDeItens.ts`) leva consigo quando vai para uma mochila. Tudo
+ * opcional: o item pego de um pino ("!") continua só com id e nome, e a
+ * mochila gravada antes abre igual (`readCarriedItems`). É o molde que o item
+ * no mapa (entrega 5: pino ou imagem de item) deve reusar.
  */
-export interface CarriedItem {
+export interface DadosDoItem {
+  /** O item do acervo de onde veio (`ItemDoCatalogo.id`): dar de novo o mesmo, empilhável, soma. */
+  itemId?: string
+  /**
+   * Referência de mídia (`midia:<id>`, `lib/midia.ts`), que o jogador busca por
+   * URL da sala. Nunca a imagem embutida: a mochila vai em todo snapshot.
+   */
+  imagem?: string
+  descricao?: string
+  /** Arma, Armadura, Consumível… — a lista editável do acervo. */
+  categoria?: string
+  /** Preço em berries (loja), inteiro de 0 para cima. */
+  preco?: number
+  /** Quantos estão nesta vaga; ausente = 1. Passa de 1 só no empilhável. */
+  quantidade?: number
+  /** O item empilha: o mesmo `itemId` dado de novo soma em `quantidade` em vez de abrir outra vaga. */
+  empilhavel?: true
+}
+
+/**
+ * Um item na mochila da ficha. `id` é o id do pino de onde ele saiu (ou um id
+ * novo, quando o mestre deu do acervo) — único no mapa, e a ficha que viaja
+ * entre cenas leva a mochila junto. A mochila é o INVENTÁRIO do personagem:
+ * a ficha de personagem lê a do token ligado a ela (`Token.characterId`).
+ */
+export interface CarriedItem extends DadosDoItem {
   id: string
   nome: string
 }

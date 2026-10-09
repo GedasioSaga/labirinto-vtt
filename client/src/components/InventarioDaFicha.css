@@ -1,0 +1,213 @@
+/* INVENTÁRIO DO PERSONAGEM na ficha (InventarioDaFicha.tsx): a grade de
+   vagas no tom da ficha — pedra, latão no que está aberto — e o detalhe do
+   item logo abaixo. Só transform e cor animam; nada anda no Esc (teclado). */
+
+.lb-inv {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-2);
+  border-top: 1px solid var(--lb-color-line);
+  padding-top: var(--lb-space-2);
+}
+
+.lb-inv__titulo {
+  display: flex;
+  align-items: center;
+  gap: var(--lb-space-2);
+  margin: 0;
+  padding: 0 var(--lb-space-2);
+  font-size: var(--lb-font-size-sm);
+  font-weight: var(--lb-font-weight-medium);
+  color: var(--lb-color-parchment-dim);
+}
+
+.lb-inv__conta {
+  font-family: var(--lb-font-utility);
+  font-size: var(--lb-font-size-xs);
+  font-variant-numeric: tabular-nums;
+  opacity: 0.8;
+}
+
+.lb-inv__vazio {
+  margin: 0;
+  padding: 0 var(--lb-space-2);
+  font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-parchment-faint);
+}
+
+.lb-inv__grade {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(56px, 1fr));
+  gap: var(--lb-space-1);
+  margin: 0;
+  padding: 0 var(--lb-space-2);
+  list-style: none;
+}
+
+.lb-inv__vaga {
+  position: relative;
+  display: block;
+  width: 100%;
+  aspect-ratio: 1;
+  padding: 0;
+  border: 1px solid var(--lb-color-line-strong);
+  border-radius: var(--lb-radius-sm);
+  background: var(--lb-color-stone-sunken);
+  overflow: hidden;
+  cursor: pointer;
+  transition:
+    transform 140ms cubic-bezier(0.23, 1, 0.32, 1),
+    border-color 140ms ease;
+}
+
+.lb-inv__vaga:active {
+  transform: scale(0.97);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .lb-inv__vaga:hover {
+    border-color: var(--lb-color-parchment-faint);
+  }
+}
+
+.lb-inv__vaga:focus-visible {
+  outline: 2px solid var(--lb-color-brass);
+  outline-offset: 2px;
+}
+
+.lb-inv__vaga[aria-pressed='true'] {
+  border-color: var(--lb-color-brass);
+  box-shadow: inset 0 0 0 1px var(--lb-color-brass);
+}
+
+.lb-inv__imagem,
+.lb-inv__grande {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.lb-inv__imagem img,
+.lb-inv__grande img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.lb-inv__imagem .lb-ficha__iniciais {
+  font-size: 20px;
+}
+
+.lb-inv__qtd {
+  position: absolute;
+  right: 2px;
+  bottom: 2px;
+  min-width: 18px;
+  padding: 0 4px;
+  border-radius: var(--lb-radius-sm);
+  background: var(--lb-color-brass);
+  color: var(--lb-color-brass-contrast);
+  font-family: var(--lb-font-utility);
+  font-size: var(--lb-font-size-xs);
+  font-weight: var(--lb-font-weight-medium);
+  font-variant-numeric: tabular-nums;
+  line-height: 16px;
+  text-align: center;
+}
+
+.lb-inv__detalhe {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr);
+  gap: var(--lb-space-3);
+  margin: 0 var(--lb-space-2);
+  padding: var(--lb-space-2);
+  border: 1px solid var(--lb-color-line-strong);
+  border-radius: var(--lb-radius-sm);
+  background: var(--lb-color-stone-raised);
+}
+
+.lb-inv__grande {
+  width: 96px;
+  height: 96px;
+  border-radius: var(--lb-radius-sm);
+  background: var(--lb-color-stone-sunken);
+  overflow: hidden;
+}
+
+.lb-inv__grande .lb-ficha__iniciais {
+  font-size: 32px;
+}
+
+.lb-inv__texto {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-1);
+  min-width: 0;
+}
+
+.lb-inv__nome {
+  margin: 0;
+  font-weight: var(--lb-font-weight-medium);
+  color: var(--lb-color-parchment);
+  overflow-wrap: anywhere;
+}
+
+.lb-inv__nome-qtd {
+  font-variant-numeric: tabular-nums;
+  color: var(--lb-color-brass-bright);
+}
+
+.lb-inv__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--lb-space-2);
+  margin: 0;
+}
+
+.lb-inv__preco {
+  font-size: var(--lb-font-size-sm);
+  font-variant-numeric: tabular-nums;
+  color: var(--lb-color-brass-bright);
+}
+
+.lb-inv__descricao {
+  margin: 0;
+  font-size: var(--lb-font-size-sm);
+  line-height: var(--lb-font-leading-normal);
+  color: var(--lb-color-parchment-dim);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.lb-inv__acoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--lb-space-1);
+  margin-top: var(--lb-space-1);
+}
+
+/* Telefone: a imagem grande vai para cima do texto. */
+@media (max-width: 420px) {
+  .lb-inv__detalhe {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .lb-inv__grande {
+    width: 100%;
+    height: auto;
+    aspect-ratio: 1;
+    max-height: 200px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lb-inv__vaga {
+    transition: border-color 140ms ease;
+  }
+
+  .lb-inv__vaga:active {
+    transform: none;
+  }
+}
