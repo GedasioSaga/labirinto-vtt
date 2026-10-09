@@ -96,6 +96,19 @@ describe('resolveHoverHit — resize-corner (entidade já selecionada)', () => {
     expect(result).toEqual({ kind: 'resize-corner', corner: 2, target: null })
   })
 
+  it('MAPA DE CONTINENTE: ficha-pino selecionada não tem canto de resize (sem alça desenhada, sem alça viva)', () => {
+    const map = addToken(baseMap, buildToken('t1'))
+    const result = resolveHoverHit({
+      map,
+      selection: { kind: 'token', id: 't1' },
+      areaSelection: null,
+      activeTool: 'select',
+      worldPoint: { x: 75, y: 75 },
+      pinos: { ids: new Set(['t1']), cameraScale: 1 },
+    })
+    expect(result.kind).not.toBe('resize-corner')
+  })
+
   it('prop selecionado, hover sobre canto topo-esquerda: resize-corner 0, sem target', () => {
     const map = addProp(baseMap, { id: 'p1', src: 'x.png', x: 100, y: 100, width: 40, height: 40, linkedMapPath: null })
     const result = resolveHoverHit({

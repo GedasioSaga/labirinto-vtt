@@ -108,6 +108,8 @@ import { useContaGotasStore } from '../stores/contaGotasStore'
 import { createContaGotasGesture } from './contaGotasGesture'
 import { pixelDaTela, rgbaParaHex } from '../lib/contaGotas'
 import { useAwayTokensStore } from '../stores/awayTokensStore'
+import { useDonosDasFichasStore } from '../stores/donosDasFichasStore'
+import { coresDosPinos, type PinosNoToque } from '../lib/marcadorDeContinente'
 import { createLaserGesture } from './laserGesture'
 import { LASER_KEY_TAP_MS, isLaserKey } from '../lib/laser'
 import { createMeasurementIndicatorRenderer } from './drawMeasurementIndicator'
@@ -1483,12 +1485,25 @@ export function PixiCanvas({
        */
       const doPisoEmEdicao = (map: MapData): MapData => mapaDoPiso(map, useMapStore.getState().pisoAtivo)
 
+      /**
+       * MAPA DE CONTINENTE: a cor do pino de cada ficha de jogador desta cena
+       * (`lib/marcadorDeContinente.ts`). Vazio em cena Normal, sem sala aberta
+       * (ninguém é dono de nada) e na imagem exportada (o mapa, não a sessão).
+       */
+      const pinosDaCena = (map: MapData): ReadonlyMap<string, string> =>
+        exportScene === null ? coresDosPinos(map, useDonosDasFichasStore.getState().posse) : new Map()
+      /** O mesmo, para o clique, o hover e o laço: a ficha que é pino responde no pino inteiro, cabeça incluída. */
+      const pinosNoToque = (map: MapData): PinosNoToque | undefined => {
+        const cores = pinosDaCena(map)
+        return cores.size === 0 ? undefined : { ids: cores, cameraScale: camera.scale }
+      }
+
       /** O token sob `ponto` (mundo) que tem menu de clique direito (`menuDoToken`), ou `null`. */
       const tokenComMenuEm = (ponto: { x: number; y: number }): Token | null => {
         const menu = menuDoTokenRef.current
         if (menu === undefined) return null
         const map = doPisoEmEdicao(useMapStore.getState().map)
-        const token = findTokenAt(visibleTokens(map.tokens, map.hiddenLayers), ponto, map.grid)
+        const token = findTokenAt(visibleTokens(map.tokens, map.hiddenLayers), ponto, map.grid, pinosNoToque(map))
         return token !== null && menu.tem(token.id) ? token : null
       }
 
@@ -1718,6 +1733,7 @@ export function PixiCanvas({
           cameraScale: camera.scale,
           rendererResolution: app.renderer.resolution,
           rotating: roomRotateGesture.isActive(),
+          pinos: pinosDaCena(map),
         })
       }
 
@@ -1786,6 +1802,7 @@ export function PixiCanvas({
           cameraScale: camera.scale,
           rendererResolution: app.renderer.resolution,
           rotatingRoom: roomRotateGesture.isActive(),
+          posseDasFichas: useDonosDasFichasStore.getState().posse,
           filtroFaccoes: useTerritorioStore.getState().filtroLigado,
           pontoDaPatrulhaAberto: usePatrulhaAndandoStore.getState().pontoAberto,
         }
@@ -1945,6 +1962,7 @@ export function PixiCanvas({
           turnTokenId,
           awayTokenIds,
           glide,
+          pinosDaCena(map),
         )
         // O cone acompanha o guarda no arrasto e a direção escolhida no painel, e
         // a rota acompanha a patrulha (pelo portão do redesenho: sem guarda, sem
@@ -2297,6 +2315,14 @@ export function PixiCanvas({
       const unsubscribeAwayTokens = useAwayTokensStore.subscribe((state, previous) => {
         if (state.tokenIds !== previous.tokenIds) redrawTokens()
       })
+      // MAPA DE CONTINENTE: trocar o "Tipo de mapa" da cena ou a posse da sala troca disco por pino.
+      const unsubscribeContinente = useMapStore.subscribe(
+        (state) => state.map.continente === true || state.map.worldMap === true,
+        () => redrawTokens(),
+      )
+      const unsubscribeDonos = useDonosDasFichasStore.subscribe((state, previous) => {
+        if (state.posse !== previous.posse) redrawTokens()
+      })
       const unsubscribeProps = subscribeToPropsRedraw(redrawProps)
       const unsubscribeBackground = subscribeToBackgroundRedraw(() => {
         void redrawBackground()
@@ -2608,6 +2634,11 @@ export function PixiCanvas({
       // quadrados ela já andou". Guarda a posição da PEÇA, não a do ponteiro:
       // quem pega o disco pela borda não pode ver um quadrado a mais.
       let tokenDragOrigin: Point | null = null
+      // MAPA DE CONTINENTE: de onde o ponteiro pegou o pino (ficha − ponteiro,
+      // em mundo). O pino se pega pela cabeça, bem acima do ponto da ficha; sem
+      // isto o pé pulava para baixo do ponteiro no primeiro passo. Disco segue
+      // centrado no ponteiro, como sempre: `{0, 0}`.
+      let tokenDragPegada: Point = { x: 0, y: 0 }
       // Último rótulo+ponto já desenhados, para o pointermove não remexer em
       // Graphics/Text quando o snap devolve a mesma célula — arrastar ficha é
       // o gesto mais usado do app e a maioria dos moves não muda nada aqui.
@@ -2778,7 +2809,8 @@ export function PixiCanvas({
        * até o mouse se mexer.
        */
       const redrawHover = () => {
-        drawHover(hoverGraphics, doPisoEmEdicao(useMapStore.getState().map), hoverTarget, camera.scale)
+        const map = doPisoEmEdicao(useMapStore.getState().map)
+        drawHover(hoverGraphics, map, hoverTarget, camera.scale, pinosNoToque(map))
       }
       let spaceHeld = false
       // 17/09/2026 — a pessoa já moveu a vista pelo botão do meio ou por
@@ -3071,7 +3103,7 @@ export function PixiCanvas({
         if (hoverTarget !== null || hoverGroupPoint === null) return hoverTarget
         const { map, pisoAtivo, activeTool } = useMapStore.getState()
         // Sem seleção, a cadeia do hover pula as alças e o atalho do grupo e cai direto na peça sob o ponto.
-        return hoverNoPiso({ map, selection: null, areaSelection: null, activeTool, worldPoint: hoverGroupPoint, cameraScale: camera.scale }, pisoAtivo).target
+        return hoverNoPiso({ map, selection: null, areaSelection: null, activeTool, worldPoint: hoverGroupPoint, cameraScale: camera.scale, pinos: pinosNoToque(map) }, pisoAtivo).target
       }
 
       /**
@@ -3759,7 +3791,7 @@ export function PixiCanvas({
        */
       const eraseAt = (point: Point) => {
         const { map, eraseMode } = useMapStore.getState()
-        const hit = findErasableAt(hitTestMap(map), point)
+        const hit = findErasableAt(hitTestMap(map), point, pinosNoToque(map))
         if (!hit) {
           // Nada apagável aqui, mas pode haver CHÃO: `findErasableAt` nunca
           // devolve peça de chão, que só vira alvo por `floorHitAt`. A
@@ -4604,6 +4636,7 @@ export function PixiCanvas({
             activeTool: tool,
             worldPoint,
             cameraScale: camera.scale,
+            pinos: pinosNoToque(map),
           },
           pisoAtivo,
         )
@@ -4884,7 +4917,7 @@ export function PixiCanvas({
         // Ferramenta Token (K): clique no vazio pede o nome e cria o token ali
         // (pointerup abre o campo; o App cria pelo caminho do "Adicionar
         // token"). Clique sobre um token existente segue o fluxo de sempre.
-        if (activeTool === 'token' && findSelectableAt(clickSelectMap(map), worldPoint)?.kind !== 'token') {
+        if (activeTool === 'token' && findSelectableAt(clickSelectMap(map), worldPoint, pinosNoToque(map))?.kind !== 'token') {
           tokenPlacementPoint = applySnap(worldPoint, map.grid, 'token', event.altKey)
           return
         }
@@ -5226,7 +5259,8 @@ export function PixiCanvas({
         // mesmo padrão de dragging-token/dragging-prop mais abaixo.
         if (activeTool === 'select' && single?.kind === 'token') {
           const token = map.tokens.find((t) => t.id === single.id)
-          if (token && canInteract(token)) {
+          // Ficha-pino (MAPA DE CONTINENTE) não tem alça de canto (`drawEditHandles`): o aperto ali arrasta o pino.
+          if (token && canInteract(token) && !pinosDaCena(map).has(token.id)) {
             const corner = findBoxCornerHandleAt(tokenBoundingBox(token, map.grid), worldPoint, camera.scale)
             if (corner !== null) {
               mode = 'resizing-token'
@@ -5392,10 +5426,10 @@ export function PixiCanvas({
         // e do arrasto de grupo de propósito: esses só pegam o que já está
         // selecionado.
         if (activeTool === 'select' && isFreeMoveModifier(event)) {
-          const ctrlHit = findSelectableAt(clickSelectMap(map), worldPoint) ?? floorHitAt(map, worldPoint)
+          const ctrlHit = findSelectableAt(clickSelectMap(map), worldPoint, pinosNoToque(map)) ?? floorHitAt(map, worldPoint)
           const pressedOnSelected = ctrlHit ? selectionHas(selection, { kind: ctrlHit.kind, id: ctrlHit.id }) : false
           if (ctrlStartsMarquee(event, pressedOnSelected)) {
-            const travada = camadaTravadaNoPiso(map, useMapStore.getState().pisoAtivo, worldPoint) !== null
+            const travada = camadaTravadaNoPiso(map, useMapStore.getState().pisoAtivo, worldPoint, pinosNoToque(map)) !== null
             areaMarqueeClickItem = ctrlHit && !travada ? { kind: ctrlHit.kind, id: ctrlHit.id } : null
             mode = 'area-marquee-drag'
             areaMarqueeStart = worldPoint
@@ -5429,7 +5463,7 @@ export function PixiCanvas({
         // mora em camada, então uma sala travada embaixo não a esconde.
         // Shift segue construindo o conjunto — a zona fica fora de `selection`.
         if (activeTool === 'select' && event.button === 0 && !event.shiftKey) {
-          const zona = findConcealZoneForSelect(doPisoEmEdicao(map), worldPoint)
+          const zona = findConcealZoneForSelect(doPisoEmEdicao(map), worldPoint, pinosNoToque(map))
           if (zona !== null) {
             useMapStore.getState().setSelectedConcealZone(zona.id)
             mode = 'idle'
@@ -5456,7 +5490,7 @@ export function PixiCanvas({
         // vértice de sala e arrasto de grupo, acima, trabalham sobre itens JÁ
         // selecionados — e travar uma camada remove os itens dela da seleção
         // (mapStore.toggleLayerLock), então nenhum deles alcança item travado.
-        const lockedLayer = camadaTravadaNoPiso(map, useMapStore.getState().pisoAtivo, worldPoint)
+        const lockedLayer = camadaTravadaNoPiso(map, useMapStore.getState().pisoAtivo, worldPoint, pinosNoToque(map))
         if (lockedLayer !== null) {
           mode = 'idle'
           avisarCamadaTravada(lockedLayer)
@@ -5465,7 +5499,7 @@ export function PixiCanvas({
           return
         }
 
-        const hit = findSelectableAt(clickSelectMap(map), worldPoint) ?? floorHitAt(map, worldPoint)
+        const hit = findSelectableAt(clickSelectMap(map), worldPoint, pinosNoToque(map)) ?? floorHitAt(map, worldPoint)
         if (hit && event.shiftKey) {
           // Onda 4, item 24 — Shift+clique soma/tira ESTE item da seleção,
           // sem iniciar nenhum arrasto neste gesto (o gesto de Shift+clique é
@@ -5518,6 +5552,7 @@ export function PixiCanvas({
               // Origem do contador de quadrados: onde a PEÇA está agora. Vale
               // igual no Alt+arrastar — a cópia nasce exatamente aqui.
               tokenDragOrigin = { x: token.x, y: token.y }
+              tokenDragPegada = pinosDaCena(map).has(token.id) ? { x: token.x - worldPoint.x, y: token.y - worldPoint.y } : { x: 0, y: 0 }
               tokenDragLastShown = null
               tokenDragLifted = false
               // Onda 3, item 13 (Alt+arrastar duplica) — o Alt arma a cópia, e
@@ -6053,7 +6088,7 @@ export function PixiCanvas({
             if (!event.shiftKey && store.selectedConcealZoneId !== null) store.setSelectedConcealZone(null)
           } else {
             // Só o piso em edição: o laço não leva o que está no mesmo lugar em outro piso.
-            const encontrados = selecaoDoLacoNoPiso(store.map, store.pisoAtivo, rect)
+            const encontrados = selecaoDoLacoNoPiso(store.map, store.pisoAtivo, rect, pinosNoToque(store.map))
             store.setSelection(
               gesture === 'add' ? selectionFromItems([...store.selection, ...encontrados]) : selectionFromItems(encontrados),
             )
@@ -6480,7 +6515,8 @@ export function PixiCanvas({
           // par gruda na linha da grade, a de lado ímpar no centro da célula.
           const cells = tokenSizeInSquares(map.tokens.find((token) => token.id === draggingTokenId))
           // Ficha alinha pelo CENTRO com o centro das outras fichas (pedido 3, fatia 2).
-          const destino = pointWithGuides(applySnap(worldPoint, map.grid, 'token', event.altKey, cells), 'token', event)
+          const pegado = { x: worldPoint.x + tokenDragPegada.x, y: worldPoint.y + tokenDragPegada.y }
+          const destino = pointWithGuides(applySnap(pegado, map.grid, 'token', event.altKey, cells), 'token', event)
           useMapStore.getState().moveTokenLive(draggingTokenId, destino.x, destino.y)
           // A ficha andou de fato (saiu da célula de origem): sai da mesa. Depois
           // do moveTokenLive, que já desenhou o wrapper — o clone do Alt+arrastar
@@ -7039,7 +7075,7 @@ export function PixiCanvas({
           const worldPoint = toWorldPoint(event.clientX - rect.left, event.clientY - rect.top)
           let roomRegion = findRoomLabelAt(visibleRegions(doPisoEmEdicao(map).regions, map.hiddenLayers), worldPoint, map.grid, camera.scale)
           if (!roomRegion) {
-            const hit = findSelectableAt(hitTestMap(map), worldPoint)
+            const hit = findSelectableAt(hitTestMap(map), worldPoint, pinosNoToque(map))
             const regionId =
               hit?.kind === 'region' ? hit.id : hit?.kind === 'wall' ? map.walls.find((w) => w.id === hit.id)?.regionId : undefined
             roomRegion = map.regions.find((r) => r.id === regionId && r.room !== undefined) ?? null
@@ -7542,6 +7578,8 @@ export function PixiCanvas({
         unsubscribeTokens()
         unsubscribeTurn()
         unsubscribeAwayTokens()
+        unsubscribeContinente()
+        unsubscribeDonos()
         unsubscribeProps()
         unsubscribeBackground()
         unsubscribeHiddenLayersForTokensAndProps()

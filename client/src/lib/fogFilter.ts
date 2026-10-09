@@ -46,6 +46,8 @@ import { perigosParaJogador } from './perigo'
 import { cleanPublicSceneName } from './adventure'
 import type { DiceRollEntry, HostDiceRoll } from './dice'
 import { caravanMembers, caravanPoint, caravanTokenFor, isWorldMap } from './caravan'
+import { coresDosPinos } from './marcadorDeContinente'
+import { SIGNAL_NEUTRAL_COLOR } from './signals'
 import { triggersWithRegions, type PlayerAreaTrigger } from './areaTriggers'
 import { isDarkAt, periodOfHour, type PlayerClock } from './campaignClock'
 import { noiseDirection, type NoiseDirection } from './noise'
@@ -1381,6 +1383,8 @@ interface TokenCut {
   aBordo?: TokenAboard
   /** VEÍCULO: a ficha é um veículo em que o jogador deste recorte pode subir. */
   embarcavel?: boolean
+  /** MAPA DE CONTINENTE: a cor do pino que ESTE recorte decidiu (`pinoOf`); `undefined` = ficha de sempre. */
+  pino?: string
 }
 
 /**
@@ -1418,6 +1422,8 @@ interface TokenCut {
  *   dele diz "No veículo · motorista" e oferece "Descer"; quem mais vai a bordo, não.
  * - `embarcavel`: só a marca deste recorte (`cut.embarcavel`) no veículo que ele
  *   vê — o botão "Subir"; lugares e passageiros, não.
+ * - `pino`: só a cor que este recorte decidiu (`cut.pino`, MAPA DE CONTINENTE),
+ *   na ficha de jogador que já sai; a lista de donos fica no mestre.
  * Ficam de fora, entre outros: `vigia`, `patrulha` (por onde o NPC vai passar),
  * `rotina` (os postos, com a cena de cada um), `levadoPor` (aponta para ficha
  * que o recorte pode ter escondido), `veiculo` (lugares e a lista de quem vai
@@ -1470,6 +1476,7 @@ function tokenForPlayer(token: Token, cut: TokenCut): Token {
   if (typeof token.fala === 'string' && token.fala !== '') forPlayer.fala = token.fala.slice(0, FALA_MAX_LETRAS)
   if (cut.aBordo !== undefined) forPlayer.aBordo = { motorista: cut.aBordo.motorista }
   if (cut.embarcavel === true) forPlayer.embarcavel = true
+  if (cut.pino !== undefined) forPlayer.pino = cut.pino
   return forPlayer
 }
 
@@ -1942,6 +1949,9 @@ export function filterMapForPlayer(
     seenMarks,
     oneWayExits,
     companionOf: companionsByToken(ownership, playerId, new Set(ownTokenIds), companions),
+    // MAPA DE CONTINENTE: a cor de cada pino de jogador (vazio fora do Continente).
+    // Só a cor sai, e só na ficha que já atravessa (`pino` em `tokenForPlayer`).
+    pinoOf: coresDosPinos(mapaInteiro, ownership),
   })
 }
 
@@ -1978,6 +1988,12 @@ export interface PlayerOnlyView {
   oneWayExits?: OneWayExits
   /** MARCA DE COMPANHEIRO por id de ficha (`companionsByToken`, via `filterMapForPlayer`). A tela da mesa não passa: nenhuma ficha sai marcada. */
   companionOf?: ReadonlyMap<string, TokenCompanion>
+  /**
+   * MAPA DE CONTINENTE: a cor do pino de cada ficha de jogador (`coresDosPinos`).
+   * Ausente = nenhuma sai como pino. A tela da mesa passa a sua, sem a cor de
+   * cada jogador (a neutra no lugar, `corDoDono: false`).
+   */
+  pinoOf?: ReadonlyMap<string, string>
 }
 
 /** OLHOS DO GUARDA: as fichas de todos os jogadores da sala — quem a marca do guarda considera. */
@@ -2016,7 +2032,7 @@ export function filterMapForGroup(
   explored?: Exploration,
   seenDoors?: ReadonlyMap<string, DoorState>,
   watchTargets?: ReadonlySet<string>,
-  { pinAudiences, enteredRooms, playerId, loans, seenRooms, secretReveals, discoveredSecretRooms, peekDoorIds, remembered, seenMarks, oneWayExits, companionOf }: PlayerOnlyView = {},
+  { pinAudiences, enteredRooms, playerId, loans, seenRooms, secretReveals, discoveredSecretRooms, peekDoorIds, remembered, seenMarks, oneWayExits, companionOf, pinoOf }: PlayerOnlyView = {},
 ): PlayerMapView {
   /**
    * PISOS NA MESMA CENA — ANTES de qualquer outra regra: tudo daqui para baixo
@@ -2027,7 +2043,7 @@ export function filterMapForGroup(
    */
   const map = mapaDoPiso(mapaInteiro, pisoDoGrupo(mapaInteiro, viewers, loans))
   if (isWorldMap(map))
-    return filterWorldMapForGroup(map, viewers, explored, seenDoors, watchTargets, { pinAudiences, enteredRooms, playerId, seenRooms, secretReveals, discoveredSecretRooms, peekDoorIds, remembered, seenMarks, oneWayExits, companionOf })
+    return filterWorldMapForGroup(map, viewers, explored, seenDoors, watchTargets, { pinAudiences, enteredRooms, playerId, seenRooms, secretReveals, discoveredSecretRooms, peekDoorIds, remembered, seenMarks, oneWayExits, companionOf, pinoOf })
   const hiddenLayers = map.hiddenLayers
   // Posse é exclusiva (um token, um dono); se viesse repetido, vale o primeiro raio.
   const radiusByToken = new Map<string, number>()
@@ -3542,6 +3558,10 @@ export function filterMapForGroup(
     const own = owned.has(t.id)
     const contrato = loanOf(t.id)
     const shadow = isShadow(t)
+    // MAPA DE CONTINENTE: a própria ficha sempre vira pino; a de outro jogador,
+    // pela mesma regra da marca de companheiro — vulto e ficha disfarçada saem
+    // como ficha comum, porque o pino na cor do dono diria quem está por trás.
+    const disfarcada = shadow || tokenPublicNameMode(t.publicName) !== 'same'
     const seen = tokenForPlayer(t, {
       isOwner: own,
       // Emprestada: o jogador lê o nome que a MESA lê. O de trabalho é do mestre.
@@ -3552,6 +3572,7 @@ export function filterMapForGroup(
       companion: shadow || tokenPublicNameMode(t.publicName) !== 'same' ? undefined : companionOf?.get(t.id),
       aBordo: playerId !== undefined && own ? aboardOf(t.id) : undefined,
       embarcavel: playerId !== undefined && !shadow && boardable.has(t.id),
+      pino: own || !disfarcada ? pinoOf?.get(t.id) : undefined,
     })
     return shadow ? asShadow(seen) : seen
   })
@@ -4027,17 +4048,20 @@ function filterWorldMapForGroup(
   const at = caravanPoint(members)
   // `only` segue adiante: "QUEM VÊ" de cada pino e o resto do que é só deste
   // jogador valem no mapa-mundi como em qualquer cena.
+  // Caravana só existe dentro do Continente (`setWorldMap`): o mapa do jogador
+  // sai Continente mesmo de cena salva antes do campo existir.
   if (at === null) {
     const view = filterMapForGroup(plain, viewers, explored, seenDoors, watchTargets, only)
-    return { ...view, map: { ...view.map, worldMap: true } }
+    return { ...view, map: { ...view.map, worldMap: true, continente: true } }
   }
   const memberIds = new Set(members.map((t) => t.id))
   const stacked: MapData = { ...plain, tokens: map.tokens.map((t) => (memberIds.has(t.id) ? { ...t, x: at.x, y: at.y } : t)) }
   const view = filterMapForGroup(stacked, viewers, explored, seenDoors, watchTargets, only)
   const caravanSent = view.map.tokens.some((t) => memberIds.has(t.id))
   const others = view.map.tokens.filter((t) => !memberIds.has(t.id))
-  const tokens = caravanSent ? [caravanTokenFor(members, at), ...others] : others
-  return { ...view, map: { ...view.map, worldMap: true, tokens } }
+  // A caravana é pino na cor neutra da mesa: ela não é de jogador nenhum.
+  const tokens = caravanSent ? [{ ...caravanTokenFor(members, at), pino: SIGNAL_NEUTRAL_COLOR }, ...others] : others
+  return { ...view, map: { ...view.map, worldMap: true, continente: true, tokens } }
 }
 
 /** MAPA POR ANDARES: o que o jogador guarda de um andar onde NÃO está agora. */

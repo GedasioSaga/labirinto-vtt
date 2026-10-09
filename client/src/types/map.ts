@@ -1452,6 +1452,14 @@ export interface Token extends PlayerSecret, NoPiso {
    * como `aBordo`: nem lugares nem passageiros vão junto. Ausente = ficha comum.
    */
   embarcavel?: boolean
+  /**
+   * MAPA DE CONTINENTE, na tela do jogador: esta ficha que ele vê é de jogador
+   * e vira o pino, nesta cor (`#rrggbb`: a "Cor" da ficha ou, sem ela, a cor do
+   * dono — `lib/marcadorDeContinente.ts`). Campo de FIO, como `aBordo`: só o
+   * recorte o escreve, só em ficha que já atravessa; `deserializeMap` o descarta
+   * se um arquivo trouxer. Ausente = ficha de sempre (NPC, ou cena "Normal").
+   */
+  pino?: string
 }
 
 /** A ficha do jogador a bordo de um veículo, como a tela dele a lê. */
@@ -2053,9 +2061,19 @@ export interface MapData {
   /**
    * MAPA-MUNDI: nesta cena o grupo anda como UMA ficha só, a caravana, que o
    * mestre move (`lib/caravan.ts`). Só `true` vale; ausente = cena comum, sem
-   * linha de migração (mesmo padrão de `movement`/`hazards`).
+   * linha de migração (mesmo padrão de `movement`/`hazards`). Desde o "Tipo de
+   * mapa" é a chave "Grupo anda junto (caravana)" DENTRO do Continente: caravana
+   * só existe em cena Continente (`lib/marcadorDeContinente.ts` → `isContinente`).
    */
   worldMap?: true
+  /**
+   * TIPO DE MAPA "Continente": a ficha de cada jogador é desenhada como o pino
+   * do mapa (`pixi/drawMarcadorDeContinente.ts`), no mestre e no jogador; NPC
+   * continua ficha. Movimento, névoa e visão continuam os de sempre. Só `true`
+   * vale; ausente = "Normal", sem linha de migração (mesmo padrão de `worldMap`).
+   * Atravessa no recorte do jogador: é o que diz à tela dele para desenhar pino.
+   */
+  continente?: true
   /**
    * TEXTO DE CHEGADA DA CENA: o que quem chega lê uma vez, num cartão
    * (`lib/arrivalText.ts`). Ausente = sem texto, sem linha de migração (mesmo

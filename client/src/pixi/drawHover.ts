@@ -63,6 +63,7 @@ import { STROKE_WEIGHT } from './constants'
 import { pieceBounds } from '../lib/floorSdf'
 import { stairSpiralCircle } from '../lib/stairs'
 import { resolveCameraScale } from './drawWalls'
+import { areaDoPino, type PinosNoToque } from '../lib/marcadorDeContinente'
 
 /** Azul frio — ver docstring do módulo para a justificativa de não reusar
  *  `SELECTION_COLOR`. */
@@ -105,11 +106,16 @@ function assertNeverShape(value: never): never {
  * `lib/objectTransform.ts` (`pointsBoundingBox` devolve `null` para lista
  * vazia) e `pixi/drawRegions.ts` (`isDegenerateRegion`).
  */
-export function resolveHoverGeometry(map: MapData, target: HoverTarget): HoverGeometry | null {
+export function resolveHoverGeometry(map: MapData, target: HoverTarget, pinos?: PinosNoToque): HoverGeometry | null {
   switch (target.kind) {
     case 'token': {
       const token = map.tokens.find((t) => t.id === target.id)
       if (!token) return null
+      // MAPA DE CONTINENTE: a ficha-pino responde na área do pino (`tocaNoPino`), e é ela que o contorno mostra.
+      if (pinos !== undefined && pinos.ids.has(token.id)) {
+        const area = areaDoPino(token, pinos.cameraScale)
+        return { shape: 'rect', x: area.minX, y: area.minY, w: area.maxX - area.minX, h: area.maxY - area.minY }
+      }
       const box = tokenBoundingBox(token, map.grid)
       return { shape: 'circle', cx: token.x, cy: token.y, radius: (box.maxX - box.minX) / 2 }
     }
@@ -240,10 +246,10 @@ function drawShape(graphics: Graphics, geometry: HoverGeometry, cameraScale: num
  * `world` é a do último render, fora da cena (teste) é 1. O editor passa a
  * escala de agora, que vale já no quadro do zoom.
  */
-export function drawHover(graphics: Graphics, map: MapData, target: HoverTarget | null, cameraScale?: number): void {
+export function drawHover(graphics: Graphics, map: MapData, target: HoverTarget | null, cameraScale?: number, pinos?: PinosNoToque): void {
   graphics.clear()
   if (!target) return
-  const geometry = resolveHoverGeometry(map, target)
+  const geometry = resolveHoverGeometry(map, target, pinos)
   if (!geometry) return
   drawShape(graphics, geometry, resolveCameraScale(graphics, cameraScale))
 }

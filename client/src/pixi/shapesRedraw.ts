@@ -65,6 +65,12 @@ export interface ShapesSnapshot {
   rendererResolution: number
   /** Sala sendo girada pela alça: a alça de girar aparece acesa. */
   rotatingRoom: boolean
+  /**
+   * MAPA DE CONTINENTE: a posse da sala (`stores/donosDasFichasStore.ts`, que
+   * só troca a referência quando a posse muda). Ficha que vira pino perde a
+   * alça de canto, então as alças repintam com ela. Ausente === sem sala.
+   */
+  posseDasFichas?: unknown
   /** Filtro "Quem manda aqui" ligado (`stores/territorioStore.ts`). Ausente === desligado. */
   filtroFaccoes?: boolean
   /** O ponto da patrulha com a macro aberta no painel (`stores/patrulhaAndandoStore.ts`). Ausente === nenhum. */
@@ -175,7 +181,7 @@ export function shapesLayerDeps(layer: ShapesLayer, snapshot: ShapesSnapshot): r
       // Alças só existem com UM item selecionado na ferramenta Selecionar; o
       // item pode estar em qualquer lista do mapa, então elas seguem o mapa.
       return snapshot.activeTool === 'select' && single !== null
-        ? ['alças', single.kind, single.id, map, cameraScale, rendererResolution, snapshot.rotatingRoom]
+        ? ['alças', single.kind, single.id, map, cameraScale, rendererResolution, snapshot.rotatingRoom, snapshot.posseDasFichas]
         : ['sem alças']
     case 'areaOutline':
       return selection.length > 1 ? ['grupo', selection, map] : ['sem grupo']

@@ -17,6 +17,8 @@ import { tokenConditionsOf } from '../lib/tokenConditions'
 import { CONDITION_MARKS_LABEL, drawTokenConditions } from './drawTokenConditions'
 import { estaCongelada } from '../lib/congelar'
 import { drawFrostBadge } from './drawTokenFrozen'
+import { faseDoMarcador } from './drawMarcadorDeContinente'
+import { criarVistaDoMarcador, escalarVistaDoMarcador, pintarVistaDoMarcador, posarVistaDoMarcador, type VistaDoMarcador } from './vistaDoMarcador'
 
 /** Token "Oculto no editor": fantasma bem transparente, mas ainda clicável. */
 const HIDDEN_TOKEN_GHOST_ALPHA = 0.3
@@ -137,6 +139,9 @@ export interface TokensRenderer {
    * ausente; omitido = nenhuma (a exportação de imagem não leva estado da sessão).
    * `glide`: quem pode deslizar; omitido = tudo no lugar final, e deslize em
    * curso termina já (a exportação de imagem sai com as fichas paradas).
+   * `pinos`: MAPA DE CONTINENTE — a cor (`#rrggbb`) de cada ficha de jogador,
+   * que é desenhada como o pino no lugar do disco (`lib/marcadorDeContinente.ts`):
+   * só o nome embaixo, sem vida, condições nem anel da vez. Omitido = nenhuma.
    *
    * Só repinta a ficha cuja pintura mudou (`TokenPaint`); a outra só anda.
    * Devolve quantos nomes nasceram ou trocaram de texto neste desenho: só
@@ -152,8 +157,9 @@ export interface TokensRenderer {
     turnTokenId?: string | null,
     awayTokenIds?: ReadonlySet<string>,
     glide?: TokenGlideContext,
+    pinos?: ReadonlyMap<string, string>,
   ) => number
-  /** Só o zoom mudou: reescala e mostra/esconde os nomes sem redesenhar os tokens. */
+  /** Só o zoom mudou: reescala e mostra/esconde os nomes e o tamanho dos pinos, sem redesenhar os tokens. */
   setCameraScale: (cameraScale: number) => void
   /**
    * A ficha na mão do mestre (`null` = soltou): ela cresce até
@@ -177,6 +183,11 @@ interface ScaleTween {
 }
 
 const NO_REMOTE_MOVES: ReadonlySet<string> = new Set()
+const NO_PINS: ReadonlyMap<string, string> = new Map()
+
+/** Anel de seleção no chão do pino, em px de tela: a elipse de um anel deitado, na mesma inclinação do pino. */
+const MARCADOR_SELECAO_RX = 15
+const MARCADOR_SELECAO_RY = 6
 
 /** Responde já e assenta no fim, como o degrau de zoom do jogador (`player/playerZoom.ts`). */
 function easeOutCubic(t: number): number {
@@ -214,6 +225,8 @@ interface TokenPaint {
   selected: boolean
   isTurn: boolean
   away: boolean
+  /** MAPA DE CONTINENTE: a cor do pino; `null` = disco ou foto de sempre. */
+  pino: string | null
 }
 
 /** A última pintura da ficha ainda vale para estas entradas? */
@@ -224,6 +237,7 @@ function paintIsCurrent(
   selected: boolean,
   isTurn: boolean,
   away: boolean,
+  pino: string | null,
 ): boolean {
   return (
     painted !== null &&
@@ -231,7 +245,8 @@ function paintIsCurrent(
     painted.gridSize === gridSize &&
     painted.selected === selected &&
     painted.isTurn === isTurn &&
-    painted.away === away
+    painted.away === away &&
+    painted.pino === pino
   )
 }
 
@@ -289,6 +304,12 @@ interface TokenEntry {
   loadToken: number
   /** O que a última pintura leu (`TokenPaint`); null antes da primeira. */
   painted: TokenPaint | null
+  /** MAPA DE CONTINENTE: o pino (`pixi/vistaDoMarcador.ts`). Nasce na primeira
+   *  vez que a ficha vira pino e fica escondido quando ela volta a ser disco —
+   *  o `Text` do nome nunca é destruído no meio da sessão. */
+  marcador: VistaDoMarcador | null
+  /** Anel de seleção no chão do pino (px de tela, dentro da raiz do pino); nasce junto com ele. */
+  marcadorSelecao: Graphics | null
 }
 
 /**
@@ -341,6 +362,12 @@ export function createTokensRenderer(motion?: TokensMotion): TokensRenderer {
   let lastSceneId: string | null = null
   /** `semPulsoDaVez` em curso: a vez que trocar agora aparece parada. */
   let quietTurn = false
+  /**
+   * MAPA DE CONTINENTE: os pinos girando agora, por id. Só existem numa cena
+   * Continente com movimento liberado: cena Normal (ou movimento reduzido)
+   * deixa o conjunto vazio, e o relógio de quadros não roda por causa deles.
+   */
+  const pinosGirando = new Set<string>()
   let ticking = false
 
   /** Movimento reduzido ou sem relógio: nada anima, tudo vai ao estado final. */
@@ -385,7 +412,16 @@ export function createTokensRenderer(motion?: TokensMotion): TokensRenderer {
         if (entry) entry.wrapper.position.set(x, y)
       }
     }
-    if (scaleTweens.size === 0 && turnPulse === null && glides.size === 0) stopTicking()
+    // O pino gira e flutua: só a pirâmide é redesenhada, o resto só anda.
+    // "Reduzir movimento" ligado no meio da sessão para o pino na pose parada
+    // já neste quadro, sem esperar a próxima repintura das fichas.
+    const parado = !canAnimate()
+    for (const id of pinosGirando) {
+      const marcador = cache.get(id)?.marcador ?? null
+      if (marcador !== null) posarVistaDoMarcador(marcador, now, parado)
+      if (marcador === null || parado) pinosGirando.delete(id)
+    }
+    if (scaleTweens.size === 0 && turnPulse === null && glides.size === 0 && pinosGirando.size === 0) stopTicking()
   }
 
   /** Leva a escala do wrapper de `id` até `to`, de onde ela estiver (soltar no meio do levantar assenta dali). */
@@ -432,6 +468,7 @@ export function createTokensRenderer(motion?: TokensMotion): TokensRenderer {
     scaleTweens.clear()
     turnPulse = null
     glides.clear()
+    pinosGirando.clear()
     stopTicking()
   }
 
@@ -475,15 +512,58 @@ export function createTokensRenderer(motion?: TokensMotion): TokensRenderer {
     return track !== undefined && track.toX === target.x && track.toY === target.y
   }
 
-  function applyLabelSizing(label: Text): void {
+  /** Nome no zoom atual. A ficha que é pino esconde o nome dela: o pino leva o seu, do tamanho fixo dele. */
+  function applyLabelSizing(entry: TokenEntry): void {
     const sizing = screenLabelSizing(TOKEN_LABEL_FONT_SIZE, lastCameraScale)
-    label.scale.set(sizing.scale)
-    label.visible = sizing.visible
+    entry.label.scale.set(sizing.scale)
+    entry.label.visible = sizing.visible && (entry.painted === null || entry.painted.pino === null)
+    if (entry.marcador !== null) escalarVistaDoMarcador(entry.marcador, lastCameraScale)
   }
 
   function setCameraScale(cameraScale: number): void {
     lastCameraScale = cameraScale
-    for (const entry of cache.values()) applyLabelSizing(entry.label)
+    for (const entry of cache.values()) applyLabelSizing(entry)
+  }
+
+  /**
+   * MAPA DE CONTINENTE: a ficha vira o pino. O disco, a foto, a barra de vida,
+   * as marcas, o anel da vez e os selos somem (nada de extras no pino); o nome
+   * vai no pino. Selecionada, ganha o anel de seleção no chão do pino.
+   * Devolve `true` quando um `Text` nasceu ou trocou de texto.
+   */
+  function paintMarcador(entry: TokenEntry, token: Token, cor: string, selected: boolean): boolean {
+    let mudouNome = false
+    let marcador = entry.marcador
+    let selecao = entry.marcadorSelecao
+    if (marcador === null || selecao === null) {
+      marcador = criarVistaDoMarcador(faseDoMarcador(token.id))
+      selecao = new Graphics()
+      marcador.raiz.addChildAt(selecao, 0)
+      entry.wrapper.addChild(marcador.raiz)
+      entry.marcador = marcador
+      entry.marcadorSelecao = selecao
+      mudouNome = true
+    }
+    marcador.raiz.visible = true
+    const visual = entry.sprite ?? entry.graphics
+    if (visual !== null) visual.visible = false
+    entry.ring.clear()
+    syncHealthBar(entry, null, 0)
+    entry.marks.clear()
+    if (entry.turnRing) {
+      entry.wrapper.removeChild(entry.turnRing)
+      entry.turnRing.destroy()
+      entry.turnRing = null
+    }
+    selecao.clear()
+    if (selected) {
+      selecao.ellipse(0, 0, MARCADOR_SELECAO_RX, MARCADOR_SELECAO_RY).fill({ color: SELECTION_COLOR, alpha: 0.18 })
+      selecao.stroke({ width: 2, color: SELECTION_COLOR })
+    }
+    if (marcador.rotulo.text !== token.name) mudouNome = true
+    pintarVistaDoMarcador(marcador, cor, token.name)
+    escalarVistaDoMarcador(marcador, lastCameraScale)
+    return mudouNome
   }
 
   function ensureSprite(entry: TokenEntry): Sprite {
@@ -600,6 +680,7 @@ export function createTokensRenderer(motion?: TokensMotion): TokensRenderer {
     turnTokenId: string | null = null,
     awayTokenIds: ReadonlySet<string> = NO_AWAY_TOKENS,
     glide?: TokenGlideContext,
+    pinos: ReadonlyMap<string, string> = NO_PINS,
   ): number {
     if (cameraScale !== undefined) lastCameraScale = cameraScale
     const currentIds = new Set(tokens.map((t) => t.id))
@@ -612,6 +693,7 @@ export function createTokensRenderer(motion?: TokensMotion): TokensRenderer {
         // Animação de quem saiu do mapa morre junto: o quadro seguinte não mexe em wrapper destruído.
         scaleTweens.delete(id)
         glides.delete(id)
+        pinosGirando.delete(id)
         if (turnPulse?.id === id) turnPulse = null
       }
     }
@@ -665,6 +747,8 @@ export function createTokensRenderer(motion?: TokensMotion): TokensRenderer {
           loadedUrl: null,
           loadToken: 0,
           painted: null,
+          marcador: null,
+          marcadorSelecao: null,
         }
         cache.set(token.id, entry)
         container.addChild(wrapper)
@@ -679,7 +763,7 @@ export function createTokensRenderer(motion?: TokensMotion): TokensRenderer {
       const at = syncGlide(glides, token.id, { shown, target, now, animate })
       entry.wrapper.position.set(at.x, at.y)
       // O zoom de `draw` vale para todo nome, repintado ou não (só escala; o texto não muda).
-      applyLabelSizing(entry.label)
+      applyLabelSizing(entry)
 
       const selected = token.id === selectedTokenId
       // A ficha da vez: anel solto por fora de tudo (moldura e seleção), para
@@ -688,13 +772,28 @@ export function createTokensRenderer(motion?: TokensMotion): TokensRenderer {
       const pulse = isTurn && pulseTurn
       // VOLTO JÁ: a ficha de quem saiu da mesa (disco apagado e selo, abaixo).
       const away = awayTokenIds.has(token.id)
+      // MAPA DE CONTINENTE: ausente = a ficha de sempre (NPC, ou cena Normal).
+      const pino = pinos.get(token.id) ?? null
+      if (pino !== null && canAnimate()) pinosGirando.add(token.id)
+      else pinosGirando.delete(token.id)
       // Pintura em dia: a ficha só andou (acima). É o caso de quase toda ficha
       // a cada passo do arrasto de OUTRA. O pulso da vez sempre repinta: é ele
       // que arma a animação do anel.
-      if (!pulse && paintIsCurrent(entry.painted, token, gridSize, selected, isTurn, away)) continue
+      if (!pulse && paintIsCurrent(entry.painted, token, gridSize, selected, isTurn, away, pino)) continue
 
       const ghost = isHidden(token)
       entry.wrapper.alpha = ghost ? HIDDEN_TOKEN_GHOST_ALPHA : token.secret ? SECRET_ITEM_ALPHA : 1
+      if (pino !== null) {
+        if (paintMarcador(entry, token, pino, selected)) changedLabels += 1
+        // Já na pose de agora: o pino recém-nascido não espera o próximo quadro para ter pirâmide.
+        // Parado (movimento reduzido, exportação), é a pose fixa, e só aqui ela é desenhada.
+        if (entry.marcador !== null) posarVistaDoMarcador(entry.marcador, now, !pinosGirando.has(token.id))
+        entry.painted = { token, gridSize, selected, isTurn, away, pino }
+        applyLabelSizing(entry)
+        continue
+      }
+      // Voltou a ser disco (cena Normal, ficha sem dono): o pino some, o visual volta.
+      if (entry.marcador !== null) entry.marcador.raiz.visible = false
       entry.ring.clear()
       let outlineRadius: number
 
@@ -824,7 +923,10 @@ export function createTokensRenderer(motion?: TokensMotion): TokensRenderer {
       // VOLTO JÁ: o disco apaga e o selo diz por quê. O alpha do wrapper
       // (fantasma/secreta) continua valendo por cima: o selo não revela nada.
       const visual = entry.sprite ?? entry.graphics
-      if (visual !== null) visual.alpha = away ? AWAY_TOKEN_ALPHA : 1
+      if (visual !== null) {
+        visual.alpha = away ? AWAY_TOKEN_ALPHA : 1
+        visual.visible = true
+      }
       if (away) drawAwaySeal(entry.ring, outlineRadius)
       // CONGELAR FICHA: o floco no alto à esquerda — depois do "Congelar todos"
       // o mestre vê quem está segurado sem abrir painel. No anel, como o selo:
@@ -836,9 +938,10 @@ export function createTokensRenderer(motion?: TokensMotion): TokensRenderer {
       const renamed = entry.label.text !== token.name
       entry.label.text = token.name
       if (born || renamed) changedLabels += 1
-      entry.painted = { token, gridSize, selected, isTurn, away }
+      entry.painted = { token, gridSize, selected, isTurn, away, pino: null }
+      applyLabelSizing(entry)
     }
-    if (glides.size > 0) startTicking()
+    if (glides.size > 0 || pinosGirando.size > 0) startTicking()
     return changedLabels
   }
 

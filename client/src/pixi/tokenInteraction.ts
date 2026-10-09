@@ -2,6 +2,7 @@ import type { GridShape, Token } from '../types/map'
 import type { Point } from './world'
 import { axialToPixel, hexCorners, pixelToAxial, snapToHexGrid } from './hexGrid'
 import type { SnapTargetKind } from './grid'
+import { tocaNoPino, type PinosNoToque } from '../lib/marcadorDeContinente'
 
 /**
  * Gruda x/y no VÉRTICE (canto) da célula quadrada mais próxima — arredonda
@@ -79,10 +80,19 @@ export function snapPointForTarget(target: SnapTargetKind, gridShape: GridShape,
   return target === 'token' ? snapToGridCenter(x, y, gridSize) : snapToGrid(x, y, gridSize)
 }
 
-export function findTokenAt(tokens: Token[], point: Point, gridSize: number): Token | null {
+/**
+ * A ficha sob `point`, a de cima primeiro. `pinos`: MAPA DE CONTINENTE — a
+ * ficha desenhada como pino responde na área do pino inteiro (cabeça acima do
+ * ponto e nome embaixo, `lib/marcadorDeContinente.ts`), não no disco.
+ */
+export function findTokenAt(tokens: Token[], point: Point, gridSize: number, pinos?: PinosNoToque): Token | null {
   const baseRadius = gridSize / 2
   for (let i = tokens.length - 1; i >= 0; i -= 1) {
     const token = tokens[i]
+    if (pinos !== undefined && pinos.ids.has(token.id)) {
+      if (tocaNoPino(token, point, pinos.cameraScale)) return token
+      continue
+    }
     const hitRadius = baseRadius * token.size
     const dx = point.x - token.x
     const dy = point.y - token.y

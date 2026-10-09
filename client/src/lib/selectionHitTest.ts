@@ -1,3 +1,4 @@
+import type { PinosNoToque } from './marcadorDeContinente'
 import type { Wall, Light, Region, RegionPoint, Drawing, DrawingPoint, Stair, MapData, LayerId, Pin, ConcealZone } from '../types/map'
 import { findConcealZoneAt } from './concealZones'
 import type { Selection } from '../types/tools'
@@ -343,9 +344,13 @@ export interface SelectableHit extends Selection {
   draggable: boolean
 }
 
-/** Ficha, objeto e luz: pequenos e em primeiro plano, ganham de tudo. */
-function findForegroundAt(map: MapData, point: Point): SelectableHit | null {
-  const token = findTokenAt(visibleTokens(map.tokens, map.hiddenLayers), point, map.grid)
+/**
+ * Ficha, objeto e luz: pequenos e em primeiro plano, ganham de tudo. `pinos`:
+ * MAPA DE CONTINENTE — a ficha desenhada como pino responde no pino inteiro
+ * (`findTokenAt`); ausente = o disco de sempre.
+ */
+function findForegroundAt(map: MapData, point: Point, pinos?: PinosNoToque): SelectableHit | null {
+  const token = findTokenAt(visibleTokens(map.tokens, map.hiddenLayers), point, map.grid, pinos)
   if (token) return { kind: 'token', id: token.id, draggable: true }
 
   const prop = findPropAt(visibleProps(map.props, map.hiddenLayers), point)
@@ -431,10 +436,10 @@ function regionHitAt(map: MapData, point: Point): SelectableHit | null {
  * lib/layers.ts — os dois precisam concordar, senão dá pra clicar em algo
  * invisível ou ver algo que não clica.
  */
-export function findSelectableAt(map: MapData, point: Point): SelectableHit | null {
+export function findSelectableAt(map: MapData, point: Point, pinos?: PinosNoToque): SelectableHit | null {
   const drawings = visibleDrawings(map.drawings, map.hiddenLayers)
   return (
-    findForegroundAt(map, point) ??
+    findForegroundAt(map, point, pinos) ??
     drawingHitAt(drawings.filter((drawing) => !desenhoFicaSobAsSalas(drawing)), point) ??
     findStructureAt(map, point) ??
     drawingHitAt(drawings.filter(desenhoFicaSobAsSalas), point) ??
@@ -449,9 +454,9 @@ export function findSelectableAt(map: MapData, point: Point): SelectableHit | nu
  * a PAREDE (no modo "Objeto inteiro", de uma vez) em vez da tinta. Apagar a
  * parede continua possível onde não há desenho por cima.
  */
-export function findErasableAt(map: MapData, point: Point): SelectableHit | null {
+export function findErasableAt(map: MapData, point: Point, pinos?: PinosNoToque): SelectableHit | null {
   return (
-    findForegroundAt(map, point) ??
+    findForegroundAt(map, point, pinos) ??
     drawingHitAt(visibleDrawings(map.drawings, map.hiddenLayers), point) ??
     findStructureAt(map, point) ??
     regionHitAt(map, point)
@@ -478,10 +483,12 @@ export function findDoorAt(map: Pick<MapData, 'walls' | 'hiddenLayers'>, point: 
  * objeto, luz, desenho, parede e escada dentro da zona continuam ganhando o
  * clique, porque são menores e estão por cima.
  */
-export function findConcealZoneForSelect(map: MapData, point: Point): ConcealZone | null {
+export function findConcealZoneForSelect(map: MapData, point: Point, pinos?: PinosNoToque): ConcealZone | null {
   const zone = findConcealZoneAt(map.concealZones, point)
   if (zone === null) return null
-  const hit = findSelectableAt(map, point)
+  // Com os pinos: a cabeça do pino de um jogador dentro da zona é a ficha,
+  // não o "tapete" da zona — a mesma área que o clique da ficha usa.
+  const hit = findSelectableAt(map, point, pinos)
   return hit === null || hit.kind === 'region' ? zone : null
 }
 
@@ -547,9 +554,12 @@ function layerOfHit(map: MapData, hit: Selection): LayerId | null {
  * é outro eixo, com outra regra (item travado é clicável de propósito, para
  * chegar ao botão que o destrava em ItemTransformControls).
  */
-export function findLockedLayerAt(map: MapData, point: Point): LayerId | null {
+export function findLockedLayerAt(map: MapData, point: Point, pinos?: PinosNoToque): LayerId | null {
   if (map.lockedLayers.length === 0) return null
-  const hit = findSelectableAt(map, point)
+  // Os pinos têm de ser os MESMOS do clique: medir a ficha pelo disco aqui e
+  // pelo pino inteiro lá deixaria a cabeça do pino (fora do disco) passar pela
+  // trava e o clique pegar a sala de baixo.
+  const hit = findSelectableAt(map, point, pinos)
   if (!hit) return null
   const layer = layerOfHit(map, hit)
   return layer !== null && isLayerLocked(map.lockedLayers, layer) ? layer : null

@@ -5807,6 +5807,11 @@ html.lb-arrastando-cena * {
   }
 }
 
+/* "Tipo de mapa": a linha inteira, embaixo da visão e do radar. */
+.lb-cena-config__tipo {
+  grid-column: 1 / -1;
+}
+
 .lb-cena-config__radar {
   margin: 0;
   padding: var(--lb-space-4);

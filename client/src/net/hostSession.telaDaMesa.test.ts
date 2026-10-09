@@ -13,6 +13,7 @@ import { decodeExploration, isPointExplored } from '../lib/exploration'
 import type { MapData, Pin, Token, Wall } from '../types/map'
 import { createHostSession, MAX_TABLE_SCREENS, tableSceneKey, type HostResult, type HostWorld } from './hostSession'
 import type { HostMessage } from './protocol'
+import { SIGNAL_NEUTRAL_COLOR, signalColor } from '../lib/signals'
 
 const CODE = 'AB12CD'
 /** A chave que só vai no link da TV (a aba Jogo do mestre), separada do código que todo jogador tem. */
@@ -324,5 +325,23 @@ describe('tela da mesa: só olha', () => {
     expect(s.tableScreens()).toBe(0)
     s.setTableScene('s-salao')
     expect(paraTela(s.broadcast(mundo()))).toEqual([])
+  })
+})
+
+describe('tela da mesa: mapa de Continente', () => {
+  it('cada ficha de jogador vira pino na cor NEUTRA (nunca a cor automática do dono); a "Cor" escolhida vale', () => {
+    const { s, ana, bia } = mesaMontada()
+    const fichas = FICHAS_SALAO.map((t) => (t.id === 'ladino' ? { ...t, color: '#9a5fd0' } : t))
+    const world = mundo(fichas)
+    const continente: HostWorld = { ...world, open: { ...world.open, map: { ...world.open.map, continente: true } } }
+    s.handleMessage('c-tv', ENTRAR_COMO_MESA, continente)
+    s.setTableScene('s-salao')
+    const snap = snapshotDaTela(s.broadcast(continente))
+    const pinoDe = (id: string): string | undefined => snap.map.tokens.find((t) => t.id === id)?.pino
+    expect(pinoDe('heroi')).toBe(SIGNAL_NEUTRAL_COLOR)
+    expect(pinoDe('ladino')).toBe('#9a5fd0')
+    expect(pinoDe('monstro')).toBeUndefined()
+    const texto = JSON.stringify(snap.map)
+    for (const dono of [ana, bia]) expect(texto).not.toContain(signalColor(dono))
   })
 })

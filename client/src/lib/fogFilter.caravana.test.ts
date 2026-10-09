@@ -40,7 +40,8 @@ describe('mapa-mundi: o jogador recebe a caravana, e só ela', () => {
   it('as fichas do grupo viram UMA ficha "caravana" no ponto da primeira; o NPC visível continua', () => {
     const view = filterMapForPlayer(mundo(true), 'p1', OWNERSHIP, RAIO)
     expect(view.map.tokens.map((t) => t.id)).toEqual([CARAVAN_TOKEN_ID, 'npc-perto'])
-    expect(view.map.tokens[0]).toEqual({ id: CARAVAN_TOKEN_ID, characterId: null, name: 'Caravana', x: 100, y: 100, size: 1, image: null })
+    // MAPA DE CONTINENTE: a caravana sai como pino, na cor neutra da mesa (não é de jogador nenhum).
+    expect(view.map.tokens[0]).toEqual({ id: CARAVAN_TOKEN_ID, characterId: null, name: 'Caravana', x: 100, y: 100, size: 1, image: null, pino: '#9ca3af' })
     expect(view.map.worldMap).toBe(true)
   })
 

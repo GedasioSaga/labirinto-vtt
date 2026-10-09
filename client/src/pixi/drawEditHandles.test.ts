@@ -457,6 +457,17 @@ describe('drawEditHandles — Token / Prop (bounding box)', () => {
     expect(countStrokeInstructions(g)).toBe(0)
   })
 
+  it('MAPA DE CONTINENTE: ficha desenhada como pino não ganha alça de canto (tamanho do pino é fixo na tela)', () => {
+    const token: Token = { id: 't1', characterId: null, name: 'H', x: 100, y: 100, size: 1, image: null }
+    const map = { ...createEmptyMap('m', 'M', 30, 20, 64), tokens: [token] }
+    const g = new Graphics()
+
+    drawEditHandles(g, map, { kind: 'token', id: 't1' }, 'select', { pinos: new Set(['t1']) })
+
+    expect(countFillInstructions(g)).toBe(0)
+    expect(countStrokeInstructions(g)).toBe(0)
+  })
+
   it('token selecionado mas removido do mapa: seleção órfã não desenha nada', () => {
     const map = createEmptyMap('m', 'M', 30, 20, 64)
     const g = new Graphics()

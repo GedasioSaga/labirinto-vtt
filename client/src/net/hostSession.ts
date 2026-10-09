@@ -1,3 +1,4 @@
+import { coresDosPinos } from '../lib/marcadorDeContinente'
 import type { AreaTriggerKind, DoorState, HazardKind, MapData, MarcaNoLugar, Pin, PinPassage, RegionPoint, Token, TokenContract, Wall } from '../types/map'
 import { hazardPresence, hazardsOf, newHazardEntries, type HazardEntry } from '../lib/hazards'
 import { areaTriggerPresence, newAreaTriggerEntries, regionAreaName, type AreaTriggerPresence } from '../lib/areaTriggers'
@@ -4750,7 +4751,11 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     }
     // A marca do guarda (?, !) conta a ficha de qualquer jogador, não só a de quem está no grupo da TV —
     // desde que a própria TV a receba (o recorte descarta a da névoa, secreta, em zona oculta ou sob teto).
-    const view = filterMapForGroup(map, viewers, merged, doors, allPlayerTokens(ownership), { pinAudiences, loans: loaned })
+    // MAPA DE CONTINENTE: a TV desenha o pino de cada ficha de jogador, mas sem a
+    // cor automática de cada um (`corDoDono: false`): na mesa ela denunciaria quem
+    // é quem, como a do sinal (`SIGNAL_NEUTRAL_COLOR`). A "Cor" da ficha vale.
+    const pinoOf = coresDosPinos(map, ownership, { corDoDono: false })
+    const view = filterMapForGroup(map, viewers, merged, doors, allPlayerTokens(ownership), { pinAudiences, loans: loaned, pinoOf })
     // Mesmas regras de `snapshotFor`: a visão de agora entra na memória que
     // viaja, fora de zona oculta e sala secreta, e o interior de prédio de teto
     // fechado para o grupo sai dela.

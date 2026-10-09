@@ -1,0 +1,61 @@
+import { useId } from 'react'
+import type { TipoDeMapa } from '../lib/mapFactory'
+import { Toggle } from './Toggle'
+
+export interface SceneMapTypeControlsProps {
+  /** "Tipo de mapa" da cena (`MapData.continente`). */
+  tipo: TipoDeMapa
+  onTipoChange: (tipo: TipoDeMapa) => void
+  /** "Grupo anda junto (caravana)" (`MapData.worldMap`, `lib/caravan.ts`). Só aparece no Continente. */
+  caravana: boolean
+  onCaravanaChange: (caravana: boolean) => void
+}
+
+const OPCOES: readonly { tipo: TipoDeMapa; rotulo: string }[] = [
+  { tipo: 'normal', rotulo: 'Normal' },
+  { tipo: 'continente', rotulo: 'Continente' },
+]
+
+/**
+ * "Tipo de mapa" do "Configurar cena" (pedido de 09/10/2026). Continente
+ * desenha a ficha de cada jogador como o pino do mapa (`lib/marcadorDeContinente.ts`),
+ * no mestre e no jogador; NPC continua ficha. A caravana, que antes era a chave
+ * "Mapa-mundi" das Configurações do mapa, mora aqui, dentro do Continente.
+ * Escolha única no padrão `lb-seg` de `DoorKindControls`.
+ */
+export function SceneMapTypeControls({ tipo, onTipoChange, caravana, onCaravanaChange }: SceneMapTypeControlsProps) {
+  const tipoHintId = useId()
+  const caravanaHintId = useId()
+  return (
+    <section className="lb-section lb-cena-config__tipo">
+      <h2 className="lb-eyebrow">Tipo de mapa</h2>
+      <div className="lb-seg" role="radiogroup" aria-label="Tipo de mapa" aria-describedby={tipoHintId}>
+        {OPCOES.map((opcao) => (
+          <button
+            key={opcao.tipo}
+            type="button"
+            role="radio"
+            aria-checked={tipo === opcao.tipo}
+            className="lb-seg__option"
+            onClick={() => onTipoChange(opcao.tipo)}
+          >
+            {opcao.rotulo}
+          </button>
+        ))}
+      </div>
+      <p id={tipoHintId} className="lb-field__hint">
+        {tipo === 'continente'
+          ? 'A ficha de cada jogador vira um pino na cor dele, do mesmo tamanho em qualquer zoom. NPC continua ficha.'
+          : 'Fichas como sempre.'}
+      </p>
+      {tipo === 'continente' && (
+        <div className="lb-field">
+          <Toggle label="Grupo anda junto (caravana)" checked={caravana} describedBy={caravanaHintId} onChange={onCaravanaChange} />
+          <p id={caravanaHintId} className="lb-field__hint">
+            O grupo vira um pino só, que você arrasta. Parado sobre um pino de viagem, a caravana pode desembarcar na cena dele.
+          </p>
+        </div>
+      )}
+    </section>
+  )
+}

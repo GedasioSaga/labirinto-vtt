@@ -33,6 +33,8 @@ import { setPinPassageFromRequest } from './net/pinPassageFromRequest'
 import { useSignalStore } from './stores/signalStore'
 import { goToPointAction } from './stores/pointActionGo'
 import { useAwayTokensStore } from './stores/awayTokensStore'
+import { useDonosDasFichasStore } from './stores/donosDasFichasStore'
+import { isContinente } from './lib/marcadorDeContinente'
 import { laserStrokeEnded, useLaserStore } from './stores/laserStore'
 import { usePlayerLaserStore } from './stores/playerLaserStore'
 import { useNoiseStore } from './stores/noiseStore'
@@ -603,6 +605,7 @@ function App() {
   const setSceneFloor = useMapStore((state) => state.setSceneFloor)
   const setSceneVisionCells = useMapStore((state) => state.setSceneVisionCells)
   const setSceneDark = useMapStore((state) => state.setSceneDark)
+  const setTipoDeMapa = useMapStore((state) => state.setTipoDeMapa)
   const setFaceRangeCells = useMapStore((state) => state.setFaceRangeCells)
   const setScenarioLink = useMapStore((state) => state.setScenarioLink)
   const updateTextLabel = useMapStore((state) => state.updateTextLabel)
@@ -808,6 +811,8 @@ function App() {
           setRoomPlayers(players)
           // VOLTO JÁ: o canvas põe o selo de ausente nas fichas de quem saiu da mesa.
           useAwayTokensStore.getState().setFromPlayers(players)
+          // MAPA DE CONTINENTE: o canvas desenha a ficha de jogador como pino, na cor do dono.
+          useDonosDasFichasStore.getState().setFromPlayers(players)
         },
         onPinAudiencesChange: setPinAudiences,
         // SONS: linha nova no diário é ficha que trocou de cena na sessão, e toca a passagem.
@@ -1009,6 +1014,7 @@ function App() {
     setSceneAlarm(null)
     setPausedScenes(new Set())
     useAwayTokensStore.getState().clear()
+    useDonosDasFichasStore.getState().clear()
     useSignalStore.getState().clear()
     usePlayerLaserStore.getState().clear()
     useLaserStore.getState().setToggled(false)
@@ -2923,6 +2929,12 @@ function App() {
           dark: sceneMap.dark === true,
           onDarkChange: aberta ? setSceneDark : (dark) => mudarFundo((m) => mapFactory.setSceneDark(m, dark)),
         }}
+        mapType={{
+          tipo: isContinente(sceneMap) ? 'continente' : 'normal',
+          onTipoChange: aberta ? setTipoDeMapa : (tipo) => mudarFundo((m) => mapFactory.setTipoDeMapa(m, tipo)),
+          caravana: sceneMap.worldMap === true,
+          onCaravanaChange: aberta ? setWorldMap : (caravana) => mudarFundo((m) => mapFactory.setWorldMap(m, caravana)),
+        }}
         onClose={() => setConfiguringSceneId(null)}
       />
     )
@@ -3302,7 +3314,7 @@ function App() {
               onMeasurementModeChange: setMeasurementMode,
               gridShape,
             }}
-            movement={{ movement: map.movement, onMovementChange: setMovementRules, worldMap: map.worldMap === true, onWorldMapChange: setWorldMap }}
+            movement={{ movement: map.movement, onMovementChange: setMovementRules }}
             arrivalText={arrivalTextSettings}
             sceneFloor={{ andar: map.andar, onChange: setSceneFloor }}
             faceRange={{

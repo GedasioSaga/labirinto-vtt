@@ -177,6 +177,13 @@ export interface EditHandlesView {
   rendererResolution?: number
   /** A sala está sendo girada agora: a alça aparece acesa, "pega". */
   rotating?: boolean
+  /**
+   * MAPA DE CONTINENTE: fichas desenhadas como pino. Pino tem tamanho fixo na
+   * tela, então não ganha alça de canto — ela emoldurava um disco que não está
+   * desenhado e caía em cima do pino e do nome. A seleção do pino é o anel no
+   * pé (`pixi/tokensRenderer.ts`).
+   */
+  pinos?: Pick<ReadonlySet<string>, 'has'>
 }
 
 /**
@@ -333,7 +340,7 @@ export function drawEditHandles(
   // Token/Prop travados: o pointerdown não deixa pegar o canto (`canInteract`).
   if (selection.kind === 'token') {
     const token = map.tokens.find((t) => t.id === selection.id)
-    if (token && !isLocked(token)) drawBoxResizeHandles(graphics, tokenBoundingBox(token, map.grid), scale)
+    if (token && !isLocked(token) && view.pinos?.has(token.id) !== true) drawBoxResizeHandles(graphics, tokenBoundingBox(token, map.grid), scale)
     return
   }
 

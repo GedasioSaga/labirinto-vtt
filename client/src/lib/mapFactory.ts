@@ -2228,11 +2228,30 @@ export function setMovementRules(map: MapData, movement: MovementRules | undefin
   return { ...map, movement }
 }
 
-/** MAPA-MUNDI (`lib/caravan.ts`): desligar tira o campo, e a cena volta a ser comum, igual a mapa antigo. */
+/**
+ * "Grupo anda junto (caravana)" (`lib/caravan.ts`). Caravana só existe dentro
+ * do Continente: ligar marca a cena como Continente também. Desligar tira só a
+ * caravana — a cena continua Continente, com o pino de cada jogador.
+ */
 export function setWorldMap(map: MapData, worldMap: boolean): MapData {
-  if (worldMap) return map.worldMap === true ? map : { ...map, worldMap: true }
+  if (worldMap) return map.worldMap === true && map.continente === true ? map : { ...map, continente: true, worldMap: true }
   if (map.worldMap === undefined) return map
   const { worldMap: _comum, ...rest } = map
+  return rest
+}
+
+/** "Tipo de mapa" da cena (`MapData.continente`). */
+export type TipoDeMapa = 'normal' | 'continente'
+
+/**
+ * "Tipo de mapa": Continente põe o campo; Normal tira o Continente E a caravana
+ * (que só existe dentro dele), e a cena volta a ser a de sempre, igual a mapa
+ * antigo. Valor igual devolve o mesmo `map`: sem passo vazio no desfazer.
+ */
+export function setTipoDeMapa(map: MapData, tipo: TipoDeMapa): MapData {
+  if (tipo === 'continente') return map.continente === true ? map : { ...map, continente: true }
+  if (map.continente === undefined && map.worldMap === undefined) return map
+  const { continente: _continente, worldMap: _caravana, ...rest } = map
   return rest
 }
 

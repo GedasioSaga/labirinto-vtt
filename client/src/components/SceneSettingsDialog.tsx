@@ -2,6 +2,7 @@ import { useEffect, useId, useRef, type KeyboardEvent, type MouseEvent } from 'r
 import { createPortal } from 'react-dom'
 import { CloseIcon } from './icons'
 import { SceneVisionControls, type SceneVisionControlsProps } from './SceneVisionControls'
+import { SceneMapTypeControls, type SceneMapTypeControlsProps } from './SceneMapTypeControls'
 
 /** Raio em px que o jogador usa quando a cena não diz nada (`DEFAULT_VISION_RADIUS`, `net/hostBridge.ts`). */
 export const RAIO_PADRAO_PX = 700
@@ -18,6 +19,8 @@ export interface SceneSettingsDialogProps {
   /** Tamanho do quadro da cena em px: converte o raio padrão em quadrados. */
   cellPx: number
   vision: Required<Pick<SceneVisionControlsProps, 'dark' | 'onDarkChange'>> & SceneVisionControlsProps
+  /** "Tipo de mapa" (Normal | Continente) e a caravana dentro do Continente. Ausente omite a seção. */
+  mapType?: SceneMapTypeControlsProps
   onClose: () => void
 }
 
@@ -68,9 +71,10 @@ const FOCUSABLE = 'button:not([disabled]), input:not([disabled]), [tabindex]:not
 
 /**
  * "Configurar cena" (pedido de 07/10/2026): a visão dos jogadores, por cena,
- * com o radar ao lado. Abre pelo botão de engrenagem na linha da cena.
+ * com o radar ao lado, e o "Tipo de mapa" embaixo (09/10/2026). Abre pelo
+ * botão de engrenagem na linha da cena.
  */
-export function SceneSettingsDialog({ sceneName, cellPx, vision, onClose }: SceneSettingsDialogProps) {
+export function SceneSettingsDialog({ sceneName, cellPx, vision, mapType, onClose }: SceneSettingsDialogProps) {
   const titleId = useId()
   const dialogRef = useRef<HTMLDivElement>(null)
   const pressStartedOnBackdrop = useRef(false)
@@ -131,6 +135,8 @@ export function SceneSettingsDialog({ sceneName, cellPx, vision, onClose }: Scen
               {vision.dark ? ' Cena escura: fora da casa da ficha, só o que uma Luz ilumina.' : ''} Vezes o fator de cada jogador.
             </figcaption>
           </figure>
+          {/* Depois da visão: o foco inicial continua no campo da visão, o que se mexe mais. */}
+          {mapType !== undefined && <SceneMapTypeControls {...mapType} />}
         </div>
       </div>
     </div>,

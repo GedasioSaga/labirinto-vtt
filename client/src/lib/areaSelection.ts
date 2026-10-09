@@ -16,6 +16,7 @@
  * `lib/selectionHitTest.ts` NÃO é editado por este arquivo — é do agente B3
  * nesta fase.
  */
+import { areaDoPino, type PinosNoToque } from './marcadorDeContinente'
 import type { MapData, Wall, Region, Light, Token, Prop, Stair, Drawing } from '../types/map'
 import type { Point } from './selectionHitTest'
 import { isPointInPolygon, estimateTextWidth } from './selectionHitTest'
@@ -236,7 +237,9 @@ function regionEntity(region: Region): AreaGeometryEntity {
  *  com a conta do raio; só a conta interessa pra geometria de área, e
  *  importar a função inteira pra extrair 1 linha seria mais confuso que
  *  repetir a linha com a referência de onde ela vem. */
-function tokenEntity(token: Token, gridSize: number): AreaGeometryEntity {
+function tokenEntity(token: Token, gridSize: number, pinos?: PinosNoToque): AreaGeometryEntity {
+  // MAPA DE CONTINENTE: a ficha desenhada como pino ocupa o pino inteiro (cabeça e nome), não o disco.
+  if (pinos !== undefined && pinos.ids.has(token.id)) return { kind: 'rect', ...areaDoPino(token, pinos.cameraScale) }
   return { kind: 'circle', cx: token.x, cy: token.y, radius: (gridSize / 2) * token.size }
 }
 
@@ -408,7 +411,7 @@ export function isAreaSelectionEmpty(selection: AreaSelection): boolean {
  * `isDegenerateRegion`) nunca entra — mesma guarda que `drawRegions.ts` usa
  * pra não desenhar uma região sem geometria válida.
  */
-export function selectEntitiesInArea(map: MapData, rect: AreaRect): AreaSelection {
+export function selectEntitiesInArea(map: MapData, rect: AreaRect, pinos?: PinosNoToque): AreaSelection {
   if (Math.abs(rect.x2 - rect.x1) < AREA_SELECTION_MIN_DRAG && Math.abs(rect.y2 - rect.y1) < AREA_SELECTION_MIN_DRAG) {
     return EMPTY_AREA_SELECTION
   }
@@ -438,7 +441,7 @@ export function selectEntitiesInArea(map: MapData, rect: AreaRect): AreaSelectio
 
   const tokens = visibleTokens(map.tokens, map.hiddenLayers)
     .filter((token) => canInteract(token))
-    .filter((token) => inArea(tokenEntity(token, map.grid)))
+    .filter((token) => inArea(tokenEntity(token, map.grid, pinos)))
     .map((token) => token.id)
 
   const props = visibleProps(map.props, map.hiddenLayers)

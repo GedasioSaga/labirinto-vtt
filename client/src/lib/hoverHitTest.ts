@@ -41,6 +41,7 @@ import { drawingBoundingBox, tokenBoundingBox, propBoundingBox } from './objectT
 import { isAxisAlignedRect } from './roomOps'
 import { isOnRoomRotateHandle, roomRotationOf } from './roomRotation'
 import { findSelectableAt } from './selectionHitTest'
+import type { PinosNoToque } from './marcadorDeContinente'
 import { findBoxCornerHandleAt, findNearestVertexHandleAt, findRoomCornerHandleAt, findVertexHandleAt, isOnRadiusHandle } from './handleHitArea'
 import { alcasDoDesenho, editavelPorPontos } from './pontosChave'
 import { areaSelectionBounds, type AreaSelection } from './areaSelection'
@@ -55,6 +56,8 @@ export interface HoverHitInput {
   /** Zoom da câmera: toda alça (girar, canto, vértice, raio) tem tamanho fixo
    *  na TELA, e a área de hover acompanha (`lib/handleHitArea.ts`). Ausente = 1. */
   cameraScale?: number
+  /** MAPA DE CONTINENTE: fichas desenhadas como pino respondem no pino inteiro, como no clique. */
+  pinos?: PinosNoToque
 }
 
 /** Entidade que um clique agora selecionaria — só presente quando `kind ===
@@ -133,7 +136,8 @@ export function resolveHoverHit(input: HoverHitInput): HoverHit {
     }
     if (selection.kind === 'token') {
       const token = map.tokens.find((t) => t.id === selection.id)
-      if (token && canInteract(token)) {
+      // Ficha-pino (MAPA DE CONTINENTE) não tem alça de canto: `drawEditHandles` não a desenha.
+      if (token && canInteract(token) && input.pinos?.ids.has(token.id) !== true) {
         const corner = findBoxCornerHandleAt(tokenBoundingBox(token, map.grid), worldPoint, scale)
         if (corner !== null) return { kind: 'resize-corner', corner, target: null }
       }
@@ -191,7 +195,7 @@ export function resolveHoverHit(input: HoverHitInput): HoverHit {
     }
   }
 
-  const hit = findSelectableAt(hitTestMap(map), worldPoint)
+  const hit = findSelectableAt(hitTestMap(map), worldPoint, input.pinos)
   if (hit) {
     const isCurrentSelection = selection !== null && selection.kind === hit.kind && selection.id === hit.id
     return { kind: 'selectable', corner: null, target: isCurrentSelection ? null : { kind: hit.kind, id: hit.id } }

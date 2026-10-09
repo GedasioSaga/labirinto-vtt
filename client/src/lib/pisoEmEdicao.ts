@@ -1,3 +1,4 @@
+import type { PinosNoToque } from './marcadorDeContinente'
 import type { FloorPiece, LayerId, MapData } from '../types/map'
 import { selectEntitiesInArea, type AreaRect } from './areaSelection'
 import type { Bloco } from './floorBlocks'
@@ -49,9 +50,9 @@ export function pinoNoPiso(map: MapData, piso: number, pinId: string | null): st
   return mapaDoPiso(map, piso).pins.some((pino) => pino.id === pinId) ? pinId : null
 }
 
-/** Laço (arrasto no vazio com Selecionar): só o que está no piso em edição. */
-export function selecaoDoLacoNoPiso(map: MapData, piso: number, rect: AreaRect): SelectionSet {
-  return selectionFromAreaSelection(selectEntitiesInArea(mapaDoPiso(map, piso), rect))
+/** Laço (arrasto no vazio com Selecionar): só o que está no piso em edição. `pinos`: MAPA DE CONTINENTE, o pino inteiro conta. */
+export function selecaoDoLacoNoPiso(map: MapData, piso: number, rect: AreaRect, pinos?: PinosNoToque): SelectionSet {
+  return selectionFromAreaSelection(selectEntitiesInArea(mapaDoPiso(map, piso), rect, pinos))
 }
 
 /**
@@ -68,8 +69,8 @@ export function hoverNoPiso(input: HoverHitInput, piso: number): HoverHit {
  * barra o gesto tem de ser um que o mestre vê. Uma ficha do térreo em camada
  * travada não impede de pegar a parede do 1º piso no mesmo lugar.
  */
-export function camadaTravadaNoPiso(map: MapData, piso: number, point: Point): LayerId | null {
-  return findLockedLayerAt(mapaDoPiso(map, piso), point)
+export function camadaTravadaNoPiso(map: MapData, piso: number, point: Point, pinos?: PinosNoToque): LayerId | null {
+  return findLockedLayerAt(mapaDoPiso(map, piso), point, pinos)
 }
 
 /** Peça de chão sob o ponto, só entre as do piso em edição. */

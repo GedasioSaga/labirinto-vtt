@@ -425,7 +425,8 @@ function deserializeMapFields(json: string): MapData {
       // FALA da patrulha só existe enquanto a ficha espera no ponto; salva no
       // meio de uma fala, o mapa reaberto (patrulha parada) não a mostra.
       // `aBordo` e `embarcavel` (VEÍCULO na tela do jogador) são marcas de FIO: arquivo que as traga as perde.
-      const { fala: _falaDaRonda, aBordo: _aBordo, embarcavel: _embarcavel, ...t } = fichaDoArquivo
+      // `pino` (cor do pino no MAPA DE CONTINENTE, na tela do jogador) idem.
+      const { fala: _falaDaRonda, aBordo: _aBordo, embarcavel: _embarcavel, pino: _pino, ...t } = fichaDoArquivo
       const lido = tokenVehicleFromFile(fichaComRotinaDoArquivo(withoutLentMark(withoutContract(tokenPublicNameFromFile({ ...t, image: t.image ?? null })))))
       const comBolsa = bolsaDoArquivo(lido)
       if (!('mochila' in t)) return comBolsa
@@ -638,6 +639,11 @@ function deserializeMapFields(json: string): MapData {
     // MAPA-MUNDI: campo NOVO e OPCIONAL. Só `true` vale; o resto (arquivo
     // editado à mão) abre como cena comum, sem o campo.
     ...(parsed.worldMap === true ? { worldMap: true } : {}),
+    // TIPO DE MAPA "Continente": campo NOVO e OPCIONAL, mesmo padrão de
+    // `worldMap`. A caravana virou chave DENTRO do Continente, então o mapa
+    // salvo como mapa-mundi (antes do Continente existir) abre Continente com
+    // a caravana ligada.
+    ...(parsed.continente === true || parsed.worldMap === true ? { continente: true } : {}),
     // TEXTO DE CHEGADA: campo NOVO e OPCIONAL. Texto vazio ou o que não é
     // texto (editado à mão) abre sem o campo — ver `readArrivalText`.
     ...arrivalTextField(parsed.textoChegada),

@@ -251,6 +251,16 @@ describe('createShapesRedrawer', () => {
     expect(take()).toEqual(['handles'])
   })
 
+  it('MAPA DE CONTINENTE: a posse da sala mudar repinta as alças (a ficha virou pino, ou deixou de ser)', () => {
+    const { redraw, take } = setup()
+    const map = buildMap()
+    const selection = selectionOfItem({ kind: 'token', id: 't1' })
+    redraw(snapshot(map, { selection, posseDasFichas: {} }))
+    take()
+    redraw(snapshot(map, { selection, posseDasFichas: { p1: ['t1'] } }))
+    expect(take()).toEqual(['handles'])
+  })
+
   it('mapa sem nenhum campo opcional (sem frame, sem gridOffset, sem salas) pinta e depois fica parado', () => {
     const { redraw, take } = setup()
     const map = createEmptyMap('vazio', 'Vazio', 5, 5, 50)

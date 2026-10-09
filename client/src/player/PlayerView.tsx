@@ -61,6 +61,8 @@ import { createPropLooksRenderer, type PropLooksCount, type PropLooksRenderer } 
 import { buildFloorMask } from '../pixi/floorMask'
 import { pixelGrid, snapToPhysicalPixel, type PixelGrid } from '../pixi/pixelAlign'
 import { screenLabelSizing } from '../pixi/screenLabel'
+import { faseDoMarcador } from '../pixi/drawMarcadorDeContinente'
+import { criarVistaDoMarcador, escalarVistaDoMarcador, pintarVistaDoMarcador, posarVistaDoMarcador, type VistaDoMarcador } from '../pixi/vistaDoMarcador'
 import { TOKEN_FRAME_COLOR, TOKEN_FRAME_WIDTH, TOKEN_NAME_FILL_COLOR, TOKEN_NAME_OUTLINE_COLOR, TURN_RING_COLOR, TURN_RING_GAP, TURN_RING_WIDTH } from '../pixi/constants'
 import { parseHexColor } from '../lib/tokenColor'
 import { readTokenHealth } from '../lib/tokenHealth'
@@ -519,6 +521,14 @@ interface TokenView {
   /** Floco da ficha que o mestre congelou (`pixi/drawTokenFrozen.ts`) — só na PRÓPRIA ficha, no canto do cadeado. */
   frost: Graphics
   key: string
+  /**
+   * MAPA DE CONTINENTE: a cor do pino (`Token.pino`, que só o recorte escreve);
+   * `null` = ficha de sempre. Com pino, o disco, a foto, o aro, o bico, a vida,
+   * as marcas e o nome da ficha somem: só o pino, com o nome dele embaixo.
+   */
+  pino: string | null
+  /** O pino (`pixi/vistaDoMarcador.ts`): nasce na primeira vez que a ficha vira pino e só se esconde depois. */
+  marcador: VistaDoMarcador | null
   /** Referência já carregada em `photo`: sem isto, todo snapshot recarregaria a mesma foto. */
   loadedPhoto: string | null
   /** Contador do carregamento em curso — o mesmo guard de pixi/tokensRenderer.ts, para a foto antiga não vencer a nova. */
@@ -565,6 +575,14 @@ function roomLabelObstacles(map: MapData): LabelObstacle[] {
  */
 export function paintTokenView(view: TokenView, token: Token, grid: number, own: boolean, turn = false, waiting = false): void {
   const radius = tokenRadius(token, grid)
+  // MAPA DE CONTINENTE: o recorte só põe `pino` em ficha de jogador numa cena Continente.
+  const pino = typeof token.pino === 'string' ? token.pino : null
+  view.pino = pino
+  if (pino !== null) {
+    paintMarcadorView(view, token, pino, own, radius)
+    return
+  }
+  if (view.marcador !== null) view.marcador.raiz.visible = false
   // A cor que o MESTRE deu à ficha vale aqui também: a separação entre aliado
   // e inimigo não serve de nada se só o mestre a enxerga. Sem cor escolhida,
   // o azul do dono e o cinza dos outros de sempre — tela idêntica à de antes.
@@ -616,6 +634,61 @@ export function paintTokenView(view: TokenView, token: Token, grid: number, own:
 }
 
 /**
+ * MAPA DE CONTINENTE: a ficha vira o pino. Os desenhos da ficha de sempre se
+ * esvaziam (nunca se destroem: `Text` destruído derruba o Pixi 8.20); o aro, o
+ * bico e o nome somem pelas funções de zoom, que leem `view.pino`.
+ */
+function paintMarcadorView(view: TokenView, token: Token, cor: string, own: boolean, radius: number): void {
+  view.radius = radius
+  view.own = own
+  view.body.clear()
+  view.photo.visible = false
+  drawTokenHealthBar(view.bar, radius, null)
+  view.hasHealth = false
+  drawTokenConditions(view.marks, [], radius, 0)
+  drawWatchAlert(view.alert, null, radius)
+  drawTokenLock(view.lock, false, radius)
+  drawTokenFrozen(view.frost, false, radius)
+  paintCompanion(view, undefined)
+  view.label.text = token.name
+  let marcador = view.marcador
+  if (marcador === null) {
+    marcador = criarVistaDoMarcador(faseDoMarcador(token.id))
+    view.wrapper.addChild(marcador.raiz)
+    view.marcador = marcador
+  }
+  marcador.raiz.visible = true
+  pintarVistaDoMarcador(marcador, cor, token.name)
+  // Já na pose parada: o quadro seguinte (`girarMarcadores`) a põe para girar.
+  posarVistaDoMarcador(marcador, performance.now(), true)
+}
+
+/**
+ * Um quadro do pino girando na tela do jogador. Sem pino à vista (cena Normal)
+ * sai na primeira linha: nada de custo por quadro. Com "Reduzir movimento", a
+ * pirâmide fica parada na pose que a pintura já desenhou. Só a pirâmide é
+ * refeita (`posarVistaDoMarcador`). A ficha que sumiu ou ficou escondida sai do
+ * conjunto aqui também: o laço de fichas já a tira, e isto garante que um
+ * conjunto esquecido nunca anime o que não está na tela.
+ */
+export function girarMarcadores(
+  views: ReadonlyMap<string, Pick<TokenView, 'wrapper' | 'marcador'>>,
+  marcadores: Set<string>,
+  now: number,
+  reduzido: boolean,
+): void {
+  if (marcadores.size === 0 || reduzido) return
+  for (const id of marcadores) {
+    const view = views.get(id)
+    if (view === undefined || view.marcador === null || !view.wrapper.visible) {
+      marcadores.delete(id)
+      continue
+    }
+    posarVistaDoMarcador(view.marcador, now, false)
+  }
+}
+
+/**
  * MARCA DE COMPANHEIRO: a ficha de outro jogador ganha o aro na cor dele e o
  * nome dele embaixo do nome do personagem. Cor fora de `#rrggbb` fica sem aro
  * (a etiqueta continua dizendo de quem é); `Text` nunca é destruído, só esvazia.
@@ -627,8 +700,16 @@ function paintCompanion(view: TokenView, companion: TokenCompanion | undefined):
 }
 
 /** Aro de dono (ou de companheiro) no zoom atual; só refaz quando raio, dono, cor ou zoom mudam. */
-function syncOwnerRing(view: TokenView, cameraScale: number): void {
-  const key = view.own ? `${view.radius}@${cameraScale}` : view.companionColor !== null ? `${view.radius}@${cameraScale}@${view.companionColor}` : null
+export function syncOwnerRing(view: TokenView, cameraScale: number): void {
+  // O pino não leva aro: a cor dele já diz de quem é.
+  const key =
+    view.pino !== null
+      ? null
+      : view.own
+        ? `${view.radius}@${cameraScale}`
+        : view.companionColor !== null
+          ? `${view.radius}@${cameraScale}@${view.companionColor}`
+          : null
   if (key === view.ringKey) return
   view.ringKey = key
   if (key === null) view.ring.clear()
@@ -649,7 +730,8 @@ function placeCompanionLabel(view: TokenView): void {
  * quando raio, dono ou zoom mudam: virar a ficha mexe só em `rotation`.
  */
 function syncFacingNib(view: TokenView, cameraScale: number): void {
-  const faced = view.facing !== null
+  // O pino não tem frente: o bico some com o disco.
+  const faced = view.facing !== null && view.pino === null
   view.facingNib.visible = faced
   // Com frente, o nome desce para fora do alcance do bico, em qualquer direção:
   // assim o bico virado para baixo nunca entra nas letras, e o nome não pula
@@ -679,7 +761,7 @@ interface FacingSync {
  * toda ficha que este jogador não enxerga, então todo bico desenhado aqui é de
  * ficha que ele pode ver.
  */
-function syncFacing(view: TokenView, token: Token, turns: TokenTurns, sync: FacingSync): void {
+export function syncFacing(view: TokenView, token: Token, turns: TokenTurns, sync: FacingSync): void {
   const facing = tokenFacing(token.rotation)
   view.facing = facing
   if (facing === null) turns.delete(token.id)
@@ -768,11 +850,28 @@ export function createTokenView(token: Token, grid: number, own: boolean, turn =
     lock,
     frost,
     key: tokenViewKey(token, grid, own, turn, waiting),
+    pino: null,
+    marcador: null,
     loadedPhoto: null,
     loadSeq: 0,
   }
   paintTokenView(view, token, grid, own, turn, waiting)
   return view
+}
+
+/**
+ * Nome e tamanho da ficha no zoom atual. A que é pino esconde o nome dela e
+ * mostra o do pino, de tamanho fixo na tela (com "Mostrar nomes" desligado,
+ * nenhum dos dois); o pino em si continua do mesmo tamanho em qualquer zoom.
+ */
+export function sizeTokenView(view: TokenView, cameraScale: number, showNames: boolean): void {
+  if (view.marcador !== null) escalarVistaDoMarcador(view.marcador, cameraScale)
+  if (view.pino === null) {
+    sizeTokenLabel(view.label, cameraScale, showNames)
+    return
+  }
+  view.label.visible = false
+  if (view.marcador !== null) view.marcador.rotulo.visible = showNames
 }
 
 /** Nome do token: nunca abaixo de 11 px na tela e escondido abaixo de 30% de zoom (screenLabel.ts). */
@@ -817,6 +916,8 @@ export function tokenViewKey(token: Token, grid: number, own: boolean, turn = fa
     token.companion ?? null,
     ownLocked(token, own),
     ownFrozen(token, own),
+    // MAPA DE CONTINENTE: virar pino (ou deixar de ser, ou trocar de cor) repinta na hora.
+    token.pino ?? null,
   ])
 }
 
@@ -1038,6 +1139,8 @@ interface Scene {
   tokenGlides: TokenGlides
   /** Bicos girando da frente antiga à nova (o mestre virou a ficha); o ticker os leva até lá. */
   tokenTurns: TokenTurns
+  /** MAPA DE CONTINENTE: fichas à vista desenhadas como pino agora. Vazio = o ticker do pino não faz nada. */
+  marcadores: Set<string>
   camera: Camera
   /** Escala para a qual grade, escadas e rótulos foram ajustados por último. */
   zoomScale: number
@@ -2124,7 +2227,7 @@ function PlayerViewDoCanvas({
     scene.roomNamesRenderer.setCameraScale(scene.camera.scale)
     const { showNames } = latestRef.current.settings
     for (const view of scene.tokenViews.values()) {
-      sizeTokenLabel(view.label, scene.camera.scale, showNames)
+      sizeTokenView(view, scene.camera.scale, showNames)
       syncOwnerRing(view, scene.camera.scale)
       syncFacingNib(view, scene.camera.scale)
       placeCompanionLabel(view)
@@ -2241,6 +2344,7 @@ function PlayerViewDoCanvas({
       view.wrapper.visible = false
       scene.tokenGlides.delete(id)
       scene.tokenTurns.delete(id)
+      scene.marcadores.delete(id)
     }
     // Deslize só dentro da MESMA cena: a ficha que chega a outra cena (ou a
     // primeira desenhada) aparece no lugar, sem atravessar a tela.
@@ -2276,10 +2380,12 @@ function PlayerViewDoCanvas({
       // A posse muda sem a view nascer de novo (o mestre atribui ou tira a ficha).
       // A ficha sob o dedo continua agarrada: a posse sozinha devolveria a mão aberta no meio do arrasto.
       syncTokenLift(view.wrapper, isOwn, token.id === draggedId)
-      sizeTokenLabel(view.label, scene.camera.scale, currentSettings.showNames)
+      sizeTokenView(view, scene.camera.scale, currentSettings.showNames)
       syncOwnerRing(view, scene.camera.scale)
       syncFacing(view, token, scene.tokenTurns, { shown: shownFacing, now, animate: sameScene && !reducedMotion, cameraScale: scene.camera.scale })
       placeCompanionLabel(view)
+      if (view.pino !== null) scene.marcadores.add(token.id)
+      else scene.marcadores.delete(token.id)
       if (view.facing !== null) facingCount += 1
       if (view.companionColor !== null || view.companionLabel.text !== '') companionsCount += 1
       // Esconder-se: a própria ficha escondida sai esmaecida (`lib/tokenHiding.ts`).
@@ -2713,6 +2819,7 @@ function PlayerViewDoCanvas({
         tokenViews: new Map(),
         tokenGlides: createTokenGlides(),
         tokenTurns: createTokenTurns(),
+        marcadores: new Set(),
         camera: { x: 0, y: 0, scale: 1 },
         zoomScale: 1,
         onZoom: () => {},
@@ -2943,6 +3050,14 @@ function PlayerViewDoCanvas({
         if (!drawOwnerPulse(pulseLayer, at.x, at.y, from, performance.now() - pulse.startedAt)) scene.pulse = null
       }
       app.ticker.add(tickPulse)
+
+      // MAPA DE CONTINENTE: o pino gira e flutua (`girarMarcadores`). O conjunto
+      // vazio é conferido antes de perguntar ao navegador pelo movimento reduzido.
+      const tickMarcadores = () => {
+        if (scene.marcadores.size === 0) return
+        girarMarcadores(scene.tokenViews, scene.marcadores, performance.now(), prefersReducedMotion())
+      }
+      app.ticker.add(tickMarcadores)
 
       // Trecho que mudou: pisca e o aviso segue a área na tela (arrasto, zoom) até acabar sozinho.
       const tickRevisit = () => {
@@ -3359,6 +3474,7 @@ function PlayerViewDoCanvas({
         app.ticker.remove(tickTokenGlides)
         app.ticker.remove(tickTokenTurns)
         app.ticker.remove(tickPulse)
+        app.ticker.remove(tickMarcadores)
         app.ticker.remove(tickRevisit)
         scene.animadorDePortas.cancelar()
         // Antes do app.destroy: os gradientes de luz não são filhos da cena.

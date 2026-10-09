@@ -45,6 +45,15 @@ describe('resolveHoverGeometry — geometria pura por SelectionKind (sem PixiJS)
     expect(resolveHoverGeometry(map, target)).toEqual({ shape: 'circle', cx: 50, cy: 50, radius: 25 })
   })
 
+  it('MAPA DE CONTINENTE: ficha-pino contorna a área do pino (tamanho de tela), não o disco que não está desenhado', () => {
+    const map = addToken(baseMap, buildToken('t1'))
+    const target: HoverTarget = { kind: 'token', id: 't1' }
+    // Zoom 2: a área do pino (48 x 78 px de tela, `AREA_DE_TOQUE`) vira 24 x 39 de mundo.
+    expect(resolveHoverGeometry(map, target, { ids: new Set(['t1']), cameraScale: 2 })).toEqual({ shape: 'rect', x: 50 - 12, y: 50 - 26, w: 24, h: 39 })
+    // Ficha que não é pino na mesma cena: o disco de sempre.
+    expect(resolveHoverGeometry(map, target, { ids: new Set(['outra']), cameraScale: 2 })).toEqual({ shape: 'circle', cx: 50, cy: 50, radius: 25 })
+  })
+
   it('prop: retângulo = propBoundingBox', () => {
     const map = addProp(baseMap, buildProp('p1'))
     const target: HoverTarget = { kind: 'prop', id: 'p1' }
