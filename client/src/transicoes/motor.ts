@@ -1,13 +1,14 @@
 import type * as Three from 'three'
-import { duracaoEfetivaS, transicaoInfo, type TransicaoEscolhida, type TransicaoId } from './catalogo'
+import { aguardarTransicoesDeFora, criarCenaDeFora, duracaoEfetivaS, transicaoInfo, type TransicaoEscolhida, type TransicaoId, type TransicaoInfo } from './catalogo'
 import type { CenaTransicao, CriarCena, KitDeSom, ThreeModule } from './tipos'
 
 /**
  * Motor das transições especiais: carrega `three` sob demanda, monta a cena do
  * catálogo num canvas, toca no tempo escolhido e avisa o fim.
  *
- * Nada aqui pode prender o jogo: sem WebGL, sem `three` ou com erro na cena,
- * `onFim` sai na hora e o jogador cai direto no mapa.
+ * Nada aqui pode prender o jogo: sem WebGL, sem `three`, transição que este
+ * app não tem (pacote ainda não baixado) ou com erro na cena, `onFim` sai na
+ * hora e o jogador cai direto no mapa.
  */
 
 let threeCarregando: Promise<ThreeModule> | null = null
@@ -33,7 +34,11 @@ export function carregarThree(): Promise<ThreeModule> {
   return threeCarregando
 }
 
-async function fabricaDaCena(id: TransicaoId): Promise<CriarCena> {
+/**
+ * A fábrica da cena: embutida pelo `switch` (chunk próprio de cada cena),
+ * a do pacote pelo registro do catálogo. `null` = este app não tem a transição.
+ */
+export async function resolverFabricaDaCena(id: TransicaoId): Promise<CriarCena | null> {
   switch (id) {
     case 'porta':
       return (await import('./cenas/porta')).criarCenaPorta
@@ -42,6 +47,9 @@ async function fabricaDaCena(id: TransicaoId): Promise<CriarCena> {
     case 'escada-pedra-descendo':
       return (await import('./cenas/escadaPedra')).criarCenaEscadaPedraDescendo
   }
+  // O pacote pode estar chegando agora (o jogador atravessou logo ao conectar).
+  await aguardarTransicoesDeFora()
+  return criarCenaDeFora(id)
 }
 
 /**
@@ -99,23 +107,36 @@ export async function tocarTransicao(opcoes: OpcoesDeTocar): Promise<ControleDeT
   let THREE: ThreeModule
   let renderer: Three.WebGLRenderer
   let cena: CenaTransicao
+  let info: TransicaoInfo
   if (!temWebGL()) {
     avisarFim()
     return controleVazio
   }
+  // Só para soltar o contexto WebGL se a cena (de um pacote, talvez) falhar ao montar.
+  let rendererCriado: Three.WebGLRenderer | null = null
   try {
+    // A fábrica antes do `three`: transição desconhecida nem baixa a biblioteca.
+    const criar = await resolverFabricaDaCena(escolha.id)
+    const achada = transicaoInfo(escolha.id)
+    if (criar === null || achada === undefined) {
+      avisarFim()
+      return controleVazio
+    }
+    info = achada
     THREE = await carregarThree()
-    const criar = await fabricaDaCena(escolha.id)
-    renderer = criarRenderer(THREE, canvas, false)
+    renderer = rendererCriado = criarRenderer(THREE, canvas, false)
     cena = criar(THREE, { reduzirMovimento })
+    // Vale também para as do pacote: elas são escritas no mesmo molde das
+    // embutidas (luzes afinadas em unidades legadas), e assim tocam igual.
     converterLuzesLegadas(cena.scene)
   } catch {
+    rendererCriado?.dispose()
     avisarFim()
     return controleVazio
   }
 
-  const natural = transicaoInfo(escolha.id).duracaoNaturalS
-  const escala = natural / duracaoEfetivaS(escolha)
+  const natural = info.duracaoNaturalS
+  const escala = natural / duracaoEfetivaS(escolha, info)
 
   // Som: contexto próprio, criado já dentro do gesto que abriu a transição
   // quando houver um; se o navegador recusar, segue mudo.
@@ -209,38 +230,49 @@ export async function tocarTransicao(opcoes: OpcoesDeTocar): Promise<ControleDeT
   }
 }
 
-const miniaturas = new Map<TransicaoId, Promise<string | null>>()
+/**
+ * Guardadas pela ENTRADA do catálogo, não pelo id: a versão nova de uma
+ * transição do pacote é outra entrada (mesmo id) e ganha miniatura nova.
+ */
+const miniaturas = new WeakMap<TransicaoInfo, Promise<string | null>>()
 
 /**
  * Um quadro da cena como imagem (data URL), para a galeria. Feito uma vez por
- * transição e guardado; `null` quando não há WebGL.
+ * transição e guardado; `null` quando não há WebGL ou o app não tem a transição.
  */
 export function miniaturaDaTransicao(id: TransicaoId): Promise<string | null> {
-  const pronta = miniaturas.get(id)
+  const info = transicaoInfo(id)
+  if (info === undefined) return Promise.resolve(null)
+  const pronta = miniaturas.get(info)
   if (pronta) return pronta
   const gerando = (async () => {
     if (!temWebGL()) return null
+    // Cena de pacote que lança no meio não pode deixar o contexto WebGL preso:
+    // o navegador tem poucos, e a galeria pede uma miniatura por transição.
+    let renderer: Three.WebGLRenderer | null = null
     try {
+      const criar = await resolverFabricaDaCena(id)
+      if (criar === null) return null
       const THREE = await carregarThree()
-      const criar = await fabricaDaCena(id)
       const canvas = document.createElement('canvas')
-      const renderer = criarRenderer(THREE, canvas, true)
+      renderer = criarRenderer(THREE, canvas, true)
       renderer.setPixelRatio(1)
       renderer.setSize(320, 180, false)
       const cena = criar(THREE, { reduzirMovimento: false })
       converterLuzesLegadas(cena.scene)
       cena.ajustarTela(320 / 180)
-      cena.atualizar(transicaoInfo(id).quadroDaMiniaturaS)
+      cena.atualizar(info.quadroDaMiniaturaS)
       renderer.render(cena.scene, cena.camera)
       const url = canvas.toDataURL('image/jpeg', 0.82)
       cena.descartar()
-      renderer.dispose()
-      renderer.forceContextLoss()
       return url
     } catch {
       return null
+    } finally {
+      renderer?.dispose()
+      renderer?.forceContextLoss()
     }
   })()
-  miniaturas.set(id, gerando)
+  miniaturas.set(info, gerando)
   return gerando
 }

@@ -4417,8 +4417,8 @@ function pinForPlayer(pin: Pin, ownTokens: readonly Token[], grid: number, reada
   if (pin.hidden !== undefined) forPlayer.hidden = pin.hidden
   if (pin.secret !== undefined) forPlayer.secret = pin.secret
   if (pin.passagem !== undefined) forPlayer.passagem = pin.passagem
-  // TRANSIÇÃO ESPECIAL: só do pino de viagem e só na forma do catálogo. Diz
-  // qual animação toca, nada da outra cena.
+  // TRANSIÇÃO ESPECIAL: só do pino de viagem e só com id na forma certa (a do
+  // pacote de animações também passa). Diz qual animação toca, nada da outra cena.
   if (pin.kind === 'viagem') {
     const transicao = parseTransicao(pin.transicao)
     if (transicao !== undefined) forPlayer.transicao = transicao

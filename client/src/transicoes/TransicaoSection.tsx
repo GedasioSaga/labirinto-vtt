@@ -1,5 +1,15 @@
-import { useEffect, useId, useState } from 'react'
-import { TRANSICOES, TRANSICAO_DURACAO_MAX_S, TRANSICAO_DURACAO_MIN_S, isDuracaoValida, type TransicaoEscolhida, type TransicaoId, type TransicaoInfo } from './catalogo'
+import { useEffect, useId, useState, useSyncExternalStore } from 'react'
+import { BotaoProcurarAnimacoes } from '../components/ProcurarAnimacoes'
+import {
+  TRANSICAO_DURACAO_MAX_S,
+  TRANSICAO_DURACAO_MIN_S,
+  assinarTransicoes,
+  isDuracaoValida,
+  listarTransicoes,
+  type TransicaoEscolhida,
+  type TransicaoId,
+  type TransicaoInfo,
+} from './catalogo'
 import { miniaturaDaTransicao } from './motor'
 import { TransicaoPreviewDialog, formatarSegundos } from './TransicaoPreviewDialog'
 import './transicoes.css'
@@ -21,18 +31,22 @@ function ExpandirIcon() {
   )
 }
 
-/** Miniatura gerada uma vez por transição (um quadro da cena); sem WebGL fica o fundo preto. */
-function Miniatura({ id }: { id: TransicaoId }) {
+/**
+ * Miniatura gerada uma vez por transição (um quadro da cena); sem WebGL fica o
+ * fundo preto. Depende da ENTRADA, não só do id: a versão nova de uma
+ * transição do pacote (mesmo id) desenha a miniatura de novo.
+ */
+function Miniatura({ info }: { info: TransicaoInfo }) {
   const [url, setUrl] = useState<string | null>(null)
   useEffect(() => {
     let vivo = true
-    void miniaturaDaTransicao(id).then((pronta) => {
+    void miniaturaDaTransicao(info.id).then((pronta) => {
       if (vivo) setUrl(pronta)
     })
     return () => {
       vivo = false
     }
-  }, [id])
+  }, [info])
   return url ? <img className="lb-transicao-item__miniatura" src={url} alt="" /> : <span className="lb-transicao-item__miniatura" aria-hidden="true" />
 }
 
@@ -41,14 +55,21 @@ function Miniatura({ id }: { id: TransicaoId }) {
  * uma linha por transição (miniatura + nome + duração), com o botão de
  * expandir que abre a animação inteira numa janela. Escolhida uma, aparece o
  * campo de duração (vazio = animação completa).
+ *
+ * A lista é viva: embutidas e as do pacote baixado, e a que chegar com o
+ * painel aberto (botão "Procurar animações novas") entra sem reabrir nada.
  */
 export function TransicaoSection({ transicao, onChange, origem, semDestino = false }: TransicaoSectionProps) {
   const tituloId = useId()
   const duracaoId = useId()
   const dicaId = useId()
   const [previa, setPrevia] = useState<TransicaoEscolhida | null>(null)
+  const transicoes = useSyncExternalStore(assinarTransicoes, listarTransicoes)
   const escolhida = transicao?.id
-  const info = escolhida ? TRANSICOES.find((t) => t.id === escolhida) : undefined
+  const info = escolhida ? transicoes.find((t) => t.id === escolhida) : undefined
+  // Id de um pacote que este app ainda não baixou: a galeria diz isso em vez
+  // de marcar "Nenhuma" calada — ela não mente sobre o pino.
+  const naoInstalada = escolhida !== undefined && info === undefined ? escolhida : null
 
   function escolher(id: TransicaoId | undefined) {
     if (id === escolhida) return
@@ -72,10 +93,10 @@ export function TransicaoSection({ transicao, onChange, origem, semDestino = fal
             </span>
           </button>
         </li>
-        {TRANSICOES.map((t: TransicaoInfo) => (
+        {transicoes.map((t: TransicaoInfo) => (
           <li key={t.id} className="lb-transicao-item" data-escolhida={escolhida === t.id}>
             <button type="button" className="lb-transicao-item__escolher" aria-pressed={escolhida === t.id} onClick={() => escolher(t.id)}>
-              <Miniatura id={t.id} />
+              <Miniatura info={t} />
               <span className="lb-transicao-item__texto">
                 <span className="lb-transicao-item__nome">{t.nome}</span>
                 <span className="lb-transicao-item__duracao">{formatarSegundos(t.duracaoNaturalS)}</span>
@@ -93,6 +114,8 @@ export function TransicaoSection({ transicao, onChange, origem, semDestino = fal
           </li>
         ))}
       </ul>
+      {naoInstalada !== null && <p className="lb-travel__hint">A transição escolhida ({naoInstalada}) ainda não chegou neste app. Até chegar, quem passar chega direto.</p>}
+      <BotaoProcurarAnimacoes />
       {transicao && info && (
         <DuracaoDaTransicao
           key={transicao.id}

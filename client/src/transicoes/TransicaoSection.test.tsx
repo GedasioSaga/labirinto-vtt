@@ -2,7 +2,7 @@ import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { TransicaoSection } from './TransicaoSection'
-import type { TransicaoEscolhida } from './catalogo'
+import { esquecerTransicoesDeFora, registrarTransicao, type TransicaoEscolhida } from './catalogo'
 
 let container: HTMLDivElement
 let root: Root
@@ -17,6 +17,7 @@ beforeEach(() => {
 afterEach(() => {
   act(() => root.unmount())
   container.remove()
+  esquecerTransicoesDeFora()
 })
 
 const botao = (texto: string) => {
@@ -71,6 +72,26 @@ describe('TransicaoSection', () => {
     expect(onChange).toHaveBeenLastCalledWith({ id: 'porta', duracaoS: 30 })
     digitar('')
     expect(onChange).toHaveBeenLastCalledWith({ id: 'porta' })
+  })
+
+  it('mostra as transições do pacote, inclusive a que chega com a galeria aberta, e escolhe pelo id dela', () => {
+    const onChange = render(undefined)
+    expect(container.textContent).not.toContain('Túnel de pedra')
+    act(() => {
+      registrarTransicao({ id: 'tunel', nome: 'Túnel de pedra', duracaoNaturalS: 6, quadroDaMiniaturaS: 1, criar: () => ({}) })
+    })
+    expect(container.textContent).toContain('Túnel de pedra')
+    act(() => botao('Túnel de pedra').click())
+    expect(onChange).toHaveBeenLastCalledWith({ id: 'tunel' })
+    act(() => esquecerTransicoesDeFora())
+    expect(container.textContent).not.toContain('Túnel de pedra')
+  })
+
+  it('transição gravada de um pacote que este app não tem: diz que não chegou, e Nenhuma não fica marcada', () => {
+    render({ id: 'helicoptero' })
+    expect(container.textContent).toContain('A transição escolhida (helicoptero) ainda não chegou neste app')
+    expect(botao('Nenhuma').getAttribute('aria-pressed')).toBe('false')
+    expect(container.querySelector('input')).toBeNull()
   })
 
   it('o botão de expandir abre a janela da animação e Fechar some com ela', () => {

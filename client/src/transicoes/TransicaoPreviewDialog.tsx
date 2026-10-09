@@ -1,7 +1,7 @@
-import { useEffect, useId, useRef, useState, type KeyboardEvent, type MouseEvent } from 'react'
+import { useEffect, useId, useRef, useState, useSyncExternalStore, type KeyboardEvent, type MouseEvent } from 'react'
 import { createPortal } from 'react-dom'
 import { CloseIcon } from '../components/icons'
-import { duracaoEfetivaS, transicaoInfo, type TransicaoEscolhida } from './catalogo'
+import { assinarTransicoes, duracaoEfetivaS, transicaoInfo, type TransicaoEscolhida } from './catalogo'
 import { TransicaoTela } from './TransicaoTela'
 import './transicoes.css'
 
@@ -29,7 +29,9 @@ export function TransicaoPreviewDialog({ escolha, onClose }: TransicaoPreviewDia
   const pressStartedOnBackdrop = useRef(false)
   const [som, setSom] = useState(true)
   const [rodada, setRodada] = useState(0)
-  const info = transicaoInfo(escolha.id)
+  // Viva: o pacote pode ser trocado com a janela aberta (botão "Procurar
+  // animações novas"); a transição que sumiu vira "não instalada", não erro.
+  const info = useSyncExternalStore(assinarTransicoes, () => transicaoInfo(escolha.id))
 
   useEffect(() => {
     const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null
@@ -87,7 +89,7 @@ export function TransicaoPreviewDialog({ escolha, onClose }: TransicaoPreviewDia
       >
         <header className="lb-dialog__head">
           <h2 id={titleId} className="lb-dialog__title">
-            {info.nome}
+            {info?.nome ?? escolha.id}
           </h2>
           <button ref={closeRef} type="button" className="lb-iconbtn lb-iconbtn--sm" aria-label="Fechar" onClick={onClose}>
             <CloseIcon />
@@ -98,8 +100,14 @@ export function TransicaoPreviewDialog({ escolha, onClose }: TransicaoPreviewDia
         </div>
         <div className="lb-transicao-previa__barra">
           <span className="lb-transicao-previa__info">
-            {formatarSegundos(duracaoEfetivaS(escolha))}
-            {escolha.duracaoS === undefined ? ' · animação completa' : ` · completa tem ${formatarSegundos(info.duracaoNaturalS)}`}
+            {info === undefined ? (
+              'Não instalada neste app'
+            ) : (
+              <>
+                {formatarSegundos(duracaoEfetivaS(escolha, info))}
+                {escolha.duracaoS === undefined ? ' · animação completa' : ` · completa tem ${formatarSegundos(info.duracaoNaturalS)}`}
+              </>
+            )}
           </span>
           <span className="lb-transicao-previa__acoes">
             <button type="button" className="lb-btn lb-btn--ghost" aria-pressed={som} onClick={() => setSom((ligado) => !ligado)}>

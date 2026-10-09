@@ -1,4 +1,5 @@
 import { useEffect, useId, useState } from 'react'
+import { BotaoProcurarAnimacoes } from '../components/ProcurarAnimacoes'
 import { Toggle } from '../components/Toggle'
 import {
   CENARIO_DURACAO_MAX_S,
@@ -133,6 +134,7 @@ export function CenarioSection({ cenario, imagem, onChange }: CenarioSectionProp
                   ))}
                   {naoInstalado !== null && <option value={naoInstalado}>Não instalado ({naoInstalado})</option>}
                 </select>
+                <BotaoProcurarAnimacoes />
               </div>
               {naoInstalado !== null && <p className="lb-travel__hint">Este estilo ainda não chegou neste app. Até chegar, o jogador vê a panorâmica abaixo.</p>}
               {estilo !== null ? (

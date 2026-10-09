@@ -26,13 +26,18 @@ describe('transição no disco', () => {
     expect(lido.stairs[0].transicao).toEqual({ id: 'escada-pedra' })
   })
 
-  it('id fora do catálogo some; duração fora do teto vira a natural', () => {
+  it('id fora da forma some; duração fora do teto vira a natural', () => {
     const torto = JSON.parse(serializeMap(mapa())) as { pins: Record<string, unknown>[]; stairs: Record<string, unknown>[] }
-    torto.pins[0].transicao = { id: 'elevador', duracaoS: 4 }
+    torto.pins[0].transicao = { id: 'Elevador!', duracaoS: 4 }
     torto.stairs[0].transicao = { id: 'porta', duracaoS: 999 }
     const lido = deserializeMap(JSON.stringify(torto))
     expect(lido.pins[0].transicao).toBeUndefined()
     expect(lido.stairs[0].transicao).toEqual({ id: 'porta' })
+  })
+
+  it('id na forma mas de um pacote que este app não tem fica gravado (toca quando o pacote chegar)', () => {
+    const salvo = mapa({ pins: [{ ...pino, transicao: { id: 'elevador', duracaoS: 4 } }] })
+    expect(deserializeMap(serializeMap(salvo)).pins[0].transicao).toEqual({ id: 'elevador', duracaoS: 4 })
   })
 
   it('mapa salvo antes do campo abre sem transição', () => {

@@ -10,6 +10,7 @@ import { PIN_MAX_DIGITOS, PIN_MIN_DIGITOS } from '../lib/contasDosJogadores'
 import { rotuloDoNavegador } from './rotuloDoAparelho'
 import { instalarSonsDoJogador } from './sonsDoJogador'
 import { pedeGzip } from '../net/pacoteComprimido'
+import { carregarPacoteDaPagina } from '../lib/pacoteDeAnimacoes'
 import type { PlayerConnection, PlayerState, SeatClaimNotice, SocketLike, StorageLike } from './playerConnection'
 import type { SeatOption } from '../net/protocol'
 import { SeatPicker } from './SeatPicker'
@@ -721,6 +722,12 @@ const HANDSHAKE_DEADLINE_MS = 8_000
 // Exportada só para o teste montar a sessão sem o formulário de entrada.
 export function Session({ connection, code, typedName, hostName, onLeave, onQuit, onSignOut, storage, onAcaoNoOlhar }: SessionProps) {
   const state: PlayerState = useSyncExternalStore(connection.subscribe, connection.getState)
+  // PACOTE DE ANIMAÇÕES do mestre (transição, porta, cenário), ao entrar na
+  // mesa: pelo servidor da sala no navegador, pelo Rust na janela da Visão de
+  // jogador. Uma vez por página; sem pacote, 404 e silêncio.
+  useEffect(() => {
+    void carregarPacoteDaPagina()
+  }, [])
   const armazenamento = useMemo(() => storage ?? localStorageOrNull(), [storage])
   const [settings, setSettings] = useState<PlayerViewSettings>(() => loadPlayerSettings(armazenamento))
   const [focus, setFocus] = useState<FocusRequest>(NO_FOCUS)

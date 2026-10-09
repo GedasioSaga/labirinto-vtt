@@ -1,6 +1,8 @@
 import { useEffect, useRef, type KeyboardEvent } from 'react'
 import { AvisoDeAtualizacao, BotaoProcurarAtualizacao, useAtualizacaoDoApp } from '../components/AvisoDeAtualizacao'
+import { useProcuraDeAnimacoes, useProcuraDeAnimacoesNaAbertura } from '../components/ProcurarAnimacoes'
 import { memoriaDaAbertura, portaDoTauri, type MemoriaDaAbertura, type PortaDoAtualizador } from '../lib/atualizacao'
+import { memoriaDaProcuraDeAnimacoes, portaDoPacoteNoApp, type MemoriaDaProcuraDeAnimacoes, type PortaDoPacote } from '../lib/pacoteDeAnimacoes'
 import { FEATURES, type FeatureFlags } from '../lib/features'
 import { HomeMaze } from './HomeMaze'
 import { useLampGlow } from './useLampGlow'
@@ -29,6 +31,10 @@ interface MainMenuProps {
   atualizador?: PortaDoAtualizador
   /** Default a memória do processo; o teste passa uma nova para começar do zero. */
   memoriaDaAtualizacao?: MemoriaDaAbertura
+  /** Default o pacote de animações do app (Rust); o teste passa uma porta falsa. */
+  pacoteDeAnimacoes?: PortaDoPacote
+  /** Default a memória do processo da procura de animações. */
+  memoriaDasAnimacoes?: MemoriaDaProcuraDeAnimacoes
 }
 
 interface HomeDoorProps {
@@ -91,11 +97,17 @@ export function MainMenu({
   recovery,
   atualizador = portaDoTauri,
   memoriaDaAtualizacao = memoriaDaAbertura,
+  pacoteDeAnimacoes = portaDoPacoteNoApp,
+  memoriaDasAnimacoes = memoriaDaProcuraDeAnimacoes,
 }: MainMenuProps) {
   // Procurar atualização só aqui, na tela inicial: dentro do editor ou da
   // mesa a pergunta atrapalharia. Sala aberta (voltar ao menu não a fecha) é
   // conferida no Rust antes de qualquer aviso.
   const atualizacao = useAtualizacaoDoApp(atualizador, memoriaDaAtualizacao)
+  // Pacote de animações: junto, uma vez por abertura, em silêncio salvo
+  // animação nova (aviso). O botão "Procurar atualizações" procura as duas.
+  useProcuraDeAnimacoesNaAbertura(pacoteDeAnimacoes, memoriaDasAnimacoes)
+  const animacoes = useProcuraDeAnimacoes(pacoteDeAnimacoes)
   const stageRef = useRef<HTMLDivElement>(null)
   const glowRef = useRef<HTMLDivElement>(null)
   const headingRef = useRef<HTMLHeadingElement>(null)
@@ -160,7 +172,7 @@ export function MainMenu({
             {flags.optionsScreen && <HomeDoor title="Opções" description="Conexão, personagens, cenário" onClick={onOptions} />}
           </nav>
 
-          <BotaoProcurarAtualizacao atualizacao={atualizacao} />
+          <BotaoProcurarAtualizacao atualizacao={atualizacao} animacoes={animacoes} />
         </section>
 
         <div className="lb-home__art">

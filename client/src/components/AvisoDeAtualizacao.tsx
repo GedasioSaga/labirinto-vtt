@@ -13,6 +13,7 @@ import {
   type OrigemDaProcura,
   type PortaDoAtualizador,
 } from '../lib/atualizacao'
+import { textoDaFase, type ProcuraDeAnimacoes } from './ProcurarAnimacoes'
 import './AvisoDeAtualizacao.css'
 
 export interface AtualizacaoDoApp {
@@ -162,25 +163,39 @@ export function AvisoDeAtualizacao({ atualizacao }: { atualizacao: AtualizacaoDo
   )
 }
 
-/** "Procurar atualizações" + a resposta curta quando não há aviso a mostrar. */
-export function BotaoProcurarAtualizacao({ atualizacao }: { atualizacao: AtualizacaoDoApp }) {
+/**
+ * "Procurar atualizações" + a resposta curta quando não há aviso a mostrar.
+ * Com `animacoes`, o mesmo clique procura também o pacote de animações, e a
+ * resposta dele vem numa segunda frase.
+ */
+export function BotaoProcurarAtualizacao({ atualizacao, animacoes }: { atualizacao: AtualizacaoDoApp; animacoes?: ProcuraDeAnimacoes }) {
   if (!atualizacao.disponivel) return null
   const { fase } = atualizacao
-  const ocupado = fase.tipo === 'procurando' || fase.tipo === 'baixando' || fase.tipo === 'reiniciando'
+  const procurandoAnimacoes = animacoes?.fase.tipo === 'procurando'
+  const ocupado = fase.tipo === 'procurando' || fase.tipo === 'baixando' || fase.tipo === 'reiniciando' || procurandoAnimacoes
   const resposta = fase.tipo === 'em-dia' ? textoEmDia(fase.versaoAtual) : fase.tipo === 'aviso' ? fase.mensagem : null
+  const respostaDasAnimacoes = animacoes === undefined ? null : textoDaFase(animacoes.fase)
   return (
     <div className="lb-atualizacao__procurar">
       <button
         type="button"
         className="lb-btn lb-btn--ghost lb-btn--compact"
         disabled={ocupado}
-        onClick={() => void atualizacao.procurar('botao')}
+        onClick={() => {
+          void atualizacao.procurar('botao')
+          if (animacoes !== undefined) void animacoes.procurar()
+        }}
       >
-        {fase.tipo === 'procurando' ? 'Procurando…' : 'Procurar atualizações'}
+        {fase.tipo === 'procurando' || procurandoAnimacoes ? 'Procurando…' : 'Procurar atualizações'}
       </button>
       <span className="lb-atualizacao__resposta" role="status">
         {resposta}
       </span>
+      {animacoes?.disponivel === true && (
+        <span className="lb-atualizacao__resposta" role="status">
+          {respostaDasAnimacoes}
+        </span>
+      )}
     </div>
   )
 }

@@ -47,6 +47,14 @@ describe('fogFilter: transição especial do pino de viagem', () => {
     expect(view.map.pins.find((p) => p.id === 'porta')?.transicao).toEqual({ id: 'porta', duracaoS: 5 })
     expect(view.map.pins.find((p) => p.id === 'pino-7')?.transicao).toBeUndefined()
   })
+
+  it('transição do pacote (id que o app do mestre talvez nem tenha) chega ao jogador; id fora da forma não', () => {
+    const doPacote: Pin = { id: 'porta', x: 240, y: 200, kind: 'viagem', description: '', image: null, transicao: { id: 'tunel-de-pedra' } }
+    const torto: Pin = { id: 'torto', x: 240, y: 220, kind: 'viagem', description: '', image: null, transicao: { id: 'Tunel de pedra' } }
+    const view = filterMapForPlayer(mapaCom([doPacote, torto]), 'diego', POSSE, RAIO)
+    expect(view.map.pins.find((p) => p.id === 'porta')?.transicao).toEqual({ id: 'tunel-de-pedra' })
+    expect(view.map.pins.find((p) => p.id === 'torto')?.transicao).toBeUndefined()
+  })
 })
 
 describe('fogFilter: transição especial da escada', () => {

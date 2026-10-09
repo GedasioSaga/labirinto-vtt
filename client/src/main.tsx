@@ -1,11 +1,19 @@
+import { isTauri } from '@tauri-apps/api/core'
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import App from './App'
 import { MidiaDoMestre } from './components/MidiaDoMestre'
 import { instalarDicasDoPainel } from './lib/dicaDoPainel'
 import { instalarEndireitarComAlt } from './lib/endireitarComAlt'
+import { carregarPacoteDaPagina } from './lib/pacoteDeAnimacoes'
 import { themeCss } from './theme'
 import './main.css'
+
+// Animações do pacote JÁ INSTALADO (baixado numa abertura anterior), antes do
+// primeiro render: a galeria e o mapa já nascem com elas. Só no app — fora
+// dele (Vite no navegador, jornadas e2e) não há pacote. A procura por pacote
+// NOVO é da tela inicial (`screens/MainMenu.tsx`).
+if (isTauri()) void carregarPacoteDaPagina()
 
 // Os tokens de `theme.ts` viram custom properties aqui, antes do primeiro
 // render, para `main.css` ter os `var(--lb-*)` já resolvidos no primeiro paint.

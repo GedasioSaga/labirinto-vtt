@@ -2,6 +2,7 @@ import { useEffect, useId, useState, useSyncExternalStore } from 'react'
 import type { DoorSide, DoorState } from '../types/map'
 import { ITEM_NAME_MAX_LENGTH } from '../lib/items'
 import { assinarAnimacoesDePorta, listarAnimacoesDePorta } from '../portas/animacoesDePorta'
+import { BotaoProcurarAnimacoes } from './ProcurarAnimacoes'
 import { Toggle } from './Toggle'
 
 export interface WallDoorControlsProps {
@@ -148,6 +149,7 @@ function AnimacaoField({ animacao, onAnimacaoChange }: { animacao: string | unde
         ))}
         {desconhecida && <option value={animacao}>Não instalada ({animacao})</option>}
       </select>
+      <BotaoProcurarAnimacoes />
     </>
   )
 }

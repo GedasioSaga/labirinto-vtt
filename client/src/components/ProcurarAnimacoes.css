@@ -1,0 +1,13 @@
+/* "Procurar animações novas" nas galerias: botão pequeno e a resposta ao lado,
+   quebrando para baixo no painel estreito em vez de empurrar a coluna. */
+.lb-procurar-animacoes {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--lb-space-2);
+}
+
+.lb-procurar-animacoes__resposta {
+  font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-parchment-dim);
+}
