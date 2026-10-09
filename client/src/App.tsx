@@ -207,6 +207,7 @@ import type { Screen } from './types/screen'
 import { createMapScreen, parentScreen } from './lib/navigation'
 import * as mapFactory from './lib/mapFactory'
 import { readDoorKey, setDoorKey } from './lib/doorKey'
+import { portaComAnimacao } from './portas/animacoesDePorta'
 import { countEntitiesByLayer } from './lib/layers'
 import { roomDimensions } from './lib/roomOps'
 import type { GridAlignResult } from './lib/gridAlign'
@@ -1917,6 +1918,12 @@ function App() {
     setDoorOpensFrom(selectedWall.id, side)
   }
 
+  /** PORTA ANIMADA: "Animação ao abrir" da porta selecionada, com histórico (Ctrl+Z desfaz). `null` volta a "Sem animação" (campo ausente). */
+  const handleDoorAnimacaoChange = (id: string | null) => {
+    if (!selectedWall || !selectedWall.door) return
+    setWallDoor(selectedWall.id, portaComAnimacao(selectedWall.door, id))
+  }
+
   /**
    * Com uma parede-porta selecionada, o seletor de tipo edita ELA (com
    * histórico, via setWallDoorKind). Sem porta selecionada — ferramenta
@@ -3356,6 +3363,7 @@ function App() {
               onRevealPassage: handleRevealPassage,
               onKeyChange: handleDoorKeyChange,
               onOpensFromChange: handleOpensFromChange,
+              onAnimacaoChange: handleDoorAnimacaoChange,
             }}
             doorKind={{
               kind: selectedWall?.door ? selectedWall.door.kind : doorKind,

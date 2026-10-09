@@ -3965,11 +3965,14 @@ export function filterMapForGroup(
  * que o host vai recusar. Quem recusa continua sendo o host. A porta que o
  * jogador nunca viu chega por `unseenDoor`, sem o campo, e a secreta sai como
  * parede antes de chegar aqui.
+ * `animacao` (PORTA ANIMADA) vai: é só como a porta se mexe ao abrir, e a tela
+ * do jogador toca a mesma animação que a do mestre. Não diz nada do outro lado.
  */
 function doorForPlayer(door: DoorState): DoorState {
   const forPlayer: DoorState = { open: door.open, locked: door.locked, kind: door.kind }
   if (door.secret !== undefined) forPlayer.secret = door.secret
   if (door.semEspiar === true) forPlayer.semEspiar = true
+  if (door.animacao !== undefined) forPlayer.animacao = door.animacao
   return forPlayer
 }
 

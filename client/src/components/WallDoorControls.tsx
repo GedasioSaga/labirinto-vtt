@@ -1,6 +1,7 @@
-import { useEffect, useId, useState } from 'react'
+import { useEffect, useId, useState, useSyncExternalStore } from 'react'
 import type { DoorSide, DoorState } from '../types/map'
 import { ITEM_NAME_MAX_LENGTH } from '../lib/items'
+import { assinarAnimacoesDePorta, listarAnimacoesDePorta } from '../portas/animacoesDePorta'
 import { Toggle } from './Toggle'
 
 export interface WallDoorControlsProps {
@@ -23,6 +24,12 @@ export interface WallDoorControlsProps {
   onKeyChange?: (nome: string) => void
   /** Porta de um lado: 'left'/'right' só abre de lá; `null` abre dos dois lados. */
   onOpensFromChange: (side: DoorSide | null) => void
+  /**
+   * PORTA ANIMADA: "Animação ao abrir" — id do registro
+   * (`portas/animacoesDePorta.ts`), ou `null` = "Sem animação". Sem ele, o
+   * seletor não aparece.
+   */
+  onAnimacaoChange?: (id: string | null) => void
 }
 
 /**
@@ -81,7 +88,7 @@ export function DoorKeyField({
  * fechada, trancada ou não; desligado, o host recusa. Some na porta secreta:
  * para o jogador ela é parede, e não há o que espiar.
  */
-export function WallDoorControls({ door, onToggleDoor, onToggleOpen, onToggleLocked, onToggleSemEspiar, onToggleSecret, onRevealPassage, onKeyChange, onOpensFromChange }: WallDoorControlsProps) {
+export function WallDoorControls({ door, onToggleDoor, onToggleOpen, onToggleLocked, onToggleSemEspiar, onToggleSecret, onRevealPassage, onKeyChange, onOpensFromChange, onAnimacaoChange }: WallDoorControlsProps) {
   const secret = door?.secret === true
   const secretHintId = `${useId()}-secreta`
   return (
@@ -105,10 +112,43 @@ export function WallDoorControls({ door, onToggleDoor, onToggleOpen, onToggleLoc
             </button>
           )}
           <OpensFromField opensFrom={door.opensFrom} onOpensFromChange={onOpensFromChange} />
+          {onAnimacaoChange !== undefined && <AnimacaoField animacao={door.animacao} onAnimacaoChange={onAnimacaoChange} />}
         </div>
       )}
       {door !== null && door.locked && onKeyChange !== undefined && <DoorKeyField value={door.abreCom ?? ''} onChange={onKeyChange} />}
     </section>
+  )
+}
+
+/** Valor do `<option>` de "Sem animação": fora da forma de id, não colide com nenhuma animação. */
+const SEM_ANIMACAO = ''
+
+/**
+ * PORTA ANIMADA: "Animação ao abrir". A lista vem do registro e acompanha as
+ * que chegarem depois (pacote baixado) sem reabrir o painel. Id gravado que
+ * este app não conhece (pacote ainda não baixado) aparece como opção própria
+ * em vez de virar "Sem animação" calado: o select não mente sobre o mapa, e
+ * escolher outra coisa é que troca o campo.
+ */
+function AnimacaoField({ animacao, onAnimacaoChange }: { animacao: string | undefined; onAnimacaoChange: (id: string | null) => void }) {
+  const selectId = `${useId()}-animacao`
+  const animacoes = useSyncExternalStore(assinarAnimacoesDePorta, listarAnimacoesDePorta)
+  const desconhecida = animacao !== undefined && !animacoes.some((a) => a.id === animacao)
+  return (
+    <>
+      <label className="lb-label" htmlFor={selectId}>
+        Animação ao abrir
+      </label>
+      <select id={selectId} className="lb-input" value={animacao ?? SEM_ANIMACAO} onChange={(event) => onAnimacaoChange(event.target.value === SEM_ANIMACAO ? null : event.target.value)}>
+        <option value={SEM_ANIMACAO}>Sem animação</option>
+        {animacoes.map((a) => (
+          <option key={a.id} value={a.id}>
+            {a.nome}
+          </option>
+        ))}
+        {desconhecida && <option value={animacao}>Não instalada ({animacao})</option>}
+      </select>
+    </>
   )
 }
 

@@ -44,7 +44,7 @@ import { computeAlignedGridLines, type GridAlignResult } from '../lib/gridAlign'
 import { drawGridAlignOverlay } from './drawGridAlignOverlay'
 import { isHidden, canInteract } from '../lib/itemTransform'
 import { drawWalls } from './drawWalls'
-import { drawDoors } from './drawDoors'
+import { createAnimadorDePortas } from './animadorDePortas'
 import { drawStairs } from './drawStairs'
 import { createLightsRenderer } from './drawLights'
 import { visionSegments, type Segment } from '../lib/visibility'
@@ -1614,7 +1614,12 @@ export function PixiCanvas({
        * drawDoors.ts): recebem escala e resolução e redesenham quando qualquer
        * uma muda. Camada `walls` de `redrawShapes`: no zoom é das poucas que
        * repinta (ver `shapesLayerDeps` em shapesRedraw.ts).
+       *
+       * PORTA ANIMADA: as portas passam pelo animador, que toca a animação
+       * escolhida quando `open` muda e repinta sozinho no relógio do Pixi
+       * enquanto alguma anda (`animadorDePortas.ts`).
        */
+      const animadorDePortas = createAnimadorDePortas({ ticker: app.ticker, reducedMotion: prefersReducedMotion })
       const paintWallsAndDoors = () => {
         const { map, selection } = sceneState()
         const single = selectionSingle(selection)
@@ -1623,7 +1628,7 @@ export function PixiCanvas({
         const res = app.renderer.resolution
         // Sala selecionada: o contorno segue as paredes (sob elas o da Região some).
         drawWalls(wallsGraphics, walls, selectedWallId, camera.scale, res, single?.kind === 'region' ? single.id : null, true)
-        drawDoors(doorsGraphics, walls, selectedWallId, camera.scale, res)
+        animadorDePortas.desenhar(doorsGraphics, walls, selectedWallId, camera.scale, res)
       }
 
       /**
@@ -7507,6 +7512,7 @@ export function PixiCanvas({
         app.ticker.remove(tickLaser)
         app.ticker.remove(tickPlayerLasers)
         tokensRenderer.cancelarAnimacoes()
+        animadorDePortas.cancelar()
         fantasmaRenderer.desmontar()
         redrawFantasmaRef.current = null
         unsubscribeLaserCursor()

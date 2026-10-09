@@ -1,6 +1,7 @@
 import type { ConcealZone, DoorState, FloorStyle, Light, MapData, Prop, Region, Token } from '../types/map'
 import { parseTransicao } from '../transicoes/catalogo'
 import { parseCenario } from '../cenario/catalogo'
+import { idDeAnimacaoDePortaValido } from '../portas/animacoesDePorta'
 import { readMoedas } from './troca'
 import { isEfeitoNaLuz, isEfeitoNaPorta, isEfeitoNaZona, regraDePinoDoArquivo, regraDoArquivo } from './estadoDoMundo'
 import { propPlayerImage, propPlayerLabel } from './propPlayerLook'
@@ -297,18 +298,24 @@ function roomVisionRadiusFromFile(region: Region): Region {
  * volta; o resto sai, e a porta deixa espiar — como sempre foi.
  * Aberta E trancada (mapa salvo antes da regra) volta fechada (`closeIfLocked`):
  * o host já a tratava assim, e o jogador não pode vê-la aberta sem passar.
+ * `animacao` (PORTA ANIMADA) é campo NOVO: só id na forma
+ * `ID_DE_ANIMACAO_DE_PORTA` volta; o resto sai, e a porta troca de estado sem
+ * animação. Id bem formado de animação que este app não tem fica (pode ser de
+ * um pacote ainda não baixado) e desenha sem animação.
  */
 function doorFromFile(door: DoorState): DoorState {
-  const { secret, opensFrom, porEstado, semEspiar, ...rest } = doorKeyFromFile(door)
+  const { secret, opensFrom, porEstado, semEspiar, animacao, ...rest } = doorKeyFromFile(door)
   // `door` vem de JSON.parse: o tipo declarado não garante o valor, por isso a checagem de runtime.
   const side: unknown = opensFrom
+  const idDaAnimacao: unknown = animacao
   const withKind: DoorState = closeIfLocked({ ...rest, kind: rest.kind ?? 'normal' })
   // ESTADO DO MUNDO: regra torta some e a porta volta a ser a de sempre; ausente continua ausente.
   const regra = regraDoArquivo(porEstado, isEfeitoNaPorta)
   const withRule: DoorState = regra === undefined ? withKind : { ...withKind, porEstado: regra }
   const withSecret: DoorState = secret === true ? { ...withRule, secret: true } : withRule
   const withPeek: DoorState = semEspiar === true ? { ...withSecret, semEspiar: true } : withSecret
-  return side === 'left' || side === 'right' ? { ...withPeek, opensFrom: side } : withPeek
+  const withAnimation: DoorState = idDeAnimacaoDePortaValido(idDaAnimacao) ? { ...withPeek, animacao: idDaAnimacao } : withPeek
+  return side === 'left' || side === 'right' ? { ...withAnimation, opensFrom: side } : withAnimation
 }
 
 /** Zona oculta lida do disco: só a regra do ESTADO DO MUNDO passa por conferência; ausente continua ausente. */

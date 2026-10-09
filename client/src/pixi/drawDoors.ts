@@ -1,5 +1,6 @@
 import type { Graphics } from 'pixi.js'
 import type { Wall } from '../types/map'
+import { desenharBatente, tracarRetanguloDaPorta as traceDoorRect, type AnimacaoDePorta, type PortaParaDesenho } from '../portas/animacoesDePorta'
 import { SELECTION_COLOR } from './constants'
 import { selectionOutlineWidth } from './drawWalls'
 import { alignToPixel, pixelGrid, strokeWidthInWorld } from './pixelAlign'
@@ -51,6 +52,11 @@ export const DOOR_TO_CROSS_DOT_SCREEN_PX = 1.5
  *
  * `toCross` (PORTAS POR ATRAVESSAR, só o jogador passa): ids das portas que
  * levam o ponto claro no meio. O editor não passa e desenha como sempre.
+ *
+ * `animando` (PORTA ANIMADA, `pixi/animadorDePortas.ts`): ids das portas no
+ * meio do abrir/fechar, desenhadas pela animação escolhida em vez do estado.
+ * Porta secreta nunca anima: aberta ou fechada, ela é a mesma tracejada.
+ * Seleção, seta de um lado e ponto de atravessar continuam por cima, iguais.
  */
 export function drawDoors(
   graphics: Graphics,
@@ -59,6 +65,7 @@ export function drawDoors(
   cameraScale = 1,
   rendererResolution = 1,
   toCross: ReadonlySet<string> = NO_DOORS_TO_CROSS,
+  animando: ReadonlyMap<string, PortaAnimando> = NENHUMA_ANIMANDO,
 ): void {
   graphics.clear()
   const dotRadius = DOOR_TO_CROSS_DOT_SCREEN_PX / (Number.isFinite(cameraScale) && cameraScale > 0 ? cameraScale : 1)
@@ -93,15 +100,12 @@ export function drawDoors(
       graphics.stroke({ width: selectionWidth, color: SELECTION_COLOR, join: 'miter' })
     }
 
+    const porta: PortaParaDesenho = { x1: wall.x1, y1: wall.y1, x2: wall.x2, y2: wall.y2, cx, cy, ux, uy, meioComprimento: halfLength, espessura: thickness, contorno: outlineWidth, cor: color, escala: cameraScale }
+    const emAnimacao = animando.get(wall.id)
     if (door.secret === true) {
       traceSecretDashes(graphics, cx, cy, ux, uy, halfLength, thickness / 2, color)
-    } else if (filled) {
-      traceDoorRect(graphics, cx, cy, ux, uy, halfLength, thickness / 2)
-      graphics.fill({ color })
-    } else {
-      // Contorno por DENTRO do retângulo: a porta aberta ocupa a mesma caixa da fechada.
-      traceDoorRect(graphics, cx, cy, ux, uy, halfLength - outlineWidth / 2, thickness / 2 - outlineWidth / 2)
-      graphics.stroke({ width: outlineWidth, color, join: 'miter' })
+    } else if (emAnimacao === undefined || !desenharAnimando(graphics, emAnimacao, porta)) {
+      drawDoorAtRest(graphics, porta, filled)
     }
 
     if (door.opensFrom !== undefined) {
@@ -156,13 +160,45 @@ function traceSecretDashes(graphics: Graphics, cx: number, cy: number, ux: numbe
   }
 }
 
-/** Retângulo girado com a parede, centrado em `(cx, cy)`: `u` é o sentido da parede. Só o path. */
-function traceDoorRect(graphics: Graphics, cx: number, cy: number, ux: number, uy: number, halfLength: number, halfThickness: number): void {
-  const px = -uy
-  const py = ux
-  const ax = ux * halfLength
-  const ay = uy * halfLength
-  const bx = px * halfThickness
-  const by = py * halfThickness
-  graphics.poly([cx - ax - bx, cy - ay - by, cx + ax - bx, cy + ay - by, cx + ax + bx, cy + ay + by, cx - ax + bx, cy - ay + by], true)
+/**
+ * Uma porta no meio do caminho entre fechada e aberta: o desenho dela sai da
+ * animação, não do estado. Vale até o tween terminar; daí a porta volta a
+ * ser desenhada pelo estado, idêntica à de sempre.
+ */
+export interface PortaAnimando {
+  animacao: AnimacaoDePorta
+  /** 0 = fechada, 1 = aberta, já com a curva aplicada. */
+  progresso: number
+  abrindo: boolean
+}
+
+const NENHUMA_ANIMANDO: ReadonlyMap<string, PortaAnimando> = new Map()
+
+/**
+ * A porta parada: fechada (ou trancada) preenchida; aberta só o contorno, por
+ * DENTRO do retângulo — a aberta ocupa a mesma caixa da fechada. O contorno é
+ * o batente das animações (`desenharBatente`): o fim do abrir é este desenho.
+ */
+function drawDoorAtRest(graphics: Graphics, porta: PortaParaDesenho, filled: boolean): void {
+  if (!filled) {
+    desenharBatente(graphics, porta)
+    return
+  }
+  traceDoorRect(graphics, porta.cx, porta.cy, porta.ux, porta.uy, porta.meioComprimento, porta.espessura / 2)
+  graphics.fill({ color: porta.cor })
+}
+
+/**
+ * Desenha a porta pela animação. Devolve `false` se a animação quebrou (código
+ * de pacote com defeito): quem chama desenha o estado final, e o path que a
+ * animação deixou pela metade é descartado para não vazar no próximo `fill`.
+ */
+function desenharAnimando(graphics: Graphics, animando: PortaAnimando, porta: PortaParaDesenho): boolean {
+  try {
+    animando.animacao.desenhar(graphics, porta, animando.progresso, animando.abrindo)
+    return true
+  } catch {
+    graphics.beginPath()
+    return false
+  }
 }

@@ -47,7 +47,7 @@ import { computeVisibleHexCenters } from '../pixi/hexGrid'
 import { computeVisibleTriEdges } from '../pixi/triGrid'
 import { createFloorRenderer } from '../pixi/drawFloor'
 import { drawWalls } from '../pixi/drawWalls'
-import { drawDoors } from '../pixi/drawDoors'
+import { createAnimadorDePortas, type AnimadorDePortas } from '../pixi/animadorDePortas'
 import { drawMapLines, drawMapMarkers } from '../pixi/drawMapLines'
 import { createRegionsRenderer, type RegionLayers } from '../pixi/drawRegions'
 import { desenhoFicaSobAsSalas } from '../lib/desenhoSobAsSalas'
@@ -952,6 +952,8 @@ interface Scene {
   walls: Graphics
   /** Portas do mesmo renderer do editor (drawDoors.ts): trancada continua visível. */
   doors: Graphics
+  /** PORTA ANIMADA: o mesmo animador do editor; repinta `doors` sozinho no relógio enquanto alguma porta anda. */
+  animadorDePortas: AnimadorDePortas
   /** Halo nas portas destrancadas que o token do jogador alcança (abaixo do desenho da porta). */
   doorHints: Graphics
   lastDoorHintsKey: string | null
@@ -1866,13 +1868,17 @@ function PlayerViewDoCanvas({
     const walls = wallsOnVisibleLayers(drawn, currentMap.hiddenLayers)
     const { scale } = scene.camera
     const res = scene.app.renderer.resolution
+    // A chave NÃO leva o progresso da porta animada: o animador repinta as
+    // portas sozinho a cada quadro enquanto alguma anda, com os argumentos do
+    // último desenho. Aqui só entra o que muda o desenho: a porta que troca
+    // `open` muda `walls`, a chave muda, e é isso que dispara a animação.
     const key = JSON.stringify([walls, scale, res, toCross])
     if (key === scene.lastWallsKey) return
     scene.lastWallsKey = key
     scene.wallsDrawn = walls.length
     drawWalls(scene.walls, walls, null, scale, res)
     // PORTAS POR ATRAVESSAR: o ponto claro na porta com o outro lado na névoa.
-    drawDoors(scene.doors, walls, null, scale, res, new Set(toCross))
+    scene.animadorDePortas.desenhar(scene.doors, walls, null, scale, res, new Set(toCross))
   }
 
   /**
@@ -2649,6 +2655,7 @@ function PlayerViewDoCanvas({
         propLooksCount: { images: 0, labels: 0 },
         walls,
         doors,
+        animadorDePortas: createAnimadorDePortas({ ticker: app.ticker, reducedMotion: prefersReducedMotion }),
         doorHints,
         lastDoorHintsKey: null,
         doorHintsCount: 0,
@@ -3353,6 +3360,7 @@ function PlayerViewDoCanvas({
         app.ticker.remove(tickTokenTurns)
         app.ticker.remove(tickPulse)
         app.ticker.remove(tickRevisit)
+        scene.animadorDePortas.cancelar()
         // Antes do app.destroy: os gradientes de luz não são filhos da cena.
         scene.lightsRenderer.destroy()
       }

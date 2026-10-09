@@ -225,6 +225,16 @@ export interface DoorState {
    * sem ferrolho deste lado; nunca vem do disco, então sem linha de migração.
    */
   ferrolhoDoMeuLado?: true
+  /**
+   * PORTA ANIMADA NO MAPA — id da animação de abrir/fechar
+   * (`portas/animacoesDePorta.ts`: embutidas "girar" e "deslizar", e as do
+   * pacote baixado). Só visual, então vai também ao jogador
+   * (`lib/fogFilter.ts`). `undefined` === "Sem animação", a porta troca de
+   * estado na hora como sempre, sem linha de migração; id que o app não
+   * conhece também desenha sem animação. Do disco só volta id na forma
+   * `ID_DE_ANIMACAO_DE_PORTA` (`lib/mapFile.ts`).
+   */
+  animacao?: string
 }
 
 /**
