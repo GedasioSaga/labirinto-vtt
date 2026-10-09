@@ -1358,32 +1358,45 @@
   padding-left: var(--lb-space-4);
 }
 
-/* -------------------------------------------- Personagens no painel esquerdo */
+/* ------------------------------ Sistema de RPG na janela Configurações do mapa */
 
-.lb-rpg__sistema.lb-btn {
-  justify-content: space-between;
-  min-height: 34px;
-  margin-bottom: var(--lb-space-2);
+.lb-rpg-config__linha {
+  display: flex;
+  align-items: center;
+  gap: var(--lb-space-2);
+  min-width: 0;
 }
 
-/* Logo abaixo do sistema, de quem ele é: mesmo alinhamento, sem competir com ele. */
-.lb-rpg__livro.lb-btn {
-  justify-content: flex-start;
-  min-height: 34px;
-  margin: calc(-1 * var(--lb-space-1)) 0 var(--lb-space-2);
+/* A capa do cartão da grade, em miniatura: a mesma cor e as mesmas iniciais. */
+.lb-rpg-config__capa {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--lb-color-line-strong);
+  border-radius: var(--lb-radius-md);
+  background: var(--lb-color-stone-raised);
+  font-family: var(--lb-font-display);
+  font-size: 16px;
+  color: var(--lb-color-parchment);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
 }
 
-.lb-rpg__sistema-rotulo {
-  font-weight: var(--lb-font-weight-medium);
-}
-
-.lb-rpg__sistema-nome {
+.lb-rpg-config__nome {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: var(--lb-font-size-sm);
-  color: var(--lb-color-parchment-dim);
+  font-weight: var(--lb-font-weight-medium);
+}
+
+/* ------------------------------------------------- Personagens na aba Jogo */
+
+/* Ação ao lado da lista, de quem é o sistema: sem competir com o Abrir sala. */
+.lb-rpg__livro.lb-btn {
+  justify-content: flex-start;
+  min-height: 34px;
 }
 
 .lb-rpg {

@@ -135,13 +135,12 @@ describe('livro do mestre: as entradas e a janela', () => {
     expect(onClose).toHaveBeenCalledTimes(1)
   })
 
-  it('zona Aventura: "Livro de regras" só quando o sistema tem livro', () => {
+  it('aba Jogo: "Livro de regras" só quando o sistema tem livro', () => {
     const onAbrirLivro = vi.fn()
     const base: PersonagensSectionProps = {
       sistema: SISTEMA_ONE_PIECE,
       sistemaId: SISTEMA_ONE_PIECE.id,
       personagens: [],
-      onAbrirSistemas: vi.fn(),
       onAbrirFicha: vi.fn(),
       onCriar: vi.fn(),
       onApagar: vi.fn(),

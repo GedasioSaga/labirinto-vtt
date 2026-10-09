@@ -12,6 +12,7 @@ import { aplicarAjustes, NOME_DO_MESTRE } from '../lib/ajusteDaFicha'
 import { FichaDePersonagemDialog, type TokenParaLigar } from './FichaDePersonagemDialog'
 import { LivroDeRegrasDialog } from './LivroDeRegrasDialog'
 import { SistemasDialog } from './SistemasDialog'
+import { comAventura } from '../stores/virarAventura'
 
 /**
  * As janelas do sistema de RPG, montadas UMA vez no App: a grade de sistemas,
@@ -26,9 +27,11 @@ export interface RpgDialogsProps {
    * o inventário só lê.
    */
   aplicarItens?: (change: AppliedItems) => boolean
+  /** Mapa solto: pergunta e vira aventura antes de gravar o sistema escolhido (`garantirAventura`). `true` = pode seguir. */
+  garantirAventura: () => Promise<boolean>
 }
 
-export function RpgDialogs({ aplicarItens }: RpgDialogsProps = {}) {
+export function RpgDialogs({ aplicarItens, garantirAventura }: RpgDialogsProps) {
   const adventure = useAdventureStore((state) => state.adventure)
   const activeSceneId = useAdventureStore((state) => state.activeSceneId)
   const cache = useAdventureStore((state) => state.cache)
@@ -39,7 +42,23 @@ export function RpgDialogs({ aplicarItens }: RpgDialogsProps = {}) {
   const biblioteca = useRpgStore((state) => state.biblioteca)
   const avisos = useRpgStore((state) => state.avisosDaBiblioteca)
   const livroAberto = useRpgStore((state) => state.livroAberto)
-  if (adventure === null) return null
+
+  // A grade abre também no mapa solto (Configurações do mapa): escolher ali pergunta antes se ele vira aventura.
+  const grade = sistemasAbertos && (
+    <SistemasDialog
+      sistemas={biblioteca}
+      escolhidoId={adventure?.sistemaDeRpg}
+      avisos={avisos}
+      onEscolher={(id) => comAventura(garantirAventura, () => useAdventureStore.getState().setSistemaDeRpg(id))}
+      onImportar={async () => {
+        const texto = await escolherTextoJson('Importar sistema de RPG', 'Sistema de RPG')
+        return texto === null ? null : useRpgStore.getState().importarSistema(texto)
+      }}
+      onClose={() => useRpgStore.getState().fecharSistemas()}
+    />
+  )
+  // Ficha e livro só com aventura: os personagens e o sistema escolhido moram nela.
+  if (adventure === null) return grade
 
   const personagem = personagemAberto === null ? undefined : (adventure.personagens ?? []).find((candidato) => candidato.id === personagemAberto)
   const sistema = sistemaPorId(biblioteca, adventure.sistemaDeRpg)
@@ -50,19 +69,7 @@ export function RpgDialogs({ aplicarItens }: RpgDialogsProps = {}) {
 
   return (
     <>
-      {sistemasAbertos && (
-        <SistemasDialog
-          sistemas={biblioteca}
-          escolhidoId={adventure.sistemaDeRpg}
-          avisos={avisos}
-          onEscolher={(id) => useAdventureStore.getState().setSistemaDeRpg(id)}
-          onImportar={async () => {
-            const texto = await escolherTextoJson('Importar sistema de RPG', 'Sistema de RPG')
-            return texto === null ? null : useRpgStore.getState().importarSistema(texto)
-          }}
-          onClose={() => useRpgStore.getState().fecharSistemas()}
-        />
-      )}
+      {grade}
       {personagem !== undefined && (
         <FichaDePersonagemDialog
           key={personagem.id}

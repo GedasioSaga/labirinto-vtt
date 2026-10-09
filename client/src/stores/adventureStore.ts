@@ -224,6 +224,13 @@ interface AdventureState {
   /** Cria a cena, já aberta. `loosePath` é o arquivo do mapa solto, quando a aventura nasce agora. */
   createScene: (name: string, loosePath: string | null) => string
   /**
+   * O mapa solto vira aventura SÓ com ele: a primeira cena é o próprio mapa,
+   * no mesmo arquivo, sem cena nova (o `createScene` faz o mesmo nascimento e
+   * ainda cria uma). É o que o sistema de RPG e as fichas pedem para ter onde
+   * morar (`adventure.json`). `false` = já era aventura, nada muda.
+   */
+  virarAventura: (loosePath: string | null) => boolean
+  /**
    * "+ Cena nova…" do "Leva a…": cria a cena `name` (na pasta da cena aberta),
    * o pino de chegada no centro dela, e liga a saída `exitId` do pino `pinId`
    * a ele — como `linkPinToNewArrival`, `null` = uma saída nova. NÃO troca a
@@ -973,6 +980,25 @@ function showInEditor(map: MapData, past: MapData[], future: MapData[]): void {
 }
 
 /**
+ * A aventura que nasce do mapa solto `live`: ele é a primeira (e única) cena,
+ * no MESMO arquivo (`loosePath`, ou `map.json` da pasta do id quando nunca foi
+ * salvo) — por isso o mapa continua igual. `nascimento` é o que diz ao
+ * `flush` onde fica a pasta. Compartilhado pela cena nova (`withEmptyScene`) e
+ * por `virarAventura`, para as duas nascerem do mesmo jeito.
+ */
+function aventuraDoMapaSolto(
+  live: MapData,
+  loosePath: string | null,
+): { adventure: Adventure; activeSceneId: string; nascimento: Partial<AdventureState> } {
+  const root: SceneEntry = { id: newSceneId(), name: live.name, file: loosePath ? baseName(loosePath) : 'map.json' }
+  return {
+    adventure: { version: ADVENTURE_VERSION, id: `adv_${crypto.randomUUID()}`, name: live.name, startSceneId: root.id, scenes: [root] },
+    activeSceneId: root.id,
+    nascimento: { rootPath: loosePath, rootMapId: live.id, dir: null },
+  }
+}
+
+/**
  * Uma cena VAZIA a mais na aventura (do tamanho e da grade de `live`), sem
  * abri-la. No mapa solto a aventura nasce aqui, com ele como primeira cena.
  * `besideOpen`: a cena nova entra na pasta da cena aberta; senão, no primeiro
@@ -985,14 +1011,10 @@ function withEmptyScene(
   loosePath: string | null,
   besideOpen: boolean,
 ): { id: string; patch: Partial<AdventureState> } {
-  let adventure = state.adventure
-  let activeSceneId = state.activeSceneId
-  const born = adventure === null || activeSceneId === null
-  if (adventure === null || activeSceneId === null) {
-    const root: SceneEntry = { id: newSceneId(), name: live.name, file: loosePath ? baseName(loosePath) : 'map.json' }
-    adventure = { version: ADVENTURE_VERSION, id: `adv_${crypto.randomUUID()}`, name: live.name, startSceneId: root.id, scenes: [root] }
-    activeSceneId = root.id
-  }
+  const { adventure, activeSceneId, nascimento } =
+    state.adventure === null || state.activeSceneId === null
+      ? aventuraDoMapaSolto(live, loosePath)
+      : { adventure: state.adventure, activeSceneId: state.activeSceneId, nascimento: {} }
   const id = newSceneId()
   const sceneName = cleanSceneName(name)
   const map = mapFactory.createEmptyMap(`map_${crypto.randomUUID()}`, sceneName, live.width, live.height, live.grid)
@@ -1004,7 +1026,7 @@ function withEmptyScene(
     patch: {
       adventure: { ...adventure, scenes: [...adventure.scenes, entry] },
       activeSceneId,
-      ...(born ? { rootPath: loosePath, rootMapId: live.id, dir: null } : {}),
+      ...nascimento,
       cache: { ...state.cache, [id]: { status: 'ok', map, past: [], future: [], camera: null } },
       dirty: { ...state.dirty, [id]: true },
       structureDirty: true,
@@ -1187,6 +1209,15 @@ export const useAdventureStore = create<AdventureState>()((set, get) => ({
     set(patch)
     get().switchScene(id)
     return id
+  },
+
+  virarAventura: (loosePath) => {
+    const state = get()
+    if (state.adventure !== null && state.activeSceneId !== null) return false
+    const { adventure, activeSceneId, nascimento } = aventuraDoMapaSolto(useMapStore.getState().map, loosePath)
+    // Pede Salvar como a cena nova: o `adventure.json` ainda não existe no disco.
+    set({ adventure, activeSceneId, ...nascimento, structureDirty: true })
+    return true
   },
 
   createSceneForPin: (pinId, name, loosePath, exitId = SAIDA_PRINCIPAL) => {

@@ -169,6 +169,7 @@ import { ActionBar } from './components/ActionBar'
 import { ShortcutsDialog } from './components/ShortcutsDialog'
 import { PersonagensDaAventura } from './components/PersonagensSection'
 import { RpgDialogs } from './components/RpgDialogs'
+import { garantirAventura } from './stores/virarAventura'
 import { useRpgStore } from './stores/rpgStore'
 import { ExportImageDialog } from './components/ExportImageDialog'
 import { imageExportFileName, type ImageExportOptions, type MapImageExporter } from './lib/mapImageExport'
@@ -267,6 +268,15 @@ function hideTokenFromRequest(tokenId: string, sceneId?: string): void {
     return
   }
   useMapStore.getState().setItemSecret('token', tokenId, true)
+}
+
+/**
+ * Sim/não ao mestre: no app instalado, a janela do sistema (como a do fechar);
+ * fora dele (navegador dos testes), o `confirm` da página.
+ */
+function perguntarSimNao(texto: string): Promise<boolean> {
+  if (!isTauri()) return Promise.resolve(window.confirm(texto))
+  return ask(texto, { title: 'Labirinto', kind: 'info', okLabel: 'Transformar', cancelLabel: 'Agora não' })
 }
 
 function pararDeOuvir(unlisten: (() => void) | undefined): void {
@@ -1235,6 +1245,8 @@ function App() {
           onMostrar: () => visaoDeTeste.mostrar(),
           onFechar: () => visaoDeTeste.fechar(),
         }}
+        // LIVRO DE REGRAS e PERSONAGENS: logo abaixo da Sala, também no mapa solto (pergunta antes de virar aventura).
+        rpg={<PersonagensDaAventura garantirAventura={garantirAventuraDoMapa} />}
       />
     )
   }
@@ -1470,6 +1482,13 @@ function App() {
   useEffect(() => {
     currentMapPathRef.current = currentMapPath
   }, [currentMapPath])
+
+  /**
+   * SISTEMA DE RPG e PERSONAGENS no mapa solto: pergunta e o faz virar
+   * aventura (só ele, sem cena nova) antes de escolher sistema, criar ou
+   * importar. O caminho é lido pela ref na hora da resposta.
+   */
+  const garantirAventuraDoMapa = () => garantirAventura({ perguntar: perguntarSimNao, caminhoDoMapaSolto: () => currentMapPathRef.current })
 
   /**
    * Salvamento automático com recuperação: ao abrir, procura a cópia de
@@ -2900,8 +2919,6 @@ function App() {
                 />
               )
             }
-            // SISTEMA DE RPG e PERSONAGENS: moram na aventura, então só com ela (como a Agenda).
-            rpg={adventure === null ? undefined : <PersonagensDaAventura />}
             // ESTADO DO MUNDO: "Depende do estado" do elemento aberto no painel —
             // é daqui que a regra `porEstado` nasce, sem editar o map.json à mão.
             estadoDaPorta={
@@ -3873,7 +3890,7 @@ function App() {
       {(pisoAtivo !== 0 || mapaTemPisos) && <PisoHud piso={pisoAtivo} onPisoChange={(piso) => useMapStore.getState().setPisoAtivo(piso)} />}
       {shortcutsOpen && <ShortcutsDialog onClose={() => setShortcutsOpen(false)} />}
       {/* Grade de sistemas de RPG e ficha de personagem: uma vez só, abertas pelo `rpgStore`. */}
-      <RpgDialogs aplicarItens={aplicarItensDoMestre} />
+      <RpgDialogs aplicarItens={aplicarItensDoMestre} garantirAventura={garantirAventuraDoMapa} />
       {exportImageState !== null && (
         <ExportImageDialog
           defaultGrid={map.showGrid}

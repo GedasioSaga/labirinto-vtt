@@ -12,7 +12,8 @@ import { SISTEMAS_EMBUTIDOS } from '../lib/sistemaOnePiece'
  * a grade de sistemas está aberta e a lista de sistemas que a grade mostra.
  * Separado do painel para o botão "Abrir ficha" do token e a lista
  * "Personagens" abrirem a MESMA janela, montada uma vez só (`RpgDialogs`) —
- * e o "Livro de regras" (zona Aventura e ficha), idem.
+ * e o "Livro de regras" (aba Jogo e ficha), idem. A grade de sistemas abre
+ * pela janela Configurações do mapa.
  */
 interface RpgState {
   /** Personagem com a ficha aberta, ou `null`. */

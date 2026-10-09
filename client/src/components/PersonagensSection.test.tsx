@@ -7,8 +7,8 @@ import { PersonagensSection, resumoDaImportacao, type PersonagensSectionProps } 
 import { SistemasDialog } from './SistemasDialog'
 
 /**
- * "Sistema de RPG" e "Personagens" na zona Aventura do painel, e a grade de
- * sistemas que o botão abre.
+ * "Personagens" na aba Jogo e a grade de sistemas que "Sistema de RPG" (na
+ * janela Configurações do mapa) abre.
  */
 
 beforeAll(() => {
@@ -38,7 +38,7 @@ describe('PersonagensSection', () => {
   })
 
   function montar(props: Partial<PersonagensSectionProps> = {}) {
-    const chamadas = { onAbrirSistemas: vi.fn(), onAbrirFicha: vi.fn(), onCriar: vi.fn(), onApagar: vi.fn() }
+    const chamadas = { onAbrirFicha: vi.fn(), onCriar: vi.fn(), onApagar: vi.fn() }
     act(() =>
       root.render(
         <PersonagensSection
@@ -57,11 +57,9 @@ describe('PersonagensSection', () => {
     return chamadas
   }
 
-  it('mostra o sistema da aventura e a lista com selo; tocar abre a ficha', () => {
-    const { onAbrirFicha, onAbrirSistemas } = montar()
-    expect(container.querySelector('.lb-rpg__sistema')?.textContent).toBe('Sistema de RPGOne Piece')
-    act(() => botao(container, 'Sistema de RPGOne Piece').click())
-    expect(onAbrirSistemas).toHaveBeenCalledTimes(1)
+  it('a lista com selo, sem o botão do sistema (mora em Configurações do mapa); tocar abre a ficha', () => {
+    const { onAbrirFicha } = montar()
+    expect(container.textContent).not.toContain('Sistema de RPG')
     expect(Array.from(container.querySelectorAll('.lb-rpg__abrir')).map((linha) => linha.textContent)).toEqual(['AAiraJogador', 'SSmokerNPC'])
     act(() => container.querySelectorAll<HTMLButtonElement>('.lb-rpg__abrir')[1].click())
     expect(onAbrirFicha).toHaveBeenCalledWith('p-smoker')
@@ -79,10 +77,15 @@ describe('PersonagensSection', () => {
 
   it('sem sistema: diz o que falta e não deixa criar nem importar', () => {
     montar({ sistema: undefined, sistemaId: undefined, personagens: [] })
-    expect(container.querySelector('.lb-rpg__sistema-nome')?.textContent).toBe('nenhum')
+    expect(container.textContent).toContain('Nenhum personagem ainda.')
     expect(botao(container, '+ Personagem').disabled).toBe(true)
     expect(botao(container, 'Importar personagens…').disabled).toBe(true)
-    expect(container.textContent).toContain('Escolha o sistema de RPG')
+    expect(container.textContent).toContain('Escolha o sistema de RPG em Configurações do mapa')
+  })
+
+  it('sistema gravado que não está neste computador: diz qual e onde importar', () => {
+    montar({ sistema: undefined, sistemaId: 'casa', personagens: [] })
+    expect(container.textContent).toContain('O sistema casa não está neste computador: importe-o em Configurações do mapa')
   })
 
   it('importar mostra quantos entraram, com os nomes, e os avisos', async () => {

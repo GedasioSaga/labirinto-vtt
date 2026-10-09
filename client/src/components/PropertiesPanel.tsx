@@ -101,8 +101,6 @@ interface PropertiesPanelProps {
   scenes?: ReactNode
   /** Seção "Estado do mundo" da aventura (Maré, Giro…), logo abaixo das Cenas. Ausente no mapa solto. */
   worldState?: ReactNode
-  /** "Sistema de RPG" e "Personagens" da aventura (PersonagensSection), depois do Estado do mundo. Ausente no mapa solto. */
-  rpg?: ReactNode
   /**
    * ESTADO DO MUNDO — "Depende do estado" da porta, do pino de viagem, da zona
    * oculta e da luz selecionados, cada um dentro da seção do seu elemento.
@@ -339,7 +337,6 @@ function presente(no: ReactNode): boolean {
 export function PropertiesPanel({
   scenes,
   worldState,
-  rpg,
   estadoDaPorta,
   estadoDoPino,
   estadoDaZona,
@@ -517,7 +514,7 @@ export function PropertiesPanel({
   const legendaAventuraId = `${legendaId}-aventura`
   const legendaCenaId = `${legendaId}-cena`
   const objects = esconderCategorias ? undefined : objetosDaCena
-  const temAventura = !esconderCategorias && (presente(scenes) || presente(worldState) || presente(rpg))
+  const temAventura = !esconderCategorias && (presente(scenes) || presente(worldState))
   // Com o pincel/balde na mão a lista aparece mesmo sem chão: é nela que se
   // vê onde a primeira pincelada vai cair ("Camada 1 · pinte para criar").
   const temCamadasDoChao =
@@ -1014,7 +1011,6 @@ export function PropertiesPanel({
             </p>
             {scenes}
             {worldState}
-            {rpg}
           </div>
         )}
         {/* ESTA CENA: o que é da cena aberta, do que há nela (Objetos do mapa,

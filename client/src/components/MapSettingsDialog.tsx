@@ -11,6 +11,7 @@ import { ArrivalTextControls, type ArrivalTextControlsProps } from './ArrivalTex
 import { SceneFloorControls, type SceneFloorControlsProps } from './SceneFloorControls'
 import { FaceRangeControls, type FaceRangeControlsProps } from './FaceRangeControls'
 import { PainelCategoriasControls } from './PainelCategoriasControls'
+import { SistemaDeRpgDoMapa } from './SistemaDeRpgControls'
 import { FEATURES } from '../lib/features'
 import { theme } from '../theme'
 
@@ -171,6 +172,8 @@ export function MapSettingsDialog({
           {showSceneFloor && sceneFloor && <SceneFloorControls {...sceneFloor} />}
           {faceRange !== undefined && <FaceRangeControls {...faceRange} />}
           {showScenarioLink && <ScenarioLinkControls {...scenarioLink} />}
+          {/* Vale para a mesa inteira, mapa solto incluído: a grade de sistemas abre por cima desta janela. */}
+          <SistemaDeRpgDoMapa />
           <PainelCategoriasControls />
         </div>
       </div>

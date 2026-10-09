@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useId, useRef, useState, type FormEvent, type KeyboardEvent, type MouseEvent } from 'react'
+import { Fragment, useEffect, useId, useRef, useState, type FormEvent, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react'
 import {
   MAX_SCENE_MEMORIES_PER_PLAYER,
   ownTokenIdsOf,
@@ -160,6 +160,11 @@ export interface RoomPanelProps {
    * ficha (com a sala fechada ou aberta). Ausente = sem o botão.
    */
   visaoDeJogador?: VisaoDeJogadorNoPainel
+  /**
+   * "Livro de regras" e "Personagens" (`PersonagensDaAventura`), logo abaixo
+   * da Sala, com ela fechada ou aberta. Ausente = sem a seção.
+   */
+  rpg?: ReactNode
 }
 
 export interface NoiseControlProps {
@@ -1504,6 +1509,7 @@ export function RoomPanel({
   onPausarCena,
   onAnswerTravel,
   visaoDeJogador,
+  rpg,
 }: RoomPanelProps) {
   const inviteId = useId()
   // Escondidos da aba Jogo por pedido do usuário (`lib/features.ts`): o resto do app segue igual.
@@ -1517,6 +1523,8 @@ export function RoomPanel({
         {/* Logo abaixo de "Abrir sala", em peso secundário: o par lê como ação principal e ação ao lado. */}
         {visaoDeJogador !== undefined && <VisaoDeJogadorBotao visao={visaoDeJogador} comAjuda />}
         <FirewallHint />
+        {/* Ficha e regra também valem sem sala: o mestre prepara antes de abrir a mesa. */}
+        {rpg}
         {/* Combate sem jogador na rede também tem ordem: a seção não espera a sala. */}
         {iniciativaVisivel !== undefined && <InitiativeSection {...iniciativaVisivel} />}
         {relogioVisivel !== undefined && <CampaignClockSection {...relogioVisivel} />}
@@ -1546,6 +1554,9 @@ export function RoomPanel({
 
       {/* Logo abaixo do código, sem a linha de ajuda: o cabeçalho não tem lugar para mais um botão. */}
       {visaoDeJogador !== undefined && <VisaoDeJogadorBotao visao={visaoDeJogador} comAjuda={false} />}
+
+      {/* Livro de regras e Personagens logo abaixo da Sala, no mesmo lugar da sala fechada. */}
+      {rpg}
 
       {/* SOM DA MESA: volume e mudo dos sons de clima neste computador. Linha própria e curta:
           o cabeçalho já ocupa a coluna inteira, e um botão a mais quebrava o código em duas linhas. */}

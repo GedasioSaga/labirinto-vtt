@@ -7,6 +7,7 @@ import type { SistemaDeRpg } from '../lib/sistemaDeRpg'
 import { buildTokenPhotoData } from '../lib/tokenPhoto'
 import { useAdventureStore } from '../stores/adventureStore'
 import { sistemaPorId, useRpgStore } from '../stores/rpgStore'
+import { comAventura } from '../stores/virarAventura'
 import { CollapsibleSection } from './CollapsibleSection'
 import { ImagemOuIniciais } from './FichaPecas'
 import './FichaDePersonagem.css'
@@ -17,7 +18,6 @@ export interface PersonagensSectionProps {
   /** O id gravado na aventura, para dizer qual sistema falta. */
   sistemaId: string | undefined
   personagens: readonly Personagem[]
-  onAbrirSistemas: () => void
   /** "Livro de regras"; ausente = o sistema da aventura não tem livro (sem botão). */
   onAbrirLivro?: () => void
   onAbrirFicha: (personagemId: string) => void
@@ -37,16 +37,16 @@ export function resumoDaImportacao(resultado: ResultadoDaImportacao): string {
 }
 
 /**
- * "Sistema de RPG", "Livro de regras" (quando o sistema tem) e "Personagens"
- * na zona Aventura do painel esquerdo. Só
- * aparece com aventura: personagens e sistema moram no `adventure.json`, que o
- * mapa solto não tem (o mesmo limite da Agenda).
+ * "Livro de regras" (quando o sistema tem) e "Personagens" na aba Jogo, logo
+ * abaixo da Sala: é durante a mesa que o mestre abre ficha e consulta regra.
+ * O "Sistema de RPG" mora na janela Configurações do mapa. Aparece também no
+ * mapa solto: criar ou importar ali pergunta antes se o mapa vira aventura,
+ * porque personagens e sistema moram no `adventure.json`.
  */
-export function PersonagensSection({ sistema, sistemaId, personagens, onAbrirSistemas, onAbrirLivro, onAbrirFicha, onCriar, onApagar, onImportar }: PersonagensSectionProps) {
+export function PersonagensSection({ sistema, sistemaId, personagens, onAbrirLivro, onAbrirFicha, onCriar, onApagar, onImportar }: PersonagensSectionProps) {
   const [apagando, setApagando] = useState<string | null>(null)
   const [importando, setImportando] = useState(false)
   const [estado, setEstado] = useState<{ tipo: 'ok' | 'erro'; texto: string; avisos: string[] } | null>(null)
-  const nomeDoSistema = sistema?.nome ?? (sistemaId === undefined ? 'nenhum' : `${sistemaId} (não está neste computador)`)
 
   const importar = async () => {
     setImportando(true)
@@ -63,19 +63,16 @@ export function PersonagensSection({ sistema, sistemaId, personagens, onAbrirSis
 
   return (
     <>
-      <button type="button" className="lb-btn lb-btn--block lb-rpg__sistema" onClick={onAbrirSistemas}>
-        <span className="lb-rpg__sistema-rotulo">Sistema de RPG</span>
-        <span className="lb-rpg__sistema-nome">{nomeDoSistema}</span>
-      </button>
       {onAbrirLivro !== undefined && (
         <button type="button" className="lb-btn lb-btn--ghost lb-btn--block lb-rpg__livro" onClick={onAbrirLivro}>
           Livro de regras
         </button>
       )}
-      <CollapsibleSection id="personagens" title="Personagens" defaultOpen={false} contagem={personagens.length}>
+      {/* h3: a aba Jogo já tem o h2 "Sala" acima. */}
+      <CollapsibleSection id="personagens" title="Personagens" defaultOpen={false} contagem={personagens.length} headingLevel={3}>
         <div className="lb-rpg">
           {personagens.length === 0 ? (
-            <p className="lb-rpg__vazio">Nenhum personagem nesta aventura.</p>
+            <p className="lb-rpg__vazio">Nenhum personagem ainda.</p>
           ) : (
             <ul className="lb-rpg__lista" aria-label="Personagens da aventura">
               {personagens.map((personagem) => (
@@ -111,7 +108,13 @@ export function PersonagensSection({ sistema, sistemaId, personagens, onAbrirSis
               ))}
             </ul>
           )}
-          {sistema === undefined && <p className="lb-field__hint">Escolha o sistema de RPG da aventura para criar e importar personagens.</p>}
+          {sistema === undefined && (
+            <p className="lb-field__hint">
+              {sistemaId === undefined
+                ? 'Escolha o sistema de RPG em Configurações do mapa (a engrenagem do painel) para criar e importar personagens.'
+                : `O sistema ${sistemaId} não está neste computador: importe-o em Configurações do mapa para criar e importar personagens.`}
+            </p>
+          )}
           <div className="lb-cenas__acoes">
             <button type="button" className="lb-btn" disabled={sistema === undefined} onClick={onCriar}>
               + Personagem
@@ -138,11 +141,16 @@ export function PersonagensSection({ sistema, sistemaId, personagens, onAbrirSis
   )
 }
 
+export interface PersonagensDaAventuraProps {
+  /** Mapa solto: pergunta e vira aventura antes de criar ou importar (`garantirAventura`). `true` = pode seguir. */
+  garantirAventura: () => Promise<boolean>
+}
+
 /**
- * A seção ligada às stores: o sistema e os personagens da aventura aberta,
- * a biblioteca de sistemas e as janelas (`RpgDialogs`). `null` sem aventura.
+ * A seção ligada às stores: o sistema e os personagens da aventura aberta
+ * (nenhum no mapa solto), a biblioteca de sistemas e as janelas (`RpgDialogs`).
  */
-export function PersonagensDaAventura() {
+export function PersonagensDaAventura({ garantirAventura }: PersonagensDaAventuraProps) {
   const adventure = useAdventureStore((state) => state.adventure)
   const biblioteca = useRpgStore((state) => state.biblioteca)
   const carregarBiblioteca = useRpgStore((state) => state.carregarBiblioteca)
@@ -150,27 +158,27 @@ export function PersonagensDaAventura() {
   useEffect(() => {
     void carregarBiblioteca()
   }, [carregarBiblioteca])
-  if (adventure === null) return null
-  const sistemaId = adventure.sistemaDeRpg
+  const sistemaId = adventure?.sistemaDeRpg
   const sistema = sistemaPorId(biblioteca, sistemaId)
-  const personagens = adventure.personagens ?? []
+  const personagens = adventure?.personagens ?? []
 
   return (
     <PersonagensSection
       sistema={sistema}
       sistemaId={sistemaId}
       personagens={personagens}
-      onAbrirSistemas={() => useRpgStore.getState().abrirSistemas()}
       onAbrirLivro={sistema !== undefined && temLivro(sistema) ? () => useRpgStore.getState().abrirLivro() : undefined}
       onAbrirFicha={(id) => useRpgStore.getState().abrirFicha(id)}
       onCriar={() => {
         if (sistema === undefined) return
-        const personagem = novoPersonagem(sistema, 'jogador', '')
-        if (useAdventureStore.getState().salvarPersonagem(personagem)) useRpgStore.getState().abrirFicha(personagem.id, true)
+        comAventura(garantirAventura, () => {
+          const personagem = novoPersonagem(sistema, 'jogador', '')
+          if (useAdventureStore.getState().salvarPersonagem(personagem)) useRpgStore.getState().abrirFicha(personagem.id, true)
+        })
       }}
       onApagar={(id) => useAdventureStore.getState().apagarPersonagem(id)}
       onImportar={async () => {
-        if (sistema === undefined) return null
+        if (sistema === undefined || !(await garantirAventura())) return null
         const texto = await escolherTextoJson('Importar personagens do projeto-rpg-v2', 'Fichas do projeto-rpg-v2')
         if (texto === null) return null
         const atuais = useAdventureStore.getState().adventure?.personagens ?? []
