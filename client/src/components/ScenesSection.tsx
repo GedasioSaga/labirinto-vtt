@@ -62,6 +62,8 @@ export interface ScenesSectionProps {
   onDuplicate?: (sceneId: string) => void
   /** "Subir" (`-1`) e "Descer" (`1`): a cena troca de lugar com a irmã de cima ou de baixo, na mesma pasta. */
   onShift?: (sceneId: string, delta: -1 | 1) => void
+  /** "Definir como cena inicial": a aventura passa a abrir nesta cena pelo Carregar Mapa. */
+  onSetStart?: (sceneId: string) => void
   /** Chamado só depois da confirmação, e nunca com jogador na cena. */
   onDelete?: (sceneId: string) => void
   /** O que a confirmação de "Apagar cena…" mostra: pinos que ficam soltos, cenas de dentro que sobem e quem ainda está lá. */
@@ -946,6 +948,7 @@ export function ScenesSection({
   pisoAberto,
   onDuplicate,
   onShift,
+  onSetStart,
   onDelete,
   deletionInfo,
   onMove,
@@ -977,7 +980,7 @@ export function ScenesSection({
   /** "+ Nova cena": o foco cai nele quando a linha da cena apagada some. */
   const createButtonRef = useRef<HTMLButtonElement | null>(null)
   const menuIdBase = useId()
-  const hasSceneMenu = onDuplicate !== undefined || onShift !== undefined || onDelete !== undefined || deletionInfo !== undefined
+  const hasSceneMenu = onDuplicate !== undefined || onShift !== undefined || onSetStart !== undefined || onDelete !== undefined || deletionInfo !== undefined
   const [draft, setDraft] = useState('')
   /** Janela "Visão geral das cenas" aberta. */
   const [overviewOpen, setOverviewOpen] = useState(false)
@@ -1313,6 +1316,12 @@ export function ScenesSection({
       { label: 'Duplicar', disabled: onDuplicate === undefined || !scene.available, onSelect: andClose(() => onDuplicate?.(scene.id)) },
       { label: 'Subir', disabled: onShift === undefined || first, onSelect: andClose(() => onShift?.(scene.id, -1)) },
       { label: 'Descer', disabled: onShift === undefined || last, onSelect: andClose(() => onShift?.(scene.id, 1)) },
+      // A que já é a inicial esmaece: definir de novo não mudaria nada.
+      {
+        label: scene.start === true ? 'É a cena inicial' : 'Definir como cena inicial',
+        disabled: onSetStart === undefined || scene.start === true,
+        onSelect: andClose(() => onSetStart?.(scene.id)),
+      },
       {
         label: 'Apagar cena…',
         // A última cena não se apaga: a aventura sem cena nenhuma não abre.
@@ -1607,6 +1616,12 @@ export function ScenesSection({
                 </button>
                 {/* O que se lê de relance, à direita do nome: selos do estado, a espera e a contagem. */}
                 <span className="lb-cenas__info">
+                  {/* CENA INICIAL: fica à vista também na cena aberta — nenhum botão da linha mostra esse estado. */}
+                  {scene.start === true && (
+                    <span className="lb-cenas__inicio" role="img" aria-label="Cena inicial" title="Cena inicial: a aventura abre aqui">
+                      ⌂
+                    </span>
+                  )}
                   {isPaused && scene.id !== '' && <span className="lb-cenas__selo lb-cenas__selo--pausa" aria-hidden="true">⏸</span>}
                   {onTogglePlanKnown !== undefined && scene.id !== '' && scene.planKnownByAll === true && (
                     <span className="lb-cenas__selo lb-cenas__selo--planta" aria-hidden="true">

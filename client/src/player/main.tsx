@@ -4,7 +4,10 @@ import { JOIN_CODE_LENGTH, NAME_MAX_LENGTH, type ClueEntry, type NoteEntry } fro
 import { latestActionNotice } from './moveNotice'
 import { ConfrontoFaixa } from './ConfrontoFaixa'
 import { themeCss } from '../theme'
-import { chatOf, createPlayerConnection, RESUME_STORAGE_KEY } from './playerConnection'
+import { chatOf, contaLembrada, createPlayerConnection, esquecerContaLembrada, RESUME_STORAGE_KEY } from './playerConnection'
+import type { PlayerConnectionOptions } from './playerConnection'
+import { PIN_MAX_DIGITOS, PIN_MIN_DIGITOS } from '../lib/contasDosJogadores'
+import { rotuloDoNavegador } from './rotuloDoAparelho'
 import { instalarSonsDoJogador } from './sonsDoJogador'
 import { pedeGzip } from '../net/pacoteComprimido'
 import type { PlayerConnection, PlayerState, SeatClaimNotice, SocketLike, StorageLike } from './playerConnection'
@@ -133,6 +136,12 @@ const REASON_TEXT: Record<string, string> = {
   bad_code: 'Código de sala incorreto. Confira com o mestre e tente de novo.',
   not_joined: 'O mestre não reconheceu a entrada. Tente entrar de novo.',
   already_joined: 'Esta conexão já entrou na sala.',
+  // CONTAS DOS JOGADORES: nome errado e PIN errado são a mesma frase (o mestre não diz qual).
+  account_required: 'Esta sala só aceita jogadores com conta. Peça ao mestre o seu nome e PIN.',
+  account_invalid: 'Nome ou PIN incorretos. Confira com o mestre e tente de novo.',
+  account_locked: 'Muitas tentativas com esse nome. Espere um pouco e tente de novo.',
+  account_device: 'Este aparelho não está mais lembrado. Entre com o seu nome e PIN.',
+  account_unavailable: 'Esta sala não aceita entrar com conta. Entre só com o nome.',
   invalid_message: 'O mestre recusou uma mensagem inválida.',
   connection_lost: 'A conexão com o mestre caiu.',
 }
@@ -413,12 +422,24 @@ function codeHint(typed: number): string {
 interface JoinFormProps {
   initial: LastJoin
   notice: Notice
-  onJoin: (code: string, name: string) => void
+  /** CONTAS: o nome da conta lembrada neste aparelho; `null` = nenhuma (nome, e PIN se tiver conta). */
+  remembered: string | null
+  /** `pin` vazio = entrar só com o nome, como sempre. */
+  onJoin: (code: string, name: string, pin: string) => void
+  onJoinRemembered: (code: string) => void
+  /** "Não é você?": este aparelho esquece a conta e volta a pedir nome (e PIN). */
+  onForgetAccount: () => void
 }
 
-function JoinForm({ initial, notice, onJoin }: JoinFormProps) {
+/** Só dígitos, até o teto: o PIN é o que se digita no teclado numérico. */
+function pinDigits(text: string): string {
+  return text.replace(/\D/g, '').slice(0, PIN_MAX_DIGITOS)
+}
+
+function JoinForm({ initial, notice, remembered, onJoin, onJoinRemembered, onForgetAccount }: JoinFormProps) {
   const [code, setCode] = useState(initial.code)
   const [name, setName] = useState(initial.name)
+  const [pin, setPin] = useState('')
   const codeRef = useRef<HTMLInputElement>(null)
   const nameRef = useRef<HTMLInputElement>(null)
 
@@ -426,17 +447,20 @@ function JoinForm({ initial, notice, onJoin }: JoinFormProps) {
   // cursor no código, já selecionado, e troca a letra errada sem apagar nada;
   // quem chega com a sala lembrada do último jogo pula direto para o nome.
   useEffect(() => {
-    const target = notice.tone === 'error' || initial.code.length !== JOIN_CODE_LENGTH ? codeRef.current : nameRef.current
+    const target = notice.tone === 'error' || initial.code.length !== JOIN_CODE_LENGTH || remembered !== null ? codeRef.current : nameRef.current
     target?.focus()
     target?.select()
   }, [])
 
   function submit(event: FormEvent) {
     event.preventDefault()
-    onJoin(normalizeJoinCode(code), name.trim())
+    if (remembered !== null) onJoinRemembered(normalizeJoinCode(code))
+    else onJoin(normalizeJoinCode(code), name.trim(), pin)
   }
 
   const nameAtLimit = name.length >= NAME_MAX_LENGTH
+  const pinIncomplete = pin.length > 0 && pin.length < PIN_MIN_DIGITOS
+  const canJoin = code.length === JOIN_CODE_LENGTH && (remembered !== null || (name.trim().length > 0 && !pinIncomplete))
 
   return (
     <Screen>
@@ -467,27 +491,61 @@ function JoinForm({ initial, notice, onJoin }: JoinFormProps) {
             {codeHint(code.length)}
           </p>
         </div>
-        <div className="pe-field">
-          <label className="pe-label" htmlFor="lb-join-name">
-            Seu nome
-          </label>
-          <input
-            id="lb-join-name"
-            className="pe-input"
-            ref={nameRef}
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            maxLength={NAME_MAX_LENGTH}
-            aria-describedby="lb-join-name-hint"
-            autoComplete="nickname"
-            enterKeyHint="go"
-            required
-          />
-          <p id="lb-join-name-hint" className="pe-hint">
-            {nameAtLimit ? `Limite de ${NAME_MAX_LENGTH} caracteres: o resto não entra.` : 'É assim que o mestre e os outros jogadores vão te ver.'}
-          </p>
-        </div>
-        <button type="submit" className="pe-btn pe-btn--primary" disabled={code.length !== JOIN_CODE_LENGTH || !name.trim()}>
+        {remembered !== null ? (
+          <div className="pe-field">
+            <p className="pe-lead">
+              Você entra como <strong>{remembered}</strong>: este aparelho está lembrado.
+            </p>
+            <button type="button" className="pe-btn" onClick={onForgetAccount}>
+              Não é você? Sair desta conta
+            </button>
+          </div>
+        ) : (
+          <>
+            <div className="pe-field">
+              <label className="pe-label" htmlFor="lb-join-name">
+                Seu nome
+              </label>
+              <input
+                id="lb-join-name"
+                className="pe-input"
+                ref={nameRef}
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                maxLength={NAME_MAX_LENGTH}
+                aria-describedby="lb-join-name-hint"
+                autoComplete="nickname"
+                enterKeyHint="next"
+                required
+              />
+              <p id="lb-join-name-hint" className="pe-hint">
+                {nameAtLimit ? `Limite de ${NAME_MAX_LENGTH} caracteres: o resto não entra.` : 'É assim que o mestre e os outros jogadores vão te ver.'}
+              </p>
+            </div>
+            <div className="pe-field">
+              <label className="pe-label" htmlFor="lb-join-pin">
+                PIN (se tiver conta)
+              </label>
+              <input
+                id="lb-join-pin"
+                className="pe-input"
+                type="password"
+                value={pin}
+                onChange={(e) => setPin(pinDigits(e.target.value))}
+                inputMode="numeric"
+                aria-describedby="lb-join-pin-hint"
+                autoComplete="off"
+                enterKeyHint="go"
+              />
+              <p id="lb-join-pin-hint" className="pe-hint">
+                {pinIncomplete
+                  ? `O PIN tem pelo menos ${PIN_MIN_DIGITOS} números.`
+                  : 'Só se o mestre criou uma conta para você: com o PIN, este aparelho fica lembrado. Sem PIN, você entra só com o nome.'}
+              </p>
+            </div>
+          </>
+        )}
+        <button type="submit" className="pe-btn pe-btn--primary" disabled={!canJoin}>
           Entrar
         </button>
       </form>
@@ -593,6 +651,11 @@ interface SessionProps {
   /** Sair de vez: volta ao formulário E esquece o resume, para a página não retomar sozinha. */
   onQuit: () => void
   /**
+   * CONTAS: o "Sair" do painel — sai da sala e este aparelho esquece a conta
+   * (troca de conta). Ausente = sem o botão (a Visão de jogador do mestre).
+   */
+  onSignOut?: () => void
+  /**
    * Onde a tela guarda ajustes do painel, anotações pessoais e nomes de
    * lugares. Ausente = o aparelho (`localStorage`). A Visão de jogador passa
    * um em memória: o que se escreve no teste some ao fechar a janela.
@@ -656,7 +719,7 @@ const NO_FOCUS: FocusRequest = { tokenId: null, seq: 0, animate: false, snap: fa
 const HANDSHAKE_DEADLINE_MS = 8_000
 
 // Exportada só para o teste montar a sessão sem o formulário de entrada.
-export function Session({ connection, code, typedName, hostName, onLeave, onQuit, storage, onAcaoNoOlhar }: SessionProps) {
+export function Session({ connection, code, typedName, hostName, onLeave, onQuit, onSignOut, storage, onAcaoNoOlhar }: SessionProps) {
   const state: PlayerState = useSyncExternalStore(connection.subscribe, connection.getState)
   const armazenamento = useMemo(() => storage ?? localStorageOrNull(), [storage])
   const [settings, setSettings] = useState<PlayerViewSettings>(() => loadPlayerSettings(armazenamento))
@@ -1436,6 +1499,7 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
             setMeasureArmed(false)
             setLaserArmed(false)
           }}
+          onSignOut={onSignOut}
           onDownloadNotebook={downloadNotebook}
           onOpenInventory={canOpenInventory ? (byKeyboard) => setInventory({ instant: byKeyboard }) : undefined}
           onOpenFicha={servePersonagens ? (byKeyboard) => setFicha({ instant: byKeyboard }) : undefined}
@@ -2183,6 +2247,8 @@ interface ActiveSession {
 
 export function PlayerApp() {
   const [lastJoin, setLastJoin] = useState<LastJoin>(readLastJoin)
+  /** CONTAS: a conta lembrada neste aparelho (só o nome; o segredo fica com a conexão). */
+  const [remembered, setRemembered] = useState<string | null>(() => contaLembrada(resumeStorageOrNull()))
   const [session, setSession] = useState<ActiveSession | null>(null)
   /** Nome com que o mestre registrou o jogador; `null` até o `welcome` chegar. */
   const [hostName, setHostName] = useState<string | null>(null)
@@ -2220,11 +2286,13 @@ export function PlayerApp() {
     if (rejoined.current) return
     rejoined.current = true
     const { code, name } = lastJoin
-    if (name.trim().length === 0 || !hasResumeFor(code)) return
-    join(code, name)
+    if (!hasResumeFor(code)) return
+    // CONTAS: o aparelho lembrado volta como a conta, não pelo nome digitado da última vez.
+    if (remembered !== null) join(code, remembered, 'aparelho')
+    else if (name.trim().length > 0) join(code, name)
   }, [])
 
-  function join(code: string, name: string) {
+  function join(code: string, name: string, conta?: PlayerConnectionOptions['conta']) {
     setHostName(null)
     setLastJoin({ code, name })
     rememberLastJoin({ code, name })
@@ -2241,14 +2309,23 @@ export function PlayerApp() {
       isHidden: () => document.visibilityState === 'hidden',
       // Pelo link público (4G), o mapa chega comprimido; na rede local, texto como sempre.
       aceitaGzip: pedeGzip(window.location.hostname),
+      ...(conta === undefined ? {} : { conta }),
     })
     setSession({ connection, code, typedName: name })
+  }
+
+  /** CONTAS: com PIN, entra com a conta (e o aparelho fica lembrado); sem PIN, só pelo nome, como sempre. */
+  function joinFromForm(code: string, name: string, pin: string) {
+    if (pin.length === 0) join(code, name)
+    else join(code, name, { pin, rotulo: rotuloDoNavegador(navigator.userAgent, navigator.maxTouchPoints > 1) })
   }
 
   function leave(next?: Notice) {
     setNotice(next ?? JOIN_NOTICE)
     setHostName(null)
     setSession(null)
+    // A conexão pode ter guardado o aparelho (entrou com PIN) ou esquecido (o mestre o esqueceu).
+    setRemembered(contaLembrada(resumeStorageOrNull()))
   }
 
   function quit() {
@@ -2256,7 +2333,29 @@ export function PlayerApp() {
     leave()
   }
 
-  if (!session) return <JoinForm initial={lastJoin} notice={notice} onJoin={join} />
+  /** "Sair": deixa a sala E a conta deste aparelho — a próxima entrada pede nome (e PIN) de novo. */
+  function signOut() {
+    esquecerContaLembrada(resumeStorageOrNull())
+    quit()
+  }
+
+  if (!session) {
+    return (
+      <JoinForm
+        initial={lastJoin}
+        notice={notice}
+        remembered={remembered}
+        onJoin={joinFromForm}
+        onJoinRemembered={(code) => {
+          if (remembered !== null) join(code, remembered, 'aparelho')
+        }}
+        onForgetAccount={() => {
+          esquecerContaLembrada(resumeStorageOrNull())
+          setRemembered(null)
+        }}
+      />
+    )
+  }
   return (
     <Session
       connection={session.connection}
@@ -2265,6 +2364,7 @@ export function PlayerApp() {
       hostName={hostName}
       onLeave={leave}
       onQuit={quit}
+      onSignOut={signOut}
     />
   )
 }

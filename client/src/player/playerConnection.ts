@@ -148,7 +148,8 @@ import { LETTER_TEXT_MAX_LENGTH, type LetterVia } from '../lib/correio'
 import { CHAT_HISTORY_MAX, CHAT_TEXT_MAX_LENGTH, cleanChatText, type ChatChannel } from '../lib/chat'
 import { SCENE_PUBLIC_NAME_MAX_LENGTH } from '../lib/adventure'
 import { TOKEN_GLIDE_MS } from './tokenGlide'
-import { parseSnapshotPlaces, VIEW_RESYNC_MIN_INTERVAL_MS, type SnapshotPlaces } from '../net/protocol'
+import { parseAccountHostMessage, parseSnapshotPlaces, VIEW_RESYNC_MIN_INTERVAL_MS, type SnapshotPlaces } from '../net/protocol'
+import { APARELHO_TOKEN_PADRAO } from '../lib/contasDosJogadores'
 import { rememberPlace, type VisitedPlace } from './playerPlaces'
 import { parseArrivalText } from '../lib/arrivalText'
 import { NOISE_CUE_TTL_MS, type NoiseDirection } from '../lib/noise'
@@ -950,6 +951,61 @@ export interface PlayerConnectionOptions {
    * comprimido. Ausente = texto, como sempre.
    */
   aceitaGzip?: boolean
+  /**
+   * CONTAS DOS JOGADORES: entrar com a conta. `{ pin, rotulo }` = a primeira vez
+   * neste aparelho (o nome da conta vai em `name`; `rotulo` é como o mestre lê
+   * o aparelho); `'aparelho'` = o aparelho já lembrado (`CONTA_STORAGE_KEY`).
+   * Ausente = só pelo nome, como sempre — e o aparelho lembrado não é usado.
+   */
+  conta?: { pin: string; rotulo: string } | 'aparelho'
+}
+
+/**
+ * CONTAS: o aparelho lembrado — o nome da conta e o segredo que o mestre deu
+ * (`account.device`). Só o mestre que o deu o reconhece: o storage é da origem
+ * da página, que é o computador do mestre.
+ */
+export const CONTA_STORAGE_KEY = 'labirinto.conta'
+
+interface AparelhoLembrado {
+  nome: string
+  token: string
+}
+
+function readAparelho(storage: StorageLike | null): AparelhoLembrado | null {
+  if (!storage) return null
+  try {
+    const raw = storage.getItem(CONTA_STORAGE_KEY)
+    if (!raw) return null
+    const parsed: unknown = JSON.parse(raw)
+    if (!isRecord(parsed) || typeof parsed.nome !== 'string' || typeof parsed.token !== 'string') return null
+    const nome = parsed.nome.slice(0, NAME_MAX_LENGTH).trim()
+    return nome.length > 0 && APARELHO_TOKEN_PADRAO.test(parsed.token) ? { nome, token: parsed.token } : null
+  } catch {
+    // Storage bloqueado ou conteúdo corrompido: o aparelho entra com nome e PIN.
+    return null
+  }
+}
+
+function writeAparelho(storage: StorageLike | null, value: AparelhoLembrado | null): void {
+  if (!storage) return
+  try {
+    if (value) storage.setItem(CONTA_STORAGE_KEY, JSON.stringify(value))
+    else storage.removeItem(CONTA_STORAGE_KEY)
+  } catch {
+    // Storage indisponível: da próxima vez, nome e PIN de novo.
+  }
+}
+
+/** O nome da conta lembrada neste aparelho, sem o segredo (é o que a tela de entrada mostra); `null` = nenhuma. */
+export function contaLembrada(storage: StorageLike | null): string | null {
+  const lembrado = readAparelho(storage)
+  return lembrado === null ? null : lembrado.nome
+}
+
+/** "Sair": este aparelho deixa de entrar sozinho. A conta continua no mestre. */
+export function esquecerContaLembrada(storage: StorageLike | null): void {
+  writeAparelho(storage, null)
 }
 
 /** O `join` da tela da mesa: sem chave, a mensagem vai sem o campo e a sala responde `bad_table_key`. */
@@ -1721,6 +1777,8 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
   // A tela da mesa não tem sessão de jogador para retomar: sem storage, ela
   // nunca lê o resume de quem jogava nesta aba nem grava um por cima dele.
   const storage = isTable ? null : options.storage
+  /** CONTAS: o PIN da primeira entrada, só até o mestre aceitar — volta de queda não o manda de novo. */
+  let pendingPin = options.conta === undefined || options.conta === 'aparelho' ? null : options.conta
   const listeners = new Set<() => void>()
   const pending = new Map<string, PendingMove>()
   /**
@@ -3405,6 +3463,24 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     )
   }
 
+  /**
+   * CONTAS: o segredo do aparelho (guardado para a próxima entrada sem PIN) ou
+   * a recusa da entrada com conta. Aparelho recusado sai do storage: o mestre
+   * o esqueceu, e insistir com ele só daria a mesma recusa.
+   */
+  function handleAccountMessage(data: unknown): void {
+    if (isTable || options.conta === undefined) return
+    const msg = parseAccountHostMessage(data)
+    if (msg === null) return
+    if (msg.type === 'account.device') {
+      writeAparelho(storage, { nome: name, token: msg.token })
+      return
+    }
+    if (msg.reason === 'device') writeAparelho(storage, null)
+    clearReconnectTimers()
+    setState({ status: 'error', error: `account_${msg.reason}`, reconnecting: undefined })
+  }
+
   function handleMessage(raw: unknown): void {
     if (typeof raw !== 'string') return
     let data: unknown
@@ -3421,6 +3497,8 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         if (isTable) return
         if (typeof data.playerId !== 'string' || typeof data.resumeToken !== 'string') return
         writeResume(storage, { code, token: data.resumeToken })
+        // CONTAS: entrou — o PIN não vai mais; a volta de queda usa o aparelho (ou o resume).
+        pendingPin = null
         // O mestre aceitou (de novo): fim da volta automática, se havia uma.
         clearReconnectTimers()
         // Outro playerId: o mestre disse "É ela" e a "Ana (2)" virou a Ana. O
@@ -4225,6 +4303,10 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         clearPeekTimer()
         setState({ status: 'replaced', hide: undefined, doorNotice: undefined, doorRequest: undefined, travel: undefined, call: undefined, reconnecting: undefined, pinPeek: undefined })
         return
+      case 'account.device':
+      case 'account.refused':
+        handleAccountMessage(data)
+        return
       case 'error': {
         const reason = typeof data.reason === 'string' ? data.reason : 'unknown'
         // O transporte pode avisar a expulsão como erro: mesmo efeito de `kicked`.
@@ -4265,14 +4347,37 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     }
   }
 
+  /**
+   * O `join` do jogador. Com conta: o PIN só até o primeiro `welcome`; depois
+   * (e nas voltas de queda) o aparelho lembrado, que é a conta de novo — de
+   * outro aparelho também. Sem ele, o resume desta sessão. `null` = a entrada
+   * com conta não tem com o que entrar. Sem conta: o resume ou o nome, como sempre.
+   */
+  function playerJoin(): JoinMessage | null {
+    if (pendingPin !== null) {
+      const label = pendingPin.rotulo.length > 0 ? { deviceLabel: pendingPin.rotulo } : {}
+      return { type: 'join', code, name, pin: pendingPin.pin, ...label }
+    }
+    const device = options.conta === undefined ? null : readAparelho(storage)
+    if (device !== null) return { type: 'join', code, name: device.nome, device: device.token }
+    const resume = readResume(storage, code)
+    if (resume) return { type: 'join', code, name, resume }
+    return options.conta === undefined ? { type: 'join', code, name } : null
+  }
+
   function open(): void {
     pending.clear()
     const current = createSocket(url)
     socket = current
     current.onopen = () => {
       if (socket !== current) return
-      const resume = readResume(storage, code)
-      const join: JoinMessage = isTable ? tableJoin(code, name, options.tableKey) : resume ? { type: 'join', code, name, resume } : { type: 'join', code, name }
+      const join = isTable ? tableJoin(code, name, options.tableKey) : playerJoin()
+      if (join === null) {
+        // Entrar com a conta sem PIN, sem aparelho lembrado e sem sessão para retomar: só o PIN de novo resolve.
+        setState({ status: 'error', error: 'account_device', reconnecting: undefined })
+        current.close()
+        return
+      }
       // O prazo do silêncio conta a partir de agora, não da conexão anterior.
       lastHeardAt = Date.now()
       send(options.aceitaGzip === true ? { ...join, accept: [ACEITA_GZIP] } : join)

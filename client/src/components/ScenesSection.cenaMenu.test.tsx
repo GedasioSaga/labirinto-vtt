@@ -97,11 +97,17 @@ describe('ScenesSection: menu "…" da cena (Duplicar, Subir, Descer, Apagar)', 
     expect(container.querySelector('button[aria-label^="Mais ações de"]')).toBeNull()
   })
 
-  it('o menu tem os quatro itens, com foco no primeiro; Subir fica esmaecido na primeira cena', () => {
+  it('o menu tem os cinco itens, com foco no primeiro; Subir fica esmaecido na primeira cena', () => {
     render()
     const menu = abrir('PC - Cais')
     expect(gatilho('PC - Cais').getAttribute('aria-expanded')).toBe('true')
-    expect(Array.from(menu.querySelectorAll('[role="menuitem"]')).map((b) => b.textContent)).toEqual(['Duplicar', 'Subir', 'Descer', 'Apagar cena…'])
+    expect(Array.from(menu.querySelectorAll('[role="menuitem"]')).map((b) => b.textContent)).toEqual([
+      'Duplicar',
+      'Subir',
+      'Descer',
+      'Definir como cena inicial',
+      'Apagar cena…',
+    ])
     expect(document.activeElement).toBe(item(menu, 'Duplicar'))
     expect(item(menu, 'Subir').getAttribute('aria-disabled')).toBe('true')
     expect(item(menu, 'Descer').getAttribute('aria-disabled')).toBeNull()

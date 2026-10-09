@@ -39,6 +39,7 @@ import {
 } from '../lib/adventure'
 import type { AgendaDaCampanha } from '../lib/agendaDaCampanha'
 import type { Personagem } from '../lib/personagem'
+import { gravarRpgDaPasta, rpgDe, type PastaAberta, type RpgDaPasta } from '../lib/pastasDeMapas'
 import { personagemComMidia } from '../lib/imagensDaFicha'
 import type { SistemaDeRpg } from '../lib/sistemaDeRpg'
 import {
@@ -185,6 +186,8 @@ export interface SceneListItem {
   publicName?: string
   /** `true` = "Planta conhecida por todos" ligada nesta cena. Ausente = desligada (e mapa solto). */
   planKnownByAll?: boolean
+  /** `true` = a CENA INICIAL, onde a aventura abre pelo Carregar Mapa. Ausente = outra cena (e mapa solto). */
+  start?: boolean
 }
 
 /** `{ publicName }` só quando a cena tem um: o objeto não carrega `publicName: undefined`. */
@@ -211,6 +214,15 @@ interface AdventureState {
   structureDirty: boolean
   /** Último pedido de câmera da troca de cena; `null` até a primeira troca. */
   cameraRequest: CameraRequest | null
+  /**
+   * PASTA DE MAPAS do mapa aberto (`lib/pastasDeMapas.ts`), com a cópia ÚNICA
+   * do sistema e dos personagens dela; `null` = fora das pastas. Quem lê e
+   * grava personagem passa por `personagensAtivos`/`sistemaAtivo` e pelas
+   * ações abaixo, que escolhem entre a pasta e a aventura (`herdaDaPasta`).
+   */
+  pasta: PastaAberta | null
+  /** A cópia da pasta mudou desde a última gravação (`gravarPasta`). */
+  pastaSuja: boolean
 
   /** Mapa novo ou solto: esquece qualquer aventura anterior. */
   reset: () => void
@@ -220,8 +232,32 @@ interface AdventureState {
    * cada uma passa a abrir assim que chega (em lotes curtos), sem esperar a
    * mais lenta. A promessa resolve quando todas chegaram (ou não abriram) e nunca rejeita.
    * Abrir outro mapa antes disso descarta o que ainda chegar desta.
+   * `pasta`: a pasta do arquivo aberto (`pastaAbertaDoArquivo`); `null` = fora das pastas.
    */
-  open: (opened: OpenedMapFile) => Promise<void>
+  open: (opened: OpenedMapFile, pasta?: PastaAberta | null) => Promise<void>
+  /**
+   * CENA INICIAL: a cena em que a aventura abre pelo Carregar Mapa. Pede
+   * Salvar como o renomear. `false` = mapa solto, cena que não existe, ou ela
+   * já era a inicial.
+   */
+  definirCenaInicial: (sceneId: string) => boolean
+  /**
+   * "Configurar só neste mapa" (`true`) e "Usar o da pasta" (`false`): troca
+   * o que o editor usa, sem mexer em nenhuma lista — os personagens do mapa
+   * ficam na aventura e os da pasta na pasta. Quem grava o modo no índice é
+   * `stores/rpgDaPasta.ts`. `false` = fora das pastas.
+   */
+  definirProprio: (proprio: boolean) => boolean
+  /**
+   * A mesma mudança que a configuração da pasta acabou de gravar no disco,
+   * aplicada à cópia aberta (quando é dessa pasta): a mudança não salva da
+   * mesa continua pendente, e a nova entra junto. `false` = outra pasta.
+   */
+  mudarRpgDaPasta: (pastaId: string, mudar: (rpg: RpgDaPasta) => RpgDaPasta) => boolean
+  /** O nome e o modo da pasta mudaram (ou o mapa saiu dela, `null`) no Carregar Mapa. */
+  acertarPasta: (lugar: { pastaId: string; nome: string; proprio: boolean } | null) => void
+  /** Grava a cópia da pasta, se mudou. Lança com a razão; o que mudou durante a gravação continua pendente. */
+  gravarPasta: () => Promise<void>
   /** Cria a cena, já aberta. `loosePath` é o arquivo do mapa solto, quando a aventura nasce agora. */
   createScene: (name: string, loosePath: string | null) => string
   /**
@@ -534,6 +570,8 @@ const EMPTY = {
   dirty: {},
   structureDirty: false,
   cameraRequest: null,
+  pasta: null,
+  pastaSuja: false,
 } satisfies Partial<AdventureState>
 
 /** Lista pronta para a tela: a cena aberta conta os tokens do mapa vivo. */
@@ -541,11 +579,21 @@ export function sceneList(state: Pick<AdventureState, 'adventure' | 'activeScene
   if (state.adventure === null) {
     return [{ id: '', name: liveMap.name, tokenCount: liveMap.tokens.length, available: true, active: true, renamable: false }]
   }
+  const startSceneId = state.adventure.startSceneId
   return state.adventure.scenes.map((entry): SceneListItem => {
     const active = entry.id === state.activeSceneId
     const slot = state.cache[entry.id]
-    // `parentId` só na cena de dentro: a do primeiro nível fica como sempre foi.
-    const base = { id: entry.id, name: entry.name, active, renamable: true, ...(entry.parentId === undefined ? {} : { parentId: entry.parentId }), ...publicNameOf(entry), ...(entry.planKnownByAll === true ? { planKnownByAll: true } : {}) }
+    // `parentId` só na cena de dentro: a do primeiro nível fica como sempre foi. `start` só na cena inicial.
+    const base = {
+      id: entry.id,
+      name: entry.name,
+      active,
+      renamable: true,
+      ...(entry.parentId === undefined ? {} : { parentId: entry.parentId }),
+      ...publicNameOf(entry),
+      ...(entry.planKnownByAll === true ? { planKnownByAll: true } : {}),
+      ...(entry.id === startSceneId ? { start: true } : {}),
+    }
     if (active) return { ...base, tokenCount: liveMap.tokens.length, available: true }
     if (slot !== undefined && slot.status === 'carregando') return { ...base, tokenCount: null, available: false, loading: true }
     if (slot === undefined || slot.status !== 'ok') return { ...base, tokenCount: null, available: false }
@@ -801,16 +849,81 @@ export function pinTravelOptions(state: SceneState, liveMap: MapData, sceneId: s
  * ela, o mundo leva a FICHA DE PERSONAGEM (`HostWorld.rpg`): o sistema da
  * aventura e os personagens dela.
  */
-export function hostWorldOf(state: SceneState, liveMap: MapData, biblioteca?: readonly SistemaDeRpg[]): HostWorld {
+export function hostWorldOf(state: SceneState, liveMap: MapData): HostWorld
+export function hostWorldOf(state: SceneState & RpgState, liveMap: MapData, biblioteca: readonly SistemaDeRpg[]): HostWorld
+export function hostWorldOf(state: SceneState & Partial<RpgState>, liveMap: MapData, biblioteca?: readonly SistemaDeRpg[]): HostWorld {
   const mundo = mundoDasCenas(state, liveMap)
-  if (biblioteca === undefined || state.adventure === null) return mundo
-  const sistemaId = state.adventure.sistemaDeRpg
+  // A sobrecarga com `biblioteca` exige `pasta`: aqui ela só falta quando a biblioteca também falta.
+  const rpg: RpgState = { adventure: state.adventure, pasta: state.pasta ?? null }
+  if (biblioteca === undefined || !temRpgNoMapa(rpg)) return mundo
+  const sistemaId = sistemaAtivo(rpg)
   const sistema = sistemaId === undefined ? undefined : biblioteca.find((candidato) => candidato.id === sistemaId)
-  return { ...mundo, rpg: { sistema: sistema ?? null, personagens: state.adventure.personagens ?? SEM_PERSONAGENS } }
+  return { ...mundo, rpg: { sistema: sistema ?? null, personagens: personagensAtivos(rpg) } }
 }
 
 /** Referência estável: a sessão compara os personagens por referência para não reenviar a ficha. */
 const SEM_PERSONAGENS: readonly Personagem[] = []
+
+/** O que decide de onde vêm o sistema e os personagens do mapa aberto. */
+type RpgState = Pick<AdventureState, 'adventure' | 'pasta'>
+
+/** A pasta que manda no RPG do mapa: tem sistema universal e o mapa não pediu o próprio. */
+function pastaQueManda(state: Pick<AdventureState, 'pasta'>): PastaAberta | null {
+  const { pasta } = state
+  return pasta !== null && !pasta.proprio && pasta.sistemaDeRpg !== undefined ? pasta : null
+}
+
+/**
+ * PASTAS DE MAPAS: o mapa aberto usa o sistema e os personagens da PASTA
+ * ("Usar o da pasta"). A pasta sem sistema universal só organiza: o mapa usa
+ * o próprio, e entrar numa pasta não esconde os personagens de ninguém.
+ */
+export function herdaDaPasta(state: Pick<AdventureState, 'pasta'>): boolean {
+  return pastaQueManda(state) !== null
+}
+
+/** O id do sistema em uso: o da pasta quando o mapa herda, senão o da aventura (`undefined` = sem sistema, ou mapa solto). */
+export function sistemaAtivo(state: RpgState): string | undefined {
+  const pasta = pastaQueManda(state)
+  if (pasta !== null) return pasta.sistemaDeRpg
+  return state.adventure === null ? undefined : state.adventure.sistemaDeRpg
+}
+
+/**
+ * Os personagens em uso — a ÚNICA leitura da lista para a ficha, a mesa e o
+ * jogador: os da pasta quando o mapa herda (a mesma cópia em todos os mapas
+ * dela), senão os da aventura. Referência estável enquanto nada muda.
+ */
+export function personagensAtivos(state: RpgState): readonly Personagem[] {
+  const pasta = pastaQueManda(state)
+  if (pasta !== null) return pasta.personagens
+  return state.adventure?.personagens ?? SEM_PERSONAGENS
+}
+
+/**
+ * Há onde guardar sistema e personagens: aventura aberta, ou mapa (até solto)
+ * que herda da pasta — esse não precisa virar aventura, a pasta guarda por ele.
+ */
+export function temRpgNoMapa(state: RpgState): boolean {
+  return state.adventure !== null || herdaDaPasta(state)
+}
+
+/**
+ * Quem guarda a lista de personagens ATIVA e como gravá-la: a pasta (pede a
+ * gravação da pasta) ou a aventura (pede Salvar). `null` = mapa solto fora de
+ * pasta que herda: não há onde guardar.
+ */
+function donoDosPersonagens(
+  get: () => AdventureState,
+  set: (patch: Partial<AdventureState>) => void,
+): { lista: readonly Personagem[] | undefined; gravar: (personagens: Personagem[]) => void } | null {
+  const state = get()
+  const pasta = pastaQueManda(state)
+  if (pasta !== null) return { lista: pasta.personagens, gravar: (personagens) => set({ pasta: { ...pasta, personagens }, pastaSuja: true }) }
+  const { adventure } = state
+  if (adventure === null) return null
+  return { lista: adventure.personagens, gravar: (personagens) => set({ adventure: { ...adventure, personagens }, structureDirty: true }) }
+}
 
 function mundoDasCenas(state: SceneState, liveMap: MapData): HostWorld {
   if (state.adventure === null || state.activeSceneId === null) return singleSceneWorld(liveMap)
@@ -1153,10 +1266,10 @@ export const useAdventureStore = create<AdventureState>()((set, get) => ({
     set({ ...EMPTY })
   },
 
-  open: (opened) => {
+  open: (opened, pasta = null) => {
     const generation = beginOpening()
     if (opened.adventure === null || opened.activeSceneId === null) {
-      set({ ...EMPTY })
+      set({ ...EMPTY, pasta })
       showInEditor(opened.map, [], [])
       return Promise.resolve()
     }
@@ -1175,6 +1288,7 @@ export const useAdventureStore = create<AdventureState>()((set, get) => ({
       cache,
       dirty,
       structureDirty: opened.adventureChanged,
+      pasta,
     })
     showInEditor(opened.map, [], [])
     if (!opened.scenes.some((load) => load.status === 'pendente')) return Promise.resolve()
@@ -1367,6 +1481,13 @@ export const useAdventureStore = create<AdventureState>()((set, get) => ({
   },
 
   setSistemaDeRpg: (sistemaId) => {
+    // Mapa que herda troca o sistema UNIVERSAL: vale para todos os mapas da pasta (a tela diz isso antes).
+    const pasta = pastaQueManda(get())
+    if (pasta !== null) {
+      const { sistemaDeRpg: _anterior, ...semSistema } = pasta
+      set({ pasta: sistemaId === null ? semSistema : { ...semSistema, sistemaDeRpg: sistemaId }, pastaSuja: true })
+      return true
+    }
     const { adventure } = get()
     if (adventure === null) return false
     const { sistemaDeRpg: _anterior, ...semSistema } = adventure
@@ -1375,50 +1496,91 @@ export const useAdventureStore = create<AdventureState>()((set, get) => ({
   },
 
   salvarPersonagem: (personagem) => {
-    const { adventure } = get()
-    if (adventure === null) return false
-    const lista = adventure.personagens ?? []
+    const dono = donoDosPersonagens(get, set)
+    if (dono === null) return false
+    const lista = dono.lista ?? []
     const existe = lista.some((atual) => atual.id === personagem.id)
-    const personagens = existe ? lista.map((atual) => (atual.id === personagem.id ? personagem : atual)) : [...lista, personagem]
-    set({ adventure: { ...adventure, personagens }, structureDirty: true })
+    dono.gravar(existe ? lista.map((atual) => (atual.id === personagem.id ? personagem : atual)) : [...lista, personagem])
     return true
   },
 
   ajustarPersonagem: (personagemId, ajustar) => {
-    const { adventure } = get()
-    const atual = adventure?.personagens?.find((personagem) => personagem.id === personagemId)
-    if (adventure === null || atual === undefined) return false
+    const dono = donoDosPersonagens(get, set)
+    const lista = dono?.lista ?? []
+    const atual = lista.find((personagem) => personagem.id === personagemId)
+    if (dono === null || atual === undefined) return false
     const novo = ajustar(atual)
     if (novo === atual) return true
-    set({ adventure: { ...adventure, personagens: (adventure.personagens ?? []).map((personagem) => (personagem.id === personagemId ? novo : personagem)) }, structureDirty: true })
+    dono.gravar(lista.map((personagem) => (personagem.id === personagemId ? novo : personagem)))
     return true
   },
 
   adicionarPersonagens: (novos) => {
-    const { adventure } = get()
-    if (adventure === null) return false
+    const dono = donoDosPersonagens(get, set)
+    if (dono === null) return false
     if (novos.length === 0) return true
-    set({ adventure: { ...adventure, personagens: [...(adventure.personagens ?? []), ...novos] }, structureDirty: true })
+    dono.gravar([...(dono.lista ?? []), ...novos])
     return true
   },
 
   trocarImagensDosPersonagens: (trocas) => {
-    const { adventure } = get()
-    const lista = adventure?.personagens
-    if (adventure === null || lista === undefined) return false
+    const dono = donoDosPersonagens(get, set)
+    const lista = dono?.lista
+    if (dono === null || lista === undefined) return false
     const novos = lista.map((personagem) => personagemComMidia(personagem, trocas))
     if (novos.every((novo, i) => novo === lista[i])) return true
-    // Mudou o arquivo da aventura (a embutida sai do `adventure.json`): pede Salvar, como a migração da abertura.
-    set({ adventure: { ...adventure, personagens: novos }, structureDirty: true })
+    // Mudou o arquivo (a embutida sai do `adventure.json` ou do `rpg.json` da pasta): pede Salvar, como a migração da abertura.
+    dono.gravar(novos)
     return true
   },
 
   apagarPersonagem: (personagemId) => {
-    const { adventure } = get()
-    const lista = adventure?.personagens ?? []
-    if (adventure === null || !lista.some((personagem) => personagem.id === personagemId)) return false
-    set({ adventure: { ...adventure, personagens: lista.filter((personagem) => personagem.id !== personagemId) }, structureDirty: true })
+    const dono = donoDosPersonagens(get, set)
+    const lista = dono?.lista ?? []
+    if (dono === null || !lista.some((personagem) => personagem.id === personagemId)) return false
+    dono.gravar(lista.filter((personagem) => personagem.id !== personagemId))
     return true
+  },
+
+  definirCenaInicial: (sceneId) => {
+    const { adventure } = get()
+    if (adventure === null || adventure.startSceneId === sceneId || !adventure.scenes.some((entry) => entry.id === sceneId)) return false
+    set({ adventure: { ...adventure, startSceneId: sceneId }, structureDirty: true })
+    return true
+  },
+
+  definirProprio: (proprio) => {
+    const { pasta } = get()
+    if (pasta === null) return false
+    if (pasta.proprio !== proprio) set({ pasta: { ...pasta, proprio } })
+    return true
+  },
+
+  mudarRpgDaPasta: (pastaId, mudar) => {
+    const { pasta } = get()
+    if (pasta === null || pasta.pastaId !== pastaId) return false
+    const { sistemaDeRpg: _anterior, ...semSistema } = pasta
+    // `pastaSuja` fica como estava: a mudança já está no disco, a da mesa (se houver) continua por gravar.
+    set({ pasta: { ...semSistema, ...mudar(rpgDe(pasta)) } })
+    return true
+  },
+
+  acertarPasta: (lugar) => {
+    const { pasta } = get()
+    if (pasta === null) return
+    if (lugar === null || lugar.pastaId !== pasta.pastaId) {
+      set({ pasta: null, pastaSuja: false })
+      return
+    }
+    if (lugar.nome !== pasta.nome || lugar.proprio !== pasta.proprio) set({ pasta: { ...pasta, nome: lugar.nome, proprio: lugar.proprio } })
+  },
+
+  gravarPasta: async () => {
+    const { pasta, pastaSuja } = get()
+    if (pasta === null || !pastaSuja) return
+    await gravarRpgDaPasta(pasta.pastaId, rpgDe(pasta))
+    // Só sai de "pendente" o que continua IGUAL ao que foi escrito, como no `flush`.
+    if (get().pasta === pasta) set({ pastaSuja: false })
   },
 
   switchScene: (sceneId, focus) => {
@@ -1882,10 +2044,11 @@ export const useAdventureStore = create<AdventureState>()((set, get) => ({
   },
 
   hasPendingScenes: () => {
-    const { adventure, cache, dirty, structureDirty } = get()
+    const { adventure, cache, dirty, structureDirty, pastaSuja } = get()
     // Mudança esperando uma cena que ainda está vindo do disco também é trabalho não salvo.
     const waiting = Object.values(cache).some((slot) => slot.status === 'carregando' && slot.pending.length > 0)
-    return adventure !== null && (structureDirty || waiting || Object.keys(dirty).length > 0)
+    // O HP mexido na ficha da pasta também: o mapa solto que herda não tem aventura, mas tem o que salvar.
+    return (adventure !== null && (structureDirty || waiting || Object.keys(dirty).length > 0)) || pastaSuja
   },
 
   flush: async (stored = []) => {

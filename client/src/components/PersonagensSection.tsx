@@ -5,7 +5,7 @@ import { temLivro } from '../lib/livroDeRegras'
 import { novoPersonagem, type Personagem } from '../lib/personagem'
 import type { SistemaDeRpg } from '../lib/sistemaDeRpg'
 import { buildTokenPhotoData } from '../lib/tokenPhoto'
-import { useAdventureStore } from '../stores/adventureStore'
+import { herdaDaPasta, personagensAtivos, sistemaAtivo, useAdventureStore } from '../stores/adventureStore'
 import { sistemaPorId, useRpgStore } from '../stores/rpgStore'
 import { comAventura } from '../stores/virarAventura'
 import { CollapsibleSection } from './CollapsibleSection'
@@ -25,6 +25,8 @@ export interface PersonagensSectionProps {
   onApagar: (personagemId: string) => void
   /** "Importar personagens…": devolve o resumo (`null` = cancelou). Lança com a razão. */
   onImportar: () => Promise<ResultadoDaImportacao | null>
+  /** PASTAS DE MAPAS: o nome da pasta quando os personagens são os dela. Ausente = os do mapa. */
+  nomeDaPasta?: string
 }
 
 /** A frase do resultado: quantos entraram, com os nomes, e quantos NPCs ficaram de fora. */
@@ -43,7 +45,7 @@ export function resumoDaImportacao(resultado: ResultadoDaImportacao): string {
  * mapa solto: criar ou importar ali pergunta antes se o mapa vira aventura,
  * porque personagens e sistema moram no `adventure.json`.
  */
-export function PersonagensSection({ sistema, sistemaId, personagens, onAbrirLivro, onAbrirFicha, onCriar, onApagar, onImportar }: PersonagensSectionProps) {
+export function PersonagensSection({ sistema, sistemaId, personagens, onAbrirLivro, onAbrirFicha, onCriar, onApagar, onImportar, nomeDaPasta }: PersonagensSectionProps) {
   const [apagando, setApagando] = useState<string | null>(null)
   const [importando, setImportando] = useState(false)
   const [estado, setEstado] = useState<{ tipo: 'ok' | 'erro'; texto: string; avisos: string[] } | null>(null)
@@ -71,6 +73,8 @@ export function PersonagensSection({ sistema, sistemaId, personagens, onAbrirLiv
       {/* h3: a aba Jogo já tem o h2 "Sala" acima. */}
       <CollapsibleSection id="personagens" title="Personagens" defaultOpen={false} contagem={personagens.length} headingLevel={3}>
         <div className="lb-rpg">
+          {/* Mexer aqui é mexer em todos os mapas da pasta: o mestre precisa saber antes do −/+. */}
+          {nomeDaPasta !== undefined && <p className="lb-field__hint">Da pasta &quot;{nomeDaPasta}&quot;: a mesma ficha em todos os mapas dela.</p>}
           {personagens.length === 0 ? (
             <p className="lb-rpg__vazio">Nenhum personagem ainda.</p>
           ) : (
@@ -147,26 +151,29 @@ export interface PersonagensDaAventuraProps {
 }
 
 /**
- * A seção ligada às stores: o sistema e os personagens da aventura aberta
- * (nenhum no mapa solto), a biblioteca de sistemas e as janelas (`RpgDialogs`).
+ * A seção ligada às stores: o sistema e os personagens EM USO
+ * (`sistemaAtivo`/`personagensAtivos`: os da pasta de mapas quando o mapa
+ * herda, senão os da aventura; nenhum no mapa solto), a biblioteca de
+ * sistemas e as janelas (`RpgDialogs`).
  */
 export function PersonagensDaAventura({ garantirAventura }: PersonagensDaAventuraProps) {
-  const adventure = useAdventureStore((state) => state.adventure)
+  const sistemaId = useAdventureStore(sistemaAtivo)
+  const personagens = useAdventureStore(personagensAtivos)
+  const nomeDaPasta = useAdventureStore((state) => (herdaDaPasta(state) && state.pasta !== null ? state.pasta.nome : undefined))
   const biblioteca = useRpgStore((state) => state.biblioteca)
   const carregarBiblioteca = useRpgStore((state) => state.carregarBiblioteca)
   // Sistema importado só se acha depois de ler a pasta: lida uma vez, na primeira vez que a seção aparece.
   useEffect(() => {
     void carregarBiblioteca()
   }, [carregarBiblioteca])
-  const sistemaId = adventure?.sistemaDeRpg
   const sistema = sistemaPorId(biblioteca, sistemaId)
-  const personagens = adventure?.personagens ?? []
 
   return (
     <PersonagensSection
       sistema={sistema}
       sistemaId={sistemaId}
       personagens={personagens}
+      nomeDaPasta={nomeDaPasta}
       onAbrirLivro={sistema !== undefined && temLivro(sistema) ? () => useRpgStore.getState().abrirLivro() : undefined}
       onAbrirFicha={(id) => useRpgStore.getState().abrirFicha(id)}
       onCriar={() => {
@@ -181,7 +188,7 @@ export function PersonagensDaAventura({ garantirAventura }: PersonagensDaAventur
         if (sistema === undefined || !(await garantirAventura())) return null
         const texto = await escolherTextoJson('Importar personagens do projeto-rpg-v2', 'Fichas do projeto-rpg-v2')
         if (texto === null) return null
-        const atuais = useAdventureStore.getState().adventure?.personagens ?? []
+        const atuais = personagensAtivos(useAdventureStore.getState())
         const resultado = await importarFichasDoProjetoRpg(texto, sistema, atuais, { reduzirImagem: buildTokenPhotoData })
         useAdventureStore.getState().adicionarPersonagens(resultado.personagens)
         return resultado

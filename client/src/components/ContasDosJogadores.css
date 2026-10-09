@@ -1,0 +1,93 @@
+/* CONTAS DOS JOGADORES (aba Jogo): a lista usa a linha de Personagens (.lb-rpg__*);
+   aqui só o que é delas — o resumo ao lado do nome, os grupos abertos e o formulário. */
+
+.lb-contas {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-3);
+}
+
+.lb-contas__opcao {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-1);
+}
+
+.lb-contas__lista,
+.lb-contas__aparelhos {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.lb-contas__resumo {
+  flex: none;
+  font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-parchment-faint);
+  white-space: nowrap;
+}
+
+.lb-contas__detalhes {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--lb-space-2);
+  margin: var(--lb-space-1) 0 var(--lb-space-2) var(--lb-space-2);
+  padding-left: var(--lb-space-2);
+  border-left: 1px solid var(--lb-color-line);
+}
+
+.lb-contas__grupo {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-1);
+  width: 100%;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.lb-contas__grupo .lb-label {
+  margin: 0;
+}
+
+.lb-contas__marca {
+  display: flex;
+  align-items: center;
+  gap: var(--lb-space-2);
+  min-height: 28px;
+  color: var(--lb-color-parchment);
+  font-size: var(--lb-font-size-md);
+  cursor: pointer;
+}
+
+.lb-contas__nova {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-2);
+}
+
+.lb-contas__campos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--lb-space-2);
+}
+
+.lb-contas__campos > .lb-field {
+  flex: 1 1 140px;
+  min-width: 0;
+}
+
+/* O PIN tem no máximo 12 números: campo estreito, letras espaçadas para conferir de relance. */
+.lb-contas__pin {
+  flex: 0 1 120px;
+}
+
+.lb-contas__pin .lb-input {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.12em;
+}

@@ -16,6 +16,7 @@ import { CLUEBOOK_MAX_CLUES, CLUE_TEXT_MAX_LENGTH, CLUE_TITLE_MAX_LENGTH } from 
 import { isPointActionKind, isPointActionRejection, type PointActionAnswer, type PointActionKind, type PointActionRejection } from '../lib/pointActions'
 import { isLetterVia, LETTER_TEXT_MAX_LENGTH, type LetterVia } from '../lib/correio'
 import { CHAT_HISTORY_MAX, CHAT_TEXT_MAX_LENGTH, cleanChatText, cleanPlayerName, isChatChannel, type ChatChannel } from '../lib/chat'
+import { APARELHO_TOKEN_PADRAO, pinValido, rotuloDoAparelho } from '../lib/contasDosJogadores'
 import { MAX_DESTINATION_MARKS, SIGNAL_COLOR_PATTERN, type DestinationMark } from '../lib/signals'
 import { MASTER_ROLLER_NAME, parseDiceRequest, type DiceRequest, type DiceRollEntry } from '../lib/dice'
 import { isNoiseDirection, type NoiseDirection } from '../lib/noise'
@@ -489,6 +490,18 @@ export interface JoinMessage {
    * ignora o campo.
    */
   accept?: JoinAccept[]
+  /**
+   * CONTAS DOS JOGADORES: entrar com a conta que o mestre criou — `name` é o
+   * nome da conta e `pin` o PIN dela. Só na primeira vez no aparelho: o
+   * mestre responde com `account.device`, e daí em diante vai `device`. Nunca
+   * junto de `resume`, `role`, `tableKey` nem do `device`. Mestre antigo
+   * ignora o campo e trata a entrada como a de sempre, só pelo nome.
+   */
+  pin?: string
+  /** CONTAS: o segredo do aparelho lembrado (o `account.device` de antes), no lugar do PIN. */
+  device?: string
+  /** CONTAS: como o mestre lê este aparelho na lista ("Chrome no Android"). Só junto de `pin`. */
+  deviceLabel?: string
 }
 
 /** Compressões que o jogador pode declarar no `join`. */
@@ -1686,7 +1699,39 @@ export type ChatHostMessage = ChatHistoryMessage | ChatMsgMessage | ChatSendResu
  * `table_full`: já há `MAX_TABLE_SCREENS` telas da mesa na sala (`hostSession.ts`).
  * `bad_table_key`: tela da mesa sem a chave do link da TV, ou com outra.
  */
-export type HostErrorReason = 'bad_code' | 'invalid_message' | 'not_joined' | 'already_joined' | 'table_full' | 'bad_table_key'
+export type HostErrorReason = 'bad_code' | 'invalid_message' | 'not_joined' | 'already_joined' | 'table_full' | 'bad_table_key' | 'account_required'
+
+/**
+ * CONTAS DOS JOGADORES: por que a entrada com conta foi recusada. Nome que não
+ * tem conta e PIN errado são o MESMO `invalid` — um motivo por caso ensinaria
+ * quais nomes têm conta. `locked`: tentativas demais (`retryInS` diz quanto
+ * esperar). `device`: o aparelho não está mais lembrado (o mestre o esqueceu).
+ * `unavailable`: esta sala não confere conta (a Visão de jogador do mestre).
+ */
+export type AccountRefusedReason = 'invalid' | 'locked' | 'device' | 'unavailable'
+
+export type AccountHostMessage =
+  // Vai UMA vez, logo depois do `welcome` da entrada com PIN: o mestre só guarda o hash.
+  | { type: 'account.device'; token: string }
+  | { type: 'account.refused'; reason: AccountRefusedReason; retryInS?: number }
+
+const ACCOUNT_REFUSED_REASONS: readonly AccountRefusedReason[] = ['invalid', 'locked', 'device', 'unavailable']
+/** Teto do `retryInS`: o bloqueio mais longo é de minutos (`net/entradaComConta.ts`). */
+const ACCOUNT_RETRY_MAX_S = 24 * 60 * 60
+
+/** O lado do jogador: `account.device` e `account.refused`, ou `null` se torto. */
+export function parseAccountHostMessage(value: unknown): AccountHostMessage | null {
+  if (!isRecord(value)) return null
+  if (value.type === 'account.device') {
+    return typeof value.token === 'string' && APARELHO_TOKEN_PADRAO.test(value.token) ? { type: 'account.device', token: value.token } : null
+  }
+  if (value.type !== 'account.refused') return null
+  const reason = ACCOUNT_REFUSED_REASONS.find((known) => known === value.reason)
+  if (reason === undefined) return null
+  const { retryInS } = value
+  const retry = typeof retryInS === 'number' && Number.isInteger(retryInS) && retryInS > 0 && retryInS <= ACCOUNT_RETRY_MAX_S ? { retryInS } : {}
+  return { type: 'account.refused', reason, ...retry }
+}
 
 /**
  * COLEÇÃO DE PISTAS: todas as coleções deste jogador, mandadas na entrada e a
@@ -1907,6 +1952,8 @@ export type HostMessage =
   // da aba nova também. Sem nada dentro: nem quem, nem de onde.
   | { type: 'session.replaced' }
   | { type: 'error'; reason: HostErrorReason }
+  // CONTAS DOS JOGADORES: o segredo do aparelho, ou a recusa da entrada com conta.
+  | AccountHostMessage
   // Resposta ao `ping` de quem está na sala: só "estou aqui", sem nada dentro.
   // É o que deixa o jogador notar a conexão morta que nunca fecha.
   | { type: 'pong' }
@@ -1932,6 +1979,26 @@ function parseJoinAccept(raw: unknown): { accept?: JoinAccept[] } {
   return { accept: ['gzip'] }
 }
 
+/** Teto do rótulo do aparelho como chega (o que fica é cortado em `ROTULO_DO_APARELHO_MAX`). */
+const DEVICE_LABEL_MAX_LENGTH = 80
+
+/**
+ * CONTAS: o `join` com `pin` (nome da conta + PIN) ou com `device` (o aparelho
+ * lembrado). Qualquer mistura — os dois juntos, rótulo sem PIN, segredo fora
+ * do formato — derruba a mensagem inteira, como o resto do `join`.
+ */
+function parseAccountJoin(code: string, name: string, obj: Record<string, unknown>, accept: { accept?: JoinAccept[] }): JoinMessage | null {
+  const { pin, device, deviceLabel } = obj
+  if (device !== undefined) {
+    if (pin !== undefined || deviceLabel !== undefined || typeof device !== 'string' || !APARELHO_TOKEN_PADRAO.test(device)) return null
+    return { type: 'join', code, name, device, ...accept }
+  }
+  if (typeof pin !== 'string' || !pinValido(pin)) return null
+  if (deviceLabel === undefined) return { type: 'join', code, name, pin, ...accept }
+  if (!isBoundedString(deviceLabel, 1, DEVICE_LABEL_MAX_LENGTH)) return null
+  return { type: 'join', code, name, pin, deviceLabel: rotuloDoAparelho(deviceLabel), ...accept }
+}
+
 function parseJoin(obj: Record<string, unknown>): JoinMessage | null {
   const { code, name, resume, role, tableKey } = obj
   if (typeof code !== 'string' || !JOIN_CODE_PATTERN.test(code)) return null
@@ -1941,6 +2008,11 @@ function parseJoin(obj: Record<string, unknown>): JoinMessage | null {
   // `length` conta unidades UTF-16 (emoji = 2): é o limite que o jogador vê no input.
   if (cleanName.length < NAME_MIN_LENGTH || cleanName.length > NAME_MAX_LENGTH) return null
   const accept = parseJoinAccept(obj.accept)
+  if (obj.pin !== undefined || obj.device !== undefined || obj.deviceLabel !== undefined) {
+    // A conta é a identidade: não se mistura com retomar sessão nem com a tela da mesa.
+    if (role !== undefined || resume !== undefined || tableKey !== undefined) return null
+    return parseAccountJoin(code, cleanName, obj, accept)
+  }
   if (role !== undefined) {
     // Tela da mesa nunca retoma sessão de jogador: com `resume` junto, a mensagem cai inteira.
     if (role !== 'table' || resume !== undefined) return null

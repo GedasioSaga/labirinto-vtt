@@ -280,13 +280,17 @@ function avisarMidiaRecusada(trazida: MidiaTrazida): void {
   if (texto !== null) useToastStore.getState().push('info', texto, AVISO_DE_MIDIA_MS, { chave: 'midia-recusada' })
 }
 
-/** Ao salvar a aventura: a mídia de fichas e mochilas vai para `<pasta>/midia`. Nunca lança; o que não foi vira aviso. */
-export async function levarMidiaDaAventura(pastaDaAventura: string, uso: UsoDaMidia): Promise<MidiaLevada> {
+/**
+ * Leva a mídia de `uso` para a pasta que `pastaDaMidia` resolve. Nunca lança;
+ * o que não foi vira aviso. A pasta é resolvida aqui dentro para que até a
+ * montagem do caminho que falha vire "faltou", e não erro na gravação.
+ */
+async function levarPara(pastaDaMidia: () => Promise<string>, uso: UsoDaMidia): Promise<MidiaLevada> {
   const ids = idsDaMidiaUsada(uso)
   if (ids.length === 0) return { copiados: [], faltaram: [] }
   let levada: MidiaLevada
   try {
-    levada = await copiarMidiaParaAPasta(await pastaDaMidiaDaAventura(pastaDaAventura), ids)
+    levada = await copiarMidiaParaAPasta(await pastaDaMidia(), ids)
   } catch {
     levada = { copiados: [], faltaram: ids }
   }
@@ -294,18 +298,35 @@ export async function levarMidiaDaAventura(pastaDaAventura: string, uso: UsoDaMi
   return levada
 }
 
+/** Ao salvar a aventura: a mídia de fichas e mochilas vai para `<pasta>/midia`. Nunca lança; o que não foi vira aviso. */
+export async function levarMidiaDaAventura(pastaDaAventura: string, uso: UsoDaMidia): Promise<MidiaLevada> {
+  return levarPara(() => pastaDaMidiaDaAventura(pastaDaAventura), uso)
+}
+
 /** Ao salvar (ou exportar) o mapa solto: a mídia das mochilas vai para a pasta irmã do arquivo. Nunca lança. */
 export async function levarMidiaDoMapaSolto(caminhoDoMapa: string, mapa: MapData): Promise<MidiaLevada> {
-  const ids = idsDaMidiaUsada({ mapas: [mapa] })
-  if (ids.length === 0) return { copiados: [], faltaram: [] }
-  let levada: MidiaLevada
+  return levarPara(() => pastaDaMidiaDoMapaSolto(caminhoDoMapa), { mapas: [mapa] })
+}
+
+/**
+ * Ao salvar os personagens de uma PASTA DE MAPAS (`lib/pastasDeMapas.ts`): a
+ * mídia das fichas vai para `pastaDaMidia`, que a pasta guarda como a aventura
+ * guarda a dela. Nunca lança; o que não foi vira aviso.
+ */
+export async function levarMidiaParaAPasta(pastaDaMidia: string, uso: UsoDaMidia): Promise<MidiaLevada> {
+  return levarPara(async () => pastaDaMidia, uso)
+}
+
+/** Traz a mídia de `pastaDaMidia` para `<appData>/midia`, como a abertura faz. Nunca lança; o recusado vira aviso. */
+async function trazerDe(pastaDaMidia: () => Promise<string>): Promise<MidiaTrazida> {
+  let trazida: MidiaTrazida
   try {
-    levada = await copiarMidiaParaAPasta(await pastaDaMidiaDoMapaSolto(caminhoDoMapa), ids)
+    trazida = await importarMidiaDaPasta(await pastaDaMidia())
   } catch {
-    levada = { copiados: [], faltaram: ids }
+    trazida = { importados: [], recusados: [], pastaIlegivel: false }
   }
-  avisarMidiaQueFaltou(levada)
-  return levada
+  avisarMidiaRecusada(trazida)
+  return trazida
 }
 
 /**
@@ -314,13 +335,10 @@ export async function levarMidiaDoMapaSolto(caminhoDoMapa: string, mapa: MapData
  * `<img>` que pede um arquivo que ainda não chegou não tenta de novo. Nunca lança.
  */
 export async function trazerMidiaAoAbrir(caminhoDoMapa: string, pastaDaAventura: string | null): Promise<MidiaTrazida> {
-  let trazida: MidiaTrazida
-  try {
-    const pasta = pastaDaAventura === null ? await pastaDaMidiaDoMapaSolto(caminhoDoMapa) : await pastaDaMidiaDaAventura(pastaDaAventura)
-    trazida = await importarMidiaDaPasta(pasta)
-  } catch {
-    trazida = { importados: [], recusados: [], pastaIlegivel: false }
-  }
-  avisarMidiaRecusada(trazida)
-  return trazida
+  return trazerDe(() => (pastaDaAventura === null ? pastaDaMidiaDoMapaSolto(caminhoDoMapa) : pastaDaMidiaDaAventura(pastaDaAventura)))
+}
+
+/** Ao abrir um mapa de uma PASTA DE MAPAS: a mídia dos personagens da pasta volta para `<appData>/midia`. Nunca lança. */
+export async function trazerMidiaDaPasta(pastaDaMidia: string): Promise<MidiaTrazida> {
+  return trazerDe(async () => pastaDaMidia)
 }

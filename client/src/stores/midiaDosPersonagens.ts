@@ -1,6 +1,6 @@
 import { imagensEmbutidas } from '../lib/imagensDaFicha'
 import type { Personagem } from '../lib/personagem'
-import { useAdventureStore } from './adventureStore'
+import { personagensAtivos, useAdventureStore } from './adventureStore'
 
 /**
  * RETRATO COMO MÍDIA (entrega 4): a imagem embutida (`data:image/...`) da
@@ -58,10 +58,11 @@ export function iniciarMidiaDosPersonagens(guardar: GuardarImagem): () => void {
     void migrar(pendentes)
   }
 
-  olhar(useAdventureStore.getState().adventure?.personagens)
+  // A lista EM USO: a da pasta de mapas quando o mapa herda dela (`personagensAtivos`).
+  olhar(personagensAtivos(useAdventureStore.getState()))
   const parar = useAdventureStore.subscribe((state, previous) => {
-    const agora = state.adventure?.personagens
-    if (agora !== previous.adventure?.personagens) olhar(agora)
+    const agora = personagensAtivos(state)
+    if (agora !== personagensAtivos(previous)) olhar(agora)
   })
   return () => {
     ligado = false

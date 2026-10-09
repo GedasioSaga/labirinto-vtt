@@ -109,6 +109,8 @@ import {
   applyItemsInScene,
   hasUnsavedWork,
   hostWorldOf,
+  personagensAtivos,
+  temRpgNoMapa,
   pinExitsTravelOf,
   pinScenesOf,
   pinTravelOptions,
@@ -173,6 +175,8 @@ import { setPropImageShownToPlayers, setPropLabelForPlayers } from './stores/pro
 import { mudarRaioDeVisaoDaSala, mudarVistaDeLonge } from './stores/visaoDeLonge'
 import { pickExportFolder, pickImportFolder, exportMapFolder, importMapFolder } from './lib/mapExport'
 import { levarMidiaDoMapaSolto } from './lib/midiaDaPasta'
+import { pastaAbertaDoArquivo, type PastaAberta } from './lib/pastasDeMapas'
+import { gravarPastaDoMapa } from './stores/rpgDaPasta'
 import { join } from '@tauri-apps/api/path'
 import { Toolbar } from './components/Toolbar'
 import { PropertiesPanel } from './components/PropertiesPanel'
@@ -180,6 +184,8 @@ import type { RevealToControlsProps } from './components/PlayerSecretControls'
 import { ActionBar } from './components/ActionBar'
 import { ShortcutsDialog } from './components/ShortcutsDialog'
 import { PersonagensDaAventura } from './components/PersonagensSection'
+import { ContasDosJogadoresDoApp } from './components/ContasDosJogadores'
+import { portaDasContasDoApp } from './stores/contasStore'
 import { RpgDialogs } from './components/RpgDialogs'
 import { garantirAventura } from './stores/virarAventura'
 import { useRpgStore } from './stores/rpgStore'
@@ -737,6 +743,8 @@ function App() {
         saveExploration: (exploration) => storeSavedExploration(tableStorage(), roomTableIdRef.current ?? currentTableId(), exploration),
         loadMyNotes: () => loadSavedMyNotes(tableStorage(), roomTableIdRef.current ?? currentTableId()),
         saveMyNotes: (notes) => storeSavedMyNotes(tableStorage(), roomTableIdRef.current ?? currentTableId(), notes),
+        // CONTAS DOS JOGADORES: nome + PIN e o aparelho lembrado (`net/entradaComConta.ts`). Só a sala de verdade as tem.
+        contas: portaDasContasDoApp(),
         loadChat: () => roomChatStore().load(),
         appendChat: (sceneKey, entry) => roomChatStore().append(sceneKey, entry),
         deleteChat: (sceneKey, id) => roomChatStore().remove(sceneKey, id),
@@ -904,11 +912,12 @@ function App() {
   // ESTADO DO MUNDO: qualquer troca na aventura reenvia o recorte — nome ("onde
   // estou"), CABINE DE TRANSPORTE (mestre ou viagem: quem está numa parada lê
   // "aqui/longe" de novo) e comporta (estados) inclusos, sem esperar outra
-  // edição do mapa.
+  // edição do mapa. A PASTA DE MAPAS também: o −/+ na ficha que o mapa herda da
+  // pasta muda `pasta`, não a aventura, e o jogador tem de ver o HP na hora.
   useEffect(
     () =>
       useAdventureStore.subscribe((state, previous) => {
-        if (state.adventure !== previous.adventure) notificarPontes((ponte) => ponte.notifyMapChanged())
+        if (state.adventure !== previous.adventure || state.pasta !== previous.pasta) notificarPontes((ponte) => ponte.notifyMapChanged())
       }),
     [],
   )
@@ -1269,7 +1278,12 @@ function App() {
           onFechar: () => visaoDeTeste.fechar(),
         }}
         // LIVRO DE REGRAS e PERSONAGENS: logo abaixo da Sala, também no mapa solto (pergunta antes de virar aventura).
-        rpg={<PersonagensDaAventura garantirAventura={garantirAventuraDoMapa} />}
+        rpg={
+          <>
+            <PersonagensDaAventura garantirAventura={garantirAventuraDoMapa} />
+            <ContasDosJogadoresDoApp />
+          </>
+        }
       />
     )
   }
@@ -1282,6 +1296,9 @@ function App() {
   const activeSceneId = useAdventureStore((state) => state.activeSceneId)
   const sceneCache = useAdventureStore((state) => state.cache)
   const previousSceneId = useAdventureStore((state) => state.previousSceneId)
+  // Os personagens EM USO: os da pasta de mapas quando o mapa (até solto) herda dela.
+  const personagensEmUso = useAdventureStore(personagensAtivos)
+  const temRpg = useAdventureStore(temRpgNoMapa)
   // Cada cena lembra a própria câmera; a troca pede ao canvas que volte a ela (ou enquadre).
   const sceneCameraRequest = useAdventureStore((state) => state.cameraRequest)
   const canGoBackToScene = previousSceneId !== null && sceneCache[previousSceneId]?.status === 'ok'
@@ -2265,6 +2282,8 @@ function App() {
     if (adventureState.adventure !== null) {
       const path = await adventureState.flush(stored)
       setCurrentMapPath(path)
+      // A ficha da PASTA DE MAPAS grava junto (`rpg.json` da pasta); a falha dela vira aviso próprio.
+      await gravarPastaDoMapa()
       return path
     }
     // A mídia das mochilas vai para a pasta irmã do arquivo (`levarMidiaDoMapaSolto`),
@@ -2277,6 +2296,7 @@ function App() {
         return forDisk
       })
       await levarMidiaDoMapaSolto(path, saved)
+      await gravarPastaDoMapa()
       return path
     }
     const { path, saved } = await saveOpenMap(async (saving) => {
@@ -2518,11 +2538,22 @@ function App() {
    * (`markSaved`) — portal antigo convertido ao abrir continua pendente,
    * porque a conversão ainda não foi gravada.
    */
-  const openInEditor = (opened: OpenedMapFile) => {
+  const openInEditor = (opened: OpenedMapFile, pasta: PastaAberta | null) => {
     // Não espera as cenas de fundo: a promessa nunca rejeita (a cena que não
     // abre vira "indisponível" dentro do store).
-    void useAdventureStore.getState().open(opened)
+    void useAdventureStore.getState().open(opened, pasta)
     setCurrentMapPath(opened.path)
+  }
+
+  /**
+   * Lê o arquivo e a PASTA DE MAPAS dele antes de pôr no editor: a ficha que
+   * herda da pasta já abre com os personagens dela, sem piscar os do mapa.
+   * A aventura abre na CENA INICIAL (`startSceneId`), não na cena do arquivo
+   * — o card da lista aponta para o arquivo da cena salva por último.
+   */
+  const openMapFileWithFolder = async (path: string) => {
+    const opened = await openMapFileFirst(path, true)
+    openInEditor(opened, await pastaAbertaDoArquivo(opened.path))
   }
 
   /** Abre pelo seletor de arquivo. Não checa trabalho não salvo — quem checa é `askBeforeReplacingMap`. */
@@ -2530,7 +2561,7 @@ function App() {
     try {
       const path = await pickMapJsonToOpen()
       if (!path) return
-      openInEditor(await openMapFileFirst(path))
+      await openMapFileWithFolder(path)
       setScreen('editor')
     } catch (err) {
       reportFileError('abrir o mapa', err)
@@ -2540,7 +2571,7 @@ function App() {
   /** Abre um caminho já escolhido (lista "Carregar Mapa"). Mesma regra de checagem acima. */
   const openMapFromPath = async (path: string) => {
     try {
-      openInEditor(await openMapFileFirst(path))
+      await openMapFileWithFolder(path)
       setScreen('editor')
     } catch (err) {
       reportFileError('abrir o mapa', err)
@@ -2749,7 +2780,7 @@ function App() {
       // O mapa importado já ganha pasta própria em mapsDir/importedMapId — mesma
       // lógica de "sincronizar currentMapPath com a origem" de handleOpen, senão
       // o próximo Salvar/Início gravaria por engano no caminho do mapa anterior.
-      openInEditor(await openMapFileFirst(importedPath))
+      await openMapFileWithFolder(importedPath)
     } catch (err) {
       reportFileError('importar a pasta do mapa', err)
     }
@@ -3459,13 +3490,13 @@ function App() {
               // desfaz), e a lista de quem chega muda no broadcast do mapa.
               onPlayerCharacterChange: (playerCharacter) => selectedToken && updateToken(selectedToken.id, { playerCharacter }),
             }}
-            // PERSONAGEM do token: só com aventura (é lá que os personagens moram).
+            // PERSONAGEM do token: só com onde os personagens moram (a aventura, ou a pasta de mapas de que o mapa herda).
             // Ligar passa pelo histórico; o jogador não recebe o vínculo (`tokenForPlayer` zera `characterId`).
             tokenPersonagem={
-              adventure === null
+              !temRpg
                 ? undefined
                 : {
-                    personagens: (adventure.personagens ?? []).map((personagem) => ({ id: personagem.id, nome: personagem.nome })),
+                    personagens: personagensEmUso.map((personagem) => ({ id: personagem.id, nome: personagem.nome })),
                     onLigar: (characterId) => selectedToken && updateToken(selectedToken.id, { characterId }),
                     onAbrirFicha: (personagemId) => useRpgStore.getState().abrirFicha(personagemId),
                   }
@@ -3753,7 +3784,7 @@ function App() {
               onApagarPasta: (pasta) => void handleApagarPasta(pasta),
             }}
             acervoDeItens={{
-              alvos: alvosDoAcervo(roomPanelWorld(), adventure?.personagens ?? []),
+              alvos: alvosDoAcervo(roomPanelWorld(), personagensEmUso),
               onDar: (item, alvo, quantidade) => {
                 const change = darDoAcervo(roomPanelWorld(), alvo, itemParaDar(item), quantidade, crypto.randomUUID())
                 return change !== null && aplicarItensDoMestre(change)
@@ -3900,6 +3931,7 @@ function App() {
             onRevealPlanFor={room === null ? undefined : (sceneId, playerIds) => hostBridgeRef.current?.revealPlanFor(sceneId, playerIds) ?? null}
             // Menu "…" da cena: só com aventura (o mapa solto não tem lista de cenas para mexer).
             onDuplicate={adventure === null ? undefined : handleDuplicateScene}
+            onSetStart={adventure === null ? undefined : (sceneId) => useAdventureStore.getState().definirCenaInicial(sceneId)}
             onShift={adventure === null ? undefined : (sceneId, delta) => useAdventureStore.getState().shiftScene(sceneId, delta)}
             onDelete={adventure === null ? undefined : handleDeleteScene}
             deletionInfo={

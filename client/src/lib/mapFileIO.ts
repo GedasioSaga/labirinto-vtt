@@ -762,26 +762,51 @@ async function findAdventureFor(mapPath: string): Promise<{ adventure: Adventure
  * A mídia que veio na pasta (`lib/midiaDaPasta.ts`) entra em `<appData>/midia`
  * antes de devolver: a aventura trazida de outro computador abre com os
  * retratos e as imagens de item. Uma pasta por aventura, para todas as cenas.
+ *
+ * `naCenaInicial`: a aventura abre na CENA INICIAL (`startSceneId`) em vez da
+ * cena do arquivo pedido — o que o Carregar Mapa quer, porque o card aponta
+ * para o arquivo da cena salva por último. Cena inicial que não abre: fica a
+ * pedida, que já está lida. Sem a opção (Recuperar), abre exatamente o arquivo.
  */
-export async function openMapFileFirst(path: string): Promise<OpenedMapFile> {
+export async function openMapFileFirst(path: string, naCenaInicial = false): Promise<OpenedMapFile> {
   const map = await loadMapFromDisk(path)
   const found = await findAdventureFor(path)
   await trazerMidiaAoAbrir(path, found === null ? null : found.dir)
   if (found === null) {
     return convertLegacyPortals({ path, map, adventure: null, adventureDir: null, activeSceneId: null, scenes: [], changedSceneIds: [], adventureChanged: false, legacySources: [] })
   }
-  const scenes = found.adventure.scenes.map((entry): SceneLoad => (entry.id === found.sceneId ? { entry, status: 'ok', map } : { entry, status: 'pendente' }))
+  const aberta = (naCenaInicial ? await startSceneOf(found) : null) ?? { path, map, sceneId: found.sceneId }
+  const scenes = found.adventure.scenes.map((entry): SceneLoad => (entry.id === aberta.sceneId ? { entry, status: 'ok', map: aberta.map } : { entry, status: 'pendente' }))
   return convertLegacyPortals({
-    path,
-    map,
+    path: aberta.path,
+    map: aberta.map,
     adventure: found.adventure,
     adventureDir: found.dir,
-    activeSceneId: found.sceneId,
+    activeSceneId: aberta.sceneId,
     scenes,
     changedSceneIds: [],
     adventureChanged: false,
     legacySources: [],
   })
+}
+
+/**
+ * A cena inicial de `found`, lida do disco; `null` quando ela já é a cena do
+ * arquivo pedido, não está na lista, ou não abre (sumiu, JSON quebrado,
+ * caminho recusado por `scenePath`) — quem chama fica com a pedida.
+ */
+async function startSceneOf(found: { adventure: Adventure; dir: string; sceneId: string }): Promise<{ path: string; map: MapData; sceneId: string } | null> {
+  const { adventure, dir, sceneId } = found
+  if (adventure.startSceneId === sceneId) return null
+  const entry = adventure.scenes.find((scene) => scene.id === adventure.startSceneId)
+  if (entry === undefined) return null
+  try {
+    const startPath = await scenePath(dir, entry.file)
+    if (!(await exists(startPath))) return null
+    return { path: startPath, map: await loadMapFromDisk(startPath), sceneId: entry.id }
+  } catch {
+    return null
+  }
 }
 
 /** `worker` sobre cada item, no máximo `limit` de cada vez; o resultado na ordem de `items`. */

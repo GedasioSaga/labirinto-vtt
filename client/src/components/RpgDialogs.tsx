@@ -3,7 +3,7 @@ import { escolherImagemDaFicha, escolherTextoJson, salvarTextoJson } from '../li
 import { ehEmbutido } from '../lib/bibliotecaDeSistemas'
 import { nomeDaCopia, rascunhoDaCopia, rascunhoDoSistema, rascunhoEmBranco, type RascunhoDoSistema } from '../lib/editorDeSistema'
 import { serializarSistema, type SistemaDeRpg } from '../lib/sistemaDeRpg'
-import { hostWorldOf, useAdventureStore } from '../stores/adventureStore'
+import { hostWorldOf, personagensAtivos, sistemaAtivo, temRpgNoMapa, useAdventureStore } from '../stores/adventureStore'
 import { carriedItemsOf } from '../lib/items'
 import { partyItemChange, tokenDoPersonagem } from '../lib/party'
 import type { AppliedItems, HostWorld } from '../net/hostSession'
@@ -38,6 +38,10 @@ export interface RpgDialogsProps {
 
 export function RpgDialogs({ aplicarItens, garantirAventura }: RpgDialogsProps) {
   const adventure = useAdventureStore((state) => state.adventure)
+  // O sistema e os personagens EM USO: os da pasta de mapas quando o mapa herda dela.
+  const sistemaId = useAdventureStore(sistemaAtivo)
+  const personagens = useAdventureStore(personagensAtivos)
+  const temRpg = useAdventureStore(temRpgNoMapa)
   const activeSceneId = useAdventureStore((state) => state.activeSceneId)
   const cache = useAdventureStore((state) => state.cache)
   const tokens = useMapStore((state) => state.map.tokens)
@@ -53,7 +57,7 @@ export function RpgDialogs({ aplicarItens, garantirAventura }: RpgDialogsProps) 
   const grade = sistemasAbertos && (
     <SistemasDialog
       sistemas={biblioteca}
-      escolhidoId={adventure?.sistemaDeRpg}
+      escolhidoId={sistemaId}
       avisos={avisos}
       onEscolher={(id) => comAventura(garantirAventura, () => useAdventureStore.getState().setSistemaDeRpg(id))}
       onImportar={async () => {
@@ -71,8 +75,8 @@ export function RpgDialogs({ aplicarItens, garantirAventura }: RpgDialogsProps) 
   // Depois da grade: o editor abre por cima dela. Fora de aventura também — a biblioteca é do app.
   const editor = editorDeSistema !== null && <EditorDaBiblioteca abertura={editorDeSistema} biblioteca={biblioteca} />
 
-  // Ficha e livro só com aventura: os personagens e o sistema escolhido moram nela.
-  if (adventure === null) {
+  // Ficha e livro só com onde guardar: a aventura, ou a pasta de mapas de que o mapa (até solto) herda.
+  if (!temRpg) {
     return (
       <>
         {grade}
@@ -81,8 +85,8 @@ export function RpgDialogs({ aplicarItens, garantirAventura }: RpgDialogsProps) 
     )
   }
 
-  const personagem = personagemAberto === null ? undefined : (adventure.personagens ?? []).find((candidato) => candidato.id === personagemAberto)
-  const sistema = sistemaPorId(biblioteca, adventure.sistemaDeRpg)
+  const personagem = personagemAberto === null ? undefined : personagens.find((candidato) => candidato.id === personagemAberto)
+  const sistema = sistemaPorId(biblioteca, sistemaId)
   const tokensParaLigar: TokenParaLigar[] = tokens.map((token) => ({ id: token.id, nome: token.name, personagemId: token.characterId }))
   // A mochila mora no token: o mapa aberto (assinado acima pelos tokens) e as cenas de fundo carregadas.
   const inventario =
@@ -97,7 +101,7 @@ export function RpgDialogs({ aplicarItens, garantirAventura }: RpgDialogsProps) 
           key={personagem.id}
           personagem={personagem}
           sistema={sistema}
-          sistemaId={adventure.sistemaDeRpg}
+          sistemaId={sistemaId}
           editandoNoInicio={abrirEditando}
           onSalvar={(salvo) => useAdventureStore.getState().salvarPersonagem(salvo)}
           onClose={() => useRpgStore.getState().fecharFicha()}

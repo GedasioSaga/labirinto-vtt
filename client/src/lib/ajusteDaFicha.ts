@@ -389,6 +389,9 @@ function chavesMudadas(base: Record<string, number>, rascunho: Record<string, nu
  */
 export function salvarSobreOAtual(base: Personagem, rascunho: Personagem, atual: Personagem): Personagem {
   const salvo: Personagem = { ...rascunho, cartoesAtivos: atual.cartoesAtivos, historico: atual.historico }
+  // CONTAS DOS JOGADORES: o dono muda na tela das contas, não na ficha — vale o de agora.
+  if (atual.dono === undefined) delete salvo.dono
+  else salvo.dono = atual.dono
   for (const campo of CAMPOS_NUMERICOS) salvo[campo] = { ...atual[campo], ...chavesMudadas(base[campo], rascunho[campo]) }
   return salvo
 }

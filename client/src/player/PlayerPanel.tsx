@@ -292,6 +292,8 @@ interface PlayerPanelProps {
   markForm?: PlayerMarkFormProps
   /** VOLTO JÁ: sair da mesa por um instante. Sem ele, o botão não aparece. */
   onStepAway?: () => void
+  /** CONTAS: "Sair" — deixa a sala e este aparelho esquece a conta (troca de conta). Sem ele, o botão não aparece. */
+  onSignOut?: () => void
   /**
    * "Baixar meu caderno": gera o arquivo no aparelho e devolve o nome dele.
    * Lança quando não deu (o aviso vai para a aba). Ausente = sem o botão.
@@ -361,6 +363,7 @@ export function PlayerPanel({
   mapShare,
   markForm,
   onStepAway,
+  onSignOut,
   onDownloadNotebook,
   onOpenInventory,
   onOpenFicha,
@@ -800,6 +803,7 @@ export function PlayerPanel({
                   <p className="pp-empty">Sua ficha fica parada e o mestre sabe que você saiu por um instante.</p>
                 </>
               )}
+              {onSignOut !== undefined && <SignOutButton onSignOut={onSignOut} />}
             </section>
 
             {backpack !== undefined && <PlayerBackpack {...backpack} />}
@@ -1014,5 +1018,37 @@ function UnreadDot() {
     <span className="pp-unread">
       <span className="pp-visually-hidden"> (menção nova no chat)</span>
     </span>
+  )
+}
+
+/**
+ * CONTAS: "Sair" pede um segundo toque — sair por engano no meio da mesa
+ * obrigaria a digitar nome e PIN de novo. Esc ou "Ficar" desiste.
+ */
+function SignOutButton({ onSignOut }: { onSignOut: () => void }) {
+  const [asking, setAsking] = useState(false)
+  if (!asking) {
+    return (
+      <button type="button" className="pp-button" onClick={() => setAsking(true)}>
+        Sair
+      </button>
+    )
+  }
+  return (
+    <div
+      role="group"
+      aria-label="Sair da sala e deste aparelho"
+      onKeyDown={(event) => {
+        if (event.key === 'Escape') setAsking(false)
+      }}
+    >
+      <p className="pp-empty">Sair da sala? Da próxima vez, este aparelho pede o seu nome (e o PIN, se tiver conta).</p>
+      <button type="button" className="pp-button" autoFocus onClick={onSignOut}>
+        Sair
+      </button>
+      <button type="button" className="pp-button" onClick={() => setAsking(false)}>
+        Ficar
+      </button>
+    </div>
   )
 }

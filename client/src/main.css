@@ -5154,6 +5154,13 @@ label.lb-switch[data-dica-linha='aberta'] > span:first-child::after,
   color: var(--lb-color-brass);
 }
 
+/* Cena inicial: marca pequena, à vista em toda linha (a aberta inclusive). */
+.lb-cenas__inicio {
+  color: var(--lb-color-brass);
+  font-size: var(--lb-font-size-sm);
+  line-height: 1;
+}
+
 /* Na cena aberta os próprios botões mostram o estado, sempre à vista. */
 .lb-cenas__item--ativa .lb-cenas__selo {
   display: none;

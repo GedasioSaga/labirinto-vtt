@@ -76,6 +76,7 @@ import {
   type PlayerNoteDelivery,
   type PointActionRequest,
   type ReclaimedSeat,
+  type ContaEntrou,
   type ReturnCandidate,
   type SeatClaim,
   type SecretCheckState,
@@ -97,8 +98,10 @@ import {
   type ChatEntry,
   type DoorRequestHow,
   type HostErrorReason,
+  type JoinMessage,
   type LaserMessage,
 } from './protocol'
+import type { PortaDasContas } from './entradaComConta'
 import type { AbaloContagem, AbaloOrigem, AbaloTextos } from '../lib/abalo'
 import { letterViaPhrase } from '../lib/correio'
 import { createPlayerScreens, type PlayerScreen } from './playerScreens'
@@ -328,6 +331,13 @@ export interface HostBridgeDeps {
   loadMyNotes?: () => SavedMyNotes | null
   /** Grava as notas pouco depois de um jogador mudar as dele e ao fechar a sala. Ausente = nada é gravado. */
   saveMyNotes?: (notes: SavedMyNotes) => void
+  /**
+   * CONTAS DOS JOGADORES: quem confere nome + PIN e o aparelho lembrado, e
+   * guarda o aparelho novo (`net/entradaComConta.ts`). Ausente = esta sala
+   * não aceita conta: o `join` com PIN é recusado sem ler conta nenhuma (a
+   * Visão de jogador nunca cria nem lê as contas de verdade).
+   */
+  contas?: PortaDasContas
   /** DADO ROLADO NA SALA: toda rolagem da mesa (a de um jogador e a do mestre, a escondida marcada). */
   onDiceRoll?: (roll: HostDiceRoll) => void
   /** CHAT, leitura do mestre: o Global e as cenas com conversa, a cada linha nova ou apagada. */
@@ -646,7 +656,28 @@ export const BROADCAST_THROTTLE_MS = 50
  * aberta, mandando ping. `bad_code` também: o código errado de verdade o Rust
  * já barra antes; esta recusa é a defesa da sessão, e a vaga volta.
  */
-const KICK_ON_JOIN_ERROR: ReadonlySet<HostErrorReason> = new Set<HostErrorReason>(['invalid_message', 'bad_code', 'table_full', 'bad_table_key'])
+const KICK_ON_JOIN_ERROR: ReadonlySet<HostErrorReason> = new Set<HostErrorReason>(['invalid_message', 'bad_code', 'table_full', 'bad_table_key', 'account_required'])
+
+/** CONTAS: com o que o `join` pede para entrar — o aparelho lembrado ou o PIN (e o rótulo do aparelho novo). */
+type AccountCredential = { kind: 'device'; device: string } | { kind: 'pin'; pin: string; deviceLabel: string }
+
+/** `null` = `join` só pelo nome (ou resume), sem conta. */
+function accountCredentialOf(msg: JoinMessage): AccountCredential | null {
+  if (msg.device !== undefined) return { kind: 'device', device: msg.device }
+  if (msg.pin === undefined) return null
+  // Sem rótulo é caso de verdade (jogador antigo): a lista do mestre mostra "Aparelho".
+  return { kind: 'pin', pin: msg.pin, deviceLabel: msg.deviceLabel ?? '' }
+}
+
+/** O segredo do aparelho não foi gravado: a pessoa entrou, só vai digitar o PIN de novo da próxima vez. */
+export function accountDeviceFailedText(nome: string): string {
+  return `${nome} entrou, mas não deu para lembrar o aparelho: da próxima vez, o PIN de novo.`
+}
+
+/** CONTAS: "Ana entrou com a conta", e as fichas que ela recebeu (dos personagens dados à conta). */
+export function accountJoinText(nome: string, tokenNames: readonly string[]): string {
+  return tokenNames.length === 0 ? `${nome} entrou com a conta.` : `${nome} entrou com a conta e recebeu ${tokenNames.join(', ')}.`
+}
 
 /**
  * O mapa explorado muda a cada passo de cada jogador, e gravá-lo é codificar
@@ -976,6 +1007,8 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   const awayClients = new Set<string>()
   /** PACOTE COMPRIMIDO: conexões que declararam `accept: ['gzip']` no `join`. Nunca sai pela rede. */
   const gzipClients = new Set<string>()
+  /** CONTAS: conexões com a entrada com conta sendo conferida — uma por conexão. Sai ao cair. */
+  const accountJoinsInFlight = new Set<string>()
   let livenessTimer: ReturnType<typeof setInterval> | null = null
   /** Pergunta "Ana voltou?" de quem entrou agora: `playerId` dele -> id do toast. */
   const returnToasts = new Map<string, string>()
@@ -1566,6 +1599,13 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
         ? `${player.name} entrou e está sem personagem. Abra a aba Jogo para atribuir um.`
         : `${player.name} voltou para a sala.`
     toastSink.push('info', text, PLAYER_JOINED_TOAST_MS)
+  }
+
+  /** CONTAS: "Ana entrou com a conta e recebeu Lírio" — as fichas dos personagens que o mestre deu à conta. */
+  const announceAccountJoin = (entrou: ContaEntrou) => {
+    const w = world()
+    const names = entrou.tokenIds.map((tokenId) => [w.open, ...w.background].flatMap((scene) => scene.map.tokens).find((t) => t.id === tokenId)?.name ?? tokenId)
+    toastSink.push('info', accountJoinText(entrou.nome, names), PLAYER_JOINED_TOAST_MS)
   }
 
   /**
@@ -2780,8 +2820,59 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     // Tela da mesa conta como "já entrou": o lixo que ela mandasse depois não a derruba como join recusado.
     const wasTable = session.isTable(clientId)
     const wasJoined = wasTable || before.some((p) => p.clientId === clientId)
-    const result = session.handleMessage(clientId, event.payload.msg, world())
-    const rejectedJoin = !wasJoined && result.outbound.some((o) => o.msg.type === 'error' && KICK_ON_JOIN_ERROR.has(o.msg.reason))
+    // CONTAS: o PIN (ou o aparelho) é conferido aqui, fora da sessão, que é síncrona; ela só recebe quem passou.
+    // Sem `deps.contas` (a Visão de jogador), o `join` com PIN segue para a sessão, que o recusa.
+    const credential = parsed?.type === 'join' && !wasJoined ? accountCredentialOf(parsed) : null
+    if (parsed?.type === 'join' && credential !== null && deps.contas !== undefined) {
+      void entrarComConta(deps.contas, clientId, parsed.code, parsed.name, credential)
+      return
+    }
+    concludeMessage(clientId, session.handleMessage(clientId, event.payload.msg, world()), before, wasJoined)
+  }
+
+  /**
+   * CONTAS DOS JOGADORES — a entrada com nome + PIN ou com o aparelho
+   * lembrado (`net/entradaComConta.ts`). Uma por conexão; a recusa responde e
+   * derruba a conexão, como o código errado: cada nova tentativa paga um
+   * socket novo. Na entrada com PIN, o aparelho ganha o segredo que o deixa
+   * entrar sozinho da próxima vez — mandado UMA vez, depois do `welcome`.
+   */
+  const entrarComConta = async (contas: PortaDasContas, clientId: string, code: string, name: string, credential: AccountCredential) => {
+    const room = session
+    if (room === null || accountJoinsInFlight.has(clientId)) return
+    // Código errado não chega a gastar conferência: recusa (e derruba) como a sessão faria.
+    if (code !== currentRoom?.code) {
+      void sendThenKick({ outbound: [{ clientId, msg: { type: 'error', reason: 'bad_code' } }] }, clientId)
+      return
+    }
+    accountJoinsInFlight.add(clientId)
+    try {
+      const verdict = credential.kind === 'device' ? await contas.entrarComAparelho(credential.device) : await contas.entrarComPin(name, credential.pin)
+      // A conexão caiu (ou a sala fechou) enquanto conferia: não há a quem responder.
+      if (session !== room || !accountJoinsInFlight.has(clientId)) return
+      if (!verdict.ok) {
+        const retry = verdict.esperarS === undefined ? {} : { retryInS: verdict.esperarS }
+        void sendThenKick({ outbound: [{ clientId, msg: { type: 'account.refused', reason: verdict.motivo, ...retry } }] }, clientId)
+        return
+      }
+      const before = room.listPlayers()
+      const result = room.joinWithAccount(clientId, { code, conta: verdict.conta }, world())
+      concludeMessage(clientId, result, before, false)
+      if (credential.kind !== 'pin' || result.contaEntrou === undefined) return
+      const token = await contas.lembrarAparelho(verdict.conta.id, credential.deviceLabel)
+      if (session !== room || !accountJoinsInFlight.has(clientId)) return
+      if (token === null) toastSink.push('error', accountDeviceFailedText(verdict.conta.nome))
+      else void dispatch({ outbound: [{ clientId, msg: { type: 'account.device', token } }] })
+    } finally {
+      accountJoinsInFlight.delete(clientId)
+    }
+  }
+
+  /** O que vem depois da resposta da sessão: despachar, avisar o mestre, gravar, refazer o mapa de todos. */
+  const concludeMessage = (clientId: string, result: HostResult, before: PlayerInfo[], wasJoined: boolean) => {
+    if (session === null) return
+    const rejectedJoin =
+      !wasJoined && result.outbound.some((o) => (o.msg.type === 'error' && KICK_ON_JOIN_ERROR.has(o.msg.reason)) || o.msg.type === 'account.refused')
     if (rejectedJoin) {
       // Conexão que nem entrou manda lixo, código que a sessão recusa ou é TV recusada: responde
       // e libera a vaga no Rust. O código errado de verdade o Rust já barra antes
@@ -2807,7 +2898,9 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       const joined = session.listPlayers().find((p) => p.clientId === clientId)
       const restored = joined !== undefined && restoreStoredOf(joined.playerId, joined.playerId).length > 0
       // Voltou quem teve a ficha emprestada: quem a jogava precisa do mapa sem ela.
-      if (restored || result.loansReturned !== undefined) broadcastNow()
+      // CONTAS: quem entrou com a conta ganhou ficha — os colegas veem o dono novo no mapa de agora.
+      const accountTokens = result.contaEntrou !== undefined && result.contaEntrou.tokenIds.length > 0
+      if (restored || accountTokens || result.loansReturned !== undefined) broadcastNow()
     }
     // A Ana voltou pelo resume: a pergunta "Ana voltou?" que outro aparelho provocou já não vale.
     pruneReturnToasts()
@@ -2937,6 +3030,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     if (wasJoined) return
     if (session.isTable(clientId)) announceTable()
     else if (result.reclaimed !== undefined) announceReclaim(result.reclaimed)
+    else if (result.contaEntrou !== undefined && result.contaEntrou.tokenIds.length > 0) announceAccountJoin(result.contaEntrou)
     // Troca de aba da mesma pessoa não é chegada; e quem provocou "Ana voltou?" já tem o aviso dele na Caixa.
     else if (result.replacedClientId === undefined && result.returnCandidate === undefined) {
       announceJoin(clientId, new Set(before.filter((p) => !p.connected).map((p) => p.playerId)))
@@ -2949,6 +3043,8 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
    */
   const dropClient = (clientId: string, at?: number) => {
     if (session === null) return
+    // CONTAS: a conferência que ainda estava no ar não responde a ninguém (`entrarComConta`).
+    accountJoinsInFlight.delete(clientId)
     lastHeard.delete(clientId)
     awayClients.delete(clientId)
     gzipClients.delete(clientId)
@@ -3048,7 +3144,11 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
         toastSink.push('instrucao', roomCodeChangedText(saved.code, room.code))
       }
       const restoreChat = deps.loadChat === undefined ? undefined : await chatLoading
+      // CONTAS: o "Só com conta" e os nomes das contas valem desde o primeiro `join`.
+      const contas = deps.contas
+      if (contas !== undefined) await contas.prontas()
       session = createHostSession({
+        ...(contas === undefined ? {} : { contas: () => contas.naSala() }),
         code: room.code,
         visionRadius: deps.visionRadius ?? DEFAULT_VISION_RADIUS,
         now: deps.now,

@@ -4,7 +4,7 @@ import { createEmptyMap } from '../../lib/mapFactory'
 import { hostWorldOf, useAdventureStore } from '../../stores/adventureStore'
 import { useMapStore } from '../../stores/mapStore'
 import type { MapData, Pin, Token, Wall } from '../../types/map'
-import { createPlayerConnection, type PlayerConnection, type StorageLike } from '../../player/playerConnection'
+import { createPlayerConnection, type PlayerConnection, type PlayerConnectionOptions, type StorageLike } from '../../player/playerConnection'
 import { criarSocketDoCanal } from '../../player/visaoDeTeste/socketDoCanal'
 import { PILHA_DO_EDITOR } from '../avisosDaPonte'
 import { criarParDeCanais, type Canal } from './canal'
@@ -49,8 +49,12 @@ function resumo(msg: object): { type: string; mapId?: string } {
   return mapId === undefined ? { type } : { type, mapId }
 }
 
-/** A janela de teste sem tela, no modo pedido: fala o protocolo do canal e monta o cliente do jogador a cada geração. */
-export function janelaSemTela(canal: Canal, sessao: string, modo: ModoDoTeste): JanelaSemTela {
+/**
+ * A janela de teste sem tela, no modo pedido: fala o protocolo do canal e monta
+ * o cliente do jogador a cada geração. `conta`: o cliente tenta entrar com a
+ * conta (CONTAS DOS JOGADORES), como um jogador de verdade faria.
+ */
+export function janelaSemTela(canal: Canal, sessao: string, modo: ModoDoTeste, conta?: PlayerConnectionOptions['conta']): JanelaSemTela {
   const conexoes: PlayerConnection[] = []
   const recebidas: { type: string; mapId?: string }[] = []
   let proxima = 1
@@ -74,6 +78,7 @@ export function janelaSemTela(canal: Canal, sessao: string, modo: ModoDoTeste): 
         },
         storage: memoria(),
         aceitaGzip: false,
+        ...(conta === undefined ? {} : { conta }),
       }),
     )
   })

@@ -1,4 +1,4 @@
-import { useAdventureStore } from './adventureStore'
+import { temRpgNoMapa, useAdventureStore } from './adventureStore'
 import { useMapStore } from './mapStore'
 
 /** A pergunta antes de o mapa solto virar aventura (sistema de RPG e fichas moram no `adventure.json`). */
@@ -13,13 +13,14 @@ export interface GarantirAventuraOpcoes {
 
 /**
  * Garante que há aventura antes de escolher sistema, criar ou importar
- * personagem. Já é aventura: segue sem perguntar. Mapa solto: pergunta e, no
- * sim, promove só o mapa (`virarAventura`, sem cena nova). `true` = pode
- * continuar a ação. Nunca rejeita: pergunta que falha conta como "não" —
- * nada muda no arquivo sem o sim do mestre.
+ * personagem. Já é aventura, ou o mapa (até solto) usa o RPG da PASTA de
+ * mapas (`temRpgNoMapa`): segue sem perguntar — a pasta guarda por ele. Mapa
+ * solto: pergunta e, no sim, promove só o mapa (`virarAventura`, sem cena
+ * nova). `true` = pode continuar a ação. Nunca rejeita: pergunta que falha
+ * conta como "não" — nada muda no arquivo sem o sim do mestre.
  */
 export async function garantirAventura({ perguntar, caminhoDoMapaSolto }: GarantirAventuraOpcoes): Promise<boolean> {
-  if (useAdventureStore.getState().adventure !== null) return true
+  if (temRpgNoMapa(useAdventureStore.getState())) return true
   const mapaDaPergunta = useMapStore.getState().map.id
   const sim = await perguntar(PERGUNTA_VIRAR_AVENTURA).catch(() => false)
   if (!sim) return false
@@ -30,11 +31,12 @@ export async function garantirAventura({ perguntar, caminhoDoMapaSolto }: Garant
 }
 
 /**
- * Roda `acao` quando há aventura: na hora, se já há (o clique responde no
- * mesmo quadro, sem esperar promessa); senão, depois do sim de `garantir`.
+ * Roda `acao` quando há onde guardar o RPG (aventura, ou a pasta do mapa): na
+ * hora, se já há (o clique responde no mesmo quadro, sem esperar promessa);
+ * senão, depois do sim de `garantir`.
  */
 export function comAventura(garantir: () => Promise<boolean>, acao: () => void): void {
-  if (useAdventureStore.getState().adventure !== null) {
+  if (temRpgNoMapa(useAdventureStore.getState())) {
     acao()
     return
   }

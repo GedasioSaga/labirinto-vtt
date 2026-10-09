@@ -5,6 +5,7 @@ import { ID_ONE_PIECE, SISTEMAS_EMBUTIDOS } from '../../lib/sistemaOnePiece'
 import { hostWorldOf, useAdventureStore } from '../../stores/adventureStore'
 import { useMapStore } from '../../stores/mapStore'
 import { useToastStore, type ToastMessage } from '../../stores/toastStore'
+import { useContasStore } from '../../stores/contasStore'
 import type { MapData, Pin, Stair, Token, Wall } from '../../types/map'
 import { PILHA_DO_EDITOR } from '../avisosDaPonte'
 import type { HostBridgeDeps } from '../hostBridge'
@@ -99,6 +100,8 @@ const ESCRITORES_DO_JOGO_DE_VERDADE = [
   'onGoToScene',
   'onGoToPoint',
   'onPointActionGo',
+  // CONTAS DOS JOGADORES: a janela de teste nunca confere, cria nem lembra conta de verdade.
+  'contas',
 ] as const
 
 describe('Visão de jogador no Jogar — vazamento zero para o editor', () => {
@@ -192,6 +195,25 @@ describe('Visão de jogador no Jogar — vazamento zero para o editor', () => {
     espioes = {}
     vi.restoreAllMocks()
     useToastStore.setState({ toasts: [] })
+  })
+
+  it('CONTAS: entrar com nome + PIN pela janela de teste é recusado ali mesmo; as contas de verdade nem são lidas', async () => {
+    const lidas = vi.spyOn(useContasStore, 'getState')
+    const gravadas = vi.spyOn(useContasStore, 'setState')
+    const antes = editorSerializado()
+    espionar()
+    controlador.abrir(ANA.id)
+    await vi.waitFor(() => expect(sessaoAberta).not.toBeNull())
+    if (sessaoAberta === null) throw new Error('a janela não abriu')
+    const janela = janelaSemTela(canalDaJanela, sessaoAberta, 'jogar', { pin: '1234', rotulo: 'Teste' })
+    await vi.waitFor(() => expect(janela.conexao().getState().status).toBe('error'))
+    expect(janela.conexao().getState().error).toBe('account_unavailable')
+    expect(controlador.ponte()?.players()).toEqual([])
+    expect(lidas).not.toHaveBeenCalled()
+    expect(gravadas).not.toHaveBeenCalled()
+    expect(chamadas()).toEqual(nenhumaChamada())
+    expect(editorSerializado()).toBe(antes)
+    for (const deps of pontes.deps) for (const escritor of ESCRITORES_DO_JOGO_DE_VERDADE) expect(deps[escritor], escritor).toBeUndefined()
   })
 
   it('andar, porta, pegar item, bilhete e piso aparecem na janela; o editor não recebe nada', async () => {

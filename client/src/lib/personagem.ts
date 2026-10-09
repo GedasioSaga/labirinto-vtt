@@ -130,7 +130,18 @@ export interface Personagem {
   historico: RegistroDaFicha[]
   /** Cartões de cada aba, pela chave da aba. */
   abas: Record<string, CartaoDaFicha[]>
+  /**
+   * CONTAS DOS JOGADORES: o id da conta a quem o mestre deu este personagem
+   * (`lib/contasDosJogadores.ts`). Quem entra com a conta recebe as fichas
+   * (tokens) ligadas a ele. Ausente = de ninguém. Só o mestre muda: a edição
+   * do jogador parte do personagem gravado e não toca nele, e ele não vai ao
+   * jogador (`hostSession.ts`, `personagensUpdate`).
+   */
+  dono?: string
 }
+
+/** O id de conta que `dono` aceita (o de `novoIdDeConta`, ou um à mão no mesmo alfabeto). */
+const DONO_PADRAO = /^[A-Za-z0-9_-]{1,80}$/
 
 export const PERSONAGEM_SEM_NOME = 'Personagem sem nome'
 export const CARTAO_SEM_NOME = 'Sem nome'
@@ -334,6 +345,7 @@ export function personagemDoArquivo(value: unknown): Personagem | null {
     cartoesAtivos: [...new Set(listaDeTextos(value.cartoesAtivos))],
     historico: historicoDoArquivo(value.historico),
     abas: abasDoArquivo(value.abas),
+    ...(typeof value.dono === 'string' && DONO_PADRAO.test(value.dono) ? { dono: value.dono } : {}),
   }
 }
 

@@ -199,6 +199,7 @@ import type { ChatHistory } from '../lib/chatStore'
 import { readArrivalText } from '../lib/arrivalText'
 import { caravanCity, caravanMembers, caravanRegroup, caravanSize, caravanStep, isWorldMap, landingSpots, type CaravanMemory } from '../lib/caravan'
 import { novoPersonagem, type Personagem } from '../lib/personagem'
+import type { ContaNaSala, ContasNaSala } from '../lib/contasDosJogadores'
 import { resumoDoLivro, sistemaSemLivro } from '../lib/livroDeRegras'
 import type { SistemaDeRpg } from '../lib/sistemaDeRpg'
 import { aplicarImagem, aplicarPartes } from './edicaoDoPersonagem'
@@ -1166,6 +1167,12 @@ export interface HostResult {
   replacedClientId?: string
   /** Quem entrou reencontrou a ficha da mesa guardada: o integrador avisa o mestre, com "Desfazer". */
   reclaimed?: ReclaimedSeat
+  /**
+   * CONTAS DOS JOGADORES: entrou alguém com a conta. `tokenIds`: as fichas dos
+   * personagens dados à conta que ele recebeu agora (vazio = nenhuma livre). O
+   * integrador avisa o mestre e, com ficha nova, refaz o mapa de todos.
+   */
+  contaEntrou?: ContaEntrou
   /** DADO ROLADO NA SALA: a rolagem que a tela do mestre mostra (a escondida dele, marcada). */
   diceRoll?: HostDiceRoll
   /** CHAT: um canal ganhou ou perdeu linha. O integrador relê `masterChat` para a tela do mestre. */
@@ -1284,6 +1291,19 @@ export interface ReclaimedSeat {
   playerId: string
   name: string
   tokenIds: string[]
+}
+
+/** CONTAS: quem entrou com a conta, e as fichas que ganhou na entrada. */
+export interface ContaEntrou {
+  playerId: string
+  nome: string
+  tokenIds: string[]
+}
+
+/** CONTAS: a entrada que a ponte já conferiu (`net/entradaComConta.ts`) — o código da sala e a conta. */
+export interface EntradaComConta {
+  code: string
+  conta: ContaNaSala
 }
 
 /** GATILHO DE ÁREA: a linha que o mestre lê — quem entrou em qual área, e onde. Nada disto vai ao jogador. */
@@ -1682,10 +1702,27 @@ export interface HostSessionOptions {
   rollDie?: RollDie
   /** Só para teste: troca `PATCH_MIN_SNAPSHOT_LENGTH` (0 = todo mapa recebe patch). */
   patchMinSnapshotLength?: number
+  /**
+   * CONTAS DOS JOGADORES (`lib/contasDosJogadores.ts`), lidas a cada `join`
+   * SEM conta: com `soComConta`, quem só digita o nome é recusado
+   * (`account_required`); e digitar o nome de uma conta não leva o assento
+   * guardado nem as notas dela — isso é de quem entra COM a conta. Ausente =
+   * ninguém tem conta (a sala de antes).
+   */
+  contas?: () => ContasNaSala
 }
 
 export interface HostSession {
   handleMessage(clientId: string, raw: unknown, source: HostMapSource): HostResult
+  /**
+   * CONTAS DOS JOGADORES: a entrada de quem a ponte JÁ conferiu (nome + PIN ou
+   * aparelho lembrado). Não chega pela rede: o `join` com `pin` ou `device` que
+   * vem por `handleMessage` é recusado. A conta que já está na sala volta a
+   * ser o mesmo jogador (como o resume, de qualquer aparelho); a que chega
+   * reencontra o assento e as notas guardadas pelo nome dela e recebe as
+   * fichas dos personagens que o mestre lhe deu — só as que ninguém segura.
+   */
+  joinWithAccount(clientId: string, entrada: EntradaComConta, source: HostMapSource): HostResult
   /** Devolve `lobby.waiting` para quem perdeu o último token (dono anterior). */
   assignToken(playerId: string, tokenId: string): HostResult
   /** Devolve `lobby.waiting` se o jogador ficou sem token. Desfaz o empréstimo da ficha, se era um. */
@@ -2836,6 +2873,8 @@ interface PlayerRecord {
   joinedAt: number
   /** Quando caiu; `null` enquanto conectado. */
   disconnectedAt: number | null
+  /** CONTAS: entrou com a conta. É por ela (e não pelo nome) que volta a ser ele, de outro aparelho. */
+  conta?: ContaNaSala
 }
 
 /**
@@ -4925,7 +4964,14 @@ export function createHostSession(options: HostSessionOptions): HostSession {
    * assento, não com o "Ana (2)" que a sala lhe deu: na próxima retomada,
    * digitar "Ana" ainda o reencontra.
    */
-  const seatNameOf = (p: PlayerRecord): string => claimedSeats.get(p.playerId)?.seat.name ?? p.name
+  const seatNameOf = (p: PlayerRecord): string => claimedSeats.get(p.playerId)?.seat.name ?? keptNameOf(p)
+
+  /**
+   * O nome com que o que é DELE fica guardado (notas, assento). Com conta, o
+   * da conta: a "Ana (2)" que a sala lhe deu, ao lado de uma Ana sem conta,
+   * guardaria as notas num nome que a conta nunca reencontra.
+   */
+  const keptNameOf = (p: PlayerRecord): string => p.conta?.nome ?? p.name
 
   const buildSavedSeats = (held: HeldTokens | undefined): SavedSeat[] => {
     const seats: SavedSeat[] = []
@@ -5026,8 +5072,9 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     myNotes.delete(playerId)
     lastMyNotesAt.delete(playerId)
     if (notes === undefined || notes.length === 0 || record === undefined) return
-    const key = normalizeName(record.name)
-    if (!parkedMyNotes.has(key)) parkedMyNotes.set(key, { name: record.name, notes })
+    const kept = keptNameOf(record)
+    const key = normalizeName(kept)
+    if (!parkedMyNotes.has(key)) parkedMyNotes.set(key, { name: kept, notes })
   }
 
   /**
@@ -5121,12 +5168,22 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     if (byClient.has(clientId) || tableClients.has(clientId)) return reply(clientId, { type: 'error', reason: 'already_joined' })
     if (msg.role === 'table') return handleTableJoin(clientId, msg, world)
     if (msg.code !== options.code) return reply(clientId, { type: 'error', reason: 'bad_code' })
+    // CONTAS: PIN e aparelho só valem conferidos pela ponte (`joinWithAccount`).
+    // Chegando aqui, ninguém conferiu: nunca viram entrada só pelo nome.
+    if (msg.pin !== undefined || msg.device !== undefined) return reply(clientId, { type: 'account.refused', reason: 'unavailable' })
 
     const resumed = msg.resume === undefined ? undefined : [...players.values()].find((p) => p.resumeToken === msg.resume)
+    const contas = options.contas?.()
+    // SÓ COM CONTA: quem já está na sala (resume) segue; quem chega só com o nome, não.
+    if (resumed === undefined && contas?.soComConta === true) return reply(clientId, { type: 'error', reason: 'account_required' })
+    // O nome de uma conta, digitado sem ela: entra, mas o assento e as notas guardadas são da conta.
+    const typedKey = normalizeName(msg.name)
+    const nameOfAccount = contas?.nomes.some((nome) => normalizeName(nome) === typedKey) === true
     // Quem está FORA com o mesmo nome (mesmo esqueleto: `normalizeName`):
     // talvez seja a mesma pessoa, noutro aparelho. Só o mestre decide; até lá entra
-    // como pessoa nova ("Ana (2)"), sem nada da Ana.
-    const lookalike = resumed === undefined ? [...players.values()].find((p) => p.clientId === null && normalizeName(p.name) === normalizeName(msg.name)) : undefined
+    // como pessoa nova ("Ana (2)"), sem nada da Ana. A Ana da CONTA volta pela conta, não por aqui.
+    const lookalike =
+      resumed === undefined ? [...players.values()].find((p) => p.clientId === null && p.conta === undefined && normalizeName(p.name) === typedKey) : undefined
     const record: PlayerRecord = resumed ?? {
       playerId: randomId(),
       name: msg.name,
@@ -5135,9 +5192,39 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       joinedAt: now(),
       disconnectedAt: null,
     }
-    // Reassumir derruba o vínculo com a conexão antiga, se ainda existir: é a
-    // aba velha do mesmo aparelho. Ela fica sabendo e para, em vez de voltar
-    // pelo resume e tomar a sessão de volta (cabo de guerra entre as abas).
+    const { replaced, replacedOut } = attachConnection(record, clientId, msg.name)
+    // Voltou pelo resume: a ficha que o mestre emprestou enquanto ele estava fora volta para ele.
+    const loanBack = resumed === undefined ? { outbound: [], returned: [] } : endLoansOf(record.playerId)
+    // Antes do `next`: quem reencontra a ficha já entra jogando, sem passar pela espera.
+    const reclaimed = resumed === undefined && !nameOfAccount ? reclaimSeat(record, msg.name, world) : undefined
+    // Quem reencontrou o assento da mesa guardada já é a Ana daquela mesa: a
+    // "Ana" que está fora nesta sessão é outra pessoa (o mestre desfez a
+    // retomada dela), e juntar as duas pelo "Ana voltou?" daria a ficha da Ana
+    // a quem o mestre acabou de dizer que não é ela.
+    const returnOf = reclaimed === undefined ? lookalike : undefined
+    if (returnOf !== undefined) pendingReturns.set(record.playerId, returnOf.playerId)
+    // MINHAS NOTAS: quem entra (sem resume) com o nome de notas guardadas as recebe de volta.
+    if (resumed === undefined && !nameOfAccount) claimMyNotes(record.playerId, msg.name)
+
+    const entry = welcomeAndEntry(clientId, record, world)
+    return {
+      outbound: [...entry, ...replacedOut, ...loanBack.outbound],
+      // ENCONTRO MARCADO: a espera acabou no recorte da volta (o prazo passou enquanto ele estava fora): a marca sai dos colegas também.
+      ...(waitsEndedInViews ? { waitsChanged: true as const } : {}),
+      ...loansReturnedField(loanBack.returned),
+      ...(replaced === null ? {} : { replacedClientId: replaced }),
+      ...(returnOf === undefined ? {} : { returnCandidate: { playerId: record.playerId, previousId: returnOf.playerId, name: returnOf.name } }),
+      ...(reclaimed === undefined ? {} : { reclaimed }),
+    }
+  }
+
+  /**
+   * Liga `record` à conexão nova. Reassumir derruba o vínculo com a conexão
+   * antiga, se ainda existir: é a aba velha do mesmo aparelho (ou, com conta,
+   * o outro aparelho). Ela fica sabendo e para, em vez de voltar pelo resume
+   * e tomar a sessão de volta (cabo de guerra entre as abas).
+   */
+  const attachConnection = (record: PlayerRecord, clientId: string, wantedName: string): { replaced: string | null; replacedOut: Outbound[] } => {
     const replaced = record.clientId
     const replacedOut: Outbound[] = []
     if (replaced !== null) {
@@ -5147,32 +5234,24 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       chatGlobalSent.delete(replaced)
       lastPartySent.delete(replaced)
       lastSeatOptionsSent.delete(replaced)
+      // Conexão antiga não fica com estado de patch de uma sessão que não é mais dela.
+      patchClients.delete(replaced)
       replacedOut.push({ clientId: replaced, msg: { type: 'session.replaced' } })
     }
-    // Conexão antiga não fica com estado de patch de uma sessão que não é mais dela.
-    if (replaced !== null) patchClients.delete(replaced)
     record.clientId = clientId
     record.disconnectedAt = null
-    record.name = uniqueName(msg.name, record.playerId)
+    record.name = uniqueName(wantedName, record.playerId)
     players.set(record.playerId, record)
     byClient.set(clientId, record.playerId)
-    // Voltou pelo resume: a pergunta "voltou?" que alguém provocou com o nome dele já não vale.
+    // Voltou: a pergunta "voltou?" que alguém provocou com o nome dele já não vale.
     for (const [candidate, previous] of pendingReturns) {
       if (previous === record.playerId) pendingReturns.delete(candidate)
     }
-    // Voltou pelo resume: a ficha que o mestre emprestou enquanto ele estava fora volta para ele.
-    const loanBack = resumed === undefined ? { outbound: [], returned: [] } : endLoansOf(record.playerId)
-    // Antes do `next`: quem reencontra a ficha já entra jogando, sem passar pela espera.
-    const reclaimed = resumed === undefined ? reclaimSeat(record, msg.name, world) : undefined
-    // Quem reencontrou o assento da mesa guardada já é a Ana daquela mesa: a
-    // "Ana" que está fora nesta sessão é outra pessoa (o mestre desfez a
-    // retomada dela), e juntar as duas pelo "Ana voltou?" daria a ficha da Ana
-    // a quem o mestre acabou de dizer que não é ela.
-    const returnOf = reclaimed === undefined ? lookalike : undefined
-    if (returnOf !== undefined) pendingReturns.set(record.playerId, returnOf.playerId)
-    // MINHAS NOTAS: quem entra (sem resume) com o nome de notas guardadas as recebe de volta.
-    if (resumed === undefined) claimMyNotes(record.playerId, msg.name)
+    return { replaced, replacedOut }
+  }
 
+  /** O `welcome` e tudo o que a conexão que (re)entra recebe logo atrás dele. */
+  const welcomeAndEntry = (clientId: string, record: PlayerRecord, world: HostWorld): Outbound[] => {
     // `name` é o nome já passado por `uniqueName`: é assim que o jogador
     // descobre que entrou como "Ana (2)" em vez da "Ana" que digitou.
     const welcome: HostMessage = { type: 'welcome', playerId: record.playerId, resumeToken: record.resumeToken, name: record.name }
@@ -5181,15 +5260,68 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     // A aba que (re)entra não tem cartão nenhum: com mapa na tela, o teste
     // secreto que ainda espera a resposta DELE chega de novo, depois do mapa.
     lostSecretCheckCard.add(record.playerId)
-    const entry = entryOutbound(clientId, record.playerId, world)
+    return [{ clientId, msg: welcome }, ...entryOutbound(clientId, record.playerId, world)]
+  }
+
+  /**
+   * CONTAS: as fichas (tokens) dos personagens que o mestre deu à conta, em
+   * qualquer cena — só as que ninguém segura (dono, empréstimo ou ajudante de
+   * outro jogador). Quem pedia uma delas ao mestre lê que ela não está mais livre.
+   */
+  const giveAccountTokens = (playerId: string, contaId: string, world: HostWorld): { tokenIds: string[]; outbound: Outbound[] } => {
+    const daConta = new Set((world.rpg?.personagens ?? []).filter((personagem) => personagem.dono === contaId).map((personagem) => personagem.id))
+    if (daConta.size === 0) return { tokenIds: [], outbound: [] }
+    const taken = tokensOwnedByOthers(playerId)
+    for (const [tokenId, loan] of helperLoans) if (loan.playerId !== playerId) taken.add(tokenId)
+    const mine = ownership[playerId] ?? []
+    const tokenIds = allScenes(world)
+      .flatMap((scene) => scene.map.tokens)
+      .filter((token) => token.characterId !== null && daConta.has(token.characterId) && !taken.has(token.id) && !mine.includes(token.id))
+      .map((token) => token.id)
+    if (tokenIds.length === 0) return { tokenIds, outbound: [] }
+    // Troca de posse: nenhuma tela sai do cache (`SentView.ownershipRev`).
+    ownershipRev += 1
+    ownership[playerId] = [...mine, ...tokenIds]
+    const outbound: Outbound[] = []
+    for (const [claimant, claim] of pendingSeatClaims) {
+      if (claimant !== playerId && !tokenIds.includes(claim.tokenId)) continue
+      pendingSeatClaims.delete(claimant)
+      const claimantClient = claimant === playerId ? null : (players.get(claimant)?.clientId ?? null) // null = ele mesmo, ou caiu
+      if (claimantClient !== null) outbound.push({ clientId: claimantClient, msg: { type: 'seat.claim.state', state: 'unavailable' } })
+    }
+    return { tokenIds, outbound }
+  }
+
+  function handleAccountJoin(clientId: string, entrada: EntradaComConta, world: HostWorld): HostResult {
+    if (byClient.has(clientId) || tableClients.has(clientId)) return reply(clientId, { type: 'error', reason: 'already_joined' })
+    if (entrada.code !== options.code) return reply(clientId, { type: 'error', reason: 'bad_code' })
+    const conta: ContaNaSala = { id: entrada.conta.id, nome: entrada.conta.nome }
+    // A conta já na sala (caída ou noutro aparelho) volta a ser o MESMO jogador, como pelo resume.
+    const existing = [...players.values()].find((p) => p.conta?.id === conta.id)
+    const record: PlayerRecord = existing ?? {
+      playerId: randomId(),
+      name: conta.nome,
+      resumeToken: randomId(),
+      clientId: null,
+      joinedAt: now(),
+      disconnectedAt: null,
+      conta,
+    }
+    const { replaced, replacedOut } = attachConnection(record, clientId, conta.nome)
+    const loanBack = existing === undefined ? { outbound: [], returned: [] } : endLoansOf(record.playerId)
+    // Pelo nome DA CONTA, não pelo digitado: é ela que prova quem é a Ana da mesa guardada.
+    const reclaimed = existing === undefined ? reclaimSeat(record, conta.nome, world) : undefined
+    if (existing === undefined) claimMyNotes(record.playerId, conta.nome)
+    // Antes do `welcome`: quem ganha ficha já entra jogando, sem passar pela espera.
+    const given = giveAccountTokens(record.playerId, conta.id, world)
+    const entry = welcomeAndEntry(clientId, record, world)
     return {
-      outbound: [{ clientId, msg: welcome }, ...entry, ...replacedOut, ...loanBack.outbound],
-      // ENCONTRO MARCADO: a espera acabou no recorte da volta (o prazo passou enquanto ele estava fora): a marca sai dos colegas também.
+      outbound: [...entry, ...replacedOut, ...loanBack.outbound, ...given.outbound],
       ...(waitsEndedInViews ? { waitsChanged: true as const } : {}),
       ...loansReturnedField(loanBack.returned),
       ...(replaced === null ? {} : { replacedClientId: replaced }),
-      ...(returnOf === undefined ? {} : { returnCandidate: { playerId: record.playerId, previousId: returnOf.playerId, name: returnOf.name } }),
       ...(reclaimed === undefined ? {} : { reclaimed }),
+      contaEntrou: { playerId: record.playerId, nome: conta.nome, tokenIds: given.tokenIds },
     }
   }
 
@@ -7003,6 +7135,14 @@ export function createHostSession(options: HostSessionOptions): HostSession {
 
   const mesmasReferencias = (a: readonly Personagem[], b: readonly Personagem[]): boolean => a.length === b.length && a.every((personagem, i) => personagem === b[i])
 
+  /** CONTAS: a conta dona do personagem é coisa do mestre — o jogador recebe a ficha sem ela. */
+  const semDono = (personagem: Personagem): Personagem => {
+    if (personagem.dono === undefined) return personagem
+    const copia = { ...personagem }
+    delete copia.dono
+    return copia
+  }
+
   /**
    * O sistema e os personagens que a conexão ainda não tem. Sem `world.rpg`
    * (mapa solto): quem nunca recebeu nada não recebe; quem recebeu (o mestre
@@ -7024,7 +7164,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const outbound: Outbound[] = []
     if (enviado === undefined || enviado.sistema !== rpg.sistema) outbound.push({ clientId, msg: mensagemDoSistema(rpg.sistema) })
     if (enviado === undefined || enviado.tokens !== chave || !mesmasReferencias(enviado.personagens, personagens)) {
-      outbound.push({ clientId, msg: { type: 'personagens', personagens, tokens } })
+      outbound.push({ clientId, msg: { type: 'personagens', personagens: personagens.map(semDono), tokens } })
     }
     personagensEnviados.set(clientId, { sistema: rpg.sistema, personagens, tokens: chave })
     return outbound
@@ -8976,6 +9116,13 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       return expired.length === 0 ? result : { ...result, outbound: [...expired, ...result.outbound] }
     },
 
+    joinWithAccount(clientId, entrada, source) {
+      const world = toWorld(source)
+      const expired = expireDue(world)
+      const result = handleAccountJoin(clientId, entrada, world)
+      return expired.length === 0 ? result : { ...result, outbound: [...expired, ...result.outbound] }
+    },
+
     seatOptionsUpdates(source) {
       const world = toWorld(source)
       // Conexão que já caiu não recebe mais nada: a chave dela só ocuparia memória.
@@ -10027,7 +10174,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       // Quem está na lista vale pelo nome de agora; as guardadas de quem não voltou vêm depois, sem repetir nome.
       const present = [...players.values()].flatMap((record): SavedSeatNotes[] => {
         const notes = myNotes.get(record.playerId) ?? []
-        return notes.length === 0 ? [] : [{ name: record.name, notes: notes.map((note) => ({ ...note })) }]
+        return notes.length === 0 ? [] : [{ name: keptNameOf(record), notes: notes.map((note) => ({ ...note })) }]
       })
       const names = new Set(present.map((seat) => normalizeName(seat.name)))
       const parked = [...parkedMyNotes.entries()]
