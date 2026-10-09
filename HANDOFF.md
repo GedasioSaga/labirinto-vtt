@@ -1528,3 +1528,22 @@ Pedidos de 09/10: tela branca no celular ao fechar o inventário; menu de clique
 - PlayerView.contextoPerdido.test.tsx: 2 falhas antes, 2/2 depois; 7 arquivos / 63 testes do jogador verdes (relato do agente).
 - PixiCanvas.menuDaParede.test.tsx 9/9 (o teste do botão direito falha com a trava desligada); TokenContextMenu.test.tsx 6/6; src/pixi + src/App: 100 arquivos, 1260 testes verdes; tsc exit 0.
 - Não conferido: celular real, menu no app real (só testes).
+
+### 09/10/2026: atualização automática + pacote de animações (plano aprovado, em andamento)
+
+## Objetivo
+Animações (transições de viagem, porta no mapa, imagem do pino) chegam por um pacote assinado no GitHub, e o app se atualiza sozinho perguntando antes. Plano: `~/.claude/plans/luminous-snacking-coral.md`. Decisões literais: `PEDIDOS.md` (09/10, commit 023201b7).
+
+## Estado atual
+- Onda 1 rodando em paralelo (arquivos disjuntos): A = atualizador (engenheiro-desktop; desktop/, client/package.json, tela inicial, scripts/publicar-versao.cjs; chave em %USERPROFILE%\.tauri\labirinto.key); C = porta animada (programador-frontend; pixi/drawDoors, PixiCanvas, PlayerView, types/map, mapFile, fogFilter, WallDoorControls, App.tsx).
+- Sem push desde a v0.4.19: 0d241876 (tela branca), 70ccbd9d (menu do token), docs.
+
+## Próximos passos
+1. Quando A e C voltarem: revisar, suíte inteira, release v0.4.20 com scripts/publicar-versao.cjs (última instalação manual).
+2. Onda 2: B (pacote: Rust animacoes.rs + rota /animacoes + lib/pacoteDeAnimacoes.ts + TransicaoId aberto + scripts/pacote-animacoes.cjs), depois D (CenarioDoPino.estilo). v0.4.21 pelo atualizador + primeira publicação do pacote.
+
+## Critério de pronto
+- v0.4.21 aparece como "Versão pronta" na v0.4.20 instalada; pacote publicado na release 'animacoes' com assinatura válida; galeria mostra animação do pacote e jogador toca pela LAN.
+
+## Evidência
+- (pendente)
