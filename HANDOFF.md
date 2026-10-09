@@ -1585,3 +1585,28 @@ Fechar o plano `~/.claude/plans/luminous-snacking-coral.md`: app se atualiza soz
 - Exe 0.4.21 (release, smoke): ProductVersion 0.4.21, Responding=True; ao abrir baixou e instalou o pacote real em %APPDATA%\com.labirinto.app\animacoes\atual (indice.json + .sig).
 - setup.exe 3285704 B sha256 294f058edf4d26a7050b06128fd5ef2f8242d0e45a0b0682f65b7e694581fe43; msi 4096000 B sha256 b133c9648b84c420251987652982a4723e83f154dbc8fd99ddd54a78b989b1ed (iguais ao GitHub).
 - Prova ponta a ponta do pacote (B2, servidor local + app de dev): aviso "Animações novas: Teste: sumir", galerias com a transição/porta/estilo de teste, prévias tocando; prints em scratchpad\pacote-e2e\.
+
+### 09/10/2026 noite: animações do pacote (portão, escadas), v0.4.22 (mapa de continente), revelação do local em integração
+
+## Objetivo
+Fila do usuário de 09/10 (ver fim de `PEDIDOS.md`): (1) transições do pacote aprovadas; (2) mapa de continente com pino estilo SMT; (3) nova revelação do ponto de interesse (moldura + dobradiça + datilografia com som, regra dos 4-5 s); (4) 3 exemplos de "mapa vivo" (só protótipos, sem mexer no app).
+
+## Estado atual
+- main = origin/main @ `0bb2908b`. Commits do dia: `e61a081f` conferidor de som (`scripts/conferir-som.cjs`), `61691122` escada curva, `345f5f9b` mapa de continente + pino A, `25ec2df2` release v0.4.22, `0bb2908b` escada de madeira (só passadas).
+- Release v0.4.22 publicada pelo atualizador (latest.json 0.4.22). Pacote `animacoes` versão 4 (motorMinimo 0.4.22): portão pesado, escada curva ↑↓, escada de madeira ↑↓.
+- EM ANDAMENTO: workflow `wf_e84f4c75-9ac` (script em `~/.claude/projects/C--dev-labirinto/8c450841-.../workflows/scripts/revelacao-do-local-no-app-*.js`) portando a revelação v3 aprovada (https://claude.ai/artifact/7oszszLsyKcnZjSzrpzrEq; fonte em scratchpad `poi-revelacao-v3/publicar/`) para `client/src/cenario/`. Decisões: nota do mestre do PINO apagada (a da sala fica); nome do pino visível ao jogador só junto com a descrição; pino sem imagem = painel sozinho; duração continua do mestre, padrão ~5 s; texto termina até 4,25 s.
+- Mapa vivo: Opção 1 Relevo sutil https://claude.ai/artifact/Fg99trk2isQ2BhHK2Maof9, Opção 2 Diorama vivo https://claude.ai/artifact/NmLiCtUdcVFjJeQYwVSWwa, Opção 3 Maquete 2.5D pronta em scratchpad `mapa-vivo/maquete/publicar/` (falta ler e publicar).
+- Regras novas do usuário (memória): animação de ambiente ≤ 5 s; conferir animação com folha de contato + gráfico + onda do som; não entrar em plan mode com escritor em segundo plano.
+
+## Próximos passos
+1. Quando o workflow da revelação terminar: ler o relato, rodar `rtk proxy npx tsc --noEmit` e a suíte inteira uma vez (falhas conhecidas sob carga: `paredesDoDesenho`, `floorContour.teto`, `hostSession.custoCom7` — rodar sozinhas antes de concluir), commitar na main, push. Instalador só se o usuário pedir (`node scripts/publicar-versao.cjs --publicar --notas <md>`, bump nos 5 manifestos).
+2. Publicar a Maquete 2.5D (ler todos os arquivos antes) e mostrar as 3 opções do mapa vivo; o usuário escolhe o que entra no app.
+3. Pendência conhecida: Playwright 1.62.1 procura chromium-1234 (instalados 1200 e 1243) — `npx playwright install` só com o ok do usuário.
+
+## Critério de pronto
+- Revelação do local: no app de dev, jogador abre pino com imagem e sem imagem; folha de contato de 12 quadros mostra moldura + porta + datilografia e a imagem inteira no fim; tudo parado ≤ 4,6 s com duração padrão; nome só atravessa com a descrição (teste de fogFilter); nota do pino descartada e nota da sala preservada (teste de mapFile); tsc 0; suíte verde salvo as medições de tempo conhecidas.
+
+## Evidência
+- v0.4.22: suíte 13341/13343 (2 falhas de tempo sob carga, verdes sozinhas 2×), tsc 0, gitleaks no leaks, latest.json 0.4.22 no endpoint; release https://github.com/GedasioSaga/labirinto-vtt/releases/tag/v0.4.22.
+- Pino A no navegador (mestre + 2 jogadores): 17×35 px em 50/100/200%, p95 16,9 ms com 4 pinos; 4 defeitos corrigidos (arrasto, alças, hover, reduzir movimento) com teste vermelho→verde.
+- Pacote v4: `node scripts/pacote-animacoes.cjs --publicar` → "assinatura confere", 5 animações; escada-madeira 21/21 testes, escada-curva 22/22.
