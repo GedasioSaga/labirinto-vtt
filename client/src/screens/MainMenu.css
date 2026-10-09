@@ -9,6 +9,11 @@
   --home-ease-out: cubic-bezier(0.23, 1, 0.32, 1);
   --home-enter: 640ms;
   position: relative;
+  /* Coluna: o palco cresce e o rodapé vem DEPOIS dele. Pregado no fundo com
+     `absolute`, o rodapé caía em cima do conteúdo quando ele passava da
+     altura da janela (aviso de recuperação + "Procurar atualizações"). */
+  display: flex;
+  flex-direction: column;
   width: 100vw;
   height: 100vh;
   overflow: hidden auto;
@@ -62,12 +67,12 @@
 /* ---- palco */
 
 .lb-home__stage {
-  min-height: 100%;
+  flex: 1 0 auto;
   display: grid;
   grid-template-columns: minmax(0, 560px) minmax(0, 1fr);
   align-items: center;
   gap: clamp(32px, 6vw, 96px);
-  padding: clamp(32px, 7vh, 88px) clamp(24px, 8vw, 120px) 72px;
+  padding: clamp(32px, 7vh, 88px) clamp(24px, 8vw, 120px) 24px;
   box-sizing: border-box;
 }
 
@@ -302,13 +307,12 @@
 /* ---- rodapé */
 
 .lb-home__foot {
-  position: absolute;
-  left: clamp(24px, 8vw, 120px);
-  bottom: 28px;
+  flex: none;
   display: flex;
   align-items: center;
   gap: 6px;
   margin: 0;
+  padding: 0 clamp(24px, 8vw, 120px) 28px;
   font-family: var(--lb-font-utility);
   font-size: 12px;
   letter-spacing: 0.08em;
