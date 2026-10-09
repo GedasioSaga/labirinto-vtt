@@ -1471,3 +1471,6 @@ Noite = esta sessão conduzida pelo main thread; o noite-runner continua encerra
 > 09/10/2026: "Perfeito, a você já faz animação dessa porta abrindo [Image #40] é um portão, fundo preto e na animação coloque como se fosse dificil abrir esse portão. Lembre-se estilo resident evil 2 antigo. E mes mostra antes de enviar."
 - Imagem 40: portão de duas folhas azul-acinzentado, tábuas verticais, bandeira em arco com grade, emblema azul-escuro (curvas tipo gaivota) cruzando as folhas.
 - Decidido: é uma TRANSIÇÃO especial (tela cheia ao atravessar pino/escada), id `portao-pesado`, "Portão pesado"; vai pelo pacote do GitHub SÓ depois que o usuário aprovar o protótipo (página publicada).
+
+> 09/10/2026: "faz duas animações uma de subindo a escada e a outra de descer a escada estilo resident evil, a ecada vai ser de madeira, vai ser estilo a de pedra só que diferen da de pedra que já existe coloca paredes de madeira do lado."
+- Decidido: duas transições do pacote, `escada-madeira` ("Escada de madeira subindo") e `escada-madeira-descendo` ("Escada de madeira descendo"), mesma cena com sentido trocado (molde da escadaria de pedra), paredes de madeira dos dois lados; um designer só para as duas, em paralelo com o portão; protótipo para aprovar antes de publicar.
