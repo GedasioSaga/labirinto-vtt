@@ -103,10 +103,10 @@ afterEach(() => {
 })
 
 /** Monta o canvas e espera o `setup` assíncrono chegar até o fim (o canvas anexado ao contêiner). */
-async function monta(): Promise<void> {
+async function monta(menuDoToken?: { tem: (tokenId: string) => boolean; abrir: (tokenId: string, x: number, y: number) => void }): Promise<void> {
   const exportador = vi.fn()
   await act(async () => {
-    root.render(<PixiCanvas onImageExporterChange={exportador} />)
+    root.render(<PixiCanvas onImageExporterChange={exportador} menuDoToken={menuDoToken} />)
   })
   // `onImageExporterChange` é das últimas coisas do setup: com ele chamado, os ouvintes estão todos ligados.
   await vi.waitFor(() => expect(exportador).toHaveBeenCalled())
@@ -212,6 +212,45 @@ describe('PixiCanvas — o clique direito na parede abre o menu da parede', () =
     await monta()
     expect(cliqueDireito({ x: 250, y: 160 })).toBe(false)
     expect(menu()).toBeNull()
+  })
+})
+
+describe('PixiCanvas — o clique direito no token de jogador abre o menu do token', () => {
+  /** O meio do Armazém: chão, longe de parede (a trava da parede não age ali). */
+  const NO_CHAO = { x: 250, y: 160 }
+
+  /** A Aira, ficha de jogador, por padrão EM CIMA da divisa: o menu dela tem de ganhar o da parede. */
+  function comAira(onde: { x: number; y: number } = NA_DIVISA): void {
+    const map = useMapStore.getState().map
+    useMapStore.setState({ map: { ...map, tokens: [{ id: 'aira', characterId: null, name: 'Aira', x: onde.x, y: onde.y, size: 1, image: null }] } })
+  }
+
+  it('contextmenu sobre o token com menu chama `abrir` com ele e o ponto, sem o menu do navegador nem o da parede', async () => {
+    comAira()
+    const abrir = vi.fn()
+    await monta({ tem: (id) => id === 'aira', abrir })
+    expect(cliqueDireito(NA_DIVISA)).toBe(true)
+    const p = naTela(NA_DIVISA)
+    expect(abrir).toHaveBeenCalledWith('aira', p.x, p.y)
+    expect(menu()).toBeNull()
+  })
+
+  it('o botão direito no token com menu não seleciona: o aperto é do menu (o esquerdo continua selecionando)', async () => {
+    comAira(NO_CHAO)
+    await monta({ tem: () => true, abrir: vi.fn() })
+    aperta(NO_CHAO, BOTAO_DIREITO)
+    expect(useMapStore.getState().selection).toEqual([])
+    aperta(NO_CHAO, BOTAO_ESQUERDO)
+    expect(useMapStore.getState().selection).toEqual([{ kind: 'token', id: 'aira' }])
+  })
+
+  it('token sem menu (NPC, ninguém controla): segue o de antes — aqui, o menu da parede embaixo dele', async () => {
+    comAira()
+    const abrir = vi.fn()
+    await monta({ tem: () => false, abrir })
+    expect(cliqueDireito(NA_DIVISA)).toBe(true)
+    expect(abrir).not.toHaveBeenCalled()
+    expect(menu()).not.toBeNull()
   })
 })
 

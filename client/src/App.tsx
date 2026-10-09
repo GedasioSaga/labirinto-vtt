@@ -1,10 +1,11 @@
-import { useEffect, useId, useMemo, useRef, useState, useSyncExternalStore, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react'
+import { useCallback, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { PixiCanvas } from './pixi/PixiCanvas'
 import { acharFichaDoFantasma } from './pixi/drawFantasmaDeTeste'
 import { ZoomHud } from './components/ZoomHud'
 import { DiceDock } from './components/DiceDock'
 import { MasterChatPanel, NO_CHAT_UNREAD, type ChatUnread } from './components/MasterChatPanel'
+import { TokenContextMenu } from './components/TokenContextMenu'
 import { useDiceStore } from './stores/diceStore'
 import { PisoHud } from './components/PisoHud'
 import { temPisos } from './lib/pisos'
@@ -686,6 +687,17 @@ function App() {
   /** "Ver todas as cenas" (ícone de expandir do cabeçalho) aberta. */
   const [cenasExpandidas, setCenasExpandidas] = useState(false)
   const [roomPlayers, setRoomPlayers] = useState<PlayerInfo[]>([])
+  /** Clique direito num token de jogador: o menu dele (Congelar, Enviar mensagem…), em px da caixa do canvas. */
+  const [tokenMenu, setTokenMenu] = useState<{ tokenId: string; x: number; y: number } | null>(null)
+  const closeTokenMenu = useCallback(() => setTokenMenu(null), [])
+  // O token sumiu (Ctrl+Z, outra cena) ou ninguém o controla mais: o menu não tem sobre o que agir.
+  const tokenDoMenu = tokenMenu === null ? undefined : map.tokens.find((token) => token.id === tokenMenu.tokenId)
+  const jogadoresDoMenu = tokenMenu === null ? [] : roomPlayers.filter((player) => player.tokenIds.includes(tokenMenu.tokenId)).map(({ playerId, name }) => ({ playerId, name }))
+  const menuDoTokenVazio = tokenMenu !== null && (tokenDoMenu === undefined || jogadoresDoMenu.length === 0)
+  // Fecha de vez: voltar à cena do token não pode reabrir sozinho um menu antigo.
+  useEffect(() => {
+    if (menuDoTokenVazio) setTokenMenu(null)
+  }, [menuDoTokenVazio])
   // "Quem vê" de cada pino com lista. O dono é a sessão do host; isto é só o que o painel desenha.
   const [pinAudiences, setPinAudiences] = useState<Record<string, string[]>>({})
   // Tela da mesa: a cena que a TV mostra (`tableSceneKey`) e quantas TVs estão conectadas.
@@ -2926,6 +2938,11 @@ function App() {
           cameraRequest={sceneCameraRequest}
           focusObstacles={canvasObstacles}
           onTravelPin={handleTravelPin}
+          menuDoToken={{
+            // Só o token que um jogador da sala controla tem o menu; nos outros fica o de sempre.
+            tem: (tokenId) => roomPlayers.some((player) => player.tokenIds.includes(tokenId)),
+            abrir: (tokenId, x, y) => setTokenMenu({ tokenId, x, y }),
+          }}
           onLaserMove={(x, y) => hostBridgeRef.current?.laserMove(x, y)}
           onNoise={(x, y) => {
             // Sala fechada devolve `null`: o aviso diz por que o ruído não saiu.
@@ -2940,6 +2957,22 @@ function App() {
           fantasmaDeTeste={fantasmaDaVisao}
           fichaDoFantasma={fichaDoFantasma}
         />
+        {tokenMenu !== null && tokenDoMenu !== undefined && jogadoresDoMenu.length > 0 && (
+          <TokenContextMenu
+            // Outro token (ou o mesmo de novo) remonta o menu, e o foco volta ao primeiro item.
+            key={`${tokenMenu.tokenId}-${tokenMenu.x}-${tokenMenu.y}`}
+            tokenName={tokenDoMenu.name}
+            x={tokenMenu.x}
+            y={tokenMenu.y}
+            congelado={tokenDoMenu.congelado === true}
+            // O mesmo caminho do "Congelar" do painel do token: Ctrl+Z desfaz, e o jogador recebe o floco no broadcast.
+            onCongelar={(congelado) => updateToken(tokenDoMenu.id, { congelado })}
+            jogadores={jogadoresDoMenu}
+            // O "Recado" do Grupo, só para ele: sem sala não há quem leia.
+            onMensagem={room === null ? undefined : (playerId, text) => hostBridgeRef.current?.playerNote(playerId, text) ?? null}
+            onClose={closeTokenMenu}
+          />
+        )}
       </div>
 
       <div className="lb-editor__top" ref={editorTopRef}>

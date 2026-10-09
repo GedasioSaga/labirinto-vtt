@@ -127,7 +127,7 @@ import {
   drawRegularPolygonDraft,
   drawLightDraft,
 } from './drawDraft'
-import { snapPointForTarget } from './tokenInteraction'
+import { findTokenAt, snapPointForTarget } from './tokenInteraction'
 import { seatTokenCenter, tokenSizeInSquares } from '../lib/tokenSize'
 import {
   isValidWallDraft,
@@ -659,6 +659,14 @@ interface PixiCanvasProps {
    */
   onTravelPin?: (pinId: string) => void
   /**
+   * MENU DO TOKEN no clique direito, com qualquer ferramenta na mão. `tem`:
+   * este token tem menu (o App decide: o de jogador tem). Nele o botão
+   * direito não deixa a ferramenta agir no `pointerdown`, e o `contextmenu`
+   * chama `abrir` (`x`/`y` em px da caixa do canvas) no lugar do menu do
+   * navegador ("Salvar imagem como") e dos da porta e da parede por baixo.
+   */
+  menuDoToken?: { tem: (tokenId: string) => boolean; abrir: (tokenId: string, x: number, y: number) => void }
+  /**
    * A3 — chamada quando Sala, Sala Circular ou Polígono Regular termina de ser
    * desenhada (a região já está no mapa e selecionada). O nome é pedido aqui
    * mesmo, num campo sobre a Sala; o App só troca o rail para a aba Mapa.
@@ -763,6 +771,7 @@ export function PixiCanvas({
   onLaserMove,
   onNoise,
   onTravelPin,
+  menuDoToken,
   focusObstacles,
   onShowShortcuts,
   onImageExporterChange,
@@ -786,6 +795,10 @@ export function PixiCanvas({
   useEffect(() => {
     onTravelPinRef.current = onTravelPin
   }, [onTravelPin])
+  const menuDoTokenRef = useRef(menuDoToken)
+  useEffect(() => {
+    menuDoTokenRef.current = menuDoToken
+  }, [menuDoToken])
   const focusObstaclesRef = useRef(focusObstacles)
   useEffect(() => {
     focusObstaclesRef.current = focusObstacles
@@ -1469,6 +1482,15 @@ export function PixiCanvas({
        * passando pela store com o mapa inteiro.
        */
       const doPisoEmEdicao = (map: MapData): MapData => mapaDoPiso(map, useMapStore.getState().pisoAtivo)
+
+      /** O token sob `ponto` (mundo) que tem menu de clique direito (`menuDoToken`), ou `null`. */
+      const tokenComMenuEm = (ponto: { x: number; y: number }): Token | null => {
+        const menu = menuDoTokenRef.current
+        if (menu === undefined) return null
+        const map = doPisoEmEdicao(useMapStore.getState().map)
+        const token = findTokenAt(visibleTokens(map.tokens, map.hiddenLayers), ponto, map.grid)
+        return token !== null && menu.tem(token.id) ? token : null
+      }
 
       const sceneState = () => {
         const state = useMapStore.getState()
@@ -4665,6 +4687,14 @@ export function PixiCanvas({
           return
         }
 
+        // Botão direito no token que tem menu (o de jogador): quem age é o
+        // menu dele, aberto pelo `contextmenu` logo depois. A ferramenta não
+        // roda — nem seleção, nem arrasto, nem traço de parede por baixo.
+        if (event.button === 2 && !direitoApagaBlocos() && tokenComMenuEm(toWorldPoint(event.global.x, event.global.y)) !== null) {
+          mode = 'idle'
+          return
+        }
+
         // Botão direito em cima de parede é o gesto do menu da parede
         // (`onContextMenu`): não pode começar, por baixo, um traço de parede,
         // uma seleção ou um arrasto. O pincel de blocos fica de fora — nele o
@@ -7044,18 +7074,31 @@ export function PixiCanvas({
        * o da parede consulta a anotação e cede — na porta, manda o menu dela.
        */
       let portaDoCliqueDireito: Wall | null = null
+      let tokenDoCliqueDireito = false
       const onContextMenu = (event: MouseEvent) => {
         portaDoCliqueDireito = null
+        tokenDoCliqueDireito = false
         if (direitoApagaBlocos()) {
           event.preventDefault()
+          return
+        }
+        const rect = el.getBoundingClientRect()
+        const local = { x: event.clientX - rect.left, y: event.clientY - rect.top }
+        const ponto = toWorldPoint(local.x, local.y)
+        // Token com menu sob o ponteiro (o de jogador: Congelar, Enviar
+        // mensagem…), que o App monta. Ele fica por cima da porta e da parede
+        // que cobre, então ganha delas.
+        const token = tokenComMenuEm(ponto)
+        if (token !== null) {
+          event.preventDefault()
+          tokenDoCliqueDireito = true
+          menuDoTokenRef.current?.abrir(token.id, local.x, local.y)
           return
         }
         // Porta sob o ponteiro, com QUALQUER ferramenta na mão: abre o menu
         // da porta (DoorContextMenu) no lugar do menu do navegador. O
         // `pointerdown` do mesmo botão já saiu sem deixar a ferramenta agir.
-        const rect = el.getBoundingClientRect()
-        const local = { x: event.clientX - rect.left, y: event.clientY - rect.top }
-        const porta = findDoorAt(doPisoEmEdicao(useMapStore.getState().map), toWorldPoint(local.x, local.y))
+        const porta = findDoorAt(doPisoEmEdicao(useMapStore.getState().map), ponto)
         if (porta === null) return
         event.preventDefault()
         portaDoCliqueDireito = porta
@@ -7065,13 +7108,13 @@ export function PixiCanvas({
       // Clique direito: no pincel de blocos ele APAGA e o menu do navegador
       // some; em cima de parede, em qualquer outra ferramenta, abre o menu
       // Abrir vão / Desabar; fora disso é o do navegador (wallGesture.ts).
-      // Se o mesmo clique já abriu o menu da porta (ouvinte acima), cede.
+      // Se o mesmo clique já abriu o menu da porta ou do token (ouvinte acima), cede.
       const desligarMenuDaParede = ligarMenuDaParede(el, {
         estado: useMapStore.getState,
         paraMundo: toWorldPoint,
         escala: () => camera.scale,
         abrir: (menu) => {
-          if (portaDoCliqueDireito !== null) return
+          if (portaDoCliqueDireito !== null || tokenDoCliqueDireito) return
           setMenuDaParede(menu)
         },
       })

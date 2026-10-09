@@ -4774,6 +4774,25 @@ label.lb-switch[data-dica-linha='aberta'] > span:first-child::after,
   color: var(--lb-color-parchment);
 }
 
+/* MENU DO TOKEN (TokenContextMenu): o mesmo do da porta, com o nome do token no
+   alto para o mestre ter certeza de em quem clicou. */
+.lb-tokenmenu__titulo {
+  max-width: 14rem;
+  margin: 0;
+  padding: 4px var(--lb-space-2) 2px;
+  overflow: hidden;
+  color: var(--lb-color-parchment-faint);
+  font-size: var(--lb-font-size-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* "Enviar mensagem…": a lista vira o campo do recado, que pede mais largura. */
+.lb-panel.lb-portamenu.lb-tokenmenu--escrevendo {
+  width: 18rem;
+  padding: var(--lb-space-2);
+}
+
 /* Confirmação de apagar: a linha inteira, no molde da de "Dar a…" do painel
    Sala, e entrando do mesmo jeito (desce da linha da cena). */
 .lb-cenas__apagar {
