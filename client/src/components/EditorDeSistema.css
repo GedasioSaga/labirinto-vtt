@@ -1,0 +1,430 @@
+/* EDITOR DE SISTEMA (entrega 6): mesma casca e mesmos tokens da ficha —
+   janela grande, seções à esquerda, rascunho à direita, regra dos dados e
+   Salvar no rodapé. */
+
+.lb-dialog.lb-sistema-editor {
+  width: min(1120px, 100%);
+  height: min(860px, calc(100vh - 2 * var(--lb-space-6)));
+}
+
+.lb-sistema-editor__topo {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.lb-sistema-editor__miolo {
+  display: grid;
+  flex: 1;
+  grid-template-columns: 184px minmax(0, 1fr);
+  min-height: 0;
+}
+
+.lb-sistema-editor__secoes {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--lb-space-3) var(--lb-space-2);
+  border-right: 1px solid var(--lb-color-line);
+  overflow-y: auto;
+}
+
+.lb-sistema-editor__secao {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--lb-space-2);
+  min-height: 34px;
+  padding: 0 var(--lb-space-3);
+  border: 0;
+  border-radius: var(--lb-radius-md);
+  background: transparent;
+  color: var(--lb-color-parchment-dim);
+  font: inherit;
+  font-size: var(--lb-font-size-md);
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background var(--lb-motion-fast) var(--lb-motion-ease),
+    color var(--lb-motion-fast) var(--lb-motion-ease);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .lb-sistema-editor__secao:hover {
+    background: var(--lb-color-stone-hover);
+    color: var(--lb-color-parchment);
+  }
+}
+
+.lb-sistema-editor__secao[aria-current='page'] {
+  background: var(--lb-color-brass-soft);
+  color: var(--lb-color-parchment);
+  box-shadow: inset 2px 0 0 var(--lb-color-brass);
+}
+
+.lb-sistema-editor__selo {
+  min-width: 18px;
+  padding: 0 5px;
+  border-radius: var(--lb-radius-full);
+  background: var(--lb-color-ember);
+  font-family: var(--lb-font-utility);
+  font-size: var(--lb-font-size-xs);
+  font-weight: var(--lb-font-weight-semibold);
+  line-height: 18px;
+  text-align: center;
+  color: var(--lb-color-stone-sunken);
+}
+
+.lb-sistema-editor__conteudo {
+  min-height: 0;
+  padding: var(--lb-space-4);
+  overflow-y: auto;
+}
+
+.lb-sistema-editor__erros {
+  margin: 0 0 var(--lb-space-3);
+  padding: var(--lb-space-2) var(--lb-space-3) var(--lb-space-2) var(--lb-space-6);
+  border-radius: var(--lb-radius-md);
+  background: var(--lb-color-ember-soft);
+  font-size: var(--lb-font-size-sm);
+  line-height: var(--lb-font-leading-normal);
+  color: var(--lb-color-parchment);
+}
+
+.lb-sistema-editor__secao-corpo {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-3);
+  max-width: 860px;
+}
+
+.lb-sistema-editor__secao-corpo > .lb-field__hint {
+  margin: 0;
+}
+
+.lb-sistema-editor__campo {
+  gap: var(--lb-space-1);
+  min-width: 0;
+}
+
+.lb-sistema-editor__campo .lb-field__hint {
+  margin: 0;
+}
+
+.lb-sistema-editor__curto {
+  max-width: 160px;
+}
+
+.lb-sistema-editor__id .lb-input[readonly] {
+  border-style: dashed;
+  background: transparent;
+  color: var(--lb-color-parchment-faint);
+}
+
+/* ------------------------------------------------------------------ Geral */
+
+.lb-sistema-editor__capa-linha {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--lb-space-4);
+}
+
+.lb-sistema__capa.lb-sistema-editor__capa {
+  flex: none;
+  width: 160px;
+  margin: 0;
+}
+
+.lb-sistema-editor__cor {
+  width: 64px;
+  height: 38px;
+  padding: 2px;
+  border: 1px solid var(--lb-color-line);
+  border-radius: var(--lb-radius-md);
+  background: var(--lb-color-stone-sunken);
+  cursor: pointer;
+}
+
+/* ----------------------------------------------------------- listas curtas */
+
+.lb-sistema-editor__lista {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.lb-sistema-editor__linha {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-3);
+  padding: var(--lb-space-3);
+  border: 1px solid var(--lb-color-line);
+  border-radius: var(--lb-radius-lg);
+  background: var(--lb-color-stone-raised);
+}
+
+.lb-sistema-editor__linha--dentro {
+  padding: var(--lb-space-2) var(--lb-space-3);
+  background: var(--lb-color-stone-sunken);
+}
+
+.lb-sistema-editor__lista--dentro {
+  gap: var(--lb-space-2);
+}
+
+.lb-sistema-editor__grade {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--lb-space-3);
+}
+
+.lb-sistema-editor__grade--3 {
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1.4fr) minmax(0, 1fr);
+}
+
+.lb-sistema-editor__linha-acoes {
+  display: flex;
+  gap: 2px;
+  justify-content: flex-end;
+}
+
+.lb-sistema-editor__tirar.lb-btn {
+  color: var(--lb-color-ember);
+}
+
+.lb-sistema-editor__mais.lb-btn {
+  align-self: flex-start;
+}
+
+.lb-sistema-editor__partes {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--lb-space-1) var(--lb-space-4);
+  margin: 0;
+  padding: var(--lb-space-2) var(--lb-space-3);
+  border: 1px solid var(--lb-color-line);
+  border-radius: var(--lb-radius-md);
+}
+
+.lb-sistema-editor__partes > legend {
+  padding: 0 var(--lb-space-1);
+}
+
+.lb-sistema-editor__campos {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-2);
+}
+
+/* Rank: inicial, limiares e o valor de teste numa linha, com a prévia no fim. */
+.lb-sistema-editor__rank {
+  display: grid;
+  grid-template-columns: 120px minmax(0, 1fr) 120px auto;
+  align-items: start;
+  gap: var(--lb-space-3);
+}
+
+.lb-sistema-editor__previa-rank {
+  align-self: start;
+  margin-top: 24px;
+  padding: 6px var(--lb-space-2);
+  border-radius: var(--lb-radius-sm);
+  background: var(--lb-color-stone-sunken);
+  font-family: var(--lb-font-utility);
+  font-size: var(--lb-font-size-md);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  color: var(--lb-color-brass);
+}
+
+/* --------------------------------------------- Catálogos e Livro: lista e detalhe */
+
+.lb-sistema-editor__catalogos {
+  flex-wrap: wrap;
+}
+
+.lb-sistema-editor__conta {
+  margin-left: 4px;
+  font-family: var(--lb-font-utility);
+  font-size: var(--lb-font-size-xs);
+  color: var(--lb-color-parchment-faint);
+}
+
+.lb-sistema-editor__mestre {
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr);
+  gap: var(--lb-space-4);
+  align-items: start;
+}
+
+.lb-sistema-editor__indice {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-2);
+}
+
+.lb-sistema-editor__nomes {
+  display: flex;
+  flex-direction: column;
+  max-height: 440px;
+  margin: 0;
+  padding: 2px;
+  overflow-y: auto;
+  border: 1px solid var(--lb-color-line);
+  border-radius: var(--lb-radius-md);
+  list-style: none;
+}
+
+.lb-sistema-editor__nome {
+  display: block;
+  width: 100%;
+  padding: 6px var(--lb-space-2);
+  border: 0;
+  border-radius: var(--lb-radius-sm);
+  background: transparent;
+  color: var(--lb-color-parchment-dim);
+  font: inherit;
+  font-size: var(--lb-font-size-md);
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .lb-sistema-editor__nome:hover {
+    background: var(--lb-color-stone-hover);
+    color: var(--lb-color-parchment);
+  }
+}
+
+.lb-sistema-editor__nome[aria-pressed='true'] {
+  background: var(--lb-color-brass-soft);
+  color: var(--lb-color-parchment);
+}
+
+.lb-sistema-editor__ordem {
+  display: inline-block;
+  min-width: 2ch;
+  font-family: var(--lb-font-utility);
+  font-variant-numeric: tabular-nums;
+  color: var(--lb-color-parchment-faint);
+}
+
+.lb-sistema-editor__detalhe {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-3);
+  min-width: 0;
+}
+
+.lb-sistema-editor__detalhe > .lb-sistema-editor__tirar {
+  align-self: flex-start;
+}
+
+.lb-sistema-editor__marca {
+  display: flex;
+  align-items: center;
+  gap: var(--lb-space-2);
+  min-height: 28px;
+  font-size: var(--lb-font-size-md);
+  color: var(--lb-color-parchment);
+  cursor: pointer;
+}
+
+.lb-sistema-editor__previa-livro {
+  padding: var(--lb-space-3) var(--lb-space-4);
+  border: 1px solid var(--lb-color-line);
+  border-radius: var(--lb-radius-lg);
+  background: var(--lb-color-stone-sunken);
+}
+
+.lb-sistema-editor__previa-titulo {
+  margin: var(--lb-space-1) 0 var(--lb-space-2);
+  font-family: var(--lb-font-display);
+  font-size: var(--lb-font-size-xl);
+  font-weight: var(--lb-font-weight-regular);
+  color: var(--lb-color-parchment);
+}
+
+/* A ficha de exemplo: a ficha de verdade, com a mesma folga da janela dela. */
+.lb-sistema-editor__previa {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-3);
+}
+
+.lb-sistema-editor__previa > .lb-field__hint {
+  margin: 0;
+}
+
+/* ----------------------------------------------------------------- rodapé */
+
+.lb-sistema-editor__rodape {
+  display: flex;
+  align-items: center;
+  gap: var(--lb-space-4);
+  padding: var(--lb-space-3) var(--lb-space-4);
+  border-top: 1px solid var(--lb-color-line);
+}
+
+.lb-sistema-editor__regra.lb-field__hint {
+  flex: 1;
+  margin: 0;
+  max-width: 640px;
+}
+
+.lb-sistema-editor__rodape-acoes {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--lb-space-2);
+  margin-left: auto;
+}
+
+.lb-sistema-editor__rodape-acoes > p {
+  margin: 0;
+  max-width: 320px;
+}
+
+/* Janela estreita: as seções viram uma faixa no topo e as grades, uma coluna. */
+@media (max-width: 760px) {
+  .lb-sistema-editor__miolo {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+
+  .lb-sistema-editor__secoes {
+    flex-direction: row;
+    overflow-x: auto;
+    border-right: 0;
+    border-bottom: 1px solid var(--lb-color-line);
+  }
+
+  .lb-sistema-editor__secao {
+    flex: none;
+  }
+
+  .lb-sistema-editor__grade,
+  .lb-sistema-editor__grade--3,
+  .lb-sistema-editor__rank,
+  .lb-sistema-editor__mestre,
+  .lb-sistema-editor__partes {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .lb-sistema-editor__previa-rank {
+    margin-top: 0;
+  }
+
+  .lb-sistema-editor__rodape {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}

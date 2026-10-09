@@ -111,12 +111,18 @@ describe('PersonagensSection', () => {
   })
 })
 
-/** O "+" da grade: o cartão de importar. */
-function mais(): HTMLButtonElement {
-  const achado = document.body.querySelector<HTMLButtonElement>('.lb-sistema--mais')
-  if (achado === null) throw new Error('o "+" da grade deveria existir')
-  return achado
+/** "Importar arquivo…" do "+" da grade: o "+" abre as três saídas (em branco, cópia, arquivo) e esta importa. */
+function importarPeloMais(): HTMLButtonElement {
+  const mais = document.body.querySelector<HTMLButtonElement>('.lb-sistema--mais')
+  if (mais === null) throw new Error('o "+" da grade deveria existir')
+  act(() => mais.click())
+  const importar = Array.from(document.body.querySelectorAll<HTMLButtonElement>('.lb-sistema-novo button')).find((botao) => botao.textContent === 'Importar arquivo…')
+  if (importar === undefined) throw new Error('o "+" aberto deveria oferecer "Importar arquivo…"')
+  return importar
 }
+
+/** As ações dos cartões (entrega 6), que estes testes não usam: `SistemasDialog.test.tsx` as cobre. */
+const SEM_ACOES = { onEditar: vi.fn(), onDuplicar: vi.fn(), onExportar: vi.fn(), onApagar: vi.fn(), ehEmbutido: (id: string) => id === 'one-piece' }
 
 describe('SistemasDialog', () => {
   let container: HTMLDivElement
@@ -136,9 +142,9 @@ describe('SistemasDialog', () => {
   it('um cartão por sistema e o "+"; tocar escolhe para a aventura e fecha', () => {
     const onEscolher = vi.fn()
     const onClose = vi.fn()
-    act(() => root.render(<SistemasDialog sistemas={[SISTEMA_ONE_PIECE]} escolhidoId={undefined} avisos={[]} onEscolher={onEscolher} onImportar={async () => null} onClose={onClose} />))
+    act(() => root.render(<SistemasDialog sistemas={[SISTEMA_ONE_PIECE]} escolhidoId={undefined} avisos={[]} onEscolher={onEscolher} onImportar={async () => null} onClose={onClose} {...SEM_ACOES} />))
     const cartoes = Array.from(document.body.querySelectorAll<HTMLButtonElement>('.lb-sistema'))
-    expect(cartoes.map((cartao) => cartao.querySelector('.lb-sistema__nome')?.textContent)).toEqual(['One Piece', 'Importar sistema…'])
+    expect(cartoes.map((cartao) => cartao.querySelector('.lb-sistema__nome')?.textContent)).toEqual(['One Piece', 'Novo sistema…'])
     expect(cartoes[0].getAttribute('aria-pressed')).toBe('false')
     act(() => cartoes[0].click())
     expect(onEscolher).toHaveBeenCalledWith('one-piece')
@@ -148,12 +154,14 @@ describe('SistemasDialog', () => {
   it('o sistema em uso vem marcado; o "+" diz o que entrou, ou a razão de não entrar', async () => {
     const importado = { ...SISTEMA_ONE_PIECE, id: 'casa', nome: 'Sistema da Casa' }
     const onImportar = vi.fn<() => Promise<typeof importado | null>>().mockResolvedValueOnce(importado).mockRejectedValueOnce(new Error('Esse arquivo não é um sistema de RPG: o sistema não tem nome.'))
-    act(() => root.render(<SistemasDialog sistemas={[SISTEMA_ONE_PIECE]} escolhidoId="one-piece" avisos={['quebrado.json: JSON inválido.']} onEscolher={vi.fn()} onImportar={onImportar} onClose={vi.fn()} />))
+    act(() => root.render(<SistemasDialog sistemas={[SISTEMA_ONE_PIECE]} escolhidoId="one-piece" avisos={['quebrado.json: JSON inválido.']} onEscolher={vi.fn()} onImportar={onImportar} onClose={vi.fn()} {...SEM_ACOES} />))
     expect(document.body.querySelector('.lb-sistema[aria-pressed="true"] .lb-sistema__uso')?.textContent).toBe('Em uso')
     expect(document.body.textContent).toContain('quebrado.json: JSON inválido.')
-    await act(async () => mais().click())
+    const importar = importarPeloMais()
+    await act(async () => importar.click())
     expect(document.body.querySelector('[role="status"]')?.textContent).toContain('Sistema da Casa entrou na biblioteca')
-    await act(async () => mais().click())
+    const importarDeNovo = importarPeloMais()
+    await act(async () => importarDeNovo.click())
     expect(document.body.querySelector('[role="alert"]')?.textContent).toContain('o sistema não tem nome')
   })
 })

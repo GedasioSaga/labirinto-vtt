@@ -1358,6 +1358,106 @@
   padding-left: var(--lb-space-4);
 }
 
+/* Cartão da biblioteca (entrega 6): o botão de escolher em cima, as ações
+   embaixo. A moldura passa do botão para o cartão — o botão de escolher e os
+   de agir não podem morar um dentro do outro. */
+.lb-sistema-cartao {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  border: 1px solid var(--lb-color-line-strong);
+  border-radius: var(--lb-radius-lg);
+  background: var(--lb-color-stone-raised);
+  transition:
+    border-color var(--lb-motion-fast) var(--lb-motion-ease),
+    transform var(--lb-motion-fast) var(--lb-motion-ease);
+}
+
+/* O aperto é do cartão inteiro, não só da metade de cima. */
+.lb-sistema-cartao:has(> .lb-sistema:active) {
+  transform: scale(0.99);
+}
+
+.lb-sistema-cartao > .lb-sistema:active:not(:disabled) {
+  transform: none;
+}
+
+.lb-sistema-cartao[data-em-uso] {
+  border-color: var(--lb-color-brass);
+  box-shadow: inset 0 0 0 1px var(--lb-color-brass);
+}
+
+.lb-sistema-cartao > .lb-sistema {
+  flex: 1;
+  height: auto;
+  min-height: 168px;
+  border: 0;
+  border-radius: var(--lb-radius-lg) var(--lb-radius-lg) 0 0;
+  background: transparent;
+}
+
+.lb-sistema-cartao > .lb-sistema[aria-pressed='true'] {
+  box-shadow: none;
+}
+
+.lb-sistema__acoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  padding: var(--lb-space-1) var(--lb-space-2);
+  border-top: 1px solid var(--lb-color-line);
+}
+
+.lb-sistema__apagar.lb-btn {
+  margin-left: auto;
+  color: var(--lb-color-ember);
+}
+
+.lb-sistema__pergunta {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-2);
+  padding: var(--lb-space-2) var(--lb-space-3) var(--lb-space-3);
+  border-top: 1px solid var(--lb-color-line);
+  border-radius: 0 0 var(--lb-radius-lg) var(--lb-radius-lg);
+  background: var(--lb-color-brass-soft);
+  font-size: var(--lb-font-size-sm);
+  line-height: var(--lb-font-leading-normal);
+  color: var(--lb-color-parchment);
+}
+
+.lb-sistema__pergunta--perigo {
+  background: var(--lb-color-ember-soft);
+}
+
+.lb-sistema__pergunta p {
+  margin: 0;
+}
+
+.lb-sistema__pergunta-acoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--lb-space-2);
+}
+
+/* O "+" aberto: em branco, cópia de outro ou arquivo, no lugar do cartão. */
+.lb-sistema-novo {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-2);
+  height: 100%;
+  min-height: 200px;
+  padding: var(--lb-space-3);
+  border: 1px dashed var(--lb-color-line-strong);
+  border-radius: var(--lb-radius-lg);
+}
+
+.lb-sistema-novo__ou {
+  align-self: center;
+  font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-parchment-faint);
+}
+
 /* ------------------------------ Sistema de RPG na janela Configurações do mapa */
 
 .lb-rpg-config__linha {

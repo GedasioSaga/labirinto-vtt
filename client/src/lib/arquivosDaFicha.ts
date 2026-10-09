@@ -1,16 +1,17 @@
-import { open } from '@tauri-apps/plugin-dialog'
+import { open, save } from '@tauri-apps/plugin-dialog'
 import { readFile, readTextFile } from '@tauri-apps/plugin-fs'
 import { invoke, isTauri } from '@tauri-apps/api/core'
 import { dirname } from '@tauri-apps/api/path'
 import { pickImageFile } from './imageImport'
+import { writeTextFileSafely } from './mapFileIO'
 import { buildTokenPhotoData } from './tokenPhoto'
 
 /**
  * Arquivos que a ficha de personagem pede ao disco do mestre: o JSON de um
- * sistema (o "+" da grade), o JSON de fichas do projeto-rpg-v2 e a imagem do
- * retrato ou da transformação. Mesmo caminho de "Escolher imagem..." do token
- * (`lib/imageImport.ts`): diálogo do sistema, `grant_fs_access` na pasta
- * escolhida e leitura pelo plugin de arquivos.
+ * sistema (o "+" da grade, e o "Exportar arquivo…" dela), o JSON de fichas do
+ * projeto-rpg-v2 e a imagem do retrato ou da transformação. Mesmo caminho de
+ * "Escolher imagem..." do token (`lib/imageImport.ts`): diálogo do sistema,
+ * `grant_fs_access` na pasta escolhida e leitura pelo plugin de arquivos.
  */
 
 export const ARQUIVO_SO_NO_APP = 'abrir arquivo só funciona no aplicativo instalado do Labirinto — no navegador a página não tem acesso aos arquivos do computador'
@@ -26,6 +27,21 @@ export async function escolherTextoJson(titulo: string, nomeDoFiltro: string): P
   if (typeof caminho !== 'string') return null
   await invoke('grant_fs_access', { path: await dirname(caminho) })
   return readTextFile(caminho)
+}
+
+/**
+ * Pede onde salvar um `.json` e grava `texto` lá; `false` quando a pessoa
+ * cancela. Lança fora do aplicativo e quando a gravação falha. A gravação é a
+ * segura (`writeTextFileSafely`): exportar por cima de um arquivo que já
+ * existia não o deixa pela metade se o disco falhar no meio.
+ */
+export async function salvarTextoJson(titulo: string, nomeDoFiltro: string, nomeSugerido: string, texto: string): Promise<boolean> {
+  if (!isTauri()) throw new Error(ARQUIVO_SO_NO_APP)
+  const caminho = await save({ title: titulo, defaultPath: `${nomeSugerido}.json`, filters: [{ name: nomeDoFiltro, extensions: ['json'] }] })
+  if (caminho === null) return false
+  await invoke('grant_fs_access', { path: await dirname(caminho) })
+  await writeTextFileSafely(caminho, texto)
+  return true
 }
 
 /**

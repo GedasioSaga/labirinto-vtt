@@ -237,7 +237,13 @@ export function idValido(value: unknown): value is string {
 }
 
 const COR_VALIDA = /^#[0-9a-fA-F]{6}$/
-const COR_PADRAO = '#7a6a52'
+/** A capa do sistema sem cor (ou com cor torta) no arquivo; e a do sistema novo do editor. */
+export const COR_PADRAO = '#7a6a52'
+
+/** `#rrggbb`: a única forma de cor que a capa aceita (o editor recusa as outras ao salvar). */
+export function corValida(value: unknown): value is string {
+  return typeof value === 'string' && COR_VALIDA.test(value)
+}
 
 const TONS: readonly TomDoRecurso[] = ['vida', 'energia', 'neutro']
 const FORMAS: readonly FormaDoCampo[] = ['paragrafo', 'linha', 'destaque']
@@ -444,7 +450,7 @@ export function lerSistemaDeRpg(value: unknown): SistemaLido {
     const { subcartoes: _orfao, ...semSub } = aba
     return semSub
   })
-  const cor = typeof value.cor === 'string' && COR_VALIDA.test(value.cor) ? value.cor : COR_PADRAO
+  const cor = corValida(value.cor) ? value.cor : COR_PADRAO
   const sistema: SistemaDeRpg = {
     formato: FORMATO_DO_SISTEMA,
     id: value.id,

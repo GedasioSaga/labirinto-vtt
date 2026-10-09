@@ -1,15 +1,20 @@
-import { escolherImagemDaFicha, escolherTextoJson } from '../lib/arquivosDaFicha'
+import { useMemo, useState } from 'react'
+import { escolherImagemDaFicha, escolherTextoJson, salvarTextoJson } from '../lib/arquivosDaFicha'
+import { ehEmbutido } from '../lib/bibliotecaDeSistemas'
+import { nomeDaCopia, rascunhoDaCopia, rascunhoDoSistema, rascunhoEmBranco, type RascunhoDoSistema } from '../lib/editorDeSistema'
+import { serializarSistema, type SistemaDeRpg } from '../lib/sistemaDeRpg'
 import { hostWorldOf, useAdventureStore } from '../stores/adventureStore'
-import { carriedItemsOf, podeLargarNoChao } from '../lib/items'
+import { carriedItemsOf } from '../lib/items'
 import { partyItemChange, tokenDoPersonagem } from '../lib/party'
 import type { AppliedItems, HostWorld } from '../net/hostSession'
 import type { CarriedItem } from '../types/map'
 import { InventarioDaFicha } from './InventarioDaFicha'
 import { useMapStore } from '../stores/mapStore'
-import { sistemaPorId, useRpgStore } from '../stores/rpgStore'
+import { sistemaPorId, useRpgStore, type AberturaDoEditor } from '../stores/rpgStore'
 import { temLivro } from '../lib/livroDeRegras'
 import { aplicarAjustes, NOME_DO_MESTRE } from '../lib/ajusteDaFicha'
 import { FichaDePersonagemDialog, type TokenParaLigar } from './FichaDePersonagemDialog'
+import { EditorDeSistemaDialog } from './EditorDeSistemaDialog'
 import { LivroDeRegrasDialog } from './LivroDeRegrasDialog'
 import { SistemasDialog } from './SistemasDialog'
 import { comAventura } from '../stores/virarAventura'
@@ -42,6 +47,7 @@ export function RpgDialogs({ aplicarItens, garantirAventura }: RpgDialogsProps) 
   const biblioteca = useRpgStore((state) => state.biblioteca)
   const avisos = useRpgStore((state) => state.avisosDaBiblioteca)
   const livroAberto = useRpgStore((state) => state.livroAberto)
+  const editorDeSistema = useRpgStore((state) => state.editorDeSistema)
 
   // A grade abre também no mapa solto (Configurações do mapa): escolher ali pergunta antes se ele vira aventura.
   const grade = sistemasAbertos && (
@@ -54,11 +60,26 @@ export function RpgDialogs({ aplicarItens, garantirAventura }: RpgDialogsProps) 
         const texto = await escolherTextoJson('Importar sistema de RPG', 'Sistema de RPG')
         return texto === null ? null : useRpgStore.getState().importarSistema(texto)
       }}
+      onEditar={(abertura) => useRpgStore.getState().abrirEditorDeSistema(abertura)}
+      onDuplicar={(sistema) => useRpgStore.getState().duplicarSistema(sistema)}
+      onExportar={(sistema) => salvarTextoJson(`Exportar ${sistema.nome}`, 'Sistema de RPG', sistema.id, serializarSistema(sistema))}
+      onApagar={(sistema) => useRpgStore.getState().apagarSistema(sistema.id)}
+      ehEmbutido={ehEmbutido}
       onClose={() => useRpgStore.getState().fecharSistemas()}
     />
   )
+  // Depois da grade: o editor abre por cima dela. Fora de aventura também — a biblioteca é do app.
+  const editor = editorDeSistema !== null && <EditorDaBiblioteca abertura={editorDeSistema} biblioteca={biblioteca} />
+
   // Ficha e livro só com aventura: os personagens e o sistema escolhido moram nela.
-  if (adventure === null) return grade
+  if (adventure === null) {
+    return (
+      <>
+        {grade}
+        {editor}
+      </>
+    )
+  }
 
   const personagem = personagemAberto === null ? undefined : (adventure.personagens ?? []).find((candidato) => candidato.id === personagemAberto)
   const sistema = sistemaPorId(biblioteca, adventure.sistemaDeRpg)
@@ -70,6 +91,7 @@ export function RpgDialogs({ aplicarItens, garantirAventura }: RpgDialogsProps) 
   return (
     <>
       {grade}
+      {editor}
       {personagem !== undefined && (
         <FichaDePersonagemDialog
           key={personagem.id}
@@ -99,6 +121,37 @@ export function RpgDialogs({ aplicarItens, garantirAventura }: RpgDialogsProps) 
   )
 }
 
+/** O rascunho com que o editor abre: o do sistema, em branco, ou a cópia com um nome que ninguém da biblioteca usa. */
+function rascunhoDaAbertura(abertura: AberturaDoEditor, biblioteca: readonly SistemaDeRpg[]): RascunhoDoSistema {
+  if (abertura.tipo === 'editar') return rascunhoDoSistema(abertura.sistema)
+  if (abertura.copiaDe === null) return rascunhoEmBranco()
+  return rascunhoDaCopia(
+    abertura.copiaDe,
+    nomeDaCopia(
+      abertura.copiaDe.nome,
+      biblioteca.map((sistema) => sistema.nome),
+    ),
+  )
+}
+
+/**
+ * O editor ligado à biblioteca. O rascunho nasce UMA vez, na abertura: o
+ * `RpgDialogs` redesenha a cada token que anda, e refazer o rascunho do One
+ * Piece (centenas de linhas) a cada passo seria trabalho jogado fora.
+ */
+function EditorDaBiblioteca({ abertura, biblioteca }: { abertura: AberturaDoEditor; biblioteca: readonly SistemaDeRpg[] }) {
+  const [inicial] = useState(() => rascunhoDaAbertura(abertura, biblioteca))
+  const idsDaBiblioteca = useMemo(() => new Set(biblioteca.map((sistema) => sistema.id)), [biblioteca])
+  return (
+    <EditorDeSistemaDialog
+      inicial={inicial}
+      idsDaBiblioteca={idsDaBiblioteca}
+      onSalvar={(sistema) => useRpgStore.getState().salvarSistema(sistema)}
+      onClose={() => useRpgStore.getState().fecharEditorDeSistema()}
+    />
+  )
+}
+
 /**
  * O inventário do personagem na ficha do mestre: a mochila do token ligado,
  * com as ações que o Grupo já tem — largar no chão (vira pino pegável onde o
@@ -121,11 +174,9 @@ function inventarioDoMestre(world: HostWorld, personagemId: string, aplicarItens
           ? undefined
           : (item, fechar) => (
               <>
-                {podeLargarNoChao(item) && (
-                  <button type="button" className="lb-btn lb-btn--compact" onClick={() => agir('devolver', item, fechar)}>
-                    Largar no chão
-                  </button>
-                )}
+                <button type="button" className="lb-btn lb-btn--compact" onClick={() => agir('devolver', item, fechar)}>
+                  Largar no chão
+                </button>
                 <button type="button" className="lb-btn lb-btn--danger lb-btn--compact" onClick={() => agir('tirar', item, fechar)}>
                   Tirar
                 </button>
